@@ -1,11 +1,12 @@
-// Copyright (C) 2022, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package mempool
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestSortedMempoolNew(t *testing.T) {
