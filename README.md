@@ -398,8 +398,9 @@ case of the `indexvm`, the custom rule support is used to set the cost for
 adding anything to state (which is a very `hypervm-specific` value).
 
 ## Future Work
-_If you want to take the lead on any of these items, please open an issue
-or reach out on the Avalanche Discord._
+_If you want to take the lead on any of these items, please
+[start a discussion](https://github.com/ava-labs/hypersdk/discussions) or reach
+out on the Avalanche Discord._
 
 * Use pre-specified state keys to process transactions in parallel (txs with no
   overlap can be processed at the same time, create conflict sets on-the-fly
