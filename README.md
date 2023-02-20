@@ -408,7 +408,7 @@ out on the Avalanche Discord._
 * Perform E2E tests and publish nightly performance benchmarks using a simple
   hypervm that just performs simple transfers (`dummyvm`)
 * Add support for Avalanche Warp Messaging (AWM) so any deployed hypervms
-  (hyperchains) can communicate with each other
+  (hyperchains) can communicate with each other ([see ava-labs/xsvm](https://github.com/ava-labs/xsvm))
 * Add a WASM runtime module to allow developers to embed smart contract
   functionality in their hypervms
 * Overhaul streaming RPC (properly heartbeat and close connections)
