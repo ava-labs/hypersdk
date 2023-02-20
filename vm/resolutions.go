@@ -1,0 +1,274 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package vm
+
+import (
+	"context"
+
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/x/merkledb"
+
+	"go.uber.org/zap"
+
+	"github.com/ava-labs/hypersdk/builder"
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/gossiper"
+	"github.com/ava-labs/hypersdk/workers"
+)
+
+var (
+	_ chain.VM                   = (*VM)(nil)
+	_ gossiper.VM                = (*VM)(nil)
+	_ builder.VM                 = (*VM)(nil)
+	_ block.ChainVM              = (*VM)(nil)
+	_ block.HeightIndexedChainVM = (*VM)(nil)
+	_ block.StateSyncableVM      = (*VM)(nil)
+)
+
+func (vm *VM) HRP() string {
+	return vm.genesis.GetHRP()
+}
+
+func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
+	return vm.actionRegistry, vm.authRegistry
+}
+
+func (vm *VM) Workers() *workers.Workers {
+	return vm.workers
+}
+
+func (vm *VM) Tracer() trace.Tracer {
+	return vm.tracer
+}
+
+func (vm *VM) Logger() logging.Logger {
+	return vm.snowCtx.Log
+}
+
+func (vm *VM) Rules(t int64) chain.Rules {
+	return vm.c.Rules(t)
+}
+
+func (vm *VM) LastAcceptedBlock() *chain.StatelessBlock {
+	return vm.lastAccepted
+}
+
+func (vm *VM) IsBootstrapped() bool {
+	return vm.bootstrapped.Get()
+}
+
+func (vm *VM) State() (*merkledb.Database, error) {
+	// As soon as synced (before ready), we can safely request data from the db.
+	if !vm.StateReady() {
+		return nil, ErrStateMissing
+	}
+	return vm.stateDB, nil
+}
+
+func (vm *VM) Mempool() chain.Mempool {
+	return vm.mempool
+}
+
+func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction) bool {
+	_, span := vm.tracer.Start(ctx, "VM.IsRepeat")
+	defer span.End()
+
+	return vm.seen.Any(txs)
+}
+
+func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
+	ctx, span := vm.tracer.Start(ctx, "VM.Verified")
+	defer span.End()
+
+	vm.metrics.unitsVerified.Add(float64(b.UnitsConsumed))
+	vm.metrics.txsVerified.Add(float64(len(b.Txs)))
+	vm.verifiedL.Lock()
+	vm.verifiedBlocks[b.ID()] = b
+	vm.verifiedL.Unlock()
+	vm.parsedBlocks.Evict(b.ID())
+	vm.mempool.Remove(ctx, b.Txs)
+	vm.snowCtx.Log.Info(
+		"verified block",
+		zap.Stringer("id", b.ID()),
+		zap.Int("txs", len(b.Txs)),
+		zap.Bool("state ready", vm.StateReady()),
+	)
+}
+
+func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
+	ctx, span := vm.tracer.Start(ctx, "VM.Rejected")
+	defer span.End()
+
+	vm.verifiedL.Lock()
+	delete(vm.verifiedBlocks, b.ID())
+	vm.verifiedL.Unlock()
+	vm.mempool.Add(ctx, b.Txs)
+
+	// TODO: handle async?
+	if err := vm.c.Rejected(context.TODO(), b); err != nil {
+		vm.snowCtx.Log.Error("rejected processing failed", zap.Error(err))
+	}
+
+	// Ensure children of block are cleared, they may never be
+	// verified
+	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
+}
+
+func (vm *VM) processAcceptedBlocks() {
+	for {
+		select {
+		case b := <-vm.acceptedQueue:
+			// We skip blocks that were not processed because metadata required to
+			// process blocks opaquely (like looking at results) is not populated.
+			//
+			// We don't need to worry about dangling messages in listeners because we
+			// don't allow subscription until the node is healthy.
+			if !b.Processed() {
+				vm.snowCtx.Log.Info("skipping unprocessed block", zap.Uint64("height", b.Hght))
+				continue
+			}
+
+			// Update controller
+			if err := vm.c.Accepted(context.TODO(), b); err != nil {
+				vm.snowCtx.Log.Error("accepted processing failed", zap.Error(err))
+			}
+
+			// Update listeners
+			vm.listeners.AcceptBlock(b)
+			// Must clear accepted txs before [SetMinTx] or else we will errnoueously
+			// send [ErrExpired] messages.
+			vm.listeners.SetMinTx(b.Tmstmp)
+			vm.snowCtx.Log.Info("updated block and tx waiters", zap.Uint64("height", b.Hght))
+
+		// TODO: Delete old blocks
+		case <-vm.stop:
+			return
+		}
+	}
+}
+
+func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
+	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
+	defer span.End()
+
+	vm.metrics.unitsAccepted.Add(float64(b.UnitsConsumed))
+	vm.metrics.txsAccepted.Add(float64(len(b.Txs)))
+	vm.blocks.Put(b.ID(), b)
+	vm.verifiedL.Lock()
+	delete(vm.verifiedBlocks, b.ID())
+	vm.verifiedL.Unlock()
+	vm.lastAccepted = b
+
+	// Update replay protection heap
+	blkTime := b.Tmstmp
+	vm.seen.SetMin(blkTime)
+	vm.seen.Add(b.Txs)
+
+	// Verify if emap is now sufficient (we need a consecutive run of blocks with
+	// timestamps of at least [ValidityWindow] for this to occur).
+	if !vm.isReady() {
+		select {
+		case <-vm.seenValidityWindow:
+			// We could not be ready but seen a window of transactions if the state
+			// to sync is large (takes longer to fetch than [ValidityWindow].
+		default:
+			if vm.startSeenTime < 0 {
+				vm.startSeenTime = blkTime
+			}
+			r := vm.Rules(blkTime)
+			if blkTime-vm.startSeenTime > r.GetValidityWindow() {
+				close(vm.seenValidityWindow)
+			}
+		}
+	}
+
+	// Update timestamp in mempool
+	//
+	// We rely on the [vm.waiters] map to notify listeners of dropped
+	// transactions instead of the mempool because we won't need to iterate
+	// through as many transactions.
+	removed := vm.mempool.SetMinTimestamp(ctx, blkTime)
+
+	// Enqueue block for processing
+	vm.acceptedQueue <- b
+
+	vm.snowCtx.Log.Info(
+		"accepted block",
+		zap.Stringer("blkID", b.ID()),
+		zap.Int("txs", len(b.Txs)),
+		zap.Int("size", len(b.Bytes())),
+		zap.Uint64("units", b.UnitsConsumed),
+		zap.Int("dropped mempool txs", len(removed)),
+		zap.Bool("state ready", vm.StateReady()),
+	)
+}
+
+func (vm *VM) AppSender() common.AppSender {
+	return vm.appSender
+}
+
+func (vm *VM) IsValidator(ctx context.Context, nid ids.NodeID) (bool, error) {
+	return vm.proposerMonitor.IsValidator(ctx, nid)
+}
+
+func (vm *VM) Proposers(ctx context.Context, diff int, depth int) (set.Set[ids.NodeID], error) {
+	return vm.proposerMonitor.Proposers(ctx, diff, depth)
+}
+
+func (vm *VM) NodeID() ids.NodeID {
+	return vm.snowCtx.NodeID
+}
+
+func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatelessBlock, error) {
+	return vm.GetStatelessBlock(ctx, vm.preferred)
+}
+
+func (vm *VM) StopChan() chan struct{} {
+	return vm.stop
+}
+
+func (vm *VM) EngineChan() chan<- common.Message {
+	return vm.toEngine
+}
+
+// Used for integration and load testing
+func (vm *VM) Builder() builder.Builder {
+	return vm.builder
+}
+
+func (vm *VM) Gossiper() gossiper.Gossiper {
+	return vm.gossiper
+}
+
+func (vm *VM) AcceptedSyncableBlock(
+	ctx context.Context,
+	sb *chain.SyncableBlock,
+) (block.StateSyncMode, error) {
+	return vm.stateSyncClient.AcceptedSyncableBlock(ctx, sb)
+}
+
+func (vm *VM) StateReady() bool {
+	if vm.stateSyncClient == nil {
+		// Can occur in test
+		return false
+	}
+	return vm.stateSyncClient.StateReady()
+}
+
+func (vm *VM) UpdateSyncTarget(b *chain.StatelessBlock) (bool, error) {
+	return vm.stateSyncClient.UpdateSyncTarget(b)
+}
+
+func (vm *VM) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummary, error) {
+	return vm.stateSyncClient.GetOngoingSyncStateSummary(ctx)
+}
+
+func (vm *VM) StateSyncEnabled(ctx context.Context) (bool, error) {
+	return vm.stateSyncClient.StateSyncEnabled(ctx)
+}
