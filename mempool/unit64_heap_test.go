@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testPayer = "testPayer"
+
 type MempoolTestItem struct {
 	id        ids.ID
 	payer     string
@@ -48,10 +50,9 @@ func TestUnit64HeapPushPopMin(t *testing.T) {
 	require := require.New(t)
 	minHeap := newUint64Heap(0, true)
 	require.Equal(minHeap.Len(), 0, "heap not initialized properly.")
-	payer := "testPayer"
-	mempoolItem1 := GenerateTestMempoolItem(payer, 1, 10)
-	mempoolItem2 := GenerateTestMempoolItem(payer, 2, 7)
-	mempoolItem3 := GenerateTestMempoolItem(payer, 3, 15)
+	mempoolItem1 := GenerateTestMempoolItem(testPayer, 1, 10)
+	mempoolItem2 := GenerateTestMempoolItem(testPayer, 2, 7)
+	mempoolItem3 := GenerateTestMempoolItem(testPayer, 3, 15)
 
 	// Middle Value
 	med := &uint64Entry{
@@ -99,11 +100,10 @@ func TestUnit64HeapPushPopMax(t *testing.T) {
 	require := require.New(t)
 	maxHeap := newUint64Heap(0, false)
 	require.Equal(maxHeap.Len(), 0, "heap not initialized properly.")
-	payer := "testPayer"
 
-	mempoolItem1 := GenerateTestMempoolItem(payer, 1, 10)
-	mempoolItem2 := GenerateTestMempoolItem(payer, 2, 7)
-	mempoolItem3 := GenerateTestMempoolItem(payer, 3, 15)
+	mempoolItem1 := GenerateTestMempoolItem(testPayer, 1, 10)
+	mempoolItem2 := GenerateTestMempoolItem(testPayer, 2, 7)
+	mempoolItem3 := GenerateTestMempoolItem(testPayer, 3, 15)
 
 	// Middle Value
 	med := &uint64Entry{
@@ -152,8 +152,7 @@ func TestUnit64HeapPushExists(t *testing.T) {
 	require := require.New(t)
 	minHeap := newUint64Heap(0, true)
 	require.Equal(minHeap.Len(), 0, "heap not initialized properly.")
-	payer := "testPayer"
-	mempoolItem := GenerateTestMempoolItem(payer, 1, 10)
+	mempoolItem := GenerateTestMempoolItem(testPayer, 1, 10)
 	entry := &uint64Entry{
 		id:    mempoolItem.ID(),
 		tx:    mempoolItem,
@@ -169,7 +168,6 @@ func TestUnit64HeapPushExists(t *testing.T) {
 	heap.Push(minHeap, entry)
 	// Only 1 item
 	require.Equal(minHeap.Len(), 1, "Not pushed correctly.")
-
 }
 
 func TestUnit64HeapGetID(t *testing.T) {
@@ -177,9 +175,8 @@ func TestUnit64HeapGetID(t *testing.T) {
 	require := require.New(t)
 	minHeap := newUint64Heap(0, true)
 	require.Equal(minHeap.Len(), 0, "heap not initialized properly.")
-	payer := "testPayer"
 
-	mempoolItem := GenerateTestMempoolItem(payer, 1, 10)
+	mempoolItem := GenerateTestMempoolItem(testPayer, 1, 10)
 	entry := &uint64Entry{
 		id:    mempoolItem.ID(),
 		tx:    mempoolItem,
@@ -200,8 +197,7 @@ func TestUnit64HeapHasID(t *testing.T) {
 	require := require.New(t)
 	minHeap := newUint64Heap(0, true)
 	require.Equal(minHeap.Len(), 0, "heap not initialized properly.")
-	payer := "testPayer"
-	mempoolItem := GenerateTestMempoolItem(payer, 1, 10)
+	mempoolItem := GenerateTestMempoolItem(testPayer, 1, 10)
 	entry := &uint64Entry{
 		id:    mempoolItem.ID(),
 		tx:    mempoolItem,

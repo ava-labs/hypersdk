@@ -20,7 +20,7 @@ type SortedMempool struct {
 }
 
 // NewSortedMempool returns an instance of SortedMempool with minHeap and maxHeap
-// contianing [items] and prioritized with [f]
+// containing [items] and prioritized with [f]
 func NewSortedMempool(items int, f func(tx MempoolItem) uint64) *SortedMempool {
 	return &SortedMempool{
 		GetValue: f,
