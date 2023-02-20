@@ -88,14 +88,14 @@ Unlike other Avalanche VMs, which store data inside `avalanchego's` root
 database, `hypervms` store different types of data (state, blocks, metadata, etc.) under
 a set of distinct paths in `avalanchego's` provided `chainData` directory.
 This structure enables anyone running a `hypervm` to employ multiple logical disk
-drives to increase a `hyperchain's`throughput (which may otherwise be capped by a single disk's IO).
+drives to increase a `hyperchain's` throughput (which may otherwise be capped by a single disk's IO).
 
 ### Optimized Block Execution Out-of-the-Box
 The `hypersdk` is primarily about an obsession with hyper-speed and
 hyper-scalability (and making it easy for developers to achieve both by
 wrapping their work in opinionated and performant abstractions).
 Developers don't care how easy it is to launch or maintain their own
-blockchain if it can't process thounsands of transactions per second with low
+blockchain if it can't process thousands of transactions per second with low
 time-to-finality. For this reason, most development time on the `hypersdk`
 thus far has been dedicated to making block verification and state management
 as fast and efficient as possible, which both play a large role in making this
@@ -141,7 +141,7 @@ or getting stuck on a transaction that was dropped by the mempool.
 
 Additionally, `hypersdk` transactions contain a time past which they can no longer be included inside
 of a `hypersdk` block. This makes it straightforward to take advantage of temporary situations on a
-`hyperchain` (if you only wanted your transaction to be valid for a few seonds) and removes
+`hyperchain` (if you only wanted your transaction to be valid for a few seconds) and removes
 the need to broadcast replacement transactions (if the fee changes or you want
 to cancel a transaction).
 
@@ -242,7 +242,7 @@ We'll use this example to explain how to use the `hypersdk` below.
 
 ## How It Works
 To use the `hypersdk`, you must import it into your own `hypervm` and implement the
-required interfaces. Below, we'll cover some of the most ones that your
+required interfaces. Below, we'll cover some of the ones that your
 `hypervm` must implement.
 
 ### Controller
@@ -423,7 +423,7 @@ out on the Avalanche Discord._
   normal execution)
 * Use a memory arena (pre-allocated memory) to avoid needing to dynamically
   allocate memory during block  and transaction parsing
-* Add a module that does Data Availability sampling on top of the netwokring
+* Add a module that does Data Availability sampling on top of the networking
   interface exposed by AvalancheGo (only store hashes in blocks but leave VM to
   fetch pieces as needed on its own)
 * Implement support for S3 and PostgreSQL storage backends
