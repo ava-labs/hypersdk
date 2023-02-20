@@ -7,7 +7,6 @@
 <p align="center">
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/unit-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/unit-tests.yml/badge.svg" /></a>
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/static-analysis.yml/badge.svg" /></a>
-  <a href="https://github.com/ava-labs/hypersdk/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ava-labs/hypersdk" /></a>
 </p>
 
 The freedom to create your own [Virtual Machine (VM)](https://docs.avax.network/subnets#virtual-machines),
