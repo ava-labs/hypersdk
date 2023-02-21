@@ -121,18 +121,11 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 }
 
 func (vm *VM) processAcceptedBlocks() {
-	for {
-		// The VM closes this channel during shutdown. We wait for all enqueued blocks
-		// to be processed before returning as a guarantee to listeners (which may
-		// persist indexed state) instead of just exiting as soon as `vm.stop` is
-		// closed.
-		b, closed := <-vm.acceptedQueue
-		if closed {
-			close(vm.acceptorDone)
-			vm.snowCtx.Log.Info("acceptor queue shutdown")
-			return
-		}
-
+	// The VM closes [acceptedQueue] during shutdown. We wait for all enqueued blocks
+	// to be processed before returning as a guarantee to listeners (which may
+	// persist indexed state) instead of just exiting as soon as `vm.stop` is
+	// closed.
+	for b := range vm.acceptedQueue {
 		// We skip blocks that were not processed because metadata required to
 		// process blocks opaquely (like looking at results) is not populated.
 		//
@@ -155,6 +148,8 @@ func (vm *VM) processAcceptedBlocks() {
 		vm.listeners.SetMinTx(b.Tmstmp)
 		vm.snowCtx.Log.Info("updated block and tx waiters", zap.Uint64("height", b.Hght))
 	}
+	close(vm.acceptorDone)
+	vm.snowCtx.Log.Info("acceptor queue shutdown")
 }
 
 func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
