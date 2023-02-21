@@ -129,6 +129,7 @@ func (vm *VM) processAcceptedBlocks() {
 		b, closed := <-vm.acceptedQueue
 		if closed {
 			close(vm.acceptorDone)
+			vm.snowCtx.Log.Info("acceptor queue shutdown")
 			return
 		}
 
