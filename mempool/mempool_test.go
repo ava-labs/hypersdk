@@ -22,12 +22,12 @@ func TestMempool(t *testing.T) {
 	txm := New(tracer, 3, 16, nil)
 
 	for _, i := range []uint64{100, 200, 300, 400} {
-		item := GenerateTestMempoolItem(testPayer, 1, i)
-		items := []MempoolItem{item}
+		item := GenerateTestItem(testPayer, 1, i)
+		items := []Item{item}
 		txm.Add(ctx, items)
 	}
-	require.Equal(uint64(400), txm.PeekMax(ctx).Value())
-	require.Equal(uint64(200), txm.PeekMin(ctx).Value())
+	require.Equal(uint64(400), txm.PeekMax(ctx).UnitPrice())
+	require.Equal(uint64(200), txm.PeekMin(ctx).UnitPrice())
 	require.Equal(3, txm.Len(ctx))
 }
 
@@ -39,12 +39,12 @@ func TestMempoolAddDuplicates(t *testing.T) {
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	txm := New(tracer, 3, 16, nil)
 	// Generate item
-	item := GenerateTestMempoolItem(testPayer, 1, 300)
-	items := []MempoolItem{item}
+	item := GenerateTestItem(testPayer, 1, 300)
+	items := []Item{item}
 	txm.Add(ctx, items)
 	require.Equal(1, txm.Len(ctx), "Item not added.")
-	require.Equal(uint64(300), txm.PeekMax(ctx).Value())
-	require.Equal(uint64(300), txm.PeekMin(ctx).Value())
+	require.Equal(uint64(300), txm.PeekMax(ctx).UnitPrice())
+	require.Equal(uint64(300), txm.PeekMin(ctx).UnitPrice())
 	// Add again
 	txm.Add(ctx, items)
 	require.Equal(1, txm.Len(ctx), "Item not added.")
@@ -65,9 +65,9 @@ func TestMempoolAddExceedMaxPayerSize(t *testing.T) {
 	txm := New(tracer, 20, 4, [][]byte{exemptPayers})
 	// Add 6 transactions for each payer
 	for i := uint64(0); i <= 5; i++ {
-		itemPayer := GenerateTestMempoolItem(payer, 1, i)
-		itemExempt := GenerateTestMempoolItem(exemptPayer, 1, i)
-		items := []MempoolItem{itemPayer, itemExempt}
+		itemPayer := GenerateTestItem(payer, 1, i)
+		itemExempt := GenerateTestItem(exemptPayer, 1, i)
+		items := []Item{itemPayer, itemExempt}
 		txm.Add(ctx, items)
 	}
 	require.Equal(10, txm.Len(ctx), "Mempool has incorrect txs.")
@@ -85,16 +85,16 @@ func TestMempoolAddExceedMaxSize(t *testing.T) {
 	txm := New(tracer, 3, 20, nil)
 	// Add more tx's than txm.maxSize
 	for i := uint64(0); i <= 9; i++ {
-		item := GenerateTestMempoolItem(testPayer, 1, i)
-		items := []MempoolItem{item}
+		item := GenerateTestItem(testPayer, 1, i)
+		items := []Item{item}
 		txm.Add(ctx, items)
-		// Since Value() is increasing, tx should be included
+		// Since UnitPrice() is increasing, tx should be included
 		require.True(txm.Has(ctx, item.ID()), "TX not included")
 	}
 	// Pop and check values
 	for i := uint64(7); i <= 9; i++ {
 		popped := txm.PopMin(ctx)
-		require.Equal(i, popped.Value(), "Mempool did not pop correct tx.")
+		require.Equal(i, popped.UnitPrice(), "Mempool did not pop correct tx.")
 	}
 	_, ok := txm.owned[testPayer]
 	require.False(ok, "Payer not removed from owned.")
@@ -110,13 +110,13 @@ func TestMempoolRemoveTxs(t *testing.T) {
 
 	txm := New(tracer, 3, 20, nil)
 	// Add
-	item := GenerateTestMempoolItem(testPayer, 1, 10)
-	items := []MempoolItem{item}
+	item := GenerateTestItem(testPayer, 1, 10)
+	items := []Item{item}
 	txm.Add(ctx, items)
 	require.True(txm.Has(ctx, item.ID()), "TX not included")
 	// Remove
-	itemNotIn := GenerateTestMempoolItem(testPayer, 1, 10)
-	items = []MempoolItem{item, itemNotIn}
+	itemNotIn := GenerateTestItem(testPayer, 1, 10)
+	items = []Item{item, itemNotIn}
 	txm.Remove(ctx, items)
 	require.Equal(0, txm.Len(ctx), "Mempool has incorrect number of txs.")
 }
@@ -130,10 +130,10 @@ func TestMempoolRemoveAccount(t *testing.T) {
 
 	txm := New(tracer, 3, 20, nil)
 	// Add
-	item1 := GenerateTestMempoolItem(testPayer, 1, 10)
-	item2 := GenerateTestMempoolItem(testPayer, 1, 20)
+	item1 := GenerateTestItem(testPayer, 1, 10)
+	item2 := GenerateTestItem(testPayer, 1, 20)
 
-	items := []MempoolItem{item1, item2}
+	items := []Item{item1, item2}
 	txm.Add(ctx, items)
 	require.True(txm.Has(ctx, item1.ID()), "TX not included")
 	require.True(txm.Has(ctx, item2.ID()), "TX not included")
@@ -153,8 +153,8 @@ func TestMempoolSetMinTimestamp(t *testing.T) {
 	txm := New(tracer, 20, 20, nil)
 	// Add more tx's than txm.maxSize
 	for i := int64(0); i <= 9; i++ {
-		item := GenerateTestMempoolItem(testPayer, i, 10)
-		items := []MempoolItem{item}
+		item := GenerateTestItem(testPayer, i, 10)
+		items := []Item{item}
 		txm.Add(ctx, items)
 		require.True(txm.Has(ctx, item.ID()), "TX not included")
 	}

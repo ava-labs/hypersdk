@@ -271,7 +271,7 @@ func (th *Mempool) Build(
 		if removeAccount {
 			// We remove the account typically when the next execution results in an
 			// invalid balance
-			th.removeAccount(max.GetPayer())
+			th.removeAccount(max.Payer())
 		}
 		if !cont || fErr != nil {
 			err = fErr

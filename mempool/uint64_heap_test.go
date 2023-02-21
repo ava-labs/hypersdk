@@ -17,32 +17,32 @@ type MempoolTestItem struct {
 	id        ids.ID
 	payer     string
 	timestamp int64
-	val       uint64
+	unitPrice uint64
 }
 
 func (mti *MempoolTestItem) ID() ids.ID {
 	return mti.id
 }
 
-func (mti *MempoolTestItem) GetPayer() string {
+func (mti *MempoolTestItem) Payer() string {
 	return mti.payer
 }
 
-func (mti *MempoolTestItem) Value() uint64 {
-	return mti.val
+func (mti *MempoolTestItem) UnitPrice() uint64 {
+	return mti.unitPrice
 }
 
 func (mti *MempoolTestItem) Expiry() int64 {
 	return mti.timestamp
 }
 
-func GenerateTestMempoolItem(payer string, t int64, val uint64) *MempoolTestItem {
+func GenerateTestItem(payer string, t int64, unitPrice uint64) *MempoolTestItem {
 	id := ids.GenerateTestID()
 	return &MempoolTestItem{
 		id:        id,
 		payer:     payer,
 		timestamp: t,
-		val:       val,
+		unitPrice: unitPrice,
 	}
 }
 
@@ -50,29 +50,29 @@ func TestUnit64HeapPushPopMin(t *testing.T) {
 	require := require.New(t)
 	minHeap := newUint64Heap(0, true)
 	require.Equal(minHeap.Len(), 0, "heap not initialized properly.")
-	mempoolItem1 := GenerateTestMempoolItem(testPayer, 1, 10)
-	mempoolItem2 := GenerateTestMempoolItem(testPayer, 2, 7)
-	mempoolItem3 := GenerateTestMempoolItem(testPayer, 3, 15)
+	mempoolItem1 := GenerateTestItem(testPayer, 1, 10)
+	mempoolItem2 := GenerateTestItem(testPayer, 2, 7)
+	mempoolItem3 := GenerateTestItem(testPayer, 3, 15)
 
-	// Middle Value
+	// Middle UnitPrice
 	med := &uint64Entry{
 		id:    mempoolItem1.ID(),
 		tx:    mempoolItem1,
-		val:   mempoolItem1.Value(),
+		val:   mempoolItem1.UnitPrice(),
 		index: minHeap.Len(),
 	}
-	// Lesser Value
+	// Lesser UnitPrice
 	low := &uint64Entry{
 		id:    mempoolItem2.ID(),
 		tx:    mempoolItem2,
-		val:   mempoolItem2.Value(),
+		val:   mempoolItem2.UnitPrice(),
 		index: minHeap.Len(),
 	}
-	// Greatest Value
+	// Greatest UnitPrice
 	high := &uint64Entry{
 		id:    mempoolItem3.ID(),
 		tx:    mempoolItem3,
-		val:   mempoolItem3.Value(),
+		val:   mempoolItem3.UnitPrice(),
 		index: minHeap.Len(),
 	}
 	heap.Push(minHeap, med)
@@ -101,29 +101,29 @@ func TestUnit64HeapPushPopMax(t *testing.T) {
 	maxHeap := newUint64Heap(0, false)
 	require.Equal(maxHeap.Len(), 0, "heap not initialized properly.")
 
-	mempoolItem1 := GenerateTestMempoolItem(testPayer, 1, 10)
-	mempoolItem2 := GenerateTestMempoolItem(testPayer, 2, 7)
-	mempoolItem3 := GenerateTestMempoolItem(testPayer, 3, 15)
+	mempoolItem1 := GenerateTestItem(testPayer, 1, 10)
+	mempoolItem2 := GenerateTestItem(testPayer, 2, 7)
+	mempoolItem3 := GenerateTestItem(testPayer, 3, 15)
 
-	// Middle Value
+	// Middle UnitPrice
 	med := &uint64Entry{
 		id:    mempoolItem1.ID(),
 		tx:    mempoolItem1,
-		val:   mempoolItem1.Value(),
+		val:   mempoolItem1.UnitPrice(),
 		index: maxHeap.Len(),
 	}
-	// Lesser Value
+	// Lesser UnitPrice
 	low := &uint64Entry{
 		id:    mempoolItem2.ID(),
 		tx:    mempoolItem2,
-		val:   mempoolItem2.Value(),
+		val:   mempoolItem2.UnitPrice(),
 		index: maxHeap.Len(),
 	}
-	// Greatest Value
+	// Greatest UnitPrice
 	high := &uint64Entry{
 		id:    mempoolItem3.ID(),
 		tx:    mempoolItem3,
-		val:   mempoolItem3.Value(),
+		val:   mempoolItem3.UnitPrice(),
 		index: maxHeap.Len(),
 	}
 	heap.Push(maxHeap, med)
@@ -152,11 +152,11 @@ func TestUnit64HeapPushExists(t *testing.T) {
 	require := require.New(t)
 	minHeap := newUint64Heap(0, true)
 	require.Equal(minHeap.Len(), 0, "heap not initialized properly.")
-	mempoolItem := GenerateTestMempoolItem(testPayer, 1, 10)
+	mempoolItem := GenerateTestItem(testPayer, 1, 10)
 	entry := &uint64Entry{
 		id:    mempoolItem.ID(),
 		tx:    mempoolItem,
-		val:   mempoolItem.Value(),
+		val:   mempoolItem.UnitPrice(),
 		index: minHeap.Len(),
 	}
 	heap.Push(minHeap, entry)
@@ -176,11 +176,11 @@ func TestUnit64HeapGetID(t *testing.T) {
 	minHeap := newUint64Heap(0, true)
 	require.Equal(minHeap.Len(), 0, "heap not initialized properly.")
 
-	mempoolItem := GenerateTestMempoolItem(testPayer, 1, 10)
+	mempoolItem := GenerateTestItem(testPayer, 1, 10)
 	entry := &uint64Entry{
 		id:    mempoolItem.ID(),
 		tx:    mempoolItem,
-		val:   mempoolItem.Value(),
+		val:   mempoolItem.UnitPrice(),
 		index: minHeap.Len(),
 	}
 	_, ok := minHeap.GetID(mempoolItem.ID())
@@ -197,11 +197,11 @@ func TestUnit64HeapHasID(t *testing.T) {
 	require := require.New(t)
 	minHeap := newUint64Heap(0, true)
 	require.Equal(minHeap.Len(), 0, "heap not initialized properly.")
-	mempoolItem := GenerateTestMempoolItem(testPayer, 1, 10)
+	mempoolItem := GenerateTestItem(testPayer, 1, 10)
 	entry := &uint64Entry{
 		id:    mempoolItem.ID(),
 		tx:    mempoolItem,
-		val:   mempoolItem.Value(),
+		val:   mempoolItem.UnitPrice(),
 		index: minHeap.Len(),
 	}
 	ok := minHeap.HasID(mempoolItem.ID())

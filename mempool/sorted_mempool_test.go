@@ -12,7 +12,7 @@ import (
 func TestSortedMempoolNew(t *testing.T) {
 	// Creates empty min and max heaps
 	require := require.New(t)
-	sortedMempool := NewSortedMempool(0, func(tx MempoolItem) uint64 { return tx.Value() })
+	sortedMempool := NewSortedMempool(0, func(tx Item) uint64 { return tx.UnitPrice() })
 	require.Equal(sortedMempool.minHeap.Len(), 0, "MinHeap not initialized correctly")
 	require.Equal(sortedMempool.maxHeap.Len(), 0, "MaxHeap not initialized correctly")
 }
@@ -20,8 +20,8 @@ func TestSortedMempoolNew(t *testing.T) {
 func TestSortedMempoolAdd(t *testing.T) {
 	// Adds to the mempool.
 	require := require.New(t)
-	sortedMempool := NewSortedMempool(0, func(tx MempoolItem) uint64 { return tx.Value() })
-	mempoolItem := GenerateTestMempoolItem("payer", 1, 10)
+	sortedMempool := NewSortedMempool(0, func(tx Item) uint64 { return tx.UnitPrice() })
+	mempoolItem := GenerateTestItem("payer", 1, 10)
 	sortedMempool.Add(mempoolItem)
 	require.Equal(sortedMempool.minHeap.Len(), 1, "MaxHeap not pushed correctly")
 	require.Equal(sortedMempool.maxHeap.Len(), 1, "MaxHeap not pushed correctly")
@@ -32,8 +32,8 @@ func TestSortedMempoolAdd(t *testing.T) {
 func TestSortedMempoolRemove(t *testing.T) {
 	// Removes from the mempool.
 	require := require.New(t)
-	sortedMempool := NewSortedMempool(0, func(tx MempoolItem) uint64 { return tx.Value() })
-	mempoolItem := GenerateTestMempoolItem("payer", 1, 10)
+	sortedMempool := NewSortedMempool(0, func(tx Item) uint64 { return tx.UnitPrice() })
+	mempoolItem := GenerateTestItem("payer", 1, 10)
 	// Add first
 	sortedMempool.Add(mempoolItem)
 	require.Equal(sortedMempool.minHeap.Len(), 1, "MaxHeap not pushed correctly")
@@ -52,8 +52,8 @@ func TestSortedMempoolRemoveEmpty(t *testing.T) {
 	// Try to remove a non existing entry.
 	// Removes from the mempool.
 	require := require.New(t)
-	sortedMempool := NewSortedMempool(0, func(tx MempoolItem) uint64 { return tx.Value() })
-	mempoolItem := GenerateTestMempoolItem("payer", 1, 10)
+	sortedMempool := NewSortedMempool(0, func(tx Item) uint64 { return tx.UnitPrice() })
+	mempoolItem := GenerateTestItem("payer", 1, 10)
 	// Require this returns
 	sortedMempool.Remove(mempoolItem.ID())
 	require.True(true, "not true")
@@ -62,9 +62,9 @@ func TestSortedMempoolRemoveEmpty(t *testing.T) {
 func TestSetMinVal(t *testing.T) {
 	require := require.New(t)
 	payer := "payer"
-	sortedMempool := NewSortedMempool(0, func(tx MempoolItem) uint64 { return tx.Value() })
+	sortedMempool := NewSortedMempool(0, func(tx Item) uint64 { return tx.UnitPrice() })
 	for i := uint64(0); i <= 9; i++ {
-		item := GenerateTestMempoolItem(payer, 1, i)
+		item := GenerateTestItem(payer, 1, i)
 		sortedMempool.Add(item)
 		require.True(sortedMempool.Has(item.ID()), "TX not included")
 	}
@@ -74,10 +74,10 @@ func TestSetMinVal(t *testing.T) {
 	// All timestamps less than 5
 	seen := make(map[uint64]bool)
 	for _, item := range removed {
-		require.True(item.Value() < 5)
-		_, ok := seen[item.Value()]
+		require.True(item.UnitPrice() < 5)
+		_, ok := seen[item.UnitPrice()]
 		require.False(ok, "Incorrect item removed.")
-		seen[item.Value()] = true
+		seen[item.UnitPrice()] = true
 	}
 	// Mempool has same length
 	require.Equal(5, sortedMempool.Len(), "Mempool has incorrect number of txs.")
@@ -86,10 +86,10 @@ func TestSetMinVal(t *testing.T) {
 func TestSetMinValRemovesAll(t *testing.T) {
 	require := require.New(t)
 	payer := "payer"
-	sortedMempool := NewSortedMempool(0, func(tx MempoolItem) uint64 { return tx.Value() })
-	var items []MempoolItem
+	sortedMempool := NewSortedMempool(0, func(tx Item) uint64 { return tx.UnitPrice() })
+	var items []Item
 	for i := uint64(0); i <= 4; i++ {
-		item := GenerateTestMempoolItem(payer, 1, i)
+		item := GenerateTestItem(payer, 1, i)
 		items = append(items, item)
 		sortedMempool.Add(item)
 		require.True(sortedMempool.Has(item.ID()), "TX not included")
@@ -103,12 +103,12 @@ func TestSetMinValRemovesAll(t *testing.T) {
 
 func TestPeekMin(t *testing.T) {
 	require := require.New(t)
-	sortedMempool := NewSortedMempool(0, func(tx MempoolItem) uint64 { return tx.Value() })
+	sortedMempool := NewSortedMempool(0, func(tx Item) uint64 { return tx.UnitPrice() })
 
-	itemMin := GenerateTestMempoolItem(testPayer, 1, 1)
-	itemMed := GenerateTestMempoolItem(testPayer, 1, 2)
-	itemMax := GenerateTestMempoolItem(testPayer, 1, 3)
-	require.Nil(sortedMempool.PeekMin(), "Peek Value is incorrect")
+	itemMin := GenerateTestItem(testPayer, 1, 1)
+	itemMed := GenerateTestItem(testPayer, 1, 2)
+	itemMax := GenerateTestItem(testPayer, 1, 3)
+	require.Nil(sortedMempool.PeekMin(), "Peek UnitPrice is incorrect")
 	// Check PeekMin
 	sortedMempool.Add(itemMed)
 	require.True(sortedMempool.Has(itemMed.ID()), "TX not included")
@@ -126,12 +126,12 @@ func TestPeekMin(t *testing.T) {
 func TestPeekMax(t *testing.T) {
 	require := require.New(t)
 
-	sortedMempool := NewSortedMempool(0, func(tx MempoolItem) uint64 { return tx.Value() })
+	sortedMempool := NewSortedMempool(0, func(tx Item) uint64 { return tx.UnitPrice() })
 
-	itemMin := GenerateTestMempoolItem(testPayer, 1, 1)
-	itemMed := GenerateTestMempoolItem(testPayer, 1, 2)
-	itemMax := GenerateTestMempoolItem(testPayer, 1, 3)
-	require.Nil(sortedMempool.PeekMax(), "Peek Value is incorrect")
+	itemMin := GenerateTestItem(testPayer, 1, 1)
+	itemMed := GenerateTestItem(testPayer, 1, 2)
+	itemMax := GenerateTestItem(testPayer, 1, 3)
+	require.Nil(sortedMempool.PeekMax(), "Peek UnitPrice is incorrect")
 	// Check PeekMin
 	sortedMempool.Add(itemMed)
 	require.True(sortedMempool.Has(itemMed.ID()), "TX not included")
@@ -149,11 +149,11 @@ func TestPeekMax(t *testing.T) {
 func TestPopMin(t *testing.T) {
 	require := require.New(t)
 
-	sortedMempool := NewSortedMempool(0, func(tx MempoolItem) uint64 { return tx.Value() })
+	sortedMempool := NewSortedMempool(0, func(tx Item) uint64 { return tx.UnitPrice() })
 
-	itemMin := GenerateTestMempoolItem(testPayer, 1, 1)
-	itemMed := GenerateTestMempoolItem(testPayer, 1, 2)
-	itemMax := GenerateTestMempoolItem(testPayer, 1, 3)
+	itemMin := GenerateTestItem(testPayer, 1, 1)
+	itemMed := GenerateTestItem(testPayer, 1, 2)
+	itemMax := GenerateTestItem(testPayer, 1, 3)
 	require.Nil(sortedMempool.PopMin(), "Pop value is incorrect")
 	// Check PeekMin
 	sortedMempool.Add(itemMed)
@@ -167,11 +167,11 @@ func TestPopMin(t *testing.T) {
 func TestPopMax(t *testing.T) {
 	require := require.New(t)
 
-	sortedMempool := NewSortedMempool(0, func(tx MempoolItem) uint64 { return tx.Value() })
+	sortedMempool := NewSortedMempool(0, func(tx Item) uint64 { return tx.UnitPrice() })
 
-	itemMin := GenerateTestMempoolItem(testPayer, 1, 1)
-	itemMed := GenerateTestMempoolItem(testPayer, 1, 2)
-	itemMax := GenerateTestMempoolItem(testPayer, 1, 3)
+	itemMin := GenerateTestItem(testPayer, 1, 1)
+	itemMed := GenerateTestItem(testPayer, 1, 2)
+	itemMax := GenerateTestItem(testPayer, 1, 3)
 	require.Nil(sortedMempool.PopMax(), "Pop value is incorrect")
 	// Check PeekMin
 	sortedMempool.Add(itemMed)
@@ -186,8 +186,8 @@ func TestPopMax(t *testing.T) {
 func TestHas(t *testing.T) {
 	require := require.New(t)
 
-	sortedMempool := NewSortedMempool(0, func(tx MempoolItem) uint64 { return tx.Value() })
-	item := GenerateTestMempoolItem(testPayer, 1, 1)
+	sortedMempool := NewSortedMempool(0, func(tx Item) uint64 { return tx.UnitPrice() })
+	item := GenerateTestItem(testPayer, 1, 1)
 	require.False(sortedMempool.Has(item.ID()), "Found an item that was not added.")
 	sortedMempool.Add(item)
 	require.True(sortedMempool.Has(item.ID()), "Did not find item.")
@@ -196,9 +196,9 @@ func TestHas(t *testing.T) {
 func TestLen(t *testing.T) {
 	require := require.New(t)
 
-	sortedMempool := NewSortedMempool(0, func(tx MempoolItem) uint64 { return tx.Value() })
+	sortedMempool := NewSortedMempool(0, func(tx Item) uint64 { return tx.UnitPrice() })
 	for i := uint64(0); i <= 4; i++ {
-		item := GenerateTestMempoolItem(testPayer, 1, 10)
+		item := GenerateTestItem(testPayer, 1, 10)
 		sortedMempool.Add(item)
 		require.True(sortedMempool.Has(item.ID()), "TX not included")
 	}
