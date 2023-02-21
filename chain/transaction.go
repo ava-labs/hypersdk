@@ -17,8 +17,10 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-var _ emap.Item = (*Transaction)(nil)
-var _ mempool.Item = (*Transaction)(nil)
+var (
+	_ emap.Item    = (*Transaction)(nil)
+	_ mempool.Item = (*Transaction)(nil)
+)
 
 type Transaction struct {
 	Base   *Base  `json:"base"`

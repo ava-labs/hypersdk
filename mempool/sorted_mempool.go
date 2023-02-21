@@ -87,7 +87,7 @@ func (sm *SortedMempool[T]) SetMinVal(val uint64) []T {
 // PeekMin returns the minimum value in sm.
 func (sm *SortedMempool[T]) PeekMin() (T, bool) {
 	if sm.minHeap.Len() == 0 {
-		return *new(T), false
+		return *new(T), false //nolint:gocritic
 	}
 	return sm.minHeap.items[0].item, true
 }
@@ -95,7 +95,7 @@ func (sm *SortedMempool[T]) PeekMin() (T, bool) {
 // PopMin removes the minimum value in sm.
 func (sm *SortedMempool[T]) PopMin() (T, bool) {
 	if sm.minHeap.Len() == 0 {
-		return *new(T), false
+		return *new(T), false //nolint:gocritic
 	}
 	item := sm.minHeap.items[0].item
 	sm.Remove(item.ID())
@@ -105,7 +105,7 @@ func (sm *SortedMempool[T]) PopMin() (T, bool) {
 // PopMin returms the maximum value in sm.
 func (sm *SortedMempool[T]) PeekMax() (T, bool) {
 	if sm.Len() == 0 {
-		return *new(T), false
+		return *new(T), false //nolint:gocritic
 	}
 	return sm.maxHeap.items[0].item, true
 }
@@ -113,7 +113,7 @@ func (sm *SortedMempool[T]) PeekMax() (T, bool) {
 // PopMin removes the maximum value in sm.
 func (sm *SortedMempool[T]) PopMax() (T, bool) {
 	if sm.Len() == 0 {
-		return *new(T), false
+		return *new(T), false //nolint:gocritic
 	}
 	item := sm.maxHeap.items[0].item
 	sm.Remove(item.ID())
