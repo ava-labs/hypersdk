@@ -47,7 +47,7 @@ func TestBlockCache(t *testing.T) {
 		blocks:         &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: 3},
 		verifiedBlocks: make(map[ids.ID]*chain.StatelessBlock),
 		seen:           emap.NewEMap[*chain.Transaction](),
-		mempool:        mempool.New(tracer, 100, 32, nil),
+		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32, nil),
 		acceptedQueue:  make(chan *chain.StatelessBlock, 1024), // don't block on queue
 		c:              controller,
 	}

@@ -9,22 +9,20 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
-
-	"github.com/ava-labs/hypersdk/chain"
 )
 
-type Mempool struct {
+type Mempool[T Item] struct {
 	tracer trace.Tracer
 
 	mu sync.RWMutex
 
 	maxSize      int
-	maxPayerSize int
+	maxPayerSize int // Maximum items allowed by a single payer
 
-	pm *SortedMempool
-	tm *SortedMempool
+	pm *SortedMempool[T] // Price Mempool
+	tm *SortedMempool[T] // Time Mempool
 
-	// [Owned] used to remove all txs from an account when the balance is
+	// [Owned] used to remove all items from an account when the balance is
 	// insufficient
 	owned map[string]map[ids.ID]struct{}
 
@@ -34,20 +32,25 @@ type Mempool struct {
 
 // New creates a new [Mempool]. [maxSize] must be > 0 or else the
 // implementation may panic.
-func New(tracer trace.Tracer, maxSize int, maxPayerSize int, exemptPayers [][]byte) *Mempool {
-	m := &Mempool{
+func New[T Item](
+	tracer trace.Tracer,
+	maxSize int,
+	maxPayerSize int,
+	exemptPayers [][]byte,
+) *Mempool[T] {
+	m := &Mempool[T]{
 		tracer: tracer,
 
 		maxSize:      maxSize,
 		maxPayerSize: maxPayerSize,
 
-		pm: NewSortedMempool(
+		pm: NewSortedMempool[T](
 			maxSize, /* pre-allocate total size */
-			func(tx *chain.Transaction) uint64 { return tx.Base.UnitPrice },
+			func(item T) uint64 { return item.UnitPrice() },
 		),
-		tm: NewSortedMempool(
+		tm: NewSortedMempool[T](
 			maxSize, /* pre-allocate total size */
-			func(tx *chain.Transaction) uint64 { return uint64(tx.Base.Timestamp) },
+			func(item T) uint64 { return uint64(item.Expiry()) },
 		),
 		owned:        map[string]map[ids.ID]struct{}{},
 		exemptPayers: map[string]struct{}{},
@@ -58,40 +61,45 @@ func New(tracer trace.Tracer, maxSize int, maxPayerSize int, exemptPayers [][]by
 	return m
 }
 
-func (th *Mempool) removeFromOwned(tx *chain.Transaction) {
-	sender := tx.GetPayer()
+func (th *Mempool[T]) removeFromOwned(item T) {
+	sender := item.Payer()
 	acct, ok := th.owned[sender]
 	if !ok {
 		// May no longer be populated
 		return
 	}
-	delete(acct, tx.ID())
+	delete(acct, item.ID())
 	if len(acct) == 0 {
 		delete(th.owned, sender)
 	}
 }
 
-func (th *Mempool) Has(ctx context.Context, txID ids.ID) bool {
+// Has returns if the pm of [th] contains [itemID]
+func (th *Mempool[T]) Has(ctx context.Context, itemID ids.ID) bool {
 	_, span := th.tracer.Start(ctx, "Mempool.Has")
 	defer span.End()
 
 	th.mu.Lock()
 	defer th.mu.Unlock()
-	return th.pm.Has(txID)
+	return th.pm.Has(itemID)
 }
 
-func (th *Mempool) Add(ctx context.Context, txs []*chain.Transaction) {
+// Add pushes all new items from [items] to th. Does not add a item if
+// the item payer is not exempt and their items in the mempool exceed th.maxPayerSize.
+// If the size of th exceeds th.maxSize, Add pops the lowest value item
+// from th.pm.
+func (th *Mempool[T]) Add(ctx context.Context, items []T) {
 	_, span := th.tracer.Start(ctx, "Mempool.Add")
 	defer span.End()
 
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	for _, tx := range txs {
-		sender := tx.GetPayer()
+	for _, item := range items {
+		sender := item.Payer()
 
 		// Ensure no duplicate
-		if th.pm.Has(tx.ID()) {
+		if th.pm.Has(item.ID()) {
 			// Don't drop because already exists
 			continue
 		}
@@ -104,24 +112,25 @@ func (th *Mempool) Add(ctx context.Context, txs []*chain.Transaction) {
 		}
 		_, exempt := th.exemptPayers[sender]
 		if !exempt && len(acct) == th.maxPayerSize {
-			continue // do nothing, wait for txs to expire
+			continue // do nothing, wait for items to expire
 		}
-		th.pm.Add(tx)
-		th.tm.Add(tx)
-		acct[tx.ID()] = struct{}{}
+		th.pm.Add(item)
+		th.tm.Add(item)
+		acct[item.ID()] = struct{}{}
 
-		// Remove the lowest paying tx if at global max
+		// Remove the lowest paying item if at global max
 		if th.pm.Len() > th.maxSize {
-			// Remove the lowest paying tx
-			lowTx := th.pm.PopMin()
-			th.tm.Remove(lowTx.ID())
-			th.removeFromOwned(lowTx)
+			// Remove the lowest paying item
+			lowItem, _ := th.pm.PopMin()
+			th.tm.Remove(lowItem.ID())
+			th.removeFromOwned(lowItem)
 		}
 	}
 }
 
+// PeekMax returns the highest valued item in th.pm.
 // Assumes there is non-zero items in [Mempool]
-func (th *Mempool) PeekMax(ctx context.Context) *chain.Transaction {
+func (th *Mempool[T]) PeekMax(ctx context.Context) (T, bool) {
 	_, span := th.tracer.Start(ctx, "Mempool.PeekMax")
 	defer span.End()
 
@@ -131,8 +140,9 @@ func (th *Mempool) PeekMax(ctx context.Context) *chain.Transaction {
 	return th.pm.PeekMax()
 }
 
+// PeekMin returns the lowest valued item in th.pm.
 // Assumes there is non-zero items in [Mempool]
-func (th *Mempool) PeekMin(ctx context.Context) *chain.Transaction {
+func (th *Mempool[T]) PeekMin(ctx context.Context) (T, bool) {
 	_, span := th.tracer.Start(ctx, "Mempool.PeekMin")
 	defer span.End()
 
@@ -142,51 +152,59 @@ func (th *Mempool) PeekMin(ctx context.Context) *chain.Transaction {
 	return th.pm.PeekMin()
 }
 
+// PopMax removes and returns the highest valued item in th.pm.
 // Assumes there is non-zero items in [Mempool]
-func (th *Mempool) PopMax(ctx context.Context) *chain.Transaction { // O(log N)
+func (th *Mempool[T]) PopMax(ctx context.Context) (T, bool) { // O(log N)
 	_, span := th.tracer.Start(ctx, "Mempool.PopMax")
 	defer span.End()
 
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	max := th.pm.PopMax()
-	th.tm.Remove(max.ID())
-	th.removeFromOwned(max)
-	return max
+	max, ok := th.pm.PopMax()
+	if ok {
+		th.tm.Remove(max.ID())
+		th.removeFromOwned(max)
+	}
+	return max, ok
 }
 
+// PopMin removes and returns the lowest valued item in th.pm.
 // Assumes there is non-zero items in [Mempool]
-func (th *Mempool) PopMin(ctx context.Context) *chain.Transaction { // O(log N)
+func (th *Mempool[T]) PopMin(ctx context.Context) (T, bool) { // O(log N)
 	_, span := th.tracer.Start(ctx, "Mempool.PopMin")
 	defer span.End()
 
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	min := th.pm.PopMin()
-	th.tm.Remove(min.ID())
-	th.removeFromOwned(min)
-	return min
+	min, ok := th.pm.PopMin()
+	if ok {
+		th.tm.Remove(min.ID())
+		th.removeFromOwned(min)
+	}
+	return min, ok
 }
 
-func (th *Mempool) Remove(ctx context.Context, txs []*chain.Transaction) {
+// Remove removes [items] from th.
+func (th *Mempool[T]) Remove(ctx context.Context, items []T) {
 	_, span := th.tracer.Start(ctx, "Mempool.Remove")
 	defer span.End()
 
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	for _, tx := range txs {
-		th.pm.Remove(tx.ID())
-		th.tm.Remove(tx.ID())
-		th.removeFromOwned(tx)
+	for _, item := range items {
+		th.pm.Remove(item.ID())
+		th.tm.Remove(item.ID())
+		th.removeFromOwned(item)
 		// Remove is called when verifying a block. We should not drop transactions at
 		// this time.
 	}
 }
 
-func (th *Mempool) Len(ctx context.Context) int {
+// Len returns the number of items in th.
+func (th *Mempool[T]) Len(ctx context.Context) int {
 	_, span := th.tracer.Start(ctx, "Mempool.Len")
 	defer span.End()
 
@@ -196,7 +214,8 @@ func (th *Mempool) Len(ctx context.Context) int {
 	return th.pm.Len()
 }
 
-func (th *Mempool) RemoveAccount(ctx context.Context, sender string) {
+// RemoveAccount removes all items by [sender] from th.
+func (th *Mempool[T]) RemoveAccount(ctx context.Context, sender string) {
 	_, span := th.tracer.Start(ctx, "Mempool.RemoveAccount")
 	defer span.End()
 
@@ -206,19 +225,21 @@ func (th *Mempool) RemoveAccount(ctx context.Context, sender string) {
 	th.removeAccount(sender)
 }
 
-func (th *Mempool) removeAccount(sender string) {
+func (th *Mempool[T]) removeAccount(sender string) {
 	acct, ok := th.owned[sender]
 	if !ok {
 		return
 	}
-	for tx := range acct {
-		th.pm.Remove(tx)
-		th.tm.Remove(tx)
+	for item := range acct {
+		th.pm.Remove(item)
+		th.tm.Remove(item)
 	}
 	delete(th.owned, sender)
 }
 
-func (th *Mempool) SetMinTimestamp(ctx context.Context, t int64) []*chain.Transaction {
+// SetMinTimestamp removes all items with a lower expiry than [t] from th.
+// SetMinTimestamp returns the list of removed items.
+func (th *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 	_, span := th.tracer.Start(ctx, "Mempool.SetMinTimesamp")
 	defer span.End()
 
@@ -233,9 +254,9 @@ func (th *Mempool) SetMinTimestamp(ctx context.Context, t int64) []*chain.Transa
 	return removed
 }
 
-func (th *Mempool) Build(
+func (th *Mempool[T]) Build(
 	ctx context.Context,
-	f func(context.Context, *chain.Transaction) (cont bool, restore bool, removeAcct bool, err error),
+	f func(context.Context, T) (cont bool, restore bool, removeAcct bool, err error),
 ) error {
 	ctx, span := th.tracer.Start(ctx, "Mempool.Build")
 	defer span.End()
@@ -243,15 +264,15 @@ func (th *Mempool) Build(
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	restorableTxs := []*chain.Transaction{}
+	restorableItems := []T{}
 	var err error
 	for th.pm.Len() > 0 {
-		max := th.pm.PopMax()
+		max, _ := th.pm.PopMax()
 		cont, restore, removeAccount, fErr := f(ctx, max)
 		if restore {
 			// Waiting to restore unused transactions ensures that an account will be
 			// excluded from future price mempool iterations
-			restorableTxs = append(restorableTxs, max)
+			restorableItems = append(restorableItems, max)
 		} else {
 			th.tm.Remove(max.ID())
 			th.removeFromOwned(max)
@@ -259,17 +280,17 @@ func (th *Mempool) Build(
 		if removeAccount {
 			// We remove the account typically when the next execution results in an
 			// invalid balance
-			th.removeAccount(max.GetPayer())
+			th.removeAccount(max.Payer())
 		}
 		if !cont || fErr != nil {
 			err = fErr
 			break
 		}
 	}
-
-	// Restore unused txs
-	for _, tx := range restorableTxs {
-		th.pm.Add(tx)
+	//
+	// Restore unused items
+	for _, item := range restorableItems {
+		th.pm.Add(item)
 	}
 	return err
 }
