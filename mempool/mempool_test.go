@@ -29,9 +29,9 @@ func TestMempool(t *testing.T) {
 	max, ok := txm.PeekMax(ctx)
 	require.True(ok)
 	require.Equal(uint64(400), max.UnitPrice())
-	max, ok = txm.PeekMax(ctx)
+	min, ok := txm.PeekMin(ctx)
 	require.True(ok)
-	require.Equal(uint64(200), max.UnitPrice())
+	require.Equal(uint64(200), min.UnitPrice())
 	require.Equal(3, txm.Len(ctx))
 }
 
