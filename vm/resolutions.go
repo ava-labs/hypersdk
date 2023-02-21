@@ -121,36 +121,35 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 }
 
 func (vm *VM) processAcceptedBlocks() {
-	for {
-		select {
-		case b := <-vm.acceptedQueue:
-			// We skip blocks that were not processed because metadata required to
-			// process blocks opaquely (like looking at results) is not populated.
-			//
-			// We don't need to worry about dangling messages in listeners because we
-			// don't allow subscription until the node is healthy.
-			if !b.Processed() {
-				vm.snowCtx.Log.Info("skipping unprocessed block", zap.Uint64("height", b.Hght))
-				continue
-			}
-
-			// Update controller
-			if err := vm.c.Accepted(context.TODO(), b); err != nil {
-				vm.snowCtx.Log.Error("accepted processing failed", zap.Error(err))
-			}
-
-			// Update listeners
-			vm.listeners.AcceptBlock(b)
-			// Must clear accepted txs before [SetMinTx] or else we will errnoueously
-			// send [ErrExpired] messages.
-			vm.listeners.SetMinTx(b.Tmstmp)
-			vm.snowCtx.Log.Info("updated block and tx waiters", zap.Uint64("height", b.Hght))
-
-		// TODO: Delete old blocks
-		case <-vm.stop:
-			return
+	// The VM closes [acceptedQueue] during shutdown. We wait for all enqueued blocks
+	// to be processed before returning as a guarantee to listeners (which may
+	// persist indexed state) instead of just exiting as soon as `vm.stop` is
+	// closed.
+	for b := range vm.acceptedQueue {
+		// We skip blocks that were not processed because metadata required to
+		// process blocks opaquely (like looking at results) is not populated.
+		//
+		// We don't need to worry about dangling messages in listeners because we
+		// don't allow subscription until the node is healthy.
+		if !b.Processed() {
+			vm.snowCtx.Log.Info("skipping unprocessed block", zap.Uint64("height", b.Hght))
+			continue
 		}
+
+		// Update controller
+		if err := vm.c.Accepted(context.TODO(), b); err != nil {
+			vm.snowCtx.Log.Error("accepted processing failed", zap.Error(err))
+		}
+
+		// Update listeners
+		vm.listeners.AcceptBlock(b)
+		// Must clear accepted txs before [SetMinTx] or else we will errnoueously
+		// send [ErrExpired] messages.
+		vm.listeners.SetMinTx(b.Tmstmp)
+		vm.snowCtx.Log.Info("updated block and tx waiters", zap.Uint64("height", b.Hght))
 	}
+	close(vm.acceptorDone)
+	vm.snowCtx.Log.Info("acceptor queue shutdown")
 }
 
 func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
