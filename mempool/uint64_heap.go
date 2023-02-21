@@ -9,17 +9,17 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
-type MempoolItem interface {
+type Item interface {
 	ID() ids.ID
-	GetPayer() string
+	Payer() string
 	Expiry() int64
-	Value() uint64
+	UnitPrice() uint64
 }
 
 type uint64Entry struct {
-	id  ids.ID      // id of entry
-	tx  MempoolItem // associated tx
-	val uint64      // value to be prioritized
+	id  ids.ID // id of entry
+	tx  Item   // associated tx
+	val uint64 // value to be prioritized
 
 	index int // index of the entry in heap
 }

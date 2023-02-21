@@ -12,11 +12,13 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ emap.Item = (*Transaction)(nil)
+var _ mempool.Item = (*Transaction)(nil)
 
 type Transaction struct {
 	Base   *Base  `json:"base"`
@@ -89,7 +91,7 @@ func (t *Transaction) ID() ids.ID { return t.id }
 
 func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 
-func (t *Transaction) Value() uint64 { return t.Base.UnitPrice }
+func (t *Transaction) UnitPrice() uint64 { return t.Base.UnitPrice }
 
 // It is ok to have duplicate ReadKeys...the processor will skip them
 func (t *Transaction) StateKeys() [][]byte {
@@ -193,7 +195,7 @@ func (t *Transaction) Execute(
 }
 
 // Used by mempool
-func (t *Transaction) GetPayer() string {
+func (t *Transaction) Payer() string {
 	return string(t.Auth.Payer())
 }
 
