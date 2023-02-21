@@ -11,45 +11,45 @@ import (
 
 // SortedMempool contains a max-heap and min-heap. The order within each
 // heap is determined by using GetValue.
-type SortedMempool struct {
+type SortedMempool[T Item] struct {
 	// GetValue informs heaps how to get the an entry's value for ordering.
-	GetValue func(tx Item) uint64
+	GetValue func(item T) uint64
 
-	minHeap *uint64Heap // only includes lowest nonce
-	maxHeap *uint64Heap // only includes lowest nonce
+	minHeap *uint64Heap[T] // only includes lowest nonce
+	maxHeap *uint64Heap[T] // only includes lowest nonce
 }
 
 // NewSortedMempool returns an instance of SortedMempool with minHeap and maxHeap
 // containing [items] and prioritized with [f]
-func NewSortedMempool(items int, f func(tx Item) uint64) *SortedMempool {
-	return &SortedMempool{
+func NewSortedMempool[T Item](items int, f func(item T) uint64) *SortedMempool[T] {
+	return &SortedMempool[T]{
 		GetValue: f,
-		minHeap:  newUint64Heap(items, true),
-		maxHeap:  newUint64Heap(items, false),
+		minHeap:  newUint64Heap[T](items, true),
+		maxHeap:  newUint64Heap[T](items, false),
 	}
 }
 
-// Add pushes [tx] to sm.
-func (sm *SortedMempool) Add(tx Item) {
-	txID := tx.ID()
+// Add pushes [item] to sm.
+func (sm *SortedMempool[T]) Add(item T) {
+	itemID := item.ID()
 	poolLen := sm.maxHeap.Len()
-	val := sm.GetValue(tx)
-	heap.Push(sm.maxHeap, &uint64Entry{
-		id:    txID,
+	val := sm.GetValue(item)
+	heap.Push(sm.maxHeap, &uint64Entry[T]{
+		id:    itemID,
 		val:   val,
-		tx:    tx,
+		item:  item,
 		index: poolLen,
 	})
-	heap.Push(sm.minHeap, &uint64Entry{
-		id:    txID,
+	heap.Push(sm.minHeap, &uint64Entry[T]{
+		id:    itemID,
 		val:   val,
-		tx:    tx,
+		item:  item,
 		index: poolLen,
 	})
 }
 
 // Remove removes [id] from sm. If the id does not exist, Remove returns.
-func (sm *SortedMempool) Remove(id ids.ID) {
+func (sm *SortedMempool[T]) Remove(id ids.ID) {
 	maxEntry, ok := sm.maxHeap.GetID(id) // O(1)
 	if !ok {
 		return
@@ -67,11 +67,11 @@ func (sm *SortedMempool) Remove(id ids.ID) {
 // SetMinVal removes all elements in sm with a value less than [val]. Returns
 // the list of removed elements.
 // TDOD: add lock to prevent concurrent access
-func (sm *SortedMempool) SetMinVal(val uint64) []Item {
-	removed := []Item{}
+func (sm *SortedMempool[T]) SetMinVal(val uint64) []T {
+	removed := []T{}
 	for {
-		min := sm.PeekMin()
-		if min == nil {
+		min, ok := sm.PeekMin()
+		if !ok {
 			break
 		}
 		if sm.GetValue(min) < val {
@@ -84,48 +84,48 @@ func (sm *SortedMempool) SetMinVal(val uint64) []Item {
 	return removed
 }
 
-// PopMin removes the minimum value in sm.
-func (sm *SortedMempool) PeekMin() Item {
+// PeekMin returns the minimum value in sm.
+func (sm *SortedMempool[T]) PeekMin() (T, bool) {
 	if sm.minHeap.Len() == 0 {
-		return nil
+		return *new(T), false //nolint:gocritic
 	}
-	return sm.minHeap.items[0].tx
+	return sm.minHeap.items[0].item, true
 }
 
 // PopMin removes the minimum value in sm.
-func (sm *SortedMempool) PopMin() Item {
+func (sm *SortedMempool[T]) PopMin() (T, bool) {
 	if sm.minHeap.Len() == 0 {
-		return nil
+		return *new(T), false //nolint:gocritic
 	}
-	tx := sm.minHeap.items[0].tx
-	sm.Remove(tx.ID())
-	return tx
+	item := sm.minHeap.items[0].item
+	sm.Remove(item.ID())
+	return item, true
 }
 
 // PopMin returms the maximum value in sm.
-func (sm *SortedMempool) PeekMax() Item {
+func (sm *SortedMempool[T]) PeekMax() (T, bool) {
 	if sm.Len() == 0 {
-		return nil
+		return *new(T), false //nolint:gocritic
 	}
-	return sm.maxHeap.items[0].tx
+	return sm.maxHeap.items[0].item, true
 }
 
 // PopMin removes the maximum value in sm.
-func (sm *SortedMempool) PopMax() Item {
+func (sm *SortedMempool[T]) PopMax() (T, bool) {
 	if sm.Len() == 0 {
-		return nil
+		return *new(T), false //nolint:gocritic
 	}
-	tx := sm.maxHeap.items[0].tx
-	sm.Remove(tx.ID())
-	return tx
+	item := sm.maxHeap.items[0].item
+	sm.Remove(item.ID())
+	return item, true
 }
 
-// Has returns if [tx] is in sm.
-func (sm *SortedMempool) Has(tx ids.ID) bool {
-	return sm.minHeap.HasID(tx)
+// Has returns if [item] is in sm.
+func (sm *SortedMempool[T]) Has(item ids.ID) bool {
+	return sm.minHeap.HasID(item)
 }
 
 // Len returns the number of elements in sm.
-func (sm *SortedMempool) Len() int {
+func (sm *SortedMempool[T]) Len() int {
 	return sm.minHeap.Len()
 }

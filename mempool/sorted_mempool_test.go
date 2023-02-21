@@ -108,19 +108,27 @@ func TestPeekMin(t *testing.T) {
 	itemMin := GenerateTestItem(testPayer, 1, 1)
 	itemMed := GenerateTestItem(testPayer, 1, 2)
 	itemMax := GenerateTestItem(testPayer, 1, 3)
-	require.Nil(sortedMempool.PeekMin(), "Peek UnitPrice is incorrect")
+	min, ok := sortedMempool.PeekMin()
+	require.False(ok)
+	require.Nil(min, "Peek UnitPrice is incorrect")
 	// Check PeekMin
 	sortedMempool.Add(itemMed)
 	require.True(sortedMempool.Has(itemMed.ID()), "TX not included")
-	require.Equal(itemMed, sortedMempool.PeekMin(), "Peek value is incorrect")
+	min, ok = sortedMempool.PeekMin()
+	require.True(ok)
+	require.Equal(itemMed, min, "Peek value is incorrect")
 
 	sortedMempool.Add(itemMin)
 	require.True(sortedMempool.Has(itemMin.ID()), "TX not included")
-	require.Equal(itemMin, sortedMempool.PeekMin(), "Peek value is incorrect")
+	min, ok = sortedMempool.PeekMin()
+	require.True(ok)
+	require.Equal(itemMin, min, "Peek value is incorrect")
 
 	sortedMempool.Add(itemMax)
 	require.True(sortedMempool.Has(itemMax.ID()), "TX not included")
-	require.Equal(itemMin, sortedMempool.PeekMin(), "Peek value is incorrect")
+	min, ok = sortedMempool.PeekMin()
+	require.True(ok)
+	require.Equal(itemMin, min, "Peek value is incorrect")
 }
 
 func TestPeekMax(t *testing.T) {
@@ -131,19 +139,27 @@ func TestPeekMax(t *testing.T) {
 	itemMin := GenerateTestItem(testPayer, 1, 1)
 	itemMed := GenerateTestItem(testPayer, 1, 2)
 	itemMax := GenerateTestItem(testPayer, 1, 3)
-	require.Nil(sortedMempool.PeekMax(), "Peek UnitPrice is incorrect")
+	max, ok := sortedMempool.PeekMax()
+	require.False(ok)
+	require.Nil(max, "Peek UnitPrice is incorrect")
 	// Check PeekMin
 	sortedMempool.Add(itemMed)
 	require.True(sortedMempool.Has(itemMed.ID()), "TX not included")
-	require.Equal(itemMed, sortedMempool.PeekMax(), "Peek value is incorrect")
+	max, ok = sortedMempool.PeekMax()
+	require.True(ok)
+	require.Equal(itemMed, max, "Peek value is incorrect")
 
 	sortedMempool.Add(itemMin)
 	require.True(sortedMempool.Has(itemMin.ID()), "TX not included")
-	require.Equal(itemMed, sortedMempool.PeekMax(), "Peek value is incorrect")
+	max, ok = sortedMempool.PeekMax()
+	require.True(ok)
+	require.Equal(itemMed, max, "Peek value is incorrect")
 
 	sortedMempool.Add(itemMax)
 	require.True(sortedMempool.Has(itemMax.ID()), "TX not included")
-	require.Equal(itemMax, sortedMempool.PeekMax(), "Peek value is incorrect")
+	max, ok = sortedMempool.PeekMax()
+	require.True(ok)
+	require.Equal(itemMax, max, "Peek value is incorrect")
 }
 
 func TestPopMin(t *testing.T) {
@@ -154,14 +170,22 @@ func TestPopMin(t *testing.T) {
 	itemMin := GenerateTestItem(testPayer, 1, 1)
 	itemMed := GenerateTestItem(testPayer, 1, 2)
 	itemMax := GenerateTestItem(testPayer, 1, 3)
-	require.Nil(sortedMempool.PopMin(), "Pop value is incorrect")
+	min, ok := sortedMempool.PopMin()
+	require.False(ok)
+	require.Nil(min, "Pop value is incorrect")
 	// Check PeekMin
 	sortedMempool.Add(itemMed)
 	sortedMempool.Add(itemMin)
 	sortedMempool.Add(itemMax)
-	require.Equal(itemMin, sortedMempool.PopMin(), "PopMin value is incorrect")
-	require.Equal(itemMed, sortedMempool.PopMin(), "PopMin value is incorrect")
-	require.Equal(itemMax, sortedMempool.PopMin(), "PopMin value is incorrect")
+	min, ok = sortedMempool.PopMin()
+	require.True(ok)
+	require.Equal(itemMin, min, "PopMin value is incorrect")
+	min, ok = sortedMempool.PopMin()
+	require.True(ok)
+	require.Equal(itemMed, min, "PopMin value is incorrect")
+	min, ok = sortedMempool.PopMin()
+	require.True(ok)
+	require.Equal(itemMax, min, "PopMin value is incorrect")
 }
 
 func TestPopMax(t *testing.T) {
@@ -172,15 +196,23 @@ func TestPopMax(t *testing.T) {
 	itemMin := GenerateTestItem(testPayer, 1, 1)
 	itemMed := GenerateTestItem(testPayer, 1, 2)
 	itemMax := GenerateTestItem(testPayer, 1, 3)
-	require.Nil(sortedMempool.PopMax(), "Pop value is incorrect")
+	max, ok := sortedMempool.PopMax()
+	require.False(ok)
+	require.Nil(max, "Pop value is incorrect")
 	// Check PeekMin
 	sortedMempool.Add(itemMed)
 	sortedMempool.Add(itemMin)
 	sortedMempool.Add(itemMax)
 
-	require.Equal(itemMax, sortedMempool.PopMax(), "PopMin value is incorrect")
-	require.Equal(itemMed, sortedMempool.PopMax(), "PopMin value is incorrect")
-	require.Equal(itemMin, sortedMempool.PopMax(), "PopMin value is incorrect")
+	max, ok = sortedMempool.PopMax()
+	require.True(ok)
+	require.Equal(itemMax, max, "PopMin value is incorrect")
+	max, ok = sortedMempool.PopMax()
+	require.True(ok)
+	require.Equal(itemMed, max, "PopMin value is incorrect")
+	max, ok = sortedMempool.PopMax()
+	require.True(ok)
+	require.Equal(itemMin, max, "PopMin value is incorrect")
 }
 
 func TestHas(t *testing.T) {
