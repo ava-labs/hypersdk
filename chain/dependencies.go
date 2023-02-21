@@ -61,7 +61,7 @@ type VM interface {
 
 type Mempool interface {
 	Len(context.Context) int
-	Add(context.Context, []mempool.MempoolItem)
+	Add(context.Context, []mempool.Item)
 	Build(
 		context.Context,
 		func(context.Context, *Transaction) (bool /* continue */, bool /* restore */, bool /* remove account */, error),

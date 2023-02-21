@@ -41,11 +41,11 @@ func New(tracer trace.Tracer, maxSize int, maxPayerSize int, exemptPayers [][]by
 
 		pm: NewSortedMempool(
 			maxSize, /* pre-allocate total size */
-			func(tx MempoolItem) uint64 { return tx.Value() },
+			func(tx Item) uint64 { return tx.UnitPrice() },
 		),
 		tm: NewSortedMempool(
 			maxSize, /* pre-allocate total size */
-			func(tx MempoolItem) uint64 { return uint64(tx.Expiry()) },
+			func(tx Item) uint64 { return uint64(tx.Expiry()) },
 		),
 		owned:        map[string]map[ids.ID]struct{}{},
 		exemptPayers: map[string]struct{}{},
@@ -56,8 +56,8 @@ func New(tracer trace.Tracer, maxSize int, maxPayerSize int, exemptPayers [][]by
 	return m
 }
 
-func (th *Mempool) removeFromOwned(tx MempoolItem) {
-	sender := tx.GetPayer()
+func (th *Mempool) removeFromOwned(tx Item) {
+	sender := tx.Payer()
 	acct, ok := th.owned[sender]
 	if !ok {
 		// May no longer be populated
@@ -83,7 +83,7 @@ func (th *Mempool) Has(ctx context.Context, txID ids.ID) bool {
 // the tx payer is not exempt and their txs in the mempool exceed th.maxPayerSize.
 // If the size of th exceeds th.maxSize, Add pops the lowest value item
 // from th.pm.
-func (th *Mempool) Add(ctx context.Context, txs []MempoolItem) {
+func (th *Mempool) Add(ctx context.Context, txs []Item) {
 	_, span := th.tracer.Start(ctx, "Mempool.Add")
 	defer span.End()
 
@@ -91,7 +91,7 @@ func (th *Mempool) Add(ctx context.Context, txs []MempoolItem) {
 	defer th.mu.Unlock()
 
 	for _, tx := range txs {
-		sender := tx.GetPayer()
+		sender := tx.Payer()
 
 		// Ensure no duplicate
 		if th.pm.Has(tx.ID()) {
@@ -125,7 +125,7 @@ func (th *Mempool) Add(ctx context.Context, txs []MempoolItem) {
 
 // PeekMax returns the highest valued item in th.pm.
 // Assumes there is non-zero items in [Mempool]
-func (th *Mempool) PeekMax(ctx context.Context) MempoolItem {
+func (th *Mempool) PeekMax(ctx context.Context) Item {
 	_, span := th.tracer.Start(ctx, "Mempool.PeekMax")
 	defer span.End()
 
@@ -137,7 +137,7 @@ func (th *Mempool) PeekMax(ctx context.Context) MempoolItem {
 
 // PeekMin returns the lowest valued item in th.pm.
 // Assumes there is non-zero items in [Mempool]
-func (th *Mempool) PeekMin(ctx context.Context) MempoolItem {
+func (th *Mempool) PeekMin(ctx context.Context) Item {
 	_, span := th.tracer.Start(ctx, "Mempool.PeekMin")
 	defer span.End()
 
@@ -149,7 +149,7 @@ func (th *Mempool) PeekMin(ctx context.Context) MempoolItem {
 
 // PopMax removes and returns the highest valued item in th.pm.
 // Assumes there is non-zero items in [Mempool]
-func (th *Mempool) PopMax(ctx context.Context) MempoolItem { // O(log N)
+func (th *Mempool) PopMax(ctx context.Context) Item { // O(log N)
 	_, span := th.tracer.Start(ctx, "Mempool.PopMax")
 	defer span.End()
 
@@ -164,7 +164,7 @@ func (th *Mempool) PopMax(ctx context.Context) MempoolItem { // O(log N)
 
 // PopMin removes and returns the lowest valued item in th.pm.
 // Assumes there is non-zero items in [Mempool]
-func (th *Mempool) PopMin(ctx context.Context) MempoolItem { // O(log N)
+func (th *Mempool) PopMin(ctx context.Context) Item { // O(log N)
 	_, span := th.tracer.Start(ctx, "Mempool.PopMin")
 	defer span.End()
 
@@ -178,7 +178,7 @@ func (th *Mempool) PopMin(ctx context.Context) MempoolItem { // O(log N)
 }
 
 // Remove removes [txs] from th.
-func (th *Mempool) Remove(ctx context.Context, txs []MempoolItem) {
+func (th *Mempool) Remove(ctx context.Context, txs []Item) {
 	_, span := th.tracer.Start(ctx, "Mempool.Remove")
 	defer span.End()
 
@@ -230,7 +230,7 @@ func (th *Mempool) removeAccount(sender string) {
 
 // SetMinTimestamp removes all txs with a lower expiry than [t] from th.
 // SetMinTimestamp returns the list of removed txs.
-func (th *Mempool) SetMinTimestamp(ctx context.Context, t int64) []MempoolItem {
+func (th *Mempool) SetMinTimestamp(ctx context.Context, t int64) []Item {
 	_, span := th.tracer.Start(ctx, "Mempool.SetMinTimesamp")
 	defer span.End()
 
@@ -247,7 +247,7 @@ func (th *Mempool) SetMinTimestamp(ctx context.Context, t int64) []MempoolItem {
 
 func (th *Mempool) Build(
 	ctx context.Context,
-	f func(context.Context, MempoolItem) (cont bool, restore bool, removeAcct bool, err error),
+	f func(context.Context, Item) (cont bool, restore bool, removeAcct bool, err error),
 ) error {
 	ctx, span := th.tracer.Start(ctx, "Mempool.Build")
 	defer span.End()
@@ -255,7 +255,7 @@ func (th *Mempool) Build(
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	restorableTxs := []MempoolItem{}
+	restorableTxs := []Item{}
 	var err error
 	for th.pm.Len() > 0 {
 		max := th.pm.PopMax()
