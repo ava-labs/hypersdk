@@ -401,6 +401,11 @@ func (vm *VM) onNormalOperationsStarted() error {
 func (vm *VM) Shutdown(_ context.Context) error {
 	close(vm.stop)
 
+	// Shutdown state sync client if still running
+	if err := vm.stateSyncClient.Shutdown(); err != nil {
+		return err
+	}
+
 	// Process remaining accepted blocks before shutdown
 	close(vm.acceptedQueue)
 	<-vm.acceptorDone
@@ -417,10 +422,6 @@ func (vm *VM) Shutdown(_ context.Context) error {
 	vm.builder.Done()
 	vm.gossiper.Done()
 	vm.workers.Stop()
-	if err := vm.stateSyncClient.Shutdown(); err != nil {
-		return err
-	}
-
 	if vm.snowCtx == nil {
 		return nil
 	}
