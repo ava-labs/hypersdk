@@ -57,7 +57,7 @@ type VM struct {
 	authRegistry   chain.AuthRegistry
 
 	tracer    trace.Tracer
-	mempool   *mempool.Mempool
+	mempool   *mempool.Mempool[*chain.Transaction]
 	appSender common.AppSender
 
 	// track all accepted but still valid txs (replay protection)
@@ -184,7 +184,7 @@ func (vm *VM) Initialize(
 	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetBlockLRUSize()}
 	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
 
-	vm.mempool = mempool.New(
+	vm.mempool = mempool.New[*chain.Transaction](
 		vm.tracer,
 		vm.config.GetMempoolSize(),
 		vm.config.GetMempoolPayerSize(),
