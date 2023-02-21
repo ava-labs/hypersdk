@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/workers"
 )
 
@@ -61,7 +60,7 @@ type VM interface {
 
 type Mempool interface {
 	Len(context.Context) int
-	Add(context.Context, []mempool.Item)
+	Add(context.Context, []*Transaction)
 	Build(
 		context.Context,
 		func(context.Context, *Transaction) (bool /* continue */, bool /* restore */, bool /* remove account */, error),
