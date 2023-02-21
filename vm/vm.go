@@ -79,6 +79,7 @@ type VM struct {
 
 	// Accepted block queue
 	acceptedQueue chan *chain.StatelessBlock
+	acceptorDone  chan struct{}
 
 	// Transactions that streaming users are currently subscribed to
 	listeners *listeners.Listeners
@@ -180,6 +181,7 @@ func (vm *VM) Initialize(
 
 	vm.blocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetBlockLRUSize()}
 	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.GetAcceptorSize())
+	vm.acceptorDone = make(chan struct{})
 	vm.listeners = listeners.New()
 	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetBlockLRUSize()}
 	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
@@ -399,8 +401,11 @@ func (vm *VM) onNormalOperationsStarted() error {
 func (vm *VM) Shutdown(_ context.Context) error {
 	close(vm.stop)
 
+	// Process remaining accepted blocks before shutdown
+	close(vm.acceptedQueue)
+	<-vm.acceptorDone
+
 	// Shutdown RPCs
-	close(vm.acceptedQueue) // TODO: improve naming
 	if err := vm.decisionsServer.Close(); err != nil {
 		return err
 	}
@@ -408,6 +413,7 @@ func (vm *VM) Shutdown(_ context.Context) error {
 		return err
 	}
 
+	// Shutdown other async VM mechanisms
 	vm.builder.Done()
 	vm.gossiper.Done()
 	vm.workers.Stop()
