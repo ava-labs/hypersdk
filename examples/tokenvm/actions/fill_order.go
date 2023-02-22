@@ -26,11 +26,9 @@ const (
 	tradeSucceededPrice = 1_000
 )
 
-var (
-	// Store the result of this exponentiation so we don't need to recompute in
-	// each transaction.
-	divisor = uint64(math.Pow10(9))
-)
+// Store the result of this exponentiation so we don't need to recompute in
+// each transaction.
+var divisor = uint64(math.Pow10(9))
 
 type FillOrder struct {
 	// [Order] is the OrderID you wish to close.
