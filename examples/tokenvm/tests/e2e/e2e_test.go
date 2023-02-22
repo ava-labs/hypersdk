@@ -5,7 +5,6 @@ package e2e_test
 
 import (
 	"context"
-	"crypto/rand"
 	"flag"
 	"fmt"
 	"os"
@@ -17,13 +16,13 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto"
-	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/fatih/color"
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -39,7 +38,7 @@ const (
 
 func TestE2e(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "indexvm e2e test suites")
+	ginkgo.RunSpecs(t, "tokenvm e2e test suites")
 }
 
 var (
@@ -149,7 +148,7 @@ const (
 
 var (
 	cli           runner_sdk.Client
-	indexvmRPCEps []string
+	tokenvmRPCEps []string
 )
 
 var _ = ginkgo.BeforeSuite(func() {
@@ -224,7 +223,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		break
 	}
 
-	indexvmRPCEps = make([]string, 0)
+	tokenvmRPCEps = make([]string, 0)
 
 	// wait up to 5-minute for custom VM installation
 	hutils.Outf("\n{{magenta}}waiting for all custom VMs to report healthy...{{/}}\n")
@@ -248,7 +247,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		for _, v := range resp.ClusterInfo.CustomChains {
 			if v.VmId == consts.ID.String() {
 				blockchainID = v.ChainId
-				hutils.Outf("{{blue}}indexvm is ready:{{/}} %+v\n", v)
+				hutils.Outf("{{blue}}tokenvm is ready:{{/}} %+v\n", v)
 				break
 			}
 		}
@@ -267,8 +266,8 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	for _, u := range uris {
 		rpcEP := fmt.Sprintf("%s/ext/bc/%s/rpc", u, blockchainID)
-		indexvmRPCEps = append(indexvmRPCEps, rpcEP)
-		hutils.Outf("{{blue}}avalanche indexvm RPC:{{/}} %q\n", rpcEP)
+		tokenvmRPCEps = append(tokenvmRPCEps, rpcEP)
+		hutils.Outf("{{blue}}avalanche tokenvm RPC:{{/}} %q\n", rpcEP)
 	}
 
 	pid := os.Getpid()
@@ -289,7 +288,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
 	)
 	gomega.Ω(err).Should(gomega.BeNil())
-	factory = auth.NewDirectFactory(priv)
+	factory = auth.NewED25519Factory(priv)
 	rsender = priv.PublicKey()
 	sender = utils.Address(rsender)
 	hutils.Outf("\n{{yellow}}$ loaded address %s:{{/}}\n", sender)
@@ -308,7 +307,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 var (
 	priv    crypto.PrivateKey
-	factory *auth.DirectFactory
+	factory *auth.ED25519Factory
 	rsender crypto.PublicKey
 	sender  string
 
@@ -406,23 +405,16 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 			hutils.Outf("{{yellow}}found transaction{{/}}\n")
 
 			// Check sender balance
-			u, l, exists, err := instances[0].cli.Balance(context.Background(), sender)
-			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(exists).Should(gomega.BeTrue())
-			g, err := instances[0].cli.Genesis(context.TODO())
+			balance, err := instances[0].cli.Balance(context.Background(), sender, ids.Empty)
 			gomega.Ω(err).Should(gomega.BeNil())
 			hutils.Outf(
-				"{{yellow}}start=%d lockup=%d fee=%d send=%d ubalance=%d lbalance=%d exists=%t{{/}}\n",
+				"{{yellow}}start=%d fee=%d send=%d balance=%d{{/}}\n",
 				startAmount,
-				g.StateLockup*2,
 				fee,
 				sendAmount,
-				u,
-				l,
-				exists,
+				balance,
 			)
-			gomega.Ω(u).Should(gomega.Equal(startAmount - g.StateLockup*2 - fee - sendAmount))
-			gomega.Ω(l).Should(gomega.Equal(g.StateLockup * 2))
+			gomega.Ω(balance).Should(gomega.Equal(startAmount - fee - sendAmount))
 			hutils.Outf("{{yellow}}fetched balance{{/}}\n")
 		})
 
@@ -441,13 +433,9 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 				}
 
 				// Check balance of recipient
-				g, err := inst.cli.Genesis(context.TODO())
+				balance, err := inst.cli.Balance(context.Background(), aother, ids.Empty)
 				gomega.Ω(err).Should(gomega.BeNil())
-				u, l, exists, err := inst.cli.Balance(context.Background(), aother)
-				gomega.Ω(err).Should(gomega.BeNil())
-				gomega.Ω(exists).Should(gomega.BeTrue())
-				gomega.Ω(u).Should(gomega.Equal(sendAmount - g.StateLockup*2))
-				gomega.Ω(l).Should(gomega.Equal(g.StateLockup * 2))
+				gomega.Ω(balance).Should(gomega.Equal(sendAmount))
 			}
 		})
 	})
@@ -458,23 +446,19 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 		return
 	}
 
-	// TODO: move everything below here to "dummyvm" implementation in
-	// `hypersdk`
-
 	// Create blocks before bootstrapping starts
 	count := 0
 	lastHeight := uint64(0)
 	ginkgo.It("supports issuance of 128 blocks", func() {
 		for {
-			b := make([]byte, 1024)
-			_, err := rand.Read(b)
+			// Generate transaction
+			other, err := crypto.GeneratePrivateKey()
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, _, _, err := instances[count%len(instances)].cli.GenerateTransaction(
 				context.Background(),
-				&actions.Index{
-					Schema:  hutils.ToID([]byte("test")),
-					Content: b,
-					Royalty: 1, // grow state
+				&actions.Transfer{
+					To:    other.PublicKey(),
+					Value: 1,
 				},
 				factory,
 			)
@@ -542,11 +526,10 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 	})
 
 	ginkgo.It("accepts transaction after it bootstraps", func() {
-		other, err := crypto.GeneratePrivateKey()
-		gomega.Ω(err).Should(gomega.BeNil())
-
 		for {
 			// Generate transaction
+			other, err := crypto.GeneratePrivateKey()
+			gomega.Ω(err).Should(gomega.BeNil())
 			submit, tx, _, err := syncClient.GenerateTransaction(
 				context.Background(),
 				&actions.Transfer{
@@ -579,15 +562,14 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 	// We do 1024 so that there are a number of ranges of data to fetch.
 	ginkgo.It("supports issuance of at least 1024 more blocks", func() {
 		for {
-			b := make([]byte, 1024)
-			_, err := rand.Read(b)
+			// Generate transaction
+			other, err := crypto.GeneratePrivateKey()
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, _, _, err := instances[count%len(instances)].cli.GenerateTransaction(
 				context.Background(),
-				&actions.Index{
-					Schema:  hutils.ToID([]byte("test")),
-					Content: b,
-					Royalty: 1, // grow state
+				&actions.Transfer{
+					To:    other.PublicKey(),
+					Value: 1,
 				},
 				factory,
 			)
@@ -656,11 +638,10 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 	})
 
 	ginkgo.It("accepts transaction after state sync", func() {
-		other, err := crypto.GeneratePrivateKey()
-		gomega.Ω(err).Should(gomega.BeNil())
-
 		for {
 			// Generate transaction
+			other, err := crypto.GeneratePrivateKey()
+			gomega.Ω(err).Should(gomega.BeNil())
 			submit, tx, _, err := syncClient.GenerateTransaction(
 				context.Background(),
 				&actions.Transfer{
@@ -691,15 +672,13 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
 			for ctx.Err() == nil {
-				b := make([]byte, 1024)
-				_, err := rand.Read(b)
+				other, err := crypto.GeneratePrivateKey()
 				gomega.Ω(err).Should(gomega.BeNil())
 				submit, _, _, err := instances[count%len(instances)].cli.GenerateTransaction(
 					context.Background(),
-					&actions.Index{
-						Schema:  hutils.ToID([]byte("test")),
-						Content: b,
-						Royalty: 1, // grow state
+					&actions.Transfer{
+						To:    other.PublicKey(),
+						Value: 1,
 					},
 					factory,
 				)
@@ -760,11 +739,10 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 	})
 
 	ginkgo.It("accepts transaction after state sync concurrent", func() {
-		other, err := crypto.GeneratePrivateKey()
-		gomega.Ω(err).Should(gomega.BeNil())
-
-		// Generate transaction
 		for {
+			// Generate transaction
+			other, err := crypto.GeneratePrivateKey()
+			gomega.Ω(err).Should(gomega.BeNil())
 			submit, tx, _, err := syncClient.GenerateTransaction(
 				context.Background(),
 				&actions.Transfer{
@@ -825,15 +803,13 @@ func awaitHealthy(cli runner_sdk.Client) {
 
 			// Add more txs via other nodes until healthy (should eventually happen after
 			// [ValidityWindow] processed)
-			b := make([]byte, 1024)
-			_, err := rand.Read(b)
+			other, err := crypto.GeneratePrivateKey()
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
-				&actions.Index{
-					Schema:  hutils.ToID([]byte("test")),
-					Content: b,
-					Royalty: 1, // grow state
+				&actions.Transfer{
+					To:    other.PublicKey(),
+					Value: 1,
 				},
 				factory,
 			)

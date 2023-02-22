@@ -67,18 +67,18 @@ fi
 ############################
 
 ############################
-echo "building indexvm"
+echo "building tokenvm"
 
 # delete previous (if exists)
-rm -f /tmp/avalanchego-v${VERSION}/plugins/oS6k2RdwvBbUhmnDwCXw1cGWy4w9WD4FKJgUYWeh8vPLrxj3Y
+rm -f /tmp/avalanchego-v${VERSION}/plugins/tHUgHsjdMmrwWfko2UpQujAHs4ZLX1zgMPf2kSkKkavmdxWeu
 
 # rebuild with latest code
 go build \
--o /tmp/avalanchego-v${VERSION}/plugins/oS6k2RdwvBbUhmnDwCXw1cGWy4w9WD4FKJgUYWeh8vPLrxj3Y \
-./cmd/indexvm
+-o /tmp/avalanchego-v${VERSION}/plugins/tHUgHsjdMmrwWfko2UpQujAHs4ZLX1zgMPf2kSkKkavmdxWeu \
+./cmd/tokenvm
 
-echo "building index-cli"
-go build -v -o /tmp/index-cli ./cmd/index-cli
+echo "building token-cli"
+go build -v -o /tmp/token-cli ./cmd/token-cli
 
 # log everything in the avalanchego directory
 find /tmp/avalanchego-v${VERSION}
@@ -90,19 +90,19 @@ find /tmp/avalanchego-v${VERSION}
 # Always create allocations (linter doesn't like tab)
 echo "creating allocations file"
 cat <<EOF > /tmp/allocations.json
-[{"address":"index1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsqrawg5", "balance":1000000000000}]
+[{"address":"transfer1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsuup2js", "balance":1000000000000}]
 EOF
 
 GENESIS_PATH=$2
 if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
-  rm -f /tmp/indexvm.genesis
-  /tmp/index-cli genesis /tmp/allocations.json \
-  --genesis-file /tmp/indexvm.genesis
+  rm -f /tmp/tokenvm.genesis
+  /tmp/token-cli genesis /tmp/allocations.json \
+  --genesis-file /tmp/tokenvm.genesis
 else
   echo "copying custom genesis file"
-  rm -f /tmp/indexvm.genesis
-  cp ${GENESIS_PATH} /tmp/indexvm.genesis
+  rm -f /tmp/tokenvm.genesis
+  cp ${GENESIS_PATH} /tmp/tokenvm.genesis
 fi
 
 ############################
@@ -110,11 +110,11 @@ fi
 ############################
 
 echo "creating vm config"
-rm -f /tmp/indexvm.config
-cat <<EOF > /tmp/indexvm.config
+rm -f /tmp/tokenvm.config
+cat <<EOF > /tmp/tokenvm.config
 {
   "mempoolSize": 10000000,
-  "mempoolExemptPayers":["index1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsqrawg5"],
+  "mempoolExemptPayers":["transfer1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsuup2js"],
   "parallelism": 5,
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
@@ -126,8 +126,8 @@ EOF
 ############################
 
 echo "creating subnet config"
-rm -f /tmp/indexvm.subnet
-cat <<EOF > /tmp/indexvm.subnet
+rm -f /tmp/tokenvm.subnet
+cat <<EOF > /tmp/tokenvm.subnet
 {
   "proposerMinBlockDelay":0
 }
@@ -200,9 +200,9 @@ echo "running e2e tests"
 --network-runner-grpc-gateway-endpoint="0.0.0.0:12353" \
 --avalanchego-path=${AVALANCHEGO_PATH} \
 --avalanchego-plugin-dir=${AVALANCHEGO_PLUGIN_DIR} \
---vm-genesis-path=/tmp/indexvm.genesis \
---vm-config-path=/tmp/indexvm.config \
---subnet-config-path=/tmp/indexvm.subnet \
+--vm-genesis-path=/tmp/tokenvm.genesis \
+--vm-config-path=/tmp/tokenvm.config \
+--subnet-config-path=/tmp/tokenvm.subnet \
 --output-path=/tmp/avalanchego-v${VERSION}/output.yaml \
 --mode=${MODE}
 
