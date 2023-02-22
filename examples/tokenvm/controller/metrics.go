@@ -10,6 +10,7 @@ import (
 )
 
 type metrics struct {
+	closeOrders  prometheus.Counter
 	createOrders prometheus.Counter
 	mints        prometheus.Counter
 	transfers    prometheus.Counter
@@ -17,6 +18,11 @@ type metrics struct {
 
 func newMetrics(gatherer ametrics.MultiGatherer) (*metrics, error) {
 	m := &metrics{
+		closeOrders: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "actions",
+			Name:      "close_orders",
+			Help:      "number of close order actions",
+		}),
 		createOrders: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "actions",
 			Name:      "create_orders",
@@ -36,6 +42,7 @@ func newMetrics(gatherer ametrics.MultiGatherer) (*metrics, error) {
 	r := prometheus.NewRegistry()
 	errs := wrappers.Errs{}
 	errs.Add(
+		r.Register(m.closeOrders),
 		r.Register(m.createOrders),
 		r.Register(m.mints),
 		r.Register(m.transfers),

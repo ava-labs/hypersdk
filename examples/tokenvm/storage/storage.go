@@ -271,3 +271,40 @@ func SetOrder(
 	copy(v[consts.IDLen*2+consts.Uint64Len*2:], owner[:])
 	return db.Insert(ctx, k, v)
 }
+
+func GetOrder(
+	ctx context.Context,
+	db chain.Database,
+	order ids.ID,
+) (
+	bool, // exists
+	ids.ID, // in
+	ids.ID, // out
+	uint64, // rate
+	uint64, // remaining
+	crypto.PublicKey, // owner
+	error,
+) {
+	k := PrefixOrderKey(order)
+	v, err := db.GetValue(ctx, k)
+	if errors.Is(err, database.ErrNotFound) {
+		return false, ids.Empty, ids.Empty, 0, 0, crypto.EmptyPublicKey, nil
+	}
+	if err != nil {
+		return false, ids.Empty, ids.Empty, 0, 0, crypto.EmptyPublicKey, err
+	}
+	var in ids.ID
+	copy(in[:], v[:consts.IDLen])
+	var out ids.ID
+	copy(out[:], v[consts.IDLen:consts.IDLen*2])
+	rate := binary.BigEndian.Uint64(v[consts.IDLen*2:])
+	supply := binary.BigEndian.Uint64(v[consts.IDLen*2+consts.Uint64Len:])
+	var owner crypto.PublicKey
+	copy(v[consts.IDLen*2+consts.Uint64Len*2:], owner[:])
+	return true, in, out, rate, supply, owner, nil
+}
+
+func DeleteOrder(ctx context.Context, db chain.Database, order ids.ID) error {
+	k := PrefixOrderKey(order)
+	return db.Remove(ctx, k)
+}

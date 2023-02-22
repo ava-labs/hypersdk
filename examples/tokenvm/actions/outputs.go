@@ -9,4 +9,7 @@ var (
 	OutputAssetAlreadyExists = []byte("asset already exists")
 	OutputRateZero           = []byte("rate is zero")
 	OutputSupplyZero         = []byte("supply is zero")
+	OutputOrderMissing       = []byte("order is missing")
+	OutputUnauthorized       = []byte("unauthorized")
+	OutputWrongOut           = []byte("wrong out asset")
 )

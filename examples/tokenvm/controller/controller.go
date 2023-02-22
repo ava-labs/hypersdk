@@ -171,6 +171,8 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 		}
 		if result.Success {
 			switch tx.Action.(type) {
+			case *actions.CloseOrder:
+				c.metrics.closeOrders.Inc()
 			case *actions.CreateOrder:
 				c.metrics.createOrders.Inc()
 			case *actions.Mint:
