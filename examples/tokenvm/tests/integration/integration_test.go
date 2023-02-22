@@ -1,7 +1,6 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-// integration implements the integration tests.
 package integration_test
 
 import (
@@ -31,7 +30,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
@@ -44,9 +42,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
-const (
-	transferTxFee = 400 /* base fee */ + 40 /* transfer fee */
-)
+const transferTxFee = 400 /* base fee */ + 72 /* transfer fee */
 
 var (
 	logFactory logging.Factory
@@ -66,7 +62,7 @@ func init() {
 
 func TestIntegration(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "indexvm integration test suites")
+	ginkgo.RunSpecs(t, "tokenvm integration test suites")
 }
 
 var (
@@ -98,12 +94,12 @@ func init() {
 
 var (
 	priv    crypto.PrivateKey
-	factory *auth.DirectFactory
+	factory *auth.ED25519Factory
 	rsender crypto.PublicKey
 	sender  string
 
 	priv2    crypto.PrivateKey
-	factory2 *auth.DirectFactory
+	factory2 *auth.ED25519Factory
 	rsender2 crypto.PublicKey
 	sender2  string
 
@@ -129,7 +125,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	var err error
 	priv, err = crypto.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
-	factory = auth.NewDirectFactory(priv)
+	factory = auth.NewED25519Factory(priv)
 	rsender = priv.PublicKey()
 	sender = utils.Address(rsender)
 	log.Debug(
@@ -140,7 +136,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	priv2, err = crypto.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
-	factory2 = auth.NewDirectFactory(priv2)
+	factory2 = auth.NewED25519Factory(priv2)
 	rsender2 = priv2.PublicKey()
 	sender2 = utils.Address(rsender2)
 	log.Debug(
@@ -230,11 +226,9 @@ var _ = ginkgo.BeforeSuite(func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		for _, alloc := range g.CustomAllocation {
-			u, l, exists, err := cli.Balance(context.Background(), alloc.Address)
+			balance, err := cli.Balance(context.Background(), alloc.Address, ids.Empty)
 			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(exists).Should(gomega.BeTrue())
-			gomega.Ω(u).Should(gomega.Equal(alloc.Balance - g.StateLockup*2))
-			gomega.Ω(l).Should(gomega.Equal(g.StateLockup * 2 /* perms + balance */))
+			gomega.Ω(balance).Should(gomega.Equal(alloc.Balance))
 		}
 	}
 
@@ -376,12 +370,12 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
-			balance, _, _, err := instances[1].cli.Balance(context.Background(), sender)
+			balance, err := instances[1].cli.Balance(context.Background(), sender, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9897512)))
-			balance2, _, _, err := instances[1].cli.Balance(context.Background(), sender2)
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899528)))
+			balance2, err := instances[1].cli.Balance(context.Background(), sender2, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance2).To(gomega.Equal(uint64(97952)))
+			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
 		})
 	})
 
@@ -391,7 +385,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				context.Background(),
 				&actions.Transfer{
 					To:    rsender2,
-					Value: 101, // account already exists so can be less than state lockup
+					Value: 101,
 				},
 				factory,
 			)
@@ -402,9 +396,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-			balance2, _, _, err := instances[1].cli.Balance(context.Background(), sender2)
+			balance2, err := instances[1].cli.Balance(context.Background(), sender2, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance2).To(gomega.Equal(uint64(98053)))
+			gomega.Ω(balance2).To(gomega.Equal(uint64(100101)))
 		})
 	})
 
@@ -535,22 +529,20 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Fetch balances
-		ubal, lbal, _, err := instances[0].cli.Balance(context.TODO(), sender)
+		balance, err := instances[0].cli.Balance(context.TODO(), sender, ids.Empty)
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Send tx
-		schema := hutils.ToID([]byte("schema"))
-		index := &actions.Index{
-			// Don't set a parent
-			Schema:  schema,
-			Content: []byte{1, 0, 1, 0, 1, 0, 1},
-			// Don't set a royalty
+		other, err := crypto.GeneratePrivateKey()
+		gomega.Ω(err).Should(gomega.BeNil())
+		transfer := &actions.Transfer{
+			To:    other.PublicKey(),
+			Value: 1,
 		}
-		contentID := index.ContentID()
 
 		submit, rawTx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
-			index,
+			transfer,
 			factory,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -566,20 +558,19 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		blk, lresults, err := cli.Listen(instances[0].vm)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(len(blk.Txs)).Should(gomega.Equal(1))
-		tx := blk.Txs[0].Action.(*actions.Index)
-		gomega.Ω(tx.Schema).To(gomega.Equal(schema))
-		gomega.Ω(tx.ContentID()).To(gomega.Equal(contentID))
+		tx := blk.Txs[0].Action.(*actions.Transfer)
+		gomega.Ω(tx.Asset).To(gomega.Equal(ids.Empty))
+		gomega.Ω(tx.Value).To(gomega.Equal(uint64(1)))
 		gomega.Ω(lresults).Should(gomega.Equal(results))
 		gomega.Ω(cli.Close()).Should(gomega.BeNil())
 
 		// Check balance modifications are correct
-		ubala, lbala, _, err := instances[0].cli.Balance(context.TODO(), sender)
+		balancea, err := instances[0].cli.Balance(context.TODO(), sender, ids.Empty)
 		gomega.Ω(err).Should(gomega.BeNil())
 		g, err := instances[0].cli.Genesis(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
 		r := g.Rules(instances[0].chainID, time.Now().Unix())
-		gomega.Ω(ubal).Should(gomega.Equal(ubala + rawTx.MaxUnits(r)))
-		gomega.Ω(lbal).Should(gomega.Equal(lbala))
+		gomega.Ω(balance).Should(gomega.Equal(balancea + rawTx.MaxUnits(r) + 1))
 	})
 
 	ginkgo.It("processes valid index transactions (w/streaming verification)", func() {
@@ -592,14 +583,15 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Create tx
-		index := &actions.Index{
-			// Don't set a parent
-			Schema:  ids.GenerateTestID(),
-			Content: []byte{1, 0, 1, 0, 1, 0, 2},
+		other, err := crypto.GeneratePrivateKey()
+		gomega.Ω(err).Should(gomega.BeNil())
+		transfer := &actions.Transfer{
+			To:    other.PublicKey(),
+			Value: 1,
 		}
 		_, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
-			index,
+			transfer,
 			factory,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -626,803 +618,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(result.Success).Should(gomega.BeTrue())
 		gomega.Ω(result).Should(gomega.Equal(results[0]))
 		gomega.Ω(cli.Close()).Should(gomega.BeNil())
-	})
-
-	ginkgo.It("rejects invalid schema", func() {
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Index{
-				// Don't set a parent
-				Schema:  ids.Empty,
-				Content: []byte{1, 0, 1, 0, 1, 0, 1},
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background()).Error()).
-			Should(gomega.ContainSubstring("ID field is not populated"))
-	})
-
-	ginkgo.It("rejects invalid content", func() {
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Index{
-				// Don't set a parent
-				Schema:  hutils.ToID([]byte("schema")),
-				Content: make([]byte, 64_000),
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background()).Error()).
-			Should(gomega.ContainSubstring("size is larger than limit"))
-	})
-
-	ginkgo.It("rejects empty balance", func() {
-		tpriv, err := crypto.GeneratePrivateKey()
-		gomega.Ω(err).Should(gomega.BeNil())
-		tfactory := auth.NewDirectFactory(tpriv)
-
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Index{
-				Parent:  ids.GenerateTestID(),
-				Schema:  ids.GenerateTestID(),
-				Content: []byte{1, 0, 1, 0, 1, 0, 1},
-			},
-			tfactory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background()).Error()).
-			Should(gomega.ContainSubstring("not allowed"))
-	})
-
-	ginkgo.It("processes multiple index transactions", func() {
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Index{
-				Parent:  ids.GenerateTestID(),
-				Schema:  hutils.ToID([]byte("schema")),
-				Content: []byte{1, 0, 1, 0, 1, 0, 1, 0},
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-
-		submit, _, _, err = instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Index{
-				// Don't set a parent
-				Schema:  hutils.ToID([]byte("schema")),
-				Content: []byte{1, 0, 1, 0, 1, 0, 1, 1},
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(2))
-		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-		gomega.Ω(results[1].Success).Should(gomega.BeTrue())
-	})
-
-	var claimedContent ids.ID
-	ginkgo.It("claim content", func() {
-		// Fetch balances
-		ubal, lbal, _, err := instances[0].cli.Balance(context.TODO(), sender)
-		gomega.Ω(err).Should(gomega.BeNil())
-
-		// Process transaction
-		index := &actions.Index{
-			Schema:  hutils.ToID([]byte("schema")),
-			Content: []byte{1, 0, 1, 0, 1, 0, 1, 0},
-			Royalty: 10,
-		}
-		claimedContent = index.ContentID()
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			index,
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Check balances
-		ubala, lbala, _, err := instances[0].cli.Balance(context.TODO(), sender)
-		gomega.Ω(err).Should(gomega.BeNil())
-		g, err := instances[0].cli.Genesis(context.TODO())
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(ubal).Should(gomega.Equal(ubala + result.Units + g.StateLockup))
-		gomega.Ω(lbala).Should(gomega.Equal(lbal + g.StateLockup))
-	})
-
-	ginkgo.It("reference content", func() {
-		// Fetch balances
-		ubal, lbal, _, err := instances[0].cli.Balance(context.TODO(), sender)
-		gomega.Ω(err).Should(gomega.BeNil())
-		ubal2, lbal2, _, err := instances[0].cli.Balance(context.TODO(), sender2)
-		gomega.Ω(err).Should(gomega.BeNil())
-
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Index{
-				Parent:   claimedContent,
-				Schema:   hutils.ToID([]byte("schema2")),
-				Content:  []byte{1, 1, 1},
-				Searcher: rsender,
-			},
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Check balances
-		ubala, lbala, _, err := instances[0].cli.Balance(context.TODO(), sender)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(ubal).Should(gomega.Equal(ubala - 10)) // royalty paid automatically
-		gomega.Ω(lbal).Should(gomega.Equal(lbala))
-		ubala2, lbala2, _, err := instances[0].cli.Balance(context.TODO(), sender2)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(ubal2).Should(gomega.Equal(ubala2 + result.Units + 10))
-		gomega.Ω(lbala2).Should(gomega.Equal(lbal2))
-	})
-
-	var cid1 ids.ID
-	ginkgo.It("reference more content", func() {
-		rowner, _, err := instances[0].cli.Content(context.TODO(), claimedContent)
-		gomega.Ω(err).Should(gomega.BeNil())
-		owner, err := utils.ParseAddress(rowner)
-		gomega.Ω(err).Should(gomega.BeNil())
-
-		// Process transaction
-		act := &actions.Index{
-			Parent:   claimedContent,
-			Schema:   hutils.ToID([]byte("schema2")),
-			Content:  []byte{1, 1, 1},
-			Searcher: owner,
-			Royalty:  1,
-		}
-		cid1 = act.ContentID()
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			act,
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-	})
-
-	ginkgo.It("reference missing parent owner", func() {
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Index{
-				Parent:  claimedContent,
-				Schema:  hutils.ToID([]byte("schema2")),
-				Content: []byte{1, 1, 1},
-			},
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).
-			Should(gomega.ContainSubstring("key not specified"))
-		// missing key for owner
-	})
-
-	ginkgo.It("reference unclaimed content (w/owner)", func() {
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Index{
-				Parent:   ids.ID{1},
-				Schema:   hutils.ToID([]byte("schema2")),
-				Content:  []byte{1, 1, 1},
-				Searcher: rsender,
-			},
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(result.Output).Should(gomega.Equal(actions.OutputWrongOwner))
-	})
-
-	ginkgo.It("modify content", func() {
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Modify{
-				Content: claimedContent,
-				Royalty: 20,
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-	})
-
-	ginkgo.It("modify content (same royalty)", func() {
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Modify{
-				Content: claimedContent,
-				Royalty: 20,
-			},
-			factory,
-			feeModifier{unitPrice: 10}, // make sure we don't create a duplicate account
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(result.Output).Should(gomega.Equal(actions.OutputInvalidObject))
-	})
-
-	ginkgo.It("modify content (wrong owner)", func() {
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Modify{
-				Content: claimedContent,
-				Royalty: 25,
-			},
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(result.Output).Should(gomega.Equal(actions.OutputWrongOwner))
-	})
-
-	ginkgo.It("reference content after change (w/schema change)", func() {
-		// Fetch balances
-		ubal, _, _, err := instances[0].cli.Balance(context.TODO(), sender2)
-		gomega.Ω(err).Should(gomega.BeNil())
-
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Index{
-				Parent:   claimedContent,
-				Schema:   hutils.ToID([]byte("schema3")),
-				Content:  []byte{1, 1, 1},
-				Searcher: rsender,
-			},
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Confirm paid updated royalty
-		ubala, _, _, err := instances[0].cli.Balance(context.TODO(), sender2)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(ubal).Should(gomega.Equal(ubala + result.Units + 20))
-	})
-
-	ginkgo.It("duplicate claim", func() {
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Index{
-				Schema:  hutils.ToID([]byte("schema")),
-				Content: []byte{1, 0, 1, 0, 1, 0, 1, 0},
-				Royalty: 10,
-			},
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).Should(gomega.ContainSubstring("content already exists"))
-	})
-
-	ginkgo.It("unindex not as owner", func() {
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Unindex{
-				Content: claimedContent,
-			},
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).Should(gomega.ContainSubstring("wrong owner"))
-	})
-
-	ginkgo.It("unindex unclaimed", func() {
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Unindex{
-				Content: ids.ID{1},
-			},
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).Should(gomega.Equal("content does not exist"))
-	})
-
-	ginkgo.It("unindex claim", func() {
-		// Fetch balances
-		ubal, _, _, err := instances[0].cli.Balance(context.TODO(), sender)
-		gomega.Ω(err).Should(gomega.BeNil())
-
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Unindex{
-				Content: claimedContent,
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Check balances
-		ubala, lbala, _, err := instances[0].cli.Balance(context.TODO(), sender)
-		gomega.Ω(err).Should(gomega.BeNil())
-		g, err := instances[0].cli.Genesis(context.TODO())
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(ubal).Should(gomega.Equal(ubala + result.Units - g.StateLockup))
-		gomega.Ω(lbala).Should(gomega.Equal(g.StateLockup * 2))
-	})
-
-	ginkgo.It("send balance back to main account to test invalid balance", func() {
-		// Send balance back to main account
-		u, _, _, err := instances[0].cli.Balance(context.TODO(), sender2)
-		gomega.Ω(err).Should(gomega.BeNil())
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Transfer{
-				To:    rsender,
-				Value: u - transferTxFee,
-			},
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Process transaction
-		submit, _, _, err = instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Index{
-				Schema:  hutils.ToID([]byte("schema")),
-				Content: []byte{1, 0, 1, 0, 1, 0, 1, 0},
-				Royalty: 15,
-			},
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background()).Error()).
-			Should(gomega.ContainSubstring("invalid balance"))
-	})
-
-	var cid2 ids.ID
-	ginkgo.It("reclaim content (w/different account)", func() {
-		// Transfer balance back to account 2
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Transfer{
-				To:    rsender2,
-				Value: 10_000,
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Fetch balances
-		ubal, lbal, _, err := instances[0].cli.Balance(context.TODO(), sender2)
-		gomega.Ω(err).Should(gomega.BeNil())
-
-		// Process transaction
-		index := &actions.Index{
-			Schema:  hutils.ToID([]byte("schema")),
-			Content: []byte{1, 0, 1, 0, 1, 0, 1, 0},
-			Royalty: 15,
-		}
-		cid2 = index.ContentID()
-		gomega.Ω(index.ContentID()).Should(gomega.Equal(claimedContent))
-		submit, _, _, err = instances[0].cli.GenerateTransaction(
-			context.Background(),
-			index,
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept = expectBlk(instances[0])
-		results = accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result = results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Check balances
-		ubala, lbala, _, err := instances[0].cli.Balance(context.TODO(), sender2)
-		gomega.Ω(err).Should(gomega.BeNil())
-		g, err := instances[0].cli.Genesis(context.TODO())
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(ubal).Should(gomega.Equal(ubala + result.Units + g.StateLockup))
-		gomega.Ω(lbala).Should(gomega.Equal(lbal + g.StateLockup))
-	})
-
-	ginkgo.It("fail to claim content by modifying", func() {
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Modify{
-				Content: ids.ID{10},
-				Royalty: 10,
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(result.Output).Should(gomega.Equal(actions.OutputContentMissing))
-
-		// Check index lookup
-		searcher, royalty, err := instances[0].cli.Content(context.TODO(), ids.ID{10})
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(searcher).Should(gomega.Equal(""))
-		gomega.Ω(royalty).Should(gomega.Equal(uint64(0)))
-	})
-
-	var lastClaim ids.ID
-	ginkgo.It("claim content to cause clear failure", func() {
-		// Process transaction
-		index := &actions.Index{
-			Schema:  hutils.ToID([]byte("schema")),
-			Content: []byte{1, 0, 1, 0, 1, 0, 1, 0, 1},
-			Royalty: 10,
-		}
-		lastClaim = index.ContentID()
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			index,
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-	})
-
-	ginkgo.It("attempt to clear non-empty account", func() {
-		// Fetch balances
-		ubal, lbal, _, err := instances[0].cli.Balance(context.TODO(), sender)
-		gomega.Ω(err).Should(gomega.BeNil())
-
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Clear{
-				To: rsender2,
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(result.Output).Should(gomega.Equal(actions.OutputAccountNotEmpty))
-
-		// Check balances
-		ubala, lbala, _, err := instances[0].cli.Balance(context.TODO(), sender)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(ubal).Should(gomega.Equal(ubala + result.Units))
-		gomega.Ω(lbala).Should(gomega.Equal(lbal))
-	})
-
-	ginkgo.It("clear root account", func() {
-		// Unindex last content
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Unindex{
-				Content: lastClaim,
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Process transaction
-		submit, _, _, err = instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Clear{
-				To: rsender2,
-			},
-			factory,
-			feeModifier{unitPrice: 2}, // need to make different than failed
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept = expectBlk(instances[0])
-		results = accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result = results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Check balances
-		ubal, lbal, exists, err := instances[0].cli.Balance(context.TODO(), sender)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(ubal).Should(gomega.Equal(uint64(0)))
-		gomega.Ω(lbal).Should(gomega.Equal(uint64(0)))
-		gomega.Ω(exists).Should(gomega.BeFalse())
-	})
-
-	ginkgo.It("insufficient send to root", func() {
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Transfer{
-				To:    rsender,
-				Value: 100,
-			},
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).
-			Should(gomega.ContainSubstring("could not subtract unlocked"))
-	})
-
-	ginkgo.It("sufficient send to root", func() {
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Transfer{
-				To:    rsender,
-				Value: 10_000,
-			},
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Check balances
-		ubal, lbal, exists, err := instances[0].cli.Balance(context.TODO(), sender)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(ubal).Should(gomega.Equal(uint64(7952)))
-		gomega.Ω(lbal).Should(gomega.Equal(uint64(2048)))
-		gomega.Ω(exists).Should(gomega.BeTrue())
-	})
-
-	ginkgo.It("clear and authorize root", func() {
-		// Process transaction
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Clear{
-				To: rsender2,
-			},
-			factory,
-			feeModifier{unitPrice: 11}, // make sure we don't create a duplicate account
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Add root as authorized signer
-		submit, _, _, err = instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Authorize{
-				Actor:             rsender2,
-				Signer:            rsender,
-				ActionPermissions: consts.MaxUint8,
-				MiscPermissions:   consts.MaxUint8,
-			},
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept = expectBlk(instances[0])
-		results = accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result = results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Revoke [sender2] creds
-		dfactory := auth.NewDelegateFactory(rsender2, priv, true)
-		submit, _, _, err = instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Authorize{
-				Actor:  rsender2,
-				Signer: rsender2,
-			},
-			dfactory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept = expectBlk(instances[0])
-		results = accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result = results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Attempt to transfer direct as [sender2]
-		submit, _, _, err = instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Transfer{
-				To:    rsender,
-				Value: 10_001,
-			},
-			factory2,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background()).Error()).
-			Should(gomega.ContainSubstring("not allowed"))
-
-		// Transfer direct as [sender] on behalf of [sender2], with no money in
-		// [sender]
-		tpriv, err := crypto.GeneratePrivateKey()
-		gomega.Ω(err).Should(gomega.BeNil())
-		submit, _, _, err = instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Transfer{
-				To:    tpriv.PublicKey(),
-				Value: 10_000,
-			},
-			dfactory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept = expectBlk(instances[0])
-		results = accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result = results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Clear all items owned by [sender2]
-		submit, _, _, err = instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Unindex{
-				Content: cid1,
-			},
-			dfactory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept = expectBlk(instances[0])
-		results = accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result = results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		submit, _, _, err = instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Unindex{
-				Content: cid2,
-			},
-			dfactory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept = expectBlk(instances[0])
-		results = accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result = results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Clear [sender2] using [sender]
-		submit, _, _, err = instances[0].cli.GenerateTransaction(
-			context.Background(),
-			&actions.Clear{
-				To: tpriv.PublicKey(),
-			},
-			dfactory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept = expectBlk(instances[0])
-		results = accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result = results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
 	})
 })
 
