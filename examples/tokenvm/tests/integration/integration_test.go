@@ -838,6 +838,28 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(order.Owner).Should(gomega.Equal(rsender2))
 		gomega.Ω(order.Remaining).Should(gomega.Equal(uint64(5)))
 	})
+
+	ginkgo.It("create order with insufficient balance", func() {
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.CreateOrder{
+				In:     asset2,
+				Out:    asset3,
+				Rate:   actions.CreateRate(0.25), // 1 asset3 = 4 asset2
+				Supply: 5,                        // put half of balance
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		result := results[0]
+		gomega.Ω(result.Success).Should(gomega.BeFalse())
+		gomega.Ω(string(result.Output)).
+			Should(gomega.ContainSubstring("invalid balance"))
+	})
 })
 
 func expectBlk(i instance) func() []*chain.Result {
