@@ -45,10 +45,10 @@ func (d *ED25519) AsyncVerify(msg []byte) error {
 }
 
 func (d *ED25519) Verify(
-	ctx context.Context,
+	_ context.Context,
 	r chain.Rules,
-	db chain.Database,
-	action chain.Action,
+	_ chain.Database,
+	_ chain.Action,
 ) (uint64, error) {
 	// We don't do anything during verify (there is no additional state to check
 	// to authorize the signer other than verifying the signature)

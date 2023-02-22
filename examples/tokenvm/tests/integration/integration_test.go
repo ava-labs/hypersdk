@@ -686,8 +686,8 @@ func (*appSender) SendCrossChainAppResponse(context.Context, ids.ID, uint32, []b
 }
 
 // feeModifier adjusts the base fee to ensure we don't create a duplicate tx
-type feeModifier struct{ unitPrice uint64 }
+type feeModifier struct{ unitPrice uint64 } //nolint:unused
 
-func (f feeModifier) Base(base *chain.Base) {
+func (f feeModifier) Base(base *chain.Base) { //nolint:unused
 	base.UnitPrice = f.unitPrice
 }

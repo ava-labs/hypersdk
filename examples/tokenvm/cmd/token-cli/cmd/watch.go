@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/spf13/cobra"
 )
 

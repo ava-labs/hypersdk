@@ -52,6 +52,7 @@ func (cli *Client) Balance(ctx context.Context, addr string, asset ids.ID) (uint
 		"balance",
 		&controller.BalanceArgs{
 			Address: addr,
+			Asset:   asset,
 		},
 		resp,
 	)

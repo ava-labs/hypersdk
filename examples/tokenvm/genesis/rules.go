@@ -64,6 +64,6 @@ func (r *Rules) GetWindowTargetBlocks() uint64 {
 	return r.g.WindowTargetBlocks
 }
 
-func (r *Rules) FetchCustom(f string) (any, bool) {
+func (*Rules) FetchCustom(string) (any, bool) {
 	return nil, false
 }
