@@ -21,7 +21,7 @@ var createCmd = &cobra.Command{
 Creates a new key in the default location.
 It will error if the key file already exists.
 
-$ index-cli create
+$ token-cli create
 
 `,
 	RunE: createFunc,

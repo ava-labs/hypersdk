@@ -15,7 +15,7 @@ import (
 
 var networkCmd = &cobra.Command{
 	Use:   "network [options]",
-	Short: "View information about this instance of the indexvm",
+	Short: "View information about this instance of the tokenvm",
 	RunE:  networkFunc,
 }
 

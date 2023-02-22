@@ -16,7 +16,7 @@ func init() {
 	cobra.EnablePrefixMatching = true
 }
 
-// NewCommand implements "indexvm version" command.
+// NewCommand implements "tokenvm version" command.
 func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",

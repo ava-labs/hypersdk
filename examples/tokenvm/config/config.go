@@ -60,7 +60,7 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 	}
 
 	// Parse any exempt payers (usually used when a single account is
-	// broadcasting many indexing txs at once)
+	// broadcasting many txs at once)
 	c.parsedExemptPayers = make([][]byte, len(c.MempoolExemptPayers))
 	for i, payer := range c.MempoolExemptPayers {
 		p, err := utils.ParseAddress(payer)

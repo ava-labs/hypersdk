@@ -1,7 +1,6 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-// integration implements the integration tests.
 package load_test
 
 import (
@@ -51,7 +50,7 @@ import (
 
 const (
 	genesisBalance  uint64 = hconsts.MaxUint64
-	transferTxUnits        = 440
+	transferTxUnits        = 472
 	maxTxsPerBlock  int    = 1_800_000 /* max block units */ / transferTxUnits
 )
 
@@ -88,7 +87,7 @@ type instance struct {
 
 type account struct {
 	priv    crypto.PrivateKey
-	factory *auth.DirectFactory
+	factory *auth.ED25519Factory
 	rsender crypto.PublicKey
 	sender  string
 }
@@ -166,7 +165,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Ω(err).Should(gomega.BeNil())
 	rsender := priv.PublicKey()
 	sender := utils.Address(rsender)
-	root = &account{priv, auth.NewDirectFactory(priv), rsender, sender}
+	root = &account{priv, auth.NewED25519Factory(priv), rsender, sender}
 	log.Debug(
 		"generated root key",
 		zap.String("addr", sender),
@@ -284,9 +283,9 @@ var _ = ginkgo.BeforeSuite(func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		for _, alloc := range g.CustomAllocation {
-			bal, _, _, err := cli.Balance(context.Background(), alloc.Address)
+			bal, err := cli.Balance(context.Background(), alloc.Address, ids.Empty)
 			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(bal).Should(gomega.Equal(alloc.Balance - g.StateLockup*2))
+			gomega.Ω(bal).Should(gomega.Equal(alloc.Balance))
 		}
 	}
 
@@ -356,13 +355,13 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				gomega.Ω(err).Should(gomega.BeNil())
 				trsender := tpriv.PublicKey()
 				tsender := utils.Address(trsender)
-				senders[i] = &account{tpriv, auth.NewDirectFactory(tpriv), trsender, tsender}
+				senders[i] = &account{tpriv, auth.NewED25519Factory(tpriv), trsender, tsender}
 			}
 		})
 
 		ginkgo.By("load accounts", func() {
 			// sending 1 tx to each account
-			remainder := uint64(accts)*gen.StateLockup*2 + 1_000_000
+			remainder := uint64(1_000_000)
 			// leave some left over for root
 			fundSplit := (genesisBalance - remainder) / uint64(accts)
 			gomega.Ω(fundSplit).Should(gomega.Not(gomega.BeZero()))

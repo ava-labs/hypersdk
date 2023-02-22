@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-// "index-cli" implements indexvm client operation interface.
+// "token-cli" implements tokenvm client operation interface.
 package cmd
 
 import (
@@ -23,9 +23,9 @@ var (
 	workDir        string
 
 	rootCmd = &cobra.Command{
-		Use:        "index-cli",
-		Short:      "IndexVM CLI",
-		SuggestFor: []string{"index-cli", "indexcli"},
+		Use:        "token-cli",
+		Short:      "TokenVM CLI",
+		SuggestFor: []string{"token-cli", "tokencli"},
 	}
 )
 
@@ -48,7 +48,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(
 		&privateKeyFile,
 		"private-key-file",
-		".index-cli.pk",
+		".token-cli.pk",
 		"private key file path",
 	)
 	rootCmd.PersistentFlags().StringVar(

@@ -65,17 +65,5 @@ func (r *Rules) GetWindowTargetBlocks() uint64 {
 }
 
 func (r *Rules) FetchCustom(f string) (any, bool) {
-	switch f { //nolint:gocritic
-	case StateLockupField:
-		return r.g.StateLockup, true
-	}
 	return nil, false
-}
-
-func GetStateLockup(r chain.Rules) (uint64, error) {
-	rstateLockup, ok := r.FetchCustom(StateLockupField)
-	if !ok {
-		return 0, ErrStateLockupMissing
-	}
-	return rstateLockup.(uint64), nil
 }

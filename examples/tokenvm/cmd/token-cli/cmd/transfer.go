@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/fatih/color"
@@ -19,7 +20,7 @@ import (
 )
 
 var transferCmd = &cobra.Command{
-	Use:   "transfer [options] <to> <value>",
+	Use:   "transfer [options] <to> <asset> <value>",
 	Short: "Transfers value to another address",
 	RunE:  transferFunc,
 }
@@ -29,9 +30,9 @@ func transferFunc(_ *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	factory := auth.NewDirectFactory(priv)
+	factory := auth.NewED25519Factory(priv)
 
-	to, value, err := getTransferOp(args)
+	to, asset, value, err := getTransferOp(args)
 	if err != nil {
 		return err
 	}
@@ -40,6 +41,7 @@ func transferFunc(_ *cobra.Command, args []string) error {
 	cli := client.New(uri)
 	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.Transfer{
 		To:    to,
+		Asset: asset,
 		Value: value,
 	}, factory)
 	if err != nil {
@@ -55,9 +57,9 @@ func transferFunc(_ *cobra.Command, args []string) error {
 	return nil
 }
 
-func getTransferOp(args []string) (to crypto.PublicKey, value uint64, err error) {
-	if len(args) != 2 {
-		return crypto.EmptyPublicKey, 0, fmt.Errorf(
+func getTransferOp(args []string) (crypto.PublicKey, ids.ID, uint64, error) {
+	if len(args) != 3 {
+		return crypto.EmptyPublicKey, ids.Empty, 0, fmt.Errorf(
 			"expected exactly 2 arguments, got %d",
 			len(args),
 		)
@@ -65,11 +67,27 @@ func getTransferOp(args []string) (to crypto.PublicKey, value uint64, err error)
 
 	addr, err := utils.ParseAddress(args[0])
 	if err != nil {
-		return crypto.EmptyPublicKey, 0, fmt.Errorf("%w: failed to parse address %s", err, args[0])
+		return crypto.EmptyPublicKey, ids.Empty, 0, fmt.Errorf(
+			"%w: failed to parse address %s",
+			err,
+			args[0],
+		)
 	}
-	value, err = hutils.ParseBalance(args[1])
+	asset, err := ids.FromString(args[1])
 	if err != nil {
-		return crypto.EmptyPublicKey, 0, fmt.Errorf("%w: failed to parse %s", err, args[1])
+		return crypto.EmptyPublicKey, ids.Empty, 0, fmt.Errorf(
+			"%w: failed to parse asset %s",
+			err,
+			args[1],
+		)
 	}
-	return addr, value, nil
+	value, err := hutils.ParseBalance(args[2])
+	if err != nil {
+		return crypto.EmptyPublicKey, ids.Empty, 0, fmt.Errorf(
+			"%w: failed to parse %s",
+			err,
+			args[2],
+		)
+	}
+	return addr, asset, value, nil
 }
