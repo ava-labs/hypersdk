@@ -40,7 +40,7 @@ func (c *CloseOrder) Execute(
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,
-	txID ids.ID,
+	_ ids.ID,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := c.MaxUnits(r) // max units == units

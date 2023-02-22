@@ -61,11 +61,11 @@ func (f *FillOrder) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 
 func (f *FillOrder) Execute(
 	ctx context.Context,
-	r chain.Rules,
+	_ chain.Rules,
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,
-	txID ids.ID,
+	_ ids.ID,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	exists, in, out, rate, remaining, owner, err := storage.GetOrder(ctx, db, f.Order)
