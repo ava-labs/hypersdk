@@ -99,8 +99,11 @@ type Action interface {
 
 	// Auth may contain an [Actor] that performs a transaction
 	//
-	// if attempt to reference missing key, error...it is ok to not use all keys (conditional logic based on state)
-	StateKeys(Auth) [][]byte
+	// We provide the [txID] here because different actions like to use this as
+	// a unique identifier for things created in an action.
+	//
+	// If attempt to reference missing key, error...it is ok to not use all keys (conditional logic based on state)
+	StateKeys(auth Auth, txID ids.ID) [][]byte
 
 	// Key distinction with "Auth" is the payment of fees. All non-fee payments
 	// occur in Execute but Auth handles fees.
