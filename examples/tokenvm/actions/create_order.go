@@ -32,7 +32,7 @@ type CreateOrder struct {
 	//
 	// The output of filling an order is determined by:
 	// ([Rate] * [Value (In)]) / 10^9 = [Value (Out)]
-	Rate uint64 `json:"Rate"`
+	Rate uint64 `json:"rate"`
 
 	// [Supply] is the initial amount of [In] that the actor is locking up.
 	Supply uint64 `json:"supply"`
