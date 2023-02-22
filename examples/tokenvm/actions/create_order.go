@@ -22,6 +22,8 @@ type CreateOrder struct {
 	In ids.ID `json:"in"`
 
 	// [Out] is the asset you receive when trading for [In].
+	//
+	// This is the asset that is actually provided by the creator.
 	Out ids.ID `json:"out"`
 
 	// [Rate] is the amount of [Out] you get per unit of [In].
@@ -64,7 +66,7 @@ func (c *CreateOrder) Execute(
 	if c.Supply == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputSupplyZero}, nil
 	}
-	if err := storage.SubBalance(ctx, db, actor, c.In, c.Supply); err != nil {
+	if err := storage.SubBalance(ctx, db, actor, c.Out, c.Supply); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if err := storage.SetOrder(ctx, db, txID, c.In, c.Out, c.Rate, c.Supply, actor); err != nil {
