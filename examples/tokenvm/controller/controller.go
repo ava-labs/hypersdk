@@ -175,6 +175,8 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 				c.metrics.closeOrders.Inc()
 			case *actions.CreateOrder:
 				c.metrics.createOrders.Inc()
+			case *actions.FillOrder:
+				c.metrics.fillOrders.Inc()
 			case *actions.Mint:
 				c.metrics.mints.Inc()
 			case *actions.Transfer:

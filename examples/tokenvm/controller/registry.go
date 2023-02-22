@@ -23,6 +23,7 @@ func init() {
 		// When registering new actions, ALWAYS make sure to append at the end.
 		consts.ActionRegistry.Register(&actions.CreateOrder{}, actions.UnmarshalCreateOrder),
 		consts.ActionRegistry.Register(&actions.CloseOrder{}, actions.UnmarshalCloseOrder),
+		consts.ActionRegistry.Register(&actions.FillOrder{}, actions.UnmarshalFillOrder),
 		consts.ActionRegistry.Register(&actions.Mint{}, actions.UnmarshalMint),
 		consts.ActionRegistry.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
 

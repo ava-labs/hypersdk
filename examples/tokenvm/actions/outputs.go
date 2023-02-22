@@ -11,5 +11,8 @@ var (
 	OutputSupplyZero         = []byte("supply is zero")
 	OutputOrderMissing       = []byte("order is missing")
 	OutputUnauthorized       = []byte("unauthorized")
+	OutputWrongIn            = []byte("wrong in asset")
 	OutputWrongOut           = []byte("wrong out asset")
+	OutputWrongOwner         = []byte("wrong owner")
+	OutputInsufficientOutput = []byte("insufficient output")
 )
