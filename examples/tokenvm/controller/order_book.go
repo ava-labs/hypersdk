@@ -103,7 +103,7 @@ func (o *OrderBook) UpdateRemaining(id ids.ID, remaining uint64) {
 
 func (o *OrderBook) Orders(pair string, limit int) []*Order {
 	o.l.RLock()
-	defer o.l.RLock()
+	defer o.l.RUnlock()
 	h, ok := o.orders[pair]
 	if !ok {
 		return nil
