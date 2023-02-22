@@ -11,10 +11,10 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
-	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Action = (*Transfer)(nil)
@@ -31,8 +31,6 @@ func (t *Transfer) StateKeys(rauth chain.Auth) [][]byte {
 	return [][]byte{
 		storage.PrefixBalanceKey(auth.GetActor(rauth)),
 		storage.PrefixBalanceKey(t.To),
-		// TODO: Make conditional if account already exists
-		storage.PrefixPermissionsKey(t.To, t.To),
 	}
 }
 
@@ -86,7 +84,7 @@ func (t *Transfer) Marshal(p *codec.Packer) {
 func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
 	p.UnpackPublicKey(&transfer.To)
-	transfer.Value = p.UnpackUint64(true) // use [Clear] to empty
+	transfer.Value = p.UnpackUint64(true)
 	return &transfer, p.Err()
 }
 

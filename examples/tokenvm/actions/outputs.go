@@ -3,18 +3,4 @@
 
 package actions
 
-var (
-	OutputContentEmpty       = []byte("content empty")
-	OutputContentMissing     = []byte("content missing")
-	OutputInvalidSchema      = []byte("invalid schema")
-	OutputInvalidContent     = []byte("invalid content")
-	OutputWrongOwner         = []byte("wrong owner")
-	OutputInvalidObject      = []byte("invalid object")
-	OutputServicerMissing    = []byte("servicer missing")
-	OutputInvalidBalance     = []byte("invalid balance")
-	OutputAccountNotEmpty    = []byte("account not empty")
-	OutputAccountEmpty       = []byte("account empty")
-	OutputPermissionsUseless = []byte("permissions useless")
-	OutputActorMismatch      = []byte("actor mismatch")
-	OutputValueZero          = []byte("value is zero")
-)
+var OutputValueZero = []byte("value is zero")
