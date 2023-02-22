@@ -181,9 +181,10 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 				c.orderBook.Remove(action.Order)
 			case *actions.CreateOrder:
 				c.metrics.createOrders.Inc()
-				actor := auth.GetActor(tx.Auth)
-				order := &Order{tx.ID(), actor, action.Rate, action.Supply}
-				c.orderBook.Add(CreatePair(action.In, action.Out), order)
+				c.orderBook.Add(
+					CreatePair(action.In, action.Out),
+					&Order{tx.ID(), auth.GetActor(tx.Auth), action.Rate, action.Supply},
+				)
 			case *actions.FillOrder:
 				c.metrics.fillOrders.Inc()
 				orderResult, err := actions.UnmarshalOrderResult(result.Output)
