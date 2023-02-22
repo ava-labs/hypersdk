@@ -405,8 +405,6 @@ out on the Avalanche Discord._
 * Use pre-specified state keys to process transactions in parallel (txs with no
   overlap can be processed at the same time, create conflict sets on-the-fly
   instead of before execution)
-* Perform E2E tests and publish nightly performance benchmarks using a simple
-  hypervm that just performs simple transfers (`dummyvm`)
 * Add support for Avalanche Warp Messaging (AWM) so any deployed hypervms
   (hyperchains) can communicate with each other ([see ava-labs/xsvm](https://github.com/ava-labs/xsvm))
 * Add a WASM runtime module to allow developers to embed smart contract
