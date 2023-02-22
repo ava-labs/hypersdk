@@ -103,6 +103,10 @@ var (
 	rsender2 crypto.PublicKey
 	sender2  string
 
+	asset1 ids.ID
+	asset2 ids.ID
+	asset3 ids.ID
+
 	// when used with embedded VMs
 	genesisBytes []byte
 	instances    []instance
@@ -144,6 +148,11 @@ var _ = ginkgo.BeforeSuite(func() {
 		zap.String("addr", sender2),
 		zap.String("pk", hex.EncodeToString(priv2[:])),
 	)
+
+	asset1 = hutils.ToID([]byte("1"))
+	asset2 = hutils.ToID([]byte("2"))
+	asset3 = hutils.ToID([]byte("3"))
+	pair := actions.PairID(asset2, asset3)
 
 	// create embedded VMs
 	instances = make([]instance, vms)
@@ -193,7 +202,12 @@ var _ = ginkgo.BeforeSuite(func() {
 			db,
 			genesisBytes,
 			nil,
-			[]byte(`{"parallelism":3, "testMode":true, "logLevel":"debug"}`),
+			[]byte(
+				fmt.Sprintf(
+					`{"parallelism":3, "testMode":true, "logLevel":"debug", "trackedPairs":["%s"]}`,
+					pair,
+				),
+			),
 			toEngine,
 			nil,
 			app,
@@ -628,7 +642,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			context.Background(),
 			&actions.Mint{
 				To:    other.PublicKey(),
-				Asset: hutils.ToID([]byte("1")),
+				Asset: asset1,
 				Value: 10,
 			},
 			factory,
@@ -640,10 +654,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-		balance, err := instances[0].cli.Balance(context.TODO(), aother, hutils.ToID([]byte("1")))
+		balance, err := instances[0].cli.Balance(context.TODO(), aother, asset1)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(10)))
-		balance, err = instances[0].cli.Balance(context.TODO(), sender, hutils.ToID([]byte("1")))
+		balance, err = instances[0].cli.Balance(context.TODO(), sender, asset1)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 		balance, err = instances[0].cli.Balance(context.TODO(), aother, ids.Empty)
@@ -675,7 +689,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			context.Background(),
 			&actions.Mint{
 				To:    other.PublicKey(),
-				Asset: hutils.ToID([]byte("1")),
+				Asset: asset1,
 				Value: 10,
 			},
 			factory,
@@ -690,7 +704,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(string(result.Output)).
 			Should(gomega.ContainSubstring("asset already exists"))
 
-		balance, err := instances[0].cli.Balance(context.TODO(), aother, hutils.ToID([]byte("1")))
+		balance, err := instances[0].cli.Balance(context.TODO(), aother, asset1)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 	})
@@ -720,6 +734,50 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		balance, err := instances[0].cli.Balance(context.TODO(), aother, ids.Empty)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
+	})
+
+	ginkgo.It("mints another new asset (to self)", func() {
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.Mint{
+				To:    rsender,
+				Asset: asset2,
+				Value: 10,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+
+		balance, err := instances[0].cli.Balance(context.TODO(), sender, asset2)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(10)))
+	})
+
+	ginkgo.It("mints another new asset (to self) on another account", func() {
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.Mint{
+				To:    rsender2,
+				Asset: asset3,
+				Value: 10,
+			},
+			factory2,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+
+		balance, err := instances[0].cli.Balance(context.TODO(), sender2, asset3)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(10)))
 	})
 })
 
