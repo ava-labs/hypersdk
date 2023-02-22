@@ -651,74 +651,76 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 	})
 
-	// ginkgo.It("rejects empty mint", func() {
-	// 	// Process transaction
-	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
-	// 		context.Background(),
-	// 		&actions.Index{
-	// 			Parent:  claimedContent,
-	// 			Schema:  hutils.ToID([]byte("schema2")),
-	// 			Content: []byte{1, 1, 1},
-	// 		},
-	// 		factory2,
-	// 	)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-	// 	accept := expectBlk(instances[0])
-	// 	results := accept()
-	// 	gomega.Ω(results).Should(gomega.HaveLen(1))
-	// 	result := results[0]
-	// 	gomega.Ω(result.Success).Should(gomega.BeFalse())
-	// 	gomega.Ω(string(result.Output)).
-	// 		Should(gomega.ContainSubstring("key not specified"))
-	// 	// missing key for owner
-	// })
+	ginkgo.It("rejects empty mint", func() {
+		other, err := crypto.GeneratePrivateKey()
+		gomega.Ω(err).Should(gomega.BeNil())
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.Mint{
+				To:    other.PublicKey(),
+				Asset: ids.GenerateTestID(),
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background()).Error()).
+			Should(gomega.ContainSubstring("Uint64 field is not populated"))
+	})
 
-	// ginkgo.It("rejects duplicate mint", func() {
-	// 	// Process transaction
-	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
-	// 		context.Background(),
-	// 		&actions.Index{
-	// 			Parent:  claimedContent,
-	// 			Schema:  hutils.ToID([]byte("schema2")),
-	// 			Content: []byte{1, 1, 1},
-	// 		},
-	// 		factory2,
-	// 	)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-	// 	accept := expectBlk(instances[0])
-	// 	results := accept()
-	// 	gomega.Ω(results).Should(gomega.HaveLen(1))
-	// 	result := results[0]
-	// 	gomega.Ω(result.Success).Should(gomega.BeFalse())
-	// 	gomega.Ω(string(result.Output)).
-	// 		Should(gomega.ContainSubstring("key not specified"))
-	// 	// missing key for owner
-	// })
+	ginkgo.It("rejects duplicate mint", func() {
+		other, err := crypto.GeneratePrivateKey()
+		gomega.Ω(err).Should(gomega.BeNil())
+		aother := utils.Address(other.PublicKey())
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.Mint{
+				To:    other.PublicKey(),
+				Asset: hutils.ToID([]byte("1")),
+				Value: 10,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		result := results[0]
+		gomega.Ω(result.Success).Should(gomega.BeFalse())
+		gomega.Ω(string(result.Output)).
+			Should(gomega.ContainSubstring("asset already exists"))
 
-	// ginkgo.It("rejects mint of native token", func() {
-	// 	// Process transaction
-	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
-	// 		context.Background(),
-	// 		&actions.Index{
-	// 			Parent:  claimedContent,
-	// 			Schema:  hutils.ToID([]byte("schema2")),
-	// 			Content: []byte{1, 1, 1},
-	// 		},
-	// 		factory2,
-	// 	)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-	// 	accept := expectBlk(instances[0])
-	// 	results := accept()
-	// 	gomega.Ω(results).Should(gomega.HaveLen(1))
-	// 	result := results[0]
-	// 	gomega.Ω(result.Success).Should(gomega.BeFalse())
-	// 	gomega.Ω(string(result.Output)).
-	// 		Should(gomega.ContainSubstring("key not specified"))
-	// 	// missing key for owner
-	// })
+		balance, err := instances[0].cli.Balance(context.TODO(), aother, hutils.ToID([]byte("1")))
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
+	})
+
+	ginkgo.It("rejects mint of native token", func() {
+		other, err := crypto.GeneratePrivateKey()
+		gomega.Ω(err).Should(gomega.BeNil())
+		aother := utils.Address(other.PublicKey())
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.Mint{
+				To:    other.PublicKey(),
+				Value: 10,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		result := results[0]
+		gomega.Ω(result.Success).Should(gomega.BeFalse())
+		gomega.Ω(string(result.Output)).
+			Should(gomega.ContainSubstring("cannot mint native asset"))
+
+		balance, err := instances[0].cli.Balance(context.TODO(), aother, ids.Empty)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
+	})
 })
 
 func expectBlk(i instance) func() []*chain.Result {

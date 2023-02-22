@@ -5,6 +5,6 @@ package actions
 
 var (
 	OutputValueZero          = []byte("value is zero")
-	OutputAssetIsNative      = []byte("asset is native")
+	OutputAssetIsNative      = []byte("cannot mint native asset")
 	OutputAssetAlreadyExists = []byte("asset already exists")
 )
