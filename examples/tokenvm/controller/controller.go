@@ -170,7 +170,9 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 			return err
 		}
 		if result.Success {
-			switch tx.Action.(type) { //nolint:gocritic
+			switch tx.Action.(type) {
+			case *actions.Mint:
+				c.metrics.mints.Inc()
 			case *actions.Transfer:
 				c.metrics.transfers.Inc()
 			}

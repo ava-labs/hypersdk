@@ -3,4 +3,8 @@
 
 package actions
 
-var OutputValueZero = []byte("value is zero")
+var (
+	OutputValueZero          = []byte("value is zero")
+	OutputAssetIsNative      = []byte("asset is native")
+	OutputAssetAlreadyExists = []byte("asset already exists")
+)

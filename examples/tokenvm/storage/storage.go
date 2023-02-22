@@ -29,11 +29,14 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // State
 // 0x0/ (balance)
 //   -> [owner|asset] => balance
+// 0x1/ (assets)
+//   -> [asset] => creator
 
 const (
 	txPrefix = 0x0
 
 	balancePrefix = 0x0
+	assetPrefix   = 0x1
 )
 
 var (
@@ -205,4 +208,36 @@ func SubBalance(
 		)
 	}
 	return SetBalance(ctx, db, pk, asset, nbal)
+}
+
+// [assetPrefix] + [address]
+func PrefixAssetKey(asset ids.ID) (k []byte) {
+	k = make([]byte, 1+consts.IDLen)
+	k[0] = balancePrefix
+	copy(k[1:], asset[:])
+	return
+}
+
+func GetAssetOwner(ctx context.Context, db chain.Database, asset ids.ID) (crypto.PublicKey, error) {
+	k := PrefixAssetKey(asset)
+	owner, err := db.GetValue(ctx, k)
+	if errors.Is(err, database.ErrNotFound) {
+		return crypto.EmptyPublicKey, nil
+	}
+	if err != nil {
+		return crypto.EmptyPublicKey, err
+	}
+	var pk crypto.PublicKey
+	copy(pk[:], owner)
+	return pk, nil
+}
+
+func SetAssetOwner(
+	ctx context.Context,
+	db chain.Database,
+	owner crypto.PublicKey,
+	asset ids.ID,
+) error {
+	k := PrefixAssetKey(asset)
+	return db.Insert(ctx, k, owner[:])
 }
