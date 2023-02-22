@@ -5,11 +5,4 @@ package auth
 
 import "errors"
 
-var (
-	ErrInvalidSignature  = errors.New("invalid signature")
-	ErrActorMissing      = errors.New("actor account is missing")
-	ErrNotAllowed        = errors.New("not allowed")
-	ErrActionMissing     = errors.New("action missing")
-	ErrActorCantPay      = errors.New("actor can't pay")
-	ErrActorEqualsSigner = errors.New("actor equals signer, use direct")
-)
+var ErrInvalidSignature = errors.New("invalid signature")
