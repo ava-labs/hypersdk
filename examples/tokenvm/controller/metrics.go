@@ -10,29 +10,22 @@ import (
 )
 
 type metrics struct {
-	itemsIndexed   prometheus.Counter
-	itemsUnindexed prometheus.Counter
+	transfers prometheus.Counter
 }
 
 func newMetrics(gatherer ametrics.MultiGatherer) (*metrics, error) {
 	m := &metrics{
-		itemsIndexed: prometheus.NewCounter(prometheus.CounterOpts{
+		transfers: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "actions",
-			Name:      "items_indexed",
-			Help:      "number of items indexed in state",
-		}),
-		itemsUnindexed: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "actions",
-			Name:      "items_unindexed",
-			Help:      "number of items unindexed from state",
+			Name:      "transfers",
+			Help:      "number of transfer actions",
 		}),
 	}
 	r := prometheus.NewRegistry()
 	errs := wrappers.Errs{}
 	errs.Add(
-		r.Register(m.itemsIndexed),
-		r.Register(m.itemsUnindexed),
-		gatherer.Register("index_vm", r),
+		r.Register(m.transfers),
+		gatherer.Register("transfervm", r),
 	)
 	return m, errs.Err
 }

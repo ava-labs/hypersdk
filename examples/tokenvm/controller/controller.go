@@ -171,10 +171,8 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 		}
 		if result.Success {
 			switch tx.Action.(type) {
-			case *actions.Index:
-				c.metrics.itemsIndexed.Inc()
-			case *actions.Unindex:
-				c.metrics.itemsUnindexed.Inc()
+			case *actions.Transfer:
+				c.metrics.transfers.Inc()
 			}
 		}
 	}

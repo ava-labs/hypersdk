@@ -20,16 +20,8 @@ func init() {
 
 	errs := &wrappers.Errs{}
 	errs.Add(
-		consts.ActionRegistry.Register(&actions.Authorize{}, actions.UnmarshalAuthorize),
 		consts.ActionRegistry.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
-		consts.ActionRegistry.Register(&actions.Clear{}, actions.UnmarshalClear),
-		consts.ActionRegistry.Register(&actions.Index{}, actions.UnmarshalIndex),
-		consts.ActionRegistry.Register(&actions.Unindex{}, actions.UnmarshalUnindex),
-		consts.ActionRegistry.Register(&actions.Modify{}, actions.UnmarshalModify),
-
-		consts.AuthRegistry.Register(&auth.Direct{}, auth.UnmarshalDirect),
-		consts.AuthRegistry.Register(&auth.Delegate{}, auth.UnmarshalDelegate),
-		// TODO: multi-sig
+		consts.AuthRegistry.Register(&auth.ED25519{}, auth.UnmarshalED25519),
 	)
 	if errs.Errored() {
 		panic(errs.Err)

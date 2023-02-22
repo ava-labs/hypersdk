@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	HRP  = "index"
-	Name = "indexvm"
+	HRP  = "transfer"
+	Name = "transfervm"
 )
 
 var ID ids.ID
