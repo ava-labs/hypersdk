@@ -361,7 +361,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 
 		ginkgo.By("load accounts", func() {
 			// sending 1 tx to each account
-			remainder := uint64(1_000_000)
+			remainder := uint64(accts)*transferTxUnits + uint64(1_000_000)
 			// leave some left over for root
 			fundSplit := (genesisBalance - remainder) / uint64(accts)
 			gomega.Ω(fundSplit).Should(gomega.Not(gomega.BeZero()))
@@ -380,6 +380,10 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				blk := produceBlock(instances[0])
 				log.Debug("block produced", zap.Int("txs", len(blk.Txs)))
 				for _, result := range blk.Results() {
+					if !result.Success {
+						// Used for debugging
+						fmt.Println(string(result.Output), i, requiredBlocks)
+					}
 					gomega.Ω(result.Success).Should(gomega.BeTrue())
 				}
 				for _, tx := range blk.Txs {
