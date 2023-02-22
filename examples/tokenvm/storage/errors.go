@@ -5,10 +5,4 @@ package storage
 
 import "errors"
 
-var (
-	ErrContentAlreadyExists = errors.New("content already exists")
-	ErrContentMissing       = errors.New("content does not exist")
-	ErrWrongOwner           = errors.New("wrong owner")
-	ErrInsufficientTip      = errors.New("insufficient tip")
-	ErrInvalidBalance       = errors.New("invalid balance")
-)
+var ErrInvalidBalance = errors.New("invalid balance")
