@@ -9,3 +9,10 @@
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-sync-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-sync-tests.yml/badge.svg" /></a>
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-static-analysis.yml/badge.svg" /></a>
 </p>
+
+## Future Work
+_If you want to take the lead on any of these items, please
+[start a discussion](https://github.com/ava-labs/hypersdk/discussions) or reach
+out on the Avalanche Discord._
+
+* Add support for an asset creator to mint more assets
