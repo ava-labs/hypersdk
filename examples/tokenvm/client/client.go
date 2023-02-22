@@ -58,3 +58,16 @@ func (cli *Client) Balance(ctx context.Context, addr string, asset ids.ID) (uint
 	)
 	return resp.Amount, err
 }
+
+func (cli *Client) Orders(ctx context.Context, pair string) ([]*controller.Order, error) {
+	resp := new(controller.OrdersReply)
+	err := cli.Requester.SendRequest(
+		ctx,
+		"orders",
+		&controller.OrdersArgs{
+			Pair: pair,
+		},
+		resp,
+	)
+	return resp.Orders, err
+}

@@ -14,6 +14,10 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
+const (
+	ordersToSend = 128
+)
+
 type Handler struct {
 	*vm.Handler // embed standard functionality
 
@@ -79,4 +83,20 @@ func (h *Handler) Balance(req *http.Request, args *BalanceArgs, reply *BalanceRe
 	}
 	reply.Amount = balance
 	return err
+}
+
+type OrdersArgs struct {
+	Pair string `json:"pair"`
+}
+
+type OrdersReply struct {
+	Orders []*Order `json:"orders"`
+}
+
+func (h *Handler) Orders(req *http.Request, args *OrdersArgs, reply *OrdersReply) error {
+	_, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Orders")
+	defer span.End()
+
+	reply.Orders = h.c.orderBook.Orders(args.Pair, ordersToSend)
+	return nil
 }

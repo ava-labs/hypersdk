@@ -5,6 +5,7 @@ package actions
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
@@ -100,4 +101,8 @@ func UnmarshalCreateOrder(p *codec.Packer) (chain.Action, error) {
 func (*CreateOrder) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
+}
+
+func PairID(in ids.ID, out ids.ID) string {
+	return fmt.Sprintf("%s-%s", in.String(), out.String())
 }

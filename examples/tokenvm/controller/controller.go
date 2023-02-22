@@ -182,7 +182,7 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 			case *actions.CreateOrder:
 				c.metrics.createOrders.Inc()
 				c.orderBook.Add(
-					CreatePair(action.In, action.Out),
+					actions.PairID(action.In, action.Out),
 					&Order{tx.ID(), auth.GetActor(tx.Auth), action.Rate, action.Supply},
 				)
 			case *actions.FillOrder:

@@ -2,7 +2,6 @@ package controller
 
 import (
 	"container/heap"
-	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -28,10 +27,6 @@ type OrderBook struct {
 	orders      map[string]*mempool.Uint64Heap[*Order]
 	orderToPair map[ids.ID]string // needed to delete from [CloseOrder] actions
 	l           sync.RWMutex
-}
-
-func CreatePair(in ids.ID, out ids.ID) string {
-	return fmt.Sprintf("%s-%s", in.String(), out.String())
 }
 
 func NewOrderBook(trackedPairs []string) *OrderBook {
