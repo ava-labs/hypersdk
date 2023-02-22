@@ -58,12 +58,11 @@ func (h *Handler) GetTx(req *http.Request, args *GetTxArgs, reply *GetTxReply) e
 
 type BalanceArgs struct {
 	Address string `json:"address"`
+	Asset   ids.ID `json:"asset"`
 }
 
 type BalanceReply struct {
-	Exists   bool   `json:"exists"`
-	Unlocked uint64 `json:"unlocked"`
-	Locked   uint64 `json:"locked"`
+	Amount uint64 `json:"amount"`
 }
 
 func (h *Handler) Balance(req *http.Request, args *BalanceArgs, reply *BalanceReply) error {
@@ -74,41 +73,10 @@ func (h *Handler) Balance(req *http.Request, args *BalanceArgs, reply *BalanceRe
 	if err != nil {
 		return err
 	}
-	u, l, err := storage.GetBalanceFromState(ctx, h.c.inner.ReadState, addr)
+	balance, err := storage.GetBalanceFromState(ctx, h.c.inner.ReadState, addr, args.Asset)
 	if err != nil {
 		return err
 	}
-	reply.Exists = l > 0
-	reply.Unlocked = u
-	reply.Locked = l
+	reply.Amount = balance
 	return err
-}
-
-type ContentArgs struct {
-	Content ids.ID `json:"content"`
-}
-
-type ContentReply struct {
-	Searcher string `json:"searcher"`
-	Royalty  uint64 `json:"royalty"`
-}
-
-func (h *Handler) Content(req *http.Request, args *ContentArgs, reply *ContentReply) error {
-	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Content")
-	defer span.End()
-
-	searcher, royalty, exists, err := storage.GetContentFromState(
-		ctx,
-		h.c.inner.ReadState,
-		args.Content,
-	)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return nil
-	}
-	reply.Searcher = utils.Address(searcher)
-	reply.Royalty = royalty
-	return nil
 }

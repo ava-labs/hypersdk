@@ -35,13 +35,18 @@ func (cli *Client) GenerateTransaction(
 		modifiers...)
 }
 
-func (cli *Client) WaitForBalance(ctx context.Context, addr string, min uint64) error {
+func (cli *Client) WaitForBalance(
+	ctx context.Context,
+	addr string,
+	asset ids.ID,
+	min uint64,
+) error {
 	return client.Wait(ctx, func(ctx context.Context) (bool, error) {
-		unlocked, _, _, err := cli.Balance(ctx, addr)
+		balance, err := cli.Balance(ctx, addr, asset)
 		if err != nil {
 			return false, err
 		}
-		shouldExit := unlocked >= min
+		shouldExit := balance >= min
 		if !shouldExit {
 			utils.Outf(
 				"{{yellow}}waiting for %s balance: %s{{/}}\n",

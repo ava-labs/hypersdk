@@ -45,7 +45,7 @@ func (cli *Client) GetTx(ctx context.Context, id ids.ID) (int64, bool, error) {
 	return resp.Timestamp, resp.Accepted, err
 }
 
-func (cli *Client) Balance(ctx context.Context, addr string) (uint64, uint64, bool, error) {
+func (cli *Client) Balance(ctx context.Context, addr string, asset ids.ID) (uint64, error) {
 	resp := new(controller.BalanceReply)
 	err := cli.Requester.SendRequest(
 		ctx,
@@ -55,18 +55,5 @@ func (cli *Client) Balance(ctx context.Context, addr string) (uint64, uint64, bo
 		},
 		resp,
 	)
-	return resp.Unlocked, resp.Locked, resp.Exists, err
-}
-
-func (cli *Client) Content(ctx context.Context, content ids.ID) (string, uint64, error) {
-	resp := new(controller.ContentReply)
-	err := cli.Requester.SendRequest(
-		ctx,
-		"content",
-		&controller.ContentArgs{
-			Content: content,
-		},
-		resp,
-	)
-	return resp.Searcher, resp.Royalty, err
+	return resp.Amount, err
 }
