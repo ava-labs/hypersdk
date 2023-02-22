@@ -779,6 +779,33 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(10)))
 	})
+
+	ginkgo.It("create simple order (want 3, give 2) untracked", func() {
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.CreateOrder{
+				In:     asset3,
+				Out:    asset2,
+				Rate:   actions.CreateRate(2), // 1 asset3 = 2 asset2
+				Supply: 5,                     // put half of balance
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+
+		balance, err := instances[0].cli.Balance(context.TODO(), sender, asset2)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(5)))
+
+		orders, err := instances[0].cli.Orders(context.TODO(), actions.PairID(asset3, asset2))
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(orders).Should(gomega.HaveLen(0))
+	})
 })
 
 func expectBlk(i instance) func() []*chain.Result {

@@ -46,7 +46,7 @@ type CreateOrder struct {
 func (c *CreateOrder) StateKeys(rauth chain.Auth, txID ids.ID) [][]byte {
 	actor := auth.GetActor(rauth)
 	return [][]byte{
-		storage.PrefixBalanceKey(actor, c.In),
+		storage.PrefixBalanceKey(actor, c.Out),
 		storage.PrefixOrderKey(txID),
 	}
 }
@@ -105,4 +105,8 @@ func (*CreateOrder) ValidRange(chain.Rules) (int64, int64) {
 
 func PairID(in ids.ID, out ids.ID) string {
 	return fmt.Sprintf("%s-%s", in.String(), out.String())
+}
+
+func CreateRate(rate float64) uint64 {
+	return uint64(rate * float64(divisor))
 }
