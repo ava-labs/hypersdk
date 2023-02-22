@@ -31,7 +31,7 @@ type Mint struct {
 	// TODO: add perms for minting more of the asset, etc.
 }
 
-func (m *Mint) StateKeys(rauth chain.Auth) [][]byte {
+func (m *Mint) StateKeys(chain.Auth) [][]byte {
 	return [][]byte{
 		storage.PrefixAssetKey(m.Asset),
 		storage.PrefixBalanceKey(m.To, m.Asset),
