@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/config"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
@@ -174,23 +175,33 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 			return err
 		}
 		if result.Success {
-			switch tx.Action.(type) {
+			switch action := tx.Action.(type) {
 			case *actions.CloseOrder:
 				c.metrics.closeOrders.Inc()
+				c.orderBook.Remove(action.Order)
 			case *actions.CreateOrder:
 				c.metrics.createOrders.Inc()
+				actor := auth.GetActor(tx.Auth)
+				order := &Order{tx.ID(), actor, action.Rate, action.Supply}
+				c.orderBook.Add(CreatePair(action.In, action.Out), order)
 			case *actions.FillOrder:
 				c.metrics.fillOrders.Inc()
+				orderResult, err := actions.UnmarshalOrderResult(result.Output)
+				if err != nil {
+					// This should never happen
+					return err
+				}
+				if orderResult.Remaining == 0 {
+					c.orderBook.Remove(action.Order)
+					continue
+				}
+				c.orderBook.UpdateRemaining(action.Order, orderResult.Remaining)
 			case *actions.Mint:
 				c.metrics.mints.Inc()
 			case *actions.Transfer:
 				c.metrics.transfers.Inc()
 			}
 		}
-
-		// TODO: run order book based on config (which says what in<>out assets to
-		// maintain)...keep top x orders by rate in a heap
-		// -> remove when full fill or close
 	}
 	return batch.Write()
 }

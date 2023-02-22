@@ -2,6 +2,7 @@ package controller
 
 import (
 	"container/heap"
+	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -24,8 +25,13 @@ type OrderBook struct {
 	// TODO: consider capping the number of orders in each heap (need to ensure
 	// that doing so does not make it possible to send a bunch of small, spam
 	// orders to clear -> may need to set a min order limit to watch)
-	orders map[string]*mempool.Uint64Heap[*Order]
-	l      sync.RWMutex
+	orders      map[string]*mempool.Uint64Heap[*Order]
+	orderToPair map[ids.ID]string // needed to delete from [CloseOrder] actions
+	l           sync.RWMutex
+}
+
+func CreatePair(in ids.ID, out ids.ID) string {
+	return fmt.Sprintf("%s-%s", in.String(), out.String())
 }
 
 func NewOrderBook(trackedPairs []string) *OrderBook {
@@ -35,45 +41,66 @@ func NewOrderBook(trackedPairs []string) *OrderBook {
 		m[pair] = mempool.NewUint64Heap[*Order](initialPairCapacity, false)
 	}
 	return &OrderBook{
-		orders: m,
+		orders:      m,
+		orderToPair: map[ids.ID]string{},
 	}
 }
 
-type OrderItem struct {
-	Pair string
-	Item *Order
-}
-
-func (o *OrderBook) Add(items []*OrderItem) {
-	o.l.Lock()
-	defer o.l.Unlock()
-	for _, item := range items {
-		h, ok := o.orders[item.Pair]
-		if !ok {
-			continue
-		}
-		order := item.Item
-		heap.Push(h, &mempool.Uint64Entry[*Order]{
-			ID:    order.ID,
-			Val:   order.Rate,
-			Item:  order,
-			Index: h.Len(),
-		})
-	}
-}
-
-func (o *OrderBook) Remove(pair string, id ids.ID) {
+func (o *OrderBook) Add(pair string, order *Order) {
 	o.l.Lock()
 	defer o.l.Unlock()
 	h, ok := o.orders[pair]
 	if !ok {
 		return
 	}
-	entry, ok := h.GetID(id) // O(log 1)
+	heap.Push(h, &mempool.Uint64Entry[*Order]{
+		ID:    order.ID,
+		Val:   order.Rate,
+		Item:  order,
+		Index: h.Len(),
+	})
+	o.orderToPair[order.ID] = pair
+}
+
+func (o *OrderBook) Remove(id ids.ID) {
+	o.l.Lock()
+	defer o.l.Unlock()
+	pair, ok := o.orderToPair[id]
 	if !ok {
 		return
 	}
+	delete(o.orderToPair, id)
+	h, ok := o.orders[pair]
+	if !ok {
+		// This should never happen
+		return
+	}
+	entry, ok := h.GetID(id) // O(log 1)
+	if !ok {
+		// This should never happen
+		return
+	}
 	heap.Remove(h, entry.Index) // O(log N)
+}
+
+func (o *OrderBook) UpdateRemaining(id ids.ID, remaining uint64) {
+	o.l.Lock()
+	defer o.l.Unlock()
+	pair, ok := o.orderToPair[id]
+	if !ok {
+		return
+	}
+	h, ok := o.orders[pair]
+	if !ok {
+		// This should never happen
+		return
+	}
+	entry, ok := h.GetID(id)
+	if !ok {
+		// This should never happen
+		return
+	}
+	entry.Item.Remaining = remaining
 }
 
 func (o *OrderBook) Orders(pair string, limit int) []*Order {
