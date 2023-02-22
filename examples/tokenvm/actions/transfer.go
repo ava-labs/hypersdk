@@ -29,7 +29,7 @@ type Transfer struct {
 	Value uint64 `json:"value"`
 }
 
-func (t *Transfer) StateKeys(rauth chain.Auth) [][]byte {
+func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 	return [][]byte{
 		storage.PrefixBalanceKey(auth.GetActor(rauth), t.Asset),
 		storage.PrefixBalanceKey(t.To, t.Asset),

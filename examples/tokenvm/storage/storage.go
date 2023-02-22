@@ -5,7 +5,6 @@ package storage
 
 import (
 	"context"
-	"crypto/ed25519"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -31,12 +30,15 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 //   -> [owner|asset] => balance
 // 0x1/ (assets)
 //   -> [asset] => creator
+// 0x2/ (orders)
+//   -> [txID] => in|out|rate|remaining|owner
 
 const (
 	txPrefix = 0x0
 
 	balancePrefix = 0x0
 	assetPrefix   = 0x1
+	orderPrefix   = 0x2
 )
 
 var (
@@ -97,10 +99,10 @@ func GetTransaction(
 
 // [accountPrefix] + [address] + [asset]
 func PrefixBalanceKey(pk crypto.PublicKey, asset ids.ID) (k []byte) {
-	k = make([]byte, 1+ed25519.PublicKeySize+consts.IDLen)
+	k = make([]byte, 1+crypto.PublicKeyLen+consts.IDLen)
 	k[0] = balancePrefix
 	copy(k[1:], pk[:])
-	copy(k[1+ed25519.PublicKeySize:], asset[:])
+	copy(k[1+crypto.PublicKeyLen:], asset[:])
 	return
 }
 
@@ -213,7 +215,7 @@ func SubBalance(
 // [assetPrefix] + [address]
 func PrefixAssetKey(asset ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen)
-	k[0] = balancePrefix
+	k[0] = assetPrefix
 	copy(k[1:], asset[:])
 	return
 }
@@ -240,4 +242,32 @@ func SetAssetOwner(
 ) error {
 	k := PrefixAssetKey(asset)
 	return db.Insert(ctx, k, owner[:])
+}
+
+// [orderPrefix] + [txID]
+func PrefixOrderKey(txID ids.ID) (k []byte) {
+	k = make([]byte, 1+consts.IDLen)
+	k[0] = orderPrefix
+	copy(k[1:], txID[:])
+	return
+}
+
+func SetOrder(
+	ctx context.Context,
+	db chain.Database,
+	txID ids.ID,
+	in ids.ID,
+	out ids.ID,
+	rate uint64,
+	supply uint64,
+	owner crypto.PublicKey,
+) error {
+	k := PrefixOrderKey(txID)
+	v := make([]byte, consts.IDLen*2+consts.Uint64Len*2+crypto.PublicKeyLen)
+	copy(v, in[:])
+	copy(v[consts.IDLen:], out[:])
+	binary.BigEndian.PutUint64(v[consts.IDLen*2:], rate)
+	binary.BigEndian.PutUint64(v[consts.IDLen*2+consts.Uint64Len:], supply)
+	copy(v[consts.IDLen*2+consts.Uint64Len*2:], owner[:])
+	return db.Insert(ctx, k, v)
 }

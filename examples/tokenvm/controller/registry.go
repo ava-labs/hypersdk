@@ -20,9 +20,12 @@ func init() {
 
 	errs := &wrappers.Errs{}
 	errs.Add(
+		// When registering new actions, ALWAYS make sure to append at the end.
+		consts.ActionRegistry.Register(&actions.CreateOrder{}, actions.UnmarshalCreateOrder),
 		consts.ActionRegistry.Register(&actions.Mint{}, actions.UnmarshalMint),
 		consts.ActionRegistry.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
 
+		// When registering new auth, ALWAYS make sure to append at the end.
 		consts.AuthRegistry.Register(&auth.ED25519{}, auth.UnmarshalED25519),
 	)
 	if errs.Errored() {

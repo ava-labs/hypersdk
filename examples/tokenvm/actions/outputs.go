@@ -7,4 +7,6 @@ var (
 	OutputValueZero          = []byte("value is zero")
 	OutputAssetIsNative      = []byte("cannot mint native asset")
 	OutputAssetAlreadyExists = []byte("asset already exists")
+	OutputRateZero           = []byte("rate is zero")
+	OutputSupplyZero         = []byte("supply is zero")
 )

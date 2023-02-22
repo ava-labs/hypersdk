@@ -31,7 +31,7 @@ type Mint struct {
 	// TODO: add perms for minting more of the asset, etc.
 }
 
-func (m *Mint) StateKeys(chain.Auth) [][]byte {
+func (m *Mint) StateKeys(chain.Auth, ids.ID) [][]byte {
 	return [][]byte{
 		storage.PrefixAssetKey(m.Asset),
 		storage.PrefixBalanceKey(m.To, m.Asset),
@@ -87,11 +87,11 @@ func (m *Mint) Marshal(p *codec.Packer) {
 }
 
 func UnmarshalMint(p *codec.Packer) (chain.Action, error) {
-	var transfer Mint
-	p.UnpackPublicKey(&transfer.To)
-	p.UnpackID(false, &transfer.Asset) // empty ID is the native asset
-	transfer.Value = p.UnpackUint64(true)
-	return &transfer, p.Err()
+	var mint Mint
+	p.UnpackPublicKey(&mint.To)
+	p.UnpackID(false, &mint.Asset) // empty ID is the native asset
+	mint.Value = p.UnpackUint64(true)
+	return &mint, p.Err()
 }
 
 func (*Mint) ValidRange(chain.Rules) (int64, int64) {
