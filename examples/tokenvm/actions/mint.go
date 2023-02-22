@@ -68,6 +68,9 @@ func (m *Mint) Execute(
 	if err := storage.SetAssetOwner(ctx, db, actor, m.Asset); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
+	if err := storage.SetBalance(ctx, db, m.To, m.Asset, m.Value); err != nil {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil
 }
 

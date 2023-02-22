@@ -619,6 +619,106 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(result).Should(gomega.Equal(results[0]))
 		gomega.Ω(cli.Close()).Should(gomega.BeNil())
 	})
+
+	ginkgo.It("mints a new asset", func() {
+		other, err := crypto.GeneratePrivateKey()
+		gomega.Ω(err).Should(gomega.BeNil())
+		aother := utils.Address(other.PublicKey())
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.Mint{
+				To:    other.PublicKey(),
+				Asset: hutils.ToID([]byte("1")),
+				Value: 10,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+
+		balance, err := instances[0].cli.Balance(context.TODO(), aother, hutils.ToID([]byte("1")))
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(10)))
+		balance, err = instances[0].cli.Balance(context.TODO(), sender, hutils.ToID([]byte("1")))
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
+		balance, err = instances[0].cli.Balance(context.TODO(), aother, ids.Empty)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
+	})
+
+	// ginkgo.It("rejects empty mint", func() {
+	// 	// Process transaction
+	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
+	// 		context.Background(),
+	// 		&actions.Index{
+	// 			Parent:  claimedContent,
+	// 			Schema:  hutils.ToID([]byte("schema2")),
+	// 			Content: []byte{1, 1, 1},
+	// 		},
+	// 		factory2,
+	// 	)
+	// 	gomega.Ω(err).Should(gomega.BeNil())
+	// 	gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+	// 	accept := expectBlk(instances[0])
+	// 	results := accept()
+	// 	gomega.Ω(results).Should(gomega.HaveLen(1))
+	// 	result := results[0]
+	// 	gomega.Ω(result.Success).Should(gomega.BeFalse())
+	// 	gomega.Ω(string(result.Output)).
+	// 		Should(gomega.ContainSubstring("key not specified"))
+	// 	// missing key for owner
+	// })
+
+	// ginkgo.It("rejects duplicate mint", func() {
+	// 	// Process transaction
+	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
+	// 		context.Background(),
+	// 		&actions.Index{
+	// 			Parent:  claimedContent,
+	// 			Schema:  hutils.ToID([]byte("schema2")),
+	// 			Content: []byte{1, 1, 1},
+	// 		},
+	// 		factory2,
+	// 	)
+	// 	gomega.Ω(err).Should(gomega.BeNil())
+	// 	gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+	// 	accept := expectBlk(instances[0])
+	// 	results := accept()
+	// 	gomega.Ω(results).Should(gomega.HaveLen(1))
+	// 	result := results[0]
+	// 	gomega.Ω(result.Success).Should(gomega.BeFalse())
+	// 	gomega.Ω(string(result.Output)).
+	// 		Should(gomega.ContainSubstring("key not specified"))
+	// 	// missing key for owner
+	// })
+
+	// ginkgo.It("rejects mint of native token", func() {
+	// 	// Process transaction
+	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
+	// 		context.Background(),
+	// 		&actions.Index{
+	// 			Parent:  claimedContent,
+	// 			Schema:  hutils.ToID([]byte("schema2")),
+	// 			Content: []byte{1, 1, 1},
+	// 		},
+	// 		factory2,
+	// 	)
+	// 	gomega.Ω(err).Should(gomega.BeNil())
+	// 	gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+	// 	accept := expectBlk(instances[0])
+	// 	results := accept()
+	// 	gomega.Ω(results).Should(gomega.HaveLen(1))
+	// 	result := results[0]
+	// 	gomega.Ω(result.Success).Should(gomega.BeFalse())
+	// 	gomega.Ω(string(result.Output)).
+	// 		Should(gomega.ContainSubstring("key not specified"))
+	// 	// missing key for owner
+	// })
 })
 
 func expectBlk(i instance) func() []*chain.Result {
