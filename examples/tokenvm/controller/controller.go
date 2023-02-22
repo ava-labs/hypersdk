@@ -183,6 +183,10 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 				c.metrics.transfers.Inc()
 			}
 		}
+
+		// TODO: run order book based on config (which says what in<>out assets to
+		// maintain)...keep top x orders by rate in a heap
+		// -> remove when full fill or close
 	}
 	return batch.Write()
 }
