@@ -8,9 +8,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/hypersdk/chain"
-	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/vm"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
@@ -35,7 +35,6 @@ type Genesis struct {
 
 	// Tx params
 	BaseUnits      uint64 `json:"baseUnits"`
-	StateLockup    uint64 `json:"stateLockup"`    // cost per key added to state
 	ValidityWindow int64  `json:"validityWindow"` // seconds
 
 	// Unit pricing
@@ -62,7 +61,6 @@ func Default() *Genesis {
 
 		// Tx params
 		BaseUnits:      48, // timestamp(8) + chainID(32) + unitPrice(8)
-		StateLockup:    1_024,
 		ValidityWindow: 60,
 
 		// Unit Pricing
@@ -106,14 +104,8 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Databa
 		if err != nil {
 			return err
 		}
-		if _, err := storage.AddUnlockedBalance(ctx, db, pk, alloc.Balance, false); err != nil {
+		if err := storage.SetBalance(ctx, db, pk, ids.Empty, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
-		}
-		if err := storage.LockBalance(ctx, db, pk, g.StateLockup*2); err != nil {
-			return err
-		}
-		if err := storage.SetPermissions(ctx, db, pk, pk, hconsts.MaxUint8, hconsts.MaxUint8); err != nil {
-			return err
 		}
 	}
 	return nil
