@@ -9,14 +9,21 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
+type Item interface {
+	ID() ids.ID
+	Payer() string
+	Expiry() int64
+	UnitPrice() uint64
+}
+
 // SortedMempool contains a max-heap and min-heap. The order within each
 // heap is determined by using GetValue.
 type SortedMempool[T Item] struct {
 	// GetValue informs heaps how to get the an entry's value for ordering.
 	GetValue func(item T) uint64
 
-	minHeap *uint64Heap[T] // only includes lowest nonce
-	maxHeap *uint64Heap[T] // only includes lowest nonce
+	minHeap *Uint64Heap[T] // only includes lowest nonce
+	maxHeap *Uint64Heap[T] // only includes lowest nonce
 }
 
 // NewSortedMempool returns an instance of SortedMempool with minHeap and maxHeap
@@ -24,8 +31,8 @@ type SortedMempool[T Item] struct {
 func NewSortedMempool[T Item](items int, f func(item T) uint64) *SortedMempool[T] {
 	return &SortedMempool[T]{
 		GetValue: f,
-		minHeap:  newUint64Heap[T](items, true),
-		maxHeap:  newUint64Heap[T](items, false),
+		minHeap:  NewUint64Heap[T](items, true),
+		maxHeap:  NewUint64Heap[T](items, false),
 	}
 }
 
@@ -34,17 +41,17 @@ func (sm *SortedMempool[T]) Add(item T) {
 	itemID := item.ID()
 	poolLen := sm.maxHeap.Len()
 	val := sm.GetValue(item)
-	heap.Push(sm.maxHeap, &uint64Entry[T]{
-		id:    itemID,
-		val:   val,
-		item:  item,
-		index: poolLen,
+	heap.Push(sm.maxHeap, &Uint64Entry[T]{
+		ID:    itemID,
+		Val:   val,
+		Item:  item,
+		Index: poolLen,
 	})
-	heap.Push(sm.minHeap, &uint64Entry[T]{
-		id:    itemID,
-		val:   val,
-		item:  item,
-		index: poolLen,
+	heap.Push(sm.minHeap, &Uint64Entry[T]{
+		ID:    itemID,
+		Val:   val,
+		Item:  item,
+		Index: poolLen,
 	})
 }
 
@@ -54,14 +61,14 @@ func (sm *SortedMempool[T]) Remove(id ids.ID) {
 	if !ok {
 		return
 	}
-	heap.Remove(sm.maxHeap, maxEntry.index) // O(log N)
+	heap.Remove(sm.maxHeap, maxEntry.Index) // O(log N)
 	minEntry, ok := sm.minHeap.GetID(id)
 	if !ok {
 		// This should never happen, as that would mean the heaps are out of
 		// sync.
 		return
 	}
-	heap.Remove(sm.minHeap, minEntry.index) // O(log N)
+	heap.Remove(sm.minHeap, minEntry.Index) // O(log N)
 }
 
 // SetMinVal removes all elements in sm with a value less than [val]. Returns
@@ -89,7 +96,7 @@ func (sm *SortedMempool[T]) PeekMin() (T, bool) {
 	if sm.minHeap.Len() == 0 {
 		return *new(T), false //nolint:gocritic
 	}
-	return sm.minHeap.items[0].item, true
+	return sm.minHeap.items[0].Item, true
 }
 
 // PopMin removes the minimum value in sm.
@@ -97,7 +104,7 @@ func (sm *SortedMempool[T]) PopMin() (T, bool) {
 	if sm.minHeap.Len() == 0 {
 		return *new(T), false //nolint:gocritic
 	}
-	item := sm.minHeap.items[0].item
+	item := sm.minHeap.items[0].Item
 	sm.Remove(item.ID())
 	return item, true
 }
@@ -107,7 +114,7 @@ func (sm *SortedMempool[T]) PeekMax() (T, bool) {
 	if sm.Len() == 0 {
 		return *new(T), false //nolint:gocritic
 	}
-	return sm.maxHeap.items[0].item, true
+	return sm.maxHeap.items[0].Item, true
 }
 
 // PopMin removes the maximum value in sm.
@@ -115,7 +122,7 @@ func (sm *SortedMempool[T]) PopMax() (T, bool) {
 	if sm.Len() == 0 {
 		return *new(T), false //nolint:gocritic
 	}
-	item := sm.maxHeap.items[0].item
+	item := sm.maxHeap.items[0].Item
 	sm.Remove(item.ID())
 	return item, true
 }

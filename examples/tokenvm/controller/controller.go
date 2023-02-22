@@ -39,6 +39,8 @@ type Controller struct {
 	metrics *metrics
 
 	metaDB database.Database
+
+	orderBook *OrderBook
 }
 
 func New() *vm.VM {
@@ -143,6 +145,8 @@ func (c *Controller) Initialize(
 		gossip = gossiper.NewProposer(inner, gossiper.DefaultProposerConfig())
 	}
 
+	// Initialize order book used to track all open orders
+	c.orderBook = NewOrderBook(c.config.TrackedPairs)
 	return c.config, c.genesis, build, gossip, blockDB, stateDB, apis, consts.ActionRegistry, consts.AuthRegistry, nil
 }
 
