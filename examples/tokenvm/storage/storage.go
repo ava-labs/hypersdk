@@ -28,18 +28,12 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 //
 // State
 // 0x0/ (balance)
-//   -> [owner] => unlockedBalance|lockedBalance
-// 0x1/ (permissions)
-//   -> [actor|signer] => permissions bitset
-// 0x2/ (content)
-//   -> [contentID] => owner|royalty
+//   -> [owner|asset] => balance
 
 const (
 	txPrefix = 0x0
 
-	balancePrefix     = 0x0
-	permissionsPrefix = 0x1
-	contentPrefix     = 0x2
+	balancePrefix = 0x0
 )
 
 var (
@@ -98,19 +92,12 @@ func GetTransaction(
 	return true, t, success, units, nil
 }
 
-// [accountPrefix] + [address]
-func PrefixBalanceKey(pk crypto.PublicKey) (k []byte) {
-	k = make([]byte, 1+ed25519.PublicKeySize)
+// [accountPrefix] + [address] + [asset]
+func PrefixBalanceKey(pk crypto.PublicKey, asset ids.ID) (k []byte) {
+	k = make([]byte, 1+ed25519.PublicKeySize+consts.IDLen)
 	k[0] = balancePrefix
 	copy(k[1:], pk[:])
-	return
-}
-
-// [contentPrefix] + [contentID]
-func PrefixContentKey(contentID ids.ID) (k []byte) {
-	k = make([]byte, 33)
-	k[0] = contentPrefix
-	copy(k[1:], contentID[:])
+	copy(k[1+ed25519.PublicKeySize:], asset[:])
 	return
 }
 
@@ -119,8 +106,9 @@ func GetBalance(
 	ctx context.Context,
 	db chain.Database,
 	pk crypto.PublicKey,
-) (uint64 /* unlocked */, uint64 /* locked */, error) {
-	k := PrefixBalanceKey(pk)
+	asset ids.ID,
+) (uint64, error) {
+	k := PrefixBalanceKey(pk, asset)
 	return innerGetBalance(db.GetValue(ctx, k))
 }
 
@@ -129,308 +117,92 @@ func GetBalanceFromState(
 	ctx context.Context,
 	f ReadState,
 	pk crypto.PublicKey,
-) (uint64 /* unlocked */, uint64 /* locked */, error) {
-	values, errs := f(ctx, [][]byte{PrefixBalanceKey(pk)})
+	asset ids.ID,
+) (uint64, error) {
+	values, errs := f(ctx, [][]byte{PrefixBalanceKey(pk, asset)})
 	return innerGetBalance(values[0], errs[0])
 }
 
 func innerGetBalance(
 	v []byte,
 	err error,
-) (uint64 /* unlocked */, uint64 /* locked */, error) {
+) (uint64, error) {
 	if errors.Is(err, database.ErrNotFound) {
-		return 0, 0, nil
+		return 0, nil
 	}
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	return binary.BigEndian.Uint64(v[:8]), binary.BigEndian.Uint64(v[8:]), nil
+	return binary.BigEndian.Uint64(v), nil
 }
 
 func SetBalance(
 	ctx context.Context,
 	db chain.Database,
 	pk crypto.PublicKey,
-	unlockedBal uint64,
-	lockedBal uint64,
+	asset ids.ID,
+	balance uint64,
 ) error {
-	k := PrefixBalanceKey(pk)
-	b := make([]byte, 16)
-	binary.BigEndian.PutUint64(b, unlockedBal)
-	binary.BigEndian.PutUint64(b[8:], lockedBal)
+	k := PrefixBalanceKey(pk, asset)
+	b := binary.BigEndian.AppendUint64(nil, balance)
 	return db.Insert(ctx, k, b)
 }
 
-func DeleteBalance(ctx context.Context, db chain.Database, pk crypto.PublicKey) error {
-	return db.Remove(ctx, PrefixBalanceKey(pk))
-}
-
-// [dropIfGone] is used if the address is cleared out
-func AddUnlockedBalance(
+func DeleteBalance(
 	ctx context.Context,
 	db chain.Database,
 	pk crypto.PublicKey,
-	amount uint64,
-	dropIfGone bool,
-) (bool, error) {
-	ubal, lbal, err := GetBalance(ctx, db, pk)
-	if err != nil {
-		return false, err
-	}
-	if dropIfGone && lbal == 0 {
-		return false, nil
-	}
-	nbal, err := smath.Add64(ubal, amount)
-	if err != nil {
-		return false, fmt.Errorf(
-			"%w: could not add unlocked bal=%d, addr=%v, amount=%d",
-			ErrInvalidBalance,
-			ubal,
-			utils.Address(pk),
-			amount,
-		)
-	}
-	return lbal > 0, SetBalance(ctx, db, pk, nbal, lbal)
+	asset ids.ID,
+) error {
+	return db.Remove(ctx, PrefixBalanceKey(pk, asset))
 }
 
-func SubUnlockedBalance(
+func AddBalance(
 	ctx context.Context,
 	db chain.Database,
 	pk crypto.PublicKey,
+	asset ids.ID,
 	amount uint64,
 ) error {
-	ubal, lbal, err := GetBalance(ctx, db, pk)
+	bal, err := GetBalance(ctx, db, pk, asset)
 	if err != nil {
 		return err
 	}
-	nbal, err := smath.Sub(ubal, amount)
+	nbal, err := smath.Add64(bal, amount)
 	if err != nil {
 		return fmt.Errorf(
-			"%w: could not subtract unlocked bal=%d, addr=%v, amount=%d",
+			"%w: could not add balance (asset=%s, bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
-			ubal,
+			asset,
+			bal,
 			utils.Address(pk),
 			amount,
 		)
 	}
-	return SetBalance(ctx, db, pk, nbal, lbal)
+	return SetBalance(ctx, db, pk, asset, nbal)
 }
 
-func LockBalance(ctx context.Context, db chain.Database, pk crypto.PublicKey, amount uint64) error {
-	ubal, lbal, err := GetBalance(ctx, db, pk)
-	if err != nil {
-		return err
-	}
-	nubal, err := smath.Sub(ubal, amount)
-	if err != nil {
-		return fmt.Errorf(
-			"%w: could not subtract unlocked bal=%d, addr=%v, amount=%d",
-			ErrInvalidBalance,
-			ubal,
-			utils.Address(pk),
-			amount,
-		)
-	}
-	nlbal, err := smath.Add64(lbal, amount)
-	if err != nil {
-		return fmt.Errorf(
-			"%w: could not add locked bal=%d, addr=%v, amount=%d",
-			ErrInvalidBalance,
-			lbal,
-			utils.Address(pk),
-			amount,
-		)
-	}
-	return SetBalance(ctx, db, pk, nubal, nlbal)
-}
-
-func UnlockBalance(
+func SubBalance(
 	ctx context.Context,
 	db chain.Database,
 	pk crypto.PublicKey,
+	asset ids.ID,
 	amount uint64,
 ) error {
-	ubal, lbal, err := GetBalance(ctx, db, pk)
+	bal, err := GetBalance(ctx, db, pk, asset)
 	if err != nil {
 		return err
 	}
-	nubal, err := smath.Add64(ubal, amount)
+	nbal, err := smath.Sub(bal, amount)
 	if err != nil {
 		return fmt.Errorf(
-			"%w: could not add unlocked bal=%d, addr=%v, amount=%d",
+			"%w: could not subtract balance (asset=%s, bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
-			ubal,
+			asset,
+			bal,
 			utils.Address(pk),
 			amount,
 		)
 	}
-	nlbal, err := smath.Sub(lbal, amount)
-	if err != nil {
-		return fmt.Errorf(
-			"%w: could not subtract locked bal=%d, addr=%v, amount=%d",
-			ErrInvalidBalance,
-			lbal,
-			utils.Address(pk),
-			amount,
-		)
-	}
-	return SetBalance(ctx, db, pk, nubal, nlbal)
-}
-
-func GetContent(
-	ctx context.Context,
-	db chain.Database,
-	contentID ids.ID,
-) (crypto.PublicKey, uint64, bool, error) {
-	k := PrefixContentKey(contentID)
-	return innerGetContent(db.GetValue(ctx, k))
-}
-
-func GetContentFromState(
-	ctx context.Context,
-	f ReadState,
-	contentID ids.ID,
-) (crypto.PublicKey, uint64, bool, error) {
-	values, errs := f(ctx, [][]byte{PrefixContentKey(contentID)})
-	return innerGetContent(values[0], errs[0])
-}
-
-func innerGetContent(v []byte, err error) (crypto.PublicKey, uint64, bool, error) {
-	if errors.Is(err, database.ErrNotFound) {
-		return crypto.PublicKey{}, 0, false, nil
-	}
-	if err != nil {
-		return crypto.PublicKey{}, 0, false, err
-	}
-	var pk crypto.PublicKey
-	copy(pk[:], v[:32])
-	return pk, binary.BigEndian.Uint64(v[32:]), true, nil
-}
-
-func IndexContent(
-	ctx context.Context,
-	db chain.Database,
-	contentID ids.ID,
-	pk crypto.PublicKey,
-	royalty uint64,
-) error {
-	if royalty == 0 {
-		return ErrInsufficientTip
-	}
-	owner, _, exists, err := GetContent(ctx, db, contentID)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return fmt.Errorf(
-			"%w: owner=%s royalty=%d",
-			ErrContentAlreadyExists,
-			utils.Address(owner),
-			royalty,
-		)
-	}
-	return SetContent(ctx, db, contentID, pk, royalty)
-}
-
-func SetContent(
-	ctx context.Context,
-	db chain.Database,
-	contentID ids.ID,
-	owner crypto.PublicKey,
-	royalty uint64,
-) error {
-	v := make([]byte, 40)
-	copy(v, owner[:])
-	binary.BigEndian.PutUint64(v[32:], royalty)
-	return db.Insert(ctx, PrefixContentKey(contentID), v)
-}
-
-func UnindexContent(
-	ctx context.Context,
-	db chain.Database,
-	contentID ids.ID,
-	pk crypto.PublicKey,
-) error {
-	owner, _, exists, err := GetContent(ctx, db, contentID)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return ErrContentMissing
-	}
-	if owner != pk {
-		return fmt.Errorf("%w: owner=%s", ErrWrongOwner, owner)
-	}
-	return db.Remove(ctx, PrefixContentKey(contentID))
-}
-
-func RewardSearcher(
-	ctx context.Context,
-	db chain.Database,
-	contentID ids.ID,
-	sender crypto.PublicKey,
-) (crypto.PublicKey, error) {
-	owner, royalty, exists, err := GetContent(ctx, db, contentID)
-	if err != nil {
-		return crypto.EmptyPublicKey, err
-	}
-	if !exists {
-		// No tip to pay
-		return crypto.EmptyPublicKey, nil
-	}
-	if err := SubUnlockedBalance(ctx, db, sender, royalty); err != nil {
-		return crypto.EmptyPublicKey, err
-	}
-	if _, err := AddUnlockedBalance(ctx, db, owner, royalty, false); err != nil {
-		return crypto.EmptyPublicKey, err
-	}
-	return owner, nil
-}
-
-// [accountPrefix] + [actor] + [signer]
-func PrefixPermissionsKey(actor crypto.PublicKey, signer crypto.PublicKey) (k []byte) {
-	k = make([]byte, 1+ed25519.PublicKeySize*2)
-	k[0] = permissionsPrefix
-	copy(k[1:], actor[:])
-	copy(k[1+crypto.PublicKeyLen:], signer[:])
-	return
-}
-
-func GetPermissions(
-	ctx context.Context,
-	db chain.Database,
-	actor crypto.PublicKey,
-	signer crypto.PublicKey,
-) (uint8, uint8, error) {
-	k := PrefixPermissionsKey(actor, signer)
-	v, err := db.GetValue(ctx, k)
-	if errors.Is(err, database.ErrNotFound) {
-		return 0, 0, nil
-	}
-	if err != nil {
-		return 0, 0, err
-	}
-	return v[0], v[1], nil
-}
-
-func SetPermissions(
-	ctx context.Context,
-	db chain.Database,
-	actor crypto.PublicKey,
-	signer crypto.PublicKey,
-	actionPerms uint8,
-	miscPerms uint8,
-) error {
-	k := PrefixPermissionsKey(actor, signer)
-	return db.Insert(ctx, k, []byte{actionPerms, miscPerms})
-}
-
-func DeletePermissions(
-	ctx context.Context,
-	db chain.Database,
-	actor crypto.PublicKey,
-	signer crypto.PublicKey,
-) error {
-	k := PrefixPermissionsKey(actor, signer)
-	return db.Remove(ctx, k)
+	return SetBalance(ctx, db, pk, asset, nbal)
 }
