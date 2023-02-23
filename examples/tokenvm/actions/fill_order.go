@@ -109,27 +109,27 @@ func (f *FillOrder) Execute(
 		orderRemaining uint64
 	)
 	switch {
-	// If the [outputAmount] is greater than remaining, take what is left.
 	case outputAmount > remaining:
-		outputAmount = remaining
 		// Calculate the proportion of the input value not used and be sure not to
 		// deduct it.
-
-		// TODO: this is broken somewhere
 		deductionNum, err := smath.Mul64(outputAmount-remaining, divisor)
 		if err != nil {
 			return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
 		}
-		inputAmount = f.Value - deductionNum/rate
+		adjustment := deductionNum / rate
+		inputAmount = f.Value - adjustment
+
+		// If the [outputAmount] is greater than remaining, take what is left.
+		outputAmount = remaining
 		shouldDelete = true
-		// If the [outputAmount] is equal to remaining, take all of it.
 	case outputAmount == remaining:
+		// If the [outputAmount] is equal to remaining, take all of it.
 		shouldDelete = true
 	default:
 		orderRemaining = remaining - outputAmount
 	}
 	if inputAmount == 0 {
-		// Don't allow free trades
+		// Don't allow free trades (can happen due to refund rounding)
 		return &chain.Result{Success: false, Units: basePrice, Output: OutputInsufficientInput}, nil
 	}
 	if err := storage.SubBalance(ctx, db, actor, f.In, inputAmount); err != nil {

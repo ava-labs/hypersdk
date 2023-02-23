@@ -1074,19 +1074,25 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		// Calculations:
 		// 4 * 1.5 = 6 asset3 expected
-		// 6 - 1 = 5 over remaining
-		// 5 / 1.5 (ignore divisor) = 3.333...
-		gomega.Ω(or.In).Should(gomega.Equal(uint64(3)))
+		// 6 - 1 = 5 over remaining asset3
+		// 5 / 1.5 (ignore divisor) = 3.333... overpaid in asset2
+		// 4 - 3.333 = 1 required asset2
+		gomega.Ω(or.In).Should(gomega.Equal(uint64(1))) // TODO: should not be possible
 		gomega.Ω(or.Out).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(or.Remaining).Should(gomega.Equal(uint64(0)))
-		panic("broken")
 
 		balance, err := instances[0].cli.Balance(context.TODO(), sender, asset3)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 		balance, err = instances[0].cli.Balance(context.TODO(), sender, asset2)
 		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(balance).Should(gomega.Equal(uint64(4)))
+		gomega.Ω(balance).Should(gomega.Equal(uint64(2)))
+		balance, err = instances[0].cli.Balance(context.TODO(), sender2, asset3)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(10)))
+		balance, err = instances[0].cli.Balance(context.TODO(), sender2, asset2)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(3)))
 
 		orders, err = instances[0].cli.Orders(context.TODO(), actions.PairID(asset2, asset3))
 		gomega.Ω(err).Should(gomega.BeNil())
