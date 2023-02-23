@@ -1003,7 +1003,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeTrue())
 
-		balance, err := instances[0].cli.Balance(context.TODO(), sender2, asset3)
+		balance, err := instances[0].cli.Balance(context.TODO(), sender, asset3)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(1)))
+		balance, err = instances[0].cli.Balance(context.TODO(), sender, asset2)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(1)))
+		balance, err = instances[0].cli.Balance(context.TODO(), sender2, asset3)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(9)))
 		balance, err = instances[0].cli.Balance(context.TODO(), sender2, asset2)
