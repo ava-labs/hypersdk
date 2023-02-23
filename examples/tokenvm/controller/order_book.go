@@ -9,7 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
-	"github.com/ava-labs/hypersdk/mempool"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
 const (
@@ -19,7 +19,8 @@ const (
 type Order struct {
 	ID        ids.ID           `json:"id"`
 	Owner     crypto.PublicKey `json:"owner"`
-	Rate      uint64           `json:"rate"`
+	InRate    uint64           `json:"inRate"`
+	OutRate   uint64           `json:"outRate"`
 	Remaining uint64           `json:"remaining"`
 }
 
@@ -27,16 +28,16 @@ type OrderBook struct {
 	// TODO: consider capping the number of orders in each heap (need to ensure
 	// that doing so does not make it possible to send a bunch of small, spam
 	// orders to clear -> may need to set a min order limit to watch)
-	orders      map[string]*mempool.Uint64Heap[*Order]
+	orders      map[string]*utils.Float64Heap[*Order]
 	orderToPair map[ids.ID]string // needed to delete from [CloseOrder] actions
 	l           sync.RWMutex
 }
 
 func NewOrderBook(trackedPairs []string) *OrderBook {
-	m := map[string]*mempool.Uint64Heap[*Order]{}
+	m := map[string]*utils.Float64Heap[*Order]{}
 	for _, pair := range trackedPairs {
 		// We use a max heap so we return the best rates in order.
-		m[pair] = mempool.NewUint64Heap[*Order](initialPairCapacity, false)
+		m[pair] = utils.NewFloat64Heap[*Order](initialPairCapacity, false)
 	}
 	return &OrderBook{
 		orders:      m,
@@ -51,9 +52,9 @@ func (o *OrderBook) Add(pair string, order *Order) {
 	if !ok {
 		return
 	}
-	heap.Push(h, &mempool.Uint64Entry[*Order]{
+	heap.Push(h, &utils.Float64Entry[*Order]{
 		ID:    order.ID,
-		Val:   order.Rate,
+		Val:   float64(order.InRate) / float64(order.OutRate),
 		Item:  order,
 		Index: h.Len(),
 	})
