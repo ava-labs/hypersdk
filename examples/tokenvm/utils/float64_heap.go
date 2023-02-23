@@ -36,7 +36,9 @@ func NewFloat64Heap[T any](items int, isMinHeap bool) *Float64Heap[T] {
 }
 
 // Len returns the number of items in th.
-func (th Float64Heap[T]) Len() int { return len(th.items) }
+func (th Float64Heap[T]) Len() int {
+	return len(th.items)
+}
 
 // Less compares the priority of [i] and [j] based on th.isMinHeap.
 func (th Float64Heap[T]) Less(i, j int) bool {
