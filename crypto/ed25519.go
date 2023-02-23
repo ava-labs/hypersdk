@@ -75,7 +75,10 @@ func GeneratePrivateKey() (PrivateKey, error) {
 // PublicKey returns a PublicKey associated with the Ed25519 PrivateKey p.
 // The PublicKey is the last 32 bytes of p.
 func (p PrivateKey) PublicKey() PublicKey {
-	return PublicKey(p[PublicKeyLen:])
+	rpk := p[PrivateKeyLen:] // privateKey == private|public
+	var pk PublicKey
+	copy(pk[:], rpk)
+	return pk
 }
 
 // ToHex converts a PrivateKey to a hex string.
