@@ -23,7 +23,7 @@ type (
 const (
 	PublicKeyLen  = ed25519.PublicKeySize
 	PrivateKeyLen = ed25519.PrivateKeySize
-	// PrivateKeySeedLen is defined becuase ed25519.PrivateKey
+	// PrivateKeySeedLen is defined because ed25519.PrivateKey
 	// is formatted as privateKey = seed|publicKey. We use this const
 	// to extract the publicKey below.
 	PrivateKeySeedLen = ed25519.SeedSize
