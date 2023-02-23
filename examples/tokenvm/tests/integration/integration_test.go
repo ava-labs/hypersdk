@@ -1079,6 +1079,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(or.In).Should(gomega.Equal(uint64(3)))
 		gomega.Ω(or.Out).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(or.Remaining).Should(gomega.Equal(uint64(0)))
+		panic("broken")
 
 		balance, err := instances[0].cli.Balance(context.TODO(), sender, asset3)
 		gomega.Ω(err).Should(gomega.BeNil())
