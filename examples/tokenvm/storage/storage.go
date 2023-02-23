@@ -300,7 +300,7 @@ func GetOrder(
 	rate := binary.BigEndian.Uint64(v[consts.IDLen*2:])
 	supply := binary.BigEndian.Uint64(v[consts.IDLen*2+consts.Uint64Len:])
 	var owner crypto.PublicKey
-	copy(v[consts.IDLen*2+consts.Uint64Len*2:], owner[:])
+	copy(owner[:], v[consts.IDLen*2+consts.Uint64Len*2:])
 	return true, in, out, rate, supply, owner, nil
 }
 

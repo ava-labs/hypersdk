@@ -145,7 +145,7 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID) (snowman.Block, er
 
 			// Update block with new transaction
 			b.Txs = append(b.Txs, next)
-			b.UnitsConsumed += nextUnits
+			b.UnitsConsumed += result.Units
 			surplusFee += (next.Base.UnitPrice - b.UnitPrice) * result.Units
 			results = append(results, result)
 			return len(b.Txs) < r.GetMaxBlockTxs(), false, false, nil
