@@ -21,10 +21,11 @@ type (
 )
 
 const (
-	CompressedPublicKeySize = 33
-	PublicKeyLen  = ed25519.PublicKeySize
-	PrivateKeyLen = ed25519.PrivateKeySize
-	SignatureLen  = ed25519.SignatureSize
+	PublicKeyCompressedSize = 33
+	PublicKeyLen            = ed25519.PublicKeySize
+	PrivateKeyLen           = ed25519.PrivateKeySize
+	PrivateKeySeedSize      = ed25519.SeedSize
+	SignatureLen            = ed25519.SignatureSize
 )
 
 var (
@@ -52,7 +53,7 @@ func ParseAddress(hrp, saddr string) (PublicKey, error) {
 	if phrp != hrp {
 		return EmptyPublicKey, ErrIncorrectHrp
 	}
-	if len(paddr) != CompressedPublicKeySize {
+	if len(paddr) != PublicKeyCompressedSize {
 		return EmptyPublicKey, ErrInvalidPublicKey
 	}
 	var p PublicKey
