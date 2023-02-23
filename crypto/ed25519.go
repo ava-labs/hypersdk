@@ -21,11 +21,13 @@ type (
 )
 
 const (
-	PublicKeyCompressedLen	= 33
-	PublicKeyLen            = ed25519.PublicKeySize
-	PrivateKeyLen           = ed25519.PrivateKeySize
-	PrivateKeySeedLen       = ed25519.SeedSize
-	SignatureLen            = ed25519.SignatureSize
+	PublicKeyLen  = ed25519.PublicKeySize
+	PrivateKeyLen = ed25519.PrivateKeySize
+	// PrivateKeySeedLen is defined because ed25519.PrivateKey
+	// is formatted as privateKey = seed|publicKey. We use this const
+	// to extract the publicKey below.
+	PrivateKeySeedLen = ed25519.SeedSize
+	SignatureLen      = ed25519.SignatureSize
 )
 
 var (
@@ -46,18 +48,22 @@ func Address(hrp string, p PublicKey) string {
 // its public key. If there is an error reading the address or the hrp
 // value is not valid, ParseAddress returns an EmptyPublicKey and error.
 func ParseAddress(hrp, saddr string) (PublicKey, error) {
-	phrp, paddr, err := address.ParseBech32(saddr)
+	phrp, pk, err := address.ParseBech32(saddr)
 	if err != nil {
 		return EmptyPublicKey, err
 	}
 	if phrp != hrp {
 		return EmptyPublicKey, ErrIncorrectHrp
 	}
-	if len(paddr) != PublicKeyCompressedLen {
+	// The parsed public key may be greater than [PublicKeyLen] because the
+	// underlying Bech32 implementation requires bytes to each encode 5 bits
+	// instead of 8 (and we must pad the input to ensure we fill all bytes):
+	// https://github.com/btcsuite/btcd/blob/902f797b0c4b3af3f7196d2f5d2343931d1b2bdf/btcutil/bech32/bech32.go#L325-L331
+	if len(pk) < PublicKeyLen {
 		return EmptyPublicKey, ErrInvalidPublicKey
 	}
 	var p PublicKey
-	copy(p[:], paddr[:PublicKeyLen])
+	copy(p[:], pk[:PublicKeyLen])
 	return p, nil
 }
 
@@ -76,7 +82,8 @@ func GeneratePrivateKey() (PrivateKey, error) {
 // PublicKey returns a PublicKey associated with the Ed25519 PrivateKey p.
 // The PublicKey is the last 32 bytes of p.
 func (p PrivateKey) PublicKey() PublicKey {
-	rpk := p[PrivateKeySeedLen:] // privateKey == private|public
+	// TODO: https://github.com/ava-labs/hypersdk/issues/23
+	rpk := p[PrivateKeySeedLen:]
 	var pk PublicKey
 	copy(pk[:], rpk)
 	return pk
