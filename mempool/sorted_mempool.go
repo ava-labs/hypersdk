@@ -66,7 +66,7 @@ func (sm *SortedMempool[T]) Remove(id ids.ID) {
 
 // SetMinVal removes all elements in sm with a value less than [val]. Returns
 // the list of removed elements.
-// TDOD: add lock to prevent concurrent access
+// TODO: add lock to prevent concurrent access
 func (sm *SortedMempool[T]) SetMinVal(val uint64) []T {
 	removed := []T{}
 	for {
@@ -102,7 +102,7 @@ func (sm *SortedMempool[T]) PopMin() (T, bool) {
 	return item, true
 }
 
-// PopMin returms the maximum value in sm.
+// PopMin returns the maximum value in sm.
 func (sm *SortedMempool[T]) PeekMax() (T, bool) {
 	if sm.Len() == 0 {
 		return *new(T), false //nolint:gocritic

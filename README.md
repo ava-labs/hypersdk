@@ -121,7 +121,7 @@ The `Auth` interface (detailed below) exposes a function called `AsyncVerify` th
 the `hypersdk` may call concurrently (may invoke on other transactions in the same
 block) at any time prior/during block execution. Most `hypervms` perform signature
 verification in this function and save any state lookups for the full `Auth.Verify`
-(which has access to state, unlike `AsyncVerify`). The generic support for perfoming certain
+(which has access to state, unlike `AsyncVerify`). The generic support for performing certain
 stateless activities during execution can greatly reduce the e2e verification
 time of a block when running on powerful hardware.
 

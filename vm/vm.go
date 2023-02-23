@@ -693,7 +693,7 @@ func (vm *VM) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) erro
 	defer span.End()
 
 	if !vm.isReady() {
-		vm.snowCtx.Log.Warn("hande app gossip failed", zap.Error(ErrNotReady))
+		vm.snowCtx.Log.Warn("handle app gossip failed", zap.Error(ErrNotReady))
 
 		// Errors returned here are considered fatal so we just return nil
 		return nil
