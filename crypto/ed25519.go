@@ -51,7 +51,8 @@ func ParseAddress(hrp, saddr string) (PublicKey, error) {
 	if phrp != hrp {
 		return EmptyPublicKey, ErrIncorrectHrp
 	}
-	if len(paddr) != 33 /* compressed public key size */ {
+	const CompressedPublicKeySize = 33
+	if len(paddr) != CompressedPublicKeySize {
 		return EmptyPublicKey, ErrInvalidPublicKey
 	}
 	var p PublicKey
@@ -74,10 +75,7 @@ func GeneratePrivateKey() (PrivateKey, error) {
 // PublicKey returns a PublicKey associated with the Ed25519 PrivateKey p.
 // The PublicKey is the last 32 bytes of p.
 func (p PrivateKey) PublicKey() PublicKey {
-	rpk := p[32:] // privateKey == private|public
-	var pk PublicKey
-	copy(pk[:], rpk)
-	return pk
+	return PublicKey(p[32:])
 }
 
 // ToHex converts a PrivateKey to a hex string.
