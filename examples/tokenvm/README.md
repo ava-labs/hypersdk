@@ -12,6 +12,7 @@
 
 ## Features
 ### Arbitrary Minting
+#### Rotate or Revoke Minter
 ### Partials Fills
 ### In-Memory Order Book
 #### Config Scoped to Certain Assets
