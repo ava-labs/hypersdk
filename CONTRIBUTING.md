@@ -27,30 +27,31 @@ go mod download
 
 This will download and install all required dependencies for the project.
 
-3. Build the project:
-
-```go
-go build ./...
-```
-This will build the project and its dependencies.
-
 ## Building and running tests
 
 To build and run tests for the hypersdk, simply run:
 
 ```go
-go test -timeout 30s ./...
+./scripts/tests.unit.sh
 ```
 
 This will build and run all tests for the project.
 
-## Building and running the project
-
-> TODO: How to build and run the project
-
 ## Running linters
 
-> TODO: How to lint and format 
+To run the linters, simply run:
+
+```go
+./scripts/tests.lint.sh
+```
+
+This will run the linters on all code in the project.
+
+The `hypersdk` project also has a fixer that tries to help. To run the fixer, simply run:
+
+```go
+./scripts/fix.lint.sh
+```
 
 ## Contributing
 
@@ -75,7 +76,3 @@ When submitting a pull request, please ensure that:
 3. Your code passes all linters.
 
 4. Your pull request description explains the problem and solution clearly.
-
-## Code of Conduct
-
-To ensure a welcoming and inclusive community, please follow the `hypersdk` [Code of Conduct]() in all interactions both on and offline.
