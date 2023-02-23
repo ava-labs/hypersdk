@@ -94,6 +94,7 @@ func (f *FillOrder) Execute(
 		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
 	}
 	if outputAmount == 0 {
+		// This should never happen because [f.Value] > 0
 		return &chain.Result{
 			Success: false,
 			Units:   basePrice,
