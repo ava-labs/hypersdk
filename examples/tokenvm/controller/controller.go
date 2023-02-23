@@ -186,8 +186,8 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 					&Order{
 						tx.ID(),
 						auth.GetActor(tx.Auth),
-						action.InRate,
-						action.OutRate,
+						action.InTick,
+						action.OutTick,
 						action.Supply,
 					},
 				)

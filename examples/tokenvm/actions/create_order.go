@@ -22,28 +22,28 @@ type CreateOrder struct {
 	// [In] is the asset you trade for [Out].
 	In ids.ID `json:"in"`
 
-	// [InRate] is the amount of [In] required to purchase
-	// [OutRate] of [Out].
-	InRate uint64 `json:"inRate"`
+	// [InTick] is the amount of [In] required to purchase
+	// [OutTick] of [Out].
+	InTick uint64 `json:"inRate"`
 
 	// [Out] is the asset you receive when trading for [In].
 	//
 	// This is the asset that is actually provided by the creator.
 	Out ids.ID `json:"out"`
 
-	// [OutRate] is the amount of [Out] the counterparty gets per [InRate] of
+	// [OutTick] is the amount of [Out] the counterparty gets per [InTick] of
 	// [In].
-	OutRate uint64 `json:"outRate"`
+	OutTick uint64 `json:"outRate"`
 
 	// [Supply] is the initial amount of [In] that the actor is locking up.
-	// TODO: ensure supply is a multiple of OutRate
+	// TODO: ensure supply is a multiple of OutTick
 	Supply uint64 `json:"supply"`
 
 	// Notes:
 	// * Users are allowed to have any number of orders for the same [In]-[Out] pair.
-	// * Using [InRate] and [OutRate] blocks ensures we avoid any odd rounding
+	// * Using [InTick] and [OutTick] blocks ensures we avoid any odd rounding
 	//	 errors.
-	// * Users can fill orders with any multiple of [InRate] and will get
+	// * Users can fill orders with any multiple of [InTick] and will get
 	//   refunded any unused assets.
 }
 
@@ -65,22 +65,22 @@ func (c *CreateOrder) Execute(
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := c.MaxUnits(r) // max units == units
-	if c.InRate == 0 {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputInRateZero}, nil
+	if c.InTick == 0 {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputInTickZero}, nil
 	}
-	if c.OutRate == 0 {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputOutRateZero}, nil
+	if c.OutTick == 0 {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputOutTickZero}, nil
 	}
 	if c.Supply == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputSupplyZero}, nil
 	}
-	if c.Supply%c.OutRate != 0 {
+	if c.Supply%c.OutTick != 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputSupplyMisaligned}, nil
 	}
 	if err := storage.SubBalance(ctx, db, actor, c.Out, c.Supply); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	if err := storage.SetOrder(ctx, db, txID, c.In, c.InRate, c.Out, c.OutRate, c.Supply, actor); err != nil {
+	if err := storage.SetOrder(ctx, db, txID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil
@@ -94,18 +94,18 @@ func (*CreateOrder) MaxUnits(chain.Rules) uint64 {
 
 func (c *CreateOrder) Marshal(p *codec.Packer) {
 	p.PackID(c.In)
-	p.PackUint64(c.InRate)
+	p.PackUint64(c.InTick)
 	p.PackID(c.Out)
-	p.PackUint64(c.OutRate)
+	p.PackUint64(c.OutTick)
 	p.PackUint64(c.Supply)
 }
 
 func UnmarshalCreateOrder(p *codec.Packer) (chain.Action, error) {
 	var create CreateOrder
 	p.UnpackID(false, &create.In) // empty ID is the native asset
-	create.InRate = p.UnpackUint64(true)
+	create.InTick = p.UnpackUint64(true)
 	p.UnpackID(false, &create.Out) // empty ID is the native asset
-	create.OutRate = p.UnpackUint64(true)
+	create.OutTick = p.UnpackUint64(true)
 	create.Supply = p.UnpackUint64(true)
 	return &create, p.Err()
 }

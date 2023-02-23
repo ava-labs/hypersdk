@@ -19,8 +19,8 @@ const (
 type Order struct {
 	ID        ids.ID           `json:"id"`
 	Owner     crypto.PublicKey `json:"owner"`
-	InRate    uint64           `json:"inRate"`
-	OutRate   uint64           `json:"outRate"`
+	InTick    uint64           `json:"inRate"`
+	OutTick   uint64           `json:"outRate"`
 	Remaining uint64           `json:"remaining"`
 }
 
@@ -54,7 +54,7 @@ func (o *OrderBook) Add(pair string, order *Order) {
 	}
 	heap.Push(h, &utils.Float64Entry[*Order]{
 		ID:    order.ID,
-		Val:   float64(order.InRate) / float64(order.OutRate),
+		Val:   float64(order.InTick) / float64(order.OutTick),
 		Item:  order,
 		Index: h.Len(),
 	})

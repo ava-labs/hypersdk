@@ -785,9 +785,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			context.Background(),
 			&actions.CreateOrder{
 				In:      asset3,
-				InRate:  1,
+				InTick:  1,
 				Out:     asset2,
-				OutRate: 2,
+				OutTick: 2,
 				Supply:  4,
 			},
 			factory,
@@ -813,9 +813,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			context.Background(),
 			&actions.CreateOrder{
 				In:      asset2,
-				InRate:  4,
+				InTick:  4,
 				Out:     asset3,
-				OutRate: 2,
+				OutTick: 2,
 				Supply:  5, // put half of balance
 			},
 			factory2,
@@ -836,9 +836,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			context.Background(),
 			&actions.CreateOrder{
 				In:      asset2,
-				InRate:  4,
+				InTick:  4,
 				Out:     asset3,
-				OutRate: 1,
+				OutTick: 1,
 				Supply:  5, // put half of balance
 			},
 			factory2,
@@ -859,8 +859,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(orders).Should(gomega.HaveLen(1))
 		order := orders[0]
 		gomega.Ω(order.ID).Should(gomega.Equal(tx.ID()))
-		gomega.Ω(order.InRate).Should(gomega.Equal(uint64(4)))
-		gomega.Ω(order.OutRate).Should(gomega.Equal(uint64(1)))
+		gomega.Ω(order.InTick).Should(gomega.Equal(uint64(4)))
+		gomega.Ω(order.OutTick).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(order.Owner).Should(gomega.Equal(rsender2))
 		gomega.Ω(order.Remaining).Should(gomega.Equal(uint64(5)))
 	})
@@ -870,9 +870,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			context.Background(),
 			&actions.CreateOrder{
 				In:      asset2,
-				InRate:  5,
+				InTick:  5,
 				Out:     asset3,
-				OutRate: 1,
+				OutTick: 1,
 				Supply:  5, // put half of balance
 			},
 			factory,
@@ -1053,9 +1053,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			context.Background(),
 			&actions.CreateOrder{
 				In:      asset2,
-				InRate:  2,
+				InTick:  2,
 				Out:     asset3,
-				OutRate: 1,
+				OutTick: 1,
 				Supply:  1,
 			},
 			factory,
@@ -1076,8 +1076,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(orders).Should(gomega.HaveLen(1))
 		order := orders[0]
 		gomega.Ω(order.ID).Should(gomega.Equal(tx.ID()))
-		gomega.Ω(order.InRate).Should(gomega.Equal(uint64(2)))
-		gomega.Ω(order.OutRate).Should(gomega.Equal(uint64(1)))
+		gomega.Ω(order.InTick).Should(gomega.Equal(uint64(2)))
+		gomega.Ω(order.OutTick).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(order.Owner).Should(gomega.Equal(rsender))
 		gomega.Ω(order.Remaining).Should(gomega.Equal(uint64(1)))
 	})
