@@ -16,19 +16,21 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
+const (
+	MaxMetadataSize = 256
+)
+
 var _ chain.Action = (*Mint)(nil)
 
 type Mint struct {
 	// To is the recipient of the [Value].
 	To crypto.PublicKey `json:"to"`
 
-	// Asset is the unique ID of the new asset
-	Asset ids.ID `json:"asset"`
+	// Metadata
+	Metadata []byte `json:"metadata"`
 
 	// Number of assets to mint to [To].
 	Value uint64 `json:"value"`
-
-	// TODO: add perms for minting more of the asset, etc.
 }
 
 func (m *Mint) StateKeys(chain.Auth, ids.ID) [][]byte {
