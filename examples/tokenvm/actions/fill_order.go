@@ -5,7 +5,6 @@ package actions
 
 import (
 	"context"
-	"math"
 
 	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
@@ -25,10 +24,6 @@ const (
 	basePrice           = 3*consts.IDLen + consts.Uint64Len + crypto.PublicKeyLen
 	tradeSucceededPrice = 1_000
 )
-
-// Store the result of this exponentiation so we don't need to recompute in
-// each transaction.
-var divisor = uint64(math.Pow10(9))
 
 type FillOrder struct {
 	// [Order] is the OrderID you wish to close.
@@ -69,7 +64,7 @@ func (f *FillOrder) Execute(
 	_ ids.ID,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
-	exists, in, out, rate, remaining, owner, err := storage.GetOrder(ctx, db, f.Order)
+	exists, in, inRate, out, outRate, remaining, owner, err := storage.GetOrder(ctx, db, f.Order)
 	if err != nil {
 		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
 	}
@@ -89,13 +84,15 @@ func (f *FillOrder) Execute(
 		// This should be guarded via [Unmarshal] but we check anyways.
 		return &chain.Result{Success: false, Units: basePrice, Output: OutputValueZero}, nil
 	}
+	if f.Value%inRate != 0 {
+		return &chain.Result{Success: false, Units: basePrice, Output: OutputValueMisaligned}, nil
+	}
 	// Determine amount of [Out] counterparty will receive if the trade is
 	// successful.
-	num, err := smath.Mul64(rate, f.Value)
+	outputAmount, err := smath.Mul64(outRate, f.Value/inRate)
 	if err != nil {
 		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
 	}
-	outputAmount := num / divisor
 	if outputAmount == 0 {
 		return &chain.Result{
 			Success: false,
@@ -110,14 +107,11 @@ func (f *FillOrder) Execute(
 	)
 	switch {
 	case outputAmount > remaining:
-		// Calculate the proportion of the input value not used and be sure not to
-		// deduct it.
-		deductionNum, err := smath.Mul64(outputAmount-remaining, divisor)
-		if err != nil {
-			return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
-		}
-		adjustment := deductionNum / rate
-		inputAmount = f.Value - adjustment
+		// Calculate correct input given remaining supply
+		//
+		// This may happen if 2 people try to trade the same order at once.
+		blocksOver := (outputAmount - remaining) / outRate
+		inputAmount -= blocksOver * inRate
 
 		// If the [outputAmount] is greater than remaining, take what is left.
 		outputAmount = remaining
@@ -146,7 +140,7 @@ func (f *FillOrder) Execute(
 			return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
 		}
 	} else {
-		if err := storage.SetOrder(ctx, db, f.Order, in, out, rate, orderRemaining, owner); err != nil {
+		if err := storage.SetOrder(ctx, db, f.Order, in, inRate, out, outRate, orderRemaining, owner); err != nil {
 			return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
 		}
 	}

@@ -1083,7 +1083,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// 6 - 1 = 5 over remaining asset3
 		// 5 / 1.5 (ignore divisor) = 3.333... overpaid in asset2
 		// 4 - 3.333 = 1 required asset2
-		gomega.Ω(or.In).Should(gomega.Equal(uint64(1))) // TODO: should not be possible
+		gomega.Ω(or.In).
+			Should(gomega.Equal(uint64(1)))
+			// TODO: should not be possible (CAN'T COMPLETE TRADE, BIAS GOES TO ORDER?)
 		gomega.Ω(or.Out).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(or.Remaining).Should(gomega.Equal(uint64(0)))
 

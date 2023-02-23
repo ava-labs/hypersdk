@@ -44,7 +44,7 @@ func (c *CloseOrder) Execute(
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := c.MaxUnits(r) // max units == units
-	exists, _, out, _, remaining, owner, err := storage.GetOrder(ctx, db, c.Order)
+	exists, _, _, out, _, remaining, owner, err := storage.GetOrder(ctx, db, c.Order)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}

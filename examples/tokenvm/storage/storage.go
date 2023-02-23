@@ -257,18 +257,20 @@ func SetOrder(
 	db chain.Database,
 	txID ids.ID,
 	in ids.ID,
+	inRate uint64,
 	out ids.ID,
-	rate uint64,
+	outRate uint64,
 	supply uint64,
 	owner crypto.PublicKey,
 ) error {
 	k := PrefixOrderKey(txID)
-	v := make([]byte, consts.IDLen*2+consts.Uint64Len*2+crypto.PublicKeyLen)
+	v := make([]byte, consts.IDLen*2+consts.Uint64Len*3+crypto.PublicKeyLen)
 	copy(v, in[:])
-	copy(v[consts.IDLen:], out[:])
-	binary.BigEndian.PutUint64(v[consts.IDLen*2:], rate)
-	binary.BigEndian.PutUint64(v[consts.IDLen*2+consts.Uint64Len:], supply)
-	copy(v[consts.IDLen*2+consts.Uint64Len*2:], owner[:])
+	binary.BigEndian.PutUint64(v[consts.IDLen:], inRate)
+	copy(v[consts.IDLen+consts.Uint64Len:], out[:])
+	binary.BigEndian.PutUint64(v[consts.IDLen*2+consts.Uint64Len:], outRate)
+	binary.BigEndian.PutUint64(v[consts.IDLen*2+consts.Uint64Len*2:], supply)
+	copy(v[consts.IDLen*2+consts.Uint64Len*3:], owner[:])
 	return db.Insert(ctx, k, v)
 }
 
@@ -279,8 +281,9 @@ func GetOrder(
 ) (
 	bool, // exists
 	ids.ID, // in
+	uint64, // inRate
 	ids.ID, // out
-	uint64, // rate
+	uint64, // outRate
 	uint64, // remaining
 	crypto.PublicKey, // owner
 	error,
@@ -288,20 +291,21 @@ func GetOrder(
 	k := PrefixOrderKey(order)
 	v, err := db.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
-		return false, ids.Empty, ids.Empty, 0, 0, crypto.EmptyPublicKey, nil
+		return false, ids.Empty, 0, ids.Empty, 0, 0, crypto.EmptyPublicKey, nil
 	}
 	if err != nil {
-		return false, ids.Empty, ids.Empty, 0, 0, crypto.EmptyPublicKey, err
+		return false, ids.Empty, 0, ids.Empty, 0, 0, crypto.EmptyPublicKey, err
 	}
 	var in ids.ID
 	copy(in[:], v[:consts.IDLen])
+	inRate := binary.BigEndian.Uint64(v[consts.IDLen:])
 	var out ids.ID
-	copy(out[:], v[consts.IDLen:consts.IDLen*2])
-	rate := binary.BigEndian.Uint64(v[consts.IDLen*2:])
-	supply := binary.BigEndian.Uint64(v[consts.IDLen*2+consts.Uint64Len:])
+	copy(out[:], v[consts.IDLen+consts.Uint64Len:consts.IDLen*2+consts.Uint64Len])
+	outRate := binary.BigEndian.Uint64(v[consts.IDLen*2+consts.Uint64Len:])
+	supply := binary.BigEndian.Uint64(v[consts.IDLen*2+consts.Uint64Len*2:])
 	var owner crypto.PublicKey
-	copy(owner[:], v[consts.IDLen*2+consts.Uint64Len*2:])
-	return true, in, out, rate, supply, owner, nil
+	copy(owner[:], v[consts.IDLen*2+consts.Uint64Len*3:])
+	return true, in, inRate, out, outRate, supply, owner, nil
 }
 
 func DeleteOrder(ctx context.Context, db chain.Database, order ids.ID) error {
