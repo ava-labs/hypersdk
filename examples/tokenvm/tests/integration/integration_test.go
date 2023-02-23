@@ -888,32 +888,59 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			Should(gomega.ContainSubstring("invalid balance"))
 	})
 
-	// ginkgo.It("fill order with insufficient balance", func() {
-	// 	orders, err := instances[0].cli.Orders(context.TODO(), actions.PairID(asset2, asset3))
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(orders).Should(gomega.HaveLen(1))
-	// 	order := orders[0]
-	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
-	// 		context.Background(),
-	// 		&actions.FillOrder{
-	// 			Order: order.ID,
-	// 			Owner: order.Owner,
-	// 			In:    asset2,
-	// 			Out:   asset3,
-	// 			Value: 10, // rate of this order is 4 asset2 = 1 asset3
-	// 		},
-	// 		factory,
-	// 	)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-	// 	accept := expectBlk(instances[0])
-	// 	results := accept()
-	// 	gomega.Ω(results).Should(gomega.HaveLen(1))
-	// 	result := results[0]
-	// 	gomega.Ω(result.Success).Should(gomega.BeFalse())
-	// 	gomega.Ω(string(result.Output)).
-	// 		Should(gomega.ContainSubstring("invalid balance"))
-	// })
+	ginkgo.It("fill order with misaligned value", func() {
+		orders, err := instances[0].cli.Orders(context.TODO(), actions.PairID(asset2, asset3))
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(orders).Should(gomega.HaveLen(1))
+		order := orders[0]
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.FillOrder{
+				Order: order.ID,
+				Owner: order.Owner,
+				In:    asset2,
+				Out:   asset3,
+				Value: 10, // rate of this order is 4 asset2 = 1 asset3
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		result := results[0]
+		gomega.Ω(result.Success).Should(gomega.BeFalse())
+		gomega.Ω(string(result.Output)).
+			Should(gomega.ContainSubstring("value is misaligned"))
+	})
+
+	ginkgo.It("fill order with insufficient balance", func() {
+		orders, err := instances[0].cli.Orders(context.TODO(), actions.PairID(asset2, asset3))
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(orders).Should(gomega.HaveLen(1))
+		order := orders[0]
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.FillOrder{
+				Order: order.ID,
+				Owner: order.Owner,
+				In:    asset2,
+				Out:   asset3,
+				Value: 20, // rate of this order is 4 asset2 = 1 asset3
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		result := results[0]
+		gomega.Ω(result.Success).Should(gomega.BeFalse())
+		gomega.Ω(string(result.Output)).
+			Should(gomega.ContainSubstring("invalid balance"))
+	})
 
 	// ginkgo.It("fill order with insufficient output", func() {
 	// 	orders, err := instances[0].cli.Orders(context.TODO(), actions.PairID(asset2, asset3))
