@@ -54,8 +54,9 @@ func (f *FillOrder) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 	actor := auth.GetActor(rauth)
 	return [][]byte{
 		storage.PrefixOrderKey(f.Order),
+		storage.PrefixBalanceKey(f.Owner, f.In),
 		storage.PrefixBalanceKey(actor, f.In),
-		storage.PrefixBalanceKey(f.Owner, f.Out),
+		storage.PrefixBalanceKey(actor, f.Out),
 	}
 }
 
