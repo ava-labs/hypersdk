@@ -76,7 +76,7 @@ func GeneratePrivateKey() (PrivateKey, error) {
 // PublicKey returns a PublicKey associated with the Ed25519 PrivateKey p.
 // The PublicKey is the last 32 bytes of p.
 func (p PrivateKey) PublicKey() PublicKey {
-	rpk := p[PublicKeyLen:] // privateKey == private|public
+	rpk := p[PrivateKeySeedLen:] // privateKey == private|public
 	var pk PublicKey
 	copy(pk[:], rpk)
 	return pk
