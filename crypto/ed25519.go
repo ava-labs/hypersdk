@@ -21,9 +21,11 @@ type (
 )
 
 const (
-	PublicKeyLen  = ed25519.PublicKeySize
-	PrivateKeyLen = ed25519.PrivateKeySize
-	SignatureLen  = ed25519.SignatureSize
+	PublicKeyCompressedLen	= 33
+	PublicKeyLen            = ed25519.PublicKeySize
+	PrivateKeyLen           = ed25519.PrivateKeySize
+	PrivateKeySeedLen       = ed25519.SeedSize
+	SignatureLen            = ed25519.SignatureSize
 )
 
 var (
@@ -51,11 +53,11 @@ func ParseAddress(hrp, saddr string) (PublicKey, error) {
 	if phrp != hrp {
 		return EmptyPublicKey, ErrIncorrectHrp
 	}
-	if len(paddr) != 33 /* compressed public key size */ {
+	if len(paddr) != PublicKeyCompressedLen {
 		return EmptyPublicKey, ErrInvalidPublicKey
 	}
 	var p PublicKey
-	copy(p[:], paddr[:32])
+	copy(p[:], paddr[:PublicKeyLen])
 	return p, nil
 }
 
@@ -74,7 +76,7 @@ func GeneratePrivateKey() (PrivateKey, error) {
 // PublicKey returns a PublicKey associated with the Ed25519 PrivateKey p.
 // The PublicKey is the last 32 bytes of p.
 func (p PrivateKey) PublicKey() PublicKey {
-	rpk := p[32:] // privateKey == private|public
+	rpk := p[PrivateKeySeedLen:] // privateKey == private|public
 	var pk PublicKey
 	copy(pk[:], rpk)
 	return pk
