@@ -21,6 +21,7 @@ type (
 )
 
 const (
+	CompressedPublicKeySize = 33
 	PublicKeyLen  = ed25519.PublicKeySize
 	PrivateKeyLen = ed25519.PrivateKeySize
 	SignatureLen  = ed25519.SignatureSize
@@ -51,7 +52,6 @@ func ParseAddress(hrp, saddr string) (PublicKey, error) {
 	if phrp != hrp {
 		return EmptyPublicKey, ErrIncorrectHrp
 	}
-	const CompressedPublicKeySize = 33
 	if len(paddr) != CompressedPublicKeySize {
 		return EmptyPublicKey, ErrInvalidPublicKey
 	}
@@ -75,7 +75,7 @@ func GeneratePrivateKey() (PrivateKey, error) {
 // PublicKey returns a PublicKey associated with the Ed25519 PrivateKey p.
 // The PublicKey is the last 32 bytes of p.
 func (p PrivateKey) PublicKey() PublicKey {
-	return PublicKey(p[32:])
+	return PublicKey(p[PublicKeyLen:])
 }
 
 // ToHex converts a PrivateKey to a hex string.
