@@ -114,6 +114,8 @@ func (f *FillOrder) Execute(
 		outputAmount = remaining
 		// Calculate the proportion of the input value not used and be sure not to
 		// deduct it.
+
+		// TODO: this is broken somewhere
 		deductionNum, err := smath.Mul64(outputAmount-remaining, divisor)
 		if err != nil {
 			return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
@@ -125,6 +127,10 @@ func (f *FillOrder) Execute(
 		shouldDelete = true
 	default:
 		orderRemaining = remaining - outputAmount
+	}
+	if inputAmount == 0 {
+		// Don't allow free trades
+		return &chain.Result{Success: false, Units: basePrice, Output: OutputInsufficientInput}, nil
 	}
 	if err := storage.SubBalance(ctx, db, actor, f.In, inputAmount); err != nil {
 		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil

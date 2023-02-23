@@ -14,5 +14,6 @@ var (
 	OutputWrongIn            = []byte("wrong in asset")
 	OutputWrongOut           = []byte("wrong out asset")
 	OutputWrongOwner         = []byte("wrong owner")
+	OutputInsufficientInput  = []byte("insufficient input")
 	OutputInsufficientOutput = []byte("insufficient output")
 )
