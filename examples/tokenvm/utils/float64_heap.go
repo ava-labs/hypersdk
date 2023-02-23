@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
+// TODO: make Val generic and move to shared utils package in HyperSDK
 type Float64Entry[T any] struct {
 	ID   ids.ID  // id of entry
 	Item T       // associated item
