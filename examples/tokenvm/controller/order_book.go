@@ -19,8 +19,8 @@ const (
 type Order struct {
 	ID        ids.ID           `json:"id"`
 	Owner     crypto.PublicKey `json:"owner"`
-	InTick    uint64           `json:"inRate"`
-	OutTick   uint64           `json:"outRate"`
+	InTick    uint64           `json:"inTick"`
+	OutTick   uint64           `json:"outTick"`
 	Remaining uint64           `json:"remaining"`
 }
 

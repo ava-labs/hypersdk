@@ -24,7 +24,7 @@ type CreateOrder struct {
 
 	// [InTick] is the amount of [In] required to purchase
 	// [OutTick] of [Out].
-	InTick uint64 `json:"inRate"`
+	InTick uint64 `json:"inTick"`
 
 	// [Out] is the asset you receive when trading for [In].
 	//
@@ -33,7 +33,7 @@ type CreateOrder struct {
 
 	// [OutTick] is the amount of [Out] the counterparty gets per [InTick] of
 	// [In].
-	OutTick uint64 `json:"outRate"`
+	OutTick uint64 `json:"outTick"`
 
 	// [Supply] is the initial amount of [In] that the actor is locking up.
 	// TODO: ensure supply is a multiple of OutTick

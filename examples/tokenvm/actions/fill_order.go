@@ -64,7 +64,7 @@ func (f *FillOrder) Execute(
 	_ ids.ID,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
-	exists, in, inRate, out, outRate, remaining, owner, err := storage.GetOrder(ctx, db, f.Order)
+	exists, in, inTick, out, outTick, remaining, owner, err := storage.GetOrder(ctx, db, f.Order)
 	if err != nil {
 		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
 	}
@@ -84,12 +84,12 @@ func (f *FillOrder) Execute(
 		// This should be guarded via [Unmarshal] but we check anyways.
 		return &chain.Result{Success: false, Units: basePrice, Output: OutputValueZero}, nil
 	}
-	if f.Value%inRate != 0 {
+	if f.Value%inTick != 0 {
 		return &chain.Result{Success: false, Units: basePrice, Output: OutputValueMisaligned}, nil
 	}
 	// Determine amount of [Out] counterparty will receive if the trade is
 	// successful.
-	outputAmount, err := smath.Mul64(outRate, f.Value/inRate)
+	outputAmount, err := smath.Mul64(outTick, f.Value/inTick)
 	if err != nil {
 		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
 	}
@@ -111,8 +111,8 @@ func (f *FillOrder) Execute(
 		// Calculate correct input given remaining supply
 		//
 		// This may happen if 2 people try to trade the same order at once.
-		blocksOver := (outputAmount - remaining) / outRate
-		inputAmount -= blocksOver * inRate
+		blocksOver := (outputAmount - remaining) / outTick
+		inputAmount -= blocksOver * inTick
 
 		// If the [outputAmount] is greater than remaining, take what is left.
 		outputAmount = remaining
@@ -141,7 +141,7 @@ func (f *FillOrder) Execute(
 			return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
 		}
 	} else {
-		if err := storage.SetOrder(ctx, db, f.Order, in, inRate, out, outRate, orderRemaining, owner); err != nil {
+		if err := storage.SetOrder(ctx, db, f.Order, in, inTick, out, outTick, orderRemaining, owner); err != nil {
 			return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
 		}
 	}
