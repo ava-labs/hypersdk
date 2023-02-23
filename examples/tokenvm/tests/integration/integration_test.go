@@ -1014,6 +1014,38 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(0))
 	})
+
+	ginkgo.It("create simple order (want 2, give 3) tracked from another account", func() {
+		submit, tx, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.CreateOrder{
+				In:     asset2,
+				Out:    asset3,
+				Rate:   actions.CreateRate(0.25), // 1 asset3 = 4 asset2
+				Supply: 1,                        // put half of balance
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+
+		balance, err := instances[0].cli.Balance(context.TODO(), sender, asset3)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
+
+		orders, err := instances[0].cli.Orders(context.TODO(), actions.PairID(asset2, asset3))
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(orders).Should(gomega.HaveLen(1))
+		order := orders[0]
+		gomega.Ω(order.ID).Should(gomega.Equal(tx.ID()))
+		gomega.Ω(order.Rate).Should(gomega.Equal(actions.CreateRate(0.25)))
+		gomega.Ω(order.Owner).Should(gomega.Equal(rsender))
+		gomega.Ω(order.Remaining).Should(gomega.Equal(uint64(1)))
+	})
 })
 
 func expectBlk(i instance) func() []*chain.Result {
