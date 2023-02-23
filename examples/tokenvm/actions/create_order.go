@@ -43,6 +43,8 @@ type CreateOrder struct {
 	// * Users are allowed to have any number of orders for the same [In]-[Out] pair.
 	// * Using [InRate] and [OutRate] blocks ensures we avoid any odd rounding
 	//	 errors.
+	// * Users can fill orders with any multiple of [InRate] and will get
+	//   refunded any unused assets.
 }
 
 func (c *CreateOrder) StateKeys(rauth chain.Auth, txID ids.ID) [][]byte {
