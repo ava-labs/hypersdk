@@ -4,10 +4,13 @@
 package mempool
 
 import (
+	"container/heap"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 )
+
+var _ heap.Interface = (*uint64Heap[Item])(nil)
 
 type Item interface {
 	ID() ids.ID

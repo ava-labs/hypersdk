@@ -44,11 +44,11 @@ func New[T Item](
 		maxSize:      maxSize,
 		maxPayerSize: maxPayerSize,
 
-		pm: NewSortedMempool[T](
+		pm: NewSortedMempool(
 			maxSize, /* pre-allocate total size */
 			func(item T) uint64 { return item.UnitPrice() },
 		),
-		tm: NewSortedMempool[T](
+		tm: NewSortedMempool(
 			maxSize, /* pre-allocate total size */
 			func(item T) uint64 { return uint64(item.Expiry()) },
 		),

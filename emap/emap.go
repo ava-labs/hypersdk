@@ -11,6 +11,8 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
+var _ heap.Interface = (*bucketHeap)(nil)
+
 type bucket struct {
 	t     int64    // Timestamp
 	items []ids.ID // Array of AvalancheGo ids
