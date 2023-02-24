@@ -219,16 +219,26 @@ work out of the box on your `hypervm`.
 ## Examples
 ### Beginner: `tokenvm`
 We created the [`tokenvm`](./examples/tokenvm) to showcase how to use the
-`hypersdk` in a familiar application (on-chain token minting and token trading).
+`hypersdk` in an application most readers are already familiar with, token minting
+and token trading. The `tokenvm` lets anyone create any asset, mint more of
+their asset, modify the metadata of their asset (if they reveal some info), and
+burn their asset. Additionally, there is an embedded on-chain exchange that
+allows anyone to create orders and fill (partial) orders of anyone else. To
+make this example easy to play with, the `tokenvm` also bundles a powerful CLI
+tool and serves RPC requests for trades out of an in-memory order book it
+maintains by syncing blocks. If you are interested in the intersection of
+exchanges and blockchains, it is definitely worth a read (the logic for filling
+orders is < 100 lines of code!).
+
 To ensure the `hypersdk` stays reliable as we optimize and evolve the codebase,
 we also run E2E tests in the `tokenvm` on each PR to the `hypersdk` core modules.
 
 ### Expert: `indexvm`
-While the `tokenvm` is familiar and straightforward, the
-[`indexvm`](https://github.com/ava-labs/indexvm) is the opposite. It was built
-during the design of the `hypersdk` to test out the limits of the abstractions
-for building complex on-chain mechanisms. We recommend taking a look at this
-`hypervm` once you already have familiarity with the `hypersdk` to gain an
+The [`indexvm`](https://github.com/ava-labs/indexvm) is much more complex than
+the `tokenvm` (more elaborate mechanisms and a new use case you may not be
+familiar with). It was built during the design of the `hypersdk` to test out the
+limits of the abstractions for building complex on-chain mechanisms. We recommend
+taking a look at this `hypervm` once you already have familiarity with the `hypersdk` to gain an
 even deeper understanding of how you can build a complex runtime on top of the `hypersdk`.
 
 The `indexvm` is dedicated to increasing the usefulness of the world's
