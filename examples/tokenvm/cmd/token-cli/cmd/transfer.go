@@ -38,19 +38,18 @@ func transferFunc(_ *cobra.Command, args []string) error {
 	cli := client.New(uri)
 
 	// Select token to send
-	f := func(input string) error {
-		if len(input) == 0 {
-			return errors.New("input is empty")
-		}
-		if len(input) == 3 && input == "TKN" {
-			return nil
-		}
-		_, err := ids.FromString(input)
-		return err
-	}
 	promptText := promptui.Prompt{
-		Label:    "asset (use TKN for native token)",
-		Validate: f,
+		Label: "asset (use TKN for native token)",
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return errors.New("input is empty")
+			}
+			if len(input) == 3 && input == "TKN" {
+				return nil
+			}
+			_, err := ids.FromString(input)
+			return err
+		},
 	}
 	asset, err := promptText.Run()
 	if err != nil {

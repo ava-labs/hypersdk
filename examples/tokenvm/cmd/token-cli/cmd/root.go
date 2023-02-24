@@ -40,9 +40,12 @@ func init() {
 	rootCmd.AddCommand(
 		keyCmd,
 		genesisCmd,
-		transferCmd,
 		networkCmd,
 		watchCmd,
+
+		createAssetCmd,
+
+		transferCmd,
 	)
 
 	rootCmd.PersistentFlags().StringVar(
