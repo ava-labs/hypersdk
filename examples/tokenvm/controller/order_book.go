@@ -25,7 +25,7 @@ type Order struct {
 	OutTick   uint64 `json:"outTick"`
 	Remaining uint64 `json:"remaining"`
 
-	owner crypto.PublicKey `json:"-"`
+	owner crypto.PublicKey
 }
 
 type OrderBook struct {

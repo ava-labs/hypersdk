@@ -22,7 +22,7 @@ type CreateAsset struct {
 	Metadata []byte `json:"metadata"`
 }
 
-func (c *CreateAsset) StateKeys(_ chain.Auth, txID ids.ID) [][]byte {
+func (*CreateAsset) StateKeys(_ chain.Auth, txID ids.ID) [][]byte {
 	return [][]byte{storage.PrefixAssetKey(txID)}
 }
 
