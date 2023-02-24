@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"go.uber.org/zap"
 )
 
 const (
@@ -28,6 +29,8 @@ type Order struct {
 }
 
 type OrderBook struct {
+	c *Controller
+
 	// TODO: consider capping the number of orders in each heap (need to ensure
 	// that doing so does not make it possible to send a bunch of small, spam
 	// orders to clear -> may need to set a min order limit to watch)
@@ -38,18 +41,21 @@ type OrderBook struct {
 	trackAll bool
 }
 
-func NewOrderBook(trackedPairs []string) *OrderBook {
+func NewOrderBook(c *Controller, trackedPairs []string) *OrderBook {
 	m := map[string]*utils.Float64Heap[*Order]{}
 	trackAll := false
 	if len(trackedPairs) == 1 && trackedPairs[0] == allPairs {
 		trackAll = true
+		c.inner.Logger().Info("tracking all order books")
 	} else {
 		for _, pair := range trackedPairs {
 			// We use a max heap so we return the best rates in order.
 			m[pair] = utils.NewFloat64Heap[*Order](initialPairCapacity, false)
+			c.inner.Logger().Info("tracking order book", zap.String("pair", pair))
 		}
 	}
 	return &OrderBook{
+		c:           c,
 		orders:      m,
 		orderToPair: map[ids.ID]string{},
 		trackAll:    trackAll,
@@ -64,6 +70,7 @@ func (o *OrderBook) Add(pair string, order *Order) {
 	case !ok && !o.trackAll:
 		return
 	case !ok && o.trackAll:
+		o.c.inner.Logger().Info("tracking order book", zap.String("pair", pair))
 		h = utils.NewFloat64Heap[*Order](initialPairCapacity, false)
 		o.orders[pair] = h
 	}
