@@ -168,7 +168,6 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	})
 
 	ts.storage[k] = &tempStorage{value, false}
-	// TODO: ts.changedKeys[k] = true only if key existed in storage before?
 	ts.changedKeys[k] = true
 	return nil
 }
