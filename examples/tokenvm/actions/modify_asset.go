@@ -16,31 +16,29 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-const (
-	MaxMetadataSize = 256
-)
+var _ chain.Action = (*ModifyAsset)(nil)
 
-var _ chain.Action = (*Mint)(nil)
+type ModifyAsset struct {
+	// Asset is the [TxID] that created the asset.
+	Asset ids.ID
 
-type Mint struct {
-	// To is the recipient of the [Value].
-	To crypto.PublicKey `json:"to"`
+	// Owner will be the new owner of the [Asset].
+	//
+	// If you want to retain ownership, set this to the signer. If you want to
+	// revoke ownership, set this to another key or the empty public key.
+	Owner crypto.PublicKey `json:"owner"`
 
-	// Metadata
+	// Metadata is the new metadata of the [Asset].
+	//
+	// If you want this to stay the same, you must set it to be the same value.
 	Metadata []byte `json:"metadata"`
-
-	// Number of assets to mint to [To].
-	Value uint64 `json:"value"`
 }
 
-func (m *Mint) StateKeys(chain.Auth, ids.ID) [][]byte {
-	return [][]byte{
-		storage.PrefixAssetKey(m.Asset),
-		storage.PrefixBalanceKey(m.To, m.Asset),
-	}
+func (m *ModifyAsset) StateKeys(chain.Auth, ids.ID) [][]byte {
+	return [][]byte{storage.PrefixAssetKey(m.Asset)}
 }
 
-func (m *Mint) Execute(
+func (m *ModifyAsset) Execute(
 	ctx context.Context,
 	r chain.Rules,
 	db chain.Database,
@@ -53,50 +51,47 @@ func (m *Mint) Execute(
 	if m.Asset == ids.Empty {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetIsNative}, nil
 	}
-	if m.Value == 0 {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
+	if len(m.Metadata) > MaxMetadataSize {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputMetadataTooLarge}, nil
 	}
-	owner, err := storage.GetAssetOwner(ctx, db, m.Asset)
+	metadata, supply, owner, err := storage.GetAsset(ctx, db, m.Asset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	if owner != crypto.EmptyPublicKey {
+	if owner != actor {
 		return &chain.Result{
 			Success: false,
 			Units:   unitsUsed,
-			Output:  OutputAssetAlreadyExists,
+			Output:  OutputWrongOwner,
 		}, nil
 	}
-	if err := storage.SetAssetOwner(ctx, db, actor, m.Asset); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
-	}
-	if err := storage.SetBalance(ctx, db, m.To, m.Asset, m.Value); err != nil {
+	if err := storage.SetAsset(ctx, db, m.Asset, metadata, supply, m.Owner); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil
 }
 
-func (*Mint) MaxUnits(chain.Rules) uint64 {
+func (m *ModifyAsset) MaxUnits(chain.Rules) uint64 {
 	// We use size as the price of this transaction but we could just as easily
 	// use any other calculation.
-	return crypto.PublicKeyLen + consts.IDLen + consts.Uint64Len
+	return consts.IDLen + crypto.PublicKeyLen + uint64(len(m.Metadata))
 }
 
-func (m *Mint) Marshal(p *codec.Packer) {
-	p.PackPublicKey(m.To)
+func (m *ModifyAsset) Marshal(p *codec.Packer) {
 	p.PackID(m.Asset)
-	p.PackUint64(m.Value)
+	p.PackPublicKey(m.Owner)
+	p.PackBytes(m.Metadata)
 }
 
-func UnmarshalMint(p *codec.Packer) (chain.Action, error) {
-	var mint Mint
-	p.UnpackPublicKey(&mint.To)
-	p.UnpackID(false, &mint.Asset) // empty ID is the native asset
-	mint.Value = p.UnpackUint64(true)
-	return &mint, p.Err()
+func UnmarshalModifyAsset(p *codec.Packer) (chain.Action, error) {
+	var modify ModifyAsset
+	p.UnpackID(true, &modify.Asset) // empty ID is the native asset
+	p.UnpackPublicKey(&modify.Owner)
+	p.UnpackBytes(MaxMetadataSize, false, &modify.Metadata)
+	return &modify, p.Err()
 }
 
-func (*Mint) ValidRange(chain.Rules) (int64, int64) {
+func (*ModifyAsset) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }
