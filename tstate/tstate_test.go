@@ -26,19 +26,21 @@ func NewTestDB() *TestDB {
 		storage: make(map[string][]byte),
 	}
 }
-func (db *TestDB) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+
+func (db *TestDB) GetValue(_ context.Context, key []byte) (value []byte, err error) {
 	val, ok := db.storage[string(key)]
 	if !ok {
 		return nil, database.ErrNotFound
 	}
 	return val, nil
 }
-func (db *TestDB) Insert(ctx context.Context, key []byte, value []byte) error {
+
+func (db *TestDB) Insert(_ context.Context, key []byte, value []byte) error {
 	db.storage[string(key)] = value
 	return nil
 }
 
-func (db *TestDB) Remove(ctx context.Context, key []byte) error {
+func (db *TestDB) Remove(_ context.Context, key []byte) error {
 	if _, ok := db.storage[string(key)]; !ok {
 		return database.ErrNotFound
 	}
@@ -57,6 +59,7 @@ func TestSetStorage(t *testing.T) {
 	// require.False(ts.storage[string(TestKey)].fromDB, "Value not from a DB.")
 	require.Equal(TestVal, ts.storage[string(TestKey)].v, "Value was not saved correctly.")
 }
+
 func TestSetStorageKeyExists(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
@@ -80,7 +83,9 @@ func TestSetStorageKeyModified(t *testing.T) {
 	ts.SetStorage(ctx, TestKey, TestVal)
 	// ChangedKey = true
 	difVal := []byte("difVal")
-	ts.Insert(ctx, TestKey, difVal)
+	err := ts.Insert(ctx, TestKey, difVal)
+	require.NoError(err, "Error during insert.")
+
 	require.Equal(2, ts.OpIndex(), "Operation not added.")
 	// Otherval should not be saved
 	ts.SetStorage(ctx, TestKey, []byte("OtherValue"))
@@ -132,6 +137,7 @@ func TestInsertNew(t *testing.T) {
 	require.Equal(1, ts.OpIndex(), "Insert operation was not added.")
 	require.Equal(TestVal, val, "Value was not set correctly.")
 }
+
 func TestInsertUpdate(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
@@ -142,7 +148,7 @@ func TestInsertUpdate(t *testing.T) {
 	require.Equal(1, ts.OpIndex(), "SetStorage operation was not added.")
 	// Insert key
 	newVal := []byte("newVal")
-	err := ts.Insert(ctx, TestKey, []byte(newVal))
+	err := ts.Insert(ctx, TestKey, newVal)
 	require.NoError(err, "Error thrown.")
 	val, err := ts.GetValue(ctx, TestKey)
 	require.NoError(err, "Error thrown.")
@@ -159,7 +165,8 @@ func TestFetchAndSetScope(t *testing.T) {
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 	for i, key := range keys {
-		db.Insert(ctx, key, vals[i])
+		err := db.Insert(ctx, key, vals[i])
+		require.NoError(err, "Error during insert.")
 	}
 	err := ts.FetchAndSetScope(ctx, db, keys)
 	require.NoError(err, "Error thrown.")
@@ -182,7 +189,8 @@ func TestFetchAndSetScopeMissingKey(t *testing.T) {
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 	// Keys[3] not in db
 	for i, key := range keys[:len(keys)-1] {
-		db.Insert(ctx, key, vals[i])
+		err := db.Insert(ctx, key, vals[i])
+		require.NoError(err, "Error during insert.")
 	}
 	err := ts.FetchAndSetScope(ctx, db, keys)
 	require.NoError(err, "Error thrown.")
@@ -318,8 +326,10 @@ func TestRestoreDelete(t *testing.T) {
 	}
 	// Remove all
 	for _, key := range keys {
-		ts.Remove(ctx, key)
-		_, err := ts.GetValue(ctx, key)
+		err := ts.Remove(ctx, key)
+		require.NoError(err, "Error removing from ts.")
+
+		_, err = ts.GetValue(ctx, key)
 		require.ErrorIs(err, database.ErrNotFound, "Value not removed.")
 	}
 	require.Equal(len(keys)*2, ts.OpIndex(), "Operations not added properly.")
@@ -352,7 +362,7 @@ func TestWriteChanges(t *testing.T) {
 		require.Equal(vals[i], val, "Value not set correctly.")
 	}
 	err := ts.WriteChanges(ctx, db, tracer)
-	require.NoError(err, "Error writting changes.")
+	require.NoError(err, "Error writing changes.")
 
 	// Check if db was updated correctly
 	for i, key := range keys {
@@ -361,13 +371,15 @@ func TestWriteChanges(t *testing.T) {
 	}
 	// Remove
 	for _, key := range keys {
-		ts.Remove(ctx, key)
-		_, err := ts.GetValue(ctx, key)
+		err := ts.Remove(ctx, key)
+		require.NoError(err, "Error removing from ts.")
+
+		_, err = ts.GetValue(ctx, key)
 		require.ErrorIs(err, database.ErrNotFound, "Key not removed.")
 	}
 
 	err = ts.WriteChanges(ctx, db, tracer)
-	require.NoError(err, "Error writting changes.")
+	require.NoError(err, "Error writing changes.")
 	// Check if db was updated correctly
 	for _, key := range keys {
 		_, err := db.GetValue(ctx, key)
