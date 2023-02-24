@@ -108,6 +108,7 @@ func (th *Mempool[T]) Add(ctx context.Context, items []T) {
 		// Optimistically add to both mempools
 		acct, ok := th.owned[sender]
 		if !ok {
+			acct = set.Set[ids.ID]{}
 			th.owned[sender] = acct
 		}
 		if !th.exemptPayers.Contains(sender) && acct.Len() == th.maxPayerSize {
