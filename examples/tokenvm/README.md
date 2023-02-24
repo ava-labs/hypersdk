@@ -57,8 +57,10 @@ key for this address is
 `0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7`.
 For convenience, this key has is also stored at `demo.pk`.
 
-
 ### Step 1: Mint Your Asset
+
+### Step 2: Transfer Your Asset
+token18ccm7a2uadj8mctjghkg3fkrneqpptxceykvwm8x7vxyrwmxqf8qmxyzft
 
 ### Step 2: Mint Another Asset
 

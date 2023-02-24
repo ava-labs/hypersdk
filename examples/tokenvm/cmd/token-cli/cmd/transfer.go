@@ -164,6 +164,7 @@ func transferFunc(_ *cobra.Command, args []string) error {
 	if err := cli.WaitForTransaction(ctx, tx.ID()); err != nil {
 		return err
 	}
-	hutils.Outf("{{green}}transaction confirmed:{{/}} %s\n", tx.ID())
+	hutils.Outf("{{green}}transaction accepted{{/}}\n")
+	hutils.Outf("{{yellow}}TxID:{{/}} %s\n", tx.ID())
 	return nil
 }

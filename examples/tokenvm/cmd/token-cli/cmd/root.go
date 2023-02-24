@@ -57,7 +57,7 @@ func init() {
 		// We use the default local endpoint so we don't need to supply it in the
 		// demo. If you change any of the contents of the genesis file, this will
 		// change.
-		"http://localhost:9650/ext/bc/2RbRfsZ7BX8kEwK7nJwWs2L8wGWTCkHfrAHVuHSjYyfwpyJ81n",
+		"http://localhost:9650/ext/bc/EG9kgVnmBkoeJRD2mXnMrGoNLe9Z3HpFtUMJnCVkpxnDMxALV",
 		"RPC endpoint for VM",
 	)
 	rootCmd.PersistentFlags().BoolVar(
