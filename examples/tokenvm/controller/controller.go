@@ -176,11 +176,18 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 		}
 		if result.Success {
 			switch action := tx.Action.(type) {
-			case *actions.CloseOrder:
-				c.metrics.closeOrders.Inc()
-				c.orderBook.Remove(action.Order)
+			case *actions.CreateAsset:
+				c.metrics.createAsset.Inc()
+			case *actions.MintAsset:
+				c.metrics.mintAsset.Inc()
+			case *actions.BurnAsset:
+				c.metrics.burnAsset.Inc()
+			case *actions.ModifyAsset:
+				c.metrics.modifyAsset.Inc()
+			case *actions.Transfer:
+				c.metrics.transfer.Inc()
 			case *actions.CreateOrder:
-				c.metrics.createOrders.Inc()
+				c.metrics.createOrder.Inc()
 				c.orderBook.Add(
 					actions.PairID(action.In, action.Out),
 					&Order{
@@ -192,7 +199,7 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 					},
 				)
 			case *actions.FillOrder:
-				c.metrics.fillOrders.Inc()
+				c.metrics.fillOrder.Inc()
 				orderResult, err := actions.UnmarshalOrderResult(result.Output)
 				if err != nil {
 					// This should never happen
@@ -203,10 +210,9 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 					continue
 				}
 				c.orderBook.UpdateRemaining(action.Order, orderResult.Remaining)
-			case *actions.Mint:
-				c.metrics.mints.Inc()
-			case *actions.Transfer:
-				c.metrics.transfers.Inc()
+			case *actions.CloseOrder:
+				c.metrics.closeOrder.Inc()
+				c.orderBook.Remove(action.Order)
 			}
 		}
 	}
