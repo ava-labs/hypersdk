@@ -959,104 +959,95 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(exists).Should(gomega.BeFalse())
 	})
 
-	// ginkgo.It("rejects duplicate mint", func() {
-	// 	other, err := crypto.GeneratePrivateKey()
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	aother := utils.Address(other.PublicKey())
-	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
-	// 		context.Background(),
-	// 		&actions.Mint{
-	// 			To:    other.PublicKey(),
-	// 			Asset: asset1,
-	// 			Value: 10,
-	// 		},
-	// 		factory,
-	// 	)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-	// 	accept := expectBlk(instances[0])
-	// 	results := accept()
-	// 	gomega.Ω(results).Should(gomega.HaveLen(1))
-	// 	result := results[0]
-	// 	gomega.Ω(result.Success).Should(gomega.BeFalse())
-	// 	gomega.Ω(string(result.Output)).
-	// 		Should(gomega.ContainSubstring("asset already exists"))
+	ginkgo.It("rejects mint of native token", func() {
+		other, err := crypto.GeneratePrivateKey()
+		gomega.Ω(err).Should(gomega.BeNil())
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.MintAsset{
+				To:    other.PublicKey(),
+				Value: 10,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background()).Error()).
+			Should(gomega.ContainSubstring("ID field is not populated"))
+	})
 
-	// 	balance, err := instances[0].cli.Balance(context.TODO(), aother, asset1)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
-	// })
+	ginkgo.It("mints another new asset (to self)", func() {
+		submit, tx, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.CreateAsset{
+				Metadata: asset2,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+		asset2ID = tx.ID()
 
-	// ginkgo.It("rejects mint of native token", func() {
-	// 	other, err := crypto.GeneratePrivateKey()
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	aother := utils.Address(other.PublicKey())
-	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
-	// 		context.Background(),
-	// 		&actions.Mint{
-	// 			To:    other.PublicKey(),
-	// 			Value: 10,
-	// 		},
-	// 		factory,
-	// 	)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-	// 	accept := expectBlk(instances[0])
-	// 	results := accept()
-	// 	gomega.Ω(results).Should(gomega.HaveLen(1))
-	// 	result := results[0]
-	// 	gomega.Ω(result.Success).Should(gomega.BeFalse())
-	// 	gomega.Ω(string(result.Output)).
-	// 		Should(gomega.ContainSubstring("cannot mint native asset"))
+		submit, _, _, err = instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.MintAsset{
+				To:    rsender,
+				Asset: asset2ID,
+				Value: 10,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept = expectBlk(instances[0])
+		results = accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-	// 	balance, err := instances[0].cli.Balance(context.TODO(), aother, ids.Empty)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
-	// })
+		balance, err := instances[0].cli.Balance(context.TODO(), sender, asset2ID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(10)))
+	})
 
-	// ginkgo.It("mints another new asset (to self)", func() {
-	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
-	// 		context.Background(),
-	// 		&actions.Mint{
-	// 			To:    rsender,
-	// 			Asset: asset2,
-	// 			Value: 10,
-	// 		},
-	// 		factory,
-	// 	)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-	// 	accept := expectBlk(instances[0])
-	// 	results := accept()
-	// 	gomega.Ω(results).Should(gomega.HaveLen(1))
-	// 	gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+	ginkgo.It("mints another new asset (to self) on another account", func() {
+		submit, tx, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.CreateAsset{
+				Metadata: asset3,
+			},
+			factory2,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+		asset3ID = tx.ID()
 
-	// 	balance, err := instances[0].cli.Balance(context.TODO(), sender, asset2)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(balance).Should(gomega.Equal(uint64(10)))
-	// })
+		submit, _, _, err = instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.MintAsset{
+				To:    rsender2,
+				Asset: asset3ID,
+				Value: 10,
+			},
+			factory2,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept = expectBlk(instances[0])
+		results = accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-	// ginkgo.It("mints another new asset (to self) on another account", func() {
-	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
-	// 		context.Background(),
-	// 		&actions.Mint{
-	// 			To:    rsender2,
-	// 			Asset: asset3,
-	// 			Value: 10,
-	// 		},
-	// 		factory2,
-	// 	)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-	// 	accept := expectBlk(instances[0])
-	// 	results := accept()
-	// 	gomega.Ω(results).Should(gomega.HaveLen(1))
-	// 	gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-
-	// 	balance, err := instances[0].cli.Balance(context.TODO(), sender2, asset3)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(balance).Should(gomega.Equal(uint64(10)))
-	// })
+		balance, err := instances[0].cli.Balance(context.TODO(), sender2, asset3ID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(10)))
+	})
 
 	// ginkgo.It("create simple order (want 3, give 2) untracked", func() {
 	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
