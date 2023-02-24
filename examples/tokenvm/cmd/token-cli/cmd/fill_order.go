@@ -233,10 +233,6 @@ func fillOrderFunc(_ *cobra.Command, args []string) error {
 			if amount%order.InTick != 0 {
 				return errors.New("must be multiple of inTick")
 			}
-			multiples := amount / order.InTick
-			if order.OutTick*multiples > order.Remaining {
-				return errors.New("not enough remaining")
-			}
 			return nil
 		},
 	}
@@ -263,6 +259,13 @@ func fillOrderFunc(_ *cobra.Command, args []string) error {
 	}
 	hutils.Outf(
 		"{{orange}}in:{{/}} %s %s {{orange}}out:{{/}} %s %s\n",
+		rawAmount,
+		rawInAsset,
+		outStr,
+		rawOutAsset,
+	)
+	hutils.Outf(
+		"{{orange}}you will get up to order.Remaining and will receive a refund for the remainder{{/}}\n",
 		rawAmount,
 		rawInAsset,
 		outStr,

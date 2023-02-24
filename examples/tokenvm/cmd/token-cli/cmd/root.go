@@ -50,7 +50,7 @@ func init() {
 
 		createOrderCmd,
 		fillOrderCmd,
-		// closeOrderCmd,
+		closeOrderCmd,
 
 		balanceCmd,
 		transferCmd,
