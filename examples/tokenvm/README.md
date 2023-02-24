@@ -2,7 +2,7 @@
   <img width="90%" alt="tokenvm" src="assets/logo.png">
 </p>
 <p align="center">
-  Mint and Trade User-Generated Tokens, All On-Chain
+  Mint, Transfer, and Trade User-Generated Tokens, All On-Chain
 </p>
 <p align="center">
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-unit-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-unit-tests.yml/badge.svg" /></a>
@@ -30,23 +30,69 @@ significantly over the coming months as its modules are optimized and
 audited.
 
 ## Features
-### Expiring Fills
+### Arbitrary Token Minting
+The basis of the `tokenvm` is the ability to create, mint, and transfer user-generated
+tokens with ease. When creating an asset, the owner is given "admin control" of
+the asset functions and can later mint more of an asset, update its metadata
+(during a reveal for example), or transfer/revoke ownership (if rotating their
+key or turning over to their community).
+
+Assets are a native feature of the `tokenvm` and the storage engine is
+optimized specifically to support their efficient usage (each balance entry
+requires only 72 bytes of state = `assetID|publicKey=>balance(uint64)`). This
+storage format makes it possible to parallelize the execution of any transfers
+that don't touch the same accounts.
+
+### Trade Any 2 Tokens
+What good are custom assets if you can't do anything with them? To showcase the
+raw power of the `hypersdk`, the `tokenvm` also provides support for fully
+on-chain trading. Anyone can create an "offer" with a rate/token they are
+willing to accept and anyone else can fill that "offer" if they find it
+interesting. The `tokenvm` also maintains an in-memory order book to serve over
+RPC for clients looking to interact with these orders.
+
+Orders are a native feature of the `tokenvm` and the storage engine is
+optimized specifically to support their efficient usage (just like balances
+above). Each order requires only 152 bytes of
+state = `orderID=>inAsset|inTick|outAsset|outTick|remaining|owner`. This
+storage format also makes it possible to parallelize the execution of any fills
+that don't touch the same order (there may be hundreds or thousands of orders
+for the same pair, so this stil allows parallelization within a single pair
+unlike a pool-based trading mechanism like an AMM).
+
+#### In-Memory Order Book
+To make it easier for clients to interact with the `tokenvm`, it comes bundled
+with an in-memory order book that will listen for orders submitted on-chain for
+any specified list of pairs (or all if you prefer). Behind the scenes, this
+uses the `hypersdk's` support for feeding accepted transactions to any
+`hypervm` (where the `tokenvm`, in this case, uses the data to keep its
+in-memory record of order state up to date). The implementation of this is
+a simple max heap per pair where we arrange best on the best "rate" for a given
+asset (in/out).
+
+#### Sandwich-Resistant
+Because any fill must explicitly specify an order (it is up the client/CLI to
+implement a trading agent to perform a trade that may span multiple orders) to
+interact with, it is not possible for a bot to jump ahead of a transaction to
+negatively impact the price of your execution (all trades with an order occur
+at the same price). The worst they can do is to reduce the amount of tokens you
+may be able to trade with the order (as they may consume some of the remaining
+supply).
+
+Not allowing the chain or block producer to have any control over what orders
+a transaction may fill is a core design decision of the `tokenvm` and is a big
+part of what makes its trading support so interesting/useful in a world where
+producers are willing to manipulate transactions for their gain.
+
+#### Partial Fills
+
+#### Expiring Fills
 Because of the format of `hypersdk` transactions, you can scope your fills to
 a particular second. This enables you to go for transactions as you see fit at
 the time and not have to worry about your "fill" sitting around until you
 replace it (with potentially a much higher tx). This also protects you from fee
 volatility.
 
-### Arbitrary Token Minting
-#### Updateable Metadata
-#### Rotate or Revoke Minter
-### Trade Any 2 Tokens
-#### Sandwich-Resistant
-You can frontrun any transaction but the worst you can do is to fill an order
-before I can get to it. You can't sell back to an order and you can't modify
-the price of an order.
-#### Partials Fills
-#### In-Memory Order Book
 ##### Config Scoped to Certain Assets
 
 ## Demo
