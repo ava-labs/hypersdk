@@ -440,7 +440,9 @@ out on the Avalanche Discord._
 * Implement support for S3 and PostgreSQL storage backends
 * Provide optional auto-serialization/deserialization of `Actions` and `Auth`
   if only certain types are used in their definition
-* Add a DHT module that could be used to track the location of various pieces
-  of data across a network of `hypervm` participants (even better if this is
-  made abstract to any implementer such that they can just register and request
-  data from it and it is automatically handled by the network layer)
+* Add a module that could be used to track the location of various pieces
+  of data across a network ([see consistent
+  hasher](https://github.com/ava-labs/avalanchego/tree/master/utils/hashing/consistent))
+  of `hypervm` participants (even better if this is made abstract to any implementer
+  such that they can just register and request data from it and it is automatically
+  handled by the network layer)
