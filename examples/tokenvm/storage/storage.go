@@ -209,6 +209,11 @@ func SubBalance(
 			amount,
 		)
 	}
+	if nbal == 0 {
+		// If there is no balance left, we should delete the record instead of
+		// setting it to 0.
+		return db.Remove(ctx, PrefixBalanceKey(pk, asset))
+	}
 	return SetBalance(ctx, db, pk, asset, nbal)
 }
 

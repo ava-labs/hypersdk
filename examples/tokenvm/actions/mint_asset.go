@@ -58,7 +58,7 @@ func (m *MintAsset) Execute(
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	if owner != crypto.EmptyPublicKey {
+	if owner != actor {
 		return &chain.Result{
 			Success: false,
 			Units:   unitsUsed,
@@ -93,7 +93,7 @@ func (m *MintAsset) Marshal(p *codec.Packer) {
 func UnmarshalMintAsset(p *codec.Packer) (chain.Action, error) {
 	var mint MintAsset
 	p.UnpackPublicKey(&mint.To)
-	p.UnpackID(false, &mint.Asset) // empty ID is the native asset
+	p.UnpackID(true, &mint.Asset) // empty ID is the native asset
 	mint.Value = p.UnpackUint64(true)
 	return &mint, p.Err()
 }
