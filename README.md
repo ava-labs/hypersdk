@@ -105,10 +105,14 @@ happen.
 `hypersdk` transactions must specify the keys they will touch in state (read
 or write) during execution and authentication so that all relevant data can be
 pre-fetched before block execution starts, which ensures all data accessed during
-verification of a block is done so in memory). This restriction also enables
-transactions to be processed in parallel as distinct, ordered transaction sets
-can be trivially formed by looking at the overlap of keys that transactions
-will touch.
+verification of a block is done so in memory). Notably, the keys specified here
+are not keys in a merkle trie (which may be quite volatile) but are instead the
+actual keys used to access data by the storage engine (like your address, which
+is much less volatile and not as cumbersome of a UX barrier).
+
+This restriction also enables transactions to be processed in parallel as distinct,
+ordered transaction sets can be trivially formed by looking at the overlap of keys
+that transactions will touch.
 
 _Parallel transaction execution was originally included in `hypersdk` but
 removed because the overhead of the naïve mechanism used to group transactions
