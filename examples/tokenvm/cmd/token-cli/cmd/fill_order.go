@@ -6,6 +6,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"math"
 	"strconv"
 	"strings"
 
@@ -158,23 +159,28 @@ func fillOrderFunc(*cobra.Command, []string) error {
 	for i := 0; i < max; i++ {
 		order := orders[i]
 		var inTickStr string
+		inTick := float64(order.InTick)
 		if inAssetID == ids.Empty {
 			inTickStr = hutils.FormatBalance(order.InTick)
+			inTick /= math.Pow10(9)
 		} else {
 			inTickStr = strconv.FormatUint(order.InTick, 10)
 		}
 		var outTickStr string
 		var remainingStr string
+		outTick := float64(order.OutTick)
 		if outAssetID == ids.Empty {
 			outTickStr = hutils.FormatBalance(order.OutTick)
 			remainingStr = hutils.FormatBalance(order.Remaining)
+			outTick /= math.Pow10(9)
 		} else {
 			outTickStr = strconv.FormatUint(order.OutTick, 10)
 			remainingStr = strconv.FormatUint(order.Remaining, 10)
 		}
 		hutils.Outf(
-			"%d) {{cyan}}InTick:{{/}} %s %s {{cyan}}OutTick:{{/}} %s %s {{cyan}}Remaining:{{/}} %s %s\n",
+			"%d) {{cyan}}Rate(in/out):{{/}} %.4f {{cyan}}InTick:{{/}} %s %s {{cyan}}OutTick:{{/}} %s %s {{cyan}}Remaining:{{/}} %s %s\n",
 			i,
+			inTick/outTick,
 			inTickStr,
 			rawInAsset,
 			outTickStr,
