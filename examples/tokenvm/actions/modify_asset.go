@@ -54,9 +54,12 @@ func (m *ModifyAsset) Execute(
 	if len(m.Metadata) > MaxMetadataSize {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputMetadataTooLarge}, nil
 	}
-	metadata, supply, owner, err := storage.GetAsset(ctx, db, m.Asset)
+	exists, metadata, supply, owner, err := storage.GetAsset(ctx, db, m.Asset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	}
+	if !exists {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetMissing}, nil
 	}
 	if owner != actor {
 		return &chain.Result{

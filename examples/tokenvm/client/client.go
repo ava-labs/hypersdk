@@ -54,7 +54,7 @@ func (cli *Client) Tx(ctx context.Context, id ids.ID) (bool, int64, error) {
 	return true, resp.Timestamp, nil
 }
 
-func (cli *Client) Asset(ctx context.Context, asset ids.ID) ([]byte, string, uint64, error) {
+func (cli *Client) Asset(ctx context.Context, asset ids.ID) (bool, []byte, string, uint64, error) {
 	resp := new(controller.AssetReply)
 	err := cli.Requester.SendRequest(
 		ctx,
@@ -64,7 +64,15 @@ func (cli *Client) Asset(ctx context.Context, asset ids.ID) ([]byte, string, uin
 		},
 		resp,
 	)
-	return resp.Metadata, resp.Owner, resp.Supply, err
+	switch {
+	// We use string parsing here because the JSON-RPC library we use may not
+	// allows us to perform errors.Is.
+	case err != nil && strings.Contains(err.Error(), controller.ErrAssetNotFound.Error()):
+		return false, nil, "", 0, nil
+	case err != nil:
+		return false, nil, "", 0, err
+	}
+	return true, resp.Metadata, resp.Owner, resp.Supply, err
 }
 
 func (cli *Client) Balance(ctx context.Context, addr string, asset ids.ID) (uint64, error) {

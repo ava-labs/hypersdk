@@ -51,26 +51,22 @@ func (b *BurnAsset) Execute(
 	if b.Value == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
 	}
-	metadata, supply, owner, err := storage.GetAsset(ctx, db, b.Asset)
+	if err := storage.SubBalance(ctx, db, actor, b.Asset, b.Value); err != nil {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	}
+	exists, metadata, supply, owner, err := storage.GetAsset(ctx, db, b.Asset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	if owner != actor {
-		return &chain.Result{
-			Success: false,
-			Units:   unitsUsed,
-			Output:  OutputWrongOwner,
-		}, nil
+	if !exists {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetMissing}, nil
 	}
 	newSupply, err := smath.Sub(supply, b.Value)
 	if err != nil {
 		// This should never fail
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	if err := storage.SetAsset(ctx, db, b.Asset, metadata, newSupply, actor); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
-	}
-	if err := storage.SubBalance(ctx, db, actor, b.Asset, b.Value); err != nil {
+	if err := storage.SetAsset(ctx, db, b.Asset, metadata, newSupply, owner); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil

@@ -20,7 +20,8 @@ const (
 )
 
 var (
-	ErrTxNotFound = errors.New("tx not found")
+	ErrTxNotFound    = errors.New("tx not found")
+	ErrAssetNotFound = errors.New("asset not found")
 )
 
 type Handler struct {
@@ -79,9 +80,16 @@ func (h *Handler) Asset(req *http.Request, args *AssetArgs, reply *AssetReply) e
 	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Asset")
 	defer span.End()
 
-	metadata, supply, owner, err := storage.GetAssetFromState(ctx, h.c.inner.ReadState, args.Asset)
+	exists, metadata, supply, owner, err := storage.GetAssetFromState(
+		ctx,
+		h.c.inner.ReadState,
+		args.Asset,
+	)
 	if err != nil {
 		return err
+	}
+	if !exists {
+		return ErrAssetNotFound
 	}
 	reply.Metadata = metadata
 	reply.Supply = supply

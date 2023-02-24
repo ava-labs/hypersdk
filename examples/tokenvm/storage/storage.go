@@ -230,7 +230,7 @@ func GetAssetFromState(
 	ctx context.Context,
 	f ReadState,
 	asset ids.ID,
-) ([]byte, uint64, crypto.PublicKey, error) {
+) (bool, []byte, uint64, crypto.PublicKey, error) {
 	values, errs := f(ctx, [][]byte{PrefixAssetKey(asset)})
 	return innerGetAsset(values[0], errs[0])
 }
@@ -239,7 +239,7 @@ func GetAsset(
 	ctx context.Context,
 	db chain.Database,
 	asset ids.ID,
-) ([]byte, uint64, crypto.PublicKey, error) {
+) (bool, []byte, uint64, crypto.PublicKey, error) {
 	k := PrefixAssetKey(asset)
 	return innerGetAsset(db.GetValue(ctx, k))
 }
@@ -247,19 +247,19 @@ func GetAsset(
 func innerGetAsset(
 	v []byte,
 	err error,
-) ([]byte, uint64, crypto.PublicKey, error) {
+) (bool, []byte, uint64, crypto.PublicKey, error) {
 	if errors.Is(err, database.ErrNotFound) {
-		return nil, 0, crypto.EmptyPublicKey, nil
+		return false, nil, 0, crypto.EmptyPublicKey, nil
 	}
 	if err != nil {
-		return nil, 0, crypto.EmptyPublicKey, err
+		return false, nil, 0, crypto.EmptyPublicKey, err
 	}
 	metadataLen := binary.BigEndian.Uint16(v)
 	metadata := v[consts.Uint16Len : consts.Uint16Len+metadataLen]
 	supply := binary.BigEndian.Uint64(v[consts.Uint16Len+metadataLen:])
 	var pk crypto.PublicKey
 	copy(pk[:], v[consts.Uint16Len+metadataLen+consts.Uint64Len:])
-	return metadata, supply, pk, nil
+	return true, metadata, supply, pk, nil
 }
 
 func SetAsset(
