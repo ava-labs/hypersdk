@@ -7,11 +7,14 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
@@ -72,20 +75,60 @@ func watchFunc(_ *cobra.Command, _ []string) error {
 				case *actions.CreateAsset:
 					summaryStr = fmt.Sprintf("assetID: %s metadata:%s", tx.ID(), string(action.Metadata))
 				case *actions.MintAsset:
-					summaryStr = fmt.Sprintf("%d %s -> %s", action.Value, action.Asset, tutils.Address(action.To))
+					amountStr := strconv.FormatUint(action.Value, 10)
+					assetStr := action.Asset.String()
+					if action.Asset == ids.Empty {
+						amountStr = utils.FormatBalance(action.Value)
+						assetStr = consts.Symbol
+					}
+					summaryStr = fmt.Sprintf("%s %s -> %s", amountStr, assetStr, tutils.Address(action.To))
 				case *actions.BurnAsset:
 					summaryStr = fmt.Sprintf("%d %s -> 🔥", action.Value, action.Asset)
 				case *actions.ModifyAsset:
 					summaryStr = fmt.Sprintf("assetID: %s metadata:%s owner:%s", action.Asset, string(action.Metadata), tutils.Address(action.Owner))
 
 				case *actions.Transfer:
-					summaryStr = fmt.Sprintf("%d %s -> %s", action.Value, action.Asset, tutils.Address(action.To))
+					amountStr := strconv.FormatUint(action.Value, 10)
+					assetStr := action.Asset.String()
+					if action.Asset == ids.Empty {
+						amountStr = utils.FormatBalance(action.Value)
+						assetStr = consts.Symbol
+					}
+					summaryStr = fmt.Sprintf("%s %s -> %s", amountStr, assetStr, tutils.Address(action.To))
 
 				case *actions.CreateOrder:
-					summaryStr = fmt.Sprintf("%d %s -> %d %s (supply: %d)", action.InTick, action.In, action.OutTick, action.Out, action.Supply)
+					inTickStr := strconv.FormatUint(action.InTick, 10)
+					inStr := action.In.String()
+					if action.In == ids.Empty {
+						inTickStr = utils.FormatBalance(action.InTick)
+						inStr = consts.Symbol
+					}
+					outTickStr := strconv.FormatUint(action.OutTick, 10)
+					supplyStr := strconv.FormatUint(action.Supply, 10)
+					outStr := action.Out.String()
+					if action.Out == ids.Empty {
+						outTickStr = utils.FormatBalance(action.OutTick)
+						supplyStr = utils.FormatBalance(action.Supply)
+						outStr = consts.Symbol
+					}
+					summaryStr = fmt.Sprintf("%s %s -> %s %s (supply: %s %s)", inTickStr, inStr, outTickStr, outStr, supplyStr, outStr)
 				case *actions.FillOrder:
 					or, _ := actions.UnmarshalOrderResult(result.Output)
-					summaryStr = fmt.Sprintf("%d %s -> %d %s (remaining: %d)", or.In, action.In, or.Out, action.Out, or.Remaining)
+					inAmtStr := strconv.FormatUint(or.In, 10)
+					inStr := action.In.String()
+					if action.In == ids.Empty {
+						inAmtStr = utils.FormatBalance(or.In)
+						inStr = consts.Symbol
+					}
+					outAmtStr := strconv.FormatUint(or.Out, 10)
+					remainingStr := strconv.FormatUint(or.Remaining, 10)
+					outStr := action.Out.String()
+					if action.Out == ids.Empty {
+						outAmtStr = utils.FormatBalance(or.Out)
+						remainingStr = utils.FormatBalance(or.Remaining)
+						outStr = consts.Symbol
+					}
+					summaryStr = fmt.Sprintf("%s %s -> %s %s (remaining: %s %s)", inAmtStr, inStr, outAmtStr, outStr, remainingStr, outStr)
 				case *actions.CloseOrder:
 					summaryStr = fmt.Sprintf("orderID: %s", action.Order)
 				}
