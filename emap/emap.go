@@ -118,10 +118,10 @@ func (e *EMap[T]) add(id ids.ID, t int64) {
 	}
 
 	// Check if already exists
-	if _, ok := e.seen[id]; ok {
+	if e.seen.Contains(id) {
 		return
 	}
-	e.seen[id] = struct{}{}
+	e.seen.Add(id)
 
 	// Check if bucket with time already exists
 	if b, ok := e.times[t]; ok {
@@ -152,7 +152,7 @@ func (e *EMap[T]) SetMin(t int64) []ids.ID {
 		}
 		heap.Pop(e.bh)
 		for _, id := range b.items {
-			delete(e.seen, id)
+			e.seen.Remove(id)
 			evicted = append(evicted, id)
 		}
 		// Delete from times map
@@ -167,7 +167,7 @@ func (e *EMap[T]) Any(items []T) bool {
 	defer e.mu.RUnlock()
 
 	for _, item := range items {
-		if _, ok := e.seen[item.ID()]; ok {
+		if e.seen.Contains(item.ID()) {
 			return true
 		}
 	}
