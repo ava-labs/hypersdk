@@ -9,8 +9,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/utils"
@@ -34,40 +32,33 @@ func (c *CreateAsset) Execute(
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,
-	_ ids.ID,
+	txID ids.ID,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := c.MaxUnits(r) // max units == units
 	if len(c.Metadata) > MaxMetadataSize {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputMetadataTooLarge}, nil
 	}
-	if err := storage.SetAssetOwner(ctx, db, actor, m.Asset); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
-	}
-	if err := storage.SetBalance(ctx, db, m.To, m.Asset, m.Value); err != nil {
+	if err := storage.SetAsset(ctx, db, txID, c.Metadata, 0, actor); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil
 }
 
-func (*CreateAsset) MaxUnits(chain.Rules) uint64 {
+func (c *CreateAsset) MaxUnits(chain.Rules) uint64 {
 	// We use size as the price of this transaction but we could just as easily
 	// use any other calculation.
-	return crypto.PublicKeyLen + consts.IDLen + consts.Uint64Len
+	return uint64(len(c.Metadata))
 }
 
 func (c *CreateAsset) Marshal(p *codec.Packer) {
-	p.PackPublicKey(m.To)
-	p.PackID(m.Asset)
-	p.PackUint64(m.Value)
+	p.PackBytes(c.Metadata)
 }
 
 func UnmarshalCreateAsset(p *codec.Packer) (chain.Action, error) {
-	var mint CreateAsset
-	p.UnpackPublicKey(&mint.To)
-	p.UnpackID(false, &mint.Asset) // empty ID is the native asset
-	mint.Value = p.UnpackUint64(true)
-	return &mint, p.Err()
+	var create CreateAsset
+	p.UnpackBytes(MaxMetadataSize, false, &create.Metadata)
+	return &create, p.Err()
 }
 
 func (*CreateAsset) ValidRange(chain.Rules) (int64, int64) {
