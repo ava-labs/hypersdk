@@ -31,7 +31,7 @@ func createAssetFunc(_ *cobra.Command, args []string) error {
 		return err
 	}
 	factory := auth.NewED25519Factory(priv)
-	hutils.Outf("{{yellow}}loaded address:{{/}} %s\n", utils.Address(priv.PublicKey()))
+	hutils.Outf("{{yellow}}loaded address:{{/}} %s\n\n", utils.Address(priv.PublicKey()))
 
 	ctx := context.Background()
 	cli := client.New(uri)

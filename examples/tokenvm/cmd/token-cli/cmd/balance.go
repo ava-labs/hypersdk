@@ -29,13 +29,34 @@ func balanceFunc(_ *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	hutils.Outf("{{yellow}}loaded address:{{/}} %s\n", utils.Address(priv.PublicKey()))
+	hutils.Outf("{{yellow}}loaded address:{{/}} %s\n\n", utils.Address(priv.PublicKey()))
 
 	ctx := context.Background()
 	cli := client.New(uri)
 
-	// Select token to check
+	// Select address
 	promptText := promptui.Prompt{
+		Label: "address",
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return errors.New("input is empty")
+			}
+			_, err := utils.ParseAddress(input)
+			return err
+		},
+	}
+	recipient, err := promptText.Run()
+	if err != nil {
+		return err
+	}
+	pk, err := utils.ParseAddress(recipient)
+	if err != nil {
+		return err
+	}
+	addr := utils.Address(pk)
+
+	// Select token to check
+	promptText = promptui.Prompt{
 		Label: "assetID (use TKN for native token)",
 		Validate: func(input string) error {
 			if len(input) == 0 {
@@ -60,26 +81,6 @@ func balanceFunc(_ *cobra.Command, args []string) error {
 		}
 	}
 
-	// Select address
-	promptText = promptui.Prompt{
-		Label: "address",
-		Validate: func(input string) error {
-			if len(input) == 0 {
-				return errors.New("input is empty")
-			}
-			_, err := utils.ParseAddress(input)
-			return err
-		},
-	}
-	recipient, err := promptText.Run()
-	if err != nil {
-		return err
-	}
-	pk, err := utils.ParseAddress(recipient)
-	if err != nil {
-		return err
-	}
-	addr := utils.Address(pk)
 	balance, err := cli.Balance(ctx, addr, assetID)
 	if err != nil {
 		return err
