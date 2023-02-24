@@ -17,11 +17,13 @@ const (
 )
 
 type Order struct {
-	ID        ids.ID           `json:"id"`
-	Owner     crypto.PublicKey `json:"owner"`
-	InTick    uint64           `json:"inTick"`
-	OutTick   uint64           `json:"outTick"`
-	Remaining uint64           `json:"remaining"`
+	ID        ids.ID `json:"id"`
+	Owner     string `json:"owner"` // we always send address over RPC
+	InTick    uint64 `json:"inTick"`
+	OutTick   uint64 `json:"outTick"`
+	Remaining uint64 `json:"remaining"`
+
+	owner crypto.PublicKey `json:"-"`
 }
 
 type OrderBook struct {

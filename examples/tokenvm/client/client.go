@@ -5,6 +5,7 @@ package client
 
 import (
 	"context"
+	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/client"
@@ -34,15 +35,36 @@ func (cli *Client) Genesis(ctx context.Context) (*genesis.Genesis, error) {
 	return resp.Genesis, err
 }
 
-func (cli *Client) GetTx(ctx context.Context, id ids.ID) (int64, bool, error) {
-	resp := new(controller.GetTxReply)
+func (cli *Client) Tx(ctx context.Context, id ids.ID) (bool, int64, error) {
+	resp := new(controller.TxReply)
 	err := cli.Requester.SendRequest(
 		ctx,
-		"getTx",
-		&controller.GetTxArgs{TxID: id},
+		"tx",
+		&controller.TxArgs{TxID: id},
 		resp,
 	)
-	return resp.Timestamp, resp.Accepted, err
+	switch {
+	// We use string parsing here because the JSON-RPC library we use may not
+	// allows us to perform errors.Is.
+	case err != nil && strings.Contains(err.Error(), controller.ErrTxNotFound.Error()):
+		return false, -1, nil
+	case err != nil:
+		return false, -1, err
+	}
+	return true, resp.Timestamp, nil
+}
+
+func (cli *Client) Asset(ctx context.Context, asset ids.ID) ([]byte, string, uint64, error) {
+	resp := new(controller.AssetReply)
+	err := cli.Requester.SendRequest(
+		ctx,
+		"asset",
+		&controller.AssetArgs{
+			Asset: asset,
+		},
+		resp,
+	)
+	return resp.Metadata, resp.Owner, resp.Supply, err
 }
 
 func (cli *Client) Balance(ctx context.Context, addr string, asset ids.ID) (uint64, error) {

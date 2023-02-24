@@ -60,10 +60,10 @@ func (cli *Client) WaitForBalance(
 
 func (cli *Client) WaitForTransaction(ctx context.Context, txID ids.ID) error {
 	return client.Wait(ctx, func(ctx context.Context) (bool, error) {
-		_, accepted, err := cli.GetTx(ctx, txID)
+		found, _, err := cli.Tx(ctx, txID)
 		if err != nil {
 			return false, err
 		}
-		return accepted, nil
+		return found, nil
 	})
 }

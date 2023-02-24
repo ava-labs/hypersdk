@@ -25,6 +25,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
+	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/version"
 )
 
@@ -188,14 +189,16 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 				c.metrics.transfer.Inc()
 			case *actions.CreateOrder:
 				c.metrics.createOrder.Inc()
+				actor := auth.GetActor(tx.Auth)
 				c.orderBook.Add(
 					actions.PairID(action.In, action.Out),
 					&Order{
 						tx.ID(),
-						auth.GetActor(tx.Auth),
+						tutils.Address(actor),
 						action.InTick,
 						action.OutTick,
 						action.Supply,
+						actor,
 					},
 				)
 			case *actions.FillOrder:

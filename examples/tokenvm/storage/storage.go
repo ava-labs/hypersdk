@@ -225,13 +225,29 @@ func PrefixAssetKey(asset ids.ID) (k []byte) {
 	return
 }
 
+// Used to serve RPC queries
+func GetAssetFromState(
+	ctx context.Context,
+	f ReadState,
+	asset ids.ID,
+) ([]byte, uint64, crypto.PublicKey, error) {
+	values, errs := f(ctx, [][]byte{PrefixAssetKey(asset)})
+	return innerGetAsset(values[0], errs[0])
+}
+
 func GetAsset(
 	ctx context.Context,
 	db chain.Database,
 	asset ids.ID,
 ) ([]byte, uint64, crypto.PublicKey, error) {
 	k := PrefixAssetKey(asset)
-	v, err := db.GetValue(ctx, k)
+	return innerGetAsset(db.GetValue(ctx, k))
+}
+
+func innerGetAsset(
+	v []byte,
+	err error,
+) ([]byte, uint64, crypto.PublicKey, error) {
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, 0, crypto.EmptyPublicKey, nil
 	}
