@@ -76,6 +76,7 @@ token18ccm7a2uadj8mctjghkg3fkrneqpptxceykvwm8x7vxyrwmxqf8qmxyzft
 ### Step 5: Close Order
 
 ### Can watch in real-time
+/build/token-cli watch
 
 ## Future Work
 _If you want to take the lead on any of these items, please
@@ -84,4 +85,5 @@ out on the Avalanche Discord._
 
 * Add support for Avalanche Warp Messaging
 * Add more config options for determining which order books to store in-memory
-* Make it possible to fill multiple explicitly specified orders at once
+* Add option to CLI to fill up to some amount of an asset as long as it is
+  under some exchange rate
