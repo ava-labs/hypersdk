@@ -86,4 +86,4 @@ out on the Avalanche Discord._
 * Add support for Avalanche Warp Messaging
 * Add more config options for determining which order books to store in-memory
 * Add option to CLI to fill up to some amount of an asset as long as it is
-  under some exchange rate
+  under some exchange rate (trading agent command to provide better UX)

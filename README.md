@@ -427,3 +427,5 @@ out on the Avalanche Discord._
 * Implement support for S3 and PostgreSQL storage backends
 * Provide optional auto-serialization/deserialization of `Actions` and `Auth`
   if only certain types are used in their definition
+* Add a `DHT-based` storage module that tracks data previously submitted to the
+  chain... (TODO:)
