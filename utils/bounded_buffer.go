@@ -26,7 +26,7 @@ type BoundedBuffer[T any] interface {
 	// [T] and [false].
 	Last() (T, bool)
 
-	// Returns all the items in the buffer sorted from oldest to nest.
+	// Returns all the items in the buffer sorted from oldest to newest.
 	Items() []T
 }
 
