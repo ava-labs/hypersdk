@@ -104,6 +104,7 @@ func transferFunc(_ *cobra.Command, args []string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
 			}
+			// TODO: ensure can't send more than balance
 			if assetID == ids.Empty {
 				_, err := hutils.ParseBalance(input)
 				return err
@@ -161,10 +162,15 @@ func transferFunc(_ *cobra.Command, args []string) error {
 	if err := submit(ctx); err != nil {
 		return err
 	}
-	if err := cli.WaitForTransaction(ctx, tx.ID()); err != nil {
+	success, err := cli.WaitForTransaction(ctx, tx.ID())
+	if err != nil {
 		return err
 	}
-	hutils.Outf("{{green}}transaction accepted{{/}}\n")
+	if success {
+		hutils.Outf("{{green}}transaction succeeded{{/}}\n")
+	} else {
+		hutils.Outf("{{red}}transaction failed{{/}}\n")
+	}
 	hutils.Outf("{{yellow}}TxID:{{/}} %s\n", tx.ID())
 	return nil
 }

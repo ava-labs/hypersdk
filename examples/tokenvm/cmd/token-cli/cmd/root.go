@@ -48,7 +48,10 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(
 		&privateKeyFile,
 		"private-key-file",
-		".token-cli.pk",
+		// We use the default demo key to make it easier to run the demo locally.
+		// If you want to use your own key, we recommend storing it at
+		// ".token-cli.pk".
+		"demo.pk",
 		"private key file path",
 	)
 	rootCmd.PersistentFlags().StringVar(
