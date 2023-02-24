@@ -10,20 +10,18 @@
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-static-analysis.yml/badge.svg" /></a>
 </p>
 
-The `tokenvm` enables anyone to mint their own token and then trade that token
-with others, all on-chain. When minting, you can provide up to 256 bytes of
-arbitrary data for any token and then change it in the future (without changing
-the assetID)...perfect for reveals.
+We created the [`tokenvm`](./examples/tokenvm) to showcase how to use the
+`hypersdk` in an application most readers are already familiar with, token minting
+and token trading. The `tokenvm` lets anyone create any asset, mint more of
+their asset, modify the metadata of their asset (if they reveal some info), and
+burn their asset. Additionally, there is an embedded on-chain exchange that
+allows anyone to create orders and fill (partial) orders of anyone else. To
+make this example easy to play with, the `tokenvm` also bundles a powerful CLI
+tool and serves RPC requests for trades out of an in-memory order book it
+maintains by syncing blocks.
 
-To trade, you can create an offer with a fixed ratio of tokens you'd accept for
-yours and a supply. Others can fill parts of this order or you can close it at
-some point in the future.
-
-Because of the format of `hypersdk` transactions, you can scope your fills to
-a particular second. This enables you to go for transactions as you see fit at
-the time and not have to worry about your "fill" sitting around until you
-replace it (with potentially a much higher tx). This also protects you from fee
-volatility.
+If you are interested in the intersection of exchanges and blockchains, it is
+definitely worth a read (the logic for filling orders is < 100 lines of code!).
 
 ## Status
 `tokenvm` is considered **ALPHA** software and is not safe to use in
@@ -32,6 +30,13 @@ significantly over the coming months as its modules are optimized and
 audited.
 
 ## Features
+### Expiring Fills
+Because of the format of `hypersdk` transactions, you can scope your fills to
+a particular second. This enables you to go for transactions as you see fit at
+the time and not have to worry about your "fill" sitting around until you
+replace it (with potentially a much higher tx). This also protects you from fee
+volatility.
+
 ### Arbitrary Token Minting
 #### Updateable Metadata
 #### Rotate or Revoke Minter
