@@ -25,6 +25,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
+	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/version"
 )
 
@@ -147,7 +148,7 @@ func (c *Controller) Initialize(
 	}
 
 	// Initialize order book used to track all open orders
-	c.orderBook = NewOrderBook(c.config.TrackedPairs)
+	c.orderBook = NewOrderBook(c, c.config.TrackedPairs)
 	return c.config, c.genesis, build, gossip, blockDB, stateDB, apis, consts.ActionRegistry, consts.AuthRegistry, nil
 }
 
@@ -176,23 +177,32 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 		}
 		if result.Success {
 			switch action := tx.Action.(type) {
-			case *actions.CloseOrder:
-				c.metrics.closeOrders.Inc()
-				c.orderBook.Remove(action.Order)
+			case *actions.CreateAsset:
+				c.metrics.createAsset.Inc()
+			case *actions.MintAsset:
+				c.metrics.mintAsset.Inc()
+			case *actions.BurnAsset:
+				c.metrics.burnAsset.Inc()
+			case *actions.ModifyAsset:
+				c.metrics.modifyAsset.Inc()
+			case *actions.Transfer:
+				c.metrics.transfer.Inc()
 			case *actions.CreateOrder:
-				c.metrics.createOrders.Inc()
+				c.metrics.createOrder.Inc()
+				actor := auth.GetActor(tx.Auth)
 				c.orderBook.Add(
 					actions.PairID(action.In, action.Out),
 					&Order{
 						tx.ID(),
-						auth.GetActor(tx.Auth),
+						tutils.Address(actor),
 						action.InTick,
 						action.OutTick,
 						action.Supply,
+						actor,
 					},
 				)
 			case *actions.FillOrder:
-				c.metrics.fillOrders.Inc()
+				c.metrics.fillOrder.Inc()
 				orderResult, err := actions.UnmarshalOrderResult(result.Output)
 				if err != nil {
 					// This should never happen
@@ -203,10 +213,9 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 					continue
 				}
 				c.orderBook.UpdateRemaining(action.Order, orderResult.Remaining)
-			case *actions.Mint:
-				c.metrics.mints.Inc()
-			case *actions.Transfer:
-				c.metrics.transfers.Inc()
+			case *actions.CloseOrder:
+				c.metrics.closeOrder.Inc()
+				c.orderBook.Remove(action.Order)
 			}
 		}
 	}

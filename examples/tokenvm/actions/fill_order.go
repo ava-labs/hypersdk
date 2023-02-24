@@ -168,7 +168,7 @@ func (f *FillOrder) Marshal(p *codec.Packer) {
 func UnmarshalFillOrder(p *codec.Packer) (chain.Action, error) {
 	var fill FillOrder
 	p.UnpackID(true, &fill.Order)
-	p.UnpackPublicKey(&fill.Owner)
+	p.UnpackPublicKey(true, &fill.Owner)
 	p.UnpackID(false, &fill.In)  // empty ID is the native asset
 	p.UnpackID(false, &fill.Out) // empty ID is the native asset
 	fill.Value = p.UnpackUint64(true)

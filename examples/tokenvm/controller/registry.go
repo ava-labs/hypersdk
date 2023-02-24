@@ -21,11 +21,16 @@ func init() {
 	errs := &wrappers.Errs{}
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
-		consts.ActionRegistry.Register(&actions.CreateOrder{}, actions.UnmarshalCreateOrder),
-		consts.ActionRegistry.Register(&actions.CloseOrder{}, actions.UnmarshalCloseOrder),
-		consts.ActionRegistry.Register(&actions.FillOrder{}, actions.UnmarshalFillOrder),
-		consts.ActionRegistry.Register(&actions.Mint{}, actions.UnmarshalMint),
 		consts.ActionRegistry.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
+
+		consts.ActionRegistry.Register(&actions.CreateAsset{}, actions.UnmarshalCreateAsset),
+		consts.ActionRegistry.Register(&actions.MintAsset{}, actions.UnmarshalMintAsset),
+		consts.ActionRegistry.Register(&actions.BurnAsset{}, actions.UnmarshalBurnAsset),
+		consts.ActionRegistry.Register(&actions.ModifyAsset{}, actions.UnmarshalModifyAsset),
+
+		consts.ActionRegistry.Register(&actions.CreateOrder{}, actions.UnmarshalCreateOrder),
+		consts.ActionRegistry.Register(&actions.FillOrder{}, actions.UnmarshalFillOrder),
+		consts.ActionRegistry.Register(&actions.CloseOrder{}, actions.UnmarshalCloseOrder),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		consts.AuthRegistry.Register(&auth.ED25519{}, auth.UnmarshalED25519),

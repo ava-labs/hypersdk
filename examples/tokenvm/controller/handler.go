@@ -4,6 +4,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -16,6 +17,11 @@ import (
 
 const (
 	ordersToSend = 128
+)
+
+var (
+	ErrTxNotFound    = errors.New("tx not found")
+	ErrAssetNotFound = errors.New("asset not found")
 )
 
 type Handler struct {
@@ -33,31 +39,62 @@ func (h *Handler) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (er
 	return nil
 }
 
-type GetTxArgs struct {
+type TxArgs struct {
 	TxID ids.ID `json:"txId"`
 }
 
-type GetTxReply struct {
-	Accepted bool `json:"accepted"`
-
+type TxReply struct {
 	Timestamp int64  `json:"timestamp"`
 	Success   bool   `json:"success"`
 	Units     uint64 `json:"units"`
 }
 
-func (h *Handler) GetTx(req *http.Request, args *GetTxArgs, reply *GetTxReply) error {
-	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Handler.GetTx")
+func (h *Handler) Tx(req *http.Request, args *TxArgs, reply *TxReply) error {
+	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Tx")
 	defer span.End()
 
-	accepted, t, success, units, err := storage.GetTransaction(ctx, h.c.metaDB, args.TxID)
+	found, t, success, units, err := storage.GetTransaction(ctx, h.c.metaDB, args.TxID)
 	if err != nil {
 		return err
 	}
-	reply.Accepted = accepted
+	if !found {
+		return ErrTxNotFound
+	}
 	reply.Timestamp = t
 	reply.Success = success
 	reply.Units = units
 	return nil
+}
+
+type AssetArgs struct {
+	Asset ids.ID `json:"asset"`
+}
+
+type AssetReply struct {
+	Metadata []byte `json:"metadata"`
+	Supply   uint64 `json:"supply"`
+	Owner    string `json:"owner"`
+}
+
+func (h *Handler) Asset(req *http.Request, args *AssetArgs, reply *AssetReply) error {
+	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Asset")
+	defer span.End()
+
+	exists, metadata, supply, owner, err := storage.GetAssetFromState(
+		ctx,
+		h.c.inner.ReadState,
+		args.Asset,
+	)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrAssetNotFound
+	}
+	reply.Metadata = metadata
+	reply.Supply = supply
+	reply.Owner = utils.Address(owner)
+	return err
 }
 
 type BalanceArgs struct {

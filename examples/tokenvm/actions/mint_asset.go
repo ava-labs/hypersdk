@@ -7,6 +7,8 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	smath "github.com/ava-labs/avalanchego/utils/math"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -16,29 +18,27 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-var _ chain.Action = (*Mint)(nil)
+var _ chain.Action = (*MintAsset)(nil)
 
-type Mint struct {
+type MintAsset struct {
 	// To is the recipient of the [Value].
 	To crypto.PublicKey `json:"to"`
 
-	// Asset is the unique ID of the new asset
+	// Asset is the [TxID] that created the asset.
 	Asset ids.ID `json:"asset"`
 
 	// Number of assets to mint to [To].
 	Value uint64 `json:"value"`
-
-	// TODO: add perms for minting more of the asset, etc.
 }
 
-func (m *Mint) StateKeys(chain.Auth, ids.ID) [][]byte {
+func (m *MintAsset) StateKeys(chain.Auth, ids.ID) [][]byte {
 	return [][]byte{
 		storage.PrefixAssetKey(m.Asset),
 		storage.PrefixBalanceKey(m.To, m.Asset),
 	}
 }
 
-func (m *Mint) Execute(
+func (m *MintAsset) Execute(
 	ctx context.Context,
 	r chain.Rules,
 	db chain.Database,
@@ -54,47 +54,54 @@ func (m *Mint) Execute(
 	if m.Value == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
 	}
-	owner, err := storage.GetAssetOwner(ctx, db, m.Asset)
+	exists, metadata, supply, owner, err := storage.GetAsset(ctx, db, m.Asset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	if owner != crypto.EmptyPublicKey {
+	if !exists {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetMissing}, nil
+	}
+	if owner != actor {
 		return &chain.Result{
 			Success: false,
 			Units:   unitsUsed,
-			Output:  OutputAssetAlreadyExists,
+			Output:  OutputWrongOwner,
 		}, nil
 	}
-	if err := storage.SetAssetOwner(ctx, db, actor, m.Asset); err != nil {
+	newSupply, err := smath.Add64(supply, m.Value)
+	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	if err := storage.SetBalance(ctx, db, m.To, m.Asset, m.Value); err != nil {
+	if err := storage.SetAsset(ctx, db, m.Asset, metadata, newSupply, actor); err != nil {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	}
+	if err := storage.AddBalance(ctx, db, m.To, m.Asset, m.Value); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil
 }
 
-func (*Mint) MaxUnits(chain.Rules) uint64 {
+func (*MintAsset) MaxUnits(chain.Rules) uint64 {
 	// We use size as the price of this transaction but we could just as easily
 	// use any other calculation.
 	return crypto.PublicKeyLen + consts.IDLen + consts.Uint64Len
 }
 
-func (m *Mint) Marshal(p *codec.Packer) {
+func (m *MintAsset) Marshal(p *codec.Packer) {
 	p.PackPublicKey(m.To)
 	p.PackID(m.Asset)
 	p.PackUint64(m.Value)
 }
 
-func UnmarshalMint(p *codec.Packer) (chain.Action, error) {
-	var mint Mint
-	p.UnpackPublicKey(&mint.To)
-	p.UnpackID(false, &mint.Asset) // empty ID is the native asset
+func UnmarshalMintAsset(p *codec.Packer) (chain.Action, error) {
+	var mint MintAsset
+	p.UnpackPublicKey(true, &mint.To) // cannot mint to blackhole
+	p.UnpackID(true, &mint.Asset)     // empty ID is the native asset
 	mint.Value = p.UnpackUint64(true)
 	return &mint, p.Err()
 }
 
-func (*Mint) ValidRange(chain.Rules) (int64, int64) {
+func (*MintAsset) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }

@@ -29,7 +29,7 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x0/ (balance)
 //   -> [owner|asset] => balance
 // 0x1/ (assets)
-//   -> [asset] => creator
+//   -> [asset] => metadataLen|metadata|supply|owner
 // 0x2/ (orders)
 //   -> [txID] => in|out|rate|remaining|owner
 
@@ -209,6 +209,11 @@ func SubBalance(
 			amount,
 		)
 	}
+	if nbal == 0 {
+		// If there is no balance left, we should delete the record instead of
+		// setting it to 0.
+		return db.Remove(ctx, PrefixBalanceKey(pk, asset))
+	}
 	return SetBalance(ctx, db, pk, asset, nbal)
 }
 
@@ -220,28 +225,59 @@ func PrefixAssetKey(asset ids.ID) (k []byte) {
 	return
 }
 
-func GetAssetOwner(ctx context.Context, db chain.Database, asset ids.ID) (crypto.PublicKey, error) {
-	k := PrefixAssetKey(asset)
-	owner, err := db.GetValue(ctx, k)
-	if errors.Is(err, database.ErrNotFound) {
-		return crypto.EmptyPublicKey, nil
-	}
-	if err != nil {
-		return crypto.EmptyPublicKey, err
-	}
-	var pk crypto.PublicKey
-	copy(pk[:], owner)
-	return pk, nil
+// Used to serve RPC queries
+func GetAssetFromState(
+	ctx context.Context,
+	f ReadState,
+	asset ids.ID,
+) (bool, []byte, uint64, crypto.PublicKey, error) {
+	values, errs := f(ctx, [][]byte{PrefixAssetKey(asset)})
+	return innerGetAsset(values[0], errs[0])
 }
 
-func SetAssetOwner(
+func GetAsset(
 	ctx context.Context,
 	db chain.Database,
-	owner crypto.PublicKey,
 	asset ids.ID,
+) (bool, []byte, uint64, crypto.PublicKey, error) {
+	k := PrefixAssetKey(asset)
+	return innerGetAsset(db.GetValue(ctx, k))
+}
+
+func innerGetAsset(
+	v []byte,
+	err error,
+) (bool, []byte, uint64, crypto.PublicKey, error) {
+	if errors.Is(err, database.ErrNotFound) {
+		return false, nil, 0, crypto.EmptyPublicKey, nil
+	}
+	if err != nil {
+		return false, nil, 0, crypto.EmptyPublicKey, err
+	}
+	metadataLen := binary.BigEndian.Uint16(v)
+	metadata := v[consts.Uint16Len : consts.Uint16Len+metadataLen]
+	supply := binary.BigEndian.Uint64(v[consts.Uint16Len+metadataLen:])
+	var pk crypto.PublicKey
+	copy(pk[:], v[consts.Uint16Len+metadataLen+consts.Uint64Len:])
+	return true, metadata, supply, pk, nil
+}
+
+func SetAsset(
+	ctx context.Context,
+	db chain.Database,
+	asset ids.ID,
+	metadata []byte,
+	supply uint64,
+	owner crypto.PublicKey,
 ) error {
 	k := PrefixAssetKey(asset)
-	return db.Insert(ctx, k, owner[:])
+	metadataLen := len(metadata)
+	v := make([]byte, consts.Uint16Len+metadataLen+consts.Uint64Len+consts.IDLen)
+	binary.BigEndian.PutUint16(v, uint16(metadataLen))
+	copy(v[consts.Uint16Len:], metadata)
+	binary.BigEndian.PutUint64(v[consts.Uint16Len+metadataLen:], supply)
+	copy(v[consts.Uint16Len+metadataLen+consts.Uint64Len:], owner[:])
+	return db.Insert(ctx, k, v)
 }
 
 // [orderPrefix] + [txID]

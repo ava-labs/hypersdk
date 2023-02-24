@@ -7,6 +7,7 @@ var (
 	OutputValueZero          = []byte("value is zero")
 	OutputAssetIsNative      = []byte("cannot mint native asset")
 	OutputAssetAlreadyExists = []byte("asset already exists")
+	OutputAssetMissing       = []byte("asset missing")
 	OutputInTickZero         = []byte("in rate is zero")
 	OutputOutTickZero        = []byte("out rate is zero")
 	OutputSupplyZero         = []byte("supply is zero")
@@ -19,4 +20,5 @@ var (
 	OutputInsufficientInput  = []byte("insufficient input")
 	OutputInsufficientOutput = []byte("insufficient output")
 	OutputValueMisaligned    = []byte("value is misaligned")
+	OutputMetadataTooLarge   = []byte("metadata is too large")
 )

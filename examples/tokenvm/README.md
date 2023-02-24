@@ -12,6 +12,7 @@
 
 ## Features
 ### Arbitrary Minting
+#### Updateable Metadata
 #### Rotate or Revoke Minter
 ### Partials Fills
 ### In-Memory Order Book

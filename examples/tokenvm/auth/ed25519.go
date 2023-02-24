@@ -66,7 +66,7 @@ func (d *ED25519) Marshal(p *codec.Packer) {
 
 func UnmarshalED25519(p *codec.Packer) (chain.Auth, error) {
 	var d ED25519
-	p.UnpackPublicKey(&d.Signer)
+	p.UnpackPublicKey(true, &d.Signer)
 	p.UnpackSignature(&d.Signature)
 	return &d, p.Err()
 }
