@@ -41,7 +41,9 @@ Assets are a native feature of the `tokenvm` and the storage engine is
 optimized specifically to support their efficient usage (each balance entry
 requires only 72 bytes of state = `assetID|publicKey=>balance(uint64)`). This
 storage format makes it possible to parallelize the execution of any transfers
-that don't touch the same accounts.
+that don't touch the same accounts. This parallelism will take effect as soon
+as it is re-added upstream by the `hypersdk` (no action required in the
+`tokenvm`).
 
 ### Trade Any 2 Tokens
 What good are custom assets if you can't do anything with them? To showcase the
@@ -58,7 +60,9 @@ state = `orderID=>inAsset|inTick|outAsset|outTick|remaining|owner`. This
 storage format also makes it possible to parallelize the execution of any fills
 that don't touch the same order (there may be hundreds or thousands of orders
 for the same pair, so this stil allows parallelization within a single pair
-unlike a pool-based trading mechanism like an AMM).
+unlike a pool-based trading mechanism like an AMM). This parallelism will take
+effect as soon as it is re-added upstream by the `hypersdk` (no action required
+in the `tokenvm`).
 
 #### In-Memory Order Book
 To make it easier for clients to interact with the `tokenvm`, it comes bundled
@@ -84,16 +88,19 @@ a transaction may fill is a core design decision of the `tokenvm` and is a big
 part of what makes its trading support so interesting/useful in a world where
 producers are willing to manipulate transactions for their gain.
 
-#### Partial Fills
+#### Partial Fills and Fill Refunds
+Anyone filling an order does not need to fill an entire order. Likewise, if you
+attempt to "overfill" an order the `tokenvm` will refund you any extra input
+that you did not use. This is CRITICAL to get right in a blockchain-context
+because someone may interact with an order just before you attempt to acquire
+any remaining tokens...it would not be acceptable for all the assets you
+pledged for the fill that weren't used to disappear.
 
 #### Expiring Fills
 Because of the format of `hypersdk` transactions, you can scope your fills to
-a particular second. This enables you to go for transactions as you see fit at
-the time and not have to worry about your "fill" sitting around until you
-replace it (with potentially a much higher tx). This also protects you from fee
-volatility.
-
-##### Config Scoped to Certain Assets
+be valid only until a particular time. This enables you to go for orders as you
+see fit at the time and not have to worry about your fill sitting around until you
+explicitly cancel it/replace it.
 
 ## Demo
 The first step to running this demo is to launch your own `tokenvm` Subnet. You
