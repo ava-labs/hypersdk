@@ -6,9 +6,13 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
 
+	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
+	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/spf13/cobra"
@@ -59,12 +63,41 @@ func watchFunc(_ *cobra.Command, _ []string) error {
 		)
 		for i, tx := range blk.Txs {
 			result := results[i]
+			summaryStr := string(result.Output)
+			actor := auth.GetActor(tx.Auth)
+			status := "⚠️"
+			if result.Success {
+				status = "✅"
+				switch action := tx.Action.(type) {
+				case *actions.CreateAsset:
+					summaryStr = fmt.Sprintf("assetID: %s metadata:%s", tx.ID(), string(action.Metadata))
+				case *actions.MintAsset:
+					summaryStr = fmt.Sprintf("%d %s -> %s", action.Value, action.Asset, tutils.Address(action.To))
+				case *actions.BurnAsset:
+					summaryStr = fmt.Sprintf("%d %s -> 🔥", action.Value, action.Asset)
+				case *actions.ModifyAsset:
+					summaryStr = fmt.Sprintf("assetID: %s metadata:%s owner:%s", action.Asset, string(action.Metadata), tutils.Address(action.Owner))
+
+				case *actions.Transfer:
+					summaryStr = fmt.Sprintf("%d %s -> %s", action.Value, action.Asset, tutils.Address(action.To))
+
+				case *actions.CreateOrder:
+					summaryStr = fmt.Sprintf("%d %s -> %d %s (supply: %d)", action.InTick, action.In, action.OutTick, action.Out, action.Supply)
+				case *actions.FillOrder:
+					or, _ := actions.UnmarshalOrderResult(result.Output)
+					summaryStr = fmt.Sprintf("%d %s -> %d %s (remaining: %d)", or.In, action.In, or.Out, action.Out, or.Remaining)
+				case *actions.CloseOrder:
+					summaryStr = fmt.Sprintf("orderID: %s", action.Order)
+				}
+			}
 			utils.Outf(
-				"{{yellow}}txID:{{/}} %s {{yellow}}units:{{/}} %d {{yellow}}success:{{/}} %T {{yellow}}output:{{/}} %s\n",
+				"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}units:{{/}} %d {{yellow}}summary (%s):{{/}} [%s]\n",
+				status,
 				tx.ID(),
+				tutils.Address(actor),
 				result.Units,
-				result.Success,
-				string(result.Output),
+				reflect.TypeOf(tx.Action),
+				summaryStr,
 			)
 		}
 	}
