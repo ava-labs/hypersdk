@@ -110,13 +110,12 @@ func (th *Mempool[T]) Add(ctx context.Context, items []T) {
 		if !ok {
 			th.owned[sender] = acct
 		}
-		_, exempt := th.exemptPayers[sender]
-		if !exempt && len(acct) == th.maxPayerSize {
+		if !th.exemptPayers.Contains(sender) && acct.Len() == th.maxPayerSize {
 			continue // do nothing, wait for items to expire
 		}
 		th.pm.Add(item)
 		th.tm.Add(item)
-		acct[item.ID()] = struct{}{}
+		acct.Add(item.ID())
 
 		// Remove the lowest paying item if at global max
 		if th.pm.Len() > th.maxSize {
