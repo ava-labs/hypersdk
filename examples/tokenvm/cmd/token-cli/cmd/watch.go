@@ -44,19 +44,29 @@ func watchFunc(_ *cobra.Command, _ []string) error {
 	start := time.Now()
 	utils.Outf("{{green}}watching for new blocks 👀{{/}}\n")
 	for ctx.Err() == nil {
-		blk, _, err := scli.Listen(parser)
+		blk, results, err := scli.Listen(parser)
 		if err != nil {
 			return err
 		}
 		totalTxs += float64(len(blk.Txs))
 		utils.Outf(
-			"{{yellow}}height:{{/}}%d {{yellow}}txs:{{/}}%d {{yellow}}units:{{/}}%d {{yellow}}root:{{/}}%s {{yellow}}avg TPS:{{/}}%f\n", //nolint:lll
+			"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s {{green}}avg TPS:{{/}}%f\n", //nolint:lll
 			blk.Hght,
 			len(blk.Txs),
 			blk.UnitsConsumed,
 			blk.StateRoot,
 			totalTxs/time.Since(start).Seconds(),
 		)
+		for i, tx := range blk.Txs {
+			result := results[i]
+			utils.Outf(
+				"{{yellow}}txID:{{/}} %s {{yellow}}units:{{/}} %d {{yellow}}success:{{/}} %T {{yellow}}output:{{/}} %s\n",
+				tx.ID(),
+				result.Units,
+				result.Success,
+				string(result.Output),
+			)
+		}
 	}
 	return nil
 }

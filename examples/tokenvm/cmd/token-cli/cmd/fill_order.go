@@ -156,12 +156,30 @@ func fillOrderFunc(_ *cobra.Command, args []string) error {
 	}
 	for i := 0; i < max; i++ {
 		order := orders[i]
+		var inTickStr string
+		if inAssetID == ids.Empty {
+			inTickStr = hutils.FormatBalance(order.InTick)
+		} else {
+			inTickStr = strconv.FormatUint(order.InTick, 10)
+		}
+		var outTickStr string
+		var remainingStr string
+		if outAssetID == ids.Empty {
+			outTickStr = hutils.FormatBalance(order.OutTick)
+			remainingStr = hutils.FormatBalance(order.Remaining)
+		} else {
+			outTickStr = strconv.FormatUint(order.OutTick, 10)
+			remainingStr = strconv.FormatUint(order.Remaining, 10)
+		}
 		hutils.Outf(
-			"%d) {{cyan}}InTick:{{/}} %d {{cyan}}OutTick:{{/}} %d {{cyan}}Remaining:{{/}} %d\n",
+			"%d) {{cyan}}InTick:{{/}} %s %s {{cyan}}OutTick:{{/}} %s %s {{cyan}}Remaining:{{/}} %s %s\n",
 			i,
-			order.InTick,
-			order.OutTick,
-			order.Remaining,
+			inTickStr,
+			rawInAsset,
+			outTickStr,
+			rawOutAsset,
+			remainingStr,
+			rawOutAsset,
 		)
 	}
 
@@ -194,7 +212,7 @@ func fillOrderFunc(_ *cobra.Command, args []string) error {
 
 	// Select supply
 	promptText = promptui.Prompt{
-		Label: "value",
+		Label: "value (must be multiple of InTick)",
 		Validate: func(input string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
@@ -227,7 +245,7 @@ func fillOrderFunc(_ *cobra.Command, args []string) error {
 		return err
 	}
 	var value uint64
-	if outAssetID == ids.Empty {
+	if inAssetID == ids.Empty {
 		value, err = hutils.ParseBalance(rawAmount)
 	} else {
 		value, err = strconv.ParseUint(rawAmount, 10, 64)
@@ -244,7 +262,7 @@ func fillOrderFunc(_ *cobra.Command, args []string) error {
 		outStr = strconv.FormatUint(outAmount, 10)
 	}
 	hutils.Outf(
-		"{{yellow}}in:{{/}} %s %s {{yellow}}out:{{/}} %s %s\n",
+		"{{orange}}in:{{/}} %s %s {{orange}}out:{{/}} %s %s\n",
 		rawAmount,
 		rawInAsset,
 		outStr,
@@ -301,6 +319,6 @@ func fillOrderFunc(_ *cobra.Command, args []string) error {
 	} else {
 		hutils.Outf("{{red}}transaction failed{{/}}\n")
 	}
-	hutils.Outf("{{yellow}}orderID:{{/}} %s\n", tx.ID())
+	hutils.Outf("{{yellow}}txID:{{/}} %s\n", tx.ID())
 	return nil
 }

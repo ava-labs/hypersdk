@@ -87,7 +87,12 @@ func createOrderFunc(_ *cobra.Command, args []string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
 			}
-			_, err := strconv.ParseUint(input, 10, 64)
+			var err error
+			if inAssetID == ids.Empty {
+				_, err = hutils.ParseBalance(input)
+			} else {
+				_, err = strconv.ParseUint(input, 10, 64)
+			}
 			return err
 		},
 	}
@@ -95,7 +100,12 @@ func createOrderFunc(_ *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	inTick, err := strconv.ParseUint(rawAmount, 10, 64)
+	var inTick uint64
+	if inAssetID == ids.Empty {
+		inTick, err = hutils.ParseBalance(rawAmount)
+	} else {
+		inTick, err = strconv.ParseUint(rawAmount, 10, 64)
+	}
 	if err != nil {
 		return err
 	}
@@ -166,7 +176,12 @@ func createOrderFunc(_ *cobra.Command, args []string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
 			}
-			_, err := strconv.ParseUint(input, 10, 64)
+			var err error
+			if outAssetID == ids.Empty {
+				_, err = hutils.ParseBalance(input)
+			} else {
+				_, err = strconv.ParseUint(input, 10, 64)
+			}
 			return err
 		},
 	}
@@ -174,14 +189,19 @@ func createOrderFunc(_ *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	outTick, err := strconv.ParseUint(rawAmount, 10, 64)
+	var outTick uint64
+	if outAssetID == ids.Empty {
+		outTick, err = hutils.ParseBalance(rawAmount)
+	} else {
+		outTick, err = strconv.ParseUint(rawAmount, 10, 64)
+	}
 	if err != nil {
 		return err
 	}
 
 	// Select supply
 	promptText = promptui.Prompt{
-		Label: "supply",
+		Label: "supply (must be multiple of OutTick)",
 		Validate: func(input string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
