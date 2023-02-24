@@ -162,7 +162,7 @@ func fillOrderFunc(*cobra.Command, []string) error {
 		inTick := float64(order.InTick)
 		if inAssetID == ids.Empty {
 			inTickStr = hutils.FormatBalance(order.InTick)
-			inTick /= math.Pow10(9)
+			inTick /= math.Pow10(hutils.NativeDecimals)
 		} else {
 			inTickStr = strconv.FormatUint(order.InTick, 10)
 		}
@@ -172,7 +172,7 @@ func fillOrderFunc(*cobra.Command, []string) error {
 		if outAssetID == ids.Empty {
 			outTickStr = hutils.FormatBalance(order.OutTick)
 			remainingStr = hutils.FormatBalance(order.Remaining)
-			outTick /= math.Pow10(9)
+			outTick /= math.Pow10(hutils.NativeDecimals)
 		} else {
 			outTickStr = strconv.FormatUint(order.OutTick, 10)
 			remainingStr = strconv.FormatUint(order.Remaining, 10)
