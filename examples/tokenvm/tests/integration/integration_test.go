@@ -1049,90 +1049,96 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(balance).Should(gomega.Equal(uint64(10)))
 	})
 
-	// ginkgo.It("create simple order (want 3, give 2) untracked", func() {
-	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
-	// 		context.Background(),
-	// 		&actions.CreateOrder{
-	// 			In:      asset3,
-	// 			InTick:  1,
-	// 			Out:     asset2,
-	// 			OutTick: 2,
-	// 			Supply:  4,
-	// 		},
-	// 		factory,
-	// 	)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-	// 	accept := expectBlk(instances[0])
-	// 	results := accept()
-	// 	gomega.Ω(results).Should(gomega.HaveLen(1))
-	// 	gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+	ginkgo.It("create simple order (want 3, give 2)", func() {
+		submit, tx, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.CreateOrder{
+				In:      asset3ID,
+				InTick:  1,
+				Out:     asset2ID,
+				OutTick: 2,
+				Supply:  4,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-	// 	balance, err := instances[0].cli.Balance(context.TODO(), sender, asset2)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(balance).Should(gomega.Equal(uint64(6)))
+		balance, err := instances[0].cli.Balance(context.TODO(), sender, asset2ID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(6)))
 
-	// 	orders, err := instances[0].cli.Orders(context.TODO(), actions.PairID(asset3, asset2))
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(orders).Should(gomega.HaveLen(0))
-	// })
+		orders, err := instances[0].cli.Orders(context.TODO(), actions.PairID(asset3ID, asset2ID))
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(orders).Should(gomega.HaveLen(1))
+		order := orders[0]
+		gomega.Ω(order.ID).Should(gomega.Equal(tx.ID()))
+		gomega.Ω(order.InTick).Should(gomega.Equal(uint64(1)))
+		gomega.Ω(order.OutTick).Should(gomega.Equal(uint64(2)))
+		gomega.Ω(order.Owner).Should(gomega.Equal(sender))
+		gomega.Ω(order.Remaining).Should(gomega.Equal(uint64(4)))
+	})
 
-	// ginkgo.It("create simple order with misaligned supply", func() {
-	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
-	// 		context.Background(),
-	// 		&actions.CreateOrder{
-	// 			In:      asset2,
-	// 			InTick:  4,
-	// 			Out:     asset3,
-	// 			OutTick: 2,
-	// 			Supply:  5, // put half of balance
-	// 		},
-	// 		factory2,
-	// 	)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-	// 	accept := expectBlk(instances[0])
-	// 	results := accept()
-	// 	gomega.Ω(results).Should(gomega.HaveLen(1))
-	// 	result := results[0]
-	// 	gomega.Ω(result.Success).Should(gomega.BeFalse())
-	// 	gomega.Ω(string(result.Output)).
-	// 		Should(gomega.ContainSubstring("supply is misaligned"))
-	// })
+	ginkgo.It("create simple order with misaligned supply", func() {
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.CreateOrder{
+				In:      asset2ID,
+				InTick:  4,
+				Out:     asset3ID,
+				OutTick: 2,
+				Supply:  5, // put half of balance
+			},
+			factory2,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		result := results[0]
+		gomega.Ω(result.Success).Should(gomega.BeFalse())
+		gomega.Ω(string(result.Output)).
+			Should(gomega.ContainSubstring("supply is misaligned"))
+	})
 
-	// ginkgo.It("create simple order (want 2, give 3) tracked", func() {
-	// 	submit, tx, _, err := instances[0].cli.GenerateTransaction(
-	// 		context.Background(),
-	// 		&actions.CreateOrder{
-	// 			In:      asset2,
-	// 			InTick:  4,
-	// 			Out:     asset3,
-	// 			OutTick: 1,
-	// 			Supply:  5, // put half of balance
-	// 		},
-	// 		factory2,
-	// 	)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-	// 	accept := expectBlk(instances[0])
-	// 	results := accept()
-	// 	gomega.Ω(results).Should(gomega.HaveLen(1))
-	// 	gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+	ginkgo.It("create simple order (want 2, give 3) tracked", func() {
+		submit, tx, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.CreateOrder{
+				In:      asset2ID,
+				InTick:  4,
+				Out:     asset3ID,
+				OutTick: 1,
+				Supply:  5, // put half of balance
+			},
+			factory2,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-	// 	balance, err := instances[0].cli.Balance(context.TODO(), sender2, asset3)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(balance).Should(gomega.Equal(uint64(5)))
+		balance, err := instances[0].cli.Balance(context.TODO(), sender2, asset3ID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(5)))
 
-	// 	orders, err := instances[0].cli.Orders(context.TODO(), actions.PairID(asset2, asset3))
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(orders).Should(gomega.HaveLen(1))
-	// 	order := orders[0]
-	// 	gomega.Ω(order.ID).Should(gomega.Equal(tx.ID()))
-	// 	gomega.Ω(order.InTick).Should(gomega.Equal(uint64(4)))
-	// 	gomega.Ω(order.OutTick).Should(gomega.Equal(uint64(1)))
-	// 	gomega.Ω(order.Owner).Should(gomega.Equal(rsender2))
-	// 	gomega.Ω(order.Remaining).Should(gomega.Equal(uint64(5)))
-	// })
+		orders, err := instances[0].cli.Orders(context.TODO(), actions.PairID(asset2ID, asset3ID))
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(orders).Should(gomega.HaveLen(1))
+		order := orders[0]
+		gomega.Ω(order.ID).Should(gomega.Equal(tx.ID()))
+		gomega.Ω(order.InTick).Should(gomega.Equal(uint64(4)))
+		gomega.Ω(order.OutTick).Should(gomega.Equal(uint64(1)))
+		gomega.Ω(order.Owner).Should(gomega.Equal(sender2))
+		gomega.Ω(order.Remaining).Should(gomega.Equal(uint64(5)))
+	})
 
 	// ginkgo.It("create order with insufficient balance", func() {
 	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
