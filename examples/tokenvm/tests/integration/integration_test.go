@@ -637,11 +637,12 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	ginkgo.It("mint an asset that doesn't exist", func() {
 		other, err := crypto.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
+		assetID := ids.GenerateTestID()
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			&actions.MintAsset{
 				To:    other.PublicKey(),
-				Asset: ids.GenerateTestID(),
+				Asset: assetID,
 				Value: 10,
 			},
 			factory,
@@ -654,7 +655,38 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeFalse())
 		gomega.Ω(string(result.Output)).
-			Should(gomega.ContainSubstring("wrong owner"))
+			Should(gomega.ContainSubstring("asset missing"))
+
+		exists, _, _, _, err := instances[0].cli.Asset(context.TODO(), assetID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(exists).Should(gomega.BeFalse())
+	})
+
+	ginkgo.It("create a new asset (no metadata)", func() {
+		submit, tx, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.CreateAsset{
+				Metadata: nil,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+
+		assetID := tx.ID()
+		balance, err := instances[0].cli.Balance(context.TODO(), sender, assetID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
+		exists, metadata, supply, owner, err := instances[0].cli.Asset(context.TODO(), assetID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(exists).Should(gomega.BeTrue())
+		gomega.Ω(metadata).Should(gomega.HaveLen(0))
+		gomega.Ω(supply).Should(gomega.Equal(uint64(0)))
+		gomega.Ω(owner).Should(gomega.Equal(sender))
 	})
 
 	// ginkgo.It("mint a new asset", func() {
