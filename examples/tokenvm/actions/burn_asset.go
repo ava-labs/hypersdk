@@ -16,19 +16,31 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-var _ chain.Action = (*CreateAsset)(nil)
+const (
+	MaxMetadataSize = 256
+)
 
-type CreateAsset struct {
-	// Metadata is creator-specified information about the asset. This can be
-	// modified using the [ModifyAsset] action.
+var _ chain.Action = (*Mint)(nil)
+
+type Mint struct {
+	// To is the recipient of the [Value].
+	To crypto.PublicKey `json:"to"`
+
+	// Metadata
 	Metadata []byte `json:"metadata"`
+
+	// Number of assets to mint to [To].
+	Value uint64 `json:"value"`
 }
 
-func (c *CreateAsset) StateKeys(_ chain.Auth, txID ids.ID) [][]byte {
-	return [][]byte{storage.PrefixAssetKey(txID)}
+func (m *Mint) StateKeys(chain.Auth, ids.ID) [][]byte {
+	return [][]byte{
+		storage.PrefixAssetKey(m.Asset),
+		storage.PrefixBalanceKey(m.To, m.Asset),
+	}
 }
 
-func (c *CreateAsset) Execute(
+func (m *Mint) Execute(
 	ctx context.Context,
 	r chain.Rules,
 	db chain.Database,
@@ -37,9 +49,23 @@ func (c *CreateAsset) Execute(
 	_ ids.ID,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
-	unitsUsed := c.MaxUnits(r) // max units == units
-	if len(c.Metadata) > MaxMetadataSize {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputMetadataTooLarge}, nil
+	unitsUsed := m.MaxUnits(r) // max units == units
+	if m.Asset == ids.Empty {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetIsNative}, nil
+	}
+	if m.Value == 0 {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
+	}
+	owner, err := storage.GetAssetOwner(ctx, db, m.Asset)
+	if err != nil {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	}
+	if owner != crypto.EmptyPublicKey {
+		return &chain.Result{
+			Success: false,
+			Units:   unitsUsed,
+			Output:  OutputAssetAlreadyExists,
+		}, nil
 	}
 	if err := storage.SetAssetOwner(ctx, db, actor, m.Asset); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
@@ -50,27 +76,27 @@ func (c *CreateAsset) Execute(
 	return &chain.Result{Success: true, Units: unitsUsed}, nil
 }
 
-func (*CreateAsset) MaxUnits(chain.Rules) uint64 {
+func (*Mint) MaxUnits(chain.Rules) uint64 {
 	// We use size as the price of this transaction but we could just as easily
 	// use any other calculation.
 	return crypto.PublicKeyLen + consts.IDLen + consts.Uint64Len
 }
 
-func (c *CreateAsset) Marshal(p *codec.Packer) {
+func (m *Mint) Marshal(p *codec.Packer) {
 	p.PackPublicKey(m.To)
 	p.PackID(m.Asset)
 	p.PackUint64(m.Value)
 }
 
-func UnmarshalCreateAsset(p *codec.Packer) (chain.Action, error) {
-	var mint CreateAsset
+func UnmarshalMint(p *codec.Packer) (chain.Action, error) {
+	var mint Mint
 	p.UnpackPublicKey(&mint.To)
 	p.UnpackID(false, &mint.Asset) // empty ID is the native asset
 	mint.Value = p.UnpackUint64(true)
 	return &mint, p.Err()
 }
 
-func (*CreateAsset) ValidRange(chain.Rules) (int64, int64) {
+func (*Mint) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }

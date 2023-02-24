@@ -19,4 +19,5 @@ var (
 	OutputInsufficientInput  = []byte("insufficient input")
 	OutputInsufficientOutput = []byte("insufficient output")
 	OutputValueMisaligned    = []byte("value is misaligned")
+	OutputMetadataTooLarge   = []byte("metadata is too large")
 )
