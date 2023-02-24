@@ -104,13 +104,20 @@ func transferFunc(_ *cobra.Command, args []string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
 			}
-			// TODO: ensure can't send more than balance
+			var amount uint64
+			var err error
 			if assetID == ids.Empty {
-				_, err := hutils.ParseBalance(input)
+				amount, err = hutils.ParseBalance(input)
+			} else {
+				amount, err = strconv.ParseUint(input, 10, 64)
+			}
+			if err != nil {
 				return err
 			}
-			_, err := strconv.ParseUint(input, 10, 64)
-			return err
+			if amount > balance {
+				return errors.New("insufficient balance")
+			}
+			return nil
 		},
 	}
 	rawAmount, err := promptText.Run()
