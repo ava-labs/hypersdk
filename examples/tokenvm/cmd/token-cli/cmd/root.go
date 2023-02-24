@@ -46,6 +46,7 @@ func init() {
 		createAssetCmd,
 		mintAssetCmd,
 
+		balanceCmd,
 		transferCmd,
 	)
 
