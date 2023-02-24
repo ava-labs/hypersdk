@@ -116,6 +116,7 @@ cat <<EOF > /tmp/tokenvm.config
   "mempoolSize": 10000000,
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "parallelism": 5,
+  "trackedPairs":["*"],
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }

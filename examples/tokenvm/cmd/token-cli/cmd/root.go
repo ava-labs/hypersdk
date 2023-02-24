@@ -49,7 +49,7 @@ func init() {
 		// modifyAssetCmd,
 
 		createOrderCmd,
-		// fillOrderCmd,
+		fillOrderCmd,
 		// closeOrderCmd,
 
 		balanceCmd,
