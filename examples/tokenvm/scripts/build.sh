@@ -19,7 +19,7 @@ if ! [[ "$0" =~ scripts/build.sh ]]; then
 fi
 
 # Set default binary directory location
-name="oS6k2RdwvBbUhmnDwCXw1cGWy4w9WD4FKJgUYWeh8vPLrxj3Y"
+name="tHUgHsjdMmrwWfko2UpQujAHs4ZLX1zgMPf2kSkKkavmdxWeu"
 
 # Build indexvm, which is run as a subprocess
 mkdir -p ./build

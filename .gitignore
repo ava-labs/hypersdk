@@ -54,3 +54,4 @@ genesis.json
 *.test
 
 dist/
+*.pk
