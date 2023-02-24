@@ -14,6 +14,7 @@ import (
 
 const (
 	initialPairCapacity = 128
+	allPairs            = "*"
 )
 
 type Order struct {
@@ -33,17 +34,25 @@ type OrderBook struct {
 	orders      map[string]*utils.Float64Heap[*Order]
 	orderToPair map[ids.ID]string // needed to delete from [CloseOrder] actions
 	l           sync.RWMutex
+
+	trackAll bool
 }
 
 func NewOrderBook(trackedPairs []string) *OrderBook {
 	m := map[string]*utils.Float64Heap[*Order]{}
-	for _, pair := range trackedPairs {
-		// We use a max heap so we return the best rates in order.
-		m[pair] = utils.NewFloat64Heap[*Order](initialPairCapacity, false)
+	trackAll := false
+	if len(trackedPairs) == 1 && trackedPairs[0] == allPairs {
+		trackAll = true
+	} else {
+		for _, pair := range trackedPairs {
+			// We use a max heap so we return the best rates in order.
+			m[pair] = utils.NewFloat64Heap[*Order](initialPairCapacity, false)
+		}
 	}
 	return &OrderBook{
 		orders:      m,
 		orderToPair: map[ids.ID]string{},
+		trackAll:    trackAll,
 	}
 }
 
@@ -51,8 +60,12 @@ func (o *OrderBook) Add(pair string, order *Order) {
 	o.l.Lock()
 	defer o.l.Unlock()
 	h, ok := o.orders[pair]
-	if !ok {
+	switch {
+	case !ok && !o.trackAll:
 		return
+	case !ok && o.trackAll:
+		h = utils.NewFloat64Heap[*Order](initialPairCapacity, false)
+		o.orders[pair] = h
 	}
 	heap.Push(h, &utils.Float64Entry[*Order]{
 		ID:    order.ID,
