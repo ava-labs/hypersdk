@@ -139,8 +139,7 @@ func TestSaveKey(t *testing.T) {
 	require.NoError(err, "Reading saved file threw an error")
 	require.Equal(TestPrivateKey, privKey, "Key is different than saved key")
 	// Remove File
-	err = os.Remove(filename)
-	require.NoError(err)
+	_ = os.Remove(filename)
 }
 
 func TestLoadKeyIncorrectKey(t *testing.T) {
@@ -167,8 +166,7 @@ func TestLoadKeyIncorrectKey(t *testing.T) {
 	require.Equal(privKey, PrivateKey(EmptyPrivateKey))
 
 	// Remove file
-	err = os.Remove(fileName)
-	require.NoError(err)
+	_ = os.Remove(fileName)
 }
 
 func TestLoadKeyInvalidFile(t *testing.T) {
