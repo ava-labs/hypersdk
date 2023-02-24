@@ -65,6 +65,9 @@ func (c *CreateOrder) Execute(
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := c.MaxUnits(r) // max units == units
+	if c.In == c.Out {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputSameInOut}, nil
+	}
 	if c.InTick == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputInTickZero}, nil
 	}

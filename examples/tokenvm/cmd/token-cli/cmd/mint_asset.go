@@ -160,6 +160,6 @@ func mintAssetFunc(_ *cobra.Command, args []string) error {
 	} else {
 		hutils.Outf("{{red}}transaction failed{{/}}\n")
 	}
-	hutils.Outf("{{yellow}}TxID:{{/}} %s\n", tx.ID())
+	hutils.Outf("{{yellow}}txID:{{/}} %s\n", tx.ID())
 	return nil
 }

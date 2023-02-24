@@ -21,13 +21,13 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
-var transferCmd = &cobra.Command{
-	Use:   "transfer",
-	Short: "Transfers value to another address",
-	RunE:  transferFunc,
+var createOrderCmd = &cobra.Command{
+	Use:   "create-order",
+	Short: "Creates a new order",
+	RunE:  createOrderFunc,
 }
 
-func transferFunc(_ *cobra.Command, args []string) error {
+func createOrderFunc(_ *cobra.Command, args []string) error {
 	priv, err := crypto.LoadKey(privateKeyFile)
 	if err != nil {
 		return err
@@ -38,9 +38,9 @@ func transferFunc(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
 	cli := client.New(uri)
 
-	// Select token to send
+	// Select inbound token
 	promptText := promptui.Prompt{
-		Label: "assetID (use TKN for native token)",
+		Label: "in assetID (use TKN for native token)",
 		Validate: func(input string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
@@ -52,65 +52,143 @@ func transferFunc(_ *cobra.Command, args []string) error {
 			return err
 		},
 	}
-	asset, err := promptText.Run()
+	rawAsset, err := promptText.Run()
 	if err != nil {
 		return err
 	}
-	var assetID ids.ID
-	if asset != "TKN" {
-		assetID, err = ids.FromString(asset)
+	var inAssetID ids.ID
+	if rawAsset != "TKN" {
+		inAssetID, err = ids.FromString(rawAsset)
 		if err != nil {
 			return err
 		}
 	}
+	if inAssetID != ids.Empty {
+		exists, metadata, supply, _, err := cli.Asset(ctx, inAssetID)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			hutils.Outf("{{red}}%s does not exist{{/}}\n", inAssetID)
+			hutils.Outf("{{red}}exiting...{{/}}\n")
+			return nil
+		}
+		hutils.Outf(
+			"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n",
+			string(metadata),
+			supply,
+		)
+	}
+
+	// Select in tick
+	promptText = promptui.Prompt{
+		Label: "in tick",
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return errors.New("input is empty")
+			}
+			_, err := strconv.ParseUint(input, 10, 64)
+			return err
+		},
+	}
+	rawAmount, err := promptText.Run()
+	if err != nil {
+		return err
+	}
+	inTick, err := strconv.ParseUint(rawAmount, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	// Select outbound token
+	promptText = promptui.Prompt{
+		Label: "out assetID (use TKN for native token)",
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return errors.New("input is empty")
+			}
+			if len(input) == 3 && input == "TKN" {
+				return nil
+			}
+			_, err := ids.FromString(input)
+			return err
+		},
+	}
+	rawAsset, err = promptText.Run()
+	if err != nil {
+		return err
+	}
+	var outAssetID ids.ID
+	if rawAsset != "TKN" {
+		outAssetID, err = ids.FromString(rawAsset)
+		if err != nil {
+			return err
+		}
+	}
+	if outAssetID != ids.Empty {
+		exists, metadata, supply, _, err := cli.Asset(ctx, outAssetID)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			hutils.Outf("{{red}}%s does not exist{{/}}\n", outAssetID)
+			hutils.Outf("{{red}}exiting...{{/}}\n")
+			return nil
+		}
+		hutils.Outf(
+			"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n",
+			string(metadata),
+			supply,
+		)
+	}
 	addr := utils.Address(priv.PublicKey())
-	balance, err := cli.Balance(ctx, addr, assetID)
+	balance, err := cli.Balance(ctx, addr, outAssetID)
 	if err != nil {
 		return err
 	}
 	if balance == 0 {
-		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", asset)
+		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", outAssetID)
 		hutils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
 		hutils.Outf("{{red}}exiting...{{/}}\n")
 		return nil
 	}
 	balanceStr := hutils.FormatBalance(balance)
-	if assetID != ids.Empty {
+	if outAssetID != ids.Empty {
 		// Custom assets are denoted in raw units
 		balanceStr = strconv.FormatUint(balance, 10)
 	}
-	hutils.Outf("{{yellow}}balance:{{/}} %s %s\n", balanceStr, asset)
+	hutils.Outf("{{yellow}}balance:{{/}} %s %s\n", balanceStr, rawAsset)
 
-	// Select recipient
+	// Select out tick
 	promptText = promptui.Prompt{
-		Label: "recipient",
+		Label: "out tick",
 		Validate: func(input string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
 			}
-			_, err := utils.ParseAddress(input)
+			_, err := strconv.ParseUint(input, 10, 64)
 			return err
 		},
 	}
-	recipient, err := promptText.Run()
+	rawAmount, err = promptText.Run()
 	if err != nil {
 		return err
 	}
-	pk, err := utils.ParseAddress(recipient)
+	outTick, err := strconv.ParseUint(rawAmount, 10, 64)
 	if err != nil {
 		return err
 	}
 
-	// Select amount
+	// Select supply
 	promptText = promptui.Prompt{
-		Label: "amount",
+		Label: "supply",
 		Validate: func(input string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
 			}
 			var amount uint64
 			var err error
-			if assetID == ids.Empty {
+			if outAssetID == ids.Empty {
 				amount, err = hutils.ParseBalance(input)
 			} else {
 				amount, err = strconv.ParseUint(input, 10, 64)
@@ -121,18 +199,21 @@ func transferFunc(_ *cobra.Command, args []string) error {
 			if amount > balance {
 				return errors.New("insufficient balance")
 			}
+			if amount%outTick != 0 {
+				return errors.New("must be multiple of outTick")
+			}
 			return nil
 		},
 	}
-	rawAmount, err := promptText.Run()
+	rawAmount, err = promptText.Run()
 	if err != nil {
 		return err
 	}
-	var amount uint64
-	if assetID == ids.Empty {
-		amount, err = hutils.ParseBalance(rawAmount)
+	var supply uint64
+	if outAssetID == ids.Empty {
+		supply, err = hutils.ParseBalance(rawAmount)
 	} else {
-		amount, err = strconv.ParseUint(rawAmount, 10, 64)
+		supply, err = strconv.ParseUint(rawAmount, 10, 64)
 	}
 	if err != nil {
 		return err
@@ -162,10 +243,12 @@ func transferFunc(_ *cobra.Command, args []string) error {
 		return nil
 	}
 
-	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.Transfer{
-		To:    pk,
-		Asset: assetID,
-		Value: amount,
+	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.CreateOrder{
+		In:      inAssetID,
+		InTick:  inTick,
+		Out:     outAssetID,
+		OutTick: outTick,
+		Supply:  supply,
 	}, factory)
 	if err != nil {
 		return err
@@ -182,6 +265,6 @@ func transferFunc(_ *cobra.Command, args []string) error {
 	} else {
 		hutils.Outf("{{red}}transaction failed{{/}}\n")
 	}
-	hutils.Outf("{{yellow}}txID:{{/}} %s\n", tx.ID())
+	hutils.Outf("{{yellow}}orderID:{{/}} %s\n", tx.ID())
 	return nil
 }

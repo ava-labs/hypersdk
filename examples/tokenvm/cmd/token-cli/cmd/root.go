@@ -45,6 +45,12 @@ func init() {
 
 		createAssetCmd,
 		mintAssetCmd,
+		// burnAssetCmd,
+		// modifyAssetCmd,
+
+		createOrderCmd,
+		// fillOrderCmd,
+		// closeOrderCmd,
 
 		balanceCmd,
 		transferCmd,

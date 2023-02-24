@@ -69,9 +69,11 @@ token18ccm7a2uadj8mctjghkg3fkrneqpptxceykvwm8x7vxyrwmxqf8qmxyzft
 
 ### Step 2: Mint Another Asset
 
-### Step 3: Create an Offer
+### Step 3: Create an Order
 
-### Step 4: Fill Part of the Offer
+### Step 4: Fill Part of the Order (view orders)
+
+### Step 5: Close Order
 
 ## Future Work
 _If you want to take the lead on any of these items, please

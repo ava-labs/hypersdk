@@ -21,4 +21,5 @@ var (
 	OutputInsufficientOutput = []byte("insufficient output")
 	OutputValueMisaligned    = []byte("value is misaligned")
 	OutputMetadataTooLarge   = []byte("metadata is too large")
+	OutputSameInOut          = []byte("same asset used for in and out")
 )
