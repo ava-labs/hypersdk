@@ -104,9 +104,9 @@ func (p *Packer) PackPublicKey(src crypto.PublicKey) {
 	p.p.PackFixedBytes(src[:])
 }
 
-func (p *Packer) UnpackPublicKey(dest *crypto.PublicKey) {
+func (p *Packer) UnpackPublicKey(required bool, dest *crypto.PublicKey) {
 	copy((*dest)[:], p.p.UnpackFixedBytes(crypto.PublicKeyLen))
-	if *dest == crypto.EmptyPublicKey {
+	if required && *dest == crypto.EmptyPublicKey {
 		p.p.Errs.Add(fmt.Errorf("%w: PublicKey field is not populated", ErrFieldNotPopulated))
 	}
 }

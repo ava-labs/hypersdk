@@ -901,6 +901,64 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(owner).Should(gomega.Equal(sender))
 	})
 
+	ginkgo.It("modify an existing asset", func() {
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.ModifyAsset{
+				Asset:    asset1ID,
+				Metadata: []byte("blah"),
+				Owner:    crypto.EmptyPublicKey,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+
+		balance, err := instances[0].cli.Balance(context.TODO(), sender2, asset1ID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(10)))
+		balance, err = instances[0].cli.Balance(context.TODO(), sender, asset1ID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
+
+		exists, metadata, supply, owner, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(exists).Should(gomega.BeTrue())
+		gomega.Ω(metadata).Should(gomega.Equal([]byte("blah")))
+		gomega.Ω(supply).Should(gomega.Equal(uint64(10)))
+		gomega.Ω(owner).Should(gomega.Equal(utils.Address(crypto.EmptyPublicKey)))
+	})
+
+	ginkgo.It("modify an asset that doesn't exist", func() {
+		assetID := ids.GenerateTestID()
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.ModifyAsset{
+				Asset:    assetID,
+				Metadata: []byte("cool"),
+				Owner:    rsender,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		result := results[0]
+		gomega.Ω(result.Success).Should(gomega.BeFalse())
+		gomega.Ω(string(result.Output)).
+			Should(gomega.ContainSubstring("asset missing"))
+
+		exists, _, _, _, err := instances[0].cli.Asset(context.TODO(), assetID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(exists).Should(gomega.BeFalse())
+	})
+
 	// ginkgo.It("rejects duplicate mint", func() {
 	// 	other, err := crypto.GeneratePrivateKey()
 	// 	gomega.Ω(err).Should(gomega.BeNil())

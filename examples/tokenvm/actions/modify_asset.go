@@ -54,7 +54,7 @@ func (m *ModifyAsset) Execute(
 	if len(m.Metadata) > MaxMetadataSize {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputMetadataTooLarge}, nil
 	}
-	exists, metadata, supply, owner, err := storage.GetAsset(ctx, db, m.Asset)
+	exists, _, supply, owner, err := storage.GetAsset(ctx, db, m.Asset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
@@ -68,7 +68,7 @@ func (m *ModifyAsset) Execute(
 			Output:  OutputWrongOwner,
 		}, nil
 	}
-	if err := storage.SetAsset(ctx, db, m.Asset, metadata, supply, m.Owner); err != nil {
+	if err := storage.SetAsset(ctx, db, m.Asset, m.Metadata, supply, m.Owner); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil
@@ -88,8 +88,8 @@ func (m *ModifyAsset) Marshal(p *codec.Packer) {
 
 func UnmarshalModifyAsset(p *codec.Packer) (chain.Action, error) {
 	var modify ModifyAsset
-	p.UnpackID(true, &modify.Asset) // empty ID is the native asset
-	p.UnpackPublicKey(&modify.Owner)
+	p.UnpackID(true, &modify.Asset)         // empty ID is the native asset
+	p.UnpackPublicKey(false, &modify.Owner) // empty revokes ownership
 	p.UnpackBytes(MaxMetadataSize, false, &modify.Metadata)
 	return &modify, p.Err()
 }
