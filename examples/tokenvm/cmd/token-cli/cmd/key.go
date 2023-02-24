@@ -14,20 +14,13 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
-var createCmd = &cobra.Command{
-	Use:   "create [options]",
+var keyCmd = &cobra.Command{
+	Use:   "key [options]",
 	Short: "Creates a new key in the default location",
-	Long: `
-Creates a new key in the default location.
-It will error if the key file already exists.
-
-$ token-cli create
-
-`,
-	RunE: createFunc,
+	RunE:  keyFunc,
 }
 
-func createFunc(*cobra.Command, []string) error {
+func keyFunc(*cobra.Command, []string) error {
 	if _, err := os.Stat(privateKeyFile); err == nil {
 		// Already found, remind the user they have it
 		priv, err := crypto.LoadKey(privateKeyFile)

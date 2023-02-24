@@ -6,7 +6,6 @@ package cmd
 import (
 	"context"
 	"errors"
-	"strconv"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -22,13 +21,13 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
-var transferCmd = &cobra.Command{
-	Use:   "transfer",
-	Short: "Transfers value to another address",
-	RunE:  transferFunc,
+var closeOrderCmd = &cobra.Command{
+	Use:   "close-order",
+	Short: "Closes an existing order",
+	RunE:  closeOrderFunc,
 }
 
-func transferFunc(*cobra.Command, []string) error {
+func closeOrderFunc(*cobra.Command, []string) error {
 	priv, err := crypto.LoadKey(privateKeyFile)
 	if err != nil {
 		return err
@@ -39,9 +38,30 @@ func transferFunc(*cobra.Command, []string) error {
 	ctx := context.Background()
 	cli := client.New(uri)
 
-	// Select token to send
+	// Select inbound token
 	promptText := promptui.Prompt{
-		Label: "assetID (use TKN for native token)",
+		Label: "orderID",
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return errors.New("input is empty")
+			}
+			_, err := ids.FromString(input)
+			return err
+		},
+	}
+	rawOrderID, err := promptText.Run()
+	if err != nil {
+		return err
+	}
+	orderID, err := ids.FromString(rawOrderID)
+	if err != nil {
+		return err
+	}
+
+	// Select outbound token
+	// TODO: select this automatically
+	promptText = promptui.Prompt{
+		Label: "out assetID (use TKN for native token)",
 		Validate: func(input string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
@@ -53,90 +73,16 @@ func transferFunc(*cobra.Command, []string) error {
 			return err
 		},
 	}
-	asset, err := promptText.Run()
+	rawAsset, err := promptText.Run()
 	if err != nil {
 		return err
 	}
-	var assetID ids.ID
-	if asset != consts.Symbol {
-		assetID, err = ids.FromString(asset)
+	var outAssetID ids.ID
+	if rawAsset != consts.Symbol {
+		outAssetID, err = ids.FromString(rawAsset)
 		if err != nil {
 			return err
 		}
-	}
-	addr := utils.Address(priv.PublicKey())
-	balance, err := cli.Balance(ctx, addr, assetID)
-	if err != nil {
-		return err
-	}
-	if balance == 0 {
-		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", asset)
-		hutils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
-		hutils.Outf("{{red}}exiting...{{/}}\n")
-		return nil
-	}
-	balanceStr := hutils.FormatBalance(balance)
-	if assetID != ids.Empty {
-		// Custom assets are denoted in raw units
-		balanceStr = strconv.FormatUint(balance, 10)
-	}
-	hutils.Outf("{{yellow}}balance:{{/}} %s %s\n", balanceStr, asset)
-
-	// Select recipient
-	promptText = promptui.Prompt{
-		Label: "recipient",
-		Validate: func(input string) error {
-			if len(input) == 0 {
-				return errors.New("input is empty")
-			}
-			_, err := utils.ParseAddress(input)
-			return err
-		},
-	}
-	recipient, err := promptText.Run()
-	if err != nil {
-		return err
-	}
-	pk, err := utils.ParseAddress(recipient)
-	if err != nil {
-		return err
-	}
-
-	// Select amount
-	promptText = promptui.Prompt{
-		Label: "amount",
-		Validate: func(input string) error {
-			if len(input) == 0 {
-				return errors.New("input is empty")
-			}
-			var amount uint64
-			var err error
-			if assetID == ids.Empty {
-				amount, err = hutils.ParseBalance(input)
-			} else {
-				amount, err = strconv.ParseUint(input, 10, 64)
-			}
-			if err != nil {
-				return err
-			}
-			if amount > balance {
-				return errors.New("insufficient balance")
-			}
-			return nil
-		},
-	}
-	rawAmount, err := promptText.Run()
-	if err != nil {
-		return err
-	}
-	var amount uint64
-	if assetID == ids.Empty {
-		amount, err = hutils.ParseBalance(rawAmount)
-	} else {
-		amount, err = strconv.ParseUint(rawAmount, 10, 64)
-	}
-	if err != nil {
-		return err
 	}
 
 	// Confirm action
@@ -163,10 +109,9 @@ func transferFunc(*cobra.Command, []string) error {
 		return nil
 	}
 
-	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.Transfer{
-		To:    pk,
-		Asset: assetID,
-		Value: amount,
+	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.CloseOrder{
+		Order: orderID,
+		Out:   outAssetID,
 	}, factory)
 	if err != nil {
 		return err

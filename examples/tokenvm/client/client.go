@@ -35,7 +35,7 @@ func (cli *Client) Genesis(ctx context.Context) (*genesis.Genesis, error) {
 	return resp.Genesis, err
 }
 
-func (cli *Client) Tx(ctx context.Context, id ids.ID) (bool, int64, error) {
+func (cli *Client) Tx(ctx context.Context, id ids.ID) (bool, bool, int64, error) {
 	resp := new(controller.TxReply)
 	err := cli.Requester.SendRequest(
 		ctx,
@@ -47,11 +47,11 @@ func (cli *Client) Tx(ctx context.Context, id ids.ID) (bool, int64, error) {
 	// We use string parsing here because the JSON-RPC library we use may not
 	// allows us to perform errors.Is.
 	case err != nil && strings.Contains(err.Error(), controller.ErrTxNotFound.Error()):
-		return false, -1, nil
+		return false, false, -1, nil
 	case err != nil:
-		return false, -1, err
+		return false, false, -1, err
 	}
-	return true, resp.Timestamp, nil
+	return true, resp.Success, resp.Timestamp, nil
 }
 
 func (cli *Client) Asset(ctx context.Context, asset ids.ID) (bool, []byte, uint64, string, error) {

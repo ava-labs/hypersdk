@@ -58,12 +58,17 @@ func (cli *Client) WaitForBalance(
 	})
 }
 
-func (cli *Client) WaitForTransaction(ctx context.Context, txID ids.ID) error {
-	return client.Wait(ctx, func(ctx context.Context) (bool, error) {
-		found, _, err := cli.Tx(ctx, txID)
+func (cli *Client) WaitForTransaction(ctx context.Context, txID ids.ID) (bool, error) {
+	var success bool
+	if err := client.Wait(ctx, func(ctx context.Context) (bool, error) {
+		found, isuccess, _, err := cli.Tx(ctx, txID)
 		if err != nil {
 			return false, err
 		}
+		success = isuccess
 		return found, nil
-	})
+	}); err != nil {
+		return false, err
+	}
+	return success, nil
 }

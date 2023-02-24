@@ -70,11 +70,11 @@ fi
 echo "building tokenvm"
 
 # delete previous (if exists)
-rm -f /tmp/avalanchego-v${VERSION}/plugins/tHUgHsjdMmrwWfko2UpQujAHs4ZLX1zgMPf2kSkKkavmdxWeu
+rm -f /tmp/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
 
 # rebuild with latest code
 go build \
--o /tmp/avalanchego-v${VERSION}/plugins/tHUgHsjdMmrwWfko2UpQujAHs4ZLX1zgMPf2kSkKkavmdxWeu \
+-o /tmp/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
 ./cmd/tokenvm
 
 echo "building token-cli"
@@ -90,7 +90,7 @@ find /tmp/avalanchego-v${VERSION}
 # Always create allocations (linter doesn't like tab)
 echo "creating allocations file"
 cat <<EOF > /tmp/allocations.json
-[{"address":"transfer1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsuup2js", "balance":1000000000000}]
+[{"address":"token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":1000000000000}]
 EOF
 
 GENESIS_PATH=$2
@@ -114,8 +114,9 @@ rm -f /tmp/tokenvm.config
 cat <<EOF > /tmp/tokenvm.config
 {
   "mempoolSize": 10000000,
-  "mempoolExemptPayers":["transfer1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsuup2js"],
+  "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "parallelism": 5,
+  "trackedPairs":["*"],
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }

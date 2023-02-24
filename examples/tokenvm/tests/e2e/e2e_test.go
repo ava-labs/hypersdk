@@ -399,9 +399,10 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			err = instances[0].cli.WaitForTransaction(ctx, tx.ID())
+			success, err := instances[0].cli.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(success).Should(gomega.BeTrue())
 			hutils.Outf("{{yellow}}found transaction{{/}}\n")
 
 			// Check sender balance
@@ -545,12 +546,13 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			err = syncClient.WaitForTransaction(ctx, tx.ID())
+			success, err := syncClient.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			if err != nil {
 				hutils.Outf("{{red}}cannot find transaction: %v{{/}}\n", err)
 				continue
 			}
+			gomega.Ω(success).Should(gomega.BeTrue())
 			hutils.Outf("{{yellow}}found transaction{{/}}\n")
 			break
 		}
@@ -657,12 +659,13 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			err = syncClient.WaitForTransaction(ctx, tx.ID())
+			success, err := syncClient.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			if err != nil {
 				hutils.Outf("{{red}}cannot find transaction: %v{{/}}\n", err)
 				continue
 			}
+			gomega.Ω(success).Should(gomega.BeTrue())
 			hutils.Outf("{{yellow}}found transaction{{/}}\n")
 			break
 		}
@@ -756,12 +759,13 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 			// Broadcast and wait for transaction
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			err = syncClient.WaitForTransaction(ctx, tx.ID())
+			success, err := syncClient.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			if err != nil {
 				hutils.Outf("{{red}}cannot find transaction: %v{{/}}\n", err)
 				continue
 			}
+			gomega.Ω(success).Should(gomega.BeTrue())
 			hutils.Outf("{{yellow}}found transaction{{/}}\n")
 			break
 		}

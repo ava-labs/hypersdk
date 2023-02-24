@@ -18,17 +18,16 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
-var transferCmd = &cobra.Command{
-	Use:   "transfer",
-	Short: "Transfers value to another address",
-	RunE:  transferFunc,
+var mintAssetCmd = &cobra.Command{
+	Use:   "mint-asset",
+	Short: "Mints a new asset",
+	RunE:  mintAssetFunc,
 }
 
-func transferFunc(*cobra.Command, []string) error {
+func mintAssetFunc(*cobra.Command, []string) error {
 	priv, err := crypto.LoadKey(privateKeyFile)
 	if err != nil {
 		return err
@@ -39,48 +38,46 @@ func transferFunc(*cobra.Command, []string) error {
 	ctx := context.Background()
 	cli := client.New(uri)
 
-	// Select token to send
+	// Select token to mint
 	promptText := promptui.Prompt{
-		Label: "assetID (use TKN for native token)",
+		Label: "assetID",
 		Validate: func(input string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
 			}
-			if len(input) == 3 && input == consts.Symbol {
-				return nil
+			assetID, err := ids.FromString(input)
+			if err != nil {
+				return err
 			}
-			_, err := ids.FromString(input)
-			return err
+			if assetID == ids.Empty {
+				return errors.New("cannot mint native")
+			}
+			return nil
 		},
 	}
-	asset, err := promptText.Run()
+	rawAsset, err := promptText.Run()
 	if err != nil {
 		return err
 	}
-	var assetID ids.ID
-	if asset != consts.Symbol {
-		assetID, err = ids.FromString(asset)
-		if err != nil {
-			return err
-		}
-	}
-	addr := utils.Address(priv.PublicKey())
-	balance, err := cli.Balance(ctx, addr, assetID)
+	assetID, err := ids.FromString(rawAsset)
 	if err != nil {
 		return err
 	}
-	if balance == 0 {
-		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", asset)
-		hutils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
+	exists, metadata, supply, owner, err := cli.Asset(ctx, assetID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		hutils.Outf("{{red}}%s does not exist{{/}}\n", assetID)
 		hutils.Outf("{{red}}exiting...{{/}}\n")
 		return nil
 	}
-	balanceStr := hutils.FormatBalance(balance)
-	if assetID != ids.Empty {
-		// Custom assets are denoted in raw units
-		balanceStr = strconv.FormatUint(balance, 10)
+	if owner != utils.Address(priv.PublicKey()) {
+		hutils.Outf("{{red}}%s is the owner of %s, you are not{{/}}\n", owner, assetID)
+		hutils.Outf("{{red}}exiting...{{/}}\n")
+		return nil
 	}
-	hutils.Outf("{{yellow}}balance:{{/}} %s %s\n", balanceStr, asset)
+	hutils.Outf("{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n", string(metadata), supply)
 
 	// Select recipient
 	promptText = promptui.Prompt{
@@ -109,32 +106,15 @@ func transferFunc(*cobra.Command, []string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
 			}
-			var amount uint64
-			var err error
-			if assetID == ids.Empty {
-				amount, err = hutils.ParseBalance(input)
-			} else {
-				amount, err = strconv.ParseUint(input, 10, 64)
-			}
-			if err != nil {
-				return err
-			}
-			if amount > balance {
-				return errors.New("insufficient balance")
-			}
-			return nil
+			_, err := strconv.ParseUint(input, 10, 64)
+			return err
 		},
 	}
 	rawAmount, err := promptText.Run()
 	if err != nil {
 		return err
 	}
-	var amount uint64
-	if assetID == ids.Empty {
-		amount, err = hutils.ParseBalance(rawAmount)
-	} else {
-		amount, err = strconv.ParseUint(rawAmount, 10, 64)
-	}
+	amount, err := strconv.ParseUint(rawAmount, 10, 64)
 	if err != nil {
 		return err
 	}
@@ -163,9 +143,9 @@ func transferFunc(*cobra.Command, []string) error {
 		return nil
 	}
 
-	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.Transfer{
-		To:    pk,
+	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.MintAsset{
 		Asset: assetID,
+		To:    pk,
 		Value: amount,
 	}, factory)
 	if err != nil {

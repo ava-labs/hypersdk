@@ -45,13 +45,38 @@ the price of an order.
 ##### Config Scoped to Certain Assets
 
 ## Demo
+The first step to running this demo is to launch your own `tokenvm` Subnet. You
+can do so by running the following command from this location:
+```bash
+./scripts/run.sh;
+```
+
+By default, this allocates all funds on the network to
+`token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp`. The private
+key for this address is
+`0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7`.
+For convenience, this key has is also stored at `demo.pk`.
+
+### Step 0: Build the CLI
+./scripts/build.sh
+
 ### Step 1: Mint Your Asset
+
+### Step X: View Your Balance
+
+### Step 2: Transfer Your Asset
+token18ccm7a2uadj8mctjghkg3fkrneqpptxceykvwm8x7vxyrwmxqf8qmxyzft
 
 ### Step 2: Mint Another Asset
 
-### Step 3: Create an Offer
+### Step 3: Create an Order
 
-### Step 4: Fill Part of the Offer
+### Step 4: Fill Part of the Order (view orders)
+
+### Step 5: Close Order
+
+### Can watch in real-time
+/build/token-cli watch
 
 ## Future Work
 _If you want to take the lead on any of these items, please
@@ -60,4 +85,5 @@ out on the Avalanche Discord._
 
 * Add support for Avalanche Warp Messaging
 * Add more config options for determining which order books to store in-memory
-* Make it possible to fill multiple explicitly specified orders at once
+* Add option to CLI to fill up to some amount of an asset as long as it is
+  under some exchange rate

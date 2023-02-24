@@ -2,7 +2,6 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-
 set -o errexit
 set -o nounset
 set -o pipefail
@@ -19,13 +18,13 @@ if ! [[ "$0" =~ scripts/build.sh ]]; then
 fi
 
 # Set default binary directory location
-name="oS6k2RdwvBbUhmnDwCXw1cGWy4w9WD4FKJgUYWeh8vPLrxj3Y"
+name="tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8"
 
-# Build indexvm, which is run as a subprocess
+# Build tokenvm, which is run as a subprocess
 mkdir -p ./build
 
-echo "Building indexvm in ./build/$name"
-go build -o ./build/$name ./cmd/indexvm
+echo "Building tokenvm in ./build/$name"
+go build -o ./build/$name ./cmd/tokenvm
 
-echo "Building index-cli in ./build/index-cli"
-go build -o ./build/index-cli ./cmd/index-cli
+echo "Building token-cli in ./build/token-cli"
+go build -o ./build/token-cli ./cmd/token-cli

@@ -50,7 +50,7 @@ func NewOrderBook(c *Controller, trackedPairs []string) *OrderBook {
 	} else {
 		for _, pair := range trackedPairs {
 			// We use a max heap so we return the best rates in order.
-			m[pair] = utils.NewFloat64Heap[*Order](initialPairCapacity, false)
+			m[pair] = utils.NewFloat64Heap[*Order](initialPairCapacity, true)
 			c.inner.Logger().Info("tracking order book", zap.String("pair", pair))
 		}
 	}
@@ -71,7 +71,7 @@ func (o *OrderBook) Add(pair string, order *Order) {
 		return
 	case !ok && o.trackAll:
 		o.c.inner.Logger().Info("tracking order book", zap.String("pair", pair))
-		h = utils.NewFloat64Heap[*Order](initialPairCapacity, false)
+		h = utils.NewFloat64Heap[*Order](initialPairCapacity, true)
 		o.orders[pair] = h
 	}
 	heap.Push(h, &utils.Float64Entry[*Order]{
