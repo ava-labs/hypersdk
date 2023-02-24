@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
@@ -27,7 +28,7 @@ var transferCmd = &cobra.Command{
 	RunE:  transferFunc,
 }
 
-func transferFunc(_ *cobra.Command, args []string) error {
+func transferFunc(*cobra.Command, []string) error {
 	priv, err := crypto.LoadKey(privateKeyFile)
 	if err != nil {
 		return err
@@ -45,7 +46,7 @@ func transferFunc(_ *cobra.Command, args []string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
 			}
-			if len(input) == 3 && input == "TKN" {
+			if len(input) == 3 && input == consts.Symbol {
 				return nil
 			}
 			_, err := ids.FromString(input)
@@ -57,7 +58,7 @@ func transferFunc(_ *cobra.Command, args []string) error {
 		return err
 	}
 	var assetID ids.ID
-	if asset != "TKN" {
+	if asset != consts.Symbol {
 		assetID, err = ids.FromString(asset)
 		if err != nil {
 			return err

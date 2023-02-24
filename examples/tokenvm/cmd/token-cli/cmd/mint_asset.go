@@ -27,7 +27,7 @@ var mintAssetCmd = &cobra.Command{
 	RunE:  mintAssetFunc,
 }
 
-func mintAssetFunc(_ *cobra.Command, args []string) error {
+func mintAssetFunc(*cobra.Command, []string) error {
 	priv, err := crypto.LoadKey(privateKeyFile)
 	if err != nil {
 		return err
@@ -64,6 +64,9 @@ func mintAssetFunc(_ *cobra.Command, args []string) error {
 		return err
 	}
 	exists, metadata, supply, owner, err := cli.Asset(ctx, assetID)
+	if err != nil {
+		return err
+	}
 	if !exists {
 		hutils.Outf("{{red}}%s does not exist{{/}}\n", assetID)
 		hutils.Outf("{{red}}exiting...{{/}}\n")

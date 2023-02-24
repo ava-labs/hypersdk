@@ -25,7 +25,7 @@ var createAssetCmd = &cobra.Command{
 	RunE:  createAssetFunc,
 }
 
-func createAssetFunc(_ *cobra.Command, args []string) error {
+func createAssetFunc(*cobra.Command, []string) error {
 	priv, err := crypto.LoadKey(privateKeyFile)
 	if err != nil {
 		return err

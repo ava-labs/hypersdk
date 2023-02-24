@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
@@ -27,7 +28,7 @@ var createOrderCmd = &cobra.Command{
 	RunE:  createOrderFunc,
 }
 
-func createOrderFunc(_ *cobra.Command, args []string) error {
+func createOrderFunc(*cobra.Command, []string) error {
 	priv, err := crypto.LoadKey(privateKeyFile)
 	if err != nil {
 		return err
@@ -45,7 +46,7 @@ func createOrderFunc(_ *cobra.Command, args []string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
 			}
-			if len(input) == 3 && input == "TKN" {
+			if len(input) == 3 && input == consts.Symbol {
 				return nil
 			}
 			_, err := ids.FromString(input)
@@ -57,7 +58,7 @@ func createOrderFunc(_ *cobra.Command, args []string) error {
 		return err
 	}
 	var inAssetID ids.ID
-	if rawAsset != "TKN" {
+	if rawAsset != consts.Symbol {
 		inAssetID, err = ids.FromString(rawAsset)
 		if err != nil {
 			return err
@@ -117,7 +118,7 @@ func createOrderFunc(_ *cobra.Command, args []string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
 			}
-			if len(input) == 3 && input == "TKN" {
+			if len(input) == 3 && input == consts.Symbol {
 				return nil
 			}
 			_, err := ids.FromString(input)
@@ -129,7 +130,7 @@ func createOrderFunc(_ *cobra.Command, args []string) error {
 		return err
 	}
 	var outAssetID ids.ID
-	if rawAsset != "TKN" {
+	if rawAsset != consts.Symbol {
 		outAssetID, err = ids.FromString(rawAsset)
 		if err != nil {
 			return err

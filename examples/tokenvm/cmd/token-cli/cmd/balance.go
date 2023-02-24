@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
@@ -24,7 +25,7 @@ var balanceCmd = &cobra.Command{
 	RunE:  balanceFunc,
 }
 
-func balanceFunc(_ *cobra.Command, args []string) error {
+func balanceFunc(*cobra.Command, []string) error {
 	priv, err := crypto.LoadKey(privateKeyFile)
 	if err != nil {
 		return err
@@ -62,7 +63,7 @@ func balanceFunc(_ *cobra.Command, args []string) error {
 			if len(input) == 0 {
 				return errors.New("input is empty")
 			}
-			if len(input) == 3 && input == "TKN" {
+			if len(input) == 3 && input == consts.Symbol {
 				return nil
 			}
 			_, err := ids.FromString(input)
@@ -74,7 +75,7 @@ func balanceFunc(_ *cobra.Command, args []string) error {
 		return err
 	}
 	var assetID ids.ID
-	if asset != "TKN" {
+	if asset != consts.Symbol {
 		assetID, err = ids.FromString(asset)
 		if err != nil {
 			return err

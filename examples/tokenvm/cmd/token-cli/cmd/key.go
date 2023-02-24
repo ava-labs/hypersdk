@@ -17,14 +17,7 @@ import (
 var keyCmd = &cobra.Command{
 	Use:   "key [options]",
 	Short: "Creates a new key in the default location",
-	Long: `
-Creates a new key in the default location.
-It will error if the key file already exists.
-
-$ token-cli key
-
-`,
-	RunE: keyFunc,
+	RunE:  keyFunc,
 }
 
 func keyFunc(*cobra.Command, []string) error {
