@@ -3,62 +3,70 @@
 
 package utils
 
-// BoundedBuffer keeps [size] entries of type [K] in a buffer and calls
-// [callback] on any item that is overwritten. This is typically used for
+import (
+	"errors"
+
+	"github.com/ava-labs/avalanchego/utils/buffer"
+)
+
+var (
+	_ BoundedBuffer[bool] = (*boundedBuffer[bool])(nil)
+
+	errInvalidMaxSize = errors.New("maxSize must be greater than 0")
+)
+
+type BoundedBuffer[T any] interface {
+	// Insert adds a new value to the buffer. If the buffer is full, the
+	// oldest value will be overwritten and [onEvict] will be invoked.
+	Insert(elt T)
+
+	// Last retrieves the last item added to the buffer.
+	//
+	// If no items have been added to the buffer, Last returns the default value of
+	// [T] and [false].
+	Last() (T, bool)
+
+	// Returns all the items in the buffer sorted from oldest to nest.
+	Items() []T
+}
+
+// boundedBuffer keeps [maxSize] entries of type [T] in a buffer and calls
+// [onEvict] on any item that is overwritten. This is typically used for
 // dereferencing old roots during block processing.
 //
-// BoundedBuffer is not thread-safe and requires the caller synchronize usage.
-type BoundedBuffer[K any] struct {
-	lastPos  int
-	size     int
-	callback func(K)
-	buffer   []K
-
-	cycled bool
+// boundedBuffer is not thread-safe and requires the caller synchronize usage.
+type boundedBuffer[T any] struct {
+	innerBuffer buffer.Deque[T]
+	maxSize     int
+	onEvict     func(T)
 }
 
-// NewBoundedBuffer creates a new [BoundedBuffer].
-func NewBoundedBuffer[K any](size int, callback func(K)) *BoundedBuffer[K] {
-	return &BoundedBuffer[K]{
-		lastPos:  -1,
-		size:     size,
-		callback: callback,
-		buffer:   make([]K, size),
+func NewBoundedBuffer[T any](maxSize int, onEvict func(T)) (BoundedBuffer[T], error) {
+	if maxSize < 1 {
+		return nil, errInvalidMaxSize
 	}
+	if onEvict == nil {
+		onEvict = func(T) {}
+	}
+	return &boundedBuffer[T]{
+		innerBuffer: buffer.NewUnboundedDeque[T](maxSize + 1), // +1 so we never resize
+		maxSize:     maxSize,
+		onEvict:     onEvict,
+	}, nil
 }
 
-// Insert adds a new value to the buffer. If the buffer is full, the
-// oldest value will be overwritten and [callback] will be invoked.
-func (b *BoundedBuffer[K]) Insert(h K) {
-	nextPos := b.lastPos + 1 // the first item added to the buffer will be at position 0
-	if nextPos == b.size {
-		nextPos = 0
-		// Set [cycled] since we are back to the 0th element
-		b.cycled = true
+func (b *boundedBuffer[T]) Insert(elt T) {
+	if b.innerBuffer.Len() == b.maxSize {
+		evicted, _ := b.innerBuffer.PopRight()
+		b.onEvict(evicted)
 	}
-	if b.cycled && b.callback != nil {
-		// We ensure we have cycled through the buffer once before invoking the
-		// [callback] to ensure we don't call it with unset values.
-		b.callback(b.buffer[nextPos])
-	}
-	b.buffer[nextPos] = h
-	b.lastPos = nextPos
+	b.innerBuffer.PushRight(elt)
 }
 
-// Last retrieves the last item added to the buffer.
-//
-// If no items have been added to the buffer, Last returns the default value of
-// [K] and [false].
-func (b *BoundedBuffer[K]) Last() (K, bool) {
-	if b.lastPos == -1 {
-		return *new(K), false //nolint:gocritic
-	}
-	return b.buffer[b.lastPos], true
+func (b *boundedBuffer[T]) Last() (T, bool) {
+	return b.innerBuffer.PeekRight()
 }
 
-func (b *BoundedBuffer[K]) Items() []K {
-	if !b.cycled {
-		return b.buffer[:b.lastPos+1]
-	}
-	return b.buffer
+func (b *boundedBuffer[T]) Items() []T {
+	return b.innerBuffer.List()
 }
