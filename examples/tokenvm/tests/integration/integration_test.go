@@ -30,6 +30,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
@@ -688,6 +689,19 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(owner).Should(gomega.Equal(sender))
 	})
 
+	ginkgo.It("create asset with too long of metadata", func() {
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.CreateAsset{
+				Metadata: make([]byte, actions.MaxMetadataSize*2),
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background()).Error()).
+			Should(gomega.ContainSubstring("size is larger than limit"))
+	})
+
 	ginkgo.It("create a new asset (simple metadata)", func() {
 		submit, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
@@ -836,21 +850,56 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(owner).Should(gomega.Equal(sender))
 	})
 
-	// ginkgo.It("rejects empty mint", func() {
-	// 	other, err := crypto.GeneratePrivateKey()
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	submit, _, _, err := instances[0].cli.GenerateTransaction(
-	// 		context.Background(),
-	// 		&actions.Mint{
-	// 			To:    other.PublicKey(),
-	// 			Asset: ids.GenerateTestID(),
-	// 		},
-	// 		factory,
-	// 	)
-	// 	gomega.Ω(err).Should(gomega.BeNil())
-	// 	gomega.Ω(submit(context.Background()).Error()).
-	// 		Should(gomega.ContainSubstring("Uint64 field is not populated"))
-	// })
+	ginkgo.It("rejects empty mint", func() {
+		other, err := crypto.GeneratePrivateKey()
+		gomega.Ω(err).Should(gomega.BeNil())
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.MintAsset{
+				To:    other.PublicKey(),
+				Asset: asset1ID,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background()).Error()).
+			Should(gomega.ContainSubstring("Uint64 field is not populated"))
+	})
+
+	ginkgo.It("reject max mint", func() {
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.MintAsset{
+				To:    rsender2,
+				Asset: asset1ID,
+				Value: consts.MaxUint64,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		result := results[0]
+		gomega.Ω(result.Success).Should(gomega.BeFalse())
+		gomega.Ω(string(result.Output)).
+			Should(gomega.ContainSubstring("overflow occurred"))
+
+		balance, err := instances[0].cli.Balance(context.TODO(), sender2, asset1ID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(10)))
+		balance, err = instances[0].cli.Balance(context.TODO(), sender, asset1ID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
+
+		exists, metadata, supply, owner, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(exists).Should(gomega.BeTrue())
+		gomega.Ω(metadata).Should(gomega.Equal(asset1))
+		gomega.Ω(supply).Should(gomega.Equal(uint64(10)))
+		gomega.Ω(owner).Should(gomega.Equal(sender))
+	})
 
 	// ginkgo.It("rejects duplicate mint", func() {
 	// 	other, err := crypto.GeneratePrivateKey()
