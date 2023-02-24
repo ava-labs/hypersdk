@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	HRP  = "transfer"
-	Name = "transfervm"
+	HRP  = "token"
+	Name = "tokenvm"
 )
 
 var ID ids.ID

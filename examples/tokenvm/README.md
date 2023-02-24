@@ -45,6 +45,19 @@ the price of an order.
 ##### Config Scoped to Certain Assets
 
 ## Demo
+The first step to running this demo is to launch your own `tokenvm` Subnet. You
+can do so by running the following command from this location:
+```bash
+./scripts/run.sh;
+```
+
+By default, this allocates all funds on the network to
+`token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp`. The private
+key for this address is
+`0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7`.
+For convenience, this key has is also stored at `demo.pk`.
+
+
 ### Step 1: Mint Your Asset
 
 ### Step 2: Mint Another Asset

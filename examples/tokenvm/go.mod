@@ -7,6 +7,7 @@ require (
 	github.com/ava-labs/avalanchego v1.9.8
 	github.com/ava-labs/hypersdk v0.0.1
 	github.com/fatih/color v1.13.0
+	github.com/manifoldco/promptui v0.9.0
 	github.com/onsi/ginkgo/v2 v2.6.1
 	github.com/onsi/gomega v1.24.2
 	github.com/prometheus/client_golang v1.14.0
@@ -26,6 +27,7 @@ require (
 	github.com/btcsuite/btcd/btcutil v1.1.3 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/cockroachdb/errors v1.8.1 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20190617123548-eb05cc24525f // indirect
 	github.com/cockroachdb/pebble v0.0.0-20230217215838-f01d8eff3f8b // indirect

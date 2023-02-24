@@ -5,12 +5,14 @@ package cmd
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"strconv"
+	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
 	hutils "github.com/ava-labs/hypersdk/utils"
-	"github.com/fatih/color"
+	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
@@ -20,7 +22,7 @@ import (
 )
 
 var transferCmd = &cobra.Command{
-	Use:   "transfer [options] <to> <asset> <value>",
+	Use:   "transfer",
 	Short: "Transfers value to another address",
 	RunE:  transferFunc,
 }
@@ -32,17 +34,126 @@ func transferFunc(_ *cobra.Command, args []string) error {
 	}
 	factory := auth.NewED25519Factory(priv)
 
-	to, asset, value, err := getTransferOp(args)
+	ctx := context.Background()
+	cli := client.New(uri)
+
+	// Select token to send
+	f := func(input string) error {
+		if len(input) == 0 {
+			return errors.New("input is empty")
+		}
+		if len(input) == 3 && input == "TKN" {
+			return nil
+		}
+		_, err := ids.FromString(input)
+		return err
+	}
+	promptText := promptui.Prompt{
+		Label:    "asset (use TKN for native token)",
+		Validate: f,
+	}
+	asset, err := promptText.Run()
+	if err != nil {
+		return err
+	}
+	var assetID ids.ID
+	if asset == "TKN" {
+		assetID = ids.Empty
+	}
+	addr := utils.Address(priv.PublicKey())
+	balance, err := cli.Balance(ctx, addr, assetID)
+	if err != nil {
+		return err
+	}
+	if balance == 0 {
+		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", asset)
+		hutils.Outf("{{red}}please send funds to %s...exiting{{/}}/n", addr)
+		return nil
+	}
+	balanceStr := hutils.FormatBalance(balance)
+	if assetID != ids.Empty {
+		// Custom assets are denoted in raw units
+		balanceStr = strconv.FormatUint(balance, 10)
+	}
+	hutils.Outf("{{yellow}}balance:{{/}} %s %s\n", balanceStr, asset)
+
+	// Select recipient
+	promptText = promptui.Prompt{
+		Label: "recipient",
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return errors.New("input is empty")
+			}
+			_, err := utils.ParseAddress(input)
+			return err
+		},
+	}
+	recipient, err := promptText.Run()
+	if err != nil {
+		return err
+	}
+	pk, err := utils.ParseAddress(recipient)
 	if err != nil {
 		return err
 	}
 
-	ctx := context.Background()
-	cli := client.New(uri)
+	// Select amount
+	promptText = promptui.Prompt{
+		Label: "amount",
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return errors.New("input is empty")
+			}
+			if assetID == ids.Empty {
+				_, err := hutils.ParseBalance(input)
+				return err
+			}
+			_, err := strconv.ParseUint(input, 10, 64)
+			return err
+		},
+	}
+	rawAmount, err := promptText.Run()
+	if err != nil {
+		return err
+	}
+	var amount uint64
+	if assetID == ids.Empty {
+		amount, err = hutils.ParseBalance(rawAmount)
+	} else {
+		amount, err = strconv.ParseUint(rawAmount, 10, 64)
+	}
+	if err != nil {
+		return err
+	}
+
+	// Confirm action
+	promptText = promptui.Prompt{
+		Label: "continue (y/n)",
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return errors.New("input is empty")
+			}
+			lower := strings.ToLower(input)
+			if lower == "y" || lower == "n" {
+				return nil
+			}
+			return errors.New("invalid choice")
+		},
+	}
+	rawContinue, err := promptText.Run()
+	if err != nil {
+		return err
+	}
+	cont := strings.ToLower(rawContinue)
+	if cont == "n" {
+		hutils.Outf("{{red}}exiting...{{/}}\n")
+		return nil
+	}
+
 	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.Transfer{
-		To:    to,
-		Asset: asset,
-		Value: value,
+		To:    pk,
+		Asset: assetID,
+		Value: amount,
 	}, factory)
 	if err != nil {
 		return err
@@ -53,41 +164,6 @@ func transferFunc(_ *cobra.Command, args []string) error {
 	if err := cli.WaitForTransaction(ctx, tx.ID()); err != nil {
 		return err
 	}
-	color.Green("transferred %s to %s", hutils.FormatBalance(value), utils.Address(to))
+	hutils.Outf("{{green}}transaction confirmed:{{/}} %s\n", tx.ID())
 	return nil
-}
-
-func getTransferOp(args []string) (crypto.PublicKey, ids.ID, uint64, error) {
-	if len(args) != 3 {
-		return crypto.EmptyPublicKey, ids.Empty, 0, fmt.Errorf(
-			"expected exactly 2 arguments, got %d",
-			len(args),
-		)
-	}
-
-	addr, err := utils.ParseAddress(args[0])
-	if err != nil {
-		return crypto.EmptyPublicKey, ids.Empty, 0, fmt.Errorf(
-			"%w: failed to parse address %s",
-			err,
-			args[0],
-		)
-	}
-	asset, err := ids.FromString(args[1])
-	if err != nil {
-		return crypto.EmptyPublicKey, ids.Empty, 0, fmt.Errorf(
-			"%w: failed to parse asset %s",
-			err,
-			args[1],
-		)
-	}
-	value, err := hutils.ParseBalance(args[2])
-	if err != nil {
-		return crypto.EmptyPublicKey, ids.Empty, 0, fmt.Errorf(
-			"%w: failed to parse %s",
-			err,
-			args[2],
-		)
-	}
-	return addr, asset, value, nil
 }
