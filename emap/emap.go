@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 )
 
 type bucket struct {
@@ -81,14 +82,14 @@ type EMap[T Item] struct {
 	mu sync.RWMutex
 
 	bh    *bucketHeap
-	seen  map[ids.ID]struct{} // Stores a set of unique tx ids
-	times map[int64]*bucket   // Uses timestamp as keys to map to buckets of ids.
+	seen  set.Set[ids.ID]   // Stores a set of unique tx ids
+	times map[int64]*bucket // Uses timestamp as keys to map to buckets of ids.
 }
 
 // NewEMap returns a pointer to a instance of an empty EMap struct.
 func NewEMap[T Item]() *EMap[T] {
 	return &EMap[T]{
-		seen:  make(map[ids.ID]struct{}),
+		seen:  set.Set[ids.ID]{},
 		times: make(map[int64]*bucket),
 		bh: &bucketHeap{
 			buckets: []*bucket{},

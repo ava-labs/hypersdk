@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/tstate"
 )
@@ -43,13 +44,12 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 		defer span.End()
 
 		// Store required keys for each set
-		alreadyFetched := map[string]struct{}{}
+		alreadyFetched := set.Set[string]{}
 		for _, tx := range p.blk.GetTxs() {
 			storage := map[string][]byte{}
 			for _, k := range tx.StateKeys() {
 				sk := string(k)
-				_, ok := alreadyFetched[sk]
-				if ok {
+				if alreadyFetched.Contains(sk) {
 					continue
 				}
 				v, err := db.GetValue(ctx, k)
@@ -58,7 +58,7 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 				} else if err != nil {
 					panic(err)
 				}
-				alreadyFetched[sk] = struct{}{}
+				alreadyFetched.Add(sk)
 				storage[sk] = v
 			}
 			p.readyTxs <- &txData{tx, storage}

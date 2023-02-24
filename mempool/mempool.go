@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/set"
 )
 
 type Mempool[T Item] struct {
@@ -24,10 +25,10 @@ type Mempool[T Item] struct {
 
 	// [Owned] used to remove all items from an account when the balance is
 	// insufficient
-	owned map[string]map[ids.ID]struct{}
+	owned map[string]set.Set[ids.ID]
 
 	// payers that are exempt from [maxPayerSize]
-	exemptPayers map[string]struct{}
+	exemptPayers set.Set[string]
 }
 
 // New creates a new [Mempool]. [maxSize] must be > 0 or else the
@@ -44,19 +45,19 @@ func New[T Item](
 		maxSize:      maxSize,
 		maxPayerSize: maxPayerSize,
 
-		pm: NewSortedMempool[T](
+		pm: NewSortedMempool(
 			maxSize, /* pre-allocate total size */
 			func(item T) uint64 { return item.UnitPrice() },
 		),
-		tm: NewSortedMempool[T](
+		tm: NewSortedMempool(
 			maxSize, /* pre-allocate total size */
 			func(item T) uint64 { return uint64(item.Expiry()) },
 		),
-		owned:        map[string]map[ids.ID]struct{}{},
-		exemptPayers: map[string]struct{}{},
+		owned:        map[string]set.Set[ids.ID]{},
+		exemptPayers: set.Set[string]{},
 	}
 	for _, payer := range exemptPayers {
-		m.exemptPayers[string(payer)] = struct{}{}
+		m.exemptPayers.Add(string(payer))
 	}
 	return m
 }
@@ -68,7 +69,7 @@ func (th *Mempool[T]) removeFromOwned(item T) {
 		// May no longer be populated
 		return
 	}
-	delete(acct, item.ID())
+	acct.Remove(item.ID())
 	if len(acct) == 0 {
 		delete(th.owned, sender)
 	}
@@ -107,7 +108,6 @@ func (th *Mempool[T]) Add(ctx context.Context, items []T) {
 		// Optimistically add to both mempools
 		acct, ok := th.owned[sender]
 		if !ok {
-			acct = map[ids.ID]struct{}{}
 			th.owned[sender] = acct
 		}
 		_, exempt := th.exemptPayers[sender]
