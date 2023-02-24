@@ -44,6 +44,7 @@ func init() {
 		watchCmd,
 
 		createAssetCmd,
+		mintAssetCmd,
 
 		transferCmd,
 	)

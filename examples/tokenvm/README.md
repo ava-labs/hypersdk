@@ -62,6 +62,8 @@ For convenience, this key has is also stored at `demo.pk`.
 
 ### Step 1: Mint Your Asset
 
+### Step X: View Your Balance
+
 ### Step 2: Transfer Your Asset
 token18ccm7a2uadj8mctjghkg3fkrneqpptxceykvwm8x7vxyrwmxqf8qmxyzft
 

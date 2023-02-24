@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
 var createAssetCmd = &cobra.Command{
@@ -30,6 +31,7 @@ func createAssetFunc(_ *cobra.Command, args []string) error {
 		return err
 	}
 	factory := auth.NewED25519Factory(priv)
+	hutils.Outf("{{yellow}}loaded address:{{/}} %s\n", utils.Address(priv.PublicKey()))
 
 	ctx := context.Background()
 	cli := client.New(uri)
@@ -91,6 +93,6 @@ func createAssetFunc(_ *cobra.Command, args []string) error {
 	} else {
 		hutils.Outf("{{red}}transaction failed{{/}}\n")
 	}
-	hutils.Outf("{{yellow}}AssetID:{{/}} %s\n", tx.ID())
+	hutils.Outf("{{yellow}}assetID:{{/}} %s\n", tx.ID())
 	return nil
 }
