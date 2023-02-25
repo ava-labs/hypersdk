@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/ulimit"
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/tokenvm/version"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/controller"
@@ -40,6 +42,9 @@ func main() {
 }
 
 func runFunc(*cobra.Command, []string) error {
+	if err := ulimit.Set(ulimit.DefaultFDLimit, logging.NoLog{}); err != nil {
+		return fmt.Errorf("failed to set fd limit correctly due to: %s", err)
+	}
 	rpcchainvm.Serve(context.TODO(), controller.New())
 	return nil
 }
