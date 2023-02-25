@@ -65,14 +65,14 @@ func (sm *SortedMempool[T]) Remove(id ids.ID) {
 	if !ok {
 		return
 	}
-	sm.maxHeap.Remove(maxEntry.Index) // O(log N)
+	sm.maxHeap.RemoveByIndex(maxEntry.Index) // O(log N)
 	minEntry, ok := sm.minHeap.GetID(id)
 	if !ok {
 		// This should never happen, as that would mean the heaps are out of
 		// sync.
 		return
 	}
-	sm.minHeap.Remove(minEntry.Index) // O(log N)
+	sm.minHeap.RemoveByIndex(minEntry.Index) // O(log N)
 }
 
 // SetMinVal removes all elements in sm with a value less than [val]. Returns

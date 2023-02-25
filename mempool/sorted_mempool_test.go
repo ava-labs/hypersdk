@@ -7,7 +7,44 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/avalanchego/ids"
 )
+
+const testPayer = "testPayer"
+
+type MempoolTestItem struct {
+	id        ids.ID
+	payer     string
+	timestamp int64
+	unitPrice uint64
+}
+
+func (mti *MempoolTestItem) ID() ids.ID {
+	return mti.id
+}
+
+func (mti *MempoolTestItem) Payer() string {
+	return mti.payer
+}
+
+func (mti *MempoolTestItem) UnitPrice() uint64 {
+	return mti.unitPrice
+}
+
+func (mti *MempoolTestItem) Expiry() int64 {
+	return mti.timestamp
+}
+
+func GenerateTestItem(payer string, t int64, unitPrice uint64) *MempoolTestItem {
+	id := ids.GenerateTestID()
+	return &MempoolTestItem{
+		id:        id,
+		payer:     payer,
+		timestamp: t,
+		unitPrice: unitPrice,
+	}
+}
 
 func TestSortedMempoolNew(t *testing.T) {
 	// Creates empty min and max heaps
