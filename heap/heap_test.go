@@ -44,24 +44,24 @@ func TestUnit64HeapPushPopMin(t *testing.T) {
 		Val:   mempoolItem3.value,
 		Index: minHeap.Len(),
 	}
-	minHeap.Add(med)
-	minHeap.Add(low)
-	minHeap.Add(high)
+	minHeap.Push(med)
+	minHeap.Push(low)
+	minHeap.Push(high)
 	// Added all three
 	require.Equal(minHeap.Len(), 3, "Not pushed correctly.")
 	// Check if added to lookup table
-	_, ok := minHeap.lookup[med.ID]
+	ok := minHeap.Has(med.ID)
 	require.True(ok, "Item not found in lookup.")
-	_, ok = minHeap.lookup[low.ID]
+	ok = minHeap.Has(low.ID)
 	require.True(ok, "Item not found in lookup.")
-	_, ok = minHeap.lookup[high.ID]
+	ok = minHeap.Has(high.ID)
 	require.True(ok, "Item not found in lookup.")
 	// Pop and check popped correctly. Order should be 2, 1, 3
-	popped := minHeap.Remove()
+	popped := minHeap.Pop()
 	require.Equal(low, popped, "Incorrect item removed.")
-	popped = minHeap.Remove()
+	popped = minHeap.Pop()
 	require.Equal(med, popped, "Incorrect item removed.")
-	popped = minHeap.Remove()
+	popped = minHeap.Pop()
 	require.Equal(high, popped, "Incorrect item removed.")
 }
 
@@ -95,24 +95,24 @@ func TestUnit64HeapPushPopMax(t *testing.T) {
 		Val:   mempoolItem3.value,
 		Index: maxHeap.Len(),
 	}
-	maxHeap.Add(med)
-	maxHeap.Add(low)
-	maxHeap.Add(high)
+	maxHeap.Push(med)
+	maxHeap.Push(low)
+	maxHeap.Push(high)
 	// Added all three
 	require.Equal(maxHeap.Len(), 3, "Not pushed correctly.")
 	// Check if added to lookup table
-	_, ok := maxHeap.lookup[med.ID]
+	ok := maxHeap.Has(med.ID)
 	require.True(ok, "Item not found in lookup.")
-	_, ok = maxHeap.lookup[low.ID]
+	ok = maxHeap.Has(low.ID)
 	require.True(ok, "Item not found in lookup.")
-	_, ok = maxHeap.lookup[high.ID]
+	ok = maxHeap.Has(high.ID)
 	require.True(ok, "Item not found in lookup.")
 	// Pop and check popped correctly. Order should be 2, 1, 3
-	popped := maxHeap.Remove()
+	popped := maxHeap.Pop()
 	require.Equal(high, popped, "Incorrect item removed.")
-	popped = maxHeap.Remove()
+	popped = maxHeap.Pop()
 	require.Equal(med, popped, "Incorrect item removed.")
-	popped = maxHeap.Remove()
+	popped = maxHeap.Pop()
 	require.Equal(low, popped, "Incorrect item removed.")
 }
 
@@ -128,13 +128,13 @@ func TestUnit64HeapPushExists(t *testing.T) {
 		Val:   mempoolItem.value,
 		Index: minHeap.Len(),
 	}
-	minHeap.Add(entry)
+	minHeap.Push(entry)
 	// Pushed correctly
 	require.Equal(minHeap.Len(), 1, "Not pushed correctly.")
 	// Check if added to lookup table
-	_, ok := minHeap.lookup[entry.ID]
+	ok := minHeap.Has(entry.ID)
 	require.True(ok, "Item not found in lookup.")
-	minHeap.Add(entry)
+	minHeap.Push(entry)
 	// Only 1 item
 	require.Equal(minHeap.Len(), 1, "Not pushed correctly.")
 }
@@ -152,12 +152,12 @@ func TestUnit64HeapGetID(t *testing.T) {
 		Val:   mempoolItem.value,
 		Index: minHeap.Len(),
 	}
-	_, ok := minHeap.GetID(mempoolItem.id)
+	_, ok := minHeap.Get(mempoolItem.id)
 	require.False(ok, "Entry returned before pushing.")
-	minHeap.Add(entry)
+	minHeap.Push(entry)
 	// Pushed correctly
 	require.Equal(minHeap.Len(), 1, "Not pushed correctly.")
-	entryReturned, ok := minHeap.GetID(mempoolItem.id)
+	entryReturned, ok := minHeap.Get(mempoolItem.id)
 	require.True(ok, "Entry not returned.")
 	require.Equal(entry, entryReturned, "Returned incorrect entry")
 }
@@ -173,11 +173,11 @@ func TestUnit64HeapHasID(t *testing.T) {
 		Val:   mempoolItem.value,
 		Index: minHeap.Len(),
 	}
-	ok := minHeap.HasID(mempoolItem.id)
+	ok := minHeap.Has(mempoolItem.id)
 	require.False(ok, "Entry has ID before pushing.")
-	minHeap.Add(entry)
+	minHeap.Push(entry)
 	// Pushed correctly
 	require.Equal(minHeap.Len(), 1, "Not pushed correctly.")
-	ok = minHeap.HasID(mempoolItem.id)
+	ok = minHeap.Has(mempoolItem.id)
 	require.True(ok, "Entry was not found in heap.")
 }

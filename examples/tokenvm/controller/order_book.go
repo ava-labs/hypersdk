@@ -73,7 +73,7 @@ func (o *OrderBook) Add(pair string, order *Order) {
 		h = heap.New[*Order, float64](initialPairCapacity, true)
 		o.orders[pair] = h
 	}
-	h.Add(&heap.Entry[*Order, float64]{
+	h.Push(&heap.Entry[*Order, float64]{
 		ID:    order.ID,
 		Val:   float64(order.InTick) / float64(order.OutTick),
 		Item:  order,
@@ -95,12 +95,12 @@ func (o *OrderBook) Remove(id ids.ID) {
 		// This should never happen
 		return
 	}
-	entry, ok := h.GetID(id) // O(log 1)
+	entry, ok := h.Get(id) // O(log 1)
 	if !ok {
 		// This should never happen
 		return
 	}
-	h.RemoveByIndex(entry.Index) // O(log N)
+	h.Remove(entry.Index) // O(log N)
 }
 
 func (o *OrderBook) UpdateRemaining(id ids.ID, remaining uint64) {
@@ -115,7 +115,7 @@ func (o *OrderBook) UpdateRemaining(id ids.ID, remaining uint64) {
 		// This should never happen
 		return
 	}
-	entry, ok := h.GetID(id)
+	entry, ok := h.Get(id)
 	if !ok {
 		// This should never happen
 		return

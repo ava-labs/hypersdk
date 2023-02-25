@@ -62,8 +62,8 @@ func TestSortedMempoolAdd(t *testing.T) {
 	sortedMempool.Add(mempoolItem)
 	require.Equal(sortedMempool.minHeap.Len(), 1, "MaxHeap not pushed correctly")
 	require.Equal(sortedMempool.maxHeap.Len(), 1, "MaxHeap not pushed correctly")
-	require.True(sortedMempool.minHeap.HasID(mempoolItem.ID()), "MinHeap does not have ID")
-	require.True(sortedMempool.maxHeap.HasID(mempoolItem.ID()), "MaxHeap does not have ID")
+	require.True(sortedMempool.minHeap.Has(mempoolItem.ID()), "MinHeap does not have ID")
+	require.True(sortedMempool.maxHeap.Has(mempoolItem.ID()), "MaxHeap does not have ID")
 }
 
 func TestSortedMempoolRemove(t *testing.T) {
@@ -75,14 +75,14 @@ func TestSortedMempoolRemove(t *testing.T) {
 	sortedMempool.Add(mempoolItem)
 	require.Equal(sortedMempool.minHeap.Len(), 1, "MaxHeap not pushed correctly")
 	require.Equal(sortedMempool.maxHeap.Len(), 1, "MaxHeap not pushed correctly")
-	require.True(sortedMempool.minHeap.HasID(mempoolItem.ID()), "MinHeap does not have ID")
-	require.True(sortedMempool.maxHeap.HasID(mempoolItem.ID()), "MaxHeap does not have ID")
+	require.True(sortedMempool.minHeap.Has(mempoolItem.ID()), "MinHeap does not have ID")
+	require.True(sortedMempool.maxHeap.Has(mempoolItem.ID()), "MaxHeap does not have ID")
 	// Remove
 	sortedMempool.Remove(mempoolItem.ID())
 	require.Equal(sortedMempool.minHeap.Len(), 0, "MaxHeap not removed.")
 	require.Equal(sortedMempool.maxHeap.Len(), 0, "MaxHeap not removed.")
-	require.False(sortedMempool.minHeap.HasID(mempoolItem.ID()), "MinHeap still has ID")
-	require.False(sortedMempool.maxHeap.HasID(mempoolItem.ID()), "MaxHeap still has ID")
+	require.False(sortedMempool.minHeap.Has(mempoolItem.ID()), "MinHeap still has ID")
+	require.False(sortedMempool.maxHeap.Has(mempoolItem.ID()), "MaxHeap still has ID")
 }
 
 func TestSortedMempoolRemoveEmpty(t *testing.T) {

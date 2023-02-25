@@ -45,13 +45,13 @@ func (sm *SortedMempool[T]) Add(item T) {
 	itemID := item.ID()
 	poolLen := sm.maxHeap.Len()
 	val := sm.GetValue(item)
-	sm.maxHeap.Add(&heap.Entry[T, uint64]{
+	sm.maxHeap.Push(&heap.Entry[T, uint64]{
 		ID:    itemID,
 		Val:   val,
 		Item:  item,
 		Index: poolLen,
 	})
-	sm.minHeap.Add(&heap.Entry[T, uint64]{
+	sm.minHeap.Push(&heap.Entry[T, uint64]{
 		ID:    itemID,
 		Val:   val,
 		Item:  item,
@@ -61,18 +61,18 @@ func (sm *SortedMempool[T]) Add(item T) {
 
 // Remove removes [id] from sm. If the id does not exist, Remove returns.
 func (sm *SortedMempool[T]) Remove(id ids.ID) {
-	maxEntry, ok := sm.maxHeap.GetID(id) // O(1)
+	maxEntry, ok := sm.maxHeap.Get(id) // O(1)
 	if !ok {
 		return
 	}
-	sm.maxHeap.RemoveByIndex(maxEntry.Index) // O(log N)
-	minEntry, ok := sm.minHeap.GetID(id)
+	sm.maxHeap.Remove(maxEntry.Index) // O(log N)
+	minEntry, ok := sm.minHeap.Get(id)
 	if !ok {
 		// This should never happen, as that would mean the heaps are out of
 		// sync.
 		return
 	}
-	sm.minHeap.RemoveByIndex(minEntry.Index) // O(log N)
+	sm.minHeap.Remove(minEntry.Index) // O(log N)
 }
 
 // SetMinVal removes all elements in sm with a value less than [val]. Returns
@@ -136,7 +136,7 @@ func (sm *SortedMempool[T]) PopMax() (T, bool) {
 
 // Has returns if [item] is in sm.
 func (sm *SortedMempool[T]) Has(item ids.ID) bool {
-	return sm.minHeap.HasID(item)
+	return sm.minHeap.Has(item)
 }
 
 // Len returns the number of elements in sm.
