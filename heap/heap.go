@@ -118,7 +118,7 @@ func (th *Heap[I, V]) Items() []*Entry[I, V] {
 // Add can be called by external users instead of using `containers.heap`,
 // which makes using this heap less error-prone.
 //
-// Add is used interchangably with "Push".
+// Add is used interchangeably with "Push".
 func (th *Heap[I, V]) Add(e *Entry[I, V]) {
 	heap.Push(th, e)
 }
@@ -127,7 +127,7 @@ func (th *Heap[I, V]) Add(e *Entry[I, V]) {
 // a specific index instead of using `containers.heap`,
 // which makes using this heap less error-prone.
 //
-// Remove is used interchangably with "Pop".
+// Remove is used interchangeably with "Pop".
 func (th *Heap[I, V]) Remove() *Entry[I, V] {
 	if len(th.items) == 0 {
 		return nil
@@ -139,7 +139,7 @@ func (th *Heap[I, V]) Remove() *Entry[I, V] {
 // a specific index instead of using `containers.heap`,
 // which makes using this heap less error-prone.
 //
-// RemoveByIndex is used interchangably with "Remove".
+// RemoveByIndex is used interchangeably with "Remove".
 func (th *Heap[I, V]) RemoveByIndex(index int) *Entry[I, V] {
 	if index >= len(th.items) {
 		return nil
