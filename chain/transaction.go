@@ -142,7 +142,7 @@ func (t *Transaction) PreExecute(
 		return ErrInsufficientPrice
 	}
 	if _, err := t.Auth.Verify(ctx, r, db, t.Action); err != nil {
-		return fmt.Errorf("%w: %v", ErrAuthFailed, err)
+		return fmt.Errorf("%w: %v", ErrAuthFailed, err) //nolint:errorlint
 	}
 	return t.Auth.CanDeduct(ctx, db, t.MaxUnits(r)*unitPrice)
 }
