@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk
 go 1.19
 
 require (
-	github.com/ava-labs/avalanchego v1.9.8
+	github.com/ava-labs/avalanchego v1.9.9
 	github.com/cockroachdb/pebble v0.0.0-20230217215838-f01d8eff3f8b
 	github.com/golang/mock v1.6.0
 	github.com/gorilla/rpc v1.2.0
@@ -60,10 +60,10 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
 	golang.org/x/crypto v0.0.0-20221010152910-d6f0a8c073c2 // indirect
-	golang.org/x/net v0.1.0 // indirect
-	golang.org/x/sys v0.3.0 // indirect
-	golang.org/x/term v0.1.0 // indirect
-	golang.org/x/text v0.4.0 // indirect
+	golang.org/x/net v0.7.0 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/term v0.5.0 // indirect
+	golang.org/x/text v0.7.0 // indirect
 	gonum.org/v1/gonum v0.11.0 // indirect
 	google.golang.org/genproto v0.0.0-20221027153422-115e99e71e1c // indirect
 	google.golang.org/grpc v1.51.0 // indirect
