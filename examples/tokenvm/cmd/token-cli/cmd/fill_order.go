@@ -178,7 +178,7 @@ func fillOrderFunc(*cobra.Command, []string) error {
 			remainingStr = strconv.FormatUint(order.Remaining, 10)
 		}
 		hutils.Outf(
-			"%d) {{cyan}}Rate(in/out):{{/}} %.4f {{cyan}}InTick:{{/}} %s %s {{cyan}}OutTick:{{/}} %s %s {{cyan}}Remaining:{{/}} %s %s\n",
+			"%d) {{cyan}}Rate(in/out):{{/}} %.4f {{cyan}}InTick:{{/}} %s %s {{cyan}}OutTick:{{/}} %s %s {{cyan}}Remaining:{{/}} %s %s\n", //nolint:lll
 			i,
 			inTick/outTick,
 			inTickStr,

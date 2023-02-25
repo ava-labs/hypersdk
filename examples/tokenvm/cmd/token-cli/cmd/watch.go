@@ -85,7 +85,10 @@ func watchFunc(_ *cobra.Command, _ []string) error {
 				case *actions.BurnAsset:
 					summaryStr = fmt.Sprintf("%d %s -> 🔥", action.Value, action.Asset)
 				case *actions.ModifyAsset:
-					summaryStr = fmt.Sprintf("assetID: %s metadata:%s owner:%s", action.Asset, string(action.Metadata), tutils.Address(action.Owner))
+					summaryStr = fmt.Sprintf(
+						"assetID: %s metadata:%s owner:%s",
+						action.Asset, string(action.Metadata), tutils.Address(action.Owner),
+					)
 
 				case *actions.Transfer:
 					amountStr := strconv.FormatUint(action.Value, 10)
@@ -128,7 +131,10 @@ func watchFunc(_ *cobra.Command, _ []string) error {
 						remainingStr = utils.FormatBalance(or.Remaining)
 						outStr = consts.Symbol
 					}
-					summaryStr = fmt.Sprintf("%s %s -> %s %s (remaining: %s %s)", inAmtStr, inStr, outAmtStr, outStr, remainingStr, outStr)
+					summaryStr = fmt.Sprintf(
+						"%s %s -> %s %s (remaining: %s %s)",
+						inAmtStr, inStr, outAmtStr, outStr, remainingStr, outStr,
+					)
 				case *actions.CloseOrder:
 					summaryStr = fmt.Sprintf("orderID: %s", action.Order)
 				}
