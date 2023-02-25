@@ -40,7 +40,7 @@ func (h *Heap[I, V]) Has(id ids.ID) bool {
 // Items returns all items in the heap in sorted order. You should not modify
 // the response.
 func (h *Heap[I, V]) Items() []*Entry[I, V] {
-	return h.Items()
+	return h.ih.items
 }
 
 // Push can be called by external users instead of using `containers.heap`,
