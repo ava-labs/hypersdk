@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -39,6 +40,6 @@ func main() {
 }
 
 func runFunc(*cobra.Command, []string) error {
-	rpcchainvm.Serve(controller.New())
+	rpcchainvm.Serve(context.TODO(), controller.New())
 	return nil
 }
