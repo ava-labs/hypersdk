@@ -21,6 +21,8 @@ import (
 	formatter "github.com/onsi/ginkgo/v2/formatter"
 )
 
+const NativeDecimals = 9
+
 func ToID(bytes []byte) ids.ID {
 	return ids.ID(hashing.ComputeHash256Array(bytes))
 }
@@ -98,7 +100,7 @@ func GetHost(uri string) (string, error) {
 }
 
 func FormatBalance(bal uint64) string {
-	return fmt.Sprintf("%f", float64(bal)/math.Pow10(9))
+	return fmt.Sprintf("%f", float64(bal)/math.Pow10(NativeDecimals))
 }
 
 func ParseBalance(bal string) (uint64, error) {
@@ -106,7 +108,7 @@ func ParseBalance(bal string) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return uint64(f * math.Pow10(9)), nil
+	return uint64(f * math.Pow10(NativeDecimals)), nil
 }
 
 func Repeat[T any](v T, n int) []T {

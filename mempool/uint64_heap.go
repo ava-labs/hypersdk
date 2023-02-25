@@ -9,90 +9,89 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
-type Item interface {
-	ID() ids.ID
-	Payer() string
-	Expiry() int64
-	UnitPrice() uint64
+type Uint64Entry[T any] struct {
+	ID   ids.ID // id of entry
+	Item T      // associated item
+	Val  uint64 // Value to be prioritized
+
+	Index int // Index of the entry in heap
 }
 
-type uint64Entry[T Item] struct {
-	id   ids.ID // id of entry
-	item T      // associated item
-	val  uint64 // value to be prioritized
-
-	index int // index of the entry in heap
-}
-
-// uint64Heap[T] is used to track pending transactions by [val]
-type uint64Heap[T Item] struct {
+// Uint64Heap[T] is used to track pending transactions by [Val]
+type Uint64Heap[T any] struct {
 	isMinHeap bool                       // true for Min-Heap, false for Max-Heap
-	items     []*uint64Entry[T]          // items in this heap
-	lookup    map[ids.ID]*uint64Entry[T] // ids in the heap mapping to an entry
+	items     []*Uint64Entry[T]          // items in this heap
+	lookup    map[ids.ID]*Uint64Entry[T] // ids in the heap mapping to an entry
 }
 
-// newUint64Heap returns an instance of uint64Heap[T]
-func newUint64Heap[T Item](items int, isMinHeap bool) *uint64Heap[T] {
-	return &uint64Heap[T]{
+// newUint64Heap returns an instance of Uint64Heap[T]
+func NewUint64Heap[T any](items int, isMinHeap bool) *Uint64Heap[T] {
+	return &Uint64Heap[T]{
 		isMinHeap: isMinHeap,
 
-		items:  make([]*uint64Entry[T], 0, items),
-		lookup: make(map[ids.ID]*uint64Entry[T], items),
+		items:  make([]*Uint64Entry[T], 0, items),
+		lookup: make(map[ids.ID]*Uint64Entry[T], items),
 	}
 }
 
 // Len returns the number of items in th.
-func (th uint64Heap[T]) Len() int { return len(th.items) }
+func (th Uint64Heap[T]) Len() int { return len(th.items) }
 
 // Less compares the priority of [i] and [j] based on th.isMinHeap.
-func (th uint64Heap[T]) Less(i, j int) bool {
+func (th Uint64Heap[T]) Less(i, j int) bool {
 	if th.isMinHeap {
-		return th.items[i].val < th.items[j].val
+		return th.items[i].Val < th.items[j].Val
 	}
-	return th.items[i].val > th.items[j].val
+	return th.items[i].Val > th.items[j].Val
 }
 
 // Swap swaps the [i]th and [j]th element in th.
-func (th uint64Heap[T]) Swap(i, j int) {
+func (th Uint64Heap[T]) Swap(i, j int) {
 	th.items[i], th.items[j] = th.items[j], th.items[i]
-	th.items[i].index = i
-	th.items[j].index = j
+	th.items[i].Index = i
+	th.items[j].Index = j
 }
 
 // Push adds an *uint64Entry interface to th. If [x.id] is already in
 // th, returns.
-func (th *uint64Heap[T]) Push(x interface{}) {
-	entry, ok := x.(*uint64Entry[T])
+func (th *Uint64Heap[T]) Push(x interface{}) {
+	entry, ok := x.(*Uint64Entry[T])
 	if !ok {
-		panic(fmt.Errorf("unexpected %T, expected *uint64Entry", x))
+		panic(fmt.Errorf("unexpected %T, expected *Uint64Entry", x))
 	}
-	if th.HasID(entry.id) {
+	if th.HasID(entry.ID) {
 		return
 	}
 	th.items = append(th.items, entry)
-	th.lookup[entry.id] = entry
+	th.lookup[entry.ID] = entry
 }
 
 // Pop removes the highest priority item from th and also deletes it from
 // th's lookup map.
-func (th *uint64Heap[T]) Pop() interface{} {
+func (th *Uint64Heap[T]) Pop() interface{} {
 	n := len(th.items)
 	item := th.items[n-1]
 	th.items[n-1] = nil // avoid memory leak
 	th.items = th.items[0 : n-1]
-	delete(th.lookup, item.id)
+	delete(th.lookup, item.ID)
 	return item
 }
 
 // GetID returns the entry in th associated with [id], and a bool if [id] was
 // found in th.
-func (th *uint64Heap[T]) GetID(id ids.ID) (*uint64Entry[T], bool) {
+func (th *Uint64Heap[T]) GetID(id ids.ID) (*Uint64Entry[T], bool) {
 	entry, ok := th.lookup[id]
 	return entry, ok
 }
 
 // HasID returns whether [id] is found in th.
-func (th *uint64Heap[T]) HasID(id ids.ID) bool {
+func (th *Uint64Heap[T]) HasID(id ids.ID) bool {
 	_, has := th.GetID(id)
 	return has
+}
+
+// Items returns all items in the heap in sorted order. You should not modify
+// the response.
+func (th *Uint64Heap[T]) Items() []*Uint64Entry[T] {
+	return th.items
 }

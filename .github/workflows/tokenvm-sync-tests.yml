@@ -1,0 +1,32 @@
+# Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+# See the file LICENSE for licensing terms.
+
+name: TokenVM Sync Tests
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  pull_request:
+
+jobs:
+  tests:
+    runs-on:
+      labels: ubuntu-latest-16-cores
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.19
+      - name: Run sync tests
+        working-directory: ./examples/tokenvm
+        shell: bash
+        run: scripts/run.sh
+        env:
+          MODE: "full-test"

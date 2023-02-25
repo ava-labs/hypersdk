@@ -105,10 +105,14 @@ happen.
 `hypersdk` transactions must specify the keys they will touch in state (read
 or write) during execution and authentication so that all relevant data can be
 pre-fetched before block execution starts, which ensures all data accessed during
-verification of a block is done so in memory). This restriction also enables
-transactions to be processed in parallel as distinct, ordered transaction sets
-can be trivially formed by looking at the overlap of keys that transactions
-will touch.
+verification of a block is done so in memory). Notably, the keys specified here
+are not keys in a merkle trie (which may be quite volatile) but are instead the
+actual keys used to access data by the storage engine (like your address, which
+is much less volatile and not as cumbersome of a UX barrier).
+
+This restriction also enables transactions to be processed in parallel as distinct,
+ordered transaction sets can be trivially formed by looking at the overlap of keys
+that transactions will touch.
 
 _Parallel transaction execution was originally included in `hypersdk` but
 removed because the overhead of the naïve mechanism used to group transactions
@@ -212,11 +216,30 @@ and are stored alongside all other runtime logs. The unification of all of
 these functions with avalanchego means existing avalanchego monitoring tools
 work out of the box on your `hypervm`.
 
-## Example: `indexvm`
-We created the [`indexvm`](https://github.com/ava-labs/indexvm) while
-building the `hypersdk` to test out our design decisions and abstractions.
-We recommend taking a look at this `hypervm` to gain an in-depth understanding
-of how you can build a complex runtime on top of the `hypersdk`.
+## Examples
+### Beginner: `tokenvm`
+We created the [`tokenvm`](./examples/tokenvm) to showcase how to use the
+`hypersdk` in an application most readers are already familiar with, token minting
+and token trading. The `tokenvm` lets anyone create any asset, mint more of
+their asset, modify the metadata of their asset (if they reveal some info), and
+burn their asset. Additionally, there is an embedded on-chain exchange that
+allows anyone to create orders and fill (partial) orders of anyone else. To
+make this example easy to play with, the `tokenvm` also bundles a powerful CLI
+tool and serves RPC requests for trades out of an in-memory order book it
+maintains by syncing blocks. If you are interested in the intersection of
+exchanges and blockchains, it is definitely worth a read (the logic for filling
+orders is < 100 lines of code!).
+
+To ensure the `hypersdk` stays reliable as we optimize and evolve the codebase,
+we also run E2E tests in the `tokenvm` on each PR to the `hypersdk` core modules.
+
+### Expert: `indexvm`
+The [`indexvm`](https://github.com/ava-labs/indexvm) is much more complex than
+the `tokenvm` (more elaborate mechanisms and a new use case you may not be
+familiar with). It was built during the design of the `hypersdk` to test out the
+limits of the abstractions for building complex on-chain mechanisms. We recommend
+taking a look at this `hypervm` once you already have familiarity with the `hypersdk` to gain an
+even deeper understanding of how you can build a complex runtime on top of the `hypersdk`.
 
 The `indexvm` is dedicated to increasing the usefulness of the world's
 content-addressable data (like IPFS) by enabling anyone to "index it" by
@@ -238,7 +261,7 @@ a small part in this movement by making it easier for anyone to generate
 world-class recommendations for anyone on the internet, even if you've never
 interacted with them before.
 
-We'll use this example to explain how to use the `hypersdk` below.
+We'll use both of these `hypervms` to explain how to use the `hypersdk` below.
 
 ## How It Works
 To use the `hypersdk`, you must import it into your own `hypervm` and implement the
@@ -283,8 +306,8 @@ structures utilized by the `hypersdk` and handles both `Accepted` and
 `Gossiper`, `Handlers`, and `Database` packages so this is typically a lot of
 boilerplate code.
 
-You can view what this looks like in the `indexvm` by clicking this
-[link](https://github.com/ava-labs/indexvm/blob/main/controller/controller.go).
+You can view what this looks like in the `tokenvm` by clicking this
+[link](./examples/tokenvm/controller/controller.go).
 
 ### Genesis
 ```golang
@@ -300,8 +323,8 @@ start of the network (fee price, enabled txs, etc.). The serialized genesis of
 any `hyperchain` is persisted on the P-Chain for anyone to see when the network
 is created.
 
-You can view what this looks like in the `indexvm` by clicking this
-[link](https://github.com/ava-labs/indexvm/blob/main/genesis/genesis.go).
+You can view what this looks like in the `tokenvm` by clicking this
+[link](./examples/tokenvm/genesis/genesis.go).
 
 ### Action
 ```golang
@@ -321,8 +344,8 @@ the blockchain runtime. Specifically, they are "user-defined" element of
 any `hypersdk` transaction that is processed by all participants of any
 `hyperchain`.
 
-You can view what a simple transfer `Action` looks like [here](https://github.com/ava-labs/indexvm/blob/main/actions/transfer.go)
-and what a more complex "index" `Action` looks like [here](https://github.com/ava-labs/indexvm/blob/main/actions/index.go).
+You can view what a simple transfer `Action` looks like [here](./examples/tokenvm/actions/transfer.go)
+and what a more complex "fill order" `Action` looks like [here](./examples/tokenvm/actions/fill_order.go).
 
 ### Auth
 ```golang
@@ -407,8 +430,6 @@ out on the Avalanche Discord._
 * Use pre-specified state keys to process transactions in parallel (txs with no
   overlap can be processed at the same time, create conflict sets on-the-fly
   instead of before execution)
-* Perform E2E tests and publish nightly performance benchmarks using a simple
-  hypervm that just performs simple transfers (`dummyvm`)
 * Add support for Avalanche Warp Messaging (AWM) so any deployed hypervms
   (hyperchains) can communicate with each other ([see ava-labs/xsvm](https://github.com/ava-labs/xsvm))
 * Add a WASM runtime module to allow developers to embed smart contract
@@ -431,3 +452,9 @@ out on the Avalanche Discord._
 * Implement support for S3 and PostgreSQL storage backends
 * Provide optional auto-serialization/deserialization of `Actions` and `Auth`
   if only certain types are used in their definition
+* Add a module that could be used to track the location of various pieces
+  of data across a network ([see consistent
+  hasher](https://github.com/ava-labs/avalanchego/tree/master/utils/hashing/consistent))
+  of `hypervm` participants (even better if this is made abstract to any implementer
+  such that they can just register and request data from it and it is automatically
+  handled by the network layer)

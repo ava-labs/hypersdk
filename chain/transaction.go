@@ -96,8 +96,10 @@ func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 func (t *Transaction) UnitPrice() uint64 { return t.Base.UnitPrice }
 
 // It is ok to have duplicate ReadKeys...the processor will skip them
+//
+// TODO: verify the invariant that [t.id] is set by this point
 func (t *Transaction) StateKeys() [][]byte {
-	return append(t.Action.StateKeys(t.Auth), t.Auth.StateKeys()...)
+	return append(t.Action.StateKeys(t.Auth, t.ID()), t.Auth.StateKeys()...)
 }
 
 // Units is charged whether or not a transaction is successful because state
