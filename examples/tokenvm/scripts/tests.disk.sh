@@ -11,5 +11,53 @@ if ! [[ "$0" =~ scripts/tests.disk.sh ]]; then
   exit 255
 fi
 
-go install -v github.com/cunnie/gobonniego/gobonniego@3ef1d09d1be6d0aa7c760600be80e111393d8ed1
-gobonniego -v --runs 3 --size 100 --iops-duration=60
+# You need to install `fio` to run this job
+
+if ! command -v ginkgo &> /dev/null; then
+  echo "installing fio"
+  if [[ $OSTYPE == 'darwin'* ]]; then
+    echo 'macOS detected'
+    brew install -y fio
+  else
+    # Assume some variant of linux
+    sudo apt update
+    sudo apt install -y fio
+  fi
+else
+  echo "fio already installed"
+fi
+
+# This testing approach was inspired by this article:
+# https://cloud.google.com/compute/docs/disks/benchmarking-pd-performance
+echo "testing write throughput"
+rm -rf tmp-storage-testing
+mkdir -p tmp-storage-testing
+fio --name=write_throughput --directory=tmp-storage-testing --numjobs=16 \
+--size=10G --time_based --runtime=60s --ramp_time=2s \
+--direct=1 --verify=0 --bs=1M --iodepth=64 --rw=write \
+--group_reporting=1
+
+echo "testing write iops"
+rm -rf tmp-storage-testing
+mkdir -p tmp-storage-testing
+fio --name=write_iops --directory=tmp-storage-testing --size=10G \
+--time_based --runtime=60s --ramp_time=2s --direct=1 \
+--verify=0 --bs=4K --iodepth=256 --rw=randwrite --group_reporting=1
+
+echo "testing read throughput"
+rm -rf tmp-storage-testing
+mkdir -p tmp-storage-testing
+fio --name=read_throughput --directory=tmp-storage-testing --numjobs=16 \
+--size=10G --time_based --runtime=60s --ramp_time=2s \
+--direct=1 --verify=0 --bs=1M --iodepth=64 --rw=read \
+--group_reporting=1
+
+echo "testing read iops"
+rm -rf tmp-storage-testing
+mkdir -p tmp-storage-testing
+fio --name=read_iops --directory=tmp-storage-testing --size=10G \
+--time_based --runtime=60s --ramp_time=2s --direct=1 \
+--verify=0 --bs=4K --iodepth=256 --rw=randread --group_reporting=1
+
+echo "cleaning up..."
+rm -rf tmp-storage-testing
