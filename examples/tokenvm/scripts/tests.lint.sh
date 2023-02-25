@@ -2,7 +2,6 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-
 set -o errexit
 set -o pipefail
 set -e
@@ -34,7 +33,7 @@ TESTS=${TESTS:-"golangci_lint license_header"}
 
 # https://github.com/golangci/golangci-lint/releases
 function test_golangci_lint {
-  go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@v1.49.0 || true
+  go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2 || true
   golangci-lint run --config .golangci.yml
 }
 

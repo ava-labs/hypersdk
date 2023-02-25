@@ -5,9 +5,10 @@
   Mint, Transfer, and Trade User-Generated Tokens, All On-Chain
 </p>
 <p align="center">
+  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-static-analysis.yml/badge.svg" /></a>
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-unit-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-unit-tests.yml/badge.svg" /></a>
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-sync-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-sync-tests.yml/badge.svg" /></a>
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-static-analysis.yml/badge.svg" /></a>
+  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-load-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-load-tests.yml/badge.svg" /></a>
 </p>
 
 We created the [`tokenvm`](./examples/tokenvm) to showcase how to use the
@@ -284,6 +285,31 @@ height:5 txs:1 units:464 root:NUNNi2DyXeGL7jPPnWTeNpmjgtv9qgM131xQsNu4fXT9TkQzj
 height:6 txs:1 units:464 root:M5M5ZXNAPoBvkkjRCzpFD8qKkiuKpZKSYCSvdhby3gYA7GKww
 ✅ 2iTnmhJUiUvC3wrwx8KLkV4aCJJCWAwZVRE8YVp8i6LdpDTyqg actor: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp units: 464 summary (*actions.CloseOrder): [orderID: DZK5sQGk8jTyAfcPDxfHwdx5z9WFEFeqKQPgpNevLkeRV52xq]
 ```
+
+## Running a Load Test
+The `tokenvm` load test will provision 5 `tokenvms` and process 500k transfers
+on each between 10k different accounts.
+
+```bash
+./scripts/tests.load.sh
+```
+
+_This test SOLELY tests the speed of the `tokenvm`. It does not include any
+network delay or consensus overhead. It just tests the underlying performance
+of the `hypersdk` and the storage engine used (in this case MerkleDB on top of
+Pebble)._
+
+### Measuring Disk Speed
+This test is extremely sensitive to disk performance. When reporting any TPS
+results, please include the output of:
+
+```bash
+./scripts/tests.disk.sh
+```
+
+_Run this test RARELY. It writes/reads many GBs from your disk and can fry an
+SSD if you run it too often. We run this in CI to standardize the result of all
+load tests._
 
 ## Future Work
 _If you want to take the lead on any of these items, please

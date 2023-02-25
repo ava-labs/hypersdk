@@ -55,3 +55,4 @@ genesis.json
 
 dist/
 *.pk
+tmp-storage-testing
