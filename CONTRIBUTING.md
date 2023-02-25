@@ -8,7 +8,7 @@ Thank you for your interest in contributing to `hypersdk`! By contributing to hy
 
 To contribute to `hypersdk`, you'll need:
 
-- [Go](https://golang.org/dl/) 1.19 or higher
+- [Go](https://golang.org/dl/) 1.20 or higher
 
 ### Setting up your development environment
 
