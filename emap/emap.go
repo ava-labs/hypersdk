@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 )
 
 type bucket struct {
@@ -81,14 +82,14 @@ type EMap[T Item] struct {
 	mu sync.RWMutex
 
 	bh    *bucketHeap
-	seen  map[ids.ID]struct{} // Stores a set of unique tx ids
-	times map[int64]*bucket   // Uses timestamp as keys to map to buckets of ids.
+	seen  set.Set[ids.ID]   // Stores a set of unique tx ids
+	times map[int64]*bucket // Uses timestamp as keys to map to buckets of ids.
 }
 
 // NewEMap returns a pointer to a instance of an empty EMap struct.
 func NewEMap[T Item]() *EMap[T] {
 	return &EMap[T]{
-		seen:  make(map[ids.ID]struct{}),
+		seen:  set.Set[ids.ID]{},
 		times: make(map[int64]*bucket),
 		bh: &bucketHeap{
 			buckets: []*bucket{},
@@ -117,10 +118,10 @@ func (e *EMap[T]) add(id ids.ID, t int64) {
 	}
 
 	// Check if already exists
-	if _, ok := e.seen[id]; ok {
+	if e.seen.Contains(id) {
 		return
 	}
-	e.seen[id] = struct{}{}
+	e.seen.Add(id)
 
 	// Check if bucket with time already exists
 	if b, ok := e.times[t]; ok {
@@ -151,7 +152,7 @@ func (e *EMap[T]) SetMin(t int64) []ids.ID {
 		}
 		heap.Pop(e.bh)
 		for _, id := range b.items {
-			delete(e.seen, id)
+			e.seen.Remove(id)
 			evicted = append(evicted, id)
 		}
 		// Delete from times map
@@ -166,7 +167,7 @@ func (e *EMap[T]) Any(items []T) bool {
 	defer e.mu.RUnlock()
 
 	for _, item := range items {
-		if _, ok := e.seen[item.ID()]; ok {
+		if e.seen.Contains(item.ID()) {
 			return true
 		}
 	}

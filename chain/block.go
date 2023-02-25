@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -75,7 +76,7 @@ type StatelessBlock struct {
 	st     choices.Status
 	t      time.Time
 	bytes  []byte
-	txsSet map[ids.ID]struct{}
+	txsSet set.Set[ids.ID]
 
 	results []*Result
 
@@ -135,7 +136,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 	// Process transactions
 	_, sspan := vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
 	actionRegistry, authRegistry := b.vm.Registry()
-	b.txsSet = map[ids.ID]struct{}{}
+	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
 		sigTask, err := tx.Init(ctx, actionRegistry, authRegistry)
 		if err != nil {
@@ -144,10 +145,10 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 		if verifySigs {
 			b.sigJob.Go(sigTask)
 		}
-		if _, ok := b.txsSet[tx.ID()]; ok {
+		if b.txsSet.Contains(tx.ID()) {
 			return ErrDuplicateTx
 		}
-		b.txsSet[tx.ID()] = struct{}{}
+		b.txsSet.Add(tx.ID())
 	}
 	b.sigJob.Done(func() { sspan.End() })
 	return nil
@@ -562,7 +563,7 @@ func (b *StatelessBlock) IsRepeat(
 
 	// Check if block contains any overlapping txs
 	for _, tx := range txs {
-		if _, ok := b.txsSet[tx.ID()]; ok {
+		if b.txsSet.Contains(tx.ID()) {
 			return true, nil
 		}
 	}

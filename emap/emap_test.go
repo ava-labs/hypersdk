@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/stretchr/testify/require"
 )
 
@@ -187,7 +188,7 @@ func TestEmapNew(t *testing.T) {
 	require := require.New(t)
 	e := NewEMap[*TestTx]()
 	emptyE := &EMap[*TestTx]{
-		seen:  make(map[ids.ID]struct{}),
+		seen:  set.Set[ids.ID]{},
 		times: make(map[int64]*bucket),
 		bh: &bucketHeap{
 			buckets: []*bucket{},
@@ -201,7 +202,7 @@ func TestEmapNew(t *testing.T) {
 func TestEmapAddIDGenesis(t *testing.T) {
 	require := require.New(t)
 	e := &EMap[*TestTx]{
-		seen:  make(map[ids.ID]struct{}),
+		seen:  set.Set[ids.ID]{},
 		times: make(map[int64]*bucket),
 		bh: &bucketHeap{
 			buckets: []*bucket{},
@@ -227,7 +228,7 @@ func TestEmapAddIDNewBucket(t *testing.T) {
 	require := require.New(t)
 
 	e := &EMap[*TestTx]{
-		seen:  make(map[ids.ID]struct{}),
+		seen:  set.Set[ids.ID]{},
 		times: make(map[int64]*bucket),
 		bh: &bucketHeap{
 			buckets: []*bucket{},
@@ -256,7 +257,7 @@ func TestEmapAddIDExists(t *testing.T) {
 	require := require.New(t)
 
 	e := &EMap[*TestTx]{
-		seen:  make(map[ids.ID]struct{}),
+		seen:  set.Set[ids.ID]{},
 		times: make(map[int64]*bucket),
 		bh: &bucketHeap{
 			buckets: []*bucket{},
@@ -289,7 +290,7 @@ func TestEmapAddIDBucketExists(t *testing.T) {
 	require := require.New(t)
 
 	e := &EMap[*TestTx]{
-		seen:  make(map[ids.ID]struct{}),
+		seen:  set.Set[ids.ID]{},
 		times: make(map[int64]*bucket),
 		bh: &bucketHeap{
 			buckets: []*bucket{},
@@ -326,7 +327,7 @@ func TestEmapAddIDBucketExists(t *testing.T) {
 func TestEmapAny(t *testing.T) {
 	require := require.New(t)
 	e := &EMap[*TestTx]{
-		seen:  make(map[ids.ID]struct{}),
+		seen:  set.Set[ids.ID]{},
 		times: make(map[int64]*bucket),
 		bh: &bucketHeap{
 			buckets: []*bucket{},
@@ -348,7 +349,7 @@ func TestSetMin(t *testing.T) {
 	// to be removed with timestamp t less than min
 	require := require.New(t)
 	e := &EMap[*TestTx]{
-		seen:  make(map[ids.ID]struct{}),
+		seen:  set.Set[ids.ID]{},
 		times: make(map[int64]*bucket),
 		bh: &bucketHeap{
 			buckets: []*bucket{},
@@ -392,7 +393,7 @@ func TestSetMinPopsAll(t *testing.T) {
 	// buckets and ids in EMap.
 	require := require.New(t)
 	e := &EMap[*TestTx]{
-		seen:  make(map[ids.ID]struct{}),
+		seen:  set.Set[ids.ID]{},
 		times: make(map[int64]*bucket),
 		bh: &bucketHeap{
 			buckets: []*bucket{},
@@ -415,7 +416,7 @@ func TestSetMinPopsAll(t *testing.T) {
 	require.Equal(pushedIds, removedIds, "Not all ids were returned")
 	// Check EMap is empty
 	emptyEmap := &EMap[*TestTx]{
-		seen:  make(map[ids.ID]struct{}),
+		seen:  set.Set[ids.ID]{},
 		times: make(map[int64]*bucket),
 		bh: &bucketHeap{
 			buckets: []*bucket{},

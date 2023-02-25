@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"github.com/ava-labs/hypersdk/chain"
 	"go.uber.org/zap"
@@ -129,7 +130,7 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 			return err
 		}
 
-		if err := g.vm.AppSender().SendAppGossipSpecific(ctx, map[ids.NodeID]struct{}{proposer: {}}, b); err != nil {
+		if err := g.vm.AppSender().SendAppGossipSpecific(ctx, set.Set[ids.NodeID]{proposer: {}}, b); err != nil {
 			g.vm.Logger().Warn(
 				"GossipTxs failed",
 				zap.Stringer("node", proposer),
