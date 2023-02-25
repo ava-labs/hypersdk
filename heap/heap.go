@@ -11,7 +11,7 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
-var _ heap.Interface = (*Heap[interface{}, uint64])(nil)
+var _ heap.Interface = (*Heap[any, uint64])(nil)
 
 type Entry[I any, V constraints.Ordered] struct {
 	ID   ids.ID // id of entry
@@ -21,7 +21,10 @@ type Entry[I any, V constraints.Ordered] struct {
 	Index int // Index of the entry in heap
 }
 
-// Heap[I,V] is used to track objectes of [I] by [Val].
+// Heap[I,V] is used to track objects of [I] by [Val].
+//
+// This data structure does not perform any synchronization and is not
+// safe to use concurrently without external locking.
 type Heap[I any, V constraints.Ordered] struct {
 	isMinHeap bool                    // true for Min-Heap, false for Max-Heap
 	items     []*Entry[I, V]          // items in this heap
@@ -42,6 +45,9 @@ func New[I any, V constraints.Ordered](items int, isMinHeap bool) *Heap[I, V] {
 func (th *Heap[I, V]) Len() int { return len(th.items) }
 
 // Less compares the priority of [i] and [j] based on th.isMinHeap.
+//
+// This should never be called by an external caller and is required to
+// confirm to `heap.Interface`.
 func (th *Heap[I, V]) Less(i, j int) bool {
 	if th.isMinHeap {
 		return th.items[i].Val < th.items[j].Val
@@ -50,6 +56,9 @@ func (th *Heap[I, V]) Less(i, j int) bool {
 }
 
 // Swap swaps the [i]th and [j]th element in th.
+//
+// This should never be called by an external caller and is required to
+// confirm to `heap.Interface`.
 func (th *Heap[I, V]) Swap(i, j int) {
 	th.items[i], th.items[j] = th.items[j], th.items[i]
 	th.items[i].Index = i
@@ -58,7 +67,10 @@ func (th *Heap[I, V]) Swap(i, j int) {
 
 // Push adds an *Entry interface to th. If [x.id] is already in
 // th, returns.
-func (th *Heap[I, V]) Push(x interface{}) {
+//
+// This should never be called by an external caller and is required to
+// confirm to `heap.Interface`.
+func (th *Heap[I, V]) Push(x any) {
 	entry, ok := x.(*Entry[I, V])
 	if !ok {
 		panic(fmt.Errorf("unexpected %T, expected *Uint64Entry", x))
@@ -72,7 +84,10 @@ func (th *Heap[I, V]) Push(x interface{}) {
 
 // Pop removes the highest priority item from th and also deletes it from
 // th's lookup map.
-func (th *Heap[I, V]) Pop() interface{} {
+//
+// This should never be called by an external caller and is required to
+// confirm to `heap.Interface`.
+func (th *Heap[I, V]) Pop() any {
 	n := len(th.items)
 	item := th.items[n-1]
 	th.items[n-1] = nil // avoid memory leak
@@ -98,4 +113,47 @@ func (th *Heap[I, V]) HasID(id ids.ID) bool {
 // the response.
 func (th *Heap[I, V]) Items() []*Entry[I, V] {
 	return th.items
+}
+
+// Add can be called by external users instead of using `containers.heap`,
+// which makes using this heap less error-prone.
+//
+// Add is used interchangably with "Push".
+func (th *Heap[I, V]) Add(e *Entry[I, V]) {
+	heap.Push(th, e)
+}
+
+// Remove can be called by external users to remove an object from the heap at
+// a specific index instead of using `containers.heap`,
+// which makes using this heap less error-prone.
+//
+// Remove is used interchangably with "Pop".
+func (th *Heap[I, V]) Remove() *Entry[I, V] {
+	if len(th.items) == 0 {
+		return nil
+	}
+	return heap.Pop(th).(*Entry[I, V])
+}
+
+// RemoveByIndex can be called by external users to remove an object from the heap at
+// a specific index instead of using `containers.heap`,
+// which makes using this heap less error-prone.
+//
+// RemoveByIndex is used interchangably with "Remove".
+func (th *Heap[I, V]) RemoveByIndex(index int) *Entry[I, V] {
+	if index >= len(th.items) {
+		return nil
+	}
+	return heap.Remove(th, index).(*Entry[I, V])
+}
+
+// First returns the first item in the heap. This is the smallest item in
+// a minHeap and the largest item in a maxHeap.
+//
+// If no items are in the heap, it will return nil.
+func (th *Heap[I, V]) First() *Entry[I, V] {
+	if len(th.items) == 0 {
+		return nil
+	}
+	return th.items[0]
 }
