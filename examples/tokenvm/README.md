@@ -102,7 +102,10 @@ be valid only until a particular time. This enables you to go for orders as you
 see fit at the time and not have to worry about your fill sitting around until you
 explicitly cancel it/replace it.
 
-## Demo
+## Mint and Trade Demo
+Someone: "Seems cool but I need to see it to really get it."
+Me: "Look no further."
+
 The first step to running this demo is to launch your own `tokenvm` Subnet. You
 can do so by running the following command from this location:
 ```bash
@@ -116,16 +119,22 @@ key for this address is
 For convenience, this key has is also stored at `demo.pk`.
 
 ### Step 1: Build the CLI
-To interact...
+To make it easy to interact with the `tokenvm`, we implemented the `token-cli`.
+You can build it using the following command from this location:
 ```bash
 ./scripts/build.sh
 ```
 
-### Step 1: Create Your Asset
+This command will put the compiled CLI in `./build/token-cli`.
+
+### Step 2: Create Your Asset
+First up, let's create our own asset. You can do so by running the following
+command from this location:
 ```bash
 ./build/token-cli create-asset
 ```
 
+When you are done, the output should look something like this:
 ```
 loaded address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
 
@@ -135,11 +144,18 @@ transaction succeeded
 assetID: 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF
 ```
 
-### Step 1: Mint Your Asset
+The "loaded address" here is the address of the default private key (`demo.pk`). We
+use this key to authenticate all interactions with the `tokenvm`.
+
+### Step 3: Mint Your Asset
+After we've created our own asset, we can now mint some of it. You can do so by
+running the following command from this location:
 ```bash
 ./build/token-cli mint-asset
 ```
 
+When you are done, the output should look something like this (usually easiest
+just to mint to yourself).
 ```
 loaded address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
 
@@ -152,11 +168,14 @@ transaction succeeded
 txID: 2TX47uKj1ax4rS8oFzPLrwBDkRXwAUwPHL6cToDT8BmeAYTANo
 ```
 
-### Step X: View Your Balance
+### Step 4: View Your Balance
+Now, let's check that the mint worked right by checking our balance. You can do
+so by running the following command from this location:
 ```bash
 ./build/token-cli balance
 ```
 
+When you are done, the output should look something like this:
 ```
 loaded address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
 
@@ -165,11 +184,15 @@ assetID (use TKN for native token): 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyD
 balance: 10000 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF
 ```
 
-### Step 3: Create an Order
+### Step 5: Create an Order
+So, we have some of our token (`MarioCoin`)...now what? Let's put an order
+on-chain that will allow someone to trade the native token (`TKN`) for some.
+You can do so by running the following command from this location:
 ```bash
 ./build/token-cli create-order
 ```
 
+When you are done, the output should look something like this:
 ```
 loaded address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
 
@@ -186,11 +209,19 @@ transaction succeeded
 orderID: DZK5sQGk8jTyAfcPDxfHwdx5z9WFEFeqKQPgpNevLkeRV52xq
 ```
 
-### Step 4: Fill Part of the Order (view orders)
+The "in tick" is how much of the "in assetID" that someone must trade to get
+"out tick" of the "out assetID". Any fill of this order must send a multiple of
+"in tick" to be considered valid (this avoid ANY sort of precision issues with
+computing decimal rates on-chain).
+
+### Step 6: Fill Part of the Order
+Now that we have an order on-chain, let's fill it! You can do so by running the
+following command from this location:
 ```bash
 ./build/token-cli fill-order
 ```
 
+When you are done, the output should look something like this:
 ```
 loaded address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
 
@@ -208,11 +239,18 @@ transaction succeeded
 txID: gMPc9DhFLthpb5DEtFBrXTrs8wK7FA31P3xd5w518Xbq76K6q
 ```
 
+Note how all available orders for this pair are listed by the CLI (these come
+from the in-memory order book maintained by the `tokenvm`).
+
 ### Step 5: Close Order
+Let's say we now changed our mind and no longer want to allow others to fill
+our order. You can cancel it by running the following command from this
+location:
 ```bash
 ./build/token-cli close-order
 ```
 
+When you are done, the output should look something like this:
 ```
 loaded address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
 
@@ -223,11 +261,20 @@ transaction succeeded
 txID: 2iTnmhJUiUvC3wrwx8KLkV4aCJJCWAwZVRE8YVp8i6LdpDTyqg
 ```
 
-### Can watch in real-time
+Any funds that were locked up in the order will be returned to the creator's
+account.
+
+### Bonus: Watch Activity in Real-Time
+To provide a better sense of what is actually happening on-chain, the
+`index-cli` comes bundled with a simple explorer that logs all blocks/txs that
+occur on-chain. You can run this utility by running the following command from
+this location:
 ```bash
 ./build/token-cli watch
 ```
 
+If you run it correctly, you'll see the following input (will run until the
+network shuts down or you exit):
 ```
 watching for new blocks 👀
 height:4 txs:1 units:1536 root:2wZfnnPMeUFgEtJdtLbKA1JFpRvZNNbDCCy2gWyEfpqWwL9HpL
