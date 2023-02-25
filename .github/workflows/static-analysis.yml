@@ -24,3 +24,7 @@ jobs:
       - name: Run static analysis tests
         shell: bash
         run: scripts/tests.lint.sh
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true

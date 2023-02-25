@@ -34,3 +34,7 @@ jobs:
         run: scripts/run.sh
         env:
           MODE: "test"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true

@@ -24,3 +24,7 @@ jobs:
       - name: Run unit tests
         shell: bash
         run: scripts/tests.unit.sh
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
