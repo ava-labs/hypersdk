@@ -7,8 +7,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 const (
@@ -27,11 +27,11 @@ func (vm *VM) SuggestedFee(ctx context.Context) (uint64, uint64, error) {
 
 	// We scale down unit price to prevent a spiral up in price
 	r := vm.c.Rules(time.Now().Unix())
-	return utils.Max(
+	return math.Max(
 			uint64(float64(preferred.UnitPrice)*feeScaler),
 			r.GetMinUnitPrice(),
 		),
-		utils.Max(
+		math.Max(
 			uint64(float64(preferred.BlockCost)*feeScaler),
 			r.GetMinBlockCost(),
 		), nil

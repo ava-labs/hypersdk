@@ -27,20 +27,6 @@ func ToID(bytes []byte) ids.ID {
 	return ids.ID(hashing.ComputeHash256Array(bytes))
 }
 
-func Max(x, y uint64) uint64 {
-	if x > y {
-		return x
-	}
-	return y
-}
-
-func Min(x, y uint64) uint64 {
-	if x < y {
-		return x
-	}
-	return y
-}
-
 func InitSubDirectory(rootPath string, name string) (string, error) {
 	p := path.Join(rootPath, name)
 	return p, os.MkdirAll(p, perms.ReadWriteExecute)
