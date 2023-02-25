@@ -4,11 +4,12 @@
 package mempool
 
 import (
-	"container/heap"
-
 	"github.com/ava-labs/avalanchego/ids"
+
+	"github.com/ava-labs/hypersdk/heap"
 )
 
+// Item is the interface that any item put in the mempool must adheare to.
 type Item interface {
 	ID() ids.ID
 	Payer() string
@@ -18,12 +19,15 @@ type Item interface {
 
 // SortedMempool contains a max-heap and min-heap. The order within each
 // heap is determined by using GetValue.
+//
+// This data structure does not perform any synchronization and is not
+// safe to use concurrently without external locking.
 type SortedMempool[T Item] struct {
 	// GetValue informs heaps how to get the an entry's value for ordering.
 	GetValue func(item T) uint64
 
-	minHeap *Uint64Heap[T] // only includes lowest nonce
-	maxHeap *Uint64Heap[T] // only includes lowest nonce
+	minHeap *heap.Heap[T, uint64] // only includes lowest nonce
+	maxHeap *heap.Heap[T, uint64] // only includes lowest nonce
 }
 
 // NewSortedMempool returns an instance of SortedMempool with minHeap and maxHeap
@@ -31,8 +35,8 @@ type SortedMempool[T Item] struct {
 func NewSortedMempool[T Item](items int, f func(item T) uint64) *SortedMempool[T] {
 	return &SortedMempool[T]{
 		GetValue: f,
-		minHeap:  NewUint64Heap[T](items, true),
-		maxHeap:  NewUint64Heap[T](items, false),
+		minHeap:  heap.New[T, uint64](items, true),
+		maxHeap:  heap.New[T, uint64](items, false),
 	}
 }
 
@@ -41,13 +45,13 @@ func (sm *SortedMempool[T]) Add(item T) {
 	itemID := item.ID()
 	poolLen := sm.maxHeap.Len()
 	val := sm.GetValue(item)
-	heap.Push(sm.maxHeap, &Uint64Entry[T]{
+	sm.maxHeap.Push(&heap.Entry[T, uint64]{
 		ID:    itemID,
 		Val:   val,
 		Item:  item,
 		Index: poolLen,
 	})
-	heap.Push(sm.minHeap, &Uint64Entry[T]{
+	sm.minHeap.Push(&heap.Entry[T, uint64]{
 		ID:    itemID,
 		Val:   val,
 		Item:  item,
@@ -57,23 +61,22 @@ func (sm *SortedMempool[T]) Add(item T) {
 
 // Remove removes [id] from sm. If the id does not exist, Remove returns.
 func (sm *SortedMempool[T]) Remove(id ids.ID) {
-	maxEntry, ok := sm.maxHeap.GetID(id) // O(1)
+	maxEntry, ok := sm.maxHeap.Get(id) // O(1)
 	if !ok {
 		return
 	}
-	heap.Remove(sm.maxHeap, maxEntry.Index) // O(log N)
-	minEntry, ok := sm.minHeap.GetID(id)
+	sm.maxHeap.Remove(maxEntry.Index) // O(log N)
+	minEntry, ok := sm.minHeap.Get(id)
 	if !ok {
 		// This should never happen, as that would mean the heaps are out of
 		// sync.
 		return
 	}
-	heap.Remove(sm.minHeap, minEntry.Index) // O(log N)
+	sm.minHeap.Remove(minEntry.Index) // O(log N)
 }
 
 // SetMinVal removes all elements in sm with a value less than [val]. Returns
 // the list of removed elements.
-// TODO: add lock to prevent concurrent access
 func (sm *SortedMempool[T]) SetMinVal(val uint64) []T {
 	removed := []T{}
 	for {
@@ -93,43 +96,47 @@ func (sm *SortedMempool[T]) SetMinVal(val uint64) []T {
 
 // PeekMin returns the minimum value in sm.
 func (sm *SortedMempool[T]) PeekMin() (T, bool) {
-	if sm.minHeap.Len() == 0 {
+	first := sm.minHeap.First()
+	if first == nil {
 		return *new(T), false
 	}
-	return sm.minHeap.items[0].Item, true
+	return first.Item, true
 }
 
 // PopMin removes the minimum value in sm.
 func (sm *SortedMempool[T]) PopMin() (T, bool) {
-	if sm.minHeap.Len() == 0 {
+	first := sm.minHeap.First()
+	if first == nil {
 		return *new(T), false
 	}
-	item := sm.minHeap.items[0].Item
+	item := first.Item
 	sm.Remove(item.ID())
 	return item, true
 }
 
 // PopMin returns the maximum value in sm.
 func (sm *SortedMempool[T]) PeekMax() (T, bool) {
-	if sm.Len() == 0 {
+	first := sm.maxHeap.First()
+	if first == nil {
 		return *new(T), false
 	}
-	return sm.maxHeap.items[0].Item, true
+	return first.Item, true
 }
 
 // PopMin removes the maximum value in sm.
 func (sm *SortedMempool[T]) PopMax() (T, bool) {
-	if sm.Len() == 0 {
+	first := sm.maxHeap.First()
+	if first == nil {
 		return *new(T), false
 	}
-	item := sm.maxHeap.items[0].Item
+	item := first.Item
 	sm.Remove(item.ID())
 	return item, true
 }
 
 // Has returns if [item] is in sm.
 func (sm *SortedMempool[T]) Has(item ids.ID) bool {
-	return sm.minHeap.HasID(item)
+	return sm.minHeap.Has(item)
 }
 
 // Len returns the number of elements in sm.

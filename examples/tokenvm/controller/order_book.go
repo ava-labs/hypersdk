@@ -4,12 +4,11 @@
 package controller
 
 import (
-	"container/heap"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/heap"
 	"go.uber.org/zap"
 )
 
@@ -34,7 +33,7 @@ type OrderBook struct {
 	// TODO: consider capping the number of orders in each heap (need to ensure
 	// that doing so does not make it possible to send a bunch of small, spam
 	// orders to clear -> may need to set a min order limit to watch)
-	orders      map[string]*utils.Float64Heap[*Order]
+	orders      map[string]*heap.Heap[*Order, float64]
 	orderToPair map[ids.ID]string // needed to delete from [CloseOrder] actions
 	l           sync.RWMutex
 
@@ -42,7 +41,7 @@ type OrderBook struct {
 }
 
 func NewOrderBook(c *Controller, trackedPairs []string) *OrderBook {
-	m := map[string]*utils.Float64Heap[*Order]{}
+	m := map[string]*heap.Heap[*Order, float64]{}
 	trackAll := false
 	if len(trackedPairs) == 1 && trackedPairs[0] == allPairs {
 		trackAll = true
@@ -50,7 +49,7 @@ func NewOrderBook(c *Controller, trackedPairs []string) *OrderBook {
 	} else {
 		for _, pair := range trackedPairs {
 			// We use a max heap so we return the best rates in order.
-			m[pair] = utils.NewFloat64Heap[*Order](initialPairCapacity, true)
+			m[pair] = heap.New[*Order, float64](initialPairCapacity, true)
 			c.inner.Logger().Info("tracking order book", zap.String("pair", pair))
 		}
 	}
@@ -71,10 +70,10 @@ func (o *OrderBook) Add(pair string, order *Order) {
 		return
 	case !ok && o.trackAll:
 		o.c.inner.Logger().Info("tracking order book", zap.String("pair", pair))
-		h = utils.NewFloat64Heap[*Order](initialPairCapacity, true)
+		h = heap.New[*Order, float64](initialPairCapacity, true)
 		o.orders[pair] = h
 	}
-	heap.Push(h, &utils.Float64Entry[*Order]{
+	h.Push(&heap.Entry[*Order, float64]{
 		ID:    order.ID,
 		Val:   float64(order.InTick) / float64(order.OutTick),
 		Item:  order,
@@ -96,12 +95,12 @@ func (o *OrderBook) Remove(id ids.ID) {
 		// This should never happen
 		return
 	}
-	entry, ok := h.GetID(id) // O(log 1)
+	entry, ok := h.Get(id) // O(log 1)
 	if !ok {
 		// This should never happen
 		return
 	}
-	heap.Remove(h, entry.Index) // O(log N)
+	h.Remove(entry.Index) // O(log N)
 }
 
 func (o *OrderBook) UpdateRemaining(id ids.ID, remaining uint64) {
@@ -116,7 +115,7 @@ func (o *OrderBook) UpdateRemaining(id ids.ID, remaining uint64) {
 		// This should never happen
 		return
 	}
-	entry, ok := h.GetID(id)
+	entry, ok := h.Get(id)
 	if !ok {
 		// This should never happen
 		return
