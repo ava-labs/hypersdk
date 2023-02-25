@@ -11,5 +11,5 @@ if ! [[ "$0" =~ scripts/tests.disk.sh ]]; then
   exit 255
 fi
 
-go install -v github.com/cunnie/gobonniego/gobonniego@latest
-gobonniego
+go install -v github.com/cunnie/gobonniego/gobonniego@3ef1d09d1be6d0aa7c760600be80e111393d8ed1
+gobonniego -v --runs 3 --size 100 --iops-duration=60
