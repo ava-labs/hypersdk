@@ -29,35 +29,35 @@ fi
 
 # This testing approach was inspired by this article:
 # https://cloud.google.com/compute/docs/disks/benchmarking-pd-performance
-echo "testing write throughput"
+echo -e "\033[0;32mtesting write throughput\033[0m"
 rm -rf tmp-storage-testing
 mkdir -p tmp-storage-testing
-fio --name=write_throughput --directory=tmp-storage-testing --numjobs=16 \
---size=10G --time_based --runtime=60s --ramp_time=2s \
+fio --name=write_throughput --directory=tmp-storage-testing --numjobs=5 \
+--size=10G --time_based --runtime=30s --ramp_time=2s \
 --direct=1 --verify=0 --bs=1M --iodepth=64 --rw=write \
 --group_reporting=1
 
-echo "testing write iops"
+echo -e "\033[0;32mtesting write iops\033[0m"
 rm -rf tmp-storage-testing
 mkdir -p tmp-storage-testing
 fio --name=write_iops --directory=tmp-storage-testing --size=10G \
---time_based --runtime=60s --ramp_time=2s --direct=1 \
+--time_based --runtime=30s --ramp_time=2s --direct=1 \
 --verify=0 --bs=4K --iodepth=256 --rw=randwrite --group_reporting=1
 
-echo "testing read throughput"
+echo -e "\033[0;32mtesting read throughput\033[0m"
 rm -rf tmp-storage-testing
 mkdir -p tmp-storage-testing
-fio --name=read_throughput --directory=tmp-storage-testing --numjobs=16 \
---size=10G --time_based --runtime=60s --ramp_time=2s \
+fio --name=read_throughput --directory=tmp-storage-testing --numjobs=5 \
+--size=10G --time_based --runtime=30s --ramp_time=2s \
 --direct=1 --verify=0 --bs=1M --iodepth=64 --rw=read \
 --group_reporting=1
 
-echo "testing read iops"
+echo -e "\033[0;32mtesting read iops\033[0m"
 rm -rf tmp-storage-testing
 mkdir -p tmp-storage-testing
 fio --name=read_iops --directory=tmp-storage-testing --size=10G \
---time_based --runtime=60s --ramp_time=2s --direct=1 \
+--time_based --runtime=30s --ramp_time=2s --direct=1 \
 --verify=0 --bs=4K --iodepth=256 --rw=randread --group_reporting=1
 
-echo "cleaning up..."
+echo -e "\033[0;32mcleaning up...\033[0m"
 rm -rf tmp-storage-testing
