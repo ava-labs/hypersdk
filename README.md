@@ -125,7 +125,7 @@ The `Auth` interface (detailed below) exposes a function called `AsyncVerify` th
 the `hypersdk` may call concurrently (may invoke on other transactions in the same
 block) at any time prior/during block execution. Most `hypervms` perform signature
 verification in this function and save any state lookups for the full `Auth.Verify`
-(which has access to state, unlike `AsyncVerify`). The generic support for perfoming certain
+(which has access to state, unlike `AsyncVerify`). The generic support for performing certain
 stateless activities during execution can greatly reduce the e2e verification
 time of a block when running on powerful hardware.
 
@@ -267,6 +267,8 @@ We'll use both of these `hypervms` to explain how to use the `hypersdk` below.
 To use the `hypersdk`, you must import it into your own `hypervm` and implement the
 required interfaces. Below, we'll cover some of the ones that your
 `hypervm` must implement.
+
+> *Note: hypersdk requires a minimum Go version of 1.19.*
 
 ### Controller
 ```golang

@@ -52,7 +52,7 @@ func (th Uint64Heap[T]) Swap(i, j int) {
 	th.items[j].Index = j
 }
 
-// Push addes an *Uint64Entry interface to th. If [x.ID] is already in
+// Push adds an *uint64Entry interface to th. If [x.id] is already in
 // th, returns.
 func (th *Uint64Heap[T]) Push(x interface{}) {
 	entry, ok := x.(*Uint64Entry[T])
