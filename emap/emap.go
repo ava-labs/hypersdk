@@ -35,7 +35,7 @@ type Item interface {
 type EMap[T Item] struct {
 	mu sync.RWMutex
 
-	bh    *heap.Heap[bucket, int64]
+	bh    *heap.Heap[*bucket, int64]
 	seen  set.Set[ids.ID]   // Stores a set of unique tx ids
 	times map[int64]*bucket // Uses timestamp as keys to map to buckets of ids.
 }
@@ -45,7 +45,7 @@ func NewEMap[T Item]() *EMap[T] {
 	return &EMap[T]{
 		seen:  set.Set[ids.ID]{},
 		times: make(map[int64]*bucket),
-		bh:    heap.New[bucket, int64](0, true),
+		bh:    heap.New[*bucket, int64](0, true),
 	}
 }
 
@@ -87,10 +87,10 @@ func (e *EMap[T]) add(id ids.ID, t int64) {
 		items: []ids.ID{id},
 	}
 	e.times[t] = b
-	e.bh.Push(&heap.Entry[bucket, int64]{
+	e.bh.Push(&heap.Entry[*bucket, int64]{
 		ID:    id,
 		Val:   t,
-		Item:  *b,
+		Item:  b,
 		Index: e.bh.Len(),
 	})
 }
