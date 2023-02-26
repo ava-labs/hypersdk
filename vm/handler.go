@@ -127,3 +127,27 @@ func (h *Handler) BlocksPort(_ *http.Request, _ *struct{}, reply *PortReply) err
 	reply.Port = h.vm.BlocksPort()
 	return nil
 }
+
+type GetWarpSignaturesArgs struct {
+	TxID ids.ID `json:"txID"`
+}
+
+type GetWarpSignaturesReply struct {
+	Signatures []*WarpSignature `json:"signatures"`
+}
+
+func (h *Handler) GetWarpSignatures(
+	req *http.Request,
+	args *GetWarpSignaturesArgs,
+	reply *GetWarpSignaturesReply,
+) error {
+	_, span := h.vm.Tracer().Start(req.Context(), "Handler.GetWarpSignatures")
+	defer span.End()
+
+	signatures, err := h.vm.GetWarpSignatures(args.TxID)
+	if err != nil {
+		return err
+	}
+	reply.Signatures = signatures
+	return nil
+}

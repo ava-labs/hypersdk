@@ -101,3 +101,17 @@ func (cli *Client) BlocksPort(ctx context.Context) (uint16, error) {
 	)
 	return resp.Port, err
 }
+
+func (cli *Client) GetWarpSignatures(
+	ctx context.Context,
+	txID ids.ID,
+) ([]*vm.WarpSignature, error) {
+	resp := new(vm.GetWarpSignaturesReply)
+	err := cli.Requester.SendRequest(
+		ctx,
+		"getWarpSignatures",
+		&vm.GetWarpSignaturesArgs{TxID: txID},
+		resp,
+	)
+	return resp.Signatures, err
+}

@@ -125,8 +125,8 @@ func (vm *VM) StoreWarpSignature(txID ids.ID, signer *bls.PublicKey, signature [
 }
 
 type WarpSignature struct {
-	PublicKey *bls.PublicKey
-	Signature []byte
+	PublicKey []byte `json:"publicKey"`
+	Signature []byte `json:"signature"`
 }
 
 func (vm *VM) GetWarpSignatures(txID ids.ID) ([]*WarpSignature, error) {
@@ -140,12 +140,8 @@ func (vm *VM) GetWarpSignatures(txID ids.ID) ([]*WarpSignature, error) {
 	signatures := []*WarpSignature{}
 	for iter.Next() {
 		k := iter.Key()
-		pk, err := bls.PublicKeyFromBytes(k[len(k)-bls.PublicKeyLen:])
-		if err != nil {
-			return nil, err
-		}
 		signatures = append(signatures, &WarpSignature{
-			PublicKey: pk,
+			PublicKey: k[len(k)-bls.PublicKeyLen:],
 			Signature: iter.Value(),
 		})
 	}
