@@ -241,10 +241,6 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	)
 }
 
-func (vm *VM) AppSender() common.AppSender {
-	return vm.appSender
-}
-
 func (vm *VM) IsValidator(ctx context.Context, nid ids.NodeID) (bool, error) {
 	return vm.proposerMonitor.IsValidator(ctx, nid)
 }

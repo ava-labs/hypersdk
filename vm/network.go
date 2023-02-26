@@ -20,8 +20,9 @@ type NetworkManager struct {
 	sender common.AppSender
 	l      sync.RWMutex
 
-	handler  uint8
-	handlers map[uint8]NetworkHandler
+	handler         uint8
+	pendingHandlers map[uint8]struct{}
+	handlers        map[uint8]NetworkHandler
 
 	requestID     uint32
 	requestMapper map[uint32]*request
@@ -29,9 +30,10 @@ type NetworkManager struct {
 
 func NewNetworkManager(sender common.AppSender) *NetworkManager {
 	return &NetworkManager{
-		sender:        sender,
-		handlers:      map[uint8]NetworkHandler{},
-		requestMapper: map[uint32]*request{},
+		sender:          sender,
+		handlers:        map[uint8]NetworkHandler{},
+		pendingHandlers: map[uint8]struct{}{},
+		requestMapper:   map[uint32]*request{},
 	}
 }
 
@@ -61,14 +63,32 @@ type NetworkHandler interface {
 	CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error
 }
 
-func (n *NetworkManager) Register(h NetworkHandler) common.AppSender {
+func (n *NetworkManager) Register() (uint8, common.AppSender) {
 	n.l.Lock()
 	defer n.l.Unlock()
 
 	newHandler := n.handler
-	n.handlers[newHandler] = h
+	n.pendingHandlers[newHandler] = struct{}{}
 	n.handler++
-	return &WrappedAppSender{n, newHandler}
+	return newHandler, &WrappedAppSender{n, newHandler}
+}
+
+// Some callers take a sender before the handler is initialized, so we need to
+// set the handler after initialization to avoid a potential panic.
+//
+// TODO: in the future allow for queueing messages during the time between
+// Register and SetHandler (should both happen in init so should not be an
+// issue for standard usage)
+func (n *NetworkManager) SetHandler(handler uint8, h NetworkHandler) {
+	n.l.Lock()
+	defer n.l.Unlock()
+
+	_, ok := n.pendingHandlers[handler]
+	if !ok {
+		return
+	}
+	delete(n.pendingHandlers, handler)
+	n.handlers[handler] = h
 }
 
 func (n *NetworkManager) getSharedRequestID(handler uint8, requestID uint32) uint32 {
