@@ -6,21 +6,48 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 )
 
+type request struct {
+	handler uint8
+	requestID uint64
+}
+
 type NetworkManager struct {
 	l sync.Mutex
-	requestID uint64
+
+	handler uint8
 	handlers map[uint8]NetworkHandler
-	requestMapper map[uint64]uint8
+
+	requestID uint64
+	requestMapper map[uint64]*request
 }
 
 type NetworkHandler interface {
+	Connected(ctx context.Context, nodeID ids.NodeID, v *version.Application) error
+Disconnected(ctx context.Context, nodeID ids.NodeID) error
+
+AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error
+
+AppRequest(
+	ctx context.Context,
+	nodeID ids.NodeID,
+	requestID uint32,
+	deadline time.Time,
+	request []byte,
+) error
+AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32) error
+AppResponse(
+	ctx context.Context,
+	nodeID ids.NodeID,
+	requestID uint32,
+	response []byte,
+) error
+
+CrossChainAppRequest(context.Context, ids.ID, uint32, time.Time, []byte) error
+CrossChainAppRequestFailed(context.Context, ids.ID, uint32) error
+CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error
 }
 
-func (n *NetworkManager) Register(
-	appRequest,
-	appRequestFailed,
-	appResponse,
-) common.AppSender {
+func (n *NetworkManager) Register(h NetworkHandler) common.AppSender {
 }
 
 // TODO: need to protect against duplicate requestIDs -> will need to convert
