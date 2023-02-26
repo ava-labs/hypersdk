@@ -10,15 +10,17 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 )
 
 const (
-	idPrefix     = 0x0
-	heightPrefix = 0x1
-	warpPrefix   = 0x2
+	idPrefix            = 0x0
+	heightPrefix        = 0x1
+	warpMessagePrefix   = 0x2
+	warpSignaturePrefix = 0x3
 )
 
 var (
@@ -111,16 +113,40 @@ func (vm *VM) PutDiskIsSyncing(v bool) error {
 	return vm.vmDB.Put(isSyncing, []byte{0x0})
 }
 
-func PrefixWarpKey(txID ids.ID, signer *bls.PublicKey) []byte {
+func PrefixWarpMessageKey(txID ids.ID) []byte {
+	k := make([]byte, 1+consts.IDLen)
+	k[0] = warpMessagePrefix
+	copy(k[1:], txID[:])
+	return k
+}
+
+func (vm *VM) StoreWarpMessage(txID ids.ID, msg *warp.UnsignedMessage) error {
+	k := PrefixWarpMessageKey(txID)
+	return vm.vmDB.Put(k, msg.Bytes())
+}
+
+func (vm *VM) GetWarpMessage(txID ids.ID) (*warp.UnsignedMessage, error) {
+	k := PrefixWarpMessageKey(txID)
+	v, err := vm.vmDB.Get(k)
+	if errors.Is(err, database.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return warp.ParseUnsignedMessage(v)
+}
+
+func PrefixWarpSignaturesKey(txID ids.ID, signer *bls.PublicKey) []byte {
 	k := make([]byte, 1+consts.IDLen+bls.PublicKeyLen)
-	k[0] = warpPrefix
+	k[0] = warpSignaturePrefix
 	copy(k[1:], txID[:])
 	copy(k[1+consts.IDLen:], bls.PublicKeyToBytes(signer))
 	return k
 }
 
 func (vm *VM) StoreWarpSignature(txID ids.ID, signer *bls.PublicKey, signature []byte) error {
-	k := PrefixWarpKey(txID, signer)
+	k := PrefixWarpSignaturesKey(txID, signer)
 	return vm.vmDB.Put(k, signature)
 }
 
@@ -131,7 +157,7 @@ type WarpSignature struct {
 
 func (vm *VM) GetWarpSignatures(txID ids.ID) ([]*WarpSignature, error) {
 	prefix := make([]byte, 1+consts.IDLen)
-	prefix[0] = warpPrefix
+	prefix[0] = warpSignaturePrefix
 	copy(prefix[1:], txID[:])
 	iter := vm.vmDB.NewIteratorWithPrefix(prefix)
 	defer iter.Release()

@@ -43,6 +43,8 @@ func (w *WarpManager) GatherSignatures(ctx context.Context, txID ids.ID) {
 	for nodeID, validator := range validators {
 		// Make request to validator over p2p (retry x times)
 
+		// Check signature validity
+
 		// Store in DB
 	}
 }

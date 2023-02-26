@@ -8,7 +8,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/validators"
+	autils "github.com/ava-labs/avalanchego/utils"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/utils"
+	"golang.org/x/exp/maps"
 )
 
 const (
@@ -77,4 +86,100 @@ func Wait(ctx context.Context, check func(ctx context.Context) (bool, error)) er
 		time.Sleep(waitSleep)
 	}
 	return ctx.Err()
+}
+
+// getCanonicalValidatorSet returns the validator set of [subnetID] in a canonical ordering.
+// Also returns the total weight on [subnetID].
+//
+// This code is inspired by: https://github.com/ava-labs/avalanchego/blob/d755f872a4bf0de12297b3994b729ea684f78519/vms/platformvm/warp/validator.go#L40-L87
+func getCanonicalValidatorSet(
+	ctx context.Context,
+	vdrSet map[ids.NodeID]*validators.GetValidatorOutput,
+) ([]*warp.Validator, uint64, error) {
+	var (
+		vdrs        = make(map[string]*warp.Validator, len(vdrSet))
+		totalWeight uint64
+		err         error
+	)
+	for _, vdr := range vdrSet {
+		totalWeight, err = math.Add64(totalWeight, vdr.Weight)
+		if err != nil {
+			return nil, 0, fmt.Errorf("%w: %s", warp.ErrWeightOverflow, err)
+		}
+
+		if vdr.PublicKey == nil {
+			continue
+		}
+
+		pkBytes := bls.PublicKeyToBytes(vdr.PublicKey)
+		uniqueVdr, ok := vdrs[string(pkBytes)]
+		if !ok {
+			uniqueVdr = &warp.Validator{
+				PublicKey:      vdr.PublicKey,
+				PublicKeyBytes: pkBytes,
+			}
+			vdrs[string(pkBytes)] = uniqueVdr
+		}
+
+		uniqueVdr.Weight += vdr.Weight // Impossible to overflow here
+		uniqueVdr.NodeIDs = append(uniqueVdr.NodeIDs, vdr.NodeID)
+	}
+
+	// Sort validators by public key
+	vdrList := maps.Values(vdrs)
+	autils.Sort(vdrList)
+	return vdrList, totalWeight, nil
+}
+
+func (cli *Client) GenerateAggregateWarpSignature(
+	ctx context.Context,
+	txID ids.ID,
+) (*warp.Message, uint64, uint64, error) {
+	unsignedMessage, validators, signatures, err := cli.GetWarpSignatures(ctx, txID)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	// Get canonical validator ordering to generate signature bit set
+	canonicalValidators, weight, err := getCanonicalValidatorSet(ctx, validators)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	// Generate map of bls.PublicKey => Signature
+	signatureMap := map[ids.ID][]byte{}
+	for _, signature := range signatures {
+		// Convert to hash for easy comparison (could just as easily store the raw
+		// public key but that would involve a number of memory copies)
+		signatureMap[utils.ToID(signature.PublicKey)] = signature.Signature
+	}
+
+	// Generate signature
+	signers := set.NewBits(len(canonicalValidators))
+	var signatureWeight uint64
+	orderedSignatures := []*bls.Signature{}
+	for i, vdr := range canonicalValidators {
+		sig, ok := signatureMap[utils.ToID(vdr.PublicKeyBytes)]
+		if !ok {
+			continue
+		}
+		blsSig, err := bls.SignatureFromBytes(sig)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		signers.Add(i)
+		signatureWeight += vdr.Weight
+		orderedSignatures = append(orderedSignatures, blsSig)
+	}
+	aggSignature, err := bls.AggregateSignatures(orderedSignatures)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	aggSignatureBytes := bls.SignatureToBytes(aggSignature)
+	signature := &warp.BitSetSignature{
+		Signers: signers.Bytes(),
+	}
+	copy(signature.Signature[:], aggSignatureBytes[:])
+	message, err := warp.NewMessage(unsignedMessage, signature)
+	return message, weight, signatureWeight, err
 }

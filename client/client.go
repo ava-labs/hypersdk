@@ -8,6 +8,8 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/vm"
@@ -105,7 +107,7 @@ func (cli *Client) BlocksPort(ctx context.Context) (uint16, error) {
 func (cli *Client) GetWarpSignatures(
 	ctx context.Context,
 	txID ids.ID,
-) ([]*vm.WarpSignature, error) {
+) (*warp.UnsignedMessage, map[ids.NodeID]*validators.GetValidatorOutput, []*vm.WarpSignature, error) {
 	resp := new(vm.GetWarpSignaturesReply)
 	err := cli.Requester.SendRequest(
 		ctx,
@@ -113,5 +115,5 @@ func (cli *Client) GetWarpSignatures(
 		&vm.GetWarpSignaturesArgs{TxID: txID},
 		resp,
 	)
-	return resp.Signatures, err
+	return resp.Message, resp.Validators, resp.Signatures, err
 }

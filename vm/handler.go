@@ -9,6 +9,8 @@ import (
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 )
@@ -133,7 +135,9 @@ type GetWarpSignaturesArgs struct {
 }
 
 type GetWarpSignaturesReply struct {
-	Signatures []*WarpSignature `json:"signatures"`
+	Validators map[ids.NodeID]*validators.GetValidatorOutput `json:"validators"`
+	Message    *warp.UnsignedMessage                         `json:"message"`
+	Signatures []*WarpSignature                              `json:"signatures"`
 }
 
 func (h *Handler) GetWarpSignatures(
@@ -144,10 +148,21 @@ func (h *Handler) GetWarpSignatures(
 	_, span := h.vm.Tracer().Start(req.Context(), "Handler.GetWarpSignatures")
 	defer span.End()
 
+	message, err := h.vm.GetWarpMessage(args.TxID)
+	if err != nil {
+		return err
+	}
+	if message == nil {
+		return ErrMessageMissing
+	}
+
 	signatures, err := h.vm.GetWarpSignatures(args.TxID)
 	if err != nil {
 		return err
 	}
+
+	reply.Message = message
+	reply.Validators = h.vm.proposerMonitor.validators
 	reply.Signatures = signatures
 	return nil
 }

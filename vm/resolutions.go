@@ -142,7 +142,7 @@ func (vm *VM) processAcceptedBlocks() {
 			vm.snowCtx.Log.Fatal("accepted processing failed", zap.Error(err))
 		}
 
-		// Sign any warp messages (regardless if validator now, may become one)
+		// Sign and store any warp messages (regardless if validator now, may become one)
 		results := b.Results()
 		for i, tx := range b.Txs {
 			result := results[i]
@@ -154,11 +154,14 @@ func (vm *VM) processAcceptedBlocks() {
 			if err != nil {
 				vm.snowCtx.Log.Fatal("unable to sign warp message", zap.Error(err))
 			}
+			if err := vm.StoreWarpMessage(tx.ID(), result.WarpMessage); err != nil {
+				vm.snowCtx.Log.Fatal("unable to store warp message", zap.Error(err))
+			}
 			// TODO: need to get node's BLS public key from snowCtx
 			// We ONLY produce a signature if we were validating at the time
 			// a signature was required from us.
 			if err := vm.StoreWarpSignature(tx.ID(), nil, signature); err != nil {
-				vm.snowCtx.Log.Fatal("unable to store warp message", zap.Error(err))
+				vm.snowCtx.Log.Fatal("unable to store warp signature", zap.Error(err))
 			}
 			vm.snowCtx.Log.Info(
 				"signed and stored warp message signature",
