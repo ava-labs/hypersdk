@@ -155,6 +155,8 @@ func (vm *VM) processAcceptedBlocks() {
 				vm.snowCtx.Log.Fatal("unable to sign warp message", zap.Error(err))
 			}
 			// TODO: need to get node's BLS public key from snowCtx
+			// We ONLY produce a signature if we were validating at the time
+			// a signature was required from us.
 			if err := vm.StoreWarpSignature(tx.ID(), nil, signature); err != nil {
 				vm.snowCtx.Log.Fatal("unable to store warp message", zap.Error(err))
 			}

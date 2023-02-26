@@ -102,6 +102,10 @@ type VM struct {
 	stateSyncNetworkClient syncEng.NetworkClient
 	stateSyncNetworkServer *syncEng.NetworkServer
 
+	// Warp manager fetches signatures from other validators for a given accepted
+	// txID
+	warpManager *WarpManager
+
 	metrics *Metrics
 
 	ready chan struct{}
@@ -124,16 +128,17 @@ func (vm *VM) Initialize(
 	_ []*common.Fx,
 	appSender common.AppSender,
 ) error {
-	var err error
 	vm.snowCtx = snowCtx
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	gatherer := ametrics.NewMultiGatherer()
-	vm.metrics, err = newMetrics(gatherer)
+	metrics, err := newMetrics(gatherer)
 	if err != nil {
 		return err
 	}
+	vm.metrics = metrics
 	vm.proposerMonitor = NewProposerMonitor(vm)
+	vm.warpManager = NewWarpManager(vm)
 	vm.manager = manager
 
 	// Always initialize implementation first
