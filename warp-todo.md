@@ -12,3 +12,6 @@
     signatures, not aggregate signature -> leave to CLI to submit something
     valid and reduce compute on API)
 * create shared hypersdk action that can route to an internal action?
+
+future work
+* verify multi-signature async

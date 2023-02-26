@@ -124,6 +124,10 @@ type Action interface {
 	) (result *Result, err error) // err should only be returned if fatal
 
 	Marshal(p *codec.Packer)
+
+	// ContainsWarpMessage if executing the action requires verifying a warp
+	// message against the block context.
+	ContainsWarpMessage() bool
 }
 
 type Auth interface {

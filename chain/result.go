@@ -9,15 +9,17 @@ import (
 )
 
 type Result struct {
-	Success bool
-	Units   uint64
-	Output  []byte
+	Success     bool
+	Units       uint64
+	Output      []byte
+	WarpMessage []byte
 }
 
 func (r *Result) Marshal(p *codec.Packer) {
 	p.PackBool(r.Success)
 	p.PackUint64(r.Units)
 	p.PackBytes(r.Output)
+	p.PackBytes(r.WarpMessage)
 }
 
 func MarshalResults(src []*Result) ([]byte, error) {
@@ -38,6 +40,11 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	if len(result.Output) == 0 {
 		// Enforce object standardization
 		result.Output = nil
+	}
+	p.UnpackBytes(MaxWarpMessageSize, false, &result.WarpMessage)
+	if len(result.WarpMessage) == 0 {
+		// Enforce object standardization
+		result.WarpMessage = nil
 	}
 	return result, p.Err()
 }
