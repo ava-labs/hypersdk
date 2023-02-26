@@ -38,7 +38,7 @@ func NewEMap[T Item]() *EMap[T] {
 	return &EMap[T]{
 		seen:  set.Set[ids.ID]{},
 		times: make(map[int64]*bucket),
-		bh:    heap.New[*bucket, int64](0, true),
+		bh:    heap.New[*bucket, int64](120, true),
 	}
 }
 
