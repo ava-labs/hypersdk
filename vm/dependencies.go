@@ -5,7 +5,6 @@ package vm
 
 import (
 	"context"
-	"io"
 	"time"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
@@ -45,13 +44,6 @@ type Genesis interface {
 	Load(context.Context, atrace.Tracer, chain.Database) error
 }
 
-// Limited required functionality makes it much easier to experiment with
-// unique mechanisms here (ideally ones that don't trigger compaction)
-type KVDatabase interface {
-	database.KeyValueReaderWriterDeleter
-	io.Closer
-}
-
 type Controller interface {
 	Initialize(
 		inner *VM, // hypersdk VM
@@ -65,7 +57,9 @@ type Controller interface {
 		genesis Genesis,
 		builder builder.Builder,
 		gossiper gossiper.Gossiper,
-		blockDB KVDatabase,
+		// TODO: consider splitting out blockDB for use with more experimental
+		// databases
+		vmDB database.Database,
 		stateDB database.Database,
 		handler Handlers,
 		actionRegistry chain.ActionRegistry,
@@ -79,6 +73,8 @@ type Controller interface {
 	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
 	Rejected(ctx context.Context, blk *chain.StatelessBlock) error
 
-	// TODO: add a Close function that can be used to shutdown anything the VM is
-	// not aware of
+	// Shutdown should be used by the [Controller] to terminate any async
+	// processes it may be running in the background. It is invoked when
+	// `vm.Shutdown` is called.
+	Shutdown(context.Context) error
 }

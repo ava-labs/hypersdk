@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
@@ -112,7 +113,7 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 
 	// TODO: handle async?
 	if err := vm.c.Rejected(context.TODO(), b); err != nil {
-		vm.snowCtx.Log.Error("rejected processing failed", zap.Error(err))
+		vm.snowCtx.Log.Fatal("rejected processing failed", zap.Error(err))
 	}
 
 	// Ensure children of block are cleared, they may never be
@@ -138,7 +139,30 @@ func (vm *VM) processAcceptedBlocks() {
 
 		// Update controller
 		if err := vm.c.Accepted(context.TODO(), b); err != nil {
-			vm.snowCtx.Log.Error("accepted processing failed", zap.Error(err))
+			vm.snowCtx.Log.Fatal("accepted processing failed", zap.Error(err))
+		}
+
+		// Sign any warp messages (regardless if validator now, may become one)
+		results := b.Results()
+		for i, tx := range b.Txs {
+			result := results[i]
+			if result.WarpMessage == nil {
+				continue
+			}
+			start := time.Now()
+			signature, err := vm.snowCtx.WarpSigner.Sign(result.WarpMessage)
+			if err != nil {
+				vm.snowCtx.Log.Fatal("unable to sign warp message", zap.Error(err))
+			}
+			// TODO: need to get node's BLS public key from snowCtx
+			if err := vm.StoreWarpSignature(tx.ID(), nil, signature); err != nil {
+				vm.snowCtx.Log.Fatal("unable to store warp message", zap.Error(err))
+			}
+			vm.snowCtx.Log.Info(
+				"signed and stored warp message signature",
+				zap.Stringer("txID", tx.ID()),
+				zap.Duration("t", time.Since(start)),
+			)
 		}
 
 		// Update listeners

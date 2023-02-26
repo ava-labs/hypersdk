@@ -51,7 +51,7 @@ type VM struct {
 	builder        builder.Builder
 	gossiper       gossiper.Gossiper
 	stateDB        *merkledb.Database
-	blockDB        KVDatabase
+	vmDB           database.Database
 	handlers       Handlers
 	actionRegistry chain.ActionRegistry
 	authRegistry   chain.AuthRegistry
@@ -138,7 +138,7 @@ func (vm *VM) Initialize(
 
 	// Always initialize implementation first
 	var rawStateDB database.Database
-	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.blockDB,
+	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.vmDB,
 		rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, err = vm.c.Initialize(
 		vm,
 		snowCtx,
@@ -398,7 +398,7 @@ func (vm *VM) onNormalOperationsStarted() error {
 }
 
 // implements "block.ChainVM.common.VM"
-func (vm *VM) Shutdown(_ context.Context) error {
+func (vm *VM) Shutdown(ctx context.Context) error {
 	close(vm.stop)
 
 	// Shutdown state sync client if still running
@@ -422,12 +422,18 @@ func (vm *VM) Shutdown(_ context.Context) error {
 	vm.builder.Done()
 	vm.gossiper.Done()
 	vm.workers.Stop()
-	if vm.snowCtx == nil {
-		return nil
+
+	// Shutdown controller once all mechanisms that could invoke it have
+	// shutdown.
+	if err := vm.c.Shutdown(ctx); err != nil {
+		return err
 	}
 
 	// Close DBs
-	if err := vm.blockDB.Close(); err != nil {
+	if vm.snowCtx == nil {
+		return nil
+	}
+	if err := vm.vmDB.Close(); err != nil {
 		return err
 	}
 	if err := vm.stateDB.Close(); err != nil {

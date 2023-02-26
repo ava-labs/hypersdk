@@ -4,6 +4,7 @@
 package chain
 
 import (
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 )
@@ -12,14 +13,14 @@ type Result struct {
 	Success     bool
 	Units       uint64
 	Output      []byte
-	WarpMessage []byte
+	WarpMessage *warp.UnsignedMessage
 }
 
 func (r *Result) Marshal(p *codec.Packer) {
 	p.PackBool(r.Success)
 	p.PackUint64(r.Units)
 	p.PackBytes(r.Output)
-	p.PackBytes(r.WarpMessage)
+	p.PackBytes(r.WarpMessage.Bytes())
 }
 
 func MarshalResults(src []*Result) ([]byte, error) {
@@ -41,10 +42,14 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 		// Enforce object standardization
 		result.Output = nil
 	}
-	p.UnpackBytes(MaxWarpMessageSize, false, &result.WarpMessage)
-	if len(result.WarpMessage) == 0 {
-		// Enforce object standardization
-		result.WarpMessage = nil
+	var warpMessage []byte
+	p.UnpackBytes(MaxWarpMessageSize, false, &warpMessage)
+	if len(warpMessage) > 0 {
+		msg, err := warp.ParseUnsignedMessage(warpMessage)
+		if err != nil {
+			return nil, err
+		}
+		result.WarpMessage = msg
 	}
 	return result, p.Err()
 }

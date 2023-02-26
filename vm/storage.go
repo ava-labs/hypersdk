@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
@@ -17,6 +18,7 @@ import (
 const (
 	idPrefix     = 0x0
 	heightPrefix = 0x1
+	warpPrefix   = 0x2
 )
 
 var (
@@ -40,28 +42,28 @@ func PrefixBlockHeightKey(height uint64) []byte {
 
 func (vm *VM) SetLastAccepted(block *chain.StatelessBlock) error {
 	var (
-		bid     = block.ID()
-		blockDB = vm.blockDB
+		bid  = block.ID()
+		vmDB = vm.vmDB
 	)
-	if err := blockDB.Put(lastAccepted, bid[:]); err != nil {
+	if err := vmDB.Put(lastAccepted, bid[:]); err != nil {
 		return err
 	}
-	if err := blockDB.Put(PrefixBlockIDKey(bid), block.Bytes()); err != nil {
+	if err := vmDB.Put(PrefixBlockIDKey(bid), block.Bytes()); err != nil {
 		return err
 	}
 	// TODO: store block bytes at height to reduce amount of compaction
-	if err := blockDB.Put(PrefixBlockHeightKey(block.Height()), bid[:]); err != nil {
+	if err := vmDB.Put(PrefixBlockHeightKey(block.Height()), bid[:]); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (vm *VM) HasLastAccepted() (bool, error) {
-	return vm.blockDB.Has(lastAccepted)
+	return vm.vmDB.Has(lastAccepted)
 }
 
 func (vm *VM) GetLastAccepted() (ids.ID, error) {
-	v, err := vm.blockDB.Get(lastAccepted)
+	v, err := vm.vmDB.Get(lastAccepted)
 	if errors.Is(err, database.ErrNotFound) {
 		return ids.ID{}, nil
 	}
@@ -72,7 +74,7 @@ func (vm *VM) GetLastAccepted() (ids.ID, error) {
 }
 
 func (vm *VM) GetDiskBlock(bid ids.ID) (*chain.StatefulBlock, error) {
-	b, err := vm.blockDB.Get(PrefixBlockIDKey(bid))
+	b, err := vm.vmDB.Get(PrefixBlockIDKey(bid))
 	if err != nil {
 		return nil, err
 	}
@@ -80,11 +82,11 @@ func (vm *VM) GetDiskBlock(bid ids.ID) (*chain.StatefulBlock, error) {
 }
 
 func (vm *VM) DeleteDiskBlock(bid ids.ID) error {
-	return vm.blockDB.Delete(PrefixBlockIDKey(bid))
+	return vm.vmDB.Delete(PrefixBlockIDKey(bid))
 }
 
 func (vm *VM) GetDiskBlockIDAtHeight(height uint64) (ids.ID, error) {
-	v, err := vm.blockDB.Get(PrefixBlockHeightKey(height))
+	v, err := vm.vmDB.Get(PrefixBlockHeightKey(height))
 	if err != nil {
 		return ids.Empty, nil
 	}
@@ -92,7 +94,7 @@ func (vm *VM) GetDiskBlockIDAtHeight(height uint64) (ids.ID, error) {
 }
 
 func (vm *VM) GetDiskIsSyncing() (bool, error) {
-	v, err := vm.blockDB.Get(isSyncing)
+	v, err := vm.vmDB.Get(isSyncing)
 	if errors.Is(err, database.ErrNotFound) {
 		return false, nil
 	}
@@ -104,7 +106,48 @@ func (vm *VM) GetDiskIsSyncing() (bool, error) {
 
 func (vm *VM) PutDiskIsSyncing(v bool) error {
 	if v {
-		return vm.blockDB.Put(isSyncing, []byte{0x1})
+		return vm.vmDB.Put(isSyncing, []byte{0x1})
 	}
-	return vm.blockDB.Put(isSyncing, []byte{0x0})
+	return vm.vmDB.Put(isSyncing, []byte{0x0})
+}
+
+func PrefixWarpKey(txID ids.ID, signer *bls.PublicKey) []byte {
+	k := make([]byte, 1+consts.IDLen+bls.PublicKeyLen)
+	k[0] = warpPrefix
+	copy(k[1:], txID[:])
+	copy(k[1+consts.IDLen:], bls.PublicKeyToBytes(signer))
+	return k
+}
+
+func (vm *VM) StoreWarpSignature(txID ids.ID, signer *bls.PublicKey, signature []byte) error {
+	k := PrefixWarpKey(txID, signer)
+	return vm.vmDB.Put(k, signature)
+}
+
+type WarpSignature struct {
+	PublicKey *bls.PublicKey
+	Signature []byte
+}
+
+func (vm *VM) GetWarpSignatures(txID ids.ID) ([]*WarpSignature, error) {
+	prefix := make([]byte, 1+consts.IDLen)
+	prefix[0] = warpPrefix
+	copy(prefix[1:], txID[:])
+	iter := vm.vmDB.NewIteratorWithPrefix(prefix)
+	defer iter.Release()
+
+	// Collect all signatures we have for a txID
+	signatures := []*WarpSignature{}
+	for iter.Next() {
+		k := iter.Key()
+		pk, err := bls.PublicKeyFromBytes(k[len(k)-bls.PublicKeyLen:])
+		if err != nil {
+			return nil, err
+		}
+		signatures = append(signatures, &WarpSignature{
+			PublicKey: pk,
+			Signature: iter.Value(),
+		})
+	}
+	return signatures, iter.Error()
 }
