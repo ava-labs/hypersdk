@@ -74,11 +74,12 @@ func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBloc
 type StatelessBlock struct {
 	*StatefulBlock `json:"block"`
 
-	id     ids.ID
-	st     choices.Status
-	t      time.Time
-	bytes  []byte
-	txsSet set.Set[ids.ID]
+	id              ids.ID
+	st              choices.Status
+	t               time.Time
+	bytes           []byte
+	txsSet          set.Set[ids.ID]
+	requiresContext bool
 
 	results []*Result
 
@@ -151,6 +152,12 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 			return ErrDuplicateTx
 		}
 		b.txsSet.Add(tx.ID())
+
+		// Check if we need the block context to verify the block (which contains
+		// an Avalanche Warp Message)
+		if tx.Action.ContainsWarpMessage() {
+			b.requiresContext = true
+		}
 	}
 	b.sigJob.Done(func() { sspan.End() })
 	return nil
@@ -497,7 +504,7 @@ func (b *StatelessBlock) Timestamp() time.Time { return b.t }
 
 // implements "block.WithVerifyContext"
 func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
-	return false, nil
+	return b.requiresContext, nil
 }
 
 // implements "block.WithVerifyContext"
