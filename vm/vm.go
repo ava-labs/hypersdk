@@ -38,6 +38,13 @@ import (
 	"github.com/ava-labs/hypersdk/workers"
 )
 
+const (
+	stateSyncMessage = 0x0
+	warpMessage      = 0x1
+	// TODO: add to handler
+	gossipMessage = 0x2
+)
+
 type VM struct {
 	c Controller
 	v *version.Semantic
@@ -106,6 +113,11 @@ type VM struct {
 	// txID
 	warpManager *WarpManager
 
+	// requestIDMapper tracks which handler should receive the response for
+	// a particular requestID
+	requestIDMapper  map[uint32]uint8
+	requestIDMapperL sync.Mutex
+
 	metrics *Metrics
 
 	ready chan struct{}
@@ -140,6 +152,7 @@ func (vm *VM) Initialize(
 	vm.proposerMonitor = NewProposerMonitor(vm)
 	vm.warpManager = NewWarpManager(vm)
 	vm.manager = manager
+	vm.requestIDMapper = map[uint32]uint8{}
 
 	// Always initialize implementation first
 	var rawStateDB database.Database
@@ -698,7 +711,6 @@ func (vm *VM) LastAccepted(_ context.Context) (ids.ID, error) {
 // implements "snowmanblock.ChainVM.commom.VM.AppHandler"
 // assume gossip via proposervm has been activated
 // ref. "avalanchego/vms/platformvm/network.AppGossip"
-// ref. "coreeth/plugin/evm.GossipHandler.HandleEthTxs"
 func (vm *VM) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	ctx, span := vm.tracer.Start(ctx, "VM.AppGossip")
 	defer span.End()
@@ -721,15 +733,62 @@ func (vm *VM) AppRequest(
 	deadline time.Time,
 	request []byte,
 ) error {
-	if delay := vm.config.GetStateSyncServerDelay(); delay > 0 {
-		time.Sleep(delay)
+	// We don't know the requestID, so we prepend a byte to the request to
+	// extract a scope.
+	switch {
+	case len(request) == 0:
+		// Dropping empty request
+		vm.snowCtx.Log.Debug(
+			"received empty message",
+			zap.Stringer("nodeID", nodeID),
+		)
+	case request[0] == stateSyncMessage:
+		if delay := vm.config.GetStateSyncServerDelay(); delay > 0 {
+			time.Sleep(delay)
+		}
+		return vm.stateSyncNetworkServer.AppRequest(ctx, nodeID, requestID, deadline, request[1:])
+	case request[0] == warpMessage:
+		// TODO
+		panic("not implemented")
+	default:
+		// Dropping unrecognized message
+		vm.snowCtx.Log.Debug(
+			"received unrecognized message",
+			zap.Uint8("type", request[0]),
+			zap.Stringer("nodeID", nodeID),
+		)
 	}
-	return vm.stateSyncNetworkServer.AppRequest(ctx, nodeID, requestID, deadline, request)
+	return nil
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
 func (vm *VM) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32) error {
-	return vm.stateSyncNetworkClient.AppRequestFailed(ctx, nodeID, requestID)
+	vm.requestIDMapperL.Lock()
+	dest, ok := vm.requestIDMapper[requestID]
+	delete(vm.requestIDMapper, requestID)
+	vm.requestIDMapperL.Unlock()
+	if !ok {
+		vm.snowCtx.Log.Debug(
+			"received unexepected request failed",
+			zap.Stringer("nodeID", nodeID),
+			zap.Uint32("requestID", requestID),
+		)
+		return nil
+	}
+	switch dest {
+	case stateSyncMessage:
+		return vm.stateSyncNetworkClient.AppRequestFailed(ctx, nodeID, requestID)
+	case warpMessage:
+		panic("not implemented")
+	default:
+		// Dropping unrecognized message
+		vm.snowCtx.Log.Debug(
+			"received unrecognized message",
+			zap.Uint8("type", dest),
+			zap.Stringer("nodeID", nodeID),
+		)
+	}
+	return nil
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
@@ -739,7 +798,32 @@ func (vm *VM) AppResponse(
 	requestID uint32,
 	response []byte,
 ) error {
-	return vm.stateSyncNetworkClient.AppResponse(ctx, nodeID, requestID, response)
+	vm.requestIDMapperL.Lock()
+	dest, ok := vm.requestIDMapper[requestID]
+	delete(vm.requestIDMapper, requestID)
+	vm.requestIDMapperL.Unlock()
+	if !ok {
+		vm.snowCtx.Log.Debug(
+			"received unexepected response",
+			zap.Stringer("nodeID", nodeID),
+			zap.Uint32("requestID", requestID),
+		)
+		return nil
+	}
+	switch dest {
+	case stateSyncMessage:
+		return vm.stateSyncNetworkClient.AppResponse(ctx, nodeID, requestID, response)
+	case warpMessage:
+		panic("not implemented")
+	default:
+		// Dropping unrecognized message
+		vm.snowCtx.Log.Debug(
+			"received unrecognized message",
+			zap.Uint8("type", dest),
+			zap.Stringer("nodeID", nodeID),
+		)
+	}
+	return nil
 }
 
 // implements "block.ChainVM.commom.VM.validators.Connector"
