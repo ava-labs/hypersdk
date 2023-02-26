@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"github.com/ava-labs/hypersdk/chain"
@@ -21,8 +22,9 @@ var _ Gossiper = (*Proposer)(nil)
 var proposerWindow = int64(proposer.MaxDelay.Seconds())
 
 type Proposer struct {
-	vm  VM
-	cfg *ProposerConfig
+	vm        VM
+	cfg       *ProposerConfig
+	appSender common.AppSender
 
 	doneGossip chan struct{}
 
@@ -86,7 +88,7 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 			return err
 		}
 
-		if err := g.vm.AppSender().SendAppGossip(ctx, b); err != nil {
+		if err := g.appSender.SendAppGossip(ctx, b); err != nil {
 			g.vm.Logger().Warn(
 				"GossipTxs failed",
 				zap.Error(err),
@@ -130,7 +132,7 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 			return err
 		}
 
-		if err := g.vm.AppSender().SendAppGossipSpecific(ctx, set.Set[ids.NodeID]{proposer: {}}, b); err != nil {
+		if err := g.appSender.SendAppGossipSpecific(ctx, set.Set[ids.NodeID]{proposer: {}}, b); err != nil {
 			g.vm.Logger().Warn(
 				"GossipTxs failed",
 				zap.Stringer("node", proposer),
@@ -263,7 +265,9 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 }
 
 // periodically but less aggressively force-regossip the pending
-func (g *Proposer) Run() {
+func (g *Proposer) Run(appSender common.AppSender) {
+	g.appSender = appSender
+
 	g.vm.Logger().Info("starting gossiper", zap.Duration("interval", g.cfg.GossipInterval))
 	defer close(g.doneGossip)
 

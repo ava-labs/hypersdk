@@ -56,9 +56,8 @@ type VM struct {
 	actionRegistry chain.ActionRegistry
 	authRegistry   chain.AuthRegistry
 
-	tracer    trace.Tracer
-	mempool   *mempool.Mempool[*chain.Transaction]
-	appSender common.AppSender
+	tracer  trace.Tracer
+	mempool *mempool.Mempool[*chain.Transaction]
 
 	// track all accepted but still valid txs (replay protection)
 	seen               *emap.EMap[*chain.Transaction]
@@ -106,6 +105,9 @@ type VM struct {
 	// txID
 	warpManager *WarpManager
 
+	// Network manager routes p2p messages to pre-registered handlers
+	networkManager *NetworkManager
+
 	metrics *Metrics
 
 	ready chan struct{}
@@ -139,6 +141,7 @@ func (vm *VM) Initialize(
 	vm.metrics = metrics
 	vm.proposerMonitor = NewProposerMonitor(vm)
 	vm.warpManager = NewWarpManager(vm)
+	vm.networkManager = NewNetworkManager(appSender)
 	vm.manager = manager
 
 	// Always initialize implementation first
@@ -182,7 +185,6 @@ func (vm *VM) Initialize(
 
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
-	vm.appSender = appSender
 
 	vm.blocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetBlockLRUSize()}
 	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.GetAcceptorSize())
@@ -279,20 +281,22 @@ func (vm *VM) Initialize(
 	go vm.processAcceptedBlocks()
 
 	// Setup state syncing
+	stateSyncHandler, stateSyncSender := vm.networkManager.Register()
 	vm.stateSyncNetworkClient = syncEng.NewNetworkClient(
-		// TODO: when we want to send VM-specific messages over network interface, we
-		// will need to wrap [appSender] here to scope all state sync messages
-		vm.appSender,
+		stateSyncSender,
 		vm.snowCtx.NodeID,
 		int64(vm.config.GetStateSyncParallelism()),
 		vm.Logger(),
 	)
 	vm.stateSyncClient = vm.NewStateSyncClient(gatherer)
-	vm.stateSyncNetworkServer = syncEng.NewNetworkServer(vm.appSender, vm.stateDB, vm.Logger())
+	vm.stateSyncNetworkServer = syncEng.NewNetworkServer(stateSyncSender, vm.stateDB, vm.Logger())
+	vm.networkManager.SetHandler(stateSyncHandler, NewStateSyncHandler(vm))
 
 	// Startup block builder and gossiper
 	go vm.builder.Run()
-	go vm.gossiper.Run()
+	gossipHandler, gossipSender := vm.networkManager.Register()
+	vm.networkManager.SetHandler(gossipHandler, NewTxGossipHandler(vm))
+	go vm.gossiper.Run(gossipSender)
 
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
@@ -461,21 +465,6 @@ func (vm *VM) CreateHandlers(_ context.Context) (map[string]*common.HTTPHandler,
 // for "ext/vm/[vmID]"
 func (*VM) CreateStaticHandlers(_ context.Context) (map[string]*common.HTTPHandler, error) {
 	return nil, nil
-}
-
-// CrossChainAppRequest is a no-op.
-func (*VM) CrossChainAppRequest(context.Context, ids.ID, uint32, time.Time, []byte) error {
-	return nil
-}
-
-// CrossChainAppRequestFailed is a no-op.
-func (*VM) CrossChainAppRequestFailed(context.Context, ids.ID, uint32) error {
-	return nil
-}
-
-// CrossChainAppResponse is a no-op.
-func (*VM) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
-	return nil
 }
 
 // implements "block.ChainVM.commom.VM.health.Checkable"
@@ -698,19 +687,11 @@ func (vm *VM) LastAccepted(_ context.Context) (ids.ID, error) {
 // implements "snowmanblock.ChainVM.commom.VM.AppHandler"
 // assume gossip via proposervm has been activated
 // ref. "avalanchego/vms/platformvm/network.AppGossip"
-// ref. "coreeth/plugin/evm.GossipHandler.HandleEthTxs"
 func (vm *VM) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	ctx, span := vm.tracer.Start(ctx, "VM.AppGossip")
 	defer span.End()
 
-	if !vm.isReady() {
-		vm.snowCtx.Log.Warn("handle app gossip failed", zap.Error(ErrNotReady))
-
-		// Errors returned here are considered fatal so we just return nil
-		return nil
-	}
-
-	return vm.gossiper.HandleAppGossip(ctx, nodeID, msg)
+	return vm.networkManager.AppGossip(ctx, nodeID, msg)
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
@@ -721,15 +702,18 @@ func (vm *VM) AppRequest(
 	deadline time.Time,
 	request []byte,
 ) error {
-	if delay := vm.config.GetStateSyncServerDelay(); delay > 0 {
-		time.Sleep(delay)
-	}
-	return vm.stateSyncNetworkServer.AppRequest(ctx, nodeID, requestID, deadline, request)
+	ctx, span := vm.tracer.Start(ctx, "VM.AppRequest")
+	defer span.End()
+
+	return vm.networkManager.AppRequest(ctx, nodeID, requestID, deadline, request)
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
 func (vm *VM) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32) error {
-	return vm.stateSyncNetworkClient.AppRequestFailed(ctx, nodeID, requestID)
+	ctx, span := vm.tracer.Start(ctx, "VM.AppRequestFailed")
+	defer span.End()
+
+	return vm.networkManager.AppRequestFailed(ctx, nodeID, requestID)
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
@@ -739,17 +723,62 @@ func (vm *VM) AppResponse(
 	requestID uint32,
 	response []byte,
 ) error {
-	return vm.stateSyncNetworkClient.AppResponse(ctx, nodeID, requestID, response)
+	ctx, span := vm.tracer.Start(ctx, "VM.AppResponse")
+	defer span.End()
+
+	return vm.networkManager.AppResponse(ctx, nodeID, requestID, response)
+}
+
+func (vm *VM) CrossChainAppRequest(
+	ctx context.Context,
+	nodeID ids.ID,
+	requestID uint32,
+	deadline time.Time,
+	request []byte,
+) error {
+	ctx, span := vm.tracer.Start(ctx, "VM.CrossChainAppRequest")
+	defer span.End()
+
+	return vm.networkManager.CrossChainAppRequest(ctx, nodeID, requestID, deadline, request)
+}
+
+func (vm *VM) CrossChainAppRequestFailed(
+	ctx context.Context,
+	nodeID ids.ID,
+	requestID uint32,
+) error {
+	ctx, span := vm.tracer.Start(ctx, "VM.CrossChainAppRequestFailed")
+	defer span.End()
+
+	return vm.networkManager.CrossChainAppRequestFailed(ctx, nodeID, requestID)
+}
+
+func (vm *VM) CrossChainAppResponse(
+	ctx context.Context,
+	nodeID ids.ID,
+	requestID uint32,
+	response []byte,
+) error {
+	ctx, span := vm.tracer.Start(ctx, "VM.CrossChainAppResponse")
+	defer span.End()
+
+	return vm.networkManager.CrossChainAppResponse(ctx, nodeID, requestID, response)
 }
 
 // implements "block.ChainVM.commom.VM.validators.Connector"
 func (vm *VM) Connected(ctx context.Context, nodeID ids.NodeID, v *version.Application) error {
-	return vm.stateSyncNetworkClient.Connected(ctx, nodeID, v)
+	ctx, span := vm.tracer.Start(ctx, "VM.Connected")
+	defer span.End()
+
+	return vm.networkManager.Connected(ctx, nodeID, v)
 }
 
 // implements "block.ChainVM.commom.VM.validators.Connector"
 func (vm *VM) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
-	return vm.stateSyncNetworkClient.Disconnected(ctx, nodeID)
+	ctx, span := vm.tracer.Start(ctx, "VM.Disconnected")
+	defer span.End()
+
+	return vm.networkManager.Disconnected(ctx, nodeID)
 }
 
 // VerifyHeightIndex implements snowmanblock.HeightIndexedChainVM
