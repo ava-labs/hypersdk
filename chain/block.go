@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -25,8 +26,9 @@ import (
 )
 
 var (
-	_ snowman.Block      = &StatelessBlock{}
-	_ block.StateSummary = &SyncableBlock{}
+	_ snowman.Block           = &StatelessBlock{}
+	_ block.WithVerifyContext = &StatelessBlock{}
+	_ block.StateSummary      = &SyncableBlock{}
 )
 
 const (
@@ -492,6 +494,16 @@ func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Hght }
 
 // implements "snowman.Block"
 func (b *StatelessBlock) Timestamp() time.Time { return b.t }
+
+// implements "block.WithVerifyContext"
+func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
+	return false, nil
+}
+
+// implements "block.WithVerifyContext"
+func (b *StatelessBlock) VerifyWithContext(context.Context, *block.Context) error {
+	return errors.New("not implemented")
+}
 
 // State is used to verify txs in the mempool. It should never be written to.
 //
