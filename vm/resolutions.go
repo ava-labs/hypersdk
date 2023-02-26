@@ -165,6 +165,10 @@ func (vm *VM) processAcceptedBlocks() {
 				zap.Stringer("txID", tx.ID()),
 				zap.Duration("t", time.Since(start)),
 			)
+
+			// Kickoff job to fetch signatures from other validators in the
+			// background
+			go vm.warpManager.GatherSignatures(context.TODO(), tx.ID())
 		}
 
 		// Update listeners

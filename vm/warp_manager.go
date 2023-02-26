@@ -38,6 +38,8 @@ func (w *WarpManager) GatherSignatures(ctx context.Context, txID ids.ID) {
 		return
 	}
 	// TODO: run this fetch in parallel (limit to 4 at a time)
+	// TODO: exit if vm is stopped
+	// TODO: restart any unfinished jobs in the future
 	for nodeID, validator := range validators {
 		// Make request to validator over p2p (retry x times)
 
