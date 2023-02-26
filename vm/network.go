@@ -9,7 +9,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
-	"go.uber.org/zap"
 )
 
 type request struct {
@@ -114,129 +113,82 @@ func (n *NetworkManager) handleSharedRequestID(requestID uint32) (NetworkHandler
 // implements "snowmanblock.ChainVM.commom.VM.AppHandler"
 // assume gossip via proposervm has been activated
 // ref. "avalanchego/vms/platformvm/network.AppGossip"
-func (vm *VM) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	ctx, span := vm.tracer.Start(ctx, "VM.AppGossip")
-	defer span.End()
-
-	if !vm.isReady() {
-		vm.snowCtx.Log.Warn("handle app gossip failed", zap.Error(ErrNotReady))
-
-		// Errors returned here are considered fatal so we just return nil
+func (n *NetworkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+	handler, ok := n.routeIncomingMessage(msg)
+	if !ok {
 		return nil
 	}
-
-	return vm.gossiper.HandleAppGossip(ctx, nodeID, msg)
+	return handler.AppGossip(ctx, nodeID, msg[1:])
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
-func (vm *VM) AppRequest(
+func (n *NetworkManager) AppRequest(
 	ctx context.Context,
 	nodeID ids.NodeID,
 	requestID uint32,
 	deadline time.Time,
 	request []byte,
 ) error {
-	// We don't know the requestID, so we prepend a byte to the request to
-	// extract a scope.
-	switch {
-	case len(request) == 0:
-		// Dropping empty request
-		vm.snowCtx.Log.Debug(
-			"received empty message",
-			zap.Stringer("nodeID", nodeID),
-		)
-	case request[0] == stateSyncMessage:
-		if delay := vm.config.GetStateSyncServerDelay(); delay > 0 {
-			time.Sleep(delay)
-		}
-		return vm.stateSyncNetworkServer.AppRequest(ctx, nodeID, requestID, deadline, request[1:])
-	case request[0] == warpMessage:
-		// TODO
-		panic("not implemented")
-	default:
-		// Dropping unrecognized message
-		vm.snowCtx.Log.Debug(
-			"received unrecognized message",
-			zap.Uint8("type", request[0]),
-			zap.Stringer("nodeID", nodeID),
-		)
-	}
-	return nil
-}
-
-// implements "block.ChainVM.commom.VM.AppHandler"
-func (vm *VM) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32) error {
-	vm.requestIDMapperL.Lock()
-	dest, ok := vm.requestIDMapper[requestID]
-	delete(vm.requestIDMapper, requestID)
-	vm.requestIDMapperL.Unlock()
+	handler, ok := n.routeIncomingMessage(request)
 	if !ok {
-		vm.snowCtx.Log.Debug(
-			"received unexepected request failed",
-			zap.Stringer("nodeID", nodeID),
-			zap.Uint32("requestID", requestID),
-		)
 		return nil
 	}
-	switch dest {
-	case stateSyncMessage:
-		return vm.stateSyncNetworkClient.AppRequestFailed(ctx, nodeID, requestID)
-	case warpMessage:
-		panic("not implemented")
-	default:
-		// Dropping unrecognized message
-		vm.snowCtx.Log.Debug(
-			"received unrecognized message",
-			zap.Uint8("type", dest),
-			zap.Stringer("nodeID", nodeID),
-		)
-	}
-	return nil
+	return handler.AppRequest(ctx, nodeID, requestID, deadline, request[1:])
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
-func (vm *VM) AppResponse(
+func (n *NetworkManager) AppRequestFailed(
+	ctx context.Context,
+	nodeID ids.NodeID,
+	requestID uint32,
+) error {
+	handler, cRequestID, ok := n.handleSharedRequestID(requestID)
+	if !ok {
+		return nil
+	}
+	return handler.AppRequestFailed(ctx, nodeID, cRequestID)
+}
+
+// implements "block.ChainVM.commom.VM.AppHandler"
+func (n *NetworkManager) AppResponse(
 	ctx context.Context,
 	nodeID ids.NodeID,
 	requestID uint32,
 	response []byte,
 ) error {
-	vm.requestIDMapperL.Lock()
-	dest, ok := vm.requestIDMapper[requestID]
-	delete(vm.requestIDMapper, requestID)
-	vm.requestIDMapperL.Unlock()
+	handler, cRequestID, ok := n.handleSharedRequestID(requestID)
 	if !ok {
-		vm.snowCtx.Log.Debug(
-			"received unexepected response",
-			zap.Stringer("nodeID", nodeID),
-			zap.Uint32("requestID", requestID),
-		)
 		return nil
 	}
-	switch dest {
-	case stateSyncMessage:
-		return vm.stateSyncNetworkClient.AppResponse(ctx, nodeID, requestID, response)
-	case warpMessage:
-		panic("not implemented")
-	default:
-		// Dropping unrecognized message
-		vm.snowCtx.Log.Debug(
-			"received unrecognized message",
-			zap.Uint8("type", dest),
-			zap.Stringer("nodeID", nodeID),
-		)
+	return handler.AppResponse(ctx, nodeID, cRequestID, response[1:])
+}
+
+// implements "block.ChainVM.commom.VM.validators.Connector"
+func (n *NetworkManager) Connected(
+	ctx context.Context,
+	nodeID ids.NodeID,
+	v *version.Application,
+) error {
+	n.l.RLock()
+	defer n.l.RUnlock()
+	for _, handler := range n.handlers {
+		if err := handler.Connected(ctx, nodeID, v); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 // implements "block.ChainVM.commom.VM.validators.Connector"
-func (vm *VM) Connected(ctx context.Context, nodeID ids.NodeID, v *version.Application) error {
-	return vm.stateSyncNetworkClient.Connected(ctx, nodeID, v)
-}
-
-// implements "block.ChainVM.commom.VM.validators.Connector"
-func (vm *VM) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
-	return vm.stateSyncNetworkClient.Disconnected(ctx, nodeID)
+func (n *NetworkManager) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
+	n.l.RLock()
+	defer n.l.RUnlock()
+	for _, handler := range n.handlers {
+		if err := handler.Disconnected(ctx, nodeID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (n *NetworkManager) CrossChainAppRequest(
@@ -265,9 +217,17 @@ func (n *NetworkManager) CrossChainAppRequestFailed(
 	return handler.CrossChainAppRequestFailed(ctx, nodeID, cRequestID)
 }
 
-// CrossChainAppResponse is a no-op.
-func (*VM) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
-	return nil
+func (n *NetworkManager) CrossChainAppResponse(
+	ctx context.Context,
+	nodeID ids.ID,
+	requestID uint32,
+	response []byte,
+) error {
+	handler, cRequestID, ok := n.handleSharedRequestID(requestID)
+	if !ok {
+		return nil
+	}
+	return handler.CrossChainAppResponse(ctx, nodeID, cRequestID, response)
 }
 
 // WrappedAppSender is used to get a shared requestID and to prepend messages
