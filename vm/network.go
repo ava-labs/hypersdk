@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
+	"go.uber.org/zap"
 )
 
 type request struct {
@@ -18,7 +19,7 @@ type request struct {
 
 type NetworkManager struct {
 	sender common.AppSender
-	l      sync.Mutex
+	l      sync.RWMutex
 
 	handler  uint8
 	handlers map[uint8]NetworkHandler
@@ -81,13 +82,192 @@ func (n *NetworkManager) getSharedRequestID(handler uint8, requestID uint32) uin
 	return newID
 }
 
-func (n *NetworkManager) handleSharedRequestID(requestID uint32) *request {
+func (n *NetworkManager) routeIncomingMessage(msg []byte) (NetworkHandler, bool) {
+	n.l.RLock()
+	defer n.l.RUnlock()
+
+	if len(msg) == 0 {
+		return nil, false
+	}
+	handlerID := msg[0]
+	handler, ok := n.handlers[handlerID]
+	return handler, ok
+}
+
+func (n *NetworkManager) handleSharedRequestID(requestID uint32) (NetworkHandler, uint32, bool) {
 	n.l.Lock()
 	defer n.l.Unlock()
 
 	req := n.requestMapper[requestID]
+	if req == nil {
+		return nil, 0, false
+	}
 	delete(n.requestMapper, requestID)
-	return req
+	return n.handlers[req.handler], req.requestID, true
+}
+
+// Handles incoming "AppGossip" messages, parses them to transactions,
+// and submits them to the mempool. The "AppGossip" message is sent by
+// the other VM  via "common.AppSender" to receive txs and
+// forward them to the other node (validator).
+//
+// implements "snowmanblock.ChainVM.commom.VM.AppHandler"
+// assume gossip via proposervm has been activated
+// ref. "avalanchego/vms/platformvm/network.AppGossip"
+func (vm *VM) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+	ctx, span := vm.tracer.Start(ctx, "VM.AppGossip")
+	defer span.End()
+
+	if !vm.isReady() {
+		vm.snowCtx.Log.Warn("handle app gossip failed", zap.Error(ErrNotReady))
+
+		// Errors returned here are considered fatal so we just return nil
+		return nil
+	}
+
+	return vm.gossiper.HandleAppGossip(ctx, nodeID, msg)
+}
+
+// implements "block.ChainVM.commom.VM.AppHandler"
+func (vm *VM) AppRequest(
+	ctx context.Context,
+	nodeID ids.NodeID,
+	requestID uint32,
+	deadline time.Time,
+	request []byte,
+) error {
+	// We don't know the requestID, so we prepend a byte to the request to
+	// extract a scope.
+	switch {
+	case len(request) == 0:
+		// Dropping empty request
+		vm.snowCtx.Log.Debug(
+			"received empty message",
+			zap.Stringer("nodeID", nodeID),
+		)
+	case request[0] == stateSyncMessage:
+		if delay := vm.config.GetStateSyncServerDelay(); delay > 0 {
+			time.Sleep(delay)
+		}
+		return vm.stateSyncNetworkServer.AppRequest(ctx, nodeID, requestID, deadline, request[1:])
+	case request[0] == warpMessage:
+		// TODO
+		panic("not implemented")
+	default:
+		// Dropping unrecognized message
+		vm.snowCtx.Log.Debug(
+			"received unrecognized message",
+			zap.Uint8("type", request[0]),
+			zap.Stringer("nodeID", nodeID),
+		)
+	}
+	return nil
+}
+
+// implements "block.ChainVM.commom.VM.AppHandler"
+func (vm *VM) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32) error {
+	vm.requestIDMapperL.Lock()
+	dest, ok := vm.requestIDMapper[requestID]
+	delete(vm.requestIDMapper, requestID)
+	vm.requestIDMapperL.Unlock()
+	if !ok {
+		vm.snowCtx.Log.Debug(
+			"received unexepected request failed",
+			zap.Stringer("nodeID", nodeID),
+			zap.Uint32("requestID", requestID),
+		)
+		return nil
+	}
+	switch dest {
+	case stateSyncMessage:
+		return vm.stateSyncNetworkClient.AppRequestFailed(ctx, nodeID, requestID)
+	case warpMessage:
+		panic("not implemented")
+	default:
+		// Dropping unrecognized message
+		vm.snowCtx.Log.Debug(
+			"received unrecognized message",
+			zap.Uint8("type", dest),
+			zap.Stringer("nodeID", nodeID),
+		)
+	}
+	return nil
+}
+
+// implements "block.ChainVM.commom.VM.AppHandler"
+func (vm *VM) AppResponse(
+	ctx context.Context,
+	nodeID ids.NodeID,
+	requestID uint32,
+	response []byte,
+) error {
+	vm.requestIDMapperL.Lock()
+	dest, ok := vm.requestIDMapper[requestID]
+	delete(vm.requestIDMapper, requestID)
+	vm.requestIDMapperL.Unlock()
+	if !ok {
+		vm.snowCtx.Log.Debug(
+			"received unexepected response",
+			zap.Stringer("nodeID", nodeID),
+			zap.Uint32("requestID", requestID),
+		)
+		return nil
+	}
+	switch dest {
+	case stateSyncMessage:
+		return vm.stateSyncNetworkClient.AppResponse(ctx, nodeID, requestID, response)
+	case warpMessage:
+		panic("not implemented")
+	default:
+		// Dropping unrecognized message
+		vm.snowCtx.Log.Debug(
+			"received unrecognized message",
+			zap.Uint8("type", dest),
+			zap.Stringer("nodeID", nodeID),
+		)
+	}
+	return nil
+}
+
+// implements "block.ChainVM.commom.VM.validators.Connector"
+func (vm *VM) Connected(ctx context.Context, nodeID ids.NodeID, v *version.Application) error {
+	return vm.stateSyncNetworkClient.Connected(ctx, nodeID, v)
+}
+
+// implements "block.ChainVM.commom.VM.validators.Connector"
+func (vm *VM) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
+	return vm.stateSyncNetworkClient.Disconnected(ctx, nodeID)
+}
+
+func (n *NetworkManager) CrossChainAppRequest(
+	ctx context.Context,
+	id ids.ID,
+	requestID uint32,
+	deadline time.Time,
+	msg []byte,
+) error {
+	handler, ok := n.routeIncomingMessage(msg)
+	if !ok {
+		return nil
+	}
+	return handler.CrossChainAppRequest(ctx, id, requestID, deadline, msg[1:])
+}
+
+func (n *NetworkManager) CrossChainAppRequestFailed(
+	ctx context.Context,
+	nodeID ids.ID,
+	requestID uint32,
+) error {
+	handler, cRequestID, ok := n.handleSharedRequestID(requestID)
+	if !ok {
+		return nil
+	}
+	return handler.CrossChainAppRequestFailed(ctx, nodeID, cRequestID)
+}
+
+// CrossChainAppResponse is a no-op.
+func (*VM) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
+	return nil
 }
 
 // WrappedAppSender is used to get a shared requestID and to prepend messages
@@ -175,7 +355,12 @@ func (w *WrappedAppSender) SendCrossChainAppRequest(
 	requestID uint32,
 	appRequestBytes []byte,
 ) error {
-	return nil
+	return w.n.sender.SendCrossChainAppRequest(
+		ctx,
+		chainID,
+		requestID,
+		append([]byte{w.handler}, appRequestBytes...),
+	)
 }
 
 // SendCrossChainAppResponse sends an application-level response to a
@@ -191,5 +376,7 @@ func (w *WrappedAppSender) SendCrossChainAppResponse(
 	requestID uint32,
 	appResponseBytes []byte,
 ) error {
-	return nil
+	// We don't need to wrap this response because the sender should know what
+	// requestID is associated with which handler.
+	return w.n.sender.SendCrossChainAppResponse(ctx, chainID, requestID, appResponseBytes)
 }
