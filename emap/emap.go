@@ -16,13 +16,6 @@ type bucket struct {
 	items []ids.ID // Array of AvalancheGo ids
 }
 
-// A bucketHeap implements the heap interface to construct a priority queue.
-// The heap structure is maintained by the less function which
-// sorts the heap in ascending order by a buckets timestamp [t].
-// type bucketHeap struct {
-// 	buckets []*bucket
-// }
-
 // Item defines an interface accepted by EMap
 type Item interface {
 	ID() ids.ID    // method for returning an id of the item
