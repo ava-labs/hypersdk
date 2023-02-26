@@ -155,6 +155,9 @@ for a single account and ensure they are ordered) and makes the network layer
 more efficient (we can gossip any valid transaction to any node instead of just
 the transactions for each account that can be executed at the moment).
 
+### Avalanche Warp Messaging Support
+TODO
+
 ### Easy Functionality Upgrades
 Every object that can appear on-chain (i.e. `Actions` and/or `Auth`) and every chain
 parameter (i.e. `Unit Price`) is scoped by block timestamp. This makes it
@@ -430,8 +433,6 @@ out on the Avalanche Discord._
 * Use pre-specified state keys to process transactions in parallel (txs with no
   overlap can be processed at the same time, create conflict sets on-the-fly
   instead of before execution)
-* Add support for Avalanche Warp Messaging (AWM) so any deployed hypervms
-  (hyperchains) can communicate with each other ([see ava-labs/xsvm](https://github.com/ava-labs/xsvm))
 * Add a WASM runtime module to allow developers to embed smart contract
   functionality in their hypervms
 * Overhaul streaming RPC (properly heartbeat and close connections)
