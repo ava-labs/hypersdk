@@ -21,6 +21,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
@@ -43,6 +44,7 @@ type VM struct {
 	v *version.Semantic
 
 	snowCtx         *snow.Context
+	pkBytes         []byte
 	proposerMonitor *ProposerMonitor
 	manager         manager.Manager
 
@@ -131,6 +133,9 @@ func (vm *VM) Initialize(
 	appSender common.AppSender,
 ) error {
 	vm.snowCtx = snowCtx
+	if vm.snowCtx.PublicKey != nil {
+		vm.pkBytes = bls.PublicKeyToBytes(vm.snowCtx.PublicKey)
+	}
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	gatherer := ametrics.NewMultiGatherer()

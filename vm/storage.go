@@ -4,9 +4,11 @@
 package vm
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 
+	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
@@ -26,6 +28,8 @@ const (
 var (
 	lastAccepted = []byte("last_accepted")
 	isSyncing    = []byte("is_syncing")
+
+	signatureLRU = &cache.LRU[string, *WarpSignature]{Size: 1024}
 )
 
 func PrefixBlockIDKey(id ids.ID) []byte {
@@ -147,6 +151,10 @@ func PrefixWarpSignatureKey(txID ids.ID, signer *bls.PublicKey) []byte {
 
 func (vm *VM) StoreWarpSignature(txID ids.ID, signer *bls.PublicKey, signature []byte) error {
 	k := PrefixWarpSignatureKey(txID, signer)
+	// Cache any signature we produce for later queries from peers
+	if bytes.Equal(vm.pkBytes, bls.PublicKeyToBytes(signer)) {
+		signatureLRU.Put(string(k), &WarpSignature{vm.pkBytes, signature})
+	}
 	return vm.vmDB.Put(k, signature)
 }
 
@@ -157,6 +165,9 @@ type WarpSignature struct {
 
 func (vm *VM) GetWarpSignature(txID ids.ID, signer *bls.PublicKey) (*WarpSignature, error) {
 	k := PrefixWarpSignatureKey(txID, signer)
+	if ws, ok := signatureLRU.Get(string(k)); ok {
+		return ws, nil
+	}
 	v, err := vm.vmDB.Get(k)
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, nil
@@ -164,10 +175,11 @@ func (vm *VM) GetWarpSignature(txID ids.ID, signer *bls.PublicKey) (*WarpSignatu
 	if err != nil {
 		return nil, err
 	}
-	return &WarpSignature{
+	ws := &WarpSignature{
 		PublicKey: bls.PublicKeyToBytes(signer),
 		Signature: v,
-	}, nil
+	}
+	return ws, nil
 }
 
 func (vm *VM) GetWarpSignatures(txID ids.ID) ([]*WarpSignature, error) {
