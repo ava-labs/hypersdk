@@ -24,6 +24,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	avago_version "github.com/ava-labs/avalanchego/version"
@@ -198,6 +199,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	// TODO: add main logger we can view data from later
 	for i := range instances {
 		nodeID := ids.GenerateTestNodeID()
+		sk, err := bls.NewSecretKey()
+		gomega.Ω(err).Should(gomega.BeNil())
 		l, err := logFactory.Make(nodeID.String())
 		gomega.Ω(err).Should(gomega.BeNil())
 		dname, err := os.MkdirTemp("", fmt.Sprintf("%s-chainData", nodeID.String()))
@@ -210,6 +213,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			Log:          l,
 			ChainDataDir: dname,
 			Metrics:      metrics.NewOptionalGatherer(),
+			PublicKey:    bls.PublicFromSecretKey(sk),
 		}
 
 		dname, err = os.MkdirTemp("", fmt.Sprintf("%s-root", nodeID.String()))
