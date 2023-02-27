@@ -40,6 +40,20 @@ func (m *MockAction) EXPECT() *MockActionMockRecorder {
 	return m.recorder
 }
 
+// ContainsWarpMessage mocks base method.
+func (m *MockAction) ContainsWarpMessage() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContainsWarpMessage")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// ContainsWarpMessage indicates an expected call of ContainsWarpMessage.
+func (mr *MockActionMockRecorder) ContainsWarpMessage() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsWarpMessage", reflect.TypeOf((*MockAction)(nil).ContainsWarpMessage))
+}
+
 // Execute mocks base method.
 func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 Database, arg3 int64, arg4 Auth, arg5 ids.ID) (*Result, error) {
 	m.ctrl.T.Helper()
