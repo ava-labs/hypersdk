@@ -142,6 +142,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 	b.sigJob = job
 
 	// Process transactions
+	r := b.vm.Rules(b.Tmstmp)
 	_, sspan := vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
 	actionRegistry, authRegistry := b.vm.Registry()
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
@@ -161,6 +162,12 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 		// Check if we need the block context to verify the block (which contains
 		// an Avalanche Warp Message)
 		if wm := tx.Action.WarpMessage(); wm != nil {
+			if wm.DestinationChainID != vm.ChainID() {
+				return errors.New("wrong chainID")
+			}
+			if allowed, _, _ := r.GetWarpConfig(wm.SourceChainID); !allowed {
+				return errors.New("warp message not allowed")
+			}
 			b.warpMessages = append(b.warpMessages, wm)
 		}
 	}
@@ -292,6 +299,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 // verifyWarpMessage will attempt to verify a given warp message provided by an
 // Action.
 func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *warp.Message) error {
+	// This is already checked in parse but we double check here
 	if msg.DestinationChainID != b.vm.ChainID() {
 		return errors.New("wrong chainID")
 	}
