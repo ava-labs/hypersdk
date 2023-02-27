@@ -15,6 +15,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/heap"
+	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 )
 
@@ -22,8 +24,6 @@ const maxWarpResponse = bls.PublicKeyLen + bls.SignatureLen
 
 // WarpManager takes requests to get signatures from other nodes and then
 // stores the result in our DB for future usage.
-//
-// TODO: limit max requests outstanding at any time
 type WarpManager struct {
 	vm        *VM
 	appSender common.AppSender
@@ -31,10 +31,14 @@ type WarpManager struct {
 	l         sync.Mutex
 	requestID uint32
 
-	jobs map[uint32]*signatureJob
+	pendingJobs *heap.Heap[*signatureJob, int64]
+	jobs        map[uint32]*signatureJob
+
+	done chan struct{}
 }
 
 type signatureJob struct {
+	id        ids.ID
 	nodeID    ids.NodeID
 	publicKey []byte
 	txID      ids.ID
@@ -42,11 +46,51 @@ type signatureJob struct {
 	msg       []byte
 }
 
-func NewWarpManager(vm *VM, appSender common.AppSender) *WarpManager {
+func NewWarpManager(vm *VM) *WarpManager {
 	return &WarpManager{
-		vm:        vm,
-		appSender: appSender,
-		jobs:      map[uint32]*signatureJob{},
+		vm:          vm,
+		pendingJobs: heap.New[*signatureJob, int64](64, true),
+		jobs:        map[uint32]*signatureJob{},
+		done:        make(chan struct{}),
+	}
+}
+
+func (w *WarpManager) Run(appSender common.AppSender) {
+	w.appSender = appSender
+
+	w.vm.Logger().Info("starting warp manager")
+	defer close(w.done)
+
+	t := time.NewTicker(1 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+			w.l.Lock()
+			now := time.Now().Unix()
+			for w.pendingJobs.Len() > 0 {
+				first := w.pendingJobs.First()
+				if first.Val > now {
+					break
+				}
+				w.pendingJobs.Pop()
+
+				// Send request
+				// TODO: limit max requests outstanding at any time
+				job := first.Item
+				if err := w.Request(context.Background(), job); err != nil {
+					w.vm.snowCtx.Log.Error(
+						"unable to request signature",
+						zap.Stringer("nodeID", job.nodeID),
+						zap.Error(err),
+					)
+				}
+			}
+			w.l.Unlock()
+		case <-w.vm.stop:
+			w.vm.Logger().Info("stopping warp manager")
+			return
+		}
 	}
 }
 
@@ -73,37 +117,37 @@ func (w *WarpManager) GatherSignatures(ctx context.Context, txID ids.ID, msg []b
 		if validator.PublicKey == nil {
 			continue
 		}
-		if err := w.Request(ctx, nodeID, bls.PublicKeyToBytes(validator.PublicKey), txID, 0, msg); err != nil {
-			w.vm.snowCtx.Log.Error(
-				"unable to request signature",
-				zap.Stringer("nodeID", nodeID),
-				zap.Error(err),
-			)
-		}
+		id := utils.ToID(append(txID[:], nodeID.Bytes()...))
+		w.l.Lock()
+		w.pendingJobs.Push(&heap.Entry[*signatureJob, int64]{
+			ID: id,
+			Item: &signatureJob{
+				id,
+				nodeID,
+				bls.PublicKeyToBytes(validator.PublicKey),
+				txID,
+				0,
+				msg,
+			},
+			Val:   time.Now().Unix() + 10,
+			Index: w.pendingJobs.Len(),
+		})
+		w.l.Unlock()
 	}
 }
 
 func (w *WarpManager) Request(
 	ctx context.Context,
-	nodeID ids.NodeID,
-	publicKey []byte,
-	txID ids.ID,
-	retry int,
-	msg []byte,
+	j *signatureJob,
 ) error {
 	w.l.Lock()
 	requestID := w.requestID
 	w.requestID++
-	w.jobs[requestID] = &signatureJob{
-		nodeID:    nodeID,
-		publicKey: publicKey,
-		txID:      txID,
-		retry:     retry,
-		msg:       msg,
-	}
+	w.jobs[requestID] = j
 	w.l.Unlock()
+
 	p := codec.NewWriter(consts.IDLen)
-	p.PackID(txID)
+	p.PackID(j.txID)
 	if err := p.Err(); err != nil {
 		// Should never happen
 		w.l.Lock()
@@ -113,7 +157,7 @@ func (w *WarpManager) Request(
 	}
 	return w.appSender.SendAppRequest(
 		ctx,
-		set.Set[ids.NodeID]{nodeID: struct{}{}},
+		set.Set[ids.NodeID]{j.nodeID: struct{}{}},
 		requestID,
 		p.Bytes(),
 	)
@@ -199,16 +243,24 @@ func (w *WarpManager) HandleRequestFailed(requestID uint32) error {
 	if !ok {
 		return nil
 	}
+
+	// Drop if we've already retried too many times
 	if job.retry >= 5 {
 		return nil
 	}
+	job.retry++
 
-	timer := time.NewTimer(30 * time.Second)
-	select {
-	case <-timer.C:
-	case <-w.vm.stop:
-		return nil
-	}
+	w.l.Lock()
+	w.pendingJobs.Push(&heap.Entry[*signatureJob, int64]{
+		ID:    job.id,
+		Item:  job,
+		Val:   time.Now().Unix() + 30,
+		Index: w.pendingJobs.Len(),
+	})
+	w.l.Unlock()
+	return nil
+}
 
-	return w.Request(context.TODO(), job.nodeID, job.publicKey, job.txID, job.retry+1, job.msg)
+func (w *WarpManager) Done() {
+	<-w.done
 }

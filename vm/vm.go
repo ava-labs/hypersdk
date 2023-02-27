@@ -142,8 +142,9 @@ func (vm *VM) Initialize(
 	vm.proposerMonitor = NewProposerMonitor(vm)
 	vm.networkManager = NewNetworkManager(appSender)
 	warpHandler, warpSender := vm.networkManager.Register()
-	vm.warpManager = NewWarpManager(vm, warpSender)
+	vm.warpManager = NewWarpManager(vm)
 	vm.networkManager.SetHandler(warpHandler, NewWarpHandler(vm))
+	go vm.warpManager.Run(warpSender)
 	vm.manager = manager
 
 	// Always initialize implementation first
@@ -430,6 +431,7 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	}
 
 	// Shutdown other async VM mechanisms
+	vm.warpManager.Done()
 	vm.builder.Done()
 	vm.gossiper.Done()
 	vm.workers.Stop()
