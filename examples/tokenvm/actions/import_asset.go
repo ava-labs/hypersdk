@@ -77,6 +77,7 @@ func (i *ImportAsset) Execute(
 	if i.warpTransfer.Value == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
 	}
+	// TODO: must add special handling if bringing funds back to their home chain
 	exists, metadata, supply, _, err := storage.GetAsset(ctx, db, i.newAsset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
