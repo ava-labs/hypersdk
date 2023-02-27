@@ -13,6 +13,7 @@ import (
 	reflect "reflect"
 
 	ids "github.com/ava-labs/avalanchego/ids"
+	warp "github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	codec "github.com/ava-labs/hypersdk/codec"
 	gomock "github.com/golang/mock/gomock"
 )
@@ -38,20 +39,6 @@ func NewMockAction(ctrl *gomock.Controller) *MockAction {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockAction) EXPECT() *MockActionMockRecorder {
 	return m.recorder
-}
-
-// ContainsWarpMessage mocks base method.
-func (m *MockAction) ContainsWarpMessage() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ContainsWarpMessage")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// ContainsWarpMessage indicates an expected call of ContainsWarpMessage.
-func (mr *MockActionMockRecorder) ContainsWarpMessage() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsWarpMessage", reflect.TypeOf((*MockAction)(nil).ContainsWarpMessage))
 }
 
 // Execute mocks base method.
@@ -122,4 +109,18 @@ func (m *MockAction) ValidRange(arg0 Rules) (int64, int64) {
 func (mr *MockActionMockRecorder) ValidRange(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidRange", reflect.TypeOf((*MockAction)(nil).ValidRange), arg0)
+}
+
+// WarpMessage mocks base method.
+func (m *MockAction) WarpMessage() *warp.Message {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WarpMessage")
+	ret0, _ := ret[0].(*warp.Message)
+	return ret0
+}
+
+// WarpMessage indicates an expected call of WarpMessage.
+func (mr *MockActionMockRecorder) WarpMessage() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarpMessage", reflect.TypeOf((*MockAction)(nil).WarpMessage))
 }
