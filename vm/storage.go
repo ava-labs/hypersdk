@@ -137,7 +137,7 @@ func (vm *VM) GetWarpMessage(txID ids.ID) (*warp.UnsignedMessage, error) {
 	return warp.ParseUnsignedMessage(v)
 }
 
-func PrefixWarpSignaturesKey(txID ids.ID, signer *bls.PublicKey) []byte {
+func PrefixWarpSignatureKey(txID ids.ID, signer *bls.PublicKey) []byte {
 	k := make([]byte, 1+consts.IDLen+bls.PublicKeyLen)
 	k[0] = warpSignaturePrefix
 	copy(k[1:], txID[:])
@@ -146,13 +146,28 @@ func PrefixWarpSignaturesKey(txID ids.ID, signer *bls.PublicKey) []byte {
 }
 
 func (vm *VM) StoreWarpSignature(txID ids.ID, signer *bls.PublicKey, signature []byte) error {
-	k := PrefixWarpSignaturesKey(txID, signer)
+	k := PrefixWarpSignatureKey(txID, signer)
 	return vm.vmDB.Put(k, signature)
 }
 
 type WarpSignature struct {
 	PublicKey []byte `json:"publicKey"`
 	Signature []byte `json:"signature"`
+}
+
+func (vm *VM) GetWarpSignature(txID ids.ID, signer *bls.PublicKey) (*WarpSignature, error) {
+	k := PrefixWarpSignatureKey(txID, signer)
+	v, err := vm.vmDB.Get(k)
+	if errors.Is(err, database.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &WarpSignature{
+		PublicKey: bls.PublicKeyToBytes(signer),
+		Signature: v,
+	}, nil
 }
 
 func (vm *VM) GetWarpSignatures(txID ids.ID) ([]*WarpSignature, error) {

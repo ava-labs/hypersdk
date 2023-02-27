@@ -140,8 +140,10 @@ func (vm *VM) Initialize(
 	}
 	vm.metrics = metrics
 	vm.proposerMonitor = NewProposerMonitor(vm)
-	vm.warpManager = NewWarpManager(vm)
 	vm.networkManager = NewNetworkManager(appSender)
+	warpHandler, warpSender := vm.networkManager.Register()
+	vm.warpManager = NewWarpManager(vm, warpSender)
+	vm.networkManager.SetHandler(warpHandler, NewWarpHandler(vm))
 	vm.manager = manager
 
 	// Always initialize implementation first

@@ -73,11 +73,11 @@ func (w *WarpManager) GatherSignatures(ctx context.Context, txID ids.ID, msg []b
 		if validator.PublicKey == nil {
 			continue
 		}
-		w.AppRequest(ctx, nodeID, bls.PublicKeyToBytes(validator.PublicKey), txID, 0, msg)
+		w.Request(ctx, nodeID, bls.PublicKeyToBytes(validator.PublicKey), txID, 0, msg)
 	}
 }
 
-func (w *WarpManager) AppRequest(
+func (w *WarpManager) Request(
 	ctx context.Context,
 	nodeID ids.NodeID,
 	publicKey []byte,
@@ -114,13 +114,41 @@ func (w *WarpManager) AppRequest(
 	)
 }
 
-func (w *WarpManager) HandleResponse(requestID uint32, msg []byte) {
+func (w *WarpManager) AppRequest(
+	ctx context.Context,
+	nodeID ids.NodeID,
+	requestID uint32,
+	request []byte,
+) error {
+	rp := codec.NewReader(request, consts.IDLen)
+	var txID ids.ID
+	rp.UnpackID(true, &txID)
+	if err := rp.Err(); err != nil {
+		return nil
+	}
+	sig, err := w.vm.GetWarpSignature(txID, w.vm.snowCtx.PublicKey)
+	if err != nil {
+		return nil
+	}
+	if sig == nil {
+		return nil
+	}
+	wp := codec.NewWriter(maxWarpResponse)
+	wp.PackBytes(sig.PublicKey)
+	wp.PackBytes(sig.Signature)
+	if err := wp.Err(); err != nil {
+		return nil
+	}
+	return w.appSender.SendAppResponse(ctx, nodeID, requestID, wp.Bytes())
+}
+
+func (w *WarpManager) HandleResponse(requestID uint32, msg []byte) error {
 	w.l.Lock()
 	job, ok := w.jobs[requestID]
 	delete(w.jobs, requestID)
 	w.l.Unlock()
 	if !ok {
-		return
+		return nil
 	}
 
 	// Parse message
@@ -130,51 +158,52 @@ func (w *WarpManager) HandleResponse(requestID uint32, msg []byte) {
 	var signature []byte
 	r.UnpackBytes(bls.SignatureLen, true, &signature)
 	if err := r.Err(); err != nil {
-		return
+		return nil
 	}
 
 	// Check public key is expected
 	if !bytes.Equal(publicKey, job.publicKey) {
-		return
+		return nil
 	}
 
 	// Check signature validity
 	pk, err := bls.PublicKeyFromBytes(publicKey)
 	if err != nil {
-		return
+		return nil
 	}
 	sig, err := bls.SignatureFromBytes(signature)
 	if err != nil {
-		return
+		return nil
 	}
 	if !bls.Verify(pk, sig, job.msg) {
-		return
+		return nil
 	}
 
 	// Store in DB
 	if err := w.vm.StoreWarpSignature(job.txID, pk, signature); err != nil {
-		return
+		return nil
 	}
+	return nil
 }
 
-func (w *WarpManager) HandleRequestFailed(requestID uint32) {
+func (w *WarpManager) HandleRequestFailed(requestID uint32) error {
 	w.l.Lock()
 	job, ok := w.jobs[requestID]
 	delete(w.jobs, requestID)
 	w.l.Unlock()
 	if !ok {
-		return
+		return nil
 	}
 	if job.retry >= 5 {
-		return
+		return nil
 	}
 
 	timer := time.NewTimer(30 * time.Second)
 	select {
 	case <-timer.C:
 	case <-w.vm.stop:
-		return
+		return nil
 	}
 
-	w.AppRequest(context.TODO(), job.nodeID, job.publicKey, job.txID, job.retry+1, job.msg)
+	return w.Request(context.TODO(), job.nodeID, job.publicKey, job.txID, job.retry+1, job.msg)
 }
