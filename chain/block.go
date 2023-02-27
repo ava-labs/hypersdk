@@ -292,7 +292,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 // verifyWarpMessage will attempt to verify a given warp message provided by an
 // Action.
 func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *warp.Message) error {
-	if msg.DestinationChainID != r.GetChainID() {
+	if msg.DestinationChainID != b.vm.ChainID() {
 		return errors.New("wrong chainID")
 	}
 	allowed, num, denom := r.GetWarpConfig(msg.SourceChainID)
@@ -409,10 +409,7 @@ func (b *StatelessBlock) verify(ctx context.Context) (merkledb.TrieView, error) 
 	}
 	if b.bctx != nil {
 		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
-		b.vdrState, err = b.vm.ValidatorState(b.bctx.PChainHeight)
-		if err != nil {
-			return nil, err
-		}
+		b.vdrState = b.vm.ValidatorState()
 		warpJob, err = b.vm.Workers().NewJob(len(b.warpMessages))
 		if err != nil {
 			return nil, err

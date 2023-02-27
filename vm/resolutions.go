@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -34,6 +35,14 @@ var (
 
 func (vm *VM) HRP() string {
 	return vm.genesis.GetHRP()
+}
+
+func (vm *VM) ChainID() ids.ID {
+	return vm.snowCtx.ChainID
+}
+
+func (vm *VM) ValidatorState() validators.State {
+	return vm.snowCtx.ValidatorState
 }
 
 func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {

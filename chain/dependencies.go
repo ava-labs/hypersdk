@@ -45,7 +45,7 @@ type VM interface {
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
 	State() (*merkledb.Database, error)
-	ValidatorState(pHeight uint64) (validators.State, error)
+	ValidatorState() validators.State
 
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction) bool
