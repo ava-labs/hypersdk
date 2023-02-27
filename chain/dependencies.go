@@ -33,6 +33,7 @@ type VM interface {
 	Parser
 
 	HRP() string
+	ChainID() ids.ID
 
 	Workers() *workers.Workers
 	Tracer() trace.Tracer
@@ -77,7 +78,6 @@ type Database interface {
 }
 
 type Rules interface {
-	GetChainID() ids.ID
 	GetWarpConfig(ids.ID) (bool, uint64, uint64)
 
 	GetMaxBlockTxs() int
