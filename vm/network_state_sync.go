@@ -54,8 +54,8 @@ func (s *StateSyncHandler) AppRequestFailed(
 	requestID uint32,
 ) error {
 	return s.vm.stateSyncNetworkClient.AppRequestFailed(ctx, nodeID, requestID)
-
 }
+
 func (s *StateSyncHandler) AppResponse(
 	ctx context.Context,
 	nodeID ids.NodeID,

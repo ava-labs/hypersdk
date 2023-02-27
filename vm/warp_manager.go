@@ -85,7 +85,6 @@ func (w *WarpManager) Request(
 	retry int,
 	msg []byte,
 ) error {
-
 	w.l.Lock()
 	requestID := w.requestID
 	w.requestID++

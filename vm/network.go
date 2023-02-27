@@ -310,6 +310,7 @@ func (w *WrappedAppSender) SendAppGossip(ctx context.Context, appGossipBytes []b
 		append([]byte{w.handler}, appGossipBytes...),
 	)
 }
+
 func (w *WrappedAppSender) SendAppGossipSpecific(
 	ctx context.Context,
 	nodeIDs set.Set[ids.NodeID],
