@@ -133,9 +133,7 @@ func (vm *VM) Initialize(
 	appSender common.AppSender,
 ) error {
 	vm.snowCtx = snowCtx
-	if vm.snowCtx.PublicKey != nil {
-		vm.pkBytes = bls.PublicKeyToBytes(vm.snowCtx.PublicKey)
-	}
+	vm.pkBytes = bls.PublicKeyToBytes(vm.snowCtx.PublicKey)
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	gatherer := ametrics.NewMultiGatherer()
