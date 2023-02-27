@@ -20,7 +20,11 @@ func (r *Result) Marshal(p *codec.Packer) {
 	p.PackBool(r.Success)
 	p.PackUint64(r.Units)
 	p.PackBytes(r.Output)
-	p.PackBytes(r.WarpMessage.Bytes())
+	var warpBytes []byte
+	if r.WarpMessage != nil {
+		warpBytes = r.WarpMessage.Bytes()
+	}
+	p.PackBytes(warpBytes)
 }
 
 func MarshalResults(src []*Result) ([]byte, error) {
