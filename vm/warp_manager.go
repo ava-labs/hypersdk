@@ -1,12 +1,17 @@
 package vm
 
 import (
+	"bytes"
 	"context"
 	"sync"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"go.uber.org/zap"
 )
 
@@ -14,8 +19,11 @@ const maxWarpResponse = bls.PublicKeyLen + bls.SignatureLen
 
 // WarpManager takes requests to get signatures from other nodes and then
 // stores the result in our DB for future usage.
+//
+// TODO: limit max requests outstanding at any time
 type WarpManager struct {
-	vm *VM
+	vm        *VM
+	appSender common.AppSender
 
 	l         sync.Mutex
 	requestID uint32
@@ -24,16 +32,18 @@ type WarpManager struct {
 }
 
 type signatureJob struct {
-	nodeID  ids.NodeID
-	txID    ids.ID
-	retries int
-	msg     []byte
+	nodeID    ids.NodeID
+	publicKey []byte
+	txID      ids.ID
+	retry     int
+	msg       []byte
 }
 
-func NewWarpManager(vm *VM) *WarpManager {
+func NewWarpManager(vm *VM, appSender common.AppSender) *WarpManager {
 	return &WarpManager{
-		vm:   vm,
-		jobs: map[uint32]*signatureJob{},
+		vm:        vm,
+		appSender: appSender,
+		jobs:      map[uint32]*signatureJob{},
 	}
 }
 
@@ -59,27 +69,55 @@ func (w *WarpManager) GatherSignatures(ctx context.Context, txID ids.ID, msg []b
 	}
 	// TODO: restart any unfinished jobs on restart
 	for nodeID, validator := range validators {
-		// Make request to validator over p2p (retry x times)
-
-		// Check signature validity
-
-		// Store in DB
+		// Only request from validators that have registered BLS public keys
+		if validator.PublicKey == nil {
+			continue
+		}
+		w.AppRequest(ctx, nodeID, bls.PublicKeyToBytes(validator.PublicKey), txID, 0, msg)
 	}
 }
 
-func (w *WarpManager) Request(ctx context.Context, nodeID ids.NodeID, txID ids.ID) {
+func (w *WarpManager) AppRequest(
+	ctx context.Context,
+	nodeID ids.NodeID,
+	publicKey []byte,
+	txID ids.ID,
+	retry int,
+	msg []byte,
+) error {
+
 	w.l.Lock()
 	requestID := w.requestID
 	w.requestID++
+	w.jobs[requestID] = &signatureJob{
+		nodeID:    nodeID,
+		publicKey: publicKey,
+		txID:      txID,
+		retry:     retry,
+		msg:       msg,
+	}
 	w.l.Unlock()
+	p := codec.NewWriter(consts.IDLen)
+	p.PackID(txID)
+	if err := p.Err(); err != nil {
+		// Should never happen
+		w.l.Lock()
+		delete(w.jobs, requestID)
+		w.l.Unlock()
+		return nil
+	}
+	return w.appSender.SendAppRequest(
+		ctx,
+		set.Set[ids.NodeID]{nodeID: struct{}{}},
+		requestID,
+		p.Bytes(),
+	)
 }
 
 func (w *WarpManager) HandleResponse(requestID uint32, msg []byte) {
 	w.l.Lock()
 	job, ok := w.jobs[requestID]
-	if ok {
-		delete(w.jobs, requestID)
-	}
+	delete(w.jobs, requestID)
 	w.l.Unlock()
 	if !ok {
 		return
@@ -92,6 +130,11 @@ func (w *WarpManager) HandleResponse(requestID uint32, msg []byte) {
 	var signature []byte
 	r.UnpackBytes(bls.SignatureLen, true, &signature)
 	if err := r.Err(); err != nil {
+		return
+	}
+
+	// Check public key is expected
+	if !bytes.Equal(publicKey, job.publicKey) {
 		return
 	}
 
@@ -114,6 +157,24 @@ func (w *WarpManager) HandleResponse(requestID uint32, msg []byte) {
 	}
 }
 
-func (w *WarpManager) HandleRequestFailed() {
-	// TODO: retry 5 times (after waiting 30s)
+func (w *WarpManager) HandleRequestFailed(requestID uint32) {
+	w.l.Lock()
+	job, ok := w.jobs[requestID]
+	delete(w.jobs, requestID)
+	w.l.Unlock()
+	if !ok {
+		return
+	}
+	if job.retry >= 5 {
+		return
+	}
+
+	timer := time.NewTimer(30 * time.Second)
+	select {
+	case <-timer.C:
+	case <-w.vm.stop:
+		return
+	}
+
+	w.AppRequest(context.TODO(), job.nodeID, job.publicKey, job.txID, job.retry+1, job.msg)
 }
