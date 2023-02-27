@@ -6,6 +6,7 @@ package crypto
 import (
 	"crypto/ed25519"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -125,7 +126,9 @@ func TestParseAddress(t *testing.T) {
 func TestSaveKey(t *testing.T) {
 	require := require.New(t)
 
-	filename := "SaveKey"
+	tempDir := os.TempDir()
+	filename := filepath.Join(tempDir, "SaveKey")
+
 	err := TestPrivateKey.Save(filename)
 	require.NoError(err, "Error during call to SaveKey")
 	require.FileExists(filename, "SaveKey did not create file")
@@ -136,25 +139,34 @@ func TestSaveKey(t *testing.T) {
 	require.NoError(err, "Reading saved file threw an error")
 	require.Equal(TestPrivateKey, privKey, "Key is different than saved key")
 	// Remove File
-	os.Remove(filename)
+	_ = os.Remove(filename)
 }
 
 func TestLoadKeyIncorrectKey(t *testing.T) {
 	// Creates dummy file with invalid key size
 	// Checks that LoadKey returns emptyprivatekey and err
 	require := require.New(t)
-	filename := "TestLoadKey"
 	invalidPrivKey := []byte{1, 2, 3, 4, 5}
+
 	// Writes
-	err := os.WriteFile(filename, invalidPrivKey, 0o600)
+	f, err := os.CreateTemp("", "TestLoadKey*")
+	require.NoError(err)
+	fileName := f.Name()
+
+	err = os.WriteFile(fileName, invalidPrivKey, 0o600)
 	require.NoError(err, "Error writing using OS during tests")
-	privKey, err := LoadKey(filename)
+	err = f.Close()
+	require.NoError(err, "Error closing file during tests")
+
+	privKey, err := LoadKey(fileName)
+
 	// Validate
 	require.ErrorIs(err, ErrInvalidPrivateKey,
 		"ErrInvalidPrivateKey was not returned")
 	require.Equal(privKey, PrivateKey(EmptyPrivateKey))
+
 	// Remove file
-	os.Remove(filename)
+	_ = os.Remove(fileName)
 }
 
 func TestLoadKeyInvalidFile(t *testing.T) {
@@ -171,17 +183,20 @@ func TestLoadKey(t *testing.T) {
 	require := require.New(t)
 	// Creates dummy file with valid key size
 	// Checks the returned value was the key in the file
-	filename := "TestLoadKey"
-	// Writes
-	err := os.WriteFile(filename, TestPrivateKey[:], 0o600)
-	require.NoError(err, "Error writing using OS during tests")
+	f, err := os.CreateTemp("", "TestLoadKey*")
+	require.NoError(err)
+	fileName := f.Name()
 
-	privKey, err := LoadKey(filename)
+	_, err = f.Write(TestPrivateKey[:])
+	require.NoError(err)
+	err = f.Close()
+	require.NoError(err)
+
+	privKey, err := LoadKey(fileName)
 	// Validate
 	require.NoError(err, "Error was incorrectly returned during LoadKey")
 	require.Equal(privKey, TestPrivateKey, "PrivateKey was different than expected")
-	// Removes file
-	os.Remove(filename)
+	_ = os.Remove(fileName)
 }
 
 func TestSignSignatureValid(t *testing.T) {

@@ -10,6 +10,7 @@ const (
 	MaxUint        = ^uint(0)
 	MaxInt         = int(MaxUint >> 1)
 	IntLen         = 4
+	Uint16Len      = 2
 	Uint64Len      = 8
 	MaxUint64      = ^uint64(0)
 )

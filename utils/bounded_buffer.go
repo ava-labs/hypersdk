@@ -51,7 +51,7 @@ func (b *BoundedBuffer[K]) Insert(h K) {
 // [K] and [false].
 func (b *BoundedBuffer[K]) Last() (K, bool) {
 	if b.lastPos == -1 {
-		return *new(K), false //nolint:gocritic
+		return *new(K), false
 	}
 	return b.buffer[b.lastPos], true
 }

@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	waitSleep = 3 * time.Second
+	waitSleep = 500 * time.Millisecond
 )
 
 type Modifier interface {
@@ -65,6 +65,7 @@ func (cli *Client) GenerateTransaction(
 }
 
 func Wait(ctx context.Context, check func(ctx context.Context) (bool, error)) error {
+	time.Sleep(500 * time.Millisecond) // usually a small delay here helps a lot
 	for ctx.Err() == nil {
 		exit, err := check(ctx)
 		if err != nil {

@@ -62,9 +62,7 @@ func ParseAddress(hrp, saddr string) (PublicKey, error) {
 	if len(pk) < PublicKeyLen {
 		return EmptyPublicKey, ErrInvalidPublicKey
 	}
-	var p PublicKey
-	copy(p[:], pk[:PublicKeyLen])
-	return p, nil
+	return PublicKey(pk[:PublicKeyLen]), nil
 }
 
 // GeneratePrivateKey returns a Ed25519 PrivateKey.
@@ -74,19 +72,13 @@ func GeneratePrivateKey() (PrivateKey, error) {
 	if err != nil {
 		return EmptyPrivateKey, err
 	}
-	var pk PrivateKey
-	copy(pk[:], k)
-	return pk, nil
+	return PrivateKey(k), nil
 }
 
 // PublicKey returns a PublicKey associated with the Ed25519 PrivateKey p.
 // The PublicKey is the last 32 bytes of p.
 func (p PrivateKey) PublicKey() PublicKey {
-	// TODO: https://github.com/ava-labs/hypersdk/issues/23
-	rpk := p[PrivateKeySeedLen:]
-	var pk PublicKey
-	copy(pk[:], rpk)
-	return pk
+	return PublicKey(p[PrivateKeySeedLen:])
 }
 
 // ToHex converts a PrivateKey to a hex string.
@@ -111,17 +103,13 @@ func LoadKey(filename string) (PrivateKey, error) {
 	if len(bytes) != ed25519.PrivateKeySize {
 		return EmptyPrivateKey, ErrInvalidPrivateKey
 	}
-	var pk PrivateKey
-	copy(pk[:], bytes)
-	return pk, nil
+	return PrivateKey(bytes), nil
 }
 
 // Sign returns a valid signature for msg using pk.
 func Sign(msg []byte, pk PrivateKey) Signature {
 	sig := ed25519.Sign(pk[:], msg)
-	var s Signature
-	copy(s[:], sig)
-	return s
+	return Signature(sig)
 }
 
 // Verify returns whether s is a valid signature of msg by p.
@@ -139,7 +127,5 @@ func HexToKey(key string) (PrivateKey, error) {
 	if len(bytes) != ed25519.PrivateKeySize {
 		return EmptyPrivateKey, ErrInvalidPrivateKey
 	}
-	var pk PrivateKey
-	copy(pk[:], bytes)
-	return pk, nil
+	return PrivateKey(bytes), nil
 }

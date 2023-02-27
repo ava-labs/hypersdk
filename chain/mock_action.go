@@ -82,17 +82,17 @@ func (mr *MockActionMockRecorder) MaxUnits(arg0 interface{}) *gomock.Call {
 }
 
 // StateKeys mocks base method.
-func (m *MockAction) StateKeys(arg0 Auth) [][]byte {
+func (m *MockAction) StateKeys(arg0 Auth, arg1 ids.ID) [][]byte {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StateKeys", arg0)
+	ret := m.ctrl.Call(m, "StateKeys", arg0, arg1)
 	ret0, _ := ret[0].([][]byte)
 	return ret0
 }
 
 // StateKeys indicates an expected call of StateKeys.
-func (mr *MockActionMockRecorder) StateKeys(arg0 interface{}) *gomock.Call {
+func (mr *MockActionMockRecorder) StateKeys(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StateKeys", reflect.TypeOf((*MockAction)(nil).StateKeys), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StateKeys", reflect.TypeOf((*MockAction)(nil).StateKeys), arg0, arg1)
 }
 
 // ValidRange mocks base method.

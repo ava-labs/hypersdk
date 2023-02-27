@@ -86,7 +86,7 @@ func (o *OptionalPacker) PackPublicKey(pk crypto.PublicKey) {
 
 func (o *OptionalPacker) UnpackPublicKey(dest *crypto.PublicKey) {
 	if o.checkBit() {
-		o.ip.UnpackPublicKey(dest)
+		o.ip.UnpackPublicKey(true, dest)
 	}
 }
 

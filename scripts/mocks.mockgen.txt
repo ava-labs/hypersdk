@@ -1,0 +1,5 @@
+github.com/ava-labs/hypersdk/chain=Action=chain/mock_action.go
+github.com/ava-labs/hypersdk/chain=Auth=chain/mock_auth.go
+github.com/ava-labs/hypersdk/chain=AuthFactory=chain/mock_auth_factory.go
+github.com/ava-labs/hypersdk/chain=Rules=chain/mock_rules.go
+github.com/ava-labs/hypersdk/vm=Controller=vm/mock_controller.go
