@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -43,6 +44,7 @@ type VM interface {
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
 	State() (*merkledb.Database, error)
+	ValidatorState(pHeight uint64) (validators.State, error)
 
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction) bool
@@ -76,6 +78,7 @@ type Database interface {
 
 type Rules interface {
 	GetChainID() ids.ID
+	GetWarpConfig(ids.ID) (bool, uint64, uint64)
 
 	GetMaxBlockTxs() int
 	GetMaxBlockUnits() uint64 // should ensure can't get above block max size

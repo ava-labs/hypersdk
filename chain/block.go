@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
@@ -82,6 +84,7 @@ type StatelessBlock struct {
 
 	warpMessages []*warp.Message
 	bctx         *block.Context
+	vdrState     validators.State
 
 	results []*Result
 
@@ -286,6 +289,26 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 	return nil
 }
 
+// verifyWarpMessage will attempt to verify a given warp message provided by an
+// Action.
+func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *warp.Message) error {
+	if msg.DestinationChainID != r.GetChainID() {
+		return errors.New("wrong chainID")
+	}
+	allowed, num, denom := r.GetWarpConfig(msg.SourceChainID)
+	if !allowed {
+		return errors.New("cannot import from chainID")
+	}
+	return msg.Signature.Verify(
+		ctx,
+		&msg.UnsignedMessage,
+		b.vdrState,
+		b.bctx.PChainHeight,
+		num,
+		denom,
+	)
+}
+
 // Must handle re-reverification...
 //
 // Invariants:
@@ -380,10 +403,16 @@ func (b *StatelessBlock) verify(ctx context.Context) (merkledb.TrieView, error) 
 	var warpJob *workers.Job
 	if !b.vm.IsBootstrapped() {
 		// Skip verify if we are still bootstrapping
+		b.vm.Logger().
+			Info("skipping warp verification because we are still bootstrapping", zap.Uint64("height", b.Hght))
 		b.bctx = nil
 	}
 	if b.bctx != nil {
 		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
+		b.vdrState, err = b.vm.ValidatorState(b.bctx.PChainHeight)
+		if err != nil {
+			return nil, err
+		}
 		warpJob, err = b.vm.Workers().NewJob(len(b.warpMessages))
 		if err != nil {
 			return nil, err
@@ -391,7 +420,7 @@ func (b *StatelessBlock) verify(ctx context.Context) (merkledb.TrieView, error) 
 		for _, msg := range b.warpMessages {
 			m := msg
 			warpJob.Go(func() error {
-				return nil
+				return b.verifyWarpMessage(ctx, r, m)
 			})
 		}
 		warpJob.Done(func() { sspan.End() })
