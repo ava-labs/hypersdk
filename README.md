@@ -157,6 +157,9 @@ the transactions for each account that can be executed at the moment).
 
 ### Avalanche Warp Messaging Support
 TODO
+* Processed in parallel during block execution
+* Actions either emit warp messages during execution or specify warp messages
+  as a dependency
 
 ### Easy Functionality Upgrades
 Every object that can appear on-chain (i.e. `Actions` and/or `Auth`) and every chain
@@ -396,7 +399,7 @@ that an account owner can call to perform any ACL modifications.
 ### Rules
 ```golang
 type Rules interface {
-	GetChainID() ids.ID
+	GetWarpConfig(ids.ID) (bool, uint64, uint64)
 
 	GetMaxBlockTxs() int
 	GetMaxBlockUnits() uint64
