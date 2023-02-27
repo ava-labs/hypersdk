@@ -288,7 +288,7 @@ type Controller interface {
 		genesis Genesis,
 		builder builder.Builder,
 		gossiper gossiper.Gossiper,
-		blockDB KVDatabase,
+		blockDB database.Database,
 		stateDB database.Database,
 		handler Handlers,
 		actionRegistry chain.ActionRegistry,
@@ -300,6 +300,8 @@ type Controller interface {
 
 	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
 	Rejected(ctx context.Context, blk *chain.StatelessBlock) error
+
+  Shutdown(ctx context.Context) error
 }
 ```
 
