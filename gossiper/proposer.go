@@ -254,17 +254,20 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	}
 
 	// submit incoming gossip
-	g.vm.Logger().Info("AppGossip transactions are being submitted", zap.Int("txs", len(txs)))
+	start := time.Now()
 	for _, err := range g.vm.Submit(ctx, true, txs) {
 		if err == nil || errors.Is(err, chain.ErrDuplicateTx) {
 			continue
 		}
 		g.vm.Logger().Warn(
 			"AppGossip failed to submit txs",
-			zap.Stringer("peerID", nodeID),
-			zap.Error(err),
+			zap.Stringer("peerID", nodeID), zap.Error(err),
 		)
 	}
+	g.vm.Logger().Info(
+		"AppGossip transactions submitted",
+		zap.Int("txs", len(txs)), zap.Duration("t", time.Since(start)),
+	)
 
 	// only trace error to prevent VM's being shutdown
 	// from "AppGossip" returning an error
