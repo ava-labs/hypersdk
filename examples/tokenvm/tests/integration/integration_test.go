@@ -583,7 +583,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		g, err := instances[0].cli.Genesis(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
-		r := g.Rules(instances[0].chainID, time.Now().Unix())
+		r := g.Rules(time.Now().Unix())
 		gomega.Ω(balance).Should(gomega.Equal(balancea + rawTx.MaxUnits(r) + 1))
 	})
 

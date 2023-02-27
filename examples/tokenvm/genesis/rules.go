@@ -19,7 +19,7 @@ func (g *Genesis) Rules(int64) *Rules {
 	return &Rules{g}
 }
 
-func (r *Rules) GetWarpConfig(ids.ID) (bool, uint64, uint64) {
+func (*Rules) GetWarpConfig(ids.ID) (bool, uint64, uint64) {
 	// We allow inbound transfers from all sources as long as 80% of stake has
 	// signed a message.
 	//
