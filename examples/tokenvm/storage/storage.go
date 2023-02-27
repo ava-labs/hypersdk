@@ -32,13 +32,16 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 //   -> [asset] => metadataLen|metadata|supply|owner
 // 0x2/ (orders)
 //   -> [txID] => in|out|rate|remaining|owner
+// 0x3/ (warpMessages)
+//   -> [messageID]
 
 const (
 	txPrefix = 0x0
 
-	balancePrefix = 0x0
-	assetPrefix   = 0x1
-	orderPrefix   = 0x2
+	balancePrefix     = 0x0
+	assetPrefix       = 0x1
+	orderPrefix       = 0x2
+	warpMessagePrefix = 0x3
 )
 
 var (
@@ -347,4 +350,28 @@ func GetOrder(
 func DeleteOrder(ctx context.Context, db chain.Database, order ids.ID) error {
 	k := PrefixOrderKey(order)
 	return db.Remove(ctx, k)
+}
+
+func PrefixWarpMessageKey(txID ids.ID) []byte {
+	k := make([]byte, 1+consts.IDLen)
+	k[0] = warpMessagePrefix
+	copy(k[1:], txID[:])
+	return k
+}
+
+func StoreWarpMessageID(ctx context.Context, db chain.Database, txID ids.ID) error {
+	k := PrefixWarpMessageKey(txID)
+	return db.Insert(ctx, k, nil)
+}
+
+func HasWarpMessageID(ctx context.Context, db chain.Database, txID ids.ID) (bool, error) {
+	k := PrefixWarpMessageKey(txID)
+	_, err := db.GetValue(ctx, k)
+	if errors.Is(err, database.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
