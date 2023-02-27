@@ -153,7 +153,7 @@ func (cli *Client) GenerateAggregateWarpSignature(
 	}
 
 	// Generate signature
-	signers := set.NewBits(len(canonicalValidators))
+	signers := set.NewBits()
 	var signatureWeight uint64
 	orderedSignatures := []*bls.Signature{}
 	for i, vdr := range canonicalValidators {
