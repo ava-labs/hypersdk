@@ -6,6 +6,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 const WarpTransferSize = crypto.PublicKeyLen + 2*consts.IDLen + 2*consts.Uint64Len
@@ -26,6 +27,13 @@ func (w *WarpTransfer) Marshal() ([]byte, error) {
 	p.PackUint64(w.Reward)
 	p.PackID(w.TxID)
 	return p.Bytes(), p.Err()
+}
+
+func (w *WarpTransfer) NewAssetID(sourceChainID ids.ID) ids.ID {
+	k := make([]byte, consts.IDLen*2)
+	copy(k, w.Asset[:])
+	copy(k[consts.IDLen:], sourceChainID[:])
+	return utils.ToID(k)
 }
 
 func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
