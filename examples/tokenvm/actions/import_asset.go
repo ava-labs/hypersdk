@@ -13,8 +13,8 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -26,45 +26,31 @@ type ImportAsset struct {
 	// a given address.
 	Message *warp.Message `json:"warpMessage"`
 
-	// The below fields are populated by parsing the *warp.Message payload as
-	// a transfer action.
-	//
-	// to is the recipient of the [value].
-	to crypto.PublicKey
+	// warpTransfer is parsed from the inner *warp.Message
+	warpTransfer *WarpTransfer
 
-	// asset is the assetID provided in the *warp.Message. The cannonical asset
-	// on this chain will be hash(assetID, sourceChainID).
-	asset ids.ID
-
-	// newAsset is the new assetID for this warped asset. It is computed by
-	// hashing assetID with the sourceChainID. This ensures that as assets flow
-	// through different Subnets that the path they take is reflected in their
-	// identity.
+	// newAsset is the ids.ID of the assetID that the inbound funds are
+	// identified by.
 	newAsset ids.ID
-
-	// value of asset to transfer to [to].
-	value uint64
-
-	// reward is the amount to send to the actor for relaying the message.
-	reward uint64
-
-	// txID is the txID of the transaction that created this *warp.Message. We
-	// rely on this for replay protection.
-	//
-	// Because the txID includes the chainID when it is created on the source, it
-	// should never collide with another *warp.Message.
-	txID ids.ID
 
 	// messageLen is used to determine the fee this transaction should pay.
 	messageLen int
 }
 
-func (i *ImportAsset) StateKeys(chain.Auth, ids.ID) [][]byte {
-	return [][]byte{
-		storage.PrefixAssetKey(i.newAsset),
-		storage.PrefixBalanceKey(i.to, i.newAsset),
-		storage.PrefixWarpMessageKey(i.txID),
+func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
+	newAsset := i.warpTransfer.NewAssetID(i.Message.SourceChainID)
+	keys := [][]byte{
+		storage.PrefixAssetKey(newAsset),
+		storage.PrefixBalanceKey(i.warpTransfer.To, newAsset),
+		storage.PrefixWarpMessageKey(i.warpTransfer.TxID),
 	}
+	// If the [warpTransfer] specified a reward, we add the state key to make
+	// sure it is paid.
+	if i.warpTransfer.Reward > 0 {
+		actor := auth.GetActor(rauth)
+		keys = append(keys, storage.PrefixBalanceKey(actor, newAsset))
+	}
+	return keys
 }
 
 func (i *ImportAsset) Execute(
@@ -75,8 +61,9 @@ func (i *ImportAsset) Execute(
 	rauth chain.Auth,
 	_ ids.ID,
 ) (*chain.Result, error) {
+	actor := auth.GetActor(rauth)
 	unitsUsed := i.MaxUnits(r) // max units == units
-	has, err := storage.HasWarpMessageID(ctx, db, i.txID)
+	has, err := storage.HasWarpMessageID(ctx, db, i.warpTransfer.TxID)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
@@ -87,10 +74,7 @@ func (i *ImportAsset) Execute(
 			Output:  OutputDuplicateWarpMessage,
 		}, nil
 	}
-	if i.asset == ids.Empty {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetIsNative}, nil
-	}
-	if i.value == 0 {
+	if i.warpTransfer.Value == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
 	}
 	exists, metadata, supply, _, err := storage.GetAsset(ctx, db, i.newAsset)
@@ -99,19 +83,28 @@ func (i *ImportAsset) Execute(
 	}
 	if !exists {
 		// It is ok if the asset is missing, we'll just create it later
-		metadata = []byte(fmt.Sprintf("%s|%s", i.asset, i.Message.SourceChainID))
+		metadata = []byte(fmt.Sprintf("%s|%s", i.warpTransfer.Asset, i.Message.SourceChainID))
 	}
-	newSupply, err := smath.Add64(supply, i.value)
+	newSupply, err := smath.Add64(supply, i.warpTransfer.Value)
+	if err != nil {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	}
+	newSupply, err = smath.Add64(supply, i.warpTransfer.Reward)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if err := storage.SetAsset(ctx, db, i.newAsset, metadata, newSupply, crypto.EmptyPublicKey); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	if err := storage.AddBalance(ctx, db, i.to, i.newAsset, i.value); err != nil {
+	if err := storage.AddBalance(ctx, db, i.warpTransfer.To, i.newAsset, i.warpTransfer.Value); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	if err := storage.StoreWarpMessageID(ctx, db, i.txID); err != nil {
+	if i.warpTransfer.Reward > 0 {
+		if err := storage.AddBalance(ctx, db, actor, i.newAsset, i.warpTransfer.Reward); err != nil {
+			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		}
+	}
+	if err := storage.StoreWarpMessageID(ctx, db, i.warpTransfer.TxID); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil
@@ -133,24 +126,20 @@ func UnmarshalImportAsset(p *codec.Packer) (chain.Action, error) {
 	if err := p.Err(); err != nil {
 		return nil, err
 	}
+	imp.messageLen = len(msgBytes)
 	msg, err := warp.ParseMessage(msgBytes)
 	if err != nil {
 		return nil, err
 	}
 	imp.Message = msg
 
-	// TODO: define own struct for inner message instead of using transfer
 	// Parse inner message
-	ip := codec.NewReader(imp.Message.Payload, crypto.PublicKeyLen+consts.IDLen+consts.Uint64Len)
-	transferAction, err := UnmarshalTransfer(ip)
+	warpTransfer, err := UnmarshalWarpTransfer(imp.Message.Payload)
 	if err != nil {
 		return nil, err
 	}
-	transfer := transferAction.(*Transfer)
-	imp.to = transfer.To
-	imp.asset = transfer.Asset
-	imp.newAsset = utils.ToID(append(imp.asset[:], imp.Message.SourceChainID[:]...))
-	imp.value = transfer.Value
+	imp.warpTransfer = warpTransfer
+	imp.newAsset = imp.warpTransfer.NewAssetID(imp.Message.SourceChainID)
 	return &imp, nil
 }
 
