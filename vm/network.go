@@ -108,16 +108,17 @@ func (n *NetworkManager) getSharedRequestID(handler uint8, requestID uint32) uin
 	return newID
 }
 
-func (n *NetworkManager) routeIncomingMessage(msg []byte) (NetworkHandler, bool) {
+func (n *NetworkManager) routeIncomingMessage(msg []byte) ([]byte, NetworkHandler, bool) {
 	n.l.RLock()
 	defer n.l.RUnlock()
 
-	if len(msg) == 0 {
-		return nil, false
+	l := len(msg)
+	if l == 0 {
+		return nil, nil, false
 	}
-	handlerID := msg[0]
+	handlerID := msg[l-1]
 	handler, ok := n.handlers[handlerID]
-	return handler, ok
+	return msg[:l-1], handler, ok
 }
 
 func (n *NetworkManager) handleSharedRequestID(requestID uint32) (NetworkHandler, uint32, bool) {
@@ -141,7 +142,7 @@ func (n *NetworkManager) handleSharedRequestID(requestID uint32) (NetworkHandler
 // assume gossip via proposervm has been activated
 // ref. "avalanchego/vms/platformvm/network.AppGossip"
 func (n *NetworkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	handler, ok := n.routeIncomingMessage(msg)
+	parsedMsg, handler, ok := n.routeIncomingMessage(msg)
 	if !ok {
 		n.vm.snowCtx.Log.Debug(
 			"could not route incoming AppGossip",
@@ -149,7 +150,7 @@ func (n *NetworkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 		)
 		return nil
 	}
-	return handler.AppGossip(ctx, nodeID, msg[1:])
+	return handler.AppGossip(ctx, nodeID, parsedMsg)
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
@@ -160,7 +161,7 @@ func (n *NetworkManager) AppRequest(
 	deadline time.Time,
 	request []byte,
 ) error {
-	handler, ok := n.routeIncomingMessage(request)
+	parsedMsg, handler, ok := n.routeIncomingMessage(request)
 	if !ok {
 		n.vm.snowCtx.Log.Debug(
 			"could not route incoming AppRequest",
@@ -169,7 +170,7 @@ func (n *NetworkManager) AppRequest(
 		)
 		return nil
 	}
-	return handler.AppRequest(ctx, nodeID, requestID, deadline, request[1:])
+	return handler.AppRequest(ctx, nodeID, requestID, deadline, parsedMsg)
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
@@ -206,7 +207,7 @@ func (n *NetworkManager) AppResponse(
 		)
 		return nil
 	}
-	return handler.AppResponse(ctx, nodeID, cRequestID, response[1:])
+	return handler.AppResponse(ctx, nodeID, cRequestID, response)
 }
 
 // implements "block.ChainVM.commom.VM.validators.Connector"
@@ -254,7 +255,7 @@ func (n *NetworkManager) CrossChainAppRequest(
 	deadline time.Time,
 	msg []byte,
 ) error {
-	handler, ok := n.routeIncomingMessage(msg)
+	parsedMsg, handler, ok := n.routeIncomingMessage(msg)
 	if !ok {
 		n.vm.snowCtx.Log.Debug(
 			"could not route incoming CrossChainAppRequest",
@@ -263,7 +264,7 @@ func (n *NetworkManager) CrossChainAppRequest(
 		)
 		return nil
 	}
-	return handler.CrossChainAppRequest(ctx, nodeID, requestID, deadline, msg[1:])
+	return handler.CrossChainAppRequest(ctx, nodeID, requestID, deadline, parsedMsg)
 }
 
 func (n *NetworkManager) CrossChainAppRequestFailed(
@@ -326,7 +327,7 @@ func (w *WrappedAppSender) SendAppRequest(
 		ctx,
 		nodeIDs,
 		newRequestID,
-		append([]byte{w.handler}, appRequestBytes...),
+		append(appRequestBytes, w.handler),
 	)
 }
 
@@ -355,7 +356,7 @@ func (w *WrappedAppSender) SendAppResponse(
 func (w *WrappedAppSender) SendAppGossip(ctx context.Context, appGossipBytes []byte) error {
 	return w.n.sender.SendAppGossip(
 		ctx,
-		append([]byte{w.handler}, appGossipBytes...),
+		append(appGossipBytes, w.handler),
 	)
 }
 
@@ -367,7 +368,7 @@ func (w *WrappedAppSender) SendAppGossipSpecific(
 	return w.n.sender.SendAppGossipSpecific(
 		ctx,
 		nodeIDs,
-		append([]byte{w.handler}, appGossipBytes...),
+		append(appGossipBytes, w.handler),
 	)
 }
 
@@ -391,7 +392,7 @@ func (w *WrappedAppSender) SendCrossChainAppRequest(
 		ctx,
 		chainID,
 		requestID,
-		append([]byte{w.handler}, appRequestBytes...),
+		append(appRequestBytes, w.handler),
 	)
 }
 
