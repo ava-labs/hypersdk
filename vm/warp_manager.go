@@ -49,9 +49,6 @@ func NewWarpManager(vm *VM, appSender common.AppSender) *WarpManager {
 
 // GatherSignatures makes a best effort to acquire signatures from other
 // validators and store them inside the vmDB.
-//
-// This function is blocking and it is typically suggested that this be done in
-// the background.
 func (w *WarpManager) GatherSignatures(ctx context.Context, txID ids.ID, msg []byte) {
 	height, err := w.vm.snowCtx.ValidatorState.GetCurrentHeight(ctx)
 	if err != nil {

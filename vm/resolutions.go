@@ -170,7 +170,10 @@ func (vm *VM) processAcceptedBlocks() {
 
 			// Kickoff job to fetch signatures from other validators in the
 			// background
-			go vm.warpManager.GatherSignatures(context.TODO(), tx.ID())
+			//
+			// We pass bytes here so that signatures returned from validators can be
+			// verified before they are persisted.
+			vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
 		}
 
 		// Update listeners
