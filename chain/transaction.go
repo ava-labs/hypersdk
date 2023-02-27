@@ -120,7 +120,7 @@ func (t *Transaction) PreExecute(
 	db Database,
 	timestamp int64,
 ) error {
-	if err := t.Base.Execute(r, timestamp); err != nil {
+	if err := t.Base.Execute(ectx.ChainID, r, timestamp); err != nil {
 		return err
 	}
 	start, end := t.Action.ValidRange(r)

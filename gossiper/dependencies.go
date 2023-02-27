@@ -14,6 +14,7 @@ import (
 )
 
 type VM interface {
+	ChainID() ids.ID
 	StopChan() chan struct{}
 	Tracer() trace.Tracer
 	Mempool() chain.Mempool

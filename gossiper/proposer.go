@@ -170,7 +170,14 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ectx, err := chain.GenerateExecutionContext(ctx, now, blk, g.vm.Tracer(), g.vm.Rules(now))
+	ectx, err := chain.GenerateExecutionContext(
+		ctx,
+		g.vm.ChainID(),
+		now,
+		blk,
+		g.vm.Tracer(),
+		g.vm.Rules(now),
+	)
 	if err != nil {
 		return err
 	}

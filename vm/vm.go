@@ -608,7 +608,7 @@ func (vm *VM) Submit(
 	}
 	now := time.Now().Unix()
 	r := vm.c.Rules(now)
-	ectx, err := chain.GenerateExecutionContext(ctx, now, blk, vm.tracer, r)
+	ectx, err := chain.GenerateExecutionContext(ctx, vm.snowCtx.ChainID, now, blk, vm.tracer, r)
 	if err != nil {
 		return []error{err}
 	}

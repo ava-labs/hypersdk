@@ -64,7 +64,7 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID) (snowman.Block, er
 		log.Warn("block building failed: couldn't get parent", zap.Error(err))
 		return nil, err
 	}
-	ectx, err := GenerateExecutionContext(ctx, nextTime, parent, vm.Tracer(), r)
+	ectx, err := GenerateExecutionContext(ctx, vm.ChainID(), nextTime, parent, vm.Tracer(), r)
 	if err != nil {
 		log.Warn("block building failed: couldn't get execution context", zap.Error(err))
 		return nil, err
