@@ -341,6 +341,7 @@ type Action interface {
 	ValidRange(Rules) (start int64, end int64)
 
 	StateKeys(Auth) [][]byte
+	WarpMessage() *warp.Message
 	Execute(ctx context.Context, r Rules, db Database, timestamp int64, auth Auth, txID ids.ID) (result *Result, err error)
 
 	Marshal(p *codec.Packer)
