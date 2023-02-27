@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
@@ -66,4 +67,8 @@ func UnmarshalCreateAsset(p *codec.Packer) (chain.Action, error) {
 func (*CreateAsset) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
+}
+
+func (*CreateAsset) WarpMessage() *warp.Message {
+	return nil
 }

@@ -61,7 +61,7 @@ func (c *Controller) Initialize(
 	vm.Genesis,
 	builder.Builder,
 	gossiper.Gossiper,
-	vm.KVDatabase,
+	database.Database,
 	database.Database,
 	vm.Handlers,
 	chain.ActionRegistry,
@@ -154,7 +154,7 @@ func (c *Controller) Initialize(
 
 func (c *Controller) Rules(t int64) chain.Rules {
 	// TODO: extend with [UpgradeBytes]
-	return c.genesis.Rules(c.snowCtx.ChainID, t)
+	return c.genesis.Rules(t)
 }
 
 func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
@@ -224,5 +224,9 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 
 func (*Controller) Rejected(context.Context, *chain.StatelessBlock) error {
 	// Do nothing
+	return nil
+}
+
+func (*Controller) Shutdown(context.Context) error {
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -116,6 +117,10 @@ func UnmarshalCreateOrder(p *codec.Packer) (chain.Action, error) {
 func (*CreateOrder) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
+}
+
+func (*CreateOrder) WarpMessage() *warp.Message {
+	return nil
 }
 
 func PairID(in ids.ID, out ids.ID) string {
