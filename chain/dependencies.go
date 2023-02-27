@@ -24,6 +24,7 @@ type (
 )
 
 type Parser interface {
+	ChainID() ids.ID
 	Rules(int64) Rules
 
 	Registry() (ActionRegistry, AuthRegistry)

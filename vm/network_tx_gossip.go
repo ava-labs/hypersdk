@@ -20,15 +20,11 @@ func NewTxGossipHandler(vm *VM) *TxGossipHandler {
 	return &TxGossipHandler{vm}
 }
 
-func (t *TxGossipHandler) Connected(
-	ctx context.Context,
-	nodeID ids.NodeID,
-	v *version.Application,
-) error {
+func (*TxGossipHandler) Connected(context.Context, ids.NodeID, *version.Application) error {
 	return nil
 }
 
-func (t *TxGossipHandler) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
+func (*TxGossipHandler) Disconnected(context.Context, ids.NodeID) error {
 	return nil
 }
 
@@ -41,34 +37,34 @@ func (t *TxGossipHandler) AppGossip(ctx context.Context, nodeID ids.NodeID, msg 
 	return t.vm.gossiper.HandleAppGossip(ctx, nodeID, msg)
 }
 
-func (t *TxGossipHandler) AppRequest(
-	ctx context.Context,
-	nodeID ids.NodeID,
-	requestID uint32,
-	deadline time.Time,
-	request []byte,
+func (*TxGossipHandler) AppRequest(
+	context.Context,
+	ids.NodeID,
+	uint32,
+	time.Time,
+	[]byte,
 ) error {
 	return nil
 }
 
-func (t *TxGossipHandler) AppRequestFailed(
-	ctx context.Context,
-	nodeID ids.NodeID,
-	requestID uint32,
+func (*TxGossipHandler) AppRequestFailed(
+	context.Context,
+	ids.NodeID,
+	uint32,
 ) error {
 	return nil
 }
 
-func (t *TxGossipHandler) AppResponse(
-	ctx context.Context,
-	nodeID ids.NodeID,
-	requestID uint32,
-	response []byte,
+func (*TxGossipHandler) AppResponse(
+	context.Context,
+	ids.NodeID,
+	uint32,
+	[]byte,
 ) error {
 	return nil
 }
 
-func (t *TxGossipHandler) CrossChainAppRequest(
+func (*TxGossipHandler) CrossChainAppRequest(
 	context.Context,
 	ids.ID,
 	uint32,
@@ -78,10 +74,10 @@ func (t *TxGossipHandler) CrossChainAppRequest(
 	return nil
 }
 
-func (t *TxGossipHandler) CrossChainAppRequestFailed(context.Context, ids.ID, uint32) error {
+func (*TxGossipHandler) CrossChainAppRequestFailed(context.Context, ids.ID, uint32) error {
 	return nil
 }
 
-func (t *TxGossipHandler) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
+func (*TxGossipHandler) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
 	return nil
 }

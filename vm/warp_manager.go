@@ -73,7 +73,13 @@ func (w *WarpManager) GatherSignatures(ctx context.Context, txID ids.ID, msg []b
 		if validator.PublicKey == nil {
 			continue
 		}
-		w.Request(ctx, nodeID, bls.PublicKeyToBytes(validator.PublicKey), txID, 0, msg)
+		if err := w.Request(ctx, nodeID, bls.PublicKeyToBytes(validator.PublicKey), txID, 0, msg); err != nil {
+			w.vm.snowCtx.Log.Error(
+				"unable to request signature",
+				zap.Stringer("nodeID", nodeID),
+				zap.Error(err),
+			)
+		}
 	}
 }
 

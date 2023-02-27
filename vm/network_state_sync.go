@@ -31,7 +31,7 @@ func (s *StateSyncHandler) Disconnected(ctx context.Context, nodeID ids.NodeID) 
 	return s.vm.stateSyncNetworkClient.Disconnected(ctx, nodeID)
 }
 
-func (s *StateSyncHandler) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+func (*StateSyncHandler) AppGossip(context.Context, ids.NodeID, []byte) error {
 	return nil
 }
 
@@ -65,7 +65,7 @@ func (s *StateSyncHandler) AppResponse(
 	return s.vm.stateSyncNetworkClient.AppResponse(ctx, nodeID, requestID, response)
 }
 
-func (s *StateSyncHandler) CrossChainAppRequest(
+func (*StateSyncHandler) CrossChainAppRequest(
 	context.Context,
 	ids.ID,
 	uint32,
@@ -75,10 +75,10 @@ func (s *StateSyncHandler) CrossChainAppRequest(
 	return nil
 }
 
-func (s *StateSyncHandler) CrossChainAppRequestFailed(context.Context, ids.ID, uint32) error {
+func (*StateSyncHandler) CrossChainAppRequestFailed(context.Context, ids.ID, uint32) error {
 	return nil
 }
 
-func (s *StateSyncHandler) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
+func (*StateSyncHandler) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
 	return nil
 }

@@ -46,7 +46,7 @@ func (cli *Client) GenerateTransaction(
 	rules := parser.Rules(now)
 	base := &chain.Base{
 		Timestamp: now + rules.GetValidityWindow(),
-		ChainID:   rules.GetChainID(),
+		ChainID:   parser.ChainID(),
 		UnitPrice: unitPrice, // never pay blockCost
 	}
 
@@ -90,10 +90,8 @@ func Wait(ctx context.Context, check func(ctx context.Context) (bool, error)) er
 
 // getCanonicalValidatorSet returns the validator set of [subnetID] in a canonical ordering.
 // Also returns the total weight on [subnetID].
-//
-// This code is inspired by: https://github.com/ava-labs/avalanchego/blob/d755f872a4bf0de12297b3994b729ea684f78519/vms/platformvm/warp/validator.go#L40-L87
 func getCanonicalValidatorSet(
-	ctx context.Context,
+	_ context.Context,
 	vdrSet map[ids.NodeID]*validators.GetValidatorOutput,
 ) ([]*warp.Validator, uint64, error) {
 	var (
@@ -104,7 +102,7 @@ func getCanonicalValidatorSet(
 	for _, vdr := range vdrSet {
 		totalWeight, err = math.Add64(totalWeight, vdr.Weight)
 		if err != nil {
-			return nil, 0, fmt.Errorf("%w: %s", warp.ErrWeightOverflow, err)
+			return nil, 0, fmt.Errorf("%w: %v", warp.ErrWeightOverflow, err) //nolint:errorlint
 		}
 
 		if vdr.PublicKey == nil {
@@ -179,7 +177,7 @@ func (cli *Client) GenerateAggregateWarpSignature(
 	signature := &warp.BitSetSignature{
 		Signers: signers.Bytes(),
 	}
-	copy(signature.Signature[:], aggSignatureBytes[:])
+	copy(signature.Signature[:], aggSignatureBytes)
 	message, err := warp.NewMessage(unsignedMessage, signature)
 	return message, weight, signatureWeight, err
 }
