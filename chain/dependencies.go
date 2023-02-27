@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -105,6 +106,12 @@ type Action interface {
 	// If attempt to reference missing key, error...it is ok to not use all keys (conditional logic based on state)
 	StateKeys(auth Auth, txID ids.ID) [][]byte
 
+	// WarpMessage returns the message that must be validated in the Action, if
+	// one exists.
+	//
+	// This will be verified asynchronously during block verification.
+	WarpMessage() *warp.Message
+
 	// Key distinction with "Auth" is the payment of fees. All non-fee payments
 	// occur in Execute but Auth handles fees.
 	//
@@ -124,10 +131,6 @@ type Action interface {
 	) (result *Result, err error) // err should only be returned if fatal
 
 	Marshal(p *codec.Packer)
-
-	// ContainsWarpMessage if executing the action requires verifying a warp
-	// message against the block context.
-	ContainsWarpMessage() bool
 }
 
 type Auth interface {

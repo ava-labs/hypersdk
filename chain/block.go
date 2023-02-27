@@ -5,7 +5,6 @@ package chain
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -74,12 +74,14 @@ func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBloc
 type StatelessBlock struct {
 	*StatefulBlock `json:"block"`
 
-	id              ids.ID
-	st              choices.Status
-	t               time.Time
-	bytes           []byte
-	txsSet          set.Set[ids.ID]
-	requiresContext bool
+	id     ids.ID
+	st     choices.Status
+	t      time.Time
+	bytes  []byte
+	txsSet set.Set[ids.ID]
+
+	warpMessages []*warp.Message
+	bctx         *block.Context
 
 	results []*Result
 
@@ -155,8 +157,8 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 
 		// Check if we need the block context to verify the block (which contains
 		// an Avalanche Warp Message)
-		if tx.Action.ContainsWarpMessage() {
-			b.requiresContext = true
+		if wm := tx.Action.WarpMessage(); wm != nil {
+			b.warpMessages = append(b.warpMessages, wm)
 		}
 	}
 	b.sigJob.Done(func() { sspan.End() })
@@ -237,6 +239,53 @@ func (b *StatelessBlock) init(ctx context.Context, results []*Result, validateSi
 // implements "snowman.Block.choices.Decidable"
 func (b *StatelessBlock) ID() ids.ID { return b.id }
 
+// implements "block.WithVerifyContext"
+func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
+	return len(b.warpMessages) > 0, nil
+}
+
+// implements "block.WithVerifyContext"
+func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Context) error {
+	// Persist the context in case we need it during Accept
+	b.bctx = bctx
+
+	// Proceed with normal verification
+	return b.Verify(ctx)
+}
+
+// implements "snowman.Block"
+func (b *StatelessBlock) Verify(ctx context.Context) error {
+	stateReady := b.vm.StateReady()
+	ctx, span := b.vm.Tracer().Start(
+		ctx, "StatelessBlock.Verify",
+		oteltrace.WithAttributes(
+			attribute.Int("txs", len(b.Txs)),
+			attribute.Bool("stateReady", stateReady),
+			attribute.Bool("context", b.bctx != nil),
+		),
+	)
+	defer span.End()
+
+	// If the state of the accepted tip has been fully fetched, it is safe to
+	// verify any block.
+	if stateReady {
+		// Parent may not be processed when we verify this block so [verify] may
+		// recursively compute missing state.
+		state, err := b.verify(ctx)
+		if err != nil {
+			return err
+		}
+		b.state = state
+	}
+
+	// At any point after this, we may attempt to verify the block. We should be
+	// sure we are prepared to do so.
+
+	// NOTE: mempool is modified by VM handler
+	b.vm.Verified(ctx, b)
+	return nil
+}
+
 // Must handle re-reverification...
 //
 // Invariants:
@@ -245,7 +294,7 @@ func (b *StatelessBlock) ID() ids.ID { return b.id }
 // Blocks that were verified with VerifyWithContext may have verify called multiple times.
 //
 // When this may be called:
-//  1. [Verify]
+//  1. [Verify|VerifyWithContext]
 //  2. If the parent state is missing when verifying (dynamic state sync)
 //  3. If the state of a block we are accepting is missing (finishing dynamic
 //     state sync)
@@ -327,6 +376,27 @@ func (b *StatelessBlock) verify(ctx context.Context) (merkledb.TrieView, error) 
 	processor := NewProcessor(b.vm.Tracer(), b)
 	processor.Prefetch(ctx, state)
 
+	// Start validating warp messages if they exist
+	var warpJob *workers.Job
+	if !b.vm.IsBootstrapped() {
+		// Skip verify if we are still bootstrapping
+		b.bctx = nil
+	}
+	if b.bctx != nil {
+		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
+		warpJob, err = b.vm.Workers().NewJob(len(b.warpMessages))
+		if err != nil {
+			return nil, err
+		}
+		for _, msg := range b.warpMessages {
+			m := msg
+			warpJob.Go(func() error {
+				return nil
+			})
+		}
+		warpJob.Done(func() { sspan.End() })
+	}
+
 	// Process new transactions
 	unitsConsumed, surplusFee, results, err := processor.Execute(ctx, ectx, r)
 	if err != nil {
@@ -380,40 +450,21 @@ func (b *StatelessBlock) verify(ctx context.Context) (merkledb.TrieView, error) 
 	// Ensure signatures are verified
 	if !built { // don't need to verify sigs if built
 		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitSignatures")
-		defer sspan.End()
 		if err := b.sigJob.Wait(); err != nil {
+			sspan.End()
 			return nil, err
 		}
+		sspan.End()
+	}
+	if b.bctx != nil {
+		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitWarpMessages")
+		if err := warpJob.Wait(); err != nil {
+			sspan.End()
+			return nil, err
+		}
+		sspan.End()
 	}
 	return state, nil
-}
-
-// implements "snowman.Block"
-func (b *StatelessBlock) Verify(ctx context.Context) error {
-	stateReady := b.vm.StateReady()
-	ctx, span := b.vm.Tracer().Start(
-		ctx, "StatelessBlock.Verify",
-		oteltrace.WithAttributes(
-			attribute.Int("txs", len(b.Txs)),
-			attribute.Bool("stateReady", stateReady),
-		),
-	)
-	defer span.End()
-
-	// If the state of the accepted tip has been fully fetched, it is safe to
-	// verify any block.
-	if stateReady {
-		// Parent may not be processed when we verify this block so [verify] may
-		// recursively compute missing state.
-		state, err := b.verify(ctx)
-		if err != nil {
-			return err
-		}
-		b.state = state
-	}
-	// NOTE: mempool is modified by VM handler
-	b.vm.Verified(ctx, b)
-	return nil
 }
 
 // implements "snowman.Block.choices.Decidable"
@@ -501,16 +552,6 @@ func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Hght }
 
 // implements "snowman.Block"
 func (b *StatelessBlock) Timestamp() time.Time { return b.t }
-
-// implements "block.WithVerifyContext"
-func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
-	return b.requiresContext, nil
-}
-
-// implements "block.WithVerifyContext"
-func (b *StatelessBlock) VerifyWithContext(context.Context, *block.Context) error {
-	return errors.New("not implemented")
-}
 
 // State is used to verify txs in the mempool. It should never be written to.
 //
