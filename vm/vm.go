@@ -145,7 +145,7 @@ func (vm *VM) Initialize(
 	}
 	vm.metrics = metrics
 	vm.proposerMonitor = NewProposerMonitor(vm)
-	vm.networkManager = NewNetworkManager(appSender)
+	vm.networkManager = NewNetworkManager(vm, appSender)
 	warpHandler, warpSender := vm.networkManager.Register()
 	vm.warpManager = NewWarpManager(vm)
 	vm.networkManager.SetHandler(warpHandler, NewWarpHandler(vm))
