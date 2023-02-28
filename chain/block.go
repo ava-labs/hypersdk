@@ -122,8 +122,7 @@ func ParseBlock(
 }
 
 func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error {
-	vm := b.vm
-	ctx, span := vm.Tracer().Start(ctx, "StatelessBlock.populateTxs")
+	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.populateTxs")
 	defer span.End()
 
 	// Setup signature verification job
@@ -134,7 +133,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 	b.sigJob = job
 
 	// Process transactions
-	_, sspan := vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
+	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
 	actionRegistry, authRegistry := b.vm.Registry()
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
@@ -241,18 +240,19 @@ func (b *StatelessBlock) ID() ids.ID { return b.id }
 //  3. If the state of a block we are accepting is missing (finishing dynamic
 //     state sync)
 func (b *StatelessBlock) verify(ctx context.Context) (merkledb.TrieView, error) {
-	log := b.vm.Logger()
-	built := len(b.results) > 0
-	r := b.vm.Rules(b.Tmstmp)
+	var (
+		log   = b.vm.Logger()
+		built = len(b.results) > 0
+		r     = b.vm.Rules(b.Tmstmp)
+	)
 
 	// Perform basic correctness checks before doing any expensive work
-	if b.Timestamp().Unix() >= time.Now().Add(FutureBound).Unix() {
+	switch {
+	case b.Timestamp().Unix() >= time.Now().Add(FutureBound).Unix():
 		return nil, ErrTimestampTooLate
-	}
-	if len(b.Txs) == 0 {
+	case len(b.Txs) == 0:
 		return nil, ErrNoTxs
-	}
-	if len(b.Txs) > r.GetMaxBlockTxs() {
+	case len(b.Txs) > r.GetMaxBlockTxs():
 		return nil, ErrBlockTooBig
 	}
 
@@ -287,18 +287,17 @@ func (b *StatelessBlock) verify(ctx context.Context) (merkledb.TrieView, error) 
 	if err != nil {
 		return nil, err
 	}
-	if b.UnitPrice != ectx.NextUnitPrice {
+	switch {
+	case b.UnitPrice != ectx.NextUnitPrice:
 		return nil, ErrInvalidUnitPrice
-	}
-	if b.UnitWindow != ectx.NextUnitWindow {
+	case b.UnitWindow != ectx.NextUnitWindow:
 		return nil, ErrInvalidUnitWindow
-	}
-	if b.BlockCost != ectx.NextBlockCost {
+	case b.BlockCost != ectx.NextBlockCost:
 		return nil, ErrInvalidBlockCost
-	}
-	if b.BlockWindow != ectx.NextBlockWindow {
+	case b.BlockWindow != ectx.NextBlockWindow:
 		return nil, ErrInvalidBlockWindow
 	}
+
 	log.Info(
 		"verify context",
 		zap.Uint64("height", b.Hght),

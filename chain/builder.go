@@ -20,36 +20,25 @@ import (
 func HandlePreExecute(
 	err error,
 ) (bool /* continue */, bool /* restore */, bool /* remove account */) {
-	if errors.Is(err, ErrInsufficientPrice) {
+	switch {
+	case errors.Is(err, ErrInsufficientPrice):
 		return true, true, false
-	}
-
-	if errors.Is(err, ErrTimestampTooEarly) {
+	case errors.Is(err, ErrTimestampTooEarly):
 		return true, true, false
-	}
-
-	if errors.Is(err, ErrTimestampTooLate) {
+	case errors.Is(err, ErrTimestampTooLate):
 		return true, false, false
-	}
-
-	if errors.Is(err, ErrInvalidBalance) {
+	case errors.Is(err, ErrInvalidBalance):
 		return true, false, true
-	}
-
-	if errors.Is(err, ErrAuthNotActivated) {
+	case errors.Is(err, ErrAuthNotActivated):
+		return true, false, false
+	case errors.Is(err, ErrAuthFailed):
+		return true, false, false
+	case errors.Is(err, ErrActionNotActivated):
+		return true, false, false
+	default:
+		// If unknown error, drop
 		return true, false, false
 	}
-
-	if errors.Is(err, ErrAuthFailed) {
-		return true, false, false
-	}
-
-	if errors.Is(err, ErrActionNotActivated) {
-		return true, false, false
-	}
-
-	// If unknown error, drop
-	return true, false, false
 }
 
 func BuildBlock(ctx context.Context, vm VM, preferred ids.ID) (snowman.Block, error) {
