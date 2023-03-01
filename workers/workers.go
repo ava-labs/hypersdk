@@ -146,10 +146,12 @@ func (j *Job) Go(f func() error) {
 	j.tasks <- f
 }
 
+// Done closes the tasks channel, then waits for the job's completed channel
+// to be closed. Calls [f] after the tasks have been completed and [f] is not null.
 func (j *Job) Done(f func()) {
 	close(j.tasks)
 	if f != nil {
-		// Callback when completed (useful for tracing)
+		// Callback  when completed (useful for tracing)
 		go func() {
 			<-j.completed
 			f()
@@ -157,6 +159,7 @@ func (j *Job) Done(f func()) {
 	}
 }
 
+// Wait returns the value recieved by the j.result channel.
 func (j *Job) Wait() error {
 	return <-j.result
 }

@@ -5,11 +5,14 @@ package workers
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"runtime"
 	"strconv"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/neilotoole/errgroup"
@@ -129,5 +132,82 @@ func BenchmarkSerial(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+// func TestNewWorker(t *testing.T) {
+
+// }
+
+// func TestStopWorker(t *testing.T) {
+
+// }
+
+// func TestNewJob(t *testing.T) {
+
+// }
+func TestWait(t *testing.T) {
+	require := require.New(t)
+	job := Job{
+		tasks:     make(chan func() error),
+		completed: make(chan struct{}),
+		result:    make(chan error),
+	}
+	testError := errors.New("TestError")
+	go func() {
+		job.result <- testError
+	}()
+	returned := job.Wait()
+	require.ErrorIs(testError, returned, "Incorrect error returned.")
+}
+
+func TestJobDone(t *testing.T) {
+	require := require.New(t)
+	job := Job{
+		tasks:     make(chan func() error),
+		completed: make(chan struct{}),
+		result:    make(chan error),
+	}
+
+	called := false
+	job.Done(func() {
+		called = true
+	})
+	job.completed <- struct{}{}
+	// Check that the callback function was called
+	require.True(called, "Callback function not called")
+	// Ensure task channel was closed
+	require.Empty(job.tasks, "Tasks channel not closed")
+}
+
+func TestJobGo(t *testing.T) {
+	require := require.New(t)
+	job := Job{
+		tasks:     make(chan func() error, 2),
+		completed: make(chan struct{}),
+		result:    make(chan error),
+	}
+	n := 1
+	testError := errors.New("TestError")
+	for n <= 2 {
+		job.Go(func() error {
+			if n == 1 {
+				return nil
+			} else {
+				return testError
+			}
+		})
+		n += 1
+	}
+	n = 1
+	// Ensure corret errors
+	for n <= 2 {
+		response := <-job.tasks
+		if n == 1 {
+			require.NoError(response(), "Incorrect error message.")
+		} else {
+			require.ErrorIs(testError, response(), "Incorrect error message.")
+		}
+		n += 1
 	}
 }
