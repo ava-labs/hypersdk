@@ -135,17 +135,50 @@ func BenchmarkSerial(b *testing.B) {
 	}
 }
 
-// func TestNewWorker(t *testing.T) {
+func TestNewWorker(t *testing.T) {
+	require := require.New(t)
+	w := New(10, 100)
 
-// }
+	// Require workers was created properly
+	require.Equal(10, w.count, "Count not set correctly")
+	require.Empty(w.queue, "Worker queue not empty")
+	require.Empty(w.tasks, "Worker tasks not empty")
+	// Shutdown fields
+	require.Empty(w.ackShutdown, "Worker ackShutdown not empty")
+	require.Empty(w.stopWorkers, "Worker stopWorkers not empty")
+	require.Empty(w.stoppedWorkers, "Worker stoppedWorkers not empty")
+}
 
-// func TestStopWorker(t *testing.T) {
+func TestStopWorker(t *testing.T) {
+	require := require.New(t)
+	w := New(10, 100)
+	require.False(w.shouldShutdown, "Shutdown val incorrectly initialized.")
+	w.Stop()
+	require.Empty(w.queue, "Worker queue not empty")
+	require.True(w.shouldShutdown, "Shutdown val not set.")
+}
 
-// }
+func TestNewJob(t *testing.T) {
+	require := require.New(t)
+	w := New(2, 10)
 
-// func TestNewJob(t *testing.T) {
+	job, err := w.NewJob(10)
+	require.NoError(err, "NewJob returned an error")
+	require.NotNil(job, "NewJob returned a nil job pointer.")
 
-// }
+	// Job was added properly
+	require.Equal(10, cap(job.tasks), "Job task field not initialized correctly")
+	// TODO: ?
+}
+
+func TestNewJobShutdown(t *testing.T) {
+	require := require.New(t)
+	w := New(2, 10)
+	w.shouldShutdown = true
+	job, err := w.NewJob(10)
+	require.ErrorIs(ErrShutdown, err, "NewJob returned no error")
+	require.Nil(job, "NewJob returned a not nil job pointer.")
+}
 func TestWait(t *testing.T) {
 	require := require.New(t)
 	job := Job{

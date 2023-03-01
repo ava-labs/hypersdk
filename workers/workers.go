@@ -4,6 +4,7 @@
 package workers
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -29,6 +30,8 @@ type Workers struct {
 	stoppedWorkers chan struct{}
 }
 
+// New instantiates a new Workers with [workers] and [maxJobs].
+//
 // Goroutines allocate a minimum of 2KB of memory, we can save this by reusing
 // the context. This is especially useful if the goroutine stack is expanded
 // during use.
@@ -55,6 +58,7 @@ func New(workers int, maxJobs int) *Workers {
 func (w *Workers) processQueue() {
 	go func() {
 		for j := range w.queue {
+			fmt.Println("here")
 			// Don't do work if should shutdown
 			w.lock.Lock()
 			shouldShutdown := w.shouldShutdown
