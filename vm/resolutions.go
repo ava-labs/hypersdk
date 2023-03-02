@@ -25,12 +25,13 @@ import (
 )
 
 var (
-	_ chain.VM                   = (*VM)(nil)
-	_ gossiper.VM                = (*VM)(nil)
-	_ builder.VM                 = (*VM)(nil)
-	_ block.ChainVM              = (*VM)(nil)
-	_ block.HeightIndexedChainVM = (*VM)(nil)
-	_ block.StateSyncableVM      = (*VM)(nil)
+	_ chain.VM                           = (*VM)(nil)
+	_ gossiper.VM                        = (*VM)(nil)
+	_ builder.VM                         = (*VM)(nil)
+	_ block.ChainVM                      = (*VM)(nil)
+	_ block.HeightIndexedChainVM         = (*VM)(nil)
+	_ block.StateSyncableVM              = (*VM)(nil)
+	_ block.BuildBlockWithContextChainVM = (*VM)(nil)
 )
 
 func (vm *VM) HRP() string {

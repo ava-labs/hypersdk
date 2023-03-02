@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
+	smblock "github.com/ava-labs/avalanchego/snow/consensus/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils"
@@ -565,7 +566,6 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 }
 
 // implements "block.ChainVM"
-// called via "avalanchego" node over RPC
 func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
 	defer span.End()
@@ -582,6 +582,12 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 		return nil, err
 	}
 	return blk, nil
+}
+
+// implements "block.BuildBlockWithContextChainVM"
+func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
+	panic("not implemented")
+	// TODO: can only build blocks with warp messages if this is called
 }
 
 func (vm *VM) Submit(
