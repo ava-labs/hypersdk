@@ -113,6 +113,7 @@ func (i *ImportAsset) Execute(
 	if err := storage.StoreWarpMessageID(ctx, db, i.warpTransfer.TxID); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
+	// TODO: check output of signature verification
 	return &chain.Result{Success: true, Units: unitsUsed}, nil
 }
 

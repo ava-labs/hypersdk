@@ -497,6 +497,7 @@ func (b *StatelessBlock) verify(ctx context.Context) (merkledb.TrieView, error) 
 		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitWarpMessages")
 		if err := warpJob.Wait(); err != nil {
 			sspan.End()
+			// TODO: don't mark block as invalid here.
 			return nil, err
 		}
 		sspan.End()
