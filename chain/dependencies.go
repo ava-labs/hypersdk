@@ -115,10 +115,7 @@ type Action interface {
 	//
 	// Async verification of the signature will begin during block verification
 	// and the result will be returned during execution on the channel.
-	//
-	// TODO: add an option to cancel the message verification ahead of time if
-	// state-based verification fails
-	WarpMessage() (*warp.Message, chan error)
+	WarpMessage() *warp.Message
 
 	// Key distinction with "Auth" is the payment of fees. All non-fee payments
 	// occur in Execute but Auth handles fees.
@@ -136,6 +133,7 @@ type Action interface {
 		timestamp int64,
 		auth Auth,
 		txID ids.ID,
+		warpSignatureValid bool, // if no warp message, disregard
 	) (result *Result, err error) // err should only be returned if fatal
 
 	Marshal(p *codec.Packer)
