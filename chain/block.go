@@ -307,6 +307,9 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 	if !allowed {
 		return errors.New("cannot import from chainID")
 	}
+	// TODO: ensure message is not duplicate before verifying
+	// TODO: we must charge a fee for this instead of marking block as invalid if
+	// not-verified
 	return msg.Signature.Verify(
 		ctx,
 		&msg.UnsignedMessage,
