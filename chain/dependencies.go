@@ -133,7 +133,7 @@ type Action interface {
 		timestamp int64,
 		auth Auth,
 		txID ids.ID,
-		warpSignatureValid bool, // if no warp message, disregard
+		warpVerifyResult error, // if no warp message, disregard
 	) (result *Result, err error) // err should only be returned if fatal
 
 	Marshal(p *codec.Packer)

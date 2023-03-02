@@ -153,6 +153,7 @@ func (t *Transaction) Execute(
 	r Rules,
 	tdb *tstate.TState,
 	timestamp int64,
+	warpVerifyResult error,
 ) (*Result, error) {
 	// Verify auth is correct prior to doing anything
 	authUnits, err := t.Auth.Verify(ctx, r, tdb, t.Action)
@@ -171,7 +172,7 @@ func (t *Transaction) Execute(
 
 	// We create a temp state to ensure we don't commit failed actions to state.
 	start := tdb.OpIndex()
-	result, err := t.Action.Execute(ctx, r, tdb, timestamp, t.Auth, t.id)
+	result, err := t.Action.Execute(ctx, r, tdb, timestamp, t.Auth, t.id, warpVerifyResult)
 	if err != nil {
 		return nil, err
 	}

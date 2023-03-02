@@ -100,7 +100,20 @@ func (p *Processor) Execute(
 		if err := tx.PreExecute(ctx, ectx, r, ts, t); err != nil {
 			return 0, 0, nil, err
 		}
-		result, err := tx.Execute(ctx, r, ts, t)
+		// Wait to execute transaction until we have the warp result processed.
+		//
+		// TODO: parallel execution will greatly improve performance in the case
+		// that we are waiting for signature verification.
+		var warpVerifyResult error
+		warpMsg, ok := p.blk.warpMessages[tx.ID()]
+		if ok {
+			select {
+			case warpVerifyResult = <-warpMsg.result:
+			case <-ctx.Done():
+				return 0, 0, nil, ctx.Err()
+			}
+		}
+		result, err := tx.Execute(ctx, r, ts, t, warpVerifyResult)
 		if err != nil {
 			return 0, 0, nil, err
 		}
