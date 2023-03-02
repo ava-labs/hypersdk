@@ -114,6 +114,8 @@ func (i *ImportAsset) Execute(
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	// TODO: check output of signature verification
+	// TODO: parallel signature execution will make any blocks for signatures
+	// less of a performance issue (as we can just move to the next tx)
 	return &chain.Result{Success: true, Units: unitsUsed}, nil
 }
 

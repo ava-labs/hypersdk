@@ -494,6 +494,8 @@ func (b *StatelessBlock) verify(ctx context.Context) (merkledb.TrieView, error) 
 		sspan.End()
 	}
 	if b.bctx != nil {
+		// TODO: should verify before signatures because we must process this
+		// validity before generating root
 		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitWarpMessages")
 		if err := warpJob.Wait(); err != nil {
 			sspan.End()
