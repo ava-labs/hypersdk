@@ -151,6 +151,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 			return err
 		}
 		if verifySigs {
+			// TODO: stop block verification as soon as first sig fails
 			b.sigJob.Go(sigTask)
 		}
 		if b.txsSet.Contains(tx.ID()) {
