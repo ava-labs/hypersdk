@@ -103,6 +103,15 @@ be valid only until a particular time. This enables you to go for orders as you
 see fit at the time and not have to worry about your fill sitting around until you
 explicitly cancel it/replace it.
 
+### Avalanche Warp Support
+* Send asset between any 2 tokenvms
+* Auto-swap when processing import to get fee paying token
+* assets take on a newID when they come into a subnet (so you can never have
+  a token that is identical to one that has different security properties)
+* Automatically accept warp messages if 80% of subnet signs (because each asset
+  takes on a new ID, a rogue subnet can't corrupt the balance or activity of
+  valid assets)
+
 ## Mint and Trade Demo
 Someone: "Seems cool but I need to see it to really get it."
 Me: "Look no further."
