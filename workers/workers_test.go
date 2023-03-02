@@ -11,9 +11,8 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
-	"time"
-
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 

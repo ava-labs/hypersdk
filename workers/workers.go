@@ -120,7 +120,6 @@ func (w *Workers) startWorker() {
 					w.lock.Unlock()
 				}
 				w.sg.Done()
-
 			}
 		}
 	}()
@@ -168,7 +167,7 @@ func (j *Job) Done(f func()) {
 	}
 }
 
-// Wait returns the value recieved by the j.result channel.
+// Wait returns the value received by the j.result channel.
 func (j *Job) Wait() error {
 	return <-j.result
 }
