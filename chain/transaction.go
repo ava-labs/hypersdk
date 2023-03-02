@@ -195,6 +195,10 @@ func (t *Transaction) Execute(
 			return nil, err
 		}
 	}
+
+	// TODO: store warp message payload in state (how to avoid conflicting with
+	// warp?)
+	// TODO: ensure this is scoped by tstate to avoid an error
 	return result, nil
 }
 

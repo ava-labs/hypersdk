@@ -113,8 +113,12 @@ type Action interface {
 	// WarpMessage returns the message that must be validated in the Action, if
 	// one exists.
 	//
-	// This will be verified asynchronously during block verification.
-	WarpMessage() *warp.Message
+	// Async verification of the signature will begin during block verification
+	// and the result will be returned during execution on the channel.
+	//
+	// TODO: add an option to cancel the message verification ahead of time if
+	// state-based verification fails
+	WarpMessage() (*warp.Message, chan error)
 
 	// Key distinction with "Auth" is the payment of fees. All non-fee payments
 	// occur in Execute but Auth handles fees.
