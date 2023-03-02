@@ -190,7 +190,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 		})
 	}()
 	// TODO: engine will mark VM as ready when we return
-	// [block.StateSyncDynamic]. This should change in v1.9.9.
+	// [block.StateSyncDynamic]. This should change in v1.9.11.
 	return block.StateSyncDynamic, nil
 }
 
