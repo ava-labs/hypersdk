@@ -141,6 +141,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 	b.sigJob = job
 
 	// Process transactions
+	r := b.vm.Rules(b.Tmstmp)
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
 	actionRegistry, authRegistry := b.vm.Registry()
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
@@ -160,9 +161,10 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 		// Check if we need the block context to verify the block (which contains
 		// an Avalanche Warp Message)
 		if wm := tx.Action.WarpMessage(); wm != nil {
-			if wm.DestinationChainID != vm.ChainID() {
+			if wm.DestinationChainID != b.vm.ChainID() {
 				return errors.New("wrong chainID")
 			}
+			// TODO: check max signers
 			if allowed, _, _ := r.GetWarpConfig(wm.SourceChainID); !allowed {
 				return errors.New("warp message not allowed")
 			}
