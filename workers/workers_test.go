@@ -10,6 +10,9 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
+	"sync/atomic"
+	"time"
+
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -135,51 +138,7 @@ func BenchmarkSerial(b *testing.B) {
 	}
 }
 
-func TestNewWorker(t *testing.T) {
-	require := require.New(t)
-	w := New(10, 100)
-
-	// Require workers was created properly
-	require.Equal(10, w.count, "Count not set correctly")
-	require.Empty(w.queue, "Worker queue not empty")
-	require.Empty(w.tasks, "Worker tasks not empty")
-	// Shutdown fields
-	require.Empty(w.ackShutdown, "Worker ackShutdown not empty")
-	require.Empty(w.stopWorkers, "Worker stopWorkers not empty")
-	require.Empty(w.stoppedWorkers, "Worker stoppedWorkers not empty")
-}
-
-func TestStopWorker(t *testing.T) {
-	require := require.New(t)
-	w := New(10, 100)
-	require.False(w.shouldShutdown, "Shutdown val incorrectly initialized.")
-	w.Stop()
-	require.Empty(w.queue, "Worker queue not empty")
-	require.True(w.shouldShutdown, "Shutdown val not set.")
-}
-
-func TestNewJob(t *testing.T) {
-	require := require.New(t)
-	w := New(2, 10)
-
-	job, err := w.NewJob(10)
-	require.NoError(err, "NewJob returned an error")
-	require.NotNil(job, "NewJob returned a nil job pointer.")
-
-	// Job was added properly
-	require.Equal(10, cap(job.tasks), "Job task field not initialized correctly")
-	// TODO: ?
-}
-
-func TestNewJobShutdown(t *testing.T) {
-	require := require.New(t)
-	w := New(2, 10)
-	w.shouldShutdown = true
-	job, err := w.NewJob(10)
-	require.ErrorIs(ErrShutdown, err, "NewJob returned no error")
-	require.Nil(job, "NewJob returned a not nil job pointer.")
-}
-func TestWait(t *testing.T) {
+func TestJobWait(t *testing.T) {
 	require := require.New(t)
 	job := Job{
 		tasks:     make(chan func() error),
@@ -243,4 +202,82 @@ func TestJobGo(t *testing.T) {
 		}
 		n += 1
 	}
+}
+
+func TestStopWorker(t *testing.T) {
+	require := require.New(t)
+	w := New(10, 100)
+	require.False(w.shouldShutdown, "Shutdown val incorrectly initialized.")
+	w.Stop()
+	require.Empty(w.queue, "Worker queue not empty")
+	require.True(w.shouldShutdown, "Shutdown val not set.")
+}
+
+func TestWorker(t *testing.T) {
+	require := require.New(t)
+	w := New(10, 10000)
+	// Require workers was created properly
+	require.Equal(10, w.count, "Count not set correctly")
+	require.Empty(w.queue, "Worker queue not empty")
+	require.Empty(w.tasks, "Worker tasks not empty")
+	// Shutdown fields
+	require.Empty(w.ackShutdown, "Worker ackShutdown not empty")
+	require.Empty(w.stopWorkers, "Worker stopWorkers not empty")
+	require.Empty(w.stoppedWorkers, "Worker stoppedWorkers not empty")
+
+	vals := int64(0)
+	for i := 0; i < 1000; i++ {
+		// Create a new job
+		job, err := w.NewJob(10)
+		require.NoError(err)
+		for j := 0; j < 10; j++ {
+			task := func() error {
+				atomic.AddInt64(&vals, 1)
+				return nil
+			}
+			job.Go(task)
+		}
+		// TODO: Better way to do this?
+		time.Sleep(time.Millisecond * 2)
+		job.Done(nil)
+	}
+	w.Stop()
+	// Jobs ran correctly
+	require.Equal(int64(10000), atomic.LoadInt64(&vals), "Value not updated correctly")
+}
+
+func TestWorkerStop(t *testing.T) {
+	require := require.New(t)
+	w := New(5, 100)
+	vals := int64(0)
+	// Create a new job
+	job, err := w.NewJob(5)
+	require.NoError(err)
+	for j := 0; j < 5; j++ {
+		task := func() error {
+			time.Sleep(time.Second * 1)
+			atomic.AddInt64(&vals, 1)
+			return nil
+		}
+		job.Go(task)
+	}
+	time.Sleep(time.Millisecond * 2)
+	job.Done(nil)
+	// Trigger stop, first 5 jobs should still be running
+	require.Equal(int64(0), atomic.LoadInt64(&vals), "Value not updated correctly")
+	w.Stop()
+	// Check that processes completed
+	require.Equal(int64(5), atomic.LoadInt64(&vals), "Value not updated correctly")
+	// Make sure new jobs cannot be created
+	_, err = w.NewJob(5)
+	require.ErrorIs(ErrShutdown, err, "Incorrect error thrown from NewJob.")
+}
+
+func TestNewJobShutdown(t *testing.T) {
+	require := require.New(t)
+	w := New(2, 10)
+	w.shouldShutdown = true
+	job, err := w.NewJob(10)
+	require.ErrorIs(ErrShutdown, err, "NewJob returned no error")
+	require.Nil(job, "NewJob returned a not nil job pointer.")
 }

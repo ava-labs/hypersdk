@@ -4,7 +4,6 @@
 package workers
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -30,8 +29,6 @@ type Workers struct {
 	stoppedWorkers chan struct{}
 }
 
-// New instantiates a new Workers with [workers] and [maxJobs].
-//
 // Goroutines allocate a minimum of 2KB of memory, we can save this by reusing
 // the context. This is especially useful if the goroutine stack is expanded
 // during use.
@@ -55,10 +52,11 @@ func New(workers int, maxJobs int) *Workers {
 	return w
 }
 
+// processQueue starts a new goroutine that listens to the queue channel for jobs.
+// It assigns that jobs' tasks to w until shouldShutdown is set.
 func (w *Workers) processQueue() {
 	go func() {
 		for j := range w.queue {
-			fmt.Println("here")
 			// Don't do work if should shutdown
 			w.lock.Lock()
 			shouldShutdown := w.shouldShutdown
@@ -93,6 +91,9 @@ func (w *Workers) processQueue() {
 	}()
 }
 
+// startWorker starts a new goroutine that listens to two channels.
+// The stopWorkers channel signals the worker to stop processing tasks.
+// The tasks channel attempts to process a job.
 func (w *Workers) startWorker() {
 	go func() {
 		for {
@@ -101,7 +102,7 @@ func (w *Workers) startWorker() {
 				w.stoppedWorkers <- struct{}{}
 				return
 			case j := <-w.tasks:
-				// Check if we should even do the work
+				// Check if we should even do the work\
 				w.lock.RLock()
 				err := w.err
 				w.lock.RUnlock()
@@ -119,11 +120,14 @@ func (w *Workers) startWorker() {
 					w.lock.Unlock()
 				}
 				w.sg.Done()
+
 			}
 		}
 	}()
 }
 
+// Stop stops the worker pool by setting shouldShutdown, closing the
+// queue and waiting for all workers to complete.
 func (w *Workers) Stop() {
 	w.lock.Lock()
 	w.shouldShutdown = true
@@ -146,12 +150,13 @@ type Job struct {
 	result    chan error
 }
 
+// Go adds [f] to the j's task channel.
 func (j *Job) Go(f func() error) {
 	j.tasks <- f
 }
 
 // Done closes the tasks channel, then waits for the job's completed channel
-// to be closed. Calls [f] after the tasks have been completed and [f] is not null.
+// to be closed. Calls [f] after the tasks have been completed if [f] is not null.
 func (j *Job) Done(f func()) {
 	close(j.tasks)
 	if f != nil {
@@ -168,6 +173,10 @@ func (j *Job) Wait() error {
 	return <-j.result
 }
 
+// NewJob creates a new job and adds it to the workers' queue. [taskBacklog]
+// specifies the maximum number of  tasks that can be added to the created job
+// channel.
+//
 // If you don't want to block, make sure taskBacklog is greater than all
 // possible tasks you'll add.
 func (w *Workers) NewJob(taskBacklog int) (*Job, error) {
