@@ -81,8 +81,8 @@ func GetHost(uri string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	host, _, _ := net.SplitHostPort(purl.Host)
-	return host, nil
+	host, _, err := net.SplitHostPort(purl.Host)
+	return host, err
 }
 
 func FormatBalance(bal uint64) string {

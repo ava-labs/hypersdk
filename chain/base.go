@@ -20,20 +20,19 @@ type Base struct {
 	UnitPrice uint64 `json:"unitPrice"`
 }
 
-func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
-	if b.Timestamp < timestamp { // tx: 100 block: 110
+func (b *Base) Execute(r Rules, timestamp int64) error {
+	switch {
+	case b.Timestamp < timestamp: // tx: 100 block: 110
 		return ErrTimestampTooLate
-	}
-	if b.Timestamp > timestamp+r.GetValidityWindow() { // tx: 100 block 10
+	case b.Timestamp > timestamp+r.GetValidityWindow(): // tx: 100 block 10
 		return ErrTimestampTooEarly
-	}
-	if b.ChainID != chainID {
+	case b.ChainID != r.GetChainID():
 		return ErrInvalidChainID
-	}
-	if b.UnitPrice < r.GetMinUnitPrice() {
+	case b.UnitPrice < r.GetMinUnitPrice():
 		return ErrInvalidUnitPrice
+	default:
+		return nil
 	}
-	return nil
 }
 
 func (b *Base) Marshal(p *codec.Packer) {

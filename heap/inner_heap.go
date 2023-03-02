@@ -68,7 +68,7 @@ func (ih *innerHeap[I, V]) Swap(i, j int) {
 func (ih *innerHeap[I, V]) Push(x any) {
 	entry, ok := x.(*Entry[I, V])
 	if !ok {
-		panic(fmt.Errorf("unexpected %T, expected *Uint64Entry", x))
+		panic(fmt.Errorf("unexpected %T, expected *Entry", x))
 	}
 	if ih.Has(entry.ID) {
 		return
