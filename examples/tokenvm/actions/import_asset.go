@@ -19,12 +19,17 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
+const signerCost = 1_024
+
 var _ chain.Action = (*ImportAsset)(nil)
 
 type ImportAsset struct {
 	// Message is the raw *warp.Message containing a transfer of some assets to
 	// a given address.
 	Message *warp.Message `json:"warpMessage"`
+
+	// messageSigners is parsed from the inner *warp.Message.Signature
+	messageSigners int
 
 	// warpTransfer is parsed from the inner *warp.Message
 	warpTransfer *WarpTransfer
@@ -112,8 +117,7 @@ func (i *ImportAsset) Execute(
 }
 
 func (i *ImportAsset) MaxUnits(chain.Rules) uint64 {
-	// TODO: add numSigners multipler to fee (should parse from warp.Signature)
-	return uint64(i.messageLen)
+	return uint64(i.messageSigners)*signerCost + uint64(i.messageLen)
 }
 
 func (i *ImportAsset) Marshal(p *codec.Packer) {
@@ -133,6 +137,13 @@ func UnmarshalImportAsset(p *codec.Packer) (chain.Action, error) {
 		return nil, err
 	}
 	imp.Message = msg
+
+	// Ensure signer bitset is correctly populated
+	msgSigners, err := msg.Signature.NumSigners()
+	if err != nil {
+		return nil, err
+	}
+	imp.messageSigners = msgSigners
 
 	// Parse inner message
 	warpTransfer, err := UnmarshalWarpTransfer(imp.Message.Payload)
