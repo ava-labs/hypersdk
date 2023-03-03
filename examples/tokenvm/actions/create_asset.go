@@ -34,6 +34,7 @@ func (c *CreateAsset) Execute(
 	_ int64,
 	rauth chain.Auth,
 	txID ids.ID,
+	_ *chain.WarpMessage,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := c.MaxUnits(r) // max units == units
@@ -58,7 +59,10 @@ func (c *CreateAsset) Marshal(p *codec.Packer) {
 	p.PackBytes(c.Metadata)
 }
 
-func UnmarshalCreateAsset(p *codec.Packer) (chain.Action, error) {
+func UnmarshalCreateAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
+	if wm != nil {
+		return nil, chain.ErrUnexpectedWarpMessage
+	}
 	var create CreateAsset
 	p.UnpackBytes(MaxMetadataSize, false, &create.Metadata)
 	return &create, p.Err()
@@ -67,8 +71,4 @@ func UnmarshalCreateAsset(p *codec.Packer) (chain.Action, error) {
 func (*CreateAsset) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
-}
-
-func (*CreateAsset) WarpMessage() *warp.Message {
-	return nil
 }

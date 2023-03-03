@@ -46,6 +46,7 @@ func (m *MintAsset) Execute(
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
+	_ *chain.WarpMessage,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := m.MaxUnits(r) // max units == units
@@ -94,7 +95,7 @@ func (m *MintAsset) Marshal(p *codec.Packer) {
 	p.PackUint64(m.Value)
 }
 
-func UnmarshalMintAsset(p *codec.Packer) (chain.Action, error) {
+func UnmarshalMintAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
 	var mint MintAsset
 	p.UnpackPublicKey(true, &mint.To) // cannot mint to blackhole
 	p.UnpackID(true, &mint.Asset)     // empty ID is the native asset
@@ -105,8 +106,4 @@ func UnmarshalMintAsset(p *codec.Packer) (chain.Action, error) {
 func (*MintAsset) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
-}
-
-func (*MintAsset) WarpMessage() *warp.Message {
-	return nil
 }

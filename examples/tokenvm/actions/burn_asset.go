@@ -43,6 +43,7 @@ func (b *BurnAsset) Execute(
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
+	_ *chain.WarpMessage,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := b.MaxUnits(r) // max units == units
@@ -84,7 +85,10 @@ func (b *BurnAsset) Marshal(p *codec.Packer) {
 	p.PackUint64(b.Value)
 }
 
-func UnmarshalBurnAsset(p *codec.Packer) (chain.Action, error) {
+func UnmarshalBurnAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
+	if wm != nil {
+		return nil, chain.ErrUnexpectedWarpMessage
+	}
 	var burn BurnAsset
 	p.UnpackID(true, &burn.Asset) // empty ID is the native asset
 	burn.Value = p.UnpackUint64(true)
@@ -94,8 +98,4 @@ func UnmarshalBurnAsset(p *codec.Packer) (chain.Action, error) {
 func (*BurnAsset) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
-}
-
-func (*BurnAsset) WarpMessage() *warp.Message {
-	return nil
 }

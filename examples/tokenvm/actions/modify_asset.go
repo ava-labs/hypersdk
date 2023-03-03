@@ -46,6 +46,7 @@ func (m *ModifyAsset) Execute(
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
+	_ *chain.WarpMessage,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := m.MaxUnits(r) // max units == units
@@ -87,7 +88,10 @@ func (m *ModifyAsset) Marshal(p *codec.Packer) {
 	p.PackBytes(m.Metadata)
 }
 
-func UnmarshalModifyAsset(p *codec.Packer) (chain.Action, error) {
+func UnmarshalModifyAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
+	if wm != nil {
+		return nil, chain.ErrUnexpectedWarpMessage
+	}
 	var modify ModifyAsset
 	p.UnpackID(true, &modify.Asset)         // empty ID is the native asset
 	p.UnpackPublicKey(false, &modify.Owner) // empty revokes ownership
@@ -98,8 +102,4 @@ func UnmarshalModifyAsset(p *codec.Packer) (chain.Action, error) {
 func (*ModifyAsset) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
-}
-
-func (*ModifyAsset) WarpMessage() *warp.Message {
-	return nil
 }

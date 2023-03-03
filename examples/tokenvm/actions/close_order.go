@@ -42,6 +42,7 @@ func (c *CloseOrder) Execute(
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
+	_ *chain.WarpMessage,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := c.MaxUnits(r) // max units == units
@@ -78,7 +79,10 @@ func (c *CloseOrder) Marshal(p *codec.Packer) {
 	p.PackID(c.Out)
 }
 
-func UnmarshalCloseOrder(p *codec.Packer) (chain.Action, error) {
+func UnmarshalCloseOrder(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
+	if wm != nil {
+		return nil, chain.ErrUnexpectedWarpMessage
+	}
 	var cl CloseOrder
 	p.UnpackID(true, &cl.Order)
 	p.UnpackID(false, &cl.Out) // empty ID is the native asset
@@ -88,8 +92,4 @@ func UnmarshalCloseOrder(p *codec.Packer) (chain.Action, error) {
 func (*CloseOrder) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
-}
-
-func (*CloseOrder) WarpMessage() *warp.Message {
-	return nil
 }

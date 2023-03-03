@@ -53,7 +53,8 @@ var (
 	ErrKeyNotSpecified = errors.New("key not specified")
 
 	// Warp
-	ErrDisabledChainID = errors.New("cannot import from chain ID")
+	ErrDisabledChainID       = errors.New("cannot import from chain ID")
+	ErrUnexpectedWarpMessage = errors.New("unexpected warp message")
 
 	// Misc
 	ErrNotImplemented    = errors.New("not implemented")
