@@ -112,6 +112,7 @@ type StateManager interface {
 type Action interface {
 	MaxUnits(Rules) uint64                     // max units that could be charged via execute
 	ValidRange(Rules) (start int64, end int64) // -1 means no start/end
+	ExpectsWarp() bool
 
 	// Auth may contain an [Actor] that performs a transaction
 	//
@@ -146,6 +147,7 @@ type Action interface {
 type Auth interface {
 	MaxUnits(Rules) uint64
 	ValidRange(Rules) (start int64, end int64) // -1 means no start/end
+	ExpectsWarp() bool
 
 	StateKeys() [][]byte
 
