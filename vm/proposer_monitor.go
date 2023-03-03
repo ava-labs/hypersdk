@@ -69,6 +69,9 @@ func (p *ProposerMonitor) refresh(ctx context.Context) error {
 		}
 		pks := map[string]struct{}{}
 		for _, v := range p.validators {
+			if v.PublicKey == nil {
+				continue
+			}
 			pks[string(bls.PublicKeyToBytes(v.PublicKey))] = struct{}{}
 		}
 		p.validatorPublicKeys = pks

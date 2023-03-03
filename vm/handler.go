@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"go.uber.org/zap"
 )
 
 const (
@@ -174,6 +175,11 @@ func (h *Handler) GetWarpSignatures(
 
 	// Optimistically request that we gather signatures if we don't have all of them
 	if len(validSignatures) < len(publicKeys) {
+		h.vm.snowCtx.Log.Info(
+			"fetching missing signatures", zap.Stringer("txID", args.TxID),
+			zap.Int("previously collected", len(signatures)), zap.Int("valid", len(validSignatures)),
+			zap.Int("current public key count", len(publicKeys)),
+		)
 		h.vm.warpManager.GatherSignatures(context.TODO(), args.TxID, message.Bytes())
 	}
 
