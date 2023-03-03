@@ -4,6 +4,7 @@
 package vm
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -148,7 +149,7 @@ func (h *Handler) GetWarpSignatures(
 	_, span := h.vm.Tracer().Start(req.Context(), "Handler.GetWarpSignatures")
 	defer span.End()
 
-	message, err := h.vm.GetWarpMessage(args.TxID)
+	message, err := h.vm.GetOutgoingWarpMessage(args.TxID)
 	if err != nil {
 		return err
 	}
@@ -161,8 +162,23 @@ func (h *Handler) GetWarpSignatures(
 		return err
 	}
 
+	// Ensure we only return valid signatures
+	validSignatures := []*WarpSignature{}
+	validators, publicKeys := h.vm.proposerMonitor.Validators(req.Context())
+	for _, sig := range signatures {
+		if _, ok := publicKeys[string(sig.PublicKey)]; !ok {
+			continue
+		}
+		validSignatures = append(validSignatures, sig)
+	}
+
+	// Optimistically request that we gather signatures if we don't have all of them
+	if len(validSignatures) < len(publicKeys) {
+		h.vm.warpManager.GatherSignatures(context.TODO(), args.TxID, message.Bytes())
+	}
+
 	reply.Message = message
-	reply.Validators = h.vm.proposerMonitor.validators
-	reply.Signatures = signatures
+	reply.Validators = validators
+	reply.Signatures = validSignatures
 	return nil
 }

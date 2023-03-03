@@ -111,14 +111,28 @@ func (w *WarpManager) GatherSignatures(ctx context.Context, txID ids.ID, msg []b
 		w.vm.snowCtx.Log.Error("unable to get validator set", zap.Error(err))
 		return
 	}
-	// TODO: restart any unfinished jobs on restart
 	for nodeID, validator := range validators {
-		// Only request from validators that have registered BLS public keys
+		// Only request from validators that have registered BLS public keys and
+		// that we have not already gotten a signature from.
 		if validator.PublicKey == nil {
 			continue
 		}
+		previousSignature, err := w.vm.GetWarpSignature(txID, validator.PublicKey)
+		if err != nil {
+			w.vm.snowCtx.Log.Error("unable to fetch previous signature", zap.Error(err))
+			return
+		}
+		if previousSignature != nil {
+			continue
+		}
+
 		id := utils.ToID(append(txID[:], nodeID.Bytes()...))
 		w.l.Lock()
+		if w.pendingJobs.Has(id) {
+			// We may already have enqueued a job when the block was accepted.
+			w.l.Unlock()
+			continue
+		}
 		w.pendingJobs.Push(&heap.Entry[*signatureJob, int64]{
 			ID: id,
 			Item: &signatureJob{
