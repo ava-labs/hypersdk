@@ -165,6 +165,20 @@ func (mr *MockRulesMockRecorder) GetValidityWindow() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetValidityWindow", reflect.TypeOf((*MockRules)(nil).GetValidityWindow))
 }
 
+// GetWarpBaseFee mocks base method.
+func (m *MockRules) GetWarpBaseFee() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWarpBaseFee")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetWarpBaseFee indicates an expected call of GetWarpBaseFee.
+func (mr *MockRulesMockRecorder) GetWarpBaseFee() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWarpBaseFee", reflect.TypeOf((*MockRules)(nil).GetWarpBaseFee))
+}
+
 // GetWarpConfig mocks base method.
 func (m *MockRules) GetWarpConfig(arg0 ids.ID) (bool, uint64, uint64) {
 	m.ctrl.T.Helper()
@@ -179,6 +193,20 @@ func (m *MockRules) GetWarpConfig(arg0 ids.ID) (bool, uint64, uint64) {
 func (mr *MockRulesMockRecorder) GetWarpConfig(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWarpConfig", reflect.TypeOf((*MockRules)(nil).GetWarpConfig), arg0)
+}
+
+// GetWarpFeePerSigner mocks base method.
+func (m *MockRules) GetWarpFeePerSigner() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWarpFeePerSigner")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetWarpFeePerSigner indicates an expected call of GetWarpFeePerSigner.
+func (mr *MockRulesMockRecorder) GetWarpFeePerSigner() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWarpFeePerSigner", reflect.TypeOf((*MockRules)(nil).GetWarpFeePerSigner))
 }
 
 // GetWindowTargetBlocks mocks base method.
