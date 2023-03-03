@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -23,9 +24,10 @@ var (
 )
 
 type Transaction struct {
-	Base   *Base  `json:"base"`
-	Action Action `json:"action"`
-	Auth   Auth   `json:"auth"`
+	Base        *Base         `json:"base"`
+	Action      Action        `json:"action"`
+	WarpMessage *warp.Message `json:"warpMessage"`
+	Auth        Auth          `json:"auth"`
 
 	bytes []byte
 	size  uint64
@@ -43,6 +45,11 @@ func (t *Transaction) Digest() ([]byte, error) {
 	p := codec.NewWriter(consts.MaxInt)
 	t.Base.Marshal(p)
 	t.Action.Marshal(p)
+	var warpBytes []byte
+	if t.WarpMessage != nil {
+		warpBytes = t.WarpMessage.Bytes()
+	}
+	p.PackBytes(warpBytes)
 	return p.Bytes(), p.Err()
 }
 
@@ -229,6 +236,11 @@ func (t *Transaction) Marshal(
 	t.Base.Marshal(p)
 	p.PackByte(actionByte)
 	t.Action.Marshal(p)
+	var warpBytes []byte
+	if t.WarpMessage != nil {
+		warpBytes = t.WarpMessage.Bytes()
+	}
+	p.PackBytes(warpBytes)
 	p.PackByte(authByte)
 	t.Auth.Marshal(p)
 	return p.Err()
@@ -294,6 +306,16 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal action", err)
 	}
+	var warpBytes []byte
+	p.UnpackBytes(MaxWarpMessageSize, false, &warpBytes)
+	var warpMessage *warp.Message
+	if len(warpBytes) > 0 {
+		msg, err := warp.ParseMessage(warpBytes)
+		if err != nil {
+			return nil, fmt.Errorf("%w: could not unmarshal warp message", err)
+		}
+		warpMessage = msg
+	}
 	authType := p.UnpackByte()
 	unmarshalAuth, ok := authRegistry.LookupIndex(authType)
 	if !ok {
@@ -307,6 +329,7 @@ func UnmarshalTx(
 	var tx Transaction
 	tx.Base = base
 	tx.Action = action
+	tx.WarpMessage = warpMessage
 	tx.Auth = auth
 	if err := p.Err(); err != nil {
 		return nil, p.Err()

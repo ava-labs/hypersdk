@@ -91,6 +91,7 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID, blockContext *smbl
 			if msg != nil && blockContext == nil {
 				return true, true, false, nil
 			}
+			msg.UnsignedMessage.Bytes()
 
 			// Check for repeats
 			//

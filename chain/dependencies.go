@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -79,8 +78,6 @@ type Database interface {
 }
 
 type Rules interface {
-	GetWarpConfig(ids.ID) (bool, uint64, uint64)
-
 	GetMaxBlockTxs() int
 	GetMaxBlockUnits() uint64 // should ensure can't get above block max size
 
@@ -94,6 +91,10 @@ type Rules interface {
 	GetMinBlockCost() uint64
 	GetBlockCostChangeDenominator() uint64
 	GetWindowTargetBlocks() uint64
+
+	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
+	GetWarpKey(msgID ids.ID) []byte // used to access state to check for duplicates/store warp without conflict
+	GetWarpFeePerSigner() uint64
 
 	FetchCustom(string) (any, bool)
 }
@@ -109,13 +110,6 @@ type Action interface {
 	//
 	// If attempt to reference missing key, error...it is ok to not use all keys (conditional logic based on state)
 	StateKeys(auth Auth, txID ids.ID) [][]byte
-
-	// WarpMessage returns the message that must be validated in the Action, if
-	// one exists.
-	//
-	// Async verification of the signature will begin during block verification
-	// and the result will be returned during execution on the channel.
-	WarpMessage() *warp.Message
 
 	// Key distinction with "Auth" is the payment of fees. All non-fee payments
 	// occur in Execute but Auth handles fees.
