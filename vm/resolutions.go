@@ -164,11 +164,6 @@ func (vm *VM) processAcceptedBlocks() {
 			if err != nil {
 				vm.snowCtx.Log.Fatal("unable to sign warp message", zap.Error(err))
 			}
-			if err := vm.StoreWarpMessage(tx.ID(), result.WarpMessage); err != nil {
-				vm.snowCtx.Log.Fatal("unable to store warp message", zap.Error(err))
-			}
-			// We ONLY produce a signature if we were validating at the time
-			// a signature was required from us.
 			if err := vm.StoreWarpSignature(tx.ID(), vm.snowCtx.PublicKey, signature); err != nil {
 				vm.snowCtx.Log.Fatal("unable to store warp signature", zap.Error(err))
 			}

@@ -180,7 +180,23 @@ func (w *WarpManager) AppRequest(
 		return nil
 	}
 	if sig == nil {
-		return nil
+		// Generate and save signature if it does not exist but is in state (may
+		// have been offline when message was accepted)
+		msg, err := w.vm.GetOutgoingWarpMessage(txID)
+		if msg == nil || err != nil {
+			return nil
+		}
+		rSig, err := w.vm.snowCtx.WarpSigner.Sign(msg)
+		if err != nil {
+			return nil
+		}
+		if err := w.vm.StoreWarpSignature(txID, w.vm.snowCtx.PublicKey, rSig); err != nil {
+			return nil
+		}
+		sig = &WarpSignature{
+			PublicKey: w.vm.pkBytes,
+			Signature: rSig,
+		}
 	}
 	wp := codec.NewWriter(maxWarpResponse)
 	wp.PackBytes(sig.PublicKey)
