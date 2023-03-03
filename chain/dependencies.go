@@ -93,10 +93,13 @@ type Rules interface {
 	GetWindowTargetBlocks() uint64
 
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
-	GetWarpKey(msgID ids.ID) []byte // used to access state to check for duplicates/store warp without conflict
 	GetWarpFeePerSigner() uint64
 
 	FetchCustom(string) (any, bool)
+}
+
+type StateMapping interface {
+	WarpKey(msgID ids.ID) []byte // used to access state to check for duplicates/store warp without conflict
 }
 
 type Action interface {
@@ -127,7 +130,7 @@ type Action interface {
 		timestamp int64,
 		auth Auth,
 		txID ids.ID,
-		warpVerifyResult error, // if no warp message, disregard
+		warpMessage *WarpMessage,
 	) (result *Result, err error) // err should only be returned if fatal
 
 	Marshal(p *codec.Packer)

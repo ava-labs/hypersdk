@@ -33,6 +33,13 @@ type Transaction struct {
 	size           uint64
 	id             ids.ID
 	numWarpSigners int
+	warpID         ids.ID
+}
+
+type WarpMessage struct {
+	ID        ids.ID
+	Message   *warp.Message
+	VerifyErr error
 }
 
 func NewTx(base *Base, act Action) *Transaction {
@@ -87,6 +94,7 @@ func (t *Transaction) Init(
 			return nil, err
 		}
 		t.bytes = p.Bytes()
+		t.id = utils.ToID(t.bytes)
 		t.size = uint64(len(t.bytes))
 		if msg := t.WarpMessage; msg != nil {
 			numSigners, err := msg.Signature.NumSigners()
@@ -94,9 +102,9 @@ func (t *Transaction) Init(
 				return nil, fmt.Errorf("%w: could not calculate number of warp signers", err)
 			}
 			t.numWarpSigners = numSigners
+			t.warpID = utils.ToID(msg.Bytes())
 		}
 	}
-	t.id = utils.ToID(t.bytes)
 
 	return func() error {
 		// Verify sender
@@ -177,7 +185,7 @@ func (t *Transaction) Execute(
 	r Rules,
 	tdb *tstate.TState,
 	timestamp int64,
-	warpVerifyResult error,
+	warpMessage *WarpMessage,
 ) (*Result, error) {
 	// Verify auth is correct prior to doing anything
 	authUnits, err := t.Auth.Verify(ctx, r, tdb, t.Action)
@@ -196,7 +204,7 @@ func (t *Transaction) Execute(
 
 	// We create a temp state to ensure we don't commit failed actions to state.
 	start := tdb.OpIndex()
-	result, err := t.Action.Execute(ctx, r, tdb, timestamp, t.Auth, t.id, warpVerifyResult)
+	result, err := t.Action.Execute(ctx, r, tdb, timestamp, t.Auth, t.id, warpMessage)
 	if err != nil {
 		return nil, err
 	}
@@ -358,6 +366,11 @@ func UnmarshalTx(
 		return nil, p.Err()
 	}
 	tx.bytes = p.Bytes()[start:p.Offset()] // ensure errors handled before grabbing memory
-	tx.numWarpSigners = numWarpSigners
+	tx.size = uint64(len(tx.bytes))
+	tx.id = utils.ToID(tx.bytes)
+	if tx.WarpMessage != nil {
+		tx.numWarpSigners = numWarpSigners
+		tx.warpID = utils.ToID(warpBytes)
+	}
 	return &tx, nil
 }
