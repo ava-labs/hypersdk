@@ -20,7 +20,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const maxWarpResponse = bls.PublicKeyLen + bls.SignatureLen
+const (
+	maxWarpResponse   = bls.PublicKeyLen + bls.SignatureLen
+	minGatherInterval = 30 * 60 // 30 minutes
+)
 
 // WarpManager takes requests to get signatures from other nodes and then
 // stores the result in our DB for future usage.
@@ -96,7 +99,25 @@ func (w *WarpManager) Run(appSender common.AppSender) {
 
 // GatherSignatures makes a best effort to acquire signatures from other
 // validators and store them inside the vmDB.
+//
+// GatherSignatures may be called when a block is accepted (optimistically) or
+// may be triggered by RPC (if missing signatures are detected). To prevent RPC
+// abuse, we limit how frequently we attempt to gather signatures for a given
+// TxID.
 func (w *WarpManager) GatherSignatures(ctx context.Context, txID ids.ID, msg []byte) {
+	lastFetch, err := w.vm.GetWarpFetch(txID)
+	if err != nil {
+		w.vm.snowCtx.Log.Error("unable to get last fetch", zap.Error(err))
+		return
+	}
+	if time.Now().Unix()-lastFetch < minGatherInterval {
+		w.vm.snowCtx.Log.Error("skipping fetch too recent", zap.Stringer("txID", txID))
+		return
+	}
+	if err := w.vm.StoreWarpFetch(txID); err != nil {
+		w.vm.snowCtx.Log.Error("unable to get last fetch", zap.Error(err))
+		return
+	}
 	height, err := w.vm.snowCtx.ValidatorState.GetCurrentHeight(ctx)
 	if err != nil {
 		w.vm.snowCtx.Log.Error("unable to get current p-chain height", zap.Error(err))

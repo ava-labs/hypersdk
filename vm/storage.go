@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"time"
 
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/database"
@@ -23,6 +24,7 @@ const (
 	idPrefix            = 0x0
 	heightPrefix        = 0x1
 	warpSignaturePrefix = 0x2
+	warpFetchPrefix     = 0x3
 )
 
 var (
@@ -188,4 +190,28 @@ func (vm *VM) GetWarpSignatures(txID ids.ID) ([]*WarpSignature, error) {
 		})
 	}
 	return signatures, iter.Error()
+}
+
+func PrefixWarpFetchKey(txID ids.ID) []byte {
+	k := make([]byte, 1+consts.IDLen)
+	k[0] = warpFetchPrefix
+	copy(k[1:], txID[:])
+	return k
+}
+
+func (vm *VM) StoreWarpFetch(txID ids.ID) error {
+	k := PrefixWarpFetchKey(txID)
+	return vm.vmDB.Put(k, binary.BigEndian.AppendUint64(nil, uint64(time.Now().Unix())))
+}
+
+func (vm *VM) GetWarpFetch(txID ids.ID) (int64, error) {
+	k := PrefixWarpFetchKey(txID)
+	v, err := vm.vmDB.Get(k)
+	if errors.Is(err, database.ErrNotFound) {
+		return -1, nil
+	}
+	if err != nil {
+		return -1, err
+	}
+	return int64(binary.BigEndian.Uint64(v)), nil
 }
