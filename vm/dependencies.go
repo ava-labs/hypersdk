@@ -69,10 +69,10 @@ type Controller interface {
 
 	Rules(t int64) chain.Rules
 
-	// StateMapping is used by the VM to request keys to store required
+	// StateManager is used by the VM to request keys to store required
 	// information in state (without clobbering things the Controller is
 	// storing).
-	StateMapping() chain.StateMapping
+	StateManager() chain.StateManager
 
 	// Anything that the VM wishes to store outside of state or blocks must be
 	// recorded here

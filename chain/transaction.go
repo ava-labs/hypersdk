@@ -131,7 +131,7 @@ func (t *Transaction) UnitPrice() uint64 { return t.Base.UnitPrice }
 // It is ok to have duplicate ReadKeys...the processor will skip them
 //
 // TODO: verify the invariant that [t.id] is set by this point
-func (t *Transaction) StateKeys(stateMapping StateMapping) [][]byte {
+func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
 	keys := append(t.Action.StateKeys(t.Auth, t.ID()), t.Auth.StateKeys()...)
 	if t.WarpMessage != nil {
 		keys = append(keys, stateMapping.IncomingWarpKey(t.warpID))
@@ -190,7 +190,7 @@ func (t *Transaction) PreExecute(
 func (t *Transaction) Execute(
 	ctx context.Context,
 	r Rules,
-	s StateMapping,
+	s StateManager,
 	tdb *tstate.TState,
 	timestamp int64,
 	warpMessage *WarpMessage,

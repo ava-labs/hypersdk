@@ -46,7 +46,7 @@ type VM interface {
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
 	State() (*merkledb.Database, error)
-	StateMapping() StateMapping
+	StateManager() StateManager
 	ValidatorState() validators.State
 
 	Mempool() Mempool
@@ -100,10 +100,10 @@ type Rules interface {
 	FetchCustom(string) (any, bool)
 }
 
-// StateMapping allows [Chain] to safely store certain types of items in state
-// in a structured manner. If we did not use [StateMapping], we may overwrite
+// StateManager allows [Chain] to safely store certain types of items in state
+// in a structured manner. If we did not use [StateManager], we may overwrite
 // state written by actions or auth.
-type StateMapping interface {
+type StateManager interface {
 	IncomingWarpKey(msgID ids.ID) []byte // used to access state to check for duplicates/store warp without conflict
 	OutgoingWarpKey(txID ids.ID) []byte  // used to access state to check for duplicates/store warp without conflict
 }

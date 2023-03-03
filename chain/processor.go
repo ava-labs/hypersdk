@@ -40,7 +40,7 @@ func NewProcessor(tracer trace.Tracer, b *StatelessBlock) *Processor {
 func (p *Processor) Prefetch(ctx context.Context, db Database) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Prefetch")
 	p.db = db
-	sm := p.blk.vm.StateMapping()
+	sm := p.blk.vm.StateManager()
 	go func() {
 		defer span.End()
 
@@ -85,7 +85,7 @@ func (p *Processor) Execute(
 		t             = p.blk.GetTimestamp()
 		blkUnitPrice  = p.blk.GetUnitPrice()
 		results       = []*Result{}
-		sm            = p.blk.vm.StateMapping()
+		sm            = p.blk.vm.StateManager()
 	)
 	for txData := range p.readyTxs {
 		tx := txData.tx

@@ -80,7 +80,7 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID, blockContext *smbl
 		results      = []*Result{}
 
 		vdrState = vm.ValidatorState()
-		sm       = vm.StateMapping()
+		sm       = vm.StateManager()
 	)
 	mempoolErr := mempool.Build(
 		ctx,

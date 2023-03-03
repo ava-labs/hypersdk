@@ -120,7 +120,7 @@ func (vm *VM) PutDiskIsSyncing(v bool) error {
 }
 
 func (vm *VM) GetOutgoingWarpMessage(txID ids.ID) (*warp.UnsignedMessage, error) {
-	k := vm.c.StateMapping().OutgoingWarpKey(txID)
+	k := vm.c.StateManager().OutgoingWarpKey(txID)
 	vs, errs := vm.ReadState(context.TODO(), [][]byte{k})
 	v, err := vs[0], errs[0]
 	if errors.Is(err, database.ErrNotFound) {
