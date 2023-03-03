@@ -25,24 +25,40 @@ type ImportAsset struct {
 	// warpTransfer is parsed from the inner *warp.Message
 	warpTransfer *WarpTransfer
 
-	// newAsset is the ids.ID of the assetID that the inbound funds are
-	// identified by.
-	newAsset ids.ID
+	// warpMessage is the full *warp.Message parsed from [chain.Transaction]
+	warpMessage *warp.Message
+}
 
-	// payloadLen is used to determine the fee this transaction should pay.
-	payloadLen int
+func (i *ImportAsset) assetID() ids.ID {
+	if i.warpTransfer.Return {
+		return i.warpTransfer.Asset
+	}
+	return i.warpTransfer.NewAssetID(i.warpMessage.SourceChainID)
 }
 
 func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
-	keys := [][]byte{
-		storage.PrefixAssetKey(i.newAsset),
-		storage.PrefixBalanceKey(i.warpTransfer.To, i.newAsset),
+	var (
+		keys    [][]byte
+		assetID ids.ID
+	)
+	if i.warpTransfer.Return {
+		keys = [][]byte{
+			// TODO: add loan item
+			storage.PrefixBalanceKey(i.warpTransfer.To, i.warpTransfer.Asset),
+		}
+	} else {
+		assetID = i.warpTransfer.NewAssetID(i.warpMessage.SourceChainID)
+		keys = [][]byte{
+			storage.PrefixAssetKey(assetID),
+			storage.PrefixBalanceKey(i.warpTransfer.To, assetID),
+		}
 	}
+
 	// If the [warpTransfer] specified a reward, we add the state key to make
 	// sure it is paid.
 	if i.warpTransfer.Reward > 0 {
 		actor := auth.GetActor(rauth)
-		keys = append(keys, storage.PrefixBalanceKey(actor, i.newAsset))
+		keys = append(keys, storage.PrefixBalanceKey(actor, assetID))
 	}
 	return keys
 }
@@ -96,23 +112,21 @@ func (i *ImportAsset) Execute(
 }
 
 func (i *ImportAsset) MaxUnits(chain.Rules) uint64 {
-	return uint64(i.payloadLen)
+	return uint64(len(i.warpMessage.Payload))
 }
 
 func (i *ImportAsset) Marshal(p *codec.Packer) {}
 
 func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
-	payload := wm.UnsignedMessage.Payload
-
-	// Parse warp payload
-	var imp ImportAsset
-	imp.payloadLen = len(payload)
-	warpTransfer, err := UnmarshalWarpTransfer(payload)
+	var (
+		imp ImportAsset
+		err error
+	)
+	imp.warpMessage = wm
+	imp.warpTransfer, err = UnmarshalWarpTransfer(imp.warpMessage.Payload)
 	if err != nil {
 		return nil, err
 	}
-	imp.warpTransfer = warpTransfer
-	imp.newAsset = imp.warpTransfer.NewAssetID(wm.SourceChainID)
 	return &imp, nil
 }
 

@@ -15,8 +15,11 @@ type WarpTransfer struct {
 	To     crypto.PublicKey `json:"to"`
 	Asset  ids.ID           `json:"asset"`
 	Value  uint64           `json:"value"`
-	Reward uint64           `json:"reward"`
-	TxID   ids.ID           `json:"txID"`
+	Return bool             `json:"return"`
+
+	Reward uint64 `json:"reward"`
+
+	TxID ids.ID `json:"txID"`
 }
 
 func (w *WarpTransfer) Marshal() ([]byte, error) {
@@ -24,6 +27,7 @@ func (w *WarpTransfer) Marshal() ([]byte, error) {
 	p.PackPublicKey(w.To)
 	p.PackID(w.Asset)
 	p.PackUint64(w.Value)
+	p.PackBool(w.Return)
 	p.PackUint64(w.Reward)
 	p.PackID(w.TxID)
 	return p.Bytes(), p.Err()
@@ -42,6 +46,7 @@ func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
 	p.UnpackPublicKey(false, &transfer.To)
 	p.UnpackID(false, &transfer.Asset)
 	transfer.Value = p.UnpackUint64(true)
+	transfer.Return = p.UnpackBool()
 	transfer.Reward = p.UnpackUint64(false) // reward not required
 	p.UnpackID(true, &transfer.TxID)
 	if !p.Empty() {

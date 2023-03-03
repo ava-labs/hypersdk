@@ -29,9 +29,11 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x0/ (balance)
 //   -> [owner|asset] => balance
 // 0x1/ (assets)
-//   -> [asset] => metadataLen|metadata|supply|owner
+//   -> [asset] => metadataLen|metadata|supply|owner|warp
 // 0x2/ (orders)
 //   -> [txID] => in|out|rate|remaining|owner
+// 0x3/ (loans)
+//   -> [assetID|destination] => amount
 
 const (
 	txPrefix = 0x0
@@ -39,6 +41,7 @@ const (
 	balancePrefix = 0x0
 	assetPrefix   = 0x1
 	orderPrefix   = 0x2
+	loanPrefix    = 0x3
 )
 
 var (
@@ -354,4 +357,20 @@ func GetOrder(
 func DeleteOrder(ctx context.Context, db chain.Database, order ids.ID) error {
 	k := PrefixOrderKey(order)
 	return db.Remove(ctx, k)
+}
+
+// [loanPrefix] + [asset] + [destination]
+func PrefixLoanKey(asset ids.ID, destination ids.ID) (k []byte) {
+	k = make([]byte, 1+consts.IDLen*2)
+	k[0] = loanPrefix
+	copy(k[1:], asset[:])
+	copy(k[1+consts.IDLen:], destination[:])
+	return
+}
+
+func IncreaseLoan(ctx context.Context, db chain.Database, asset ids.ID, destination ids.ID, amount uint64) error {
+}
+
+func DecreaseLoan() {
+	// TODO: delete loan if 0
 }
