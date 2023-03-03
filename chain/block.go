@@ -57,6 +57,13 @@ type StatefulBlock struct {
 	SurplusFee    uint64 `json:"surplusFee"`
 }
 
+// warpResult is used to signal to a listner that a *warp.Message has been
+// verified.
+type warpResult struct {
+	msg    *warp.Message
+	result chan error
+}
+
 func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBlock {
 	return &StatefulBlock{
 		UnitPrice:  minUnit,
@@ -67,11 +74,6 @@ func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBloc
 
 		StateRoot: root,
 	}
-}
-
-type warpVerification struct {
-	msg    *warp.Message
-	result chan error
 }
 
 // Stateless is defined separately from "Block"
@@ -86,7 +88,7 @@ type StatelessBlock struct {
 	bytes  []byte
 	txsSet set.Set[ids.ID]
 
-	warpMessages map[ids.ID]*warpVerification
+	warpMessages map[ids.ID]*warpResult
 	bctx         *block.Context
 	vdrState     validators.State
 
@@ -168,7 +170,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 		// verification as skipped and include it in the verification result so
 		// that a fee can still be deducted.
 		if tx.WarpMessage != nil {
-			b.warpMessages[tx.ID()] = &warpVerification{
+			b.warpMessages[tx.ID()] = &warpResult{
 				msg:    tx.WarpMessage,
 				result: make(chan error),
 			}
