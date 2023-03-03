@@ -307,3 +307,7 @@ func (vm *VM) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummar
 func (vm *VM) StateSyncEnabled(ctx context.Context) (bool, error) {
 	return vm.stateSyncClient.StateSyncEnabled(ctx)
 }
+
+func (vm *VM) StateMapping() chain.StateMapping {
+	return vm.c.StateMapping()
+}
