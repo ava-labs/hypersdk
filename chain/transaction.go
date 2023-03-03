@@ -287,19 +287,19 @@ func (t *Transaction) Payer() string {
 
 func (t *Transaction) Marshal(
 	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action, *warp.Message],
-	authRegistry *codec.TypeParser[Auth, *warp.Message],
+	actionRegistry *codec.TypeParser[Action, *warp.Message, bool],
+	authRegistry *codec.TypeParser[Auth, *warp.Message, bool],
 ) error {
 	if len(t.bytes) > 0 {
 		p.PackFixedBytes(t.bytes)
 		return p.Err()
 	}
 
-	actionByte, _, ok := actionRegistry.LookupType(t.Action)
+	actionByte, _, _, ok := actionRegistry.LookupType(t.Action)
 	if !ok {
 		return fmt.Errorf("unknown action type %T", t.Action)
 	}
-	authByte, _, ok := authRegistry.LookupType(t.Auth)
+	authByte, _, _, ok := authRegistry.LookupType(t.Auth)
 	if !ok {
 		return fmt.Errorf("unknown auth type %T", t.Auth)
 	}
@@ -359,8 +359,8 @@ func UnmarshalTxs(
 
 func UnmarshalTx(
 	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action, *warp.Message],
-	authRegistry *codec.TypeParser[Auth, *warp.Message],
+	actionRegistry *codec.TypeParser[Action, *warp.Message, bool],
+	authRegistry *codec.TypeParser[Auth, *warp.Message, bool],
 ) (*Transaction, error) {
 	start := p.Offset()
 	base, err := UnmarshalBase(p)
@@ -384,22 +384,32 @@ func UnmarshalTx(
 		numWarpSigners = numSigners
 	}
 	actionType := p.UnpackByte()
-	unmarshalAction, ok := actionRegistry.LookupIndex(actionType)
+	unmarshalAction, actionWarp, ok := actionRegistry.LookupIndex(actionType)
 	if !ok {
 		return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
+	}
+	if actionWarp && warpMessage == nil {
+		return nil, fmt.Errorf("%w: action %d", ErrExpectedWarpMessage, actionType)
 	}
 	action, err := unmarshalAction(p, warpMessage)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal action", err)
 	}
 	authType := p.UnpackByte()
-	unmarshalAuth, ok := authRegistry.LookupIndex(authType)
+	unmarshalAuth, authWarp, ok := authRegistry.LookupIndex(authType)
 	if !ok {
 		return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
+	}
+	if authWarp && warpMessage == nil {
+		return nil, fmt.Errorf("%w: auth %d", ErrExpectedWarpMessage, authType)
 	}
 	auth, err := unmarshalAuth(p, warpMessage)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal auth", err)
+	}
+	warpExpected := actionWarp || authWarp
+	if !warpExpected && warpMessage != nil {
+		return nil, ErrUnexpectedWarpMessage
 	}
 
 	var tx Transaction

@@ -19,8 +19,8 @@ import (
 )
 
 type (
-	ActionRegistry *codec.TypeParser[Action, *warp.Message]
-	AuthRegistry   *codec.TypeParser[Auth, *warp.Message]
+	ActionRegistry *codec.TypeParser[Action, *warp.Message, bool]
+	AuthRegistry   *codec.TypeParser[Auth, *warp.Message, bool]
 )
 
 type Parser interface {
