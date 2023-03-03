@@ -19,18 +19,9 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-const signerCost = 1_024
-
 var _ chain.Action = (*ImportAsset)(nil)
 
 type ImportAsset struct {
-	// Message is the raw *warp.Message containing a transfer of some assets to
-	// a given address.
-	Message *warp.Message `json:"warpMessage"`
-
-	// messageSigners is parsed from the inner *warp.Message.Signature
-	messageSigners int
-
 	// warpTransfer is parsed from the inner *warp.Message
 	warpTransfer *WarpTransfer
 
@@ -38,22 +29,20 @@ type ImportAsset struct {
 	// identified by.
 	newAsset ids.ID
 
-	// messageLen is used to determine the fee this transaction should pay.
-	messageLen int
+	// payloadLen is used to determine the fee this transaction should pay.
+	payloadLen int
 }
 
 func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
-	newAsset := i.warpTransfer.NewAssetID(i.Message.SourceChainID)
 	keys := [][]byte{
-		storage.PrefixAssetKey(newAsset),
-		storage.PrefixBalanceKey(i.warpTransfer.To, newAsset),
-		storage.PrefixWarpMessageKey(i.warpTransfer.TxID),
+		storage.PrefixAssetKey(i.newAsset),
+		storage.PrefixBalanceKey(i.warpTransfer.To, i.newAsset),
 	}
 	// If the [warpTransfer] specified a reward, we add the state key to make
 	// sure it is paid.
 	if i.warpTransfer.Reward > 0 {
 		actor := auth.GetActor(rauth)
-		keys = append(keys, storage.PrefixBalanceKey(actor, newAsset))
+		keys = append(keys, storage.PrefixBalanceKey(actor, i.newAsset))
 	}
 	return keys
 }
@@ -65,19 +54,12 @@ func (i *ImportAsset) Execute(
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
+	wm *chain.WarpMessage,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := i.MaxUnits(r) // max units == units
-	has, err := storage.HasWarpMessageID(ctx, db, i.warpTransfer.TxID)
-	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
-	}
-	if has {
-		return &chain.Result{
-			Success: false,
-			Units:   unitsUsed,
-			Output:  OutputDuplicateWarpMessage,
-		}, nil
+	if wm.VerifyErr != nil {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(wm.VerifyErr)}, nil
 	}
 	if i.warpTransfer.Value == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
@@ -110,59 +92,34 @@ func (i *ImportAsset) Execute(
 			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 		}
 	}
-	if err := storage.StoreWarpMessageID(ctx, db, i.warpTransfer.TxID); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
-	}
-	// TODO: check output of signature verification
-	// TODO: parallel signature execution will make any blocks for signatures
-	// less of a performance issue (as we can just move to the next tx)
 	return &chain.Result{Success: true, Units: unitsUsed}, nil
 }
 
 func (i *ImportAsset) MaxUnits(chain.Rules) uint64 {
-	return uint64(i.messageSigners)*signerCost + uint64(i.messageLen)
+	return uint64(i.payloadLen)
 }
 
-func (i *ImportAsset) Marshal(p *codec.Packer) {
-	p.PackBytes(i.Message.Bytes())
-}
+func (i *ImportAsset) Marshal(p *codec.Packer) {}
 
-func UnmarshalImportAsset(p *codec.Packer) (chain.Action, error) {
+func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
+	if wm == nil {
+		return nil, chain.ErrExpectedWarpMessage
+	}
+	payload := wm.UnsignedMessage.Payload
+
+	// Parse warp payload
 	var imp ImportAsset
-	var msgBytes []byte
-	p.UnpackBytes(chain.MaxWarpMessageSize, true, &msgBytes)
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	imp.messageLen = len(msgBytes)
-	msg, err := warp.ParseMessage(msgBytes)
-	if err != nil {
-		return nil, err
-	}
-	imp.Message = msg
-
-	// Ensure signer bitset is correctly populated
-	msgSigners, err := msg.Signature.NumSigners()
-	if err != nil {
-		return nil, err
-	}
-	imp.messageSigners = msgSigners
-
-	// Parse inner message
-	warpTransfer, err := UnmarshalWarpTransfer(imp.Message.Payload)
+	imp.payloadLen = len(payload)
+	warpTransfer, err := UnmarshalWarpTransfer(payload)
 	if err != nil {
 		return nil, err
 	}
 	imp.warpTransfer = warpTransfer
-	imp.newAsset = imp.warpTransfer.NewAssetID(imp.Message.SourceChainID)
+	imp.newAsset = imp.warpTransfer.NewAssetID(wm.SourceChainID)
 	return &imp, nil
 }
 
 func (*ImportAsset) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
-}
-
-func (i *ImportAsset) WarpMessage() *warp.Message {
-	return i.Message
 }
