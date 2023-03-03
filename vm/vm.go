@@ -18,8 +18,8 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
-	smblock "github.com/ava-labs/avalanchego/snow/consensus/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
@@ -565,17 +565,13 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	return newBlk, nil
 }
 
-// implements "block.ChainVM"
-func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
-	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
-	defer span.End()
-
+func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
 	if !vm.isReady() {
 		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrNotReady))
 		return nil, ErrNotReady
 	}
 
-	blk, err := chain.BuildBlock(ctx, vm, vm.preferred)
+	blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
 	vm.builder.HandleGenerateBlock()
 	if err != nil {
 		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
@@ -584,10 +580,20 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	return blk, nil
 }
 
+// implements "block.ChainVM"
+func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
+	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
+	defer span.End()
+
+	return vm.buildBlock(ctx, nil)
+}
+
 // implements "block.BuildBlockWithContextChainVM"
 func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
-	panic("not implemented")
-	// TODO: can only build blocks with warp messages if this is called
+	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlockWithContext")
+	defer span.End()
+
+	return vm.buildBlock(ctx, blockContext)
 }
 
 func (vm *VM) Submit(

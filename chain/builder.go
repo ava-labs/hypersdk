@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
+	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
@@ -41,7 +42,7 @@ func HandlePreExecute(
 	}
 }
 
-func BuildBlock(ctx context.Context, vm VM, preferred ids.ID) (snowman.Block, error) {
+func BuildBlock(ctx context.Context, vm VM, preferred ids.ID, blockContext *smblock.Context) (snowman.Block, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
 	log := vm.Logger()
@@ -77,11 +78,19 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID) (snowman.Block, er
 
 		txsAttempted = 0
 		results      = []*Result{}
+
+		vdrState = vm.ValidatorState()
 	)
 	mempoolErr := mempool.Build(
 		ctx,
 		func(fctx context.Context, next *Transaction) (cont bool, restore bool, removeAcct bool, err error) {
 			txsAttempted++
+
+			// Ensure we can process if transaction includes a warp message
+			msg := next.Action.WarpMessage()
+			if msg != nil && blockContext == nil {
+				return true, true, false, nil
+			}
 
 			// Check for repeats
 			//
@@ -123,8 +132,25 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID) (snowman.Block, er
 				return cont, restore, removeAcct, nil
 			}
 
+			// Verify warp message, if it exists
+			//
+			// We don't drop invalid warp messages because we must collect fees for
+			// the work the sender made us do (otherwise this would be a DoS).
+			//
+			// We wait as long as possible to verify the signature to ensure we don't
+			// spend unnecessary time on an invalid tx.
+			var warpVerifyResult error
+			if msg != nil {
+				num, denom, err := preVerifyWarpMessage(msg, vm.ChainID(), r)
+				if err == nil {
+					warpVerifyResult = msg.Signature.Verify(ctx, &msg.UnsignedMessage, vdrState, blockContext.PChainHeight, num, denom)
+				} else {
+					warpVerifyResult = err
+				}
+			}
+
 			// If execution works, keep moving forward with new state
-			result, err := next.Execute(fctx, r, ts, nextTime)
+			result, err := next.Execute(fctx, r, ts, nextTime, warpVerifyResult)
 			if err != nil {
 				// This error should only be raised by the handler, not the
 				// implementation itself
