@@ -15,6 +15,11 @@ import (
 	"go.uber.org/zap"
 )
 
+type nodeIDRequester struct {
+	requestID     uint32
+	requestMapper map[uint32]*request
+}
+
 type request struct {
 	handler   uint8
 	requestID uint32
@@ -29,8 +34,7 @@ type NetworkManager struct {
 	pendingHandlers map[uint8]struct{}
 	handlers        map[uint8]NetworkHandler
 
-	requestID     uint32
-	requestMapper map[uint32]*request
+	requesters map[ids.NodeID]*nodeIDRequester
 }
 
 func NewNetworkManager(vm *VM, sender common.AppSender) *NetworkManager {
@@ -39,7 +43,7 @@ func NewNetworkManager(vm *VM, sender common.AppSender) *NetworkManager {
 		sender:          sender,
 		handlers:        map[uint8]NetworkHandler{},
 		pendingHandlers: map[uint8]struct{}{},
-		requestMapper:   map[uint32]*request{},
+		requesters:      map[ids.NodeID]*nodeIDRequester{},
 	}
 }
 
@@ -98,13 +102,20 @@ func (n *NetworkManager) SetHandler(handler uint8, h NetworkHandler) {
 	n.handlers[handler] = h
 }
 
-func (n *NetworkManager) getSharedRequestID(handler uint8, requestID uint32) uint32 {
+func (n *NetworkManager) getSharedRequestID(handler uint8, nodeID ids.NodeID, requestID uint32) uint32 {
 	n.l.Lock()
 	defer n.l.Unlock()
 
-	newID := n.requestID
-	n.requestMapper[newID] = &request{handler, requestID}
-	n.requestID++
+	obj, ok := n.requesters[nodeID]
+	if !ok {
+		obj = &nodeIDRequester{
+			requestMapper: map[uint32]*request{},
+		}
+		n.requesters[nodeID] = obj
+	}
+	newID := obj.requestID
+	obj.requestMapper[newID] = &request{handler, requestID}
+	obj.requestID++
 	return newID
 }
 
@@ -121,15 +132,19 @@ func (n *NetworkManager) routeIncomingMessage(msg []byte) ([]byte, NetworkHandle
 	return msg[:l-1], handler, ok
 }
 
-func (n *NetworkManager) handleSharedRequestID(requestID uint32) (NetworkHandler, uint32, bool) {
+func (n *NetworkManager) handleSharedRequestID(nodeID ids.NodeID, requestID uint32) (NetworkHandler, uint32, bool) {
 	n.l.Lock()
 	defer n.l.Unlock()
 
-	req := n.requestMapper[requestID]
+	obj, ok := n.requesters[nodeID]
+	if !ok {
+		return nil, 0, false
+	}
+	req := obj.requestMapper[requestID]
 	if req == nil {
 		return nil, 0, false
 	}
-	delete(n.requestMapper, requestID)
+	delete(obj.requestMapper, requestID)
 	return n.handlers[req.handler], req.requestID, true
 }
 
@@ -179,7 +194,7 @@ func (n *NetworkManager) AppRequestFailed(
 	nodeID ids.NodeID,
 	requestID uint32,
 ) error {
-	handler, cRequestID, ok := n.handleSharedRequestID(requestID)
+	handler, cRequestID, ok := n.handleSharedRequestID(nodeID, requestID)
 	if !ok {
 		n.vm.snowCtx.Log.Debug(
 			"could not handle incoming AppRequestFailed",
@@ -198,7 +213,7 @@ func (n *NetworkManager) AppResponse(
 	requestID uint32,
 	response []byte,
 ) error {
-	handler, cRequestID, ok := n.handleSharedRequestID(requestID)
+	handler, cRequestID, ok := n.handleSharedRequestID(nodeID, requestID)
 	if !ok {
 		n.vm.snowCtx.Log.Debug(
 			"could not handle incoming AppResponse",
@@ -250,7 +265,7 @@ func (n *NetworkManager) Disconnected(ctx context.Context, nodeID ids.NodeID) er
 
 func (n *NetworkManager) CrossChainAppRequest(
 	ctx context.Context,
-	nodeID ids.ID,
+	chainID ids.ID,
 	requestID uint32,
 	deadline time.Time,
 	msg []byte,
@@ -259,47 +274,47 @@ func (n *NetworkManager) CrossChainAppRequest(
 	if !ok {
 		n.vm.snowCtx.Log.Debug(
 			"could not route incoming CrossChainAppRequest",
-			zap.Stringer("nodeID", nodeID),
+			zap.Stringer("chainID", chainID),
 			zap.Uint32("requestID", requestID),
 		)
 		return nil
 	}
-	return handler.CrossChainAppRequest(ctx, nodeID, requestID, deadline, parsedMsg)
+	return handler.CrossChainAppRequest(ctx, chainID, requestID, deadline, parsedMsg)
 }
 
 func (n *NetworkManager) CrossChainAppRequestFailed(
 	ctx context.Context,
-	nodeID ids.ID,
+	chainID ids.ID,
 	requestID uint32,
 ) error {
-	handler, cRequestID, ok := n.handleSharedRequestID(requestID)
+	handler, cRequestID, ok := n.handleSharedRequestID(ids.EmptyNodeID, requestID)
 	if !ok {
 		n.vm.snowCtx.Log.Debug(
 			"could not handle incoming CrossChainAppRequestFailed",
-			zap.Stringer("nodeID", nodeID),
+			zap.Stringer("chainID", chainID),
 			zap.Uint32("requestID", requestID),
 		)
 		return nil
 	}
-	return handler.CrossChainAppRequestFailed(ctx, nodeID, cRequestID)
+	return handler.CrossChainAppRequestFailed(ctx, chainID, cRequestID)
 }
 
 func (n *NetworkManager) CrossChainAppResponse(
 	ctx context.Context,
-	nodeID ids.ID,
+	chainID ids.ID,
 	requestID uint32,
 	response []byte,
 ) error {
-	handler, cRequestID, ok := n.handleSharedRequestID(requestID)
+	handler, cRequestID, ok := n.handleSharedRequestID(ids.EmptyNodeID, requestID)
 	if !ok {
 		n.vm.snowCtx.Log.Debug(
 			"could not handle incoming CrossChainAppResponse",
-			zap.Stringer("nodeID", nodeID),
+			zap.Stringer("chainID", chainID),
 			zap.Uint32("requestID", requestID),
 		)
 		return nil
 	}
-	return handler.CrossChainAppResponse(ctx, nodeID, cRequestID, response)
+	return handler.CrossChainAppResponse(ctx, chainID, cRequestID, response)
 }
 
 // WrappedAppSender is used to get a shared requestID and to prepend messages
@@ -322,13 +337,19 @@ func (w *WrappedAppSender) SendAppRequest(
 	requestID uint32,
 	appRequestBytes []byte,
 ) error {
-	newRequestID := w.n.getSharedRequestID(w.handler, requestID)
-	return w.n.sender.SendAppRequest(
-		ctx,
-		nodeIDs,
-		newRequestID,
-		append(appRequestBytes, w.handler),
-	)
+	requestBytes := append(appRequestBytes, w.handler)
+	for nodeID := range nodeIDs {
+		newRequestID := w.n.getSharedRequestID(w.handler, nodeID, requestID)
+		if err := w.n.sender.SendAppRequest(
+			ctx,
+			set.Set[ids.NodeID]{nodeID: struct{}{}},
+			newRequestID,
+			requestBytes,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Send an application-level response to a request.
