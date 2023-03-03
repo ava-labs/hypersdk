@@ -144,7 +144,11 @@ func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
 // Units is charged whether or not a transaction is successful because state
 // lookup is not free.
 func (t *Transaction) MaxUnits(r Rules) uint64 {
-	txFee := r.GetBaseUnits() + uint64(t.numWarpSigners)*r.GetWarpFeePerSigner() + t.Action.MaxUnits(r) + t.Auth.MaxUnits(r)
+	txFee := r.GetBaseUnits() + t.Action.MaxUnits(r) + t.Auth.MaxUnits(r)
+	if t.WarpMessage != nil {
+		txFee += r.GetWarpBaseFee()
+		txFee += uint64(t.numWarpSigners) * r.GetWarpFeePerSigner()
+	}
 	if txFee > 0 {
 		return txFee
 	}
@@ -246,6 +250,7 @@ func (t *Transaction) Execute(
 	// Update action units with other items
 	result.Units += r.GetBaseUnits() + authUnits
 	if t.WarpMessage != nil {
+		result.Units += r.GetWarpBaseFee()
 		result.Units += uint64(t.numWarpSigners) * r.GetWarpFeePerSigner()
 	}
 

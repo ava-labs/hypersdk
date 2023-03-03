@@ -95,6 +95,7 @@ type Rules interface {
 	GetWindowTargetBlocks() uint64
 
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
+	GetWarpBaseFee() uint64
 	GetWarpFeePerSigner() uint64
 
 	FetchCustom(string) (any, bool)
