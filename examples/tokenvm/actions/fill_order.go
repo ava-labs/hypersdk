@@ -167,10 +167,7 @@ func (f *FillOrder) Marshal(p *codec.Packer) {
 	p.PackUint64(f.Value)
 }
 
-func UnmarshalFillOrder(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
-	if wm != nil {
-		return nil, chain.ErrUnexpectedWarpMessage
-	}
+func UnmarshalFillOrder(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var fill FillOrder
 	p.UnpackID(true, &fill.Order)
 	p.UnpackPublicKey(true, &fill.Owner)

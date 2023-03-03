@@ -59,10 +59,7 @@ func (c *CreateAsset) Marshal(p *codec.Packer) {
 	p.PackBytes(c.Metadata)
 }
 
-func UnmarshalCreateAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
-	if wm != nil {
-		return nil, chain.ErrUnexpectedWarpMessage
-	}
+func UnmarshalCreateAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var create CreateAsset
 	p.UnpackBytes(MaxMetadataSize, false, &create.Metadata)
 	return &create, p.Err()

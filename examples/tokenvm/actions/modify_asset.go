@@ -88,10 +88,7 @@ func (m *ModifyAsset) Marshal(p *codec.Packer) {
 	p.PackBytes(m.Metadata)
 }
 
-func UnmarshalModifyAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
-	if wm != nil {
-		return nil, chain.ErrUnexpectedWarpMessage
-	}
+func UnmarshalModifyAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var modify ModifyAsset
 	p.UnpackID(true, &modify.Asset)         // empty ID is the native asset
 	p.UnpackPublicKey(false, &modify.Owner) // empty revokes ownership

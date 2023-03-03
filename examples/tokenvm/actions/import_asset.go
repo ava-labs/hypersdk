@@ -102,9 +102,6 @@ func (i *ImportAsset) MaxUnits(chain.Rules) uint64 {
 func (i *ImportAsset) Marshal(p *codec.Packer) {}
 
 func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
-	if wm == nil {
-		return nil, chain.ErrExpectedWarpMessage
-	}
 	payload := wm.UnsignedMessage.Payload
 
 	// Parse warp payload

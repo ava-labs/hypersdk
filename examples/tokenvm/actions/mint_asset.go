@@ -95,7 +95,7 @@ func (m *MintAsset) Marshal(p *codec.Packer) {
 	p.PackUint64(m.Value)
 }
 
-func UnmarshalMintAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
+func UnmarshalMintAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var mint MintAsset
 	p.UnpackPublicKey(true, &mint.To) // cannot mint to blackhole
 	p.UnpackID(true, &mint.Asset)     // empty ID is the native asset

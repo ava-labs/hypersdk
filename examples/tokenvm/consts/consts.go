@@ -32,6 +32,6 @@ func init() {
 // Instantiate registry here so it can be imported by any package. We set these
 // values in [controller/registry].
 var (
-	ActionRegistry *codec.TypeParser[chain.Action, *warp.Message]
-	AuthRegistry   *codec.TypeParser[chain.Auth, *warp.Message]
+	ActionRegistry *codec.TypeParser[chain.Action, *warp.Message, bool]
+	AuthRegistry   *codec.TypeParser[chain.Auth, *warp.Message, bool]
 )

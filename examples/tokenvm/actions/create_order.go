@@ -104,10 +104,7 @@ func (c *CreateOrder) Marshal(p *codec.Packer) {
 	p.PackUint64(c.Supply)
 }
 
-func UnmarshalCreateOrder(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
-	if wm != nil {
-		return nil, chain.ErrUnexpectedWarpMessage
-	}
+func UnmarshalCreateOrder(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var create CreateOrder
 	p.UnpackID(false, &create.In) // empty ID is the native asset
 	create.InTick = p.UnpackUint64(true)

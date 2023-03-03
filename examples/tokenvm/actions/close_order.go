@@ -79,10 +79,7 @@ func (c *CloseOrder) Marshal(p *codec.Packer) {
 	p.PackID(c.Out)
 }
 
-func UnmarshalCloseOrder(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
-	if wm != nil {
-		return nil, chain.ErrUnexpectedWarpMessage
-	}
+func UnmarshalCloseOrder(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var cl CloseOrder
 	p.UnpackID(true, &cl.Order)
 	p.UnpackID(false, &cl.Out) // empty ID is the native asset

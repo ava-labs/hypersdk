@@ -85,10 +85,7 @@ func (b *BurnAsset) Marshal(p *codec.Packer) {
 	p.PackUint64(b.Value)
 }
 
-func UnmarshalBurnAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
-	if wm != nil {
-		return nil, chain.ErrUnexpectedWarpMessage
-	}
+func UnmarshalBurnAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var burn BurnAsset
 	p.UnpackID(true, &burn.Asset) // empty ID is the native asset
 	burn.Value = p.UnpackUint64(true)

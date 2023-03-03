@@ -72,10 +72,7 @@ func (t *Transfer) Marshal(p *codec.Packer) {
 	p.PackUint64(t.Value)
 }
 
-func UnmarshalTransfer(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
-	if wm != nil {
-		return nil, chain.ErrUnexpectedWarpMessage
-	}
+func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var transfer Transfer
 	p.UnpackPublicKey(false, &transfer.To) // can transfer to blackhole
 	p.UnpackID(false, &transfer.Asset)     // empty ID is the native asset
