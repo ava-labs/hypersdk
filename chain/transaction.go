@@ -280,8 +280,8 @@ func (t *Transaction) Payer() string {
 
 func (t *Transaction) Marshal(
 	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action],
-	authRegistry *codec.TypeParser[Auth],
+	actionRegistry *codec.TypeParser[Action, *warp.Message],
+	authRegistry *codec.TypeParser[Auth, *warp.Message],
 ) error {
 	if len(t.bytes) > 0 {
 		p.PackFixedBytes(t.bytes)
@@ -352,8 +352,8 @@ func UnmarshalTxs(
 
 func UnmarshalTx(
 	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action],
-	authRegistry *codec.TypeParser[Auth],
+	actionRegistry *codec.TypeParser[Action, *warp.Message],
+	authRegistry *codec.TypeParser[Auth, *warp.Message],
 ) (*Transaction, error) {
 	start := p.Offset()
 	base, err := UnmarshalBase(p)
@@ -381,7 +381,7 @@ func UnmarshalTx(
 	if !ok {
 		return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
 	}
-	action, err := unmarshalAction(p)
+	action, err := unmarshalAction(p, warpMessage)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal action", err)
 	}
@@ -390,7 +390,7 @@ func UnmarshalTx(
 	if !ok {
 		return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
 	}
-	auth, err := unmarshalAuth(p)
+	auth, err := unmarshalAuth(p, warpMessage)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal auth", err)
 	}

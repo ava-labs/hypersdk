@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -18,8 +19,8 @@ import (
 )
 
 type (
-	ActionRegistry *codec.TypeParser[Action]
-	AuthRegistry   *codec.TypeParser[Auth]
+	ActionRegistry *codec.TypeParser[Action, *warp.Message]
+	AuthRegistry   *codec.TypeParser[Auth, *warp.Message]
 )
 
 type Parser interface {
