@@ -25,13 +25,14 @@ var (
 
 type Transaction struct {
 	Base        *Base         `json:"base"`
-	Action      Action        `json:"action"`
 	WarpMessage *warp.Message `json:"warpMessage"`
+	Action      Action        `json:"action"`
 	Auth        Auth          `json:"auth"`
 
-	bytes []byte
-	size  uint64
-	id    ids.ID
+	bytes          []byte
+	size           uint64
+	id             ids.ID
+	numWarpSigners int
 }
 
 func NewTx(base *Base, act Action) *Transaction {
@@ -41,15 +42,23 @@ func NewTx(base *Base, act Action) *Transaction {
 	}
 }
 
+func NewWarpTx(base *Base, wm *warp.Message, act Action) *Transaction {
+	return &Transaction{
+		Base:        base,
+		WarpMessage: wm,
+		Action:      act,
+	}
+}
+
 func (t *Transaction) Digest() ([]byte, error) {
 	p := codec.NewWriter(consts.MaxInt)
 	t.Base.Marshal(p)
-	t.Action.Marshal(p)
 	var warpBytes []byte
 	if t.WarpMessage != nil {
 		warpBytes = t.WarpMessage.Bytes()
 	}
 	p.PackBytes(warpBytes)
+	t.Action.Marshal(p)
 	return p.Bytes(), p.Err()
 }
 
@@ -79,6 +88,13 @@ func (t *Transaction) Init(
 		}
 		t.bytes = p.Bytes()
 		t.size = uint64(len(t.bytes))
+		if msg := t.WarpMessage; msg != nil {
+			numSigners, err := msg.Signature.NumSigners()
+			if err != nil {
+				return nil, fmt.Errorf("%w: could not calculate number of warp signers", err)
+			}
+			t.numWarpSigners = numSigners
+		}
 	}
 	t.id = utils.ToID(t.bytes)
 
@@ -106,13 +122,14 @@ func (t *Transaction) UnitPrice() uint64 { return t.Base.UnitPrice }
 //
 // TODO: verify the invariant that [t.id] is set by this point
 func (t *Transaction) StateKeys() [][]byte {
+	// TODO: need warp id
 	return append(t.Action.StateKeys(t.Auth, t.ID()), t.Auth.StateKeys()...)
 }
 
 // Units is charged whether or not a transaction is successful because state
 // lookup is not free.
 func (t *Transaction) MaxUnits(r Rules) uint64 {
-	txFee := r.GetBaseUnits() + t.Action.MaxUnits(r) + t.Auth.MaxUnits(r)
+	txFee := r.GetBaseUnits() + uint64(t.numWarpSigners)*r.GetWarpFeePerSigner() + t.Action.MaxUnits(r) + t.Auth.MaxUnits(r)
 	if txFee > 0 {
 		return txFee
 	}
@@ -234,13 +251,13 @@ func (t *Transaction) Marshal(
 		return fmt.Errorf("unknown auth type %T", t.Auth)
 	}
 	t.Base.Marshal(p)
-	p.PackByte(actionByte)
-	t.Action.Marshal(p)
 	var warpBytes []byte
 	if t.WarpMessage != nil {
 		warpBytes = t.WarpMessage.Bytes()
 	}
 	p.PackBytes(warpBytes)
+	p.PackByte(actionByte)
+	t.Action.Marshal(p)
 	p.PackByte(authByte)
 	t.Auth.Marshal(p)
 	return p.Err()
@@ -297,6 +314,22 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal base", err)
 	}
+	var warpBytes []byte
+	p.UnpackBytes(MaxWarpMessageSize, false, &warpBytes)
+	var warpMessage *warp.Message
+	var numWarpSigners int
+	if len(warpBytes) > 0 {
+		msg, err := warp.ParseMessage(warpBytes)
+		if err != nil {
+			return nil, fmt.Errorf("%w: could not unmarshal warp message", err)
+		}
+		warpMessage = msg
+		numSigners, err := msg.Signature.NumSigners()
+		if err != nil {
+			return nil, fmt.Errorf("%w: could not calculate number of warp signers", err)
+		}
+		numWarpSigners = numSigners
+	}
 	actionType := p.UnpackByte()
 	unmarshalAction, ok := actionRegistry.LookupIndex(actionType)
 	if !ok {
@@ -305,16 +338,6 @@ func UnmarshalTx(
 	action, err := unmarshalAction(p)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal action", err)
-	}
-	var warpBytes []byte
-	p.UnpackBytes(MaxWarpMessageSize, false, &warpBytes)
-	var warpMessage *warp.Message
-	if len(warpBytes) > 0 {
-		msg, err := warp.ParseMessage(warpBytes)
-		if err != nil {
-			return nil, fmt.Errorf("%w: could not unmarshal warp message", err)
-		}
-		warpMessage = msg
 	}
 	authType := p.UnpackByte()
 	unmarshalAuth, ok := authRegistry.LookupIndex(authType)
@@ -335,5 +358,6 @@ func UnmarshalTx(
 		return nil, p.Err()
 	}
 	tx.bytes = p.Bytes()[start:p.Offset()] // ensure errors handled before grabbing memory
+	tx.numWarpSigners = numWarpSigners
 	return &tx, nil
 }
