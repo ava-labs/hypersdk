@@ -99,6 +99,9 @@ type Rules interface {
 	FetchCustom(string) (any, bool)
 }
 
+// StateMapping allows [Chain] to safely store certain types of items in state
+// in a structured manner. If we did not use [StateMapping], we may overwrite
+// state written by actions or auth.
 type StateMapping interface {
 	IncomingWarpKey(msgID ids.ID) []byte // used to access state to check for duplicates/store warp without conflict
 	OutgoingWarpKey(txID ids.ID) []byte  // used to access state to check for duplicates/store warp without conflict
