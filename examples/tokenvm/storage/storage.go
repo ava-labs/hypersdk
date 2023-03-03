@@ -230,7 +230,7 @@ func GetAssetFromState(
 	ctx context.Context,
 	f ReadState,
 	asset ids.ID,
-) (bool, []byte, uint64, crypto.PublicKey, error) {
+) (bool, []byte, uint64, crypto.PublicKey, bool, error) {
 	values, errs := f(ctx, [][]byte{PrefixAssetKey(asset)})
 	return innerGetAsset(values[0], errs[0])
 }
@@ -239,7 +239,7 @@ func GetAsset(
 	ctx context.Context,
 	db chain.Database,
 	asset ids.ID,
-) (bool, []byte, uint64, crypto.PublicKey, error) {
+) (bool, []byte, uint64, crypto.PublicKey, bool, error) {
 	k := PrefixAssetKey(asset)
 	return innerGetAsset(db.GetValue(ctx, k))
 }
@@ -247,19 +247,20 @@ func GetAsset(
 func innerGetAsset(
 	v []byte,
 	err error,
-) (bool, []byte, uint64, crypto.PublicKey, error) {
+) (bool, []byte, uint64, crypto.PublicKey, bool, error) {
 	if errors.Is(err, database.ErrNotFound) {
-		return false, nil, 0, crypto.EmptyPublicKey, nil
+		return false, nil, 0, crypto.EmptyPublicKey, false, nil
 	}
 	if err != nil {
-		return false, nil, 0, crypto.EmptyPublicKey, err
+		return false, nil, 0, crypto.EmptyPublicKey, false, err
 	}
 	metadataLen := binary.BigEndian.Uint16(v)
 	metadata := v[consts.Uint16Len : consts.Uint16Len+metadataLen]
 	supply := binary.BigEndian.Uint64(v[consts.Uint16Len+metadataLen:])
 	var pk crypto.PublicKey
 	copy(pk[:], v[consts.Uint16Len+metadataLen+consts.Uint64Len:])
-	return true, metadata, supply, pk, nil
+	warp := v[consts.Uint16Len+metadataLen+consts.Uint64Len+crypto.PublicKeyLen] == 0x1
+	return true, metadata, supply, pk, warp, nil
 }
 
 func SetAsset(
@@ -269,6 +270,7 @@ func SetAsset(
 	metadata []byte,
 	supply uint64,
 	owner crypto.PublicKey,
+	warp bool,
 ) error {
 	k := PrefixAssetKey(asset)
 	metadataLen := len(metadata)
@@ -277,6 +279,11 @@ func SetAsset(
 	copy(v[consts.Uint16Len:], metadata)
 	binary.BigEndian.PutUint64(v[consts.Uint16Len+metadataLen:], supply)
 	copy(v[consts.Uint16Len+metadataLen+consts.Uint64Len:], owner[:])
+	b := byte(0x0)
+	if !warp {
+		b = 0x1
+	}
+	v[consts.Uint16Len+metadataLen+consts.Uint64Len+crypto.PublicKeyLen] = b
 	return db.Insert(ctx, k, v)
 }
 

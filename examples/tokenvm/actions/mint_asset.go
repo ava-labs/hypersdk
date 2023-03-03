@@ -56,7 +56,7 @@ func (m *MintAsset) Execute(
 	if m.Value == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
 	}
-	exists, metadata, supply, owner, err := storage.GetAsset(ctx, db, m.Asset)
+	exists, metadata, supply, owner, warp, err := storage.GetAsset(ctx, db, m.Asset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
