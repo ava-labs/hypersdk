@@ -5,8 +5,10 @@ package chain
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
@@ -129,9 +131,14 @@ func (t *Transaction) UnitPrice() uint64 { return t.Base.UnitPrice }
 // It is ok to have duplicate ReadKeys...the processor will skip them
 //
 // TODO: verify the invariant that [t.id] is set by this point
-func (t *Transaction) StateKeys() [][]byte {
-	// TODO: need warp id
-	return append(t.Action.StateKeys(t.Auth, t.ID()), t.Auth.StateKeys()...)
+func (t *Transaction) StateKeys(stateMapping StateMapping) [][]byte {
+	keys := append(t.Action.StateKeys(t.Auth, t.ID()), t.Auth.StateKeys()...)
+	if t.WarpMessage != nil {
+		keys = append(keys, stateMapping.IncomingWarpKey(t.warpID))
+	}
+	// Always assume a message could export a warp message
+	keys = append(keys, stateMapping.OutgoingWarpKey(t.id))
+	return keys
 }
 
 // Units is charged whether or not a transaction is successful because state
@@ -183,10 +190,28 @@ func (t *Transaction) PreExecute(
 func (t *Transaction) Execute(
 	ctx context.Context,
 	r Rules,
+	s StateMapping,
 	tdb *tstate.TState,
 	timestamp int64,
 	warpMessage *WarpMessage,
 ) (*Result, error) {
+	// Check warp message is not duplicate
+	if t.WarpMessage != nil {
+		_, err := tdb.GetValue(ctx, s.IncomingWarpKey(t.warpID))
+		switch {
+		case err == nil:
+			// Override all errors if warp message is a duplicate
+			//
+			// TODO: consider doing this check before performing signature
+			// verification.
+			warpMessage.VerifyErr = errors.New("duplicate warp message")
+		case errors.Is(err, database.ErrNotFound):
+			// This means there are no conflicts
+		case err != nil:
+			return nil, err
+		}
+	}
+
 	// Verify auth is correct prior to doing anything
 	authUnits, err := t.Auth.Verify(ctx, r, tdb, t.Action)
 	if err != nil {
@@ -220,6 +245,9 @@ func (t *Transaction) Execute(
 
 	// Update action units with other items
 	result.Units += r.GetBaseUnits() + authUnits
+	if t.WarpMessage != nil {
+		result.Units += uint64(t.numWarpSigners) * r.GetWarpFeePerSigner()
+	}
 
 	// Return any funds from unused units
 	refund := (maxUnits - result.Units) * unitPrice
@@ -229,9 +257,19 @@ func (t *Transaction) Execute(
 		}
 	}
 
-	// TODO: store warp message payload in state (how to avoid conflicting with
-	// warp?)
-	// TODO: ensure this is scoped by tstate to avoid an error
+	// Store incoming warp messages in state by their ID to prevent replays
+	if t.WarpMessage != nil {
+		tdb.Insert(ctx, s.IncomingWarpKey(t.warpID), nil)
+	}
+
+	// Store newly created warp messages in state by their txID to ensure we can
+	// always sign for a message
+	if result.WarpMessage != nil {
+		// We use txID here because we will not know the warpID before execution.
+		if err := tdb.Insert(ctx, s.OutgoingWarpKey(t.id), result.WarpMessage.Bytes()); err != nil {
+			return nil, err
+		}
+	}
 	return result, nil
 }
 

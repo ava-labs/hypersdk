@@ -45,6 +45,7 @@ type VM interface {
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
 	State() (*merkledb.Database, error)
+	StateMapping() StateMapping
 	ValidatorState() validators.State
 
 	Mempool() Mempool
@@ -99,7 +100,8 @@ type Rules interface {
 }
 
 type StateMapping interface {
-	WarpKey(msgID ids.ID) []byte // used to access state to check for duplicates/store warp without conflict
+	IncomingWarpKey(msgID ids.ID) []byte // used to access state to check for duplicates/store warp without conflict
+	OutgoingWarpKey(txID ids.ID) []byte  // used to access state to check for duplicates/store warp without conflict
 }
 
 type Action interface {

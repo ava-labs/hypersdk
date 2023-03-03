@@ -80,6 +80,7 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID, blockContext *smbl
 		results      = []*Result{}
 
 		vdrState = vm.ValidatorState()
+		sm       = vm.StateMapping()
 	)
 	mempoolErr := mempool.Build(
 		ctx,
@@ -87,11 +88,9 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID, blockContext *smbl
 			txsAttempted++
 
 			// Ensure we can process if transaction includes a warp message
-			msg := next.Action.WarpMessage()
-			if msg != nil && blockContext == nil {
+			if next.WarpMessage != nil && blockContext == nil {
 				return true, true, false, nil
 			}
-			msg.UnsignedMessage.Bytes()
 
 			// Check for repeats
 			//
@@ -122,7 +121,7 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID, blockContext *smbl
 			// TODO: prefetch state of upcoming txs that we will pull (should make much
 			// faster)
 			txStart := ts.OpIndex()
-			if err := ts.FetchAndSetScope(ctx, state, next.StateKeys()); err != nil {
+			if err := ts.FetchAndSetScope(ctx, state, next.StateKeys(sm)); err != nil {
 				return false, true, false, err
 			}
 
@@ -140,18 +139,25 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID, blockContext *smbl
 			//
 			// We wait as long as possible to verify the signature to ensure we don't
 			// spend unnecessary time on an invalid tx.
-			var warpVerifyResult error
-			if msg != nil {
-				num, denom, err := preVerifyWarpMessage(msg, vm.ChainID(), r)
+			var warpMessage *WarpMessage
+			if next.WarpMessage != nil {
+				warpMessage = &WarpMessage{
+					ID:      next.warpID,
+					Message: next.WarpMessage,
+				}
+				num, denom, err := preVerifyWarpMessage(next.WarpMessage, vm.ChainID(), r)
 				if err == nil {
-					warpVerifyResult = msg.Signature.Verify(ctx, &msg.UnsignedMessage, vdrState, blockContext.PChainHeight, num, denom)
+					warpMessage.VerifyErr = next.WarpMessage.Signature.Verify(
+						ctx, &next.WarpMessage.UnsignedMessage,
+						vdrState, blockContext.PChainHeight, num, denom,
+					)
 				} else {
-					warpVerifyResult = err
+					warpMessage.VerifyErr = err
 				}
 			}
 
 			// If execution works, keep moving forward with new state
-			result, err := next.Execute(fctx, r, ts, nextTime, warpVerifyResult)
+			result, err := next.Execute(fctx, r, sm, ts, nextTime, warpMessage)
 			if err != nil {
 				// This error should only be raised by the handler, not the
 				// implementation itself

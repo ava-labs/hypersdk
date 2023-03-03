@@ -168,9 +168,9 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 		// Instead of erroring out if a warp message is invalid, we mark the
 		// verification as skipped and include it in the verification result so
 		// that a fee can still be deducted.
-		if wm := tx.Action.WarpMessage(); wm != nil {
+		if tx.WarpMessage != nil {
 			b.warpMessages[tx.ID()] = &warpVerification{
-				msg:    wm,
+				msg:    tx.WarpMessage,
 				result: make(chan error),
 			}
 		}
