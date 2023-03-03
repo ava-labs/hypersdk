@@ -464,4 +464,6 @@ out on the Avalanche Discord._
   hasher](https://github.com/ava-labs/avalanchego/tree/master/utils/hashing/consistent))
   of `hypervm` participants (even better if this is made abstract to any implementer
   such that they can just register and request data from it and it is automatically
-  handled by the network layer)
+  handled by the network layer). This module should make it possible for an
+  operator to use a single backend (like S3) to power storage fro multiple
+  hosts.
