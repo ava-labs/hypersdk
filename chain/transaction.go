@@ -259,7 +259,9 @@ func (t *Transaction) Execute(
 
 	// Store incoming warp messages in state by their ID to prevent replays
 	if t.WarpMessage != nil {
-		tdb.Insert(ctx, s.IncomingWarpKey(t.warpID), nil)
+		if err := tdb.Insert(ctx, s.IncomingWarpKey(t.warpID), nil); err != nil {
+			return nil, err
+		}
 	}
 
 	// Store newly created warp messages in state by their txID to ensure we can

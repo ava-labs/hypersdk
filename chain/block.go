@@ -5,7 +5,6 @@ package chain
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -315,12 +314,12 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 }
 
 func preVerifyWarpMessage(msg *warp.Message, chainID ids.ID, r Rules) (uint64, uint64, error) {
-	if msg.DestinationChainID != chainID {
-		return 0, 0, errors.New("wrong chainID")
+	if msg.DestinationChainID != chainID && msg.DestinationChainID != ids.Empty {
+		return 0, 0, ErrInvalidChainID
 	}
 	allowed, num, denom := r.GetWarpConfig(msg.SourceChainID)
 	if !allowed {
-		return 0, 0, errors.New("cannot import from chainID")
+		return 0, 0, ErrDisabledChainID
 	}
 	return num, denom, nil
 }

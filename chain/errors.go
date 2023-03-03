@@ -52,6 +52,9 @@ var (
 	ErrBlockTooBig     = errors.New("block too big")
 	ErrKeyNotSpecified = errors.New("key not specified")
 
+	// Warp
+	ErrDisabledChainID = errors.New("cannot import from chain ID")
+
 	// Misc
 	ErrNotImplemented    = errors.New("not implemented")
 	ErrBlockNotProcessed = errors.New("block is not processed")
