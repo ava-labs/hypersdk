@@ -9,21 +9,21 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 )
 
-type TypeParser[T any] struct {
+type TypeParser[T any, X any] struct {
 	typeToIndex    map[string]uint8
-	indexToDecoder map[uint8]func(*Packer) (T, error)
+	indexToDecoder map[uint8]func(*Packer, X) (T, error)
 
 	index uint8
 }
 
-func NewTypeParser[T any]() *TypeParser[T] {
-	return &TypeParser[T]{
+func NewTypeParser[T any, X any]() *TypeParser[T, X] {
+	return &TypeParser[T, X]{
 		typeToIndex:    map[string]uint8{},
-		indexToDecoder: map[uint8]func(*Packer) (T, error){},
+		indexToDecoder: map[uint8]func(*Packer, X) (T, error){},
 	}
 }
 
-func (p *TypeParser[T]) Register(o T, f func(*Packer) (T, error)) error {
+func (p *TypeParser[T, X]) Register(o T, f func(*Packer, X) (T, error)) error {
 	if p.index == consts.MaxUint8 {
 		return ErrTooManyItems
 	}
@@ -37,7 +37,7 @@ func (p *TypeParser[T]) Register(o T, f func(*Packer) (T, error)) error {
 	return nil
 }
 
-func (p *TypeParser[T]) LookupType(o T) (uint8, func(*Packer) (T, error), bool) {
+func (p *TypeParser[T, X]) LookupType(o T) (uint8, func(*Packer, X) (T, error), bool) {
 	index, ok := p.typeToIndex[fmt.Sprintf("%T", o)]
 	if !ok {
 		return 0, nil, false
@@ -45,7 +45,7 @@ func (p *TypeParser[T]) LookupType(o T) (uint8, func(*Packer) (T, error), bool) 
 	return index, p.indexToDecoder[index], true
 }
 
-func (p *TypeParser[T]) LookupIndex(index uint8) (func(*Packer) (T, error), bool) {
+func (p *TypeParser[T, X]) LookupIndex(index uint8) (func(*Packer, X) (T, error), bool) {
 	f, ok := p.indexToDecoder[index]
 	return f, ok
 }
