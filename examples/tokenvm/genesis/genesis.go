@@ -49,6 +49,10 @@ type Genesis struct {
 	BlockCostChangeDenominator uint64 `json:"blockCostChangeDenominator"`
 	WindowTargetBlocks         uint64 `json:"windowTargetBlocks"` // 10s
 
+	// Warp pricing
+	WarpBaseFee      uint64 `json:"warpBaseFee"`
+	WarpFeePerSigner uint64 `json:"warpFeePerSigner"`
+
 	// Allocations
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
 }
@@ -65,7 +69,7 @@ func Default() *Genesis {
 		BaseUnits:      48, // timestamp(8) + chainID(32) + unitPrice(8)
 		ValidityWindow: 60,
 
-		// Unit Pricing
+		// Unit pricing
 		MinUnitPrice:               1,
 		UnitPriceChangeDenominator: 48,
 		WindowTargetUnits:          9_000_000, // 9 MiB
@@ -74,6 +78,10 @@ func Default() *Genesis {
 		MinBlockCost:               0,
 		BlockCostChangeDenominator: 48,
 		WindowTargetBlocks:         20, // 10s
+
+		// Warp pricing
+		WarpBaseFee:      1_024,
+		WarpFeePerSigner: 128,
 	}
 }
 

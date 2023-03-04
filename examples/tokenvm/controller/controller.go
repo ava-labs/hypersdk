@@ -34,9 +34,10 @@ var _ vm.Controller = (*Controller)(nil)
 type Controller struct {
 	inner *vm.VM
 
-	snowCtx *snow.Context
-	genesis *genesis.Genesis
-	config  *config.Config
+	snowCtx      *snow.Context
+	genesis      *genesis.Genesis
+	config       *config.Config
+	stateManager *StateManager
 
 	metrics *metrics
 
@@ -70,6 +71,7 @@ func (c *Controller) Initialize(
 ) {
 	c.inner = inner
 	c.snowCtx = snowCtx
+	c.stateManager = &StateManager{}
 
 	// Instantiate metrics
 	var err error
@@ -155,6 +157,10 @@ func (c *Controller) Initialize(
 func (c *Controller) Rules(t int64) chain.Rules {
 	// TODO: extend with [UpgradeBytes]
 	return c.genesis.Rules(t)
+}
+
+func (c *Controller) StateManager() chain.StateManager {
+	return c.stateManager
 }
 
 func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {

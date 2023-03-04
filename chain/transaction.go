@@ -147,6 +147,7 @@ func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
 // Units is charged whether or not a transaction is successful because state
 // lookup is not free.
 func (t *Transaction) MaxUnits(r Rules) uint64 {
+	// TODO: need to check for overflow
 	txFee := r.GetBaseUnits() + t.Action.MaxUnits(r) + t.Auth.MaxUnits(r)
 	if t.WarpMessage != nil {
 		txFee += r.GetWarpBaseFee()

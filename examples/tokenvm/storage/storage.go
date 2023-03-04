@@ -34,14 +34,18 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 //   -> [txID] => in|out|rate|remaining|owner
 // 0x3/ (loans)
 //   -> [assetID|destination] => amount
+// 0x4/ (hypersdk-incoming warp)
+// 0x5/ (hypersdk-outgoing warp)
 
 const (
 	txPrefix = 0x0
 
-	balancePrefix = 0x0
-	assetPrefix   = 0x1
-	orderPrefix   = 0x2
-	loanPrefix    = 0x3
+	balancePrefix      = 0x0
+	assetPrefix        = 0x1
+	orderPrefix        = 0x2
+	loanPrefix         = 0x3
+	incomingWarpPrefix = 0x4
+	outgoingWarpPrefix = 0x5
 )
 
 var (
@@ -429,4 +433,18 @@ func SubLoan(ctx context.Context, db chain.Database, asset ids.ID, destination i
 		return db.Remove(ctx, PrefixLoanKey(asset, destination))
 	}
 	return SetLoan(ctx, db, asset, destination, nloan)
+}
+
+func IncomingWarpKeyPrefix(msgID ids.ID) (k []byte) {
+	k = make([]byte, 1+consts.IDLen)
+	k[0] = incomingWarpPrefix
+	copy(k[1:], msgID[:])
+	return k
+}
+
+func OutgoingWarpKeyPrefix(txID ids.ID) (k []byte) {
+	k = make([]byte, 1+consts.IDLen)
+	k[0] = outgoingWarpPrefix
+	copy(k[1:], txID[:])
+	return k
 }
