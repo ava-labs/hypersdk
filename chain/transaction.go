@@ -35,7 +35,10 @@ type Transaction struct {
 	size           uint64
 	id             ids.ID
 	numWarpSigners int
-	warpID         ids.ID
+	// warpID is just the hash of the *warp.Message.Payload + SourceChainID. We don't include
+	// DestinationID to prevent replay when using Anycast Warp Messages. It is assumed that
+	// all warp messages have some unique identifier that prevents replay.
+	warpID ids.ID
 }
 
 type WarpMessage struct {
@@ -104,7 +107,7 @@ func (t *Transaction) Init(
 				return nil, fmt.Errorf("%w: could not calculate number of warp signers", err)
 			}
 			t.numWarpSigners = numSigners
-			t.warpID = utils.ToID(msg.Bytes())
+			t.warpID = computeWarpID(msg)
 		}
 	}
 
@@ -425,7 +428,11 @@ func UnmarshalTx(
 	tx.id = utils.ToID(tx.bytes)
 	if tx.WarpMessage != nil {
 		tx.numWarpSigners = numWarpSigners
-		tx.warpID = utils.ToID(warpBytes)
+		tx.warpID = computeWarpID(tx.WarpMessage)
 	}
 	return &tx, nil
+}
+
+func computeWarpID(msg *warp.Message) ids.ID {
+	return utils.ToID(append(msg.SourceChainID[:], msg.Payload...))
 }
