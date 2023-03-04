@@ -228,7 +228,7 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}
-		if err := view.Commit(ctx); err != nil {
+		if err := view.CommitToDB(ctx); err != nil {
 			return err
 		}
 		root, err := vm.stateDB.GetMerkleRoot(ctx)
