@@ -117,9 +117,11 @@ func (e *ExportAsset) executeReturn(
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	wm := &warp.UnsignedMessage{
-		Destination: e.Destination,
+		DestinationChainID: e.Destination,
+		// SourceChainID is populated by hypersdk
+		Payload: payload,
 	}
-	return &chain.Result{Success: true, Units: unitsUsed, WarpMessage: &warp.UnsignedMessage{}}, nil
+	return &chain.Result{Success: true, Units: unitsUsed, WarpMessage: wm}, nil
 }
 
 func (e *ExportAsset) executeLoan(
@@ -127,6 +129,7 @@ func (e *ExportAsset) executeLoan(
 	r chain.Rules,
 	db chain.Database,
 	actor crypto.PublicKey,
+	txID ids.ID,
 ) (*chain.Result, error) {
 	unitsUsed := e.MaxUnits(r)
 	if err := storage.AddLoan(ctx, db, e.Asset, e.Destination, e.Value); err != nil {
@@ -143,7 +146,24 @@ func (e *ExportAsset) executeLoan(
 			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 		}
 	}
-	return &chain.Result{Success: true, Units: unitsUsed}, nil
+	wt := &WarpTransfer{
+		To:     e.To,
+		Asset:  e.Asset,
+		Value:  e.Value,
+		Return: e.Return,
+		Reward: e.Reward,
+		TxID:   txID,
+	}
+	payload, err := wt.Marshal()
+	if err != nil {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	}
+	wm := &warp.UnsignedMessage{
+		DestinationChainID: e.Destination,
+		// SourceChainID is populated by hypersdk
+		Payload: payload,
+	}
+	return &chain.Result{Success: true, Units: unitsUsed, WarpMessage: wm}, nil
 }
 
 func (e *ExportAsset) Execute(
@@ -169,7 +189,7 @@ func (e *ExportAsset) Execute(
 	if e.Return {
 		return e.executeReturn(ctx, r, db, actor, txID)
 	}
-	return e.executeLoan(ctx, r, db, actor)
+	return e.executeLoan(ctx, r, db, actor, txID)
 }
 
 func (e *ExportAsset) MaxUnits(chain.Rules) uint64 {

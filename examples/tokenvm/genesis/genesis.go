@@ -10,12 +10,14 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/vm"
+	smath "github.com/ava-labs/avalanchego/utils/math"
 
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/vm"
 )
 
 var _ vm.Genesis = (*Genesis)(nil)
@@ -99,8 +101,13 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Databa
 	ctx, span := tracer.Start(ctx, "Genesis.Load")
 	defer span.End()
 
+	supply := uint64(0)
 	for _, alloc := range g.CustomAllocation {
 		pk, err := utils.ParseAddress(alloc.Address)
+		if err != nil {
+			return err
+		}
+		supply, err = smath.Add64(supply, alloc.Balance)
 		if err != nil {
 			return err
 		}
@@ -108,5 +115,5 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Databa
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}
-	return nil
+	return storage.SetAsset(ctx, db, ids.Empty, []byte{}, supply, crypto.EmptyPublicKey, false)
 }
