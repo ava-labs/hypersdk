@@ -47,9 +47,6 @@ func (b *BurnAsset) Execute(
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := b.MaxUnits(r) // max units == units
-	if b.Asset == ids.Empty {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetIsNative}, nil
-	}
 	if b.Value == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
 	}
@@ -87,7 +84,7 @@ func (b *BurnAsset) Marshal(p *codec.Packer) {
 
 func UnmarshalBurnAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var burn BurnAsset
-	p.UnpackID(true, &burn.Asset) // empty ID is the native asset
+	p.UnpackID(false, &burn.Asset) // can burn native asset
 	burn.Value = p.UnpackUint64(true)
 	return &burn, p.Err()
 }

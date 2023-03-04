@@ -25,5 +25,6 @@ var (
 	OutputConflictingAsset   = []byte("warp has same asset as another")
 	OutputAnycast            = []byte("anycast output")
 	OutputNotWarpAsset       = []byte("not warp asset")
+	OutputWarpAsset          = []byte("warp asset")
 	OutputWrongDestination   = []byte("wrong destination")
 )

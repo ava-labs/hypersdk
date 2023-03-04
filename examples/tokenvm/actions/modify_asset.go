@@ -56,12 +56,15 @@ func (m *ModifyAsset) Execute(
 	if len(m.Metadata) > MaxMetadataSize {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputMetadataTooLarge}, nil
 	}
-	exists, _, supply, owner, err := storage.GetAsset(ctx, db, m.Asset)
+	exists, _, supply, owner, isWarp, err := storage.GetAsset(ctx, db, m.Asset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if !exists {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetMissing}, nil
+	}
+	if isWarp {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputWarpAsset}, nil
 	}
 	if owner != actor {
 		return &chain.Result{
@@ -70,7 +73,7 @@ func (m *ModifyAsset) Execute(
 			Output:  OutputWrongOwner,
 		}, nil
 	}
-	if err := storage.SetAsset(ctx, db, m.Asset, m.Metadata, supply, m.Owner); err != nil {
+	if err := storage.SetAsset(ctx, db, m.Asset, m.Metadata, supply, m.Owner, isWarp); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil

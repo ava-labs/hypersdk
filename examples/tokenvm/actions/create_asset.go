@@ -43,7 +43,7 @@ func (c *CreateAsset) Execute(
 	}
 	// It should only be possible to overwrite an existing asset if there is
 	// a hash collision.
-	if err := storage.SetAsset(ctx, db, txID, c.Metadata, 0, actor); err != nil {
+	if err := storage.SetAsset(ctx, db, txID, c.Metadata, 0, actor, false); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil

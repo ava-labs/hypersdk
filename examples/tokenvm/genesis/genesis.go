@@ -115,5 +115,5 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Databa
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}
-	return storage.SetAsset(ctx, db, ids.Empty, []byte{}, supply, crypto.EmptyPublicKey, false)
+	return storage.SetAsset(ctx, db, ids.Empty, []byte(consts.Symbol), supply, crypto.EmptyPublicKey, false)
 }
