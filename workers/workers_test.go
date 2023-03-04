@@ -10,7 +10,6 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -269,14 +268,18 @@ func TestWorker(t *testing.T) {
 func TestWorkerStop(t *testing.T) {
 	require := require.New(t)
 	w := New(5, 100)
-	vals := int64(0)
+	var valLock sync.Mutex
+	val := 0
+
 	// Create a new job
 	job, err := w.NewJob(5)
 	require.NoError(err)
 	for j := 0; j < 5; j++ {
 		task := func() error {
 			time.Sleep(time.Second * 1)
-			atomic.AddInt64(&vals, 1)
+			valLock.Lock()
+			defer valLock.Unlock()
+			val += 1
 			return nil
 		}
 		job.Go(task)
@@ -290,10 +293,12 @@ func TestWorkerStop(t *testing.T) {
 		finished <- true
 	}()
 	// Trigger stop, 5 jobs should still be running
-	require.Equal(int64(0), atomic.LoadInt64(&vals), "Value not updated correctly")
+	valLock.Lock()
+	require.Equal(0, val, "Value not updated correctly")
+	valLock.Unlock()
 	<-finished
 	// Check that processes completed
-	require.Equal(int64(5), atomic.LoadInt64(&vals), "Value not updated correctly")
+	require.Equal(5, val, "Value not updated correctly")
 	// Make sure new jobs cannot be created
 	_, err = w.NewJob(5)
 	require.ErrorIs(ErrShutdown, err, "Incorrect error thrown from NewJob.")

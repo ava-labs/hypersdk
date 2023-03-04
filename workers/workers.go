@@ -7,11 +7,13 @@ import (
 	"sync"
 )
 
+// Workers is a struct representing a workers pool.
+//
 // Limit number of concurrent goroutines with resetable error
 // Ensure minimal overhead for parallel ops
 type Workers struct {
-	count int
-	queue chan *Job
+	count int       // Number of workers in the pool
+	queue chan *Job // A channel for passing jobs
 
 	// tracking state
 	lock              sync.RWMutex
