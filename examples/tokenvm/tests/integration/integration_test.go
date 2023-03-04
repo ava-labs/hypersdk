@@ -244,17 +244,18 @@ var _ = ginkgo.BeforeSuite(func() {
 		g, err := cli.Genesis(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
 
-		supply := uint64(0)
+		csupply := uint64(0)
 		for _, alloc := range g.CustomAllocation {
 			balance, err := cli.Balance(context.Background(), alloc.Address, ids.Empty)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(balance).Should(gomega.Equal(alloc.Balance))
-			supply += alloc.Balance
+			csupply += alloc.Balance
 		}
 		exists, metadata, supply, owner, warp, err := cli.Asset(context.Background(), ids.Empty)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(string(metadata)).Should(gomega.Equal(tconsts.Symbol))
+		gomega.Ω(supply).Should(gomega.Equal(csupply))
 		gomega.Ω(owner).Should(gomega.Equal(utils.Address(crypto.EmptyPublicKey)))
 		gomega.Ω(warp).Should(gomega.BeFalse())
 	}
