@@ -196,6 +196,7 @@ func (t *Transaction) PreExecute(
 // Execute after knowing a transaction can pay a fee
 func (t *Transaction) Execute(
 	ctx context.Context,
+	ectx *ExecutionContext,
 	r Rules,
 	s StateManager,
 	tdb *tstate.TState,
@@ -247,6 +248,7 @@ func (t *Transaction) Execute(
 	}
 	if !result.Success {
 		// Only keep changes if successful
+		result.WarpMessage = nil // warp messages can only be emitted on success
 		tdb.Rollback(ctx, start)
 	}
 
@@ -277,6 +279,7 @@ func (t *Transaction) Execute(
 		// Store newly created warp messages in state by their txID to ensure we can
 		// always sign for a message
 		if result.WarpMessage != nil {
+			result.WarpMessage.SourceChainID = ectx.ChainID // enforce we are the source of our own messages
 			// We use txID here because we will not know the warpID before execution.
 			if err := tdb.Insert(ctx, s.OutgoingWarpKey(t.id), result.WarpMessage.Bytes()); err != nil {
 				return nil, err

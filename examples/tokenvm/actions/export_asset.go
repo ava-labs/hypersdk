@@ -167,7 +167,7 @@ func (e *ExportAsset) Execute(
 	}
 	// TODO: check if destination is ourselves
 	if e.Return {
-		return e.executeReturn(ctx, r, db, actor)
+		return e.executeReturn(ctx, r, db, actor, txID)
 	}
 	return e.executeLoan(ctx, r, db, actor)
 }

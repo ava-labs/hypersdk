@@ -157,7 +157,7 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID, blockContext *smbl
 			}
 
 			// If execution works, keep moving forward with new state
-			result, err := next.Execute(fctx, r, sm, ts, nextTime, warpMessage)
+			result, err := next.Execute(fctx, ectx, r, sm, ts, nextTime, warpMessage)
 			if err != nil {
 				// This error should only be raised by the handler, not the
 				// implementation itself

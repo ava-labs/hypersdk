@@ -120,7 +120,7 @@ func (p *Processor) Execute(
 				return 0, 0, nil, ctx.Err()
 			}
 		}
-		result, err := tx.Execute(ctx, r, sm, ts, t, warpMessage)
+		result, err := tx.Execute(ctx, ectx, r, sm, ts, t, warpMessage)
 		if err != nil {
 			return 0, 0, nil, err
 		}
