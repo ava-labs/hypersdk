@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -146,17 +147,34 @@ func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
 
 // Units is charged whether or not a transaction is successful because state
 // lookup is not free.
-func (t *Transaction) MaxUnits(r Rules) uint64 {
-	// TODO: need to check for overflow
-	txFee := r.GetBaseUnits() + t.Action.MaxUnits(r) + t.Auth.MaxUnits(r)
+func (t *Transaction) MaxUnits(r Rules) (txFee uint64, err error) {
+	txFee = r.GetBaseUnits()
+	txFee, err = smath.Add64(txFee, t.Action.MaxUnits(r))
+	if err != nil {
+		return 0, err
+	}
+	txFee, err = smath.Add64(txFee, t.Auth.MaxUnits(r))
+	if err != nil {
+		return 0, err
+	}
 	if t.WarpMessage != nil {
-		txFee += r.GetWarpBaseFee()
-		txFee += uint64(t.numWarpSigners) * r.GetWarpFeePerSigner()
+		txFee, err = smath.Add64(txFee, r.GetWarpBaseFee())
+		if err != nil {
+			return 0, err
+		}
+		warpSignerFee, err := smath.Mul64(uint64(t.numWarpSigners), r.GetWarpFeePerSigner())
+		if err != nil {
+			return 0, err
+		}
+		txFee, err = smath.Add64(txFee, warpSignerFee)
+		if err != nil {
+			return 0, err
+		}
 	}
 	if txFee > 0 {
-		return txFee
+		return txFee, nil
 	}
-	return 1
+	return 1, nil
 }
 
 // PreExecute must not modify state
@@ -191,7 +209,15 @@ func (t *Transaction) PreExecute(
 	if _, err := t.Auth.Verify(ctx, r, db, t.Action); err != nil {
 		return fmt.Errorf("%w: %v", ErrAuthFailed, err) //nolint:errorlint
 	}
-	return t.Auth.CanDeduct(ctx, db, t.MaxUnits(r)*unitPrice)
+	maxUnits, err := t.MaxUnits(r)
+	if err != nil {
+		return err
+	}
+	fee, err := smath.Mul64(maxUnits, unitPrice)
+	if err != nil {
+		return err
+	}
+	return t.Auth.CanDeduct(ctx, db, fee)
 }
 
 // Execute after knowing a transaction can pay a fee
@@ -229,7 +255,11 @@ func (t *Transaction) Execute(
 
 	// Always charge fee first in case [Action] moves funds
 	unitPrice := t.Base.UnitPrice
-	maxUnits := t.MaxUnits(r)
+	maxUnits, err := t.MaxUnits(r)
+	if err != nil {
+		// Should never happen
+		return nil, err
+	}
 	if err := t.Auth.Deduct(ctx, tdb, unitPrice*maxUnits); err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
 		// immediately before.
