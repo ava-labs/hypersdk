@@ -217,6 +217,10 @@ func (s *stateSyncerClient) Started() bool {
 // channel if the sync process never started (i.e. [AcceptedSyncableBlock] will
 // never be called)
 func (s *stateSyncerClient) ForceDone() {
+	if s.startedSync {
+		// If we started sync, we must wait for it to finish
+		return
+	}
 	s.doneOnce.Do(func() {
 		close(s.done)
 	})

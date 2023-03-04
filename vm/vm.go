@@ -390,10 +390,8 @@ func (vm *VM) onBootstrapStarted() error {
 }
 
 func (vm *VM) ForceReady() {
-	if !vm.stateSyncClient.Started() {
-		// Only works if haven't already started syncing
-		vm.stateSyncClient.ForceDone()
-	}
+	// Only works if haven't already started syncing
+	vm.stateSyncClient.ForceDone()
 	vm.seenValidityWindowOnce.Do(func() {
 		close(vm.seenValidityWindow)
 	})
