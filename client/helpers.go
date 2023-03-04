@@ -65,12 +65,20 @@ func (cli *Client) GenerateTransaction(
 	if _, err := tx.Init(ctx, actionRegistry, authRegistry); err != nil {
 		return nil, nil, 0, fmt.Errorf("%w: failed to init transaction", err)
 	}
+	maxUnits, err := tx.MaxUnits(rules)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	fee, err := math.Mul64(maxUnits, unitPrice)
+	if err != nil {
+		return nil, nil, 0, err
+	}
 
 	// Return max fee and transaction for issuance
 	return func(ictx context.Context) error {
 		_, err := cli.SubmitTx(ictx, tx.Bytes())
 		return err
-	}, tx, unitPrice * tx.MaxUnits(rules), nil
+	}, tx, fee, nil
 }
 
 func Wait(ctx context.Context, check func(ctx context.Context) (bool, error)) error {

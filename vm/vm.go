@@ -565,7 +565,10 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	return newBlk, nil
 }
 
-func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
+func (vm *VM) buildBlock(
+	ctx context.Context,
+	blockContext *smblock.Context,
+) (snowman.Block, error) {
 	if !vm.isReady() {
 		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrNotReady))
 		return nil, ErrNotReady
@@ -589,7 +592,10 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 }
 
 // implements "block.BuildBlockWithContextChainVM"
-func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
+func (vm *VM) BuildBlockWithContext(
+	ctx context.Context,
+	blockContext *smblock.Context,
+) (snowman.Block, error) {
 	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlockWithContext")
 	defer span.End()
 

@@ -176,8 +176,13 @@ func (h *Handler) GetWarpSignatures(
 	// Optimistically request that we gather signatures if we don't have all of them
 	if len(validSignatures) < len(publicKeys) {
 		h.vm.snowCtx.Log.Info(
-			"fetching missing signatures", zap.Stringer("txID", args.TxID),
-			zap.Int("previously collected", len(signatures)), zap.Int("valid", len(validSignatures)),
+			"fetching missing signatures",
+			zap.Stringer("txID", args.TxID),
+			zap.Int(
+				"previously collected",
+				len(signatures),
+			),
+			zap.Int("valid", len(validSignatures)),
 			zap.Int("current public key count", len(publicKeys)),
 		)
 		h.vm.warpManager.GatherSignatures(context.TODO(), args.TxID, message.Bytes())

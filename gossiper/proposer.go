@@ -204,7 +204,11 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 			}
 
 			// Gossip up to a block of content
-			units := next.MaxUnits(r)
+			units, err := next.MaxUnits(r)
+			if err != nil {
+				// Should never happen
+				return true, false, false, nil
+			}
 			if units+totalUnits > r.GetMaxBlockUnits() {
 				// Attempt to mirror the function of building a block without execution
 				return false, true, false, nil

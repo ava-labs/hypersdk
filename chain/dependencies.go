@@ -105,8 +105,12 @@ type Rules interface {
 // in a structured manner. If we did not use [StateManager], we may overwrite
 // state written by actions or auth.
 type StateManager interface {
-	IncomingWarpKey(msgID ids.ID) []byte // used to access state to check for duplicates/store warp without conflict
-	OutgoingWarpKey(txID ids.ID) []byte  // used to access state to check for duplicates/store warp without conflict
+	IncomingWarpKey(
+		msgID ids.ID,
+	) []byte // used to access state to check for duplicates/store warp without conflict
+	OutgoingWarpKey(
+		txID ids.ID,
+	) []byte // used to access state to check for duplicates/store warp without conflict
 }
 
 type Action interface {

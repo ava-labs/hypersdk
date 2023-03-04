@@ -133,7 +133,11 @@ func (i *ImportAsset) Execute(
 	actor := auth.GetActor(rauth)
 	unitsUsed := i.MaxUnits(r) // max units == units
 	if wm.VerifyErr != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(wm.VerifyErr)}, nil
+		return &chain.Result{
+			Success: false,
+			Units:   unitsUsed,
+			Output:  utils.ErrBytes(wm.VerifyErr),
+		}, nil
 	}
 	if i.warpTransfer.Value == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil

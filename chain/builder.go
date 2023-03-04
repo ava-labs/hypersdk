@@ -42,7 +42,12 @@ func HandlePreExecute(
 	}
 }
 
-func BuildBlock(ctx context.Context, vm VM, preferred ids.ID, blockContext *smblock.Context) (snowman.Block, error) {
+func BuildBlock(
+	ctx context.Context,
+	vm VM,
+	preferred ids.ID,
+	blockContext *smblock.Context,
+) (snowman.Block, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
 	log := vm.Logger()
@@ -106,7 +111,15 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID, blockContext *smbl
 			}
 
 			// Ensure we have room
-			nextUnits := next.MaxUnits(r)
+			nextUnits, err := next.MaxUnits(r)
+			if err != nil {
+				// Should never happen
+				log.Debug(
+					"skipping invalid tx",
+					zap.Error(err),
+				)
+				return true, false, false, nil
+			}
 			if b.UnitsConsumed+nextUnits > r.GetMaxBlockUnits() {
 				log.Debug(
 					"skipping tx: too many units",

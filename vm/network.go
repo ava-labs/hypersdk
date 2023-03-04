@@ -102,7 +102,11 @@ func (n *NetworkManager) SetHandler(handler uint8, h NetworkHandler) {
 	n.handlers[handler] = h
 }
 
-func (n *NetworkManager) getSharedRequestID(handler uint8, nodeID ids.NodeID, requestID uint32) uint32 {
+func (n *NetworkManager) getSharedRequestID(
+	handler uint8,
+	nodeID ids.NodeID,
+	requestID uint32,
+) uint32 {
 	n.l.Lock()
 	defer n.l.Unlock()
 
@@ -132,7 +136,10 @@ func (n *NetworkManager) routeIncomingMessage(msg []byte) ([]byte, NetworkHandle
 	return msg[:l-1], handler, ok
 }
 
-func (n *NetworkManager) handleSharedRequestID(nodeID ids.NodeID, requestID uint32) (NetworkHandler, uint32, bool) {
+func (n *NetworkManager) handleSharedRequestID(
+	nodeID ids.NodeID,
+	requestID uint32,
+) (NetworkHandler, uint32, bool) {
 	n.l.Lock()
 	defer n.l.Unlock()
 
@@ -337,14 +344,14 @@ func (w *WrappedAppSender) SendAppRequest(
 	requestID uint32,
 	appRequestBytes []byte,
 ) error {
-	requestBytes := append(appRequestBytes, w.handler)
+	appRequestBytes = append(appRequestBytes, w.handler)
 	for nodeID := range nodeIDs {
 		newRequestID := w.n.getSharedRequestID(w.handler, nodeID, requestID)
 		if err := w.n.sender.SendAppRequest(
 			ctx,
 			set.Set[ids.NodeID]{nodeID: struct{}{}},
 			newRequestID,
-			requestBytes,
+			appRequestBytes,
 		); err != nil {
 			return err
 		}

@@ -122,7 +122,9 @@ func (p *ProposerMonitor) Proposers(
 	return proposersToGossip, nil
 }
 
-func (p *ProposerMonitor) Validators(ctx context.Context) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{}) {
+func (p *ProposerMonitor) Validators(
+	ctx context.Context,
+) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{}) {
 	if err := p.refresh(ctx); err != nil {
 		return nil, nil
 	}

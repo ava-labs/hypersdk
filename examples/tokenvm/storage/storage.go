@@ -377,7 +377,12 @@ func PrefixLoanKey(asset ids.ID, destination ids.ID) (k []byte) {
 	return
 }
 
-func GetLoan(ctx context.Context, db chain.Database, asset ids.ID, destination ids.ID) (uint64, error) {
+func GetLoan(
+	ctx context.Context,
+	db chain.Database,
+	asset ids.ID,
+	destination ids.ID,
+) (uint64, error) {
 	k := PrefixLoanKey(asset, destination)
 	v, err := db.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
@@ -389,12 +394,24 @@ func GetLoan(ctx context.Context, db chain.Database, asset ids.ID, destination i
 	return binary.BigEndian.Uint64(v), nil
 }
 
-func SetLoan(ctx context.Context, db chain.Database, asset ids.ID, destination ids.ID, amount uint64) error {
+func SetLoan(
+	ctx context.Context,
+	db chain.Database,
+	asset ids.ID,
+	destination ids.ID,
+	amount uint64,
+) error {
 	k := PrefixLoanKey(asset, destination)
 	return db.Insert(ctx, k, binary.BigEndian.AppendUint64(nil, amount))
 }
 
-func AddLoan(ctx context.Context, db chain.Database, asset ids.ID, destination ids.ID, amount uint64) error {
+func AddLoan(
+	ctx context.Context,
+	db chain.Database,
+	asset ids.ID,
+	destination ids.ID,
+	amount uint64,
+) error {
 	loan, err := GetLoan(ctx, db, asset, destination)
 	if err != nil {
 		return err
@@ -412,7 +429,13 @@ func AddLoan(ctx context.Context, db chain.Database, asset ids.ID, destination i
 	return SetLoan(ctx, db, asset, destination, nloan)
 }
 
-func SubLoan(ctx context.Context, db chain.Database, asset ids.ID, destination ids.ID, amount uint64) error {
+func SubLoan(
+	ctx context.Context,
+	db chain.Database,
+	asset ids.ID,
+	destination ids.ID,
+	amount uint64,
+) error {
 	loan, err := GetLoan(ctx, db, asset, destination)
 	if err != nil {
 		return err
