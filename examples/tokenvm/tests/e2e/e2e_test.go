@@ -169,28 +169,19 @@ var _ = ginkgo.BeforeSuite(func() {
 	}, log)
 	gomega.Expect(err).Should(gomega.BeNil())
 
-	ginkgo.By("calling start API via network runner", func() {
-		hutils.Outf(
-			"{{green}}sending 'start' with binary path:{{/}} %q (%q)\n",
-			execPath,
-			consts.ID,
-		)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		resp, err := cli.Start(
-			ctx,
-			execPath,
-			runner_sdk.WithPluginDir(pluginDir),
-			runner_sdk.WithBlockchainSpecs(
-				[]*rpcpb.BlockchainSpec{
-					{
-						VmName:       consts.Name,
-						Genesis:      vmGenesisPath,
-						ChainConfig:  vmConfigPath,
-						SubnetConfig: subnetConfigPath,
-					},
-				},
-			),
-			runner_sdk.WithGlobalNodeConfig(`{
+	hutils.Outf(
+		"{{green}}sending 'start' with binary path:{{/}} %q (%q)\n",
+		execPath,
+		consts.ID,
+	)
+
+	// Start cluster
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	resp, err := cli.Start(
+		ctx,
+		execPath,
+		runner_sdk.WithPluginDir(pluginDir),
+		runner_sdk.WithGlobalNodeConfig(`{
 				"log-display-level":"info",
 				"proposervm-use-current-height":true,
 				"throttler-inbound-validator-alloc-size":"107374182",
@@ -201,11 +192,77 @@ var _ = ginkgo.BeforeSuite(func() {
 				"throttler-inbound-disk-validator-alloc":"10737418240000",
 				"throttler-outbound-validator-alloc-size":"107374182"
 			}`),
-		)
-		cancel()
+	)
+	cancel()
+	gomega.Expect(err).Should(gomega.BeNil())
+	hutils.Outf("{{green}}successfully started cluster:{{/}} %s {{green}}subnets:{{/}} %+v\n", resp.ClusterInfo.RootDataDir, resp.GetClusterInfo().GetSubnets())
+
+	// Create 2 subnets
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+	sresp, err := cli.CreateSubnets(ctx, runner_sdk.WithNumSubnets(2))
+	cancel()
+	gomega.Expect(err).Should(gomega.BeNil())
+	subnets := sresp.GetClusterInfo().GetSubnets()
+	for len(subnets) != 2 {
+		hutils.Outf("{{yellow}}waiting for new subnets{{/}}\n")
+		time.Sleep(5 * time.Second)
+		status, err := cli.Status(context.Background())
 		gomega.Expect(err).Should(gomega.BeNil())
-		hutils.Outf("{{green}}successfully started:{{/}} %s\n", resp.ClusterInfo.RootDataDir)
-	})
+		subnets = status.GetClusterInfo().GetSubnets()
+	}
+	hutils.Outf("{{green}}created subnets:{{/}} %+v\n", subnets)
+
+	// Add tokenvm chains to subnets
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+	cresp, err := cli.CreateBlockchains(
+		ctx,
+		[]*rpcpb.BlockchainSpec{
+			{
+				SubnetId:     &subnets[0],
+				VmName:       consts.Name,
+				Genesis:      vmGenesisPath,
+				ChainConfig:  vmConfigPath,
+				SubnetConfig: subnetConfigPath,
+			},
+		},
+	)
+	cancel()
+	gomega.Expect(err).Should(gomega.BeNil())
+	chains := cresp.GetClusterInfo().GetCustomChains()
+	for len(chains) != 1 {
+		hutils.Outf("{{yellow}}waiting for first chain{{/}}\n")
+		time.Sleep(5 * time.Second)
+		status, err := cli.Status(context.Background())
+		gomega.Expect(err).Should(gomega.BeNil())
+		chains = status.GetClusterInfo().GetCustomChains()
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+	cresp, err = cli.CreateBlockchains(
+		ctx,
+		[]*rpcpb.BlockchainSpec{
+			{
+				SubnetId:     &subnets[1],
+				VmName:       consts.Name,
+				Genesis:      vmGenesisPath,
+				ChainConfig:  vmConfigPath,
+				SubnetConfig: subnetConfigPath,
+			},
+		},
+	)
+	cancel()
+	gomega.Expect(err).Should(gomega.BeNil())
+	chains = cresp.GetClusterInfo().GetCustomChains()
+	for len(chains) != 2 {
+		hutils.Outf("{{yellow}}waiting for second chain{{/}}\n")
+		time.Sleep(5 * time.Second)
+		status, err := cli.Status(context.Background())
+		gomega.Expect(err).Should(gomega.BeNil())
+		chains = status.GetClusterInfo().GetCustomChains()
+	}
+	for _, chain := range chains {
+		hutils.Outf("{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s\n", chain.GetChainId(), chain.GetSubnetId())
+	}
 
 	// TODO: network runner health should imply custom VM healthiness
 	// or provide a separate API for custom VM healthiness
@@ -227,7 +284,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	// wait up to 5-minute for custom VM installation
 	hutils.Outf("\n{{magenta}}waiting for all custom VMs to report healthy...{{/}}\n")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
 	for ctx.Err() == nil && len(blockchainID) == 0 {
 		select {
 		case <-ctx.Done():

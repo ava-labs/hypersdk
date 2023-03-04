@@ -215,14 +215,16 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 		select {
 		case <-vm.seenValidityWindow:
 			// We could not be ready but seen a window of transactions if the state
-			// to sync is large (takes longer to fetch than [ValidityWindow].
+			// to sync is large (takes longer to fetch than [ValidityWindow]).
 		default:
 			if vm.startSeenTime < 0 {
 				vm.startSeenTime = blkTime
 			}
 			r := vm.Rules(blkTime)
 			if blkTime-vm.startSeenTime > r.GetValidityWindow() {
-				close(vm.seenValidityWindow)
+				vm.seenValidityWindowOnce.Do(func() {
+					close(vm.seenValidityWindow)
+				})
 			}
 		}
 	}

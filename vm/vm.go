@@ -63,9 +63,10 @@ type VM struct {
 	mempool *mempool.Mempool[*chain.Transaction]
 
 	// track all accepted but still valid txs (replay protection)
-	seen               *emap.EMap[*chain.Transaction]
-	startSeenTime      int64
-	seenValidityWindow chan struct{}
+	seen                   *emap.EMap[*chain.Transaction]
+	startSeenTime          int64
+	seenValidityWindowOnce sync.Once
+	seenValidityWindow     chan struct{}
 
 	// cache block objects to optimize "GetBlockStateless"
 	// only put when a block is accepted
@@ -316,11 +317,13 @@ func (vm *VM) markReady() {
 		return
 	case <-vm.stateSyncClient.done:
 	}
+	vm.snowCtx.Log.Info("state sync client ready")
 	select {
 	case <-vm.stop:
 		return
 	case <-vm.seenValidityWindow:
 	}
+	vm.snowCtx.Log.Info("validity window ready")
 	if vm.stateSyncClient.Started() {
 		// only alert engine if we started
 		vm.toEngine <- common.StateSyncDone
@@ -337,6 +340,7 @@ func (vm *VM) isReady() bool {
 	case <-vm.ready:
 		return true
 	default:
+		vm.snowCtx.Log.Info("node is not ready yet")
 		return false
 	}
 }
@@ -386,8 +390,13 @@ func (vm *VM) onBootstrapStarted() error {
 }
 
 func (vm *VM) ForceReady() {
-	vm.stateSyncClient.ForceDone() // only works if haven't already started syncing
-	close(vm.seenValidityWindow)
+	if !vm.stateSyncClient.Started() {
+		// Only works if haven't already started syncing
+		vm.stateSyncClient.ForceDone()
+	}
+	vm.seenValidityWindowOnce.Do(func() {
+		close(vm.seenValidityWindow)
+	})
 }
 
 // onNormalOperationsStarted marks this VM as bootstrapped
@@ -397,18 +406,10 @@ func (vm *VM) onNormalOperationsStarted() error {
 	}
 	vm.bootstrapped.Set(true)
 
-	// Handle case where no sync targets found (occurs at genesis when first
-	// starting)
-	if !vm.stateSyncClient.Started() {
-		vm.snowCtx.Log.Info("starting normal operation without performing sync")
+	// Handle case where normal operations start at genesis
+	if vm.lastAccepted.Hght == 0 {
+		vm.snowCtx.Log.Warn("forcing VM ready because began normal operation at genesis")
 		vm.ForceReady()
-
-		if hght := vm.lastAccepted.Hght; hght > 0 {
-			return fmt.Errorf(
-				"should never skip start sync when last accepted height is > 0 (currently=%d)",
-				hght,
-			)
-		}
 	}
 	return nil
 }

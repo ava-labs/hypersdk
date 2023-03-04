@@ -296,7 +296,9 @@ func (s *stateSyncerClient) startingSync(state bool) {
 			// We are assured this function won't be running while we accept
 			// a block, so we don't need to protect against closing this channel
 			// twice.
-			close(vm.seenValidityWindow)
+			vm.seenValidityWindowOnce.Do(func() {
+				close(vm.seenValidityWindow)
+			})
 			break
 		}
 
