@@ -385,7 +385,7 @@ func SetLoan(ctx context.Context, db chain.Database, asset ids.ID, destination i
 	return db.Insert(ctx, k, binary.BigEndian.AppendUint64(nil, amount))
 }
 
-func IncreaseLoan(ctx context.Context, db chain.Database, asset ids.ID, destination ids.ID, amount uint64) error {
+func AddLoan(ctx context.Context, db chain.Database, asset ids.ID, destination ids.ID, amount uint64) error {
 	loan, err := GetLoan(ctx, db, asset, destination)
 	if err != nil {
 		return err
@@ -403,7 +403,7 @@ func IncreaseLoan(ctx context.Context, db chain.Database, asset ids.ID, destinat
 	return SetLoan(ctx, db, asset, destination, nloan)
 }
 
-func DecreaseLoan(ctx context.Context, db chain.Database, asset ids.ID, destination ids.ID, amount uint64) error {
+func SubLoan(ctx context.Context, db chain.Database, asset ids.ID, destination ids.ID, amount uint64) error {
 	loan, err := GetLoan(ctx, db, asset, destination)
 	if err != nil {
 		return err

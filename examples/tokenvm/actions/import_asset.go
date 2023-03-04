@@ -5,7 +5,6 @@ package actions
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
@@ -42,8 +41,9 @@ func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 		assetID ids.ID
 	)
 	if i.warpTransfer.Return {
+		assetID = i.warpTransfer.Asset
 		keys = [][]byte{
-			// TODO: add loan item
+			storage.PrefixLoanKey(i.warpTransfer.Asset, i.warpMessage.SourceChainID),
 			storage.PrefixBalanceKey(i.warpTransfer.To, i.warpTransfer.Asset),
 		}
 	} else {
@@ -63,6 +63,71 @@ func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 	return keys
 }
 
+func (i *ImportAsset) executeMint(
+	ctx context.Context,
+	r chain.Rules,
+	db chain.Database,
+	actor crypto.PublicKey,
+) (*chain.Result, error) {
+	asset := i.warpTransfer.NewAssetID(i.warpMessage.SourceChainID)
+	unitsUsed := i.MaxUnits(r)
+	exists, metadata, supply, _, warp, err := storage.GetAsset(ctx, db, asset)
+	if err != nil {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	}
+	if exists && !warp {
+		// Should not be possible
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputConflictingAsset}, nil
+	}
+	if !exists {
+		metadata = append(i.warpTransfer.Asset[:], i.warpMessage.SourceChainID[:]...)
+	}
+	newSupply, err := smath.Add64(supply, i.warpTransfer.Value)
+	if err != nil {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	}
+	newSupply, err = smath.Add64(supply, i.warpTransfer.Reward)
+	if err != nil {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	}
+	if err := storage.SetAsset(ctx, db, asset, metadata, newSupply, crypto.EmptyPublicKey, true); err != nil {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	}
+	if err := storage.AddBalance(ctx, db, i.warpTransfer.To, asset, i.warpTransfer.Value); err != nil {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	}
+	if i.warpTransfer.Reward > 0 {
+		if err := storage.AddBalance(ctx, db, actor, asset, i.warpTransfer.Reward); err != nil {
+			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		}
+	}
+	return &chain.Result{Success: true, Units: unitsUsed}, nil
+}
+
+func (i *ImportAsset) executeReturn(
+	ctx context.Context,
+	r chain.Rules,
+	db chain.Database,
+	actor crypto.PublicKey,
+) (*chain.Result, error) {
+	unitsUsed := i.MaxUnits(r)
+	if err := storage.SubLoan(ctx, db, i.warpTransfer.Asset, i.warpMessage.SourceChainID, i.warpTransfer.Value); err != nil {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	}
+	if err := storage.AddBalance(ctx, db, i.warpTransfer.To, i.warpTransfer.Asset, i.warpTransfer.Value); err != nil {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	}
+	if i.warpTransfer.Reward > 0 {
+		if err := storage.SubLoan(ctx, db, i.warpTransfer.Asset, i.warpMessage.SourceChainID, i.warpTransfer.Reward); err != nil {
+			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		}
+		if err := storage.AddBalance(ctx, db, actor, i.warpTransfer.Asset, i.warpTransfer.Reward); err != nil {
+			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		}
+	}
+	return &chain.Result{Success: true, Units: unitsUsed}, nil
+}
+
 func (i *ImportAsset) Execute(
 	ctx context.Context,
 	r chain.Rules,
@@ -80,41 +145,18 @@ func (i *ImportAsset) Execute(
 	if i.warpTransfer.Value == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
 	}
-	// TODO: must add special handling if bringing funds back to their home chain
-	exists, metadata, supply, _, err := storage.GetAsset(ctx, db, i.newAsset)
-	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	if i.warpTransfer.Return {
+		return i.executeReturn(ctx, r, db, actor)
 	}
-	if !exists {
-		// It is ok if the asset is missing, we'll just create it later
-		metadata = []byte(fmt.Sprintf("%s|%s", i.warpTransfer.Asset, i.Message.SourceChainID))
-	}
-	newSupply, err := smath.Add64(supply, i.warpTransfer.Value)
-	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
-	}
-	newSupply, err = smath.Add64(supply, i.warpTransfer.Reward)
-	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
-	}
-	if err := storage.SetAsset(ctx, db, i.newAsset, metadata, newSupply, crypto.EmptyPublicKey); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
-	}
-	if err := storage.AddBalance(ctx, db, i.warpTransfer.To, i.newAsset, i.warpTransfer.Value); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
-	}
-	if i.warpTransfer.Reward > 0 {
-		if err := storage.AddBalance(ctx, db, actor, i.newAsset, i.warpTransfer.Reward); err != nil {
-			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
-		}
-	}
-	return &chain.Result{Success: true, Units: unitsUsed}, nil
+	return i.executeMint(ctx, r, db, actor)
 }
 
 func (i *ImportAsset) MaxUnits(chain.Rules) uint64 {
 	return uint64(len(i.warpMessage.Payload))
 }
 
+// All we encode that is action specific for now is the type byte from the
+// registry.
 func (i *ImportAsset) Marshal(p *codec.Packer) {}
 
 func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {

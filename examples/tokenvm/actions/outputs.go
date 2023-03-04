@@ -22,4 +22,5 @@ var (
 	OutputValueMisaligned    = []byte("value is misaligned")
 	OutputMetadataTooLarge   = []byte("metadata is too large")
 	OutputSameInOut          = []byte("same asset used for in and out")
+	OutputConflictingAsset   = []byte("warp has same asset as another")
 )
