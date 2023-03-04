@@ -28,13 +28,6 @@ type ImportAsset struct {
 	warpMessage *warp.Message
 }
 
-func (i *ImportAsset) assetID() ids.ID {
-	if i.warpTransfer.Return {
-		return i.warpTransfer.Asset
-	}
-	return i.warpTransfer.NewAssetID(i.warpMessage.SourceChainID)
-}
-
 func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 	var (
 		keys    [][]byte

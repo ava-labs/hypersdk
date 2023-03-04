@@ -23,4 +23,7 @@ var (
 	OutputMetadataTooLarge   = []byte("metadata is too large")
 	OutputSameInOut          = []byte("same asset used for in and out")
 	OutputConflictingAsset   = []byte("warp has same asset as another")
+	OutputAnycast            = []byte("anycast output")
+	OutputNotWarpAsset       = []byte("not warp asset")
+	OutputWrongDestination   = []byte("wrong destination")
 )

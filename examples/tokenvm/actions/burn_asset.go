@@ -56,7 +56,7 @@ func (b *BurnAsset) Execute(
 	if err := storage.SubBalance(ctx, db, actor, b.Asset, b.Value); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	exists, metadata, supply, owner, err := storage.GetAsset(ctx, db, b.Asset)
+	exists, metadata, supply, owner, warp, err := storage.GetAsset(ctx, db, b.Asset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
@@ -68,7 +68,7 @@ func (b *BurnAsset) Execute(
 		// This should never fail
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	if err := storage.SetAsset(ctx, db, b.Asset, metadata, newSupply, owner); err != nil {
+	if err := storage.SetAsset(ctx, db, b.Asset, metadata, newSupply, owner, warp); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil

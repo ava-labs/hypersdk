@@ -319,6 +319,12 @@ func preVerifyWarpMessage(msg *warp.Message, chainID ids.ID, r Rules) (uint64, u
 	if msg.DestinationChainID != chainID && msg.DestinationChainID != ids.Empty {
 		return 0, 0, ErrInvalidChainID
 	}
+	if msg.SourceChainID == chainID {
+		return 0, 0, ErrInvalidChainID
+	}
+	if msg.SourceChainID == msg.DestinationChainID {
+		return 0, 0, ErrInvalidChainID
+	}
 	allowed, num, denom := r.GetWarpConfig(msg.SourceChainID)
 	if !allowed {
 		return 0, 0, ErrDisabledChainID

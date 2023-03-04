@@ -290,6 +290,11 @@ func SetAsset(
 	return db.Insert(ctx, k, v)
 }
 
+func DeleteAsset(ctx context.Context, db chain.Database, asset ids.ID) error {
+	k := PrefixAssetKey(asset)
+	return db.Remove(ctx, k)
+}
+
 // [orderPrefix] + [txID]
 func PrefixOrderKey(txID ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen)
