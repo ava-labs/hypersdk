@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
@@ -73,13 +74,15 @@ func (i *ImportAsset) executeMint(
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputConflictingAsset}, nil
 	}
 	if !exists {
-		metadata = append(i.warpTransfer.Asset[:], i.warpMessage.SourceChainID[:]...)
+		metadata = make([]byte, consts.IDLen*2)
+		copy(metadata, i.warpTransfer.Asset[:])
+		copy(metadata[consts.IDLen:], i.warpMessage.SourceChainID[:])
 	}
 	newSupply, err := smath.Add64(supply, i.warpTransfer.Value)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	newSupply, err = smath.Add64(supply, i.warpTransfer.Reward)
+	newSupply, err = smath.Add64(newSupply, i.warpTransfer.Reward)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
@@ -104,17 +107,29 @@ func (i *ImportAsset) executeReturn(
 	actor crypto.PublicKey,
 ) (*chain.Result, error) {
 	unitsUsed := i.MaxUnits(r)
-	if err := storage.SubLoan(ctx, db, i.warpTransfer.Asset, i.warpMessage.SourceChainID, i.warpTransfer.Value); err != nil {
+	if err := storage.SubLoan(
+		ctx, db, i.warpTransfer.Asset,
+		i.warpMessage.SourceChainID, i.warpTransfer.Value,
+	); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	if err := storage.AddBalance(ctx, db, i.warpTransfer.To, i.warpTransfer.Asset, i.warpTransfer.Value); err != nil {
+	if err := storage.AddBalance(
+		ctx, db, i.warpTransfer.To,
+		i.warpTransfer.Asset, i.warpTransfer.Value,
+	); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if i.warpTransfer.Reward > 0 {
-		if err := storage.SubLoan(ctx, db, i.warpTransfer.Asset, i.warpMessage.SourceChainID, i.warpTransfer.Reward); err != nil {
+		if err := storage.SubLoan(
+			ctx, db, i.warpTransfer.Asset,
+			i.warpMessage.SourceChainID, i.warpTransfer.Reward,
+		); err != nil {
 			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 		}
-		if err := storage.AddBalance(ctx, db, actor, i.warpTransfer.Asset, i.warpTransfer.Reward); err != nil {
+		if err := storage.AddBalance(
+			ctx, db, actor,
+			i.warpTransfer.Asset, i.warpTransfer.Reward,
+		); err != nil {
 			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 		}
 	}
@@ -154,9 +169,9 @@ func (i *ImportAsset) MaxUnits(chain.Rules) uint64 {
 
 // All we encode that is action specific for now is the type byte from the
 // registry.
-func (i *ImportAsset) Marshal(p *codec.Packer) {}
+func (*ImportAsset) Marshal(*codec.Packer) {}
 
-func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
+func UnmarshalImportAsset(_ *codec.Packer, wm *warp.Message) (chain.Action, error) {
 	var (
 		imp ImportAsset
 		err error

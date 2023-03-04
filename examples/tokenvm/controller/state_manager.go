@@ -10,10 +10,10 @@ import (
 
 type StateManager struct{}
 
-func (sm *StateManager) IncomingWarpKey(msgID ids.ID) []byte {
+func (*StateManager) IncomingWarpKey(msgID ids.ID) []byte {
 	return storage.IncomingWarpKeyPrefix(msgID)
 }
 
-func (sm *StateManager) OutgoingWarpKey(txID ids.ID) []byte {
+func (*StateManager) OutgoingWarpKey(txID ids.ID) []byte {
 	return storage.OutgoingWarpKeyPrefix(txID)
 }

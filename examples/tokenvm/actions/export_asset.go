@@ -79,7 +79,7 @@ func (e *ExportAsset) executeReturn(
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	newSupply, err = smath.Sub(supply, e.Reward)
+	newSupply, err = smath.Sub(newSupply, e.Reward)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
@@ -192,7 +192,7 @@ func (e *ExportAsset) Execute(
 	return e.executeLoan(ctx, r, db, actor, txID)
 }
 
-func (e *ExportAsset) MaxUnits(chain.Rules) uint64 {
+func (*ExportAsset) MaxUnits(chain.Rules) uint64 {
 	return crypto.PublicKeyLen + consts.IDLen*2 + consts.Uint64Len*2 + 1
 }
 
