@@ -216,6 +216,10 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 			case *actions.CloseOrder:
 				c.metrics.closeOrder.Inc()
 				c.orderBook.Remove(action.Order)
+			case *actions.ImportAsset:
+				c.metrics.importAsset.Inc()
+			case *actions.ExportAsset:
+				c.metrics.exportAsset.Inc()
 			}
 		}
 	}
@@ -223,7 +227,6 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 }
 
 func (*Controller) Rejected(context.Context, *chain.StatelessBlock) error {
-	// Do nothing
 	return nil
 }
 
