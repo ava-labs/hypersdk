@@ -265,19 +265,22 @@ func (t *Transaction) Execute(
 		}
 	}
 
-	// Store incoming warp messages in state by their ID to prevent replays
-	if t.WarpMessage != nil {
-		if err := tdb.Insert(ctx, s.IncomingWarpKey(t.warpID), nil); err != nil {
-			return nil, err
+	// Handle all warp updates (if the transaction was successful)
+	if result.Success {
+		// Store incoming warp messages in state by their ID to prevent replays
+		if t.WarpMessage != nil {
+			if err := tdb.Insert(ctx, s.IncomingWarpKey(t.warpID), nil); err != nil {
+				return nil, err
+			}
 		}
-	}
 
-	// Store newly created warp messages in state by their txID to ensure we can
-	// always sign for a message
-	if result.WarpMessage != nil {
-		// We use txID here because we will not know the warpID before execution.
-		if err := tdb.Insert(ctx, s.OutgoingWarpKey(t.id), result.WarpMessage.Bytes()); err != nil {
-			return nil, err
+		// Store newly created warp messages in state by their txID to ensure we can
+		// always sign for a message
+		if result.WarpMessage != nil {
+			// We use txID here because we will not know the warpID before execution.
+			if err := tdb.Insert(ctx, s.OutgoingWarpKey(t.id), result.WarpMessage.Bytes()); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return result, nil
