@@ -368,9 +368,60 @@ func PrefixLoanKey(asset ids.ID, destination ids.ID) (k []byte) {
 	return
 }
 
-func IncreaseLoan(ctx context.Context, db chain.Database, asset ids.ID, destination ids.ID, amount uint64) error {
+func GetLoan(ctx context.Context, db chain.Database, asset ids.ID, destination ids.ID) (uint64, error) {
+	k := PrefixLoanKey(asset, destination)
+	v, err := db.GetValue(ctx, k)
+	if errors.Is(err, database.ErrNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint64(v), nil
 }
 
-func DecreaseLoan() {
-	// TODO: delete loan if 0
+func SetLoan(ctx context.Context, db chain.Database, asset ids.ID, destination ids.ID, amount uint64) error {
+	k := PrefixLoanKey(asset, destination)
+	return db.Insert(ctx, k, binary.BigEndian.AppendUint64(nil, amount))
+}
+
+func IncreaseLoan(ctx context.Context, db chain.Database, asset ids.ID, destination ids.ID, amount uint64) error {
+	loan, err := GetLoan(ctx, db, asset, destination)
+	if err != nil {
+		return err
+	}
+	nloan, err := smath.Add64(loan, amount)
+	if err != nil {
+		return fmt.Errorf(
+			"%w: could not add loan (asset=%s, destination=%s, amount=%d)",
+			ErrInvalidBalance,
+			asset,
+			destination,
+			amount,
+		)
+	}
+	return SetLoan(ctx, db, asset, destination, nloan)
+}
+
+func DecreaseLoan(ctx context.Context, db chain.Database, asset ids.ID, destination ids.ID, amount uint64) error {
+	loan, err := GetLoan(ctx, db, asset, destination)
+	if err != nil {
+		return err
+	}
+	nloan, err := smath.Sub(loan, amount)
+	if err != nil {
+		return fmt.Errorf(
+			"%w: could not subtract loan (asset=%s, destination=%s, amount=%d)",
+			ErrInvalidBalance,
+			asset,
+			destination,
+			amount,
+		)
+	}
+	if nloan == 0 {
+		// If there is no balance left, we should delete the record instead of
+		// setting it to 0.
+		return db.Remove(ctx, PrefixLoanKey(asset, destination))
+	}
+	return SetLoan(ctx, db, asset, destination, nloan)
 }
