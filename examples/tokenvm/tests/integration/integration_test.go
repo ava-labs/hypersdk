@@ -588,7 +588,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		g, err := instances[0].cli.Genesis(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
 		r := g.Rules(time.Now().Unix())
-		gomega.Ω(balance).Should(gomega.Equal(balancea + rawTx.MaxUnits(r) + 1))
+		maxUnits, err := rawTx.MaxUnits(r)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance).Should(gomega.Equal(balancea + maxUnits + 1))
 	})
 
 	ginkgo.It("processes valid index transactions (w/streaming verification)", func() {
@@ -661,7 +663,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(string(result.Output)).
 			Should(gomega.ContainSubstring("asset missing"))
 
-		exists, _, _, _, err := instances[0].cli.Asset(context.TODO(), assetID)
+		exists, _, _, _, _, err := instances[0].cli.Asset(context.TODO(), assetID)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeFalse())
 	})
@@ -685,12 +687,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		balance, err := instances[0].cli.Balance(context.TODO(), sender, assetID)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
-		exists, metadata, supply, owner, err := instances[0].cli.Asset(context.TODO(), assetID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), assetID)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.HaveLen(0))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(0)))
 		gomega.Ω(owner).Should(gomega.Equal(sender))
+		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
 	ginkgo.It("create asset with too long of metadata", func() {
@@ -726,12 +729,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 
-		exists, metadata, supply, owner, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), asset1ID)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(0)))
 		gomega.Ω(owner).Should(gomega.Equal(sender))
+		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
 	ginkgo.It("mint a new asset", func() {
@@ -758,12 +762,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 
-		exists, metadata, supply, owner, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), asset1ID)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(15)))
 		gomega.Ω(owner).Should(gomega.Equal(sender))
+		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
 	ginkgo.It("mint asset from wrong owner", func() {
@@ -788,12 +793,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(string(result.Output)).
 			Should(gomega.ContainSubstring("wrong owner"))
 
-		exists, metadata, supply, owner, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), asset1ID)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(15)))
 		gomega.Ω(owner).Should(gomega.Equal(sender))
+		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
 	ginkgo.It("burn new asset", func() {
@@ -819,12 +825,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 
-		exists, metadata, supply, owner, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), asset1ID)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(10)))
 		gomega.Ω(owner).Should(gomega.Equal(sender))
+		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
 	ginkgo.It("burn missing asset", func() {
@@ -846,12 +853,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(string(result.Output)).
 			Should(gomega.ContainSubstring("invalid balance"))
 
-		exists, metadata, supply, owner, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), asset1ID)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(10)))
 		gomega.Ω(owner).Should(gomega.Equal(sender))
+		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
 	ginkgo.It("rejects empty mint", func() {
@@ -897,12 +905,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 
-		exists, metadata, supply, owner, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), asset1ID)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(10)))
 		gomega.Ω(owner).Should(gomega.Equal(sender))
+		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
 	ginkgo.It("modify an existing asset", func() {
@@ -929,12 +938,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 
-		exists, metadata, supply, owner, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), asset1ID)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal([]byte("blah")))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(10)))
 		gomega.Ω(owner).Should(gomega.Equal(utils.Address(crypto.EmptyPublicKey)))
+		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
 	ginkgo.It("modify an asset that doesn't exist", func() {
@@ -958,7 +968,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(string(result.Output)).
 			Should(gomega.ContainSubstring("asset missing"))
 
-		exists, _, _, _, err := instances[0].cli.Asset(context.TODO(), assetID)
+		exists, _, _, _, _, err := instances[0].cli.Asset(context.TODO(), assetID)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeFalse())
 	})
