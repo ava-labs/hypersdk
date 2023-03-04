@@ -39,6 +39,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
+	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/controller"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
@@ -243,11 +244,19 @@ var _ = ginkgo.BeforeSuite(func() {
 		g, err := cli.Genesis(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
 
+		supply := uint64(0)
 		for _, alloc := range g.CustomAllocation {
 			balance, err := cli.Balance(context.Background(), alloc.Address, ids.Empty)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(balance).Should(gomega.Equal(alloc.Balance))
+			supply += alloc.Balance
 		}
+		exists, metadata, supply, owner, warp, err := cli.Asset(context.Background(), ids.Empty)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(exists).Should(gomega.BeTrue())
+		gomega.Ω(string(metadata)).Should(gomega.Equal(tconsts.Symbol))
+		gomega.Ω(owner).Should(gomega.Equal(utils.Address(crypto.EmptyPublicKey)))
+		gomega.Ω(warp).Should(gomega.BeFalse())
 	}
 
 	app.instances = instances

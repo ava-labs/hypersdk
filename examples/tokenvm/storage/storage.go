@@ -281,13 +281,13 @@ func SetAsset(
 ) error {
 	k := PrefixAssetKey(asset)
 	metadataLen := len(metadata)
-	v := make([]byte, consts.Uint16Len+metadataLen+consts.Uint64Len+consts.IDLen)
+	v := make([]byte, consts.Uint16Len+metadataLen+consts.Uint64Len+crypto.PublicKeyLen+1)
 	binary.BigEndian.PutUint16(v, uint16(metadataLen))
 	copy(v[consts.Uint16Len:], metadata)
 	binary.BigEndian.PutUint64(v[consts.Uint16Len+metadataLen:], supply)
 	copy(v[consts.Uint16Len+metadataLen+consts.Uint64Len:], owner[:])
 	b := byte(0x0)
-	if !warp {
+	if warp {
 		b = 0x1
 	}
 	v[consts.Uint16Len+metadataLen+consts.Uint64Len+crypto.PublicKeyLen] = b
