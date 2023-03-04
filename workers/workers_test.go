@@ -159,14 +159,19 @@ func TestJobDone(t *testing.T) {
 		completed: make(chan struct{}),
 		result:    make(chan error),
 	}
-
+	var callMU sync.Mutex
 	called := false
 	job.Done(func() {
+		callMU.Lock()
+		defer callMU.Unlock()
 		called = true
 	})
 	job.completed <- struct{}{}
 	// Check that the callback function was called
+	callMU.Lock()
 	require.True(called, "Callback function not called")
+	callMU.Unlock()
+
 	// Ensure task channel was closed
 	require.Empty(job.tasks, "Tasks channel not closed")
 }
@@ -223,26 +228,42 @@ func TestWorker(t *testing.T) {
 	require.Empty(w.ackShutdown, "Worker ackShutdown not empty")
 	require.Empty(w.stopWorkers, "Worker stopWorkers not empty")
 	require.Empty(w.stoppedWorkers, "Worker stoppedWorkers not empty")
-
-	vals := int64(0)
+	// Wait on jobs
+	var wg sync.WaitGroup
+	wg.Add(1000)
+	// Value updated by the workers
+	var valLock sync.Mutex
+	val := 0
 	for i := 0; i < 1000; i++ {
 		// Create a new job
 		job, err := w.NewJob(10)
 		require.NoError(err)
 		for j := 0; j < 10; j++ {
 			task := func() error {
-				atomic.AddInt64(&vals, 1)
+				valLock.Lock()
+				defer valLock.Unlock()
+				val += 1
 				return nil
 			}
 			job.Go(task)
 		}
-		// TODO: Better way to do this?
-		time.Sleep(time.Millisecond * 2)
+		go func() {
+			defer wg.Done()
+			err := job.Wait()
+			require.NoError(err, "Error waiting on job.")
+		}()
 		job.Done(nil)
 	}
-	w.Stop()
+	finished := make(chan bool)
+	go func() {
+		// Wait for all jobs to finish and stop worker after
+		wg.Wait()
+		w.Stop()
+		finished <- true
+	}()
+	<-finished
 	// Jobs ran correctly
-	require.Equal(int64(10000), atomic.LoadInt64(&vals), "Value not updated correctly")
+	require.Equal(10000, val, "Value not updated correctly")
 }
 
 func TestWorkerStop(t *testing.T) {
@@ -260,11 +281,17 @@ func TestWorkerStop(t *testing.T) {
 		}
 		job.Go(task)
 	}
-	time.Sleep(time.Millisecond * 2)
-	job.Done(nil)
-	// Trigger stop, first 5 jobs should still be running
+	finished := make(chan bool)
+	go func() {
+		job.Done(nil)
+		err := job.Wait()
+		require.NoError(err, "Error waiting on job.")
+		w.Stop()
+		finished <- true
+	}()
+	// Trigger stop, 5 jobs should still be running
 	require.Equal(int64(0), atomic.LoadInt64(&vals), "Value not updated correctly")
-	w.Stop()
+	<-finished
 	// Check that processes completed
 	require.Equal(int64(5), atomic.LoadInt64(&vals), "Value not updated correctly")
 	// Make sure new jobs cannot be created

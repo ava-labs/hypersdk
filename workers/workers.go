@@ -77,6 +77,7 @@ func (w *Workers) processQueue() {
 			w.lock.Lock()
 			close(j.completed)
 			j.result <- w.err
+
 			w.err = nil
 			w.lock.Unlock()
 		}
@@ -102,7 +103,7 @@ func (w *Workers) startWorker() {
 				w.stoppedWorkers <- struct{}{}
 				return
 			case j := <-w.tasks:
-				// Check if we should even do the work\
+				// Check if we should even do the work
 				w.lock.RLock()
 				err := w.err
 				w.lock.RUnlock()
@@ -159,7 +160,7 @@ func (j *Job) Go(f func() error) {
 func (j *Job) Done(f func()) {
 	close(j.tasks)
 	if f != nil {
-		// Callback  when completed (useful for tracing)
+		// Callback when completed (useful for tracing)
 		go func() {
 			<-j.completed
 			f()
