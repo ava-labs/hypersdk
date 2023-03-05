@@ -96,7 +96,7 @@ func (e *ExportAsset) executeReturn(
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if e.Reward > 0 {
-		if err := storage.AddBalance(ctx, db, actor, e.Asset, e.Reward); err != nil {
+		if err := storage.SubBalance(ctx, db, actor, e.Asset, e.Reward); err != nil {
 			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 		}
 	}
@@ -139,10 +139,10 @@ func (e *ExportAsset) executeLoan(
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if e.Reward > 0 {
-		if err := storage.SubLoan(ctx, db, e.Asset, e.Destination, e.Reward); err != nil {
+		if err := storage.AddLoan(ctx, db, e.Asset, e.Destination, e.Reward); err != nil {
 			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 		}
-		if err := storage.AddBalance(ctx, db, actor, e.Asset, e.Reward); err != nil {
+		if err := storage.SubBalance(ctx, db, actor, e.Asset, e.Reward); err != nil {
 			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 		}
 	}

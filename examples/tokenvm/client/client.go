@@ -101,3 +101,17 @@ func (cli *Client) Orders(ctx context.Context, pair string) ([]*controller.Order
 	)
 	return resp.Orders, err
 }
+
+func (cli *Client) Loan(ctx context.Context, asset ids.ID, destination ids.ID) (uint64, error) {
+	resp := new(controller.LoanReply)
+	err := cli.Requester.SendRequest(
+		ctx,
+		"loan",
+		&controller.LoanArgs{
+			Asset:       asset,
+			Destination: destination,
+		},
+		resp,
+	)
+	return resp.Amount, err
+}

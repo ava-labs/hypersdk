@@ -1699,6 +1699,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 	ginkgo.It("export native asset", func() {
 		dest := ids.GenerateTestID()
+		loan, err := instances[0].cli.Loan(context.TODO(), ids.Empty, dest)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(loan).Should(gomega.Equal(uint64(0)))
+
 		submit, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			nil,
@@ -1732,6 +1736,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		wm, err := warp.NewUnsignedMessage(instances[0].chainID, dest, wtb)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(result.WarpMessage).Should(gomega.Equal(wm))
+
+		loan, err = instances[0].cli.Loan(context.TODO(), ids.Empty, dest)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(loan).Should(gomega.Equal(uint64(110)))
 	})
 
 	ginkgo.It("export native asset (invalid return)", func() {
