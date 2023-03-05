@@ -205,12 +205,55 @@ var _ = ginkgo.BeforeSuite(func() {
 	)
 	logsDir = resp.GetClusterInfo().GetRootDataDir()
 
+	// Add 10 new validators (which should have BLS key registered)
+	subnetA := []string{}
+	subnetB := []string{}
+	for i := 1; i <= 10; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		n := fmt.Sprintf("node%d-bls", i)
+		if i <= 5 {
+			subnetA = append(subnetA, n)
+		} else {
+			subnetB = append(subnetB, n)
+		}
+		_, err := cli.AddNode(ctx, n, execPath,
+			runner_sdk.WithPluginDir(pluginDir),
+			// TODO: unclear if need to provide this again
+			runner_sdk.WithGlobalNodeConfig(`{
+				"log-display-level":"info",
+				"proposervm-use-current-height":true,
+				"throttler-inbound-validator-alloc-size":"107374182",
+				"throttler-inbound-node-max-processing-msgs":"100000",
+				"throttler-inbound-bandwidth-refill-rate":"1073741824",
+				"throttler-inbound-bandwidth-max-burst-size":"1073741824",
+				"throttler-inbound-cpu-validator-alloc":"100000",
+				"throttler-inbound-disk-validator-alloc":"10737418240000",
+				"throttler-outbound-validator-alloc-size":"107374182"
+			}`),
+		)
+		cancel()
+		gomega.Expect(err).Should(gomega.BeNil())
+	}
+	hutils.Outf("{{green}}added 10 BLS-enabled nodes{{/}}\n")
+
 	// Create 2 subnets
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
-	sresp, err := cli.CreateSubnets(ctx, runner_sdk.WithNumSubnets(2))
+	sresp, err := cli.CreateSubnets(ctx, runner_sdk.WithNumSubnets(1), runner_sdk.WithSubnetParticipants(subnetA))
 	cancel()
 	gomega.Expect(err).Should(gomega.BeNil())
 	subnets := sresp.GetClusterInfo().GetSubnets()
+	for len(subnets) != 1 {
+		hutils.Outf("{{yellow}}waiting for new subnets{{/}}\n")
+		time.Sleep(5 * time.Second)
+		status, err := cli.Status(context.Background())
+		gomega.Expect(err).Should(gomega.BeNil())
+		subnets = status.GetClusterInfo().GetSubnets()
+	}
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+	sresp, err = cli.CreateSubnets(ctx, runner_sdk.WithNumSubnets(1), runner_sdk.WithSubnetParticipants(subnetB))
+	cancel()
+	gomega.Expect(err).Should(gomega.BeNil())
+	subnets = sresp.GetClusterInfo().GetSubnets()
 	for len(subnets) != 2 {
 		hutils.Outf("{{yellow}}waiting for new subnets{{/}}\n")
 		time.Sleep(5 * time.Second)

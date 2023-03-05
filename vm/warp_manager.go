@@ -139,7 +139,7 @@ func (w *WarpManager) GatherSignatures(ctx context.Context, txID ids.ID, msg []b
 		// Only request from validators that have registered BLS public keys and
 		// that we have not already gotten a signature from.
 		if validator.PublicKey == nil {
-			w.vm.snowCtx.Log.Info("skipping fetch for validator with no registered public key", zap.Stringer("nodeID", nodeID))
+			w.vm.snowCtx.Log.Info("skipping fetch for validator with no registered public key", zap.Stringer("nodeID", nodeID), zap.Uint64("pchain height", height))
 			continue
 		}
 		previousSignature, err := w.vm.GetWarpSignature(txID, validator.PublicKey)

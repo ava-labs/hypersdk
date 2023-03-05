@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk/examples/tokenvm
 go 1.20
 
 require (
-	github.com/ava-labs/avalanche-network-runner v1.3.9-0.20230302011825-4e4dd706a452
+	github.com/ava-labs/avalanche-network-runner v1.3.10-0.20230305235229-fed33f08dfc6
 	github.com/ava-labs/avalanchego v1.9.10
 	github.com/ava-labs/hypersdk v0.0.1
 	github.com/fatih/color v1.13.0
