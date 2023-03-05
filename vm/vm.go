@@ -53,6 +53,7 @@ type VM struct {
 	genesis        Genesis
 	builder        builder.Builder
 	gossiper       gossiper.Gossiper
+	rawStateDB     database.Database
 	stateDB        *merkledb.Database
 	vmDB           database.Database
 	handlers       Handlers
@@ -153,9 +154,8 @@ func (vm *VM) Initialize(
 	vm.manager = manager
 
 	// Always initialize implementation first
-	var rawStateDB database.Database
 	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.vmDB,
-		rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, err = vm.c.Initialize(
+		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, err = vm.c.Initialize(
 		vm,
 		snowCtx,
 		gatherer,
@@ -178,7 +178,7 @@ func (vm *VM) Initialize(
 	defer span.End()
 
 	// Instantiate DBs
-	vm.stateDB, err = merkledb.New(ctx, rawStateDB, merkledb.Config{
+	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
 		HistoryLength:  vm.config.GetStateHistoryLength(),
 		NodeCacheSize:  vm.config.GetStateCacheSize(),
 		ValueCacheSize: vm.config.GetStateCacheSize(),
@@ -455,7 +455,7 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	if err := vm.stateDB.Close(); err != nil {
 		return err
 	}
-	return nil
+	return vm.rawStateDB.Close()
 }
 
 // implements "block.ChainVM.common.VM"

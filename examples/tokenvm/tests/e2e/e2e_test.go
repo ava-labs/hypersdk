@@ -196,6 +196,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	cancel()
 	gomega.Expect(err).Should(gomega.BeNil())
 	hutils.Outf("{{green}}successfully started cluster:{{/}} %s {{green}}subnets:{{/}} %+v\n", resp.ClusterInfo.RootDataDir, resp.GetClusterInfo().GetSubnets())
+	logsDir = resp.GetClusterInfo().GetRootDataDir()
 
 	// Create 2 subnets
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
@@ -235,6 +236,10 @@ var _ = ginkgo.BeforeSuite(func() {
 		status, err := cli.Status(context.Background())
 		gomega.Expect(err).Should(gomega.BeNil())
 		chains = status.GetClusterInfo().GetCustomChains()
+	}
+	for _, chain := range chains {
+		// Set first chain to blockchainID
+		blockchainID = chain.ChainId
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
@@ -280,38 +285,6 @@ var _ = ginkgo.BeforeSuite(func() {
 		break
 	}
 
-	tokenvmRPCEps = make([]string, 0)
-
-	// wait up to 5-minute for custom VM installation
-	hutils.Outf("\n{{magenta}}waiting for all custom VMs to report healthy...{{/}}\n")
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
-	for ctx.Err() == nil && len(blockchainID) == 0 {
-		select {
-		case <-ctx.Done():
-			gomega.Expect(ctx.Err()).Should(gomega.BeNil())
-		case <-time.After(5 * time.Second):
-		}
-
-		hutils.Outf("{{magenta}}checking custom VM status{{/}}\n")
-		cctx, ccancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		resp, err := cli.Status(cctx)
-		ccancel()
-		gomega.Expect(err).Should(gomega.BeNil())
-
-		// all logs are stored under root data dir
-		logsDir = resp.GetClusterInfo().GetRootDataDir()
-
-		for _, v := range resp.ClusterInfo.CustomChains {
-			if v.VmId == consts.ID.String() {
-				blockchainID = v.ChainId
-				hutils.Outf("{{blue}}tokenvm is ready:{{/}} %+v\n", v)
-				break
-			}
-		}
-	}
-	gomega.Expect(ctx.Err()).Should(gomega.BeNil())
-	cancel()
-
 	gomega.Expect(blockchainID).Should(gomega.Not(gomega.BeEmpty()))
 	gomega.Expect(logsDir).Should(gomega.Not(gomega.BeEmpty()))
 
@@ -321,6 +294,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Expect(err).Should(gomega.BeNil())
 	hutils.Outf("{{blue}}avalanche HTTP RPCs URIs:{{/}} %q\n", uris)
 
+	tokenvmRPCEps = make([]string, 0)
 	for _, u := range uris {
 		rpcEP := fmt.Sprintf("%s/ext/bc/%s/rpc", u, blockchainID)
 		tokenvmRPCEps = append(tokenvmRPCEps, rpcEP)
@@ -348,7 +322,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	factory = auth.NewED25519Factory(priv)
 	rsender = priv.PublicKey()
 	sender = utils.Address(rsender)
-	hutils.Outf("\n{{yellow}}$ loaded address %s:{{/}}\n", sender)
+	hutils.Outf("\n{{yellow}}$ loaded address:{{/}} %s\n\n", sender)
 
 	instances = make([]instance, len(uris))
 	for i := range uris {
@@ -435,6 +409,10 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 	})
 
 	ginkgo.It("transfer in a single node (raw)", func() {
+		nativeBalance, err := instances[0].cli.Balance(context.TODO(), sender, ids.Empty)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(nativeBalance).Should(gomega.Equal(uint64(1000000000000)))
+
 		other, err := crypto.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		aother := utils.Address(other.PublicKey())
@@ -445,7 +423,7 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 				context.Background(),
 				&actions.Transfer{
 					To:    other.PublicKey(),
-					Value: sendAmount, // must be more than state lockup
+					Value: sendAmount,
 				},
 				factory,
 			)
@@ -592,7 +570,7 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 				context.Background(),
 				&actions.Transfer{
 					To:    other.PublicKey(),
-					Value: sendAmount, // must be more than state lockup
+					Value: sendAmount,
 				},
 				factory,
 			)
@@ -705,7 +683,7 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 				context.Background(),
 				&actions.Transfer{
 					To:    other.PublicKey(),
-					Value: sendAmount, // must be more than state lockup
+					Value: sendAmount,
 				},
 				factory,
 			)
@@ -807,7 +785,7 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 				context.Background(),
 				&actions.Transfer{
 					To:    other.PublicKey(),
-					Value: sendAmount, // must be more than state lockup
+					Value: sendAmount,
 				},
 				factory,
 			)
