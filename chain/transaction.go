@@ -57,17 +57,22 @@ func NewTx(base *Base, wm *warp.Message, act Action) *Transaction {
 	}
 }
 
-func (t *Transaction) Digest() ([]byte, error) {
+func (t *Transaction) Digest(actionRegistry *codec.TypeParser[Action, *warp.Message, bool]) ([]byte, error) {
 	if len(t.digest) > 0 {
 		return t.digest, nil
 	}
-	p := codec.NewWriter(consts.MaxInt)
+	actionByte, _, _, ok := actionRegistry.LookupType(t.Action)
+	if !ok {
+		return nil, fmt.Errorf("unknown action type %T", t.Action)
+	}
+	p := codec.NewWriter(NetworkSizeLimit)
 	t.Base.Marshal(p)
 	var warpBytes []byte
 	if t.WarpMessage != nil {
 		warpBytes = t.WarpMessage.Bytes()
 	}
 	p.PackBytes(warpBytes)
+	p.PackByte(actionByte)
 	t.Action.Marshal(p)
 	return p.Bytes(), p.Err()
 }
@@ -78,7 +83,7 @@ func (t *Transaction) Sign(
 	authRegistry AuthRegistry,
 ) (*Transaction, error) {
 	// Generate auth
-	msg, err := t.Digest()
+	msg, err := t.Digest(actionRegistry)
 	if err != nil {
 		return nil, err
 	}
@@ -103,12 +108,7 @@ func (t *Transaction) Sign(
 
 func (t *Transaction) AuthAsyncVerify() func() error {
 	return func() error {
-		// Verify sender
-		msg, err := t.Digest()
-		if err != nil {
-			return err
-		}
-		return t.Auth.AsyncVerify(msg)
+		return t.Auth.AsyncVerify(t.digest)
 	}
 }
 
