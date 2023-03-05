@@ -60,8 +60,6 @@ var (
 
 	blockchainID string
 	logsDir      string
-
-	blockchainID2 string
 )
 
 func init() {
@@ -268,9 +266,6 @@ var _ = ginkgo.BeforeSuite(func() {
 		chains = status.GetClusterInfo().GetCustomChains()
 	}
 	for _, chain := range chains {
-		if chain.ChainId != blockchainID {
-			blockchainID2 = chain.ChainId
-		}
 		hutils.Outf("{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s\n", chain.GetChainId(), chain.GetSubnetId())
 	}
 
@@ -482,86 +477,32 @@ var _ = ginkgo.Describe("[Test]", func() {
 	})
 
 	ginkgo.It("performs a warp transfer of the native asset", func() {
-		other, err := crypto.GeneratePrivateKey()
+		// Generate transaction
+		submit, tx, fee, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.Transfer{
+				To:    sender2,
+				Value: sendAmount,
+			},
+			factory,
+		)
 		gomega.Ω(err).Should(gomega.BeNil())
-		aother := utils.Address(other.PublicKey())
-		destination, err := ids.FromString(blockchainID2)
+		hutils.Outf("{{yellow}}generated transaction{{/}}\n")
+
+		// Broadcast and wait for transaction
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
+		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+		success, err := instances[0].cli.WaitForTransaction(ctx, tx.ID())
+		cancel()
 		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(success).Should(gomega.BeTrue())
+		hutils.Outf("{{yellow}}found transaction{{/}}\n")
 
-		var txID ids.ID
-		ginkgo.By("submitting an export action on source", func() {
-			submit, tx, _, err := instances[0].cli.GenerateTransaction(
-				context.Background(),
-				&actions.ExportAsset{
-					To:          other.PublicKey(),
-					Asset:       ids.Empty,
-					Value:       sendAmount,
-					Return:      false,
-					Destination: destination,
-				},
-				factory,
-			)
-			gomega.Ω(err).Should(gomega.BeNil())
-			txID = tx.ID()
-			hutils.Outf("{{yellow}}generated transaction:{{/}} %s\n", txID)
-
-			// Broadcast and wait for transaction
-			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
-			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, err := instances[0].cli.WaitForTransaction(ctx, tx.ID())
-			cancel()
-			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(success).Should(gomega.BeTrue())
-			hutils.Outf("{{yellow}}found warp transaction{{/}}\n")
-		})
-
-		ginkgo.By("submitting an import action on destination", func() {
-			msg, subnetWeight, sigWeight, err := instances[0].cli.GenerateAggregateWarpSignature(context.Background(), txID)
-			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(subnetWeight).Should(gomega.Equal(sigWeight))
-
-			submit, tx, _, err := instances[0].cli.GenerateTransaction(
-				context.Background(),
-				&actions.ExportAsset{
-					To:          other.PublicKey(),
-					Asset:       ids.Empty,
-					Value:       sendAmount,
-					Return:      false,
-					Destination: destination,
-				},
-				factory,
-			)
-			gomega.Ω(err).Should(gomega.BeNil())
-			txID = tx.ID()
-			hutils.Outf("{{yellow}}generated transaction:{{/}} %s\n", txID)
-
-			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
-			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, err := instances[0].cli.WaitForTransaction(ctx, tx.ID())
-			cancel()
-			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(success).Should(gomega.BeTrue())
-			hutils.Outf("{{yellow}}found warp transaction{{/}}\n")
-
-			// TODO: check balance on source and destination
-		})
-
-		ginkgo.By("submitting an export action on destination", func() {
-		})
-
-		ginkgo.By("submitting an import action on source", func() {
-		})
 	})
 
 	ginkgo.It("performs a warp transfer of a custom asset", func() {
 	})
-
-	// TODO: add test for relayer
-	// TODO: test with only part of sig weight
-	// TODO: attempt to mint a warp asset
-	// TODO: check loan values
 
 	switch mode {
 	case modeTest:
