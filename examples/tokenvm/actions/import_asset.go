@@ -164,6 +164,7 @@ func (i *ImportAsset) Execute(
 }
 
 func (i *ImportAsset) MaxUnits(chain.Rules) uint64 {
+	// TODO: ensure we protect this from warp
 	return uint64(len(i.warpMessage.Payload))
 }
 
