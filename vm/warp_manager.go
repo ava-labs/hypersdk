@@ -77,7 +77,6 @@ func (w *WarpManager) Run(appSender common.AppSender) {
 			for w.pendingJobs.Len() > 0 {
 				first := w.pendingJobs.First()
 				if first.Val > now {
-					w.l.Unlock()
 					break
 				}
 				w.pendingJobs.Pop()
@@ -140,6 +139,7 @@ func (w *WarpManager) GatherSignatures(ctx context.Context, txID ids.ID, msg []b
 		// Only request from validators that have registered BLS public keys and
 		// that we have not already gotten a signature from.
 		if validator.PublicKey == nil {
+			w.vm.snowCtx.Log.Info("skipping fetch for validator with no registered public key", zap.Stringer("nodeID", nodeID))
 			continue
 		}
 		previousSignature, err := w.vm.GetWarpSignature(txID, validator.PublicKey)
