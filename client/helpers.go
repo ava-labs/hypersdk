@@ -64,14 +64,11 @@ func (cli *Client) GenerateTransaction(
 	}
 
 	// Build transaction
-	tx := chain.NewTx(base, wm, action)
-	if err := tx.Sign(authFactory); err != nil {
-		return nil, nil, 0, fmt.Errorf("%w: failed to sign transaction", err)
-	}
 	actionRegistry, authRegistry := parser.Registry()
-	// TODO: init?
-	if _, err := tx.Init(ctx, actionRegistry, authRegistry); err != nil {
-		return nil, nil, 0, fmt.Errorf("%w: failed to init transaction", err)
+	tx := chain.NewTx(base, wm, action)
+	tx, err = tx.Sign(authFactory, actionRegistry, authRegistry)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("%w: failed to sign transaction", err)
 	}
 	maxUnits, err := tx.MaxUnits(rules)
 	if err != nil {

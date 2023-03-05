@@ -337,6 +337,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("skip invalid time", func() {
+			actionRegistry, authRegistry := instances[0].vm.Registry()
 			tx := chain.NewTx(
 				&chain.Base{
 					ChainID:   instances[0].chainID,
@@ -349,10 +350,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 110,
 				},
 			)
-			gomega.Ω(tx.Sign(factory)).To(gomega.BeNil())
-			actionRegistry, authRegistry := instances[0].vm.Registry()
-			sigVerify, err := tx.Init(context.Background(), actionRegistry, authRegistry)
+			tx, err := tx.Sign(factory, actionRegistry, authRegistry)
 			gomega.Ω(err).To(gomega.BeNil())
+			sigVerify := tx.AuthAsyncVerify()
 			gomega.Ω(sigVerify()).To(gomega.BeNil())
 			_, err = instances[0].cli.SubmitTx(
 				context.Background(),
@@ -1470,6 +1470,24 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		orders, err = instances[0].cli.Orders(context.TODO(), actions.PairID(asset2ID, asset3ID))
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(0))
+	})
+
+	ginkgo.It("import warp message with nil when expected", func() {
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			nil,
+			&actions.ImportAsset{},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		result := results[0]
+		gomega.Ω(result.Success).Should(gomega.BeFalse())
+		gomega.Ω(string(result.Output)).
+			Should(gomega.ContainSubstring("invalid balance"))
 	})
 })
 

@@ -642,12 +642,7 @@ func (vm *VM) Submit(
 		txID := tx.ID()
 		// We already verify in streamer, let's avoid re-verification
 		if verifySig {
-			sigVerify, err := tx.Init(ctx, vm.actionRegistry, vm.authRegistry)
-			if err != nil {
-				vm.listeners.RemoveTx(txID, err)
-				errs = append(errs, err)
-				continue
-			}
+			sigVerify := tx.AuthAsyncVerify()
 			if err := sigVerify(); err != nil {
 				vm.listeners.RemoveTx(txID, err)
 				errs = append(errs, err)

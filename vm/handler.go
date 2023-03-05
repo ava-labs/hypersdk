@@ -72,10 +72,7 @@ func (h *Handler) SubmitTx(req *http.Request, args *SubmitTxArgs, reply *SubmitT
 	if !rtx.Empty() {
 		return errors.New("tx has extra bytes")
 	}
-	sigVerify, err := tx.Init(ctx, h.vm.actionRegistry, h.vm.authRegistry)
-	if err != nil {
-		return err
-	}
+	sigVerify := tx.AuthAsyncVerify()
 	if err := sigVerify(); err != nil {
 		return fmt.Errorf("%w: can't init tx", err)
 	}

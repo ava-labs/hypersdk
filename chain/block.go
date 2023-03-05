@@ -148,13 +148,9 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 
 	// Process transactions
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
-	actionRegistry, authRegistry := b.vm.Registry()
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
-		sigTask, err := tx.Init(ctx, actionRegistry, authRegistry)
-		if err != nil {
-			return err
-		}
+		sigTask := tx.AuthAsyncVerify()
 		if verifySigs {
 			b.sigJob.Go(sigTask)
 		}
