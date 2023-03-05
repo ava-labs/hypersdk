@@ -22,6 +22,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -193,14 +194,16 @@ var _ = ginkgo.BeforeSuite(func() {
 		dname, err := os.MkdirTemp("", fmt.Sprintf("%s-chainData", nodeID.String()))
 		gomega.Ω(err).Should(gomega.BeNil())
 		snowCtx := &snow.Context{
-			NetworkID:    networkID,
-			SubnetID:     subnetID,
-			ChainID:      chainID,
-			NodeID:       nodeID,
-			Log:          l,
-			ChainDataDir: dname,
-			Metrics:      metrics.NewOptionalGatherer(),
-			PublicKey:    bls.PublicFromSecretKey(sk),
+			NetworkID:      networkID,
+			SubnetID:       subnetID,
+			ChainID:        chainID,
+			NodeID:         nodeID,
+			Log:            l,
+			ChainDataDir:   dname,
+			Metrics:        metrics.NewOptionalGatherer(),
+			PublicKey:      bls.PublicFromSecretKey(sk),
+			WarpSigner:     warp.NewSigner(sk, chainID),
+			ValidatorState: &validators.TestState{},
 		}
 
 		toEngine := make(chan common.Message, 1)
@@ -1692,6 +1695,67 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeFalse())
 		gomega.Ω(string(result.Output)).Should(gomega.ContainSubstring("invalid chain ID"))
+	})
+
+	ginkgo.It("export native asset", func() {
+		dest := ids.GenerateTestID()
+		submit, tx, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			nil,
+			&actions.ExportAsset{
+				To:          rsender,
+				Asset:       ids.Empty,
+				Value:       100,
+				Return:      false,
+				Reward:      10,
+				Destination: dest,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		result := results[0]
+		gomega.Ω(result.Success).Should(gomega.BeTrue())
+		wt := &actions.WarpTransfer{
+			To:     rsender,
+			Asset:  ids.Empty,
+			Value:  100,
+			Return: false,
+			Reward: 10,
+			TxID:   tx.ID(),
+		}
+		wtb, err := wt.Marshal()
+		gomega.Ω(err).Should(gomega.BeNil())
+		wm, err := warp.NewUnsignedMessage(instances[0].chainID, dest, wtb)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(result.WarpMessage).Should(gomega.Equal(wm))
+	})
+
+	ginkgo.It("export native asset (invalid return)", func() {
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			nil,
+			&actions.ExportAsset{
+				To:          rsender,
+				Asset:       ids.Empty,
+				Value:       100,
+				Return:      true,
+				Reward:      10,
+				Destination: ids.GenerateTestID(),
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		result := results[0]
+		gomega.Ω(result.Success).Should(gomega.BeFalse())
+		gomega.Ω(string(result.Output)).Should(gomega.ContainSubstring("not warp asset"))
 	})
 })
 
