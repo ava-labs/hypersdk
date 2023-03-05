@@ -31,6 +31,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -350,13 +351,19 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 110,
 				},
 			)
-			tx, err := tx.Sign(factory, actionRegistry, authRegistry)
+			// Must do manual construction to avoid `tx.Sign` error (would fail with
+			// 0 timestamp)
+			msg, err := tx.Digest(actionRegistry)
 			gomega.Ω(err).To(gomega.BeNil())
-			sigVerify := tx.AuthAsyncVerify()
-			gomega.Ω(sigVerify()).To(gomega.BeNil())
+			auth, err := factory.Sign(msg, tx.Action)
+			gomega.Ω(err).To(gomega.BeNil())
+			tx.Auth = auth
+			p := codec.NewWriter(consts.MaxInt)
+			gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+			gomega.Ω(p.Err()).To(gomega.BeNil())
 			_, err = instances[0].cli.SubmitTx(
 				context.Background(),
-				tx.Bytes(),
+				p.Bytes(),
 			)
 			gomega.Ω(err).To(gomega.Not(gomega.BeNil()))
 		})
@@ -717,17 +724,33 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("create asset with too long of metadata", func() {
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
+		actionRegistry, authRegistry := instances[0].vm.Registry()
+		tx := chain.NewTx(
+			&chain.Base{
+				ChainID:   instances[0].chainID,
+				Timestamp: time.Now().Unix(),
+				UnitPrice: 1000,
+			},
 			nil,
 			&actions.CreateAsset{
 				Metadata: make([]byte, actions.MaxMetadataSize*2),
 			},
-			factory,
 		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background()).Error()).
-			Should(gomega.ContainSubstring("size is larger than limit"))
+		// Must do manual construction to avoid `tx.Sign` error (would fail with
+		// too large)
+		msg, err := tx.Digest(actionRegistry)
+		gomega.Ω(err).To(gomega.BeNil())
+		auth, err := factory.Sign(msg, tx.Action)
+		gomega.Ω(err).To(gomega.BeNil())
+		tx.Auth = auth
+		p := codec.NewWriter(consts.MaxInt)
+		gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		gomega.Ω(p.Err()).To(gomega.BeNil())
+		_, err = instances[0].cli.SubmitTx(
+			context.Background(),
+			p.Bytes(),
+		)
+		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("size is larger than limit"))
 	})
 
 	ginkgo.It("create a new asset (simple metadata)", func() {
@@ -891,18 +914,34 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	ginkgo.It("rejects empty mint", func() {
 		other, err := crypto.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
+		actionRegistry, authRegistry := instances[0].vm.Registry()
+		tx := chain.NewTx(
+			&chain.Base{
+				ChainID:   instances[0].chainID,
+				Timestamp: time.Now().Unix(),
+				UnitPrice: 1000,
+			},
 			nil,
 			&actions.MintAsset{
 				To:    other.PublicKey(),
 				Asset: asset1ID,
 			},
-			factory,
 		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background()).Error()).
-			Should(gomega.ContainSubstring("Uint64 field is not populated"))
+		// Must do manual construction to avoid `tx.Sign` error (would fail with
+		// bad codec)
+		msg, err := tx.Digest(actionRegistry)
+		gomega.Ω(err).To(gomega.BeNil())
+		auth, err := factory.Sign(msg, tx.Action)
+		gomega.Ω(err).To(gomega.BeNil())
+		tx.Auth = auth
+		p := codec.NewWriter(consts.MaxInt)
+		gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		gomega.Ω(p.Err()).To(gomega.BeNil())
+		_, err = instances[0].cli.SubmitTx(
+			context.Background(),
+			p.Bytes(),
+		)
+		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("Uint64 field is not populated"))
 	})
 
 	ginkgo.It("reject max mint", func() {
@@ -1006,18 +1045,34 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	ginkgo.It("rejects mint of native token", func() {
 		other, err := crypto.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
+		actionRegistry, authRegistry := instances[0].vm.Registry()
+		tx := chain.NewTx(
+			&chain.Base{
+				ChainID:   instances[0].chainID,
+				Timestamp: time.Now().Unix(),
+				UnitPrice: 1000,
+			},
 			nil,
 			&actions.MintAsset{
 				To:    other.PublicKey(),
 				Value: 10,
 			},
-			factory,
 		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background()).Error()).
-			Should(gomega.ContainSubstring("ID field is not populated"))
+		// Must do manual construction to avoid `tx.Sign` error (would fail with
+		// bad codec)
+		msg, err := tx.Digest(actionRegistry)
+		gomega.Ω(err).To(gomega.BeNil())
+		auth, err := factory.Sign(msg, tx.Action)
+		gomega.Ω(err).To(gomega.BeNil())
+		tx.Auth = auth
+		p := codec.NewWriter(consts.MaxInt)
+		gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		gomega.Ω(p.Err()).To(gomega.BeNil())
+		_, err = instances[0].cli.SubmitTx(
+			context.Background(),
+			p.Bytes(),
+		)
+		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("ID field is not populated"))
 	})
 
 	ginkgo.It("mints another new asset (to self)", func() {
@@ -1473,21 +1528,31 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("import warp message with nil when expected", func() {
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
+		actionRegistry, authRegistry := instances[0].vm.Registry()
+		tx := chain.NewTx(
+			&chain.Base{
+				ChainID:   instances[0].chainID,
+				Timestamp: time.Now().Unix(),
+				UnitPrice: 1000,
+			},
 			nil,
 			&actions.ImportAsset{},
-			factory,
 		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).
-			Should(gomega.ContainSubstring("invalid balance"))
+		// Must do manual construction to avoid `tx.Sign` error (would fail with
+		// empty warp)
+		msg, err := tx.Digest(actionRegistry)
+		gomega.Ω(err).To(gomega.BeNil())
+		auth, err := factory.Sign(msg, tx.Action)
+		gomega.Ω(err).To(gomega.BeNil())
+		tx.Auth = auth
+		p := codec.NewWriter(consts.MaxInt)
+		gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		gomega.Ω(p.Err()).To(gomega.BeNil())
+		_, err = instances[0].cli.SubmitTx(
+			context.Background(),
+			p.Bytes(),
+		)
+		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("expected warp message"))
 	})
 })
 
