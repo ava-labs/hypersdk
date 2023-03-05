@@ -25,6 +25,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	avago_version "github.com/ava-labs/avalanchego/version"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/fatih/color"
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -1553,6 +1554,36 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			p.Bytes(),
 		)
 		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("expected warp message"))
+	})
+
+	ginkgo.It("import warp message empty", func() {
+		wm, err := warp.NewMessage(&warp.UnsignedMessage{}, &warp.BitSetSignature{})
+		gomega.Ω(err).Should(gomega.BeNil())
+		actionRegistry, authRegistry := instances[0].vm.Registry()
+		tx := chain.NewTx(
+			&chain.Base{
+				ChainID:   instances[0].chainID,
+				Timestamp: time.Now().Unix(),
+				UnitPrice: 1000,
+			},
+			wm,
+			&actions.ImportAsset{},
+		)
+		// Must do manual construction to avoid `tx.Sign` error (would fail with
+		// empty warp)
+		msg, err := tx.Digest(actionRegistry)
+		gomega.Ω(err).To(gomega.BeNil())
+		auth, err := factory.Sign(msg, tx.Action)
+		gomega.Ω(err).To(gomega.BeNil())
+		tx.Auth = auth
+		p := codec.NewWriter(consts.MaxInt)
+		gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		gomega.Ω(p.Err()).To(gomega.BeNil())
+		_, err = instances[0].cli.SubmitTx(
+			context.Background(),
+			p.Bytes(),
+		)
+		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("empty warp payload"))
 	})
 })
 
