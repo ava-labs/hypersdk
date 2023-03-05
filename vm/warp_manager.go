@@ -23,6 +23,9 @@ import (
 const (
 	maxWarpResponse   = bls.PublicKeyLen + bls.SignatureLen
 	minGatherInterval = 30 * 60 // 30 minutes
+	initialBackoff    = 2       // give time for others to sign
+	backoffIncrease   = 5
+	maxRetries        = 10
 )
 
 // WarpManager takes requests to get signatures from other nodes and then
@@ -164,7 +167,7 @@ func (w *WarpManager) GatherSignatures(ctx context.Context, txID ids.ID, msg []b
 				0,
 				msg,
 			},
-			Val:   time.Now().Unix() + 10,
+			Val:   time.Now().Unix() + initialBackoff,
 			Index: w.pendingJobs.Len(),
 		})
 		w.l.Unlock()
@@ -280,6 +283,10 @@ func (w *WarpManager) HandleResponse(requestID uint32, msg []byte) error {
 	}
 
 	// Store in DB
+	w.vm.snowCtx.Log.Info(
+		"retrieved signature", zap.Stringer("txID", job.txID),
+		zap.Stringer("nodeID", job.nodeID), zap.ByteString("publicKey", job.publicKey),
+	)
 	if err := w.vm.StoreWarpSignature(job.txID, pk, signature); err != nil {
 		return nil
 	}
@@ -296,7 +303,7 @@ func (w *WarpManager) HandleRequestFailed(requestID uint32) error {
 	}
 
 	// Drop if we've already retried too many times
-	if job.retry >= 5 {
+	if job.retry >= maxRetries {
 		return nil
 	}
 	job.retry++
@@ -305,7 +312,7 @@ func (w *WarpManager) HandleRequestFailed(requestID uint32) error {
 	w.pendingJobs.Push(&heap.Entry[*signatureJob, int64]{
 		ID:    job.id,
 		Item:  job,
-		Val:   time.Now().Unix() + 30,
+		Val:   time.Now().Unix() + int64(backoffIncrease*job.retry),
 		Index: w.pendingJobs.Len(),
 	})
 	w.l.Unlock()

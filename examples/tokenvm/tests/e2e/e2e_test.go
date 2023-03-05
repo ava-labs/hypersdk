@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanche-network-runner/rpcpb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
@@ -521,8 +522,23 @@ var _ = ginkgo.Describe("[Test]", func() {
 		})
 
 		ginkgo.By("submitting an import action on destination", func() {
-			msg, subnetWeight, sigWeight, err := instances[0].cli.GenerateAggregateWarpSignature(context.Background(), txID)
-			gomega.Ω(err).Should(gomega.BeNil())
+			var (
+				msg                     *warp.Message
+				subnetWeight, sigWeight uint64
+			)
+			for {
+				msg, subnetWeight, sigWeight, err = instances[0].cli.GenerateAggregateWarpSignature(context.Background(), txID)
+				if sigWeight == subnetWeight && err == nil {
+					break
+				}
+				if err == nil {
+					hutils.Outf("{{yellow}}waiting for signature weight:{{/}} %d {{yellow}}observed:{{/}} %d\n", subnetWeight, sigWeight)
+				} else {
+					hutils.Outf("{{red}}found error:{{/}} %v\n", err)
+				}
+				time.Sleep(1 * time.Second)
+			}
+			hutils.Outf("{{green}}fetched signature weight:{{/}} %d {{green}}total weight:{{/}} %d\n", sigWeight, subnetWeight)
 			gomega.Ω(subnetWeight).Should(gomega.Equal(sigWeight))
 
 			submit, tx, _, err := instances[0].cli2.GenerateTransaction(
