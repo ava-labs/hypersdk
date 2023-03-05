@@ -109,11 +109,17 @@ func (cli *Client) GetWarpSignatures(
 	txID ids.ID,
 ) (*warp.UnsignedMessage, map[ids.NodeID]*validators.GetValidatorOutput, []*vm.WarpSignature, error) {
 	resp := new(vm.GetWarpSignaturesReply)
-	err := cli.Requester.SendRequest(
+	if err := cli.Requester.SendRequest(
 		ctx,
 		"getWarpSignatures",
 		&vm.GetWarpSignaturesArgs{TxID: txID},
 		resp,
-	)
-	return resp.Message, resp.Validators, resp.Signatures, err
+	); err != nil {
+		return nil, nil, nil, err
+	}
+	// Ensure message is initialized
+	if err := resp.Message.Initialize(); err != nil {
+		return nil, nil, nil, err
+	}
+	return resp.Message, resp.Validators, resp.Signatures, nil
 }

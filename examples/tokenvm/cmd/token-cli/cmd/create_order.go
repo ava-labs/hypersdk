@@ -266,7 +266,7 @@ func createOrderFunc(*cobra.Command, []string) error {
 		return nil
 	}
 
-	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.CreateOrder{
+	submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.CreateOrder{
 		In:      inAssetID,
 		InTick:  inTick,
 		Out:     outAssetID,

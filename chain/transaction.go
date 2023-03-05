@@ -48,14 +48,7 @@ type WarpMessage struct {
 	VerifyErr error
 }
 
-func NewTx(base *Base, act Action) *Transaction {
-	return &Transaction{
-		Base:   base,
-		Action: act,
-	}
-}
-
-func NewWarpTx(base *Base, wm *warp.Message, act Action) *Transaction {
+func NewTx(base *Base, wm *warp.Message, act Action) *Transaction {
 	return &Transaction{
 		Base:        base,
 		WarpMessage: wm,
@@ -310,8 +303,14 @@ func (t *Transaction) Execute(
 		// Store newly created warp messages in state by their txID to ensure we can
 		// always sign for a message
 		if result.WarpMessage != nil {
-			result.WarpMessage.SourceChainID = ectx.ChainID // enforce we are the source of our own messages
-			// We use txID here because we will not know the warpID before execution.
+			// Enforce we are the source of our own messages
+			result.WarpMessage.SourceChainID = ectx.ChainID
+			// Initialize message (compute bytes) now that everything is populated
+			if err := result.WarpMessage.Initialize(); err != nil {
+				return nil, err
+			}
+			// We use txID here because did not know the warpID before execution (and
+			// we pre-reserve this key for the processor).
 			if err := tdb.Insert(ctx, s.OutgoingWarpKey(t.id), result.WarpMessage.Bytes()); err != nil {
 				return nil, err
 			}
@@ -347,6 +346,9 @@ func (t *Transaction) Marshal(
 	var warpBytes []byte
 	if t.WarpMessage != nil {
 		warpBytes = t.WarpMessage.Bytes()
+		if len(warpBytes) == 0 {
+			return ErrWarpMessageNotInitialized
+		}
 	}
 	p.PackBytes(warpBytes)
 	p.PackByte(actionByte)

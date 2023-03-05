@@ -31,6 +31,7 @@ type Modifier interface {
 func (cli *Client) GenerateTransaction(
 	ctx context.Context,
 	parser chain.Parser,
+	wm *warp.Message,
 	action chain.Action,
 	authFactory chain.AuthFactory,
 	modifiers ...Modifier,
@@ -55,8 +56,15 @@ func (cli *Client) GenerateTransaction(
 		m.Base(base)
 	}
 
+	// Ensure warp message is intialized before we marshal it
+	if wm != nil {
+		if err := wm.Initialize(); err != nil {
+			return nil, nil, 0, err
+		}
+	}
+
 	// Build transaction
-	tx := chain.NewTx(base, action)
+	tx := chain.NewTx(base, wm, action)
 	if err := tx.Sign(authFactory); err != nil {
 		return nil, nil, 0, fmt.Errorf("%w: failed to sign transaction", err)
 	}

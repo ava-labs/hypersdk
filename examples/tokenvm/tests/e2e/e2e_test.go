@@ -333,8 +333,9 @@ var _ = ginkgo.BeforeSuite(func() {
 	for i := range uris {
 		u := uris[i] + fmt.Sprintf("/ext/bc/%s", blockchainID)
 		instances[i] = instance{
-			uri: u,
-			cli: client.New(u),
+			uri:  u,
+			cli:  client.New(u),
+			cli2: client.New(uris[i] + fmt.Sprintf("/ext/bc/%s", blockchainID2)),
 		}
 	}
 	gen, err = instances[0].cli.Genesis(context.Background())
@@ -353,8 +354,9 @@ var (
 )
 
 type instance struct {
-	uri string
-	cli *client.Client
+	uri  string
+	cli  *client.Client
+	cli2 *client.Client
 }
 
 var _ = ginkgo.AfterSuite(func() {
@@ -426,6 +428,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			// Generate transaction
 			submit, tx, fee, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
+				nil,
 				&actions.Transfer{
 					To:    other.PublicKey(),
 					Value: sendAmount,
@@ -484,7 +487,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	ginkgo.It("performs a warp transfer of the native asset", func() {
 		other, err := crypto.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		aother := utils.Address(other.PublicKey())
+		// aother := utils.Address(other.PublicKey())
 		destination, err := ids.FromString(blockchainID2)
 		gomega.Ω(err).Should(gomega.BeNil())
 
@@ -492,6 +495,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		ginkgo.By("submitting an export action on source", func() {
 			submit, tx, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
+				nil,
 				&actions.ExportAsset{
 					To:          other.PublicKey(),
 					Asset:       ids.Empty,
@@ -513,7 +517,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(success).Should(gomega.BeTrue())
-			hutils.Outf("{{yellow}}found warp transaction{{/}}\n")
+			hutils.Outf("{{yellow}}found warp export transaction{{/}}\n")
 		})
 
 		ginkgo.By("submitting an import action on destination", func() {
@@ -521,15 +525,10 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(subnetWeight).Should(gomega.Equal(sigWeight))
 
-			submit, tx, _, err := instances[0].cli.GenerateTransaction(
+			submit, tx, _, err := instances[0].cli2.GenerateTransaction(
 				context.Background(),
-				&actions.ExportAsset{
-					To:          other.PublicKey(),
-					Asset:       ids.Empty,
-					Value:       sendAmount,
-					Return:      false,
-					Destination: destination,
-				},
+				msg,
+				&actions.ImportAsset{},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -543,7 +542,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(success).Should(gomega.BeTrue())
-			hutils.Outf("{{yellow}}found warp transaction{{/}}\n")
+			hutils.Outf("{{yellow}}found warp import transaction{{/}}\n")
 
 			// TODO: check balance on source and destination
 		})
@@ -579,6 +578,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, _, _, err := instances[count%len(instances)].cli.GenerateTransaction(
 				context.Background(),
+				nil,
 				&actions.Transfer{
 					To:    other.PublicKey(),
 					Value: 1,
@@ -655,6 +655,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, tx, _, err := syncClient.GenerateTransaction(
 				context.Background(),
+				nil,
 				&actions.Transfer{
 					To:    other.PublicKey(),
 					Value: sendAmount,
@@ -691,6 +692,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, _, _, err := instances[count%len(instances)].cli.GenerateTransaction(
 				context.Background(),
+				nil,
 				&actions.Transfer{
 					To:    other.PublicKey(),
 					Value: 1,
@@ -768,6 +770,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, tx, _, err := syncClient.GenerateTransaction(
 				context.Background(),
+				nil,
 				&actions.Transfer{
 					To:    other.PublicKey(),
 					Value: sendAmount,
@@ -801,6 +804,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 				gomega.Ω(err).Should(gomega.BeNil())
 				submit, _, _, err := instances[count%len(instances)].cli.GenerateTransaction(
 					context.Background(),
+					nil,
 					&actions.Transfer{
 						To:    other.PublicKey(),
 						Value: 1,
@@ -870,6 +874,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, tx, _, err := syncClient.GenerateTransaction(
 				context.Background(),
+				nil,
 				&actions.Transfer{
 					To:    other.PublicKey(),
 					Value: sendAmount,
@@ -933,6 +938,7 @@ func awaitHealthy(cli runner_sdk.Client) {
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
+				nil,
 				&actions.Transfer{
 					To:    other.PublicKey(),
 					Value: 1,

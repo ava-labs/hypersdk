@@ -148,7 +148,7 @@ func mintAssetFunc(*cobra.Command, []string) error {
 		return nil
 	}
 
-	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.MintAsset{
+	submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.MintAsset{
 		Asset: assetID,
 		To:    pk,
 		Value: amount,

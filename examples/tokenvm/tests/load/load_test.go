@@ -486,6 +486,7 @@ func issueSimpleTx(
 			ChainID:   i.chainID,
 			UnitPrice: 1,
 		},
+		nil,
 		&actions.Transfer{
 			To:    to,
 			Value: amount,
