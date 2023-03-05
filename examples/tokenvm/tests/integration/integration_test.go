@@ -21,6 +21,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -1585,6 +1586,113 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		)
 		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("empty warp payload"))
 	})
+
+	ginkgo.It("import with wrong payload", func() {
+		uwm, err := warp.NewUnsignedMessage(ids.Empty, ids.Empty, []byte("hello"))
+		gomega.Ω(err).Should(gomega.BeNil())
+		wm, err := warp.NewMessage(uwm, &warp.BitSetSignature{})
+		gomega.Ω(err).Should(gomega.BeNil())
+		actionRegistry, authRegistry := instances[0].vm.Registry()
+		tx := chain.NewTx(
+			&chain.Base{
+				ChainID:   instances[0].chainID,
+				Timestamp: time.Now().Unix(),
+				UnitPrice: 1000,
+			},
+			wm,
+			&actions.ImportAsset{},
+		)
+		// Must do manual construction to avoid `tx.Sign` error (would fail with
+		// invalid object)
+		msg, err := tx.Digest(actionRegistry)
+		gomega.Ω(err).To(gomega.BeNil())
+		auth, err := factory.Sign(msg, tx.Action)
+		gomega.Ω(err).To(gomega.BeNil())
+		tx.Auth = auth
+		p := codec.NewWriter(consts.MaxInt)
+		gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		gomega.Ω(p.Err()).To(gomega.BeNil())
+		_, err = instances[0].cli.SubmitTx(
+			context.Background(),
+			p.Bytes(),
+		)
+		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("insufficient length for input"))
+	})
+
+	ginkgo.It("import with invalid payload", func() {
+		wt := &actions.WarpTransfer{}
+		wtb, err := wt.Marshal()
+		gomega.Ω(err).Should(gomega.BeNil())
+		uwm, err := warp.NewUnsignedMessage(ids.Empty, ids.Empty, wtb)
+		gomega.Ω(err).Should(gomega.BeNil())
+		wm, err := warp.NewMessage(uwm, &warp.BitSetSignature{})
+		gomega.Ω(err).Should(gomega.BeNil())
+		actionRegistry, authRegistry := instances[0].vm.Registry()
+		tx := chain.NewTx(
+			&chain.Base{
+				ChainID:   instances[0].chainID,
+				Timestamp: time.Now().Unix(),
+				UnitPrice: 1000,
+			},
+			wm,
+			&actions.ImportAsset{},
+		)
+		// Must do manual construction to avoid `tx.Sign` error (would fail with
+		// invalid object)
+		msg, err := tx.Digest(actionRegistry)
+		gomega.Ω(err).To(gomega.BeNil())
+		auth, err := factory.Sign(msg, tx.Action)
+		gomega.Ω(err).To(gomega.BeNil())
+		tx.Auth = auth
+		p := codec.NewWriter(consts.MaxInt)
+		gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		gomega.Ω(p.Err()).To(gomega.BeNil())
+		_, err = instances[0].cli.SubmitTx(
+			context.Background(),
+			p.Bytes(),
+		)
+		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("Uint64 field is not populated"))
+	})
+
+	ginkgo.It("import with wrong destination", func() {
+		wt := &actions.WarpTransfer{
+			To:     rsender,
+			Asset:  ids.GenerateTestID(),
+			Value:  100,
+			Return: false,
+			Reward: 100,
+			TxID:   ids.GenerateTestID(),
+		}
+		wtb, err := wt.Marshal()
+		gomega.Ω(err).Should(gomega.BeNil())
+		uwm, err := warp.NewUnsignedMessage(ids.Empty, ids.Empty, wtb)
+		gomega.Ω(err).Should(gomega.BeNil())
+		wm, err := warp.NewMessage(uwm, &warp.BitSetSignature{})
+		gomega.Ω(err).Should(gomega.BeNil())
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			wm,
+			&actions.ImportAsset{},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+
+		// Build block with no context (should fail)
+		instances[0].vm.Builder().TriggerBuild()
+		<-instances[0].toEngine
+		blk, err := instances[0].vm.BuildBlock(context.TODO())
+		gomega.Ω(err).To(gomega.Not(gomega.BeNil()))
+		gomega.Ω(blk).To(gomega.BeNil())
+
+		// Build block with context
+		accept := expectBlkWithContext(instances[0])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		result := results[0]
+		gomega.Ω(result.Success).Should(gomega.BeFalse())
+		gomega.Ω(string(result.Output)).Should(gomega.ContainSubstring("invalid chain ID"))
+	})
 })
 
 func expectBlk(i instance) func() []*chain.Result {
@@ -1596,6 +1704,36 @@ func expectBlk(i instance) func() []*chain.Result {
 	<-i.toEngine
 
 	blk, err := i.vm.BuildBlock(ctx)
+	gomega.Ω(err).To(gomega.BeNil())
+	gomega.Ω(blk).To(gomega.Not(gomega.BeNil()))
+
+	gomega.Ω(blk.Verify(ctx)).To(gomega.BeNil())
+	gomega.Ω(blk.Status()).To(gomega.Equal(choices.Processing))
+
+	err = i.vm.SetPreference(ctx, blk.ID())
+	gomega.Ω(err).To(gomega.BeNil())
+
+	return func() []*chain.Result {
+		gomega.Ω(blk.Accept(ctx)).To(gomega.BeNil())
+		gomega.Ω(blk.Status()).To(gomega.Equal(choices.Accepted))
+
+		lastAccepted, err := i.vm.LastAccepted(ctx)
+		gomega.Ω(err).To(gomega.BeNil())
+		gomega.Ω(lastAccepted).To(gomega.Equal(blk.ID()))
+		return blk.(*chain.StatelessBlock).Results()
+	}
+}
+
+// TODO: unify with expectBlk
+func expectBlkWithContext(i instance) func() []*chain.Result {
+	ctx := context.TODO()
+
+	// manually signal ready
+	i.vm.Builder().TriggerBuild()
+	// manually ack ready sig as in engine
+	<-i.toEngine
+
+	blk, err := i.vm.BuildBlockWithContext(ctx, &block.Context{PChainHeight: 1})
 	gomega.Ω(err).To(gomega.BeNil())
 	gomega.Ω(blk).To(gomega.Not(gomega.BeNil()))
 

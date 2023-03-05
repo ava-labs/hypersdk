@@ -12,7 +12,7 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-const WarpTransferSize = crypto.PublicKeyLen + 2*consts.IDLen + 2*consts.Uint64Len
+const WarpTransferSize = crypto.PublicKeyLen + 2*consts.IDLen + 2*consts.Uint64Len + 1
 
 type WarpTransfer struct {
 	To     crypto.PublicKey `json:"to"`
@@ -26,7 +26,7 @@ type WarpTransfer struct {
 }
 
 func (w *WarpTransfer) Marshal() ([]byte, error) {
-	p := codec.NewWriter(consts.MaxInt)
+	p := codec.NewWriter(WarpTransferSize)
 	p.PackPublicKey(w.To)
 	p.PackID(w.Asset)
 	p.PackUint64(w.Value)
@@ -52,8 +52,11 @@ func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
 	transfer.Return = p.UnpackBool()
 	transfer.Reward = p.UnpackUint64(false) // reward not required
 	p.UnpackID(true, &transfer.TxID)
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
 	if !p.Empty() {
 		return nil, chain.ErrInvalidObject
 	}
-	return &transfer, p.Err()
+	return &transfer, nil
 }

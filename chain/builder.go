@@ -94,6 +94,7 @@ func BuildBlock(
 
 			// Ensure we can process if transaction includes a warp message
 			if next.WarpMessage != nil && blockContext == nil {
+				log.Info("dropping pending warp message because no context provided", zap.Stringer("txID", next.ID()))
 				return true, true, false, nil
 			}
 

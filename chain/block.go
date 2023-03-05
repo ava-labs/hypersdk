@@ -149,6 +149,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 	// Process transactions
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
+	b.warpMessages = map[ids.ID]*warpResult{}
 	for _, tx := range b.Txs {
 		sigTask := tx.AuthAsyncVerify()
 		if verifySigs {
@@ -423,31 +424,28 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	)
 
 	// Start validating warp messages, if they exist
+	//
+	// We always verify warp messages (even if we are still bootstrapping)
 	if len(b.warpMessages) > 0 {
-		if !b.vm.IsBootstrapped() {
-			// Skip warp verify if we are still bootstrapping
-			b.vm.Logger().
-				Info("skipping warp verification because we are still bootstrapping", zap.Uint64("height", b.Hght))
-			b.bctx = nil
-		}
 		if b.bctx != nil {
-			_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
-			b.vdrState = b.vm.ValidatorState()
-			go func() {
-				defer sspan.End()
-				// We don't use [b.vm.Workers] here because we need the warp verification
-				// results during normal execution. If we added a job to the workers queue,
-				// it would get executed after all signatures. Additionally, BLS
-				// Multi-Signature verification is already parallelized so we should just
-				// do one at a time to avoid overwhelming the CPU.
-				for _, msg := range b.warpMessages {
-					if ctx.Err() != nil {
-						return
-					}
-					msg.result <- b.verifyWarpMessage(ctx, r, msg.msg)
-				}
-			}()
+			return nil, ErrMissingBlockContext
 		}
+		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
+		b.vdrState = b.vm.ValidatorState()
+		go func() {
+			defer sspan.End()
+			// We don't use [b.vm.Workers] here because we need the warp verification
+			// results during normal execution. If we added a job to the workers queue,
+			// it would get executed after all signatures. Additionally, BLS
+			// Multi-Signature verification is already parallelized so we should just
+			// do one at a time to avoid overwhelming the CPU.
+			for _, msg := range b.warpMessages {
+				if ctx.Err() != nil {
+					return
+				}
+				msg.result <- b.verifyWarpMessage(ctx, r, msg.msg)
+			}
+		}()
 	}
 
 	// Fetch parent state

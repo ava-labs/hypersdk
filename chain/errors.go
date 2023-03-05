@@ -54,6 +54,7 @@ var (
 
 	// Warp
 	ErrDisabledChainID           = errors.New("cannot import from chain ID")
+	ErrMissingBlockContext       = errors.New("cannot verify warp messages without block context")
 	ErrUnexpectedWarpMessage     = errors.New("unexpected warp message")
 	ErrExpectedWarpMessage       = errors.New("expected warp message")
 	ErrWarpMessageNotInitialized = errors.New("warp message not initialized")
