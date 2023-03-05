@@ -719,7 +719,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		balance, err := instances[0].cli.Balance(context.TODO(), sender, assetID)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
-		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), assetID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(
+			context.TODO(),
+			assetID,
+		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.HaveLen(0))
@@ -779,7 +782,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 
-		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(
+			context.TODO(),
+			asset1ID,
+		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
@@ -813,7 +819,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 
-		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(
+			context.TODO(),
+			asset1ID,
+		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
@@ -845,7 +854,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(string(result.Output)).
 			Should(gomega.ContainSubstring("wrong owner"))
 
-		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(
+			context.TODO(),
+			asset1ID,
+		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
@@ -878,7 +890,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 
-		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(
+			context.TODO(),
+			asset1ID,
+		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
@@ -907,7 +922,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(string(result.Output)).
 			Should(gomega.ContainSubstring("invalid balance"))
 
-		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(
+			context.TODO(),
+			asset1ID,
+		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
@@ -977,7 +995,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 
-		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(
+			context.TODO(),
+			asset1ID,
+		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
@@ -1011,7 +1032,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 
-		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(context.TODO(), asset1ID)
+		exists, metadata, supply, owner, warp, err := instances[0].cli.Asset(
+			context.TODO(),
+			asset1ID,
+		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal([]byte("blah")))

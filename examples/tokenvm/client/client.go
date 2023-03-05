@@ -54,7 +54,10 @@ func (cli *Client) Tx(ctx context.Context, id ids.ID) (bool, bool, int64, error)
 	return true, resp.Success, resp.Timestamp, nil
 }
 
-func (cli *Client) Asset(ctx context.Context, asset ids.ID) (bool, []byte, uint64, string, bool, error) {
+func (cli *Client) Asset(
+	ctx context.Context,
+	asset ids.ID,
+) (bool, []byte, uint64, string, bool, error) {
 	resp := new(controller.AssetReply)
 	err := cli.Requester.SendRequest(
 		ctx,

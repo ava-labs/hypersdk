@@ -198,7 +198,11 @@ var _ = ginkgo.BeforeSuite(func() {
 	)
 	cancel()
 	gomega.Expect(err).Should(gomega.BeNil())
-	hutils.Outf("{{green}}successfully started cluster:{{/}} %s {{green}}subnets:{{/}} %+v\n", resp.ClusterInfo.RootDataDir, resp.GetClusterInfo().GetSubnets())
+	hutils.Outf(
+		"{{green}}successfully started cluster:{{/}} %s {{green}}subnets:{{/}} %+v\n",
+		resp.ClusterInfo.RootDataDir,
+		resp.GetClusterInfo().GetSubnets(),
+	)
 	logsDir = resp.GetClusterInfo().GetRootDataDir()
 
 	// Create 2 subnets
@@ -272,7 +276,11 @@ var _ = ginkgo.BeforeSuite(func() {
 		if chain.ChainId != blockchainID {
 			blockchainID2 = chain.ChainId
 		}
-		hutils.Outf("{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s\n", chain.GetChainId(), chain.GetSubnetId())
+		hutils.Outf(
+			"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s\n",
+			chain.GetChainId(),
+			chain.GetSubnetId(),
+		)
 	}
 
 	// TODO: network runner health should imply custom VM healthiness
@@ -527,18 +535,29 @@ var _ = ginkgo.Describe("[Test]", func() {
 				subnetWeight, sigWeight uint64
 			)
 			for {
-				msg, subnetWeight, sigWeight, err = instances[0].cli.GenerateAggregateWarpSignature(context.Background(), txID)
+				msg, subnetWeight, sigWeight, err = instances[0].cli.GenerateAggregateWarpSignature(
+					context.Background(),
+					txID,
+				)
 				if sigWeight == subnetWeight && err == nil {
 					break
 				}
 				if err == nil {
-					hutils.Outf("{{yellow}}waiting for signature weight:{{/}} %d {{yellow}}observed:{{/}} %d\n", subnetWeight, sigWeight)
+					hutils.Outf(
+						"{{yellow}}waiting for signature weight:{{/}} %d {{yellow}}observed:{{/}} %d\n",
+						subnetWeight,
+						sigWeight,
+					)
 				} else {
 					hutils.Outf("{{red}}found error:{{/}} %v\n", err)
 				}
 				time.Sleep(1 * time.Second)
 			}
-			hutils.Outf("{{green}}fetched signature weight:{{/}} %d {{green}}total weight:{{/}} %d\n", sigWeight, subnetWeight)
+			hutils.Outf(
+				"{{green}}fetched signature weight:{{/}} %d {{green}}total weight:{{/}} %d\n",
+				sigWeight,
+				subnetWeight,
+			)
 			gomega.Ω(subnetWeight).Should(gomega.Equal(sigWeight))
 
 			submit, tx, _, err := instances[0].cli2.GenerateTransaction(
