@@ -105,6 +105,8 @@ explicitly cancel it/replace it.
 
 ### Avalanche Warp Support
 * Send asset between any 2 tokenvms
+* Limit exposure of large hack by restricting warp to only origin + destination
+  (can't warp a warp asset somewhere else)
 * Auto-swap when processing import to get fee paying token
 * assets take on a newID when they come into a subnet (so you can never have
   a token that is identical to one that has different security properties)
