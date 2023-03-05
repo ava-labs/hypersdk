@@ -77,6 +77,7 @@ func (w *WarpManager) Run(appSender common.AppSender) {
 			for w.pendingJobs.Len() > 0 {
 				first := w.pendingJobs.First()
 				if first.Val > now {
+					w.l.Unlock()
 					break
 				}
 				w.pendingJobs.Pop()
