@@ -557,6 +557,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		aother := utils.Address(other.PublicKey())
 		destination, err := ids.FromString(blockchainIDB)
 		gomega.Ω(err).Should(gomega.BeNil())
+		otherFactory := auth.NewED25519Factory(other)
 
 		var txID ids.ID
 		ginkgo.By("submitting an export action on source", func() {
@@ -714,14 +715,50 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(warp).Should(gomega.BeTrue())
 		})
 
-		ginkgo.By("submitting an export action to new destination", func() {
-			// TODO: FAIL
+		ginkgo.By("submitting an invalid export action to new destination", func() {
+			bIDA, err := ids.FromString(blockchainIDA)
+			gomega.Ω(err).Should(gomega.BeNil())
+			newAsset := actions.ImportedAssetID(ids.Empty, bIDA)
+			submit, tx, _, err := instancesB[0].cli.GenerateTransaction(
+				context.Background(),
+				nil,
+				&actions.ExportAsset{
+					To:          rsender,
+					Asset:       newAsset,
+					Value:       100,
+					Return:      false,
+					Destination: ids.GenerateTestID(),
+				},
+				otherFactory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			hutils.Outf("{{yellow}}generated transaction:{{/}} %s\n", txID)
+
+			// Broadcast and wait for transaction
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
+			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+			success, err := instancesB[0].cli.WaitForTransaction(ctx, tx.ID())
+			cancel()
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(success).Should(gomega.BeFalse())
+
+			// Confirm balances are unchanged
+			newOtherBalance, err := instancesB[0].cli.Balance(context.Background(), aother, newAsset)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(newOtherBalance).Should(gomega.Equal(sendAmount))
 		})
 
-		ginkgo.By("submitting a return export action on destination", func() {
+		ginkgo.By("submitting first (45) return export action on destination", func() {
 		})
 
-		ginkgo.By("submitting an import action on source", func() {
+		ginkgo.By("submitting first import action on source", func() {
+		})
+
+		ginkgo.By("submitting second (55) return export action on destination", func() {
+		})
+
+		ginkgo.By("submitting second import action on source", func() {
 		})
 	})
 
