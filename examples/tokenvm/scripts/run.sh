@@ -217,17 +217,8 @@ echo "running e2e tests"
 --mode=${MODE}
 
 ############################
-# e.g., print out MetaMask endpoints
-if [[ -f "/tmp/avalanchego-v${VERSION}/output.yaml" ]]; then
-  echo "cluster is ready!"
-  cat /tmp/avalanchego-v${VERSION}/output.yaml
-else
-  echo "cluster is not ready in time..."
-  exit 255
-fi
-
-############################
 if [[ ${MODE} == "run" ]]; then
+  echo "cluster is ready!"
   # We made it past initialization and should avoid shutting down the network
   KEEPALIVE=true
 fi

@@ -600,6 +600,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(otherBalance).Should(gomega.Equal(aotherBalance))
 			asenderBalance, err := instancesA[0].cli.Balance(context.Background(), sender, ids.Empty)
+			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(asenderBalance).Should(gomega.Equal(senderBalance - sendAmount - fees))
 		})
 
