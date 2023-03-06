@@ -36,11 +36,15 @@ func (w *WarpTransfer) Marshal() ([]byte, error) {
 	return p.Bytes(), p.Err()
 }
 
-func (w *WarpTransfer) NewAssetID(sourceChainID ids.ID) ids.ID {
+func ImportedAssetID(assetID ids.ID, sourceChainID ids.ID) ids.ID {
+	return utils.ToID(ImportedAssetMetadata(assetID, sourceChainID))
+}
+
+func ImportedAssetMetadata(assetID ids.ID, sourceChainID ids.ID) []byte {
 	k := make([]byte, consts.IDLen*2)
-	copy(k, w.Asset[:])
+	copy(k, assetID[:])
 	copy(k[consts.IDLen:], sourceChainID[:])
-	return utils.ToID(k)
+	return k
 }
 
 func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {

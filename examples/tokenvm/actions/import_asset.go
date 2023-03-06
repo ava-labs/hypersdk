@@ -12,7 +12,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
@@ -41,7 +40,7 @@ func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 			storage.PrefixBalanceKey(i.warpTransfer.To, i.warpTransfer.Asset),
 		}
 	} else {
-		assetID = i.warpTransfer.NewAssetID(i.warpMessage.SourceChainID)
+		assetID = ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
 		keys = [][]byte{
 			storage.PrefixAssetKey(assetID),
 			storage.PrefixBalanceKey(i.warpTransfer.To, assetID),
@@ -63,7 +62,7 @@ func (i *ImportAsset) executeMint(
 	db chain.Database,
 	actor crypto.PublicKey,
 ) (*chain.Result, error) {
-	asset := i.warpTransfer.NewAssetID(i.warpMessage.SourceChainID)
+	asset := ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
 	unitsUsed := i.MaxUnits(r)
 	exists, metadata, supply, _, warp, err := storage.GetAsset(ctx, db, asset)
 	if err != nil {
@@ -74,9 +73,7 @@ func (i *ImportAsset) executeMint(
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputConflictingAsset}, nil
 	}
 	if !exists {
-		metadata = make([]byte, consts.IDLen*2)
-		copy(metadata, i.warpTransfer.Asset[:])
-		copy(metadata[consts.IDLen:], i.warpMessage.SourceChainID[:])
+		metadata = ImportedAssetMetadata(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
 	}
 	newSupply, err := smath.Add64(supply, i.warpTransfer.Value)
 	if err != nil {
