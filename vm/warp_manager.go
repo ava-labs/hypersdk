@@ -250,8 +250,8 @@ func (w *WarpManager) AppRequest(
 		}
 	}
 	wp := codec.NewWriter(maxWarpResponse)
-	wp.PackBytes(sig.PublicKey)
-	wp.PackBytes(sig.Signature)
+	wp.PackFixedBytes(sig.PublicKey)
+	wp.PackFixedBytes(sig.Signature)
 	if err := wp.Err(); err != nil {
 		w.vm.snowCtx.Log.Warn("could not encode warp signature", zap.Error(err))
 		return nil
@@ -271,9 +271,9 @@ func (w *WarpManager) HandleResponse(requestID uint32, msg []byte) error {
 	// Parse message
 	r := codec.NewReader(msg, maxWarpResponse)
 	var publicKey []byte
-	r.UnpackBytes(bls.PublicKeyLen, true, &publicKey)
+	r.UnpackFixedBytes(bls.PublicKeyLen, &publicKey)
 	var signature []byte
-	r.UnpackBytes(bls.SignatureLen, true, &signature)
+	r.UnpackFixedBytes(bls.SignatureLen, &signature)
 	if err := r.Err(); err != nil {
 		w.vm.snowCtx.Log.Warn("could not decode warp signature", zap.Error(err))
 		return nil
