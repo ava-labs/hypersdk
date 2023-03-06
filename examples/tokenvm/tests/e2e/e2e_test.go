@@ -213,7 +213,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		} else {
 			subnetB = append(subnetB, n)
 		}
-		_, err := anrCli.AddNode(ctx, n, execPath,
+		_, err = anrCli.AddNode(ctx, n, execPath,
 			runner_sdk.WithPluginDir(pluginDir),
 			// TODO: unclear if need to provide this again
 			runner_sdk.WithGlobalNodeConfig(`{

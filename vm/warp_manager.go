@@ -281,7 +281,7 @@ func (w *WarpManager) HandleResponse(requestID uint32, msg []byte) error {
 
 	// Check public key is expected
 	if !bytes.Equal(publicKey, job.publicKey) {
-		w.vm.snowCtx.Log.Warn("public key mismatch")
+		w.vm.snowCtx.Log.Warn("public key mismatch", zap.ByteString("found", publicKey), zap.ByteString("expected", job.publicKey))
 		return nil
 	}
 
