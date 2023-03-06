@@ -6,6 +6,7 @@ package vm
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"sync"
 	"time"
 
@@ -270,9 +271,9 @@ func (w *WarpManager) HandleResponse(requestID uint32, msg []byte) error {
 
 	// Parse message
 	r := codec.NewReader(msg, maxWarpResponse)
-	var publicKey []byte
+	publicKey := make([]byte, bls.PublicKeyLen)
 	r.UnpackFixedBytes(bls.PublicKeyLen, &publicKey)
-	var signature []byte
+	signature := make([]byte, bls.SignatureLen)
 	r.UnpackFixedBytes(bls.SignatureLen, &signature)
 	if err := r.Err(); err != nil {
 		w.vm.snowCtx.Log.Warn("could not decode warp signature", zap.Error(err))
@@ -281,7 +282,7 @@ func (w *WarpManager) HandleResponse(requestID uint32, msg []byte) error {
 
 	// Check public key is expected
 	if !bytes.Equal(publicKey, job.publicKey) {
-		w.vm.snowCtx.Log.Warn("public key mismatch", zap.ByteString("found", publicKey), zap.ByteString("expected", job.publicKey))
+		w.vm.snowCtx.Log.Warn("public key mismatch", zap.String("found", hex.EncodeToString(publicKey)), zap.String("expected", hex.EncodeToString(job.publicKey)))
 		return nil
 	}
 
@@ -308,8 +309,8 @@ func (w *WarpManager) HandleResponse(requestID uint32, msg []byte) error {
 	}
 
 	w.vm.snowCtx.Log.Info(
-		"fetched signature", zap.Stringer("txID", job.txID),
-		zap.Stringer("nodeID", job.nodeID), zap.ByteString("publicKey", job.publicKey),
+		"fetched and stored signature", zap.Stringer("txID", job.txID),
+		zap.Stringer("nodeID", job.nodeID), zap.String("publicKey", hex.EncodeToString(job.publicKey)),
 	)
 	return nil
 }
