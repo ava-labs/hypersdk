@@ -235,7 +235,11 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	// Create 2 subnets
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
-	sresp, err := anrCli.CreateSubnets(ctx, runner_sdk.WithNumSubnets(1), runner_sdk.WithSubnetParticipants(subnetA))
+	sresp, err := anrCli.CreateSubnets(
+		ctx,
+		runner_sdk.WithNumSubnets(1),
+		runner_sdk.WithSubnetParticipants(subnetA),
+	)
 	cancel()
 	gomega.Expect(err).Should(gomega.BeNil())
 	subnets := sresp.GetClusterInfo().GetSubnets()
@@ -247,7 +251,11 @@ var _ = ginkgo.BeforeSuite(func() {
 		subnets = status.GetClusterInfo().GetSubnets()
 	}
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
-	sresp, err = anrCli.CreateSubnets(ctx, runner_sdk.WithNumSubnets(1), runner_sdk.WithSubnetParticipants(subnetB))
+	sresp, err = anrCli.CreateSubnets(
+		ctx,
+		runner_sdk.WithNumSubnets(1),
+		runner_sdk.WithSubnetParticipants(subnetB),
+	)
 	cancel()
 	gomega.Expect(err).Should(gomega.BeNil())
 	subnets = sresp.GetClusterInfo().GetSubnets()

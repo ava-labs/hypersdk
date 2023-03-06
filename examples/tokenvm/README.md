@@ -114,6 +114,8 @@ explicitly cancel it/replace it.
   takes on a new ID, a rogue subnet can't corrupt the balance or activity of
   valid assets)
 
+TODO: talk about local test (15 nodes, 2 subnets with no overlap)
+
 ## Mint and Trade Demo
 Someone: "Seems cool but I need to see it to really get it."
 Me: "Look no further."

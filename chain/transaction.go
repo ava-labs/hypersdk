@@ -57,7 +57,9 @@ func NewTx(base *Base, wm *warp.Message, act Action) *Transaction {
 	}
 }
 
-func (t *Transaction) Digest(actionRegistry *codec.TypeParser[Action, *warp.Message, bool]) ([]byte, error) {
+func (t *Transaction) Digest(
+	actionRegistry *codec.TypeParser[Action, *warp.Message, bool],
+) ([]byte, error) {
 	if len(t.digest) > 0 {
 		return t.digest, nil
 	}
