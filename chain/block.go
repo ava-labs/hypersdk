@@ -60,8 +60,9 @@ type StatefulBlock struct {
 // warpResult is used to signal to a listner that a *warp.Message has been
 // verified.
 type warpResult struct {
-	msg    *warp.Message
-	result chan error
+	msg     *warp.Message
+	signers int
+	result  chan error
 }
 
 func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBlock {
@@ -167,9 +168,14 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 		// verification as skipped and include it in the verification result so
 		// that a fee can still be deducted.
 		if tx.WarpMessage != nil {
+			signers, err := tx.WarpMessage.Signature.NumSigners()
+			if err != nil {
+				return err
+			}
 			b.warpMessages[tx.ID()] = &warpResult{
-				msg:    tx.WarpMessage,
-				result: make(chan error),
+				msg:     tx.WarpMessage,
+				signers: signers,
+				result:  make(chan error, 1),
 			}
 		}
 	}
@@ -427,7 +433,12 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	//
 	// We always verify warp messages (even if we are still bootstrapping)
 	if len(b.warpMessages) > 0 {
-		if b.bctx != nil {
+		if b.bctx == nil {
+			log.Error(
+				"missing verify block context",
+				zap.Uint64("height", b.Hght),
+				zap.Stringer("id", b.ID()),
+			)
 			return nil, ErrMissingBlockContext
 		}
 		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
@@ -439,11 +450,18 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 			// it would get executed after all signatures. Additionally, BLS
 			// Multi-Signature verification is already parallelized so we should just
 			// do one at a time to avoid overwhelming the CPU.
-			for _, msg := range b.warpMessages {
+			for txID, msg := range b.warpMessages {
 				if ctx.Err() != nil {
 					return
 				}
+				start := time.Now()
 				msg.result <- b.verifyWarpMessage(ctx, r, msg.msg)
+				log.Info(
+					"verified warp message",
+					zap.Stringer("txID", txID),
+					zap.Int("signers", msg.signers),
+					zap.Duration("t", time.Since(start)),
+				)
 			}
 		}()
 	}
@@ -463,6 +481,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	// Process new transactions
 	unitsConsumed, surplusFee, results, err := processor.Execute(ctx, ectx, r)
 	if err != nil {
+		log.Error("failed to execute block", zap.Error(err))
 		return nil, err
 	}
 	b.results = results

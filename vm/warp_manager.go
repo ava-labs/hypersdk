@@ -182,7 +182,11 @@ func (w *WarpManager) GatherSignatures(ctx context.Context, txID ids.ID, msg []b
 			Index: w.pendingJobs.Len(),
 		})
 		w.l.Unlock()
-		w.vm.snowCtx.Log.Info("enqueued fetch job", zap.Stringer("nodeID", nodeID), zap.Stringer("txID", txID))
+		w.vm.snowCtx.Log.Info(
+			"enqueued fetch job",
+			zap.Stringer("nodeID", nodeID),
+			zap.Stringer("txID", txID),
+		)
 	}
 }
 
@@ -282,7 +286,11 @@ func (w *WarpManager) HandleResponse(requestID uint32, msg []byte) error {
 
 	// Check public key is expected
 	if !bytes.Equal(publicKey, job.publicKey) {
-		w.vm.snowCtx.Log.Warn("public key mismatch", zap.String("found", hex.EncodeToString(publicKey)), zap.String("expected", hex.EncodeToString(job.publicKey)))
+		w.vm.snowCtx.Log.Warn(
+			"public key mismatch",
+			zap.String("found", hex.EncodeToString(publicKey)),
+			zap.String("expected", hex.EncodeToString(job.publicKey)),
+		)
 		return nil
 	}
 
@@ -309,8 +317,13 @@ func (w *WarpManager) HandleResponse(requestID uint32, msg []byte) error {
 	}
 
 	w.vm.snowCtx.Log.Info(
-		"fetched and stored signature", zap.Stringer("txID", job.txID),
-		zap.Stringer("nodeID", job.nodeID), zap.String("publicKey", hex.EncodeToString(job.publicKey)),
+		"fetched and stored signature",
+		zap.Stringer("txID", job.txID),
+		zap.Stringer(
+			"nodeID",
+			job.nodeID,
+		),
+		zap.String("publicKey", hex.EncodeToString(job.publicKey)),
 	)
 	return nil
 }
@@ -326,7 +339,11 @@ func (w *WarpManager) HandleRequestFailed(requestID uint32) error {
 
 	// Drop if we've already retried too many times
 	if job.retry >= maxRetries {
-		w.vm.snowCtx.Log.Info("fetch job failed", zap.Stringer("nodeID", job.nodeID), zap.Stringer("txID", job.txID))
+		w.vm.snowCtx.Log.Info(
+			"fetch job failed",
+			zap.Stringer("nodeID", job.nodeID),
+			zap.Stringer("txID", job.txID),
+		)
 		return nil
 	}
 	job.retry++
