@@ -1829,11 +1829,13 @@ func expectBlkWithContext(i instance) func() []*chain.Result {
 	// manually ack ready sig as in engine
 	<-i.toEngine
 
-	blk, err := i.vm.BuildBlockWithContext(ctx, &block.Context{PChainHeight: 1})
+	bctx := &block.Context{PChainHeight: 1}
+	blk, err := i.vm.BuildBlockWithContext(ctx, bctx)
 	gomega.Ω(err).To(gomega.BeNil())
 	gomega.Ω(blk).To(gomega.Not(gomega.BeNil()))
+	cblk := blk.(block.WithVerifyContext)
 
-	gomega.Ω(blk.Verify(ctx)).To(gomega.BeNil())
+	gomega.Ω(cblk.VerifyWithContext(ctx, bctx)).To(gomega.BeNil())
 	gomega.Ω(blk.Status()).To(gomega.Equal(choices.Processing))
 
 	err = i.vm.SetPreference(ctx, blk.ID())
