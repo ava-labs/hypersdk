@@ -371,7 +371,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	instancesB = []instance{}
 	for _, nodeName := range subnetB {
 		u := fmt.Sprintf("%s/ext/bc/%s", nodeInfos[nodeName].Uri, blockchainIDB)
-		instancesA = append(instancesB, instance{
+		instancesB = append(instancesB, instance{
 			uri: u,
 			cli: client.New(u),
 		})
@@ -630,7 +630,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, err := instancesA[0].cli.WaitForTransaction(ctx, tx.ID())
+			success, err := instancesB[0].cli.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(success).Should(gomega.BeTrue())

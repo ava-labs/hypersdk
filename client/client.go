@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/requester"
@@ -121,5 +122,20 @@ func (cli *Client) GetWarpSignatures(
 	if err := resp.Message.Initialize(); err != nil {
 		return nil, nil, nil, err
 	}
-	return resp.Message, resp.Validators, resp.Signatures, nil
+	m := map[ids.NodeID]*validators.GetValidatorOutput{}
+	for _, vdr := range resp.Validators {
+		vout := &validators.GetValidatorOutput{
+			NodeID: vdr.NodeID,
+			Weight: vdr.Weight,
+		}
+		if len(vdr.PublicKey) > 0 {
+			pk, err := bls.PublicKeyFromBytes(vdr.PublicKey)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			vout.PublicKey = pk
+		}
+		m[vdr.NodeID] = vout
+	}
+	return resp.Message, m, resp.Signatures, nil
 }
