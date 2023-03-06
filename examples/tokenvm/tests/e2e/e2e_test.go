@@ -586,6 +586,33 @@ var _ = ginkgo.Describe("[Test]", func() {
 			hutils.Outf("{{yellow}}found warp export transaction{{/}}\n")
 		})
 
+		ginkgo.By("ensuring snowman++ is activated on destination", func() {
+			for i := 0; i < 10; i++ {
+				submit, tx, _, err := instancesB[0].cli.GenerateTransaction(
+					context.Background(),
+					nil,
+					&actions.Transfer{
+						To:    other.PublicKey(),
+						Asset: ids.Empty,
+						Value: 100 + uint64(i), // ensure we don't produce same tx
+					},
+					factory,
+				)
+				gomega.Ω(err).Should(gomega.BeNil())
+				hutils.Outf("{{yellow}}generated transaction:{{/}} %s\n", txID)
+
+				// Broadcast and wait for transaction
+				gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+				hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
+				ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+				success, err := instancesB[0].cli.WaitForTransaction(ctx, tx.ID())
+				cancel()
+				gomega.Ω(err).Should(gomega.BeNil())
+				gomega.Ω(success).Should(gomega.BeTrue())
+				hutils.Outf("{{yellow}}found transaction on B{{/}}\n")
+			}
+		})
+
 		ginkgo.By("submitting an import action on destination", func() {
 			var (
 				msg                     *warp.Message
