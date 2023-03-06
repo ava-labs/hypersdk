@@ -133,7 +133,7 @@ func getCanonicalValidatorSet(
 				PublicKeyBytes: pkBytes,
 			}
 			vdrs[string(pkBytes)] = uniqueVdr
-			fmt.Println("adding validator to cannonical map", hex.EncodeToString(pkBytes))
+			fmt.Println("adding validator to canonical map", hex.EncodeToString(pkBytes))
 		}
 
 		uniqueVdr.Weight += vdr.Weight // Impossible to overflow here

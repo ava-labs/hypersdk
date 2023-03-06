@@ -77,7 +77,7 @@ func (p *Packer) UnpackBytes(limit int, required bool, dest *[]byte) {
 }
 
 func (p *Packer) UnpackFixedBytes(size int, dest *[]byte) {
-	copy((*dest)[:], p.p.UnpackFixedBytes(size))
+	copy((*dest), p.p.UnpackFixedBytes(size))
 }
 
 func (p *Packer) PackUint64(v uint64) {
