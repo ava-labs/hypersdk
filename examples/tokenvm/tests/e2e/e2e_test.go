@@ -714,16 +714,18 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(warp).Should(gomega.BeTrue())
 		})
 
-		ginkgo.By("submitting an export action on destination", func() {
+		ginkgo.By("submitting an export action to new destination", func() {
+			// TODO: FAIL
+		})
+
+		ginkgo.By("submitting a return export action on destination", func() {
 		})
 
 		ginkgo.By("submitting an import action on source", func() {
 		})
 	})
 
-	ginkgo.It("performs a warp transfer of a custom asset", func() {
-	})
-
+	// TODO: add custom asset test
 	// TODO: add test for relayer
 	// TODO: test with only part of sig weight
 	// TODO: attempt to mint a warp asset
