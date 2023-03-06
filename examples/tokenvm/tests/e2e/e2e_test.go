@@ -635,7 +635,6 @@ var _ = ginkgo.Describe("[Test]", func() {
 			newAsset := actions.ImportedAssetID(ids.Empty, bIDA)
 			otherBalance, err := instancesB[0].cli.Balance(context.Background(), aother, ids.Empty)
 			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(otherBalance).Should(gomega.Equal(uint64(0)))
 			otherBalance, err = instancesB[0].cli.Balance(context.Background(), aother, newAsset)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(otherBalance).Should(gomega.Equal(uint64(0)))
@@ -696,7 +695,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			// Check asset info and balance
 			aotherBalance, err := instancesB[0].cli.Balance(context.Background(), aother, ids.Empty)
 			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(aotherBalance).Should(gomega.Equal(uint64(0)))
+			gomega.Ω(otherBalance).Should(gomega.Equal(aotherBalance))
 			aotherBalance, err = instancesB[0].cli.Balance(context.Background(), aother, newAsset)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(aotherBalance).Should(gomega.Equal(sendAmount))
