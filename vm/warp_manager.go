@@ -27,6 +27,7 @@ const (
 	initialBackoff    = 2       // give time for others to sign
 	backoffIncrease   = 5
 	maxRetries        = 10
+	maxOutstanding    = 8 // TODO: make a config
 )
 
 // WarpManager takes requests to get signatures from other nodes and then
@@ -75,7 +76,7 @@ func (w *WarpManager) Run(appSender common.AppSender) {
 		case <-t.C:
 			w.l.Lock()
 			now := time.Now().Unix()
-			for w.pendingJobs.Len() > 0 {
+			for w.pendingJobs.Len() > 0 && len(w.jobs) < maxOutstanding {
 				first := w.pendingJobs.First()
 				if first.Val > now {
 					break
@@ -83,7 +84,6 @@ func (w *WarpManager) Run(appSender common.AppSender) {
 				w.pendingJobs.Pop()
 
 				// Send request
-				// TODO: limit max requests outstanding at any time
 				job := first.Item
 				if err := w.request(context.Background(), job); err != nil {
 					w.vm.snowCtx.Log.Error(
@@ -95,7 +95,7 @@ func (w *WarpManager) Run(appSender common.AppSender) {
 			}
 			l := w.pendingJobs.Len()
 			w.l.Unlock()
-			w.vm.snowCtx.Log.Info("checked for ready jobs", zap.Int("pending", l))
+			w.vm.snowCtx.Log.Debug("checked for ready jobs", zap.Int("pending", l))
 		case <-w.vm.stop:
 			w.vm.Logger().Info("stopping warp manager")
 			return
@@ -182,7 +182,7 @@ func (w *WarpManager) GatherSignatures(ctx context.Context, txID ids.ID, msg []b
 			Index: w.pendingJobs.Len(),
 		})
 		w.l.Unlock()
-		w.vm.snowCtx.Log.Info(
+		w.vm.snowCtx.Log.Debug(
 			"enqueued fetch job",
 			zap.Stringer("nodeID", nodeID),
 			zap.Stringer("txID", txID),
