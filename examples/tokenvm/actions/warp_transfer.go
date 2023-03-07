@@ -93,7 +93,7 @@ func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
 		return nil, chain.ErrInvalidObject
 	}
 	// Handle swap checks
-	// TODO: consider making these optional
+	// TODO: consider using the optional codec
 	if transfer.SwapIn == 0 {
 		if transfer.AssetOut != ids.Empty {
 			return nil, chain.ErrInvalidObject
