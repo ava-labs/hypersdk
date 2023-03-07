@@ -247,29 +247,14 @@ func UnmarshalExportAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error
 	p.UnpackID(false, &export.AssetOut)
 	export.SwapOut = p.UnpackUint64(false)
 	export.SwapExpiry = p.UnpackInt64(false)
-	if export.SwapExpiry < 0 {
-		return nil, chain.ErrInvalidObject
-	}
 	p.UnpackID(true, &export.Destination)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}
 	// Handle swap checks
 	// TODO: consider using the optional codec
-	if export.SwapIn == 0 {
-		if export.AssetOut != ids.Empty {
-			return nil, chain.ErrInvalidObject
-		}
-		if export.SwapOut != 0 {
-			return nil, chain.ErrInvalidObject
-		}
-		if export.SwapExpiry != 0 {
-			return nil, chain.ErrInvalidObject
-		}
-	} else {
-		if export.SwapOut == 0 {
-			return nil, chain.ErrInvalidObject
-		}
+	if !ValidSwapParams(export.Value, export.SwapIn, export.AssetOut, export.SwapOut, export.SwapExpiry) {
+		return nil, chain.ErrInvalidObject
 	}
 	return &export, nil
 }

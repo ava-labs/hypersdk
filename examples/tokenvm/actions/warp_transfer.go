@@ -82,9 +82,6 @@ func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
 	p.UnpackID(false, &transfer.AssetOut)
 	transfer.SwapOut = p.UnpackUint64(false)
 	transfer.SwapExpiry = p.UnpackInt64(false)
-	if transfer.SwapExpiry < 0 {
-		return nil, chain.ErrInvalidObject
-	}
 	p.UnpackID(true, &transfer.TxID)
 	if err := p.Err(); err != nil {
 		return nil, err
@@ -94,20 +91,33 @@ func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
 	}
 	// Handle swap checks
 	// TODO: consider using the optional codec
-	if transfer.SwapIn == 0 {
-		if transfer.AssetOut != ids.Empty {
-			return nil, chain.ErrInvalidObject
-		}
-		if transfer.SwapOut != 0 {
-			return nil, chain.ErrInvalidObject
-		}
-		if transfer.SwapExpiry != 0 {
-			return nil, chain.ErrInvalidObject
-		}
-	} else {
-		if transfer.SwapOut == 0 {
-			return nil, chain.ErrInvalidObject
-		}
+	if !ValidSwapParams(transfer.Value, transfer.SwapIn, transfer.AssetOut, transfer.SwapOut, transfer.SwapExpiry) {
+		return nil, chain.ErrInvalidObject
 	}
 	return &transfer, nil
+}
+
+func ValidSwapParams(value uint64, swapIn uint64, assetOut ids.ID, swapOut uint64, swapExpiry int64) bool {
+	if swapExpiry < 0 {
+		return false
+	}
+	if swapIn > value {
+		return false
+	}
+	if swapIn > 0 {
+		if swapOut == 0 {
+			return false
+		}
+		return true
+	}
+	if assetOut != ids.Empty {
+		return false
+	}
+	if swapOut != 0 {
+		return false
+	}
+	if swapExpiry != 0 {
+		return false
+	}
+	return true
 }

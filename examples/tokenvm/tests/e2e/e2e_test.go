@@ -1215,7 +1215,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(success).Should(gomega.BeTrue())
 			hutils.Outf("{{yellow}}found warp import transaction{{/}}\n")
 
-			// Check balances and loan
+			// Check balances following swap
 			aNativeOtherBalance, err := instancesB[0].cli.Balance(
 				context.Background(),
 				aother,

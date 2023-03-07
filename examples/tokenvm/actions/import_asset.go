@@ -232,9 +232,6 @@ func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, erro
 	if imp.Fill && imp.warpTransfer.SwapIn == 0 {
 		return nil, chain.ErrInvalidObject
 	}
-	if imp.warpTransfer.Value < imp.warpTransfer.SwapIn {
-		return nil, chain.ErrInvalidObject
-	}
 	return &imp, nil
 }
 
