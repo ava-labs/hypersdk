@@ -270,7 +270,8 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	}
 	g.vm.Logger().Info(
 		"AppGossip transactions submitted",
-		zap.Int("txs", len(txs)), zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)),
+		zap.Int("txs", len(txs)),
+		zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)),
 	)
 
 	// only trace error to prevent VM's being shutdown
