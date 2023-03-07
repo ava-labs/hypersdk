@@ -1112,7 +1112,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 				nil,
 				&actions.ExportAsset{
 					To:          other.PublicKey(),
-					Asset:       ids.Empty,
+					Asset:       ids.Empty, // becomes newAsset
 					Value:       2000,
 					Return:      false,
 					SwapIn:      100,
