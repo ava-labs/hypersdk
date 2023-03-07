@@ -5,8 +5,10 @@ package vm
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
+	"time"
 
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/database"
@@ -21,8 +23,8 @@ import (
 const (
 	idPrefix            = 0x0
 	heightPrefix        = 0x1
-	warpMessagePrefix   = 0x2
-	warpSignaturePrefix = 0x3
+	warpSignaturePrefix = 0x2
+	warpFetchPrefix     = 0x3
 )
 
 var (
@@ -117,21 +119,10 @@ func (vm *VM) PutDiskIsSyncing(v bool) error {
 	return vm.vmDB.Put(isSyncing, []byte{0x0})
 }
 
-func PrefixWarpMessageKey(txID ids.ID) []byte {
-	k := make([]byte, 1+consts.IDLen)
-	k[0] = warpMessagePrefix
-	copy(k[1:], txID[:])
-	return k
-}
-
-func (vm *VM) StoreWarpMessage(txID ids.ID, msg *warp.UnsignedMessage) error {
-	k := PrefixWarpMessageKey(txID)
-	return vm.vmDB.Put(k, msg.Bytes())
-}
-
-func (vm *VM) GetWarpMessage(txID ids.ID) (*warp.UnsignedMessage, error) {
-	k := PrefixWarpMessageKey(txID)
-	v, err := vm.vmDB.Get(k)
+func (vm *VM) GetOutgoingWarpMessage(txID ids.ID) (*warp.UnsignedMessage, error) {
+	k := vm.c.StateManager().OutgoingWarpKey(txID)
+	vs, errs := vm.ReadState(context.TODO(), [][]byte{k})
+	v, err := vs[0], errs[0]
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, nil
 	}
@@ -199,4 +190,28 @@ func (vm *VM) GetWarpSignatures(txID ids.ID) ([]*WarpSignature, error) {
 		})
 	}
 	return signatures, iter.Error()
+}
+
+func PrefixWarpFetchKey(txID ids.ID) []byte {
+	k := make([]byte, 1+consts.IDLen)
+	k[0] = warpFetchPrefix
+	copy(k[1:], txID[:])
+	return k
+}
+
+func (vm *VM) StoreWarpFetch(txID ids.ID) error {
+	k := PrefixWarpFetchKey(txID)
+	return vm.vmDB.Put(k, binary.BigEndian.AppendUint64(nil, uint64(time.Now().Unix())))
+}
+
+func (vm *VM) GetWarpFetch(txID ids.ID) (int64, error) {
+	k := PrefixWarpFetchKey(txID)
+	v, err := vm.vmDB.Get(k)
+	if errors.Is(err, database.ErrNotFound) {
+		return -1, nil
+	}
+	if err != nil {
+		return -1, err
+	}
+	return int64(binary.BigEndian.Uint64(v)), nil
 }

@@ -27,6 +27,14 @@ func (*Rules) GetWarpConfig(ids.ID) (bool, uint64, uint64) {
 	return true, 4, 5
 }
 
+func (r *Rules) GetWarpBaseFee() uint64 {
+	return r.g.WarpBaseFee
+}
+
+func (r *Rules) GetWarpFeePerSigner() uint64 {
+	return r.g.WarpFeePerSigner
+}
+
 func (r *Rules) GetMaxBlockTxs() int {
 	return r.g.MaxBlockTxs
 }

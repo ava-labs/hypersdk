@@ -37,7 +37,6 @@ type CreateOrder struct {
 	OutTick uint64 `json:"outTick"`
 
 	// [Supply] is the initial amount of [In] that the actor is locking up.
-	// TODO: ensure supply is a multiple of OutTick
 	Supply uint64 `json:"supply"`
 
 	// Notes:
@@ -63,6 +62,7 @@ func (c *CreateOrder) Execute(
 	_ int64,
 	rauth chain.Auth,
 	txID ids.ID,
+	_ *chain.WarpMessage,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := c.MaxUnits(r) // max units == units
@@ -104,7 +104,7 @@ func (c *CreateOrder) Marshal(p *codec.Packer) {
 	p.PackUint64(c.Supply)
 }
 
-func UnmarshalCreateOrder(p *codec.Packer) (chain.Action, error) {
+func UnmarshalCreateOrder(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var create CreateOrder
 	p.UnpackID(false, &create.In) // empty ID is the native asset
 	create.InTick = p.UnpackUint64(true)
@@ -117,10 +117,6 @@ func UnmarshalCreateOrder(p *codec.Packer) (chain.Action, error) {
 func (*CreateOrder) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
-}
-
-func (*CreateOrder) WarpMessage() *warp.Message {
-	return nil
 }
 
 func PairID(in ids.ID, out ids.ID) string {

@@ -63,6 +63,7 @@ func (f *FillOrder) Execute(
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
+	_ *chain.WarpMessage,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	exists, in, inTick, out, outTick, remaining, owner, err := storage.GetOrder(ctx, db, f.Order)
@@ -166,7 +167,7 @@ func (f *FillOrder) Marshal(p *codec.Packer) {
 	p.PackUint64(f.Value)
 }
 
-func UnmarshalFillOrder(p *codec.Packer) (chain.Action, error) {
+func UnmarshalFillOrder(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var fill FillOrder
 	p.UnpackID(true, &fill.Order)
 	p.UnpackPublicKey(true, &fill.Owner)
@@ -179,10 +180,6 @@ func UnmarshalFillOrder(p *codec.Packer) (chain.Action, error) {
 func (*FillOrder) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
-}
-
-func (*FillOrder) WarpMessage() *warp.Message {
-	return nil
 }
 
 // OrderResult is a custom successful response output that provides information

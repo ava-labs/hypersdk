@@ -44,6 +44,7 @@ func (t *Transfer) Execute(
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
+	_ *chain.WarpMessage,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := t.MaxUnits(r) // max units == units
@@ -71,7 +72,7 @@ func (t *Transfer) Marshal(p *codec.Packer) {
 	p.PackUint64(t.Value)
 }
 
-func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
+func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var transfer Transfer
 	p.UnpackPublicKey(false, &transfer.To) // can transfer to blackhole
 	p.UnpackID(false, &transfer.Asset)     // empty ID is the native asset
@@ -82,8 +83,4 @@ func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
-}
-
-func (*Transfer) WarpMessage() *warp.Message {
-	return nil
 }

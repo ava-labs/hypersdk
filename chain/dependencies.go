@@ -19,8 +19,8 @@ import (
 )
 
 type (
-	ActionRegistry *codec.TypeParser[Action]
-	AuthRegistry   *codec.TypeParser[Auth]
+	ActionRegistry *codec.TypeParser[Action, *warp.Message, bool]
+	AuthRegistry   *codec.TypeParser[Auth, *warp.Message, bool]
 )
 
 type Parser interface {
@@ -46,6 +46,7 @@ type VM interface {
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
 	State() (*merkledb.Database, error)
+	StateManager() StateManager
 	ValidatorState() validators.State
 
 	Mempool() Mempool
@@ -79,8 +80,6 @@ type Database interface {
 }
 
 type Rules interface {
-	GetWarpConfig(ids.ID) (bool, uint64, uint64)
-
 	GetMaxBlockTxs() int
 	GetMaxBlockUnits() uint64 // should ensure can't get above block max size
 
@@ -95,7 +94,23 @@ type Rules interface {
 	GetBlockCostChangeDenominator() uint64
 	GetWindowTargetBlocks() uint64
 
+	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
+	GetWarpBaseFee() uint64
+	GetWarpFeePerSigner() uint64
+
 	FetchCustom(string) (any, bool)
+}
+
+// StateManager allows [Chain] to safely store certain types of items in state
+// in a structured manner. If we did not use [StateManager], we may overwrite
+// state written by actions or auth.
+type StateManager interface {
+	IncomingWarpKey(
+		msgID ids.ID,
+	) []byte // used to access state to check for duplicates/store warp without conflict
+	OutgoingWarpKey(
+		txID ids.ID,
+	) []byte // used to access state to check for duplicates/store warp without conflict
 }
 
 type Action interface {
@@ -109,12 +124,6 @@ type Action interface {
 	//
 	// If attempt to reference missing key, error...it is ok to not use all keys (conditional logic based on state)
 	StateKeys(auth Auth, txID ids.ID) [][]byte
-
-	// WarpMessage returns the message that must be validated in the Action, if
-	// one exists.
-	//
-	// This will be verified asynchronously during block verification.
-	WarpMessage() *warp.Message
 
 	// Key distinction with "Auth" is the payment of fees. All non-fee payments
 	// occur in Execute but Auth handles fees.
@@ -132,6 +141,7 @@ type Action interface {
 		timestamp int64,
 		auth Auth,
 		txID ids.ID,
+		warpMessage *WarpMessage,
 	) (result *Result, err error) // err should only be returned if fatal
 
 	Marshal(p *codec.Packer)

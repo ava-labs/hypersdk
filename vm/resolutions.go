@@ -25,12 +25,13 @@ import (
 )
 
 var (
-	_ chain.VM                   = (*VM)(nil)
-	_ gossiper.VM                = (*VM)(nil)
-	_ builder.VM                 = (*VM)(nil)
-	_ block.ChainVM              = (*VM)(nil)
-	_ block.HeightIndexedChainVM = (*VM)(nil)
-	_ block.StateSyncableVM      = (*VM)(nil)
+	_ chain.VM                           = (*VM)(nil)
+	_ gossiper.VM                        = (*VM)(nil)
+	_ builder.VM                         = (*VM)(nil)
+	_ block.ChainVM                      = (*VM)(nil)
+	_ block.HeightIndexedChainVM         = (*VM)(nil)
+	_ block.StateSyncableVM              = (*VM)(nil)
+	_ block.BuildBlockWithContextChainVM = (*VM)(nil)
 )
 
 func (vm *VM) HRP() string {
@@ -105,7 +106,8 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	vm.mempool.Remove(ctx, b.Txs)
 	vm.snowCtx.Log.Info(
 		"verified block",
-		zap.Stringer("id", b.ID()),
+		zap.Stringer("blkID", b.ID()),
+		zap.Uint64("height", b.Hght),
 		zap.Int("txs", len(b.Txs)),
 		zap.Bool("state ready", vm.StateReady()),
 	)
@@ -163,11 +165,6 @@ func (vm *VM) processAcceptedBlocks() {
 			if err != nil {
 				vm.snowCtx.Log.Fatal("unable to sign warp message", zap.Error(err))
 			}
-			if err := vm.StoreWarpMessage(tx.ID(), result.WarpMessage); err != nil {
-				vm.snowCtx.Log.Fatal("unable to store warp message", zap.Error(err))
-			}
-			// We ONLY produce a signature if we were validating at the time
-			// a signature was required from us.
 			if err := vm.StoreWarpSignature(tx.ID(), vm.snowCtx.PublicKey, signature); err != nil {
 				vm.snowCtx.Log.Fatal("unable to store warp signature", zap.Error(err))
 			}
@@ -190,7 +187,11 @@ func (vm *VM) processAcceptedBlocks() {
 		// Must clear accepted txs before [SetMinTx] or else we will errnoueously
 		// send [ErrExpired] messages.
 		vm.listeners.SetMinTx(b.Tmstmp)
-		vm.snowCtx.Log.Info("updated block and tx waiters", zap.Uint64("height", b.Hght))
+		vm.snowCtx.Log.Info(
+			"block processed",
+			zap.Stringer("blkID", b.ID()),
+			zap.Uint64("height", b.Hght),
+		)
 	}
 	close(vm.acceptorDone)
 	vm.snowCtx.Log.Info("acceptor queue shutdown")
@@ -219,14 +220,18 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 		select {
 		case <-vm.seenValidityWindow:
 			// We could not be ready but seen a window of transactions if the state
-			// to sync is large (takes longer to fetch than [ValidityWindow].
+			// to sync is large (takes longer to fetch than [ValidityWindow]).
 		default:
+			// The value of [vm.startSeenTime] can only be negative if we are
+			// performing state sync.
 			if vm.startSeenTime < 0 {
 				vm.startSeenTime = blkTime
 			}
 			r := vm.Rules(blkTime)
 			if blkTime-vm.startSeenTime > r.GetValidityWindow() {
-				close(vm.seenValidityWindow)
+				vm.seenValidityWindowOnce.Do(func() {
+					close(vm.seenValidityWindow)
+				})
 			}
 		}
 	}
@@ -244,6 +249,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	vm.snowCtx.Log.Info(
 		"accepted block",
 		zap.Stringer("blkID", b.ID()),
+		zap.Uint64("height", b.Hght),
 		zap.Int("txs", len(b.Txs)),
 		zap.Int("size", len(b.Bytes())),
 		zap.Uint64("units", b.UnitsConsumed),
@@ -310,4 +316,8 @@ func (vm *VM) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummar
 
 func (vm *VM) StateSyncEnabled(ctx context.Context) (bool, error) {
 	return vm.stateSyncClient.StateSyncEnabled(ctx)
+}
+
+func (vm *VM) StateManager() chain.StateManager {
+	return vm.c.StateManager()
 }

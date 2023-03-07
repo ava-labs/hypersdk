@@ -66,7 +66,13 @@ type Controller interface {
 		authRegistry chain.AuthRegistry,
 		err error,
 	)
+
 	Rules(t int64) chain.Rules
+
+	// StateManager is used by the VM to request keys to store required
+	// information in state (without clobbering things the Controller is
+	// storing).
+	StateManager() chain.StateManager
 
 	// Anything that the VM wishes to store outside of state or blocks must be
 	// recorded here

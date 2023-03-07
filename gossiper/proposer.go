@@ -204,7 +204,11 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 			}
 
 			// Gossip up to a block of content
-			units := next.MaxUnits(r)
+			units, err := next.MaxUnits(r)
+			if err != nil {
+				// Should never happen
+				return true, false, false, nil
+			}
 			if units+totalUnits > r.GetMaxBlockUnits() {
 				// Attempt to mirror the function of building a block without execution
 				return false, true, false, nil
@@ -259,14 +263,15 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 		if err == nil || errors.Is(err, chain.ErrDuplicateTx) {
 			continue
 		}
-		g.vm.Logger().Warn(
+		g.vm.Logger().Debug(
 			"AppGossip failed to submit txs",
-			zap.Stringer("peerID", nodeID), zap.Error(err),
+			zap.Stringer("nodeID", nodeID), zap.Error(err),
 		)
 	}
 	g.vm.Logger().Info(
 		"AppGossip transactions submitted",
-		zap.Int("txs", len(txs)), zap.Duration("t", time.Since(start)),
+		zap.Int("txs", len(txs)),
+		zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)),
 	)
 
 	// only trace error to prevent VM's being shutdown

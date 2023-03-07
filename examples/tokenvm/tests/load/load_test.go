@@ -486,15 +486,15 @@ func issueSimpleTx(
 			ChainID:   i.chainID,
 			UnitPrice: 1,
 		},
+		nil,
 		&actions.Transfer{
 			To:    to,
 			Value: amount,
 		},
 	)
-	err := tx.Sign(factory)
+	tx, err := tx.Sign(factory, consts.ActionRegistry, consts.AuthRegistry)
 	gomega.Ω(err).To(gomega.BeNil())
-	verify, err := tx.Init(context.TODO(), consts.ActionRegistry, consts.AuthRegistry)
-	gomega.Ω(err).To(gomega.BeNil())
+	verify := tx.AuthAsyncVerify()
 	gomega.Ω(verify()).To(gomega.BeNil())
 	_, err = i.cli.SubmitTx(context.TODO(), tx.Bytes())
 	return tx.ID(), err

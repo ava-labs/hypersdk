@@ -5,7 +5,6 @@ package chain
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -58,6 +57,14 @@ type StatefulBlock struct {
 	SurplusFee    uint64 `json:"surplusFee"`
 }
 
+// warpResult is used to signal to a listner that a *warp.Message has been
+// verified.
+type warpResult struct {
+	msg     *warp.Message
+	signers int
+	result  chan error
+}
+
 func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBlock {
 	return &StatefulBlock{
 		UnitPrice:  minUnit,
@@ -82,7 +89,7 @@ type StatelessBlock struct {
 	bytes  []byte
 	txsSet set.Set[ids.ID]
 
-	warpMessages []*warp.Message
+	warpMessages map[ids.ID]*warpResult
 	bctx         *block.Context
 	vdrState     validators.State
 
@@ -141,15 +148,11 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 	b.sigJob = job
 
 	// Process transactions
-	r := b.vm.Rules(b.Tmstmp)
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
-	actionRegistry, authRegistry := b.vm.Registry()
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
+	b.warpMessages = map[ids.ID]*warpResult{}
 	for _, tx := range b.Txs {
-		sigTask, err := tx.Init(ctx, actionRegistry, authRegistry)
-		if err != nil {
-			return err
-		}
+		sigTask := tx.AuthAsyncVerify()
 		if verifySigs {
 			b.sigJob.Go(sigTask)
 		}
@@ -160,15 +163,20 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 
 		// Check if we need the block context to verify the block (which contains
 		// an Avalanche Warp Message)
-		if wm := tx.Action.WarpMessage(); wm != nil {
-			if wm.DestinationChainID != b.vm.ChainID() {
-				return errors.New("wrong chainID")
+		//
+		// Instead of erroring out if a warp message is invalid, we mark the
+		// verification as skipped and include it in the verification result so
+		// that a fee can still be deducted.
+		if tx.WarpMessage != nil {
+			signers, err := tx.WarpMessage.Signature.NumSigners()
+			if err != nil {
+				return err
 			}
-			// TODO: check max signers
-			if allowed, _, _ := r.GetWarpConfig(wm.SourceChainID); !allowed {
-				return errors.New("warp message not allowed")
+			b.warpMessages[tx.ID()] = &warpResult{
+				msg:     tx.WarpMessage,
+				signers: signers,
+				result:  make(chan error, 1),
 			}
-			b.warpMessages = append(b.warpMessages, wm)
 		}
 	}
 	b.sigJob.Done(func() { sspan.End() })
@@ -256,11 +264,22 @@ func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) 
 
 // implements "block.WithVerifyContext"
 func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Context) error {
+	stateReady := b.vm.StateReady()
+	ctx, span := b.vm.Tracer().Start(
+		ctx, "StatelessBlock.VerifyWithContext",
+		oteltrace.WithAttributes(
+			attribute.Int("txs", len(b.Txs)),
+			attribute.Bool("stateReady", stateReady),
+			attribute.Int64("pchainHeight", int64(bctx.PChainHeight)),
+		),
+	)
+	defer span.End()
+
 	// Persist the context in case we need it during Accept
 	b.bctx = bctx
 
 	// Proceed with normal verification
-	return b.Verify(ctx)
+	return b.verify(ctx, stateReady)
 }
 
 // implements "snowman.Block"
@@ -271,17 +290,20 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		oteltrace.WithAttributes(
 			attribute.Int("txs", len(b.Txs)),
 			attribute.Bool("stateReady", stateReady),
-			attribute.Bool("context", b.bctx != nil),
 		),
 	)
 	defer span.End()
 
+	return b.verify(ctx, stateReady)
+}
+
+func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 	// If the state of the accepted tip has been fully fetched, it is safe to
 	// verify any block.
 	if stateReady {
 		// Parent may not be processed when we verify this block so [verify] may
 		// recursively compute missing state.
-		state, err := b.verify(ctx)
+		state, err := b.innerVerify(ctx)
 		if err != nil {
 			return err
 		}
@@ -296,16 +318,29 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 	return nil
 }
 
-// verifyWarpMessage will attempt to verify a given warp message provided by an
-// Action.
-func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *warp.Message) error {
-	// This is already checked in parse but we double check here
-	if msg.DestinationChainID != b.vm.ChainID() {
-		return errors.New("wrong chainID")
+func preVerifyWarpMessage(msg *warp.Message, chainID ids.ID, r Rules) (uint64, uint64, error) {
+	if msg.DestinationChainID != chainID && msg.DestinationChainID != ids.Empty {
+		return 0, 0, ErrInvalidChainID
+	}
+	if msg.SourceChainID == chainID {
+		return 0, 0, ErrInvalidChainID
+	}
+	if msg.SourceChainID == msg.DestinationChainID {
+		return 0, 0, ErrInvalidChainID
 	}
 	allowed, num, denom := r.GetWarpConfig(msg.SourceChainID)
 	if !allowed {
-		return errors.New("cannot import from chainID")
+		return 0, 0, ErrDisabledChainID
+	}
+	return num, denom, nil
+}
+
+// verifyWarpMessage will attempt to verify a given warp message provided by an
+// Action.
+func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *warp.Message) error {
+	num, denom, err := preVerifyWarpMessage(msg, b.vm.ChainID(), r)
+	if err != nil {
+		return err
 	}
 	return msg.Signature.Verify(
 		ctx,
@@ -329,7 +364,7 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 //  2. If the parent state is missing when verifying (dynamic state sync)
 //  3. If the state of a block we are accepting is missing (finishing dynamic
 //     state sync)
-func (b *StatelessBlock) verify(ctx context.Context) (merkledb.TrieView, error) {
+func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, error) {
 	var (
 		log   = b.vm.Logger()
 		built = len(b.results) > 0
@@ -387,13 +422,49 @@ func (b *StatelessBlock) verify(ctx context.Context) (merkledb.TrieView, error) 
 	case b.BlockWindow != ectx.NextBlockWindow:
 		return nil, ErrInvalidBlockWindow
 	}
-
 	log.Info(
 		"verify context",
 		zap.Uint64("height", b.Hght),
 		zap.Uint64("unit price", b.UnitPrice),
 		zap.Uint64("block cost", b.BlockCost),
 	)
+
+	// Start validating warp messages, if they exist
+	//
+	// We always verify warp messages (even if we are still bootstrapping)
+	if len(b.warpMessages) > 0 {
+		if b.bctx == nil {
+			log.Error(
+				"missing verify block context",
+				zap.Uint64("height", b.Hght),
+				zap.Stringer("id", b.ID()),
+			)
+			return nil, ErrMissingBlockContext
+		}
+		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
+		b.vdrState = b.vm.ValidatorState()
+		go func() {
+			defer sspan.End()
+			// We don't use [b.vm.Workers] here because we need the warp verification
+			// results during normal execution. If we added a job to the workers queue,
+			// it would get executed after all signatures. Additionally, BLS
+			// Multi-Signature verification is already parallelized so we should just
+			// do one at a time to avoid overwhelming the CPU.
+			for txID, msg := range b.warpMessages {
+				if ctx.Err() != nil {
+					return
+				}
+				start := time.Now()
+				msg.result <- b.verifyWarpMessage(ctx, r, msg.msg)
+				log.Info(
+					"verified warp message",
+					zap.Stringer("txID", txID),
+					zap.Int("signers", msg.signers),
+					zap.Duration("t", time.Since(start)),
+				)
+			}
+		}()
+	}
 
 	// Fetch parent state
 	//
@@ -407,33 +478,10 @@ func (b *StatelessBlock) verify(ctx context.Context) (merkledb.TrieView, error) 
 	processor := NewProcessor(b.vm.Tracer(), b)
 	processor.Prefetch(ctx, state)
 
-	// Start validating warp messages if they exist
-	var warpJob *workers.Job
-	if !b.vm.IsBootstrapped() {
-		// Skip verify if we are still bootstrapping
-		b.vm.Logger().
-			Info("skipping warp verification because we are still bootstrapping", zap.Uint64("height", b.Hght))
-		b.bctx = nil
-	}
-	if b.bctx != nil {
-		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
-		b.vdrState = b.vm.ValidatorState()
-		warpJob, err = b.vm.Workers().NewJob(len(b.warpMessages))
-		if err != nil {
-			return nil, err
-		}
-		for _, msg := range b.warpMessages {
-			m := msg
-			warpJob.Go(func() error {
-				return b.verifyWarpMessage(ctx, r, m)
-			})
-		}
-		warpJob.Done(func() { sspan.End() })
-	}
-
 	// Process new transactions
 	unitsConsumed, surplusFee, results, err := processor.Execute(ctx, ectx, r)
 	if err != nil {
+		log.Error("failed to execute block", zap.Error(err))
 		return nil, err
 	}
 	b.results = results
@@ -490,14 +538,6 @@ func (b *StatelessBlock) verify(ctx context.Context) (merkledb.TrieView, error) 
 		}
 		sspan.End()
 	}
-	if b.bctx != nil {
-		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitWarpMessages")
-		if err := warpJob.Wait(); err != nil {
-			sspan.End()
-			return nil, err
-		}
-		sspan.End()
-	}
 	return state, nil
 }
 
@@ -528,7 +568,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		//
 		// If state sync completes before accept is called
 		// then we need to rebuild it here.
-		state, err := b.verify(ctx)
+		state, err := b.innerVerify(ctx)
 		if err != nil {
 			return err
 		}
@@ -627,7 +667,7 @@ func (b *StatelessBlock) childState(
 	if !b.Processed() {
 		b.vm.Logger().
 			Info("verifying parent when childState requested", zap.Uint64("height", b.Hght))
-		state, err := b.verify(ctx)
+		state, err := b.innerVerify(ctx)
 		if err != nil {
 			return nil, err
 		}

@@ -13,7 +13,6 @@ import (
 	reflect "reflect"
 
 	ids "github.com/ava-labs/avalanchego/ids"
-	warp "github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	codec "github.com/ava-labs/hypersdk/codec"
 	gomock "github.com/golang/mock/gomock"
 )
@@ -42,18 +41,18 @@ func (m *MockAction) EXPECT() *MockActionMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 Database, arg3 int64, arg4 Auth, arg5 ids.ID) (*Result, error) {
+func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 Database, arg3 int64, arg4 Auth, arg5 ids.ID, arg6 *WarpMessage) (*Result, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2, arg3, arg4, arg5)
+	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 	ret0, _ := ret[0].(*Result)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockActionMockRecorder) Execute(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+func (mr *MockActionMockRecorder) Execute(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockAction)(nil).Execute), arg0, arg1, arg2, arg3, arg4, arg5)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockAction)(nil).Execute), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 // Marshal mocks base method.
@@ -109,18 +108,4 @@ func (m *MockAction) ValidRange(arg0 Rules) (int64, int64) {
 func (mr *MockActionMockRecorder) ValidRange(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidRange", reflect.TypeOf((*MockAction)(nil).ValidRange), arg0)
-}
-
-// WarpMessage mocks base method.
-func (m *MockAction) WarpMessage() *warp.Message {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarpMessage")
-	ret0, _ := ret[0].(*warp.Message)
-	return ret0
-}
-
-// WarpMessage indicates an expected call of WarpMessage.
-func (mr *MockActionMockRecorder) WarpMessage() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarpMessage", reflect.TypeOf((*MockAction)(nil).WarpMessage))
 }

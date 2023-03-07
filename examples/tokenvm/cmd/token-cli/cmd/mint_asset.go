@@ -63,12 +63,17 @@ func mintAssetFunc(*cobra.Command, []string) error {
 	if err != nil {
 		return err
 	}
-	exists, metadata, supply, owner, err := cli.Asset(ctx, assetID)
+	exists, metadata, supply, owner, warp, err := cli.Asset(ctx, assetID)
 	if err != nil {
 		return err
 	}
 	if !exists {
 		hutils.Outf("{{red}}%s does not exist{{/}}\n", assetID)
+		hutils.Outf("{{red}}exiting...{{/}}\n")
+		return nil
+	}
+	if warp {
+		hutils.Outf("{{red}}%s is an Warp Asset{{/}}\n", assetID)
 		hutils.Outf("{{red}}exiting...{{/}}\n")
 		return nil
 	}
@@ -143,7 +148,7 @@ func mintAssetFunc(*cobra.Command, []string) error {
 		return nil
 	}
 
-	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.MintAsset{
+	submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.MintAsset{
 		Asset: assetID,
 		To:    pk,
 		Value: amount,

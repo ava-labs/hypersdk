@@ -65,7 +65,7 @@ func createOrderFunc(*cobra.Command, []string) error {
 		}
 	}
 	if inAssetID != ids.Empty {
-		exists, metadata, supply, _, err := cli.Asset(ctx, inAssetID)
+		exists, metadata, supply, _, warp, err := cli.Asset(ctx, inAssetID)
 		if err != nil {
 			return err
 		}
@@ -75,9 +75,10 @@ func createOrderFunc(*cobra.Command, []string) error {
 			return nil
 		}
 		hutils.Outf(
-			"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n",
+			"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
 			string(metadata),
 			supply,
+			warp,
 		)
 	}
 
@@ -137,7 +138,7 @@ func createOrderFunc(*cobra.Command, []string) error {
 		}
 	}
 	if outAssetID != ids.Empty {
-		exists, metadata, supply, _, err := cli.Asset(ctx, outAssetID)
+		exists, metadata, supply, _, warp, err := cli.Asset(ctx, outAssetID)
 		if err != nil {
 			return err
 		}
@@ -147,9 +148,10 @@ func createOrderFunc(*cobra.Command, []string) error {
 			return nil
 		}
 		hutils.Outf(
-			"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n",
+			"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
 			string(metadata),
 			supply,
+			warp,
 		)
 	}
 	addr := utils.Address(priv.PublicKey())
@@ -264,7 +266,7 @@ func createOrderFunc(*cobra.Command, []string) error {
 		return nil
 	}
 
-	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.CreateOrder{
+	submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.CreateOrder{
 		In:      inAssetID,
 		InTick:  inTick,
 		Out:     outAssetID,

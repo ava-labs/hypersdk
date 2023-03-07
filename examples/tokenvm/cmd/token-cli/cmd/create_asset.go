@@ -75,7 +75,7 @@ func createAssetFunc(*cobra.Command, []string) error {
 		return nil
 	}
 
-	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.CreateAsset{
+	submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.CreateAsset{
 		Metadata: []byte(metadata),
 	}, factory)
 	if err != nil {
