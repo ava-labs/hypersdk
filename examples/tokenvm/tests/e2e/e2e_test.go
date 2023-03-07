@@ -541,6 +541,8 @@ var _ = ginkgo.Describe("[Test]", func() {
 		other, err := crypto.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		aother := utils.Address(other.PublicKey())
+		source, err := ids.FromString(blockchainIDA)
+		gomega.Ω(err).Should(gomega.BeNil())
 		destination, err := ids.FromString(blockchainIDB)
 		gomega.Ω(err).Should(gomega.BeNil())
 		otherFactory := auth.NewED25519Factory(other)
@@ -736,13 +738,135 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(newOtherBalance).Should(gomega.Equal(sendAmount))
 		})
 
-		ginkgo.By("submitting first (45) return export action on destination", func() {
+		ginkgo.By("submitting first (2000) return export action on destination", func() {
+			bIDA, err := ids.FromString(blockchainIDA)
+			gomega.Ω(err).Should(gomega.BeNil())
+			newAsset := actions.ImportedAssetID(ids.Empty, bIDA)
+			submit, tx, _, err := instancesB[0].cli.GenerateTransaction(
+				context.Background(),
+				nil,
+				&actions.ExportAsset{
+					To:          rsender,
+					Asset:       newAsset,
+					Value:       2000,
+					Return:      true,
+					Destination: source,
+					Reward:      100,
+				},
+				otherFactory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			txID = tx.ID()
+			hutils.Outf("{{yellow}}generated transaction:{{/}} %s\n", txID)
+
+			// Broadcast and wait for transaction
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
+			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+			success, err := instancesB[0].cli.WaitForTransaction(ctx, tx.ID())
+			cancel()
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(success).Should(gomega.BeTrue())
+			hutils.Outf("{{yellow}}found warp export transaction{{/}}\n")
+
+			// Check balances and asset info
+			amount, err := instancesB[0].cli.Loan(context.Background(), newAsset, source)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(amount).Should(gomega.Equal(uint64(0)))
+			otherBalance, err := instancesB[0].cli.Balance(context.Background(), aother, newAsset)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(otherBalance).Should(gomega.Equal(uint64(2900)))
+			exists, metadata, supply, owner, warp, err := instancesB[0].cli.Asset(context.Background(), newAsset)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(exists).Should(gomega.BeTrue())
+			gomega.Ω(metadata).Should(gomega.Equal(actions.ImportedAssetMetadata(ids.Empty, bIDA)))
+			gomega.Ω(supply).Should(gomega.Equal(uint64(2900)))
+			gomega.Ω(owner).Should(gomega.Equal(utils.Address(crypto.EmptyPublicKey)))
+			gomega.Ω(warp).Should(gomega.BeTrue())
 		})
 
 		ginkgo.By("submitting first import action on source", func() {
+			bIDA, err := ids.FromString(blockchainIDA)
+			gomega.Ω(err).Should(gomega.BeNil())
+			newAsset := actions.ImportedAssetID(ids.Empty, bIDA)
+			nativeOtherBalance, err := instancesA[0].cli.Balance(context.Background(), aother, ids.Empty)
+			gomega.Ω(err).Should(gomega.BeNil())
+			newOtherBalance, err := instancesA[0].cli.Balance(context.Background(), aother, newAsset)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(newOtherBalance).Should(gomega.Equal(uint64(0)))
+			nativeSenderBalance, err := instancesA[0].cli.Balance(context.Background(), sender, ids.Empty)
+			gomega.Ω(err).Should(gomega.BeNil())
+			newSenderBalance, err := instancesA[0].cli.Balance(context.Background(), sender, newAsset)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(newSenderBalance).Should(gomega.Equal(uint64(0)))
+
+			var (
+				msg                     *warp.Message
+				subnetWeight, sigWeight uint64
+			)
+			for {
+				msg, subnetWeight, sigWeight, err = instancesB[0].cli.GenerateAggregateWarpSignature(
+					context.Background(),
+					txID,
+				)
+				if sigWeight == subnetWeight && err == nil {
+					break
+				}
+				if err == nil {
+					hutils.Outf(
+						"{{yellow}}waiting for signature weight:{{/}} %d {{yellow}}observed:{{/}} %d\n",
+						subnetWeight,
+						sigWeight,
+					)
+				} else {
+					hutils.Outf("{{red}}found error:{{/}} %v\n", err)
+				}
+				time.Sleep(1 * time.Second)
+			}
+			hutils.Outf(
+				"{{green}}fetched signature weight:{{/}} %d {{green}}total weight:{{/}} %d\n",
+				sigWeight,
+				subnetWeight,
+			)
+			gomega.Ω(subnetWeight).Should(gomega.Equal(sigWeight))
+
+			submit, tx, fees, err := instancesA[0].cli.GenerateTransaction(
+				context.Background(),
+				msg,
+				&actions.ImportAsset{},
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			txID = tx.ID()
+			hutils.Outf("{{yellow}}generated transaction:{{/}} %s\n", txID)
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
+			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+			success, err := instancesA[0].cli.WaitForTransaction(ctx, tx.ID())
+			cancel()
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(success).Should(gomega.BeTrue())
+			hutils.Outf("{{yellow}}found warp import transaction{{/}}\n")
+
+			// Check balances and loan
+			aNativeOtherBalance, err := instancesA[0].cli.Balance(context.Background(), aother, ids.Empty)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(nativeOtherBalance).Should(gomega.Equal(aNativeOtherBalance))
+			aNewOtherBalance, err := instancesA[0].cli.Balance(context.Background(), aother, newAsset)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(aNewOtherBalance).Should(gomega.Equal(uint64(0)))
+			aNativeSenderBalance, err := instancesA[0].cli.Balance(context.Background(), sender, ids.Empty)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(aNativeSenderBalance).Should(gomega.Equal(nativeSenderBalance - fees + 2000 + 100))
+			aNewSenderBalance, err := instancesA[0].cli.Balance(context.Background(), sender, newAsset)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(aNewSenderBalance).Should(gomega.Equal(uint64(0)))
+			amount, err := instancesA[0].cli.Loan(context.Background(), ids.Empty, destination)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(amount).Should(gomega.Equal(uint64(2900)))
 		})
 
-		ginkgo.By("submitting second (55) return export action on destination", func() {
+		ginkgo.By("submitting second (2900) return export action on destination", func() {
 		})
 
 		ginkgo.By("submitting second import action on source", func() {
@@ -750,10 +874,8 @@ var _ = ginkgo.Describe("[Test]", func() {
 	})
 
 	// TODO: add custom asset test
-	// TODO: add test for relayer
 	// TODO: test with only part of sig weight
 	// TODO: attempt to mint a warp asset
-	// TODO: check loan values
 
 	switch mode {
 	case modeTest:
