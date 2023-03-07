@@ -467,3 +467,5 @@ out on the Avalanche Discord._
   handled by the network layer). This module should make it possible for an
   operator to use a single backend (like S3) to power storage fro multiple
   hosts.
+* Only set `export CGO_CFLAGS="-O -D__BLST_PORTABLE__"` when running on
+  MacOS/Windows (will make Linux much more performant)
