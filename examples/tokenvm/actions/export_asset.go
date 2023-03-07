@@ -27,6 +27,10 @@ type ExportAsset struct {
 	Value       uint64           `json:"value"`
 	Return      bool             `json:"return"`
 	Reward      uint64           `json:"reward"`
+	SwapIn      uint64           `json:"swapIn"`
+	AssetOut    ids.ID           `json:"assetOut"`
+	SwapOut     uint64           `json:"swapOut"`
+	SwapExpiry  int64            `json:"swapExpiry"`
 	Destination ids.ID           `json:"destination"`
 }
 
@@ -106,12 +110,16 @@ func (e *ExportAsset) executeReturn(
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	wt := &WarpTransfer{
-		To:     e.To,
-		Asset:  originalAsset,
-		Value:  e.Value,
-		Return: e.Return,
-		Reward: e.Reward,
-		TxID:   txID,
+		To:         e.To,
+		Asset:      originalAsset,
+		Value:      e.Value,
+		Return:     e.Return,
+		Reward:     e.Reward,
+		SwapIn:     e.SwapIn,
+		AssetOut:   e.AssetOut,
+		SwapOut:    e.SwapOut,
+		SwapExpiry: e.SwapExpiry,
+		TxID:       txID,
 	}
 	payload, err := wt.Marshal()
 	if err != nil {
@@ -159,12 +167,16 @@ func (e *ExportAsset) executeLoan(
 		}
 	}
 	wt := &WarpTransfer{
-		To:     e.To,
-		Asset:  e.Asset,
-		Value:  e.Value,
-		Return: e.Return,
-		Reward: e.Reward,
-		TxID:   txID,
+		To:         e.To,
+		Asset:      e.Asset,
+		Value:      e.Value,
+		Return:     e.Return,
+		Reward:     e.Reward,
+		SwapIn:     e.SwapIn,
+		AssetOut:   e.AssetOut,
+		SwapOut:    e.SwapOut,
+		SwapExpiry: e.SwapExpiry,
+		TxID:       txID,
 	}
 	payload, err := wt.Marshal()
 	if err != nil {
@@ -205,7 +217,10 @@ func (e *ExportAsset) Execute(
 }
 
 func (*ExportAsset) MaxUnits(chain.Rules) uint64 {
-	return crypto.PublicKeyLen + consts.IDLen*2 + consts.Uint64Len*2 + 1
+	return crypto.PublicKeyLen + consts.IDLen +
+		consts.Uint64Len + 1 + consts.Uint64Len +
+		consts.Uint64Len + consts.IDLen + consts.Uint64Len +
+		consts.Uint64Len + consts.IDLen
 }
 
 func (e *ExportAsset) Marshal(p *codec.Packer) {
@@ -214,6 +229,10 @@ func (e *ExportAsset) Marshal(p *codec.Packer) {
 	p.PackUint64(e.Value)
 	p.PackBool(e.Return)
 	p.PackUint64(e.Reward)
+	p.PackUint64(e.SwapIn)
+	p.PackID(e.AssetOut)
+	p.PackUint64(e.SwapOut)
+	p.PackInt64(e.SwapExpiry)
 	p.PackID(e.Destination)
 }
 
@@ -224,8 +243,35 @@ func UnmarshalExportAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error
 	export.Value = p.UnpackUint64(true)
 	export.Return = p.UnpackBool()
 	export.Reward = p.UnpackUint64(false) // reward not required
+	export.SwapIn = p.UnpackUint64(false) // optional
+	p.UnpackID(false, &export.AssetOut)
+	export.SwapOut = p.UnpackUint64(false)
+	export.SwapExpiry = p.UnpackInt64(false)
+	if export.SwapExpiry < 0 {
+		return nil, chain.ErrInvalidObject
+	}
 	p.UnpackID(true, &export.Destination)
-	return &export, p.Err()
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
+	// Handle swap checks
+	// TODO: consider using the optional codec
+	if export.SwapIn == 0 {
+		if export.AssetOut != ids.Empty {
+			return nil, chain.ErrInvalidObject
+		}
+		if export.SwapOut != 0 {
+			return nil, chain.ErrInvalidObject
+		}
+		if export.SwapExpiry != 0 {
+			return nil, chain.ErrInvalidObject
+		}
+	} else {
+		if export.SwapOut == 0 {
+			return nil, chain.ErrInvalidObject
+		}
+	}
+	return &export, nil
 }
 
 func (*ExportAsset) ValidRange(chain.Rules) (int64, int64) {
