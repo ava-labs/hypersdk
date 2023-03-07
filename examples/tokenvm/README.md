@@ -331,10 +331,13 @@ _If you want to take the lead on any of these items, please
 [start a discussion](https://github.com/ava-labs/hypersdk/discussions) or reach
 out on the Avalanche Discord._
 
-* Add support for Avalanche Warp Messaging
 * Add more config options for determining which order books to store in-memory
 * Add option to CLI to fill up to some amount of an asset as long as it is
   under some exchange rate (trading agent command to provide better UX)
 * Add expiring order support (can't fill an order after some point in time but
   still need to explicitly close it to get your funds back -> async cleanup is
   not a good idea)
+* Add lockup fee for creating a Warp Message and ability to reclaim the lockup
+  with a refund action (this will allow for "user-driven" acks on
+  messages, which will remain signable and in state until a refund action is
+  issued)
