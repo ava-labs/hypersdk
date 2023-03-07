@@ -117,10 +117,7 @@ func ValidSwapParams(
 		return false
 	}
 	if swapIn > 0 {
-		if swapOut == 0 {
-			return false
-		}
-		return true
+		return swapOut != 0
 	}
 	if assetOut != ids.Empty {
 		return false
