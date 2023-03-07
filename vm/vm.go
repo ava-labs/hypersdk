@@ -470,7 +470,7 @@ func (*VM) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error 
 // implements "block.ChainVM.commom.VM.health.Checkable"
 func (vm *VM) HealthCheck(context.Context) (interface{}, error) {
 	// TODO: engine will mark VM as ready when we return
-	// [block.StateSyncDynamic]. This should change in v1.9.9.
+	// [block.StateSyncDynamic]. This should change in v1.9.11.
 	//
 	// We return "unhealthy" here until synced to block RPC traffic in the
 	// meantime.
