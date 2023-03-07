@@ -107,6 +107,8 @@ explicitly cancel it/replace it.
 * Send asset between any 2 tokenvms
 * Limit exposure of large hack by restricting warp to only origin + destination
   (can't warp a warp asset somewhere else)
+  -> prevents a risky asset from a Subnet from "stealing reputation" of another
+  Subnet where it may export from
 * Auto-swap when processing import to get fee paying token
 * assets take on a newID when they come into a subnet (so you can never have
   a token that is identical to one that has different security properties)
