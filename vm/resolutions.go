@@ -187,7 +187,11 @@ func (vm *VM) processAcceptedBlocks() {
 		// Must clear accepted txs before [SetMinTx] or else we will errnoueously
 		// send [ErrExpired] messages.
 		vm.listeners.SetMinTx(b.Tmstmp)
-		vm.snowCtx.Log.Info("block processed", zap.Stringer("blkID", b.ID()), zap.Uint64("height", b.Hght))
+		vm.snowCtx.Log.Info(
+			"block processed",
+			zap.Stringer("blkID", b.ID()),
+			zap.Uint64("height", b.Hght),
+		)
 	}
 	close(vm.acceptorDone)
 	vm.snowCtx.Log.Info("acceptor queue shutdown")
