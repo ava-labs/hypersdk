@@ -27,4 +27,5 @@ var (
 	OutputNotWarpAsset       = []byte("not warp asset")
 	OutputWarpAsset          = []byte("warp asset")
 	OutputWrongDestination   = []byte("wrong destination")
+	OutputMustFill           = []byte("must fill request")
 )

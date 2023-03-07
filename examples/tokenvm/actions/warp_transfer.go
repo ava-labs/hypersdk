@@ -37,7 +37,7 @@ type WarpTransfer struct {
 	SwapOut uint64 `json:"swapOut"`
 	// SwapExpiry is the unix timestamp at which the swap becomes invalid (and
 	// the message can be processed without a swap.
-	SwapExpiry uint64 `json:"swapExpiry"`
+	SwapExpiry int64 `json:"swapExpiry"`
 
 	// TxID is the transaction that created this message. This is used to ensure
 	// there is WarpID uniqueness.
@@ -54,7 +54,7 @@ func (w *WarpTransfer) Marshal() ([]byte, error) {
 	p.PackUint64(w.SwapIn)
 	p.PackID(w.AssetOut)
 	p.PackUint64(w.SwapOut)
-	p.PackUint64(w.SwapExpiry)
+	p.PackInt64(w.SwapExpiry)
 	p.PackID(w.TxID)
 	return p.Bytes(), p.Err()
 }
@@ -81,7 +81,10 @@ func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
 	transfer.SwapIn = p.UnpackUint64(false) // optional
 	p.UnpackID(false, &transfer.AssetOut)
 	transfer.SwapOut = p.UnpackUint64(false)
-	transfer.SwapExpiry = p.UnpackUint64(false)
+	transfer.SwapExpiry = p.UnpackInt64(false)
+	if transfer.SwapExpiry < 0 {
+		return nil, chain.ErrInvalidObject
+	}
 	p.UnpackID(true, &transfer.TxID)
 	if err := p.Err(); err != nil {
 		return nil, err

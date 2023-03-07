@@ -37,6 +37,7 @@ func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 	var (
 		keys    [][]byte
 		assetID ids.ID
+		actor   = auth.GetActor(rauth)
 	)
 	if i.warpTransfer.Return {
 		assetID = i.warpTransfer.Asset
@@ -55,8 +56,15 @@ func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 	// If the [warpTransfer] specified a reward, we add the state key to make
 	// sure it is paid.
 	if i.warpTransfer.Reward > 0 {
-		actor := auth.GetActor(rauth)
 		keys = append(keys, storage.PrefixBalanceKey(actor, assetID))
+	}
+
+	// If the [warpTransfer] requests a swap, we add the state keys to transfer
+	// the required balances.
+	if i.Fill && i.warpTransfer.SwapIn > 0 {
+		keys = append(keys, storage.PrefixBalanceKey(actor, i.warpTransfer.AssetOut))
+		keys = append(keys, storage.PrefixBalanceKey(actor, assetID))
+		keys = append(keys, storage.PrefixBalanceKey(i.warpTransfer.To, i.warpTransfer.AssetOut))
 	}
 	return keys
 }
@@ -142,7 +150,7 @@ func (i *ImportAsset) Execute(
 	ctx context.Context,
 	r chain.Rules,
 	db chain.Database,
-	_ int64,
+	t int64,
 	rauth chain.Auth,
 	_ ids.ID,
 	wm *chain.WarpMessage,
@@ -159,10 +167,47 @@ func (i *ImportAsset) Execute(
 	if i.warpTransfer.Value == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
 	}
+	var (
+		result *chain.Result
+		err    error
+	)
 	if i.warpTransfer.Return {
-		return i.executeReturn(ctx, r, db, actor)
+		result, err = i.executeReturn(ctx, r, db, actor)
+	} else {
+		result, err = i.executeMint(ctx, r, db, actor)
 	}
-	return i.executeMint(ctx, r, db, actor)
+	if err != nil {
+		return nil, err
+	}
+	if !result.Success || i.warpTransfer.SwapIn == 0 {
+		return result, nil
+	}
+	if !i.Fill {
+		if i.warpTransfer.SwapExpiry > t {
+			return &chain.Result{Success: false, Units: unitsUsed, Output: OutputMustFill}, nil
+		}
+		return &chain.Result{Success: true, Units: unitsUsed}, nil
+	}
+	// TODO: charge more if swap is performed
+	var assetIn ids.ID
+	if i.warpTransfer.Return {
+		assetIn = i.warpTransfer.Asset
+	} else {
+		assetIn = ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
+	}
+	if err := storage.SubBalance(ctx, db, i.warpTransfer.To, assetIn, i.warpTransfer.SwapIn); err != nil {
+		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+	}
+	if err := storage.AddBalance(ctx, db, actor, assetIn, i.warpTransfer.SwapIn); err != nil {
+		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+	}
+	if err := storage.SubBalance(ctx, db, actor, i.warpTransfer.AssetOut, i.warpTransfer.SwapOut); err != nil {
+		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+	}
+	if err := storage.AddBalance(ctx, db, i.warpTransfer.To, i.warpTransfer.AssetOut, i.warpTransfer.SwapOut); err != nil {
+		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+	}
+	return &chain.Result{Success: true, Units: unitsUsed}, nil
 }
 
 func (i *ImportAsset) MaxUnits(chain.Rules) uint64 {
@@ -191,6 +236,9 @@ func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, erro
 	}
 	// Ensure we can fill the swap if it exists
 	if imp.Fill && imp.warpTransfer.SwapIn == 0 {
+		return nil, chain.ErrInvalidObject
+	}
+	if imp.warpTransfer.Value < imp.warpTransfer.SwapIn {
 		return nil, chain.ErrInvalidObject
 	}
 	return &imp, nil
