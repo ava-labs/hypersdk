@@ -71,79 +71,75 @@ func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 
 func (i *ImportAsset) executeMint(
 	ctx context.Context,
-	r chain.Rules,
 	db chain.Database,
 	actor crypto.PublicKey,
-) (*chain.Result, error) {
+) []byte {
 	asset := ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
-	unitsUsed := i.MaxUnits(r)
 	exists, metadata, supply, _, warp, err := storage.GetAsset(ctx, db, asset)
 	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return utils.ErrBytes(err)
 	}
 	if exists && !warp {
 		// Should not be possible
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputConflictingAsset}, nil
+		return OutputConflictingAsset
 	}
 	if !exists {
 		metadata = ImportedAssetMetadata(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
 	}
 	newSupply, err := smath.Add64(supply, i.warpTransfer.Value)
 	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return utils.ErrBytes(err)
 	}
 	newSupply, err = smath.Add64(newSupply, i.warpTransfer.Reward)
 	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return utils.ErrBytes(err)
 	}
 	if err := storage.SetAsset(ctx, db, asset, metadata, newSupply, crypto.EmptyPublicKey, true); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return utils.ErrBytes(err)
 	}
 	if err := storage.AddBalance(ctx, db, i.warpTransfer.To, asset, i.warpTransfer.Value); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return utils.ErrBytes(err)
 	}
 	if i.warpTransfer.Reward > 0 {
 		if err := storage.AddBalance(ctx, db, actor, asset, i.warpTransfer.Reward); err != nil {
-			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+			return utils.ErrBytes(err)
 		}
 	}
-	return &chain.Result{Success: true, Units: unitsUsed}, nil
+	return nil
 }
 
 func (i *ImportAsset) executeReturn(
 	ctx context.Context,
-	r chain.Rules,
 	db chain.Database,
 	actor crypto.PublicKey,
-) (*chain.Result, error) {
-	unitsUsed := i.MaxUnits(r)
+) []byte {
 	if err := storage.SubLoan(
 		ctx, db, i.warpTransfer.Asset,
 		i.warpMessage.SourceChainID, i.warpTransfer.Value,
 	); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return utils.ErrBytes(err)
 	}
 	if err := storage.AddBalance(
 		ctx, db, i.warpTransfer.To,
 		i.warpTransfer.Asset, i.warpTransfer.Value,
 	); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return utils.ErrBytes(err)
 	}
 	if i.warpTransfer.Reward > 0 {
 		if err := storage.SubLoan(
 			ctx, db, i.warpTransfer.Asset,
 			i.warpMessage.SourceChainID, i.warpTransfer.Reward,
 		); err != nil {
-			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+			return utils.ErrBytes(err)
 		}
 		if err := storage.AddBalance(
 			ctx, db, actor,
 			i.warpTransfer.Asset, i.warpTransfer.Reward,
 		); err != nil {
-			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+			return utils.ErrBytes(err)
 		}
 	}
-	return &chain.Result{Success: true, Units: unitsUsed}, nil
+	return nil
 }
 
 func (i *ImportAsset) Execute(
@@ -167,20 +163,18 @@ func (i *ImportAsset) Execute(
 	if i.warpTransfer.Value == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
 	}
-	var (
-		result *chain.Result
-		err    error
-	)
+	var output []byte
 	if i.warpTransfer.Return {
-		result, err = i.executeReturn(ctx, r, db, actor)
+		output = i.executeReturn(ctx, db, actor)
 	} else {
-		result, err = i.executeMint(ctx, r, db, actor)
+		output = i.executeMint(ctx, db, actor)
 	}
-	if err != nil {
-		return nil, err
+	if len(output) > 0 {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: output}, nil
 	}
-	if !result.Success || i.warpTransfer.SwapIn == 0 {
-		return result, nil
+	if i.warpTransfer.SwapIn == 0 {
+		// We are ensured that [i.Fill] is false here because of logic in unmarshal
+		return &chain.Result{Success: true, Units: unitsUsed}, nil
 	}
 	if !i.Fill {
 		if i.warpTransfer.SwapExpiry > t {
