@@ -253,7 +253,13 @@ func UnmarshalExportAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error
 	}
 	// Handle swap checks
 	// TODO: consider using the optional codec
-	if !ValidSwapParams(export.Value, export.SwapIn, export.AssetOut, export.SwapOut, export.SwapExpiry) {
+	if !ValidSwapParams(
+		export.Value,
+		export.SwapIn,
+		export.AssetOut,
+		export.SwapOut,
+		export.SwapExpiry,
+	) {
 		return nil, chain.ErrInvalidObject
 	}
 	return &export, nil

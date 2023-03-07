@@ -91,13 +91,25 @@ func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
 	}
 	// Handle swap checks
 	// TODO: consider using the optional codec
-	if !ValidSwapParams(transfer.Value, transfer.SwapIn, transfer.AssetOut, transfer.SwapOut, transfer.SwapExpiry) {
+	if !ValidSwapParams(
+		transfer.Value,
+		transfer.SwapIn,
+		transfer.AssetOut,
+		transfer.SwapOut,
+		transfer.SwapExpiry,
+	) {
 		return nil, chain.ErrInvalidObject
 	}
 	return &transfer, nil
 }
 
-func ValidSwapParams(value uint64, swapIn uint64, assetOut ids.ID, swapOut uint64, swapExpiry int64) bool {
+func ValidSwapParams(
+	value uint64,
+	swapIn uint64,
+	assetOut ids.ID,
+	swapOut uint64,
+	swapExpiry int64,
+) bool {
 	if swapExpiry < 0 {
 		return false
 	}
