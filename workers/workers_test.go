@@ -147,6 +147,7 @@ func TestJobWait(t *testing.T) {
 	go func() {
 		job.result <- testError
 	}()
+	time.Sleep(10 * time.Millisecond)
 	returned := job.Wait()
 	require.ErrorIs(testError, returned, "Incorrect error returned.")
 }
@@ -227,40 +228,29 @@ func TestWorker(t *testing.T) {
 	require.Empty(w.ackShutdown, "Worker ackShutdown not empty")
 	require.Empty(w.stopWorkers, "Worker stopWorkers not empty")
 	require.Empty(w.stoppedWorkers, "Worker stoppedWorkers not empty")
-	// Wait on jobs
-	var wg sync.WaitGroup
-	wg.Add(1000)
 	// Value updated by the workers
 	var valLock sync.Mutex
 	val := 0
+	jobs := []*Job{}
 	for i := 0; i < 1000; i++ {
 		// Create a new job
 		job, err := w.NewJob(10)
 		require.NoError(err)
 		for j := 0; j < 10; j++ {
-			task := func() error {
+			job.Go(func() error {
 				valLock.Lock()
 				defer valLock.Unlock()
 				val += 1
 				return nil
-			}
-			job.Go(task)
+			})
 		}
-		go func() {
-			defer wg.Done()
-			err := job.Wait()
-			require.NoError(err, "Error waiting on job.")
-		}()
+		jobs = append(jobs, job)
 		job.Done(nil)
 	}
-	finished := make(chan bool)
-	go func() {
-		// Wait for all jobs to finish and stop worker after
-		wg.Wait()
-		w.Stop()
-		finished <- true
-	}()
-	<-finished
+	for _, j := range jobs {
+		require.NoError(j.Wait(), "Error waiting on job.")
+	}
+	w.Stop()
 	// Jobs ran correctly
 	require.Equal(10000, val, "Value not updated correctly")
 }
@@ -270,33 +260,25 @@ func TestWorkerStop(t *testing.T) {
 	w := New(5, 100)
 	var valLock sync.Mutex
 	val := 0
-
 	// Create a new job
 	job, err := w.NewJob(5)
 	require.NoError(err)
 	for j := 0; j < 5; j++ {
-		task := func() error {
+		job.Go(func() error {
 			time.Sleep(time.Second * 1)
 			valLock.Lock()
 			defer valLock.Unlock()
 			val += 1
 			return nil
-		}
-		job.Go(task)
+		})
 	}
-	finished := make(chan bool)
-	go func() {
-		job.Done(nil)
-		err := job.Wait()
-		require.NoError(err, "Error waiting on job.")
-		w.Stop()
-		finished <- true
-	}()
-	// Trigger stop, 5 jobs should still be running
+	job.Done(nil)
 	valLock.Lock()
 	require.Equal(0, val, "Value not updated correctly")
 	valLock.Unlock()
-	<-finished
+	require.NoError(job.Wait(), "Error waiting on job.")
+	// Trigger stop, 5 jobs should still be running
+	w.Stop()
 	// Check that processes completed
 	require.Equal(5, val, "Value not updated correctly")
 	// Make sure new jobs cannot be created

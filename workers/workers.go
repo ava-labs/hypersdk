@@ -67,23 +67,19 @@ func (w *Workers) processQueue() {
 				j.result <- ErrShutdown
 				continue
 			}
-
 			// Process tasks
 			for t := range j.tasks {
 				w.sg.Add(1)
 				w.tasks <- t
 			}
 			w.sg.Wait()
-
 			// Send result to queue and reset err
 			w.lock.Lock()
 			close(j.completed)
 			j.result <- w.err
-
 			w.err = nil
 			w.lock.Unlock()
 		}
-
 		// Ensure stop returns
 		w.lock.Lock()
 		if w.shouldShutdown && !w.triggeredShutdown {
@@ -113,7 +109,6 @@ func (w *Workers) startWorker() {
 					w.sg.Done()
 					return
 				}
-
 				// Attempt to process the job
 				if err := j(); err != nil {
 					w.lock.Lock()
@@ -170,13 +165,14 @@ func (j *Job) Done(f func()) {
 	}
 }
 
-// Wait returns the value received by the j.result channel.
+// Wait returns the value received by the j.result channel. This only occurs
+// once all tasks for a job are completed and after j.Done has been called.
 func (j *Job) Wait() error {
 	return <-j.result
 }
 
 // NewJob creates a new job and adds it to the workers' queue. [taskBacklog]
-// specifies the maximum number of  tasks that can be added to the created job
+// specifies the maximum number of tasks that can be added to the created job
 // channel.
 //
 // If you don't want to block, make sure taskBacklog is greater than all
