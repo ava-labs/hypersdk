@@ -21,6 +21,11 @@ import (
 var _ chain.Action = (*ImportAsset)(nil)
 
 type ImportAsset struct {
+	// Fill indicates if the actor wishes to fill the order request in the warp
+	// message. This must be true if the warp message is in a block with
+	// a timestamp < [SwapExpiry].
+	Fill bool `json:"fill"`
+
 	// warpTransfer is parsed from the inner *warp.Message
 	warpTransfer *WarpTransfer
 
@@ -161,23 +166,32 @@ func (i *ImportAsset) Execute(
 }
 
 func (i *ImportAsset) MaxUnits(chain.Rules) uint64 {
-	// TODO: ensure we protect this from warp
-	return uint64(len(i.warpMessage.Payload))
+	return uint64(len(i.warpMessage.Payload)) + 1
 }
 
 // All we encode that is action specific for now is the type byte from the
 // registry.
-func (*ImportAsset) Marshal(*codec.Packer) {}
+func (i *ImportAsset) Marshal(p *codec.Packer) {
+	p.PackBool(i.Fill)
+}
 
-func UnmarshalImportAsset(_ *codec.Packer, wm *warp.Message) (chain.Action, error) {
+func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
 	var (
 		imp ImportAsset
 		err error
 	)
+	imp.Fill = p.UnpackBool()
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
 	imp.warpMessage = wm
 	imp.warpTransfer, err = UnmarshalWarpTransfer(imp.warpMessage.Payload)
 	if err != nil {
 		return nil, err
+	}
+	// Ensure we can fill the swap if it exists
+	if imp.Fill && imp.warpTransfer.SwapIn == 0 {
+		return nil, chain.ErrInvalidObject
 	}
 	return &imp, nil
 }

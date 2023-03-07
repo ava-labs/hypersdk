@@ -12,16 +12,35 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-const WarpTransferSize = crypto.PublicKeyLen + 2*consts.IDLen + 2*consts.Uint64Len + 1
+const WarpTransferSize = crypto.PublicKeyLen + consts.IDLen +
+	consts.Uint64Len + 1 + consts.Uint64Len + consts.Uint64Len +
+	consts.IDLen + consts.Uint64Len + consts.Uint64Len + consts.IDLen
 
 type WarpTransfer struct {
-	To     crypto.PublicKey `json:"to"`
-	Asset  ids.ID           `json:"asset"`
-	Value  uint64           `json:"value"`
-	Return bool             `json:"return"`
+	To    crypto.PublicKey `json:"to"`
+	Asset ids.ID           `json:"asset"`
+	Value uint64           `json:"value"`
 
+	// Return is set to true when a warp message is sending funds back to the
+	// chain where they were created.
+	Return bool `json:"return"`
+
+	// Reward is the amount of [Asset] to send the [Actor] that submits this
+	// transaction.
 	Reward uint64 `json:"reward"`
 
+	// SwapIn is the amount of [Asset] we are willing to swap for [AssetOut].
+	SwapIn uint64 `json:"swapIn"`
+	// AssetOut is the asset we are seeking to get for [SwapIn].
+	AssetOut ids.ID `json:"assetOut"`
+	// SwapOut is the amount of [AssetOut] we are seeking.
+	SwapOut uint64 `json:"swapOut"`
+	// SwapExpiry is the unix timestamp at which the swap becomes invalid (and
+	// the message can be processed without a swap.
+	SwapExpiry uint64 `json:"swapExpiry"`
+
+	// TxID is the transaction that created this message. This is used to ensure
+	// there is WarpID uniqueness.
 	TxID ids.ID `json:"txID"`
 }
 
@@ -32,6 +51,10 @@ func (w *WarpTransfer) Marshal() ([]byte, error) {
 	p.PackUint64(w.Value)
 	p.PackBool(w.Return)
 	p.PackUint64(w.Reward)
+	p.PackUint64(w.SwapIn)
+	p.PackID(w.AssetOut)
+	p.PackUint64(w.SwapOut)
+	p.PackUint64(w.SwapExpiry)
 	p.PackID(w.TxID)
 	return p.Bytes(), p.Err()
 }
@@ -55,12 +78,33 @@ func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
 	transfer.Value = p.UnpackUint64(true)
 	transfer.Return = p.UnpackBool()
 	transfer.Reward = p.UnpackUint64(false) // reward not required
+	transfer.SwapIn = p.UnpackUint64(false) // optional
+	p.UnpackID(false, &transfer.AssetOut)
+	transfer.SwapOut = p.UnpackUint64(false)
+	transfer.SwapExpiry = p.UnpackUint64(false)
 	p.UnpackID(true, &transfer.TxID)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}
 	if !p.Empty() {
 		return nil, chain.ErrInvalidObject
+	}
+	// Handle swap checks
+	// TODO: consider making these optional
+	if transfer.SwapIn == 0 {
+		if transfer.AssetOut != ids.Empty {
+			return nil, chain.ErrInvalidObject
+		}
+		if transfer.SwapOut != 0 {
+			return nil, chain.ErrInvalidObject
+		}
+		if transfer.SwapExpiry != 0 {
+			return nil, chain.ErrInvalidObject
+		}
+	} else {
+		if transfer.SwapOut == 0 {
+			return nil, chain.ErrInvalidObject
+		}
 	}
 	return &transfer, nil
 }
