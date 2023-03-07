@@ -213,21 +213,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		} else {
 			subnetB = append(subnetB, n)
 		}
-		_, err = anrCli.AddNode(ctx, n, execPath,
-			runner_sdk.WithPluginDir(pluginDir),
-			// TODO: unclear if need to provide this again
-			runner_sdk.WithGlobalNodeConfig(`{
-				"log-display-level":"info",
-				"proposervm-use-current-height":true,
-				"throttler-inbound-validator-alloc-size":"107374182",
-				"throttler-inbound-node-max-processing-msgs":"100000",
-				"throttler-inbound-bandwidth-refill-rate":"1073741824",
-				"throttler-inbound-bandwidth-max-burst-size":"1073741824",
-				"throttler-inbound-cpu-validator-alloc":"100000",
-				"throttler-inbound-disk-validator-alloc":"10737418240000",
-				"throttler-outbound-validator-alloc-size":"107374182"
-			}`),
-		)
+		_, err = anrCli.AddNode(ctx, n, execPath)
 		cancel()
 		gomega.Expect(err).Should(gomega.BeNil())
 	}
@@ -818,28 +804,6 @@ var _ = ginkgo.Describe("[Test]", func() {
 			context.Background(),
 			"bootstrap",
 			execPath,
-			runner_sdk.WithPluginDir(pluginDir),
-			runner_sdk.WithBlockchainSpecs(
-				[]*rpcpb.BlockchainSpec{
-					{
-						VmName:       consts.Name,
-						Genesis:      vmGenesisPath,
-						ChainConfig:  vmConfigPath,
-						SubnetConfig: subnetConfigPath,
-					},
-				},
-			),
-			runner_sdk.WithGlobalNodeConfig(`{
-				"log-display-level":"info",
-				"proposervm-use-current-height":true,
-				"throttler-inbound-validator-alloc-size":"107374182",
-				"throttler-inbound-node-max-processing-msgs":"100000",
-				"throttler-inbound-bandwidth-refill-rate":"1073741824",
-				"throttler-inbound-bandwidth-max-burst-size":"1073741824",
-				"throttler-inbound-cpu-validator-alloc":"100000",
-				"throttler-inbound-disk-validator-alloc":"10737418240000",
-				"throttler-outbound-validator-alloc-size":"107374182"
-			}`),
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 		awaitHealthy(anrCli)
@@ -932,28 +896,6 @@ var _ = ginkgo.Describe("[Test]", func() {
 			context.Background(),
 			"sync",
 			execPath,
-			runner_sdk.WithPluginDir(pluginDir),
-			runner_sdk.WithBlockchainSpecs(
-				[]*rpcpb.BlockchainSpec{
-					{
-						VmName:       consts.Name,
-						Genesis:      vmGenesisPath,
-						ChainConfig:  vmConfigPath,
-						SubnetConfig: subnetConfigPath,
-					},
-				},
-			),
-			runner_sdk.WithGlobalNodeConfig(`{
-				"log-display-level":"info",
-				"proposervm-use-current-height":true,
-				"throttler-inbound-validator-alloc-size":"107374182",
-				"throttler-inbound-node-max-processing-msgs":"100000",
-				"throttler-inbound-bandwidth-refill-rate":"1073741824",
-				"throttler-inbound-bandwidth-max-burst-size":"1073741824",
-				"throttler-inbound-cpu-validator-alloc":"100000",
-				"throttler-inbound-disk-validator-alloc":"10737418240000",
-				"throttler-outbound-validator-alloc-size":"107374182"
-			}`),
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 
@@ -1041,28 +983,6 @@ var _ = ginkgo.Describe("[Test]", func() {
 			context.Background(),
 			"sync_concurrent",
 			execPath,
-			runner_sdk.WithPluginDir(pluginDir),
-			runner_sdk.WithBlockchainSpecs(
-				[]*rpcpb.BlockchainSpec{
-					{
-						VmName:       consts.Name,
-						Genesis:      vmGenesisPath,
-						ChainConfig:  vmConfigPath,
-						SubnetConfig: subnetConfigPath,
-					},
-				},
-			),
-			runner_sdk.WithGlobalNodeConfig(`{
-				"log-display-level":"info",
-				"proposervm-use-current-height":true,
-				"throttler-inbound-validator-alloc-size":"107374182",
-				"throttler-inbound-node-max-processing-msgs":"100000",
-				"throttler-inbound-bandwidth-refill-rate":"1073741824",
-				"throttler-inbound-bandwidth-max-burst-size":"1073741824",
-				"throttler-inbound-cpu-validator-alloc":"100000",
-				"throttler-inbound-disk-validator-alloc":"10737418240000",
-				"throttler-outbound-validator-alloc-size":"107374182"
-			}`),
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 		awaitHealthy(anrCli)

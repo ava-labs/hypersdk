@@ -274,9 +274,6 @@ func (s *stateSyncerClient) startingSync(state bool) {
 	s.startedSync = true
 	vm := s.vm
 
-	// This will be overwritten when we accept the first block
-	vm.startSeenTime = -1
-
 	// If state sync, we pessimistically assume nothing we have on-disk will
 	// be useful (as we will jump ahead to some future block).
 	if state {
@@ -288,6 +285,10 @@ func (s *stateSyncerClient) startingSync(state bool) {
 	blk := vm.lastAccepted
 	if blk.Hght == 0 {
 		vm.snowCtx.Log.Info("no seen transactions to backfill")
+		vm.startSeenTime = 0
+		vm.seenValidityWindowOnce.Do(func() {
+			close(vm.seenValidityWindow)
+		})
 		return
 	}
 
@@ -314,6 +315,12 @@ func (s *stateSyncerClient) startingSync(state bool) {
 		// Exit early if next block to fetch is genesis (which contains no
 		// txs)
 		if blk.Hght <= 1 {
+			// If we have walked back from the last accepted block to genesis, then
+			// we can be sure we have all required transactions to start validation.
+			vm.startSeenTime = 0
+			vm.seenValidityWindowOnce.Do(func() {
+				close(vm.seenValidityWindow)
+			})
 			break
 		}
 

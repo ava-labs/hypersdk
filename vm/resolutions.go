@@ -217,6 +217,8 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 			// We could not be ready but seen a window of transactions if the state
 			// to sync is large (takes longer to fetch than [ValidityWindow]).
 		default:
+			// The value of [vm.startSeenTime] can only be negative if we are
+			// performing state sync.
 			if vm.startSeenTime < 0 {
 				vm.startSeenTime = blkTime
 			}

@@ -137,6 +137,9 @@ func (vm *VM) Initialize(
 ) error {
 	vm.snowCtx = snowCtx
 	vm.pkBytes = bls.PublicKeyToBytes(vm.snowCtx.PublicKey)
+	// This will be overwritten when we accept the first block (in state sync) or
+	// backfill existing blocks (during normal bootstrapping).
+	vm.startSeenTime = -1
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	gatherer := ametrics.NewMultiGatherer()
@@ -403,12 +406,6 @@ func (vm *VM) onNormalOperationsStarted() error {
 		return nil
 	}
 	vm.bootstrapped.Set(true)
-
-	// Handle case where normal operations start at genesis
-	if vm.lastAccepted.Hght == 0 {
-		vm.snowCtx.Log.Warn("forcing VM ready because began normal operation at genesis")
-		vm.ForceReady()
-	}
 	return nil
 }
 
