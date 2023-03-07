@@ -106,7 +106,8 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	vm.mempool.Remove(ctx, b.Txs)
 	vm.snowCtx.Log.Info(
 		"verified block",
-		zap.Stringer("id", b.ID()),
+		zap.Stringer("blkID", b.ID()),
+		zap.Uint64("height", b.Hght),
 		zap.Int("txs", len(b.Txs)),
 		zap.Bool("state ready", vm.StateReady()),
 	)
@@ -186,7 +187,7 @@ func (vm *VM) processAcceptedBlocks() {
 		// Must clear accepted txs before [SetMinTx] or else we will errnoueously
 		// send [ErrExpired] messages.
 		vm.listeners.SetMinTx(b.Tmstmp)
-		vm.snowCtx.Log.Info("updated block and tx waiters", zap.Uint64("height", b.Hght))
+		vm.snowCtx.Log.Info("block processed", zap.Stringer("blkID", b.ID()), zap.Uint64("height", b.Hght))
 	}
 	close(vm.acceptorDone)
 	vm.snowCtx.Log.Info("acceptor queue shutdown")
@@ -215,14 +216,18 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 		select {
 		case <-vm.seenValidityWindow:
 			// We could not be ready but seen a window of transactions if the state
-			// to sync is large (takes longer to fetch than [ValidityWindow].
+			// to sync is large (takes longer to fetch than [ValidityWindow]).
 		default:
+			// The value of [vm.startSeenTime] can only be negative if we are
+			// performing state sync.
 			if vm.startSeenTime < 0 {
 				vm.startSeenTime = blkTime
 			}
 			r := vm.Rules(blkTime)
 			if blkTime-vm.startSeenTime > r.GetValidityWindow() {
-				close(vm.seenValidityWindow)
+				vm.seenValidityWindowOnce.Do(func() {
+					close(vm.seenValidityWindow)
+				})
 			}
 		}
 	}
@@ -240,6 +245,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	vm.snowCtx.Log.Info(
 		"accepted block",
 		zap.Stringer("blkID", b.ID()),
+		zap.Uint64("height", b.Hght),
 		zap.Int("txs", len(b.Txs)),
 		zap.Int("size", len(b.Bytes())),
 		zap.Uint64("units", b.UnitsConsumed),

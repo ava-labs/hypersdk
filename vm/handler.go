@@ -10,7 +10,7 @@ import (
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -72,12 +72,8 @@ func (h *Handler) SubmitTx(req *http.Request, args *SubmitTxArgs, reply *SubmitT
 	if !rtx.Empty() {
 		return errors.New("tx has extra bytes")
 	}
-	sigVerify, err := tx.Init(ctx, h.vm.actionRegistry, h.vm.authRegistry)
-	if err != nil {
+	if err := tx.AuthAsyncVerify()(); err != nil {
 		return err
-	}
-	if err := sigVerify(); err != nil {
-		return fmt.Errorf("%w: can't init tx", err)
 	}
 	txID := tx.ID()
 	reply.TxID = txID
@@ -136,10 +132,16 @@ type GetWarpSignaturesArgs struct {
 	TxID ids.ID `json:"txID"`
 }
 
+type WarpValidator struct {
+	NodeID    ids.NodeID `json:"nodeID"`
+	PublicKey []byte     `json:"publicKey"`
+	Weight    uint64     `json:"weight"`
+}
+
 type GetWarpSignaturesReply struct {
-	Validators map[ids.NodeID]*validators.GetValidatorOutput `json:"validators"`
-	Message    *warp.UnsignedMessage                         `json:"message"`
-	Signatures []*WarpSignature                              `json:"signatures"`
+	Validators []*WarpValidator      `json:"validators"`
+	Message    *warp.UnsignedMessage `json:"message"`
+	Signatures []*WarpSignature      `json:"signatures"`
 }
 
 func (h *Handler) GetWarpSignatures(
@@ -165,12 +167,23 @@ func (h *Handler) GetWarpSignatures(
 
 	// Ensure we only return valid signatures
 	validSignatures := []*WarpSignature{}
+	warpValidators := []*WarpValidator{}
 	validators, publicKeys := h.vm.proposerMonitor.Validators(req.Context())
 	for _, sig := range signatures {
 		if _, ok := publicKeys[string(sig.PublicKey)]; !ok {
 			continue
 		}
 		validSignatures = append(validSignatures, sig)
+	}
+	for _, vdr := range validators {
+		wv := &WarpValidator{
+			NodeID: vdr.NodeID,
+			Weight: vdr.Weight,
+		}
+		if vdr.PublicKey != nil {
+			wv.PublicKey = bls.PublicKeyToBytes(vdr.PublicKey)
+		}
+		warpValidators = append(warpValidators, wv)
 	}
 
 	// Optimistically request that we gather signatures if we don't have all of them
@@ -189,7 +202,7 @@ func (h *Handler) GetWarpSignatures(
 	}
 
 	reply.Message = message
-	reply.Validators = validators
+	reply.Validators = warpValidators
 	reply.Signatures = validSignatures
 	return nil
 }

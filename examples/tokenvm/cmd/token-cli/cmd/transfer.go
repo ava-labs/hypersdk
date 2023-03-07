@@ -163,7 +163,7 @@ func transferFunc(*cobra.Command, []string) error {
 		return nil
 	}
 
-	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.Transfer{
+	submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{
 		To:    pk,
 		Asset: assetID,
 		Value: amount,

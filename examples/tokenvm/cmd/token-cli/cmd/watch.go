@@ -138,6 +138,7 @@ func watchFunc(_ *cobra.Command, _ []string) error {
 				case *actions.CloseOrder:
 					summaryStr = fmt.Sprintf("orderID: %s", action.Order)
 				}
+				// TODO: add import/export
 			}
 			utils.Outf(
 				"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}units:{{/}} %d {{yellow}}summary (%s):{{/}} [%s]\n",
@@ -147,6 +148,7 @@ func watchFunc(_ *cobra.Command, _ []string) error {
 				result.Units,
 				reflect.TypeOf(tx.Action),
 				summaryStr,
+				// TODO: export if warp
 			)
 		}
 	}

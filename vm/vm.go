@@ -53,6 +53,7 @@ type VM struct {
 	genesis        Genesis
 	builder        builder.Builder
 	gossiper       gossiper.Gossiper
+	rawStateDB     database.Database
 	stateDB        *merkledb.Database
 	vmDB           database.Database
 	handlers       Handlers
@@ -63,9 +64,10 @@ type VM struct {
 	mempool *mempool.Mempool[*chain.Transaction]
 
 	// track all accepted but still valid txs (replay protection)
-	seen               *emap.EMap[*chain.Transaction]
-	startSeenTime      int64
-	seenValidityWindow chan struct{}
+	seen                   *emap.EMap[*chain.Transaction]
+	startSeenTime          int64
+	seenValidityWindowOnce sync.Once
+	seenValidityWindow     chan struct{}
 
 	// cache block objects to optimize "GetBlockStateless"
 	// only put when a block is accepted
@@ -135,6 +137,9 @@ func (vm *VM) Initialize(
 ) error {
 	vm.snowCtx = snowCtx
 	vm.pkBytes = bls.PublicKeyToBytes(vm.snowCtx.PublicKey)
+	// This will be overwritten when we accept the first block (in state sync) or
+	// backfill existing blocks (during normal bootstrapping).
+	vm.startSeenTime = -1
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	gatherer := ametrics.NewMultiGatherer()
@@ -152,9 +157,8 @@ func (vm *VM) Initialize(
 	vm.manager = manager
 
 	// Always initialize implementation first
-	var rawStateDB database.Database
 	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.vmDB,
-		rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, err = vm.c.Initialize(
+		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, err = vm.c.Initialize(
 		vm,
 		snowCtx,
 		gatherer,
@@ -177,7 +181,7 @@ func (vm *VM) Initialize(
 	defer span.End()
 
 	// Instantiate DBs
-	vm.stateDB, err = merkledb.New(ctx, rawStateDB, merkledb.Config{
+	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
 		HistoryLength:  vm.config.GetStateHistoryLength(),
 		NodeCacheSize:  vm.config.GetStateCacheSize(),
 		ValueCacheSize: vm.config.GetStateCacheSize(),
@@ -316,11 +320,13 @@ func (vm *VM) markReady() {
 		return
 	case <-vm.stateSyncClient.done:
 	}
+	vm.snowCtx.Log.Info("state sync client ready")
 	select {
 	case <-vm.stop:
 		return
 	case <-vm.seenValidityWindow:
 	}
+	vm.snowCtx.Log.Info("validity window ready")
 	if vm.stateSyncClient.Started() {
 		// only alert engine if we started
 		vm.toEngine <- common.StateSyncDone
@@ -337,6 +343,7 @@ func (vm *VM) isReady() bool {
 	case <-vm.ready:
 		return true
 	default:
+		vm.snowCtx.Log.Info("node is not ready yet")
 		return false
 	}
 }
@@ -386,8 +393,11 @@ func (vm *VM) onBootstrapStarted() error {
 }
 
 func (vm *VM) ForceReady() {
-	vm.stateSyncClient.ForceDone() // only works if haven't already started syncing
-	close(vm.seenValidityWindow)
+	// Only works if haven't already started syncing
+	vm.stateSyncClient.ForceDone()
+	vm.seenValidityWindowOnce.Do(func() {
+		close(vm.seenValidityWindow)
+	})
 }
 
 // onNormalOperationsStarted marks this VM as bootstrapped
@@ -396,20 +406,6 @@ func (vm *VM) onNormalOperationsStarted() error {
 		return nil
 	}
 	vm.bootstrapped.Set(true)
-
-	// Handle case where no sync targets found (occurs at genesis when first
-	// starting)
-	if !vm.stateSyncClient.Started() {
-		vm.snowCtx.Log.Info("starting normal operation without performing sync")
-		vm.ForceReady()
-
-		if hght := vm.lastAccepted.Hght; hght > 0 {
-			return fmt.Errorf(
-				"should never skip start sync when last accepted height is > 0 (currently=%d)",
-				hght,
-			)
-		}
-	}
 	return nil
 }
 
@@ -456,7 +452,7 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	if err := vm.stateDB.Close(); err != nil {
 		return err
 	}
-	return nil
+	return vm.rawStateDB.Close()
 }
 
 // implements "block.ChainVM.common.VM"
@@ -643,12 +639,7 @@ func (vm *VM) Submit(
 		txID := tx.ID()
 		// We already verify in streamer, let's avoid re-verification
 		if verifySig {
-			sigVerify, err := tx.Init(ctx, vm.actionRegistry, vm.authRegistry)
-			if err != nil {
-				vm.listeners.RemoveTx(txID, err)
-				errs = append(errs, err)
-				continue
-			}
+			sigVerify := tx.AuthAsyncVerify()
 			if err := sigVerify(); err != nil {
 				vm.listeners.RemoveTx(txID, err)
 				errs = append(errs, err)

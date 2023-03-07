@@ -32,6 +32,7 @@ type Transaction struct {
 	Action      Action        `json:"action"`
 	Auth        Auth          `json:"auth"`
 
+	digest         []byte
 	bytes          []byte
 	size           uint64
 	id             ids.ID
@@ -48,14 +49,7 @@ type WarpMessage struct {
 	VerifyErr error
 }
 
-func NewTx(base *Base, act Action) *Transaction {
-	return &Transaction{
-		Base:   base,
-		Action: act,
-	}
-}
-
-func NewWarpTx(base *Base, wm *warp.Message, act Action) *Transaction {
+func NewTx(base *Base, wm *warp.Message, act Action) *Transaction {
 	return &Transaction{
 		Base:        base,
 		WarpMessage: wm,
@@ -63,66 +57,64 @@ func NewWarpTx(base *Base, wm *warp.Message, act Action) *Transaction {
 	}
 }
 
-func (t *Transaction) Digest() ([]byte, error) {
-	p := codec.NewWriter(consts.MaxInt)
+func (t *Transaction) Digest(
+	actionRegistry *codec.TypeParser[Action, *warp.Message, bool],
+) ([]byte, error) {
+	if len(t.digest) > 0 {
+		return t.digest, nil
+	}
+	actionByte, _, _, ok := actionRegistry.LookupType(t.Action)
+	if !ok {
+		return nil, fmt.Errorf("unknown action type %T", t.Action)
+	}
+	p := codec.NewWriter(NetworkSizeLimit)
 	t.Base.Marshal(p)
 	var warpBytes []byte
 	if t.WarpMessage != nil {
 		warpBytes = t.WarpMessage.Bytes()
 	}
 	p.PackBytes(warpBytes)
+	p.PackByte(actionByte)
 	t.Action.Marshal(p)
 	return p.Bytes(), p.Err()
 }
 
-func (t *Transaction) Sign(factory AuthFactory) error {
-	msg, err := t.Digest()
+func (t *Transaction) Sign(
+	factory AuthFactory,
+	actionRegistry ActionRegistry,
+	authRegistry AuthRegistry,
+) (*Transaction, error) {
+	// Generate auth
+	msg, err := t.Digest(actionRegistry)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	auth, err := factory.Sign(msg, t.Action)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	t.Auth = auth
-	return nil
-}
 
-func (t *Transaction) Init(
-	_ context.Context,
-	actionRegistry ActionRegistry,
-	authRegistry AuthRegistry,
-) (func() error, error) {
-	if len(t.bytes) == 0 {
-		p := codec.NewWriter(consts.MaxInt)
-		if err := t.Marshal(p, actionRegistry, authRegistry); err != nil {
-			// should never happen
-			return nil, err
-		}
-		t.bytes = p.Bytes()
-		t.id = utils.ToID(t.bytes)
-		t.size = uint64(len(t.bytes))
-		if msg := t.WarpMessage; msg != nil {
-			numSigners, err := msg.Signature.NumSigners()
-			if err != nil {
-				return nil, fmt.Errorf("%w: could not calculate number of warp signers", err)
-			}
-			t.numWarpSigners = numSigners
-			t.warpID = computeWarpID(msg)
-		}
+	// Ensure transaction is fully initialized and correct by reloading it from
+	// bytes
+	p := codec.NewWriter(NetworkSizeLimit)
+	if err := t.Marshal(p, actionRegistry, authRegistry); err != nil {
+		return nil, err
 	}
-
-	return func() error {
-		// Verify sender
-		msg, err := t.Digest()
-		if err != nil {
-			return err
-		}
-		return t.Auth.AsyncVerify(msg)
-	}, nil
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
+	p = codec.NewReader(p.Bytes(), consts.MaxInt)
+	return UnmarshalTx(p, actionRegistry, authRegistry)
 }
 
-func (t *Transaction) Bytes() []byte { return t.bytes } // TODO: when to use vs Marshal?
+func (t *Transaction) AuthAsyncVerify() func() error {
+	return func() error {
+		return t.Auth.AsyncVerify(t.digest)
+	}
+}
+
+func (t *Transaction) Bytes() []byte { return t.bytes }
 
 func (t *Transaction) Size() uint64 { return t.size }
 
@@ -310,8 +302,14 @@ func (t *Transaction) Execute(
 		// Store newly created warp messages in state by their txID to ensure we can
 		// always sign for a message
 		if result.WarpMessage != nil {
-			result.WarpMessage.SourceChainID = ectx.ChainID // enforce we are the source of our own messages
-			// We use txID here because we will not know the warpID before execution.
+			// Enforce we are the source of our own messages
+			result.WarpMessage.SourceChainID = ectx.ChainID
+			// Initialize message (compute bytes) now that everything is populated
+			if err := result.WarpMessage.Initialize(); err != nil {
+				return nil, err
+			}
+			// We use txID here because did not know the warpID before execution (and
+			// we pre-reserve this key for the processor).
 			if err := tdb.Insert(ctx, s.OutgoingWarpKey(t.id), result.WarpMessage.Bytes()); err != nil {
 				return nil, err
 			}
@@ -347,6 +345,9 @@ func (t *Transaction) Marshal(
 	var warpBytes []byte
 	if t.WarpMessage != nil {
 		warpBytes = t.WarpMessage.Bytes()
+		if len(warpBytes) == 0 {
+			return ErrWarpMessageNotInitialized
+		}
 	}
 	p.PackBytes(warpBytes)
 	p.PackByte(actionByte)
@@ -416,6 +417,9 @@ func UnmarshalTx(
 		if err != nil {
 			return nil, fmt.Errorf("%w: could not unmarshal warp message", err)
 		}
+		if len(msg.Payload) == 0 {
+			return nil, ErrEmptyWarpPayload
+		}
 		warpMessage = msg
 		numSigners, err := msg.Signature.NumSigners()
 		if err != nil {
@@ -435,6 +439,7 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal action", err)
 	}
+	digest := p.Offset()
 	authType := p.UnpackByte()
 	unmarshalAuth, authWarp, ok := authRegistry.LookupIndex(authType)
 	if !ok {
@@ -460,7 +465,9 @@ func UnmarshalTx(
 	if err := p.Err(); err != nil {
 		return nil, p.Err()
 	}
-	tx.bytes = p.Bytes()[start:p.Offset()] // ensure errors handled before grabbing memory
+	codecBytes := p.Bytes()
+	tx.digest = codecBytes[start:digest]
+	tx.bytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
 	tx.size = uint64(len(tx.bytes))
 	tx.id = utils.ToID(tx.bytes)
 	if tx.WarpMessage != nil {

@@ -139,3 +139,24 @@ func (h *Handler) Orders(req *http.Request, args *OrdersArgs, reply *OrdersReply
 	reply.Orders = h.c.orderBook.Orders(args.Pair, ordersToSend)
 	return nil
 }
+
+type LoanArgs struct {
+	Destination ids.ID `json:"destination"`
+	Asset       ids.ID `json:"asset"`
+}
+
+type LoanReply struct {
+	Amount uint64 `json:"amount"`
+}
+
+func (h *Handler) Loan(req *http.Request, args *LoanArgs, reply *LoanReply) error {
+	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Loan")
+	defer span.End()
+
+	amount, err := storage.GetLoanFromState(ctx, h.c.inner.ReadState, args.Asset, args.Destination)
+	if err != nil {
+		return err
+	}
+	reply.Amount = amount
+	return nil
+}

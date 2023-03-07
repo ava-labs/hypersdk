@@ -42,6 +42,7 @@ func (e *ExportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 		}
 	} else {
 		keys = [][]byte{
+			storage.PrefixAssetKey(e.Asset),
 			storage.PrefixLoanKey(e.Asset, e.Destination),
 			storage.PrefixBalanceKey(actor, e.Asset),
 		}
@@ -96,7 +97,7 @@ func (e *ExportAsset) executeReturn(
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if e.Reward > 0 {
-		if err := storage.AddBalance(ctx, db, actor, e.Asset, e.Reward); err != nil {
+		if err := storage.SubBalance(ctx, db, actor, e.Asset, e.Reward); err != nil {
 			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 		}
 	}
@@ -132,6 +133,17 @@ func (e *ExportAsset) executeLoan(
 	txID ids.ID,
 ) (*chain.Result, error) {
 	unitsUsed := e.MaxUnits(r)
+	exists, _, _, _, isWarp, err := storage.GetAsset(ctx, db, e.Asset)
+	if err != nil {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	}
+	if !exists {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetMissing}, nil
+	}
+	if isWarp {
+		// Cannot export an asset if it was warped in and not returning
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputWarpAsset}, nil
+	}
 	if err := storage.AddLoan(ctx, db, e.Asset, e.Destination, e.Value); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
@@ -139,10 +151,10 @@ func (e *ExportAsset) executeLoan(
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if e.Reward > 0 {
-		if err := storage.SubLoan(ctx, db, e.Asset, e.Destination, e.Reward); err != nil {
+		if err := storage.AddLoan(ctx, db, e.Asset, e.Destination, e.Reward); err != nil {
 			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 		}
-		if err := storage.AddBalance(ctx, db, actor, e.Asset, e.Reward); err != nil {
+		if err := storage.SubBalance(ctx, db, actor, e.Asset, e.Reward); err != nil {
 			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 		}
 	}

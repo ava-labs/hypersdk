@@ -307,7 +307,7 @@ func fillOrderFunc(*cobra.Command, []string) error {
 	if err != nil {
 		return err
 	}
-	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.FillOrder{
+	submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.FillOrder{
 		Order: order.ID,
 		Owner: owner,
 		In:    inAssetID,

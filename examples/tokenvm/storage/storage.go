@@ -377,6 +377,27 @@ func PrefixLoanKey(asset ids.ID, destination ids.ID) (k []byte) {
 	return
 }
 
+// Used to serve RPC queries
+func GetLoanFromState(
+	ctx context.Context,
+	f ReadState,
+	asset ids.ID,
+	destination ids.ID,
+) (uint64, error) {
+	values, errs := f(ctx, [][]byte{PrefixLoanKey(asset, destination)})
+	return innerGetLoan(values[0], errs[0])
+}
+
+func innerGetLoan(v []byte, err error) (uint64, error) {
+	if errors.Is(err, database.ErrNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint64(v), nil
+}
+
 func GetLoan(
 	ctx context.Context,
 	db chain.Database,
@@ -385,13 +406,7 @@ func GetLoan(
 ) (uint64, error) {
 	k := PrefixLoanKey(asset, destination)
 	v, err := db.GetValue(ctx, k)
-	if errors.Is(err, database.ErrNotFound) {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, err
-	}
-	return binary.BigEndian.Uint64(v), nil
+	return innerGetLoan(v, err)
 }
 
 func SetLoan(

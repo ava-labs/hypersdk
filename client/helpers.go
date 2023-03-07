@@ -5,6 +5,7 @@ package client
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -31,6 +32,7 @@ type Modifier interface {
 func (cli *Client) GenerateTransaction(
 	ctx context.Context,
 	parser chain.Parser,
+	wm *warp.Message,
 	action chain.Action,
 	authFactory chain.AuthFactory,
 	modifiers ...Modifier,
@@ -55,15 +57,19 @@ func (cli *Client) GenerateTransaction(
 		m.Base(base)
 	}
 
-	// Build transaction
-	tx := chain.NewTx(base, action)
-	if err := tx.Sign(authFactory); err != nil {
-		return nil, nil, 0, fmt.Errorf("%w: failed to sign transaction", err)
+	// Ensure warp message is intialized before we marshal it
+	if wm != nil {
+		if err := wm.Initialize(); err != nil {
+			return nil, nil, 0, err
+		}
 	}
+
+	// Build transaction
 	actionRegistry, authRegistry := parser.Registry()
-	// TODO: init?
-	if _, err := tx.Init(ctx, actionRegistry, authRegistry); err != nil {
-		return nil, nil, 0, fmt.Errorf("%w: failed to init transaction", err)
+	tx := chain.NewTx(base, wm, action)
+	tx, err = tx.Sign(authFactory, actionRegistry, authRegistry)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("%w: failed to sign transaction", err)
 	}
 	maxUnits, err := tx.MaxUnits(rules)
 	if err != nil {
@@ -107,13 +113,15 @@ func getCanonicalValidatorSet(
 		totalWeight uint64
 		err         error
 	)
-	for _, vdr := range vdrSet {
+	for nid, vdr := range vdrSet {
+		fmt.Printf("vdr: %s %+v\n", nid, vdr)
 		totalWeight, err = math.Add64(totalWeight, vdr.Weight)
 		if err != nil {
 			return nil, 0, fmt.Errorf("%w: %v", warp.ErrWeightOverflow, err) //nolint:errorlint
 		}
 
 		if vdr.PublicKey == nil {
+			fmt.Println("skipping validator because of empty public key", vdr.NodeID)
 			continue
 		}
 
@@ -125,6 +133,7 @@ func getCanonicalValidatorSet(
 				PublicKeyBytes: pkBytes,
 			}
 			vdrs[string(pkBytes)] = uniqueVdr
+			fmt.Println("adding validator to canonical map", hex.EncodeToString(pkBytes))
 		}
 
 		uniqueVdr.Weight += vdr.Weight // Impossible to overflow here
@@ -143,20 +152,23 @@ func (cli *Client) GenerateAggregateWarpSignature(
 ) (*warp.Message, uint64, uint64, error) {
 	unsignedMessage, validators, signatures, err := cli.GetWarpSignatures(ctx, txID)
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, 0, fmt.Errorf("%w: failed to fetch warp signatures", err)
 	}
+	fmt.Println("retrieved signatues", "validators", len(validators), "signatures", len(signatures))
 
 	// Get canonical validator ordering to generate signature bit set
 	canonicalValidators, weight, err := getCanonicalValidatorSet(ctx, validators)
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, 0, fmt.Errorf("%w: failed to get canonical validator set", err)
 	}
+	fmt.Println("canonicalValidators", "count", len(canonicalValidators), "weight", weight)
 
 	// Generate map of bls.PublicKey => Signature
 	signatureMap := map[ids.ID][]byte{}
 	for _, signature := range signatures {
 		// Convert to hash for easy comparison (could just as easily store the raw
 		// public key but that would involve a number of memory copies)
+		fmt.Println("storing public key in map", hex.EncodeToString(signature.PublicKey))
 		signatureMap[utils.ToID(signature.PublicKey)] = signature.Signature
 	}
 
@@ -165,6 +177,7 @@ func (cli *Client) GenerateAggregateWarpSignature(
 	var signatureWeight uint64
 	orderedSignatures := []*bls.Signature{}
 	for i, vdr := range canonicalValidators {
+		fmt.Println("checking validator public key", hex.EncodeToString(vdr.PublicKeyBytes))
 		sig, ok := signatureMap[utils.ToID(vdr.PublicKeyBytes)]
 		if !ok {
 			continue
@@ -179,7 +192,7 @@ func (cli *Client) GenerateAggregateWarpSignature(
 	}
 	aggSignature, err := bls.AggregateSignatures(orderedSignatures)
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, 0, fmt.Errorf("%w: failed to aggregate signatures", err)
 	}
 	aggSignatureBytes := bls.SignatureToBytes(aggSignature)
 	signature := &warp.BitSetSignature{
@@ -187,5 +200,8 @@ func (cli *Client) GenerateAggregateWarpSignature(
 	}
 	copy(signature.Signature[:], aggSignatureBytes)
 	message, err := warp.NewMessage(unsignedMessage, signature)
-	return message, weight, signatureWeight, err
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("%w: failed to generate warp message", err)
+	}
+	return message, weight, signatureWeight, nil
 }

@@ -109,7 +109,7 @@ func closeOrderFunc(*cobra.Command, []string) error {
 		return nil
 	}
 
-	submit, tx, _, err := cli.GenerateTransaction(ctx, &actions.CloseOrder{
+	submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.CloseOrder{
 		Order: orderID,
 		Out:   outAssetID,
 	}, factory)

@@ -105,12 +105,16 @@ explicitly cancel it/replace it.
 
 ### Avalanche Warp Support
 * Send asset between any 2 tokenvms
+* Limit exposure of large hack by restricting warp to only origin + destination
+  (can't warp a warp asset somewhere else)
 * Auto-swap when processing import to get fee paying token
 * assets take on a newID when they come into a subnet (so you can never have
   a token that is identical to one that has different security properties)
 * Automatically accept warp messages if 80% of subnet signs (because each asset
   takes on a new ID, a rogue subnet can't corrupt the balance or activity of
   valid assets)
+
+TODO: talk about local test (15 nodes, 2 subnets with no overlap)
 
 ## Mint and Trade Demo
 Someone: "Seems cool but I need to see it to really get it."

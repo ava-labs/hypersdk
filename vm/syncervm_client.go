@@ -217,6 +217,10 @@ func (s *stateSyncerClient) Started() bool {
 // channel if the sync process never started (i.e. [AcceptedSyncableBlock] will
 // never be called)
 func (s *stateSyncerClient) ForceDone() {
+	if s.startedSync {
+		// If we started sync, we must wait for it to finish
+		return
+	}
 	s.doneOnce.Do(func() {
 		close(s.done)
 	})
@@ -270,9 +274,6 @@ func (s *stateSyncerClient) startingSync(state bool) {
 	s.startedSync = true
 	vm := s.vm
 
-	// This will be overwritten when we accept the first block
-	vm.startSeenTime = -1
-
 	// If state sync, we pessimistically assume nothing we have on-disk will
 	// be useful (as we will jump ahead to some future block).
 	if state {
@@ -284,6 +285,10 @@ func (s *stateSyncerClient) startingSync(state bool) {
 	blk := vm.lastAccepted
 	if blk.Hght == 0 {
 		vm.snowCtx.Log.Info("no seen transactions to backfill")
+		vm.startSeenTime = 0
+		vm.seenValidityWindowOnce.Do(func() {
+			close(vm.seenValidityWindow)
+		})
 		return
 	}
 
@@ -296,7 +301,9 @@ func (s *stateSyncerClient) startingSync(state bool) {
 			// We are assured this function won't be running while we accept
 			// a block, so we don't need to protect against closing this channel
 			// twice.
-			close(vm.seenValidityWindow)
+			vm.seenValidityWindowOnce.Do(func() {
+				close(vm.seenValidityWindow)
+			})
 			break
 		}
 
@@ -308,6 +315,12 @@ func (s *stateSyncerClient) startingSync(state bool) {
 		// Exit early if next block to fetch is genesis (which contains no
 		// txs)
 		if blk.Hght <= 1 {
+			// If we have walked back from the last accepted block to genesis, then
+			// we can be sure we have all required transactions to start validation.
+			vm.startSeenTime = 0
+			vm.seenValidityWindowOnce.Do(func() {
+				close(vm.seenValidityWindow)
+			})
 			break
 		}
 

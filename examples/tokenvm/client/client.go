@@ -54,7 +54,10 @@ func (cli *Client) Tx(ctx context.Context, id ids.ID) (bool, bool, int64, error)
 	return true, resp.Success, resp.Timestamp, nil
 }
 
-func (cli *Client) Asset(ctx context.Context, asset ids.ID) (bool, []byte, uint64, string, bool, error) {
+func (cli *Client) Asset(
+	ctx context.Context,
+	asset ids.ID,
+) (bool, []byte, uint64, string, bool, error) {
 	resp := new(controller.AssetReply)
 	err := cli.Requester.SendRequest(
 		ctx,
@@ -100,4 +103,18 @@ func (cli *Client) Orders(ctx context.Context, pair string) ([]*controller.Order
 		resp,
 	)
 	return resp.Orders, err
+}
+
+func (cli *Client) Loan(ctx context.Context, asset ids.ID, destination ids.ID) (uint64, error) {
+	resp := new(controller.LoanReply)
+	err := cli.Requester.SendRequest(
+		ctx,
+		"loan",
+		&controller.LoanArgs{
+			Asset:       asset,
+			Destination: destination,
+		},
+		resp,
+	)
+	return resp.Amount, err
 }

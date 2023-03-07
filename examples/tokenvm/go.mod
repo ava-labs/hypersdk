@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk/examples/tokenvm
 go 1.20
 
 require (
-	github.com/ava-labs/avalanche-network-runner v1.3.9-0.20230302011825-4e4dd706a452
+	github.com/ava-labs/avalanche-network-runner v1.3.10-0.20230306042504-a51bdcdedd37
 	github.com/ava-labs/avalanchego v1.9.10
 	github.com/ava-labs/hypersdk v0.0.1
 	github.com/fatih/color v1.13.0
@@ -13,7 +13,6 @@ require (
 	github.com/prometheus/client_golang v1.14.0
 	github.com/spf13/cobra v1.6.1
 	go.uber.org/zap v1.24.0
-	sigs.k8s.io/yaml v1.3.0
 )
 
 require (
