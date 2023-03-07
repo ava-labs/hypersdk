@@ -190,16 +190,16 @@ func (i *ImportAsset) Execute(
 		assetIn = ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
 	}
 	if err := storage.SubBalance(ctx, db, i.warpTransfer.To, assetIn, i.warpTransfer.SwapIn); err != nil {
-		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if err := storage.AddBalance(ctx, db, actor, assetIn, i.warpTransfer.SwapIn); err != nil {
-		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if err := storage.SubBalance(ctx, db, actor, i.warpTransfer.AssetOut, i.warpTransfer.SwapOut); err != nil {
-		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if err := storage.AddBalance(ctx, db, i.warpTransfer.To, i.warpTransfer.AssetOut, i.warpTransfer.SwapOut); err != nil {
-		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil
 }

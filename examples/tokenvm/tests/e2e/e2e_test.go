@@ -1104,7 +1104,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		})
 
 		ginkgo.By("swaping into destination", func() {
-			bIDA, err := ids.FromString(blockchainIDB)
+			bIDA, err := ids.FromString(blockchainIDA)
 			gomega.Ω(err).Should(gomega.BeNil())
 			newAsset := actions.ImportedAssetID(ids.Empty, bIDA)
 			submit, tx, _, err := instancesA[0].cli.GenerateTransaction(
