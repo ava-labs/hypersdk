@@ -154,21 +154,18 @@ func (cli *Client) GenerateAggregateWarpSignature(
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("%w: failed to fetch warp signatures", err)
 	}
-	fmt.Println("retrieved signatues", "validators", len(validators), "signatures", len(signatures))
 
 	// Get canonical validator ordering to generate signature bit set
 	canonicalValidators, weight, err := getCanonicalValidatorSet(ctx, validators)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("%w: failed to get canonical validator set", err)
 	}
-	fmt.Println("canonicalValidators", "count", len(canonicalValidators), "weight", weight)
 
 	// Generate map of bls.PublicKey => Signature
 	signatureMap := map[ids.ID][]byte{}
 	for _, signature := range signatures {
 		// Convert to hash for easy comparison (could just as easily store the raw
 		// public key but that would involve a number of memory copies)
-		fmt.Println("storing public key in map", hex.EncodeToString(signature.PublicKey))
 		signatureMap[utils.ToID(signature.PublicKey)] = signature.Signature
 	}
 
@@ -177,7 +174,6 @@ func (cli *Client) GenerateAggregateWarpSignature(
 	var signatureWeight uint64
 	orderedSignatures := []*bls.Signature{}
 	for i, vdr := range canonicalValidators {
-		fmt.Println("checking validator public key", hex.EncodeToString(vdr.PublicKeyBytes))
 		sig, ok := signatureMap[utils.ToID(vdr.PublicKeyBytes)]
 		if !ok {
 			continue
