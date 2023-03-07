@@ -5,7 +5,6 @@ package client
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -113,8 +112,7 @@ func getCanonicalValidatorSet(
 		totalWeight uint64
 		err         error
 	)
-	for nid, vdr := range vdrSet {
-		fmt.Printf("vdr: %s %+v\n", nid, vdr)
+	for _, vdr := range vdrSet {
 		totalWeight, err = math.Add64(totalWeight, vdr.Weight)
 		if err != nil {
 			return nil, 0, fmt.Errorf("%w: %v", warp.ErrWeightOverflow, err) //nolint:errorlint
@@ -133,7 +131,6 @@ func getCanonicalValidatorSet(
 				PublicKeyBytes: pkBytes,
 			}
 			vdrs[string(pkBytes)] = uniqueVdr
-			fmt.Println("adding validator to canonical map", hex.EncodeToString(pkBytes))
 		}
 
 		uniqueVdr.Weight += vdr.Weight // Impossible to overflow here

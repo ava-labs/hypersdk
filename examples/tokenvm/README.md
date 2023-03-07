@@ -109,7 +109,8 @@ explicitly cancel it/replace it.
   (can't warp a warp asset somewhere else)
   -> prevents a risky asset from a Subnet from "stealing reputation" of another
   Subnet where it may export from
-* Auto-swap when processing import to get fee paying token
+* Auto-swap when processing import to get fee paying token (works very similar
+  to a RFQ)
 * assets take on a newID when they come into a subnet (so you can never have
   a token that is identical to one that has different security properties)
 * Automatically accept warp messages if 80% of subnet signs (because each asset
