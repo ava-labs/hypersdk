@@ -7,15 +7,16 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/stretchr/testify/require"
 )
 
-func OPReaderFromOPWriter(writer *OptionalPacker, size int) *OptionalPacker {
-	rp := NewWriter(size)
-	rp.PackOptional(writer)
-	opr := rp.NewOptionalReader()
-	return opr
+func (o *OptionalPacker) toReader() *OptionalPacker {
+	// Add on for bits byte
+	size := len(o.ip.Bytes()) + 1
+	p := NewWriter(size)
+	p.PackOptional(o)
+	pr := NewReader(p.Bytes(), size)
+	return pr.NewOptionalReader()
 }
 func TestOptionalPackerWriter(t *testing.T) {
 	require := require.New(t)
@@ -43,15 +44,11 @@ func TestOptionalPackerID(t *testing.T) {
 	})
 	t.Run("Unpack", func(t *testing.T) {
 		// Setup optional reader
-		p := NewWriter(consts.IDLen + 1)
-		p.PackByte(1)
-		p.PackID(id)
-		pr := NewReader(p.Bytes(), consts.IDLen+1)
-		opr := pr.NewOptionalReader()
-
-		// fmt.Println(opr.ip.Bytes())
+		opr := opw.toReader()
 		var unpackedID ids.ID
 		// // Unpack
+		opr.UnpackID(&unpackedID)
+		require.Equal(ids.Empty, unpackedID, "ID unpacked correctly")
 		opr.UnpackID(&unpackedID)
 		require.Equal(id, unpackedID, "ID unpacked correctly")
 	})
