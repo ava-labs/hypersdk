@@ -59,9 +59,7 @@ var (
 
 	logsDir string
 
-	subnetIDA     string
 	blockchainIDA string
-	subnetIDB     string
 	blockchainIDB string
 )
 
@@ -202,123 +200,57 @@ var _ = ginkgo.BeforeSuite(func() {
 	)
 	logsDir = resp.GetClusterInfo().GetRootDataDir()
 
-	// Add 10 new validators (which should have BLS key registered)
+	// Name 10 new validators (which should have BLS key registered)
 	subnetA := []string{}
 	subnetB := []string{}
 	for i := 1; i <= 10; i++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		n := fmt.Sprintf("node%d-bls", i)
 		if i <= 5 {
 			subnetA = append(subnetA, n)
 		} else {
 			subnetB = append(subnetB, n)
 		}
-		_, err = anrCli.AddNode(ctx, n, execPath)
-		cancel()
-		gomega.Expect(err).Should(gomega.BeNil())
 	}
-	hutils.Outf("{{green}}added 10 BLS-enabled nodes{{/}}\n")
 
 	// Create 2 subnets
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
-	sresp, err := anrCli.CreateSubnets(
+	sresp, err := anrCli.CreateSpecificBlockchains(
 		ctx,
-		runner_sdk.WithNumSubnets(1),
-		runner_sdk.WithSubnetParticipants(subnetA),
-	)
-	cancel()
-	gomega.Expect(err).Should(gomega.BeNil())
-	subnets := sresp.GetClusterInfo().GetSubnets()
-	for len(subnets) != 1 {
-		hutils.Outf("{{yellow}}waiting for new subnets{{/}}\n")
-		time.Sleep(5 * time.Second)
-		status, err := anrCli.Status(context.Background())
-		gomega.Expect(err).Should(gomega.BeNil())
-		subnets = status.GetClusterInfo().GetSubnets()
-	}
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
-	sresp, err = anrCli.CreateSubnets(
-		ctx,
-		runner_sdk.WithNumSubnets(1),
-		runner_sdk.WithSubnetParticipants(subnetB),
-	)
-	cancel()
-	gomega.Expect(err).Should(gomega.BeNil())
-	subnets = sresp.GetClusterInfo().GetSubnets()
-	for len(subnets) != 2 {
-		hutils.Outf("{{yellow}}waiting for new subnets{{/}}\n")
-		time.Sleep(5 * time.Second)
-		status, err := anrCli.Status(context.Background())
-		gomega.Expect(err).Should(gomega.BeNil())
-		subnets = status.GetClusterInfo().GetSubnets()
-	}
-	hutils.Outf("{{green}}created subnets:{{/}} %+v\n", subnets)
-
-	// Add tokenvm chains to subnets
-	subnetIDA = subnets[0]
-	subnetIDB = subnets[1]
-	gomega.Expect(err).Should(gomega.BeNil())
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
-	cresp, err := anrCli.CreateBlockchains(
-		ctx,
+		execPath,
 		[]*rpcpb.BlockchainSpec{
 			{
-				SubnetId:     &subnetIDA,
 				VmName:       consts.Name,
 				Genesis:      vmGenesisPath,
 				ChainConfig:  vmConfigPath,
 				SubnetConfig: subnetConfigPath,
+				Participants: subnetA,
+			},
+			{
+				VmName:       consts.Name,
+				Genesis:      vmGenesisPath,
+				ChainConfig:  vmConfigPath,
+				SubnetConfig: subnetConfigPath,
+				Participants: subnetB,
 			},
 		},
 	)
 	cancel()
 	gomega.Expect(err).Should(gomega.BeNil())
-	chains := cresp.GetClusterInfo().GetCustomChains()
-	for len(chains) != 1 {
-		hutils.Outf("{{yellow}}waiting for first chain{{/}}\n")
-		time.Sleep(5 * time.Second)
-		status, err := anrCli.Status(context.Background())
-		gomega.Expect(err).Should(gomega.BeNil())
-		chains = status.GetClusterInfo().GetCustomChains()
-	}
-	for _, chain := range chains {
-		// Set first chain to blockchainID
-		blockchainIDA = chain.ChainId
-	}
 
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
-	cresp, err = anrCli.CreateBlockchains(
-		ctx,
-		[]*rpcpb.BlockchainSpec{
-			{
-				SubnetId:     &subnetIDB,
-				VmName:       consts.Name,
-				Genesis:      vmGenesisPath,
-				ChainConfig:  vmConfigPath,
-				SubnetConfig: subnetConfigPath,
-			},
-		},
+	blockchainIDA = sresp.Chains[0].ChainId
+	hutils.Outf(
+		"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s {{green}}participants:{{/}} %+v\n",
+		blockchainIDA,
+		sresp.Chains[0].SubnetId,
+		subnetA,
 	)
-	cancel()
-	gomega.Expect(err).Should(gomega.BeNil())
-	chains = cresp.GetClusterInfo().GetCustomChains()
-	for len(chains) != 2 {
-		hutils.Outf("{{yellow}}waiting for second chain{{/}}\n")
-		time.Sleep(5 * time.Second)
-		status, err := anrCli.Status(context.Background())
-		gomega.Expect(err).Should(gomega.BeNil())
-		chains = status.GetClusterInfo().GetCustomChains()
-	}
-	for _, chain := range chains {
-		if chain.ChainId != blockchainIDA {
-			blockchainIDB = chain.ChainId
-		}
-		hutils.Outf(
-			"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s\n",
-			chain.GetChainId(),
-			chain.GetSubnetId(),
-		)
-	}
+	blockchainIDB = sresp.Chains[1].ChainId
+	hutils.Outf(
+		"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s {{green}}participants:{{/}} %+v\n",
+		blockchainIDB,
+		sresp.Chains[1].SubnetId,
+		subnetB,
+	)
 
 	// TODO: network runner health should imply custom VM healthiness
 	// or provide a separate API for custom VM healthiness
