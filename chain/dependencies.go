@@ -142,7 +142,7 @@ type Action interface {
 		timestamp int64,
 		auth Auth,
 		txID ids.ID,
-		warpMessage *WarpMessage,
+		warpResult error,
 	) (result *Result, err error) // err should only be returned if fatal
 
 	Marshal(p *codec.Packer)

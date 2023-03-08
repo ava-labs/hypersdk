@@ -37,17 +37,16 @@ type Transaction struct {
 	size           uint64
 	id             ids.ID
 	numWarpSigners int
-	// warpPayloadID is just the hash of the *warp.Message.Payload. It is assumed that
+	// warpID is just the hash of the *warp.Message.Payload. We assumed that
 	// all warp messages from a single source have some unique field that
 	// prevents duplicates (like txID). We will not allow 2 instances of the same
 	// warpID from the same sourceChainID to be accepted.
 	//
 	// TODO: migrate to using the built-in ID field in avalanchego@v1.9.12.
-	warpPayloadID ids.ID
+	warpID ids.ID
 }
 
-type WarpMessage struct {
-	ID        ids.ID
+type WarpResult struct {
 	Message   *warp.Message
 	VerifyErr error
 }
@@ -133,7 +132,7 @@ func (t *Transaction) UnitPrice() uint64 { return t.Base.UnitPrice }
 func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
 	keys := append(t.Action.StateKeys(t.Auth, t.ID()), t.Auth.StateKeys()...)
 	if t.WarpMessage != nil {
-		keys = append(keys, stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpPayloadID))
+		keys = append(keys, stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
 	}
 	// Always assume a message could export a warp message
 	keys = append(keys, stateMapping.OutgoingWarpKey(t.id))
@@ -223,18 +222,18 @@ func (t *Transaction) Execute(
 	s StateManager,
 	tdb *tstate.TState,
 	timestamp int64,
-	warpMessage *WarpMessage,
+	warpResult error,
 ) (*Result, error) {
 	// Check warp message is not duplicate
 	if t.WarpMessage != nil {
-		_, err := tdb.GetValue(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpPayloadID))
+		_, err := tdb.GetValue(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
 		switch {
 		case err == nil:
 			// Override all errors if warp message is a duplicate
 			//
 			// TODO: consider doing this check before performing signature
 			// verification.
-			warpMessage.VerifyErr = errors.New("duplicate warp message")
+			warpResult = errors.New("duplicate warp message")
 		case errors.Is(err, database.ErrNotFound):
 			// This means there are no conflicts
 		case err != nil:
@@ -263,7 +262,7 @@ func (t *Transaction) Execute(
 
 	// We create a temp state to ensure we don't commit failed actions to state.
 	start := tdb.OpIndex()
-	result, err := t.Action.Execute(ctx, r, tdb, timestamp, t.Auth, t.id, warpMessage)
+	result, err := t.Action.Execute(ctx, r, tdb, timestamp, t.Auth, t.id, warpResult)
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +296,7 @@ func (t *Transaction) Execute(
 	if result.Success {
 		// Store incoming warp messages in state by their ID to prevent replays
 		if t.WarpMessage != nil {
-			if err := tdb.Insert(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpPayloadID), nil); err != nil {
+			if err := tdb.Insert(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID), nil); err != nil {
 				return nil, err
 			}
 		}
@@ -475,7 +474,7 @@ func UnmarshalTx(
 	tx.id = utils.ToID(tx.bytes)
 	if tx.WarpMessage != nil {
 		tx.numWarpSigners = numWarpSigners
-		tx.warpPayloadID = utils.ToID(tx.WarpMessage.Payload)
+		tx.warpID = utils.ToID(tx.WarpMessage.Payload)
 	}
 	return &tx, nil
 }

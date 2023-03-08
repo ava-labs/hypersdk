@@ -156,25 +156,21 @@ func BuildBlock(
 			//
 			// We wait as long as possible to verify the signature to ensure we don't
 			// spend unnecessary time on an invalid tx.
-			var warpMessage *WarpMessage
+			var warpResult error
 			if next.WarpMessage != nil {
-				warpMessage = &WarpMessage{
-					ID:      next.warpPayloadID,
-					Message: next.WarpMessage,
-				}
 				num, denom, err := preVerifyWarpMessage(next.WarpMessage, vm.ChainID(), r)
 				if err == nil {
-					warpMessage.VerifyErr = next.WarpMessage.Signature.Verify(
+					warpResult = next.WarpMessage.Signature.Verify(
 						ctx, &next.WarpMessage.UnsignedMessage,
 						vdrState, blockContext.PChainHeight, num, denom,
 					)
 				} else {
-					warpMessage.VerifyErr = err
+					warpResult = err
 				}
 			}
 
 			// If execution works, keep moving forward with new state
-			result, err := next.Execute(fctx, ectx, r, sm, ts, nextTime, warpMessage)
+			result, err := next.Execute(fctx, ectx, r, sm, ts, nextTime, warpResult)
 			if err != nil {
 				// This error should only be raised by the handler, not the
 				// implementation itself
