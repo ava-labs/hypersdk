@@ -13,6 +13,7 @@ import (
 // Inspired by: https://yourbasic.org/golang/bitmask-flag-set-clear
 type bits uint8
 
+// TODO: purpose of optional packer
 type OptionalPacker struct {
 	b      bits
 	offset uint8
@@ -90,6 +91,8 @@ func (o *OptionalPacker) PackID(id ids.ID) {
 func (o *OptionalPacker) UnpackID(dest *ids.ID) {
 	if o.checkBit() {
 		o.ip.UnpackID(true, dest)
+	} else {
+		*dest = ids.Empty
 	}
 }
 
@@ -109,6 +112,8 @@ func (o *OptionalPacker) PackPublicKey(pk crypto.PublicKey) {
 func (o *OptionalPacker) UnpackPublicKey(dest *crypto.PublicKey) {
 	if o.checkBit() {
 		o.ip.UnpackPublicKey(true, dest)
+	} else {
+		*dest = crypto.EmptyPublicKey
 	}
 }
 
