@@ -159,7 +159,7 @@ func BuildBlock(
 			var warpMessage *WarpMessage
 			if next.WarpMessage != nil {
 				warpMessage = &WarpMessage{
-					ID:      next.warpID,
+					ID:      next.warpPayloadID,
 					Message: next.WarpMessage,
 				}
 				num, denom, err := preVerifyWarpMessage(next.WarpMessage, vm.ChainID(), r)

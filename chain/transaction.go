@@ -37,13 +37,13 @@ type Transaction struct {
 	size           uint64
 	id             ids.ID
 	numWarpSigners int
-	// warpID is just the hash of the *warp.Message.Payload + SourceChainID. We don't include
-	// DestinationID to prevent replay when using Anycast Warp Messages. It is assumed that
-	// all warp messages have some unique identifier that prevents replay.
+	// warpPayloadID is just the hash of the *warp.Message.Payload. It is assumed that
+	// all warp messages from a single source have some unique field that
+	// prevents duplicates (like txID). We will not allow 2 instances of the same
+	// warpID from the same sourceChainID to be accepted.
 	//
-	// TODO: consider setting this to just be the hash of the payload and storing
-	// scoped by [SourceChainID]
-	warpID ids.ID
+	// TODO: migrate to using the built-in ID field in avalanchego@v1.9.12.
+	warpPayloadID ids.ID
 }
 
 type WarpMessage struct {
@@ -133,7 +133,7 @@ func (t *Transaction) UnitPrice() uint64 { return t.Base.UnitPrice }
 func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
 	keys := append(t.Action.StateKeys(t.Auth, t.ID()), t.Auth.StateKeys()...)
 	if t.WarpMessage != nil {
-		keys = append(keys, stateMapping.IncomingWarpKey(t.warpID))
+		keys = append(keys, stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpPayloadID))
 	}
 	// Always assume a message could export a warp message
 	keys = append(keys, stateMapping.OutgoingWarpKey(t.id))
@@ -227,7 +227,7 @@ func (t *Transaction) Execute(
 ) (*Result, error) {
 	// Check warp message is not duplicate
 	if t.WarpMessage != nil {
-		_, err := tdb.GetValue(ctx, s.IncomingWarpKey(t.warpID))
+		_, err := tdb.GetValue(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpPayloadID))
 		switch {
 		case err == nil:
 			// Override all errors if warp message is a duplicate
@@ -297,7 +297,7 @@ func (t *Transaction) Execute(
 	if result.Success {
 		// Store incoming warp messages in state by their ID to prevent replays
 		if t.WarpMessage != nil {
-			if err := tdb.Insert(ctx, s.IncomingWarpKey(t.warpID), nil); err != nil {
+			if err := tdb.Insert(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpPayloadID), nil); err != nil {
 				return nil, err
 			}
 		}
@@ -475,11 +475,7 @@ func UnmarshalTx(
 	tx.id = utils.ToID(tx.bytes)
 	if tx.WarpMessage != nil {
 		tx.numWarpSigners = numWarpSigners
-		tx.warpID = computeWarpID(tx.WarpMessage)
+		tx.warpPayloadID = utils.ToID(tx.WarpMessage.Payload)
 	}
 	return &tx, nil
-}
-
-func computeWarpID(msg *warp.Message) ids.ID {
-	return utils.ToID(append(msg.SourceChainID[:], msg.Payload...))
 }

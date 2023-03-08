@@ -112,7 +112,7 @@ func (p *Processor) Execute(
 			select {
 			case verifyErr := <-warpMsg.result:
 				warpMessage = &WarpMessage{
-					ID:        tx.warpID,
+					ID:        tx.warpPayloadID,
 					Message:   warpMsg.msg,
 					VerifyErr: verifyErr,
 				}

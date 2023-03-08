@@ -106,6 +106,7 @@ type Rules interface {
 // state written by actions or auth.
 type StateManager interface {
 	IncomingWarpKey(
+		sourceChainID ids.ID,
 		msgID ids.ID,
 	) []byte // used to access state to check for duplicates/store warp without conflict
 	OutgoingWarpKey(
