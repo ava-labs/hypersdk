@@ -473,10 +473,11 @@ func SubLoan(
 	return SetLoan(ctx, db, asset, destination, nloan)
 }
 
-func IncomingWarpKeyPrefix(msgID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
+func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
+	k = make([]byte, 1+consts.IDLen*2)
 	k[0] = incomingWarpPrefix
-	copy(k[1:], msgID[:])
+	copy(k[1:], sourceChainID[:])
+	copy(k[1+consts.IDLen:], msgID[:])
 	return k
 }
 
