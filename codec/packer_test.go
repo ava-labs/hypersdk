@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/window"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,6 @@ var (
 		222, 128, 136, 161, 9, 40, 139, 85, 182, 153, 68, 135,
 		62, 166, 45, 235, 251, 246, 69, 7,
 	}
-	TestID        = []byte("TtF4d2QWbk5vzQGTEPrN48x6vwgAoAmKQ9cbp79inpQmcRKES")
 	TestString    = []byte("TestString")
 	TestBool      = true
 	TestSignature = []byte{2, 8, 143, 126, 80, 159, 186, 93, 157,
@@ -49,10 +49,24 @@ func TestPackerPublicKey(t *testing.T) {
 	wp := NewWriter(crypto.PublicKeyLen)
 	var pubKey crypto.PublicKey
 	copy(pubKey[:], TestPublicKey)
-	// Pack
-	wp.PackPublicKey(pubKey)
-	require.Equal(TestPublicKey, wp.Bytes(), "PublicKey not packed correctly.")
-	require.NoError(wp.Err(), "Error packing PublicKey.")
+	t.Run("Pack", func(t *testing.T) {
+		// Pack
+		wp.PackPublicKey(pubKey)
+		require.Equal(TestPublicKey, wp.Bytes(), "PublicKey not packed correctly.")
+		require.NoError(wp.Err(), "Error packing PublicKey.")
+	})
+	t.Run("Unpack", func(t *testing.T) {
+		// Unpack
+		rp := NewReader(wp.Bytes(), crypto.PublicKeyLen)
+		require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
+		var unpackedPubKey crypto.PublicKey
+		rp.UnpackPublicKey(true, &unpackedPubKey)
+		require.Equal(pubKey, unpackedPubKey, "UnpackPublicKey unpacked incorrectly.")
+		require.NoError(rp.Err(), "UnpackPublicKey set an error.")
+		// Unpack again
+		rp.UnpackPublicKey(true, &unpackedPubKey)
+		require.Error(rp.Err(), "UnpackPublicKey did not set error.")
+	})
 }
 
 func TestPackerSignature(t *testing.T) {
@@ -60,24 +74,53 @@ func TestPackerSignature(t *testing.T) {
 	wp := NewWriter(crypto.SignatureLen)
 	var sig crypto.Signature
 	copy(sig[:], TestSignature)
-	// Pack
-	wp.PackSignature(sig)
-	require.Equal(TestSignature, wp.Bytes())
-	require.NoError(wp.Err(), "Error packing Signature.")
+	t.Run("Pack", func(t *testing.T) {
+		// Pack
+		wp.PackSignature(sig)
+		require.Equal(TestSignature, wp.Bytes())
+		require.NoError(wp.Err(), "Error packing Signature.")
+	})
+	t.Run("Unpack", func(t *testing.T) {
+		// Unpack
+		rp := NewReader(wp.Bytes(), crypto.SignatureLen)
+		require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
+		var unpackedSig crypto.Signature
+		rp.UnpackSignature(&unpackedSig)
+		require.Equal(sig, unpackedSig, "UnpackSignature unpacked incorrectly.")
+		require.NoError(rp.Err(), "UnpackSignature set an error.")
+		// Unpack again
+		rp.UnpackSignature(&unpackedSig)
+		require.Error(rp.Err(), "UnpackPublicKey did not set error.")
+	})
 }
 
 func TestPackerID(t *testing.T) {
 	require := require.New(t)
-	// id := ids.GenerateTestID()
-	wp := NewWriter(len(ids.ID{}))
+	wp := NewWriter(consts.IDLen)
 	// Pack
-	id, _ := ids.ToID(TestID)
-	wp.PackID(id)
-	// Check packed
-	returnedID, err := ids.ToID(wp.Bytes())
-	require.NoError(err, "Error retrieving ID.")
-	require.Equal(id, returnedID, "ids.ID not packed correctly.")
-	require.NoError(wp.Err(), "Error packing ID.")
+	id := ids.GenerateTestID()
+	t.Run("Pack", func(t *testing.T) {
+		wp.PackID(id)
+		// Check packed
+		returnedID, err := ids.ToID(wp.Bytes())
+		require.NoError(err, "Error retrieving ID.")
+		require.Equal(id, returnedID, "ids.ID not packed correctly.")
+		require.NoError(wp.Err(), "Error packing ID.")
+	})
+	t.Run("Unpack", func(t *testing.T) {
+		// Unpack
+		rp := NewReader(wp.Bytes(), consts.IDLen)
+		require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
+		unpackedId := ids.Empty
+		rp.UnpackID(true, &unpackedId)
+		require.Equal(id, unpackedId, "UnpackID unpacked incorrectly.")
+		require.NoError(rp.Err(), "UnpackID set an error.")
+		// Unpack again
+		unpackedId = ids.Empty
+		rp.UnpackID(true, &unpackedId)
+		require.Equal(ids.Empty, unpackedId, "UnpackID unpacked incorrectly.")
+		require.Error(rp.Err(), "UnpackID did not set error.")
+	})
 }
 
 func TestPackerWindow(t *testing.T) {
@@ -87,9 +130,42 @@ func TestPackerWindow(t *testing.T) {
 	// Fill window
 	copy(wind[:], TestWindow)
 	// Pack
-	wp.PackWindow(wind)
-	// Check packed
-	require.Equal(TestWindow, wp.Bytes()[:len(TestWindow)], "Window not packed correctly.")
-	require.Equal(window.WindowSliceSize, len(wp.Bytes()), "Window not packed correctly.")
-	require.NoError(wp.Err(), "Error packing window.")
+	t.Run("Unpack", func(t *testing.T) {
+		wp.PackWindow(wind)
+		// Check packed
+		require.Equal(TestWindow, wp.Bytes()[:len(TestWindow)], "Window not packed correctly.")
+		require.Equal(window.WindowSliceSize, len(wp.Bytes()), "Window not packed correctly.")
+		require.NoError(wp.Err(), "Error packing window.")
+	})
+	t.Run("Unpack", func(t *testing.T) {
+		// Unpack
+		rp := NewReader(wp.Bytes(), window.WindowSliceSize)
+		require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
+		var unpackedWindow window.Window
+		rp.UnpackWindow(&unpackedWindow)
+		require.Equal(wind, unpackedWindow, "UnpackWindow unpacked incorrectly.")
+		require.NoError(rp.Err(), "UnpackWindow set an error.")
+		// Unpack again
+		rp.UnpackWindow(&unpackedWindow)
+		require.Error(rp.Err(), "UnpackWindow did not set error.")
+	})
+}
+
+func TestNewReader(t *testing.T) {
+	require := require.New(t)
+	vInt := 900
+	wp := NewWriter(5)
+	// Add an int and a bool
+	wp.PackInt(vInt)
+	wp.PackBool(true)
+	// Create reader
+	rp := NewReader(wp.Bytes(), 2)
+	require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
+	// Unpack both values
+	require.Equal(vInt, rp.UnpackInt(true), "Reader unpacked correctly.")
+	require.True(rp.UnpackBool(), "Reader unpacked correctly.")
+	require.NoError(rp.Err(), "Reader set error during unpack.")
+	// Unpacked not packed with required
+	require.Equal(uint64(0), rp.UnpackUint64(true), "Reader unpacked correctly.")
+	require.Error(rp.Err(), "Reader error not set.")
 }

@@ -55,7 +55,7 @@ func (p *Packer) PackID(src ids.ID) {
 func (p *Packer) UnpackID(required bool, dest *ids.ID) {
 	copy((*dest)[:], p.p.UnpackFixedBytes(consts.IDLen))
 	if required && *dest == ids.Empty {
-		p.p.Errs.Add(fmt.Errorf("%w: ID field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: ID field is not populated", ErrFieldNotPopulated))
 	}
 }
 
@@ -88,7 +88,7 @@ func (p *Packer) UnpackBytes(limit int, required bool, dest *[]byte) {
 		*dest = p.p.UnpackBytes()
 	}
 	if required && len(*dest) == 0 {
-		p.p.Errs.Add(fmt.Errorf("%w: Bytes field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: Bytes field is not populated", ErrFieldNotPopulated))
 	}
 }
 
@@ -99,7 +99,7 @@ func (p *Packer) PackUint64(v uint64) {
 func (p *Packer) UnpackUint64(required bool) uint64 {
 	v := p.p.UnpackLong()
 	if required && v == 0 {
-		p.p.Errs.Add(fmt.Errorf("%w: Uint64 field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: Uint64 field is not populated", ErrFieldNotPopulated))
 	}
 	return v
 }
@@ -111,7 +111,7 @@ func (p *Packer) PackInt64(v int64) {
 func (p *Packer) UnpackInt64(required bool) int64 {
 	v := p.p.UnpackLong()
 	if required && v == 0 {
-		p.p.Errs.Add(fmt.Errorf("%w: Int64 field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: Int64 field is not populated", ErrFieldNotPopulated))
 	}
 	return int64(v)
 }
@@ -124,7 +124,7 @@ func (p *Packer) PackPublicKey(src crypto.PublicKey) {
 func (p *Packer) UnpackPublicKey(required bool, dest *crypto.PublicKey) {
 	copy((*dest)[:], p.p.UnpackFixedBytes(crypto.PublicKeyLen))
 	if required && *dest == crypto.EmptyPublicKey {
-		p.p.Errs.Add(fmt.Errorf("%w: PublicKey field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: PublicKey field is not populated", ErrFieldNotPopulated))
 	}
 }
 
@@ -133,10 +133,11 @@ func (p *Packer) PackSignature(src crypto.Signature) {
 }
 
 // UnpackPublicKey crypto.Signature into [dest].
+// TODO: should add required param?
 func (p *Packer) UnpackSignature(dest *crypto.Signature) {
 	copy((*dest)[:], p.p.UnpackFixedBytes(crypto.SignatureLen))
 	if *dest == crypto.EmptySignature {
-		p.p.Errs.Add(fmt.Errorf("%w: Signature field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: Signature field is not populated", ErrFieldNotPopulated))
 	}
 }
 
@@ -147,7 +148,7 @@ func (p *Packer) PackInt(v int) {
 func (p *Packer) UnpackInt(required bool) int {
 	v := p.p.UnpackInt()
 	if required && v == 0 {
-		p.p.Errs.Add(fmt.Errorf("%w: Int field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: Int field is not populated", ErrFieldNotPopulated))
 	}
 	return int(v)
 }
