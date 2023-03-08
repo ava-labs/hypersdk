@@ -57,9 +57,9 @@ type StatefulBlock struct {
 	SurplusFee    uint64 `json:"surplusFee"`
 }
 
-// warpResult is used to signal to a listner that a *warp.Message has been
+// warpJob is used to signal to a listner that a *warp.Message has been
 // verified.
-type warpResult struct {
+type warpJob struct {
 	msg     *warp.Message
 	signers int
 	result  chan error
@@ -89,7 +89,7 @@ type StatelessBlock struct {
 	bytes  []byte
 	txsSet set.Set[ids.ID]
 
-	warpMessages map[ids.ID]*warpResult
+	warpMessages map[ids.ID]*warpJob
 	bctx         *block.Context
 	vdrState     validators.State
 
@@ -150,7 +150,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 	// Process transactions
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
-	b.warpMessages = map[ids.ID]*warpResult{}
+	b.warpMessages = map[ids.ID]*warpJob{}
 	for _, tx := range b.Txs {
 		sigTask := tx.AuthAsyncVerify()
 		if verifySigs {
@@ -172,7 +172,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 			if err != nil {
 				return err
 			}
-			b.warpMessages[tx.ID()] = &warpResult{
+			b.warpMessages[tx.ID()] = &warpJob{
 				msg:     tx.WarpMessage,
 				signers: signers,
 				result:  make(chan error, 1),

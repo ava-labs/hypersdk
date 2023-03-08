@@ -106,6 +106,7 @@ type Rules interface {
 // state written by actions or auth.
 type StateManager interface {
 	IncomingWarpKey(
+		sourceChainID ids.ID,
 		msgID ids.ID,
 	) []byte // used to access state to check for duplicates/store warp without conflict
 	OutgoingWarpKey(
@@ -141,7 +142,7 @@ type Action interface {
 		timestamp int64,
 		auth Auth,
 		txID ids.ID,
-		warpMessage *WarpMessage,
+		warpResult error,
 	) (result *Result, err error) // err should only be returned if fatal
 
 	Marshal(p *codec.Packer)

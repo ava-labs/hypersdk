@@ -63,7 +63,7 @@ func (f *FillOrder) Execute(
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
-	_ *chain.WarpMessage,
+	_ error,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	exists, in, inTick, out, outTick, remaining, owner, err := storage.GetOrder(ctx, db, f.Order)

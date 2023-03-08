@@ -106,21 +106,16 @@ func (p *Processor) Execute(
 		//
 		// TODO: parallel execution will greatly improve performance in the case
 		// that we are waiting for signature verification.
-		var warpMessage *WarpMessage
+		var warpResult error
 		warpMsg, ok := p.blk.warpMessages[tx.ID()]
 		if ok {
 			select {
-			case verifyErr := <-warpMsg.result:
-				warpMessage = &WarpMessage{
-					ID:        tx.warpID,
-					Message:   warpMsg.msg,
-					VerifyErr: verifyErr,
-				}
+			case warpResult = <-warpMsg.result:
 			case <-ctx.Done():
 				return 0, 0, nil, ctx.Err()
 			}
 		}
-		result, err := tx.Execute(ctx, ectx, r, sm, ts, t, warpMessage)
+		result, err := tx.Execute(ctx, ectx, r, sm, ts, t, warpResult)
 		if err != nil {
 			return 0, 0, nil, err
 		}
