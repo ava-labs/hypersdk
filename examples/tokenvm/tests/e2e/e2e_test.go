@@ -237,18 +237,18 @@ var _ = ginkgo.BeforeSuite(func() {
 	cancel()
 	gomega.Expect(err).Should(gomega.BeNil())
 
-	blockchainIDA = sresp.Chains[0].ChainId
+	blockchainIDA = sresp.Chains[0]
 	hutils.Outf(
 		"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s {{green}}participants:{{/}} %+v\n",
 		blockchainIDA,
-		sresp.Chains[0].SubnetId,
+		sresp.ClusterInfo.CustomChains[blockchainIDA].SubnetId,
 		subnetA,
 	)
-	blockchainIDB = sresp.Chains[1].ChainId
+	blockchainIDB = sresp.Chains[1]
 	hutils.Outf(
 		"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s {{green}}participants:{{/}} %+v\n",
 		blockchainIDB,
-		sresp.Chains[1].SubnetId,
+		sresp.ClusterInfo.CustomChains[blockchainIDB].SubnetId,
 		subnetB,
 	)
 
