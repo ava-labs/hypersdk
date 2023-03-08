@@ -40,6 +40,9 @@ type Transaction struct {
 	// warpID is just the hash of the *warp.Message.Payload + SourceChainID. We don't include
 	// DestinationID to prevent replay when using Anycast Warp Messages. It is assumed that
 	// all warp messages have some unique identifier that prevents replay.
+	//
+	// TODO: consider setting this to just be the hash of the payload and storing
+	// scoped by [SourceChainID]
 	warpID ids.ID
 }
 
