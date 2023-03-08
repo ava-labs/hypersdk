@@ -9,7 +9,50 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOptionalPacker(t *testing.T) {
+func TestOptionalPackerWriter(t *testing.T) {
+	require := require.New(t)
+	require.True(true)
+}
+
+func TestOptionalPackerReader(t *testing.T) {
+	require := require.New(t)
+	require.True(true)
+}
+
+func TestOptionalPackerID(t *testing.T) {
+	require := require.New(t)
+	require.True(true)
+	t.Run("Pack", func(t *testing.T) {
+
+	})
+	t.Run("Unpack", func(t *testing.T) {
+
+	})
+}
+
+func TestOptionalPackerPublicKey(t *testing.T) {
+	require := require.New(t)
+	require.True(true)
+	t.Run("Pack", func(t *testing.T) {
+
+	})
+	t.Run("Unpack", func(t *testing.T) {
+
+	})
+}
+
+func TestOptionalPackerUint64(t *testing.T) {
+	require := require.New(t)
+	require.True(true)
+	t.Run("Pack", func(t *testing.T) {
+
+	})
+	t.Run("Unpack", func(t *testing.T) {
+
+	})
+}
+
+func TestOptionalPackerPackOptional(t *testing.T) {
 	require := require.New(t)
 	require.True(true)
 }
