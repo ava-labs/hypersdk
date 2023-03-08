@@ -75,7 +75,7 @@ func (o *OptionalPacker) checkBit() bool {
 	return result
 }
 
-// PackID packs [id] into o if it is not empty.
+// PackID packs [id] into OptionalPacker if it is not empty.
 // Updates the bitmask and offset accordingly.
 func (o *OptionalPacker) PackID(id ids.ID) {
 	if id == ids.Empty {
@@ -96,7 +96,7 @@ func (o *OptionalPacker) UnpackID(dest *ids.ID) {
 	}
 }
 
-// PackPublicKey packs [pk] into o if [pk] is not an empty PublicKey.
+// PackPublicKey packs [pk] into OptionalPacker if [pk] is not an empty PublicKey.
 // Updates the bitmask and offset accordingly.
 func (o *OptionalPacker) PackPublicKey(pk crypto.PublicKey) {
 	if pk == crypto.EmptyPublicKey {
@@ -117,7 +117,7 @@ func (o *OptionalPacker) UnpackPublicKey(dest *crypto.PublicKey) {
 	}
 }
 
-// PackUint64 packs [l] into o if [l] is not an 0.
+// PackUint64 packs [l] into OptionalPacker if [l] is not an 0.
 // Updates the bitmask and offset accordingly.
 func (o *OptionalPacker) PackUint64(l uint64) {
 	if l == 0 {
@@ -141,5 +141,7 @@ func (o *OptionalPacker) UnpackUint64() uint64 {
 // followed by the bytes in the OptionalPacker.
 func (p *Packer) PackOptional(o *OptionalPacker) {
 	p.PackByte(uint8(o.b))
+
 	p.PackFixedBytes(o.ip.Bytes())
+
 }
