@@ -19,7 +19,7 @@ var (
 		222, 128, 136, 161, 9, 40, 139, 85, 182, 153, 68, 135,
 		62, 166, 45, 235, 251, 246, 69, 7,
 	}
-	TestString    = []byte("TestString")
+	TestString    = "TestString"
 	TestBool      = true
 	TestSignature = []byte{2, 8, 143, 126, 80, 159, 186, 93, 157,
 		97, 183, 80, 183, 86, 3, 128, 223, 79, 164, 21, 51, 88,

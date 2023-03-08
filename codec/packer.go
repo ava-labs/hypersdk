@@ -157,6 +157,7 @@ func (p *Packer) PackWindow(w window.Window) {
 	p.p.PackFixedBytes(w[:])
 }
 
+// TODO: required?
 func (p *Packer) UnpackWindow(w *window.Window) {
 	copy((*w)[:], p.p.UnpackFixedBytes(window.WindowSliceSize))
 }
