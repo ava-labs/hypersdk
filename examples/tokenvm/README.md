@@ -5,9 +5,6 @@
   Mint, Transfer, and Trade User-Generated Tokens, All On-Chain
 </p>
 <p align="center">
-  <a href="https://github.com/ava-labs/hypersdk"><img width="35%" alt="tokenvm" src="assets/hypersdk.png"></a>
-</p>
-<p align="center">
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-static-analysis.yml/badge.svg" /></a>
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-unit-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-unit-tests.yml/badge.svg" /></a>
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-sync-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-sync-tests.yml/badge.svg" /></a>
@@ -28,6 +25,10 @@ maintains by syncing blocks.
 
 If you are interested in the intersection of exchanges and blockchains, it is
 definitely worth a read (the logic for filling orders is < 100 lines of code!).
+
+<p align="center">
+  <a href="https://github.com/ava-labs/hypersdk"><img width="35%" alt="tokenvm" src="assets/hypersdk.png"></a>
+</p>
 
 ## Status
 `tokenvm` is considered **ALPHA** software and is not safe to use in
