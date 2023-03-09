@@ -22,6 +22,8 @@ const (
 
 var (
 	db      database.Database
+	workDir string
+
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
 		Short:      "TokenVM CLI",
@@ -34,7 +36,8 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	dbPath := filepath.Join(p, databaseFolder)
+	workDir = p
+	dbPath := filepath.Join(workDir, databaseFolder)
 	db, err = pebble.New(dbPath, pebble.NewDefaultConfig())
 	if err != nil {
 		panic(err)

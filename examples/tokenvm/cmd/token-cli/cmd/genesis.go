@@ -16,8 +16,7 @@ import (
 )
 
 var (
-	genesisFile string
-
+	genesisFile  string
 	minUnitPrice int64
 )
 
