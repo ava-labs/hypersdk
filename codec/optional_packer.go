@@ -139,7 +139,7 @@ func (o *OptionalPacker) UnpackUint64() uint64 {
 	return 0
 }
 
-// PackOptional packs an OptionalPacker in a Packer. First packs the bitmask [0.b]
+// PackOptional packs an OptionalPacker in a Packer. First packs the bitmask [o.b]
 // followed by the bytes in the OptionalPacker.
 func (p *Packer) PackOptional(o *OptionalPacker) {
 	p.PackByte(uint8(o.b))

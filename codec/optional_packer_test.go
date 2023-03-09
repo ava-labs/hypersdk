@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/stretchr/testify/require"
 )
@@ -30,6 +31,18 @@ func TestOptionalPackerWriter(t *testing.T) {
 	opw := NewOptionalWriter()
 	require.Empty(opw.ip.Bytes())
 	require.Equal(bits(0), opw.b)
+	var pubKey crypto.PublicKey
+	copy(pubKey[:], TestPublicKey)
+	// Fill OptionalPacker
+	i := 0
+	for i <= consts.MaxUint8Offset {
+		opw.PackPublicKey(pubKey)
+		i += 1
+	}
+	require.Equal((consts.MaxUint8Offset+1)*crypto.PublicKeyLen, len(opw.ip.Bytes()), "Bytes not added correctly.")
+	require.NoError(opw.ip.Err(), "Error packing bytes.")
+	opw.PackPublicKey(pubKey)
+	require.ErrorIs(ErrTooManyItems, opw.ip.Err(), "Error not thrown after over packing.")
 }
 
 func TestOptionalPackerReader(t *testing.T) {
