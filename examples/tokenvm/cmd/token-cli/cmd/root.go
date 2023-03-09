@@ -106,5 +106,6 @@ func init() {
 }
 
 func Execute() error {
+	defer db.Close()
 	return rootCmd.Execute()
 }
