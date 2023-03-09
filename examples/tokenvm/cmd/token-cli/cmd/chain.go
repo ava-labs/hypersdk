@@ -265,7 +265,22 @@ var watchChainCmd = &cobra.Command{
 							summaryStr += fmt.Sprintf(" | swap in: %s %s swap out: %s %s expiry: %d fill: %t", valueString(outputAssetID, wt.SwapIn), assetString(outputAssetID), valueString(wt.AssetOut, wt.SwapOut), assetString(wt.AssetOut), wt.SwapExpiry, action.Fill)
 						}
 					case *actions.ExportAsset:
-						summaryStr = fmt.Sprintf("fill: %t", action.Fill)
+						wt, _ := actions.UnmarshalWarpTransfer(result.WarpMessage.Payload)
+						summaryStr = fmt.Sprintf("destination: %s | ", action.Destination)
+						var outputAssetID ids.ID
+						if !action.Return {
+							outputAssetID = actions.ImportedAssetID(action.Asset, result.WarpMessage.SourceChainID)
+							summaryStr += fmt.Sprintf("%s %s -> %s (return: %t)", valueString(action.Asset, action.Value), assetString(action.Asset), tutils.Address(action.To), action.Return)
+						} else {
+							outputAssetID = wt.Asset
+							summaryStr += fmt.Sprintf("%s %s (original: %s) -> %s (return: %t)", valueString(action.Asset, action.Value), action.Asset, assetString(wt.Asset), tutils.Address(action.To), action.Return)
+						}
+						if wt.Reward > 0 {
+							summaryStr += fmt.Sprintf(" | reward: %s", valueString(outputAssetID, wt.Reward))
+						}
+						if wt.SwapIn > 0 {
+							summaryStr += fmt.Sprintf(" | swap in: %s %s swap out: %s %s expiry: %d", valueString(outputAssetID, wt.SwapIn), assetString(outputAssetID), valueString(wt.AssetOut, wt.SwapOut), assetString(wt.AssetOut), wt.SwapExpiry)
+						}
 					}
 				}
 				utils.Outf(
