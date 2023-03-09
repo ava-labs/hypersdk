@@ -1,6 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+//nolint:lll
 package cmd
 
 import (
@@ -120,7 +121,12 @@ var chainInfoCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		utils.Outf("{{cyan}}networkID:{{/}} %d {{cyan}}subnetID:{{/}} %s {{cyan}}chainID:{{/}} %s", networkID, subnetID, chainID)
+		utils.Outf(
+			"{{cyan}}networkID:{{/}} %d {{cyan}}subnetID:{{/}} %s {{cyan}}chainID:{{/}} %s",
+			networkID,
+			subnetID,
+			chainID,
+		)
 		return nil
 	},
 }

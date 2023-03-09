@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package cmd
 
 import (
@@ -71,7 +74,12 @@ func promptAsset(label string, allowNative bool) (ids.ID, error) {
 	return assetID, nil
 }
 
-func promptAmount(label string, assetID ids.ID, balance uint64, f func(input uint64) error) (uint64, error) {
+func promptAmount(
+	label string,
+	assetID ids.ID,
+	balance uint64,
+	f func(input uint64) error,
+) (uint64, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
@@ -248,7 +256,13 @@ func printStatus(txID ids.ID, success bool) {
 	hutils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, txID)
 }
 
-func getAssetInfo(ctx context.Context, cli *client.Client, publicKey crypto.PublicKey, assetID ids.ID, checkBalance bool) (uint64, ids.ID, error) {
+func getAssetInfo(
+	ctx context.Context,
+	cli *client.Client,
+	publicKey crypto.PublicKey,
+	assetID ids.ID,
+	checkBalance bool,
+) (uint64, ids.ID, error) {
 	var sourceChainID ids.ID
 	if assetID != ids.Empty {
 		exists, metadata, supply, _, warp, err := cli.Asset(ctx, assetID)
@@ -284,7 +298,11 @@ func getAssetInfo(ctx context.Context, cli *client.Client, publicKey crypto.Publ
 		hutils.Outf("{{red}}exiting...{{/}}\n")
 		return 0, sourceChainID, nil
 	}
-	hutils.Outf("{{yellow}}balance:{{/}} %s %s\n", valueString(assetID, balance), assetString(assetID))
+	hutils.Outf(
+		"{{yellow}}balance:{{/}} %s %s\n",
+		valueString(assetID, balance),
+		assetString(assetID),
+	)
 	return balance, sourceChainID, nil
 }
 

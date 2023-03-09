@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package cmd
 
 import "errors"
@@ -9,7 +12,7 @@ var (
 	ErrIndexOutOfRange     = errors.New("index out-of-range")
 	ErrInsufficientBalance = errors.New("insufficient balance")
 	ErrInvalidChoice       = errors.New("invalid choice")
-	ErrNotMultiple         = errors.New("must be a mutliple")
+	ErrNotMultiple         = errors.New("must be a multiple")
 	ErrInsufficientSupply  = errors.New("insufficient supply")
 	ErrMustFill            = errors.New("must fill")
 )

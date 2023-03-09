@@ -1,6 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+//nolint:lll
 package cmd
 
 import (
@@ -166,7 +167,11 @@ var mintAssetCmd = &cobra.Command{
 			hutils.Outf("{{red}}exiting...{{/}}\n")
 			return nil
 		}
-		hutils.Outf("{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n", string(metadata), supply)
+		hutils.Outf(
+			"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n",
+			string(metadata),
+			supply,
+		)
 
 		// Select recipient
 		recipient, err := promptAddress("recipient")
@@ -309,12 +314,17 @@ var createOrderCmd = &cobra.Command{
 		}
 
 		// Select supply
-		supply, err := promptAmount("supply (must be multiple of out tick)", outAssetID, balance, func(input uint64) error {
-			if input%outTick != 0 {
-				return ErrNotMultiple
-			}
-			return nil
-		})
+		supply, err := promptAmount(
+			"supply (must be multiple of out tick)",
+			outAssetID,
+			balance,
+			func(input uint64) error {
+				if input%outTick != 0 {
+					return ErrNotMultiple
+				}
+				return nil
+			},
+		)
 		if err != nil {
 			return err
 		}
@@ -414,17 +424,22 @@ var fillOrderCmd = &cobra.Command{
 		order := orders[orderIndex]
 
 		// Select input to trade
-		value, err := promptAmount("value (must be multiple of in tick", inAssetID, balance, func(input uint64) error {
-			if input%order.InTick != 0 {
-				return ErrNotMultiple
-			}
-			multiples := input / order.InTick
-			requiredRemainder := order.OutTick * multiples
-			if requiredRemainder > order.Remaining {
-				return ErrInsufficientSupply
-			}
-			return nil
-		})
+		value, err := promptAmount(
+			"value (must be multiple of in tick",
+			inAssetID,
+			balance,
+			func(input uint64) error {
+				if input%order.InTick != 0 {
+					return ErrNotMultiple
+				}
+				multiples := input / order.InTick
+				requiredRemainder := order.OutTick * multiples
+				if requiredRemainder > order.Remaining {
+					return ErrInsufficientSupply
+				}
+				return nil
+			},
+		)
 		if err != nil {
 			return err
 		}
@@ -544,12 +559,26 @@ var importAssetCmd = &cobra.Command{
 		}
 		hutils.Outf(
 			"%s {{yellow}}to:{{/}} %s {{yellow}}source assetID:{{/}} %s {{yellow}}output assetID:{{/}} %s {{yellow}}value:{{/}} %s {{yellow}}reward:{{/}} %s {{yellow}}return:{{/}} %t\n",
-			hutils.ToID(msg.UnsignedMessage.Payload), utils.Address(wt.To), assetString(wt.Asset), assetString(outputAssetID), valueString(outputAssetID, wt.Value), valueString(outputAssetID, wt.Value), wt.Return,
+			hutils.ToID(
+				msg.UnsignedMessage.Payload,
+			),
+			utils.Address(wt.To),
+			assetString(wt.Asset),
+			assetString(outputAssetID),
+			valueString(outputAssetID, wt.Value),
+			valueString(outputAssetID, wt.Value),
+			wt.Return,
 		)
 		if wt.SwapIn > 0 {
 			hutils.Outf(
 				"{{yellow}}swap in:{{/}} %s {{yellow}}asset out:{{/}} %s {{yellow}}swap out:{{/}} %s {{yellow}}swap expiry:{{/}} %d\n",
-				valueString(outputAssetID, wt.SwapIn), assetString(wt.AssetOut), valueString(wt.AssetOut, wt.SwapOut), wt.SwapExpiry,
+				valueString(
+					outputAssetID,
+					wt.SwapIn,
+				),
+				assetString(wt.AssetOut),
+				valueString(wt.AssetOut, wt.SwapOut),
+				wt.SwapExpiry,
 			)
 		}
 		hutils.Outf(
@@ -658,7 +687,12 @@ var exportAssetCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			swapOut, err = promptAmount("swap out (on destination)", assetOut, consts.MaxUint64, nil)
+			swapOut, err = promptAmount(
+				"swap out (on destination)",
+				assetOut,
+				consts.MaxUint64,
+				nil,
+			)
 			if err != nil {
 				return err
 			}
