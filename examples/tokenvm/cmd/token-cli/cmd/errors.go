@@ -2,4 +2,7 @@ package cmd
 
 import "errors"
 
-var ErrMissingSubcommand = errors.New("must specify a subcommand")
+var (
+	ErrInvalidArgs       = errors.New("invalid args")
+	ErrMissingSubcommand = errors.New("must specify a subcommand")
+)

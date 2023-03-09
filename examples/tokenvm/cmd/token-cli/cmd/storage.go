@@ -39,7 +39,8 @@ func GetDefault(key string) ([]byte, error) {
 	return v, nil
 }
 
-func StoreKey(publicKey crypto.PublicKey, privateKey crypto.PrivateKey) error {
+func StoreKey(privateKey crypto.PrivateKey) error {
+	publicKey := privateKey.PublicKey()
 	k := make([]byte, 1+crypto.PublicKeyLen)
 	k[0] = keyPrefix
 	copy(k[1:], publicKey[:])

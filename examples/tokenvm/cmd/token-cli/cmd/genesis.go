@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 
 	"github.com/fatih/color"
@@ -26,7 +25,7 @@ var genGenesisCmd = &cobra.Command{
 	Short: "Creates a new genesis in the default location",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 {
-			return errors.New("invalid args")
+			return ErrInvalidArgs
 		}
 		return nil
 	},

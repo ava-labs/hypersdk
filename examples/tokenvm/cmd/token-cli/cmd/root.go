@@ -99,7 +99,7 @@ func init() {
 	// key
 	keyCmd.AddCommand(
 		genKeyCmd,
-		// importKeyCmd,
+		importKeyCmd,
 		// setKeyCmd,
 		// viewKeysCmd,
 	)
