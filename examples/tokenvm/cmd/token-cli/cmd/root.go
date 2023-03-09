@@ -55,6 +55,7 @@ func init() {
 		genesisCmd,
 		keyCmd,
 		chainCmd,
+		actionCmd,
 
 		transferCmd,
 
@@ -105,7 +106,9 @@ func init() {
 	)
 
 	// actions
-	actionCmd.AddCommand()
+	actionCmd.AddCommand(
+		transferCmd,
+	)
 }
 
 func GetDefaultKey() (crypto.PrivateKey, error) {
