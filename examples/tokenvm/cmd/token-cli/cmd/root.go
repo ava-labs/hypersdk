@@ -40,15 +40,16 @@ func init() {
 	rootCmd.AddCommand(
 		genesisCmd,
 		// addChainCmd,
+		// setChainCmd,
 		// viewChainsCmd,
-		// defaultChainCmd,
 
-		keyCmd,
-		// addAcctCmd,
-		// defaultAcctCmd,
+		keyCmd, // TODO: genKeyCmd,
+		// importKeyCmd,
+		// setKeyCmd,
+		// viewKeysCmd,
 
 		networkCmd, // TODO: call chainInfoCmd,
-		watchCmd,
+		watchCmd,   // TODO: watchChainCmd,
 
 		balanceCmd,
 		transferCmd,
