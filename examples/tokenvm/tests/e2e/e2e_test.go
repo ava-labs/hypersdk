@@ -335,10 +335,16 @@ var _ = ginkgo.AfterSuite(func() {
 		gomega.Expect(err).Should(gomega.BeNil())
 
 	case modeRun:
-		hutils.Outf("{{yellow}}skipping shutting down cluster{{/}}\n")
+		hutils.Outf("{{yellow}}skipping cluster shutdown{{/}}\n\n")
+		hutils.Outf("{{cyan}}Blockchain:{{/}} %s\n", blockchainIDA)
+		for _, member := range instancesA {
+			hutils.Outf("URI: %s\n", member.uri)
+		}
+		hutils.Outf("\n{{cyan}}Blockchain:{{/}} %s\n", blockchainIDB)
+		for _, member := range instancesB {
+			hutils.Outf("URI: %s\n", member.uri)
+		}
 	}
-
-	hutils.Outf("{{red}}shutting down client{{/}}\n")
 	gomega.Expect(anrCli.Close()).Should(gomega.BeNil())
 })
 
