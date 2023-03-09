@@ -57,7 +57,6 @@ func init() {
 		chainCmd,
 		actionCmd,
 
-		createOrderCmd,
 		fillOrderCmd,
 	)
 
@@ -106,6 +105,7 @@ func init() {
 		// burnAssetCmd,
 		// modifyAssetCmd,
 
+		createOrderCmd,
 		closeOrderCmd,
 	)
 }

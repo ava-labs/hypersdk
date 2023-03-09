@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -33,13 +34,13 @@ func promptAddress(label string) (crypto.PublicKey, error) {
 	return utils.ParseAddress(recipient)
 }
 
-func promptAsset(allowNative bool) (ids.ID, error) {
-	label := "assetID (use TKN for native token)"
+func promptAsset(label string, allowNative bool) (ids.ID, error) {
+	text := fmt.Sprintf("%s (use TKN for native token)", label)
 	if !allowNative {
-		label = "assetID"
+		text = label
 	}
 	promptText := promptui.Prompt{
-		Label: label,
+		Label: text,
 		Validate: func(input string) error {
 			if len(input) == 0 {
 				return ErrInputEmpty
@@ -68,9 +69,9 @@ func promptAsset(allowNative bool) (ids.ID, error) {
 	return assetID, nil
 }
 
-func promptAmount(assetID ids.ID, balance uint64) (uint64, error) {
+func promptAmount(label string, assetID ids.ID, balance uint64, multiple uint64) (uint64, error) {
 	promptText := promptui.Prompt{
-		Label: "amount",
+		Label: label,
 		Validate: func(input string) error {
 			if len(input) == 0 {
 				return ErrInputEmpty
@@ -87,6 +88,9 @@ func promptAmount(assetID ids.ID, balance uint64) (uint64, error) {
 			}
 			if amount > balance {
 				return ErrInsufficientBalance
+			}
+			if multiple > 0 && amount%multiple != 0 {
+				return fmt.Errorf("%w: %d", ErrNotMultiple, multiple)
 			}
 			return nil
 		},

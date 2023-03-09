@@ -136,7 +136,7 @@ var balanceKeyCmd = &cobra.Command{
 			return err
 		}
 
-		assetID, err := promptAsset(true)
+		assetID, err := promptAsset("assetID", true)
 		if err != nil {
 			return err
 		}

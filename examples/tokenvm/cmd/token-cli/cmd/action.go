@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
@@ -32,7 +33,7 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Select token to send
-		assetID, err := promptAsset(true)
+		assetID, err := promptAsset("assetID", true)
 		if err != nil {
 			return err
 		}
@@ -56,7 +57,7 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Select amount
-		amount, err := promptAmount(assetID, balance)
+		amount, err := promptAmount("amount", assetID, balance, 0)
 		if err != nil {
 			return err
 		}
@@ -147,7 +148,7 @@ var mintAssetCmd = &cobra.Command{
 		}
 
 		// Select token to mint
-		assetID, err := promptAsset(false)
+		assetID, err := promptAsset("assetID", false)
 		if err != nil {
 			return err
 		}
@@ -179,7 +180,7 @@ var mintAssetCmd = &cobra.Command{
 		}
 
 		// Select amount
-		amount, err := promptAmount(assetID, consts.MaxUint64-supply)
+		amount, err := promptAmount("amount", assetID, consts.MaxUint64-supply, 0)
 		if err != nil {
 			return err
 		}
@@ -227,7 +228,7 @@ var closeOrderCmd = &cobra.Command{
 		}
 
 		// Select outbound token
-		outAssetID, err := promptAsset(true)
+		outAssetID, err := promptAsset("out assetID", true)
 		if err != nil {
 			return err
 		}
@@ -242,6 +243,120 @@ var closeOrderCmd = &cobra.Command{
 		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.CloseOrder{
 			Order: orderID,
 			Out:   outAssetID,
+		}, factory)
+		if err != nil {
+			return err
+		}
+		if err := submit(ctx); err != nil {
+			return err
+		}
+		success, err := cli.WaitForTransaction(ctx, tx.ID())
+		if err != nil {
+			return err
+		}
+		printStatus(tx.ID(), success)
+		return nil
+	},
+}
+
+var createOrderCmd = &cobra.Command{
+	Use: "create-order",
+	RunE: func(*cobra.Command, []string) error {
+		ctx := context.Background()
+		priv, factory, cli, ok, err := defaultActor()
+		if !ok || err != nil {
+			return err
+		}
+
+		// Select inbound token
+		inAssetID, err := promptAsset("in assetID", true)
+		if err != nil {
+			return err
+		}
+		if inAssetID != ids.Empty {
+			exists, metadata, supply, _, warp, err := cli.Asset(ctx, inAssetID)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				hutils.Outf("{{red}}%s does not exist{{/}}\n", inAssetID)
+				hutils.Outf("{{red}}exiting...{{/}}\n")
+				return nil
+			}
+			hutils.Outf(
+				"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
+				string(metadata),
+				supply,
+				warp,
+			)
+		}
+
+		// Select in tick
+		inTick, err := promptAmount("in tick", inAssetID, consts.MaxUint64, 0)
+		if err != nil {
+			return err
+		}
+
+		// Select outbound token
+		outAssetID, err := promptAsset("out assetID", true)
+		if err != nil {
+			return err
+		}
+		if outAssetID != ids.Empty {
+			exists, metadata, supply, _, warp, err := cli.Asset(ctx, outAssetID)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				hutils.Outf("{{red}}%s does not exist{{/}}\n", outAssetID)
+				hutils.Outf("{{red}}exiting...{{/}}\n")
+				return nil
+			}
+			hutils.Outf(
+				"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
+				string(metadata),
+				supply,
+				warp,
+			)
+		}
+		addr := utils.Address(priv.PublicKey())
+		balance, err := cli.Balance(ctx, addr, outAssetID)
+		if err != nil {
+			return err
+		}
+		if balance == 0 {
+			hutils.Outf("{{red}}balance:{{/}} 0 %s\n", outAssetID)
+			hutils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
+			hutils.Outf("{{red}}exiting...{{/}}\n")
+			return nil
+		}
+		hutils.Outf("{{yellow}}balance:{{/}} %s %s\n", valueString(outAssetID, balance), assetString(outAssetID))
+
+		// Select out tick
+		outTick, err := promptAmount("out tick", outAssetID, consts.MaxUint64, 0)
+		if err != nil {
+			return err
+		}
+
+		// Select supply
+		supply, err := promptAmount("supply (must be multiple of out tick)", outAssetID, balance, outTick)
+		if err != nil {
+			return err
+		}
+
+		// Confirm action
+		cont, err := promptContinue()
+		if !cont || err != nil {
+			return err
+		}
+
+		// Generate transaction
+		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.CreateOrder{
+			In:      inAssetID,
+			InTick:  inTick,
+			Out:     outAssetID,
+			OutTick: outTick,
+			Supply:  supply,
 		}, factory)
 		if err != nil {
 			return err

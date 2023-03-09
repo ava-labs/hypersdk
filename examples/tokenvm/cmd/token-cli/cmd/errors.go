@@ -9,4 +9,5 @@ var (
 	ErrIndexOutOfRange     = errors.New("index out-of-range")
 	ErrInsufficientBalance = errors.New("insufficient balance")
 	ErrInvalidChoice       = errors.New("invalid choice")
+	ErrNotMultiple         = errors.New("must be a mutliple")
 )
