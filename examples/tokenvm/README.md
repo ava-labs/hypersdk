@@ -9,10 +9,9 @@
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-unit-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-unit-tests.yml/badge.svg" /></a>
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-sync-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-sync-tests.yml/badge.svg" /></a>
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-load-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-load-tests.yml/badge.svg" /></a>
-  <a href="https://github.com/ava-labs/hypersdk"><img width="25%" alt="tokenvm" src="assets/hypersdk.png"></a>
 </p>
 <p align="center">
-  <img width="25%" alt="tokenvm" src="assets/hypersdk.png">
+  <a href="https://github.com/ava-labs/hypersdk"><img width="35%" alt="tokenvm" src="assets/hypersdk.png"></a>
 </p>
 
 We created the [`tokenvm`](./examples/tokenvm) to showcase how to use the
