@@ -210,3 +210,50 @@ var mintAssetCmd = &cobra.Command{
 		return nil
 	},
 }
+
+var closeOrderCmd = &cobra.Command{
+	Use: "close-order",
+	RunE: func(*cobra.Command, []string) error {
+		ctx := context.Background()
+		_, factory, cli, ok, err := defaultActor()
+		if !ok || err != nil {
+			return err
+		}
+
+		// Select inbound token
+		orderID, err := promptID("orderID")
+		if err != nil {
+			return err
+		}
+
+		// Select outbound token
+		outAssetID, err := promptAsset(true)
+		if err != nil {
+			return err
+		}
+
+		// Confirm action
+		cont, err := promptContinue()
+		if !cont || err != nil {
+			return err
+		}
+
+		// Generate transaction
+		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.CloseOrder{
+			Order: orderID,
+			Out:   outAssetID,
+		}, factory)
+		if err != nil {
+			return err
+		}
+		if err := submit(ctx); err != nil {
+			return err
+		}
+		success, err := cli.WaitForTransaction(ctx, tx.ID())
+		if err != nil {
+			return err
+		}
+		printStatus(tx.ID(), success)
+		return nil
+	},
+}

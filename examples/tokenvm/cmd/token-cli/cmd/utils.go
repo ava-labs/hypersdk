@@ -130,6 +130,28 @@ func promptContinue() (bool, error) {
 	return true, nil
 }
 
+func promptID(label string) (ids.ID, error) {
+	promptText := promptui.Prompt{
+		Label: label,
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return ErrInputEmpty
+			}
+			_, err := ids.FromString(input)
+			return err
+		},
+	}
+	rawID, err := promptText.Run()
+	if err != nil {
+		return ids.Empty, err
+	}
+	id, err := ids.FromString(rawID)
+	if err != nil {
+		return ids.Empty, err
+	}
+	return id, nil
+}
+
 func valueString(assetID ids.ID, value uint64) string {
 	if assetID == ids.Empty {
 		return hutils.FormatBalance(value)

@@ -59,7 +59,6 @@ func init() {
 
 		createOrderCmd,
 		fillOrderCmd,
-		closeOrderCmd,
 	)
 
 	// genesis
@@ -106,6 +105,8 @@ func init() {
 		mintAssetCmd,
 		// burnAssetCmd,
 		// modifyAssetCmd,
+
+		closeOrderCmd,
 	)
 }
 
