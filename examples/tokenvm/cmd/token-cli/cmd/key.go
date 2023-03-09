@@ -5,12 +5,10 @@ package cmd
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/ava-labs/hypersdk/crypto"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/fatih/color"
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
@@ -97,27 +95,7 @@ var setKeyCmd = &cobra.Command{
 		}
 
 		// Select key
-		promptText := promptui.Prompt{
-			Label: "set default key",
-			Validate: func(input string) error {
-				if len(input) == 0 {
-					return ErrInputEmpty
-				}
-				index, err := strconv.Atoi(input)
-				if err != nil {
-					return err
-				}
-				if index >= len(keys) {
-					return ErrIndexOutOfRange
-				}
-				return nil
-			},
-		}
-		rawKey, err := promptText.Run()
-		if err != nil {
-			return err
-		}
-		keyIndex, err := strconv.Atoi(rawKey)
+		keyIndex, err := promptChoice("set default key", len(keys))
 		if err != nil {
 			return err
 		}
@@ -140,11 +118,7 @@ var balanceKeyCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		balance, err := cli.Balance(ctx, utils.Address(priv.PublicKey()), assetID)
-		if err != nil {
-			return err
-		}
-		hutils.Outf("{{yellow}}balance:{{/}} %s %s\n", valueString(assetID, balance), assetString(assetID))
-		return nil
+		_, err = getAssetInfo(ctx, cli, priv.PublicKey(), assetID, true)
+		return err
 	},
 }

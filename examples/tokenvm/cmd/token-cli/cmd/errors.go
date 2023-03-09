@@ -10,4 +10,5 @@ var (
 	ErrInsufficientBalance = errors.New("insufficient balance")
 	ErrInvalidChoice       = errors.New("invalid choice")
 	ErrNotMultiple         = errors.New("must be a mutliple")
+	ErrInsufficientSupply  = errors.New("insufficient supply")
 )

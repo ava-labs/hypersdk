@@ -96,27 +96,7 @@ var setChainCmd = &cobra.Command{
 		}
 
 		// Select chain
-		promptText := promptui.Prompt{
-			Label: "set default chain",
-			Validate: func(input string) error {
-				if len(input) == 0 {
-					return ErrInputEmpty
-				}
-				index, err := strconv.Atoi(input)
-				if err != nil {
-					return err
-				}
-				if index >= len(chainIDs) {
-					return ErrIndexOutOfRange
-				}
-				return nil
-			},
-		}
-		rawChain, err := promptText.Run()
-		if err != nil {
-			return err
-		}
-		chainIndex, err := strconv.Atoi(rawChain)
+		chainIndex, err := promptChoice("set default chain", len(chainIDs))
 		if err != nil {
 			return err
 		}

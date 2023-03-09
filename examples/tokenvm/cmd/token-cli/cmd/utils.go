@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -69,7 +70,7 @@ func promptAsset(label string, allowNative bool) (ids.ID, error) {
 	return assetID, nil
 }
 
-func promptAmount(label string, assetID ids.ID, balance uint64, multiple uint64) (uint64, error) {
+func promptAmount(label string, assetID ids.ID, balance uint64, f func(input uint64) error) (uint64, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
@@ -89,8 +90,8 @@ func promptAmount(label string, assetID ids.ID, balance uint64, multiple uint64)
 			if amount > balance {
 				return ErrInsufficientBalance
 			}
-			if multiple > 0 && amount%multiple != 0 {
-				return fmt.Errorf("%w: %d", ErrNotMultiple, multiple)
+			if f != nil {
+				return f(amount)
 			}
 			return nil
 		},
@@ -106,6 +107,30 @@ func promptAmount(label string, assetID ids.ID, balance uint64, multiple uint64)
 		amount, err = strconv.ParseUint(rawAmount, 10, 64)
 	}
 	return amount, err
+}
+
+func promptChoice(label string, max int) (int, error) {
+	promptText := promptui.Prompt{
+		Label: label,
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return ErrInputEmpty
+			}
+			index, err := strconv.Atoi(input)
+			if err != nil {
+				return err
+			}
+			if index >= max || index < 0 {
+				return ErrIndexOutOfRange
+			}
+			return nil
+		},
+	}
+	rawIndex, err := promptText.Run()
+	if err != nil {
+		return -1, err
+	}
+	return strconv.Atoi(rawIndex)
 }
 
 func promptContinue() (bool, error) {
@@ -179,6 +204,42 @@ func printStatus(txID ids.ID, success bool) {
 	hutils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, txID)
 }
 
+func getAssetInfo(ctx context.Context, cli *client.Client, publicKey crypto.PublicKey, assetID ids.ID, checkBalance bool) (uint64, error) {
+	if assetID != ids.Empty {
+		exists, metadata, supply, _, warp, err := cli.Asset(ctx, assetID)
+		if err != nil {
+			return 0, err
+		}
+		if !exists {
+			hutils.Outf("{{red}}%s does not exist{{/}}\n", assetID)
+			hutils.Outf("{{red}}exiting...{{/}}\n")
+			return 0, nil
+		}
+		hutils.Outf(
+			"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
+			string(metadata),
+			supply,
+			warp,
+		)
+	}
+	if !checkBalance {
+		return 0, nil
+	}
+	addr := utils.Address(publicKey)
+	balance, err := cli.Balance(ctx, addr, assetID)
+	if err != nil {
+		return 0, err
+	}
+	if balance == 0 {
+		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", assetID)
+		hutils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
+		hutils.Outf("{{red}}exiting...{{/}}\n")
+		return 0, nil
+	}
+	hutils.Outf("{{yellow}}balance:{{/}} %s %s\n", valueString(assetID, balance), assetString(assetID))
+	return balance, nil
+}
+
 func defaultActor() (crypto.PrivateKey, *auth.ED25519Factory, *client.Client, bool, error) {
 	priv, err := GetDefaultKey()
 	if err != nil {
@@ -195,4 +256,40 @@ func defaultActor() (crypto.PrivateKey, *auth.ED25519Factory, *client.Client, bo
 		return crypto.EmptyPrivateKey, nil, nil, false, nil
 	}
 	return priv, auth.NewED25519Factory(priv), client.New(uri), true, nil
+}
+
+func GetDefaultKey() (crypto.PrivateKey, error) {
+	v, err := GetDefault(defaultKeyKey)
+	if err != nil {
+		return crypto.EmptyPrivateKey, err
+	}
+	if len(v) == 0 {
+		hutils.Outf("{{red}}no available keys{{/}}\n")
+		return crypto.EmptyPrivateKey, nil
+	}
+	publicKey := crypto.PublicKey(v)
+	priv, err := GetKey(publicKey)
+	if err != nil {
+		return crypto.EmptyPrivateKey, err
+	}
+	hutils.Outf("{{yellow}}address:{{/}} %s\n", utils.Address(publicKey))
+	return priv, nil
+}
+
+func GetDefaultChain() (string, error) {
+	v, err := GetDefault(defaultChainKey)
+	if err != nil {
+		return "", err
+	}
+	if len(v) == 0 {
+		hutils.Outf("{{red}}no available chains{{/}}\n")
+		return "", nil
+	}
+	chainID := ids.ID(v)
+	uri, err := GetChain(chainID)
+	if err != nil {
+		return "", err
+	}
+	hutils.Outf("{{yellow}}chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n", chainID, uri)
+	return uri, nil
 }
