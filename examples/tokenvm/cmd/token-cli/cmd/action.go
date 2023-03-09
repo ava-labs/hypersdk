@@ -40,7 +40,7 @@ var transferCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		balance, err := getAssetInfo(ctx, cli, priv.PublicKey(), assetID, true)
+		balance, _, err := getAssetInfo(ctx, cli, priv.PublicKey(), assetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -297,7 +297,7 @@ var createOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		balance, err := getAssetInfo(ctx, cli, priv.PublicKey(), outAssetID, true)
+		balance, _, err := getAssetInfo(ctx, cli, priv.PublicKey(), outAssetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -362,7 +362,7 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		balance, err := getAssetInfo(ctx, cli, priv.PublicKey(), inAssetID, true)
+		balance, _, err := getAssetInfo(ctx, cli, priv.PublicKey(), inAssetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -372,7 +372,7 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if _, err := getAssetInfo(ctx, cli, priv.PublicKey(), outAssetID, false); err != nil {
+		if _, _, err := getAssetInfo(ctx, cli, priv.PublicKey(), outAssetID, false); err != nil {
 			return err
 		}
 
@@ -600,7 +600,7 @@ var exportAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		balance, err := getAssetInfo(ctx, cli, priv.PublicKey(), assetID, true)
+		balance, sourceChainID, err := getAssetInfo(ctx, cli, priv.PublicKey(), assetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -617,11 +617,10 @@ var exportAssetCmd = &cobra.Command{
 			return err
 		}
 
-		// Select return
-		// TODO: decide automatically
-		ret, err := promptBool("return")
-		if err != nil {
-			return err
+		// Determine return
+		var ret bool
+		if sourceChainID != ids.Empty {
+			ret = true
 		}
 
 		// Select reward
@@ -630,10 +629,13 @@ var exportAssetCmd = &cobra.Command{
 			return err
 		}
 
-		// Select destination
-		destination, err := promptID("destination")
-		if err != nil {
-			return err
+		// Determine destination
+		destination := sourceChainID
+		if !ret {
+			destination, err = promptID("destination")
+			if err != nil {
+				return err
+			}
 		}
 
 		// Determine if swap in

@@ -118,7 +118,7 @@ var balanceKeyCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		_, err = getAssetInfo(ctx, cli, priv.PublicKey(), assetID, true)
+		_, _, err = getAssetInfo(ctx, cli, priv.PublicKey(), assetID, true)
 		return err
 	},
 }

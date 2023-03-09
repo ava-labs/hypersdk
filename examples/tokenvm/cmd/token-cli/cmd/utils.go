@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
+	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
@@ -247,16 +248,20 @@ func printStatus(txID ids.ID, success bool) {
 	hutils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, txID)
 }
 
-func getAssetInfo(ctx context.Context, cli *client.Client, publicKey crypto.PublicKey, assetID ids.ID, checkBalance bool) (uint64, error) {
+func getAssetInfo(ctx context.Context, cli *client.Client, publicKey crypto.PublicKey, assetID ids.ID, checkBalance bool) (uint64, ids.ID, error) {
+	var sourceChainID ids.ID
 	if assetID != ids.Empty {
 		exists, metadata, supply, _, warp, err := cli.Asset(ctx, assetID)
 		if err != nil {
-			return 0, err
+			return 0, ids.Empty, err
+		}
+		if warp {
+			sourceChainID = ids.ID(metadata[hconsts.IDLen:])
 		}
 		if !exists {
 			hutils.Outf("{{red}}%s does not exist{{/}}\n", assetID)
 			hutils.Outf("{{red}}exiting...{{/}}\n")
-			return 0, nil
+			return 0, sourceChainID, nil
 		}
 		hutils.Outf(
 			"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
@@ -266,21 +271,21 @@ func getAssetInfo(ctx context.Context, cli *client.Client, publicKey crypto.Publ
 		)
 	}
 	if !checkBalance {
-		return 0, nil
+		return 0, sourceChainID, nil
 	}
 	addr := utils.Address(publicKey)
 	balance, err := cli.Balance(ctx, addr, assetID)
 	if err != nil {
-		return 0, err
+		return 0, ids.Empty, err
 	}
 	if balance == 0 {
 		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", assetID)
 		hutils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
 		hutils.Outf("{{red}}exiting...{{/}}\n")
-		return 0, nil
+		return 0, sourceChainID, nil
 	}
 	hutils.Outf("{{yellow}}balance:{{/}} %s %s\n", valueString(assetID, balance), assetString(assetID))
-	return balance, nil
+	return balance, sourceChainID, nil
 }
 
 func defaultActor() (crypto.PrivateKey, *auth.ED25519Factory, *client.Client, bool, error) {
