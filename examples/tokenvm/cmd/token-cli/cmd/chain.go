@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -34,6 +33,43 @@ var chainCmd = &cobra.Command{
 var importChainCmd = &cobra.Command{
 	Use: "import",
 	RunE: func(_ *cobra.Command, args []string) error {
+		promptText := promptui.Prompt{
+			Label: "chainID",
+			Validate: func(input string) error {
+				if len(input) == 0 {
+					return ErrInputEmpty
+				}
+				_, err := ids.FromString(input)
+				return err
+			},
+		}
+		rchainID, err := promptText.Run()
+		if err != nil {
+			return err
+		}
+		chainID, err := ids.FromString(rchainID)
+		if err != nil {
+			return err
+		}
+		promptText = promptui.Prompt{
+			Label: "uri",
+			Validate: func(input string) error {
+				if len(input) == 0 {
+					return ErrInputEmpty
+				}
+				return nil
+			},
+		}
+		uri, err := promptText.Run()
+		if err != nil {
+			return err
+		}
+		if err := StoreChain(chainID, uri); err != nil {
+			return err
+		}
+		if err := StoreDefault(defaultChainKey, chainID[:]); err != nil {
+			return err
+		}
 		return nil
 	},
 }
@@ -41,65 +77,70 @@ var importChainCmd = &cobra.Command{
 var setChainCmd = &cobra.Command{
 	Use: "set",
 	RunE: func(*cobra.Command, []string) error {
-		keys, err := GetKeys()
+		chainIDs, uris, err := GetChains()
 		if err != nil {
 			return err
 		}
-		if len(keys) == 0 {
-			utils.Outf("{{red}}no stored keys{{/}}\n")
+		if len(chainIDs) == 0 {
+			utils.Outf("{{red}}no stored chains{{/}}\n")
 			return nil
 		}
-		utils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
-		for i := 0; i < len(keys); i++ {
-			publicKey := keys[i].PublicKey()
+		utils.Outf("{{cyan}}stored chains:{{/}} %d\n", len(chainIDs))
+		for i := 0; i < len(chainIDs); i++ {
 			utils.Outf(
-				"%d) {{cyan}}address:{{/}} %s {{cyan}}public key:{{/}} %x\n",
+				"%d) {{cyan}}chainID:{{/}} %s {{cyan}}uri:{{/}} %s\n",
 				i,
-				utils.Address(publicKey),
-				publicKey,
+				chainIDs[i],
+				uris[i],
 			)
 		}
 
-		// Select key
+		// Select chain
 		promptText := promptui.Prompt{
-			Label: "set default key",
+			Label: "set default chain",
 			Validate: func(input string) error {
 				if len(input) == 0 {
-					return errors.New("input is empty")
+					return ErrInputEmpty
 				}
 				index, err := strconv.Atoi(input)
 				if err != nil {
 					return err
 				}
-				if index >= len(keys) {
-					return errors.New("index out of range")
+				if index >= len(chainIDs) {
+					return ErrIndexOutOfRange
 				}
 				return nil
 			},
 		}
-		rawKey, err := promptText.Run()
+		rawChain, err := promptText.Run()
 		if err != nil {
 			return err
 		}
-		keyIndex, err := strconv.Atoi(rawKey)
+		chainIndex, err := strconv.Atoi(rawChain)
 		if err != nil {
 			return err
 		}
-		key := keys[keyIndex]
-		publicKey := key.PublicKey()
-		return StoreDefault(defaultKeyKey, publicKey[:])
+		chainID := chainIDs[chainIndex]
+		return StoreDefault(defaultChainKey, chainID[:])
 	},
 }
 
 var chainInfoCmd = &cobra.Command{
 	Use: "info",
 	RunE: func(_ *cobra.Command, args []string) error {
-		cli := client.New("")
+		uri, err := GetDefaultChain()
+		if err != nil {
+			return err
+		}
+		if len(uri) == 0 {
+			return nil
+		}
+		cli := client.New(uri)
 		networkID, subnetID, chainID, err := cli.Network(context.Background())
 		if err != nil {
 			return err
 		}
-		utils.Outf("networkID=%d subnetID=%s chainID=%s", networkID, subnetID, chainID)
+		utils.Outf("{{cyan}}networkID:{{/}} %d {{cyan}}subnetID:{{/}} %s {{cyan}}chainID:{{/}} %s", networkID, subnetID, chainID)
 		return nil
 	},
 }
@@ -108,6 +149,13 @@ var watchChainCmd = &cobra.Command{
 	Use: "watch",
 	RunE: func(_ *cobra.Command, args []string) error {
 		ctx := context.Background()
+		uri, err := GetDefaultChain()
+		if err != nil {
+			return err
+		}
+		if len(uri) == 0 {
+			return nil
+		}
 		cli := client.New(uri)
 		port, err := cli.BlocksPort(ctx)
 		if err != nil {

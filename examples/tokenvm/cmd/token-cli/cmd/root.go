@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
+	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
@@ -112,7 +114,13 @@ func GetDefaultKey() (crypto.PrivateKey, error) {
 		utils.Outf("{{red}}no available keys{{/}}\n")
 		return crypto.EmptyPrivateKey, nil
 	}
-	return crypto.PrivateKey(v), nil
+	publicKey := crypto.PublicKey(v)
+	priv, err := GetKey(publicKey)
+	if err != nil {
+		return crypto.EmptyPrivateKey, err
+	}
+	utils.Outf("{{yellow}}address:{{/}} %s\n", tutils.Address(publicKey))
+	return priv, nil
 }
 
 func GetDefaultChain() (string, error) {
@@ -124,7 +132,13 @@ func GetDefaultChain() (string, error) {
 		utils.Outf("{{red}}no available chains{{/}}\n")
 		return "", nil
 	}
-	return string(v), nil
+	chainID := ids.ID(v)
+	uri, err := GetChain(chainID)
+	if err != nil {
+		return "", err
+	}
+	utils.Outf("{{yellow}}chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n", chainID, uri)
+	return uri, nil
 }
 
 func Execute() error {

@@ -105,14 +105,14 @@ var setKeyCmd = &cobra.Command{
 			Label: "set default key",
 			Validate: func(input string) error {
 				if len(input) == 0 {
-					return errors.New("input is empty")
+					return ErrInputEmpty
 				}
 				index, err := strconv.Atoi(input)
 				if err != nil {
 					return err
 				}
 				if index >= len(keys) {
-					return errors.New("index out of range")
+					return ErrIndexOutOfRange
 				}
 				return nil
 			},
