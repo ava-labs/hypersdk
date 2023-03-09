@@ -477,6 +477,113 @@ var importAssetCmd = &cobra.Command{
 var exportAssetCmd = &cobra.Command{
 	Use: "export-asset",
 	RunE: func(*cobra.Command, []string) error {
+		ctx := context.Background()
+		priv, factory, cli, ok, err := defaultActor()
+		if !ok || err != nil {
+			return err
+		}
+
+		// Select token to send
+		assetID, err := promptAsset("assetID", true)
+		if err != nil {
+			return err
+		}
+		balance, err := getAssetInfo(ctx, cli, priv.PublicKey(), assetID, true)
+		if balance == 0 || err != nil {
+			return err
+		}
+
+		// Select recipient
+		recipient, err := promptAddress("recipient")
+		if err != nil {
+			return err
+		}
+
+		// Select amount
+		amount, err := promptAmount("amount", assetID, balance, nil)
+		if err != nil {
+			return err
+		}
+
+		// Select return
+		// TODO: decide automatically
+		ret, err := promptBool("return")
+		if err != nil {
+			return err
+		}
+
+		// Select reward
+		reward, err := promptAmount("reward", assetID, balance-amount, nil)
+		if err != nil {
+			return err
+		}
+
+		// Select destination
+		destination, err := promptID("destination")
+		if err != nil {
+			return err
+		}
+
+		// Determine if swap in
+		swap, err := promptBool("swap on import")
+		if err != nil {
+			return err
+		}
+		var (
+			swapIn     uint64
+			assetOut   ids.ID
+			swapOut    uint64
+			swapExpiry int64
+		)
+		if swap {
+			swapIn, err = promptAmount("swap in", assetID, amount, nil)
+			if err != nil {
+				return err
+			}
+			assetOut, err = promptID("asset out (on destination)")
+			if err != nil {
+				return err
+			}
+			swapOut, err = promptAmount("swap out (on destination)", assetOut, consts.MaxUint64, nil)
+			if err != nil {
+				return err
+			}
+			swapExpiry, err = promptTime("swap expiry")
+			if err != nil {
+				return err
+			}
+		}
+
+		// Confirm action
+		cont, err := promptContinue()
+		if !cont || err != nil {
+			return err
+		}
+
+		// Generate transaction
+		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.ExportAsset{
+			To:          recipient,
+			Asset:       assetID,
+			Value:       amount,
+			Return:      ret,
+			Reward:      reward,
+			SwapIn:      swapIn,
+			AssetOut:    assetOut,
+			SwapOut:     swapOut,
+			SwapExpiry:  swapExpiry,
+			Destination: destination,
+		}, factory)
+		if err != nil {
+			return err
+		}
+		if err := submit(ctx); err != nil {
+			return err
+		}
+		success, err := cli.WaitForTransaction(ctx, tx.ID())
+		if err != nil {
+			return err
+		}
+		printStatus(tx.ID(), success)
 		return nil
 	},
 }

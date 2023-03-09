@@ -133,6 +133,24 @@ func promptChoice(label string, max int) (int, error) {
 	return strconv.Atoi(rawIndex)
 }
 
+func promptTime(label string) (int64, error) {
+	promptText := promptui.Prompt{
+		Label: label,
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return ErrInputEmpty
+			}
+			_, err := strconv.ParseInt(input, 10, 64)
+			return err
+		},
+	}
+	rawTime, err := promptText.Run()
+	if err != nil {
+		return -1, err
+	}
+	return strconv.ParseInt(rawTime, 10, 64)
+}
+
 func promptContinue() (bool, error) {
 	promptText := promptui.Prompt{
 		Label: "continue (y/n)",
@@ -154,6 +172,31 @@ func promptContinue() (bool, error) {
 	cont := strings.ToLower(rawContinue)
 	if cont == "n" {
 		hutils.Outf("{{red}}exiting...{{/}}\n")
+		return false, nil
+	}
+	return true, nil
+}
+
+func promptBool(label string) (bool, error) {
+	promptText := promptui.Prompt{
+		Label: fmt.Sprintf("%s (y/n)", label),
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return ErrInputEmpty
+			}
+			lower := strings.ToLower(input)
+			if lower == "y" || lower == "n" {
+				return nil
+			}
+			return ErrInvalidChoice
+		},
+	}
+	rawContinue, err := promptText.Run()
+	if err != nil {
+		return false, err
+	}
+	cont := strings.ToLower(rawContinue)
+	if cont == "n" {
 		return false, nil
 	}
 	return true, nil
