@@ -5,13 +5,12 @@ package cmd
 
 import (
 	"context"
+	"errors"
 
-	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	hutils "github.com/ava-labs/hypersdk/utils"
+	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
 
@@ -22,26 +21,14 @@ var actionCmd = &cobra.Command{
 	},
 }
 
-var trasnferCmd = &cobra.Command{
+var transferCmd = &cobra.Command{
 	Use: "transfer",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		priv, err := GetDefaultKey()
-		if err != nil {
+		priv, factory, cli, ok, err := defaultActor()
+		if !ok || err != nil {
 			return err
 		}
-		if priv == crypto.EmptyPrivateKey {
-			return nil
-		}
-		factory := auth.NewED25519Factory(priv)
-		uri, err := GetDefaultChain()
-		if err != nil {
-			return err
-		}
-		if len(uri) == 0 {
-			return nil
-		}
-		cli := client.New(uri)
 
 		// Select token to send
 		assetID, err := promptAsset()
@@ -79,10 +66,60 @@ var trasnferCmd = &cobra.Command{
 			return err
 		}
 
+		// Generate transaction
 		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{
 			To:    recipient,
 			Asset: assetID,
 			Value: amount,
+		}, factory)
+		if err != nil {
+			return err
+		}
+		if err := submit(ctx); err != nil {
+			return err
+		}
+		success, err := cli.WaitForTransaction(ctx, tx.ID())
+		if err != nil {
+			return err
+		}
+		printStatus(tx.ID(), success)
+		return nil
+	},
+}
+
+var createAssetCmd = &cobra.Command{
+	Use: "create-asset",
+	RunE: func(*cobra.Command, []string) error {
+		ctx := context.Background()
+		_, factory, cli, ok, err := defaultActor()
+		if !ok || err != nil {
+			return err
+		}
+
+		// Add metadata to token
+		promptText := promptui.Prompt{
+			Label: "metadata (can be changed later)",
+			Validate: func(input string) error {
+				if len(input) > actions.MaxMetadataSize {
+					return errors.New("input too large")
+				}
+				return nil
+			},
+		}
+		metadata, err := promptText.Run()
+		if err != nil {
+			return err
+		}
+
+		// Confirm action
+		cont, err := promptContinue()
+		if !cont || err != nil {
+			return err
+		}
+
+		// Generate transaction
+		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.CreateAsset{
+			Metadata: []byte(metadata),
 		}, factory)
 		if err != nil {
 			return err

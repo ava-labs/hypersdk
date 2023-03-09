@@ -57,12 +57,6 @@ func init() {
 		chainCmd,
 		actionCmd,
 
-		transferCmd,
-
-		// importAssetCmd,
-		// exportAssetCmd,
-
-		createAssetCmd,
 		mintAssetCmd,
 		// burnAssetCmd,
 		// modifyAssetCmd,
@@ -108,6 +102,11 @@ func init() {
 	// actions
 	actionCmd.AddCommand(
 		transferCmd,
+
+		// importAssetCmd,
+		// exportAssetCmd,
+
+		createAssetCmd,
 	)
 }
 

@@ -13,7 +13,6 @@ import (
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
@@ -132,21 +131,10 @@ var balanceKeyCmd = &cobra.Command{
 	Use: "balance",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		priv, err := GetDefaultKey()
-		if err != nil {
+		priv, _, cli, ok, err := defaultActor()
+		if !ok || err != nil {
 			return err
 		}
-		if priv == crypto.EmptyPrivateKey {
-			return nil
-		}
-		uri, err := GetDefaultChain()
-		if err != nil {
-			return err
-		}
-		if len(uri) == 0 {
-			return nil
-		}
-		cli := client.New(uri)
 
 		assetID, err := promptAsset()
 		if err != nil {

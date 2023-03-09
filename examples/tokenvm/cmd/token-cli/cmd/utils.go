@@ -7,6 +7,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -142,4 +144,22 @@ func printStatus(txID ids.ID, success bool) {
 		status = "✅"
 	}
 	hutils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, txID)
+}
+
+func defaultActor() (crypto.PrivateKey, *auth.ED25519Factory, *client.Client, bool, error) {
+	priv, err := GetDefaultKey()
+	if err != nil {
+		return crypto.EmptyPrivateKey, nil, nil, false, err
+	}
+	if priv == crypto.EmptyPrivateKey {
+		return crypto.EmptyPrivateKey, nil, nil, false, nil
+	}
+	uri, err := GetDefaultChain()
+	if err != nil {
+		return crypto.EmptyPrivateKey, nil, nil, false, err
+	}
+	if len(uri) == 0 {
+		return crypto.EmptyPrivateKey, nil, nil, false, nil
+	}
+	return priv, auth.NewED25519Factory(priv), client.New(uri), true, nil
 }
