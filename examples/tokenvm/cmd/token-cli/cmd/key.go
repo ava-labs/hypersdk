@@ -134,13 +134,23 @@ var setKeyCmd = &cobra.Command{
 var balanceKeyCmd = &cobra.Command{
 	Use: "balance",
 	RunE: func(*cobra.Command, []string) error {
-		priv, err := crypto.LoadKey(privateKeyFile)
+		ctx := context.Background()
+		priv, err := GetDefaultKey()
 		if err != nil {
 			return err
 		}
+		if priv == crypto.EmptyPrivateKey {
+			return nil
+		}
 		hutils.Outf("{{yellow}}loaded address:{{/}} %s\n\n", utils.Address(priv.PublicKey()))
 
-		ctx := context.Background()
+		uri, err := GetDefaultChain()
+		if err != nil {
+			return err
+		}
+		if len(uri) == 0 {
+			return nil
+		}
 		cli := client.New(uri)
 
 		// Select address

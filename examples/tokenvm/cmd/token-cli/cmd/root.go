@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/pebble"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -99,6 +101,30 @@ func init() {
 		chainInfoCmd,
 		watchChainCmd,
 	)
+}
+
+func GetDefaultKey() (crypto.PrivateKey, error) {
+	v, err := GetDefault(defaultKeyKey)
+	if err != nil {
+		return crypto.EmptyPrivateKey, err
+	}
+	if len(v) == 0 {
+		utils.Outf("{{red}}no available keys{{/}}\n")
+		return crypto.EmptyPrivateKey, nil
+	}
+	return crypto.PrivateKey(v), nil
+}
+
+func GetDefaultChain() (string, error) {
+	v, err := GetDefault(defaultChainKey)
+	if err != nil {
+		return "", err
+	}
+	if len(v) == 0 {
+		utils.Outf("{{red}}no available chains{{/}}\n")
+		return "", nil
+	}
+	return string(v), nil
 }
 
 func Execute() error {
