@@ -11,7 +11,7 @@
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-load-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-load-tests.yml/badge.svg" /></a>
 </p>
 <p align="center">
-  <img width="40%" alt="tokenvm" src="assets/hypersdk.png">
+  <img width="10%" alt="tokenvm" src="assets/hypersdk.png">
 </p>
 
 We created the [`tokenvm`](./examples/tokenvm) to showcase how to use the
