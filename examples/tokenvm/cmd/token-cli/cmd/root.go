@@ -24,6 +24,9 @@ var (
 	db      database.Database
 	workDir string
 
+	genesisFile  string
+	minUnitPrice int64
+
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
 		Short:      "TokenVM CLI",
@@ -46,14 +49,12 @@ func init() {
 	cobra.EnablePrefixMatching = true
 	rootCmd.AddCommand(
 		genesisCmd,
+
 		// addChainCmd,
 		// setChainCmd,
 		// viewChainsCmd,
 
-		keyCmd, // TODO: genKeyCmd,
-		// importKeyCmd,
-		// setKeyCmd,
-		// viewKeysCmd,
+		keyCmd,
 
 		networkCmd, // TODO: call chainInfoCmd,
 		watchCmd,   // TODO: watchChainCmd,
@@ -76,6 +77,31 @@ func init() {
 		// spamCmd,
 
 		// resetCmd, (deletes DB)
+	)
+
+	// genesis
+	genesisCmd.AddCommand(
+		genGenesisCmd,
+	)
+	genGenesisCmd.PersistentFlags().StringVar(
+		&genesisFile,
+		"genesis-file",
+		filepath.Join(workDir, "genesis.json"),
+		"genesis file path",
+	)
+	genGenesisCmd.PersistentFlags().Int64Var(
+		&minUnitPrice,
+		"min-unit-price",
+		-1,
+		"minimum price",
+	)
+
+	// key
+	keyCmd.AddCommand(
+		genKeyCmd,
+		// importKeyCmd,
+		// setKeyCmd,
+		// viewKeysCmd,
 	)
 }
 

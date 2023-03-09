@@ -15,41 +15,45 @@ import (
 )
 
 var keyCmd = &cobra.Command{
-	Use:   "key [options]",
-	Short: "Creates a new key in the default location",
-	RunE:  keyFunc,
+	Use: "key",
+	RunE: func(*cobra.Command, []string) error {
+		return ErrMissingSubcommand
+	},
 }
 
-func keyFunc(*cobra.Command, []string) error {
-	if _, err := os.Stat(privateKeyFile); err == nil {
-		// Already found, remind the user they have it
-		priv, err := crypto.LoadKey(privateKeyFile)
+var genKeyCmd = &cobra.Command{
+	Use: "generate",
+	RunE: func(*cobra.Command, []string) error {
+		if _, err := os.Stat(privateKeyFile); err == nil {
+			// Already found, remind the user they have it
+			priv, err := crypto.LoadKey(privateKeyFile)
+			if err != nil {
+				return err
+			}
+			color.Green(
+				"ABORTING!!! key for %s already exists at %s",
+				utils.Address(priv.PublicKey()),
+				privateKeyFile,
+			)
+			return os.ErrExist
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+
+		// Generate new key and save to disk
+		// TODO: encrypt key
+		priv, err := crypto.GeneratePrivateKey()
 		if err != nil {
 			return err
 		}
+		if err := priv.Save(privateKeyFile); err != nil {
+			return err
+		}
 		color.Green(
-			"ABORTING!!! key for %s already exists at %s",
+			"created address %s and saved to %s",
 			utils.Address(priv.PublicKey()),
 			privateKeyFile,
 		)
-		return os.ErrExist
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-
-	// Generate new key and save to disk
-	// TODO: encrypt key
-	priv, err := crypto.GeneratePrivateKey()
-	if err != nil {
-		return err
-	}
-	if err := priv.Save(privateKeyFile); err != nil {
-		return err
-	}
-	color.Green(
-		"created address %s and saved to %s",
-		utils.Address(priv.PublicKey()),
-		privateKeyFile,
-	)
-	return nil
+		return nil
+	},
 }
