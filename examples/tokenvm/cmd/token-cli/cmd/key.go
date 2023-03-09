@@ -4,8 +4,13 @@
 package cmd
 
 import (
+	"errors"
+	"strconv"
+
 	"github.com/ava-labs/hypersdk/crypto"
+	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/fatih/color"
+	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
@@ -66,5 +71,58 @@ var importKeyCmd = &cobra.Command{
 			utils.Address(publicKey),
 		)
 		return nil
+	},
+}
+
+var setKeyCmd = &cobra.Command{
+	Use: "set",
+	RunE: func(*cobra.Command, []string) error {
+		keys, err := GetKeys()
+		if err != nil {
+			return err
+		}
+		if len(keys) == 0 {
+			hutils.Outf("{{red}}no stored keys{{/}}\n")
+			return nil
+		}
+		hutils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
+		for i := 0; i < len(keys); i++ {
+			publicKey := keys[i].PublicKey()
+			hutils.Outf(
+				"%d) {{cyan}}address:{{/}} %s {{cyan}}public key:{{/}} %x\n",
+				i,
+				utils.Address(publicKey),
+				publicKey,
+			)
+		}
+
+		// Select key
+		promptText := promptui.Prompt{
+			Label: "set default key",
+			Validate: func(input string) error {
+				if len(input) == 0 {
+					return errors.New("input is empty")
+				}
+				index, err := strconv.Atoi(input)
+				if err != nil {
+					return err
+				}
+				if index >= len(keys) {
+					return errors.New("index out of range")
+				}
+				return nil
+			},
+		}
+		rawKey, err := promptText.Run()
+		if err != nil {
+			return err
+		}
+		keyIndex, err := strconv.Atoi(rawKey)
+		if err != nil {
+			return err
+		}
+		key := keys[keyIndex]
+		publicKey := key.PublicKey()
+		return StoreDefault(defaultKeyKey, publicKey[:])
 	},
 }
