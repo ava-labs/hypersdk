@@ -4,14 +4,19 @@
 package codec
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/stretchr/testify/require"
 )
 
+// toReader returns an OptionalPacker that is a reader of [o].
+// Initializes the OptionalPacker size and bytes from [o]. The returned
+// bitmask is equal to the bitmask of [o].
 func (o *OptionalPacker) toReader() *OptionalPacker {
-	// Add on for bits byte
+	// Add one for o.b byte
 	size := len(o.ip.Bytes()) + 1
 	p := NewWriter(size)
 	p.PackOptional(o)
@@ -19,13 +24,46 @@ func (o *OptionalPacker) toReader() *OptionalPacker {
 	return pr.NewOptionalReader()
 }
 func TestOptionalPackerWriter(t *testing.T) {
+	// Initializes empty writer
 	require := require.New(t)
-	require.True(true)
+	opw := NewOptionalWriter()
+	require.Empty(opw.ip.Bytes())
+	require.Equal(bits(0), opw.b)
 }
 
 func TestOptionalPackerReader(t *testing.T) {
 	require := require.New(t)
-	require.True(true)
+	// Create packer
+	bytes := []byte{1, 0}
+	p := NewReader(bytes, 2)
+	opr := p.NewOptionalReader()
+	require.Equal(bits(1), opr.b)
+	require.Equal(bytes, opr.ip.Bytes())
+}
+
+func TestOptionalPackerPublicKey(t *testing.T) {
+	require := require.New(t)
+	opw := NewOptionalWriter()
+	var pubKey crypto.PublicKey
+	copy(pubKey[:], TestPublicKey)
+	t.Run("Pack", func(t *testing.T) {
+		// Pack empty
+		opw.PackPublicKey(crypto.EmptyPublicKey)
+		require.Empty(opw.ip.Bytes(), "PackPublickey packed an empty ID.")
+		// Pack ID
+		opw.PackPublicKey(pubKey)
+		require.Equal(TestPublicKey, opw.ip.Bytes(), "PackPublickey did not set bytes correctly.")
+	})
+	t.Run("Unpack", func(t *testing.T) {
+		// Setup optional reader
+		opr := opw.toReader()
+		var unpackedPubkey crypto.PublicKey
+		// Unpack
+		opr.UnpackPublicKey(&unpackedPubkey)
+		require.Equal(crypto.EmptyPublicKey[:], unpackedPubkey[:], "PublicKey unpacked correctly")
+		opr.UnpackPublicKey(&unpackedPubkey)
+		require.Equal(pubKey, unpackedPubkey, "PublicKey unpacked correctly")
+	})
 }
 
 func TestOptionalPackerID(t *testing.T) {
@@ -35,7 +73,7 @@ func TestOptionalPackerID(t *testing.T) {
 	t.Run("Pack", func(t *testing.T) {
 		// Pack empty
 		opw.PackID(ids.Empty)
-		require.Equal(0, len(opw.ip.Bytes()), "PackID packed an empty ID.")
+		require.Empty(opw.ip.Bytes(), "PackID packed an empty ID.")
 		// Pack ID
 		opw.PackID(id)
 		bytes, err := ids.ToID(opw.ip.Bytes())
@@ -54,29 +92,33 @@ func TestOptionalPackerID(t *testing.T) {
 	})
 }
 
-func TestOptionalPackerPublicKey(t *testing.T) {
-	require := require.New(t)
-	require.True(true)
-	t.Run("Pack", func(t *testing.T) {
-
-	})
-	t.Run("Unpack", func(t *testing.T) {
-
-	})
-}
-
 func TestOptionalPackerUint64(t *testing.T) {
 	require := require.New(t)
-	require.True(true)
+	opw := NewOptionalWriter()
+	val := uint64(900)
 	t.Run("Pack", func(t *testing.T) {
-
+		// Pack empty
+		opw.PackUint64(0)
+		require.Empty(opw.ip.Bytes(), "PackUint64 packed a zero uint.")
+		// Pack ID
+		opw.PackUint64(val)
+		require.Equal(val, binary.BigEndian.Uint64(opw.ip.Bytes()), "PackUint64 did not set bytes correctly.")
 	})
 	t.Run("Unpack", func(t *testing.T) {
-
+		// Setup optional reader
+		opr := opw.toReader()
+		// Unpack
+		require.Equal(uint64(0), opr.UnpackUint64(), "Uint64 unpacked correctly")
+		require.Equal(val, opr.UnpackUint64(), "Uint64 unpacked correctly")
 	})
 }
 
 func TestOptionalPackerPackOptional(t *testing.T) {
+	// Packs optional packer correctly
 	require := require.New(t)
-	require.True(true)
+	p := NewWriter(2)
+	op := NewOptionalWriter()
+	op.ip.PackByte(byte(90))
+	p.PackOptional(op)
+	require.Equal([]byte{0, 90}, p.Bytes())
 }

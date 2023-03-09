@@ -4,8 +4,6 @@
 package codec
 
 import (
-	"fmt"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
@@ -143,7 +141,5 @@ func (o *OptionalPacker) UnpackUint64() uint64 {
 // followed by the bytes in the OptionalPacker.
 func (p *Packer) PackOptional(o *OptionalPacker) {
 	p.PackByte(uint8(o.b))
-	fmt.Println("ob ", o.b)
 	p.PackFixedBytes(o.ip.Bytes())
-
 }
