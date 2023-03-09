@@ -38,10 +38,23 @@ func init() {
 
 	cobra.EnablePrefixMatching = true
 	rootCmd.AddCommand(
-		keyCmd,
 		genesisCmd,
-		networkCmd,
+		// addChainCmd,
+		// viewChainsCmd,
+		// defaultChainCmd,
+
+		keyCmd,
+		// addAcctCmd,
+		// defaultAcctCmd,
+
+		networkCmd, // TODO: call chainInfoCmd,
 		watchCmd,
+
+		balanceCmd,
+		transferCmd,
+
+		// importAssetCmd,
+		// exportAssetCmd,
 
 		createAssetCmd,
 		mintAssetCmd,
@@ -52,8 +65,7 @@ func init() {
 		fillOrderCmd,
 		closeOrderCmd,
 
-		balanceCmd,
-		transferCmd,
+		// spamCmd,
 	)
 
 	rootCmd.PersistentFlags().StringVar(
