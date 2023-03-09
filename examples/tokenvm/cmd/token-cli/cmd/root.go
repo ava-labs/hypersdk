@@ -91,9 +91,6 @@ func init() {
 	actionCmd.AddCommand(
 		transferCmd,
 
-		// importAssetCmd,
-		// exportAssetCmd,
-
 		createAssetCmd,
 		mintAssetCmd,
 		// burnAssetCmd,
@@ -102,6 +99,9 @@ func init() {
 		createOrderCmd,
 		fillOrderCmd,
 		closeOrderCmd,
+
+		importAssetCmd,
+		exportAssetCmd,
 	)
 }
 

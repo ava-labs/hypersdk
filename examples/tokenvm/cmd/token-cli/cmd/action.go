@@ -466,3 +466,17 @@ var fillOrderCmd = &cobra.Command{
 		return nil
 	},
 }
+
+var importAssetCmd = &cobra.Command{
+	Use: "import-asset",
+	RunE: func(*cobra.Command, []string) error {
+		return nil
+	},
+}
+
+var exportAssetCmd = &cobra.Command{
+	Use: "export-asset",
+	RunE: func(*cobra.Command, []string) error {
+		return nil
+	},
+}
