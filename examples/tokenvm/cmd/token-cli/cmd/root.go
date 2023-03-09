@@ -103,6 +103,9 @@ func init() {
 		chainInfoCmd,
 		watchChainCmd,
 	)
+
+	// actions
+	actionCmd.AddCommand()
 }
 
 func GetDefaultKey() (crypto.PrivateKey, error) {
