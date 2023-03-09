@@ -346,5 +346,5 @@ out on the Avalanche Discord._
   issued)
 
 <p align="center">
-  <a href="https://github.com/ava-labs/hypersdk"><img width="35%" alt="tokenvm" src="assets/hypersdk.png"></a>
+  <a href="https://github.com/ava-labs/hypersdk"><img width="40%" alt="tokenvm" src="assets/hypersdk.png"></a>
 </p>
