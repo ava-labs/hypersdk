@@ -23,6 +23,7 @@ func (o *OptionalPacker) toReader() *OptionalPacker {
 	pr := NewReader(p.Bytes(), size)
 	return pr.NewOptionalReader()
 }
+
 func TestOptionalPackerWriter(t *testing.T) {
 	// Initializes empty writer
 	require := require.New(t)
@@ -102,7 +103,11 @@ func TestOptionalPackerUint64(t *testing.T) {
 		require.Empty(opw.ip.Bytes(), "PackUint64 packed a zero uint.")
 		// Pack ID
 		opw.PackUint64(val)
-		require.Equal(val, binary.BigEndian.Uint64(opw.ip.Bytes()), "PackUint64 did not set bytes correctly.")
+		require.Equal(
+			val,
+			binary.BigEndian.Uint64(opw.ip.Bytes()),
+			"PackUint64 did not set bytes correctly.",
+		)
 	})
 	t.Run("Unpack", func(t *testing.T) {
 		// Setup optional reader

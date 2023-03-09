@@ -13,7 +13,9 @@ import (
 // Inspired by: https://yourbasic.org/golang/bitmask-flag-set-clear
 type bits uint8
 
-// TODO: purpose of optional packer
+// OptionalPacker defines a struct that includes a Packer [ip], a bitmask
+// [b] and an offset [offset]. [b] indicates which fields in the OptionalPacker
+// are present and which are not.
 type OptionalPacker struct {
 	b      bits
 	offset uint8

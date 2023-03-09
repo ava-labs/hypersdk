@@ -21,12 +21,14 @@ var (
 	}
 	TestString    = "TestString"
 	TestBool      = true
-	TestSignature = []byte{2, 8, 143, 126, 80, 159, 186, 93, 157,
+	TestSignature = []byte{
+		2, 8, 143, 126, 80, 159, 186, 93, 157,
 		97, 183, 80, 183, 86, 3, 128, 223, 79, 164, 21, 51, 88,
 		224, 186, 134, 18, 209, 100, 166, 37, 132, 237, 48, 49,
 		102, 144, 53, 111, 245, 209, 141, 252, 154, 0, 111, 229,
 		175, 23, 122, 55, 166, 97, 166, 228, 68, 247, 23, 113,
-		32, 247, 254, 190, 203, 8}
+		32, 247, 254, 190, 203, 8,
+	}
 	TestWindow = []byte{1, 2, 3, 4, 5}
 )
 
@@ -111,14 +113,14 @@ func TestPackerID(t *testing.T) {
 		// Unpack
 		rp := NewReader(wp.Bytes(), consts.IDLen)
 		require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
-		unpackedId := ids.Empty
-		rp.UnpackID(true, &unpackedId)
-		require.Equal(id, unpackedId, "UnpackID unpacked incorrectly.")
+		unpackedID := ids.Empty
+		rp.UnpackID(true, &unpackedID)
+		require.Equal(id, unpackedID, "UnpackID unpacked incorrectly.")
 		require.NoError(rp.Err(), "UnpackID set an error.")
 		// Unpack again
-		unpackedId = ids.Empty
-		rp.UnpackID(true, &unpackedId)
-		require.Equal(ids.Empty, unpackedId, "UnpackID unpacked incorrectly.")
+		unpackedID = ids.Empty
+		rp.UnpackID(true, &unpackedID)
+		require.Equal(ids.Empty, unpackedID, "UnpackID unpacked incorrectly.")
 		require.Error(rp.Err(), "UnpackID did not set error.")
 	})
 }
