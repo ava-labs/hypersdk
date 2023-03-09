@@ -57,10 +57,6 @@ func init() {
 		chainCmd,
 		actionCmd,
 
-		mintAssetCmd,
-		// burnAssetCmd,
-		// modifyAssetCmd,
-
 		createOrderCmd,
 		fillOrderCmd,
 		closeOrderCmd,
@@ -107,6 +103,9 @@ func init() {
 		// exportAssetCmd,
 
 		createAssetCmd,
+		mintAssetCmd,
+		// burnAssetCmd,
+		// modifyAssetCmd,
 	)
 }
 

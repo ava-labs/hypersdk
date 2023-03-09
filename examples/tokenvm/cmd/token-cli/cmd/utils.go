@@ -33,14 +33,18 @@ func promptAddress(label string) (crypto.PublicKey, error) {
 	return utils.ParseAddress(recipient)
 }
 
-func promptAsset() (ids.ID, error) {
+func promptAsset(allowNative bool) (ids.ID, error) {
+	label := "assetID (use TKN for native token)"
+	if !allowNative {
+		label = "assetID"
+	}
 	promptText := promptui.Prompt{
-		Label: "assetID (use TKN for native token)",
+		Label: label,
 		Validate: func(input string) error {
 			if len(input) == 0 {
-				return errors.New("input is empty")
+				return ErrInputEmpty
 			}
-			if len(input) == 3 && input == consts.Symbol {
+			if allowNative && len(input) == 3 && input == consts.Symbol {
 				return nil
 			}
 			_, err := ids.FromString(input)
@@ -57,6 +61,9 @@ func promptAsset() (ids.ID, error) {
 		if err != nil {
 			return ids.Empty, err
 		}
+	}
+	if !allowNative && assetID == ids.Empty {
+		return ids.Empty, ErrInvalidChoice
 	}
 	return assetID, nil
 }
