@@ -26,10 +26,6 @@ maintains by syncing blocks.
 If you are interested in the intersection of exchanges and blockchains, it is
 definitely worth a read (the logic for filling orders is < 100 lines of code!).
 
-<p align="center">
-  <a href="https://github.com/ava-labs/hypersdk"><img width="35%" alt="tokenvm" src="assets/hypersdk.png"></a>
-</p>
-
 ## Status
 `tokenvm` is considered **ALPHA** software and is not safe to use in
 production. The framework is under active development and may change
@@ -348,3 +344,7 @@ out on the Avalanche Discord._
   with a refund action (this will allow for "user-driven" acks on
   messages, which will remain signable and in state until a refund action is
   issued)
+
+<p align="center">
+  <a href="https://github.com/ava-labs/hypersdk"><img width="35%" alt="tokenvm" src="assets/hypersdk.png"></a>
+</p>
