@@ -244,8 +244,29 @@ var watchChainCmd = &cobra.Command{
 						)
 					case *actions.CloseOrder:
 						summaryStr = fmt.Sprintf("orderID: %s", action.Order)
+
+					case *actions.ImportAsset:
+						wm := tx.WarpMessage
+						signers, _ := wm.Signature.NumSigners()
+						wt, _ := actions.UnmarshalWarpTransfer(wm.Payload)
+						summaryStr = fmt.Sprintf("source: %s signers: %d | ", wm.SourceChainID, signers)
+						var outputAssetID ids.ID
+						if wt.Return {
+							outputAssetID = wt.Asset
+							summaryStr += fmt.Sprintf("%s %s -> %s (return: %t)", valueString(wt.Asset, wt.Value), assetString(wt.Asset), tutils.Address(wt.To), wt.Return)
+						} else {
+							outputAssetID = actions.ImportedAssetID(wt.Asset, wm.SourceChainID)
+							summaryStr += fmt.Sprintf("%s %s (original: %s) -> %s (return: %t)", valueString(outputAssetID, wt.Value), outputAssetID, wt.Asset, tutils.Address(wt.To), wt.Return)
+						}
+						if wt.Reward > 0 {
+							summaryStr += fmt.Sprintf(" | reward: %s", valueString(outputAssetID, wt.Reward))
+						}
+						if wt.SwapIn > 0 {
+							summaryStr += fmt.Sprintf(" | swap in: %s %s swap out: %s %s expiry: %d fill: %t", valueString(outputAssetID, wt.SwapIn), assetString(outputAssetID), valueString(wt.AssetOut, wt.SwapOut), assetString(wt.AssetOut), wt.SwapExpiry, action.Fill)
+						}
+					case *actions.ExportAsset:
+						summaryStr = fmt.Sprintf("fill: %t", action.Fill)
 					}
-					// TODO: add import/export
 				}
 				utils.Outf(
 					"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}units:{{/}} %d {{yellow}}summary (%s):{{/}} [%s]\n",
@@ -255,7 +276,6 @@ var watchChainCmd = &cobra.Command{
 					result.Units,
 					reflect.TypeOf(tx.Action),
 					summaryStr,
-					// TODO: export if warp
 				)
 			}
 		}
