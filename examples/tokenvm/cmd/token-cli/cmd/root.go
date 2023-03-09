@@ -49,17 +49,9 @@ func init() {
 	cobra.EnablePrefixMatching = true
 	rootCmd.AddCommand(
 		genesisCmd,
-
-		// addChainCmd,
-		// setChainCmd,
-		// viewChainsCmd,
-
 		keyCmd,
+		chainCmd,
 
-		networkCmd, // TODO: call chainInfoCmd,
-		watchCmd,   // TODO: watchChainCmd,
-
-		balanceCmd,
 		transferCmd,
 
 		// importAssetCmd,
@@ -73,10 +65,6 @@ func init() {
 		createOrderCmd,
 		fillOrderCmd,
 		closeOrderCmd,
-
-		// spamCmd,
-
-		// resetCmd, (deletes DB)
 	)
 
 	// genesis
@@ -101,6 +89,15 @@ func init() {
 		genKeyCmd,
 		importKeyCmd,
 		setKeyCmd,
+		balanceKeyCmd,
+	)
+
+	// chain
+	chainCmd.AddCommand(
+		importChainCmd,
+		setChainCmd,
+		chainInfoCmd,
+		watchChainCmd,
 	)
 }
 
