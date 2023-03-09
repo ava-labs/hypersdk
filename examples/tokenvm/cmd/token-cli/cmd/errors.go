@@ -11,4 +11,5 @@ var (
 	ErrInvalidChoice       = errors.New("invalid choice")
 	ErrNotMultiple         = errors.New("must be a mutliple")
 	ErrInsufficientSupply  = errors.New("insufficient supply")
+	ErrMustFill            = errors.New("must fill")
 )
