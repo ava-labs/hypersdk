@@ -4,29 +4,35 @@
 package codec
 
 import (
+	"math"
+
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 )
 
-// Represents a bitmask.
-// Inspired by: https://yourbasic.org/golang/bitmask-flag-set-clear
-type bits uint8
+// Maximum items an optional packer can hold. Since a bitset can range
+// from [0, INT_MAX] the max number of flags in a bitset is log2(INT_MAX).
+var MAX_ITEMS = uint8(math.Log2(float64(consts.MaxInt)))
 
 // OptionalPacker defines a struct that includes a Packer [ip], a bitmask
 // [b] and an offset [offset]. [b] indicates which fields in the OptionalPacker
 // are present and which are not.
 type OptionalPacker struct {
-	b      bits
-	offset uint8
-	ip     *Packer
+	b        set.Bits
+	MaxItems uint8
+	offset   uint8
+	ip       *Packer
 }
 
 // NewOptionalWriter returns an instance of OptionalPacker that includes
 // a new Packer instance with MaxSize set to the maximum size.
-func NewOptionalWriter() *OptionalPacker {
+func NewOptionalWriter(MaxItems uint8) *OptionalPacker {
 	return &OptionalPacker{
-		ip: NewWriter(consts.MaxInt),
+		ip:       NewWriter(consts.MaxInt),
+		b:        set.NewBits(),
+		MaxItems: MaxItems,
 	}
 }
 
@@ -35,34 +41,35 @@ func NewOptionalWriter() *OptionalPacker {
 // UnpackByte.
 //
 // used when decoding
-func (p *Packer) NewOptionalReader() *OptionalPacker {
+func (p *Packer) NewOptionalReader(MaxItems uint8) *OptionalPacker {
 	o := &OptionalPacker{
-		ip: p,
+		ip:       p,
+		MaxItems: MaxItems,
 	}
-	o.b = bits(o.ip.UnpackByte())
+	o.b = set.BitsFromBytes([]byte{o.ip.UnpackByte()})
 	return o
 }
 
-func (o *OptionalPacker) marker() bits {
-	return 1 << o.offset
-}
+// func (o *OptionalPacker) marker() bits {
+// 	return 1 << o.offset
+// }
 
 // setBit sets the OptionalPacker's bitmask at o.offset and increments
 // the offset. If offset exceeds the maximum offset, setBit returns without
 // updating the bitmask and adds an error to the Packer.
 func (o *OptionalPacker) setBit() {
-	if o.offset > consts.MaxUint8Offset {
+	if o.offset >= o.MaxItems {
 		o.ip.addErr(ErrTooManyItems)
 		return
 	}
-	o.b |= o.marker()
+	o.b.Add(int(o.offset))
 	o.offset++
 }
 
 // setBit increments the bitmasks offset. If offset already exceeds the maximum
 // offset, setBit returns and adds an error to the Packer.
 func (o *OptionalPacker) skipBit() {
-	if o.offset > consts.MaxUint8Offset {
+	if o.offset >= o.MaxItems {
 		o.ip.addErr(ErrTooManyItems)
 		return
 	}
@@ -72,7 +79,7 @@ func (o *OptionalPacker) skipBit() {
 // checkBit returns whether the OptionalPacker's bitmask is true at the current
 // offset. Increments the offset.
 func (o *OptionalPacker) checkBit() bool {
-	result := o.b&o.marker() != 0
+	result := o.b.Contains(int(o.offset))
 	o.offset++
 	return result
 }
@@ -142,6 +149,10 @@ func (o *OptionalPacker) UnpackUint64() uint64 {
 // PackOptional packs an OptionalPacker in a Packer. First packs the bitmask [o.b]
 // followed by the bytes in the OptionalPacker.
 func (p *Packer) PackOptional(o *OptionalPacker) {
-	p.PackByte(uint8(o.b))
+	if o.b.Len() == 0 {
+		p.PackByte(0)
+	} else {
+		p.PackFixedBytes(o.b.Bytes())
+	}
 	p.PackFixedBytes(o.ip.Bytes())
 }

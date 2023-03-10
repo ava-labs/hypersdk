@@ -22,15 +22,14 @@ func (o *OptionalPacker) toReader() *OptionalPacker {
 	p := NewWriter(size)
 	p.PackOptional(o)
 	pr := NewReader(p.Bytes(), size)
-	return pr.NewOptionalReader()
+	return pr.NewOptionalReader(8)
 }
 
 func TestOptionalPackerWriter(t *testing.T) {
-	// Initializes empty writer
+	// Initializes empty writer with a limit two byte limit
 	require := require.New(t)
-	opw := NewOptionalWriter()
+	opw := NewOptionalWriter(consts.MaxUint8Offset + 1)
 	require.Empty(opw.ip.Bytes())
-	require.Equal(bits(0), opw.b)
 	var pubKey crypto.PublicKey
 	copy(pubKey[:], TestPublicKey)
 	// Fill OptionalPacker
@@ -42,7 +41,32 @@ func TestOptionalPackerWriter(t *testing.T) {
 	require.Equal((consts.MaxUint8Offset+1)*crypto.PublicKeyLen, len(opw.ip.Bytes()), "Bytes not added correctly.")
 	require.NoError(opw.ip.Err(), "Error packing bytes.")
 	opw.PackPublicKey(pubKey)
-	require.ErrorIs(ErrTooManyItems, opw.ip.Err(), "Error not thrown after over packing.")
+	require.ErrorIs(opw.ip.Err(), ErrTooManyItems, "Error not thrown after over packing.")
+}
+
+func TestOptionalPackerTwoByteLimit(t *testing.T) {
+	// Initializes empty writer and have o.b exceed one byte of storage.
+	require := require.New(t)
+	opw := NewOptionalWriter(32)
+	require.Empty(opw.ip.Bytes())
+	var pubKey crypto.PublicKey
+	copy(pubKey[:], TestPublicKey)
+	// Fill OptionalPacker, bits exceeds one byte
+	i := 0
+	for i <= 31 {
+		opw.PackPublicKey(pubKey)
+		i += 1
+	}
+	require.Equal(32*crypto.PublicKeyLen, len(opw.ip.Bytes()), "Bytes not added correctly.")
+	require.NoError(opw.ip.Err(), "Error packing bytes.")
+	// Check PackOptional
+	p := NewWriter(len(opw.ip.Bytes()) + len(opw.b.Bytes()))
+	p.PackOptional(opw)
+	require.NoError(p.Err(), "Error packing OptionalPacker.")
+	require.Equal(len(opw.ip.Bytes())+len(opw.b.Bytes()), len(p.Bytes()), "Error packing OptionalPacker.")
+
+	// opw.PackPublicKey(pubKey)
+	// require.ErrorIs(opw.ip.Err(), ErrTooManyItems, "Error not thrown after over packing.")
 }
 
 func TestOptionalPackerReader(t *testing.T) {
@@ -50,14 +74,14 @@ func TestOptionalPackerReader(t *testing.T) {
 	// Create packer
 	bytes := []byte{1, 0}
 	p := NewReader(bytes, 2)
-	opr := p.NewOptionalReader()
-	require.Equal(bits(1), opr.b)
+	opr := p.NewOptionalReader(8)
+	require.Equal(1, opr.b.BitLen())
 	require.Equal(bytes, opr.ip.Bytes())
 }
 
 func TestOptionalPackerPublicKey(t *testing.T) {
 	require := require.New(t)
-	opw := NewOptionalWriter()
+	opw := NewOptionalWriter(MAX_ITEMS)
 	var pubKey crypto.PublicKey
 	copy(pubKey[:], TestPublicKey)
 	t.Run("Pack", func(t *testing.T) {
@@ -82,7 +106,7 @@ func TestOptionalPackerPublicKey(t *testing.T) {
 
 func TestOptionalPackerID(t *testing.T) {
 	require := require.New(t)
-	opw := NewOptionalWriter()
+	opw := NewOptionalWriter(MAX_ITEMS)
 	id := ids.GenerateTestID()
 	t.Run("Pack", func(t *testing.T) {
 		// Pack empty
@@ -108,7 +132,7 @@ func TestOptionalPackerID(t *testing.T) {
 
 func TestOptionalPackerUint64(t *testing.T) {
 	require := require.New(t)
-	opw := NewOptionalWriter()
+	opw := NewOptionalWriter(MAX_ITEMS)
 	val := uint64(900)
 	t.Run("Pack", func(t *testing.T) {
 		// Pack empty
@@ -135,7 +159,7 @@ func TestOptionalPackerPackOptional(t *testing.T) {
 	// Packs optional packer correctly
 	require := require.New(t)
 	p := NewWriter(2)
-	op := NewOptionalWriter()
+	op := NewOptionalWriter(MAX_ITEMS)
 	op.ip.PackByte(byte(90))
 	p.PackOptional(op)
 	require.Equal([]byte{0, 90}, p.Bytes())
