@@ -29,8 +29,12 @@ type OptionalPacker struct {
 
 // NewOptionalWriter returns an instance of OptionalPacker that includes
 // a new Packer instance with MaxSize set to the maximum size. The maximum items
-// OptionalPacker can hold is set to [size]
+// OptionalPacker can hold is set to [size]. If [size] > MaxItems sets
+// OptionalPackers MaxItems to MaxItems
 func NewOptionalWriter(size uint8) *OptionalPacker {
+	if size > MaxItems {
+		size = MaxItems
+	}
 	return &OptionalPacker{
 		ip:       NewWriter(consts.MaxInt),
 		b:        set.NewBits(),
@@ -40,10 +44,14 @@ func NewOptionalWriter(size uint8) *OptionalPacker {
 
 // NewOptionalReader returns an instance of OptionalPacker that includes
 // a packer instance set to [p]. It sets the packers bits b to the value of the packers
-// UnpackByte and the MaxItems to [size]
+// UnpackByte and the MaxItems to [size]. If [size] > MaxItems sets
+// OptionalPackers MaxItems to MaxItems
 //
 // used when decoding
 func (p *Packer) NewOptionalReader(size uint8) *OptionalPacker {
+	if size > MaxItems {
+		size = MaxItems
+	}
 	o := &OptionalPacker{
 		ip:       p,
 		MaxItems: size,
@@ -51,10 +59,6 @@ func (p *Packer) NewOptionalReader(size uint8) *OptionalPacker {
 	o.b = set.BitsFromBytes([]byte{o.ip.UnpackByte()})
 	return o
 }
-
-// func (o *OptionalPacker) marker() bits {
-// 	return 1 << o.offset
-// }
 
 // setBit sets the OptionalPacker's bitmask at o.offset and increments
 // the offset. If offset exceeds the maximum offset, setBit returns without
