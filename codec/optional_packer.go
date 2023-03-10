@@ -12,9 +12,10 @@ import (
 	"github.com/ava-labs/hypersdk/crypto"
 )
 
-// Maximum items an optional packer can hold. Since a bitset can range
-// from [0, INT_MAX] the max number of flags in a bitset is log2(INT_MAX).
-var MAX_ITEMS = uint8(math.Log2(float64(consts.MaxInt)))
+// MaxItems stores the maximum items an optional packer can hold.
+// Since a bitset can range from [0, INT_MAX] the max number of
+// flags in a bitset is log2(INT_MAX).
+var MaxItems = uint8(math.Log2(float64(consts.MaxInt)))
 
 // OptionalPacker defines a struct that includes a Packer [ip], a bitmask
 // [b] and an offset [offset]. [b] indicates which fields in the OptionalPacker
@@ -27,24 +28,25 @@ type OptionalPacker struct {
 }
 
 // NewOptionalWriter returns an instance of OptionalPacker that includes
-// a new Packer instance with MaxSize set to the maximum size.
-func NewOptionalWriter(MaxItems uint8) *OptionalPacker {
+// a new Packer instance with MaxSize set to the maximum size. The maximum items
+// OptionalPacker can hold is set to [size]
+func NewOptionalWriter(size uint8) *OptionalPacker {
 	return &OptionalPacker{
 		ip:       NewWriter(consts.MaxInt),
 		b:        set.NewBits(),
-		MaxItems: MaxItems,
+		MaxItems: size,
 	}
 }
 
 // NewOptionalReader returns an instance of OptionalPacker that includes
 // a packer instance set to [p]. It sets the packers bits b to the value of the packers
-// UnpackByte.
+// UnpackByte and the MaxItems to [size]
 //
 // used when decoding
-func (p *Packer) NewOptionalReader(MaxItems uint8) *OptionalPacker {
+func (p *Packer) NewOptionalReader(size uint8) *OptionalPacker {
 	o := &OptionalPacker{
 		ip:       p,
-		MaxItems: MaxItems,
+		MaxItems: size,
 	}
 	o.b = set.BitsFromBytes([]byte{o.ip.UnpackByte()})
 	return o
