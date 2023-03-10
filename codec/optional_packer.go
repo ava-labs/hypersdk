@@ -17,7 +17,7 @@ import (
 // flags in a bitset is log2(INT_MAX).
 var MaxItems = uint8(math.Log2(float64(consts.MaxInt)))
 
-// OptionalPacker defines a struct that includes a Packer [ip], a bitmask
+// OptionalPacker defines a struct that includes a Packer [ip], a bitset
 // [b] and an offset [offset]. [b] indicates which fields in the OptionalPacker
 // are present and which are not.
 type OptionalPacker struct {
@@ -60,9 +60,9 @@ func (p *Packer) NewOptionalReader(size uint8) *OptionalPacker {
 	return o
 }
 
-// setBit sets the OptionalPacker's bitmask at o.offset and increments
+// setBit sets the OptionalPacker's bitset at o.offset and increments
 // the offset. If offset exceeds the maximum offset, setBit returns without
-// updating the bitmask and adds an error to the Packer.
+// updating the bitset and adds an error to the Packer.
 func (o *OptionalPacker) setBit() {
 	if o.offset >= o.MaxItems {
 		o.ip.addErr(ErrTooManyItems)
@@ -72,7 +72,7 @@ func (o *OptionalPacker) setBit() {
 	o.offset++
 }
 
-// setBit increments the bitmasks offset. If offset already exceeds the maximum
+// skipBit increments the offset. If offset already exceeds the maximum
 // offset, setBit returns and adds an error to the Packer.
 func (o *OptionalPacker) skipBit() {
 	if o.offset >= o.MaxItems {
@@ -82,7 +82,7 @@ func (o *OptionalPacker) skipBit() {
 	o.offset++
 }
 
-// checkBit returns whether the OptionalPacker's bitmask is true at the current
+// checkBit returns whether the OptionalPacker's bitset is true at the current
 // offset. Increments the offset.
 func (o *OptionalPacker) checkBit() bool {
 	result := o.b.Contains(int(o.offset))
@@ -91,7 +91,7 @@ func (o *OptionalPacker) checkBit() bool {
 }
 
 // PackID packs [id] into OptionalPacker if it is not empty.
-// Updates the bitmask and offset accordingly.
+// Updates the bitset and offset accordingly.
 func (o *OptionalPacker) PackID(id ids.ID) {
 	if id == ids.Empty {
 		o.skipBit()
@@ -101,7 +101,7 @@ func (o *OptionalPacker) PackID(id ids.ID) {
 	o.setBit()
 }
 
-// UnpackID unpacks an id into [dest] if the bitmask is set at the current offset.
+// UnpackID unpacks an id into [dest] if the bitset is set at the current offset.
 // Increments offset regardless.
 func (o *OptionalPacker) UnpackID(dest *ids.ID) {
 	if o.checkBit() {
@@ -112,7 +112,7 @@ func (o *OptionalPacker) UnpackID(dest *ids.ID) {
 }
 
 // PackPublicKey packs [pk] into OptionalPacker if [pk] is not an empty PublicKey.
-// Updates the bitmask and offset accordingly.
+// Updates the bitset and offset accordingly.
 func (o *OptionalPacker) PackPublicKey(pk crypto.PublicKey) {
 	if pk == crypto.EmptyPublicKey {
 		o.skipBit()
@@ -122,7 +122,7 @@ func (o *OptionalPacker) PackPublicKey(pk crypto.PublicKey) {
 	o.setBit()
 }
 
-// UnpackPublicKey unpacks a PublicKey into [dest] if the bitmask is set at
+// UnpackPublicKey unpacks a PublicKey into [dest] if the bitset is set at
 // the current offset. Increments offset regardless.
 func (o *OptionalPacker) UnpackPublicKey(dest *crypto.PublicKey) {
 	if o.checkBit() {
@@ -133,7 +133,7 @@ func (o *OptionalPacker) UnpackPublicKey(dest *crypto.PublicKey) {
 }
 
 // PackUint64 packs [l] into OptionalPacker if [l] is not an 0.
-// Updates the bitmask and offset accordingly.
+// Updates the bitset and offset accordingly.
 func (o *OptionalPacker) PackUint64(l uint64) {
 	if l == 0 {
 		o.skipBit()
@@ -152,7 +152,7 @@ func (o *OptionalPacker) UnpackUint64() uint64 {
 	return 0
 }
 
-// PackOptional packs an OptionalPacker in a Packer. First packs the bitmask [o.b]
+// PackOptional packs an OptionalPacker in a Packer. First packs the bitset [o.b]
 // followed by the bytes in the OptionalPacker.
 func (p *Packer) PackOptional(o *OptionalPacker) {
 	if o.b.Len() == 0 {
