@@ -385,6 +385,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		ctx, "StatelessBlock.Verify",
 		oteltrace.WithAttributes(
 			attribute.Int("txs", len(b.Txs)),
+			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
 		),
 	)
