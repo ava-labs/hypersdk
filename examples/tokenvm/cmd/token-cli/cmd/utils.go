@@ -321,6 +321,7 @@ func defaultActor() (crypto.PrivateKey, *auth.ED25519Factory, *client.Client, bo
 	if len(uris) == 0 {
 		return crypto.EmptyPrivateKey, nil, nil, false, nil
 	}
+	// For [defaultActor], we always send requests to the first returned URI.
 	return priv, auth.NewED25519Factory(priv), client.New(uris[0]), true, nil
 }
 
