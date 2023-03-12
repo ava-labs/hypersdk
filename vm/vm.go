@@ -220,7 +220,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
 	} else {
 		// Set Balances
-		view, err := vm.stateDB.NewView(ctx)
+		view, err := vm.stateDB.NewView()
 		if err != nil {
 			return err
 		}
@@ -341,7 +341,7 @@ func (vm *VM) Manager() manager.Manager {
 
 func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
 	if !vm.isReady() {
-		return hutils.Repeat[[]byte](nil, len(keys)), hutils.Repeat[error](ErrNotReady, len(keys))
+		return hutils.Repeat[[]byte](nil, len(keys)), hutils.Repeat(ErrNotReady, len(keys))
 	}
 	// Atomic read to ensure consistency
 	return vm.stateDB.GetValues(ctx, keys)
