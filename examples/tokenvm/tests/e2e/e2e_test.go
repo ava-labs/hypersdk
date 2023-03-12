@@ -799,30 +799,34 @@ func awaitHealthy(cli runner_sdk.Client) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		_, err := cli.Health(ctx)
 		cancel() // by default, health will wait to return until healthy
-		if err != nil {
+		if err == nil {
+			return
+		}
+		hutils.Outf(
+			"{{yellow}}waiting for health check to pass...broadcasting tx while waiting:{{/}} %v\n",
+			err,
+		)
+
+		// Add more txs via other nodes until healthy (should eventually happen after
+		// [ValidityWindow] processed)
+		other, err := crypto.GeneratePrivateKey()
+		gomega.Ω(err).Should(gomega.BeNil())
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			&actions.Transfer{
+				To:    other.PublicKey(),
+				Value: 1,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+
+		// Broadcast and wait for transaction
+		if err := submit(context.Background()); err != nil {
 			hutils.Outf(
-				"{{yellow}}waiting for health check to pass...broadcasting tx while waiting:{{/}} %v\n",
+				"{{yellow}}tx broadcast failed:{{/}} %v\n",
 				err,
 			)
-
-			// Add more txs via other nodes until healthy (should eventually happen after
-			// [ValidityWindow] processed)
-			other, err := crypto.GeneratePrivateKey()
-			gomega.Ω(err).Should(gomega.BeNil())
-			submit, _, _, err := instances[0].cli.GenerateTransaction(
-				context.Background(),
-				&actions.Transfer{
-					To:    other.PublicKey(),
-					Value: 1,
-				},
-				factory,
-			)
-			gomega.Ω(err).Should(gomega.BeNil())
-
-			// Broadcast and wait for transaction
-			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-			continue
 		}
-		return
 	}
 }
