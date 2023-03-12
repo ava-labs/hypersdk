@@ -41,6 +41,7 @@ func init() {
 	}
 	workDir = p
 	dbPath := filepath.Join(workDir, databaseFolder)
+	// TODO: allow for custom path (can't open multiple watch at once)
 	db, err = pebble.New(dbPath, pebble.NewDefaultConfig())
 	if err != nil {
 		panic(err)

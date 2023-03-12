@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 const (
@@ -78,37 +79,47 @@ func GetKeys() ([]crypto.PrivateKey, error) {
 }
 
 func StoreChain(chainID ids.ID, rpc string) error {
+	k := make([]byte, 1+consts.IDLen*2)
+	k[0] = chainPrefix
+	copy(k[1:], chainID[:])
+	brpc := []byte(rpc)
+	rpcID := utils.ToID(brpc)
+	copy(k[1+consts.IDLen:], rpcID[:])
+	return db.Put(k, brpc)
+}
+
+func GetChain(chainID ids.ID) ([]string, error) {
 	k := make([]byte, 1+consts.IDLen)
 	k[0] = chainPrefix
 	copy(k[1:], chainID[:])
-	return db.Put(k, []byte(rpc))
-}
 
-func GetChain(chainID ids.ID) (string, error) {
-	k := make([]byte, 1+consts.IDLen)
-	k[0] = chainPrefix
-	copy(k[1:], chainID[:])
-	v, err := db.Get(k)
-	if errors.Is(err, database.ErrNotFound) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	return string(v), nil
-}
-
-func GetChains() ([]ids.ID, []string, error) {
-	iter := db.NewIteratorWithPrefix([]byte{chainPrefix})
-	defer iter.Release()
-
-	chainIDs := []ids.ID{}
 	rpcs := []string{}
+	iter := db.NewIteratorWithPrefix(k)
+	defer iter.Release()
 	for iter.Next() {
 		// It is safe to use these bytes directly because the database copies the
 		// iterator value for us.
-		chainIDs = append(chainIDs, ids.ID(iter.Value()))
 		rpcs = append(rpcs, string(iter.Value()))
 	}
-	return chainIDs, rpcs, iter.Error()
+	return rpcs, iter.Error()
+}
+
+func GetChains() (map[ids.ID][]string, error) {
+	iter := db.NewIteratorWithPrefix([]byte{chainPrefix})
+	defer iter.Release()
+
+	chains := map[ids.ID][]string{}
+	for iter.Next() {
+		// It is safe to use these bytes directly because the database copies the
+		// iterator value for us.
+		k := iter.Key()
+		chainID := ids.ID(k[1 : 1+consts.IDLen])
+		rpcs, ok := chains[chainID]
+		if !ok {
+			rpcs = []string{}
+		}
+		rpcs = append(rpcs, string(iter.Value()))
+		chains[chainID] = rpcs
+	}
+	return chains, iter.Error()
 }
