@@ -501,16 +501,16 @@ var importAssetCmd = &cobra.Command{
 		}
 
 		// Create source client
-		uri, err := GetChain(source)
+		uris, err := GetChain(source)
 		if err != nil {
 			return err
 		}
-		if len(uri) == 0 {
+		if len(uris) == 0 {
 			hutils.Outf("{{red}}no URI found for source chain{{/}}\n")
 			hutils.Outf("{{red}}exiting...{{/}}\n")
 			return nil
 		}
-		scli := client.New(uri)
+		scli := client.New(uris[0])
 
 		// Select TxID
 		importTxID, err := promptID("import txID")

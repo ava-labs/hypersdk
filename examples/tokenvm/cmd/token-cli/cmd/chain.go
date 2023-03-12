@@ -78,30 +78,32 @@ var importChainCmd = &cobra.Command{
 var setChainCmd = &cobra.Command{
 	Use: "set",
 	RunE: func(*cobra.Command, []string) error {
-		chainIDs, uris, err := GetChains()
+		chains, err := GetChains()
 		if err != nil {
 			return err
 		}
-		if len(chainIDs) == 0 {
+		if len(chains) == 0 {
 			utils.Outf("{{red}}no stored chains{{/}}\n")
 			return nil
 		}
-		utils.Outf("{{cyan}}stored chains:{{/}} %d\n", len(chainIDs))
-		for i := 0; i < len(chainIDs); i++ {
+		utils.Outf("{{cyan}}stored chains:{{/}} %d\n", len(chains))
+		keys := make([]ids.ID, 0, len(chains))
+		for chainID, uris := range chains {
 			utils.Outf(
-				"%d) {{cyan}}chainID:{{/}} %s {{cyan}}uri:{{/}} %s\n",
-				i,
-				chainIDs[i],
-				uris[i],
+				"%d) {{cyan}}chainID:{{/}} %s {{cyan}}uris:{{/}} %+v\n",
+				len(keys),
+				chainID,
+				uris,
 			)
+			keys = append(keys, chainID)
 		}
 
 		// Select chain
-		chainIndex, err := promptChoice("set default chain", len(chainIDs))
+		chainIndex, err := promptChoice("set default chain", len(chains))
 		if err != nil {
 			return err
 		}
-		chainID := chainIDs[chainIndex]
+		chainID := keys[chainIndex]
 		return StoreDefault(defaultChainKey, chainID[:])
 	},
 }
@@ -109,14 +111,14 @@ var setChainCmd = &cobra.Command{
 var chainInfoCmd = &cobra.Command{
 	Use: "info",
 	RunE: func(_ *cobra.Command, args []string) error {
-		uri, err := GetDefaultChain()
+		_, uris, err := GetDefaultChain()
 		if err != nil {
 			return err
 		}
-		if len(uri) == 0 {
+		if len(uris) == 0 {
 			return nil
 		}
-		cli := client.New(uri)
+		cli := client.New(uris[0])
 		networkID, subnetID, chainID, err := cli.Network(context.Background())
 		if err != nil {
 			return err
@@ -135,19 +137,19 @@ var watchChainCmd = &cobra.Command{
 	Use: "watch",
 	RunE: func(_ *cobra.Command, args []string) error {
 		ctx := context.Background()
-		uri, err := GetDefaultChain()
+		_, uris, err := GetDefaultChain()
 		if err != nil {
 			return err
 		}
-		if len(uri) == 0 {
+		if len(uris) == 0 {
 			return nil
 		}
-		cli := client.New(uri)
+		cli := client.New(uris[0])
 		port, err := cli.BlocksPort(ctx)
 		if err != nil {
 			return err
 		}
-		host, err := utils.GetHost(uri)
+		host, err := utils.GetHost(uris[0])
 		if err != nil {
 			return err
 		}
