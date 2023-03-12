@@ -442,7 +442,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 
 	// Commit state if we don't return before here (would happen if we are still
 	// syncing)
-	if err := b.state.Commit(ctx); err != nil {
+	if err := b.state.CommitToDB(ctx); err != nil {
 		return err
 	}
 
