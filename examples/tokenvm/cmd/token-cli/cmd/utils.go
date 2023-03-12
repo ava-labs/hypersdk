@@ -314,14 +314,14 @@ func defaultActor() (crypto.PrivateKey, *auth.ED25519Factory, *client.Client, bo
 	if priv == crypto.EmptyPrivateKey {
 		return crypto.EmptyPrivateKey, nil, nil, false, nil
 	}
-	uri, err := GetDefaultChain()
+	_, uris, err := GetDefaultChain()
 	if err != nil {
 		return crypto.EmptyPrivateKey, nil, nil, false, err
 	}
-	if len(uri) == 0 {
+	if len(uris) == 0 {
 		return crypto.EmptyPrivateKey, nil, nil, false, nil
 	}
-	return priv, auth.NewED25519Factory(priv), client.New(uri), true, nil
+	return priv, auth.NewED25519Factory(priv), client.New(uris[0]), true, nil
 }
 
 func GetDefaultKey() (crypto.PrivateKey, error) {
@@ -342,20 +342,20 @@ func GetDefaultKey() (crypto.PrivateKey, error) {
 	return priv, nil
 }
 
-func GetDefaultChain() (string, error) {
+func GetDefaultChain() (ids.ID, []string, error) {
 	v, err := GetDefault(defaultChainKey)
 	if err != nil {
-		return "", err
+		return ids.Empty, nil, err
 	}
 	if len(v) == 0 {
 		hutils.Outf("{{red}}no available chains{{/}}\n")
-		return "", nil
+		return ids.Empty, nil, err
 	}
 	chainID := ids.ID(v)
-	uri, err := GetChain(chainID)
+	uris, err := GetChain(chainID)
 	if err != nil {
-		return "", err
+		return ids.Empty, nil, err
 	}
-	hutils.Outf("{{yellow}}chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n", chainID, uri)
-	return uri, nil
+	hutils.Outf("{{yellow}}chainID:{{/}} %s {{yellow}}uris:{{/}} %+s\n", chainID, uris)
+	return chainID, uris, nil
 }
