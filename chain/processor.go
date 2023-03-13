@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/tstate"
 )
@@ -107,19 +106,16 @@ func (p *Processor) Execute(
 		//
 		// TODO: parallel execution will greatly improve performance in the case
 		// that we are waiting for signature verification.
-		var warpResult error
+		var warpResult bool
 		warpMsg, ok := p.blk.warpMessages[tx.ID()]
 		if ok {
 			select {
-			case warpResult = <-warpMsg.result:
+			case warpResult = <-warpMsg.resultChan:
 			case <-ctx.Done():
 				return 0, 0, nil, ctx.Err()
 			}
 		}
-		if warpResult != nil {
-			p.blk.vm.Logger().Warn("warp verification failed", zap.Stringer("txID", tx.ID()), zap.Error(warpResult))
-		}
-		result, err := tx.Execute(ctx, ectx, r, sm, ts, t, ok && warpResult == nil)
+		result, err := tx.Execute(ctx, ectx, r, sm, ts, t, ok && warpResult)
 		if err != nil {
 			return 0, 0, nil, err
 		}
