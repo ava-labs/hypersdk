@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/tstate"
 )
@@ -115,7 +116,10 @@ func (p *Processor) Execute(
 				return 0, 0, nil, ctx.Err()
 			}
 		}
-		result, err := tx.Execute(ctx, ectx, r, sm, ts, t, warpResult)
+		if warpResult != nil {
+			p.blk.vm.Logger().Warn("warp verification failed", zap.Stringer("txID", tx.ID()), zap.Error(warpResult))
+		}
+		result, err := tx.Execute(ctx, ectx, r, sm, ts, t, ok && warpResult == nil)
 		if err != nil {
 			return 0, 0, nil, err
 		}
