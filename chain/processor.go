@@ -110,7 +110,7 @@ func (p *Processor) Execute(
 		warpMsg, ok := p.blk.warpMessages[tx.ID()]
 		if ok {
 			select {
-			case warpVerified = <-warpMsg.resultChan:
+			case warpVerified = <-warpMsg.verifiedChan:
 			case <-ctx.Done():
 				return 0, 0, nil, ctx.Err()
 			}

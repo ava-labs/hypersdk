@@ -65,11 +65,11 @@ type StatefulBlock struct {
 // warpJob is used to signal to a listner that a *warp.Message has been
 // verified.
 type warpJob struct {
-	msg        *warp.Message
-	signers    int
-	resultChan chan bool
-	result     bool
-	warpNum    int
+	msg          *warp.Message
+	signers      int
+	verifiedChan chan bool
+	verified     bool
+	warpNum      int
 }
 
 func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBlock {
@@ -183,10 +183,10 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 				return err
 			}
 			b.warpMessages[tx.ID()] = &warpJob{
-				msg:        tx.WarpMessage,
-				signers:    signers,
-				resultChan: make(chan bool, 1),
-				warpNum:    len(b.warpMessages),
+				msg:          tx.WarpMessage,
+				signers:      signers,
+				verifiedChan: make(chan bool, 1),
+				warpNum:      len(b.warpMessages),
 			}
 		}
 	}
@@ -471,21 +471,21 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 				}
 				if b.vm.IsBootstrapped() {
 					start := time.Now()
-					result := b.verifyWarpMessage(ctx, r, msg.msg)
-					msg.resultChan <- result
-					msg.result = result
+					verified := b.verifyWarpMessage(ctx, r, msg.msg)
+					msg.verifiedChan <- verified
+					msg.verified = verified
 					log.Info(
 						"processed warp message",
 						zap.Stringer("txID", txID),
-						zap.Bool("verified", result),
+						zap.Bool("verified", verified),
 						zap.Int("signers", msg.signers),
 						zap.Duration("t", time.Since(start)),
 					)
 				} else {
 					// When we are bootstrapping, we just use the result in the block.
-					result := b.WarpResults.Contains(uint(msg.warpNum))
-					msg.resultChan <- result
-					msg.result = result
+					verified := b.WarpResults.Contains(uint(msg.warpNum))
+					msg.verifiedChan <- verified
+					msg.verified = verified
 				}
 			}
 		}()
@@ -559,7 +559,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, fmt.Errorf("%w: len=%d msgs=%d", ErrWarpResultMismatch, b.WarpResults.Len(), len(b.warpMessages))
 	}
 	for _, msg := range b.warpMessages {
-		if b.WarpResults.Contains(uint(msg.warpNum)) != msg.result {
+		if b.WarpResults.Contains(uint(msg.warpNum)) != msg.verified {
 			return nil, fmt.Errorf("%w: index=%d", ErrWarpResultMismatch, msg.warpNum)
 		}
 	}
