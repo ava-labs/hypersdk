@@ -306,23 +306,17 @@ func getAssetInfo(
 	return balance, sourceChainID, nil
 }
 
-func defaultActor() (crypto.PrivateKey, *auth.ED25519Factory, *client.Client, bool, error) {
+func defaultActor() (crypto.PrivateKey, *auth.ED25519Factory, *client.Client, error) {
 	priv, err := GetDefaultKey()
 	if err != nil {
-		return crypto.EmptyPrivateKey, nil, nil, false, err
-	}
-	if priv == crypto.EmptyPrivateKey {
-		return crypto.EmptyPrivateKey, nil, nil, false, nil
+		return crypto.EmptyPrivateKey, nil, nil, err
 	}
 	_, uris, err := GetDefaultChain()
 	if err != nil {
-		return crypto.EmptyPrivateKey, nil, nil, false, err
-	}
-	if len(uris) == 0 {
-		return crypto.EmptyPrivateKey, nil, nil, false, nil
+		return crypto.EmptyPrivateKey, nil, nil, err
 	}
 	// For [defaultActor], we always send requests to the first returned URI.
-	return priv, auth.NewED25519Factory(priv), client.New(uris[0]), true, nil
+	return priv, auth.NewED25519Factory(priv), client.New(uris[0]), nil
 }
 
 func GetDefaultKey() (crypto.PrivateKey, error) {
@@ -331,8 +325,7 @@ func GetDefaultKey() (crypto.PrivateKey, error) {
 		return crypto.EmptyPrivateKey, err
 	}
 	if len(v) == 0 {
-		hutils.Outf("{{red}}no available keys{{/}}\n")
-		return crypto.EmptyPrivateKey, nil
+		return crypto.EmptyPrivateKey, ErrNoKeys
 	}
 	publicKey := crypto.PublicKey(v)
 	priv, err := GetKey(publicKey)
@@ -349,8 +342,7 @@ func GetDefaultChain() (ids.ID, []string, error) {
 		return ids.Empty, nil, err
 	}
 	if len(v) == 0 {
-		hutils.Outf("{{red}}no available chains{{/}}\n")
-		return ids.Empty, nil, err
+		return ids.Empty, nil, ErrNoChains
 	}
 	chainID := ids.ID(v)
 	uris, err := GetChain(chainID)

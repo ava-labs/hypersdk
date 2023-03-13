@@ -31,8 +31,8 @@ var transferCmd = &cobra.Command{
 	Use: "transfer",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		priv, factory, cli, ok, err := defaultActor()
-		if !ok || err != nil {
+		priv, factory, cli, err := defaultActor()
+		if err != nil {
 			return err
 		}
 
@@ -89,8 +89,8 @@ var createAssetCmd = &cobra.Command{
 	Use: "create-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, factory, cli, ok, err := defaultActor()
-		if !ok || err != nil {
+		_, factory, cli, err := defaultActor()
+		if err != nil {
 			return err
 		}
 
@@ -138,8 +138,8 @@ var mintAssetCmd = &cobra.Command{
 	Use: "mint-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		priv, factory, cli, ok, err := defaultActor()
-		if !ok || err != nil {
+		priv, factory, cli, err := defaultActor()
+		if err != nil {
 			return err
 		}
 
@@ -216,8 +216,8 @@ var closeOrderCmd = &cobra.Command{
 	Use: "close-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, factory, cli, ok, err := defaultActor()
-		if !ok || err != nil {
+		_, factory, cli, err := defaultActor()
+		if err != nil {
 			return err
 		}
 
@@ -263,8 +263,8 @@ var createOrderCmd = &cobra.Command{
 	Use: "create-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		priv, factory, cli, ok, err := defaultActor()
-		if !ok || err != nil {
+		priv, factory, cli, err := defaultActor()
+		if err != nil {
 			return err
 		}
 
@@ -362,8 +362,8 @@ var fillOrderCmd = &cobra.Command{
 	Use: "fill-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		priv, factory, cli, ok, err := defaultActor()
-		if !ok || err != nil {
+		priv, factory, cli, err := defaultActor()
+		if err != nil {
 			return err
 		}
 
@@ -489,8 +489,8 @@ var importAssetCmd = &cobra.Command{
 	Use: "import-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, factory, dcli, ok, err := defaultActor()
-		if !ok || err != nil {
+		_, factory, dcli, err := defaultActor()
+		if err != nil {
 			return err
 		}
 
@@ -619,8 +619,8 @@ var exportAssetCmd = &cobra.Command{
 	Use: "export-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		priv, factory, cli, ok, err := defaultActor()
-		if !ok || err != nil {
+		priv, factory, cli, err := defaultActor()
+		if err != nil {
 			return err
 		}
 

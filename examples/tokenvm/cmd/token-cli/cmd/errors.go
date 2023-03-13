@@ -16,4 +16,6 @@ var (
 	ErrInsufficientSupply  = errors.New("insufficient supply")
 	ErrMustFill            = errors.New("must fill")
 	ErrDuplicate           = errors.New("duplicate")
+	ErrNoKeys              = errors.New("no available keys")
+	ErrNoChains            = errors.New("no available chains")
 )

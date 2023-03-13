@@ -57,6 +57,7 @@ func init() {
 	rootCmd.PersistentPostRunE = func(*cobra.Command, []string) error {
 		return CloseDatabase()
 	}
+	rootCmd.SilenceErrors = true
 
 	// genesis
 	genesisCmd.AddCommand(

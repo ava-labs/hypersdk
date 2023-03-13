@@ -6,11 +6,13 @@ package cmd
 import (
 	"context"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
@@ -83,14 +85,27 @@ var setKeyCmd = &cobra.Command{
 			hutils.Outf("{{red}}no stored keys{{/}}\n")
 			return nil
 		}
+		_, uris, err := GetDefaultChain()
+		if err != nil {
+			return err
+		}
+		if len(uris) == 0 {
+			hutils.Outf("{{red}}no available chains{{/}}\n")
+			return nil
+		}
+		cli := client.New(uris[0])
 		hutils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
 		for i := 0; i < len(keys); i++ {
-			publicKey := keys[i].PublicKey()
+			address := utils.Address(keys[i].PublicKey())
+			balance, err := cli.Balance(context.TODO(), address, ids.Empty)
+			if err != nil {
+				return err
+			}
 			hutils.Outf(
-				"%d) {{cyan}}address:{{/}} %s {{cyan}}public key:{{/}} %x\n",
+				"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %sTKN\n",
 				i,
-				utils.Address(publicKey),
-				publicKey,
+				address,
+				valueString(ids.Empty, balance),
 			)
 		}
 
@@ -109,8 +124,8 @@ var balanceKeyCmd = &cobra.Command{
 	Use: "balance",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		priv, _, cli, ok, err := defaultActor()
-		if !ok || err != nil {
+		priv, _, cli, err := defaultActor()
+		if err != nil {
 			return err
 		}
 
