@@ -48,6 +48,13 @@ func StoreKey(privateKey crypto.PrivateKey) error {
 	k := make([]byte, 1+crypto.PublicKeyLen)
 	k[0] = keyPrefix
 	copy(k[1:], publicKey[:])
+	has, err := db.Has(k)
+	if err != nil {
+		return err
+	}
+	if has {
+		return ErrDuplicate
+	}
 	return db.Put(k, privateKey[:])
 }
 
@@ -85,6 +92,13 @@ func StoreChain(chainID ids.ID, rpc string) error {
 	brpc := []byte(rpc)
 	rpcID := utils.ToID(brpc)
 	copy(k[1+consts.IDLen:], rpcID[:])
+	has, err := db.Has(k)
+	if err != nil {
+		return err
+	}
+	if has {
+		return ErrDuplicate
+	}
 	return db.Put(k, brpc)
 }
 

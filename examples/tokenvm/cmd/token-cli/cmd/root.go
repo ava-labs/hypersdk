@@ -5,8 +5,6 @@
 package cmd
 
 import (
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -16,15 +14,15 @@ import (
 )
 
 const (
-	requestTimeout = 30 * time.Second
-	fsModeWrite    = 0o600
-	databaseFolder = ".token-cli"
+	requestTimeout  = 30 * time.Second
+	fsModeWrite     = 0o600
+	defaultDatabase = ".token-cli"
+	defaultGenesis  = "genesis.json"
 )
 
 var (
-	workDir string
-	dbPath  string
-	db      database.Database
+	dbPath string
+	db     database.Database
 
 	genesisFile  string
 	minUnitPrice int64
@@ -37,12 +35,6 @@ var (
 )
 
 func init() {
-	p, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-	workDir = p
-
 	cobra.EnablePrefixMatching = true
 	rootCmd.AddCommand(
 		genesisCmd,
@@ -53,11 +45,12 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
 		"database",
-		filepath.Join(workDir, databaseFolder),
+		defaultDatabase,
 		"path to database (will create it missing)",
 	)
 	rootCmd.PersistentPreRunE = func(*cobra.Command, []string) error {
 		utils.Outf("{{yellow}}database:{{/}} %s\n", dbPath)
+		var err error
 		db, err = pebble.New(dbPath, pebble.NewDefaultConfig())
 		return err
 	}
@@ -72,7 +65,7 @@ func init() {
 	genGenesisCmd.PersistentFlags().StringVar(
 		&genesisFile,
 		"genesis-file",
-		filepath.Join(workDir, "genesis.json"),
+		defaultGenesis,
 		"genesis file path",
 	)
 	genGenesisCmd.PersistentFlags().Int64Var(
