@@ -37,6 +37,10 @@ const (
 	// 2 MiB - ProposerVM header - Protobuf encoding overhead (we assume this is
 	// no more than 50 KiB of overhead but is likely much less)
 	NetworkSizeLimit = 2_044_723 // 1.95 MiB
+
+	// MaxWarpMessages is the maximum number of warp messages allows in a single
+	// block.
+	MaxWarpMessages = 64
 )
 
 type StatefulBlock struct {
@@ -52,17 +56,20 @@ type StatefulBlock struct {
 
 	Txs []*Transaction `json:"txs"`
 
-	StateRoot     ids.ID `json:"stateRoot"`
-	UnitsConsumed uint64 `json:"unitsConsumed"`
-	SurplusFee    uint64 `json:"surplusFee"`
+	StateRoot     ids.ID     `json:"stateRoot"`
+	UnitsConsumed uint64     `json:"unitsConsumed"`
+	SurplusFee    uint64     `json:"surplusFee"`
+	WarpResults   set.Bits64 `json:"warpResults"`
 }
 
 // warpJob is used to signal to a listner that a *warp.Message has been
 // verified.
 type warpJob struct {
-	msg     *warp.Message
-	signers int
-	result  chan error
+	msg        *warp.Message
+	signers    int
+	resultChan chan bool
+	result     bool
+	warpNum    int
 }
 
 func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBlock {
@@ -168,14 +175,18 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 		// verification as skipped and include it in the verification result so
 		// that a fee can still be deducted.
 		if tx.WarpMessage != nil {
+			if len(b.warpMessages) == MaxWarpMessages {
+				return ErrTooManyWarpMessages
+			}
 			signers, err := tx.WarpMessage.Signature.NumSigners()
 			if err != nil {
 				return err
 			}
 			b.warpMessages[tx.ID()] = &warpJob{
-				msg:     tx.WarpMessage,
-				signers: signers,
-				result:  make(chan error, 1),
+				msg:        tx.WarpMessage,
+				signers:    signers,
+				resultChan: make(chan bool, 1),
+				warpNum:    len(b.warpMessages),
 			}
 		}
 	}
@@ -337,19 +348,25 @@ func preVerifyWarpMessage(msg *warp.Message, chainID ids.ID, r Rules) (uint64, u
 
 // verifyWarpMessage will attempt to verify a given warp message provided by an
 // Action.
-func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *warp.Message) error {
+func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *warp.Message) bool {
+	warpID := utils.ToID(msg.Payload)
 	num, denom, err := preVerifyWarpMessage(msg, b.vm.ChainID(), r)
 	if err != nil {
-		return err
+		b.vm.Logger().Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
+		return false
 	}
-	return msg.Signature.Verify(
+	if err := msg.Signature.Verify(
 		ctx,
 		&msg.UnsignedMessage,
 		b.vdrState,
 		b.bctx.PChainHeight,
 		num,
 		denom,
-	)
+	); err != nil {
+		b.vm.Logger().Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
+		return false
+	}
+	return true
 }
 
 // Must handle re-reverification...
@@ -430,8 +447,6 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	)
 
 	// Start validating warp messages, if they exist
-	//
-	// We always verify warp messages (even if we are still bootstrapping)
 	if len(b.warpMessages) > 0 {
 		if b.bctx == nil {
 			log.Error(
@@ -454,14 +469,24 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 				if ctx.Err() != nil {
 					return
 				}
-				start := time.Now()
-				msg.result <- b.verifyWarpMessage(ctx, r, msg.msg)
-				log.Info(
-					"verified warp message",
-					zap.Stringer("txID", txID),
-					zap.Int("signers", msg.signers),
-					zap.Duration("t", time.Since(start)),
-				)
+				if b.vm.IsBootstrapped() {
+					start := time.Now()
+					result := b.verifyWarpMessage(ctx, r, msg.msg)
+					msg.resultChan <- result
+					msg.result = result
+					log.Info(
+						"processed warp message",
+						zap.Stringer("txID", txID),
+						zap.Bool("verified", result),
+						zap.Int("signers", msg.signers),
+						zap.Duration("t", time.Since(start)),
+					)
+				} else {
+					// When we are bootstrapping, we just use the result in the block.
+					result := b.WarpResults.Contains(uint(msg.warpNum))
+					msg.resultChan <- result
+					msg.result = result
+				}
 			}
 		}()
 	}
@@ -527,6 +552,21 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 			computedRoot,
 			b.StateRoot,
 		)
+	}
+
+	// Ensure warp results are correct
+	if b.WarpResults.Len() > len(b.warpMessages) {
+		return nil, fmt.Errorf("%w: len=%d msgs=%d", ErrWarpResultMismatch, b.WarpResults.Len(), len(b.warpMessages))
+	}
+	for _, msg := range b.warpMessages {
+		if b.WarpResults.Contains(uint(msg.warpNum)) != msg.result {
+			return nil, fmt.Errorf("%w: index=%d", ErrWarpResultMismatch, msg.warpNum)
+		}
+	}
+	for i := len(b.warpMessages); i < MaxWarpMessages; i++ {
+		if b.WarpResults.Contains(uint(i)) {
+			return nil, fmt.Errorf("%w: index=%d", ErrWarpResultMismatch, i)
+		}
 	}
 
 	// Ensure signatures are verified
@@ -750,6 +790,7 @@ func (b *StatefulBlock) Marshal(
 	p.PackID(b.StateRoot)
 	p.PackUint64(b.UnitsConsumed)
 	p.PackUint64(b.SurplusFee)
+	p.PackUint64(uint64(b.WarpResults))
 	return p.Bytes(), p.Err()
 }
 
@@ -788,6 +829,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	p.UnpackID(false, &b.StateRoot)
 	b.UnitsConsumed = p.UnpackUint64(false)
 	b.SurplusFee = p.UnpackUint64(false)
+	b.WarpResults = set.Bits64(p.UnpackUint64(false))
 
 	if !p.Empty() {
 		// Ensure no leftover bytes
