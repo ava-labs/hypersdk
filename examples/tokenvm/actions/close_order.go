@@ -42,7 +42,7 @@ func (c *CloseOrder) Execute(
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
-	_ error,
+	_ bool,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := c.MaxUnits(r) // max units == units
