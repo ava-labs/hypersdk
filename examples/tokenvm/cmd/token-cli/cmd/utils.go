@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -26,7 +25,7 @@ func promptAddress(label string) (crypto.PublicKey, error) {
 		Label: label,
 		Validate: func(input string) error {
 			if len(input) == 0 {
-				return errors.New("input is empty")
+				return ErrInputEmpty
 			}
 			_, err := utils.ParseAddress(input)
 			return err
@@ -36,7 +35,25 @@ func promptAddress(label string) (crypto.PublicKey, error) {
 	if err != nil {
 		return crypto.EmptyPublicKey, err
 	}
+	recipient = strings.TrimSpace(recipient)
 	return utils.ParseAddress(recipient)
+}
+
+func promptString(label string) (string, error) {
+	promptText := promptui.Prompt{
+		Label: label,
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return ErrInputEmpty
+			}
+			return nil
+		},
+	}
+	text, err := promptText.Run()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(text), err
 }
 
 func promptAsset(label string, allowNative bool) (ids.ID, error) {
@@ -61,6 +78,7 @@ func promptAsset(label string, allowNative bool) (ids.ID, error) {
 	if err != nil {
 		return ids.Empty, err
 	}
+	asset = strings.TrimSpace(asset)
 	var assetID ids.ID
 	if asset != consts.Symbol {
 		assetID, err = ids.FromString(asset)
@@ -109,6 +127,7 @@ func promptAmount(
 	if err != nil {
 		return 0, err
 	}
+	rawAmount = strings.TrimSpace(rawAmount)
 	var amount uint64
 	if assetID == ids.Empty {
 		amount, err = hutils.ParseBalance(rawAmount)
@@ -226,6 +245,7 @@ func promptID(label string) (ids.ID, error) {
 	if err != nil {
 		return ids.Empty, err
 	}
+	rawID = strings.TrimSpace(rawID)
 	id, err := ids.FromString(rawID)
 	if err != nil {
 		return ids.Empty, err

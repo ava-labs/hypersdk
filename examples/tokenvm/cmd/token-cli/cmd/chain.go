@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
@@ -34,34 +33,11 @@ var chainCmd = &cobra.Command{
 var importChainCmd = &cobra.Command{
 	Use: "import",
 	RunE: func(_ *cobra.Command, args []string) error {
-		promptText := promptui.Prompt{
-			Label: "chainID",
-			Validate: func(input string) error {
-				if len(input) == 0 {
-					return ErrInputEmpty
-				}
-				_, err := ids.FromString(input)
-				return err
-			},
-		}
-		rchainID, err := promptText.Run()
+		chainID, err := promptID("chainID")
 		if err != nil {
 			return err
 		}
-		chainID, err := ids.FromString(rchainID)
-		if err != nil {
-			return err
-		}
-		promptText = promptui.Prompt{
-			Label: "uri",
-			Validate: func(input string) error {
-				if len(input) == 0 {
-					return ErrInputEmpty
-				}
-				return nil
-			},
-		}
-		uri, err := promptText.Run()
+		uri, err := promptString("uri")
 		if err != nil {
 			return err
 		}
