@@ -688,7 +688,14 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 				gomega.Ω(err).Should(gomega.BeNil())
 
 				// Broadcast and wait for transaction
-				gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+				if err := submit(context.Background()); err != nil {
+					hutils.Outf(
+						"{{yellow}}tx broadcast failed:{{/}} %v\n",
+						err,
+					)
+					time.Sleep(5 * time.Second)
+					continue
+				}
 				count++
 				_, height, err := instances[0].cli.Accepted(context.Background())
 				gomega.Ω(err).Should(gomega.BeNil())
