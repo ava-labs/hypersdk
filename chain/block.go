@@ -385,6 +385,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		ctx, "StatelessBlock.Verify",
 		oteltrace.WithAttributes(
 			attribute.Int("txs", len(b.Txs)),
+			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
 		),
 	)
@@ -442,7 +443,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 
 	// Commit state if we don't return before here (would happen if we are still
 	// syncing)
-	if err := b.state.Commit(ctx); err != nil {
+	if err := b.state.CommitToDB(ctx); err != nil {
 		return err
 	}
 
@@ -525,7 +526,7 @@ func (b *StatelessBlock) childState(
 		if err != nil {
 			return nil, err
 		}
-		return state.NewPreallocatedView(ctx, estimatedChanges)
+		return state.NewPreallocatedView(estimatedChanges)
 	}
 
 	// Process block if not yet processed and not yet accepted.
@@ -538,7 +539,7 @@ func (b *StatelessBlock) childState(
 		}
 		b.state = state
 	}
-	return b.state.NewPreallocatedView(ctx, estimatedChanges)
+	return b.state.NewPreallocatedView(estimatedChanges)
 }
 
 func (b *StatelessBlock) IsRepeat(
