@@ -102,7 +102,7 @@ var setKeyCmd = &cobra.Command{
 				return err
 			}
 			hutils.Outf(
-				"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %sTKN\n",
+				"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s TKN\n",
 				i,
 				address,
 				valueString(ids.Empty, balance),
