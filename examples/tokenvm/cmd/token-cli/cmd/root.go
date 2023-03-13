@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/hypersdk/pebble"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -21,8 +22,9 @@ const (
 )
 
 var (
-	db      database.Database
 	workDir string
+	dbPath  string
+	db      database.Database
 
 	genesisFile  string
 	minUnitPrice int64
@@ -40,12 +42,6 @@ func init() {
 		panic(err)
 	}
 	workDir = p
-	dbPath := filepath.Join(workDir, databaseFolder)
-	// TODO: allow for custom path (can't open multiple watch at once)
-	db, err = pebble.New(dbPath, pebble.NewDefaultConfig())
-	if err != nil {
-		panic(err)
-	}
 
 	cobra.EnablePrefixMatching = true
 	rootCmd.AddCommand(
@@ -54,6 +50,20 @@ func init() {
 		chainCmd,
 		actionCmd,
 	)
+	rootCmd.PersistentFlags().StringVar(
+		&dbPath,
+		"database",
+		filepath.Join(workDir, databaseFolder),
+		"path to database (will create it missing)",
+	)
+	rootCmd.PersistentPreRunE = func(*cobra.Command, []string) error {
+		utils.Outf("{{yellow}}database:{{/}} %s\n", dbPath)
+		db, err = pebble.New(dbPath, pebble.NewDefaultConfig())
+		return err
+	}
+	rootCmd.PersistentPostRunE = func(*cobra.Command, []string) error {
+		return db.Close()
+	}
 
 	// genesis
 	genesisCmd.AddCommand(
@@ -107,6 +117,5 @@ func init() {
 }
 
 func Execute() error {
-	defer db.Close()
 	return rootCmd.Execute()
 }
