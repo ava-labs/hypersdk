@@ -1718,7 +1718,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).Should(gomega.ContainSubstring("invalid chain ID"))
+		gomega.Ω(string(result.Output)).Should(gomega.ContainSubstring("warp verification failed"))
 	})
 
 	ginkgo.It("export native asset", func() {
