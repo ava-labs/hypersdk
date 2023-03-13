@@ -289,20 +289,28 @@ func getAssetInfo(
 		if err != nil {
 			return 0, ids.Empty, err
 		}
-		if warp {
-			sourceChainID = ids.ID(metadata[hconsts.IDLen:])
-		}
 		if !exists {
 			hutils.Outf("{{red}}%s does not exist{{/}}\n", assetID)
 			hutils.Outf("{{red}}exiting...{{/}}\n")
-			return 0, sourceChainID, nil
+			return 0, ids.Empty, nil
 		}
-		hutils.Outf(
-			"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
-			string(metadata),
-			supply,
-			warp,
-		)
+		if warp {
+			sourceChainID = ids.ID(metadata[hconsts.IDLen:])
+			sourceAssetID := ids.ID(metadata[:hconsts.IDLen])
+			hutils.Outf(
+				"{{yellow}}sourceChainID:{{/}} %s {{yellow}}sourceAssetID:{{/}} %s {{yellow}}supply:{{/}} %d\n",
+				sourceChainID,
+				sourceAssetID,
+				supply,
+			)
+		} else {
+			hutils.Outf(
+				"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
+				string(metadata),
+				supply,
+				warp,
+			)
+		}
 	}
 	if !checkBalance {
 		return 0, sourceChainID, nil

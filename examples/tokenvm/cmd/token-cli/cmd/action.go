@@ -495,7 +495,7 @@ var importAssetCmd = &cobra.Command{
 		}
 
 		// Select source
-		source, err := promptID("source")
+		source, err := promptID("sourceChainID")
 		if err != nil {
 			return err
 		}
@@ -513,7 +513,7 @@ var importAssetCmd = &cobra.Command{
 		scli := client.New(uris[0])
 
 		// Select TxID
-		importTxID, err := promptID("import txID")
+		importTxID, err := promptID("export txID")
 		if err != nil {
 			return err
 		}
@@ -571,7 +571,8 @@ var importAssetCmd = &cobra.Command{
 		)
 		if wt.SwapIn > 0 {
 			hutils.Outf(
-				"{{yellow}}swap in:{{/}} %s {{yellow}}asset out:{{/}} %s {{yellow}}swap out:{{/}} %s {{yellow}}swap expiry:{{/}} %d\n",
+				"{{yellow}}asset in:{{/}} %s {{yellow}}swap in:{{/}} %s {{yellow}}asset out:{{/}} %s {{yellow}}swap out:{{/}} %s {{yellow}}swap expiry:{{/}} %d\n",
+				assetString(outputAssetID),
 				valueString(
 					outputAssetID,
 					wt.SwapIn,
@@ -592,7 +593,7 @@ var importAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if wt.SwapExpiry > time.Now().Unix() {
+		if !fill && wt.SwapExpiry > time.Now().Unix() {
 			return ErrMustFill
 		}
 
@@ -683,7 +684,7 @@ var exportAssetCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			assetOut, err = promptID("asset out (on destination)")
+			assetOut, err = promptAsset("asset out (on destination)", true)
 			if err != nil {
 				return err
 			}
