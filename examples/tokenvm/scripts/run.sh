@@ -97,7 +97,7 @@ GENESIS_PATH=$2
 if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f /tmp/tokenvm.genesis
-  /tmp/token-cli genesis /tmp/allocations.json \
+  /tmp/token-cli genesis generate /tmp/allocations.json \
   --genesis-file /tmp/tokenvm.genesis
 else
   echo "copying custom genesis file"

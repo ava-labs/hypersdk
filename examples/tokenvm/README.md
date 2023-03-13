@@ -11,6 +11,8 @@
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-load-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-load-tests.yml/badge.svg" /></a>
 </p>
 
+---
+
 We created the [`tokenvm`](./examples/tokenvm) to showcase how to use the
 `hypersdk` in an application most readers are already familiar with, token minting
 and token trading. The `tokenvm` lets anyone create any asset, mint more of
@@ -342,3 +344,10 @@ out on the Avalanche Discord._
   with a refund action (this will allow for "user-driven" acks on
   messages, which will remain signable and in state until a refund action is
   issued)
+
+<br>
+<br>
+<br>
+<p align="center">
+  <a href="https://github.com/ava-labs/hypersdk"><img width="40%" alt="tokenvm" src="assets/hypersdk.png"></a>
+</p>

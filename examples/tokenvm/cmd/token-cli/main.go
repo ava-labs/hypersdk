@@ -7,14 +7,13 @@ package main
 import (
 	"os"
 
-	"github.com/fatih/color"
-
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-cli/cmd"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 func main() {
 	if err := cmd.Execute(); err != nil {
-		color.Red("token-cli failed: %v", err)
+		utils.Outf("{{red}}token-cli exited with error:{{/}} %+v\n", err)
 		os.Exit(1)
 	}
 	os.Exit(0)

@@ -86,7 +86,7 @@ func GetHost(uri string) (string, error) {
 }
 
 func FormatBalance(bal uint64) string {
-	return fmt.Sprintf("%f", float64(bal)/math.Pow10(NativeDecimals))
+	return fmt.Sprintf("%.9f", float64(bal)/math.Pow10(NativeDecimals))
 }
 
 func ParseBalance(bal string) (uint64, error) {

@@ -230,7 +230,7 @@ func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, erro
 	}
 	// Ensure we can fill the swap if it exists
 	if imp.Fill && imp.warpTransfer.SwapIn == 0 {
-		return nil, chain.ErrInvalidObject
+		return nil, ErrNoSwapToFill
 	}
 	return &imp, nil
 }

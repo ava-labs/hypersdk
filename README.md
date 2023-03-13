@@ -9,6 +9,8 @@
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/static-analysis.yml/badge.svg" /></a>
 </p>
 
+---
+
 The freedom to create your own [Virtual Machine (VM)](https://docs.avax.network/subnets#virtual-machines),
 or blockchain runtime, is one of the most exciting and powerful aspects of building
 on Avalanche, however, it is difficult and time-intensive to do from scratch. Forking
