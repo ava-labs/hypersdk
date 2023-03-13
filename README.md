@@ -162,6 +162,8 @@ TODO
 * Processed in parallel during block execution
 * Actions either emit warp messages during execution or specify warp messages
   as a dependency
+* Pinned to block result so that lite clients and/or bootstrapping nodes don't
+  need to verify warp messages (which can be expensive)
 
 ### Easy Functionality Upgrades
 Every object that can appear on-chain (i.e. `Actions` and/or `Auth`) and every chain
