@@ -360,3 +360,13 @@ func GetDefaultChain() (ids.ID, []string, error) {
 	hutils.Outf("{{yellow}}chainID:{{/}} %s {{yellow}}uris:{{/}} %+s\n", chainID, uris)
 	return chainID, uris, nil
 }
+
+func CloseDatabase() error {
+	if db == nil {
+		return nil
+	}
+	if err := db.Close(); err != nil {
+		return fmt.Errorf("unable to close database: %w", err)
+	}
+	return nil
+}

@@ -144,6 +144,9 @@ var watchChainCmd = &cobra.Command{
 		if len(uris) == 0 {
 			return nil
 		}
+		if err := CloseDatabase(); err != nil {
+			return err
+		}
 		cli := client.New(uris[0])
 		port, err := cli.BlocksPort(ctx)
 		if err != nil {

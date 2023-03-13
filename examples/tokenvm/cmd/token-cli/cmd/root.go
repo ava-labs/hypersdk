@@ -55,7 +55,7 @@ func init() {
 		return err
 	}
 	rootCmd.PersistentPostRunE = func(*cobra.Command, []string) error {
-		return db.Close()
+		return CloseDatabase()
 	}
 
 	// genesis
