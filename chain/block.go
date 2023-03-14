@@ -447,6 +447,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	)
 
 	// Start validating warp messages, if they exist
+	var invalidWarpResult bool
 	if len(b.warpMessages) > 0 {
 		if b.bctx == nil {
 			log.Error(
@@ -469,7 +470,8 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 				if ctx.Err() != nil {
 					return
 				}
-				if b.vm.IsBootstrapped() {
+				blockVerified := b.WarpResults.Contains(uint(msg.warpNum))
+				if b.vm.IsBootstrapped() && !invalidWarpResult {
 					start := time.Now()
 					verified := b.verifyWarpMessage(ctx, r, msg.msg)
 					msg.verifiedChan <- verified
@@ -481,11 +483,17 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 						zap.Int("signers", msg.signers),
 						zap.Duration("t", time.Since(start)),
 					)
+					if blockVerified != verified {
+						invalidWarpResult = true
+					}
 				} else {
 					// When we are bootstrapping, we just use the result in the block.
-					verified := b.WarpResults.Contains(uint(msg.warpNum))
-					msg.verifiedChan <- verified
-					msg.verified = verified
+					//
+					// We also use the result in the block when we have found
+					// a verification mismatch (our verify result is different than the
+					// block) to avoid doing extra work.
+					msg.verifiedChan <- blockVerified
+					msg.verified = blockVerified
 				}
 			}
 		}()
@@ -538,6 +546,23 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		)
 	}
 
+	// Ensure warp results are correct
+	if invalidWarpResult {
+		return nil, ErrWarpResultMismatch
+	}
+	numWarp := len(b.warpMessages)
+	if numWarp > MaxWarpMessages {
+		return nil, ErrTooManyWarpMessages
+	}
+	var warpResultsLimit set.Bits64
+	warpResultsLimit.Add(uint(numWarp))
+	if b.WarpResults >= warpResultsLimit {
+		// If the value of [WarpResults] is greater than the value of uint64 with
+		// a 1-bit shifted [numWarp] times, then there are unused bits set to
+		// 1 (which should is not allowed).
+		return nil, ErrWarpResultMismatch
+	}
+
 	// Compute state root
 	// TODO: consider adding the parent root or height here to ensure state roots
 	// are never repeated
@@ -552,21 +577,6 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 			computedRoot,
 			b.StateRoot,
 		)
-	}
-
-	// Ensure warp results are correct
-	if b.WarpResults.Len() > len(b.warpMessages) {
-		return nil, fmt.Errorf("%w: len=%d msgs=%d", ErrWarpResultMismatch, b.WarpResults.Len(), len(b.warpMessages))
-	}
-	for _, msg := range b.warpMessages {
-		if b.WarpResults.Contains(uint(msg.warpNum)) != msg.verified {
-			return nil, fmt.Errorf("%w: index=%d", ErrWarpResultMismatch, msg.warpNum)
-		}
-	}
-	for i := len(b.warpMessages); i < MaxWarpMessages; i++ {
-		if b.WarpResults.Contains(uint(i)) {
-			return nil, fmt.Errorf("%w: index=%d", ErrWarpResultMismatch, i)
-		}
 	}
 
 	// Ensure signatures are verified
