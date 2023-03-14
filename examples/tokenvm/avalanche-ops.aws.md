@@ -62,11 +62,11 @@ The `default-spec` command above will output `apply` and `delete` commands that 
 # run the following to create resources
 vi /home/ubuntu/aops-custom-202303-vzLY7T.yaml
 
-/home/ubuntu/avalanche-ops/target/release/avalancheup-aws apply \
+avalancheup-aws apply \
 --spec-file-path /home/ubuntu/aops-custom-202303-vzLY7T.yaml
 
 # run the following to delete resources
-/home/ubuntu/avalanche-ops/target/release/avalancheup-aws delete \
+avalancheup-aws delete \
 --delete-cloudwatch-log-group \
 --delete-s3-objects \
 --delete-ebs-volumes \
@@ -84,13 +84,13 @@ Now that the network and nodes are up, we can install two subnets, each of which
 
 ```bash
 # EXAMPLE: write subnet config
-/home/ubuntu/avalanche-ops/target/release/avalancheup-aws subnet-config \
+avalancheup-aws subnet-config \
 --log-level=info \
 --proposer-min-block-delay 250000000 \
 --file-path /tmp/subnet-config.json
 
 # EXAMPLE: install subnet-evm in all nodes
-/home/ubuntu/avalanche-ops/target/release/avalancheup-aws install-subnet-chain \
+avalancheup-aws install-subnet-chain \
 --log-level info \
 --region us-west-2 \
 --s3-bucket avalanche-ops-202303-3hxfve9pfh-us-west-2 \
@@ -103,7 +103,7 @@ Now that the network and nodes are up, we can install two subnets, each of which
 For instance, use the following commands to deploy two TokenVM subnets (similar to [scripts/run.sh](./scripts/run.sh)):
 
 ```bash
-/home/ubuntu/avalanche-ops/target/release/avalancheup-aws subnet-config \
+avalancheup-aws subnet-config \
 --log-level=info \
 --proposer-min-block-delay 0 \
 --file-path /tmp/subnet-config.json
@@ -130,7 +130,7 @@ cat /tmp/tokenvm-chain-config.json
 ```
 
 ```bash
-/home/ubuntu/avalanche-ops/target/release/avalancheup-aws install-subnet-chain \
+avalancheup-aws install-subnet-chain \
 --log-level info \
 --region us-west-2 \
 --s3-bucket avalanche-ops-202303-3hxfve9pfh-us-west-2 \
@@ -152,7 +152,7 @@ cat /tmp/tokenvm-chain-config.json
 #  VM Id 'tHBYNu8ikt25R77fH4znHYC4B5mkaEnXPFmsJnECZjq59dySw', chain name 'tokenvm1'
 # SUCCESS: subnet Id 2DLqm2Wk4SFtdmeqkmyfAvTdfvNKmbjwZwztMqRaQCwnDbRHCo, blockchain Id G9CbuiKLoyeYhabA8ph7TBiisKt9LS6Hx1QRgoajnwxd1xFC8
 
-/home/ubuntu/avalanche-ops/target/release/avalancheup-aws install-subnet-chain \
+avalancheup-aws install-subnet-chain \
 --log-level info \
 --region us-west-2 \
 --s3-bucket avalanche-ops-202303-3hxfve9pfh-us-west-2 \
@@ -190,7 +190,7 @@ To make sure chains are launched successfully, just check the `health` endpoints
 Same as above, except you do not need anchor nodes:
 
 ```bash
-/home/ubuntu/avalanche-ops/target/release/avalancheup-aws default-spec \
+avalancheup-aws default-spec \
 --arch-type amd64 \
 --rust-os-type ubuntu20.04 \
 --non-anchor-nodes 6 \
