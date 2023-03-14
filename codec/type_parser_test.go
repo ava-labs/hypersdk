@@ -27,17 +27,19 @@ type Blah3 struct{}
 func (*Blah3) Bark() string { return "blah3" }
 
 func TestTypeParser(t *testing.T) {
-	tp := NewTypeParser[Blah]()
+	tp := NewTypeParser[Blah, any, bool]()
 
 	t.Run("empty parser", func(t *testing.T) {
 		require := require.New(t)
-		f, ok := tp.LookupIndex(0)
+		f, b, ok := tp.LookupIndex(0)
 		require.Nil(f)
 		require.False(ok)
-		index, f, ok := tp.LookupType(&Blah1{})
+		require.False(b)
+		index, f, b, ok := tp.LookupType(&Blah1{})
 		require.Equal(uint8(0), index)
 		require.Nil(f)
 		require.False(ok)
+		require.False(b)
 	})
 
 	t.Run("populated parser", func(t *testing.T) {
@@ -45,53 +47,59 @@ func TestTypeParser(t *testing.T) {
 		require.NoError(
 			tp.Register(
 				&Blah1{},
-				func(p *Packer) (Blah, error) { return nil, errors.New("blah1") },
+				func(p *Packer, a any) (Blah, error) { return nil, errors.New("blah1") },
+				true,
 			),
 		)
 		require.Equal(uint8(1), tp.index)
 		require.NoError(
 			tp.Register(
 				&Blah2{},
-				func(p *Packer) (Blah, error) { return nil, errors.New("blah2") },
+				func(p *Packer, a any) (Blah, error) { return nil, errors.New("blah2") },
+				false,
 			),
 		)
 		require.Equal(uint8(2), tp.index)
 
-		f, ok := tp.LookupIndex(0)
+		f, b, ok := tp.LookupIndex(0)
 		require.True(ok)
-		res, err := f(nil)
+		require.True(b)
+		res, err := f(nil, nil)
 		require.Nil(res)
 		require.ErrorContains(err, "blah1")
 
-		index, f, ok := tp.LookupType(&Blah1{})
+		index, f, b, ok := tp.LookupType(&Blah1{})
 		require.True(ok)
+		require.True(b)
 		require.Equal(uint8(0), index)
-		res, err = f(nil)
+		res, err = f(nil, nil)
 		require.Nil(res)
 		require.ErrorContains(err, "blah1")
 
-		f, ok = tp.LookupIndex(1)
+		f, b, ok = tp.LookupIndex(1)
 		require.True(ok)
-		res, err = f(nil)
+		require.False(b)
+		res, err = f(nil, nil)
 		require.Nil(res)
 		require.ErrorContains(err, "blah2")
 
-		index, f, ok = tp.LookupType(&Blah2{})
+		index, f, b, ok = tp.LookupType(&Blah2{})
 		require.True(ok)
+		require.False(b)
 		require.Equal(uint8(1), index)
-		res, err = f(nil)
+		res, err = f(nil, nil)
 		require.Nil(res)
 		require.ErrorContains(err, "blah2")
 	})
 
 	t.Run("duplicate item", func(t *testing.T) {
 		require := require.New(t)
-		require.ErrorIs(tp.Register(&Blah1{}, nil), ErrDuplicateItem)
+		require.ErrorIs(tp.Register(&Blah1{}, nil, true), ErrDuplicateItem)
 	})
 
 	t.Run("too many items", func(t *testing.T) {
 		require := require.New(t)
 		tp.index = consts.MaxUint8 // force max
-		require.ErrorIs(tp.Register(&Blah3{}, nil), ErrTooManyItems)
+		require.ErrorIs(tp.Register(&Blah3{}, nil, true), ErrTooManyItems)
 	})
 }

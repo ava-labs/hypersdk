@@ -20,13 +20,13 @@ type Base struct {
 	UnitPrice uint64 `json:"unitPrice"`
 }
 
-func (b *Base) Execute(r Rules, timestamp int64) error {
+func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 	switch {
 	case b.Timestamp < timestamp: // tx: 100 block: 110
 		return ErrTimestampTooLate
 	case b.Timestamp > timestamp+r.GetValidityWindow(): // tx: 100 block 10
 		return ErrTimestampTooEarly
-	case b.ChainID != r.GetChainID():
+	case b.ChainID != chainID:
 		return ErrInvalidChainID
 	case b.UnitPrice < r.GetMinUnitPrice():
 		return ErrInvalidUnitPrice

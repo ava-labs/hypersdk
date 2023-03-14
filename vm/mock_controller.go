@@ -59,14 +59,14 @@ func (mr *MockControllerMockRecorder) Accepted(arg0, arg1 interface{}) *gomock.C
 }
 
 // Initialize mocks base method.
-func (m *MockController) Initialize(arg0 *VM, arg1 *snow.Context, arg2 metrics.MultiGatherer, arg3, arg4, arg5 []byte) (Config, Genesis, builder.Builder, gossiper.Gossiper, KVDatabase, database.Database, Handlers, chain.ActionRegistry, chain.AuthRegistry, error) {
+func (m *MockController) Initialize(arg0 *VM, arg1 *snow.Context, arg2 metrics.MultiGatherer, arg3, arg4, arg5 []byte) (Config, Genesis, builder.Builder, gossiper.Gossiper, database.Database, database.Database, Handlers, chain.ActionRegistry, chain.AuthRegistry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Initialize", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].(Config)
 	ret1, _ := ret[1].(Genesis)
 	ret2, _ := ret[2].(builder.Builder)
 	ret3, _ := ret[3].(gossiper.Gossiper)
-	ret4, _ := ret[4].(KVDatabase)
+	ret4, _ := ret[4].(database.Database)
 	ret5, _ := ret[5].(database.Database)
 	ret6, _ := ret[6].(Handlers)
 	ret7, _ := ret[7].(chain.ActionRegistry)
@@ -107,4 +107,32 @@ func (m *MockController) Rules(arg0 int64) chain.Rules {
 func (mr *MockControllerMockRecorder) Rules(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rules", reflect.TypeOf((*MockController)(nil).Rules), arg0)
+}
+
+// Shutdown mocks base method.
+func (m *MockController) Shutdown(arg0 context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Shutdown", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Shutdown indicates an expected call of Shutdown.
+func (mr *MockControllerMockRecorder) Shutdown(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shutdown", reflect.TypeOf((*MockController)(nil).Shutdown), arg0)
+}
+
+// StateManager mocks base method.
+func (m *MockController) StateManager() chain.StateManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StateManager")
+	ret0, _ := ret[0].(chain.StateManager)
+	return ret0
+}
+
+// StateManager indicates an expected call of StateManager.
+func (mr *MockControllerMockRecorder) StateManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StateManager", reflect.TypeOf((*MockController)(nil).StateManager))
 }

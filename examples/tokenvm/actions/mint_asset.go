@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -45,6 +46,7 @@ func (m *MintAsset) Execute(
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
+	_ bool,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := m.MaxUnits(r) // max units == units
@@ -54,12 +56,15 @@ func (m *MintAsset) Execute(
 	if m.Value == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
 	}
-	exists, metadata, supply, owner, err := storage.GetAsset(ctx, db, m.Asset)
+	exists, metadata, supply, owner, isWarp, err := storage.GetAsset(ctx, db, m.Asset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if !exists {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetMissing}, nil
+	}
+	if isWarp {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputWarpAsset}, nil
 	}
 	if owner != actor {
 		return &chain.Result{
@@ -72,7 +77,7 @@ func (m *MintAsset) Execute(
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	if err := storage.SetAsset(ctx, db, m.Asset, metadata, newSupply, actor); err != nil {
+	if err := storage.SetAsset(ctx, db, m.Asset, metadata, newSupply, actor, isWarp); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if err := storage.AddBalance(ctx, db, m.To, m.Asset, m.Value); err != nil {
@@ -93,7 +98,7 @@ func (m *MintAsset) Marshal(p *codec.Packer) {
 	p.PackUint64(m.Value)
 }
 
-func UnmarshalMintAsset(p *codec.Packer) (chain.Action, error) {
+func UnmarshalMintAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var mint MintAsset
 	p.UnpackPublicKey(true, &mint.To) // cannot mint to blackhole
 	p.UnpackID(true, &mint.Asset)     // empty ID is the native asset

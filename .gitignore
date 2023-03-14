@@ -56,3 +56,4 @@ genesis.json
 dist/
 *.pk
 tmp-storage-testing
+.token-cli*

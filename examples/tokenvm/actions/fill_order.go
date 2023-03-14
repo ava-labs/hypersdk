@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -62,6 +63,7 @@ func (f *FillOrder) Execute(
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
+	_ bool,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	exists, in, inTick, out, outTick, remaining, owner, err := storage.GetOrder(ctx, db, f.Order)
@@ -165,7 +167,7 @@ func (f *FillOrder) Marshal(p *codec.Packer) {
 	p.PackUint64(f.Value)
 }
 
-func UnmarshalFillOrder(p *codec.Packer) (chain.Action, error) {
+func UnmarshalFillOrder(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var fill FillOrder
 	p.UnpackID(true, &fill.Order)
 	p.UnpackPublicKey(true, &fill.Owner)

@@ -11,6 +11,8 @@
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-load-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-load-tests.yml/badge.svg" /></a>
 </p>
 
+---
+
 We created the [`tokenvm`](./examples/tokenvm) to showcase how to use the
 `hypersdk` in an application most readers are already familiar with, token minting
 and token trading. The `tokenvm` lets anyone create any asset, mint more of
@@ -102,6 +104,22 @@ Because of the format of `hypersdk` transactions, you can scope your fills to
 be valid only until a particular time. This enables you to go for orders as you
 see fit at the time and not have to worry about your fill sitting around until you
 explicitly cancel it/replace it.
+
+### Avalanche Warp Support
+* Send asset between any 2 tokenvms
+* Limit exposure of large hack by restricting warp to only origin + destination
+  (can't warp a warp asset somewhere else)
+  -> prevents a risky asset from a Subnet from "stealing reputation" of another
+  Subnet where it may export from
+* Auto-swap when processing import to get fee paying token (works very similar
+  to a RFQ)
+* assets take on a newID when they come into a subnet (so you can never have
+  a token that is identical to one that has different security properties)
+* Automatically accept warp messages if 80% of subnet signs (because each asset
+  takes on a new ID, a rogue subnet can't corrupt the balance or activity of
+  valid assets)
+
+TODO: talk about local test (15 nodes, 2 subnets with no overlap)
 
 ## Mint and Trade Demo
 Someone: "Seems cool but I need to see it to really get it."
@@ -316,10 +334,20 @@ _If you want to take the lead on any of these items, please
 [start a discussion](https://github.com/ava-labs/hypersdk/discussions) or reach
 out on the Avalanche Discord._
 
-* Add support for Avalanche Warp Messaging
 * Add more config options for determining which order books to store in-memory
 * Add option to CLI to fill up to some amount of an asset as long as it is
   under some exchange rate (trading agent command to provide better UX)
 * Add expiring order support (can't fill an order after some point in time but
   still need to explicitly close it to get your funds back -> async cleanup is
   not a good idea)
+* Add lockup fee for creating a Warp Message and ability to reclaim the lockup
+  with a refund action (this will allow for "user-driven" acks on
+  messages, which will remain signable and in state until a refund action is
+  issued)
+
+<br>
+<br>
+<br>
+<p align="center">
+  <a href="https://github.com/ava-labs/hypersdk"><img width="40%" alt="tokenvm" src="assets/hypersdk.png"></a>
+</p>

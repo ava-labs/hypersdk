@@ -148,13 +148,7 @@ func (c *decisionRPCConnection) handleReads() {
 			return
 		}
 
-		sigVerify, err := tx.Init(ctx, c.vm.actionRegistry, c.vm.authRegistry)
-		if err != nil {
-			c.vm.snowCtx.Log.Error("failed to initialize tx",
-				zap.Error(err),
-			)
-			return
-		}
+		sigVerify := tx.AuthAsyncVerify()
 		if err := sigVerify(); err != nil {
 			c.vm.snowCtx.Log.Error("failed to verify sig",
 				zap.Error(err),
@@ -394,18 +388,6 @@ func (c *BlockRPCClient) Listen(
 	blk, err := chain.UnmarshalBlock(ritem, parser)
 	if err != nil {
 		return nil, nil, err
-	}
-	// Initialize hashes
-	actionRegistry, authRegistry := parser.Registry()
-	for _, tx := range blk.Txs {
-		_, err := tx.Init(
-			context.TODO(),
-			actionRegistry,
-			authRegistry,
-		) // we don't re-verify signatures
-		if err != nil {
-			return nil, nil, err
-		}
 	}
 	ritem, err = readNetMessage(c.conn, false)
 	if err != nil {

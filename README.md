@@ -10,6 +10,8 @@
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/static-analysis.yml/badge.svg" /></a>
 </p>
 
+---
+
 The freedom to create your own [Virtual Machine (VM)](https://docs.avax.network/subnets#virtual-machines),
 or blockchain runtime, is one of the most exciting and powerful aspects of building
 on Avalanche, however, it is difficult and time-intensive to do from scratch. Forking
@@ -156,6 +158,15 @@ for a single account and ensure they are ordered) and makes the network layer
 more efficient (we can gossip any valid transaction to any node instead of just
 the transactions for each account that can be executed at the moment).
 
+### Avalanche Warp Messaging Support
+TODO
+* Processed in parallel during block execution
+* Actions either emit warp messages during execution or specify warp messages
+  as a dependency
+* Pinned to block result so that lite clients and/or bootstrapping nodes don't
+  need to verifresultChany warp messages (which can be expensive)
+* Max 64 per block for now
+
 ### Easy Functionality Upgrades
 Every object that can appear on-chain (i.e. `Actions` and/or `Auth`) and every chain
 parameter (i.e. `Unit Price`) is scoped by block timestamp. This makes it
@@ -286,7 +297,7 @@ type Controller interface {
 		genesis Genesis,
 		builder builder.Builder,
 		gossiper gossiper.Gossiper,
-		blockDB KVDatabase,
+		blockDB database.Database,
 		stateDB database.Database,
 		handler Handlers,
 		actionRegistry chain.ActionRegistry,
@@ -298,6 +309,8 @@ type Controller interface {
 
 	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
 	Rejected(ctx context.Context, blk *chain.StatelessBlock) error
+
+  Shutdown(ctx context.Context) error
 }
 ```
 
@@ -334,6 +347,7 @@ type Action interface {
 	ValidRange(Rules) (start int64, end int64)
 
 	StateKeys(Auth) [][]byte
+	WarpMessage() *warp.Message
 	Execute(ctx context.Context, r Rules, db Database, timestamp int64, auth Auth, txID ids.ID) (result *Result, err error)
 
 	Marshal(p *codec.Packer)
@@ -392,7 +406,7 @@ that an account owner can call to perform any ACL modifications.
 ### Rules
 ```golang
 type Rules interface {
-	GetChainID() ids.ID
+	GetWarpConfig(ids.ID) (bool, uint64, uint64)
 
 	GetMaxBlockTxs() int
 	GetMaxBlockUnits() uint64
@@ -431,8 +445,6 @@ out on the Avalanche Discord._
 * Use pre-specified state keys to process transactions in parallel (txs with no
   overlap can be processed at the same time, create conflict sets on-the-fly
   instead of before execution)
-* Add support for Avalanche Warp Messaging (AWM) so any deployed hypervms
-  (hyperchains) can communicate with each other ([see ava-labs/xsvm](https://github.com/ava-labs/xsvm))
 * Add a WASM runtime module to allow developers to embed smart contract
   functionality in their hypervms
 * Overhaul streaming RPC (properly heartbeat and close connections)
@@ -458,4 +470,8 @@ out on the Avalanche Discord._
   hasher](https://github.com/ava-labs/avalanchego/tree/master/utils/hashing/consistent))
   of `hypervm` participants (even better if this is made abstract to any implementer
   such that they can just register and request data from it and it is automatically
-  handled by the network layer)
+  handled by the network layer). This module should make it possible for an
+  operator to use a single backend (like S3) to power storage fro multiple
+  hosts.
+* Only set `export CGO_CFLAGS="-O -D__BLST_PORTABLE__"` when running on
+  MacOS/Windows (will make Linux much more performant)

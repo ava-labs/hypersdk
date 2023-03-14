@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -15,6 +14,7 @@ import (
 )
 
 type VM interface {
+	ChainID() ids.ID
 	StopChan() chan struct{}
 	Tracer() trace.Tracer
 	Mempool() chain.Mempool
@@ -22,7 +22,6 @@ type VM interface {
 	IsValidator(context.Context, ids.NodeID) (bool, error)
 	Logger() logging.Logger
 	PreferredBlock(context.Context) (*chain.StatelessBlock, error)
-	AppSender() common.AppSender
 	Registry() (chain.ActionRegistry, chain.AuthRegistry)
 	NodeID() ids.NodeID
 	Rules(int64) chain.Rules

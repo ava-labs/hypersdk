@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -45,6 +46,7 @@ func (m *ModifyAsset) Execute(
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
+	_ bool,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := m.MaxUnits(r) // max units == units
@@ -54,12 +56,15 @@ func (m *ModifyAsset) Execute(
 	if len(m.Metadata) > MaxMetadataSize {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputMetadataTooLarge}, nil
 	}
-	exists, _, supply, owner, err := storage.GetAsset(ctx, db, m.Asset)
+	exists, _, supply, owner, isWarp, err := storage.GetAsset(ctx, db, m.Asset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if !exists {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetMissing}, nil
+	}
+	if isWarp {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputWarpAsset}, nil
 	}
 	if owner != actor {
 		return &chain.Result{
@@ -68,7 +73,7 @@ func (m *ModifyAsset) Execute(
 			Output:  OutputWrongOwner,
 		}, nil
 	}
-	if err := storage.SetAsset(ctx, db, m.Asset, m.Metadata, supply, m.Owner); err != nil {
+	if err := storage.SetAsset(ctx, db, m.Asset, m.Metadata, supply, m.Owner, isWarp); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil
@@ -86,7 +91,7 @@ func (m *ModifyAsset) Marshal(p *codec.Packer) {
 	p.PackBytes(m.Metadata)
 }
 
-func UnmarshalModifyAsset(p *codec.Packer) (chain.Action, error) {
+func UnmarshalModifyAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var modify ModifyAsset
 	p.UnpackID(true, &modify.Asset)         // empty ID is the native asset
 	p.UnpackPublicKey(false, &modify.Owner) // empty revokes ownership

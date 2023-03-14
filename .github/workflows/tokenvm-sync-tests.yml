@@ -13,6 +13,7 @@ jobs:
   tests:
     runs-on:
       labels: ubuntu-latest-16-cores
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v3

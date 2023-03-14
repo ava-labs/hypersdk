@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/hypersdk/chain"
 	"go.uber.org/zap"
 )
@@ -16,6 +17,7 @@ var _ Gossiper = (*Manual)(nil)
 
 type Manual struct {
 	vm         VM
+	appSender  common.AppSender
 	doneGossip chan struct{}
 }
 
@@ -26,7 +28,9 @@ func NewManual(vm VM) *Manual {
 	}
 }
 
-func (g *Manual) Run() {
+func (g *Manual) Run(appSender common.AppSender) {
+	g.appSender = appSender
+
 	// Only respond to explicitly triggered gossip
 	close(g.doneGossip)
 }
@@ -46,7 +50,11 @@ func (g *Manual) TriggerGossip(ctx context.Context) error {
 			}
 
 			// Gossip up to a block of content
-			units := next.MaxUnits(r)
+			units, err := next.MaxUnits(r)
+			if err != nil {
+				// Should never happen
+				return true, false, false, nil
+			}
 			if units+totalUnits > r.GetMaxBlockUnits() {
 				// Attempt to mirror the function of building a block without execution
 				return false, true, false, nil
@@ -67,7 +75,7 @@ func (g *Manual) TriggerGossip(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := g.vm.AppSender().SendAppGossip(ctx, b); err != nil {
+	if err := g.appSender.SendAppGossip(ctx, b); err != nil {
 		g.vm.Logger().Warn(
 			"GossipTxs failed",
 			zap.Error(err),

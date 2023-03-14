@@ -10,12 +10,14 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/vm"
+	smath "github.com/ava-labs/avalanchego/utils/math"
 
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/vm"
 )
 
 var _ vm.Genesis = (*Genesis)(nil)
@@ -47,6 +49,10 @@ type Genesis struct {
 	BlockCostChangeDenominator uint64 `json:"blockCostChangeDenominator"`
 	WindowTargetBlocks         uint64 `json:"windowTargetBlocks"` // 10s
 
+	// Warp pricing
+	WarpBaseFee      uint64 `json:"warpBaseFee"`
+	WarpFeePerSigner uint64 `json:"warpFeePerSigner"`
+
 	// Allocations
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
 }
@@ -63,7 +69,7 @@ func Default() *Genesis {
 		BaseUnits:      48, // timestamp(8) + chainID(32) + unitPrice(8)
 		ValidityWindow: 60,
 
-		// Unit Pricing
+		// Unit pricing
 		MinUnitPrice:               1,
 		UnitPriceChangeDenominator: 48,
 		WindowTargetUnits:          9_000_000, // 9 MiB
@@ -72,6 +78,10 @@ func Default() *Genesis {
 		MinBlockCost:               0,
 		BlockCostChangeDenominator: 48,
 		WindowTargetBlocks:         20, // 10s
+
+		// Warp pricing
+		WarpBaseFee:      1_024,
+		WarpFeePerSigner: 128,
 	}
 }
 
@@ -99,8 +109,13 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Databa
 	ctx, span := tracer.Start(ctx, "Genesis.Load")
 	defer span.End()
 
+	supply := uint64(0)
 	for _, alloc := range g.CustomAllocation {
 		pk, err := utils.ParseAddress(alloc.Address)
+		if err != nil {
+			return err
+		}
+		supply, err = smath.Add64(supply, alloc.Balance)
 		if err != nil {
 			return err
 		}
@@ -108,5 +123,13 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Databa
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}
-	return nil
+	return storage.SetAsset(
+		ctx,
+		db,
+		ids.Empty,
+		[]byte(consts.Symbol),
+		supply,
+		crypto.EmptyPublicKey,
+		false,
+	)
 }

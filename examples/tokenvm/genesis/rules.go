@@ -11,17 +11,28 @@ import (
 var _ chain.Rules = (*Rules)(nil)
 
 type Rules struct {
-	chainID ids.ID
-	g       *Genesis
+	g *Genesis
 }
 
 // TODO: use upgradeBytes
-func (g *Genesis) Rules(chainID ids.ID, _ int64) *Rules {
-	return &Rules{chainID, g}
+func (g *Genesis) Rules(int64) *Rules {
+	return &Rules{g}
 }
 
-func (r *Rules) GetChainID() ids.ID {
-	return r.chainID
+func (*Rules) GetWarpConfig(ids.ID) (bool, uint64, uint64) {
+	// We allow inbound transfers from all sources as long as 80% of stake has
+	// signed a message.
+	//
+	// This is safe because the tokenvm scopes all assets by their source chain.
+	return true, 4, 5
+}
+
+func (r *Rules) GetWarpBaseFee() uint64 {
+	return r.g.WarpBaseFee
+}
+
+func (r *Rules) GetWarpFeePerSigner() uint64 {
+	return r.g.WarpFeePerSigner
 }
 
 func (r *Rules) GetMaxBlockTxs() int {

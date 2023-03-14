@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -41,6 +42,7 @@ func (c *CloseOrder) Execute(
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
+	_ bool,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := c.MaxUnits(r) // max units == units
@@ -77,7 +79,7 @@ func (c *CloseOrder) Marshal(p *codec.Packer) {
 	p.PackID(c.Out)
 }
 
-func UnmarshalCloseOrder(p *codec.Packer) (chain.Action, error) {
+func UnmarshalCloseOrder(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var cl CloseOrder
 	p.UnpackID(true, &cl.Order)
 	p.UnpackID(false, &cl.Out) // empty ID is the native asset

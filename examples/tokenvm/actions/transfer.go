@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -43,6 +44,7 @@ func (t *Transfer) Execute(
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
+	_ bool,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := t.MaxUnits(r) // max units == units
@@ -70,7 +72,7 @@ func (t *Transfer) Marshal(p *codec.Packer) {
 	p.PackUint64(t.Value)
 }
 
-func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
+func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var transfer Transfer
 	p.UnpackPublicKey(false, &transfer.To) // can transfer to blackhole
 	p.UnpackID(false, &transfer.Asset)     // empty ID is the native asset
