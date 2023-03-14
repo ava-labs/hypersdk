@@ -59,6 +59,8 @@ var (
 	ErrExpectedWarpMessage       = errors.New("expected warp message")
 	ErrWarpMessageNotInitialized = errors.New("warp message not initialized")
 	ErrEmptyWarpPayload          = errors.New("empty warp payload")
+	ErrTooManyWarpMessages       = errors.New("too many warp messages")
+	ErrWarpResultMismatch        = errors.New("warp result mismatch")
 
 	// Misc
 	ErrNotImplemented    = errors.New("not implemented")

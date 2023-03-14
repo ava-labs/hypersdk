@@ -222,7 +222,7 @@ func (t *Transaction) Execute(
 	s StateManager,
 	tdb *tstate.TState,
 	timestamp int64,
-	warpResult error,
+	warpVerified bool,
 ) (*Result, error) {
 	// Check warp message is not duplicate
 	if t.WarpMessage != nil {
@@ -233,7 +233,7 @@ func (t *Transaction) Execute(
 			//
 			// TODO: consider doing this check before performing signature
 			// verification.
-			warpResult = errors.New("duplicate warp message")
+			warpVerified = false
 		case errors.Is(err, database.ErrNotFound):
 			// This means there are no conflicts
 		case err != nil:
@@ -262,7 +262,7 @@ func (t *Transaction) Execute(
 
 	// We create a temp state to ensure we don't commit failed actions to state.
 	start := tdb.OpIndex()
-	result, err := t.Action.Execute(ctx, r, tdb, timestamp, t.Auth, t.id, warpResult)
+	result, err := t.Action.Execute(ctx, r, tdb, timestamp, t.Auth, t.id, warpVerified)
 	if err != nil {
 		return nil, err
 	}

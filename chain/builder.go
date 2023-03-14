@@ -84,6 +84,8 @@ func BuildBlock(
 		txsAttempted = 0
 		results      = []*Result{}
 
+		warpCount = 0
+
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
 	)
@@ -96,6 +98,15 @@ func BuildBlock(
 			if next.WarpMessage != nil && blockContext == nil {
 				log.Info(
 					"dropping pending warp message because no context provided",
+					zap.Stringer("txID", next.ID()),
+				)
+				return true, true, false, nil
+			}
+
+			// Skip warp message if at max
+			if next.WarpMessage != nil && warpCount == MaxWarpMessages {
+				log.Info(
+					"dropping pending warp message because already have MaxWarpMessages",
 					zap.Stringer("txID", next.ID()),
 				)
 				return true, true, false, nil
@@ -156,21 +167,24 @@ func BuildBlock(
 			//
 			// We wait as long as possible to verify the signature to ensure we don't
 			// spend unnecessary time on an invalid tx.
-			var warpResult error
+			var warpErr error
 			if next.WarpMessage != nil {
 				num, denom, err := preVerifyWarpMessage(next.WarpMessage, vm.ChainID(), r)
 				if err == nil {
-					warpResult = next.WarpMessage.Signature.Verify(
+					warpErr = next.WarpMessage.Signature.Verify(
 						ctx, &next.WarpMessage.UnsignedMessage,
 						vdrState, blockContext.PChainHeight, num, denom,
 					)
 				} else {
-					warpResult = err
+					warpErr = err
+				}
+				if warpErr != nil {
+					log.Warn("warp verification failed", zap.Stringer("txID", next.ID()), zap.Error(warpErr))
 				}
 			}
 
 			// If execution works, keep moving forward with new state
-			result, err := next.Execute(fctx, ectx, r, sm, ts, nextTime, warpResult)
+			result, err := next.Execute(fctx, ectx, r, sm, ts, nextTime, next.WarpMessage != nil && warpErr == nil)
 			if err != nil {
 				// This error should only be raised by the handler, not the
 				// implementation itself
@@ -183,6 +197,13 @@ func BuildBlock(
 			b.UnitsConsumed += result.Units
 			surplusFee += (next.Base.UnitPrice - b.UnitPrice) * result.Units
 			results = append(results, result)
+			if next.WarpMessage != nil {
+				if warpErr == nil {
+					// Add a bit if the warp message was verified
+					b.WarpResults.Add(uint(warpCount))
+				}
+				warpCount++
+			}
 			return len(b.Txs) < r.GetMaxBlockTxs(), false, false, nil
 		},
 	)
