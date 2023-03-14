@@ -187,9 +187,17 @@ To make sure chains are launched successfully, just check the `health` endpoints
 
 ## Deploy TokenVM in Fuji network with avalanche-ops
 
-Same as above... just need nodes in Fuji + Fuji token.
+Same as above, except you do not need anchor nodes:
 
 ```bash
-TODO
+/home/ubuntu/avalanche-ops/target/release/avalancheup-aws default-spec \
+--arch-type amd64 \
+--rust-os-type ubuntu20.04 \
+--non-anchor-nodes 6 \
+--region us-west-2 \
+--instance-mode=on-demand \
+--instance-size=2xlarge \
+--ip-mode=elastic \
+--metrics-fetch-interval-seconds 60 \
+--network-name fuji
 ```
-
