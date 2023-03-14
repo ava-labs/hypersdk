@@ -134,7 +134,7 @@ time of a block when running on powerful hardware.
 ### Account Abstraction
 The `hypersdk` makes no assumptions about how `Actions` (the primitive for
 interactions with any `hyperchain`, as explained below) are verified. Rather,
-`hypervm's` provide the `hypersdk` with a registry of supported `Auth` modules
+`hypervms` provide the `hypersdk` with a registry of supported `Auth` modules
 that can be used to validate each type of transaction. These `Auth` modules can
 perform simple things like signature verification or complex tasks like
 executing a WASM blob.
@@ -158,6 +158,23 @@ more efficient (we can gossip any valid transaction to any node instead of just
 the transactions for each account that can be executed at the moment).
 
 ### Avalanche Warp Messaging Support
+`hypersdk` supports Avalanche Warp Messaging (AWM) out-of-the-box. AWM enables
+any Avalanche Subnet to send a message to any another Avalanche Subnet without a trusted relayer/bridge
+using [BLS Multi-Signatures](https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html).
+Incoming messages are verified using the 
+
+To add AWM support to a `hypervm`, all an implementer needs to do is tell the
+`Action` registry that a particular `Action` expects an AWM payload. The
+`hypersdk` will provide that payload (or mark the block as invalid if it is
+missing), verify the AWM multi-signature, and collect AWM signatures from other
+validators so that anyone can generate an AWM message.
+
+
+(the ability for any Avalanche
+Subnet to send a message to another Avalanche Subnet without a trusted
+relayer) out-of-the-box.
+
+
 TODO
 * Processed in parallel during block execution
 * Actions either emit warp messages during execution or specify warp messages
