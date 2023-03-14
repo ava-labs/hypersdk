@@ -4,41 +4,28 @@
 package codec
 
 import (
-	"math"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 )
 
-// MaxItems stores the maximum items an optional packer can hold.
-// Since a bitset can range from [0, INT_MAX] the max number of
-// flags in a bitset is log2(INT_MAX).
-var MaxItems = uint8(math.Log2(float64(consts.MaxInt)))
-
 // OptionalPacker defines a struct that includes a Packer [ip], a bitset
 // [b] and an offset [offset]. [b] indicates which fields in the OptionalPacker
 // are present and which are not.
 type OptionalPacker struct {
-	b        set.Bits
-	MaxItems uint8
-	offset   uint8
-	ip       *Packer
+	b      set.Bits64
+	offset uint8
+	ip     *Packer
 }
 
 // NewOptionalWriter returns an instance of OptionalPacker that includes
 // a new Packer instance with MaxSize set to the maximum size. The maximum items
 // OptionalPacker can hold is set to [size]. If [size] > MaxItems sets
 // OptionalPackers MaxItems to MaxItems
-func NewOptionalWriter(size uint8) *OptionalPacker {
-	if size > MaxItems {
-		size = MaxItems
-	}
+func NewOptionalWriter() *OptionalPacker {
 	return &OptionalPacker{
-		ip:       NewWriter(consts.MaxInt),
-		b:        set.NewBits(),
-		MaxItems: size,
+		ip: NewWriter(consts.MaxInt),
 	}
 }
 
@@ -48,15 +35,11 @@ func NewOptionalWriter(size uint8) *OptionalPacker {
 // OptionalPackers MaxItems to MaxItems
 //
 // used when decoding
-func (p *Packer) NewOptionalReader(size uint8) *OptionalPacker {
-	if size > MaxItems {
-		size = MaxItems
-	}
+func (p *Packer) NewOptionalReader() *OptionalPacker {
 	o := &OptionalPacker{
-		ip:       p,
-		MaxItems: size,
+		ip: p,
 	}
-	o.b = set.BitsFromBytes([]byte{o.ip.UnpackByte()})
+	o.b = set.Bits64(o.ip.UnpackByte())
 	return o
 }
 
@@ -64,18 +47,18 @@ func (p *Packer) NewOptionalReader(size uint8) *OptionalPacker {
 // the offset. If offset exceeds the maximum offset, setBit returns without
 // updating the bitset and adds an error to the Packer.
 func (o *OptionalPacker) setBit() {
-	if o.offset >= o.MaxItems {
+	if o.offset > consts.MaxUint8Offset {
 		o.ip.addErr(ErrTooManyItems)
 		return
 	}
-	o.b.Add(int(o.offset))
+	o.b.Add(uint(o.offset))
 	o.offset++
 }
 
 // skipBit increments the offset. If offset already exceeds the maximum
 // offset, setBit returns and adds an error to the Packer.
 func (o *OptionalPacker) skipBit() {
-	if o.offset >= o.MaxItems {
+	if o.offset > consts.MaxUint8Offset {
 		o.ip.addErr(ErrTooManyItems)
 		return
 	}
@@ -85,7 +68,7 @@ func (o *OptionalPacker) skipBit() {
 // checkBit returns whether the OptionalPacker's bitset is true at the current
 // offset. Increments the offset.
 func (o *OptionalPacker) checkBit() bool {
-	result := o.b.Contains(int(o.offset))
+	result := o.b.Contains(uint(o.offset))
 	o.offset++
 	return result
 }
@@ -158,7 +141,7 @@ func (p *Packer) PackOptional(o *OptionalPacker) {
 	if o.b.Len() == 0 {
 		p.PackByte(0)
 	} else {
-		p.PackFixedBytes(o.b.Bytes())
+		p.PackByte(uint8(o.b))
 	}
 	p.PackFixedBytes(o.ip.Bytes())
 }
