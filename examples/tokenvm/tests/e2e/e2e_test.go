@@ -674,6 +674,9 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 	ginkgo.It("state sync while broadcasting transactions", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
+			// Recover failure if exits
+			defer ginkgo.GinkgoRecover()
+
 			for ctx.Err() == nil {
 				other, err := crypto.GeneratePrivateKey()
 				gomega.Ω(err).Should(gomega.BeNil())
@@ -688,14 +691,17 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 				gomega.Ω(err).Should(gomega.BeNil())
 
 				// Broadcast and wait for transaction
-				if err := submit(context.Background()); err != nil {
-					hutils.Outf(
-						"{{yellow}}tx broadcast failed:{{/}} %v\n",
-						err,
-					)
-					time.Sleep(5 * time.Second)
-					continue
-				}
+				gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+
+				// TODO: restore after encountering error
+				// if err := submit(context.Background()); err != nil {
+				// 	hutils.Outf(
+				// 		"{{yellow}}tx broadcast failed:{{/}} %v\n",
+				// 		err,
+				// 	)
+				// 	time.Sleep(5 * time.Second)
+				// 	continue
+				// }
 				count++
 				_, height, err := instances[0].cli.Accepted(context.Background())
 				gomega.Ω(err).Should(gomega.BeNil())
@@ -829,11 +835,14 @@ func awaitHealthy(cli runner_sdk.Client) {
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Broadcast and wait for transaction
-		if err := submit(context.Background()); err != nil {
-			hutils.Outf(
-				"{{yellow}}tx broadcast failed:{{/}} %v\n",
-				err,
-			)
-		}
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+
+		// TODO: restore after encountering error
+		// if err := submit(context.Background()); err != nil {
+		// 	hutils.Outf(
+		// 		"{{yellow}}tx broadcast failed:{{/}} %v\n",
+		// 		err,
+		// 	)
+		// }
 	}
 }
