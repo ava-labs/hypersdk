@@ -172,47 +172,6 @@ high-performance functionality through the use of [BLS Multi-Signatures](https:/
 Incoming messages are verified using the 
 0----
 
-To add AWM support to a `hypervm`, all an implementer needs to do is tell the
-`Action`/`Auth` registry that a particular `Action`/`Auth` expects an AWM payload:
-```golang
-		consts.ActionRegistry.Register(&actions.Transfer{}, actions.UnmarshalTransfer, false),
-		consts.ActionRegistry.Register(&actions.CreateAsset{}, actions.UnmarshalCreateAsset, false),
-		consts.ActionRegistry.Register(&actions.MintAsset{}, actions.UnmarshalMintAsset, false),
-		consts.ActionRegistry.Register(&actions.BurnAsset{}, actions.UnmarshalBurnAsset, false),
-		consts.ActionRegistry.Register(&actions.ModifyAsset{}, actions.UnmarshalModifyAsset, false),
-		consts.ActionRegistry.Register(&actions.CreateOrder{}, actions.UnmarshalCreateOrder, false),
-		consts.ActionRegistry.Register(&actions.FillOrder{}, actions.UnmarshalFillOrder, false),
-		consts.ActionRegistry.Register(&actions.CloseOrder{}, actions.UnmarshalCloseOrder, false),
-		consts.ActionRegistry.Register(&actions.ImportAsset{}, actions.UnmarshalImportAsset, true),
-		consts.ActionRegistry.Register(&actions.ExportAsset{}, actions.UnmarshalExportAsset, false),
-
-		consts.AuthRegistry.Register(&auth.ED25519{}, auth.UnmarshalED25519, false),
-```
-
-Using the provided warp.Message is then as simple as:
-```golang
-func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
-	var (
-		imp ImportAsset
-		err error
-	)
-	imp.Fill = p.UnpackBool()
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	imp.warpMessage = wm
-	imp.warpTransfer, err = UnmarshalWarpTransfer(imp.warpMessage.Payload)
-	if err != nil {
-		return nil, err
-	}
-	// Ensure we can fill the swap if it exists
-	if imp.Fill && imp.warpTransfer.SwapIn == 0 {
-		return nil, ErrNoSwapToFill
-	}
-	return &imp, nil
-}
-```
-
 
 The `hypersdk` will provide that payload (or mark the block as invalid if it is
 missing), verify the AWM multi-signatures in a block (in parallel), and collect AWM signatures from other
@@ -503,6 +462,50 @@ You can view what this looks like in the `indexvm` by clicking
 [here](https://github.com/ava-labs/indexvm/blob/main/genesis/rules.go). In the
 case of the `indexvm`, the custom rule support is used to set the cost for
 adding anything to state (which is a very `hypervm-specific` value).
+
+### Avalanche Warp Messaging
+To add AWM support to a `hypervm`, an implementer specifies whether a
+particular `Action`/`Auth` item expects a `*warp.Message` when registering
+them with the corresponding registry:
+// TODO: need to explain where a registry comes in?
+```golang
+// Transfer actions are for transfers
+ActionRegistry.Register(&actions.Transfer{}, actions.UnmarshalTransfer, false)
+ActionRegistry.Register(&actions.ImportAsset{}, actions.UnmarshalImportAsset, true)
+```
+For example, registering AWM `Actions` looks like this on
+the `tokenvm` (the `true` or `false` argument at the end of each line):
+
+You can view what a simple transfer `Action` looks like [here](./examples/tokenvm/actions/transfer.go)
+
+
+Using the provided warp.Message is then as simple as (see
+`warpMessage.Payload`):
+```golang
+func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
+	var (
+		imp ImportAsset
+		err error
+	)
+	imp.Fill = p.UnpackBool()
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
+	imp.warpMessage = wm
+	imp.warpTransfer, err = UnmarshalWarpTransfer(imp.warpMessage.Payload)
+	if err != nil {
+		return nil, err
+	}
+	// Ensure we can fill the swap if it exists
+	if imp.Fill && imp.warpTransfer.SwapIn == 0 {
+		return nil, ErrNoSwapToFill
+	}
+	return &imp, nil
+}
+```
+
+You can view what a simple transfer `Action` looks like [here](./examples/tokenvm/actions/transfer.go)
+
 
 ## Future Work
 _If you want to take the lead on any of these items, please
