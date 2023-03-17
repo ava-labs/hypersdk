@@ -477,7 +477,6 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 					lastHeight = height
 					hutils.Outf("{{yellow}}height=%d count=%d{{/}}\n", height, count)
 				}
-				time.Sleep(5 * time.Millisecond)
 			}
 		}
 	})
@@ -589,7 +588,6 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 					lastHeight = height
 					hutils.Outf("{{yellow}}height=%d count=%d{{/}}\n", height, count)
 				}
-				time.Sleep(5 * time.Millisecond)
 			}
 		}
 
@@ -677,6 +675,9 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 			// Recover failure if exits
 			defer ginkgo.GinkgoRecover()
 
+			// Generate new transactions until the context is cancelled.
+			//
+			// Instances could be shutdown in this loop so we don't fail on error.
 			for ctx.Err() == nil {
 				other, err := crypto.GeneratePrivateKey()
 				gomega.Ω(err).Should(gomega.BeNil())
@@ -688,28 +689,36 @@ var _ = ginkgo.Describe("[Transfer]", func() {
 					},
 					factory,
 				)
-				gomega.Ω(err).Should(gomega.BeNil())
-
-				// Broadcast and wait for transaction
-				gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-
-				// TODO: restore after encountering error
-				// if err := submit(context.Background()); err != nil {
-				// 	hutils.Outf(
-				// 		"{{yellow}}tx broadcast failed:{{/}} %v\n",
-				// 		err,
-				// 	)
-				// 	time.Sleep(5 * time.Second)
-				// 	continue
-				// }
+				if err != nil {
+					hutils.Outf(
+						"{{yellow}}unable to generate transaction:{{/}} %v\n",
+						err,
+					)
+					time.Sleep(5 * time.Second)
+					continue
+				}
+				if err := submit(context.Background()); err != nil {
+					hutils.Outf(
+						"{{yellow}}tx broadcast failed:{{/}} %v\n",
+						err,
+					)
+					time.Sleep(5 * time.Second)
+					continue
+				}
 				count++
 				_, height, err := instances[0].cli.Accepted(context.Background())
-				gomega.Ω(err).Should(gomega.BeNil())
+				if err != nil {
+					hutils.Outf(
+						"{{yellow}}height lookup failed:{{/}} %v\n",
+						err,
+					)
+					time.Sleep(5 * time.Second)
+					continue
+				}
 				if height > lastHeight {
 					lastHeight = height
 					hutils.Outf("{{yellow}}height=%d count=%d{{/}}\n", height, count)
 				}
-				time.Sleep(5 * time.Millisecond)
 			}
 		}()
 
@@ -836,13 +845,5 @@ func awaitHealthy(cli runner_sdk.Client) {
 
 		// Broadcast and wait for transaction
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-
-		// TODO: restore after encountering error
-		// if err := submit(context.Background()); err != nil {
-		// 	hutils.Outf(
-		// 		"{{yellow}}tx broadcast failed:{{/}} %v\n",
-		// 		err,
-		// 	)
-		// }
 	}
 }
