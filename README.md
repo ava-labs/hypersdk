@@ -158,30 +158,81 @@ more efficient (we can gossip any valid transaction to any node instead of just
 the transactions for each account that can be executed at the moment).
 
 ### Avalanche Warp Messaging Support
-`hypersdk` supports Avalanche Warp Messaging (AWM) out-of-the-box. AWM enables
-any Avalanche Subnet to send a message to any another Avalanche Subnet without a trusted relayer/bridge
-using [BLS Multi-Signatures](https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html).
+`hypersdk` provides support for Avalanche Warp Messaging (AWM) out-of-the-box. AWM, if you
+aren't familiar, enables any Avalanche Subnet to send a message to any another Avalanche
+Subnet in just a few seconds (or less) without relying on a trusted relayer or bridge.
+
+0----
+To understand how AWM
+is able to provide this funcaion
+
+
+AWM provides this secure,
+high-performance functionality through the use of [BLS Multi-Signatures](https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html).
 Incoming messages are verified using the 
+0----
 
 To add AWM support to a `hypervm`, all an implementer needs to do is tell the
-`Action` registry that a particular `Action` expects an AWM payload. The
-`hypersdk` will provide that payload (or mark the block as invalid if it is
-missing), verify the AWM multi-signature, and collect AWM signatures from other
+`Action`/`Auth` registry that a particular `Action`/`Auth` expects an AWM payload:
+```golang
+		consts.ActionRegistry.Register(&actions.Transfer{}, actions.UnmarshalTransfer, false),
+		consts.ActionRegistry.Register(&actions.CreateAsset{}, actions.UnmarshalCreateAsset, false),
+		consts.ActionRegistry.Register(&actions.MintAsset{}, actions.UnmarshalMintAsset, false),
+		consts.ActionRegistry.Register(&actions.BurnAsset{}, actions.UnmarshalBurnAsset, false),
+		consts.ActionRegistry.Register(&actions.ModifyAsset{}, actions.UnmarshalModifyAsset, false),
+		consts.ActionRegistry.Register(&actions.CreateOrder{}, actions.UnmarshalCreateOrder, false),
+		consts.ActionRegistry.Register(&actions.FillOrder{}, actions.UnmarshalFillOrder, false),
+		consts.ActionRegistry.Register(&actions.CloseOrder{}, actions.UnmarshalCloseOrder, false),
+		consts.ActionRegistry.Register(&actions.ImportAsset{}, actions.UnmarshalImportAsset, true),
+		consts.ActionRegistry.Register(&actions.ExportAsset{}, actions.UnmarshalExportAsset, false),
+
+		consts.AuthRegistry.Register(&auth.ED25519{}, auth.UnmarshalED25519, false),
+```
+
+Using the provided warp.Message is then as simple as:
+```golang
+func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
+	var (
+		imp ImportAsset
+		err error
+	)
+	imp.Fill = p.UnpackBool()
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
+	imp.warpMessage = wm
+	imp.warpTransfer, err = UnmarshalWarpTransfer(imp.warpMessage.Payload)
+	if err != nil {
+		return nil, err
+	}
+	// Ensure we can fill the swap if it exists
+	if imp.Fill && imp.warpTransfer.SwapIn == 0 {
+		return nil, ErrNoSwapToFill
+	}
+	return &imp, nil
+}
+```
+
+
+The `hypersdk` will provide that payload (or mark the block as invalid if it is
+missing), verify the AWM multi-signatures in a block (in parallel), and collect AWM signatures from other
 validators so that anyone can generate an AWM message.
 
+But wait, that isn't all. Half the challenge of implementing AWM is relaying
+messages and generating the required signatures. The VM will automatically
+fetch all signatues from other validators and serve them over RPC. The client
+will then invoke a single node, request all signatures, and generate
+a multi-signature.
 
-(the ability for any Avalanche
-Subnet to send a message to another Avalanche Subnet without a trusted
-relayer) out-of-the-box.
+VMs also store all Warp Messages in state so that any validator can generate
+a signature at any time. This is required so that a client can retry messages
+if the validator set changes between the time of generation and broadcast.
 
+Lastly, we pin the result of all warp message verification to the block so that
+bootstrapping clients don't need to verify warp message signatures when processing
+blocks.
 
-TODO
-* Processed in parallel during block execution
-* Actions either emit warp messages during execution or specify warp messages
-  as a dependency
-* Pinned to block result so that lite clients and/or bootstrapping nodes don't
-  need to verifresultChany warp messages (which can be expensive)
-* Max 64 per block for now
+_In the future,  bench validators that don't provide signatures..._
 
 ### Easy Functionality Upgrades
 Every object that can appear on-chain (i.e. `Actions` and/or `Auth`) and every chain

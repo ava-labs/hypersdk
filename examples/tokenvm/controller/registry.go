@@ -16,8 +16,8 @@ import (
 
 // Setup types
 func init() {
-	consts.ActionRegistry = codec.NewTypeParser[chain.Action, *warp.Message, bool]()
-	consts.AuthRegistry = codec.NewTypeParser[chain.Auth, *warp.Message, bool]()
+	consts.ActionRegistry = codec.NewTypeParser[chain.Action, *warp.Message]()
+	consts.AuthRegistry = codec.NewTypeParser[chain.Auth, *warp.Message]()
 
 	errs := &wrappers.Errs{}
 	errs.Add(
