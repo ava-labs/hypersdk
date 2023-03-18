@@ -180,28 +180,10 @@ Warp Message from another Subnet is handled on a destination (if the
 destination chooses to even accept the message), and enabling retries in the
 case that a message is dropped or the BLS Multi-Signature expires is left to the implementer.
 
-The `hypersdk` all of these things and simplies AWM to simply be defining the message to send and
-handling what a message does.
-
-The `hypersdk` will provide that payload (or mark the block as invalid if it is
-missing), verify the AWM multi-signatures in a block (in parallel), and collect AWM signatures from other
-validators so that anyone can generate an AWM message.
-
-But wait, that isn't all. Half the challenge of implementing AWM is relaying
-messages and generating the required signatures. The VM will automatically
-fetch all signatues from other validators and serve them over RPC. The client
-will then invoke a single node, request all signatures, and generate
-a multi-signature.
-
-VMs also store all Warp Messages in state so that any validator can generate
-a signature at any time. This is required so that a client can retry messages
-if the validator set changes between the time of generation and broadcast.
-
-Lastly, we pin the result of all warp message verification to the block so that
-bootstrapping clients don't need to verify warp message signatures when processing
-blocks.
-
-_In the future,  bench validators that don't provide signatures..._
+The `hypersdk` handles all of the above items for you when implementing a `hypervm` except
+for defining when you should emit a Warp Message to send to another Subnet,
+what this Warp Message should look like, and what you should do if you recieve
+a Warp Message (i.e. only the parts you probably want to care about).
 
 ### Easy Functionality Upgrades
 Every object that can appear on-chain (i.e. `Actions` and/or `Auth`) and every chain
@@ -588,7 +570,27 @@ type StateManager interface {
 }
 ```
 
+The `hypersdk` will provide that payload (or mark the block as invalid if it is
+missing), verify the AWM multi-signatures in a block (in parallel), and collect AWM signatures from other
+validators so that anyone can generate an AWM message.
+
+But wait, that isn't all. Half the challenge of implementing AWM is relaying
+messages and generating the required signatures. The VM will automatically
+fetch all signatues from other validators and serve them over RPC. The client
+will then invoke a single node, request all signatures, and generate
+a multi-signature.
+
+VMs also store all Warp Messages in state so that any validator can generate
+a signature at any time. This is required so that a client can retry messages
+if the validator set changes between the time of generation and broadcast.
+
+Lastly, we pin the result of all warp message verification to the block so that
+bootstrapping clients don't need to verify warp message signatures when processing
+blocks.
+
 You can view what a simple transfer `Action` looks like [here](./examples/tokenvm/actions/transfer.go)
+
+_In the future, bench validators that don't provide signatures..._
 
 ## Future Work
 _If you want to take the lead on any of these items, please
