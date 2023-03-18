@@ -158,9 +158,9 @@ more efficient (we can gossip any valid transaction to any node instead of just
 the transactions for each account that can be executed at the moment).
 
 ### Avalanche Warp Messaging Support
-`hypersdk` provides support for Avalanche Warp Messaging (AWM) out-of-the-box. AWM, if you
-aren't familiar, enables any Avalanche Subnet to send arbitrary messages to any another Avalanche
-Subnet in just a few seconds (or less) without relying on a trusted relayer or bridge. You can learn more about
+`hypersdk` provides support for Avalanche Warp Messaging (AWM) out-of-the-box. AWM enables any
+Avalanche Subnet to send arbitrary messages to any another Avalanche Subnet in just a few
+seconds (or less) without relying on a trusted relayer or bridge. You can learn more about
 AWM and how it works
 [here](https://docs.google.com/presentation/d/1eV4IGMB7qNV7Fc4hp7NplWxK_1cFycwCMhjrcnsE9mU/edit).
 
@@ -168,16 +168,20 @@ AWM and how it works
   <img width="90%" alt="warp" src="assets/warp.png">
 </p>
 
-To utilize AWM, validators on any Avalanche Custom VM (VM) running on a Subnet must each be able to produce
-a BLS signature for each AWM payloads (i.e. export funds from Chain X on Subnet A to
-Chain Y on Subnet B). Additionally, the recipient chain (i.e. Chain Y on Subnet
-B) must be able to validate [BLS Multi-Signatures](https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html)
-that are used to verify the message and must be able to parse the inner
-payload. Lastly, some user/relayer must aggregate these signatures and submit
-them as a transaction on the destination Subnet. The `hypersdk` addresses all
-of these things and simplies AWM to simply be defining the message to send and
-handling what a message does.
+AWM is a primitive provided by the Avalanche Network used to verify that
+a particular [BLS Multi-Signatures](https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html)
+is valid and signed by some % of the stake weight of a particular Avalanche
+Subnet (typically the Subnet where the message originated). Specifying when an
+Avalanche Custom VM produces a Warp Message for signing, defining the format
+of Warp Messages sent between Subnets, implementing some mechanism to gather
+individual signatures from validators (to aggregate into a BLS
+Multi-Signature) over this user-defined message, articulating how an imported
+Warp Message from another Subnet is handled on a destination (if the
+destination chooses to even accept the message), and enabling retries in the
+case that a message is dropped or the BLS Multi-Signature expires is left to the implementer.
 
+The `hypersdk` all of these things and simplies AWM to simply be defining the message to send and
+handling what a message does.
 
 The `hypersdk` will provide that payload (or mark the block as invalid if it is
 missing), verify the AWM multi-signatures in a block (in parallel), and collect AWM signatures from other
