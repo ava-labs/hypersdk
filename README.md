@@ -159,21 +159,18 @@ the transactions for each account that can be executed at the moment).
 
 ### Avalanche Warp Messaging Support
 `hypersdk` provides support for Avalanche Warp Messaging (AWM) out-of-the-box. AWM, if you
-aren't familiar, enables any Avalanche Subnet to send a message to any another Avalanche
+aren't familiar, enables any Avalanche Subnet to send arbitrary messages to any another Avalanche
 Subnet in just a few seconds (or less) without relying on a trusted relayer or bridge.
 
-In short, validators on a Subnet sign each export message with a BLS key and
-then the user combines....
-
-0----
-To understand how AWM
-is able to provide this funcaion
-
-
-AWM provides this secure,
-high-performance functionality through the use of [BLS Multi-Signatures](https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html).
-Incoming messages are verified using the 
-0----
+To utilize AWM, validators on any Avalanche Custom VM (VM) running on a Subnet must each be able to produce
+a BLS signature for each AWM payloads (i.e. export funds from Chain X on Subnet A to
+Chain Y on Subnet B). Additionally, the recipient chain (i.e. Chain Y on Subnet
+B) must be able to validate [BLS Multi-Signatures](https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html)
+that are used to verify the message and must be able to parse the inner
+payload. Lastly, some user/relayer must aggregate these signatures and submit
+them as a transaction on the destination Subnet. The `hypersdk` addresses all
+of these things and simplies AWM to simply be defining the message to send and
+handling what a message does.
 
 
 The `hypersdk` will provide that payload (or mark the block as invalid if it is
@@ -387,6 +384,7 @@ You can view what this looks like in the `tokenvm` by clicking this
 [link](./examples/tokenvm/genesis/genesis.go).
 
 ### Action
+```golang
 type Action interface {
 	MaxUnits(Rules) uint64
 	ValidRange(Rules) (start int64, end int64)
@@ -400,18 +398,7 @@ type Action interface {
 		auth Auth,
 		txID ids.ID,
 		warpVerified bool,
-	) (result *Result, err error) // err should only be returned if fatal
-
-	Marshal(p *codec.Packer)
-}
-```golang
-type Action interface {
-	MaxUnits(Rules) uint64
-	ValidRange(Rules) (start int64, end int64)
-
-	StateKeys(Auth) [][]byte
-	WarpMessage() *warp.Message
-	Execute(ctx context.Context, r Rules, db Database, timestamp int64, auth Auth, txID ids.ID) (result *Result, err error)
+	) (result *Result, err error)
 
 	Marshal(p *codec.Packer)
 }
