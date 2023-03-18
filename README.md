@@ -162,6 +162,9 @@ the transactions for each account that can be executed at the moment).
 aren't familiar, enables any Avalanche Subnet to send a message to any another Avalanche
 Subnet in just a few seconds (or less) without relying on a trusted relayer or bridge.
 
+In short, validators on a Subnet sign each export message with a BLS key and
+then the user combines....
+
 0----
 To understand how AWM
 is able to provide this funcaion
@@ -312,9 +315,9 @@ required interfaces. Below, we'll cover some of the ones that your
 ```golang
 type Controller interface {
 	Initialize(
-		inner *VM,
+		inner *VM, // hypersdk VM
 		snowCtx *snow.Context,
-		gatherer metrics.MultiGatherer,
+		gatherer ametrics.MultiGatherer,
 		genesisBytes []byte,
 		upgradeBytes []byte,
 		configBytes []byte,
@@ -323,7 +326,7 @@ type Controller interface {
 		genesis Genesis,
 		builder builder.Builder,
 		gossiper gossiper.Gossiper,
-		blockDB database.Database,
+		vmDB database.Database,
 		stateDB database.Database,
 		handler Handlers,
 		actionRegistry chain.ActionRegistry,
@@ -333,10 +336,20 @@ type Controller interface {
 
 	Rules(t int64) chain.Rules
 
+	// StateManager is used by the VM to request keys to store required
+	// information in state (without clobbering things the Controller is
+	// storing).
+	StateManager() chain.StateManager
+
+	// Anything that the VM wishes to store outside of state or blocks must be
+	// recorded here
 	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
 	Rejected(ctx context.Context, blk *chain.StatelessBlock) error
 
-  Shutdown(ctx context.Context) error
+	// Shutdown should be used by the [Controller] to terminate any async
+	// processes it may be running in the background. It is invoked when
+	// `vm.Shutdown` is called.
+	Shutdown(context.Context) error
 }
 ```
 
@@ -348,6 +361,13 @@ boilerplate code.
 
 You can view what this looks like in the `tokenvm` by clicking this
 [link](./examples/tokenvm/controller/controller.go).
+
+#### Registry
+```golang
+ActionRegistry *codec.TypeParser[Action, *warp.Message, bool]
+AuthRegistry   *codec.TypeParser[Auth, *warp.Message, bool]
+```
+
 
 ### Genesis
 ```golang
@@ -367,6 +387,23 @@ You can view what this looks like in the `tokenvm` by clicking this
 [link](./examples/tokenvm/genesis/genesis.go).
 
 ### Action
+type Action interface {
+	MaxUnits(Rules) uint64
+	ValidRange(Rules) (start int64, end int64)
+
+	StateKeys(auth Auth, txID ids.ID) [][]byte
+	Execute(
+		ctx context.Context,
+		r Rules,
+		db Database,
+		timestamp int64,
+		auth Auth,
+		txID ids.ID,
+		warpVerified bool,
+	) (result *Result, err error) // err should only be returned if fatal
+
+	Marshal(p *codec.Packer)
+}
 ```golang
 type Action interface {
 	MaxUnits(Rules) uint64
@@ -387,6 +424,16 @@ any `hypersdk` transaction that is processed by all participants of any
 
 You can view what a simple transfer `Action` looks like [here](./examples/tokenvm/actions/transfer.go)
 and what a more complex "fill order" `Action` looks like [here](./examples/tokenvm/actions/fill_order.go).
+
+#### Result
+```golang
+type Result struct {
+	Success     bool
+	Units       uint64
+	Output      []byte
+	WarpMessage *warp.UnsignedMessage
+}
+```
 
 ### Auth
 ```golang
@@ -432,10 +479,8 @@ that an account owner can call to perform any ACL modifications.
 ### Rules
 ```golang
 type Rules interface {
-	GetWarpConfig(ids.ID) (bool, uint64, uint64)
-
 	GetMaxBlockTxs() int
-	GetMaxBlockUnits() uint64
+	GetMaxBlockUnits() uint64 // should ensure can't get above block max size
 
 	GetValidityWindow() int64
 	GetBaseUnits() uint64
@@ -447,6 +492,10 @@ type Rules interface {
 	GetMinBlockCost() uint64
 	GetBlockCostChangeDenominator() uint64
 	GetWindowTargetBlocks() uint64
+
+	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
+	GetWarpBaseFee() uint64
+	GetWarpFeePerSigner() uint64
 
 	FetchCustom(string) (any, bool)
 }
@@ -504,8 +553,45 @@ func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, erro
 }
 ```
 
-You can view what a simple transfer `Action` looks like [here](./examples/tokenvm/actions/transfer.go)
+Warp transfer example
+```golang
+type WarpTransfer struct {
+	To    crypto.PublicKey `json:"to"`
+	Asset ids.ID           `json:"asset"`
+	Value uint64           `json:"value"`
 
+	// Return is set to true when a warp message is sending funds back to the
+	// chain where they were created.
+	Return bool `json:"return"`
+
+	// Reward is the amount of [Asset] to send the [Actor] that submits this
+	// transaction.
+	Reward uint64 `json:"reward"`
+
+	// SwapIn is the amount of [Asset] we are willing to swap for [AssetOut].
+	SwapIn uint64 `json:"swapIn"`
+	// AssetOut is the asset we are seeking to get for [SwapIn].
+	AssetOut ids.ID `json:"assetOut"`
+	// SwapOut is the amount of [AssetOut] we are seeking.
+	SwapOut uint64 `json:"swapOut"`
+	// SwapExpiry is the unix timestamp at which the swap becomes invalid (and
+	// the message can be processed without a swap.
+	SwapExpiry int64 `json:"swapExpiry"`
+
+	// TxID is the transaction that created this message. This is used to ensure
+	// there is WarpID uniqueness.
+	TxID ids.ID `json:"txID"`
+}
+```
+
+```golang
+type StateManager interface {
+	IncomingWarpKey(sourceChainID ids.ID,msgID ids.ID) []byte
+	OutgoingWarpKey(txID ids.ID) []byte
+}
+```
+
+You can view what a simple transfer `Action` looks like [here](./examples/tokenvm/actions/transfer.go)
 
 ## Future Work
 _If you want to take the lead on any of these items, please
