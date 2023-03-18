@@ -262,7 +262,7 @@ maintains by syncing blocks. If you are interested in the intersection of
 exchanges and blockchains, it is definitely worth a read (the logic for filling
 orders is < 100 lines of code!).
 
-To ensure the `hypersdk` stays reliable as we optimize and evolve the codebase,
+To ensure the `hypersdk` remains reliable as we optimize and evolve the codebase,
 we also run E2E tests in the `tokenvm` on each PR to the `hypersdk` core modules.
 
 ### Expert: `indexvm`
@@ -326,20 +326,11 @@ type Controller interface {
 	)
 
 	Rules(t int64) chain.Rules
-
-	// StateManager is used by the VM to request keys to store required
-	// information in state (without clobbering things the Controller is
-	// storing).
 	StateManager() chain.StateManager
 
-	// Anything that the VM wishes to store outside of state or blocks must be
-	// recorded here
 	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
 	Rejected(ctx context.Context, blk *chain.StatelessBlock) error
 
-	// Shutdown should be used by the [Controller] to terminate any async
-	// processes it may be running in the background. It is invoked when
-	// `vm.Shutdown` is called.
 	Shutdown(context.Context) error
 }
 ```
@@ -359,6 +350,14 @@ ActionRegistry *codec.TypeParser[Action, *warp.Message, bool]
 AuthRegistry   *codec.TypeParser[Auth, *warp.Message, bool]
 ```
 
+The `ActionRegistry` and `AuthRegistry` are inform the `hypersdk` how to
+marshal/unmarshal bytes on-the-wire. If the `Controller` did not provide these,
+the `hypersdk` would not know how to extract anything from the bytes it was
+provded by the Avalanche Consensus Engine.
+
+_In the future, we will provide an option to automatically marshal/unmarshal
+objects if an `ActionRegistry` and/or `AuthRegistry` is not provided using
+a default codec._
 
 ### Genesis
 ```golang
@@ -415,6 +414,12 @@ type Result struct {
 	WarpMessage *warp.UnsignedMessage
 }
 ```
+
+`Actions` emit a `Result` at the end of their execution. This `Result`
+indicates if the execution was a `Success` (if not, all effects are rolled
+back), how many `Units` were used (failed execution may not use all units an
+`Action` requested), an `Output` (arbitrary bytes specific to the `hypervm`),
+and optionally a `WarpMessage` (which Subnet Validators will sign).
 
 ### Auth
 ```golang
@@ -562,13 +567,6 @@ type WarpTransfer struct {
 	// TxID is the transaction that created this message. This is used to ensure
 	// there is WarpID uniqueness.
 	TxID ids.ID `json:"txID"`
-}
-```
-
-```golang
-type StateManager interface {
-	IncomingWarpKey(sourceChainID ids.ID,msgID ids.ID) []byte
-	OutgoingWarpKey(txID ids.ID) []byte
 }
 ```
 
