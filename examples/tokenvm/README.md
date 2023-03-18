@@ -106,6 +106,34 @@ see fit at the time and not have to worry about your fill sitting around until y
 explicitly cancel it/replace it.
 
 ### Avalanche Warp Support
+We take advantage of the Avalanche Warp Messaging (AWM) support provided by the
+`hypersdk` to enable any `tokenvm` to send assets to any other `tokenvm` without
+relying on a trusted relayer or bridge (just the validators of the `tokenvm`
+sending the message).
+
+By default, a `tokenvm` will accept a message from another `tokenvm` if 80% of
+the stake weight of the source has signed it. Because each imported asset is
+given a unique `AssetID` (hash of `sourceChainID + sourceAssetID`), it is not
+possible for a malicious/rogue Subnet to corrupt token balances imported from
+other Subnets with this default import setting.
+
+AWM does not impose any additional overhead per `tokenvm` you communicate with,
+so it is just as cheap to communicate with every other `tokenvm` as it is to
+only communicate with one. We utilize this 
+
+To limit exposure to a `tokenvm` failure, `tokenvms` only allow exports of natively
+minted assets. Because AWM
+does not require additional overhead per connection (each Subnet to Subnet
+communication path), we do not need to allow assets to flow more than one hop
+away from the source. This is a FANTASTIC property if there is a security
+failure because `tokenvms` can't be indirectly impacted by assets held on
+indirect paths (and can ensure any asset they import has clear provenance/and
+has certain stake %).
+
+and track total exports ("loans") to each `tokenvm`.  Additionally,
+
+allows for "no overhead" many-to-many broadcast
+
 * Send asset between any 2 tokenvms
 * Limit exposure of large hack by restricting warp to only origin + destination
   (can't warp a warp asset somewhere else)
@@ -121,7 +149,8 @@ explicitly cancel it/replace it.
 
 TODO: talk about local test (15 nodes, 2 subnets with no overlap)
 
-## Mint and Trade Demo
+## Examples
+### Mint and Trade
 Someone: "Seems cool but I need to see it to really get it."
 Me: "Look no further."
 
@@ -137,7 +166,7 @@ key for this address is
 `0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7`.
 For convenience, this key has is also stored at `demo.pk`.
 
-### Step 1: Build the CLI
+#### Step 1: Build the CLI
 To make it easy to interact with the `tokenvm`, we implemented the `token-cli`.
 You can build it using the following command from this location:
 ```bash
@@ -146,7 +175,7 @@ You can build it using the following command from this location:
 
 This command will put the compiled CLI in `./build/token-cli`.
 
-### Step 2: Create Your Asset
+#### Step 2: Create Your Asset
 First up, let's create our own asset. You can do so by running the following
 command from this location:
 ```bash
@@ -166,7 +195,7 @@ assetID: 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF
 The "loaded address" here is the address of the default private key (`demo.pk`). We
 use this key to authenticate all interactions with the `tokenvm`.
 
-### Step 3: Mint Your Asset
+#### Step 3: Mint Your Asset
 After we've created our own asset, we can now mint some of it. You can do so by
 running the following command from this location:
 ```bash
@@ -187,7 +216,7 @@ transaction succeeded
 txID: 2TX47uKj1ax4rS8oFzPLrwBDkRXwAUwPHL6cToDT8BmeAYTANo
 ```
 
-### Step 4: View Your Balance
+#### Step 4: View Your Balance
 Now, let's check that the mint worked right by checking our balance. You can do
 so by running the following command from this location:
 ```bash
@@ -203,7 +232,7 @@ assetID (use TKN for native token): 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyD
 balance: 10000 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF
 ```
 
-### Step 5: Create an Order
+#### Step 5: Create an Order
 So, we have some of our token (`MarioCoin`)...now what? Let's put an order
 on-chain that will allow someone to trade the native token (`TKN`) for some.
 You can do so by running the following command from this location:
@@ -233,7 +262,7 @@ The "in tick" is how much of the "in assetID" that someone must trade to get
 "in tick" to be considered valid (this avoid ANY sort of precision issues with
 computing decimal rates on-chain).
 
-### Step 6: Fill Part of the Order
+#### Step 6: Fill Part of the Order
 Now that we have an order on-chain, let's fill it! You can do so by running the
 following command from this location:
 ```bash
@@ -261,7 +290,7 @@ txID: gMPc9DhFLthpb5DEtFBrXTrs8wK7FA31P3xd5w518Xbq76K6q
 Note how all available orders for this pair are listed by the CLI (these come
 from the in-memory order book maintained by the `tokenvm`).
 
-### Step 5: Close Order
+#### Step 7: Close Order
 Let's say we now changed our mind and no longer want to allow others to fill
 our order. You can cancel it by running the following command from this
 location:
@@ -283,7 +312,7 @@ txID: 2iTnmhJUiUvC3wrwx8KLkV4aCJJCWAwZVRE8YVp8i6LdpDTyqg
 Any funds that were locked up in the order will be returned to the creator's
 account.
 
-### Bonus: Watch Activity in Real-Time
+#### Bonus: Watch Activity in Real-Time
 To provide a better sense of what is actually happening on-chain, the
 `index-cli` comes bundled with a simple explorer that logs all blocks/txs that
 occur on-chain. You can run this utility by running the following command from
@@ -304,7 +333,10 @@ height:6 txs:1 units:464 root:M5M5ZXNAPoBvkkjRCzpFD8qKkiuKpZKSYCSvdhby3gYA7GKww
 ✅ 2iTnmhJUiUvC3wrwx8KLkV4aCJJCWAwZVRE8YVp8i6LdpDTyqg actor: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp units: 464 summary (*actions.CloseOrder): [orderID: DZK5sQGk8jTyAfcPDxfHwdx5z9WFEFeqKQPgpNevLkeRV52xq]
 ```
 
-## Running a Load Test
+### Transfer Assets to Another Subnet
+TODO
+
+### Running a Load Test
 The `tokenvm` load test will provision 5 `tokenvms` and process 500k transfers
 on each between 10k different accounts.
 
@@ -317,7 +349,7 @@ network delay or consensus overhead. It just tests the underlying performance
 of the `hypersdk` and the storage engine used (in this case MerkleDB on top of
 Pebble)._
 
-### Measuring Disk Speed
+#### Measuring Disk Speed
 This test is extremely sensitive to disk performance. When reporting any TPS
 results, please include the output of:
 
