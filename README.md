@@ -178,12 +178,14 @@ individual signatures from validators (to aggregate into a BLS
 Multi-Signature) over this user-defined message, articulating how an imported
 Warp Message from another Subnet is handled on a destination (if the
 destination chooses to even accept the message), and enabling retries in the
-case that a message is dropped or the BLS Multi-Signature expires is left to the implementer.
+case that a message is dropped or the BLS Multi-Signature expires are just a few of the items
+left to the implementer.
 
-The `hypersdk` handles all of the above items for you when implementing a `hypervm` except
-for defining when you should emit a Warp Message to send to another Subnet,
-what this Warp Message should look like, and what you should do if you recieve
-a Warp Message (i.e. only the parts you probably want to care about).
+The `hypersdk` handles all of the above items for you except for defining when
+you should emit a Warp Message to send to another Subnet (i.e. what an export looks like on-chain),
+what this Warp Message should look like (i.e. what do you want to send to another Subnet), and
+what you should do if you recieve a Warp Message (i.e. mint assets if you
+receive an import).
 
 ### Easy Functionality Upgrades
 Every object that can appear on-chain (i.e. `Actions` and/or `Auth`) and every chain
