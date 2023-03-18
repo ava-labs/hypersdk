@@ -499,23 +499,24 @@ case of the `indexvm`, the custom rule support is used to set the cost for
 adding anything to state (which is a very `hypervm-specific` value).
 
 ### Avalanche Warp Messaging
-To add AWM support to a `hypervm`, an implementer specifies whether a
+To add AWM support to a `hypervm`, an implementer first specifies whether a
 particular `Action`/`Auth` item expects a `*warp.Message` when registering
-them with the corresponding registry:
-// TODO: need to explain where a registry comes in?
+them with their corresponding registry (`false` if no expected and `true` if
+so):
 ```golang
-// Transfer actions are for transfers
 ActionRegistry.Register(&actions.Transfer{}, actions.UnmarshalTransfer, false)
 ActionRegistry.Register(&actions.ImportAsset{}, actions.UnmarshalImportAsset, true)
 ```
-For example, registering AWM `Actions` looks like this on
-the `tokenvm` (the `true` or `false` argument at the end of each line):
 
-You can view what a simple transfer `Action` looks like [here](./examples/tokenvm/actions/transfer.go)
+You can view what this looks like in the `tokenvm` by clicking
+[here](./examples/tokenvm/controller/registry.go). The `hypersdk` uses this
+boolean to enforce the existence/non-existence of a `*warp.Message` on the
+`chain.Transaction` that wraps the `Action` (marking a block as invalid if there is
+something unexpected).
 
-
-Using the provided warp.Message is then as simple as (see
-`warpMessage.Payload`):
+`Actions` can use the provided `*warp.Message` in their registered unmarshaler
+(in this case, the provided `*warp.Message` is parsed into a format specified
+by the `tokenvm`):
 ```golang
 func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
 	var (
@@ -539,7 +540,7 @@ func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, erro
 }
 ```
 
-Warp transfer example
+This `WarpTransfer` object looks like:
 ```golang
 type WarpTransfer struct {
 	To    crypto.PublicKey `json:"to"`
@@ -570,27 +571,13 @@ type WarpTransfer struct {
 }
 ```
 
-The `hypersdk` will provide that payload (or mark the block as invalid if it is
-missing), verify the AWM multi-signatures in a block (in parallel), and collect AWM signatures from other
-validators so that anyone can generate an AWM message.
+You can view what the import `Action` associated with the above examples looks like
+[here](./examples/tokenvm/actions/import_asset.go)
 
-But wait, that isn't all. Half the challenge of implementing AWM is relaying
-messages and generating the required signatures. The VM will automatically
-fetch all signatues from other validators and serve them over RPC. The client
-will then invoke a single node, request all signatures, and generate
-a multi-signature.
-
-VMs also store all Warp Messages in state so that any validator can generate
-a signature at any time. This is required so that a client can retry messages
-if the validator set changes between the time of generation and broadcast.
-
-Lastly, we pin the result of all warp message verification to the block so that
-bootstrapping clients don't need to verify warp message signatures when processing
-blocks.
-
-You can view what a simple transfer `Action` looks like [here](./examples/tokenvm/actions/transfer.go)
-
-_In the future, bench validators that don't provide signatures..._
+_As mentioned above, it is up to the `hypervm` to implement a message format
+that it can understand (so that it can parse inbound AWM messages). In the
+future, we expect that there will be common message definitions that will be
+compatible with most `hypervms` (and maintained in the `hypersdk`)._
 
 ## Future Work
 _If you want to take the lead on any of these items, please
