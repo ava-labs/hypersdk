@@ -160,7 +160,13 @@ the transactions for each account that can be executed at the moment).
 ### Avalanche Warp Messaging Support
 `hypersdk` provides support for Avalanche Warp Messaging (AWM) out-of-the-box. AWM, if you
 aren't familiar, enables any Avalanche Subnet to send arbitrary messages to any another Avalanche
-Subnet in just a few seconds (or less) without relying on a trusted relayer or bridge.
+Subnet in just a few seconds (or less) without relying on a trusted relayer or bridge. You can learn more about
+AWM and how it works
+[here](https://docs.google.com/presentation/d/1eV4IGMB7qNV7Fc4hp7NplWxK_1cFycwCMhjrcnsE9mU/edit).
+
+<p align="center">
+  <img width="90%" alt="warp" src="assets/warp.png">
+</p>
 
 To utilize AWM, validators on any Avalanche Custom VM (VM) running on a Subnet must each be able to produce
 a BLS signature for each AWM payloads (i.e. export funds from Chain X on Subnet A to
