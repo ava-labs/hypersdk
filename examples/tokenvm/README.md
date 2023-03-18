@@ -137,7 +137,7 @@ a transaction that imports their message) and to swap for another asset when
 their message is imported (so they can acquire fee-paying tokens right when
 they arrive).
 
-You can see how this works by checking out the [E2E test suite](./tests/e2e_test.go) that
+You can see how this works by checking out the [E2E test suite](./tests/e2e/e2e_test.go) that
 runs through these flows.
 
 ## Examples
