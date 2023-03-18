@@ -115,39 +115,30 @@ By default, a `tokenvm` will accept a message from another `tokenvm` if 80% of
 the stake weight of the source has signed it. Because each imported asset is
 given a unique `AssetID` (hash of `sourceChainID + sourceAssetID`), it is not
 possible for a malicious/rogue Subnet to corrupt token balances imported from
-other Subnets with this default import setting.
+other Subnets with this default import setting. `tokenvms` also track the
+amount of assets exported to all other `tokenvms` and ensure that more assets
+can't be brought back from a `tokenvm` than were exported to it (prevents
+infinite minting).
 
-AWM does not impose any additional overhead per `tokenvm` you communicate with,
-so it is just as cheap to communicate with every other `tokenvm` as it is to
-only communicate with one. We utilize this 
+To limit "contagion" in the case of a `tokenvm` failure, we ONLY allow the
+export of natively minted assets to another `tokenvm`. This means you can
+transfer an asset between two `tokenvms` A and B but you can't export from
+`tokenvm` A to `tokenvm` B to `tokenvm` C. This ensures that the import policy
+for an external `tokenvm` is always transparent and is never inherited
+implicitly by the transfers between other `tokenvms`. The ability to impose
+this restriction (without massively driving up the cost of each transfer) is
+possible because AWM does not impose an additional overhead per Subnet
+connection (no "per connection" state to maintain). This means it is just as
+cheap/scalable to communicate with every other `tokenvm` as it is to only
+communicate with one.
 
-To limit exposure to a `tokenvm` failure, `tokenvms` only allow exports of natively
-minted assets. Because AWM
-does not require additional overhead per connection (each Subnet to Subnet
-communication path), we do not need to allow assets to flow more than one hop
-away from the source. This is a FANTASTIC property if there is a security
-failure because `tokenvms` can't be indirectly impacted by assets held on
-indirect paths (and can ensure any asset they import has clear provenance/and
-has certain stake %).
+Lastly, the `tokenvm` allows users to both tip relayers (whoever sends
+a transaction that imports their message) and to swap for another asset when
+their message is imported (so they can acquire fee-paying tokens right when
+they arrive).
 
-and track total exports ("loans") to each `tokenvm`.  Additionally,
-
-allows for "no overhead" many-to-many broadcast
-
-* Send asset between any 2 tokenvms
-* Limit exposure of large hack by restricting warp to only origin + destination
-  (can't warp a warp asset somewhere else)
-  -> prevents a risky asset from a Subnet from "stealing reputation" of another
-  Subnet where it may export from
-* Auto-swap when processing import to get fee paying token (works very similar
-  to a RFQ)
-* assets take on a newID when they come into a subnet (so you can never have
-  a token that is identical to one that has different security properties)
-* Automatically accept warp messages if 80% of subnet signs (because each asset
-  takes on a new ID, a rogue subnet can't corrupt the balance or activity of
-  valid assets)
-
-TODO: talk about local test (15 nodes, 2 subnets with no overlap)
+You can see how this works by checking out the [E2E test suite](./tests/e2e_test.go) that
+runs through these flows.
 
 ## Examples
 ### Mint and Trade
