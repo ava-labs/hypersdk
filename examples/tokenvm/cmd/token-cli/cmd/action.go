@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
@@ -662,7 +663,11 @@ var exportAssetCmd = &cobra.Command{
 		// Determine destination
 		destination := sourceChainID
 		if !ret {
-			destination, err = promptID("destination")
+			currentChainID, _, err := GetDefaultChain()
+			if err != nil {
+				return err
+			}
+			destination, _, err = promptChain("destination", set.Set[ids.ID]{currentChainID: {}})
 			if err != nil {
 				return err
 			}
