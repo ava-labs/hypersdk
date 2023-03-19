@@ -400,7 +400,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	ginkgo.It("get currently accepted block ID", func() {
 		for _, inst := range instancesA {
 			cli := inst.cli
-			_, h, err := cli.Accepted(context.Background())
+			_, h, _, err := cli.Accepted(context.Background())
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(h).Should(gomega.Equal(uint64(0)))
 		}
@@ -459,7 +459,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 
 				// Ensure all blocks processed
 				for {
-					_, h, err := inst.cli.Accepted(context.Background())
+					_, h, _, err := inst.cli.Accepted(context.Background())
 					gomega.Ω(err).Should(gomega.BeNil())
 					if h > 0 {
 						break
@@ -1218,7 +1218,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			// Broadcast and wait for transaction
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			count++
-			_, height, err := instancesA[0].cli.Accepted(context.Background())
+			_, height, _, err := instancesA[0].cli.Accepted(context.Background())
 			gomega.Ω(err).Should(gomega.BeNil())
 			if height > 128 {
 				break
@@ -1310,7 +1310,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			// Broadcast and wait for transaction
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			count++
-			_, height, err := instancesA[0].cli.Accepted(context.Background())
+			_, height, _, err := instancesA[0].cli.Accepted(context.Background())
 			gomega.Ω(err).Should(gomega.BeNil())
 			if height > 128+1024 {
 				break
@@ -1400,7 +1400,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 				// Broadcast and wait for transaction
 				gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 				count++
-				_, height, err := instancesA[0].cli.Accepted(context.Background())
+				_, height, _, err := instancesA[0].cli.Accepted(context.Background())
 				gomega.Ω(err).Should(gomega.BeNil())
 				if height > lastHeight {
 					lastHeight = height

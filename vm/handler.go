@@ -81,14 +81,16 @@ func (h *Handler) SubmitTx(req *http.Request, args *SubmitTxArgs, reply *SubmitT
 }
 
 type LastAcceptedReply struct {
-	Height  uint64 `json:"height"`
-	BlockID ids.ID `json:"blockId"`
+	Height    uint64 `json:"height"`
+	BlockID   ids.ID `json:"blockId"`
+	Timestamp int64  `json:"timestamp"`
 }
 
 func (h *Handler) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
 	blk := h.vm.lastAccepted
 	reply.Height = blk.Hght
 	reply.BlockID = blk.ID()
+	reply.Timestamp = blk.Tmstmp
 	return nil
 }
 

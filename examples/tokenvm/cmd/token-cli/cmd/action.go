@@ -22,6 +22,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const dummyTransactionThreshold = 25
+
 var actionCmd = &cobra.Command{
 	Use: "action",
 	RunE: func(*cobra.Command, []string) error {
@@ -574,6 +576,29 @@ func performImport(ctx context.Context, scli *client.Client, dcli *client.Client
 	}
 	if !fill && wt.SwapExpiry > time.Now().Unix() {
 		return ErrMustFill
+	}
+
+	// If last block was > 30s ago, submit a dummy transfer
+	_, _, t, err := dcli.Accepted(ctx)
+	if err != nil {
+		return err
+	}
+	if time.Now().Unix()-t > dummyTransactionThreshold {
+		hutils.Outf("{{yellow}}submitting a transaction on destination to get a more recent timestamp before import{{/}}\n")
+		submit, tx, _, err := dcli.GenerateTransaction(ctx, nil, &actions.Transfer{}, factory)
+		if err != nil {
+			return err
+		}
+		if err := submit(ctx); err != nil {
+			return err
+		}
+		success, err := dcli.WaitForTransaction(ctx, tx.ID())
+		if err != nil {
+			return err
+		}
+		if !success {
+			hutils.Outf("{{orange}}dummy transaction was not successful, trying import anyways...{{/}}\n")
+		}
 	}
 
 	// Generate transaction

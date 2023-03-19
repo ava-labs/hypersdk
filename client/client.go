@@ -50,7 +50,7 @@ func (cli *Client) Network(ctx context.Context) (uint32, ids.ID, ids.ID, error) 
 	return resp.NetworkID, resp.SubnetID, resp.ChainID, err
 }
 
-func (cli *Client) Accepted(ctx context.Context) (ids.ID, uint64, error) {
+func (cli *Client) Accepted(ctx context.Context) (ids.ID, uint64, int64, error) {
 	resp := new(vm.LastAcceptedReply)
 	err := cli.Requester.SendRequest(
 		ctx,
@@ -58,7 +58,7 @@ func (cli *Client) Accepted(ctx context.Context) (ids.ID, uint64, error) {
 		nil,
 		resp,
 	)
-	return resp.BlockID, resp.Height, err
+	return resp.BlockID, resp.Height, resp.Timestamp, err
 }
 
 func (cli *Client) SuggestedRawFee(ctx context.Context) (uint64, uint64, error) {
