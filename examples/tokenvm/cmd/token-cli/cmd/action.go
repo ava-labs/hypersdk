@@ -578,27 +578,13 @@ func performImport(ctx context.Context, scli *client.Client, dcli *client.Client
 		return ErrMustFill
 	}
 
-	// If last block was > 30s ago, submit a dummy transfer
-	_, _, t, err := dcli.Accepted(ctx)
+	// Attempt to send dummy transaction if needed
+	success, err := submitDummy(ctx, dcli, factory)
 	if err != nil {
 		return err
 	}
-	if time.Now().Unix()-t > dummyTransactionThreshold {
-		hutils.Outf("{{yellow}}submitting a transaction on destination to get a more recent timestamp before import{{/}}\n")
-		submit, tx, _, err := dcli.GenerateTransaction(ctx, nil, &actions.Transfer{}, factory)
-		if err != nil {
-			return err
-		}
-		if err := submit(ctx); err != nil {
-			return err
-		}
-		success, err := dcli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return err
-		}
-		if !success {
-			hutils.Outf("{{orange}}dummy transaction was not successful, trying import anyways...{{/}}\n")
-		}
+	if !success {
+		hutils.Outf("{{orange}}dummy transaction was not successful, trying import anyways...{{/}}\n")
 	}
 
 	// Generate transaction
@@ -611,12 +597,38 @@ func performImport(ctx context.Context, scli *client.Client, dcli *client.Client
 	if err := submit(ctx); err != nil {
 		return err
 	}
-	success, err := dcli.WaitForTransaction(ctx, tx.ID())
+	success, err = dcli.WaitForTransaction(ctx, tx.ID())
 	if err != nil {
 		return err
 	}
 	printStatus(tx.ID(), success)
 	return nil
+}
+
+func submitDummy(ctx context.Context, cli *client.Client, factory *auth.ED25519Factory) (bool, error) {
+	// If last block was > 30s ago, submit a dummy transfer
+	_, _, t, err := cli.Accepted(ctx)
+	if err != nil {
+		return false, err
+	}
+	if time.Now().Unix()-t > dummyTransactionThreshold {
+		hutils.Outf("{{yellow}}submitting a transaction on destination to get a more recent timestamp before import{{/}}\n")
+		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{}, factory)
+		if err != nil {
+			return false, err
+		}
+		if err := submit(ctx); err != nil {
+			return false, err
+		}
+		success, err := cli.WaitForTransaction(ctx, tx.ID())
+		if err != nil {
+			return false, err
+		}
+		if !success {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 var importAssetCmd = &cobra.Command{
@@ -738,6 +750,15 @@ var exportAssetCmd = &cobra.Command{
 			return err
 		}
 
+		// Attempt to send dummy transaction if needed
+		success, err := submitDummy(ctx, cli, factory)
+		if err != nil {
+			return err
+		}
+		if !success {
+			hutils.Outf("{{orange}}dummy transaction was not successful, trying export anyways...{{/}}\n")
+		}
+
 		// Generate transaction
 		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.ExportAsset{
 			To:          recipient,
@@ -757,7 +778,7 @@ var exportAssetCmd = &cobra.Command{
 		if err := submit(ctx); err != nil {
 			return err
 		}
-		success, err := cli.WaitForTransaction(ctx, tx.ID())
+		success, err = cli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
 			return err
 		}
