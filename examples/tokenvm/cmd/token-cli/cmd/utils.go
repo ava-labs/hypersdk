@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
@@ -251,6 +252,45 @@ func promptID(label string) (ids.ID, error) {
 		return ids.Empty, err
 	}
 	return id, nil
+}
+
+func promptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, error) {
+	chains, err := GetChains()
+	if err != nil {
+		return ids.Empty, nil, err
+	}
+	filteredChains := make([]ids.ID, 0, len(chains))
+	excludedChains := []ids.ID{}
+	for chainID := range chains {
+		if excluded != nil && excluded.Contains(chainID) {
+			excludedChains = append(excludedChains, chainID)
+			continue
+		}
+		filteredChains = append(filteredChains, chainID)
+	}
+	if len(filteredChains) == 0 {
+		return ids.Empty, nil, ErrNoChains
+	}
+
+	// Select chain
+	hutils.Outf("{{cyan}}available chains:{{/}} %d {{cyan}}excluded:{{/}} %+v\n", len(filteredChains), excludedChains)
+	keys := make([]ids.ID, 0, len(filteredChains))
+	for chainID, uris := range chains {
+		hutils.Outf(
+			"%d) {{cyan}}chainID:{{/}} %s {{cyan}}uris:{{/}} %+v\n",
+			len(keys),
+			chainID,
+			uris,
+		)
+		keys = append(keys, chainID)
+	}
+
+	chainIndex, err := promptChoice(label, len(keys))
+	if err != nil {
+		return ids.Empty, nil, err
+	}
+	chainID := keys[chainIndex]
+	return chainID, chains[chainID], nil
 }
 
 func valueString(assetID ids.ID, value uint64) string {
