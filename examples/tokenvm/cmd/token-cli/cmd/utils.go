@@ -374,17 +374,17 @@ func getAssetInfo(
 	return balance, sourceChainID, nil
 }
 
-func defaultActor() (crypto.PrivateKey, *auth.ED25519Factory, *client.Client, error) {
+func defaultActor() (ids.ID, crypto.PrivateKey, *auth.ED25519Factory, *client.Client, error) {
 	priv, err := GetDefaultKey()
 	if err != nil {
-		return crypto.EmptyPrivateKey, nil, nil, err
+		return ids.Empty, crypto.EmptyPrivateKey, nil, nil, err
 	}
-	_, uris, err := GetDefaultChain()
+	chainID, uris, err := GetDefaultChain()
 	if err != nil {
-		return crypto.EmptyPrivateKey, nil, nil, err
+		return ids.Empty, crypto.EmptyPrivateKey, nil, nil, err
 	}
 	// For [defaultActor], we always send requests to the first returned URI.
-	return priv, auth.NewED25519Factory(priv), client.New(uris[0]), nil
+	return chainID, priv, auth.NewED25519Factory(priv), client.New(uris[0]), nil
 }
 
 func GetDefaultKey() (crypto.PrivateKey, error) {
