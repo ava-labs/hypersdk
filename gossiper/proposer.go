@@ -221,8 +221,10 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 	if len(txs) == 0 {
 		return nil
 	}
-	g.vm.Logger().
-		Info("gossiping transactions", zap.Int("count", len(txs)), zap.Uint64("preferred height", blk.Hght), zap.Duration("t", time.Since(start)))
+	g.vm.Logger().Info(
+		"gossiping transactions", zap.Int("count", len(txs)),
+		zap.Uint64("preferred height", blk.Hght), zap.Duration("t", time.Since(start)),
+	)
 	return g.sendTxs(ctx, txs)
 }
 
