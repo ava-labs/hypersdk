@@ -12,10 +12,10 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -490,7 +490,14 @@ var fillOrderCmd = &cobra.Command{
 	},
 }
 
-func performImport(ctx context.Context, scli *client.Client, dcli *client.Client, exportTxID ids.ID, priv crypto.PrivateKey, factory *auth.ED25519Factory) error {
+func performImport(
+	ctx context.Context,
+	scli *client.Client,
+	dcli *client.Client,
+	exportTxID ids.ID,
+	priv crypto.PrivateKey,
+	factory chain.AuthFactory,
+) error {
 	// Select TxID (if not provided)
 	var err error
 	if exportTxID == ids.Empty {
@@ -588,7 +595,9 @@ func performImport(ctx context.Context, scli *client.Client, dcli *client.Client
 		return err
 	}
 	if !success {
-		hutils.Outf("{{orange}}dummy transaction was not successful, trying import anyways...{{/}}\n")
+		hutils.Outf(
+			"{{orange}}dummy transaction was not successful, trying import anyways...{{/}}\n",
+		)
 	}
 
 	// Generate transaction
@@ -609,7 +618,12 @@ func performImport(ctx context.Context, scli *client.Client, dcli *client.Client
 	return nil
 }
 
-func submitDummy(ctx context.Context, cli *client.Client, dest crypto.PublicKey, factory *auth.ED25519Factory) (bool, error) {
+func submitDummy(
+	ctx context.Context,
+	cli *client.Client,
+	dest crypto.PublicKey,
+	factory chain.AuthFactory,
+) (bool, error) {
 	// If last block was > 30s ago, submit a dummy transfer
 	_, _, t, err := cli.Accepted(ctx)
 	if err != nil {
@@ -648,6 +662,9 @@ var importAssetCmd = &cobra.Command{
 
 		// Select source
 		_, uris, err := promptChain("sourceChainID", set.Set[ids.ID]{currentChainID: {}})
+		if err != nil {
+			return err
+		}
 		scli := client.New(uris[0])
 
 		// Perform import
@@ -754,7 +771,9 @@ var exportAssetCmd = &cobra.Command{
 			return err
 		}
 		if !success {
-			hutils.Outf("{{orange}}dummy transaction was not successful, trying export anyways...{{/}}\n")
+			hutils.Outf(
+				"{{orange}}dummy transaction was not successful, trying export anyways...{{/}}\n",
+			)
 		}
 
 		// Generate transaction

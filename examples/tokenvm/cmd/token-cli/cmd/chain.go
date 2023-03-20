@@ -65,7 +65,7 @@ var setChainCmd = &cobra.Command{
 var chainInfoCmd = &cobra.Command{
 	Use: "info",
 	RunE: func(_ *cobra.Command, args []string) error {
-		chainID, uris, err := promptChain("select chainID", nil)
+		_, uris, err := promptChain("select chainID", nil)
 		if err != nil {
 			return err
 		}
