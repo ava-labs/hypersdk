@@ -630,7 +630,9 @@ func submitDummy(
 		underHeight := h < dummyHeightThreshold
 		if underHeight || time.Now().Unix()-t > dummyBlockAgeThreshold {
 			if underHeight && !logEmitted {
-				hutils.Outf("{{yellow}}waiting for snowman++ to activate (needed for AWM)...{{/}}\n")
+				hutils.Outf(
+					"{{yellow}}waiting for snowman++ to activate (needed for AWM)...{{/}}\n",
+				)
 				logEmitted = true
 			}
 			submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{

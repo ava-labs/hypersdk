@@ -78,7 +78,11 @@ func (p *ProposerMonitor) refresh(ctx context.Context) error {
 		pks[string(bls.PublicKeyToBytes(v.PublicKey))] = struct{}{}
 	}
 	p.validatorPublicKeys = pks
-	p.vm.snowCtx.Log.Info("refreshed proposer monitor", zap.Uint64("previous", p.currentPHeight), zap.Uint64("new", pHeight))
+	p.vm.snowCtx.Log.Info(
+		"refreshed proposer monitor",
+		zap.Uint64("previous", p.currentPHeight),
+		zap.Uint64("new", pHeight),
+	)
 	p.currentPHeight = pHeight
 	p.lastFetchedPHeight = time.Now()
 	return nil

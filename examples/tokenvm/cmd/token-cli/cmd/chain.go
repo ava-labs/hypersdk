@@ -113,7 +113,11 @@ var importANRChainCmd = &cobra.Command{
 					if err := StoreChain(chainID, uri); err != nil {
 						return err
 					}
-					utils.Outf("{{yellow}}stored chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n", chainID, uri)
+					utils.Outf(
+						"{{yellow}}stored chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n",
+						chainID,
+						uri,
+					)
 					filledChainID = chainID
 				}
 			}

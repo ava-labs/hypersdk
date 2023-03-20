@@ -67,10 +67,6 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.sendTxs")
 	defer span.End()
 
-	if len(txs) == 0 {
-		return nil
-	}
-
 	proposers, err := g.vm.Proposers(
 		ctx,
 		g.cfg.GossipProposerDiff,
@@ -158,7 +154,8 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 	// Gossip highest paying txs
 	txs := []*chain.Transaction{}
 	totalUnits := uint64(0)
-	now := time.Now().Unix()
+	start := time.Now()
+	now := start.Unix()
 	r := g.vm.Rules(now)
 
 	// Create temporary execution context
@@ -221,6 +218,11 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 	if mempoolErr != nil {
 		return mempoolErr
 	}
+	if len(txs) == 0 {
+		return nil
+	}
+	g.vm.Logger().
+		Info("gossiping transactions", zap.Int("count", len(txs)), zap.Uint64("preferred height", blk.Hght), zap.Duration("t", time.Since(start)))
 	return g.sendTxs(ctx, txs)
 }
 
