@@ -14,16 +14,24 @@ import (
 	"github.com/ava-labs/hypersdk/window"
 )
 
+// Packer is a wrapper struct for the Packer struct
+// from avalanchego/utils/wrappers/packing.go. It adds methods to
+// pack/unpack ids, PublicKeys and Signatures. A bool [required] parameter is
+// added to many unpacking methods, which signals the packer to add an error
+// if the expected method does not unpack properly.
 type Packer struct {
 	p *wrappers.Packer
 }
 
+// NewReader returns a Packer instance with the current byte array set to [byte]
+// and it's MaxSize set to [limit].
 func NewReader(src []byte, limit int) *Packer {
 	return &Packer{
 		p: &wrappers.Packer{Bytes: src, MaxSize: limit},
 	}
 }
 
+// NewWriter returns a Packer instance with its MaxSize set to [limit].
 func NewWriter(limit int) *Packer {
 	return &Packer{
 		p: &wrappers.Packer{MaxSize: limit},
@@ -42,10 +50,12 @@ func (p *Packer) PackID(src ids.ID) {
 	p.p.PackFixedBytes(src[:])
 }
 
+// UnpackID unpacks an avalanchego ID into [dest]. If [required] is true,
+// and the unpacked bytes are empty, Packer will add an ErrFieldNotPopulated error.
 func (p *Packer) UnpackID(required bool, dest *ids.ID) {
 	copy((*dest)[:], p.p.UnpackFixedBytes(consts.IDLen))
 	if required && *dest == ids.Empty {
-		p.p.Errs.Add(fmt.Errorf("%w: ID field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: ID field is not populated", ErrFieldNotPopulated))
 	}
 }
 
@@ -65,6 +75,10 @@ func (p *Packer) PackBytes(b []byte) {
 	p.p.PackBytes(b)
 }
 
+// UnpackBytes unpacks [limit] bytes into [dest]. Otherwise
+// if [limit] >= 0, UnpackBytes unpacks a byte slice array into [dest]. If
+// [required] is set to true and the amount of bytes written to [dest] is 0,
+// UnpackBytes adds an err ErrFieldNotPopulated to the Packer.
 func (p *Packer) UnpackBytes(limit int, required bool, dest *[]byte) {
 	if limit >= 0 {
 		*dest = p.p.UnpackLimitedBytes(uint32(limit))
@@ -72,7 +86,7 @@ func (p *Packer) UnpackBytes(limit int, required bool, dest *[]byte) {
 		*dest = p.p.UnpackBytes()
 	}
 	if required && len(*dest) == 0 {
-		p.p.Errs.Add(fmt.Errorf("%w: Bytes field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: Bytes field is not populated", ErrFieldNotPopulated))
 	}
 }
 
@@ -87,7 +101,7 @@ func (p *Packer) PackUint64(v uint64) {
 func (p *Packer) UnpackUint64(required bool) uint64 {
 	v := p.p.UnpackLong()
 	if required && v == 0 {
-		p.p.Errs.Add(fmt.Errorf("%w: Uint64 field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: Uint64 field is not populated", ErrFieldNotPopulated))
 	}
 	return v
 }
@@ -99,7 +113,7 @@ func (p *Packer) PackInt64(v int64) {
 func (p *Packer) UnpackInt64(required bool) int64 {
 	v := p.p.UnpackLong()
 	if required && v == 0 {
-		p.p.Errs.Add(fmt.Errorf("%w: Int64 field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: Int64 field is not populated", ErrFieldNotPopulated))
 	}
 	return int64(v)
 }
@@ -108,10 +122,11 @@ func (p *Packer) PackPublicKey(src crypto.PublicKey) {
 	p.p.PackFixedBytes(src[:])
 }
 
+// UnpackPublicKey crypto.PublicKey into [dest].
 func (p *Packer) UnpackPublicKey(required bool, dest *crypto.PublicKey) {
 	copy((*dest)[:], p.p.UnpackFixedBytes(crypto.PublicKeyLen))
 	if required && *dest == crypto.EmptyPublicKey {
-		p.p.Errs.Add(fmt.Errorf("%w: PublicKey field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: PublicKey field is not populated", ErrFieldNotPopulated))
 	}
 }
 
@@ -119,10 +134,12 @@ func (p *Packer) PackSignature(src crypto.Signature) {
 	p.p.PackFixedBytes(src[:])
 }
 
+// UnpackPublicKey crypto.Signature into [dest].
+// TODO: should add required param?
 func (p *Packer) UnpackSignature(dest *crypto.Signature) {
 	copy((*dest)[:], p.p.UnpackFixedBytes(crypto.SignatureLen))
 	if *dest == crypto.EmptySignature {
-		p.p.Errs.Add(fmt.Errorf("%w: Signature field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: Signature field is not populated", ErrFieldNotPopulated))
 	}
 }
 
@@ -133,7 +150,7 @@ func (p *Packer) PackInt(v int) {
 func (p *Packer) UnpackInt(required bool) int {
 	v := p.p.UnpackInt()
 	if required && v == 0 {
-		p.p.Errs.Add(fmt.Errorf("%w: Int field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: Int field is not populated", ErrFieldNotPopulated))
 	}
 	return int(v)
 }
@@ -153,7 +170,7 @@ func (p *Packer) PackString(s string) {
 func (p *Packer) UnpackString(required bool) string {
 	str := p.p.UnpackStr()
 	if required && len(str) == 0 {
-		p.p.Errs.Add(fmt.Errorf("%w: String field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: String field is not populated", ErrFieldNotPopulated))
 	}
 	return str
 }

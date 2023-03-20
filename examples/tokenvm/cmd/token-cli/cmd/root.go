@@ -87,6 +87,7 @@ func init() {
 	// chain
 	chainCmd.AddCommand(
 		importChainCmd,
+		importANRChainCmd,
 		setChainCmd,
 		chainInfoCmd,
 		watchChainCmd,

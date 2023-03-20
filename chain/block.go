@@ -354,7 +354,8 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 	warpID := utils.ToID(msg.Payload)
 	num, denom, err := preVerifyWarpMessage(msg, b.vm.ChainID(), r)
 	if err != nil {
-		b.vm.Logger().Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
+		b.vm.Logger().
+			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
 		return false
 	}
 	if err := msg.Signature.Verify(
@@ -365,7 +366,8 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 		num,
 		denom,
 	); err != nil {
-		b.vm.Logger().Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
+		b.vm.Logger().
+			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
 		return false
 	}
 	return true

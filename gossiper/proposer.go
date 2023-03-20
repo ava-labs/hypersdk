@@ -67,10 +67,6 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.sendTxs")
 	defer span.End()
 
-	if len(txs) == 0 {
-		return nil
-	}
-
 	proposers, err := g.vm.Proposers(
 		ctx,
 		g.cfg.GossipProposerDiff,
@@ -95,7 +91,6 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 			)
 			return err
 		}
-		g.vm.Logger().Debug("gossiped txs", zap.Int("count", len(txs)))
 		return nil
 	}
 
@@ -140,11 +135,6 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 			)
 			return err
 		}
-		g.vm.Logger().Debug(
-			"gossiped txs",
-			zap.Stringer("node", proposer),
-			zap.Int("count", len(txs)),
-		)
 	}
 	return nil
 }
@@ -158,7 +148,8 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 	// Gossip highest paying txs
 	txs := []*chain.Transaction{}
 	totalUnits := uint64(0)
-	now := time.Now().Unix()
+	start := time.Now()
+	now := start.Unix()
 	r := g.vm.Rules(now)
 
 	// Create temporary execution context
@@ -221,6 +212,13 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 	if mempoolErr != nil {
 		return mempoolErr
 	}
+	if len(txs) == 0 {
+		return nil
+	}
+	g.vm.Logger().Info(
+		"gossiping transactions", zap.Int("txs", len(txs)),
+		zap.Uint64("preferred height", blk.Hght), zap.Duration("t", time.Since(start)),
+	)
 	return g.sendTxs(ctx, txs)
 }
 
@@ -230,7 +228,7 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	txs, err := chain.UnmarshalTxs(msg, r.GetMaxBlockTxs(), actionRegistry, authRegistry)
 	if err != nil {
 		g.vm.Logger().Warn(
-			"AppGossip provided invalid txs",
+			"received invalid txs",
 			zap.Stringer("peerID", nodeID),
 			zap.Error(err),
 		)
@@ -264,12 +262,12 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 			continue
 		}
 		g.vm.Logger().Debug(
-			"AppGossip failed to submit txs",
+			"failed to submit gossiped txs",
 			zap.Stringer("nodeID", nodeID), zap.Error(err),
 		)
 	}
 	g.vm.Logger().Info(
-		"AppGossip transactions submitted",
+		"submitted gossipped transactions",
 		zap.Int("txs", len(txs)),
 		zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)),
 	)

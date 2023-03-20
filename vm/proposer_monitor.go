@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
+	"go.uber.org/zap"
 )
 
 const (
@@ -54,30 +55,36 @@ func (p *ProposerMonitor) refresh(ctx context.Context) error {
 	defer p.rl.Unlock()
 
 	// Refresh P-Chain height if [refreshTime] has elapsed
-	if time.Since(p.lastFetchedPHeight) > refreshTime {
-		pHeight, err := p.vm.snowCtx.ValidatorState.GetCurrentHeight(ctx)
-		if err != nil {
-			return err
-		}
-		p.validators, err = p.vm.snowCtx.ValidatorState.GetValidatorSet(
-			ctx,
-			pHeight,
-			p.vm.snowCtx.SubnetID,
-		)
-		if err != nil {
-			return err
-		}
-		pks := map[string]struct{}{}
-		for _, v := range p.validators {
-			if v.PublicKey == nil {
-				continue
-			}
-			pks[string(bls.PublicKeyToBytes(v.PublicKey))] = struct{}{}
-		}
-		p.validatorPublicKeys = pks
-		p.currentPHeight = pHeight
-		p.lastFetchedPHeight = time.Now()
+	if time.Since(p.lastFetchedPHeight) < refreshTime {
+		return nil
 	}
+	pHeight, err := p.vm.snowCtx.ValidatorState.GetCurrentHeight(ctx)
+	if err != nil {
+		return err
+	}
+	p.validators, err = p.vm.snowCtx.ValidatorState.GetValidatorSet(
+		ctx,
+		pHeight,
+		p.vm.snowCtx.SubnetID,
+	)
+	if err != nil {
+		return err
+	}
+	pks := map[string]struct{}{}
+	for _, v := range p.validators {
+		if v.PublicKey == nil {
+			continue
+		}
+		pks[string(bls.PublicKeyToBytes(v.PublicKey))] = struct{}{}
+	}
+	p.validatorPublicKeys = pks
+	p.vm.snowCtx.Log.Info(
+		"refreshed proposer monitor",
+		zap.Uint64("previous", p.currentPHeight),
+		zap.Uint64("new", pHeight),
+	)
+	p.currentPHeight = pHeight
+	p.lastFetchedPHeight = time.Now()
 	return nil
 }
 

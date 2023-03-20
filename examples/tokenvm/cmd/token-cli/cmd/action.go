@@ -23,7 +23,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const dummyTransactionThreshold = 25
+const (
+	dummyBlockAgeThreshold = 25
+	dummyHeightThreshold   = 3
+)
 
 var actionCmd = &cobra.Command{
 	Use: "action",
@@ -590,14 +593,8 @@ func performImport(
 	}
 
 	// Attempt to send dummy transaction if needed
-	success, err := submitDummy(ctx, dcli, priv.PublicKey(), factory)
-	if err != nil {
+	if err := submitDummy(ctx, dcli, priv.PublicKey(), factory); err != nil {
 		return err
-	}
-	if !success {
-		hutils.Outf(
-			"{{orange}}dummy transaction was not successful, trying import anyways...{{/}}\n",
-		)
 	}
 
 	// Generate transaction
@@ -610,7 +607,7 @@ func performImport(
 	if err := submit(ctx); err != nil {
 		return err
 	}
-	success, err = dcli.WaitForTransaction(ctx, tx.ID())
+	success, err := dcli.WaitForTransaction(ctx, tx.ID())
 	if err != nil {
 		return err
 	}
@@ -623,32 +620,47 @@ func submitDummy(
 	cli *client.Client,
 	dest crypto.PublicKey,
 	factory chain.AuthFactory,
-) (bool, error) {
-	// If last block was > 30s ago, submit a dummy transfer
-	_, _, t, err := cli.Accepted(ctx)
-	if err != nil {
-		return false, err
-	}
-	if time.Now().Unix()-t > dummyTransactionThreshold {
-		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{
-			To:    dest,
-			Value: 1,
-		}, factory)
+) error {
+	var (
+		logEmitted bool
+		txsSent    uint64
+	)
+	for ctx.Err() == nil {
+		_, h, t, err := cli.Accepted(ctx)
 		if err != nil {
-			return false, err
+			return err
 		}
-		if err := submit(ctx); err != nil {
-			return false, err
+		underHeight := h < dummyHeightThreshold
+		if underHeight || time.Now().Unix()-t > dummyBlockAgeThreshold {
+			if underHeight && !logEmitted {
+				hutils.Outf(
+					"{{yellow}}waiting for snowman++ activation (needed for AWM)...{{/}}\n",
+				)
+				logEmitted = true
+			}
+			submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{
+				To:    dest,
+				Value: txsSent + 1, // prevent duplicate txs
+			}, factory)
+			if err != nil {
+				return err
+			}
+			if err := submit(ctx); err != nil {
+				return err
+			}
+			if _, err := cli.WaitForTransaction(ctx, tx.ID()); err != nil {
+				return err
+			}
+			txsSent++
+			time.Sleep(750 * time.Millisecond)
+			continue
 		}
-		success, err := cli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return false, err
+		if logEmitted {
+			hutils.Outf("{{yellow}}snowman++ activated{{/}}\n")
 		}
-		if !success {
-			return false, nil
-		}
+		return nil
 	}
-	return true, nil
+	return ctx.Err()
 }
 
 var importAssetCmd = &cobra.Command{
@@ -766,14 +778,8 @@ var exportAssetCmd = &cobra.Command{
 		}
 
 		// Attempt to send dummy transaction if needed
-		success, err := submitDummy(ctx, cli, priv.PublicKey(), factory)
-		if err != nil {
+		if err := submitDummy(ctx, cli, priv.PublicKey(), factory); err != nil {
 			return err
-		}
-		if !success {
-			hutils.Outf(
-				"{{orange}}dummy transaction was not successful, trying export anyways...{{/}}\n",
-			)
 		}
 
 		// Generate transaction
@@ -795,7 +801,7 @@ var exportAssetCmd = &cobra.Command{
 		if err := submit(ctx); err != nil {
 			return err
 		}
-		success, err = cli.WaitForTransaction(ctx, tx.ID())
+		success, err := cli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
 			return err
 		}

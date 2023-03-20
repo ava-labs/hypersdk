@@ -130,7 +130,7 @@ echo "creating subnet config"
 rm -f /tmp/tokenvm.subnet
 cat <<EOF > /tmp/tokenvm.subnet
 {
-  "proposerMinBlockDelay":0
+  "proposerMinBlockDelay":100000000
 }
 EOF
 

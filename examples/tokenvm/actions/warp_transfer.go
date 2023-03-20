@@ -50,11 +50,13 @@ func (w *WarpTransfer) Marshal() ([]byte, error) {
 	p.PackID(w.Asset)
 	p.PackUint64(w.Value)
 	p.PackBool(w.Return)
-	p.PackUint64(w.Reward)
-	p.PackUint64(w.SwapIn)
-	p.PackID(w.AssetOut)
-	p.PackUint64(w.SwapOut)
-	p.PackInt64(w.SwapExpiry)
+	op := codec.NewOptionalWriter()
+	op.PackUint64(w.Reward)
+	op.PackUint64(w.SwapIn)
+	op.PackID(w.AssetOut)
+	op.PackUint64(w.SwapOut)
+	op.PackInt64(w.SwapExpiry)
+	p.PackOptional(op)
 	p.PackID(w.TxID)
 	return p.Bytes(), p.Err()
 }
@@ -77,11 +79,13 @@ func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
 	p.UnpackID(false, &transfer.Asset)
 	transfer.Value = p.UnpackUint64(true)
 	transfer.Return = p.UnpackBool()
-	transfer.Reward = p.UnpackUint64(false) // reward not required
-	transfer.SwapIn = p.UnpackUint64(false) // optional
-	p.UnpackID(false, &transfer.AssetOut)
-	transfer.SwapOut = p.UnpackUint64(false)
-	transfer.SwapExpiry = p.UnpackInt64(false)
+	op := p.NewOptionalReader()
+	transfer.Reward = op.UnpackUint64() // reward not required
+	transfer.SwapIn = op.UnpackUint64() // optional
+	op.UnpackID(&transfer.AssetOut)
+	transfer.SwapOut = op.UnpackUint64()
+	transfer.SwapExpiry = op.UnpackInt64()
+	op.Done()
 	p.UnpackID(true, &transfer.TxID)
 	if err := p.Err(); err != nil {
 		return nil, err
@@ -90,7 +94,6 @@ func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
 		return nil, chain.ErrInvalidObject
 	}
 	// Handle swap checks
-	// TODO: consider using the optional codec
 	if !ValidSwapParams(
 		transfer.Value,
 		transfer.SwapIn,
