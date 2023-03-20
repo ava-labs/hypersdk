@@ -137,3 +137,26 @@ func GetChains() (map[ids.ID][]string, error) {
 	}
 	return chains, iter.Error()
 }
+
+func DeleteChains() ([]ids.ID, error) {
+	chains, err := GetChains()
+	if err != nil {
+		return nil, err
+	}
+	chainIDs := make([]ids.ID, 0, len(chains))
+	for chainID, rpcs := range chains {
+		for _, rpc := range rpcs {
+			k := make([]byte, 1+consts.IDLen*2)
+			k[0] = chainPrefix
+			copy(k[1:], chainID[:])
+			brpc := []byte(rpc)
+			rpcID := utils.ToID(brpc)
+			copy(k[1+consts.IDLen:], rpcID[:])
+			if err := db.Delete(k); err != nil {
+				return nil, err
+			}
+		}
+		chainIDs = append(chainIDs, chainID)
+	}
+	return chainIDs, nil
+}
