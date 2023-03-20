@@ -558,7 +558,7 @@ func performImport(
 		assetString(wt.Asset),
 		assetString(outputAssetID),
 		valueString(outputAssetID, wt.Value),
-		valueString(outputAssetID, wt.Value),
+		valueString(outputAssetID, wt.Reward),
 		wt.Return,
 	)
 	if wt.SwapIn > 0 {
