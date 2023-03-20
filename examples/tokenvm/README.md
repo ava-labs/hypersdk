@@ -421,6 +421,26 @@ _Run this test RARELY. It writes/reads many GBs from your disk and can fry an
 SSD if you run it too often. We run this in CI to standardize the result of all
 load tests._
 
+## Zipkin Tracing
+To trace the performance of `tokenvm` during load testing, we use `OpenTelemetry + Zipkin`.
+
+To get started, startup the `Zipkin` backend and `ElasticSearch` database (inside `hypersdk/trace`):
+```bash
+docker-compose -f trace/zipkin.yml up
+```
+Once `Zipkin` is running, you can visit it at `http://localhost:9411`.
+
+Next, startup the load tester (it will automatically send traces to `Zipkin`):
+```bash
+TRACE=true ./scripts/tests.load.sh
+```
+
+When you are done, you can tear everything down by running the following
+command:
+```bash
+docker-compose -f trace/zipkin.yml down
+```
+
 ## Future Work
 _If you want to take the lead on any of these items, please
 [start a discussion](https://github.com/ava-labs/hypersdk/discussions) or reach

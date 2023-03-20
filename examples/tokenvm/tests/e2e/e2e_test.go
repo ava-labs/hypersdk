@@ -1227,7 +1227,6 @@ var _ = ginkgo.Describe("[Test]", func() {
 					lastHeight = height
 					hutils.Outf("{{yellow}}height=%d count=%d{{/}}\n", height, count)
 				}
-				time.Sleep(5 * time.Millisecond)
 			}
 		}
 	})
@@ -1319,7 +1318,6 @@ var _ = ginkgo.Describe("[Test]", func() {
 					lastHeight = height
 					hutils.Outf("{{yellow}}height=%d count=%d{{/}}\n", height, count)
 				}
-				time.Sleep(5 * time.Millisecond)
 			}
 		}
 
@@ -1383,6 +1381,12 @@ var _ = ginkgo.Describe("[Test]", func() {
 	ginkgo.It("state sync while broadcasting transactions", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
+			// Recover failure if exits
+			defer ginkgo.GinkgoRecover()
+
+			// Generate new transactions until the context is cancelled.
+			//
+			// Instances could be shutdown in this loop so we don't fail on error.
 			for ctx.Err() == nil {
 				other, err := crypto.GeneratePrivateKey()
 				gomega.Ω(err).Should(gomega.BeNil())
@@ -1395,18 +1399,36 @@ var _ = ginkgo.Describe("[Test]", func() {
 					},
 					factory,
 				)
-				gomega.Ω(err).Should(gomega.BeNil())
-
-				// Broadcast and wait for transaction
-				gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+				if err != nil {
+					hutils.Outf(
+						"{{yellow}}unable to generate transaction:{{/}} %v\n",
+						err,
+					)
+					time.Sleep(5 * time.Second)
+					continue
+				}
+				if err := submit(context.Background()); err != nil {
+					hutils.Outf(
+						"{{yellow}}tx broadcast failed:{{/}} %v\n",
+						err,
+					)
+					time.Sleep(5 * time.Second)
+					continue
+				}
 				count++
 				_, height, _, err := instancesA[0].cli.Accepted(context.Background())
-				gomega.Ω(err).Should(gomega.BeNil())
+				if err != nil {
+					hutils.Outf(
+						"{{yellow}}height lookup failed:{{/}} %v\n",
+						err,
+					)
+					time.Sleep(5 * time.Second)
+					continue
+				}
 				if height > lastHeight {
 					lastHeight = height
 					hutils.Outf("{{yellow}}height=%d count=%d{{/}}\n", height, count)
 				}
-				time.Sleep(5 * time.Millisecond)
 			}
 		}()
 
@@ -1470,31 +1492,30 @@ func awaitHealthy(cli runner_sdk.Client) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		_, err := cli.Health(ctx)
 		cancel() // by default, health will wait to return until healthy
-		if err != nil {
-			hutils.Outf(
-				"{{yellow}}waiting for health check to pass...broadcasting tx while waiting:{{/}} %v\n",
-				err,
-			)
-
-			// Add more txs via other nodes until healthy (should eventually happen after
-			// [ValidityWindow] processed)
-			other, err := crypto.GeneratePrivateKey()
-			gomega.Ω(err).Should(gomega.BeNil())
-			submit, _, _, err := instancesA[0].cli.GenerateTransaction(
-				context.Background(),
-				nil,
-				&actions.Transfer{
-					To:    other.PublicKey(),
-					Value: 1,
-				},
-				factory,
-			)
-			gomega.Ω(err).Should(gomega.BeNil())
-
-			// Broadcast and wait for transaction
-			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-			continue
+		if err == nil {
+			return
 		}
-		return
+		hutils.Outf(
+			"{{yellow}}waiting for health check to pass...broadcasting tx while waiting:{{/}} %v\n",
+			err,
+		)
+
+		// Add more txs via other nodes until healthy (should eventually happen after
+		// [ValidityWindow] processed)
+		other, err := crypto.GeneratePrivateKey()
+		gomega.Ω(err).Should(gomega.BeNil())
+		submit, _, _, err := instancesA[0].cli.GenerateTransaction(
+			context.Background(),
+			nil,
+			&actions.Transfer{
+				To:    other.PublicKey(),
+				Value: 1,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+
+		// Broadcast and wait for transaction
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 	}
 }
