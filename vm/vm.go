@@ -182,10 +182,10 @@ func (vm *VM) Initialize(
 
 	// Instantiate DBs
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
-		HistoryLength:  vm.config.GetStateHistoryLength(),
-		NodeCacheSize:  vm.config.GetStateCacheSize(),
-		ValueCacheSize: vm.config.GetStateCacheSize(),
-		Tracer:         vm.tracer,
+		HistoryLength: vm.config.GetStateHistoryLength(),
+		NodeCacheSize: vm.config.GetStateCacheSize(),
+		// TODO: add metrics
+		Tracer: vm.tracer,
 	})
 	if err != nil {
 		return err
@@ -238,7 +238,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
 	} else {
 		// Set Balances
-		view, err := vm.stateDB.NewView(ctx)
+		view, err := vm.stateDB.NewView()
 		if err != nil {
 			return err
 		}
