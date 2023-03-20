@@ -146,7 +146,7 @@ EOF
 cat /tmp/tokenvm-chain-config.json
 ```
 
-Note that `--chain-name tokenvm*` and `--node-ids-to-instance-ids` values are different to split nodes into two separate subnets. And `avalancheup-aws install-subnet-chain` **will add the specified nodes as primary network validators (regardless of it's for customer or public networks) before adding them as subnet validators**. So, please make sure the `--key` has enough balance and use `--primary-network-validate-period-in-days` and `--subnet-validate-period-in-days` flags to set custom validate priods (defaults to 15-day for primary network, 14-day for subnet validation):
+Note that `--chain-name tokenvm*` and `--node-ids-to-instance-ids` values are different to split nodes into two separate subnets. And `avalancheup-aws install-subnet-chain` **will add the specified nodes as primary network validators (regardless of it's for customer or public networks) before adding them as subnet validators**. So, please make sure the `--key` has enough balance and use `--primary-network-validate-period-in-days` and `--subnet-validate-period-in-days` flags to set custom validate priods (defaults to 16-day for primary network, 14-day for subnet validation):
 
 ```bash
 # this will prompt you to confirm the outcome!
@@ -159,7 +159,7 @@ avalancheup-aws install-subnet-chain \
 --ssm-doc aops-custom-***-ssm-install-subnet-chain \
 --chain-rpc-url http://52.88.8.107:9650 \
 --key 0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027 \
---primary-network-validate-period-in-days 15 \
+--primary-network-validate-period-in-days 16 \
 --subnet-validate-period-in-days 14 \
 --subnet-config-local-path /tmp/subnet-config.json \
 --subnet-config-remote-dir /data/avalanche-configs/subnets \
@@ -184,7 +184,7 @@ avalancheup-aws install-subnet-chain \
 --ssm-doc aops-custom-***-ssm-install-subnet-chain \
 --chain-rpc-url http://52.88.8.107:9650 \
 --key 0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027 \
---primary-network-validate-period-in-days 15 \
+--primary-network-validate-period-in-days 16 \
 --subnet-validate-period-in-days 14 \
 --subnet-config-local-path /tmp/subnet-config.json \
 --subnet-config-remote-dir /data/avalanche-configs/subnets \
