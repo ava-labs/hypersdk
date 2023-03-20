@@ -135,6 +135,26 @@ func (o *OptionalPacker) UnpackUint64() uint64 {
 	return 0
 }
 
+// PackInt64 packs [l] into OptionalPacker if [l] is not an 0.
+// Updates the bitset and offset accordingly.
+func (o *OptionalPacker) PackInt64(l int64) {
+	if l == 0 {
+		o.skipBit()
+		return
+	}
+	o.ip.PackInt64(l)
+	o.setBit()
+}
+
+// UnpackInt64 unpacks a Int64 from o and returns the value.
+// Increments offset regardless.
+func (o *OptionalPacker) UnpackInt64() int64 {
+	if o.checkBit() {
+		return o.ip.UnpackInt64(true)
+	}
+	return 0
+}
+
 // PackOptional packs an OptionalPacker in a Packer. First packs the bitset [o.b]
 // followed by the bytes in the OptionalPacker.
 func (p *Packer) PackOptional(o *OptionalPacker) {
