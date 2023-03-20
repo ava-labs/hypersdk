@@ -276,12 +276,10 @@ func promptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, erro
 	hutils.Outf("{{cyan}}available chains:{{/}} %d {{cyan}}excluded:{{/}} %+v\n", len(filteredChains), excludedChains)
 	keys := make([]ids.ID, 0, len(filteredChains))
 	for _, chainID := range filteredChains {
-		uris := chains[chainID]
 		hutils.Outf(
-			"%d) {{cyan}}chainID:{{/}} %s {{cyan}}uris:{{/}} %+v\n",
+			"%d) {{cyan}}chainID:{{/}} %s\n",
 			len(keys),
 			chainID,
-			uris,
 		)
 		keys = append(keys, chainID)
 	}
@@ -418,7 +416,7 @@ func GetDefaultChain() (ids.ID, []string, error) {
 	if err != nil {
 		return ids.Empty, nil, err
 	}
-	hutils.Outf("{{yellow}}chainID:{{/}} %s {{yellow}}uris:{{/}} %+s\n", chainID, uris)
+	hutils.Outf("{{yellow}}chainID:{{/}} %s\n", chainID)
 	return chainID, uris, nil
 }
 
