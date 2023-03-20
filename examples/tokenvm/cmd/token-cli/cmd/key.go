@@ -124,7 +124,7 @@ var balanceKeyCmd = &cobra.Command{
 	Use: "balance",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		priv, _, cli, err := defaultActor()
+		_, priv, _, cli, err := defaultActor()
 		if err != nil {
 			return err
 		}

@@ -10,8 +10,11 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
@@ -19,6 +22,8 @@ import (
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
+
+const dummyTransactionThreshold = 25
 
 var actionCmd = &cobra.Command{
 	Use: "action",
@@ -31,7 +36,7 @@ var transferCmd = &cobra.Command{
 	Use: "transfer",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		priv, factory, cli, err := defaultActor()
+		_, priv, factory, cli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -89,7 +94,7 @@ var createAssetCmd = &cobra.Command{
 	Use: "create-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, factory, cli, err := defaultActor()
+		_, _, factory, cli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -138,7 +143,7 @@ var mintAssetCmd = &cobra.Command{
 	Use: "mint-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		priv, factory, cli, err := defaultActor()
+		_, priv, factory, cli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -216,7 +221,7 @@ var closeOrderCmd = &cobra.Command{
 	Use: "close-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, factory, cli, err := defaultActor()
+		_, _, factory, cli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -263,7 +268,7 @@ var createOrderCmd = &cobra.Command{
 	Use: "create-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		priv, factory, cli, err := defaultActor()
+		_, priv, factory, cli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -362,7 +367,7 @@ var fillOrderCmd = &cobra.Command{
 	Use: "fill-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		priv, factory, cli, err := defaultActor()
+		_, priv, factory, cli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -425,7 +430,7 @@ var fillOrderCmd = &cobra.Command{
 
 		// Select input to trade
 		value, err := promptAmount(
-			"value (must be multiple of in tick",
+			"value (must be multiple of in tick)",
 			inAssetID,
 			balance,
 			func(input uint64) error {
@@ -485,134 +490,185 @@ var fillOrderCmd = &cobra.Command{
 	},
 }
 
+func performImport(
+	ctx context.Context,
+	scli *client.Client,
+	dcli *client.Client,
+	exportTxID ids.ID,
+	priv crypto.PrivateKey,
+	factory chain.AuthFactory,
+) error {
+	// Select TxID (if not provided)
+	var err error
+	if exportTxID == ids.Empty {
+		exportTxID, err = promptID("export txID")
+		if err != nil {
+			return err
+		}
+	}
+
+	// Generate warp signature (as long as >= 80% stake)
+	var (
+		msg                     *warp.Message
+		subnetWeight, sigWeight uint64
+	)
+	for ctx.Err() == nil {
+		msg, subnetWeight, sigWeight, err = scli.GenerateAggregateWarpSignature(ctx, exportTxID)
+		if sigWeight >= (subnetWeight*4)/5 && err == nil {
+			break
+		}
+		if err == nil {
+			hutils.Outf(
+				"{{yellow}}waiting for signature weight:{{/}} %d {{yellow}}observed:{{/}} %d\n",
+				subnetWeight,
+				sigWeight,
+			)
+		} else {
+			hutils.Outf("{{red}}encountered error:{{/}} %v\n", err)
+		}
+		cont, err := promptBool("try again")
+		if err != nil {
+			return err
+		}
+		if !cont {
+			hutils.Outf("{{red}}exiting...{{/}}\n")
+			return nil
+		}
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	wt, err := actions.UnmarshalWarpTransfer(msg.UnsignedMessage.Payload)
+	if err != nil {
+		return err
+	}
+	outputAssetID := wt.Asset
+	if !wt.Return {
+		outputAssetID = actions.ImportedAssetID(wt.Asset, msg.SourceChainID)
+	}
+	hutils.Outf(
+		"%s {{yellow}}to:{{/}} %s {{yellow}}source assetID:{{/}} %s {{yellow}}output assetID:{{/}} %s {{yellow}}value:{{/}} %s {{yellow}}reward:{{/}} %s {{yellow}}return:{{/}} %t\n",
+		hutils.ToID(
+			msg.UnsignedMessage.Payload,
+		),
+		utils.Address(wt.To),
+		assetString(wt.Asset),
+		assetString(outputAssetID),
+		valueString(outputAssetID, wt.Value),
+		valueString(outputAssetID, wt.Value),
+		wt.Return,
+	)
+	if wt.SwapIn > 0 {
+		hutils.Outf(
+			"{{yellow}}asset in:{{/}} %s {{yellow}}swap in:{{/}} %s {{yellow}}asset out:{{/}} %s {{yellow}}swap out:{{/}} %s {{yellow}}swap expiry:{{/}} %d\n",
+			assetString(outputAssetID),
+			valueString(
+				outputAssetID,
+				wt.SwapIn,
+			),
+			assetString(wt.AssetOut),
+			valueString(wt.AssetOut, wt.SwapOut),
+			wt.SwapExpiry,
+		)
+	}
+	hutils.Outf(
+		"{{yellow}}signature weight:{{/}} %d {{yellow}}total weight:{{/}} %d\n",
+		sigWeight,
+		subnetWeight,
+	)
+
+	// Select fill
+	var fill bool
+	if wt.SwapIn > 0 {
+		fill, err = promptBool("fill")
+		if err != nil {
+			return err
+		}
+	}
+	if !fill && wt.SwapExpiry > time.Now().Unix() {
+		return ErrMustFill
+	}
+
+	// Attempt to send dummy transaction if needed
+	success, err := submitDummy(ctx, dcli, priv.PublicKey(), factory)
+	if err != nil {
+		return err
+	}
+	if !success {
+		hutils.Outf(
+			"{{orange}}dummy transaction was not successful, trying import anyways...{{/}}\n",
+		)
+	}
+
+	// Generate transaction
+	submit, tx, _, err := dcli.GenerateTransaction(ctx, msg, &actions.ImportAsset{
+		Fill: fill,
+	}, factory)
+	if err != nil {
+		return err
+	}
+	if err := submit(ctx); err != nil {
+		return err
+	}
+	success, err = dcli.WaitForTransaction(ctx, tx.ID())
+	if err != nil {
+		return err
+	}
+	printStatus(tx.ID(), success)
+	return nil
+}
+
+func submitDummy(
+	ctx context.Context,
+	cli *client.Client,
+	dest crypto.PublicKey,
+	factory chain.AuthFactory,
+) (bool, error) {
+	// If last block was > 30s ago, submit a dummy transfer
+	_, _, t, err := cli.Accepted(ctx)
+	if err != nil {
+		return false, err
+	}
+	if time.Now().Unix()-t > dummyTransactionThreshold {
+		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{
+			To:    dest,
+			Value: 1,
+		}, factory)
+		if err != nil {
+			return false, err
+		}
+		if err := submit(ctx); err != nil {
+			return false, err
+		}
+		success, err := cli.WaitForTransaction(ctx, tx.ID())
+		if err != nil {
+			return false, err
+		}
+		if !success {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 var importAssetCmd = &cobra.Command{
 	Use: "import-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, factory, dcli, err := defaultActor()
+		currentChainID, priv, factory, dcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
 
 		// Select source
-		source, err := promptID("sourceChainID")
+		_, uris, err := promptChain("sourceChainID", set.Set[ids.ID]{currentChainID: {}})
 		if err != nil {
 			return err
-		}
-
-		// Create source client
-		uris, err := GetChain(source)
-		if err != nil {
-			return err
-		}
-		if len(uris) == 0 {
-			hutils.Outf("{{red}}no URI found for source chain{{/}}\n")
-			hutils.Outf("{{red}}exiting...{{/}}\n")
-			return nil
 		}
 		scli := client.New(uris[0])
 
-		// Select TxID
-		importTxID, err := promptID("export txID")
-		if err != nil {
-			return err
-		}
-
-		// Generate warp signature (as long as >= 80% stake)
-		var (
-			msg                     *warp.Message
-			subnetWeight, sigWeight uint64
-		)
-		for ctx.Err() == nil {
-			msg, subnetWeight, sigWeight, err = scli.GenerateAggregateWarpSignature(ctx, importTxID)
-			if sigWeight >= (subnetWeight*4)/5 && err == nil {
-				break
-			}
-			if err == nil {
-				hutils.Outf(
-					"{{yellow}}waiting for signature weight:{{/}} %d {{yellow}}observed:{{/}} %d\n",
-					subnetWeight,
-					sigWeight,
-				)
-			} else {
-				hutils.Outf("{{red}}encountered error:{{/}} %v\n", err)
-			}
-			cont, err := promptBool("try again")
-			if err != nil {
-				return err
-			}
-			if !cont {
-				hutils.Outf("{{red}}exiting...{{/}}\n")
-				return nil
-			}
-		}
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		wt, err := actions.UnmarshalWarpTransfer(msg.UnsignedMessage.Payload)
-		if err != nil {
-			return err
-		}
-		outputAssetID := wt.Asset
-		if !wt.Return {
-			outputAssetID = actions.ImportedAssetID(wt.Asset, msg.SourceChainID)
-		}
-		hutils.Outf(
-			"%s {{yellow}}to:{{/}} %s {{yellow}}source assetID:{{/}} %s {{yellow}}output assetID:{{/}} %s {{yellow}}value:{{/}} %s {{yellow}}reward:{{/}} %s {{yellow}}return:{{/}} %t\n",
-			hutils.ToID(
-				msg.UnsignedMessage.Payload,
-			),
-			utils.Address(wt.To),
-			assetString(wt.Asset),
-			assetString(outputAssetID),
-			valueString(outputAssetID, wt.Value),
-			valueString(outputAssetID, wt.Value),
-			wt.Return,
-		)
-		if wt.SwapIn > 0 {
-			hutils.Outf(
-				"{{yellow}}asset in:{{/}} %s {{yellow}}swap in:{{/}} %s {{yellow}}asset out:{{/}} %s {{yellow}}swap out:{{/}} %s {{yellow}}swap expiry:{{/}} %d\n",
-				assetString(outputAssetID),
-				valueString(
-					outputAssetID,
-					wt.SwapIn,
-				),
-				assetString(wt.AssetOut),
-				valueString(wt.AssetOut, wt.SwapOut),
-				wt.SwapExpiry,
-			)
-		}
-		hutils.Outf(
-			"{{yellow}}signature weight:{{/}} %d {{yellow}}total weight:{{/}} %d\n",
-			sigWeight,
-			subnetWeight,
-		)
-
-		// Select fill
-		fill, err := promptBool("fill")
-		if err != nil {
-			return err
-		}
-		if !fill && wt.SwapExpiry > time.Now().Unix() {
-			return ErrMustFill
-		}
-
-		// Generate transaction
-		submit, tx, _, err := dcli.GenerateTransaction(ctx, msg, &actions.ImportAsset{
-			Fill: fill,
-		}, factory)
-		if err != nil {
-			return err
-		}
-		if err := submit(ctx); err != nil {
-			return err
-		}
-		success, err := dcli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return err
-		}
-		printStatus(tx.ID(), success)
-		return nil
+		// Perform import
+		return performImport(ctx, scli, dcli, ids.Empty, priv, factory)
 	},
 }
 
@@ -620,7 +676,7 @@ var exportAssetCmd = &cobra.Command{
 	Use: "export-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		priv, factory, cli, err := defaultActor()
+		currentChainID, priv, factory, cli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -662,7 +718,7 @@ var exportAssetCmd = &cobra.Command{
 		// Determine destination
 		destination := sourceChainID
 		if !ret {
-			destination, err = promptID("destination")
+			destination, _, err = promptChain("destination", set.Set[ids.ID]{currentChainID: {}})
 			if err != nil {
 				return err
 			}
@@ -709,6 +765,17 @@ var exportAssetCmd = &cobra.Command{
 			return err
 		}
 
+		// Attempt to send dummy transaction if needed
+		success, err := submitDummy(ctx, cli, priv.PublicKey(), factory)
+		if err != nil {
+			return err
+		}
+		if !success {
+			hutils.Outf(
+				"{{orange}}dummy transaction was not successful, trying export anyways...{{/}}\n",
+			)
+		}
+
 		// Generate transaction
 		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.ExportAsset{
 			To:          recipient,
@@ -728,11 +795,35 @@ var exportAssetCmd = &cobra.Command{
 		if err := submit(ctx); err != nil {
 			return err
 		}
-		success, err := cli.WaitForTransaction(ctx, tx.ID())
+		success, err = cli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
 			return err
 		}
 		printStatus(tx.ID(), success)
-		return nil
+
+		// Perform import
+		imp, err := promptBool("perform import on destination")
+		if err != nil {
+			return err
+		}
+		if imp {
+			uris, err := GetChain(destination)
+			if err != nil {
+				return err
+			}
+			if err := performImport(ctx, cli, client.New(uris[0]), tx.ID(), priv, factory); err != nil {
+				return err
+			}
+		}
+
+		// Ask if user would like to switch to destination chain
+		sw, err := promptBool("switch default chain to destination")
+		if err != nil {
+			return err
+		}
+		if !sw {
+			return nil
+		}
+		return StoreDefault(defaultChainKey, destination[:])
 	},
 }

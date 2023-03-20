@@ -306,7 +306,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	ginkgo.It("get currently accepted block ID", func() {
 		for _, inst := range instances {
 			cli := inst.cli
-			_, _, err := cli.Accepted(context.Background())
+			_, _, _, err := cli.Accepted(context.Background())
 			gomega.Ω(err).Should(gomega.BeNil())
 		}
 	})

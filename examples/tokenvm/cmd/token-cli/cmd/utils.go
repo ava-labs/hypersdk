@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
@@ -253,6 +254,48 @@ func promptID(label string) (ids.ID, error) {
 	return id, nil
 }
 
+func promptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, error) {
+	chains, err := GetChains()
+	if err != nil {
+		return ids.Empty, nil, err
+	}
+	filteredChains := make([]ids.ID, 0, len(chains))
+	excludedChains := []ids.ID{}
+	for chainID := range chains {
+		if excluded != nil && excluded.Contains(chainID) {
+			excludedChains = append(excludedChains, chainID)
+			continue
+		}
+		filteredChains = append(filteredChains, chainID)
+	}
+	if len(filteredChains) == 0 {
+		return ids.Empty, nil, ErrNoChains
+	}
+
+	// Select chain
+	hutils.Outf(
+		"{{cyan}}available chains:{{/}} %d {{cyan}}excluded:{{/}} %+v\n",
+		len(filteredChains),
+		excludedChains,
+	)
+	keys := make([]ids.ID, 0, len(filteredChains))
+	for _, chainID := range filteredChains {
+		hutils.Outf(
+			"%d) {{cyan}}chainID:{{/}} %s\n",
+			len(keys),
+			chainID,
+		)
+		keys = append(keys, chainID)
+	}
+
+	chainIndex, err := promptChoice(label, len(keys))
+	if err != nil {
+		return ids.Empty, nil, err
+	}
+	chainID := keys[chainIndex]
+	return chainID, chains[chainID], nil
+}
+
 func valueString(assetID ids.ID, value uint64) string {
 	if assetID == ids.Empty {
 		return hutils.FormatBalance(value)
@@ -334,17 +377,17 @@ func getAssetInfo(
 	return balance, sourceChainID, nil
 }
 
-func defaultActor() (crypto.PrivateKey, *auth.ED25519Factory, *client.Client, error) {
+func defaultActor() (ids.ID, crypto.PrivateKey, *auth.ED25519Factory, *client.Client, error) {
 	priv, err := GetDefaultKey()
 	if err != nil {
-		return crypto.EmptyPrivateKey, nil, nil, err
+		return ids.Empty, crypto.EmptyPrivateKey, nil, nil, err
 	}
-	_, uris, err := GetDefaultChain()
+	chainID, uris, err := GetDefaultChain()
 	if err != nil {
-		return crypto.EmptyPrivateKey, nil, nil, err
+		return ids.Empty, crypto.EmptyPrivateKey, nil, nil, err
 	}
 	// For [defaultActor], we always send requests to the first returned URI.
-	return priv, auth.NewED25519Factory(priv), client.New(uris[0]), nil
+	return chainID, priv, auth.NewED25519Factory(priv), client.New(uris[0]), nil
 }
 
 func GetDefaultKey() (crypto.PrivateKey, error) {
@@ -377,7 +420,7 @@ func GetDefaultChain() (ids.ID, []string, error) {
 	if err != nil {
 		return ids.Empty, nil, err
 	}
-	hutils.Outf("{{yellow}}chainID:{{/}} %s {{yellow}}uris:{{/}} %+s\n", chainID, uris)
+	hutils.Outf("{{yellow}}chainID:{{/}} %s\n", chainID)
 	return chainID, uris, nil
 }
 

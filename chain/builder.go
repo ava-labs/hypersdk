@@ -100,7 +100,7 @@ func BuildBlock(
 					"dropping pending warp message because no context provided",
 					zap.Stringer("txID", next.ID()),
 				)
-				return true, true, false, nil
+				return true, next.Base.Timestamp > oldestAllowed, false, nil
 			}
 
 			// Skip warp message if at max
