@@ -537,8 +537,8 @@ var _ = ginkgo.Describe("[Test]", func() {
 		ginkgo.By(
 			"ensuring snowman++ is activated on destination + fund other account with native",
 			func() {
-				txs := make([]ids.ID, 10)
-				for i := 0; i < 10; i++ {
+				txs := make([]ids.ID, 5)
+				for i := 0; i < 5; i++ {
 					submit, tx, _, err := instancesB[0].cli.GenerateTransaction(
 						context.Background(),
 						nil,
@@ -556,8 +556,12 @@ var _ = ginkgo.Describe("[Test]", func() {
 					gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 					hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 					txs[i] = tx.ID()
+
+					// Ensure we sleep long enough that transactions end up in different
+					// blocks
+					time.Sleep(500 * time.Millisecond)
 				}
-				for i := 0; i < 10; i++ {
+				for i := 0; i < 5; i++ {
 					txID := txs[i]
 					ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 					success, err := instancesB[0].cli.WaitForTransaction(ctx, txID)
@@ -1233,6 +1237,10 @@ var _ = ginkgo.Describe("[Test]", func() {
 					hutils.Outf("{{yellow}}height=%d count=%d{{/}}\n", height, count)
 				}
 			}
+
+			// Sleep for a very small amount of time to avoid overloading the
+			// network with transactions (can generate very fast)
+			time.Sleep(10 * time.Millisecond)
 		}
 	})
 
@@ -1324,6 +1332,10 @@ var _ = ginkgo.Describe("[Test]", func() {
 					hutils.Outf("{{yellow}}height=%d count=%d{{/}}\n", height, count)
 				}
 			}
+
+			// Sleep for a very small amount of time to avoid overloading the
+			// network with transactions (can generate very fast)
+			time.Sleep(10 * time.Millisecond)
 		}
 
 		// TODO: verify all roots are equal
