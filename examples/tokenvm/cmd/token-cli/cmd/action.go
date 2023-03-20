@@ -430,7 +430,7 @@ var fillOrderCmd = &cobra.Command{
 
 		// Select input to trade
 		value, err := promptAmount(
-			"value (must be multiple of in tick",
+			"value (must be multiple of in tick)",
 			inAssetID,
 			balance,
 			func(input uint64) error {

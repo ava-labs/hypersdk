@@ -140,164 +140,195 @@ they arrive).
 You can see how this works by checking out the [E2E test suite](./tests/e2e/e2e_test.go) that
 runs through these flows.
 
-## Examples
-### Mint and Trade
+## Demos
 Someone: "Seems cool but I need to see it to really get it."
 Me: "Look no further."
 
-The first step to running this demo is to launch your own `tokenvm` Subnet. You
-can do so by running the following command from this location:
+The first step to running these demos is to launch your own `tokenvm` Subnet. You
+can do so by running the following command from this location (may take a few
+minutes):
 ```bash
 ./scripts/run.sh;
 ```
 
-By default, this allocates all funds on the network to
+_By default, this allocates all funds on the network to
 `token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp`. The private
 key for this address is
 `0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7`.
-For convenience, this key has is also stored at `demo.pk`.
+For convenience, this key has is also stored at `demo.pk`._
 
-#### Step 1: Build the CLI
 To make it easy to interact with the `tokenvm`, we implemented the `token-cli`.
-You can build it using the following command from this location:
+Next, you'll need to build this. You can use the following command from this location
+to do so:
 ```bash
 ./scripts/build.sh
 ```
 
-This command will put the compiled CLI in `./build/token-cli`.
+_This command will put the compiled CLI in `./build/token-cli`._
 
-#### Step 2: Create Your Asset
+Lastly, you'll need to add the chains you created and the default key to the
+`token-cli`. You can use the following commands from this location to do so:
+```bash
+./build/token-cli key import demo.pk
+./build/token-cli chain import
+./build/token-cli chain import
+```
+
+_The chain information you will import is exported when the `./scripts/run.sh`
+script finishes. If you ran it correctly, the output will look something like:_
+```
+Blockchain: cKVefMmNPSKmLoshR15Fzxmx52Y5yUSPqWiJsNFUg1WgNQVMX
+URI: http://127.0.0.1:29528/ext/bc/cKVefMmNPSKmLoshR15Fzxmx52Y5yUSPqWiJsNFUg1WgNQVMX
+URI: http://127.0.0.1:15827/ext/bc/cKVefMmNPSKmLoshR15Fzxmx52Y5yUSPqWiJsNFUg1WgNQVMX
+URI: http://127.0.0.1:44476/ext/bc/cKVefMmNPSKmLoshR15Fzxmx52Y5yUSPqWiJsNFUg1WgNQVMX
+URI: http://127.0.0.1:30145/ext/bc/cKVefMmNPSKmLoshR15Fzxmx52Y5yUSPqWiJsNFUg1WgNQVMX
+URI: http://127.0.0.1:43779/ext/bc/cKVefMmNPSKmLoshR15Fzxmx52Y5yUSPqWiJsNFUg1WgNQVMX
+
+Blockchain: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
+URI: http://127.0.0.1:63504/ext/bc/Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
+URI: http://127.0.0.1:62507/ext/bc/Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
+URI: http://127.0.0.1:65415/ext/bc/Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
+URI: http://127.0.0.1:26083/ext/bc/Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
+URI: http://127.0.0.1:36358/ext/bc/Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
+```
+
+### Mint and Trade
+#### Step 1: Create Your Asset
 First up, let's create our own asset. You can do so by running the following
 command from this location:
 ```bash
-./build/token-cli create-asset
+./build/token-cli action create-asset
 ```
 
 When you are done, the output should look something like this:
 ```
-loaded address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-
+database: .token-cli
+address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
+chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
 metadata (can be changed later): MarioCoin
 continue (y/n): y
-transaction succeeded
-assetID: 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF
+✅ txID: 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
 ```
+
+_`txID` is the `assetID` of your new asset._
 
 The "loaded address" here is the address of the default private key (`demo.pk`). We
 use this key to authenticate all interactions with the `tokenvm`.
 
-#### Step 3: Mint Your Asset
+#### Step 2: Mint Your Asset
 After we've created our own asset, we can now mint some of it. You can do so by
 running the following command from this location:
 ```bash
-./build/token-cli mint-asset
+./build/token-cli action mint-asset
 ```
 
 When you are done, the output should look something like this (usually easiest
 just to mint to yourself).
 ```
-loaded address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-
-assetID: 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF
+database: .token-cli
+address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
+chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
+assetID: 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
 metadata: MarioCoin supply: 0
 recipient: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
 amount: 10000
 continue (y/n): y
-transaction succeeded
-txID: 2TX47uKj1ax4rS8oFzPLrwBDkRXwAUwPHL6cToDT8BmeAYTANo
+✅ txID: X1E5CVFgFFgniFyWcj5wweGg66TyzjK2bMWWTzFwJcwFYkF72
 ```
 
-#### Step 4: View Your Balance
+#### Step 3: View Your Balance
 Now, let's check that the mint worked right by checking our balance. You can do
 so by running the following command from this location:
 ```bash
-./build/token-cli balance
+./build/token-cli key balance
 ```
 
 When you are done, the output should look something like this:
 ```
-loaded address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-
+database: .token-cli
 address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-assetID (use TKN for native token): 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF
-balance: 10000 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF
+chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
+assetID (use TKN for native token): 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
+metadata: MarioCoin supply: 10000 warp: false
+balance: 10000 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
 ```
 
-#### Step 5: Create an Order
+#### Step 4: Create an Order
 So, we have some of our token (`MarioCoin`)...now what? Let's put an order
 on-chain that will allow someone to trade the native token (`TKN`) for some.
 You can do so by running the following command from this location:
 ```bash
-./build/token-cli create-order
+./build/token-cli action create-order
 ```
 
 When you are done, the output should look something like this:
 ```
-loaded address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-
+database: .token-cli
+address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
+chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
 in assetID (use TKN for native token): TKN
-in tick: 1
-out assetID (use TKN for native token): 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF
-metadata: MarioCoin supply: 10000
-balance: 10000 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF
+✔ in tick: 1█
+out assetID (use TKN for native token): 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
+metadata: MarioCoin supply: 10000 warp: false
+balance: 10000 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
 out tick: 10
-out tick: 10
-supply (must be multiple of OutTick): 100
+supply (must be multiple of out tick): 100
 continue (y/n): y
-transaction succeeded
-orderID: DZK5sQGk8jTyAfcPDxfHwdx5z9WFEFeqKQPgpNevLkeRV52xq
+✅ txID: 2TdeT2ZsQtJhbWJuhLZ3eexuCY4UP6W7q5ZiAHMYtVfSSp1ids
 ```
+
+_`txID` is the `orderID` of your new order._
 
 The "in tick" is how much of the "in assetID" that someone must trade to get
 "out tick" of the "out assetID". Any fill of this order must send a multiple of
 "in tick" to be considered valid (this avoid ANY sort of precision issues with
 computing decimal rates on-chain).
 
-#### Step 6: Fill Part of the Order
+#### Step 5: Fill Part of the Order
 Now that we have an order on-chain, let's fill it! You can do so by running the
 following command from this location:
 ```bash
-./build/token-cli fill-order
+./build/token-cli action fill-order
 ```
 
 When you are done, the output should look something like this:
 ```
-loaded address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-
+database: .token-cli
+address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
+chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
 in assetID (use TKN for native token): TKN
-balance: 999.999999 TKN
-out assetID (use TKN for native token): 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF
-metadata: MarioCoin supply: 10000
+balance: 997.999993843 TKN
+out assetID (use TKN for native token): 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
+metadata: MarioCoin supply: 10000 warp: false
 available orders: 1
-0) Rate(in/out): 0.1000 InTick: 1.000000 TKN OutTick: 10 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF Remaining: 100 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF
+0) Rate(in/out): 100000000.0000 InTick: 1.000000000 TKN OutTick: 10 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug Remaining: 100 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
 select order: 0
-value (must be multiple of InTick): 2
-in: 2 TKN out: 20 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF
+value (must be multiple of in tick): 2
+in: 2.000000000 TKN out: 20 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
 continue (y/n): y
-transaction succeeded
-txID: gMPc9DhFLthpb5DEtFBrXTrs8wK7FA31P3xd5w518Xbq76K6q
+✅ txID: uw9YrZcs4QQTEBSR3guVnzQTFyKKm5QFGVTvuGyntSTrx3aGm
 ```
 
 Note how all available orders for this pair are listed by the CLI (these come
 from the in-memory order book maintained by the `tokenvm`).
 
-#### Step 7: Close Order
+#### Step 6: Close Order
 Let's say we now changed our mind and no longer want to allow others to fill
 our order. You can cancel it by running the following command from this
 location:
 ```bash
-./build/token-cli close-order
+./build/token-cli action close-order
 ```
 
 When you are done, the output should look something like this:
 ```
-loaded address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-
-orderID: DZK5sQGk8jTyAfcPDxfHwdx5z9WFEFeqKQPgpNevLkeRV52xq
-out assetID (use TKN for native token): 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF
+database: .token-cli
+address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
+chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
+orderID: 2TdeT2ZsQtJhbWJuhLZ3eexuCY4UP6W7q5ZiAHMYtVfSSp1ids
+out assetID (use TKN for native token): 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
 continue (y/n): y
-transaction succeeded
-txID: 2iTnmhJUiUvC3wrwx8KLkV4aCJJCWAwZVRE8YVp8i6LdpDTyqg
+✅ txID: poGnxYiLZAruurNjugTPfN1JjwSZzGZdZnBEezp5HB98PhKcn
 ```
 
 Any funds that were locked up in the order will be returned to the creator's
@@ -309,19 +340,24 @@ To provide a better sense of what is actually happening on-chain, the
 occur on-chain. You can run this utility by running the following command from
 this location:
 ```bash
-./build/token-cli watch
+./build/token-cli chain watch
 ```
 
 If you run it correctly, you'll see the following input (will run until the
 network shuts down or you exit):
 ```
-watching for new blocks 👀
-height:4 txs:1 units:1536 root:2wZfnnPMeUFgEtJdtLbKA1JFpRvZNNbDCCy2gWyEfpqWwL9HpL
-✅ gMPc9DhFLthpb5DEtFBrXTrs8wK7FA31P3xd5w518Xbq76K6q actor: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp units: 1536 summary (*actions.FillOrder): [2.000000 TKN -> 20 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF (remaining: 80 2617QeL3K4DTa1yXP8eicUu2YCDP38XJUUPv1KbQZxyDvBhHBF)]
-height:5 txs:1 units:464 root:NUNNi2DyXeGL7jPPnWTeNpmjgtv9qgM131xQsNu4fXT9TkQzj
-⚠️ iHEK4mjtp86s8miJHsgCVofd7BE8jcGBtnSRZHiA9LRPiQVDw actor: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp units: 464 summary (*actions.CloseOrder): [wrong out asset]
-height:6 txs:1 units:464 root:M5M5ZXNAPoBvkkjRCzpFD8qKkiuKpZKSYCSvdhby3gYA7GKww
-✅ 2iTnmhJUiUvC3wrwx8KLkV4aCJJCWAwZVRE8YVp8i6LdpDTyqg actor: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp units: 464 summary (*actions.CloseOrder): [orderID: DZK5sQGk8jTyAfcPDxfHwdx5z9WFEFeqKQPgpNevLkeRV52xq]
+database: .token-cli
+available chains: 2 excluded: []
+0) chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
+1) chainID: cKVefMmNPSKmLoshR15Fzxmx52Y5yUSPqWiJsNFUg1WgNQVMX
+select chainID: 0
+watching for new blocks on Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9 👀
+height:13 txs:1 units:488 root:2po1n8rqdpNuwpMGndqC2hjt6Xa3cUDsjEpm7D6u9kJRFEPmdL avg TPS:0.026082
+✅ 2Qb172jGBtjTTLhrzYD8ZLatjg6FFmbiFSP6CBq2Xy4aBV2WxL actor: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp units: 488 summary (*actions.CreateOrder): [1.000000000 TKN -> 10 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug (supply: 50 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug)]
+height:14 txs:1 units:1536 root:2vqraWhyd98zVk2ALMmbHPApXjjvHpxh4K4u1QhSb6i3w4VZxM avg TPS:0.030317
+✅ 2H7wiE5MyM4JfRgoXPVP1GkrrhoSXL25iDPJ1wEiWRXkEL1CWz actor: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp units: 1536 summary (*actions.FillOrder): [2.000000000 TKN -> 20 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug (remaining: 30 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug)]
+height:15 txs:1 units:464 root:u2FyTtup4gwPfEFybMNTgL2svvSnajfGH4QKqiJ9vpZBSvx7q avg TPS:0.036967
+✅ Lsad3MZ8i5V5hrGcRxXsghV5G1o1a9XStHY3bYmg7ha7W511e actor: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp units: 464 summary (*actions.CloseOrder): [orderID: 2Qb172jGBtjTTLhrzYD8ZLatjg6FFmbiFSP6CBq2Xy4aBV2WxL]
 ```
 
 ### Transfer Assets to Another Subnet
