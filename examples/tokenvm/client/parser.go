@@ -21,8 +21,12 @@ type Parser struct {
 	genesis *genesis.Genesis
 }
 
+func (p *Parser) ChainID() ids.ID {
+	return p.chainID
+}
+
 func (p *Parser) Rules(t int64) chain.Rules {
-	return p.genesis.Rules(p.chainID, t)
+	return p.genesis.Rules(t)
 }
 
 func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry) {

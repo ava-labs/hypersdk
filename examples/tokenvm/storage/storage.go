@@ -29,16 +29,23 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x0/ (balance)
 //   -> [owner|asset] => balance
 // 0x1/ (assets)
-//   -> [asset] => metadataLen|metadata|supply|owner
+//   -> [asset] => metadataLen|metadata|supply|owner|warp
 // 0x2/ (orders)
 //   -> [txID] => in|out|rate|remaining|owner
+// 0x3/ (loans)
+//   -> [assetID|destination] => amount
+// 0x4/ (hypersdk-incoming warp)
+// 0x5/ (hypersdk-outgoing warp)
 
 const (
 	txPrefix = 0x0
 
-	balancePrefix = 0x0
-	assetPrefix   = 0x1
-	orderPrefix   = 0x2
+	balancePrefix      = 0x0
+	assetPrefix        = 0x1
+	orderPrefix        = 0x2
+	loanPrefix         = 0x3
+	incomingWarpPrefix = 0x4
+	outgoingWarpPrefix = 0x5
 )
 
 var (
@@ -230,7 +237,7 @@ func GetAssetFromState(
 	ctx context.Context,
 	f ReadState,
 	asset ids.ID,
-) (bool, []byte, uint64, crypto.PublicKey, error) {
+) (bool, []byte, uint64, crypto.PublicKey, bool, error) {
 	values, errs := f(ctx, [][]byte{PrefixAssetKey(asset)})
 	return innerGetAsset(values[0], errs[0])
 }
@@ -239,7 +246,7 @@ func GetAsset(
 	ctx context.Context,
 	db chain.Database,
 	asset ids.ID,
-) (bool, []byte, uint64, crypto.PublicKey, error) {
+) (bool, []byte, uint64, crypto.PublicKey, bool, error) {
 	k := PrefixAssetKey(asset)
 	return innerGetAsset(db.GetValue(ctx, k))
 }
@@ -247,19 +254,20 @@ func GetAsset(
 func innerGetAsset(
 	v []byte,
 	err error,
-) (bool, []byte, uint64, crypto.PublicKey, error) {
+) (bool, []byte, uint64, crypto.PublicKey, bool, error) {
 	if errors.Is(err, database.ErrNotFound) {
-		return false, nil, 0, crypto.EmptyPublicKey, nil
+		return false, nil, 0, crypto.EmptyPublicKey, false, nil
 	}
 	if err != nil {
-		return false, nil, 0, crypto.EmptyPublicKey, err
+		return false, nil, 0, crypto.EmptyPublicKey, false, err
 	}
 	metadataLen := binary.BigEndian.Uint16(v)
 	metadata := v[consts.Uint16Len : consts.Uint16Len+metadataLen]
 	supply := binary.BigEndian.Uint64(v[consts.Uint16Len+metadataLen:])
 	var pk crypto.PublicKey
 	copy(pk[:], v[consts.Uint16Len+metadataLen+consts.Uint64Len:])
-	return true, metadata, supply, pk, nil
+	warp := v[consts.Uint16Len+metadataLen+consts.Uint64Len+crypto.PublicKeyLen] == 0x1
+	return true, metadata, supply, pk, warp, nil
 }
 
 func SetAsset(
@@ -269,15 +277,26 @@ func SetAsset(
 	metadata []byte,
 	supply uint64,
 	owner crypto.PublicKey,
+	warp bool,
 ) error {
 	k := PrefixAssetKey(asset)
 	metadataLen := len(metadata)
-	v := make([]byte, consts.Uint16Len+metadataLen+consts.Uint64Len+consts.IDLen)
+	v := make([]byte, consts.Uint16Len+metadataLen+consts.Uint64Len+crypto.PublicKeyLen+1)
 	binary.BigEndian.PutUint16(v, uint16(metadataLen))
 	copy(v[consts.Uint16Len:], metadata)
 	binary.BigEndian.PutUint64(v[consts.Uint16Len+metadataLen:], supply)
 	copy(v[consts.Uint16Len+metadataLen+consts.Uint64Len:], owner[:])
+	b := byte(0x0)
+	if warp {
+		b = 0x1
+	}
+	v[consts.Uint16Len+metadataLen+consts.Uint64Len+crypto.PublicKeyLen] = b
 	return db.Insert(ctx, k, v)
+}
+
+func DeleteAsset(ctx context.Context, db chain.Database, asset ids.ID) error {
+	k := PrefixAssetKey(asset)
+	return db.Remove(ctx, k)
 }
 
 // [orderPrefix] + [txID]
@@ -347,4 +366,124 @@ func GetOrder(
 func DeleteOrder(ctx context.Context, db chain.Database, order ids.ID) error {
 	k := PrefixOrderKey(order)
 	return db.Remove(ctx, k)
+}
+
+// [loanPrefix] + [asset] + [destination]
+func PrefixLoanKey(asset ids.ID, destination ids.ID) (k []byte) {
+	k = make([]byte, 1+consts.IDLen*2)
+	k[0] = loanPrefix
+	copy(k[1:], asset[:])
+	copy(k[1+consts.IDLen:], destination[:])
+	return
+}
+
+// Used to serve RPC queries
+func GetLoanFromState(
+	ctx context.Context,
+	f ReadState,
+	asset ids.ID,
+	destination ids.ID,
+) (uint64, error) {
+	values, errs := f(ctx, [][]byte{PrefixLoanKey(asset, destination)})
+	return innerGetLoan(values[0], errs[0])
+}
+
+func innerGetLoan(v []byte, err error) (uint64, error) {
+	if errors.Is(err, database.ErrNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint64(v), nil
+}
+
+func GetLoan(
+	ctx context.Context,
+	db chain.Database,
+	asset ids.ID,
+	destination ids.ID,
+) (uint64, error) {
+	k := PrefixLoanKey(asset, destination)
+	v, err := db.GetValue(ctx, k)
+	return innerGetLoan(v, err)
+}
+
+func SetLoan(
+	ctx context.Context,
+	db chain.Database,
+	asset ids.ID,
+	destination ids.ID,
+	amount uint64,
+) error {
+	k := PrefixLoanKey(asset, destination)
+	return db.Insert(ctx, k, binary.BigEndian.AppendUint64(nil, amount))
+}
+
+func AddLoan(
+	ctx context.Context,
+	db chain.Database,
+	asset ids.ID,
+	destination ids.ID,
+	amount uint64,
+) error {
+	loan, err := GetLoan(ctx, db, asset, destination)
+	if err != nil {
+		return err
+	}
+	nloan, err := smath.Add64(loan, amount)
+	if err != nil {
+		return fmt.Errorf(
+			"%w: could not add loan (asset=%s, destination=%s, amount=%d)",
+			ErrInvalidBalance,
+			asset,
+			destination,
+			amount,
+		)
+	}
+	return SetLoan(ctx, db, asset, destination, nloan)
+}
+
+func SubLoan(
+	ctx context.Context,
+	db chain.Database,
+	asset ids.ID,
+	destination ids.ID,
+	amount uint64,
+) error {
+	loan, err := GetLoan(ctx, db, asset, destination)
+	if err != nil {
+		return err
+	}
+	nloan, err := smath.Sub(loan, amount)
+	if err != nil {
+		return fmt.Errorf(
+			"%w: could not subtract loan (asset=%s, destination=%s, amount=%d)",
+			ErrInvalidBalance,
+			asset,
+			destination,
+			amount,
+		)
+	}
+	if nloan == 0 {
+		// If there is no balance left, we should delete the record instead of
+		// setting it to 0.
+		return db.Remove(ctx, PrefixLoanKey(asset, destination))
+	}
+	return SetLoan(ctx, db, asset, destination, nloan)
+}
+
+func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
+	k = make([]byte, 1+consts.IDLen*2)
+	k[0] = incomingWarpPrefix
+	copy(k[1:], sourceChainID[:])
+	copy(k[1+consts.IDLen:], msgID[:])
+	return k
+}
+
+func OutgoingWarpKeyPrefix(txID ids.ID) (k []byte) {
+	k = make([]byte, 1+consts.IDLen)
+	k[0] = outgoingWarpPrefix
+	copy(k[1:], txID[:])
+	return k
 }

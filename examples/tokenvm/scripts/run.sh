@@ -97,7 +97,7 @@ GENESIS_PATH=$2
 if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f /tmp/tokenvm.genesis
-  /tmp/token-cli genesis /tmp/allocations.json \
+  /tmp/token-cli genesis generate /tmp/allocations.json \
   --genesis-file /tmp/tokenvm.genesis
 else
   echo "copying custom genesis file"
@@ -156,7 +156,7 @@ ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 # download avalanche-network-runner
 # https://github.com/ava-labs/avalanche-network-runner
 ANR_REPO_PATH=github.com/ava-labs/avalanche-network-runner
-ANR_VERSION=4e4dd706a452ee428575517725aaad46cc8bfef4
+ANR_VERSION=fc888ba0646f4396456ba2b36eb56c26aa76a26a
 # version set
 go install -v ${ANR_REPO_PATH}@${ANR_VERSION}
 
@@ -217,17 +217,8 @@ echo "running e2e tests"
 --mode=${MODE}
 
 ############################
-# e.g., print out MetaMask endpoints
-if [[ -f "/tmp/avalanchego-v${VERSION}/output.yaml" ]]; then
-  echo "cluster is ready!"
-  cat /tmp/avalanchego-v${VERSION}/output.yaml
-else
-  echo "cluster is not ready in time..."
-  exit 255
-fi
-
-############################
 if [[ ${MODE} == "run" ]]; then
+  echo "cluster is ready!"
   # We made it past initialization and should avoid shutting down the network
   KEEPALIVE=true
 fi

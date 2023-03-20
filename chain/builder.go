@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
+	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
@@ -41,7 +42,12 @@ func HandlePreExecute(
 	}
 }
 
-func BuildBlock(ctx context.Context, vm VM, preferred ids.ID) (snowman.Block, error) {
+func BuildBlock(
+	ctx context.Context,
+	vm VM,
+	preferred ids.ID,
+	blockContext *smblock.Context,
+) (snowman.Block, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
 	log := vm.Logger()
@@ -53,7 +59,7 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID) (snowman.Block, er
 		log.Warn("block building failed: couldn't get parent", zap.Error(err))
 		return nil, err
 	}
-	ectx, err := GenerateExecutionContext(ctx, nextTime, parent, vm.Tracer(), r)
+	ectx, err := GenerateExecutionContext(ctx, vm.ChainID(), nextTime, parent, vm.Tracer(), r)
 	if err != nil {
 		log.Warn("block building failed: couldn't get execution context", zap.Error(err))
 		return nil, err
@@ -77,11 +83,34 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID) (snowman.Block, er
 
 		txsAttempted = 0
 		results      = []*Result{}
+
+		warpCount = 0
+
+		vdrState = vm.ValidatorState()
+		sm       = vm.StateManager()
 	)
 	mempoolErr := mempool.Build(
 		ctx,
 		func(fctx context.Context, next *Transaction) (cont bool, restore bool, removeAcct bool, err error) {
 			txsAttempted++
+
+			// Ensure we can process if transaction includes a warp message
+			if next.WarpMessage != nil && blockContext == nil {
+				log.Info(
+					"dropping pending warp message because no context provided",
+					zap.Stringer("txID", next.ID()),
+				)
+				return true, next.Base.Timestamp > oldestAllowed, false, nil
+			}
+
+			// Skip warp message if at max
+			if next.WarpMessage != nil && warpCount == MaxWarpMessages {
+				log.Info(
+					"dropping pending warp message because already have MaxWarpMessages",
+					zap.Stringer("txID", next.ID()),
+				)
+				return true, true, false, nil
+			}
 
 			// Check for repeats
 			//
@@ -97,7 +126,15 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID) (snowman.Block, er
 			}
 
 			// Ensure we have room
-			nextUnits := next.MaxUnits(r)
+			nextUnits, err := next.MaxUnits(r)
+			if err != nil {
+				// Should never happen
+				log.Debug(
+					"skipping invalid tx",
+					zap.Error(err),
+				)
+				return true, false, false, nil
+			}
 			if b.UnitsConsumed+nextUnits > r.GetMaxBlockUnits() {
 				log.Debug(
 					"skipping tx: too many units",
@@ -112,7 +149,7 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID) (snowman.Block, er
 			// TODO: prefetch state of upcoming txs that we will pull (should make much
 			// faster)
 			txStart := ts.OpIndex()
-			if err := ts.FetchAndSetScope(ctx, state, next.StateKeys()); err != nil {
+			if err := ts.FetchAndSetScope(ctx, state, next.StateKeys(sm)); err != nil {
 				return false, true, false, err
 			}
 
@@ -123,8 +160,31 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID) (snowman.Block, er
 				return cont, restore, removeAcct, nil
 			}
 
+			// Verify warp message, if it exists
+			//
+			// We don't drop invalid warp messages because we must collect fees for
+			// the work the sender made us do (otherwise this would be a DoS).
+			//
+			// We wait as long as possible to verify the signature to ensure we don't
+			// spend unnecessary time on an invalid tx.
+			var warpErr error
+			if next.WarpMessage != nil {
+				num, denom, err := preVerifyWarpMessage(next.WarpMessage, vm.ChainID(), r)
+				if err == nil {
+					warpErr = next.WarpMessage.Signature.Verify(
+						ctx, &next.WarpMessage.UnsignedMessage,
+						vdrState, blockContext.PChainHeight, num, denom,
+					)
+				} else {
+					warpErr = err
+				}
+				if warpErr != nil {
+					log.Warn("warp verification failed", zap.Stringer("txID", next.ID()), zap.Error(warpErr))
+				}
+			}
+
 			// If execution works, keep moving forward with new state
-			result, err := next.Execute(fctx, r, ts, nextTime)
+			result, err := next.Execute(fctx, ectx, r, sm, ts, nextTime, next.WarpMessage != nil && warpErr == nil)
 			if err != nil {
 				// This error should only be raised by the handler, not the
 				// implementation itself
@@ -137,6 +197,13 @@ func BuildBlock(ctx context.Context, vm VM, preferred ids.ID) (snowman.Block, er
 			b.UnitsConsumed += result.Units
 			surplusFee += (next.Base.UnitPrice - b.UnitPrice) * result.Units
 			results = append(results, result)
+			if next.WarpMessage != nil {
+				if warpErr == nil {
+					// Add a bit if the warp message was verified
+					b.WarpResults.Add(uint(warpCount))
+				}
+				warpCount++
+			}
 			return len(b.Txs) < r.GetMaxBlockTxs(), false, false, nil
 		},
 	)

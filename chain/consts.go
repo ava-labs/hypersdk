@@ -3,8 +3,13 @@
 
 package chain
 
-import "time"
+import (
+	"time"
+
+	"github.com/ava-labs/avalanchego/utils/units"
+)
 
 const (
-	FutureBound = 10 * time.Second
+	FutureBound        = 10 * time.Second
+	MaxWarpMessageSize = 256 * units.KiB
 )

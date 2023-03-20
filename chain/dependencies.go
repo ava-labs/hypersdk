@@ -8,8 +8,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -17,11 +19,12 @@ import (
 )
 
 type (
-	ActionRegistry *codec.TypeParser[Action]
-	AuthRegistry   *codec.TypeParser[Auth]
+	ActionRegistry *codec.TypeParser[Action, *warp.Message, bool]
+	AuthRegistry   *codec.TypeParser[Auth, *warp.Message, bool]
 )
 
 type Parser interface {
+	ChainID() ids.ID
 	Rules(int64) Rules
 
 	Registry() (ActionRegistry, AuthRegistry)
@@ -31,6 +34,7 @@ type VM interface {
 	Parser
 
 	HRP() string
+	ChainID() ids.ID
 
 	Workers() *workers.Workers
 	Tracer() trace.Tracer
@@ -42,6 +46,8 @@ type VM interface {
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
 	State() (*merkledb.Database, error)
+	StateManager() StateManager
+	ValidatorState() validators.State
 
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction) bool
@@ -74,8 +80,6 @@ type Database interface {
 }
 
 type Rules interface {
-	GetChainID() ids.ID
-
 	GetMaxBlockTxs() int
 	GetMaxBlockUnits() uint64 // should ensure can't get above block max size
 
@@ -90,7 +94,19 @@ type Rules interface {
 	GetBlockCostChangeDenominator() uint64
 	GetWindowTargetBlocks() uint64
 
+	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
+	GetWarpBaseFee() uint64
+	GetWarpFeePerSigner() uint64
+
 	FetchCustom(string) (any, bool)
+}
+
+// StateManager allows [Chain] to safely store certain types of items in state
+// in a structured manner. If we did not use [StateManager], we may overwrite
+// state written by actions or auth.
+type StateManager interface {
+	IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) []byte
+	OutgoingWarpKey(txID ids.ID) []byte
 }
 
 type Action interface {
@@ -121,6 +137,7 @@ type Action interface {
 		timestamp int64,
 		auth Auth,
 		txID ids.ID,
+		warpVerified bool,
 	) (result *Result, err error) // err should only be returned if fatal
 
 	Marshal(p *codec.Packer)

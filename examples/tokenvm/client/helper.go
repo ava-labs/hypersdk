@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/client"
 	"github.com/ava-labs/hypersdk/utils"
@@ -14,6 +15,7 @@ import (
 
 func (cli *Client) GenerateTransaction(
 	ctx context.Context,
+	wm *warp.Message,
 	action chain.Action,
 	factory chain.AuthFactory,
 	modifiers ...client.Modifier,
@@ -30,6 +32,7 @@ func (cli *Client) GenerateTransaction(
 	return cli.Client.GenerateTransaction(
 		ctx,
 		&Parser{chainID, g},
+		wm,
 		action,
 		factory,
 		modifiers...)

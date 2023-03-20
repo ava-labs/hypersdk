@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"github.com/ava-labs/hypersdk/chain"
@@ -21,8 +22,9 @@ var _ Gossiper = (*Proposer)(nil)
 var proposerWindow = int64(proposer.MaxDelay.Seconds())
 
 type Proposer struct {
-	vm  VM
-	cfg *ProposerConfig
+	vm        VM
+	cfg       *ProposerConfig
+	appSender common.AppSender
 
 	doneGossip chan struct{}
 
@@ -86,7 +88,7 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 			return err
 		}
 
-		if err := g.vm.AppSender().SendAppGossip(ctx, b); err != nil {
+		if err := g.appSender.SendAppGossip(ctx, b); err != nil {
 			g.vm.Logger().Warn(
 				"GossipTxs failed",
 				zap.Error(err),
@@ -130,7 +132,7 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 			return err
 		}
 
-		if err := g.vm.AppSender().SendAppGossipSpecific(ctx, set.Set[ids.NodeID]{proposer: {}}, b); err != nil {
+		if err := g.appSender.SendAppGossipSpecific(ctx, set.Set[ids.NodeID]{proposer: {}}, b); err != nil {
 			g.vm.Logger().Warn(
 				"GossipTxs failed",
 				zap.Stringer("node", proposer),
@@ -168,7 +170,14 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ectx, err := chain.GenerateExecutionContext(ctx, now, blk, g.vm.Tracer(), g.vm.Rules(now))
+	ectx, err := chain.GenerateExecutionContext(
+		ctx,
+		g.vm.ChainID(),
+		now,
+		blk,
+		g.vm.Tracer(),
+		g.vm.Rules(now),
+	)
 	if err != nil {
 		return err
 	}
@@ -195,7 +204,11 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 			}
 
 			// Gossip up to a block of content
-			units := next.MaxUnits(r)
+			units, err := next.MaxUnits(r)
+			if err != nil {
+				// Should never happen
+				return true, false, false, nil
+			}
 			if units+totalUnits > r.GetMaxBlockUnits() {
 				// Attempt to mirror the function of building a block without execution
 				return false, true, false, nil
@@ -245,17 +258,21 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	}
 
 	// submit incoming gossip
-	g.vm.Logger().Info("AppGossip transactions are being submitted", zap.Int("txs", len(txs)))
+	start := time.Now()
 	for _, err := range g.vm.Submit(ctx, true, txs) {
 		if err == nil || errors.Is(err, chain.ErrDuplicateTx) {
 			continue
 		}
-		g.vm.Logger().Warn(
+		g.vm.Logger().Debug(
 			"AppGossip failed to submit txs",
-			zap.Stringer("peerID", nodeID),
-			zap.Error(err),
+			zap.Stringer("nodeID", nodeID), zap.Error(err),
 		)
 	}
+	g.vm.Logger().Info(
+		"AppGossip transactions submitted",
+		zap.Int("txs", len(txs)),
+		zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)),
+	)
 
 	// only trace error to prevent VM's being shutdown
 	// from "AppGossip" returning an error
@@ -263,7 +280,9 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 }
 
 // periodically but less aggressively force-regossip the pending
-func (g *Proposer) Run() {
+func (g *Proposer) Run(appSender common.AppSender) {
+	g.appSender = appSender
+
 	g.vm.Logger().Info("starting gossiper", zap.Duration("interval", g.cfg.GossipInterval))
 	defer close(g.doneGossip)
 

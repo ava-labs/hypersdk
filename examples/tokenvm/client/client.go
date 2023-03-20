@@ -54,7 +54,10 @@ func (cli *Client) Tx(ctx context.Context, id ids.ID) (bool, bool, int64, error)
 	return true, resp.Success, resp.Timestamp, nil
 }
 
-func (cli *Client) Asset(ctx context.Context, asset ids.ID) (bool, []byte, uint64, string, error) {
+func (cli *Client) Asset(
+	ctx context.Context,
+	asset ids.ID,
+) (bool, []byte, uint64, string, bool, error) {
 	resp := new(controller.AssetReply)
 	err := cli.Requester.SendRequest(
 		ctx,
@@ -68,11 +71,11 @@ func (cli *Client) Asset(ctx context.Context, asset ids.ID) (bool, []byte, uint6
 	// We use string parsing here because the JSON-RPC library we use may not
 	// allows us to perform errors.Is.
 	case err != nil && strings.Contains(err.Error(), controller.ErrAssetNotFound.Error()):
-		return false, nil, 0, "", nil
+		return false, nil, 0, "", false, nil
 	case err != nil:
-		return false, nil, 0, "", err
+		return false, nil, 0, "", false, err
 	}
-	return true, resp.Metadata, resp.Supply, resp.Owner, nil
+	return true, resp.Metadata, resp.Supply, resp.Owner, resp.Warp, nil
 }
 
 func (cli *Client) Balance(ctx context.Context, addr string, asset ids.ID) (uint64, error) {
@@ -100,4 +103,18 @@ func (cli *Client) Orders(ctx context.Context, pair string) ([]*controller.Order
 		resp,
 	)
 	return resp.Orders, err
+}
+
+func (cli *Client) Loan(ctx context.Context, asset ids.ID, destination ids.ID) (uint64, error) {
+	resp := new(controller.LoanReply)
+	err := cli.Requester.SendRequest(
+		ctx,
+		"loan",
+		&controller.LoanArgs{
+			Asset:       asset,
+			Destination: destination,
+		},
+		resp,
+	)
+	return resp.Amount, err
 }

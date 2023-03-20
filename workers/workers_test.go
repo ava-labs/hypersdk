@@ -5,11 +5,15 @@ package workers
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"runtime"
 	"strconv"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/neilotoole/errgroup"
@@ -130,4 +134,163 @@ func BenchmarkSerial(b *testing.B) {
 			}
 		})
 	}
+}
+
+func TestJobWait(t *testing.T) {
+	require := require.New(t)
+	job := Job{
+		tasks:     make(chan func() error),
+		completed: make(chan struct{}),
+		result:    make(chan error),
+	}
+	testError := errors.New("TestError")
+	go func() {
+		job.result <- testError
+	}()
+	time.Sleep(10 * time.Millisecond)
+	returned := job.Wait()
+	require.ErrorIs(testError, returned, "Incorrect error returned.")
+}
+
+func TestJobDone(t *testing.T) {
+	require := require.New(t)
+	job := Job{
+		tasks:     make(chan func() error),
+		completed: make(chan struct{}),
+		result:    make(chan error),
+	}
+	var callMU sync.Mutex
+	called := false
+	job.Done(func() {
+		callMU.Lock()
+		defer callMU.Unlock()
+		called = true
+	})
+	job.completed <- struct{}{}
+	// Check that the callback function was called
+	callMU.Lock()
+	require.True(called, "Callback function not called")
+	callMU.Unlock()
+
+	// Ensure task channel was closed
+	require.Empty(job.tasks, "Tasks channel not closed")
+}
+
+func TestJobGo(t *testing.T) {
+	require := require.New(t)
+	job := Job{
+		tasks:     make(chan func() error, 2),
+		completed: make(chan struct{}),
+		result:    make(chan error),
+	}
+	n := 1
+	testError := errors.New("TestError")
+	for n <= 2 {
+		job.Go(func() error {
+			if n == 1 {
+				return nil
+			} else {
+				return testError
+			}
+		})
+		n += 1
+	}
+	n = 1
+	// Ensure corret errors
+	for n <= 2 {
+		response := <-job.tasks
+		if n == 1 {
+			require.NoError(response(), "Incorrect error message.")
+		} else {
+			require.ErrorIs(testError, response(), "Incorrect error message.")
+		}
+		n += 1
+	}
+}
+
+func TestStopWorker(t *testing.T) {
+	require := require.New(t)
+	w := New(10, 100)
+	require.False(w.shouldShutdown, "Shutdown val incorrectly initialized.")
+	w.Stop()
+	require.Empty(w.queue, "Worker queue not empty")
+	require.True(w.shouldShutdown, "Shutdown val not set.")
+}
+
+func TestWorker(t *testing.T) {
+	require := require.New(t)
+	w := New(10, 10000)
+	// Require workers was created properly
+	require.Equal(10, w.count, "Count not set correctly")
+	require.Empty(w.queue, "Worker queue not empty")
+	require.Empty(w.tasks, "Worker tasks not empty")
+	// Shutdown fields
+	require.Empty(w.ackShutdown, "Worker ackShutdown not empty")
+	require.Empty(w.stopWorkers, "Worker stopWorkers not empty")
+	require.Empty(w.stoppedWorkers, "Worker stoppedWorkers not empty")
+	// Value updated by the workers
+	var valLock sync.Mutex
+	val := 0
+	jobs := []*Job{}
+	for i := 0; i < 1000; i++ {
+		// Create a new job
+		job, err := w.NewJob(10)
+		require.NoError(err)
+		for j := 0; j < 10; j++ {
+			job.Go(func() error {
+				valLock.Lock()
+				defer valLock.Unlock()
+				val += 1
+				return nil
+			})
+		}
+		jobs = append(jobs, job)
+		job.Done(nil)
+	}
+	for _, j := range jobs {
+		require.NoError(j.Wait(), "Error waiting on job.")
+	}
+	w.Stop()
+	// Jobs ran correctly
+	require.Equal(10000, val, "Value not updated correctly")
+}
+
+func TestWorkerStop(t *testing.T) {
+	require := require.New(t)
+	w := New(5, 100)
+	var valLock sync.Mutex
+	val := 0
+	// Create a new job
+	job, err := w.NewJob(5)
+	require.NoError(err)
+	for j := 0; j < 5; j++ {
+		job.Go(func() error {
+			time.Sleep(time.Second * 1)
+			valLock.Lock()
+			defer valLock.Unlock()
+			val += 1
+			return nil
+		})
+	}
+	job.Done(nil)
+	valLock.Lock()
+	require.Equal(0, val, "Value not updated correctly")
+	valLock.Unlock()
+	require.NoError(job.Wait(), "Error waiting on job.")
+	// Trigger stop, 5 jobs should still be running
+	w.Stop()
+	// Check that processes completed
+	require.Equal(5, val, "Value not updated correctly")
+	// Make sure new jobs cannot be created
+	_, err = w.NewJob(5)
+	require.ErrorIs(ErrShutdown, err, "Incorrect error thrown from NewJob.")
+}
+
+func TestNewJobShutdown(t *testing.T) {
+	require := require.New(t)
+	w := New(2, 10)
+	w.shouldShutdown = true
+	job, err := w.NewJob(10)
+	require.ErrorIs(ErrShutdown, err, "NewJob returned no error")
+	require.Nil(job, "NewJob returned a not nil job pointer.")
 }
