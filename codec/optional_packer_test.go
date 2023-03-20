@@ -43,9 +43,9 @@ func TestOptionalPackerWriter(t *testing.T) {
 		len(opw.ip.Bytes()),
 		"Bytes not added correctly.",
 	)
-	require.NoError(opw.ip.Err(), "Error packing bytes.")
+	require.NoError(opw.Err(), "Error packing bytes.")
 	opw.PackPublicKey(pubKey)
-	require.ErrorIs(opw.ip.Err(), ErrTooManyItems, "Error not thrown after over packing.")
+	require.ErrorIs(opw.Err(), ErrTooManyItems, "Error not thrown after over packing.")
 }
 
 func TestOptionalPackerPublicKey(t *testing.T) {
@@ -71,7 +71,7 @@ func TestOptionalPackerPublicKey(t *testing.T) {
 		opr.UnpackPublicKey(&unpackedPubkey)
 		require.Equal(pubKey, unpackedPubkey, "PublicKey unpacked correctly")
 		opr.Done()
-		require.NoError(opr.ip.Err())
+		require.NoError(opr.Err())
 	})
 }
 
@@ -99,7 +99,7 @@ func TestOptionalPackerID(t *testing.T) {
 		opr.UnpackID(&unpackedID)
 		require.Equal(id, unpackedID, "ID unpacked correctly")
 		opr.Done()
-		require.NoError(opr.ip.Err())
+		require.NoError(opr.Err())
 	})
 }
 
@@ -126,7 +126,7 @@ func TestOptionalPackerUint64(t *testing.T) {
 		require.Equal(uint64(0), opr.UnpackUint64(), "Uint64 unpacked correctly")
 		require.Equal(val, opr.UnpackUint64(), "Uint64 unpacked correctly")
 		opr.Done()
-		require.NoError(opr.ip.Err())
+		require.NoError(opr.Err())
 	})
 }
 
@@ -150,6 +150,6 @@ func TestOptionalPackerInvalidSet(t *testing.T) {
 		// Setup optional reader (expects no entries)
 		opr := opw.toReader()
 		opr.Done()
-		require.ErrorIs(opr.ip.Err(), ErrInvalidBitset)
+		require.ErrorIs(opr.Err(), ErrInvalidBitset)
 	})
 }

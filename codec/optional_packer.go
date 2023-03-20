@@ -177,3 +177,8 @@ func (o *OptionalPacker) Done() {
 	}
 	o.ip.addErr(ErrInvalidBitset)
 }
+
+// Err returns any error associated with the inner Packer.
+func (o *OptionalPacker) Err() error {
+	return o.ip.Err()
+}
