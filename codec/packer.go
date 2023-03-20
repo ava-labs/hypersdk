@@ -81,9 +81,7 @@ func (p *Packer) PackBytes(b []byte) {
 // UnpackBytes adds an err ErrFieldNotPopulated to the Packer.
 func (p *Packer) UnpackBytes(limit int, required bool, dest *[]byte) {
 	if limit >= 0 {
-		fmt.Println("limit: ", limit)
 		*dest = p.p.UnpackLimitedBytes(uint32(limit))
-		fmt.Println(dest)
 	} else {
 		*dest = p.p.UnpackBytes()
 	}

@@ -537,6 +537,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		ginkgo.By(
 			"ensuring snowman++ is activated on destination + fund other account with native",
 			func() {
+				txs := make([]ids.ID, 10)
 				for i := 0; i < 10; i++ {
 					submit, tx, _, err := instancesB[0].cli.GenerateTransaction(
 						context.Background(),
@@ -551,15 +552,19 @@ var _ = ginkgo.Describe("[Test]", func() {
 					gomega.Ω(err).Should(gomega.BeNil())
 					hutils.Outf("{{yellow}}generated transaction:{{/}} %s\n", txID)
 
-					// Broadcast and wait for transaction
+					// Broadcast transaction (wait for after all broadcast)
 					gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 					hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
+					txs[i] = tx.ID()
+				}
+				for i := 0; i < 10; i++ {
+					txID := txs[i]
 					ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-					success, err := instancesB[0].cli.WaitForTransaction(ctx, tx.ID())
+					success, err := instancesB[0].cli.WaitForTransaction(ctx, txID)
 					cancel()
 					gomega.Ω(err).Should(gomega.BeNil())
 					gomega.Ω(success).Should(gomega.BeTrue())
-					hutils.Outf("{{yellow}}found transaction on B{{/}}\n")
+					hutils.Outf("{{yellow}}found transaction %s on B{{/}}\n", txID)
 				}
 			},
 		)
@@ -1215,7 +1220,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 
-			// Broadcast and wait for transaction
+			// Broadcast transactions
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			count++
 			_, height, _, err := instancesA[0].cli.Accepted(context.Background())
@@ -1306,7 +1311,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 
-			// Broadcast and wait for transaction
+			// Broadcast transactions
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			count++
 			_, height, _, err := instancesA[0].cli.Accepted(context.Background())
@@ -1429,6 +1434,10 @@ var _ = ginkgo.Describe("[Test]", func() {
 					lastHeight = height
 					hutils.Outf("{{yellow}}height=%d count=%d{{/}}\n", height, count)
 				}
+
+				// Sleep for a very small amount of time to avoid overloading the
+				// network with transactions (can generate very fast)
+				time.Sleep(10 * time.Millisecond)
 			}
 		}()
 
