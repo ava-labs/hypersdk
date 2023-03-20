@@ -70,7 +70,7 @@ var importANRChainCmd = &cobra.Command{
 
 		// Load new items from ANR
 		anrCli, err := runner.New(runner.Config{
-			Endpoint:    "0.0.0.0:8080",
+			Endpoint:    "0.0.0.0:12353",
 			DialTimeout: 10 * time.Second,
 		}, logging.NoLog{})
 		if err != nil {

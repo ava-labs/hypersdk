@@ -556,6 +556,10 @@ var _ = ginkgo.Describe("[Test]", func() {
 					gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 					hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 					txs[i] = tx.ID()
+
+					// Ensure we sleep long enough that transactions end up in different
+					// blocks
+					time.Sleep(500 * time.Millisecond)
 				}
 				for i := 0; i < 10; i++ {
 					txID := txs[i]
