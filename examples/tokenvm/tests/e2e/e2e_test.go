@@ -1237,6 +1237,10 @@ var _ = ginkgo.Describe("[Test]", func() {
 					hutils.Outf("{{yellow}}height=%d count=%d{{/}}\n", height, count)
 				}
 			}
+
+			// Sleep for a very small amount of time to avoid overloading the
+			// network with transactions (can generate very fast)
+			time.Sleep(10 * time.Millisecond)
 		}
 	})
 
@@ -1328,6 +1332,10 @@ var _ = ginkgo.Describe("[Test]", func() {
 					hutils.Outf("{{yellow}}height=%d count=%d{{/}}\n", height, count)
 				}
 			}
+
+			// Sleep for a very small amount of time to avoid overloading the
+			// network with transactions (can generate very fast)
+			time.Sleep(10 * time.Millisecond)
 		}
 
 		// TODO: verify all roots are equal

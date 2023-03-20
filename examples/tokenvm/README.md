@@ -170,27 +170,12 @@ Lastly, you'll need to add the chains you created and the default key to the
 `token-cli`. You can use the following commands from this location to do so:
 ```bash
 ./build/token-cli key import demo.pk
-./build/token-cli chain import
-./build/token-cli chain import
+./build/token-cli chain import-anr
 ```
 
-_The chain information you will import is exported when the `./scripts/run.sh`
-script finishes. If you ran it correctly, the output will look something like:_
-```
-Blockchain: cKVefMmNPSKmLoshR15Fzxmx52Y5yUSPqWiJsNFUg1WgNQVMX
-URI: http://127.0.0.1:29528/ext/bc/cKVefMmNPSKmLoshR15Fzxmx52Y5yUSPqWiJsNFUg1WgNQVMX
-URI: http://127.0.0.1:15827/ext/bc/cKVefMmNPSKmLoshR15Fzxmx52Y5yUSPqWiJsNFUg1WgNQVMX
-URI: http://127.0.0.1:44476/ext/bc/cKVefMmNPSKmLoshR15Fzxmx52Y5yUSPqWiJsNFUg1WgNQVMX
-URI: http://127.0.0.1:30145/ext/bc/cKVefMmNPSKmLoshR15Fzxmx52Y5yUSPqWiJsNFUg1WgNQVMX
-URI: http://127.0.0.1:43779/ext/bc/cKVefMmNPSKmLoshR15Fzxmx52Y5yUSPqWiJsNFUg1WgNQVMX
-
-Blockchain: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
-URI: http://127.0.0.1:63504/ext/bc/Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
-URI: http://127.0.0.1:62507/ext/bc/Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
-URI: http://127.0.0.1:65415/ext/bc/Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
-URI: http://127.0.0.1:26083/ext/bc/Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
-URI: http://127.0.0.1:36358/ext/bc/Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
-```
+_`chain import-anr` connects to the Avalanche Network Runner server running in
+the background and pulls the URIs of all nodes tracking each chain you
+created._
 
 ### Mint and Trade
 #### Step 1: Create Your Asset
