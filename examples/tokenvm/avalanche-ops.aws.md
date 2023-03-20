@@ -159,7 +159,7 @@ avalancheup-aws install-subnet-chain \
 --ssm-doc aops-custom-***-ssm-install-subnet-chain \
 --chain-rpc-url http://52.88.8.107:9650 \
 --key 0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027 \
---staking-perioid-in-days 15 \
+--subnet-validate-period-in-days 15 \
 --subnet-config-local-path /tmp/subnet-config.json \
 --subnet-config-remote-dir /data/avalanche-configs/subnets \
 --vm-binary-local-path /tmp/tokenvm \
@@ -183,7 +183,7 @@ avalancheup-aws install-subnet-chain \
 --ssm-doc aops-custom-***-ssm-install-subnet-chain \
 --chain-rpc-url http://52.88.8.107:9650 \
 --key 0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027 \
---staking-perioid-in-days 15 \
+--subnet-validate-period-in-days 15 \
 --subnet-config-local-path /tmp/subnet-config.json \
 --subnet-config-remote-dir /data/avalanche-configs/subnets \
 --vm-binary-local-path /tmp/tokenvm \
