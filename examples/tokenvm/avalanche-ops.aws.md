@@ -146,7 +146,7 @@ EOF
 cat /tmp/tokenvm-chain-config.json
 ```
 
-Note that `--chain-name tokenvm*` and `--node-ids-to-instance-ids` values are different to split nodes into two separate subnets. And `avalancheup-aws install-subnet-chain` **will add the specified nodes as primary network validators (regardless of it's for customer or public networks) before adding them as subnet validators**. So, please make sure the `--key` has enough balance:
+Note that `--chain-name tokenvm*` and `--node-ids-to-instance-ids` values are different to split nodes into two separate subnets. And `avalancheup-aws install-subnet-chain` **will add the specified nodes as primary network validators (regardless of it's for customer or public networks) before adding them as subnet validators**. So, please make sure the `--key` has enough balance and use `--subnet-validate-period-in-days` flag to set custom validate priods (defaults to 15-day for primary network, 14-day for subnet validation):
 
 ```bash
 # this will prompt you to confirm the outcome!
