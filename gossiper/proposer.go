@@ -91,7 +91,6 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 			)
 			return err
 		}
-		g.vm.Logger().Debug("gossiped txs", zap.Int("count", len(txs)))
 		return nil
 	}
 
@@ -136,11 +135,6 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 			)
 			return err
 		}
-		g.vm.Logger().Debug(
-			"gossiped txs",
-			zap.Stringer("node", proposer),
-			zap.Int("count", len(txs)),
-		)
 	}
 	return nil
 }
@@ -222,7 +216,7 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 		return nil
 	}
 	g.vm.Logger().Info(
-		"gossiping transactions", zap.Int("count", len(txs)),
+		"gossiping transactions", zap.Int("txs", len(txs)),
 		zap.Uint64("preferred height", blk.Hght), zap.Duration("t", time.Since(start)),
 	)
 	return g.sendTxs(ctx, txs)
@@ -234,7 +228,7 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	txs, err := chain.UnmarshalTxs(msg, r.GetMaxBlockTxs(), actionRegistry, authRegistry)
 	if err != nil {
 		g.vm.Logger().Warn(
-			"AppGossip provided invalid txs",
+			"received invalid txs",
 			zap.Stringer("peerID", nodeID),
 			zap.Error(err),
 		)
@@ -268,12 +262,12 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 			continue
 		}
 		g.vm.Logger().Debug(
-			"AppGossip failed to submit txs",
+			"failed to submit gossiped txs",
 			zap.Stringer("nodeID", nodeID), zap.Error(err),
 		)
 	}
 	g.vm.Logger().Info(
-		"AppGossip transactions submitted",
+		"submitted gossipped transactions",
 		zap.Int("txs", len(txs)),
 		zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)),
 	)

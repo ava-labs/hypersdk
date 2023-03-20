@@ -621,7 +621,10 @@ func submitDummy(
 	dest crypto.PublicKey,
 	factory chain.AuthFactory,
 ) error {
-	var logEmitted bool
+	var (
+		logEmitted bool
+		txsSent    uint64
+	)
 	for ctx.Err() == nil {
 		_, h, t, err := cli.Accepted(ctx)
 		if err != nil {
@@ -631,13 +634,13 @@ func submitDummy(
 		if underHeight || time.Now().Unix()-t > dummyBlockAgeThreshold {
 			if underHeight && !logEmitted {
 				hutils.Outf(
-					"{{yellow}}waiting for snowman++ to activate (needed for AWM)...{{/}}\n",
+					"{{yellow}}waiting for snowman++ activation (needed for AWM)...{{/}}\n",
 				)
 				logEmitted = true
 			}
 			submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{
 				To:    dest,
-				Value: 1,
+				Value: txsSent + 1, // prevent duplicate txs
 			}, factory)
 			if err != nil {
 				return err
@@ -645,8 +648,11 @@ func submitDummy(
 			if err := submit(ctx); err != nil {
 				return err
 			}
-			_, _ = cli.WaitForTransaction(ctx, tx.ID())
-			time.Sleep(1100 * time.Millisecond)
+			if _, err := cli.WaitForTransaction(ctx, tx.ID()); err != nil {
+				return err
+			}
+			txsSent++
+			time.Sleep(750 * time.Millisecond)
 			continue
 		}
 		if logEmitted {
