@@ -25,7 +25,7 @@ import (
 
 const (
 	dummyBlockAgeThreshold = 25
-	dummyHeightThreshold   = 5
+	dummyHeightThreshold   = 3
 )
 
 var actionCmd = &cobra.Command{
@@ -643,7 +643,7 @@ func submitDummy(
 			if err := submit(ctx); err != nil {
 				return err
 			}
-			_, err = cli.WaitForTransaction(ctx, tx.ID())
+			_, _ = cli.WaitForTransaction(ctx, tx.ID())
 			time.Sleep(1100 * time.Millisecond)
 			continue
 		}
