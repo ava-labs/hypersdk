@@ -138,6 +138,33 @@ func promptAmount(
 	return amount, err
 }
 
+func promptInt(
+	label string,
+) (int, error) {
+	promptText := promptui.Prompt{
+		Label: label,
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return ErrInputEmpty
+			}
+			amount, err := strconv.Atoi(input)
+			if err != nil {
+				return err
+			}
+			if amount <= 0 {
+				return fmt.Errorf("%d must be > 0", amount)
+			}
+			return nil
+		},
+	}
+	rawAmount, err := promptText.Run()
+	if err != nil {
+		return 0, err
+	}
+	rawAmount = strings.TrimSpace(rawAmount)
+	return strconv.Atoi(rawAmount)
+}
+
 func promptChoice(label string, max int) (int, error) {
 	promptText := promptui.Prompt{
 		Label: label,

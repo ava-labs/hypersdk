@@ -205,6 +205,9 @@ var watchChainCmd = &cobra.Command{
 				blk.StateRoot,
 				totalTxs/time.Since(start).Seconds(),
 			)
+			if hideTxs {
+				continue
+			}
 			for i, tx := range blk.Txs {
 				result := results[i]
 				summaryStr := string(result.Output)

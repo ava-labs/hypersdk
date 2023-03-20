@@ -26,6 +26,7 @@ var (
 
 	genesisFile  string
 	minUnitPrice int64
+	hideTxs      bool
 
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
@@ -41,6 +42,7 @@ func init() {
 		keyCmd,
 		chainCmd,
 		actionCmd,
+		spamCmd,
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
@@ -85,6 +87,12 @@ func init() {
 	)
 
 	// chain
+	watchChainCmd.PersistentFlags().BoolVar(
+		&hideTxs,
+		"hide-txs",
+		false,
+		"hide txs",
+	)
 	chainCmd.AddCommand(
 		importChainCmd,
 		importANRChainCmd,
@@ -108,6 +116,11 @@ func init() {
 
 		importAssetCmd,
 		exportAssetCmd,
+	)
+
+	// spam
+	spamCmd.AddCommand(
+		runSpamCmd,
 	)
 }
 
