@@ -162,7 +162,7 @@ func (p *Packer) PackOptional(o *OptionalPacker) {
 	p.PackFixedBytes(o.ip.Bytes())
 }
 
-// DOne is called when done reading items from an OptionalPacker. It asserts
+// Done is called when done reading items from an OptionalPacker. It asserts
 // that no bits are populated above the largest read offset.
 func (o *OptionalPacker) Done() {
 	if o.offset == consts.MaxUint64Offset+1 {
