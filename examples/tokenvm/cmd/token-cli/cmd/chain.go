@@ -70,7 +70,7 @@ var importANRChainCmd = &cobra.Command{
 
 		// Load new items from ANR
 		anrCli, err := runner.New(runner.Config{
-			Endpoint:    "0.0.0.0:12353",
+			Endpoint:    "0.0.0.0:12352",
 			DialTimeout: 10 * time.Second,
 		}, logging.NoLog{})
 		if err != nil {
@@ -99,6 +99,9 @@ var importANRChainCmd = &cobra.Command{
 		}
 		var filledChainID ids.ID
 		for _, nodeInfo := range status.ClusterInfo.NodeInfos {
+			if len(nodeInfo.WhitelistedSubnets) == 0 {
+				continue
+			}
 			trackedSubnets := strings.Split(nodeInfo.WhitelistedSubnets, ",")
 			for _, subnet := range trackedSubnets {
 				subnetID, err := ids.FromString(subnet)
