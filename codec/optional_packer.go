@@ -39,7 +39,7 @@ func (p *Packer) NewOptionalReader() *OptionalPacker {
 	o := &OptionalPacker{
 		ip: p,
 	}
-	o.b = set.Bits64(o.ip.UnpackByte())
+	o.b = set.Bits64(o.ip.UnpackUint64(false))
 	return o
 }
 
@@ -47,7 +47,7 @@ func (p *Packer) NewOptionalReader() *OptionalPacker {
 // the offset. If offset exceeds the maximum offset, setBit returns without
 // updating the bitset and adds an error to the Packer.
 func (o *OptionalPacker) setBit() {
-	if o.offset > consts.MaxUint8Offset {
+	if o.offset > consts.MaxUint64Offset {
 		o.ip.addErr(ErrTooManyItems)
 		return
 	}
@@ -58,7 +58,7 @@ func (o *OptionalPacker) setBit() {
 // skipBit increments the offset. If offset already exceeds the maximum
 // offset, setBit returns and adds an error to the Packer.
 func (o *OptionalPacker) skipBit() {
-	if o.offset > consts.MaxUint8Offset {
+	if o.offset > consts.MaxUint64Offset {
 		o.ip.addErr(ErrTooManyItems)
 		return
 	}
@@ -138,10 +138,22 @@ func (o *OptionalPacker) UnpackUint64() uint64 {
 // PackOptional packs an OptionalPacker in a Packer. First packs the bitset [o.b]
 // followed by the bytes in the OptionalPacker.
 func (p *Packer) PackOptional(o *OptionalPacker) {
-	if o.b.Len() == 0 {
-		p.PackByte(0)
-	} else {
-		p.PackByte(uint8(o.b))
-	}
+	p.PackUint64(uint64(o.b))
 	p.PackFixedBytes(o.ip.Bytes())
+}
+
+// DOne is called when done reading items from an OptionalPacker. It asserts
+// that no bits are populated above the largest read offset.
+func (o *OptionalPacker) Done() {
+	if o.offset == consts.MaxUint64Offset+1 {
+		// When checking the MaxUint64Offset item, we increment the offset once
+		// more.
+		return
+	}
+	var maxSet set.Bits64
+	maxSet.Add(uint(o.offset))
+	if o.b < maxSet {
+		return
+	}
+	o.ip.addErr(ErrInvalidBitset)
 }
