@@ -275,7 +275,8 @@ func promptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, erro
 	// Select chain
 	hutils.Outf("{{cyan}}available chains:{{/}} %d {{cyan}}excluded:{{/}} %+v\n", len(filteredChains), excludedChains)
 	keys := make([]ids.ID, 0, len(filteredChains))
-	for chainID, uris := range chains {
+	for _, chainID := range filteredChains {
+		uris := chains[chainID]
 		hutils.Outf(
 			"%d) {{cyan}}chainID:{{/}} %s {{cyan}}uris:{{/}} %+v\n",
 			len(keys),

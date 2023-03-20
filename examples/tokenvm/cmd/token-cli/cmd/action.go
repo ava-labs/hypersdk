@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
@@ -489,7 +490,7 @@ var fillOrderCmd = &cobra.Command{
 	},
 }
 
-func performImport(ctx context.Context, scli *client.Client, dcli *client.Client, exportTxID ids.ID, factory *auth.ED25519Factory) error {
+func performImport(ctx context.Context, scli *client.Client, dcli *client.Client, exportTxID ids.ID, priv crypto.PrivateKey, factory *auth.ED25519Factory) error {
 	// Select TxID (if not provided)
 	var err error
 	if exportTxID == ids.Empty {
@@ -570,16 +571,19 @@ func performImport(ctx context.Context, scli *client.Client, dcli *client.Client
 	)
 
 	// Select fill
-	fill, err := promptBool("fill")
-	if err != nil {
-		return err
+	var fill bool
+	if wt.SwapIn > 0 {
+		fill, err = promptBool("fill")
+		if err != nil {
+			return err
+		}
 	}
 	if !fill && wt.SwapExpiry > time.Now().Unix() {
 		return ErrMustFill
 	}
 
 	// Attempt to send dummy transaction if needed
-	success, err := submitDummy(ctx, dcli, factory)
+	success, err := submitDummy(ctx, dcli, priv.PublicKey(), factory)
 	if err != nil {
 		return err
 	}
@@ -605,15 +609,17 @@ func performImport(ctx context.Context, scli *client.Client, dcli *client.Client
 	return nil
 }
 
-func submitDummy(ctx context.Context, cli *client.Client, factory *auth.ED25519Factory) (bool, error) {
+func submitDummy(ctx context.Context, cli *client.Client, dest crypto.PublicKey, factory *auth.ED25519Factory) (bool, error) {
 	// If last block was > 30s ago, submit a dummy transfer
 	_, _, t, err := cli.Accepted(ctx)
 	if err != nil {
 		return false, err
 	}
 	if time.Now().Unix()-t > dummyTransactionThreshold {
-		hutils.Outf("{{yellow}}submitting a transaction on destination to get a more recent timestamp before import{{/}}\n")
-		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{}, factory)
+		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{
+			To:    dest,
+			Value: 1,
+		}, factory)
 		if err != nil {
 			return false, err
 		}
@@ -635,7 +641,7 @@ var importAssetCmd = &cobra.Command{
 	Use: "import-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		currentChainID, _, factory, dcli, err := defaultActor()
+		currentChainID, priv, factory, dcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -645,7 +651,7 @@ var importAssetCmd = &cobra.Command{
 		scli := client.New(uris[0])
 
 		// Perform import
-		return performImport(ctx, scli, dcli, ids.Empty, factory)
+		return performImport(ctx, scli, dcli, ids.Empty, priv, factory)
 	},
 }
 
@@ -743,7 +749,7 @@ var exportAssetCmd = &cobra.Command{
 		}
 
 		// Attempt to send dummy transaction if needed
-		success, err := submitDummy(ctx, cli, factory)
+		success, err := submitDummy(ctx, cli, priv.PublicKey(), factory)
 		if err != nil {
 			return err
 		}
@@ -786,7 +792,7 @@ var exportAssetCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if err := performImport(ctx, cli, client.New(uris[0]), tx.ID(), factory); err != nil {
+			if err := performImport(ctx, cli, client.New(uris[0]), tx.ID(), priv, factory); err != nil {
 				return err
 			}
 		}
