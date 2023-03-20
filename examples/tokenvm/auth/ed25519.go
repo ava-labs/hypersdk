@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
@@ -64,7 +65,7 @@ func (d *ED25519) Marshal(p *codec.Packer) {
 	p.PackSignature(d.Signature)
 }
 
-func UnmarshalED25519(p *codec.Packer) (chain.Auth, error) {
+func UnmarshalED25519(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 	var d ED25519
 	p.UnpackPublicKey(true, &d.Signer)
 	p.UnpackSignature(&d.Signature)

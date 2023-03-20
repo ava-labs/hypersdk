@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -42,19 +43,17 @@ func (b *BurnAsset) Execute(
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
+	_ bool,
 ) (*chain.Result, error) {
 	actor := auth.GetActor(rauth)
 	unitsUsed := b.MaxUnits(r) // max units == units
-	if b.Asset == ids.Empty {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetIsNative}, nil
-	}
 	if b.Value == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
 	}
 	if err := storage.SubBalance(ctx, db, actor, b.Asset, b.Value); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	exists, metadata, supply, owner, err := storage.GetAsset(ctx, db, b.Asset)
+	exists, metadata, supply, owner, warp, err := storage.GetAsset(ctx, db, b.Asset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
@@ -66,7 +65,7 @@ func (b *BurnAsset) Execute(
 		// This should never fail
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	if err := storage.SetAsset(ctx, db, b.Asset, metadata, newSupply, owner); err != nil {
+	if err := storage.SetAsset(ctx, db, b.Asset, metadata, newSupply, owner, warp); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil
@@ -83,9 +82,9 @@ func (b *BurnAsset) Marshal(p *codec.Packer) {
 	p.PackUint64(b.Value)
 }
 
-func UnmarshalBurnAsset(p *codec.Packer) (chain.Action, error) {
+func UnmarshalBurnAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var burn BurnAsset
-	p.UnpackID(true, &burn.Asset) // empty ID is the native asset
+	p.UnpackID(false, &burn.Asset) // can burn native asset
 	burn.Value = p.UnpackUint64(true)
 	return &burn, p.Err()
 }

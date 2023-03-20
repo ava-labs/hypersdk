@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
@@ -26,9 +27,10 @@ type ProposerMonitor struct {
 	vm       *VM
 	proposer proposer.Windower
 
-	currentPHeight     uint64
-	lastFetchedPHeight time.Time
-	validators         map[ids.NodeID]*validators.GetValidatorOutput
+	currentPHeight      uint64
+	lastFetchedPHeight  time.Time
+	validators          map[ids.NodeID]*validators.GetValidatorOutput
+	validatorPublicKeys map[string]struct{}
 
 	proposerCache *cache.LRU[string, []ids.NodeID]
 
@@ -65,6 +67,14 @@ func (p *ProposerMonitor) refresh(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		pks := map[string]struct{}{}
+		for _, v := range p.validators {
+			if v.PublicKey == nil {
+				continue
+			}
+			pks[string(bls.PublicKeyToBytes(v.PublicKey))] = struct{}{}
+		}
+		p.validatorPublicKeys = pks
 		p.currentPHeight = pHeight
 		p.lastFetchedPHeight = time.Now()
 	}
@@ -110,4 +120,13 @@ func (p *ProposerMonitor) Proposers(
 		proposersToGossip.Add(proposers[:arrLen]...)
 	}
 	return proposersToGossip, nil
+}
+
+func (p *ProposerMonitor) Validators(
+	ctx context.Context,
+) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{}) {
+	if err := p.refresh(ctx); err != nil {
+		return nil, nil
+	}
+	return p.validators, p.validatorPublicKeys
 }

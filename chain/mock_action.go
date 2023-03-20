@@ -41,18 +41,18 @@ func (m *MockAction) EXPECT() *MockActionMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 Database, arg3 int64, arg4 Auth, arg5 ids.ID) (*Result, error) {
+func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 Database, arg3 int64, arg4 Auth, arg5 ids.ID, arg6 error) (*Result, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2, arg3, arg4, arg5)
+	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 	ret0, _ := ret[0].(*Result)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockActionMockRecorder) Execute(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+func (mr *MockActionMockRecorder) Execute(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockAction)(nil).Execute), arg0, arg1, arg2, arg3, arg4, arg5)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockAction)(nil).Execute), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 // Marshal mocks base method.

@@ -21,6 +21,9 @@ type metrics struct {
 	createOrder prometheus.Counter
 	fillOrder   prometheus.Counter
 	closeOrder  prometheus.Counter
+
+	importAsset prometheus.Counter
+	exportAsset prometheus.Counter
 }
 
 func newMetrics(gatherer ametrics.MultiGatherer) (*metrics, error) {
@@ -65,6 +68,16 @@ func newMetrics(gatherer ametrics.MultiGatherer) (*metrics, error) {
 			Name:      "close_order",
 			Help:      "number of close order actions",
 		}),
+		importAsset: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "actions",
+			Name:      "import_asset",
+			Help:      "number of import asset actions",
+		}),
+		exportAsset: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "actions",
+			Name:      "export_asset",
+			Help:      "number of export asset actions",
+		}),
 	}
 	r := prometheus.NewRegistry()
 	errs := wrappers.Errs{}
@@ -79,6 +92,9 @@ func newMetrics(gatherer ametrics.MultiGatherer) (*metrics, error) {
 		r.Register(m.createOrder),
 		r.Register(m.fillOrder),
 		r.Register(m.closeOrder),
+
+		r.Register(m.importAsset),
+		r.Register(m.exportAsset),
 		gatherer.Register(consts.Name, r),
 	)
 	return m, errs.Err

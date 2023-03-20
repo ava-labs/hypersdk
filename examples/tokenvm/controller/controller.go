@@ -34,9 +34,10 @@ var _ vm.Controller = (*Controller)(nil)
 type Controller struct {
 	inner *vm.VM
 
-	snowCtx *snow.Context
-	genesis *genesis.Genesis
-	config  *config.Config
+	snowCtx      *snow.Context
+	genesis      *genesis.Genesis
+	config       *config.Config
+	stateManager *StateManager
 
 	metrics *metrics
 
@@ -61,7 +62,7 @@ func (c *Controller) Initialize(
 	vm.Genesis,
 	builder.Builder,
 	gossiper.Gossiper,
-	vm.KVDatabase,
+	database.Database,
 	database.Database,
 	vm.Handlers,
 	chain.ActionRegistry,
@@ -70,6 +71,7 @@ func (c *Controller) Initialize(
 ) {
 	c.inner = inner
 	c.snowCtx = snowCtx
+	c.stateManager = &StateManager{}
 
 	// Instantiate metrics
 	var err error
@@ -154,7 +156,11 @@ func (c *Controller) Initialize(
 
 func (c *Controller) Rules(t int64) chain.Rules {
 	// TODO: extend with [UpgradeBytes]
-	return c.genesis.Rules(c.snowCtx.ChainID, t)
+	return c.genesis.Rules(t)
+}
+
+func (c *Controller) StateManager() chain.StateManager {
+	return c.stateManager
 }
 
 func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
@@ -216,6 +222,10 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 			case *actions.CloseOrder:
 				c.metrics.closeOrder.Inc()
 				c.orderBook.Remove(action.Order)
+			case *actions.ImportAsset:
+				c.metrics.importAsset.Inc()
+			case *actions.ExportAsset:
+				c.metrics.exportAsset.Inc()
 			}
 		}
 	}
@@ -223,6 +233,11 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 }
 
 func (*Controller) Rejected(context.Context, *chain.StatelessBlock) error {
-	// Do nothing
+	return nil
+}
+
+func (*Controller) Shutdown(context.Context) error {
+	// Do not close any databases provided during initialization. The VM will
+	// close any databases your provided.
 	return nil
 }

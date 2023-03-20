@@ -4,52 +4,136 @@
 package cmd
 
 import (
-	"errors"
-	"os"
+	"context"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
+	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
 var keyCmd = &cobra.Command{
-	Use:   "key [options]",
-	Short: "Creates a new key in the default location",
-	RunE:  keyFunc,
+	Use: "key",
+	RunE: func(*cobra.Command, []string) error {
+		return ErrMissingSubcommand
+	},
 }
 
-func keyFunc(*cobra.Command, []string) error {
-	if _, err := os.Stat(privateKeyFile); err == nil {
-		// Already found, remind the user they have it
-		priv, err := crypto.LoadKey(privateKeyFile)
+var genKeyCmd = &cobra.Command{
+	Use: "generate",
+	RunE: func(*cobra.Command, []string) error {
+		// TODO: encrypt key
+		priv, err := crypto.GeneratePrivateKey()
 		if err != nil {
 			return err
 		}
+		if err := StoreKey(priv); err != nil {
+			return err
+		}
+		publicKey := priv.PublicKey()
+		if err := StoreDefault(defaultKeyKey, publicKey[:]); err != nil {
+			return err
+		}
 		color.Green(
-			"ABORTING!!! key for %s already exists at %s",
-			utils.Address(priv.PublicKey()),
-			privateKeyFile,
+			"created address %s",
+			utils.Address(publicKey),
 		)
-		return os.ErrExist
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
+		return nil
+	},
+}
 
-	// Generate new key and save to disk
-	// TODO: encrypt key
-	priv, err := crypto.GeneratePrivateKey()
-	if err != nil {
+var importKeyCmd = &cobra.Command{
+	Use: "import [path]",
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) != 1 {
+			return ErrInvalidArgs
+		}
+		return nil
+	},
+	RunE: func(_ *cobra.Command, args []string) error {
+		priv, err := crypto.LoadKey(args[0])
+		if err != nil {
+			return err
+		}
+		if err := StoreKey(priv); err != nil {
+			return err
+		}
+		publicKey := priv.PublicKey()
+		if err := StoreDefault(defaultKeyKey, publicKey[:]); err != nil {
+			return err
+		}
+		color.Green(
+			"imported address %s",
+			utils.Address(publicKey),
+		)
+		return nil
+	},
+}
+
+var setKeyCmd = &cobra.Command{
+	Use: "set",
+	RunE: func(*cobra.Command, []string) error {
+		keys, err := GetKeys()
+		if err != nil {
+			return err
+		}
+		if len(keys) == 0 {
+			hutils.Outf("{{red}}no stored keys{{/}}\n")
+			return nil
+		}
+		_, uris, err := GetDefaultChain()
+		if err != nil {
+			return err
+		}
+		if len(uris) == 0 {
+			hutils.Outf("{{red}}no available chains{{/}}\n")
+			return nil
+		}
+		cli := client.New(uris[0])
+		hutils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
+		for i := 0; i < len(keys); i++ {
+			address := utils.Address(keys[i].PublicKey())
+			balance, err := cli.Balance(context.TODO(), address, ids.Empty)
+			if err != nil {
+				return err
+			}
+			hutils.Outf(
+				"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s TKN\n",
+				i,
+				address,
+				valueString(ids.Empty, balance),
+			)
+		}
+
+		// Select key
+		keyIndex, err := promptChoice("set default key", len(keys))
+		if err != nil {
+			return err
+		}
+		key := keys[keyIndex]
+		publicKey := key.PublicKey()
+		return StoreDefault(defaultKeyKey, publicKey[:])
+	},
+}
+
+var balanceKeyCmd = &cobra.Command{
+	Use: "balance",
+	RunE: func(*cobra.Command, []string) error {
+		ctx := context.Background()
+		_, priv, _, cli, err := defaultActor()
+		if err != nil {
+			return err
+		}
+
+		assetID, err := promptAsset("assetID", true)
+		if err != nil {
+			return err
+		}
+		_, _, err = getAssetInfo(ctx, cli, priv.PublicKey(), assetID, true)
 		return err
-	}
-	if err := priv.Save(privateKeyFile); err != nil {
-		return err
-	}
-	color.Green(
-		"created address %s and saved to %s",
-		utils.Address(priv.PublicKey()),
-		privateKeyFile,
-	)
-	return nil
+	},
 }
