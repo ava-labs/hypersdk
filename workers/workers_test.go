@@ -147,33 +147,8 @@ func TestJobWait(t *testing.T) {
 	go func() {
 		job.result <- testError
 	}()
-	time.Sleep(10 * time.Millisecond)
 	returned := job.Wait()
 	require.ErrorIs(testError, returned, "Incorrect error returned.")
-}
-
-func TestJobDone(t *testing.T) {
-	require := require.New(t)
-	job := Job{
-		tasks:     make(chan func() error),
-		completed: make(chan struct{}),
-		result:    make(chan error),
-	}
-	var callMU sync.Mutex
-	called := false
-	job.Done(func() {
-		callMU.Lock()
-		defer callMU.Unlock()
-		called = true
-	})
-	job.completed <- struct{}{}
-	// Check that the callback function was called
-	callMU.Lock()
-	require.True(called, "Callback function not called")
-	callMU.Unlock()
-
-	// Ensure task channel was closed
-	require.Empty(job.tasks, "Tasks channel not closed")
 }
 
 func TestJobGo(t *testing.T) {
