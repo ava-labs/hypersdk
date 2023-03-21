@@ -6,6 +6,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
@@ -16,8 +17,18 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 )
 
+const suggestedFeeCacheRefresh = 10 * time.Second
+
 type Client struct {
 	Requester *requester.EndpointRequester
+
+	networkID uint32
+	subnetID  ids.ID
+	chainID   ids.ID
+
+	lastSuggestedFee time.Time
+	unitPrice        uint64
+	blockCost        uint64
 }
 
 // New creates a new client object.
@@ -40,6 +51,10 @@ func (cli *Client) Ping(ctx context.Context) (bool, error) {
 }
 
 func (cli *Client) Network(ctx context.Context) (uint32, ids.ID, ids.ID, error) {
+	if cli.chainID != ids.Empty {
+		return cli.networkID, cli.subnetID, cli.chainID, nil
+	}
+
 	resp := new(vm.NetworkReply)
 	err := cli.Requester.SendRequest(
 		ctx,
@@ -47,7 +62,13 @@ func (cli *Client) Network(ctx context.Context) (uint32, ids.ID, ids.ID, error) 
 		nil,
 		resp,
 	)
-	return resp.NetworkID, resp.SubnetID, resp.ChainID, err
+	if err != nil {
+		return 0, ids.Empty, ids.Empty, err
+	}
+	cli.networkID = resp.NetworkID
+	cli.subnetID = resp.SubnetID
+	cli.chainID = resp.ChainID
+	return resp.NetworkID, resp.SubnetID, resp.ChainID, nil
 }
 
 func (cli *Client) Accepted(ctx context.Context) (ids.ID, uint64, int64, error) {
@@ -62,6 +83,10 @@ func (cli *Client) Accepted(ctx context.Context) (ids.ID, uint64, int64, error) 
 }
 
 func (cli *Client) SuggestedRawFee(ctx context.Context) (uint64, uint64, error) {
+	if time.Since(cli.lastSuggestedFee) < suggestedFeeCacheRefresh {
+		return cli.unitPrice, cli.blockCost, nil
+	}
+
 	resp := new(vm.SuggestedRawFeeReply)
 	err := cli.Requester.SendRequest(
 		ctx,
@@ -69,7 +94,15 @@ func (cli *Client) SuggestedRawFee(ctx context.Context) (uint64, uint64, error) 
 		nil,
 		resp,
 	)
-	return resp.UnitPrice, resp.BlockCost, err
+	if err != nil {
+		return 0, 0, err
+	}
+	cli.unitPrice = resp.UnitPrice
+	cli.blockCost = resp.BlockCost
+	// We update the time last in case there are concurrent requests being
+	// processed (we don't want them to get an inconsistent view).
+	cli.lastSuggestedFee = time.Now()
+	return resp.UnitPrice, resp.BlockCost, nil
 }
 
 func (cli *Client) SubmitTx(ctx context.Context, d []byte) (ids.ID, error) {
