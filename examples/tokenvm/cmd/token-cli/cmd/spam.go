@@ -17,6 +17,9 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
@@ -181,7 +184,6 @@ var runSpamCmd = &cobra.Command{
 			}
 			clients[i] = &txIssuer{c: c, d: cli}
 		}
-		t := time.NewTicker(1001 * time.Millisecond) // ensure no duplicates created
 		signals := make(chan os.Signal, 2)
 		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 		var (
@@ -197,15 +199,20 @@ var runSpamCmd = &cobra.Command{
 		// confirm txs (track failure rate)
 		cctx, cancel := context.WithCancel(ctx)
 		defer cancel()
+		inflightTxs := set.NewSet[ids.ID](numAccounts)
+		var infl sync.Mutex
 		for i := 0; i < len(clients); i++ {
 			issuer := clients[i]
 			wg.Add(1)
 			go func() {
 				for {
-					_, dErr, result, err := issuer.d.Listen()
+					txID, dErr, result, err := issuer.d.Listen()
 					if err != nil {
 						return
 					}
+					infl.Lock()
+					inflightTxs.Remove(txID)
+					infl.Unlock()
 					issuer.l.Lock()
 					issuer.outstandingTxs--
 					issuer.l.Unlock()
@@ -242,27 +249,48 @@ var runSpamCmd = &cobra.Command{
 		}
 
 		// broadcast txs
+		t := time.NewTimer(0) // ensure no duplicates created
+		defer t.Stop()
 		for !exiting {
 			select {
 			case <-t.C:
-				// TODO: convert to min time so there isn't a backlog of events
+				start := time.Now()
 				for i := 0; i < numAccounts; i++ {
-					issuer := getRandomIssuer(clients)
-					recipient, err := getRandomRecipient(i, accounts)
-					if err != nil {
-						return err
-					}
-					_, tx, fees, err := issuer.c.GenerateTransaction(ctx, nil, &actions.Transfer{
-						To:    recipient,
-						Asset: ids.Empty,
-						Value: 1,
-					}, auth.NewED25519Factory(accounts[i]))
-					if err != nil {
-						hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
-						continue
+					var (
+						issuer = getRandomIssuer(clients)
+						tx     *chain.Transaction
+						fees   uint64
+					)
+					for {
+						recipient, err := getRandomRecipient(i, accounts)
+						if err != nil {
+							return err
+						}
+						_, tx, fees, err = issuer.c.GenerateTransaction(ctx, nil, &actions.Transfer{
+							To:    recipient,
+							Asset: ids.Empty,
+							Value: 1,
+						}, auth.NewED25519Factory(accounts[i]))
+						if err != nil {
+							hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
+							continue
+						}
+						infl.Lock()
+						exit := !inflightTxs.Contains(tx.ID())
+						infl.Unlock()
+						if exit {
+							break
+						}
 					}
 					transferFee = fees
+					infl.Lock()
+					inflightTxs.Add(tx.ID())
+					infl.Unlock()
 					if err := issuer.d.IssueTx(tx); err != nil {
+						infl.Lock()
+						inflightTxs.Remove(tx.ID())
+						infl.Unlock()
+
 						hutils.Outf("{{orange}}failed to issue:{{/}} %v\n", err)
 						continue
 					}
@@ -271,14 +299,22 @@ var runSpamCmd = &cobra.Command{
 					issuer.l.Unlock()
 				}
 				l.Lock()
+				infl.Lock()
 				if totalTxs > 0 {
 					hutils.Outf(
-						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%%\n",
+						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d\n",
 						totalTxs,
 						float64(confirmedTxs)/float64(totalTxs)*100,
+						inflightTxs.Len(),
 					)
 				}
+				infl.Unlock()
 				l.Unlock()
+
+				// Limit the script to looping no more than once a second
+				dur := time.Since(start)
+				sleep := math.Max(1000-dur.Milliseconds(), 0)
+				t.Reset(time.Duration(sleep) * time.Millisecond)
 			case <-signals:
 				hutils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
 				exiting = true
