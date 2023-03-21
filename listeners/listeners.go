@@ -10,7 +10,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 type (
@@ -116,10 +115,7 @@ func (w *Listeners) AcceptBlock(b *chain.StatelessBlock) {
 	w.blockL.Unlock()
 
 	w.txL.Lock()
-	defer func() {
-		utils.Outf("{{yellow}}remaining listeners:{{/}} %d\n", len(w.txListeners))
-		w.txL.Unlock()
-	}()
+	defer w.txL.Unlock()
 	results := b.Results()
 	for i, tx := range b.Txs {
 		txID := tx.ID()

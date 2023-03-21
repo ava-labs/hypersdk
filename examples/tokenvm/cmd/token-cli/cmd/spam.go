@@ -191,7 +191,6 @@ var runSpamCmd = &cobra.Command{
 				for {
 					_, _, result, err := issuer.d.Listen()
 					if err != nil {
-						hutils.Outf("{{yellow}}stop listening:{{/}} %v\n", err)
 						return
 					}
 					issuer.l.Lock()
@@ -216,7 +215,6 @@ var runSpamCmd = &cobra.Command{
 						wg.Done()
 						return
 					}
-					hutils.Outf("{{cyan}}remaining:{{/}} %d\n", outstanding)
 					time.Sleep(500 * time.Millisecond)
 				}
 			}()
@@ -258,7 +256,7 @@ var runSpamCmd = &cobra.Command{
 				}
 				l.Unlock()
 			case <-signals:
-				hutils.Outf("{{yellow}}exiting spam loop{{/}}\n")
+				hutils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
 				exiting = true
 				cancel()
 				break
