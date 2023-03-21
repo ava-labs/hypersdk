@@ -3,6 +3,9 @@ package cmd
 import (
 	"context"
 	"math/rand"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -99,6 +102,7 @@ var runSpamCmd = &cobra.Command{
 		distAmount := balance / uint64(numAccounts+1)
 		hutils.Outf("{{yellow}}distributing funds to each account:{{/}} %s %s\n", valueString(ids.Empty, distAmount), assetString(ids.Empty))
 		accounts := make([]crypto.PrivateKey, numAccounts)
+		txs := make([]ids.ID, numAccounts)
 		for i := 0; i < numAccounts; i++ {
 			// Create account
 			pk, err := crypto.GeneratePrivateKey()
@@ -119,7 +123,10 @@ var runSpamCmd = &cobra.Command{
 			if err := submit(ctx); err != nil {
 				return err
 			}
-			success, err := cli.WaitForTransaction(ctx, tx.ID())
+			txs[i] = tx.ID()
+		}
+		for i := 0; i < numAccounts; i++ {
+			success, err := cli.WaitForTransaction(ctx, txs[i])
 			if err != nil {
 				return err
 			}
@@ -128,6 +135,7 @@ var runSpamCmd = &cobra.Command{
 				return ErrTxFailed
 			}
 		}
+		hutils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", numAccounts)
 
 		// Kickoff txs
 		clients := make([]*client.Client, len(uris))
@@ -135,13 +143,18 @@ var runSpamCmd = &cobra.Command{
 			clients[i] = client.New(uris[i])
 		}
 		t := time.NewTicker(1001 * time.Millisecond) // ensure no duplicates created
-		var transferFee uint64
-		for ctx.Err() == nil {
+		signals := make(chan os.Signal, 2)
+		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+		var (
+			transferFee uint64
+			exiting     bool
+		)
+		for !exiting {
 			select {
 			case <-t.C:
 				for i := 0; i < numAccounts; i++ {
 					c := getRandomClient(clients)
-					recipient, err := getRandomRecipient(i, keys)
+					recipient, err := getRandomRecipient(i, accounts)
 					if err != nil {
 						return err
 					}
@@ -149,7 +162,7 @@ var runSpamCmd = &cobra.Command{
 						To:    recipient,
 						Asset: ids.Empty,
 						Value: 1,
-					}, auth.NewED25519Factory(keys[i]))
+					}, auth.NewED25519Factory(accounts[i]))
 					if err != nil {
 						return err
 					}
@@ -158,18 +171,20 @@ var runSpamCmd = &cobra.Command{
 						return err
 					}
 				}
-			case <-ctx.Done():
+			case <-signals:
 				hutils.Outf("{{yellow}}exiting creation loop:{{/}} %v\n", ctx.Err())
+				exiting = true
 				break
 			}
 		}
 
 		// Return funds
-		cctx := context.Background()
+		hutils.Outf("{{yellow}}returning funds to %s{{/}}\n", utils.Address(key.PublicKey()))
 		var returnedBalance uint64
+		txs = make([]ids.ID, numAccounts)
 		for i := 0; i < numAccounts; i++ {
-			address := utils.Address(keys[i].PublicKey())
-			balance, err := cli.Balance(cctx, address, ids.Empty)
+			address := utils.Address(accounts[i].PublicKey())
+			balance, err := cli.Balance(ctx, address, ids.Empty)
 			if err != nil {
 				return err
 			}
@@ -182,14 +197,22 @@ var runSpamCmd = &cobra.Command{
 				To:    key.PublicKey(),
 				Asset: ids.Empty,
 				Value: returnAmt,
-			}, auth.NewED25519Factory(keys[i]))
+			}, auth.NewED25519Factory(accounts[i]))
 			if err != nil {
 				return err
 			}
 			if err := submit(ctx); err != nil {
 				return err
 			}
-			success, err := cli.WaitForTransaction(ctx, tx.ID())
+			txs[i] = tx.ID()
+			returnedBalance += returnAmt
+		}
+		for i := 0; i < numAccounts; i++ {
+			if txs[i] == ids.Empty {
+				// No balance to return
+				continue
+			}
+			success, err := cli.WaitForTransaction(ctx, txs[i])
 			if err != nil {
 				return err
 			}
@@ -197,9 +220,8 @@ var runSpamCmd = &cobra.Command{
 				// Should never happen
 				return ErrTxFailed
 			}
-			returnedBalance += returnAmt
 		}
-		hutils.Outf("{{yellow}}returned balance to %s:{{/}} %s %s", utils.Address(key.PublicKey()), valueString(ids.Empty, returnedBalance), assetString(ids.Empty))
+		hutils.Outf("{{yellow}}returned balance to %s:{{/}} %s %s\n", utils.Address(key.PublicKey()), valueString(ids.Empty, returnedBalance), assetString(ids.Empty))
 		return nil
 	},
 }
