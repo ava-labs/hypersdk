@@ -24,9 +24,10 @@ var (
 	dbPath string
 	db     database.Database
 
-	genesisFile  string
-	minUnitPrice int64
-	hideTxs      bool
+	genesisFile     string
+	minUnitPrice    int64
+	hideTxs         bool
+	randomRecipient bool
 
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
@@ -119,6 +120,12 @@ func init() {
 	)
 
 	// spam
+	runSpamCmd.PersistentFlags().BoolVar(
+		&randomRecipient,
+		"random-recipient",
+		false,
+		"random recipient",
+	)
 	spamCmd.AddCommand(
 		runSpamCmd,
 	)

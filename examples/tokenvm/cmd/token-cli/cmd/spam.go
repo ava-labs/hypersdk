@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"math/rand"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
@@ -18,6 +19,26 @@ var spamCmd = &cobra.Command{
 	RunE: func(*cobra.Command, []string) error {
 		return ErrMissingSubcommand
 	},
+}
+
+func getRandomRecipient(self int, keys []crypto.PrivateKey) (crypto.PublicKey, error) {
+	if randomRecipient {
+		priv, err := crypto.GeneratePrivateKey()
+		if err != nil {
+			return crypto.EmptyPublicKey, err
+		}
+		return priv.PublicKey(), nil
+	}
+
+	// Select item from array
+	index := rand.Int() % len(keys)
+	if index == self {
+		index++
+		if index == len(keys) {
+			index = 0
+		}
+	}
+	return keys[index].PublicKey(), nil
 }
 
 var runSpamCmd = &cobra.Command{
