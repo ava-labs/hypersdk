@@ -72,12 +72,12 @@ func Default() *Genesis {
 		// Unit pricing
 		MinUnitPrice:               1,
 		UnitPriceChangeDenominator: 48,
-		WindowTargetUnits:          18_000_000,
+		WindowTargetUnits:          1_000_000_000,
 
 		// Block pricing
 		MinBlockCost:               0,
 		BlockCostChangeDenominator: 48,
-		WindowTargetBlocks:         20, // 10s
+		WindowTargetBlocks:         30, // 10s
 
 		// Warp pricing
 		WarpBaseFee:      1_024,

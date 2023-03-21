@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/url"
@@ -21,6 +22,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/listeners"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/spf13/cobra"
@@ -200,7 +202,7 @@ var runSpamCmd = &cobra.Command{
 			wg.Add(1)
 			go func() {
 				for {
-					_, _, result, err := issuer.d.Listen()
+					_, dErr, result, err := issuer.d.Listen()
 					if err != nil {
 						return
 					}
@@ -208,8 +210,16 @@ var runSpamCmd = &cobra.Command{
 					issuer.outstandingTxs--
 					issuer.l.Unlock()
 					l.Lock()
-					if result != nil && result.Success {
-						confirmedTxs++
+					if result != nil {
+						if result.Success {
+							confirmedTxs++
+						} else {
+							hutils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Output), result.Success)
+						}
+					} else {
+						if !errors.Is(dErr, listeners.ErrExpired) {
+							hutils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", dErr)
+						}
 					}
 					totalTxs++
 					l.Unlock()
@@ -235,13 +245,13 @@ var runSpamCmd = &cobra.Command{
 		for !exiting {
 			select {
 			case <-t.C:
+				// TODO: convert to min time so there isn't a backlog of events
 				for i := 0; i < numAccounts; i++ {
 					issuer := getRandomIssuer(clients)
 					recipient, err := getRandomRecipient(i, accounts)
 					if err != nil {
 						return err
 					}
-					// TODO: make generate transaction more efficient
 					_, tx, fees, err := issuer.c.GenerateTransaction(ctx, nil, &actions.Transfer{
 						To:    recipient,
 						Asset: ids.Empty,
@@ -278,7 +288,23 @@ var runSpamCmd = &cobra.Command{
 
 		// Wait for all issuers to finish
 		hutils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
+		dctx, cancel := context.WithCancel(ctx)
+		go func() {
+			// Send a dummy transaction if shutdown is taking too long (listeners are
+			// expired on accept if dropped)
+			t := time.NewTicker(30 * time.Second)
+			defer t.Stop()
+			for {
+				select {
+				case <-t.C:
+					_ = submitDummy(dctx, cli, key.PublicKey(), factory)
+				case <-dctx.Done():
+					return
+				}
+			}
+		}()
 		wg.Wait()
+		cancel()
 
 		// Return funds
 		hutils.Outf("{{yellow}}returning funds to %s{{/}}\n", utils.Address(key.PublicKey()))
