@@ -17,14 +17,20 @@ import (
 
 type Client struct {
 	*client.Client // embed standard functionality
+
+	g *genesis.Genesis
 }
 
 // New creates a new client object.
 func New(uri string) *Client {
-	return &Client{client.New(consts.Name, uri)}
+	return &Client{Client: client.New(consts.Name, uri)}
 }
 
 func (cli *Client) Genesis(ctx context.Context) (*genesis.Genesis, error) {
+	if cli.g != nil {
+		return cli.g, nil
+	}
+
 	resp := new(controller.GenesisReply)
 	err := cli.Requester.SendRequest(
 		ctx,
@@ -32,7 +38,11 @@ func (cli *Client) Genesis(ctx context.Context) (*genesis.Genesis, error) {
 		nil,
 		resp,
 	)
-	return resp.Genesis, err
+	if err != nil {
+		return nil, err
+	}
+	cli.g = resp.Genesis
+	return resp.Genesis, nil
 }
 
 func (cli *Client) Tx(ctx context.Context, id ids.ID) (bool, bool, int64, error) {

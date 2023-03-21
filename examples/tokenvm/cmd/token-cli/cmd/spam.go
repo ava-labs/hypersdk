@@ -310,7 +310,7 @@ var runSpamCmd = &cobra.Command{
 				return ErrTxFailed
 			}
 		}
-		hutils.Outf("{{yellow}}returned balance to %s:{{/}} %s %s\n", utils.Address(key.PublicKey()), valueString(ids.Empty, returnedBalance), assetString(ids.Empty))
+		hutils.Outf("{{yellow}}returned funds:{{/}} %s %s\n", valueString(ids.Empty, returnedBalance), assetString(ids.Empty))
 		return nil
 	},
 }
