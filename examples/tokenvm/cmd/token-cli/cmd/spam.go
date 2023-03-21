@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"math/rand"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
@@ -39,6 +40,11 @@ func getRandomRecipient(self int, keys []crypto.PrivateKey) (crypto.PublicKey, e
 		}
 	}
 	return keys[index].PublicKey(), nil
+}
+
+func getRandomClient(clis []*client.Client) *client.Client {
+	index := rand.Int() % len(clis)
+	return clis[index]
 }
 
 var runSpamCmd = &cobra.Command{
@@ -124,8 +130,76 @@ var runSpamCmd = &cobra.Command{
 		}
 
 		// Kickoff txs
+		clients := make([]*client.Client, len(uris))
+		for i := 0; i < len(uris); i++ {
+			clients[i] = client.New(uris[i])
+		}
+		t := time.NewTicker(1001 * time.Millisecond) // ensure no duplicates created
+		var transferFee uint64
+		for ctx.Err() == nil {
+			select {
+			case <-t.C:
+				for i := 0; i < numAccounts; i++ {
+					c := getRandomClient(clients)
+					recipient, err := getRandomRecipient(i, keys)
+					if err != nil {
+						return err
+					}
+					submit, _, fees, err := c.GenerateTransaction(ctx, nil, &actions.Transfer{
+						To:    recipient,
+						Asset: ids.Empty,
+						Value: 1,
+					}, auth.NewED25519Factory(keys[i]))
+					if err != nil {
+						return err
+					}
+					transferFee = fees
+					if err := submit(ctx); err != nil {
+						return err
+					}
+				}
+			case <-ctx.Done():
+				hutils.Outf("{{yellow}}exiting creation loop:{{/}} %v\n", ctx.Err())
+				break
+			}
+		}
 
 		// Return funds
+		cctx := context.Background()
+		var returnedBalance uint64
+		for i := 0; i < numAccounts; i++ {
+			address := utils.Address(keys[i].PublicKey())
+			balance, err := cli.Balance(cctx, address, ids.Empty)
+			if err != nil {
+				return err
+			}
+			if transferFee > balance {
+				continue
+			}
+			// Send funds
+			returnAmt := balance - transferFee
+			submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{
+				To:    key.PublicKey(),
+				Asset: ids.Empty,
+				Value: returnAmt,
+			}, auth.NewED25519Factory(keys[i]))
+			if err != nil {
+				return err
+			}
+			if err := submit(ctx); err != nil {
+				return err
+			}
+			success, err := cli.WaitForTransaction(ctx, tx.ID())
+			if err != nil {
+				return err
+			}
+			if !success {
+				// Should never happen
+				return ErrTxFailed
+			}
+			returnedBalance += returnAmt
+		}
+		hutils.Outf("{{yellow}}returned balance to %s:{{/}} %s %s", utils.Address(key.PublicKey()), valueString(ids.Empty, returnedBalance), assetString(ids.Empty))
 		return nil
 	},
 }
