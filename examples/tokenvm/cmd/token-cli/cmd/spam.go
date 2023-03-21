@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"net"
+	"net/url"
 	"os"
 	"os/signal"
 	"sync"
@@ -157,8 +157,11 @@ var runSpamCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			ip := net.ParseIP(uris[i])
-			tcpURI := fmt.Sprintf("%s:%d", ip.String(), port)
+			u, err := url.Parse(uris[i])
+			if err != nil {
+				return err
+			}
+			tcpURI := fmt.Sprintf("%s:%d", u.Hostname(), port)
 			cli, err := vm.NewDecisionRPCClient(tcpURI)
 			if err != nil {
 				return err
@@ -188,6 +191,7 @@ var runSpamCmd = &cobra.Command{
 				for {
 					_, _, result, err := issuer.d.Listen()
 					if err != nil {
+						hutils.Outf("{{yellow}}stop listening:{{/}} %v\n", err)
 						return
 					}
 					issuer.l.Lock()
@@ -212,6 +216,7 @@ var runSpamCmd = &cobra.Command{
 						wg.Done()
 						return
 					}
+					hutils.Outf("{{cyan}}remaining:{{/}} %d\n", outstanding)
 					time.Sleep(500 * time.Millisecond)
 				}
 			}()
@@ -234,18 +239,23 @@ var runSpamCmd = &cobra.Command{
 						Value: 1,
 					}, auth.NewED25519Factory(accounts[i]))
 					if err != nil {
-						return err
+						hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
+						continue
 					}
 					transferFee = fees
-					if err := issuer.d.IssueTx(tx); err != nil {
-						return err
-					}
 					issuer.l.Lock()
+					if err := issuer.d.IssueTx(tx); err != nil {
+						issuer.l.Unlock()
+						hutils.Outf("{{orange}}failed to issue:{{/}} %v\n", err)
+						continue
+					}
 					issuer.outstandingTxs++
 					issuer.l.Unlock()
 				}
 				l.Lock()
-				hutils.Outf("{{yellow}}txs broadcast:{{/}} %d {{yellow}}success rate: %.2f{{/}}\n", totalTxs, float64(confirmedTxs)/float64(totalTxs))
+				if totalTxs > 0 {
+					hutils.Outf("{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%%\n", totalTxs, float64(confirmedTxs)/float64(totalTxs)*100)
+				}
 				l.Unlock()
 			case <-signals:
 				hutils.Outf("{{yellow}}exiting spam loop{{/}}\n")
