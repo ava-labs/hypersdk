@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 
 	"go.uber.org/zap"
 
@@ -216,6 +217,10 @@ func (c *decisionRPCConnection) handleWrites() {
 // If you don't keep up, you will data
 type DecisionRPCClient struct {
 	conn net.Conn
+
+	wl sync.Mutex
+	ll sync.Mutex
+	cl sync.Once
 }
 
 func NewDecisionRPCClient(uri string) (*DecisionRPCClient, error) {
@@ -223,14 +228,20 @@ func NewDecisionRPCClient(uri string) (*DecisionRPCClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DecisionRPCClient{conn}, nil
+	return &DecisionRPCClient{conn: conn}, nil
 }
 
 func (d *DecisionRPCClient) IssueTx(tx *chain.Transaction) error {
+	d.wl.Lock()
+	defer d.wl.Unlock()
+
 	return writeNetMessage(d.conn, tx.Bytes())
 }
 
 func (d *DecisionRPCClient) Listen() (ids.ID, error, *chain.Result, error) {
+	d.ll.Lock()
+	defer d.ll.Unlock()
+
 	var txID ids.ID
 	if _, err := io.ReadFull(d.conn, txID[:]); err != nil {
 		return ids.Empty, nil, nil, err
@@ -262,7 +273,11 @@ func (d *DecisionRPCClient) Listen() (ids.ID, error, *chain.Result, error) {
 }
 
 func (d *DecisionRPCClient) Close() error {
-	return d.conn.Close()
+	var err error
+	d.cl.Do(func() {
+		err = d.conn.Close()
+	})
+	return err
 }
 
 // blockRPCServer is used by all clients to stream accepted blocks.
@@ -367,6 +382,9 @@ func (c *blockRPCConnection) handleWrites() {
 // If you don't keep up, you will data
 type BlockRPCClient struct {
 	conn net.Conn
+
+	ll sync.Mutex
+	cl sync.Once
 }
 
 func NewBlockRPCClient(uri string) (*BlockRPCClient, error) {
@@ -374,12 +392,15 @@ func NewBlockRPCClient(uri string) (*BlockRPCClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &BlockRPCClient{conn}, nil
+	return &BlockRPCClient{conn: conn}, nil
 }
 
 func (c *BlockRPCClient) Listen(
 	parser chain.Parser,
 ) (*chain.StatefulBlock, []*chain.Result, error) {
+	c.ll.Lock()
+	defer c.ll.Unlock()
+
 	ritem, err := readNetMessage(c.conn, false)
 	if err != nil {
 		return nil, nil, err
@@ -402,7 +423,11 @@ func (c *BlockRPCClient) Listen(
 }
 
 func (c *BlockRPCClient) Close() error {
-	return c.conn.Close()
+	var err error
+	c.cl.Do(func() {
+		err = c.conn.Close()
+	})
+	return err
 }
 
 func writeNetMessage(conn io.Writer, b []byte) error {

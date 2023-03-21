@@ -1,3 +1,7 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+//nolint:gosec
 package cmd
 
 import (
@@ -115,7 +119,11 @@ var runSpamCmd = &cobra.Command{
 		}
 		witholding := uint64(feePerTx * numAccounts)
 		distAmount := (balance - witholding) / uint64(numAccounts)
-		hutils.Outf("{{yellow}}distributing funds to each account:{{/}} %s %s\n", valueString(ids.Empty, distAmount), assetString(ids.Empty))
+		hutils.Outf(
+			"{{yellow}}distributing funds to each account:{{/}} %s %s\n",
+			valueString(ids.Empty, distAmount),
+			assetString(ids.Empty),
+		)
 		accounts := make([]crypto.PrivateKey, numAccounts)
 		txs := make([]ids.ID, numAccounts)
 		for i := 0; i < numAccounts; i++ {
@@ -244,25 +252,27 @@ var runSpamCmd = &cobra.Command{
 						continue
 					}
 					transferFee = fees
-					issuer.l.Lock()
 					if err := issuer.d.IssueTx(tx); err != nil {
-						issuer.l.Unlock()
 						hutils.Outf("{{orange}}failed to issue:{{/}} %v\n", err)
 						continue
 					}
+					issuer.l.Lock()
 					issuer.outstandingTxs++
 					issuer.l.Unlock()
 				}
 				l.Lock()
 				if totalTxs > 0 {
-					hutils.Outf("{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%%\n", totalTxs, float64(confirmedTxs)/float64(totalTxs)*100)
+					hutils.Outf(
+						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%%\n",
+						totalTxs,
+						float64(confirmedTxs)/float64(totalTxs)*100,
+					)
 				}
 				l.Unlock()
 			case <-signals:
 				hutils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
 				exiting = true
 				cancel()
-				break
 			}
 		}
 
@@ -313,7 +323,11 @@ var runSpamCmd = &cobra.Command{
 				return ErrTxFailed
 			}
 		}
-		hutils.Outf("{{yellow}}returned funds:{{/}} %s %s\n", valueString(ids.Empty, returnedBalance), assetString(ids.Empty))
+		hutils.Outf(
+			"{{yellow}}returned funds:{{/}} %s %s\n",
+			valueString(ids.Empty, returnedBalance),
+			assetString(ids.Empty),
+		)
 		return nil
 	},
 }
