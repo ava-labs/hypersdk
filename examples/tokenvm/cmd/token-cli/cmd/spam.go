@@ -2,9 +2,12 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
+	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -15,8 +18,17 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	hutils "github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/vm"
 	"github.com/spf13/cobra"
 )
+
+type txIssuer struct {
+	c *client.Client
+	d *vm.DecisionRPCClient
+
+	l              sync.Mutex
+	outstandingTxs int
+}
 
 var spamCmd = &cobra.Command{
 	Use: "spam",
@@ -45,9 +57,9 @@ func getRandomRecipient(self int, keys []crypto.PrivateKey) (crypto.PublicKey, e
 	return keys[index].PublicKey(), nil
 }
 
-func getRandomClient(clis []*client.Client) *client.Client {
-	index := rand.Int() % len(clis)
-	return clis[index]
+func getRandomIssuer(issuers []*txIssuer) *txIssuer {
+	index := rand.Int() % len(issuers)
+	return issuers[index]
 }
 
 var runSpamCmd = &cobra.Command{
@@ -138,9 +150,20 @@ var runSpamCmd = &cobra.Command{
 		hutils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", numAccounts)
 
 		// Kickoff txs
-		clients := make([]*client.Client, len(uris))
+		clients := make([]*txIssuer, len(uris))
 		for i := 0; i < len(uris); i++ {
-			clients[i] = client.New(uris[i])
+			c := client.New(uris[i])
+			port, err := c.DecisionsPort(ctx)
+			if err != nil {
+				return err
+			}
+			ip := net.ParseIP(uris[i])
+			tcpURI := fmt.Sprintf("%s:%d", ip.String(), port)
+			cli, err := vm.NewDecisionRPCClient(tcpURI)
+			if err != nil {
+				return err
+			}
+			clients[i] = &txIssuer{c: c, d: cli}
 		}
 		t := time.NewTicker(1001 * time.Millisecond) // ensure no duplicates created
 		signals := make(chan os.Signal, 2)
@@ -148,17 +171,64 @@ var runSpamCmd = &cobra.Command{
 		var (
 			transferFee uint64
 			exiting     bool
+			wg          sync.WaitGroup
+
+			l            sync.Mutex
+			confirmedTxs uint64
+			totalTxs     uint64
 		)
+
+		// confirm txs (track failure rate)
+		cctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		for i := 0; i < len(clients); i++ {
+			issuer := clients[i]
+			wg.Add(1)
+			go func() {
+				for {
+					_, _, result, err := issuer.d.Listen()
+					if err != nil {
+						return
+					}
+					issuer.l.Lock()
+					issuer.outstandingTxs--
+					issuer.l.Unlock()
+					l.Lock()
+					if result != nil && result.Success {
+						confirmedTxs++
+					}
+					totalTxs++
+					l.Unlock()
+				}
+			}()
+			go func() {
+				<-cctx.Done()
+				for {
+					issuer.l.Lock()
+					outstanding := issuer.outstandingTxs
+					issuer.l.Unlock()
+					if outstanding == 0 {
+						_ = issuer.d.Close()
+						wg.Done()
+						return
+					}
+					time.Sleep(500 * time.Millisecond)
+				}
+			}()
+		}
+
+		// broadcast txs
 		for !exiting {
 			select {
 			case <-t.C:
 				for i := 0; i < numAccounts; i++ {
-					c := getRandomClient(clients)
+					issuer := getRandomIssuer(clients)
 					recipient, err := getRandomRecipient(i, accounts)
 					if err != nil {
 						return err
 					}
-					submit, _, fees, err := c.GenerateTransaction(ctx, nil, &actions.Transfer{
+					// TODO: make generate transaction more efficient
+					_, tx, fees, err := issuer.c.GenerateTransaction(ctx, nil, &actions.Transfer{
 						To:    recipient,
 						Asset: ids.Empty,
 						Value: 1,
@@ -167,16 +237,27 @@ var runSpamCmd = &cobra.Command{
 						return err
 					}
 					transferFee = fees
-					if err := submit(ctx); err != nil {
+					if err := issuer.d.IssueTx(tx); err != nil {
 						return err
 					}
+					issuer.l.Lock()
+					issuer.outstandingTxs++
+					issuer.l.Unlock()
 				}
+				l.Lock()
+				hutils.Outf("{{yellow}}txs broadcast:{{/}} %d {{yellow}}success rate: %.2f{{/}}\n", totalTxs, float64(confirmedTxs)/float64(totalTxs))
+				l.Unlock()
 			case <-signals:
-				hutils.Outf("{{yellow}}exiting creation loop:{{/}} %v\n", ctx.Err())
+				hutils.Outf("{{yellow}}exiting spam loop{{/}}\n")
 				exiting = true
+				cancel()
 				break
 			}
 		}
+
+		// Wait for all issuers to finish
+		hutils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
+		wg.Wait()
 
 		// Return funds
 		hutils.Outf("{{yellow}}returning funds to %s{{/}}\n", utils.Address(key.PublicKey()))
