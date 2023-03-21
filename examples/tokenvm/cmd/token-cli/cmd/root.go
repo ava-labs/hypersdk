@@ -28,6 +28,7 @@ var (
 	minUnitPrice    int64
 	hideTxs         bool
 	randomRecipient bool
+	maxTxBacklog    int
 
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
@@ -125,6 +126,12 @@ func init() {
 		"random-recipient",
 		false,
 		"random recipient",
+	)
+	runSpamCmd.PersistentFlags().IntVar(
+		&maxTxBacklog,
+		"max-tx-backlog",
+		72_000,
+		"max tx backlog",
 	)
 	spamCmd.AddCommand(
 		runSpamCmd,

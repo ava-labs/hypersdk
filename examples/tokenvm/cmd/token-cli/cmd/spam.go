@@ -6,12 +6,12 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -224,7 +224,8 @@ var runSpamCmd = &cobra.Command{
 							hutils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Output), result.Success)
 						}
 					} else {
-						if !errors.Is(dErr, listeners.ErrExpired) {
+						// We can't error match here because we receive it over the wire.
+						if !strings.Contains(dErr.Error(), listeners.ErrExpired.Error()) {
 							hutils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", dErr)
 						}
 					}
@@ -254,6 +255,16 @@ var runSpamCmd = &cobra.Command{
 		for !exiting {
 			select {
 			case <-t.C:
+				// Ensure we aren't too backlogged
+				infl.Lock()
+				inflight := inflightTxs.Len()
+				infl.Unlock()
+				if inflight > maxTxBacklog {
+					t.Reset(1 * time.Second)
+					continue
+				}
+
+				// Generate new transactions
 				start := time.Now()
 				for i := 0; i < numAccounts; i++ {
 					var (
