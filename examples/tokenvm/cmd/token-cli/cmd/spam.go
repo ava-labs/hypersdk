@@ -22,6 +22,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const feePerTx = 1000
+
 type txIssuer struct {
 	c *client.Client
 	d *vm.DecisionRPCClient
@@ -111,7 +113,8 @@ var runSpamCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		distAmount := balance / uint64(numAccounts+1)
+		witholding := uint64(feePerTx * numAccounts)
+		distAmount := (balance - witholding) / uint64(numAccounts)
 		hutils.Outf("{{yellow}}distributing funds to each account:{{/}} %s %s\n", valueString(ids.Empty, distAmount), assetString(ids.Empty))
 		accounts := make([]crypto.PrivateKey, numAccounts)
 		txs := make([]ids.ID, numAccounts)
