@@ -51,11 +51,17 @@ func TestServerPublish(t *testing.T) {
 	web_con, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err)
 	// Add connection to servers subscribed connections
+	server.lock.Lock()
 	con, _ := server.conns.Peek()
+	server.lock.Unlock()
+
 	server.subscribedConnections.Add(con)
 	df := DummyFilter{}
 	// Publish to subscribed connections
+	server.lock.Lock()
 	server.Publish(df)
+	server.lock.Unlock()
+
 	// Recieve the message from the publish
 	_, msg, err := web_con.ReadMessage()
 	require.NoError(err)
