@@ -4,13 +4,10 @@
 package pubsub
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"sync/atomic"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/bloom"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
@@ -93,9 +90,12 @@ func (c *connection) readPump() {
 	})
 	for {
 		err := c.readMessage()
-		fmt.Println(err)
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+			if websocket.IsUnexpectedCloseError(
+				err,
+				websocket.CloseGoingAway,
+				websocket.CloseAbnormalClosure,
+			) {
 				c.s.log.Debug("unexpected close in websockets",
 					zap.Error(err),
 				)
@@ -157,57 +157,6 @@ func (c *connection) writePump() {
 }
 
 func (c *connection) readMessage() error {
-	_, r, err := c.conn.NextReader()
-	if err != nil {
-		return err
-	}
-	cmd := &Command{}
-	err = json.NewDecoder(r).Decode(cmd)
-	if err != nil {
-		return err
-	}
-	switch {
-	case cmd.NewBloom != nil:
-		err = c.handleNewBloom(cmd.NewBloom)
-	case cmd.NewSet != nil:
-		c.handleNewSet(cmd.NewSet)
-	case cmd.AddAddresses != nil:
-		err = c.handleAddAddresses(cmd.AddAddresses)
-	default:
-		err = ErrInvalidCommand
-	}
-	if err != nil {
-		c.Send(&errorMsg{
-			Error: err.Error(),
-		})
-	}
+	_, _, err := c.conn.NextReader()
 	return err
-}
-
-func (c *connection) handleNewBloom(cmd *NewBloom) error {
-	if !cmd.IsParamsValid() {
-		return ErrInvalidFilterParam
-	}
-	filter, err := bloom.New(uint64(cmd.MaxElements), float64(cmd.CollisionProb), MaxBytes)
-	if err != nil {
-		return fmt.Errorf("bloom filter creation failed %w", err)
-	}
-	c.fp.SetFilter(filter)
-	return nil
-}
-
-func (c *connection) handleNewSet(_ *NewSet) {
-	c.fp.NewSet()
-}
-
-func (c *connection) handleAddAddresses(cmd *AddAddresses) error {
-	if err := cmd.parseAddresses(); err != nil {
-		return fmt.Errorf("address parse failed %w", err)
-	}
-	err := c.fp.Add(cmd.addressIds...)
-	if err != nil {
-		return fmt.Errorf("address append failed %w", err)
-	}
-	c.s.subscribedConnections.Add(c)
-	return nil
 }

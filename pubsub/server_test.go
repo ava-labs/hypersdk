@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package pubsub
 
 import (
@@ -73,10 +76,11 @@ func TestServerPublish(t *testing.T) {
 	require.Equal("dummy_msg", unmarshal)
 	// Close the connection and wait for it to be closed on the server side
 	go func() {
-		web_con.Close()
+		con.conn.Close()
 		for {
 			server.lock.Lock()
-			if server.subscribedConnections.conns.Len() == 0 {
+			len := server.subscribedConnections.conns.Len()
+			if len == 0 {
 				server.lock.Unlock()
 				ch <- true
 				return
