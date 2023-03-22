@@ -37,7 +37,6 @@ jobs:
           path: ./examples/tokenvm/integration.coverage.out
       - name: Archive code coverage results (html)
         uses: actions/upload-artifact@v3
-        working-directory: ./examples/tokenvm
         with:
           name: code-coverage-html
           path: ./examples/tokenvm/integration.coverage.html
