@@ -986,7 +986,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeFalse())
 		gomega.Ω(string(result.Output)).
-			Should(gomega.ContainSubstring("overflow occurred"))
+			Should(gomega.ContainSubstring("overflow"))
 
 		balance, err := instances[0].cli.Balance(context.TODO(), sender2, asset1ID)
 		gomega.Ω(err).Should(gomega.BeNil())

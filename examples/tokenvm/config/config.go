@@ -28,8 +28,9 @@ type Config struct {
 	TraceSampleRate float64 `json:"traceSampleRate"`
 
 	// Streaming Ports
-	DecisionsPort uint16 `json:"decisionsPort"`
-	BlocksPort    uint16 `json:"blocksPort"`
+	DecisionsPort        uint16 `json:"decisionsPort"`
+	BlocksPort           uint16 `json:"blocksPort"`
+	StreamingBacklogSize int    `json:"streamingBacklogSize"`
 
 	// Mempool
 	MempoolSize         int      `json:"mempoolSize"`
@@ -83,6 +84,7 @@ func (c *Config) setDefault() {
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
+	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 }
 
 func (c *Config) GetLogLevel() logging.Level       { return c.LogLevel }
@@ -103,3 +105,4 @@ func (c *Config) GetTraceConfig() *trace.Config {
 	}
 }
 func (c *Config) GetStateSyncServerDelay() time.Duration { return c.StateSyncServerDelay }
+func (c *Config) GetStreamingBacklogSize() int           { return c.StreamingBacklogSize }

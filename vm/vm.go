@@ -182,10 +182,10 @@ func (vm *VM) Initialize(
 
 	// Instantiate DBs
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
-		HistoryLength:  vm.config.GetStateHistoryLength(),
-		NodeCacheSize:  vm.config.GetStateCacheSize(),
-		ValueCacheSize: vm.config.GetStateCacheSize(),
-		Tracer:         vm.tracer,
+		HistoryLength: vm.config.GetStateHistoryLength(),
+		NodeCacheSize: vm.config.GetStateCacheSize(),
+		// TODO: add metrics
+		Tracer: vm.tracer,
 	})
 	if err != nil {
 		return err
@@ -238,7 +238,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
 	} else {
 		// Set Balances
-		view, err := vm.stateDB.NewView(ctx)
+		view, err := vm.stateDB.NewView()
 		if err != nil {
 			return err
 		}
@@ -641,6 +641,9 @@ func (vm *VM) Submit(
 		if verifySig {
 			sigVerify := tx.AuthAsyncVerify()
 			if err := sigVerify(); err != nil {
+				// Failed signature verification is the only safe place to remove
+				// a transaction in listeners. Every other case may still end up with
+				// the transaction in a block.
 				vm.listeners.RemoveTx(txID, err)
 				errs = append(errs, err)
 				continue
@@ -655,12 +658,10 @@ func (vm *VM) Submit(
 		}
 		repeat, err := blk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx})
 		if err != nil {
-			vm.listeners.RemoveTx(txID, err)
 			errs = append(errs, err)
 			continue
 		}
 		if repeat {
-			vm.listeners.RemoveTx(txID, chain.ErrDuplicateTx)
 			errs = append(errs, chain.ErrDuplicateTx)
 			continue
 		}
@@ -670,7 +671,6 @@ func (vm *VM) Submit(
 		// view from a different branch is committed underneath it). We prefer this
 		// instead of putting a lock around all commits.
 		if err := tx.PreExecute(ctx, ectx, r, state, now); err != nil {
-			vm.listeners.RemoveTx(txID, err)
 			errs = append(errs, err)
 			continue
 		}

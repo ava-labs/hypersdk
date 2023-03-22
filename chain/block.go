@@ -714,7 +714,7 @@ func (b *StatelessBlock) childState(
 		if err != nil {
 			return nil, err
 		}
-		return state.NewPreallocatedView(ctx, estimatedChanges)
+		return state.NewPreallocatedView(estimatedChanges)
 	}
 
 	// Process block if not yet processed and not yet accepted.
@@ -727,7 +727,7 @@ func (b *StatelessBlock) childState(
 		}
 		b.state = state
 	}
-	return b.state.NewPreallocatedView(ctx, estimatedChanges)
+	return b.state.NewPreallocatedView(estimatedChanges)
 }
 
 func (b *StatelessBlock) IsRepeat(
