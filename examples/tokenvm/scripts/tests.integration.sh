@@ -23,9 +23,10 @@ ACK_GINKGO_RC=true ginkgo \
 run \
 -v \
 --fail-fast \
---cover \
---coverpkg github.com/ava-labs/hypersdk/examples/tokenvm/chain,github.com/ava-labs/hypersdk/examples/tokenvm/vm \
+-cover \
+-covermode=atomic \
+-coverpkg=github.com/ava-labs/hypersdk/... \
+-coverprofile=integration.coverage.out \
 ./tests/integration \
--- \
 --vms 3 \
 --min-price 1
