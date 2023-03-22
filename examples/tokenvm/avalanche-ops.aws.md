@@ -60,6 +60,8 @@ avalancheup-aws default-spec \
 The default commands above will download the public release binaries from github. To test your own binaries, use the following flags to upload to S3. These binaries must be built for the target remote machine platform (e.g., build for `aarch64` and Linux to run them in Graviton processors):
 
 ```bash
+avalancheup-aws default-spec \
+...
 --upload-artifacts-aws-volume-provisioner-local-bin ${AWS_VOLUME_PROVISIONER_BIN_PATH} \
 --upload-artifacts-aws-ip-provisioner-local-bin ${AWS_IP_PROVISIONER_BIN_PATH} \
 --upload-artifacts-avalanche-telemetry-cloudwatch-local-bin ${AVALANCHE_TELEMETRY_CLOUDWATCH_BIN_PATH} \
@@ -69,9 +71,26 @@ The default commands above will download the public release binaries from github
 
 It is recommended to specify your own artifacts to avoid flaky github release page downloads.
 
+*NOTE*: The `default-spec` (and `apply`) command only provisions nodes, not custom VMs. The subnet and custom VM installation are done via `install-subnet-chain` sub-commands.
+
 ### Step 3
 
-The `default-spec` command above will output the following `apply` and `delete` commands that you can copy and paste:
+The `default-spec` command itselt does not create any resources, and instead outputs the following `apply` and `delete` commands that you can copy and paste:
+
+```bash
+# first make sure you have access to the AWS credential
+aws sts get-caller-identity
+
+# "avalancheup-aws apply" would not work...
+# An error occurred (ExpiredToken) when calling the GetCallerIdentity operation: The security token included in the request is expired
+
+# "avalancheup-aws apply" will work with the following credential
+# {
+#   "UserId": "...:abc@abc.com",
+#   "Account": "...",
+#   "Arn": "arn:aws:sts::....:assumed-role/name/abc@abc.com"
+# }
+```
 
 ```bash
 # run the following to create resources
