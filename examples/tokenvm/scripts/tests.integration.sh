@@ -15,6 +15,10 @@ if ! [[ "$0" =~ scripts/tests.integration.sh ]]; then
   exit 255
 fi
 
+# remove previous coverage reports
+rm -f integration.coverage.out
+rm -f integration.coverage.html
+
 # to install the ginkgo binary (required for test build and run)
 go install -v github.com/onsi/ginkgo/v2/ginkgo@v2.0.0-rc2 || true
 
@@ -30,3 +34,6 @@ run \
 ./tests/integration \
 --vms 3 \
 --min-price 1
+
+# output generate coverage html
+go tool cover -html=integration.coverage.out -o=integration.coverage.html
