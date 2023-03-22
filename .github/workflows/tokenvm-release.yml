@@ -13,7 +13,8 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-latest-16-cores
+    # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
+    runs-on: ubuntu-20.04-16-cores
     steps:
       - name: Git checkout
         uses: actions/checkout@v3
