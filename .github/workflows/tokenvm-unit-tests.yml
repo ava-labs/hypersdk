@@ -30,6 +30,16 @@ jobs:
         working-directory: ./examples/tokenvm
         shell: bash
         run: scripts/tests.integration.sh
+      - name: Archive code coverage results (text)
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-coverage-out
+          path: ./examples/tokenvm/integration.coverage.out
+      - name: Archive code coverage results (html)
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-coverage-html
+          path: ./examples/tokenvm/integration.coverage.html
       - name: Run e2e tests
         working-directory: ./examples/tokenvm
         shell: bash

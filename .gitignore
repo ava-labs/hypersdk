@@ -57,3 +57,4 @@ dist/
 *.pk
 tmp-storage-testing
 .token-cli*
+*.html
