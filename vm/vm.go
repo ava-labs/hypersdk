@@ -376,20 +376,22 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 		vm.Logger().Info("state sync started")
 		return nil
 	case snow.Bootstrapping:
-		syncing, err := vm.GetDiskIsSyncing()
-		if err != nil {
-			vm.Logger().Error("could not determine if syncing", zap.Error(err))
-			return err
+		if !vm.stateSyncClient.Started() {
+			syncing, err := vm.GetDiskIsSyncing()
+			if err != nil {
+				vm.Logger().Error("could not determine if syncing", zap.Error(err))
+				return err
+			}
+			if syncing {
+				vm.Logger().Error("cannot start bootstrapping", zap.Error(ErrStateSyncing))
+				// This is a fatal error that will require retrying sync or deleting the
+				// node database.
+				return ErrStateSyncing
+			}
+			// We force state syncer completion in case it hasn't started (can happen
+			// if no acceptable summaries are found).
+			vm.stateSyncClient.ForceDone()
 		}
-		if syncing {
-			vm.Logger().Error("cannot start bootstrapping", zap.Error(ErrStateSyncing))
-			// This is a fatal error that will require retrying sync or deleting the
-			// node database.
-			return ErrStateSyncing
-		}
-		// We force state syncer completion in case it hasn't started (can happen
-		// if no acceptable summaries are found).
-		vm.stateSyncClient.ForceDone()
 		vm.Logger().Info("bootstrapping started", zap.Bool("state sync started", vm.stateSyncClient.Started()))
 		return vm.onBootstrapStarted()
 	case snow.NormalOp:
