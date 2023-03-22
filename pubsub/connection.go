@@ -93,6 +93,7 @@ func (c *connection) readPump() {
 	})
 	for {
 		err := c.readMessage()
+		fmt.Println(err)
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				c.s.log.Debug("unexpected close in websockets",
@@ -123,6 +124,7 @@ func (c *connection) writePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
+
 			if err := c.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
 				c.s.log.Debug("closing the connection",
 					zap.String("reason", "failed to set the write deadline"),

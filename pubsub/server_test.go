@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/gorilla/websocket"
@@ -40,6 +41,7 @@ func TestServerPublish(t *testing.T) {
 	logger := logging.NoLog{}
 	// Create a new pubsub server
 	server := New(logger)
+	ch := make(chan bool)
 	// Handle requests to dummyAddr + '/'
 	http.HandleFunc("/", server.ServeHTTP)
 	// Go routine that listens on dummyAddress for connections
@@ -69,4 +71,26 @@ func TestServerPublish(t *testing.T) {
 	json.Unmarshal(msg, &unmarshal)
 	// Verify that the received message is the expected dummy message
 	require.Equal("dummy_msg", unmarshal)
+	// Close the connection and wait for it to be closed on the server side
+	go func() {
+		web_con.Close()
+		for {
+			server.lock.Lock()
+			if server.subscribedConnections.conns.Len() == 0 {
+				server.lock.Unlock()
+				ch <- true
+				return
+			}
+			server.lock.Unlock()
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+	// Wait for the connection to be closed or for a timeout to occur
+	select {
+	case <-ch:
+		// Connection was closed on the server side, test passed
+	case <-time.After(1 * time.Second):
+		// Timeout occurred, connection was not closed on the server side, test failed
+		require.Fail("connection was not closed on the server side")
+	}
 }
