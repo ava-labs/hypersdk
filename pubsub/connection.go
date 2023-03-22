@@ -10,11 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gorilla/websocket"
-
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/utils/bloom"
+	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
 
 var (
@@ -57,6 +55,7 @@ func (c *connection) deactivate() {
 	atomic.StoreUint32(&c.active, 0)
 }
 
+// Send sends [msg] to c's send channel and returns whether the message was sent.
 func (c *connection) Send(msg interface{}) bool {
 	if !c.isActive() {
 		return false
@@ -137,7 +136,6 @@ func (c *connection) writePump() {
 				_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-
 			if err := c.conn.WriteJSON(message); err != nil {
 				return
 			}
@@ -166,7 +164,6 @@ func (c *connection) readMessage() error {
 	if err != nil {
 		return err
 	}
-
 	switch {
 	case cmd.NewBloom != nil:
 		err = c.handleNewBloom(cmd.NewBloom)
