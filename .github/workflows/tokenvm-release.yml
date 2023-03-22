@@ -33,23 +33,29 @@ jobs:
         run: |
           sudo apt-get -y install clang llvm-dev libxml2-dev uuid-dev libssl-dev bash patch make tar xz-utils bzip2 gzip sed cpio libbz2-dev
           cd osxcross
-          wget https://github.com/joseluisq/macosx-sdks/releases/download/12.3/$MACOS_SDK_FNAME -O tarballs/$MACOS_SDK_FNAME
+          wget https://github.com/joseluisq/macosx-sdks/releases/download/13.1/$MACOS_SDK_FNAME -O tarballs/$MACOS_SDK_FNAME
           echo $MACOS_SDK_CHECKSUM tarballs/$MACOS_SDK_FNAME | sha256sum -c -
           UNATTENDED=1 ./build.sh
           echo $PWD/target/bin >> $GITHUB_PATH
         env:
-          MACOS_SDK_FNAME: MacOSX12.3.sdk.tar.xz
-          MACOS_SDK_CHECKSUM: 3abd261ceb483c44295a6623fdffe5d44fc4ac2c872526576ec5ab5ad0f6e26c
+          MACOS_SDK_FNAME: MacOSX13.1.sdk.tar.xz
+          MACOS_SDK_CHECKSUM: efa167d0e463e40f9a3f3e95a2d4f265552834442872341d5669d3264ba9b702
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
           distribution: goreleaser
           version: latest
-          args: release --rm-dist
+          args: release
           workdir: ./examples/tokenvm/
         env:
           # https://docs.github.com/en/actions/security-guides/automatic-token-authentication#about-the-github_token-secret
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Archive Builds
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: ./examples/tokenvm/dist
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
