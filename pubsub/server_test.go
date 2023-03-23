@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
@@ -23,12 +22,16 @@ func TestGeneratePrivateKeyDifferent(t *testing.T) {
 
 var dummyAddr = flag.String("addr", "localhost:8080", "http service address")
 
-func dummyProcessTXCallback(x interface{}) []byte {
-	id := x.(ids.ID)
-	if ids.Empty == id {
-		return []byte("empty")
+var callbackEmptyResponse = "EMPTY_ID"
+var callbackResponse = "ID_RECIEVED"
+
+func dummyProcessTXCallback(b []byte) []byte {
+	unmarshalID := ids.Empty
+	unmarshalID.UnmarshalJSON(b)
+	if ids.Empty == unmarshalID {
+		return []byte(callbackEmptyResponse)
 	} else {
-		return []byte("not empty")
+		return []byte(callbackResponse)
 	}
 
 }
@@ -115,8 +118,6 @@ func TestServerPublish(t *testing.T) {
 // the servers response. Requires messages back from the server handled the
 // messages correctly.
 func TestServerRead(t *testing.T) {
-	fmt.Println("starting new test")
-
 	require := require.New(t)
 	// Create a new logger for the test
 	logger := logging.NoLog{}
@@ -126,7 +127,7 @@ func TestServerRead(t *testing.T) {
 	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
 	testLoc := "/testRead"
-	dummyMsg := "dummy_msg"
+	// dummyMsg := "dummy_msg"
 	// Connect the server to an http.Server ??
 	flag.Parse()
 	srv := &http.Server{
@@ -139,14 +140,54 @@ func TestServerRead(t *testing.T) {
 		defer close(serverDone)
 		err := srv.ListenAndServe()
 		require.ErrorIs(err, http.ErrServerClosed)
-		closeConnection <- true
 	}()
 	// Connect to pubsub server
 	u := url.URL{Scheme: "ws", Host: *dummyAddr, Path: testLoc}
 	web_con, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err)
-	fmt.Println("writiing to socket")
-	web_con.WriteMessage(websocket.TextMessage, []byte(dummyMsg))
-	// connection sends dummy tx
-	<-closeConnection
+	// Grab added connection
+	server.lock.Lock()
+	con, _ := server.conns.Peek()
+	server.lock.Unlock()
+	// write to server
+	marshalId, _ := ids.Empty.MarshalJSON()
+	web_con.WriteMessage(websocket.TextMessage, marshalId)
+	// Recieve the message from the publish
+	// Recieve the message from the publish
+	_, msg, err := web_con.ReadMessage()
+	require.NoError(err)
+	var unmarshal []byte
+	json.Unmarshal(msg, &unmarshal)
+	// Verify that the received message is the expected dummy message
+	require.Equal(callbackEmptyResponse, string(unmarshal))
+
+	// Close the connection and wait for it to be closed on the server side
+	go func() {
+		con.conn.Close()
+		for {
+			server.lock.Lock()
+			len := server.conns.Len()
+			if len == 0 {
+				server.lock.Unlock()
+				closeConnection <- true
+				return
+			}
+			server.lock.Unlock()
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+	// Wait for the connection to be closed or for a timeout to occur
+	select {
+	case <-closeConnection:
+		// Connection was closed on the server side, test passed
+	case <-time.After(time.Second):
+		// Timeout occurred, connection was not closed on the server side, test failed
+		require.Fail("connection was not closed on the server side")
+	}
+	// Gracefully shutdown the server
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = srv.Shutdown(ctx)
+	// Wait for the server to finish shutting down
+	<-serverDone
 }

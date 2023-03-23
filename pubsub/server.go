@@ -58,7 +58,7 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-type ServerCallback func(interface{}) []byte
+type ServerCallback func([]byte) []byte
 
 // Server maintains the set of active clients and sends messages to the clients.
 type Server struct {

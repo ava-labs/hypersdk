@@ -5,7 +5,7 @@ package pubsub
 
 import (
 	"errors"
-	"fmt"
+	"io/ioutil"
 	"sync/atomic"
 	"time"
 
@@ -79,8 +79,7 @@ func (c *connection) readPump(f ServerCallback) {
 		return c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	})
 	for {
-		messageType, reader, err := c.conn.NextReader()
-		fmt.Println(messageType, reader, err)
+		_, reader, err := c.conn.NextReader()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(
 				err,
@@ -94,8 +93,9 @@ func (c *connection) readPump(f ServerCallback) {
 			break
 		}
 		if f != nil {
-			fmt.Println("inside clalback")
-			c.Send(([]byte("callback")))
+			responseBytes, _ := ioutil.ReadAll(reader)
+			// TODO: check for error and close reader
+			c.Send(f(responseBytes))
 		}
 	}
 }
@@ -119,8 +119,6 @@ func (c *connection) writePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
-			fmt.Println(message)
-
 			if err := c.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
 				c.s.log.Debug("closing the connection",
 					zap.String("reason", "failed to set the write deadline"),
@@ -150,10 +148,4 @@ func (c *connection) writePump() {
 			}
 		}
 	}
-}
-
-func (c *connection) readMessage() error {
-	i, b, err := c.conn.NextReader()
-	fmt.Println("message read: ", i, b)
-	return err
 }
