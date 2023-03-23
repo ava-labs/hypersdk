@@ -10,20 +10,19 @@ import (
 )
 
 type connections struct {
-	lock      sync.RWMutex
-	conns     set.Set[*connection]
-	connsList []Filter
+	lock  sync.RWMutex
+	conns set.Set[*connection]
 }
 
 func newConnections() *connections {
 	return &connections{}
 }
 
-func (c *connections) Conns() []Filter {
+func (c *connections) Conns() []*connection {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
-	return append([]Filter{}, c.connsList...)
+	return c.conns.List()
 }
 
 func (c *connections) Remove(conn *connection) {
@@ -31,7 +30,6 @@ func (c *connections) Remove(conn *connection) {
 	defer c.lock.Unlock()
 
 	c.conns.Remove(conn)
-	c.createConnsList()
 }
 
 func (c *connections) Add(conn *connection) {
@@ -39,13 +37,4 @@ func (c *connections) Add(conn *connection) {
 	defer c.lock.Unlock()
 
 	c.conns.Add(conn)
-	c.createConnsList()
-}
-
-func (c *connections) createConnsList() {
-	resp := make([]Filter, 0, len(c.conns))
-	for c := range c.conns {
-		resp = append(resp, c)
-	}
-	c.connsList = resp
 }

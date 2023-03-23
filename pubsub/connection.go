@@ -13,16 +13,11 @@ import (
 )
 
 var (
-	ErrFilterNotInitialized        = errors.New("filter not initialized")
-	ErrAddressLimit                = errors.New("address limit exceeded")
-	ErrInvalidFilterParam          = errors.New("invalid bloom filter params")
-	ErrInvalidCommand              = errors.New("invalid command")
-	_                       Filter = (*connection)(nil)
+	ErrFilterNotInitialized = errors.New("filter not initialized")
+	ErrAddressLimit         = errors.New("address limit exceeded")
+	ErrInvalidFilterParam   = errors.New("invalid bloom filter params")
+	ErrInvalidCommand       = errors.New("invalid command")
 )
-
-type Filter interface {
-	Check(addr []byte) bool
-}
 
 // connection is a representation of the websocket connection.
 type connection struct {
@@ -34,13 +29,7 @@ type connection struct {
 	// Buffered channel of outbound messages.
 	send chan interface{}
 
-	fp *FilterParam
-
 	active uint32
-}
-
-func (c *connection) Check(addr []byte) bool {
-	return c.fp.Check(addr)
 }
 
 func (c *connection) isActive() bool {

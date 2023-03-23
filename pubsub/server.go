@@ -68,6 +68,7 @@ type Server struct {
 	subscribedConnections *connections
 }
 
+// New returns a new Server instance with the logger set to [log].
 func New(log logging.Logger) *Server {
 	return &Server{
 		log:                   log,
@@ -75,6 +76,7 @@ func New(log logging.Logger) *Server {
 	}
 }
 
+// ServeHTTP adds a connection
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wsConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -87,7 +89,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s:      s,
 		conn:   wsConn,
 		send:   make(chan interface{}, maxPendingMessages),
-		fp:     NewFilterParam(),
 		active: 1,
 	}
 	s.addConnection(conn)
@@ -95,14 +96,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Publish sends msg from [parser] to the relevant servers subscribed connections
 // filtered by [parser].
-func (s *Server) Publish(parser Filterer) {
+func (s *Server) Publish(msg interface{}) {
 	conns := s.subscribedConnections.Conns()
-	toNotify, msg := parser.Filter(conns)
-	for i, shouldNotify := range toNotify {
-		if !shouldNotify {
-			continue
-		}
-		conn := conns[i].(*connection)
+	for i := range conns {
+		conn := conns[i]
 		if !conn.Send(msg) {
 			s.log.Verbo(
 				"dropping message to subscribed connection due to too many pending messages",
@@ -111,6 +108,8 @@ func (s *Server) Publish(parser Filterer) {
 	}
 }
 
+// addConnection adds [conn] to the servers connection set and starts go
+// routines for reading and writing messages for the connection.
 func (s *Server) addConnection(conn *connection) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -121,6 +120,7 @@ func (s *Server) addConnection(conn *connection) {
 	go conn.readPump()
 }
 
+// removeConnection removes [conn] from the servers connection set.
 func (s *Server) removeConnection(conn *connection) {
 	s.subscribedConnections.Remove(conn)
 

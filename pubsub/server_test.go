@@ -1,6 +1,3 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
-// See the file LICENSE for licensing terms.
-
 package pubsub
 
 import (
@@ -19,21 +16,6 @@ import (
 func TestGeneratePrivateKeyDifferent(t *testing.T) {
 	require := require.New(t)
 	require.True(true)
-}
-
-type DummyFilter struct {
-	called bool
-}
-
-// Filter does not filter any connections and returns a dummy msg.
-func (f DummyFilter) Filter(connections []Filter) ([]bool, interface{}) {
-	f.called = true
-	n := len(connections)
-	res := make([]bool, n)
-	for i := 0; i < n; i++ {
-		res[i] = true
-	}
-	return res, "dummy_msg"
 }
 
 var dummyAddr = flag.String("addr", "localhost:8080", "http service address")
@@ -61,10 +43,9 @@ func TestServerPublish(t *testing.T) {
 	server.lock.Unlock()
 
 	server.subscribedConnections.Add(con)
-	df := DummyFilter{}
 	// Publish to subscribed connections
 	server.lock.Lock()
-	server.Publish(df)
+	server.Publish("dummy_msg")
 	server.lock.Unlock()
 
 	// Recieve the message from the publish
