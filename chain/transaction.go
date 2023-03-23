@@ -443,7 +443,7 @@ func UnmarshalTx(
 	authType := p.UnpackByte()
 	unmarshalAuth, authWarp, ok := authRegistry.LookupIndex(authType)
 	if !ok {
-		return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
+		return nil, fmt.Errorf("%w: %d is unknown auth type", ErrInvalidObject, authType)
 	}
 	if authWarp && warpMessage == nil {
 		return nil, fmt.Errorf("%w: auth %d", ErrExpectedWarpMessage, authType)
