@@ -5,6 +5,7 @@ package pubsub
 
 import (
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -59,7 +60,7 @@ func (c *connection) Send(msg interface{}) bool {
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
-func (c *connection) readPump() {
+func (c *connection) readPump(f ServerCallback) {
 	defer func() {
 		c.deactivate()
 		c.s.removeConnection(c)
@@ -78,7 +79,8 @@ func (c *connection) readPump() {
 		return c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	})
 	for {
-		err := c.readMessage()
+		messageType, reader, err := c.conn.NextReader()
+		fmt.Println(messageType, reader, err)
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(
 				err,
@@ -90,6 +92,10 @@ func (c *connection) readPump() {
 				)
 			}
 			break
+		}
+		if f != nil {
+			fmt.Println("inside clalback")
+			c.Send(([]byte("callback")))
 		}
 	}
 }
@@ -113,6 +119,7 @@ func (c *connection) writePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
+			fmt.Println(message)
 
 			if err := c.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
 				c.s.log.Debug("closing the connection",
@@ -146,6 +153,7 @@ func (c *connection) writePump() {
 }
 
 func (c *connection) readMessage() error {
-	_, _, err := c.conn.NextReader()
+	i, b, err := c.conn.NextReader()
+	fmt.Println("message read: ", i, b)
 	return err
 }

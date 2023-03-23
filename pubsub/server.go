@@ -58,21 +58,23 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+type ServerCallback func(interface{}) []byte
+
 // Server maintains the set of active clients and sends messages to the clients.
 type Server struct {
 	log  logging.Logger
 	lock sync.RWMutex
-	// conns a list of all our connections
+	// conns a set of all our connections
 	conns set.Set[*connection]
-	// subscribedConnections the connections that have activated subscriptions
-	subscribedConnections *connections
+	// Callback function when server recieves a message
+	callback ServerCallback
 }
 
 // New returns a new Server instance with the logger set to [log].
-func New(log logging.Logger) *Server {
+func New(log logging.Logger, f ServerCallback) *Server {
 	return &Server{
-		log:                   log,
-		subscribedConnections: newConnections(),
+		log:      log,
+		callback: f,
 	}
 }
 
@@ -97,9 +99,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // Publish sends msg from [parser] to the relevant servers subscribed connections
 // filtered by [parser].
 func (s *Server) Publish(msg interface{}) {
-	conns := s.subscribedConnections.Conns()
-	for i := range conns {
-		conn := conns[i]
+	for _, conn := range s.conns.List() {
 		if !conn.Send(msg) {
 			s.log.Verbo(
 				"dropping message to subscribed connection due to too many pending messages",
@@ -117,13 +117,11 @@ func (s *Server) addConnection(conn *connection) {
 	s.conns.Add(conn)
 
 	go conn.writePump()
-	go conn.readPump()
+	go conn.readPump(s.callback)
 }
 
 // removeConnection removes [conn] from the servers connection set.
 func (s *Server) removeConnection(conn *connection) {
-	s.subscribedConnections.Remove(conn)
-
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
