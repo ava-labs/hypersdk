@@ -7,7 +7,7 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -165,7 +165,7 @@ var importAvalancheOpsChainCmd = &cobra.Command{
 
 		// Load yaml file
 		var opsConfig AvalancheOpsConfig
-		yamlFile, err := ioutil.ReadFile(args[1])
+		yamlFile, err := os.ReadFile(args[1])
 		if err != nil {
 			return err
 		}
