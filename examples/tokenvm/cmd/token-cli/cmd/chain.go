@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"reflect"
 	"strconv"
 	"strings"
@@ -168,11 +167,11 @@ var importAvalancheOpsChainCmd = &cobra.Command{
 		var opsConfig AvalancheOpsConfig
 		yamlFile, err := ioutil.ReadFile(args[1])
 		if err != nil {
-			log.Printf("yamlFile.Get err   #%v ", err)
+			return err
 		}
 		err = yaml.Unmarshal(yamlFile, &opsConfig)
 		if err != nil {
-			log.Fatalf("Unmarshal: %v", err)
+			return err
 		}
 
 		// Add chains
