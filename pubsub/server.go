@@ -13,7 +13,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/units"
 )
 
@@ -28,7 +27,7 @@ const (
 	writeWait = 10 * time.Second
 
 	// Time allowed to read the next pong message from the peer.
-	pongWait = 3 * time.Second
+	pongWait = 60 * time.Second
 
 	// Send pings to peer with this period. Must be less than pongWait.
 	pingPeriod = (pongWait * 9) / 10
@@ -65,7 +64,7 @@ type Server struct {
 	log  logging.Logger
 	lock sync.RWMutex
 	// conns a set of all our connections
-	conns set.Set[*connection]
+	conns connections
 	// Callback function when server recieves a message
 	callback ServerCallback
 }
@@ -99,7 +98,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // Publish sends msg from [parser] to the relevant servers subscribed connections
 // filtered by [parser].
 func (s *Server) Publish(msg interface{}) {
-	for _, conn := range s.conns.List() {
+	for _, conn := range s.conns.Conns() {
 		if !conn.Send(msg) {
 			s.log.Verbo(
 				"dropping message to subscribed connection due to too many pending messages",
@@ -122,8 +121,5 @@ func (s *Server) addConnection(conn *connection) {
 
 // removeConnection removes [conn] from the servers connection set.
 func (s *Server) removeConnection(conn *connection) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	s.conns.Remove(conn)
 }

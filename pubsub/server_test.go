@@ -68,10 +68,6 @@ func TestServerPublish(t *testing.T) {
 	u := url.URL{Scheme: "ws", Host: *dummyAddr, Path: testLoc}
 	web_con, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err)
-	// Grab added connection
-	server.lock.Lock()
-	con, _ := server.conns.Peek()
-	server.lock.Unlock()
 	// Publish to subscribed connections
 	server.lock.Lock()
 	server.Publish(dummyMsg)
@@ -85,7 +81,7 @@ func TestServerPublish(t *testing.T) {
 	require.Equal(dummyMsg, unmarshal)
 	// Close the connection and wait for it to be closed on the server side
 	go func() {
-		con.conn.Close()
+		web_con.Close()
 		for {
 			server.lock.Lock()
 			len := server.conns.Len()
@@ -127,7 +123,6 @@ func TestServerRead(t *testing.T) {
 	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
 	testLoc := "/testRead"
-	// dummyMsg := "dummy_msg"
 	// Connect the server to an http.Server ??
 	flag.Parse()
 	srv := &http.Server{
@@ -145,10 +140,6 @@ func TestServerRead(t *testing.T) {
 	u := url.URL{Scheme: "ws", Host: *dummyAddr, Path: testLoc}
 	web_con, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err)
-	// Grab added connection
-	server.lock.Lock()
-	con, _ := server.conns.Peek()
-	server.lock.Unlock()
 	// write to server
 	marshalId, _ := ids.Empty.MarshalJSON()
 	web_con.WriteMessage(websocket.TextMessage, marshalId)
@@ -160,10 +151,9 @@ func TestServerRead(t *testing.T) {
 	json.Unmarshal(msg, &unmarshal)
 	// Verify that the received message is the expected dummy message
 	require.Equal(callbackEmptyResponse, string(unmarshal))
-
 	// Close the connection and wait for it to be closed on the server side
 	go func() {
-		con.conn.Close()
+		web_con.Close()
 		for {
 			server.lock.Lock()
 			len := server.conns.Len()

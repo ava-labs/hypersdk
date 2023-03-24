@@ -38,3 +38,10 @@ func (c *connections) Add(conn *connection) {
 
 	c.conns.Add(conn)
 }
+
+func (c *connections) Len() int {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return c.conns.Len()
+}
