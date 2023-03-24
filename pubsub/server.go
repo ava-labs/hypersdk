@@ -69,7 +69,8 @@ type Server struct {
 	callback ServerCallback
 }
 
-// New returns a new Server instance with the logger set to [log].
+// New returns a new Server instance with the logger set to [log]. The callback
+// function [f] is called by the server in response to messages if not nil.
 func New(log logging.Logger, f ServerCallback) *Server {
 	return &Server{
 		log:      log,
@@ -77,7 +78,8 @@ func New(log logging.Logger, f ServerCallback) *Server {
 	}
 }
 
-// ServeHTTP adds a connection
+// ServeHTTP adds a connection to the server, and starts go routines for
+// reading and writing.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wsConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {

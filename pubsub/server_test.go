@@ -55,14 +55,13 @@ func TestServerPublish(t *testing.T) {
 	srv := &http.Server{
 		Addr: *dummyAddr,
 	}
-	// Handle requests to dummyAddr + '/'
+	// Handle requests to dummyAddr
 	http.HandleFunc(testLoc, server.ServeHTTP)
 	// Go routine that listens on dummyAddress for connections
 	go func() {
 		defer close(serverDone)
 		err := srv.ListenAndServe()
 		require.ErrorIs(err, http.ErrServerClosed)
-
 	}()
 	// Connect to pubsub server
 	u := url.URL{Scheme: "ws", Host: *dummyAddr, Path: testLoc}
@@ -128,7 +127,7 @@ func TestServerRead(t *testing.T) {
 	srv := &http.Server{
 		Addr: *dummyAddr,
 	}
-	// Handle requests to dummyAddr + '/'
+	// Handle requests to dummyAddr
 	http.HandleFunc(testLoc, server.ServeHTTP)
 	// Go routine that listens on dummyAddress for connections
 	go func() {
@@ -140,10 +139,9 @@ func TestServerRead(t *testing.T) {
 	u := url.URL{Scheme: "ws", Host: *dummyAddr, Path: testLoc}
 	web_con, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err)
-	// write to server
+	// Write to server
 	marshalId, _ := ids.Empty.MarshalJSON()
 	web_con.WriteMessage(websocket.TextMessage, marshalId)
-	// Recieve the message from the publish
 	// Recieve the message from the publish
 	_, msg, err := web_con.ReadMessage()
 	require.NoError(err)
