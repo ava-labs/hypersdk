@@ -18,4 +18,5 @@ var (
 	ErrDuplicate           = errors.New("duplicate")
 	ErrNoKeys              = errors.New("no available keys")
 	ErrNoChains            = errors.New("no available chains")
+	ErrTxFailed            = errors.New("tx failed")
 )

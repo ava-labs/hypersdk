@@ -228,11 +228,13 @@ func (e *ExportAsset) Marshal(p *codec.Packer) {
 	p.PackID(e.Asset)
 	p.PackUint64(e.Value)
 	p.PackBool(e.Return)
-	p.PackUint64(e.Reward)
-	p.PackUint64(e.SwapIn)
-	p.PackID(e.AssetOut)
-	p.PackUint64(e.SwapOut)
-	p.PackInt64(e.SwapExpiry)
+	op := codec.NewOptionalWriter()
+	op.PackUint64(e.Reward)
+	op.PackUint64(e.SwapIn)
+	op.PackID(e.AssetOut)
+	op.PackUint64(e.SwapOut)
+	op.PackInt64(e.SwapExpiry)
+	p.PackOptional(op)
 	p.PackID(e.Destination)
 }
 
@@ -242,17 +244,18 @@ func UnmarshalExportAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error
 	p.UnpackID(false, &export.Asset)     // may export native
 	export.Value = p.UnpackUint64(true)
 	export.Return = p.UnpackBool()
-	export.Reward = p.UnpackUint64(false) // reward not required
-	export.SwapIn = p.UnpackUint64(false) // optional
-	p.UnpackID(false, &export.AssetOut)
-	export.SwapOut = p.UnpackUint64(false)
-	export.SwapExpiry = p.UnpackInt64(false)
+	op := p.NewOptionalReader()
+	export.Reward = op.UnpackUint64() // reward not required
+	export.SwapIn = op.UnpackUint64() // optional
+	op.UnpackID(&export.AssetOut)
+	export.SwapOut = op.UnpackUint64()
+	export.SwapExpiry = op.UnpackInt64()
+	op.Done()
 	p.UnpackID(true, &export.Destination)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}
 	// Handle swap checks
-	// TODO: consider using the optional codec
 	if !ValidSwapParams(
 		export.Value,
 		export.SwapIn,

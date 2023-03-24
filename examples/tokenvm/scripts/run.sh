@@ -17,7 +17,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=1.9.11
+VERSION=1.9.12
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
@@ -114,8 +114,10 @@ rm -f /tmp/tokenvm.config
 cat <<EOF > /tmp/tokenvm.config
 {
   "mempoolSize": 10000000,
+  "mempoolPayerSize": 10000000,
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "parallelism": 5,
+  "streamingBacklogSize": 10000000,
   "trackedPairs":["*"],
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
@@ -130,7 +132,7 @@ echo "creating subnet config"
 rm -f /tmp/tokenvm.subnet
 cat <<EOF > /tmp/tokenvm.subnet
 {
-  "proposerMinBlockDelay":0
+  "proposerMinBlockDelay":100000000
 }
 EOF
 

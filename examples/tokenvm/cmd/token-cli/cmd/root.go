@@ -24,8 +24,11 @@ var (
 	dbPath string
 	db     database.Database
 
-	genesisFile  string
-	minUnitPrice int64
+	genesisFile     string
+	minUnitPrice    int64
+	hideTxs         bool
+	randomRecipient bool
+	maxTxBacklog    int
 
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
@@ -41,6 +44,7 @@ func init() {
 		keyCmd,
 		chainCmd,
 		actionCmd,
+		spamCmd,
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
@@ -85,8 +89,15 @@ func init() {
 	)
 
 	// chain
+	watchChainCmd.PersistentFlags().BoolVar(
+		&hideTxs,
+		"hide-txs",
+		false,
+		"hide txs",
+	)
 	chainCmd.AddCommand(
 		importChainCmd,
+		importANRChainCmd,
 		setChainCmd,
 		chainInfoCmd,
 		watchChainCmd,
@@ -107,6 +118,23 @@ func init() {
 
 		importAssetCmd,
 		exportAssetCmd,
+	)
+
+	// spam
+	runSpamCmd.PersistentFlags().BoolVar(
+		&randomRecipient,
+		"random-recipient",
+		false,
+		"random recipient",
+	)
+	runSpamCmd.PersistentFlags().IntVar(
+		&maxTxBacklog,
+		"max-tx-backlog",
+		72_000,
+		"max tx backlog",
+	)
+	spamCmd.AddCommand(
+		runSpamCmd,
 	)
 }
 

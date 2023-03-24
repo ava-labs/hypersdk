@@ -123,7 +123,7 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 	vm.mempool.Add(ctx, b.Txs)
 
 	// TODO: handle async?
-	if err := vm.c.Rejected(context.TODO(), b); err != nil {
+	if err := vm.c.Rejected(ctx, b); err != nil {
 		vm.snowCtx.Log.Fatal("rejected processing failed", zap.Error(err))
 	}
 

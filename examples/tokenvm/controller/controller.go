@@ -146,7 +146,7 @@ func (c *Controller) Initialize(
 		build = builder.NewTime(inner, builder.DefaultTimeConfig())
 		gcfg := gossiper.DefaultProposerConfig()
 		gcfg.BuildProposerDiff = 1 // don't gossip if producing the next block
-		gossip = gossiper.NewProposer(inner, gossiper.DefaultProposerConfig())
+		gossip = gossiper.NewProposer(inner, gcfg)
 	}
 
 	// Initialize order book used to track all open orders

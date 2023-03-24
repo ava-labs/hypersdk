@@ -354,7 +354,8 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 	warpID := utils.ToID(msg.Payload)
 	num, denom, err := preVerifyWarpMessage(msg, b.vm.ChainID(), r)
 	if err != nil {
-		b.vm.Logger().Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
+		b.vm.Logger().
+			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
 		return false
 	}
 	if err := msg.Signature.Verify(
@@ -365,7 +366,8 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 		num,
 		denom,
 	); err != nil {
-		b.vm.Logger().Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
+		b.vm.Logger().
+			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
 		return false
 	}
 	return true
@@ -712,7 +714,7 @@ func (b *StatelessBlock) childState(
 		if err != nil {
 			return nil, err
 		}
-		return state.NewPreallocatedView(ctx, estimatedChanges)
+		return state.NewPreallocatedView(estimatedChanges)
 	}
 
 	// Process block if not yet processed and not yet accepted.
@@ -725,7 +727,7 @@ func (b *StatelessBlock) childState(
 		}
 		b.state = state
 	}
-	return b.state.NewPreallocatedView(ctx, estimatedChanges)
+	return b.state.NewPreallocatedView(estimatedChanges)
 }
 
 func (b *StatelessBlock) IsRepeat(

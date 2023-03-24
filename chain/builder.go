@@ -179,12 +179,24 @@ func BuildBlock(
 					warpErr = err
 				}
 				if warpErr != nil {
-					log.Warn("warp verification failed", zap.Stringer("txID", next.ID()), zap.Error(warpErr))
+					log.Warn(
+						"warp verification failed",
+						zap.Stringer("txID", next.ID()),
+						zap.Error(warpErr),
+					)
 				}
 			}
 
 			// If execution works, keep moving forward with new state
-			result, err := next.Execute(fctx, ectx, r, sm, ts, nextTime, next.WarpMessage != nil && warpErr == nil)
+			result, err := next.Execute(
+				fctx,
+				ectx,
+				r,
+				sm,
+				ts,
+				nextTime,
+				next.WarpMessage != nil && warpErr == nil,
+			)
 			if err != nil {
 				// This error should only be raised by the handler, not the
 				// implementation itself

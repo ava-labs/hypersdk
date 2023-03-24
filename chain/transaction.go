@@ -41,8 +41,6 @@ type Transaction struct {
 	// all warp messages from a single source have some unique field that
 	// prevents duplicates (like txID). We will not allow 2 instances of the same
 	// warpID from the same sourceChainID to be accepted.
-	//
-	// TODO: migrate to using the built-in ID field in avalanchego@v1.9.12.
 	warpID ids.ID
 }
 
@@ -445,7 +443,7 @@ func UnmarshalTx(
 	authType := p.UnpackByte()
 	unmarshalAuth, authWarp, ok := authRegistry.LookupIndex(authType)
 	if !ok {
-		return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
+		return nil, fmt.Errorf("%w: %d is unknown auth type", ErrInvalidObject, authType)
 	}
 	if authWarp && warpMessage == nil {
 		return nil, fmt.Errorf("%w: auth %d", ErrExpectedWarpMessage, authType)
@@ -474,7 +472,7 @@ func UnmarshalTx(
 	tx.id = utils.ToID(tx.bytes)
 	if tx.WarpMessage != nil {
 		tx.numWarpSigners = numWarpSigners
-		tx.warpID = utils.ToID(tx.WarpMessage.Payload)
+		tx.warpID = tx.WarpMessage.ID()
 	}
 	return &tx, nil
 }

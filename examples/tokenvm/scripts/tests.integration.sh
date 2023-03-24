@@ -15,6 +15,10 @@ if ! [[ "$0" =~ scripts/tests.integration.sh ]]; then
   exit 255
 fi
 
+# remove previous coverage reports
+rm -f integration.coverage.out
+rm -f integration.coverage.html
+
 # to install the ginkgo binary (required for test build and run)
 go install -v github.com/onsi/ginkgo/v2/ginkgo@v2.0.0-rc2 || true
 
@@ -23,9 +27,13 @@ ACK_GINKGO_RC=true ginkgo \
 run \
 -v \
 --fail-fast \
---cover \
---coverpkg github.com/ava-labs/hypersdk/examples/tokenvm/chain,github.com/ava-labs/hypersdk/examples/tokenvm/vm \
+-cover \
+-covermode=atomic \
+-coverpkg=github.com/ava-labs/hypersdk/... \
+-coverprofile=integration.coverage.out \
 ./tests/integration \
--- \
 --vms 3 \
 --min-price 1
+
+# output generate coverage html
+go tool cover -html=integration.coverage.out -o=integration.coverage.html

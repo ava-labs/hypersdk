@@ -121,7 +121,7 @@ func (w *Listeners) AcceptBlock(b *chain.StatelessBlock) {
 		txID := tx.ID()
 		listeners, ok := w.txListeners[txID]
 		if !ok {
-			return
+			continue
 		}
 		for _, listener := range listeners {
 			select {
