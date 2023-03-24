@@ -24,11 +24,12 @@ var (
 	dbPath string
 	db     database.Database
 
-	genesisFile     string
-	minUnitPrice    int64
-	hideTxs         bool
-	randomRecipient bool
-	maxTxBacklog    int
+	genesisFile       string
+	minUnitPrice      int64
+	hideTxs           bool
+	randomRecipient   bool
+	maxTxBacklog      int
+	deleteOtherChains bool
 
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
@@ -95,9 +96,16 @@ func init() {
 		false,
 		"hide txs",
 	)
+	importAvalancheOpsChainCmd.PersistentFlags().BoolVar(
+		&deleteOtherChains,
+		"delete-other-chains",
+		true,
+		"delete other chains",
+	)
 	chainCmd.AddCommand(
 		importChainCmd,
 		importANRChainCmd,
+		importAvalancheOpsChainCmd,
 		setChainCmd,
 		chainInfoCmd,
 		watchChainCmd,
