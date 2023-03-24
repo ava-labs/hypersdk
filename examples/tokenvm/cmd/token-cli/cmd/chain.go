@@ -137,7 +137,7 @@ type AvalancheOpsConfig struct {
 }
 
 var importAvalancheOpsChainCmd = &cobra.Command{
-	Use: "import-avalanche-ops [chainID] [path]",
+	Use: "import-ops [chainID] [path]",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 2 {
 			return ErrInvalidArgs
