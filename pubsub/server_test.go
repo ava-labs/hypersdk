@@ -23,11 +23,14 @@ func TestGeneratePrivateKeyDifferent(t *testing.T) {
 var dummyAddr = flag.String("addr", "localhost:8080", "http service address")
 
 var callbackEmptyResponse = "EMPTY_ID"
-var callbackResponse = "ID_RECIEVED"
+var callbackResponse = "ID_RECEIVED"
 
 func dummyProcessTXCallback(b []byte) []byte {
 	unmarshalID := ids.Empty
-	unmarshalID.UnmarshalJSON(b)
+	err := unmarshalID.UnmarshalJSON(b)
+	if err != nil {
+		return []byte("error during unmarshalling")
+	}
 	if ids.Empty == unmarshalID {
 		return []byte(callbackEmptyResponse)
 	} else {
@@ -71,11 +74,12 @@ func TestServerPublish(t *testing.T) {
 	server.lock.Lock()
 	server.Publish(dummyMsg)
 	server.lock.Unlock()
-	// Recieve the message from the publish
+	// Receive the message from the publish
 	_, msg, err := web_con.ReadMessage()
 	require.NoError(err)
 	var unmarshal string
-	json.Unmarshal(msg, &unmarshal)
+	err = json.Unmarshal(msg, &unmarshal)
+	require.NoError(err)
 	// Verify that the received message is the expected dummy message
 	require.Equal(dummyMsg, unmarshal)
 	// Close the connection and wait for it to be closed on the server side
@@ -141,12 +145,14 @@ func TestServerRead(t *testing.T) {
 	require.NoError(err)
 	// Write to server
 	marshalId, _ := ids.Empty.MarshalJSON()
-	web_con.WriteMessage(websocket.TextMessage, marshalId)
-	// Recieve the message from the publish
+	err = web_con.WriteMessage(websocket.TextMessage, marshalId)
+	require.NoError(err)
+	// Receive the message from the publish
 	_, msg, err := web_con.ReadMessage()
 	require.NoError(err)
 	var unmarshal []byte
-	json.Unmarshal(msg, &unmarshal)
+	err = json.Unmarshal(msg, &unmarshal)
+	require.NoError(err)
 	// Verify that the received message is the expected dummy message
 	require.Equal(callbackEmptyResponse, string(unmarshal))
 	// Close the connection and wait for it to be closed on the server side

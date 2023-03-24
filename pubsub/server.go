@@ -65,7 +65,7 @@ type Server struct {
 	lock sync.RWMutex
 	// conns a set of all our connections
 	conns connections
-	// Callback function when server recieves a message
+	// Callback function when server receives a message
 	callback ServerCallback
 }
 
