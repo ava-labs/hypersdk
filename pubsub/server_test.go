@@ -4,7 +4,6 @@
 package pubsub
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"net/http"
@@ -56,15 +55,15 @@ func TestServerPublish(t *testing.T) {
 	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
 	dummyMsg := "dummy_msg"
-	testLoc := "/testPub"
 	// Connect the server to an http.Server ??
 	flag.Parse()
 	srv := &http.Server{
 		Addr:              *dummyAddr,
 		ReadHeaderTimeout: time.Second * 5,
+		Handler:           server,
 	}
 	// Handle requests to dummyAddr
-	http.HandleFunc(testLoc, server.ServeHTTP)
+	// http.HandleFunc(testLoc, server.ServeHTTP)
 	// Go routine that listens on dummyAddress for connections
 	go func() {
 		defer close(serverDone)
@@ -72,7 +71,7 @@ func TestServerPublish(t *testing.T) {
 		require.ErrorIs(err, http.ErrServerClosed)
 	}()
 	// Connect to pubsub server
-	u := url.URL{Scheme: "ws", Host: *dummyAddr, Path: testLoc}
+	u := url.URL{Scheme: "ws", Host: *dummyAddr}
 	webCon, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	defer resp.Body.Close()
 	require.NoError(err)
@@ -112,9 +111,7 @@ func TestServerPublish(t *testing.T) {
 		require.Fail("connection was not closed on the server side")
 	}
 	// Gracefully shutdown the server
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err = srv.Shutdown(ctx)
+	err = srv.Shutdown(nil)
 	require.NoError(err)
 	// Wait for the server to finish shutting down
 	<-serverDone
@@ -132,15 +129,13 @@ func TestServerRead(t *testing.T) {
 	// Channels for ensuring if connections/server are closed
 	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
-	testLoc := "/testRead"
 	// Connect the server to an http.Server ??
 	flag.Parse()
 	srv := &http.Server{
 		Addr:              *dummyAddr,
 		ReadHeaderTimeout: time.Second * 5,
+		Handler:           server,
 	}
-	// Handle requests to dummyAddr
-	http.HandleFunc(testLoc, server.ServeHTTP)
 	// Go routine that listens on dummyAddress for connections
 	go func() {
 		defer close(serverDone)
@@ -148,7 +143,7 @@ func TestServerRead(t *testing.T) {
 		require.ErrorIs(err, http.ErrServerClosed)
 	}()
 	// Connect to pubsub server
-	u := url.URL{Scheme: "ws", Host: *dummyAddr, Path: testLoc}
+	u := url.URL{Scheme: "ws", Host: *dummyAddr}
 	webCon, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	defer resp.Body.Close()
 
@@ -189,9 +184,7 @@ func TestServerRead(t *testing.T) {
 		require.Fail("connection was not closed on the server side")
 	}
 	// Gracefully shutdown the server
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err = srv.Shutdown(ctx)
+	err = srv.Shutdown(nil)
 	require.NoError(err)
 	// Wait for the server to finish shutting down
 	<-serverDone

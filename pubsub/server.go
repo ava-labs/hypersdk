@@ -55,7 +55,7 @@ var upgrader = websocket.Upgrader{
 
 // ServerCallback type is used as a callback function for the
 // WebSocket server to process incoming messages.
-type ServerCallback func([]byte) []byte
+type Callback func([]byte) []byte
 
 // Server maintains the set of active clients and sends messages to the clients.
 type Server struct {
@@ -64,16 +64,16 @@ type Server struct {
 	// conns a set of all our connections
 	conns connections
 	// Callback function when server receives a message
-	callback ServerCallback
+	rCallback Callback
 }
 
 // New returns a new Server instance with the logger set to [log]. The callback
 // function [f] is called by the server in response to messages if not nil.
-func New(log logging.Logger, f ServerCallback) *Server {
+func New(log logging.Logger, r Callback) *Server {
 	return &Server{
-		log:      log,
-		callback: f,
-		conns:    *newConnections(),
+		log:       log,
+		rCallback: r,
+		conns:     *newConnections(),
 	}
 }
 
@@ -88,10 +88,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	conn := &connection{
-		s:      s,
-		conn:   wsConn,
-		send:   make(chan interface{}, maxPendingMessages),
-		active: 1,
+		s:            s,
+		conn:         wsConn,
+		send:         make(chan interface{}, maxPendingMessages),
+		active:       1,
+		readCallback: s.rCallback,
 	}
 	s.addConnection(conn)
 }
@@ -117,7 +118,7 @@ func (s *Server) addConnection(conn *connection) {
 	s.conns.Add(conn)
 
 	go conn.writePump()
-	go conn.readPump(s.callback)
+	go conn.readPump()
 }
 
 // removeConnection removes [conn] from the servers connection set.

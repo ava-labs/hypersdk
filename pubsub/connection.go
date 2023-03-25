@@ -32,6 +32,9 @@ type connection struct {
 
 	// Represents if the connection can receive new messages.
 	active uint32
+
+	// Callback function when after a server reads from a connection
+	readCallback Callback
 }
 
 // isActive returns whether the connection is active
@@ -63,7 +66,7 @@ func (c *connection) Send(msg interface{}) bool {
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
-func (c *connection) readPump(f ServerCallback) {
+func (c *connection) readPump() {
 	defer func() {
 		c.deactivate()
 		c.s.removeConnection(c)
@@ -96,14 +99,14 @@ func (c *connection) readPump(f ServerCallback) {
 
 			break
 		}
-		if f != nil {
+		if c.readCallback != nil {
 			responseBytes, err := io.ReadAll(reader)
 			if err == nil {
 				c.s.log.Debug("unexpected error reading bytes from websockets",
 					zap.Error(err),
 				)
 			}
-			c.Send(f(responseBytes))
+			c.Send(c.readCallback(responseBytes))
 		}
 	}
 }
