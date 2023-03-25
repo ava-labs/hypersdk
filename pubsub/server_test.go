@@ -29,7 +29,8 @@ var (
 	callbackResponse      = "ID_RECEIVED"
 )
 
-func dummyProcessTXCallback(b []byte) []byte {
+func dummyProcessTXCallback(args ...interface{}) []byte {
+	b := args[0].([]byte)
 	unmarshalID := ids.Empty
 	err := unmarshalID.UnmarshalJSON(b)
 	if err != nil {

@@ -53,10 +53,6 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-// ServerCallback type is used as a callback function for the
-// WebSocket server to process incoming messages.
-type Callback func([]byte) []byte
-
 // Server maintains the set of active clients and sends messages to the clients.
 type Server struct {
 	log  logging.Logger
@@ -88,11 +84,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	conn := &connection{
-		s:            s,
-		conn:         wsConn,
-		send:         make(chan interface{}, maxPendingMessages),
-		active:       1,
-		readCallback: s.rCallback,
+		s:         s,
+		conn:      wsConn,
+		send:      make(chan interface{}, maxPendingMessages),
+		active:    1,
+		rCallback: s.rCallback,
 	}
 	s.addConnection(conn)
 }

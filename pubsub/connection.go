@@ -20,6 +20,10 @@ var (
 	ErrInvalidCommand       = errors.New("invalid command")
 )
 
+// ServerCallback type is used as a callback function for the
+// WebSocket server to process incoming messages.
+type Callback func(args ...interface{}) []byte
+
 // connection is a representation of the websocket connection.
 type connection struct {
 	s *Server
@@ -34,7 +38,7 @@ type connection struct {
 	active uint32
 
 	// Callback function when after a server reads from a connection
-	readCallback Callback
+	rCallback Callback
 }
 
 // isActive returns whether the connection is active
@@ -99,14 +103,14 @@ func (c *connection) readPump() {
 
 			break
 		}
-		if c.readCallback != nil {
+		if c.rCallback != nil {
 			responseBytes, err := io.ReadAll(reader)
 			if err == nil {
 				c.s.log.Debug("unexpected error reading bytes from websockets",
 					zap.Error(err),
 				)
 			}
-			c.Send(c.readCallback(responseBytes))
+			c.Send(c.rCallback(responseBytes))
 		}
 	}
 }
