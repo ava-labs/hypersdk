@@ -45,10 +45,6 @@ const (
 	MaxAddresses = 10000
 )
 
-type errorMsg struct {
-	Error string `json:"error"`
-}
-
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  readBufferSize,
 	WriteBufferSize: writeBufferSize,
@@ -57,6 +53,8 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+// ServerCallback type is used as a callback function for the
+// WebSocket server to process incoming messages.
 type ServerCallback func([]byte) []byte
 
 // Server maintains the set of active clients and sends messages to the clients.
@@ -75,6 +73,7 @@ func New(log logging.Logger, f ServerCallback) *Server {
 	return &Server{
 		log:      log,
 		callback: f,
+		conns:    *newConnections(),
 	}
 }
 

@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package pubsub
 
 import (
@@ -22,8 +25,10 @@ func TestGeneratePrivateKeyDifferent(t *testing.T) {
 
 var dummyAddr = flag.String("addr", "localhost:8080", "http service address")
 
-var callbackEmptyResponse = "EMPTY_ID"
-var callbackResponse = "ID_RECEIVED"
+var (
+	callbackEmptyResponse = "EMPTY_ID"
+	callbackResponse      = "ID_RECEIVED"
+)
 
 func dummyProcessTXCallback(b []byte) []byte {
 	unmarshalID := ids.Empty
@@ -36,7 +41,6 @@ func dummyProcessTXCallback(b []byte) []byte {
 	} else {
 		return []byte(callbackResponse)
 	}
-
 }
 
 // TestServerPublish adds a connection to a server then publishes
@@ -56,7 +60,8 @@ func TestServerPublish(t *testing.T) {
 	// Connect the server to an http.Server ??
 	flag.Parse()
 	srv := &http.Server{
-		Addr: *dummyAddr,
+		Addr:              *dummyAddr,
+		ReadHeaderTimeout: time.Second * 5,
 	}
 	// Handle requests to dummyAddr
 	http.HandleFunc(testLoc, server.ServeHTTP)
@@ -68,14 +73,15 @@ func TestServerPublish(t *testing.T) {
 	}()
 	// Connect to pubsub server
 	u := url.URL{Scheme: "ws", Host: *dummyAddr, Path: testLoc}
-	web_con, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	webCon, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	defer resp.Body.Close()
 	require.NoError(err)
 	// Publish to subscribed connections
 	server.lock.Lock()
 	server.Publish(dummyMsg)
 	server.lock.Unlock()
 	// Receive the message from the publish
-	_, msg, err := web_con.ReadMessage()
+	_, msg, err := webCon.ReadMessage()
 	require.NoError(err)
 	var unmarshal string
 	err = json.Unmarshal(msg, &unmarshal)
@@ -84,7 +90,7 @@ func TestServerPublish(t *testing.T) {
 	require.Equal(dummyMsg, unmarshal)
 	// Close the connection and wait for it to be closed on the server side
 	go func() {
-		web_con.Close()
+		webCon.Close()
 		for {
 			server.lock.Lock()
 			len := server.conns.Len()
@@ -109,6 +115,7 @@ func TestServerPublish(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err = srv.Shutdown(ctx)
+	require.NoError(err)
 	// Wait for the server to finish shutting down
 	<-serverDone
 }
@@ -129,7 +136,8 @@ func TestServerRead(t *testing.T) {
 	// Connect the server to an http.Server ??
 	flag.Parse()
 	srv := &http.Server{
-		Addr: *dummyAddr,
+		Addr:              *dummyAddr,
+		ReadHeaderTimeout: time.Second * 5,
 	}
 	// Handle requests to dummyAddr
 	http.HandleFunc(testLoc, server.ServeHTTP)
@@ -141,14 +149,16 @@ func TestServerRead(t *testing.T) {
 	}()
 	// Connect to pubsub server
 	u := url.URL{Scheme: "ws", Host: *dummyAddr, Path: testLoc}
-	web_con, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	webCon, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	defer resp.Body.Close()
+
 	require.NoError(err)
 	// Write to server
-	marshalId, _ := ids.Empty.MarshalJSON()
-	err = web_con.WriteMessage(websocket.TextMessage, marshalId)
+	marshalID, _ := ids.Empty.MarshalJSON()
+	err = webCon.WriteMessage(websocket.TextMessage, marshalID)
 	require.NoError(err)
 	// Receive the message from the publish
-	_, msg, err := web_con.ReadMessage()
+	_, msg, err := webCon.ReadMessage()
 	require.NoError(err)
 	var unmarshal []byte
 	err = json.Unmarshal(msg, &unmarshal)
@@ -157,7 +167,7 @@ func TestServerRead(t *testing.T) {
 	require.Equal(callbackEmptyResponse, string(unmarshal))
 	// Close the connection and wait for it to be closed on the server side
 	go func() {
-		web_con.Close()
+		webCon.Close()
 		for {
 			server.lock.Lock()
 			len := server.conns.Len()
@@ -182,6 +192,7 @@ func TestServerRead(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err = srv.Shutdown(ctx)
+	require.NoError(err)
 	// Wait for the server to finish shutting down
 	<-serverDone
 }

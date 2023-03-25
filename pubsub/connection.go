@@ -5,7 +5,7 @@ package pubsub
 
 import (
 	"errors"
-	"io/ioutil"
+	"io"
 	"sync/atomic"
 	"time"
 
@@ -30,14 +30,17 @@ type connection struct {
 	// Buffered channel of outbound messages.
 	send chan interface{}
 
+	// Represents if the connection can receive new messages.
 	active uint32
 }
 
+// isActive returns whether the connection is active
 func (c *connection) isActive() bool {
 	active := atomic.LoadUint32(&c.active)
 	return active != 0
 }
 
+// deactivate deactivates the connection.
 func (c *connection) deactivate() {
 	atomic.StoreUint32(&c.active, 0)
 }
@@ -90,11 +93,16 @@ func (c *connection) readPump(f ServerCallback) {
 					zap.Error(err),
 				)
 			}
+
 			break
 		}
 		if f != nil {
-			responseBytes, _ := ioutil.ReadAll(reader)
-			// TODO: check for error and close reader
+			responseBytes, err := io.ReadAll(reader)
+			if err == nil {
+				c.s.log.Debug("unexpected error reading bytes from websockets",
+					zap.Error(err),
+				)
+			}
 			c.Send(f(responseBytes))
 		}
 	}
