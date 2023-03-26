@@ -4,6 +4,7 @@
 package pubsub
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"net/http"
@@ -29,8 +30,7 @@ var (
 	callbackResponse      = "ID_RECEIVED"
 )
 
-func dummyProcessTXCallback(args ...interface{}) []byte {
-	b := args[0].([]byte)
+func dummyProcessTXCallback(b []byte, _ []interface{}) []byte {
 	unmarshalID := ids.Empty
 	err := unmarshalID.UnmarshalJSON(b)
 	if err != nil {
@@ -51,7 +51,7 @@ func TestServerPublish(t *testing.T) {
 	// Create a new logger for the test
 	logger := logging.NoLog{}
 	// Create a new pubsub server
-	server := New(logger, nil)
+	server := New(logger, nil, nil)
 	// Channels for ensuring if connections/server are closed
 	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
@@ -112,7 +112,7 @@ func TestServerPublish(t *testing.T) {
 		require.Fail("connection was not closed on the server side")
 	}
 	// Gracefully shutdown the server
-	err = srv.Shutdown(nil)
+	err = srv.Shutdown(context.TODO())
 	require.NoError(err)
 	// Wait for the server to finish shutting down
 	<-serverDone
@@ -126,7 +126,7 @@ func TestServerRead(t *testing.T) {
 	// Create a new logger for the test
 	logger := logging.NoLog{}
 	// Create a new pubsub server
-	server := New(logger, dummyProcessTXCallback)
+	server := New(logger, dummyProcessTXCallback, nil)
 	// Channels for ensuring if connections/server are closed
 	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
@@ -185,7 +185,7 @@ func TestServerRead(t *testing.T) {
 		require.Fail("connection was not closed on the server side")
 	}
 	// Gracefully shutdown the server
-	err = srv.Shutdown(nil)
+	err = srv.Shutdown(context.TODO())
 	require.NoError(err)
 	// Wait for the server to finish shutting down
 	<-serverDone

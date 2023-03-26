@@ -20,9 +20,9 @@ var (
 	ErrInvalidCommand       = errors.New("invalid command")
 )
 
-// ServerCallback type is used as a callback function for the
+// Callback type is used as a callback function for the
 // WebSocket server to process incoming messages.
-type Callback func(args ...interface{}) []byte
+type Callback func([]byte, []interface{}) []byte
 
 // connection is a representation of the websocket connection.
 type connection struct {
@@ -70,7 +70,7 @@ func (c *connection) Send(msg interface{}) bool {
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
-func (c *connection) readPump() {
+func (c *connection) readPump(e []interface{}) {
 	defer func() {
 		c.deactivate()
 		c.s.removeConnection(c)
@@ -100,7 +100,6 @@ func (c *connection) readPump() {
 					zap.Error(err),
 				)
 			}
-
 			break
 		}
 		if c.rCallback != nil {
@@ -110,7 +109,7 @@ func (c *connection) readPump() {
 					zap.Error(err),
 				)
 			}
-			c.Send(c.rCallback(responseBytes))
+			c.Send(c.rCallback(responseBytes, e))
 		}
 	}
 }

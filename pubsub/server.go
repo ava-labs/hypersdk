@@ -61,15 +61,18 @@ type Server struct {
 	conns connections
 	// Callback function when server receives a message
 	rCallback Callback
+	//  Supplemental info for the rCallback function
+	e []interface{}
 }
 
 // New returns a new Server instance with the logger set to [log]. The callback
 // function [f] is called by the server in response to messages if not nil.
-func New(log logging.Logger, r Callback) *Server {
+func New(log logging.Logger, r Callback, e []interface{}) *Server {
 	return &Server{
 		log:       log,
 		rCallback: r,
 		conns:     *newConnections(),
+		e:         e,
 	}
 }
 
@@ -114,7 +117,7 @@ func (s *Server) addConnection(conn *connection) {
 	s.conns.Add(conn)
 
 	go conn.writePump()
-	go conn.readPump()
+	go conn.readPump(s.e)
 }
 
 // removeConnection removes [conn] from the servers connection set.
