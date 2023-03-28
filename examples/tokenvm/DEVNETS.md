@@ -13,7 +13,7 @@ page](https://github.com/ava-labs/avalanche-ops/releases/tag/latest).
 ```bash
 export ARCH_TYPE=$(uname -m)
 echo ${ARCH_TYPE}
-rm -f ./tmp/avalancheup-aws
+rm -f /tmp/avalancheup-aws
 wget "https://github.com/ava-labs/avalanche-ops/releases/download/latest/avalancheup-aws.${ARCH_TYPE}-apple-darwin"
 mv ./avalancheup-aws.${ARCH_TYPE}-apple-darwin /tmp/avalancheup-aws
 chmod +x /tmp/avalancheup-aws
@@ -24,7 +24,7 @@ chmod +x /tmp/avalancheup-aws
 ```bash
 export ARCH_TYPE=$(uname -m)
 echo ${ARCH_TYPE}
-rm -f ./tmp/avalancheup-aws
+rm -f /tmp/avalancheup-aws
 wget "https://github.com/ava-labs/avalanche-ops/releases/download/latest/avalancheup-aws.${ARCH_TYPE}-linux-gnu"
 mv ./avalancheup-aws.${ARCH_TYPE}-linux-gnu /tmp/avalancheup-aws
 chmod +x /tmp/avalancheup-aws
