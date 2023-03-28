@@ -22,10 +22,11 @@ var (
 
 // Callback type is used as a callback function for the
 // WebSocket server to process incoming messages.
-type Callback func([]byte, []interface{}) []byte
+// Accepts a byte message, the connection and any additional information.
+type Callback func([]byte, *Connection, []interface{}) []byte
 
 // connection is a representation of the websocket connection.
-type connection struct {
+type Connection struct {
 	s *Server
 
 	// The websocket connection.
@@ -42,18 +43,18 @@ type connection struct {
 }
 
 // isActive returns whether the connection is active
-func (c *connection) isActive() bool {
+func (c *Connection) isActive() bool {
 	active := atomic.LoadUint32(&c.active)
 	return active != 0
 }
 
 // deactivate deactivates the connection.
-func (c *connection) deactivate() {
+func (c *Connection) deactivate() {
 	atomic.StoreUint32(&c.active, 0)
 }
 
 // Send sends [msg] to c's send channel and returns whether the message was sent.
-func (c *connection) Send(msg interface{}) bool {
+func (c *Connection) Send(msg interface{}) bool {
 	if !c.isActive() {
 		return false
 	}
@@ -70,7 +71,7 @@ func (c *connection) Send(msg interface{}) bool {
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
-func (c *connection) readPump(e []interface{}) {
+func (c *Connection) readPump(e []interface{}) {
 	defer func() {
 		c.deactivate()
 		c.s.removeConnection(c)
@@ -109,7 +110,7 @@ func (c *connection) readPump(e []interface{}) {
 					zap.Error(err),
 				)
 			}
-			c.Send(c.rCallback(responseBytes, e))
+			c.Send(c.rCallback(responseBytes, c, e))
 		}
 	}
 }
@@ -119,7 +120,7 @@ func (c *connection) readPump(e []interface{}) {
 // A goroutine running writePump is started for each connection. The
 // application ensures that there is at most one writer to a connection by
 // executing all writes from this goroutine.
-func (c *connection) writePump() {
+func (c *Connection) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		c.deactivate()

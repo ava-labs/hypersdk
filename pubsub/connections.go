@@ -10,25 +10,25 @@ import (
 )
 
 // connections represents a collection of connections to clients.
-type connections struct {
+type Connections struct {
 	lock  sync.RWMutex
-	conns set.Set[*connection]
+	conns set.Set[*Connection]
 }
 
-// newConnections returns a new instance of the connections struct.
-func newConnections() *connections {
-	return &connections{}
+// nNwConnections returns a new instance of the connections struct.
+func newConnections() *Connections {
+	return &Connections{}
 }
 
 // Conns returns a list of all connections in [c].
-func (c *connections) Conns() []*connection {
+func (c *Connections) Conns() []*Connection {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	return c.conns.List()
 }
 
 // Remove removes [conn] from [c].
-func (c *connections) Remove(conn *connection) {
+func (c *Connections) Remove(conn *Connection) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -36,7 +36,7 @@ func (c *connections) Remove(conn *connection) {
 }
 
 // Add adds [conn] to the [c].
-func (c *connections) Add(conn *connection) {
+func (c *Connections) Add(conn *Connection) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -44,7 +44,7 @@ func (c *connections) Add(conn *connection) {
 }
 
 // Len returns the number of connections in [c].
-func (c *connections) Len() int {
+func (c *Connections) Len() int {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 

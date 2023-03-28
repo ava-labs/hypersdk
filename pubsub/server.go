@@ -6,43 +6,12 @@ package pubsub
 import (
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/gorilla/websocket"
 
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/units"
-)
-
-const (
-	// Size of the ws read buffer
-	readBufferSize = units.KiB
-
-	// Size of the ws write buffer
-	writeBufferSize = units.KiB
-
-	// Time allowed to write a message to the peer.
-	writeWait = 10 * time.Second
-
-	// Time allowed to read the next pong message from the peer.
-	pongWait = 60 * time.Second
-
-	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = (pongWait * 9) / 10
-
-	// Maximum message size allowed from peer.
-	maxMessageSize = 10 * units.KiB // bytes
-
-	// Maximum number of pending messages to send to a peer.
-	maxPendingMessages = 1024 // messages
-
-	// MaxBytes the max number of bytes for a filter
-	MaxBytes = 1 * units.MiB
-
-	// MaxAddresses the max number of addresses allowed
-	MaxAddresses = 10000
 )
 
 var upgrader = websocket.Upgrader{
@@ -58,7 +27,7 @@ type Server struct {
 	log  logging.Logger
 	lock sync.RWMutex
 	// conns a set of all our connections
-	conns connections
+	conns Connections
 	// Callback function when server receives a message
 	rCallback Callback
 	//  Supplemental info for the rCallback function
@@ -86,7 +55,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	conn := &connection{
+	conn := &Connection{
 		s:         s,
 		conn:      wsConn,
 		send:      make(chan interface{}, maxPendingMessages),
@@ -96,10 +65,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.addConnection(conn)
 }
 
-// Publish sends msg from [parser] to the relevant servers subscribed connections
-// filtered by [parser].
-func (s *Server) Publish(msg interface{}) {
-	for _, conn := range s.conns.Conns() {
+// Publish sends msg from [s] to [toConns].
+func (s *Server) Publish(msg interface{}, toConns *Connections) {
+	for _, conn := range toConns.Conns() {
+		// check server has connection O(1)
+		if !s.conns.conns.Contains(conn) {
+			continue
+		}
 		if !conn.Send(msg) {
 			s.log.Verbo(
 				"dropping message to subscribed connection due to too many pending messages",
@@ -110,7 +82,7 @@ func (s *Server) Publish(msg interface{}) {
 
 // addConnection adds [conn] to the servers connection set and starts go
 // routines for reading and writing messages for the connection.
-func (s *Server) addConnection(conn *connection) {
+func (s *Server) addConnection(conn *Connection) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -121,6 +93,6 @@ func (s *Server) addConnection(conn *connection) {
 }
 
 // removeConnection removes [conn] from the servers connection set.
-func (s *Server) removeConnection(conn *connection) {
+func (s *Server) removeConnection(conn *Connection) {
 	s.conns.Remove(conn)
 }
