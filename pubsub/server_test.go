@@ -118,8 +118,7 @@ func TestServerPublish(t *testing.T) {
 }
 
 // TestServerPublish pumps messages into a dummy server and waits for
-// the servers response. Requires messages back from the server handled the
-// messages correctly.
+// the servers response. Requires the server handled the messages correctly.
 func TestServerRead(t *testing.T) {
 	require := require.New(t)
 	// Create a new logger for the test
@@ -224,7 +223,9 @@ func TestServerPublishSpecific(t *testing.T) {
 	require.NoError(err, "Error connecting to the server.")
 	defer resp1.Body.Close()
 	sendConns := newConnections()
+	server.lock.Lock()
 	peekCon, _ := server.conns.conns.Peek()
+	server.lock.Unlock()
 	sendConns.Add(peekCon)
 	webCon2, resp2, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
