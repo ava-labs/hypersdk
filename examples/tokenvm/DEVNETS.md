@@ -4,30 +4,12 @@ _In the world of Avalanche, we refer to short-lived, test Subnets as Devnets._
 ### Step 1: Install `avalanche-ops`
 [avalanche-ops](https://github.com/ava-labs/avalanche-ops) provides a command-line
 interface to setup nodes and install Custom VMs on both custom networks and on
-Fuji using [AWS CloudFormation](https://aws.amazon.com/cloudformation/). `avalanche-ops`
-is written in Rust, so you must either install Rust and compile `avalanche-ops` or
-download the latest from the `avalanche-ops` repo.
+Fuji using [AWS CloudFormation](https://aws.amazon.com/cloudformation/).
 
-#### Option 1: Install Rust and Compile
-Install [Rust](https://www.rust-lang.org/tools/install):
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
+You can view a full list of pre-built binaries on the [latest release
+page](https://github.com/ava-labs/avalanche-ops/releases/tag/latest).
 
-Compile `avalanche-ops`:
-```bash
-git clone git@github.com:ava-labs/avalanche-ops.git
-cd ./avalanche-ops
-./scripts/build.release.sh
-mv ./target/release/avalancheup-aws /tmp/avalancheup-aws
-chmod +x /tmp/avalancheup-aws
-/tmp/avalancheup-aws --help
-```
-
-#### Option 2: Download Pre-Built CLI
-You can view a full list of pre-built binaries on the [latest release page](https://github.com/ava-labs/avalanche-ops/releases/tag/latest).
-
-##### Install `avalanche-ops` on Mac
+#### Option 1: Install `avalanche-ops` on Mac
 ```bash
 export LINUX_ARCH_TYPE=$(uname -m)
 echo ${LINUX_ARCH_TYPE}
@@ -38,7 +20,7 @@ chmod +x /tmp/avalancheup-aws
 /tmp/avalancheup-aws --help
 ```
 
-##### Install `avalanche-ops` on Linux
+#### Option 2: Install `avalanche-ops` on Linux
 ```bash
 export LINUX_ARCH_TYPE=$(uname -m)
 echo ${LINUX_ARCH_TYPE}
@@ -50,7 +32,8 @@ chmod +x /tmp/avalancheup-aws
 ```
 
 ### Step 2: Install and Configure `aws-cli`
-Next, make sure to install the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
+Next, install the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html). This is used to
+manipulate CloudFormation.
 
 Once you've installed the AWS CLI, run `aws configure` to set the access key to
 use while deploying your devnet.
