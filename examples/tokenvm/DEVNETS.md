@@ -191,7 +191,7 @@ do so (similar to [scripts/run.sh](./scripts/run.sh)):
 ```bash
 rm -rf /tmp/avalanche-ops
 
-avalancheup-aws subnet-config \
+/tmp/avalancheup-aws subnet-config \
 --log-level=info \
 --proposer-min-block-delay 0 \
 --file-path /tmp/avalanche-ops/subnet-config.json
@@ -225,36 +225,32 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 /tmp/avalancheup-aws install-subnet-chain \
 --log-level info \
 --region us-west-2 \
---s3-bucket avalanche-ops-***-us-west-2 \
---s3-key-prefix aops-custom-***/install-subnet-chain \
---ssm-doc aops-custom-***-ssm-install-subnet-chain \
---chain-rpc-url http://52.88.8.107:9650 \
---key 0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027 \
+--s3-bucket <TODO> \
+--s3-key-prefix <TODO> \
+--ssm-doc <TODO> \
+--chain-rpc-url <TODO> \
+--key <TODO> \
 --primary-network-validate-period-in-days 16 \
 --subnet-validate-period-in-days 14 \
 --subnet-config-local-path /tmp/avalanche-ops/subnet-config.json \
 --subnet-config-remote-dir /data/avalanche-configs/subnets \
---vm-binary-local-path /tmp/avalanche-ops/tokenvm \
+--vm-binary-local-path /tmp/tokenvm \
 --vm-binary-remote-dir /data/avalanche-plugins \
 --chain-name tokenvm1 \
 --chain-genesis-path /tmp/avalanche-ops/tokenvm-genesis.json \
 --chain-config-local-path /tmp/avalanche-ops/tokenvm-chain-config.json \
 --chain-config-remote-dir /data/avalanche-configs/chains \
 --avalanchego-config-remote-path /data/avalanche-configs/config.json \
---node-ids-to-instance-ids '{"NodeID-31HAxw7wYJ2u2HQHBkwwF26bnFuxnh2sa":"i-04f6ea239218440f0","NodeID-PLM2si9LWaqvzid6AeJa9tft7rzDXXKg2":"i-0459af0e4cf31fcfa","NodeID-D1RtuFSbmcTiRVY991vkq5UvsTBUpHHLR":"i-0d44cfe5420370c30"}'
-#  VM Id 'tHBYNu8ikt25R77fH4znHYC4B5mkaEnXPFmsJnECZjq59dySw', chain name 'tokenvm1'
-# SUCCESS: subnet Id 2DLqm2Wk4SFtdmeqkmyfAvTdfvNKmbjwZwztMqRaQCwnDbRHCo, blockchain Id G9CbuiKLoyeYhabA8ph7TBiisKt9LS6Hx1QRgoajnwxd1xFC8
+--node-ids-to-instance-ids <TODO>
 
-# this will prompt you to confirm the outcome!
-# so make sure to check the outputs!
 /tmp/avalancheup-aws install-subnet-chain \
 --log-level info \
 --region us-west-2 \
---s3-bucket avalanche-ops-***-us-west-2 \
---s3-key-prefix aops-custom-***/install-subnet-chain \
---ssm-doc aops-custom-***-ssm-install-subnet-chain \
---chain-rpc-url http://52.88.8.107:9650 \
---key 0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027 \
+--s3-bucket <TODO> \
+--s3-key-prefix <TODO> \
+--ssm-doc <TODO> \
+--chain-rpc-url <TODO> \
+--key <TODO> \
 --primary-network-validate-period-in-days 16 \
 --subnet-validate-period-in-days 14 \
 --subnet-config-local-path /tmp/avalanche-ops/subnet-config.json \
@@ -266,30 +262,10 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 --chain-config-local-path /tmp/avalanche-ops/tokenvm-chain-config.json \
 --chain-config-remote-dir /data/avalanche-configs/chains \
 --avalanchego-config-remote-path /data/avalanche-configs/config.json \
---node-ids-to-instance-ids '{"NodeID-PNc5fwhKLDLGHBF81qnjTwsdjFbdcZxn1":"i-0c5114f6b1e48e671","NodeID-8oqy47xm46RcdTNFxYo8dpBJtPFqQLLeG":"i-083ccebe7b8d40bc9","NodeID-HC9HVTiThxL6d55bNGqV3bkKPwQmLvEs1":"i-0806a42d5bb597dc5"}'
-# VM Id 'tHBYNu8ikt4i8cEV4nsSuj7Ldc9sXAHc8L6qKRJR4e5CR7T3t', chain name 'tokenvm2'
-# SUCCESS: subnet Id 2km1PAKNK4vSfpyjgK2iFFoBFD3mXHBAWfDBVsPuzKtNYdPRTY, blockchain Id F1c3GayrV5E7NQdxUCbVfnRPsMSxGbTuHvJLS4R48M3Dcazs6
+--node-ids-to-instance-ids <TODO>
 ```
 
-*Note*: `--chain-name tokenvm*` and `--node-ids-to-instance-ids` values are different to split nodes
-into two separate subnets. And `avalancheup-aws install-subnet-chain` **will add the specified nodes
-as primary network validators (regardless of it's for customer or public networks) before adding them
-as subnet validators**. So, please make sure the `--key` has enough balance and use
-`--primary-network-validate-period-in-days` and `--subnet-validate-period-in-days` flags to set custom
-validate priods (defaults to 16-day for primary network, 14-day for subnet validation).
-
-### Step 9: Check Healthiness
-To make sure chains are launched successfully, query the `health` endpoints:
-
-> curl http://52.88.8.107:9650/ext/health
->
-> {"checks":{"C":{"message":{"consensus":{"longestRunningBlock":"0s","outstandingBlocks":0},"vm":null},"timestamp":"2023-03-14T15:55:08.256378577Z","duration":14020},"F1c3GayrV5E7NQdxUCbVfnRPsMSxGbTuHvJLS4R48M3Dcazs6":{"message":{"consensus":{"longestRunningBlock":"0s","outstandingBlocks":0},"vm":{"database":{"v1.4.5":null},"health":200}},"timestamp":"2023-03-14T15:55:08.257445968Z","duration":1061711},"P":{"message":{"consensus":{"longestRunningBlock":"0s","outstandingBlocks":0},"vm":{"2km1PAKNK4vSfpyjgK2iFFoBFD3mXHBAWfDBVsPuzKtNYdPRTY-percentConnected":1,"primary-percentConnected":1}},"timestamp":"2023-03-14T15:55:08.256454548Z","duration":74871},"X":{"message":{"consensus":{"outstandingVertices":0,"snowstorm":{"outstandingTransactions":0}},"vm":null},"timestamp":"2023-03-14T15:55:08.256459848Z","duration":15850},"bootstrapped":{"message":[],"timestamp":"2023-03-14T15:55:08.256438778Z","duration":6020},"database":{"timestamp":"2023-03-14T15:55:08.256464299Z","duration":1420},"diskspace":{"message":{"availableDiskBytes":299770843136},"timestamp":"2023-03-14T15:55:08.256466309Z","duration":4070},"network":{"message":{"connectedPeers":5,"sendFailRate":0,"timeSinceLastMsgReceived":"256.459548ms","timeSinceLastMsgSent":"256.459548ms"},"timestamp":"2023-03-14T15:55:08.256461929Z","duration":5551},"router":{"message":{"longestRunningRequest":"0s","outstandingRequests":0},"timestamp":"2023-03-14T15:55:08.256363507Z","duration":17231}},"healthy":true}
-
-> curl http://44.224.148.127:9650/ext/health
->
-> {"checks":{"C":{"message":{"consensus":{"longestRunningBlock":"0s","outstandingBlocks":0},"vm":null},"timestamp":"2023-03-14T15:55:08.203325635Z","duration":6570},"F1c3GayrV5E7NQdxUCbVfnRPsMSxGbTuHvJLS4R48M3Dcazs6":{"message":{"consensus":{"longestRunningBlock":"0s","outstandingBlocks":0},"vm":{"database":{"v1.4.5":null},"health":200}},"timestamp":"2023-03-14T15:55:08.204161784Z","duration":927270},"P":{"message":{"consensus":{"longestRunningBlock":"0s","outstandingBlocks":0},"vm":{"2km1PAKNK4vSfpyjgK2iFFoBFD3mXHBAWfDBVsPuzKtNYdPRTY-percentConnected":1,"primary-percentConnected":1}},"timestamp":"2023-03-14T15:55:08.203318015Z","duration":63060},"X":{"message":{"consensus":{"outstandingVertices":0,"snowstorm":{"outstandingTransactions":0}},"vm":null},"timestamp":"2023-03-14T15:55:08.203233714Z","duration":18360},"bootstrapped":{"message":[],"timestamp":"2023-03-14T15:55:08.203205494Z","duration":3010},"database":{"timestamp":"2023-03-14T15:55:08.203214634Z","duration":1350},"diskspace":{"message":{"availableDiskBytes":299770839040},"timestamp":"2023-03-14T15:55:08.203252895Z","duration":5361},"network":{"message":{"connectedPeers":5,"sendFailRate":0,"timeSinceLastMsgReceived":"203.209294ms","timeSinceLastMsgSent":"203.209294ms"},"timestamp":"2023-03-14T15:55:08.203212714Z","duration":6550},"router":{"message":{"longestRunningRequest":"0s","outstandingRequests":0},"timestamp":"2023-03-14T15:55:08.203338225Z","duration":21220}},"healthy":true}
-
-### Step 10: Initialize `token-cli`
+### Step 9: Initialize `token-cli`
 You can import the demo key and the network configuration from `avalanche-ops`
 using the following commands:
 ```bash
@@ -297,7 +273,7 @@ using the following commands:
 /tmp/token-cli chain import-ops <chainID> <avalanche-ops YAML file>
 ```
 
-### Step 11: Start Integrated Block Explorer
+### Step 10: Start Integrated Block Explorer
 To view activity on each Subnet you created, you can run the `token-cli`'s
 integrated block explorer. To do this, run the following command:
 ```bash
@@ -310,7 +286,7 @@ following command to get additional transaction details:
 /tmp/token-cli chain watch
 ```
 
-### Step 12: Run Load
+### Step 11: Run Load
 Once the network information is imported, you can then run the following
 command to drive an arbitrary amount of load:
 ```bash
@@ -318,7 +294,6 @@ command to drive an arbitrary amount of load:
 ```
 
 ## Deploy TokenVM in Fuji network with avalanche-ops
-
 Same as above, except you use `--network-name fuji` and do not need anchor nodes:
 
 ```bash
