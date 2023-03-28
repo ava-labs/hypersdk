@@ -3,22 +3,21 @@ Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 Ecosystem License
 
 Subject to the terms herein, Ava Labs, Inc. (**“Ava Labs”**) hereby grants you a
-limited, royalty-free, worldwide, non-sublicensable,
-non-transferable,non-exclusive license to use, copy, modify, create derivative
-works based on,and redistribute the Software, in source code, binary, or any
-other form,including any modifications or derivative works of the Software
-(collectively,**“Licensed Software”**), in each case subject to this Ecosystem
-License (**“License”**).
+limited, royalty-free, worldwide, non-sublicensable, non-transferable,
+non-exclusive license to use, copy, modify, create derivative works based on,
+and redistribute the Software, in source code, binary, or any other form, including any
+modifications or derivative works of the Software (collectively,**“Licensed Software”**),
+in each case subject to this Ecosystem License (**“License”**).
 
 This License applies to all copies, modifications, derivative works, and any
 other form or usage of the Licensed Software. You will include and display this
-License, without modification, with all uses of the Licensed Software,regardless
+License, without modification, with all uses of the Licensed Software, regardless
 of form.
 
 You will use the Licensed Software solely in connection with the Avalanche
 Public Blockchain platform and associated blockchains, comprised exclusively of
 the Avalanche X-Chain, C-Chain, P-Chain and any subnets linked to the
-P-Chain(“Avalanche Authorized Platform”). This License does not permit use of
+P-Chain (“Avalanche Authorized Platform”). This License does not permit use of
 the Licensed Software in connection with any forks of the Avalanche Authorized
 Platform or in any manner not operationally connected to the Avalanche
 Authorized Platform.  Ava Labs may publicly announce changes or additions to the
