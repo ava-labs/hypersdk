@@ -11,22 +11,22 @@ page](https://github.com/ava-labs/avalanche-ops/releases/tag/latest).
 
 #### Option 1: Install `avalanche-ops` on Mac
 ```bash
-export LINUX_ARCH_TYPE=$(uname -m)
-echo ${LINUX_ARCH_TYPE}
-rm -f ./avalancheup-aws.${LINUX_ARCH_TYPE}-apple-darwin
-wget "https://github.com/ava-labs/avalanche-ops/releases/download/latest/avalancheup-aws.${LINUX_ARCH_TYPE}-apple-darwin"
-mv ./avalancheup-aws.${LINUX_ARCH_TYPE}-apple-darwin /tmp/avalancheup-aws
+export ARCH_TYPE=$(uname -m)
+echo ${ARCH_TYPE}
+rm -f ./tmp/avalancheup-aws
+wget "https://github.com/ava-labs/avalanche-ops/releases/download/latest/avalancheup-aws.${ARCH_TYPE}-apple-darwin"
+mv ./avalancheup-aws.${ARCH_TYPE}-apple-darwin /tmp/avalancheup-aws
 chmod +x /tmp/avalancheup-aws
 /tmp/avalancheup-aws --help
 ```
 
 #### Option 2: Install `avalanche-ops` on Linux
 ```bash
-export LINUX_ARCH_TYPE=$(uname -m)
-echo ${LINUX_ARCH_TYPE}
-rm -f ./avalancheup-aws.${LINUX_ARCH_TYPE}-linux-gnu
-wget "https://github.com/ava-labs/avalanche-ops/releases/download/latest/avalancheup-aws.${LINUX_ARCH_TYPE}-linux-gnu"
-mv ./avalancheup-aws.${LINUX_ARCH_TYPE}-linux-gnu /tmp/avalancheup-aws
+export ARCH_TYPE=$(uname -m)
+echo ${ARCH_TYPE}
+rm -f ./tmp/avalancheup-aws
+wget "https://github.com/ava-labs/avalanche-ops/releases/download/latest/avalancheup-aws.${ARCH_TYPE}-linux-gnu"
+mv ./avalancheup-aws.${ARCH_TYPE}-linux-gnu /tmp/avalancheup-aws
 chmod +x /tmp/avalancheup-aws
 /tmp/avalancheup-aws --help
 ```
@@ -38,7 +38,17 @@ manipulate CloudFormation.
 Once you've installed the AWS CLI, run `aws configure` to set the access key to
 use while deploying your devnet.
 
-### Step 3: Download `token-cli` and `tokenvm`
+### Step 3: Download `token-cli`
+```bash
+```
+
+### Step 4: Download `tokenvm`
+`tokenvm` is currently compiled with `GOAMD=v1`. If you want to significantly
+improve the performance of cryptographic operations, you should consider
+building with [`v3+`](https://github.com/golang/go/wiki/MinimumRequirements#amd64).
+
+```bash
+```
 
 
 ### Step 3: Plan Local Network Deploy
