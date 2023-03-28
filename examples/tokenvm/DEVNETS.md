@@ -1,20 +1,34 @@
-## Deploy TokenVM in custom network with avalanche-ops
+## Deploying Devnets
+_In the world of Avalanche, we refer to short-lived, test Subnets as Devnets._
 
-[avalanche-ops](https://github.com/ava-labs/avalanche-ops) provides a command-line interface to set up nodes and install custom VMs with the support for custom networks.
+### Step 1: Install `avalanche-ops`
+[avalanche-ops](https://github.com/ava-labs/avalanche-ops) provides a command-line
+interface to setup nodes and install Custom VMs on both custom networks and on
+Fuji using [AWS CloudFormation](https://aws.amazon.com/cloudformation/). `avalanche-ops`
+is written in Rust, so you must either install Rust and compile `avalanche-ops` or
+download the latest from the `avalanche-ops` repo.
 
-### Step 1
+#### Option 1: Install Rust and Compile
+Install [Rust](https://www.rust-lang.org/tools/install):
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
 
-Install [Rust](https://www.rust-lang.org/tools/install) to compile avalanche-ops, or download from the [latest release page](https://github.com/ava-labs/avalanche-ops/releases/tag/latest):
-
+Compile `avalanche-ops`:
 ```bash
 git clone git@github.com:ava-labs/avalanche-ops.git
 cd ./avalanche-ops
 ./scripts/build.release.sh
-./target/release/avalancheup-aws --help
+mv ./target/release/avalancheup-aws /tmp/avalancheup-aws
+chmod +x /tmp/avalancheup-aws
+/tmp/avalancheup-aws --help
 ```
 
+#### Option 2: Download Pre-Built CLI
+You can view a full list of pre-built binaries on the [latest release page](https://github.com/ava-labs/avalanche-ops/releases/tag/latest).
+
+##### Install `avalanche-ops` on Mac
 ```bash
-# to download on Mac
 export LINUX_ARCH_TYPE=$(uname -m)
 echo ${LINUX_ARCH_TYPE}
 rm -f ./avalancheup-aws.${LINUX_ARCH_TYPE}-apple-darwin
@@ -24,8 +38,8 @@ chmod +x /tmp/avalancheup-aws
 /tmp/avalancheup-aws --help
 ```
 
+##### Install `avalanche-ops` on Linux
 ```bash
-# to download on Linux
 export LINUX_ARCH_TYPE=$(uname -m)
 echo ${LINUX_ARCH_TYPE}
 rm -f ./avalancheup-aws.${LINUX_ARCH_TYPE}-linux-gnu
@@ -35,7 +49,16 @@ chmod +x /tmp/avalancheup-aws
 /tmp/avalancheup-aws --help
 ```
 
-### Step 2
+### Step 2: Install and Configure `aws-cli`
+Next, make sure to install the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
+
+Once you've installed the AWS CLI, run `aws configure` to set the access key to
+use while deploying your devnet.
+
+### Step 3: Download `token-cli` and `tokenvm`
+
+
+### Step 3: Plan Local Network Deploy
 
 Now we can spin up a new network of 6 nodes with some defaults:
 - `avalanche-ops` supports [Graviton-based processors](https://aws.amazon.com/ec2/graviton/) (ARM64). Use `--arch-type arm64` to run nodes in ARM64 CPUs.
@@ -43,7 +66,7 @@ Now we can spin up a new network of 6 nodes with some defaults:
 
 ```bash
 # launch/download all artifacts for x86 platform
-avalancheup-aws default-spec \
+/tmp/avalancheup-aws default-spec \
 --arch-type amd64 \
 --rust-os-type ubuntu20.04 \
 --anchor-nodes 3 \
@@ -57,7 +80,14 @@ avalancheup-aws default-spec \
 --keys-to-generate 5
 ```
 
-The default commands above will download the public release binaries from github. To test your own binaries, use the following flags to upload to S3. These binaries must be built for the target remote machine platform (e.g., build for `aarch64` and Linux to run them in Graviton processors):
+The `default-spec` (and `apply`) command only provisions nodes, not Custom VMs.
+The Subnet and Custom VM installation are done via `install-subnet-chain` sub-commands that follow.
+
+#### Using Custom `avalanchego` Binaries
+The default command above will download the `avalanchego` public release binaries from GitHub.
+To test your own binaries, use the following flags to upload to S3. These binaries must be built
+for the target remote machine platform (e.g., build for `aarch64` and Linux to run them in
+Graviton processors):
 
 ```bash
 avalancheup-aws default-spec \
@@ -71,9 +101,7 @@ avalancheup-aws default-spec \
 
 It is recommended to specify your own artifacts to avoid flaky github release page downloads.
 
-*NOTE*: The `default-spec` (and `apply`) command only provisions nodes, not custom VMs. The subnet and custom VM installation are done via `install-subnet-chain` sub-commands.
-
-### Step 3
+### Step 4: Apply Local Network Deploy
 
 The `default-spec` command itselt does not create any resources, and instead outputs the following `apply` and `delete` commands that you can copy and paste:
 
@@ -110,45 +138,29 @@ avalancheup-aws delete \
 
 That is, `apply` creates AWS resources, whereas `delete` destroys after testing is done.
 
-*SECURITY*: By default, the SSH and HTTP ports are open to public. Once you complete provisioning the nodes, go to EC2 security group to restrict the inbound rules to your IP.
+*SECURITY*: By default, the SSH and HTTP ports are open to public. Once you complete provisioning the nodes, go to EC2 security
+group to restrict the inbound rules to your IP.
 
-*NOTE*: In rare cases, you may encounter [aws-sdk-rust#611](https://github.com/awslabs/aws-sdk-rust/issues/611) where AWS SDK call hangs, which blocks node bootstraps. If a node takes too long to start, connect to that instance (e..g, use SSM sesson from your AWS console), and restart the agent with the command `sudo systemctl restart avalanched-aws`.
+*NOTE*: In rare cases, you may encounter [aws-sdk-rust#611](https://github.com/awslabs/aws-sdk-rust/issues/611)
+where AWS SDK call hangs, which blocks node bootstraps. If a node takes too long to start, connect to that
+instance (e..g, use SSM sesson from your AWS console), and restart the agent with the command `sudo systemctl restart avalanched-aws`.
 
-### Step 4
+### Step 5: Install Subnets
 
-Now that the network and nodes are up, let's install two subnets, each of which runs its own TokenVM. Note that the above, successful `avalancheup-aws apply` run will output the following commands as an example, which you can customize depending on the VMs:
-
-```bash
-# EXAMPLE: write subnet config
-avalancheup-aws subnet-config \
---log-level=info \
---proposer-min-block-delay 250000000 \
---file-path /tmp/subnet-config.json
-
-# EXAMPLE: install subnet + custom blockchain in all nodes
-avalancheup-aws install-subnet-chain \
---log-level info \
---region us-west-2 \
---s3-bucket avalanche-ops-***-us-west-2 \
---s3-key-prefix aops-custom-***/install-subnet-chain \
---ssm-doc aops-custom-***-ssm-install-subnet-chain \
---chain-rpc-url http://52.88.8.107:9650 \
-...
-```
-
-For instance, use the following to **deploy two TokenVM subnets and create separate TokenVM chains** (similar to [scripts/run.sh](./scripts/run.sh)):
+Now that the network and nodes are up, let's install two subnets, each of which runs its own `tokenvm`. Use the following commands to
+do so (similar to [scripts/run.sh](./scripts/run.sh)):
 
 ```bash
 avalancheup-aws subnet-config \
 --log-level=info \
 --proposer-min-block-delay 0 \
---file-path /tmp/subnet-config.json
+--file-path /tmp/avalanche-ops/subnet-config.json
 
-cat <<EOF > /tmp/allocations.json
+cat <<EOF > /tmp/avalanche-ops/allocations.json
 [{"address":"token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":1000000000000}]
 EOF
-rm -f /tmp/tokenvm-genesis.json
-/tmp/token-cli genesis generate /tmp/allocations.json \
+rm -f /tmp/avalanche-ops/tokenvm-genesis.json
+/tmp/token-cli genesis generate /tmp/avalanche-ops/allocations.json \
 --genesis-file /tmp/tokenvm-genesis.json
 cat /tmp/tokenvm-genesis.json
 
