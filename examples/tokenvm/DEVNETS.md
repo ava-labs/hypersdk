@@ -168,6 +168,12 @@ avalancheup-aws delete \
 
 That is, `apply` creates AWS resources, whereas `delete` destroys after testing is done.
 
+If you see the following command, that is expected (it means `avalanche-ops` is
+reusing a S3 bucket it previously created):
+```
+[2023-03-23T23:49:01Z WARN  aws_manager::s3] bucket already exists so returning early (original error 'service error')
+```
+
 *SECURITY*: By default, the SSH and HTTP ports are open to public. Once you complete provisioning the nodes, go to EC2 security
 group to restrict the inbound rules to your IP.
 
