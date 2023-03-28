@@ -30,6 +30,7 @@ var (
 	randomRecipient   bool
 	maxTxBacklog      int
 	deleteOtherChains bool
+	checkAllChains    bool
 
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
@@ -82,6 +83,12 @@ func init() {
 	)
 
 	// key
+	balanceKeyCmd.PersistentFlags().BoolVar(
+		&checkAllChains,
+		"check-all-chains",
+		false,
+		"check all chains",
+	)
 	keyCmd.AddCommand(
 		genKeyCmd,
 		importKeyCmd,

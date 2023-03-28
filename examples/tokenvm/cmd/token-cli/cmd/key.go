@@ -124,7 +124,12 @@ var balanceKeyCmd = &cobra.Command{
 	Use: "balance",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, _, cli, err := defaultActor()
+
+		priv, err := GetDefaultKey()
+		if err != nil {
+			return err
+		}
+		_, uris, err := GetDefaultChain()
 		if err != nil {
 			return err
 		}
@@ -133,7 +138,17 @@ var balanceKeyCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		_, _, err = getAssetInfo(ctx, cli, priv.PublicKey(), assetID, true)
-		return err
+
+		max := len(uris)
+		if !checkAllChains {
+			max = 1
+		}
+		for _, uri := range uris[:max] {
+			hutils.Outf("{{yellow}}uri:{{/}} %s\n", uri)
+			if _, _, err = getAssetInfo(ctx, client.New(uri), priv.PublicKey(), assetID, true); err != nil {
+				return err
+			}
+		}
+		return nil
 	},
 }

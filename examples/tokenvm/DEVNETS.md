@@ -248,7 +248,8 @@ You can import the demo key and the network configuration from `avalanche-ops`
 using the following commands:
 ```bash
 /tmp/token-cli key import demo.pk
-/tmp/token-cli chain import-ops <chainID> <avalanche-ops YAML file>
+/tmp/token-cli chain import-ops <chainID> <avalanche-ops spec file path>
+/tmp/token-cli key balance --check-all-chains
 ```
 
 ### Step 10: Start Integrated Block Explorer
