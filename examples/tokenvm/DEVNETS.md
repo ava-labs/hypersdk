@@ -38,8 +38,17 @@ manipulate CloudFormation.
 Once you've installed the AWS CLI, run `aws configure` to set the access key to
 use while deploying your devnet.
 
-### Step 3: Download `token-cli`
+### Step 3: Install `token-cli`
 ```bash
+export ARCH_TYPE=$(uname -m)
+echo ${ARCH_TYPE}
+export OS_TYPE=$(uname | tr '[:upper:]' '[:lower:]')
+echo ${OS_TYPE}
+export HYPERSDK_VERSION="0.0.4"
+rm -f ./tmp/token-cli
+wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz
+tar -xvf hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz
+mv hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}/token-cli /tmp/token-cli
 ```
 
 ### Step 4: Download `tokenvm`
@@ -48,7 +57,15 @@ improve the performance of cryptographic operations, you should consider
 building with [`v3+`](https://github.com/golang/go/wiki/MinimumRequirements#amd64).
 
 ```bash
+export HYPERSDK_VERSION="0.0.4"
+rm -f ./tmp/tokenvm
+wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz
+tar -xvf hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz
+mv hypersdk_${HYPERSDK_VERSION}_linux_amd64/tokenvm /tmp/tokenvm
 ```
+
+*Note*: We must install the linux build because that is compatible with the AWS
+deployment target. If you use Graivtron CPUs, make sure to use `arm64` here.
 
 
 ### Step 5: Plan Local Network Deploy
