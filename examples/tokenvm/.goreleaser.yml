@@ -28,6 +28,7 @@ builds:
           - CC=oa64-clang
       - goos: darwin
         goarch: amd64
+        goamd64: v1
         env:
           - CC=o64-clang
   - id: tokenvm
@@ -55,6 +56,7 @@ builds:
           - CC=oa64-clang
       - goos: darwin
         goarch: amd64
+        goamd64: v1
         env:
           - CC=o64-clang
 
