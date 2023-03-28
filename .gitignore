@@ -58,3 +58,4 @@ dist/
 tmp-storage-testing
 .token-cli*
 *.html
+osxcross/
