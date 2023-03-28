@@ -42,7 +42,7 @@ export OS_TYPE=$(uname | tr '[:upper:]' '[:lower:]')
 echo ${OS_TYPE}
 export HYPERSDK_VERSION="0.0.4"
 rm -f ./tmp/token-cli
-wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz
+wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz"
 tar -xvf hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz
 mv hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}/token-cli /tmp/token-cli
 ```
@@ -55,7 +55,7 @@ building with [`v3+`](https://github.com/golang/go/wiki/MinimumRequirements#amd6
 ```bash
 export HYPERSDK_VERSION="0.0.4"
 rm -f ./tmp/tokenvm
-wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz
+wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz"
 tar -xvf hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz
 mv hypersdk_${HYPERSDK_VERSION}_linux_amd64/tokenvm /tmp/tokenvm
 ```
