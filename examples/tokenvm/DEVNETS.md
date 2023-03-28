@@ -220,7 +220,6 @@ cat /tmp/avalanche-ops/tokenvm-chain-config.json
 ### Step 8: Install Chains
 You can run the following commands to spin up 2 `tokenvm` Devnets. Make sure to
 replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with your own data:
-
 ```bash
 /tmp/avalancheup-aws install-subnet-chain \
 --log-level info \
@@ -237,27 +236,6 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 --vm-binary-local-path /tmp/tokenvm \
 --vm-binary-remote-dir /data/avalanche-plugins \
 --chain-name tokenvm1 \
---chain-genesis-path /tmp/avalanche-ops/tokenvm-genesis.json \
---chain-config-local-path /tmp/avalanche-ops/tokenvm-chain-config.json \
---chain-config-remote-dir /data/avalanche-configs/chains \
---avalanchego-config-remote-path /data/avalanche-configs/config.json \
---node-ids-to-instance-ids <TODO>
-
-/tmp/avalancheup-aws install-subnet-chain \
---log-level info \
---region us-west-2 \
---s3-bucket <TODO> \
---s3-key-prefix <TODO> \
---ssm-doc <TODO> \
---chain-rpc-url <TODO> \
---key <TODO> \
---primary-network-validate-period-in-days 16 \
---subnet-validate-period-in-days 14 \
---subnet-config-local-path /tmp/avalanche-ops/subnet-config.json \
---subnet-config-remote-dir /data/avalanche-configs/subnets \
---vm-binary-local-path /tmp/avalanche-ops/tokenvm \
---vm-binary-remote-dir /data/avalanche-plugins \
---chain-name tokenvm2 \
 --chain-genesis-path /tmp/avalanche-ops/tokenvm-genesis.json \
 --chain-config-local-path /tmp/avalanche-ops/tokenvm-chain-config.json \
 --chain-config-remote-dir /data/avalanche-configs/chains \
@@ -291,6 +269,33 @@ Once the network information is imported, you can then run the following
 command to drive an arbitrary amount of load:
 ```bash
 /tmp/token-cli spam run
+```
+
+### [OPTIONAL] Step 12: Deploy Another Subnet
+To test Avalanche Warp Messaging, you must be running at least 2 Subnets. To do
+so, just replicate the command you ran above with a different `--chain-name` (and
+a different set of validators):
+```bash
+/tmp/avalancheup-aws install-subnet-chain \
+--log-level info \
+--region us-west-2 \
+--s3-bucket <TODO> \
+--s3-key-prefix <TODO> \
+--ssm-doc <TODO> \
+--chain-rpc-url <TODO> \
+--key <TODO> \
+--primary-network-validate-period-in-days 16 \
+--subnet-validate-period-in-days 14 \
+--subnet-config-local-path /tmp/avalanche-ops/subnet-config.json \
+--subnet-config-remote-dir /data/avalanche-configs/subnets \
+--vm-binary-local-path /tmp/tokenvm \
+--vm-binary-remote-dir /data/avalanche-plugins \
+--chain-name tokenvm2 \
+--chain-genesis-path /tmp/avalanche-ops/tokenvm-genesis.json \
+--chain-config-local-path /tmp/avalanche-ops/tokenvm-chain-config.json \
+--chain-config-remote-dir /data/avalanche-configs/chains \
+--avalanchego-config-remote-path /data/avalanche-configs/config.json \
+--node-ids-to-instance-ids <TODO>
 ```
 
 ## Deploy TokenVM in Fuji network with avalanche-ops
