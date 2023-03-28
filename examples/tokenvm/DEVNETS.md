@@ -43,8 +43,10 @@ echo ${OS_TYPE}
 export HYPERSDK_VERSION="0.0.4"
 rm -f ./tmp/token-cli
 wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz"
-tar -xvf hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz
+tar -xvf hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz -C hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}
 mv hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}/token-cli /tmp/token-cli
+rm -rf hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}
+rm -rf hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz
 ```
 
 ### Step 4: Download `tokenvm`
@@ -56,8 +58,10 @@ building with [`v3+`](https://github.com/golang/go/wiki/MinimumRequirements#amd6
 export HYPERSDK_VERSION="0.0.4"
 rm -f ./tmp/tokenvm
 wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz"
-tar -xvf hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz
+tar -xvf hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz -C hypersdk_${HYPERSDK_VERSION}_linux_amd64/tokenvm
 mv hypersdk_${HYPERSDK_VERSION}_linux_amd64/tokenvm /tmp/tokenvm
+rm -rf hypersdk_${HYPERSDK_VERSION}_linux_amd64/tokenvm
+rm -rf hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz
 ```
 
 *Note*: We must install the linux build because that is compatible with the AWS
