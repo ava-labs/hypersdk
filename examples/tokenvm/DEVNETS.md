@@ -289,7 +289,7 @@ To make sure chains are launched successfully, query the `health` endpoints:
 >
 > {"checks":{"C":{"message":{"consensus":{"longestRunningBlock":"0s","outstandingBlocks":0},"vm":null},"timestamp":"2023-03-14T15:55:08.203325635Z","duration":6570},"F1c3GayrV5E7NQdxUCbVfnRPsMSxGbTuHvJLS4R48M3Dcazs6":{"message":{"consensus":{"longestRunningBlock":"0s","outstandingBlocks":0},"vm":{"database":{"v1.4.5":null},"health":200}},"timestamp":"2023-03-14T15:55:08.204161784Z","duration":927270},"P":{"message":{"consensus":{"longestRunningBlock":"0s","outstandingBlocks":0},"vm":{"2km1PAKNK4vSfpyjgK2iFFoBFD3mXHBAWfDBVsPuzKtNYdPRTY-percentConnected":1,"primary-percentConnected":1}},"timestamp":"2023-03-14T15:55:08.203318015Z","duration":63060},"X":{"message":{"consensus":{"outstandingVertices":0,"snowstorm":{"outstandingTransactions":0}},"vm":null},"timestamp":"2023-03-14T15:55:08.203233714Z","duration":18360},"bootstrapped":{"message":[],"timestamp":"2023-03-14T15:55:08.203205494Z","duration":3010},"database":{"timestamp":"2023-03-14T15:55:08.203214634Z","duration":1350},"diskspace":{"message":{"availableDiskBytes":299770839040},"timestamp":"2023-03-14T15:55:08.203252895Z","duration":5361},"network":{"message":{"connectedPeers":5,"sendFailRate":0,"timeSinceLastMsgReceived":"203.209294ms","timeSinceLastMsgSent":"203.209294ms"},"timestamp":"2023-03-14T15:55:08.203212714Z","duration":6550},"router":{"message":{"longestRunningRequest":"0s","outstandingRequests":0},"timestamp":"2023-03-14T15:55:08.203338225Z","duration":21220}},"healthy":true}
 
-### Step 10: Run Spam
+### Step 10: Initialize `token-cli`
 You can import the demo key and the network configuration from `avalanche-ops`
 using the following commands:
 ```bash
@@ -297,8 +297,25 @@ using the following commands:
 /tmp/token-cli chain import-ops
 ```
 
-Once the network information is imported, you can then run `/tmp/token-cli spam
-run` to push network activity on the devnet.
+### Step 11: Start Integrated Block Explorer
+To view activity on each Subnet you created, you can run the `token-cli`'s
+integrated block explorer. To do this, run the following command:
+```bash
+/tmp/token-cli chain watch --hide-txs
+```
+
+If you don't plan to load test the devnet, you may wush to just run the
+following command to get additional transaction details:
+```bash
+/tmp/token-cli chain watch
+```
+
+### Step 12: Run Load
+Once the network information is imported, you can then run the following
+command to drive an arbitrary amount of load:
+```bash
+/tmp/token-cli spam run
+```
 
 ## Deploy TokenVM in Fuji network with avalanche-ops
 
