@@ -211,7 +211,9 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "streamingBacklogSize": 10000000,
   "trackedPairs":["*"],
-  "logLevel": "info"
+  "logLevel": "info",
+  "decisionsPort": 9652,
+  "blocksPort": 9653,
 }
 EOF
 cat /tmp/avalanche-ops/tokenvm-chain-config.json
