@@ -17,7 +17,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/utils"
-	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
@@ -245,7 +244,7 @@ var watchChainCmd = &cobra.Command{
 			return err
 		}
 		uri := fmt.Sprintf("%s:%d", host, port)
-		hutils.Outf("{{yellow}}uri:{{/}} %s\n", uri)
+		utils.Outf("{{yellow}}uri:{{/}} %s\n", uri)
 		scli, err := vm.NewBlockRPCClient(uri)
 		if err != nil {
 			return err
