@@ -213,7 +213,7 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "trackedPairs":["*"],
   "logLevel": "info",
   "decisionsPort": 9652,
-  "blocksPort": 9653,
+  "blocksPort": 9653
 }
 EOF
 cat /tmp/avalanche-ops/tokenvm-chain-config.json
@@ -245,6 +245,23 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 --node-ids-to-instance-ids <TODO>
 ```
 
+#### Viewing Logs
+1) Open the [AWS CloudWatch](https://aws.amazon.com/cloudwatch) product on your
+AWS Console
+2) Click "Logs Insights"
+3) Use the following query to view all logs (in reverse-chronological order)
+for all nodes in your Devnet:
+```
+fields @timestamp, @message, @logStream, @log
+| filter(@logStream not like "avalanche-telemetry-cloudwatch.log")
+| filter(@logStream not like "syslog")
+| sort @timestamp desc
+| limit 20
+```
+
+*Note*: The "Log Group" you are asked to select should have a similar name as
+the spec file that was output earlier.
+
 ### Step 9: Initialize `token-cli`
 You can import the demo key and the network configuration from `avalanche-ops`
 using the following commands:
@@ -252,6 +269,12 @@ using the following commands:
 /tmp/token-cli key import demo.pk
 /tmp/token-cli chain import-ops <chainID> <avalanche-ops spec file path>
 /tmp/token-cli key balance --check-all-chains
+```
+
+If you previously used `token-cli`, you may want to delete data you previously
+ingested into it. You can do this with the following command:
+```bash
+rm -rf .token-cli
 ```
 
 ### Step 10: Start Integrated Block Explorer
