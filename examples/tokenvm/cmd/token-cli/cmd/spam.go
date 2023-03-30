@@ -252,6 +252,7 @@ var runSpamCmd = &cobra.Command{
 		// broadcast txs
 		t := time.NewTimer(0) // ensure no duplicates created
 		defer t.Stop()
+		var runs int
 		for !exiting {
 			select {
 			case <-t.C:
@@ -308,6 +309,14 @@ var runSpamCmd = &cobra.Command{
 					issuer.l.Lock()
 					issuer.outstandingTxs++
 					issuer.l.Unlock()
+
+					// Only send 1 transaction per second until we are sure Snowman++ is
+					// activated.
+					if runs < 10 {
+						hutils.Outf("{{yellow}}only sending 1 tx in %d run{{/}}\n", runs)
+						runs++
+						break
+					}
 				}
 				l.Lock()
 				infl.Lock()
