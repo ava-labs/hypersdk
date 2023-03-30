@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/gorilla/websocket"
 
@@ -17,16 +18,18 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  readBufferSize,
-	WriteBufferSize: writeBufferSize,
 	CheckOrigin: func(*http.Request) bool {
 		return true
 	},
 }
 
 // Server maintains the set of active clients and sends messages to the clients.
+//
+// Connect to the server after starting using websocket.DefaultDialer.Dial().
 type Server struct {
-	s    *http.Server
+	// The http server
+	s *http.Server
+	// The address to listen on
 	addr string
 	log  logging.Logger
 	lock sync.RWMutex
@@ -34,16 +37,51 @@ type Server struct {
 	conns *Connections
 	// Callback function when server receives a message
 	rCallback Callback
+	// Size of the ws read buffer
+	readBufferSize int
+	// Size of the ws write buffer
+	writeBufferSize int
+	// Maximum number of pending messages to send to a peer.
+	maxPendingMessages int
+	// Maximum message size in bytes allowed from peer.
+	maxMessageSize int64
+	// Time allowed to write a message to the peer.
+	writeWait time.Duration
+	// Time allowed to read the next pong message from the peer.
+	pongWait time.Duration
+	// Send pings to peer with this period. Must be less than pongWait.
+	pingPeriod time.Duration
+	// ReadHeaderTimeout is the maximum duration for reading a request.
+	readHeaderTimeout time.Duration
 }
 
-// New returns a new Server instance with the logger set to [log]. The callback
-// function [f] is called by the server in response to messages if not nil.
-func New(log logging.Logger, r Callback, addr string) *Server {
+// New returns a new Server instance. The callback function [f] is called
+// by the server in response to messages if not nil.
+func New(
+	addr string,
+	r Callback,
+	log logging.Logger,
+	readBufferSize int,
+	writeBufferSize int,
+	maxPendingMessages int,
+	maxMessageSize int64,
+	writeWait time.Duration,
+	pongWait time.Duration,
+	readHeaderTimeout time.Duration,
+) *Server {
 	return &Server{
-		log:       log,
-		addr:      addr,
-		rCallback: r,
-		conns:     NewConnections(),
+		log:                log,
+		addr:               addr,
+		rCallback:          r,
+		conns:              NewConnections(),
+		readBufferSize:     readBufferSize,
+		writeBufferSize:    writeBufferSize,
+		maxPendingMessages: maxPendingMessages,
+		maxMessageSize:     maxMessageSize,
+		writeWait:          writeWait,
+		pongWait:           pongWait,
+		pingPeriod:         (pongWait * 9) / 10,
+		readHeaderTimeout:  readHeaderTimeout,
 	}
 }
 
@@ -52,6 +90,8 @@ func New(log logging.Logger, r Callback, addr string) *Server {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Upgrader.upgrade() is called to upgrade the HTTP connection.
 	// No nead to set any headers so we pass nil as the last argument.
+	upgrader.ReadBufferSize = s.readBufferSize
+	upgrader.WriteBufferSize = s.writeBufferSize
 	wsConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		s.log.Debug("failed to upgrade",
@@ -62,7 +102,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.addConnection(&Connection{
 		s:         s,
 		conn:      wsConn,
-		send:      make(chan []byte, maxPendingMessages),
+		send:      make(chan []byte, s.maxPendingMessages),
 		active:    atomic.Bool{},
 		rCallback: s.rCallback,
 	})
@@ -106,8 +146,9 @@ func (s *Server) removeConnection(conn *Connection) {
 func (s *Server) Start() error {
 	s.lock.Lock()
 	s.s = &http.Server{
-		Addr:    s.addr,
-		Handler: s,
+		Addr:              s.addr,
+		Handler:           s,
+		ReadHeaderTimeout: s.readHeaderTimeout,
 	}
 	s.lock.Unlock()
 	err := s.s.ListenAndServe()

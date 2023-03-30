@@ -81,13 +81,13 @@ func (c *Connection) readPump() {
 		_ = c.conn.Close()
 	}()
 
-	c.conn.SetReadLimit(maxMessageSize)
+	c.conn.SetReadLimit(c.s.maxMessageSize)
 	// SetReadDeadline returns an error if the connection is corrupted
-	if err := c.conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+	if err := c.conn.SetReadDeadline(time.Now().Add(c.s.pongWait)); err != nil {
 		return
 	}
 	c.conn.SetPongHandler(func(string) error {
-		return c.conn.SetReadDeadline(time.Now().Add(pongWait))
+		return c.conn.SetReadDeadline(time.Now().Add(c.s.pongWait))
 	})
 	for {
 		_, reader, err := c.conn.NextReader()
@@ -121,7 +121,7 @@ func (c *Connection) readPump() {
 // application ensures that there is at most one writer to a connection by
 // executing all writes from this goroutine.
 func (c *Connection) writePump() {
-	ticker := time.NewTicker(pingPeriod)
+	ticker := time.NewTicker(c.s.pingPeriod)
 	defer func() {
 		c.deactivate()
 		ticker.Stop()
@@ -134,7 +134,7 @@ func (c *Connection) writePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
-			if err := c.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.writeWait)); err != nil {
 				c.s.log.Debug("closing the connection",
 					zap.String("reason", "failed to set the write deadline"),
 					zap.Error(err),
@@ -151,7 +151,7 @@ func (c *Connection) writePump() {
 				return
 			}
 		case <-ticker.C:
-			if err := c.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.writeWait)); err != nil {
 				c.s.log.Debug("closing the connection",
 					zap.String("reason", "failed to set the write deadline"),
 					zap.Error(err),
