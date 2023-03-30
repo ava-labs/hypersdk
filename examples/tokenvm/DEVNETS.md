@@ -77,7 +77,6 @@ Now we can spin up a new network of 6 nodes with some defaults:
 - `avalanche-ops` supports [EC2 Spot instances](https://aws.amazon.com/ec2/spot/) for cost savings. Use `--instance-mode=spot` to run instances in spot mode.
 
 ```bash
-# launch/download all artifacts for x86 platform
 /tmp/avalancheup-aws default-spec \
 --arch-type amd64 \
 --rust-os-type ubuntu20.04 \
@@ -148,6 +147,10 @@ avalanchego_config:
     throttler-inbound-disk-validator-alloc: 10737418240000
     throttler-outbound-validator-alloc-size: 107374182
 ```
+
+Make sure to remove `throttler-inbound-at-large-alloc-size` and
+`throttler-inbound-node-max-at-large-bytes` from the default YAML, otherwise
+you will have duplicate keys.
 
 ### Step 6: Apply Local Network Deploy
 
