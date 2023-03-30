@@ -133,6 +133,22 @@ machine:
   - c5.2xlarge
 ```
 
+#### Increasing Rate Limits
+If you are attempting to stress test the Devnet, you should disable CPU, Disk,
+and Bandwidth rate limiting. You can do this by adding the following lines to
+`avalanchego_config` in the spec file:
+```yaml
+avalanchego_config:
+    proposervm-use-current-height: true
+    throttler-inbound-validator-alloc-size: 107374182
+    throttler-inbound-node-max-processing-msgs: 100000
+    throttler-inbound-bandwidth-refill-rate: 1073741824
+    throttler-inbound-bandwidth-max-burst-size: 1073741824
+    throttler-inbound-cpu-validator-alloc: 100000
+    throttler-inbound-disk-validator-alloc: 10737418240000
+    throttler-outbound-validator-alloc-size: 107374182
+```
+
 ### Step 6: Apply Local Network Deploy
 
 The `default-spec` command itself does not create any resources, and instead outputs the following `apply` and `delete` commands that you can copy and paste:
@@ -220,6 +236,10 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
 EOF
 cat /tmp/avalanche-ops/tokenvm-chain-config.json
 ```
+
+*Note*: Make sure that port `9652` and `9653` are open on the AWS Security Group applied to all
+nodes otherwise the `token-cli` will not work properly. This requirement will
+be removed when the HyperSDK migrates to using proper WebSockets.
 
 ### Step 8: Install Chains
 You can run the following commands to spin up 2 `tokenvm` Devnets. Make sure to
