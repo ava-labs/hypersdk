@@ -135,8 +135,6 @@ func ParseBlock(
 	ctx, span := vm.Tracer().Start(ctx, "chain.ParseBlock")
 	defer span.End()
 
-	// TODO: avoid un-marshaling again if we already have ID
-	// (https://github.com/ava-labs/hypersdk/issues/125)
 	blk, err := UnmarshalBlock(source, vm)
 	if err != nil {
 		return nil, err
