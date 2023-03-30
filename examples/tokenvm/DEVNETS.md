@@ -41,7 +41,7 @@ echo ${ARCH_TYPE}
 export OS_TYPE=$(uname | tr '[:upper:]' '[:lower:]')
 echo ${OS_TYPE}
 export HYPERSDK_VERSION="0.0.4"
-rm -f ./tmp/token-cli
+rm -f /tmp/token-cli
 wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz"
 mkdir tmp-hypersdk
 tar -xvf hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz -C tmp-hypersdk
@@ -57,7 +57,7 @@ building with [`v3+`](https://github.com/golang/go/wiki/MinimumRequirements#amd6
 
 ```bash
 export HYPERSDK_VERSION="0.0.4"
-rm -f ./tmp/tokenvm
+rm -f /tmp/tokenvm
 wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz"
 mkdir tmp-hypersdk
 tar -xvf hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz -C tmp-hypersdk
@@ -188,7 +188,7 @@ avalancheup-aws apply \
 --spec-file-path /home/ubuntu/aops-custom-****-***.yaml
 
 # run the following to delete resources
-avalancheup-aws delete \
+/tmp/avalancheup-aws delete \
 --delete-cloudwatch-log-group \
 --delete-s3-objects \
 --delete-ebs-volumes \
@@ -307,6 +307,7 @@ AWS Console
 To view metrics, first download and install [Prometheus](https://prometheus.io/download/)
 using the following commands:
 ```bash
+rm -f /tmp/prometheus
 wget https://github.com/prometheus/prometheus/releases/download/v2.43.0/prometheus-2.43.0.darwin-amd64.tar.gz
 tar -xvf prometheus-2.43.0.darwin-amd64.tar.gz
 rm prometheus-2.43.0.darwin-amd64.tar.gz
