@@ -143,6 +143,7 @@ var runSpamCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		funds := map[crypto.PublicKey]uint64{}
 		for i := 0; i < numAccounts; i++ {
 			// Create account
 			pk, err := crypto.GeneratePrivateKey()
@@ -162,6 +163,12 @@ var runSpamCmd = &cobra.Command{
 			}
 			if err := dcli.IssueTx(tx); err != nil {
 				return err
+			}
+			funds[pk.PublicKey()] = distAmount
+
+			// Ensure Snowman++ is activated
+			if i < 10 {
+				time.Sleep(500 * time.Millisecond)
 			}
 		}
 		for i := 0; i < numAccounts; i++ {
@@ -320,6 +327,7 @@ var runSpamCmd = &cobra.Command{
 						hutils.Outf("{{orange}}failed to issue:{{/}} %v\n", err)
 						continue
 					}
+					funds[accounts[i].PublicKey()] -= (fees + 1)
 					issuer.l.Lock()
 					issuer.outstandingTxs++
 					issuer.l.Unlock()
@@ -327,7 +335,6 @@ var runSpamCmd = &cobra.Command{
 					// Only send 1 transaction per second until we are sure Snowman++ is
 					// activated.
 					if runs < 10 {
-						hutils.Outf("{{yellow}}only sending 1 tx in %d run{{/}}\n", runs)
 						runs++
 						break
 					}
@@ -383,11 +390,7 @@ var runSpamCmd = &cobra.Command{
 			sent            int
 		)
 		for i := 0; i < numAccounts; i++ {
-			address := utils.Address(accounts[i].PublicKey())
-			balance, err := cli.Balance(ctx, address, ids.Empty)
-			if err != nil {
-				return err
-			}
+			balance := funds[accounts[i].PublicKey()]
 			if transferFee > balance {
 				continue
 			}
@@ -406,6 +409,11 @@ var runSpamCmd = &cobra.Command{
 				return err
 			}
 			returnedBalance += returnAmt
+
+			// Ensure Snowman++ is activated
+			if i < 10 {
+				time.Sleep(500 * time.Millisecond)
+			}
 		}
 		for i := 0; i < sent; i++ {
 			_, dErr, result, err := dcli.Listen()

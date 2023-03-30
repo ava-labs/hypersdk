@@ -342,6 +342,13 @@ command to drive an arbitrary amount of load:
 /tmp/token-cli spam run
 ```
 
+#### Limiting Inflight Txs
+To ensure you don't create too large of a backlog on the network, you can add
+run the following command (defaults to `72000`):
+```bash
+/tmp/token-cli spam run --max-tx-backlog 5000
+```
+
 ### [OPTIONAL] Step 12: Deploy Another Subnet
 To test Avalanche Warp Messaging, you must be running at least 2 Subnets. To do
 so, just replicate the command you ran above with a different `--chain-name` (and
