@@ -278,14 +278,17 @@ rm -rf prometheus-2.43.0.darwin-amd64
 Once you have Prometheus installed, run the following command to auto-generate
 a configuration file:
 ```bash
-/tmp/token-cli metrics prometheus <avalanche-ops spec file path> /tmp/prometheus.yml
+/tmp/token-cli metrics prometheus <avalanche-ops spec file path> /tmp/prometheus.yaml
 ```
 
 In a separate terminal, then run the following command to view collected
 metrics:
 ```bash
-/tmp/prometheus --config.file=/tmp/prometheus.yml
+/tmp/prometheus --config.file=/tmp/prometheus.yaml
 ```
+
+To remove previously ingested data, delete for a folder called `data` in the
+directory where you last ran Prometheus.
 
 ### Step 9: Initialize `token-cli`
 You can import the demo key and the network configuration from `avalanche-ops`

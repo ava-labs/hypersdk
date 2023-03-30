@@ -49,6 +49,7 @@ func init() {
 		chainCmd,
 		actionCmd,
 		spamCmd,
+		metricsCmd,
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
@@ -164,6 +165,11 @@ func init() {
 	)
 	spamCmd.AddCommand(
 		runSpamCmd,
+	)
+
+	// metrics
+	metricsCmd.AddCommand(
+		prometheusCmd,
 	)
 }
 
