@@ -130,7 +130,19 @@ var runSpamCmd = &cobra.Command{
 			assetString(ids.Empty),
 		)
 		accounts := make([]crypto.PrivateKey, numAccounts)
-		txs := make([]ids.ID, numAccounts)
+		port, err := cli.DecisionsPort(ctx)
+		if err != nil {
+			return err
+		}
+		u, err := url.Parse(uris[0])
+		if err != nil {
+			return err
+		}
+		tcpURI := fmt.Sprintf("%s:%d", u.Hostname(), port)
+		dcli, err := vm.NewDecisionRPCClient(tcpURI)
+		if err != nil {
+			return err
+		}
 		for i := 0; i < numAccounts; i++ {
 			// Create account
 			pk, err := crypto.GeneratePrivateKey()
@@ -140,7 +152,7 @@ var runSpamCmd = &cobra.Command{
 			accounts[i] = pk
 
 			// Send funds
-			submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{
+			_, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{
 				To:    pk.PublicKey(),
 				Asset: ids.Empty,
 				Value: distAmount,
@@ -148,17 +160,19 @@ var runSpamCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if err := submit(ctx); err != nil {
+			if err := dcli.IssueTx(tx); err != nil {
 				return err
 			}
-			txs[i] = tx.ID()
 		}
 		for i := 0; i < numAccounts; i++ {
-			success, err := cli.WaitForTransaction(ctx, txs[i])
+			_, dErr, result, err := dcli.Listen()
 			if err != nil {
 				return err
 			}
-			if !success {
+			if dErr != nil {
+				return dErr
+			}
+			if !result.Success {
 				// Should never happen
 				return ErrTxFailed
 			}
@@ -364,8 +378,10 @@ var runSpamCmd = &cobra.Command{
 
 		// Return funds
 		hutils.Outf("{{yellow}}returning funds to %s{{/}}\n", utils.Address(key.PublicKey()))
-		var returnedBalance uint64
-		txs = make([]ids.ID, numAccounts)
+		var (
+			returnedBalance uint64
+			sent            int
+		)
 		for i := 0; i < numAccounts; i++ {
 			address := utils.Address(accounts[i].PublicKey())
 			balance, err := cli.Balance(ctx, address, ids.Empty)
@@ -375,9 +391,10 @@ var runSpamCmd = &cobra.Command{
 			if transferFee > balance {
 				continue
 			}
+			sent++
 			// Send funds
 			returnAmt := balance - transferFee
-			submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{
+			_, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{
 				To:    key.PublicKey(),
 				Asset: ids.Empty,
 				Value: returnAmt,
@@ -385,22 +402,20 @@ var runSpamCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if err := submit(ctx); err != nil {
+			if err := dcli.IssueTx(tx); err != nil {
 				return err
 			}
-			txs[i] = tx.ID()
 			returnedBalance += returnAmt
 		}
-		for i := 0; i < numAccounts; i++ {
-			if txs[i] == ids.Empty {
-				// No balance to return
-				continue
-			}
-			success, err := cli.WaitForTransaction(ctx, txs[i])
+		for i := 0; i < sent; i++ {
+			_, dErr, result, err := dcli.Listen()
 			if err != nil {
 				return err
 			}
-			if !success {
+			if dErr != nil {
+				return dErr
+			}
+			if !result.Success {
 				// Should never happen
 				return ErrTxFailed
 			}

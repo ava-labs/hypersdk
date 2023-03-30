@@ -294,9 +294,12 @@ Here are some useful queries (on an example chainID `3rihqpXh6ZJqxL2dsrVysKkEKro
 * [verify latency in ms] `increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_metervm_verify_sum[30s:1s])/increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_metervm_verify_count[30s:1s])/1000000`
 * [accept latency in ms] `increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_metervm_accept_sum[30s:1s])/increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_metervm_accept_count[30s:1s])/1000000`
 * [transactions per second] `deriv(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_hyper_sdk_vm_txs_accepted[30s:1s])`
+* [accepted block size] `increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_blks_accepted_container_size_sum[30s:1s])/increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_blks_accepted_count[30s:1s])`
 * `avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_hyper_sdk_vm_txs_accepted`
 * [disk used] `300000000000-avalanche_resource_tracker_disk_available_space`
 * `avalanche_resource_tracker_cpu_usage`
+* `avalanche_resource_tracker_disk_reads`
+* `avalanche_resource_tracker_disk_writes`
 * `avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_go_goroutines`
 * `avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_go_memstats_alloc_bytes`
 * `avalanche_network_inbound_conn_throttler_rate_limited`
