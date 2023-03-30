@@ -23,7 +23,7 @@ var (
 // Callback type is used as a callback function for the
 // WebSocket server to process incoming messages.
 // Accepts a byte message, the connection and any additional information.
-type Callback func([]byte, *Connection, []interface{}) []byte
+type Callback func([]byte, *Connection) []byte
 
 // connection is a representation of the websocket connection.
 type Connection struct {
@@ -33,10 +33,10 @@ type Connection struct {
 	conn *websocket.Conn
 
 	// Buffered channel of outbound messages.
-	send chan interface{}
+	send chan []byte
 
 	// Represents if the connection can receive new messages.
-	active uint32
+	active atomic.Bool
 
 	// Callback function when after a server reads from a connection
 	rCallback Callback
@@ -44,17 +44,16 @@ type Connection struct {
 
 // isActive returns whether the connection is active
 func (c *Connection) isActive() bool {
-	active := atomic.LoadUint32(&c.active)
-	return active != 0
+	return c.active.Load()
 }
 
 // deactivate deactivates the connection.
 func (c *Connection) deactivate() {
-	atomic.StoreUint32(&c.active, 0)
+	c.active.Store(false)
 }
 
 // Send sends [msg] to c's send channel and returns whether the message was sent.
-func (c *Connection) Send(msg interface{}) bool {
+func (c *Connection) Send(msg []byte) bool {
 	if !c.isActive() {
 		return false
 	}
@@ -62,6 +61,7 @@ func (c *Connection) Send(msg interface{}) bool {
 	case c.send <- msg:
 		return true
 	default:
+		c.s.log.Debug("msg was dropped")
 	}
 	return false
 }
@@ -71,7 +71,7 @@ func (c *Connection) Send(msg interface{}) bool {
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
-func (c *Connection) readPump(e []interface{}) {
+func (c *Connection) readPump() {
 	defer func() {
 		c.deactivate()
 		c.s.removeConnection(c)
@@ -110,7 +110,7 @@ func (c *Connection) readPump(e []interface{}) {
 					zap.Error(err),
 				)
 			}
-			c.Send(c.rCallback(responseBytes, c, e))
+			c.Send(c.rCallback(responseBytes, c))
 		}
 	}
 }
@@ -147,7 +147,7 @@ func (c *Connection) writePump() {
 				_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-			if err := c.conn.WriteJSON(message); err != nil {
+			if err := c.conn.WriteMessage(websocket.BinaryMessage, message); err != nil {
 				return
 			}
 		case <-ticker.C:

@@ -15,8 +15,8 @@ type Connections struct {
 	conns set.Set[*Connection]
 }
 
-// nNwConnections returns a new instance of the connections struct.
-func newConnections() *Connections {
+// NewConnections returns a new Connections instance.
+func NewConnections() *Connections {
 	return &Connections{}
 }
 
@@ -25,6 +25,14 @@ func (c *Connections) Conns() []*Connection {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	return c.conns.List()
+}
+
+// Has returns if the connection [conn] is in [c].
+func (c *Connections) Has(conn *Connection) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return c.conns.Contains(conn)
 }
 
 // Remove removes [conn] from [c].
