@@ -152,6 +152,15 @@ Make sure to remove `throttler-inbound-at-large-alloc-size` and
 `throttler-inbound-node-max-at-large-bytes` from the default YAML, otherwise
 you will have duplicate keys.
 
+#### Supporting All Metrics
+By default, `avalanche-ops` does not support ingest all metrics into AWS
+CloudWatch. To ingest all metrics, change the configured filters in
+`upload_artifacts.prometheus_metrics_rules_file_path` to:
+```yaml
+filters:
+  - regex: ^*$
+```
+
 ### Step 6: Apply Local Network Deploy
 
 The `default-spec` command itself does not create any resources, and instead outputs the following `apply` and `delete` commands that you can copy and paste:
@@ -273,7 +282,7 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 #### Viewing Logs
 1) Open the [AWS CloudWatch](https://aws.amazon.com/cloudwatch) product on your
 AWS Console
-2) Click "Logs Insights"
+2) Click "Logs Insights" on the left pane
 3) Use the following query to view all logs (in reverse-chronological order)
 for all nodes in your Devnet:
 ```
@@ -288,6 +297,13 @@ fields @timestamp, @message, @logStream, @log
 the spec file that was output earlier.
 
 #### Viewing Metrics
+#### Option 1: AWS CloudWatch
+1) Open the [AWS CloudWatch](https://aws.amazon.com/cloudwatch) product on your
+AWS Console
+2) Click "All Metrics" on the left pane
+3) Click the "Custom Namespace" that matches the name of the spec file
+
+#### Option 2: Prometheus
 To view metrics, first download and install [Prometheus](https://prometheus.io/download/)
 using the following commands:
 ```bash
