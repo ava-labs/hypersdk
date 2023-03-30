@@ -24,13 +24,15 @@ var (
 	dbPath string
 	db     database.Database
 
-	genesisFile       string
-	minUnitPrice      int64
-	hideTxs           bool
-	randomRecipient   bool
-	maxTxBacklog      int
-	deleteOtherChains bool
-	checkAllChains    bool
+	genesisFile        string
+	minUnitPrice       int64
+	windowTargetUnits  int64
+	windowTargetBlocks int64
+	hideTxs            bool
+	randomRecipient    bool
+	maxTxBacklog       int
+	deleteOtherChains  bool
+	checkAllChains     bool
 
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
@@ -66,9 +68,6 @@ func init() {
 	rootCmd.SilenceErrors = true
 
 	// genesis
-	genesisCmd.AddCommand(
-		genGenesisCmd,
-	)
 	genGenesisCmd.PersistentFlags().StringVar(
 		&genesisFile,
 		"genesis-file",
@@ -80,6 +79,21 @@ func init() {
 		"min-unit-price",
 		-1,
 		"minimum price",
+	)
+	genGenesisCmd.PersistentFlags().Int64Var(
+		&windowTargetUnits,
+		"window-target-units",
+		-1,
+		"window target units",
+	)
+	genGenesisCmd.PersistentFlags().Int64Var(
+		&windowTargetBlocks,
+		"window-target-blocks",
+		-1,
+		"window target blocks",
+	)
+	genesisCmd.AddCommand(
+		genGenesisCmd,
 	)
 
 	// key
