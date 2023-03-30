@@ -389,7 +389,15 @@ run the following command (defaults to `72000`):
 /tmp/token-cli spam run --max-tx-backlog 5000
 ```
 
-### [OPTIONAL] Step 12: Deploy Another Subnet
+### [OPTIONAL] Step 12: SSH Into Nodes
+You can SSH into any machine created by `avalanche-ops` using the SSH key
+automatically generated during the `apply` command. The commands for doing so
+are emitted during `apply` and look something like this:
+```bash
+ssh -o "StrictHostKeyChecking no" -i aops-custom-202303-21qJUU-ec2-access.key ubuntu@34.209.76.123
+```
+
+### [OPTIONAL] Step 13: Deploy Another Subnet
 To test Avalanche Warp Messaging, you must be running at least 2 Subnets. To do
 so, just replicate the command you ran above with a different `--chain-name` (and
 a different set of validators):
