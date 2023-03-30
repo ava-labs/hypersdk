@@ -262,6 +262,29 @@ fields @timestamp, @message, @logStream, @log
 *Note*: The "Log Group" you are asked to select should have a similar name as
 the spec file that was output earlier.
 
+#### Viewing Metrics
+To view metrics, first download and install [Prometheus](https://prometheus.io/download/)
+using the following commands:
+```bash
+wget https://github.com/prometheus/prometheus/releases/download/v2.43.0/prometheus-2.43.0.darwin-amd64.tar.gz
+tar -xvf prometheus-2.43.0.darwin-amd64.tar.gz
+rm prometheus-2.43.0.darwin-amd64.tar.gz
+mv prometheus-2.43.0.darwin-amd64/prometheus /tmp/prometheus
+rm -rf prometheus-2.43.0.darwin-amd64
+```
+
+Once you have Prometheus installed, run the following command to auto-generate
+a configuration file:
+```bash
+/tmp/token-cli metrics prometheus <avalanche-ops spec file path> /tmp/prometheus.yml
+```
+
+In a separate terminal, then run the following command to view collected
+metrics:
+```bash
+/tmp/prometheus --config.file=/tmp/prometheus.yml
+```
+
 ### Step 9: Initialize `token-cli`
 You can import the demo key and the network configuration from `avalanche-ops`
 using the following commands:
