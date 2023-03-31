@@ -63,4 +63,4 @@ builds:
 release:
   github:
     owner: ava-labs
-    name: tokenvm
+    name: hypersdk
