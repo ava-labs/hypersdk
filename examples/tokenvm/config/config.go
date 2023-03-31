@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/hypersdk/config"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
@@ -20,7 +21,11 @@ import (
 
 var _ vm.Config = (*Config)(nil)
 
-const DefaultPreferredBlocksPerSecond = 2
+const (
+	defaultPreferredBlocksPerSecond    = 2
+	defaultContinuousProfilerFrequency = 1 * time.Minute
+	defaultContinuousProfilerMaxFiles  = 10
+)
 
 type Config struct {
 	*config.Config
@@ -28,6 +33,9 @@ type Config struct {
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
 	TraceSampleRate float64 `json:"traceSampleRate"`
+
+	// Profiling
+	ContinuousProfileDir string `json:"continuousProfileDir"`
 
 	// Streaming Ports
 	DecisionsPort        uint16 `json:"decisionsPort"`
@@ -84,7 +92,7 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
 	c.Parallelism = c.Config.GetParallelism()
-	c.PreferredBlocksPerSecond = DefaultPreferredBlocksPerSecond
+	c.PreferredBlocksPerSecond = defaultPreferredBlocksPerSecond
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
@@ -111,3 +119,14 @@ func (c *Config) GetTraceConfig() *trace.Config {
 }
 func (c *Config) GetStateSyncServerDelay() time.Duration { return c.StateSyncServerDelay }
 func (c *Config) GetStreamingBacklogSize() int           { return c.StreamingBacklogSize }
+func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
+	if len(c.ContinuousProfileDir) == 0 {
+		return &profiler.Config{Enabled: false}
+	}
+	return &profiler.Config{
+		Enabled:     true,
+		Dir:         c.ContinuousProfileDir,
+		Freq:        defaultContinuousProfilerFrequency,
+		MaxNumFiles: defaultContinuousProfilerMaxFiles,
+	}
+}

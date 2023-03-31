@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
@@ -113,7 +114,8 @@ type VM struct {
 	// Network manager routes p2p messages to pre-registered handlers
 	networkManager *NetworkManager
 
-	metrics *Metrics
+	metrics  *Metrics
+	profiler profiler.ContinuousProfiler
 
 	ready chan struct{}
 	stop  chan struct{}
@@ -179,6 +181,12 @@ func (vm *VM) Initialize(
 	}
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
+
+	// Setup profiler
+	if cfg := vm.config.GetContinuousProfilerConfig(); cfg.Enabled {
+		vm.profiler = profiler.NewContinuous(cfg.Dir, cfg.Freq, cfg.MaxNumFiles)
+		go vm.profiler.Dispatch()
+	}
 
 	// Instantiate DBs
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
@@ -456,6 +464,9 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	vm.builder.Done()
 	vm.gossiper.Done()
 	vm.workers.Stop()
+	if vm.profiler != nil {
+		vm.profiler.Shutdown()
+	}
 
 	// Shutdown controller once all mechanisms that could invoke it have
 	// shutdown.
