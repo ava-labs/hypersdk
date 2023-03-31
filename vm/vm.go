@@ -376,10 +376,30 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 		vm.Logger().Info("state sync started")
 		return nil
 	case snow.Bootstrapping:
-		vm.Logger().Info("bootstrapping started")
+		syncStarted := vm.stateSyncClient.Started()
+		if !syncStarted {
+			// We must check if we finished syncing before starting bootstrapping.
+			// This should only ever occur if we began a state sync, restarted, and
+			// were unable to find any acceptable summaries.
+			syncing, err := vm.GetDiskIsSyncing()
+			if err != nil {
+				vm.Logger().Error("could not determine if syncing", zap.Error(err))
+				return err
+			}
+			if syncing {
+				vm.Logger().Error("cannot start bootstrapping", zap.Error(ErrStateSyncing))
+				// This is a fatal error that will require retrying sync or deleting the
+				// node database.
+				return ErrStateSyncing
+			}
+			// If we weren't previously syncing, we force state syncer completion so
+			// that the node will mark itself as ready.
+			vm.stateSyncClient.ForceDone()
+		}
+		vm.Logger().Info("bootstrapping started", zap.Bool("state sync started", syncStarted))
 		return vm.onBootstrapStarted()
 	case snow.NormalOp:
-		vm.Logger().Info("normal operation started")
+		vm.Logger().Info("normal operation started", zap.Bool("state sync started", vm.stateSyncClient.Started()))
 		return vm.onNormalOperationsStarted()
 	default:
 		return snow.ErrUnknownState
@@ -392,6 +412,7 @@ func (vm *VM) onBootstrapStarted() error {
 	return nil
 }
 
+// ForceReady is used in integration testing
 func (vm *VM) ForceReady() {
 	// Only works if haven't already started syncing
 	vm.stateSyncClient.ForceDone()
