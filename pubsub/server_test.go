@@ -25,8 +25,8 @@ var (
 	callbackResponse      = "ID_RECEIVED"
 )
 
+// This is a dummy struct to test the callback function
 type counter struct {
-	// This is a dummy struct to test the callback function
 	val int
 }
 
@@ -52,10 +52,7 @@ func TestServerPublish(t *testing.T) {
 	// Create a new logger for the test
 	logger := logging.NoLog{}
 	// Create a new pubsub server
-	server := New(*dummyAddr, nil, logger, readBufferSize,
-		writeBufferSize, maxPendingMessages, maxMessageSize, writeWait,
-		pongWait, readHeaderTimeout,
-	)
+	server := New(*dummyAddr, nil, logger, NewDefaultServerConfig())
 	// Channels for ensuring if connections/server are closed
 	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
@@ -70,6 +67,8 @@ func TestServerPublish(t *testing.T) {
 	}()
 	// Connect to pubsub server
 	u := url.URL{Scheme: "ws", Host: *dummyAddr}
+	// Wait for server to start accepting requests
+	<-time.After(10 * time.Millisecond)
 	webCon, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp.Body.Close()
@@ -122,10 +121,8 @@ func TestServerRead(t *testing.T) {
 		val: 10,
 	}
 	// Create a new pubsub server
-	server := New(*dummyAddr, counter.dummyProcessTXCallback, logger, readBufferSize,
-		writeBufferSize, maxPendingMessages, maxMessageSize, writeWait,
-		pongWait, readHeaderTimeout,
-	)
+	server := New(*dummyAddr, counter.dummyProcessTXCallback,
+		logger, NewDefaultServerConfig())
 	// Channels for ensuring if connections/server are closed
 	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
@@ -139,6 +136,8 @@ func TestServerRead(t *testing.T) {
 	}()
 	// Connect to pubsub server
 	u := url.URL{Scheme: "ws", Host: *dummyAddr}
+	// Wait for server to start accepting requests
+	<-time.After(10 * time.Millisecond)
 	webCon, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp.Body.Close()
@@ -193,10 +192,9 @@ func TestServerPublishSpecific(t *testing.T) {
 		val: 10,
 	}
 	// Create a new pubsub server
-	server := New(*dummyAddr, counter.dummyProcessTXCallback, logger, readBufferSize,
-		writeBufferSize, maxPendingMessages, maxMessageSize, writeWait,
-		pongWait, readHeaderTimeout,
-	)
+	server := New(*dummyAddr, counter.dummyProcessTXCallback,
+		logger, NewDefaultServerConfig())
+
 	// Channels for ensuring if connections/server are closed
 	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
@@ -211,6 +209,8 @@ func TestServerPublishSpecific(t *testing.T) {
 	}()
 	// Connect to pubsub server
 	u := url.URL{Scheme: "ws", Host: *dummyAddr}
+	// Wait for server to start accepting requests
+	<-time.After(10 * time.Millisecond)
 	webCon1, resp1, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp1.Body.Close()

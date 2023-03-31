@@ -37,9 +37,6 @@ type Connection struct {
 
 	// Represents if the connection can receive new messages.
 	active atomic.Bool
-
-	// Callback function when after a server reads from a connection
-	rCallback Callback
 }
 
 // isActive returns whether the connection is active
@@ -81,13 +78,13 @@ func (c *Connection) readPump() {
 		_ = c.conn.Close()
 	}()
 
-	c.conn.SetReadLimit(c.s.maxMessageSize)
+	c.conn.SetReadLimit(c.s.config.maxMessageSize)
 	// SetReadDeadline returns an error if the connection is corrupted
-	if err := c.conn.SetReadDeadline(time.Now().Add(c.s.pongWait)); err != nil {
+	if err := c.conn.SetReadDeadline(time.Now().Add(c.s.config.pongWait)); err != nil {
 		return
 	}
 	c.conn.SetPongHandler(func(string) error {
-		return c.conn.SetReadDeadline(time.Now().Add(c.s.pongWait))
+		return c.conn.SetReadDeadline(time.Now().Add(c.s.config.pongWait))
 	})
 	for {
 		_, reader, err := c.conn.NextReader()
@@ -103,14 +100,14 @@ func (c *Connection) readPump() {
 			}
 			break
 		}
-		if c.rCallback != nil {
+		if c.s.rCallback != nil {
 			responseBytes, err := io.ReadAll(reader)
 			if err == nil {
 				c.s.log.Debug("unexpected error reading bytes from websockets",
 					zap.Error(err),
 				)
 			}
-			c.Send(c.rCallback(responseBytes, c))
+			c.Send(c.s.rCallback(responseBytes, c))
 		}
 	}
 }
@@ -121,7 +118,7 @@ func (c *Connection) readPump() {
 // application ensures that there is at most one writer to a connection by
 // executing all writes from this goroutine.
 func (c *Connection) writePump() {
-	ticker := time.NewTicker(c.s.pingPeriod)
+	ticker := time.NewTicker(c.s.config.pingPeriod)
 	defer func() {
 		c.deactivate()
 		ticker.Stop()
@@ -134,7 +131,7 @@ func (c *Connection) writePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
-			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.writeWait)); err != nil {
+			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.config.writeWait)); err != nil {
 				c.s.log.Debug("closing the connection",
 					zap.String("reason", "failed to set the write deadline"),
 					zap.Error(err),
@@ -151,7 +148,7 @@ func (c *Connection) writePump() {
 				return
 			}
 		case <-ticker.C:
-			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.writeWait)); err != nil {
+			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.config.writeWait)); err != nil {
 				c.s.log.Debug("closing the connection",
 					zap.String("reason", "failed to set the write deadline"),
 					zap.Error(err),

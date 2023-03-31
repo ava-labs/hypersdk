@@ -17,6 +17,38 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
+type ServerConfig struct {
+	// Size of the ws read buffer
+	readBufferSize int
+	// Size of the ws write buffer
+	writeBufferSize int
+	// Maximum number of pending messages to send to a peer.
+	maxPendingMessages int
+	// Maximum message size in bytes allowed from peer.
+	maxMessageSize int64
+	// Time allowed to write a message to the peer.
+	writeWait time.Duration
+	// Time allowed to read the next pong message from the peer.
+	pongWait time.Duration
+	// Send pings to peer with this period. Must be less than pongWait.
+	pingPeriod time.Duration
+	// ReadHeaderTimeout is the maximum duration for reading a request.
+	readHeaderTimeout time.Duration
+}
+
+func NewDefaultServerConfig() ServerConfig {
+	return ServerConfig{
+		readBufferSize:     readBufferSize,
+		writeBufferSize:    writeBufferSize,
+		maxPendingMessages: maxPendingMessages,
+		maxMessageSize:     maxMessageSize,
+		writeWait:          writeWait,
+		pongWait:           pongWait,
+		pingPeriod:         (9 * pongWait) / 10,
+		readHeaderTimeout:  readHeaderTimeout,
+	}
+}
+
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(*http.Request) bool {
 		return true
@@ -37,22 +69,8 @@ type Server struct {
 	conns *Connections
 	// Callback function when server receives a message
 	rCallback Callback
-	// Size of the ws read buffer
-	readBufferSize int
-	// Size of the ws write buffer
-	writeBufferSize int
-	// Maximum number of pending messages to send to a peer.
-	maxPendingMessages int
-	// Maximum message size in bytes allowed from peer.
-	maxMessageSize int64
-	// Time allowed to write a message to the peer.
-	writeWait time.Duration
-	// Time allowed to read the next pong message from the peer.
-	pongWait time.Duration
-	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod time.Duration
-	// ReadHeaderTimeout is the maximum duration for reading a request.
-	readHeaderTimeout time.Duration
+	// Config variables
+	config ServerConfig
 }
 
 // New returns a new Server instance. The callback function [f] is called
@@ -61,27 +79,16 @@ func New(
 	addr string,
 	r Callback,
 	log logging.Logger,
-	readBufferSize int,
-	writeBufferSize int,
-	maxPendingMessages int,
-	maxMessageSize int64,
-	writeWait time.Duration,
-	pongWait time.Duration,
-	readHeaderTimeout time.Duration,
+	config ServerConfig,
 ) *Server {
+	upgrader.ReadBufferSize = config.readBufferSize
+	upgrader.WriteBufferSize = config.writeBufferSize
 	return &Server{
-		log:                log,
-		addr:               addr,
-		rCallback:          r,
-		conns:              NewConnections(),
-		readBufferSize:     readBufferSize,
-		writeBufferSize:    writeBufferSize,
-		maxPendingMessages: maxPendingMessages,
-		maxMessageSize:     maxMessageSize,
-		writeWait:          writeWait,
-		pongWait:           pongWait,
-		pingPeriod:         (pongWait * 9) / 10,
-		readHeaderTimeout:  readHeaderTimeout,
+		log:       log,
+		addr:      addr,
+		rCallback: r,
+		conns:     NewConnections(),
+		config:    config,
 	}
 }
 
@@ -90,8 +97,6 @@ func New(
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Upgrader.upgrade() is called to upgrade the HTTP connection.
 	// No nead to set any headers so we pass nil as the last argument.
-	upgrader.ReadBufferSize = s.readBufferSize
-	upgrader.WriteBufferSize = s.writeBufferSize
 	wsConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		s.log.Debug("failed to upgrade",
@@ -100,11 +105,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.addConnection(&Connection{
-		s:         s,
-		conn:      wsConn,
-		send:      make(chan []byte, s.maxPendingMessages),
-		active:    atomic.Bool{},
-		rCallback: s.rCallback,
+		s:      s,
+		conn:   wsConn,
+		send:   make(chan []byte, s.config.maxPendingMessages),
+		active: atomic.Bool{},
 	})
 }
 
@@ -148,7 +152,7 @@ func (s *Server) Start() error {
 	s.s = &http.Server{
 		Addr:              s.addr,
 		Handler:           s,
-		ReadHeaderTimeout: s.readHeaderTimeout,
+		ReadHeaderTimeout: s.config.readHeaderTimeout,
 	}
 	s.lock.Unlock()
 	err := s.s.ListenAndServe()
