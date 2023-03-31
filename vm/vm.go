@@ -185,7 +185,7 @@ func (vm *VM) Initialize(
 	// Setup profiler
 	if cfg := vm.config.GetContinuousProfilerConfig(); cfg.Enabled {
 		vm.profiler = profiler.NewContinuous(cfg.Dir, cfg.Freq, cfg.MaxNumFiles)
-		go vm.profiler.Dispatch()
+		go vm.profiler.Dispatch() //nolint:errcheck
 	}
 
 	// Instantiate DBs
