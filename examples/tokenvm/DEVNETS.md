@@ -344,10 +344,17 @@ Here are some useful queries (on an example chainID `3rihqpXh6ZJqxL2dsrVysKkEKro
 * `avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_go_memstats_alloc_bytes`
 * `avalanche_network_inbound_conn_throttler_rate_limited`
 
-To estimate how many `ms/s` the consensus engine is spending busy, use the
+To estimate how many `ms/s` the consensus engine and `tokenvm` are spending busy, use the
 following query (on an example chainID `k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7`):
 ```
 increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_chits_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_notify_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_get_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_push_query_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_put_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_pull_query_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_query_failed_sum[30s])/1000000/30
+```
+
+To isolate just how many `ms/s` the consensus engine is spending busy (removing
+"build", "verify", and "accept" time spent in `tokenvm`), use the following
+command:
+```
+increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_chits_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_notify_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_get_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_push_query_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_put_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_pull_query_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_query_failed_sum[30s])/1000000/30 - increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_vm_metervm_build_block_sum[30s])/1000000/30 - increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_vm_metervm_verify_sum[30s])/1000000/30 - increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_vm_metervm_accept_sum[30s])/1000000/30
 ```
 
 To remove previously ingested data, delete for a folder called `data` in the
