@@ -143,7 +143,9 @@ func (c *Controller) Initialize(
 		build = builder.NewManual(inner)
 		gossip = gossiper.NewManual(inner)
 	} else {
-		build = builder.NewTime(inner, builder.DefaultTimeConfig())
+		bcfg := builder.DefaultTimeConfig()
+		bcfg.PreferredBlocksPerSecond = c.config.GetPreferredBlocksPerSecond()
+		build = builder.NewTime(inner, bcfg)
 		gcfg := gossiper.DefaultProposerConfig()
 		gcfg.BuildProposerDiff = 1 // don't gossip if producing the next block
 		gossip = gossiper.NewProposer(inner, gcfg)

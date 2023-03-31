@@ -20,6 +20,8 @@ import (
 
 var _ vm.Config = (*Config)(nil)
 
+const DefaultPreferredBlocksPerSecond = 2
+
 type Config struct {
 	*config.Config
 
@@ -45,9 +47,10 @@ type Config struct {
 	TrackedPairs []string `json:"trackedPairs"` // which asset ID pairs we care about
 
 	// Misc
-	TestMode    bool          `json:"testMode"` // makes gossip/building manual
-	LogLevel    logging.Level `json:"logLevel"`
-	Parallelism int           `json:"parallelism"`
+	TestMode                 bool          `json:"testMode"` // makes gossip/building manual
+	LogLevel                 logging.Level `json:"logLevel"`
+	Parallelism              int           `json:"parallelism"`
+	PreferredBlocksPerSecond uint64        `json:"preferredBlocksPerSecond"`
 
 	// State Sync
 	StateSyncServerDelay time.Duration `json:"stateSyncServerDelay"` // for testing
@@ -81,20 +84,22 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
 	c.Parallelism = c.Config.GetParallelism()
+	c.PreferredBlocksPerSecond = DefaultPreferredBlocksPerSecond
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 }
 
-func (c *Config) GetLogLevel() logging.Level       { return c.LogLevel }
-func (c *Config) GetTestMode() bool                { return c.TestMode }
-func (c *Config) GetParallelism() int              { return c.Parallelism }
-func (c *Config) GetMempoolSize() int              { return c.MempoolSize }
-func (c *Config) GetMempoolPayerSize() int         { return c.MempoolPayerSize }
-func (c *Config) GetMempoolExemptPayers() [][]byte { return c.parsedExemptPayers }
-func (c *Config) GetDecisionsPort() uint16         { return c.DecisionsPort }
-func (c *Config) GetBlocksPort() uint16            { return c.BlocksPort }
+func (c *Config) GetLogLevel() logging.Level          { return c.LogLevel }
+func (c *Config) GetTestMode() bool                   { return c.TestMode }
+func (c *Config) GetParallelism() int                 { return c.Parallelism }
+func (c *Config) GetPreferredBlocksPerSecond() uint64 { return c.PreferredBlocksPerSecond }
+func (c *Config) GetMempoolSize() int                 { return c.MempoolSize }
+func (c *Config) GetMempoolPayerSize() int            { return c.MempoolPayerSize }
+func (c *Config) GetMempoolExemptPayers() [][]byte    { return c.parsedExemptPayers }
+func (c *Config) GetDecisionsPort() uint16            { return c.DecisionsPort }
+func (c *Config) GetBlocksPort() uint16               { return c.BlocksPort }
 func (c *Config) GetTraceConfig() *trace.Config {
 	return &trace.Config{
 		Enabled:         c.TraceEnabled,

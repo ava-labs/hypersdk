@@ -230,6 +230,7 @@ EOF
 rm -f /tmp/avalanche-ops/tokenvm-genesis.json
 /tmp/token-cli genesis generate /tmp/avalanche-ops/allocations.json \
 --genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
+--max-block-unts 4000000 \
 --window-target-units 100000000000 \
 --window-target-blocks 20
 cat /tmp/avalanche-ops/tokenvm-genesis.json
@@ -242,6 +243,7 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "streamingBacklogSize": 10000000,
   "trackedPairs":["*"],
   "logLevel": "info",
+  "preferredBlocksPerSecond": 3,
   "decisionsPort": 9652,
   "blocksPort": 9653
 }
