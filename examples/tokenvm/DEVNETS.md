@@ -244,7 +244,7 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "trackedPairs":["*"],
   "logLevel": "info",
   "preferredBlocksPerSecond": 3,
-  "continuousProfileDir": "/var/log/tokenvm-profile",
+  "continuousProfilerDir": "/var/log/tokenvm-profile",
   "decisionsPort": 9652,
   "blocksPort": 9653
 }
