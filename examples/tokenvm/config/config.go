@@ -35,7 +35,7 @@ type Config struct {
 	TraceSampleRate float64 `json:"traceSampleRate"`
 
 	// Profiling
-	ContinuousProfileDir string `json:"continuousProfileDir"`
+	ContinuousProfilerDir string `json:"continuousProfilerDir"`
 
 	// Streaming Ports
 	DecisionsPort        uint16 `json:"decisionsPort"`
@@ -120,12 +120,12 @@ func (c *Config) GetTraceConfig() *trace.Config {
 func (c *Config) GetStateSyncServerDelay() time.Duration { return c.StateSyncServerDelay }
 func (c *Config) GetStreamingBacklogSize() int           { return c.StreamingBacklogSize }
 func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
-	if len(c.ContinuousProfileDir) == 0 {
+	if len(c.ContinuousProfilerDir) == 0 {
 		return &profiler.Config{Enabled: false}
 	}
 	return &profiler.Config{
 		Enabled:     true,
-		Dir:         c.ContinuousProfileDir,
+		Dir:         c.ContinuousProfilerDir,
 		Freq:        defaultContinuousProfilerFrequency,
 		MaxNumFiles: defaultContinuousProfilerMaxFiles,
 	}
