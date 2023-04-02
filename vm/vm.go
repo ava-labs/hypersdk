@@ -149,8 +149,11 @@ func (vm *VM) Initialize(
 	if err := vm.snowCtx.Metrics.Register(gatherer); err != nil {
 		return err
 	}
-	metrics, err := newMetrics(gatherer)
+	defaultRegistry, metrics, err := newMetrics()
 	if err != nil {
+		return err
+	}
+	if err := gatherer.Register("hyper_sdk", defaultRegistry); err != nil {
 		return err
 	}
 	vm.metrics = metrics
@@ -200,7 +203,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	if err := gatherer.Register("hyper_sdk", merkleRegistry); err != nil {
+	if err := gatherer.Register("state", merkleRegistry); err != nil {
 		return err
 	}
 
