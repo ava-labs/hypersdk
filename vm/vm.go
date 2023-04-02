@@ -27,6 +27,7 @@ import (
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"go.uber.org/zap"
 
@@ -145,6 +146,9 @@ func (vm *VM) Initialize(
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	gatherer := ametrics.NewMultiGatherer()
+	if err := vm.snowCtx.Metrics.Register(gatherer); err != nil {
+		return err
+	}
 	metrics, err := newMetrics(gatherer)
 	if err != nil {
 		return err
@@ -171,9 +175,6 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return fmt.Errorf("implementation initialization failed: %w", err)
 	}
-	if err := vm.snowCtx.Metrics.Register(gatherer); err != nil {
-		return err
-	}
 	// Setup tracer
 	vm.tracer, err = htrace.New(vm.config.GetTraceConfig())
 	if err != nil {
@@ -189,13 +190,17 @@ func (vm *VM) Initialize(
 	}
 
 	// Instantiate DBs
+	merkleRegistry := prometheus.NewRegistry()
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
 		HistoryLength: vm.config.GetStateHistoryLength(),
 		NodeCacheSize: vm.config.GetStateCacheSize(),
-		// TODO: add metrics
-		Tracer: vm.tracer,
+		Reg:           merkleRegistry,
+		Tracer:        vm.tracer,
 	})
 	if err != nil {
+		return err
+	}
+	if err := gatherer.Register("hyper_sdk", merkleRegistry); err != nil {
 		return err
 	}
 
