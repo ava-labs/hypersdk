@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -91,6 +92,7 @@ type StatelessBlock struct {
 	*StatefulBlock `json:"block"`
 
 	id     ids.ID
+	built  bool
 	st     choices.Status
 	t      time.Time
 	bytes  []byte
@@ -143,11 +145,12 @@ func ParseBlock(
 	return ParseStatefulBlock(ctx, blk, source, status, vm)
 }
 
-func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error {
+func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.populateTxs")
 	defer span.End()
 
 	// Setup signature verification job
+	// TODO: don't set this up if built
 	job, err := b.vm.Workers().NewJob(len(b.Txs))
 	if err != nil {
 		return err
@@ -160,7 +163,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 	b.warpMessages = map[ids.ID]*warpJob{}
 	for _, tx := range b.Txs {
 		sigTask := tx.AuthAsyncVerify()
-		if verifySigs {
+		if !b.built {
 			b.sigJob.Go(sigTask)
 		}
 		if b.txsSet.Contains(tx.ID()) {
@@ -243,13 +246,12 @@ func ParseStatefulBlock(
 	}
 
 	// Populate hashes and tx set
-	return b, b.populateTxs(ctx, true)
+	return b, b.populateTxs(ctx)
 }
 
-// [init] is used during block building and testing
-// TODO: remove init
-func (b *StatelessBlock) init(ctx context.Context, results []*Result, validateSigs bool) error {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.init")
+// [initializeBuilt] is invoked after a block is built
+func (b *StatelessBlock) initializeBuilt(ctx context.Context, results []*Result) error {
+	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
 	defer span.End()
 
 	blk, err := b.StatefulBlock.Marshal(b.vm.Registry())
@@ -258,11 +260,12 @@ func (b *StatelessBlock) init(ctx context.Context, results []*Result, validateSi
 	}
 	b.bytes = blk
 	b.id = utils.ToID(b.bytes)
+	b.built = true
 	b.t = time.Unix(b.StatefulBlock.Tmstmp, 0)
 	b.results = results
 
 	// Populate hashes and tx set
-	return b.populateTxs(ctx, validateSigs)
+	return b.populateTxs(ctx)
 }
 
 // implements "snowman.Block.choices.Decidable"
@@ -387,9 +390,8 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 //     state sync)
 func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, error) {
 	var (
-		log   = b.vm.Logger()
-		built = len(b.results) > 0
-		r     = b.vm.Rules(b.Tmstmp)
+		log = b.vm.Logger()
+		r   = b.vm.Rules(b.Tmstmp)
 	)
 
 	// Perform basic correctness checks before doing any expensive work
@@ -567,9 +569,12 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, ErrWarpResultMismatch
 	}
 
+	// Store height in state to prevent duplicate roots
+	if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return nil, err
+	}
+
 	// Compute state root
-	// TODO: consider adding the parent root or height here to ensure state roots
-	// are never repeated
 	computedRoot, err := state.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
@@ -584,7 +589,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 
 	// Ensure signatures are verified
-	if !built { // don't need to verify sigs if built
+	if !b.built { // don't need to verify sigs if built
 		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitSignatures")
 		if err := b.sigJob.Wait(); err != nil {
 			sspan.End()

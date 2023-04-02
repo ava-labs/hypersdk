@@ -105,6 +105,7 @@ type Rules interface {
 // in a structured manner. If we did not use [StateManager], we may overwrite
 // state written by actions or auth.
 type StateManager interface {
+	HeightKey() []byte
 	IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) []byte
 	OutgoingWarpKey(txID ids.ID) []byte
 }

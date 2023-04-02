@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
@@ -245,6 +246,11 @@ func BuildBlock(
 	}
 	b.SurplusFee = surplusFee
 
+	// Store height in state to prevent duplicate roots
+	if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return nil, err
+	}
+
 	// Get root from underlying state changes after writing all changed keys
 	if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
 		return nil, err
@@ -256,7 +262,7 @@ func BuildBlock(
 	b.StateRoot = root
 
 	// Compute block hash and marshaled representation
-	if err := b.init(ctx, results, false); err != nil {
+	if err := b.initializeBuilt(ctx, results); err != nil {
 		return nil, err
 	}
 	log.Info(
