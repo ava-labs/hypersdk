@@ -146,6 +146,9 @@ avalanchego_config:
     throttler-inbound-cpu-validator-alloc: 100000
     throttler-inbound-disk-validator-alloc: 10737418240000
     throttler-outbound-validator-alloc-size: 107374182
+    snow-mixed-query-num-push-vdr-uint: 10
+    consensus-on-accept-gossip-peer-size: 0
+    consensus-accepted-frontier-gossip-peer-size: 0
 ```
 
 Make sure to remove `throttler-inbound-at-large-alloc-size` and
