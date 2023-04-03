@@ -27,6 +27,7 @@ import (
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"go.uber.org/zap"
 
@@ -145,8 +146,14 @@ func (vm *VM) Initialize(
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	gatherer := ametrics.NewMultiGatherer()
-	metrics, err := newMetrics(gatherer)
+	if err := vm.snowCtx.Metrics.Register(gatherer); err != nil {
+		return err
+	}
+	defaultRegistry, metrics, err := newMetrics()
 	if err != nil {
+		return err
+	}
+	if err := gatherer.Register("hyper_sdk", defaultRegistry); err != nil {
 		return err
 	}
 	vm.metrics = metrics
@@ -171,9 +178,6 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return fmt.Errorf("implementation initialization failed: %w", err)
 	}
-	if err := vm.snowCtx.Metrics.Register(gatherer); err != nil {
-		return err
-	}
 	// Setup tracer
 	vm.tracer, err = htrace.New(vm.config.GetTraceConfig())
 	if err != nil {
@@ -189,13 +193,17 @@ func (vm *VM) Initialize(
 	}
 
 	// Instantiate DBs
+	merkleRegistry := prometheus.NewRegistry()
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
 		HistoryLength: vm.config.GetStateHistoryLength(),
 		NodeCacheSize: vm.config.GetStateCacheSize(),
-		// TODO: add metrics
-		Tracer: vm.tracer,
+		Reg:           merkleRegistry,
+		Tracer:        vm.tracer,
 	})
 	if err != nil {
+		return err
+	}
+	if err := gatherer.Register("state", merkleRegistry); err != nil {
 		return err
 	}
 
@@ -585,7 +593,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 		return nil, err
 	}
 	vm.parsedBlocks.Put(id, newBlk)
-	vm.snowCtx.Log.Debug(
+	vm.snowCtx.Log.Info(
 		"parsed block",
 		zap.Stringer("id", newBlk.ID()),
 		zap.Uint64("height", newBlk.Hght),
@@ -608,6 +616,7 @@ func (vm *VM) buildBlock(
 		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
 		return nil, err
 	}
+	vm.parsedBlocks.Put(blk.ID(), blk)
 	return blk, nil
 }
 

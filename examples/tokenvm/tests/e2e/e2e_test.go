@@ -179,6 +179,8 @@ var _ = ginkgo.BeforeSuite(func() {
 		ctx,
 		execPath,
 		runner_sdk.WithPluginDir(pluginDir),
+		// We don't diable PUT gossip here because the E2E test adds multiple
+		// non-validating nodes (which will fall behind).
 		runner_sdk.WithGlobalNodeConfig(`{
 				"log-display-level":"info",
 				"proposervm-use-current-height":true,
@@ -280,18 +282,26 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	instancesA = []instance{}
 	for _, nodeName := range subnetA {
-		u := fmt.Sprintf("%s/ext/bc/%s", nodeInfos[nodeName].Uri, blockchainIDA)
+		info := nodeInfos[nodeName]
+		u := fmt.Sprintf("%s/ext/bc/%s", info.Uri, blockchainIDA)
+		nodeID, err := ids.NodeIDFromString(info.GetId())
+		gomega.Expect(err).Should(gomega.BeNil())
 		instancesA = append(instancesA, instance{
-			uri: u,
-			cli: client.New(u),
+			nodeID: nodeID,
+			uri:    u,
+			cli:    client.New(u),
 		})
 	}
 	instancesB = []instance{}
 	for _, nodeName := range subnetB {
-		u := fmt.Sprintf("%s/ext/bc/%s", nodeInfos[nodeName].Uri, blockchainIDB)
+		info := nodeInfos[nodeName]
+		u := fmt.Sprintf("%s/ext/bc/%s", info.Uri, blockchainIDB)
+		nodeID, err := ids.NodeIDFromString(info.GetId())
+		gomega.Expect(err).Should(gomega.BeNil())
 		instancesB = append(instancesB, instance{
-			uri: u,
-			cli: client.New(u),
+			nodeID: nodeID,
+			uri:    u,
+			cli:    client.New(u),
 		})
 	}
 
@@ -321,8 +331,9 @@ var (
 )
 
 type instance struct {
-	uri string
-	cli *client.Client
+	nodeID ids.NodeID
+	uri    string
+	cli    *client.Client
 }
 
 var _ = ginkgo.AfterSuite(func() {
@@ -338,11 +349,11 @@ var _ = ginkgo.AfterSuite(func() {
 		hutils.Outf("{{yellow}}skipping cluster shutdown{{/}}\n\n")
 		hutils.Outf("{{cyan}}Blockchain:{{/}} %s\n", blockchainIDA)
 		for _, member := range instancesA {
-			hutils.Outf("URI: %s\n", member.uri)
+			hutils.Outf("%s URI: %s\n", member.nodeID, member.uri)
 		}
 		hutils.Outf("\n{{cyan}}Blockchain:{{/}} %s\n", blockchainIDB)
 		for _, member := range instancesB {
-			hutils.Outf("URI: %s\n", member.uri)
+			hutils.Outf("%s URI: %s\n", member.nodeID, member.uri)
 		}
 	}
 	gomega.Expect(anrCli.Close()).Should(gomega.BeNil())

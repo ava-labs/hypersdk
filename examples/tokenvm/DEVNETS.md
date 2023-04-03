@@ -148,6 +148,9 @@ avalanchego_config:
     throttler-inbound-cpu-validator-alloc: 100000
     throttler-inbound-disk-validator-alloc: 10737418240000
     throttler-outbound-validator-alloc-size: 107374182
+    snow-mixed-query-num-push-vdr-uint: 10
+    consensus-on-accept-gossip-peer-size: 0
+    consensus-accepted-frontier-gossip-peer-size: 0
 ```
 
 Make sure to remove `throttler-inbound-at-large-alloc-size` and
@@ -234,7 +237,7 @@ rm -f /tmp/avalanche-ops/tokenvm-genesis.json
 --genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
 --max-block-units 4000000 \
 --window-target-units 100000000000 \
---window-target-blocks 20
+--window-target-blocks 30
 cat /tmp/avalanche-ops/tokenvm-genesis.json
 
 cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json

@@ -5,12 +5,12 @@ package chain
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -47,7 +47,7 @@ func BuildBlock(
 	vm VM,
 	preferred ids.ID,
 	blockContext *smblock.Context,
-) (snowman.Block, error) {
+) (*StatelessBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
 	log := vm.Logger()
@@ -88,10 +88,16 @@ func BuildBlock(
 
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
+
+		start    = time.Now()
+		lockWait time.Duration
 	)
 	mempoolErr := mempool.Build(
 		ctx,
 		func(fctx context.Context, next *Transaction) (cont bool, restore bool, removeAcct bool, err error) {
+			if txsAttempted == 0 {
+				lockWait = time.Since(start)
+			}
 			txsAttempted++
 
 			// Ensure we can process if transaction includes a warp message
@@ -249,6 +255,13 @@ func BuildBlock(
 	if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
 		return nil, err
 	}
+
+	// Store height in state to prevent duplicate roots
+	if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return nil, err
+	}
+
+	// Compute state root after all data has been written to trie
 	root, err := state.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
@@ -256,7 +269,7 @@ func BuildBlock(
 	b.StateRoot = root
 
 	// Compute block hash and marshaled representation
-	if err := b.init(ctx, results, false); err != nil {
+	if err := b.initializeBuilt(ctx, state, results); err != nil {
 		return nil, err
 	}
 	log.Info(
@@ -265,6 +278,8 @@ func BuildBlock(
 		zap.Int("attempted", txsAttempted),
 		zap.Int("added", len(b.Txs)),
 		zap.Int("mempool size", b.vm.Mempool().Len(ctx)),
+		zap.Duration("mempool lock wait", lockWait),
+		zap.Bool("context", blockContext != nil),
 	)
 	return b, nil
 }

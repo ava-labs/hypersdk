@@ -5,6 +5,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -35,7 +36,7 @@ type Config struct {
 	TraceSampleRate float64 `json:"traceSampleRate"`
 
 	// Profiling
-	ContinuousProfilerDir string `json:"continuousProfilerDir"`
+	ContinuousProfilerDir string `json:"continuousProfilerDir"` // "*" is replaced with rand int
 
 	// Streaming Ports
 	DecisionsPort        uint16 `json:"decisionsPort"`
@@ -123,6 +124,9 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	if len(c.ContinuousProfilerDir) == 0 {
 		return &profiler.Config{Enabled: false}
 	}
+	// Replace all instances of "*" with nodeID. This is useful when
+	// running multiple instances of tokenvm on the same machine.
+	c.ContinuousProfilerDir = strings.ReplaceAll(c.ContinuousProfilerDir, "*", c.nodeID.String())
 	return &profiler.Config{
 		Enabled:     true,
 		Dir:         c.ContinuousProfilerDir,

@@ -4,7 +4,6 @@
 package vm
 
 import (
-	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -19,7 +18,7 @@ type Metrics struct {
 	blocksRPCConnections    prometheus.Gauge
 }
 
-func newMetrics(gatherer ametrics.MultiGatherer) (*Metrics, error) {
+func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	m := &Metrics{
 		unitsVerified: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
@@ -67,7 +66,6 @@ func newMetrics(gatherer ametrics.MultiGatherer) (*Metrics, error) {
 		r.Register(m.txsAccepted),
 		r.Register(m.decisionsRPCConnections),
 		r.Register(m.blocksRPCConnections),
-		gatherer.Register("hyper_sdk", r),
 	)
-	return m, errs.Err
+	return r, m, errs.Err
 }
