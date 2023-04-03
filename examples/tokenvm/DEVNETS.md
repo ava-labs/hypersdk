@@ -77,8 +77,6 @@ Now we can spin up a new network of 6 nodes with some defaults:
 - `avalanche-ops` supports [EC2 Spot instances](https://aws.amazon.com/ec2/spot/) for cost savings. Use `--instance-mode=spot` to run instances in spot mode.
 
 ```bash
-# use "--instance-types=c5.2xlarge,m5.2xlarge"
-# to overwrite "--instance-size" flag value
 /tmp/avalancheup-aws default-spec \
 --arch-type amd64 \
 --rust-os-type ubuntu20.04 \
@@ -86,7 +84,7 @@ Now we can spin up a new network of 6 nodes with some defaults:
 --non-anchor-nodes 3 \
 --region us-west-2 \
 --instance-mode=on-demand \
---instance-size=2xlarge \
+--instance-types=c5.2xlarge \
 --ip-mode=elastic \
 --metrics-fetch-interval-seconds 60 \
 --network-name custom \
@@ -115,24 +113,11 @@ avalancheup-aws default-spec \
 It is recommended to specify your own artifacts to avoid flaky github release page downloads.
 
 #### Restricting Instance Types
-By default, `avalanche-ops` will attempt to use all available instance types in
-a region in your cluster. If you'd like to restrict which instance types are used,
-edit the output `aops-custom-****-***.yaml` file before deploying:
-```yaml
-machine:
-  anchor_nodes: 3
-  non_anchor_nodes: 3
-  arch_type: amd64
-  rust_os_type: ubuntu20.04
-  instance_types:
-  - t3a.2xlarge
-  - t3.2xlarge
-  - t2.2xlarge
-  - c6a.2xlarge
-  - m6a.2xlarge
-  - m5.2xlarge
-  - c5.2xlarge
-```
+By default, `avalanche-ops` will attempt to use all available instance types of
+a given size (scoped by `--instance-size`) in a region in your cluster. If you'd like to restrict which
+instance types are used (and override `--instance-size`), you can populate the `--instance-types` flag.
+You can specify a single instance type (`--instance-types=c5.2xlarge`) or a comma-separated list
+(`--instance-types=c5.2xlarge,m5.2xlarge`).
 
 #### Increasing Rate Limits
 If you are attempting to stress test the Devnet, you should disable CPU, Disk,
