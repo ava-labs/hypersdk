@@ -3,10 +3,8 @@
 package config
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"strings"
 	"time"
 
@@ -14,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/hypersdk/config"
-	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -127,13 +124,9 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	if len(c.ContinuousProfilerDir) == 0 {
 		return &profiler.Config{Enabled: false}
 	}
-	// Replace all instances of "*" with a random integer. This is useful when
+	// Replace all instances of "*" with nodeID. This is useful when
 	// running multiple instances of tokenvm on the same machine.
-	v, err := rand.Int(rand.Reader, new(big.Int).SetUint64(hconsts.MaxUint64))
-	if err != nil {
-		panic(err)
-	}
-	c.ContinuousProfilerDir = strings.ReplaceAll(c.ContinuousProfilerDir, "*", v.String())
+	c.ContinuousProfilerDir = strings.ReplaceAll(c.ContinuousProfilerDir, "*", c.nodeID.String())
 	return &profiler.Config{
 		Enabled:     true,
 		Dir:         c.ContinuousProfilerDir,
