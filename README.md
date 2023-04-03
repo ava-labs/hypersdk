@@ -582,7 +582,6 @@ compatible with most `hypervms` (and maintained in the `hypersdk`)._
 
 ## Star History
 <p align="center">
-  <img width="90%" alt="hypersdk" src="assets/logo.png">
   <a href="https://star-history.com/#ava-labs/hypersdk&Date"><img width="90%" alt="star history" src="https://api.star-history.com/svg?repos=ava-labs/hypersdk&type=Date" /></a>
 </p>
 
