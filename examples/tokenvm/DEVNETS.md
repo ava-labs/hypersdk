@@ -266,7 +266,7 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 --key <TODO> \
 --primary-network-validate-period-in-days 16 \
 --subnet-validate-period-in-days 14 \
---subnet-config-local-path /tmp/avalanche-ops/subnet-config.json \
+--subnet-config-local-path /tmp/avalanche-ops/tokenvm-subnet-config.json \
 --subnet-config-remote-dir /data/avalanche-configs/subnets \
 --vm-binary-local-path /tmp/tokenvm \
 --vm-binary-remote-dir /data/avalanche-plugins \
