@@ -84,7 +84,7 @@ Now we can spin up a new network of 6 nodes with some defaults:
 --non-anchor-nodes 3 \
 --region us-west-2 \
 --instance-mode=on-demand \
---instance-types=c5.2xlarge \
+--instance-types=c5.4xlarge \
 --ip-mode=elastic \
 --metrics-fetch-interval-seconds 60 \
 --network-name custom \
@@ -122,6 +122,10 @@ instance types are used (and override `--instance-size`), you can populate the `
 You can specify a single instance type (`--instance-types=c5.2xlarge`) or a comma-separated list
 (`--instance-types=c5.2xlarge,m5.2xlarge`).
 
+`avalanchego` will use at least `<expected block size> * (2048[bytesToIDCache] + 2048[decidedBlocksCache])`
+for caching blocks. This overhead will be significantly reduced when
+[this issue is resolved](https://github.com/ava-labs/hypersdk/issues/129).
+
 #### Increasing Rate Limits
 If you are attempting to stress test the Devnet, you should disable CPU, Disk,
 and Bandwidth rate limiting. You can do this by adding the following lines to
@@ -141,10 +145,6 @@ avalanchego_config:
     consensus-on-accept-gossip-peer-size: 5
     consensus-accepted-frontier-gossip-peer-size: 5
 ```
-
-Make sure to remove `throttler-inbound-at-large-alloc-size` and
-`throttler-inbound-node-max-at-large-bytes` from the default YAML, otherwise
-you will have duplicate keys.
 
 #### Supporting All Metrics
 By default, `avalanche-ops` does not support ingest all metrics into AWS
@@ -253,7 +253,8 @@ cat /tmp/avalanche-ops/tokenvm-chain-config.json
 
 *Note*: Make sure that port `9652` and `9653` are open on the AWS Security Group applied to all
 nodes otherwise the `token-cli` will not work properly. This requirement will
-be removed when the HyperSDK migrates to using proper WebSockets.
+be removed when the [HyperSDK migrates to using proper
+WebSockets](https://github.com/ava-labs/hypersdk/issues/64).
 
 ### Step 8: Install Chains
 You can run the following commands to spin up 2 `tokenvm` Devnets. Make sure to
