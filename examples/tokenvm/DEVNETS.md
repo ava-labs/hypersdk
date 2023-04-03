@@ -88,7 +88,10 @@ Now we can spin up a new network of 6 nodes with some defaults:
 --ip-mode=elastic \
 --metrics-fetch-interval-seconds 60 \
 --network-name custom \
---keys-to-generate 5
+--keys-to-generate 5 \
+--avalanchego-profile-continuous-enabled \
+--avalanchego-profile-continuous-freq 1m \
+--avalanchego-profile-continuous-max-files 10
 ```
 
 The `default-spec` (and `apply`) command only provisions nodes, not Custom VMs.
