@@ -77,6 +77,8 @@ Now we can spin up a new network of 6 nodes with some defaults:
 - `avalanche-ops` supports [EC2 Spot instances](https://aws.amazon.com/ec2/spot/) for cost savings. Use `--instance-mode=spot` to run instances in spot mode.
 
 ```bash
+# use "--instance-types=c5.2xlarge,m5.2xlarge"
+# to overwrite "--instance-size" flag value
 /tmp/avalancheup-aws default-spec \
 --arch-type amd64 \
 --rust-os-type ubuntu20.04 \
