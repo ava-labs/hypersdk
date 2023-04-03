@@ -111,6 +111,7 @@ fi
 
 echo "creating vm config"
 rm -f /tmp/tokenvm.config
+rm -rf /tmp/tokenvm-e2e-profiles
 cat <<EOF > /tmp/tokenvm.config
 {
   "mempoolSize": 10000000,
@@ -124,6 +125,7 @@ cat <<EOF > /tmp/tokenvm.config
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
+mkdir -p /tmp/tokenvm-e2e-profiles
 
 ############################
 
