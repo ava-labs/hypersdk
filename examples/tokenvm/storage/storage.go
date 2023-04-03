@@ -44,13 +44,15 @@ const (
 	assetPrefix        = 0x1
 	orderPrefix        = 0x2
 	loanPrefix         = 0x3
-	incomingWarpPrefix = 0x4
-	outgoingWarpPrefix = 0x5
+	heightPrefix       = 0x4
+	incomingWarpPrefix = 0x5
+	outgoingWarpPrefix = 0x6
 )
 
 var (
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
+	heightKey   = []byte{heightPrefix}
 )
 
 // [txPrefix] + [txID]
@@ -471,6 +473,10 @@ func SubLoan(
 		return db.Remove(ctx, PrefixLoanKey(asset, destination))
 	}
 	return SetLoan(ctx, db, asset, destination, nloan)
+}
+
+func HeightKey() (k []byte) {
+	return heightKey
 }
 
 func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {

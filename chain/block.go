@@ -92,7 +92,6 @@ type StatelessBlock struct {
 	*StatefulBlock `json:"block"`
 
 	id     ids.ID
-	built  bool
 	st     choices.Status
 	t      time.Time
 	bytes  []byte
@@ -145,12 +144,12 @@ func ParseBlock(
 	return ParseStatefulBlock(ctx, blk, source, status, vm)
 }
 
+// populateTxs is only called on blocks we did not build
 func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.populateTxs")
 	defer span.End()
 
 	// Setup signature verification job
-	// TODO: don't set this up if built
 	job, err := b.vm.Workers().NewJob(len(b.Txs))
 	if err != nil {
 		return err
@@ -162,10 +161,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	b.warpMessages = map[ids.ID]*warpJob{}
 	for _, tx := range b.Txs {
-		sigTask := tx.AuthAsyncVerify()
-		if !b.built {
-			b.sigJob.Go(sigTask)
-		}
+		b.sigJob.Go(tx.AuthAsyncVerify())
 		if b.txsSet.Contains(tx.ID()) {
 			return ErrDuplicateTx
 		}
@@ -250,8 +246,8 @@ func ParseStatefulBlock(
 }
 
 // [initializeBuilt] is invoked after a block is built
-func (b *StatelessBlock) initializeBuilt(ctx context.Context, results []*Result) error {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
+func (b *StatelessBlock) initializeBuilt(ctx context.Context, state merkledb.TrieView, results []*Result) error {
+	_, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
 	defer span.End()
 
 	blk, err := b.StatefulBlock.Marshal(b.vm.Registry())
@@ -260,12 +256,14 @@ func (b *StatelessBlock) initializeBuilt(ctx context.Context, results []*Result)
 	}
 	b.bytes = blk
 	b.id = utils.ToID(b.bytes)
-	b.built = true
+	b.state = state
 	b.t = time.Unix(b.StatefulBlock.Tmstmp, 0)
 	b.results = results
-
-	// Populate hashes and tx set
-	return b.populateTxs(ctx)
+	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
+	for _, tx := range b.Txs {
+		b.txsSet.Add(tx.ID())
+	}
+	return nil
 }
 
 // implements "snowman.Block.choices.Decidable"
@@ -286,6 +284,7 @@ func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Cont
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
 			attribute.Int64("pchainHeight", int64(bctx.PChainHeight)),
+			attribute.Bool("built", b.Processed()),
 		),
 	)
 	defer span.End()
@@ -306,6 +305,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 			attribute.Int("txs", len(b.Txs)),
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
+			attribute.Bool("built", b.Processed()),
 		),
 	)
 	defer span.End()
@@ -389,6 +389,13 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 //  3. If the state of a block we are accepting is missing (finishing dynamic
 //     state sync)
 func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, error) {
+	// If we built the block, the state will already be populated and we don't
+	// need to compute it (we assume that we built a correct block and it isn't
+	// necessary to re-verify anything).
+	if b.state != nil {
+		return b.state, nil
+	}
+
 	var (
 		log = b.vm.Logger()
 		r   = b.vm.Rules(b.Tmstmp)
@@ -589,13 +596,10 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 
 	// Ensure signatures are verified
-	if !b.built { // don't need to verify sigs if built
-		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitSignatures")
-		if err := b.sigJob.Wait(); err != nil {
-			sspan.End()
-			return nil, err
-		}
-		sspan.End()
+	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitSignatures")
+	defer sspan.End()
+	if err := b.sigJob.Wait(); err != nil {
+		return nil, err
 	}
 	return state, nil
 }

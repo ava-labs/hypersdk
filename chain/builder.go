@@ -246,15 +246,17 @@ func BuildBlock(
 	}
 	b.SurplusFee = surplusFee
 
+	// Get root from underlying state changes after writing all changed keys
+	if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
+		return nil, err
+	}
+
 	// Store height in state to prevent duplicate roots
 	if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, err
 	}
 
-	// Get root from underlying state changes after writing all changed keys
-	if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
-		return nil, err
-	}
+	// Compute state root after all data has been written to trie
 	root, err := state.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
@@ -262,7 +264,7 @@ func BuildBlock(
 	b.StateRoot = root
 
 	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, results); err != nil {
+	if err := b.initializeBuilt(ctx, state, results); err != nil {
 		return nil, err
 	}
 	log.Info(
