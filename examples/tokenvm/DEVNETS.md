@@ -134,8 +134,8 @@ avalanchego_config:
     throttler-inbound-disk-validator-alloc: 10737418240000
     throttler-outbound-validator-alloc-size: 107374182
     snow-mixed-query-num-push-vdr-uint: 10
-    consensus-on-accept-gossip-peer-size: 0
-    consensus-accepted-frontier-gossip-peer-size: 0
+    consensus-on-accept-gossip-peer-size: 5
+    consensus-accepted-frontier-gossip-peer-size: 5
 ```
 
 Make sure to remove `throttler-inbound-at-large-alloc-size` and
@@ -209,15 +209,19 @@ do so (similar to [scripts/run.sh](./scripts/run.sh)):
 ```bash
 rm -rf /tmp/avalanche-ops
 
-/tmp/avalancheup-aws subnet-config \
---log-level=info \
---proposer-min-block-delay 0 \
---file-path /tmp/avalanche-ops/subnet-config.json
+cat <<EOF > /tmp/avalanche-ops/tokenvm-subnet-config.json
+{
+  "proposerMinBlockDelay": 0,
+  "gossipOnAcceptPeerSize": 0,
+  "gossipAcceptedFrontierPeerSize": 0
+}
+EOF
+cat /tmp/avalanche-ops/tokenvm-subnet-config.json
 
 cat <<EOF > /tmp/avalanche-ops/allocations.json
-[{"address":"token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":1000000000000}]
+[{"address":"token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":1000000000000000}]
 EOF
-rm -f /tmp/avalanche-ops/tokenvm-genesis.json
+
 /tmp/token-cli genesis generate /tmp/avalanche-ops/allocations.json \
 --genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
 --max-block-units 4000000 \
@@ -418,7 +422,7 @@ a different set of validators):
 --key <TODO> \
 --primary-network-validate-period-in-days 16 \
 --subnet-validate-period-in-days 14 \
---subnet-config-local-path /tmp/avalanche-ops/subnet-config.json \
+--subnet-config-local-path /tmp/avalanche-ops/tokenvm-subnet-config.json \
 --subnet-config-remote-dir /data/avalanche-configs/subnets \
 --vm-binary-local-path /tmp/tokenvm \
 --vm-binary-remote-dir /data/avalanche-plugins \
