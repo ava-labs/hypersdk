@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -48,7 +47,7 @@ func BuildBlock(
 	vm VM,
 	preferred ids.ID,
 	blockContext *smblock.Context,
-) (snowman.Block, error) {
+) (*StatelessBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
 	log := vm.Logger()

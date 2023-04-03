@@ -593,7 +593,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 		return nil, err
 	}
 	vm.parsedBlocks.Put(id, newBlk)
-	vm.snowCtx.Log.Debug(
+	vm.snowCtx.Log.Info(
 		"parsed block",
 		zap.Stringer("id", newBlk.ID()),
 		zap.Uint64("height", newBlk.Hght),
@@ -616,6 +616,7 @@ func (vm *VM) buildBlock(
 		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
 		return nil, err
 	}
+	vm.parsedBlocks.Put(blk.ID(), blk)
 	return blk, nil
 }
 
