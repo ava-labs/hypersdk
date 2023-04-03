@@ -179,6 +179,8 @@ var _ = ginkgo.BeforeSuite(func() {
 		ctx,
 		execPath,
 		runner_sdk.WithPluginDir(pluginDir),
+		// We don't diable PUT gossip here because the E2E test adds multiple
+		// non-validating nodes (which will fall behind).
 		runner_sdk.WithGlobalNodeConfig(`{
 				"log-display-level":"info",
 				"proposervm-use-current-height":true,
@@ -188,9 +190,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				"throttler-inbound-bandwidth-max-burst-size":"1073741824",
 				"throttler-inbound-cpu-validator-alloc":"100000",
 				"throttler-inbound-disk-validator-alloc":"10737418240000",
-				"throttler-outbound-validator-alloc-size":"107374182",
-				"consensus-on-accept-gossip-peer-size": 0,
-				"consensus-accepted-frontier-gossip-peer-size": 0
+				"throttler-outbound-validator-alloc-size":"107374182"
 			}`),
 	)
 	cancel()
