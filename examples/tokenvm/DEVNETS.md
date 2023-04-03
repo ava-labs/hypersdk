@@ -235,7 +235,7 @@ rm -f /tmp/avalanche-ops/tokenvm-genesis.json
 --genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
 --max-block-units 4000000 \
 --window-target-units 100000000000 \
---window-target-blocks 20
+--window-target-blocks 30
 cat /tmp/avalanche-ops/tokenvm-genesis.json
 
 cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
