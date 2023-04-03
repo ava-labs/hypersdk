@@ -78,13 +78,13 @@ func (c *Connection) readPump() {
 		_ = c.conn.Close()
 	}()
 
-	c.conn.SetReadLimit(c.s.config.maxMessageSize)
+	c.conn.SetReadLimit(c.s.config.MaxMessageSize)
 	// SetReadDeadline returns an error if the connection is corrupted
-	if err := c.conn.SetReadDeadline(time.Now().Add(c.s.config.pongWait)); err != nil {
+	if err := c.conn.SetReadDeadline(time.Now().Add(c.s.config.PongWait)); err != nil {
 		return
 	}
 	c.conn.SetPongHandler(func(string) error {
-		return c.conn.SetReadDeadline(time.Now().Add(c.s.config.pongWait))
+		return c.conn.SetReadDeadline(time.Now().Add(c.s.config.PongWait))
 	})
 	for {
 		_, reader, err := c.conn.NextReader()
@@ -100,14 +100,14 @@ func (c *Connection) readPump() {
 			}
 			break
 		}
-		if c.s.rCallback != nil {
+		if c.s.callback != nil {
 			responseBytes, err := io.ReadAll(reader)
 			if err == nil {
 				c.s.log.Debug("unexpected error reading bytes from websockets",
 					zap.Error(err),
 				)
 			}
-			c.Send(c.s.rCallback(responseBytes, c))
+			c.Send(c.s.callback(responseBytes, c))
 		}
 	}
 }
@@ -118,7 +118,7 @@ func (c *Connection) readPump() {
 // application ensures that there is at most one writer to a connection by
 // executing all writes from this goroutine.
 func (c *Connection) writePump() {
-	ticker := time.NewTicker(c.s.config.pingPeriod)
+	ticker := time.NewTicker(c.s.config.PingPeriod)
 	defer func() {
 		c.deactivate()
 		ticker.Stop()
@@ -131,7 +131,7 @@ func (c *Connection) writePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
-			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.config.writeWait)); err != nil {
+			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.config.WriteWait)); err != nil {
 				c.s.log.Debug("closing the connection",
 					zap.String("reason", "failed to set the write deadline"),
 					zap.Error(err),
@@ -148,7 +148,7 @@ func (c *Connection) writePump() {
 				return
 			}
 		case <-ticker.C:
-			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.config.writeWait)); err != nil {
+			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.config.WriteWait)); err != nil {
 				c.s.log.Debug("closing the connection",
 					zap.String("reason", "failed to set the write deadline"),
 					zap.Error(err),

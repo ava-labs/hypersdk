@@ -19,33 +19,33 @@ import (
 
 type ServerConfig struct {
 	// Size of the ws read buffer
-	readBufferSize int
+	ReadBufferSize int
 	// Size of the ws write buffer
-	writeBufferSize int
+	WriteBufferSize int
 	// Maximum number of pending messages to send to a peer.
-	maxPendingMessages int
+	MaxPendingMessages int
 	// Maximum message size in bytes allowed from peer.
-	maxMessageSize int64
+	MaxMessageSize int64
 	// Time allowed to write a message to the peer.
-	writeWait time.Duration
+	WriteWait time.Duration
 	// Time allowed to read the next pong message from the peer.
-	pongWait time.Duration
+	PongWait time.Duration
 	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod time.Duration
+	PingPeriod time.Duration
 	// ReadHeaderTimeout is the maximum duration for reading a request.
-	readHeaderTimeout time.Duration
+	ReadHeaderTimeout time.Duration
 }
 
-func NewDefaultServerConfig() ServerConfig {
-	return ServerConfig{
-		readBufferSize:     readBufferSize,
-		writeBufferSize:    writeBufferSize,
-		maxPendingMessages: maxPendingMessages,
-		maxMessageSize:     maxMessageSize,
-		writeWait:          writeWait,
-		pongWait:           pongWait,
-		pingPeriod:         (9 * pongWait) / 10,
-		readHeaderTimeout:  readHeaderTimeout,
+func NewDefaultServerConfig() *ServerConfig {
+	return &ServerConfig{
+		ReadBufferSize:     ReadBufferSize,
+		WriteBufferSize:    WriteBufferSize,
+		MaxPendingMessages: MaxPendingMessages,
+		MaxMessageSize:     MaxMessageSize,
+		WriteWait:          WriteWait,
+		PongWait:           PongWait,
+		PingPeriod:         (9 * PongWait) / 10,
+		ReadHeaderTimeout:  ReadHeaderTimeout,
 	}
 }
 
@@ -68,9 +68,9 @@ type Server struct {
 	// conns a set of all our connections
 	conns *Connections
 	// Callback function when server receives a message
-	rCallback Callback
+	callback Callback
 	// Config variables
-	config ServerConfig
+	config *ServerConfig
 }
 
 // New returns a new Server instance. The callback function [f] is called
@@ -79,16 +79,16 @@ func New(
 	addr string,
 	r Callback,
 	log logging.Logger,
-	config ServerConfig,
+	config *ServerConfig,
 ) *Server {
-	upgrader.ReadBufferSize = config.readBufferSize
-	upgrader.WriteBufferSize = config.writeBufferSize
+	upgrader.ReadBufferSize = config.ReadBufferSize
+	upgrader.WriteBufferSize = config.WriteBufferSize
 	return &Server{
-		log:       log,
-		addr:      addr,
-		rCallback: r,
-		conns:     NewConnections(),
-		config:    config,
+		log:      log,
+		addr:     addr,
+		callback: r,
+		conns:    NewConnections(),
+		config:   config,
 	}
 }
 
@@ -107,7 +107,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.addConnection(&Connection{
 		s:      s,
 		conn:   wsConn,
-		send:   make(chan []byte, s.config.maxPendingMessages),
+		send:   make(chan []byte, s.config.MaxPendingMessages),
 		active: atomic.Bool{},
 	})
 }
@@ -152,7 +152,7 @@ func (s *Server) Start() error {
 	s.s = &http.Server{
 		Addr:              s.addr,
 		Handler:           s,
-		ReadHeaderTimeout: s.config.readHeaderTimeout,
+		ReadHeaderTimeout: s.config.ReadHeaderTimeout,
 	}
 	s.lock.Unlock()
 	err := s.s.ListenAndServe()

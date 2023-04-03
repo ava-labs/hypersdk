@@ -10,12 +10,12 @@ import (
 )
 
 const (
-	readBufferSize     = units.KiB
-	writeBufferSize    = units.KiB
-	writeWait          = 10 * time.Second
-	pongWait           = 60 * time.Second
-	pingPeriod         = (pongWait * 9) / 10
-	maxMessageSize     = 10 * units.KiB // bytes
-	maxPendingMessages = 1024
-	readHeaderTimeout  = 5 * time.Second
+	ReadBufferSize     = units.KiB
+	WriteBufferSize    = units.KiB
+	WriteWait          = 10 * time.Second
+	PongWait           = 60 * time.Second
+	PingPeriod         = (PongWait * 9) / 10
+	MaxMessageSize     = 10 * units.KiB // bytes
+	MaxPendingMessages = 1024
+	ReadHeaderTimeout  = 5 * time.Second
 )

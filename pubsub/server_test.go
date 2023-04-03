@@ -5,7 +5,6 @@ package pubsub
 
 import (
 	"context"
-	"flag"
 	"net"
 	"net/http"
 	"net/url"
@@ -18,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var dummyAddr = flag.String("addr", "localhost:8080", "http service address")
+const dummyAddr = "localhost:8080"
 
 var (
 	callbackEmptyResponse = "EMPTY_ID"
@@ -52,13 +51,11 @@ func TestServerPublish(t *testing.T) {
 	// Create a new logger for the test
 	logger := logging.NoLog{}
 	// Create a new pubsub server
-	server := New(*dummyAddr, nil, logger, NewDefaultServerConfig())
+	server := New(dummyAddr, nil, logger, NewDefaultServerConfig())
 	// Channels for ensuring if connections/server are closed
 	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
 	dummyMsg := "dummy_msg"
-	// Connect the server to an http.Server ??
-	flag.Parse()
 	// Go routine that listens on dummyAddress for connections
 	go func() {
 		defer close(serverDone)
@@ -66,7 +63,7 @@ func TestServerPublish(t *testing.T) {
 		require.ErrorIs(err, http.ErrServerClosed, "Incorrect error closing server.")
 	}()
 	// Connect to pubsub server
-	u := url.URL{Scheme: "ws", Host: *dummyAddr}
+	u := url.URL{Scheme: "ws", Host: dummyAddr}
 	// Wait for server to start accepting requests
 	<-time.After(10 * time.Millisecond)
 	webCon, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -121,13 +118,11 @@ func TestServerRead(t *testing.T) {
 		val: 10,
 	}
 	// Create a new pubsub server
-	server := New(*dummyAddr, counter.dummyProcessTXCallback,
+	server := New(dummyAddr, counter.dummyProcessTXCallback,
 		logger, NewDefaultServerConfig())
 	// Channels for ensuring if connections/server are closed
 	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
-	// Connect the server to an http.Server ??
-	flag.Parse()
 	// Go routine that listens on dummyAddress for connections
 	go func() {
 		defer close(serverDone)
@@ -135,7 +130,7 @@ func TestServerRead(t *testing.T) {
 		require.ErrorIs(err, http.ErrServerClosed, "Incorrect error closing server.")
 	}()
 	// Connect to pubsub server
-	u := url.URL{Scheme: "ws", Host: *dummyAddr}
+	u := url.URL{Scheme: "ws", Host: dummyAddr}
 	// Wait for server to start accepting requests
 	<-time.After(10 * time.Millisecond)
 	webCon, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -192,15 +187,13 @@ func TestServerPublishSpecific(t *testing.T) {
 		val: 10,
 	}
 	// Create a new pubsub server
-	server := New(*dummyAddr, counter.dummyProcessTXCallback,
+	server := New(dummyAddr, counter.dummyProcessTXCallback,
 		logger, NewDefaultServerConfig())
 
 	// Channels for ensuring if connections/server are closed
 	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
 	dummyMsg := "dummy_msg"
-	// Connect the server to an http.Server ??
-	flag.Parse()
 	// Go routine that listens on dummyAddress for connections
 	go func() {
 		defer close(serverDone)
@@ -208,7 +201,7 @@ func TestServerPublishSpecific(t *testing.T) {
 		require.ErrorIs(err, http.ErrServerClosed, "Incorrect error closing server.")
 	}()
 	// Connect to pubsub server
-	u := url.URL{Scheme: "ws", Host: *dummyAddr}
+	u := url.URL{Scheme: "ws", Host: dummyAddr}
 	// Wait for server to start accepting requests
 	<-time.After(10 * time.Millisecond)
 	webCon1, resp1, err := websocket.DefaultDialer.Dial(u.String(), nil)
