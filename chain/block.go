@@ -98,6 +98,7 @@ type StatelessBlock struct {
 	txsSet set.Set[ids.ID]
 
 	warpMessages map[ids.ID]*warpJob
+	containsWarp bool // this allows us to avoid allocating a map when we build
 	bctx         *block.Context
 	vdrState     validators.State
 
@@ -187,6 +188,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 				verifiedChan: make(chan bool, 1),
 				warpNum:      len(b.warpMessages),
 			}
+			b.containsWarp = true
 		}
 	}
 	b.sigJob.Done(func() { sspan.End() })
@@ -262,6 +264,9 @@ func (b *StatelessBlock) initializeBuilt(ctx context.Context, state merkledb.Tri
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
 		b.txsSet.Add(tx.ID())
+		if tx.WarpMessage != nil {
+			b.containsWarp = true
+		}
 	}
 	return nil
 }
@@ -271,7 +276,7 @@ func (b *StatelessBlock) ID() ids.ID { return b.id }
 
 // implements "block.WithVerifyContext"
 func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
-	return len(b.warpMessages) > 0, nil
+	return b.containsWarp, nil
 }
 
 // implements "block.WithVerifyContext"
@@ -314,13 +319,18 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 }
 
 func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
-	// If the state of the accepted tip has been fully fetched, it is safe to
-	// verify any block.
-	//
-	// If we built the block, the state will already be populated and we don't
-	// need to compute it (we assume that we built a correct block and it isn't
-	// necessary to re-verify anything).
-	if stateReady && !b.Processed() {
+	log := b.vm.Logger()
+	switch {
+	case !stateReady:
+		// If the state of the accepted tip has not been fully fetched, it is not safe to
+		// verify any block.
+		log.Info("skipping verification, state not ready", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()))
+	case b.Processed():
+		// If we built the block, the state will already be populated and we don't
+		// need to compute it (we assume that we built a correct block and it isn't
+		// necessary to re-verify anything).
+		log.Info("skipping verification, already processed", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()))
+	default:
 		// Parent may not be processed when we verify this block so [verify] may
 		// recursively compute missing state.
 		state, err := b.innerVerify(ctx)
@@ -458,7 +468,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Start validating warp messages, if they exist
 	var invalidWarpResult bool
-	if len(b.warpMessages) > 0 {
+	if b.containsWarp {
 		if b.bctx == nil {
 			log.Error(
 				"missing verify block context",
