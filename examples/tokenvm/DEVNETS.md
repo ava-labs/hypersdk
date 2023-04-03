@@ -125,6 +125,7 @@ and Bandwidth rate limiting. You can do this by adding the following lines to
 `avalanchego_config` in the spec file:
 ```yaml
 avalanchego_config:
+    ...
     proposervm-use-current-height: true
     throttler-inbound-validator-alloc-size: 107374182
     throttler-inbound-node-max-processing-msgs: 100000
@@ -208,6 +209,7 @@ do so (similar to [scripts/run.sh](./scripts/run.sh)):
 
 ```bash
 rm -rf /tmp/avalanche-ops
+mkdir /tmp/avalanche-ops
 
 cat <<EOF > /tmp/avalanche-ops/tokenvm-subnet-config.json
 {
