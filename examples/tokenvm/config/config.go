@@ -3,14 +3,18 @@
 package config
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"math/big"
+	"strings"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/hypersdk/config"
+	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -35,7 +39,7 @@ type Config struct {
 	TraceSampleRate float64 `json:"traceSampleRate"`
 
 	// Profiling
-	ContinuousProfilerDir string `json:"continuousProfilerDir"`
+	ContinuousProfilerDir string `json:"continuousProfilerDir"` // "*" is replaced with rand int
 
 	// Streaming Ports
 	DecisionsPort        uint16 `json:"decisionsPort"`
@@ -123,6 +127,13 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	if len(c.ContinuousProfilerDir) == 0 {
 		return &profiler.Config{Enabled: false}
 	}
+	// Replace all instances of "*" with a random integer. This is useful when
+	// running multiple instances of tokenvm on the same machine.
+	v, err := rand.Int(rand.Reader, new(big.Int).SetUint64(hconsts.MaxUint64))
+	if err != nil {
+		panic(err)
+	}
+	c.ContinuousProfilerDir = strings.ReplaceAll(c.ContinuousProfilerDir, "*", v.String())
 	return &profiler.Config{
 		Enabled:     true,
 		Dir:         c.ContinuousProfilerDir,

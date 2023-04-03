@@ -89,10 +89,16 @@ func BuildBlock(
 
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
+
+		start    = time.Now()
+		lockWait time.Duration
 	)
 	mempoolErr := mempool.Build(
 		ctx,
 		func(fctx context.Context, next *Transaction) (cont bool, restore bool, removeAcct bool, err error) {
+			if txsAttempted == 0 {
+				lockWait = time.Since(start)
+			}
 			txsAttempted++
 
 			// Ensure we can process if transaction includes a warp message
@@ -273,6 +279,7 @@ func BuildBlock(
 		zap.Int("attempted", txsAttempted),
 		zap.Int("added", len(b.Txs)),
 		zap.Int("mempool size", b.vm.Mempool().Len(ctx)),
+		zap.Duration("mempool lock wait", lockWait),
 	)
 	return b, nil
 }

@@ -9,8 +9,11 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 )
+
+const maxPrealloc = 4_096
 
 type Mempool[T Item] struct {
 	tracer trace.Tracer
@@ -46,11 +49,11 @@ func New[T Item](
 		maxPayerSize: maxPayerSize,
 
 		pm: NewSortedMempool(
-			maxSize, /* pre-allocate total size */
+			math.Min(maxSize, maxPrealloc),
 			func(item T) uint64 { return item.UnitPrice() },
 		),
 		tm: NewSortedMempool(
-			maxSize, /* pre-allocate total size */
+			math.Min(maxSize, maxPrealloc),
 			func(item T) uint64 { return uint64(item.Expiry()) },
 		),
 		owned:        map[string]set.Set[ids.ID]{},

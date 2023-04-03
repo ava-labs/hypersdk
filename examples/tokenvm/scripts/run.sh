@@ -119,6 +119,7 @@ cat <<EOF > /tmp/tokenvm.config
   "parallelism": 5,
   "streamingBacklogSize": 10000000,
   "trackedPairs":["*"],
+  "continuousProfilerDir":"/tmp/tokenvm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }

@@ -34,7 +34,6 @@ func (c *Config) GetStateSyncParallelism() int           { return 4 }
 func (c *Config) GetStateSyncMinBlocks() uint64          { return 256 }
 func (c *Config) GetStateSyncServerDelay() time.Duration { return 0 } // used for testing
 func (c *Config) GetBlockLRUSize() int                   { return 128 }
-
 func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	return &profiler.Config{Enabled: false}
 }
