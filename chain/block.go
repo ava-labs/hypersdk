@@ -316,7 +316,11 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 	// If the state of the accepted tip has been fully fetched, it is safe to
 	// verify any block.
-	if stateReady {
+	//
+	// If we built the block, the state will already be populated and we don't
+	// need to compute it (we assume that we built a correct block and it isn't
+	// necessary to re-verify anything).
+	if stateReady && !b.Processed() {
 		// Parent may not be processed when we verify this block so [verify] may
 		// recursively compute missing state.
 		state, err := b.innerVerify(ctx)
@@ -328,7 +332,7 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 
 	// At any point after this, we may attempt to verify the block. We should be
 	// sure we are prepared to do so.
-
+	//
 	// NOTE: mempool is modified by VM handler
 	b.vm.Verified(ctx, b)
 	return nil
@@ -389,13 +393,6 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 //  3. If the state of a block we are accepting is missing (finishing dynamic
 //     state sync)
 func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, error) {
-	// If we built the block, the state will already be populated and we don't
-	// need to compute it (we assume that we built a correct block and it isn't
-	// necessary to re-verify anything).
-	if b.state != nil {
-		return b.state, nil
-	}
-
 	var (
 		log = b.vm.Logger()
 		r   = b.vm.Rules(b.Tmstmp)
