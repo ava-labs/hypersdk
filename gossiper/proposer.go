@@ -30,25 +30,28 @@ type Proposer struct {
 
 	// bounded by validator count (may be slightly out of date as composition changes)
 	gossipedTxs map[ids.NodeID]*cache.LRU[ids.ID, struct{}]
+	receivedTxs *cache.LRU[ids.ID, struct{}]
 }
 
 type ProposerConfig struct {
-	GossipProposerDiff  int
-	GossipProposerDepth int
-	GossipInterval      time.Duration
-	GossipPeerCacheSize int
-	GossipMinLife       int64 // seconds
-	BuildProposerDiff   int
+	GossipProposerDiff      int
+	GossipProposerDepth     int
+	GossipInterval          time.Duration
+	GossipPeerCacheSize     int
+	GossipReceivedCacheSize int
+	GossipMinLife           int64 // seconds
+	BuildProposerDiff       int
 }
 
 func DefaultProposerConfig() *ProposerConfig {
 	return &ProposerConfig{
-		GossipProposerDiff:  2,
-		GossipProposerDepth: 3,
-		GossipInterval:      1 * time.Second,
-		GossipPeerCacheSize: 10_240,
-		GossipMinLife:       5,
-		BuildProposerDiff:   2,
+		GossipProposerDiff:      2,
+		GossipProposerDepth:     3,
+		GossipInterval:          1 * time.Second,
+		GossipPeerCacheSize:     10_240,
+		GossipReceivedCacheSize: 65_536,
+		GossipMinLife:           5,
+		BuildProposerDiff:       2,
 	}
 }
 
@@ -60,6 +63,7 @@ func NewProposer(vm VM, cfg *ProposerConfig) *Proposer {
 		doneGossip: make(chan struct{}),
 
 		gossipedTxs: map[ids.NodeID]*cache.LRU[ids.ID, struct{}]{},
+		receivedTxs: &cache.LRU[ids.ID, struct{}]{Size: cfg.GossipReceivedCacheSize},
 	}
 }
 
@@ -186,6 +190,16 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 				return true, true, false, nil
 			}
 
+			// Don't gossip txs we received from other nodes (original gossiper will
+			// gossip again if the transaction is still important to them, so our
+			// gossip will just be useless bytes).
+			//
+			// We still keep these transactions in our mempool as they may still be
+			// the highest-paying transaction to execute at a given time.
+			if _, has := g.receivedTxs.Get(next.ID()); has {
+				return true, true, false, nil
+			}
+
 			// PreExecute does not make any changes to state
 			if err := next.PreExecute(ctx, ectx, r, state, now); err != nil {
 				// Do not gossip invalid txs (may become invalid during normal block
@@ -236,7 +250,7 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	}
 
 	// Mark incoming gossip as held by [nodeID], if it is a validator
-	ok, err := g.vm.IsValidator(ctx, nodeID)
+	isValidator, err := g.vm.IsValidator(ctx, nodeID)
 	if err != nil {
 		g.vm.Logger().Warn(
 			"unable to determine if nodeID is validator",
@@ -244,18 +258,25 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 			zap.Error(err),
 		)
 	}
-	if ok { // will never happen if err
-		c, ok := g.gossipedTxs[nodeID]
+	var c *cache.LRU[ids.ID, struct{}]
+	if isValidator {
+		var ok bool
+		c, ok = g.gossipedTxs[nodeID]
 		if !ok {
 			g.gossipedTxs[nodeID] = &cache.LRU[ids.ID, struct{}]{Size: g.cfg.GossipPeerCacheSize}
 			c = g.gossipedTxs[nodeID]
 		}
-		for _, tx := range txs {
-			c.Put(tx.ID(), struct{}{})
-		}
 	}
 
-	// submit incoming gossip
+	// Add incoming transactions to our caches to prevent useless gossip
+	for _, tx := range txs {
+		if c != nil {
+			c.Put(tx.ID(), struct{}{})
+		}
+		g.receivedTxs.Put(tx.ID(), struct{}{})
+	}
+
+	// Submit incoming gossip to mempool
 	start := time.Now()
 	for _, err := range g.vm.Submit(ctx, true, txs) {
 		if err == nil || errors.Is(err, chain.ErrDuplicateTx) {
