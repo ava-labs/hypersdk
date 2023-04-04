@@ -88,14 +88,23 @@ Now we can spin up a new network of 6 nodes with some defaults:
 --ip-mode=elastic \
 --metrics-fetch-interval-seconds 60 \
 --network-name custom \
---keys-to-generate 5 \
---avalanchego-profile-continuous-enabled \
---avalanchego-profile-continuous-freq 1m \
---avalanchego-profile-continuous-max-files 10
+--keys-to-generate 5
 ```
 
 The `default-spec` (and `apply`) command only provisions nodes, not Custom VMs.
 The Subnet and Custom VM installation are done via `install-subnet-chain` sub-commands that follow.
+
+#### Profiling `avalanchego`
+If you'd like to profile `avalanchego`'s CPU and RAM, provide the following
+flags to the command above:
+
+```bash
+avalancheup-aws default-spec \
+...
+--avalanchego-profile-continuous-enabled \
+--avalanchego-profile-continuous-freq 1m \
+--avalanchego-profile-continuous-max-files 10
+```
 
 #### Using Custom `avalanchego` Binaries
 The default command above will download the `avalanchego` public release binaries from GitHub.
@@ -142,8 +151,11 @@ avalanchego_config:
     throttler-inbound-disk-validator-alloc: 10737418240000
     throttler-outbound-validator-alloc-size: 107374182
     snow-mixed-query-num-push-vdr-uint: 10
+    consensus-on-accept-gossip-validator-size: 0
+    consensus-on-accept-gossip-non-validator-size: 0
     consensus-on-accept-gossip-peer-size: 5
     consensus-accepted-frontier-gossip-peer-size: 5
+    network-compression-enabled: false
 ```
 
 #### Supporting All Metrics
@@ -243,7 +255,6 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "trackedPairs":["*"],
   "logLevel": "info",
   "preferredBlocksPerSecond": 3,
-  "continuousProfilerDir": "/var/log/tokenvm-profile",
   "decisionsPort": 9652,
   "blocksPort": 9653
 }
@@ -255,6 +266,17 @@ cat /tmp/avalanche-ops/tokenvm-chain-config.json
 nodes otherwise the `token-cli` will not work properly. This requirement will
 be removed when the [HyperSDK migrates to using proper
 WebSockets](https://github.com/ava-labs/hypersdk/issues/64).
+
+#### Profiling `tokenvm`
+If you'd like to profile `tokenvm`'s CPU and RAM, add the following line to the
+`tokenvm-chain-config.json` file above:
+
+```json
+{
+  ...
+  "continuousProfilerDir": "/var/log/tokenvm-profile"
+}
+```
 
 ### Step 8: Install Chains
 You can run the following commands to spin up 2 `tokenvm` Devnets. Make sure to
@@ -348,16 +370,16 @@ Here are some useful queries (on an example chainID `3rihqpXh6ZJqxL2dsrVysKkEKro
 * `avalanche_network_inbound_conn_throttler_rate_limited`
 
 To estimate how many `ms/s` the consensus engine and `tokenvm` are spending busy, use the
-following query (on an example chainID `k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7`):
+following query (on an example chainID `2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X`):
 ```
-increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_chits_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_notify_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_get_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_push_query_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_put_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_pull_query_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_query_failed_sum[30s])/1000000/30
+increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_chits_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_notify_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_get_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_push_query_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_put_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_pull_query_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_query_failed_sum[30s])/1000000/30
 ```
 
 To isolate just how many `ms/s` the consensus engine is spending busy (removing
 "build", "verify", and "accept" time spent in `tokenvm`), use the following
 command:
 ```
-increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_chits_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_notify_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_get_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_push_query_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_put_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_pull_query_sum[30s])/1000000/30 + increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_handler_query_failed_sum[30s])/1000000/30 - increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_vm_metervm_build_block_sum[30s])/1000000/30 - increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_vm_metervm_verify_sum[30s])/1000000/30 - increase(avalanche_k3i5Cxk7UyLWWaEZKC1XSPJbQHSdSMJeZP2awecWxwyuqFDk7_vm_metervm_accept_sum[30s])/1000000/30
+increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_chits_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_notify_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_get_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_push_query_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_put_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_pull_query_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_query_failed_sum[30s])/1000000/30 - increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_vm_metervm_build_block_sum[30s])/1000000/30 - increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_vm_metervm_verify_sum[30s])/1000000/30 - increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_vm_metervm_accept_sum[30s])/1000000/30
 ```
 
 To remove previously ingested data, delete for a folder called `data` in the
