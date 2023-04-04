@@ -14,12 +14,20 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 )
 
+const avalancheGoMinCPU = 4
+
 var _ vm.Config = (*Config)(nil)
 
 type Config struct{}
 
-func (c *Config) GetLogLevel() logging.Level             { return logging.Info }
-func (c *Config) GetParallelism() int                    { return runtime.NumCPU() }
+func (c *Config) GetLogLevel() logging.Level { return logging.Info }
+func (c *Config) GetParallelism() int {
+	numCPUs := runtime.NumCPU()
+	if numCPUs > avalancheGoMinCPU {
+		return numCPUs - avalancheGoMinCPU
+	}
+	return 1
+}
 func (c *Config) GetMempoolSize() int                    { return 2_048 }
 func (c *Config) GetMempoolPayerSize() int               { return 32 }
 func (c *Config) GetMempoolExemptPayers() [][]byte       { return nil }
