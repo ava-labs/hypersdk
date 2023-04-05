@@ -35,6 +35,7 @@ import (
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/listeners"
 	"github.com/ava-labs/hypersdk/mempool"
+	"github.com/ava-labs/hypersdk/pubsub"
 	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
@@ -98,7 +99,7 @@ type VM struct {
 
 	// TODO: change name of both var and struct to something more
 	// informative/better sounding
-	decisionsServer rpcServer
+	decisionsServer *pubsub.Server
 	blocksServer    rpcServer
 
 	// State Sync client and AppRequest handlers
@@ -279,11 +280,17 @@ func (vm *VM) Initialize(
 	}
 
 	// Startup RPCs
-	vm.decisionsServer, err = newRPC(vm, decisions, vm.config.GetDecisionsPort())
-	if err != nil {
-		return err
-	}
-	go vm.decisionsServer.Run()
+	addr := fmt.Sprintf(":%d", vm.config.GetDecisionsPort())
+	vm.decisionsServer = pubsub.New(addr, vm.decisionServerCallback, vm.Logger(), pubsub.NewDefaultServerConfig())
+	go func() {
+		// Wait for VM to be ready before accepting connections. If we stop the VM
+		// before this happens, we should return.
+		if !vm.waitReady() {
+			return
+		}
+		vm.decisionsServer.Start()
+	}()
+
 	vm.blocksServer, err = newRPC(vm, blocks, vm.config.GetBlocksPort())
 	if err != nil {
 		return err
@@ -444,7 +451,8 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	<-vm.acceptorDone
 
 	// Shutdown RPCs
-	if err := vm.decisionsServer.Close(); err != nil {
+	// TODO: change to correct context
+	if err := vm.decisionsServer.Shutdown(context.TODO()); err != nil {
 		return err
 	}
 	if err := vm.blocksServer.Close(); err != nil {

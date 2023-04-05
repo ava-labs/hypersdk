@@ -17,13 +17,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/constants"
-	"github.com/ava-labs/avalanchego/utils/ips"
+	"github.com/gorilla/websocket"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/listeners"
-	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/pubsub"
 )
 
 type rpcMode int
@@ -33,190 +32,13 @@ const (
 	blocks    rpcMode = 1
 )
 
-func (vm *VM) DecisionsPort() uint16 {
-	return vm.decisionsServer.Port()
-}
-
 func (vm *VM) BlocksPort() uint16 {
 	return vm.blocksServer.Port()
 }
 
-type rpcServer interface {
-	Port() uint16 // randomly chosen if :0 provided
-	Run()
-	Close() error
-}
-
-func newRPC(vm *VM, mode rpcMode, port uint16) (rpcServer, error) {
-	listener, err := net.Listen(constants.NetworkType, fmt.Sprintf(":%d", port))
-	if err != nil {
-		return nil, err
-	}
-
-	addr := listener.Addr().String()
-	ipPort, err := ips.ToIPPort(addr)
-	if err != nil {
-		return nil, err
-	}
-
-	switch mode {
-	case decisions:
-		return &decisionRPCServer{
-			port:     ipPort.Port,
-			vm:       vm,
-			listener: listener,
-		}, nil
-	case blocks:
-		return &blockRPCServer{
-			port:     ipPort.Port,
-			vm:       vm,
-			listener: listener,
-		}, nil
-	}
-	return nil, fmt.Errorf("%d is not a valid rpc mode", mode)
-}
-
-type decisionRPCServer struct {
-	port     uint16
-	vm       *VM
-	listener net.Listener
-}
-
-type decisionRPCConnection struct {
-	conn net.Conn
-
-	vm       *VM
-	listener listeners.TxListener
-}
-
-func (r *decisionRPCServer) Port() uint16 {
-	return r.port
-}
-
-func (r *decisionRPCServer) Run() {
-	defer func() {
-		_ = r.listener.Close()
-	}()
-
-	// Wait for VM to be ready before accepting connections. If we stop the VM
-	// before this happens, we should return.
-	if !r.vm.waitReady() {
-		return
-	}
-
-	for {
-		nconn, err := r.listener.Accept()
-		if err != nil {
-			return
-		}
-
-		conn := &decisionRPCConnection{
-			conn:     nconn,
-			vm:       r.vm,
-			listener: make(chan *listeners.Transaction, r.vm.config.GetStreamingBacklogSize()),
-		}
-
-		go conn.handleReads()
-		go conn.handleWrites()
-	}
-}
-
-func (r *decisionRPCServer) Close() error {
-	return r.listener.Close()
-}
-
-func (c *decisionRPCConnection) handleReads() {
-	defer func() {
-		c.vm.metrics.decisionsRPCConnections.Dec()
-		_ = c.conn.Close()
-	}()
-
-	c.vm.metrics.decisionsRPCConnections.Inc()
-	for {
-		msgBytes, err := readNetMessage(c.conn, true)
-		if err != nil {
-			return
-		}
-
-		ctx, span := c.vm.tracer.Start(context.Background(), "decisionRPCServer.handleReads")
-		p := codec.NewReader(msgBytes, chain.NetworkSizeLimit) // will likely be much smaller
-		tx, err := chain.UnmarshalTx(p, c.vm.actionRegistry, c.vm.authRegistry)
-		if err != nil {
-			c.vm.snowCtx.Log.Error("failed to unmarshal tx",
-				zap.Int("len", len(msgBytes)),
-				zap.Error(err),
-			)
-			return
-		}
-
-		sigVerify := tx.AuthAsyncVerify()
-		if err := sigVerify(); err != nil {
-			c.vm.snowCtx.Log.Error("failed to verify sig",
-				zap.Error(err),
-			)
-			return
-		}
-		c.vm.listeners.AddTxListener(tx, c.listener)
-
-		// Submit will remove from [txWaiters] if it is not added
-		txID := tx.ID()
-		if err := c.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
-			c.vm.snowCtx.Log.Error("failed to submit tx",
-				zap.Stringer("txID", txID),
-				zap.Error(err),
-			)
-			continue
-		}
-		c.vm.snowCtx.Log.Debug("submitted tx", zap.Stringer("id", txID))
-		span.End()
-	}
-}
-
-func (c *decisionRPCConnection) handleWrites() {
-	defer func() {
-		_ = c.conn.Close()
-		// listeners will eventually be discarded when all txs are accepted or
-		// expire
-	}()
-
-	for {
-		select {
-		case tx := <-c.listener:
-			var buf net.Buffers = [][]byte{tx.TxID[:]}
-			if _, err := io.CopyN(c.conn, &buf, consts.IDLen); err != nil {
-				return
-			}
-			var errBytes []byte
-			if err := tx.Err; err != nil {
-				errBytes = utils.ErrBytes(err)
-			}
-			if err := writeNetMessage(c.conn, errBytes); err != nil {
-				c.vm.snowCtx.Log.Error("unable to send decision err", zap.Error(err))
-				return
-			}
-			var resultBytes []byte
-			if result := tx.Result; result != nil {
-				p := codec.NewWriter(consts.MaxInt)
-				result.Marshal(p)
-				if err := p.Err(); err != nil {
-					c.vm.snowCtx.Log.Error("unable to marshal result", zap.Error(err))
-					return
-				}
-				resultBytes = p.Bytes()
-			}
-			if err := writeNetMessage(c.conn, resultBytes); err != nil {
-				c.vm.snowCtx.Log.Error("unable to send result", zap.Error(err))
-				return
-			}
-		case <-c.vm.stop:
-			return
-		}
-	}
-}
-
 // If you don't keep up, you will data
 type DecisionRPCClient struct {
-	conn net.Conn
+	conn *websocket.Conn
 
 	wl sync.Mutex
 	ll sync.Mutex
@@ -224,7 +46,8 @@ type DecisionRPCClient struct {
 }
 
 func NewDecisionRPCClient(uri string) (*DecisionRPCClient, error) {
-	conn, err := net.Dial(constants.NetworkType, uri)
+	// nil for now until we want to pass in headers
+	conn, _, err := websocket.DefaultDialer.Dial(uri, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -235,41 +58,61 @@ func (d *DecisionRPCClient) IssueTx(tx *chain.Transaction) error {
 	d.wl.Lock()
 	defer d.wl.Unlock()
 
-	return writeNetMessage(d.conn, tx.Bytes())
+	return d.conn.WriteMessage(websocket.BinaryMessage, tx.Bytes())
 }
 
 func (d *DecisionRPCClient) Listen() (ids.ID, error, *chain.Result, error) {
 	d.ll.Lock()
 	defer d.ll.Unlock()
-
+	// the packer will be set up so that the first bytes are the tx.id
+	// the next byte is a bool indicating if there is an error
+	// if there is an error, the next int indicates the length of the error
+	// if there is an error, than the next bytes follow the error
+	// if there is no error, the next int indicates the length of the result
+	// if there is no error, the next bytes follow the result
+	_, msg, err := d.conn.ReadMessage()
+	if err != nil {
+		return ids.Empty, nil, nil, err
+	}
+	// TODO: not sure if this is needed.
+	if msg == nil {
+		return ids.Empty, nil, nil, errors.New("nil message")
+	}
+	p := codec.NewReader(msg, consts.MaxInt)
+	// read the txID from packer
 	var txID ids.ID
-	if _, err := io.ReadFull(d.conn, txID[:]); err != nil {
-		return ids.Empty, nil, nil, err
+	p.UnpackID(true, &txID)
+	// didn't unpack id correctly
+	if p.Err() != nil {
+		return ids.Empty, nil, nil, p.Err()
 	}
-	errBytes, err := readNetMessage(d.conn, false)
+	// if packer has error
+	if p.UnpackBool() {
+		// rest of the bytes are the error
+		len := len(p.Bytes()) - p.Offset()
+		var err_bytes []byte
+		p.UnpackBytes(len, true, &err_bytes)
+		if p.Err() != nil {
+			return ids.Empty, nil, nil, p.Err()
+		}
+		// convert err_bytes to error
+		return ids.Empty, nil, nil, errors.New(string(err_bytes))
+	}
+	// unpack the result
+	len := len(p.Bytes()) - p.Offset()
+	var result_bytes []byte
+	p.UnpackBytes(len, true, &result_bytes)
+	if p.Err() != nil {
+		return ids.Empty, nil, nil, p.Err()
+	}
+	result, err := chain.UnmarshalResult(p)
 	if err != nil {
 		return ids.Empty, nil, nil, err
 	}
-	var decisionsErr error
-	if len(errBytes) > 0 {
-		decisionsErr = errors.New(string(errBytes))
+	if !p.Empty() {
+		return ids.Empty, nil, nil, chain.ErrInvalidObject
 	}
-	resultBytes, err := readNetMessage(d.conn, false)
-	if err != nil {
-		return ids.Empty, nil, nil, err
-	}
-	var result *chain.Result
-	if len(resultBytes) > 0 {
-		p := codec.NewReader(resultBytes, consts.MaxInt)
-		result, err = chain.UnmarshalResult(p)
-		if err != nil {
-			return ids.Empty, nil, nil, err
-		}
-		if !p.Empty() {
-			return ids.Empty, nil, nil, chain.ErrInvalidObject
-		}
-	}
-	return txID, decisionsErr, result, nil
+	return txID, nil, result, nil
 }
 
 func (d *DecisionRPCClient) Close() error {
@@ -278,6 +121,48 @@ func (d *DecisionRPCClient) Close() error {
 		err = d.conn.Close()
 	})
 	return err
+}
+
+// decisionServerCallback is a callback function for the decision server.
+// The server submits the tx to the vm and adds the tx to the vms listener for
+// later retrieval.
+// TODO: update return value to maybe be more useful
+func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) []byte {
+	ctx, span := vm.tracer.Start(context.Background(), "decisionRPCServer callback")
+	defer span.End()
+	// Unmarshal TX
+	p := codec.NewReader(msgBytes, chain.NetworkSizeLimit) // will likely be much smaller
+	tx, err := chain.UnmarshalTx(p, vm.actionRegistry, vm.authRegistry)
+	if err != nil {
+		vm.snowCtx.Log.Error("failed to unmarshal tx",
+			zap.Int("len", len(msgBytes)),
+			zap.Error(err),
+		)
+		return nil
+	}
+	// Verify tx
+	sigVerify := tx.AuthAsyncVerify()
+	if err := sigVerify(); err != nil {
+		vm.snowCtx.Log.Error("failed to verify sig",
+			zap.Error(err),
+		)
+		return nil
+	}
+
+	// TODO: add tx assoicated with this connection
+	// vm.listeners.AddTxListener(tx, c)
+
+	// Submit will remove from [txWaiters] if it is not added
+	txID := tx.ID()
+	if err := vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
+		vm.snowCtx.Log.Error("failed to submit tx",
+			zap.Stringer("txID", txID),
+			zap.Error(err),
+		)
+		return nil
+	}
+	vm.snowCtx.Log.Debug("submitted tx", zap.Stringer("id", txID))
+	return nil
 }
 
 // blockRPCServer is used by all clients to stream accepted blocks.
@@ -462,3 +347,47 @@ func readNetMessage(conn io.Reader, limit bool) ([]byte, error) {
 	}
 	return rb, nil
 }
+
+// TODO: pack bytes in listener file
+
+// func (c *decisionRPCConnection) handleWrites() {
+// 	defer func() {
+// 		_ = c.conn.Close()
+// 		// listeners will eventually be discarded when all txs are accepted or
+// 		// expire
+// 	}()
+
+// 	for {
+// 		select {
+// 		case tx := <-c.listener:
+// 			var buf net.Buffers = [][]byte{tx.TxID[:]}
+// 			if _, err := io.CopyN(c.conn, &buf, consts.IDLen); err != nil {
+// 				return
+// 			}
+// 			var errBytes []byte
+// 			if err := tx.Err; err != nil {
+// 				errBytes = utils.ErrBytes(err)
+// 			}
+// 			if err := writeNetMessage(c.conn, errBytes); err != nil {
+// 				c.vm.snowCtx.Log.Error("unable to send decision err", zap.Error(err))
+// 				return
+// 			}
+// 			var resultBytes []byte
+// 			if result := tx.Result; result != nil {
+// 				p := codec.NewWriter(consts.MaxInt)
+// 				result.Marshal(p)
+// 				if err := p.Err(); err != nil {
+// 					c.vm.snowCtx.Log.Error("unable to marshal result", zap.Error(err))
+// 					return
+// 				}
+// 				resultBytes = p.Bytes()
+// 			}
+// 			if err := writeNetMessage(c.conn, resultBytes); err != nil {
+// 				c.vm.snowCtx.Log.Error("unable to send result", zap.Error(err))
+// 				return
+// 			}
+// 		case <-c.vm.stop:
+// 			return
+// 		}
+// 	}
+// }
