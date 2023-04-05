@@ -65,6 +65,9 @@ type VM interface {
 	StateReady() bool
 
 	// Record the duration of various operations to populate chain metrics
+	//
+	// If there was a long-lived [Chain] struct, we would store metrics for chain
+	// there.
 	RecordRootCalculated(t time.Duration) // only called in Verify
 	RecordWaitSignatures(t time.Duration) // only called in Verify
 }
