@@ -10,32 +10,32 @@ import (
 )
 
 type Metrics struct {
-	unitsVerified             prometheus.Counter
-	unitsAccepted             prometheus.Counter
-	txsSubmitted              prometheus.Counter // includes gossip
-	txsVerified               prometheus.Counter
-	txsAccepted               prometheus.Counter
-	decisionsRPCConnections   prometheus.Gauge
-	blocksRPCConnections      prometheus.Gauge
-	rootCalculationWait       metric.Averager
-	signatureVerificationWait metric.Averager
+	unitsVerified           prometheus.Counter
+	unitsAccepted           prometheus.Counter
+	txsSubmitted            prometheus.Counter // includes gossip
+	txsVerified             prometheus.Counter
+	txsAccepted             prometheus.Counter
+	decisionsRPCConnections prometheus.Gauge
+	blocksRPCConnections    prometheus.Gauge
+	rootCalculated          metric.Averager
+	waitSignatures          metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	r := prometheus.NewRegistry()
 
-	rootCalculations, err := metric.NewAverager(
+	rootCalculated, err := metric.NewAverager(
 		"chain",
-		"root_calculations",
-		"time spent on root calculations in verify",
+		"root_calculated",
+		"time spent calculating the state root in verify",
 		r,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
-	signaturesVerified, err := metric.NewAverager(
+	waitSignatures, err := metric.NewAverager(
 		"chain",
-		"signature_verification_wait",
+		"wait_signatures",
 		"time spent waiting for signature verification in verify",
 		r,
 	)
@@ -79,8 +79,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "blocks_rpc_connections",
 			Help:      "number of open blocks connections",
 		}),
-		rootCalculationWait:       rootCalculations,
-		signatureVerificationWait: signaturesVerified,
+		rootCalculated: rootCalculated,
+		waitSignatures: waitSignatures,
 	}
 	errs := wrappers.Errs{}
 	errs.Add(

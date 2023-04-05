@@ -611,7 +611,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	if err := b.sigJob.Wait(); err != nil {
 		return nil, err
 	}
-	b.vm.RecordSignaturesVerified(time.Since(start))
+	b.vm.RecordWaitSignatures(time.Since(start))
 	return state, nil
 }
 

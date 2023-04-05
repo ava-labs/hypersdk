@@ -64,9 +64,9 @@ type VM interface {
 	UpdateSyncTarget(*StatelessBlock) (bool, error)
 	StateReady() bool
 
-	// The following functions are used to record metrics about VM performance
-	RecordRootCalculated(t time.Duration)     // only called in Verify
-	RecordSignaturesVerified(t time.Duration) // only called in Verify
+	// Record the duration of various operations to populate chain metrics
+	RecordRootCalculated(t time.Duration) // only called in Verify
+	RecordWaitSignatures(t time.Duration) // only called in Verify
 }
 
 type Mempool interface {
