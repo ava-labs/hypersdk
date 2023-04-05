@@ -17,6 +17,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/constants"
+	"github.com/ava-labs/avalanchego/utils/ips"
 	"github.com/gorilla/websocket"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -391,3 +392,32 @@ func readNetMessage(conn io.Reader, limit bool) ([]byte, error) {
 // 		}
 // 	}
 // }
+
+type rpcServer interface {
+	Port() uint16 // randomly chosen if :0 provided
+	Run()
+	Close() error
+}
+
+func newRPC(vm *VM, mode rpcMode, port uint16) (rpcServer, error) {
+	listener, err := net.Listen(constants.NetworkType, fmt.Sprintf(":%d", port))
+	if err != nil {
+		return nil, err
+	}
+
+	addr := listener.Addr().String()
+	ipPort, err := ips.ToIPPort(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	switch mode {
+	case blocks:
+		return &blockRPCServer{
+			port:     ipPort.Port,
+			vm:       vm,
+			listener: listener,
+		}, nil
+	}
+	return nil, fmt.Errorf("%d is not a valid rpc mode", mode)
+}

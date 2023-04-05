@@ -121,7 +121,7 @@ type PortReply struct {
 }
 
 func (h *Handler) DecisionsPort(_ *http.Request, _ *struct{}, reply *PortReply) error {
-	reply.Port = h.vm.DecisionsPort()
+	reply.Port = h.vm.config.GetDecisionsPort()
 	return nil
 }
 
