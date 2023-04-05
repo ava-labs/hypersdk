@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
@@ -62,6 +63,10 @@ type VM interface {
 	// and false if the sync completed with the previous root.
 	UpdateSyncTarget(*StatelessBlock) (bool, error)
 	StateReady() bool
+
+	// The following functions are used to record metrics about VM performance
+	RecordRootCalculated(t time.Duration)     // only called in Verify
+	RecordSignaturesVerified(t time.Duration) // only called in Verify
 }
 
 type Mempool interface {

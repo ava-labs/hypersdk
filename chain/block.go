@@ -589,10 +589,12 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 
 	// Compute state root
+	start := time.Now()
 	computedRoot, err := state.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
+	b.vm.RecordRootCalculated(time.Since(start))
 	if b.StateRoot != computedRoot {
 		return nil, fmt.Errorf(
 			"%w: expected=%s found=%s",
@@ -605,9 +607,11 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	// Ensure signatures are verified
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitSignatures")
 	defer sspan.End()
+	start = time.Now()
 	if err := b.sigJob.Wait(); err != nil {
 		return nil, err
 	}
+	b.vm.RecordSignaturesVerified(time.Since(start))
 	return state, nil
 }
 

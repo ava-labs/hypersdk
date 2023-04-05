@@ -321,3 +321,11 @@ func (vm *VM) StateSyncEnabled(ctx context.Context) (bool, error) {
 func (vm *VM) StateManager() chain.StateManager {
 	return vm.c.StateManager()
 }
+
+func (vm *VM) RecordRootCalculated(t time.Duration) {
+	vm.metrics.rootCalculationWait.Observe(float64(t))
+}
+
+func (vm *VM) RecordSignaturesVerified(t time.Duration) {
+	vm.metrics.signatureVerificationWait.Observe(float64(t))
+}
