@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/heap"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 )
@@ -54,6 +54,84 @@ func UnmarshalNodeChunks(b []byte) (*NodeChunks, error) {
 	return &n, p.Err()
 }
 
+type bucket struct {
+	h     uint64   // Timestamp
+	items []ids.ID // Array of AvalancheGo ids
+}
+
+type ChunkMap struct {
+	mu sync.RWMutex
+
+	bh      *heap.Heap[*bucket, uint64]
+	counts  map[ids.ID]int
+	heights map[uint64]*bucket // Uses timestamp as keys to map to buckets of ids.
+}
+
+func NewChunkMap() *ChunkMap {
+	// If lower height is accepted and chunk in rejected block that shows later,
+	// must not remove yet.
+	return &ChunkMap{
+		counts:  map[ids.ID]int{},
+		heights: make(map[uint64]*bucket),
+		bh:      heap.New[*bucket, uint64](120, true),
+	}
+}
+
+func (c *ChunkMap) Add(height uint64, chunkID ids.ID) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Increase chunk count
+	times := c.counts[chunkID]
+	c.counts[chunkID] = times + 1
+
+	// Check if bucket with height already exists
+	if b, ok := c.heights[height]; ok {
+		b.items = append(b.items, chunkID)
+		return
+	}
+
+	// Create new bucket
+	b := &bucket{
+		h:     height,
+		items: []ids.ID{chunkID},
+	}
+	c.heights[height] = b
+	c.bh.Push(&heap.Entry[*bucket, uint64]{
+		ID:    chunkID,
+		Val:   height,
+		Item:  b,
+		Index: c.bh.Len(),
+	})
+}
+
+func (c *ChunkMap) SetMin(h uint64) []ids.ID {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	evicted := []ids.ID{}
+	for {
+		b := c.bh.First()
+		if b == nil || b.Val >= h {
+			break
+		}
+		c.bh.Pop()
+		for _, id := range b.Item.items {
+			count := c.counts[id]
+			count--
+			if count == 0 {
+				delete(c.counts, id)
+				evicted = append(evicted, id)
+			} else {
+				c.counts[id] = count
+			}
+		}
+		// Delete from times map
+		delete(c.heights, b.Val)
+	}
+	return evicted
+}
+
 type ChunkManager struct {
 	vm        *VM
 	appSender common.AppSender
@@ -69,7 +147,10 @@ type ChunkManager struct {
 	// during verification
 	// TODO: store []byte + height -> discard lazily if fetched chunks are below
 	// accepted
-	fetchedChunks *cache.LRU[ids.ID, []byte]
+	fetchedChunks map[ids.ID][]byte
+
+	// Duplicate chunks at different heights (only first added will be included)
+	chunks *ChunkMap
 
 	m  map[ids.NodeID]*NodeChunks
 	ml sync.RWMutex
@@ -87,7 +168,8 @@ func NewChunkManager(vm *VM) *ChunkManager {
 		vm:            vm,
 		outstanding:   set.NewSet[ids.ID](128),
 		requests:      map[uint32]ids.ID{},
-		fetchedChunks: &cache.LRU[ids.ID, []byte]{Size: 1024},
+		fetchedChunks: map[ids.ID][]byte{},
+		chunks:        NewChunkMap(),
 		m:             map[ids.NodeID]*NodeChunks{},
 		done:          make(chan struct{}),
 	}
