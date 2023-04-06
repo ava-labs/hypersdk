@@ -93,7 +93,7 @@ func NewChunkManager(vm *VM) *ChunkManager {
 	}
 }
 
-func (c *ChunkManager) Run(ctx context.Context, appSender common.AppSender) {
+func (c *ChunkManager) Run(appSender common.AppSender) {
 	c.appSender = appSender
 
 	c.vm.Logger().Info("starting chunk manager")
@@ -121,7 +121,7 @@ func (c *ChunkManager) Run(ctx context.Context, appSender common.AppSender) {
 				c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip", zap.Error(err))
 				continue
 			}
-			if err := c.appSender.SendAppGossip(ctx, b); err != nil {
+			if err := c.appSender.SendAppGossip(context.TODO(), b); err != nil {
 				c.vm.snowCtx.Log.Warn("unable to send chunk gossip", zap.Error(err))
 				continue
 			}
@@ -208,7 +208,7 @@ func (c *ChunkManager) RequestChunk(ctx context.Context, height uint64, chunkID 
 	return nil, nil
 }
 
-func (c *ChunkManager) AppRequest(
+func (c *ChunkManager) HandleRequest(
 	ctx context.Context,
 	nodeID ids.NodeID,
 	requestID uint32,

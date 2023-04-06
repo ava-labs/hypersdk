@@ -112,6 +112,8 @@ type VM struct {
 	// txID
 	warpManager *WarpManager
 
+	chunkManager *ChunkManager
+
 	// Network manager routes p2p messages to pre-registered handlers
 	networkManager *NetworkManager
 
@@ -157,12 +159,20 @@ func (vm *VM) Initialize(
 		return err
 	}
 	vm.metrics = metrics
+
 	vm.proposerMonitor = NewProposerMonitor(vm)
 	vm.networkManager = NewNetworkManager(vm, appSender)
+
 	warpHandler, warpSender := vm.networkManager.Register()
 	vm.warpManager = NewWarpManager(vm)
 	vm.networkManager.SetHandler(warpHandler, NewWarpHandler(vm))
 	go vm.warpManager.Run(warpSender)
+
+	chunkHandler, chunkSender := vm.networkManager.Register()
+	vm.chunkManager = NewChunkManager(vm)
+	vm.networkManager.SetHandler(chunkHandler, NewChunkHandler(vm))
+	go vm.chunkManager.Run(chunkSender)
+
 	vm.manager = manager
 
 	// Always initialize implementation first
@@ -468,6 +478,7 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	}
 
 	// Shutdown other async VM mechanisms
+	vm.chunkManager.Done()
 	vm.warpManager.Done()
 	vm.builder.Done()
 	vm.gossiper.Done()

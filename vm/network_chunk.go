@@ -5,30 +5,18 @@ package vm
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/version"
-	"go.uber.org/zap"
 )
 
 type ChunkHandler struct {
 	vm *VM
-
-	m  map[ids.NodeID]*NodeChunks
-	ml sync.Mutex
-
-	chunks     map[ids.ID][]byte
-	chunksLock sync.Mutex
 }
 
 func NewChunkHandler(vm *VM) *ChunkHandler {
-	return &ChunkHandler{
-		vm:     vm,
-		m:      map[ids.NodeID]*NodeChunks{},
-		chunks: map[ids.ID][]byte{},
-	}
+	return &ChunkHandler{vm}
 }
 
 func (*ChunkHandler) Connected(context.Context, ids.NodeID, *version.Application) error {
@@ -39,16 +27,8 @@ func (*ChunkHandler) Disconnected(context.Context, ids.NodeID) error {
 	return nil
 }
 
-func (c *ChunkHandler) AppGossip(_ context.Context, nodeID ids.NodeID, b []byte) error {
-	nc, err := UnmarshalNodeChunks(b)
-	if err != nil {
-		c.vm.Logger().Error("unable to parse chunk gossip", zap.Error(err))
-		return nil
-	}
-	c.ml.Lock()
-	c.m[nodeID] = nc
-	c.ml.Unlock()
-	return nil
+func (c *ChunkHandler) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+	return c.vm.chunkManager.HandleAppGossip(ctx, nodeID, msg)
 }
 
 func (c *ChunkHandler) AppRequest(
@@ -58,13 +38,7 @@ func (c *ChunkHandler) AppRequest(
 	_ time.Time,
 	request []byte,
 ) error {
-	chunkID, err := ids.ToID(request)
-	if err != nil {
-		c.vm.Logger().Error("unable to parse chunk request", zap.Error(err))
-		return nil
-	}
-	// TODO: if don't have it, send back empty bytes, so can ask someone else
-	return nil
+	return c.vm.chunkManager.HandleRequest(ctx, nodeID, requestID, request)
 }
 
 func (w *ChunkHandler) AppRequestFailed(
@@ -72,18 +46,16 @@ func (w *ChunkHandler) AppRequestFailed(
 	_ ids.NodeID,
 	requestID uint32,
 ) error {
-	return w.vm.warpManager.HandleRequestFailed(requestID)
+	return w.vm.chunkManager.HandleRequestFailed(requestID)
 }
 
 func (w *ChunkHandler) AppResponse(
 	_ context.Context,
-	_ ids.NodeID,
+	nodeID ids.NodeID,
 	requestID uint32,
 	response []byte,
 ) error {
-	// TODO: return chunk if have it
-	// Return min,max,unprocessed
-	return w.vm.warpManager.HandleResponse(requestID, response)
+	return w.vm.chunkManager.HandleResponse(nodeID, requestID, response)
 }
 
 func (*ChunkHandler) CrossChainAppRequest(context.Context, ids.ID, uint32, time.Time, []byte) error {
