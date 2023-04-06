@@ -46,6 +46,8 @@ type VM interface {
 	SetLastAccepted(*StatelessBlock) error
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
+	RequestChunk(context.Context, uint64, ids.ID) ([]byte, error)
+
 	State() (*merkledb.Database, error)
 	StateManager() StateManager
 	ValidatorState() validators.State
