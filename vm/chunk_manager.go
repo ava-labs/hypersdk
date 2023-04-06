@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -63,11 +64,13 @@ type ChunkManager struct {
 	requests    map[uint32]ids.ID
 
 	// TODO: need to determine when to write to disk/clear cache
-	chunks    map[ids.ID][]byte
-	chunkLock sync.RWMutex
+	// May not end up verifying a block we request on
+	// TODO: make sure to pin chunks to block in case they are cleared from LRU
+	// during verification
+	fetchedChunks *cache.LRU[ids.ID, []byte]
 
 	m  map[ids.NodeID]*NodeChunks
-	ml sync.Mutex
+	ml sync.RWMutex
 
 	min         uint64
 	max         uint64
@@ -80,13 +83,13 @@ type ChunkManager struct {
 
 func NewChunkManager(vm *VM) *ChunkManager {
 	return &ChunkManager{
-		vm:          vm,
-		outstanding: set.NewSet[ids.ID](128),
-		requests:    map[uint32]ids.ID{},
-		chunks:      map[ids.ID][]byte{},
-		m:           map[ids.NodeID]*NodeChunks{},
-		processing:  set.NewSet[ids.ID](128),
-		done:        make(chan struct{}),
+		vm:            vm,
+		outstanding:   set.NewSet[ids.ID](128),
+		requests:      map[uint32]ids.ID{},
+		fetchedChunks: &cache.LRU[ids.ID, []byte]{Size: 1024},
+		m:             map[ids.NodeID]*NodeChunks{},
+		processing:    set.NewSet[ids.ID](128),
+		done:          make(chan struct{}),
 	}
 }
 
@@ -132,18 +135,35 @@ func (c *ChunkManager) Run(ctx context.Context, appSender common.AppSender) {
 
 // Called when building a chunk
 func (c *ChunkManager) RegisterChunk(ctx context.Context, chunkID ids.ID, chunk []byte) {
-	c.chunkLock.Lock()
-	c.chunks[chunkID] = chunk
-	c.chunkLock.Unlock()
+	c.fetchedChunks.Put(chunkID, chunk)
+}
+
+// Called when pruning chunks from accepted blocks
+//
+// Chunks should be pruned AFTER this is called
+func (c *ChunkManager) SetMin(min uint64) {
+	c.sl.Lock()
+	c.min = min
+	c.lastChanged = time.Now()
+	c.sl.Unlock()
+}
+
+// Called when a block is accepted
+func (c *ChunkManager) Accept(height uint64, chunks []ids.ID) {
+	c.sl.Lock()
+	c.max = height
+	c.lastChanged = time.Now()
+	for _, chunk := range chunks {
+		// TODO: Ensure chunks are persisted before this is called
+		c.fetchedChunks.Evict(chunk)
+	}
+	c.sl.Unlock()
 }
 
 func (c *ChunkManager) RequestChunk(ctx context.Context, height uint64, chunkID ids.ID) ([]byte, error) {
-	c.chunkLock.RLock()
-	if chunk, ok := c.chunks[chunkID]; ok {
-		c.chunkLock.RUnlock()
+	if chunk, ok := c.fetchedChunks.Get(chunkID); ok {
 		return chunk, nil
 	}
-	c.chunkLock.RUnlock()
 
 	// Check if outstanding request
 	c.l.Lock()
@@ -154,7 +174,7 @@ func (c *ChunkManager) RequestChunk(ctx context.Context, height uint64, chunkID 
 
 	// Determine who to send request to
 	possibleRecipients := []ids.NodeID{}
-	c.ml.Lock()
+	c.ml.RLock()
 	for nodeID, chunk := range c.m {
 		if height >= chunk.Min && height <= chunk.Max {
 			possibleRecipients = append(possibleRecipients, nodeID)
@@ -164,7 +184,7 @@ func (c *ChunkManager) RequestChunk(ctx context.Context, height uint64, chunkID 
 			possibleRecipients = append(possibleRecipients, nodeID)
 		}
 	}
-	c.ml.Unlock()
+	c.ml.RUnlock()
 	if len(possibleRecipients) == 0 {
 		c.l.Unlock()
 		c.vm.snowCtx.Log.Warn("chunk missing", zap.Stringer("chunkID", chunkID))
@@ -199,12 +219,12 @@ func (c *ChunkManager) AppRequest(
 		c.vm.snowCtx.Log.Warn("unable to parse chunk request", zap.Error(err))
 		return nil
 	}
-	c.chunkLock.RLock()
-	if chunk, ok := c.chunks[chunkID]; ok {
-		c.chunkLock.RUnlock()
+	if chunk, ok := c.fetchedChunks.Get(chunkID); ok {
 		return c.appSender.SendAppResponse(ctx, nodeID, requestID, chunk)
 	}
-	c.chunkLock.RUnlock()
+	// TODO: check storage
+	// TODO: check pinned chunks in verified blocks (persist here instead of on
+	// blocks)
 	return c.appSender.SendAppResponse(ctx, nodeID, requestID, nil)
 }
 
@@ -228,9 +248,7 @@ func (c *ChunkManager) HandleResponse(nodeID ids.NodeID, requestID uint32, msg [
 		c.vm.snowCtx.Log.Warn("received incorrect chunk", zap.Stringer("nodeID", nodeID))
 		return nil
 	}
-	c.chunkLock.Lock()
-	c.chunks[chunkID] = msg
-	c.chunkLock.Unlock()
+	c.fetchedChunks.Put(chunkID, msg)
 	return nil
 }
 

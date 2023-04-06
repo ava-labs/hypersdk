@@ -157,6 +157,8 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	defer span.End()
 
 	// Setup signature verification job
+	//
+	// We may never verify the block for these transactions.
 	job, err := b.vm.Workers().NewJob(len(b.txs))
 	if err != nil {
 		return err
