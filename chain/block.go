@@ -6,6 +6,7 @@ package chain
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"time"
 
@@ -91,6 +92,8 @@ func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBloc
 // without mocking VM or parent block
 type StatelessBlock struct {
 	*StatefulBlock `json:"block"`
+
+	chunkFetchComplete bool
 
 	txs []*Transaction
 
@@ -285,6 +288,9 @@ func (b *StatelessBlock) ID() ids.ID { return b.id }
 
 // implements "block.WithVerifyContext"
 func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
+	if !b.chunkFetchComplete {
+		return false, errors.New("chunks outstanding")
+	}
 	// TODO: must know if warp before fetching txs
 	// -> can return error if all dependencies haven't been fulfilled yet
 	return b.containsWarp, nil
@@ -292,6 +298,7 @@ func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) 
 
 // implements "block.WithVerifyContext"
 func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Context) error {
+	// TODO: only fetch if state is ready (otherwise won't need chunks)
 	stateReady := b.vm.StateReady()
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.VerifyWithContext",
@@ -414,6 +421,10 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 //  3. If the state of a block we are accepting is missing (finishing dynamic
 //     state sync)
 func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, error) {
+	if !b.chunkFetchComplete {
+		return nil, errors.New("chunks outstanding")
+	}
+
 	// TODO: ensure we have "setup" block (fetched chunks/staged txs for
 	// signature verification)
 

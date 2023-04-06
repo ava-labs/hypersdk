@@ -164,6 +164,8 @@ func (c *ChunkManager) Accept(height uint64, chunks []ids.ID) {
 // Can then parse and add to the block async instead of doing during verify
 // Run signature verification job per blob (wait at the end)
 // Make X attempts and then abandon (can be retrigged by future verify job)
+// If state isn't ready, just put job in failure state...will fetch if needed
+// during verify
 func (c *ChunkManager) RequestChunk(ctx context.Context, height uint64, chunkID ids.ID) ([]byte, error) {
 	if chunk, ok := c.fetchedChunks.Get(chunkID); ok {
 		return chunk, nil
