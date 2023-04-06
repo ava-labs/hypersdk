@@ -34,6 +34,15 @@ var genGenesisCmd = &cobra.Command{
 		if minUnitPrice >= 0 {
 			g.MinUnitPrice = uint64(minUnitPrice)
 		}
+		if maxBlockUnits >= 0 {
+			g.MaxBlockUnits = uint64(maxBlockUnits)
+		}
+		if windowTargetUnits >= 0 {
+			g.WindowTargetUnits = uint64(windowTargetUnits)
+		}
+		if windowTargetBlocks >= 0 {
+			g.WindowTargetBlocks = uint64(windowTargetBlocks)
+		}
 
 		a, err := os.ReadFile(args[0])
 		if err != nil {

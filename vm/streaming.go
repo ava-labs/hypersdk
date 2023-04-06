@@ -142,7 +142,7 @@ func (c *decisionRPCConnection) handleReads() {
 		p := codec.NewReader(msgBytes, chain.NetworkSizeLimit) // will likely be much smaller
 		tx, err := chain.UnmarshalTx(p, c.vm.actionRegistry, c.vm.authRegistry)
 		if err != nil {
-			c.vm.snowCtx.Log.Error("failed to unmarshal tx",
+			c.vm.snowCtx.Log.Debug("failed to unmarshal tx",
 				zap.Int("len", len(msgBytes)),
 				zap.Error(err),
 			)
@@ -151,7 +151,7 @@ func (c *decisionRPCConnection) handleReads() {
 
 		sigVerify := tx.AuthAsyncVerify()
 		if err := sigVerify(); err != nil {
-			c.vm.snowCtx.Log.Error("failed to verify sig",
+			c.vm.snowCtx.Log.Debug("failed to verify sig",
 				zap.Error(err),
 			)
 			return
@@ -161,7 +161,7 @@ func (c *decisionRPCConnection) handleReads() {
 		// Submit will remove from [txWaiters] if it is not added
 		txID := tx.ID()
 		if err := c.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
-			c.vm.snowCtx.Log.Error("failed to submit tx",
+			c.vm.snowCtx.Log.Debug("failed to submit tx",
 				zap.Stringer("txID", txID),
 				zap.Error(err),
 			)

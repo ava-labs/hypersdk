@@ -54,9 +54,9 @@ type TState struct {
 	// there.
 	scope [][]byte // Stores a list of managed keys in the TState struct.
 
-	// We don't use pointers here because these objects very rarely live long.
-	// They will popped off the stack more easily this way.
-	ops []op
+	// Ops is a record of all operations performed on [TState]. Tracking
+	// operations allows for reverting state to a certain point-in-time.
+	ops []*op
 }
 
 // New returns a new instance of TState. Initializes the storage and changedKeys
@@ -68,7 +68,7 @@ func New(storageSize int, changedSize int) *TState {
 
 		fetchCache: map[string]*cacheItem{},
 
-		ops: []op{},
+		ops: make([]*op, 0, changedSize),
 	}
 }
 
@@ -129,7 +129,7 @@ func (ts *TState) SetStorage(_ context.Context, key []byte, value []byte) {
 
 	// Populate rollback (note, we only care if an item was placed in storage
 	// initially)
-	ts.ops = append(ts.ops, op{
+	ts.ops = append(ts.ops, &op{
 		action: read,
 		k:      key,
 	})
@@ -160,7 +160,7 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	k := string(key)
 
 	// Populate rollback
-	ts.ops = append(ts.ops, op{
+	ts.ops = append(ts.ops, &op{
 		action: insert,
 		k:      key,
 		v:      value,
@@ -180,7 +180,7 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 	k := string(key)
 
 	// Populate rollback
-	ts.ops = append(ts.ops, op{
+	ts.ops = append(ts.ops, &op{
 		action: remove,
 		k:      key,
 		pastV:  ts.storage[k],

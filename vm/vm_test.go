@@ -54,11 +54,10 @@ func TestBlockCache(t *testing.T) {
 
 	// Init metrics (called in [Accepted])
 	gatherer := ametrics.NewMultiGatherer()
-	m, err := newMetrics(gatherer)
-	if err != nil {
-		t.Fatal(err)
-	}
+	reg, m, err := newMetrics()
+	require.NoError(err)
 	vm.metrics = m
+	require.NoError(gatherer.Register("hyper_sdk", reg))
 	require.NoError(vm.snowCtx.Metrics.Register(gatherer))
 
 	// put the block into the cache "vm.blocks"

@@ -4,7 +4,7 @@
 package vm
 
 import (
-	ametrics "github.com/ava-labs/avalanchego/api/metrics"
+	"github.com/ava-labs/avalanchego/utils/metric"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -17,9 +17,32 @@ type Metrics struct {
 	txsAccepted             prometheus.Counter
 	decisionsRPCConnections prometheus.Gauge
 	blocksRPCConnections    prometheus.Gauge
+	rootCalculated          metric.Averager
+	waitSignatures          metric.Averager
 }
 
-func newMetrics(gatherer ametrics.MultiGatherer) (*Metrics, error) {
+func newMetrics() (*prometheus.Registry, *Metrics, error) {
+	r := prometheus.NewRegistry()
+
+	rootCalculated, err := metric.NewAverager(
+		"chain",
+		"root_calculated",
+		"time spent calculating the state root in verify",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	waitSignatures, err := metric.NewAverager(
+		"chain",
+		"wait_signatures",
+		"time spent waiting for signature verification in verify",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	m := &Metrics{
 		unitsVerified: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
@@ -56,8 +79,9 @@ func newMetrics(gatherer ametrics.MultiGatherer) (*Metrics, error) {
 			Name:      "blocks_rpc_connections",
 			Help:      "number of open blocks connections",
 		}),
+		rootCalculated: rootCalculated,
+		waitSignatures: waitSignatures,
 	}
-	r := prometheus.NewRegistry()
 	errs := wrappers.Errs{}
 	errs.Add(
 		r.Register(m.unitsVerified),
@@ -67,7 +91,6 @@ func newMetrics(gatherer ametrics.MultiGatherer) (*Metrics, error) {
 		r.Register(m.txsAccepted),
 		r.Register(m.decisionsRPCConnections),
 		r.Register(m.blocksRPCConnections),
-		gatherer.Register("hyper_sdk", r),
 	)
-	return m, errs.Err
+	return r, m, errs.Err
 }

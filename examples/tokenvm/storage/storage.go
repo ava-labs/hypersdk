@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -44,13 +45,22 @@ const (
 	assetPrefix        = 0x1
 	orderPrefix        = 0x2
 	loanPrefix         = 0x3
-	incomingWarpPrefix = 0x4
-	outgoingWarpPrefix = 0x5
+	heightPrefix       = 0x4
+	incomingWarpPrefix = 0x5
+	outgoingWarpPrefix = 0x6
 )
 
 var (
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
+	heightKey   = []byte{heightPrefix}
+
+	// TODO: extend to other types
+	balancePrefixPool = sync.Pool{
+		New: func() any {
+			return make([]byte, 1+crypto.PublicKeyLen+consts.IDLen)
+		},
+	}
 )
 
 // [txPrefix] + [txID]
@@ -106,7 +116,7 @@ func GetTransaction(
 
 // [accountPrefix] + [address] + [asset]
 func PrefixBalanceKey(pk crypto.PublicKey, asset ids.ID) (k []byte) {
-	k = make([]byte, 1+crypto.PublicKeyLen+consts.IDLen)
+	k = balancePrefixPool.Get().([]byte)
 	k[0] = balancePrefix
 	copy(k[1:], pk[:])
 	copy(k[1+crypto.PublicKeyLen:], asset[:])
@@ -120,8 +130,20 @@ func GetBalance(
 	pk crypto.PublicKey,
 	asset ids.ID,
 ) (uint64, error) {
+	dbKey, bal, err := getBalance(ctx, db, pk, asset)
+	balancePrefixPool.Put(dbKey)
+	return bal, err
+}
+
+func getBalance(
+	ctx context.Context,
+	db chain.Database,
+	pk crypto.PublicKey,
+	asset ids.ID,
+) ([]byte, uint64, error) {
 	k := PrefixBalanceKey(pk, asset)
-	return innerGetBalance(db.GetValue(ctx, k))
+	bal, err := innerGetBalance(db.GetValue(ctx, k))
+	return k, bal, err
 }
 
 // Used to serve RPC queries
@@ -131,8 +153,11 @@ func GetBalanceFromState(
 	pk crypto.PublicKey,
 	asset ids.ID,
 ) (uint64, error) {
-	values, errs := f(ctx, [][]byte{PrefixBalanceKey(pk, asset)})
-	return innerGetBalance(values[0], errs[0])
+	k := PrefixBalanceKey(pk, asset)
+	values, errs := f(ctx, [][]byte{k})
+	bal, err := innerGetBalance(values[0], errs[0])
+	balancePrefixPool.Put(k)
+	return bal, err
 }
 
 func innerGetBalance(
@@ -156,8 +181,16 @@ func SetBalance(
 	balance uint64,
 ) error {
 	k := PrefixBalanceKey(pk, asset)
-	b := binary.BigEndian.AppendUint64(nil, balance)
-	return db.Insert(ctx, k, b)
+	return setBalance(ctx, db, k, balance)
+}
+
+func setBalance(
+	ctx context.Context,
+	db chain.Database,
+	dbKey []byte,
+	balance uint64,
+) error {
+	return db.Insert(ctx, dbKey, binary.BigEndian.AppendUint64(nil, balance))
 }
 
 func DeleteBalance(
@@ -176,7 +209,7 @@ func AddBalance(
 	asset ids.ID,
 	amount uint64,
 ) error {
-	bal, err := GetBalance(ctx, db, pk, asset)
+	dbKey, bal, err := getBalance(ctx, db, pk, asset)
 	if err != nil {
 		return err
 	}
@@ -191,7 +224,7 @@ func AddBalance(
 			amount,
 		)
 	}
-	return SetBalance(ctx, db, pk, asset, nbal)
+	return setBalance(ctx, db, dbKey, nbal)
 }
 
 func SubBalance(
@@ -201,7 +234,7 @@ func SubBalance(
 	asset ids.ID,
 	amount uint64,
 ) error {
-	bal, err := GetBalance(ctx, db, pk, asset)
+	dbKey, bal, err := getBalance(ctx, db, pk, asset)
 	if err != nil {
 		return err
 	}
@@ -219,9 +252,9 @@ func SubBalance(
 	if nbal == 0 {
 		// If there is no balance left, we should delete the record instead of
 		// setting it to 0.
-		return db.Remove(ctx, PrefixBalanceKey(pk, asset))
+		return db.Remove(ctx, dbKey)
 	}
-	return SetBalance(ctx, db, pk, asset, nbal)
+	return setBalance(ctx, db, dbKey, nbal)
 }
 
 // [assetPrefix] + [address]
@@ -471,6 +504,10 @@ func SubLoan(
 		return db.Remove(ctx, PrefixLoanKey(asset, destination))
 	}
 	return SetLoan(ctx, db, asset, destination, nloan)
+}
+
+func HeightKey() (k []byte) {
+	return heightKey
 }
 
 func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {

@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
@@ -62,6 +63,13 @@ type VM interface {
 	// and false if the sync completed with the previous root.
 	UpdateSyncTarget(*StatelessBlock) (bool, error)
 	StateReady() bool
+
+	// Record the duration of various operations to populate chain metrics
+	//
+	// If there was a long-lived [Chain] struct, we would store metrics for chain
+	// there.
+	RecordRootCalculated(t time.Duration) // only called in Verify
+	RecordWaitSignatures(t time.Duration) // only called in Verify
 }
 
 type Mempool interface {
@@ -105,6 +113,7 @@ type Rules interface {
 // in a structured manner. If we did not use [StateManager], we may overwrite
 // state written by actions or auth.
 type StateManager interface {
+	HeightKey() []byte
 	IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) []byte
 	OutgoingWarpKey(txID ids.ID) []byte
 }

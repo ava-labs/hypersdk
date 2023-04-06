@@ -7,6 +7,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v2"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
@@ -126,6 +128,68 @@ var importANRChainCmd = &cobra.Command{
 	},
 }
 
+type AvalancheOpsConfig struct {
+	Resources struct {
+		CreatedNodes []struct {
+			HTTPEndpoint string `yaml:"httpEndpoint"`
+		} `yaml:"created_nodes"`
+	} `yaml:"resources"`
+}
+
+var importAvalancheOpsChainCmd = &cobra.Command{
+	Use: "import-ops [chainID] [path]",
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) != 2 {
+			return ErrInvalidArgs
+		}
+		_, err := ids.FromString(args[0])
+		return err
+	},
+	RunE: func(_ *cobra.Command, args []string) error {
+		// Delete previous items
+		if deleteOtherChains {
+			oldChains, err := DeleteChains()
+			if err != nil {
+				return err
+			}
+			if len(oldChains) > 0 {
+				utils.Outf("{{yellow}}deleted old chains:{{/}} %+v\n", oldChains)
+			}
+		}
+
+		// Load chainID
+		chainID, err := ids.FromString(args[0])
+		if err != nil {
+			return err
+		}
+
+		// Load yaml file
+		var opsConfig AvalancheOpsConfig
+		yamlFile, err := os.ReadFile(args[1])
+		if err != nil {
+			return err
+		}
+		err = yaml.Unmarshal(yamlFile, &opsConfig)
+		if err != nil {
+			return err
+		}
+
+		// Add chains
+		for _, node := range opsConfig.Resources.CreatedNodes {
+			uri := fmt.Sprintf("%s/ext/bc/%s", node.HTTPEndpoint, chainID)
+			if err := StoreChain(chainID, uri); err != nil {
+				return err
+			}
+			utils.Outf(
+				"{{yellow}}stored chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n",
+				chainID,
+				uri,
+			)
+		}
+		return StoreDefault(defaultChainKey, chainID[:])
+	},
+}
+
 var setChainCmd = &cobra.Command{
 	Use: "set",
 	RunE: func(*cobra.Command, []string) error {
@@ -179,7 +243,9 @@ var watchChainCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		scli, err := vm.NewBlockRPCClient(fmt.Sprintf("%s:%d", host, port))
+		uri := fmt.Sprintf("%s:%d", host, port)
+		utils.Outf("{{yellow}}uri:{{/}} %s\n", uri)
+		scli, err := vm.NewBlockRPCClient(uri)
 		if err != nil {
 			return err
 		}
