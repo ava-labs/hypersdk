@@ -162,7 +162,8 @@ func (c *ChunkManager) Accept(height uint64, chunks []ids.ID) {
 
 // TODO: register a request chunks job instead of going one-by-one
 // Can then parse and add to the block async instead of doing during verify
-// Run signature verification job per blob
+// Run signature verification job per blob (wait at the end)
+// Make X attempts and then abandon (can be retrigged by future verify job)
 func (c *ChunkManager) RequestChunk(ctx context.Context, height uint64, chunkID ids.ID) ([]byte, error) {
 	if chunk, ok := c.fetchedChunks.Get(chunkID); ok {
 		return chunk, nil
@@ -170,6 +171,8 @@ func (c *ChunkManager) RequestChunk(ctx context.Context, height uint64, chunkID 
 
 	// Check if outstanding request
 	c.l.Lock()
+	// TODO: must handle the case where multiple blobs are making requests for
+	// same chunkID (listen to chunks)
 	if c.outstanding.Contains(chunkID) {
 		c.l.Unlock()
 		return nil, nil
