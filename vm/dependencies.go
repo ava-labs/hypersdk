@@ -28,6 +28,7 @@ type Config interface {
 	GetMempoolSize() int
 	GetMempoolPayerSize() int
 	GetMempoolExemptPayers() [][]byte
+	GetMempoolVerifyBalances() bool
 	GetDecisionsPort() uint16
 	GetBlocksPort() uint16
 	GetStreamingBacklogSize() int

@@ -639,6 +639,28 @@ func (vm *VM) BuildBlockWithContext(
 	return vm.buildBlock(ctx, blockContext)
 }
 
+func (vm *VM) submitStateless(ctx context.Context, verifySig bool, txs []*chain.Transaction) (errs []error) {
+	validTxs := []*chain.Transaction{}
+	for _, tx := range txs {
+		txID := tx.ID()
+		// We already verify in streamer, let's avoid re-verification
+		if verifySig {
+			sigVerify := tx.AuthAsyncVerify()
+			if err := sigVerify(); err != nil {
+				// Failed signature verification is the only safe place to remove
+				// a transaction in listeners. Every other case may still end up with
+				// the transaction in a block.
+				vm.listeners.RemoveTx(txID, err)
+				errs = append(errs, err)
+				continue
+			}
+		}
+		validTxs = append(validTxs, tx)
+	}
+	vm.mempool.Add(ctx, validTxs)
+	return errs
+}
+
 func (vm *VM) Submit(
 	ctx context.Context,
 	verifySig bool,
@@ -655,12 +677,15 @@ func (vm *VM) Submit(
 		return []error{ErrNotReady}
 	}
 
+	if !vm.config.GetMempoolVerifyBalances() {
+		return vm.submitStateless(ctx, verifySig, txs)
+	}
+
 	// Create temporary execution context
 	blk, err := vm.GetStatelessBlock(ctx, vm.preferred)
 	if err != nil {
 		return []error{err}
 	}
-	// TODO: under load this slows down block verify/accept
 	state, err := blk.State()
 	if err != nil {
 		// This will error if a block does not yet have processed state.
@@ -673,8 +698,6 @@ func (vm *VM) Submit(
 		return []error{err}
 	}
 	oldestAllowed := now - r.GetValidityWindow()
-
-	// Process txs to see if should add
 	validTxs := []*chain.Transaction{}
 	for _, tx := range txs {
 		txID := tx.ID()
@@ -697,6 +720,8 @@ func (vm *VM) Submit(
 			errs = append(errs, ErrNotAdded)
 			continue
 		}
+		// TODO: do we need this? (just ensures people can't spam mempool with
+		// txs from already verified blocks)
 		repeat, err := blk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx})
 		if err != nil {
 			errs = append(errs, err)

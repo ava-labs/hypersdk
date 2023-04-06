@@ -26,6 +26,7 @@ const (
 	defaultPreferredBlocksPerSecond    = 2
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
+	defaultMempoolVerifyBalances       = true
 )
 
 type Config struct {
@@ -44,9 +45,10 @@ type Config struct {
 	StreamingBacklogSize int    `json:"streamingBacklogSize"`
 
 	// Mempool
-	MempoolSize         int      `json:"mempoolSize"`
-	MempoolPayerSize    int      `json:"mempoolPayerSize"`
-	MempoolExemptPayers []string `json:"mempoolExemptPayers"`
+	MempoolSize           int      `json:"mempoolSize"`
+	MempoolPayerSize      int      `json:"mempoolPayerSize"`
+	MempoolExemptPayers   []string `json:"mempoolExemptPayers"`
+	MempoolVerifyBalances bool     `json:"mempoolVerifyBalances"`
 
 	// Order Book
 	//
@@ -96,6 +98,7 @@ func (c *Config) setDefault() {
 	c.PreferredBlocksPerSecond = defaultPreferredBlocksPerSecond
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()
+	c.MempoolVerifyBalances = defaultMempoolVerifyBalances
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 }
@@ -107,6 +110,7 @@ func (c *Config) GetPreferredBlocksPerSecond() uint64 { return c.PreferredBlocks
 func (c *Config) GetMempoolSize() int                 { return c.MempoolSize }
 func (c *Config) GetMempoolPayerSize() int            { return c.MempoolPayerSize }
 func (c *Config) GetMempoolExemptPayers() [][]byte    { return c.parsedExemptPayers }
+func (c *Config) GetMempoolVerifyBalances() bool      { return c.MempoolVerifyBalances }
 func (c *Config) GetDecisionsPort() uint16            { return c.DecisionsPort }
 func (c *Config) GetBlocksPort() uint16               { return c.BlocksPort }
 func (c *Config) GetTraceConfig() *trace.Config {
