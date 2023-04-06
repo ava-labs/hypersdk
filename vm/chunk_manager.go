@@ -132,6 +132,17 @@ func (c *ChunkMap) SetMin(h uint64) []ids.ID {
 	return evicted
 }
 
+func (c *ChunkMap) All() set.Set[ids.ID] {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	s := set.NewSet[ids.ID](len(c.counts))
+	for k := range c.counts {
+		s.Add(k)
+	}
+	return s
+}
+
 type ChunkManager struct {
 	vm        *VM
 	appSender common.AppSender
@@ -147,8 +158,8 @@ type ChunkManager struct {
 	// during verification
 	// TODO: store []byte + height -> discard lazily if fetched chunks are below
 	// accepted
+	cl            sync.RWMutex
 	fetchedChunks map[ids.ID][]byte
-
 	// Duplicate chunks at different heights (only first added will be included)
 	chunks *ChunkMap
 
@@ -196,7 +207,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 			nc := &NodeChunks{
 				Min:         c.min,
 				Max:         c.max,
-				Unprocessed: c.processing,
+				Unprocessed: c.chunks.All(),
 			}
 			b, err := nc.Marshal()
 			c.sl.Unlock()
@@ -218,7 +229,9 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 
 // Called when building a chunk
 func (c *ChunkManager) RegisterChunk(ctx context.Context, chunkID ids.ID, chunk []byte) {
-	c.fetchedChunks.Put(chunkID, chunk)
+	c.cl.Lock()
+	c.fetchedChunks[chunkID] = chunk
+	c.cl.Unlock()
 }
 
 // Called when pruning chunks from accepted blocks
@@ -232,13 +245,14 @@ func (c *ChunkManager) SetMin(min uint64) {
 }
 
 // Called when a block is accepted
-func (c *ChunkManager) Accept(height uint64, chunks []ids.ID) {
+//
+// Ensure chunks are persisted before calling this method
+func (c *ChunkManager) Accept(height uint64) {
 	c.sl.Lock()
 	c.max = height
 	c.lastChanged = time.Now()
-	for _, chunk := range chunks {
-		// TODO: Ensure chunks are persisted before this is called
-		c.fetchedChunks.Evict(chunk)
+	for _, chunkID := range c.chunks.SetMin(height + 1) {
+		delete(c.fetchedChunks, chunkID)
 	}
 	c.sl.Unlock()
 }
@@ -250,9 +264,12 @@ func (c *ChunkManager) Accept(height uint64, chunks []ids.ID) {
 // If state isn't ready, just put job in failure state...will fetch if needed
 // during verify
 func (c *ChunkManager) RequestChunk(ctx context.Context, height uint64, chunkID ids.ID) ([]byte, error) {
-	if chunk, ok := c.fetchedChunks.Get(chunkID); ok {
+	c.cl.RLock()
+	if chunk, ok := c.fetchedChunks[chunkID]; ok {
+		c.cl.RUnlock()
 		return chunk, nil
 	}
+	c.cl.RUnlock()
 
 	// Check if outstanding request
 	c.l.Lock()
@@ -310,9 +327,12 @@ func (c *ChunkManager) HandleRequest(
 		c.vm.snowCtx.Log.Warn("unable to parse chunk request", zap.Error(err))
 		return nil
 	}
-	if chunk, ok := c.fetchedChunks.Get(chunkID); ok {
+	c.cl.RLock()
+	if chunk, ok := c.fetchedChunks[chunkID]; ok {
+		c.cl.RUnlock()
 		return c.appSender.SendAppResponse(ctx, nodeID, requestID, chunk)
 	}
+	c.cl.RUnlock()
 	// TODO: check storage
 	// TODO: check pinned chunks in verified blocks (persist here instead of on
 	// blocks)
@@ -339,7 +359,9 @@ func (c *ChunkManager) HandleResponse(nodeID ids.NodeID, requestID uint32, msg [
 		c.vm.snowCtx.Log.Warn("received incorrect chunk", zap.Stringer("nodeID", nodeID))
 		return nil
 	}
-	c.fetchedChunks.Put(chunkID, msg)
+	c.cl.Lock()
+	c.fetchedChunks[chunkID] = msg
+	c.cl.Unlock()
 	return nil
 }
 
