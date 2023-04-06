@@ -67,6 +67,8 @@ type ChunkManager struct {
 	// May not end up verifying a block we request on
 	// TODO: make sure to pin chunks to block in case they are cleared from LRU
 	// during verification
+	// TODO: store []byte + height -> discard lazily if fetched chunks are below
+	// accepted
 	fetchedChunks *cache.LRU[ids.ID, []byte]
 
 	m  map[ids.NodeID]*NodeChunks
@@ -74,7 +76,6 @@ type ChunkManager struct {
 
 	min         uint64
 	max         uint64
-	processing  set.Set[ids.ID]
 	lastChanged time.Time
 	sl          sync.Mutex
 
@@ -88,7 +89,6 @@ func NewChunkManager(vm *VM) *ChunkManager {
 		requests:      map[uint32]ids.ID{},
 		fetchedChunks: &cache.LRU[ids.ID, []byte]{Size: 1024},
 		m:             map[ids.NodeID]*NodeChunks{},
-		processing:    set.NewSet[ids.ID](128),
 		done:          make(chan struct{}),
 	}
 }
@@ -110,6 +110,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				c.sl.Unlock()
 				continue
 			}
+			// TODO: need to iterate over LRU to get all hashes
 			nc := &NodeChunks{
 				Min:         c.min,
 				Max:         c.max,
