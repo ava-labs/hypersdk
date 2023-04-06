@@ -5,61 +5,30 @@ package vm
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/version"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
+	"go.uber.org/zap"
 )
-
-// TODO: gossip chunks as soon as build block (before verify)
-// TODO: automatically fetch new chunks before needed (will better control
-// which we fetch in the future)
-// TODO: allow for deleting block chunks after some period of time
-type NodeChunks struct {
-	Min         uint64
-	Max         uint64
-	Unprocessed []ids.ID
-}
-
-func (n *NodeChunks) Marshal() ([]byte, error) {
-	p := codec.NewWriter(consts.MaxInt)
-	p.PackUint64(n.Min)
-	p.PackUint64(n.Max)
-	l := len(n.Unprocessed)
-	p.PackInt(l)
-	if l > 0 {
-		for _, chunk := range n.Unprocessed {
-			p.PackID(chunk)
-		}
-	}
-	return p.Bytes(), p.Err()
-}
-
-func UnmarshalNodeChunks(b []byte) (*NodeChunks, error) {
-	var n NodeChunks
-	p := codec.NewReader(b, consts.MaxInt)
-	n.Min = p.UnpackUint64(false) // could be genesis
-	n.Max = p.UnpackUint64(false) // could be genesis
-	l := p.UnpackInt(false)       // could have no processing
-	n.Unprocessed = make([]ids.ID, l)
-	for i := 0; i < l; i++ {
-		p.UnpackID(true, &n.Unprocessed[i])
-	}
-	return &n, p.Err()
-}
 
 type ChunkHandler struct {
 	vm *VM
 
-	m map[ids.NodeID]*NodeChunks
-	// TODO: track which heights held by peers
-	// <min,max,[]unprocessed>
+	m  map[ids.NodeID]*NodeChunks
+	ml sync.Mutex
+
+	chunks     map[ids.ID][]byte
+	chunksLock sync.Mutex
 }
 
 func NewChunkHandler(vm *VM) *ChunkHandler {
-	return &ChunkHandler{vm, map[ids.NodeID]*NodeChunks{}}
+	return &ChunkHandler{
+		vm:     vm,
+		m:      map[ids.NodeID]*NodeChunks{},
+		chunks: map[ids.ID][]byte{},
+	}
 }
 
 func (*ChunkHandler) Connected(context.Context, ids.NodeID, *version.Application) error {
@@ -70,18 +39,32 @@ func (*ChunkHandler) Disconnected(context.Context, ids.NodeID) error {
 	return nil
 }
 
-func (*ChunkHandler) AppGossip(context.Context, ids.NodeID, []byte) error {
+func (c *ChunkHandler) AppGossip(_ context.Context, nodeID ids.NodeID, b []byte) error {
+	nc, err := UnmarshalNodeChunks(b)
+	if err != nil {
+		c.vm.Logger().Error("unable to parse chunk gossip", zap.Error(err))
+		return nil
+	}
+	c.ml.Lock()
+	c.m[nodeID] = nc
+	c.ml.Unlock()
 	return nil
 }
 
-func (w *ChunkHandler) AppRequest(
+func (c *ChunkHandler) AppRequest(
 	ctx context.Context,
 	nodeID ids.NodeID,
 	requestID uint32,
 	_ time.Time,
 	request []byte,
 ) error {
-	return w.vm.warpManager.AppRequest(ctx, nodeID, requestID, request)
+	chunkID, err := ids.ToID(request)
+	if err != nil {
+		c.vm.Logger().Error("unable to parse chunk request", zap.Error(err))
+		return nil
+	}
+	// TODO: if don't have it, send back empty bytes, so can ask someone else
+	return nil
 }
 
 func (w *ChunkHandler) AppRequestFailed(
