@@ -49,13 +49,14 @@ type StatefulBlock struct {
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	UnitPrice  uint64        `json:"unitPrice"`
-	UnitWindow window.Window `json:"unitWindow"`
-
+	// TODO: Move to state
+	UnitPrice   uint64        `json:"unitPrice"`
+	UnitWindow  window.Window `json:"unitWindow"`
 	BlockCost   uint64        `json:"blockCost"`
 	BlockWindow window.Window `json:"blockWindow"`
 
-	Txs []*Transaction `json:"txs"`
+	// Chunks contain ordered hashes of tx blobs that are processed by this block
+	Chunks []ids.ID `json:"chunks"`
 
 	StateRoot     ids.ID     `json:"stateRoot"`
 	UnitsConsumed uint64     `json:"unitsConsumed"`
@@ -90,6 +91,8 @@ func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBloc
 // without mocking VM or parent block
 type StatelessBlock struct {
 	*StatefulBlock `json:"block"`
+
+	txs []*Transaction
 
 	id     ids.ID
 	st     choices.Status
@@ -146,12 +149,15 @@ func ParseBlock(
 }
 
 // populateTxs is only called on blocks we did not build
+//
+// TODO: consider moving this to verify or kicking this off in the background
+// once chunks are fetched?
 func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.populateTxs")
 	defer span.End()
 
 	// Setup signature verification job
-	job, err := b.vm.Workers().NewJob(len(b.Txs))
+	job, err := b.vm.Workers().NewJob(len(b.txs))
 	if err != nil {
 		return err
 	}
@@ -159,9 +165,9 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 
 	// Process transactions
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
-	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
+	b.txsSet = set.NewSet[ids.ID](len(b.txs))
 	b.warpMessages = map[ids.ID]*warpJob{}
-	for _, tx := range b.Txs {
+	for _, tx := range b.txs {
 		b.sigJob.Go(tx.AuthAsyncVerify())
 		if b.txsSet.Contains(tx.ID()) {
 			return ErrDuplicateTx
@@ -210,13 +216,14 @@ func ParseStatefulBlock(
 		if blk.Tmstmp >= time.Now().Add(FutureBound).Unix() {
 			return nil, ErrTimestampTooLate
 		}
-		if len(blk.Txs) == 0 {
-			return nil, ErrNoTxs
-		}
-		r := vm.Rules(blk.Tmstmp)
-		if len(blk.Txs) > r.GetMaxBlockTxs() {
-			return nil, ErrBlockTooBig
-		}
+		// TODO: re-add constraints on chunks
+		// if len(blk.Txs) == 0 {
+		// 	return nil, ErrNoTxs
+		// }
+		// r := vm.Rules(blk.Tmstmp)
+		// if len(blk.Txs) > r.GetMaxBlockTxs() {
+		// 	return nil, ErrBlockTooBig
+		// }
 	}
 
 	if len(source) == 0 {
@@ -261,8 +268,8 @@ func (b *StatelessBlock) initializeBuilt(ctx context.Context, state merkledb.Tri
 	b.state = state
 	b.t = time.Unix(b.StatefulBlock.Tmstmp, 0)
 	b.results = results
-	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
-	for _, tx := range b.Txs {
+	b.txsSet = set.NewSet[ids.ID](len(b.txs))
+	for _, tx := range b.txs {
 		b.txsSet.Add(tx.ID())
 		if tx.WarpMessage != nil {
 			b.containsWarp = true
@@ -285,7 +292,7 @@ func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Cont
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.VerifyWithContext",
 		oteltrace.WithAttributes(
-			attribute.Int("txs", len(b.Txs)),
+			attribute.Int("txs", len(b.txs)),
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
 			attribute.Int64("pchainHeight", int64(bctx.PChainHeight)),
@@ -307,7 +314,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.Verify",
 		oteltrace.WithAttributes(
-			attribute.Int("txs", len(b.Txs)),
+			attribute.Int("txs", len(b.txs)),
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
 			attribute.Bool("built", b.Processed()),
@@ -403,18 +410,20 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 //  3. If the state of a block we are accepting is missing (finishing dynamic
 //     state sync)
 func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, error) {
+	// TODO: ensure we have "setup" block (fetched chunks/staged txs for
+	// signature verification)
+
+	// Perform basic correctness checks before doing any expensive work
 	var (
 		log = b.vm.Logger()
 		r   = b.vm.Rules(b.Tmstmp)
 	)
-
-	// Perform basic correctness checks before doing any expensive work
 	switch {
 	case b.Timestamp().Unix() >= time.Now().Add(FutureBound).Unix():
 		return nil, ErrTimestampTooLate
-	case len(b.Txs) == 0:
+	case len(b.txs) == 0:
 		return nil, ErrNoTxs
-	case len(b.Txs) > r.GetMaxBlockTxs():
+	case len(b.txs) > r.GetMaxBlockTxs():
 		return nil, ErrBlockTooBig
 	}
 
@@ -437,7 +446,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		// Can occur if verifying genesis
 		oldestAllowed = 0
 	}
-	dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs)
+	dup, err := parent.IsRepeat(ctx, oldestAllowed, b.txs)
 	if err != nil {
 		return nil, err
 	}
@@ -522,7 +531,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	// Fetch parent state
 	//
 	// This function may verify the parent if it is not yet verified.
-	state, err := parent.childState(ctx, len(b.Txs)*2)
+	state, err := parent.childState(ctx, len(b.txs)*2)
 	if err != nil {
 		return nil, err
 	}
@@ -783,7 +792,7 @@ func (b *StatelessBlock) IsRepeat(
 }
 
 func (b *StatelessBlock) GetTxs() []*Transaction {
-	return b.Txs
+	return b.txs
 }
 
 func (b *StatelessBlock) GetTimestamp() int64 {
@@ -814,12 +823,15 @@ func (b *StatefulBlock) Marshal(
 	p.PackUint64(b.BlockCost)
 	p.PackWindow(b.BlockWindow)
 
-	p.PackInt(len(b.Txs))
-	for _, tx := range b.Txs {
-		if err := tx.Marshal(p, actionRegistry, authRegistry); err != nil {
-			return nil, err
-		}
+	p.PackInt(len(b.Chunks))
+	for _, chunk := range b.Chunks {
+		p.PackID(chunk)
 	}
+	// for _, tx := range b.txs {
+	// 	if err := tx.Marshal(p, actionRegistry, authRegistry); err != nil {
+	// 		return nil, err
+	// 	}
+	// }
 
 	p.PackID(b.StateRoot)
 	p.PackUint64(b.UnitsConsumed)
@@ -848,17 +860,21 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 		return nil, err
 	}
 
-	// Parse transactions
-	txCount := p.UnpackInt(false) // could be 0 in genesis
-	actionRegistry, authRegistry := parser.Registry()
-	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
-	for i := 0; i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
-		if err != nil {
-			return nil, err
-		}
-		b.Txs = append(b.Txs, tx)
+	// Parse chunks
+	chunkCount := p.UnpackInt(false)      // could be 0 in genesis
+	b.Chunks = make([]ids.ID, chunkCount) // TODO: limit size
+	for i := 0; i < chunkCount; i++ {
+		p.UnpackID(true, &b.Chunks[i])
 	}
+	// actionRegistry, authRegistry := parser.Registry()
+	// b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
+	// for i := 0; i < txCount; i++ {
+	// 	tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	b.Txs = append(b.Txs, tx)
+	// }
 
 	p.UnpackID(false, &b.StateRoot)
 	b.UnitsConsumed = p.UnpackUint64(false)
