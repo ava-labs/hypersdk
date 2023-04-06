@@ -286,6 +286,7 @@ func (b *StatelessBlock) ID() ids.ID { return b.id }
 // implements "block.WithVerifyContext"
 func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
 	// TODO: must know if warp before fetching txs
+	// -> can return error if all dependencies haven't been fulfilled yet
 	return b.containsWarp, nil
 }
 
