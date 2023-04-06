@@ -9,26 +9,57 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/version"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 // TODO: gossip chunks as soon as build block (before verify)
 // TODO: automatically fetch new chunks before needed (will better control
 // which we fetch in the future)
+// TODO: allow for deleting block chunks after some period of time
 type NodeChunks struct {
 	Min         uint64
 	Max         uint64
 	Unprocessed []ids.ID
 }
 
+func (n *NodeChunks) Marshal() ([]byte, error) {
+	p := codec.NewWriter(consts.MaxInt)
+	p.PackUint64(n.Min)
+	p.PackUint64(n.Max)
+	l := len(n.Unprocessed)
+	p.PackInt(l)
+	if l > 0 {
+		for _, chunk := range n.Unprocessed {
+			p.PackID(chunk)
+		}
+	}
+	return p.Bytes(), p.Err()
+}
+
+func UnmarshalNodeChunks(b []byte) (*NodeChunks, error) {
+	var n NodeChunks
+	p := codec.NewReader(b, consts.MaxInt)
+	n.Min = p.UnpackUint64(false) // could be genesis
+	n.Max = p.UnpackUint64(false) // could be genesis
+	l := p.UnpackInt(false)       // could have no processing
+	n.Unprocessed = make([]ids.ID, l)
+	for i := 0; i < l; i++ {
+		p.UnpackID(true, &n.Unprocessed[i])
+	}
+	return &n, p.Err()
+}
+
 type ChunkHandler struct {
 	vm *VM
 
+	m map[ids.NodeID]*NodeChunks
 	// TODO: track which heights held by peers
 	// <min,max,[]unprocessed>
 }
 
 func NewChunkHandler(vm *VM) *ChunkHandler {
-	return &ChunkHandler{vm}
+	return &ChunkHandler{vm, map[ids.NodeID]*NodeChunks{}}
 }
 
 func (*ChunkHandler) Connected(context.Context, ids.NodeID, *version.Application) error {
