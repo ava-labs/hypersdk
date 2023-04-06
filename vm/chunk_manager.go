@@ -160,6 +160,9 @@ func (c *ChunkManager) Accept(height uint64, chunks []ids.ID) {
 	c.sl.Unlock()
 }
 
+// TODO: register a request chunks job instead of going one-by-one
+// Can then parse and add to the block async instead of doing during verify
+// Run signature verification job per blob
 func (c *ChunkManager) RequestChunk(ctx context.Context, height uint64, chunkID ids.ID) ([]byte, error) {
 	if chunk, ok := c.fetchedChunks.Get(chunkID); ok {
 		return chunk, nil
