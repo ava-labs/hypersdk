@@ -139,7 +139,7 @@ func (c *decisionRPCConnection) handleReads() {
 		}
 
 		ctx, span := c.vm.tracer.Start(context.Background(), "decisionRPCServer.handleReads")
-		p := codec.NewReader(msgBytes, chain.NetworkSizeLimit) // will likely be much smaller
+		p := codec.NewReader(msgBytes, consts.NetworkSizeLimit) // will likely be much smaller
 		tx, err := chain.UnmarshalTx(p, c.vm.actionRegistry, c.vm.authRegistry)
 		if err != nil {
 			c.vm.snowCtx.Log.Debug("failed to unmarshal tx",
@@ -468,8 +468,8 @@ func readNetMessage(conn io.Reader, limit bool) ([]byte, error) {
 		return nil, err
 	}
 	l := binary.BigEndian.Uint32(lb)
-	if limit && l > chain.NetworkSizeLimit {
-		return nil, fmt.Errorf("%d is larger than max var size %d", l, chain.NetworkSizeLimit)
+	if limit && l > consts.NetworkSizeLimit {
+		return nil, fmt.Errorf("%d is larger than max var size %d", l, consts.NetworkSizeLimit)
 	}
 	if l == 0 {
 		return nil, nil

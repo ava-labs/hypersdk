@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"go.uber.org/zap"
 )
 
@@ -64,7 +65,7 @@ func (h *Handler) SubmitTx(req *http.Request, args *SubmitTxArgs, reply *SubmitT
 	ctx, span := h.vm.Tracer().Start(req.Context(), "Handler.SubmitTx")
 	defer span.End()
 
-	rtx := codec.NewReader(args.Tx, chain.NetworkSizeLimit) // will likely be much smaller than this
+	rtx := codec.NewReader(args.Tx, consts.NetworkSizeLimit) // will likely be much smaller than this
 	tx, err := chain.UnmarshalTx(rtx, h.vm.actionRegistry, h.vm.authRegistry)
 	if err != nil {
 		return fmt.Errorf("%w: unable to unmarshal on public service", err)
