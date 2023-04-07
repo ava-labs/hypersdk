@@ -124,6 +124,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.chunkRequests),
 		r.Register(m.failedChunkRequests),
 		r.Register(m.chunkJobFails),
+		r.Register(m.chunksProcessing),
 		r.Register(m.txsSubmitted),
 		r.Register(m.txsVerified),
 		r.Register(m.txsAccepted),
