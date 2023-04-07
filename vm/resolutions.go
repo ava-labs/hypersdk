@@ -183,9 +183,8 @@ func (vm *VM) processAcceptedBlocks() {
 		}
 
 		// Update chunk store
-		for _, chunk := range b.Chunks {
-			// TODO: store chunk here
-			if err := vm.StoreChunk(chunk, nil); err != nil {
+		for _, chunk := range b.FetchedChunks {
+			if err := vm.StoreChunk(chunk); err != nil {
 				vm.snowCtx.Log.Fatal("unable to store chunk", zap.Error(err))
 			}
 		}

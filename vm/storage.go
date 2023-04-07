@@ -18,6 +18,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 const (
@@ -224,8 +225,8 @@ func PrefixChunkIDKey(id ids.ID) []byte {
 	return k
 }
 
-func (vm *VM) StoreChunk(id ids.ID, chunk []byte) error {
-	return vm.vmDB.Put(PrefixChunkIDKey(id), chunk)
+func (vm *VM) StoreChunk(chunk []byte) error {
+	return vm.vmDB.Put(PrefixChunkIDKey(utils.ToID(chunk)), chunk)
 }
 
 func (vm *VM) GetChunk(chunkID ids.ID) ([]byte, error) {

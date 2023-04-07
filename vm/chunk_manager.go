@@ -56,11 +56,6 @@ func UnmarshalNodeChunks(b []byte) (*NodeChunks, error) {
 	return &n, p.Err()
 }
 
-type Chunk struct {
-	ChunkID ids.ID
-	Content []byte
-}
-
 type bucket struct {
 	h     uint64   // Timestamp
 	items []ids.ID // Array of AvalancheGo ids
@@ -264,7 +259,7 @@ func (c *ChunkManager) Accept(height uint64) {
 	c.sl.Unlock()
 }
 
-func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkIDs []ids.ID, ch chan *Chunk) error {
+func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkIDs []ids.ID, ch chan []byte) error {
 	// TODO: de-deuplicate requests for same chunk
 	g, gctx := errgroup.WithContext(ctx)
 	for _, cchunkID := range chunkIDs {
@@ -282,11 +277,11 @@ func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkID
 // Make X attempts and then abandon (can be retrigged by future verify job)
 // If state isn't ready, just put job in failure state...will fetch if needed
 // during verify
-func (c *ChunkManager) requestChunk(ctx context.Context, height uint64, chunkID ids.ID, ch chan *Chunk) error {
+func (c *ChunkManager) requestChunk(ctx context.Context, height uint64, chunkID ids.ID, ch chan []byte) error {
 	c.cl.RLock()
 	if chunk, ok := c.fetchedChunks[chunkID]; ok {
 		c.cl.RUnlock()
-		ch <- &Chunk{chunkID, chunk}
+		ch <- chunk
 		return nil
 	}
 	c.cl.RUnlock()
@@ -344,7 +339,7 @@ func (c *ChunkManager) requestChunk(ctx context.Context, height uint64, chunkID 
 		c.fetchedChunks[chunkID] = msg
 		c.chunks.Add(height, chunkID)
 		c.cl.Unlock()
-		ch <- &Chunk{chunkID, msg}
+		ch <- msg
 		return nil
 	}
 	return errors.New("could not fetch chunk")

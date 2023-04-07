@@ -63,6 +63,7 @@ var (
 	ErrWarpResultMismatch        = errors.New("warp result mismatch")
 
 	// Misc
-	ErrNotImplemented    = errors.New("not implemented")
-	ErrBlockNotProcessed = errors.New("block is not processed")
+	ErrNotImplemented     = errors.New("not implemented")
+	ErrBlockNotProcessed  = errors.New("block is not processed")
+	ErrChunksNotProcessed = errors.New("chunks not processed")
 )
