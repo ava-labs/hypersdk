@@ -32,6 +32,7 @@ type Genesis struct {
 	HRP string `json:"hrp"`
 
 	// Block params
+	MaxChunks     int    `json:"maxChunks"`
 	MaxBlockTxs   int    `json:"maxBlockTxs"`
 	MaxBlockUnits uint64 `json:"maxBlockUnits"` // must be possible to reach before block too large
 
@@ -62,6 +63,7 @@ func Default() *Genesis {
 		HRP: consts.HRP,
 
 		// Block params
+		MaxChunks:     10,
 		MaxBlockTxs:   20_000,    // rely on max block units
 		MaxBlockUnits: 1_800_000, // 1.8 MiB
 
