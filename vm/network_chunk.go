@@ -23,8 +23,8 @@ func (*ChunkHandler) Connected(context.Context, ids.NodeID, *version.Application
 	return nil
 }
 
-func (*ChunkHandler) Disconnected(context.Context, ids.NodeID) error {
-	return nil
+func (c *ChunkHandler) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
+	return c.vm.chunkManager.HandleDisconnect(ctx, nodeID)
 }
 
 func (c *ChunkHandler) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {

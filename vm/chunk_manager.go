@@ -423,6 +423,15 @@ func (c *ChunkManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, m
 	return nil
 }
 
+// When disconnecting from a node, we remove it from the map because we should
+// no longer request chunks from it.
+func (c *ChunkManager) HandleDisconnect(ctx context.Context, nodeID ids.NodeID) error {
+	c.ml.Lock()
+	delete(c.m, nodeID)
+	c.ml.Unlock()
+	return nil
+}
+
 func (c *ChunkManager) Done() {
 	<-c.done
 }
