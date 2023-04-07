@@ -41,21 +41,21 @@ func (c *ChunkHandler) AppRequest(
 	return c.vm.chunkManager.HandleRequest(ctx, nodeID, requestID, request)
 }
 
-func (w *ChunkHandler) AppRequestFailed(
+func (c *ChunkHandler) AppRequestFailed(
 	_ context.Context,
 	_ ids.NodeID,
 	requestID uint32,
 ) error {
-	return w.vm.chunkManager.HandleRequestFailed(requestID)
+	return c.vm.chunkManager.HandleRequestFailed(requestID)
 }
 
-func (w *ChunkHandler) AppResponse(
+func (c *ChunkHandler) AppResponse(
 	_ context.Context,
 	nodeID ids.NodeID,
 	requestID uint32,
 	response []byte,
 ) error {
-	return w.vm.chunkManager.HandleResponse(nodeID, requestID, response)
+	return c.vm.chunkManager.HandleResponse(nodeID, requestID, response)
 }
 
 func (*ChunkHandler) CrossChainAppRequest(context.Context, ids.ID, uint32, time.Time, []byte) error {
