@@ -86,8 +86,6 @@ func BuildBlock(
 		txsAttempted = 0
 		results      = []*Result{}
 
-		warpCount = 0
-
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
 
@@ -112,7 +110,7 @@ func BuildBlock(
 			}
 
 			// Skip warp message if at max
-			if next.WarpMessage != nil && warpCount == MaxWarpMessages {
+			if next.WarpMessage != nil && b.WarpCount == MaxWarpMessages {
 				log.Info(
 					"dropping pending warp message because already have MaxWarpMessages",
 					zap.Stringer("txID", next.ID()),
@@ -220,9 +218,9 @@ func BuildBlock(
 			if next.WarpMessage != nil {
 				if warpErr == nil {
 					// Add a bit if the warp message was verified
-					b.WarpResults.Add(uint(warpCount))
+					b.WarpResults.Add(uint(b.WarpCount))
 				}
-				warpCount++
+				b.WarpCount++
 			}
 			return len(b.Txs) < r.GetMaxBlockTxs(), false, false, nil
 		},

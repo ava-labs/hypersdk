@@ -142,6 +142,7 @@ func (c *Controller) Initialize(
 		c.inner.Logger().Info("running build and gossip in test mode")
 		build = builder.NewManual(inner)
 		gossip = gossiper.NewManual(inner)
+		// TODO: add manual mode for chunks?
 	} else {
 		bcfg := builder.DefaultTimeConfig()
 		bcfg.PreferredBlocksPerSecond = c.config.GetPreferredBlocksPerSecond()

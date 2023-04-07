@@ -8,6 +8,7 @@ import "errors"
 var (
 	// Parsing
 	ErrInvalidObject = errors.New("invalid object")
+	ErrExtraBytes    = errors.New("extra bytes")
 
 	// Genesis Correctness
 	ErrInvalidChainID   = errors.New("invalid chain ID")

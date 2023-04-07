@@ -3,6 +3,7 @@ package vm
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -193,6 +194,9 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				Unprocessed: c.chunks.All(),
 			}
 			c.sl.Unlock() // chunks is copied
+			if len(nc.Unprocessed) > 0 {
+				fmt.Println("gossiping chunks", len(nc.Unprocessed))
+			}
 			b, err := nc.Marshal()
 			if err != nil {
 				c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip", zap.Error(err))
@@ -217,6 +221,7 @@ func (c *ChunkManager) RegisterChunk(ctx context.Context, height uint64, chunk [
 	c.cl.Lock()
 	c.fetchedChunks[chunkID] = chunk
 	c.chunks.Add(height, chunkID)
+	c.lastChanged = time.Now()
 	c.cl.Unlock()
 }
 
@@ -238,10 +243,10 @@ func (c *ChunkManager) SetMin(min uint64) {
 func (c *ChunkManager) Accept(height uint64) {
 	c.sl.Lock()
 	c.max = height
-	c.lastChanged = time.Now()
 	for _, chunkID := range c.chunks.SetMin(height + 1) {
 		delete(c.fetchedChunks, chunkID)
 	}
+	c.lastChanged = time.Now()
 	c.sl.Unlock()
 }
 
@@ -313,6 +318,7 @@ func (c *ChunkManager) requestChunk(ctx context.Context, height uint64, chunkID 
 			ctx,
 			set.Set[ids.NodeID]{recipient: struct{}{}},
 			requestID,
+			// TODO: need to copy here?
 			chunkID[:],
 		); err != nil {
 			return err

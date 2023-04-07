@@ -294,12 +294,12 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("unable to init genesis block", zap.Error(err))
 			return err
 		}
-
 		if err := vm.SetLastAccepted(genesisBlk); err != nil {
 			snowCtx.Log.Error("could not set genesis as last accepted", zap.Error(err))
 			return err
 		}
 		gBlkID := genesisBlk.ID()
+		vm.blocks.Put(gBlkID, genesisBlk)
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
 		snowCtx.Log.Info("initialized vm from genesis", zap.Stringer("block", gBlkID))
 	}
@@ -600,7 +600,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 		vm,
 	)
 	if err != nil {
-		vm.snowCtx.Log.Error("could not parse block", zap.Error(err))
+		vm.snowCtx.Log.Error("could not parse block", zap.Stringer("blkID", id), zap.Error(err))
 		return nil, err
 	}
 	vm.parsedBlocks.Put(id, newBlk)
@@ -608,6 +608,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 		"parsed block",
 		zap.Stringer("id", newBlk.ID()),
 		zap.Uint64("height", newBlk.Hght),
+		zap.Int("chunks", len(newBlk.Chunks)),
 	)
 	return newBlk, nil
 }

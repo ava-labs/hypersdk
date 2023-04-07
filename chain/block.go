@@ -49,7 +49,8 @@ type StatefulBlock struct {
 	BlockWindow window.Window `json:"blockWindow"`
 
 	// Chunks contain ordered hashes of tx blobs that are processed by this block
-	Chunks []ids.ID `json:"chunks"`
+	Chunks    []ids.ID `json:"chunks"`
+	WarpCount uint8    `json:"warpCount"` // needed for [ShouldVerifyWithContext] before we fetch chunks
 
 	StateRoot     ids.ID     `json:"stateRoot"`
 	UnitsConsumed uint64     `json:"unitsConsumed"`
@@ -99,7 +100,6 @@ type StatelessBlock struct {
 	txsSet       set.Set[ids.ID]
 	sigJobs      []*workers.Job
 	warpMessages map[ids.ID]*warpJob
-	containsWarp bool // this allows us to avoid allocating a map when we build
 
 	bctx     *block.Context
 	vdrState validators.State
@@ -160,21 +160,23 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 		chunkTxs                     = map[ids.ID][]*Transaction{}
 		chunkBytes                   = map[ids.ID][]byte{}
 
-		containsWarp bool
-		seenTxs      int
+		seenTxs int
 	)
 
 	// Fetch chunks
 	//
 	// We cancel chunk fetching if we exit early.
 	defer cancel()
+	start := time.Now()
 	go func() {
 		fetchErr = b.vm.RequestChunks(cctx, b.Hght, b.Chunks, c)
 		close(c)
+		b.vm.Logger().Info("fetched chunks", zap.Uint64("height", b.Hght), zap.Int("chunks", len(b.Chunks)), zap.Duration("t", time.Since(start)), zap.Error(fetchErr))
 	}()
 
 	// Parse all chunks
 	for chunk := range c {
+		// TODO: add max chunk txs
 		txs, err := UnmarshalTxs(chunk, r.GetMaxBlockTxs(), actionRegistry, authRegistry)
 		if err != nil {
 			b.chunkFetchErr = err
@@ -222,7 +224,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 			// verification as skipped and include it in the verification result so
 			// that a fee can still be deducted.
 			if tx.WarpMessage != nil {
-				if len(warpMessages) == MaxWarpMessages {
+				if len(warpMessages) > int(b.WarpCount) || len(warpMessages) == MaxWarpMessages {
 					b.chunkFetchErr = ErrTooManyWarpMessages
 					b.chunkFetchErrPerm = true
 					b.chunkFetchComplete = true
@@ -241,7 +243,6 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 					verifiedChan: make(chan bool, 1),
 					warpNum:      len(warpMessages),
 				}
-				containsWarp = true
 			}
 		}
 		job.Done(func() { sspan.End() })
@@ -258,7 +259,6 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 	b.FetchedChunks = make([][]byte, 0, len(b.Chunks))
 	b.txsSet = txsSet
 	b.warpMessages = warpMessages
-	b.containsWarp = containsWarp
 	b.Txs = make([]*Transaction, 0, seenTxs)
 	for _, chunkID := range b.Chunks {
 		b.FetchedChunks = append(b.FetchedChunks, chunkBytes[chunkID])
@@ -319,7 +319,7 @@ func ParseStatefulBlock(
 
 	// Kickoff tx population
 	// TODO: consider limiting how many concurrent
-	go b.populateTxs(ctx)
+	go b.populateTxs(context.Background())
 	return b, nil
 }
 
@@ -349,9 +349,6 @@ func (b *StatelessBlock) initializeBuilt(ctx context.Context, chunks [][]byte, s
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
 		b.txsSet.Add(tx.ID())
-		if tx.WarpMessage != nil {
-			b.containsWarp = true
-		}
 	}
 	return nil
 }
@@ -364,11 +361,12 @@ func (b *StatelessBlock) checkChunkFetch(ctx context.Context) error {
 		return ErrChunksNotProcessed
 	}
 	if b.chunkFetchErr != nil && !b.chunkFetchErrPerm {
+		b.vm.Logger().Warn("restarting chunk fetch", zap.Error(b.chunkFetchErr))
 		b.chunkFetchComplete = false
 		b.chunkFetchErrPerm = false
 		b.chunkFetchErr = nil
 		// TODO: consider limiting how many concurrent
-		go b.populateTxs(ctx)
+		go b.populateTxs(context.Background())
 		return ErrChunksNotProcessed
 	}
 	return b.chunkFetchErr
@@ -376,10 +374,7 @@ func (b *StatelessBlock) checkChunkFetch(ctx context.Context) error {
 
 // implements "block.WithVerifyContext"
 func (b *StatelessBlock) ShouldVerifyWithContext(ctx context.Context) (bool, error) {
-	if err := b.checkChunkFetch(ctx); err != nil {
-		return false, err
-	}
-	return b.containsWarp, nil
+	return b.WarpCount > 0, nil
 }
 
 // implements "block.WithVerifyContext"
@@ -579,7 +574,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Start validating warp messages, if they exist
 	var invalidWarpResult bool
-	if b.containsWarp {
+	if b.WarpCount > 0 {
 		if b.bctx == nil {
 			log.Error(
 				"missing verify block context",
@@ -919,21 +914,28 @@ func (b *StatefulBlock) Marshal(
 ) ([]byte, error) {
 	p := codec.NewWriter(consts.NetworkSizeLimit)
 
+	// Write header
 	p.PackID(b.Prnt)
 	p.PackInt64(b.Tmstmp)
 	p.PackUint64(b.Hght)
-
 	p.PackUint64(b.UnitPrice)
 	p.PackWindow(b.UnitWindow)
-
 	p.PackUint64(b.BlockCost)
 	p.PackWindow(b.BlockWindow)
 
-	p.PackInt(len(b.Chunks))
-	for _, chunk := range b.Chunks {
+	// Write chunks
+	chunks := len(b.Chunks)
+	p.PackInt(chunks)
+	fmt.Println("write chunk count", chunks)
+	for _, cchunk := range b.Chunks {
+		chunk := cchunk
 		p.PackID(chunk)
+		fmt.Println("write chunk", chunk)
 	}
 
+	p.PackByte(b.WarpCount)
+
+	// Write results
 	p.PackID(b.StateRoot)
 	p.PackUint64(b.UnitsConsumed)
 	p.PackUint64(b.SurplusFee)
@@ -947,6 +949,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 		b StatefulBlock
 	)
 
+	// Unpack header
 	p.UnpackID(false, &b.Prnt)
 	b.Tmstmp = p.UnpackInt64(false)
 	b.Hght = p.UnpackUint64(false)
@@ -954,30 +957,36 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	p.UnpackWindow(&b.UnitWindow)
 	b.BlockCost = p.UnpackUint64(false)
 	p.UnpackWindow(&b.BlockWindow)
-	if err := p.Err(); err != nil {
-		// Check that header was parsed properly before unwrapping transactions
-		return nil, err
-	}
 
-	// Parse chunks
-	r := parser.Rules(b.Tmstmp)
+	// Unpack chunks
 	chunkCount := p.UnpackInt(false) // could be 0 in genesis
+	fmt.Println("read chunk count", chunkCount)
+	r := parser.Rules(b.Tmstmp)
 	if chunkCount > r.GetMaxChunks() {
 		return nil, ErrTooManyChunks
 	}
 	b.Chunks = make([]ids.ID, chunkCount)
 	for i := 0; i < chunkCount; i++ {
-		p.UnpackID(true, &b.Chunks[i])
+		// TODO: make this more efficient
+		// TODO: ensure no duplicate chunks
+		var chunkID ids.ID
+		p.UnpackID(true, &chunkID)
+		b.Chunks[i] = chunkID
+		fmt.Println("read chunk", chunkID)
 	}
 
+	b.WarpCount = p.UnpackByte()
+
+	// Unpack results
 	p.UnpackID(false, &b.StateRoot)
 	b.UnitsConsumed = p.UnpackUint64(false)
 	b.SurplusFee = p.UnpackUint64(false)
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
+	// TODO: ensure value of warp results is less than warp count
 
 	if !p.Empty() {
 		// Ensure no leftover bytes
-		return nil, ErrInvalidObject
+		return nil, ErrExtraBytes
 	}
 	return &b, p.Err()
 }
