@@ -310,6 +310,7 @@ func ParseStatefulBlock(
 	}
 
 	// Kickoff tx population
+	// TODO: consider limiting how many concurrent
 	go b.populateTxs(ctx)
 	return b, nil
 }
@@ -358,6 +359,7 @@ func (b *StatelessBlock) checkChunkFetch(ctx context.Context) error {
 		b.chunkFetchComplete = false
 		b.chunkFetchErrPerm = false
 		b.chunkFetchErr = nil
+		// TODO: consider limiting how many concurrent
 		go b.populateTxs(ctx)
 		return ErrChunksNotProcessed
 	}
