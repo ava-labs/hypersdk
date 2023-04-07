@@ -182,6 +182,15 @@ func (vm *VM) processAcceptedBlocks() {
 			vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
 		}
 
+		// Update chunk store
+		for _, chunk := range b.Chunks {
+			// TODO: store chunk here
+			if err := vm.StoreChunk(chunk, nil); err != nil {
+				vm.snowCtx.Log.Fatal("unable to store chunk", zap.Error(err))
+			}
+		}
+		vm.chunkManager.Accept(b.Hght)
+
 		// Update listeners
 		vm.listeners.AcceptBlock(b)
 		// Must clear accepted txs before [SetMinTx] or else we will errnoueously

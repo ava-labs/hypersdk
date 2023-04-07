@@ -25,6 +25,7 @@ const (
 	heightPrefix        = 0x1
 	warpSignaturePrefix = 0x2
 	warpFetchPrefix     = 0x3
+	chunkPrefix         = 0x4
 )
 
 var (
@@ -214,4 +215,23 @@ func (vm *VM) GetWarpFetch(txID ids.ID) (int64, error) {
 		return -1, err
 	}
 	return int64(binary.BigEndian.Uint64(v)), nil
+}
+
+func PrefixChunkIDKey(id ids.ID) []byte {
+	k := make([]byte, 1+consts.IDLen)
+	k[0] = chunkPrefix
+	copy(k[1:], id[:])
+	return k
+}
+
+func (vm *VM) StoreChunk(id ids.ID, chunk []byte) error {
+	return vm.vmDB.Put(PrefixChunkIDKey(id), chunk)
+}
+
+func (vm *VM) GetChunk(chunkID ids.ID) ([]byte, error) {
+	v, err := vm.vmDB.Get(PrefixChunkIDKey(chunkID))
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
 }
