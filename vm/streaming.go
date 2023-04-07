@@ -144,6 +144,7 @@ func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) []by
 	// Verify tx
 	sigVerify := tx.AuthAsyncVerify()
 	if err := sigVerify(); err != nil {
+
 		vm.snowCtx.Log.Error("failed to verify sig",
 			zap.Error(err),
 		)
@@ -163,6 +164,7 @@ func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) []by
 		return nil
 	}
 	vm.snowCtx.Log.Debug("submitted tx", zap.Stringer("id", txID))
+
 	return nil
 }
 
