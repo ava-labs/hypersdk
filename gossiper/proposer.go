@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/consts"
 	"go.uber.org/zap"
 )
 
@@ -150,11 +151,13 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 	defer span.End()
 
 	// Gossip highest paying txs
-	txs := []*chain.Transaction{}
-	totalUnits := uint64(0)
-	start := time.Now()
-	now := start.Unix()
-	r := g.vm.Rules(now)
+	var (
+		txs   = []*chain.Transaction{}
+		size  = uint64(0)
+		start = time.Now()
+		now   = start.Unix()
+		r     = g.vm.Rules(now)
+	)
 
 	// Create temporary execution context
 	blk, err := g.vm.PreferredBlock(ctx)
@@ -208,18 +211,14 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 				return cont, restore, removeAcct, nil
 			}
 
-			// Gossip up to a block of content
-			units, err := next.MaxUnits(r)
-			if err != nil {
-				// Should never happen
-				return true, false, false, nil
-			}
-			if units+totalUnits > r.GetMaxBlockUnits() {
+			// Gossip up to [cosnts.NetworkSizeLimit]
+			txSize := next.Size()
+			if txSize+size > consts.NetworkSizeLimit {
 				// Attempt to mirror the function of building a block without execution
 				return false, true, false, nil
 			}
 			txs = append(txs, next)
-			totalUnits += units
+			size += txSize
 			return len(txs) < r.GetMaxBlockTxs(), true, false, nil
 		},
 	)

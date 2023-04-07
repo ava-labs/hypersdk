@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
 	"github.com/ava-labs/hypersdk/workers"
@@ -33,16 +34,9 @@ var (
 	_ block.StateSummary      = &SyncableBlock{}
 )
 
-const (
-	// AvalancheGo imposes a limit of 2 MiB on the network, so we limit at
-	// 2 MiB - ProposerVM header - Protobuf encoding overhead (we assume this is
-	// no more than 50 KiB of overhead but is likely much less)
-	NetworkSizeLimit = 2_044_723 // 1.95 MiB
-
-	// MaxWarpMessages is the maximum number of warp messages allows in a single
-	// block.
-	MaxWarpMessages = 64
-)
+// MaxWarpMessages is the maximum number of warp messages allows in a single
+// block.
+const MaxWarpMessages = 64
 
 type StatefulBlock struct {
 	Prnt   ids.ID `json:"parent"`
@@ -929,7 +923,7 @@ func (b *StatefulBlock) Marshal(
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
 ) ([]byte, error) {
-	p := codec.NewWriter(NetworkSizeLimit)
+	p := codec.NewWriter(consts.NetworkSizeLimit)
 
 	p.PackID(b.Prnt)
 	p.PackInt64(b.Tmstmp)
@@ -955,17 +949,15 @@ func (b *StatefulBlock) Marshal(
 
 func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	var (
-		p = codec.NewReader(raw, NetworkSizeLimit)
+		p = codec.NewReader(raw, consts.NetworkSizeLimit)
 		b StatefulBlock
 	)
 
 	p.UnpackID(false, &b.Prnt)
 	b.Tmstmp = p.UnpackInt64(false)
 	b.Hght = p.UnpackUint64(false)
-
 	b.UnitPrice = p.UnpackUint64(false)
 	p.UnpackWindow(&b.UnitWindow)
-
 	b.BlockCost = p.UnpackUint64(false)
 	p.UnpackWindow(&b.BlockWindow)
 	if err := p.Err(); err != nil {
@@ -974,8 +966,12 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	}
 
 	// Parse chunks
-	chunkCount := p.UnpackInt(false)      // could be 0 in genesis
-	b.Chunks = make([]ids.ID, chunkCount) // TODO: limit size
+	r := parser.Rules(b.Tmstmp)
+	chunkCount := p.UnpackInt(false) // could be 0 in genesis
+	if chunkCount > r.GetMaxChunks() {
+		return nil, ErrTooManyChunks
+	}
+	b.Chunks = make([]ids.ID, chunkCount)
 	for i := 0; i < chunkCount; i++ {
 		p.UnpackID(true, &b.Chunks[i])
 	}
