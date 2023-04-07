@@ -18,6 +18,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// TODO: make max retries and failure sleep configurable
+const (
+	maxChunkRetries = 20
+	retrySleep      = 100 * time.Millisecond
+	gossipFrequency = 100 * time.Millisecond
+)
+
 type NodeChunks struct {
 	Min         uint64
 	Max         uint64
@@ -25,8 +32,7 @@ type NodeChunks struct {
 }
 
 func (n *NodeChunks) Marshal() ([]byte, error) {
-	// TODO: set to network limit
-	p := codec.NewWriter(consts.MaxInt)
+	p := codec.NewWriter(consts.NetworkSizeLimit)
 	p.PackUint64(n.Min)
 	p.PackUint64(n.Max)
 	l := len(n.Unprocessed)
@@ -39,7 +45,7 @@ func (n *NodeChunks) Marshal() ([]byte, error) {
 
 func UnmarshalNodeChunks(b []byte) (*NodeChunks, error) {
 	var n NodeChunks
-	p := codec.NewReader(b, consts.MaxInt)
+	p := codec.NewReader(b, consts.NetworkSizeLimit)
 	n.Min = p.UnpackUint64(false) // could be genesis
 	n.Max = p.UnpackUint64(false) // could be genesis
 	l := p.UnpackInt(false)       // could have no processing
@@ -153,7 +159,7 @@ type ChunkManager struct {
 	done chan struct{}
 }
 
-func NewChunkManager(vm *VM, maxRetries int) *ChunkManager {
+func NewChunkManager(vm *VM) *ChunkManager {
 	return &ChunkManager{
 		vm:            vm,
 		requests:      map[uint32]chan []byte{},
@@ -170,7 +176,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	c.vm.Logger().Info("starting chunk manager")
 	defer close(c.done)
 
-	t := time.NewTicker(100 * time.Millisecond)
+	t := time.NewTicker(gossipFrequency)
 	lastSent := time.Now()
 	defer t.Stop()
 	for {
@@ -216,9 +222,8 @@ func (c *ChunkManager) RegisterChunk(ctx context.Context, height uint64, chunk [
 // Called when pruning chunks from accepted blocks
 //
 // Chunks should be pruned AFTER this is called
-// TODO: Actually use
-// TODO: set on initialization based on what is in store or where start state
-// sync
+// TODO: Set when pruning blobs
+// TODO: Set when state syncing
 func (c *ChunkManager) SetMin(min uint64) {
 	c.sl.Lock()
 	c.min = min
@@ -241,6 +246,7 @@ func (c *ChunkManager) Accept(height uint64) {
 
 func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkIDs []ids.ID, ch chan []byte) error {
 	// TODO: de-deuplicate requests for same chunk
+	// TODO: pre-store chunks on disk if bootstrapping
 	g, gctx := errgroup.WithContext(ctx)
 	for _, cchunkID := range chunkIDs {
 		chunkID := cchunkID
@@ -254,6 +260,8 @@ func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkID
 // requestChunk attempts to fetch a chunk and sends it on [ch] when it does, or
 // returns an error.
 func (c *ChunkManager) requestChunk(ctx context.Context, height uint64, chunkID ids.ID, ch chan []byte) error {
+	c.vm.metrics.chunkRequests.Inc()
+
 	c.cl.RLock()
 	chunk, ok := c.fetchedChunks[chunkID]
 	c.cl.RUnlock()
@@ -262,8 +270,7 @@ func (c *ChunkManager) requestChunk(ctx context.Context, height uint64, chunkID 
 		return nil
 	}
 
-	// TODO: make max retries and failure sleep configurable
-	for i := 0; i < 5; i++ {
+	for i := 0; i < maxChunkRetries; i++ {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -282,7 +289,7 @@ func (c *ChunkManager) requestChunk(ctx context.Context, height uint64, chunkID 
 		c.ml.RUnlock()
 		if len(possibleRecipients) == 0 {
 			c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID))
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(retrySleep)
 			continue
 		}
 		recipient := possibleRecipients[rand.Intn(len(possibleRecipients))]
@@ -302,17 +309,26 @@ func (c *ChunkManager) requestChunk(ctx context.Context, height uint64, chunkID 
 		); err != nil {
 			return err
 		}
-		msg := <-rch
+
+		// Handle request
+		var msg []byte
+		select {
+		case msg = <-rch:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 		if len(msg) == 0 {
+			c.vm.metrics.failedChunkRequests.Inc()
 			c.vm.snowCtx.Log.Warn("chunk fetch failed", zap.Stringer("chunkID", chunkID))
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(retrySleep)
 			continue
 		}
 		fchunkID := utils.ToID(msg)
 		if chunkID != fchunkID {
-			c.vm.snowCtx.Log.Warn("received incorrect chunk", zap.Stringer("nodeID", recipient))
 			// TODO: penalize sender
-			time.Sleep(500 * time.Millisecond)
+			c.vm.metrics.failedChunkRequests.Inc()
+			c.vm.snowCtx.Log.Warn("received incorrect chunk", zap.Stringer("nodeID", recipient))
+			time.Sleep(retrySleep)
 			continue
 		}
 		c.cl.Lock()

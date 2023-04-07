@@ -12,6 +12,8 @@ import (
 type Metrics struct {
 	unitsVerified           prometheus.Counter
 	unitsAccepted           prometheus.Counter
+	chunkRequests           prometheus.Counter
+	failedChunkRequests     prometheus.Counter
 	txsSubmitted            prometheus.Counter // includes gossip
 	txsVerified             prometheus.Counter
 	txsAccepted             prometheus.Counter
@@ -54,6 +56,16 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "units_accepted",
 			Help:      "amount of units accepted",
 		}),
+		chunkRequests: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "chunk_requests",
+			Help:      "number of chunk requests",
+		}),
+		failedChunkRequests: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "failed_chunk_requests",
+			Help:      "number of failed chunk requests",
+		}),
 		txsSubmitted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
 			Name:      "txs_submitted",
@@ -86,6 +98,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	errs.Add(
 		r.Register(m.unitsVerified),
 		r.Register(m.unitsAccepted),
+		r.Register(m.chunkRequests),
+		r.Register(m.failedChunkRequests),
 		r.Register(m.txsSubmitted),
 		r.Register(m.txsVerified),
 		r.Register(m.txsAccepted),
