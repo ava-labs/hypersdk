@@ -115,7 +115,7 @@ type StatelessBlock struct {
 	vm    VM
 	state merkledb.TrieView
 
-	sigJob *workers.Job
+	sigJobs []*workers.Job
 }
 
 func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
@@ -258,6 +258,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 		b.FetchedChunks = append(b.FetchedChunks, chunkBytes[chunkID])
 		b.Txs = append(b.Txs, chunkTxs[chunkID]...)
 	}
+	b.sigJobs = jobs
 
 	// Store status
 	b.chunkFetchErr = nil
@@ -707,8 +708,10 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitSignatures")
 	defer sspan.End()
 	start = time.Now()
-	if err := b.sigJob.Wait(); err != nil {
-		return nil, err
+	for _, sigJob := range b.sigJobs {
+		if err := sigJob.Wait(); err != nil {
+			return nil, err
+		}
 	}
 	b.vm.RecordWaitSignatures(time.Since(start))
 	return state, nil
