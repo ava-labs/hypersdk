@@ -96,8 +96,8 @@ type StatelessBlock struct {
 	chunkFetchErr      error
 	chunkFetchErrPerm  bool
 
-	Txs           []*Transaction
 	FetchedChunks [][]byte
+	Txs           []*Transaction
 
 	id     ids.ID
 	st     choices.Status
@@ -172,11 +172,10 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 	warpMessages := map[ids.ID]*warpJob{}
 	jobs := []*workers.Job{}
 	chunkTxs := map[ids.ID][]*Transaction{}
-	fetchedChunks := make([][]byte, 0, len(b.Chunks))
+	chunkBytes := map[ids.ID][]byte{}
 	var containsWarp bool
 	var seenTxs int
 	for chunk := range c {
-		fetchedChunks = append(fetchedChunks, chunk)
 		// Unmarshal chunk
 		txs, err := UnmarshalTxs(chunk, r.GetMaxBlockTxs(), actionRegistry, authRegistry)
 		if err != nil {
@@ -185,7 +184,9 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 			b.chunkFetchComplete = true
 			return
 		}
-		chunkTxs[utils.ToID(chunk)] = txs
+		chunkID := utils.ToID(chunk)
+		chunkBytes[chunkID] = chunk
+		chunkTxs[chunkID] = txs
 		seenTxs += len(txs)
 
 		// Verify signatures
@@ -248,13 +249,14 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 	}
 
 	// Populate structs once successful
-	b.FetchedChunks = fetchedChunks
+	b.FetchedChunks = make([][]byte, 0, len(b.Chunks))
 	b.txsSet = txsSet
 	b.warpMessages = warpMessages
 	b.containsWarp = containsWarp
 	b.Txs = make([]*Transaction, 0, seenTxs)
-	for _, chunk := range b.Chunks {
-		b.Txs = append(b.Txs, chunkTxs[chunk]...)
+	for _, chunkID := range b.Chunks {
+		b.FetchedChunks = append(b.FetchedChunks, chunkBytes[chunkID])
+		b.Txs = append(b.Txs, chunkTxs[chunkID]...)
 	}
 
 	// Store status
@@ -917,11 +919,6 @@ func (b *StatefulBlock) Marshal(
 	for _, chunk := range b.Chunks {
 		p.PackID(chunk)
 	}
-	// for _, tx := range b.txs {
-	// 	if err := tx.Marshal(p, actionRegistry, authRegistry); err != nil {
-	// 		return nil, err
-	// 	}
-	// }
 
 	p.PackID(b.StateRoot)
 	p.PackUint64(b.UnitsConsumed)
@@ -956,15 +953,6 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	for i := 0; i < chunkCount; i++ {
 		p.UnpackID(true, &b.Chunks[i])
 	}
-	// actionRegistry, authRegistry := parser.Registry()
-	// b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
-	// for i := 0; i < txCount; i++ {
-	// 	tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	b.Txs = append(b.Txs, tx)
-	// }
 
 	p.UnpackID(false, &b.StateRoot)
 	b.UnitsConsumed = p.UnpackUint64(false)

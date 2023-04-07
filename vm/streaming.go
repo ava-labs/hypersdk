@@ -364,6 +364,7 @@ func (c *blockRPCConnection) handleWrites() {
 				c.vm.snowCtx.Log.Error("unable to send blk", zap.Error(err))
 				return
 			}
+			// TODO: send ordered tx chunks
 			results, err := chain.MarshalResults(blk.Results())
 			if err != nil {
 				c.vm.snowCtx.Log.Error("unable to marshal blk results", zap.Error(err))
@@ -414,6 +415,7 @@ func (c *BlockRPCClient) Listen(
 	if err != nil {
 		return nil, nil, err
 	}
+	// TODO: read ordered tx chunks
 	// Read results
 	results, err := chain.UnmarshalResults(ritem)
 	if err != nil {
