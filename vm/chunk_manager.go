@@ -192,8 +192,8 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				Max:         c.max,
 				Unprocessed: c.chunks.All(),
 			}
+			c.sl.Unlock() // chunks is copied
 			b, err := nc.Marshal()
-			c.sl.Unlock()
 			if err != nil {
 				c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip", zap.Error(err))
 				continue
@@ -203,6 +203,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				continue
 			}
 			lastSent = time.Now()
+			c.vm.metrics.chunksProcessing.Set(float64(len(nc.Unprocessed)))
 		case <-c.vm.stop:
 			c.vm.Logger().Info("stopping chunk manager")
 			return

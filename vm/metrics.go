@@ -15,6 +15,7 @@ type Metrics struct {
 	chunkRequests           prometheus.Counter
 	failedChunkRequests     prometheus.Counter
 	chunkJobFails           prometheus.Counter
+	chunksProcessing        prometheus.Gauge
 	txsSubmitted            prometheus.Counter // includes gossip
 	txsVerified             prometheus.Counter
 	txsAccepted             prometheus.Counter
@@ -81,6 +82,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Namespace: "chain",
 			Name:      "chunk_job_fails",
 			Help:      "number of chunk jobs that failed",
+		}),
+		chunksProcessing: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "chunks_processing",
+			Help:      "number of chunks processing",
 		}),
 		txsSubmitted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
