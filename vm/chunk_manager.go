@@ -153,7 +153,7 @@ type ChunkManager struct {
 	done chan struct{}
 }
 
-func NewChunkManager(vm *VM) *ChunkManager {
+func NewChunkManager(vm *VM, maxRetries int) *ChunkManager {
 	return &ChunkManager{
 		vm:            vm,
 		requests:      map[uint32]chan []byte{},
@@ -264,6 +264,9 @@ func (c *ChunkManager) requestChunk(ctx context.Context, height uint64, chunkID 
 
 	// TODO: make max retries and failure sleep configurable
 	for i := 0; i < 5; i++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		// Determine who to send request to
 		possibleRecipients := []ids.NodeID{}
 		c.ml.RLock()

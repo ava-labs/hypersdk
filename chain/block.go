@@ -158,28 +158,45 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.populateTxs")
 	defer span.End()
 
+	var (
+		cctx, cancel = context.WithCancel(ctx)
+
+		c        = make(chan []byte, len(b.Chunks))
+		fetchErr error
+
+		actionRegistry, authRegistry = b.vm.Registry()
+		r                            = b.vm.Rules(b.Tmstmp)
+		txsSet                       = set.NewSet[ids.ID](1024)
+		warpMessages                 = map[ids.ID]*warpJob{}
+		jobs                         = []*workers.Job{}
+		chunkTxs                     = map[ids.ID][]*Transaction{}
+		chunkBytes                   = map[ids.ID][]byte{}
+
+		containsWarp bool
+		seenTxs      int
+	)
+
 	// Fetch chunks
-	c := make(chan []byte, len(b.Chunks))
-	var fetchErr error
+	//
+	// We cancel chunk fetching if we exit early.
+	defer cancel()
 	go func() {
-		// TODO: add chunk fetch cancellation
-		fetchErr = b.vm.RequestChunks(ctx, b.Hght, b.Chunks, c)
+		fetchErr = b.vm.RequestChunks(cctx, b.Hght, b.Chunks, c)
 		close(c)
 	}()
-	actionRegistry, authRegistry := b.vm.Registry()
-	r := b.vm.Rules(b.Tmstmp)
-	txsSet := set.NewSet[ids.ID](1024)
-	warpMessages := map[ids.ID]*warpJob{}
-	jobs := []*workers.Job{}
-	chunkTxs := map[ids.ID][]*Transaction{}
-	chunkBytes := map[ids.ID][]byte{}
-	var containsWarp bool
-	var seenTxs int
+
+	// Parse all chunks
 	for chunk := range c {
-		// Unmarshal chunk
 		txs, err := UnmarshalTxs(chunk, r.GetMaxBlockTxs(), actionRegistry, authRegistry)
 		if err != nil {
 			b.chunkFetchErr = err
+			b.chunkFetchErrPerm = true
+			b.chunkFetchComplete = true
+			return
+		}
+		// Ensure that every chunk has at least 1 transaction
+		if len(txs) == 0 {
+			b.chunkFetchErr = ErrNoTxs
 			b.chunkFetchErrPerm = true
 			b.chunkFetchComplete = true
 			return
@@ -244,11 +261,12 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 	}
 	if fetchErr != nil {
 		b.chunkFetchErr = fetchErr
+		b.chunkFetchErrPerm = false
 		b.chunkFetchComplete = true
 		return
 	}
 
-	// Populate structs once successful
+	// Populate structs if parse is successful
 	b.FetchedChunks = make([][]byte, 0, len(b.Chunks))
 	b.txsSet = txsSet
 	b.warpMessages = warpMessages
@@ -260,11 +278,10 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 	}
 	b.sigJobs = jobs
 
-	// Store status
+	// Store successful status
 	b.chunkFetchErr = nil
 	b.chunkFetchErrPerm = false
 	b.chunkFetchComplete = true
-	return
 }
 
 func ParseStatefulBlock(
@@ -282,9 +299,12 @@ func ParseStatefulBlock(
 		if blk.Tmstmp >= time.Now().Add(FutureBound).Unix() {
 			return nil, ErrTimestampTooLate
 		}
-		// TODO: limit number of chunks
+		if len(blk.Chunks) > vm.Rules(blk.Tmstmp).GetMaxChunks() {
+			return nil, ErrTooManyChunks
+		}
 	}
 
+	// Populate block bytes if not yet populated
 	if len(source) == 0 {
 		actionRegistry, authRegistry := vm.Registry()
 		nsource, err := blk.Marshal(actionRegistry, authRegistry)

@@ -138,6 +138,14 @@ func (vm *VM) processAcceptedBlocks() {
 	// persist indexed state) instead of just exiting as soon as `vm.stop` is
 	// closed.
 	for b := range vm.acceptedQueue {
+		// Update chunk store
+		for _, chunk := range b.FetchedChunks {
+			if err := vm.StoreChunk(chunk); err != nil {
+				vm.snowCtx.Log.Fatal("unable to store chunk", zap.Error(err))
+			}
+		}
+		vm.chunkManager.Accept(b.Hght)
+
 		// We skip blocks that were not processed because metadata required to
 		// process blocks opaquely (like looking at results) is not populated.
 		//
@@ -181,14 +189,6 @@ func (vm *VM) processAcceptedBlocks() {
 			// verified before they are persisted.
 			vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
 		}
-
-		// Update chunk store
-		for _, chunk := range b.FetchedChunks {
-			if err := vm.StoreChunk(chunk); err != nil {
-				vm.snowCtx.Log.Fatal("unable to store chunk", zap.Error(err))
-			}
-		}
-		vm.chunkManager.Accept(b.Hght)
 
 		// Update listeners
 		vm.listeners.AcceptBlock(b)

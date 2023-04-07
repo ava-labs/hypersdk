@@ -364,7 +364,15 @@ func (c *blockRPCConnection) handleWrites() {
 				c.vm.snowCtx.Log.Error("unable to send blk", zap.Error(err))
 				return
 			}
-			// TODO: send ordered tx chunks
+			txBytes, err := chain.MarshalTxs(blk.Txs, c.vm.actionRegistry, c.vm.authRegistry)
+			if err != nil {
+				c.vm.snowCtx.Log.Error("unable to marshal transactions", zap.Error(err))
+				return
+			}
+			if err := writeNetMessage(c.conn, txBytes); err != nil {
+				c.vm.snowCtx.Log.Error("unable to send transaction bytes", zap.Error(err))
+				return
+			}
 			results, err := chain.MarshalResults(blk.Results())
 			if err != nil {
 				c.vm.snowCtx.Log.Error("unable to marshal blk results", zap.Error(err))
@@ -398,30 +406,39 @@ func NewBlockRPCClient(uri string) (*BlockRPCClient, error) {
 
 func (c *BlockRPCClient) Listen(
 	parser chain.Parser,
-) (*chain.StatefulBlock, []*chain.Result, error) {
+) (*chain.StatefulBlock, []*chain.Transaction, []*chain.Result, error) {
 	c.ll.Lock()
 	defer c.ll.Unlock()
 
+	// Read block
 	ritem, err := readNetMessage(c.conn, false)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	// Read block
 	blk, err := chain.UnmarshalBlock(ritem, parser)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
+	// Read txs
 	ritem, err = readNetMessage(c.conn, false)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	// TODO: read ordered tx chunks
+	actionRegistry, authRegistry := parser.Registry()
+	txs, err := chain.UnmarshalTxs(ritem, consts.MaxInt, actionRegistry, authRegistry)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	// Read results
+	ritem, err = readNetMessage(c.conn, false)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	results, err := chain.UnmarshalResults(ritem)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return blk, results, nil
+	return blk, txs, results, nil
 }
 
 func (c *BlockRPCClient) Close() error {

@@ -12,7 +12,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
@@ -271,18 +270,33 @@ func BuildBlock(
 	b.StateRoot = root
 
 	// Generate chunks
-	chunks := [][]byte{}
 	b.Chunks = []ids.ID{}
-	remaining := len(b.Txs)
-	actionRegistry, authRegistry := vm.Registry()
-	for remaining > 0 {
-		// TODO: make target chunk size a constant (probably do based on units)
-		r := math.Min(1024, remaining)
-		chunk, err := MarshalTxs(b.Txs[len(b.Txs)-remaining:len(b.Txs)-remaining+r-1], actionRegistry, authRegistry)
+	var (
+		chunks                       = [][]byte{}
+		current                      = 0
+		limit                        = len(b.Txs)
+		actionRegistry, authRegistry = vm.Registry()
+	)
+	for current < limit {
+		var (
+			chunkSize uint64
+			last      int
+		)
+		for i := current; i < limit; i++ {
+			tx := b.Txs[i]
+			size := tx.Size()
+			if chunkSize+size > NetworkSizeLimit {
+				break
+			}
+			chunkSize += size
+			last = i
+		}
+		txRange := b.Txs[current : last+1]
+		chunk, err := MarshalTxs(txRange, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, err
 		}
-		remaining = math.Max(0, remaining-r)
+		current = last + 1
 		chunks = append(chunks, chunk)
 		b.Chunks = append(b.Chunks, utils.ToID(chunk))
 	}
