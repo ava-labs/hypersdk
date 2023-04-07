@@ -245,6 +245,9 @@ func (c *ChunkManager) Accept(height uint64) {
 }
 
 func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkIDs []ids.ID, ch chan []byte) error {
+	start := time.Now()
+	defer c.vm.metrics.chunksFetched.Observe(float64(time.Since(start)))
+
 	// TODO: de-deuplicate requests for same chunk
 	// TODO: pre-store chunks on disk if bootstrapping
 	g, gctx := errgroup.WithContext(ctx)
@@ -254,7 +257,11 @@ func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkID
 			return c.requestChunk(gctx, height, chunkID, ch)
 		})
 	}
-	return g.Wait()
+	if err := g.Wait(); err != nil {
+		c.vm.metrics.chunkJobFails.Inc()
+		return err
+	}
+	return nil
 }
 
 // requestChunk attempts to fetch a chunk and sends it on [ch] when it does, or

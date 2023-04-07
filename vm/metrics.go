@@ -14,11 +14,13 @@ type Metrics struct {
 	unitsAccepted           prometheus.Counter
 	chunkRequests           prometheus.Counter
 	failedChunkRequests     prometheus.Counter
+	chunkJobFails           prometheus.Counter
 	txsSubmitted            prometheus.Counter // includes gossip
 	txsVerified             prometheus.Counter
 	txsAccepted             prometheus.Counter
 	decisionsRPCConnections prometheus.Gauge
 	blocksRPCConnections    prometheus.Gauge
+	chunksFetched           metric.Averager
 	rootCalculated          metric.Averager
 	waitSignatures          metric.Averager
 }
@@ -26,6 +28,15 @@ type Metrics struct {
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	r := prometheus.NewRegistry()
 
+	chunksFetched, err := metric.NewAverager(
+		"chain",
+		"chunks_fetched",
+		"time spent fetching chunks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 	rootCalculated, err := metric.NewAverager(
 		"chain",
 		"root_calculated",
@@ -66,6 +77,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "failed_chunk_requests",
 			Help:      "number of failed chunk requests",
 		}),
+		chunkJobFails: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "chunk_job_fails",
+			Help:      "number of chunk jobs that failed",
+		}),
 		txsSubmitted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
 			Name:      "txs_submitted",
@@ -91,6 +107,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "blocks_rpc_connections",
 			Help:      "number of open blocks connections",
 		}),
+		chunksFetched:  chunksFetched,
 		rootCalculated: rootCalculated,
 		waitSignatures: waitSignatures,
 	}
@@ -100,6 +117,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.unitsAccepted),
 		r.Register(m.chunkRequests),
 		r.Register(m.failedChunkRequests),
+		r.Register(m.chunkJobFails),
 		r.Register(m.txsSubmitted),
 		r.Register(m.txsVerified),
 		r.Register(m.txsAccepted),
