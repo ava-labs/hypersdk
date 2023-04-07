@@ -478,7 +478,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	}
 
 	// Shutdown other async VM mechanisms
-	vm.chunkManager.Done()
 	vm.warpManager.Done()
 	vm.builder.Done()
 	vm.gossiper.Done()
@@ -486,6 +485,7 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	if vm.profiler != nil {
 		vm.profiler.Shutdown()
 	}
+	vm.chunkManager.Done()
 
 	// Shutdown controller once all mechanisms that could invoke it have
 	// shutdown.

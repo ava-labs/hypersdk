@@ -34,6 +34,7 @@ var (
 	isSyncing    = []byte("is_syncing")
 
 	signatureLRU = &cache.LRU[string, *WarpSignature]{Size: 1024}
+	chunkLRU     = &cache.LRU[ids.ID, []byte]{Size: 128}
 )
 
 func PrefixBlockIDKey(id ids.ID) []byte {
@@ -226,10 +227,15 @@ func PrefixChunkIDKey(id ids.ID) []byte {
 }
 
 func (vm *VM) StoreChunk(chunk []byte) error {
-	return vm.vmDB.Put(PrefixChunkIDKey(utils.ToID(chunk)), chunk)
+	chunkID := utils.ToID(chunk)
+	chunkLRU.Put(chunkID, chunk)
+	return vm.vmDB.Put(PrefixChunkIDKey(chunkID), chunk)
 }
 
 func (vm *VM) GetChunk(chunkID ids.ID) ([]byte, error) {
+	if chunk, ok := chunkLRU.Get(chunkID); ok {
+		return chunk, nil
+	}
 	v, err := vm.vmDB.Get(PrefixChunkIDKey(chunkID))
 	if err != nil {
 		return nil, err
