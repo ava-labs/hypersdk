@@ -258,15 +258,16 @@ var watchChainCmd = &cobra.Command{
 		start := time.Now()
 		utils.Outf("{{green}}watching for new blocks on %s 👀{{/}}\n", chainID)
 		for ctx.Err() == nil {
-			blk, results, err := scli.Listen(parser)
+			blk, txs, results, err := scli.Listen(parser)
 			if err != nil {
 				return err
 			}
-			totalTxs += float64(len(blk.Txs))
+			totalTxs += float64(len(txs))
 			utils.Outf(
-				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s {{green}}avg TPS:{{/}}%f\n", //nolint:lll
+				"{{green}}height:{{/}}%d {{green}}chunks:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s {{green}}avg TPS:{{/}}%f\n", //nolint:lll
 				blk.Hght,
-				len(blk.Txs),
+				len(blk.Chunks),
+				len(txs),
 				blk.UnitsConsumed,
 				blk.StateRoot,
 				totalTxs/time.Since(start).Seconds(),
@@ -274,7 +275,7 @@ var watchChainCmd = &cobra.Command{
 			if hideTxs {
 				continue
 			}
-			for i, tx := range blk.Txs {
+			for i, tx := range txs {
 				result := results[i]
 				summaryStr := string(result.Output)
 				actor := auth.GetActor(tx.Auth)
