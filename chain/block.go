@@ -101,10 +101,6 @@ type StatelessBlock struct {
 	sigJobs      []*workers.Job
 	warpMessages map[ids.ID]*warpJob
 
-	startedVerify bool
-	// TODO: decide if this should be some sort of bool
-	verifyErr error
-
 	bctx     *block.Context
 	vdrState validators.State
 	state    merkledb.TrieView
@@ -435,42 +431,23 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 		// If the state of the accepted tip has not been fully fetched, it is not safe to
 		// verify any block.
 		log.Info("skipping verification, state not ready", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()))
-	case b.Processed() && !b.startedVerify:
+	case b.Processed():
 		// If we built the block, the state will already be populated and we don't
 		// need to compute it (we assume that we built a correct block and it isn't
 		// necessary to re-verify anything).
 		log.Info("skipping verification, already processed", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()))
-	case b.Processed() && b.startedVerify:
-		log.Info("verification finished async", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()))
-	case b.startedVerify && b.verifyErr == nil:
-		// Still verifying bock
-		return ErrNotVerified
 	default:
-		if b.startedVerify {
-			// Reset any block fields to what they would've been after parse to
-			// ensure
-			b.startedVerify = false
-			b.verifyErr = nil
-			b.results = nil
-			for _, message := range b.warpMessages {
-				message.verified = false
-				message.verifiedChan = make(chan bool, 1)
-			}
+		// Parent may not be processed when we verify this block so [verify] may
+		// recursively compute missing state (should not be verifying when that
+		// happens).
+		//
+		// TODO: consider calling this async (must handle merkledb underlying
+		// change)
+		state, err := b.innerVerify(ctx)
+		if err != nil {
+			return err
 		}
-		b.startedVerify = true
-		go func() {
-			// Parent may not be processed when we verify this block so [verify] may
-			// recursively compute missing state (should not be verifying when that
-			// happens).
-			state, err := b.innerVerify(context.Background())
-			if err != nil {
-				b.verifyErr = err
-				log.Error("verification errored", zap.Error(err))
-				return
-			}
-			b.state = state
-		}()
-		return ErrNotVerified
+		b.state = state
 	}
 
 	// At any point after this, we may attempt to verify the block. We should be

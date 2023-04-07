@@ -690,7 +690,12 @@ func (vm *VM) Submit(
 	}
 
 	if !vm.config.GetMempoolVerifyBalances() {
-		return vm.submitStateless(ctx, verifySig, txs)
+		errs := vm.submitStateless(ctx, verifySig, txs)
+		if len(errs) == 0 {
+			// TODO: cleanup invariants around errors not being empty
+			errs = append(errs, nil)
+		}
+		return errs
 	}
 
 	// Create temporary execution context
