@@ -68,4 +68,5 @@ var (
 	ErrNotImplemented     = errors.New("not implemented")
 	ErrBlockNotProcessed  = errors.New("block is not processed")
 	ErrChunksNotProcessed = errors.New("chunks not processed")
+	ErrNotVerified        = errors.New("not verified")
 )
