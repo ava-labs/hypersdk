@@ -12,10 +12,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/utils/math"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/tstate"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 func HandlePreExecute(
@@ -268,8 +270,25 @@ func BuildBlock(
 	}
 	b.StateRoot = root
 
+	// Generate chunks
+	chunks := [][]byte{}
+	b.Chunks = []ids.ID{}
+	remaining := len(b.Txs)
+	actionRegistry, authRegistry := vm.Registry()
+	for remaining > 0 {
+		// TODO: make target chunk size a constant (probably do based on units)
+		r := math.Min(1024, remaining)
+		chunk, err := MarshalTxs(b.Txs[len(b.Txs)-remaining:len(b.Txs)-remaining+r-1], actionRegistry, authRegistry)
+		if err != nil {
+			return nil, err
+		}
+		remaining = math.Max(0, remaining-r)
+		chunks = append(chunks, chunk)
+		b.Chunks = append(b.Chunks, utils.ToID(chunk))
+	}
+
 	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, state, results); err != nil {
+	if err := b.initializeBuilt(ctx, chunks, state, results); err != nil {
 		return nil, err
 	}
 	log.Info(
@@ -277,6 +296,7 @@ func BuildBlock(
 		zap.Uint64("hght", b.Hght),
 		zap.Int("attempted", txsAttempted),
 		zap.Int("added", len(b.Txs)),
+		zap.Int("chunks", len(b.Chunks)),
 		zap.Int("mempool size", b.vm.Mempool().Len(ctx)),
 		zap.Duration("mempool lock wait", lockWait),
 		zap.Bool("context", blockContext != nil),
