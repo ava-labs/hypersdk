@@ -18,10 +18,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// TODO: gossip chunks as soon as build block (before verify)
-// TODO: automatically fetch new chunks before needed (will better control
-// which we fetch in the future)
-// TODO: allow for deleting block chunks after some period of time
 type NodeChunks struct {
 	Min         uint64
 	Max         uint64
@@ -62,8 +58,6 @@ type bucket struct {
 }
 
 type ChunkMap struct {
-	mu sync.RWMutex
-
 	bh      *heap.Heap[*bucket, uint64]
 	counts  map[ids.ID]int
 	heights map[uint64]*bucket // Uses timestamp as keys to map to buckets of ids.
@@ -80,9 +74,6 @@ func NewChunkMap() *ChunkMap {
 }
 
 func (c *ChunkMap) Add(height uint64, chunkID ids.ID) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	// Increase chunk count
 	times := c.counts[chunkID]
 	c.counts[chunkID] = times + 1
@@ -108,9 +99,6 @@ func (c *ChunkMap) Add(height uint64, chunkID ids.ID) {
 }
 
 func (c *ChunkMap) SetMin(h uint64) []ids.ID {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	evicted := []ids.ID{}
 	for {
 		b := c.bh.First()
@@ -135,9 +123,6 @@ func (c *ChunkMap) SetMin(h uint64) []ids.ID {
 }
 
 func (c *ChunkMap) All() set.Set[ids.ID] {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
 	s := set.NewSet[ids.ID](len(c.counts))
 	for k := range c.counts {
 		s.Add(k)
@@ -153,19 +138,12 @@ type ChunkManager struct {
 	requestID uint32
 	requests  map[uint32]chan []byte
 
-	// TODO: need to determine when to write to disk/clear cache
-	// May not end up verifying a block we request on
-	// TODO: make sure to pin chunks to block in case they are cleared from LRU
-	// during verification
-	// TODO: store []byte + height -> discard lazily if fetched chunks are below
-	// accepted
 	cl            sync.RWMutex
 	fetchedChunks map[ids.ID][]byte
-	// Duplicate chunks at different heights (only first added will be included)
-	chunks *ChunkMap
+	chunks        *ChunkMap
 
-	m  map[ids.NodeID]*NodeChunks
 	ml sync.RWMutex
+	m  map[ids.NodeID]*NodeChunks
 
 	min         uint64
 	max         uint64
@@ -203,7 +181,6 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				c.sl.Unlock()
 				continue
 			}
-			// TODO: need to iterate over LRU to get all hashes
 			nc := &NodeChunks{
 				Min:         c.min,
 				Max:         c.max,
@@ -239,7 +216,9 @@ func (c *ChunkManager) RegisterChunk(ctx context.Context, height uint64, chunk [
 // Called when pruning chunks from accepted blocks
 //
 // Chunks should be pruned AFTER this is called
-// TODO: set on initialization based on what is in store
+// TODO: Actually use
+// TODO: set on initialization based on what is in store or where start state
+// sync
 func (c *ChunkManager) SetMin(min uint64) {
 	c.sl.Lock()
 	c.min = min
@@ -272,21 +251,18 @@ func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkID
 	return g.Wait()
 }
 
-// TODO: register a request chunks job instead of going one-by-one
-// Can then parse and add to the block async instead of doing during verify
-// Run signature verification job per blob (wait at the end)
-// Make X attempts and then abandon (can be retrigged by future verify job)
-// If state isn't ready, just put job in failure state...will fetch if needed
-// during verify
+// requestChunk attempts to fetch a chunk and sends it on [ch] when it does, or
+// returns an error.
 func (c *ChunkManager) requestChunk(ctx context.Context, height uint64, chunkID ids.ID, ch chan []byte) error {
 	c.cl.RLock()
-	if chunk, ok := c.fetchedChunks[chunkID]; ok {
-		c.cl.RUnlock()
+	chunk, ok := c.fetchedChunks[chunkID]
+	c.cl.RUnlock()
+	if ok {
 		ch <- chunk
 		return nil
 	}
-	c.cl.RUnlock()
 
+	// TODO: make max retries and failure sleep configurable
 	for i := 0; i < 5; i++ {
 		// Determine who to send request to
 		possibleRecipients := []ids.NodeID{}
@@ -357,15 +333,19 @@ func (c *ChunkManager) HandleRequest(
 		c.vm.snowCtx.Log.Warn("unable to parse chunk request", zap.Error(err))
 		return nil
 	}
+
+	// Check processing
 	c.cl.RLock()
-	if chunk, ok := c.fetchedChunks[chunkID]; ok {
-		c.cl.RUnlock()
+	chunk, ok := c.fetchedChunks[chunkID]
+	c.cl.RUnlock()
+	if ok {
 		return c.appSender.SendAppResponse(ctx, nodeID, requestID, chunk)
 	}
-	c.cl.RUnlock()
-	chunk, err := c.vm.GetChunk(chunkID)
+
+	// Check accepted
+	chunk, err = c.vm.GetChunk(chunkID)
 	if err != nil {
-		c.vm.snowCtx.Log.Warn("unable to fetch chunk", zap.Error(err))
+		c.vm.snowCtx.Log.Warn("unable to find chunk", zap.Error(err))
 		return c.appSender.SendAppResponse(ctx, nodeID, requestID, []byte{})
 	}
 	return c.appSender.SendAppResponse(ctx, nodeID, requestID, chunk)
@@ -403,6 +383,7 @@ func (c *ChunkManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, m
 		c.vm.Logger().Error("unable to parse chunk gossip", zap.Error(err))
 		return nil
 	}
+	// TODO: optimistically fetch new processing chunks in case we need them
 	c.ml.Lock()
 	c.m[nodeID] = nc
 	c.ml.Unlock()
