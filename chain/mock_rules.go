@@ -109,6 +109,20 @@ func (mr *MockRulesMockRecorder) GetMaxBlockUnits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaxBlockUnits", reflect.TypeOf((*MockRules)(nil).GetMaxBlockUnits))
 }
 
+// GetMaxChunks mocks base method.
+func (m *MockRules) GetMaxChunks() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMaxChunks")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetMaxChunks indicates an expected call of GetMaxChunks.
+func (mr *MockRulesMockRecorder) GetMaxChunks() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaxChunks", reflect.TypeOf((*MockRules)(nil).GetMaxChunks))
+}
+
 // GetMinBlockCost mocks base method.
 func (m *MockRules) GetMinBlockCost() uint64 {
 	m.ctrl.T.Helper()
