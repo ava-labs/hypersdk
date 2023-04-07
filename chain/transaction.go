@@ -67,7 +67,7 @@ func (t *Transaction) Digest(
 	if !ok {
 		return nil, fmt.Errorf("unknown action type %T", t.Action)
 	}
-	p := codec.NewWriter(NetworkSizeLimit)
+	p := codec.NewWriter(consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
 	var warpBytes []byte
 	if t.WarpMessage != nil {
@@ -97,7 +97,7 @@ func (t *Transaction) Sign(
 
 	// Ensure transaction is fully initialized and correct by reloading it from
 	// bytes
-	p := codec.NewWriter(NetworkSizeLimit)
+	p := codec.NewWriter(consts.NetworkSizeLimit)
 	if err := t.Marshal(p, actionRegistry, authRegistry); err != nil {
 		return nil, err
 	}
@@ -360,7 +360,7 @@ func MarshalTxs(
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
 ) ([]byte, error) {
-	p := codec.NewWriter(NetworkSizeLimit)
+	p := codec.NewWriter(consts.MaxInt)
 	p.PackInt(len(txs))
 	for _, tx := range txs {
 		if err := tx.Marshal(p, actionRegistry, authRegistry); err != nil {
@@ -376,7 +376,7 @@ func UnmarshalTxs(
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
 ) ([]*Transaction, error) {
-	p := codec.NewReader(raw, NetworkSizeLimit)
+	p := codec.NewReader(raw, consts.MaxInt)
 	txCount := p.UnpackInt(true)
 	if txCount > maxCount {
 		return nil, ErrTooManyTxs
