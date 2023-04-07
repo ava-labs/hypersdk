@@ -43,7 +43,6 @@ type StatefulBlock struct {
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	// TODO: Move to state
 	UnitPrice   uint64        `json:"unitPrice"`
 	UnitWindow  window.Window `json:"unitWindow"`
 	BlockCost   uint64        `json:"blockCost"`
@@ -70,9 +69,8 @@ type warpJob struct {
 
 func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBlock {
 	return &StatefulBlock{
-		UnitPrice:  minUnit,
-		UnitWindow: window.Window{},
-
+		UnitPrice:   minUnit,
+		UnitWindow:  window.Window{},
 		BlockCost:   minBlock,
 		BlockWindow: window.Window{},
 
@@ -86,30 +84,27 @@ func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBloc
 type StatelessBlock struct {
 	*StatefulBlock `json:"block"`
 
+	id    ids.ID
+	st    choices.Status
+	t     time.Time
+	bytes []byte
+	vm    VM
+
+	FetchedChunks      [][]byte
 	chunkFetchComplete bool
 	chunkFetchErr      error
 	chunkFetchErrPerm  bool
 
-	FetchedChunks [][]byte
-	Txs           []*Transaction
-
-	id     ids.ID
-	st     choices.Status
-	t      time.Time
-	bytes  []byte
-	txsSet set.Set[ids.ID]
-
+	Txs          []*Transaction
+	txsSet       set.Set[ids.ID]
+	sigJobs      []*workers.Job
 	warpMessages map[ids.ID]*warpJob
 	containsWarp bool // this allows us to avoid allocating a map when we build
-	bctx         *block.Context
-	vdrState     validators.State
 
-	results []*Result
-
-	vm    VM
-	state merkledb.TrieView
-
-	sigJobs []*workers.Job
+	bctx     *block.Context
+	vdrState validators.State
+	state    merkledb.TrieView
+	results  []*Result
 }
 
 func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
@@ -119,9 +114,8 @@ func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) 
 			Tmstmp: tmstp,
 			Hght:   parent.Height() + 1,
 
-			UnitPrice:  ectx.NextUnitPrice,
-			UnitWindow: ectx.NextUnitWindow,
-
+			UnitPrice:   ectx.NextUnitPrice,
+			UnitWindow:  ectx.NextUnitWindow,
 			BlockCost:   ectx.NextBlockCost,
 			BlockWindow: ectx.NextBlockWindow,
 		},
