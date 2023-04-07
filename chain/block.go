@@ -506,11 +506,12 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 //  3. If the state of a block we are accepting is missing (finishing dynamic
 //     state sync)
 func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, error) {
-	// Perform basic correctness checks before doing any expensive work
 	var (
 		log = b.vm.Logger()
 		r   = b.vm.Rules(b.Tmstmp)
 	)
+
+	// Perform basic correctness checks before doing any expensive work
 	switch {
 	case b.Timestamp().Unix() >= time.Now().Add(FutureBound).Unix():
 		return nil, ErrTimestampTooLate
