@@ -228,7 +228,8 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 }
 
 // Called when building a chunk
-func (c *ChunkManager) RegisterChunk(ctx context.Context, height uint64, chunkID ids.ID, chunk []byte) {
+func (c *ChunkManager) RegisterChunk(ctx context.Context, height uint64, chunk []byte) {
+	chunkID := utils.ToID(chunk)
 	c.cl.Lock()
 	c.fetchedChunks[chunkID] = chunk
 	c.chunks.Add(height, chunkID)
