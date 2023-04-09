@@ -23,7 +23,6 @@ import (
 const (
 	maxChunkRetries = 20
 	retrySleep      = 100 * time.Millisecond
-	gossipFrequency = 100 * time.Millisecond
 )
 
 type NodeChunks struct {
@@ -152,10 +151,11 @@ type ChunkManager struct {
 	ml sync.RWMutex
 	m  map[ids.NodeID]*NodeChunks
 
-	min         uint64
-	max         uint64
-	lastChanged time.Time
-	sl          sync.Mutex
+	min uint64
+	max uint64
+	sl  sync.Mutex
+
+	update chan struct{}
 
 	done chan struct{}
 }
@@ -167,6 +167,7 @@ func NewChunkManager(vm *VM) *ChunkManager {
 		fetchedChunks: map[ids.ID][]byte{},
 		chunks:        NewChunkMap(),
 		m:             map[ids.NodeID]*NodeChunks{},
+		update:        make(chan struct{}),
 		done:          make(chan struct{}),
 	}
 }
@@ -177,17 +178,10 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	c.vm.Logger().Info("starting chunk manager")
 	defer close(c.done)
 
-	t := time.NewTicker(gossipFrequency)
-	lastSent := time.Now()
-	defer t.Stop()
 	for {
 		select {
-		case <-t.C:
+		case <-c.update:
 			c.sl.Lock()
-			if c.lastChanged.Sub(lastSent) < 0 {
-				c.sl.Unlock()
-				continue
-			}
 			nc := &NodeChunks{
 				Min:         c.min,
 				Max:         c.max,
@@ -206,7 +200,6 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				c.vm.snowCtx.Log.Warn("unable to send chunk gossip", zap.Error(err))
 				continue
 			}
-			lastSent = time.Now()
 			c.vm.metrics.chunksProcessing.Set(float64(len(nc.Unprocessed)))
 		case <-c.vm.stop:
 			c.vm.Logger().Info("stopping chunk manager")
@@ -216,13 +209,18 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 }
 
 // Called when building a chunk
-func (c *ChunkManager) RegisterChunk(ctx context.Context, height uint64, chunk []byte) {
-	chunkID := utils.ToID(chunk)
+func (c *ChunkManager) RegisterChunks(ctx context.Context, height uint64, chunks [][]byte) {
+	chunkIDs := make([]ids.ID, len(chunks))
+	for i, chunk := range chunks {
+		chunkIDs[i] = utils.ToID(chunk)
+	}
 	c.cl.Lock()
-	c.fetchedChunks[chunkID] = chunk
-	c.chunks.Add(height, chunkID)
-	c.lastChanged = time.Now()
+	for i, chunk := range chunks {
+		c.fetchedChunks[chunkIDs[i]] = chunk
+		c.chunks.Add(height, chunkIDs[i])
+	}
 	c.cl.Unlock()
+	c.update <- struct{}{}
 }
 
 // Called when pruning chunks from accepted blocks
@@ -233,8 +231,8 @@ func (c *ChunkManager) RegisterChunk(ctx context.Context, height uint64, chunk [
 func (c *ChunkManager) SetMin(min uint64) {
 	c.sl.Lock()
 	c.min = min
-	c.lastChanged = time.Now()
 	c.sl.Unlock()
+	c.update <- struct{}{}
 }
 
 // Called when a block is accepted
@@ -242,12 +240,14 @@ func (c *ChunkManager) SetMin(min uint64) {
 // Ensure chunks are persisted before calling this method
 func (c *ChunkManager) Accept(height uint64) {
 	c.sl.Lock()
+	c.cl.Lock()
 	c.max = height
 	for _, chunkID := range c.chunks.SetMin(height + 1) {
 		delete(c.fetchedChunks, chunkID)
 	}
-	c.lastChanged = time.Now()
+	c.cl.Unlock()
 	c.sl.Unlock()
+	c.update <- struct{}{}
 }
 
 func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkIDs []ids.ID, ch chan []byte) error {
@@ -300,6 +300,7 @@ func (c *ChunkManager) requestChunk(ctx context.Context, height uint64, chunkID 
 			}
 		}
 		c.ml.RUnlock()
+		// TODO: pick random recipient if none available
 		if len(possibleRecipients) == 0 {
 			c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID))
 			time.Sleep(retrySleep)
