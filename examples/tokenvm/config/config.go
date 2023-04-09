@@ -23,6 +23,7 @@ import (
 var _ vm.Config = (*Config)(nil)
 
 const (
+	defaultGossipInterval              = 1 * time.Second
 	defaultPreferredBlocksPerSecond    = 2
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
@@ -45,10 +46,11 @@ type Config struct {
 	StreamingBacklogSize int    `json:"streamingBacklogSize"`
 
 	// Mempool
-	MempoolSize           int      `json:"mempoolSize"`
-	MempoolPayerSize      int      `json:"mempoolPayerSize"`
-	MempoolExemptPayers   []string `json:"mempoolExemptPayers"`
-	MempoolVerifyBalances bool     `json:"mempoolVerifyBalances"`
+	GossipInterval        time.Duration `json:"gossipInterval"`
+	MempoolSize           int           `json:"mempoolSize"`
+	MempoolPayerSize      int           `json:"mempoolPayerSize"`
+	MempoolExemptPayers   []string      `json:"mempoolExemptPayers"`
+	MempoolVerifyBalances bool          `json:"mempoolVerifyBalances"`
 
 	// Order Book
 	//
@@ -94,6 +96,7 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
+	c.GossipInterval = defaultGossipInterval
 	c.Parallelism = c.Config.GetParallelism()
 	c.PreferredBlocksPerSecond = defaultPreferredBlocksPerSecond
 	c.MempoolSize = c.Config.GetMempoolSize()

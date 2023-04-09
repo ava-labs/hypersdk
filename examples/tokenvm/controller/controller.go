@@ -149,6 +149,7 @@ func (c *Controller) Initialize(
 		build = builder.NewTime(inner, bcfg)
 		gcfg := gossiper.DefaultProposerConfig()
 		gcfg.BuildProposerDiff = 1 // don't gossip if producing the next block
+		gcfg.GossipInterval = c.config.GossipInterval
 		gossip = gossiper.NewProposer(inner, gcfg)
 	}
 

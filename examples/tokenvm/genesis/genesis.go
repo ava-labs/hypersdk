@@ -64,7 +64,7 @@ func Default() *Genesis {
 
 		// Block params
 		MaxChunks:     10,
-		MaxBlockTxs:   20_000,    // rely on max block units
+		MaxBlockTxs:   100_000,   // rely on max block units
 		MaxBlockUnits: 1_800_000, // 1.8 MiB
 
 		// Tx params
