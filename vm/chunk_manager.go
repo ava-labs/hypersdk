@@ -3,11 +3,11 @@ package vm
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/rand"
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -59,8 +59,8 @@ func UnmarshalNodeChunks(b []byte) (*NodeChunks, error) {
 }
 
 type bucket struct {
-	h     uint64   // Timestamp
-	items []ids.ID // Array of AvalancheGo ids
+	h     uint64          // Timestamp
+	items set.Set[ids.ID] // Array of AvalancheGo ids
 }
 
 type ChunkMap struct {
@@ -80,20 +80,26 @@ func NewChunkMap() *ChunkMap {
 }
 
 func (c *ChunkMap) Add(height uint64, chunkID ids.ID) {
+	// Ensure chunk is not already registered at height
+	b, ok := c.heights[height]
+	if ok && b.items.Contains(chunkID) {
+		return
+	}
+
 	// Increase chunk count
 	times := c.counts[chunkID]
 	c.counts[chunkID] = times + 1
 
 	// Check if bucket with height already exists
-	if b, ok := c.heights[height]; ok {
-		b.items = append(b.items, chunkID)
+	if ok {
+		b.items.Add(chunkID)
 		return
 	}
 
 	// Create new bucket
-	b := &bucket{
+	b = &bucket{
 		h:     height,
-		items: []ids.ID{chunkID},
+		items: set.Set[ids.ID]{chunkID: struct{}{}},
 	}
 	c.heights[height] = b
 	c.bh.Push(&heap.Entry[*bucket, uint64]{
@@ -112,14 +118,14 @@ func (c *ChunkMap) SetMin(h uint64) []ids.ID {
 			break
 		}
 		c.bh.Pop()
-		for _, id := range b.Item.items {
-			count := c.counts[id]
+		for chunkID := range b.Item.items {
+			count := c.counts[chunkID]
 			count--
 			if count == 0 {
-				delete(c.counts, id)
-				evicted = append(evicted, id)
+				delete(c.counts, chunkID)
+				evicted = append(evicted, chunkID)
 			} else {
-				c.counts[id] = count
+				c.counts[chunkID] = count
 			}
 		}
 		// Delete from times map
@@ -140,20 +146,20 @@ type ChunkManager struct {
 	vm        *VM
 	appSender common.AppSender
 
-	l         sync.Mutex
-	requestID uint32
-	requests  map[uint32]chan []byte
+	requestLock sync.Mutex
+	requestID   uint32
+	requests    map[uint32]chan []byte
 
-	cl            sync.RWMutex
+	chunkLock     sync.RWMutex
 	fetchedChunks map[ids.ID][]byte
 	chunks        *ChunkMap
+	min           uint64
+	max           uint64
 
-	ml sync.RWMutex
-	m  map[ids.NodeID]*NodeChunks
+	nodeChunkLock sync.RWMutex
+	nodeChunks    map[ids.NodeID]*NodeChunks
 
-	min uint64
-	max uint64
-	sl  sync.Mutex
+	optimisticChunks *cache.LRU[ids.ID, []byte]
 
 	update chan struct{}
 
@@ -162,13 +168,14 @@ type ChunkManager struct {
 
 func NewChunkManager(vm *VM) *ChunkManager {
 	return &ChunkManager{
-		vm:            vm,
-		requests:      map[uint32]chan []byte{},
-		fetchedChunks: map[ids.ID][]byte{},
-		chunks:        NewChunkMap(),
-		m:             map[ids.NodeID]*NodeChunks{},
-		update:        make(chan struct{}),
-		done:          make(chan struct{}),
+		vm:               vm,
+		requests:         map[uint32]chan []byte{},
+		fetchedChunks:    map[ids.ID][]byte{},
+		chunks:           NewChunkMap(),
+		nodeChunks:       map[ids.NodeID]*NodeChunks{},
+		optimisticChunks: &cache.LRU[ids.ID, []byte]{Size: 1024},
+		update:           make(chan struct{}),
+		done:             make(chan struct{}),
 	}
 }
 
@@ -181,16 +188,13 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	for {
 		select {
 		case <-c.update:
-			c.sl.Lock()
+			c.chunkLock.RLock()
 			nc := &NodeChunks{
 				Min:         c.min,
 				Max:         c.max,
 				Unprocessed: c.chunks.All(),
 			}
-			c.sl.Unlock() // chunks is copied
-			if len(nc.Unprocessed) > 0 {
-				fmt.Println("gossiping chunks", len(nc.Unprocessed))
-			}
+			c.chunkLock.RLock() // chunks is copied
 			b, err := nc.Marshal()
 			if err != nil {
 				c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip", zap.Error(err))
@@ -214,12 +218,12 @@ func (c *ChunkManager) RegisterChunks(ctx context.Context, height uint64, chunks
 	for i, chunk := range chunks {
 		chunkIDs[i] = utils.ToID(chunk)
 	}
-	c.cl.Lock()
+	c.chunkLock.Lock()
 	for i, chunk := range chunks {
 		c.fetchedChunks[chunkIDs[i]] = chunk
 		c.chunks.Add(height, chunkIDs[i])
 	}
-	c.cl.Unlock()
+	c.chunkLock.Unlock()
 	c.update <- struct{}{}
 }
 
@@ -229,9 +233,10 @@ func (c *ChunkManager) RegisterChunks(ctx context.Context, height uint64, chunks
 // TODO: Set when pruning blobs
 // TODO: Set when state syncing
 func (c *ChunkManager) SetMin(min uint64) {
-	c.sl.Lock()
+	c.chunkLock.Lock()
 	c.min = min
-	c.sl.Unlock()
+	c.chunkLock.Unlock()
+
 	c.update <- struct{}{}
 }
 
@@ -239,14 +244,13 @@ func (c *ChunkManager) SetMin(min uint64) {
 //
 // Ensure chunks are persisted before calling this method
 func (c *ChunkManager) Accept(height uint64) {
-	c.sl.Lock()
-	c.cl.Lock()
+	c.chunkLock.Lock()
 	c.max = height
 	for _, chunkID := range c.chunks.SetMin(height + 1) {
 		delete(c.fetchedChunks, chunkID)
 	}
-	c.cl.Unlock()
-	c.sl.Unlock()
+	c.chunkLock.Unlock()
+
 	c.update <- struct{}{}
 }
 
@@ -260,7 +264,7 @@ func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkID
 	for _, cchunkID := range chunkIDs {
 		chunkID := cchunkID
 		g.Go(func() error {
-			return c.requestChunk(gctx, height, chunkID, ch)
+			return c.requestChunkRandom(gctx, height, chunkID, ch)
 		})
 	}
 	if err := g.Wait(); err != nil {
@@ -272,88 +276,134 @@ func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkID
 
 // requestChunk attempts to fetch a chunk and sends it on [ch] when it does, or
 // returns an error.
-func (c *ChunkManager) requestChunk(ctx context.Context, height uint64, chunkID ids.ID, ch chan []byte) error {
-	c.vm.metrics.chunkRequests.Inc()
+func (c *ChunkManager) requestChunkRandom(ctx context.Context, height uint64, chunkID ids.ID, ch chan []byte) error {
+	var (
+		start    = time.Now()
+		attempts int
+		success  bool
+		cached   bool
+	)
+	defer func() {
+		c.vm.snowCtx.Log.Info("fetched chunk", zap.Stringer("chunk", chunkID), zap.Duration("t", time.Since(start)), zap.Int("attempts", attempts), zap.Bool("success", success), zap.Bool("cached", cached))
+	}()
 
-	c.cl.RLock()
+	// Check if previously fetched
+	c.chunkLock.Lock()
 	chunk, ok := c.fetchedChunks[chunkID]
-	c.cl.RUnlock()
 	if ok {
+		c.chunks.Add(height, chunkID)
+		c.chunkLock.Unlock()
+		cached = true
+		ch <- chunk
+		return nil
+	}
+	c.chunkLock.Unlock()
+
+	// Check if optimistically cached
+	if msg, ok := c.optimisticChunks.Get(chunkID); ok {
+		c.chunkLock.Lock()
+		c.fetchedChunks[chunkID] = msg
+		c.chunks.Add(height, chunkID)
+		c.chunkLock.Unlock()
+		cached = true
 		ch <- chunk
 		return nil
 	}
 
+	// Attempt to fetch
 	for i := 0; i < maxChunkRetries; i++ {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		attempts++
+
 		// Determine who to send request to
 		possibleRecipients := []ids.NodeID{}
-		c.ml.RLock()
-		for nodeID, chunk := range c.m {
+		var randomRecipient ids.NodeID
+		c.nodeChunkLock.RLock()
+		for nodeID, chunk := range c.nodeChunks {
 			if height >= chunk.Min && height <= chunk.Max {
 				possibleRecipients = append(possibleRecipients, nodeID)
 				continue
 			}
 			if chunk.Unprocessed.Contains(chunkID) {
 				possibleRecipients = append(possibleRecipients, nodeID)
+				continue
 			}
+			randomRecipient = nodeID
 		}
-		c.ml.RUnlock()
-		// TODO: pick random recipient if none available
-		if len(possibleRecipients) == 0 {
+		c.nodeChunkLock.RUnlock()
+
+		// No available recipients, so we wait
+		if randomRecipient == ids.EmptyNodeID {
 			c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID))
 			time.Sleep(retrySleep)
 			continue
 		}
-		recipient := possibleRecipients[rand.Intn(len(possibleRecipients))]
 
-		// Send request
-		rch := make(chan []byte)
-		c.l.Lock()
-		requestID := c.requestID
-		c.requestID++
-		c.requests[requestID] = rch
-		c.l.Unlock()
-		if err := c.appSender.SendAppRequest(
-			ctx,
-			set.Set[ids.NodeID]{recipient: struct{}{}},
-			requestID,
-			// TODO: need to copy here?
-			chunkID[:],
-		); err != nil {
-			return err
+		// If 1 or more possible recipients, pick them
+		if len(possibleRecipients) > 0 {
+			randomRecipient = possibleRecipients[rand.Intn(len(possibleRecipients))]
 		}
 
-		// Handle request
-		var msg []byte
-		select {
-		case msg = <-rch:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-		if len(msg) == 0 {
-			c.vm.metrics.failedChunkRequests.Inc()
-			c.vm.snowCtx.Log.Warn("chunk fetch failed", zap.Stringer("chunkID", chunkID))
+		// Handle received message
+		msg, err := c.requestChunkNodeID(ctx, randomRecipient, chunkID)
+		if err != nil {
+			c.vm.snowCtx.Log.Warn("chunk fetch failed", zap.Stringer("chunkID", chunkID), zap.Error(err))
 			time.Sleep(retrySleep)
 			continue
 		}
-		fchunkID := utils.ToID(msg)
-		if chunkID != fchunkID {
-			// TODO: penalize sender
-			c.vm.metrics.failedChunkRequests.Inc()
-			c.vm.snowCtx.Log.Warn("received incorrect chunk", zap.Stringer("nodeID", recipient))
-			time.Sleep(retrySleep)
-			continue
-		}
-		c.cl.Lock()
+		c.chunkLock.Lock()
 		c.fetchedChunks[chunkID] = msg
 		c.chunks.Add(height, chunkID)
-		c.cl.Unlock()
+		c.chunkLock.Unlock()
+		success = true
 		ch <- msg
 		return nil
 	}
 	return errors.New("could not fetch chunk")
+}
+
+func (c *ChunkManager) requestChunkNodeID(ctx context.Context, recipient ids.NodeID, chunkID ids.ID) ([]byte, error) {
+	c.vm.metrics.chunkRequests.Inc()
+
+	// Send request
+	rch := make(chan []byte)
+	c.requestLock.Lock()
+	requestID := c.requestID
+	c.requestID++
+	c.requests[requestID] = rch
+	c.requestLock.Unlock()
+	if err := c.appSender.SendAppRequest(
+		ctx,
+		set.Set[ids.NodeID]{recipient: struct{}{}},
+		requestID,
+		chunkID[:],
+	); err != nil {
+		c.vm.metrics.failedChunkRequests.Inc()
+		return nil, err
+	}
+
+	// Handle request
+	var msg []byte
+	select {
+	case msg = <-rch:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	if len(msg) == 0 {
+		c.vm.metrics.failedChunkRequests.Inc()
+		c.vm.snowCtx.Log.Warn("chunk fetch failed", zap.Stringer("chunkID", chunkID))
+		return nil, errors.New("not found")
+	}
+	fchunkID := utils.ToID(msg)
+	if chunkID != fchunkID {
+		// TODO: penalize sender
+		c.vm.metrics.failedChunkRequests.Inc()
+		c.vm.snowCtx.Log.Warn("received incorrect chunk", zap.Stringer("nodeID", recipient))
+		return nil, errors.New("invalid chunk")
+	}
+	return msg, nil
 }
 
 func (c *ChunkManager) HandleRequest(
@@ -369,9 +419,9 @@ func (c *ChunkManager) HandleRequest(
 	}
 
 	// Check processing
-	c.cl.RLock()
+	c.chunkLock.RLock()
 	chunk, ok := c.fetchedChunks[chunkID]
-	c.cl.RUnlock()
+	c.chunkLock.RUnlock()
 	if ok {
 		return c.appSender.SendAppResponse(ctx, nodeID, requestID, chunk)
 	}
@@ -386,27 +436,27 @@ func (c *ChunkManager) HandleRequest(
 }
 
 func (c *ChunkManager) HandleResponse(nodeID ids.NodeID, requestID uint32, msg []byte) error {
-	c.l.Lock()
+	c.requestLock.Lock()
 	request, ok := c.requests[requestID]
 	if !ok {
-		c.l.Unlock()
+		c.requestLock.Unlock()
 		return nil
 	}
 	delete(c.requests, requestID)
-	c.l.Unlock()
+	c.requestLock.Unlock()
 	request <- msg
 	return nil
 }
 
 func (c *ChunkManager) HandleRequestFailed(requestID uint32) error {
-	c.l.Lock()
+	c.requestLock.Lock()
 	request, ok := c.requests[requestID]
 	if !ok {
-		c.l.Unlock()
+		c.requestLock.Unlock()
 		return nil
 	}
 	delete(c.requests, requestID)
-	c.l.Unlock()
+	c.requestLock.Unlock()
 	request <- []byte{}
 	return nil
 }
@@ -417,19 +467,45 @@ func (c *ChunkManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, m
 		c.vm.Logger().Error("unable to parse chunk gossip", zap.Error(err))
 		return nil
 	}
-	// TODO: optimistically fetch new processing chunks in case we need them
-	c.ml.Lock()
-	c.m[nodeID] = nc
-	c.ml.Unlock()
+	c.nodeChunkLock.Lock()
+	c.nodeChunks[nodeID] = nc
+	unprocessed := nc.Unprocessed // never updated
+	c.nodeChunkLock.Unlock()
+
+	// Optimistically fetch chunks
+	// TODO: only fetch if from a soon to be producer (i.e. will need to verify
+	// a future block)
+	// TODO: ensure not requesting same chunk multiple times
+	// TODO: handle case where already wrote to disk and we are getting old
+	// chunks
+	for chunkID := range unprocessed {
+		if _, ok := c.optimisticChunks.Get(chunkID); ok {
+			continue
+		}
+		c.chunkLock.RLock()
+		_, ok := c.fetchedChunks[chunkID]
+		c.chunkLock.RUnlock()
+		if ok {
+			continue
+		}
+		start := time.Now()
+		msg, err := c.requestChunkNodeID(ctx, nodeID, chunkID)
+		if err != nil {
+			c.vm.snowCtx.Log.Warn("optimistic chunk fetch failed", zap.Stringer("chunkID", chunkID), zap.Error(err))
+			continue
+		}
+		c.vm.snowCtx.Log.Warn("optimistically fetched", zap.Stringer("chunkID", chunkID), zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)))
+		c.optimisticChunks.Put(chunkID, msg)
+	}
 	return nil
 }
 
 // When disconnecting from a node, we remove it from the map because we should
 // no longer request chunks from it.
 func (c *ChunkManager) HandleDisconnect(ctx context.Context, nodeID ids.NodeID) error {
-	c.ml.Lock()
-	delete(c.m, nodeID)
-	c.ml.Unlock()
+	c.nodeChunkLock.Lock()
+	delete(c.nodeChunks, nodeID)
+	c.nodeChunkLock.Unlock()
 	return nil
 }
 

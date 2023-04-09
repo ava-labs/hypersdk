@@ -338,8 +338,8 @@ func (vm *VM) RecordWaitSignatures(t time.Duration) {
 	vm.metrics.waitSignatures.Observe(float64(t))
 }
 
-func (vm *VM) RegisterChunk(ctx context.Context, height uint64, chunk []byte) {
-	vm.chunkManager.RegisterChunk(ctx, height, chunk)
+func (vm *VM) RegisterChunks(ctx context.Context, height uint64, chunks [][]byte) {
+	vm.chunkManager.RegisterChunks(ctx, height, chunks)
 }
 
 func (vm *VM) RequestChunks(ctx context.Context, height uint64, chunks []ids.ID, ch chan []byte) error {
