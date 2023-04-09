@@ -190,7 +190,8 @@ var _ = ginkgo.BeforeSuite(func() {
 				"throttler-inbound-bandwidth-max-burst-size":"1073741824",
 				"throttler-inbound-cpu-validator-alloc":"100000",
 				"throttler-inbound-disk-validator-alloc":"10737418240000",
-				"throttler-outbound-validator-alloc-size":"107374182"
+				"throttler-outbound-validator-alloc-size":"107374182",
+				"network-compression-enabled":false
 			}`),
 	)
 	cancel()
