@@ -224,6 +224,7 @@ func (c *ChunkManager) RegisterChunks(ctx context.Context, height uint64, chunks
 		c.chunks.Add(height, chunkIDs[i])
 	}
 	c.chunkLock.Unlock()
+
 	c.update <- struct{}{}
 }
 

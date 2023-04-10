@@ -926,12 +926,12 @@ func (b *StatefulBlock) Marshal(
 	p.PackWindow(b.BlockWindow)
 
 	// Write chunks
-	chunks := len(b.Chunks)
-	p.PackInt(chunks)
-	fmt.Println("write chunk count", chunks)
-	for _, cchunk := range b.Chunks {
-		chunk := cchunk
-		p.PackID(chunk)
+	chunkCount := len(b.Chunks)
+	p.PackInt(chunkCount)
+	fmt.Println("write chunk count", chunkCount)
+	for i := 0; i < chunkCount; i++ {
+		chunk := b.Chunks[i]
+		p.PackID(b.Chunks[i])
 		fmt.Println("write chunk", chunk)
 	}
 
