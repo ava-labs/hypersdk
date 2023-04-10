@@ -360,6 +360,9 @@ func MarshalTxs(
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
 ) ([]byte, error) {
+	if len(txs) == 0 {
+		return nil, ErrNoTxs
+	}
 	p := codec.NewWriter(consts.MaxInt)
 	p.PackInt(len(txs))
 	for _, tx := range txs {
@@ -367,7 +370,10 @@ func MarshalTxs(
 			return nil, err
 		}
 	}
-	return p.Bytes(), p.Err()
+	if p.Err() != nil {
+		return nil, fmt.Errorf("%w: unable to marshal txs", p.Err())
+	}
+	return p.Bytes(), nil
 }
 
 func UnmarshalTxs(
@@ -378,6 +384,7 @@ func UnmarshalTxs(
 ) ([]*Transaction, error) {
 	p := codec.NewReader(raw, consts.MaxInt)
 	txCount := p.UnpackInt(true)
+	fmt.Println("unmarshaling txs", txCount)
 	if txCount > maxCount {
 		return nil, ErrTooManyTxs
 	}
@@ -389,11 +396,17 @@ func UnmarshalTxs(
 		}
 		txs[i] = tx
 	}
+	var err error
 	if !p.Empty() {
-		// Ensure no leftover bytes
-		return nil, ErrInvalidObject
+		err = ErrExtraBytes
 	}
-	return txs, p.Err()
+	if err == nil && p.Err() != nil {
+		err = p.Err()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("%w: unable to unmarshal txs (%d)", err, txCount)
+	}
+	return txs, nil
 }
 
 func UnmarshalTx(

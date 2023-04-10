@@ -3,6 +3,7 @@ package vm
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -217,6 +218,7 @@ func (c *ChunkManager) RegisterChunks(ctx context.Context, height uint64, chunks
 	chunkIDs := make([]ids.ID, len(chunks))
 	for i, chunk := range chunks {
 		chunkIDs[i] = utils.ToID(chunk)
+		fmt.Println("registering chunk", chunkIDs[i])
 	}
 	c.chunkLock.Lock()
 	for i, chunk := range chunks {
@@ -382,6 +384,7 @@ func (c *ChunkManager) requestChunkNodeID(ctx context.Context, recipient ids.Nod
 		chunkID[:],
 	); err != nil {
 		c.vm.metrics.failedChunkRequests.Inc()
+		c.vm.snowCtx.Log.Warn("chunk fetch request failed", zap.Stringer("chunkID", chunkID), zap.Error(err))
 		return nil, err
 	}
 
@@ -470,7 +473,7 @@ func (c *ChunkManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, m
 	}
 	c.nodeChunkLock.Lock()
 	c.nodeChunks[nodeID] = nc
-	unprocessed := nc.Unprocessed // never updated
+	// unprocessed := nc.Unprocessed // never updated
 	c.nodeChunkLock.Unlock()
 
 	// Optimistically fetch chunks
@@ -479,25 +482,25 @@ func (c *ChunkManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, m
 	// TODO: ensure not requesting same chunk multiple times
 	// TODO: handle case where already wrote to disk and we are getting old
 	// chunks
-	for chunkID := range unprocessed {
-		if _, ok := c.optimisticChunks.Get(chunkID); ok {
-			continue
-		}
-		c.chunkLock.RLock()
-		_, ok := c.fetchedChunks[chunkID]
-		c.chunkLock.RUnlock()
-		if ok {
-			continue
-		}
-		start := time.Now()
-		msg, err := c.requestChunkNodeID(ctx, nodeID, chunkID)
-		if err != nil {
-			c.vm.snowCtx.Log.Warn("optimistic chunk fetch failed", zap.Stringer("chunkID", chunkID), zap.Error(err))
-			continue
-		}
-		c.vm.snowCtx.Log.Warn("optimistically fetched", zap.Stringer("chunkID", chunkID), zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)))
-		c.optimisticChunks.Put(chunkID, msg)
-	}
+	// for chunkID := range unprocessed {
+	// 	if _, ok := c.optimisticChunks.Get(chunkID); ok {
+	// 		continue
+	// 	}
+	// 	c.chunkLock.RLock()
+	// 	_, ok := c.fetchedChunks[chunkID]
+	// 	c.chunkLock.RUnlock()
+	// 	if ok {
+	// 		continue
+	// 	}
+	// 	start := time.Now()
+	// 	msg, err := c.requestChunkNodeID(ctx, nodeID, chunkID)
+	// 	if err != nil {
+	// 		c.vm.snowCtx.Log.Warn("optimistic chunk fetch failed", zap.Stringer("chunkID", chunkID), zap.Error(err))
+	// 		continue
+	// 	}
+	// 	c.vm.snowCtx.Log.Warn("optimistically fetched", zap.Stringer("chunkID", chunkID), zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)))
+	// 	c.optimisticChunks.Put(chunkID, msg)
+	// }
 	return nil
 }
 

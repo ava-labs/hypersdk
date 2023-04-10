@@ -145,6 +145,8 @@ func (vm *VM) Initialize(
 	// This will be overwritten when we accept the first block (in state sync) or
 	// backfill existing blocks (during normal bootstrapping).
 	vm.startSeenTime = -1
+	vm.seen = emap.NewEMap[*chain.Transaction]()
+	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	gatherer := ametrics.NewMultiGatherer()
@@ -236,10 +238,6 @@ func (vm *VM) Initialize(
 		vm.config.GetMempoolPayerSize(),
 		vm.config.GetMempoolExemptPayers(),
 	)
-
-	// Init seen for tracking transactions that have been accepted on-chain
-	vm.seen = emap.NewEMap[*chain.Transaction]()
-	vm.seenValidityWindow = make(chan struct{})
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()

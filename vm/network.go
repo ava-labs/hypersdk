@@ -131,9 +131,9 @@ func (n *NetworkManager) routeIncomingMessage(msg []byte) ([]byte, NetworkHandle
 	if l == 0 {
 		return nil, nil, false
 	}
-	handlerID := msg[l-1]
+	handlerID := msg[0]
 	handler, ok := n.handlers[handlerID]
-	return msg[:l-1], handler, ok
+	return msg[1:], handler, ok
 }
 
 func (n *NetworkManager) handleSharedRequestID(
@@ -331,6 +331,13 @@ type WrappedAppSender struct {
 	handler uint8
 }
 
+func (w *WrappedAppSender) createMessageBytes(src []byte) []byte {
+	messageBytes := make([]byte, 1+len(src))
+	messageBytes[0] = w.handler
+	copy(messageBytes[1:], src)
+	return messageBytes
+}
+
 // Send an application-level request.
 // A nil return value guarantees that for each nodeID in [nodeIDs],
 // the VM corresponding to this AppSender eventually receives either:
@@ -344,14 +351,14 @@ func (w *WrappedAppSender) SendAppRequest(
 	requestID uint32,
 	appRequestBytes []byte,
 ) error {
-	appRequestBytes = append(appRequestBytes, w.handler)
+	requestBytes := w.createMessageBytes(appRequestBytes)
 	for nodeID := range nodeIDs {
 		newRequestID := w.n.getSharedRequestID(w.handler, nodeID, requestID)
 		if err := w.n.sender.SendAppRequest(
 			ctx,
 			set.Set[ids.NodeID]{nodeID: struct{}{}},
 			newRequestID,
-			appRequestBytes,
+			requestBytes,
 		); err != nil {
 			return err
 		}
@@ -384,7 +391,7 @@ func (w *WrappedAppSender) SendAppResponse(
 func (w *WrappedAppSender) SendAppGossip(ctx context.Context, appGossipBytes []byte) error {
 	return w.n.sender.SendAppGossip(
 		ctx,
-		append(appGossipBytes, w.handler),
+		w.createMessageBytes(appGossipBytes),
 	)
 }
 
@@ -396,7 +403,7 @@ func (w *WrappedAppSender) SendAppGossipSpecific(
 	return w.n.sender.SendAppGossipSpecific(
 		ctx,
 		nodeIDs,
-		append(appGossipBytes, w.handler),
+		w.createMessageBytes(appGossipBytes),
 	)
 }
 
@@ -420,7 +427,7 @@ func (w *WrappedAppSender) SendCrossChainAppRequest(
 		ctx,
 		chainID,
 		requestID,
-		append(appRequestBytes, w.handler),
+		w.createMessageBytes(appRequestBytes),
 	)
 }
 

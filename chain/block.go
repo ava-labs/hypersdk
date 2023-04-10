@@ -986,11 +986,17 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
 	// TODO: ensure value of warp results is less than warp count
 
+	var err error
 	if !p.Empty() {
-		// Ensure no leftover bytes
-		return nil, ErrExtraBytes
+		err = ErrExtraBytes
 	}
-	return &b, p.Err()
+	if err == nil && p.Err() != nil {
+		err = p.Err()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("%w: unable to unmarshal block", err)
+	}
+	return &b, nil
 }
 
 type SyncableBlock struct {
