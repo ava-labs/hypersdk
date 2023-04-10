@@ -310,9 +310,9 @@ func (c *ChunkManager) requestChunkRandom(ctx context.Context, height uint64, ch
 		c.chunkLock.Unlock()
 
 		// Check if optimistically cached
-		if msg, ok := c.optimisticChunks.Get(chunkID); ok {
+		if chunk, ok := c.optimisticChunks.Get(chunkID); ok {
 			c.chunkLock.Lock()
-			c.fetchedChunks[chunkID] = msg
+			c.fetchedChunks[chunkID] = chunk
 			c.chunks.Add(height, chunkID)
 			c.chunkLock.Unlock()
 			cached = true
@@ -473,7 +473,7 @@ func (c *ChunkManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, m
 	}
 	c.nodeChunkLock.Lock()
 	c.nodeChunks[nodeID] = nc
-	// unprocessed := nc.Unprocessed // never updated
+	unprocessed := nc.Unprocessed // never updated
 	c.nodeChunkLock.Unlock()
 
 	// Optimistically fetch chunks
@@ -482,25 +482,25 @@ func (c *ChunkManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, m
 	// TODO: ensure not requesting same chunk multiple times
 	// TODO: handle case where already wrote to disk and we are getting old
 	// chunks
-	// for chunkID := range unprocessed {
-	// 	if _, ok := c.optimisticChunks.Get(chunkID); ok {
-	// 		continue
-	// 	}
-	// 	c.chunkLock.RLock()
-	// 	_, ok := c.fetchedChunks[chunkID]
-	// 	c.chunkLock.RUnlock()
-	// 	if ok {
-	// 		continue
-	// 	}
-	// 	start := time.Now()
-	// 	msg, err := c.requestChunkNodeID(ctx, nodeID, chunkID)
-	// 	if err != nil {
-	// 		c.vm.snowCtx.Log.Warn("optimistic chunk fetch failed", zap.Stringer("chunkID", chunkID), zap.Error(err))
-	// 		continue
-	// 	}
-	// 	c.vm.snowCtx.Log.Warn("optimistically fetched", zap.Stringer("chunkID", chunkID), zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)))
-	// 	c.optimisticChunks.Put(chunkID, msg)
-	// }
+	for chunkID := range unprocessed {
+		if _, ok := c.optimisticChunks.Get(chunkID); ok {
+			continue
+		}
+		c.chunkLock.RLock()
+		_, ok := c.fetchedChunks[chunkID]
+		c.chunkLock.RUnlock()
+		if ok {
+			continue
+		}
+		start := time.Now()
+		msg, err := c.requestChunkNodeID(ctx, nodeID, chunkID)
+		if err != nil {
+			c.vm.snowCtx.Log.Warn("optimistic chunk fetch failed", zap.Stringer("chunkID", chunkID), zap.Error(err))
+			continue
+		}
+		c.vm.snowCtx.Log.Warn("optimistically fetched", zap.Stringer("chunkID", chunkID), zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)))
+		c.optimisticChunks.Put(chunkID, msg)
+	}
 	return nil
 }
 
