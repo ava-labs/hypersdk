@@ -417,7 +417,7 @@ func (c *BlockRPCClient) Listen(
 	}
 	blk, err := chain.UnmarshalBlock(ritem, parser)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("%w: unable to unmarshal block", err)
 	}
 	// Read txs
 	ritem, err = readNetMessage(c.conn, false)
@@ -427,7 +427,7 @@ func (c *BlockRPCClient) Listen(
 	actionRegistry, authRegistry := parser.Registry()
 	txs, err := chain.UnmarshalTxs(ritem, consts.MaxInt, actionRegistry, authRegistry)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("%w: unable to unmarshal transactions", err)
 	}
 	// Read results
 	ritem, err = readNetMessage(c.conn, false)
@@ -436,7 +436,7 @@ func (c *BlockRPCClient) Listen(
 	}
 	results, err := chain.UnmarshalResults(ritem)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("%w: unable to unmarshal results", err)
 	}
 	return blk, txs, results, nil
 }

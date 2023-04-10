@@ -194,7 +194,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				Max:         c.max,
 				Unprocessed: c.chunks.All(),
 			}
-			c.chunkLock.RLock() // chunks is copied
+			c.chunkLock.RUnlock() // chunks is copied
 			b, err := nc.Marshal()
 			if err != nil {
 				c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip", zap.Error(err))
@@ -287,35 +287,35 @@ func (c *ChunkManager) requestChunkRandom(ctx context.Context, height uint64, ch
 		c.vm.snowCtx.Log.Info("fetched chunk", zap.Stringer("chunk", chunkID), zap.Duration("t", time.Since(start)), zap.Int("attempts", attempts), zap.Bool("success", success), zap.Bool("cached", cached))
 	}()
 
-	// Check if previously fetched
-	c.chunkLock.Lock()
-	chunk, ok := c.fetchedChunks[chunkID]
-	if ok {
-		c.chunks.Add(height, chunkID)
-		c.chunkLock.Unlock()
-		cached = true
-		ch <- chunk
-		return nil
-	}
-	c.chunkLock.Unlock()
-
-	// Check if optimistically cached
-	if msg, ok := c.optimisticChunks.Get(chunkID); ok {
-		c.chunkLock.Lock()
-		c.fetchedChunks[chunkID] = msg
-		c.chunks.Add(height, chunkID)
-		c.chunkLock.Unlock()
-		cached = true
-		ch <- chunk
-		return nil
-	}
-
 	// Attempt to fetch
 	for i := 0; i < maxChunkRetries; i++ {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		attempts++
+
+		// Check if previously fetched
+		c.chunkLock.Lock()
+		chunk, ok := c.fetchedChunks[chunkID]
+		if ok {
+			c.chunks.Add(height, chunkID)
+			c.chunkLock.Unlock()
+			cached = true
+			ch <- chunk
+			return nil
+		}
+		c.chunkLock.Unlock()
+
+		// Check if optimistically cached
+		if msg, ok := c.optimisticChunks.Get(chunkID); ok {
+			c.chunkLock.Lock()
+			c.fetchedChunks[chunkID] = msg
+			c.chunks.Add(height, chunkID)
+			c.chunkLock.Unlock()
+			cached = true
+			ch <- chunk
+			return nil
+		}
 
 		// Determine who to send request to
 		possibleRecipients := []ids.NodeID{}
@@ -496,6 +496,27 @@ func (c *ChunkManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, m
 		}
 		c.vm.snowCtx.Log.Warn("optimistically fetched", zap.Stringer("chunkID", chunkID), zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)))
 		c.optimisticChunks.Put(chunkID, msg)
+	}
+	return nil
+}
+
+// Send info to new peer on handshake
+func (c *ChunkManager) HandleConnect(ctx context.Context, nodeID ids.NodeID) error {
+	c.chunkLock.RLock()
+	nc := &NodeChunks{
+		Min:         c.min,
+		Max:         c.max,
+		Unprocessed: c.chunks.All(),
+	}
+	c.chunkLock.RUnlock() // chunks is copied
+	b, err := nc.Marshal()
+	if err != nil {
+		c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip specific ", zap.Error(err))
+		return nil
+	}
+	if err := c.appSender.SendAppGossipSpecific(context.TODO(), set.Set[ids.NodeID]{nodeID: struct{}{}}, b); err != nil {
+		c.vm.snowCtx.Log.Warn("unable to send chunk gossip", zap.Error(err))
+		return nil
 	}
 	return nil
 }

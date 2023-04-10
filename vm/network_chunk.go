@@ -19,8 +19,8 @@ func NewChunkHandler(vm *VM) *ChunkHandler {
 	return &ChunkHandler{vm}
 }
 
-func (*ChunkHandler) Connected(context.Context, ids.NodeID, *version.Application) error {
-	return nil
+func (c *ChunkHandler) Connected(ctx context.Context, nodeID ids.NodeID, _ *version.Application) error {
+	return c.vm.chunkManager.HandleConnect(ctx, nodeID)
 }
 
 func (c *ChunkHandler) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
