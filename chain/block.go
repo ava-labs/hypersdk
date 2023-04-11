@@ -169,6 +169,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 	defer cancel()
 	start := time.Now()
 	go func() {
+		b.vm.Logger().Info("start chunk fetch", zap.Uint64("height", b.Hght))
 		fetchErr = b.vm.RequestChunks(cctx, b.Hght, b.Chunks, c)
 		close(c)
 		b.vm.Logger().Info("fetched chunks", zap.Uint64("height", b.Hght), zap.Int("chunks", len(b.Chunks)), zap.Duration("t", time.Since(start)), zap.Error(fetchErr))
@@ -179,6 +180,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 		// TODO: add max chunk txs
 		txs, err := UnmarshalTxs(chunk, r.GetMaxBlockTxs(), actionRegistry, authRegistry)
 		if err != nil {
+			b.vm.Logger().Error("unable to unmarshal txs", zap.Error(err))
 			b.chunkFetchErr = err
 			b.chunkFetchErrPerm = true
 			b.chunkFetchComplete = true
@@ -186,6 +188,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 		}
 		// Ensure that every chunk has at least 1 transaction
 		if len(txs) == 0 {
+			b.vm.Logger().Error("unable to unmarshal txs", zap.Error(ErrNoTxs))
 			b.chunkFetchErr = ErrNoTxs
 			b.chunkFetchErrPerm = true
 			b.chunkFetchComplete = true
@@ -200,6 +203,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
 		job, err := b.vm.Workers().NewJob(len(txs))
 		if err != nil {
+			b.vm.Logger().Error("unable to start job", zap.Error(err))
 			b.chunkFetchErr = err
 			b.chunkFetchErrPerm = false
 			b.chunkFetchComplete = true
@@ -210,6 +214,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 
 			// Add to block tx set
 			if txsSet.Contains(tx.ID()) {
+				b.vm.Logger().Error("unable to parse txs", zap.Error(ErrDuplicateTx))
 				b.chunkFetchErr = ErrDuplicateTx
 				b.chunkFetchErrPerm = true
 				b.chunkFetchComplete = true
@@ -249,6 +254,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 		jobs = append(jobs, job)
 	}
 	if fetchErr != nil {
+		b.vm.Logger().Error("fetch err", zap.Error(fetchErr))
 		b.chunkFetchErr = fetchErr
 		b.chunkFetchErrPerm = false
 		b.chunkFetchComplete = true

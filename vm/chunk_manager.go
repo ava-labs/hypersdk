@@ -24,6 +24,7 @@ import (
 const (
 	maxChunkRetries = 20
 	retrySleep      = 100 * time.Millisecond
+	gossipFrequency = 100 * time.Millisecond
 )
 
 type NodeChunks struct {
@@ -186,30 +187,35 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	c.vm.Logger().Info("starting chunk manager")
 	defer close(c.done)
 
+	timer := time.NewTicker(gossipFrequency)
+	defer timer.Stop()
+
 	for {
 		select {
 		case <-c.update:
-			c.chunkLock.RLock()
-			nc := &NodeChunks{
-				Min:         c.min,
-				Max:         c.max,
-				Unprocessed: c.chunks.All(),
-			}
-			c.chunkLock.RUnlock() // chunks is copied
-			b, err := nc.Marshal()
-			if err != nil {
-				c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip", zap.Error(err))
-				continue
-			}
-			if err := c.appSender.SendAppGossip(context.TODO(), b); err != nil {
-				c.vm.snowCtx.Log.Warn("unable to send chunk gossip", zap.Error(err))
-				continue
-			}
-			c.vm.metrics.chunksProcessing.Set(float64(len(nc.Unprocessed)))
+		case <-timer.C:
 		case <-c.vm.stop:
 			c.vm.Logger().Info("stopping chunk manager")
 			return
 		}
+
+		c.chunkLock.RLock()
+		nc := &NodeChunks{
+			Min:         c.min,
+			Max:         c.max,
+			Unprocessed: c.chunks.All(),
+		}
+		c.chunkLock.RUnlock() // chunks is copied
+		b, err := nc.Marshal()
+		if err != nil {
+			c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip", zap.Error(err))
+			continue
+		}
+		if err := c.appSender.SendAppGossip(context.TODO(), b); err != nil {
+			c.vm.snowCtx.Log.Warn("unable to send chunk gossip", zap.Error(err))
+			continue
+		}
+		c.vm.metrics.chunksProcessing.Set(float64(len(nc.Unprocessed)))
 	}
 }
 
@@ -267,6 +273,9 @@ func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkID
 	for _, cchunkID := range chunkIDs {
 		chunkID := cchunkID
 		g.Go(func() error {
+			defer func() {
+				c.vm.snowCtx.Log.Info("request random returned", zap.Uint64("height", height), zap.Stringer("chunk", chunkID))
+			}()
 			return c.requestChunkRandom(gctx, height, chunkID, ch)
 		})
 	}
@@ -274,6 +283,9 @@ func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkID
 		c.vm.metrics.chunkJobFails.Inc()
 		return err
 	}
+
+	// Trigger that we have processed new chunks
+	c.update <- struct{}{}
 	return nil
 }
 
@@ -303,6 +315,7 @@ func (c *ChunkManager) requestChunkRandom(ctx context.Context, height uint64, ch
 		if ok {
 			c.chunks.Add(height, chunkID)
 			c.chunkLock.Unlock()
+			success = true
 			cached = true
 			ch <- chunk
 			return nil
@@ -316,6 +329,7 @@ func (c *ChunkManager) requestChunkRandom(ctx context.Context, height uint64, ch
 			c.chunks.Add(height, chunkID)
 			c.chunkLock.Unlock()
 			cached = true
+			success = true
 			ch <- chunk
 			return nil
 		}
@@ -444,6 +458,7 @@ func (c *ChunkManager) HandleResponse(nodeID ids.NodeID, requestID uint32, msg [
 	request, ok := c.requests[requestID]
 	if !ok {
 		c.requestLock.Unlock()
+		c.vm.snowCtx.Log.Warn("got unexpected response", zap.Uint32("requestID", requestID))
 		return nil
 	}
 	delete(c.requests, requestID)
@@ -457,6 +472,7 @@ func (c *ChunkManager) HandleRequestFailed(requestID uint32) error {
 	request, ok := c.requests[requestID]
 	if !ok {
 		c.requestLock.Unlock()
+		c.vm.snowCtx.Log.Warn("unexpected request failed", zap.Uint32("requestID", requestID))
 		return nil
 	}
 	delete(c.requests, requestID)
@@ -493,6 +509,7 @@ func (c *ChunkManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, m
 			continue
 		}
 		start := time.Now()
+		c.vm.snowCtx.Log.Info("started optimistic fetch", zap.Stringer("chunkID", chunkID))
 		msg, err := c.requestChunkNodeID(ctx, nodeID, chunkID)
 		if err != nil {
 			c.vm.snowCtx.Log.Warn("optimistic chunk fetch failed", zap.Stringer("chunkID", chunkID), zap.Error(err))

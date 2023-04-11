@@ -166,7 +166,7 @@ func (n *NetworkManager) handleSharedRequestID(
 func (n *NetworkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	parsedMsg, handler, ok := n.routeIncomingMessage(msg)
 	if !ok {
-		n.vm.snowCtx.Log.Debug(
+		n.vm.snowCtx.Log.Warn(
 			"could not route incoming AppGossip",
 			zap.Stringer("nodeID", nodeID),
 		)
@@ -185,7 +185,7 @@ func (n *NetworkManager) AppRequest(
 ) error {
 	parsedMsg, handler, ok := n.routeIncomingMessage(request)
 	if !ok {
-		n.vm.snowCtx.Log.Debug(
+		n.vm.snowCtx.Log.Warn(
 			"could not route incoming AppRequest",
 			zap.Stringer("nodeID", nodeID),
 			zap.Uint32("requestID", requestID),
@@ -203,7 +203,7 @@ func (n *NetworkManager) AppRequestFailed(
 ) error {
 	handler, cRequestID, ok := n.handleSharedRequestID(nodeID, requestID)
 	if !ok {
-		n.vm.snowCtx.Log.Debug(
+		n.vm.snowCtx.Log.Warn(
 			"could not handle incoming AppRequestFailed",
 			zap.Stringer("nodeID", nodeID),
 			zap.Uint32("requestID", requestID),
@@ -222,7 +222,7 @@ func (n *NetworkManager) AppResponse(
 ) error {
 	handler, cRequestID, ok := n.handleSharedRequestID(nodeID, requestID)
 	if !ok {
-		n.vm.snowCtx.Log.Debug(
+		n.vm.snowCtx.Log.Warn(
 			"could not handle incoming AppResponse",
 			zap.Stringer("nodeID", nodeID),
 			zap.Uint32("requestID", requestID),
@@ -242,8 +242,8 @@ func (n *NetworkManager) Connected(
 	defer n.l.RUnlock()
 	for k, handler := range n.handlers {
 		if err := handler.Connected(ctx, nodeID, v); err != nil {
-			n.vm.snowCtx.Log.Debug(
-				"handler could not hanlde connected message",
+			n.vm.snowCtx.Log.Warn(
+				"handler could not handle connected message",
 				zap.Stringer("nodeID", nodeID),
 				zap.Uint8("handler", k),
 				zap.Error(err),
