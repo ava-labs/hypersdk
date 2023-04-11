@@ -122,7 +122,7 @@ cat <<EOF > /tmp/tokenvm.config
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "parallelism": 5,
   "streamingBacklogSize": 10000000,
-  "gossipMaxSize": 64000,
+  "gossipMaxSize": 32768,
   "trackedPairs":["*"],
   "preferredBlocksPerSecond": 2,
   "logLevel": "${LOGLEVEL}",
