@@ -98,7 +98,7 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f /tmp/tokenvm.genesis
   /tmp/token-cli genesis generate /tmp/allocations.json \
-  --max-block-units 4000000 \
+  --max-block-units 40000000 \
   --window-target-units 100000000000 \
   --window-target-blocks 20 \
   --genesis-file /tmp/tokenvm.genesis
@@ -122,9 +122,9 @@ cat <<EOF > /tmp/tokenvm.config
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "parallelism": 5,
   "streamingBacklogSize": 10000000,
+  "gossipMaxSize": 64000,
   "trackedPairs":["*"],
   "preferredBlocksPerSecond": 2,
-  "continuousProfilerDir":"/tmp/tokenvm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }

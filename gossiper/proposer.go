@@ -41,6 +41,7 @@ type ProposerConfig struct {
 	GossipPeerCacheSize     int
 	GossipReceivedCacheSize int
 	GossipMinLife           int64 // seconds
+	GossipMaxSize           int
 	BuildProposerDiff       int
 }
 
@@ -52,6 +53,7 @@ func DefaultProposerConfig() *ProposerConfig {
 		GossipPeerCacheSize:     10_240,
 		GossipReceivedCacheSize: 65_536,
 		GossipMinLife:           5,
+		GossipMaxSize:           consts.NetworkSizeLimit,
 		BuildProposerDiff:       2,
 	}
 }
@@ -213,7 +215,7 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 
 			// Gossip up to [cosnts.NetworkSizeLimit]
 			txSize := next.Size()
-			if txSize+size > consts.NetworkSizeLimit {
+			if txSize+size > uint64(g.cfg.GossipMaxSize) {
 				// Attempt to mirror the function of building a block without execution
 				return false, true, false, nil
 			}
@@ -236,6 +238,7 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 }
 
 func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+	// TODO: consider restricting gossip inbound size
 	r := g.vm.Rules(time.Now().Unix())
 	actionRegistry, authRegistry := g.vm.Registry()
 	txs, err := chain.UnmarshalTxs(msg, r.GetMaxBlockTxs(), actionRegistry, authRegistry)

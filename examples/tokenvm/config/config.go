@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/hypersdk/config"
+	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -24,6 +25,7 @@ var _ vm.Config = (*Config)(nil)
 
 const (
 	defaultGossipInterval              = 1 * time.Second
+	defaultGossipMaxSize               = hconsts.NetworkSizeLimit
 	defaultPreferredBlocksPerSecond    = 2
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
@@ -45,12 +47,15 @@ type Config struct {
 	BlocksPort           uint16 `json:"blocksPort"`
 	StreamingBacklogSize int    `json:"streamingBacklogSize"`
 
+	// Gossip
+	GossipInterval time.Duration `json:"gossipInterval"`
+	GossipMaxSize  int           `json:"gossipMaxSize"`
+
 	// Mempool
-	GossipInterval        time.Duration `json:"gossipInterval"`
-	MempoolSize           int           `json:"mempoolSize"`
-	MempoolPayerSize      int           `json:"mempoolPayerSize"`
-	MempoolExemptPayers   []string      `json:"mempoolExemptPayers"`
-	MempoolVerifyBalances bool          `json:"mempoolVerifyBalances"`
+	MempoolSize           int      `json:"mempoolSize"`
+	MempoolPayerSize      int      `json:"mempoolPayerSize"`
+	MempoolExemptPayers   []string `json:"mempoolExemptPayers"`
+	MempoolVerifyBalances bool     `json:"mempoolVerifyBalances"`
 
 	// Order Book
 	//
@@ -97,6 +102,7 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
 	c.GossipInterval = defaultGossipInterval
+	c.GossipMaxSize = defaultGossipMaxSize
 	c.Parallelism = c.Config.GetParallelism()
 	c.PreferredBlocksPerSecond = defaultPreferredBlocksPerSecond
 	c.MempoolSize = c.Config.GetMempoolSize()
