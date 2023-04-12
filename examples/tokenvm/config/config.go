@@ -85,6 +85,7 @@ func (c *Config) setDefault() {
 	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
+	// TODO: change this, idk why gorilla doesn't like port 0.
 	c.DecisionsPort = 4000
 }
 

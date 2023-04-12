@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -23,7 +22,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/listeners"
 	"github.com/ava-labs/hypersdk/pubsub"
 )
 
@@ -71,50 +70,11 @@ func (d *DecisionRPCClient) IssueTx(tx *chain.Transaction) error {
 func (d *DecisionRPCClient) Listen() (ids.ID, error, *chain.Result, error) {
 	d.ll.Lock()
 	defer d.ll.Unlock()
-	// the packer will be set up so that the first bytes are the tx.id
-	// the next byte is a bool indicating if there is an error
-	// if there is an error, the next int indicates the length of the error
-	// if there is an error, than the next bytes follow the error
-	// if there is no error, the next int indicates the length of the result
-	// if there is no error, the next bytes follow the result
-	fmt.Println("about to listen to connection")
 	_, msg, err := d.conn.ReadMessage()
-	fmt.Println("after listen finish")
-
 	if err != nil {
 		return ids.Empty, nil, nil, err
 	}
-	p := codec.NewReader(msg, consts.MaxInt)
-	// read the txID from packer
-	var txID ids.ID
-	p.UnpackID(true, &txID)
-	// didn't unpack id correctly
-	if p.Err() != nil {
-		return ids.Empty, nil, nil, p.Err()
-	}
-	// if packer has error
-	if p.UnpackBool() {
-		// rest of the bytes are the error
-		// packer should have unpackbytes method copied from packing
-		var err_bytes []byte
-		size := p.UnpackInt(true)
-		p.UnpackFixedBytes(int(size), &err_bytes)
-		if p.Err() != nil {
-			return ids.Empty, nil, nil, p.Err()
-		}
-		// convert err_bytes to error
-		return ids.Empty, nil, nil, errors.New(string(err_bytes))
-	}
-	// unpack the result
-	result, err := chain.UnmarshalResult(p)
-	if err != nil {
-		return ids.Empty, nil, nil, err
-	}
-	if !p.Empty() {
-		return ids.Empty, nil, nil, chain.ErrInvalidObject
-	}
-	fmt.Println("Listen was listened")
-	return txID, nil, result, nil
+	return listeners.UnpackTxMessage(msg)
 }
 
 func (d *DecisionRPCClient) Close() error {
@@ -352,50 +312,6 @@ func readNetMessage(conn io.Reader, limit bool) ([]byte, error) {
 	}
 	return rb, nil
 }
-
-// TODO: pack bytes in listener file
-
-// func (c *decisionRPCConnection) handleWrites() {
-// 	defer func() {
-// 		_ = c.conn.Close()
-// 		// listeners will eventually be discarded when all txs are accepted or
-// 		// expire
-// 	}()
-
-// 	for {
-// 		select {
-// 		case tx := <-c.listener:
-// 			var buf net.Buffers = [][]byte{tx.TxID[:]}
-// 			if _, err := io.CopyN(c.conn, &buf, consts.IDLen); err != nil {
-// 				return
-// 			}
-// 			var errBytes []byte
-// 			if err := tx.Err; err != nil {
-// 				errBytes = utils.ErrBytes(err)
-// 			}
-// 			if err := writeNetMessage(c.conn, errBytes); err != nil {
-// 				c.vm.snowCtx.Log.Error("unable to send decision err", zap.Error(err))
-// 				return
-// 			}
-// 			var resultBytes []byte
-// 			if result := tx.Result; result != nil {
-// 				p := codec.NewWriter(consts.MaxInt)
-// 				result.Marshal(p)
-// 				if err := p.Err(); err != nil {
-// 					c.vm.snowCtx.Log.Error("unable to marshal result", zap.Error(err))
-// 					return
-// 				}
-// 				resultBytes = p.Bytes()
-// 			}
-// 			if err := writeNetMessage(c.conn, resultBytes); err != nil {
-// 				c.vm.snowCtx.Log.Error("unable to send result", zap.Error(err))
-// 				return
-// 			}
-// 		case <-c.vm.stop:
-// 			return
-// 		}
-// 	}
-// }
 
 type rpcServer interface {
 	Port() uint16 // randomly chosen if :0 provided

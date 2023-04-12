@@ -4,6 +4,7 @@
 package listeners
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -88,20 +89,8 @@ func (w *Listeners) removeTx(txID ids.ID, err error, s *pubsub.Server) {
 		return
 	}
 	p := codec.NewWriter(consts.MaxInt)
-	p.PackID(txID)
-	p.PackBool(true)
-	p.PackBytes([]byte(err.Error()))
+	PackRemovedTxMessage(p, txID, err)
 	s.Publish([]byte(txID.String()), listeners)
-	// for _, listener := range listeners {
-	// 	select {
-	// 	case listener <- &Transaction{
-	// 		TxID: txID,
-	// 		Err:  err,
-	// 	}:
-	// 	default:
-	// 		// drop message if client is not keeping up or abandoned
-	// 	}
-	// }
 	delete(w.txListeners, txID)
 	// [expiringTxs] will be cleared eventually (does not support removal)
 }
@@ -138,24 +127,63 @@ func (w *Listeners) AcceptBlock(b *chain.StatelessBlock, s *pubsub.Server) {
 		if !ok {
 			continue
 		}
-		p.PackID(txID)
-		p.PackBool(false)
-		results[i].Marshal(p)
+		PackAcceptedTxMessage(p, txID, results[i])
 		s.Publish(
 			p.Bytes(),
 			listeners,
 		)
-		// for _, listener := range listeners {
-		// 	select {
-		// 	case listener <- &Transaction{
-		// 		TxID:   txID,
-		// 		Result: results[i],
-		// 	}:
-		// 	default:
-		// 		// drop message if client is not keeping up or abandoned
-		// 	}
-		// }
 		delete(w.txListeners, txID)
 		// [expiringTxs] will be cleared eventually (does not support removal)
 	}
+}
+
+// Could be a better place for these methods
+// Packs an accepted block message
+func PackAcceptedTxMessage(p *codec.Packer, txID ids.ID, result *chain.Result) {
+	p.PackID(txID)
+	p.PackBool(false)
+	result.Marshal(p)
+}
+
+func PackRemovedTxMessage(p *codec.Packer, txID ids.ID, err error) {
+	p.PackID(txID)
+	p.PackBool(true)
+	p.PackString(err.Error())
+}
+
+func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
+	p := codec.NewReader(msg, consts.MaxInt)
+	// read the txID from packer
+	var txID ids.ID
+	p.UnpackID(true, &txID)
+	// didn't unpack id correctly
+	if p.Err() != nil {
+		return ids.Empty, nil, nil, p.Err()
+	}
+
+	// TODO: from original Listen(), but can we recieve a result and a decision error?
+	// var decisionsErr error
+	// if len(errBytes) > 0 {
+	// 	decisionsErr = errors.New(string(errBytes))
+	// }
+
+	// if packer has error
+	if p.UnpackBool() {
+		err := p.UnpackString(true)
+		if p.Err() != nil {
+			return ids.Empty, nil, nil, p.Err()
+		}
+		// convert err_bytes to error
+		return ids.Empty, nil, nil, errors.New(err)
+	}
+	// unpack the result
+	result, err := chain.UnmarshalResult(p)
+	if err != nil {
+		return ids.Empty, nil, nil, err
+	}
+	// should be empty
+	if !p.Empty() {
+		return ids.Empty, nil, nil, chain.ErrInvalidObject
+	}
+	return txID, nil, result, nil
 }

@@ -64,7 +64,6 @@ func (t *Transaction) Digest(
 		return t.digest, nil
 	}
 	actionByte, _, _, ok := actionRegistry.LookupType(t.Action)
-
 	if !ok {
 		return nil, fmt.Errorf("unknown action type %T", t.Action)
 	}
@@ -333,12 +332,12 @@ func (t *Transaction) Marshal(
 		p.PackFixedBytes(t.bytes)
 		return p.Err()
 	}
+
 	actionByte, _, _, ok := actionRegistry.LookupType(t.Action)
 	if !ok {
 		return fmt.Errorf("unknown action type %T", t.Action)
 	}
 	authByte, _, _, ok := authRegistry.LookupType(t.Auth)
-
 	if !ok {
 		return fmt.Errorf("unknown auth type %T", t.Auth)
 	}
@@ -413,7 +412,6 @@ func UnmarshalTx(
 	p.UnpackBytes(MaxWarpMessageSize, false, &warpBytes)
 	var warpMessage *warp.Message
 	var numWarpSigners int
-
 	if len(warpBytes) > 0 {
 		msg, err := warp.ParseMessage(warpBytes)
 		if err != nil {
@@ -429,7 +427,6 @@ func UnmarshalTx(
 		}
 		numWarpSigners = numSigners
 	}
-
 	actionType := p.UnpackByte()
 	unmarshalAction, actionWarp, ok := actionRegistry.LookupIndex(actionType)
 	if !ok {
@@ -438,12 +435,10 @@ func UnmarshalTx(
 	if actionWarp && warpMessage == nil {
 		return nil, fmt.Errorf("%w: action %d", ErrExpectedWarpMessage, actionType)
 	}
-
 	action, err := unmarshalAction(p, warpMessage)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal action", err)
 	}
-
 	digest := p.Offset()
 	authType := p.UnpackByte()
 	unmarshalAuth, authWarp, ok := authRegistry.LookupIndex(authType)

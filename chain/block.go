@@ -634,6 +634,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	if err := b.state.CommitToDB(ctx); err != nil {
 		return err
 	}
+
 	// Set last accepted block
 	return b.SetLastAccepted(ctx)
 }
