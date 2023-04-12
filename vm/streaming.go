@@ -5,10 +5,6 @@ package vm
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/binary"
-	"fmt"
-	"io"
 	"net"
 	"net/url"
 	"sync"
@@ -16,8 +12,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/constants"
-	"github.com/ava-labs/avalanchego/utils/ips"
 	"github.com/gorilla/websocket"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -34,7 +28,7 @@ const (
 )
 
 func (vm *VM) BlocksPort() uint16 {
-	return vm.blocksServer.Port()
+	return vm.config.GetBlocksPort()
 }
 
 func (vm *VM) DecisionsPort() uint16 {
@@ -140,105 +134,18 @@ type blockRPCServer struct {
 	listener net.Listener
 }
 
-type blockRPCConnection struct {
-	conn net.Conn
-
-	vm   *VM
-	blks chan *chain.StatelessBlock
-	id   ids.ID
-}
-
-func (r *blockRPCServer) Port() uint16 {
-	return r.port
-}
-
-func (r *blockRPCServer) Run() {
-	defer func() {
-		_ = r.listener.Close()
-	}()
-
-	// Wait for VM to be ready before accepting connections. If we stop the VM
-	// before this happens, we should return.
-	if !r.vm.waitReady() {
-		return
-	}
-
-	for {
-		nconn, err := r.listener.Accept()
-		if err != nil {
-			r.vm.snowCtx.Log.Warn("unable to accept connection", zap.Error(err))
-			return
-		}
-
-		// Generate connection id
-		var id ids.ID
-		_, err = rand.Read(id[:])
-		if err != nil {
-			panic(err)
-		}
-
-		// Store id
-		c := make(chan *chain.StatelessBlock, r.vm.config.GetStreamingBacklogSize())
-		r.vm.listeners.AddBlockListener(id, c)
-		r.vm.snowCtx.Log.Info("created new block listener", zap.Stringer("id", id))
-
-		conn := &blockRPCConnection{
-			conn: nconn,
-
-			vm:   r.vm,
-			blks: c,
-			id:   id,
-		}
-
-		// Nothing to read
-		go conn.handleWrites()
-	}
-}
-
-func (r *blockRPCServer) Close() error {
-	return r.listener.Close()
-}
-
-func (c *blockRPCConnection) handleWrites() {
-	defer func() {
-		c.vm.metrics.blocksRPCConnections.Dec()
-		_ = c.conn.Close()
-		c.vm.listeners.RemoveBlockListener(c.id)
-	}()
-
-	c.vm.metrics.blocksRPCConnections.Inc()
-	for {
-		select {
-		case blk := <-c.blks:
-			if err := writeNetMessage(c.conn, blk.Bytes()); err != nil {
-				c.vm.snowCtx.Log.Error("unable to send blk", zap.Error(err))
-				return
-			}
-			results, err := chain.MarshalResults(blk.Results())
-			if err != nil {
-				c.vm.snowCtx.Log.Error("unable to marshal blk results", zap.Error(err))
-				return
-			}
-			if err := writeNetMessage(c.conn, results); err != nil {
-				c.vm.snowCtx.Log.Error("unable to send blk results", zap.Error(err))
-				return
-			}
-		case <-c.vm.stop:
-			return
-		}
-	}
-}
-
 // If you don't keep up, you will data
 type BlockRPCClient struct {
-	conn net.Conn
+	conn *websocket.Conn
 
 	ll sync.Mutex
 	cl sync.Once
 }
 
 func NewBlockRPCClient(uri string) (*BlockRPCClient, error) {
-	conn, err := net.Dial(constants.NetworkType, uri)
+	// nil for now until we want to pass in headers
+	u := url.URL{Scheme: "ws", Host: uri}
+	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -251,25 +158,12 @@ func (c *BlockRPCClient) Listen(
 	c.ll.Lock()
 	defer c.ll.Unlock()
 
-	ritem, err := readNetMessage(c.conn, false)
+	_, msg, err := c.conn.ReadMessage()
 	if err != nil {
 		return nil, nil, err
 	}
-	// Read block
-	blk, err := chain.UnmarshalBlock(ritem, parser)
-	if err != nil {
-		return nil, nil, err
-	}
-	ritem, err = readNetMessage(c.conn, false)
-	if err != nil {
-		return nil, nil, err
-	}
-	// Read results
-	results, err := chain.UnmarshalResults(ritem)
-	if err != nil {
-		return nil, nil, err
-	}
-	return blk, results, nil
+	return listeners.UnpackBlockMessageBytes(msg, parser)
+
 }
 
 func (c *BlockRPCClient) Close() error {
@@ -278,66 +172,4 @@ func (c *BlockRPCClient) Close() error {
 		err = c.conn.Close()
 	})
 	return err
-}
-
-func writeNetMessage(conn io.Writer, b []byte) error {
-	size := len(b)
-	if size == 0 {
-		var buf net.Buffers = [][]byte{binary.BigEndian.AppendUint32(nil, uint32(size))}
-		_, err := io.CopyN(conn, &buf, 4)
-		return err
-	}
-	var buf net.Buffers = [][]byte{binary.BigEndian.AppendUint32(nil, uint32(size)), b}
-	_, err := io.CopyN(conn, &buf, 4+int64(size))
-	return err
-}
-
-func readNetMessage(conn io.Reader, limit bool) ([]byte, error) {
-	lb := make([]byte, 4)
-	_, err := io.ReadFull(conn, lb)
-	if err != nil {
-		return nil, err
-	}
-	l := binary.BigEndian.Uint32(lb)
-	if limit && l > chain.NetworkSizeLimit {
-		return nil, fmt.Errorf("%d is larger than max var size %d", l, chain.NetworkSizeLimit)
-	}
-	if l == 0 {
-		return nil, nil
-	}
-	rb := make([]byte, int(l))
-	_, err = io.ReadFull(conn, rb)
-	if err != nil {
-		return nil, err
-	}
-	return rb, nil
-}
-
-type rpcServer interface {
-	Port() uint16 // randomly chosen if :0 provided
-	Run()
-	Close() error
-}
-
-func newRPC(vm *VM, mode rpcMode, port uint16) (rpcServer, error) {
-	listener, err := net.Listen(constants.NetworkType, fmt.Sprintf(":%d", port))
-	if err != nil {
-		return nil, err
-	}
-
-	addr := listener.Addr().String()
-	ipPort, err := ips.ToIPPort(addr)
-	if err != nil {
-		return nil, err
-	}
-
-	switch mode {
-	case blocks:
-		return &blockRPCServer{
-			port:     ipPort.Port,
-			vm:       vm,
-			listener: listener,
-		}, nil
-	}
-	return nil, fmt.Errorf("%d is not a valid rpc mode", mode)
 }

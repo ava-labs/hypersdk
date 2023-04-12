@@ -163,3 +163,7 @@ func (s *Server) Start() error {
 func (s *Server) Shutdown(c context.Context) error {
 	return s.s.Shutdown(c)
 }
+
+func (s *Server) Conns() *Connections {
+	return s.conns
+}

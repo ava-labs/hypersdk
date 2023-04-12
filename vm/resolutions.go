@@ -183,7 +183,7 @@ func (vm *VM) processAcceptedBlocks() {
 		}
 
 		// Update listeners
-		vm.listeners.AcceptBlock(b, vm.decisionsServer)
+		vm.listeners.AcceptBlock(b, vm.decisionsServer, vm.blocksServer)
 		// Must clear accepted txs before [SetMinTx] or else we will errnoueously
 		// send [ErrExpired] messages.
 		vm.listeners.SetMinTx(b.Tmstmp, vm.decisionsServer)

@@ -5,6 +5,7 @@ package listeners
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -103,15 +104,11 @@ func (w *Listeners) SetMinTx(t int64, s *pubsub.Server) {
 	}
 }
 
-func (w *Listeners) AcceptBlock(b *chain.StatelessBlock, s *pubsub.Server) {
+func (w *Listeners) AcceptBlock(b *chain.StatelessBlock, s *pubsub.Server, blockServer *pubsub.Server) {
 	w.blockL.Lock()
-	for _, listener := range w.blockListeners {
-		select {
-		case listener <- b:
-		default:
-			// drop message if client is not keeping up or abandoned
-		}
-	}
+	p := codec.NewWriter(consts.MaxInt)
+	BlockMessageBytes(b, p)
+	blockServer.Publish(p.Bytes(), blockServer.Conns())
 	w.blockL.Unlock()
 
 	w.txL.Lock()
@@ -143,12 +140,14 @@ func PackAcceptedTxMessage(p *codec.Packer, txID ids.ID, result *chain.Result) {
 	result.Marshal(p)
 }
 
+// Packs a removed block message
 func PackRemovedTxMessage(p *codec.Packer, txID ids.ID, err error) {
 	p.PackID(txID)
 	p.PackBool(true)
 	p.PackString(err.Error())
 }
 
+// Unpacks a tx message
 func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
 	p := codec.NewReader(msg, consts.MaxInt)
 	// read the txID from packer
@@ -183,5 +182,48 @@ func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
 	if !p.Empty() {
 		return ids.Empty, nil, nil, chain.ErrInvalidObject
 	}
+
 	return txID, nil, result, nil
+}
+
+func BlockMessageBytes(b *chain.StatelessBlock, p *codec.Packer) {
+	// Pack the block bytes
+	// TODO: add PackBytes field to packer?
+	p.PackBytes(b.Bytes())
+	// fmt.Println("MSG in pack", blk.Bytes())
+
+	results, err := chain.MarshalResults(b.Results())
+	if err != nil {
+		// c.vm.snowCtx.Log.Error("unable to marshal blk results", zap.Error(err))
+		return
+	}
+	// Pack the results bytes
+	p.PackBytes(results)
+}
+
+func UnpackBlockMessageBytes(msg []byte, parser chain.Parser) (*chain.StatefulBlock, []*chain.Result, error) {
+	// Read block
+	p := codec.NewReader(msg, chain.NetworkSizeLimit)
+	var blk_msg []byte
+	p.UnpackBytes(-1, false, &blk_msg)
+	// fmt.Println("block bytes in unpack", len(blk_msg))
+	blk, err := chain.UnmarshalBlock(blk_msg, parser)
+	fmt.Println(blk, err)
+	if err != nil {
+		fmt.Println("failing over here")
+		return nil, nil, err
+	}
+	fmt.Println("finished the method over here")
+
+	// Read results
+	var results_msg []byte
+	p.UnpackBytes(-1, true, &results_msg)
+	results, err := chain.UnmarshalResults(results_msg)
+	if err != nil {
+		fmt.Println("failing here")
+		return nil, nil, err
+	}
+	return blk, results, nil
+
+	// return blk, results, nil
 }

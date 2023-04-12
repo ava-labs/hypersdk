@@ -104,7 +104,7 @@ type VM struct {
 	// TODO: change name of both var and struct to something more
 	// informative/better sounding
 	decisionsServer *pubsub.Server
-	blocksServer    rpcServer
+	blocksServer    *pubsub.Server
 
 	// State Sync client and AppRequest handlers
 	stateSyncClient        *stateSyncerClient
@@ -282,11 +282,13 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
 		snowCtx.Log.Info("initialized vm from genesis", zap.Stringer("block", gBlkID))
 	}
+	// 	addr := listener.Addr().String()
+	// ipPort, err := ips.ToIPPort(addr)
+	// port:     ipPort.Port,
 
 	// Startup RPCs
-	addr := fmt.Sprintf(":%d", vm.config.GetDecisionsPort())
-	fmt.Println("server addr: ", addr)
-	vm.decisionsServer = pubsub.New(addr, vm.decisionServerCallback, vm.Logger(), pubsub.NewDefaultServerConfig())
+	serverAddr := fmt.Sprintf(":%d", vm.config.GetDecisionsPort())
+	vm.decisionsServer = pubsub.New(serverAddr, vm.decisionServerCallback, vm.Logger(), pubsub.NewDefaultServerConfig())
 	go func() {
 		// Wait for VM to be ready before accepting connections. If we stop the VM
 		// before this happens, we should return.
@@ -296,11 +298,18 @@ func (vm *VM) Initialize(
 		vm.decisionsServer.Start()
 	}()
 
-	vm.blocksServer, err = newRPC(vm, blocks, vm.config.GetBlocksPort())
-	if err != nil {
-		return err
-	}
-	go vm.blocksServer.Run()
+	// vm.blocksServer , err = newRPC(vm, blocks, vm.config.GetBlocksPort())
+	blocksAddr := fmt.Sprintf(":%d", vm.config.GetBlocksPort())
+	vm.blocksServer = pubsub.New(blocksAddr, nil, vm.Logger(), pubsub.NewDefaultServerConfig())
+	go func() {
+		// Wait for VM to be ready before accepting connections. If we stop the VM
+		// before this happens, we should return.
+		if !vm.waitReady() {
+			return
+		}
+		vm.blocksServer.Start()
+	}()
+
 	go vm.processAcceptedBlocks()
 
 	// Setup state syncing
@@ -460,7 +469,7 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	if err := vm.decisionsServer.Shutdown(context.TODO()); err != nil {
 		return err
 	}
-	if err := vm.blocksServer.Close(); err != nil {
+	if err := vm.decisionsServer.Shutdown(context.TODO()); err != nil {
 		return err
 	}
 
