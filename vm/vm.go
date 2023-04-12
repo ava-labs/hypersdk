@@ -678,7 +678,7 @@ func (vm *VM) submitStateless(ctx context.Context, verifySig bool, txs []*chain.
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				vm.listeners.RemoveTx(txID, err)
+				vm.listeners.RemoveTx(txID, err, vm.decisionsServer)
 				errs = append(errs, err)
 				continue
 			}
@@ -704,7 +704,6 @@ func (vm *VM) Submit(
 	if !vm.isReady() {
 		return []error{ErrNotReady}
 	}
-
 
 	if !vm.config.GetMempoolVerifyBalances() {
 		return vm.submitStateless(ctx, verifySig, txs)
