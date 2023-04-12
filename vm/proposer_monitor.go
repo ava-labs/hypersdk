@@ -78,7 +78,7 @@ func (p *ProposerMonitor) refresh(ctx context.Context) error {
 		pks[string(bls.PublicKeyToBytes(v.PublicKey))] = struct{}{}
 	}
 	p.validatorPublicKeys = pks
-	p.vm.snowCtx.Log.Info(
+	p.vm.snowCtx.Log.Debug(
 		"refreshed proposer monitor",
 		zap.Uint64("previous", p.currentPHeight),
 		zap.Uint64("new", pHeight),

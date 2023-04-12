@@ -23,9 +23,11 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"go.uber.org/zap"
 
@@ -118,7 +120,8 @@ type VM struct {
 	// Network manager routes p2p messages to pre-registered handlers
 	networkManager *NetworkManager
 
-	metrics *Metrics
+	metrics  *Metrics
+	profiler profiler.ContinuousProfiler
 
 	ready chan struct{}
 	stop  chan struct{}
@@ -148,8 +151,14 @@ func (vm *VM) Initialize(
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	gatherer := ametrics.NewMultiGatherer()
-	metrics, err := newMetrics(gatherer)
+	if err := vm.snowCtx.Metrics.Register(gatherer); err != nil {
+		return err
+	}
+	defaultRegistry, metrics, err := newMetrics()
 	if err != nil {
+		return err
+	}
+	if err := gatherer.Register("hyper_sdk", defaultRegistry); err != nil {
 		return err
 	}
 	vm.metrics = metrics
@@ -174,9 +183,6 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return fmt.Errorf("implementation initialization failed: %w", err)
 	}
-	if err := vm.snowCtx.Metrics.Register(gatherer); err != nil {
-		return err
-	}
 	// Setup tracer
 	vm.tracer, err = htrace.New(vm.config.GetTraceConfig())
 	if err != nil {
@@ -185,14 +191,24 @@ func (vm *VM) Initialize(
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
 
+	// Setup profiler
+	if cfg := vm.config.GetContinuousProfilerConfig(); cfg.Enabled {
+		vm.profiler = profiler.NewContinuous(cfg.Dir, cfg.Freq, cfg.MaxNumFiles)
+		go vm.profiler.Dispatch() //nolint:errcheck
+	}
+
 	// Instantiate DBs
+	merkleRegistry := prometheus.NewRegistry()
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
 		HistoryLength: vm.config.GetStateHistoryLength(),
 		NodeCacheSize: vm.config.GetStateCacheSize(),
-		// TODO: add metrics
-		Tracer: vm.tracer,
+		Reg:           merkleRegistry,
+		Tracer:        vm.tracer,
 	})
 	if err != nil {
+		return err
+	}
+	if err := gatherer.Register("state", merkleRegistry); err != nil {
 		return err
 	}
 
@@ -484,6 +500,9 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	vm.builder.Done()
 	vm.gossiper.Done()
 	vm.workers.Stop()
+	if vm.profiler != nil {
+		vm.profiler.Shutdown()
+	}
 
 	// Shutdown controller once all mechanisms that could invoke it have
 	// shutdown.
@@ -602,7 +621,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 		return nil, err
 	}
 	vm.parsedBlocks.Put(id, newBlk)
-	vm.snowCtx.Log.Debug(
+	vm.snowCtx.Log.Info(
 		"parsed block",
 		zap.Stringer("id", newBlk.ID()),
 		zap.Uint64("height", newBlk.Hght),
@@ -625,6 +644,7 @@ func (vm *VM) buildBlock(
 		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
 		return nil, err
 	}
+	vm.parsedBlocks.Put(blk.ID(), blk)
 	return blk, nil
 }
 
@@ -647,6 +667,28 @@ func (vm *VM) BuildBlockWithContext(
 	return vm.buildBlock(ctx, blockContext)
 }
 
+func (vm *VM) submitStateless(ctx context.Context, verifySig bool, txs []*chain.Transaction) (errs []error) {
+	validTxs := []*chain.Transaction{}
+	for _, tx := range txs {
+		txID := tx.ID()
+		// We already verify in streamer, let's avoid re-verification
+		if verifySig {
+			sigVerify := tx.AuthAsyncVerify()
+			if err := sigVerify(); err != nil {
+				// Failed signature verification is the only safe place to remove
+				// a transaction in listeners. Every other case may still end up with
+				// the transaction in a block.
+				vm.listeners.RemoveTx(txID, err)
+				errs = append(errs, err)
+				continue
+			}
+		}
+		validTxs = append(validTxs, tx)
+	}
+	vm.mempool.Add(ctx, validTxs)
+	return errs
+}
+
 func (vm *VM) Submit(
 	ctx context.Context,
 	verifySig bool,
@@ -662,12 +704,17 @@ func (vm *VM) Submit(
 	if !vm.isReady() {
 		return []error{ErrNotReady}
 	}
+
+
+	if !vm.config.GetMempoolVerifyBalances() {
+		return vm.submitStateless(ctx, verifySig, txs)
+	}
+
 	// Create temporary execution context
 	blk, err := vm.GetStatelessBlock(ctx, vm.preferred)
 	if err != nil {
 		return []error{err}
 	}
-	// TODO: under load this slows down block verify/accept
 	state, err := blk.State()
 	if err != nil {
 		// This will error if a block does not yet have processed state.
@@ -680,8 +727,6 @@ func (vm *VM) Submit(
 		return []error{err}
 	}
 	oldestAllowed := now - r.GetValidityWindow()
-
-	// Process txs to see if should add
 	validTxs := []*chain.Transaction{}
 	for _, tx := range txs {
 		txID := tx.ID()
@@ -704,6 +749,8 @@ func (vm *VM) Submit(
 			errs = append(errs, ErrNotAdded)
 			continue
 		}
+		// TODO: do we need this? (just ensures people can't spam mempool with
+		// txs from already verified blocks)
 		repeat, err := blk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx})
 		if err != nil {
 			errs = append(errs, err)

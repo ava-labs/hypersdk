@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -97,6 +98,7 @@ type StatelessBlock struct {
 	txsSet set.Set[ids.ID]
 
 	warpMessages map[ids.ID]*warpJob
+	containsWarp bool // this allows us to avoid allocating a map when we build
 	bctx         *block.Context
 	vdrState     validators.State
 
@@ -143,7 +145,8 @@ func ParseBlock(
 	return ParseStatefulBlock(ctx, blk, source, status, vm)
 }
 
-func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error {
+// populateTxs is only called on blocks we did not build
+func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.populateTxs")
 	defer span.End()
 
@@ -159,10 +162,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	b.warpMessages = map[ids.ID]*warpJob{}
 	for _, tx := range b.Txs {
-		sigTask := tx.AuthAsyncVerify()
-		if verifySigs {
-			b.sigJob.Go(sigTask)
-		}
+		b.sigJob.Go(tx.AuthAsyncVerify())
 		if b.txsSet.Contains(tx.ID()) {
 			return ErrDuplicateTx
 		}
@@ -188,6 +188,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context, verifySigs bool) error
 				verifiedChan: make(chan bool, 1),
 				warpNum:      len(b.warpMessages),
 			}
+			b.containsWarp = true
 		}
 	}
 	b.sigJob.Done(func() { sspan.End() })
@@ -243,13 +244,12 @@ func ParseStatefulBlock(
 	}
 
 	// Populate hashes and tx set
-	return b, b.populateTxs(ctx, true)
+	return b, b.populateTxs(ctx)
 }
 
-// [init] is used during block building and testing
-// TODO: remove init
-func (b *StatelessBlock) init(ctx context.Context, results []*Result, validateSigs bool) error {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.init")
+// [initializeBuilt] is invoked after a block is built
+func (b *StatelessBlock) initializeBuilt(ctx context.Context, state merkledb.TrieView, results []*Result) error {
+	_, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
 	defer span.End()
 
 	blk, err := b.StatefulBlock.Marshal(b.vm.Registry())
@@ -258,11 +258,17 @@ func (b *StatelessBlock) init(ctx context.Context, results []*Result, validateSi
 	}
 	b.bytes = blk
 	b.id = utils.ToID(b.bytes)
+	b.state = state
 	b.t = time.Unix(b.StatefulBlock.Tmstmp, 0)
 	b.results = results
-
-	// Populate hashes and tx set
-	return b.populateTxs(ctx, validateSigs)
+	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
+	for _, tx := range b.Txs {
+		b.txsSet.Add(tx.ID())
+		if tx.WarpMessage != nil {
+			b.containsWarp = true
+		}
+	}
+	return nil
 }
 
 // implements "snowman.Block.choices.Decidable"
@@ -270,7 +276,7 @@ func (b *StatelessBlock) ID() ids.ID { return b.id }
 
 // implements "block.WithVerifyContext"
 func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
-	return len(b.warpMessages) > 0, nil
+	return b.containsWarp, nil
 }
 
 // implements "block.WithVerifyContext"
@@ -283,6 +289,7 @@ func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Cont
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
 			attribute.Int64("pchainHeight", int64(bctx.PChainHeight)),
+			attribute.Bool("built", b.Processed()),
 		),
 	)
 	defer span.End()
@@ -303,6 +310,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 			attribute.Int("txs", len(b.Txs)),
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
+			attribute.Bool("built", b.Processed()),
 		),
 	)
 	defer span.End()
@@ -311,9 +319,18 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 }
 
 func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
-	// If the state of the accepted tip has been fully fetched, it is safe to
-	// verify any block.
-	if stateReady {
+	log := b.vm.Logger()
+	switch {
+	case !stateReady:
+		// If the state of the accepted tip has not been fully fetched, it is not safe to
+		// verify any block.
+		log.Info("skipping verification, state not ready", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()))
+	case b.Processed():
+		// If we built the block, the state will already be populated and we don't
+		// need to compute it (we assume that we built a correct block and it isn't
+		// necessary to re-verify anything).
+		log.Info("skipping verification, already processed", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()))
+	default:
 		// Parent may not be processed when we verify this block so [verify] may
 		// recursively compute missing state.
 		state, err := b.innerVerify(ctx)
@@ -325,7 +342,7 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 
 	// At any point after this, we may attempt to verify the block. We should be
 	// sure we are prepared to do so.
-
+	//
 	// NOTE: mempool is modified by VM handler
 	b.vm.Verified(ctx, b)
 	return nil
@@ -387,9 +404,8 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 //     state sync)
 func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, error) {
 	var (
-		log   = b.vm.Logger()
-		built = len(b.results) > 0
-		r     = b.vm.Rules(b.Tmstmp)
+		log = b.vm.Logger()
+		r   = b.vm.Rules(b.Tmstmp)
 	)
 
 	// Perform basic correctness checks before doing any expensive work
@@ -452,7 +468,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Start validating warp messages, if they exist
 	var invalidWarpResult bool
-	if len(b.warpMessages) > 0 {
+	if b.containsWarp {
 		if b.bctx == nil {
 			log.Error(
 				"missing verify block context",
@@ -567,13 +583,18 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, ErrWarpResultMismatch
 	}
 
+	// Store height in state to prevent duplicate roots
+	if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return nil, err
+	}
+
 	// Compute state root
-	// TODO: consider adding the parent root or height here to ensure state roots
-	// are never repeated
+	start := time.Now()
 	computedRoot, err := state.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
+	b.vm.RecordRootCalculated(time.Since(start))
 	if b.StateRoot != computedRoot {
 		return nil, fmt.Errorf(
 			"%w: expected=%s found=%s",
@@ -584,14 +605,13 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 
 	// Ensure signatures are verified
-	if !built { // don't need to verify sigs if built
-		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitSignatures")
-		if err := b.sigJob.Wait(); err != nil {
-			sspan.End()
-			return nil, err
-		}
-		sspan.End()
+	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitSignatures")
+	defer sspan.End()
+	start = time.Now()
+	if err := b.sigJob.Wait(); err != nil {
+		return nil, err
 	}
+	b.vm.RecordWaitSignatures(time.Since(start))
 	return state, nil
 }
 

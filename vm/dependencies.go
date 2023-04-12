@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	atrace "github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/profiler"
 
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
@@ -27,6 +28,7 @@ type Config interface {
 	GetMempoolSize() int
 	GetMempoolPayerSize() int
 	GetMempoolExemptPayers() [][]byte
+	GetMempoolVerifyBalances() bool
 	GetDecisionsPort() uint16
 	GetBlocksPort() uint16
 	GetStreamingBacklogSize() int
@@ -37,6 +39,7 @@ type Config interface {
 	GetStateSyncMinBlocks() uint64
 	GetStateSyncServerDelay() time.Duration
 	GetBlockLRUSize() int
+	GetContinuousProfilerConfig() *profiler.Config
 }
 
 type Genesis interface {

@@ -98,6 +98,9 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f /tmp/tokenvm.genesis
   /tmp/token-cli genesis generate /tmp/allocations.json \
+  --max-block-units 4000000 \
+  --window-target-units 100000000000 \
+  --window-target-blocks 30 \
   --genesis-file /tmp/tokenvm.genesis
 else
   echo "copying custom genesis file"
@@ -111,6 +114,7 @@ fi
 
 echo "creating vm config"
 rm -f /tmp/tokenvm.config
+rm -rf /tmp/tokenvm-e2e-profiles
 cat <<EOF > /tmp/tokenvm.config
 {
   "mempoolSize": 10000000,
@@ -119,10 +123,13 @@ cat <<EOF > /tmp/tokenvm.config
   "parallelism": 5,
   "streamingBacklogSize": 10000000,
   "trackedPairs":["*"],
+  "preferredBlocksPerSecond": 3,
+  "continuousProfilerDir":"/tmp/tokenvm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
+mkdir -p /tmp/tokenvm-e2e-profiles
 
 ############################
 
@@ -132,7 +139,7 @@ echo "creating subnet config"
 rm -f /tmp/tokenvm.subnet
 cat <<EOF > /tmp/tokenvm.subnet
 {
-  "proposerMinBlockDelay":100000000
+  "proposerMinBlockDelay": 100000000
 }
 EOF
 

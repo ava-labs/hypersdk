@@ -580,6 +580,11 @@ that it can understand (so that it can parse inbound AWM messages). In the
 future, we expect that there will be common message definitions that will be
 compatible with most `hypervms` (and maintained in the `hypersdk`)._
 
+## Star History
+<p align="center">
+  <a href="https://star-history.com/#ava-labs/hypersdk&Date"><img width="90%" alt="star history" src="https://api.star-history.com/svg?repos=ava-labs/hypersdk&type=Date" /></a>
+</p>
+
 ## Future Work
 _If you want to take the lead on any of these items, please
 [start a discussion](https://github.com/ava-labs/hypersdk/discussions) or reach

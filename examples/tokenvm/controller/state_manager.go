@@ -10,6 +10,10 @@ import (
 
 type StateManager struct{}
 
+func (*StateManager) HeightKey() []byte {
+	return storage.HeightKey()
+}
+
 func (*StateManager) IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) []byte {
 	return storage.IncomingWarpKeyPrefix(sourceChainID, msgID)
 }

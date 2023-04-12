@@ -426,6 +426,12 @@ command:
 docker-compose -f trace/zipkin.yml down
 ```
 
+## Deploying to a Devnet
+_In the world of Avalanche, we refer to short-lived, test Subnets as Devnets._
+
+To programaticaly deploy `tokenvm` to a distributed cluster of nodes running on
+your own custom network or on Fuji, check out this [doc](DEVNETS.md).
+
 ## Future Work
 _If you want to take the lead on any of these items, please
 [start a discussion](https://github.com/ava-labs/hypersdk/discussions) or reach
