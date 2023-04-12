@@ -23,7 +23,7 @@ import (
 // TODO: make max retries and failure sleep configurable
 const (
 	maxChunkRetries = 20
-	retrySleep      = 100 * time.Millisecond
+	retrySleep      = 50 * time.Millisecond
 	gossipFrequency = 100 * time.Millisecond
 )
 
@@ -152,20 +152,23 @@ type ChunkManager struct {
 	requestID   uint32
 	requests    map[uint32]chan []byte
 
-	chunkLock     sync.RWMutex
-	fetchedChunks map[ids.ID][]byte
-	chunks        *ChunkMap
-	min           uint64
-	max           uint64
+	chunkLock        sync.RWMutex
+	fetchedChunks    map[ids.ID][]byte
+	optimisticChunks *cache.LRU[ids.ID, []byte]
+
+	chunks *ChunkMap
+	min    uint64
+	max    uint64
 
 	nodeChunkLock sync.RWMutex
 	nodeChunks    map[ids.NodeID]*NodeChunks
+	nodeSet       set.Set[ids.NodeID]
 
-	optimisticChunks *cache.LRU[ids.ID, []byte]
+	outstandingLock sync.Mutex
+	outstanding     map[ids.ID][]chan *chunkResult
 
 	update chan struct{}
-
-	done chan struct{}
+	done   chan struct{}
 }
 
 func NewChunkManager(vm *VM) *ChunkManager {
@@ -173,9 +176,11 @@ func NewChunkManager(vm *VM) *ChunkManager {
 		vm:               vm,
 		requests:         map[uint32]chan []byte{},
 		fetchedChunks:    map[ids.ID][]byte{},
+		optimisticChunks: &cache.LRU[ids.ID, []byte]{Size: 1024},
 		chunks:           NewChunkMap(),
 		nodeChunks:       map[ids.NodeID]*NodeChunks{},
-		optimisticChunks: &cache.LRU[ids.ID, []byte]{Size: 1024},
+		nodeSet:          set.NewSet[ids.NodeID](64),
+		outstanding:      map[ids.ID][]chan *chunkResult{},
 		update:           make(chan struct{}),
 		done:             make(chan struct{}),
 	}
@@ -194,11 +199,13 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 		select {
 		case <-c.update:
 		case <-timer.C:
+			// TODO: consider removing timer if we are already sending to everyone
 		case <-c.vm.stop:
 			c.vm.Logger().Info("stopping chunk manager")
 			return
 		}
 
+		// TODO: advertise optimistic chunks
 		c.chunkLock.RLock()
 		nc := &NodeChunks{
 			Min:         c.min,
@@ -211,7 +218,8 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 			c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip", zap.Error(err))
 			continue
 		}
-		if err := c.appSender.SendAppGossip(context.TODO(), b); err != nil {
+		// We attempt to gossip the chunks we have to everyone
+		if err := c.appSender.SendAppGossipSpecific(context.TODO(), c.nodeSet, b); err != nil {
 			c.vm.snowCtx.Log.Warn("unable to send chunk gossip", zap.Error(err))
 			continue
 		}
@@ -267,16 +275,23 @@ func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkID
 	start := time.Now()
 	defer c.vm.metrics.chunksFetched.Observe(float64(time.Since(start)))
 
-	// TODO: de-deuplicate requests for same chunk
 	// TODO: pre-store chunks on disk if bootstrapping
 	g, gctx := errgroup.WithContext(ctx)
 	for _, cchunkID := range chunkIDs {
 		chunkID := cchunkID
 		g.Go(func() error {
-			defer func() {
-				c.vm.snowCtx.Log.Info("request random returned", zap.Uint64("height", height), zap.Stringer("chunk", chunkID))
-			}()
-			return c.requestChunkRandom(gctx, height, chunkID, ch)
+			crch := make(chan *chunkResult, 1)
+			c.RequestChunk(gctx, &height, ids.EmptyNodeID, chunkID, crch)
+			select {
+			case r := <-crch:
+				if r.err != nil {
+					return r.err
+				}
+				ch <- r.chunk
+				return nil
+			case <-gctx.Done():
+				return gctx.Err()
+			}
 		})
 	}
 	if err := g.Wait(); err != nil {
@@ -284,101 +299,139 @@ func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkID
 		return err
 	}
 
-	// Trigger that we have processed new chunks
-	c.update <- struct{}{}
 	return nil
 }
 
-// requestChunk attempts to fetch a chunk and sends it on [ch] when it does, or
-// returns an error.
-func (c *ChunkManager) requestChunkRandom(ctx context.Context, height uint64, chunkID ids.ID, ch chan []byte) error {
-	var (
-		start    = time.Now()
-		attempts int
-		success  bool
-		cached   bool
-	)
-	defer func() {
-		c.vm.snowCtx.Log.Info("fetched chunk", zap.Stringer("chunk", chunkID), zap.Duration("t", time.Since(start)), zap.Int("attempts", attempts), zap.Bool("success", success), zap.Bool("cached", cached))
-	}()
+type chunkResult struct {
+	chunk []byte
+	err   error
+}
 
-	// Attempt to fetch
-	for i := 0; i < maxChunkRetries; i++ {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		attempts++
-
-		// Check if previously fetched
-		c.chunkLock.Lock()
-		chunk, ok := c.fetchedChunks[chunkID]
-		if ok {
-			c.chunks.Add(height, chunkID)
-			c.chunkLock.Unlock()
-			success = true
-			cached = true
-			ch <- chunk
-			return nil
-		}
-		c.chunkLock.Unlock()
-
-		// Check if optimistically cached
-		if chunk, ok := c.optimisticChunks.Get(chunkID); ok {
-			c.chunkLock.Lock()
-			c.fetchedChunks[chunkID] = chunk
-			c.chunks.Add(height, chunkID)
-			c.chunkLock.Unlock()
-			cached = true
-			success = true
-			ch <- chunk
-			return nil
-		}
-
-		// Determine who to send request to
-		possibleRecipients := []ids.NodeID{}
-		var randomRecipient ids.NodeID
-		c.nodeChunkLock.RLock()
-		for nodeID, chunk := range c.nodeChunks {
-			if height >= chunk.Min && height <= chunk.Max {
-				possibleRecipients = append(possibleRecipients, nodeID)
-				continue
-			}
-			if chunk.Unprocessed.Contains(chunkID) {
-				possibleRecipients = append(possibleRecipients, nodeID)
-				continue
-			}
-			randomRecipient = nodeID
-		}
-		c.nodeChunkLock.RUnlock()
-
-		// No available recipients, so we wait
-		if randomRecipient == ids.EmptyNodeID {
-			c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID))
-			time.Sleep(retrySleep)
-			continue
-		}
-
-		// If 1 or more possible recipients, pick them
-		if len(possibleRecipients) > 0 {
-			randomRecipient = possibleRecipients[rand.Intn(len(possibleRecipients))]
-		}
-
-		// Handle received message
-		msg, err := c.requestChunkNodeID(ctx, randomRecipient, chunkID)
-		if err != nil {
-			c.vm.snowCtx.Log.Warn("chunk fetch failed", zap.Stringer("chunkID", chunkID), zap.Error(err))
-			time.Sleep(retrySleep)
-			continue
-		}
-		c.chunkLock.Lock()
-		c.fetchedChunks[chunkID] = msg
-		c.chunks.Add(height, chunkID)
-		c.chunkLock.Unlock()
-		success = true
-		ch <- msg
-		return nil
+func (c *ChunkManager) sendToOutstandingListeners(chunkID ids.ID, chunk []byte, err error) {
+	c.outstandingLock.Lock()
+	listeners, ok := c.outstanding[chunkID]
+	delete(c.outstanding, chunkID)
+	c.outstandingLock.Unlock()
+	if !ok {
+		return
 	}
-	return errors.New("could not fetch chunk")
+	result := &chunkResult{chunk, err}
+	for _, listener := range listeners {
+		if listener == nil {
+			continue
+		}
+		listener <- result
+	}
+}
+
+// RequestChunk may spawn a goroutine
+func (c *ChunkManager) RequestChunk(ctx context.Context, height *uint64, hint ids.NodeID, chunkID ids.ID, ch chan *chunkResult) {
+	// Register request to be notified
+	c.outstandingLock.Lock()
+	outstanding, ok := c.outstanding[chunkID]
+	if ok {
+		c.outstanding[chunkID] = append(outstanding, ch)
+	} else {
+		c.outstanding[chunkID] = []chan *chunkResult{ch}
+	}
+	c.outstandingLock.Unlock()
+	if ok {
+		// Wait for requests to eventually return
+		return
+	}
+
+	// Check if previously fetched
+	c.chunkLock.Lock()
+	chunk, ok := c.fetchedChunks[chunkID]
+	if ok {
+		if height != nil {
+			c.chunks.Add(*height, chunkID)
+		}
+		c.chunkLock.Unlock()
+		c.sendToOutstandingListeners(chunkID, chunk, nil)
+		return
+	}
+	c.chunkLock.Unlock()
+
+	// Check if optimistically cached
+	if chunk, ok := c.optimisticChunks.Get(chunkID); ok {
+		c.chunkLock.Lock()
+		if height != nil {
+			c.fetchedChunks[chunkID] = chunk
+			c.chunks.Add(*height, chunkID)
+		}
+		c.chunkLock.Unlock()
+		c.sendToOutstandingListeners(chunkID, chunk, nil)
+		return
+	}
+
+	// Try to fetch chunk if we were the first to request
+	go func() {
+		// Attempt to fetch
+		for i := 0; i < maxChunkRetries; i++ {
+			if err := ctx.Err(); err != nil {
+				c.sendToOutstandingListeners(chunkID, nil, err)
+				return
+			}
+
+			var peer ids.NodeID
+			if hint != ids.EmptyNodeID && i == 0 {
+				peer = hint
+			} else {
+				// Determine who to send request to
+				possibleRecipients := []ids.NodeID{}
+				var randomRecipient ids.NodeID
+				c.nodeChunkLock.RLock()
+				for nodeID, chunk := range c.nodeChunks {
+					if height != nil && *height >= chunk.Min && *height <= chunk.Max {
+						possibleRecipients = append(possibleRecipients, nodeID)
+						continue
+					}
+					if chunk.Unprocessed.Contains(chunkID) {
+						possibleRecipients = append(possibleRecipients, nodeID)
+						continue
+					}
+					randomRecipient = nodeID
+				}
+				c.nodeChunkLock.RUnlock()
+
+				// No available recipients, so we wait
+				if randomRecipient == ids.EmptyNodeID {
+					c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID))
+					time.Sleep(retrySleep)
+					continue
+				}
+
+				// If 1 or more possible recipients, pick them
+				if len(possibleRecipients) > 0 {
+					randomRecipient = possibleRecipients[rand.Intn(len(possibleRecipients))]
+				}
+				peer = randomRecipient
+			}
+
+			// Handle received message
+			msg, err := c.requestChunkNodeID(ctx, peer, chunkID)
+			if err != nil {
+				c.vm.snowCtx.Log.Warn("chunk fetch failed", zap.Stringer("chunkID", chunkID), zap.Error(err))
+				time.Sleep(retrySleep)
+				continue
+			}
+			if height != nil {
+				c.chunkLock.Lock()
+				c.fetchedChunks[chunkID] = msg
+				c.chunks.Add(*height, chunkID)
+				c.chunkLock.Unlock()
+
+				// Trigger that we have processed new chunks
+				c.update <- struct{}{}
+			} else {
+				c.optimisticChunks.Put(chunkID, msg)
+			}
+			c.sendToOutstandingListeners(chunkID, chunk, nil)
+			return
+		}
+		c.sendToOutstandingListeners(chunkID, nil, errors.New("exhausted retries"))
+	}()
 }
 
 func (c *ChunkManager) requestChunkNodeID(ctx context.Context, recipient ids.NodeID, chunkID ids.ID) ([]byte, error) {
@@ -495,28 +548,10 @@ func (c *ChunkManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, m
 	// Optimistically fetch chunks
 	// TODO: only fetch if from a soon to be producer (i.e. will need to verify
 	// a future block)
-	// TODO: ensure not requesting same chunk multiple times
 	// TODO: handle case where already wrote to disk and we are getting old
 	// chunks
 	for chunkID := range unprocessed {
-		if _, ok := c.optimisticChunks.Get(chunkID); ok {
-			continue
-		}
-		c.chunkLock.RLock()
-		_, ok := c.fetchedChunks[chunkID]
-		c.chunkLock.RUnlock()
-		if ok {
-			continue
-		}
-		start := time.Now()
-		c.vm.snowCtx.Log.Info("started optimistic fetch", zap.Stringer("chunkID", chunkID))
-		msg, err := c.requestChunkNodeID(ctx, nodeID, chunkID)
-		if err != nil {
-			c.vm.snowCtx.Log.Warn("optimistic chunk fetch failed", zap.Stringer("chunkID", chunkID), zap.Error(err))
-			continue
-		}
-		c.vm.snowCtx.Log.Warn("optimistically fetched", zap.Stringer("chunkID", chunkID), zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)))
-		c.optimisticChunks.Put(chunkID, msg)
+		c.RequestChunk(context.Background(), nil, nodeID, chunkID, nil)
 	}
 	return nil
 }
@@ -539,6 +574,9 @@ func (c *ChunkManager) HandleConnect(ctx context.Context, nodeID ids.NodeID) err
 		c.vm.snowCtx.Log.Warn("unable to send chunk gossip", zap.Error(err))
 		return nil
 	}
+	c.nodeChunkLock.Lock()
+	c.nodeSet.Add(nodeID)
+	c.nodeChunkLock.Unlock()
 	return nil
 }
 
@@ -547,6 +585,7 @@ func (c *ChunkManager) HandleConnect(ctx context.Context, nodeID ids.NodeID) err
 func (c *ChunkManager) HandleDisconnect(ctx context.Context, nodeID ids.NodeID) error {
 	c.nodeChunkLock.Lock()
 	delete(c.nodeChunks, nodeID)
+	c.nodeSet.Remove(nodeID)
 	c.nodeChunkLock.Unlock()
 	return nil
 }
