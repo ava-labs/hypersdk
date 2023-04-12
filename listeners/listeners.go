@@ -5,7 +5,6 @@ package listeners
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -53,7 +52,6 @@ func (w *Listeners) AddTxListener(tx *chain.Transaction, c *pubsub.Connection) {
 	defer w.txL.Unlock()
 
 	txID := tx.ID()
-	fmt.Println("connectionj adding tx listener", c)
 	if _, ok := w.txListeners[txID]; !ok {
 		w.txListeners[txID] = pubsub.NewConnections()
 	}
