@@ -282,23 +282,27 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
 		snowCtx.Log.Info("initialized vm from genesis", zap.Stringer("block", gBlkID))
 	}
-	// 	addr := listener.Addr().String()
-	// ipPort, err := ips.ToIPPort(addr)
-	// port:     ipPort.Port,
 
 	// Startup RPCs
 	serverAddr := fmt.Sprintf(":%d", vm.config.GetDecisionsPort())
-	vm.decisionsServer = pubsub.New(serverAddr, vm.decisionServerCallback, vm.Logger(), pubsub.NewDefaultServerConfig())
+	vm.decisionsServer = pubsub.New(
+		serverAddr,
+		vm.decisionServerCallback,
+		vm.Logger(),
+		pubsub.NewDefaultServerConfig(),
+	)
 	go func() {
 		// Wait for VM to be ready before accepting connections. If we stop the VM
 		// before this happens, we should return.
 		if !vm.waitReady() {
 			return
 		}
-		vm.decisionsServer.Start()
+		err := vm.decisionsServer.Start()
+		vm.snowCtx.Log.Error("Error starting decisions server", zap.Error(err))
 	}()
 
-	// vm.blocksServer , err = newRPC(vm, blocks, vm.config.GetBlocksPort())
+	// TODO: write an RPC server that streams information about select parts of
+	// content instead of just entire blocks
 	blocksAddr := fmt.Sprintf(":%d", vm.config.GetBlocksPort())
 	vm.blocksServer = pubsub.New(blocksAddr, nil, vm.Logger(), pubsub.NewDefaultServerConfig())
 	go func() {
@@ -307,7 +311,8 @@ func (vm *VM) Initialize(
 		if !vm.waitReady() {
 			return
 		}
-		vm.blocksServer.Start()
+		err := vm.blocksServer.Start()
+		vm.snowCtx.Log.Error("Error starting blocks server", zap.Error(err))
 	}()
 
 	go vm.processAcceptedBlocks()
@@ -420,7 +425,8 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 		vm.Logger().Info("bootstrapping started", zap.Bool("state sync started", syncStarted))
 		return vm.onBootstrapStarted()
 	case snow.NormalOp:
-		vm.Logger().Info("normal operation started", zap.Bool("state sync started", vm.stateSyncClient.Started()))
+		vm.Logger().
+			Info("normal operation started", zap.Bool("state sync started", vm.stateSyncClient.Started()))
 		return vm.onNormalOperationsStarted()
 	default:
 		return snow.ErrUnknownState

@@ -5,7 +5,6 @@ package listeners
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -104,7 +103,11 @@ func (w *Listeners) SetMinTx(t int64, s *pubsub.Server) {
 	}
 }
 
-func (w *Listeners) AcceptBlock(b *chain.StatelessBlock, s *pubsub.Server, blockServer *pubsub.Server) {
+func (w *Listeners) AcceptBlock(
+	b *chain.StatelessBlock,
+	s *pubsub.Server,
+	blockServer *pubsub.Server,
+) {
 	w.blockL.Lock()
 	p := codec.NewWriter(consts.MaxInt)
 	BlockMessageBytes(b, p)
@@ -158,7 +161,7 @@ func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
 		return ids.Empty, nil, nil, p.Err()
 	}
 
-	// TODO: from original Listen(), but can we recieve a result and a decision error?
+	// TODO: from original Listen(), but can we receive a result and a decision error?
 	// var decisionsErr error
 	// if len(errBytes) > 0 {
 	// 	decisionsErr = errors.New(string(errBytes))
@@ -188,10 +191,7 @@ func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
 
 func BlockMessageBytes(b *chain.StatelessBlock, p *codec.Packer) {
 	// Pack the block bytes
-	// TODO: add PackBytes field to packer?
 	p.PackBytes(b.Bytes())
-	// fmt.Println("MSG in pack", blk.Bytes())
-
 	results, err := chain.MarshalResults(b.Results())
 	if err != nil {
 		// c.vm.snowCtx.Log.Error("unable to marshal blk results", zap.Error(err))
@@ -201,29 +201,24 @@ func BlockMessageBytes(b *chain.StatelessBlock, p *codec.Packer) {
 	p.PackBytes(results)
 }
 
-func UnpackBlockMessageBytes(msg []byte, parser chain.Parser) (*chain.StatefulBlock, []*chain.Result, error) {
+func UnpackBlockMessageBytes(
+	msg []byte,
+	parser chain.Parser,
+) (*chain.StatefulBlock, []*chain.Result, error) {
 	// Read block
 	p := codec.NewReader(msg, chain.NetworkSizeLimit)
-	var blk_msg []byte
-	p.UnpackBytes(-1, false, &blk_msg)
-	// fmt.Println("block bytes in unpack", len(blk_msg))
-	blk, err := chain.UnmarshalBlock(blk_msg, parser)
-	fmt.Println(blk, err)
+	var blkMsg []byte
+	p.UnpackBytes(-1, false, &blkMsg)
+	blk, err := chain.UnmarshalBlock(blkMsg, parser)
 	if err != nil {
-		fmt.Println("failing over here")
 		return nil, nil, err
 	}
-	fmt.Println("finished the method over here")
-
 	// Read results
-	var results_msg []byte
-	p.UnpackBytes(-1, true, &results_msg)
-	results, err := chain.UnmarshalResults(results_msg)
+	var resultsMsg []byte
+	p.UnpackBytes(-1, true, &resultsMsg)
+	results, err := chain.UnmarshalResults(resultsMsg)
 	if err != nil {
-		fmt.Println("failing here")
 		return nil, nil, err
 	}
 	return blk, results, nil
-
-	// return blk, results, nil
 }

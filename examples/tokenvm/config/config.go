@@ -85,10 +85,9 @@ func (c *Config) setDefault() {
 	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
-	// TODO: change this, idk why gorilla doesn't like port 0.
+	// TODO: hardcoded for testing, idk why gorilla doesn't like port 0.
 	c.DecisionsPort = 4000
 	c.BlocksPort = 4002
-
 }
 
 func (c *Config) GetLogLevel() logging.Level       { return c.LogLevel }

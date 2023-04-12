@@ -5,7 +5,6 @@ package vm
 
 import (
 	"context"
-	"net"
 	"net/url"
 	"sync"
 
@@ -20,13 +19,6 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 )
 
-type rpcMode int
-
-const (
-	decisions rpcMode = 0
-	blocks    rpcMode = 1
-)
-
 func (vm *VM) BlocksPort() uint16 {
 	return vm.config.GetBlocksPort()
 }
@@ -38,16 +30,17 @@ func (vm *VM) DecisionsPort() uint16 {
 // If you don't keep up, you will data
 type DecisionRPCClient struct {
 	conn *websocket.Conn
-
-	wl sync.Mutex
-	ll sync.Mutex
-	cl sync.Once
+	wl   sync.Mutex
+	ll   sync.Mutex
+	cl   sync.Once
 }
 
 func NewDecisionRPCClient(uri string) (*DecisionRPCClient, error) {
 	// nil for now until we want to pass in headers
 	u := url.URL{Scheme: "ws", Host: uri}
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	conn, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	// not using resp for now
+	resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +82,6 @@ func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) []by
 	// Unmarshal TX
 	p := codec.NewReader(msgBytes, chain.NetworkSizeLimit) // will likely be much smaller
 	tx, err := chain.UnmarshalTx(p, vm.actionRegistry, vm.authRegistry)
-
 	if err != nil {
 		vm.snowCtx.Log.Error("failed to unmarshal tx",
 			zap.Int("len", len(msgBytes)),
@@ -101,14 +93,12 @@ func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) []by
 	// Verify tx
 	sigVerify := tx.AuthAsyncVerify()
 	if err := sigVerify(); err != nil {
-
 		vm.snowCtx.Log.Error("failed to verify sig",
 			zap.Error(err),
 		)
 		return nil
 	}
-
-	// TODO: add tx assoicated with this connection
+	// TODO: add tx associated with this connection
 	vm.listeners.AddTxListener(tx, c)
 
 	// Submit will remove from [txWaiters] if it is not added
@@ -124,16 +114,6 @@ func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) []by
 	return nil
 }
 
-// blockRPCServer is used by all clients to stream accepted blocks.
-//
-// TODO: write an RPC server that streams information about select parts of
-// content instead of just entire blocks
-type blockRPCServer struct {
-	port     uint16
-	vm       *VM
-	listener net.Listener
-}
-
 // If you don't keep up, you will data
 type BlockRPCClient struct {
 	conn *websocket.Conn
@@ -145,7 +125,9 @@ type BlockRPCClient struct {
 func NewBlockRPCClient(uri string) (*BlockRPCClient, error) {
 	// nil for now until we want to pass in headers
 	u := url.URL{Scheme: "ws", Host: uri}
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	conn, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	// not using resp for now
+	resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +145,6 @@ func (c *BlockRPCClient) Listen(
 		return nil, nil, err
 	}
 	return listeners.UnpackBlockMessageBytes(msg, parser)
-
 }
 
 func (c *BlockRPCClient) Close() error {

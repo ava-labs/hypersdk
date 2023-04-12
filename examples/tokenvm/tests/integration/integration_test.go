@@ -571,7 +571,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(blocksPort).Should(gomega.Not(gomega.Equal(0)))
 		tcpURI := fmt.Sprintf("127.0.0.1:%d", blocksPort)
-		fmt.Println("tcpURI:", tcpURI)
 		cli, err := vm.NewBlockRPCClient(tcpURI)
 		gomega.Ω(err).Should(gomega.BeNil())
 
@@ -603,7 +602,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
 		// Read item from connection
-		fmt.Println("about to listen")
 		blk, lresults, err := cli.Listen(instances[0].vm)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(len(blk.Txs)).Should(gomega.Equal(1))
