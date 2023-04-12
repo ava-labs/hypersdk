@@ -85,9 +85,10 @@ Now we can spin up a new network of 6 nodes with some defaults:
 --region us-west-2 \
 --instance-mode=on-demand \
 --instance-types=c5.4xlarge \
---ip-mode=elastic \
+--ip-mode=ephemeral \
 --metrics-fetch-interval-seconds 60 \
 --network-name custom \
+--avalanchego-release-tag v1.9.16 \
 --keys-to-generate 5
 ```
 
@@ -155,7 +156,8 @@ avalanchego_config:
     consensus-on-accept-gossip-non-validator-size: 0
     consensus-on-accept-gossip-peer-size: 5
     consensus-accepted-frontier-gossip-peer-size: 5
-    network-compression-enabled: false
+    consensus-app-concurrency: 16
+    network-compression-type: "none"
 ```
 
 #### Supporting All Metrics
@@ -241,9 +243,9 @@ EOF
 
 /tmp/token-cli genesis generate /tmp/avalanche-ops/allocations.json \
 --genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
---max-block-units 4000000 \
+--max-block-units 400000000 \
 --window-target-units 100000000000 \
---window-target-blocks 30
+--window-target-blocks 20
 cat /tmp/avalanche-ops/tokenvm-genesis.json
 
 cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
@@ -252,9 +254,10 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "mempoolPayerSize": 10000000,
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "streamingBacklogSize": 10000000,
+  "gossipMaxSize": 32768,
   "trackedPairs":["*"],
   "logLevel": "info",
-  "preferredBlocksPerSecond": 3,
+  "preferredBlocksPerSecond": 2,
   "decisionsPort": 9652,
   "blocksPort": 9653
 }
@@ -330,7 +333,7 @@ AWS Console
 
 #### Option 2: Prometheus
 To view metrics, first download and install [Prometheus](https://prometheus.io/download/)
-using the following commands:
+ /tmp/token-cli metrics prometheususing the following commands:
 ```bash
 rm -f /tmp/prometheus
 wget https://github.com/prometheus/prometheus/releases/download/v2.43.0/prometheus-2.43.0.darwin-amd64.tar.gz
