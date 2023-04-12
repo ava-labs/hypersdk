@@ -27,6 +27,8 @@ type Proposer struct {
 	cfg       *ProposerConfig
 	appSender common.AppSender
 
+	lastBuilt int64
+
 	doneGossip chan struct{}
 
 	// bounded by validator count (may be slightly out of date as composition changes)
@@ -314,6 +316,20 @@ func (g *Proposer) Run(appSender common.AppSender) {
 		case <-t.C:
 			tctx := context.Background()
 
+			// If producing blocks and blocks are large, don't gossip
+			preferredBlk, err := g.vm.PreferredBlock(tctx)
+			if err != nil {
+				g.vm.Logger().Warn(
+					"unable to get preferred block, gossiping anyways",
+					zap.Error(err),
+				)
+			}
+			// TODO: make this configurable
+			if time.Now().Unix()-g.lastBuilt < 30 && len(preferredBlk.Txs) > 20 {
+				g.vm.Logger().Debug("not gossiping because producing blocks and blocks are large")
+				continue
+			}
+
 			// If soon to be proposer, don't gossip
 			proposers, err := g.vm.Proposers(
 				tctx,
@@ -329,13 +345,6 @@ func (g *Proposer) Run(appSender common.AppSender) {
 
 			// If last block seen was greater than window, don't gossip (will just
 			// cause contention)
-			preferredBlk, err := g.vm.PreferredBlock(tctx)
-			if err != nil {
-				g.vm.Logger().Warn(
-					"unable to get preferred block, gossiping anyways",
-					zap.Error(err),
-				)
-			}
 			if preferredBlk.Tmstmp+proposerWindow < time.Now().Unix() {
 				g.vm.Logger().Debug(
 					"not gossiping because no recent block, will probably produce ourself",
@@ -352,6 +361,10 @@ func (g *Proposer) Run(appSender common.AppSender) {
 			return
 		}
 	}
+}
+
+func (g *Proposer) BuiltBlock(t int64) {
+	g.lastBuilt = t
 }
 
 func (g *Proposer) Done() {

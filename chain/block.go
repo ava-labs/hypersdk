@@ -524,8 +524,9 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 //     state sync)
 func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, error) {
 	var (
-		log = b.vm.Logger()
-		r   = b.vm.Rules(b.Tmstmp)
+		fnStart = time.Now()
+		log     = b.vm.Logger()
+		r       = b.vm.Rules(b.Tmstmp)
 	)
 
 	// Perform basic correctness checks before doing any expensive work
@@ -714,7 +715,8 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	if err != nil {
 		return nil, err
 	}
-	b.vm.RecordRootCalculated(time.Since(start))
+	rootWait := time.Since(start)
+	b.vm.RecordRootCalculated(rootWait)
 	if b.StateRoot != computedRoot {
 		return nil, fmt.Errorf(
 			"%w: expected=%s found=%s",
@@ -733,7 +735,9 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 			return nil, err
 		}
 	}
-	b.vm.RecordWaitSignatures(time.Since(start))
+	sigWait := time.Since(start)
+	b.vm.RecordWaitSignatures(sigWait)
+	log.Info("inner verify completed", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()), zap.Int("chunks", len(b.Chunks)), zap.Duration("t", time.Since(fnStart)), zap.Duration("root wait", rootWait), zap.Duration("sig wait", sigWait))
 	return state, nil
 }
 

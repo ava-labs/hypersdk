@@ -340,8 +340,7 @@ func (c *ChunkManager) RequestChunk(ctx context.Context, height *uint64, hint id
 
 	// Check if previously fetched
 	c.chunkLock.Lock()
-	chunk, ok := c.fetchedChunks[chunkID]
-	if ok {
+	if chunk, ok := c.fetchedChunks[chunkID]; ok {
 		if height != nil {
 			c.chunks.Add(*height, chunkID)
 		}
@@ -423,9 +422,10 @@ func (c *ChunkManager) RequestChunk(ctx context.Context, height *uint64, hint id
 				// Trigger that we have processed new chunks
 				c.update <- struct{}{}
 			} else {
+				c.vm.snowCtx.Log.Info("optimistically fetched chunk", zap.Stringer("chunkID", chunkID), zap.Int("size", len(msg)))
 				c.optimisticChunks.Put(chunkID, msg)
 			}
-			c.sendToOutstandingListeners(chunkID, chunk, nil)
+			c.sendToOutstandingListeners(chunkID, msg, nil)
 			return
 		}
 		c.sendToOutstandingListeners(chunkID, nil, errors.New("exhausted retries"))

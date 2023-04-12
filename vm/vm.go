@@ -626,6 +626,7 @@ func (vm *VM) buildBlock(
 		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
 		return nil, err
 	}
+	vm.gossiper.BuiltBlock(blk.Tmstmp)
 	vm.parsedBlocks.Put(blk.ID(), blk)
 	return blk, nil
 }
