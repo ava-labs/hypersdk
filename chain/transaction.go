@@ -384,7 +384,6 @@ func UnmarshalTxs(
 ) ([]*Transaction, error) {
 	p := codec.NewReader(raw, consts.MaxInt)
 	txCount := p.UnpackInt(true)
-	fmt.Println("unmarshaling txs", txCount)
 	if txCount > maxCount {
 		return nil, ErrTooManyTxs
 	}

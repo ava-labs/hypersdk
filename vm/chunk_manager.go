@@ -3,7 +3,6 @@ package vm
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -232,7 +231,6 @@ func (c *ChunkManager) RegisterChunks(ctx context.Context, height uint64, chunks
 	chunkIDs := make([]ids.ID, len(chunks))
 	for i, chunk := range chunks {
 		chunkIDs[i] = utils.ToID(chunk)
-		fmt.Println("registering chunk", chunkIDs[i])
 	}
 	c.chunkLock.Lock()
 	for i, chunk := range chunks {

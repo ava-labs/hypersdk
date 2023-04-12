@@ -280,7 +280,9 @@ var _ = ginkgo.BeforeSuite(func() {
 	}
 
 	gomega.Expect(blockchainIDA).Should(gomega.Not(gomega.BeEmpty()))
-	gomega.Expect(blockchainIDB).Should(gomega.Not(gomega.BeEmpty()))
+	if mode != modeRunSingle {
+		gomega.Expect(blockchainIDB).Should(gomega.Not(gomega.BeEmpty()))
+	}
 	gomega.Expect(logsDir).Should(gomega.Not(gomega.BeEmpty()))
 
 	cctx, ccancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -421,7 +423,7 @@ var _ = ginkgo.Describe("[Network]", func() {
 
 var _ = ginkgo.Describe("[Test]", func() {
 	switch mode {
-	case modeRun:
+	case modeRun, modeRunSingle:
 		hutils.Outf("{{yellow}}skipping Transfer tests{{/}}\n")
 		return
 	}
