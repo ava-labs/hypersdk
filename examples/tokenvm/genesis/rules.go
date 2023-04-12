@@ -35,6 +35,10 @@ func (r *Rules) GetWarpFeePerSigner() uint64 {
 	return r.g.WarpFeePerSigner
 }
 
+func (r *Rules) GetMaxChunkSize() int {
+	return r.g.MaxChunkSize
+}
+
 func (r *Rules) GetMaxChunks() int {
 	return r.g.MaxChunks
 }

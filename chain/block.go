@@ -6,6 +6,7 @@ package chain
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"time"
 
@@ -169,7 +170,6 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 	defer cancel()
 	start := time.Now()
 	go func() {
-		b.vm.Logger().Info("start chunk fetch", zap.Uint64("height", b.Hght))
 		fetchErr = b.vm.RequestChunks(cctx, b.Hght, b.Chunks, c)
 		close(c)
 		b.vm.Logger().Info("fetched chunks", zap.Uint64("height", b.Hght), zap.Int("chunks", len(b.Chunks)), zap.Duration("t", time.Since(start)), zap.Error(fetchErr))
@@ -177,7 +177,13 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 
 	// Parse all chunks
 	for chunk := range c {
-		// TODO: add max chunk txs
+		if len(c) > r.GetMaxChunkSize() {
+			b.vm.Logger().Error("chunk too big", zap.Int("size", len(c)), zap.Int("max", r.GetMaxChunkSize()))
+			b.chunkFetchErr = errors.New("chunk too big")
+			b.chunkFetchErrPerm = true
+			b.chunkFetchComplete = true
+			return
+		}
 		txs, err := UnmarshalTxs(chunk, r.GetMaxBlockTxs(), actionRegistry, authRegistry)
 		if err != nil {
 			b.vm.Logger().Error("unable to unmarshal txs", zap.Error(err))
@@ -934,11 +940,8 @@ func (b *StatefulBlock) Marshal(
 	// Write chunks
 	chunkCount := len(b.Chunks)
 	p.PackInt(chunkCount)
-	fmt.Println("write chunk count", chunkCount)
 	for i := 0; i < chunkCount; i++ {
-		chunk := b.Chunks[i]
 		p.PackID(b.Chunks[i])
-		fmt.Println("write chunk", chunk)
 	}
 
 	p.PackByte(b.WarpCount)
@@ -968,19 +971,20 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 
 	// Unpack chunks
 	chunkCount := p.UnpackInt(false) // could be 0 in genesis
-	fmt.Println("read chunk count", chunkCount)
 	r := parser.Rules(b.Tmstmp)
 	if chunkCount > r.GetMaxChunks() {
 		return nil, ErrTooManyChunks
 	}
+	chunkSet := set.NewSet[ids.ID](chunkCount)
 	b.Chunks = make([]ids.ID, chunkCount)
 	for i := 0; i < chunkCount; i++ {
-		// TODO: make this more efficient
-		// TODO: ensure no duplicate chunks
 		var chunkID ids.ID
 		p.UnpackID(true, &chunkID)
+		if chunkSet.Contains(chunkID) {
+			return nil, errors.New("duplicate chunk")
+		}
+		chunkSet.Add(chunkID)
 		b.Chunks[i] = chunkID
-		fmt.Println("read chunk", chunkID)
 	}
 
 	b.WarpCount = p.UnpackByte()

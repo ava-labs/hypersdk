@@ -15,7 +15,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -284,7 +283,7 @@ func BuildBlock(
 		for i := current; i < limit; i++ {
 			tx := b.Txs[i]
 			size := tx.Size()
-			if chunkSize+size > consts.NetworkSizeLimit {
+			if chunkSize+size > uint64(r.GetMaxChunkSize()) {
 				break
 			}
 			chunkSize += size
