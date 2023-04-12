@@ -88,7 +88,7 @@ Now we can spin up a new network of 6 nodes with some defaults:
 --ip-mode=ephemeral \
 --metrics-fetch-interval-seconds 60 \
 --network-name custom \
---avalanchego-release-tag v1.9.16 \
+--avalanchego-release-tag v1.10.0 \
 --keys-to-generate 5
 ```
 
