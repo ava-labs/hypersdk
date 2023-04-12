@@ -142,16 +142,17 @@ func init() {
 }
 
 const (
-	modeTest     = "test"
-	modeFullTest = "full-test" // runs state sync
-	modeRun      = "run"
+	modeTest      = "test"
+	modeFullTest  = "full-test" // runs state sync
+	modeRun       = "run"
+	modeRunSingle = "run-single"
 )
 
 var anrCli runner_sdk.Client
 
 var _ = ginkgo.BeforeSuite(func() {
 	gomega.Expect(mode).
-		Should(gomega.Or(gomega.Equal("test"), gomega.Equal("full-test"), gomega.Equal("run")))
+		Should(gomega.Or(gomega.Equal("test"), gomega.Equal("full-test"), gomega.Equal("run"), gomega.Equal("run-single")))
 	logLevel, err := logging.ToLevel(networkRunnerLogLevel)
 	gomega.Expect(err).Should(gomega.BeNil())
 	logFactory := logging.NewFactory(logging.Config{
@@ -217,26 +218,30 @@ var _ = ginkgo.BeforeSuite(func() {
 	}
 
 	// Create 2 subnets
+	specs := []*rpcpb.BlockchainSpec{
+		{
+			VmName:       consts.Name,
+			Genesis:      vmGenesisPath,
+			ChainConfig:  vmConfigPath,
+			SubnetConfig: subnetConfigPath,
+			Participants: subnetA,
+		},
+		{
+			VmName:       consts.Name,
+			Genesis:      vmGenesisPath,
+			ChainConfig:  vmConfigPath,
+			SubnetConfig: subnetConfigPath,
+			Participants: subnetB,
+		},
+	}
+	if mode == modeRunSingle {
+		specs = specs[0:1]
+	}
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
 	sresp, err := anrCli.CreateSpecificBlockchains(
 		ctx,
 		execPath,
-		[]*rpcpb.BlockchainSpec{
-			{
-				VmName:       consts.Name,
-				Genesis:      vmGenesisPath,
-				ChainConfig:  vmConfigPath,
-				SubnetConfig: subnetConfigPath,
-				Participants: subnetA,
-			},
-			{
-				VmName:       consts.Name,
-				Genesis:      vmGenesisPath,
-				ChainConfig:  vmConfigPath,
-				SubnetConfig: subnetConfigPath,
-				Participants: subnetB,
-			},
-		},
+		specs,
 	)
 	cancel()
 	gomega.Expect(err).Should(gomega.BeNil())
@@ -248,13 +253,15 @@ var _ = ginkgo.BeforeSuite(func() {
 		sresp.ClusterInfo.CustomChains[blockchainIDA].SubnetId,
 		subnetA,
 	)
-	blockchainIDB = sresp.Chains[1]
-	hutils.Outf(
-		"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s {{green}}participants:{{/}} %+v\n",
-		blockchainIDB,
-		sresp.ClusterInfo.CustomChains[blockchainIDB].SubnetId,
-		subnetB,
-	)
+	if mode != modeRunSingle {
+		blockchainIDB = sresp.Chains[1]
+		hutils.Outf(
+			"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s {{green}}participants:{{/}} %+v\n",
+			blockchainIDB,
+			sresp.ClusterInfo.CustomChains[blockchainIDB].SubnetId,
+			subnetB,
+		)
+	}
 
 	// TODO: network runner health should imply custom VM healthiness
 	// or provide a separate API for custom VM healthiness
@@ -294,17 +301,19 @@ var _ = ginkgo.BeforeSuite(func() {
 			cli:    client.New(u),
 		})
 	}
-	instancesB = []instance{}
-	for _, nodeName := range subnetB {
-		info := nodeInfos[nodeName]
-		u := fmt.Sprintf("%s/ext/bc/%s", info.Uri, blockchainIDB)
-		nodeID, err := ids.NodeIDFromString(info.GetId())
-		gomega.Expect(err).Should(gomega.BeNil())
-		instancesB = append(instancesB, instance{
-			nodeID: nodeID,
-			uri:    u,
-			cli:    client.New(u),
-		})
+	if mode != modeRunSingle {
+		instancesB = []instance{}
+		for _, nodeName := range subnetB {
+			info := nodeInfos[nodeName]
+			u := fmt.Sprintf("%s/ext/bc/%s", info.Uri, blockchainIDB)
+			nodeID, err := ids.NodeIDFromString(info.GetId())
+			gomega.Expect(err).Should(gomega.BeNil())
+			instancesB = append(instancesB, instance{
+				nodeID: nodeID,
+				uri:    u,
+				cli:    client.New(u),
+			})
+		}
 	}
 
 	priv, err = crypto.HexToKey(
@@ -355,6 +364,13 @@ var _ = ginkgo.AfterSuite(func() {
 		}
 		hutils.Outf("\n{{cyan}}Blockchain:{{/}} %s\n", blockchainIDB)
 		for _, member := range instancesB {
+			hutils.Outf("%s URI: %s\n", member.nodeID, member.uri)
+		}
+
+	case modeRunSingle:
+		hutils.Outf("{{yellow}}skipping cluster shutdown{{/}}\n\n")
+		hutils.Outf("{{cyan}}Blockchain:{{/}} %s\n", blockchainIDA)
+		for _, member := range instancesA {
 			hutils.Outf("%s URI: %s\n", member.nodeID, member.uri)
 		}
 	}

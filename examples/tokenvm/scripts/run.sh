@@ -21,7 +21,7 @@ VERSION=1.10.0
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
-if [[ ${MODE} != "run" ]]; then
+if [[ ${MODE} != "run" && ${MODE} != "run-single" ]]; then
   STATESYNC_DELAY=500000000 # 500ms
 fi
 
@@ -226,7 +226,7 @@ echo "running e2e tests"
 --mode=${MODE}
 
 ############################
-if [[ ${MODE} == "run" ]]; then
+if [[ ${MODE} == "run" || ${MODE} == "run-single" ]]; then
   echo "cluster is ready!"
   # We made it past initialization and should avoid shutting down the network
   KEEPALIVE=true
