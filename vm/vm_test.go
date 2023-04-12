@@ -36,6 +36,7 @@ func TestBlockCache(t *testing.T) {
 		},
 	}
 	blkID := blk.ID()
+
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	controller := NewMockController(ctrl)
 	vm := VM{
@@ -50,6 +51,7 @@ func TestBlockCache(t *testing.T) {
 		acceptedQueue:  make(chan *chain.StatelessBlock, 1024), // don't block on queue
 		c:              controller,
 	}
+
 	// Init metrics (called in [Accepted])
 	gatherer := ametrics.NewMultiGatherer()
 	m, err := newMetrics(gatherer)

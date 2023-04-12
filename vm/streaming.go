@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"sync"
 
 	"go.uber.org/zap"
@@ -37,6 +38,10 @@ func (vm *VM) BlocksPort() uint16 {
 	return vm.blocksServer.Port()
 }
 
+func (vm *VM) DecisionsPort() uint16 {
+	return vm.config.GetDecisionsPort()
+}
+
 // If you don't keep up, you will data
 type DecisionRPCClient struct {
 	conn *websocket.Conn
@@ -48,7 +53,8 @@ type DecisionRPCClient struct {
 
 func NewDecisionRPCClient(uri string) (*DecisionRPCClient, error) {
 	// nil for now until we want to pass in headers
-	conn, _, err := websocket.DefaultDialer.Dial(uri, nil)
+	u := url.URL{Scheme: "ws", Host: uri}
+	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -71,13 +77,12 @@ func (d *DecisionRPCClient) Listen() (ids.ID, error, *chain.Result, error) {
 	// if there is an error, than the next bytes follow the error
 	// if there is no error, the next int indicates the length of the result
 	// if there is no error, the next bytes follow the result
+	fmt.Println("about to listen to connection")
 	_, msg, err := d.conn.ReadMessage()
+	fmt.Println("after listen finish")
+
 	if err != nil {
 		return ids.Empty, nil, nil, err
-	}
-	// TODO: not sure if this is needed.
-	if msg == nil {
-		return ids.Empty, nil, nil, errors.New("nil message")
 	}
 	p := codec.NewReader(msg, consts.MaxInt)
 	// read the txID from packer
@@ -90,9 +95,10 @@ func (d *DecisionRPCClient) Listen() (ids.ID, error, *chain.Result, error) {
 	// if packer has error
 	if p.UnpackBool() {
 		// rest of the bytes are the error
-		len := len(p.Bytes()) - p.Offset()
+		// packer should have unpackbytes method copied from packing
 		var err_bytes []byte
-		p.UnpackBytes(len, true, &err_bytes)
+		size := p.UnpackInt(true)
+		p.UnpackFixedBytes(int(size), &err_bytes)
 		if p.Err() != nil {
 			return ids.Empty, nil, nil, p.Err()
 		}
@@ -100,12 +106,6 @@ func (d *DecisionRPCClient) Listen() (ids.ID, error, *chain.Result, error) {
 		return ids.Empty, nil, nil, errors.New(string(err_bytes))
 	}
 	// unpack the result
-	len := len(p.Bytes()) - p.Offset()
-	var result_bytes []byte
-	p.UnpackBytes(len, true, &result_bytes)
-	if p.Err() != nil {
-		return ids.Empty, nil, nil, p.Err()
-	}
 	result, err := chain.UnmarshalResult(p)
 	if err != nil {
 		return ids.Empty, nil, nil, err
@@ -113,6 +113,7 @@ func (d *DecisionRPCClient) Listen() (ids.ID, error, *chain.Result, error) {
 	if !p.Empty() {
 		return ids.Empty, nil, nil, chain.ErrInvalidObject
 	}
+	fmt.Println("Listen was listened")
 	return txID, nil, result, nil
 }
 
@@ -134,11 +135,13 @@ func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) []by
 	// Unmarshal TX
 	p := codec.NewReader(msgBytes, chain.NetworkSizeLimit) // will likely be much smaller
 	tx, err := chain.UnmarshalTx(p, vm.actionRegistry, vm.authRegistry)
+
 	if err != nil {
 		vm.snowCtx.Log.Error("failed to unmarshal tx",
 			zap.Int("len", len(msgBytes)),
 			zap.Error(err),
 		)
+
 		return nil
 	}
 	// Verify tx
@@ -152,7 +155,7 @@ func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) []by
 	}
 
 	// TODO: add tx assoicated with this connection
-	// vm.listeners.AddTxListener(tx, c)
+	vm.listeners.AddTxListener(tx, c)
 
 	// Submit will remove from [txWaiters] if it is not added
 	txID := tx.ID()
@@ -164,7 +167,6 @@ func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) []by
 		return nil
 	}
 	vm.snowCtx.Log.Debug("submitted tx", zap.Stringer("id", txID))
-
 	return nil
 }
 

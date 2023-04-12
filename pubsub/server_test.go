@@ -5,6 +5,7 @@ package pubsub
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -17,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const dummyAddr = "localhost:8080"
+const dummyAddr = ":1024"
 
 var (
 	callbackEmptyResponse = "EMPTY_ID"
@@ -48,6 +49,7 @@ func (x *counter) dummyProcessTXCallback(b []byte, _ *Connection) []byte {
 // and the connection is properly handled when closed.
 func TestServerPublish(t *testing.T) {
 	require := require.New(t)
+	fmt.Println("dummyAddr: ", dummyAddr)
 	// Create a new logger for the test
 	logger := logging.NoLog{}
 	// Create a new pubsub server

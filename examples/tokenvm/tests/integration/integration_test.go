@@ -629,8 +629,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(decisionsPort).Should(gomega.Not(gomega.Equal(0)))
 		tcpURI := fmt.Sprintf("127.0.0.1:%d", decisionsPort)
 		cli, err := vm.NewDecisionRPCClient(tcpURI)
+		fmt.Println("err:", err)
 		gomega.Ω(err).Should(gomega.BeNil())
-
 		// Create tx
 		other, err := crypto.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -655,13 +655,18 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			time.Sleep(500 * time.Millisecond)
 		}
 		gomega.Ω(err).Should(gomega.BeNil())
+		fmt.Println("except blk")
 		accept := expectBlk(instances[0])
+		fmt.Println("except blk finish")
 		results := accept()
+		fmt.Println("after accept blk finish")
+
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
 		// Read decision from connection
 		txID, dErr, result, err := cli.Listen()
+		fmt.Println("err is", err)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(txID).Should(gomega.Equal(tx.ID()))
 		gomega.Ω(dErr).Should(gomega.BeNil())

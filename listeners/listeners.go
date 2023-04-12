@@ -4,12 +4,16 @@
 package listeners
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/pubsub"
 )
 
 type (
@@ -25,7 +29,7 @@ type Transaction struct {
 
 type Listeners struct {
 	txL         sync.Mutex
-	txListeners map[ids.ID][]TxListener
+	txListeners map[ids.ID]*pubsub.Connections
 	expiringTxs *emap.EMap[*chain.Transaction] // ensures all tx listeners are eventually responded to
 
 	blockL         sync.Mutex
@@ -34,7 +38,7 @@ type Listeners struct {
 
 func New() *Listeners {
 	return &Listeners{
-		txListeners: map[ids.ID][]TxListener{},
+		txListeners: map[ids.ID]*pubsub.Connections{},
 		expiringTxs: emap.NewEMap[*chain.Transaction](),
 
 		blockListeners: map[ids.ID]BlockListener{},
@@ -43,12 +47,16 @@ func New() *Listeners {
 
 // Note: no need to have a tx listener removal, this will happen when all
 // submitted transactions are cleared.
-func (w *Listeners) AddTxListener(tx *chain.Transaction, c TxListener) {
+func (w *Listeners) AddTxListener(tx *chain.Transaction, c *pubsub.Connection) {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
 	txID := tx.ID()
-	w.txListeners[txID] = append(w.txListeners[txID], c)
+	fmt.Println("connectionj adding tx listener", c)
+	if _, ok := w.txListeners[txID]; !ok {
+		w.txListeners[txID] = pubsub.NewConnections()
+	}
+	w.txListeners[txID].Add(c)
 	w.expiringTxs.Add([]*chain.Transaction{tx})
 }
 
@@ -67,43 +75,48 @@ func (w *Listeners) RemoveBlockListener(id ids.ID) {
 }
 
 // If never possible for a tx to enter mempool, call this
-func (w *Listeners) RemoveTx(txID ids.ID, err error) {
+func (w *Listeners) RemoveTx(txID ids.ID, err error, s *pubsub.Server) {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
-	w.removeTx(txID, err)
+	w.removeTx(txID, err, s)
 }
 
-func (w *Listeners) removeTx(txID ids.ID, err error) {
+func (w *Listeners) removeTx(txID ids.ID, err error, s *pubsub.Server) {
 	listeners, ok := w.txListeners[txID]
 	if !ok {
 		return
 	}
-	for _, listener := range listeners {
-		select {
-		case listener <- &Transaction{
-			TxID: txID,
-			Err:  err,
-		}:
-		default:
-			// drop message if client is not keeping up or abandoned
-		}
-	}
+	p := codec.NewWriter(consts.MaxInt)
+	p.PackID(txID)
+	p.PackBool(true)
+	p.PackBytes([]byte(err.Error()))
+	s.Publish([]byte(txID.String()), listeners)
+	// for _, listener := range listeners {
+	// 	select {
+	// 	case listener <- &Transaction{
+	// 		TxID: txID,
+	// 		Err:  err,
+	// 	}:
+	// 	default:
+	// 		// drop message if client is not keeping up or abandoned
+	// 	}
+	// }
 	delete(w.txListeners, txID)
 	// [expiringTxs] will be cleared eventually (does not support removal)
 }
 
-func (w *Listeners) SetMinTx(t int64) {
+func (w *Listeners) SetMinTx(t int64, s *pubsub.Server) {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
 	expired := w.expiringTxs.SetMin(t)
 	for _, id := range expired {
-		w.removeTx(id, ErrExpired)
+		w.removeTx(id, ErrExpired, s)
 	}
 }
 
-func (w *Listeners) AcceptBlock(b *chain.StatelessBlock) {
+func (w *Listeners) AcceptBlock(b *chain.StatelessBlock, s *pubsub.Server) {
 	w.blockL.Lock()
 	for _, listener := range w.blockListeners {
 		select {
@@ -116,23 +129,32 @@ func (w *Listeners) AcceptBlock(b *chain.StatelessBlock) {
 
 	w.txL.Lock()
 	defer w.txL.Unlock()
+
 	results := b.Results()
 	for i, tx := range b.Txs {
+		p := codec.NewWriter(consts.MaxInt)
 		txID := tx.ID()
 		listeners, ok := w.txListeners[txID]
 		if !ok {
 			continue
 		}
-		for _, listener := range listeners {
-			select {
-			case listener <- &Transaction{
-				TxID:   txID,
-				Result: results[i],
-			}:
-			default:
-				// drop message if client is not keeping up or abandoned
-			}
-		}
+		p.PackID(txID)
+		p.PackBool(false)
+		results[i].Marshal(p)
+		s.Publish(
+			p.Bytes(),
+			listeners,
+		)
+		// for _, listener := range listeners {
+		// 	select {
+		// 	case listener <- &Transaction{
+		// 		TxID:   txID,
+		// 		Result: results[i],
+		// 	}:
+		// 	default:
+		// 		// drop message if client is not keeping up or abandoned
+		// 	}
+		// }
 		delete(w.txListeners, txID)
 		// [expiringTxs] will be cleared eventually (does not support removal)
 	}

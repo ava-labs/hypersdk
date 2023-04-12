@@ -41,6 +41,10 @@ import (
 	"github.com/ava-labs/hypersdk/workers"
 )
 
+type VirtualMachine interface {
+	Submit(ctx context.Context, verifySig bool, txs []*chain.Transaction) (errs []error)
+}
+
 type VM struct {
 	c Controller
 	v *version.Semantic
@@ -281,6 +285,7 @@ func (vm *VM) Initialize(
 
 	// Startup RPCs
 	addr := fmt.Sprintf(":%d", vm.config.GetDecisionsPort())
+	fmt.Println("server addr: ", addr)
 	vm.decisionsServer = pubsub.New(addr, vm.decisionServerCallback, vm.Logger(), pubsub.NewDefaultServerConfig())
 	go func() {
 		// Wait for VM to be ready before accepting connections. If we stop the VM
@@ -642,7 +647,6 @@ func (vm *VM) Submit(
 	if !vm.isReady() {
 		return []error{ErrNotReady}
 	}
-
 	// Create temporary execution context
 	blk, err := vm.GetStatelessBlock(ctx, vm.preferred)
 	if err != nil {
@@ -673,7 +677,7 @@ func (vm *VM) Submit(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				vm.listeners.RemoveTx(txID, err)
+				vm.listeners.RemoveTx(txID, err, vm.decisionsServer)
 				errs = append(errs, err)
 				continue
 			}

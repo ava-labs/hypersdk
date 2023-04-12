@@ -85,6 +85,7 @@ func (c *Config) setDefault() {
 	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
+	c.DecisionsPort = 4000
 }
 
 func (c *Config) GetLogLevel() logging.Level       { return c.LogLevel }

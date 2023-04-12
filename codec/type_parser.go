@@ -62,6 +62,7 @@ func (p *TypeParser[T, X, Y]) LookupType(o T) (uint8, func(*Packer, X) (T, error
 // from Typeparser [p].
 func (p *TypeParser[T, X, Y]) LookupIndex(index uint8) (func(*Packer, X) (T, error), Y, bool) {
 	d, ok := p.indexToDecoder[index]
+
 	if ok {
 		return d.f, d.y, true
 	}

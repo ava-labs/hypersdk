@@ -107,7 +107,7 @@ func (c *Connection) readPump() {
 					zap.Error(err),
 				)
 			}
-			c.Send(c.s.callback(responseBytes, c))
+			c.s.callback(responseBytes, c)
 		}
 	}
 }
