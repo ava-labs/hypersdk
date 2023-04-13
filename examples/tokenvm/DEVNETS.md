@@ -484,3 +484,12 @@ avalancheup-aws default-spec \
 Make sure the nodes are in sync with the chain state before installing
 subnets/chains with `avalancheup-aws install-subnet-chain`. You can check the status
 of the nodes either via HTTP `/health` endpoints or CloudWatch logs.
+
+## Troubleshooting
+### `undefined: Message`
+If you get the following error, make sure to install `gcc` before running
+`./scripts/build.sh`:
+```
+# github.com/supranational/blst/bindings/go
+../../../go/pkg/mod/github.com/supranational/blst@v0.3.11-0.20220920110316-f72618070295/bindings/go/rb_tree.go:130:18: undefined: Message
+```
