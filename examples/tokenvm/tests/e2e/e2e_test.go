@@ -193,7 +193,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				"throttler-inbound-disk-validator-alloc":"10737418240000",
 				"throttler-outbound-validator-alloc-size":"107374182",
 				"network-compression-type":"none",
-				"consensus-app-concurrency":"32"
+				"consensus-app-concurrency":"64"
 			}`),
 	)
 	cancel()
