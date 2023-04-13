@@ -43,10 +43,6 @@ import (
 	"github.com/ava-labs/hypersdk/workers"
 )
 
-type VirtualMachine interface {
-	Submit(ctx context.Context, verifySig bool, txs []*chain.Transaction) (errs []error)
-}
-
 type VM struct {
 	c Controller
 	v *version.Semantic

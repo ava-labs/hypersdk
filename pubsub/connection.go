@@ -23,7 +23,7 @@ var (
 // Callback type is used as a callback function for the
 // WebSocket server to process incoming messages.
 // Accepts a byte message, the connection and any additional information.
-type Callback func([]byte, *Connection) []byte
+type Callback func([]byte, *Connection)
 
 // connection is a representation of the websocket connection.
 type Connection struct {

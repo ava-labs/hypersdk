@@ -5,10 +5,10 @@ package pubsub
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const dummyAddr = ":1024"
+const dummyAddr = "localhost:8080"
 
 var (
 	callbackEmptyResponse = "EMPTY_ID"
@@ -28,18 +28,22 @@ var (
 // This is a dummy struct to test the callback function
 type counter struct {
 	val int
+	// lock
+	l sync.RWMutex
 }
 
-func (x *counter) dummyProcessTXCallback(b []byte, _ *Connection) []byte {
+func (x *counter) dummyProcessTXCallback(b []byte, _ *Connection) {
 	x.val++
 	id, err := ids.ToID(b)
+	x.l.Lock()
+	defer x.l.Unlock()
 	if err != nil {
-		return []byte("ERROR")
+		return
 	}
 	if ids.Empty == id {
-		return []byte(callbackEmptyResponse)
+		return
 	} else {
-		return []byte(callbackResponse)
+		x.val++
 	}
 }
 
@@ -49,7 +53,6 @@ func (x *counter) dummyProcessTXCallback(b []byte, _ *Connection) []byte {
 // and the connection is properly handled when closed.
 func TestServerPublish(t *testing.T) {
 	require := require.New(t)
-	fmt.Println("dummyAddr: ", dummyAddr)
 	// Create a new logger for the test
 	logger := logging.NoLog{}
 	// Create a new pubsub server
@@ -141,13 +144,12 @@ func TestServerRead(t *testing.T) {
 	id := ids.GenerateTestID()
 	err = webCon.WriteMessage(websocket.TextMessage, id[:])
 	require.NoError(err, "Error writing message to server.")
-	// Receive the message from the publish
-	_, msg, err := webCon.ReadMessage()
-	require.NoError(err, "Error reading from connection.")
+	// Wait for callback to be called
+	<-time.After(10 * time.Millisecond)
 	// Callback was correctly called
-	require.Equal(11, counter.val, "Callback not called correctly.")
-	// Verify that the received message is the expected dummy message
-	require.Equal(callbackResponse, string(msg), "Response is unexpected.")
+	counter.l.Lock()
+	require.Equal(12, counter.val, "Callback not called correctly.")
+	counter.l.Unlock()
 	// Close the connection and wait for it to be closed on the server side
 	go func() {
 		webCon.Close()
@@ -175,6 +177,7 @@ func TestServerRead(t *testing.T) {
 	err = server.Shutdown(context.TODO())
 	require.NoError(err, "Error shutting down server.")
 	// Wait for the server to finish shutting down
+
 	<-serverDone
 }
 

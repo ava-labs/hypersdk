@@ -76,7 +76,7 @@ func (d *DecisionRPCClient) Close() error {
 // The server submits the tx to the vm and adds the tx to the vms listener for
 // later retrieval.
 // TODO: update return value to maybe be more useful
-func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) []byte {
+func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) {
 	ctx, span := vm.tracer.Start(context.Background(), "decisionRPCServer callback")
 	defer span.End()
 	// Unmarshal TX
@@ -88,7 +88,7 @@ func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) []by
 			zap.Error(err),
 		)
 
-		return nil
+		return
 	}
 	// Verify tx
 	sigVerify := tx.AuthAsyncVerify()
@@ -96,7 +96,7 @@ func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) []by
 		vm.snowCtx.Log.Error("failed to verify sig",
 			zap.Error(err),
 		)
-		return nil
+		return
 	}
 	// TODO: add tx associated with this connection
 	vm.listeners.AddTxListener(tx, c)
@@ -108,10 +108,9 @@ func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) []by
 			zap.Stringer("txID", txID),
 			zap.Error(err),
 		)
-		return nil
+		return
 	}
 	vm.snowCtx.Log.Debug("submitted tx", zap.Stringer("id", txID))
-	return nil
 }
 
 // If you don't keep up, you will data
