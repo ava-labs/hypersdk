@@ -5,6 +5,7 @@ package pubsub
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -166,4 +167,7 @@ func (s *Server) Shutdown(c context.Context) error {
 
 func (s *Server) Conns() *Connections {
 	return s.conns
+}
+func (s *Server) HostandPort() (string, string, error) {
+	return net.SplitHostPort(s.addr)
 }
