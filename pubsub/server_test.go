@@ -20,11 +20,6 @@ import (
 
 const dummyAddr = "localhost:8080"
 
-var (
-	callbackEmptyResponse = "EMPTY_ID"
-	callbackResponse      = "ID_RECEIVED"
-)
-
 // This is a dummy struct to test the callback function
 type counter struct {
 	val int
