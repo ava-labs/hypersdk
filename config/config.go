@@ -47,4 +47,5 @@ func (c *Config) GetBlockLRUSize() int                   { return 128 }
 func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	return &profiler.Config{Enabled: false}
 }
-func (c *Config) GetBuildAsync() bool { return false }
+func (c *Config) GetBuildAsync() bool  { return false }
+func (c *Config) GetVerifyAsync() bool { return false }

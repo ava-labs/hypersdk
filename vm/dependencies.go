@@ -41,6 +41,7 @@ type Config interface {
 	GetBlockLRUSize() int
 	GetContinuousProfilerConfig() *profiler.Config
 	GetBuildAsync() bool
+	GetVerifyAsync() bool
 }
 
 type Genesis interface {

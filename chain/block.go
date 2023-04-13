@@ -102,6 +102,11 @@ type StatelessBlock struct {
 	sigJobs      []*workers.Job
 	warpMessages map[ids.ID]*warpJob
 
+	verifying     bool
+	verifyView    merkledb.TrieView
+	verifyErr     error
+	verifyErrPerm bool
+
 	bctx     *block.Context
 	vdrState validators.State
 	state    merkledb.TrieView
@@ -446,6 +451,41 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 		// need to compute it (we assume that we built a correct block and it isn't
 		// necessary to re-verify anything).
 		log.Info("skipping verification, already processed", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()))
+	case b.vm.GetVerifyAsync():
+		if b.verifying {
+			return errors.New("verifying async")
+		}
+		if b.verifyView != nil {
+			b.state = b.verifyView
+			b.vm.Verified(ctx, b)
+			return nil
+		}
+		if b.verifyErr != nil {
+			if b.verifyErrPerm {
+				return b.verifyErr
+			}
+			log.Info("retrying verification", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()))
+			b.verifyErr = nil
+
+			// Reset warp message verification
+			for msgID := range b.warpMessages {
+				b.warpMessages[msgID].verifiedChan = make(chan bool, 1)
+			}
+		}
+		b.verifying = true
+		go func() {
+			defer func() {
+				b.verifying = false
+			}()
+			state, perm, err := b.innerVerify(ctx)
+			if err != nil {
+				b.verifyErr = err
+				b.verifyErrPerm = perm
+				return
+			}
+			b.verifyView = state
+		}()
+		return errors.New("verifying async")
 	default:
 		// Parent may not be processed when we verify this block so [verify] may
 		// recursively compute missing state (should not be verifying when that
@@ -453,7 +493,7 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 		//
 		// TODO: consider calling this async (must handle merkledb underlying
 		// change)
-		state, err := b.innerVerify(ctx)
+		state, _, err := b.innerVerify(ctx)
 		if err != nil {
 			return err
 		}
@@ -522,7 +562,7 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 //  2. If the parent state is missing when verifying (dynamic state sync)
 //  3. If the state of a block we are accepting is missing (finishing dynamic
 //     state sync)
-func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, error) {
+func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, bool, error) {
 	var (
 		fnStart = time.Now()
 		log     = b.vm.Logger()
@@ -532,21 +572,21 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	// Perform basic correctness checks before doing any expensive work
 	switch {
 	case b.Timestamp().Unix() >= time.Now().Add(FutureBound).Unix():
-		return nil, ErrTimestampTooLate
+		return nil, false, ErrTimestampTooLate
 	case len(b.Txs) == 0:
-		return nil, ErrNoTxs
+		return nil, true, ErrNoTxs
 	case len(b.Txs) > r.GetMaxBlockTxs():
-		return nil, ErrBlockTooBig
+		return nil, true, ErrBlockTooBig
 	}
 
 	// Verify parent is verified and available
 	parent, err := b.vm.GetStatelessBlock(ctx, b.Prnt)
 	if err != nil {
 		log.Debug("could not get parent", zap.Stringer("id", b.Prnt))
-		return nil, err
+		return nil, true, err
 	}
 	if b.Timestamp().Unix() < parent.Timestamp().Unix() {
-		return nil, ErrTimestampTooEarly
+		return nil, true, ErrTimestampTooEarly
 	}
 
 	// Ensure tx cannot be replayed
@@ -560,25 +600,25 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 	dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs)
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
 	if dup {
-		return nil, fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
+		return nil, true, fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
 	}
 
 	ectx, err := GenerateExecutionContext(ctx, b.vm.ChainID(), b.Tmstmp, parent, b.vm.Tracer(), r)
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
 	switch {
 	case b.UnitPrice != ectx.NextUnitPrice:
-		return nil, ErrInvalidUnitPrice
+		return nil, true, ErrInvalidUnitPrice
 	case b.UnitWindow != ectx.NextUnitWindow:
-		return nil, ErrInvalidUnitWindow
+		return nil, true, ErrInvalidUnitWindow
 	case b.BlockCost != ectx.NextBlockCost:
-		return nil, ErrInvalidBlockCost
+		return nil, true, ErrInvalidBlockCost
 	case b.BlockWindow != ectx.NextBlockWindow:
-		return nil, ErrInvalidBlockWindow
+		return nil, true, ErrInvalidBlockWindow
 	}
 	log.Info(
 		"verify context",
@@ -596,7 +636,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 				zap.Uint64("height", b.Hght),
 				zap.Stringer("id", b.ID()),
 			)
-			return nil, ErrMissingBlockContext
+			return nil, false, ErrMissingBlockContext
 		}
 		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
 		b.vdrState = b.vm.ValidatorState()
@@ -645,7 +685,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	// This function may verify the parent if it is not yet verified.
 	state, err := parent.childState(ctx, len(b.Txs)*2)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// Optimisticaly fetch state
@@ -656,11 +696,11 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	unitsConsumed, surplusFee, results, err := processor.Execute(ctx, ectx, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
-		return nil, err
+		return nil, false, err
 	}
 	b.results = results
 	if b.UnitsConsumed != unitsConsumed {
-		return nil, fmt.Errorf(
+		return nil, true, fmt.Errorf(
 			"%w: required=%d found=%d",
 			ErrInvalidUnitsConsumed,
 			unitsConsumed,
@@ -670,7 +710,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Ensure enough fee is paid to compensate for block production speed
 	if b.SurplusFee != surplusFee {
-		return nil, fmt.Errorf(
+		return nil, true, fmt.Errorf(
 			"%w: required=%d found=%d",
 			ErrInvalidSurplus,
 			b.SurplusFee,
@@ -679,7 +719,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 	requiredSurplus := b.UnitPrice * b.BlockCost
 	if surplusFee < requiredSurplus {
-		return nil, fmt.Errorf(
+		return nil, true, fmt.Errorf(
 			"%w: required=%d found=%d",
 			ErrInsufficientSurplus,
 			requiredSurplus,
@@ -689,11 +729,11 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Ensure warp results are correct
 	if invalidWarpResult {
-		return nil, ErrWarpResultMismatch
+		return nil, true, ErrWarpResultMismatch
 	}
 	numWarp := len(b.warpMessages)
 	if numWarp > MaxWarpMessages {
-		return nil, ErrTooManyWarpMessages
+		return nil, true, ErrTooManyWarpMessages
 	}
 	var warpResultsLimit set.Bits64
 	warpResultsLimit.Add(uint(numWarp))
@@ -701,24 +741,24 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		// If the value of [WarpResults] is greater than the value of uint64 with
 		// a 1-bit shifted [numWarp] times, then there are unused bits set to
 		// 1 (which should is not allowed).
-		return nil, ErrWarpResultMismatch
+		return nil, true, ErrWarpResultMismatch
 	}
 
 	// Store height in state to prevent duplicate roots
 	if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// Compute state root
 	start := time.Now()
 	computedRoot, err := state.GetMerkleRoot(ctx)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	rootWait := time.Since(start)
 	b.vm.RecordRootCalculated(rootWait)
 	if b.StateRoot != computedRoot {
-		return nil, fmt.Errorf(
+		return nil, true, fmt.Errorf(
 			"%w: expected=%s found=%s",
 			ErrStateRootMismatch,
 			computedRoot,
@@ -732,13 +772,13 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	start = time.Now()
 	for _, sigJob := range b.sigJobs {
 		if err := sigJob.Wait(); err != nil {
-			return nil, err
+			return nil, true, err
 		}
 	}
 	sigWait := time.Since(start)
 	b.vm.RecordWaitSignatures(sigWait)
 	log.Info("inner verify completed", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()), zap.Int("chunks", len(b.Chunks)), zap.Duration("t", time.Since(fnStart)), zap.Duration("root wait", rootWait), zap.Duration("sig wait", sigWait))
-	return state, nil
+	return state, false, nil
 }
 
 // implements "snowman.Block.choices.Decidable"
@@ -770,7 +810,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		// then we need to rebuild it here.
 		//
 		// If this errors, the node will fatal.
-		state, err := b.innerVerify(ctx)
+		state, _, err := b.innerVerify(ctx)
 		if err != nil {
 			return err
 		}
@@ -869,7 +909,7 @@ func (b *StatelessBlock) childState(
 	if !b.Processed() {
 		b.vm.Logger().
 			Info("verifying parent when childState requested", zap.Uint64("height", b.Hght))
-		state, err := b.innerVerify(ctx)
+		state, _, err := b.innerVerify(ctx)
 		if err != nil {
 			return nil, err
 		}

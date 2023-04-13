@@ -345,3 +345,7 @@ func (vm *VM) RegisterChunks(ctx context.Context, height uint64, chunks [][]byte
 func (vm *VM) RequestChunks(ctx context.Context, height uint64, chunks []ids.ID, ch chan []byte) error {
 	return vm.chunkManager.RequestChunks(ctx, height, chunks, ch)
 }
+
+func (vm *VM) GetVerifyAsync() bool {
+	return vm.config.GetVerifyAsync()
+}
