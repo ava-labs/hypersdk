@@ -29,6 +29,8 @@ import (
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 const feePerTx = 1000
@@ -148,6 +150,7 @@ var runSpamCmd = &cobra.Command{
 			return err
 		}
 		funds := map[crypto.PublicKey]uint64{}
+		var fundsL sync.Mutex
 		for i := 0; i < numAccounts; i++ {
 			// Create account
 			pk, err := crypto.GeneratePrivateKey()
@@ -292,50 +295,63 @@ var runSpamCmd = &cobra.Command{
 
 				// Generate new transactions
 				start := time.Now()
+				sema := semaphore.NewWeighted(16)
+				g, gctx := errgroup.WithContext(ctx)
 				for k := 0; k < numTxsPerAccount; k++ {
-					for i := 0; i < numAccounts; i++ {
-						var (
-							issuer = getRandomIssuer(clients)
-							tx     *chain.Transaction
-							fees   uint64
-						)
-						for {
-							recipient, err := getRandomRecipient(i, accounts)
-							if err != nil {
-								return err
-							}
-							_, tx, fees, err = issuer.c.GenerateTransaction(ctx, nil, &actions.Transfer{
-								To:    recipient,
-								Asset: ids.Empty,
-								Value: 1,
-							}, auth.NewED25519Factory(accounts[i]))
-							if err != nil {
-								hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
-								continue
-							}
-							infl.Lock()
-							exit := !inflightTxs.Contains(tx.ID())
-							infl.Unlock()
-							if exit {
-								break
-							}
+					for ri := 0; ri < numAccounts; ri++ {
+						if err := sema.Acquire(ctx, 1); err != nil {
+							return err
 						}
-						transferFee = fees
-						infl.Lock()
-						inflightTxs.Add(tx.ID())
-						infl.Unlock()
-						if err := issuer.d.IssueTx(tx); err != nil {
-							infl.Lock()
-							inflightTxs.Remove(tx.ID())
-							infl.Unlock()
+						i := ri
+						g.Go(func() error {
+							defer sema.Release(1)
 
-							hutils.Outf("{{orange}}failed to issue:{{/}} %v\n", err)
-							continue
-						}
-						funds[accounts[i].PublicKey()] -= (fees + 1)
-						issuer.l.Lock()
-						issuer.outstandingTxs++
-						issuer.l.Unlock()
+							var (
+								issuer = getRandomIssuer(clients)
+								tx     *chain.Transaction
+								fees   uint64
+							)
+							for {
+								recipient, err := getRandomRecipient(i, accounts)
+								if err != nil {
+									return err
+								}
+								_, tx, fees, err = issuer.c.GenerateTransaction(gctx, nil, &actions.Transfer{
+									To:    recipient,
+									Asset: ids.Empty,
+									Value: 1,
+								}, auth.NewED25519Factory(accounts[i]))
+								if err != nil {
+									hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
+									continue
+								}
+								infl.Lock()
+								exit := !inflightTxs.Contains(tx.ID())
+								infl.Unlock()
+								if exit {
+									break
+								}
+							}
+							transferFee = fees
+							infl.Lock()
+							inflightTxs.Add(tx.ID())
+							infl.Unlock()
+							if err := issuer.d.IssueTx(tx); err != nil {
+								infl.Lock()
+								inflightTxs.Remove(tx.ID())
+								infl.Unlock()
+
+								hutils.Outf("{{orange}}failed to issue:{{/}} %v\n", err)
+								return nil
+							}
+							fundsL.Lock()
+							funds[accounts[i].PublicKey()] -= (fees + 1)
+							fundsL.Unlock()
+							issuer.l.Lock()
+							issuer.outstandingTxs++
+							issuer.l.Unlock()
+							return nil
+						})
 
 						// Only send 1 transaction per second until we are sure Snowman++ is
 						// activated.
@@ -344,6 +360,12 @@ var runSpamCmd = &cobra.Command{
 							break
 						}
 					}
+					if runs < 10 {
+						break
+					}
+				}
+				if err := g.Wait(); err != nil {
+					return err
 				}
 				l.Lock()
 				infl.Lock()

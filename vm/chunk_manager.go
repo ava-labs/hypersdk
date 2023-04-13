@@ -154,6 +154,7 @@ type ChunkManager struct {
 	chunkLock        sync.RWMutex
 	fetchedChunks    map[ids.ID][]byte
 	optimisticChunks *cache.LRU[ids.ID, []byte]
+	clearedChunks    *cache.LRU[ids.ID, struct{}]
 
 	chunks *ChunkMap
 	min    uint64
@@ -176,6 +177,7 @@ func NewChunkManager(vm *VM) *ChunkManager {
 		requests:         map[uint32]chan []byte{},
 		fetchedChunks:    map[ids.ID][]byte{},
 		optimisticChunks: &cache.LRU[ids.ID, []byte]{Size: 1024},
+		clearedChunks:    &cache.LRU[ids.ID, struct{}]{Size: 1024},
 		chunks:           NewChunkMap(),
 		nodeChunks:       map[ids.NodeID]*NodeChunks{},
 		nodeSet:          set.NewSet[ids.NodeID](64),
@@ -261,12 +263,17 @@ func (c *ChunkManager) SetMin(min uint64) {
 func (c *ChunkManager) Accept(height uint64) {
 	c.chunkLock.Lock()
 	c.max = height
-	for _, chunkID := range c.chunks.SetMin(height + 1) {
+	evicted := c.chunks.SetMin(height + 1)
+	for _, chunkID := range evicted {
 		delete(c.fetchedChunks, chunkID)
+		c.clearedChunks.Put(chunkID, struct{}{})
+		c.optimisticChunks.Evict(chunkID)
 	}
+	processing := len(c.fetchedChunks)
 	c.chunkLock.Unlock()
 
 	c.update <- struct{}{}
+	c.vm.snowCtx.Log.Info("evicted chunks from memory", zap.Int("n", len(evicted)), zap.Int("processing", processing))
 }
 
 func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkIDs []ids.ID, ch chan []byte) error {
@@ -549,6 +556,9 @@ func (c *ChunkManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, m
 	// TODO: handle case where already wrote to disk and we are getting old
 	// chunks
 	for chunkID := range unprocessed {
+		if _, ok := c.clearedChunks.Get(chunkID); ok {
+			continue
+		}
 		c.RequestChunk(context.Background(), nil, nodeID, chunkID, nil)
 	}
 	return nil
