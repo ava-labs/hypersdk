@@ -65,7 +65,7 @@ func Default() *Genesis {
 		HRP: consts.HRP,
 
 		// Block params
-		MaxChunks:     10,
+		MaxChunks:     12,
 		MaxChunkSize:  512 * units.KiB,
 		MaxBlockTxs:   100_000,   // rely on max block units
 		MaxBlockUnits: 1_800_000, // 1.8 MiB
