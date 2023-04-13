@@ -35,6 +35,8 @@ type DecisionRPCClient struct {
 	cl   sync.Once
 }
 
+// NewDecisionRPCClient creates a new client for the decision rpc server.
+// Dials into the server at [uri] and returns a client.
 func NewDecisionRPCClient(uri string) (*DecisionRPCClient, error) {
 	// nil for now until we want to pass in headers
 	u := url.URL{Scheme: "ws", Host: uri}
@@ -47,6 +49,7 @@ func NewDecisionRPCClient(uri string) (*DecisionRPCClient, error) {
 	return &DecisionRPCClient{conn: conn}, nil
 }
 
+// IssueTx sends [tx] to the decision rpc server.
 func (d *DecisionRPCClient) IssueTx(tx *chain.Transaction) error {
 	d.wl.Lock()
 	defer d.wl.Unlock()
@@ -54,6 +57,7 @@ func (d *DecisionRPCClient) IssueTx(tx *chain.Transaction) error {
 	return d.conn.WriteMessage(websocket.BinaryMessage, tx.Bytes())
 }
 
+// Listen listens for responses from the decision rpc server.
 func (d *DecisionRPCClient) Listen() (ids.ID, error, *chain.Result, error) {
 	d.ll.Lock()
 	defer d.ll.Unlock()
@@ -64,6 +68,7 @@ func (d *DecisionRPCClient) Listen() (ids.ID, error, *chain.Result, error) {
 	return listeners.UnpackTxMessage(msg)
 }
 
+// Close closes [d]'s connection to the decision rpc server.
 func (d *DecisionRPCClient) Close() error {
 	var err error
 	d.cl.Do(func() {
@@ -75,7 +80,6 @@ func (d *DecisionRPCClient) Close() error {
 // decisionServerCallback is a callback function for the decision server.
 // The server submits the tx to the vm and adds the tx to the vms listener for
 // later retrieval.
-// TODO: update return value to maybe be more useful
 func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) {
 	ctx, span := vm.tracer.Start(context.Background(), "decisionRPCServer callback")
 	defer span.End()
@@ -113,7 +117,6 @@ func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) {
 	vm.snowCtx.Log.Debug("submitted tx", zap.Stringer("id", txID))
 }
 
-// If you don't keep up, you will data
 type BlockRPCClient struct {
 	conn *websocket.Conn
 
@@ -121,6 +124,8 @@ type BlockRPCClient struct {
 	cl sync.Once
 }
 
+// NewBlockRPCClient creates a new client for the blocks rpc server.
+// Dials into the server at [uri] and returns a client.
 func NewBlockRPCClient(uri string) (*BlockRPCClient, error) {
 	// nil for now until we want to pass in headers
 	u := url.URL{Scheme: "ws", Host: uri}
@@ -133,6 +138,7 @@ func NewBlockRPCClient(uri string) (*BlockRPCClient, error) {
 	return &BlockRPCClient{conn: conn}, nil
 }
 
+// Listen listens for messages from the blocks rpc server.
 func (c *BlockRPCClient) Listen(
 	parser chain.Parser,
 ) (*chain.StatefulBlock, []*chain.Result, error) {
@@ -146,6 +152,7 @@ func (c *BlockRPCClient) Listen(
 	return listeners.UnpackBlockMessageBytes(msg, parser)
 }
 
+// Close closes [c]'s connection to the blocks rpc server.
 func (c *BlockRPCClient) Close() error {
 	var err error
 	c.cl.Do(func() {

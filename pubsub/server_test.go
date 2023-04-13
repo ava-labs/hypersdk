@@ -172,7 +172,6 @@ func TestServerRead(t *testing.T) {
 	err = server.Shutdown(context.TODO())
 	require.NoError(err, "Error shutting down server.")
 	// Wait for the server to finish shutting down
-
 	<-serverDone
 }
 

@@ -663,7 +663,11 @@ func (vm *VM) BuildBlockWithContext(
 	return vm.buildBlock(ctx, blockContext)
 }
 
-func (vm *VM) submitStateless(ctx context.Context, verifySig bool, txs []*chain.Transaction) (errs []error) {
+func (vm *VM) submitStateless(
+	ctx context.Context,
+	verifySig bool,
+	txs []*chain.Transaction,
+) (errs []error) {
 	validTxs := []*chain.Transaction{}
 	for _, tx := range txs {
 		txID := tx.ID()
