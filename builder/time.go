@@ -108,9 +108,7 @@ func (b *Time) Run() {
 				)
 			}
 			if !build {
-				// TODO: fix this handling
-				b.vm.Logger().Info("would have opted not to build although there are txs")
-				// continue
+				continue
 			}
 			b.TriggerBuild()
 		case <-b.vm.StopChan():

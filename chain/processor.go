@@ -25,6 +25,8 @@ type Processor struct {
 	blk      *StatelessBlock
 	readyTxs chan *txData
 	db       Database
+
+	err error
 }
 
 // Only prepare for population if above last accepted height
@@ -42,7 +44,11 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 	p.db = db
 	sm := p.blk.vm.StateManager()
 	go func() {
-		defer span.End()
+		defer func() {
+			// Let caller know all sets have been readied
+			close(p.readyTxs)
+			span.End()
+		}()
 
 		// Store required keys for each set
 		alreadyFetched := set.Set[string]{}
@@ -57,16 +63,16 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 				if errors.Is(err, database.ErrNotFound) {
 					continue
 				} else if err != nil {
-					panic(err)
+					// This can happen if a conflicting ancestry of the underlying merkledb
+					// is committed.
+					p.err = err
+					return
 				}
 				alreadyFetched.Add(sk)
 				storage[sk] = v
 			}
 			p.readyTxs <- &txData{tx, storage}
 		}
-
-		// Let caller know all sets have been readied
-		close(p.readyTxs)
 	}()
 }
 
@@ -128,6 +134,9 @@ func (p *Processor) Execute(
 			// Exit as soon as we hit our max
 			return 0, 0, nil, ErrBlockTooBig
 		}
+	}
+	if p.err != nil {
+		return 0, 0, nil, p.err
 	}
 	// Wait until end to write changes to avoid conflicting with pre-fetching
 	return unitsConsumed, surplusFee, results, ts.WriteChanges(ctx, p.db, p.tracer)

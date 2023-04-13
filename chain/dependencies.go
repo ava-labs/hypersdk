@@ -41,6 +41,8 @@ type VM interface {
 	Tracer() trace.Tracer
 	Logger() logging.Logger
 
+	GetVerifyAsync() bool
+
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
 	SetLastAccepted(*StatelessBlock) error

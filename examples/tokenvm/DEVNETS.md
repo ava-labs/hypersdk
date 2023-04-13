@@ -259,6 +259,7 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "logLevel": "info",
   "preferredBlocksPerSecond": 5,
   "buildAsync": true,
+  "verifyAsync": true,
   "decisionsPort": 9652,
   "blocksPort": 9653
 }

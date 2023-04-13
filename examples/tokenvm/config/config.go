@@ -60,6 +60,7 @@ type Config struct {
 	// Builder
 	PreferredBlocksPerSecond uint64 `json:"preferredBlocksPerSecond"`
 	BuildAsync               bool   `json:"buildAsync"`
+	VerifyAsync              bool   `json:"verifyAsync"`
 
 	// Order Book
 	//
@@ -114,6 +115,7 @@ func (c *Config) setDefault() {
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 	c.BuildAsync = c.Config.GetBuildAsync()
+	c.VerifyAsync = c.Config.GetVerifyAsync()
 }
 
 func (c *Config) GetLogLevel() logging.Level          { return c.LogLevel }
@@ -151,4 +153,5 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 		MaxNumFiles: defaultContinuousProfilerMaxFiles,
 	}
 }
-func (c *Config) GetBuildAsync() bool { return c.BuildAsync }
+func (c *Config) GetBuildAsync() bool  { return c.BuildAsync }
+func (c *Config) GetVerifyAsync() bool { return c.VerifyAsync }

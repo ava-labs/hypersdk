@@ -126,6 +126,7 @@ cat <<EOF > /tmp/tokenvm.config
   "trackedPairs":["*"],
   "preferredBlocksPerSecond": 5,
   "buildAsync": true,
+  "verifyAsync": true,
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
