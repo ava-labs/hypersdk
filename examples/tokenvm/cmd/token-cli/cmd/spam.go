@@ -28,9 +28,8 @@ import (
 	"github.com/ava-labs/hypersdk/listeners"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
+	"github.com/ava-labs/hypersdk/workers"
 	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 const feePerTx = 1000
@@ -281,6 +280,15 @@ var runSpamCmd = &cobra.Command{
 		t := time.NewTimer(0) // ensure no duplicates created
 		defer t.Stop()
 		var runs int
+		genesis, err := clients[0].c.Genesis(ctx)
+		if err != nil {
+			return err
+		}
+		_, _, chainID, err := clients[0].c.Network(ctx)
+		if err != nil {
+			return err
+		}
+		workers := workers.New(32, 128)
 		for !exiting {
 			select {
 			case <-t.C:
@@ -295,17 +303,20 @@ var runSpamCmd = &cobra.Command{
 
 				// Generate new transactions
 				start := time.Now()
-				sema := semaphore.NewWeighted(16)
-				g, gctx := errgroup.WithContext(ctx)
+				job, err := workers.NewJob(128)
+				if err != nil {
+					return err
+				}
+				unitPrice, _, err := clients[0].c.SuggestedRawFee(ctx)
+				if err != nil {
+					return err
+				}
+				var retries int
+				var retryL sync.Mutex
 				for k := 0; k < numTxsPerAccount; k++ {
 					for ri := 0; ri < numAccounts; ri++ {
-						if err := sema.Acquire(ctx, 1); err != nil {
-							return err
-						}
 						i := ri
-						g.Go(func() error {
-							defer sema.Release(1)
-
+						job.Go(func() error {
 							var (
 								issuer = getRandomIssuer(clients)
 								tx     *chain.Transaction
@@ -316,11 +327,11 @@ var runSpamCmd = &cobra.Command{
 								if err != nil {
 									return err
 								}
-								_, tx, fees, err = issuer.c.GenerateTransaction(gctx, nil, &actions.Transfer{
+								_, tx, fees, err = issuer.c.GenerateTransactionManual(ctx, genesis, chainID, nil, &actions.Transfer{
 									To:    recipient,
 									Asset: ids.Empty,
 									Value: 1,
-								}, auth.NewED25519Factory(accounts[i]))
+								}, auth.NewED25519Factory(accounts[i]), unitPrice)
 								if err != nil {
 									hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
 									continue
@@ -331,6 +342,9 @@ var runSpamCmd = &cobra.Command{
 								if exit {
 									break
 								}
+								retryL.Lock()
+								retries++
+								retryL.Unlock()
 							}
 							transferFee = fees
 							infl.Lock()
@@ -340,7 +354,6 @@ var runSpamCmd = &cobra.Command{
 								infl.Lock()
 								inflightTxs.Remove(tx.ID())
 								infl.Unlock()
-
 								hutils.Outf("{{orange}}failed to issue:{{/}} %v\n", err)
 								return nil
 							}
@@ -364,7 +377,8 @@ var runSpamCmd = &cobra.Command{
 						break
 					}
 				}
-				if err := g.Wait(); err != nil {
+				job.Done(nil)
+				if err := job.Wait(); err != nil {
 					return err
 				}
 				l.Lock()
@@ -372,11 +386,12 @@ var runSpamCmd = &cobra.Command{
 				dur := time.Since(start)
 				if totalTxs > 0 {
 					hutils.Outf(
-						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}duration:{{/}} %v\n",
+						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}duration:{{/}} %v {{yellow}}retries:{{/}} %d\n",
 						totalTxs,
 						float64(confirmedTxs)/float64(totalTxs)*100,
 						inflightTxs.Len(),
 						dur,
+						retries,
 					)
 				}
 				infl.Unlock()

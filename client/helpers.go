@@ -40,6 +40,18 @@ func (cli *Client) GenerateTransaction(
 		return nil, nil, 0, err
 	}
 
+	return cli.GenerateTransactionManual(ctx, parser, wm, action, authFactory, unitPrice, modifiers...)
+}
+
+func (cli *Client) GenerateTransactionManual(
+	ctx context.Context,
+	parser chain.Parser,
+	wm *warp.Message,
+	action chain.Action,
+	authFactory chain.AuthFactory,
+	unitPrice uint64,
+	modifiers ...Modifier,
+) (func(context.Context) error, *chain.Transaction, uint64, error) {
 	// Construct transaction
 	now := time.Now().Unix()
 	rules := parser.Rules(now)
@@ -64,7 +76,7 @@ func (cli *Client) GenerateTransaction(
 	// Build transaction
 	actionRegistry, authRegistry := parser.Registry()
 	tx := chain.NewTx(base, wm, action)
-	tx, err = tx.Sign(authFactory, actionRegistry, authRegistry)
+	tx, err := tx.Sign(authFactory, actionRegistry, authRegistry)
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("%w: failed to sign transaction", err)
 	}

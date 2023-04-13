@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/client"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -36,6 +37,27 @@ func (cli *Client) GenerateTransaction(
 		action,
 		factory,
 		modifiers...)
+}
+
+func (cli *Client) GenerateTransactionManual(
+	ctx context.Context,
+	g *genesis.Genesis,
+	chainID ids.ID,
+	wm *warp.Message,
+	action chain.Action,
+	factory chain.AuthFactory,
+	unitPrice uint64,
+	modifiers ...client.Modifier,
+) (func(context.Context) error, *chain.Transaction, uint64, error) {
+	return cli.Client.GenerateTransactionManual(
+		ctx,
+		&Parser{chainID, g},
+		wm,
+		action,
+		factory,
+		unitPrice,
+		modifiers...,
+	)
 }
 
 func (cli *Client) WaitForBalance(
