@@ -40,6 +40,7 @@ type Config interface {
 	GetStateSyncServerDelay() time.Duration
 	GetBlockLRUSize() int
 	GetContinuousProfilerConfig() *profiler.Config
+	GetBuildAsync() bool
 }
 
 type Genesis interface {

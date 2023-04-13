@@ -57,6 +57,10 @@ type Config struct {
 	MempoolExemptPayers   []string `json:"mempoolExemptPayers"`
 	MempoolVerifyBalances bool     `json:"mempoolVerifyBalances"`
 
+	// Builder
+	PreferredBlocksPerSecond uint64 `json:"preferredBlocksPerSecond"`
+	BuildAsync               bool   `json:"buildAsync"`
+
 	// Order Book
 	//
 	// This is denoted as <asset 1>-<asset 2>
@@ -65,10 +69,9 @@ type Config struct {
 	TrackedPairs []string `json:"trackedPairs"` // which asset ID pairs we care about
 
 	// Misc
-	TestMode                 bool          `json:"testMode"` // makes gossip/building manual
-	LogLevel                 logging.Level `json:"logLevel"`
-	Parallelism              int           `json:"parallelism"`
-	PreferredBlocksPerSecond uint64        `json:"preferredBlocksPerSecond"`
+	TestMode    bool          `json:"testMode"` // makes gossip/building manual
+	LogLevel    logging.Level `json:"logLevel"`
+	Parallelism int           `json:"parallelism"`
 
 	// State Sync
 	StateSyncServerDelay time.Duration `json:"stateSyncServerDelay"` // for testing
@@ -110,6 +113,7 @@ func (c *Config) setDefault() {
 	c.MempoolVerifyBalances = defaultMempoolVerifyBalances
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
+	c.BuildAsync = c.Config.GetBuildAsync()
 }
 
 func (c *Config) GetLogLevel() logging.Level          { return c.LogLevel }
@@ -147,3 +151,4 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 		MaxNumFiles: defaultContinuousProfilerMaxFiles,
 	}
 }
+func (c *Config) GetBuildAsync() bool { return c.BuildAsync }

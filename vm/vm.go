@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -97,6 +98,9 @@ type VM struct {
 	preferred    ids.ID
 	lastAccepted *chain.StatelessBlock
 	toEngine     chan<- common.Message
+
+	builtBlock *chain.StatelessBlock
+	building   bool
 
 	// TODO: change name of both var and struct to something more
 	// informative/better sounding
@@ -620,15 +624,52 @@ func (vm *VM) buildBlock(
 		return nil, ErrNotReady
 	}
 
-	blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
-	vm.builder.HandleGenerateBlock()
-	if err != nil {
-		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
-		return nil, err
+	var builtBlock *chain.StatelessBlock
+	if vm.config.GetBuildAsync() {
+		if vm.building {
+			return nil, errors.New("building block")
+		}
+		if vm.builtBlock != nil {
+			if vm.builtBlock.Prnt == vm.preferred {
+				builtBlock = vm.builtBlock
+				vm.snowCtx.Log.Info("found previously built block", zap.Stringer("blkID", builtBlock.ID()))
+			}
+			vm.builtBlock = nil
+		}
+		if builtBlock == nil {
+			vm.building = true
+			preferred := vm.preferred
+			vm.snowCtx.Log.Info("starting async build", zap.Stringer("parent", preferred))
+			start := time.Now()
+			go func() {
+				defer func() {
+					vm.building = false
+				}()
+				gstart := time.Now()
+				blk, err := chain.BuildBlock(ctx, vm, preferred, blockContext)
+				if err != nil {
+					vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
+					return
+				}
+				vm.builtBlock = blk
+				vm.builder.TriggerBuild()
+				vm.snowCtx.Log.Info("build block async", zap.Duration("t", time.Since(start)), zap.Duration("gt", time.Since(gstart)))
+			}()
+			vm.builder.HandleGenerateBlock()
+			return nil, errors.New("building block")
+		}
+	} else {
+		blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
+		vm.builder.HandleGenerateBlock()
+		if err != nil {
+			vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
+			return nil, err
+		}
+		builtBlock = blk
 	}
-	vm.gossiper.BuiltBlock(blk.Tmstmp)
-	vm.parsedBlocks.Put(blk.ID(), blk)
-	return blk, nil
+	vm.gossiper.BuiltBlock(builtBlock.Tmstmp)
+	vm.parsedBlocks.Put(builtBlock.ID(), builtBlock)
+	return builtBlock, nil
 }
 
 // implements "block.ChainVM"

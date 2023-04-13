@@ -327,6 +327,9 @@ var _ = ginkgo.BeforeSuite(func() {
 	sender = utils.Address(rsender)
 	hutils.Outf("\n{{yellow}}$ loaded address:{{/}} %s\n\n", sender)
 
+	// TODO: why is this needed now?
+	time.Sleep(10 * time.Second)
+
 	gen, err = instancesA[0].cli.Genesis(context.Background())
 	gomega.Ω(err).Should(gomega.BeNil())
 })

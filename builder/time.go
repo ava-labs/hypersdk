@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const buildCheck = 200 * time.Millisecond
+const buildCheck = 50 * time.Millisecond
 
 var _ Builder = (*Time)(nil)
 
@@ -81,6 +81,8 @@ func (b *Time) Run() {
 		zap.Duration("interval", b.cfg.BuildInterval),
 	)
 	defer close(b.doneBuild)
+
+	// TODO: switch to always build based on receiving a message from VM
 
 	t := time.NewTicker(buildCheck)
 	defer t.Stop()
