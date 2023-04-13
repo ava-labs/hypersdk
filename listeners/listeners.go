@@ -16,11 +16,6 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 )
 
-type (
-	TxListener    chan *Transaction
-	BlockListener chan *chain.StatelessBlock
-)
-
 type Transaction struct {
 	TxID   ids.ID
 	Result *chain.Result
@@ -32,16 +27,12 @@ type Listeners struct {
 	txListeners map[ids.ID]*pubsub.Connections
 	expiringTxs *emap.EMap[*chain.Transaction] // ensures all tx listeners are eventually responded to
 
-	blockL         sync.Mutex
-	blockListeners map[ids.ID]BlockListener // ids.ID is random connection identifier
 }
 
 func New() *Listeners {
 	return &Listeners{
 		txListeners: map[ids.ID]*pubsub.Connections{},
 		expiringTxs: emap.NewEMap[*chain.Transaction](),
-
-		blockListeners: map[ids.ID]BlockListener{},
 	}
 }
 
@@ -57,20 +48,6 @@ func (w *Listeners) AddTxListener(tx *chain.Transaction, c *pubsub.Connection) {
 	}
 	w.txListeners[txID].Add(c)
 	w.expiringTxs.Add([]*chain.Transaction{tx})
-}
-
-func (w *Listeners) AddBlockListener(id ids.ID, c BlockListener) {
-	w.blockL.Lock()
-	defer w.blockL.Unlock()
-
-	w.blockListeners[id] = c
-}
-
-func (w *Listeners) RemoveBlockListener(id ids.ID) {
-	w.blockL.Lock()
-	defer w.blockL.Unlock()
-
-	delete(w.blockListeners, id)
 }
 
 // If never possible for a tx to enter mempool, call this
@@ -108,11 +85,10 @@ func (w *Listeners) AcceptBlock(
 	s *pubsub.Server,
 	blockServer *pubsub.Server,
 ) {
-	w.blockL.Lock()
 	p := codec.NewWriter(consts.MaxInt)
 	BlockMessageBytes(b, p)
+	// Publish accepted block to all block listeners
 	blockServer.Publish(p.Bytes(), blockServer.Conns())
-	w.blockL.Unlock()
 
 	w.txL.Lock()
 	defer w.txL.Unlock()
@@ -125,6 +101,7 @@ func (w *Listeners) AcceptBlock(
 		if !ok {
 			continue
 		}
+		// Publish to tx listener
 		PackAcceptedTxMessage(p, txID, results[i])
 		s.Publish(
 			p.Bytes(),
