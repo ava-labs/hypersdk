@@ -325,7 +325,7 @@ func (g *Proposer) Run(appSender common.AppSender) {
 				)
 			}
 			// TODO: make this configurable
-			if time.Now().Unix()-g.lastBuilt < 30 && len(preferredBlk.Txs) > 20 {
+			if time.Now().Unix()-g.lastBuilt < 30 && len(preferredBlk.Txs) > 300 {
 				g.vm.Logger().Debug("not gossiping because producing blocks and blocks are large")
 				continue
 			}
