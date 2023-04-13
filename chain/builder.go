@@ -19,6 +19,8 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
+const chunkOverhead = 4
+
 func HandlePreExecute(
 	err error,
 ) (bool /* continue */, bool /* restore */, bool /* remove account */) {
@@ -85,6 +87,9 @@ func BuildBlock(
 		txsAttempted = 0
 		results      = []*Result{}
 
+		virtualChunkSize  = uint64(chunkOverhead)
+		virtualChunkCount = 1
+
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
 
@@ -98,6 +103,16 @@ func BuildBlock(
 				lockWait = time.Since(start)
 			}
 			txsAttempted++
+
+			// Simulate how many chunks will be created
+			if virtualChunkSize+next.Size() > uint64(r.GetMaxChunkSize()) {
+				if virtualChunkCount >= r.GetMaxChunks() {
+					return false, true, false, nil
+				}
+				virtualChunkSize = chunkOverhead
+				virtualChunkCount++
+			}
+			virtualChunkSize += next.Size()
 
 			// Ensure we can process if transaction includes a warp message
 			if next.WarpMessage != nil && blockContext == nil {
@@ -277,7 +292,7 @@ func BuildBlock(
 	)
 	for current < limit {
 		var (
-			chunkSize uint64
+			chunkSize = uint64(chunkOverhead)
 			last      int
 		)
 		for i := current; i < limit; i++ {
