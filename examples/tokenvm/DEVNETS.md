@@ -268,8 +268,7 @@ cat /tmp/avalanche-ops/tokenvm-chain-config.json
 
 *Note*: Make sure that port `9652` and `9653` are open on the AWS Security Group applied to all
 nodes otherwise the `token-cli` will not work properly. This requirement will
-be removed when the [HyperSDK migrates to using proper
-WebSockets](https://github.com/ava-labs/hypersdk/issues/64).
+be removed when the [HyperSDK migrates to using proper WebSockets](https://github.com/ava-labs/hypersdk/issues/64).
 
 #### Profiling `tokenvm`
 If you'd like to profile `tokenvm`'s CPU and RAM, add the following line to the
