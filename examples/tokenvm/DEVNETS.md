@@ -157,7 +157,7 @@ avalanchego_config:
     consensus-on-accept-gossip-peer-size: 5
     consensus-accepted-frontier-gossip-peer-size: 5
     consensus-app-concurrency: 32
-    network-compression-type: "none"
+    network-compression-type: none
 ```
 
 #### Supporting All Metrics
@@ -362,7 +362,7 @@ Here are some useful queries (on an example chainID `3rihqpXh6ZJqxL2dsrVysKkEKro
 * `avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_blks_accepted_count`
 * [verify latency in ms] `increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_metervm_verify_sum[30s:1s])/increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_metervm_verify_count[30s:1s])/1000000`
 * [accept latency in ms] `increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_metervm_accept_sum[30s:1s])/increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_metervm_accept_count[30s:1s])/1000000`
-* [transactions per second] `deriv(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_hyper_sdk_vm_txs_accepted[30s:1s])`
+* [transactions per second] `increase(avalanche_2gBn1ea6fiDoY6PdP3yfaBjvo4TcpZik5M1d8cyrgNBmZ9oKGs_vm_hyper_sdk_vm_txs_accepted[30s])/30`
 * [accepted block size] `increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_blks_accepted_container_size_sum[30s:1s])/increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_blks_accepted_count[30s:1s])`
 * `avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_hyper_sdk_vm_txs_accepted`
 * [disk used] `300000000000-avalanche_resource_tracker_disk_available_space`

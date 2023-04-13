@@ -122,6 +122,10 @@ var runSpamCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		numTxsPerAccount, err := promptInt("number of transactions per account per second")
+		if err != nil {
+			return err
+		}
 		witholding := uint64(feePerTx * numAccounts)
 		distAmount := (balance - witholding) / uint64(numAccounts)
 		hutils.Outf(
@@ -288,72 +292,75 @@ var runSpamCmd = &cobra.Command{
 
 				// Generate new transactions
 				start := time.Now()
-				for i := 0; i < numAccounts; i++ {
-					var (
-						issuer = getRandomIssuer(clients)
-						tx     *chain.Transaction
-						fees   uint64
-					)
-					for {
-						recipient, err := getRandomRecipient(i, accounts)
-						if err != nil {
-							return err
+				for k := 0; k < numTxsPerAccount; k++ {
+					for i := 0; i < numAccounts; i++ {
+						var (
+							issuer = getRandomIssuer(clients)
+							tx     *chain.Transaction
+							fees   uint64
+						)
+						for {
+							recipient, err := getRandomRecipient(i, accounts)
+							if err != nil {
+								return err
+							}
+							_, tx, fees, err = issuer.c.GenerateTransaction(ctx, nil, &actions.Transfer{
+								To:    recipient,
+								Asset: ids.Empty,
+								Value: 1,
+							}, auth.NewED25519Factory(accounts[i]))
+							if err != nil {
+								hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
+								continue
+							}
+							infl.Lock()
+							exit := !inflightTxs.Contains(tx.ID())
+							infl.Unlock()
+							if exit {
+								break
+							}
 						}
-						_, tx, fees, err = issuer.c.GenerateTransaction(ctx, nil, &actions.Transfer{
-							To:    recipient,
-							Asset: ids.Empty,
-							Value: 1,
-						}, auth.NewED25519Factory(accounts[i]))
-						if err != nil {
-							hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
+						transferFee = fees
+						infl.Lock()
+						inflightTxs.Add(tx.ID())
+						infl.Unlock()
+						if err := issuer.d.IssueTx(tx); err != nil {
+							infl.Lock()
+							inflightTxs.Remove(tx.ID())
+							infl.Unlock()
+
+							hutils.Outf("{{orange}}failed to issue:{{/}} %v\n", err)
 							continue
 						}
-						infl.Lock()
-						exit := !inflightTxs.Contains(tx.ID())
-						infl.Unlock()
-						if exit {
+						funds[accounts[i].PublicKey()] -= (fees + 1)
+						issuer.l.Lock()
+						issuer.outstandingTxs++
+						issuer.l.Unlock()
+
+						// Only send 1 transaction per second until we are sure Snowman++ is
+						// activated.
+						if runs < 10 {
+							runs++
 							break
 						}
-					}
-					transferFee = fees
-					infl.Lock()
-					inflightTxs.Add(tx.ID())
-					infl.Unlock()
-					if err := issuer.d.IssueTx(tx); err != nil {
-						infl.Lock()
-						inflightTxs.Remove(tx.ID())
-						infl.Unlock()
-
-						hutils.Outf("{{orange}}failed to issue:{{/}} %v\n", err)
-						continue
-					}
-					funds[accounts[i].PublicKey()] -= (fees + 1)
-					issuer.l.Lock()
-					issuer.outstandingTxs++
-					issuer.l.Unlock()
-
-					// Only send 1 transaction per second until we are sure Snowman++ is
-					// activated.
-					if runs < 10 {
-						runs++
-						break
 					}
 				}
 				l.Lock()
 				infl.Lock()
+				dur := time.Since(start)
 				if totalTxs > 0 {
 					hutils.Outf(
-						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d\n",
+						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}duration:{{/}} %v\n",
 						totalTxs,
 						float64(confirmedTxs)/float64(totalTxs)*100,
 						inflightTxs.Len(),
+						dur,
 					)
 				}
 				infl.Unlock()
 				l.Unlock()
 
 				// Limit the script to looping no more than once a second
-				dur := time.Since(start)
 				sleep := math.Max(1000-dur.Milliseconds(), 0)
 				t.Reset(time.Duration(sleep) * time.Millisecond)
 			case <-signals:
