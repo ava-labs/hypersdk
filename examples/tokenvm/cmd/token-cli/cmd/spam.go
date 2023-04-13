@@ -32,7 +32,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const feePerTx = 1000
+const (
+	feePerTx     = 1000
+	defaultRange = 64
+)
 
 type txIssuer struct {
 	c *client.Client
@@ -314,55 +317,65 @@ var runSpamCmd = &cobra.Command{
 				var retries int
 				var retryL sync.Mutex
 				for k := 0; k < numTxsPerAccount; k++ {
-					for ri := 0; ri < numAccounts; ri++ {
-						i := ri
+					ri := 0
+					for ri < numAccounts {
+						// Spawn chunks of work to avoid getting consumed by goroutine
+						// scheduling overhead
+						start := ri
+						end := ri + defaultRange
+						if end > numAccounts {
+							end = numAccounts
+						}
+						ri = end
 						job.Go(func() error {
-							var (
-								issuer = getRandomIssuer(clients)
-								tx     *chain.Transaction
-								fees   uint64
-							)
-							for {
-								recipient, err := getRandomRecipient(i, accounts)
-								if err != nil {
-									return err
+							for i := start; i < end; i++ {
+								var (
+									issuer = getRandomIssuer(clients)
+									tx     *chain.Transaction
+									fees   uint64
+								)
+								for {
+									recipient, err := getRandomRecipient(i, accounts)
+									if err != nil {
+										return err
+									}
+									_, tx, fees, err = issuer.c.GenerateTransactionManual(ctx, genesis, chainID, nil, &actions.Transfer{
+										To:    recipient,
+										Asset: ids.Empty,
+										Value: 1,
+									}, auth.NewED25519Factory(accounts[i]), unitPrice)
+									if err != nil {
+										hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
+										continue
+									}
+									infl.Lock()
+									exit := !inflightTxs.Contains(tx.ID())
+									infl.Unlock()
+									if exit {
+										break
+									}
+									retryL.Lock()
+									retries++
+									retryL.Unlock()
 								}
-								_, tx, fees, err = issuer.c.GenerateTransactionManual(ctx, genesis, chainID, nil, &actions.Transfer{
-									To:    recipient,
-									Asset: ids.Empty,
-									Value: 1,
-								}, auth.NewED25519Factory(accounts[i]), unitPrice)
-								if err != nil {
-									hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
-									continue
-								}
+								transferFee = fees
 								infl.Lock()
-								exit := !inflightTxs.Contains(tx.ID())
+								inflightTxs.Add(tx.ID())
 								infl.Unlock()
-								if exit {
-									break
+								if err := issuer.d.IssueTx(tx); err != nil {
+									infl.Lock()
+									inflightTxs.Remove(tx.ID())
+									infl.Unlock()
+									hutils.Outf("{{orange}}failed to issue:{{/}} %v\n", err)
+									return nil
 								}
-								retryL.Lock()
-								retries++
-								retryL.Unlock()
+								fundsL.Lock()
+								funds[accounts[i].PublicKey()] -= (fees + 1)
+								fundsL.Unlock()
+								issuer.l.Lock()
+								issuer.outstandingTxs++
+								issuer.l.Unlock()
 							}
-							transferFee = fees
-							infl.Lock()
-							inflightTxs.Add(tx.ID())
-							infl.Unlock()
-							if err := issuer.d.IssueTx(tx); err != nil {
-								infl.Lock()
-								inflightTxs.Remove(tx.ID())
-								infl.Unlock()
-								hutils.Outf("{{orange}}failed to issue:{{/}} %v\n", err)
-								return nil
-							}
-							fundsL.Lock()
-							funds[accounts[i].PublicKey()] -= (fees + 1)
-							fundsL.Unlock()
-							issuer.l.Lock()
-							issuer.outstandingTxs++
-							issuer.l.Unlock()
 							return nil
 						})
 
