@@ -476,6 +476,7 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 			defer func() {
 				b.verifying = false
 			}()
+			verifyStart := time.Now()
 			state, perm, err := b.innerVerify(ctx)
 			if err != nil {
 				b.verifyErr = err
@@ -483,7 +484,7 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 				return
 			}
 			b.verifyView = state
-			log.Info("verified async", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()))
+			log.Info("verified async", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()), zap.Duration("t", time.Since(verifyStart)))
 		}()
 		return errors.New("verifying async")
 	default:
