@@ -325,6 +325,14 @@ var runSpamCmd = &cobra.Command{
 
 				issuer := getRandomIssuer(clients)
 				factory := auth.NewED25519Factory(accounts[i])
+				fundsL.Lock()
+				balance := funds[accounts[i].PublicKey()]
+				fundsL.Unlock()
+				defer func() {
+					fundsL.Lock()
+					funds[accounts[i].PublicKey()] = balance
+					fundsL.Unlock()
+				}()
 				for {
 					select {
 					case <-t.C:
@@ -354,9 +362,7 @@ var runSpamCmd = &cobra.Command{
 							if err := issuer.d.IssueTx(tx); err != nil {
 								continue
 							}
-							fundsL.Lock()
-							funds[accounts[i].PublicKey()] -= (fees + 1)
-							fundsL.Unlock()
+							balance -= fees + 1
 							issuer.l.Lock()
 							issuer.outstandingTxs++
 							issuer.l.Unlock()
