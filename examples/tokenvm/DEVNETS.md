@@ -156,7 +156,7 @@ avalanchego_config:
     consensus-on-accept-gossip-non-validator-size: 0
     consensus-on-accept-gossip-peer-size: 5
     consensus-accepted-frontier-gossip-peer-size: 5
-    consensus-app-concurrency: 16
+    consensus-app-concurrency: 32
     network-compression-type: "none"
 ```
 
@@ -245,7 +245,7 @@ EOF
 --genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
 --max-block-units 400000000 \
 --window-target-units 100000000000 \
---window-target-blocks 20
+--window-target-blocks 50
 cat /tmp/avalanche-ops/tokenvm-genesis.json
 
 cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
@@ -257,7 +257,8 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "gossipMaxSize": 32768,
   "trackedPairs":["*"],
   "logLevel": "info",
-  "preferredBlocksPerSecond": 2,
+  "preferredBlocksPerSecond": 5,
+  "buildAsync": true,
   "decisionsPort": 9652,
   "blocksPort": 9653
 }

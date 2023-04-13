@@ -58,6 +58,7 @@ func (p *ProposerMonitor) refresh(ctx context.Context) error {
 	if time.Since(p.lastFetchedPHeight) < refreshTime {
 		return nil
 	}
+	start := time.Now()
 	pHeight, err := p.vm.snowCtx.ValidatorState.GetCurrentHeight(ctx)
 	if err != nil {
 		return err
@@ -78,10 +79,11 @@ func (p *ProposerMonitor) refresh(ctx context.Context) error {
 		pks[string(bls.PublicKeyToBytes(v.PublicKey))] = struct{}{}
 	}
 	p.validatorPublicKeys = pks
-	p.vm.snowCtx.Log.Debug(
+	p.vm.snowCtx.Log.Info(
 		"refreshed proposer monitor",
 		zap.Uint64("previous", p.currentPHeight),
 		zap.Uint64("new", pHeight),
+		zap.Duration("t", time.Since(start)),
 	)
 	p.currentPHeight = pHeight
 	p.lastFetchedPHeight = time.Now()
