@@ -72,7 +72,7 @@ func (b *Time) shouldBuild(ctx context.Context) (bool, error) {
 		start := slot * consts.Uint64Len
 		window.Update(&newRollupWindow, start, 1)
 	}
-	return window.Last(&newRollupWindow) < b.cfg.PreferredBlocksPerSecond, nil
+	return window.Last(&newRollupWindow) <= b.cfg.PreferredBlocksPerSecond, nil
 }
 
 func (b *Time) Run() {
@@ -108,7 +108,9 @@ func (b *Time) Run() {
 				)
 			}
 			if !build {
-				continue
+				// TODO: fix this handling
+				b.vm.Logger().Info("would have opted not to build although there are txs")
+				// continue
 			}
 			b.TriggerBuild()
 		case <-b.vm.StopChan():

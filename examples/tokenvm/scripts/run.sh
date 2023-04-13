@@ -100,7 +100,7 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   /tmp/token-cli genesis generate /tmp/allocations.json \
   --max-block-units 40000000 \
   --window-target-units 100000000000 \
-  --window-target-blocks 40 \
+  --window-target-blocks 50 \
   --genesis-file /tmp/tokenvm.genesis
 else
   echo "copying custom genesis file"
@@ -124,7 +124,7 @@ cat <<EOF > /tmp/tokenvm.config
   "streamingBacklogSize": 10000000,
   "gossipMaxSize": 32768,
   "trackedPairs":["*"],
-  "preferredBlocksPerSecond": 4,
+  "preferredBlocksPerSecond": 5,
   "buildAsync": true,
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
