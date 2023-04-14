@@ -24,6 +24,7 @@ type Metrics struct {
 	chunksFetched           metric.Averager
 	rootCalculated          metric.Averager
 	waitSignatures          metric.Averager
+	mempoolSize             prometheus.Gauge
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -116,6 +117,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		chunksFetched:  chunksFetched,
 		rootCalculated: rootCalculated,
 		waitSignatures: waitSignatures,
+		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "mempool_size",
+			Help:      "number of transactions in the mempool",
+		}),
 	}
 	errs := wrappers.Errs{}
 	errs.Add(
@@ -130,6 +136,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txsAccepted),
 		r.Register(m.decisionsRPCConnections),
 		r.Register(m.blocksRPCConnections),
+		r.Register(m.mempoolSize),
 	)
 	return r, m, errs.Err
 }
