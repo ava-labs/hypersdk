@@ -71,12 +71,12 @@ func BuildBlock(
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err
 	}
-	newState, err := parent.childState(ctx, 2048)
+	newState, err := parent.childState(ctx, r.GetMaxBlockTxs())
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err
 	}
-	ts := tstate.New(newState, 2048)
+	ts := tstate.New(newState, r.GetMaxBlockTxs())
 
 	// Restorable txs after block attempt finishes
 	b.Txs = []*Transaction{}

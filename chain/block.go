@@ -526,7 +526,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	if err != nil {
 		return nil, err
 	}
-	newState, err := parent.childState(ctx, 2048)
+	newState, err := parent.childState(ctx, len(b.Txs)*2)
 	if err != nil {
 		return nil, err
 	}

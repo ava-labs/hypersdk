@@ -83,7 +83,7 @@ func (p *Processor) Execute(
 	var (
 		unitsConsumed = uint64(0)
 		surplusFee    = uint64(0)
-		ts            = tstate.New(newState, 2048) // TODO: tune this heuristic
+		ts            = tstate.New(newState, len(p.blk.Txs)*2) // TODO: tune this heuristic
 		t             = p.blk.GetTimestamp()
 		blkUnitPrice  = p.blk.GetUnitPrice()
 		results       = []*Result{}
