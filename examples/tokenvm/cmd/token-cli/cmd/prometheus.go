@@ -36,6 +36,11 @@ type PrometheusConfig struct {
 		EvaluationInterval string `yaml:"evaluation_interval"`
 	} `yaml:"global"`
 	ScrapeConfigs []*PrometheusScrapeConfig `yaml:"scrape_configs"`
+	Storage       struct {
+		Local struct {
+			Path string `yaml:"path"`
+		} `yaml:"local"`
+	} `yaml:"storage"`
 }
 
 var generatePrometheusCmd = &cobra.Command{
@@ -74,6 +79,7 @@ var generatePrometheusCmd = &cobra.Command{
 				MetricsPath: "/ext/metrics",
 			},
 		}
+		prometheusConfig.Storage.Local.Path = prometheusData
 		yamlData, err := yaml.Marshal(&prometheusConfig)
 		if err != nil {
 			return err
@@ -82,6 +88,7 @@ var generatePrometheusCmd = &cobra.Command{
 			return err
 		}
 		utils.Outf("{{green}}prometheus config file created:{{/}} %s\n", prometheusFile)
+		utils.Outf("{{green}}prometheus data directory created:{{/}} %s\n", prometheusData)
 
 		// Log useful queries
 		panels := []string{}

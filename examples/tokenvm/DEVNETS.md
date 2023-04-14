@@ -309,8 +309,6 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 ```
 
 ### Step 9: Initialize `token-cli`
-TODO: order before prometheus
-
 You can import the demo key and the network configuration from `avalanche-ops`
 using the following commands:
 ```bash
@@ -399,9 +397,6 @@ metrics:
 ```bash
 /tmp/prometheus --config.file=/tmp/prometheus.yaml
 ```
-
-To remove previously ingested data, delete for a folder called `data` in the
-directory where you last ran Prometheus.
 
 ### [OPTIONAL] Step 14: SSH Into Nodes
 You can SSH into any machine created by `avalanche-ops` using the SSH key
