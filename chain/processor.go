@@ -9,7 +9,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/tstate"
 )
@@ -22,9 +21,10 @@ type txData struct {
 type Processor struct {
 	tracer trace.Tracer
 
+	parentState Database
+
 	blk      *StatelessBlock
 	readyTxs chan *txData
-	db       Database
 }
 
 // Only prepare for population if above last accepted height
@@ -37,29 +37,30 @@ func NewProcessor(tracer trace.Tracer, b *StatelessBlock) *Processor {
 	}
 }
 
-func (p *Processor) Prefetch(ctx context.Context, db Database) {
+func (p *Processor) Prefetch(ctx context.Context, parentState Database) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Prefetch")
-	p.db = db
+	p.parentState = parentState
 	sm := p.blk.vm.StateManager()
 	go func() {
 		defer span.End()
 
 		// Store required keys for each set
-		alreadyFetched := set.Set[string]{}
+		alreadyFetched := map[string][]byte{}
 		for _, tx := range p.blk.GetTxs() {
 			storage := map[string][]byte{}
 			for _, k := range tx.StateKeys(sm) {
 				sk := string(k)
-				if alreadyFetched.Contains(sk) {
+				if v, ok := alreadyFetched[sk]; ok {
+					storage[sk] = v
 					continue
 				}
-				v, err := db.GetValue(ctx, k)
+				v, err := p.parentState.GetValue(ctx, k)
 				if errors.Is(err, database.ErrNotFound) {
 					continue
 				} else if err != nil {
 					panic(err)
 				}
-				alreadyFetched.Add(sk)
+				alreadyFetched[sk] = v
 				storage[sk] = v
 			}
 			p.readyTxs <- &txData{tx, storage}
@@ -72,6 +73,7 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 
 func (p *Processor) Execute(
 	ctx context.Context,
+	newState Database,
 	ectx *ExecutionContext,
 	r Rules,
 ) (uint64, uint64, []*Result, error) {
@@ -81,7 +83,7 @@ func (p *Processor) Execute(
 	var (
 		unitsConsumed = uint64(0)
 		surplusFee    = uint64(0)
-		ts            = tstate.New(len(p.blk.Txs)*2, len(p.blk.Txs)*2) // TODO: tune this heuristic
+		ts            = tstate.New(newState, 2048) // TODO: tune this heuristic
 		t             = p.blk.GetTimestamp()
 		blkUnitPrice  = p.blk.GetUnitPrice()
 		results       = []*Result{}
@@ -90,13 +92,12 @@ func (p *Processor) Execute(
 	for txData := range p.readyTxs {
 		tx := txData.tx
 
-		// Update ts
-		for k, v := range txData.storage {
-			ts.SetStorage(ctx, []byte(k), v)
-		}
 		// It is critical we explicitly set the scope before each transaction is
-		// processed
-		ts.SetScope(ctx, tx.StateKeys(sm))
+		// processed.
+		//
+		// Any storage that has been set in previous transactions will be used
+		// instead of the prefetched state provided here.
+		ts.SetScope(ctx, tx.StateKeys(sm), txData.storage)
 
 		// Execute tx
 		if err := tx.PreExecute(ctx, ectx, r, ts, t); err != nil {
@@ -130,5 +131,5 @@ func (p *Processor) Execute(
 		}
 	}
 	// Wait until end to write changes to avoid conflicting with pre-fetching
-	return unitsConsumed, surplusFee, results, ts.WriteChanges(ctx, p.db, p.tracer)
+	return unitsConsumed, surplusFee, results, nil
 }

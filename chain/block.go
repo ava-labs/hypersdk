@@ -522,17 +522,21 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	// Fetch parent state
 	//
 	// This function may verify the parent if it is not yet verified.
-	state, err := parent.childState(ctx, len(b.Txs)*2)
+	parentState, err := parent.State()
+	if err != nil {
+		return nil, err
+	}
+	newState, err := parent.childState(ctx, 2048)
 	if err != nil {
 		return nil, err
 	}
 
 	// Optimisticaly fetch state
 	processor := NewProcessor(b.vm.Tracer(), b)
-	processor.Prefetch(ctx, state)
+	processor.Prefetch(ctx, parentState)
 
 	// Process new transactions
-	unitsConsumed, surplusFee, results, err := processor.Execute(ctx, ectx, r)
+	unitsConsumed, surplusFee, results, err := processor.Execute(ctx, newState, ectx, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return nil, err
@@ -584,13 +588,13 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 
 	// Store height in state to prevent duplicate roots
-	if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+	if err := newState.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, err
 	}
 
 	// Compute state root
 	start := time.Now()
-	computedRoot, err := state.GetMerkleRoot(ctx)
+	computedRoot, err := newState.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -612,7 +616,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, err
 	}
 	b.vm.RecordWaitSignatures(time.Since(start))
-	return state, nil
+	return newState, nil
 }
 
 // implements "snowman.Block.choices.Decidable"
