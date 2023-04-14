@@ -41,7 +41,7 @@ var generatePrometheusCmd = &cobra.Command{
 	Use: "generate",
 	RunE: func(_ *cobra.Command, args []string) error {
 		// Generate Prometheus-compatible endpoints
-		_, uris, err := promptChain("select chainID", nil)
+		chainID, uris, err := promptChain("select chainID", nil)
 		if err != nil {
 			return err
 		}
@@ -77,6 +77,18 @@ var generatePrometheusCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(prometheusFile, yamlData, fsModeWrite)
+		if err := os.WriteFile(prometheusFile, yamlData, fsModeWrite); err != nil {
+			return err
+		}
+
+		// Log useful queries
+		utils.Outf("\n{{cyan}}common prometheus queries:{{/}}\n")
+		utils.Outf("{{yellow}}blocks processing:{{/}} avalanche_%s_blks_processing\n", chainID)
+		utils.Outf("{{yellow}}blocks accepted:{{/}} avalanche_%s_blks_accepted_count\n", chainID)
+		utils.Outf("{{yellow}}blocks rejected:{{/}} avalanche_%s_blks_rejected_count\n", chainID)
+		utils.Outf("{{yellow}}transactions per second:{{/}} increase(avalanche_%s_vm_hyper_sdk_vm_txs_accepted[30s])/30\n", chainID)
+		utils.Outf("{{yellow}CPU usage:{{/}} avalanche_resource_tracker_cpu_usage\n")
+		utils.Outf("{{yellow}}consensus engine processing (ms/s):{{/}} increase(avalanche_%s_handler_chits_sum[30s])/1000000/30 + increase(avalanche_%s_handler_notify_sum[30s])/1000000/30 + increase(avalanche_%s_handler_get_sum[30s])/1000000/30 + increase(avalanche_%s_handler_push_query_sum[30s])/1000000/30 + increase(avalanche_%s_handler_put_sum[30s])/1000000/30 + increase(avalanche_%s_handler_pull_query_sum[30s])/1000000/30 + increase(avalanche_%s_handler_query_failed_sum[30s])/1000000/30\n", chainID, chainID, chainID, chainID, chainID, chainID, chainID)
+		return nil
 	},
 }
