@@ -633,6 +633,10 @@ func (vm *VM) buildBlock(
 			if vm.builtBlock.Prnt == vm.preferred {
 				builtBlock = vm.builtBlock
 				vm.snowCtx.Log.Info("found previously built block", zap.Stringer("blkID", builtBlock.ID()))
+			} else {
+				// Re-add transactions to mempool when block is discarded
+				_ = vm.Submit(ctx, false, vm.builtBlock.Txs)
+				vm.snowCtx.Log.Info("discarding previously built block", zap.Stringer("blkID", builtBlock.ID()))
 			}
 			vm.builtBlock = nil
 		}
