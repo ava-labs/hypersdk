@@ -4,15 +4,16 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
-	"strings"
 
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 )
 
-var metricsCmd = &cobra.Command{
-	Use: "metrics",
+var prometheusCmd = &cobra.Command{
+	Use: "prometheus",
 	RunE: func(*cobra.Command, []string) error {
 		return ErrMissingSubcommand
 	},
@@ -36,28 +37,25 @@ type PrometheusConfig struct {
 	ScrapeConfigs []*PrometheusScrapeConfig `yaml:"scrape_configs"`
 }
 
-var prometheusCmd = &cobra.Command{
-	Use: "prometheus [path] [output]",
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) != 2 {
-			return ErrInvalidArgs
-		}
-		return nil
-	},
+var generatePrometheusCmd = &cobra.Command{
+	Use: "generate",
 	RunE: func(_ *cobra.Command, args []string) error {
-		// Load HTTP Endpoints
-		var opsConfig AvalancheOpsConfig
-		yamlFile, err := os.ReadFile(args[0])
+		// Generate Prometheus-compatible endpoints
+		_, uris, err := promptChain("select chainID", nil)
 		if err != nil {
 			return err
 		}
-		err = yaml.Unmarshal(yamlFile, &opsConfig)
-		if err != nil {
-			return err
-		}
-		endpoints := make([]string, len(opsConfig.Resources.CreatedNodes))
-		for i, node := range opsConfig.Resources.CreatedNodes {
-			endpoints[i] = strings.TrimPrefix(node.HTTPEndpoint, "http://")
+		endpoints := make([]string, len(uris))
+		for i, uri := range uris {
+			host, err := utils.GetHost(uri)
+			if err != nil {
+				return err
+			}
+			port, err := utils.GetPort(uri)
+			if err != nil {
+				return err
+			}
+			endpoints[i] = fmt.Sprintf("%s:%s", host, port)
 		}
 
 		// Create Prometheus YAML
@@ -79,6 +77,6 @@ var prometheusCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(args[1], yamlData, fsModeWrite)
+		return os.WriteFile(prometheusFile, yamlData, fsModeWrite)
 	},
 }

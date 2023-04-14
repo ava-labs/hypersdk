@@ -34,6 +34,7 @@ var (
 	maxTxBacklog       int
 	deleteOtherChains  bool
 	checkAllChains     bool
+	prometheusFile     string
 
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
@@ -50,7 +51,7 @@ func init() {
 		chainCmd,
 		actionCmd,
 		spamCmd,
-		metricsCmd,
+		prometheusCmd,
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
@@ -174,9 +175,15 @@ func init() {
 		runSpamCmd,
 	)
 
-	// metrics
-	metricsCmd.AddCommand(
-		prometheusCmd,
+	// prometheus
+	generatePrometheusCmd.PersistentFlags().StringVar(
+		&prometheusFile,
+		"prometheus-file",
+		"/tmp/prometheus.yaml",
+		"prometheus file location",
+	)
+	prometheusCmd.AddCommand(
+		generatePrometheusCmd,
 	)
 }
 
