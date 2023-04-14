@@ -80,6 +80,7 @@ var generatePrometheusCmd = &cobra.Command{
 		if err := os.WriteFile(prometheusFile, yamlData, fsModeWrite); err != nil {
 			return err
 		}
+		utils.Outf("{{green}}prometheus config file created:{{/}} %s\n", prometheusFile)
 
 		// Log useful queries
 		utils.Outf("\n{{cyan}}common prometheus queries:{{/}}\n")
