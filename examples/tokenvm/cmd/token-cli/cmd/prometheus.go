@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 
 	"github.com/ava-labs/hypersdk/utils"
@@ -83,13 +84,31 @@ var generatePrometheusCmd = &cobra.Command{
 		utils.Outf("{{green}}prometheus config file created:{{/}} %s\n", prometheusFile)
 
 		// Log useful queries
-		utils.Outf("\n{{cyan}}common prometheus queries:{{/}}\n")
-		utils.Outf("{{yellow}}blocks processing:{{/}} avalanche_%s_blks_processing\n", chainID)
-		utils.Outf("{{yellow}}blocks accepted:{{/}} avalanche_%s_blks_accepted_count\n", chainID)
-		utils.Outf("{{yellow}}blocks rejected:{{/}} avalanche_%s_blks_rejected_count\n", chainID)
-		utils.Outf("{{yellow}}transactions per second:{{/}} increase(avalanche_%s_vm_hyper_sdk_vm_txs_accepted[30s])/30\n", chainID)
-		utils.Outf("{{yellow}CPU usage:{{/}} avalanche_resource_tracker_cpu_usage\n")
-		utils.Outf("{{yellow}}consensus engine processing (ms/s):{{/}} increase(avalanche_%s_handler_chits_sum[30s])/1000000/30 + increase(avalanche_%s_handler_notify_sum[30s])/1000000/30 + increase(avalanche_%s_handler_get_sum[30s])/1000000/30 + increase(avalanche_%s_handler_push_query_sum[30s])/1000000/30 + increase(avalanche_%s_handler_put_sum[30s])/1000000/30 + increase(avalanche_%s_handler_pull_query_sum[30s])/1000000/30 + increase(avalanche_%s_handler_query_failed_sum[30s])/1000000/30\n", chainID, chainID, chainID, chainID, chainID, chainID, chainID)
+		panels := []string{}
+		panels = append(panels, fmt.Sprintf("avalanche_%s_blks_processing", chainID))
+		utils.Outf("{{yellow}}blocks processing:{{/}} %s\n", panels[len(panels)-1])
+		panels = append(panels, fmt.Sprintf("avalanche_%s_blks_accepted_count", chainID))
+		utils.Outf("{{yellow}}blocks accepted:{{/}} %s\n", panels[len(panels)-1])
+		panels = append(panels, fmt.Sprintf("avalanche_%s_blks_rejected_count", chainID))
+		utils.Outf("{{yellow}}blocks rejected:{{/}} %s\n", panels[len(panels)-1])
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_vm_txs_accepted[30s])/30", chainID))
+		utils.Outf("{{yellow}}transactions per second:{{/}} %s\n", panels[len(panels)-1])
+		panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hyper_sdk_chain_mempool_size", chainID))
+		utils.Outf("{{yellow}}mempool size:{{/}} %s\n", panels[len(panels)-1])
+		panels = append(panels, "avalanche_resource_tracker_cpu_usage")
+		utils.Outf("{{yellow}CPU usage:{{/}} %s\n", panels[len(panels)-1])
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_handler_chits_sum[30s])/1000000/30 + increase(avalanche_%s_handler_notify_sum[30s])/1000000/30 + increase(avalanche_%s_handler_get_sum[30s])/1000000/30 + increase(avalanche_%s_handler_push_query_sum[30s])/1000000/30 + increase(avalanche_%s_handler_put_sum[30s])/1000000/30 + increase(avalanche_%s_handler_pull_query_sum[30s])/1000000/30 + increase(avalanche_%s_handler_query_failed_sum[30s])/1000000/30", chainID, chainID, chainID, chainID, chainID, chainID, chainID))
+		utils.Outf("{{yellow}}consensus engine processing (ms/s):{{/}} %s\n", panels[len(panels)-1])
+
+		// Generated dashboard link
+		dashboard := "http://localhost:9090/graph?"
+		params := url.Values{}
+		for i, panel := range panels {
+			params.Add(fmt.Sprintf("g%d.expr", i), panel)
+			params.Add(fmt.Sprintf("g%d.tab", i), "0")
+		}
+		// http://localhost:9090/graph?g0.expr=avalanche_K3XqAiCksoL5HSAsYECY89DCdLGH3sJLM2GLWyGVmNss5yCPw_blks_processing&g0.tab=1&g0.stacked=0&g0.show_exemplars=0&g0.range_input=1h
+		utils.Outf("{{orange}}pre-built dashboard:{{/}} %s%s\n", dashboard, params.Encode())
 		return nil
 	},
 }

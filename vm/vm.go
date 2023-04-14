@@ -636,7 +636,7 @@ func (vm *VM) buildBlock(
 			} else {
 				// Re-add transactions to mempool when block is discarded
 				_ = vm.Submit(ctx, false, vm.builtBlock.Txs)
-				vm.snowCtx.Log.Info("discarding previously built block", zap.Stringer("blkID", builtBlock.ID()))
+				vm.snowCtx.Log.Info("discarding previously built block", zap.Stringer("blkID", vm.builtBlock.ID()))
 			}
 			vm.builtBlock = nil
 		}
