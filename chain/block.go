@@ -684,17 +684,21 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, bo
 	// Fetch parent state
 	//
 	// This function may verify the parent if it is not yet verified.
-	state, err := parent.childState(ctx, len(b.Txs)*2)
+	parentState, err := parent.State()
+	if err != nil {
+		return nil, false, err
+	}
+	newState, err := parent.childState(ctx, statePreallocation)
 	if err != nil {
 		return nil, false, err
 	}
 
 	// Optimisticaly fetch state
 	processor := NewProcessor(b.vm.Tracer(), b)
-	processor.Prefetch(ctx, state)
+	processor.Prefetch(ctx, parentState)
 
 	// Process new transactions
-	unitsConsumed, surplusFee, results, err := processor.Execute(ctx, ectx, r)
+	unitsConsumed, surplusFee, results, err := processor.Execute(ctx, newState, ectx, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return nil, false, err
@@ -746,13 +750,13 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, bo
 	}
 
 	// Store height in state to prevent duplicate roots
-	if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+	if err := newState.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, false, err
 	}
 
 	// Compute state root
 	start := time.Now()
-	computedRoot, err := state.GetMerkleRoot(ctx)
+	computedRoot, err := newState.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, false, err
 	}
@@ -779,7 +783,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, bo
 	sigWait := time.Since(start)
 	b.vm.RecordWaitSignatures(sigWait)
 	log.Info("inner verify completed", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()), zap.Int("chunks", len(b.Chunks)), zap.Duration("t", time.Since(fnStart)), zap.Duration("root wait", rootWait), zap.Duration("sig wait", sigWait))
-	return state, false, nil
+	return newState, false, nil
 }
 
 // implements "snowman.Block.choices.Decidable"

@@ -19,7 +19,10 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-const chunkOverhead = 4
+const (
+	chunkOverhead      = 4
+	statePreallocation = 2048
+)
 
 func HandlePreExecute(
 	err error,
@@ -69,12 +72,17 @@ func BuildBlock(
 	}
 	b := NewBlock(ectx, vm, parent, nextTime)
 
-	state, err := parent.childState(ctx, r.GetMaxBlockTxs())
+	parentState, err := parent.State()
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err
 	}
-	ts := tstate.New(r.GetMaxBlockTxs(), r.GetMaxBlockTxs())
+	newState, err := parent.childState(ctx, statePreallocation)
+	if err != nil {
+		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
+		return nil, err
+	}
+	ts := tstate.New(newState, statePreallocation)
 
 	// Restorable txs after block attempt finishes
 	b.Txs = []*Transaction{}
@@ -169,7 +177,7 @@ func BuildBlock(
 			// TODO: prefetch state of upcoming txs that we will pull (should make much
 			// faster)
 			txStart := ts.OpIndex()
-			if err := ts.FetchAndSetScope(ctx, state, next.StateKeys(sm)); err != nil {
+			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), parentState); err != nil {
 				return false, true, false, err
 			}
 
@@ -265,18 +273,13 @@ func BuildBlock(
 	}
 	b.SurplusFee = surplusFee
 
-	// Get root from underlying state changes after writing all changed keys
-	if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
-		return nil, err
-	}
-
 	// Store height in state to prevent duplicate roots
-	if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+	if err := newState.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, err
 	}
 
 	// Compute state root after all data has been written to trie
-	root, err := state.GetMerkleRoot(ctx)
+	root, err := newState.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -315,7 +318,7 @@ func BuildBlock(
 	}
 
 	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, chunks, state, results); err != nil {
+	if err := b.initializeBuilt(ctx, chunks, newState, results); err != nil {
 		return nil, err
 	}
 	log.Info(
