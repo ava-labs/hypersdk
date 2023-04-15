@@ -77,22 +77,26 @@ func (ts *TState) GetValue(ctx context.Context, key []byte) ([]byte, error) {
 	if !ts.checkScope(ctx, key) {
 		return nil, ErrKeyNotSpecified
 	}
-	return ts.getValue(ctx, key)
+	v, _, exists := ts.getValue(ctx, key)
+	if !exists {
+		return nil, database.ErrNotFound
+	}
+	return v, nil
 }
 
-func (ts *TState) getValue(ctx context.Context, key []byte) ([]byte, error) {
+func (ts *TState) getValue(ctx context.Context, key []byte) ([]byte, bool, bool) {
 	k := string(key)
 	if v, ok := ts.changedKeys[k]; ok {
 		if v.removed {
-			return nil, database.ErrNotFound
+			return nil, true, false
 		}
-		return v.v, nil
+		return v.v, true, true
 	}
 	v, ok := ts.scopeStorage[k]
-	if ok {
-		return v, nil
+	if !ok {
+		return nil, false, false
 	}
-	return nil, database.ErrNotFound
+	return v, false, true
 }
 
 // FetchAndSetScope updates ts to include the [db] values associated with [keys].
@@ -145,18 +149,15 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
-	past, err := ts.getValue(ctx, key)
-	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		return err
-	}
+	past, changed, exists := ts.getValue(ctx, key)
 	k := string(key)
 	ts.ops = append(ts.ops, &op{
 		action:      insert,
 		k:           key,
 		v:           value,
-		pastExists:  err == nil,
+		pastExists:  exists,
 		pastV:       past,
-		pastChanged: ts.changedKeys[k] != nil,
+		pastChanged: changed,
 	})
 	ts.changedKeys[k] = &tempStorage{value, false}
 	return nil
@@ -167,12 +168,8 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
-	past, err := ts.getValue(ctx, key)
-	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		return err
-	}
-	if err != nil {
-		// This value does not exist, there is nothing to remove
+	past, changed, exists := ts.getValue(ctx, key)
+	if !exists {
 		return nil
 	}
 	k := string(key)
@@ -181,7 +178,7 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 		k:           key,
 		pastExists:  true,
 		pastV:       past,
-		pastChanged: ts.changedKeys[k] != nil,
+		pastChanged: changed,
 	})
 	ts.changedKeys[k] = &tempStorage{nil, true}
 	return nil
