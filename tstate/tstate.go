@@ -185,7 +185,7 @@ func (ts *TState) Rollback(_ context.Context, restorePoint int) {
 		// remove: Removed key that was modified for first time in run
 		if !op.pastChanged {
 			delete(ts.changedKeys, op.k)
-			break
+			continue
 		}
 		// insert: Modified key for the nth time
 		//
