@@ -24,8 +24,7 @@ const (
 type op struct {
 	action opAction
 
-	k []byte
-	v []byte
+	k string
 
 	pastExists  bool
 	pastV       []byte
@@ -77,22 +76,22 @@ func (ts *TState) GetValue(ctx context.Context, key []byte) ([]byte, error) {
 	if !ts.checkScope(ctx, key) {
 		return nil, ErrKeyNotSpecified
 	}
-	v, _, exists := ts.getValue(ctx, key)
+	k := string(key)
+	v, _, exists := ts.getValue(ctx, k)
 	if !exists {
 		return nil, database.ErrNotFound
 	}
 	return v, nil
 }
 
-func (ts *TState) getValue(ctx context.Context, key []byte) ([]byte, bool, bool) {
-	k := string(key)
-	if v, ok := ts.changedKeys[k]; ok {
+func (ts *TState) getValue(ctx context.Context, key string) ([]byte, bool, bool) {
+	if v, ok := ts.changedKeys[key]; ok {
 		if v.removed {
 			return nil, true, false
 		}
 		return v.v, true, true
 	}
-	v, ok := ts.scopeStorage[k]
+	v, ok := ts.scopeStorage[key]
 	if !ok {
 		return nil, false, false
 	}
@@ -149,12 +148,11 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
-	past, changed, exists := ts.getValue(ctx, key)
 	k := string(key)
+	past, changed, exists := ts.getValue(ctx, k)
 	ts.ops = append(ts.ops, &op{
 		action:      insert,
-		k:           key,
-		v:           value,
+		k:           k,
 		pastExists:  exists,
 		pastV:       past,
 		pastChanged: changed,
@@ -168,14 +166,14 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
-	past, changed, exists := ts.getValue(ctx, key)
+	k := string(key)
+	past, changed, exists := ts.getValue(ctx, k)
 	if !exists {
 		return nil
 	}
-	k := string(key)
 	ts.ops = append(ts.ops, &op{
 		action:      remove,
-		k:           key,
+		k:           k,
 		pastExists:  true,
 		pastV:       past,
 		pastChanged: changed,
@@ -193,28 +191,23 @@ func (ts *TState) OpIndex() int {
 func (ts *TState) Rollback(_ context.Context, restorePoint int) {
 	for i := len(ts.ops) - 1; i >= restorePoint; i-- {
 		op := ts.ops[i]
-		k := string(op.k)
 		switch op.action {
-		case insert:
+		case insert, remove:
 			// Created key during insert
+			//
+			// We always assume any ops refer to keys that existed at one point
+			// (meaning that the removal of an empty object would be skipped, even if
+			// that object was a changed key).
 			if !op.pastExists {
-				delete(ts.changedKeys, k)
+				delete(ts.changedKeys, op.k)
 				break
 			}
 			// Modified previous key
 			if !op.pastChanged {
-				delete(ts.changedKeys, k)
+				delete(ts.changedKeys, op.k)
 				break
 			}
-			ts.changedKeys[k] = &tempStorage{op.pastV, false}
-		case remove:
-			// We always assume any ops refer to keys that existed at one point
-			// (meaning that the removal of an empty object would be skipped, even if
-			// that object was a changed key).
-			if !op.pastChanged {
-				delete(ts.changedKeys, k)
-			}
-			ts.changedKeys[k] = &tempStorage{op.pastV, false}
+			ts.changedKeys[op.k] = &tempStorage{op.pastV, false}
 		default:
 			panic("invalid op")
 		}
