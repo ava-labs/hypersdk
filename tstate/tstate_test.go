@@ -190,6 +190,7 @@ func TestRemoveInsertRollback(t *testing.T) {
 	require.NoError(err)
 	require.Equal(TestVal, v)
 	require.Equal(3, ts.OpIndex(), "Opertions not updated correctly.")
+	require.Equal(1, ts.PendingChanges())
 	// Rollback
 	ts.Rollback(ctx, 2)
 	_, err = ts.GetValue(ctx, TestKey)
@@ -265,10 +266,11 @@ func TestRestoreDelete(t *testing.T) {
 		require.ErrorIs(err, database.ErrNotFound, "Value not removed.")
 	}
 	require.Equal(len(keys), ts.OpIndex(), "Operations not added properly.")
+	require.Equal(3, ts.PendingChanges())
 	// Roll back all removes
 	ts.Rollback(ctx, 0)
 	require.Equal(0, ts.OpIndex(), "Operations not rolled back properly.")
-	require.Equal(0, len(ts.changedKeys))
+	require.Equal(0, ts.PendingChanges())
 	for i, key := range keys {
 		val, err := ts.GetValue(ctx, key)
 		require.NoError(err, "Error getting value.")

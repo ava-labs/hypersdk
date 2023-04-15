@@ -75,7 +75,7 @@ func (ts *TState) GetValue(ctx context.Context, key []byte) ([]byte, error) {
 	return v, nil
 }
 
-func (ts *TState) getValue(ctx context.Context, key string) ([]byte, bool, bool) {
+func (ts *TState) getValue(_ context.Context, key string) ([]byte, bool, bool) {
 	if v, ok := ts.changedKeys[key]; ok {
 		if v.removed {
 			return nil, true, false
@@ -174,6 +174,10 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 // OpIndex returns the number of operations done on ts.
 func (ts *TState) OpIndex() int {
 	return len(ts.ops)
+}
+
+func (ts *TState) PendingChanges() int {
+	return len(ts.changedKeys)
 }
 
 // Rollback restores the TState to before the ts.op[restorePoint] operation.
