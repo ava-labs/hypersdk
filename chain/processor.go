@@ -9,7 +9,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/tstate"
 )
@@ -45,12 +44,13 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 		defer span.End()
 
 		// Store required keys for each set
-		alreadyFetched := set.Set[string]{}
+		alreadyFetched := map[string][]byte{}
 		for _, tx := range p.blk.GetTxs() {
 			storage := map[string][]byte{}
 			for _, k := range tx.StateKeys(sm) {
 				sk := string(k)
-				if alreadyFetched.Contains(sk) {
+				if v, ok := alreadyFetched[sk]; ok {
+					storage[sk] = v
 					continue
 				}
 				v, err := db.GetValue(ctx, k)
@@ -59,7 +59,7 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 				} else if err != nil {
 					panic(err)
 				}
-				alreadyFetched.Add(sk)
+				alreadyFetched[sk] = v
 				storage[sk] = v
 			}
 			p.readyTxs <- &txData{tx, storage}
@@ -81,7 +81,7 @@ func (p *Processor) Execute(
 	var (
 		unitsConsumed = uint64(0)
 		surplusFee    = uint64(0)
-		ts            = tstate.New(len(p.blk.Txs)*2, len(p.blk.Txs)*2) // TODO: tune this heuristic
+		ts            = tstate.New(len(p.blk.Txs) * 2) // TODO: tune this heuristic
 		t             = p.blk.GetTimestamp()
 		blkUnitPrice  = p.blk.GetUnitPrice()
 		results       = []*Result{}
@@ -90,13 +90,9 @@ func (p *Processor) Execute(
 	for txData := range p.readyTxs {
 		tx := txData.tx
 
-		// Update ts
-		for k, v := range txData.storage {
-			ts.SetStorage(ctx, []byte(k), v)
-		}
 		// It is critical we explicitly set the scope before each transaction is
 		// processed
-		ts.SetScope(ctx, tx.StateKeys(sm))
+		ts.SetScope(ctx, tx.StateKeys(sm), txData.storage)
 
 		// Execute tx
 		if err := tx.PreExecute(ctx, ectx, r, ts, t); err != nil {

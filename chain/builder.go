@@ -71,7 +71,7 @@ func BuildBlock(
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err
 	}
-	ts := tstate.New(r.GetMaxBlockTxs(), r.GetMaxBlockTxs())
+	ts := tstate.New(r.GetMaxBlockTxs())
 
 	// Restorable txs after block attempt finishes
 	b.Txs = []*Transaction{}
@@ -155,7 +155,7 @@ func BuildBlock(
 			// TODO: prefetch state of upcoming txs that we will pull (should make much
 			// faster)
 			txStart := ts.OpIndex()
-			if err := ts.FetchAndSetScope(ctx, state, next.StateKeys(sm)); err != nil {
+			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), state); err != nil {
 				return false, true, false, err
 			}
 
