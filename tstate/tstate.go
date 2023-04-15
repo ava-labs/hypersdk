@@ -14,16 +14,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
-type opAction int
-
-const (
-	insert opAction = iota
-	remove
-)
-
 type op struct {
-	action opAction
-
 	k string
 
 	pastExists  bool
@@ -151,7 +142,6 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	k := string(key)
 	past, changed, exists := ts.getValue(ctx, k)
 	ts.ops = append(ts.ops, &op{
-		action:      insert,
 		k:           k,
 		pastExists:  exists,
 		pastV:       past,
@@ -172,7 +162,6 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 		return nil
 	}
 	ts.ops = append(ts.ops, &op{
-		action:      remove,
 		k:           k,
 		pastExists:  true,
 		pastV:       past,
@@ -191,31 +180,17 @@ func (ts *TState) OpIndex() int {
 func (ts *TState) Rollback(_ context.Context, restorePoint int) {
 	for i := len(ts.ops) - 1; i >= restorePoint; i-- {
 		op := ts.ops[i]
-		switch op.action {
-		case insert, remove:
-			// insert: Created key during insert
-			//
-			// remove: This should never happen. We always assume any ops refer to keys
-			// that existed at one point (meaning that the removal of an empty object
-			// would be skipped, even if that object was a changed key).
-			if !op.pastExists {
-				delete(ts.changedKeys, op.k)
-				break
-			}
-			// insert: Modified key for the first time
-			//
-			// remove: Removed key that was modified for first time in run
-			if !op.pastChanged {
-				delete(ts.changedKeys, op.k)
-				break
-			}
-			// insert: Modified key for the nth time
-			//
-			// remove: Removed key that was previously modified in run
-			ts.changedKeys[op.k] = &tempStorage{op.pastV, false}
-		default:
-			panic("invalid op")
+		// insert: Modified key for the first time
+		//
+		// remove: Removed key that was modified for first time in run
+		if !op.pastChanged {
+			delete(ts.changedKeys, op.k)
+			break
 		}
+		// insert: Modified key for the nth time
+		//
+		// remove: Removed key that was previously modified in run
+		ts.changedKeys[op.k] = &tempStorage{op.pastV, !op.pastExists}
 	}
 	ts.ops = ts.ops[:restorePoint]
 }
