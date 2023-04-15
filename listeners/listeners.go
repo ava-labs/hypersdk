@@ -26,7 +26,6 @@ type Listeners struct {
 	txL         sync.Mutex
 	txListeners map[ids.ID]*pubsub.Connections
 	expiringTxs *emap.EMap[*chain.Transaction] // ensures all tx listeners are eventually responded to
-
 }
 
 func New() *Listeners {
@@ -51,38 +50,38 @@ func (w *Listeners) AddTxListener(tx *chain.Transaction, c *pubsub.Connection) {
 }
 
 // If never possible for a tx to enter mempool, call this
-func (w *Listeners) RemoveTx(txID ids.ID, err error, s *pubsub.Server) {
+func (w *Listeners) RemoveTx(txID ids.ID, err error, decisionsServer *pubsub.Server) {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
-	w.removeTx(txID, err, s)
+	w.removeTx(txID, err, decisionsServer)
 }
 
-func (w *Listeners) removeTx(txID ids.ID, err error, s *pubsub.Server) {
+func (w *Listeners) removeTx(txID ids.ID, err error, decisionsServer *pubsub.Server) {
 	listeners, ok := w.txListeners[txID]
 	if !ok {
 		return
 	}
 	p := codec.NewWriter(consts.MaxInt)
 	PackRemovedTxMessage(p, txID, err)
-	s.Publish([]byte(txID.String()), listeners)
+	decisionsServer.Publish([]byte(txID.String()), listeners)
 	delete(w.txListeners, txID)
 	// [expiringTxs] will be cleared eventually (does not support removal)
 }
 
-func (w *Listeners) SetMinTx(t int64, s *pubsub.Server) {
+func (w *Listeners) SetMinTx(t int64, decisionsServer *pubsub.Server) {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
 	expired := w.expiringTxs.SetMin(t)
 	for _, id := range expired {
-		w.removeTx(id, ErrExpired, s)
+		w.removeTx(id, ErrExpired, decisionsServer)
 	}
 }
 
 func (w *Listeners) AcceptBlock(
 	b *chain.StatelessBlock,
-	s *pubsub.Server,
+	decisionsServer *pubsub.Server,
 	blockServer *pubsub.Server,
 ) {
 	p := codec.NewWriter(consts.MaxInt)
@@ -103,7 +102,7 @@ func (w *Listeners) AcceptBlock(
 		}
 		// Publish to tx listener
 		PackAcceptedTxMessage(p, txID, results[i])
-		s.Publish(
+		decisionsServer.Publish(
 			p.Bytes(),
 			listeners,
 		)
