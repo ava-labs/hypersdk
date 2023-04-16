@@ -76,6 +76,7 @@ type VM interface {
 	RecordWaitSignatures(time.Duration) // only called in Verify
 	RecordStateChanges(int)
 	RecordStateOperations(int)
+	RecordWaitChunks(time.Duration)
 }
 
 type Mempool interface {

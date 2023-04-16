@@ -92,10 +92,11 @@ type StatelessBlock struct {
 	bytes []byte
 	vm    VM
 
-	FetchedChunks      [][]byte
-	chunkFetchComplete bool
-	chunkFetchErr      error
-	chunkFetchErrPerm  bool
+	FetchedChunks       [][]byte
+	chunkFetchComplete  bool
+	chunkFetchErr       error
+	chunkFetchErrPerm   bool
+	chunkFetchStartWait time.Time
 
 	Txs          []*Transaction
 	txsSet       set.Set[ids.ID]
@@ -373,6 +374,9 @@ func (b *StatelessBlock) ID() ids.ID { return b.id }
 
 func (b *StatelessBlock) checkChunkFetch(ctx context.Context) error {
 	if !b.chunkFetchComplete {
+		if b.chunkFetchStartWait.IsZero() {
+			b.chunkFetchStartWait = time.Now()
+		}
 		return ErrChunksNotProcessed
 	}
 	if b.chunkFetchErr != nil && !b.chunkFetchErrPerm {
@@ -384,7 +388,14 @@ func (b *StatelessBlock) checkChunkFetch(ctx context.Context) error {
 		go b.populateTxs(context.Background())
 		return ErrChunksNotProcessed
 	}
-	return b.chunkFetchErr
+	if b.chunkFetchErr != nil {
+		return b.chunkFetchErr
+	}
+	if !b.chunkFetchStartWait.IsZero() {
+		// Exclude events when we built block
+		b.vm.RecordWaitChunks(time.Since(b.chunkFetchStartWait))
+	}
+	return nil
 }
 
 // implements "block.WithVerifyContext"

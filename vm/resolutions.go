@@ -357,3 +357,7 @@ func (vm *VM) RecordStateChanges(c int) {
 func (vm *VM) RecordStateOperations(c int) {
 	vm.metrics.stateOperations.Add(float64(c))
 }
+
+func (vm *VM) RecordWaitChunks(t time.Duration) {
+	vm.metrics.waitChunks.Observe(float64(t))
+}
