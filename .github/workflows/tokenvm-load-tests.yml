@@ -13,7 +13,7 @@ jobs:
   tests:
     strategy:
       matrix:
-        level: [v1, v2, v3. v4]
+        level: [v1, v2, v3, v4]
     runs-on:
       labels: ubuntu-20.04-32
     timeout-minutes: 30
