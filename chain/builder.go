@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/utils/math"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
@@ -66,12 +67,13 @@ func BuildBlock(
 	}
 	b := NewBlock(ectx, vm, parent, nextTime)
 
-	state, err := parent.childState(ctx, r.GetMaxBlockTxs())
+	changesEstimate := math.Min(vm.Mempool().Len(ctx), r.GetMaxBlockTxs())
+	state, err := parent.childState(ctx, changesEstimate)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err
 	}
-	ts := tstate.New(r.GetMaxBlockTxs())
+	ts := tstate.New(changesEstimate)
 
 	// Restorable txs after block attempt finishes
 	b.Txs = []*Transaction{}
