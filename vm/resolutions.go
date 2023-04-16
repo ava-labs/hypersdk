@@ -349,3 +349,11 @@ func (vm *VM) RequestChunks(ctx context.Context, height uint64, chunks []ids.ID,
 func (vm *VM) GetVerifyAsync() bool {
 	return vm.config.GetVerifyAsync()
 }
+
+func (vm *VM) RecordStateChanges(c int) {
+	vm.metrics.stateChanges.Add(float64(c))
+}
+
+func (vm *VM) RecordStateOperations(c int) {
+	vm.metrics.stateOperations.Add(float64(c))
+}

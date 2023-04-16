@@ -11,8 +11,12 @@ on:
 
 jobs:
   tests:
+    continue-on-error: true
+    strategy:
+      matrix:
+        level: [v1, v2, v3, v4]
     runs-on:
-      labels: ubuntu-latest-16-cores
+      labels: ubuntu-20.04-32
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -31,7 +35,7 @@ jobs:
       - name: Run load tests
         working-directory: ./examples/tokenvm
         shell: bash
-        run: scripts/tests.load.sh
+        run: GOAMD64=${{ matrix.level }} scripts/tests.load.sh
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

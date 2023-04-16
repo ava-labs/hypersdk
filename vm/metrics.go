@@ -19,6 +19,8 @@ type Metrics struct {
 	txsSubmitted            prometheus.Counter // includes gossip
 	txsVerified             prometheus.Counter
 	txsAccepted             prometheus.Counter
+	stateChanges            prometheus.Counter
+	stateOperations         prometheus.Counter
 	decisionsRPCConnections prometheus.Gauge
 	blocksRPCConnections    prometheus.Gauge
 	chunksFetched           metric.Averager
@@ -104,6 +106,16 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "txs_accepted",
 			Help:      "number of txs accepted by vm",
 		}),
+		stateChanges: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "state_changes",
+			Help:      "number of state changes",
+		}),
+		stateOperations: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "state_operations",
+			Help:      "number of state operations",
+		}),
 		decisionsRPCConnections: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "vm",
 			Name:      "decisions_rpc_connections",
@@ -134,6 +146,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txsSubmitted),
 		r.Register(m.txsVerified),
 		r.Register(m.txsAccepted),
+		r.Register(m.stateChanges),
+		r.Register(m.stateOperations),
 		r.Register(m.decisionsRPCConnections),
 		r.Register(m.blocksRPCConnections),
 		r.Register(m.mempoolSize),
