@@ -303,6 +303,12 @@ func TestWriteChanges(t *testing.T) {
 		require.Equal(vals[i], val, "Value not updated in db.")
 	}
 	// Remove
+	ts = New(10)
+	ts.SetScope(ctx, keys, map[string][]byte{
+		string(keys[0]): vals[0],
+		string(keys[1]): vals[1],
+		string(keys[2]): vals[2],
+	})
 	for _, key := range keys {
 		err := ts.Remove(ctx, key)
 		require.NoError(err, "Error removing from ts.")

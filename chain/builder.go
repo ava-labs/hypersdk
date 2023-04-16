@@ -280,6 +280,8 @@ func BuildBlock(
 		zap.Int("mempool size", b.vm.Mempool().Len(ctx)),
 		zap.Duration("mempool lock wait", lockWait),
 		zap.Bool("context", blockContext != nil),
+		zap.Int("state changes", ts.PendingChanges()),
+		zap.Int("state operations", ts.OpIndex()),
 	)
 	return b, nil
 }

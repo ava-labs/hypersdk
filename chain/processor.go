@@ -74,7 +74,7 @@ func (p *Processor) Execute(
 	ctx context.Context,
 	ectx *ExecutionContext,
 	r Rules,
-) (uint64, uint64, []*Result, error) {
+) (uint64, uint64, []*Result, int, int, error) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Execute")
 	defer span.End()
 
@@ -96,7 +96,7 @@ func (p *Processor) Execute(
 
 		// Execute tx
 		if err := tx.PreExecute(ctx, ectx, r, ts, t); err != nil {
-			return 0, 0, nil, err
+			return 0, 0, nil, 0, 0, err
 		}
 		// Wait to execute transaction until we have the warp result processed.
 		//
@@ -108,12 +108,12 @@ func (p *Processor) Execute(
 			select {
 			case warpVerified = <-warpMsg.verifiedChan:
 			case <-ctx.Done():
-				return 0, 0, nil, ctx.Err()
+				return 0, 0, nil, 0, 0, ctx.Err()
 			}
 		}
 		result, err := tx.Execute(ctx, ectx, r, sm, ts, t, ok && warpVerified)
 		if err != nil {
-			return 0, 0, nil, err
+			return 0, 0, nil, 0, 0, err
 		}
 		surplusFee += (tx.Base.UnitPrice - blkUnitPrice) * result.Units
 		results = append(results, result)
@@ -122,9 +122,12 @@ func (p *Processor) Execute(
 		unitsConsumed += result.Units
 		if unitsConsumed > r.GetMaxBlockUnits() {
 			// Exit as soon as we hit our max
-			return 0, 0, nil, ErrBlockTooBig
+			return 0, 0, nil, 0, 0, ErrBlockTooBig
 		}
 	}
 	// Wait until end to write changes to avoid conflicting with pre-fetching
-	return unitsConsumed, surplusFee, results, ts.WriteChanges(ctx, p.db, p.tracer)
+	if err := ts.WriteChanges(ctx, p.db, p.tracer); err != nil {
+		return 0, 0, nil, 0, 0, err
+	}
+	return unitsConsumed, surplusFee, results, ts.PendingChanges(), ts.OpIndex(), nil
 }
