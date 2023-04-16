@@ -320,6 +320,8 @@ func BuildBlock(
 	if err := b.initializeBuilt(ctx, chunks, state, results); err != nil {
 		return nil, err
 	}
+	b.vm.RecordStateChanges(ts.PendingChanges())
+	b.vm.RecordStateOperations(ts.OpIndex())
 	log.Info(
 		"built block",
 		zap.Uint64("hght", b.Hght),
