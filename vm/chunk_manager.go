@@ -387,6 +387,7 @@ func (c *ChunkManager) RequestChunk(ctx context.Context, height *uint64, hint id
 				var randomRecipient ids.NodeID
 				c.nodeChunkLock.RLock()
 				for nodeID, chunk := range c.nodeChunks {
+					randomRecipient = nodeID
 					if height != nil && *height >= chunk.Min && *height <= chunk.Max {
 						possibleRecipients = append(possibleRecipients, nodeID)
 						continue
@@ -395,20 +396,24 @@ func (c *ChunkManager) RequestChunk(ctx context.Context, height *uint64, hint id
 						possibleRecipients = append(possibleRecipients, nodeID)
 						continue
 					}
-					randomRecipient = nodeID
 				}
 				c.nodeChunkLock.RUnlock()
 
-				// No available recipients, so we wait
+				// No possible recipients, so we wait
 				if randomRecipient == ids.EmptyNodeID {
-					c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID))
 					time.Sleep(retrySleep)
 					continue
 				}
 
-				// If 1 or more possible recipients, pick them
+				// If 1 or more possible recipients, pick them instead
 				if len(possibleRecipients) > 0 {
 					randomRecipient = possibleRecipients[rand.Intn(len(possibleRecipients))]
+				} else {
+					if height == nil {
+						c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID), zap.Stringer("hint", hint))
+					} else {
+						c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID), zap.Stringer("hint", hint), zap.Uint64("height", *height))
+					}
 				}
 				peer = randomRecipient
 			}

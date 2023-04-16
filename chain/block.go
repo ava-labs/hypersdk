@@ -97,6 +97,7 @@ type StatelessBlock struct {
 	chunkFetchErr       error
 	chunkFetchErrPerm   bool
 	chunkFetchStartWait time.Time
+	recordedFetchWait   bool
 
 	Txs          []*Transaction
 	txsSet       set.Set[ids.ID]
@@ -392,7 +393,10 @@ func (b *StatelessBlock) checkChunkFetch(ctx context.Context) error {
 		return b.chunkFetchErr
 	}
 	// This may be ~0 if we built block
-	b.vm.RecordWaitChunks(time.Since(b.chunkFetchStartWait))
+	if !b.recordedFetchWait {
+		b.vm.RecordWaitChunks(time.Since(b.chunkFetchStartWait))
+		b.recordedFetchWait = true
+	}
 	return nil
 }
 
