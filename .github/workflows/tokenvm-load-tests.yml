@@ -11,10 +11,10 @@ on:
 
 jobs:
   tests:
-    continue-on-error: true
     strategy:
       matrix:
         level: [v1, v2, v3, v4]
+        experimental: [true] # continue on error
     runs-on:
       labels: ubuntu-20.04-32
     timeout-minutes: 30
