@@ -141,7 +141,7 @@ func (p *Processor) Execute(
 		}
 	}
 	if p.err != nil {
-		return 0, 0, nil, p.err
+		return 0, 0, nil, 0, 0, p.err
 	}
 	// Wait until end to write changes to avoid conflicting with pre-fetching
 	if err := ts.WriteChanges(ctx, p.db, p.tracer); err != nil {
