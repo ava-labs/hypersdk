@@ -142,22 +142,22 @@ and Bandwidth rate limiting. You can do this by adding the following lines to
 `avalanchego_config` in the spec file:
 ```yaml
 avalanchego_config:
-    ...
-    proposervm-use-current-height: true
-    throttler-inbound-validator-alloc-size: 107374182
-    throttler-inbound-node-max-processing-msgs: 100000
-    throttler-inbound-bandwidth-refill-rate: 1073741824
-    throttler-inbound-bandwidth-max-burst-size: 1073741824
-    throttler-inbound-cpu-validator-alloc: 100000
-    throttler-inbound-disk-validator-alloc: 10737418240000
-    throttler-outbound-validator-alloc-size: 107374182
-    snow-mixed-query-num-push-vdr-uint: 10
-    consensus-on-accept-gossip-validator-size: 0
-    consensus-on-accept-gossip-non-validator-size: 0
-    consensus-on-accept-gossip-peer-size: 5
-    consensus-accepted-frontier-gossip-peer-size: 5
-    consensus-app-concurrency: 64
-    network-compression-type: none
+  ...
+  proposervm-use-current-height: true
+  throttler-inbound-validator-alloc-size: 107374182
+  throttler-inbound-node-max-processing-msgs: 100000
+  throttler-inbound-bandwidth-refill-rate: 1073741824
+  throttler-inbound-bandwidth-max-burst-size: 1073741824
+  throttler-inbound-cpu-validator-alloc: 100000
+  throttler-inbound-disk-validator-alloc: 10737418240000
+  throttler-outbound-validator-alloc-size: 107374182
+  snow-mixed-query-num-push-vdr-uint: 10
+  consensus-on-accept-gossip-validator-size: 0
+  consensus-on-accept-gossip-non-validator-size: 0
+  consensus-on-accept-gossip-peer-size: 5
+  consensus-accepted-frontier-gossip-peer-size: 5
+  consensus-app-concurrency: 64
+  network-compression-type: none
 ```
 
 #### Supporting All Metrics
