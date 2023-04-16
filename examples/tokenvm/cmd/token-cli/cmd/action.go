@@ -7,6 +7,8 @@ package cmd
 import (
 	"context"
 	"errors"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
+	"strconv"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -97,7 +99,7 @@ var createAssetCmd = &cobra.Command{
 	Use: "create-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, _, factory, cli, err := defaultActor()
+		_, actor, factory, cli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -117,10 +119,37 @@ var createAssetCmd = &cobra.Command{
 			return err
 		}
 
+		promptSupply := promptui.Prompt{
+			Label: "Initial Supply (empty or '0' for 'none')",
+			Validate: func(input string) error {
+				if input == "" {
+					return nil
+				}
+				_, err := strconv.ParseUint(input, 10, 64)
+				if err != nil {
+					return err
+				}
+				return nil
+			},
+		}
+		supplyText, err := promptSupply.Run()
+		if err != nil {
+			return err
+		}
+
 		// Confirm action
 		cont, err := promptContinue()
 		if !cont || err != nil {
 			return err
+		}
+
+		var supply uint64 = 0
+
+		if supplyText != "" {
+			supply, err = strconv.ParseUint(supplyText, 10, 64)
+			if err != nil {
+				return err
+			}
 		}
 
 		// Generate transaction
@@ -138,6 +167,17 @@ var createAssetCmd = &cobra.Command{
 			return err
 		}
 		printStatus(tx.ID(), success)
+
+		if supply > 0 {
+			// Generate transaction
+			err = executeAndWaitForMintAssetTransaction(ctx, cli, tx.ID(), actor.PublicKey(), supply, factory)
+		}
+
+		if success {
+			// let's talk the assetID to the user with the right label
+			hutils.Outf("%s {{yellow}}AssetID:{{/}} %s\n", "✅", tx.ID())
+		}
+
 		return nil
 	},
 }
@@ -199,24 +239,7 @@ var mintAssetCmd = &cobra.Command{
 			return err
 		}
 
-		// Generate transaction
-		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.MintAsset{
-			Asset: assetID,
-			To:    recipient,
-			Value: amount,
-		}, factory)
-		if err != nil {
-			return err
-		}
-		if err := submit(ctx); err != nil {
-			return err
-		}
-		success, err := cli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return err
-		}
-		printStatus(tx.ID(), success)
-		return nil
+		return executeAndWaitForMintAssetTransaction(ctx, cli, assetID, recipient, amount, factory)
 	},
 }
 
@@ -252,18 +275,12 @@ var closeOrderCmd = &cobra.Command{
 			Order: orderID,
 			Out:   outAssetID,
 		}, factory)
+
 		if err != nil {
 			return err
 		}
-		if err := submit(ctx); err != nil {
-			return err
-		}
-		success, err := cli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return err
-		}
-		printStatus(tx.ID(), success)
-		return nil
+
+		return waitForTransactionAndPrintStatus(ctx, cli, submit, tx)
 	},
 }
 
@@ -354,15 +371,7 @@ var createOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if err := submit(ctx); err != nil {
-			return err
-		}
-		success, err := cli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return err
-		}
-		printStatus(tx.ID(), success)
-		return nil
+		return waitForTransactionAndPrintStatus(ctx, cli, submit, tx)
 	},
 }
 
@@ -481,15 +490,8 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if err := submit(ctx); err != nil {
-			return err
-		}
-		success, err := cli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return err
-		}
-		printStatus(tx.ID(), success)
-		return nil
+
+		return waitForTransactionAndPrintStatus(ctx, cli, submit, tx)
 	},
 }
 
@@ -604,15 +606,8 @@ func performImport(
 	if err != nil {
 		return err
 	}
-	if err := submit(ctx); err != nil {
-		return err
-	}
-	success, err := dcli.WaitForTransaction(ctx, tx.ID())
-	if err != nil {
-		return err
-	}
-	printStatus(tx.ID(), success)
-	return nil
+
+	return waitForTransactionAndPrintStatus(ctx, dcli, submit, tx)
 }
 
 func submitDummy(
@@ -798,14 +793,8 @@ var exportAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if err := submit(ctx); err != nil {
-			return err
-		}
-		success, err := cli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return err
-		}
-		printStatus(tx.ID(), success)
+
+		_ = waitForTransactionAndPrintStatus(ctx, cli, submit, tx)
 
 		// Perform import
 		imp, err := promptBool("perform import on destination")
@@ -832,4 +821,31 @@ var exportAssetCmd = &cobra.Command{
 		}
 		return StoreDefault(defaultChainKey, destination[:])
 	},
+}
+
+func executeAndWaitForMintAssetTransaction(ctx context.Context, cli *client.Client, assetID ids.ID, recipient crypto.PublicKey, amount uint64, factory *auth.ED25519Factory) error {
+	submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.MintAsset{
+		Asset: assetID,
+		To:    recipient,
+		Value: amount,
+	}, factory)
+
+	if err != nil {
+		return err
+	}
+
+	return waitForTransactionAndPrintStatus(ctx, cli, submit, tx)
+}
+
+func waitForTransactionAndPrintStatus(ctx context.Context, cli *client.Client, submit func(context.Context) error, tx *chain.Transaction) error {
+	if err := submit(ctx); err != nil {
+		return err
+	}
+	success, err := cli.WaitForTransaction(ctx, tx.ID())
+	if err != nil {
+		return err
+	}
+	printStatus(tx.ID(), success)
+	return nil
+
 }
