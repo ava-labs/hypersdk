@@ -31,6 +31,7 @@ import (
 const (
 	startAmount = uint64(1000000000000)
 	sendAmount  = uint64(5000)
+	hardCap     = uint64(1000000000100)
 
 	healthPollInterval = 10 * time.Second
 )
@@ -692,7 +693,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(aNewSenderBalance).Should(gomega.Equal(uint64(0)))
-			exists, metadata, supply, owner, warp, err := instancesB[0].cli.Asset(
+			exists, metadata, supply, maxSupply, owner, warp, err := instancesB[0].cli.Asset(
 				context.Background(),
 				newAsset,
 			)
@@ -700,6 +701,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(exists).Should(gomega.BeTrue())
 			gomega.Ω(metadata).Should(gomega.Equal(actions.ImportedAssetMetadata(ids.Empty, bIDA)))
 			gomega.Ω(supply).Should(gomega.Equal(sendAmount))
+			gomega.Ω(maxSupply).Should(gomega.Equal(hardCap))
 			gomega.Ω(owner).Should(gomega.Equal(utils.Address(crypto.EmptyPublicKey)))
 			gomega.Ω(warp).Should(gomega.BeTrue())
 		})
@@ -780,7 +782,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			otherBalance, err := instancesB[0].cli.Balance(context.Background(), aother, newAsset)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(otherBalance).Should(gomega.Equal(uint64(2900)))
-			exists, metadata, supply, owner, warp, err := instancesB[0].cli.Asset(
+			exists, metadata, supply, maxSupply, owner, warp, err := instancesB[0].cli.Asset(
 				context.Background(),
 				newAsset,
 			)
@@ -788,6 +790,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(exists).Should(gomega.BeTrue())
 			gomega.Ω(metadata).Should(gomega.Equal(actions.ImportedAssetMetadata(ids.Empty, bIDA)))
 			gomega.Ω(supply).Should(gomega.Equal(uint64(2900)))
+			gomega.Ω(maxSupply).Should(gomega.Equal(hardCap))
 			gomega.Ω(owner).Should(gomega.Equal(utils.Address(crypto.EmptyPublicKey)))
 			gomega.Ω(warp).Should(gomega.BeTrue())
 		})
@@ -943,7 +946,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			otherBalance, err := instancesB[0].cli.Balance(context.Background(), aother, newAsset)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(otherBalance).Should(gomega.Equal(uint64(0)))
-			exists, _, _, _, _, err := instancesB[0].cli.Asset(context.Background(), newAsset)
+			exists, _, _, _, _, _, err := instancesB[0].cli.Asset(context.Background(), newAsset)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(exists).Should(gomega.BeFalse())
 		})

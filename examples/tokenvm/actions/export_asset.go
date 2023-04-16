@@ -63,7 +63,7 @@ func (e *ExportAsset) executeReturn(
 	txID ids.ID,
 ) (*chain.Result, error) {
 	unitsUsed := e.MaxUnits(r)
-	exists, metadata, supply, _, isWarp, err := storage.GetAsset(ctx, db, e.Asset)
+	exists, metadata, supply, maxSupply, _, isWarp, err := storage.GetAsset(ctx, db, e.Asset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
@@ -89,7 +89,7 @@ func (e *ExportAsset) executeReturn(
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if newSupply > 0 {
-		if err := storage.SetAsset(ctx, db, e.Asset, metadata, newSupply, crypto.EmptyPublicKey, true); err != nil {
+		if err := storage.SetAsset(ctx, db, e.Asset, metadata, newSupply, maxSupply, crypto.EmptyPublicKey, true); err != nil {
 			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 		}
 	} else {
@@ -141,7 +141,7 @@ func (e *ExportAsset) executeLoan(
 	txID ids.ID,
 ) (*chain.Result, error) {
 	unitsUsed := e.MaxUnits(r)
-	exists, _, _, _, isWarp, err := storage.GetAsset(ctx, db, e.Asset)
+	exists, _, _, _, _, isWarp, err := storage.GetAsset(ctx, db, e.Asset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}

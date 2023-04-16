@@ -110,6 +110,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Databa
 	defer span.End()
 
 	supply := uint64(0)
+	maxSupply := uint64(0)
 	for _, alloc := range g.CustomAllocation {
 		pk, err := utils.ParseAddress(alloc.Address)
 		if err != nil {
@@ -129,6 +130,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Databa
 		ids.Empty,
 		[]byte(consts.Symbol),
 		supply,
+		maxSupply,
 		crypto.EmptyPublicKey,
 		false,
 	)

@@ -56,7 +56,7 @@ func (m *ModifyAsset) Execute(
 	if len(m.Metadata) > MaxMetadataSize {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputMetadataTooLarge}, nil
 	}
-	exists, _, supply, owner, isWarp, err := storage.GetAsset(ctx, db, m.Asset)
+	exists, _, supply, maxSupply, owner, isWarp, err := storage.GetAsset(ctx, db, m.Asset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
@@ -73,7 +73,7 @@ func (m *ModifyAsset) Execute(
 			Output:  OutputWrongOwner,
 		}, nil
 	}
-	if err := storage.SetAsset(ctx, db, m.Asset, m.Metadata, supply, m.Owner, isWarp); err != nil {
+	if err := storage.SetAsset(ctx, db, m.Asset, m.Metadata, supply, maxSupply, m.Owner, isWarp); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil

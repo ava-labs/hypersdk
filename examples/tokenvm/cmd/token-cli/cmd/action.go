@@ -7,6 +7,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -117,15 +118,43 @@ var createAssetCmd = &cobra.Command{
 			return err
 		}
 
+		promptMaxSupply := promptui.Prompt{
+			Label: "Max-Supply (empty or '0' for 'default/MaxUint64')",
+			Validate: func(input string) error {
+				if input == "" {
+					return nil
+				}
+				_, err := strconv.ParseUint(input, 10, 64)
+				if err != nil {
+					return err
+				}
+				return nil
+			},
+		}
+		maxSupplyText, err := promptMaxSupply.Run()
+		if err != nil {
+			return err
+		}
+
 		// Confirm action
 		cont, err := promptContinue()
 		if !cont || err != nil {
 			return err
 		}
 
+		var maxSupply uint64
+
+		if maxSupplyText != "" {
+			maxSupply, err = strconv.ParseUint(maxSupplyText, 10, 64)
+			if err != nil {
+				return err
+			}
+		}
+
 		// Generate transaction
 		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.CreateAsset{
-			Metadata: []byte(metadata),
+			Metadata:  []byte(metadata),
+			MaxSupply: maxSupply,
 		}, factory)
 		if err != nil {
 			return err
@@ -156,7 +185,7 @@ var mintAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		exists, metadata, supply, owner, warp, err := cli.Asset(ctx, assetID)
+		exists, metadata, supply, maxSupply, owner, warp, err := cli.Asset(ctx, assetID)
 		if err != nil {
 			return err
 		}
@@ -176,9 +205,10 @@ var mintAssetCmd = &cobra.Command{
 			return nil
 		}
 		hutils.Outf(
-			"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n",
+			"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}max-supply:{{/}} %d\n",
 			string(metadata),
 			supply,
+			maxSupply,
 		)
 
 		// Select recipient
@@ -282,7 +312,7 @@ var createOrderCmd = &cobra.Command{
 			return err
 		}
 		if inAssetID != ids.Empty {
-			exists, metadata, supply, _, warp, err := cli.Asset(ctx, inAssetID)
+			exists, metadata, supply, maxSupply, _, warp, err := cli.Asset(ctx, inAssetID)
 			if err != nil {
 				return err
 			}
@@ -292,9 +322,10 @@ var createOrderCmd = &cobra.Command{
 				return nil
 			}
 			hutils.Outf(
-				"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
+				"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}max-supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
 				string(metadata),
 				supply,
+				maxSupply,
 				warp,
 			)
 		}

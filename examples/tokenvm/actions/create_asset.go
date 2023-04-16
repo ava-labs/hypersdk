@@ -21,6 +21,9 @@ type CreateAsset struct {
 	// Metadata is creator-specified information about the asset. This can be
 	// modified using the [ModifyAsset] action.
 	Metadata []byte `json:"metadata"`
+
+	// Adding a hardcap. If 0, no hardcap exists (and will be MaxUint)
+	MaxSupply uint64 `json:"maxSupply"`
 }
 
 func (*CreateAsset) StateKeys(_ chain.Auth, txID ids.ID) [][]byte {
@@ -43,7 +46,7 @@ func (c *CreateAsset) Execute(
 	}
 	// It should only be possible to overwrite an existing asset if there is
 	// a hash collision.
-	if err := storage.SetAsset(ctx, db, txID, c.Metadata, 0, actor, false); err != nil {
+	if err := storage.SetAsset(ctx, db, txID, c.Metadata, 0, c.MaxSupply, actor, false); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	return &chain.Result{Success: true, Units: unitsUsed}, nil
@@ -57,11 +60,14 @@ func (c *CreateAsset) MaxUnits(chain.Rules) uint64 {
 
 func (c *CreateAsset) Marshal(p *codec.Packer) {
 	p.PackBytes(c.Metadata)
+	p.PackUint64(c.MaxSupply)
 }
 
 func UnmarshalCreateAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var create CreateAsset
 	p.UnpackBytes(MaxMetadataSize, false, &create.Metadata)
+	create.MaxSupply = p.UnpackUint64(false)
+
 	return &create, p.Err()
 }
 

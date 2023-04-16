@@ -75,7 +75,7 @@ func (i *ImportAsset) executeMint(
 	actor crypto.PublicKey,
 ) []byte {
 	asset := ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
-	exists, metadata, supply, _, warp, err := storage.GetAsset(ctx, db, asset)
+	exists, metadata, supply, maxSupply, _, warp, err := storage.GetAsset(ctx, db, asset)
 	if err != nil {
 		return utils.ErrBytes(err)
 	}
@@ -94,7 +94,7 @@ func (i *ImportAsset) executeMint(
 	if err != nil {
 		return utils.ErrBytes(err)
 	}
-	if err := storage.SetAsset(ctx, db, asset, metadata, newSupply, crypto.EmptyPublicKey, true); err != nil {
+	if err := storage.SetAsset(ctx, db, asset, metadata, newSupply, maxSupply, crypto.EmptyPublicKey, true); err != nil {
 		return utils.ErrBytes(err)
 	}
 	if err := storage.AddBalance(ctx, db, i.warpTransfer.To, asset, i.warpTransfer.Value); err != nil {

@@ -71,17 +71,18 @@ type AssetArgs struct {
 }
 
 type AssetReply struct {
-	Metadata []byte `json:"metadata"`
-	Supply   uint64 `json:"supply"`
-	Owner    string `json:"owner"`
-	Warp     bool   `json:"warp"`
+	Metadata  []byte `json:"metadata"`
+	Supply    uint64 `json:"supply"`
+	MaxSupply uint64 `json:"maxSupply"`
+	Owner     string `json:"owner"`
+	Warp      bool   `json:"warp"`
 }
 
 func (h *Handler) Asset(req *http.Request, args *AssetArgs, reply *AssetReply) error {
 	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Asset")
 	defer span.End()
 
-	exists, metadata, supply, owner, warp, err := storage.GetAssetFromState(
+	exists, metadata, supply, maxSupply, owner, warp, err := storage.GetAssetFromState(
 		ctx,
 		h.c.inner.ReadState,
 		args.Asset,
@@ -94,6 +95,7 @@ func (h *Handler) Asset(req *http.Request, args *AssetArgs, reply *AssetReply) e
 	}
 	reply.Metadata = metadata
 	reply.Supply = supply
+	reply.MaxSupply = maxSupply
 	reply.Owner = utils.Address(owner)
 	reply.Warp = warp
 	return err
