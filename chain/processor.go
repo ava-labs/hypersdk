@@ -13,6 +13,11 @@ import (
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
+type fetchData struct {
+	v      []byte
+	exists bool
+}
+
 type txData struct {
 	tx      *Transaction
 	storage map[string][]byte
@@ -44,22 +49,25 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 		defer span.End()
 
 		// Store required keys for each set
-		alreadyFetched := map[string][]byte{}
+		alreadyFetched := make(map[string]*fetchData, len(p.blk.GetTxs()))
 		for _, tx := range p.blk.GetTxs() {
 			storage := map[string][]byte{}
 			for _, k := range tx.StateKeys(sm) {
 				sk := string(k)
 				if v, ok := alreadyFetched[sk]; ok {
-					storage[sk] = v
+					if v.exists {
+						storage[sk] = v.v
+					}
 					continue
 				}
 				v, err := db.GetValue(ctx, k)
 				if errors.Is(err, database.ErrNotFound) {
+					alreadyFetched[sk] = &fetchData{nil, false}
 					continue
 				} else if err != nil {
 					panic(err)
 				}
-				alreadyFetched[sk] = v
+				alreadyFetched[sk] = &fetchData{v, true}
 				storage[sk] = v
 			}
 			p.readyTxs <- &txData{tx, storage}
