@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
@@ -39,6 +40,9 @@ var genGenesisCmd = &cobra.Command{
 		}
 		if maxChunks >= 0 {
 			g.MaxChunks = maxChunks
+		}
+		if maxChunkSize >= 0 {
+			g.MaxChunkSize = maxChunkSize * units.KiB
 		}
 		if windowTargetUnits >= 0 {
 			g.WindowTargetUnits = uint64(windowTargetUnits)

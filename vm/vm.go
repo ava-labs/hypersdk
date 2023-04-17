@@ -634,9 +634,11 @@ func (vm *VM) buildBlock(
 				builtBlock = vm.builtBlock
 				vm.snowCtx.Log.Info("found previously built block", zap.Stringer("blkID", builtBlock.ID()))
 			} else {
+				// TODO: cancel ongoing building in verify
+				vm.snowCtx.Log.Warn("discarding previously built block", zap.Stringer("blkID", vm.builtBlock.ID()))
+				vm.metrics.discardedBuiltBlocks.Inc()
 				// Re-add transactions to mempool when block is discarded
 				_ = vm.Submit(ctx, false, vm.builtBlock.Txs)
-				vm.snowCtx.Log.Info("discarding previously built block", zap.Stringer("blkID", vm.builtBlock.ID()))
 			}
 			vm.builtBlock = nil
 		}
@@ -671,6 +673,14 @@ func (vm *VM) buildBlock(
 		}
 		builtBlock = blk
 	}
+	// We only register chunks once we actually use a built block
+	//
+	// If we don't do this, we may gossip chunks we remove quickly from our
+	// storage.
+	//
+	// TODO: we should gossip heights with chunks so peers know when to stop
+	// trying to request.
+	vm.RegisterChunks(ctx, builtBlock.Hght, builtBlock.FetchedChunks)
 	vm.gossiper.BuiltBlock(builtBlock.Tmstmp)
 	vm.parsedBlocks.Put(builtBlock.ID(), builtBlock)
 	return builtBlock, nil

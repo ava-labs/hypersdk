@@ -36,16 +36,16 @@ echo MODE: ${MODE}
 # https://github.com/ava-labs/avalanchego/releases
 GOARCH=$(go env GOARCH)
 GOOS=$(go env GOOS)
-AVALANCHEGO_PATH=/tmp/avalanchego-v${VERSION}/avalanchego
-AVALANCHEGO_PLUGIN_DIR=/tmp/avalanchego-v${VERSION}/plugins
+AVALANCHEGO_PATH=/tmp/avalanchego-${VERSION}/avalanchego
+AVALANCHEGO_PLUGIN_DIR=/tmp/avalanchego-${VERSION}/plugins
 
 if [ ! -f "$AVALANCHEGO_PATH" ]; then
   echo "building avalanchego"
   CWD=$(pwd)
 
   # Clear old folders
-  rm -rf /tmp/avalanchego-v${VERSION}
-  mkdir -p /tmp/avalanchego-v${VERSION}
+  rm -rf /tmp/avalanchego-${VERSION}
+  mkdir -p /tmp/avalanchego-${VERSION}
   rm -rf /tmp/avalanchego-src
   mkdir -p /tmp/avalanchego-src
 
@@ -53,11 +53,11 @@ if [ ! -f "$AVALANCHEGO_PATH" ]; then
   cd /tmp/avalanchego-src
   git clone https://github.com/ava-labs/avalanchego.git
   cd avalanchego
-  git checkout v${VERSION}
+  git checkout ${VERSION}
 
   # Build avalanchego
   ./scripts/build.sh
-  mv build/avalanchego /tmp/avalanchego-v${VERSION}
+  mv build/avalanchego /tmp/avalanchego-${VERSION}
 
   cd ${CWD}
 else
@@ -70,18 +70,18 @@ fi
 echo "building tokenvm"
 
 # delete previous (if exists)
-rm -f /tmp/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
+rm -f /tmp/avalanchego-${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
 
 # rebuild with latest code
 go build \
--o /tmp/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
+-o /tmp/avalanchego-${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
 ./cmd/tokenvm
 
 echo "building token-cli"
 go build -v -o /tmp/token-cli ./cmd/token-cli
 
 # log everything in the avalanchego directory
-find /tmp/avalanchego-v${VERSION}
+find /tmp/avalanchego-${VERSION}
 
 ############################
 
@@ -99,6 +99,8 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   rm -f /tmp/tokenvm.genesis
   /tmp/token-cli genesis generate /tmp/allocations.json \
   --max-block-units 40000000 \
+  --max-chunks 5 \
+  --max-chunk-size 1024 \
   --window-target-units 100000000000 \
   --window-target-blocks 50 \
   --genesis-file /tmp/tokenvm.genesis
@@ -224,7 +226,7 @@ echo "running e2e tests"
 --vm-genesis-path=/tmp/tokenvm.genesis \
 --vm-config-path=/tmp/tokenvm.config \
 --subnet-config-path=/tmp/tokenvm.subnet \
---output-path=/tmp/avalanchego-v${VERSION}/output.yaml \
+--output-path=/tmp/avalanchego-${VERSION}/output.yaml \
 --mode=${MODE}
 
 ############################

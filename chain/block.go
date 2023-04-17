@@ -348,7 +348,6 @@ func (b *StatelessBlock) initializeBuilt(ctx context.Context, chunks [][]byte, s
 	defer span.End()
 
 	// Notify VM about new chunks
-	b.vm.RegisterChunks(ctx, b.Hght, chunks)
 	b.FetchedChunks = chunks
 	b.chunkFetchErr = nil
 	b.chunkFetchErrPerm = false

@@ -245,6 +245,7 @@ EOF
 --genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
 --max-block-units 400000000 \
 --max-chunks 16 \
+--max-chunk-size 512 \
 --window-target-units 100000000000 \
 --window-target-blocks 50
 cat /tmp/avalanche-ops/tokenvm-genesis.json

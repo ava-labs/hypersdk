@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/units"
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
@@ -34,7 +33,7 @@ type Genesis struct {
 
 	// Block params
 	MaxChunks     int    `json:"maxChunks"`
-	MaxChunkSize  int    `json:"maxChunkSize"`
+	MaxChunkSize  int    `json:"maxChunkSize"` // KB
 	MaxBlockTxs   int    `json:"maxBlockTxs"`
 	MaxBlockUnits uint64 `json:"maxBlockUnits"` // must be possible to reach before block too large
 

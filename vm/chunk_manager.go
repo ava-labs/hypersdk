@@ -421,7 +421,6 @@ func (c *ChunkManager) RequestChunk(ctx context.Context, height *uint64, hint id
 			// Handle received message
 			msg, err := c.requestChunkNodeID(ctx, peer, chunkID)
 			if err != nil {
-				c.vm.snowCtx.Log.Warn("chunk fetch failed", zap.Stringer("chunkID", chunkID), zap.Error(err))
 				time.Sleep(retrySleep)
 				continue
 			}
@@ -510,7 +509,7 @@ func (c *ChunkManager) HandleRequest(
 	// Check accepted
 	chunk, err = c.vm.GetChunk(chunkID)
 	if err != nil {
-		c.vm.snowCtx.Log.Warn("unable to find chunk", zap.Error(err))
+		c.vm.snowCtx.Log.Warn("unable to find chunk", zap.Stringer("chunkID", chunkID), zap.Error(err))
 		return c.appSender.SendAppResponse(ctx, nodeID, requestID, []byte{})
 	}
 	return c.appSender.SendAppResponse(ctx, nodeID, requestID, chunk)
