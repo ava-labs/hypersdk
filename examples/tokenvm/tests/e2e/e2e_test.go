@@ -216,59 +216,46 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	// Create 2 subnets
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
-	sresp, err := anrCli.CreateSpecificBlockchains(
+	sresp, err := anrCli.CreateBlockchains(
 		ctx,
-		execPath,
 		[]*rpcpb.BlockchainSpec{
 			{
-				VmName:       consts.Name,
-				Genesis:      vmGenesisPath,
-				ChainConfig:  vmConfigPath,
-				SubnetConfig: subnetConfigPath,
-				Participants: subnetA,
+				VmName:      consts.Name,
+				Genesis:     vmGenesisPath,
+				ChainConfig: vmConfigPath,
+				SubnetSpec: &rpcpb.SubnetSpec{
+					SubnetConfig: subnetConfigPath,
+					Participants: subnetA,
+				},
 			},
 			{
-				VmName:       consts.Name,
-				Genesis:      vmGenesisPath,
-				ChainConfig:  vmConfigPath,
-				SubnetConfig: subnetConfigPath,
-				Participants: subnetB,
+				VmName:      consts.Name,
+				Genesis:     vmGenesisPath,
+				ChainConfig: vmConfigPath,
+				SubnetSpec: &rpcpb.SubnetSpec{
+					SubnetConfig: subnetConfigPath,
+					Participants: subnetB,
+				},
 			},
 		},
 	)
 	cancel()
 	gomega.Expect(err).Should(gomega.BeNil())
 
-	blockchainIDA = sresp.Chains[0]
+	blockchainIDA = sresp.ChainIds[0]
 	hutils.Outf(
 		"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s {{green}}participants:{{/}} %+v\n",
 		blockchainIDA,
 		sresp.ClusterInfo.CustomChains[blockchainIDA].SubnetId,
 		subnetA,
 	)
-	blockchainIDB = sresp.Chains[1]
+	blockchainIDB = sresp.ChainIds[1]
 	hutils.Outf(
 		"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s {{green}}participants:{{/}} %+v\n",
 		blockchainIDB,
 		sresp.ClusterInfo.CustomChains[blockchainIDB].SubnetId,
 		subnetB,
 	)
-
-	// TODO: network runner health should imply custom VM healthiness
-	// or provide a separate API for custom VM healthiness
-	// "start" is async, so wait some time for cluster health
-	hutils.Outf("\n{{magenta}}waiting for all vms to report healthy...{{/}}: %s\n", consts.ID)
-	for {
-		v, err := anrCli.Health(context.Background())
-		hutils.Outf("\n{{yellow}}health result{{/}}: %+v %s\n", v, err)
-		if err != nil {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		// TODO: clean this up
-		gomega.Expect(err).Should(gomega.BeNil())
-		break
-	}
 
 	gomega.Expect(blockchainIDA).Should(gomega.Not(gomega.BeEmpty()))
 	gomega.Expect(blockchainIDB).Should(gomega.Not(gomega.BeEmpty()))
