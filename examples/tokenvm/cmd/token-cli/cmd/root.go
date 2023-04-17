@@ -28,6 +28,7 @@ var (
 	genesisFile        string
 	minUnitPrice       int64
 	maxBlockUnits      int64
+	maxChunks          int
 	windowTargetUnits  int64
 	windowTargetBlocks int64
 	hideTxs            bool
@@ -90,6 +91,12 @@ func init() {
 		"max-block-units",
 		-1,
 		"max block units",
+	)
+	genGenesisCmd.PersistentFlags().IntVar(
+		&maxChunks,
+		"max-chunks",
+		-1,
+		"max chunks",
 	)
 	genGenesisCmd.PersistentFlags().Int64Var(
 		&windowTargetUnits,

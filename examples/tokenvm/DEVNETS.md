@@ -156,7 +156,7 @@ avalanchego_config:
   consensus-on-accept-gossip-non-validator-size: 0
   consensus-on-accept-gossip-peer-size: 5
   consensus-accepted-frontier-gossip-peer-size: 5
-  consensus-app-concurrency: 64
+  consensus-app-concurrency: 512
   network-compression-type: none
 ```
 
@@ -244,6 +244,7 @@ EOF
 /tmp/token-cli genesis generate /tmp/avalanche-ops/allocations.json \
 --genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
 --max-block-units 400000000 \
+--max-chunks 16 \
 --window-target-units 100000000000 \
 --window-target-blocks 50
 cat /tmp/avalanche-ops/tokenvm-genesis.json
@@ -257,7 +258,7 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "gossipMaxSize": 32768,
   "trackedPairs":["*"],
   "logLevel": "info",
-  "preferredBlocksPerSecond": 5,
+  "preferredBlocksPerSecond": 3,
   "buildAsync": true,
   "verifyAsync": true,
   "decisionsPort": 9652,
@@ -389,7 +390,7 @@ rm -rf prometheus-2.43.0.darwin-amd64
 Once you have Prometheus installed, run the following command to auto-generate
 a configuration file (placed in `/tmp/prometheus.yaml` by default):
 ```bash
-/tmp/token-cli prometheus import-ops <avalanche-ops spec file path>
+/tmp/token-cli prometheus generate
 ```
 
 In a separate terminal, then run the following command to view collected

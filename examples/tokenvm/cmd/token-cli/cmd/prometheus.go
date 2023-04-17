@@ -119,7 +119,7 @@ var generatePrometheusCmd = &cobra.Command{
 		utils.Outf("{{yellow}}mempool size:{{/}} %s\n", panels[len(panels)-1])
 
 		panels = append(panels, "avalanche_resource_tracker_cpu_usage")
-		utils.Outf("{{yellow}CPU usage:{{/}} %s\n", panels[len(panels)-1])
+		utils.Outf("{{yellow}}CPU usage:{{/}} %s\n", panels[len(panels)-1])
 
 		panels = append(panels, fmt.Sprintf("(increase(avalanche_%s_vm_state_merkleDB_db_node_cache_miss[30s])/30)/(increase(avalanche_%s_vm_state_merkleDB_db_node_cache_hit[30s])/30 + increase(avalanche_%s_vm_state_merkleDB_db_node_cache_miss[30s])/30)", chainID, chainID, chainID))
 		utils.Outf("{{yellow}}merkledb node hit rate:{{/}} %s\n", panels[len(panels)-1])
@@ -128,13 +128,19 @@ var generatePrometheusCmd = &cobra.Command{
 		utils.Outf("{{yellow}}consensus engine processing (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
 		// Generated dashboard link
-		dashboard := "http://localhost:9090/graph?"
-		params := url.Values{}
+		//
+		// We must manually encode the params because prometheus skips any panels
+		// that are not numerically sorted and `url.params` only sorts
+		// lexicographically.
+		dashboard := "http://localhost:9090/graph"
 		for i, panel := range panels {
-			params.Add(fmt.Sprintf("g%d.expr", i), panel)
-			params.Add(fmt.Sprintf("g%d.tab", i), "0")
+			appendChar := "&"
+			if i == 0 {
+				appendChar = "?"
+			}
+			dashboard = fmt.Sprintf("%s%sg%d.expr=%s&g%d.tab=0", dashboard, appendChar, i, url.QueryEscape(panel), i)
 		}
-		utils.Outf("{{orange}}pre-built dashboard (may only auto-populate first 10 metrics):{{/}} %s%s\n", dashboard, params.Encode())
+		utils.Outf("{{orange}}pre-built dashboard:{{/}} %s\n", dashboard)
 		return nil
 	},
 }

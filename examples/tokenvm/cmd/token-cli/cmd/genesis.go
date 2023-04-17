@@ -37,6 +37,9 @@ var genGenesisCmd = &cobra.Command{
 		if maxBlockUnits >= 0 {
 			g.MaxBlockUnits = uint64(maxBlockUnits)
 		}
+		if maxChunks >= 0 {
+			g.MaxChunks = maxChunks
+		}
 		if windowTargetUnits >= 0 {
 			g.WindowTargetUnits = uint64(windowTargetUnits)
 		}
