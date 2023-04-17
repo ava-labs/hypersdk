@@ -11,9 +11,10 @@ on:
 
 jobs:
   tests:
+    environment: "sync"
     runs-on:
       labels: ubuntu-20.04-32
-    timeout-minutes: 45
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v3
