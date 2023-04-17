@@ -112,6 +112,9 @@ var generatePrometheusCmd = &cobra.Command{
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_failed_chunk_requests[30s])/30", chainID))
 		utils.Outf("{{yellow}}failed chunk requests per second:{{/}} %s\n", panels[len(panels)-1])
 
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_discarded_built_blocks[30s])/30", chainID))
+		utils.Outf("{{yellow}}discarded built blocks per second:{{/}} %s\n", panels[len(panels)-1])
+
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_root_calculated_sum[30s])/1000000/30", chainID))
 		utils.Outf("{{yellow}}root calcuation wait (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
