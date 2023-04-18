@@ -263,7 +263,11 @@ var _ = ginkgo.BeforeSuite(func() {
 		subnetB,
 	)
 
-	trackSubnetsOpt = runner_sdk.WithGlobalNodeConfig(fmt.Sprintf("{\"%s\":\"%s,%s\"}", config.TrackSubnetsKey, subnetIDA, subnetIDB))
+	trackSubnetsOpt = runner_sdk.WithGlobalNodeConfig(fmt.Sprintf("{\"%s\":\"%s,%s\"}",
+		config.TrackSubnetsKey,
+		subnetIDA,
+		subnetIDB,
+	))
 
 	gomega.Expect(blockchainIDA).Should(gomega.Not(gomega.BeEmpty()))
 	gomega.Expect(blockchainIDB).Should(gomega.Not(gomega.BeEmpty()))
