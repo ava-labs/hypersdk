@@ -64,12 +64,13 @@ type VM interface {
 	UpdateSyncTarget(*StatelessBlock) (bool, error)
 	StateReady() bool
 
-	// Record the duration of various operations to populate chain metrics
+	// Collect useful metrics
 	//
-	// If there was a long-lived [Chain] struct, we would store metrics for chain
-	// there.
-	RecordRootCalculated(t time.Duration) // only called in Verify
-	RecordWaitSignatures(t time.Duration) // only called in Verify
+	// TODO: break out into own interface
+	RecordRootCalculated(time.Duration) // only called in Verify
+	RecordWaitSignatures(time.Duration) // only called in Verify
+	RecordStateChanges(int)
+	RecordStateOperations(int)
 }
 
 type Mempool interface {

@@ -532,11 +532,13 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	processor.Prefetch(ctx, state)
 
 	// Process new transactions
-	unitsConsumed, surplusFee, results, err := processor.Execute(ctx, ectx, r)
+	unitsConsumed, surplusFee, results, stateChanges, stateOps, err := processor.Execute(ctx, ectx, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return nil, err
 	}
+	b.vm.RecordStateChanges(stateChanges)
+	b.vm.RecordStateOperations(stateOps)
 	b.results = results
 	if b.UnitsConsumed != unitsConsumed {
 		return nil, fmt.Errorf(

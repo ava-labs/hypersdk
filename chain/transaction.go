@@ -41,7 +41,8 @@ type Transaction struct {
 	// all warp messages from a single source have some unique field that
 	// prevents duplicates (like txID). We will not allow 2 instances of the same
 	// warpID from the same sourceChainID to be accepted.
-	warpID ids.ID
+	warpID    ids.ID
+	stateKeys [][]byte
 }
 
 type WarpResult struct {
@@ -126,12 +127,18 @@ func (t *Transaction) UnitPrice() uint64 { return t.Base.UnitPrice }
 
 // It is ok to have duplicate ReadKeys...the processor will skip them
 func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
+	// We assume that any transaction must modify some state key (at least to pay
+	// fees)
+	if len(t.stateKeys) != 0 {
+		return t.stateKeys
+	}
 	keys := append(t.Action.StateKeys(t.Auth, t.ID()), t.Auth.StateKeys()...)
 	if t.WarpMessage != nil {
 		keys = append(keys, stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
 	}
 	// Always assume a message could export a warp message
 	keys = append(keys, stateMapping.OutgoingWarpKey(t.id))
+	t.stateKeys = keys
 	return keys
 }
 
