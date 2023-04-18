@@ -329,3 +329,11 @@ func (vm *VM) RecordRootCalculated(t time.Duration) {
 func (vm *VM) RecordWaitSignatures(t time.Duration) {
 	vm.metrics.waitSignatures.Observe(float64(t))
 }
+
+func (vm *VM) RecordStateChanges(c int) {
+	vm.metrics.stateChanges.Add(float64(c))
+}
+
+func (vm *VM) RecordStateOperations(c int) {
+	vm.metrics.stateOperations.Add(float64(c))
+}

@@ -12,8 +12,8 @@ on:
 jobs:
   tests:
     runs-on:
-      labels: ubuntu-latest-16-cores
-    timeout-minutes: 30
+      labels: ubuntu-20.04-32
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v3
