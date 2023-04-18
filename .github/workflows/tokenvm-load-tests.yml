@@ -9,10 +9,12 @@ on:
       - main
   pull_request:
 
+env:
+  ENVIRONMENT: ${{ github.ref == 'refs/heads/main' && '' || 'long-ci' }}
+
 jobs:
   tests:
-    environment: ${{ github.ref == 'refs/heads/main' && '' || 'long-ci' }}
-    continue-on-error: true
+    environment: ${{ env.ENVIRONMENT }}
     strategy:
       matrix:
         level: [v1, v2, v3] # v4 is not supported
