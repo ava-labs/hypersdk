@@ -11,7 +11,7 @@ on:
 
 jobs:
   tests:
-    environment: "sync"
+    environment: "long-ci"
     runs-on:
       labels: ubuntu-20.04-32
     timeout-minutes: 25
