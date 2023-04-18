@@ -14,24 +14,17 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
-type opAction int
-
-const (
-	read opAction = iota
-	insert
-	remove
-)
-
 type op struct {
-	action opAction
-	k      []byte
-	v      []byte
-	pastV  *tempStorage
+	k string
+
+	pastExists  bool
+	pastV       []byte
+	pastChanged bool
 }
 
 type tempStorage struct {
-	v      []byte
-	fromDB bool
+	v       []byte
+	removed bool
 }
 
 type cacheItem struct {
@@ -41,18 +34,14 @@ type cacheItem struct {
 
 // TState defines a struct for storing temporary state.
 type TState struct {
-	// We use pointers here because tempStorage objects may be added/removed from
-	// ops frequently. It is more efficient to avoid reallocating state each time
-	// this happens.
-	storage     map[string]*tempStorage
-	changedKeys map[string]bool // Stores if key in [storage] was ever changed.
-
-	fetchCache map[string]*cacheItem // in case we evict and want to re-fetch
+	changedKeys map[string]*tempStorage
+	fetchCache  map[string]*cacheItem // in case we evict and want to re-fetch
 
 	// We don't differentiate between read and write scope because it is very
 	// uncommon for a user to write something without first reading what is
 	// there.
-	scope [][]byte // Stores a list of managed keys in the TState struct.
+	scope        [][]byte // stores a list of managed keys in the TState struct
+	scopeStorage map[string][]byte
 
 	// Ops is a record of all operations performed on [TState]. Tracking
 	// operations allows for reverting state to a certain point-in-time.
@@ -61,10 +50,9 @@ type TState struct {
 
 // New returns a new instance of TState. Initializes the storage and changedKeys
 // maps to have an initial size of [storageSize] and [changedSize] respectively.
-func New(storageSize int, changedSize int) *TState {
+func New(changedSize int) *TState {
 	return &TState{
-		storage:     make(map[string]*tempStorage, storageSize),
-		changedKeys: make(map[string]bool, changedSize),
+		changedKeys: make(map[string]*tempStorage, changedSize),
 
 		fetchCache: map[string]*cacheItem{},
 
@@ -79,22 +67,38 @@ func (ts *TState) GetValue(ctx context.Context, key []byte) ([]byte, error) {
 	if !ts.checkScope(ctx, key) {
 		return nil, ErrKeyNotSpecified
 	}
-	v, ok := ts.storage[string(key)]
-	if ok {
-		return v.v, nil
+	k := string(key)
+	v, _, exists := ts.getValue(ctx, k)
+	if !exists {
+		return nil, database.ErrNotFound
 	}
-	return nil, database.ErrNotFound
+	return v, nil
+}
+
+func (ts *TState) getValue(_ context.Context, key string) ([]byte, bool, bool) {
+	if v, ok := ts.changedKeys[key]; ok {
+		if v.removed {
+			return nil, true, false
+		}
+		return v.v, true, true
+	}
+	v, ok := ts.scopeStorage[key]
+	if !ok {
+		return nil, false, false
+	}
+	return v, false, true
 }
 
 // FetchAndSetScope updates ts to include the [db] values associated with [keys].
 // FetchAndSetScope then sets the scope of ts to [keys]. If a key exists in
 // ts.fetchCache set the key's value to the value from cache.
-func (ts *TState) FetchAndSetScope(ctx context.Context, db Database, keys [][]byte) error {
+func (ts *TState) FetchAndSetScope(ctx context.Context, keys [][]byte, db Database) error {
+	ts.scopeStorage = map[string][]byte{}
 	for _, key := range keys {
 		k := string(key)
 		if val, ok := ts.fetchCache[k]; ok {
 			if val.Exists {
-				ts.SetStorage(ctx, key, val.Value)
+				ts.scopeStorage[k] = val.Value
 			}
 			continue
 		}
@@ -107,38 +111,16 @@ func (ts *TState) FetchAndSetScope(ctx context.Context, db Database, keys [][]by
 			return err
 		}
 		ts.fetchCache[k] = &cacheItem{Value: v, Exists: true}
-		ts.SetStorage(ctx, key, v)
+		ts.scopeStorage[k] = v
 	}
-	ts.SetScope(ctx, keys)
+	ts.scope = keys
 	return nil
 }
 
-// SetStorage sets ts.storage[key] = {value, true}. Does not add to storage if
-// ts already stores a mapping with key, or that key was previously modified.
-func (ts *TState) SetStorage(_ context.Context, key []byte, value []byte) {
-	k := string(key)
-	if _, ok := ts.storage[k]; ok {
-		// Don't double store info (2 txs could've reference)
-		return
-	}
-	if _, ok := ts.changedKeys[k]; ok {
-		// Don't overwrite if previously modified (tx could've deleted value
-		// previously)
-		return
-	}
-
-	// Populate rollback (note, we only care if an item was placed in storage
-	// initially)
-	ts.ops = append(ts.ops, &op{
-		action: read,
-		k:      key,
-	})
-	ts.storage[k] = &tempStorage{value, true}
-}
-
 // SetReadScope sets the readscope of ts to [keys].
-func (ts *TState) SetScope(_ context.Context, keys [][]byte) {
+func (ts *TState) SetScope(_ context.Context, keys [][]byte, storage map[string][]byte) {
 	ts.scope = keys
+	ts.scopeStorage = storage
 }
 
 // checkScope returns whether [k] is in ts.readScope.
@@ -158,17 +140,14 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 		return ErrKeyNotSpecified
 	}
 	k := string(key)
-
-	// Populate rollback
+	past, changed, exists := ts.getValue(ctx, k)
 	ts.ops = append(ts.ops, &op{
-		action: insert,
-		k:      key,
-		v:      value,
-		pastV:  ts.storage[k],
+		k:           k,
+		pastExists:  exists,
+		pastV:       past,
+		pastChanged: changed,
 	})
-
-	ts.storage[k] = &tempStorage{value, false}
-	ts.changedKeys[k] = true
+	ts.changedKeys[k] = &tempStorage{value, false}
 	return nil
 }
 
@@ -178,16 +157,17 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 		return ErrKeyNotSpecified
 	}
 	k := string(key)
-
-	// Populate rollback
+	past, changed, exists := ts.getValue(ctx, k)
+	if !exists {
+		return nil
+	}
 	ts.ops = append(ts.ops, &op{
-		action: remove,
-		k:      key,
-		pastV:  ts.storage[k],
+		k:           k,
+		pastExists:  true,
+		pastV:       past,
+		pastChanged: changed,
 	})
-
-	delete(ts.storage, k)
-	ts.changedKeys[k] = false
+	ts.changedKeys[k] = &tempStorage{nil, true}
 	return nil
 }
 
@@ -196,41 +176,25 @@ func (ts *TState) OpIndex() int {
 	return len(ts.ops)
 }
 
+func (ts *TState) PendingChanges() int {
+	return len(ts.changedKeys)
+}
+
 // Rollback restores the TState to before the ts.op[restorePoint] operation.
 func (ts *TState) Rollback(_ context.Context, restorePoint int) {
 	for i := len(ts.ops) - 1; i >= restorePoint; i-- {
 		op := ts.ops[i]
-		k := string(op.k)
-		switch op.action {
-		case read:
-			delete(ts.storage, k)
-			delete(ts.changedKeys, k)
-		case insert:
-			if pv := op.pastV; pv != nil {
-				// Key previously inserted
-				if pv.fromDB {
-					delete(ts.changedKeys, k)
-				}
-				ts.storage[k] = pv
-			} else {
-				// Key inserted for the first time
-				delete(ts.storage, k)
-				delete(ts.changedKeys, k)
-			}
-		case remove:
-			if pv := op.pastV; pv != nil {
-				// Key previously inserted
-				if pv.fromDB {
-					delete(ts.changedKeys, k)
-				}
-				ts.storage[k] = pv
-			} else {
-				// Key deleted for the first time
-				delete(ts.changedKeys, k)
-			}
-		default:
-			panic("invalid op")
+		// insert: Modified key for the first time
+		//
+		// remove: Removed key that was modified for first time in run
+		if !op.pastChanged {
+			delete(ts.changedKeys, op.k)
+			continue
 		}
+		// insert: Modified key for the nth time
+		//
+		// remove: Removed key that was previously modified in run
+		ts.changedKeys[op.k] = &tempStorage{op.pastV, !op.pastExists}
 	}
 	ts.ops = ts.ops[:restorePoint]
 }
@@ -250,16 +214,15 @@ func (ts *TState) WriteChanges(
 	)
 	defer span.End()
 
-	for key, added := range ts.changedKeys {
-		if added {
-			v := ts.storage[key]
-			if err := db.Insert(ctx, []byte(key), v.v); err != nil {
+	for key, tstorage := range ts.changedKeys {
+		if !tstorage.removed {
+			if err := db.Insert(ctx, []byte(key), tstorage.v); err != nil {
 				return err
 			}
-		} else {
-			if err := db.Remove(ctx, []byte(key)); err != nil {
-				return err
-			}
+			continue
+		}
+		if err := db.Remove(ctx, []byte(key)); err != nil {
+			return err
 		}
 	}
 	return nil
