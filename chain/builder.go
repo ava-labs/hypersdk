@@ -98,6 +98,7 @@ func BuildBlock(
 		start         = time.Now()
 		lockWait      time.Duration
 		buildPrefetch time.Duration
+		repeatWait    time.Duration
 	)
 	mempoolErr := mempool.Build(
 		ctx,
@@ -139,7 +140,9 @@ func BuildBlock(
 			//
 			// TODO: check a bunch at once during pre-fetch to avoid re-walking blocks
 			// for every tx
+			repeatStart := time.Now()
 			dup, err := parent.IsRepeat(ctx, oldestAllowed, []*Transaction{next})
+			repeatWait += time.Since(repeatStart)
 			if err != nil {
 				return false, false, false, err
 			}
@@ -338,6 +341,7 @@ func BuildBlock(
 		zap.Int("state changes", ts.PendingChanges()),
 		zap.Int("state operations", ts.OpIndex()),
 		zap.Duration("prefetch wait", buildPrefetch),
+		zap.Duration("repeat wait", repeatWait),
 		zap.Duration("t", time.Since(start)),
 	)
 	return b, nil
