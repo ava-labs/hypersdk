@@ -81,7 +81,6 @@ var generatePrometheusCmd = &cobra.Command{
 		if err := os.WriteFile(prometheusFile, yamlData, fsModeWrite); err != nil {
 			return err
 		}
-		utils.Outf("{{green}}prometheus cmd:{{/}} /tmp/prometheus --config.file=%s --storage.tsdb.path=%s\n", prometheusFile, prometheusData)
 
 		// Log useful queries
 		panels := []string{}
@@ -147,6 +146,9 @@ var generatePrometheusCmd = &cobra.Command{
 			dashboard = fmt.Sprintf("%s%sg%d.expr=%s&g%d.tab=0", dashboard, appendChar, i, url.QueryEscape(panel), i)
 		}
 		utils.Outf("{{orange}}pre-built dashboard:{{/}} %s\n", dashboard)
+
+		// Emit command to run prometheus
+		utils.Outf("{{green}}prometheus cmd:{{/}} /tmp/prometheus --config.file=%s --storage.tsdb.path=%s\n", prometheusFile, prometheusData)
 		return nil
 	},
 }

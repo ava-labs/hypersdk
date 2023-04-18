@@ -247,7 +247,7 @@ func BuildBlock(
 	)
 	if mempoolErr != nil {
 		b.vm.Mempool().Add(ctx, b.Txs)
-		return nil, err
+		return nil, mempoolErr
 	}
 
 	// Perform basic validity checks to make sure the block is well-formatted

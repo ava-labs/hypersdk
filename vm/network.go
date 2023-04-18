@@ -172,15 +172,7 @@ func (n *NetworkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 		)
 		return nil
 	}
-	go func() {
-		// TODO: this ensures we don't block avalanchego async manager (which
-		// allows 3 concurrent)
-		err := handler.AppGossip(context.TODO(), nodeID, parsedMsg)
-		if err != nil {
-			n.vm.snowCtx.Log.Error("could not handle gossip", zap.Error(err))
-		}
-	}()
-	return nil
+	return handler.AppGossip(context.TODO(), nodeID, parsedMsg)
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"

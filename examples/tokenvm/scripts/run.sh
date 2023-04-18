@@ -17,7 +17,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=e921ca6662d87b67f3c03faa2914a158435e0d92
+VERSION=cbf0ba405c8bace5a71bcf3a4120143e1843af04
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
@@ -99,7 +99,7 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   rm -f /tmp/tokenvm.genesis
   /tmp/token-cli genesis generate /tmp/allocations.json \
   --max-block-units 40000000 \
-  --max-chunks 5 \
+  --max-chunks 8 \
   --max-chunk-size 1024 \
   --window-target-units 100000000000 \
   --window-target-blocks 50 \

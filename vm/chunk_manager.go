@@ -304,6 +304,8 @@ func (c *ChunkManager) RequestChunks(ctx context.Context, height uint64, chunkID
 		return err
 	}
 
+	// Trigger that we have processed new chunks
+	c.update <- struct{}{}
 	return nil
 }
 
@@ -429,9 +431,6 @@ func (c *ChunkManager) RequestChunk(ctx context.Context, height *uint64, hint id
 				c.fetchedChunks[chunkID] = msg
 				c.chunks.Add(*height, chunkID)
 				c.chunkLock.Unlock()
-
-				// Trigger that we have processed new chunks
-				c.update <- struct{}{}
 			} else {
 				c.vm.snowCtx.Log.Info("optimistically fetched chunk", zap.Stringer("chunkID", chunkID), zap.Int("size", len(msg)))
 				c.optimisticChunks.Put(chunkID, msg)

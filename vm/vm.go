@@ -651,15 +651,22 @@ func (vm *VM) buildBlock(
 				defer func() {
 					vm.building = false
 				}()
-				gstart := time.Now()
 				blk, err := chain.BuildBlock(ctx, vm, preferred, blockContext)
 				if err != nil {
 					vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
+					// TODO: add separate metirc for this
+					vm.metrics.discardedBuiltBlocks.Inc()
+					return
+				}
+				if blk.Prnt != vm.preferred {
+					vm.snowCtx.Log.Warn("abandoning built blk", zap.Error(err))
+					vm.metrics.discardedBuiltBlocks.Inc()
+					_ = vm.Submit(ctx, false, blk.Txs)
 					return
 				}
 				vm.builtBlock = blk
 				vm.builder.TriggerBuild()
-				vm.snowCtx.Log.Info("build block async", zap.Duration("t", time.Since(start)), zap.Duration("gt", time.Since(gstart)))
+				vm.snowCtx.Log.Info("built block async", zap.Duration("t", time.Since(start)))
 			}()
 			vm.builder.HandleGenerateBlock()
 			return nil, errors.New("building block")
