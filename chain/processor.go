@@ -6,9 +6,11 @@ package chain
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/tstate"
 )
@@ -49,9 +51,15 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 	p.db = db
 	sm := p.blk.vm.StateManager()
 	go func() {
+		start := time.Now()
 		defer func() {
 			// Let caller know all sets have been readied
 			close(p.readyTxs)
+			if p.err == nil {
+				prefetch := time.Since(start)
+				p.blk.vm.RecordVerifyPrefetch(prefetch)
+				p.blk.vm.Logger().Info("block prefetch finished", zap.Duration("t", prefetch))
+			}
 			span.End()
 		}()
 

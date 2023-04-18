@@ -95,8 +95,9 @@ func BuildBlock(
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
 
-		start    = time.Now()
-		lockWait time.Duration
+		start         = time.Now()
+		lockWait      time.Duration
+		buildPrefetch time.Duration
 	)
 	mempoolErr := mempool.Build(
 		ctx,
@@ -171,9 +172,11 @@ func BuildBlock(
 			// TODO: prefetch state of upcoming txs that we will pull (should make much
 			// faster)
 			txStart := ts.OpIndex()
+			prefetchStart := time.Now()
 			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), state); err != nil {
 				return false, true, false, err
 			}
+			buildPrefetch += time.Since(prefetchStart)
 
 			// PreExecute next to see if it is fit
 			if err := next.PreExecute(fctx, ectx, r, ts, nextTime); err != nil {
@@ -322,6 +325,7 @@ func BuildBlock(
 	}
 	b.vm.RecordStateChanges(ts.PendingChanges())
 	b.vm.RecordStateOperations(ts.OpIndex())
+	b.vm.RecordBuildPrefetch(buildPrefetch)
 	log.Info(
 		"built block",
 		zap.Uint64("hght", b.Hght),
@@ -333,6 +337,7 @@ func BuildBlock(
 		zap.Bool("context", blockContext != nil),
 		zap.Int("state changes", ts.PendingChanges()),
 		zap.Int("state operations", ts.OpIndex()),
+		zap.Duration("prefetch wait", buildPrefetch),
 		zap.Duration("t", time.Since(start)),
 	)
 	return b, nil

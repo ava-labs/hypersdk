@@ -361,3 +361,11 @@ func (vm *VM) RecordStateOperations(c int) {
 func (vm *VM) RecordWaitChunks(t time.Duration) {
 	vm.metrics.waitChunks.Observe(float64(t))
 }
+
+func (vm *VM) RecordBuildPrefetch(t time.Duration) {
+	vm.metrics.buildPrefetch.Observe(float64(t))
+}
+
+func (vm *VM) RecordVerifyPrefetch(t time.Duration) {
+	vm.metrics.verifyPrefetch.Observe(float64(t))
+}

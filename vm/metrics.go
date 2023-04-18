@@ -28,6 +28,8 @@ type Metrics struct {
 	rootCalculated          metric.Averager
 	waitSignatures          metric.Averager
 	waitChunks              metric.Averager
+	buildPrefetch           metric.Averager
+	verifyPrefetch          metric.Averager
 	mempoolSize             prometheus.Gauge
 }
 
@@ -65,6 +67,24 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"wait_chunks",
 		"time spent waiting for chunks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	buildPrefetch, err := metric.NewAverager(
+		"chain",
+		"build_prefetch",
+		"time spent prefetching in build",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	verifyPrefetch, err := metric.NewAverager(
+		"chain",
+		"verify_prefetch",
+		"time spent prefetching in verify",
 		r,
 	)
 	if err != nil {
@@ -146,6 +166,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		rootCalculated: rootCalculated,
 		waitSignatures: waitSignatures,
 		waitChunks:     waitChunks,
+		buildPrefetch:  buildPrefetch,
+		verifyPrefetch: verifyPrefetch,
 		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "mempool_size",
