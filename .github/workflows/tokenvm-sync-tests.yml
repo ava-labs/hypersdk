@@ -14,7 +14,7 @@ env:
 
 jobs:
   tests:
-    environment: '$ACTIONS_ENV'
+    environment: ${{ ACTIONS_ENV }}
     runs-on:
       labels: ubuntu-20.04-32
     timeout-minutes: 25
