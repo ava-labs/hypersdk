@@ -12,6 +12,7 @@ import (
 
 	runner_sdk "github.com/ava-labs/avalanche-network-runner/client"
 	"github.com/ava-labs/avalanche-network-runner/rpcpb"
+	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -61,6 +62,8 @@ var (
 
 	blockchainIDA string
 	blockchainIDB string
+
+	trackSubnetsOpt runner_sdk.OpOption
 )
 
 func init() {
@@ -243,19 +246,24 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Expect(err).Should(gomega.BeNil())
 
 	blockchainIDA = sresp.ChainIds[0]
+	subnetIDA := sresp.ClusterInfo.CustomChains[blockchainIDA].SubnetId
 	hutils.Outf(
 		"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s {{green}}participants:{{/}} %+v\n",
 		blockchainIDA,
-		sresp.ClusterInfo.CustomChains[blockchainIDA].SubnetId,
+		subnetIDA,
 		subnetA,
 	)
+
 	blockchainIDB = sresp.ChainIds[1]
+	subnetIDB := sresp.ClusterInfo.CustomChains[blockchainIDB].SubnetId
 	hutils.Outf(
 		"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s {{green}}participants:{{/}} %+v\n",
 		blockchainIDB,
-		sresp.ClusterInfo.CustomChains[blockchainIDB].SubnetId,
+		subnetIDB,
 		subnetB,
 	)
+
+	trackSubnetsOpt = runner_sdk.WithGlobalNodeConfig(fmt.Sprintf("{\"%s\":\"%s,%s\"}", config.TrackSubnetsKey, subnetIDA, subnetIDB))
 
 	gomega.Expect(blockchainIDA).Should(gomega.Not(gomega.BeEmpty()))
 	gomega.Expect(blockchainIDB).Should(gomega.Not(gomega.BeEmpty()))
@@ -1249,6 +1257,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			context.Background(),
 			"bootstrap",
 			execPath,
+			trackSubnetsOpt,
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 		awaitHealthy(anrCli)
@@ -1344,6 +1353,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			context.Background(),
 			"sync",
 			execPath,
+			trackSubnetsOpt,
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 
@@ -1459,6 +1469,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			context.Background(),
 			"sync_concurrent",
 			execPath,
+			trackSubnetsOpt,
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 		awaitHealthy(anrCli)
