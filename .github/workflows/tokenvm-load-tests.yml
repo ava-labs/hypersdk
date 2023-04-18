@@ -9,12 +9,9 @@ on:
       - main
   pull_request:
 
-env:
-  ACTIONS_ENV: ${{ github.ref == 'refs/heads/main' && '' || 'long-ci' }}
-
 jobs:
   tests:
-    environment: ${{ env.ACTIONS_ENV }}
+    environment: 'long-ci'
     strategy:
       matrix:
         level: [v1, v2, v3] # v4 is not supported

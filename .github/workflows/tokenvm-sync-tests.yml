@@ -9,12 +9,9 @@ on:
       - main
   pull_request:
 
-env:
-  ACTIONS_ENV: ${{ github.ref == 'refs/heads/main' && '' || 'long-ci' }}
-
 jobs:
   tests:
-    environment: ${{ env.ACTIONS_ENV }}
+    environment: 'long-ci'
     runs-on:
       labels: ubuntu-20.04-32
     timeout-minutes: 25
