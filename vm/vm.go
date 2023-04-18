@@ -750,24 +750,18 @@ func (vm *VM) Submit(
 		return []error{ErrNotReady}
 	}
 
-	if !vm.config.GetMempoolVerifyBalances() {
-		errs := vm.submitStateless(ctx, verifySig, txs)
-		if len(errs) == 0 {
-			// TODO: cleanup invariants around errors not being empty
-			errs = append(errs, nil)
-		}
-		return errs
-	}
-
 	// Create temporary execution context
 	blk, err := vm.GetStatelessBlock(ctx, vm.preferred)
 	if err != nil {
 		return []error{err}
 	}
-	state, err := blk.State()
-	if err != nil {
-		// This will error if a block does not yet have processed state.
-		return []error{err}
+	var state chain.Database
+	if vm.config.GetMempoolVerifyBalances() {
+		state, err = blk.State()
+		if err != nil {
+			// This will error if a block does not yet have processed state.
+			return []error{err}
+		}
 	}
 	now := time.Now().Unix()
 	r := vm.c.Rules(now)
@@ -809,14 +803,16 @@ func (vm *VM) Submit(
 			errs = append(errs, chain.ErrDuplicateTx)
 			continue
 		}
-		// PreExecute does not make any changes to state
-		//
-		// This may fail if the state we are utilizing is invalidated (if a trie
-		// view from a different branch is committed underneath it). We prefer this
-		// instead of putting a lock around all commits.
-		if err := tx.PreExecute(ctx, ectx, r, state, now); err != nil {
-			errs = append(errs, err)
-			continue
+		if vm.config.GetMempoolVerifyBalances() {
+			// PreExecute does not make any changes to state
+			//
+			// This may fail if the state we are utilizing is invalidated (if a trie
+			// view from a different branch is committed underneath it). We prefer this
+			// instead of putting a lock around all commits.
+			if err := tx.PreExecute(ctx, ectx, r, state, now); err != nil {
+				errs = append(errs, err)
+				continue
+			}
 		}
 		errs = append(errs, nil)
 		validTxs = append(validTxs, tx)
