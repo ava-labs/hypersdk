@@ -11,6 +11,7 @@ on:
 
 jobs:
   tests:
+    environment: ${{ github.ref == 'refs/heads/main' && '' || 'long-ci' }}
     continue-on-error: true
     strategy:
       matrix:
