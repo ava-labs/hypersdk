@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk/examples/tokenvm
 go 1.20
 
 require (
-	github.com/ava-labs/avalanche-network-runner v1.3.10-0.20230412061906-b225535de019
+	github.com/ava-labs/avalanche-network-runner v1.4.1
 	github.com/ava-labs/avalanchego v1.10.0
 	github.com/ava-labs/hypersdk v0.0.1
 	github.com/fatih/color v1.13.0
@@ -122,7 +122,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.11.2 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
-	go.uber.org/multierr v1.9.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.3.0 // indirect
 	golang.org/x/exp v0.0.0-20221205204356-47842c84f3db // indirect
 	golang.org/x/mod v0.6.0 // indirect
