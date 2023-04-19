@@ -116,11 +116,7 @@ Graviton processors):
 ```bash
 avalancheup-aws default-spec \
 ...
---upload-artifacts-aws-volume-provisioner-local-bin ${AWS_VOLUME_PROVISIONER_BIN_PATH} \
---upload-artifacts-aws-ip-provisioner-local-bin ${AWS_IP_PROVISIONER_BIN_PATH} \
---upload-artifacts-avalanche-telemetry-cloudwatch-local-bin ${AVALANCHE_TELEMETRY_CLOUDWATCH_BIN_PATH} \
---upload-artifacts-avalanched-aws-local-bin ${AVALANCHED_AWS_BIN_PATH} \
---upload-artifacts-avalanchego-local-bin ${AVALANCHEGO_BIN_PATH} \
+--upload-artifacts-avalanchego-local-bin ${AVALANCHEGO_BIN_PATH}
 ```
 
 It is recommended to specify your own artifacts to avoid flaky github release page downloads.
@@ -144,15 +140,15 @@ and Bandwidth rate limiting. You can do this by adding the following lines to
 avalanchego_config:
   ...
   proposervm-use-current-height: true
-  throttler-inbound-validator-alloc-size: 1073741824
-  throttler-inbound-at-large-alloc-size: 1073741824
+  throttler-inbound-validator-alloc-size: 10737418240
+  throttler-inbound-at-large-alloc-size: 10737418240
   throttler-inbound-node-max-processing-msgs: 100000
   throttler-inbound-bandwidth-refill-rate: 1073741824
   throttler-inbound-bandwidth-max-burst-size: 1073741824
   throttler-inbound-cpu-validator-alloc: 100000
   throttler-inbound-disk-validator-alloc: 10737418240000
-  throttler-outbound-validator-alloc-size: 1073741824
-  throttler-outbound-at-large-alloc-size: 1073741824
+  throttler-outbound-validator-alloc-size: 10737418240
+  throttler-outbound-at-large-alloc-size: 10737418240
   snow-mixed-query-num-push-vdr-uint: 10
   consensus-on-accept-gossip-validator-size: 0
   consensus-on-accept-gossip-non-validator-size: 0
