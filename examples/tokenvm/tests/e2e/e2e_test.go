@@ -12,6 +12,7 @@ import (
 
 	runner_sdk "github.com/ava-labs/avalanche-network-runner/client"
 	"github.com/ava-labs/avalanche-network-runner/rpcpb"
+	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -60,7 +61,11 @@ var (
 	logsDir string
 
 	blockchainIDA string
+	subnetIDA     string
 	blockchainIDB string
+	subnetIDB     string
+
+	trackSubnetsOpt runner_sdk.OpOption
 )
 
 func init() {
@@ -225,41 +230,46 @@ var _ = ginkgo.BeforeSuite(func() {
 	// Create 2 subnets
 	specs := []*rpcpb.BlockchainSpec{
 		{
-			VmName:       consts.Name,
-			Genesis:      vmGenesisPath,
-			ChainConfig:  vmConfigPath,
-			SubnetConfig: subnetConfigPath,
-			Participants: subnetA,
+			VmName:      consts.Name,
+			Genesis:     vmGenesisPath,
+			ChainConfig: vmConfigPath,
+			SubnetSpec: &rpcpb.SubnetSpec{
+				SubnetConfig: subnetConfigPath,
+				Participants: subnetA,
+			},
 		},
 		{
-			VmName:       consts.Name,
-			Genesis:      vmGenesisPath,
-			ChainConfig:  vmConfigPath,
-			SubnetConfig: subnetConfigPath,
-			Participants: subnetB,
+			VmName:      consts.Name,
+			Genesis:     vmGenesisPath,
+			ChainConfig: vmConfigPath,
+			SubnetSpec: &rpcpb.SubnetSpec{
+				SubnetConfig: subnetConfigPath,
+				Participants: subnetB,
+			},
 		},
 	}
 	if mode == modeRunSingle {
 		specs = specs[0:1]
 	}
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
-	sresp, err := anrCli.CreateSpecificBlockchains(
+	sresp, err := anrCli.CreateBlockchains(
 		ctx,
-		execPath,
 		specs,
 	)
 	cancel()
 	gomega.Expect(err).Should(gomega.BeNil())
 
-	blockchainIDA = sresp.Chains[0]
+	blockchainIDA = sresp.ChainIds[0]
+	subnetIDA = sresp.ClusterInfo.CustomChains[blockchainIDA].SubnetId
 	hutils.Outf(
 		"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s {{green}}participants:{{/}} %+v\n",
 		blockchainIDA,
-		sresp.ClusterInfo.CustomChains[blockchainIDA].SubnetId,
+		subnetIDA,
 		subnetA,
 	)
 	if mode != modeRunSingle {
-		blockchainIDB = sresp.Chains[1]
+		blockchainIDB = sresp.ChainIds[1]
+		subnetIDB = sresp.ClusterInfo.CustomChains[blockchainIDB].SubnetId
 		hutils.Outf(
 			"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s {{green}}participants:{{/}} %+v\n",
 			blockchainIDB,
@@ -268,21 +278,11 @@ var _ = ginkgo.BeforeSuite(func() {
 		)
 	}
 
-	// TODO: network runner health should imply custom VM healthiness
-	// or provide a separate API for custom VM healthiness
-	// "start" is async, so wait some time for cluster health
-	hutils.Outf("\n{{magenta}}waiting for all vms to report healthy...{{/}}: %s\n", consts.ID)
-	for {
-		v, err := anrCli.Health(context.Background())
-		hutils.Outf("\n{{yellow}}health result{{/}}: %+v %s\n", v, err)
-		if err != nil {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		// TODO: clean this up
-		gomega.Expect(err).Should(gomega.BeNil())
-		break
-	}
+	trackSubnetsOpt = runner_sdk.WithGlobalNodeConfig(fmt.Sprintf("{\"%s\":\"%s,%s\"}",
+		config.TrackSubnetsKey,
+		subnetIDA,
+		subnetIDB,
+	))
 
 	gomega.Expect(blockchainIDA).Should(gomega.Not(gomega.BeEmpty()))
 	if mode != modeRunSingle {
@@ -1290,6 +1290,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			context.Background(),
 			"bootstrap",
 			execPath,
+			trackSubnetsOpt,
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 		awaitHealthy(anrCli)
@@ -1385,6 +1386,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			context.Background(),
 			"sync",
 			execPath,
+			trackSubnetsOpt,
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 
@@ -1500,6 +1502,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			context.Background(),
 			"sync_concurrent",
 			execPath,
+			trackSubnetsOpt,
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 		awaitHealthy(anrCli)
