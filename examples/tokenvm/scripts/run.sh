@@ -205,13 +205,13 @@ function cleanup() {
     echo ""
     echo "use the following command to terminate:"
     echo ""
-    echo "killall avalanche-network-runner"
+    echo "./scripts/stop.sh"
     echo ""
     exit
   fi
 
   echo "avalanche-network-runner shutting down..."
-  killall avalanche-network-runner
+  ./scripts/stop.sh
 }
 trap cleanup EXIT
 
