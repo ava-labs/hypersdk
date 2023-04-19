@@ -371,75 +371,72 @@ func (c *ChunkManager) RequestChunk(ctx context.Context, height *uint64, hint id
 		return
 	}
 
-	// Try to fetch chunk if we were the first to request
-	go func() {
-		// Attempt to fetch
-		for i := 0; i < maxChunkRetries; i++ {
-			if err := ctx.Err(); err != nil {
-				c.sendToOutstandingListeners(chunkID, nil, err)
-				return
-			}
+	// Attempt to fetch
+	for i := 0; i < maxChunkRetries; i++ {
+		if err := ctx.Err(); err != nil {
+			c.sendToOutstandingListeners(chunkID, nil, err)
+			return
+		}
 
-			var peer ids.NodeID
-			if hint != ids.EmptyNodeID && i == 0 {
-				peer = hint
-			} else {
-				// Determine who to send request to
-				possibleRecipients := []ids.NodeID{}
-				var randomRecipient ids.NodeID
-				c.nodeChunkLock.RLock()
-				for nodeID, chunk := range c.nodeChunks {
-					randomRecipient = nodeID
-					if height != nil && *height >= chunk.Min && *height <= chunk.Max {
-						possibleRecipients = append(possibleRecipients, nodeID)
-						continue
-					}
-					if chunk.Unprocessed.Contains(chunkID) {
-						possibleRecipients = append(possibleRecipients, nodeID)
-						continue
-					}
-				}
-				c.nodeChunkLock.RUnlock()
-
-				// No possible recipients, so we wait
-				if randomRecipient == ids.EmptyNodeID {
-					time.Sleep(retrySleep)
+		var peer ids.NodeID
+		if hint != ids.EmptyNodeID && i == 0 {
+			peer = hint
+		} else {
+			// Determine who to send request to
+			possibleRecipients := []ids.NodeID{}
+			var randomRecipient ids.NodeID
+			c.nodeChunkLock.RLock()
+			for nodeID, chunk := range c.nodeChunks {
+				randomRecipient = nodeID
+				if height != nil && *height >= chunk.Min && *height <= chunk.Max {
+					possibleRecipients = append(possibleRecipients, nodeID)
 					continue
 				}
-
-				// If 1 or more possible recipients, pick them instead
-				if len(possibleRecipients) > 0 {
-					randomRecipient = possibleRecipients[rand.Intn(len(possibleRecipients))]
-				} else {
-					if height == nil {
-						c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID), zap.Stringer("hint", hint))
-					} else {
-						c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID), zap.Stringer("hint", hint), zap.Uint64("height", *height))
-					}
+				if chunk.Unprocessed.Contains(chunkID) {
+					possibleRecipients = append(possibleRecipients, nodeID)
+					continue
 				}
-				peer = randomRecipient
 			}
+			c.nodeChunkLock.RUnlock()
 
-			// Handle received message
-			msg, err := c.requestChunkNodeID(ctx, peer, chunkID)
-			if err != nil {
+			// No possible recipients, so we wait
+			if randomRecipient == ids.EmptyNodeID {
 				time.Sleep(retrySleep)
 				continue
 			}
-			if height != nil {
-				c.chunkLock.Lock()
-				c.fetchedChunks[chunkID] = msg
-				c.chunks.Add(*height, chunkID)
-				c.chunkLock.Unlock()
+
+			// If 1 or more possible recipients, pick them instead
+			if len(possibleRecipients) > 0 {
+				randomRecipient = possibleRecipients[rand.Intn(len(possibleRecipients))]
 			} else {
-				c.vm.snowCtx.Log.Info("optimistically fetched chunk", zap.Stringer("chunkID", chunkID), zap.Int("size", len(msg)))
-				c.optimisticChunks.Put(chunkID, msg)
+				if height == nil {
+					c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID), zap.Stringer("hint", hint))
+				} else {
+					c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID), zap.Stringer("hint", hint), zap.Uint64("height", *height))
+				}
 			}
-			c.sendToOutstandingListeners(chunkID, msg, nil)
-			return
+			peer = randomRecipient
 		}
-		c.sendToOutstandingListeners(chunkID, nil, errors.New("exhausted retries"))
-	}()
+
+		// Handle received message
+		msg, err := c.requestChunkNodeID(ctx, peer, chunkID)
+		if err != nil {
+			time.Sleep(retrySleep)
+			continue
+		}
+		if height != nil {
+			c.chunkLock.Lock()
+			c.fetchedChunks[chunkID] = msg
+			c.chunks.Add(*height, chunkID)
+			c.chunkLock.Unlock()
+		} else {
+			c.vm.snowCtx.Log.Info("optimistically fetched chunk", zap.Stringer("chunkID", chunkID), zap.Int("size", len(msg)))
+			c.optimisticChunks.Put(chunkID, msg)
+		}
+		c.sendToOutstandingListeners(chunkID, msg, nil)
+		return
+	}
+	c.sendToOutstandingListeners(chunkID, nil, errors.New("exhausted retries"))
 }
 
 func (c *ChunkManager) requestChunkNodeID(ctx context.Context, recipient ids.NodeID, chunkID ids.ID) ([]byte, error) {
@@ -472,7 +469,8 @@ func (c *ChunkManager) requestChunkNodeID(ctx context.Context, recipient ids.Nod
 	}
 	if len(msg) == 0 {
 		c.vm.metrics.failedChunkRequests.Inc()
-		c.vm.snowCtx.Log.Warn("chunk fetch failed", zap.Stringer("chunkID", chunkID))
+		// Happens if recipient does not have the chunk we want
+		c.vm.snowCtx.Log.Warn("chunk fetch returned empty", zap.Stringer("chunkID", chunkID))
 		return nil, errors.New("not found")
 	}
 	fchunkID := utils.ToID(msg)
@@ -562,7 +560,8 @@ func (c *ChunkManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, m
 		if _, ok := c.clearedChunks.Get(chunkID); ok {
 			continue
 		}
-		c.RequestChunk(context.Background(), nil, nodeID, chunkID, nil)
+		// TODO: limit max concurrency here
+		go c.RequestChunk(context.Background(), nil, nodeID, chunkID, nil)
 	}
 	return nil
 }
