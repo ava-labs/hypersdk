@@ -28,16 +28,17 @@ func (vm *VM) DecisionsPort() uint16 {
 }
 
 // If you don't keep up, you will data
-type DecisionRPCClient struct {
+type Client struct {
 	conn *websocket.Conn
 	wl   sync.Mutex
-	ll   sync.Mutex
+	dll  sync.Mutex
+	bll  sync.Mutex
 	cl   sync.Once
 }
 
 // NewDecisionRPCClient creates a new client for the decision rpc server.
 // Dials into the server at [uri] and returns a client.
-func NewDecisionRPCClient(uri string) (*DecisionRPCClient, error) {
+func NewStreamingClient(uri string) (*Client, error) {
 	// nil for now until we want to pass in headers
 	u := url.URL{Scheme: "ws", Host: uri}
 	conn, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -46,33 +47,37 @@ func NewDecisionRPCClient(uri string) (*DecisionRPCClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DecisionRPCClient{conn: conn}, nil
+	return &Client{conn: conn}, nil
 }
 
 // IssueTx sends [tx] to the decision rpc server.
-func (d *DecisionRPCClient) IssueTx(tx *chain.Transaction) error {
-	d.wl.Lock()
-	defer d.wl.Unlock()
+func (c *Client) IssueTx(tx *chain.Transaction) error {
+	c.wl.Lock()
+	defer c.wl.Unlock()
 
-	return d.conn.WriteMessage(websocket.BinaryMessage, tx.Bytes())
+	return c.conn.WriteMessage(websocket.BinaryMessage, tx.Bytes())
 }
 
 // Listen listens for responses from the decision rpc server.
-func (d *DecisionRPCClient) Listen() (ids.ID, error, *chain.Result, error) {
-	d.ll.Lock()
-	defer d.ll.Unlock()
-	_, msg, err := d.conn.ReadMessage()
-	if err != nil {
-		return ids.Empty, nil, nil, err
+func (c *Client) ListenTx() (ids.ID, error, *chain.Result, error) {
+	c.dll.Lock()
+	defer c.dll.Unlock()
+	for {
+		_, msg, err := c.conn.ReadMessage()
+		if err != nil {
+			return ids.Empty, nil, nil, err
+		}
+		if msg == nil || msg[0] == listeners.DecisionMode {
+			return listeners.UnpackTxMessage(msg)
+		}
 	}
-	return listeners.UnpackTxMessage(msg)
 }
 
 // Close closes [d]'s connection to the decision rpc server.
-func (d *DecisionRPCClient) Close() error {
+func (c *Client) Close() error {
 	var err error
-	d.cl.Do(func() {
-		err = d.conn.Close()
+	c.cl.Do(func() {
+		err = c.conn.Close()
 	})
 	return err
 }
@@ -117,46 +122,19 @@ func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) {
 	vm.snowCtx.Log.Debug("submitted tx", zap.Stringer("id", txID))
 }
 
-type BlockRPCClient struct {
-	conn *websocket.Conn
-
-	ll sync.Mutex
-	cl sync.Once
-}
-
-// NewBlockRPCClient creates a new client for the blocks rpc server.
-// Dials into the server at [uri] and returns a client.
-func NewBlockRPCClient(uri string) (*BlockRPCClient, error) {
-	// nil for now until we want to pass in headers
-	u := url.URL{Scheme: "ws", Host: uri}
-	conn, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
-	// not using resp for now
-	resp.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-	return &BlockRPCClient{conn: conn}, nil
-}
-
 // Listen listens for messages from the blocks rpc server.
-func (c *BlockRPCClient) Listen(
+func (c *Client) ListenBlock(
 	parser chain.Parser,
 ) (*chain.StatefulBlock, []*chain.Result, error) {
-	c.ll.Lock()
-	defer c.ll.Unlock()
-
-	_, msg, err := c.conn.ReadMessage()
-	if err != nil {
-		return nil, nil, err
+	c.bll.Lock()
+	defer c.bll.Unlock()
+	for {
+		_, msg, err := c.conn.ReadMessage()
+		if err != nil {
+			return nil, nil, err
+		}
+		if msg == nil || msg[0] == listeners.BlockMode {
+			return listeners.UnpackBlockMessageBytes(msg, parser)
+		}
 	}
-	return listeners.UnpackBlockMessageBytes(msg, parser)
-}
-
-// Close closes [c]'s connection to the blocks rpc server.
-func (c *BlockRPCClient) Close() error {
-	var err error
-	c.cl.Do(func() {
-		err = c.conn.Close()
-	})
-	return err
 }

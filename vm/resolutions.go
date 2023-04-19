@@ -183,10 +183,10 @@ func (vm *VM) processAcceptedBlocks() {
 		}
 
 		// Update listeners
-		vm.listeners.AcceptBlock(b, vm.decisionsServer, vm.blocksServer)
+		vm.listeners.AcceptBlock(b, vm.streamingServer)
 		// Must clear accepted txs before [SetMinTx] or else we will errnoueously
 		// send [ErrExpired] messages.
-		vm.listeners.SetMinTx(b.Tmstmp, vm.decisionsServer)
+		vm.listeners.SetMinTx(b.Tmstmp, vm.streamingServer)
 		vm.snowCtx.Log.Info(
 			"block processed",
 			zap.Stringer("blkID", b.ID()),

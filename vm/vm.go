@@ -99,10 +99,7 @@ type VM struct {
 	lastAccepted *chain.StatelessBlock
 	toEngine     chan<- common.Message
 
-	// TODO: change name of both var and struct to something more
-	// informative/better sounding
-	decisionsServer *pubsub.Server
-	blocksServer    *pubsub.Server
+	streamingServer *pubsub.Server
 
 	// State Sync client and AppRequest handlers
 	stateSyncClient        *stateSyncerClient
@@ -297,7 +294,7 @@ func (vm *VM) Initialize(
 
 	// Startup RPCs
 	serverAddr := fmt.Sprintf(":%d", vm.config.GetDecisionsPort())
-	vm.decisionsServer = pubsub.New(
+	vm.streamingServer = pubsub.New(
 		serverAddr,
 		vm.decisionServerCallback,
 		vm.Logger(),
@@ -309,22 +306,8 @@ func (vm *VM) Initialize(
 		if !vm.waitReady() {
 			return
 		}
-		err := vm.decisionsServer.Start()
+		err := vm.streamingServer.Start()
 		vm.snowCtx.Log.Error("Error starting decisions server", zap.Error(err))
-	}()
-
-	// TODO: write an RPC server that streams information about select parts of
-	// content instead of just entire blocks
-	blocksAddr := fmt.Sprintf(":%d", vm.config.GetBlocksPort())
-	vm.blocksServer = pubsub.New(blocksAddr, nil, vm.Logger(), pubsub.NewDefaultServerConfig())
-	go func() {
-		// Wait for VM to be ready before accepting connections. If we stop the VM
-		// before this happens, we should return.
-		if !vm.waitReady() {
-			return
-		}
-		err := vm.blocksServer.Start()
-		vm.snowCtx.Log.Error("Error starting blocks server", zap.Error(err))
 	}()
 
 	go vm.processAcceptedBlocks()
@@ -484,10 +467,7 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 
 	// Shutdown RPCs
 	// TODO: change to correct context
-	if err := vm.decisionsServer.Shutdown(context.TODO()); err != nil {
-		return err
-	}
-	if err := vm.decisionsServer.Shutdown(context.TODO()); err != nil {
+	if err := vm.streamingServer.Shutdown(context.TODO()); err != nil {
 		return err
 	}
 
@@ -678,7 +658,7 @@ func (vm *VM) submitStateless(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				vm.listeners.RemoveTx(txID, err, vm.decisionsServer)
+				vm.listeners.RemoveTx(txID, err, vm.streamingServer)
 				errs = append(errs, err)
 				continue
 			}
@@ -736,7 +716,7 @@ func (vm *VM) Submit(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				vm.listeners.RemoveTx(txID, err, vm.decisionsServer)
+				vm.listeners.RemoveTx(txID, err, vm.streamingServer)
 				errs = append(errs, err)
 				continue
 			}

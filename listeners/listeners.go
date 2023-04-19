@@ -16,6 +16,13 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 )
 
+type msgMode byte
+
+const (
+	DecisionMode = 0
+	BlockMode    = 1
+)
+
 type Transaction struct {
 	TxID   ids.ID
 	Result *chain.Result
@@ -81,13 +88,12 @@ func (w *Listeners) SetMinTx(t int64, decisionsServer *pubsub.Server) {
 
 func (w *Listeners) AcceptBlock(
 	b *chain.StatelessBlock,
-	decisionsServer *pubsub.Server,
-	blockServer *pubsub.Server,
+	streamingServer *pubsub.Server,
 ) {
 	p := codec.NewWriter(consts.MaxInt)
 	BlockMessageBytes(b, p)
 	// Publish accepted block to all block listeners
-	blockServer.Publish(p.Bytes(), blockServer.Conns())
+	streamingServer.Publish(p.Bytes(), streamingServer.Conns())
 
 	w.txL.Lock()
 	defer w.txL.Unlock()
@@ -102,7 +108,7 @@ func (w *Listeners) AcceptBlock(
 		}
 		// Publish to tx listener
 		PackAcceptedTxMessage(p, txID, results[i])
-		decisionsServer.Publish(
+		streamingServer.Publish(
 			p.Bytes(),
 			listeners,
 		)
@@ -114,6 +120,7 @@ func (w *Listeners) AcceptBlock(
 // Could be a better place for these methods
 // Packs an accepted block message
 func PackAcceptedTxMessage(p *codec.Packer, txID ids.ID, result *chain.Result) {
+	p.PackByte(DecisionMode)
 	p.PackID(txID)
 	p.PackBool(false)
 	result.Marshal(p)
@@ -121,6 +128,7 @@ func PackAcceptedTxMessage(p *codec.Packer, txID ids.ID, result *chain.Result) {
 
 // Packs a removed block message
 func PackRemovedTxMessage(p *codec.Packer, txID ids.ID, err error) {
+	p.PackByte(DecisionMode)
 	p.PackID(txID)
 	p.PackBool(true)
 	p.PackString(err.Error())
@@ -129,6 +137,7 @@ func PackRemovedTxMessage(p *codec.Packer, txID ids.ID, err error) {
 // Unpacks a tx message
 func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
 	p := codec.NewReader(msg, consts.MaxInt)
+	p.UnpackByte()
 	// read the txID from packer
 	var txID ids.ID
 	p.UnpackID(true, &txID)
@@ -166,6 +175,7 @@ func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
 }
 
 func BlockMessageBytes(b *chain.StatelessBlock, p *codec.Packer) {
+	p.PackByte(BlockMode)
 	// Pack the block bytes
 	p.PackBytes(b.Bytes())
 	results, err := chain.MarshalResults(b.Results())
@@ -183,6 +193,7 @@ func UnpackBlockMessageBytes(
 ) (*chain.StatefulBlock, []*chain.Result, error) {
 	// Read block
 	p := codec.NewReader(msg, chain.NetworkSizeLimit)
+	p.UnpackByte()
 	var blkMsg []byte
 	p.UnpackBytes(-1, false, &blkMsg)
 	blk, err := chain.UnmarshalBlock(blkMsg, parser)

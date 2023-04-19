@@ -570,8 +570,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		blocksPort, err := instances[0].cli.BlocksPort(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(blocksPort).Should(gomega.Not(gomega.Equal(0)))
-		tcpURI := fmt.Sprintf("127.0.0.1:%d", blocksPort)
-		cli, err := vm.NewBlockRPCClient(tcpURI)
+		tcpURI := fmt.Sprintf("127.0.0.1:%d", 4000)
+		cli, err := vm.NewStreamingClient(tcpURI)
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Fetch balances
@@ -602,7 +602,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
 		// Read item from connection
-		blk, lresults, err := cli.Listen(instances[0].vm)
+		blk, lresults, err := cli.ListenBlock(instances[0].vm)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(len(blk.Txs)).Should(gomega.Equal(1))
 		tx := blk.Txs[0].Action.(*actions.Transfer)
@@ -628,7 +628,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(decisionsPort).Should(gomega.Not(gomega.Equal(0)))
 		tcpURI := fmt.Sprintf("127.0.0.1:%d", decisionsPort)
-		cli, err := vm.NewDecisionRPCClient(tcpURI)
+		cli, err := vm.NewStreamingClient(tcpURI)
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Create tx
@@ -661,7 +661,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
 		// Read decision from connection
-		txID, dErr, result, err := cli.Listen()
+		txID, dErr, result, err := cli.ListenTx()
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(txID).Should(gomega.Equal(tx.ID()))
 		gomega.Ω(dErr).Should(gomega.BeNil())
