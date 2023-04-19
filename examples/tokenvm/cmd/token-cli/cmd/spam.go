@@ -118,7 +118,7 @@ var runSpamCmd = &cobra.Command{
 		factory := auth.NewED25519Factory(key)
 
 		// Distribute funds
-		numAccounts, err := promptInt("number of accounts")
+		numAccounts, err := promptUint64("number of accounts")
 		if err != nil {
 			return err
 		}

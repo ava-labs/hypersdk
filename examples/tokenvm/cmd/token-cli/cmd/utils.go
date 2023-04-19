@@ -138,7 +138,7 @@ func promptAmount(
 	return amount, err
 }
 
-func promptInt(
+func promptUint64(
 	label string,
 ) (int, error) {
 	promptText := promptui.Prompt{

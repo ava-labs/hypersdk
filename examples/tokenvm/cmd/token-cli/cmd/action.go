@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
-	"strconv"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -119,37 +118,12 @@ var createAssetCmd = &cobra.Command{
 			return err
 		}
 
-		promptSupply := promptui.Prompt{
-			Label: "Initial Supply (empty or '0' for 'none')",
-			Validate: func(input string) error {
-				if input == "" {
-					return nil
-				}
-				_, err := strconv.ParseUint(input, 10, 64)
-				if err != nil {
-					return err
-				}
-				return nil
-			},
-		}
-		supplyText, err := promptSupply.Run()
-		if err != nil {
-			return err
-		}
+		supply, err := promptUint64("Initial Supply (empty or '0' for 'none')")
 
 		// Confirm action
 		cont, err := promptContinue()
 		if !cont || err != nil {
 			return err
-		}
-
-		var supply uint64 = 0
-
-		if supplyText != "" {
-			supply, err = strconv.ParseUint(supplyText, 10, 64)
-			if err != nil {
-				return err
-			}
 		}
 
 		// Generate transaction
@@ -170,7 +144,10 @@ var createAssetCmd = &cobra.Command{
 
 		if supply > 0 {
 			// Generate transaction
-			err = executeAndWaitForMintAssetTransaction(ctx, cli, tx.ID(), actor.PublicKey(), supply, factory)
+			err = executeAndWaitForMintAssetTransaction(ctx, cli, tx.ID(), actor.PublicKey(), uint64(supply), factory)
+			if err != nil {
+				return err
+			}
 		}
 
 		if success {
@@ -794,7 +771,10 @@ var exportAssetCmd = &cobra.Command{
 			return err
 		}
 
-		_ = waitForTransactionAndPrintStatus(ctx, cli, submit, tx)
+		err = waitForTransactionAndPrintStatus(ctx, cli, submit, tx)
+		if err != nil {
+			return err
+		}
 
 		// Perform import
 		imp, err := promptBool("perform import on destination")
@@ -829,7 +809,6 @@ func executeAndWaitForMintAssetTransaction(ctx context.Context, cli *client.Clie
 		To:    recipient,
 		Value: amount,
 	}, factory)
-
 	if err != nil {
 		return err
 	}
@@ -847,5 +826,4 @@ func waitForTransactionAndPrintStatus(ctx context.Context, cli *client.Client, s
 	}
 	printStatus(tx.ID(), success)
 	return nil
-
 }
