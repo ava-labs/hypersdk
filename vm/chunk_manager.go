@@ -151,10 +151,11 @@ type ChunkManager struct {
 	requestID   uint32
 	requests    map[uint32]chan []byte
 
-	chunkLock        sync.RWMutex
-	fetchedChunks    map[ids.ID][]byte
-	optimisticChunks *cache.LRU[ids.ID, []byte]
-	clearedChunks    *cache.LRU[ids.ID, struct{}]
+	chunkLock           sync.RWMutex
+	fetchedChunks       map[ids.ID][]byte
+	optimisticChunks    *cache.LRU[ids.ID, []byte]
+	clearedChunks       *cache.LRU[ids.ID, any]
+	tryOptimisticChunks *cache.LRU[ids.ID, any] // TODO: remove when we track blocks
 
 	chunks *ChunkMap
 	min    uint64
@@ -173,17 +174,18 @@ type ChunkManager struct {
 
 func NewChunkManager(vm *VM) *ChunkManager {
 	return &ChunkManager{
-		vm:               vm,
-		requests:         map[uint32]chan []byte{},
-		fetchedChunks:    map[ids.ID][]byte{},
-		optimisticChunks: &cache.LRU[ids.ID, []byte]{Size: 1024},
-		clearedChunks:    &cache.LRU[ids.ID, struct{}]{Size: 1024},
-		chunks:           NewChunkMap(),
-		nodeChunks:       map[ids.NodeID]*NodeChunks{},
-		nodeSet:          set.NewSet[ids.NodeID](64),
-		outstanding:      map[ids.ID][]chan *chunkResult{},
-		update:           make(chan struct{}),
-		done:             make(chan struct{}),
+		vm:                  vm,
+		requests:            map[uint32]chan []byte{},
+		fetchedChunks:       map[ids.ID][]byte{},
+		optimisticChunks:    &cache.LRU[ids.ID, []byte]{Size: 1024},
+		clearedChunks:       &cache.LRU[ids.ID, any]{Size: 1024},
+		tryOptimisticChunks: &cache.LRU[ids.ID, any]{Size: 1024},
+		chunks:              NewChunkMap(),
+		nodeChunks:          map[ids.NodeID]*NodeChunks{},
+		nodeSet:             set.NewSet[ids.NodeID](64),
+		outstanding:         map[ids.ID][]chan *chunkResult{},
+		update:              make(chan struct{}),
+		done:                make(chan struct{}),
 	}
 }
 
@@ -266,7 +268,7 @@ func (c *ChunkManager) Accept(height uint64) {
 	evicted := c.chunks.SetMin(height + 1)
 	for _, chunkID := range evicted {
 		delete(c.fetchedChunks, chunkID)
-		c.clearedChunks.Put(chunkID, struct{}{})
+		c.clearedChunks.Put(chunkID, nil)
 		c.optimisticChunks.Evict(chunkID)
 	}
 	processing := len(c.fetchedChunks)
@@ -560,6 +562,10 @@ func (c *ChunkManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, m
 		if _, ok := c.clearedChunks.Get(chunkID); ok {
 			continue
 		}
+		if _, ok := c.tryOptimisticChunks.Get(chunkID); ok {
+			continue
+		}
+		c.tryOptimisticChunks.Put(chunkID, nil)
 		// TODO: limit max concurrency here
 		go c.RequestChunk(context.Background(), nil, nodeID, chunkID, nil)
 	}
