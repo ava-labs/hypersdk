@@ -379,7 +379,7 @@ func (c *ChunkManager) RequestChunk(ctx context.Context, height *uint64, hint id
 		}
 
 		var peer ids.NodeID
-		if hint != ids.EmptyNodeID && i == 0 {
+		if hint != ids.EmptyNodeID && i <= 1 {
 			peer = hint
 		} else {
 			// Determine who to send request to
