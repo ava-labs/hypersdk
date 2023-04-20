@@ -105,6 +105,9 @@ var generatePrometheusCmd = &cobra.Command{
 		panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hyper_sdk_chain_chunks_processing", chainID))
 		utils.Outf("{{yellow}}chunks processing:{{/}} %s\n", panels[len(panels)-1])
 
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_chunk_fetch_duration_sum[30s])/increase(avalanche_%s_vm_hyper_sdk_chain_chunk_fetch_duration_count[30s])/1000000", chainID, chainID))
+		utils.Outf("{{yellow}}chunk fetch duration (ms):{{/}} %s\n", panels[len(panels)-1])
+
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_wait_chunks_sum[30s])/1000000/30", chainID))
 		utils.Outf("{{yellow}}chunk fetch wait (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
@@ -114,20 +117,17 @@ var generatePrometheusCmd = &cobra.Command{
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_discarded_built_blocks[30s])/30", chainID))
 		utils.Outf("{{yellow}}discarded built blocks per second:{{/}} %s\n", panels[len(panels)-1])
 
-		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_build_prefetch_sum[30s])/1000000/30", chainID))
-		utils.Outf("{{yellow}}build prefetch (ms/s):{{/}} %s\n", panels[len(panels)-1])
-
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_build_prefetch_sum[30s])/increase(avalanche_%s_vm_hyper_sdk_chain_build_prefetch_count[30s])/1000000", chainID, chainID))
 		utils.Outf("{{yellow}}build prefetch per block (ms):{{/}} %s\n", panels[len(panels)-1])
 
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_build_sum[30s])/increase(avalanche_%s_vm_hyper_sdk_chain_build_count[30s])/1000000", chainID, chainID))
-		utils.Outf("{{yellow}}build time (ms):{{/}} %s\n", panels[len(panels)-1])
-
-		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_verify_prefetch_sum[30s])/1000000/30", chainID))
-		utils.Outf("{{yellow}}verify prefetch (ms/s):{{/}} %s\n", panels[len(panels)-1])
+		utils.Outf("{{yellow}}build time per block (ms):{{/}} %s\n", panels[len(panels)-1])
 
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_verify_prefetch_sum[30s])/increase(avalanche_%s_vm_hyper_sdk_chain_verify_prefetch_count[30s])/1000000", chainID, chainID))
 		utils.Outf("{{yellow}}verify prefetch per block (ms):{{/}} %s\n", panels[len(panels)-1])
+
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_verify_sum[30s])/increase(avalanche_%s_vm_hyper_sdk_chain_verify_count[30s])/1000000", chainID, chainID))
+		utils.Outf("{{yellow}}verify time per block (ms):{{/}} %s\n", panels[len(panels)-1])
 
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_parse_to_verified_sum[30s])/increase(avalanche_%s_vm_hyper_sdk_chain_parse_to_verified_count[30s])/1000000", chainID, chainID))
 		utils.Outf("{{yellow}}parse to verified per block (ms):{{/}} %s\n", panels[len(panels)-1])

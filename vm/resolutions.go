@@ -377,3 +377,11 @@ func (vm *VM) RecordParseToVerified(t time.Duration) {
 func (vm *VM) RecordBuild(t time.Duration) {
 	vm.metrics.build.Observe(float64(t))
 }
+
+func (vm *VM) RecordChunkFetchDuration(t time.Duration) {
+	vm.metrics.chunkFetchDuration.Observe(float64(t))
+}
+
+func (vm *VM) RecordVerify(t time.Duration) {
+	vm.metrics.verify.Observe(float64(t))
+}

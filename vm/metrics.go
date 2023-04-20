@@ -32,6 +32,8 @@ type Metrics struct {
 	verifyPrefetch          metric.Averager
 	parseToVerified         metric.Averager
 	build                   metric.Averager
+	verify                  metric.Averager
+	chunkFetchDuration      metric.Averager
 	mempoolSize             prometheus.Gauge
 }
 
@@ -110,6 +112,24 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	verify, err := metric.NewAverager(
+		"chain",
+		"verify",
+		"time to verify block",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	chunkFetchDuration, err := metric.NewAverager(
+		"chain",
+		"chunk_fetch_duration",
+		"time to fetch chunks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	m := &Metrics{
 		unitsVerified: prometheus.NewCounter(prometheus.CounterOpts{
@@ -182,14 +202,16 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "blocks_rpc_connections",
 			Help:      "number of open blocks connections",
 		}),
-		chunksFetched:   chunksFetched,
-		rootCalculated:  rootCalculated,
-		waitSignatures:  waitSignatures,
-		waitChunks:      waitChunks,
-		buildPrefetch:   buildPrefetch,
-		verifyPrefetch:  verifyPrefetch,
-		parseToVerified: parseToVerified,
-		build:           build,
+		chunksFetched:      chunksFetched,
+		rootCalculated:     rootCalculated,
+		waitSignatures:     waitSignatures,
+		waitChunks:         waitChunks,
+		buildPrefetch:      buildPrefetch,
+		verifyPrefetch:     verifyPrefetch,
+		parseToVerified:    parseToVerified,
+		build:              build,
+		verify:             verify,
+		chunkFetchDuration: chunkFetchDuration,
 		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "mempool_size",

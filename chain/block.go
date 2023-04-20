@@ -96,6 +96,7 @@ type StatelessBlock struct {
 
 	FetchedChunks       [][]byte
 	chunkFetchComplete  bool
+	chunkFetchDuration  time.Duration
 	chunkFetchErr       error
 	chunkFetchErrPerm   bool
 	chunkFetchStartWait time.Time
@@ -191,6 +192,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 			b.chunkFetchErr = errors.New("chunk too big")
 			b.chunkFetchErrPerm = true
 			b.chunkFetchComplete = true
+			b.chunkFetchDuration = time.Since(start)
 			return
 		}
 		txs, err := UnmarshalTxs(chunk, r.GetMaxBlockTxs(), actionRegistry, authRegistry)
@@ -199,6 +201,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 			b.chunkFetchErr = err
 			b.chunkFetchErrPerm = true
 			b.chunkFetchComplete = true
+			b.chunkFetchDuration = time.Since(start)
 			return
 		}
 		// Ensure that every chunk has at least 1 transaction
@@ -207,6 +210,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 			b.chunkFetchErr = ErrNoTxs
 			b.chunkFetchErrPerm = true
 			b.chunkFetchComplete = true
+			b.chunkFetchDuration = time.Since(start)
 			return
 		}
 		chunkID := utils.ToID(chunk)
@@ -222,6 +226,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 			b.chunkFetchErr = err
 			b.chunkFetchErrPerm = false
 			b.chunkFetchComplete = true
+			b.chunkFetchDuration = time.Since(start)
 			return
 		}
 		for _, tx := range txs {
@@ -233,6 +238,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 				b.chunkFetchErr = ErrDuplicateTx
 				b.chunkFetchErrPerm = true
 				b.chunkFetchComplete = true
+				b.chunkFetchDuration = time.Since(start)
 				return
 			}
 			txsSet.Add(tx.ID())
@@ -248,6 +254,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 					b.chunkFetchErr = ErrTooManyWarpMessages
 					b.chunkFetchErrPerm = true
 					b.chunkFetchComplete = true
+					b.chunkFetchDuration = time.Since(start)
 					return
 				}
 				signers, err := tx.WarpMessage.Signature.NumSigners()
@@ -255,6 +262,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 					b.chunkFetchErr = err
 					b.chunkFetchErrPerm = true
 					b.chunkFetchComplete = true
+					b.chunkFetchDuration = time.Since(start)
 					return
 				}
 				warpMessages[tx.ID()] = &warpJob{
@@ -273,6 +281,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 		b.chunkFetchErr = fetchErr
 		b.chunkFetchErrPerm = false
 		b.chunkFetchComplete = true
+		b.chunkFetchDuration = time.Since(start)
 		return
 	}
 
@@ -291,6 +300,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) {
 	b.chunkFetchErr = nil
 	b.chunkFetchErrPerm = false
 	b.chunkFetchComplete = true
+	b.chunkFetchDuration = time.Since(start)
 }
 
 func ParseStatefulBlock(
@@ -398,6 +408,7 @@ func (b *StatelessBlock) checkChunkFetch(ctx context.Context) error {
 	// This may be ~0 if we built block
 	if !b.recordedFetchWait {
 		b.vm.RecordWaitChunks(time.Since(b.chunkFetchStartWait))
+		b.vm.RecordChunkFetchDuration(b.chunkFetchDuration)
 		b.recordedFetchWait = true
 	}
 	return nil
@@ -802,6 +813,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, bo
 	}
 	sigWait := time.Since(start)
 	b.vm.RecordWaitSignatures(sigWait)
+	b.vm.RecordVerify(time.Since(fnStart))
 	log.Info("inner verify completed", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()), zap.Int("chunks", len(b.Chunks)), zap.Duration("t", time.Since(fnStart)), zap.Duration("root wait", rootWait), zap.Duration("sig wait", sigWait))
 	return state, false, nil
 }

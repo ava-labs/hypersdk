@@ -335,6 +335,8 @@ func (c *ChunkManager) sendToOutstandingListeners(chunkID ids.ID, chunk []byte, 
 
 // RequestChunk may spawn a goroutine
 func (c *ChunkManager) RequestChunk(ctx context.Context, height *uint64, hint ids.NodeID, chunkID ids.ID, ch chan *chunkResult) {
+	fnStart := time.Now()
+
 	// Register request to be notified
 	c.outstandingLock.Lock()
 	outstanding, ok := c.outstanding[chunkID]
@@ -432,7 +434,7 @@ func (c *ChunkManager) RequestChunk(ctx context.Context, height *uint64, hint id
 			c.chunks.Add(*height, chunkID)
 			c.chunkLock.Unlock()
 		} else {
-			c.vm.snowCtx.Log.Info("optimistically fetched chunk", zap.Stringer("chunkID", chunkID), zap.Int("size", len(msg)))
+			c.vm.snowCtx.Log.Info("optimistically fetched chunk", zap.Stringer("chunkID", chunkID), zap.Int("size", len(msg)), zap.Duration("t", time.Since(fnStart)))
 			c.optimisticChunks.Put(chunkID, msg)
 		}
 		c.sendToOutstandingListeners(chunkID, msg, nil)
