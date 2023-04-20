@@ -235,7 +235,7 @@ var watchChainCmd = &cobra.Command{
 			return err
 		}
 		cli := client.New(uris[0])
-		port, err := cli.BlocksPort(ctx)
+		port, err := cli.StreamingPort(ctx)
 		if err != nil {
 			return err
 		}
@@ -245,7 +245,7 @@ var watchChainCmd = &cobra.Command{
 		}
 		uri := fmt.Sprintf("%s:%d", host, port)
 		utils.Outf("{{yellow}}uri:{{/}} %s\n", uri)
-		scli, err := vm.NewBlockRPCClient(uri)
+		scli, err := vm.NewStreamingClient(uri)
 		if err != nil {
 			return err
 		}
@@ -258,7 +258,7 @@ var watchChainCmd = &cobra.Command{
 		start := time.Now()
 		utils.Outf("{{green}}watching for new blocks on %s 👀{{/}}\n", chainID)
 		for ctx.Err() == nil {
-			blk, results, err := scli.Listen(parser)
+			blk, results, err := scli.ListenForBlock(parser)
 			if err != nil {
 				return err
 			}

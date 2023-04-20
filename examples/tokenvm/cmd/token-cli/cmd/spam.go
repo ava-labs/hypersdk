@@ -35,7 +35,7 @@ const feePerTx = 1000
 
 type txIssuer struct {
 	c *client.Client
-	d *vm.DecisionRPCClient
+	d *vm.Client
 
 	l              sync.Mutex
 	outstandingTxs int
@@ -130,7 +130,7 @@ var runSpamCmd = &cobra.Command{
 			assetString(ids.Empty),
 		)
 		accounts := make([]crypto.PrivateKey, numAccounts)
-		port, err := cli.DecisionsPort(ctx)
+		port, err := cli.StreamingPort(ctx)
 		if err != nil {
 			return err
 		}
@@ -139,7 +139,7 @@ var runSpamCmd = &cobra.Command{
 			return err
 		}
 		tcpURI := fmt.Sprintf("%s:%d", u.Hostname(), port)
-		dcli, err := vm.NewDecisionRPCClient(tcpURI)
+		dcli, err := vm.NewStreamingClient(tcpURI)
 		if err != nil {
 			return err
 		}
@@ -172,7 +172,7 @@ var runSpamCmd = &cobra.Command{
 			}
 		}
 		for i := 0; i < numAccounts; i++ {
-			_, dErr, result, err := dcli.Listen()
+			_, dErr, result, err := dcli.ListenForTx()
 			if err != nil {
 				return err
 			}
@@ -190,7 +190,7 @@ var runSpamCmd = &cobra.Command{
 		clients := make([]*txIssuer, len(uris))
 		for i := 0; i < len(uris); i++ {
 			c := client.New(uris[i])
-			port, err := c.DecisionsPort(ctx)
+			port, err := c.StreamingPort(ctx)
 			if err != nil {
 				return err
 			}
@@ -199,7 +199,7 @@ var runSpamCmd = &cobra.Command{
 				return err
 			}
 			tcpURI := fmt.Sprintf("%s:%d", u.Hostname(), port)
-			cli, err := vm.NewDecisionRPCClient(tcpURI)
+			cli, err := vm.NewStreamingClient(tcpURI)
 			if err != nil {
 				return err
 			}
@@ -227,7 +227,7 @@ var runSpamCmd = &cobra.Command{
 			wg.Add(1)
 			go func() {
 				for {
-					txID, dErr, result, err := issuer.d.Listen()
+					txID, dErr, result, err := issuer.d.ListenForTx()
 					if err != nil {
 						return
 					}
@@ -416,7 +416,7 @@ var runSpamCmd = &cobra.Command{
 			}
 		}
 		for i := 0; i < sent; i++ {
-			_, dErr, result, err := dcli.Listen()
+			_, dErr, result, err := dcli.ListenForTx()
 			if err != nil {
 				return err
 			}
