@@ -120,13 +120,8 @@ type PortReply struct {
 	Port uint16 `json:"port"`
 }
 
-func (h *Handler) DecisionsPort(_ *http.Request, _ *struct{}, reply *PortReply) error {
-	reply.Port = h.vm.config.GetDecisionsPort()
-	return nil
-}
-
-func (h *Handler) BlocksPort(_ *http.Request, _ *struct{}, reply *PortReply) error {
-	reply.Port = h.vm.BlocksPort()
+func (h *Handler) StreamingPort(_ *http.Request, _ *struct{}, reply *PortReply) error {
+	reply.Port = h.vm.config.GetStreamingPort()
 	return nil
 }
 

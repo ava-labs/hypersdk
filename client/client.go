@@ -116,22 +116,11 @@ func (cli *Client) SubmitTx(ctx context.Context, d []byte) (ids.ID, error) {
 	return resp.TxID, err
 }
 
-func (cli *Client) DecisionsPort(ctx context.Context) (uint16, error) {
+func (cli *Client) StreamingPort(ctx context.Context) (uint16, error) {
 	resp := new(vm.PortReply)
 	err := cli.Requester.SendRequest(
 		ctx,
-		"decisionsPort",
-		nil,
-		resp,
-	)
-	return resp.Port, err
-}
-
-func (cli *Client) BlocksPort(ctx context.Context) (uint16, error) {
-	resp := new(vm.PortReply)
-	err := cli.Requester.SendRequest(
-		ctx,
-		"blocksPort",
+		"streamingPort",
 		nil,
 		resp,
 	)

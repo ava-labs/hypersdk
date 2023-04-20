@@ -293,10 +293,10 @@ func (vm *VM) Initialize(
 	}
 
 	// Startup RPCs
-	serverAddr := fmt.Sprintf(":%d", vm.config.GetDecisionsPort())
+	serverAddr := fmt.Sprintf(":%d", vm.config.GetStreamingPort())
 	vm.streamingServer = pubsub.New(
 		serverAddr,
-		vm.decisionServerCallback,
+		vm.streamingServerCallback,
 		vm.Logger(),
 		pubsub.NewDefaultServerConfig(),
 	)

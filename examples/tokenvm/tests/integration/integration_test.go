@@ -567,9 +567,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		accept() // don't care about results
 
 		// Subscribe to blocks
-		blocksPort, err := instances[0].cli.BlocksPort(context.TODO())
+		streamingPort, err := instances[0].cli.StreamingPort(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(blocksPort).Should(gomega.Not(gomega.Equal(0)))
+		gomega.Ω(streamingPort).Should(gomega.Not(gomega.Equal(0)))
 		tcpURI := fmt.Sprintf("127.0.0.1:%d", 4000)
 		cli, err := vm.NewStreamingClient(tcpURI)
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -602,7 +602,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
 		// Read item from connection
-		blk, lresults, err := cli.ListenBlock(instances[0].vm)
+		blk, lresults, err := cli.ListenForBlock(instances[0].vm)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(len(blk.Txs)).Should(gomega.Equal(1))
 		tx := blk.Txs[0].Action.(*actions.Transfer)
@@ -624,10 +624,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 	ginkgo.It("processes valid index transactions (w/streaming verification)", func() {
 		// Create streaming client
-		decisionsPort, err := instances[0].cli.DecisionsPort(context.TODO())
+		streamingPort, err := instances[0].cli.StreamingPort(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(decisionsPort).Should(gomega.Not(gomega.Equal(0)))
-		tcpURI := fmt.Sprintf("127.0.0.1:%d", decisionsPort)
+		gomega.Ω(streamingPort).Should(gomega.Not(gomega.Equal(0)))
+		tcpURI := fmt.Sprintf("127.0.0.1:%d", streamingPort)
 		cli, err := vm.NewStreamingClient(tcpURI)
 		gomega.Ω(err).Should(gomega.BeNil())
 
@@ -661,7 +661,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
 		// Read decision from connection
-		txID, dErr, result, err := cli.ListenTx()
+		txID, dErr, result, err := cli.ListenForTx()
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(txID).Should(gomega.Equal(tx.ID()))
 		gomega.Ω(dErr).Should(gomega.BeNil())

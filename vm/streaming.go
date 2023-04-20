@@ -19,12 +19,8 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 )
 
-func (vm *VM) BlocksPort() uint16 {
-	return vm.config.GetBlocksPort()
-}
-
-func (vm *VM) DecisionsPort() uint16 {
-	return vm.config.GetDecisionsPort()
+func (vm *VM) StreamingPort() uint16 {
+	return vm.config.GetStreamingPort()
 }
 
 // If you don't keep up, you will data
@@ -50,7 +46,7 @@ func NewStreamingClient(uri string) (*Client, error) {
 	return &Client{conn: conn}, nil
 }
 
-// IssueTx sends [tx] to the decision rpc server.
+// IssueTx sends [tx] to the streaming rpc server.
 func (c *Client) IssueTx(tx *chain.Transaction) error {
 	c.wl.Lock()
 	defer c.wl.Unlock()
@@ -58,8 +54,8 @@ func (c *Client) IssueTx(tx *chain.Transaction) error {
 	return c.conn.WriteMessage(websocket.BinaryMessage, tx.Bytes())
 }
 
-// Listen listens for responses from the decision rpc server.
-func (c *Client) ListenTx() (ids.ID, error, *chain.Result, error) {
+// ListenForTx listens for responses from the streamingServer.
+func (c *Client) ListenForTx() (ids.ID, error, *chain.Result, error) {
 	c.dll.Lock()
 	defer c.dll.Unlock()
 	for {
@@ -73,7 +69,7 @@ func (c *Client) ListenTx() (ids.ID, error, *chain.Result, error) {
 	}
 }
 
-// Close closes [d]'s connection to the decision rpc server.
+// Close closes [c]'s connection to the decision rpc server.
 func (c *Client) Close() error {
 	var err error
 	c.cl.Do(func() {
@@ -82,10 +78,10 @@ func (c *Client) Close() error {
 	return err
 }
 
-// decisionServerCallback is a callback function for the decision server.
+// streamingServerCallback is a callback function for the decision server.
 // The server submits the tx to the vm and adds the tx to the vms listener for
 // later retrieval.
-func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) {
+func (vm *VM) streamingServerCallback(msgBytes []byte, c *pubsub.Connection) {
 	ctx, span := vm.tracer.Start(context.Background(), "decisionRPCServer callback")
 	defer span.End()
 	// Unmarshal TX
@@ -96,7 +92,6 @@ func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) {
 			zap.Int("len", len(msgBytes)),
 			zap.Error(err),
 		)
-
 		return
 	}
 	// Verify tx
@@ -122,8 +117,8 @@ func (vm *VM) decisionServerCallback(msgBytes []byte, c *pubsub.Connection) {
 	vm.snowCtx.Log.Debug("submitted tx", zap.Stringer("id", txID))
 }
 
-// Listen listens for messages from the blocks rpc server.
-func (c *Client) ListenBlock(
+// Listen listens for block messages from the streaming server.
+func (c *Client) ListenForBlock(
 	parser chain.Parser,
 ) (*chain.StatefulBlock, []*chain.Result, error) {
 	c.bll.Lock()
