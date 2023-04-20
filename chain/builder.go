@@ -56,7 +56,8 @@ func BuildBlock(
 	defer span.End()
 	log := vm.Logger()
 
-	nextTime := time.Now().Unix()
+	buildStart := time.Now()
+	nextTime := buildStart.Unix()
 	r := vm.Rules(nextTime)
 	parent, err := vm.GetStatelessBlock(ctx, preferred)
 	if err != nil {
@@ -329,6 +330,7 @@ func BuildBlock(
 	b.vm.RecordStateChanges(ts.PendingChanges())
 	b.vm.RecordStateOperations(ts.OpIndex())
 	b.vm.RecordBuildPrefetch(buildPrefetch)
+	b.vm.RecordBuild(time.Since(buildStart))
 	log.Info(
 		"built block",
 		zap.Uint64("hght", b.Hght),

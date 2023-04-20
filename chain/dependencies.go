@@ -79,6 +79,8 @@ type VM interface {
 	RecordWaitChunks(time.Duration)
 	RecordBuildPrefetch(time.Duration)
 	RecordVerifyPrefetch(time.Duration)
+	RecordParseToVerified(time.Duration)
+	RecordBuild(time.Duration)
 }
 
 type Mempool interface {

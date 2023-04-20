@@ -118,13 +118,19 @@ var generatePrometheusCmd = &cobra.Command{
 		utils.Outf("{{yellow}}build prefetch (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_build_prefetch_sum[30s])/increase(avalanche_%s_vm_hyper_sdk_chain_build_prefetch_count[30s])/1000000", chainID, chainID))
-		utils.Outf("{{yellow}}build prefetch per block:{{/}} %s\n", panels[len(panels)-1])
+		utils.Outf("{{yellow}}build prefetch per block (ms):{{/}} %s\n", panels[len(panels)-1])
+
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_build_sum[30s])/increase(avalanche_%s_vm_hyper_sdk_chain_build_count[30s])/1000000", chainID, chainID))
+		utils.Outf("{{yellow}}build time (ms):{{/}} %s\n", panels[len(panels)-1])
 
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_verify_prefetch_sum[30s])/1000000/30", chainID))
 		utils.Outf("{{yellow}}verify prefetch (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_verify_prefetch_sum[30s])/increase(avalanche_%s_vm_hyper_sdk_chain_verify_prefetch_count[30s])/1000000", chainID, chainID))
-		utils.Outf("{{yellow}}verify prefetch per block:{{/}} %s\n", panels[len(panels)-1])
+		utils.Outf("{{yellow}}verify prefetch per block (ms):{{/}} %s\n", panels[len(panels)-1])
+
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_parse_to_verified_sum[30s])/increase(avalanche_%s_vm_hyper_sdk_chain_parse_to_verified_count[30s])/1000000", chainID, chainID))
+		utils.Outf("{{yellow}}parse to verified per block (ms):{{/}} %s\n", panels[len(panels)-1])
 
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_root_calculated_sum[30s])/1000000/30", chainID))
 		utils.Outf("{{yellow}}root calcuation wait (ms/s):{{/}} %s\n", panels[len(panels)-1])

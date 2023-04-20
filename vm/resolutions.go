@@ -369,3 +369,11 @@ func (vm *VM) RecordBuildPrefetch(t time.Duration) {
 func (vm *VM) RecordVerifyPrefetch(t time.Duration) {
 	vm.metrics.verifyPrefetch.Observe(float64(t))
 }
+
+func (vm *VM) RecordParseToVerified(t time.Duration) {
+	vm.metrics.parseToVerified.Observe(float64(t))
+}
+
+func (vm *VM) RecordBuild(t time.Duration) {
+	vm.metrics.build.Observe(float64(t))
+}

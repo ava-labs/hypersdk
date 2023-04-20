@@ -92,6 +92,8 @@ type StatelessBlock struct {
 	bytes []byte
 	vm    VM
 
+	parseStart time.Time
+
 	FetchedChunks       [][]byte
 	chunkFetchComplete  bool
 	chunkFetchErr       error
@@ -300,6 +302,7 @@ func ParseStatefulBlock(
 ) (*StatelessBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.ParseStatefulBlock")
 	defer span.End()
+	parseStart := time.Now()
 
 	// Perform basic correctness checks before doing any expensive work
 	if blk.Hght > 0 { // skip genesis
@@ -327,6 +330,7 @@ func ParseStatefulBlock(
 		st:            status,
 		vm:            vm,
 		id:            utils.ToID(source),
+		parseStart:    parseStart,
 	}
 
 	// If we are parsing an older block, it will not be re-executed and should
@@ -453,6 +457,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 
 func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 	log := b.vm.Logger()
+	var shouldRecordParseToVerified bool
 	switch {
 	case !stateReady:
 		// If the state of the accepted tip has not been fully fetched, it is not safe to
@@ -464,6 +469,7 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 		// necessary to re-verify anything).
 		log.Info("skipping verification, already processed", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()))
 	case b.vm.GetVerifyAsync():
+		shouldRecordParseToVerified = true
 		if b.verifying {
 			return errors.New("verifying async")
 		}
@@ -500,6 +506,7 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 		}()
 		return errors.New("verifying async")
 	default:
+		shouldRecordParseToVerified = true
 		// Parent may not be processed when we verify this block so [verify] may
 		// recursively compute missing state (should not be verifying when that
 		// happens).
@@ -518,6 +525,9 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 	//
 	// NOTE: mempool is modified by VM handler
 	b.vm.Verified(ctx, b)
+	if shouldRecordParseToVerified {
+		b.vm.RecordParseToVerified(time.Since(b.parseStart))
+	}
 	return nil
 }
 
