@@ -16,11 +16,9 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 )
 
-type msgMode byte
-
 const (
-	DecisionMode = 0
-	BlockMode    = 1
+	DecisionMode byte = 0
+	BlockMode    byte = 1
 )
 
 type Transaction struct {
@@ -57,32 +55,32 @@ func (w *Listeners) AddTxListener(tx *chain.Transaction, c *pubsub.Connection) {
 }
 
 // If never possible for a tx to enter mempool, call this
-func (w *Listeners) RemoveTx(txID ids.ID, err error, decisionsServer *pubsub.Server) {
+func (w *Listeners) RemoveTx(txID ids.ID, err error, streamingServer *pubsub.Server) {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
-	w.removeTx(txID, err, decisionsServer)
+	w.removeTx(txID, err, streamingServer)
 }
 
-func (w *Listeners) removeTx(txID ids.ID, err error, decisionsServer *pubsub.Server) {
+func (w *Listeners) removeTx(txID ids.ID, err error, streamingServer *pubsub.Server) {
 	listeners, ok := w.txListeners[txID]
 	if !ok {
 		return
 	}
 	p := codec.NewWriter(consts.MaxInt)
 	PackRemovedTxMessage(p, txID, err)
-	decisionsServer.Publish([]byte(txID.String()), listeners)
+	streamingServer.Publish([]byte(txID.String()), listeners)
 	delete(w.txListeners, txID)
 	// [expiringTxs] will be cleared eventually (does not support removal)
 }
 
-func (w *Listeners) SetMinTx(t int64, decisionsServer *pubsub.Server) {
+func (w *Listeners) SetMinTx(t int64, streamingServer *pubsub.Server) {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
 	expired := w.expiringTxs.SetMin(t)
 	for _, id := range expired {
-		w.removeTx(id, ErrExpired, decisionsServer)
+		w.removeTx(id, ErrExpired, streamingServer)
 	}
 }
 
@@ -97,7 +95,6 @@ func (w *Listeners) AcceptBlock(
 
 	w.txL.Lock()
 	defer w.txL.Unlock()
-
 	results := b.Results()
 	for i, tx := range b.Txs {
 		p := codec.NewWriter(consts.MaxInt)
@@ -192,7 +189,7 @@ func UnpackBlockMessageBytes(
 	parser chain.Parser,
 ) (*chain.StatefulBlock, []*chain.Result, error) {
 	// Read block
-	p := codec.NewReader(msg, chain.NetworkSizeLimit)
+	p := codec.NewReader(msg, consts.MaxInt)
 	p.UnpackByte()
 	var blkMsg []byte
 	p.UnpackBytes(-1, false, &blkMsg)
