@@ -41,10 +41,15 @@ type VM interface {
 	Tracer() trace.Tracer
 	Logger() logging.Logger
 
+	GetVerifyAsync() bool
+
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
 	SetLastAccepted(*StatelessBlock) error
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
+
+	RegisterChunks(context.Context, uint64, [][]byte)
+	RequestChunks(context.Context, uint64, []ids.ID, chan []byte) error
 
 	State() (*merkledb.Database, error)
 	StateManager() StateManager
@@ -71,6 +76,13 @@ type VM interface {
 	RecordWaitSignatures(time.Duration) // only called in Verify
 	RecordStateChanges(int)
 	RecordStateOperations(int)
+	RecordWaitChunks(time.Duration)
+	RecordChunkFetchDuration(time.Duration)
+	RecordBuildPrefetch(time.Duration)
+	RecordVerifyPrefetch(time.Duration)
+	RecordParseToVerified(time.Duration)
+	RecordBuild(time.Duration)
+	RecordVerify(time.Duration)
 }
 
 type Mempool interface {
@@ -89,6 +101,9 @@ type Database interface {
 }
 
 type Rules interface {
+	GetMaxChunks() int
+	GetMaxChunkSize() int
+
 	GetMaxBlockTxs() int
 	GetMaxBlockUnits() uint64 // should ensure can't get above block max size
 

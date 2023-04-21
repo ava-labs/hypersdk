@@ -12,6 +12,11 @@ import (
 type Metrics struct {
 	unitsVerified           prometheus.Counter
 	unitsAccepted           prometheus.Counter
+	chunkRequests           prometheus.Counter
+	failedChunkRequests     prometheus.Counter
+	chunkJobFails           prometheus.Counter
+	chunksProcessing        prometheus.Gauge
+	discardedBuiltBlocks    prometheus.Counter
 	txsSubmitted            prometheus.Counter // includes gossip
 	txsVerified             prometheus.Counter
 	txsAccepted             prometheus.Counter
@@ -19,13 +24,31 @@ type Metrics struct {
 	stateOperations         prometheus.Counter
 	decisionsRPCConnections prometheus.Gauge
 	blocksRPCConnections    prometheus.Gauge
+	chunksFetched           metric.Averager
 	rootCalculated          metric.Averager
 	waitSignatures          metric.Averager
+	waitChunks              metric.Averager
+	buildPrefetch           metric.Averager
+	verifyPrefetch          metric.Averager
+	parseToVerified         metric.Averager
+	build                   metric.Averager
+	verify                  metric.Averager
+	chunkFetchDuration      metric.Averager
+	mempoolSize             prometheus.Gauge
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	r := prometheus.NewRegistry()
 
+	chunksFetched, err := metric.NewAverager(
+		"vm",
+		"chunks_fetched",
+		"time spent fetching chunks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 	rootCalculated, err := metric.NewAverager(
 		"chain",
 		"root_calculated",
@@ -44,6 +67,69 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	waitChunks, err := metric.NewAverager(
+		"chain",
+		"wait_chunks",
+		"time spent waiting for chunks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	buildPrefetch, err := metric.NewAverager(
+		"chain",
+		"build_prefetch",
+		"time spent prefetching in build",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	verifyPrefetch, err := metric.NewAverager(
+		"chain",
+		"verify_prefetch",
+		"time spent prefetching in verify",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	parseToVerified, err := metric.NewAverager(
+		"chain",
+		"parse_to_verified",
+		"time from block parse starts to when it is verified",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	build, err := metric.NewAverager(
+		"chain",
+		"build",
+		"time to build block",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	verify, err := metric.NewAverager(
+		"chain",
+		"verify",
+		"time to verify block",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	chunkFetchDuration, err := metric.NewAverager(
+		"chain",
+		"chunk_fetch_duration",
+		"time to fetch chunks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	m := &Metrics{
 		unitsVerified: prometheus.NewCounter(prometheus.CounterOpts{
@@ -55,6 +141,31 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Namespace: "chain",
 			Name:      "units_accepted",
 			Help:      "amount of units accepted",
+		}),
+		chunkRequests: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "chunk_requests",
+			Help:      "number of chunk requests",
+		}),
+		failedChunkRequests: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "failed_chunk_requests",
+			Help:      "number of failed chunk requests",
+		}),
+		chunkJobFails: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "chunk_job_fails",
+			Help:      "number of chunk jobs that failed",
+		}),
+		chunksProcessing: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "chunks_processing",
+			Help:      "number of chunks processing",
+		}),
+		discardedBuiltBlocks: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "discarded_built_blocks",
+			Help:      "number of blocks discarded after being built",
 		}),
 		txsSubmitted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
@@ -91,13 +202,31 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "blocks_rpc_connections",
 			Help:      "number of open blocks connections",
 		}),
-		rootCalculated: rootCalculated,
-		waitSignatures: waitSignatures,
+		chunksFetched:      chunksFetched,
+		rootCalculated:     rootCalculated,
+		waitSignatures:     waitSignatures,
+		waitChunks:         waitChunks,
+		buildPrefetch:      buildPrefetch,
+		verifyPrefetch:     verifyPrefetch,
+		parseToVerified:    parseToVerified,
+		build:              build,
+		verify:             verify,
+		chunkFetchDuration: chunkFetchDuration,
+		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "mempool_size",
+			Help:      "number of transactions in the mempool",
+		}),
 	}
 	errs := wrappers.Errs{}
 	errs.Add(
 		r.Register(m.unitsVerified),
 		r.Register(m.unitsAccepted),
+		r.Register(m.chunkRequests),
+		r.Register(m.failedChunkRequests),
+		r.Register(m.chunkJobFails),
+		r.Register(m.chunksProcessing),
+		r.Register(m.discardedBuiltBlocks),
 		r.Register(m.txsSubmitted),
 		r.Register(m.txsVerified),
 		r.Register(m.txsAccepted),
@@ -105,6 +234,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.stateOperations),
 		r.Register(m.decisionsRPCConnections),
 		r.Register(m.blocksRPCConnections),
+		r.Register(m.mempoolSize),
 	)
 	return r, m, errs.Err
 }

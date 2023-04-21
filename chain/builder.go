@@ -17,7 +17,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/tstate"
+	"github.com/ava-labs/hypersdk/utils"
 )
+
+const chunkOverhead = 4
 
 func HandlePreExecute(
 	err error,
@@ -53,7 +56,8 @@ func BuildBlock(
 	defer span.End()
 	log := vm.Logger()
 
-	nextTime := time.Now().Unix()
+	buildStart := time.Now()
+	nextTime := buildStart.Unix()
 	r := vm.Rules(nextTime)
 	parent, err := vm.GetStatelessBlock(ctx, preferred)
 	if err != nil {
@@ -86,13 +90,16 @@ func BuildBlock(
 		txsAttempted = 0
 		results      = []*Result{}
 
-		warpCount = 0
+		virtualChunkSize  = uint64(chunkOverhead)
+		virtualChunkCount = 1
 
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
 
-		start    = time.Now()
-		lockWait time.Duration
+		start         = time.Now()
+		lockWait      time.Duration
+		buildPrefetch time.Duration
+		repeatWait    time.Duration
 	)
 	mempoolErr := mempool.Build(
 		ctx,
@@ -101,6 +108,16 @@ func BuildBlock(
 				lockWait = time.Since(start)
 			}
 			txsAttempted++
+
+			// Simulate how many chunks will be created
+			if virtualChunkSize+next.Size() > uint64(r.GetMaxChunkSize()) {
+				if virtualChunkCount >= r.GetMaxChunks() {
+					return false, true, false, nil
+				}
+				virtualChunkSize = chunkOverhead
+				virtualChunkCount++
+			}
+			virtualChunkSize += next.Size()
 
 			// Ensure we can process if transaction includes a warp message
 			if next.WarpMessage != nil && blockContext == nil {
@@ -112,7 +129,7 @@ func BuildBlock(
 			}
 
 			// Skip warp message if at max
-			if next.WarpMessage != nil && warpCount == MaxWarpMessages {
+			if next.WarpMessage != nil && b.WarpCount == MaxWarpMessages {
 				log.Info(
 					"dropping pending warp message because already have MaxWarpMessages",
 					zap.Stringer("txID", next.ID()),
@@ -124,7 +141,9 @@ func BuildBlock(
 			//
 			// TODO: check a bunch at once during pre-fetch to avoid re-walking blocks
 			// for every tx
+			repeatStart := time.Now()
 			dup, err := parent.IsRepeat(ctx, oldestAllowed, []*Transaction{next})
+			repeatWait += time.Since(repeatStart)
 			if err != nil {
 				return false, false, false, err
 			}
@@ -157,9 +176,11 @@ func BuildBlock(
 			// TODO: prefetch state of upcoming txs that we will pull (should make much
 			// faster)
 			txStart := ts.OpIndex()
+			prefetchStart := time.Now()
 			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), state); err != nil {
 				return false, true, false, err
 			}
+			buildPrefetch += time.Since(prefetchStart)
 
 			// PreExecute next to see if it is fit
 			if err := next.PreExecute(fctx, ectx, r, ts, nextTime); err != nil {
@@ -220,9 +241,9 @@ func BuildBlock(
 			if next.WarpMessage != nil {
 				if warpErr == nil {
 					// Add a bit if the warp message was verified
-					b.WarpResults.Add(uint(warpCount))
+					b.WarpResults.Add(uint(b.WarpCount))
 				}
-				warpCount++
+				b.WarpCount++
 			}
 			return len(b.Txs) < r.GetMaxBlockTxs(), false, false, nil
 		},
@@ -233,7 +254,7 @@ func BuildBlock(
 	)
 	if mempoolErr != nil {
 		b.vm.Mempool().Add(ctx, b.Txs)
-		return nil, err
+		return nil, mempoolErr
 	}
 
 	// Perform basic validity checks to make sure the block is well-formatted
@@ -270,20 +291,60 @@ func BuildBlock(
 	}
 	b.StateRoot = root
 
+	// Generate chunks
+	b.Chunks = []ids.ID{}
+	var (
+		chunks                       = [][]byte{}
+		current                      = 0
+		limit                        = len(b.Txs)
+		actionRegistry, authRegistry = vm.Registry()
+	)
+	for current < limit {
+		var (
+			chunkSize = uint64(chunkOverhead)
+			last      int
+		)
+		for i := current; i < limit; i++ {
+			tx := b.Txs[i]
+			size := tx.Size()
+			if chunkSize+size > uint64(r.GetMaxChunkSize()) {
+				break
+			}
+			chunkSize += size
+			last = i
+		}
+		txRange := b.Txs[current : last+1]
+		chunk, err := MarshalTxs(txRange, actionRegistry, authRegistry)
+		if err != nil {
+			return nil, err
+		}
+		current = last + 1
+		chunks = append(chunks, chunk)
+		b.Chunks = append(b.Chunks, utils.ToID(chunk))
+	}
+
 	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, state, results); err != nil {
+	if err := b.initializeBuilt(ctx, chunks, state, results); err != nil {
 		return nil, err
 	}
+	b.vm.RecordStateChanges(ts.PendingChanges())
+	b.vm.RecordStateOperations(ts.OpIndex())
+	b.vm.RecordBuildPrefetch(buildPrefetch)
+	b.vm.RecordBuild(time.Since(buildStart))
 	log.Info(
 		"built block",
 		zap.Uint64("hght", b.Hght),
 		zap.Int("attempted", txsAttempted),
 		zap.Int("added", len(b.Txs)),
+		zap.Int("chunks", len(b.Chunks)),
 		zap.Int("mempool size", b.vm.Mempool().Len(ctx)),
 		zap.Duration("mempool lock wait", lockWait),
 		zap.Bool("context", blockContext != nil),
 		zap.Int("state changes", ts.PendingChanges()),
 		zap.Int("state operations", ts.OpIndex()),
+		zap.Duration("prefetch wait", buildPrefetch),
+		zap.Duration("repeat wait", repeatWait),
+		zap.Duration("t", time.Since(start)),
 	)
 	return b, nil
 }

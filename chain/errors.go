@@ -8,6 +8,7 @@ import "errors"
 var (
 	// Parsing
 	ErrInvalidObject = errors.New("invalid object")
+	ErrExtraBytes    = errors.New("extra bytes")
 
 	// Genesis Correctness
 	ErrInvalidChainID   = errors.New("invalid chain ID")
@@ -27,6 +28,7 @@ var (
 	ErrInvalidSurplus       = errors.New("invalid surplus fee")
 	ErrStateRootMismatch    = errors.New("state root mismatch")
 	ErrInvalidResult        = errors.New("invalid result")
+	ErrTooManyChunks        = errors.New("too many chunks")
 
 	// Tx Correctness
 	ErrInvalidSignature     = errors.New("invalid signature")
@@ -63,6 +65,7 @@ var (
 	ErrWarpResultMismatch        = errors.New("warp result mismatch")
 
 	// Misc
-	ErrNotImplemented    = errors.New("not implemented")
-	ErrBlockNotProcessed = errors.New("block is not processed")
+	ErrNotImplemented     = errors.New("not implemented")
+	ErrBlockNotProcessed  = errors.New("block is not processed")
+	ErrChunksNotProcessed = errors.New("chunks not processed")
 )

@@ -5,6 +5,7 @@
 package cmd
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -27,6 +28,8 @@ var (
 	genesisFile        string
 	minUnitPrice       int64
 	maxBlockUnits      int64
+	maxChunkSize       int
+	maxChunks          int
 	windowTargetUnits  int64
 	windowTargetBlocks int64
 	hideTxs            bool
@@ -34,6 +37,8 @@ var (
 	maxTxBacklog       int
 	deleteOtherChains  bool
 	checkAllChains     bool
+	prometheusFile     string
+	prometheusData     string
 
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
@@ -50,7 +55,7 @@ func init() {
 		chainCmd,
 		actionCmd,
 		spamCmd,
-		metricsCmd,
+		prometheusCmd,
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
@@ -87,6 +92,18 @@ func init() {
 		"max-block-units",
 		-1,
 		"max block units",
+	)
+	genGenesisCmd.PersistentFlags().IntVar(
+		&maxChunkSize,
+		"max-chunk-size",
+		-1,
+		"max chunk size (KB)",
+	)
+	genGenesisCmd.PersistentFlags().IntVar(
+		&maxChunks,
+		"max-chunks",
+		-1,
+		"max chunks",
 	)
 	genGenesisCmd.PersistentFlags().Int64Var(
 		&windowTargetUnits,
@@ -174,9 +191,21 @@ func init() {
 		runSpamCmd,
 	)
 
-	// metrics
-	metricsCmd.AddCommand(
-		prometheusCmd,
+	// prometheus
+	generatePrometheusCmd.PersistentFlags().StringVar(
+		&prometheusFile,
+		"prometheus-file",
+		"/tmp/prometheus.yaml",
+		"prometheus file location",
+	)
+	generatePrometheusCmd.PersistentFlags().StringVar(
+		&prometheusData,
+		"prometheus-data",
+		fmt.Sprintf("/tmp/prometheus-%d", time.Now().Unix()),
+		"prometheus data location",
+	)
+	prometheusCmd.AddCommand(
+		generatePrometheusCmd,
 	)
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/hypersdk/config"
+	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -23,6 +24,8 @@ import (
 var _ vm.Config = (*Config)(nil)
 
 const (
+	defaultGossipInterval              = 1 * time.Second
+	defaultGossipMaxSize               = hconsts.NetworkSizeLimit
 	defaultPreferredBlocksPerSecond    = 2
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
@@ -44,11 +47,20 @@ type Config struct {
 	BlocksPort           uint16 `json:"blocksPort"`
 	StreamingBacklogSize int    `json:"streamingBacklogSize"`
 
+	// Gossip
+	GossipInterval time.Duration `json:"gossipInterval"`
+	GossipMaxSize  int           `json:"gossipMaxSize"`
+
 	// Mempool
 	MempoolSize           int      `json:"mempoolSize"`
 	MempoolPayerSize      int      `json:"mempoolPayerSize"`
 	MempoolExemptPayers   []string `json:"mempoolExemptPayers"`
 	MempoolVerifyBalances bool     `json:"mempoolVerifyBalances"`
+
+	// Builder
+	PreferredBlocksPerSecond uint64 `json:"preferredBlocksPerSecond"`
+	BuildAsync               bool   `json:"buildAsync"`
+	VerifyAsync              bool   `json:"verifyAsync"`
 
 	// Order Book
 	//
@@ -58,10 +70,9 @@ type Config struct {
 	TrackedPairs []string `json:"trackedPairs"` // which asset ID pairs we care about
 
 	// Misc
-	TestMode                 bool          `json:"testMode"` // makes gossip/building manual
-	LogLevel                 logging.Level `json:"logLevel"`
-	Parallelism              int           `json:"parallelism"`
-	PreferredBlocksPerSecond uint64        `json:"preferredBlocksPerSecond"`
+	TestMode    bool          `json:"testMode"` // makes gossip/building manual
+	LogLevel    logging.Level `json:"logLevel"`
+	Parallelism int           `json:"parallelism"`
 
 	// State Sync
 	StateSyncServerDelay time.Duration `json:"stateSyncServerDelay"` // for testing
@@ -94,6 +105,8 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
+	c.GossipInterval = defaultGossipInterval
+	c.GossipMaxSize = defaultGossipMaxSize
 	c.Parallelism = c.Config.GetParallelism()
 	c.PreferredBlocksPerSecond = defaultPreferredBlocksPerSecond
 	c.MempoolSize = c.Config.GetMempoolSize()
@@ -101,6 +114,8 @@ func (c *Config) setDefault() {
 	c.MempoolVerifyBalances = defaultMempoolVerifyBalances
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
+	c.BuildAsync = c.Config.GetBuildAsync()
+	c.VerifyAsync = c.Config.GetVerifyAsync()
 }
 
 func (c *Config) GetLogLevel() logging.Level          { return c.LogLevel }
@@ -138,3 +153,5 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 		MaxNumFiles: defaultContinuousProfilerMaxFiles,
 	}
 }
+func (c *Config) GetBuildAsync() bool  { return c.BuildAsync }
+func (c *Config) GetVerifyAsync() bool { return c.VerifyAsync }

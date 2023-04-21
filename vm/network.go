@@ -131,9 +131,9 @@ func (n *NetworkManager) routeIncomingMessage(msg []byte) ([]byte, NetworkHandle
 	if l == 0 {
 		return nil, nil, false
 	}
-	handlerID := msg[l-1]
+	handlerID := msg[0]
 	handler, ok := n.handlers[handlerID]
-	return msg[:l-1], handler, ok
+	return msg[1:], handler, ok
 }
 
 func (n *NetworkManager) handleSharedRequestID(
@@ -166,13 +166,13 @@ func (n *NetworkManager) handleSharedRequestID(
 func (n *NetworkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	parsedMsg, handler, ok := n.routeIncomingMessage(msg)
 	if !ok {
-		n.vm.snowCtx.Log.Debug(
+		n.vm.snowCtx.Log.Warn(
 			"could not route incoming AppGossip",
 			zap.Stringer("nodeID", nodeID),
 		)
 		return nil
 	}
-	return handler.AppGossip(ctx, nodeID, parsedMsg)
+	return handler.AppGossip(context.TODO(), nodeID, parsedMsg)
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
@@ -185,7 +185,7 @@ func (n *NetworkManager) AppRequest(
 ) error {
 	parsedMsg, handler, ok := n.routeIncomingMessage(request)
 	if !ok {
-		n.vm.snowCtx.Log.Debug(
+		n.vm.snowCtx.Log.Warn(
 			"could not route incoming AppRequest",
 			zap.Stringer("nodeID", nodeID),
 			zap.Uint32("requestID", requestID),
@@ -203,7 +203,7 @@ func (n *NetworkManager) AppRequestFailed(
 ) error {
 	handler, cRequestID, ok := n.handleSharedRequestID(nodeID, requestID)
 	if !ok {
-		n.vm.snowCtx.Log.Debug(
+		n.vm.snowCtx.Log.Warn(
 			"could not handle incoming AppRequestFailed",
 			zap.Stringer("nodeID", nodeID),
 			zap.Uint32("requestID", requestID),
@@ -222,7 +222,7 @@ func (n *NetworkManager) AppResponse(
 ) error {
 	handler, cRequestID, ok := n.handleSharedRequestID(nodeID, requestID)
 	if !ok {
-		n.vm.snowCtx.Log.Debug(
+		n.vm.snowCtx.Log.Warn(
 			"could not handle incoming AppResponse",
 			zap.Stringer("nodeID", nodeID),
 			zap.Uint32("requestID", requestID),
@@ -242,8 +242,8 @@ func (n *NetworkManager) Connected(
 	defer n.l.RUnlock()
 	for k, handler := range n.handlers {
 		if err := handler.Connected(ctx, nodeID, v); err != nil {
-			n.vm.snowCtx.Log.Debug(
-				"handler could not hanlde connected message",
+			n.vm.snowCtx.Log.Warn(
+				"handler could not handle connected message",
 				zap.Stringer("nodeID", nodeID),
 				zap.Uint8("handler", k),
 				zap.Error(err),
@@ -331,6 +331,13 @@ type WrappedAppSender struct {
 	handler uint8
 }
 
+func (w *WrappedAppSender) createMessageBytes(src []byte) []byte {
+	messageBytes := make([]byte, 1+len(src))
+	messageBytes[0] = w.handler
+	copy(messageBytes[1:], src)
+	return messageBytes
+}
+
 // Send an application-level request.
 // A nil return value guarantees that for each nodeID in [nodeIDs],
 // the VM corresponding to this AppSender eventually receives either:
@@ -344,14 +351,14 @@ func (w *WrappedAppSender) SendAppRequest(
 	requestID uint32,
 	appRequestBytes []byte,
 ) error {
-	appRequestBytes = append(appRequestBytes, w.handler)
+	requestBytes := w.createMessageBytes(appRequestBytes)
 	for nodeID := range nodeIDs {
 		newRequestID := w.n.getSharedRequestID(w.handler, nodeID, requestID)
 		if err := w.n.sender.SendAppRequest(
 			ctx,
 			set.Set[ids.NodeID]{nodeID: struct{}{}},
 			newRequestID,
-			appRequestBytes,
+			requestBytes,
 		); err != nil {
 			return err
 		}
@@ -384,7 +391,7 @@ func (w *WrappedAppSender) SendAppResponse(
 func (w *WrappedAppSender) SendAppGossip(ctx context.Context, appGossipBytes []byte) error {
 	return w.n.sender.SendAppGossip(
 		ctx,
-		append(appGossipBytes, w.handler),
+		w.createMessageBytes(appGossipBytes),
 	)
 }
 
@@ -396,7 +403,7 @@ func (w *WrappedAppSender) SendAppGossipSpecific(
 	return w.n.sender.SendAppGossipSpecific(
 		ctx,
 		nodeIDs,
-		append(appGossipBytes, w.handler),
+		w.createMessageBytes(appGossipBytes),
 	)
 }
 
@@ -420,7 +427,7 @@ func (w *WrappedAppSender) SendCrossChainAppRequest(
 		ctx,
 		chainID,
 		requestID,
-		append(appRequestBytes, w.handler),
+		w.createMessageBytes(appRequestBytes),
 	)
 }
 

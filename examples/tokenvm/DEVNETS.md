@@ -85,9 +85,10 @@ Now we can spin up a new network of 6 nodes with some defaults:
 --region us-west-2 \
 --instance-mode=on-demand \
 --instance-types=c5.4xlarge \
---ip-mode=elastic \
+--ip-mode=ephemeral \
 --metrics-fetch-interval-seconds 60 \
 --network-name custom \
+--avalanchego-release-tag v1.10.0 \
 --keys-to-generate 5
 ```
 
@@ -115,11 +116,7 @@ Graviton processors):
 ```bash
 avalancheup-aws default-spec \
 ...
---upload-artifacts-aws-volume-provisioner-local-bin ${AWS_VOLUME_PROVISIONER_BIN_PATH} \
---upload-artifacts-aws-ip-provisioner-local-bin ${AWS_IP_PROVISIONER_BIN_PATH} \
---upload-artifacts-avalanche-telemetry-cloudwatch-local-bin ${AVALANCHE_TELEMETRY_CLOUDWATCH_BIN_PATH} \
---upload-artifacts-avalanched-aws-local-bin ${AVALANCHED_AWS_BIN_PATH} \
---upload-artifacts-avalanchego-local-bin ${AVALANCHEGO_BIN_PATH} \
+--upload-artifacts-avalanchego-local-bin ${AVALANCHEGO_BIN_PATH}
 ```
 
 It is recommended to specify your own artifacts to avoid flaky github release page downloads.
@@ -141,21 +138,24 @@ and Bandwidth rate limiting. You can do this by adding the following lines to
 `avalanchego_config` in the spec file:
 ```yaml
 avalanchego_config:
-    ...
-    proposervm-use-current-height: true
-    throttler-inbound-validator-alloc-size: 107374182
-    throttler-inbound-node-max-processing-msgs: 100000
-    throttler-inbound-bandwidth-refill-rate: 1073741824
-    throttler-inbound-bandwidth-max-burst-size: 1073741824
-    throttler-inbound-cpu-validator-alloc: 100000
-    throttler-inbound-disk-validator-alloc: 10737418240000
-    throttler-outbound-validator-alloc-size: 107374182
-    snow-mixed-query-num-push-vdr-uint: 10
-    consensus-on-accept-gossip-validator-size: 0
-    consensus-on-accept-gossip-non-validator-size: 0
-    consensus-on-accept-gossip-peer-size: 5
-    consensus-accepted-frontier-gossip-peer-size: 5
-    network-compression-enabled: false
+  ...
+  proposervm-use-current-height: true
+  throttler-inbound-validator-alloc-size: 10737418240
+  throttler-inbound-at-large-alloc-size: 10737418240
+  throttler-inbound-node-max-processing-msgs: 100000
+  throttler-inbound-bandwidth-refill-rate: 1073741824
+  throttler-inbound-bandwidth-max-burst-size: 1073741824
+  throttler-inbound-cpu-validator-alloc: 100000
+  throttler-inbound-disk-validator-alloc: 10737418240000
+  throttler-outbound-validator-alloc-size: 10737418240
+  throttler-outbound-at-large-alloc-size: 10737418240
+  snow-mixed-query-num-push-vdr: 20
+  consensus-on-accept-gossip-validator-size: 10
+  consensus-on-accept-gossip-non-validator-size: 0
+  consensus-on-accept-gossip-peer-size: 10
+  consensus-accepted-frontier-gossip-peer-size: 0
+  consensus-app-concurrency: 512
+  network-compression-type: none
 ```
 
 #### Supporting All Metrics
@@ -241,9 +241,11 @@ EOF
 
 /tmp/token-cli genesis generate /tmp/avalanche-ops/allocations.json \
 --genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
---max-block-units 4000000 \
+--max-block-units 400000000 \
+--max-chunks 16 \
+--max-chunk-size 512 \
 --window-target-units 100000000000 \
---window-target-blocks 30
+--window-target-blocks 50
 cat /tmp/avalanche-ops/tokenvm-genesis.json
 
 cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
@@ -252,9 +254,12 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "mempoolPayerSize": 10000000,
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "streamingBacklogSize": 10000000,
+  "gossipMaxSize": 32768,
   "trackedPairs":["*"],
   "logLevel": "info",
   "preferredBlocksPerSecond": 3,
+  "buildAsync": true,
+  "verifyAsync": true,
   "decisionsPort": 9652,
   "blocksPort": 9653
 }
@@ -264,8 +269,7 @@ cat /tmp/avalanche-ops/tokenvm-chain-config.json
 
 *Note*: Make sure that port `9652` and `9653` are open on the AWS Security Group applied to all
 nodes otherwise the `token-cli` will not work properly. This requirement will
-be removed when the [HyperSDK migrates to using proper
-WebSockets](https://github.com/ava-labs/hypersdk/issues/64).
+be removed when the [HyperSDK migrates to using proper WebSockets](https://github.com/ava-labs/hypersdk/issues/64).
 
 #### Profiling `tokenvm`
 If you'd like to profile `tokenvm`'s CPU and RAM, add the following line to the
@@ -303,87 +307,6 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 --avalanchego-config-remote-path /data/avalanche-configs/config.json \
 --node-ids-to-instance-ids <TODO>
 ```
-
-#### Viewing Logs
-1) Open the [AWS CloudWatch](https://aws.amazon.com/cloudwatch) product on your
-AWS Console
-2) Click "Logs Insights" on the left pane
-3) Use the following query to view all logs (in reverse-chronological order)
-for all nodes in your Devnet:
-```
-fields @timestamp, @message, @logStream, @log
-| filter(@logStream not like "avalanche-telemetry-cloudwatch.log")
-| filter(@logStream not like "syslog")
-| sort @timestamp desc
-| limit 20
-```
-
-*Note*: The "Log Group" you are asked to select should have a similar name as
-the spec file that was output earlier.
-
-#### Viewing Metrics
-#### Option 1: AWS CloudWatch
-1) Open the [AWS CloudWatch](https://aws.amazon.com/cloudwatch) product on your
-AWS Console
-2) Click "All Metrics" on the left pane
-3) Click the "Custom Namespace" that matches the name of the spec file
-
-#### Option 2: Prometheus
-To view metrics, first download and install [Prometheus](https://prometheus.io/download/)
-using the following commands:
-```bash
-rm -f /tmp/prometheus
-wget https://github.com/prometheus/prometheus/releases/download/v2.43.0/prometheus-2.43.0.darwin-amd64.tar.gz
-tar -xvf prometheus-2.43.0.darwin-amd64.tar.gz
-rm prometheus-2.43.0.darwin-amd64.tar.gz
-mv prometheus-2.43.0.darwin-amd64/prometheus /tmp/prometheus
-rm -rf prometheus-2.43.0.darwin-amd64
-```
-
-Once you have Prometheus installed, run the following command to auto-generate
-a configuration file:
-```bash
-/tmp/token-cli metrics prometheus <avalanche-ops spec file path> /tmp/prometheus.yaml
-```
-
-In a separate terminal, then run the following command to view collected
-metrics:
-```bash
-/tmp/prometheus --config.file=/tmp/prometheus.yaml
-```
-
-Here are some useful queries (on an example chainID `3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2`):
-* `avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_blks_processing`
-* `avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_blks_rejected_count`
-* `avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_blks_accepted_count`
-* [verify latency in ms] `increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_metervm_verify_sum[30s:1s])/increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_metervm_verify_count[30s:1s])/1000000`
-* [accept latency in ms] `increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_metervm_accept_sum[30s:1s])/increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_metervm_accept_count[30s:1s])/1000000`
-* [transactions per second] `deriv(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_hyper_sdk_vm_txs_accepted[30s:1s])`
-* [accepted block size] `increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_blks_accepted_container_size_sum[30s:1s])/increase(avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_blks_accepted_count[30s:1s])`
-* `avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_hyper_sdk_vm_txs_accepted`
-* [disk used] `300000000000-avalanche_resource_tracker_disk_available_space`
-* `avalanche_resource_tracker_cpu_usage`
-* `avalanche_resource_tracker_disk_reads`
-* `avalanche_resource_tracker_disk_writes`
-* `avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_go_goroutines`
-* `avalanche_3rihqpXh6ZJqxL2dsrVysKkEKroiD9tvQWLS6iWVnd8K4HST2_vm_go_memstats_alloc_bytes`
-* `avalanche_network_inbound_conn_throttler_rate_limited`
-
-To estimate how many `ms/s` the consensus engine and `tokenvm` are spending busy, use the
-following query (on an example chainID `2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X`):
-```
-increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_chits_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_notify_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_get_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_push_query_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_put_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_pull_query_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_query_failed_sum[30s])/1000000/30
-```
-
-To isolate just how many `ms/s` the consensus engine is spending busy (removing
-"build", "verify", and "accept" time spent in `tokenvm`), use the following
-command:
-```
-increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_chits_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_notify_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_get_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_push_query_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_put_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_pull_query_sum[30s])/1000000/30 + increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_handler_query_failed_sum[30s])/1000000/30 - increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_vm_metervm_build_block_sum[30s])/1000000/30 - increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_vm_metervm_verify_sum[30s])/1000000/30 - increase(avalanche_2CziMHmCB6obvfaXjstLQAzWy2HJZ2HGj3c8jiaDG16teaeL2X_vm_metervm_accept_sum[30s])/1000000/30
-```
-
-To remove previously ingested data, delete for a folder called `data` in the
-directory where you last ran Prometheus.
 
 ### Step 9: Initialize `token-cli`
 You can import the demo key and the network configuration from `avalanche-ops`
@@ -427,7 +350,55 @@ run the following command (defaults to `72000`):
 /tmp/token-cli spam run --max-tx-backlog 5000
 ```
 
-### [OPTIONAL] Step 12: SSH Into Nodes
+### [Optional] Step 12: Viewing Logs
+1) Open the [AWS CloudWatch](https://aws.amazon.com/cloudwatch) product on your
+AWS Console
+2) Click "Logs Insights" on the left pane
+3) Use the following query to view all logs (in reverse-chronological order)
+for all nodes in your Devnet:
+```
+fields @timestamp, @message, @logStream, @log
+| filter(@logStream not like "avalanche-telemetry-cloudwatch.log")
+| filter(@logStream not like "syslog")
+| sort @timestamp desc
+| limit 20
+```
+
+*Note*: The "Log Group" you are asked to select should have a similar name as
+the spec file that was output earlier.
+
+### [Optional] Step 13: Viewing Metrics
+#### Option 1: AWS CloudWatch
+1) Open the [AWS CloudWatch](https://aws.amazon.com/cloudwatch) product on your
+AWS Console
+2) Click "All Metrics" on the left pane
+3) Click the "Custom Namespace" that matches the name of the spec file
+
+#### Option 2: Prometheus
+To view metrics, first download and install [Prometheus](https://prometheus.io/download/)
+ /tmp/token-cli metrics prometheususing the following commands:
+```bash
+rm -f /tmp/prometheus
+wget https://github.com/prometheus/prometheus/releases/download/v2.43.0/prometheus-2.43.0.darwin-amd64.tar.gz
+tar -xvf prometheus-2.43.0.darwin-amd64.tar.gz
+rm prometheus-2.43.0.darwin-amd64.tar.gz
+mv prometheus-2.43.0.darwin-amd64/prometheus /tmp/prometheus
+rm -rf prometheus-2.43.0.darwin-amd64
+```
+
+Once you have Prometheus installed, run the following command to auto-generate
+a configuration file (placed in `/tmp/prometheus.yaml` by default):
+```bash
+/tmp/token-cli prometheus generate
+```
+
+In a separate terminal, then run the following command to view collected
+metrics:
+```bash
+/tmp/prometheus --config.file=/tmp/prometheus.yaml
+```
+
+### [OPTIONAL] Step 14: SSH Into Nodes
 You can SSH into any machine created by `avalanche-ops` using the SSH key
 automatically generated during the `apply` command. The commands for doing so
 are emitted during `apply` and look something like this:
@@ -435,7 +406,7 @@ are emitted during `apply` and look something like this:
 ssh -o "StrictHostKeyChecking no" -i aops-custom-202303-21qJUU-ec2-access.key ubuntu@34.209.76.123
 ```
 
-### [OPTIONAL] Step 13: Deploy Another Subnet
+### [OPTIONAL] Step 15: Deploy Another Subnet
 To test Avalanche Warp Messaging, you must be running at least 2 Subnets. To do
 so, just replicate the command you ran above with a different `--chain-name` (and
 a different set of validators):
@@ -481,3 +452,12 @@ avalancheup-aws default-spec \
 Make sure the nodes are in sync with the chain state before installing
 subnets/chains with `avalancheup-aws install-subnet-chain`. You can check the status
 of the nodes either via HTTP `/health` endpoints or CloudWatch logs.
+
+## Troubleshooting
+### `undefined: Message`
+If you get the following error, make sure to install `gcc` before running
+`./scripts/build.sh`:
+```
+# github.com/supranational/blst/bindings/go
+../../../go/pkg/mod/github.com/supranational/blst@v0.3.11-0.20220920110316-f72618070295/bindings/go/rb_tree.go:130:18: undefined: Message
+```

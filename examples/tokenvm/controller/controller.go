@@ -142,12 +142,15 @@ func (c *Controller) Initialize(
 		c.inner.Logger().Info("running build and gossip in test mode")
 		build = builder.NewManual(inner)
 		gossip = gossiper.NewManual(inner)
+		// TODO: add manual mode for chunks?
 	} else {
 		bcfg := builder.DefaultTimeConfig()
 		bcfg.PreferredBlocksPerSecond = c.config.GetPreferredBlocksPerSecond()
 		build = builder.NewTime(inner, bcfg)
 		gcfg := gossiper.DefaultProposerConfig()
 		gcfg.BuildProposerDiff = 1 // don't gossip if producing the next block
+		gcfg.GossipInterval = c.config.GossipInterval
+		gcfg.GossipMaxSize = c.config.GossipMaxSize
 		gossip = gossiper.NewProposer(inner, gcfg)
 	}
 

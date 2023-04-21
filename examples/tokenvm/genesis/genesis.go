@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	smath "github.com/ava-labs/avalanchego/utils/math"
-
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
@@ -32,6 +32,8 @@ type Genesis struct {
 	HRP string `json:"hrp"`
 
 	// Block params
+	MaxChunks     int    `json:"maxChunks"`
+	MaxChunkSize  int    `json:"maxChunkSize"` // KB
 	MaxBlockTxs   int    `json:"maxBlockTxs"`
 	MaxBlockUnits uint64 `json:"maxBlockUnits"` // must be possible to reach before block too large
 
@@ -62,7 +64,9 @@ func Default() *Genesis {
 		HRP: consts.HRP,
 
 		// Block params
-		MaxBlockTxs:   20_000,    // rely on max block units
+		MaxChunks:     10,
+		MaxChunkSize:  512 * units.KiB,
+		MaxBlockTxs:   100_000,   // rely on max block units
 		MaxBlockUnits: 1_800_000, // 1.8 MiB
 
 		// Tx params

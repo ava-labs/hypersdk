@@ -36,7 +36,7 @@ func (c *Config) GetDecisionsPort() uint16               { return 0 } // auto-as
 func (c *Config) GetBlocksPort() uint16                  { return 0 } // auto-assigned
 func (c *Config) GetStreamingBacklogSize() int           { return 1024 }
 func (c *Config) GetStateHistoryLength() int             { return 256 }
-func (c *Config) GetStateCacheSize() int                 { return 65_536 } // nodes
+func (c *Config) GetStateCacheSize() int                 { return 128_000 } // nodes
 func (c *Config) GetAcceptorSize() int                   { return 1024 }
 func (c *Config) GetTraceConfig() *trace.Config          { return &trace.Config{Enabled: false} }
 func (c *Config) GetStateSyncParallelism() int           { return 4 }
@@ -47,3 +47,5 @@ func (c *Config) GetBlockLRUSize() int                   { return 128 }
 func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	return &profiler.Config{Enabled: false}
 }
+func (c *Config) GetBuildAsync() bool  { return false }
+func (c *Config) GetVerifyAsync() bool { return false }

@@ -6,9 +6,11 @@ package chain
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/tstate"
 )
@@ -29,6 +31,8 @@ type Processor struct {
 	blk      *StatelessBlock
 	readyTxs chan *txData
 	db       Database
+
+	err error
 }
 
 // Only prepare for population if above last accepted height
@@ -41,12 +45,23 @@ func NewProcessor(tracer trace.Tracer, b *StatelessBlock) *Processor {
 	}
 }
 
+// TODO: read from parent state instead of our view
 func (p *Processor) Prefetch(ctx context.Context, db Database) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Prefetch")
 	p.db = db
 	sm := p.blk.vm.StateManager()
 	go func() {
-		defer span.End()
+		start := time.Now()
+		defer func() {
+			// Let caller know all sets have been readied
+			close(p.readyTxs)
+			if p.err == nil {
+				prefetch := time.Since(start)
+				p.blk.vm.RecordVerifyPrefetch(prefetch)
+				p.blk.vm.Logger().Info("block prefetch finished", zap.Duration("t", prefetch))
+			}
+			span.End()
+		}()
 
 		// Store required keys for each set
 		alreadyFetched := make(map[string]*fetchData, len(p.blk.GetTxs()))
@@ -65,16 +80,16 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 					alreadyFetched[sk] = &fetchData{nil, false}
 					continue
 				} else if err != nil {
-					panic(err)
+					// This can happen if a conflicting ancestry of the underlying merkledb
+					// is committed.
+					p.err = err
+					return
 				}
 				alreadyFetched[sk] = &fetchData{v, true}
 				storage[sk] = v
 			}
 			p.readyTxs <- &txData{tx, storage}
 		}
-
-		// Let caller know all sets have been readied
-		close(p.readyTxs)
 	}()
 }
 
@@ -132,6 +147,9 @@ func (p *Processor) Execute(
 			// Exit as soon as we hit our max
 			return 0, 0, nil, 0, 0, ErrBlockTooBig
 		}
+	}
+	if p.err != nil {
+		return 0, 0, nil, 0, 0, p.err
 	}
 	// Wait until end to write changes to avoid conflicting with pre-fetching
 	if err := ts.WriteChanges(ctx, p.db, p.tracer); err != nil {

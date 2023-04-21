@@ -17,11 +17,11 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=1.10.0
+VERSION=1c7770e04d65e79c9fc8e3b929839487117a76b8
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
-if [[ ${MODE} != "run" ]]; then
+if [[ ${MODE} != "run" && ${MODE} != "run-single" ]]; then
   STATESYNC_DELAY=500000000 # 500ms
 fi
 
@@ -36,16 +36,16 @@ echo MODE: ${MODE}
 # https://github.com/ava-labs/avalanchego/releases
 GOARCH=$(go env GOARCH)
 GOOS=$(go env GOOS)
-AVALANCHEGO_PATH=/tmp/avalanchego-v${VERSION}/avalanchego
-AVALANCHEGO_PLUGIN_DIR=/tmp/avalanchego-v${VERSION}/plugins
+AVALANCHEGO_PATH=/tmp/avalanchego-${VERSION}/avalanchego
+AVALANCHEGO_PLUGIN_DIR=/tmp/avalanchego-${VERSION}/plugins
 
 if [ ! -f "$AVALANCHEGO_PATH" ]; then
   echo "building avalanchego"
   CWD=$(pwd)
 
   # Clear old folders
-  rm -rf /tmp/avalanchego-v${VERSION}
-  mkdir -p /tmp/avalanchego-v${VERSION}
+  rm -rf /tmp/avalanchego-${VERSION}
+  mkdir -p /tmp/avalanchego-${VERSION}
   rm -rf /tmp/avalanchego-src
   mkdir -p /tmp/avalanchego-src
 
@@ -53,11 +53,11 @@ if [ ! -f "$AVALANCHEGO_PATH" ]; then
   cd /tmp/avalanchego-src
   git clone https://github.com/ava-labs/avalanchego.git
   cd avalanchego
-  git checkout v${VERSION}
+  git checkout ${VERSION}
 
   # Build avalanchego
   ./scripts/build.sh
-  mv build/avalanchego /tmp/avalanchego-v${VERSION}
+  mv build/avalanchego /tmp/avalanchego-${VERSION}
 
   cd ${CWD}
 else
@@ -70,18 +70,18 @@ fi
 echo "building tokenvm"
 
 # delete previous (if exists)
-rm -f /tmp/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
+rm -f /tmp/avalanchego-${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
 
 # rebuild with latest code
 go build \
--o /tmp/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
+-o /tmp/avalanchego-${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
 ./cmd/tokenvm
 
 echo "building token-cli"
 go build -v -o /tmp/token-cli ./cmd/token-cli
 
 # log everything in the avalanchego directory
-find /tmp/avalanchego-v${VERSION}
+find /tmp/avalanchego-${VERSION}
 
 ############################
 
@@ -98,7 +98,9 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f /tmp/tokenvm.genesis
   /tmp/token-cli genesis generate /tmp/allocations.json \
-  --max-block-units 4000000 \
+  --max-block-units 40000000 \
+  --max-chunks 32 \
+  --max-chunk-size 256 \
   --window-target-units 100000000000 \
   --window-target-blocks 30 \
   --genesis-file /tmp/tokenvm.genesis
@@ -122,9 +124,11 @@ cat <<EOF > /tmp/tokenvm.config
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "parallelism": 5,
   "streamingBacklogSize": 10000000,
+  "gossipMaxSize": 32768,
   "trackedPairs":["*"],
   "preferredBlocksPerSecond": 3,
-  "continuousProfilerDir":"/tmp/tokenvm-e2e-profiles/*",
+  "buildAsync": true,
+  "verifyAsync": true,
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
@@ -139,7 +143,7 @@ echo "creating subnet config"
 rm -f /tmp/tokenvm.subnet
 cat <<EOF > /tmp/tokenvm.subnet
 {
-  "proposerMinBlockDelay": 100000000
+  "proposerMinBlockDelay": 0
 }
 EOF
 
@@ -222,11 +226,11 @@ echo "running e2e tests"
 --vm-genesis-path=/tmp/tokenvm.genesis \
 --vm-config-path=/tmp/tokenvm.config \
 --subnet-config-path=/tmp/tokenvm.subnet \
---output-path=/tmp/avalanchego-v${VERSION}/output.yaml \
+--output-path=/tmp/avalanchego-${VERSION}/output.yaml \
 --mode=${MODE}
 
 ############################
-if [[ ${MODE} == "run" ]]; then
+if [[ ${MODE} == "run" || ${MODE} == "run-single" ]]; then
   echo "cluster is ready!"
   # We made it past initialization and should avoid shutting down the network
   KEEPALIVE=true

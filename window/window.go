@@ -78,5 +78,5 @@ func Update(w *Window, start int, unitsConsumed uint64) {
 }
 
 func Last(w *Window) uint64 {
-	return binary.BigEndian.Uint64(w[WindowSliceSize-1-consts.Uint64Len:])
+	return binary.BigEndian.Uint64(w[WindowSliceSize-consts.Uint64Len:])
 }

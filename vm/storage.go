@@ -18,6 +18,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 const (
@@ -25,6 +26,7 @@ const (
 	heightPrefix        = 0x1
 	warpSignaturePrefix = 0x2
 	warpFetchPrefix     = 0x3
+	chunkPrefix         = 0x4
 )
 
 var (
@@ -32,6 +34,7 @@ var (
 	isSyncing    = []byte("is_syncing")
 
 	signatureLRU = &cache.LRU[string, *WarpSignature]{Size: 1024}
+	chunkLRU     = &cache.LRU[ids.ID, []byte]{Size: 128}
 )
 
 func PrefixBlockIDKey(id ids.ID) []byte {
@@ -214,4 +217,28 @@ func (vm *VM) GetWarpFetch(txID ids.ID) (int64, error) {
 		return -1, err
 	}
 	return int64(binary.BigEndian.Uint64(v)), nil
+}
+
+func PrefixChunkIDKey(id ids.ID) []byte {
+	k := make([]byte, 1+consts.IDLen)
+	k[0] = chunkPrefix
+	copy(k[1:], id[:])
+	return k
+}
+
+func (vm *VM) StoreChunk(chunk []byte) error {
+	chunkID := utils.ToID(chunk)
+	chunkLRU.Put(chunkID, chunk)
+	return vm.vmDB.Put(PrefixChunkIDKey(chunkID), chunk)
+}
+
+func (vm *VM) GetChunk(chunkID ids.ID) ([]byte, error) {
+	if chunk, ok := chunkLRU.Get(chunkID); ok {
+		return chunk, nil
+	}
+	v, err := vm.vmDB.Get(PrefixChunkIDKey(chunkID))
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
 }

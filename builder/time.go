@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const buildCheck = 200 * time.Millisecond
+const buildCheck = 50 * time.Millisecond
 
 var _ Builder = (*Time)(nil)
 
@@ -72,7 +72,7 @@ func (b *Time) shouldBuild(ctx context.Context) (bool, error) {
 		start := slot * consts.Uint64Len
 		window.Update(&newRollupWindow, start, 1)
 	}
-	return window.Last(&newRollupWindow) < b.cfg.PreferredBlocksPerSecond, nil
+	return window.Last(&newRollupWindow) <= b.cfg.PreferredBlocksPerSecond, nil
 }
 
 func (b *Time) Run() {
@@ -81,6 +81,8 @@ func (b *Time) Run() {
 		zap.Duration("interval", b.cfg.BuildInterval),
 	)
 	defer close(b.doneBuild)
+
+	// TODO: switch to always build based on receiving a message from VM
 
 	t := time.NewTicker(buildCheck)
 	defer t.Stop()

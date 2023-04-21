@@ -139,7 +139,7 @@ func (c *decisionRPCConnection) handleReads() {
 		}
 
 		ctx, span := c.vm.tracer.Start(context.Background(), "decisionRPCServer.handleReads")
-		p := codec.NewReader(msgBytes, chain.NetworkSizeLimit) // will likely be much smaller
+		p := codec.NewReader(msgBytes, consts.NetworkSizeLimit) // will likely be much smaller
 		tx, err := chain.UnmarshalTx(p, c.vm.actionRegistry, c.vm.authRegistry)
 		if err != nil {
 			c.vm.snowCtx.Log.Debug("failed to unmarshal tx",
@@ -364,6 +364,15 @@ func (c *blockRPCConnection) handleWrites() {
 				c.vm.snowCtx.Log.Error("unable to send blk", zap.Error(err))
 				return
 			}
+			txBytes, err := chain.MarshalTxs(blk.Txs, c.vm.actionRegistry, c.vm.authRegistry)
+			if err != nil {
+				c.vm.snowCtx.Log.Error("unable to marshal transactions", zap.Error(err))
+				return
+			}
+			if err := writeNetMessage(c.conn, txBytes); err != nil {
+				c.vm.snowCtx.Log.Error("unable to send transaction bytes", zap.Error(err))
+				return
+			}
 			results, err := chain.MarshalResults(blk.Results())
 			if err != nil {
 				c.vm.snowCtx.Log.Error("unable to marshal blk results", zap.Error(err))
@@ -397,29 +406,39 @@ func NewBlockRPCClient(uri string) (*BlockRPCClient, error) {
 
 func (c *BlockRPCClient) Listen(
 	parser chain.Parser,
-) (*chain.StatefulBlock, []*chain.Result, error) {
+) (*chain.StatefulBlock, []*chain.Transaction, []*chain.Result, error) {
 	c.ll.Lock()
 	defer c.ll.Unlock()
 
+	// Read block
 	ritem, err := readNetMessage(c.conn, false)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	// Read block
 	blk, err := chain.UnmarshalBlock(ritem, parser)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, fmt.Errorf("%w: unable to unmarshal block", err)
 	}
+	// Read txs
 	ritem, err = readNetMessage(c.conn, false)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+	actionRegistry, authRegistry := parser.Registry()
+	txs, err := chain.UnmarshalTxs(ritem, consts.MaxInt, actionRegistry, authRegistry)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("%w: unable to unmarshal transactions", err)
 	}
 	// Read results
+	ritem, err = readNetMessage(c.conn, false)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	results, err := chain.UnmarshalResults(ritem)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, fmt.Errorf("%w: unable to unmarshal results", err)
 	}
-	return blk, results, nil
+	return blk, txs, results, nil
 }
 
 func (c *BlockRPCClient) Close() error {
@@ -449,8 +468,8 @@ func readNetMessage(conn io.Reader, limit bool) ([]byte, error) {
 		return nil, err
 	}
 	l := binary.BigEndian.Uint32(lb)
-	if limit && l > chain.NetworkSizeLimit {
-		return nil, fmt.Errorf("%d is larger than max var size %d", l, chain.NetworkSizeLimit)
+	if limit && l > consts.NetworkSizeLimit {
+		return nil, fmt.Errorf("%d is larger than max var size %d", l, consts.NetworkSizeLimit)
 	}
 	if l == 0 {
 		return nil, nil

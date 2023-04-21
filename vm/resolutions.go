@@ -138,6 +138,14 @@ func (vm *VM) processAcceptedBlocks() {
 	// persist indexed state) instead of just exiting as soon as `vm.stop` is
 	// closed.
 	for b := range vm.acceptedQueue {
+		// Update chunk store
+		for _, chunk := range b.FetchedChunks {
+			if err := vm.StoreChunk(chunk); err != nil {
+				vm.snowCtx.Log.Fatal("unable to store chunk", zap.Error(err))
+			}
+		}
+		vm.chunkManager.Accept(b.Hght)
+
 		// We skip blocks that were not processed because metadata required to
 		// process blocks opaquely (like looking at results) is not populated.
 		//
@@ -330,10 +338,50 @@ func (vm *VM) RecordWaitSignatures(t time.Duration) {
 	vm.metrics.waitSignatures.Observe(float64(t))
 }
 
+func (vm *VM) RegisterChunks(ctx context.Context, height uint64, chunks [][]byte) {
+	vm.chunkManager.RegisterChunks(ctx, height, chunks)
+}
+
+func (vm *VM) RequestChunks(ctx context.Context, height uint64, chunks []ids.ID, ch chan []byte) error {
+	return vm.chunkManager.RequestChunks(ctx, height, chunks, ch)
+}
+
+func (vm *VM) GetVerifyAsync() bool {
+	return vm.config.GetVerifyAsync()
+}
+
 func (vm *VM) RecordStateChanges(c int) {
 	vm.metrics.stateChanges.Add(float64(c))
 }
 
 func (vm *VM) RecordStateOperations(c int) {
 	vm.metrics.stateOperations.Add(float64(c))
+}
+
+func (vm *VM) RecordWaitChunks(t time.Duration) {
+	vm.metrics.waitChunks.Observe(float64(t))
+}
+
+func (vm *VM) RecordBuildPrefetch(t time.Duration) {
+	vm.metrics.buildPrefetch.Observe(float64(t))
+}
+
+func (vm *VM) RecordVerifyPrefetch(t time.Duration) {
+	vm.metrics.verifyPrefetch.Observe(float64(t))
+}
+
+func (vm *VM) RecordParseToVerified(t time.Duration) {
+	vm.metrics.parseToVerified.Observe(float64(t))
+}
+
+func (vm *VM) RecordBuild(t time.Duration) {
+	vm.metrics.build.Observe(float64(t))
+}
+
+func (vm *VM) RecordChunkFetchDuration(t time.Duration) {
+	vm.metrics.chunkFetchDuration.Observe(float64(t))
+}
+
+func (vm *VM) RecordVerify(t time.Duration) {
+	vm.metrics.verify.Observe(float64(t))
 }

@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -98,6 +99,9 @@ type VM struct {
 	lastAccepted *chain.StatelessBlock
 	toEngine     chan<- common.Message
 
+	builtBlock *chain.StatelessBlock
+	building   bool
+
 	// TODO: change name of both var and struct to something more
 	// informative/better sounding
 	decisionsServer rpcServer
@@ -111,6 +115,8 @@ type VM struct {
 	// Warp manager fetches signatures from other validators for a given accepted
 	// txID
 	warpManager *WarpManager
+
+	chunkManager *ChunkManager
 
 	// Network manager routes p2p messages to pre-registered handlers
 	networkManager *NetworkManager
@@ -143,6 +149,8 @@ func (vm *VM) Initialize(
 	// This will be overwritten when we accept the first block (in state sync) or
 	// backfill existing blocks (during normal bootstrapping).
 	vm.startSeenTime = -1
+	vm.seen = emap.NewEMap[*chain.Transaction]()
+	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	gatherer := ametrics.NewMultiGatherer()
@@ -157,12 +165,20 @@ func (vm *VM) Initialize(
 		return err
 	}
 	vm.metrics = metrics
+
 	vm.proposerMonitor = NewProposerMonitor(vm)
 	vm.networkManager = NewNetworkManager(vm, appSender)
+
 	warpHandler, warpSender := vm.networkManager.Register()
 	vm.warpManager = NewWarpManager(vm)
 	vm.networkManager.SetHandler(warpHandler, NewWarpHandler(vm))
 	go vm.warpManager.Run(warpSender)
+
+	chunkHandler, chunkSender := vm.networkManager.Register()
+	vm.chunkManager = NewChunkManager(vm)
+	vm.networkManager.SetHandler(chunkHandler, NewChunkHandler(vm))
+	go vm.chunkManager.Run(chunkSender)
+
 	vm.manager = manager
 
 	// Always initialize implementation first
@@ -227,10 +243,6 @@ func (vm *VM) Initialize(
 		vm.config.GetMempoolExemptPayers(),
 	)
 
-	// Init seen for tracking transactions that have been accepted on-chain
-	vm.seen = emap.NewEMap[*chain.Transaction]()
-	vm.seenValidityWindow = make(chan struct{})
-
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
 	if err != nil {
@@ -284,12 +296,12 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("unable to init genesis block", zap.Error(err))
 			return err
 		}
-
 		if err := vm.SetLastAccepted(genesisBlk); err != nil {
 			snowCtx.Log.Error("could not set genesis as last accepted", zap.Error(err))
 			return err
 		}
 		gBlkID := genesisBlk.ID()
+		vm.blocks.Put(gBlkID, genesisBlk)
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
 		snowCtx.Log.Info("initialized vm from genesis", zap.Stringer("block", gBlkID))
 	}
@@ -475,6 +487,7 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	if vm.profiler != nil {
 		vm.profiler.Shutdown()
 	}
+	vm.chunkManager.Done()
 
 	// Shutdown controller once all mechanisms that could invoke it have
 	// shutdown.
@@ -589,7 +602,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 		vm,
 	)
 	if err != nil {
-		vm.snowCtx.Log.Error("could not parse block", zap.Error(err))
+		vm.snowCtx.Log.Error("could not parse block", zap.Stringer("blkID", id), zap.Error(err))
 		return nil, err
 	}
 	vm.parsedBlocks.Put(id, newBlk)
@@ -597,6 +610,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 		"parsed block",
 		zap.Stringer("id", newBlk.ID()),
 		zap.Uint64("height", newBlk.Hght),
+		zap.Int("chunks", len(newBlk.Chunks)),
 	)
 	return newBlk, nil
 }
@@ -610,14 +624,73 @@ func (vm *VM) buildBlock(
 		return nil, ErrNotReady
 	}
 
-	blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
-	vm.builder.HandleGenerateBlock()
-	if err != nil {
-		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
-		return nil, err
+	var builtBlock *chain.StatelessBlock
+	if vm.config.GetBuildAsync() {
+		if vm.building {
+			return nil, errors.New("building block")
+		}
+		if vm.builtBlock != nil {
+			if vm.builtBlock.Prnt == vm.preferred {
+				builtBlock = vm.builtBlock
+				vm.snowCtx.Log.Info("found previously built block", zap.Stringer("blkID", builtBlock.ID()))
+			} else {
+				// TODO: cancel ongoing building in verify
+				vm.snowCtx.Log.Warn("discarding previously built block", zap.Stringer("blkID", vm.builtBlock.ID()))
+				vm.metrics.discardedBuiltBlocks.Inc()
+				// Re-add transactions to mempool when block is discarded
+				_ = vm.Submit(ctx, false, vm.builtBlock.Txs)
+			}
+			vm.builtBlock = nil
+		}
+		if builtBlock == nil {
+			vm.building = true
+			preferred := vm.preferred
+			vm.snowCtx.Log.Info("starting async build", zap.Stringer("parent", preferred))
+			start := time.Now()
+			go func() {
+				defer func() {
+					vm.building = false
+				}()
+				blk, err := chain.BuildBlock(ctx, vm, preferred, blockContext)
+				if err != nil {
+					vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
+					// TODO: add separate metirc for this
+					vm.metrics.discardedBuiltBlocks.Inc()
+					return
+				}
+				if blk.Prnt != vm.preferred {
+					vm.snowCtx.Log.Warn("abandoning built blk", zap.Error(err))
+					vm.metrics.discardedBuiltBlocks.Inc()
+					_ = vm.Submit(ctx, false, blk.Txs)
+					return
+				}
+				vm.builtBlock = blk
+				vm.builder.TriggerBuild()
+				vm.snowCtx.Log.Info("built block async", zap.Duration("t", time.Since(start)))
+			}()
+			vm.builder.HandleGenerateBlock()
+			return nil, errors.New("building block")
+		}
+	} else {
+		blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
+		vm.builder.HandleGenerateBlock()
+		if err != nil {
+			vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
+			return nil, err
+		}
+		builtBlock = blk
 	}
-	vm.parsedBlocks.Put(blk.ID(), blk)
-	return blk, nil
+	// We only register chunks once we actually use a built block
+	//
+	// If we don't do this, we may gossip chunks we remove quickly from our
+	// storage.
+	//
+	// TODO: we should gossip heights with chunks so peers know when to stop
+	// trying to request.
+	vm.RegisterChunks(ctx, builtBlock.Hght, builtBlock.FetchedChunks)
+	vm.gossiper.BuiltBlock(builtBlock.Tmstmp)
+	vm.parsedBlocks.Put(builtBlock.ID(), builtBlock)
+	return builtBlock, nil
 }
 
 // implements "block.ChainVM"
@@ -677,19 +750,18 @@ func (vm *VM) Submit(
 		return []error{ErrNotReady}
 	}
 
-	if !vm.config.GetMempoolVerifyBalances() {
-		return vm.submitStateless(ctx, verifySig, txs)
-	}
-
 	// Create temporary execution context
 	blk, err := vm.GetStatelessBlock(ctx, vm.preferred)
 	if err != nil {
 		return []error{err}
 	}
-	state, err := blk.State()
-	if err != nil {
-		// This will error if a block does not yet have processed state.
-		return []error{err}
+	var state chain.Database
+	if vm.config.GetMempoolVerifyBalances() {
+		state, err = blk.State()
+		if err != nil {
+			// This will error if a block does not yet have processed state.
+			return []error{err}
+		}
 	}
 	now := time.Now().Unix()
 	r := vm.c.Rules(now)
@@ -731,19 +803,22 @@ func (vm *VM) Submit(
 			errs = append(errs, chain.ErrDuplicateTx)
 			continue
 		}
-		// PreExecute does not make any changes to state
-		//
-		// This may fail if the state we are utilizing is invalidated (if a trie
-		// view from a different branch is committed underneath it). We prefer this
-		// instead of putting a lock around all commits.
-		if err := tx.PreExecute(ctx, ectx, r, state, now); err != nil {
-			errs = append(errs, err)
-			continue
+		if vm.config.GetMempoolVerifyBalances() {
+			// PreExecute does not make any changes to state
+			//
+			// This may fail if the state we are utilizing is invalidated (if a trie
+			// view from a different branch is committed underneath it). We prefer this
+			// instead of putting a lock around all commits.
+			if err := tx.PreExecute(ctx, ectx, r, state, now); err != nil {
+				errs = append(errs, err)
+				continue
+			}
 		}
 		errs = append(errs, nil)
 		validTxs = append(validTxs, tx)
 	}
 	vm.mempool.Add(ctx, validTxs)
+	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	return errs
 }
 

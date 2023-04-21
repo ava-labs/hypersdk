@@ -6,6 +6,7 @@ package chain
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
 	"github.com/ava-labs/hypersdk/workers"
@@ -33,29 +35,23 @@ var (
 	_ block.StateSummary      = &SyncableBlock{}
 )
 
-const (
-	// AvalancheGo imposes a limit of 2 MiB on the network, so we limit at
-	// 2 MiB - ProposerVM header - Protobuf encoding overhead (we assume this is
-	// no more than 50 KiB of overhead but is likely much less)
-	NetworkSizeLimit = 2_044_723 // 1.95 MiB
-
-	// MaxWarpMessages is the maximum number of warp messages allows in a single
-	// block.
-	MaxWarpMessages = 64
-)
+// MaxWarpMessages is the maximum number of warp messages allows in a single
+// block.
+const MaxWarpMessages = 64
 
 type StatefulBlock struct {
 	Prnt   ids.ID `json:"parent"`
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	UnitPrice  uint64        `json:"unitPrice"`
-	UnitWindow window.Window `json:"unitWindow"`
-
+	UnitPrice   uint64        `json:"unitPrice"`
+	UnitWindow  window.Window `json:"unitWindow"`
 	BlockCost   uint64        `json:"blockCost"`
 	BlockWindow window.Window `json:"blockWindow"`
 
-	Txs []*Transaction `json:"txs"`
+	// Chunks contain ordered hashes of tx blobs that are processed by this block
+	Chunks    []ids.ID `json:"chunks"`
+	WarpCount uint8    `json:"warpCount"` // needed for [ShouldVerifyWithContext] before we fetch chunks
 
 	StateRoot     ids.ID     `json:"stateRoot"`
 	UnitsConsumed uint64     `json:"unitsConsumed"`
@@ -75,9 +71,8 @@ type warpJob struct {
 
 func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBlock {
 	return &StatefulBlock{
-		UnitPrice:  minUnit,
-		UnitWindow: window.Window{},
-
+		UnitPrice:   minUnit,
+		UnitWindow:  window.Window{},
 		BlockCost:   minBlock,
 		BlockWindow: window.Window{},
 
@@ -91,23 +86,36 @@ func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBloc
 type StatelessBlock struct {
 	*StatefulBlock `json:"block"`
 
-	id     ids.ID
-	st     choices.Status
-	t      time.Time
-	bytes  []byte
-	txsSet set.Set[ids.ID]
-
-	warpMessages map[ids.ID]*warpJob
-	containsWarp bool // this allows us to avoid allocating a map when we build
-	bctx         *block.Context
-	vdrState     validators.State
-
-	results []*Result
-
+	id    ids.ID
+	st    choices.Status
+	t     time.Time
+	bytes []byte
 	vm    VM
-	state merkledb.TrieView
 
-	sigJob *workers.Job
+	parseStart time.Time
+
+	FetchedChunks       [][]byte
+	chunkFetchComplete  bool
+	chunkFetchDuration  time.Duration
+	chunkFetchErr       error
+	chunkFetchErrPerm   bool
+	chunkFetchStartWait time.Time
+	recordedFetchWait   bool
+
+	Txs          []*Transaction
+	txsSet       set.Set[ids.ID]
+	sigJobs      []*workers.Job
+	warpMessages map[ids.ID]*warpJob
+
+	verifying     bool
+	verifyView    merkledb.TrieView
+	verifyErr     error
+	verifyErrPerm bool
+
+	bctx     *block.Context
+	vdrState validators.State
+	state    merkledb.TrieView
+	results  []*Result
 }
 
 func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
@@ -117,9 +125,8 @@ func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) 
 			Tmstmp: tmstp,
 			Hght:   parent.Height() + 1,
 
-			UnitPrice:  ectx.NextUnitPrice,
-			UnitWindow: ectx.NextUnitWindow,
-
+			UnitPrice:   ectx.NextUnitPrice,
+			UnitWindow:  ectx.NextUnitWindow,
 			BlockCost:   ectx.NextBlockCost,
 			BlockWindow: ectx.NextBlockWindow,
 		},
@@ -146,53 +153,154 @@ func ParseBlock(
 }
 
 // populateTxs is only called on blocks we did not build
-func (b *StatelessBlock) populateTxs(ctx context.Context) error {
+func (b *StatelessBlock) populateTxs(ctx context.Context) {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.populateTxs")
 	defer span.End()
 
-	// Setup signature verification job
-	job, err := b.vm.Workers().NewJob(len(b.Txs))
-	if err != nil {
-		return err
-	}
-	b.sigJob = job
+	var (
+		cctx, cancel = context.WithCancel(ctx)
 
-	// Process transactions
-	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
-	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
-	b.warpMessages = map[ids.ID]*warpJob{}
-	for _, tx := range b.Txs {
-		b.sigJob.Go(tx.AuthAsyncVerify())
-		if b.txsSet.Contains(tx.ID()) {
-			return ErrDuplicateTx
-		}
-		b.txsSet.Add(tx.ID())
+		c        = make(chan []byte, len(b.Chunks))
+		fetchErr error
 
-		// Check if we need the block context to verify the block (which contains
-		// an Avalanche Warp Message)
-		//
-		// Instead of erroring out if a warp message is invalid, we mark the
-		// verification as skipped and include it in the verification result so
-		// that a fee can still be deducted.
-		if tx.WarpMessage != nil {
-			if len(b.warpMessages) == MaxWarpMessages {
-				return ErrTooManyWarpMessages
-			}
-			signers, err := tx.WarpMessage.Signature.NumSigners()
-			if err != nil {
-				return err
-			}
-			b.warpMessages[tx.ID()] = &warpJob{
-				msg:          tx.WarpMessage,
-				signers:      signers,
-				verifiedChan: make(chan bool, 1),
-				warpNum:      len(b.warpMessages),
-			}
-			b.containsWarp = true
+		actionRegistry, authRegistry = b.vm.Registry()
+		r                            = b.vm.Rules(b.Tmstmp)
+		txsSet                       = set.NewSet[ids.ID](1024)
+		warpMessages                 = map[ids.ID]*warpJob{}
+		jobs                         = []*workers.Job{}
+		chunkTxs                     = map[ids.ID][]*Transaction{}
+		chunkBytes                   = map[ids.ID][]byte{}
+
+		seenTxs int
+	)
+
+	// Fetch chunks
+	//
+	// We cancel chunk fetching if we exit early.
+	defer cancel()
+	start := time.Now()
+	go func() {
+		fetchErr = b.vm.RequestChunks(cctx, b.Hght, b.Chunks, c)
+		close(c)
+		b.vm.Logger().Info("fetched chunks", zap.Uint64("height", b.Hght), zap.Int("chunks", len(b.Chunks)), zap.Duration("t", time.Since(start)), zap.Error(fetchErr))
+	}()
+
+	// Parse all chunks
+	for chunk := range c {
+		if len(c) > r.GetMaxChunkSize() {
+			b.vm.Logger().Error("chunk too big", zap.Int("size", len(c)), zap.Int("max", r.GetMaxChunkSize()))
+			b.chunkFetchErr = errors.New("chunk too big")
+			b.chunkFetchErrPerm = true
+			b.chunkFetchComplete = true
+			b.chunkFetchDuration = time.Since(start)
+			return
 		}
+		txs, err := UnmarshalTxs(chunk, r.GetMaxBlockTxs(), actionRegistry, authRegistry)
+		if err != nil {
+			b.vm.Logger().Error("unable to unmarshal txs", zap.Error(err))
+			b.chunkFetchErr = err
+			b.chunkFetchErrPerm = true
+			b.chunkFetchComplete = true
+			b.chunkFetchDuration = time.Since(start)
+			return
+		}
+		// Ensure that every chunk has at least 1 transaction
+		if len(txs) == 0 {
+			b.vm.Logger().Error("unable to unmarshal txs", zap.Error(ErrNoTxs))
+			b.chunkFetchErr = ErrNoTxs
+			b.chunkFetchErrPerm = true
+			b.chunkFetchComplete = true
+			b.chunkFetchDuration = time.Since(start)
+			return
+		}
+		chunkID := utils.ToID(chunk)
+		chunkBytes[chunkID] = chunk
+		chunkTxs[chunkID] = txs
+		seenTxs += len(txs)
+
+		// Verify signatures
+		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
+		job, err := b.vm.Workers().NewJob(len(txs))
+		if err != nil {
+			b.vm.Logger().Error("unable to start job", zap.Error(err))
+			b.chunkFetchErr = err
+			b.chunkFetchErrPerm = false
+			b.chunkFetchComplete = true
+			b.chunkFetchDuration = time.Since(start)
+			return
+		}
+		for _, tx := range txs {
+			job.Go(tx.AuthAsyncVerify())
+
+			// Add to block tx set
+			if txsSet.Contains(tx.ID()) {
+				b.vm.Logger().Error("unable to parse txs", zap.Error(ErrDuplicateTx))
+				b.chunkFetchErr = ErrDuplicateTx
+				b.chunkFetchErrPerm = true
+				b.chunkFetchComplete = true
+				b.chunkFetchDuration = time.Since(start)
+				return
+			}
+			txsSet.Add(tx.ID())
+
+			// Check if we need the block context to verify the block (which contains
+			// an Avalanche Warp Message)
+			//
+			// Instead of erroring out if a warp message is invalid, we mark the
+			// verification as skipped and include it in the verification result so
+			// that a fee can still be deducted.
+			if tx.WarpMessage != nil {
+				if len(warpMessages) > int(b.WarpCount) || len(warpMessages) == MaxWarpMessages {
+					b.chunkFetchErr = ErrTooManyWarpMessages
+					b.chunkFetchErrPerm = true
+					b.chunkFetchComplete = true
+					b.chunkFetchDuration = time.Since(start)
+					return
+				}
+				signers, err := tx.WarpMessage.Signature.NumSigners()
+				if err != nil {
+					b.chunkFetchErr = err
+					b.chunkFetchErrPerm = true
+					b.chunkFetchComplete = true
+					b.chunkFetchDuration = time.Since(start)
+					return
+				}
+				warpMessages[tx.ID()] = &warpJob{
+					msg:          tx.WarpMessage,
+					signers:      signers,
+					verifiedChan: make(chan bool, 1),
+					warpNum:      len(warpMessages),
+				}
+			}
+		}
+		job.Done(func() { sspan.End() })
+		jobs = append(jobs, job)
 	}
-	b.sigJob.Done(func() { sspan.End() })
-	return nil
+	if fetchErr != nil {
+		b.vm.Logger().Error("fetch err", zap.Error(fetchErr))
+		b.chunkFetchErr = fetchErr
+		b.chunkFetchErrPerm = false
+		b.chunkFetchComplete = true
+		b.chunkFetchDuration = time.Since(start)
+		return
+	}
+
+	// Populate structs if parse is successful
+	b.FetchedChunks = make([][]byte, 0, len(b.Chunks))
+	b.txsSet = txsSet
+	b.warpMessages = warpMessages
+	b.Txs = make([]*Transaction, 0, seenTxs)
+	for _, chunkID := range b.Chunks {
+		b.FetchedChunks = append(b.FetchedChunks, chunkBytes[chunkID])
+		b.Txs = append(b.Txs, chunkTxs[chunkID]...)
+	}
+	b.sigJobs = jobs
+
+	// Store successful status
+	b.chunkFetchErr = nil
+	b.chunkFetchErrPerm = false
+	b.chunkFetchComplete = true
+	b.chunkFetchDuration = time.Since(start)
 }
 
 func ParseStatefulBlock(
@@ -204,21 +312,19 @@ func ParseStatefulBlock(
 ) (*StatelessBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.ParseStatefulBlock")
 	defer span.End()
+	parseStart := time.Now()
 
 	// Perform basic correctness checks before doing any expensive work
 	if blk.Hght > 0 { // skip genesis
 		if blk.Tmstmp >= time.Now().Add(FutureBound).Unix() {
 			return nil, ErrTimestampTooLate
 		}
-		if len(blk.Txs) == 0 {
-			return nil, ErrNoTxs
-		}
-		r := vm.Rules(blk.Tmstmp)
-		if len(blk.Txs) > r.GetMaxBlockTxs() {
-			return nil, ErrBlockTooBig
+		if len(blk.Chunks) > vm.Rules(blk.Tmstmp).GetMaxChunks() {
+			return nil, ErrTooManyChunks
 		}
 	}
 
+	// Populate block bytes if not yet populated
 	if len(source) == 0 {
 		actionRegistry, authRegistry := vm.Registry()
 		nsource, err := blk.Marshal(actionRegistry, authRegistry)
@@ -234,6 +340,7 @@ func ParseStatefulBlock(
 		st:            status,
 		vm:            vm,
 		id:            utils.ToID(source),
+		parseStart:    parseStart,
 	}
 
 	// If we are parsing an older block, it will not be re-executed and should
@@ -243,14 +350,22 @@ func ParseStatefulBlock(
 		return b, nil
 	}
 
-	// Populate hashes and tx set
-	return b, b.populateTxs(ctx)
+	// Kickoff tx population
+	// TODO: consider limiting how many concurrent
+	go b.populateTxs(context.Background())
+	return b, nil
 }
 
 // [initializeBuilt] is invoked after a block is built
-func (b *StatelessBlock) initializeBuilt(ctx context.Context, state merkledb.TrieView, results []*Result) error {
+func (b *StatelessBlock) initializeBuilt(ctx context.Context, chunks [][]byte, state merkledb.TrieView, results []*Result) error {
 	_, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
 	defer span.End()
+
+	// Notify VM about new chunks
+	b.FetchedChunks = chunks
+	b.chunkFetchErr = nil
+	b.chunkFetchErrPerm = false
+	b.chunkFetchComplete = true
 
 	blk, err := b.StatefulBlock.Marshal(b.vm.Registry())
 	if err != nil {
@@ -264,9 +379,6 @@ func (b *StatelessBlock) initializeBuilt(ctx context.Context, state merkledb.Tri
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
 		b.txsSet.Add(tx.ID())
-		if tx.WarpMessage != nil {
-			b.containsWarp = true
-		}
 	}
 	return nil
 }
@@ -274,13 +386,45 @@ func (b *StatelessBlock) initializeBuilt(ctx context.Context, state merkledb.Tri
 // implements "snowman.Block.choices.Decidable"
 func (b *StatelessBlock) ID() ids.ID { return b.id }
 
+func (b *StatelessBlock) checkChunkFetch(ctx context.Context) error {
+	if b.chunkFetchStartWait.IsZero() {
+		b.chunkFetchStartWait = time.Now()
+	}
+	if !b.chunkFetchComplete {
+		return ErrChunksNotProcessed
+	}
+	if b.chunkFetchErr != nil && !b.chunkFetchErrPerm {
+		b.vm.Logger().Warn("restarting chunk fetch", zap.Error(b.chunkFetchErr))
+		b.chunkFetchComplete = false
+		b.chunkFetchErrPerm = false
+		b.chunkFetchErr = nil
+		// TODO: consider limiting how many concurrent
+		go b.populateTxs(context.Background())
+		return ErrChunksNotProcessed
+	}
+	if b.chunkFetchErr != nil {
+		return b.chunkFetchErr
+	}
+	// This may be ~0 if we built block
+	if !b.recordedFetchWait {
+		b.vm.RecordWaitChunks(time.Since(b.chunkFetchStartWait))
+		b.vm.RecordChunkFetchDuration(b.chunkFetchDuration)
+		b.recordedFetchWait = true
+	}
+	return nil
+}
+
 // implements "block.WithVerifyContext"
-func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
-	return b.containsWarp, nil
+func (b *StatelessBlock) ShouldVerifyWithContext(ctx context.Context) (bool, error) {
+	return b.WarpCount > 0, nil
 }
 
 // implements "block.WithVerifyContext"
 func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Context) error {
+	if err := b.checkChunkFetch(ctx); err != nil {
+		return err
+	}
+
 	stateReady := b.vm.StateReady()
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.VerifyWithContext",
@@ -303,6 +447,10 @@ func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Cont
 
 // implements "snowman.Block"
 func (b *StatelessBlock) Verify(ctx context.Context) error {
+	if err := b.checkChunkFetch(ctx); err != nil {
+		return err
+	}
+
 	stateReady := b.vm.StateReady()
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.Verify",
@@ -320,6 +468,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 
 func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 	log := b.vm.Logger()
+	var shouldRecordParseToVerified bool
 	switch {
 	case !stateReady:
 		// If the state of the accepted tip has not been fully fetched, it is not safe to
@@ -330,10 +479,52 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 		// need to compute it (we assume that we built a correct block and it isn't
 		// necessary to re-verify anything).
 		log.Info("skipping verification, already processed", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()))
+	case b.vm.GetVerifyAsync():
+		shouldRecordParseToVerified = true
+		if b.verifying {
+			return errors.New("verifying async")
+		}
+		if b.verifyView != nil {
+			b.state = b.verifyView
+			break
+		}
+		if b.verifyErr != nil {
+			if b.verifyErrPerm {
+				return b.verifyErr
+			}
+			log.Info("retrying verification", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()))
+			b.verifyErr = nil
+
+			// Reset warp message verification
+			for msgID := range b.warpMessages {
+				b.warpMessages[msgID].verifiedChan = make(chan bool, 1)
+			}
+		}
+		b.verifying = true
+		go func() {
+			defer func() {
+				b.verifying = false
+			}()
+			verifyStart := time.Now()
+			state, perm, err := b.innerVerify(ctx)
+			if err != nil {
+				b.verifyErr = err
+				b.verifyErrPerm = perm
+				return
+			}
+			b.verifyView = state
+			log.Info("verified async", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()), zap.Duration("t", time.Since(verifyStart)))
+		}()
+		return errors.New("verifying async")
 	default:
+		shouldRecordParseToVerified = true
 		// Parent may not be processed when we verify this block so [verify] may
-		// recursively compute missing state.
-		state, err := b.innerVerify(ctx)
+		// recursively compute missing state (should not be verifying when that
+		// happens).
+		//
+		// TODO: consider calling this async (must handle merkledb underlying
+		// change)
+		state, _, err := b.innerVerify(ctx)
 		if err != nil {
 			return err
 		}
@@ -345,6 +536,9 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 	//
 	// NOTE: mempool is modified by VM handler
 	b.vm.Verified(ctx, b)
+	if shouldRecordParseToVerified {
+		b.vm.RecordParseToVerified(time.Since(b.parseStart))
+	}
 	return nil
 }
 
@@ -402,30 +596,31 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 //  2. If the parent state is missing when verifying (dynamic state sync)
 //  3. If the state of a block we are accepting is missing (finishing dynamic
 //     state sync)
-func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, error) {
+func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, bool, error) {
 	var (
-		log = b.vm.Logger()
-		r   = b.vm.Rules(b.Tmstmp)
+		fnStart = time.Now()
+		log     = b.vm.Logger()
+		r       = b.vm.Rules(b.Tmstmp)
 	)
 
 	// Perform basic correctness checks before doing any expensive work
 	switch {
 	case b.Timestamp().Unix() >= time.Now().Add(FutureBound).Unix():
-		return nil, ErrTimestampTooLate
+		return nil, false, ErrTimestampTooLate
 	case len(b.Txs) == 0:
-		return nil, ErrNoTxs
+		return nil, true, ErrNoTxs
 	case len(b.Txs) > r.GetMaxBlockTxs():
-		return nil, ErrBlockTooBig
+		return nil, true, ErrBlockTooBig
 	}
 
 	// Verify parent is verified and available
 	parent, err := b.vm.GetStatelessBlock(ctx, b.Prnt)
 	if err != nil {
 		log.Debug("could not get parent", zap.Stringer("id", b.Prnt))
-		return nil, err
+		return nil, true, err
 	}
 	if b.Timestamp().Unix() < parent.Timestamp().Unix() {
-		return nil, ErrTimestampTooEarly
+		return nil, true, ErrTimestampTooEarly
 	}
 
 	// Ensure tx cannot be replayed
@@ -439,25 +634,25 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 	dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs)
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
 	if dup {
-		return nil, fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
+		return nil, true, fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
 	}
 
 	ectx, err := GenerateExecutionContext(ctx, b.vm.ChainID(), b.Tmstmp, parent, b.vm.Tracer(), r)
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
 	switch {
 	case b.UnitPrice != ectx.NextUnitPrice:
-		return nil, ErrInvalidUnitPrice
+		return nil, true, ErrInvalidUnitPrice
 	case b.UnitWindow != ectx.NextUnitWindow:
-		return nil, ErrInvalidUnitWindow
+		return nil, true, ErrInvalidUnitWindow
 	case b.BlockCost != ectx.NextBlockCost:
-		return nil, ErrInvalidBlockCost
+		return nil, true, ErrInvalidBlockCost
 	case b.BlockWindow != ectx.NextBlockWindow:
-		return nil, ErrInvalidBlockWindow
+		return nil, true, ErrInvalidBlockWindow
 	}
 	log.Info(
 		"verify context",
@@ -468,14 +663,14 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Start validating warp messages, if they exist
 	var invalidWarpResult bool
-	if b.containsWarp {
+	if b.WarpCount > 0 {
 		if b.bctx == nil {
 			log.Error(
 				"missing verify block context",
 				zap.Uint64("height", b.Hght),
 				zap.Stringer("id", b.ID()),
 			)
-			return nil, ErrMissingBlockContext
+			return nil, false, ErrMissingBlockContext
 		}
 		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
 		b.vdrState = b.vm.ValidatorState()
@@ -524,7 +719,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	// This function may verify the parent if it is not yet verified.
 	state, err := parent.childState(ctx, len(b.Txs)*2)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// Optimisticaly fetch state
@@ -535,13 +730,13 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	unitsConsumed, surplusFee, results, stateChanges, stateOps, err := processor.Execute(ctx, ectx, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
-		return nil, err
+		return nil, false, err
 	}
 	b.vm.RecordStateChanges(stateChanges)
 	b.vm.RecordStateOperations(stateOps)
 	b.results = results
 	if b.UnitsConsumed != unitsConsumed {
-		return nil, fmt.Errorf(
+		return nil, true, fmt.Errorf(
 			"%w: required=%d found=%d",
 			ErrInvalidUnitsConsumed,
 			unitsConsumed,
@@ -551,7 +746,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Ensure enough fee is paid to compensate for block production speed
 	if b.SurplusFee != surplusFee {
-		return nil, fmt.Errorf(
+		return nil, true, fmt.Errorf(
 			"%w: required=%d found=%d",
 			ErrInvalidSurplus,
 			b.SurplusFee,
@@ -560,7 +755,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 	requiredSurplus := b.UnitPrice * b.BlockCost
 	if surplusFee < requiredSurplus {
-		return nil, fmt.Errorf(
+		return nil, true, fmt.Errorf(
 			"%w: required=%d found=%d",
 			ErrInsufficientSurplus,
 			requiredSurplus,
@@ -570,11 +765,11 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Ensure warp results are correct
 	if invalidWarpResult {
-		return nil, ErrWarpResultMismatch
+		return nil, true, ErrWarpResultMismatch
 	}
 	numWarp := len(b.warpMessages)
 	if numWarp > MaxWarpMessages {
-		return nil, ErrTooManyWarpMessages
+		return nil, true, ErrTooManyWarpMessages
 	}
 	var warpResultsLimit set.Bits64
 	warpResultsLimit.Add(uint(numWarp))
@@ -582,23 +777,24 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		// If the value of [WarpResults] is greater than the value of uint64 with
 		// a 1-bit shifted [numWarp] times, then there are unused bits set to
 		// 1 (which should is not allowed).
-		return nil, ErrWarpResultMismatch
+		return nil, true, ErrWarpResultMismatch
 	}
 
 	// Store height in state to prevent duplicate roots
 	if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// Compute state root
 	start := time.Now()
 	computedRoot, err := state.GetMerkleRoot(ctx)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	b.vm.RecordRootCalculated(time.Since(start))
+	rootWait := time.Since(start)
+	b.vm.RecordRootCalculated(rootWait)
 	if b.StateRoot != computedRoot {
-		return nil, fmt.Errorf(
+		return nil, true, fmt.Errorf(
 			"%w: expected=%s found=%s",
 			ErrStateRootMismatch,
 			computedRoot,
@@ -610,11 +806,16 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitSignatures")
 	defer sspan.End()
 	start = time.Now()
-	if err := b.sigJob.Wait(); err != nil {
-		return nil, err
+	for _, sigJob := range b.sigJobs {
+		if err := sigJob.Wait(); err != nil {
+			return nil, true, err
+		}
 	}
-	b.vm.RecordWaitSignatures(time.Since(start))
-	return state, nil
+	sigWait := time.Since(start)
+	b.vm.RecordWaitSignatures(sigWait)
+	b.vm.RecordVerify(time.Since(fnStart))
+	log.Info("inner verify completed", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()), zap.Int("chunks", len(b.Chunks)), zap.Duration("t", time.Since(fnStart)), zap.Duration("root wait", rootWait), zap.Duration("sig wait", sigWait))
+	return state, false, nil
 }
 
 // implements "snowman.Block.choices.Decidable"
@@ -644,7 +845,9 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		//
 		// If state sync completes before accept is called
 		// then we need to rebuild it here.
-		state, err := b.innerVerify(ctx)
+		//
+		// If this errors, the node will fatal.
+		state, _, err := b.innerVerify(ctx)
 		if err != nil {
 			return err
 		}
@@ -743,7 +946,7 @@ func (b *StatelessBlock) childState(
 	if !b.Processed() {
 		b.vm.Logger().
 			Info("verifying parent when childState requested", zap.Uint64("height", b.Hght))
-		state, err := b.innerVerify(ctx)
+		state, _, err := b.innerVerify(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -804,25 +1007,27 @@ func (b *StatefulBlock) Marshal(
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
 ) ([]byte, error) {
-	p := codec.NewWriter(NetworkSizeLimit)
+	p := codec.NewWriter(consts.NetworkSizeLimit)
 
+	// Write header
 	p.PackID(b.Prnt)
 	p.PackInt64(b.Tmstmp)
 	p.PackUint64(b.Hght)
-
 	p.PackUint64(b.UnitPrice)
 	p.PackWindow(b.UnitWindow)
-
 	p.PackUint64(b.BlockCost)
 	p.PackWindow(b.BlockWindow)
 
-	p.PackInt(len(b.Txs))
-	for _, tx := range b.Txs {
-		if err := tx.Marshal(p, actionRegistry, authRegistry); err != nil {
-			return nil, err
-		}
+	// Write chunks
+	chunkCount := len(b.Chunks)
+	p.PackInt(chunkCount)
+	for i := 0; i < chunkCount; i++ {
+		p.PackID(b.Chunks[i])
 	}
 
+	p.PackByte(b.WarpCount)
+
+	// Write results
 	p.PackID(b.StateRoot)
 	p.PackUint64(b.UnitsConsumed)
 	p.PackUint64(b.SurplusFee)
@@ -832,46 +1037,57 @@ func (b *StatefulBlock) Marshal(
 
 func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	var (
-		p = codec.NewReader(raw, NetworkSizeLimit)
+		p = codec.NewReader(raw, consts.NetworkSizeLimit)
 		b StatefulBlock
 	)
 
+	// Unpack header
 	p.UnpackID(false, &b.Prnt)
 	b.Tmstmp = p.UnpackInt64(false)
 	b.Hght = p.UnpackUint64(false)
-
 	b.UnitPrice = p.UnpackUint64(false)
 	p.UnpackWindow(&b.UnitWindow)
-
 	b.BlockCost = p.UnpackUint64(false)
 	p.UnpackWindow(&b.BlockWindow)
-	if err := p.Err(); err != nil {
-		// Check that header was parsed properly before unwrapping transactions
-		return nil, err
-	}
 
-	// Parse transactions
-	txCount := p.UnpackInt(false) // could be 0 in genesis
-	actionRegistry, authRegistry := parser.Registry()
-	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
-	for i := 0; i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
-		if err != nil {
-			return nil, err
+	// Unpack chunks
+	chunkCount := p.UnpackInt(false) // could be 0 in genesis
+	r := parser.Rules(b.Tmstmp)
+	if chunkCount > r.GetMaxChunks() {
+		return nil, ErrTooManyChunks
+	}
+	chunkSet := set.NewSet[ids.ID](chunkCount)
+	b.Chunks = make([]ids.ID, chunkCount)
+	for i := 0; i < chunkCount; i++ {
+		var chunkID ids.ID
+		p.UnpackID(true, &chunkID)
+		if chunkSet.Contains(chunkID) {
+			return nil, errors.New("duplicate chunk")
 		}
-		b.Txs = append(b.Txs, tx)
+		chunkSet.Add(chunkID)
+		b.Chunks[i] = chunkID
 	}
 
+	b.WarpCount = p.UnpackByte()
+
+	// Unpack results
 	p.UnpackID(false, &b.StateRoot)
 	b.UnitsConsumed = p.UnpackUint64(false)
 	b.SurplusFee = p.UnpackUint64(false)
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
+	// TODO: ensure value of warp results is less than warp count
 
+	var err error
 	if !p.Empty() {
-		// Ensure no leftover bytes
-		return nil, ErrInvalidObject
+		err = ErrExtraBytes
 	}
-	return &b, p.Err()
+	if err == nil && p.Err() != nil {
+		err = p.Err()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("%w: unable to unmarshal block", err)
+	}
+	return &b, nil
 }
 
 type SyncableBlock struct {

@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/consts"
 	"go.uber.org/zap"
 )
 
@@ -25,6 +26,8 @@ type Proposer struct {
 	vm        VM
 	cfg       *ProposerConfig
 	appSender common.AppSender
+
+	lastBuilt int64
 
 	doneGossip chan struct{}
 
@@ -40,6 +43,7 @@ type ProposerConfig struct {
 	GossipPeerCacheSize     int
 	GossipReceivedCacheSize int
 	GossipMinLife           int64 // seconds
+	GossipMaxSize           int
 	BuildProposerDiff       int
 }
 
@@ -51,6 +55,7 @@ func DefaultProposerConfig() *ProposerConfig {
 		GossipPeerCacheSize:     10_240,
 		GossipReceivedCacheSize: 65_536,
 		GossipMinLife:           5,
+		GossipMaxSize:           consts.NetworkSizeLimit,
 		BuildProposerDiff:       2,
 	}
 }
@@ -150,11 +155,13 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 	defer span.End()
 
 	// Gossip highest paying txs
-	txs := []*chain.Transaction{}
-	totalUnits := uint64(0)
-	start := time.Now()
-	now := start.Unix()
-	r := g.vm.Rules(now)
+	var (
+		txs   = []*chain.Transaction{}
+		size  = uint64(0)
+		start = time.Now()
+		now   = start.Unix()
+		r     = g.vm.Rules(now)
+	)
 
 	// Create temporary execution context
 	blk, err := g.vm.PreferredBlock(ctx)
@@ -208,18 +215,14 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 				return cont, restore, removeAcct, nil
 			}
 
-			// Gossip up to a block of content
-			units, err := next.MaxUnits(r)
-			if err != nil {
-				// Should never happen
-				return true, false, false, nil
-			}
-			if units+totalUnits > r.GetMaxBlockUnits() {
+			// Gossip up to [cosnts.NetworkSizeLimit]
+			txSize := next.Size()
+			if txSize+size > uint64(g.cfg.GossipMaxSize) {
 				// Attempt to mirror the function of building a block without execution
 				return false, true, false, nil
 			}
 			txs = append(txs, next)
-			totalUnits += units
+			size += txSize
 			return len(txs) < r.GetMaxBlockTxs(), true, false, nil
 		},
 	)
@@ -237,6 +240,7 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 }
 
 func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+	// TODO: consider restricting gossip inbound size
 	r := g.vm.Rules(time.Now().Unix())
 	actionRegistry, authRegistry := g.vm.Registry()
 	txs, err := chain.UnmarshalTxs(msg, r.GetMaxBlockTxs(), actionRegistry, authRegistry)
@@ -312,6 +316,20 @@ func (g *Proposer) Run(appSender common.AppSender) {
 		case <-t.C:
 			tctx := context.Background()
 
+			// If producing blocks and blocks are large, don't gossip
+			preferredBlk, err := g.vm.PreferredBlock(tctx)
+			if err != nil {
+				g.vm.Logger().Warn(
+					"unable to get preferred block, gossiping anyways",
+					zap.Error(err),
+				)
+			}
+			// TODO: make this configurable
+			if time.Now().Unix()-g.lastBuilt < 30 && len(preferredBlk.Txs) > 300 {
+				g.vm.Logger().Debug("not gossiping because producing blocks and blocks are large")
+				continue
+			}
+
 			// If soon to be proposer, don't gossip
 			proposers, err := g.vm.Proposers(
 				tctx,
@@ -327,13 +345,6 @@ func (g *Proposer) Run(appSender common.AppSender) {
 
 			// If last block seen was greater than window, don't gossip (will just
 			// cause contention)
-			preferredBlk, err := g.vm.PreferredBlock(tctx)
-			if err != nil {
-				g.vm.Logger().Warn(
-					"unable to get preferred block, gossiping anyways",
-					zap.Error(err),
-				)
-			}
 			if preferredBlk.Tmstmp+proposerWindow < time.Now().Unix() {
 				g.vm.Logger().Debug(
 					"not gossiping because no recent block, will probably produce ourself",
@@ -350,6 +361,10 @@ func (g *Proposer) Run(appSender common.AppSender) {
 			return
 		}
 	}
+}
+
+func (g *Proposer) BuiltBlock(t int64) {
+	g.lastBuilt = t
 }
 
 func (g *Proposer) Done() {
