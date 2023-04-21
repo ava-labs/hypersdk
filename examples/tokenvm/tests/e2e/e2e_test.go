@@ -182,7 +182,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		ctx,
 		execPath,
 		runner_sdk.WithPluginDir(pluginDir),
-		// We don't diable PUT gossip here because the E2E test adds multiple
+		// We don't disable PUT gossip here because the E2E test adds multiple
 		// non-validating nodes (which will fall behind).
 		runner_sdk.WithGlobalNodeConfig(`{
 				"log-display-level":"info",
@@ -1407,6 +1407,102 @@ var _ = ginkgo.Describe("[Test]", func() {
 		}
 	})
 
+	ginkgo.It("can pause a node", func() {
+		_, err := anrCli.PauseNode(
+			context.Background(),
+			"sync",
+		)
+		gomega.Expect(err).To(gomega.BeNil())
+
+		awaitHealthy(anrCli)
+
+		ok, err := syncClient.Ping(context.Background())
+		gomega.Ω(ok).Should(gomega.BeFalse())
+		gomega.Ω(err).Should(gomega.HaveOccurred())
+	})
+
+	ginkgo.It("supports issuance of at least 64 more blocks", func() {
+		for {
+			// Generate transaction
+			other, err := crypto.GeneratePrivateKey()
+			gomega.Ω(err).Should(gomega.BeNil())
+			submit, _, _, err := instancesA[count%len(instancesA)].cli.GenerateTransaction(
+				context.Background(),
+				nil,
+				&actions.Transfer{
+					To:    other.PublicKey(),
+					Value: 1,
+				},
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+
+			// Broadcast transactions
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			count++
+			_, height, _, err := instancesA[0].cli.Accepted(context.Background())
+			gomega.Ω(err).Should(gomega.BeNil())
+			if height > 128+1024+64 {
+				break
+			} else {
+				if height > lastHeight {
+					lastHeight = height
+					hutils.Outf("{{yellow}}height=%d count=%d{{/}}\n", height, count)
+				}
+			}
+
+			// Sleep for a very small amount of time to avoid overloading the
+			// network with transactions (can generate very fast)
+			time.Sleep(10 * time.Millisecond)
+		}
+
+		// TODO: verify all roots are equal
+	})
+
+	ginkgo.It("can re-sync the restarted node", func() {
+		_, err := anrCli.ResumeNode(
+			context.Background(),
+			"sync",
+		)
+		gomega.Expect(err).To(gomega.BeNil())
+
+		time.Sleep(30 * time.Second) // assume state sync takes less than this to complete
+		awaitHealthy(anrCli)
+	})
+
+	ginkgo.It("accepts transaction after state sync", func() {
+		for {
+			// Generate transaction
+			other, err := crypto.GeneratePrivateKey()
+			gomega.Ω(err).Should(gomega.BeNil())
+			submit, tx, _, err := syncClient.GenerateTransaction(
+				context.Background(),
+				nil,
+				&actions.Transfer{
+					To:    other.PublicKey(),
+					Value: sendAmount,
+				},
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			hutils.Outf("{{yellow}}generated transaction{{/}}\n")
+
+			// Broadcast and wait for transaction
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
+			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+			success, err := syncClient.WaitForTransaction(ctx, tx.ID())
+			cancel()
+			if err != nil {
+				hutils.Outf("{{red}}cannot find transaction: %v{{/}}\n", err)
+				continue
+			}
+			gomega.Ω(success).Should(gomega.BeTrue())
+			hutils.Outf("{{yellow}}found transaction{{/}}\n")
+			break
+		}
+	})
+
 	ginkgo.It("state sync while broadcasting transactions", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
@@ -1516,7 +1612,6 @@ var _ = ginkgo.Describe("[Test]", func() {
 		}
 	})
 
-	// TODO: restart synced node + process blocks + re-sync
 	// TODO: restart all nodes (crisis simulation)
 })
 
