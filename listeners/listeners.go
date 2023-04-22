@@ -31,12 +31,14 @@ type Listeners struct {
 	txL         sync.Mutex
 	txListeners map[ids.ID]*pubsub.Connections
 	expiringTxs *emap.EMap[*chain.Transaction] // ensures all tx listeners are eventually responded to
+	s           *pubsub.Server
 }
 
-func New() *Listeners {
+func New(s *pubsub.Server) *Listeners {
 	return &Listeners{
 		txListeners: map[ids.ID]*pubsub.Connections{},
 		expiringTxs: emap.NewEMap[*chain.Transaction](),
+		s:           s,
 	}
 }
 
@@ -55,44 +57,40 @@ func (w *Listeners) AddTxListener(tx *chain.Transaction, c *pubsub.Connection) {
 }
 
 // If never possible for a tx to enter mempool, call this
-func (w *Listeners) RemoveTx(txID ids.ID, err error, streamingServer *pubsub.Server) {
+func (w *Listeners) RemoveTx(txID ids.ID, err error) {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
-	w.removeTx(txID, err, streamingServer)
+	w.removeTx(txID, err)
 }
 
-func (w *Listeners) removeTx(txID ids.ID, err error, streamingServer *pubsub.Server) {
+func (w *Listeners) removeTx(txID ids.ID, err error) {
 	listeners, ok := w.txListeners[txID]
 	if !ok {
 		return
 	}
 	p := codec.NewWriter(consts.MaxInt)
 	PackRemovedTxMessage(p, txID, err)
-	streamingServer.Publish([]byte(txID.String()), listeners)
+	w.s.Publish([]byte(txID.String()), listeners)
 	delete(w.txListeners, txID)
 	// [expiringTxs] will be cleared eventually (does not support removal)
 }
 
-func (w *Listeners) SetMinTx(t int64, streamingServer *pubsub.Server) {
+func (w *Listeners) SetMinTx(t int64) {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
 	expired := w.expiringTxs.SetMin(t)
 	for _, id := range expired {
-		w.removeTx(id, ErrExpired, streamingServer)
+		w.removeTx(id, ErrExpired)
 	}
 }
 
-func (w *Listeners) AcceptBlock(
-	b *chain.StatelessBlock,
-	streamingServer *pubsub.Server,
-) {
+func (w *Listeners) AcceptBlock(b *chain.StatelessBlock) {
 	p := codec.NewWriter(consts.MaxInt)
-	BlockMessageBytes(b, p)
+	PackBlockMessageBytes(b, p)
 	// Publish accepted block to all block listeners
-	streamingServer.Publish(p.Bytes(), streamingServer.Conns())
-
+	w.s.Publish(p.Bytes(), w.s.Conns())
 	w.txL.Lock()
 	defer w.txL.Unlock()
 	results := b.Results()
@@ -105,7 +103,7 @@ func (w *Listeners) AcceptBlock(
 		}
 		// Publish to tx listener
 		PackAcceptedTxMessage(p, txID, results[i])
-		streamingServer.Publish(
+		w.s.Publish(
 			p.Bytes(),
 			listeners,
 		)
@@ -131,53 +129,45 @@ func PackRemovedTxMessage(p *codec.Packer, txID ids.ID, err error) {
 	p.PackString(err.Error())
 }
 
-// Unpacks a tx message
+// Unpacks a tx message from [msg]. Returns the txID, an error regarding the status
+// of the tx, the result of the tx, and an error if there was a
+// problem unpacking the message.
 func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
 	p := codec.NewReader(msg, consts.MaxInt)
 	p.UnpackByte()
 	// read the txID from packer
 	var txID ids.ID
 	p.UnpackID(true, &txID)
-	// didn't unpack id correctly
-	if p.Err() != nil {
-		return ids.Empty, nil, nil, p.Err()
-	}
-
-	// TODO: from original Listen(), but can we receive a result and a decision error?
-	// var decisionsErr error
-	// if len(errBytes) > 0 {
-	// 	decisionsErr = errors.New(string(errBytes))
-	// }
-
-	// if packer has error
 	if p.UnpackBool() {
 		err := p.UnpackString(true)
 		if p.Err() != nil {
 			return ids.Empty, nil, nil, p.Err()
 		}
 		// convert err_bytes to error
-		return ids.Empty, nil, nil, errors.New(err)
+		return ids.Empty, errors.New(err), nil, nil
 	}
 	// unpack the result
 	result, err := chain.UnmarshalResult(p)
 	if err != nil {
 		return ids.Empty, nil, nil, err
 	}
+	// packer had an error
+	if p.Err() != nil {
+		return ids.Empty, nil, nil, p.Err()
+	}
 	// should be empty
 	if !p.Empty() {
 		return ids.Empty, nil, nil, chain.ErrInvalidObject
 	}
-
 	return txID, nil, result, nil
 }
 
-func BlockMessageBytes(b *chain.StatelessBlock, p *codec.Packer) {
+func PackBlockMessageBytes(b *chain.StatelessBlock, p *codec.Packer) {
 	p.PackByte(BlockMode)
 	// Pack the block bytes
 	p.PackBytes(b.Bytes())
 	results, err := chain.MarshalResults(b.Results())
 	if err != nil {
-		// c.vm.snowCtx.Log.Error("unable to marshal blk results", zap.Error(err))
 		return
 	}
 	// Pack the results bytes
@@ -203,6 +193,10 @@ func UnpackBlockMessageBytes(
 	results, err := chain.UnmarshalResults(resultsMsg)
 	if err != nil {
 		return nil, nil, err
+	}
+	// packer had an error
+	if p.Err() != nil {
+		return nil, nil, p.Err()
 	}
 	return blk, results, nil
 }

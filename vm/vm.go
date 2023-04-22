@@ -214,7 +214,6 @@ func (vm *VM) Initialize(
 	vm.blocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetBlockLRUSize()}
 	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.GetAcceptorSize())
 	vm.acceptorDone = make(chan struct{})
-	vm.listeners = listeners.New()
 	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetBlockLRUSize()}
 	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
 
@@ -309,6 +308,8 @@ func (vm *VM) Initialize(
 		err := vm.streamingServer.Start()
 		vm.snowCtx.Log.Error("Error starting decisions server", zap.Error(err))
 	}()
+	// Setup listeners to the streamingServer
+	vm.listeners = listeners.New(vm.streamingServer)
 
 	go vm.processAcceptedBlocks()
 
@@ -658,7 +659,7 @@ func (vm *VM) submitStateless(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				vm.listeners.RemoveTx(txID, err, vm.streamingServer)
+				vm.listeners.RemoveTx(txID, err)
 				errs = append(errs, err)
 				continue
 			}
@@ -716,7 +717,7 @@ func (vm *VM) Submit(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				vm.listeners.RemoveTx(txID, err, vm.streamingServer)
+				vm.listeners.RemoveTx(txID, err)
 				errs = append(errs, err)
 				continue
 			}
