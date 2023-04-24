@@ -132,6 +132,7 @@ func (c *Controller) Initialize(
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	apis[vm.Endpoint] = endpoint
+	// TODO: add vm.WSEndpoint
 
 	// Create builder and gossiper
 	var (

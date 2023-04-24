@@ -71,7 +71,7 @@ func (w *Listeners) removeTx(txID ids.ID, err error) {
 	}
 	p := codec.NewWriter(consts.MaxInt)
 	PackRemovedTxMessage(p, txID, err)
-	w.s.Publish([]byte(txID.String()), listeners)
+	w.s.Publish(txID[:], listeners)
 	delete(w.txListeners, txID)
 	// [expiringTxs] will be cleared eventually (does not support removal)
 }

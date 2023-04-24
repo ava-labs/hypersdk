@@ -24,6 +24,7 @@ func NewConnections() *Connections {
 func (c *Connections) Conns() []*Connection {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
+
 	return c.conns.List()
 }
 

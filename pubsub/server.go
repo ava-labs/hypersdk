@@ -49,6 +49,7 @@ func NewDefaultServerConfig() *ServerConfig {
 	}
 }
 
+// TODO: make this configurable
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(*http.Request) bool {
 		return true
@@ -155,8 +156,7 @@ func (s *Server) Start() error {
 		ReadHeaderTimeout: s.config.ReadHeaderTimeout,
 	}
 	s.lock.Unlock()
-	err := s.s.ListenAndServe()
-	return err
+	return s.s.ListenAndServe()
 }
 
 // Shutdown shuts down the server and returns the associated error.
