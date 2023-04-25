@@ -1284,6 +1284,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	})
 
 	ginkgo.It("can pause a node", func() {
+		// shuts down the node and keeps all db/conf data for a proper restart
 		_, err := anrCli.PauseNode(
 			context.Background(),
 			"sync",
