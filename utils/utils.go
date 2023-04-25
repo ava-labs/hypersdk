@@ -16,7 +16,9 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/json"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/perms"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/gorilla/rpc/v2"
 	formatter "github.com/onsi/ginkgo/v2/formatter"
 )
@@ -32,17 +34,17 @@ func InitSubDirectory(rootPath string, name string) (string, error) {
 	return p, os.MkdirAll(p, perms.ReadWriteExecute)
 }
 
-// NewHandler returns a new Handler for a service where:
+// NewJSONRPCHandler returns a new Handler for a service where:
 //   - The handler's functionality is defined by [service]
 //     [service] should be a gorilla RPC service (see https://www.gorillatoolkit.org/pkg/rpc/v2)
 //   - The name of the service is [name]
 //   - The LockOption is the first element of [lockOption]
 //     By default the LockOption is WriteLock
 //     [lockOption] should have either 0 or 1 elements. Elements beside the first are ignored.
-func NewHandler(
+func NewJSONRPCHandler(
 	name string,
 	service interface{},
-	lockOption ...common.LockOption,
+	lockOption common.LockOption,
 ) (*common.HTTPHandler, error) {
 	server := rpc.NewServer()
 	server.RegisterCodec(json.NewCodec(), "application/json")
@@ -50,12 +52,11 @@ func NewHandler(
 	if err := server.RegisterService(service, name); err != nil {
 		return nil, err
 	}
+	return &common.HTTPHandler{LockOptions: lockOption, Handler: server}, nil
+}
 
-	var lock common.LockOption = common.NoLock
-	if len(lockOption) != 0 {
-		lock = lockOption[0]
-	}
-	return &common.HTTPHandler{LockOptions: lock, Handler: server}, nil
+func NewWebSocketHandler(log logging.Logger, config *pubsub.ServerConfig, callback pubsub.Callback) *common.HTTPHandler {
+	return &common.HTTPHandler{LockOptions: common.NoLock, Handler: pubsub.New(log, config, callback)}
 }
 
 func ErrBytes(err error) []byte {

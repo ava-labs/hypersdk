@@ -466,12 +466,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	close(vm.acceptedQueue)
 	<-vm.acceptorDone
 
-	// Shutdown RPCs
-	// TODO: change to correct context
-	if err := vm.streamingServer.Shutdown(context.TODO()); err != nil {
-		return err
-	}
-
 	// Shutdown other async VM mechanisms
 	vm.warpManager.Done()
 	vm.builder.Done()
