@@ -19,6 +19,7 @@ import (
 
 const suggestedFeeCacheRefresh = 10 * time.Second
 
+// TODO: move to shared package with streaming known as "handlers"
 type Client struct {
 	Requester *requester.EndpointRequester
 
@@ -34,7 +35,7 @@ type Client struct {
 // New creates a new client object.
 func New(name string, uri string) *Client {
 	req := requester.New(
-		fmt.Sprintf("%s%s", uri, vm.Endpoint),
+		fmt.Sprintf("%s%s", uri, vm.JSONRPCEndpoint),
 		name,
 	)
 	return &Client{Requester: req}
@@ -114,17 +115,6 @@ func (cli *Client) SubmitTx(ctx context.Context, d []byte) (ids.ID, error) {
 		resp,
 	)
 	return resp.TxID, err
-}
-
-func (cli *Client) StreamingPort(ctx context.Context) (uint16, error) {
-	resp := new(vm.PortReply)
-	err := cli.Requester.SendRequest(
-		ctx,
-		"streamingPort",
-		nil,
-		resp,
-	)
-	return resp.Port, err
 }
 
 func (cli *Client) GetWarpSignatures(

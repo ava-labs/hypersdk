@@ -17,12 +17,6 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 )
 
-type Transaction struct {
-	TxID   ids.ID
-	Result *chain.Result
-	Err    error
-}
-
 type Listeners struct {
 	txL         sync.Mutex
 	txListeners map[ids.ID]*pubsub.Connections
@@ -89,7 +83,7 @@ func (w *Listeners) AcceptBlock(b *chain.StatelessBlock) {
 	p := codec.NewWriter(consts.MaxInt)
 	PackBlockMessageBytes(b, p)
 	// Publish accepted block to all block listeners
-	w.s.Publish(p.Bytes(), w.s.Conns())
+	w.s.Publish(p.Bytes(), w.s.Connections())
 	w.txL.Lock()
 	defer w.txL.Unlock()
 	results := b.Results()

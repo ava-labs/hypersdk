@@ -5,7 +5,6 @@ package pubsub
 
 import (
 	"net/http"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -49,8 +48,6 @@ func NewDefaultServerConfig() *ServerConfig {
 //
 // Connect to the server after starting using websocket.DefaultDialer.Dial().
 type Server struct {
-	lock sync.RWMutex
-
 	log      logging.Logger
 	config   *ServerConfig
 	callback Callback
@@ -101,8 +98,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Publish sends msg from [s] to [toConns].
-func (s *Server) Publish(msg []byte, toConns *Connections) {
-	for _, conn := range toConns.Conns() {
+func (s *Server) Publish(msg []byte, conns *Connections) {
+	for _, conn := range conns.Conns() {
 		if !s.conns.Has(conn) {
 			continue
 		}
@@ -117,9 +114,6 @@ func (s *Server) Publish(msg []byte, toConns *Connections) {
 // addConnection adds [conn] to the servers connection set and starts go
 // routines for reading and writing messages for the connection.
 func (s *Server) addConnection(conn *Connection) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	conn.active.Store(true)
 	s.conns.Add(conn)
 
@@ -132,6 +126,6 @@ func (s *Server) removeConnection(conn *Connection) {
 	s.conns.Remove(conn)
 }
 
-func (s *Server) Conns() *Connections {
+func (s *Server) Connections() *Connections {
 	return s.conns
 }

@@ -55,15 +55,6 @@ func (c *Client) ListenForTx() (ids.ID, error, *chain.Result, error) {
 	}
 }
 
-// Close closes [c]'s connection to the decision rpc server.
-func (c *Client) Close() error {
-	var err error
-	c.cl.Do(func() {
-		err = c.conn.Close()
-	})
-	return err
-}
-
 // Listen listens for block messages from the streaming server.
 func (c *Client) ListenForBlock(
 	parser chain.Parser,
@@ -79,4 +70,13 @@ func (c *Client) ListenForBlock(
 			return UnpackBlockMessageBytes(msg, parser)
 		}
 	}
+}
+
+// Close closes [c]'s connection to the decision rpc server.
+func (c *Client) Close() error {
+	var err error
+	c.cl.Do(func() {
+		err = c.conn.Close()
+	})
+	return err
 }
