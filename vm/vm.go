@@ -37,7 +37,6 @@ import (
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/listeners"
 	"github.com/ava-labs/hypersdk/mempool"
-	"github.com/ava-labs/hypersdk/pubsub"
 	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
@@ -98,8 +97,6 @@ type VM struct {
 	preferred    ids.ID
 	lastAccepted *chain.StatelessBlock
 	toEngine     chan<- common.Message
-
-	streamingServer *pubsub.Server
 
 	// State Sync client and AppRequest handlers
 	stateSyncClient        *stateSyncerClient
@@ -290,27 +287,6 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
 		snowCtx.Log.Info("initialized vm from genesis", zap.Stringer("block", gBlkID))
 	}
-
-	// Startup RPCs
-	serverAddr := fmt.Sprintf(":%d", vm.config.GetStreamingPort())
-	vm.streamingServer = pubsub.New(
-		serverAddr,
-		vm.streamingServerCallback,
-		vm.Logger(),
-		pubsub.NewDefaultServerConfig(),
-	)
-	go func() {
-		// Wait for VM to be ready before accepting connections. If we stop the VM
-		// before this happens, we should return.
-		if !vm.waitReady() {
-			return
-		}
-		err := vm.streamingServer.Start()
-		vm.snowCtx.Log.Error("Error starting decisions server", zap.Error(err))
-	}()
-	// Setup listeners to the streamingServer
-	vm.listeners = listeners.New(vm.streamingServer)
-
 	go vm.processAcceptedBlocks()
 
 	// Setup state syncing

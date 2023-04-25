@@ -14,26 +14,29 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/listeners"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"go.uber.org/zap"
 )
 
 const (
-	Endpoint = "/rpc"
+	JSONRPCEndpoint   = "/rpc"
+	WebSocketEndpoint = "/ws"
 )
 
-type Handler struct {
+type JSONRPCHandler struct {
 	vm *VM
 }
 
-func (vm *VM) Handler() *Handler {
-	return &Handler{vm}
+func (vm *VM) JSONRPCHandler() *JSONRPCHandler {
+	return &JSONRPCHandler{vm}
 }
 
 type PingReply struct {
 	Success bool `json:"success"`
 }
 
-func (h *Handler) Ping(_ *http.Request, _ *struct{}, reply *PingReply) (err error) {
+func (h *JSONRPCHandler) Ping(_ *http.Request, _ *struct{}, reply *PingReply) (err error) {
 	h.vm.snowCtx.Log.Info("ping")
 	reply.Success = true
 	return nil
@@ -45,7 +48,7 @@ type NetworkReply struct {
 	ChainID   ids.ID `json:"chainId"`
 }
 
-func (h *Handler) Network(_ *http.Request, _ *struct{}, reply *NetworkReply) (err error) {
+func (h *JSONRPCHandler) Network(_ *http.Request, _ *struct{}, reply *NetworkReply) (err error) {
 	reply.NetworkID = h.vm.snowCtx.NetworkID
 	reply.SubnetID = h.vm.snowCtx.SubnetID
 	reply.ChainID = h.vm.snowCtx.ChainID
@@ -60,8 +63,8 @@ type SubmitTxReply struct {
 	TxID ids.ID `json:"txId"`
 }
 
-func (h *Handler) SubmitTx(req *http.Request, args *SubmitTxArgs, reply *SubmitTxReply) error {
-	ctx, span := h.vm.Tracer().Start(req.Context(), "Handler.SubmitTx")
+func (h *JSONRPCHandler) SubmitTx(req *http.Request, args *SubmitTxArgs, reply *SubmitTxReply) error {
+	ctx, span := h.vm.Tracer().Start(req.Context(), "JSONRPCHandler.SubmitTx")
 	defer span.End()
 
 	rtx := codec.NewReader(args.Tx, chain.NetworkSizeLimit) // will likely be much smaller than this
@@ -86,7 +89,7 @@ type LastAcceptedReply struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
-func (h *Handler) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
+func (h *JSONRPCHandler) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
 	blk := h.vm.lastAccepted
 	reply.Height = blk.Hght
 	reply.BlockID = blk.ID()
@@ -99,12 +102,12 @@ type SuggestedRawFeeReply struct {
 	BlockCost uint64 `json:"blockCost"`
 }
 
-func (h *Handler) SuggestedRawFee(
+func (h *JSONRPCHandler) SuggestedRawFee(
 	req *http.Request,
 	_ *struct{},
 	reply *SuggestedRawFeeReply,
 ) error {
-	ctx, span := h.vm.Tracer().Start(req.Context(), "Handler.SuggestedRawFee")
+	ctx, span := h.vm.Tracer().Start(req.Context(), "JSONRPCHandler.SuggestedRawFee")
 	defer span.End()
 
 	unitPrice, blockCost, err := h.vm.SuggestedFee(ctx)
@@ -113,15 +116,6 @@ func (h *Handler) SuggestedRawFee(
 	}
 	reply.UnitPrice = unitPrice
 	reply.BlockCost = blockCost
-	return nil
-}
-
-type PortReply struct {
-	Port uint16 `json:"port"`
-}
-
-func (h *Handler) StreamingPort(_ *http.Request, _ *struct{}, reply *PortReply) error {
-	reply.Port = h.vm.config.GetStreamingPort()
 	return nil
 }
 
@@ -141,12 +135,12 @@ type GetWarpSignaturesReply struct {
 	Signatures []*WarpSignature      `json:"signatures"`
 }
 
-func (h *Handler) GetWarpSignatures(
+func (h *JSONRPCHandler) GetWarpSignatures(
 	req *http.Request,
 	args *GetWarpSignaturesArgs,
 	reply *GetWarpSignaturesReply,
 ) error {
-	_, span := h.vm.Tracer().Start(req.Context(), "Handler.GetWarpSignatures")
+	_, span := h.vm.Tracer().Start(req.Context(), "JSONRPCHandler.GetWarpSignatures")
 	defer span.End()
 
 	message, err := h.vm.GetOutgoingWarpMessage(args.TxID)
@@ -202,4 +196,11 @@ func (h *Handler) GetWarpSignatures(
 	reply.Validators = warpValidators
 	reply.Signatures = validSignatures
 	return nil
+}
+
+func (vm *VM) WebSocketHandler() *pubsub.Server {
+	// TODO: shutdown streaming server
+	streamingServer := pubsub.New(vm.snowCtx.Log, pubsub.NewDefaultServerConfig(), vm.streamingServerCallback)
+	vm.listeners = listeners.New(streamingServer)
+	return streamingServer
 }

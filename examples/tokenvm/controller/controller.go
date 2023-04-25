@@ -127,12 +127,12 @@ func (c *Controller) Initialize(
 
 	// Create handlers
 	apis := map[string]*common.HTTPHandler{}
-	endpoint, err := utils.NewHandler(consts.Name, &Handler{inner.Handler(), c})
+	endpoint, err := utils.NewJSONRPCHandler(consts.Name, &Handler{inner.JSONRPCHandler(), c}, common.NoLock)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
-	apis[vm.Endpoint] = endpoint
-	// TODO: add vm.WSEndpoint
+	apis[vm.JSONRPCEndpoint] = endpoint
+	apis[vm.WebSocketEndpoint] = utils.NewWebSocketHandler(inner.WebSocketHandler())
 
 	// Create builder and gossiper
 	var (
