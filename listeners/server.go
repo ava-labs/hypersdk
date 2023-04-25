@@ -4,21 +4,17 @@
 package listeners
 
 import (
-	"errors"
+	"context"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/pubsub"
-)
-
-const (
-	DecisionMode byte = 0
-	BlockMode    byte = 1
 )
 
 type Transaction struct {
@@ -34,12 +30,15 @@ type Listeners struct {
 	s           *pubsub.Server
 }
 
-func New(s *pubsub.Server) *Listeners {
+func New() *Listeners {
 	return &Listeners{
 		txListeners: map[ids.ID]*pubsub.Connections{},
 		expiringTxs: emap.NewEMap[*chain.Transaction](),
-		s:           s,
 	}
+}
+
+func (w *Listeners) SetServer(s *pubsub.Server) {
+	w.s = s
 }
 
 // Note: no need to have a tx listener removal, this will happen when all
@@ -112,91 +111,47 @@ func (w *Listeners) AcceptBlock(b *chain.StatelessBlock) {
 	}
 }
 
-// Could be a better place for these methods
-// Packs an accepted block message
-func PackAcceptedTxMessage(p *codec.Packer, txID ids.ID, result *chain.Result) {
-	p.PackByte(DecisionMode)
-	p.PackID(txID)
-	p.PackBool(false)
-	result.Marshal(p)
-}
+func (w *Listeners) ServerCallback(vm VM) pubsub.Callback {
+	var (
+		actionRegistry, authRegistry = vm.Registry()
+		tracer                       = vm.Tracer()
+		log                          = vm.Logger()
+	)
+	return func(msgBytes []byte, c *pubsub.Connection) {
+		// TODO: support multiple callbacks
+		ctx, span := tracer.Start(context.Background(), "listener callback")
+		defer span.End()
 
-// Packs a removed block message
-func PackRemovedTxMessage(p *codec.Packer, txID ids.ID, err error) {
-	p.PackByte(DecisionMode)
-	p.PackID(txID)
-	p.PackBool(true)
-	p.PackString(err.Error())
-}
-
-// Unpacks a tx message from [msg]. Returns the txID, an error regarding the status
-// of the tx, the result of the tx, and an error if there was a
-// problem unpacking the message.
-func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
-	p := codec.NewReader(msg, consts.MaxInt)
-	p.UnpackByte()
-	// read the txID from packer
-	var txID ids.ID
-	p.UnpackID(true, &txID)
-	if p.UnpackBool() {
-		err := p.UnpackString(true)
-		if p.Err() != nil {
-			return ids.Empty, nil, nil, p.Err()
+		// Unmarshal TX
+		p := codec.NewReader(msgBytes, chain.NetworkSizeLimit) // will likely be much smaller
+		tx, err := chain.UnmarshalTx(p, actionRegistry, authRegistry)
+		if err != nil {
+			log.Error("failed to unmarshal tx",
+				zap.Int("len", len(msgBytes)),
+				zap.Error(err),
+			)
+			return
 		}
-		// convert err_bytes to error
-		return ids.Empty, errors.New(err), nil, nil
-	}
-	// unpack the result
-	result, err := chain.UnmarshalResult(p)
-	if err != nil {
-		return ids.Empty, nil, nil, err
-	}
-	// packer had an error
-	if p.Err() != nil {
-		return ids.Empty, nil, nil, p.Err()
-	}
-	// should be empty
-	if !p.Empty() {
-		return ids.Empty, nil, nil, chain.ErrInvalidObject
-	}
-	return txID, nil, result, nil
-}
 
-func PackBlockMessageBytes(b *chain.StatelessBlock, p *codec.Packer) {
-	p.PackByte(BlockMode)
-	// Pack the block bytes
-	p.PackBytes(b.Bytes())
-	results, err := chain.MarshalResults(b.Results())
-	if err != nil {
-		return
-	}
-	// Pack the results bytes
-	p.PackBytes(results)
-}
+		// Verify tx
+		sigVerify := tx.AuthAsyncVerify()
+		if err := sigVerify(); err != nil {
+			log.Error("failed to verify sig",
+				zap.Error(err),
+			)
+			return
+		}
+		w.AddTxListener(tx, c)
 
-func UnpackBlockMessageBytes(
-	msg []byte,
-	parser chain.Parser,
-) (*chain.StatefulBlock, []*chain.Result, error) {
-	// Read block
-	p := codec.NewReader(msg, consts.MaxInt)
-	p.UnpackByte()
-	var blkMsg []byte
-	p.UnpackBytes(-1, false, &blkMsg)
-	blk, err := chain.UnmarshalBlock(blkMsg, parser)
-	if err != nil {
-		return nil, nil, err
+		// Submit will remove from [txWaiters] if it is not added
+		txID := tx.ID()
+		if err := vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
+			log.Error("failed to submit tx",
+				zap.Stringer("txID", txID),
+				zap.Error(err),
+			)
+			return
+		}
+		log.Debug("submitted tx", zap.Stringer("id", txID))
 	}
-	// Read results
-	var resultsMsg []byte
-	p.UnpackBytes(-1, true, &resultsMsg)
-	results, err := chain.UnmarshalResults(resultsMsg)
-	if err != nil {
-		return nil, nil, err
-	}
-	// packer had an error
-	if p.Err() != nil {
-		return nil, nil, p.Err()
-	}
-	return blk, results, nil
 }
