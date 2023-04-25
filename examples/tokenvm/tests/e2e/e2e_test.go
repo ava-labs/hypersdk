@@ -1266,11 +1266,6 @@ var _ = ginkgo.Describe("[Test]", func() {
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 
-		// Wait some time before broadcasting new txs so that state sync can finish
-		// without updating roots
-		//
-		// TODO: find a way to communicate this explicitly without sleeping
-		time.Sleep(30 * time.Second) // assume state sync takes less than this to complete
 		awaitHealthy(anrCli, []instance{instancesA[0]})
 
 		nodeURI := cluster.ClusterInfo.NodeInfos["sync"].Uri
