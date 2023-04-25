@@ -56,7 +56,7 @@ func (m *MintAsset) Execute(
 	if m.Value == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
 	}
-	exists, metadata, supply, owner, isWarp, err := storage.GetAsset(ctx, db, m.Asset)
+	exists, metadata, supply, maxSupply, owner, isWarp, err := storage.GetAsset(ctx, db, m.Asset)
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
@@ -74,10 +74,15 @@ func (m *MintAsset) Execute(
 		}, nil
 	}
 	newSupply, err := smath.Add64(supply, m.Value)
+
+	if maxSupply > 0 && newSupply > maxSupply {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(ErrMaxSupplyExceeded)}, nil
+	}
+
 	if err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
-	if err := storage.SetAsset(ctx, db, m.Asset, metadata, newSupply, actor, isWarp); err != nil {
+	if err := storage.SetAsset(ctx, db, m.Asset, metadata, newSupply, maxSupply, actor, isWarp); err != nil {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if err := storage.AddBalance(ctx, db, m.To, m.Asset, m.Value); err != nil {

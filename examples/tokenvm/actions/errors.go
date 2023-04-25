@@ -6,3 +6,4 @@ package actions
 import "errors"
 
 var ErrNoSwapToFill = errors.New("no swap to fill")
+var ErrMaxSupplyExceeded = errors.New("new supply exceeds max-supply")

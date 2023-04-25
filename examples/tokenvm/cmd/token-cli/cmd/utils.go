@@ -355,7 +355,7 @@ func getAssetInfo(
 ) (uint64, ids.ID, error) {
 	var sourceChainID ids.ID
 	if assetID != ids.Empty {
-		exists, metadata, supply, _, warp, err := cli.Asset(ctx, assetID)
+		exists, metadata, supply, maxSupply, _, warp, err := cli.Asset(ctx, assetID)
 		if err != nil {
 			return 0, ids.Empty, err
 		}
@@ -368,16 +368,18 @@ func getAssetInfo(
 			sourceChainID = ids.ID(metadata[hconsts.IDLen:])
 			sourceAssetID := ids.ID(metadata[:hconsts.IDLen])
 			hutils.Outf(
-				"{{yellow}}sourceChainID:{{/}} %s {{yellow}}sourceAssetID:{{/}} %s {{yellow}}supply:{{/}} %d\n",
+				"{{yellow}}sourceChainID:{{/}} %s {{yellow}}sourceAssetID:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}max-supply:{{/}} %d\n",
 				sourceChainID,
 				sourceAssetID,
 				supply,
+				maxSupply,
 			)
 		} else {
 			hutils.Outf(
-				"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
+				"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}max-supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
 				string(metadata),
 				supply,
+				maxSupply,
 				warp,
 			)
 		}

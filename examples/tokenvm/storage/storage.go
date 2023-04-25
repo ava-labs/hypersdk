@@ -270,7 +270,7 @@ func GetAssetFromState(
 	ctx context.Context,
 	f ReadState,
 	asset ids.ID,
-) (bool, []byte, uint64, crypto.PublicKey, bool, error) {
+) (bool, []byte, uint64, uint64, crypto.PublicKey, bool, error) {
 	values, errs := f(ctx, [][]byte{PrefixAssetKey(asset)})
 	return innerGetAsset(values[0], errs[0])
 }
@@ -279,7 +279,7 @@ func GetAsset(
 	ctx context.Context,
 	db chain.Database,
 	asset ids.ID,
-) (bool, []byte, uint64, crypto.PublicKey, bool, error) {
+) (bool, []byte, uint64, uint64, crypto.PublicKey, bool, error) {
 	k := PrefixAssetKey(asset)
 	return innerGetAsset(db.GetValue(ctx, k))
 }
@@ -287,20 +287,21 @@ func GetAsset(
 func innerGetAsset(
 	v []byte,
 	err error,
-) (bool, []byte, uint64, crypto.PublicKey, bool, error) {
+) (bool, []byte, uint64, uint64, crypto.PublicKey, bool, error) {
 	if errors.Is(err, database.ErrNotFound) {
-		return false, nil, 0, crypto.EmptyPublicKey, false, nil
+		return false, nil, 0, 0, crypto.EmptyPublicKey, false, nil
 	}
 	if err != nil {
-		return false, nil, 0, crypto.EmptyPublicKey, false, err
+		return false, nil, 0, 0, crypto.EmptyPublicKey, false, err
 	}
 	metadataLen := binary.BigEndian.Uint16(v)
 	metadata := v[consts.Uint16Len : consts.Uint16Len+metadataLen]
 	supply := binary.BigEndian.Uint64(v[consts.Uint16Len+metadataLen:])
+	maxSupply := binary.BigEndian.Uint64(v[consts.Uint16Len+metadataLen+consts.Uint64Len:])
 	var pk crypto.PublicKey
-	copy(pk[:], v[consts.Uint16Len+metadataLen+consts.Uint64Len:])
-	warp := v[consts.Uint16Len+metadataLen+consts.Uint64Len+crypto.PublicKeyLen] == 0x1
-	return true, metadata, supply, pk, warp, nil
+	copy(pk[:], v[consts.Uint16Len+metadataLen+consts.Uint64Len*2:])
+	warp := v[consts.Uint16Len+metadataLen+consts.Uint64Len*2+crypto.PublicKeyLen] == 0x1
+	return true, metadata, supply, maxSupply, pk, warp, nil
 }
 
 func SetAsset(
@@ -309,21 +310,23 @@ func SetAsset(
 	asset ids.ID,
 	metadata []byte,
 	supply uint64,
+	maxSupply uint64,
 	owner crypto.PublicKey,
 	warp bool,
 ) error {
 	k := PrefixAssetKey(asset)
 	metadataLen := len(metadata)
-	v := make([]byte, consts.Uint16Len+metadataLen+consts.Uint64Len+crypto.PublicKeyLen+1)
+	v := make([]byte, consts.Uint16Len+metadataLen+consts.Uint64Len*2+crypto.PublicKeyLen+1)
 	binary.BigEndian.PutUint16(v, uint16(metadataLen))
 	copy(v[consts.Uint16Len:], metadata)
 	binary.BigEndian.PutUint64(v[consts.Uint16Len+metadataLen:], supply)
-	copy(v[consts.Uint16Len+metadataLen+consts.Uint64Len:], owner[:])
+	binary.BigEndian.PutUint64(v[consts.Uint16Len+metadataLen+consts.Uint64Len:], maxSupply)
+	copy(v[consts.Uint16Len+metadataLen+consts.Uint64Len+consts.Uint64Len:], owner[:])
 	b := byte(0x0)
 	if warp {
 		b = 0x1
 	}
-	v[consts.Uint16Len+metadataLen+consts.Uint64Len+crypto.PublicKeyLen] = b
+	v[consts.Uint16Len+metadataLen+consts.Uint64Len+consts.Uint64Len+crypto.PublicKeyLen] = b
 	return db.Insert(ctx, k, v)
 }
 
