@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/listeners"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -125,12 +127,13 @@ var (
 )
 
 type instance struct {
-	chainID    ids.ID
-	nodeID     ids.NodeID
-	vm         *vm.VM
-	toEngine   chan common.Message
-	httpServer *httptest.Server
-	cli        *client.Client // clients for embedded VMs
+	chainID         ids.ID
+	nodeID          ids.NodeID
+	vm              *vm.VM
+	toEngine        chan common.Message
+	JSONRPCServer   *httptest.Server
+	WebSocketServer *httptest.Server
+	cli             *client.Client // clients for embedded VMs
 }
 
 var _ = ginkgo.BeforeSuite(func() {
@@ -229,14 +232,17 @@ var _ = ginkgo.BeforeSuite(func() {
 		hd, err = v.CreateHandlers(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
 
-		httpServer := httptest.NewServer(hd[vm.Endpoint].Handler)
+		JSONRPCServer := httptest.NewServer(hd[vm.JSONRPCEndpoint].Handler)
+		WebSocketServer := httptest.NewServer(hd[vm.WebSocketEndpoint].Handler)
+		gomega.Ω(err).Should(gomega.BeNil())
 		instances[i] = instance{
-			chainID:    snowCtx.ChainID,
-			nodeID:     snowCtx.NodeID,
-			vm:         v,
-			toEngine:   toEngine,
-			httpServer: httpServer,
-			cli:        client.New(httpServer.URL),
+			chainID:         snowCtx.ChainID,
+			nodeID:          snowCtx.NodeID,
+			vm:              v,
+			toEngine:        toEngine,
+			JSONRPCServer:   JSONRPCServer,
+			WebSocketServer: WebSocketServer,
+			cli:             client.New(JSONRPCServer.URL),
 		}
 
 		// Force sync ready (to mimic bootstrapping from genesis)
@@ -272,7 +278,8 @@ var _ = ginkgo.BeforeSuite(func() {
 
 var _ = ginkgo.AfterSuite(func() {
 	for _, iv := range instances {
-		iv.httpServer.Close()
+		iv.JSONRPCServer.Close()
+		iv.WebSocketServer.Close()
 		err := iv.vm.Shutdown(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
 	}
@@ -567,11 +574,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		accept() // don't care about results
 
 		// Subscribe to blocks
-		streamingPort, err := instances[0].cli.StreamingPort(context.TODO())
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(streamingPort).Should(gomega.Not(gomega.Equal(0)))
-		tcpURI := fmt.Sprintf("127.0.0.1:%d", 4000)
-		cli, err := vm.NewStreamingClient(tcpURI)
+		cli, err := listeners.NewStreamingClient("ws://" + strings.TrimPrefix(instances[0].WebSocketServer.URL, "http://") + "/ws")
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Fetch balances
@@ -624,11 +627,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 	ginkgo.It("processes valid index transactions (w/streaming verification)", func() {
 		// Create streaming client
-		streamingPort, err := instances[0].cli.StreamingPort(context.TODO())
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(streamingPort).Should(gomega.Not(gomega.Equal(0)))
-		tcpURI := fmt.Sprintf("127.0.0.1:%d", streamingPort)
-		cli, err := vm.NewStreamingClient(tcpURI)
+		// TODO: cleanup URL creation
+		cli, err := listeners.NewStreamingClient("ws://" + strings.TrimPrefix(instances[0].WebSocketServer.URL, "http://") + "/ws")
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Create tx

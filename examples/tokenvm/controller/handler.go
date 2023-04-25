@@ -24,8 +24,9 @@ var (
 	ErrAssetNotFound = errors.New("asset not found")
 )
 
+// TODO: unify with WS support
 type Handler struct {
-	*vm.Handler // embed standard functionality
+	*vm.JSONRPCHandler // embed standard functionality
 
 	c *Controller
 }

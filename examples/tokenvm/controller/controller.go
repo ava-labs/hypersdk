@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/pebble"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 	"go.uber.org/zap"
@@ -132,7 +133,9 @@ func (c *Controller) Initialize(
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	apis[vm.JSONRPCEndpoint] = endpoint
-	apis[vm.WebSocketEndpoint] = utils.NewWebSocketHandler(inner.WebSocketHandler())
+	wcfg := pubsub.NewDefaultServerConfig()
+	wcfg.MaxPendingMessages = c.config.StreamingBacklogSize
+	apis[vm.WebSocketEndpoint] = utils.NewWebSocketHandler(inner.WebSocketHandler(wcfg))
 
 	// Create builder and gossiper
 	var (

@@ -106,12 +106,14 @@ func (w *Listeners) AcceptBlock(b *chain.StatelessBlock) {
 }
 
 func (w *Listeners) ServerCallback(vm VM) pubsub.Callback {
-	var (
-		actionRegistry, authRegistry = vm.Registry()
-		tracer                       = vm.Tracer()
-		log                          = vm.Logger()
-	)
 	return func(msgBytes []byte, c *pubsub.Connection) {
+		// TODO: find a way to only initialize this once (callback created during
+		// init so everything is nil)
+		var (
+			actionRegistry, authRegistry = vm.Registry()
+			tracer                       = vm.Tracer()
+			log                          = vm.Logger()
+		)
 		// TODO: support multiple callbacks
 		ctx, span := tracer.Start(context.Background(), "listener callback")
 		defer span.End()

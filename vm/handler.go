@@ -198,10 +198,8 @@ func (h *JSONRPCHandler) GetWarpSignatures(
 	return nil
 }
 
-func (vm *VM) WebSocketHandler() *pubsub.Server {
+func (vm *VM) WebSocketHandler(cfg *pubsub.ServerConfig) *pubsub.Server {
 	// TODO: shutdown streaming server
-	cfg := pubsub.NewDefaultServerConfig()
-	cfg.MaxPendingMessages = vm.config.GetStreamingBacklogSize()
 	vm.listeners = listeners.New()
 	streamingServer := pubsub.New(vm.snowCtx.Log, cfg, vm.listeners.ServerCallback(vm))
 	vm.listeners.SetServer(streamingServer)

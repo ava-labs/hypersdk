@@ -1,7 +1,6 @@
 package listeners
 
 import (
-	"net/url"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -22,13 +21,12 @@ type Client struct {
 // Dials into the server at [uri] and returns a client.
 func NewStreamingClient(uri string) (*Client, error) {
 	// nil for now until we want to pass in headers
-	u := url.URL{Scheme: "ws", Host: uri}
-	conn, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
-	// not using resp for now
-	resp.Body.Close()
+	conn, resp, err := websocket.DefaultDialer.Dial(uri, nil)
 	if err != nil {
 		return nil, err
 	}
+	// not using resp for now
+	resp.Body.Close()
 	return &Client{conn: conn}, nil
 }
 
