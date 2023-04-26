@@ -75,6 +75,7 @@ deployment target. If you use Graivtron CPUs, make sure to use `arm64` here.
 Now we can spin up a new network of 6 nodes with some defaults:
 - `avalanche-ops` supports [Graviton-based processors](https://aws.amazon.com/ec2/graviton/) (ARM64). Use `--arch-type arm64` to run nodes in ARM64 CPUs.
 - `avalanche-ops` supports [EC2 Spot instances](https://aws.amazon.com/ec2/spot/) for cost savings. Use `--instance-mode=spot` to run instances in spot mode.
+- `avalanche-ops` supports multi-region deployments. Use `--auto-regions 3` to distribute node across 3 regions.
 
 ```bash
 /tmp/avalancheup-aws default-spec \
@@ -82,7 +83,7 @@ Now we can spin up a new network of 6 nodes with some defaults:
 --rust-os-type ubuntu20.04 \
 --anchor-nodes 3 \
 --non-anchor-nodes 3 \
---region us-west-2 \
+--regions us-west-2 \
 --instance-mode=on-demand \
 --instance-types=c5.4xlarge \
 --ip-mode=elastic \
@@ -284,10 +285,9 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 ```bash
 /tmp/avalancheup-aws install-subnet-chain \
 --log-level info \
---region us-west-2 \
+--s3-region us-west-2 \
 --s3-bucket <TODO> \
 --s3-key-prefix <TODO> \
---ssm-doc <TODO> \
 --chain-rpc-url <TODO> \
 --key <TODO> \
 --primary-network-validate-period-in-days 16 \
@@ -301,7 +301,12 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 --chain-config-local-path /tmp/avalanche-ops/tokenvm-chain-config.json \
 --chain-config-remote-dir /data/avalanche-configs/chains \
 --avalanchego-config-remote-path /data/avalanche-configs/config.json \
---node-ids-to-instance-ids <TODO>
+--ssm-docs <TODO> \
+--target-nodes <TODO>
+
+# e.g.,
+# --ssm-docs '{"us-west-2":"aops-custom-202304-2ijZSP-ssm-install-subnet-chain"...
+# --target-nodes '{"NodeID-HgAmXckXzDcvxv9ay71QT9DDtEKZiLxP4":{"region":"eu-west-1","machine_id":"i-0e68e051796b88d16"}...
 ```
 
 #### Viewing Logs
@@ -442,10 +447,9 @@ a different set of validators):
 ```bash
 /tmp/avalancheup-aws install-subnet-chain \
 --log-level info \
---region us-west-2 \
+--s3-region us-west-2 \
 --s3-bucket <TODO> \
 --s3-key-prefix <TODO> \
---ssm-doc <TODO> \
 --chain-rpc-url <TODO> \
 --key <TODO> \
 --primary-network-validate-period-in-days 16 \
@@ -459,7 +463,12 @@ a different set of validators):
 --chain-config-local-path /tmp/avalanche-ops/tokenvm-chain-config.json \
 --chain-config-remote-dir /data/avalanche-configs/chains \
 --avalanchego-config-remote-path /data/avalanche-configs/config.json \
---node-ids-to-instance-ids <TODO>
+--ssm-docs <TODO> \
+--target-nodes <TODO>
+
+# e.g.,
+# --ssm-docs '{"us-west-2":"aops-custom-202304-2ijZSP-ssm-install-subnet-chain"...
+# --target-nodes '{"NodeID-HgAmXckXzDcvxv9ay71QT9DDtEKZiLxP4":{"region":"eu-west-1","machine_id":"i-0e68e051796b88d16"}...
 ```
 
 ## Deploy TokenVM in Fuji network with avalanche-ops
@@ -470,7 +479,7 @@ avalancheup-aws default-spec \
 --arch-type amd64 \
 --rust-os-type ubuntu20.04 \
 --non-anchor-nodes 6 \
---region us-west-2 \
+--regions us-west-2 \
 --instance-mode=on-demand \
 --instance-size=2xlarge \
 --ip-mode=elastic \
