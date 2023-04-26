@@ -95,6 +95,8 @@ Now we can spin up a new network of 6 nodes with some defaults:
 The `default-spec` (and `apply`) command only provisions nodes, not Custom VMs.
 The Subnet and Custom VM installation are done via `install-subnet-chain` sub-commands that follow.
 
+*NOTE*: The `--auto-regions 3` flag only lists the pre-defined regions and evenly distributes anchor and non-anchor nodes across regions in the default spec output. It is up to the user to change the regions and spec file based on the regional resource limits (e.g., pick the regions with higher EIP limits). To see what regions available in your AWS account, simply run the [`aws account list-regions`](https://docs.aws.amazon.com/cli/latest/reference/account/list-regions.html) command, or look at the dropdown menu of your AWS console.
+
 #### Profiling `avalanchego`
 If you'd like to profile `avalanchego`'s CPU and RAM, provide the following
 flags to the command above:
