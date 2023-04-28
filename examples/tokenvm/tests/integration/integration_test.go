@@ -39,6 +39,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/listeners"
+	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -232,8 +233,8 @@ var _ = ginkgo.BeforeSuite(func() {
 		hd, err = v.CreateHandlers(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
 
-		JSONRPCServer := httptest.NewServer(hd[vm.JSONRPCEndpoint].Handler)
-		WebSocketServer := httptest.NewServer(hd[vm.WebSocketEndpoint].Handler)
+		JSONRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint].Handler)
+		WebSocketServer := httptest.NewServer(hd[rpc.WebSocketEndpoint].Handler)
 		gomega.Ω(err).Should(gomega.BeNil())
 		instances[i] = instance{
 			chainID:         snowCtx.ChainID,

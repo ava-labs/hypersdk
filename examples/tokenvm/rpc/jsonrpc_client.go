@@ -1,29 +1,35 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package client
+package rpc
 
 import (
 	"context"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/client"
+	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/utils"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/controller"
+
+	// _ "github.com/ava-labs/hypersdk/examples/tokenvm/controller" // ensure registry populated
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 )
 
 type Client struct {
-	*client.Client // embed standard functionality
+	client *rpc.JSONRPCClient // embed standard functionality
 
 	g *genesis.Genesis
 }
 
 // New creates a new client object.
 func New(uri string) *Client {
-	return &Client{Client: client.New(consts.Name, uri)}
+	return &Client{client: rpc.NewJSONRPCClient(consts.Name, uri)}
 }
 
 func (cli *Client) Genesis(ctx context.Context) (*genesis.Genesis, error) {
@@ -31,7 +37,7 @@ func (cli *Client) Genesis(ctx context.Context) (*genesis.Genesis, error) {
 		return cli.g, nil
 	}
 
-	resp := new(controller.GenesisReply)
+	resp := new(GenesisReply)
 	err := cli.Requester.SendRequest(
 		ctx,
 		"genesis",
@@ -127,4 +133,99 @@ func (cli *Client) Loan(ctx context.Context, asset ids.ID, destination ids.ID) (
 		resp,
 	)
 	return resp.Amount, err
+}
+
+func (cli *Client) GenerateTransaction(
+	ctx context.Context,
+	wm *warp.Message,
+	action chain.Action,
+	factory chain.AuthFactory,
+	modifiers ...client.Modifier,
+) (func(context.Context) error, *chain.Transaction, uint64, error) {
+	// Gather chain metadata
+	g, err := cli.Genesis(ctx)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	_, _, chainID, err := cli.Network(ctx) // TODO: store in object to fetch less frequently
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	return cli.Client.GenerateTransaction(
+		ctx,
+		&Parser{chainID, g},
+		wm,
+		action,
+		factory,
+		modifiers...)
+}
+
+func (cli *Client) WaitForBalance(
+	ctx context.Context,
+	addr string,
+	asset ids.ID,
+	min uint64,
+) error {
+	return client.Wait(ctx, func(ctx context.Context) (bool, error) {
+		balance, err := cli.Balance(ctx, addr, asset)
+		if err != nil {
+			return false, err
+		}
+		shouldExit := balance >= min
+		if !shouldExit {
+			utils.Outf(
+				"{{yellow}}waiting for %s balance: %s{{/}}\n",
+				utils.FormatBalance(min),
+				addr,
+			)
+		}
+		return shouldExit, nil
+	})
+}
+
+func (cli *Client) WaitForTransaction(ctx context.Context, txID ids.ID) (bool, error) {
+	var success bool
+	if err := client.Wait(ctx, func(ctx context.Context) (bool, error) {
+		found, isuccess, _, err := cli.Tx(ctx, txID)
+		if err != nil {
+			return false, err
+		}
+		success = isuccess
+		return found, nil
+	}); err != nil {
+		return false, err
+	}
+	return success, nil
+}
+
+var _ chain.Parser = (*Parser)(nil)
+
+type Parser struct {
+	chainID ids.ID
+	genesis *genesis.Genesis
+}
+
+func (p *Parser) ChainID() ids.ID {
+	return p.chainID
+}
+
+func (p *Parser) Rules(t int64) chain.Rules {
+	return p.genesis.Rules(t)
+}
+
+func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
+	return consts.ActionRegistry, consts.AuthRegistry
+}
+
+func (cli *Client) Parser(ctx context.Context) (chain.Parser, error) {
+	// Gather chain metadata
+	g, err := cli.Genesis(ctx)
+	if err != nil {
+		return nil, err
+	}
+	_, _, chainID, err := cli.Network(ctx) // TODO: store in object to fetch less frequently
+	if err != nil {
+		return nil, err
+	}
+	return &Parser{chainID, g}, nil
 }

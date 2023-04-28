@@ -1,18 +1,18 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package controller
+package rpc
 
 import (
 	"errors"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/vm"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/rpc"
 )
 
 const (
@@ -24,19 +24,22 @@ var (
 	ErrAssetNotFound = errors.New("asset not found")
 )
 
-// TODO: unify with WS support
-type Handler struct {
-	*vm.JSONRPCHandler // embed standard functionality
+type JSONRPCServer struct {
+	*rpc.JSONRPCServer // embed standard functionality
 
-	c *Controller
+	c Controller
+}
+
+func NewJSONRPCServer(base *rpc.JSONRPCServer, c Controller) *JSONRPCServer {
+	return &JSONRPCServer{base, c}
 }
 
 type GenesisReply struct {
 	Genesis *genesis.Genesis `json:"genesis"`
 }
 
-func (h *Handler) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
-	reply.Genesis = h.c.genesis
+func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
+	reply.Genesis = j.c.genesis
 	return nil
 }
 
@@ -50,8 +53,8 @@ type TxReply struct {
 	Units     uint64 `json:"units"`
 }
 
-func (h *Handler) Tx(req *http.Request, args *TxArgs, reply *TxReply) error {
-	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Tx")
+func (j *JSONRPCServer) Tx(req *http.Request, args *TxArgs, reply *TxReply) error {
+	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Server.Tx")
 	defer span.End()
 
 	found, t, success, units, err := storage.GetTransaction(ctx, h.c.metaDB, args.TxID)
@@ -78,8 +81,8 @@ type AssetReply struct {
 	Warp     bool   `json:"warp"`
 }
 
-func (h *Handler) Asset(req *http.Request, args *AssetArgs, reply *AssetReply) error {
-	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Asset")
+func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetReply) error {
+	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Server.Asset")
 	defer span.End()
 
 	exists, metadata, supply, owner, warp, err := storage.GetAssetFromState(
@@ -109,8 +112,8 @@ type BalanceReply struct {
 	Amount uint64 `json:"amount"`
 }
 
-func (h *Handler) Balance(req *http.Request, args *BalanceArgs, reply *BalanceReply) error {
-	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Balance")
+func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *BalanceReply) error {
+	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
 
 	addr, err := utils.ParseAddress(args.Address)
@@ -133,8 +136,8 @@ type OrdersReply struct {
 	Orders []*Order `json:"orders"`
 }
 
-func (h *Handler) Orders(req *http.Request, args *OrdersArgs, reply *OrdersReply) error {
-	_, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Orders")
+func (j *JSONRPCServer) Orders(req *http.Request, args *OrdersArgs, reply *OrdersReply) error {
+	_, span := h.c.inner.Tracer().Start(req.Context(), "Server.Orders")
 	defer span.End()
 
 	reply.Orders = h.c.orderBook.Orders(args.Pair, ordersToSend)
@@ -150,8 +153,8 @@ type LoanReply struct {
 	Amount uint64 `json:"amount"`
 }
 
-func (h *Handler) Loan(req *http.Request, args *LoanArgs, reply *LoanReply) error {
-	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Loan")
+func (j *JSONRPCServer) Loan(req *http.Request, args *LoanArgs, reply *LoanReply) error {
+	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Server.Loan")
 	defer span.End()
 
 	amount, err := storage.GetLoanFromState(ctx, h.c.inner.ReadState, args.Asset, args.Destination)
