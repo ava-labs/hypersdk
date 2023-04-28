@@ -18,7 +18,7 @@ type WebSocketClient struct {
 
 // NewDecisionRPCClient creates a new client for the decision rpc server.
 // Dials into the server at [uri] and returns a client.
-func NewWebSocketClient(uri string) (*Client, error) {
+func NewWebSocketClient(uri string) (*WebSocketClient, error) {
 	// nil for now until we want to pass in headers
 	conn, resp, err := websocket.DefaultDialer.Dial(uri, nil)
 	if err != nil {
@@ -26,11 +26,11 @@ func NewWebSocketClient(uri string) (*Client, error) {
 	}
 	// not using resp for now
 	resp.Body.Close()
-	return &Client{conn: conn}, nil
+	return &WebSocketClient{conn: conn}, nil
 }
 
 // IssueTx sends [tx] to the streaming rpc server.
-func (c *Client) IssueTx(tx *chain.Transaction) error {
+func (c *WebSocketClient) IssueTx(tx *chain.Transaction) error {
 	c.wl.Lock()
 	defer c.wl.Unlock()
 
@@ -38,7 +38,7 @@ func (c *Client) IssueTx(tx *chain.Transaction) error {
 }
 
 // ListenForTx listens for responses from the streamingServer.
-func (c *Client) ListenForTx() (ids.ID, error, *chain.Result, error) {
+func (c *WebSocketClient) ListenForTx() (ids.ID, error, *chain.Result, error) {
 	c.dll.Lock()
 	defer c.dll.Unlock()
 	for {
@@ -53,7 +53,7 @@ func (c *Client) ListenForTx() (ids.ID, error, *chain.Result, error) {
 }
 
 // Listen listens for block messages from the streaming server.
-func (c *Client) ListenForBlock(
+func (c *WebSocketClient) ListenForBlock(
 	parser chain.Parser,
 ) (*chain.StatefulBlock, []*chain.Result, error) {
 	c.bll.Lock()
@@ -70,7 +70,7 @@ func (c *Client) ListenForBlock(
 }
 
 // Close closes [c]'s connection to the decision rpc server.
-func (c *Client) Close() error {
+func (c *WebSocketClient) Close() error {
 	var err error
 	c.cl.Do(func() {
 		err = c.conn.Close()
