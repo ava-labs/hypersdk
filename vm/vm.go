@@ -175,25 +175,6 @@ func (vm *VM) Initialize(
 		return fmt.Errorf("implementation initialization failed: %w", err)
 	}
 
-	// Setup handlers
-	jsonRPCHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCServer(vm), common.NoLock)
-	if err != nil {
-		return fmt.Errorf("unable to create handler: %w", err)
-	}
-	if _, ok := vm.handlers[rpc.JSONRPCEndpoint]; ok {
-		return fmt.Errorf("duplicate JSONRPC handler found: %s", rpc.JSONRPCEndpoint)
-	}
-	vm.handlers[rpc.JSONRPCEndpoint] = jsonRPCHandler
-	if _, ok := vm.handlers[rpc.WebSocketEndpoint]; ok {
-		return fmt.Errorf("duplicate WebSocket handler found: %s", rpc.WebSocketEndpoint)
-	}
-	wcfg := pubsub.NewDefaultServerConfig()
-	wcfg.MaxPendingMessages = vm.config.GetStreamingBacklogSize()
-	vm.webSocketServer = rpc.NewWebSocketServer()
-	pubsubServer := pubsub.New(vm.snowCtx.Log, wcfg, vm.webSocketServer.MessageCallback(vm))
-	vm.webSocketServer.SetBackend(pubsubServer)
-	vm.handlers[rpc.WebSocketEndpoint] = rpc.NewWebSocketHandler(pubsubServer)
-
 	// Setup tracer
 	vm.tracer, err = htrace.New(vm.config.GetTraceConfig())
 	if err != nil {
@@ -330,6 +311,25 @@ func (vm *VM) Initialize(
 
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
+
+	// Setup handlers
+	jsonRPCHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCServer(vm), common.NoLock)
+	if err != nil {
+		return fmt.Errorf("unable to create handler: %w", err)
+	}
+	if _, ok := vm.handlers[rpc.JSONRPCEndpoint]; ok {
+		return fmt.Errorf("duplicate JSONRPC handler found: %s", rpc.JSONRPCEndpoint)
+	}
+	vm.handlers[rpc.JSONRPCEndpoint] = jsonRPCHandler
+	if _, ok := vm.handlers[rpc.WebSocketEndpoint]; ok {
+		return fmt.Errorf("duplicate WebSocket handler found: %s", rpc.WebSocketEndpoint)
+	}
+	wcfg := pubsub.NewDefaultServerConfig()
+	wcfg.MaxPendingMessages = vm.config.GetStreamingBacklogSize()
+	vm.webSocketServer = rpc.NewWebSocketServer()
+	pubsubServer := pubsub.New(vm.snowCtx.Log, wcfg, vm.webSocketServer.MessageCallback(vm))
+	vm.webSocketServer.SetBackend(pubsubServer)
+	vm.handlers[rpc.WebSocketEndpoint] = rpc.NewWebSocketHandler(pubsubServer)
 	return nil
 }
 
