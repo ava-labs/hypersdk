@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -17,7 +18,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/utils/perms"
-	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/gorilla/rpc/v2"
 	formatter "github.com/onsi/ginkgo/v2/formatter"
 )
@@ -47,7 +47,7 @@ func NewJSONRPCHandler(
 	return &common.HTTPHandler{LockOptions: lockOption, Handler: server}, nil
 }
 
-func NewWebSocketHandler(server *pubsub.Server) *common.HTTPHandler {
+func NewWebSocketHandler(server http.Handler) *common.HTTPHandler {
 	return &common.HTTPHandler{LockOptions: common.NoLock, Handler: server}
 }
 
