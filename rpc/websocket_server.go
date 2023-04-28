@@ -79,6 +79,7 @@ func (w *WebSocketServer) SetMinTx(t int64) {
 
 func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) {
 	bytes, _ := PackBlockMessage(b)
+	// TODO: only publish to block subscribers, can be a lot of extra bandwidth
 	w.s.Publish(bytes, w.s.Connections())
 	w.txL.Lock()
 	defer w.txL.Unlock()

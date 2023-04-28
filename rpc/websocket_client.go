@@ -13,8 +13,6 @@ type WebSocketClient struct {
 	conn *websocket.Conn
 	cl   sync.Once
 
-	// TODO: don't enqueue if not listening?
-	pending
 	err error
 }
 
@@ -46,6 +44,8 @@ func NewWebSocketClient(uri string) (*WebSocketClient, error) {
 	return wc, nil
 }
 
+// TODO: add RegisterTx/RegisterBlocks
+
 // IssueTx sends [tx] to the streaming rpc server.
 func (c *WebSocketClient) IssueTx(tx *chain.Transaction) error {
 	return c.conn.WriteMessage(websocket.BinaryMessage, tx.Bytes())
@@ -69,6 +69,7 @@ func (c *WebSocketClient) ListenForTx() (ids.ID, error, *chain.Result, error) {
 func (c *WebSocketClient) ListenForBlock(
 	parser chain.Parser,
 ) (*chain.StatefulBlock, []*chain.Result, error) {
+	// TODO: wait to start sending block messages until we listen
 	for {
 		// TODO: need to have a single router or will read from shared conn
 		_, msg, err := c.conn.ReadMessage()
