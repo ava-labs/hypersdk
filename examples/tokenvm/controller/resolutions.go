@@ -5,6 +5,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
@@ -13,6 +14,10 @@ import (
 
 func (c *Controller) Genesis() *genesis.Genesis {
 	return c.genesis
+}
+
+func (c *Controller) Logger() logging.Logger {
+	return c.inner.Logger()
 }
 
 func (c *Controller) Tracer() trace.Tracer {

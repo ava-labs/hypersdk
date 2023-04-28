@@ -40,7 +40,7 @@ type OrderBook struct {
 	trackAll bool
 }
 
-func NewOrderBook(c Controller, trackedPairs []string) *OrderBook {
+func New(c Controller, trackedPairs []string) *OrderBook {
 	m := map[string]*heap.Heap[*Order, float64]{}
 	trackAll := false
 	if len(trackedPairs) == 1 && trackedPairs[0] == allPairs {

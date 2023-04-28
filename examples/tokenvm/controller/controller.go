@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 	"go.uber.org/zap"
@@ -25,6 +26,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/config"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/version"
@@ -44,7 +46,7 @@ type Controller struct {
 
 	metaDB database.Database
 
-	orderBook *OrderBook
+	orderBook *orderbook.OrderBook
 }
 
 func New() *vm.VM {
@@ -132,10 +134,13 @@ func (c *Controller) Initialize(
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
-	apis[vm.JSONRPCEndpoint] = endpoint
+	// TODO: consider having a separate handler for controller specific APIs to
+	// avoid complex embedding?
+	// TODO: add these within hypersdk so don't need to think about it?
+	apis[rpc.JSONRPCEndpoint] = endpoint
 	wcfg := pubsub.NewDefaultServerConfig()
 	wcfg.MaxPendingMessages = c.config.StreamingBacklogSize
-	apis[vm.WebSocketEndpoint] = utils.NewWebSocketHandler(inner.WebSocketHandler(wcfg))
+	apis[rpc.WebSocketEndpoint] = utils.NewWebSocketHandler(inner.WebSocketHandler(wcfg))
 
 	// Create builder and gossiper
 	var (
@@ -156,7 +161,7 @@ func (c *Controller) Initialize(
 	}
 
 	// Initialize order book used to track all open orders
-	c.orderBook = NewOrderBook(c, c.config.TrackedPairs)
+	c.orderBook = orderbook.New(c, c.config.TrackedPairs)
 	return c.config, c.genesis, build, gossip, blockDB, stateDB, apis, consts.ActionRegistry, consts.AuthRegistry, nil
 }
 
@@ -204,7 +209,7 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 				actor := auth.GetActor(tx.Auth)
 				c.orderBook.Add(
 					actions.PairID(action.In, action.Out),
-					&Order{
+					&orderbook.Order{
 						tx.ID(),
 						tutils.Address(actor),
 						action.InTick,
