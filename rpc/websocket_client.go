@@ -55,9 +55,12 @@ func (c *WebSocketClient) ListenForTx() (ids.ID, error, *chain.Result, error) {
 func (c *WebSocketClient) ListenForBlock(
 	parser chain.Parser,
 ) (*chain.StatefulBlock, []*chain.Result, error) {
+	// TODO: remove locks
 	c.bll.Lock()
 	defer c.bll.Unlock()
+
 	for {
+		// TODO: need to have a single router or will read from shared conn
 		_, msg, err := c.conn.ReadMessage()
 		if err != nil {
 			return nil, nil, err

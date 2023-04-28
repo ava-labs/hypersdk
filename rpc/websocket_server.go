@@ -12,7 +12,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/pubsub"
 )
@@ -62,9 +61,8 @@ func (w *WebSocketServer) removeTx(txID ids.ID, err error) {
 	if !ok {
 		return
 	}
-	p := codec.NewWriter(consts.MaxInt)
-	PackRemovedTxMessage(p, txID, err)
-	w.s.Publish(txID[:], listeners)
+	bytes, _ := PackRemovedTxMessage(txID, err)
+	w.s.Publish(bytes, listeners)
 	delete(w.txWebSocketServer, txID)
 	// [expiringTxs] will be cleared eventually (does not support removal)
 }
@@ -80,24 +78,21 @@ func (w *WebSocketServer) SetMinTx(t int64) {
 }
 
 func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) {
-	p := codec.NewWriter(consts.MaxInt)
-	PackBlockMessageBytes(b, p)
-	// Publish accepted block to all block listeners
-	w.s.Publish(p.Bytes(), w.s.Connections())
+	bytes, _ := PackBlockMessage(b)
+	w.s.Publish(bytes, w.s.Connections())
 	w.txL.Lock()
 	defer w.txL.Unlock()
 	results := b.Results()
 	for i, tx := range b.Txs {
-		p := codec.NewWriter(consts.MaxInt)
 		txID := tx.ID()
 		listeners, ok := w.txWebSocketServer[txID]
 		if !ok {
 			continue
 		}
 		// Publish to tx listener
-		PackAcceptedTxMessage(p, txID, results[i])
+		bytes, _ := PackAcceptedTxMessage(txID, results[i])
 		w.s.Publish(
-			p.Bytes(),
+			bytes,
 			listeners,
 		)
 		delete(w.txWebSocketServer, txID)
