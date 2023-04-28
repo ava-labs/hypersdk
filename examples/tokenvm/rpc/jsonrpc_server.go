@@ -10,7 +10,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/rpc"
 )
@@ -48,7 +47,7 @@ func (j *JSONRPCServer) Tx(req *http.Request, args *TxArgs, reply *TxReply) erro
 	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Tx")
 	defer span.End()
 
-	found, t, success, units, err := storage.GetTransaction(ctx, h.c.metaDB, args.TxID)
+	found, t, success, units, err := j.c.GetTransaction(ctx, args.TxID)
 	if err != nil {
 		return err
 	}
@@ -76,11 +75,7 @@ func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetRe
 	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Asset")
 	defer span.End()
 
-	exists, metadata, supply, owner, warp, err := storage.GetAssetFromState(
-		ctx,
-		h.c.inner.ReadState,
-		args.Asset,
-	)
+	exists, metadata, supply, owner, warp, err := j.c.GetAssetFromState(ctx, args.Asset)
 	if err != nil {
 		return err
 	}
@@ -111,7 +106,7 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	if err != nil {
 		return err
 	}
-	balance, err := storage.GetBalanceFromState(ctx, h.c.inner.ReadState, addr, args.Asset)
+	balance, err := j.c.GetBalanceFromState(ctx, addr, args.Asset)
 	if err != nil {
 		return err
 	}
@@ -131,7 +126,7 @@ func (j *JSONRPCServer) Orders(req *http.Request, args *OrdersArgs, reply *Order
 	_, span := j.c.Tracer().Start(req.Context(), "Server.Orders")
 	defer span.End()
 
-	reply.Orders = h.c.orderBook.Orders(args.Pair, ordersToSend)
+	reply.Orders = j.c.Orders(args.Pair, ordersToSend)
 	return nil
 }
 
@@ -148,7 +143,7 @@ func (j *JSONRPCServer) Loan(req *http.Request, args *LoanArgs, reply *LoanReply
 	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Loan")
 	defer span.End()
 
-	amount, err := storage.GetLoanFromState(ctx, h.c.inner.ReadState, args.Asset, args.Destination)
+	amount, err := j.c.GetLoanFromState(ctx, args.Asset, args.Destination)
 	if err != nil {
 		return err
 	}
