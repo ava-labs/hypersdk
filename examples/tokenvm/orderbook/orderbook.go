@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package controller
+package orderbook
 
 import (
 	"sync"
@@ -28,7 +28,7 @@ type Order struct {
 }
 
 type OrderBook struct {
-	c *Controller
+	c Controller
 
 	// TODO: consider capping the number of orders in each heap (need to ensure
 	// that doing so does not make it possible to send a bunch of small, spam
@@ -40,17 +40,17 @@ type OrderBook struct {
 	trackAll bool
 }
 
-func NewOrderBook(c *Controller, trackedPairs []string) *OrderBook {
+func NewOrderBook(c Controller, trackedPairs []string) *OrderBook {
 	m := map[string]*heap.Heap[*Order, float64]{}
 	trackAll := false
 	if len(trackedPairs) == 1 && trackedPairs[0] == allPairs {
 		trackAll = true
-		c.inner.Logger().Info("tracking all order books")
+		c.Logger().Info("tracking all order books")
 	} else {
 		for _, pair := range trackedPairs {
 			// We use a max heap so we return the best rates in order.
 			m[pair] = heap.New[*Order, float64](initialPairCapacity, true)
-			c.inner.Logger().Info("tracking order book", zap.String("pair", pair))
+			c.Logger().Info("tracking order book", zap.String("pair", pair))
 		}
 	}
 	return &OrderBook{
@@ -69,7 +69,7 @@ func (o *OrderBook) Add(pair string, order *Order) {
 	case !ok && !o.trackAll:
 		return
 	case !ok && o.trackAll:
-		o.c.inner.Logger().Info("tracking order book", zap.String("pair", pair))
+		o.c.Logger().Info("tracking order book", zap.String("pair", pair))
 		h = heap.New[*Order, float64](initialPairCapacity, true)
 		o.orders[pair] = h
 	}

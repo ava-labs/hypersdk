@@ -4,24 +4,15 @@
 package rpc
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/rpc"
-)
-
-const (
-	ordersToSend = 128
-)
-
-var (
-	ErrTxNotFound    = errors.New("tx not found")
-	ErrAssetNotFound = errors.New("asset not found")
 )
 
 type JSONRPCServer struct {
@@ -54,7 +45,7 @@ type TxReply struct {
 }
 
 func (j *JSONRPCServer) Tx(req *http.Request, args *TxArgs, reply *TxReply) error {
-	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Server.Tx")
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Tx")
 	defer span.End()
 
 	found, t, success, units, err := storage.GetTransaction(ctx, h.c.metaDB, args.TxID)
@@ -82,7 +73,7 @@ type AssetReply struct {
 }
 
 func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetReply) error {
-	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Server.Asset")
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Asset")
 	defer span.End()
 
 	exists, metadata, supply, owner, warp, err := storage.GetAssetFromState(
@@ -113,7 +104,7 @@ type BalanceReply struct {
 }
 
 func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *BalanceReply) error {
-	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Server.Balance")
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
 
 	addr, err := utils.ParseAddress(args.Address)
@@ -133,11 +124,11 @@ type OrdersArgs struct {
 }
 
 type OrdersReply struct {
-	Orders []*Order `json:"orders"`
+	Orders []*orderbook.Order `json:"orders"`
 }
 
 func (j *JSONRPCServer) Orders(req *http.Request, args *OrdersArgs, reply *OrdersReply) error {
-	_, span := h.c.inner.Tracer().Start(req.Context(), "Server.Orders")
+	_, span := j.c.Tracer().Start(req.Context(), "Server.Orders")
 	defer span.End()
 
 	reply.Orders = h.c.orderBook.Orders(args.Pair, ordersToSend)
@@ -154,7 +145,7 @@ type LoanReply struct {
 }
 
 func (j *JSONRPCServer) Loan(req *http.Request, args *LoanArgs, reply *LoanReply) error {
-	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Server.Loan")
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Loan")
 	defer span.End()
 
 	amount, err := storage.GetLoanFromState(ctx, h.c.inner.ReadState, args.Asset, args.Destination)
