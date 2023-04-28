@@ -1390,7 +1390,7 @@ func awaitHealthy(
 // if 0 blocks are specified, will just wait until ctx is cancelled.
 func generateBlocks(
 	ctx context.Context,
-	cumulatedTxs int,
+	cumulativeTxs int,
 	blocksToGenerate uint64,
 	instances []instance,
 	failOnError bool,
@@ -1405,7 +1405,7 @@ func generateBlocks(
 		// Generate transaction
 		other, err := crypto.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		submit, _, _, err := instances[cumulatedTxs%len(instances)].cli.GenerateTransaction(
+		submit, _, _, err := instances[cumulativeTxs%len(instances)].cli.GenerateTransaction(
 			context.Background(),
 			nil,
 			&actions.Transfer{
@@ -1437,7 +1437,7 @@ func generateBlocks(
 			time.Sleep(5 * time.Second)
 			continue
 		}
-		cumulatedTxs++
+		cumulativeTxs++
 		_, height, _, err := instances[0].cli.Accepted(context.Background())
 		if failOnError {
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -1453,14 +1453,14 @@ func generateBlocks(
 			break
 		} else if height > lastHeight {
 			lastHeight = height
-			hutils.Outf("{{yellow}}height=%d count=%d{{/}}\n", height, cumulatedTxs)
+			hutils.Outf("{{yellow}}height=%d count=%d{{/}}\n", height, cumulativeTxs)
 		}
 
 		// Sleep for a very small amount of time to avoid overloading the
 		// network with transactions (can generate very fast)
 		time.Sleep(10 * time.Millisecond)
 	}
-	return cumulatedTxs
+	return cumulativeTxs
 }
 
 func acceptTransaction(cli *client.Client) {
