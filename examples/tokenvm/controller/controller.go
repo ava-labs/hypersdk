@@ -15,8 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/pebble"
-	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/rpc"
+	hrpc "github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 	"go.uber.org/zap"
@@ -27,8 +26,8 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
-	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/version"
 )
 
@@ -129,18 +128,15 @@ func (c *Controller) Initialize(
 	}
 
 	// Create handlers
+	//
+	// hypersdk handler are initiatlized automatically, you just need to
+	// initialize custom handlers here.
 	apis := map[string]*common.HTTPHandler{}
-	endpoint, err := utils.NewJSONRPCHandler(consts.Name, &Handler{inner.JSONRPCHandler(), c}, common.NoLock)
+	jsonRPCHandler, err := hrpc.NewJSONRPCHandler(consts.Name, rpc.NewJSONRPCServer(c), common.NoLock)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
-	// TODO: consider having a separate handler for controller specific APIs to
-	// avoid complex embedding?
-	// TODO: add these within hypersdk so don't need to think about it?
-	apis[rpc.JSONRPCEndpoint] = endpoint
-	wcfg := pubsub.NewDefaultServerConfig()
-	wcfg.MaxPendingMessages = c.config.StreamingBacklogSize
-	apis[rpc.WebSocketEndpoint] = utils.NewWebSocketHandler(inner.WebSocketHandler(wcfg))
+	apis[rpc.JSONRPCEndpoint] = jsonRPCHandler
 
 	// Create builder and gossiper
 	var (
@@ -207,17 +203,7 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 			case *actions.CreateOrder:
 				c.metrics.createOrder.Inc()
 				actor := auth.GetActor(tx.Auth)
-				c.orderBook.Add(
-					actions.PairID(action.In, action.Out),
-					&orderbook.Order{
-						tx.ID(),
-						tutils.Address(actor),
-						action.InTick,
-						action.OutTick,
-						action.Supply,
-						actor,
-					},
-				)
+				c.orderBook.Add(tx.ID(), actor, action)
 			case *actions.FillOrder:
 				c.metrics.fillOrder.Inc()
 				orderResult, err := actions.UnmarshalOrderResult(result.Output)

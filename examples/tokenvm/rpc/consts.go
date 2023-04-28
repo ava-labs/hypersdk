@@ -1,3 +1,7 @@
 package rpc
 
-const ordersToSend = 128
+const (
+	JSONRPCEndpoint = "/tokenvm-rpc"
+
+	ordersToSend = 128
+)

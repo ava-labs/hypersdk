@@ -8,6 +8,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/heap"
 	"go.uber.org/zap"
 )
@@ -61,7 +63,17 @@ func New(c Controller, trackedPairs []string) *OrderBook {
 	}
 }
 
-func (o *OrderBook) Add(pair string, order *Order) {
+func (o *OrderBook) Add(txID ids.ID, actor crypto.PublicKey, action *actions.CreateOrder) {
+	pair := actions.PairID(action.In, action.Out)
+	order := &Order{
+		txID,
+		utils.Address(actor),
+		action.InTick,
+		action.OutTick,
+		action.Supply,
+		actor,
+	}
+
 	o.l.Lock()
 	defer o.l.Unlock()
 	h, ok := o.orders[pair]
