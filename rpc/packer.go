@@ -1,4 +1,4 @@
-package listeners
+package rpc
 
 import (
 	"errors"

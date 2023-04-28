@@ -1,4 +1,4 @@
-package listeners
+package rpc
 
 import (
 	"sync"
@@ -8,8 +8,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// If you don't keep up, you will data
-type Client struct {
+type WebSocketClient struct {
 	conn *websocket.Conn
 	wl   sync.Mutex
 	dll  sync.Mutex
@@ -19,7 +18,7 @@ type Client struct {
 
 // NewDecisionRPCClient creates a new client for the decision rpc server.
 // Dials into the server at [uri] and returns a client.
-func NewStreamingClient(uri string) (*Client, error) {
+func NewWebSocketClient(uri string) (*Client, error) {
 	// nil for now until we want to pass in headers
 	conn, resp, err := websocket.DefaultDialer.Dial(uri, nil)
 	if err != nil {

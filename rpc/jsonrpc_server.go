@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package vm
+package rpc
 
 import (
 	"context"
@@ -14,30 +14,23 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/listeners"
-	"github.com/ava-labs/hypersdk/pubsub"
 	"go.uber.org/zap"
 )
 
-const (
-	JSONRPCEndpoint   = "/rpc"
-	WebSocketEndpoint = "/ws"
-)
-
 type JSONRPCHandler struct {
-	vm *VM
+	vm VM
 }
 
-func (vm *VM) JSONRPCHandler() *JSONRPCHandler {
-	return &JSONRPCHandler{vm}
-}
+// func (vm *VM) JSONRPCHandler() *JSONRPCHandler {
+// 	return &JSONRPCHandler{vm}
+// }
 
 type PingReply struct {
 	Success bool `json:"success"`
 }
 
 func (h *JSONRPCHandler) Ping(_ *http.Request, _ *struct{}, reply *PingReply) (err error) {
-	h.vm.snowCtx.Log.Info("ping")
+	h.vm.Logger().Info("ping")
 	reply.Success = true
 	return nil
 }
@@ -49,9 +42,9 @@ type NetworkReply struct {
 }
 
 func (h *JSONRPCHandler) Network(_ *http.Request, _ *struct{}, reply *NetworkReply) (err error) {
-	reply.NetworkID = h.vm.snowCtx.NetworkID
-	reply.SubnetID = h.vm.snowCtx.SubnetID
-	reply.ChainID = h.vm.snowCtx.ChainID
+	reply.NetworkID = h.vm.NetworkID()
+	reply.SubnetID = h.vm.SubnetID()
+	reply.ChainID = h.vm.ChainID()
 	return nil
 }
 
@@ -67,8 +60,9 @@ func (h *JSONRPCHandler) SubmitTx(req *http.Request, args *SubmitTxArgs, reply *
 	ctx, span := h.vm.Tracer().Start(req.Context(), "JSONRPCHandler.SubmitTx")
 	defer span.End()
 
+	actionRegistry, authRegistry := h.vm.Registry()
 	rtx := codec.NewReader(args.Tx, chain.NetworkSizeLimit) // will likely be much smaller than this
-	tx, err := chain.UnmarshalTx(rtx, h.vm.actionRegistry, h.vm.authRegistry)
+	tx, err := chain.UnmarshalTx(rtx, actionRegistry, authRegistry)
 	if err != nil {
 		return fmt.Errorf("%w: unable to unmarshal on public service", err)
 	}
@@ -90,7 +84,7 @@ type LastAcceptedReply struct {
 }
 
 func (h *JSONRPCHandler) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
-	blk := h.vm.lastAccepted
+	blk := h.vm.LastAcceptedBlock()
 	reply.Height = blk.Hght
 	reply.BlockID = blk.ID()
 	reply.Timestamp = blk.Tmstmp
@@ -130,9 +124,9 @@ type WarpValidator struct {
 }
 
 type GetWarpSignaturesReply struct {
-	Validators []*WarpValidator      `json:"validators"`
-	Message    *warp.UnsignedMessage `json:"message"`
-	Signatures []*WarpSignature      `json:"signatures"`
+	Validators []*WarpValidator       `json:"validators"`
+	Message    *warp.UnsignedMessage  `json:"message"`
+	Signatures []*chain.WarpSignature `json:"signatures"`
 }
 
 func (h *JSONRPCHandler) GetWarpSignatures(
@@ -157,9 +151,9 @@ func (h *JSONRPCHandler) GetWarpSignatures(
 	}
 
 	// Ensure we only return valid signatures
-	validSignatures := []*WarpSignature{}
+	validSignatures := []*chain.WarpSignature{}
 	warpValidators := []*WarpValidator{}
-	validators, publicKeys := h.vm.proposerMonitor.Validators(req.Context())
+	validators, publicKeys := h.vm.CurrentValidators(req.Context())
 	for _, sig := range signatures {
 		if _, ok := publicKeys[string(sig.PublicKey)]; !ok {
 			continue
@@ -179,7 +173,7 @@ func (h *JSONRPCHandler) GetWarpSignatures(
 
 	// Optimistically request that we gather signatures if we don't have all of them
 	if len(validSignatures) < len(publicKeys) {
-		h.vm.snowCtx.Log.Info(
+		h.vm.Logger().Info(
 			"fetching missing signatures",
 			zap.Stringer("txID", args.TxID),
 			zap.Int(
@@ -189,7 +183,7 @@ func (h *JSONRPCHandler) GetWarpSignatures(
 			zap.Int("valid", len(validSignatures)),
 			zap.Int("current public key count", len(publicKeys)),
 		)
-		h.vm.warpManager.GatherSignatures(context.TODO(), args.TxID, message.Bytes())
+		h.vm.GatherSignatures(context.TODO(), args.TxID, message.Bytes())
 	}
 
 	reply.Message = message
@@ -198,10 +192,10 @@ func (h *JSONRPCHandler) GetWarpSignatures(
 	return nil
 }
 
-func (vm *VM) WebSocketHandler(cfg *pubsub.ServerConfig) *pubsub.Server {
-	// TODO: shutdown streaming server
-	vm.listeners = listeners.New()
-	streamingServer := pubsub.New(vm.snowCtx.Log, cfg, vm.listeners.ServerCallback(vm))
-	vm.listeners.SetServer(streamingServer)
-	return streamingServer
-}
+// func (vm *VM) WebSocketHandler(cfg *pubsub.ServerConfig) *pubsub.Server {
+// 	// TODO: shutdown streaming server
+// 	vm.listeners = listeners.New()
+// 	streamingServer := pubsub.New(vm.snowCtx.Log, cfg, vm.listeners.ServerCallback(vm))
+// 	vm.listeners.SetServer(streamingServer)
+// 	return streamingServer
+// }

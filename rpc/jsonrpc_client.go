@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package client
+package rpc
 
 import (
 	"context"
@@ -15,12 +15,150 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/utils"
 	"golang.org/x/exp/maps"
+
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/requester"
+	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/vm"
 )
 
-const waitSleep = 500 * time.Millisecond
+const (
+	suggestedFeeCacheRefresh = 10 * time.Second
+	waitSleep                = 500 * time.Millisecond
+)
+
+// TODO: move to shared package with streaming known as "handlers"
+type JSONRPCClient struct {
+	Requester *requester.EndpointRequester
+
+	networkID uint32
+	subnetID  ids.ID
+	chainID   ids.ID
+
+	lastSuggestedFee time.Time
+	unitPrice        uint64
+	blockCost        uint64
+}
+
+func NewJSONRPCClient(name string, uri string) *Client {
+	req := requester.New(
+		fmt.Sprintf("%s%s", uri, vm.JSONRPCEndpoint),
+		name,
+	)
+	return &Client{Requester: req}
+}
+
+func (cli *Client) Ping(ctx context.Context) (bool, error) {
+	resp := new(vm.PingReply)
+	err := cli.Requester.SendRequest(ctx,
+		"ping",
+		nil,
+		resp,
+	)
+	return resp.Success, err
+}
+
+func (cli *Client) Network(ctx context.Context) (uint32, ids.ID, ids.ID, error) {
+	if cli.chainID != ids.Empty {
+		return cli.networkID, cli.subnetID, cli.chainID, nil
+	}
+
+	resp := new(vm.NetworkReply)
+	err := cli.Requester.SendRequest(
+		ctx,
+		"network",
+		nil,
+		resp,
+	)
+	if err != nil {
+		return 0, ids.Empty, ids.Empty, err
+	}
+	cli.networkID = resp.NetworkID
+	cli.subnetID = resp.SubnetID
+	cli.chainID = resp.ChainID
+	return resp.NetworkID, resp.SubnetID, resp.ChainID, nil
+}
+
+func (cli *Client) Accepted(ctx context.Context) (ids.ID, uint64, int64, error) {
+	resp := new(vm.LastAcceptedReply)
+	err := cli.Requester.SendRequest(
+		ctx,
+		"lastAccepted",
+		nil,
+		resp,
+	)
+	return resp.BlockID, resp.Height, resp.Timestamp, err
+}
+
+func (cli *Client) SuggestedRawFee(ctx context.Context) (uint64, uint64, error) {
+	if time.Since(cli.lastSuggestedFee) < suggestedFeeCacheRefresh {
+		return cli.unitPrice, cli.blockCost, nil
+	}
+
+	resp := new(vm.SuggestedRawFeeReply)
+	err := cli.Requester.SendRequest(
+		ctx,
+		"suggestedRawFee",
+		nil,
+		resp,
+	)
+	if err != nil {
+		return 0, 0, err
+	}
+	cli.unitPrice = resp.UnitPrice
+	cli.blockCost = resp.BlockCost
+	// We update the time last in case there are concurrent requests being
+	// processed (we don't want them to get an inconsistent view).
+	cli.lastSuggestedFee = time.Now()
+	return resp.UnitPrice, resp.BlockCost, nil
+}
+
+func (cli *Client) SubmitTx(ctx context.Context, d []byte) (ids.ID, error) {
+	resp := new(vm.SubmitTxReply)
+	err := cli.Requester.SendRequest(
+		ctx,
+		"submitTx",
+		&vm.SubmitTxArgs{Tx: d},
+		resp,
+	)
+	return resp.TxID, err
+}
+
+func (cli *Client) GetWarpSignatures(
+	ctx context.Context,
+	txID ids.ID,
+) (*warp.UnsignedMessage, map[ids.NodeID]*validators.GetValidatorOutput, []*vm.WarpSignature, error) {
+	resp := new(vm.GetWarpSignaturesReply)
+	if err := cli.Requester.SendRequest(
+		ctx,
+		"getWarpSignatures",
+		&vm.GetWarpSignaturesArgs{TxID: txID},
+		resp,
+	); err != nil {
+		return nil, nil, nil, err
+	}
+	// Ensure message is initialized
+	if err := resp.Message.Initialize(); err != nil {
+		return nil, nil, nil, err
+	}
+	m := map[ids.NodeID]*validators.GetValidatorOutput{}
+	for _, vdr := range resp.Validators {
+		vout := &validators.GetValidatorOutput{
+			NodeID: vdr.NodeID,
+			Weight: vdr.Weight,
+		}
+		if len(vdr.PublicKey) > 0 {
+			pk, err := bls.PublicKeyFromBytes(vdr.PublicKey)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			vout.PublicKey = pk
+		}
+		m[vdr.NodeID] = vout
+	}
+	return resp.Message, m, resp.Signatures, nil
+}
 
 type Modifier interface {
 	Base(*chain.Base)
