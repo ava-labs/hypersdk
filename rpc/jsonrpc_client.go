@@ -28,7 +28,7 @@ const (
 )
 
 type JSONRPCClient struct {
-	Requester *requester.EndpointRequester
+	requester *requester.EndpointRequester
 
 	networkID uint32
 	subnetID  ids.ID
@@ -39,17 +39,14 @@ type JSONRPCClient struct {
 	blockCost        uint64
 }
 
-func NewJSONRPCClient(name string, uri string) *JSONRPCClient {
-	req := requester.New(
-		fmt.Sprintf("%s%s", uri, JSONRPCEndpoint),
-		name,
-	)
-	return &JSONRPCClient{Requester: req}
+func NewJSONRPCClient(uri string) *JSONRPCClient {
+	req := requester.New(uri, Name)
+	return &JSONRPCClient{requester: req}
 }
 
 func (cli *JSONRPCClient) Ping(ctx context.Context) (bool, error) {
 	resp := new(PingReply)
-	err := cli.Requester.SendRequest(ctx,
+	err := cli.requester.SendRequest(ctx,
 		"ping",
 		nil,
 		resp,
@@ -63,7 +60,7 @@ func (cli *JSONRPCClient) Network(ctx context.Context) (uint32, ids.ID, ids.ID, 
 	}
 
 	resp := new(NetworkReply)
-	err := cli.Requester.SendRequest(
+	err := cli.requester.SendRequest(
 		ctx,
 		"network",
 		nil,
@@ -80,7 +77,7 @@ func (cli *JSONRPCClient) Network(ctx context.Context) (uint32, ids.ID, ids.ID, 
 
 func (cli *JSONRPCClient) Accepted(ctx context.Context) (ids.ID, uint64, int64, error) {
 	resp := new(LastAcceptedReply)
-	err := cli.Requester.SendRequest(
+	err := cli.requester.SendRequest(
 		ctx,
 		"lastAccepted",
 		nil,
@@ -95,7 +92,7 @@ func (cli *JSONRPCClient) SuggestedRawFee(ctx context.Context) (uint64, uint64, 
 	}
 
 	resp := new(SuggestedRawFeeReply)
-	err := cli.Requester.SendRequest(
+	err := cli.requester.SendRequest(
 		ctx,
 		"suggestedRawFee",
 		nil,
@@ -114,7 +111,7 @@ func (cli *JSONRPCClient) SuggestedRawFee(ctx context.Context) (uint64, uint64, 
 
 func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error) {
 	resp := new(SubmitTxReply)
-	err := cli.Requester.SendRequest(
+	err := cli.requester.SendRequest(
 		ctx,
 		"submitTx",
 		&SubmitTxArgs{Tx: d},
@@ -128,7 +125,7 @@ func (cli *JSONRPCClient) GetWarpSignatures(
 	txID ids.ID,
 ) (*warp.UnsignedMessage, map[ids.NodeID]*validators.GetValidatorOutput, []*chain.WarpSignature, error) {
 	resp := new(GetWarpSignaturesReply)
-	if err := cli.Requester.SendRequest(
+	if err := cli.requester.SendRequest(
 		ctx,
 		"getWarpSignatures",
 		&GetWarpSignaturesArgs{TxID: txID},

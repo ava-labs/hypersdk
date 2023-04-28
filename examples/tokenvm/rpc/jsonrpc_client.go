@@ -8,27 +8,28 @@ import (
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
+	_ "github.com/ava-labs/hypersdk/examples/tokenvm/controller" // ensure registry populated
+	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
+	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-
-	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
-
-	// _ "github.com/ava-labs/hypersdk/examples/tokenvm/controller" // ensure registry populated
-	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 )
 
 type JSONRPCClient struct {
-	*rpc.JSONRPCClient // embed standard functionality
+	requester *requester.EndpointRequester
 
-	g *genesis.Genesis
+	chainID ids.ID
+	g       *genesis.Genesis
 }
 
 // New creates a new client object.
-func NewJSONRPCClient(uri string) *JSONRPCClient {
-	return &JSONRPCClient{rpc.NewJSONRPCClient(consts.Name, uri), nil}
+func NewJSONRPCClient(uri string, chainID ids.ID) *JSONRPCClient {
+	req := requester.New(uri, consts.Name)
+	return &JSONRPCClient{req, chainID, nil}
 }
 
 func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.Genesis, error) {
@@ -37,7 +38,7 @@ func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.Genesis, error)
 	}
 
 	resp := new(GenesisReply)
-	err := cli.Requester.SendRequest(
+	err := cli.requester.SendRequest(
 		ctx,
 		"genesis",
 		nil,
@@ -52,7 +53,7 @@ func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.Genesis, error)
 
 func (cli *JSONRPCClient) Tx(ctx context.Context, id ids.ID) (bool, bool, int64, error) {
 	resp := new(TxReply)
-	err := cli.Requester.SendRequest(
+	err := cli.requester.SendRequest(
 		ctx,
 		"tx",
 		&TxArgs{TxID: id},
@@ -74,7 +75,7 @@ func (cli *JSONRPCClient) Asset(
 	asset ids.ID,
 ) (bool, []byte, uint64, string, bool, error) {
 	resp := new(AssetReply)
-	err := cli.Requester.SendRequest(
+	err := cli.requester.SendRequest(
 		ctx,
 		"asset",
 		&AssetArgs{
@@ -95,7 +96,7 @@ func (cli *JSONRPCClient) Asset(
 
 func (cli *JSONRPCClient) Balance(ctx context.Context, addr string, asset ids.ID) (uint64, error) {
 	resp := new(BalanceReply)
-	err := cli.Requester.SendRequest(
+	err := cli.requester.SendRequest(
 		ctx,
 		"balance",
 		&BalanceArgs{
@@ -109,7 +110,7 @@ func (cli *JSONRPCClient) Balance(ctx context.Context, addr string, asset ids.ID
 
 func (cli *JSONRPCClient) Orders(ctx context.Context, pair string) ([]*orderbook.Order, error) {
 	resp := new(OrdersReply)
-	err := cli.Requester.SendRequest(
+	err := cli.requester.SendRequest(
 		ctx,
 		"orders",
 		&OrdersArgs{
@@ -122,7 +123,7 @@ func (cli *JSONRPCClient) Orders(ctx context.Context, pair string) ([]*orderbook
 
 func (cli *JSONRPCClient) Loan(ctx context.Context, asset ids.ID, destination ids.ID) (uint64, error) {
 	resp := new(LoanReply)
-	err := cli.Requester.SendRequest(
+	err := cli.requester.SendRequest(
 		ctx,
 		"loan",
 		&LoanArgs{
@@ -132,31 +133,6 @@ func (cli *JSONRPCClient) Loan(ctx context.Context, asset ids.ID, destination id
 		resp,
 	)
 	return resp.Amount, err
-}
-
-func (cli *JSONRPCClient) GenerateTransaction(
-	ctx context.Context,
-	wm *warp.Message,
-	action chain.Action,
-	factory chain.AuthFactory,
-	modifiers ...rpc.Modifier,
-) (func(context.Context) error, *chain.Transaction, uint64, error) {
-	// Gather chain metadata
-	g, err := cli.Genesis(ctx)
-	if err != nil {
-		return nil, nil, 0, err
-	}
-	_, _, chainID, err := cli.Network(ctx) // TODO: store in object to fetch less frequently
-	if err != nil {
-		return nil, nil, 0, err
-	}
-	return cli.JSONRPCClient.GenerateTransaction(
-		ctx,
-		&Parser{chainID, g},
-		wm,
-		action,
-		factory,
-		modifiers...)
 }
 
 func (cli *JSONRPCClient) WaitForBalance(
@@ -217,14 +193,9 @@ func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 }
 
 func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
-	// Gather chain metadata
 	g, err := cli.Genesis(ctx)
 	if err != nil {
 		return nil, err
 	}
-	_, _, chainID, err := cli.Network(ctx) // TODO: store in object to fetch less frequently
-	if err != nil {
-		return nil, err
-	}
-	return &Parser{chainID, g}, nil
+	return &Parser{cli.chainID, g}, nil
 }

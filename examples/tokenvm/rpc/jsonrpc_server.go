@@ -11,17 +11,14 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
-	"github.com/ava-labs/hypersdk/rpc"
 )
 
 type JSONRPCServer struct {
-	*rpc.JSONRPCServer // embed standard functionality
-
 	c Controller
 }
 
-func NewJSONRPCServer(base *rpc.JSONRPCServer, c Controller) *JSONRPCServer {
-	return &JSONRPCServer{base, c}
+func NewJSONRPCServer(c Controller) *JSONRPCServer {
+	return &JSONRPCServer{c}
 }
 
 type GenesisReply struct {

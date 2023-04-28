@@ -7,18 +7,14 @@ import (
 	"fmt"
 	"math"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"strconv"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/hashing"
-	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/utils/perms"
-	"github.com/gorilla/rpc/v2"
 	formatter "github.com/onsi/ginkgo/v2/formatter"
 )
 
@@ -31,24 +27,6 @@ func ToID(bytes []byte) ids.ID {
 func InitSubDirectory(rootPath string, name string) (string, error) {
 	p := path.Join(rootPath, name)
 	return p, os.MkdirAll(p, perms.ReadWriteExecute)
-}
-
-func NewJSONRPCHandler(
-	name string,
-	service interface{},
-	lockOption common.LockOption,
-) (*common.HTTPHandler, error) {
-	server := rpc.NewServer()
-	server.RegisterCodec(json.NewCodec(), "application/json")
-	server.RegisterCodec(json.NewCodec(), "application/json;charset=UTF-8")
-	if err := server.RegisterService(service, name); err != nil {
-		return nil, err
-	}
-	return &common.HTTPHandler{LockOptions: lockOption, Handler: server}, nil
-}
-
-func NewWebSocketHandler(server http.Handler) *common.HTTPHandler {
-	return &common.HTTPHandler{LockOptions: common.NoLock, Handler: server}
 }
 
 func ErrBytes(err error) []byte {

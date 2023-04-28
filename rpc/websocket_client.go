@@ -16,10 +16,9 @@ type WebSocketClient struct {
 	cl   sync.Once
 }
 
-// NewDecisionRPCClient creates a new client for the decision rpc server.
+// NewWebSocketClient creates a new client for the decision rpc server.
 // Dials into the server at [uri] and returns a client.
 func NewWebSocketClient(uri string) (*WebSocketClient, error) {
-	// nil for now until we want to pass in headers
 	conn, resp, err := websocket.DefaultDialer.Dial(uri, nil)
 	if err != nil {
 		return nil, err
