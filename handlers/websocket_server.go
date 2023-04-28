@@ -17,59 +17,59 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 )
 
-type Listeners struct {
-	txL         sync.Mutex
-	txListeners map[ids.ID]*pubsub.Connections
-	expiringTxs *emap.EMap[*chain.Transaction] // ensures all tx listeners are eventually responded to
-	s           *pubsub.Server
+type WebSocketServer struct {
+	txL               sync.Mutex
+	txWebSocketServer map[ids.ID]*pubsub.Connections
+	expiringTxs       *emap.EMap[*chain.Transaction] // ensures all tx listeners are eventually responded to
+	s                 *pubsub.Server
 }
 
-func New() *Listeners {
-	return &Listeners{
-		txListeners: map[ids.ID]*pubsub.Connections{},
-		expiringTxs: emap.NewEMap[*chain.Transaction](),
+func NewWebSocketServer() *WebSocketServer {
+	return &WebSocketServer{
+		txWebSocketServer: map[ids.ID]*pubsub.Connections{},
+		expiringTxs:       emap.NewEMap[*chain.Transaction](),
 	}
 }
 
-func (w *Listeners) SetServer(s *pubsub.Server) {
+func (w *WebSocketServer) SetBackend(s *pubsub.Server) {
 	w.s = s
 }
 
 // Note: no need to have a tx listener removal, this will happen when all
 // submitted transactions are cleared.
-func (w *Listeners) AddTxListener(tx *chain.Transaction, c *pubsub.Connection) {
+func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connection) {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
 	txID := tx.ID()
-	if _, ok := w.txListeners[txID]; !ok {
-		w.txListeners[txID] = pubsub.NewConnections()
+	if _, ok := w.txWebSocketServer[txID]; !ok {
+		w.txWebSocketServer[txID] = pubsub.NewConnections()
 	}
-	w.txListeners[txID].Add(c)
+	w.txWebSocketServer[txID].Add(c)
 	w.expiringTxs.Add([]*chain.Transaction{tx})
 }
 
 // If never possible for a tx to enter mempool, call this
-func (w *Listeners) RemoveTx(txID ids.ID, err error) {
+func (w *WebSocketServer) RemoveTx(txID ids.ID, err error) {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
 	w.removeTx(txID, err)
 }
 
-func (w *Listeners) removeTx(txID ids.ID, err error) {
-	listeners, ok := w.txListeners[txID]
+func (w *WebSocketServer) removeTx(txID ids.ID, err error) {
+	listeners, ok := w.txWebSocketServer[txID]
 	if !ok {
 		return
 	}
 	p := codec.NewWriter(consts.MaxInt)
 	PackRemovedTxMessage(p, txID, err)
 	w.s.Publish(txID[:], listeners)
-	delete(w.txListeners, txID)
+	delete(w.txWebSocketServer, txID)
 	// [expiringTxs] will be cleared eventually (does not support removal)
 }
 
-func (w *Listeners) SetMinTx(t int64) {
+func (w *WebSocketServer) SetMinTx(t int64) {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
@@ -79,7 +79,7 @@ func (w *Listeners) SetMinTx(t int64) {
 	}
 }
 
-func (w *Listeners) AcceptBlock(b *chain.StatelessBlock) {
+func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) {
 	p := codec.NewWriter(consts.MaxInt)
 	PackBlockMessageBytes(b, p)
 	// Publish accepted block to all block listeners
@@ -90,7 +90,7 @@ func (w *Listeners) AcceptBlock(b *chain.StatelessBlock) {
 	for i, tx := range b.Txs {
 		p := codec.NewWriter(consts.MaxInt)
 		txID := tx.ID()
-		listeners, ok := w.txListeners[txID]
+		listeners, ok := w.txWebSocketServer[txID]
 		if !ok {
 			continue
 		}
@@ -100,12 +100,12 @@ func (w *Listeners) AcceptBlock(b *chain.StatelessBlock) {
 			p.Bytes(),
 			listeners,
 		)
-		delete(w.txListeners, txID)
+		delete(w.txWebSocketServer, txID)
 		// [expiringTxs] will be cleared eventually (does not support removal)
 	}
 }
 
-func (w *Listeners) ServerCallback(vm VM) pubsub.Callback {
+func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 	return func(msgBytes []byte, c *pubsub.Connection) {
 		// TODO: find a way to only initialize this once (callback created during
 		// init so everything is nil)
