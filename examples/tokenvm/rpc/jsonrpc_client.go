@@ -21,14 +21,14 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 )
 
-type Client struct {
+type JSONRPCClient struct {
 	client *rpc.JSONRPCClient // embed standard functionality
 
 	g *genesis.Genesis
 }
 
 // New creates a new client object.
-func New(uri string) *Client {
+func NewJSONRPCClient(uri string) *JSONRPCClient {
 	return &Client{client: rpc.NewJSONRPCClient(consts.Name, uri)}
 }
 

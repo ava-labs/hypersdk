@@ -39,7 +39,7 @@ type GenesisReply struct {
 }
 
 func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
-	reply.Genesis = j.c.genesis
+	reply.Genesis = j.c.Genesis()
 	return nil
 }
 
