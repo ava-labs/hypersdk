@@ -10,29 +10,28 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/client"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/controller"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
 
 	// _ "github.com/ava-labs/hypersdk/examples/tokenvm/controller" // ensure registry populated
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 )
 
 type JSONRPCClient struct {
-	client *rpc.JSONRPCClient // embed standard functionality
+	*rpc.JSONRPCClient // embed standard functionality
 
 	g *genesis.Genesis
 }
 
 // New creates a new client object.
 func NewJSONRPCClient(uri string) *JSONRPCClient {
-	return &Client{client: rpc.NewJSONRPCClient(consts.Name, uri)}
+	return &JSONRPCClient{rpc.NewJSONRPCClient(consts.Name, uri), nil}
 }
 
-func (cli *Client) Genesis(ctx context.Context) (*genesis.Genesis, error) {
+func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.Genesis, error) {
 	if cli.g != nil {
 		return cli.g, nil
 	}
@@ -51,18 +50,18 @@ func (cli *Client) Genesis(ctx context.Context) (*genesis.Genesis, error) {
 	return resp.Genesis, nil
 }
 
-func (cli *Client) Tx(ctx context.Context, id ids.ID) (bool, bool, int64, error) {
-	resp := new(controller.TxReply)
+func (cli *JSONRPCClient) Tx(ctx context.Context, id ids.ID) (bool, bool, int64, error) {
+	resp := new(TxReply)
 	err := cli.Requester.SendRequest(
 		ctx,
 		"tx",
-		&controller.TxArgs{TxID: id},
+		&TxArgs{TxID: id},
 		resp,
 	)
 	switch {
 	// We use string parsing here because the JSON-RPC library we use may not
 	// allows us to perform errors.Is.
-	case err != nil && strings.Contains(err.Error(), controller.ErrTxNotFound.Error()):
+	case err != nil && strings.Contains(err.Error(), ErrTxNotFound.Error()):
 		return false, false, -1, nil
 	case err != nil:
 		return false, false, -1, err
@@ -70,15 +69,15 @@ func (cli *Client) Tx(ctx context.Context, id ids.ID) (bool, bool, int64, error)
 	return true, resp.Success, resp.Timestamp, nil
 }
 
-func (cli *Client) Asset(
+func (cli *JSONRPCClient) Asset(
 	ctx context.Context,
 	asset ids.ID,
 ) (bool, []byte, uint64, string, bool, error) {
-	resp := new(controller.AssetReply)
+	resp := new(AssetReply)
 	err := cli.Requester.SendRequest(
 		ctx,
 		"asset",
-		&controller.AssetArgs{
+		&AssetArgs{
 			Asset: asset,
 		},
 		resp,
@@ -86,7 +85,7 @@ func (cli *Client) Asset(
 	switch {
 	// We use string parsing here because the JSON-RPC library we use may not
 	// allows us to perform errors.Is.
-	case err != nil && strings.Contains(err.Error(), controller.ErrAssetNotFound.Error()):
+	case err != nil && strings.Contains(err.Error(), ErrAssetNotFound.Error()):
 		return false, nil, 0, "", false, nil
 	case err != nil:
 		return false, nil, 0, "", false, err
@@ -94,12 +93,12 @@ func (cli *Client) Asset(
 	return true, resp.Metadata, resp.Supply, resp.Owner, resp.Warp, nil
 }
 
-func (cli *Client) Balance(ctx context.Context, addr string, asset ids.ID) (uint64, error) {
-	resp := new(controller.BalanceReply)
+func (cli *JSONRPCClient) Balance(ctx context.Context, addr string, asset ids.ID) (uint64, error) {
+	resp := new(BalanceReply)
 	err := cli.Requester.SendRequest(
 		ctx,
 		"balance",
-		&controller.BalanceArgs{
+		&BalanceArgs{
 			Address: addr,
 			Asset:   asset,
 		},
@@ -108,12 +107,12 @@ func (cli *Client) Balance(ctx context.Context, addr string, asset ids.ID) (uint
 	return resp.Amount, err
 }
 
-func (cli *Client) Orders(ctx context.Context, pair string) ([]*controller.Order, error) {
-	resp := new(controller.OrdersReply)
+func (cli *JSONRPCClient) Orders(ctx context.Context, pair string) ([]*orderbook.Order, error) {
+	resp := new(OrdersReply)
 	err := cli.Requester.SendRequest(
 		ctx,
 		"orders",
-		&controller.OrdersArgs{
+		&OrdersArgs{
 			Pair: pair,
 		},
 		resp,
@@ -121,12 +120,12 @@ func (cli *Client) Orders(ctx context.Context, pair string) ([]*controller.Order
 	return resp.Orders, err
 }
 
-func (cli *Client) Loan(ctx context.Context, asset ids.ID, destination ids.ID) (uint64, error) {
-	resp := new(controller.LoanReply)
+func (cli *JSONRPCClient) Loan(ctx context.Context, asset ids.ID, destination ids.ID) (uint64, error) {
+	resp := new(LoanReply)
 	err := cli.Requester.SendRequest(
 		ctx,
 		"loan",
-		&controller.LoanArgs{
+		&LoanArgs{
 			Asset:       asset,
 			Destination: destination,
 		},
@@ -135,12 +134,12 @@ func (cli *Client) Loan(ctx context.Context, asset ids.ID, destination ids.ID) (
 	return resp.Amount, err
 }
 
-func (cli *Client) GenerateTransaction(
+func (cli *JSONRPCClient) GenerateTransaction(
 	ctx context.Context,
 	wm *warp.Message,
 	action chain.Action,
 	factory chain.AuthFactory,
-	modifiers ...client.Modifier,
+	modifiers ...rpc.Modifier,
 ) (func(context.Context) error, *chain.Transaction, uint64, error) {
 	// Gather chain metadata
 	g, err := cli.Genesis(ctx)
@@ -151,7 +150,7 @@ func (cli *Client) GenerateTransaction(
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	return cli.Client.GenerateTransaction(
+	return cli.JSONRPCClient.GenerateTransaction(
 		ctx,
 		&Parser{chainID, g},
 		wm,
@@ -160,13 +159,13 @@ func (cli *Client) GenerateTransaction(
 		modifiers...)
 }
 
-func (cli *Client) WaitForBalance(
+func (cli *JSONRPCClient) WaitForBalance(
 	ctx context.Context,
 	addr string,
 	asset ids.ID,
 	min uint64,
 ) error {
-	return client.Wait(ctx, func(ctx context.Context) (bool, error) {
+	return rpc.Wait(ctx, func(ctx context.Context) (bool, error) {
 		balance, err := cli.Balance(ctx, addr, asset)
 		if err != nil {
 			return false, err
@@ -183,9 +182,9 @@ func (cli *Client) WaitForBalance(
 	})
 }
 
-func (cli *Client) WaitForTransaction(ctx context.Context, txID ids.ID) (bool, error) {
+func (cli *JSONRPCClient) WaitForTransaction(ctx context.Context, txID ids.ID) (bool, error) {
 	var success bool
-	if err := client.Wait(ctx, func(ctx context.Context) (bool, error) {
+	if err := rpc.Wait(ctx, func(ctx context.Context) (bool, error) {
 		found, isuccess, _, err := cli.Tx(ctx, txID)
 		if err != nil {
 			return false, err
@@ -217,7 +216,7 @@ func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return consts.ActionRegistry, consts.AuthRegistry
 }
 
-func (cli *Client) Parser(ctx context.Context) (chain.Parser, error) {
+func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	// Gather chain metadata
 	g, err := cli.Genesis(ctx)
 	if err != nil {
