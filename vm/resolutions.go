@@ -21,6 +21,8 @@ import (
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/gossiper"
+	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/workers"
 )
 
@@ -191,10 +193,10 @@ func (vm *VM) processAcceptedBlocks() {
 		}
 
 		// Update listeners
-		vm.listeners.AcceptBlock(b)
+		vm.webSocketServer.AcceptBlock(b)
 		// Must clear accepted txs before [SetMinTx] or else we will errnoueously
 		// send [ErrExpired] messages.
-		vm.listeners.SetMinTx(b.Tmstmp)
+		vm.webSocketServer.SetMinTx(b.Tmstmp)
 		vm.snowCtx.Log.Info(
 			"block processed",
 			zap.Stringer("blkID", b.ID()),
@@ -346,4 +348,18 @@ func (vm *VM) RecordRootCalculated(t time.Duration) {
 
 func (vm *VM) RecordWaitSignatures(t time.Duration) {
 	vm.metrics.waitSignatures.Observe(float64(t))
+}
+
+func (vm *VM) JSONRPCHandler() *rpc.JSONRPCServer {
+	return rpc.NewJSONRPCServer(vm)
+}
+
+func (vm *VM) WebSocketHandler(cfg *pubsub.ServerConfig) *pubsub.Server {
+	// TODO: shutdown streaming server
+	// TODO: cleanup init
+	// TODO: make extensible
+	vm.webSocketServer = rpc.NewWebSocketServer()
+	streamingServer := pubsub.New(vm.snowCtx.Log, cfg, vm.webSocketServer.MessageCallback(vm))
+	vm.webSocketServer.SetBackend(streamingServer)
+	return streamingServer
 }

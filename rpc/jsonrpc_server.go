@@ -17,19 +17,19 @@ import (
 	"go.uber.org/zap"
 )
 
-type JSONRPCHandler struct {
+type JSONRPCServer struct {
 	vm VM
 }
 
-// func (vm *VM) JSONRPCHandler() *JSONRPCHandler {
-// 	return &JSONRPCHandler{vm}
-// }
+func NewJSONRPCServer(vm VM) *JSONRPCServer {
+	return &JSONRPCServer{vm}
+}
 
 type PingReply struct {
 	Success bool `json:"success"`
 }
 
-func (h *JSONRPCHandler) Ping(_ *http.Request, _ *struct{}, reply *PingReply) (err error) {
+func (h *JSONRPCServer) Ping(_ *http.Request, _ *struct{}, reply *PingReply) (err error) {
 	h.vm.Logger().Info("ping")
 	reply.Success = true
 	return nil
@@ -41,7 +41,7 @@ type NetworkReply struct {
 	ChainID   ids.ID `json:"chainId"`
 }
 
-func (h *JSONRPCHandler) Network(_ *http.Request, _ *struct{}, reply *NetworkReply) (err error) {
+func (h *JSONRPCServer) Network(_ *http.Request, _ *struct{}, reply *NetworkReply) (err error) {
 	reply.NetworkID = h.vm.NetworkID()
 	reply.SubnetID = h.vm.SubnetID()
 	reply.ChainID = h.vm.ChainID()
@@ -56,8 +56,8 @@ type SubmitTxReply struct {
 	TxID ids.ID `json:"txId"`
 }
 
-func (h *JSONRPCHandler) SubmitTx(req *http.Request, args *SubmitTxArgs, reply *SubmitTxReply) error {
-	ctx, span := h.vm.Tracer().Start(req.Context(), "JSONRPCHandler.SubmitTx")
+func (h *JSONRPCServer) SubmitTx(req *http.Request, args *SubmitTxArgs, reply *SubmitTxReply) error {
+	ctx, span := h.vm.Tracer().Start(req.Context(), "JSONRPCServer.SubmitTx")
 	defer span.End()
 
 	actionRegistry, authRegistry := h.vm.Registry()
@@ -83,7 +83,7 @@ type LastAcceptedReply struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
-func (h *JSONRPCHandler) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
+func (h *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
 	blk := h.vm.LastAcceptedBlock()
 	reply.Height = blk.Hght
 	reply.BlockID = blk.ID()
@@ -96,12 +96,12 @@ type SuggestedRawFeeReply struct {
 	BlockCost uint64 `json:"blockCost"`
 }
 
-func (h *JSONRPCHandler) SuggestedRawFee(
+func (h *JSONRPCServer) SuggestedRawFee(
 	req *http.Request,
 	_ *struct{},
 	reply *SuggestedRawFeeReply,
 ) error {
-	ctx, span := h.vm.Tracer().Start(req.Context(), "JSONRPCHandler.SuggestedRawFee")
+	ctx, span := h.vm.Tracer().Start(req.Context(), "JSONRPCServer.SuggestedRawFee")
 	defer span.End()
 
 	unitPrice, blockCost, err := h.vm.SuggestedFee(ctx)
@@ -129,12 +129,12 @@ type GetWarpSignaturesReply struct {
 	Signatures []*chain.WarpSignature `json:"signatures"`
 }
 
-func (h *JSONRPCHandler) GetWarpSignatures(
+func (h *JSONRPCServer) GetWarpSignatures(
 	req *http.Request,
 	args *GetWarpSignaturesArgs,
 	reply *GetWarpSignaturesReply,
 ) error {
-	_, span := h.vm.Tracer().Start(req.Context(), "JSONRPCHandler.GetWarpSignatures")
+	_, span := h.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetWarpSignatures")
 	defer span.End()
 
 	message, err := h.vm.GetOutgoingWarpMessage(args.TxID)
@@ -191,11 +191,3 @@ func (h *JSONRPCHandler) GetWarpSignatures(
 	reply.Signatures = validSignatures
 	return nil
 }
-
-// func (vm *VM) WebSocketHandler(cfg *pubsub.ServerConfig) *pubsub.Server {
-// 	// TODO: shutdown streaming server
-// 	vm.listeners = listeners.New()
-// 	streamingServer := pubsub.New(vm.snowCtx.Log, cfg, vm.listeners.ServerCallback(vm))
-// 	vm.listeners.SetServer(streamingServer)
-// 	return streamingServer
-// }

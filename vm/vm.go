@@ -35,8 +35,8 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/gossiper"
-	"github.com/ava-labs/hypersdk/listeners"
 	"github.com/ava-labs/hypersdk/mempool"
+	"github.com/ava-labs/hypersdk/rpc"
 	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
@@ -88,7 +88,7 @@ type VM struct {
 	acceptorDone  chan struct{}
 
 	// Transactions that streaming users are currently subscribed to
-	listeners *listeners.Listeners
+	webSocketServer *rpc.WebSocketServer
 
 	// Reuse gorotuine group to avoid constant re-allocation
 	workers *workers.Workers
@@ -629,7 +629,7 @@ func (vm *VM) submitStateless(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				vm.listeners.RemoveTx(txID, err)
+				vm.webSocketServer.RemoveTx(txID, err)
 				errs = append(errs, err)
 				continue
 			}
@@ -687,7 +687,7 @@ func (vm *VM) Submit(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				vm.listeners.RemoveTx(txID, err)
+				vm.webSocketServer.RemoveTx(txID, err)
 				errs = append(errs, err)
 				continue
 			}
