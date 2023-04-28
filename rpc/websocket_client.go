@@ -5,15 +5,17 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/gorilla/websocket"
 )
 
 type WebSocketClient struct {
 	conn *websocket.Conn
-	wl   sync.Mutex
-	dll  sync.Mutex
-	bll  sync.Mutex
 	cl   sync.Once
+
+	// TODO: don't enqueue if not listening?
+	pending
+	err error
 }
 
 // NewWebSocketClient creates a new client for the decision rpc server.
@@ -23,23 +25,35 @@ func NewWebSocketClient(uri string) (*WebSocketClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	// not using resp for now
 	resp.Body.Close()
-	return &WebSocketClient{conn: conn}, nil
+	wc := &WebSocketClient{conn: conn}
+	go func() {
+		for {
+			_, msg, err := conn.ReadMessage()
+			if err != nil {
+				wc.err = err
+				return
+			}
+			switch msg[0] {
+			case DecisionMode:
+			case BlockMode:
+			default:
+				utils.Outf("{[orange}}unexpected message mode:{{/}} %x\n", msg[0])
+				continue
+			}
+		}
+	}()
+	return wc, nil
 }
 
 // IssueTx sends [tx] to the streaming rpc server.
 func (c *WebSocketClient) IssueTx(tx *chain.Transaction) error {
-	c.wl.Lock()
-	defer c.wl.Unlock()
-
 	return c.conn.WriteMessage(websocket.BinaryMessage, tx.Bytes())
 }
 
 // ListenForTx listens for responses from the streamingServer.
 func (c *WebSocketClient) ListenForTx() (ids.ID, error, *chain.Result, error) {
-	c.dll.Lock()
-	defer c.dll.Unlock()
+	// TODO: need to send listen for block?
 	for {
 		_, msg, err := c.conn.ReadMessage()
 		if err != nil {
@@ -55,10 +69,6 @@ func (c *WebSocketClient) ListenForTx() (ids.ID, error, *chain.Result, error) {
 func (c *WebSocketClient) ListenForBlock(
 	parser chain.Parser,
 ) (*chain.StatefulBlock, []*chain.Result, error) {
-	// TODO: remove locks
-	c.bll.Lock()
-	defer c.bll.Unlock()
-
 	for {
 		// TODO: need to have a single router or will read from shared conn
 		_, msg, err := c.conn.ReadMessage()
