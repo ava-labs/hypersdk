@@ -29,8 +29,8 @@ type PingReply struct {
 	Success bool `json:"success"`
 }
 
-func (h *JSONRPCServer) Ping(_ *http.Request, _ *struct{}, reply *PingReply) (err error) {
-	h.vm.Logger().Info("ping")
+func (j *JSONRPCServer) Ping(_ *http.Request, _ *struct{}, reply *PingReply) (err error) {
+	j.vm.Logger().Info("ping")
 	reply.Success = true
 	return nil
 }
@@ -41,10 +41,10 @@ type NetworkReply struct {
 	ChainID   ids.ID `json:"chainId"`
 }
 
-func (h *JSONRPCServer) Network(_ *http.Request, _ *struct{}, reply *NetworkReply) (err error) {
-	reply.NetworkID = h.vm.NetworkID()
-	reply.SubnetID = h.vm.SubnetID()
-	reply.ChainID = h.vm.ChainID()
+func (j *JSONRPCServer) Network(_ *http.Request, _ *struct{}, reply *NetworkReply) (err error) {
+	reply.NetworkID = j.vm.NetworkID()
+	reply.SubnetID = j.vm.SubnetID()
+	reply.ChainID = j.vm.ChainID()
 	return nil
 }
 
@@ -56,11 +56,11 @@ type SubmitTxReply struct {
 	TxID ids.ID `json:"txId"`
 }
 
-func (h *JSONRPCServer) SubmitTx(req *http.Request, args *SubmitTxArgs, reply *SubmitTxReply) error {
-	ctx, span := h.vm.Tracer().Start(req.Context(), "JSONRPCServer.SubmitTx")
+func (j *JSONRPCServer) SubmitTx(req *http.Request, args *SubmitTxArgs, reply *SubmitTxReply) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SubmitTx")
 	defer span.End()
 
-	actionRegistry, authRegistry := h.vm.Registry()
+	actionRegistry, authRegistry := j.vm.Registry()
 	rtx := codec.NewReader(args.Tx, chain.NetworkSizeLimit) // will likely be much smaller than this
 	tx, err := chain.UnmarshalTx(rtx, actionRegistry, authRegistry)
 	if err != nil {
@@ -74,7 +74,7 @@ func (h *JSONRPCServer) SubmitTx(req *http.Request, args *SubmitTxArgs, reply *S
 	}
 	txID := tx.ID()
 	reply.TxID = txID
-	return h.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]
+	return j.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]
 }
 
 type LastAcceptedReply struct {
@@ -83,8 +83,8 @@ type LastAcceptedReply struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
-func (h *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
-	blk := h.vm.LastAcceptedBlock()
+func (j *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
+	blk := j.vm.LastAcceptedBlock()
 	reply.Height = blk.Hght
 	reply.BlockID = blk.ID()
 	reply.Timestamp = blk.Tmstmp
@@ -96,15 +96,15 @@ type SuggestedRawFeeReply struct {
 	BlockCost uint64 `json:"blockCost"`
 }
 
-func (h *JSONRPCServer) SuggestedRawFee(
+func (j *JSONRPCServer) SuggestedRawFee(
 	req *http.Request,
 	_ *struct{},
 	reply *SuggestedRawFeeReply,
 ) error {
-	ctx, span := h.vm.Tracer().Start(req.Context(), "JSONRPCServer.SuggestedRawFee")
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SuggestedRawFee")
 	defer span.End()
 
-	unitPrice, blockCost, err := h.vm.SuggestedFee(ctx)
+	unitPrice, blockCost, err := j.vm.SuggestedFee(ctx)
 	if err != nil {
 		return err
 	}
@@ -129,15 +129,15 @@ type GetWarpSignaturesReply struct {
 	Signatures []*chain.WarpSignature `json:"signatures"`
 }
 
-func (h *JSONRPCServer) GetWarpSignatures(
+func (j *JSONRPCServer) GetWarpSignatures(
 	req *http.Request,
 	args *GetWarpSignaturesArgs,
 	reply *GetWarpSignaturesReply,
 ) error {
-	_, span := h.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetWarpSignatures")
+	_, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetWarpSignatures")
 	defer span.End()
 
-	message, err := h.vm.GetOutgoingWarpMessage(args.TxID)
+	message, err := j.vm.GetOutgoingWarpMessage(args.TxID)
 	if err != nil {
 		return err
 	}
@@ -145,7 +145,7 @@ func (h *JSONRPCServer) GetWarpSignatures(
 		return ErrMessageMissing
 	}
 
-	signatures, err := h.vm.GetWarpSignatures(args.TxID)
+	signatures, err := j.vm.GetWarpSignatures(args.TxID)
 	if err != nil {
 		return err
 	}
@@ -153,7 +153,7 @@ func (h *JSONRPCServer) GetWarpSignatures(
 	// Ensure we only return valid signatures
 	validSignatures := []*chain.WarpSignature{}
 	warpValidators := []*WarpValidator{}
-	validators, publicKeys := h.vm.CurrentValidators(req.Context())
+	validators, publicKeys := j.vm.CurrentValidators(req.Context())
 	for _, sig := range signatures {
 		if _, ok := publicKeys[string(sig.PublicKey)]; !ok {
 			continue
@@ -173,7 +173,7 @@ func (h *JSONRPCServer) GetWarpSignatures(
 
 	// Optimistically request that we gather signatures if we don't have all of them
 	if len(validSignatures) < len(publicKeys) {
-		h.vm.Logger().Info(
+		j.vm.Logger().Info(
 			"fetching missing signatures",
 			zap.Stringer("txID", args.TxID),
 			zap.Int(
@@ -183,7 +183,7 @@ func (h *JSONRPCServer) GetWarpSignatures(
 			zap.Int("valid", len(validSignatures)),
 			zap.Int("current public key count", len(publicKeys)),
 		)
-		h.vm.GatherSignatures(context.TODO(), args.TxID, message.Bytes())
+		j.vm.GatherSignatures(context.TODO(), args.TxID, message.Bytes())
 	}
 
 	reply.Message = message
