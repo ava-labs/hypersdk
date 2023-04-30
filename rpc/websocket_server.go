@@ -26,16 +26,16 @@ type WebSocketServer struct {
 	expiringTxs *emap.EMap[*chain.Transaction] // ensures all tx listeners are eventually responded to
 }
 
-func NewWebSocketServer() *WebSocketServer {
-	return &WebSocketServer{
+func NewWebSocketServer(vm VM, maxPendingMessages int) (*WebSocketServer, *pubsub.Server) {
+	w := &WebSocketServer{
 		blockListeners: pubsub.NewConnections(),
 		txListeners:    map[ids.ID]*pubsub.Connections{},
 		expiringTxs:    emap.NewEMap[*chain.Transaction](),
 	}
-}
-
-func (w *WebSocketServer) SetBackend(s *pubsub.Server) {
-	w.s = s
+	cfg := pubsub.NewDefaultServerConfig()
+	cfg.MaxPendingMessages = maxPendingMessages
+	w.s = pubsub.New(vm.Logger(), cfg, w.MessageCallback(vm))
+	return w, w.s
 }
 
 // Note: no need to have a tx listener removal, this will happen when all

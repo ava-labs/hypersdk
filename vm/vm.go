@@ -36,7 +36,6 @@ import (
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/mempool"
-	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -324,11 +323,8 @@ func (vm *VM) Initialize(
 	if _, ok := vm.handlers[rpc.WebSocketEndpoint]; ok {
 		return fmt.Errorf("duplicate WebSocket handler found: %s", rpc.WebSocketEndpoint)
 	}
-	wcfg := pubsub.NewDefaultServerConfig()
-	wcfg.MaxPendingMessages = vm.config.GetStreamingBacklogSize()
-	vm.webSocketServer = rpc.NewWebSocketServer()
-	pubsubServer := pubsub.New(vm.snowCtx.Log, wcfg, vm.webSocketServer.MessageCallback(vm))
-	vm.webSocketServer.SetBackend(pubsubServer)
+	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.GetStreamingBacklogSize())
+	vm.webSocketServer = webSocketServer
 	vm.handlers[rpc.WebSocketEndpoint] = rpc.NewWebSocketHandler(pubsubServer)
 	return nil
 }
