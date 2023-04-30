@@ -1,10 +1,12 @@
 package rpc
 
 import (
+	"context"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/gorilla/websocket"
 )
@@ -13,7 +15,11 @@ type WebSocketClient struct {
 	conn *websocket.Conn
 	cl   sync.Once
 
-	err error
+	pendingBlocks chan []byte
+	pendingTxs    chan []byte
+
+	done chan struct{}
+	err  error
 }
 
 // NewWebSocketClient creates a new client for the decision rpc server.
@@ -24,17 +30,29 @@ func NewWebSocketClient(uri string) (*WebSocketClient, error) {
 		return nil, err
 	}
 	resp.Body.Close()
-	wc := &WebSocketClient{conn: conn}
+	wc := &WebSocketClient{
+		conn:          conn,
+		pendingBlocks: make(chan []byte, consts.MaxInt),
+		pendingTxs:    make(chan []byte, consts.MaxInt),
+		done:          make(chan struct{}),
+	}
 	go func() {
 		for {
 			_, msg, err := conn.ReadMessage()
 			if err != nil {
 				wc.err = err
+				close(wc.done)
 				return
 			}
+			if len(msg) == 0 {
+				utils.Outf("{{orange}}got empty message{{/}}\n")
+				continue
+			}
 			switch msg[0] {
-			case DecisionMode:
 			case BlockMode:
+				wc.pendingBlocks <- msg[1:]
+			case TxMode:
+				wc.pendingTxs <- msg[1:]
 			default:
 				utils.Outf("{[orange}}unexpected message mode:{{/}} %x\n", msg[0])
 				continue
@@ -44,41 +62,36 @@ func NewWebSocketClient(uri string) (*WebSocketClient, error) {
 	return wc, nil
 }
 
-// TODO: add RegisterTx/RegisterBlocks
-
-// IssueTx sends [tx] to the streaming rpc server.
-func (c *WebSocketClient) IssueTx(tx *chain.Transaction) error {
-	return c.conn.WriteMessage(websocket.BinaryMessage, tx.Bytes())
-}
-
-// ListenForTx listens for responses from the streamingServer.
-func (c *WebSocketClient) ListenForTx() (ids.ID, error, *chain.Result, error) {
-	// TODO: need to send listen for block?
-	for {
-		_, msg, err := c.conn.ReadMessage()
-		if err != nil {
-			return ids.Empty, nil, nil, err
-		}
-		if msg == nil || msg[0] == DecisionMode {
-			return UnpackTxMessage(msg)
-		}
-	}
+func (c *WebSocketClient) RegisterBlocks() error {
+	return c.conn.WriteMessage(websocket.BinaryMessage, []byte{BlockMode})
 }
 
 // Listen listens for block messages from the streaming server.
-func (c *WebSocketClient) ListenForBlock(
-	parser chain.Parser,
-) (*chain.StatefulBlock, []*chain.Result, error) {
-	// TODO: wait to start sending block messages until we listen
-	for {
-		// TODO: need to have a single router or will read from shared conn
-		_, msg, err := c.conn.ReadMessage()
-		if err != nil {
-			return nil, nil, err
-		}
-		if msg == nil || msg[0] == BlockMode {
-			return UnpackBlockMessageBytes(msg, parser)
-		}
+func (c *WebSocketClient) ListenBlock(ctx context.Context, parser chain.Parser) (*chain.StatefulBlock, []*chain.Result, error) {
+	select {
+	case msg := <-c.pendingBlocks:
+		return UnpackBlockMessage(msg, parser)
+	case <-c.done:
+		return nil, nil, c.err
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	}
+}
+
+// IssueTx sends [tx] to the streaming rpc server.
+func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
+	return c.conn.WriteMessage(websocket.BinaryMessage, append([]byte{TxMode}, tx.Bytes()...))
+}
+
+// ListenForTx listens for responses from the streamingServer.
+func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.Result, error) {
+	select {
+	case msg := <-c.pendingBlocks:
+		return UnpackTxMessage(msg)
+	case <-c.done:
+		return ids.Empty, nil, nil, c.err
+	case <-ctx.Done():
+		return ids.Empty, nil, nil, ctx.Err()
 	}
 }
 

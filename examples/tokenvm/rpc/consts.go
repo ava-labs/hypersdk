@@ -1,7 +1,7 @@
 package rpc
 
 const (
-	JSONRPCEndpoint = "/tokenvm-rpc"
+	JSONRPCEndpoint = "/tokenapi"
 
 	ordersToSend = 128
 )

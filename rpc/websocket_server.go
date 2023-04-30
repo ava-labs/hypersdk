@@ -17,16 +17,20 @@ import (
 )
 
 type WebSocketServer struct {
-	txL               sync.Mutex
-	txWebSocketServer map[ids.ID]*pubsub.Connections
-	expiringTxs       *emap.EMap[*chain.Transaction] // ensures all tx listeners are eventually responded to
-	s                 *pubsub.Server
+	s *pubsub.Server
+
+	blockListeners *pubsub.Connections
+
+	txL         sync.Mutex
+	txListeners map[ids.ID]*pubsub.Connections
+	expiringTxs *emap.EMap[*chain.Transaction] // ensures all tx listeners are eventually responded to
 }
 
 func NewWebSocketServer() *WebSocketServer {
 	return &WebSocketServer{
-		txWebSocketServer: map[ids.ID]*pubsub.Connections{},
-		expiringTxs:       emap.NewEMap[*chain.Transaction](),
+		blockListeners: pubsub.NewConnections(),
+		txListeners:    map[ids.ID]*pubsub.Connections{},
+		expiringTxs:    emap.NewEMap[*chain.Transaction](),
 	}
 }
 
@@ -41,10 +45,10 @@ func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connect
 	defer w.txL.Unlock()
 
 	txID := tx.ID()
-	if _, ok := w.txWebSocketServer[txID]; !ok {
-		w.txWebSocketServer[txID] = pubsub.NewConnections()
+	if _, ok := w.txListeners[txID]; !ok {
+		w.txListeners[txID] = pubsub.NewConnections()
 	}
-	w.txWebSocketServer[txID].Add(c)
+	w.txListeners[txID].Add(c)
 	w.expiringTxs.Add([]*chain.Transaction{tx})
 }
 
@@ -57,13 +61,13 @@ func (w *WebSocketServer) RemoveTx(txID ids.ID, err error) {
 }
 
 func (w *WebSocketServer) removeTx(txID ids.ID, err error) {
-	listeners, ok := w.txWebSocketServer[txID]
+	listeners, ok := w.txListeners[txID]
 	if !ok {
 		return
 	}
 	bytes, _ := PackRemovedTxMessage(txID, err)
 	w.s.Publish(bytes, listeners)
-	delete(w.txWebSocketServer, txID)
+	delete(w.txListeners, txID)
 	// [expiringTxs] will be cleared eventually (does not support removal)
 }
 
@@ -79,14 +83,17 @@ func (w *WebSocketServer) SetMinTx(t int64) {
 
 func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) {
 	bytes, _ := PackBlockMessage(b)
-	// TODO: only publish to block subscribers, can be a lot of extra bandwidth
-	w.s.Publish(bytes, w.s.Connections())
+	inactiveConnection := w.s.Publish(bytes, w.blockListeners)
+	for _, conn := range inactiveConnection {
+		w.blockListeners.Remove(conn)
+	}
+
 	w.txL.Lock()
 	defer w.txL.Unlock()
 	results := b.Results()
 	for i, tx := range b.Txs {
 		txID := tx.ID()
-		listeners, ok := w.txWebSocketServer[txID]
+		listeners, ok := w.txListeners[txID]
 		if !ok {
 			continue
 		}
@@ -96,7 +103,7 @@ func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) {
 			bytes,
 			listeners,
 		)
-		delete(w.txWebSocketServer, txID)
+		delete(w.txListeners, txID)
 		// [expiringTxs] will be cleared eventually (does not support removal)
 	}
 }
@@ -110,40 +117,61 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 	)
 
 	return func(msgBytes []byte, c *pubsub.Connection) {
-		// TODO: support multiple callbacks
-		ctx, span := tracer.Start(context.Background(), "listener callback")
+		ctx, span := tracer.Start(context.Background(), "WebSocketServer.Callback")
 		defer span.End()
 
-		// Unmarshal TX
-		p := codec.NewReader(msgBytes, chain.NetworkSizeLimit) // will likely be much smaller
-		tx, err := chain.UnmarshalTx(p, actionRegistry, authRegistry)
-		if err != nil {
-			log.Error("failed to unmarshal tx",
+		// Check empty messages
+		if len(msgBytes) == 0 {
+			log.Error("failed to unmarshal msg",
 				zap.Int("len", len(msgBytes)),
-				zap.Error(err),
 			)
 			return
 		}
 
-		// Verify tx
-		sigVerify := tx.AuthAsyncVerify()
-		if err := sigVerify(); err != nil {
-			log.Error("failed to verify sig",
-				zap.Error(err),
-			)
-			return
-		}
-		w.AddTxListener(tx, c)
+		// TODO: convert into a router that can be re-used in custom WS
+		// implementations
+		switch msgBytes[0] {
+		case BlockMode:
+			w.blockListeners.Add(c)
+			log.Debug("added block listener")
+		case TxMode:
+			msgBytes = msgBytes[1:]
+			// Unmarshal TX
+			p := codec.NewReader(msgBytes, chain.NetworkSizeLimit) // will likely be much smaller
+			tx, err := chain.UnmarshalTx(p, actionRegistry, authRegistry)
+			if err != nil {
+				log.Error("failed to unmarshal tx",
+					zap.Int("len", len(msgBytes)),
+					zap.Error(err),
+				)
+				return
+			}
 
-		// Submit will remove from [txWaiters] if it is not added
-		txID := tx.ID()
-		if err := vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
-			log.Error("failed to submit tx",
-				zap.Stringer("txID", txID),
-				zap.Error(err),
+			// Verify tx
+			sigVerify := tx.AuthAsyncVerify()
+			if err := sigVerify(); err != nil {
+				log.Error("failed to verify sig",
+					zap.Error(err),
+				)
+				return
+			}
+			w.AddTxListener(tx, c)
+
+			// Submit will remove from [txWaiters] if it is not added
+			txID := tx.ID()
+			if err := vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
+				log.Error("failed to submit tx",
+					zap.Stringer("txID", txID),
+					zap.Error(err),
+				)
+				return
+			}
+			log.Debug("submitted tx", zap.Stringer("id", txID))
+		default:
+			log.Error("unexpected message type",
+				zap.Int("len", len(msgBytes)),
+				zap.Uint8("mode", msgBytes[0]),
 			)
-			return
 		}
-		log.Debug("submitted tx", zap.Stringer("id", txID))
 	}
 }

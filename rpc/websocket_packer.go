@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	DecisionMode byte = 0
-	BlockMode    byte = 1
+	BlockMode byte = 0
+	TxMode    byte = 1
 )
 
 func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
@@ -59,7 +59,7 @@ func UnpackBlockMessage(
 // Packs an accepted block message
 func PackAcceptedTxMessage(txID ids.ID, result *chain.Result) ([]byte, error) {
 	p := codec.NewWriter(consts.MaxInt)
-	p.PackByte(DecisionMode)
+	p.PackByte(TxMode)
 	p.PackID(txID)
 	p.PackBool(false)
 	result.Marshal(p)
@@ -69,7 +69,7 @@ func PackAcceptedTxMessage(txID ids.ID, result *chain.Result) ([]byte, error) {
 // Packs a removed block message
 func PackRemovedTxMessage(txID ids.ID, err error) ([]byte, error) {
 	p := codec.NewWriter(consts.MaxInt)
-	p.PackByte(DecisionMode)
+	p.PackByte(TxMode)
 	p.PackID(txID)
 	p.PackBool(true)
 	p.PackString(err.Error())
@@ -87,11 +87,7 @@ func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
 	p.UnpackID(true, &txID)
 	if p.UnpackBool() {
 		err := p.UnpackString(true)
-		if p.Err() != nil {
-			return ids.Empty, nil, nil, p.Err()
-		}
-		// convert err_bytes to error
-		return ids.Empty, errors.New(err), nil, nil
+		return ids.Empty, errors.New(err), nil, p.Err()
 	}
 	// unpack the result
 	result, err := chain.UnmarshalResult(p)

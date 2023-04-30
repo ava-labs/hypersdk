@@ -2,6 +2,6 @@ package rpc
 
 const (
 	Name              = "hypersdk"
-	JSONRPCEndpoint   = "/rpc"
-	WebSocketEndpoint = "/ws"
+	JSONRPCEndpoint   = "/coreapi"
+	WebSocketEndpoint = "/corews"
 )

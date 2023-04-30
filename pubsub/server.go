@@ -98,9 +98,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Publish sends msg from [s] to [toConns].
-func (s *Server) Publish(msg []byte, conns *Connections) {
+func (s *Server) Publish(msg []byte, conns *Connections) []*Connection {
+	inactiveConnections := []*Connection{}
 	for _, conn := range conns.Conns() {
 		if !s.conns.Has(conn) {
+			inactiveConnections = append(inactiveConnections, conn)
 			continue
 		}
 		if !conn.Send(msg) {
@@ -109,6 +111,7 @@ func (s *Server) Publish(msg []byte, conns *Connections) {
 			)
 		}
 	}
+	return inactiveConnections
 }
 
 // addConnection adds [conn] to the servers connection set and starts go
