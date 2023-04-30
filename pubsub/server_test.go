@@ -225,7 +225,10 @@ func TestServerPublishSpecific(t *testing.T) {
 	webCon2, resp2, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp2.Body.Close()
-	require.Eventually(func() bool { return handler.conns.Len() == 2 }, 10*time.Second, 10*time.Millisecond, "Server didn't add connection correctly.")
+	require.Eventually(
+		func() bool { return handler.conns.Len() == 2 },
+		10*time.Second, 10*time.Millisecond, "Server didn't add connection correctly.",
+	)
 	// Publish to subscribed connections
 	handler.Publish([]byte(dummyMsg), sendConns)
 	go func() {
