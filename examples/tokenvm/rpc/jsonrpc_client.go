@@ -28,6 +28,8 @@ type JSONRPCClient struct {
 
 // New creates a new client object.
 func NewJSONRPCClient(uri string, chainID ids.ID) *JSONRPCClient {
+	uri = strings.TrimSuffix(uri, "/")
+	uri += JSONRPCEndpoint
 	req := requester.New(uri, consts.Name)
 	return &JSONRPCClient{req, chainID, nil}
 }

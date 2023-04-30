@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net/http/httptest"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -127,14 +126,15 @@ var (
 )
 
 type instance struct {
-	chainID         ids.ID
-	nodeID          ids.NodeID
-	vm              *vm.VM
-	toEngine        chan common.Message
-	JSONRPCServer   *httptest.Server
-	WebSocketServer *httptest.Server
-	cli             *rpc.JSONRPCClient // clients for embedded VMs
-	tcli            *trpc.JSONRPCClient
+	chainID            ids.ID
+	nodeID             ids.NodeID
+	vm                 *vm.VM
+	toEngine           chan common.Message
+	JSONRPCServer      *httptest.Server
+	TokenJSONRPCServer *httptest.Server
+	WebSocketServer    *httptest.Server
+	cli                *rpc.JSONRPCClient // clients for embedded VMs
+	tcli               *trpc.JSONRPCClient
 }
 
 var _ = ginkgo.BeforeSuite(func() {
@@ -234,17 +234,18 @@ var _ = ginkgo.BeforeSuite(func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		jsonRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint].Handler)
+		tjsonRPCServer := httptest.NewServer(hd[trpc.JSONRPCEndpoint].Handler)
 		webSocketServer := httptest.NewServer(hd[rpc.WebSocketEndpoint].Handler)
-		gomega.Ω(err).Should(gomega.BeNil())
 		instances[i] = instance{
-			chainID:         snowCtx.ChainID,
-			nodeID:          snowCtx.NodeID,
-			vm:              v,
-			toEngine:        toEngine,
-			JSONRPCServer:   jsonRPCServer,
-			WebSocketServer: webSocketServer,
-			cli:             rpc.NewJSONRPCClient(jsonRPCServer.URL),
-			tcli:            trpc.NewJSONRPCClient(jsonRPCServer.URL, snowCtx.ChainID),
+			chainID:            snowCtx.ChainID,
+			nodeID:             snowCtx.NodeID,
+			vm:                 v,
+			toEngine:           toEngine,
+			JSONRPCServer:      jsonRPCServer,
+			TokenJSONRPCServer: tjsonRPCServer,
+			WebSocketServer:    webSocketServer,
+			cli:                rpc.NewJSONRPCClient(jsonRPCServer.URL),
+			tcli:               trpc.NewJSONRPCClient(tjsonRPCServer.URL, snowCtx.ChainID),
 		}
 
 		// Force sync ready (to mimic bootstrapping from genesis)
@@ -281,6 +282,7 @@ var _ = ginkgo.BeforeSuite(func() {
 var _ = ginkgo.AfterSuite(func() {
 	for _, iv := range instances {
 		iv.JSONRPCServer.Close()
+		iv.TokenJSONRPCServer.Close()
 		iv.WebSocketServer.Close()
 		err := iv.vm.Shutdown(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -589,10 +591,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		accept() // don't care about results
 
 		// Subscribe to blocks
-		cli, err := rpc.NewWebSocketClient(
-			"ws://" + strings.TrimPrefix(instances[0].WebSocketServer.URL, "http://") + "/ws",
-		)
+		cli, err := rpc.NewWebSocketClient(instances[0].WebSocketServer.URL)
 		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(cli.RegisterBlocks()).Should(gomega.BeNil())
 
 		// Fetch balances
 		balance, err := instances[0].tcli.Balance(context.TODO(), sender, ids.Empty)
@@ -647,10 +648,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 	ginkgo.It("processes valid index transactions (w/streaming verification)", func() {
 		// Create streaming client
-		// TODO: cleanup URL creation
-		cli, err := rpc.NewWebSocketClient(
-			"ws://" + strings.TrimPrefix(instances[0].WebSocketServer.URL, "http://") + "/ws",
-		)
+		cli, err := rpc.NewWebSocketClient(instances[0].WebSocketServer.URL)
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Create tx

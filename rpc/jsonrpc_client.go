@@ -6,6 +6,7 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -40,6 +41,8 @@ type JSONRPCClient struct {
 }
 
 func NewJSONRPCClient(uri string) *JSONRPCClient {
+	uri = strings.TrimSuffix(uri, "/")
+	uri += JSONRPCEndpoint
 	req := requester.New(uri, Name)
 	return &JSONRPCClient{requester: req}
 }

@@ -73,19 +73,18 @@ func init() {
 }
 
 type instance struct {
-	chainID ids.ID
-	nodeID  ids.NodeID
-
-	vm         *vm.VM
-	toEngine   chan common.Message
-	httpServer *httptest.Server
-	cli        *rpc.JSONRPCClient // clients for embedded VMs
-	tcli       *trpc.JSONRPCClient
-	dbDir      string
-
-	parse  []float64
-	verify []float64
-	accept []float64
+	chainID            ids.ID
+	nodeID             ids.NodeID
+	vm                 *vm.VM
+	toEngine           chan common.Message
+	JSONRPCServer      *httptest.Server
+	TokenJSONRPCServer *httptest.Server
+	cli                *rpc.JSONRPCClient // clients for embedded VMs
+	tcli               *trpc.JSONRPCClient
+	dbDir              string
+	parse              []float64
+	verify             []float64
+	accept             []float64
 }
 
 type account struct {
@@ -266,20 +265,22 @@ var _ = ginkgo.BeforeSuite(func() {
 		var hd map[string]*common.HTTPHandler
 		hd, err = c.CreateHandlers(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
-		httpServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint].Handler)
-		// TODO: add Controller JSONRPC
-
-		c.ForceReady()
+		jsonRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint].Handler)
+		tjsonRPCServer := httptest.NewServer(hd[trpc.JSONRPCEndpoint].Handler)
 		instances[i] = &instance{
-			chainID:    snowCtx.ChainID,
-			nodeID:     snowCtx.NodeID,
-			vm:         c,
-			toEngine:   toEngine,
-			httpServer: httpServer,
-			cli:        rpc.NewJSONRPCClient(httpServer.URL),
-			tcli:       trpc.NewJSONRPCClient(httpServer.URL, snowCtx.ChainID),
-			dbDir:      dname,
+			chainID:            snowCtx.ChainID,
+			nodeID:             snowCtx.NodeID,
+			vm:                 c,
+			toEngine:           toEngine,
+			JSONRPCServer:      jsonRPCServer,
+			TokenJSONRPCServer: tjsonRPCServer,
+			cli:                rpc.NewJSONRPCClient(jsonRPCServer.URL),
+			tcli:               trpc.NewJSONRPCClient(tjsonRPCServer.URL, snowCtx.ChainID),
+			dbDir:              dname,
 		}
+
+		// Force sync ready (to mimic bootstrapping from genesis)
+		c.ForceReady()
 	}
 
 	// Verify genesis allocations loaded correctly (do here otherwise test may
@@ -302,7 +303,8 @@ var _ = ginkgo.BeforeSuite(func() {
 
 var _ = ginkgo.AfterSuite(func() {
 	for _, instance := range instances {
-		instance.httpServer.Close()
+		instance.JSONRPCServer.Close()
+		instance.TokenJSONRPCServer.Close()
 		err := instance.vm.Shutdown(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
 	}

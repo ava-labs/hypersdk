@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -28,6 +29,13 @@ type WebSocketClient struct {
 // NewWebSocketClient creates a new client for the decision rpc server.
 // Dials into the server at [uri] and returns a client.
 func NewWebSocketClient(uri string) (*WebSocketClient, error) {
+	uri = strings.ReplaceAll(uri, "http://", "ws://")
+	uri = strings.ReplaceAll(uri, "https://", "wss://")
+	if !strings.HasPrefix(uri, "ws") { // fallback to default usage
+		uri = "ws://" + uri
+	}
+	uri = strings.TrimSuffix(uri, "/")
+	uri += WebSocketEndpoint
 	conn, resp, err := websocket.DefaultDialer.Dial(uri, nil)
 	if err != nil {
 		return nil, err
