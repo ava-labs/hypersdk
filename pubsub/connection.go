@@ -4,7 +4,6 @@
 package pubsub
 
 import (
-	"errors"
 	"io"
 	"sync/atomic"
 	"time"
@@ -13,17 +12,10 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	ErrFilterNotInitialized = errors.New("filter not initialized")
-	ErrAddressLimit         = errors.New("address limit exceeded")
-	ErrInvalidFilterParam   = errors.New("invalid bloom filter params")
-	ErrInvalidCommand       = errors.New("invalid command")
-)
-
 // Callback type is used as a callback function for the
 // WebSocket server to process incoming messages.
 // Accepts a byte message, the connection and any additional information.
-type Callback func([]byte, *Connection) []byte
+type Callback func([]byte, *Connection)
 
 // connection is a representation of the websocket connection.
 type Connection struct {
@@ -70,8 +62,8 @@ func (c *Connection) Send(msg []byte) bool {
 // reads from this goroutine.
 func (c *Connection) readPump() {
 	defer func() {
-		c.deactivate()
 		c.s.removeConnection(c)
+		c.deactivate()
 
 		// close is called by both the writePump and the readPump so one of them
 		// will always error
@@ -98,16 +90,17 @@ func (c *Connection) readPump() {
 					zap.Error(err),
 				)
 			}
-			break
+			return
 		}
 		if c.s.callback != nil {
 			responseBytes, err := io.ReadAll(reader)
-			if err == nil {
+			if err != nil {
 				c.s.log.Debug("unexpected error reading bytes from websockets",
 					zap.Error(err),
 				)
+				return
 			}
-			c.Send(c.s.callback(responseBytes, c))
+			c.s.callback(responseBytes, c)
 		}
 	}
 }
@@ -120,9 +113,9 @@ func (c *Connection) readPump() {
 func (c *Connection) writePump() {
 	ticker := time.NewTicker(c.s.config.PingPeriod)
 	defer func() {
+		c.s.removeConnection(c)
 		c.deactivate()
 		ticker.Stop()
-		c.s.removeConnection(c)
 
 		// close is called by both the writePump and the readPump so one of them
 		// will always error
@@ -141,7 +134,7 @@ func (c *Connection) writePump() {
 			if !ok {
 				// The hub closed the channel. Attempt to close the connection
 				// gracefully.
-				_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
 				return
 			}
 			if err := c.conn.WriteMessage(websocket.BinaryMessage, message); err != nil {

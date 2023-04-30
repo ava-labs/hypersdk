@@ -31,7 +31,7 @@ var (
 	lastAccepted = []byte("last_accepted")
 	isSyncing    = []byte("is_syncing")
 
-	signatureLRU = &cache.LRU[string, *WarpSignature]{Size: 1024}
+	signatureLRU = &cache.LRU[string, *chain.WarpSignature]{Size: 1024}
 )
 
 func PrefixBlockIDKey(id ids.ID) []byte {
@@ -144,17 +144,12 @@ func (vm *VM) StoreWarpSignature(txID ids.ID, signer *bls.PublicKey, signature [
 	k := PrefixWarpSignatureKey(txID, signer)
 	// Cache any signature we produce for later queries from peers
 	if bytes.Equal(vm.pkBytes, bls.PublicKeyToBytes(signer)) {
-		signatureLRU.Put(string(k), &WarpSignature{vm.pkBytes, signature})
+		signatureLRU.Put(string(k), chain.NewWarpSignature(vm.pkBytes, signature))
 	}
 	return vm.vmDB.Put(k, signature)
 }
 
-type WarpSignature struct {
-	PublicKey []byte `json:"publicKey"`
-	Signature []byte `json:"signature"`
-}
-
-func (vm *VM) GetWarpSignature(txID ids.ID, signer *bls.PublicKey) (*WarpSignature, error) {
+func (vm *VM) GetWarpSignature(txID ids.ID, signer *bls.PublicKey) (*chain.WarpSignature, error) {
 	k := PrefixWarpSignatureKey(txID, signer)
 	if ws, ok := signatureLRU.Get(string(k)); ok {
 		return ws, nil
@@ -166,14 +161,14 @@ func (vm *VM) GetWarpSignature(txID ids.ID, signer *bls.PublicKey) (*WarpSignatu
 	if err != nil {
 		return nil, err
 	}
-	ws := &WarpSignature{
+	ws := &chain.WarpSignature{
 		PublicKey: bls.PublicKeyToBytes(signer),
 		Signature: v,
 	}
 	return ws, nil
 }
 
-func (vm *VM) GetWarpSignatures(txID ids.ID) ([]*WarpSignature, error) {
+func (vm *VM) GetWarpSignatures(txID ids.ID) ([]*chain.WarpSignature, error) {
 	prefix := make([]byte, 1+consts.IDLen)
 	prefix[0] = warpSignaturePrefix
 	copy(prefix[1:], txID[:])
@@ -181,10 +176,10 @@ func (vm *VM) GetWarpSignatures(txID ids.ID) ([]*WarpSignature, error) {
 	defer iter.Release()
 
 	// Collect all signatures we have for a txID
-	signatures := []*WarpSignature{}
+	signatures := []*chain.WarpSignature{}
 	for iter.Next() {
 		k := iter.Key()
-		signatures = append(signatures, &WarpSignature{
+		signatures = append(signatures, &chain.WarpSignature{
 			PublicKey: k[len(k)-bls.PublicKeyLen:],
 			Signature: iter.Value(),
 		})

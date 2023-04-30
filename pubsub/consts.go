@@ -17,5 +17,4 @@ const (
 	PingPeriod         = (PongWait * 9) / 10
 	MaxMessageSize     = 10 * units.KiB // bytes
 	MaxPendingMessages = 1024
-	ReadHeaderTimeout  = 5 * time.Second
 )

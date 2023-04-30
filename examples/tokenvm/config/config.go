@@ -40,8 +40,7 @@ type Config struct {
 	ContinuousProfilerDir string `json:"continuousProfilerDir"` // "*" is replaced with rand int
 
 	// Streaming Ports
-	DecisionsPort        uint16 `json:"decisionsPort"`
-	BlocksPort           uint16 `json:"blocksPort"`
+	StreamingPort        uint16 `json:"streamingPort"`
 	StreamingBacklogSize int    `json:"streamingBacklogSize"`
 
 	// Mempool
@@ -101,6 +100,8 @@ func (c *Config) setDefault() {
 	c.MempoolVerifyBalances = defaultMempoolVerifyBalances
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
+	// TODO: hardcoded for testing, idk why gorilla doesn't like port 0.
+	c.StreamingPort = 4000
 }
 
 func (c *Config) GetLogLevel() logging.Level          { return c.LogLevel }
@@ -111,8 +112,7 @@ func (c *Config) GetMempoolSize() int                 { return c.MempoolSize }
 func (c *Config) GetMempoolPayerSize() int            { return c.MempoolPayerSize }
 func (c *Config) GetMempoolExemptPayers() [][]byte    { return c.parsedExemptPayers }
 func (c *Config) GetMempoolVerifyBalances() bool      { return c.MempoolVerifyBalances }
-func (c *Config) GetDecisionsPort() uint16            { return c.DecisionsPort }
-func (c *Config) GetBlocksPort() uint16               { return c.BlocksPort }
+func (c *Config) GetStreamingPort() uint16            { return c.StreamingPort }
 func (c *Config) GetTraceConfig() *trace.Config {
 	return &trace.Config{
 		Enabled:         c.TraceEnabled,
