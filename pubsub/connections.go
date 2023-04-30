@@ -59,3 +59,10 @@ func (c *Connections) Len() int {
 
 	return c.conns.Len()
 }
+
+func (c *Connections) Peek() (*Connection, bool) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return c.conns.Peek()
+}

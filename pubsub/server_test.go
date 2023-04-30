@@ -221,12 +221,12 @@ func TestServerPublishSpecific(t *testing.T) {
 	require.NoError(err, "Error connecting to the server.")
 	defer resp1.Body.Close()
 	sendConns := NewConnections()
-	peekCon, _ := handler.conns.conns.Peek()
+	peekCon, _ := handler.conns.Peek()
 	sendConns.Add(peekCon)
 	webCon2, resp2, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp2.Body.Close()
-	require.Equal(2, handler.conns.conns.Len(), "Server didn't add connection correctly.")
+	require.Equal(2, handler.conns.Len(), "Server didn't add connection correctly.")
 	// Publish to subscribed connections
 	handler.Publish([]byte(dummyMsg), sendConns)
 	go func() {
