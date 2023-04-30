@@ -44,6 +44,7 @@ func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connect
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
+	// TODO: limit max number of tx listeners a single connection can create
 	txID := tx.ID()
 	if _, ok := w.txListeners[txID]; !ok {
 		w.txListeners[txID] = pubsub.NewConnections()
