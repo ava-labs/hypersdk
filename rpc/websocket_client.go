@@ -48,11 +48,12 @@ func NewWebSocketClient(uri string) (*WebSocketClient, error) {
 				utils.Outf("{{orange}}got empty message{{/}}\n")
 				continue
 			}
+			tmsg := msg[1:]
 			switch msg[0] {
 			case BlockMode:
-				wc.pendingBlocks <- msg[1:]
+				wc.pendingBlocks <- tmsg
 			case TxMode:
-				wc.pendingTxs <- msg[1:]
+				wc.pendingTxs <- tmsg
 			default:
 				utils.Outf("{[orange}}unexpected message mode:{{/}} %x\n", msg[0])
 				continue
