@@ -10,10 +10,11 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/gorilla/websocket"
 )
+
+const pendingChanSize = 8_192
 
 type WebSocketClient struct {
 	conn *websocket.Conn
@@ -43,8 +44,8 @@ func NewWebSocketClient(uri string) (*WebSocketClient, error) {
 	resp.Body.Close()
 	wc := &WebSocketClient{
 		conn:          conn,
-		pendingBlocks: make(chan []byte, consts.MaxInt),
-		pendingTxs:    make(chan []byte, consts.MaxInt),
+		pendingBlocks: make(chan []byte, pendingChanSize),
+		pendingTxs:    make(chan []byte, pendingChanSize),
 		done:          make(chan struct{}),
 	}
 	go func() {
