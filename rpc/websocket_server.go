@@ -70,7 +70,7 @@ func (w *WebSocketServer) removeTx(txID ids.ID, err error) error {
 	if err != nil {
 		return err
 	}
-	w.s.Publish(bytes, listeners)
+	w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
 	delete(w.txListeners, txID)
 	// [expiringTxs] will be cleared eventually (does not support removal)
 	return nil
@@ -94,7 +94,7 @@ func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) error {
 	if err != nil {
 		return err
 	}
-	inactiveConnection := w.s.Publish(bytes, w.blockListeners)
+	inactiveConnection := w.s.Publish(append([]byte{BlockMode}, bytes...), w.blockListeners)
 	for _, conn := range inactiveConnection {
 		w.blockListeners.Remove(conn)
 	}
@@ -113,10 +113,7 @@ func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) error {
 		if err != nil {
 			return err
 		}
-		w.s.Publish(
-			bytes,
-			listeners,
-		)
+		w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
 		delete(w.txListeners, txID)
 		// [expiringTxs] will be cleared eventually (does not support removal)
 	}

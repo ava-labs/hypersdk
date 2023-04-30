@@ -633,7 +633,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(tx.Asset).To(gomega.Equal(ids.Empty))
 		gomega.Ω(tx.Value).To(gomega.Equal(uint64(1)))
 		gomega.Ω(lresults).Should(gomega.Equal(results))
-		gomega.Ω(cli.Close()).Should(gomega.BeNil())
 
 		// Check balance modifications are correct
 		balancea, err := instances[0].tcli.Balance(context.TODO(), sender, ids.Empty)
@@ -644,6 +643,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		maxUnits, err := rawTx.MaxUnits(r)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(balancea + maxUnits + 1))
+
+		// Close connection when done
+		gomega.Ω(cli.Close()).Should(gomega.BeNil())
 	})
 
 	ginkgo.It("processes valid index transactions (w/streaming verification)", func() {
@@ -690,6 +692,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(dErr).Should(gomega.BeNil())
 		gomega.Ω(result.Success).Should(gomega.BeTrue())
 		gomega.Ω(result).Should(gomega.Equal(results[0]))
+
+		// Close connection when done
 		gomega.Ω(cli.Close()).Should(gomega.BeNil())
 	})
 

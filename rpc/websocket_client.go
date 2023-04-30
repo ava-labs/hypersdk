@@ -67,7 +67,7 @@ func NewWebSocketClient(uri string) (*WebSocketClient, error) {
 			case TxMode:
 				wc.pendingTxs <- tmsg
 			default:
-				utils.Outf("{[orange}}unexpected message mode:{{/}} %x\n", msg[0])
+				utils.Outf("{{orange}}unexpected message mode:{{/}} %x\n", msg[0])
 				continue
 			}
 		}
@@ -102,7 +102,7 @@ func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
 // ListenForTx listens for responses from the streamingServer.
 func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.Result, error) {
 	select {
-	case msg := <-c.pendingBlocks:
+	case msg := <-c.pendingTxs:
 		return UnpackTxMessage(msg)
 	case <-c.done:
 		return ids.Empty, nil, nil, c.err
