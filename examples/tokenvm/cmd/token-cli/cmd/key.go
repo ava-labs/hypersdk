@@ -12,7 +12,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
+	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
@@ -85,7 +85,7 @@ var setKeyCmd = &cobra.Command{
 			hutils.Outf("{{red}}no stored keys{{/}}\n")
 			return nil
 		}
-		_, uris, err := GetDefaultChain()
+		chainID, uris, err := GetDefaultChain()
 		if err != nil {
 			return err
 		}
@@ -93,7 +93,7 @@ var setKeyCmd = &cobra.Command{
 			hutils.Outf("{{red}}no available chains{{/}}\n")
 			return nil
 		}
-		cli := client.New(uris[0])
+		cli := trpc.NewJSONRPCClient(uris[0], chainID)
 		hutils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
 		for i := 0; i < len(keys); i++ {
 			address := utils.Address(keys[i].PublicKey())
@@ -129,7 +129,7 @@ var balanceKeyCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		_, uris, err := GetDefaultChain()
+		chainID, uris, err := GetDefaultChain()
 		if err != nil {
 			return err
 		}
@@ -145,7 +145,7 @@ var balanceKeyCmd = &cobra.Command{
 		}
 		for _, uri := range uris[:max] {
 			hutils.Outf("{{yellow}}uri:{{/}} %s\n", uri)
-			if _, _, err = getAssetInfo(ctx, client.New(uri), priv.PublicKey(), assetID, true); err != nil {
+			if _, _, err = getAssetInfo(ctx, trpc.NewJSONRPCClient(uri, chainID), priv.PublicKey(), assetID, true); err != nil {
 				return err
 			}
 		}
