@@ -14,9 +14,10 @@ import (
 	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
+	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/manifoldco/promptui"
 )
@@ -348,7 +349,7 @@ func printStatus(txID ids.ID, success bool) {
 
 func getAssetInfo(
 	ctx context.Context,
-	cli *client.Client,
+	cli *trpc.JSONRPCClient,
 	publicKey crypto.PublicKey,
 	assetID ids.ID,
 	checkBalance bool,
@@ -404,17 +405,24 @@ func getAssetInfo(
 	return balance, sourceChainID, nil
 }
 
-func defaultActor() (ids.ID, crypto.PrivateKey, *auth.ED25519Factory, *client.Client, error) {
+func defaultActor() (ids.ID, crypto.PrivateKey, *auth.ED25519Factory, *rpc.JSONRPCClient, *trpc.JSONRPCClient, error) {
 	priv, err := GetDefaultKey()
 	if err != nil {
-		return ids.Empty, crypto.EmptyPrivateKey, nil, nil, err
+		return ids.Empty, crypto.EmptyPrivateKey, nil, nil, nil, err
 	}
 	chainID, uris, err := GetDefaultChain()
 	if err != nil {
-		return ids.Empty, crypto.EmptyPrivateKey, nil, nil, err
+		return ids.Empty, crypto.EmptyPrivateKey, nil, nil, nil, err
 	}
 	// For [defaultActor], we always send requests to the first returned URI.
-	return chainID, priv, auth.NewED25519Factory(priv), client.New(uris[0]), nil
+	return chainID, priv, auth.NewED25519Factory(
+			priv,
+		), rpc.NewJSONRPCClient(
+			uris[0],
+		), trpc.NewJSONRPCClient(
+			uris[0],
+			chainID,
+		), nil
 }
 
 func GetDefaultKey() (crypto.PrivateKey, error) {

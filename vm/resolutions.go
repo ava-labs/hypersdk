@@ -42,6 +42,14 @@ func (vm *VM) ChainID() ids.ID {
 	return vm.snowCtx.ChainID
 }
 
+func (vm *VM) NetworkID() uint32 {
+	return vm.snowCtx.NetworkID
+}
+
+func (vm *VM) SubnetID() ids.ID {
+	return vm.snowCtx.SubnetID
+}
+
 func (vm *VM) ValidatorState() validators.State {
 	return vm.snowCtx.ValidatorState
 }
@@ -182,11 +190,15 @@ func (vm *VM) processAcceptedBlocks() {
 			vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
 		}
 
-		// Update listeners
-		vm.listeners.AcceptBlock(b)
+		// Update server
+		if err := vm.webSocketServer.AcceptBlock(b); err != nil {
+			vm.snowCtx.Log.Fatal("unable to accept block in websocket server", zap.Error(err))
+		}
 		// Must clear accepted txs before [SetMinTx] or else we will errnoueously
 		// send [ErrExpired] messages.
-		vm.listeners.SetMinTx(b.Tmstmp)
+		if err := vm.webSocketServer.SetMinTx(b.Tmstmp); err != nil {
+			vm.snowCtx.Log.Fatal("unable to set min tx in websocket server", zap.Error(err))
+		}
 		vm.snowCtx.Log.Info(
 			"block processed",
 			zap.Stringer("blkID", b.ID()),
@@ -266,6 +278,16 @@ func (vm *VM) Proposers(ctx context.Context, diff int, depth int) (set.Set[ids.N
 	return vm.proposerMonitor.Proposers(ctx, diff, depth)
 }
 
+func (vm *VM) CurrentValidators(
+	ctx context.Context,
+) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{}) {
+	return vm.proposerMonitor.Validators(ctx)
+}
+
+func (vm *VM) GatherSignatures(ctx context.Context, txID ids.ID, msg []byte) {
+	vm.warpManager.GatherSignatures(ctx, txID, msg)
+}
+
 func (vm *VM) NodeID() ids.NodeID {
 	return vm.snowCtx.NodeID
 }
@@ -328,4 +350,12 @@ func (vm *VM) RecordRootCalculated(t time.Duration) {
 
 func (vm *VM) RecordWaitSignatures(t time.Duration) {
 	vm.metrics.waitSignatures.Observe(float64(t))
+}
+
+func (vm *VM) RecordStateChanges(c int) {
+	vm.metrics.stateChanges.Add(float64(c))
+}
+
+func (vm *VM) RecordStateOperations(c int) {
+	vm.metrics.stateOperations.Add(float64(c))
 }

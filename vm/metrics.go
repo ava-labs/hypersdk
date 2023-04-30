@@ -10,15 +10,15 @@ import (
 )
 
 type Metrics struct {
-	unitsVerified           prometheus.Counter
-	unitsAccepted           prometheus.Counter
-	txsSubmitted            prometheus.Counter // includes gossip
-	txsVerified             prometheus.Counter
-	txsAccepted             prometheus.Counter
-	decisionsRPCConnections prometheus.Gauge
-	blocksRPCConnections    prometheus.Gauge
-	rootCalculated          metric.Averager
-	waitSignatures          metric.Averager
+	unitsVerified   prometheus.Counter
+	unitsAccepted   prometheus.Counter
+	txsSubmitted    prometheus.Counter // includes gossip
+	txsVerified     prometheus.Counter
+	txsAccepted     prometheus.Counter
+	stateChanges    prometheus.Counter
+	stateOperations prometheus.Counter
+	rootCalculated  metric.Averager
+	waitSignatures  metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -69,15 +69,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "txs_accepted",
 			Help:      "number of txs accepted by vm",
 		}),
-		decisionsRPCConnections: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "vm",
-			Name:      "decisions_rpc_connections",
-			Help:      "number of open decisions connections",
+		stateChanges: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "state_changes",
+			Help:      "number of state changes",
 		}),
-		blocksRPCConnections: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "vm",
-			Name:      "blocks_rpc_connections",
-			Help:      "number of open blocks connections",
+		stateOperations: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "state_operations",
+			Help:      "number of state operations",
 		}),
 		rootCalculated: rootCalculated,
 		waitSignatures: waitSignatures,
@@ -89,8 +89,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txsSubmitted),
 		r.Register(m.txsVerified),
 		r.Register(m.txsAccepted),
-		r.Register(m.decisionsRPCConnections),
-		r.Register(m.blocksRPCConnections),
+		r.Register(m.stateChanges),
+		r.Register(m.stateOperations),
 	)
 	return r, m, errs.Err
 }

@@ -1,41 +1,32 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package controller
+package rpc
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/vm"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
-const (
-	ordersToSend = 128
-)
+type JSONRPCServer struct {
+	c Controller
+}
 
-var (
-	ErrTxNotFound    = errors.New("tx not found")
-	ErrAssetNotFound = errors.New("asset not found")
-)
-
-type Handler struct {
-	*vm.Handler // embed standard functionality
-
-	c *Controller
+func NewJSONRPCServer(c Controller) *JSONRPCServer {
+	return &JSONRPCServer{c}
 }
 
 type GenesisReply struct {
 	Genesis *genesis.Genesis `json:"genesis"`
 }
 
-func (h *Handler) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
-	reply.Genesis = h.c.genesis
+func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
+	reply.Genesis = j.c.Genesis()
 	return nil
 }
 
@@ -49,11 +40,11 @@ type TxReply struct {
 	Units     uint64 `json:"units"`
 }
 
-func (h *Handler) Tx(req *http.Request, args *TxArgs, reply *TxReply) error {
-	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Tx")
+func (j *JSONRPCServer) Tx(req *http.Request, args *TxArgs, reply *TxReply) error {
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Tx")
 	defer span.End()
 
-	found, t, success, units, err := storage.GetTransaction(ctx, h.c.metaDB, args.TxID)
+	found, t, success, units, err := j.c.GetTransaction(ctx, args.TxID)
 	if err != nil {
 		return err
 	}
@@ -77,15 +68,11 @@ type AssetReply struct {
 	Warp     bool   `json:"warp"`
 }
 
-func (h *Handler) Asset(req *http.Request, args *AssetArgs, reply *AssetReply) error {
-	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Asset")
+func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetReply) error {
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Asset")
 	defer span.End()
 
-	exists, metadata, supply, owner, warp, err := storage.GetAssetFromState(
-		ctx,
-		h.c.inner.ReadState,
-		args.Asset,
-	)
+	exists, metadata, supply, owner, warp, err := j.c.GetAssetFromState(ctx, args.Asset)
 	if err != nil {
 		return err
 	}
@@ -108,15 +95,15 @@ type BalanceReply struct {
 	Amount uint64 `json:"amount"`
 }
 
-func (h *Handler) Balance(req *http.Request, args *BalanceArgs, reply *BalanceReply) error {
-	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Balance")
+func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *BalanceReply) error {
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
 
 	addr, err := utils.ParseAddress(args.Address)
 	if err != nil {
 		return err
 	}
-	balance, err := storage.GetBalanceFromState(ctx, h.c.inner.ReadState, addr, args.Asset)
+	balance, err := j.c.GetBalanceFromState(ctx, addr, args.Asset)
 	if err != nil {
 		return err
 	}
@@ -129,14 +116,14 @@ type OrdersArgs struct {
 }
 
 type OrdersReply struct {
-	Orders []*Order `json:"orders"`
+	Orders []*orderbook.Order `json:"orders"`
 }
 
-func (h *Handler) Orders(req *http.Request, args *OrdersArgs, reply *OrdersReply) error {
-	_, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Orders")
+func (j *JSONRPCServer) Orders(req *http.Request, args *OrdersArgs, reply *OrdersReply) error {
+	_, span := j.c.Tracer().Start(req.Context(), "Server.Orders")
 	defer span.End()
 
-	reply.Orders = h.c.orderBook.Orders(args.Pair, ordersToSend)
+	reply.Orders = j.c.Orders(args.Pair, ordersToSend)
 	return nil
 }
 
@@ -149,11 +136,11 @@ type LoanReply struct {
 	Amount uint64 `json:"amount"`
 }
 
-func (h *Handler) Loan(req *http.Request, args *LoanArgs, reply *LoanReply) error {
-	ctx, span := h.c.inner.Tracer().Start(req.Context(), "Handler.Loan")
+func (j *JSONRPCServer) Loan(req *http.Request, args *LoanArgs, reply *LoanReply) error {
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Loan")
 	defer span.End()
 
-	amount, err := storage.GetLoanFromState(ctx, h.c.inner.ReadState, args.Asset, args.Destination)
+	amount, err := j.c.GetLoanFromState(ctx, args.Asset, args.Destination)
 	if err != nil {
 		return err
 	}

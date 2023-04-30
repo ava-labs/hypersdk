@@ -1,11 +1,12 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package client
+package rpc
 
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -15,18 +16,153 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/utils"
 	"golang.org/x/exp/maps"
+
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/requester"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
-const waitSleep = 500 * time.Millisecond
+const (
+	suggestedFeeCacheRefresh = 10 * time.Second
+	waitSleep                = 500 * time.Millisecond
+)
+
+type JSONRPCClient struct {
+	requester *requester.EndpointRequester
+
+	networkID uint32
+	subnetID  ids.ID
+	chainID   ids.ID
+
+	lastSuggestedFee time.Time
+	unitPrice        uint64
+	blockCost        uint64
+}
+
+func NewJSONRPCClient(uri string) *JSONRPCClient {
+	uri = strings.TrimSuffix(uri, "/")
+	uri += JSONRPCEndpoint
+	req := requester.New(uri, Name)
+	return &JSONRPCClient{requester: req}
+}
+
+func (cli *JSONRPCClient) Ping(ctx context.Context) (bool, error) {
+	resp := new(PingReply)
+	err := cli.requester.SendRequest(ctx,
+		"ping",
+		nil,
+		resp,
+	)
+	return resp.Success, err
+}
+
+func (cli *JSONRPCClient) Network(ctx context.Context) (uint32, ids.ID, ids.ID, error) {
+	if cli.chainID != ids.Empty {
+		return cli.networkID, cli.subnetID, cli.chainID, nil
+	}
+
+	resp := new(NetworkReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"network",
+		nil,
+		resp,
+	)
+	if err != nil {
+		return 0, ids.Empty, ids.Empty, err
+	}
+	cli.networkID = resp.NetworkID
+	cli.subnetID = resp.SubnetID
+	cli.chainID = resp.ChainID
+	return resp.NetworkID, resp.SubnetID, resp.ChainID, nil
+}
+
+func (cli *JSONRPCClient) Accepted(ctx context.Context) (ids.ID, uint64, int64, error) {
+	resp := new(LastAcceptedReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"lastAccepted",
+		nil,
+		resp,
+	)
+	return resp.BlockID, resp.Height, resp.Timestamp, err
+}
+
+func (cli *JSONRPCClient) SuggestedRawFee(ctx context.Context) (uint64, uint64, error) {
+	if time.Since(cli.lastSuggestedFee) < suggestedFeeCacheRefresh {
+		return cli.unitPrice, cli.blockCost, nil
+	}
+
+	resp := new(SuggestedRawFeeReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"suggestedRawFee",
+		nil,
+		resp,
+	)
+	if err != nil {
+		return 0, 0, err
+	}
+	cli.unitPrice = resp.UnitPrice
+	cli.blockCost = resp.BlockCost
+	// We update the time last in case there are concurrent requests being
+	// processed (we don't want them to get an inconsistent view).
+	cli.lastSuggestedFee = time.Now()
+	return resp.UnitPrice, resp.BlockCost, nil
+}
+
+func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error) {
+	resp := new(SubmitTxReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"submitTx",
+		&SubmitTxArgs{Tx: d},
+		resp,
+	)
+	return resp.TxID, err
+}
+
+func (cli *JSONRPCClient) GetWarpSignatures(
+	ctx context.Context,
+	txID ids.ID,
+) (*warp.UnsignedMessage, map[ids.NodeID]*validators.GetValidatorOutput, []*chain.WarpSignature, error) {
+	resp := new(GetWarpSignaturesReply)
+	if err := cli.requester.SendRequest(
+		ctx,
+		"getWarpSignatures",
+		&GetWarpSignaturesArgs{TxID: txID},
+		resp,
+	); err != nil {
+		return nil, nil, nil, err
+	}
+	// Ensure message is initialized
+	if err := resp.Message.Initialize(); err != nil {
+		return nil, nil, nil, err
+	}
+	m := map[ids.NodeID]*validators.GetValidatorOutput{}
+	for _, vdr := range resp.Validators {
+		vout := &validators.GetValidatorOutput{
+			NodeID: vdr.NodeID,
+			Weight: vdr.Weight,
+		}
+		if len(vdr.PublicKey) > 0 {
+			pk, err := bls.PublicKeyFromBytes(vdr.PublicKey)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			vout.PublicKey = pk
+		}
+		m[vdr.NodeID] = vout
+	}
+	return resp.Message, m, resp.Signatures, nil
+}
 
 type Modifier interface {
 	Base(*chain.Base)
 }
 
-func (cli *Client) GenerateTransaction(
+func (cli *JSONRPCClient) GenerateTransaction(
 	ctx context.Context,
 	parser chain.Parser,
 	wm *warp.Message,
@@ -140,7 +276,7 @@ func getCanonicalValidatorSet(
 	return vdrList, totalWeight, nil
 }
 
-func (cli *Client) GenerateAggregateWarpSignature(
+func (cli *JSONRPCClient) GenerateAggregateWarpSignature(
 	ctx context.Context,
 	txID ids.ID,
 ) (*warp.Message, uint64, uint64, error) {

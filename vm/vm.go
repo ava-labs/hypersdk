@@ -35,9 +35,9 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/gossiper"
-	"github.com/ava-labs/hypersdk/listeners"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/rpc"
 	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
@@ -89,7 +89,7 @@ type VM struct {
 	acceptorDone  chan struct{}
 
 	// Transactions that streaming users are currently subscribed to
-	listeners *listeners.Listeners
+	webSocketServer *rpc.WebSocketServer
 
 	// Reuse gorotuine group to avoid constant re-allocation
 	workers *workers.Workers
@@ -98,8 +98,6 @@ type VM struct {
 	preferred    ids.ID
 	lastAccepted *chain.StatelessBlock
 	toEngine     chan<- common.Message
-
-	streamingServer *pubsub.Server
 
 	// State Sync client and AppRequest handlers
 	stateSyncClient        *stateSyncerClient
@@ -176,6 +174,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return fmt.Errorf("implementation initialization failed: %w", err)
 	}
+
 	// Setup tracer
 	vm.tracer, err = htrace.New(vm.config.GetTraceConfig())
 	if err != nil {
@@ -290,27 +289,6 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
 		snowCtx.Log.Info("initialized vm from genesis", zap.Stringer("block", gBlkID))
 	}
-
-	// Startup RPCs
-	serverAddr := fmt.Sprintf(":%d", vm.config.GetStreamingPort())
-	vm.streamingServer = pubsub.New(
-		serverAddr,
-		vm.streamingServerCallback,
-		vm.Logger(),
-		pubsub.NewDefaultServerConfig(),
-	)
-	go func() {
-		// Wait for VM to be ready before accepting connections. If we stop the VM
-		// before this happens, we should return.
-		if !vm.waitReady() {
-			return
-		}
-		err := vm.streamingServer.Start()
-		vm.snowCtx.Log.Error("Error starting decisions server", zap.Error(err))
-	}()
-	// Setup listeners to the streamingServer
-	vm.listeners = listeners.New(vm.streamingServer)
-
 	go vm.processAcceptedBlocks()
 
 	// Setup state syncing
@@ -333,6 +311,25 @@ func (vm *VM) Initialize(
 
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
+
+	// Setup handlers
+	jsonRPCHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCServer(vm), common.NoLock)
+	if err != nil {
+		return fmt.Errorf("unable to create handler: %w", err)
+	}
+	if _, ok := vm.handlers[rpc.JSONRPCEndpoint]; ok {
+		return fmt.Errorf("duplicate JSONRPC handler found: %s", rpc.JSONRPCEndpoint)
+	}
+	vm.handlers[rpc.JSONRPCEndpoint] = jsonRPCHandler
+	if _, ok := vm.handlers[rpc.WebSocketEndpoint]; ok {
+		return fmt.Errorf("duplicate WebSocket handler found: %s", rpc.WebSocketEndpoint)
+	}
+	wcfg := pubsub.NewDefaultServerConfig()
+	wcfg.MaxPendingMessages = vm.config.GetStreamingBacklogSize()
+	vm.webSocketServer = rpc.NewWebSocketServer()
+	pubsubServer := pubsub.New(vm.snowCtx.Log, wcfg, vm.webSocketServer.MessageCallback(vm))
+	vm.webSocketServer.SetBackend(pubsubServer)
+	vm.handlers[rpc.WebSocketEndpoint] = rpc.NewWebSocketHandler(pubsubServer)
 	return nil
 }
 
@@ -366,16 +363,6 @@ func (vm *VM) isReady() bool {
 		return true
 	default:
 		vm.snowCtx.Log.Info("node is not ready yet")
-		return false
-	}
-}
-
-func (vm *VM) waitReady() bool {
-	select {
-	case <-vm.ready:
-		vm.snowCtx.Log.Info("wait ready returned")
-		return true
-	case <-vm.stop:
 		return false
 	}
 }
@@ -465,12 +452,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	// Process remaining accepted blocks before shutdown
 	close(vm.acceptedQueue)
 	<-vm.acceptorDone
-
-	// Shutdown RPCs
-	// TODO: change to correct context
-	if err := vm.streamingServer.Shutdown(context.TODO()); err != nil {
-		return err
-	}
 
 	// Shutdown other async VM mechanisms
 	vm.warpManager.Done()
@@ -659,7 +640,9 @@ func (vm *VM) submitStateless(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				vm.listeners.RemoveTx(txID, err)
+				if err := vm.webSocketServer.RemoveTx(txID, err); err != nil {
+					vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
+				}
 				errs = append(errs, err)
 				continue
 			}
@@ -717,7 +700,9 @@ func (vm *VM) Submit(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				vm.listeners.RemoveTx(txID, err)
+				if err := vm.webSocketServer.RemoveTx(txID, err); err != nil {
+					vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
+				}
 				errs = append(errs, err)
 				continue
 			}

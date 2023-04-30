@@ -16,8 +16,9 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
+	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
@@ -39,7 +40,7 @@ var transferCmd = &cobra.Command{
 	Use: "transfer",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, err := defaultActor()
+		_, priv, factory, cli, tcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -49,7 +50,7 @@ var transferCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		balance, _, err := getAssetInfo(ctx, cli, priv.PublicKey(), assetID, true)
+		balance, _, err := getAssetInfo(ctx, tcli, priv.PublicKey(), assetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -73,7 +74,11 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{
+		parser, err := tcli.Parser(ctx)
+		if err != nil {
+			return err
+		}
+		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
 			To:    recipient,
 			Asset: assetID,
 			Value: amount,
@@ -84,7 +89,7 @@ var transferCmd = &cobra.Command{
 		if err := submit(ctx); err != nil {
 			return err
 		}
-		success, err := cli.WaitForTransaction(ctx, tx.ID())
+		success, err := tcli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
 			return err
 		}
@@ -97,7 +102,7 @@ var createAssetCmd = &cobra.Command{
 	Use: "create-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, _, factory, cli, err := defaultActor()
+		_, _, factory, cli, tcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -124,7 +129,11 @@ var createAssetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.CreateAsset{
+		parser, err := tcli.Parser(ctx)
+		if err != nil {
+			return err
+		}
+		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CreateAsset{
 			Metadata: []byte(metadata),
 		}, factory)
 		if err != nil {
@@ -133,7 +142,7 @@ var createAssetCmd = &cobra.Command{
 		if err := submit(ctx); err != nil {
 			return err
 		}
-		success, err := cli.WaitForTransaction(ctx, tx.ID())
+		success, err := tcli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
 			return err
 		}
@@ -146,7 +155,7 @@ var mintAssetCmd = &cobra.Command{
 	Use: "mint-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, err := defaultActor()
+		_, priv, factory, cli, tcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -156,7 +165,7 @@ var mintAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		exists, metadata, supply, owner, warp, err := cli.Asset(ctx, assetID)
+		exists, metadata, supply, owner, warp, err := tcli.Asset(ctx, assetID)
 		if err != nil {
 			return err
 		}
@@ -200,7 +209,11 @@ var mintAssetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.MintAsset{
+		parser, err := tcli.Parser(ctx)
+		if err != nil {
+			return err
+		}
+		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.MintAsset{
 			Asset: assetID,
 			To:    recipient,
 			Value: amount,
@@ -211,7 +224,7 @@ var mintAssetCmd = &cobra.Command{
 		if err := submit(ctx); err != nil {
 			return err
 		}
-		success, err := cli.WaitForTransaction(ctx, tx.ID())
+		success, err := tcli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
 			return err
 		}
@@ -224,7 +237,7 @@ var closeOrderCmd = &cobra.Command{
 	Use: "close-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, _, factory, cli, err := defaultActor()
+		_, _, factory, cli, tcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -248,7 +261,11 @@ var closeOrderCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.CloseOrder{
+		parser, err := tcli.Parser(ctx)
+		if err != nil {
+			return err
+		}
+		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CloseOrder{
 			Order: orderID,
 			Out:   outAssetID,
 		}, factory)
@@ -258,7 +275,7 @@ var closeOrderCmd = &cobra.Command{
 		if err := submit(ctx); err != nil {
 			return err
 		}
-		success, err := cli.WaitForTransaction(ctx, tx.ID())
+		success, err := tcli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
 			return err
 		}
@@ -271,7 +288,7 @@ var createOrderCmd = &cobra.Command{
 	Use: "create-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, err := defaultActor()
+		_, priv, factory, cli, tcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -282,7 +299,7 @@ var createOrderCmd = &cobra.Command{
 			return err
 		}
 		if inAssetID != ids.Empty {
-			exists, metadata, supply, _, warp, err := cli.Asset(ctx, inAssetID)
+			exists, metadata, supply, _, warp, err := tcli.Asset(ctx, inAssetID)
 			if err != nil {
 				return err
 			}
@@ -310,7 +327,7 @@ var createOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		balance, _, err := getAssetInfo(ctx, cli, priv.PublicKey(), outAssetID, true)
+		balance, _, err := getAssetInfo(ctx, tcli, priv.PublicKey(), outAssetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -344,7 +361,11 @@ var createOrderCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.CreateOrder{
+		parser, err := tcli.Parser(ctx)
+		if err != nil {
+			return err
+		}
+		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CreateOrder{
 			In:      inAssetID,
 			InTick:  inTick,
 			Out:     outAssetID,
@@ -357,7 +378,7 @@ var createOrderCmd = &cobra.Command{
 		if err := submit(ctx); err != nil {
 			return err
 		}
-		success, err := cli.WaitForTransaction(ctx, tx.ID())
+		success, err := tcli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
 			return err
 		}
@@ -370,7 +391,7 @@ var fillOrderCmd = &cobra.Command{
 	Use: "fill-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, err := defaultActor()
+		_, priv, factory, cli, tcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -380,7 +401,7 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		balance, _, err := getAssetInfo(ctx, cli, priv.PublicKey(), inAssetID, true)
+		balance, _, err := getAssetInfo(ctx, tcli, priv.PublicKey(), inAssetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -390,12 +411,12 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if _, _, err := getAssetInfo(ctx, cli, priv.PublicKey(), outAssetID, false); err != nil {
+		if _, _, err := getAssetInfo(ctx, tcli, priv.PublicKey(), outAssetID, false); err != nil {
 			return err
 		}
 
 		// View orders
-		orders, err := cli.Orders(ctx, actions.PairID(inAssetID, outAssetID))
+		orders, err := tcli.Orders(ctx, actions.PairID(inAssetID, outAssetID))
 		if err != nil {
 			return err
 		}
@@ -471,7 +492,11 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.FillOrder{
+		parser, err := tcli.Parser(ctx)
+		if err != nil {
+			return err
+		}
+		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.FillOrder{
 			Order: order.ID,
 			Owner: owner,
 			In:    inAssetID,
@@ -484,7 +509,7 @@ var fillOrderCmd = &cobra.Command{
 		if err := submit(ctx); err != nil {
 			return err
 		}
-		success, err := cli.WaitForTransaction(ctx, tx.ID())
+		success, err := tcli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
 			return err
 		}
@@ -495,8 +520,9 @@ var fillOrderCmd = &cobra.Command{
 
 func performImport(
 	ctx context.Context,
-	scli *client.Client,
-	dcli *client.Client,
+	scli *rpc.JSONRPCClient,
+	dcli *rpc.JSONRPCClient,
+	dtcli *trpc.JSONRPCClient,
 	exportTxID ids.ID,
 	priv crypto.PrivateKey,
 	factory chain.AuthFactory,
@@ -593,12 +619,16 @@ func performImport(
 	}
 
 	// Attempt to send dummy transaction if needed
-	if err := submitDummy(ctx, dcli, priv.PublicKey(), factory); err != nil {
+	if err := submitDummy(ctx, dcli, dtcli, priv.PublicKey(), factory); err != nil {
 		return err
 	}
 
 	// Generate transaction
-	submit, tx, _, err := dcli.GenerateTransaction(ctx, msg, &actions.ImportAsset{
+	parser, err := dtcli.Parser(ctx)
+	if err != nil {
+		return err
+	}
+	submit, tx, _, err := dcli.GenerateTransaction(ctx, parser, msg, &actions.ImportAsset{
 		Fill: fill,
 	}, factory)
 	if err != nil {
@@ -607,7 +637,7 @@ func performImport(
 	if err := submit(ctx); err != nil {
 		return err
 	}
-	success, err := dcli.WaitForTransaction(ctx, tx.ID())
+	success, err := dtcli.WaitForTransaction(ctx, tx.ID())
 	if err != nil {
 		return err
 	}
@@ -617,7 +647,8 @@ func performImport(
 
 func submitDummy(
 	ctx context.Context,
-	cli *client.Client,
+	cli *rpc.JSONRPCClient,
+	tcli *trpc.JSONRPCClient,
 	dest crypto.PublicKey,
 	factory chain.AuthFactory,
 ) error {
@@ -638,7 +669,11 @@ func submitDummy(
 				)
 				logEmitted = true
 			}
-			submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.Transfer{
+			parser, err := tcli.Parser(ctx)
+			if err != nil {
+				return err
+			}
+			submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
 				To:    dest,
 				Value: txsSent + 1, // prevent duplicate txs
 			}, factory)
@@ -648,7 +683,7 @@ func submitDummy(
 			if err := submit(ctx); err != nil {
 				return err
 			}
-			if _, err := cli.WaitForTransaction(ctx, tx.ID()); err != nil {
+			if _, err := tcli.WaitForTransaction(ctx, tx.ID()); err != nil {
 				return err
 			}
 			txsSent++
@@ -667,7 +702,7 @@ var importAssetCmd = &cobra.Command{
 	Use: "import-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		currentChainID, priv, factory, dcli, err := defaultActor()
+		currentChainID, priv, factory, dcli, dtcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -677,10 +712,10 @@ var importAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		scli := client.New(uris[0])
+		scli := rpc.NewJSONRPCClient(uris[0])
 
 		// Perform import
-		return performImport(ctx, scli, dcli, ids.Empty, priv, factory)
+		return performImport(ctx, scli, dcli, dtcli, ids.Empty, priv, factory)
 	},
 }
 
@@ -688,7 +723,7 @@ var exportAssetCmd = &cobra.Command{
 	Use: "export-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		currentChainID, priv, factory, cli, err := defaultActor()
+		currentChainID, priv, factory, cli, tcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -698,7 +733,7 @@ var exportAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		balance, sourceChainID, err := getAssetInfo(ctx, cli, priv.PublicKey(), assetID, true)
+		balance, sourceChainID, err := getAssetInfo(ctx, tcli, priv.PublicKey(), assetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -778,12 +813,16 @@ var exportAssetCmd = &cobra.Command{
 		}
 
 		// Attempt to send dummy transaction if needed
-		if err := submitDummy(ctx, cli, priv.PublicKey(), factory); err != nil {
+		if err := submitDummy(ctx, cli, tcli, priv.PublicKey(), factory); err != nil {
 			return err
 		}
 
 		// Generate transaction
-		submit, tx, _, err := cli.GenerateTransaction(ctx, nil, &actions.ExportAsset{
+		parser, err := tcli.Parser(ctx)
+		if err != nil {
+			return err
+		}
+		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.ExportAsset{
 			To:          recipient,
 			Asset:       assetID,
 			Value:       amount,
@@ -801,7 +840,7 @@ var exportAssetCmd = &cobra.Command{
 		if err := submit(ctx); err != nil {
 			return err
 		}
-		success, err := cli.WaitForTransaction(ctx, tx.ID())
+		success, err := tcli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
 			return err
 		}
@@ -817,7 +856,7 @@ var exportAssetCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if err := performImport(ctx, cli, client.New(uris[0]), tx.ID(), priv, factory); err != nil {
+			if err := performImport(ctx, cli, rpc.NewJSONRPCClient(uris[0]), trpc.NewJSONRPCClient(uris[0], destination), tx.ID(), priv, factory); err != nil {
 				return err
 			}
 		}
