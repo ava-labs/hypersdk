@@ -144,7 +144,7 @@ func (vm *VM) StoreWarpSignature(txID ids.ID, signer *bls.PublicKey, signature [
 	k := PrefixWarpSignatureKey(txID, signer)
 	// Cache any signature we produce for later queries from peers
 	if bytes.Equal(vm.pkBytes, bls.PublicKeyToBytes(signer)) {
-		signatureLRU.Put(string(k), &chain.WarpSignature{vm.pkBytes, signature})
+		signatureLRU.Put(string(k), chain.NewWarpSignature(vm.pkBytes, signature))
 	}
 	return vm.vmDB.Put(k, signature)
 }

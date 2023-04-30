@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package rpc
 
 import (
@@ -27,6 +30,8 @@ type VM interface {
 	SuggestedFee(context.Context) (uint64, uint64, error)
 	GetOutgoingWarpMessage(ids.ID) (*warp.UnsignedMessage, error)
 	GetWarpSignatures(ids.ID) ([]*chain.WarpSignature, error)
-	CurrentValidators(context.Context) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
+	CurrentValidators(
+		context.Context,
+	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
 	GatherSignatures(context.Context, ids.ID, []byte)
 }

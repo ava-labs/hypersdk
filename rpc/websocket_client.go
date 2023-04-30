@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package rpc
 
 import (
@@ -68,7 +71,10 @@ func (c *WebSocketClient) RegisterBlocks() error {
 }
 
 // Listen listens for block messages from the streaming server.
-func (c *WebSocketClient) ListenBlock(ctx context.Context, parser chain.Parser) (*chain.StatefulBlock, []*chain.Result, error) {
+func (c *WebSocketClient) ListenBlock(
+	ctx context.Context,
+	parser chain.Parser,
+) (*chain.StatefulBlock, []*chain.Result, error) {
 	select {
 	case msg := <-c.pendingBlocks:
 		return UnpackBlockMessage(msg, parser)

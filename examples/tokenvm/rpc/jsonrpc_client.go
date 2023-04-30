@@ -121,7 +121,11 @@ func (cli *JSONRPCClient) Orders(ctx context.Context, pair string) ([]*orderbook
 	return resp.Orders, err
 }
 
-func (cli *JSONRPCClient) Loan(ctx context.Context, asset ids.ID, destination ids.ID) (uint64, error) {
+func (cli *JSONRPCClient) Loan(
+	ctx context.Context,
+	asset ids.ID,
+	destination ids.ID,
+) (uint64, error) {
 	resp := new(LoanReply)
 	err := cli.requester.SendRequest(
 		ctx,

@@ -56,7 +56,11 @@ type SubmitTxReply struct {
 	TxID ids.ID `json:"txId"`
 }
 
-func (j *JSONRPCServer) SubmitTx(req *http.Request, args *SubmitTxArgs, reply *SubmitTxReply) error {
+func (j *JSONRPCServer) SubmitTx(
+	req *http.Request,
+	args *SubmitTxArgs,
+	reply *SubmitTxReply,
+) error {
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SubmitTx")
 	defer span.End()
 

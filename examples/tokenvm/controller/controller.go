@@ -132,7 +132,11 @@ func (c *Controller) Initialize(
 	// hypersdk handler are initiatlized automatically, you just need to
 	// initialize custom handlers here.
 	apis := map[string]*common.HTTPHandler{}
-	jsonRPCHandler, err := hrpc.NewJSONRPCHandler(consts.Name, rpc.NewJSONRPCServer(c), common.NoLock)
+	jsonRPCHandler, err := hrpc.NewJSONRPCHandler(
+		consts.Name,
+		rpc.NewJSONRPCServer(c),
+		common.NoLock,
+	)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}

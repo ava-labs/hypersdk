@@ -367,16 +367,6 @@ func (vm *VM) isReady() bool {
 	}
 }
 
-func (vm *VM) waitReady() bool {
-	select {
-	case <-vm.ready:
-		vm.snowCtx.Log.Info("wait ready returned")
-		return true
-	case <-vm.stop:
-		return false
-	}
-}
-
 func (vm *VM) Manager() manager.Manager {
 	return vm.manager
 }
@@ -650,7 +640,9 @@ func (vm *VM) submitStateless(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				vm.webSocketServer.RemoveTx(txID, err)
+				if err := vm.webSocketServer.RemoveTx(txID, err); err != nil {
+					vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
+				}
 				errs = append(errs, err)
 				continue
 			}
@@ -708,7 +700,9 @@ func (vm *VM) Submit(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				vm.webSocketServer.RemoveTx(txID, err)
+				if err := vm.webSocketServer.RemoveTx(txID, err); err != nil {
+					vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
+				}
 				errs = append(errs, err)
 				continue
 			}

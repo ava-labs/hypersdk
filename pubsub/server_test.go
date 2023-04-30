@@ -65,7 +65,11 @@ func TestServerPublish(t *testing.T) {
 			Handler:           handler,
 			ReadHeaderTimeout: 30 * time.Second,
 		}
-		require.ErrorIs(server.ListenAndServe(), http.ErrServerClosed, "Incorrect error closing server.")
+		require.ErrorIs(
+			server.ListenAndServe(),
+			http.ErrServerClosed,
+			"Incorrect error closing server.",
+		)
 	}()
 	// Connect to pubsub server
 	u := url.URL{Scheme: "ws", Host: dummyAddr}
@@ -130,7 +134,11 @@ func TestServerRead(t *testing.T) {
 			Handler:           handler,
 			ReadHeaderTimeout: 30 * time.Second,
 		}
-		require.ErrorIs(server.ListenAndServe(), http.ErrServerClosed, "Incorrect error closing server.")
+		require.ErrorIs(
+			server.ListenAndServe(),
+			http.ErrServerClosed,
+			"Incorrect error closing server.",
+		)
 	}()
 	// Connect to pubsub server
 	u := url.URL{Scheme: "ws", Host: dummyAddr}
@@ -199,7 +207,11 @@ func TestServerPublishSpecific(t *testing.T) {
 			Handler:           handler,
 			ReadHeaderTimeout: 30 * time.Second,
 		}
-		require.ErrorIs(server.ListenAndServe(), http.ErrServerClosed, "Incorrect error closing server.")
+		require.ErrorIs(
+			server.ListenAndServe(),
+			http.ErrServerClosed,
+			"Incorrect error closing server.",
+		)
 	}()
 	// Connect to pubsub server
 	u := url.URL{Scheme: "ws", Host: dummyAddr}

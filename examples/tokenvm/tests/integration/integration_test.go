@@ -575,7 +575,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		accept() // don't care about results
 
 		// Subscribe to blocks
-		cli, err := listeners.NewStreamingClient("ws://" + strings.TrimPrefix(instances[0].WebSocketServer.URL, "http://") + "/ws")
+		cli, err := listeners.NewStreamingClient(
+			"ws://" + strings.TrimPrefix(instances[0].WebSocketServer.URL, "http://") + "/ws",
+		)
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Fetch balances
@@ -629,7 +631,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	ginkgo.It("processes valid index transactions (w/streaming verification)", func() {
 		// Create streaming client
 		// TODO: cleanup URL creation
-		cli, err := listeners.NewStreamingClient("ws://" + strings.TrimPrefix(instances[0].WebSocketServer.URL, "http://") + "/ws")
+		cli, err := listeners.NewStreamingClient(
+			"ws://" + strings.TrimPrefix(instances[0].WebSocketServer.URL, "http://") + "/ws",
+		)
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Create tx

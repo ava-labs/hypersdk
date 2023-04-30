@@ -415,7 +415,14 @@ func defaultActor() (ids.ID, crypto.PrivateKey, *auth.ED25519Factory, *rpc.JSONR
 		return ids.Empty, crypto.EmptyPrivateKey, nil, nil, nil, err
 	}
 	// For [defaultActor], we always send requests to the first returned URI.
-	return chainID, priv, auth.NewED25519Factory(priv), rpc.NewJSONRPCClient(uris[0]), trpc.NewJSONRPCClient(uris[0], chainID), nil
+	return chainID, priv, auth.NewED25519Factory(
+			priv,
+		), rpc.NewJSONRPCClient(
+			uris[0],
+		), trpc.NewJSONRPCClient(
+			uris[0],
+			chainID,
+		), nil
 }
 
 func GetDefaultKey() (crypto.PrivateKey, error) {
