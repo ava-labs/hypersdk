@@ -42,11 +42,12 @@ import (
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/controller"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
+	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/rpc"
 )
 
 const (
@@ -78,7 +79,8 @@ type instance struct {
 	vm         *vm.VM
 	toEngine   chan common.Message
 	httpServer *httptest.Server
-	cli        *client.Client // clients for embedded VMs
+	cli        *rpc.JSONRPCClient // clients for embedded VMs
+	tcli       *trpc.JSONRPCClient
 	dbDir      string
 
 	parse  []float64
@@ -264,7 +266,8 @@ var _ = ginkgo.BeforeSuite(func() {
 		var hd map[string]*common.HTTPHandler
 		hd, err = c.CreateHandlers(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
-		httpServer := httptest.NewServer(hd[vm.Endpoint].Handler)
+		httpServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint].Handler)
+		// TODO: add Controller JSONRPC
 
 		c.ForceReady()
 		instances[i] = &instance{
@@ -273,16 +276,16 @@ var _ = ginkgo.BeforeSuite(func() {
 			vm:         c,
 			toEngine:   toEngine,
 			httpServer: httpServer,
-			cli:        client.New(httpServer.URL),
-
-			dbDir: dname,
+			cli:        rpc.NewJSONRPCClient(httpServer.URL),
+			tcli:       trpc.NewJSONRPCClient(httpServer.URL, snowCtx.ChainID),
+			dbDir:      dname,
 		}
 	}
 
 	// Verify genesis allocations loaded correctly (do here otherwise test may
 	// check during and it will be inaccurate)
 	for _, inst := range instances {
-		cli := inst.cli
+		cli := inst.tcli
 		g, err := cli.Genesis(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
 
