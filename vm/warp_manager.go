@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/heap"
@@ -249,7 +250,7 @@ func (w *WarpManager) AppRequest(
 			w.vm.snowCtx.Log.Warn("could not store warp signature", zap.Error(err))
 			return nil
 		}
-		sig = &WarpSignature{
+		sig = &chain.WarpSignature{
 			PublicKey: w.vm.pkBytes,
 			Signature: rSig,
 		}
