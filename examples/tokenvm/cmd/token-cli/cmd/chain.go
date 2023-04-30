@@ -16,15 +16,15 @@ import (
 	runner "github.com/ava-labs/avalanche-network-runner/client"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/ava-labs/hypersdk/vm"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
+	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
@@ -208,7 +208,7 @@ var chainInfoCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cli := client.New(uris[0])
+		cli := rpc.NewJSONRPCClient(uris[0])
 		networkID, subnetID, chainID, err := cli.Network(context.Background())
 		if err != nil {
 			return err
@@ -234,22 +234,16 @@ var watchChainCmd = &cobra.Command{
 		if err := CloseDatabase(); err != nil {
 			return err
 		}
-		cli := client.New(uris[0])
-		port, err := cli.BlocksPort(ctx)
-		if err != nil {
-			return err
-		}
-		host, err := utils.GetHost(uris[0])
-		if err != nil {
-			return err
-		}
-		uri := fmt.Sprintf("%s:%d", host, port)
-		utils.Outf("{{yellow}}uri:{{/}} %s\n", uri)
-		scli, err := vm.NewBlockRPCClient(uri)
+		cli := trpc.NewJSONRPCClient(uris[0], chainID)
+		utils.Outf("{{yellow}}uri:{{/}} %s\n", uris[0])
+		scli, err := rpc.NewWebSocketClient(uris[0])
 		if err != nil {
 			return err
 		}
 		defer scli.Close()
+		if err := scli.RegisterBlocks(); err != nil {
+			return err
+		}
 		parser, err := cli.Parser(ctx)
 		if err != nil {
 			return err
@@ -258,7 +252,7 @@ var watchChainCmd = &cobra.Command{
 		start := time.Now()
 		utils.Outf("{{green}}watching for new blocks on %s 👀{{/}}\n", chainID)
 		for ctx.Err() == nil {
-			blk, results, err := scli.Listen(parser)
+			blk, results, err := scli.ListenBlock(ctx, parser)
 			if err != nil {
 				return err
 			}

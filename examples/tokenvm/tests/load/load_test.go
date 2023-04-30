@@ -42,11 +42,12 @@ import (
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/client"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/controller"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
+	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/rpc"
 )
 
 const (
@@ -72,18 +73,18 @@ func init() {
 }
 
 type instance struct {
-	chainID ids.ID
-	nodeID  ids.NodeID
-
-	vm         *vm.VM
-	toEngine   chan common.Message
-	httpServer *httptest.Server
-	cli        *client.Client // clients for embedded VMs
-	dbDir      string
-
-	parse  []float64
-	verify []float64
-	accept []float64
+	chainID            ids.ID
+	nodeID             ids.NodeID
+	vm                 *vm.VM
+	toEngine           chan common.Message
+	JSONRPCServer      *httptest.Server
+	TokenJSONRPCServer *httptest.Server
+	cli                *rpc.JSONRPCClient // clients for embedded VMs
+	tcli               *trpc.JSONRPCClient
+	dbDir              string
+	parse              []float64
+	verify             []float64
+	accept             []float64
 }
 
 type account struct {
@@ -264,25 +265,28 @@ var _ = ginkgo.BeforeSuite(func() {
 		var hd map[string]*common.HTTPHandler
 		hd, err = c.CreateHandlers(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
-		httpServer := httptest.NewServer(hd[vm.Endpoint].Handler)
-
-		c.ForceReady()
+		jsonRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint].Handler)
+		tjsonRPCServer := httptest.NewServer(hd[trpc.JSONRPCEndpoint].Handler)
 		instances[i] = &instance{
-			chainID:    snowCtx.ChainID,
-			nodeID:     snowCtx.NodeID,
-			vm:         c,
-			toEngine:   toEngine,
-			httpServer: httpServer,
-			cli:        client.New(httpServer.URL),
-
-			dbDir: dname,
+			chainID:            snowCtx.ChainID,
+			nodeID:             snowCtx.NodeID,
+			vm:                 c,
+			toEngine:           toEngine,
+			JSONRPCServer:      jsonRPCServer,
+			TokenJSONRPCServer: tjsonRPCServer,
+			cli:                rpc.NewJSONRPCClient(jsonRPCServer.URL),
+			tcli:               trpc.NewJSONRPCClient(tjsonRPCServer.URL, snowCtx.ChainID),
+			dbDir:              dname,
 		}
+
+		// Force sync ready (to mimic bootstrapping from genesis)
+		c.ForceReady()
 	}
 
 	// Verify genesis allocations loaded correctly (do here otherwise test may
 	// check during and it will be inaccurate)
 	for _, inst := range instances {
-		cli := inst.cli
+		cli := inst.tcli
 		g, err := cli.Genesis(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
 
@@ -299,7 +303,8 @@ var _ = ginkgo.BeforeSuite(func() {
 
 var _ = ginkgo.AfterSuite(func() {
 	for _, instance := range instances {
-		instance.httpServer.Close()
+		instance.JSONRPCServer.Close()
+		instance.TokenJSONRPCServer.Close()
 		err := instance.vm.Shutdown(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
 	}

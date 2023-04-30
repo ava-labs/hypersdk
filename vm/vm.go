@@ -35,8 +35,8 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/gossiper"
-	"github.com/ava-labs/hypersdk/listeners"
 	"github.com/ava-labs/hypersdk/mempool"
+	"github.com/ava-labs/hypersdk/rpc"
 	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
@@ -88,7 +88,7 @@ type VM struct {
 	acceptorDone  chan struct{}
 
 	// Transactions that streaming users are currently subscribed to
-	listeners *listeners.Listeners
+	webSocketServer *rpc.WebSocketServer
 
 	// Reuse gorotuine group to avoid constant re-allocation
 	workers *workers.Workers
@@ -97,11 +97,6 @@ type VM struct {
 	preferred    ids.ID
 	lastAccepted *chain.StatelessBlock
 	toEngine     chan<- common.Message
-
-	// TODO: change name of both var and struct to something more
-	// informative/better sounding
-	decisionsServer rpcServer
-	blocksServer    rpcServer
 
 	// State Sync client and AppRequest handlers
 	stateSyncClient        *stateSyncerClient
@@ -178,6 +173,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return fmt.Errorf("implementation initialization failed: %w", err)
 	}
+
 	// Setup tracer
 	vm.tracer, err = htrace.New(vm.config.GetTraceConfig())
 	if err != nil {
@@ -216,7 +212,6 @@ func (vm *VM) Initialize(
 	vm.blocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetBlockLRUSize()}
 	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.GetAcceptorSize())
 	vm.acceptorDone = make(chan struct{})
-	vm.listeners = listeners.New()
 	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetBlockLRUSize()}
 	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
 
@@ -293,18 +288,6 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
 		snowCtx.Log.Info("initialized vm from genesis", zap.Stringer("block", gBlkID))
 	}
-
-	// Startup RPCs
-	vm.decisionsServer, err = newRPC(vm, decisions, vm.config.GetDecisionsPort())
-	if err != nil {
-		return err
-	}
-	go vm.decisionsServer.Run()
-	vm.blocksServer, err = newRPC(vm, blocks, vm.config.GetBlocksPort())
-	if err != nil {
-		return err
-	}
-	go vm.blocksServer.Run()
 	go vm.processAcceptedBlocks()
 
 	// Setup state syncing
@@ -327,6 +310,22 @@ func (vm *VM) Initialize(
 
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
+
+	// Setup handlers
+	jsonRPCHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCServer(vm), common.NoLock)
+	if err != nil {
+		return fmt.Errorf("unable to create handler: %w", err)
+	}
+	if _, ok := vm.handlers[rpc.JSONRPCEndpoint]; ok {
+		return fmt.Errorf("duplicate JSONRPC handler found: %s", rpc.JSONRPCEndpoint)
+	}
+	vm.handlers[rpc.JSONRPCEndpoint] = jsonRPCHandler
+	if _, ok := vm.handlers[rpc.WebSocketEndpoint]; ok {
+		return fmt.Errorf("duplicate WebSocket handler found: %s", rpc.WebSocketEndpoint)
+	}
+	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.GetStreamingBacklogSize())
+	vm.webSocketServer = webSocketServer
+	vm.handlers[rpc.WebSocketEndpoint] = rpc.NewWebSocketHandler(pubsubServer)
 	return nil
 }
 
@@ -360,16 +359,6 @@ func (vm *VM) isReady() bool {
 		return true
 	default:
 		vm.snowCtx.Log.Info("node is not ready yet")
-		return false
-	}
-}
-
-func (vm *VM) waitReady() bool {
-	select {
-	case <-vm.ready:
-		vm.snowCtx.Log.Info("wait ready returned")
-		return true
-	case <-vm.stop:
 		return false
 	}
 }
@@ -415,7 +404,8 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 		vm.Logger().Info("bootstrapping started", zap.Bool("state sync started", syncStarted))
 		return vm.onBootstrapStarted()
 	case snow.NormalOp:
-		vm.Logger().Info("normal operation started", zap.Bool("state sync started", vm.stateSyncClient.Started()))
+		vm.Logger().
+			Info("normal operation started", zap.Bool("state sync started", vm.stateSyncClient.Started()))
 		return vm.onNormalOperationsStarted()
 	default:
 		return snow.ErrUnknownState
@@ -458,14 +448,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	// Process remaining accepted blocks before shutdown
 	close(vm.acceptedQueue)
 	<-vm.acceptorDone
-
-	// Shutdown RPCs
-	if err := vm.decisionsServer.Close(); err != nil {
-		return err
-	}
-	if err := vm.blocksServer.Close(); err != nil {
-		return err
-	}
 
 	// Shutdown other async VM mechanisms
 	vm.warpManager.Done()
@@ -639,7 +621,11 @@ func (vm *VM) BuildBlockWithContext(
 	return vm.buildBlock(ctx, blockContext)
 }
 
-func (vm *VM) submitStateless(ctx context.Context, verifySig bool, txs []*chain.Transaction) (errs []error) {
+func (vm *VM) submitStateless(
+	ctx context.Context,
+	verifySig bool,
+	txs []*chain.Transaction,
+) (errs []error) {
 	validTxs := []*chain.Transaction{}
 	for _, tx := range txs {
 		txID := tx.ID()
@@ -650,7 +636,9 @@ func (vm *VM) submitStateless(ctx context.Context, verifySig bool, txs []*chain.
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				vm.listeners.RemoveTx(txID, err)
+				if err := vm.webSocketServer.RemoveTx(txID, err); err != nil {
+					vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
+				}
 				errs = append(errs, err)
 				continue
 			}
@@ -708,7 +696,9 @@ func (vm *VM) Submit(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				vm.listeners.RemoveTx(txID, err)
+				if err := vm.webSocketServer.RemoveTx(txID, err); err != nil {
+					vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
+				}
 				errs = append(errs, err)
 				continue
 			}
