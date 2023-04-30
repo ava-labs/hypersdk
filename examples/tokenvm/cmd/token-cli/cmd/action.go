@@ -362,6 +362,9 @@ var createOrderCmd = &cobra.Command{
 
 		// Generate transaction
 		parser, err := tcli.Parser(ctx)
+		if err != nil {
+			return err
+		}
 		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CreateOrder{
 			In:      inAssetID,
 			InTick:  inTick,

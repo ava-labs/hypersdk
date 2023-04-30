@@ -233,18 +233,18 @@ var _ = ginkgo.BeforeSuite(func() {
 		hd, err = v.CreateHandlers(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
 
-		JSONRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint].Handler)
-		WebSocketServer := httptest.NewServer(hd[rpc.WebSocketEndpoint].Handler)
+		jsonRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint].Handler)
+		webSocketServer := httptest.NewServer(hd[rpc.WebSocketEndpoint].Handler)
 		gomega.Ω(err).Should(gomega.BeNil())
 		instances[i] = instance{
 			chainID:         snowCtx.ChainID,
 			nodeID:          snowCtx.NodeID,
 			vm:              v,
 			toEngine:        toEngine,
-			JSONRPCServer:   JSONRPCServer,
-			WebSocketServer: WebSocketServer,
-			cli:             rpc.NewJSONRPCClient(JSONRPCServer.URL),
-			tcli:            trpc.NewJSONRPCClient(JSONRPCServer.URL, snowCtx.ChainID),
+			JSONRPCServer:   jsonRPCServer,
+			WebSocketServer: webSocketServer,
+			cli:             rpc.NewJSONRPCClient(jsonRPCServer.URL),
+			tcli:            trpc.NewJSONRPCClient(jsonRPCServer.URL, snowCtx.ChainID),
 		}
 
 		// Force sync ready (to mimic bootstrapping from genesis)
