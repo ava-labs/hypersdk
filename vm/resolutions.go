@@ -190,11 +190,15 @@ func (vm *VM) processAcceptedBlocks() {
 			vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
 		}
 
-		// Update listeners
-		vm.webSocketServer.AcceptBlock(b)
+		// Update server
+		if err := vm.webSocketServer.AcceptBlock(b); err != nil {
+			vm.snowCtx.Log.Fatal("unable to accept block in websocket server", zap.Error(err))
+		}
 		// Must clear accepted txs before [SetMinTx] or else we will errnoueously
 		// send [ErrExpired] messages.
-		vm.webSocketServer.SetMinTx(b.Tmstmp)
+		if err := vm.webSocketServer.SetMinTx(b.Tmstmp); err != nil {
+			vm.snowCtx.Log.Fatal("unable to set min tx in websocket server", zap.Error(err))
+		}
 		vm.snowCtx.Log.Info(
 			"block processed",
 			zap.Stringer("blkID", b.ID()),

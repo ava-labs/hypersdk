@@ -53,36 +53,46 @@ func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connect
 }
 
 // If never possible for a tx to enter mempool, call this
-func (w *WebSocketServer) RemoveTx(txID ids.ID, err error) {
+func (w *WebSocketServer) RemoveTx(txID ids.ID, err error) error {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
-	w.removeTx(txID, err)
+	return w.removeTx(txID, err)
 }
 
-func (w *WebSocketServer) removeTx(txID ids.ID, err error) {
+func (w *WebSocketServer) removeTx(txID ids.ID, err error) error {
 	listeners, ok := w.txListeners[txID]
 	if !ok {
-		return
+		return nil
 	}
-	bytes, _ := PackRemovedTxMessage(txID, err)
+	bytes, err := PackRemovedTxMessage(txID, err)
+	if err != nil {
+		return err
+	}
 	w.s.Publish(bytes, listeners)
 	delete(w.txListeners, txID)
 	// [expiringTxs] will be cleared eventually (does not support removal)
+	return nil
 }
 
-func (w *WebSocketServer) SetMinTx(t int64) {
+func (w *WebSocketServer) SetMinTx(t int64) error {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
 	expired := w.expiringTxs.SetMin(t)
 	for _, id := range expired {
-		w.removeTx(id, ErrExpired)
+		if err := w.removeTx(id, ErrExpired); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) {
-	bytes, _ := PackBlockMessage(b)
+func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) error {
+	bytes, err := PackBlockMessage(b)
+	if err != nil {
+		return err
+	}
 	inactiveConnection := w.s.Publish(bytes, w.blockListeners)
 	for _, conn := range inactiveConnection {
 		w.blockListeners.Remove(conn)
@@ -98,7 +108,10 @@ func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) {
 			continue
 		}
 		// Publish to tx listener
-		bytes, _ := PackAcceptedTxMessage(txID, results[i])
+		bytes, err := PackAcceptedTxMessage(txID, results[i])
+		if err != nil {
+			return err
+		}
 		w.s.Publish(
 			bytes,
 			listeners,
@@ -106,6 +119,7 @@ func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) {
 		delete(w.txListeners, txID)
 		// [expiringTxs] will be cleared eventually (does not support removal)
 	}
+	return nil
 }
 
 func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
