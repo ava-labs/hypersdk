@@ -1401,10 +1401,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	// TODO: restart all nodes (crisis simulation)
 })
 
-func awaitHealthy(
-	cli runner_sdk.Client,
-	instances []instance,
-) {
+func awaitHealthy(cli runner_sdk.Client, instances []instance) {
 	for {
 		time.Sleep(healthPollInterval)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
