@@ -74,7 +74,7 @@ func TestServerPublish(t *testing.T) {
 	// Connect to pubsub server
 	u := url.URL{Scheme: "ws", Host: dummyAddr}
 	// Wait for server to start accepting requests
-	<-time.After(10 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	webCon, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp.Body.Close()
@@ -140,10 +140,9 @@ func TestServerRead(t *testing.T) {
 			"Incorrect error closing server.",
 		)
 	}()
-	// Connect to pubsub server
-	u := url.URL{Scheme: "ws", Host: dummyAddr}
 	// Wait for server to start accepting requests
-	<-time.After(10 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
+	u := url.URL{Scheme: "ws", Host: dummyAddr}
 	webCon, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp.Body.Close()
@@ -151,7 +150,7 @@ func TestServerRead(t *testing.T) {
 	err = webCon.WriteMessage(websocket.TextMessage, id[:])
 	require.NoError(err, "Error writing message to server.")
 	// Wait for callback to be called
-	<-time.After(10 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	// Callback was correctly called
 	counter.l.Lock()
 	require.Equal(12, counter.val, "Callback not called correctly.")
@@ -216,7 +215,7 @@ func TestServerPublishSpecific(t *testing.T) {
 	// Connect to pubsub server
 	u := url.URL{Scheme: "ws", Host: dummyAddr}
 	// Wait for server to start accepting requests
-	<-time.After(10 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	webCon1, resp1, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp1.Body.Close()
@@ -226,7 +225,10 @@ func TestServerPublishSpecific(t *testing.T) {
 	webCon2, resp2, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp2.Body.Close()
-	require.Equal(2, handler.conns.Len(), "Server didn't add connection correctly.")
+	require.Eventually(
+		func() bool { return handler.conns.Len() == 2 },
+		10*time.Second, 10*time.Millisecond, "Server didn't add connection correctly.",
+	)
 	// Publish to subscribed connections
 	handler.Publish([]byte(dummyMsg), sendConns)
 	go func() {
