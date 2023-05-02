@@ -1,6 +1,8 @@
 # Contributing to hypersdk
 
-Thank you for your interest in contributing to `hypersdk`! By contributing to hypersdk, you are helping to build the foundation for the next generation of blockchains and decentralized applications.
+Thank you for your interest in contributing to `hypersdk`! By contributing to
+hypersdk, you are helping to build the foundation for the next generation of
+blockchains and decentralized applications.
 
 ## Getting Started
 
@@ -31,7 +33,7 @@ This will download and install all required dependencies for the project.
 
 To build and run tests for the hypersdk, simply run:
 
-```go
+```bash
 ./scripts/tests.unit.sh
 ```
 
@@ -41,16 +43,25 @@ This will build and run all tests for the project.
 
 To run the linters, simply run:
 
-```go
+```bash
 ./scripts/tests.lint.sh
 ```
 
 This will run the linters on all code in the project.
 
-The `hypersdk` project also has a fixer that tries to help. To run the fixer, simply run:
+The `hypersdk` project also has a fixer that tries to help. To run the fixer,
+simply run:
+
+```bash
+./scripts/fix.lint.sh
+```
+
+## Workspaces
+This repo has two modules `hypersdk` and `tokenvm` which are managed by a `go.work`
+file. To ensure this is up to date please run:
 
 ```go
-./scripts/fix.lint.sh
+go work sync
 ```
 
 ## Contributing
