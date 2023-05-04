@@ -20,7 +20,7 @@ type fetchData struct {
 
 type txData struct {
 	tx      *Transaction
-	storage map[string][]byte
+	storage map[[65]byte][]byte
 }
 
 type Processor struct {
@@ -49,26 +49,27 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 		defer span.End()
 
 		// Store required keys for each set
-		alreadyFetched := make(map[string]*fetchData, len(p.blk.GetTxs()))
+		alreadyFetched := make(map[[65]byte]*fetchData, len(p.blk.GetTxs()))
 		for _, tx := range p.blk.GetTxs() {
-			storage := map[string][]byte{}
+			storage := map[[65]byte][]byte{}
 			for _, k := range tx.StateKeys(sm) {
-				sk := string(k)
-				if v, ok := alreadyFetched[sk]; ok {
+				var ary [65]byte
+				copy(ary[:], k)
+				if v, ok := alreadyFetched[ary]; ok {
 					if v.exists {
-						storage[sk] = v.v
+						storage[ary] = v.v
 					}
 					continue
 				}
 				v, err := db.GetValue(ctx, k)
 				if errors.Is(err, database.ErrNotFound) {
-					alreadyFetched[sk] = &fetchData{nil, false}
+					alreadyFetched[ary] = &fetchData{nil, false}
 					continue
 				} else if err != nil {
 					panic(err)
 				}
-				alreadyFetched[sk] = &fetchData{v, true}
-				storage[sk] = v
+				alreadyFetched[ary] = &fetchData{v, true}
+				storage[ary] = v
 			}
 			p.readyTxs <- &txData{tx, storage}
 		}

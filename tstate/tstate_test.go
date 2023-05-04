@@ -336,7 +336,7 @@ func (db *TestDB) Remove(_ context.Context, key []byte) error {
 
 
 func BenchmarkFetchAndSetScope(b *testing.B) {
-	for _, size := range []int{1, 5, 10, 15, 20} {
+	for _, size := range []int{100, 1000, 10000} {
 		b.Run(fmt.Sprintf("get_validator_set_%d_validators", size), func(b *testing.B) {
 			benchmarkGetValidatorSet(b, size)
 		})
@@ -345,14 +345,17 @@ func BenchmarkFetchAndSetScope(b *testing.B) {
 
 func benchmarkGetValidatorSet(b *testing.B, size int) {
 	require := require.New(b)
-	ts := New(10)
+	ts := New(1000)
 	db := NewTestDB()
 	ctx := context.TODO()
 
 	keys := [][]byte{}
 	vals := [][]byte{}
+
+	k := randomBytes(65);
+
 	for range "0..size" {
-		keys = append(keys, randomBytes(65))
+		keys = append(keys, k)
 		vals = append(vals, randomBytes(8))
 	}
 
@@ -366,6 +369,7 @@ func benchmarkGetValidatorSet(b *testing.B, size int) {
 		err := ts.FetchAndSetScope(ctx, keys, db)
 		require.NoError(err)
 	}
+	b.ReportAllocs()
 	b.StopTimer()
 }
 
