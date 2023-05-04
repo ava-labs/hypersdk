@@ -67,9 +67,7 @@ func (ts *TState) GetValue(ctx context.Context, key []byte) ([]byte, error) {
 	if !ts.checkScope(ctx, key) {
 		return nil, ErrKeyNotSpecified
 	}
-	var ary [65]byte
-	copy(ary[:], key)
-	v, _, exists := ts.getValue(ctx, ary)
+	v, _, exists := ts.getValue(ctx, newFixedSizeByteArray(key))
 	if !exists {
 		return nil, database.ErrNotFound
 	}
@@ -90,32 +88,30 @@ func (ts *TState) getValue(_ context.Context, key [65]byte) ([]byte, bool, bool)
 	return v, false, true
 }
 
-type Array [65]byte
-
 // FetchAndSetScope updates ts to include the [db] values associated with [keys].
 // FetchAndSetScope then sets the scope of ts to [keys]. If a key exists in
 // ts.fetchCache set the key's value to the value from cache.
 func (ts *TState) FetchAndSetScope(ctx context.Context, keys [][]byte, db Database) error {
 	ts.scopeStorage = map[[65]byte][]byte{}
+
 	for _, key := range keys {
-		var ary [65]byte
-		copy(ary[:], key)
-		if val, ok := ts.fetchCache[ary]; ok {
+		k := newFixedSizeByteArray(key)
+		if val, ok := ts.fetchCache[k]; ok {
 			if val.Exists {
-				ts.scopeStorage[ary] = val.Value
+				ts.scopeStorage[k] = val.Value
 			}
 			continue
 		}
 		v, err := db.GetValue(ctx, key)
 		if errors.Is(err, database.ErrNotFound) {
-			ts.fetchCache[ary] = &cacheItem{Exists: false}
+			ts.fetchCache[k] = &cacheItem{Exists: false}
 			continue
 		}
 		if err != nil {
 			return err
 		}
-		ts.fetchCache[ary] = &cacheItem{Value: v, Exists: true}
-		ts.scopeStorage[ary] = v
+		ts.fetchCache[k] = &cacheItem{Value: v, Exists: true}
+		ts.scopeStorage[k] = v
 	}
 	ts.scope = keys
 	return nil
@@ -143,16 +139,15 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
-	var ary [65]byte
-	copy(ary[:], key)
-	past, changed, exists := ts.getValue(ctx, ary)
+	k := newFixedSizeByteArray(key)
+	past, changed, exists := ts.getValue(ctx, k)
 	ts.ops = append(ts.ops, &op{
-		k:           ary,
+		k:           k,
 		pastExists:  exists,
 		pastV:       past,
 		pastChanged: changed,
 	})
-	ts.changedKeys[ary] = &tempStorage{value, false}
+	ts.changedKeys[k] = &tempStorage{value, false}
 	return nil
 }
 
@@ -161,19 +156,19 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
-	var ary [65]byte
-	copy(ary[:], key)
-	past, changed, exists := ts.getValue(ctx, ary)
+
+	k := newFixedSizeByteArray(key)
+	past, changed, exists := ts.getValue(ctx, k)
 	if !exists {
 		return nil
 	}
 	ts.ops = append(ts.ops, &op{
-		k:           ary,
+		k:           k,
 		pastExists:  true,
 		pastV:       past,
 		pastChanged: changed,
 	})
-	ts.changedKeys[ary] = &tempStorage{nil, true}
+	ts.changedKeys[k] = &tempStorage{nil, true}
 	return nil
 }
 
@@ -232,4 +227,10 @@ func (ts *TState) WriteChanges(
 		}
 	}
 	return nil
+}
+
+func newFixedSizeByteArray(key []byte) [65]byte {
+	var k [65]byte
+	copy(k[:], key)
+	return k
 }
