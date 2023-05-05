@@ -55,7 +55,7 @@ func TestGetValue(t *testing.T) {
 	_, err := ts.GetValue(ctx, TestKey)
 	require.ErrorIs(err, ErrKeyNotSpecified, "No error thrown.")
 	// SetScope
-	ts.SetScope(ctx, [][]byte{TestKey}, map[[MapKeyLength]byte][]byte{ToStateKeyArray(TestKey): TestVal})
+	ts.SetScope(ctx, [][]byte{TestKey}, map[Key][]byte{ToStateKeyArray(TestKey): TestVal})
 	val, err := ts.GetValue(ctx, TestKey)
 	require.NoError(err, "Error getting value.")
 	require.Equal(TestVal, val, "Value was not saved correctly.")
@@ -66,7 +66,7 @@ func TestGetValueNoStorage(t *testing.T) {
 	ctx := context.TODO()
 	ts := New(10)
 	// SetScope but dont add to storage
-	ts.SetScope(ctx, [][]byte{TestKey}, map[[MapKeyLength]byte][]byte{})
+	ts.SetScope(ctx, [][]byte{TestKey}, map[Key][]byte{})
 	_, err := ts.GetValue(ctx, TestKey)
 	require.ErrorIs(database.ErrNotFound, err, "No error thrown.")
 }
@@ -79,7 +79,7 @@ func TestInsertNew(t *testing.T) {
 	err := ts.Insert(ctx, TestKey, TestVal)
 	require.ErrorIs(ErrKeyNotSpecified, err, "No error thrown.")
 	// SetScope
-	ts.SetScope(ctx, [][]byte{TestKey}, map[[MapKeyLength]byte][]byte{})
+	ts.SetScope(ctx, [][]byte{TestKey}, map[Key][]byte{})
 	// Insert key
 	err = ts.Insert(ctx, TestKey, TestVal)
 	require.NoError(err, "Error thrown.")
@@ -94,7 +94,7 @@ func TestInsertUpdate(t *testing.T) {
 	ctx := context.TODO()
 	ts := New(10)
 	// SetScope and add
-	ts.SetScope(ctx, [][]byte{TestKey}, map[[MapKeyLength]byte][]byte{ToStateKeyArray(TestKey): TestVal})
+	ts.SetScope(ctx, [][]byte{TestKey}, map[Key][]byte{ToStateKeyArray(TestKey): TestVal})
 	require.Equal(0, ts.OpIndex(), "SetStorage operation was not added.")
 	// Insert key
 	newVal := []byte("newVal")
@@ -163,7 +163,7 @@ func TestSetScope(t *testing.T) {
 	ts := New(10)
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
-	ts.SetScope(ctx, keys, map[[MapKeyLength]byte][]byte{})
+	ts.SetScope(ctx, keys, map[Key][]byte{})
 	require.Equal(keys, ts.scope, "Scope not updated correctly.")
 }
 
@@ -171,7 +171,7 @@ func TestRemoveInsertRollback(t *testing.T) {
 	require := require.New(t)
 	ts := New(10)
 	ctx := context.TODO()
-	ts.SetScope(ctx, [][]byte{TestKey}, map[[MapKeyLength]byte][]byte{})
+	ts.SetScope(ctx, [][]byte{TestKey}, map[Key][]byte{})
 	// Insert
 	err := ts.Insert(ctx, TestKey, TestVal)
 	require.NoError(err, "Error from insert.")
@@ -219,7 +219,7 @@ func TestRestoreInsert(t *testing.T) {
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
-	ts.SetScope(ctx, keys, map[[MapKeyLength]byte][]byte{})
+	ts.SetScope(ctx, keys, map[Key][]byte{})
 	for i, key := range keys {
 		err := ts.Insert(ctx, key, vals[i])
 		require.NoError(err, "Error inserting.")
@@ -249,7 +249,7 @@ func TestRestoreDelete(t *testing.T) {
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
-	ts.SetScope(ctx, keys, map[[MapKeyLength]byte][]byte{
+	ts.SetScope(ctx, keys, map[Key][]byte{
 		ToStateKeyArray(keys[0]): vals[0],
 		ToStateKeyArray(keys[1]): vals[1],
 		ToStateKeyArray(keys[2]): vals[2],
@@ -288,7 +288,7 @@ func TestWriteChanges(t *testing.T) {
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
-	ts.SetScope(ctx, keys, map[[MapKeyLength]byte][]byte{})
+	ts.SetScope(ctx, keys, map[Key][]byte{})
 	// Add
 	for i, key := range keys {
 		err := ts.Insert(ctx, key, vals[i])
@@ -306,7 +306,7 @@ func TestWriteChanges(t *testing.T) {
 	}
 	// Remove
 	ts = New(10)
-	ts.SetScope(ctx, keys, map[[MapKeyLength]byte][]byte{
+	ts.SetScope(ctx, keys, map[Key][]byte{
 		ToStateKeyArray(keys[0]): vals[0],
 		ToStateKeyArray(keys[1]): vals[1],
 		ToStateKeyArray(keys[2]): vals[2],
@@ -344,7 +344,7 @@ func benchmarkFetchAndSetScope(b *testing.B, size int) {
 	vals := [][]byte{}
 
 	// each k/v is unique to simulate worst case
-	for range "0..size" {
+	for i := 0; i <= size; i++ {
 		keys = append(keys, randomBytes(MapKeyLength))
 		vals = append(vals, randomBytes(8))
 	}

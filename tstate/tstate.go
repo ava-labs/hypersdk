@@ -15,7 +15,7 @@ import (
 )
 
 type op struct {
-	k [MapKeyLength]byte
+	k Key
 
 	pastExists  bool
 	pastV       []byte
@@ -34,16 +34,18 @@ type cacheItem struct {
 
 const MapKeyLength = 65
 
+type Key [MapKeyLength]byte
+
 // TState defines a struct for storing temporary state.
 type TState struct {
-	changedKeys map[[MapKeyLength]byte]*tempStorage
-	fetchCache  map[[MapKeyLength]byte]*cacheItem // in case we evict and want to re-fetch
+	changedKeys map[Key]*tempStorage
+	fetchCache  map[Key]*cacheItem // in case we evict and want to re-fetch
 
 	// We don't differentiate between read and write scope because it is very
 	// uncommon for a user to write something without first reading what is
 	// there.
 	scope        [][]byte // stores a list of managed keys in the TState struct
-	scopeStorage map[[MapKeyLength]byte][]byte
+	scopeStorage map[Key][]byte
 
 	// Ops is a record of all operations performed on [TState]. Tracking
 	// operations allows for reverting state to a certain point-in-time.
@@ -54,9 +56,9 @@ type TState struct {
 // maps to have an initial size of [storageSize] and [changedSize] respectively.
 func New(changedSize int) *TState {
 	return &TState{
-		changedKeys: make(map[[MapKeyLength]byte]*tempStorage, changedSize),
+		changedKeys: make(map[Key]*tempStorage, changedSize),
 
-		fetchCache: map[[MapKeyLength]byte]*cacheItem{},
+		fetchCache: map[Key]*cacheItem{},
 
 		ops: make([]*op, 0, changedSize),
 	}
@@ -76,7 +78,7 @@ func (ts *TState) GetValue(ctx context.Context, key []byte) ([]byte, error) {
 	return v, nil
 }
 
-func (ts *TState) getValue(_ context.Context, key [65]byte) ([]byte, bool, bool) {
+func (ts *TState) getValue(_ context.Context, key Key) ([]byte, bool, bool) {
 	if v, ok := ts.changedKeys[key]; ok {
 		if v.removed {
 			return nil, true, false
@@ -94,7 +96,7 @@ func (ts *TState) getValue(_ context.Context, key [65]byte) ([]byte, bool, bool)
 // FetchAndSetScope then sets the scope of ts to [keys]. If a key exists in
 // ts.fetchCache set the key's value to the value from cache.
 func (ts *TState) FetchAndSetScope(ctx context.Context, keys [][]byte, db Database) error {
-	ts.scopeStorage = map[[MapKeyLength]byte][]byte{}
+	ts.scopeStorage = map[Key][]byte{}
 
 	for _, key := range keys {
 		k := ToStateKeyArray(key)
@@ -120,7 +122,7 @@ func (ts *TState) FetchAndSetScope(ctx context.Context, keys [][]byte, db Databa
 }
 
 // SetReadScope sets the readscope of ts to [keys].
-func (ts *TState) SetScope(_ context.Context, keys [][]byte, storage map[[65]byte][]byte) {
+func (ts *TState) SetScope(_ context.Context, keys [][]byte, storage map[Key][]byte) {
 	ts.scope = keys
 	ts.scopeStorage = storage
 }
@@ -232,8 +234,8 @@ func (ts *TState) WriteChanges(
 }
 
 // ToStateKeyArray converts a byte slice to byte array.
-func ToStateKeyArray(key []byte) [MapKeyLength]byte {
-	var k [MapKeyLength]byte
+func ToStateKeyArray(key []byte) Key {
+	var k Key
 	copy(k[:], key)
 	return k
 }
