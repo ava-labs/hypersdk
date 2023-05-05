@@ -15,7 +15,7 @@ import (
 )
 
 type op struct {
-	k [65]byte
+	k [MapKeyLength]byte
 
 	pastExists  bool
 	pastV       []byte
@@ -32,16 +32,18 @@ type cacheItem struct {
 	Exists bool
 }
 
+const MapKeyLength = 65
+
 // TState defines a struct for storing temporary state.
 type TState struct {
-	changedKeys map[[65]byte]*tempStorage
-	fetchCache  map[[65]byte]*cacheItem // in case we evict and want to re-fetch
+	changedKeys map[[MapKeyLength]byte]*tempStorage
+	fetchCache  map[[MapKeyLength]byte]*cacheItem // in case we evict and want to re-fetch
 
 	// We don't differentiate between read and write scope because it is very
 	// uncommon for a user to write something without first reading what is
 	// there.
 	scope        [][]byte // stores a list of managed keys in the TState struct
-	scopeStorage map[[65]byte][]byte
+	scopeStorage map[[MapKeyLength]byte][]byte
 
 	// Ops is a record of all operations performed on [TState]. Tracking
 	// operations allows for reverting state to a certain point-in-time.
@@ -52,9 +54,9 @@ type TState struct {
 // maps to have an initial size of [storageSize] and [changedSize] respectively.
 func New(changedSize int) *TState {
 	return &TState{
-		changedKeys: make(map[[65]byte]*tempStorage, changedSize),
+		changedKeys: make(map[[MapKeyLength]byte]*tempStorage, changedSize),
 
-		fetchCache: map[[65]byte]*cacheItem{},
+		fetchCache: map[[MapKeyLength]byte]*cacheItem{},
 
 		ops: make([]*op, 0, changedSize),
 	}
@@ -67,7 +69,7 @@ func (ts *TState) GetValue(ctx context.Context, key []byte) ([]byte, error) {
 	if !ts.checkScope(ctx, key) {
 		return nil, ErrKeyNotSpecified
 	}
-	v, _, exists := ts.getValue(ctx, newFixedSizeByteArray(key))
+	v, _, exists := ts.getValue(ctx, ToStateKeyArray(key))
 	if !exists {
 		return nil, database.ErrNotFound
 	}
@@ -92,10 +94,10 @@ func (ts *TState) getValue(_ context.Context, key [65]byte) ([]byte, bool, bool)
 // FetchAndSetScope then sets the scope of ts to [keys]. If a key exists in
 // ts.fetchCache set the key's value to the value from cache.
 func (ts *TState) FetchAndSetScope(ctx context.Context, keys [][]byte, db Database) error {
-	ts.scopeStorage = map[[65]byte][]byte{}
+	ts.scopeStorage = map[[MapKeyLength]byte][]byte{}
 
 	for _, key := range keys {
-		k := newFixedSizeByteArray(key)
+		k := ToStateKeyArray(key)
 		if val, ok := ts.fetchCache[k]; ok {
 			if val.Exists {
 				ts.scopeStorage[k] = val.Value
@@ -139,7 +141,7 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
-	k := newFixedSizeByteArray(key)
+	k := ToStateKeyArray(key)
 	past, changed, exists := ts.getValue(ctx, k)
 	ts.ops = append(ts.ops, &op{
 		k:           k,
@@ -151,13 +153,13 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	return nil
 }
 
-// Renove deletes a key-value pair from ts.storage.
+// Remove deletes a key-value pair from ts.storage.
 func (ts *TState) Remove(ctx context.Context, key []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
 
-	k := newFixedSizeByteArray(key)
+	k := ToStateKeyArray(key)
 	past, changed, exists := ts.getValue(ctx, k)
 	if !exists {
 		return nil
@@ -229,8 +231,9 @@ func (ts *TState) WriteChanges(
 	return nil
 }
 
-func newFixedSizeByteArray(key []byte) [65]byte {
-	var k [65]byte
+// ToStateKeyArray converts a byte slice to byte array.
+func ToStateKeyArray(key []byte) [MapKeyLength]byte {
+	var k [MapKeyLength]byte
 	copy(k[:], key)
 	return k
 }
