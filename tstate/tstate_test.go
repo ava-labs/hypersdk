@@ -10,7 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/hypersdk/trace"
-	
+
 	"github.com/stretchr/testify/require"
 )
 
