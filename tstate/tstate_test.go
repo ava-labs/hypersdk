@@ -122,7 +122,7 @@ func TestFetchAndSetScope(t *testing.T) {
 	}
 	err := ts.FetchAndSetScope(ctx, keys, db)
 	require.NoError(err, "Error thrown.")
-	require.Equal(0, ts.OpIndex(), "Opertions not updated correctly.")
+	require.Equal(0, ts.OpIndex(), "Operations not updated correctly.")
 	require.Equal(keys, ts.scope, "Scope not updated correctly.")
 	// Check values
 	for i, key := range keys {
@@ -146,7 +146,7 @@ func TestFetchAndSetScopeMissingKey(t *testing.T) {
 	}
 	err := ts.FetchAndSetScope(ctx, keys, db)
 	require.NoError(err, "Error thrown.")
-	require.Equal(0, ts.OpIndex(), "Opertions not updated correctly.")
+	require.Equal(0, ts.OpIndex(), "Operations not updated correctly.")
 	require.Equal(keys, ts.scope, "Scope not updated correctly.")
 	// Check values
 	for i, key := range keys[:len(keys)-1] {
@@ -178,20 +178,20 @@ func TestRemoveInsertRollback(t *testing.T) {
 	v, err := ts.GetValue(ctx, TestKey)
 	require.NoError(err)
 	require.Equal(TestVal, v)
-	require.Equal(1, ts.OpIndex(), "Opertions not updated correctly.")
+	require.Equal(1, ts.OpIndex(), "Operations not updated correctly.")
 	// Remove
 	err = ts.Remove(ctx, TestKey)
 	require.NoError(err, "Error from remove.")
 	_, err = ts.GetValue(ctx, TestKey)
 	require.ErrorIs(err, database.ErrNotFound, "Key not deleted from storage.")
-	require.Equal(2, ts.OpIndex(), "Opertions not updated correctly.")
+	require.Equal(2, ts.OpIndex(), "Operations not updated correctly.")
 	// Insert
 	err = ts.Insert(ctx, TestKey, TestVal)
 	require.NoError(err, "Error from insert.")
 	v, err = ts.GetValue(ctx, TestKey)
 	require.NoError(err)
 	require.Equal(TestVal, v)
-	require.Equal(3, ts.OpIndex(), "Opertions not updated correctly.")
+	require.Equal(3, ts.OpIndex(), "Operations not updated correctly.")
 	require.Equal(1, ts.PendingChanges())
 	// Rollback
 	ts.Rollback(ctx, 2)
@@ -327,7 +327,7 @@ func TestWriteChanges(t *testing.T) {
 }
 
 func BenchmarkFetchAndSetScope(b *testing.B) {
-	for _, size := range []int{10, 100, 1000} {
+	for _, size := range []int{4, 8, 16, 32, 64, 128} {
 		b.Run(fmt.Sprintf("fetch_and_set_scope_%d_keys", size), func(b *testing.B) {
 			benchmarkFetchAndSetScope(b, size)
 		})
