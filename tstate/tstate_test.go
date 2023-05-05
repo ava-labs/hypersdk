@@ -342,6 +342,15 @@ func BenchmarkInsert(b *testing.B) {
 	}
 }
 
+
+func BenchmarkGetValue(b *testing.B) {
+	for _, size := range []int{4, 8, 16, 32, 64, 128} {
+		b.Run(fmt.Sprintf("get_%d_keys", size), func(b *testing.B) {
+			benchmarkGetValue(b, size)
+		})
+	}
+}
+
 func benchmarkFetchAndSetScope(b *testing.B, size int) {
 	require := require.New(b)
 	ts := New(size)
@@ -381,6 +390,31 @@ func benchmarkInsert(b *testing.B, size int) {
 	for i := 0; i < b.N; i++ {
 		for i, key := range keys {
 			err := ts.Insert(ctx, key, vals[i])
+			require.NoError(err, "Error during insert.")
+		}
+	}
+	b.ReportAllocs()
+	b.StopTimer()
+}
+
+func benchmarkGetValue(b *testing.B, size int) {
+	require := require.New(b)
+	ts := New(size)
+	ctx := context.TODO()
+
+	keys, vals := initializeSet(size)
+
+	storage := map[Key][]byte{}
+	for i, key := range keys {
+		storage[ToStateKeyArray(key)] = vals[i]
+	}
+
+	ts.SetScope(ctx, keys, storage)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, key := range keys {
+			_, err := ts.GetValue(ctx, key)
 			require.NoError(err, "Error during insert.")
 		}
 	}
