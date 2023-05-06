@@ -4,6 +4,8 @@
 version: '2.4'
 
 services:
+  # Default mmap count limits on most systems is too low resulting in memory exceptions.
+  # ref. https://www.elastic.co/guide/en/elasticsearch/reference/current/vm-max-map-count.html
   db:
     image: ghcr.io/openzipkin/zipkin-elasticsearch7:latest
     container_name: elasticsearch
