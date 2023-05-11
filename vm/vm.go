@@ -279,7 +279,6 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("unable to init genesis block", zap.Error(err))
 			return err
 		}
-
 		if err := vm.SetLastAccepted(genesisBlk); err != nil {
 			snowCtx.Log.Error("could not set genesis as last accepted", zap.Error(err))
 			return err
