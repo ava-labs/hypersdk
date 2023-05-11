@@ -17,6 +17,7 @@ type Metrics struct {
 	txsAccepted     prometheus.Counter
 	stateChanges    prometheus.Counter
 	stateOperations prometheus.Counter
+	mempoolSize     prometheus.Gauge
 	rootCalculated  metric.Averager
 	waitSignatures  metric.Averager
 }
@@ -79,6 +80,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "state_operations",
 			Help:      "number of state operations",
 		}),
+		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "mempool_size",
+			Help:      "number of transactions in the mempool",
+		}),
 		rootCalculated: rootCalculated,
 		waitSignatures: waitSignatures,
 	}
@@ -91,6 +97,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txsAccepted),
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
+		r.Register(m.mempoolSize),
 	)
 	return r, m, errs.Err
 }
