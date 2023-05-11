@@ -18,6 +18,7 @@ const pendingChanSize = 8_192
 
 type WebSocketClient struct {
 	conn *websocket.Conn
+	wl   sync.Mutex
 	cl   sync.Once
 
 	pendingBlocks chan []byte
@@ -76,6 +77,9 @@ func NewWebSocketClient(uri string) (*WebSocketClient, error) {
 }
 
 func (c *WebSocketClient) RegisterBlocks() error {
+	c.wl.Lock()
+	defer c.wl.Unlock()
+
 	return c.conn.WriteMessage(websocket.BinaryMessage, []byte{BlockMode})
 }
 
@@ -96,6 +100,9 @@ func (c *WebSocketClient) ListenBlock(
 
 // IssueTx sends [tx] to the streaming rpc server.
 func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
+	c.wl.Lock()
+	defer c.wl.Unlock()
+
 	return c.conn.WriteMessage(websocket.BinaryMessage, append([]byte{TxMode}, tx.Bytes()...))
 }
 
