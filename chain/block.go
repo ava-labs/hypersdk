@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
 	"github.com/ava-labs/hypersdk/workers"
@@ -31,17 +32,6 @@ var (
 	_ snowman.Block           = &StatelessBlock{}
 	_ block.WithVerifyContext = &StatelessBlock{}
 	_ block.StateSummary      = &SyncableBlock{}
-)
-
-const (
-	// AvalancheGo imposes a limit of 2 MiB on the network, so we limit at
-	// 2 MiB - ProposerVM header - Protobuf encoding overhead (we assume this is
-	// no more than 50 KiB of overhead but is likely much less)
-	NetworkSizeLimit = 2_044_723 // 1.95 MiB
-
-	// MaxWarpMessages is the maximum number of warp messages allows in a single
-	// block.
-	MaxWarpMessages = 64
 )
 
 type StatefulBlock struct {
@@ -816,7 +806,7 @@ func (b *StatefulBlock) Marshal(
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
 ) ([]byte, error) {
-	p := codec.NewWriter(NetworkSizeLimit)
+	p := codec.NewWriter(consts.NetworkSizeLimit)
 
 	p.PackID(b.Prnt)
 	p.PackInt64(b.Tmstmp)
@@ -844,7 +834,7 @@ func (b *StatefulBlock) Marshal(
 
 func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	var (
-		p = codec.NewReader(raw, NetworkSizeLimit)
+		p = codec.NewReader(raw, consts.NetworkSizeLimit)
 		b StatefulBlock
 	)
 
