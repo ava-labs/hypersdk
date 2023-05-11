@@ -327,7 +327,7 @@ var runSpamCmd = &cobra.Command{
 							if err != nil {
 								return err
 							}
-							_, tx, fees, err := issuer.c.GenerateTransactionManual(ctx, parser, nil, &actions.Transfer{
+							_, tx, fees, err := issuer.c.GenerateTransactionManual(parser, nil, &actions.Transfer{
 								To:    recipient,
 								Asset: ids.Empty,
 								Value: 1,
