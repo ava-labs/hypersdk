@@ -12,4 +12,7 @@ import (
 const (
 	FutureBound        = 10 * time.Second
 	MaxWarpMessageSize = 256 * units.KiB
+	// MaxWarpMessages is the maximum number of warp messages allows in a single
+	// block.
+	MaxWarpMessages = 64
 )

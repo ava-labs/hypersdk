@@ -16,8 +16,11 @@ import (
 	runner "github.com/ava-labs/avalanche-network-runner/client"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/math"
+	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/window"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 
@@ -248,23 +251,53 @@ var watchChainCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		totalTxs := float64(0)
-		start := time.Now()
 		utils.Outf("{{green}}watching for new blocks on %s 👀{{/}}\n", chainID)
+		var (
+			start             time.Time
+			lastBlock         int64
+			lastBlockDetailed time.Time
+			tpsWindow         = window.Window{}
+		)
 		for ctx.Err() == nil {
 			blk, results, err := scli.ListenBlock(ctx, parser)
 			if err != nil {
 				return err
 			}
-			totalTxs += float64(len(blk.Txs))
-			utils.Outf(
-				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s {{green}}avg TPS:{{/}}%f\n", //nolint:lll
-				blk.Hght,
-				len(blk.Txs),
-				blk.UnitsConsumed,
-				blk.StateRoot,
-				totalTxs/time.Since(start).Seconds(),
-			)
+			now := time.Now()
+			if start.IsZero() {
+				start = now
+			}
+			if lastBlock != 0 {
+				since := now.Unix() - lastBlock
+				newWindow, err := window.Roll(tpsWindow, int(since))
+				if err != nil {
+					return err
+				}
+				tpsWindow = newWindow
+				window.Update(&tpsWindow, window.WindowSliceSize-hconsts.Uint64Len, uint64(len(blk.Txs)))
+				runningDuration := time.Since(start)
+				tpsDivisor := math.Min(window.WindowSize, runningDuration.Seconds())
+				utils.Outf(
+					"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s {{green}}TPS:{{/}}%.2f {{green}}split:{{/}}%dms\n", //nolint:lll
+					blk.Hght,
+					len(blk.Txs),
+					blk.UnitsConsumed,
+					blk.StateRoot,
+					float64(window.Sum(tpsWindow))/tpsDivisor,
+					time.Since(lastBlockDetailed).Milliseconds(),
+				)
+			} else {
+				utils.Outf(
+					"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s\n", //nolint:lll
+					blk.Hght,
+					len(blk.Txs),
+					blk.UnitsConsumed,
+					blk.StateRoot,
+				)
+				window.Update(&tpsWindow, window.WindowSliceSize-hconsts.Uint64Len, uint64(len(blk.Txs)))
+			}
+			lastBlock = now.Unix()
+			lastBlockDetailed = now
 			if hideTxs {
 				continue
 			}

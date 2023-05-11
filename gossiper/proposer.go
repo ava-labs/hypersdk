@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/consts"
 	"go.uber.org/zap"
 )
 
@@ -22,11 +23,12 @@ var _ Gossiper = (*Proposer)(nil)
 var proposerWindow = int64(proposer.MaxDelay.Seconds())
 
 type Proposer struct {
-	vm        VM
-	cfg       *ProposerConfig
-	appSender common.AppSender
-
+	vm         VM
+	cfg        *ProposerConfig
+	appSender  common.AppSender
 	doneGossip chan struct{}
+
+	lastVerified int64
 
 	// bounded by validator count (may be slightly out of date as composition changes)
 	gossipedTxs map[ids.NodeID]*cache.LRU[ids.ID, struct{}]
@@ -40,27 +42,31 @@ type ProposerConfig struct {
 	GossipPeerCacheSize     int
 	GossipReceivedCacheSize int
 	GossipMinLife           int64 // seconds
+	GossipMaxSize           int
 	BuildProposerDiff       int
+	VerifyTimeout           int64 // seconds
 }
 
 func DefaultProposerConfig() *ProposerConfig {
 	return &ProposerConfig{
-		GossipProposerDiff:      2,
-		GossipProposerDepth:     3,
+		GossipProposerDiff:      3,
+		GossipProposerDepth:     2,
 		GossipInterval:          1 * time.Second,
 		GossipPeerCacheSize:     10_240,
 		GossipReceivedCacheSize: 65_536,
 		GossipMinLife:           5,
+		GossipMaxSize:           consts.NetworkSizeLimit,
 		BuildProposerDiff:       2,
+		VerifyTimeout:           proposerWindow / 2,
 	}
 }
 
 func NewProposer(vm VM, cfg *ProposerConfig) *Proposer {
 	return &Proposer{
-		vm:  vm,
-		cfg: cfg,
-
-		doneGossip: make(chan struct{}),
+		vm:           vm,
+		cfg:          cfg,
+		doneGossip:   make(chan struct{}),
+		lastVerified: -1,
 
 		gossipedTxs: map[ids.NodeID]*cache.LRU[ids.ID, struct{}]{},
 		receivedTxs: &cache.LRU[ids.ID, struct{}]{Size: cfg.GossipReceivedCacheSize},
@@ -150,11 +156,13 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 	defer span.End()
 
 	// Gossip highest paying txs
-	txs := []*chain.Transaction{}
-	totalUnits := uint64(0)
-	start := time.Now()
-	now := start.Unix()
-	r := g.vm.Rules(now)
+	var (
+		txs   = []*chain.Transaction{}
+		size  = uint64(0)
+		start = time.Now()
+		now   = start.Unix()
+		r     = g.vm.Rules(now)
+	)
 
 	// Create temporary execution context
 	blk, err := g.vm.PreferredBlock(ctx)
@@ -201,6 +209,9 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 			}
 
 			// PreExecute does not make any changes to state
+			//
+			// TODO: consider removing this check (requires at least 1 database call
+			// per gossiped tx)
 			if err := next.PreExecute(ctx, ectx, r, state, now); err != nil {
 				// Do not gossip invalid txs (may become invalid during normal block
 				// processing)
@@ -208,18 +219,13 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 				return cont, restore, removeAcct, nil
 			}
 
-			// Gossip up to a block of content
-			units, err := next.MaxUnits(r)
-			if err != nil {
-				// Should never happen
-				return true, false, false, nil
-			}
-			if units+totalUnits > r.GetMaxBlockUnits() {
-				// Attempt to mirror the function of building a block without execution
+			// Gossip up to [consts.NetworkSizeLimit]
+			txSize := next.Size()
+			if txSize+size > uint64(g.cfg.GossipMaxSize) {
 				return false, true, false, nil
 			}
 			txs = append(txs, next)
-			totalUnits += units
+			size += txSize
 			return len(txs) < r.GetMaxBlockTxs(), true, false, nil
 		},
 	)
@@ -312,33 +318,22 @@ func (g *Proposer) Run(appSender common.AppSender) {
 		case <-t.C:
 			tctx := context.Background()
 
-			// If soon to be proposer, don't gossip
-			proposers, err := g.vm.Proposers(
-				tctx,
-				g.cfg.BuildProposerDiff,
-				1,
-			)
-			if err == nil && proposers.Contains(g.vm.NodeID()) {
-				g.vm.Logger().Debug("not gossiping because soon to propose")
-				continue
-			} else if err != nil {
-				g.vm.Logger().Warn("unable to determine if will propose soon, gossiping anyways", zap.Error(err))
-			}
-
-			// If last block seen was greater than window, don't gossip (will just
-			// cause contention)
-			preferredBlk, err := g.vm.PreferredBlock(tctx)
-			if err != nil {
-				g.vm.Logger().Warn(
-					"unable to get preferred block, gossiping anyways",
-					zap.Error(err),
+			// Check if we are going to propose if it has been less than
+			// [VerifyTimeout] since the last time we verified a block.
+			if time.Now().Unix()-g.lastVerified < g.cfg.VerifyTimeout {
+				proposers, err := g.vm.Proposers(
+					tctx,
+					g.cfg.BuildProposerDiff,
+					1,
 				)
-			}
-			if preferredBlk.Tmstmp+proposerWindow < time.Now().Unix() {
-				g.vm.Logger().Debug(
-					"not gossiping because no recent block, will probably produce ourself",
-				)
-				continue
+				if err == nil && proposers.Contains(g.vm.NodeID()) {
+					g.vm.Logger().Debug("not gossiping because soon to propose")
+					continue
+				} else if err != nil {
+					g.vm.Logger().Warn("unable to determine if will propose soon, gossiping anyways", zap.Error(err))
+				}
+			} else {
+				g.vm.Logger().Info("gossiping because past verify timeout")
 			}
 
 			// Gossip to proposers who will produce next
@@ -350,6 +345,13 @@ func (g *Proposer) Run(appSender common.AppSender) {
 			return
 		}
 	}
+}
+
+func (g *Proposer) BlockVerified(t int64) {
+	if t < g.lastVerified {
+		return
+	}
+	g.lastVerified = t
 }
 
 func (g *Proposer) Done() {

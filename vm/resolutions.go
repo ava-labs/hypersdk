@@ -112,6 +112,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	vm.verifiedL.Unlock()
 	vm.parsedBlocks.Evict(b.ID())
 	vm.mempool.Remove(ctx, b.Txs)
+	vm.gossiper.BlockVerified(b.Tmstmp)
 	vm.snowCtx.Log.Info(
 		"verified block",
 		zap.Stringer("blkID", b.ID()),

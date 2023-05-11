@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"go.uber.org/zap"
 )
 
@@ -65,7 +66,7 @@ func (j *JSONRPCServer) SubmitTx(
 	defer span.End()
 
 	actionRegistry, authRegistry := j.vm.Registry()
-	rtx := codec.NewReader(args.Tx, chain.NetworkSizeLimit) // will likely be much smaller than this
+	rtx := codec.NewReader(args.Tx, consts.NetworkSizeLimit) // will likely be much smaller than this
 	tx, err := chain.UnmarshalTx(rtx, actionRegistry, authRegistry)
 	if err != nil {
 		return fmt.Errorf("%w: unable to unmarshal on public service", err)

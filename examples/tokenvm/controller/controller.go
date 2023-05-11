@@ -156,7 +156,12 @@ func (c *Controller) Initialize(
 		bcfg.PreferredBlocksPerSecond = c.config.GetPreferredBlocksPerSecond()
 		build = builder.NewTime(inner, bcfg)
 		gcfg := gossiper.DefaultProposerConfig()
-		gcfg.BuildProposerDiff = 1 // don't gossip if producing the next block
+		gcfg.GossipInterval = c.config.GossipInterval
+		gcfg.GossipMaxSize = c.config.GossipMaxSize
+		gcfg.GossipProposerDiff = c.config.GossipProposerDiff
+		gcfg.GossipProposerDepth = c.config.GossipProposerDepth
+		gcfg.BuildProposerDiff = c.config.BuildProposerDiff
+		gcfg.VerifyTimeout = c.config.VerifyTimeout
 		gossip = gossiper.NewProposer(inner, gcfg)
 	}
 

@@ -11,13 +11,12 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
@@ -26,9 +25,13 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 )
 
-const feePerTx = 1000
+const (
+	feePerTx     = 1000
+	defaultRange = 32
+)
 
 type txIssuer struct {
 	c  *rpc.JSONRPCClient
@@ -121,6 +124,10 @@ var runSpamCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		numTxsPerAccount, err := promptInt("number of transactions per account per second")
+		if err != nil {
+			return err
+		}
 		witholding := uint64(feePerTx * numAccounts)
 		distAmount := (balance - witholding) / uint64(numAccounts)
 		hutils.Outf(
@@ -138,6 +145,7 @@ var runSpamCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		var fundsL sync.Mutex
 		for i := 0; i < numAccounts; i++ {
 			// Create account
 			pk, err := crypto.GeneratePrivateKey()
@@ -195,7 +203,6 @@ var runSpamCmd = &cobra.Command{
 		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 		var (
 			transferFee uint64
-			exiting     bool
 			wg          sync.WaitGroup
 
 			l            sync.Mutex
@@ -206,20 +213,19 @@ var runSpamCmd = &cobra.Command{
 		// confirm txs (track failure rate)
 		cctx, cancel := context.WithCancel(ctx)
 		defer cancel()
-		inflightTxs := set.NewSet[ids.ID](numAccounts)
-		var infl sync.Mutex
+		var inflight atomic.Int64
+		var sent atomic.Int64
+		var exiting sync.Once
 		for i := 0; i < len(clients); i++ {
 			issuer := clients[i]
 			wg.Add(1)
 			go func() {
 				for {
-					txID, dErr, result, err := issuer.d.ListenTx(context.TODO())
+					_, dErr, result, err := issuer.d.ListenTx(context.TODO())
 					if err != nil {
 						return
 					}
-					infl.Lock()
-					inflightTxs.Remove(txID)
-					infl.Unlock()
+					inflight.Add(-1)
 					issuer.l.Lock()
 					issuer.outstandingTxs--
 					issuer.l.Unlock()
@@ -256,103 +262,115 @@ var runSpamCmd = &cobra.Command{
 			}()
 		}
 
-		// broadcast txs
-		t := time.NewTimer(0) // ensure no duplicates created
+		// log stats
+		t := time.NewTicker(1 * time.Second) // ensure no duplicates created
 		defer t.Stop()
-		var runs int
-		for !exiting {
-			select {
-			case <-t.C:
-				// Ensure we aren't too backlogged
-				infl.Lock()
-				inflight := inflightTxs.Len()
-				infl.Unlock()
-				if inflight > maxTxBacklog {
-					t.Reset(1 * time.Second)
-					continue
-				}
-
-				// Generate new transactions
-				start := time.Now()
-				for i := 0; i < numAccounts; i++ {
-					var (
-						issuer = getRandomIssuer(clients)
-						tx     *chain.Transaction
-						fees   uint64
-					)
-					for {
-						recipient, err := getRandomRecipient(i, accounts)
-						if err != nil {
-							return err
-						}
-						_, tx, fees, err = issuer.c.GenerateTransaction(
-							ctx,
-							parser,
-							nil,
-							&actions.Transfer{
-								To:    recipient,
-								Asset: ids.Empty,
-								Value: 1,
-							},
-							auth.NewED25519Factory(accounts[i]),
+		var psent int64
+		go func() {
+			for {
+				select {
+				case <-t.C:
+					current := sent.Load()
+					l.Lock()
+					if totalTxs > 0 {
+						hutils.Outf(
+							"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d\n", //nolint:lll
+							totalTxs,
+							float64(confirmedTxs)/float64(totalTxs)*100,
+							inflight.Load(),
+							current-psent,
 						)
-						if err != nil {
-							hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
+					}
+					l.Unlock()
+					psent = current
+				case <-cctx.Done():
+					return
+				}
+			}
+		}()
+
+		// broadcast txs
+		unitPrice, _, err := clients[0].c.SuggestedRawFee(ctx)
+		if err != nil {
+			return err
+		}
+		g, gctx := errgroup.WithContext(ctx)
+		for ri := 0; ri < numAccounts; ri++ {
+			i := ri
+			g.Go(func() error {
+				t := time.NewTimer(0) // ensure no duplicates created
+				defer t.Stop()
+
+				issuer := getRandomIssuer(clients)
+				factory := auth.NewED25519Factory(accounts[i])
+				fundsL.Lock()
+				balance := funds[accounts[i].PublicKey()]
+				fundsL.Unlock()
+				defer func() {
+					fundsL.Lock()
+					funds[accounts[i].PublicKey()] = balance
+					fundsL.Unlock()
+				}()
+				for {
+					select {
+					case <-t.C:
+						// Ensure we aren't too backlogged
+						if inflight.Load() > int64(maxTxBacklog) {
+							t.Reset(1 * time.Second)
 							continue
 						}
-						infl.Lock()
-						exit := !inflightTxs.Contains(tx.ID())
-						infl.Unlock()
-						if exit {
-							break
+
+						// Send transaction
+						start := time.Now()
+						selected := map[crypto.PublicKey]int{}
+						for k := 0; k < numTxsPerAccount; k++ {
+							recipient, err := getRandomRecipient(i, accounts)
+							if err != nil {
+								return err
+							}
+							v := selected[recipient] + 1
+							selected[recipient] = v
+							_, tx, fees, err := issuer.c.GenerateTransactionManual(parser, nil, &actions.Transfer{
+								To:    recipient,
+								Asset: ids.Empty,
+								Value: uint64(v), // ensure txs are unique
+							}, factory, unitPrice)
+							if err != nil {
+								hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
+								continue
+							}
+							transferFee = fees
+							if err := issuer.d.RegisterTx(tx); err != nil {
+								continue
+							}
+							balance -= (fees + uint64(v))
+							issuer.l.Lock()
+							issuer.outstandingTxs++
+							issuer.l.Unlock()
+							inflight.Add(1)
+							sent.Add(1)
 						}
-					}
-					transferFee = fees
-					infl.Lock()
-					inflightTxs.Add(tx.ID())
-					infl.Unlock()
-					if err := issuer.d.RegisterTx(tx); err != nil {
-						infl.Lock()
-						inflightTxs.Remove(tx.ID())
-						infl.Unlock()
 
-						hutils.Outf("{{orange}}failed to issue:{{/}} %v\n", err)
-						continue
-					}
-					funds[accounts[i].PublicKey()] -= (fees + 1)
-					issuer.l.Lock()
-					issuer.outstandingTxs++
-					issuer.l.Unlock()
-
-					// Only send 1 transaction per second until we are sure Snowman++ is
-					// activated.
-					if runs < 10 {
-						runs++
-						break
+						// Determine how long to sleep
+						dur := time.Since(start)
+						sleep := math.Max(1000-dur.Milliseconds(), 0)
+						t.Reset(time.Duration(sleep) * time.Millisecond)
+					case <-gctx.Done():
+						return gctx.Err()
+					case <-cctx.Done():
+						return nil
+					case <-signals:
+						exiting.Do(func() {
+							hutils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
+							cancel()
+						})
+						return nil
 					}
 				}
-				l.Lock()
-				infl.Lock()
-				if totalTxs > 0 {
-					hutils.Outf(
-						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d\n",
-						totalTxs,
-						float64(confirmedTxs)/float64(totalTxs)*100,
-						inflightTxs.Len(),
-					)
-				}
-				infl.Unlock()
-				l.Unlock()
-
-				// Limit the script to looping no more than once a second
-				dur := time.Since(start)
-				sleep := math.Max(1000-dur.Milliseconds(), 0)
-				t.Reset(time.Duration(sleep) * time.Millisecond)
-			case <-signals:
-				hutils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
-				exiting = true
-				cancel()
-			}
+			})
+		}
+		if err := g.Wait(); err != nil {
+			return err
 		}
 
 		// Wait for all issuers to finish
@@ -361,11 +379,12 @@ var runSpamCmd = &cobra.Command{
 		go func() {
 			// Send a dummy transaction if shutdown is taking too long (listeners are
 			// expired on accept if dropped)
-			t := time.NewTicker(30 * time.Second)
+			t := time.NewTicker(15 * time.Second)
 			defer t.Stop()
 			for {
 				select {
 				case <-t.C:
+					hutils.Outf("{{yellow}}remaining:{{/}} %d\n", inflight.Load())
 					_ = submitDummy(dctx, cli, tcli, key.PublicKey(), factory)
 				case <-dctx.Done():
 					return
@@ -379,14 +398,14 @@ var runSpamCmd = &cobra.Command{
 		hutils.Outf("{{yellow}}returning funds to %s{{/}}\n", utils.Address(key.PublicKey()))
 		var (
 			returnedBalance uint64
-			sent            int
+			returnsSent     int
 		)
 		for i := 0; i < numAccounts; i++ {
 			balance := funds[accounts[i].PublicKey()]
 			if transferFee > balance {
 				continue
 			}
-			sent++
+			returnsSent++
 			// Send funds
 			returnAmt := balance - transferFee
 			_, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
@@ -407,8 +426,8 @@ var runSpamCmd = &cobra.Command{
 				time.Sleep(500 * time.Millisecond)
 			}
 		}
-		for i := 0; i < sent; i++ {
-			_, dErr, result, err := dcli.ListenTx(context.TODO())
+		for i := 0; i < returnsSent; i++ {
+			_, dErr, result, err := dcli.ListenTx(ctx)
 			if err != nil {
 				return err
 			}

@@ -157,6 +157,9 @@ key for this address is
 `0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7`.
 For convenience, this key has is also stored at `demo.pk`._
 
+_If you don't need 2 Subnets for your testing, you can run `MODE="run-single"
+./scripts/run.sh`._
+
 To make it easy to interact with the `tokenvm`, we implemented the `token-cli`.
 Next, you'll need to build this. You can use the following command from this location
 to do so:

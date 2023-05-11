@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/hypersdk/config"
+	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -23,6 +24,12 @@ import (
 var _ vm.Config = (*Config)(nil)
 
 const (
+	defaultGossipInterval              = 1 * time.Second
+	defaultGossipMaxSize               = hconsts.NetworkSizeLimit
+	defaultGossipProposerDiff          = 3
+	defaultGossipProposerDepth         = 2
+	defaultBuildProposerDiff           = 2
+	defaultVerifyTimeout               = 10
 	defaultPreferredBlocksPerSecond    = 2
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
@@ -32,6 +39,17 @@ const (
 type Config struct {
 	*config.Config
 
+	// Builder
+	PreferredBlocksPerSecond uint64 `json:"preferredBlocksPerSecond"`
+
+	// Gossip
+	GossipInterval      time.Duration `json:"gossipInterval"`
+	GossipMaxSize       int           `json:"gossipMaxSize"`
+	GossipProposerDiff  int           `json:"gossipProposerDiff"`
+	GossipProposerDepth int           `json:"gossipProposerDepth"`
+	BuildProposerDiff   int           `json:"buildProposerDiff"`
+	VerifyTimeout       int64         `json:"verifyTimeout"`
+
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
 	TraceSampleRate float64 `json:"traceSampleRate"`
@@ -39,9 +57,8 @@ type Config struct {
 	// Profiling
 	ContinuousProfilerDir string `json:"continuousProfilerDir"` // "*" is replaced with rand int
 
-	// Streaming Ports
-	StreamingPort        uint16 `json:"streamingPort"`
-	StreamingBacklogSize int    `json:"streamingBacklogSize"`
+	// Streaming settings
+	StreamingBacklogSize int `json:"streamingBacklogSize"`
 
 	// Mempool
 	MempoolSize           int      `json:"mempoolSize"`
@@ -57,10 +74,9 @@ type Config struct {
 	TrackedPairs []string `json:"trackedPairs"` // which asset ID pairs we care about
 
 	// Misc
-	TestMode                 bool          `json:"testMode"` // makes gossip/building manual
-	LogLevel                 logging.Level `json:"logLevel"`
-	Parallelism              int           `json:"parallelism"`
-	PreferredBlocksPerSecond uint64        `json:"preferredBlocksPerSecond"`
+	TestMode    bool          `json:"testMode"` // makes gossip/building manual
+	LogLevel    logging.Level `json:"logLevel"`
+	Parallelism int           `json:"parallelism"`
 
 	// State Sync
 	StateSyncServerDelay time.Duration `json:"stateSyncServerDelay"` // for testing
@@ -93,6 +109,12 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
+	c.GossipInterval = defaultGossipInterval
+	c.GossipMaxSize = defaultGossipMaxSize
+	c.GossipProposerDiff = defaultGossipProposerDiff
+	c.GossipProposerDepth = defaultGossipProposerDepth
+	c.BuildProposerDiff = defaultBuildProposerDiff
+	c.VerifyTimeout = defaultVerifyTimeout
 	c.Parallelism = c.Config.GetParallelism()
 	c.PreferredBlocksPerSecond = defaultPreferredBlocksPerSecond
 	c.MempoolSize = c.Config.GetMempoolSize()
@@ -100,8 +122,6 @@ func (c *Config) setDefault() {
 	c.MempoolVerifyBalances = defaultMempoolVerifyBalances
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
-	// TODO: hardcoded for testing, idk why gorilla doesn't like port 0.
-	c.StreamingPort = 4000
 }
 
 func (c *Config) GetLogLevel() logging.Level          { return c.LogLevel }
@@ -112,7 +132,6 @@ func (c *Config) GetMempoolSize() int                 { return c.MempoolSize }
 func (c *Config) GetMempoolPayerSize() int            { return c.MempoolPayerSize }
 func (c *Config) GetMempoolExemptPayers() [][]byte    { return c.parsedExemptPayers }
 func (c *Config) GetMempoolVerifyBalances() bool      { return c.MempoolVerifyBalances }
-func (c *Config) GetStreamingPort() uint16            { return c.StreamingPort }
 func (c *Config) GetTraceConfig() *trace.Config {
 	return &trace.Config{
 		Enabled:         c.TraceEnabled,

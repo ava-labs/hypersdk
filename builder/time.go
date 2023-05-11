@@ -8,12 +8,11 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/window"
 	"go.uber.org/zap"
 )
 
-const buildCheck = 200 * time.Millisecond
+const buildCheck = 50 * time.Millisecond
 
 var _ Builder = (*Time)(nil)
 
@@ -67,11 +66,8 @@ func (b *Time) shouldBuild(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if since < window.WindowSize {
-		slot := window.WindowSize - 1 - since
-		start := slot * consts.Uint64Len
-		window.Update(&newRollupWindow, start, 1)
-	}
+	// [preferredBlk.BlockWindow] already includes the preferred block, so we
+	// don't need to add 1 before determining if we should build another block.
 	return window.Last(&newRollupWindow) < b.cfg.PreferredBlocksPerSecond, nil
 }
 

@@ -56,6 +56,14 @@ func GetHost(uri string) (string, error) {
 	return host, err
 }
 
+func GetPort(uri string) (string, error) {
+	purl, err := url.Parse(uri)
+	if err != nil {
+		return "", err
+	}
+	return purl.Port(), err
+}
+
 func FormatBalance(bal uint64) string {
 	return fmt.Sprintf("%.9f", float64(bal)/math.Pow10(NativeDecimals))
 }

@@ -20,16 +20,19 @@ fi
 VERSION=1.10.1
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
-STATESYNC_DELAY=${STATESYNC_DELAY:-0}
-if [[ ${MODE} != "run" ]]; then
-  STATESYNC_DELAY=500000000 # 500ms
-fi
-
 AVALANCHE_LOG_LEVEL=${AVALANCHE_LOG_LEVEL:-INFO}
+STATESYNC_DELAY=${STATESYNC_DELAY:-0}
+PROPOSER_MIN_BLOCK_DELAY=${PROPOSER_MIN_BLOCK_DELAY:-0}
+if [[ ${MODE} != "run" && ${MODE} != "run-single" ]]; then
+  STATESYNC_DELAY=500000000 # 500ms
+  PROPOSER_MIN_BLOCK_DELAY=100000000 # 100ms
+fi
 
 echo "Running with:"
 echo VERSION: ${VERSION}
 echo MODE: ${MODE}
+echo STATESYNC_DELAY: ${STATESYNC_DELAY}
+echo PROPOSER_MIN_BLOCK_DELAY: ${PROPOSER_MIN_BLOCK_DELAY}
 
 ############################
 # build avalanchego
@@ -122,6 +125,10 @@ cat <<EOF > /tmp/tokenvm.config
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "parallelism": 5,
   "streamingBacklogSize": 10000000,
+  "gossipMaxSize": 32768,
+  "gossipProposerDepth": 1,
+  "buildProposerDiff": 1,
+  "verifyTimeout": 5,
   "trackedPairs":["*"],
   "preferredBlocksPerSecond": 3,
   "continuousProfilerDir":"/tmp/tokenvm-e2e-profiles/*",
@@ -139,7 +146,7 @@ echo "creating subnet config"
 rm -f /tmp/tokenvm.subnet
 cat <<EOF > /tmp/tokenvm.subnet
 {
-  "proposerMinBlockDelay": 100000000
+  "proposerMinBlockDelay": ${PROPOSER_MIN_BLOCK_DELAY}
 }
 EOF
 
@@ -226,7 +233,7 @@ echo "running e2e tests"
 --mode=${MODE}
 
 ############################
-if [[ ${MODE} == "run" ]]; then
+if [[ ${MODE} == "run" || ${MODE} == "run-single" ]]; then
   echo "cluster is ready!"
   # We made it past initialization and should avoid shutting down the network
   KEEPALIVE=true
