@@ -233,7 +233,7 @@ echo "running e2e tests"
 --mode=${MODE}
 
 ############################
-if [[ ${MODE} == "run" && ${MODE} == "run-single" ]]; then
+if [[ ${MODE} == "run" || ${MODE} == "run-single" ]]; then
   echo "cluster is ready!"
   # We made it past initialization and should avoid shutting down the network
   KEEPALIVE=true

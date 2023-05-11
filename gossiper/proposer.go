@@ -44,7 +44,7 @@ type ProposerConfig struct {
 	GossipMinLife           int64 // seconds
 	GossipMaxSize           int
 	BuildProposerDiff       int
-	VerifyTimeout           int64 //seconds
+	VerifyTimeout           int64 // seconds
 }
 
 func DefaultProposerConfig() *ProposerConfig {
@@ -57,7 +57,7 @@ func DefaultProposerConfig() *ProposerConfig {
 		GossipMinLife:           5,
 		GossipMaxSize:           consts.NetworkSizeLimit,
 		BuildProposerDiff:       2,
-		VerifyTimeout:           15,
+		VerifyTimeout:           proposerWindow / 2,
 	}
 }
 
