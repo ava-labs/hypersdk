@@ -176,11 +176,10 @@ func (cli *JSONRPCClient) GenerateTransaction(
 		return nil, nil, 0, err
 	}
 
-	return cli.GenerateTransactionManual(ctx, parser, wm, action, authFactory, unitPrice, modifiers...)
+	return cli.GenerateTransactionManual(parser, wm, action, authFactory, unitPrice, modifiers...)
 }
 
 func (cli *JSONRPCClient) GenerateTransactionManual(
-	ctx context.Context,
 	parser chain.Parser,
 	wm *warp.Message,
 	action chain.Action,
