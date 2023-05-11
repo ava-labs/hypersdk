@@ -26,6 +26,10 @@ var _ vm.Config = (*Config)(nil)
 const (
 	defaultGossipInterval              = 1 * time.Second
 	defaultGossipMaxSize               = hconsts.NetworkSizeLimit
+	defaultGossipProposerDiff          = 3
+	defaultGossipProposerDepth         = 2
+	defaultBuildProposerDiff           = 2
+	defaultVerifyTimeout               = 10
 	defaultPreferredBlocksPerSecond    = 2
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
@@ -39,8 +43,12 @@ type Config struct {
 	PreferredBlocksPerSecond uint64 `json:"preferredBlocksPerSecond"`
 
 	// Gossip
-	GossipInterval time.Duration `json:"gossipInterval"`
-	GossipMaxSize  int           `json:"gossipMaxSize"`
+	GossipInterval      time.Duration `json:"gossipInterval"`
+	GossipMaxSize       int           `json:"gossipMaxSize"`
+	GossipProposerDiff  int           `json:"gossipProposerDiff"`
+	GossipProposerDepth int           `json:"gossipProposerDepth"`
+	BuildProposerDiff   int           `json:"buildProposerDiff"`
+	VerifyTimeout       int64         `json:"verifyTimeout"`
 
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
@@ -103,6 +111,10 @@ func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
 	c.GossipInterval = defaultGossipInterval
 	c.GossipMaxSize = defaultGossipMaxSize
+	c.GossipProposerDiff = defaultGossipProposerDiff
+	c.GossipProposerDepth = defaultGossipProposerDepth
+	c.BuildProposerDiff = defaultBuildProposerDiff
+	c.VerifyTimeout = defaultVerifyTimeout
 	c.Parallelism = c.Config.GetParallelism()
 	c.PreferredBlocksPerSecond = defaultPreferredBlocksPerSecond
 	c.MempoolSize = c.Config.GetMempoolSize()

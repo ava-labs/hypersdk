@@ -247,7 +247,7 @@ EOF
 --genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
 --max-block-units 400000000 \
 --window-target-units 100000000000 \
---window-target-blocks 50
+--window-target-blocks 40
 cat /tmp/avalanche-ops/tokenvm-genesis.json
 
 cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
@@ -257,9 +257,12 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "streamingBacklogSize": 10000000,
   "gossipMaxSize": 32768,
+  "gossipProposerDepth": 1,
+  "buildProposerDiff": 10,
+  "verifyTimeout": 5,
   "trackedPairs":["*"],
   "logLevel": "info",
-  "preferredBlocksPerSecond": 5
+  "preferredBlocksPerSecond": 4
 }
 EOF
 cat /tmp/avalanche-ops/tokenvm-chain-config.json
