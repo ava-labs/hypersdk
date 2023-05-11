@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/pubsub"
 )
@@ -149,7 +150,7 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 		case TxMode:
 			msgBytes = msgBytes[1:]
 			// Unmarshal TX
-			p := codec.NewReader(msgBytes, chain.NetworkSizeLimit) // will likely be much smaller
+			p := codec.NewReader(msgBytes, consts.NetworkSizeLimit) // will likely be much smaller
 			tx, err := chain.UnmarshalTx(p, actionRegistry, authRegistry)
 			if err != nil {
 				log.Error("failed to unmarshal tx",
