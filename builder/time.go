@@ -66,6 +66,8 @@ func (b *Time) shouldBuild(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	// [preferredBlk.BlockWindow] already includes the preferred block, so we
+	// don't need to add 1 before determining if we should build another block.
 	return window.Last(&newRollupWindow) < b.cfg.PreferredBlocksPerSecond, nil
 }
 
