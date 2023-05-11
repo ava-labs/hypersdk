@@ -31,6 +31,8 @@ fi
 echo "Running with:"
 echo VERSION: ${VERSION}
 echo MODE: ${MODE}
+echo STATESYNC_DELAY: ${STATESYNC_DELAY}
+echo PROPOSER_MIN_BLOCK_DELAY: ${PROPOSER_MIN_BLOCK_DELAY}
 
 ############################
 # build avalanchego

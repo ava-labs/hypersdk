@@ -75,6 +75,7 @@ deployment target. If you use Graivtron CPUs, make sure to use `arm64` here.
 Now we can spin up a new network of 6 nodes with some defaults:
 - `avalanche-ops` supports [Graviton-based processors](https://aws.amazon.com/ec2/graviton/) (ARM64). Use `--arch-type arm64` to run nodes in ARM64 CPUs.
 - `avalanche-ops` supports [EC2 Spot instances](https://aws.amazon.com/ec2/spot/) for cost savings. Use `--instance-mode=spot` to run instances in spot mode.
+- `avalanche-ops` supports multi-region deployments. Use `--auto-regions 3` to distribute node across 3 regions.
 
 ```bash
 /tmp/avalancheup-aws default-spec \
@@ -82,17 +83,20 @@ Now we can spin up a new network of 6 nodes with some defaults:
 --rust-os-type ubuntu20.04 \
 --anchor-nodes 3 \
 --non-anchor-nodes 3 \
---region us-west-2 \
+--regions us-west-2 \
 --instance-mode=on-demand \
 --instance-types=c5.4xlarge \
---ip-mode=elastic \
+--ip-mode=ephemeral \
 --metrics-fetch-interval-seconds 60 \
 --network-name custom \
+--avalanchego-release-tag v1.10.1 \
 --keys-to-generate 5
 ```
 
 The `default-spec` (and `apply`) command only provisions nodes, not Custom VMs.
 The Subnet and Custom VM installation are done via `install-subnet-chain` sub-commands that follow.
+
+*NOTE*: The `--auto-regions 3` flag only lists the pre-defined regions and evenly distributes anchor and non-anchor nodes across regions in the default spec output. It is up to the user to change the regions and spec file based on the regional resource limits (e.g., pick the regions with higher EIP limits). To see what regions available in your AWS account, simply run the [`aws account list-regions`](https://docs.aws.amazon.com/cli/latest/reference/account/list-regions.html) command, or look at the dropdown menu of your AWS console.
 
 #### Profiling `avalanchego`
 If you'd like to profile `avalanchego`'s CPU and RAM, provide the following
@@ -115,11 +119,7 @@ Graviton processors):
 ```bash
 avalancheup-aws default-spec \
 ...
---upload-artifacts-aws-volume-provisioner-local-bin ${AWS_VOLUME_PROVISIONER_BIN_PATH} \
---upload-artifacts-aws-ip-provisioner-local-bin ${AWS_IP_PROVISIONER_BIN_PATH} \
---upload-artifacts-avalanche-telemetry-cloudwatch-local-bin ${AVALANCHE_TELEMETRY_CLOUDWATCH_BIN_PATH} \
---upload-artifacts-avalanched-aws-local-bin ${AVALANCHED_AWS_BIN_PATH} \
---upload-artifacts-avalanchego-local-bin ${AVALANCHEGO_BIN_PATH} \
+--upload-artifacts-avalanchego-local-bin ${AVALANCHEGO_BIN_PATH}
 ```
 
 It is recommended to specify your own artifacts to avoid flaky github release page downloads.
@@ -141,21 +141,24 @@ and Bandwidth rate limiting. You can do this by adding the following lines to
 `avalanchego_config` in the spec file:
 ```yaml
 avalanchego_config:
-    ...
-    proposervm-use-current-height: true
-    throttler-inbound-validator-alloc-size: 107374182
-    throttler-inbound-node-max-processing-msgs: 100000
-    throttler-inbound-bandwidth-refill-rate: 1073741824
-    throttler-inbound-bandwidth-max-burst-size: 1073741824
-    throttler-inbound-cpu-validator-alloc: 100000
-    throttler-inbound-disk-validator-alloc: 10737418240000
-    throttler-outbound-validator-alloc-size: 107374182
-    snow-mixed-query-num-push-vdr-uint: 10
-    consensus-on-accept-gossip-validator-size: 0
-    consensus-on-accept-gossip-non-validator-size: 0
-    consensus-on-accept-gossip-peer-size: 5
-    consensus-accepted-frontier-gossip-peer-size: 5
-    network-compression-enabled: false
+  ...
+  proposervm-use-current-height: true
+  throttler-inbound-validator-alloc-size: 10737418240
+  throttler-inbound-at-large-alloc-size: 10737418240
+  throttler-inbound-node-max-processing-msgs: 100000
+  throttler-inbound-bandwidth-refill-rate: 1073741824
+  throttler-inbound-bandwidth-max-burst-size: 1073741824
+  throttler-inbound-cpu-validator-alloc: 100000
+  throttler-inbound-disk-validator-alloc: 10737418240000
+  throttler-outbound-validator-alloc-size: 10737418240
+  throttler-outbound-at-large-alloc-size: 10737418240
+  snow-mixed-query-num-push-vdr: 10
+  consensus-on-accept-gossip-validator-size: 10
+  consensus-on-accept-gossip-non-validator-size: 0
+  consensus-on-accept-gossip-peer-size: 10
+  consensus-accepted-frontier-gossip-peer-size: 0
+  consensus-app-concurrency: 512
+  network-compression-type: none
 ```
 
 #### Supporting All Metrics
@@ -241,9 +244,9 @@ EOF
 
 /tmp/token-cli genesis generate /tmp/avalanche-ops/allocations.json \
 --genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
---max-block-units 4000000 \
+--max-block-units 400000000 \
 --window-target-units 100000000000 \
---window-target-blocks 30
+--window-target-blocks 50
 cat /tmp/avalanche-ops/tokenvm-genesis.json
 
 cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
@@ -252,20 +255,14 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "mempoolPayerSize": 10000000,
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "streamingBacklogSize": 10000000,
+  "gossipMaxSize": 32768,
   "trackedPairs":["*"],
   "logLevel": "info",
-  "preferredBlocksPerSecond": 3,
-  "decisionsPort": 9652,
-  "blocksPort": 9653
+  "preferredBlocksPerSecond": 5
 }
 EOF
 cat /tmp/avalanche-ops/tokenvm-chain-config.json
 ```
-
-*Note*: Make sure that port `9652` and `9653` are open on the AWS Security Group applied to all
-nodes otherwise the `token-cli` will not work properly. This requirement will
-be removed when the [HyperSDK migrates to using proper
-WebSockets](https://github.com/ava-labs/hypersdk/issues/64).
 
 #### Profiling `tokenvm`
 If you'd like to profile `tokenvm`'s CPU and RAM, add the following line to the
@@ -284,10 +281,9 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 ```bash
 /tmp/avalancheup-aws install-subnet-chain \
 --log-level info \
---region us-west-2 \
+--s3-region us-west-2 \
 --s3-bucket <TODO> \
 --s3-key-prefix <TODO> \
---ssm-doc <TODO> \
 --chain-rpc-url <TODO> \
 --key <TODO> \
 --primary-network-validate-period-in-days 16 \
@@ -301,7 +297,14 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 --chain-config-local-path /tmp/avalanche-ops/tokenvm-chain-config.json \
 --chain-config-remote-dir /data/avalanche-configs/chains \
 --avalanchego-config-remote-path /data/avalanche-configs/config.json \
---node-ids-to-instance-ids <TODO>
+--ssm-doc <TODO> \
+--target-nodes <TODO>
+```
+
+#### Example Params
+```bash
+--ssm-docs '{"us-west-2":"aops-custom-202304-2ijZSP-ssm-install-subnet-chain"...
+--target-nodes '{"NodeID-HgAmXckXzDcvxv9ay71QT9DDtEKZiLxP4":{"region":"eu-west-1","machine_id":"i-0e68e051796b88d16"}...
 ```
 
 #### Viewing Logs
@@ -442,10 +445,9 @@ a different set of validators):
 ```bash
 /tmp/avalancheup-aws install-subnet-chain \
 --log-level info \
---region us-west-2 \
+--s3-region us-west-2 \
 --s3-bucket <TODO> \
 --s3-key-prefix <TODO> \
---ssm-doc <TODO> \
 --chain-rpc-url <TODO> \
 --key <TODO> \
 --primary-network-validate-period-in-days 16 \
@@ -459,7 +461,14 @@ a different set of validators):
 --chain-config-local-path /tmp/avalanche-ops/tokenvm-chain-config.json \
 --chain-config-remote-dir /data/avalanche-configs/chains \
 --avalanchego-config-remote-path /data/avalanche-configs/config.json \
---node-ids-to-instance-ids <TODO>
+--ssm-doc <TODO> \
+--target-nodes <TODO>
+```
+
+#### Example Params
+```bash
+--ssm-docs '{"us-west-2":"aops-custom-202304-2ijZSP-ssm-install-subnet-chain"...
+--target-nodes '{"NodeID-HgAmXckXzDcvxv9ay71QT9DDtEKZiLxP4":{"region":"eu-west-1","machine_id":"i-0e68e051796b88d16"}...
 ```
 
 ## Deploy TokenVM in Fuji network with avalanche-ops
@@ -470,7 +479,7 @@ avalancheup-aws default-spec \
 --arch-type amd64 \
 --rust-os-type ubuntu20.04 \
 --non-anchor-nodes 6 \
---region us-west-2 \
+--regions us-west-2 \
 --instance-mode=on-demand \
 --instance-size=2xlarge \
 --ip-mode=elastic \
