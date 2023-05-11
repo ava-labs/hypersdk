@@ -138,6 +138,9 @@ func (vm *VM) Initialize(
 	// This will be overwritten when we accept the first block (in state sync) or
 	// backfill existing blocks (during normal bootstrapping).
 	vm.startSeenTime = -1
+	// Init seen for tracking transactions that have been accepted on-chain
+	vm.seen = emap.NewEMap[*chain.Transaction]()
+	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	gatherer := ametrics.NewMultiGatherer()
@@ -221,10 +224,6 @@ func (vm *VM) Initialize(
 		vm.config.GetMempoolPayerSize(),
 		vm.config.GetMempoolExemptPayers(),
 	)
-
-	// Init seen for tracking transactions that have been accepted on-chain
-	vm.seen = emap.NewEMap[*chain.Transaction]()
-	vm.seenValidityWindow = make(chan struct{})
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
@@ -571,7 +570,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 		vm,
 	)
 	if err != nil {
-		vm.snowCtx.Log.Error("could not parse block", zap.Error(err))
+		vm.snowCtx.Log.Error("could not parse block", zap.Stringer("blkID", id), zap.Error(err))
 		return nil, err
 	}
 	vm.parsedBlocks.Put(id, newBlk)
