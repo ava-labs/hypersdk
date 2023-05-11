@@ -322,15 +322,18 @@ var runSpamCmd = &cobra.Command{
 
 						// Send transaction
 						start := time.Now()
+						selected := map[crypto.PublicKey]int{}
 						for k := 0; k < numTxsPerAccount; k++ {
 							recipient, err := getRandomRecipient(i, accounts)
 							if err != nil {
 								return err
 							}
+							v := selected[recipient] + 1
+							selected[recipient] = v
 							_, tx, fees, err := issuer.c.GenerateTransactionManual(parser, nil, &actions.Transfer{
 								To:    recipient,
 								Asset: ids.Empty,
-								Value: 1,
+								Value: uint64(v), // ensure txs are unique
 							}, factory, unitPrice)
 							if err != nil {
 								hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
@@ -340,7 +343,7 @@ var runSpamCmd = &cobra.Command{
 							if err := issuer.d.RegisterTx(tx); err != nil {
 								continue
 							}
-							balance -= fees + 1
+							balance -= (fees + uint64(v))
 							issuer.l.Lock()
 							issuer.outstandingTxs++
 							issuer.l.Unlock()
@@ -381,6 +384,7 @@ var runSpamCmd = &cobra.Command{
 			for {
 				select {
 				case <-t.C:
+					hutils.Outf("{{yellow}}remaining:{{/}} %d\n", inflight.Load())
 					_ = submitDummy(dctx, cli, tcli, key.PublicKey(), factory)
 				case <-dctx.Done():
 					return

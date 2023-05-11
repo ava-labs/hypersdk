@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/utils/units"
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 const (
@@ -15,6 +16,6 @@ const (
 	WriteWait          = 10 * time.Second
 	PongWait           = 60 * time.Second
 	PingPeriod         = (PongWait * 9) / 10
-	MaxMessageSize     = 10 * units.KiB // bytes
+	MaxMessageSize     = consts.NetworkSizeLimit
 	MaxPendingMessages = 1024
 )

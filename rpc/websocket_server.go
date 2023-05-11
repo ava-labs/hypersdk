@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -18,7 +19,8 @@ import (
 )
 
 type WebSocketServer struct {
-	s *pubsub.Server
+	logger logging.Logger
+	s      *pubsub.Server
 
 	blockListeners *pubsub.Connections
 
@@ -29,13 +31,14 @@ type WebSocketServer struct {
 
 func NewWebSocketServer(vm VM, maxPendingMessages int) (*WebSocketServer, *pubsub.Server) {
 	w := &WebSocketServer{
+		logger:         vm.Logger(),
 		blockListeners: pubsub.NewConnections(),
 		txListeners:    map[ids.ID]*pubsub.Connections{},
 		expiringTxs:    emap.NewEMap[*chain.Transaction](),
 	}
 	cfg := pubsub.NewDefaultServerConfig()
 	cfg.MaxPendingMessages = maxPendingMessages
-	w.s = pubsub.New(vm.Logger(), cfg, w.MessageCallback(vm))
+	w.s = pubsub.New(w.logger, cfg, w.MessageCallback(vm))
 	return w, w.s
 }
 
@@ -86,6 +89,9 @@ func (w *WebSocketServer) SetMinTx(t int64) error {
 		if err := w.removeTx(id, ErrExpired); err != nil {
 			return err
 		}
+	}
+	if exp := len(expired); exp > 0 {
+		w.logger.Debug("expired listeners", zap.Int("count", exp))
 	}
 	return nil
 }
