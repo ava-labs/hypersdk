@@ -274,7 +274,7 @@ var runSpamCmd = &cobra.Command{
 					l.Lock()
 					if totalTxs > 0 {
 						hutils.Outf(
-							"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d\n",
+							"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d\n", //nolint:lll
 							totalTxs,
 							float64(confirmedTxs)/float64(totalTxs)*100,
 							inflight.Load(),
