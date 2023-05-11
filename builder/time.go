@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/window"
 	"go.uber.org/zap"
 )
@@ -66,11 +65,6 @@ func (b *Time) shouldBuild(ctx context.Context) (bool, error) {
 	newRollupWindow, err := window.Roll(preferredBlk.BlockWindow, since)
 	if err != nil {
 		return false, err
-	}
-	if since < window.WindowSize {
-		slot := window.WindowSize - 1 - since
-		start := slot * consts.Uint64Len
-		window.Update(&newRollupWindow, start, 1)
 	}
 	return window.Last(&newRollupWindow) < b.cfg.PreferredBlocksPerSecond, nil
 }
