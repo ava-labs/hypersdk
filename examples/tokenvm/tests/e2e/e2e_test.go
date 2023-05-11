@@ -319,6 +319,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			tcli:   trpc.NewJSONRPCClient(u, bid),
 		})
 	}
+
 	if mode != modeRunSingle {
 		instancesB = []instance{}
 		for _, nodeName := range subnetB {
@@ -337,6 +338,35 @@ var _ = ginkgo.BeforeSuite(func() {
 		}
 	}
 
+	// Ensure nodes are healthy
+	//
+	// TODO: figure out why this is necessary after all nodes return healthy
+	for i := 0; i < 10; i++ {
+		for j := 0; j < len(instancesA); j++ {
+			gen, err = instancesA[j].tcli.Genesis(context.Background())
+			if err != nil {
+				break
+			}
+		}
+		if err != nil {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		for j := 0; j < len(instancesB); j++ {
+			gen, err = instancesB[j].tcli.Genesis(context.Background())
+			if err != nil {
+				break
+			}
+		}
+		if err != nil {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		break
+	}
+	gomega.Ω(err).Should(gomega.BeNil())
+
+	// Load default pk
 	priv, err = crypto.HexToKey(
 		"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
 	)
@@ -345,9 +375,6 @@ var _ = ginkgo.BeforeSuite(func() {
 	rsender = priv.PublicKey()
 	sender = utils.Address(rsender)
 	hutils.Outf("\n{{yellow}}$ loaded address:{{/}} %s\n\n", sender)
-
-	gen, err = instancesA[0].tcli.Genesis(context.Background())
-	gomega.Ω(err).Should(gomega.BeNil())
 })
 
 var (
