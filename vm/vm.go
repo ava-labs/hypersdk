@@ -112,6 +112,9 @@ type VM struct {
 	// txID
 	warpManager *WarpManager
 
+	// TxBlockManager distributes and fetches txBlocks
+	txBlockManager *TxBlockManager
+
 	// Network manager routes p2p messages to pre-registered handlers
 	networkManager *NetworkManager
 
@@ -160,12 +163,20 @@ func (vm *VM) Initialize(
 		return err
 	}
 	vm.metrics = metrics
+
 	vm.proposerMonitor = NewProposerMonitor(vm)
 	vm.networkManager = NewNetworkManager(vm, appSender)
+
 	warpHandler, warpSender := vm.networkManager.Register()
 	vm.warpManager = NewWarpManager(vm)
 	vm.networkManager.SetHandler(warpHandler, NewWarpHandler(vm))
 	go vm.warpManager.Run(warpSender)
+
+	txBlockHandler, txBlockSender := vm.networkManager.Register()
+	vm.txBlockManager = NewTxBlockManager(vm)
+	vm.networkManager.SetHandler(txBlockHandler, NewTxBlockHandler(vm))
+	go vm.txBlockManager.Run(txBlockSender)
+
 	vm.manager = manager
 
 	// Always initialize implementation first
@@ -461,6 +472,7 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	if vm.profiler != nil {
 		vm.profiler.Shutdown()
 	}
+	vm.txBlockManager.Done()
 
 	// Shutdown controller once all mechanisms that could invoke it have
 	// shutdown.
