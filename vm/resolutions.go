@@ -380,6 +380,8 @@ func (vm *VM) RecordStateOperations(c int) {
 
 func (vm *VM) IssueTxBlock(ctx context.Context, blk *chain.StatelessTxBlock) {}
 
+func (vm *VM) RequestTxBlocks(ctx context.Context, blks []ids.ID) {}
+
 func (vm *VM) GetTxBlockState(ctx context.Context, blkID ids.ID) (merkledb.TrieView, error) {
 	return nil, errors.New("not implemented")
 }

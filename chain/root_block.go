@@ -142,14 +142,25 @@ func ParseRootBlock(
 		}
 		source = nsource
 	}
-	return &StatelessRootBlock{
+	b := &StatelessRootBlock{
 		RootBlock: blk,
 		t:         time.Unix(blk.Tmstmp, 0),
 		bytes:     source,
 		st:        status,
 		vm:        vm,
 		id:        utils.ToID(source),
-	}, nil
+	}
+
+	// If we are parsing an older block, it will not be re-executed and should
+	// not be tracked as a parsed block
+	lastAccepted := b.vm.LastAcceptedBlock()
+	if lastAccepted == nil || b.Hght <= lastAccepted.Hght { // nil when parsing genesis
+		return b, nil
+	}
+
+	// Ensure we are tracking the block chunks we just parsed
+	b.vm.RequestTxBlocks(ctx, b.Txs)
+	return b, nil
 }
 
 // [initializeBuilt] is invoked after a block is built
