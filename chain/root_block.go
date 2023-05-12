@@ -1,6 +1,3 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
-// See the file LICENSE for licensing terms.
-
 package chain
 
 import (
@@ -13,31 +10,27 @@ import (
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-	"go.opentelemetry.io/otel/attribute"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
-	"github.com/ava-labs/hypersdk/workers"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 var (
-	_ snowman.Block           = &StatelessBlock{}
-	_ block.WithVerifyContext = &StatelessBlock{}
+	_ snowman.Block           = &StatelessRootBlock{}
+	_ block.WithVerifyContext = &StatelessRootBlock{}
 	_ block.StateSummary      = &SyncableBlock{}
 )
 
 // Chain architecture
 //
-// Non-Consensus: [TB1] -> [TB2] -> [TB3] -> [TB4] -> [TB5]
-// Consensus:                   \-> [RB1]                  \-> [RB2]
+// Non-Consensus: [TB1] -> [TB2]        /-> [TB3] -> [TB4] -> [TB5]
+// Consensus:                   \-> [RB1]                         \-> [RB2]
 type RootBlock struct {
 	Prnt   ids.ID `json:"parent"`
 	Tmstmp int64  `json:"timestamp"`
@@ -51,97 +44,44 @@ type RootBlock struct {
 	Txs       []ids.ID `json:"txs"`
 
 	// TODO: migrate state root to be that of parent
-	StateRoot     ids.ID     `json:"stateRoot"`
-	UnitsConsumed uint64     `json:"unitsConsumed"`
-	WarpResults   set.Bits64 `json:"warpResults"`
+	StateRoot     ids.ID `json:"stateRoot"`
+	UnitsConsumed uint64 `json:"unitsConsumed"`
 }
 
-type TxBlock struct {
-	Prnt      ids.ID `json:"parent"`
-	Tmstmp    int64  `json:"timestamp"`
-	Hght      uint64 `json:"height"`
-	UnitPrice uint64 `json:"unitPrice"`
+// Stateless is defined separately from "Block"
+// in case external packages needs use the stateful block
+// without mocking VM or parent block
+type StatelessRootBlock struct {
+	*RootBlock `json:"block"`
 
-	Txs []*Transaction `json:"txs"`
+	id    ids.ID
+	st    choices.Status
+	t     time.Time
+	bytes []byte
+
+	vm    VM
+	state merkledb.TrieView
 }
 
-type StatefulBlock struct {
-	Prnt   ids.ID `json:"parent"`
-	Tmstmp int64  `json:"timestamp"`
-	Hght   uint64 `json:"height"`
-
-	UnitPrice  uint64        `json:"unitPrice"`
-	UnitWindow window.Window `json:"unitWindow"`
-
-	BlockCost   uint64        `json:"blockCost"`
-	BlockWindow window.Window `json:"blockWindow"`
-
-	Txs []*Transaction `json:"txs"`
-
-	StateRoot     ids.ID     `json:"stateRoot"`
-	UnitsConsumed uint64     `json:"unitsConsumed"`
-	SurplusFee    uint64     `json:"surplusFee"`
-	WarpResults   set.Bits64 `json:"warpResults"`
-}
-
-// warpJob is used to signal to a listner that a *warp.Message has been
-// verified.
-type warpJob struct {
-	msg          *warp.Message
-	signers      int
-	verifiedChan chan bool
-	verified     bool
-	warpNum      int
-}
-
-func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBlock {
-	return &StatefulBlock{
-		UnitPrice:  minUnit,
-		UnitWindow: window.Window{},
-
-		BlockCost:   minBlock,
+func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *RootBlock {
+	return &RootBlock{
+		UnitPrice:   minUnit,
+		UnitWindow:  window.Window{},
 		BlockWindow: window.Window{},
 
 		StateRoot: root,
 	}
 }
 
-// Stateless is defined separately from "Block"
-// in case external packages needs use the stateful block
-// without mocking VM or parent block
-type StatelessBlock struct {
-	*StatefulBlock `json:"block"`
-
-	id     ids.ID
-	st     choices.Status
-	t      time.Time
-	bytes  []byte
-	txsSet set.Set[ids.ID]
-
-	warpMessages map[ids.ID]*warpJob
-	containsWarp bool // this allows us to avoid allocating a map when we build
-	bctx         *block.Context
-	vdrState     validators.State
-
-	results []*Result
-
-	vm    VM
-	state merkledb.TrieView
-
-	sigJob *workers.Job
-}
-
-func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
-	return &StatelessBlock{
-		StatefulBlock: &StatefulBlock{
+func NewRootBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessRootBlock {
+	return &StatelessRootBlock{
+		RootBlock: &RootBlock{
 			Prnt:   parent.ID(),
 			Tmstmp: tmstp,
 			Hght:   parent.Height() + 1,
 
-			UnitPrice:  ectx.NextUnitPrice,
-			UnitWindow: ectx.NextUnitWindow,
-
-			BlockCost:   ectx.NextBlockCost,
+			UnitPrice:   ectx.NextUnitPrice,
+			UnitWindow:  ectx.NextUnitWindow,
 			BlockWindow: ectx.NextBlockWindow,
 		},
 		vm: vm,
@@ -149,71 +89,21 @@ func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) 
 	}
 }
 
-func ParseBlock(
+func ParseStatelessRootBlock(
 	ctx context.Context,
 	source []byte,
 	status choices.Status,
 	vm VM,
-) (*StatelessBlock, error) {
-	ctx, span := vm.Tracer().Start(ctx, "chain.ParseBlock")
+) (*StatelessRootBlock, error) {
+	ctx, span := vm.Tracer().Start(ctx, "chain.ParseRootBlock")
 	defer span.End()
 
-	blk, err := UnmarshalBlock(source, vm)
+	blk, err := UnmarshalRootBlock(source, vm)
 	if err != nil {
 		return nil, err
 	}
 	// Not guaranteed that a parsed block is verified
-	return ParseStatefulBlock(ctx, blk, source, status, vm)
-}
-
-// populateTxs is only called on blocks we did not build
-func (b *StatelessBlock) populateTxs(ctx context.Context) error {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.populateTxs")
-	defer span.End()
-
-	// Setup signature verification job
-	job, err := b.vm.Workers().NewJob(len(b.Txs))
-	if err != nil {
-		return err
-	}
-	b.sigJob = job
-
-	// Process transactions
-	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
-	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
-	b.warpMessages = map[ids.ID]*warpJob{}
-	for _, tx := range b.Txs {
-		b.sigJob.Go(tx.AuthAsyncVerify())
-		if b.txsSet.Contains(tx.ID()) {
-			return ErrDuplicateTx
-		}
-		b.txsSet.Add(tx.ID())
-
-		// Check if we need the block context to verify the block (which contains
-		// an Avalanche Warp Message)
-		//
-		// Instead of erroring out if a warp message is invalid, we mark the
-		// verification as skipped and include it in the verification result so
-		// that a fee can still be deducted.
-		if tx.WarpMessage != nil {
-			if len(b.warpMessages) == MaxWarpMessages {
-				return ErrTooManyWarpMessages
-			}
-			signers, err := tx.WarpMessage.Signature.NumSigners()
-			if err != nil {
-				return err
-			}
-			b.warpMessages[tx.ID()] = &warpJob{
-				msg:          tx.WarpMessage,
-				signers:      signers,
-				verifiedChan: make(chan bool, 1),
-				warpNum:      len(b.warpMessages),
-			}
-			b.containsWarp = true
-		}
-	}
-	b.sigJob.Done(func() { sspan.End() })
-	return nil
+	return ParseRootBlock(ctx, blk, source, status, vm)
 }
 
 func ParseStatefulBlock(
@@ -379,48 +269,6 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 	// NOTE: mempool is modified by VM handler
 	b.vm.Verified(ctx, b)
 	return nil
-}
-
-func preVerifyWarpMessage(msg *warp.Message, chainID ids.ID, r Rules) (uint64, uint64, error) {
-	if msg.DestinationChainID != chainID && msg.DestinationChainID != ids.Empty {
-		return 0, 0, ErrInvalidChainID
-	}
-	if msg.SourceChainID == chainID {
-		return 0, 0, ErrInvalidChainID
-	}
-	if msg.SourceChainID == msg.DestinationChainID {
-		return 0, 0, ErrInvalidChainID
-	}
-	allowed, num, denom := r.GetWarpConfig(msg.SourceChainID)
-	if !allowed {
-		return 0, 0, ErrDisabledChainID
-	}
-	return num, denom, nil
-}
-
-// verifyWarpMessage will attempt to verify a given warp message provided by an
-// Action.
-func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *warp.Message) bool {
-	warpID := utils.ToID(msg.Payload)
-	num, denom, err := preVerifyWarpMessage(msg, b.vm.ChainID(), r)
-	if err != nil {
-		b.vm.Logger().
-			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
-		return false
-	}
-	if err := msg.Signature.Verify(
-		ctx,
-		&msg.UnsignedMessage,
-		b.vdrState,
-		b.bctx.PChainHeight,
-		num,
-		denom,
-	); err != nil {
-		b.vm.Logger().
-			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
-		return false
-	}
-	return true
 }
 
 // Must handle re-reverification...
@@ -908,14 +756,14 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 }
 
 type SyncableBlock struct {
-	*StatelessBlock
+	*StatelessRootBlock
 }
 
 func (sb *SyncableBlock) Accept(ctx context.Context) (block.StateSyncMode, error) {
 	return sb.vm.AcceptedSyncableBlock(ctx, sb)
 }
 
-func NewSyncableBlock(sb *StatelessBlock) *SyncableBlock {
+func NewSyncableBlock(sb *StatelessRootBlock) *SyncableBlock {
 	return &SyncableBlock{sb}
 }
 

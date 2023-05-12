@@ -48,7 +48,7 @@ func BuildBlock(
 	vm VM,
 	preferred ids.ID,
 	blockContext *smblock.Context,
-) (*StatelessBlock, error) {
+) (*RootBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
 	log := vm.Logger()

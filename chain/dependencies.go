@@ -71,6 +71,9 @@ type VM interface {
 	RecordWaitSignatures(time.Duration) // only called in Verify
 	RecordStateChanges(int)
 	RecordStateOperations(int)
+
+	// TxBlock distribution
+	DistributeTxBlock([]byte)
 }
 
 type Mempool interface {

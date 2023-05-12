@@ -19,6 +19,7 @@ type ExecutionContext struct {
 	NextUnitPrice  uint64
 	NextUnitWindow window.Window
 
+	// TODO: remove block cost
 	NextBlockCost   uint64
 	NextBlockWindow window.Window
 }
