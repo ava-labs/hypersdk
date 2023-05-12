@@ -40,33 +40,32 @@ type VM interface {
 	Workers() *workers.Workers
 	Tracer() trace.Tracer
 	Logger() logging.Logger
-
-	IsBootstrapped() bool
-	LastAcceptedBlock() *StatelessRootBlock
-	SetLastAccepted(*StatelessRootBlock) error
-	GetStatelessRootBlock(context.Context, ids.ID) (*StatelessRootBlock, error)
-	GetStatelessTxBlock(context.Context, ids.ID) (*StatelessTxBlock, error)
-	GetTxBlockState(context.Context, ids.ID) (merkledb.TrieView, error)
-
-	State() (*merkledb.Database, error)
-	StateManager() StateManager
-	ValidatorState() validators.State
-
 	Mempool() Mempool
-	IsRepeat(context.Context, []*Transaction) bool
-
-	IssueTxBlock(context.Context, *StatelessTxBlock)
-
-	Verified(context.Context, *StatelessRootBlock)
-	Rejected(context.Context, *StatelessRootBlock)
-	Accepted(context.Context, *StatelessRootBlock)
-	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
 
 	// UpdateSyncTarget returns a bool that is true if the root
 	// was updated and the sync is continuing with the new specified root
 	// and false if the sync completed with the previous root.
 	UpdateSyncTarget(*StatelessRootBlock) (bool, error)
 	StateReady() bool
+	IsBootstrapped() bool
+
+	State() (*merkledb.Database, error)
+	StateManager() StateManager
+	ValidatorState() validators.State
+	IsRepeat(context.Context, []*Transaction) bool
+
+	IssueTxBlock(context.Context, *StatelessTxBlock)
+	GetStatelessTxBlock(context.Context, ids.ID) (*StatelessTxBlock, error)
+	GetTxBlockState(context.Context, ids.ID) (merkledb.TrieView, error)
+
+	LastAcceptedBlock() *StatelessRootBlock
+	GetStatelessRootBlock(context.Context, ids.ID) (*StatelessRootBlock, error)
+	SetLastAccepted(*StatelessRootBlock) error
+
+	Verified(context.Context, *StatelessRootBlock)
+	Rejected(context.Context, *StatelessRootBlock)
+	Accepted(context.Context, *StatelessRootBlock)
+	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
 
 	// Collect useful metrics
 	//

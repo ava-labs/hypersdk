@@ -89,15 +89,13 @@ func BuildBlock(
 		mempool       = vm.Mempool()
 
 		txBlocks = []*StatelessTxBlock{}
-
-		txBlock = NewTxBlock(vm, parentTxBlock, nextTime, ectx.NextUnitPrice)
-		results = []*Result{}
+		txBlock  = NewTxBlock(vm, parentTxBlock, nextTime, ectx.NextUnitPrice)
+		results  = []*Result{}
 
 		totalUnits   = uint64(0)
 		txsAttempted = 0
 		txsAdded     = 0
-
-		warpCount = 0
+		warpCount    = 0
 
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
@@ -105,6 +103,7 @@ func BuildBlock(
 		start    = time.Now()
 		lockWait time.Duration
 	)
+	b.MinTxHght = txBlock.Hght
 	mempoolErr := mempool.Build(
 		ctx,
 		func(fctx context.Context, next *Transaction) (cont bool, restore bool, removeAcct bool, err error) {
@@ -112,6 +111,11 @@ func BuildBlock(
 				lockWait = time.Since(start)
 			}
 			txsAttempted++
+
+			// Ensure block context is set correctly
+			if blockContext != nil {
+				txBlock.PChainHeight = blockContext.PChainHeight
+			}
 
 			// Ensure we can process if transaction includes a warp message
 			if next.WarpMessage != nil && blockContext == nil {
@@ -132,10 +136,9 @@ func BuildBlock(
 			}
 
 			// Check for repeats
-			//
-			// TODO: check a bunch at once during pre-fetch to avoid re-walking blocks
-			// for every tx
-			if parentTxBlock != nil {
+			if parentTxBlock != nil { // happens at genesis
+				// TODO: check a bunch at once during pre-fetch to avoid re-walking blocks
+				// for every tx
 				dup, err := parentTxBlock.IsRepeat(ctx, oldestAllowed, []*Transaction{next})
 				if err != nil {
 					return false, false, false, err
@@ -169,13 +172,16 @@ func BuildBlock(
 			//
 			// TODO: handle case where tx is larger than max size of TxBlock
 			if txBlock.UnitsConsumed+nextUnits > r.GetMaxTxBlockUnits() {
+				if len(txBlocks) >= r.GetMaxTxBlocks() {
+					txBlock.Last = true
+				}
 				if err := txBlock.initializeBuilt(ctx, results); err != nil {
 					return false, true, false, err
 				}
 				b.Txs = append(b.Txs, txBlock.ID())
 				txBlocks = append(txBlocks, txBlock)
 				vm.IssueTxBlock(ctx, txBlock)
-				if len(txBlocks) >= r.GetMaxTxBlocks() {
+				if txBlock.Last {
 					return false, true, false, nil
 				}
 
@@ -252,6 +258,7 @@ func BuildBlock(
 					txBlock.WarpResults.Add(uint(warpCount))
 				}
 				warpCount++
+				txBlock.ContainsWarp = true
 			}
 			totalUnits += result.Units
 			txsAdded++
@@ -275,6 +282,7 @@ func BuildBlock(
 
 	// Create last tx block
 	if len(txBlock.Txs) > 0 {
+		txBlock.Last = true
 		if err := txBlock.initializeBuilt(ctx, results); err != nil {
 			return nil, err
 		}
@@ -304,6 +312,8 @@ func BuildBlock(
 		return nil, err
 	}
 	b.StateRoot = root
+	b.UnitsConsumed = totalUnits
+	b.ContainsWarp = warpCount > 0
 
 	// Compute block hash and marshaled representation
 	if err := b.initializeBuilt(ctx, txBlocks, state); err != nil {

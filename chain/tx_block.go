@@ -37,6 +37,7 @@ type TxBlock struct {
 	Txs           []*Transaction `json:"txs"`
 	WarpResults   set.Bits64     `json:"warpResults"`
 	UnitsConsumed uint64         `json:"unitsConsumed"`
+	Last          bool           `json:"last"`
 }
 
 // Stateless is defined separately from "Block"
@@ -209,12 +210,7 @@ func (b *StatelessTxBlock) initializeBuilt(
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
 		b.txsSet.Add(tx.ID())
-		if tx.WarpMessage != nil {
-			// TODO: probably don't need to set
-			b.ContainsWarp = true
-		}
 	}
-	// TODO: set hasCtx
 	return nil
 }
 
@@ -263,7 +259,7 @@ func (b *StatelessTxBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *
 	return true
 }
 
-func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) error {
+func (b *StatelessTxBlock) Verify(ctx context.Context, ectx *ExecutionContext, base merkledb.TrieView) error {
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessTxBlock.Verify",
 		oteltrace.WithAttributes(
@@ -367,8 +363,7 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 	processor.Prefetch(ctx, base)
 
 	// Process new transactions
-	// TODO: add execution context
-	unitsConsumed, results, stateChanges, stateOps, err := processor.Execute(ctx, nil, r)
+	unitsConsumed, results, stateChanges, stateOps, err := processor.Execute(ctx, ectx, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return err
@@ -407,6 +402,9 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 }
 
 func (b *StatelessTxBlock) Accept(ctx context.Context) error {
+	ctx, span := b.vm.Tracer().Start(ctx, "StatelessTxBlock.Accept")
+	defer span.End()
+
 	b.txsSet = nil // only used for replay protection when processing
 	return nil
 }
@@ -415,6 +413,7 @@ func (b *StatelessTxBlock) Accept(ctx context.Context) error {
 func (b *StatelessTxBlock) Reject(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessTxBlock.Reject")
 	defer span.End()
+
 	return nil
 }
 
@@ -446,8 +445,7 @@ func (b *StatelessTxBlock) IsRepeat(
 	// If we are at an accepted block or genesis, we can use the emap on the VM
 	// instead of checking each block
 	lastAccepted := b.vm.LastAcceptedBlock()
-	// TODO: check if <= or <
-	if b.Hght <= lastAccepted.MinTxHght+uint64(len(lastAccepted.Txs)) {
+	if b.Hght < lastAccepted.MinTxHght+uint64(len(lastAccepted.Txs)) {
 		return b.vm.IsRepeat(ctx, txs), nil
 	}
 
@@ -503,6 +501,7 @@ func (b *TxBlock) Marshal(
 	}
 	p.PackUint64(uint64(b.WarpResults))
 	p.PackUint64(b.UnitsConsumed)
+	p.PackBool(b.Last)
 
 	return p.Bytes(), p.Err()
 }
@@ -539,6 +538,7 @@ func UnmarshalTxBlock(raw []byte, parser Parser) (*TxBlock, error) {
 	}
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
 	b.UnitsConsumed = p.UnpackUint64(false)
+	b.Last = p.UnpackBool()
 
 	if !p.Empty() {
 		// Ensure no leftover bytes

@@ -45,7 +45,8 @@ type RootBlock struct {
 	Txs          []ids.ID `json:"txs"`
 
 	// TODO: migrate state root to be that of parent
-	StateRoot ids.ID `json:"stateRoot"`
+	StateRoot     ids.ID `json:"stateRoot"`
+	UnitsConsumed uint64 `json:"unitsConsumed"`
 }
 
 // Stateless is defined separately from "Block"
@@ -131,6 +132,7 @@ func ParseRootBlock(
 		if len(blk.Txs) > r.GetMaxTxBlocks() {
 			return nil, ErrBlockTooBig
 		}
+		// TODO: ensure aren't too many blocks in time period
 	}
 
 	if len(source) == 0 {
@@ -220,6 +222,7 @@ func (b *StatelessRootBlock) Verify(ctx context.Context) error {
 
 func (b *StatelessRootBlock) verify(ctx context.Context, stateReady bool) error {
 	// TODO: verify all chunks have right tmstp, unit price
+	// TODO: verify all chunks have right pchainheight + contains warp
 	// TODO: verify all chunks are done verifying
 
 	log := b.vm.Logger()
@@ -272,12 +275,17 @@ func (b *StatelessRootBlock) verify(ctx context.Context, stateReady bool) error 
 //  3. If the state of a block we are accepting is missing (finishing dynamic
 //     state sync)
 func (b *StatelessRootBlock) innerVerify(ctx context.Context) (merkledb.TrieView, error) {
+	// Get state from final TxBlock execution
+	state, err := b.vm.GetTxBlockState(ctx, b.Txs[len(b.Txs)-1])
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform basic correctness checks before doing any expensive work
 	var (
 		log = b.vm.Logger()
 		r   = b.vm.Rules(b.Tmstmp)
 	)
-
-	// Perform basic correctness checks before doing any expensive work
 	switch {
 	case b.Timestamp().Unix() >= time.Now().Add(FutureBound).Unix():
 		return nil, ErrTimestampTooLate
@@ -315,15 +323,7 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) (merkledb.TrieView
 		zap.Uint64("unit price", b.UnitPrice),
 	)
 
-	// Get state from final execution
-	// TODO: move this root gen inside of final tx block calc
-	state, err := b.vm.GetTxBlockState(ctx, b.Txs[len(b.Txs)-1])
-	if err != nil {
-		return nil, err
-	}
-
 	// Store height in state to prevent duplicate roots
-	// TODO: use height of last tx block here
 	if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, err
 	}
@@ -398,6 +398,11 @@ func (b *StatelessRootBlock) SetLastAccepted(ctx context.Context) error {
 		return err
 	}
 	b.st = choices.Accepted
+	for _, txBlock := range b.txBlocks {
+		if err := txBlock.Accept(ctx); err != nil {
+			return err
+		}
+	}
 
 	// [Accepted] will set in-memory variables needed to ensure we don't resync
 	// all blocks when state sync finishes
@@ -413,6 +418,11 @@ func (b *StatelessRootBlock) Reject(ctx context.Context) error {
 	defer span.End()
 
 	b.st = choices.Rejected
+	for _, txBlock := range b.txBlocks {
+		if err := txBlock.Reject(ctx); err != nil {
+			return err
+		}
+	}
 	b.vm.Rejected(ctx, b)
 	return nil
 }
@@ -477,6 +487,10 @@ func (b *StatelessRootBlock) childState(
 
 func (b *StatelessRootBlock) GetTxs() []ids.ID {
 	return b.Txs
+}
+
+func (b *StatelessRootBlock) GetTxBlocks() []*StatelessTxBlock {
+	return b.txBlocks
 }
 
 func (b *StatelessRootBlock) GetTimestamp() int64 {

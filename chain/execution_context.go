@@ -16,11 +16,8 @@ import (
 type ExecutionContext struct {
 	ChainID ids.ID
 
-	NextUnitPrice  uint64
-	NextUnitWindow window.Window
-
-	// TODO: remove block cost
-	NextBlockCost   uint64
+	NextUnitPrice   uint64
+	NextUnitWindow  window.Window
 	NextBlockWindow window.Window
 }
 
@@ -98,7 +95,7 @@ func GenerateExecutionContext(
 	ctx context.Context,
 	chainID ids.ID,
 	currTime int64,
-	parent *StatelessBlock,
+	parent *StatelessRootBlock,
 	tracer trace.Tracer, //nolint:interfacer
 	r Rules,
 ) (*ExecutionContext, error) {
@@ -118,10 +115,10 @@ func GenerateExecutionContext(
 	if err != nil {
 		return nil, err
 	}
-	nextBlockCost, nextBlockWindow, err := computeNextPriceWindow(
+	_, nextBlockWindow, err := computeNextPriceWindow(
 		parent.BlockWindow,
 		1,
-		parent.BlockCost,
+		1,
 		r.GetWindowTargetBlocks(),
 		r.GetBlockCostChangeDenominator(),
 		r.GetMinBlockCost(),
@@ -133,10 +130,8 @@ func GenerateExecutionContext(
 	return &ExecutionContext{
 		ChainID: chainID,
 
-		NextUnitPrice:  nextUnitPrice,
-		NextUnitWindow: nextUnitWindow,
-
-		NextBlockCost:   nextBlockCost,
+		NextUnitPrice:   nextUnitPrice,
+		NextUnitWindow:  nextUnitWindow,
 		NextBlockWindow: nextBlockWindow,
 	}, nil
 }
