@@ -25,6 +25,7 @@ const (
 	heightPrefix        = 0x1
 	warpSignaturePrefix = 0x2
 	warpFetchPrefix     = 0x3
+	txBlockPrefix       = 0x4
 )
 
 var (
@@ -32,6 +33,7 @@ var (
 	isSyncing    = []byte("is_syncing")
 
 	signatureLRU = &cache.LRU[string, *chain.WarpSignature]{Size: 1024}
+	txBlockLRU   = &cache.LRU[ids.ID, []byte]{Size: 128}
 )
 
 func PrefixBlockIDKey(id ids.ID) []byte {
@@ -48,7 +50,7 @@ func PrefixBlockHeightKey(height uint64) []byte {
 	return k
 }
 
-func (vm *VM) SetLastAccepted(block *chain.StatelessBlock) error {
+func (vm *VM) SetLastAccepted(block *chain.StatelessRootBlock) error {
 	var (
 		bid  = block.ID()
 		vmDB = vm.vmDB
@@ -81,12 +83,12 @@ func (vm *VM) GetLastAccepted() (ids.ID, error) {
 	return ids.ToID(v)
 }
 
-func (vm *VM) GetDiskBlock(bid ids.ID) (*chain.StatefulBlock, error) {
+func (vm *VM) GetDiskBlock(bid ids.ID) (*chain.RootBlock, error) {
 	b, err := vm.vmDB.Get(PrefixBlockIDKey(bid))
 	if err != nil {
 		return nil, err
 	}
-	return chain.UnmarshalBlock(b, vm)
+	return chain.UnmarshalRootBlock(b, vm)
 }
 
 func (vm *VM) DeleteDiskBlock(bid ids.ID) error {
@@ -209,4 +211,27 @@ func (vm *VM) GetWarpFetch(txID ids.ID) (int64, error) {
 		return -1, err
 	}
 	return int64(binary.BigEndian.Uint64(v)), nil
+}
+
+func PrefixTxBlockIDKey(txBlkID ids.ID) []byte {
+	k := make([]byte, 1+consts.IDLen)
+	k[0] = txBlockPrefix
+	copy(k[1:], txBlkID[:])
+	return k
+}
+
+func (vm *VM) StoreTxBlock(txBlkID ids.ID, txBlock []byte) error {
+	txBlockLRU.Put(txBlkID, txBlock)
+	return vm.vmDB.Put(PrefixTxBlockIDKey(txBlkID), txBlock)
+}
+
+func (vm *VM) GetTxBlock(txBlkID ids.ID) ([]byte, error) {
+	if chunk, ok := txBlockLRU.Get(txBlkID); ok {
+		return chunk, nil
+	}
+	v, err := vm.vmDB.Get(PrefixTxBlockIDKey(txBlkID))
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
 }
