@@ -55,6 +55,8 @@ type VM interface {
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction) bool
 
+	IssueTxBlock(context.Context, *StatelessTxBlock)
+
 	Verified(context.Context, *StatelessRootBlock)
 	Rejected(context.Context, *StatelessRootBlock)
 	Accepted(context.Context, *StatelessRootBlock)

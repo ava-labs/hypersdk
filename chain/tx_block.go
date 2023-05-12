@@ -363,11 +363,12 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 	}
 
 	// Optimisticaly fetch state
-	processor := NewProcessor(b.vm.Tracer(), b.vm.ChainID(), b)
+	processor := NewProcessor(b.vm.Tracer(), b)
 	processor.Prefetch(ctx, base)
 
 	// Process new transactions
-	unitsConsumed, results, stateChanges, stateOps, err := processor.Execute(ctx, r)
+	// TODO: add execution context
+	unitsConsumed, results, stateChanges, stateOps, err := processor.Execute(ctx, nil, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return err

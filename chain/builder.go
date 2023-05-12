@@ -174,7 +174,7 @@ func BuildBlock(
 				}
 				b.Txs = append(b.Txs, txBlock.ID())
 				txBlocks = append(txBlocks, txBlock)
-				// TODO: issue txBlock
+				vm.IssueTxBlock(ctx, txBlock)
 				if len(txBlocks) >= r.GetMaxTxBlocks() {
 					return false, true, false, nil
 				}
@@ -280,7 +280,7 @@ func BuildBlock(
 		}
 		b.Txs = append(b.Txs, txBlock.ID())
 		txBlocks = append(txBlocks, txBlock)
-		// TODO: issue txBlock
+		vm.IssueTxBlock(ctx, txBlock)
 	}
 
 	// Perform basic validity checks to make sure the block is well-formatted
