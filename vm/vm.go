@@ -52,9 +52,13 @@ type VM struct {
 	proposerMonitor *ProposerMonitor
 	manager         manager.Manager
 
-	config         Config
-	genesis        Genesis
-	builder        builder.Builder
+	config  Config
+	genesis Genesis
+
+	builder    builder.Builder
+	builtBlock *chain.StatelessRootBlock
+	building   bool
+
 	gossiper       gossiper.Gossiper
 	rawStateDB     database.Database
 	stateDB        *merkledb.Database
@@ -599,14 +603,54 @@ func (vm *VM) buildBlock(
 		return nil, ErrNotReady
 	}
 
-	blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
-	vm.builder.HandleGenerateBlock()
-	if err != nil {
-		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
-		return nil, err
+	if vm.building {
+		return nil, errors.New("already building block")
 	}
-	vm.parsedBlocks.Put(blk.ID(), blk)
-	return blk, nil
+	var builtBlock *chain.StatelessRootBlock
+	if vm.builtBlock != nil {
+		if vm.builtBlock.Prnt == vm.preferred {
+			builtBlock = vm.builtBlock
+			vm.snowCtx.Log.Info("found previously built block", zap.Stringer("blkID", builtBlock.ID()))
+		} else {
+			// TODO: cancel ongoing building in verify
+			vm.snowCtx.Log.Warn("discarding previously built block", zap.Stringer("blkID", vm.builtBlock.ID()))
+			// Re-add transactions to mempool when block is discarded
+			for _, txBlock := range vm.builtBlock.GetTxBlocks() {
+				_ = vm.Submit(ctx, false, txBlock.Txs)
+			}
+		}
+		vm.builtBlock = nil
+	}
+	if builtBlock == nil {
+		vm.building = true
+		preferred := vm.preferred
+		vm.snowCtx.Log.Info("starting async build", zap.Stringer("parent", preferred))
+		start := time.Now()
+		go func() {
+			defer func() {
+				vm.building = false
+			}()
+			blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
+			if err != nil {
+				vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
+				return
+			}
+			if blk.Prnt != vm.preferred {
+				vm.snowCtx.Log.Warn("abandoning built blk", zap.Error(err))
+				for _, txBlock := range blk.GetTxBlocks() {
+					_ = vm.Submit(ctx, false, txBlock.Txs)
+				}
+				return
+			}
+			vm.builtBlock = blk
+			vm.snowCtx.Log.Info("built block async", zap.Duration("t", time.Since(start)))
+			vm.builder.TriggerBuild()
+		}()
+		vm.builder.HandleGenerateBlock()
+		return nil, errors.New("building block")
+	}
+	vm.parsedBlocks.Put(builtBlock.ID(), builtBlock)
+	return builtBlock, nil
 }
 
 // implements "block.ChainVM"
