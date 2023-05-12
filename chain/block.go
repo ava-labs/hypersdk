@@ -34,6 +34,37 @@ var (
 	_ block.StateSummary      = &SyncableBlock{}
 )
 
+// Chain architecture
+//
+// Non-Consensus: [TB1] -> [TB2] -> [TB3] -> [TB4] -> [TB5]
+// Consensus:                   \-> [RB1]                  \-> [RB2]
+type RootBlock struct {
+	Prnt   ids.ID `json:"parent"`
+	Tmstmp int64  `json:"timestamp"`
+	Hght   uint64 `json:"height"`
+
+	UnitPrice   uint64        `json:"unitPrice"`
+	UnitWindow  window.Window `json:"unitWindow"`
+	BlockWindow window.Window `json:"blockWindow"`
+
+	MinTxHght uint64   `json:"minTxHeight"`
+	Txs       []ids.ID `json:"txs"`
+
+	// TODO: migrate state root to be that of parent
+	StateRoot     ids.ID     `json:"stateRoot"`
+	UnitsConsumed uint64     `json:"unitsConsumed"`
+	WarpResults   set.Bits64 `json:"warpResults"`
+}
+
+type TxBlock struct {
+	Prnt      ids.ID `json:"parent"`
+	Tmstmp    int64  `json:"timestamp"`
+	Hght      uint64 `json:"height"`
+	UnitPrice uint64 `json:"unitPrice"`
+
+	Txs []*Transaction `json:"txs"`
+}
+
 type StatefulBlock struct {
 	Prnt   ids.ID `json:"parent"`
 	Tmstmp int64  `json:"timestamp"`
