@@ -74,7 +74,7 @@ func (vm *VM) Rules(t int64) chain.Rules {
 	return vm.c.Rules(t)
 }
 
-func (vm *VM) LastAcceptedBlock() *chain.StatelessBlock {
+func (vm *VM) LastAcceptedBlock() *chain.StatelessRootBlock {
 	return vm.lastAccepted
 }
 
@@ -101,7 +101,7 @@ func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction) bool {
 	return vm.seen.Any(txs)
 }
 
-func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
+func (vm *VM) Verified(ctx context.Context, b *chain.StatelessRootBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Verified")
 	defer span.End()
 
@@ -111,7 +111,9 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	vm.verifiedBlocks[b.ID()] = b
 	vm.verifiedL.Unlock()
 	vm.parsedBlocks.Evict(b.ID())
-	vm.mempool.Remove(ctx, b.Txs)
+	for _, txBlock := range b.GetTxBlocks() {
+		vm.mempool.Remove(ctx, txBlock.Txs)
+	}
 	vm.gossiper.BlockVerified(b.Tmstmp)
 	vm.snowCtx.Log.Info(
 		"verified block",
@@ -122,14 +124,16 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	)
 }
 
-func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
+func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessRootBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Rejected")
 	defer span.End()
 
 	vm.verifiedL.Lock()
 	delete(vm.verifiedBlocks, b.ID())
 	vm.verifiedL.Unlock()
-	vm.mempool.Add(ctx, b.Txs)
+	for _, txBlock := range b.GetTxBlocks() {
+		vm.mempool.Add(ctx, txBlock.Txs)
+	}
 
 	// TODO: handle async?
 	if err := vm.c.Rejected(ctx, b); err != nil {
@@ -163,32 +167,34 @@ func (vm *VM) processAcceptedBlocks() {
 		}
 
 		// Sign and store any warp messages (regardless if validator now, may become one)
-		results := b.Results()
-		for i, tx := range b.Txs {
-			result := results[i]
-			if result.WarpMessage == nil {
-				continue
-			}
-			start := time.Now()
-			signature, err := vm.snowCtx.WarpSigner.Sign(result.WarpMessage)
-			if err != nil {
-				vm.snowCtx.Log.Fatal("unable to sign warp message", zap.Error(err))
-			}
-			if err := vm.StoreWarpSignature(tx.ID(), vm.snowCtx.PublicKey, signature); err != nil {
-				vm.snowCtx.Log.Fatal("unable to store warp signature", zap.Error(err))
-			}
-			vm.snowCtx.Log.Info(
-				"signed and stored warp message signature",
-				zap.Stringer("txID", tx.ID()),
-				zap.Duration("t", time.Since(start)),
-			)
+		for _, txBlock := range b.GetTxBlocks() {
+			results := txBlock.Results()
+			for i, tx := range txBlock.Txs {
+				result := results[i]
+				if result.WarpMessage == nil {
+					continue
+				}
+				start := time.Now()
+				signature, err := vm.snowCtx.WarpSigner.Sign(result.WarpMessage)
+				if err != nil {
+					vm.snowCtx.Log.Fatal("unable to sign warp message", zap.Error(err))
+				}
+				if err := vm.StoreWarpSignature(tx.ID(), vm.snowCtx.PublicKey, signature); err != nil {
+					vm.snowCtx.Log.Fatal("unable to store warp signature", zap.Error(err))
+				}
+				vm.snowCtx.Log.Info(
+					"signed and stored warp message signature",
+					zap.Stringer("txID", tx.ID()),
+					zap.Duration("t", time.Since(start)),
+				)
 
-			// Kickoff job to fetch signatures from other validators in the
-			// background
-			//
-			// We pass bytes here so that signatures returned from validators can be
-			// verified before they are persisted.
-			vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
+				// Kickoff job to fetch signatures from other validators in the
+				// background
+				//
+				// We pass bytes here so that signatures returned from validators can be
+				// verified before they are persisted.
+				vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
+			}
 		}
 
 		// Update server
@@ -210,7 +216,7 @@ func (vm *VM) processAcceptedBlocks() {
 	vm.snowCtx.Log.Info("acceptor queue shutdown")
 }
 
-func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
+func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessRootBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
@@ -225,7 +231,9 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	// Update replay protection heap
 	blkTime := b.Tmstmp
 	vm.seen.SetMin(blkTime)
-	vm.seen.Add(b.Txs)
+	for _, txBlock := range b.GetTxBlocks() {
+		vm.seen.Add(txBlock.Txs)
+	}
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
 	// timestamps of at least [ValidityWindow] for this to occur).
@@ -293,8 +301,8 @@ func (vm *VM) NodeID() ids.NodeID {
 	return vm.snowCtx.NodeID
 }
 
-func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatelessBlock, error) {
-	return vm.GetStatelessBlock(ctx, vm.preferred)
+func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatelessRootBlock, error) {
+	return vm.GetStatelessRootBlock(ctx, vm.preferred)
 }
 
 func (vm *VM) StopChan() chan struct{} {
@@ -329,7 +337,7 @@ func (vm *VM) StateReady() bool {
 	return vm.stateSyncClient.StateReady()
 }
 
-func (vm *VM) UpdateSyncTarget(b *chain.StatelessBlock) (bool, error) {
+func (vm *VM) UpdateSyncTarget(b *chain.StatelessRootBlock) (bool, error) {
 	return vm.stateSyncClient.UpdateSyncTarget(b)
 }
 

@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -73,18 +74,18 @@ type VM struct {
 
 	// cache block objects to optimize "GetBlockStateless"
 	// only put when a block is accepted
-	blocks *cache.LRU[ids.ID, *chain.StatelessBlock]
+	blocks *cache.LRU[ids.ID, *chain.StatelessRootBlock]
 
 	// We cannot use a map here because we may parse blocks up in the ancestry
-	parsedBlocks *cache.LRU[ids.ID, *chain.StatelessBlock]
+	parsedBlocks *cache.LRU[ids.ID, *chain.StatelessRootBlock]
 
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
 	verifiedL      sync.RWMutex
-	verifiedBlocks map[ids.ID]*chain.StatelessBlock
+	verifiedBlocks map[ids.ID]*chain.StatelessRootBlock
 
 	// Accepted block queue
-	acceptedQueue chan *chain.StatelessBlock
+	acceptedQueue chan *chain.StatelessRootBlock
 	acceptorDone  chan struct{}
 
 	// Transactions that streaming users are currently subscribed to
@@ -95,7 +96,7 @@ type VM struct {
 
 	bootstrapped utils.Atomic[bool]
 	preferred    ids.ID
-	lastAccepted *chain.StatelessBlock
+	lastAccepted *chain.StatelessRootBlock
 	toEngine     chan<- common.Message
 
 	// State Sync client and AppRequest handlers
@@ -212,11 +213,11 @@ func (vm *VM) Initialize(
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
 
-	vm.blocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetBlockLRUSize()}
-	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.GetAcceptorSize())
+	vm.blocks = &cache.LRU[ids.ID, *chain.StatelessRootBlock]{Size: vm.config.GetBlockLRUSize()}
+	vm.acceptedQueue = make(chan *chain.StatelessRootBlock, vm.config.GetAcceptorSize())
 	vm.acceptorDone = make(chan struct{})
-	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetBlockLRUSize()}
-	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
+	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessRootBlock]{Size: vm.config.GetBlockLRUSize()}
+	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessRootBlock)
 
 	vm.mempool = mempool.New[*chain.Transaction](
 		vm.tracer,
@@ -238,7 +239,7 @@ func (vm *VM) Initialize(
 			return err
 		}
 
-		blk, err := vm.GetStatelessBlock(ctx, blkID)
+		blk, err := vm.GetStatelessRootBlock(ctx, blkID)
 		if err != nil {
 			snowCtx.Log.Error("could not load last accepted", zap.Error(err))
 			return err
@@ -267,7 +268,7 @@ func (vm *VM) Initialize(
 
 		// Create genesis block
 		genesisRules := vm.c.Rules(0)
-		genesisBlk, err := chain.ParseStatefulBlock(
+		genesisBlk, err := chain.ParseRootBlock(
 			ctx,
 			chain.NewGenesisBlock(root, genesisRules.GetMinUnitPrice(), genesisRules.GetMinBlockCost()),
 			nil,
@@ -512,11 +513,11 @@ func (vm *VM) GetBlock(ctx context.Context, id ids.ID) (snowman.Block, error) {
 	defer span.End()
 
 	// We purposely don't return parsed but unverified blocks from here
-	return vm.GetStatelessBlock(ctx, id)
+	return vm.GetStatelessRootBlock(ctx, id)
 }
 
-func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.StatelessBlock, error) {
-	ctx, span := vm.tracer.Start(ctx, "VM.GetStatelessBlock")
+func (vm *VM) GetStatelessRootBlock(ctx context.Context, blkID ids.ID) (*chain.StatelessRootBlock, error) {
+	ctx, span := vm.tracer.Start(ctx, "VM.GetStatelessRootBlock")
 	defer span.End()
 
 	// has the block been cached from previous "Accepted" call
@@ -539,7 +540,14 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 		return nil, err
 	}
 	// If block on disk, it must've been accepted
-	return chain.ParseStatefulBlock(ctx, stBlk, nil, choices.Accepted, vm)
+	return chain.ParseRootBlock(ctx, stBlk, nil, choices.Accepted, vm)
+}
+
+func (vm *VM) GetStatelessTxBlock(ctx context.Context, blkID ids.ID) (*chain.StatelessTxBlock, error) {
+	ctx, span := vm.tracer.Start(ctx, "VM.GetStatelessTxBlock")
+	defer span.End()
+
+	return nil, errors.New("not implemented")
 }
 
 // implements "block.ChainVM.commom.VM.Parser"
@@ -553,7 +561,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 
 	// If we have seen this block before, return it with the most
 	// up-to-date info
-	if oldBlk, err := vm.GetStatelessBlock(ctx, id); err == nil {
+	if oldBlk, err := vm.GetStatelessRootBlock(ctx, id); err == nil {
 		vm.snowCtx.Log.Debug("returning previously parsed block", zap.Stringer("id", oldBlk.ID()))
 		return oldBlk, nil
 	}
@@ -563,7 +571,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	if exist {
 		return blk, nil
 	}
-	newBlk, err := chain.ParseBlock(
+	newBlk, err := chain.ParseStatelessRootBlock(
 		ctx,
 		source,
 		choices.Processing,
@@ -670,7 +678,11 @@ func (vm *VM) Submit(
 	}
 
 	// Create temporary execution context
-	blk, err := vm.GetStatelessBlock(ctx, vm.preferred)
+	blk, err := vm.GetStatelessRootBlock(ctx, vm.preferred)
+	if err != nil {
+		return []error{err}
+	}
+	txBlk, err := vm.GetStatelessTxBlock(ctx, blk.Txs[len(blk.Txs)-1])
 	if err != nil {
 		return []error{err}
 	}
@@ -712,7 +724,7 @@ func (vm *VM) Submit(
 		}
 		// TODO: do we need this? (just ensures people can't spam mempool with
 		// txs from already verified blocks)
-		repeat, err := blk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx})
+		repeat, err := txBlk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx})
 		if err != nil {
 			errs = append(errs, err)
 			continue
