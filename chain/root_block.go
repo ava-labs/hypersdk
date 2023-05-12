@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -298,23 +297,6 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) (merkledb.TrieView
 		return nil, ErrTimestampTooEarly
 	}
 
-	// Ensure tx cannot be replayed
-	//
-	// Before node is considered ready (emap is fully populated), this may return
-	// false when other validators think it is true.
-	oldestAllowed := b.Tmstmp - r.GetValidityWindow()
-	if oldestAllowed < 0 {
-		// Can occur if verifying genesis
-		oldestAllowed = 0
-	}
-	dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs)
-	if err != nil {
-		return nil, err
-	}
-	if dup {
-		return nil, fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
-	}
-
 	ectx, err := GenerateExecutionContext(ctx, b.vm.ChainID(), b.Tmstmp, parent, b.vm.Tracer(), r)
 	if err != nil {
 		return nil, err
@@ -324,8 +306,6 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) (merkledb.TrieView
 		return nil, ErrInvalidUnitPrice
 	case b.UnitWindow != ectx.NextUnitWindow:
 		return nil, ErrInvalidUnitWindow
-	case b.BlockCost != ectx.NextBlockCost:
-		return nil, ErrInvalidBlockCost
 	case b.BlockWindow != ectx.NextBlockWindow:
 		return nil, ErrInvalidBlockWindow
 	}
@@ -333,127 +313,10 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) (merkledb.TrieView
 		"verify context",
 		zap.Uint64("height", b.Hght),
 		zap.Uint64("unit price", b.UnitPrice),
-		zap.Uint64("block cost", b.BlockCost),
 	)
 
-	// Start validating warp messages, if they exist
-	var invalidWarpResult bool
-	if b.containsWarp {
-		if b.bctx == nil {
-			log.Error(
-				"missing verify block context",
-				zap.Uint64("height", b.Hght),
-				zap.Stringer("id", b.ID()),
-			)
-			return nil, ErrMissingBlockContext
-		}
-		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
-		b.vdrState = b.vm.ValidatorState()
-		go func() {
-			defer sspan.End()
-			// We don't use [b.vm.Workers] here because we need the warp verification
-			// results during normal execution. If we added a job to the workers queue,
-			// it would get executed after all signatures. Additionally, BLS
-			// Multi-Signature verification is already parallelized so we should just
-			// do one at a time to avoid overwhelming the CPU.
-			for txID, msg := range b.warpMessages {
-				if ctx.Err() != nil {
-					return
-				}
-				blockVerified := b.WarpResults.Contains(uint(msg.warpNum))
-				if b.vm.IsBootstrapped() && !invalidWarpResult {
-					start := time.Now()
-					verified := b.verifyWarpMessage(ctx, r, msg.msg)
-					msg.verifiedChan <- verified
-					msg.verified = verified
-					log.Info(
-						"processed warp message",
-						zap.Stringer("txID", txID),
-						zap.Bool("verified", verified),
-						zap.Int("signers", msg.signers),
-						zap.Duration("t", time.Since(start)),
-					)
-					if blockVerified != verified {
-						invalidWarpResult = true
-					}
-				} else {
-					// When we are bootstrapping, we just use the result in the block.
-					//
-					// We also use the result in the block when we have found
-					// a verification mismatch (our verify result is different than the
-					// block) to avoid doing extra work.
-					msg.verifiedChan <- blockVerified
-					msg.verified = blockVerified
-				}
-			}
-		}()
-	}
-
-	// Fetch parent state
-	//
-	// This function may verify the parent if it is not yet verified.
-	state, err := parent.childState(ctx, len(b.Txs)*2)
-	if err != nil {
-		return nil, err
-	}
-
-	// Optimisticaly fetch state
-	processor := NewProcessor(b.vm.Tracer(), b)
-	processor.Prefetch(ctx, state)
-
-	// Process new transactions
-	unitsConsumed, surplusFee, results, stateChanges, stateOps, err := processor.Execute(ctx, ectx, r)
-	if err != nil {
-		log.Error("failed to execute block", zap.Error(err))
-		return nil, err
-	}
-	b.vm.RecordStateChanges(stateChanges)
-	b.vm.RecordStateOperations(stateOps)
-	b.results = results
-	if b.UnitsConsumed != unitsConsumed {
-		return nil, fmt.Errorf(
-			"%w: required=%d found=%d",
-			ErrInvalidUnitsConsumed,
-			unitsConsumed,
-			b.UnitsConsumed,
-		)
-	}
-
-	// Ensure enough fee is paid to compensate for block production speed
-	if b.SurplusFee != surplusFee {
-		return nil, fmt.Errorf(
-			"%w: required=%d found=%d",
-			ErrInvalidSurplus,
-			b.SurplusFee,
-			surplusFee,
-		)
-	}
-	requiredSurplus := b.UnitPrice * b.BlockCost
-	if surplusFee < requiredSurplus {
-		return nil, fmt.Errorf(
-			"%w: required=%d found=%d",
-			ErrInsufficientSurplus,
-			requiredSurplus,
-			surplusFee,
-		)
-	}
-
-	// Ensure warp results are correct
-	if invalidWarpResult {
-		return nil, ErrWarpResultMismatch
-	}
-	numWarp := len(b.warpMessages)
-	if numWarp > MaxWarpMessages {
-		return nil, ErrTooManyWarpMessages
-	}
-	var warpResultsLimit set.Bits64
-	warpResultsLimit.Add(uint(numWarp))
-	if b.WarpResults >= warpResultsLimit {
-		// If the value of [WarpResults] is greater than the value of uint64 with
-		// a 1-bit shifted [numWarp] times, then there are unused bits set to
-		// 1 (which should is not allowed).
-		return nil, ErrWarpResultMismatch
-	}
+	// TODO: get final state post txBlock execution
+	var state merkledb.TrieView
 
 	// Store height in state to prevent duplicate roots
 	if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
@@ -477,7 +340,7 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) (merkledb.TrieView
 	}
 
 	// Ensure signatures are verified
-	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitSignatures")
+	_, sspan := b.vm.Tracer().Start(ctx, "StatelessRootBlock.Verify.WaitSignatures")
 	defer sspan.End()
 	start = time.Now()
 	for _, job := range b.txBlocks {
@@ -628,28 +491,24 @@ func (b *RootBlock) Marshal() ([]byte, error) {
 
 	p.PackUint64(b.UnitPrice)
 	p.PackWindow(b.UnitWindow)
-
-	p.PackUint64(b.BlockCost)
 	p.PackWindow(b.BlockWindow)
 
+	p.PackUint64(b.MinTxHght)
+	p.PackBool(b.ContainsWarp)
 	p.PackInt(len(b.Txs))
 	for _, tx := range b.Txs {
-		if err := tx.Marshal(p, actionRegistry, authRegistry); err != nil {
-			return nil, err
-		}
+		p.PackID(tx)
 	}
 
 	p.PackID(b.StateRoot)
-	p.PackUint64(b.UnitsConsumed)
-	p.PackUint64(b.SurplusFee)
-	p.PackUint64(uint64(b.WarpResults))
+
 	return p.Bytes(), p.Err()
 }
 
 func UnmarshalRootBlock(raw []byte, parser Parser) (*RootBlock, error) {
 	var (
 		p = codec.NewReader(raw, consts.NetworkSizeLimit)
-		b StatefulBlock
+		b RootBlock
 	)
 
 	p.UnpackID(false, &b.Prnt)
@@ -658,8 +517,6 @@ func UnmarshalRootBlock(raw []byte, parser Parser) (*RootBlock, error) {
 
 	b.UnitPrice = p.UnpackUint64(false)
 	p.UnpackWindow(&b.UnitWindow)
-
-	b.BlockCost = p.UnpackUint64(false)
 	p.UnpackWindow(&b.BlockWindow)
 	if err := p.Err(); err != nil {
 		// Check that header was parsed properly before unwrapping transactions
@@ -667,21 +524,18 @@ func UnmarshalRootBlock(raw []byte, parser Parser) (*RootBlock, error) {
 	}
 
 	// Parse transactions
+	b.MinTxHght = p.UnpackUint64(false)
+	b.ContainsWarp = p.UnpackBool()
 	txCount := p.UnpackInt(false) // could be 0 in genesis
-	actionRegistry, authRegistry := parser.Registry()
-	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
+	b.Txs = []ids.ID{}            // don't preallocate all to avoid DoS
+	// TODO: check limit len here
 	for i := 0; i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
-		if err != nil {
-			return nil, err
-		}
-		b.Txs = append(b.Txs, tx)
+		var txID ids.ID
+		p.UnpackID(true, &txID)
+		b.Txs = append(b.Txs, txID)
 	}
 
 	p.UnpackID(false, &b.StateRoot)
-	b.UnitsConsumed = p.UnpackUint64(false)
-	b.SurplusFee = p.UnpackUint64(false)
-	b.WarpResults = set.Bits64(p.UnpackUint64(false))
 
 	if !p.Empty() {
 		// Ensure no leftover bytes
