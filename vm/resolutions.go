@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -367,4 +368,10 @@ func (vm *VM) RecordStateChanges(c int) {
 
 func (vm *VM) RecordStateOperations(c int) {
 	vm.metrics.stateOperations.Add(float64(c))
+}
+
+func (vm *VM) IssueTxBlock(ctx context.Context, blk *chain.StatelessTxBlock) {}
+
+func (vm *VM) GetTxBlockState(ctx context.Context, blkID ids.ID) (merkledb.TrieView, error) {
+	return nil, errors.New("not implemented")
 }
