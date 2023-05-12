@@ -46,6 +46,7 @@ type VM interface {
 	SetLastAccepted(*StatelessRootBlock) error
 	GetStatelessRootBlock(context.Context, ids.ID) (*StatelessRootBlock, error)
 	GetStatelessTxBlock(context.Context, ids.ID) (*StatelessTxBlock, error)
+	GetTxBlockState(context.Context, ids.ID) (merkledb.TrieView, error)
 
 	State() (*merkledb.Database, error)
 	StateManager() StateManager

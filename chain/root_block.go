@@ -315,10 +315,15 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) (merkledb.TrieView
 		zap.Uint64("unit price", b.UnitPrice),
 	)
 
-	// TODO: get final state post txBlock execution
-	var state merkledb.TrieView
+	// Get state from final execution
+	// TODO: move this root gen inside of final tx block calc
+	state, err := b.vm.GetTxBlockState(ctx, b.Txs[len(b.Txs)-1])
+	if err != nil {
+		return nil, err
+	}
 
 	// Store height in state to prevent duplicate roots
+	// TODO: use height of last tx block here
 	if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, err
 	}
