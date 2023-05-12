@@ -359,7 +359,6 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 	}
 	b.vm.RecordStateChanges(stateChanges)
 	b.vm.RecordStateOperations(stateOps)
-	b.results = results
 	if b.UnitsConsumed != unitsConsumed {
 		return fmt.Errorf(
 			"%w: required=%d found=%d",
@@ -387,6 +386,7 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 	}
 
 	// We wait for signatures in root block.
+	b.results = results
 	return nil
 }
 
