@@ -29,8 +29,8 @@ var (
 
 // Chain architecture
 //
-// Non-Consensus: [TB1] -> [TB2]        /-> [TB3] -> [TB4] -> [TB5]
-// Consensus:                   \-> [RB1]                         \-> [RB2]
+// Non-Consensus: [TB1] -> [TB2] -> [TB3] -> [TB4] -> [TB5]
+// Consensus:                   \-> [RB1]                 \-> [RB2]
 type RootBlock struct {
 	Prnt   ids.ID `json:"parent"`
 	Tmstmp int64  `json:"timestamp"`
@@ -40,12 +40,12 @@ type RootBlock struct {
 	UnitWindow  window.Window `json:"unitWindow"`
 	BlockWindow window.Window `json:"blockWindow"`
 
-	MinTxHght uint64   `json:"minTxHeight"`
-	Txs       []ids.ID `json:"txs"`
+	MinTxHght    uint64   `json:"minTxHeight"`
+	ContainsWarp bool     `json:"containsWarp"`
+	Txs          []ids.ID `json:"txs"`
 
 	// TODO: migrate state root to be that of parent
-	StateRoot     ids.ID `json:"stateRoot"`
-	UnitsConsumed uint64 `json:"unitsConsumed"`
+	StateRoot ids.ID `json:"stateRoot"`
 }
 
 // Stateless is defined separately from "Block"

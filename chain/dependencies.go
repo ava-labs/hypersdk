@@ -42,9 +42,10 @@ type VM interface {
 	Logger() logging.Logger
 
 	IsBootstrapped() bool
-	LastAcceptedBlock() *StatelessBlock
-	SetLastAccepted(*StatelessBlock) error
-	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
+	LastAcceptedBlock() *StatelessRootBlock
+	SetLastAccepted(*StatelessRootBlock) error
+	GetStatelessRootBlock(context.Context, ids.ID) (*StatelessRootBlock, error)
+	GetStatelessTxBlock(context.Context, ids.ID) (*StatelessTxBlock, error)
 
 	State() (*merkledb.Database, error)
 	StateManager() StateManager
@@ -53,15 +54,15 @@ type VM interface {
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction) bool
 
-	Verified(context.Context, *StatelessBlock)
-	Rejected(context.Context, *StatelessBlock)
-	Accepted(context.Context, *StatelessBlock)
+	Verified(context.Context, *StatelessRootBlock)
+	Rejected(context.Context, *StatelessRootBlock)
+	Accepted(context.Context, *StatelessRootBlock)
 	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
 
 	// UpdateSyncTarget returns a bool that is true if the root
 	// was updated and the sync is continuing with the new specified root
 	// and false if the sync completed with the previous root.
-	UpdateSyncTarget(*StatelessBlock) (bool, error)
+	UpdateSyncTarget(*StatelessRootBlock) (bool, error)
 	StateReady() bool
 
 	// Collect useful metrics
@@ -71,9 +72,6 @@ type VM interface {
 	RecordWaitSignatures(time.Duration) // only called in Verify
 	RecordStateChanges(int)
 	RecordStateOperations(int)
-
-	// TxBlock distribution
-	DistributeTxBlock([]byte)
 }
 
 type Mempool interface {
