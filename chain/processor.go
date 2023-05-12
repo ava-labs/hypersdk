@@ -8,7 +8,6 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 
 	"github.com/ava-labs/hypersdk/tstate"
@@ -25,8 +24,7 @@ type txData struct {
 }
 
 type Processor struct {
-	tracer  trace.Tracer
-	chainID ids.ID
+	tracer trace.Tracer
 
 	blk      *StatelessTxBlock
 	readyTxs chan *txData
@@ -34,10 +32,9 @@ type Processor struct {
 }
 
 // Only prepare for population if above last accepted height
-func NewProcessor(tracer trace.Tracer, chainID ids.ID, b *StatelessTxBlock) *Processor {
+func NewProcessor(tracer trace.Tracer, b *StatelessTxBlock) *Processor {
 	return &Processor{
-		tracer:  tracer,
-		chainID: chainID,
+		tracer: tracer,
 
 		blk:      b,
 		readyTxs: make(chan *txData, len(b.GetTxs())),
@@ -83,6 +80,7 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 
 func (p *Processor) Execute(
 	ctx context.Context,
+	ectx *ExecutionContext,
 	r Rules,
 ) (uint64, []*Result, int, int, error) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Execute")
@@ -92,7 +90,6 @@ func (p *Processor) Execute(
 		unitsConsumed = uint64(0)
 		ts            = tstate.New(len(p.blk.Txs) * 2) // TODO: tune this heuristic
 		t             = p.blk.GetTimestamp()
-		blkUnitPrice  = p.blk.GetUnitPrice()
 		results       = []*Result{}
 		sm            = p.blk.vm.StateManager()
 	)
@@ -104,7 +101,7 @@ func (p *Processor) Execute(
 		ts.SetScope(ctx, tx.StateKeys(sm), txData.storage)
 
 		// Execute tx
-		if err := tx.PreExecute(ctx, p.chainID, blkUnitPrice, r, ts, t); err != nil {
+		if err := tx.PreExecute(ctx, ectx, r, ts, t); err != nil {
 			return 0, nil, 0, 0, err
 		}
 		// Wait to execute transaction until we have the warp result processed.
@@ -120,7 +117,7 @@ func (p *Processor) Execute(
 				return 0, nil, 0, 0, ctx.Err()
 			}
 		}
-		result, err := tx.Execute(ctx, p.chainID, blkUnitPrice, r, sm, ts, t, ok && warpVerified)
+		result, err := tx.Execute(ctx, ectx, r, sm, ts, t, ok && warpVerified)
 		if err != nil {
 			return 0, nil, 0, 0, err
 		}

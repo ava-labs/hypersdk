@@ -177,13 +177,12 @@ func (t *Transaction) MaxUnits(r Rules) (txFee uint64, err error) {
 // PreExecute must not modify state
 func (t *Transaction) PreExecute(
 	ctx context.Context,
-	chainID ids.ID,
-	blkUnitPrice uint64,
+	ectx *ExecutionContext,
 	r Rules,
 	db Database,
 	timestamp int64,
 ) error {
-	if err := t.Base.Execute(chainID, r, timestamp); err != nil {
+	if err := t.Base.Execute(ectx.ChainID, r, timestamp); err != nil {
 		return err
 	}
 	start, end := t.Action.ValidRange(r)
@@ -201,7 +200,7 @@ func (t *Transaction) PreExecute(
 		return ErrAuthNotActivated
 	}
 	unitPrice := t.Base.UnitPrice
-	if unitPrice < blkUnitPrice {
+	if unitPrice < ectx.NextUnitPrice {
 		return ErrInsufficientPrice
 	}
 	if _, err := t.Auth.Verify(ctx, r, db, t.Action); err != nil {
@@ -221,8 +220,7 @@ func (t *Transaction) PreExecute(
 // Execute after knowing a transaction can pay a fee
 func (t *Transaction) Execute(
 	ctx context.Context,
-	chainID ids.ID,
-	blkUnitPrice uint64,
+	ectx *ExecutionContext,
 	r Rules,
 	s StateManager,
 	tdb *tstate.TState,
@@ -310,7 +308,7 @@ func (t *Transaction) Execute(
 		// always sign for a message
 		if result.WarpMessage != nil {
 			// Enforce we are the source of our own messages
-			result.WarpMessage.SourceChainID = chainID
+			result.WarpMessage.SourceChainID = ectx.ChainID
 			// Initialize message (compute bytes) now that everything is populated
 			if err := result.WarpMessage.Initialize(); err != nil {
 				return nil, err

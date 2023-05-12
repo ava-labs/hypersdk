@@ -60,6 +60,21 @@ type StatelessTxBlock struct {
 	sigJob *workers.Job
 }
 
+func NewTxBlock(vm VM, parent *StatelessTxBlock, tmstmp int64, unitPrice uint64) *StatelessTxBlock {
+	blk := &TxBlock{
+		Tmstmp:    tmstmp,
+		UnitPrice: unitPrice,
+	}
+	if parent != nil {
+		blk.Prnt = parent.ID()
+		blk.Hght = parent.Hght + 1
+	}
+	return &StatelessTxBlock{
+		TxBlock: blk,
+		vm:      vm,
+	}
+}
+
 // warpJob is used to signal to a listner that a *warp.Message has been
 // verified.
 type warpJob struct {

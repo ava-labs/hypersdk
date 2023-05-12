@@ -92,6 +92,7 @@ type Database interface {
 
 type Rules interface {
 	GetMaxTxBlocks() int
+	GetMaxTxBlockUnits() uint64
 
 	GetMaxBlockTxs() int
 	GetMaxBlockUnits() uint64 // should ensure can't get above block max size

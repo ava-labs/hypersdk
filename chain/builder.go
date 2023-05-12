@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -48,24 +47,33 @@ func BuildBlock(
 	vm VM,
 	preferred ids.ID,
 	blockContext *smblock.Context,
-) (*RootBlock, error) {
+) (*StatelessRootBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
 	log := vm.Logger()
 
 	nextTime := time.Now().Unix()
 	r := vm.Rules(nextTime)
-	parent, err := vm.GetStatelessBlock(ctx, preferred)
+	parent, err := vm.GetStatelessRootBlock(ctx, preferred)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent", zap.Error(err))
 		return nil, err
+	}
+	var parentTxBlock *StatelessTxBlock
+	if len(parent.Txs) > 0 { // if first block, will not have any tx blocks
+		parentTxBlock, err = vm.GetStatelessTxBlock(ctx, parent.Txs[len(parent.Txs)-1])
+		if err != nil {
+			log.Warn("block building failed: couldn't get parent tx block", zap.Error(err))
+			return nil, err
+		}
 	}
 	ectx, err := GenerateExecutionContext(ctx, vm.ChainID(), nextTime, parent, vm.Tracer(), r)
 	if err != nil {
 		log.Warn("block building failed: couldn't get execution context", zap.Error(err))
 		return nil, err
 	}
-	b := NewBlock(ectx, vm, parent, nextTime)
+
+	b := NewRootBlock(ectx, vm, parent, nextTime)
 
 	changesEstimate := math.Min(vm.Mempool().Len(ctx), r.GetMaxBlockTxs())
 	state, err := parent.childState(ctx, changesEstimate)
@@ -76,15 +84,18 @@ func BuildBlock(
 	ts := tstate.New(changesEstimate)
 
 	// Restorable txs after block attempt finishes
-	b.Txs = []*Transaction{}
 	var (
 		oldestAllowed = nextTime - r.GetValidityWindow()
+		mempool       = vm.Mempool()
 
-		surplusFee = uint64(0)
-		mempool    = vm.Mempool()
+		txBlocks = []*StatelessTxBlock{}
 
+		txBlock = NewTxBlock(vm, parentTxBlock, nextTime, ectx.NextUnitPrice)
+		results = []*Result{}
+
+		totalUnits   = uint64(0)
 		txsAttempted = 0
-		results      = []*Result{}
+		txsAdded     = 0
 
 		warpCount = 0
 
@@ -124,13 +135,15 @@ func BuildBlock(
 			//
 			// TODO: check a bunch at once during pre-fetch to avoid re-walking blocks
 			// for every tx
-			dup, err := parent.IsRepeat(ctx, oldestAllowed, []*Transaction{next})
-			if err != nil {
-				return false, false, false, err
-			}
-			if dup {
-				// tx will be restored when ancestry is rejected
-				return true, false, false, nil
+			if parentTxBlock != nil {
+				dup, err := parentTxBlock.IsRepeat(ctx, oldestAllowed, []*Transaction{next})
+				if err != nil {
+					return false, false, false, err
+				}
+				if dup {
+					// tx will be restored when ancestry is rejected
+					return true, false, false, nil
+				}
 			}
 
 			// Ensure we have room
@@ -143,13 +156,31 @@ func BuildBlock(
 				)
 				return true, false, false, nil
 			}
-			if b.UnitsConsumed+nextUnits > r.GetMaxBlockUnits() {
+			if totalUnits+nextUnits > r.GetMaxBlockUnits() {
 				log.Debug(
 					"skipping tx: too many units",
-					zap.Uint64("block units", b.UnitsConsumed),
+					zap.Uint64("block units", totalUnits),
 					zap.Uint64("tx max units", nextUnits),
 				)
 				return false /* make simpler */, true, false, nil // could be txs that fit that are smaller
+			}
+
+			// Determine if we need to create a new TxBlock
+			//
+			// TODO: handle case where tx is larger than max size of TxBlock
+			if txBlock.UnitsConsumed+nextUnits > r.GetMaxTxBlockUnits() {
+				if err := txBlock.initializeBuilt(ctx, results); err != nil {
+					return false, true, false, err
+				}
+				b.Txs = append(b.Txs, txBlock.ID())
+				txBlocks = append(txBlocks, txBlock)
+				// TODO: issue txBlock
+				if len(txBlocks) >= r.GetMaxTxBlocks() {
+					return false, true, false, nil
+				}
+
+				txBlock = NewTxBlock(vm, txBlock, nextTime, ectx.NextUnitPrice)
+				results = []*Result{}
 			}
 
 			// Populate required transaction state and restrict which keys can be used
@@ -213,18 +244,18 @@ func BuildBlock(
 			}
 
 			// Update block with new transaction
-			b.Txs = append(b.Txs, next)
-			b.UnitsConsumed += result.Units
-			surplusFee += (next.Base.UnitPrice - b.UnitPrice) * result.Units
+			txBlock.UnitsConsumed += result.Units
 			results = append(results, result)
 			if next.WarpMessage != nil {
 				if warpErr == nil {
 					// Add a bit if the warp message was verified
-					b.WarpResults.Add(uint(warpCount))
+					txBlock.WarpResults.Add(uint(warpCount))
 				}
 				warpCount++
 			}
-			return len(b.Txs) < r.GetMaxBlockTxs(), false, false, nil
+			totalUnits += result.Units
+			txsAdded++
+			return txsAdded < r.GetMaxBlockTxs(), false, false, nil
 		},
 	)
 	span.SetAttributes(
@@ -232,26 +263,30 @@ func BuildBlock(
 		attribute.Int("added", len(b.Txs)),
 	)
 	if mempoolErr != nil {
-		b.vm.Mempool().Add(ctx, b.Txs)
-		return nil, err
+		for _, block := range txBlocks {
+			b.vm.Mempool().Add(ctx, block.Txs)
+		}
+		if txBlock != nil {
+			b.vm.Mempool().Add(ctx, txBlock.Txs)
+		}
+		b.vm.Logger().Warn("build failed", zap.Error(mempoolErr))
+		return nil, mempoolErr
+	}
+
+	// Create last tx block
+	if len(txBlock.Txs) > 0 {
+		if err := txBlock.initializeBuilt(ctx, results); err != nil {
+			return nil, err
+		}
+		b.Txs = append(b.Txs, txBlock.ID())
+		txBlocks = append(txBlocks, txBlock)
+		// TODO: issue txBlock
 	}
 
 	// Perform basic validity checks to make sure the block is well-formatted
 	if len(b.Txs) == 0 {
 		return nil, ErrNoTxs
 	}
-	requiredSurplus := b.UnitPrice * b.BlockCost
-	if surplusFee < requiredSurplus {
-		// This is a very common result during block building
-		b.vm.Mempool().Add(ctx, b.Txs)
-		return nil, fmt.Errorf(
-			"%w: required=%d found=%d",
-			ErrInsufficientSurplus,
-			requiredSurplus,
-			surplusFee,
-		)
-	}
-	b.SurplusFee = surplusFee
 
 	// Get root from underlying state changes after writing all changed keys
 	if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
@@ -271,7 +306,7 @@ func BuildBlock(
 	b.StateRoot = root
 
 	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, state, results); err != nil {
+	if err := b.initializeBuilt(ctx, txBlocks, state); err != nil {
 		return nil, err
 	}
 	log.Info(
