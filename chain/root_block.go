@@ -501,6 +501,14 @@ func (b *StatelessRootBlock) GetUnitPrice() uint64 {
 	return b.UnitPrice
 }
 
+func (b *StatelessRootBlock) MaxTxHght() uint64 {
+	l := len(b.Txs)
+	if l == 0 {
+		return b.MinTxHght
+	}
+	return b.MinTxHght + uint64(l-1)
+}
+
 func (b *RootBlock) Marshal() ([]byte, error) {
 	p := codec.NewWriter(consts.NetworkSizeLimit)
 

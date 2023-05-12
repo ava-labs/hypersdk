@@ -152,6 +152,14 @@ func (vm *VM) processAcceptedBlocks() {
 	// persist indexed state) instead of just exiting as soon as `vm.stop` is
 	// closed.
 	for b := range vm.acceptedQueue {
+		// Update TxBlock store
+		for _, txBlock := range b.GetTxBlocks() {
+			if err := vm.StoreTxBlock(txBlock.ID(), txBlock.Bytes()); err != nil {
+				vm.snowCtx.Log.Fatal("unable to store tx block", zap.Error(err))
+			}
+		}
+		vm.txBlockManager.Accept(b.MaxTxHght())
+
 		// We skip blocks that were not processed because metadata required to
 		// process blocks opaquely (like looking at results) is not populated.
 		//

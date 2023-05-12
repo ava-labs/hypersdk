@@ -444,8 +444,7 @@ func (b *StatelessTxBlock) IsRepeat(
 
 	// If we are at an accepted block or genesis, we can use the emap on the VM
 	// instead of checking each block
-	lastAccepted := b.vm.LastAcceptedBlock()
-	if b.Hght < lastAccepted.MinTxHght+uint64(len(lastAccepted.Txs)) {
+	if b.Hght <= b.vm.LastAcceptedBlock().MaxTxHght() {
 		return b.vm.IsRepeat(ctx, txs), nil
 	}
 
