@@ -91,6 +91,7 @@ func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock) {
 		info = &txBlockInfo{txBlock: txBlock}
 	}
 	info.count++
+	// TODO: need to keep count anymore?
 	c.counts[txBlock.ID()] = info
 
 	// Check if bucket with height already exists
@@ -539,38 +540,34 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 			return nil
 		}
 
-		// TODO: tx blocks could build off each other arbitrarily, need to put
-		// state in each one
-
-		// Option 1: parent txBlock is missing, must fetch
-		parent, ok := c.fetchedChunks[txBlock.Prnt]
-		if !ok {
-			// TODO: trigger verify once returned
-			c.RequestChunk(ctx, &(txBlock.Hght - 1), nodeID, txBlock.Prnt, nil)
+		// Option 1: parent txBlock is missing, must fetch ancestry
+		parent := c.txBlocks.Get(txBlock.Prnt)
+		if parent == nil {
+			// TODO: trigger verify once returned (ensure not multiple verifications
+			// of same block going on)
+			// TODO: don't verify if accept other path
+			// TODO: handle Hght == 0
+			c.RequestChunk(ctx, txBlock.Hght-1, nodeID, txBlock.Prnt, nil)
 			return nil
 		}
 
-		// TODO: if keep chunk, increase max value
-
-		// Option 2: parent txBlock is final, must create new child state
-
-		// Option 3: parent txBlock exists and is not final, can verify immediately
-
-		// Optimistically fetch chunks
-		// TODO: only fetch if from a soon to be producer (i.e. will need to verify
-		// a future block)
-		// TODO: handle case where already wrote to disk and we are getting old
-		// chunks
-		for chunkID := range unprocessed {
-			if _, ok := c.clearedChunks.Get(chunkID); ok {
-				continue
-			}
-			if _, ok := c.tryOptimisticChunks.Get(chunkID); ok {
-				continue
-			}
-			c.tryOptimisticChunks.Put(chunkID, nil)
-			// TODO: limit max concurrency here
-			go c.RequestChunk(context.Background(), nil, nodeID, chunkID, nil)
+		// Option 2: parent exists, verify
+		// TODO: ensure we don't get block from elsewhere before verifying
+		stxBlk, err := chain.ParseTxBlock(ctx, txBlock, b, c.vm)
+		if err != nil {
+			c.vm.Logger().Error("unable to init txBlock", zap.Error(err))
+			return nil
+		}
+		// TODO: if already added, exit could have received at same time as others
+		c.txBlocks.Add(stxBlk)
+		state, err := parent.ChildState(ctx, 1)
+		if err != nil {
+			c.vm.Logger().Error("unable to create child state", zap.Error(err))
+			return nil
+		}
+		if err := stxBlk.Verify(ctx, nil, state); err != nil {
+			c.vm.Logger().Error("unable to create child state", zap.Error(err))
+			return nil
 		}
 	default:
 		c.vm.Logger().Error("unexpected message type", zap.Uint8("type", msg[0]))

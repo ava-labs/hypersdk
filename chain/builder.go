@@ -79,7 +79,7 @@ func BuildBlock(
 	changesEstimate := math.Min(vm.Mempool().Len(ctx), r.GetMaxBlockTxs())
 	var state merkledb.TrieView
 	if parentTxBlock != nil {
-		state, err = parentTxBlock.childState(ctx, changesEstimate)
+		state, err = parentTxBlock.ChildState(ctx, changesEstimate)
 		if err != nil {
 			log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 			return nil, err
@@ -203,7 +203,7 @@ func BuildBlock(
 					return false, true, false, nil
 				}
 
-				state, err = txBlock.childState(ctx, changesEstimate)
+				state, err = txBlock.ChildState(ctx, changesEstimate)
 				if err != nil {
 					return false, true, false, err
 				}

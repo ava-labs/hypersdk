@@ -496,7 +496,7 @@ func (b *StatelessTxBlock) Results() []*Result {
 
 // We assume this will only be called once we are done syncing, so it is safe
 // to assume we will eventually get to a block with state.
-func (b *StatelessTxBlock) childState(
+func (b *StatelessTxBlock) ChildState(
 	ctx context.Context,
 	estimatedChanges int,
 ) (merkledb.TrieView, error) {
