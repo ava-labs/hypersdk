@@ -55,7 +55,7 @@ type VM interface {
 	IsRepeat(context.Context, []*Transaction) bool
 
 	IssueTxBlock(context.Context, *StatelessTxBlock)
-	RequestTxBlocks(context.Context, []ids.ID)
+	RequestTxBlocks(context.Context, uint64, []ids.ID)
 	GetStatelessTxBlock(context.Context, ids.ID) (*StatelessTxBlock, error)
 	GetTxBlockState(context.Context, ids.ID) (merkledb.TrieView, error)
 

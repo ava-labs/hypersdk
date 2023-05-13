@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/heap"
@@ -27,20 +28,14 @@ const (
 )
 
 type NodeChunks struct {
-	Min         uint64
-	Max         uint64
-	Unprocessed set.Set[ids.ID]
+	Min uint64
+	Max uint64
 }
 
 func (n *NodeChunks) Marshal() ([]byte, error) {
 	p := codec.NewWriter(consts.NetworkSizeLimit)
 	p.PackUint64(n.Min)
 	p.PackUint64(n.Max)
-	l := len(n.Unprocessed)
-	p.PackInt(l)
-	for chunk := range n.Unprocessed {
-		p.PackID(chunk)
-	}
 	return p.Bytes(), p.Err()
 }
 
@@ -49,13 +44,6 @@ func UnmarshalNodeChunks(b []byte) (*NodeChunks, error) {
 	p := codec.NewReader(b, consts.NetworkSizeLimit)
 	n.Min = p.UnpackUint64(false) // could be genesis
 	n.Max = p.UnpackUint64(false) // could be genesis
-	l := p.UnpackInt(false)       // could have no processing
-	n.Unprocessed = set.NewSet[ids.ID](l)
-	for i := 0; i < l; i++ {
-		var chunk ids.ID
-		p.UnpackID(true, &chunk)
-		n.Unprocessed.Add(chunk)
-	}
 	return &n, p.Err()
 }
 
@@ -208,12 +196,10 @@ func (c *TxBlockManager) Run(appSender common.AppSender) {
 			return
 		}
 
-		// TODO: advertise optimistic chunks
 		c.chunkLock.RLock()
 		nc := &NodeChunks{
-			Min:         c.min,
-			Max:         c.max,
-			Unprocessed: c.chunks.All(),
+			Min: c.min,
+			Max: c.max,
 		}
 		c.chunkLock.RUnlock() // chunks is copied
 		b, err := nc.Marshal()
@@ -226,7 +212,6 @@ func (c *TxBlockManager) Run(appSender common.AppSender) {
 			c.vm.snowCtx.Log.Warn("unable to send chunk gossip", zap.Error(err))
 			continue
 		}
-		c.vm.metrics.chunksProcessing.Set(float64(len(nc.Unprocessed)))
 	}
 }
 
@@ -279,9 +264,6 @@ func (c *TxBlockManager) Accept(height uint64) {
 }
 
 func (c *TxBlockManager) RequestChunks(ctx context.Context, height uint64, chunkIDs []ids.ID, ch chan []byte) error {
-	start := time.Now()
-	defer c.vm.metrics.chunksFetched.Observe(float64(time.Since(start)))
-
 	// TODO: pre-store chunks on disk if bootstrapping
 	g, gctx := errgroup.WithContext(ctx)
 	for _, cchunkID := range chunkIDs {
@@ -302,7 +284,6 @@ func (c *TxBlockManager) RequestChunks(ctx context.Context, height uint64, chunk
 		})
 	}
 	if err := g.Wait(); err != nil {
-		c.vm.metrics.chunkJobFails.Inc()
 		return err
 	}
 
@@ -444,7 +425,6 @@ func (c *TxBlockManager) RequestChunk(ctx context.Context, height *uint64, hint 
 }
 
 func (c *TxBlockManager) requestChunkNodeID(ctx context.Context, recipient ids.NodeID, chunkID ids.ID) ([]byte, error) {
-	c.vm.metrics.chunkRequests.Inc()
 
 	// Send request
 	rch := make(chan []byte)
@@ -459,7 +439,6 @@ func (c *TxBlockManager) requestChunkNodeID(ctx context.Context, recipient ids.N
 		requestID,
 		chunkID[:],
 	); err != nil {
-		c.vm.metrics.failedChunkRequests.Inc()
 		c.vm.snowCtx.Log.Warn("chunk fetch request failed", zap.Stringer("chunkID", chunkID), zap.Error(err))
 		return nil, err
 	}
@@ -472,7 +451,6 @@ func (c *TxBlockManager) requestChunkNodeID(ctx context.Context, recipient ids.N
 		return nil, ctx.Err()
 	}
 	if len(msg) == 0 {
-		c.vm.metrics.failedChunkRequests.Inc()
 		// Happens if recipient does not have the chunk we want
 		c.vm.snowCtx.Log.Warn("chunk fetch returned empty", zap.Stringer("chunkID", chunkID))
 		return nil, errors.New("not found")
@@ -480,7 +458,6 @@ func (c *TxBlockManager) requestChunkNodeID(ctx context.Context, recipient ids.N
 	fchunkID := utils.ToID(msg)
 	if chunkID != fchunkID {
 		// TODO: penalize sender
-		c.vm.metrics.failedChunkRequests.Inc()
 		c.vm.snowCtx.Log.Warn("received incorrect chunk", zap.Stringer("nodeID", recipient))
 		return nil, errors.New("invalid chunk")
 	}
@@ -508,7 +485,7 @@ func (c *TxBlockManager) HandleRequest(
 	}
 
 	// Check accepted
-	chunk, err = c.vm.GetChunk(chunkID)
+	chunk, err = c.vm.GetTxBlock(chunkID)
 	if err != nil {
 		c.vm.snowCtx.Log.Warn("unable to find chunk", zap.Stringer("chunkID", chunkID), zap.Error(err))
 		return c.appSender.SendAppResponse(ctx, nodeID, requestID, []byte{})
@@ -545,31 +522,51 @@ func (c *TxBlockManager) HandleRequestFailed(requestID uint32) error {
 }
 
 func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	nc, err := UnmarshalNodeChunks(msg)
-	if err != nil {
-		c.vm.Logger().Error("unable to parse chunk gossip", zap.Error(err))
+	if len(msg) == 0 {
 		return nil
 	}
-	c.nodeChunkLock.Lock()
-	c.nodeChunks[nodeID] = nc
-	unprocessed := nc.Unprocessed // never updated
-	c.nodeChunkLock.Unlock()
+	switch msg[0] {
+	case 0:
+		nc, err := UnmarshalNodeChunks(msg[1:])
+		if err != nil {
+			c.vm.Logger().Error("unable to parse gossip", zap.Error(err))
+			return nil
+		}
+		c.nodeChunkLock.Lock()
+		c.nodeChunks[nodeID] = nc
+		c.nodeChunkLock.Unlock()
+	case 1:
+		txBlock, err := chain.UnmarshalTxBlock(msg[1:], nil)
+		if err != nil {
+			c.vm.Logger().Error("unable to parse txBlock", zap.Error(err))
+			return nil
+		}
 
-	// Optimistically fetch chunks
-	// TODO: only fetch if from a soon to be producer (i.e. will need to verify
-	// a future block)
-	// TODO: handle case where already wrote to disk and we are getting old
-	// chunks
-	for chunkID := range unprocessed {
-		if _, ok := c.clearedChunks.Get(chunkID); ok {
-			continue
+		// Option 1: parent txBlock is final, must create new child state
+
+		// Option 2: parent txBlock exists and is not final, can verify immediately
+
+		// Option 3: parent txBlock is missing, must fetch
+
+		// Optimistically fetch chunks
+		// TODO: only fetch if from a soon to be producer (i.e. will need to verify
+		// a future block)
+		// TODO: handle case where already wrote to disk and we are getting old
+		// chunks
+		for chunkID := range unprocessed {
+			if _, ok := c.clearedChunks.Get(chunkID); ok {
+				continue
+			}
+			if _, ok := c.tryOptimisticChunks.Get(chunkID); ok {
+				continue
+			}
+			c.tryOptimisticChunks.Put(chunkID, nil)
+			// TODO: limit max concurrency here
+			go c.RequestChunk(context.Background(), nil, nodeID, chunkID, nil)
 		}
-		if _, ok := c.tryOptimisticChunks.Get(chunkID); ok {
-			continue
-		}
-		c.tryOptimisticChunks.Put(chunkID, nil)
-		// TODO: limit max concurrency here
-		go c.RequestChunk(context.Background(), nil, nodeID, chunkID, nil)
+	default:
+		c.vm.Logger().Error("unexpected message type")
+		return nil
 	}
 	return nil
 }
@@ -578,9 +575,8 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 func (c *TxBlockManager) HandleConnect(ctx context.Context, nodeID ids.NodeID) error {
 	c.chunkLock.RLock()
 	nc := &NodeChunks{
-		Min:         c.min,
-		Max:         c.max,
-		Unprocessed: c.chunks.All(),
+		Min: c.min,
+		Max: c.max,
 	}
 	c.chunkLock.RUnlock() // chunks is copied
 	b, err := nc.Marshal()
