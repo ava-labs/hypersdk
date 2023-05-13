@@ -302,7 +302,7 @@ func BuildBlock(
 	}
 
 	// Store height in state to prevent duplicate roots
-	if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+	if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
 		return nil, err
 	}
 

@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -395,6 +396,18 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, ectx *ExecutionContext, b
 		// 1 (which should is not allowed).
 		return ErrWarpResultMismatch
 	}
+
+	// Store height in state to prevent duplicate roots
+	if err := base.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return err
+	}
+
+	// Compute state root
+	start := time.Now()
+	if _, err := base.GetMerkleRoot(ctx); err != nil {
+		return err
+	}
+	b.vm.RecordRootCalculated(time.Since(start))
 
 	// We wait for signatures in root block.
 	b.results = results

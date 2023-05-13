@@ -2,7 +2,6 @@ package chain
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
@@ -334,20 +333,11 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) (merkledb.TrieView
 		zap.Uint64("unit price", b.UnitPrice),
 	)
 
-	// TODO: do root generation in final block and use height of inner block
-
-	// Store height in state to prevent duplicate roots
-	if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return nil, err
-	}
-
-	// Compute state root
-	start := time.Now()
+	// Root was already computed in TxBlock so this should return immediately
 	computedRoot, err := state.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
-	b.vm.RecordRootCalculated(time.Since(start))
 	if b.StateRoot != computedRoot {
 		return nil, fmt.Errorf(
 			"%w: expected=%s found=%s",
@@ -360,7 +350,7 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) (merkledb.TrieView
 	// Ensure signatures are verified
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessRootBlock.Verify.WaitSignatures")
 	defer sspan.End()
-	start = time.Now()
+	start := time.Now()
 	for _, job := range b.txBlocks {
 		if err := job.sigJob.Wait(); err != nil {
 			return nil, err
