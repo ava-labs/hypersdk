@@ -544,6 +544,7 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 			c.vm.Logger().Error("already processing block")
 			return nil
 		}
+		// TODO: set right amount of possible changes
 		state, err := parent.ChildState(ctx, 1)
 		if err != nil {
 			c.vm.Logger().Error("unable to create child state", zap.Error(err))
