@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
@@ -76,10 +77,21 @@ func BuildBlock(
 	b := NewRootBlock(ectx, vm, parent, nextTime)
 
 	changesEstimate := math.Min(vm.Mempool().Len(ctx), r.GetMaxBlockTxs())
-	state, err := parent.childState(ctx, changesEstimate)
-	if err != nil {
-		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
-		return nil, err
+	var state merkledb.TrieView
+	if parentTxBlock != nil {
+		state, err = parentTxBlock.childState(ctx, changesEstimate)
+		if err != nil {
+			log.Warn("block building failed: couldn't get parent db", zap.Error(err))
+			return nil, err
+		}
+	} else if parent.Hght == 0 {
+		state, err = vm.State()
+		if err != nil {
+			log.Warn("block building failed: couldn't get genesis db", zap.Error(err))
+			return nil, err
+		}
+	} else {
+		return nil, errors.New("parent tx block is unexpectedly nil")
 	}
 	ts := tstate.New(changesEstimate)
 
@@ -172,10 +184,16 @@ func BuildBlock(
 			//
 			// TODO: handle case where tx is larger than max size of TxBlock
 			if txBlock.UnitsConsumed+nextUnits > r.GetMaxTxBlockUnits() {
+				if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
+					return false, true, false, err
+				}
 				if len(txBlocks) >= r.GetMaxTxBlocks() {
 					txBlock.Last = true
+					if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
+						return false, true, false, err
+					}
 				}
-				if err := txBlock.initializeBuilt(ctx, results); err != nil {
+				if err := txBlock.initializeBuilt(ctx, state, results); err != nil {
 					return false, true, false, err
 				}
 				b.Txs = append(b.Txs, txBlock.ID())
@@ -185,6 +203,11 @@ func BuildBlock(
 					return false, true, false, nil
 				}
 
+				state, err = txBlock.childState(ctx, changesEstimate)
+				if err != nil {
+					return false, true, false, err
+				}
+				ts = tstate.New(changesEstimate)
 				txBlock = NewTxBlock(vm, txBlock, nextTime, ectx.NextUnitPrice)
 				results = []*Result{}
 			}
@@ -281,9 +304,18 @@ func BuildBlock(
 	}
 
 	// Create last tx block
+	//
+	// TODO: unify this logic with inner block tracker
 	if len(txBlock.Txs) > 0 {
 		txBlock.Last = true
-		if err := txBlock.initializeBuilt(ctx, results); err != nil {
+		if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
+			return nil, err
+		}
+		// Store height in state to prevent duplicate roots
+		if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
+			return nil, err
+		}
+		if err := txBlock.initializeBuilt(ctx, state, results); err != nil {
 			return nil, err
 		}
 		b.Txs = append(b.Txs, txBlock.ID())
@@ -296,16 +328,6 @@ func BuildBlock(
 		return nil, ErrNoTxs
 	}
 
-	// Get root from underlying state changes after writing all changed keys
-	if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
-		return nil, err
-	}
-
-	// Store height in state to prevent duplicate roots
-	if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
-		return nil, err
-	}
-
 	// Compute state root after all data has been written to trie
 	root, err := state.GetMerkleRoot(ctx)
 	if err != nil {
@@ -316,7 +338,7 @@ func BuildBlock(
 	b.ContainsWarp = warpCount > 0
 
 	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, txBlocks, state); err != nil {
+	if err := b.initializeBuilt(ctx, txBlocks); err != nil {
 		return nil, err
 	}
 	log.Info(

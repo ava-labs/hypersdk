@@ -6,6 +6,7 @@ package chain
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"time"
 
@@ -57,7 +58,8 @@ type StatelessTxBlock struct {
 
 	results []*Result
 
-	vm VM
+	vm    VM
+	state merkledb.TrieView
 
 	sigJob *workers.Job
 }
@@ -195,6 +197,7 @@ func ParseTxBlock(
 // [initializeBuilt] is invoked after a block is built
 func (b *StatelessTxBlock) initializeBuilt(
 	ctx context.Context,
+	state merkledb.TrieView,
 	results []*Result,
 ) error {
 	_, span := b.vm.Tracer().Start(ctx, "StatelessTxBlock.initializeBuilt")
@@ -207,6 +210,7 @@ func (b *StatelessTxBlock) initializeBuilt(
 	b.bytes = blk
 	b.id = utils.ToID(b.bytes)
 	b.t = time.Unix(b.TxBlock.Tmstmp, 0)
+	b.state = state
 	b.results = results
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
@@ -488,6 +492,31 @@ func (b *StatelessTxBlock) GetUnitPrice() uint64 {
 
 func (b *StatelessTxBlock) Results() []*Result {
 	return b.results
+}
+
+// We assume this will only be called once we are done syncing, so it is safe
+// to assume we will eventually get to a block with state.
+func (b *StatelessTxBlock) childState(
+	ctx context.Context,
+	estimatedChanges int,
+) (merkledb.TrieView, error) {
+	ctx, span := b.vm.Tracer().Start(ctx, "StatelessTxBlock.childState")
+	defer span.End()
+
+	// Return committed state if block is accepted or this is genesis.
+	if b.vm.LastAcceptedBlock().MaxTxHght() >= b.Hght || b.Hght == 0 {
+		state, err := b.vm.State()
+		if err != nil {
+			return nil, err
+		}
+		return state.NewPreallocatedView(estimatedChanges)
+	}
+
+	// Process block if not yet processed and not yet accepted.
+	if b.state == nil {
+		return nil, errors.New("not implemented")
+	}
+	return b.state.NewPreallocatedView(estimatedChanges)
 }
 
 func (b *TxBlock) Marshal(

@@ -57,7 +57,6 @@ type VM interface {
 	IssueTxBlock(context.Context, *StatelessTxBlock)
 	RequestTxBlocks(context.Context, uint64, []ids.ID)
 	GetStatelessTxBlock(context.Context, ids.ID) (*StatelessTxBlock, error)
-	GetTxBlockState(context.Context, ids.ID) (merkledb.TrieView, error)
 
 	LastAcceptedBlock() *StatelessRootBlock
 	GetStatelessRootBlock(context.Context, ids.ID) (*StatelessRootBlock, error)

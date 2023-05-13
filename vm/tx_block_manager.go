@@ -254,20 +254,22 @@ func (c *TxBlockManager) Accept(height uint64) {
 	c.vm.snowCtx.Log.Info("evicted chunks from memory", zap.Int("n", len(evicted)))
 }
 
-func (c *TxBlockManager) RequestChunks(ctx context.Context, height uint64, chunkIDs []ids.ID, ch chan []byte) error {
+func (c *TxBlockManager) RequestChunks(ctx context.Context, txBlkHeight uint64, txBlkIDs []ids.ID, ch chan []byte) error {
 	// TODO: pre-store chunks on disk if bootstrapping
 	g, gctx := errgroup.WithContext(ctx)
-	for _, cchunkID := range chunkIDs {
-		chunkID := cchunkID
+	for ri, rtxBlkID := range txBlkIDs {
+		i := uint64(ri)
+		txBlkID := rtxBlkID
 		g.Go(func() error {
-			crch := make(chan *chunkResult, 1)
-			c.RequestChunk(gctx, &height, ids.EmptyNodeID, chunkID, crch)
+			crch := make(chan *txBlockResult, 1)
+			c.RequestChunk(gctx, txBlkHeight+i, ids.EmptyNodeID, txBlkID, crch)
 			select {
 			case r := <-crch:
 				if r.err != nil {
 					return r.err
 				}
-				ch <- r.chunk
+				// TODO: need to actually return?
+				ch <- r.txBlock.Bytes()
 				return nil
 			case <-gctx.Done():
 				return gctx.Err()
@@ -518,13 +520,12 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 		blkID := utils.ToID(b)
 
 		// Option 0: already have txBlock, drop
-		// TODO: add lock
-		if _, ok := c.fetchedChunks[blkID]; ok {
+		if txBlk := c.txBlocks.Get(blkID); txBlk != nil {
 			return nil
 		}
 
-		// Don't yet have txBlock, figure out what to do
-		txBlock, err := chain.UnmarshalTxBlock(b, nil)
+		// Don't yet have txBlock in cache, figure out what to do
+		txBlock, err := chain.UnmarshalTxBlock(b, c.vm)
 		if err != nil {
 			c.vm.Logger().Error("unable to parse txBlock", zap.Error(err))
 			return nil
@@ -534,9 +535,12 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 		//
 		// TODO: limit how far ahead we will fetch
 		if txBlock.Hght <= c.vm.LastAcceptedBlock().MaxTxHght() {
-			c.vm.Logger().Debug("block is useless")
+			c.vm.Logger().Debug("dropp useless tx block", zap.Uint64("hght", txBlock.Hght))
 			return nil
 		}
+
+		// TODO: tx blocks could build off each other arbitrarily, need to put
+		// state in each one
 
 		// Option 1: parent txBlock is missing, must fetch
 		parent, ok := c.fetchedChunks[txBlock.Prnt]
