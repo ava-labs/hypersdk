@@ -527,6 +527,7 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 			// of same block going on)
 			// TODO: don't verify if accept other path
 			// TODO: handle Hght == 0
+			// TODO: recursively go back, may not have what we need yet
 			c.RequestChunk(ctx, txBlock.Hght-1, nodeID, txBlock.Prnt, nil)
 			return nil
 		}
@@ -544,6 +545,8 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 			c.vm.Logger().Error("already processing block")
 			return nil
 		}
+		// TODO: handle case where parent is not yet verified (we may also be
+		// waiting)
 		state, err := parent.ChildState(ctx, len(stxBlk.Txs)*2)
 		if err != nil {
 			c.vm.Logger().Error("unable to create child state", zap.Error(err))
