@@ -544,14 +544,12 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 			c.vm.Logger().Error("already processing block")
 			return nil
 		}
-		// TODO: set right amount of possible changes
-		state, err := parent.ChildState(ctx, 1)
+		state, err := parent.ChildState(ctx, len(stxBlk.Txs)*2)
 		if err != nil {
 			c.vm.Logger().Error("unable to create child state", zap.Error(err))
 			return nil
 		}
-		// TODO: need to get exec context
-		if err := stxBlk.Verify(ctx, nil, state); err != nil {
+		if err := stxBlk.Verify(ctx, state); err != nil {
 			c.vm.Logger().Error("unable to create child state", zap.Error(err))
 			return nil
 		}

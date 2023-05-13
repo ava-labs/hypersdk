@@ -101,7 +101,7 @@ func BuildBlock(
 		mempool       = vm.Mempool()
 
 		txBlocks = []*StatelessTxBlock{}
-		txBlock  = NewTxBlock(vm, parentTxBlock, nextTime, ectx.NextUnitPrice)
+		txBlock  = NewTxBlock(vm, parentTxBlock, parent.ID(), nextTime, ectx.NextUnitPrice)
 		results  = []*Result{}
 
 		totalUnits   = uint64(0)
@@ -208,7 +208,7 @@ func BuildBlock(
 					return false, true, false, err
 				}
 				ts = tstate.New(changesEstimate)
-				txBlock = NewTxBlock(vm, txBlock, nextTime, ectx.NextUnitPrice)
+				txBlock = NewTxBlock(vm, txBlock, parent.ID(), nextTime, ectx.NextUnitPrice)
 				results = []*Result{}
 			}
 

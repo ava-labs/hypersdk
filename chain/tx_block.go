@@ -29,6 +29,7 @@ type TxBlock struct {
 	Prnt ids.ID `json:"parent"`
 	Hght uint64 `json:"height"`
 
+	PrntBlk   ids.ID `json:"parentBlk"`
 	Tmstmp    int64  `json:"timestamp"`
 	UnitPrice uint64 `json:"unitPrice"`
 
@@ -64,8 +65,9 @@ type StatelessTxBlock struct {
 	sigJob *workers.Job
 }
 
-func NewTxBlock(vm VM, parent *StatelessTxBlock, tmstmp int64, unitPrice uint64) *StatelessTxBlock {
+func NewTxBlock(vm VM, parent *StatelessTxBlock, prntBlk ids.ID, tmstmp int64, unitPrice uint64) *StatelessTxBlock {
 	blk := &TxBlock{
+		PrntBlk:   prntBlk,
 		Tmstmp:    tmstmp,
 		UnitPrice: unitPrice,
 	}
@@ -264,7 +266,7 @@ func (b *StatelessTxBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *
 	return true
 }
 
-func (b *StatelessTxBlock) Verify(ctx context.Context, ectx *ExecutionContext, base merkledb.TrieView) error {
+func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) error {
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessTxBlock.Verify",
 		oteltrace.WithAttributes(
@@ -364,6 +366,14 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, ectx *ExecutionContext, b
 	}
 
 	// Optimisticaly fetch state
+	rootPrnt, err := b.vm.GetStatelessRootBlock(ctx, b.PrntBlk)
+	if err != nil {
+		return err
+	}
+	ectx, err := GenerateExecutionContext(ctx, b.vm.ChainID(), b.Tmstmp, rootPrnt, b.vm.Tracer(), r)
+	if err != nil {
+		return err
+	}
 	processor := NewProcessor(b.vm.Tracer(), b)
 	processor.Prefetch(ctx, base)
 
@@ -528,6 +538,7 @@ func (b *TxBlock) Marshal(
 	p.PackID(b.Prnt)
 	p.PackUint64(b.Hght)
 
+	p.PackID(b.PrntBlk)
 	p.PackInt64(b.Tmstmp)
 	p.PackUint64(b.UnitPrice)
 
@@ -556,6 +567,7 @@ func UnmarshalTxBlock(raw []byte, parser Parser) (*TxBlock, error) {
 	p.UnpackID(false, &b.Prnt)
 	b.Hght = p.UnpackUint64(false)
 
+	p.UnpackID(false, &b.PrntBlk)
 	b.Tmstmp = p.UnpackInt64(false)
 	b.UnitPrice = p.UnpackUint64(false)
 
