@@ -47,20 +47,15 @@ func UnmarshalNodeChunks(b []byte) (*NodeChunks, error) {
 }
 
 type bucket struct {
-	h     uint64          // Timestamp
+	h     uint64          // Height
 	items set.Set[ids.ID] // Array of AvalancheGo ids
-}
-
-type txBlockInfo struct {
-	count   int
-	txBlock *chain.StatelessTxBlock
 }
 
 type TxBlockMap struct {
 	l sync.RWMutex
 
 	bh      *heap.Heap[*bucket, uint64]
-	counts  map[ids.ID]*txBlockInfo
+	items   map[ids.ID]*chain.StatelessTxBlock
 	heights map[uint64]*bucket // Uses timestamp as keys to map to buckets of ids.
 }
 
@@ -68,36 +63,30 @@ func NewTxBlockMap() *TxBlockMap {
 	// If lower height is accepted and chunk in rejected block that shows later,
 	// must not remove yet.
 	return &TxBlockMap{
-		counts:  map[ids.ID]*txBlockInfo{},
+		items:   map[ids.ID]*chain.StatelessTxBlock{},
 		heights: make(map[uint64]*bucket),
 		bh:      heap.New[*bucket, uint64](120, true),
 	}
 }
 
 // TODO: don't store in block map unless can fetch ancestry back to known block
-func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock) {
+func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock) bool {
 	c.l.Lock()
 	defer c.l.Unlock()
 
-	// Ensure txBlock is not already registered at height
+	// Ensure txBlock is not already registered
 	b, ok := c.heights[txBlock.Hght]
 	if ok && b.items.Contains(txBlock.ID()) {
-		return
+		return false
 	}
 
-	// Increase chunk count
-	info, cok := c.counts[txBlock.ID()]
-	if !cok {
-		info = &txBlockInfo{txBlock: txBlock}
-	}
-	info.count++
-	// TODO: need to keep count anymore?
-	c.counts[txBlock.ID()] = info
+	// Add to items
+	c.items[txBlock.ID()] = txBlock
 
 	// Check if bucket with height already exists
 	if ok {
 		b.items.Add(txBlock.ID())
-		return
+		return true
 	}
 
 	// Create new bucket
@@ -112,17 +101,14 @@ func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock) {
 		Item:  b,
 		Index: c.bh.Len(),
 	})
+	return true
 }
 
 func (c *TxBlockMap) Get(blkID ids.ID) *chain.StatelessTxBlock {
 	c.l.RLock()
 	defer c.l.RUnlock()
 
-	info, ok := c.counts[blkID]
-	if !ok {
-		return nil
-	}
-	return info.txBlock
+	return c.items[blkID]
 }
 
 func (c *TxBlockMap) SetMin(h uint64) []ids.ID {
@@ -137,14 +123,8 @@ func (c *TxBlockMap) SetMin(h uint64) []ids.ID {
 		}
 		c.bh.Pop()
 		for chunkID := range b.Item.items {
-			info := c.counts[chunkID]
-			info.count--
-			if info.count == 0 {
-				delete(c.counts, chunkID)
-				evicted = append(evicted, chunkID)
-			} else {
-				c.counts[chunkID] = info
-			}
+			delete(c.items, chunkID)
+			evicted = append(evicted, chunkID)
 		}
 		// Delete from times map
 		delete(c.heights, b.Val)
@@ -169,7 +149,7 @@ type TxBlockManager struct {
 	nodeSet       set.Set[ids.NodeID]
 
 	outstandingLock sync.Mutex
-	outstanding     map[ids.ID][]chan *chunkResult
+	outstanding     map[ids.ID][]chan *txBlockResult
 
 	update chan []byte
 	done   chan struct{}
@@ -182,7 +162,7 @@ func NewTxBlockManager(vm *VM) *TxBlockManager {
 		txBlocks:    NewTxBlockMap(),
 		nodeChunks:  map[ids.NodeID]*NodeChunks{},
 		nodeSet:     set.NewSet[ids.NodeID](64),
-		outstanding: map[ids.ID][]chan *chunkResult{},
+		outstanding: map[ids.ID][]chan *txBlockResult{},
 		update:      make(chan []byte),
 		done:        make(chan struct{}),
 	}
@@ -552,19 +532,24 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 		}
 
 		// Option 2: parent exists, verify
-		// TODO: ensure we don't get block from elsewhere before verifying
-		stxBlk, err := chain.ParseTxBlock(ctx, txBlock, b, c.vm)
+		pctx, pcancel := context.WithCancel(ctx)
+		stxBlk, err := chain.ParseTxBlock(pctx, txBlock, b, c.vm)
 		if err != nil {
 			c.vm.Logger().Error("unable to init txBlock", zap.Error(err))
 			return nil
 		}
-		// TODO: if already added, exit could have received at same time as others
-		c.txBlocks.Add(stxBlk)
+		if !c.txBlocks.Add(stxBlk) {
+			// We could've gotten the same tx block from 2 people
+			pcancel()
+			c.vm.Logger().Error("already processing block")
+			return nil
+		}
 		state, err := parent.ChildState(ctx, 1)
 		if err != nil {
 			c.vm.Logger().Error("unable to create child state", zap.Error(err))
 			return nil
 		}
+		// TODO: need to get exec context
 		if err := stxBlk.Verify(ctx, nil, state); err != nil {
 			c.vm.Logger().Error("unable to create child state", zap.Error(err))
 			return nil
