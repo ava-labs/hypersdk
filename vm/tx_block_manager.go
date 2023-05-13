@@ -52,54 +52,83 @@ type bucket struct {
 	items set.Set[ids.ID] // Array of AvalancheGo ids
 }
 
-type ChunkMap struct {
+type txBlockInfo struct {
+	count   int
+	txBlock *chain.StatelessTxBlock
+}
+
+type TxBlockMap struct {
+	l sync.RWMutex
+
 	bh      *heap.Heap[*bucket, uint64]
-	counts  map[ids.ID]int
+	counts  map[ids.ID]*txBlockInfo
 	heights map[uint64]*bucket // Uses timestamp as keys to map to buckets of ids.
 }
 
-func NewChunkMap() *ChunkMap {
+func NewTxBlockMap() *TxBlockMap {
 	// If lower height is accepted and chunk in rejected block that shows later,
 	// must not remove yet.
-	return &ChunkMap{
-		counts:  map[ids.ID]int{},
+	return &TxBlockMap{
+		counts:  map[ids.ID]*txBlockInfo{},
 		heights: make(map[uint64]*bucket),
 		bh:      heap.New[*bucket, uint64](120, true),
 	}
 }
 
-func (c *ChunkMap) Add(height uint64, chunkID ids.ID) {
-	// Ensure chunk is not already registered at height
-	b, ok := c.heights[height]
-	if ok && b.items.Contains(chunkID) {
+// TODO: don't store in block map unless can fetch ancestry back to known block
+func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock) {
+	c.l.Lock()
+	defer c.l.Unlock()
+
+	// Ensure txBlock is not already registered at height
+	b, ok := c.heights[txBlock.Hght]
+	if ok && b.items.Contains(txBlock.ID()) {
 		return
 	}
 
 	// Increase chunk count
-	times := c.counts[chunkID]
-	c.counts[chunkID] = times + 1
+	info, cok := c.counts[txBlock.ID()]
+	if !cok {
+		info = &txBlockInfo{txBlock: txBlock}
+	}
+	info.count++
+	c.counts[txBlock.ID()] = info
 
 	// Check if bucket with height already exists
 	if ok {
-		b.items.Add(chunkID)
+		b.items.Add(txBlock.ID())
 		return
 	}
 
 	// Create new bucket
 	b = &bucket{
-		h:     height,
-		items: set.Set[ids.ID]{chunkID: struct{}{}},
+		h:     txBlock.Hght,
+		items: set.Set[ids.ID]{txBlock.ID(): struct{}{}},
 	}
-	c.heights[height] = b
+	c.heights[txBlock.Hght] = b
 	c.bh.Push(&heap.Entry[*bucket, uint64]{
-		ID:    chunkID,
-		Val:   height,
+		ID:    txBlock.ID(),
+		Val:   txBlock.Hght,
 		Item:  b,
 		Index: c.bh.Len(),
 	})
 }
 
-func (c *ChunkMap) SetMin(h uint64) []ids.ID {
+func (c *TxBlockMap) Get(blkID ids.ID) *chain.StatelessTxBlock {
+	c.l.RLock()
+	defer c.l.RUnlock()
+
+	info, ok := c.counts[blkID]
+	if !ok {
+		return nil
+	}
+	return info.txBlock
+}
+
+func (c *TxBlockMap) SetMin(h uint64) []ids.ID {
+	c.l.Lock()
+	defer c.l.Unlock()
+
 	evicted := []ids.ID{}
 	for {
 		b := c.bh.First()
@@ -108,27 +137,19 @@ func (c *ChunkMap) SetMin(h uint64) []ids.ID {
 		}
 		c.bh.Pop()
 		for chunkID := range b.Item.items {
-			count := c.counts[chunkID]
-			count--
-			if count == 0 {
+			info := c.counts[chunkID]
+			info.count--
+			if info.count == 0 {
 				delete(c.counts, chunkID)
 				evicted = append(evicted, chunkID)
 			} else {
-				c.counts[chunkID] = count
+				c.counts[chunkID] = info
 			}
 		}
 		// Delete from times map
 		delete(c.heights, b.Val)
 	}
 	return evicted
-}
-
-func (c *ChunkMap) All() set.Set[ids.ID] {
-	s := set.NewSet[ids.ID](len(c.counts))
-	for k := range c.counts {
-		s.Add(k)
-	}
-	return s
 }
 
 type TxBlockManager struct {
@@ -145,9 +166,9 @@ type TxBlockManager struct {
 	clearedChunks       *cache.LRU[ids.ID, any]
 	tryOptimisticChunks *cache.LRU[ids.ID, any] // TODO: remove when we track blocks
 
-	chunks *ChunkMap
-	min    uint64
-	max    uint64
+	txBlocks *TxBlockMap
+	min      uint64
+	max      uint64
 
 	nodeChunkLock sync.RWMutex
 	nodeChunks    map[ids.NodeID]*NodeChunks
@@ -156,7 +177,7 @@ type TxBlockManager struct {
 	outstandingLock sync.Mutex
 	outstanding     map[ids.ID][]chan *chunkResult
 
-	update chan struct{}
+	update chan []byte
 	done   chan struct{}
 }
 
@@ -168,11 +189,11 @@ func NewTxBlockManager(vm *VM) *TxBlockManager {
 		optimisticChunks:    &cache.LRU[ids.ID, []byte]{Size: 1024},
 		clearedChunks:       &cache.LRU[ids.ID, any]{Size: 1024},
 		tryOptimisticChunks: &cache.LRU[ids.ID, any]{Size: 1024},
-		chunks:              NewChunkMap(),
+		txBlocks:            NewTxBlockMap(),
 		nodeChunks:          map[ids.NodeID]*NodeChunks{},
 		nodeSet:             set.NewSet[ids.NodeID](64),
 		outstanding:         map[ids.ID][]chan *chunkResult{},
-		update:              make(chan struct{}),
+		update:              make(chan []byte),
 		done:                make(chan struct{}),
 	}
 }
@@ -187,48 +208,46 @@ func (c *TxBlockManager) Run(appSender common.AppSender) {
 	defer timer.Stop()
 
 	for {
+		var msg []byte
 		select {
-		case <-c.update:
+		case b := <-c.update:
+			msg = b
 		case <-timer.C:
-			// TODO: consider removing timer if we are already sending to everyone
+			c.chunkLock.RLock()
+			nc := &NodeChunks{
+				Min: c.min,
+				Max: c.max,
+			}
+			c.chunkLock.RUnlock() // chunks is copied
+			b, err := nc.Marshal()
+			if err != nil {
+				c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip", zap.Error(err))
+				continue
+			}
+			msg = b
 		case <-c.vm.stop:
 			c.vm.Logger().Info("stopping chunk manager")
 			return
 		}
-
-		c.chunkLock.RLock()
-		nc := &NodeChunks{
-			Min: c.min,
-			Max: c.max,
-		}
-		c.chunkLock.RUnlock() // chunks is copied
-		b, err := nc.Marshal()
-		if err != nil {
-			c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip", zap.Error(err))
-			continue
-		}
-		// We attempt to gossip the chunks we have to everyone
-		if err := c.appSender.SendAppGossipSpecific(context.TODO(), c.nodeSet, b); err != nil {
-			c.vm.snowCtx.Log.Warn("unable to send chunk gossip", zap.Error(err))
+		if err := c.appSender.SendAppGossipSpecific(context.TODO(), c.nodeSet, msg); err != nil {
+			c.vm.snowCtx.Log.Warn("unable to send gossip", zap.Error(err))
 			continue
 		}
 	}
 }
 
 // Called when building a chunk
-func (c *TxBlockManager) RegisterChunks(ctx context.Context, height uint64, chunks [][]byte) {
-	chunkIDs := make([]ids.ID, len(chunks))
-	for i, chunk := range chunks {
-		chunkIDs[i] = utils.ToID(chunk)
-	}
-	c.chunkLock.Lock()
-	for i, chunk := range chunks {
-		c.fetchedChunks[chunkIDs[i]] = chunk
-		c.chunks.Add(height, chunkIDs[i])
-	}
-	c.chunkLock.Unlock()
+func (c *TxBlockManager) IssueTxBlock(ctx context.Context, txBlock *chain.StatelessTxBlock) {
+	// c.chunkLock.Lock()
+	// c.fetchedChunks[txBlock.ID()] = txBlock
+	// c.txBlocks.Add(txB
+	// for i, chunk := range chunks {
+	// 	c.fetchedChunks[chunkIDs[i]] = chunk
+	// 	c.chunks.Add(height, chunkIDs[i])
+	// }
+	// c.chunkLock.Unlock()
 
-	c.update <- struct{}{}
+	// c.update <- struct{}{}
 }
 
 // Called when pruning chunks from accepted blocks
