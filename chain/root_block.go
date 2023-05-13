@@ -334,6 +334,8 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) (merkledb.TrieView
 		zap.Uint64("unit price", b.UnitPrice),
 	)
 
+	// TODO: do root generation in final block and use height of inner block
+
 	// Store height in state to prevent duplicate roots
 	if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, err

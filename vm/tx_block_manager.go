@@ -536,17 +536,41 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 		c.nodeChunks[nodeID] = nc
 		c.nodeChunkLock.Unlock()
 	case 1:
-		txBlock, err := chain.UnmarshalTxBlock(msg[1:], nil)
+		b := msg[1:]
+		blkID := utils.ToID(b)
+
+		// Option 0: already have txBlock, drop
+		// TODO: add lock
+		if _, ok := c.fetchedChunks[blkID]; ok {
+			return nil
+		}
+
+		// Don't yet have txBlock, figure out what to do
+		txBlock, err := chain.UnmarshalTxBlock(b, nil)
 		if err != nil {
 			c.vm.Logger().Error("unable to parse txBlock", zap.Error(err))
 			return nil
 		}
 
-		// Option 1: parent txBlock is final, must create new child state
+		// Ensure tx block could be useful
+		//
+		// TODO: limit how far ahead we will fetch
+		if txBlock.Hght <= c.vm.LastAcceptedBlock().MaxTxHght() {
+			c.vm.Logger().Debug("block is useless")
+			return nil
+		}
 
-		// Option 2: parent txBlock exists and is not final, can verify immediately
+		// Option 1: parent txBlock is missing, must fetch
+		parent, ok := c.fetchedChunks[txBlock.Prnt]
+		if !ok {
+			// TODO: trigger verify once returned
+			c.RequestChunk(ctx, &(txBlock.Hght - 1), nodeID, txBlock.Prnt, nil)
+			return nil
+		}
 
-		// Option 3: parent txBlock is missing, must fetch
+		// Option 2: parent txBlock is final, must create new child state
+
+		// Option 3: parent txBlock exists and is not final, can verify immediately
 
 		// Optimistically fetch chunks
 		// TODO: only fetch if from a soon to be producer (i.e. will need to verify
