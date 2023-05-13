@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -160,12 +159,6 @@ type TxBlockManager struct {
 	requestID   uint32
 	requests    map[uint32]chan []byte
 
-	chunkLock           sync.RWMutex
-	fetchedChunks       map[ids.ID][]byte
-	optimisticChunks    *cache.LRU[ids.ID, []byte]
-	clearedChunks       *cache.LRU[ids.ID, any]
-	tryOptimisticChunks *cache.LRU[ids.ID, any] // TODO: remove when we track blocks
-
 	txBlocks *TxBlockMap
 	min      uint64
 	max      uint64
@@ -183,18 +176,14 @@ type TxBlockManager struct {
 
 func NewTxBlockManager(vm *VM) *TxBlockManager {
 	return &TxBlockManager{
-		vm:                  vm,
-		requests:            map[uint32]chan []byte{},
-		fetchedChunks:       map[ids.ID][]byte{},
-		optimisticChunks:    &cache.LRU[ids.ID, []byte]{Size: 1024},
-		clearedChunks:       &cache.LRU[ids.ID, any]{Size: 1024},
-		tryOptimisticChunks: &cache.LRU[ids.ID, any]{Size: 1024},
-		txBlocks:            NewTxBlockMap(),
-		nodeChunks:          map[ids.NodeID]*NodeChunks{},
-		nodeSet:             set.NewSet[ids.NodeID](64),
-		outstanding:         map[ids.ID][]chan *chunkResult{},
-		update:              make(chan []byte),
-		done:                make(chan struct{}),
+		vm:          vm,
+		requests:    map[uint32]chan []byte{},
+		txBlocks:    NewTxBlockMap(),
+		nodeChunks:  map[ids.NodeID]*NodeChunks{},
+		nodeSet:     set.NewSet[ids.NodeID](64),
+		outstanding: map[ids.ID][]chan *chunkResult{},
+		update:      make(chan []byte),
+		done:        make(chan struct{}),
 	}
 }
 
@@ -213,21 +202,21 @@ func (c *TxBlockManager) Run(appSender common.AppSender) {
 		case b := <-c.update:
 			msg = b
 		case <-timer.C:
-			c.chunkLock.RLock()
+		case <-c.vm.stop:
+			c.vm.Logger().Info("stopping chunk manager")
+			return
+		}
+		if len(msg) == 0 {
 			nc := &NodeChunks{
 				Min: c.min,
 				Max: c.max,
 			}
-			c.chunkLock.RUnlock() // chunks is copied
 			b, err := nc.Marshal()
 			if err != nil {
 				c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip", zap.Error(err))
 				continue
 			}
 			msg = b
-		case <-c.vm.stop:
-			c.vm.Logger().Info("stopping chunk manager")
-			return
 		}
 		if err := c.appSender.SendAppGossipSpecific(context.TODO(), c.nodeSet, msg); err != nil {
 			c.vm.snowCtx.Log.Warn("unable to send gossip", zap.Error(err))
@@ -238,16 +227,12 @@ func (c *TxBlockManager) Run(appSender common.AppSender) {
 
 // Called when building a chunk
 func (c *TxBlockManager) IssueTxBlock(ctx context.Context, txBlock *chain.StatelessTxBlock) {
-	// c.chunkLock.Lock()
-	// c.fetchedChunks[txBlock.ID()] = txBlock
-	// c.txBlocks.Add(txB
-	// for i, chunk := range chunks {
-	// 	c.fetchedChunks[chunkIDs[i]] = chunk
-	// 	c.chunks.Add(height, chunkIDs[i])
-	// }
-	// c.chunkLock.Unlock()
-
-	// c.update <- struct{}{}
+	c.txBlocks.Add(txBlock)
+	c.update <- txBlock.Bytes()
+	if txBlock.Hght > c.max {
+		c.max = txBlock.Hght
+	}
+	c.update <- nil
 }
 
 // Called when pruning chunks from accepted blocks
@@ -256,30 +241,17 @@ func (c *TxBlockManager) IssueTxBlock(ctx context.Context, txBlock *chain.Statel
 // TODO: Set when pruning blobs
 // TODO: Set when state syncing
 func (c *TxBlockManager) SetMin(min uint64) {
-	c.chunkLock.Lock()
 	c.min = min
-	c.chunkLock.Unlock()
-
-	c.update <- struct{}{}
+	c.update <- nil
 }
 
 // Called when a block is accepted
 //
 // Ensure chunks are persisted before calling this method
 func (c *TxBlockManager) Accept(height uint64) {
-	c.chunkLock.Lock()
-	c.max = height
-	evicted := c.chunks.SetMin(height + 1)
-	for _, chunkID := range evicted {
-		delete(c.fetchedChunks, chunkID)
-		c.clearedChunks.Put(chunkID, nil)
-		c.optimisticChunks.Evict(chunkID)
-	}
-	processing := len(c.fetchedChunks)
-	c.chunkLock.Unlock()
-
-	c.update <- struct{}{}
-	c.vm.snowCtx.Log.Info("evicted chunks from memory", zap.Int("n", len(evicted)), zap.Int("processing", processing))
+	evicted := c.txBlocks.SetMin(height + 1)
+	c.update <- nil
+	c.vm.snowCtx.Log.Info("evicted chunks from memory", zap.Int("n", len(evicted)))
 }
 
 func (c *TxBlockManager) RequestChunks(ctx context.Context, height uint64, chunkIDs []ids.ID, ch chan []byte) error {
@@ -307,24 +279,24 @@ func (c *TxBlockManager) RequestChunks(ctx context.Context, height uint64, chunk
 	}
 
 	// Trigger that we have processed new chunks
-	c.update <- struct{}{}
+	c.update <- nil
 	return nil
 }
 
-type chunkResult struct {
-	chunk []byte
-	err   error
+type txBlockResult struct {
+	txBlock *chain.StatelessTxBlock
+	err     error
 }
 
-func (c *TxBlockManager) sendToOutstandingListeners(chunkID ids.ID, chunk []byte, err error) {
+func (c *TxBlockManager) sendToOutstandingListeners(txBlockID ids.ID, txBlock *chain.StatelessTxBlock, err error) {
 	c.outstandingLock.Lock()
-	listeners, ok := c.outstanding[chunkID]
-	delete(c.outstanding, chunkID)
+	listeners, ok := c.outstanding[txBlockID]
+	delete(c.outstanding, txBlockID)
 	c.outstandingLock.Unlock()
 	if !ok {
 		return
 	}
-	result := &chunkResult{chunk, err}
+	result := &txBlockResult{txBlock, err}
 	for _, listener := range listeners {
 		if listener == nil {
 			continue
@@ -334,16 +306,14 @@ func (c *TxBlockManager) sendToOutstandingListeners(chunkID ids.ID, chunk []byte
 }
 
 // RequestChunk may spawn a goroutine
-func (c *TxBlockManager) RequestChunk(ctx context.Context, height *uint64, hint ids.NodeID, chunkID ids.ID, ch chan *chunkResult) {
-	fnStart := time.Now()
-
+func (c *TxBlockManager) RequestChunk(ctx context.Context, height uint64, hint ids.NodeID, chunkID ids.ID, ch chan *txBlockResult) {
 	// Register request to be notified
 	c.outstandingLock.Lock()
 	outstanding, ok := c.outstanding[chunkID]
 	if ok {
 		c.outstanding[chunkID] = append(outstanding, ch)
 	} else {
-		c.outstanding[chunkID] = []chan *chunkResult{ch}
+		c.outstanding[chunkID] = []chan *txBlockResult{ch}
 	}
 	c.outstandingLock.Unlock()
 	if ok {
@@ -352,28 +322,24 @@ func (c *TxBlockManager) RequestChunk(ctx context.Context, height *uint64, hint 
 	}
 
 	// Check if previously fetched
-	c.chunkLock.Lock()
-	if chunk, ok := c.fetchedChunks[chunkID]; ok {
-		if height != nil {
-			c.chunks.Add(*height, chunkID)
-		}
-		c.chunkLock.Unlock()
-		c.sendToOutstandingListeners(chunkID, chunk, nil)
+	if txBlock := c.txBlocks.Get(chunkID); txBlock != nil {
+		c.sendToOutstandingListeners(chunkID, txBlock, nil)
 		return
 	}
-	c.chunkLock.Unlock()
 
 	// Check if optimistically cached
-	if chunk, ok := c.optimisticChunks.Get(chunkID); ok {
-		c.chunkLock.Lock()
-		if height != nil {
-			c.fetchedChunks[chunkID] = chunk
-			c.chunks.Add(*height, chunkID)
-		}
-		c.chunkLock.Unlock()
-		c.sendToOutstandingListeners(chunkID, chunk, nil)
-		return
-	}
+	// TODO: store chunks we've received but not connected yet here to make sure
+	// we don't fetch
+	// if chunk, ok := c.optimisticChunks.Get(chunkID); ok {
+	// 	c.chunkLock.Lock()
+	// 	if height != nil {
+	// 		c.fetchedChunks[chunkID] = chunk
+	// 		c.chunks.Add(*height, chunkID)
+	// 	}
+	// 	c.chunkLock.Unlock()
+	// 	c.sendToOutstandingListeners(chunkID, chunk, nil)
+	// 	return
+	// }
 
 	// Attempt to fetch
 	for i := 0; i < maxChunkRetries; i++ {
@@ -392,11 +358,7 @@ func (c *TxBlockManager) RequestChunk(ctx context.Context, height *uint64, hint 
 			c.nodeChunkLock.RLock()
 			for nodeID, chunk := range c.nodeChunks {
 				randomRecipient = nodeID
-				if height != nil && *height >= chunk.Min && *height <= chunk.Max {
-					possibleRecipients = append(possibleRecipients, nodeID)
-					continue
-				}
-				if chunk.Unprocessed.Contains(chunkID) {
+				if height >= chunk.Min && height <= chunk.Max {
 					possibleRecipients = append(possibleRecipients, nodeID)
 					continue
 				}
@@ -413,11 +375,7 @@ func (c *TxBlockManager) RequestChunk(ctx context.Context, height *uint64, hint 
 			if len(possibleRecipients) > 0 {
 				randomRecipient = possibleRecipients[rand.Intn(len(possibleRecipients))]
 			} else {
-				if height == nil {
-					c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID), zap.Stringer("hint", hint))
-				} else {
-					c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID), zap.Stringer("hint", hint), zap.Uint64("height", *height))
-				}
+				c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID), zap.Stringer("hint", hint), zap.Uint64("height", height))
 			}
 			peer = randomRecipient
 		}
@@ -428,16 +386,20 @@ func (c *TxBlockManager) RequestChunk(ctx context.Context, height *uint64, hint 
 			time.Sleep(retrySleep)
 			continue
 		}
-		if height != nil {
-			c.chunkLock.Lock()
-			c.fetchedChunks[chunkID] = msg
-			c.chunks.Add(*height, chunkID)
-			c.chunkLock.Unlock()
-		} else {
-			c.vm.snowCtx.Log.Info("optimistically fetched chunk", zap.Stringer("chunkID", chunkID), zap.Int("size", len(msg)), zap.Duration("t", time.Since(fnStart)))
-			c.optimisticChunks.Put(chunkID, msg)
+		rtxBlk, err := chain.UnmarshalTxBlock(msg, c.vm)
+		if err != nil {
+			c.vm.snowCtx.Log.Warn("invalid tx block", zap.Error(err))
+			time.Sleep(retrySleep)
+			continue
 		}
-		c.sendToOutstandingListeners(chunkID, msg, nil)
+		txBlk, err := chain.ParseTxBlock(ctx, rtxBlk, msg, c.vm)
+		if err != nil {
+			c.vm.snowCtx.Log.Warn("unable to init tx block", zap.Error(err))
+			time.Sleep(retrySleep)
+			continue
+		}
+		c.txBlocks.Add(txBlk)
+		c.sendToOutstandingListeners(chunkID, txBlk, nil)
 		return
 	}
 	c.sendToOutstandingListeners(chunkID, nil, errors.New("exhausted retries"))
@@ -489,27 +451,24 @@ func (c *TxBlockManager) HandleRequest(
 	requestID uint32,
 	request []byte,
 ) error {
-	chunkID, err := ids.ToID(request)
+	txBlkID, err := ids.ToID(request)
 	if err != nil {
 		c.vm.snowCtx.Log.Warn("unable to parse chunk request", zap.Error(err))
 		return nil
 	}
 
 	// Check processing
-	c.chunkLock.RLock()
-	chunk, ok := c.fetchedChunks[chunkID]
-	c.chunkLock.RUnlock()
-	if ok {
-		return c.appSender.SendAppResponse(ctx, nodeID, requestID, chunk)
+	if txBlk := c.txBlocks.Get(txBlkID); txBlk != nil {
+		return c.appSender.SendAppResponse(ctx, nodeID, requestID, txBlk.Bytes())
 	}
 
 	// Check accepted
-	chunk, err = c.vm.GetTxBlock(chunkID)
+	txBlk, err := c.vm.GetTxBlock(txBlkID)
 	if err != nil {
-		c.vm.snowCtx.Log.Warn("unable to find chunk", zap.Stringer("chunkID", chunkID), zap.Error(err))
+		c.vm.snowCtx.Log.Warn("unable to find txBlock", zap.Stringer("txBlkID", txBlkID), zap.Error(err))
 		return c.appSender.SendAppResponse(ctx, nodeID, requestID, []byte{})
 	}
-	return c.appSender.SendAppResponse(ctx, nodeID, requestID, chunk)
+	return c.appSender.SendAppResponse(ctx, nodeID, requestID, txBlk)
 }
 
 func (c *TxBlockManager) HandleResponse(nodeID ids.NodeID, requestID uint32, msg []byte) error {
@@ -587,6 +546,8 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 			return nil
 		}
 
+		// TODO: if keep chunk, increase max value
+
 		// Option 2: parent txBlock is final, must create new child state
 
 		// Option 3: parent txBlock exists and is not final, can verify immediately
@@ -608,7 +569,7 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 			go c.RequestChunk(context.Background(), nil, nodeID, chunkID, nil)
 		}
 	default:
-		c.vm.Logger().Error("unexpected message type")
+		c.vm.Logger().Error("unexpected message type", zap.Uint8("type", msg[0]))
 		return nil
 	}
 	return nil
@@ -616,12 +577,10 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 
 // Send info to new peer on handshake
 func (c *TxBlockManager) HandleConnect(ctx context.Context, nodeID ids.NodeID) error {
-	c.chunkLock.RLock()
 	nc := &NodeChunks{
 		Min: c.min,
 		Max: c.max,
 	}
-	c.chunkLock.RUnlock() // chunks is copied
 	b, err := nc.Marshal()
 	if err != nil {
 		c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip specific ", zap.Error(err))

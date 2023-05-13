@@ -378,7 +378,9 @@ func (vm *VM) RecordStateOperations(c int) {
 	vm.metrics.stateOperations.Add(float64(c))
 }
 
-func (vm *VM) IssueTxBlock(ctx context.Context, blk *chain.StatelessTxBlock) {}
+func (vm *VM) IssueTxBlock(ctx context.Context, blk *chain.StatelessTxBlock) {
+	vm.txBlockManager.IssueTxBlock(ctx, blk)
+}
 
 func (vm *VM) RequestTxBlocks(ctx context.Context, minHght uint64, blks []ids.ID) {}
 
