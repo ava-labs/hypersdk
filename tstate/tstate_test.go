@@ -4,6 +4,8 @@ package tstate
 
 import (
 	"context"
+	"crypto/rand"
+	"fmt"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -322,4 +324,118 @@ func TestWriteChanges(t *testing.T) {
 		_, err := db.GetValue(ctx, key)
 		require.ErrorIs(err, database.ErrNotFound, "Value not removed from db.")
 	}
+}
+
+func BenchmarkFetchAndSetScope(b *testing.B) {
+	for _, size := range []int{4, 8, 16, 32, 64, 128} {
+		b.Run(fmt.Sprintf("fetch_and_set_scope_%d_keys", size), func(b *testing.B) {
+			benchmarkFetchAndSetScope(b, size)
+		})
+	}
+}
+
+func BenchmarkInsert(b *testing.B) {
+	for _, size := range []int{4, 8, 16, 32, 64, 128} {
+		b.Run(fmt.Sprintf("insert_%d_keys", size), func(b *testing.B) {
+			benchmarkInsert(b, size)
+		})
+	}
+}
+
+
+func BenchmarkGetValue(b *testing.B) {
+	for _, size := range []int{4, 8, 16, 32, 64, 128} {
+		b.Run(fmt.Sprintf("get_%d_keys", size), func(b *testing.B) {
+			benchmarkGetValue(b, size)
+		})
+	}
+}
+
+func benchmarkFetchAndSetScope(b *testing.B, size int) {
+	require := require.New(b)
+	ts := New(size)
+	db := NewTestDB()
+	ctx := context.TODO()
+
+	keys, vals := initializeSet(size)
+	for i, key := range keys {
+		err := db.Insert(ctx, key, vals[i])
+		require.NoError(err, "Error during insert.")
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := ts.FetchAndSetScope(ctx, keys, db)
+		require.NoError(err)
+	}
+	b.ReportAllocs()
+	b.StopTimer()
+}
+
+func benchmarkInsert(b *testing.B, size int) {
+	require := require.New(b)
+	ts := New(size)
+	ctx := context.TODO()
+
+	keys, vals := initializeSet(size)
+
+	storage := map[string][]byte{}
+	for i, key := range keys {
+		storage[string(key)] = vals[i]
+	}
+
+	ts.SetScope(ctx, keys, storage)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for i, key := range keys {
+			err := ts.Insert(ctx, key, vals[i])
+			require.NoError(err, "Error during insert.")
+		}
+	}
+	b.ReportAllocs()
+	b.StopTimer()
+}
+
+func benchmarkGetValue(b *testing.B, size int) {
+	require := require.New(b)
+	ts := New(size)
+	ctx := context.TODO()
+
+	keys, vals := initializeSet(size)
+
+	storage := map[string][]byte{}
+	for i, key := range keys {
+		storage[string(key)] = vals[i]
+	}
+
+	ts.SetScope(ctx, keys, storage)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, key := range keys {
+			_, err := ts.GetValue(ctx, key)
+			require.NoError(err, "Error during insert.")
+		}
+	}
+	b.ReportAllocs()
+	b.StopTimer()
+}
+
+func initializeSet(size int) ([][]byte, [][]byte) {
+	keys := [][]byte{}
+	vals := [][]byte{}
+
+	for i := 0; i <= size; i++ {
+		keys = append(keys, randomBytes(33))
+		vals = append(vals, randomBytes(8))
+	}
+
+	return keys, vals
+}
+
+func randomBytes(size int) []byte {
+	bytes := make([]byte, size)
+	rand.Read(bytes)
+	return bytes
 }
