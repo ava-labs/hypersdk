@@ -282,10 +282,9 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Debug("genesis state created", zap.Stringer("root", root))
 
 		// Create genesis block
-		genesisRules := vm.c.Rules(0)
 		genesisBlk, err := chain.ParseRootBlock(
 			ctx,
-			chain.NewGenesisBlock(root, genesisRules.GetMinUnitPrice(), genesisRules.GetMinBlockCost()),
+			chain.NewGenesisBlock(root),
 			nil,
 			choices.Accepted,
 			vm,
@@ -749,7 +748,7 @@ func (vm *VM) Submit(
 	}
 	now := time.Now().Unix()
 	r := vm.c.Rules(now)
-	ectx, err := chain.GenerateExecutionContext(ctx, vm.snowCtx.ChainID, now, blk, vm.tracer, r)
+	ectx, err := chain.GenerateTxExecutionContext(ctx, vm.snowCtx.ChainID, now, txBlk, vm.tracer, r)
 	if err != nil {
 		return []error{err}
 	}
