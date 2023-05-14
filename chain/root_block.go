@@ -35,8 +35,6 @@ type RootBlock struct {
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	UnitPrice   uint64        `json:"unitPrice"`
-	UnitWindow  window.Window `json:"unitWindow"`
 	BlockWindow window.Window `json:"blockWindow"`
 
 	MinTxHght    uint64   `json:"minTxHeight"`
@@ -65,25 +63,20 @@ type StatelessRootBlock struct {
 	vm VM
 }
 
-func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *RootBlock {
+func NewGenesisBlock(root ids.ID) *RootBlock {
 	return &RootBlock{
-		UnitPrice:   minUnit,
-		UnitWindow:  window.Window{},
 		BlockWindow: window.Window{},
-
-		StateRoot: root,
+		StateRoot:   root,
 	}
 }
 
-func NewRootBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessRootBlock {
+func NewRootBlock(ectx *RootExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessRootBlock {
 	return &StatelessRootBlock{
 		RootBlock: &RootBlock{
 			Prnt:   parent.ID(),
 			Tmstmp: tmstp,
 			Hght:   parent.Height() + 1,
 
-			UnitPrice:   ectx.NextUnitPrice,
-			UnitWindow:  ectx.NextUnitWindow,
 			BlockWindow: ectx.NextBlockWindow,
 		},
 		vm: vm,
@@ -309,24 +302,14 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 	if b.Timestamp().Unix() < parent.Timestamp().Unix() {
 		return ErrTimestampTooEarly
 	}
-
-	ectx, err := GenerateExecutionContext(ctx, b.vm.ChainID(), b.Tmstmp, parent, b.vm.Tracer(), r)
+	ectx, err := GenerateRootExecutionContext(ctx, b.vm.ChainID(), b.Tmstmp, parent, b.vm.Tracer(), r)
 	if err != nil {
 		return err
 	}
 	switch {
-	case b.UnitPrice != ectx.NextUnitPrice:
-		return ErrInvalidUnitPrice
-	case b.UnitWindow != ectx.NextUnitWindow:
-		return ErrInvalidUnitWindow
 	case b.BlockWindow != ectx.NextBlockWindow:
 		return ErrInvalidBlockWindow
 	}
-	log.Info(
-		"verify context",
-		zap.Uint64("height", b.Hght),
-		zap.Uint64("unit price", b.UnitPrice),
-	)
 
 	// Root was already computed in TxBlock so this should return immediately
 	computedRoot, err := state.GetMerkleRoot(ctx)
@@ -466,10 +449,6 @@ func (b *StatelessRootBlock) GetTimestamp() int64 {
 	return b.Tmstmp
 }
 
-func (b *StatelessRootBlock) GetUnitPrice() uint64 {
-	return b.UnitPrice
-}
-
 func (b *StatelessRootBlock) MaxTxHght() uint64 {
 	l := len(b.Txs)
 	if l == 0 {
@@ -493,8 +472,6 @@ func (b *RootBlock) Marshal() ([]byte, error) {
 	p.PackInt64(b.Tmstmp)
 	p.PackUint64(b.Hght)
 
-	p.PackUint64(b.UnitPrice)
-	p.PackWindow(b.UnitWindow)
 	p.PackWindow(b.BlockWindow)
 
 	p.PackUint64(b.MinTxHght)
@@ -519,17 +496,16 @@ func UnmarshalRootBlock(raw []byte, parser Parser) (*RootBlock, error) {
 	b.Tmstmp = p.UnpackInt64(false)
 	b.Hght = p.UnpackUint64(false)
 
-	b.UnitPrice = p.UnpackUint64(false)
-	p.UnpackWindow(&b.UnitWindow)
 	p.UnpackWindow(&b.BlockWindow)
+
+	b.MinTxHght = p.UnpackUint64(false)
+	b.ContainsWarp = p.UnpackBool()
 	if err := p.Err(); err != nil {
 		// Check that header was parsed properly before unwrapping transactions
 		return nil, err
 	}
 
 	// Parse transactions
-	b.MinTxHght = p.UnpackUint64(false)
-	b.ContainsWarp = p.UnpackBool()
 	txCount := p.UnpackInt(false) // could be 0 in genesis
 	b.Txs = []ids.ID{}            // don't preallocate all to avoid DoS
 	// TODO: check limit len here

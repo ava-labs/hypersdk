@@ -80,7 +80,7 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 
 func (p *Processor) Execute(
 	ctx context.Context,
-	ectx *ExecutionContext,
+	ectx *TxExecutionContext,
 	r Rules,
 ) (uint64, []*Result, int, int, error) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Execute")

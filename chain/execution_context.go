@@ -13,12 +13,17 @@ import (
 	"github.com/ava-labs/hypersdk/window"
 )
 
-type ExecutionContext struct {
+type RootExecutionContext struct {
 	ChainID ids.ID
 
-	NextUnitPrice   uint64
-	NextUnitWindow  window.Window
 	NextBlockWindow window.Window
+}
+
+type TxExecutionContext struct {
+	ChainID ids.ID
+
+	NextUnitPrice  uint64
+	NextUnitWindow window.Window
 }
 
 func computeNextPriceWindow(
@@ -91,34 +96,22 @@ func computeNextPriceWindow(
 	return nextPrice, newRollupWindow, nil
 }
 
-func GenerateExecutionContext(
+func GenerateRootExecutionContext(
 	ctx context.Context,
 	chainID ids.ID,
 	currTime int64,
 	parent *StatelessRootBlock,
 	tracer trace.Tracer, //nolint:interfacer
 	r Rules,
-) (*ExecutionContext, error) {
-	_, span := tracer.Start(ctx, "chain.GenerateExecutionContext")
+) (*RootExecutionContext, error) {
+	_, span := tracer.Start(ctx, "chain.GenerateRootExecutionContext")
 	defer span.End()
 
 	since := int(currTime - parent.Tmstmp)
-	nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
-		parent.UnitWindow,
-		parent.UnitsConsumed,
-		parent.UnitPrice,
-		r.GetWindowTargetUnits(),
-		r.GetUnitPriceChangeDenominator(),
-		r.GetMinUnitPrice(),
-		since,
-	)
-	if err != nil {
-		return nil, err
-	}
 	_, nextBlockWindow, err := computeNextPriceWindow(
 		parent.BlockWindow,
 		1,
-		1,
+		1, // TODO: change price?
 		r.GetWindowTargetBlocks(),
 		r.GetBlockCostChangeDenominator(),
 		r.GetMinBlockCost(),
@@ -127,11 +120,53 @@ func GenerateExecutionContext(
 	if err != nil {
 		return nil, err
 	}
-	return &ExecutionContext{
+	return &RootExecutionContext{
 		ChainID: chainID,
 
-		NextUnitPrice:   nextUnitPrice,
-		NextUnitWindow:  nextUnitWindow,
 		NextBlockWindow: nextBlockWindow,
+	}, nil
+}
+
+func GenerateTxExecutionContext(
+	ctx context.Context,
+	chainID ids.ID,
+	currTime int64,
+	parent *StatelessTxBlock,
+	tracer trace.Tracer, //nolint:interfacer
+	r Rules,
+) (*TxExecutionContext, error) {
+	_, span := tracer.Start(ctx, "chain.GenerateExecutionContext")
+	defer span.End()
+
+	// Handle genesis case (no parent)
+	var (
+		unitWindow    = window.Window{}
+		unitsConsumed uint64
+		unitPrice     = r.GetMinUnitPrice()
+	)
+	if parent != nil {
+		unitWindow = parent.UnitWindow
+		unitsConsumed = parent.UnitsConsumed
+		unitPrice = parent.UnitPrice
+	}
+
+	since := int(currTime - parent.Tmstmp)
+	nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
+		unitWindow,
+		unitsConsumed,
+		unitPrice,
+		r.GetWindowTargetUnits(),
+		r.GetUnitPriceChangeDenominator(),
+		r.GetMinUnitPrice(),
+		since,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &TxExecutionContext{
+		ChainID: chainID,
+
+		NextUnitPrice:  nextUnitPrice,
+		NextUnitWindow: nextUnitWindow,
 	}, nil
 }

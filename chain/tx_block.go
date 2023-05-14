@@ -22,16 +22,17 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/window"
 	"github.com/ava-labs/hypersdk/workers"
 )
 
 type TxBlock struct {
-	Prnt ids.ID `json:"parent"`
-	Hght uint64 `json:"height"`
+	Prnt   ids.ID `json:"parent"`
+	Tmstmp int64  `json:"timestamp"`
+	Hght   uint64 `json:"height"`
 
-	PrntBlk   ids.ID `json:"parentBlk"`
-	Tmstmp    int64  `json:"timestamp"`
-	UnitPrice uint64 `json:"unitPrice"`
+	UnitPrice  uint64        `json:"unitPrice"`
+	UnitWindow window.Window `json:"unitWindow"`
 
 	// PChainHeight is needed to verify warp messages
 	ContainsWarp bool   `json:"containsWarp"`
@@ -65,11 +66,11 @@ type StatelessTxBlock struct {
 	sigJob *workers.Job
 }
 
-func NewTxBlock(vm VM, parent *StatelessTxBlock, prntBlk ids.ID, tmstmp int64, unitPrice uint64) *StatelessTxBlock {
+func NewTxBlock(ectx *TxExecutionContext, vm VM, parent *StatelessTxBlock, tmstmp int64) *StatelessTxBlock {
 	blk := &TxBlock{
-		PrntBlk:   prntBlk,
-		Tmstmp:    tmstmp,
-		UnitPrice: unitPrice,
+		Tmstmp:     tmstmp,
+		UnitPrice:  ectx.NextUnitPrice,
+		UnitWindow: ectx.NextUnitWindow,
 	}
 	if parent != nil {
 		blk.Prnt = parent.ID()
@@ -160,7 +161,6 @@ func ParseTxBlock(
 		return nil, ErrTimestampTooLate
 	}
 	// TODO: ensure all block chunks have same timestamp
-	// TODO: check unit price is expected
 	if len(blk.Txs) == 0 {
 		return nil, ErrNoTxs
 	}
@@ -302,6 +302,21 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 	if b.Tmstmp < parent.Tmstmp {
 		return ErrTimestampTooEarly
 	}
+	ectx, err := GenerateTxExecutionContext(ctx, b.vm.ChainID(), b.Tmstmp, parent, b.vm.Tracer(), r)
+	if err != nil {
+		return err
+	}
+	switch {
+	case b.UnitPrice != ectx.NextUnitPrice:
+		return ErrInvalidUnitPrice
+	case b.UnitWindow != ectx.NextUnitWindow:
+		return ErrInvalidUnitWindow
+	}
+	log.Info(
+		"verify context",
+		zap.Uint64("height", b.Hght),
+		zap.Uint64("unit price", b.UnitPrice),
+	)
 
 	// Ensure tx cannot be replayed
 	//
@@ -366,14 +381,6 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 	}
 
 	// Optimisticaly fetch state
-	rootPrnt, err := b.vm.GetStatelessRootBlock(ctx, b.PrntBlk)
-	if err != nil {
-		return err
-	}
-	ectx, err := GenerateExecutionContext(ctx, b.vm.ChainID(), b.Tmstmp, rootPrnt, b.vm.Tracer(), r)
-	if err != nil {
-		return err
-	}
 	processor := NewProcessor(b.vm.Tracer(), b)
 	processor.Prefetch(ctx, base)
 
@@ -416,12 +423,17 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 		return err
 	}
 
-	// Compute state root
-	start := time.Now()
-	if _, err := base.GetMerkleRoot(ctx); err != nil {
-		return err
+	// Compute state root if last
+	//
+	// TODO: better protect against malicious usage of this (may need to be
+	// invoked by caller block)
+	if b.Last {
+		start := time.Now()
+		if _, err := base.GetMerkleRoot(ctx); err != nil {
+			return err
+		}
+		b.vm.RecordRootCalculated(time.Since(start))
 	}
-	b.vm.RecordRootCalculated(time.Since(start))
 
 	// We wait for signatures in root block.
 	b.results = results
@@ -536,11 +548,11 @@ func (b *TxBlock) Marshal(
 	p := codec.NewWriter(consts.NetworkSizeLimit)
 
 	p.PackID(b.Prnt)
+	p.PackInt64(b.Tmstmp)
 	p.PackUint64(b.Hght)
 
-	p.PackID(b.PrntBlk)
-	p.PackInt64(b.Tmstmp)
 	p.PackUint64(b.UnitPrice)
+	p.PackWindow(b.UnitWindow)
 
 	p.PackBool(b.ContainsWarp)
 	p.PackUint64(b.PChainHeight)
@@ -565,11 +577,11 @@ func UnmarshalTxBlock(raw []byte, parser Parser) (*TxBlock, error) {
 	)
 
 	p.UnpackID(false, &b.Prnt)
+	b.Tmstmp = p.UnpackInt64(false)
 	b.Hght = p.UnpackUint64(false)
 
-	p.UnpackID(false, &b.PrntBlk)
-	b.Tmstmp = p.UnpackInt64(false)
 	b.UnitPrice = p.UnpackUint64(false)
+	p.UnpackWindow(&b.UnitWindow)
 
 	b.ContainsWarp = p.UnpackBool()
 	b.PChainHeight = p.UnpackUint64(false)

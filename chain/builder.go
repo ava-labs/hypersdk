@@ -68,7 +68,7 @@ func BuildBlock(
 			return nil, err
 		}
 	}
-	ectx, err := GenerateExecutionContext(ctx, vm.ChainID(), nextTime, parent, vm.Tracer(), r)
+	ectx, err := GenerateRootExecutionContext(ctx, vm.ChainID(), nextTime, parent, vm.Tracer(), r)
 	if err != nil {
 		log.Warn("block building failed: couldn't get execution context", zap.Error(err))
 		return nil, err
@@ -96,12 +96,16 @@ func BuildBlock(
 	ts := tstate.New(changesEstimate)
 
 	// Restorable txs after block attempt finishes
+	tectx, err := GenerateTxExecutionContext(ctx, vm.ChainID(), nextTime, parentTxBlock, vm.Tracer(), r)
+	if err != nil {
+		return nil, err
+	}
 	var (
 		oldestAllowed = nextTime - r.GetValidityWindow()
 		mempool       = vm.Mempool()
 
 		txBlocks = []*StatelessTxBlock{}
-		txBlock  = NewTxBlock(vm, parentTxBlock, parent.ID(), nextTime, ectx.NextUnitPrice)
+		txBlock  = NewTxBlock(tectx, vm, parentTxBlock, nextTime)
 		results  = []*Result{}
 
 		totalUnits   = uint64(0)
@@ -208,7 +212,11 @@ func BuildBlock(
 					return false, true, false, err
 				}
 				ts = tstate.New(changesEstimate)
-				txBlock = NewTxBlock(vm, txBlock, parent.ID(), nextTime, ectx.NextUnitPrice)
+				tectx, err := GenerateTxExecutionContext(ctx, vm.ChainID(), nextTime, txBlock, vm.Tracer(), r)
+				if err != nil {
+					return false, true, false, err
+				}
+				txBlock = NewTxBlock(tectx, vm, txBlock, nextTime)
 				results = []*Result{}
 			}
 
