@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/rand"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -51,11 +52,18 @@ type bucket struct {
 	items set.Set[ids.ID] // Array of AvalancheGo ids
 }
 
+type blkItem struct {
+	blk *chain.StatelessTxBlock
+
+	verifying atomic.Bool
+	verified  atomic.Bool
+}
+
 type TxBlockMap struct {
 	l sync.RWMutex
 
 	bh      *heap.Heap[*bucket, uint64]
-	items   map[ids.ID]*chain.StatelessTxBlock
+	items   map[ids.ID]*blkItem
 	heights map[uint64]*bucket // Uses timestamp as keys to map to buckets of ids.
 }
 
@@ -63,75 +71,94 @@ func NewTxBlockMap() *TxBlockMap {
 	// If lower height is accepted and chunk in rejected block that shows later,
 	// must not remove yet.
 	return &TxBlockMap{
-		items:   map[ids.ID]*chain.StatelessTxBlock{},
+		items:   map[ids.ID]*blkItem{},
 		heights: make(map[uint64]*bucket),
 		bh:      heap.New[*bucket, uint64](120, true),
 	}
 }
 
 // TODO: don't store in block map unless can fetch ancestry back to known block
-func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock) bool {
+func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock) (bool, bool) {
 	c.l.Lock()
 	defer c.l.Unlock()
 
 	// Ensure txBlock is not already registered
 	b, ok := c.heights[txBlock.Hght]
 	if ok && b.items.Contains(txBlock.ID()) {
-		return false
+		return false, false
 	}
 
 	// Add to items
-	c.items[txBlock.ID()] = txBlock
-
-	// Check if bucket with height already exists
+	item := &blkItem{blk: txBlock}
+	c.items[txBlock.ID()] = item
 	if ok {
+		// Check if bucket with height already exists
 		b.items.Add(txBlock.ID())
-		return true
+	} else {
+		// Create new bucket
+		b = &bucket{
+			h:     txBlock.Hght,
+			items: set.Set[ids.ID]{txBlock.ID(): struct{}{}},
+		}
+		c.heights[txBlock.Hght] = b
+		c.bh.Push(&heap.Entry[*bucket, uint64]{
+			ID:    txBlock.ID(),
+			Val:   txBlock.Hght,
+			Item:  b,
+			Index: c.bh.Len(),
+		})
 	}
 
-	// Create new bucket
-	b = &bucket{
-		h:     txBlock.Hght,
-		items: set.Set[ids.ID]{txBlock.ID(): struct{}{}},
+	// Verify
+	blkItem, bok := c.items[txBlock.Prnt]
+	if !bok {
+		return true, false
 	}
-	c.heights[txBlock.Hght] = b
-	c.bh.Push(&heap.Entry[*bucket, uint64]{
-		ID:    txBlock.ID(),
-		Val:   txBlock.Hght,
-		Item:  b,
-		Index: c.bh.Len(),
-	})
-
-	// TODO: verify anything that can now be verified async
-	// TODO: track verification status on stored block object to avoid duplicate
-	// TODO: handle case where parent is not yet verified (we may also be
-	// waiting)
-	// TODO: do async
-	state, err := parent.ChildState(ctx, len(stxBlk.Txs)*2)
-	if err != nil {
-		c.vm.Logger().Error("unable to create child state", zap.Error(err))
-		return nil
+	if !blkItem.verified.Load() {
+		return true, false
 	}
-	if err := stxBlk.Verify(ctx, state); err != nil {
-		c.vm.Logger().Error("unable to create child state", zap.Error(err))
-		return nil
-	}
-
-	return true
+	return true, item.verifying.CompareAndSwap(false, true)
 }
 
-func (c *TxBlockMap) Verfied(blkID ids.ID) {
-	// Scan all items at height + 1 that rely on
+func (c *TxBlockMap) Verfied(blkID ids.ID, success bool) []ids.ID {
+	c.l.Lock()
+	defer c.l.Unlock()
 
-	// Kickoff verification async
-	// TODO: ensure we mark as verifying atomically
+	// Scan all items at height + 1 that rely on
+	blk := c.items[blkID]
+	blk.verifying.Store(false)
+	if !success {
+		return nil
+	}
+	blk.verified.Store(true)
+
+	bucket, ok := c.heights[blk.blk.Hght+1]
+	if !ok {
+		return nil
+	}
+	toVerify := []ids.ID{}
+	for cblkID := range bucket.items {
+		cblk := c.items[cblkID]
+		if cblk.blk.Prnt != blkID {
+			continue
+		}
+		if !cblk.verifying.CompareAndSwap(false, true) {
+			continue
+		}
+		toVerify = append(toVerify, cblkID)
+	}
+	return toVerify
 }
 
 func (c *TxBlockMap) Get(blkID ids.ID) *chain.StatelessTxBlock {
 	c.l.RLock()
 	defer c.l.RUnlock()
 
-	return c.items[blkID]
+	blk, ok := c.items[blkID]
+	if !ok {
+		return nil
+	}
+	return blk.blk
 }
 
 func (c *TxBlockMap) SetMin(h uint64) []ids.ID {
@@ -404,9 +431,14 @@ func (c *TxBlockManager) RequestChunk(ctx context.Context, height uint64, hint i
 			time.Sleep(retrySleep)
 			continue
 		}
-		// TODO: return if added
-		c.txBlocks.Add(txBlk)
+		added, shouldVerify := c.txBlocks.Add(txBlk)
+		if !added {
+			return
+		}
 		c.sendToOutstandingListeners(chunkID, txBlk, nil)
+		if shouldVerify {
+			go c.VerifyAll(txBlk.ID())
+		}
 		return
 	}
 	c.sendToOutstandingListeners(chunkID, nil, errors.New("exhausted retries"))
@@ -580,15 +612,57 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 			c.vm.Logger().Error("unable to init txBlock", zap.Error(err))
 			return nil
 		}
-		if !c.txBlocks.Add(stxBlk) {
+		added, shouldVerify := c.txBlocks.Add(stxBlk)
+		if !added {
 			// We could've gotten the same tx block from 2 people
 			// TODO: avoid starting tx parse until know added
 			pcancel()
 			c.vm.Logger().Error("already processing block")
 			return nil
 		}
+		if !shouldVerify {
+			c.vm.Logger().Error("not ready to verify")
+			return nil
+		}
+		go c.VerifyAll(blkID)
 	default:
 		c.vm.Logger().Error("unexpected message type", zap.Uint8("type", msg[0]))
+		return nil
+	}
+	return nil
+}
+
+func (c *TxBlockManager) VerifyAll(blkID ids.ID) {
+	next := []ids.ID{blkID}
+	for len(next) > 0 {
+		nextRound := []ids.ID{}
+		for _, blkID := range next {
+			err := c.Verify(blkID)
+			nextRound = append(nextRound, c.txBlocks.Verfied(blkID, err == nil)...)
+		}
+		next = nextRound
+	}
+}
+
+func (c *TxBlockManager) Verify(blkID ids.ID) error {
+	blk := c.txBlocks.Get(blkID)
+	// TODO: handle the case that the parent is missing
+	// TODO: hanlde verify again
+	// TODO: handle failed verification
+	parent := c.txBlocks.Get(blkID)
+
+	// TODO: verify anything that can now be verified async
+	// TODO: track verification status on stored block object to avoid duplicate
+	// TODO: handle case where parent is not yet verified (we may also be
+	// waiting)
+	// TODO: do async
+	state, err := parent.ChildState(context.Background(), len(blk.Txs)*2)
+	if err != nil {
+		c.vm.Logger().Error("unable to create child state", zap.Error(err))
+		return nil
+	}
+	if err := blk.Verify(context.Background(), state); err != nil {
+		c.vm.Logger().Error("unable to create child state", zap.Error(err))
 		return nil
 	}
 	return nil

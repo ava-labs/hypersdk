@@ -230,7 +230,7 @@ func BuildBlock(
 			}
 
 			// PreExecute next to see if it is fit
-			if err := next.PreExecute(fctx, ectx, r, ts, nextTime); err != nil {
+			if err := next.PreExecute(fctx, tectx, r, ts, nextTime); err != nil {
 				ts.Rollback(ctx, txStart)
 				cont, restore, removeAcct := HandlePreExecute(err)
 				return cont, restore, removeAcct, nil
@@ -266,7 +266,7 @@ func BuildBlock(
 			// If execution works, keep moving forward with new state
 			result, err := next.Execute(
 				fctx,
-				ectx,
+				tectx,
 				r,
 				sm,
 				ts,
