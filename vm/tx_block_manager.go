@@ -101,7 +101,30 @@ func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock) bool {
 		Item:  b,
 		Index: c.bh.Len(),
 	})
+
+	// TODO: verify anything that can now be verified async
+	// TODO: track verification status on stored block object to avoid duplicate
+	// TODO: handle case where parent is not yet verified (we may also be
+	// waiting)
+	// TODO: do async
+	state, err := parent.ChildState(ctx, len(stxBlk.Txs)*2)
+	if err != nil {
+		c.vm.Logger().Error("unable to create child state", zap.Error(err))
+		return nil
+	}
+	if err := stxBlk.Verify(ctx, state); err != nil {
+		c.vm.Logger().Error("unable to create child state", zap.Error(err))
+		return nil
+	}
+
 	return true
+}
+
+func (c *TxBlockMap) Verfied(blkID ids.ID) {
+	// Scan all items at height + 1 that rely on
+
+	// Kickoff verification async
+	// TODO: ensure we mark as verifying atomically
 }
 
 func (c *TxBlockMap) Get(blkID ids.ID) *chain.StatelessTxBlock {
@@ -235,7 +258,7 @@ func (c *TxBlockManager) Accept(height uint64) {
 	c.vm.snowCtx.Log.Info("evicted chunks from memory", zap.Int("n", len(evicted)))
 }
 
-func (c *TxBlockManager) RequestChunks(ctx context.Context, txBlkHeight uint64, txBlkIDs []ids.ID, ch chan []byte) error {
+func (c *TxBlockManager) RequestChunks(ctx context.Context, minTxBlkHeight uint64, txBlkIDs []ids.ID, ch chan []byte) error {
 	// TODO: pre-store chunks on disk if bootstrapping
 	g, gctx := errgroup.WithContext(ctx)
 	for ri, rtxBlkID := range txBlkIDs {
@@ -243,7 +266,7 @@ func (c *TxBlockManager) RequestChunks(ctx context.Context, txBlkHeight uint64, 
 		txBlkID := rtxBlkID
 		g.Go(func() error {
 			crch := make(chan *txBlockResult, 1)
-			c.RequestChunk(gctx, txBlkHeight+i, ids.EmptyNodeID, txBlkID, crch)
+			c.RequestChunk(gctx, minTxBlkHeight+i, ids.EmptyNodeID, txBlkID, crch)
 			select {
 			case r := <-crch:
 				if r.err != nil {
@@ -381,6 +404,7 @@ func (c *TxBlockManager) RequestChunk(ctx context.Context, height uint64, hint i
 			time.Sleep(retrySleep)
 			continue
 		}
+		// TODO: return if added
 		c.txBlocks.Add(txBlk)
 		c.sendToOutstandingListeners(chunkID, txBlk, nil)
 		return
@@ -515,6 +539,7 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 		// Ensure tx block could be useful
 		//
 		// TODO: limit how far ahead we will fetch
+		// TODO: handle genesis block
 		if txBlock.Hght <= c.vm.LastAcceptedBlock().MaxTxHght() {
 			c.vm.Logger().Debug("dropp useless tx block", zap.Uint64("hght", txBlock.Hght))
 			return nil
@@ -522,17 +547,33 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 
 		// Option 1: parent txBlock is missing, must fetch ancestry
 		parent := c.txBlocks.Get(txBlock.Prnt)
-		if parent == nil {
+		if parent == nil && txBlock.Hght > 0 {
 			// TODO: trigger verify once returned (ensure not multiple verifications
 			// of same block going on)
 			// TODO: don't verify if accept other path
 			// TODO: handle Hght == 0
+			// TODO: handle parent < accepted
 			// TODO: recursively go back, may not have what we need yet
-			c.RequestChunk(ctx, txBlock.Hght-1, nodeID, txBlock.Prnt, nil)
+			go func() {
+				nextID := txBlock.Prnt
+				nextHeight := txBlock.Hght - 1
+				for nextHeight > c.vm.LastAcceptedBlock().MaxTxHght() {
+					ch := make(chan *txBlockResult, 1)
+					c.RequestChunk(context.Background(), nextHeight, nodeID, nextID, ch)
+					result := <-ch
+					if result.err != nil {
+						c.vm.Logger().Warn("unable to get tx block", zap.Error(err))
+						return
+					}
+					// TODO: check if added to determine if should continue
+					nextID = result.txBlock.Prnt
+					nextHeight = result.txBlock.Hght - 1
+				}
+			}()
 			return nil
 		}
 
-		// Option 2: parent exists, verify
+		// Option 2: parent exists, try to add
 		pctx, pcancel := context.WithCancel(ctx)
 		stxBlk, err := chain.ParseTxBlock(pctx, txBlock, b, c.vm)
 		if err != nil {
@@ -541,19 +582,9 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 		}
 		if !c.txBlocks.Add(stxBlk) {
 			// We could've gotten the same tx block from 2 people
+			// TODO: avoid starting tx parse until know added
 			pcancel()
 			c.vm.Logger().Error("already processing block")
-			return nil
-		}
-		// TODO: handle case where parent is not yet verified (we may also be
-		// waiting)
-		state, err := parent.ChildState(ctx, len(stxBlk.Txs)*2)
-		if err != nil {
-			c.vm.Logger().Error("unable to create child state", zap.Error(err))
-			return nil
-		}
-		if err := stxBlk.Verify(ctx, state); err != nil {
-			c.vm.Logger().Error("unable to create child state", zap.Error(err))
 			return nil
 		}
 	default:
