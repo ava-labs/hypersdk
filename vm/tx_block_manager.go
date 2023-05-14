@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/heap"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/neilotoole/errgroup"
 	"go.uber.org/zap"
 )
 
@@ -65,22 +64,27 @@ type TxBlockMap struct {
 	bh      *heap.Heap[*bucket, uint64]
 	items   map[ids.ID]*blkItem
 	heights map[uint64]*bucket // Uses timestamp as keys to map to buckets of ids.
+
+	outstanding set.Set[ids.ID]
 }
 
 func NewTxBlockMap() *TxBlockMap {
 	// If lower height is accepted and chunk in rejected block that shows later,
 	// must not remove yet.
 	return &TxBlockMap{
-		items:   map[ids.ID]*blkItem{},
-		heights: make(map[uint64]*bucket),
-		bh:      heap.New[*bucket, uint64](120, true),
+		items:       map[ids.ID]*blkItem{},
+		heights:     make(map[uint64]*bucket),
+		bh:          heap.New[*bucket, uint64](120, true),
+		outstanding: set.NewSet[ids.ID](64),
 	}
 }
 
 // TODO: don't store in block map unless can fetch ancestry back to known block
-func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock) (bool, bool) {
+func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock, verified bool) (bool, bool) {
 	c.l.Lock()
 	defer c.l.Unlock()
+
+	c.outstanding.Remove(txBlock.ID())
 
 	// Ensure txBlock is not already registered
 	b, ok := c.heights[txBlock.Hght]
@@ -107,6 +111,11 @@ func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock) (bool, bool) {
 			Item:  b,
 			Index: c.bh.Len(),
 		})
+	}
+	if verified {
+		// TODO: handle the case where we want to verify others here?
+		item.verified.Store(true)
+		return true, false
 	}
 
 	// Verify
@@ -150,7 +159,7 @@ func (c *TxBlockMap) Verfied(blkID ids.ID, success bool) []ids.ID {
 	return toVerify
 }
 
-func (c *TxBlockMap) Get(blkID ids.ID) *chain.StatelessTxBlock {
+func (c *TxBlockMap) Get(blkID ids.ID) *blkItem {
 	c.l.RLock()
 	defer c.l.RUnlock()
 
@@ -158,7 +167,7 @@ func (c *TxBlockMap) Get(blkID ids.ID) *chain.StatelessTxBlock {
 	if !ok {
 		return nil
 	}
-	return blk.blk
+	return blk
 }
 
 func (c *TxBlockMap) SetMin(h uint64) []ids.ID {
@@ -182,6 +191,29 @@ func (c *TxBlockMap) SetMin(h uint64) []ids.ID {
 	return evicted
 }
 
+// TODO: allow multiple concurrent fetches
+func (c *TxBlockMap) Fetch(blkID ids.ID) bool {
+	c.l.Lock()
+	defer c.l.Unlock()
+
+	_, ok := c.items[blkID]
+	if ok {
+		return false
+	}
+	if c.outstanding.Contains(blkID) {
+		return false
+	}
+	c.outstanding.Add(blkID)
+	return true
+}
+
+func (c *TxBlockMap) AbandonFetch(blkID ids.ID) {
+	c.l.Lock()
+	defer c.l.Unlock()
+
+	c.outstanding.Remove(blkID)
+}
+
 type TxBlockManager struct {
 	vm        *VM
 	appSender common.AppSender
@@ -198,23 +230,19 @@ type TxBlockManager struct {
 	nodeChunks    map[ids.NodeID]*NodeChunks
 	nodeSet       set.Set[ids.NodeID]
 
-	outstandingLock sync.Mutex
-	outstanding     map[ids.ID][]chan *txBlockResult
-
 	update chan []byte
 	done   chan struct{}
 }
 
 func NewTxBlockManager(vm *VM) *TxBlockManager {
 	return &TxBlockManager{
-		vm:          vm,
-		requests:    map[uint32]chan []byte{},
-		txBlocks:    NewTxBlockMap(),
-		nodeChunks:  map[ids.NodeID]*NodeChunks{},
-		nodeSet:     set.NewSet[ids.NodeID](64),
-		outstanding: map[ids.ID][]chan *txBlockResult{},
-		update:      make(chan []byte),
-		done:        make(chan struct{}),
+		vm:         vm,
+		requests:   map[uint32]chan []byte{},
+		txBlocks:   NewTxBlockMap(),
+		nodeChunks: map[ids.NodeID]*NodeChunks{},
+		nodeSet:    set.NewSet[ids.NodeID](64),
+		update:     make(chan []byte),
+		done:       make(chan struct{}),
 	}
 }
 
@@ -258,7 +286,7 @@ func (c *TxBlockManager) Run(appSender common.AppSender) {
 
 // Called when building a chunk
 func (c *TxBlockManager) IssueTxBlock(ctx context.Context, txBlock *chain.StatelessTxBlock) {
-	c.txBlocks.Add(txBlock)
+	c.txBlocks.Add(txBlock, true)
 	c.update <- txBlock.Bytes()
 	if txBlock.Hght > c.max {
 		c.max = txBlock.Hght
@@ -285,99 +313,28 @@ func (c *TxBlockManager) Accept(height uint64) {
 	c.vm.snowCtx.Log.Info("evicted chunks from memory", zap.Int("n", len(evicted)))
 }
 
-func (c *TxBlockManager) RequestChunks(ctx context.Context, minTxBlkHeight uint64, txBlkIDs []ids.ID, ch chan []byte) error {
-	// TODO: pre-store chunks on disk if bootstrapping
-	g, gctx := errgroup.WithContext(ctx)
-	for ri, rtxBlkID := range txBlkIDs {
-		i := uint64(ri)
-		txBlkID := rtxBlkID
-		g.Go(func() error {
-			crch := make(chan *txBlockResult, 1)
-			c.RequestChunk(gctx, minTxBlkHeight+i, ids.EmptyNodeID, txBlkID, crch)
-			select {
-			case r := <-crch:
-				if r.err != nil {
-					return r.err
-				}
-				// TODO: need to actually return?
-				ch <- r.txBlock.Bytes()
-				return nil
-			case <-gctx.Done():
-				return gctx.Err()
-			}
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return err
-	}
-
-	// Trigger that we have processed new chunks
-	c.update <- nil
-	return nil
-}
-
-type txBlockResult struct {
-	txBlock *chain.StatelessTxBlock
-	err     error
-}
-
-func (c *TxBlockManager) sendToOutstandingListeners(txBlockID ids.ID, txBlock *chain.StatelessTxBlock, err error) {
-	c.outstandingLock.Lock()
-	listeners, ok := c.outstanding[txBlockID]
-	delete(c.outstanding, txBlockID)
-	c.outstandingLock.Unlock()
-	if !ok {
-		return
-	}
-	result := &txBlockResult{txBlock, err}
-	for _, listener := range listeners {
-		if listener == nil {
-			continue
-		}
-		listener <- result
+// TODO: pre-store chunks on disk if bootstrapping
+// TODO: change context?
+// Each time we attempt to verify a block, we will kickoff fetch if we don't
+// already have, eventually verifying
+func (c *TxBlockManager) RequireTxBlocks(ctx context.Context, minTxBlkHeight uint64, blkIDs []ids.ID) {
+	for i, rblkID := range blkIDs {
+		blkID := rblkID
+		go c.RequestTxBlock(ctx, minTxBlkHeight+uint64(i), ids.EmptyNodeID, blkID, i == 0)
 	}
 }
 
 // RequestChunk may spawn a goroutine
-func (c *TxBlockManager) RequestChunk(ctx context.Context, height uint64, hint ids.NodeID, chunkID ids.ID, ch chan *txBlockResult) {
-	// Register request to be notified
-	c.outstandingLock.Lock()
-	outstanding, ok := c.outstanding[chunkID]
-	if ok {
-		c.outstanding[chunkID] = append(outstanding, ch)
-	} else {
-		c.outstanding[chunkID] = []chan *txBlockResult{ch}
-	}
-	c.outstandingLock.Unlock()
-	if ok {
-		// Wait for requests to eventually return
+func (c *TxBlockManager) RequestTxBlock(ctx context.Context, height uint64, hint ids.NodeID, blkID ids.ID, recursive bool) {
+	shouldFetch := c.txBlocks.Fetch(blkID)
+	if !shouldFetch {
 		return
 	}
-
-	// Check if previously fetched
-	if txBlock := c.txBlocks.Get(chunkID); txBlock != nil {
-		c.sendToOutstandingListeners(chunkID, txBlock, nil)
-		return
-	}
-
-	// Check if optimistically cached
-	// TODO: store chunks we've received but not connected yet here to make sure
-	// we don't fetch
-	// if chunk, ok := c.optimisticChunks.Get(chunkID); ok {
-	// 	c.chunkLock.Lock()
-	// 	if height != nil {
-	// 		c.fetchedChunks[chunkID] = chunk
-	// 		c.chunks.Add(*height, chunkID)
-	// 	}
-	// 	c.chunkLock.Unlock()
-	// 	c.sendToOutstandingListeners(chunkID, chunk, nil)
-	// 	return
-	// }
 
 	// Attempt to fetch
 	for i := 0; i < maxChunkRetries; i++ {
 		if err := ctx.Err(); err != nil {
-			c.sendToOutstandingListeners(chunkID, nil, err)
+			c.txBlocks.AbandonFetch(blkID)
 			return
 		}
 
@@ -408,43 +365,27 @@ func (c *TxBlockManager) RequestChunk(ctx context.Context, height uint64, hint i
 			if len(possibleRecipients) > 0 {
 				randomRecipient = possibleRecipients[rand.Intn(len(possibleRecipients))]
 			} else {
-				c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("chunkID", chunkID), zap.Stringer("hint", hint), zap.Uint64("height", height))
+				c.vm.snowCtx.Log.Warn("no possible recipients", zap.Stringer("blkID", blkID), zap.Stringer("hint", hint), zap.Uint64("height", height))
 			}
 			peer = randomRecipient
 		}
 
 		// Handle received message
-		msg, err := c.requestChunkNodeID(ctx, peer, chunkID)
+		msg, err := c.requestTxBlockNodeID(ctx, peer, blkID)
 		if err != nil {
 			time.Sleep(retrySleep)
 			continue
 		}
-		rtxBlk, err := chain.UnmarshalTxBlock(msg, c.vm)
-		if err != nil {
-			c.vm.snowCtx.Log.Warn("invalid tx block", zap.Error(err))
+		if err := c.handleBlock(ctx, msg, &height, hint, recursive); err != nil {
 			time.Sleep(retrySleep)
 			continue
-		}
-		txBlk, err := chain.ParseTxBlock(ctx, rtxBlk, msg, c.vm)
-		if err != nil {
-			c.vm.snowCtx.Log.Warn("unable to init tx block", zap.Error(err))
-			time.Sleep(retrySleep)
-			continue
-		}
-		added, shouldVerify := c.txBlocks.Add(txBlk)
-		if !added {
-			return
-		}
-		c.sendToOutstandingListeners(chunkID, txBlk, nil)
-		if shouldVerify {
-			go c.VerifyAll(txBlk.ID())
 		}
 		return
 	}
-	c.sendToOutstandingListeners(chunkID, nil, errors.New("exhausted retries"))
+	c.txBlocks.AbandonFetch(blkID)
 }
 
-func (c *TxBlockManager) requestChunkNodeID(ctx context.Context, recipient ids.NodeID, chunkID ids.ID) ([]byte, error) {
+func (c *TxBlockManager) requestTxBlockNodeID(ctx context.Context, recipient ids.NodeID, blkID ids.ID) ([]byte, error) {
 
 	// Send request
 	rch := make(chan []byte)
@@ -457,9 +398,9 @@ func (c *TxBlockManager) requestChunkNodeID(ctx context.Context, recipient ids.N
 		ctx,
 		set.Set[ids.NodeID]{recipient: struct{}{}},
 		requestID,
-		chunkID[:],
+		blkID[:],
 	); err != nil {
-		c.vm.snowCtx.Log.Warn("chunk fetch request failed", zap.Stringer("chunkID", chunkID), zap.Error(err))
+		c.vm.snowCtx.Log.Warn("chunk fetch request failed", zap.Stringer("blkID", blkID), zap.Error(err))
 		return nil, err
 	}
 
@@ -472,14 +413,14 @@ func (c *TxBlockManager) requestChunkNodeID(ctx context.Context, recipient ids.N
 	}
 	if len(msg) == 0 {
 		// Happens if recipient does not have the chunk we want
-		c.vm.snowCtx.Log.Warn("chunk fetch returned empty", zap.Stringer("chunkID", chunkID))
+		c.vm.snowCtx.Log.Warn("chunk fetch returned empty", zap.Stringer("blkID", blkID))
 		return nil, errors.New("not found")
 	}
-	fchunkID := utils.ToID(msg)
-	if chunkID != fchunkID {
+	fblkID := utils.ToID(msg)
+	if blkID != fblkID {
 		// TODO: penalize sender
-		c.vm.snowCtx.Log.Warn("received incorrect chunk", zap.Stringer("nodeID", recipient))
-		return nil, errors.New("invalid chunk")
+		c.vm.snowCtx.Log.Warn("received incorrect blockID", zap.Stringer("nodeID", recipient))
+		return nil, errors.New("invalid tx block")
 	}
 	return msg, nil
 }
@@ -498,7 +439,7 @@ func (c *TxBlockManager) HandleRequest(
 
 	// Check processing
 	if txBlk := c.txBlocks.Get(txBlkID); txBlk != nil {
-		return c.appSender.SendAppResponse(ctx, nodeID, requestID, txBlk.Bytes())
+		return c.appSender.SendAppResponse(ctx, nodeID, requestID, txBlk.blk.Bytes())
 	}
 
 	// Check accepted
@@ -562,72 +503,47 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 		}
 
 		// Don't yet have txBlock in cache, figure out what to do
-		txBlock, err := chain.UnmarshalTxBlock(b, c.vm)
-		if err != nil {
-			c.vm.Logger().Error("unable to parse txBlock", zap.Error(err))
+		if err := c.handleBlock(context.TODO(), b, nil, nodeID, true); err != nil {
+			c.vm.Logger().Error("unable to handle txBlock", zap.Error(err))
 			return nil
 		}
-
-		// Ensure tx block could be useful
-		//
-		// TODO: limit how far ahead we will fetch
-		// TODO: handle genesis block
-		if txBlock.Hght <= c.vm.LastAcceptedBlock().MaxTxHght() {
-			c.vm.Logger().Debug("dropp useless tx block", zap.Uint64("hght", txBlock.Hght))
-			return nil
-		}
-
-		// Option 1: parent txBlock is missing, must fetch ancestry
-		parent := c.txBlocks.Get(txBlock.Prnt)
-		if parent == nil && txBlock.Hght > 0 {
-			// TODO: trigger verify once returned (ensure not multiple verifications
-			// of same block going on)
-			// TODO: don't verify if accept other path
-			// TODO: handle Hght == 0
-			// TODO: handle parent < accepted
-			// TODO: recursively go back, may not have what we need yet
-			go func() {
-				nextID := txBlock.Prnt
-				nextHeight := txBlock.Hght - 1
-				for nextHeight > c.vm.LastAcceptedBlock().MaxTxHght() {
-					ch := make(chan *txBlockResult, 1)
-					c.RequestChunk(context.Background(), nextHeight, nodeID, nextID, ch)
-					result := <-ch
-					if result.err != nil {
-						c.vm.Logger().Warn("unable to get tx block", zap.Error(err))
-						return
-					}
-					// TODO: check if added to determine if should continue
-					nextID = result.txBlock.Prnt
-					nextHeight = result.txBlock.Hght - 1
-				}
-			}()
-			return nil
-		}
-
-		// Option 2: parent exists, try to add
-		pctx, pcancel := context.WithCancel(ctx)
-		stxBlk, err := chain.ParseTxBlock(pctx, txBlock, b, c.vm)
-		if err != nil {
-			c.vm.Logger().Error("unable to init txBlock", zap.Error(err))
-			return nil
-		}
-		added, shouldVerify := c.txBlocks.Add(stxBlk)
-		if !added {
-			// We could've gotten the same tx block from 2 people
-			// TODO: avoid starting tx parse until know added
-			pcancel()
-			c.vm.Logger().Error("already processing block")
-			return nil
-		}
-		if !shouldVerify {
-			c.vm.Logger().Error("not ready to verify")
-			return nil
-		}
-		go c.VerifyAll(blkID)
 	default:
 		c.vm.Logger().Error("unexpected message type", zap.Uint8("type", msg[0]))
 		return nil
+	}
+	return nil
+}
+
+func (c *TxBlockManager) handleBlock(ctx context.Context, msg []byte, expected *uint64, hint ids.NodeID, recursive bool) error {
+	rtxBlk, err := chain.UnmarshalTxBlock(msg, c.vm)
+	if err != nil {
+		return err
+	}
+	if rtxBlk.Hght <= c.vm.LastAcceptedBlock().MaxTxHght() {
+		return nil
+	}
+	if expected != nil && rtxBlk.Hght != *expected {
+		// We stop fetching here because invalid ancestry
+		// TODO: mark so we don't go retry
+		return errors.New("unexpected height")
+	}
+	txBlk, err := chain.ParseTxBlock(ctx, rtxBlk, msg, c.vm)
+	if err != nil {
+		return err
+	}
+	added, shouldVerify := c.txBlocks.Add(txBlk, false)
+	if !added {
+		return nil
+	}
+	if shouldVerify {
+		// We cannot verify if we don't have ancestry, so no need to fetch
+		// anything else (exception: state sync)
+		go c.VerifyAll(txBlk.ID())
+		return nil
+	}
+	if recursive && txBlk.Hght > 0 && txBlk.Hght-1 > c.vm.LastAcceptedBlock().MaxTxHght() {
+		// TODO: don't do recursively to avoid stack blowup
+		c.RequestTxBlock(ctx, txBlk.Hght-1, hint, txBlk.Prnt, recursive)
 	}
 	return nil
 }
@@ -646,24 +562,32 @@ func (c *TxBlockManager) VerifyAll(blkID ids.ID) {
 
 func (c *TxBlockManager) Verify(blkID ids.ID) error {
 	blk := c.txBlocks.Get(blkID)
-	// TODO: handle the case that the parent is missing
-	// TODO: hanlde verify again
-	// TODO: handle failed verification
-	parent := c.txBlocks.Get(blkID)
-
-	// TODO: verify anything that can now be verified async
-	// TODO: track verification status on stored block object to avoid duplicate
-	// TODO: handle case where parent is not yet verified (we may also be
-	// waiting)
-	// TODO: do async
-	state, err := parent.ChildState(context.Background(), len(blk.Txs)*2)
+	if blk == nil {
+		return errors.New("tx block is missing")
+	}
+	if blk.verified.Load() {
+		return errors.New("tx block already verified")
+	}
+	parent := c.txBlocks.Get(blk.blk.Prnt)
+	if parent == nil {
+		return errors.New("parent tx block is missing")
+	}
+	if !parent.verified.Load() {
+		return errors.New("parent tx block not verified")
+	}
+	state, err := parent.blk.ChildState(context.Background(), len(blk.blk.Txs)*2)
 	if err != nil {
 		c.vm.Logger().Error("unable to create child state", zap.Error(err))
 		return nil
 	}
-	if err := blk.Verify(context.Background(), state); err != nil {
+	if err := blk.blk.Verify(context.Background(), state); err != nil {
 		c.vm.Logger().Error("unable to create child state", zap.Error(err))
 		return nil
+	}
+	if blk.blk.Hght > c.max {
+		// Only update if verified up to that height
+		c.max = blk.blk.Hght
+		c.update <- nil
 	}
 	return nil
 }
