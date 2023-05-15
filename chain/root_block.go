@@ -150,7 +150,7 @@ func ParseRootBlock(
 	}
 
 	// Ensure we are tracking the block chunks we just parsed
-	b.vm.RequestTxBlocks(ctx, b.MinTxHght, b.Txs)
+	b.vm.RequireTxBlocks(ctx, b.MinTxHght, b.Txs)
 	return b, nil
 }
 
@@ -273,9 +273,46 @@ func (b *StatelessRootBlock) verify(ctx context.Context, stateReady bool) error 
 //  3. If the state of a block we are accepting is missing (finishing dynamic
 //     state sync)
 func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
+	// Populate txBlocks
+	b.txBlocks = make([]*StatelessTxBlock, len(b.Txs))
+	var containsWarp bool
+	for i, blkID := range b.Txs {
+		blk, err := b.vm.GetStatelessTxBlock(ctx, blkID)
+		if err != nil {
+			return err
+		}
+		if blk.Tmstmp != b.Tmstmp {
+			// TODO: make block un-reverifiable
+			return errors.New("invalid timestamp")
+		}
+		if b.ContainsWarp {
+			if blk.PChainHeight != b.bctx.PChainHeight {
+				// TODO: make block un-reverifiable
+				return errors.New("invalid p-chain height")
+			}
+		} else {
+			if blk.PChainHeight != 0 {
+				// TODO: make block un-reverifiable
+				return errors.New("invalid p-chain height")
+			}
+		}
+		if blk.ContainsWarp {
+			containsWarp = true
+		}
+		if blk.state == nil {
+			return errors.New("state not ready")
+		}
+		b.txBlocks[i] = blk
+	}
+	if containsWarp != b.ContainsWarp {
+		// TODO: make block un-reverifiable
+		return errors.New("invalid warp status")
+	}
+
 	// Get state from final TxBlock execution
 	state := b.txBlockState()
 	if state == nil {
+		// TODO: should never happen
 		return errors.New("state not ready")
 	}
 
@@ -308,6 +345,7 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 	}
 	switch {
 	case b.BlockWindow != ectx.NextBlockWindow:
+		// TODO: make block un-reverifiable
 		return ErrInvalidBlockWindow
 	}
 
@@ -317,6 +355,7 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 		return err
 	}
 	if b.StateRoot != computedRoot {
+		// TODO: make block un-reverifiable
 		return fmt.Errorf(
 			"%w: expected=%s found=%s",
 			ErrStateRootMismatch,
@@ -462,6 +501,7 @@ func (b *StatelessRootBlock) txBlockState() merkledb.TrieView {
 	if l == 0 {
 		return nil
 	}
+	// TODO: handle case where empty during state sync
 	return b.txBlocks[l-1].state
 }
 

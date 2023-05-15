@@ -55,7 +55,7 @@ type VM interface {
 	IsRepeat(context.Context, []*Transaction) bool
 
 	IssueTxBlock(context.Context, *StatelessTxBlock)
-	RequestTxBlocks(context.Context, uint64, []ids.ID)
+	RequireTxBlocks(context.Context, uint64, []ids.ID)
 	GetStatelessTxBlock(context.Context, ids.ID) (*StatelessTxBlock, error)
 
 	LastAcceptedBlock() *StatelessRootBlock
