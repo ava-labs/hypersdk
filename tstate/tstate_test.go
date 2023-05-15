@@ -356,7 +356,7 @@ func benchmarkFetchAndSetScope(b *testing.B, size int) {
 	db := NewTestDB()
 	ctx := context.TODO()
 
-	keys, vals := initializeSet(size)
+	keys, vals := initializeSet(require, size)
 	for i, key := range keys {
 		err := db.Insert(ctx, key, vals[i])
 		require.NoError(err, "Error during insert.")
@@ -376,7 +376,7 @@ func benchmarkInsert(b *testing.B, size int) {
 	ts := New(size)
 	ctx := context.TODO()
 
-	keys, vals := initializeSet(size)
+	keys, vals := initializeSet(require, size)
 
 	storage := map[string][]byte{}
 	for i, key := range keys {
@@ -401,7 +401,7 @@ func benchmarkGetValue(b *testing.B, size int) {
 	ts := New(size)
 	ctx := context.TODO()
 
-	keys, vals := initializeSet(size)
+	keys, vals := initializeSet(require, size)
 
 	storage := map[string][]byte{}
 	for i, key := range keys {
@@ -421,20 +421,21 @@ func benchmarkGetValue(b *testing.B, size int) {
 	b.StopTimer()
 }
 
-func initializeSet(size int) ([][]byte, [][]byte) {
+func initializeSet(r *require.Assertions, size int) ([][]byte, [][]byte) {
 	keys := [][]byte{}
 	vals := [][]byte{}
 
 	for i := 0; i <= size; i++ {
-		keys = append(keys, randomBytes(33))
-		vals = append(vals, randomBytes(8))
+		keys = append(keys, randomBytes(r, 65))
+		vals = append(vals, randomBytes(r, 8))
 	}
 
 	return keys, vals
 }
 
-func randomBytes(size int) []byte {
+func randomBytes(r *require.Assertions, size int) []byte {
 	bytes := make([]byte, size)
-	rand.Read(bytes)
+	_, err := rand.Read(bytes)
+	r.NoError(err)
 	return bytes
 }
