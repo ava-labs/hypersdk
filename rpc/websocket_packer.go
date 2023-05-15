@@ -17,38 +17,56 @@ const (
 	TxMode    byte = 1
 )
 
-func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
+func PackBlockMessage(b *chain.StatelessRootBlock) ([]byte, error) {
 	p := codec.NewWriter(consts.MaxInt)
 	p.PackBytes(b.Bytes())
-	results, err := chain.MarshalResults(b.Results())
-	if err != nil {
-		return nil, err
+	txBlocks := b.GetTxBlocks()
+	p.PackInt(len(txBlocks))
+	for _, txBlock := range txBlocks {
+		p.PackBytes(txBlock.Bytes())
+		results, err := chain.MarshalResults(txBlock.Results())
+		if err != nil {
+			return nil, err
+		}
+		p.PackBytes(results)
 	}
-	p.PackBytes(results)
 	return p.Bytes(), p.Err()
 }
 
 func UnpackBlockMessage(
 	msg []byte,
 	parser chain.Parser,
-) (*chain.StatefulBlock, []*chain.Result, error) {
+) (*chain.RootBlock, []*chain.TxBlock, []*chain.Result, error) {
 	p := codec.NewReader(msg, consts.MaxInt)
 	var blkMsg []byte
 	p.UnpackBytes(-1, true, &blkMsg)
-	blk, err := chain.UnmarshalBlock(blkMsg, parser)
+	blk, err := chain.UnmarshalRootBlock(blkMsg, parser)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	var resultsMsg []byte
-	p.UnpackBytes(-1, true, &resultsMsg)
-	results, err := chain.UnmarshalResults(resultsMsg)
-	if err != nil {
-		return nil, nil, err
+	txBlkCount := p.UnpackInt(false) // genesis blk
+	txBlks := []*chain.TxBlock{}
+	results := []*chain.Result{}
+	for i := 0; i < txBlkCount; i++ {
+		var txBlkMsg []byte
+		p.UnpackBytes(-1, true, &txBlkMsg)
+		txBlk, err := chain.UnmarshalTxBlock(txBlkMsg, parser)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		txBlks = append(txBlks, txBlk)
+		var resultsMsg []byte
+		p.UnpackBytes(-1, true, &resultsMsg)
+		result, err := chain.UnmarshalResults(resultsMsg)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		results = append(results, result...)
 	}
 	if !p.Empty() {
-		return nil, nil, chain.ErrInvalidObject
+		return nil, nil, nil, chain.ErrInvalidObject
 	}
-	return blk, results, p.Err()
+	return blk, txBlks, results, p.Err()
 }
 
 // Could be a better place for these methods

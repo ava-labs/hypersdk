@@ -26,7 +26,7 @@ type VM interface {
 		verifySig bool,
 		txs []*chain.Transaction,
 	) (errs []error)
-	LastAcceptedBlock() *chain.StatelessBlock
+	LastAcceptedBlock() *chain.StatelessRootBlock
 	SuggestedFee(context.Context) (uint64, uint64, error)
 	GetOutgoingWarpMessage(ids.ID) (*warp.UnsignedMessage, error)
 	GetWarpSignatures(ids.ID) ([]*chain.WarpSignature, error)

@@ -87,14 +87,14 @@ func (c *WebSocketClient) RegisterBlocks() error {
 func (c *WebSocketClient) ListenBlock(
 	ctx context.Context,
 	parser chain.Parser,
-) (*chain.StatefulBlock, []*chain.Result, error) {
+) (*chain.RootBlock, []*chain.TxBlock, []*chain.Result, error) {
 	select {
 	case msg := <-c.pendingBlocks:
 		return UnpackBlockMessage(msg, parser)
 	case <-c.done:
-		return nil, nil, c.err
+		return nil, nil, nil, c.err
 	case <-ctx.Done():
-		return nil, nil, ctx.Err()
+		return nil, nil, nil, ctx.Err()
 	}
 }
 
