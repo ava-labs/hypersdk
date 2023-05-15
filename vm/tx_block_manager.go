@@ -519,7 +519,7 @@ func (c *TxBlockManager) handleBlock(ctx context.Context, msg []byte, expected *
 	if err != nil {
 		return err
 	}
-	if rtxBlk.Hght <= c.vm.LastAcceptedBlock().MaxTxHght() {
+	if rtxBlk.Hght <= c.vm.LastAcceptedBlock().MaxTxHght() && c.vm.LastAcceptedBlock().Hght > 0 {
 		return nil
 	}
 	if expected != nil && rtxBlk.Hght != *expected {
@@ -541,7 +541,7 @@ func (c *TxBlockManager) handleBlock(ctx context.Context, msg []byte, expected *
 		go c.VerifyAll(txBlk.ID())
 		return nil
 	}
-	if recursive && txBlk.Hght > 0 && txBlk.Hght-1 > c.vm.LastAcceptedBlock().MaxTxHght() {
+	if recursive && txBlk.Hght > 0 && (txBlk.Hght-1 > c.vm.LastAcceptedBlock().MaxTxHght() || c.vm.LastAcceptedBlock().Hght == 0) {
 		// TODO: don't do recursively to avoid stack blowup
 		c.RequestTxBlock(ctx, txBlk.Hght-1, hint, txBlk.Prnt, recursive)
 	}
