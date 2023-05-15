@@ -5,7 +5,7 @@ package vm
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -388,12 +388,23 @@ func (vm *VM) RequireTxBlocks(ctx context.Context, minHght uint64, blks []ids.ID
 
 func (vm *VM) GetStatelessTxBlock(ctx context.Context, blkID ids.ID) (*chain.StatelessTxBlock, error) {
 	blk := vm.txBlockManager.txBlocks.Get(blkID)
-	// TODO: need to resolve from disk too
-	if blk == nil {
-		return nil, errors.New("blk missing")
+	if blk != nil {
+		if !blk.verified.Load() {
+			return nil, fmt.Errorf("blk not verified; height=%d id=%s", blk.blk.Hght, blkID)
+		}
+		return blk.blk, nil
 	}
-	if !blk.verified.Load() {
-		return nil, errors.New("blk not verified")
+
+	// Load from disk
+	//
+	// TODO: optimize this to avoid re-parsing (should have cache after accept)
+	rblk, err := vm.GetTxBlock(blkID)
+	if err != nil {
+		return nil, err
 	}
-	return blk.blk, nil
+	ublk, err := chain.UnmarshalTxBlock(rblk, vm)
+	if err != nil {
+		return nil, err
+	}
+	return chain.ParseTxBlock(ctx, ublk, rblk, vm)
 }

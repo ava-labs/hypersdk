@@ -546,6 +546,7 @@ func (c *TxBlockManager) handleBlock(ctx context.Context, msg []byte, expected *
 	if !added {
 		return nil
 	}
+	// TODO: returning false here because not in-memory
 	if shouldVerify {
 		// We cannot verify if we don't have ancestry, so no need to fetch
 		// anything else (exception: state sync)
