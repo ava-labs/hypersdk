@@ -173,11 +173,11 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ectx, err := chain.GenerateExecutionContext(
+	ectx, err := chain.GenerateTxExecutionContext(
 		ctx,
 		g.vm.ChainID(),
 		now,
-		blk,
+		blk.LastTxBlock(),
 		g.vm.Tracer(),
 		g.vm.Rules(now),
 	)

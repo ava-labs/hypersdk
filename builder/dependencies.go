@@ -14,7 +14,7 @@ import (
 type VM interface {
 	StopChan() chan struct{}
 	EngineChan() chan<- common.Message
-	PreferredBlock(context.Context) (*chain.StatelessBlock, error)
+	PreferredBlock(context.Context) (*chain.StatelessRootBlock, error)
 	Logger() logging.Logger
 	Mempool() chain.Mempool
 }

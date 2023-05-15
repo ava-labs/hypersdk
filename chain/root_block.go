@@ -220,6 +220,10 @@ func (b *StatelessRootBlock) Verify(ctx context.Context) error {
 	return b.verify(ctx, stateReady)
 }
 
+func (b *StatelessRootBlock) Processed() bool {
+	return b.txBlockState() != nil
+}
+
 func (b *StatelessRootBlock) verify(ctx context.Context, stateReady bool) error {
 	// TODO: verify all chunks have right tmstp, unit price
 	// TODO: verify all chunks have right pchainheight + contains warp
@@ -476,6 +480,14 @@ func (b *StatelessRootBlock) State() (Database, error) {
 	return nil, ErrBlockNotProcessed
 }
 
+func (b *StatelessRootBlock) LastTxBlock() *StatelessTxBlock {
+	l := len(b.txBlocks)
+	if l == 0 {
+		return nil
+	}
+	return b.txBlocks[l-1]
+}
+
 func (b *StatelessRootBlock) GetTxs() []ids.ID {
 	return b.Txs
 }
@@ -497,7 +509,7 @@ func (b *StatelessRootBlock) MaxTxHght() uint64 {
 }
 
 func (b *StatelessRootBlock) txBlockState() merkledb.TrieView {
-	l := len(b.Txs)
+	l := len(b.txBlocks)
 	if l == 0 {
 		return nil
 	}

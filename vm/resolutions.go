@@ -382,8 +382,17 @@ func (vm *VM) IssueTxBlock(ctx context.Context, blk *chain.StatelessTxBlock) {
 	vm.txBlockManager.IssueTxBlock(ctx, blk)
 }
 
-func (vm *VM) RequestTxBlocks(ctx context.Context, minHght uint64, blks []ids.ID) {}
+func (vm *VM) RequireTxBlocks(ctx context.Context, minHght uint64, blks []ids.ID) {
+	vm.txBlockManager.RequireTxBlocks(ctx, minHght, blks)
+}
 
-func (vm *VM) GetTxBlockState(ctx context.Context, blkID ids.ID) (merkledb.TrieView, error) {
-	return nil, errors.New("not implemented")
+func (vm *VM) GetStatelessTxBlock(ctx context.Context, blkID ids.ID) (*chain.StatelessTxBlock, error) {
+	blk := vm.txBlockManager.txBlocks.Get(blkID)
+	if blk == nil {
+		return nil, errors.New("blk missing")
+	}
+	if !blk.verified.Load() {
+		return nil, errors.New("blk not verified")
+	}
+	return blk.blk, nil
 }
