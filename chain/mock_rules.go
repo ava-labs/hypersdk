@@ -109,6 +109,34 @@ func (mr *MockRulesMockRecorder) GetMaxBlockUnits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaxBlockUnits", reflect.TypeOf((*MockRules)(nil).GetMaxBlockUnits))
 }
 
+// GetMaxTxBlockUnits mocks base method.
+func (m *MockRules) GetMaxTxBlockUnits() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMaxTxBlockUnits")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetMaxTxBlockUnits indicates an expected call of GetMaxTxBlockUnits.
+func (mr *MockRulesMockRecorder) GetMaxTxBlockUnits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaxTxBlockUnits", reflect.TypeOf((*MockRules)(nil).GetMaxTxBlockUnits))
+}
+
+// GetMaxTxBlocks mocks base method.
+func (m *MockRules) GetMaxTxBlocks() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMaxTxBlocks")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetMaxTxBlocks indicates an expected call of GetMaxTxBlocks.
+func (mr *MockRulesMockRecorder) GetMaxTxBlocks() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaxTxBlocks", reflect.TypeOf((*MockRules)(nil).GetMaxTxBlocks))
+}
+
 // GetMinBlockCost mocks base method.
 func (m *MockRules) GetMinBlockCost() uint64 {
 	m.ctrl.T.Helper()

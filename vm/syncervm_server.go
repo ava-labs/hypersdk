@@ -28,7 +28,7 @@ func (vm *VM) GetStateSummary(ctx context.Context, height uint64) (block.StateSu
 	if err != nil {
 		return nil, err
 	}
-	block, err := vm.GetStatelessBlock(ctx, id)
+	block, err := vm.GetStatelessRootBlock(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func (vm *VM) GetStateSummary(ctx context.Context, height uint64) (block.StateSu
 }
 
 func (vm *VM) ParseStateSummary(ctx context.Context, bytes []byte) (block.StateSummary, error) {
-	sb, err := chain.ParseBlock(ctx, bytes, choices.Processing, vm)
+	sb, err := chain.ParseStatelessRootBlock(ctx, bytes, choices.Processing, vm)
 	if err != nil {
 		return nil, err
 	}

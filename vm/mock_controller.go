@@ -45,7 +45,7 @@ func (m *MockController) EXPECT() *MockControllerMockRecorder {
 }
 
 // Accepted mocks base method.
-func (m *MockController) Accepted(arg0 context.Context, arg1 *chain.StatelessBlock) error {
+func (m *MockController) Accepted(arg0 context.Context, arg1 *chain.StatelessRootBlock) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Accepted", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -82,7 +82,7 @@ func (mr *MockControllerMockRecorder) Initialize(arg0, arg1, arg2, arg3, arg4, a
 }
 
 // Rejected mocks base method.
-func (m *MockController) Rejected(arg0 context.Context, arg1 *chain.StatelessBlock) error {
+func (m *MockController) Rejected(arg0 context.Context, arg1 *chain.StatelessRootBlock) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Rejected", arg0, arg1)
 	ret0, _ := ret[0].(error)

@@ -25,7 +25,7 @@ type stateSyncerClient struct {
 
 	// tracks the sync target so we can update last accepted
 	// block when sync completes.
-	target        *chain.StatelessBlock
+	target        *chain.StatelessRootBlock
 	targetUpdated bool
 
 	// State Sync results
@@ -107,7 +107,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 	//
 	// MerkleDB will handle clearing any keys on-disk that are no
 	// longer necessary.
-	s.target = sb.StatelessBlock
+	s.target = sb.StatelessRootBlock
 	s.vm.snowCtx.Log.Info(
 		"starting state sync",
 		zap.Uint64("height", s.target.Hght),
@@ -255,7 +255,7 @@ func (s *stateSyncerClient) StateReady() bool {
 
 // UpdateSyncTarget returns a boolean indicating if the root was
 // updated and an error if one occurred while updating the root.
-func (s *stateSyncerClient) UpdateSyncTarget(b *chain.StatelessBlock) (bool, error) {
+func (s *stateSyncerClient) UpdateSyncTarget(b *chain.StatelessRootBlock) (bool, error) {
 	err := s.syncManager.UpdateSyncTarget(b.StateRoot)
 	if errors.Is(err, syncEng.ErrAlreadyClosed) {
 		<-s.done          // Wait for goroutine to exit for consistent return values with IsSyncing
@@ -308,7 +308,8 @@ func (s *stateSyncerClient) startingSync(state bool) {
 		}
 
 		// It is ok to add transactions from newest to oldest
-		vm.seen.Add(blk.Txs)
+		// TODO: get block txs
+		// vm.seen.Add(blk.Txs)
 		vm.startSeenTime = blk.Tmstmp
 		oldest = blk.Hght
 
@@ -325,7 +326,7 @@ func (s *stateSyncerClient) startingSync(state bool) {
 		}
 
 		// Set next blk in lookback
-		blk, err = vm.GetStatelessBlock(context.Background(), blk.Prnt)
+		blk, err = vm.GetStatelessRootBlock(context.Background(), blk.Prnt)
 		if err != nil {
 			vm.snowCtx.Log.Error("could not load block, exiting backfill", zap.Error(err))
 			break

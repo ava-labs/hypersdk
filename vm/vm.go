@@ -558,13 +558,6 @@ func (vm *VM) GetStatelessRootBlock(ctx context.Context, blkID ids.ID) (*chain.S
 	return chain.ParseRootBlock(ctx, stBlk, nil, choices.Accepted, vm)
 }
 
-func (vm *VM) GetStatelessTxBlock(ctx context.Context, blkID ids.ID) (*chain.StatelessTxBlock, error) {
-	ctx, span := vm.tracer.Start(ctx, "VM.GetStatelessTxBlock")
-	defer span.End()
-
-	return nil, errors.New("not implemented")
-}
-
 // implements "block.ChainVM.commom.VM.Parser"
 // replaces "core.SnowmanVM.ParseBlock"
 func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
