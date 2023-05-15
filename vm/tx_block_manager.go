@@ -275,7 +275,9 @@ func (c *TxBlockManager) Run(appSender common.AppSender) {
 				c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip", zap.Error(err))
 				continue
 			}
-			msg = b
+			msg = append([]byte{0}, b...)
+		} else {
+			msg = append([]byte{1}, msg...)
 		}
 		if err := c.appSender.SendAppGossipSpecific(context.TODO(), c.nodeSet, msg); err != nil {
 			c.vm.snowCtx.Log.Warn("unable to send gossip", zap.Error(err))
@@ -603,7 +605,7 @@ func (c *TxBlockManager) HandleConnect(ctx context.Context, nodeID ids.NodeID) e
 		c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip specific ", zap.Error(err))
 		return nil
 	}
-	if err := c.appSender.SendAppGossipSpecific(context.TODO(), set.Set[ids.NodeID]{nodeID: struct{}{}}, b); err != nil {
+	if err := c.appSender.SendAppGossipSpecific(context.TODO(), set.Set[ids.NodeID]{nodeID: struct{}{}}, append([]byte{0}, b...)); err != nil {
 		c.vm.snowCtx.Log.Warn("unable to send chunk gossip", zap.Error(err))
 		return nil
 	}

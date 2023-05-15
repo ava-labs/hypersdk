@@ -139,18 +139,21 @@ func GenerateTxExecutionContext(
 	defer span.End()
 
 	// Handle genesis case (no parent)
+	// TODO: clean this up...
 	var (
 		unitWindow    = window.Window{}
 		unitsConsumed uint64
 		unitPrice     = r.GetMinUnitPrice()
+		timestamp     int64
 	)
 	if parent != nil {
 		unitWindow = parent.UnitWindow
 		unitsConsumed = parent.UnitsConsumed
 		unitPrice = parent.UnitPrice
+		timestamp = parent.Tmstmp
 	}
 
-	since := int(currTime - parent.Tmstmp)
+	since := int(currTime - timestamp)
 	nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
 		unitWindow,
 		unitsConsumed,
