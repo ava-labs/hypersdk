@@ -33,7 +33,7 @@ var (
 	isSyncing    = []byte("is_syncing")
 
 	signatureLRU = &cache.LRU[string, *chain.WarpSignature]{Size: 1024}
-	txBlockLRU   = &cache.LRU[ids.ID, []byte]{Size: 128}
+	txBlockLRU   = &cache.LRU[ids.ID, *chain.StatelessTxBlock]{Size: 128}
 )
 
 func PrefixBlockIDKey(id ids.ID) []byte {
@@ -220,12 +220,12 @@ func PrefixTxBlockIDKey(txBlkID ids.ID) []byte {
 	return k
 }
 
-func (vm *VM) StoreTxBlock(txBlkID ids.ID, txBlock []byte) error {
-	txBlockLRU.Put(txBlkID, txBlock)
-	return vm.vmDB.Put(PrefixTxBlockIDKey(txBlkID), txBlock)
+func (vm *VM) StoreTxBlock(txBlk *chain.StatelessTxBlock) error {
+	txBlockLRU.Put(txBlk.ID(), txBlk)
+	return vm.vmDB.Put(PrefixTxBlockIDKey(txBlk.ID()), txBlk.Bytes())
 }
 
-func (vm *VM) GetTxBlock(txBlkID ids.ID) ([]byte, error) {
+func (vm *VM) GetTxBlock(txBlkID ids.ID) (*chain.StatelessTxBlock, error) {
 	if chunk, ok := txBlockLRU.Get(txBlkID); ok {
 		return chunk, nil
 	}
@@ -233,5 +233,10 @@ func (vm *VM) GetTxBlock(txBlkID ids.ID) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return v, nil
+	ublk, err := chain.UnmarshalTxBlock(v, vm)
+	if err != nil {
+		return nil, err
+	}
+	// Should never populate txs
+	return chain.ParseTxBlock(context.TODO(), ublk, v, vm)
 }

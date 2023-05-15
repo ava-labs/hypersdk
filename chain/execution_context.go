@@ -138,26 +138,11 @@ func GenerateTxExecutionContext(
 	_, span := tracer.Start(ctx, "chain.GenerateExecutionContext")
 	defer span.End()
 
-	// Handle genesis case (no parent)
-	// TODO: clean this up...
-	var (
-		unitWindow    = window.Window{}
-		unitsConsumed uint64
-		unitPrice     = r.GetMinUnitPrice()
-		timestamp     int64
-	)
-	if parent != nil {
-		unitWindow = parent.UnitWindow
-		unitsConsumed = parent.UnitsConsumed
-		unitPrice = parent.UnitPrice
-		timestamp = parent.Tmstmp
-	}
-
-	since := int(currTime - timestamp)
+	since := int(currTime - parent.Tmstmp)
 	nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
-		unitWindow,
-		unitsConsumed,
-		unitPrice,
+		parent.UnitWindow,
+		parent.UnitsConsumed,
+		parent.UnitPrice,
 		r.GetWindowTargetUnits(),
 		r.GetUnitPriceChangeDenominator(),
 		r.GetMinUnitPrice(),

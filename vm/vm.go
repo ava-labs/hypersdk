@@ -282,9 +282,24 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Debug("genesis state created", zap.Stringer("root", root))
 
 		// Create genesis block
+		genesisTxBlk, err := chain.ParseTxBlock(
+			ctx,
+			chain.NewGenesisTxBlock(vm.Rules(0).GetMinUnitPrice()),
+			nil,
+			vm,
+		)
+		if err != nil {
+			snowCtx.Log.Error("unable to init genesis block", zap.Error(err))
+			return err
+		}
+		if err := vm.StoreTxBlock(genesisTxBlk); err != nil {
+			snowCtx.Log.Error("could not store genesis tx blk", zap.Error(err))
+			return err
+		}
 		genesisBlk, err := chain.ParseRootBlock(
 			ctx,
-			chain.NewGenesisBlock(root),
+			chain.NewGenesisRootBlock(genesisTxBlk.ID(), root),
+			[]*chain.StatelessTxBlock{genesisTxBlk},
 			nil,
 			choices.Accepted,
 			vm,
@@ -555,7 +570,7 @@ func (vm *VM) GetStatelessRootBlock(ctx context.Context, blkID ids.ID) (*chain.S
 		return nil, err
 	}
 	// If block on disk, it must've been accepted
-	return chain.ParseRootBlock(ctx, stBlk, nil, choices.Accepted, vm)
+	return chain.ParseRootBlock(ctx, stBlk, nil, nil, choices.Accepted, vm)
 }
 
 // implements "block.ChainVM.commom.VM.Parser"
@@ -581,6 +596,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	}
 	newBlk, err := chain.ParseStatelessRootBlock(
 		ctx,
+		nil,
 		source,
 		choices.Processing,
 		vm,

@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
@@ -77,21 +76,10 @@ func BuildBlock(
 	b := NewRootBlock(ectx, vm, parent, nextTime)
 
 	changesEstimate := math.Min(vm.Mempool().Len(ctx), r.GetMaxBlockTxs())
-	var state merkledb.TrieView
-	if parentTxBlock != nil {
-		state, err = parentTxBlock.ChildState(ctx, changesEstimate)
-		if err != nil {
-			log.Warn("block building failed: couldn't get parent db", zap.Error(err))
-			return nil, err
-		}
-	} else if parent.Hght == 0 {
-		state, err = vm.State()
-		if err != nil {
-			log.Warn("block building failed: couldn't get genesis db", zap.Error(err))
-			return nil, err
-		}
-	} else {
-		return nil, errors.New("parent tx block is unexpectedly nil")
+	state, err := parentTxBlock.ChildState(ctx, changesEstimate)
+	if err != nil {
+		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
+		return nil, err
 	}
 	ts := tstate.New(changesEstimate)
 
@@ -127,11 +115,6 @@ func BuildBlock(
 				lockWait = time.Since(start)
 			}
 			txsAttempted++
-
-			// Ensure block context is set correctly
-			if blockContext != nil {
-				txBlock.PChainHeight = blockContext.PChainHeight
-			}
 
 			// Ensure we can process if transaction includes a warp message
 			if next.WarpMessage != nil && blockContext == nil {
@@ -292,6 +275,7 @@ func BuildBlock(
 				}
 				warpCount++
 				txBlock.ContainsWarp = true
+				txBlock.PChainHeight = blockContext.PChainHeight
 			}
 			totalUnits += result.Units
 			txsAdded++

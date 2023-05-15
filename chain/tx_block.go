@@ -66,19 +66,26 @@ type StatelessTxBlock struct {
 	sigJob *workers.Job
 }
 
+func NewGenesisTxBlock(minUnitPrice uint64) *TxBlock {
+	return &TxBlock{
+		UnitPrice:  minUnitPrice,
+		UnitWindow: window.Window{},
+
+		Last: true,
+	}
+}
+
 func NewTxBlock(ectx *TxExecutionContext, vm VM, parent *StatelessTxBlock, tmstmp int64) *StatelessTxBlock {
-	blk := &TxBlock{
-		Tmstmp:     tmstmp,
-		UnitPrice:  ectx.NextUnitPrice,
-		UnitWindow: ectx.NextUnitWindow,
-	}
-	if parent != nil {
-		blk.Prnt = parent.ID()
-		blk.Hght = parent.Hght + 1
-	}
 	return &StatelessTxBlock{
-		TxBlock: blk,
-		vm:      vm,
+		TxBlock: &TxBlock{
+			Tmstmp: tmstmp,
+			Prnt:   parent.ID(),
+			Hght:   parent.Hght + 1,
+
+			UnitPrice:  ectx.NextUnitPrice,
+			UnitWindow: ectx.NextUnitWindow,
+		},
+		vm: vm,
 	}
 }
 
@@ -157,16 +164,17 @@ func ParseTxBlock(
 	defer span.End()
 
 	// Perform basic correctness checks before doing any expensive work
-	if blk.Tmstmp >= time.Now().Add(FutureBound).Unix() {
-		return nil, ErrTimestampTooLate
-	}
-	// TODO: ensure all block chunks have same timestamp
-	if len(blk.Txs) == 0 {
-		return nil, ErrNoTxs
-	}
-	r := vm.Rules(blk.Tmstmp)
-	if len(blk.Txs) > r.GetMaxBlockTxs() {
-		return nil, ErrBlockTooBig
+	if blk.Hght > 0 {
+		if blk.Tmstmp >= time.Now().Add(FutureBound).Unix() {
+			return nil, ErrTimestampTooLate
+		}
+		if len(blk.Txs) == 0 {
+			return nil, ErrNoTxs
+		}
+		r := vm.Rules(blk.Tmstmp)
+		if len(blk.Txs) > r.GetMaxBlockTxs() {
+			return nil, ErrBlockTooBig
+		}
 	}
 
 	if len(source) == 0 {
@@ -188,7 +196,7 @@ func ParseTxBlock(
 	// If we are parsing an older block, it will not be re-executed and should
 	// not be tracked as a parsed block
 	lastAccepted := b.vm.LastAcceptedBlock()
-	if lastAccepted.Hght > 0 && b.Hght <= lastAccepted.MinTxHght { // nil when parsing genesis
+	if lastAccepted == nil || b.Hght <= lastAccepted.MaxTxHght() { // nil when parsing genesis
 		return b, nil
 	}
 
@@ -294,18 +302,13 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 	}
 
 	// Verify parent is verified and available
-	var parent *StatelessTxBlock
-	if b.Hght > 0 {
-		// TODO: handle genesis block better
-		var err error
-		parent, err = b.vm.GetStatelessTxBlock(ctx, b.Prnt)
-		if err != nil {
-			log.Warn("could not get parent", zap.Stringer("id", b.Prnt))
-			return err
-		}
-		if b.Tmstmp < parent.Tmstmp {
-			return ErrTimestampTooEarly
-		}
+	parent, err := b.vm.GetStatelessTxBlock(ctx, b.Prnt)
+	if err != nil {
+		log.Warn("could not get parent", zap.Stringer("id", b.Prnt))
+		return err
+	}
+	if b.Tmstmp < parent.Tmstmp {
+		return ErrTimestampTooEarly
 	}
 	ectx, err := GenerateTxExecutionContext(ctx, b.vm.ChainID(), b.Tmstmp, parent, b.vm.Tracer(), r)
 	if err != nil {
@@ -535,7 +538,7 @@ func (b *StatelessTxBlock) ChildState(
 	defer span.End()
 
 	// Return committed state if block is accepted or this is genesis.
-	if b.vm.LastAcceptedBlock().MaxTxHght() >= b.Hght || b.Hght == 0 {
+	if b.Hght <= b.vm.LastAcceptedBlock().MaxTxHght() {
 		state, err := b.vm.State()
 		if err != nil {
 			return nil, err

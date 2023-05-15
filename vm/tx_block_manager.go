@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -60,7 +59,8 @@ type blkItem struct {
 }
 
 type TxBlockMap struct {
-	l sync.RWMutex
+	vm *VM
+	l  sync.RWMutex
 
 	bh      *heap.Heap[*bucket, uint64]
 	items   map[ids.ID]*blkItem
@@ -69,10 +69,12 @@ type TxBlockMap struct {
 	outstanding set.Set[ids.ID]
 }
 
-func NewTxBlockMap() *TxBlockMap {
+func NewTxBlockMap(vm *VM) *TxBlockMap {
 	// If lower height is accepted and chunk in rejected block that shows later,
 	// must not remove yet.
 	return &TxBlockMap{
+		vm: vm,
+
 		items:       map[ids.ID]*blkItem{},
 		heights:     make(map[uint64]*bucket),
 		bh:          heap.New[*bucket, uint64](120, true),
@@ -114,21 +116,21 @@ func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock, verified bool) (bool, 
 		})
 	}
 	if verified {
-		// TODO: handle the case where we want to verify others here?
+		// TODO: handle the case where we want to verify others here (seems like it
+		// shouldn't happen after issue but may be an invariant to support)?
 		item.verified.Store(true)
 		return true, false
 	}
 
-	// Verify
-	//
-	// TODO: need to handle scenario when already written to disk?
+	// Determine if should verify
 	blkItem, bok := c.items[txBlock.Prnt]
-	if txBlock.Hght > 0 {
-		// TODO: cleanup all this off-by-1 indexing
-		if !bok {
+	if bok {
+		if !blkItem.verified.Load() {
 			return true, false
 		}
-		if !blkItem.verified.Load() {
+	} else {
+		if _, err := c.vm.GetTxBlock(txBlock.Prnt); err != nil {
+			c.vm.Logger().Warn("not verifying because tx block parent not found", zap.Stringer("parent", txBlock.Prnt), zap.Error(err))
 			return true, false
 		}
 	}
@@ -246,7 +248,7 @@ func NewTxBlockManager(vm *VM) *TxBlockManager {
 	return &TxBlockManager{
 		vm:         vm,
 		requests:   map[uint32]chan []byte{},
-		txBlocks:   NewTxBlockMap(),
+		txBlocks:   NewTxBlockMap(vm),
 		nodeChunks: map[ids.NodeID]*NodeChunks{},
 		nodeSet:    set.NewSet[ids.NodeID](64),
 		update:     make(chan []byte),
@@ -458,7 +460,7 @@ func (c *TxBlockManager) HandleRequest(
 		c.vm.snowCtx.Log.Warn("unable to find txBlock", zap.Stringer("txBlkID", txBlkID), zap.Error(err))
 		return c.appSender.SendAppResponse(ctx, nodeID, requestID, []byte{})
 	}
-	return c.appSender.SendAppResponse(ctx, nodeID, requestID, txBlk)
+	return c.appSender.SendAppResponse(ctx, nodeID, requestID, txBlk.Bytes())
 }
 
 func (c *TxBlockManager) HandleResponse(nodeID ids.NodeID, requestID uint32, msg []byte) error {
@@ -585,28 +587,22 @@ func (c *TxBlockManager) Verify(blkID ids.ID) error {
 	if blk.verified.Load() {
 		return errors.New("tx block already verified")
 	}
-	var (
-		state merkledb.TrieView
-		err   error
-	)
-	if blk.blk.Hght > 0 {
-		parent := c.txBlocks.Get(blk.blk.Prnt)
-		if parent == nil {
-			return errors.New("parent tx block is missing")
-		}
+	parent := c.txBlocks.Get(blk.blk.Prnt)
+	var prntBlk *chain.StatelessTxBlock
+	if parent != nil {
 		if !parent.verified.Load() {
 			return errors.New("parent tx block not verified")
 		}
-		state, err = parent.blk.ChildState(context.Background(), len(blk.blk.Txs)*2)
+		prntBlk = parent.blk
 	} else {
-		// TODO: cleanup this special genesis handling
-		db, err := c.vm.State()
+		// TODO: change name to getTxBlk
+		prnt, err := c.vm.GetTxBlock(blk.blk.Prnt)
 		if err != nil {
-			c.vm.Logger().Error("unable to get state", zap.Error(err))
-			return nil
+			return err
 		}
-		state, err = db.NewPreallocatedView(len(blk.blk.Txs) * 2)
+		prntBlk = prnt
 	}
+	state, err := prntBlk.ChildState(context.Background(), len(blk.blk.Txs)*2)
 	if err != nil {
 		c.vm.Logger().Error("unable to create child state", zap.Error(err))
 		return err

@@ -63,9 +63,10 @@ type StatelessRootBlock struct {
 	vm VM
 }
 
-func NewGenesisBlock(root ids.ID) *RootBlock {
+func NewGenesisRootBlock(txBlkID ids.ID, root ids.ID) *RootBlock {
 	return &RootBlock{
 		BlockWindow: window.Window{},
+		Txs:         []ids.ID{txBlkID},
 		StateRoot:   root,
 	}
 }
@@ -86,6 +87,7 @@ func NewRootBlock(ectx *RootExecutionContext, vm VM, parent snowman.Block, tmstp
 
 func ParseStatelessRootBlock(
 	ctx context.Context,
+	txBlks []*StatelessTxBlock,
 	source []byte,
 	status choices.Status,
 	vm VM,
@@ -98,12 +100,13 @@ func ParseStatelessRootBlock(
 		return nil, err
 	}
 	// Not guaranteed that a parsed block is verified
-	return ParseRootBlock(ctx, blk, source, status, vm)
+	return ParseRootBlock(ctx, blk, txBlks, source, status, vm)
 }
 
 func ParseRootBlock(
 	ctx context.Context,
 	blk *RootBlock,
+	txBlks []*StatelessTxBlock,
 	source []byte,
 	status choices.Status,
 	vm VM,
@@ -140,6 +143,7 @@ func ParseRootBlock(
 		st:        status,
 		vm:        vm,
 		id:        utils.ToID(source),
+		txBlocks:  txBlks,
 	}
 
 	// If we are parsing an older block, it will not be re-executed and should
@@ -293,12 +297,12 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 		if b.ContainsWarp {
 			if blk.PChainHeight != b.bctx.PChainHeight {
 				// TODO: make block un-reverifiable
-				return errors.New("invalid p-chain height")
+				return fmt.Errorf("invalid p-chain height with warp; found=%d context=%d", blk.PChainHeight, b.bctx.PChainHeight)
 			}
 		} else {
 			if blk.PChainHeight != 0 {
 				// TODO: make block un-reverifiable
-				return errors.New("invalid p-chain height")
+				return fmt.Errorf("invalid p-chain height without warp; found=%d", blk.PChainHeight)
 			}
 		}
 		if blk.ContainsWarp {

@@ -154,7 +154,7 @@ func (vm *VM) processAcceptedBlocks() {
 	for b := range vm.acceptedQueue {
 		// Update TxBlock store
 		for _, txBlock := range b.GetTxBlocks() {
-			if err := vm.StoreTxBlock(txBlock.ID(), txBlock.Bytes()); err != nil {
+			if err := vm.StoreTxBlock(txBlock); err != nil {
 				vm.snowCtx.Log.Fatal("unable to store tx block", zap.Error(err))
 			}
 		}
@@ -394,17 +394,5 @@ func (vm *VM) GetStatelessTxBlock(ctx context.Context, blkID ids.ID) (*chain.Sta
 		}
 		return blk.blk, nil
 	}
-
-	// Load from disk
-	//
-	// TODO: optimize this to avoid re-parsing (should have cache after accept)
-	rblk, err := vm.GetTxBlock(blkID)
-	if err != nil {
-		return nil, err
-	}
-	ublk, err := chain.UnmarshalTxBlock(rblk, vm)
-	if err != nil {
-		return nil, err
-	}
-	return chain.ParseTxBlock(ctx, ublk, rblk, vm)
+	return vm.GetTxBlock(blkID)
 }
