@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -23,7 +24,7 @@ import (
 const (
 	maxChunkRetries = 20
 	retrySleep      = 50 * time.Millisecond
-	gossipFrequency = 100 * time.Millisecond
+	gossipFrequency = 5000 * time.Millisecond
 )
 
 type NodeChunks struct {
@@ -119,27 +120,34 @@ func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock, verified bool) (bool, 
 	}
 
 	// Verify
+	//
+	// TODO: need to handle scenario when already written to disk?
 	blkItem, bok := c.items[txBlock.Prnt]
-	if !bok {
-		return true, false
-	}
-	if !blkItem.verified.Load() {
-		return true, false
+	if txBlock.Hght > 0 {
+		// TODO: cleanup all this off-by-1 indexing
+		if !bok {
+			return true, false
+		}
+		if !blkItem.verified.Load() {
+			return true, false
+		}
 	}
 	return true, item.verifying.CompareAndSwap(false, true)
 }
 
-func (c *TxBlockMap) Verfied(blkID ids.ID, success bool) []ids.ID {
+func (c *TxBlockMap) Verified(blkID ids.ID, success bool) []ids.ID {
 	c.l.Lock()
 	defer c.l.Unlock()
 
 	// Scan all items at height + 1 that rely on
 	blk := c.items[blkID]
+	if success {
+		blk.verified.Store(true)
+	}
 	blk.verifying.Store(false)
 	if !success {
 		return nil
 	}
-	blk.verified.Store(true)
 
 	bucket, ok := c.heights[blk.blk.Hght+1]
 	if !ok {
@@ -509,6 +517,7 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 			c.vm.Logger().Error("unable to handle txBlock", zap.Error(err))
 			return nil
 		}
+		c.vm.Logger().Info("received tx block gossip", zap.Stringer("blkID", blkID))
 	default:
 		c.vm.Logger().Error("unexpected message type", zap.Uint8("type", msg[0]))
 		return nil
@@ -556,7 +565,12 @@ func (c *TxBlockManager) VerifyAll(blkID ids.ID) {
 		nextRound := []ids.ID{}
 		for _, blkID := range next {
 			err := c.Verify(blkID)
-			nextRound = append(nextRound, c.txBlocks.Verfied(blkID, err == nil)...)
+			if err != nil {
+				c.vm.Logger().Warn("manager block verification failed", zap.Error(err))
+			} else {
+				c.vm.Logger().Info("manager block verification success", zap.Stringer("blkID", blkID))
+			}
+			nextRound = append(nextRound, c.txBlocks.Verified(blkID, err == nil)...)
 		}
 		next = nextRound
 	}
@@ -570,21 +584,35 @@ func (c *TxBlockManager) Verify(blkID ids.ID) error {
 	if blk.verified.Load() {
 		return errors.New("tx block already verified")
 	}
-	parent := c.txBlocks.Get(blk.blk.Prnt)
-	if parent == nil {
-		return errors.New("parent tx block is missing")
+	var (
+		state merkledb.TrieView
+		err   error
+	)
+	if blk.blk.Hght > 0 {
+		parent := c.txBlocks.Get(blk.blk.Prnt)
+		if parent == nil {
+			return errors.New("parent tx block is missing")
+		}
+		if !parent.verified.Load() {
+			return errors.New("parent tx block not verified")
+		}
+		state, err = parent.blk.ChildState(context.Background(), len(blk.blk.Txs)*2)
+	} else {
+		// TODO: cleanup this special genesis handling
+		db, err := c.vm.State()
+		if err != nil {
+			c.vm.Logger().Error("unable to get state", zap.Error(err))
+			return nil
+		}
+		state, err = db.NewPreallocatedView(len(blk.blk.Txs) * 2)
 	}
-	if !parent.verified.Load() {
-		return errors.New("parent tx block not verified")
-	}
-	state, err := parent.blk.ChildState(context.Background(), len(blk.blk.Txs)*2)
 	if err != nil {
 		c.vm.Logger().Error("unable to create child state", zap.Error(err))
-		return nil
+		return err
 	}
 	if err := blk.blk.Verify(context.Background(), state); err != nil {
-		c.vm.Logger().Error("unable to create child state", zap.Error(err))
-		return nil
+		c.vm.Logger().Error("blk.blk.Verify failed", zap.Error(err))
+		return err
 	}
 	if blk.blk.Hght > c.max {
 		// Only update if verified up to that height

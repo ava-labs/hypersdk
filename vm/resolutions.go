@@ -388,6 +388,7 @@ func (vm *VM) RequireTxBlocks(ctx context.Context, minHght uint64, blks []ids.ID
 
 func (vm *VM) GetStatelessTxBlock(ctx context.Context, blkID ids.ID) (*chain.StatelessTxBlock, error) {
 	blk := vm.txBlockManager.txBlocks.Get(blkID)
+	// TODO: need to resolve from disk too
 	if blk == nil {
 		return nil, errors.New("blk missing")
 	}

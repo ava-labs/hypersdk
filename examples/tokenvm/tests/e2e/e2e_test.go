@@ -192,6 +192,8 @@ var _ = ginkgo.BeforeSuite(func() {
 		// non-validating nodes (which will fall behind).
 		runner_sdk.WithGlobalNodeConfig(`{
 				"log-display-level":"info",
+				"log-level":"debug",
+				"log-rotater-max-files":36,
 				"proposervm-use-current-height":true,
 				"throttler-inbound-validator-alloc-size":"10737418240",
 				"throttler-inbound-at-large-alloc-size":"10737418240",

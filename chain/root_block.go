@@ -212,7 +212,7 @@ func (b *StatelessRootBlock) Verify(ctx context.Context) error {
 			attribute.Int("txs", len(b.Txs)),
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
-			attribute.Bool("built", b.txBlockState() != nil),
+			attribute.Bool("built", b.Processed()),
 		),
 	)
 	defer span.End()
@@ -239,7 +239,7 @@ func (b *StatelessRootBlock) verify(ctx context.Context, stateReady bool) error 
 			zap.Uint64("height", b.Hght),
 			zap.Stringer("blkID", b.ID()),
 		)
-	case b.txBlockState() != nil:
+	case b.Processed():
 		// If we built the block, the state will already be populated and we don't
 		// need to compute it (we assume that we built a correct block and it isn't
 		// necessary to re-verify anything).
@@ -278,7 +278,8 @@ func (b *StatelessRootBlock) verify(ctx context.Context, stateReady bool) error 
 //     state sync)
 func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 	// Populate txBlocks
-	b.txBlocks = make([]*StatelessTxBlock, len(b.Txs))
+	txBlocks := make([]*StatelessTxBlock, len(b.Txs))
+	var state merkledb.TrieView
 	var containsWarp bool
 	for i, blkID := range b.Txs {
 		blk, err := b.vm.GetStatelessTxBlock(ctx, blkID)
@@ -304,20 +305,15 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 			containsWarp = true
 		}
 		if blk.state == nil {
-			return errors.New("state not ready")
+			return errors.New("tx block state not ready")
 		}
-		b.txBlocks[i] = blk
+		// Can't get from txBlockState because not populated yet
+		state = blk.state
+		txBlocks[i] = blk
 	}
 	if containsWarp != b.ContainsWarp {
 		// TODO: make block un-reverifiable
 		return errors.New("invalid warp status")
-	}
-
-	// Get state from final TxBlock execution
-	state := b.txBlockState()
-	if state == nil {
-		// TODO: should never happen
-		return errors.New("state not ready")
 	}
 
 	// Perform basic correctness checks before doing any expensive work
@@ -372,12 +368,13 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessRootBlock.Verify.WaitSignatures")
 	defer sspan.End()
 	start := time.Now()
-	for _, job := range b.txBlocks {
+	for _, job := range txBlocks {
 		if err := job.sigJob.Wait(); err != nil {
 			return err
 		}
 	}
 	b.vm.RecordWaitSignatures(time.Since(start))
+	b.txBlocks = txBlocks // only set once we know verification has passed
 	return nil
 }
 

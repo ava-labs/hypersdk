@@ -191,11 +191,11 @@ func BuildBlock(
 				if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
 					return false, true, false, err
 				}
+				if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
+					return false, true, false, err
+				}
 				if len(txBlocks) >= r.GetMaxTxBlocks() {
 					txBlock.Last = true
-					if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
-						return false, true, false, err
-					}
 				}
 				if err := txBlock.initializeBuilt(ctx, state, results); err != nil {
 					return false, true, false, err
@@ -212,7 +212,8 @@ func BuildBlock(
 					return false, true, false, err
 				}
 				ts = tstate.New(changesEstimate)
-				tectx, err := GenerateTxExecutionContext(ctx, vm.ChainID(), nextTime, txBlock, vm.Tracer(), r)
+				parentTxBlock = txBlock
+				tectx, err = GenerateTxExecutionContext(ctx, vm.ChainID(), nextTime, parentTxBlock, vm.Tracer(), r)
 				if err != nil {
 					return false, true, false, err
 				}
@@ -281,6 +282,7 @@ func BuildBlock(
 			}
 
 			// Update block with new transaction
+			txBlock.Txs = append(txBlock.Txs, next)
 			txBlock.UnitsConsumed += result.Units
 			results = append(results, result)
 			if next.WarpMessage != nil {
@@ -319,7 +321,6 @@ func BuildBlock(
 		if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
 			return nil, err
 		}
-		// Store height in state to prevent duplicate roots
 		if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
 			return nil, err
 		}

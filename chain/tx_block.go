@@ -188,7 +188,7 @@ func ParseTxBlock(
 	// If we are parsing an older block, it will not be re-executed and should
 	// not be tracked as a parsed block
 	lastAccepted := b.vm.LastAcceptedBlock()
-	if lastAccepted == nil || b.Hght <= lastAccepted.MinTxHght { // nil when parsing genesis
+	if lastAccepted.Hght > 0 && b.Hght <= lastAccepted.MinTxHght { // nil when parsing genesis
 		return b, nil
 	}
 
@@ -294,13 +294,18 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 	}
 
 	// Verify parent is verified and available
-	parent, err := b.vm.GetStatelessTxBlock(ctx, b.Prnt)
-	if err != nil {
-		log.Debug("could not get parent", zap.Stringer("id", b.Prnt))
-		return err
-	}
-	if b.Tmstmp < parent.Tmstmp {
-		return ErrTimestampTooEarly
+	var parent *StatelessTxBlock
+	if b.Hght > 0 {
+		// TODO: handle genesis block better
+		var err error
+		parent, err = b.vm.GetStatelessTxBlock(ctx, b.Prnt)
+		if err != nil {
+			log.Warn("could not get parent", zap.Stringer("id", b.Prnt))
+			return err
+		}
+		if b.Tmstmp < parent.Tmstmp {
+			return ErrTimestampTooEarly
+		}
 	}
 	ectx, err := GenerateTxExecutionContext(ctx, b.vm.ChainID(), b.Tmstmp, parent, b.vm.Tracer(), r)
 	if err != nil {
@@ -310,6 +315,7 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 	case b.UnitPrice != ectx.NextUnitPrice:
 		return ErrInvalidUnitPrice
 	case b.UnitWindow != ectx.NextUnitWindow:
+		b.vm.Logger().Warn("unit window mismatch", zap.Uint64("height", b.Hght), zap.Bool("parent", parent != nil), zap.Binary("found", b.UnitWindow[:]), zap.Binary("expected", ectx.NextUnitWindow[:]))
 		return ErrInvalidUnitWindow
 	}
 	log.Info(
@@ -327,12 +333,14 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 		// Can occur if verifying genesis
 		oldestAllowed = 0
 	}
-	dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs)
-	if err != nil {
-		return err
-	}
-	if dup {
-		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
+	if parent != nil {
+		dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs)
+		if err != nil {
+			return err
+		}
+		if dup {
+			return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
+		}
 	}
 
 	// Start validating warp messages, if they exist
@@ -436,6 +444,7 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 	}
 
 	// We wait for signatures in root block.
+	b.state = base
 	b.results = results
 	return nil
 }
