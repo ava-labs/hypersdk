@@ -730,10 +730,7 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	txBlk, err := vm.GetStatelessTxBlock(ctx, blk.Txs[len(blk.Txs)-1])
-	if err != nil {
-		return []error{err}
-	}
+	txBlk := blk.LastTxBlock() // could be nil if last accepted is genesis
 	state, err := blk.State()
 	if err != nil {
 		// This will error if a block does not yet have processed state.
@@ -772,14 +769,16 @@ func (vm *VM) Submit(
 		}
 		// TODO: do we need this? (just ensures people can't spam mempool with
 		// txs from already verified blocks)
-		repeat, err := txBlk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx})
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		if repeat {
-			errs = append(errs, chain.ErrDuplicateTx)
-			continue
+		if txBlk != nil {
+			repeat, err := txBlk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx})
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			if repeat {
+				errs = append(errs, chain.ErrDuplicateTx)
+				continue
+			}
 		}
 		// PreExecute does not make any changes to state
 		//

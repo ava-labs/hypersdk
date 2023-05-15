@@ -28,8 +28,12 @@ func (vm *VM) SuggestedFee(ctx context.Context) (uint64, error) {
 
 	// We scale down unit price to prevent a spiral up in price
 	r := vm.c.Rules(time.Now().Unix())
+	var lastUnitPrice uint64
+	if txBlk != nil {
+		lastUnitPrice = txBlk.UnitPrice
+	}
 	return math.Max(
-		uint64(float64(txBlk.UnitPrice)*feeScaler),
+		uint64(float64(lastUnitPrice)*feeScaler),
 		r.GetMinUnitPrice(),
 	), nil
 }
