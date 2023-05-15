@@ -39,6 +39,16 @@ func (r *Rules) GetMaxBlockTxs() int {
 	return r.g.MaxBlockTxs
 }
 
+func (r *Rules) GetMaxTxBlockUnits() uint64 {
+	// TODO: update
+	return r.g.MaxBlockUnits
+}
+
+func (r *Rules) GetMaxTxBlocks() int {
+	// TODO: update
+	return 10
+}
+
 func (r *Rules) GetValidityWindow() int64 {
 	return r.g.ValidityWindow
 }

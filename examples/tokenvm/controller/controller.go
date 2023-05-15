@@ -179,66 +179,68 @@ func (c *Controller) StateManager() chain.StateManager {
 	return c.stateManager
 }
 
-func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
+func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessRootBlock) error {
 	batch := c.metaDB.NewBatch()
 	defer batch.Reset()
 
-	results := blk.Results()
-	for i, tx := range blk.Txs {
-		result := results[i]
-		err := storage.StoreTransaction(
-			ctx,
-			batch,
-			tx.ID(),
-			blk.GetTimestamp(),
-			result.Success,
-			result.Units,
-		)
-		if err != nil {
-			return err
-		}
-		if result.Success {
-			switch action := tx.Action.(type) {
-			case *actions.CreateAsset:
-				c.metrics.createAsset.Inc()
-			case *actions.MintAsset:
-				c.metrics.mintAsset.Inc()
-			case *actions.BurnAsset:
-				c.metrics.burnAsset.Inc()
-			case *actions.ModifyAsset:
-				c.metrics.modifyAsset.Inc()
-			case *actions.Transfer:
-				c.metrics.transfer.Inc()
-			case *actions.CreateOrder:
-				c.metrics.createOrder.Inc()
-				actor := auth.GetActor(tx.Auth)
-				c.orderBook.Add(tx.ID(), actor, action)
-			case *actions.FillOrder:
-				c.metrics.fillOrder.Inc()
-				orderResult, err := actions.UnmarshalOrderResult(result.Output)
-				if err != nil {
-					// This should never happen
-					return err
-				}
-				if orderResult.Remaining == 0 {
+	for _, txBlk := range blk.GetTxBlocks() {
+		results := txBlk.Results()
+		for i, tx := range txBlk.Txs {
+			result := results[i]
+			err := storage.StoreTransaction(
+				ctx,
+				batch,
+				tx.ID(),
+				blk.GetTimestamp(),
+				result.Success,
+				result.Units,
+			)
+			if err != nil {
+				return err
+			}
+			if result.Success {
+				switch action := tx.Action.(type) {
+				case *actions.CreateAsset:
+					c.metrics.createAsset.Inc()
+				case *actions.MintAsset:
+					c.metrics.mintAsset.Inc()
+				case *actions.BurnAsset:
+					c.metrics.burnAsset.Inc()
+				case *actions.ModifyAsset:
+					c.metrics.modifyAsset.Inc()
+				case *actions.Transfer:
+					c.metrics.transfer.Inc()
+				case *actions.CreateOrder:
+					c.metrics.createOrder.Inc()
+					actor := auth.GetActor(tx.Auth)
+					c.orderBook.Add(tx.ID(), actor, action)
+				case *actions.FillOrder:
+					c.metrics.fillOrder.Inc()
+					orderResult, err := actions.UnmarshalOrderResult(result.Output)
+					if err != nil {
+						// This should never happen
+						return err
+					}
+					if orderResult.Remaining == 0 {
+						c.orderBook.Remove(action.Order)
+						continue
+					}
+					c.orderBook.UpdateRemaining(action.Order, orderResult.Remaining)
+				case *actions.CloseOrder:
+					c.metrics.closeOrder.Inc()
 					c.orderBook.Remove(action.Order)
-					continue
+				case *actions.ImportAsset:
+					c.metrics.importAsset.Inc()
+				case *actions.ExportAsset:
+					c.metrics.exportAsset.Inc()
 				}
-				c.orderBook.UpdateRemaining(action.Order, orderResult.Remaining)
-			case *actions.CloseOrder:
-				c.metrics.closeOrder.Inc()
-				c.orderBook.Remove(action.Order)
-			case *actions.ImportAsset:
-				c.metrics.importAsset.Inc()
-			case *actions.ExportAsset:
-				c.metrics.exportAsset.Inc()
 			}
 		}
 	}
 	return batch.Write()
 }
 
-func (*Controller) Rejected(context.Context, *chain.StatelessBlock) error {
+func (*Controller) Rejected(context.Context, *chain.StatelessRootBlock) error {
 	return nil
 }
 
