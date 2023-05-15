@@ -342,7 +342,6 @@ func BenchmarkInsert(b *testing.B) {
 	}
 }
 
-
 func BenchmarkGetValue(b *testing.B) {
 	for _, size := range []int{4, 8, 16, 32, 64, 128} {
 		b.Run(fmt.Sprintf("get_%d_keys", size), func(b *testing.B) {
