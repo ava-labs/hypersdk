@@ -92,7 +92,7 @@ func (ts *TState) getValue(_ context.Context, key []byte) ([]byte, bool, bool) {
 // FetchAndSetScope then sets the scope of ts to [keys]. If a key exists in
 // ts.fetchCache set the key's value to the value from cache.
 func (ts *TState) FetchAndSetScope(ctx context.Context, keys [][]byte, db Database) error {
-	ts.scopeStorage = map[string][]byte{}
+	ts.scopeStorage = make(map[string][]byte, len(keys))
 	for _, key := range keys {
 		if val, ok := ts.fetchCache[string(key)]; ok {
 			if val.Exists {
