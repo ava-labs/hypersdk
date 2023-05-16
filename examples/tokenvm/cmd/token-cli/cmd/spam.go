@@ -17,6 +17,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
@@ -40,6 +41,14 @@ type txIssuer struct {
 
 	l              sync.Mutex
 	outstandingTxs int
+}
+
+type timeModifier struct {
+	Timestamp int64
+}
+
+func (t *timeModifier) Base(b *chain.Base) {
+	b.Timestamp = t.Timestamp
 }
 
 var spamCmd = &cobra.Command{
@@ -311,6 +320,7 @@ var runSpamCmd = &cobra.Command{
 					funds[accounts[i].PublicKey()] = balance
 					fundsL.Unlock()
 				}()
+				ut := time.Now().Unix()
 				for {
 					select {
 					case <-t.C:
@@ -320,9 +330,17 @@ var runSpamCmd = &cobra.Command{
 							continue
 						}
 
+						// Select tx time
+						nextTime := time.Now().Unix()
+						if nextTime <= ut {
+							nextTime = ut + 1
+						}
+						ut = nextTime
+
 						// Send transaction
 						start := time.Now()
 						selected := map[crypto.PublicKey]int{}
+						tm := &timeModifier{nextTime + parser.Rules(nextTime).GetValidityWindow() - 3}
 						for k := 0; k < numTxsPerAccount; k++ {
 							recipient, err := getRandomRecipient(i, accounts)
 							if err != nil {
@@ -334,7 +352,7 @@ var runSpamCmd = &cobra.Command{
 								To:    recipient,
 								Asset: ids.Empty,
 								Value: uint64(v), // ensure txs are unique
-							}, factory, unitPrice)
+							}, factory, unitPrice, tm)
 							if err != nil {
 								hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
 								continue
