@@ -32,8 +32,8 @@ type Genesis struct {
 	HRP string `json:"hrp"`
 
 	// Block params
-	MaxBlockTxs   int    `json:"maxBlockTxs"`
-	MaxBlockUnits uint64 `json:"maxBlockUnits"` // must be possible to reach before block too large
+	MaxTxBlocks     int    `json:"maxTxBlocks"`
+	MaxTxBlockUnits uint64 `json:"maxTxBlockUnits"` // must be possible to reach before block too large
 
 	// Tx params
 	BaseUnits      uint64 `json:"baseUnits"`
@@ -62,8 +62,8 @@ func Default() *Genesis {
 		HRP: consts.HRP,
 
 		// Block params
-		MaxBlockTxs:   20_000,    // rely on max block units
-		MaxBlockUnits: 1_800_000, // 1.8 MiB
+		MaxTxBlocks:     16,
+		MaxTxBlockUnits: 1_800_000, // 1.8 MiB
 
 		// Tx params
 		BaseUnits:      48, // timestamp(8) + chainID(32) + unitPrice(8)

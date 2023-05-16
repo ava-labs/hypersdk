@@ -34,8 +34,11 @@ var genGenesisCmd = &cobra.Command{
 		if minUnitPrice >= 0 {
 			g.MinUnitPrice = uint64(minUnitPrice)
 		}
-		if maxBlockUnits >= 0 {
-			g.MaxBlockUnits = uint64(maxBlockUnits)
+		if maxTxBlocks >= 0 {
+			g.MaxTxBlocks = maxTxBlocks
+		}
+		if maxTxBlockUnits >= 0 {
+			g.MaxTxBlockUnits = uint64(maxTxBlockUnits)
 		}
 		if windowTargetUnits >= 0 {
 			g.WindowTargetUnits = uint64(windowTargetUnits)

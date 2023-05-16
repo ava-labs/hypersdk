@@ -125,7 +125,7 @@ func (p *Processor) Execute(
 
 		// Update block metadata
 		unitsConsumed += result.Units
-		if unitsConsumed > r.GetMaxBlockUnits() {
+		if unitsConsumed > r.GetMaxTxBlockUnits() {
 			// Exit as soon as we hit our max
 			return 0, nil, 0, 0, ErrBlockTooBig
 		}

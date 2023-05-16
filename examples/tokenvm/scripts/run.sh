@@ -101,7 +101,8 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f /tmp/tokenvm.genesis
   /tmp/token-cli genesis generate /tmp/allocations.json \
-  --max-block-units 4000000 \
+  --max-tx-blocks 16 \
+  --max-tx-block-units 500000 \
   --window-target-units 100000000000 \
   --window-target-blocks 30 \
   --genesis-file /tmp/tokenvm.genesis

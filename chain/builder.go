@@ -75,7 +75,7 @@ func BuildBlock(
 
 	b := NewRootBlock(ectx, vm, parent, nextTime)
 
-	changesEstimate := math.Min(vm.Mempool().Len(ctx), r.GetMaxBlockTxs())
+	changesEstimate := math.Min(vm.Mempool().Len(ctx), 10_000) // TODO: improve estimate
 	state, err := parentTxBlock.ChildState(ctx, changesEstimate)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
@@ -135,17 +135,16 @@ func BuildBlock(
 			}
 
 			// Check for repeats
-			if parentTxBlock != nil { // happens at genesis
-				// TODO: check a bunch at once during pre-fetch to avoid re-walking blocks
-				// for every tx
-				dup, err := parentTxBlock.IsRepeat(ctx, oldestAllowed, []*Transaction{next})
-				if err != nil {
-					return false, false, false, err
-				}
-				if dup {
-					// tx will be restored when ancestry is rejected
-					return true, false, false, nil
-				}
+			//
+			// TODO: check a bunch at once during pre-fetch to avoid re-walking blocks
+			// for every tx
+			dup, err := parentTxBlock.IsRepeat(ctx, oldestAllowed, []*Transaction{next})
+			if err != nil {
+				return false, false, false, err
+			}
+			if dup {
+				// tx will be restored when ancestry is rejected
+				return true, false, false, nil
 			}
 
 			// Ensure we have room
@@ -157,14 +156,6 @@ func BuildBlock(
 					zap.Error(err),
 				)
 				return true, false, false, nil
-			}
-			if totalUnits+nextUnits > r.GetMaxBlockUnits() {
-				log.Debug(
-					"skipping tx: too many units",
-					zap.Uint64("block units", totalUnits),
-					zap.Uint64("tx max units", nextUnits),
-				)
-				return false /* make simpler */, true, false, nil // could be txs that fit that are smaller
 			}
 
 			// Determine if we need to create a new TxBlock
@@ -279,7 +270,7 @@ func BuildBlock(
 			}
 			totalUnits += result.Units
 			txsAdded++
-			return txsAdded < r.GetMaxBlockTxs(), false, false, nil
+			return true, false, false, nil
 		},
 	)
 	span.SetAttributes(

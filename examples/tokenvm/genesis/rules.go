@@ -35,26 +35,16 @@ func (r *Rules) GetWarpFeePerSigner() uint64 {
 	return r.g.WarpFeePerSigner
 }
 
-func (r *Rules) GetMaxBlockTxs() int {
-	return r.g.MaxBlockTxs
+func (r *Rules) GetMaxTxBlocks() int {
+	return r.g.MaxTxBlocks
 }
 
 func (r *Rules) GetMaxTxBlockUnits() uint64 {
-	// TODO: update
-	return r.g.MaxBlockUnits
-}
-
-func (r *Rules) GetMaxTxBlocks() int {
-	// TODO: update
-	return 10
+	return r.g.MaxTxBlockUnits
 }
 
 func (r *Rules) GetValidityWindow() int64 {
 	return r.g.ValidityWindow
-}
-
-func (r *Rules) GetMaxBlockUnits() uint64 {
-	return r.g.MaxBlockUnits
 }
 
 func (r *Rules) GetBaseUnits() uint64 {

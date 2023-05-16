@@ -172,7 +172,7 @@ func ParseTxBlock(
 			return nil, ErrNoTxs
 		}
 		r := vm.Rules(blk.Tmstmp)
-		if len(blk.Txs) > r.GetMaxBlockTxs() {
+		if blk.UnitsConsumed > r.GetMaxTxBlockUnits() {
 			return nil, ErrBlockTooBig
 		}
 	}
@@ -297,7 +297,7 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 		return ErrTimestampTooLate
 	case len(b.Txs) == 0:
 		return ErrNoTxs
-	case len(b.Txs) > r.GetMaxBlockTxs():
+	case b.UnitsConsumed > r.GetMaxTxBlockUnits():
 		return ErrBlockTooBig
 	}
 

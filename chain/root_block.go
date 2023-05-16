@@ -285,6 +285,7 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 	txBlocks := make([]*StatelessTxBlock, len(b.Txs))
 	var state merkledb.TrieView
 	var containsWarp bool
+	var unitsConsumed uint64
 	for i, blkID := range b.Txs {
 		blk, err := b.vm.GetStatelessTxBlock(ctx, blkID)
 		if err != nil {
@@ -311,6 +312,7 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 		if blk.state == nil {
 			return errors.New("tx block state not ready")
 		}
+		unitsConsumed += blk.UnitsConsumed
 		// Can't get from txBlockState because not populated yet
 		state = blk.state
 		txBlocks[i] = blk
@@ -332,6 +334,8 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 		return ErrNoTxs
 	case len(b.Txs) > r.GetMaxTxBlocks():
 		return ErrBlockTooBig
+	case unitsConsumed != b.UnitsConsumed:
+		return fmt.Errorf("%w: found=%d expected=%d", ErrInvalidUnitsConsumed, unitsConsumed, b.UnitsConsumed)
 	}
 
 	// Verify parent is verified and available
@@ -535,6 +539,7 @@ func (b *RootBlock) Marshal() ([]byte, error) {
 	}
 
 	p.PackID(b.StateRoot)
+	p.PackUint64(b.UnitsConsumed)
 
 	return p.Bytes(), p.Err()
 }
@@ -569,6 +574,7 @@ func UnmarshalRootBlock(raw []byte, parser Parser) (*RootBlock, error) {
 	}
 
 	p.UnpackID(false, &b.StateRoot)
+	b.UnitsConsumed = p.UnpackUint64(false) // could be 0 in genesis
 
 	if !p.Empty() {
 		// Ensure no leftover bytes

@@ -382,22 +382,18 @@ func MarshalTxs(
 
 func UnmarshalTxs(
 	raw []byte,
-	maxCount int,
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
 ) ([]*Transaction, error) {
 	p := codec.NewReader(raw, consts.NetworkSizeLimit)
 	txCount := p.UnpackInt(true)
-	if txCount > maxCount {
-		return nil, ErrTooManyTxs
-	}
-	txs := make([]*Transaction, txCount)
+	txs := []*Transaction{}
 	for i := 0; i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, err
 		}
-		txs[i] = tx
+		txs = append(txs, tx)
 	}
 	if !p.Empty() {
 		// Ensure no leftover bytes

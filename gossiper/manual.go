@@ -55,13 +55,13 @@ func (g *Manual) TriggerGossip(ctx context.Context) error {
 				// Should never happen
 				return true, false, false, nil
 			}
-			if units+totalUnits > r.GetMaxBlockUnits() {
+			if units+totalUnits > r.GetMaxTxBlockUnits() {
 				// Attempt to mirror the function of building a block without execution
 				return false, true, false, nil
 			}
 			txs = append(txs, next)
 			totalUnits += units
-			return len(txs) < r.GetMaxBlockTxs(), true, false, nil
+			return true, true, false, nil
 		},
 	)
 	if mempoolErr != nil {
@@ -87,9 +87,8 @@ func (g *Manual) TriggerGossip(ctx context.Context) error {
 }
 
 func (g *Manual) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	r := g.vm.Rules(time.Now().Unix())
 	actionRegistry, authRegistry := g.vm.Registry()
-	txs, err := chain.UnmarshalTxs(msg, r.GetMaxBlockTxs(), actionRegistry, authRegistry)
+	txs, err := chain.UnmarshalTxs(msg, actionRegistry, authRegistry)
 	if err != nil {
 		g.vm.Logger().Warn(
 			"AppGossip provided invalid txs",

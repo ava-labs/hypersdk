@@ -226,7 +226,7 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 			}
 			txs = append(txs, next)
 			size += txSize
-			return len(txs) < r.GetMaxBlockTxs(), true, false, nil
+			return true, true, false, nil
 		},
 	)
 	if mempoolErr != nil {
@@ -243,9 +243,8 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 }
 
 func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	r := g.vm.Rules(time.Now().Unix())
 	actionRegistry, authRegistry := g.vm.Registry()
-	txs, err := chain.UnmarshalTxs(msg, r.GetMaxBlockTxs(), actionRegistry, authRegistry)
+	txs, err := chain.UnmarshalTxs(msg, actionRegistry, authRegistry)
 	if err != nil {
 		g.vm.Logger().Warn(
 			"received invalid txs",
