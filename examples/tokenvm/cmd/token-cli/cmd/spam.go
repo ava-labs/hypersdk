@@ -145,7 +145,7 @@ var runSpamCmd = &cobra.Command{
 			assetString(ids.Empty),
 		)
 		accounts := make([]crypto.PrivateKey, numAccounts)
-		dcli, err := rpc.NewWebSocketClient(uris[0])
+		dcli, err := rpc.NewWebSocketClient(uris[0], 8_192)
 		if err != nil {
 			return err
 		}
@@ -202,7 +202,7 @@ var runSpamCmd = &cobra.Command{
 		for i := 0; i < len(uris); i++ {
 			cli := rpc.NewJSONRPCClient(uris[i])
 			tcli := trpc.NewJSONRPCClient(uris[i], chainID)
-			dcli, err := rpc.NewWebSocketClient(uris[i])
+			dcli, err := rpc.NewWebSocketClient(uris[i], 128_000)
 			if err != nil {
 				return err
 			}

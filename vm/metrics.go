@@ -18,6 +18,7 @@ type Metrics struct {
 	stateChanges    prometheus.Counter
 	stateOperations prometheus.Counter
 	mempoolSize     prometheus.Gauge
+	acceptorDrift   prometheus.Gauge
 	rootCalculated  metric.Averager
 	commitState     metric.Averager
 	waitSignatures  metric.Averager
@@ -95,6 +96,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "mempool_size",
 			Help:      "number of transactions in the mempool",
 		}),
+		acceptorDrift: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "acceptor_drift",
+			Help:      "number of blocks behind tip",
+		}),
 		rootCalculated: rootCalculated,
 		commitState:    commitState,
 		waitSignatures: waitSignatures,
@@ -109,6 +115,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
 		r.Register(m.mempoolSize),
+		r.Register(m.acceptorDrift),
 	)
 	return r, m, errs.Err
 }

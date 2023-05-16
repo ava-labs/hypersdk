@@ -177,6 +177,9 @@ func (vm *VM) processAcceptedBlocks() {
 
 		// Sign and store any warp messages (regardless if validator now, may become one)
 		for _, txBlock := range b.GetTxBlocks() {
+			if !txBlock.ContainsWarp {
+				continue
+			}
 			results := txBlock.Results()
 			for i, tx := range txBlock.Txs {
 				result := results[i]
@@ -216,10 +219,11 @@ func (vm *VM) processAcceptedBlocks() {
 			vm.snowCtx.Log.Fatal("unable to set min tx in websocket server", zap.Error(err))
 		}
 		vm.snowCtx.Log.Info(
-			"block processed",
+			"accepted block processed",
 			zap.Stringer("blkID", b.ID()),
 			zap.Uint64("height", b.Hght),
 		)
+		vm.metrics.acceptorDrift.Set(float64(vm.lastAccepted.Hght - b.Hght))
 	}
 	close(vm.acceptorDone)
 	vm.snowCtx.Log.Info("acceptor queue shutdown")

@@ -717,7 +717,6 @@ func (vm *VM) submitStateless(
 		validTxs = append(validTxs, tx)
 	}
 	vm.mempool.Add(ctx, validTxs)
-	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	return errs
 }
 
@@ -809,6 +808,7 @@ func (vm *VM) Submit(
 		validTxs = append(validTxs, tx)
 	}
 	vm.mempool.Add(ctx, validTxs)
+	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	return errs
 }
 

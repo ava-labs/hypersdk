@@ -239,7 +239,7 @@ var watchChainCmd = &cobra.Command{
 		}
 		cli := trpc.NewJSONRPCClient(uris[0], chainID)
 		utils.Outf("{{yellow}}uri:{{/}} %s\n", uris[0])
-		scli, err := rpc.NewWebSocketClient(uris[0])
+		scli, err := rpc.NewWebSocketClient(uris[0], 8_192)
 		if err != nil {
 			return err
 		}

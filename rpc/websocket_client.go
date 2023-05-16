@@ -14,8 +14,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-const pendingChanSize = 8_192
-
 type WebSocketClient struct {
 	conn *websocket.Conn
 	wl   sync.Mutex
@@ -30,7 +28,7 @@ type WebSocketClient struct {
 
 // NewWebSocketClient creates a new client for the decision rpc server.
 // Dials into the server at [uri] and returns a client.
-func NewWebSocketClient(uri string) (*WebSocketClient, error) {
+func NewWebSocketClient(uri string, pending int) (*WebSocketClient, error) {
 	uri = strings.ReplaceAll(uri, "http://", "ws://")
 	uri = strings.ReplaceAll(uri, "https://", "wss://")
 	if !strings.HasPrefix(uri, "ws") { // fallback to default usage
@@ -45,8 +43,8 @@ func NewWebSocketClient(uri string) (*WebSocketClient, error) {
 	resp.Body.Close()
 	wc := &WebSocketClient{
 		conn:          conn,
-		pendingBlocks: make(chan []byte, pendingChanSize),
-		pendingTxs:    make(chan []byte, pendingChanSize),
+		pendingBlocks: make(chan []byte, pending),
+		pendingTxs:    make(chan []byte, pending),
 		done:          make(chan struct{}),
 	}
 	go func() {
