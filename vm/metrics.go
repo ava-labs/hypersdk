@@ -19,6 +19,7 @@ type Metrics struct {
 	stateOperations prometheus.Counter
 	mempoolSize     prometheus.Gauge
 	rootCalculated  metric.Averager
+	commitState     metric.Averager
 	waitSignatures  metric.Averager
 }
 
@@ -29,6 +30,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"root_calculated",
 		"time spent calculating the state root in verify",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	commitState, err := metric.NewAverager(
+		"chain",
+		"commit_state",
+		"time spent committing state in accept",
 		r,
 	)
 	if err != nil {
@@ -86,6 +96,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Help:      "number of transactions in the mempool",
 		}),
 		rootCalculated: rootCalculated,
+		commitState:    commitState,
 		waitSignatures: waitSignatures,
 	}
 	errs := wrappers.Errs{}

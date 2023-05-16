@@ -168,7 +168,7 @@ func BuildBlock(
 				if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
 					return false, true, false, err
 				}
-				if len(txBlocks) >= r.GetMaxTxBlocks() {
+				if len(txBlocks)+1 /* account for current */ >= r.GetMaxTxBlocks() {
 					txBlock.Last = true
 				}
 				if err := txBlock.initializeBuilt(ctx, state, results); err != nil {
@@ -178,6 +178,7 @@ func BuildBlock(
 				txBlocks = append(txBlocks, txBlock)
 				vm.IssueTxBlock(ctx, txBlock)
 				if txBlock.Last {
+					txBlock = nil
 					return false, true, false, nil
 				}
 
@@ -291,7 +292,7 @@ func BuildBlock(
 	// Create last tx block
 	//
 	// TODO: unify this logic with inner block tracker
-	if len(txBlock.Txs) > 0 {
+	if txBlock != nil && len(txBlock.Txs) > 0 {
 		txBlock.Last = true
 		if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
 			return nil, err

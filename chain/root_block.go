@@ -413,9 +413,11 @@ func (b *StatelessRootBlock) Accept(ctx context.Context) error {
 
 	// Commit state if we don't return before here (would happen if we are still
 	// syncing)
+	start := time.Now()
 	if err := state.CommitToDB(ctx); err != nil {
 		return err
 	}
+	b.vm.RecordCommitState(time.Since(start))
 
 	// Set last accepted block
 	return b.SetLastAccepted(ctx)
