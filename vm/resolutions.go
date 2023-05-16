@@ -378,6 +378,10 @@ func (vm *VM) RecordWaitSignatures(t time.Duration) {
 	vm.metrics.waitSignatures.Observe(float64(t))
 }
 
+func (vm *VM) RecordVerifyWait(t time.Duration) {
+	vm.metrics.verifyWait.Observe(float64(t))
+}
+
 func (vm *VM) RecordStateChanges(c int) {
 	vm.metrics.stateChanges.Add(float64(c))
 }

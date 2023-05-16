@@ -101,6 +101,7 @@ func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
 	c.wl.Lock()
 	defer c.wl.Unlock()
 
+	// TODO: add mode where we don't attempt to ack tx
 	return c.conn.WriteMessage(websocket.BinaryMessage, append([]byte{TxMode}, tx.Bytes()...))
 }
 

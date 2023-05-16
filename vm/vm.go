@@ -663,7 +663,9 @@ func (vm *VM) buildBlock(
 				return
 			}
 			vm.builtBlock = blk
-			vm.snowCtx.Log.Info("built block async", zap.Duration("t", time.Since(start)))
+			dur := time.Since(start)
+			vm.snowCtx.Log.Info("built block async", zap.Duration("t", dur))
+			vm.metrics.buildBlock.Observe(float64(dur))
 			vm.builder.TriggerBuild()
 		}()
 		vm.builder.HandleGenerateBlock()

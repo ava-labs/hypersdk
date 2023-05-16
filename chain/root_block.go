@@ -60,6 +60,8 @@ type StatelessRootBlock struct {
 	bctx     *block.Context
 	txBlocks []*StatelessTxBlock
 
+	firstVerify time.Time
+
 	vm VM
 }
 
@@ -253,11 +255,15 @@ func (b *StatelessRootBlock) verify(ctx context.Context, stateReady bool) error 
 			zap.Stringer("blkID", b.ID()),
 		)
 	default:
+		if b.firstVerify.IsZero() {
+			b.firstVerify = time.Now()
+		}
 		// Parent may not be processed when we verify this block so [verify] may
 		// recursively compute missing state.
 		if err := b.innerVerify(ctx); err != nil {
 			return err
 		}
+		b.vm.RecordVerifyWait(time.Since(b.firstVerify))
 	}
 
 	// At any point after this, we may attempt to verify the block. We should be

@@ -73,6 +73,7 @@ type VM interface {
 	RecordRootCalculated(time.Duration) // only called in Verify
 	RecordCommitState(time.Duration)
 	RecordWaitSignatures(time.Duration) // only called in Verify
+	RecordVerifyWait(time.Duration)
 	RecordStateChanges(int)
 	RecordStateOperations(int)
 }

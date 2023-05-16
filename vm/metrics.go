@@ -22,6 +22,8 @@ type Metrics struct {
 	rootCalculated  metric.Averager
 	commitState     metric.Averager
 	waitSignatures  metric.Averager
+	buildBlock      metric.Averager
+	verifyWait      metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -49,6 +51,24 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"wait_signatures",
 		"time spent waiting for signature verification in verify",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	buildBlock, err := metric.NewAverager(
+		"chain",
+		"build_block",
+		"time spent building block",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	verifyWait, err := metric.NewAverager(
+		"chain",
+		"verify_wait",
+		"time spent waiting for txBlocks",
 		r,
 	)
 	if err != nil {
@@ -104,6 +124,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		rootCalculated: rootCalculated,
 		commitState:    commitState,
 		waitSignatures: waitSignatures,
+		buildBlock:     buildBlock,
+		verifyWait:     verifyWait,
 	}
 	errs := wrappers.Errs{}
 	errs.Add(
