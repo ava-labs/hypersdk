@@ -10,6 +10,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/gorilla/websocket"
 )
@@ -59,15 +61,27 @@ func NewWebSocketClient(uri string, pending int) (*WebSocketClient, error) {
 				utils.Outf("{{orange}}got empty message{{/}}\n")
 				continue
 			}
-			tmsg := msg[1:]
-			switch msg[0] {
-			case BlockMode:
-				wc.pendingBlocks <- tmsg
-			case TxMode:
-				wc.pendingTxs <- tmsg
-			default:
-				utils.Outf("{{orange}}unexpected message mode:{{/}} %x\n", msg[0])
-				continue
+			msgBatch := codec.NewReader(msg, consts.MaxInt) // int(c.s.config.MaxMessageSize))
+			msgs := msgBatch.UnpackInt(true)
+			if msgBatch.Err() != nil {
+				panic(msgBatch.Err())
+			}
+			for i := 0; i < msgs; i++ {
+				var msg []byte
+				msgBatch.UnpackBytes(-1, true, &msg)
+				if msgBatch.Err() != nil {
+					panic(msgBatch.Err())
+				}
+				tmsg := msg[1:]
+				switch msg[0] {
+				case BlockMode:
+					wc.pendingBlocks <- tmsg
+				case TxMode:
+					wc.pendingTxs <- tmsg
+				default:
+					utils.Outf("{{orange}}unexpected message mode:{{/}} %x\n", msg[0])
+					continue
+				}
 			}
 		}
 	}()

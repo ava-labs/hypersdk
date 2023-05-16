@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
@@ -137,7 +139,43 @@ func (c *Connection) writePump() {
 				_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
 				return
 			}
-			if err := c.conn.WriteMessage(websocket.BinaryMessage, message); err != nil {
+
+			msgs := [][]byte{message}
+			size := consts.IntLen + consts.IntLen + len(message)
+			var stop bool
+			for !stop {
+				select {
+				case m, ok := <-c.send:
+					if !ok {
+						// The hub closed the channel. Attempt to close the connection
+						// gracefully.
+						_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
+						return
+					}
+					if size+len(m) > int(c.s.config.MaxMessageSize) {
+						// TODO: we can't reorder like this, we may send blocks out of
+						// order
+						c.send <- m
+						stop = true
+						break
+					}
+					msgs = append(msgs, m)
+					size += consts.IntLen + len(m)
+				default:
+					stop = true
+					break
+				}
+			}
+			msgBatch := codec.NewWriter(consts.MaxInt)
+			msgBatch.PackInt(len(msgs))
+			for _, msg := range msgs {
+				msgBatch.PackBytes(msg)
+			}
+			if msgBatch.Err() != nil {
+				panic(msgBatch.Err())
+			}
+			c.s.log.Info("batched msgs", zap.Int("len", len(msgs)))
+			if err := c.conn.WriteMessage(websocket.BinaryMessage, msgBatch.Bytes()); err != nil {
 				return
 			}
 		case <-ticker.C:
