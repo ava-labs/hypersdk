@@ -60,7 +60,8 @@ type StatelessRootBlock struct {
 	bctx     *block.Context
 	txBlocks []*StatelessTxBlock
 
-	firstVerify time.Time
+	firstVerify    time.Time
+	recordedVerify bool
 
 	vm VM
 }
@@ -255,15 +256,11 @@ func (b *StatelessRootBlock) verify(ctx context.Context, stateReady bool) error 
 			zap.Stringer("blkID", b.ID()),
 		)
 	default:
-		if b.firstVerify.IsZero() {
-			b.firstVerify = time.Now()
-		}
 		// Parent may not be processed when we verify this block so [verify] may
 		// recursively compute missing state.
 		if err := b.innerVerify(ctx); err != nil {
 			return err
 		}
-		b.vm.RecordVerifyWait(time.Since(b.firstVerify))
 	}
 
 	// At any point after this, we may attempt to verify the block. We should be
@@ -287,6 +284,10 @@ func (b *StatelessRootBlock) verify(ctx context.Context, stateReady bool) error 
 //  3. If the state of a block we are accepting is missing (finishing dynamic
 //     state sync)
 func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
+	if b.firstVerify.IsZero() {
+		b.firstVerify = time.Now()
+	}
+
 	// Populate txBlocks
 	txBlocks := make([]*StatelessTxBlock, len(b.Txs))
 	var state merkledb.TrieView
@@ -326,6 +327,10 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 	if containsWarp != b.ContainsWarp {
 		// TODO: make block un-reverifiable
 		return errors.New("invalid warp status")
+	}
+	if !b.recordedVerify {
+		b.vm.RecordVerifyWait(time.Since(b.firstVerify))
+		b.recordedVerify = true
 	}
 
 	// Perform basic correctness checks before doing any expensive work
