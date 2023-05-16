@@ -11,5 +11,5 @@ var (
 	ErrInvalidFilterParam   = errors.New("invalid bloom filter params")
 	ErrInvalidCommand       = errors.New("invalid command")
 	ErrMessageTooLarge      = errors.New("message too large")
-	ErrTooManyMessages      = errors.New("too many messages")
+	ErrClosed               = errors.New("closed")
 )

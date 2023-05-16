@@ -8,8 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
@@ -27,7 +25,7 @@ type Connection struct {
 	conn *websocket.Conn
 
 	// Buffered channel of outbound messages.
-	send chan []byte
+	mb *MessageBuffer
 
 	// Represents if the connection can receive new messages.
 	active atomic.Bool
@@ -41,6 +39,7 @@ func (c *Connection) isActive() bool {
 // deactivate deactivates the connection.
 func (c *Connection) deactivate() {
 	c.active.Store(false)
+	c.mb.Close()
 }
 
 // Send sends [msg] to c's send channel and returns whether the message was sent.
@@ -48,13 +47,7 @@ func (c *Connection) Send(msg []byte) bool {
 	if !c.isActive() {
 		return false
 	}
-	select {
-	case c.send <- msg:
-		return true
-	default:
-		c.s.log.Debug("msg was dropped")
-	}
-	return false
+	return c.mb.Send(msg) == nil
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -72,7 +65,7 @@ func (c *Connection) readPump() {
 		_ = c.conn.Close()
 	}()
 
-	c.conn.SetReadLimit(c.s.config.MaxMessageSize)
+	c.conn.SetReadLimit(int64(c.s.config.MaxReadMessageSize))
 	// SetReadDeadline returns an error if the connection is corrupted
 	if err := c.conn.SetReadDeadline(time.Now().Add(c.s.config.PongWait)); err != nil {
 		return
@@ -102,7 +95,16 @@ func (c *Connection) readPump() {
 				)
 				return
 			}
-			c.s.callback(responseBytes, c)
+			msgs, err := ParseBatchMessage(int(c.s.config.MaxReadMessageSize), responseBytes)
+			if err != nil {
+				c.s.log.Debug("unable to read websockets message",
+					zap.Error(err),
+				)
+				return
+			}
+			for _, msg := range msgs {
+				c.s.callback(msg, c)
+			}
 		}
 	}
 }
@@ -125,8 +127,7 @@ func (c *Connection) writePump() {
 	}()
 	for {
 		select {
-		// TODO: add a write buffer with timeout (if no messages for 50ms, send)
-		case message, ok := <-c.send:
+		case message, ok := <-c.mb.Queue:
 			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.config.WriteWait)); err != nil {
 				c.s.log.Debug("closing the connection",
 					zap.String("reason", "failed to set the write deadline"),
@@ -140,43 +141,11 @@ func (c *Connection) writePump() {
 				_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
 				return
 			}
-
-			msgs := [][]byte{message}
-			size := consts.IntLen + consts.IntLen + len(message)
-			var stop bool
-			for !stop {
-				select {
-				case m, ok := <-c.send:
-					if !ok {
-						// The hub closed the channel. Attempt to close the connection
-						// gracefully.
-						_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
-						return
-					}
-					if size+len(m) > int(c.s.config.MaxMessageSize) {
-						// TODO: we can't reorder like this, we may send blocks out of
-						// order
-						c.send <- m
-						stop = true
-						break
-					}
-					msgs = append(msgs, m)
-					size += consts.IntLen + len(m)
-				default:
-					stop = true
-					break
-				}
-			}
-			msgBatch := codec.NewWriter(consts.MaxInt)
-			msgBatch.PackInt(len(msgs))
-			for _, msg := range msgs {
-				msgBatch.PackBytes(msg)
-			}
-			if msgBatch.Err() != nil {
-				panic(msgBatch.Err())
-			}
-			c.s.log.Info("batched msgs", zap.Int("len", len(msgs)))
-			if err := c.conn.WriteMessage(websocket.BinaryMessage, msgBatch.Bytes()); err != nil {
+			if err := c.conn.WriteMessage(websocket.BinaryMessage, message); err != nil {
+				c.s.log.Debug("closing the connection",
+					zap.String("reason", "failed to write message"),
+					zap.Error(err),
+				)
 				return
 			}
 		case <-ticker.C:

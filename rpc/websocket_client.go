@@ -9,17 +9,18 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/gorilla/websocket"
 )
 
 type WebSocketClient struct {
 	conn *websocket.Conn
-	wl   sync.Mutex
 	cl   sync.Once
+
+	mb *pubsub.MessageBuffer
 
 	pendingBlocks chan []byte
 	pendingTxs    chan []byte
@@ -45,33 +46,29 @@ func NewWebSocketClient(uri string, pending int) (*WebSocketClient, error) {
 	resp.Body.Close()
 	wc := &WebSocketClient{
 		conn:          conn,
+		mb:            pubsub.NewMessageBuffer(&logging.NoLog{}, pending, pubsub.MaxReadMessageSize, pubsub.MaxMessageWait),
 		pendingBlocks: make(chan []byte, pending),
 		pendingTxs:    make(chan []byte, pending),
 		done:          make(chan struct{}),
 	}
 	go func() {
 		for {
-			_, msg, err := conn.ReadMessage()
+			_, msgBatch, err := conn.ReadMessage()
 			if err != nil {
 				wc.err = err
 				close(wc.done)
 				return
 			}
-			if len(msg) == 0 {
+			if len(msgBatch) == 0 {
 				utils.Outf("{{orange}}got empty message{{/}}\n")
 				continue
 			}
-			msgBatch := codec.NewReader(msg, consts.MaxInt) // int(c.s.config.MaxMessageSize))
-			msgs := msgBatch.UnpackInt(true)
-			if msgBatch.Err() != nil {
-				panic(msgBatch.Err())
+			msgs, err := pubsub.ParseBatchMessage(pubsub.MaxWriteMessageSize, msgBatch)
+			if err != nil {
+				utils.Outf("{{orange}}received invalid message:{{/}} %v\n", err)
+				continue
 			}
-			for i := 0; i < msgs; i++ {
-				var msg []byte
-				msgBatch.UnpackBytes(-1, true, &msg)
-				if msgBatch.Err() != nil {
-					panic(msgBatch.Err())
-				}
+			for _, msg := range msgs {
 				tmsg := msg[1:]
 				switch msg[0] {
 				case BlockMode:
@@ -85,14 +82,24 @@ func NewWebSocketClient(uri string, pending int) (*WebSocketClient, error) {
 			}
 		}
 	}()
+	go func() {
+		for {
+			select {
+			case msg := <-wc.mb.Queue:
+				if err := wc.conn.WriteMessage(websocket.BinaryMessage, msg); err != nil {
+					utils.Outf("{{orange}}unable to write message:{{/}} %v\n", err)
+				}
+			case <-wc.done:
+				wc.mb.Close()
+				return
+			}
+		}
+	}()
 	return wc, nil
 }
 
 func (c *WebSocketClient) RegisterBlocks() error {
-	c.wl.Lock()
-	defer c.wl.Unlock()
-
-	return c.conn.WriteMessage(websocket.BinaryMessage, []byte{BlockMode})
+	return c.mb.Send([]byte{BlockMode})
 }
 
 // Listen listens for block messages from the streaming server.
@@ -112,11 +119,7 @@ func (c *WebSocketClient) ListenBlock(
 
 // IssueTx sends [tx] to the streaming rpc server.
 func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
-	c.wl.Lock()
-	defer c.wl.Unlock()
-
-	// TODO: add a send loop here that batches messages
-	return c.conn.WriteMessage(websocket.BinaryMessage, append([]byte{TxMode}, tx.Bytes()...))
+	return c.mb.Send(append([]byte{TxMode}, tx.Bytes()...))
 }
 
 // ListenForTx listens for responses from the streamingServer.

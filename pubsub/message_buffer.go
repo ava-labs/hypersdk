@@ -14,17 +14,20 @@ type MessageBuffer struct {
 	Queue chan []byte
 
 	l            sync.Mutex
+	log          logging.Logger
 	pending      [][]byte
 	pendingSize  int
 	maxSize      int
 	timeout      time.Duration
 	pendingTimer *timer.Timer
+	closed       bool
 }
 
 func NewMessageBuffer(log logging.Logger, pending int, maxSize int, timeout time.Duration) *MessageBuffer {
 	m := &MessageBuffer{
 		Queue: make(chan []byte, pending),
 
+		log:     log,
 		pending: [][]byte{},
 		maxSize: maxSize,
 		timeout: timeout,
@@ -33,14 +36,28 @@ func NewMessageBuffer(log logging.Logger, pending int, maxSize int, timeout time
 		m.l.Lock()
 		defer m.l.Unlock()
 
+		if m.closed {
+			log.Debug("unable to clear pending messages", zap.Error(ErrClosed))
+			return
+		}
 		if len(m.pending) == 0 {
 			return
 		}
 		if err := m.clearPending(); err != nil {
-			log.Error("unable to clear pending messages", zap.Error(err))
+			log.Debug("unable to clear pending messages", zap.Error(err))
 		}
 	})
+	go m.pendingTimer.Dispatch()
 	return m
+}
+
+func (m *MessageBuffer) Close() {
+	m.l.Lock()
+	defer m.l.Unlock()
+
+	m.pendingTimer.Stop()
+	m.closed = true
+	close(m.Queue)
 }
 
 func (m *MessageBuffer) clearPending() error {
@@ -48,7 +65,12 @@ func (m *MessageBuffer) clearPending() error {
 	if err != nil {
 		return err
 	}
-	m.Queue <- bm
+	select {
+	case m.Queue <- bm:
+	default:
+		m.log.Debug("dropped pending message")
+	}
+
 	m.pendingSize = 0
 	m.pending = [][]byte{}
 	return nil
@@ -57,6 +79,10 @@ func (m *MessageBuffer) clearPending() error {
 func (m *MessageBuffer) Send(msg []byte) error {
 	m.l.Lock()
 	defer m.l.Unlock()
+
+	if m.closed {
+		return ErrClosed
+	}
 
 	l := len(msg)
 	if l > m.maxSize {
@@ -88,15 +114,16 @@ func CreateBatchMessage(maxSize int, msgs [][]byte) ([]byte, error) {
 	return msgBatch.Bytes(), msgBatch.Err()
 }
 
-func ParseBatchMessage(maxSize int, maxLen int, msg []byte) ([][]byte, error) {
+func ParseBatchMessage(maxSize int, msg []byte) ([][]byte, error) {
 	msgBatch := codec.NewReader(msg, maxSize)
 	msgLen := msgBatch.UnpackInt(true)
-	if msgLen > maxLen {
-		return nil, ErrTooManyMessages
-	}
-	msgs := make([][]byte, msgLen)
+	msgs := [][]byte{}
 	for i := 0; i < msgLen; i++ {
-		msgBatch.UnpackBytes(-1, true, &msgs[i])
+		var nextMsg []byte
+		msgBatch.UnpackBytes(-1, true, &nextMsg)
+		if err := msgBatch.Err(); err != nil {
+			return nil, err
+		}
 	}
 	return msgs, msgBatch.Err()
 }
