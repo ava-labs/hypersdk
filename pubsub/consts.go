@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	ReadBufferSize     = units.KiB
-	WriteBufferSize    = units.KiB
+	ReadBufferSize     = 64 * units.KiB
+	WriteBufferSize    = 64 * units.KiB
 	WriteWait          = 10 * time.Second
 	PongWait           = 60 * time.Second
 	PingPeriod         = (PongWait * 9) / 10
