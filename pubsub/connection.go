@@ -125,6 +125,7 @@ func (c *Connection) writePump() {
 	}()
 	for {
 		select {
+		// TODO: add a write buffer with timeout (if no messages for 50ms, send)
 		case message, ok := <-c.send:
 			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.config.WriteWait)); err != nil {
 				c.s.log.Debug("closing the connection",
