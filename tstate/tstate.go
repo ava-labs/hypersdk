@@ -124,7 +124,6 @@ func (ts *TState) SetScope(_ context.Context, keys [][]byte, storage map[string]
 // checkScope returns whether [k] is in ts.readScope.
 func (ts *TState) checkScope(_ context.Context, k []byte) bool {
 	for _, s := range ts.scope {
-		// TODO: benchmark and see if creating map is worth overhead
 		if bytes.Equal(k, s) {
 			return true
 		}
