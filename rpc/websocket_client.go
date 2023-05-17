@@ -147,6 +147,7 @@ func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.R
 func (c *WebSocketClient) Close() error {
 	var err error
 	c.cl.Do(func() {
+		// TODO: need to flush messages before we terminate connection
 		err = c.conn.Close()
 	})
 	return err

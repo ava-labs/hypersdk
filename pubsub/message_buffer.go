@@ -50,10 +50,7 @@ func NewMessageBuffer(log logging.Logger, pending int, maxSize int, timeout time
 			log.Debug("sent messages", zap.Int("count", l))
 		}
 	})
-	go func() {
-		m.pendingTimer.Dispatch()
-		log.Debug("dispatch exited")
-	}()
+	go m.pendingTimer.Dispatch()
 	return m
 }
 
@@ -61,16 +58,22 @@ func (m *MessageBuffer) Close() error {
 	m.l.Lock()
 	defer m.l.Unlock()
 
+	if m.closed {
+		return ErrClosed
+	}
+
 	// Flush anything left
-	// TODO: can close twice (need to protect)
 	if err := m.clearPending(); err != nil {
 		m.log.Debug("unable to clear pending messages", zap.Error(err))
 		return err
 	}
 
-	// m.pendingTimer.Stop()
+	// TODO: should ack sent otherwise connection may still be allowed to close
+	// before send has been processed
+
+	m.pendingTimer.Stop()
 	m.closed = true
-	// close(m.Queue)
+	close(m.Queue)
 	return nil
 }
 
