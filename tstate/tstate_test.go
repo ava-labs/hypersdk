@@ -53,12 +53,12 @@ func TestGetValue(t *testing.T) {
 	ts := New(10)
 	// GetValue without Scope perm
 	_, err := ts.GetValue(ctx, TestKey)
-	require.ErrorIs(err, ErrKeyNotSpecified, "No error thrown.")
+	require.ErrorIs(err, ErrKeyNotSpecified, "No error thrown")
 	// SetScope
 	ts.SetScope(ctx, [][]byte{TestKey}, map[string][]byte{string(TestKey): TestVal})
 	val, err := ts.GetValue(ctx, TestKey)
 	require.NoError(err, "Error getting value.")
-	require.Equal(TestVal, val, "Value was not saved correctly.")
+	require.Equal(TestVal, val, "Value was not saved correctly")
 }
 
 func TestGetValueNoStorage(t *testing.T) {
@@ -68,7 +68,7 @@ func TestGetValueNoStorage(t *testing.T) {
 	// SetScope but dont add to storage
 	ts.SetScope(ctx, [][]byte{TestKey}, map[string][]byte{})
 	_, err := ts.GetValue(ctx, TestKey)
-	require.ErrorIs(database.ErrNotFound, err, "No error thrown.")
+	require.ErrorIs(database.ErrNotFound, err, "No error thrown")
 }
 
 func TestInsertNew(t *testing.T) {
@@ -77,16 +77,16 @@ func TestInsertNew(t *testing.T) {
 	ts := New(10)
 	// Insert before SetScope
 	err := ts.Insert(ctx, TestKey, TestVal)
-	require.ErrorIs(ErrKeyNotSpecified, err, "No error thrown.")
+	require.ErrorIs(ErrKeyNotSpecified, err, "No error thrown")
 	// SetScope
 	ts.SetScope(ctx, [][]byte{TestKey}, map[string][]byte{})
 	// Insert key
 	err = ts.Insert(ctx, TestKey, TestVal)
-	require.NoError(err, "Error thrown.")
+	require.NoError(err, "Error thrown")
 	val, err := ts.GetValue(ctx, TestKey)
-	require.NoError(err, "Error thrown.")
-	require.Equal(1, ts.OpIndex(), "Insert operation was not added.")
-	require.Equal(TestVal, val, "Value was not set correctly.")
+	require.NoError(err, "Error thrown")
+	require.Equal(1, ts.OpIndex(), "Insert operation was not added")
+	require.Equal(TestVal, val, "Value was not set correctly")
 }
 
 func TestInsertUpdate(t *testing.T) {
@@ -95,18 +95,18 @@ func TestInsertUpdate(t *testing.T) {
 	ts := New(10)
 	// SetScope and add
 	ts.SetScope(ctx, [][]byte{TestKey}, map[string][]byte{string(TestKey): TestVal})
-	require.Equal(0, ts.OpIndex(), "SetStorage operation was not added.")
+	require.Equal(0, ts.OpIndex(), "SetStorage operation was not added")
 	// Insert key
 	newVal := []byte("newVal")
 	err := ts.Insert(ctx, TestKey, newVal)
-	require.NoError(err, "Error thrown.")
+	require.NoError(err, "Error thrown")
 	val, err := ts.GetValue(ctx, TestKey)
-	require.NoError(err, "Error thrown.")
+	require.NoError(err, "Error thrown")
 	require.Equal(1, ts.OpIndex(), "Insert operation was not added.")
 	require.Equal(newVal, val, "Value was not set correctly.")
-	require.Equal(TestVal, ts.ops[0].pastV, "PastVal was not set correctly.")
-	require.False(ts.ops[0].pastChanged, "PastVal was not set correctly.")
-	require.True(ts.ops[0].pastExists, "PastVal was not set correctly.")
+	require.Equal(TestVal, ts.ops[0].pastV, "PastVal was not set correctly")
+	require.False(ts.ops[0].pastChanged, "PastVal was not set correctly")
+	require.True(ts.ops[0].pastExists, "PastVal was not set correctly")
 }
 
 func TestFetchAndSetScope(t *testing.T) {
@@ -122,13 +122,13 @@ func TestFetchAndSetScope(t *testing.T) {
 	}
 	err := ts.FetchAndSetScope(ctx, keys, db)
 	require.NoError(err, "Error thrown.")
-	require.Equal(0, ts.OpIndex(), "Opertions not updated correctly.")
-	require.Equal(keys, ts.scope, "Scope not updated correctly.")
+	require.Equal(0, ts.OpIndex(), "Operations not updated correctly")
+	require.Equal(keys, ts.scope, "Scope not updated correctly")
 	// Check values
 	for i, key := range keys {
 		val, err := ts.GetValue(ctx, key)
 		require.NoError(err, "Error getting value.")
-		require.Equal(vals[i], val, "Value not set correctly.")
+		require.Equal(vals[i], val, "Value not set correctly")
 	}
 }
 
@@ -142,20 +142,20 @@ func TestFetchAndSetScopeMissingKey(t *testing.T) {
 	// Keys[3] not in db
 	for i, key := range keys[:len(keys)-1] {
 		err := db.Insert(ctx, key, vals[i])
-		require.NoError(err, "Error during insert.")
+		require.NoError(err, "Error during insert")
 	}
 	err := ts.FetchAndSetScope(ctx, keys, db)
 	require.NoError(err, "Error thrown.")
-	require.Equal(0, ts.OpIndex(), "Opertions not updated correctly.")
-	require.Equal(keys, ts.scope, "Scope not updated correctly.")
+	require.Equal(0, ts.OpIndex(), "Operations not updated correctly")
+	require.Equal(keys, ts.scope, "Scope not updated correctly")
 	// Check values
 	for i, key := range keys[:len(keys)-1] {
 		val, err := ts.GetValue(ctx, key)
 		require.NoError(err, "Error getting value.")
-		require.Equal(vals[i], val, "Value not set correctly.")
+		require.Equal(vals[i], val, "Value not set correctly")
 	}
 	_, err = ts.GetValue(ctx, keys[2])
-	require.ErrorIs(err, database.ErrNotFound, "Didn't throw correct erro.")
+	require.ErrorIs(err, database.ErrNotFound, "Didn't throw correct error")
 }
 
 func TestSetScope(t *testing.T) {
@@ -164,7 +164,7 @@ func TestSetScope(t *testing.T) {
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	ts.SetScope(ctx, keys, map[string][]byte{})
-	require.Equal(keys, ts.scope, "Scope not updated correctly.")
+	require.Equal(keys, ts.scope, "Scope not updated correctly")
 }
 
 func TestRemoveInsertRollback(t *testing.T) {
@@ -174,29 +174,29 @@ func TestRemoveInsertRollback(t *testing.T) {
 	ts.SetScope(ctx, [][]byte{TestKey}, map[string][]byte{})
 	// Insert
 	err := ts.Insert(ctx, TestKey, TestVal)
-	require.NoError(err, "Error from insert.")
+	require.NoError(err, "Error from insert")
 	v, err := ts.GetValue(ctx, TestKey)
 	require.NoError(err)
 	require.Equal(TestVal, v)
-	require.Equal(1, ts.OpIndex(), "Opertions not updated correctly.")
+	require.Equal(1, ts.OpIndex(), "Operations not updated correctly")
 	// Remove
 	err = ts.Remove(ctx, TestKey)
 	require.NoError(err, "Error from remove.")
 	_, err = ts.GetValue(ctx, TestKey)
-	require.ErrorIs(err, database.ErrNotFound, "Key not deleted from storage.")
-	require.Equal(2, ts.OpIndex(), "Opertions not updated correctly.")
+	require.ErrorIs(err, database.ErrNotFound, "Key not deleted from storage")
+	require.Equal(2, ts.OpIndex(), "Operations not updated correctly")
 	// Insert
 	err = ts.Insert(ctx, TestKey, TestVal)
 	require.NoError(err, "Error from insert.")
 	v, err = ts.GetValue(ctx, TestKey)
 	require.NoError(err)
 	require.Equal(TestVal, v)
-	require.Equal(3, ts.OpIndex(), "Opertions not updated correctly.")
+	require.Equal(3, ts.OpIndex(), "Operations not updated correctly")
 	require.Equal(1, ts.PendingChanges())
 	// Rollback
 	ts.Rollback(ctx, 2)
 	_, err = ts.GetValue(ctx, TestKey)
-	require.ErrorIs(err, database.ErrNotFound, "Key not deleted from storage.")
+	require.ErrorIs(err, database.ErrNotFound, "Key not deleted from storage")
 	// Rollback
 	ts.Rollback(ctx, 1)
 	v, err = ts.GetValue(ctx, TestKey)
@@ -210,7 +210,7 @@ func TestRemoveNotInScope(t *testing.T) {
 	ctx := context.TODO()
 	// Remove
 	err := ts.Remove(ctx, TestKey)
-	require.ErrorIs(err, ErrKeyNotSpecified, "ErrKeyNotSpecified should be thrown.")
+	require.ErrorIs(err, ErrKeyNotSpecified, "ErrKeyNotSpecified should be thrown")
 }
 
 func TestRestoreInsert(t *testing.T) {
