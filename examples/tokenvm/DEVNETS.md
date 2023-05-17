@@ -77,6 +77,9 @@ Now we can spin up a new network of 6 nodes with some defaults:
 - `avalanche-ops` supports [EC2 Spot instances](https://aws.amazon.com/ec2/spot/) for cost savings. Use `--instance-mode=spot` to run instances in spot mode.
 - `avalanche-ops` supports multi-region deployments. Use `--auto-regions 3` to distribute node across 3 regions.
 
+TODO: add support for `keep-resources-except-asg-ssm` and
+`override-keep-resources-except-asg-ssm`
+
 ```bash
 /tmp/avalancheup-aws default-spec \
 --arch-type amd64 \
@@ -85,7 +88,7 @@ Now we can spin up a new network of 6 nodes with some defaults:
 --non-anchor-nodes 3 \
 --regions us-west-2 \
 --instance-mode=on-demand \
---instance-types=c5.4xlarge \
+--instance-types='{"us-west-2":["c5.4xlarge"]}' \
 --ip-mode=ephemeral \
 --metrics-fetch-interval-seconds 60 \
 --network-name custom \

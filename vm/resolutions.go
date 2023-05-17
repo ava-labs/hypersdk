@@ -107,7 +107,12 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessRootBlock) {
 	defer span.End()
 
 	vm.metrics.unitsVerified.Add(float64(b.UnitsConsumed))
-	vm.metrics.txsVerified.Add(float64(len(b.Txs)))
+	blkTxs := 0
+	for _, txBlk := range b.GetTxBlocks() {
+		blkTxs += len(txBlk.Txs)
+	}
+	vm.metrics.txsVerified.Add(float64(blkTxs))
+	vm.metrics.txBlocksVerified.Add(float64(len(b.Txs)))
 	vm.verifiedL.Lock()
 	vm.verifiedBlocks[b.ID()] = b
 	vm.verifiedL.Unlock()
@@ -234,7 +239,12 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessRootBlock) {
 	defer span.End()
 
 	vm.metrics.unitsAccepted.Add(float64(b.UnitsConsumed))
-	vm.metrics.txsAccepted.Add(float64(len(b.Txs)))
+	blkTxs := 0
+	for _, txBlk := range b.GetTxBlocks() {
+		blkTxs += len(txBlk.Txs)
+	}
+	vm.metrics.txsAccepted.Add(float64(blkTxs))
+	vm.metrics.txBlocksAccepted.Add(float64(len(b.Txs)))
 	vm.blocks.Put(b.ID(), b)
 	vm.verifiedL.Lock()
 	delete(vm.verifiedBlocks, b.ID())

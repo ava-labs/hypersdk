@@ -10,20 +10,22 @@ import (
 )
 
 type Metrics struct {
-	unitsVerified   prometheus.Counter
-	unitsAccepted   prometheus.Counter
-	txsSubmitted    prometheus.Counter // includes gossip
-	txsVerified     prometheus.Counter
-	txsAccepted     prometheus.Counter
-	stateChanges    prometheus.Counter
-	stateOperations prometheus.Counter
-	mempoolSize     prometheus.Gauge
-	acceptorDrift   prometheus.Gauge
-	rootCalculated  metric.Averager
-	commitState     metric.Averager
-	waitSignatures  metric.Averager
-	buildBlock      metric.Averager
-	verifyWait      metric.Averager
+	unitsVerified    prometheus.Counter
+	unitsAccepted    prometheus.Counter
+	txsSubmitted     prometheus.Counter // includes gossip
+	txsVerified      prometheus.Counter
+	txBlocksVerified prometheus.Counter
+	txsAccepted      prometheus.Counter
+	txBlocksAccepted prometheus.Counter
+	stateChanges     prometheus.Counter
+	stateOperations  prometheus.Counter
+	mempoolSize      prometheus.Gauge
+	acceptorDrift    prometheus.Gauge
+	rootCalculated   metric.Averager
+	commitState      metric.Averager
+	waitSignatures   metric.Averager
+	buildBlock       metric.Averager
+	verifyWait       metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -96,10 +98,20 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "txs_verified",
 			Help:      "number of txs verified by vm",
 		}),
+		txBlocksVerified: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "vm",
+			Name:      "tx_blocks_verified",
+			Help:      "number of tx blocks verified by vm",
+		}),
 		txsAccepted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
 			Name:      "txs_accepted",
 			Help:      "number of txs accepted by vm",
+		}),
+		txBlocksAccepted: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "vm",
+			Name:      "tx_blocks_accepted",
+			Help:      "number of tx blocks accepted by vm",
 		}),
 		stateChanges: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
@@ -133,7 +145,9 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.unitsAccepted),
 		r.Register(m.txsSubmitted),
 		r.Register(m.txsVerified),
+		r.Register(m.txBlocksVerified),
 		r.Register(m.txsAccepted),
+		r.Register(m.txBlocksAccepted),
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
 		r.Register(m.mempoolSize),

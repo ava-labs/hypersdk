@@ -133,11 +133,11 @@ var importANRChainCmd = &cobra.Command{
 }
 
 type AvalancheOpsConfig struct {
-	Resources struct {
+	Resource struct {
 		CreatedNodes []struct {
 			HTTPEndpoint string `yaml:"httpEndpoint"`
 		} `yaml:"created_nodes"`
-	} `yaml:"resources"`
+	} `yaml:"resource"`
 }
 
 var importAvalancheOpsChainCmd = &cobra.Command{
@@ -179,7 +179,7 @@ var importAvalancheOpsChainCmd = &cobra.Command{
 		}
 
 		// Add chains
-		for _, node := range opsConfig.Resources.CreatedNodes {
+		for _, node := range opsConfig.Resource.CreatedNodes {
 			uri := fmt.Sprintf("%s/ext/bc/%s", node.HTTPEndpoint, chainID)
 			if err := StoreChain(chainID, uri); err != nil {
 				return err
