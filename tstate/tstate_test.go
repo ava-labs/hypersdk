@@ -327,39 +327,42 @@ func TestWriteChanges(t *testing.T) {
 }
 
 func BenchmarkFetchAndSetScope(b *testing.B) {
+	keySize := 65
 	for _, size := range []int{4, 8, 16, 32, 64, 128} {
-		b.Run(fmt.Sprintf("fetch_and_set_scope_%d_keys", size), func(b *testing.B) {
-			benchmarkFetchAndSetScope(b, size)
+		b.Run(fmt.Sprintf("fetch_and_set_scope_%d_keys_with_length_%d", size, keySize), func(b *testing.B) {
+			benchmarkFetchAndSetScope(b, size, keySize)
 		})
 	}
 }
 
 func BenchmarkInsert(b *testing.B) {
-	for _, size := range []int{4, 8, 16, 32, 64, 128} {
-		b.Run(fmt.Sprintf("insert_%d_keys", size), func(b *testing.B) {
-			benchmarkInsert(b, size)
+	keySize := 65
+	for _, count := range []int{4, 8, 16, 32, 64, 128} {
+		b.Run(fmt.Sprintf("insert_%d_keys_with_length_%d", count, keySize), func(b *testing.B) {
+			benchmarkInsert(b, count, keySize)
 		})
 	}
 }
 
 func BenchmarkGetValue(b *testing.B) {
-	for _, size := range []int{4, 8, 16, 32, 64, 128} {
-		b.Run(fmt.Sprintf("get_%d_keys", size), func(b *testing.B) {
-			benchmarkGetValue(b, size)
+	keySize := 65
+	for _, count := range []int{4, 8, 16, 32, 64, 128} {
+		b.Run(fmt.Sprintf("get_%d_keys_with_length_%d", count, keySize), func(b *testing.B) {
+			benchmarkGetValue(b, count, keySize)
 		})
 	}
 }
 
-func benchmarkFetchAndSetScope(b *testing.B, size int) {
+func benchmarkFetchAndSetScope(b *testing.B, count, keySize int) {
 	require := require.New(b)
-	ts := New(size)
+	ts := New(count)
 	db := NewTestDB()
 	ctx := context.TODO()
 
-	keys, vals := initializeSet(require, size)
+	keys, vals := initializeSet(require, count, keySize)
 	for i, key := range keys {
 		err := db.Insert(ctx, key, vals[i])
-		require.NoError(err, "Error during insert.")
+		require.NoError(err, "Error during insert")
 	}
 
 	b.ResetTimer()
@@ -371,65 +374,58 @@ func benchmarkFetchAndSetScope(b *testing.B, size int) {
 	b.StopTimer()
 }
 
-func benchmarkInsert(b *testing.B, size int) {
+func benchmarkInsert(b *testing.B, count, keyLen int) {
 	require := require.New(b)
-	ts := New(size)
+	ts := New(count)
 	ctx := context.TODO()
 
-	keys, vals := initializeSet(require, size)
-
+	keys, vals := initializeSet(require, count, keyLen)
 	storage := map[string][]byte{}
 	for i, key := range keys {
 		storage[string(key)] = vals[i]
 	}
-
 	ts.SetScope(ctx, keys, storage)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for i, key := range keys {
 			err := ts.Insert(ctx, key, vals[i])
-			require.NoError(err, "Error during insert.")
+			require.NoError(err, "Error during insert")
 		}
 	}
 	b.ReportAllocs()
 	b.StopTimer()
 }
 
-func benchmarkGetValue(b *testing.B, size int) {
+func benchmarkGetValue(b *testing.B, count, keyLen int) {
 	require := require.New(b)
-	ts := New(size)
+	ts := New(count)
 	ctx := context.TODO()
 
-	keys, vals := initializeSet(require, size)
-
+	keys, vals := initializeSet(require, count, keyLen)
 	storage := map[string][]byte{}
 	for i, key := range keys {
 		storage[string(key)] = vals[i]
 	}
-
 	ts.SetScope(ctx, keys, storage)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, key := range keys {
 			_, err := ts.GetValue(ctx, key)
-			require.NoError(err, "Error during insert.")
+			require.NoError(err, "Error during get")
 		}
 	}
 	b.ReportAllocs()
 	b.StopTimer()
 }
 
-func initializeSet(r *require.Assertions, size int) ([][]byte, [][]byte) {
-	keys := [][]byte{}
-	vals := [][]byte{}
-
-	for i := 0; i <= size; i++ {
-		keys = append(keys, randomBytes(r, 65))
+func initializeSet(r *require.Assertions, count, keyLen int) ([][]byte, [][]byte) {
+	var keys, vals [][]byte
+	for i := 0; i <= count; i++ {
+		keys = append(keys, randomBytes(r, keyLen))
 		vals = append(vals, randomBytes(r, 8))
 	}
-
 	return keys, vals
 }
 
