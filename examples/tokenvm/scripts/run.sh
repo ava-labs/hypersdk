@@ -102,8 +102,8 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f /tmp/tokenvm.genesis
   /tmp/token-cli genesis generate /tmp/allocations.json \
-  --max-tx-blocks 16 \
-  --max-tx-block-units 500000 \
+  --max-tx-blocks 12 \
+  --max-tx-block-units 1800000 \
   --window-target-units 100000000000 \
   --window-target-blocks 30 \
   --genesis-file /tmp/tokenvm.genesis
@@ -132,7 +132,7 @@ cat <<EOF > /tmp/tokenvm.config
   "buildProposerDiff": 1,
   "verifyTimeout": 5,
   "trackedPairs":["*"],
-  "preferredBlocksPerSecond": 3,
+  "preferredBlocksPerSecond": 2,
   "continuousProfilerDir":"/tmp/tokenvm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}

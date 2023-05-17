@@ -251,7 +251,7 @@ func NewTxBlockManager(vm *VM) *TxBlockManager {
 		txBlocks:   NewTxBlockMap(vm),
 		nodeChunks: map[ids.NodeID]*NodeChunks{},
 		nodeSet:    set.NewSet[ids.NodeID](64),
-		update:     make(chan []byte),
+		update:     make(chan []byte, 32),
 		done:       make(chan struct{}),
 	}
 }

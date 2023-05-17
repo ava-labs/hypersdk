@@ -26,9 +26,10 @@ type txData struct {
 type Processor struct {
 	tracer trace.Tracer
 
-	blk      *StatelessTxBlock
-	readyTxs chan *txData
-	db       Database
+	blk         *StatelessTxBlock
+	readyTxs    chan *txData
+	db          Database
+	prefetchErr error
 }
 
 // Only prepare for population if above last accepted height
@@ -65,7 +66,11 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 					alreadyFetched[sk] = &fetchData{nil, false}
 					continue
 				} else if err != nil {
-					panic(err)
+					// This can happen if the underlying view changes (if we are
+					// verifying a block that can never be accepted).
+					p.prefetchErr = err
+					close(p.readyTxs)
+					return
 				}
 				alreadyFetched[sk] = &fetchData{v, true}
 				storage[sk] = v
@@ -129,6 +134,9 @@ func (p *Processor) Execute(
 			// Exit as soon as we hit our max
 			return 0, nil, 0, 0, ErrBlockTooBig
 		}
+	}
+	if p.prefetchErr != nil {
+		return 0, nil, 0, 0, p.prefetchErr
 	}
 	// Wait until end to write changes to avoid conflicting with pre-fetching
 	if err := ts.WriteChanges(ctx, p.db, p.tracer); err != nil {
