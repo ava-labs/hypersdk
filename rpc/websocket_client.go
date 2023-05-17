@@ -18,16 +18,17 @@ import (
 )
 
 type WebSocketClient struct {
-	conn *websocket.Conn
 	cl   sync.Once
+	conn *websocket.Conn
 
-	mb *pubsub.MessageBuffer
+	mb           *pubsub.MessageBuffer
+	writeStopped chan struct{}
+	readStopped  chan struct{}
 
 	pendingBlocks chan []byte
 	pendingTxs    chan []byte
 
-	done chan struct{}
-	err  error
+	err error
 }
 
 // NewWebSocketClient creates a new client for the decision rpc server.
@@ -56,16 +57,17 @@ func NewWebSocketClient(uri string, pending int) (*WebSocketClient, error) {
 	wc := &WebSocketClient{
 		conn:          conn,
 		mb:            pubsub.NewMessageBuffer(log, pending, pubsub.MaxReadMessageSize, pubsub.MaxMessageWait),
+		readStopped:   make(chan struct{}),
+		writeStopped:  make(chan struct{}),
 		pendingBlocks: make(chan []byte, pending),
 		pendingTxs:    make(chan []byte, pending),
-		done:          make(chan struct{}),
 	}
 	go func() {
+		defer close(wc.readStopped)
 		for {
 			_, msgBatch, err := conn.ReadMessage()
 			if err != nil {
 				wc.err = err
-				close(wc.done)
 				return
 			}
 			if len(msgBatch) == 0 {
@@ -92,13 +94,19 @@ func NewWebSocketClient(uri string, pending int) (*WebSocketClient, error) {
 		}
 	}()
 	go func() {
+		defer close(wc.writeStopped)
 		for {
 			select {
-			case msg := <-wc.mb.Queue:
+			case msg, ok := <-wc.mb.Queue:
+				if !ok {
+					return
+				}
 				if err := wc.conn.WriteMessage(websocket.BinaryMessage, msg); err != nil {
 					utils.Outf("{{orange}}unable to write message:{{/}} %v\n", err)
 				}
-			case <-wc.done:
+			case <-wc.readStopped:
+				// If we exit here, the connection must've failed ungracefully
+				// otherwise writeStopped will exit first.
 				_ = wc.mb.Close()
 				return
 			}
@@ -119,7 +127,7 @@ func (c *WebSocketClient) ListenBlock(
 	select {
 	case msg := <-c.pendingBlocks:
 		return UnpackBlockMessage(msg, parser)
-	case <-c.done:
+	case <-c.readStopped:
 		return nil, nil, nil, c.err
 	case <-ctx.Done():
 		return nil, nil, nil, ctx.Err()
@@ -136,7 +144,7 @@ func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.R
 	select {
 	case msg := <-c.pendingTxs:
 		return UnpackTxMessage(msg)
-	case <-c.done:
+	case <-c.readStopped:
 		return ids.Empty, nil, nil, c.err
 	case <-ctx.Done():
 		return ids.Empty, nil, nil, ctx.Err()
@@ -147,7 +155,11 @@ func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.R
 func (c *WebSocketClient) Close() error {
 	var err error
 	c.cl.Do(func() {
-		// TODO: need to flush messages before we terminate connection
+		// Flush all unwritten messages before we close the connection
+		_ = c.mb.Close()
+		<-c.writeStopped
+
+		// Close connection and stop reading
 		err = c.conn.Close()
 	})
 	return err

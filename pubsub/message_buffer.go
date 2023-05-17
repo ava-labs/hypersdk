@@ -63,13 +63,13 @@ func (m *MessageBuffer) Close() error {
 	}
 
 	// Flush anything left
+	//
+	// It is up to the caller to ensure all of these items actually are written
+	// to the connection before it is closed.
 	if err := m.clearPending(); err != nil {
 		m.log.Debug("unable to clear pending messages", zap.Error(err))
 		return err
 	}
-
-	// TODO: should ack sent otherwise connection may still be allowed to close
-	// before send has been processed
 
 	m.pendingTimer.Stop()
 	m.closed = true
