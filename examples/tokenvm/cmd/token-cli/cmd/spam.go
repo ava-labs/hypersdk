@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
@@ -145,7 +146,7 @@ var runSpamCmd = &cobra.Command{
 			assetString(ids.Empty),
 		)
 		accounts := make([]crypto.PrivateKey, numAccounts)
-		dcli, err := rpc.NewWebSocketClient(uris[0], 8_192)
+		dcli, err := rpc.NewWebSocketClient(uris[0], 8_192, pubsub.MaxReadMessageSize)
 		if err != nil {
 			return err
 		}
@@ -202,7 +203,7 @@ var runSpamCmd = &cobra.Command{
 		for i := 0; i < len(uris); i++ {
 			cli := rpc.NewJSONRPCClient(uris[i])
 			tcli := trpc.NewJSONRPCClient(uris[i], chainID)
-			dcli, err := rpc.NewWebSocketClient(uris[i], 128_000)
+			dcli, err := rpc.NewWebSocketClient(uris[i], 128_000, pubsub.MaxReadMessageSize)
 			if err != nil {
 				return err
 			}

@@ -5,7 +5,6 @@ package rpc
 
 import (
 	"context"
-	"os"
 	"strings"
 	"sync"
 
@@ -33,7 +32,7 @@ type WebSocketClient struct {
 
 // NewWebSocketClient creates a new client for the decision rpc server.
 // Dials into the server at [uri] and returns a client.
-func NewWebSocketClient(uri string, pending int) (*WebSocketClient, error) {
+func NewWebSocketClient(uri string, pending int, maxSize int) (*WebSocketClient, error) {
 	uri = strings.ReplaceAll(uri, "http://", "ws://")
 	uri = strings.ReplaceAll(uri, "https://", "wss://")
 	if !strings.HasPrefix(uri, "ws") { // fallback to default usage
@@ -46,17 +45,9 @@ func NewWebSocketClient(uri string, pending int) (*WebSocketClient, error) {
 		return nil, err
 	}
 	resp.Body.Close()
-	log := logging.NewLogger(
-		"networking",
-		logging.NewWrappedCore(
-			logging.Debug,
-			os.Stdout,
-			logging.Colors.ConsoleEncoder(),
-		),
-	)
 	wc := &WebSocketClient{
 		conn:          conn,
-		mb:            pubsub.NewMessageBuffer(log, pending, pubsub.MaxReadMessageSize, pubsub.MaxMessageWait),
+		mb:            pubsub.NewMessageBuffer(&logging.NoLog{}, pending, maxSize, pubsub.MaxMessageWait),
 		readStopped:   make(chan struct{}),
 		writeStopped:  make(chan struct{}),
 		pendingBlocks: make(chan []byte, pending),

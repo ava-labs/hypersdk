@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/math"
 	hconsts "github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
@@ -239,7 +240,7 @@ var watchChainCmd = &cobra.Command{
 		}
 		cli := trpc.NewJSONRPCClient(uris[0], chainID)
 		utils.Outf("{{yellow}}uri:{{/}} %s\n", uris[0])
-		scli, err := rpc.NewWebSocketClient(uris[0], 8_192)
+		scli, err := rpc.NewWebSocketClient(uris[0], 8_192, pubsub.MaxReadMessageSize)
 		if err != nil {
 			return err
 		}
