@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"os"
 	"strings"
 	"sync"
 
@@ -44,9 +45,17 @@ func NewWebSocketClient(uri string, pending int) (*WebSocketClient, error) {
 		return nil, err
 	}
 	resp.Body.Close()
+	log := logging.NewLogger(
+		"networking",
+		logging.NewWrappedCore(
+			logging.Debug,
+			os.Stdout,
+			logging.Colors.ConsoleEncoder(),
+		),
+	)
 	wc := &WebSocketClient{
 		conn:          conn,
-		mb:            pubsub.NewMessageBuffer(&logging.NoLog{}, pending, pubsub.MaxReadMessageSize, pubsub.MaxMessageWait),
+		mb:            pubsub.NewMessageBuffer(log, pending, pubsub.MaxReadMessageSize, pubsub.MaxMessageWait),
 		pendingBlocks: make(chan []byte, pending),
 		pendingTxs:    make(chan []byte, pending),
 		done:          make(chan struct{}),
@@ -90,7 +99,7 @@ func NewWebSocketClient(uri string, pending int) (*WebSocketClient, error) {
 					utils.Outf("{{orange}}unable to write message:{{/}} %v\n", err)
 				}
 			case <-wc.done:
-				wc.mb.Close()
+				_ = wc.mb.Close()
 				return
 			}
 		}

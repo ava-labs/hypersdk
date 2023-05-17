@@ -39,7 +39,7 @@ func (c *Connection) isActive() bool {
 // deactivate deactivates the connection.
 func (c *Connection) deactivate() {
 	c.active.Store(false)
-	c.mb.Close()
+	_ = c.mb.Close()
 }
 
 // Send sends [msg] to c's send channel and returns whether the message was sent.
@@ -47,7 +47,11 @@ func (c *Connection) Send(msg []byte) bool {
 	if !c.isActive() {
 		return false
 	}
-	return c.mb.Send(msg) == nil
+	if err := c.mb.Send(msg); err != nil {
+		c.s.log.Debug("unable to send message", zap.Error(err))
+		return false
+	}
+	return true
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -87,24 +91,25 @@ func (c *Connection) readPump() {
 			}
 			return
 		}
-		if c.s.callback != nil {
-			responseBytes, err := io.ReadAll(reader)
-			if err != nil {
-				c.s.log.Debug("unexpected error reading bytes from websockets",
-					zap.Error(err),
-				)
-				return
-			}
-			msgs, err := ParseBatchMessage(int(c.s.config.MaxReadMessageSize), responseBytes)
-			if err != nil {
-				c.s.log.Debug("unable to read websockets message",
-					zap.Error(err),
-				)
-				return
-			}
-			for _, msg := range msgs {
-				c.s.callback(msg, c)
-			}
+		if c.s.callback == nil {
+			continue
+		}
+		responseBytes, err := io.ReadAll(reader)
+		if err != nil {
+			c.s.log.Debug("unexpected error reading bytes from websockets",
+				zap.Error(err),
+			)
+			return
+		}
+		msgs, err := ParseBatchMessage(int(c.s.config.MaxReadMessageSize), responseBytes)
+		if err != nil {
+			c.s.log.Debug("unable to read websockets message",
+				zap.Error(err),
+			)
+			return
+		}
+		for _, msg := range msgs {
+			c.s.callback(msg, c)
 		}
 	}
 }

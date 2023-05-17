@@ -40,24 +40,38 @@ func NewMessageBuffer(log logging.Logger, pending int, maxSize int, timeout time
 			log.Debug("unable to clear pending messages", zap.Error(ErrClosed))
 			return
 		}
-		if len(m.pending) == 0 {
+		l := len(m.pending)
+		if l == 0 {
 			return
 		}
 		if err := m.clearPending(); err != nil {
 			log.Debug("unable to clear pending messages", zap.Error(err))
+		} else {
+			log.Debug("sent messages", zap.Int("count", l))
 		}
 	})
-	go m.pendingTimer.Dispatch()
+	go func() {
+		m.pendingTimer.Dispatch()
+		log.Debug("dispatch exited")
+	}()
 	return m
 }
 
-func (m *MessageBuffer) Close() {
+func (m *MessageBuffer) Close() error {
 	m.l.Lock()
 	defer m.l.Unlock()
 
-	m.pendingTimer.Stop()
+	// Flush anything left
+	// TODO: can close twice (need to protect)
+	if err := m.clearPending(); err != nil {
+		m.log.Debug("unable to clear pending messages", zap.Error(err))
+		return err
+	}
+
+	// m.pendingTimer.Stop()
 	m.closed = true
-	close(m.Queue)
+	// close(m.Queue)
+	return nil
 }
 
 func (m *MessageBuffer) clearPending() error {
@@ -124,6 +138,7 @@ func ParseBatchMessage(maxSize int, msg []byte) ([][]byte, error) {
 		if err := msgBatch.Err(); err != nil {
 			return nil, err
 		}
+		msgs = append(msgs, nextMsg)
 	}
 	return msgs, msgBatch.Err()
 }

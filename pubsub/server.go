@@ -101,6 +101,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		mb:     NewMessageBuffer(s.log, s.config.MaxPendingMessages, s.config.MaxWriteMessageSize, s.config.MaxMessageWait),
 		active: atomic.Bool{},
 	})
+	s.log.Debug("added ws connection", zap.Stringer("addr", wsConn.RemoteAddr()))
 }
 
 // Publish sends msg from [s] to [toConns].

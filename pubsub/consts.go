@@ -17,7 +17,7 @@ const (
 	PongWait            = 60 * time.Second
 	PingPeriod          = (PongWait * 9) / 10
 	MaxReadMessageSize  = consts.NetworkSizeLimit
-	MaxWriteMessageSize = 8 * units.MiB
+	MaxWriteMessageSize = 16 * units.MiB
 	MaxMessageWait      = 50 * time.Millisecond
 	MaxPendingMessages  = 1024
 )
