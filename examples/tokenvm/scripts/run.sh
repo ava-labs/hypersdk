@@ -132,7 +132,7 @@ cat <<EOF > /tmp/tokenvm.config
   "buildProposerDiff": 1,
   "verifyTimeout": 5,
   "trackedPairs":["*"],
-  "preferredBlocksPerSecond": 2,
+  "preferredBlocksPerSecond": 3,
   "continuousProfilerDir":"/tmp/tokenvm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}

@@ -245,9 +245,10 @@ EOF
 
 /tmp/token-cli genesis generate /tmp/avalanche-ops/allocations.json \
 --genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
---max-block-units 400000000 \
+--max-tx-blocks 12 \
+--max-tx-block-units 1800000 \
 --window-target-units 100000000000 \
---window-target-blocks 40
+--window-target-blocks 30
 cat /tmp/avalanche-ops/tokenvm-genesis.json
 
 cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
@@ -262,7 +263,7 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "verifyTimeout": 5,
   "trackedPairs":["*"],
   "logLevel": "info",
-  "preferredBlocksPerSecond": 4
+  "preferredBlocksPerSecond": 3
 }
 EOF
 cat /tmp/avalanche-ops/tokenvm-chain-config.json
