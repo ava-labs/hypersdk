@@ -9,26 +9,30 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/gorilla/websocket"
 )
 
 type WebSocketClient struct {
-	conn *websocket.Conn
-	wl   sync.Mutex
 	cl   sync.Once
+	conn *websocket.Conn
+
+	mb           *pubsub.MessageBuffer
+	writeStopped chan struct{}
+	readStopped  chan struct{}
 
 	pendingBlocks chan []byte
 	pendingTxs    chan []byte
 
-	done chan struct{}
-	err  error
+	err error
 }
 
 // NewWebSocketClient creates a new client for the decision rpc server.
 // Dials into the server at [uri] and returns a client.
-func NewWebSocketClient(uri string, pending int) (*WebSocketClient, error) {
+func NewWebSocketClient(uri string, pending int, maxSize int) (*WebSocketClient, error) {
 	uri = strings.ReplaceAll(uri, "http://", "ws://")
 	uri = strings.ReplaceAll(uri, "https://", "wss://")
 	if !strings.HasPrefix(uri, "ws") { // fallback to default usage
@@ -43,31 +47,59 @@ func NewWebSocketClient(uri string, pending int) (*WebSocketClient, error) {
 	resp.Body.Close()
 	wc := &WebSocketClient{
 		conn:          conn,
+		mb:            pubsub.NewMessageBuffer(&logging.NoLog{}, pending, maxSize, pubsub.MaxMessageWait),
+		readStopped:   make(chan struct{}),
+		writeStopped:  make(chan struct{}),
 		pendingBlocks: make(chan []byte, pending),
 		pendingTxs:    make(chan []byte, pending),
-		done:          make(chan struct{}),
 	}
 	go func() {
+		defer close(wc.readStopped)
 		for {
-			_, msg, err := conn.ReadMessage()
+			_, msgBatch, err := conn.ReadMessage()
 			if err != nil {
 				wc.err = err
-				close(wc.done)
 				return
 			}
-			if len(msg) == 0 {
+			if len(msgBatch) == 0 {
 				utils.Outf("{{orange}}got empty message{{/}}\n")
 				continue
 			}
-			tmsg := msg[1:]
-			switch msg[0] {
-			case BlockMode:
-				wc.pendingBlocks <- tmsg
-			case TxMode:
-				wc.pendingTxs <- tmsg
-			default:
-				utils.Outf("{{orange}}unexpected message mode:{{/}} %x\n", msg[0])
+			msgs, err := pubsub.ParseBatchMessage(pubsub.MaxWriteMessageSize, msgBatch)
+			if err != nil {
+				utils.Outf("{{orange}}received invalid message:{{/}} %v\n", err)
 				continue
+			}
+			for _, msg := range msgs {
+				tmsg := msg[1:]
+				switch msg[0] {
+				case BlockMode:
+					wc.pendingBlocks <- tmsg
+				case TxMode:
+					wc.pendingTxs <- tmsg
+				default:
+					utils.Outf("{{orange}}unexpected message mode:{{/}} %x\n", msg[0])
+					continue
+				}
+			}
+		}
+	}()
+	go func() {
+		defer close(wc.writeStopped)
+		for {
+			select {
+			case msg, ok := <-wc.mb.Queue:
+				if !ok {
+					return
+				}
+				if err := wc.conn.WriteMessage(websocket.BinaryMessage, msg); err != nil {
+					utils.Outf("{{orange}}unable to write message:{{/}} %v\n", err)
+				}
+			case <-wc.readStopped:
+				// If we exit here, the connection must've failed ungracefully
+				// otherwise writeStopped will exit first.
+				_ = wc.mb.Close()
+				return
 			}
 		}
 	}()
@@ -75,10 +107,7 @@ func NewWebSocketClient(uri string, pending int) (*WebSocketClient, error) {
 }
 
 func (c *WebSocketClient) RegisterBlocks() error {
-	c.wl.Lock()
-	defer c.wl.Unlock()
-
-	return c.conn.WriteMessage(websocket.BinaryMessage, []byte{BlockMode})
+	return c.mb.Send([]byte{BlockMode})
 }
 
 // Listen listens for block messages from the streaming server.
@@ -89,7 +118,7 @@ func (c *WebSocketClient) ListenBlock(
 	select {
 	case msg := <-c.pendingBlocks:
 		return UnpackBlockMessage(msg, parser)
-	case <-c.done:
+	case <-c.readStopped:
 		return nil, nil, nil, c.err
 	case <-ctx.Done():
 		return nil, nil, nil, ctx.Err()
@@ -98,11 +127,7 @@ func (c *WebSocketClient) ListenBlock(
 
 // IssueTx sends [tx] to the streaming rpc server.
 func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
-	c.wl.Lock()
-	defer c.wl.Unlock()
-
-	// TODO: add mode where we don't attempt to ack tx
-	return c.conn.WriteMessage(websocket.BinaryMessage, append([]byte{TxMode}, tx.Bytes()...))
+	return c.mb.Send(append([]byte{TxMode}, tx.Bytes()...))
 }
 
 // ListenForTx listens for responses from the streamingServer.
@@ -110,7 +135,7 @@ func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.R
 	select {
 	case msg := <-c.pendingTxs:
 		return UnpackTxMessage(msg)
-	case <-c.done:
+	case <-c.readStopped:
 		return ids.Empty, nil, nil, c.err
 	case <-ctx.Done():
 		return ids.Empty, nil, nil, ctx.Err()
@@ -121,6 +146,11 @@ func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.R
 func (c *WebSocketClient) Close() error {
 	var err error
 	c.cl.Do(func() {
+		// Flush all unwritten messages before we close the connection
+		_ = c.mb.Close()
+		<-c.writeStopped
+
+		// Close connection and stop reading
 		err = c.conn.Close()
 	})
 	return err
