@@ -217,6 +217,17 @@ func (c *TxBlockMap) Fetch(blkID ids.ID) bool {
 	return true
 }
 
+func (c *TxBlockMap) Tracking(blkID ids.ID) bool {
+	c.l.RLock()
+	defer c.l.RUnlock()
+
+	_, ok := c.items[blkID]
+	if ok {
+		return true
+	}
+	return c.outstanding.Contains(blkID)
+}
+
 func (c *TxBlockMap) AbandonFetch(blkID ids.ID) {
 	c.l.Lock()
 	defer c.l.Unlock()
@@ -333,7 +344,7 @@ func (c *TxBlockManager) RequireTxBlocks(ctx context.Context, minTxBlkHeight uin
 	missing := 0
 	for i, rblkID := range blkIDs {
 		blkID := rblkID
-		if c.txBlocks.Get(blkID) == nil {
+		if !c.txBlocks.Tracking(blkID) {
 			missing++
 		}
 		go c.RequestTxBlock(ctx, minTxBlkHeight+uint64(i), ids.EmptyNodeID, blkID, i == 0)
@@ -515,12 +526,13 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 		blkID := utils.ToID(b)
 
 		// Option 0: already have txBlock, drop
-		if txBlk := c.txBlocks.Get(blkID); txBlk != nil {
+		if !c.txBlocks.Fetch(blkID) {
 			return nil
 		}
 
 		// Don't yet have txBlock in cache, figure out what to do
 		if err := c.handleBlock(context.TODO(), b, nil, nodeID, true); err != nil {
+			c.txBlocks.AbandonFetch(blkID)
 			c.vm.Logger().Error("unable to handle txBlock", zap.Error(err))
 			return nil
 		}
