@@ -324,6 +324,7 @@ func BuildBlock(
 	b.StateRoot = root
 	b.UnitsConsumed = totalUnits
 	b.ContainsWarp = warpCount > 0
+	b.Issued = time.Now().UnixMilli()
 
 	// Compute block hash and marshaled representation
 	if err := b.initializeBuilt(ctx, txBlocks); err != nil {
