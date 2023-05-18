@@ -157,7 +157,7 @@ func ParseRootBlock(
 	}
 
 	// Ensure we are tracking the block chunks we just parsed
-	b.vm.RequireTxBlocks(ctx, b.MinTxHght, b.Txs)
+	b.vm.RecordTxBlocksMissing(b.vm.RequireTxBlocks(ctx, b.MinTxHght, b.Txs))
 	return b, nil
 }
 

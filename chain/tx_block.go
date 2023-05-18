@@ -287,8 +287,9 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 	defer span.End()
 
 	var (
-		log = b.vm.Logger()
-		r   = b.vm.Rules(b.Tmstmp)
+		log   = b.vm.Logger()
+		r     = b.vm.Rules(b.Tmstmp)
+		start = time.Now()
 	)
 
 	// Perform basic correctness checks before doing any expensive work
@@ -336,14 +337,12 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 		// Can occur if verifying genesis
 		oldestAllowed = 0
 	}
-	if parent != nil {
-		dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs)
-		if err != nil {
-			return err
-		}
-		if dup {
-			return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
-		}
+	dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs)
+	if err != nil {
+		return err
+	}
+	if dup {
+		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
 	}
 
 	// Start validating warp messages, if they exist
@@ -433,6 +432,7 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 	if err := base.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return err
 	}
+	b.vm.RecordTxBlockVerify(time.Since(start)) // we purposely avoid root calc (which would make this spikey)
 
 	// Compute state root if last
 	//

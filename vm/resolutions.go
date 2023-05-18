@@ -392,8 +392,16 @@ func (vm *VM) RecordVerifyWait(t time.Duration) {
 	vm.metrics.verifyWait.Observe(float64(t))
 }
 
+func (vm *VM) RecordTxBlockVerify(t time.Duration) {
+	vm.metrics.txBlockVerify.Observe(float64(t))
+}
+
 func (vm *VM) RecordStateChanges(c int) {
 	vm.metrics.stateChanges.Add(float64(c))
+}
+
+func (vm *VM) RecordTxBlocksMissing(c int) {
+	vm.metrics.txBlocksMissing.Add(float64(c))
 }
 
 func (vm *VM) RecordStateOperations(c int) {
@@ -404,8 +412,8 @@ func (vm *VM) IssueTxBlock(ctx context.Context, blk *chain.StatelessTxBlock) {
 	vm.txBlockManager.IssueTxBlock(ctx, blk)
 }
 
-func (vm *VM) RequireTxBlocks(ctx context.Context, minHght uint64, blks []ids.ID) {
-	vm.txBlockManager.RequireTxBlocks(ctx, minHght, blks)
+func (vm *VM) RequireTxBlocks(ctx context.Context, minHght uint64, blks []ids.ID) int {
+	return vm.txBlockManager.RequireTxBlocks(ctx, minHght, blks)
 }
 
 func (vm *VM) GetStatelessTxBlock(ctx context.Context, blkID ids.ID) (*chain.StatelessTxBlock, error) {

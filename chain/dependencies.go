@@ -55,7 +55,7 @@ type VM interface {
 	IsRepeat(context.Context, []*Transaction) bool
 
 	IssueTxBlock(context.Context, *StatelessTxBlock)
-	RequireTxBlocks(context.Context, uint64, []ids.ID)
+	RequireTxBlocks(context.Context, uint64, []ids.ID) int
 	GetStatelessTxBlock(context.Context, ids.ID) (*StatelessTxBlock, error)
 
 	LastAcceptedBlock() *StatelessRootBlock
@@ -73,9 +73,11 @@ type VM interface {
 	RecordRootCalculated(time.Duration) // only called in Verify
 	RecordCommitState(time.Duration)
 	RecordWaitSignatures(time.Duration) // only called in Verify
+	RecordTxBlockVerify(time.Duration)
 	RecordVerifyWait(time.Duration)
 	RecordStateChanges(int)
 	RecordStateOperations(int)
+	RecordTxBlocksMissing(int)
 }
 
 type Mempool interface {

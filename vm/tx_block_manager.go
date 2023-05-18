@@ -329,11 +329,16 @@ func (c *TxBlockManager) Accept(height uint64) {
 // TODO: change context?
 // Each time we attempt to verify a block, we will kickoff fetch if we don't
 // already have, eventually verifying
-func (c *TxBlockManager) RequireTxBlocks(ctx context.Context, minTxBlkHeight uint64, blkIDs []ids.ID) {
+func (c *TxBlockManager) RequireTxBlocks(ctx context.Context, minTxBlkHeight uint64, blkIDs []ids.ID) int {
+	missing := 0
 	for i, rblkID := range blkIDs {
 		blkID := rblkID
+		if c.txBlocks.Get(blkID) == nil {
+			missing++
+		}
 		go c.RequestTxBlock(ctx, minTxBlkHeight+uint64(i), ids.EmptyNodeID, blkID, i == 0)
 	}
+	return missing
 }
 
 // RequestChunk may spawn a goroutine

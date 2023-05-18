@@ -19,6 +19,7 @@ type Metrics struct {
 	txBlocksAccepted prometheus.Counter
 	stateChanges     prometheus.Counter
 	stateOperations  prometheus.Counter
+	txBlocksMissing  prometheus.Counter
 	mempoolSize      prometheus.Gauge
 	acceptorDrift    prometheus.Gauge
 	rootCalculated   metric.Averager
@@ -26,6 +27,7 @@ type Metrics struct {
 	waitSignatures   metric.Averager
 	buildBlock       metric.Averager
 	verifyWait       metric.Averager
+	txBlockVerify    metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -71,6 +73,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"verify_wait",
 		"time spent waiting for txBlocks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	txBlockVerify, err := metric.NewAverager(
+		"chain",
+		"tx_block_verify",
+		"time spent verifying a tx block",
 		r,
 	)
 	if err != nil {
@@ -123,6 +134,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "state_operations",
 			Help:      "number of state operations",
 		}),
+		txBlocksMissing: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "tx_blocks_missing",
+			Help:      "number of tx blocks missing when root block is parsed",
+		}),
 		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "mempool_size",
@@ -138,6 +154,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		waitSignatures: waitSignatures,
 		buildBlock:     buildBlock,
 		verifyWait:     verifyWait,
+		txBlockVerify:  txBlockVerify,
 	}
 	errs := wrappers.Errs{}
 	errs.Add(
@@ -150,6 +167,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txBlocksAccepted),
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
+		r.Register(m.txBlocksMissing),
 		r.Register(m.mempoolSize),
 		r.Register(m.acceptorDrift),
 	)
