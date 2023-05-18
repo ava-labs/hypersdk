@@ -222,7 +222,8 @@ func PrefixTxBlockIDKey(txBlkID ids.ID) []byte {
 
 func (vm *VM) StoreTxBlock(txBlk *chain.StatelessTxBlock) error {
 	txBlockLRU.Put(txBlk.ID(), txBlk)
-	return vm.vmDB.Put(PrefixTxBlockIDKey(txBlk.ID()), txBlk.Bytes())
+	return nil
+	// return vm.vmDB.Put(PrefixTxBlockIDKey(txBlk.ID()), txBlk.Bytes())
 }
 
 func (vm *VM) GetTxBlock(txBlkID ids.ID) (*chain.StatelessTxBlock, error) {
