@@ -169,13 +169,13 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 			}
 
 			// Verify tx
-			sigVerify := tx.AuthAsyncVerify()
-			if err := sigVerify(); err != nil {
-				log.Error("failed to verify sig",
-					zap.Error(err),
-				)
-				return
-			}
+			// sigVerify := tx.AuthAsyncVerify()
+			// if err := sigVerify(); err != nil {
+			// 	log.Error("failed to verify sig",
+			// 		zap.Error(err),
+			// 	)
+			// 	return
+			// }
 			w.AddTxListener(tx, c)
 
 			// Submit will remove from [txWaiters] if it is not added

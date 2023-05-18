@@ -764,19 +764,19 @@ func (vm *VM) Submit(
 	for _, tx := range txs {
 		txID := tx.ID()
 		// We already verify in streamer, let's avoid re-verification
-		if verifySig {
-			sigVerify := tx.AuthAsyncVerify()
-			if err := sigVerify(); err != nil {
-				// Failed signature verification is the only safe place to remove
-				// a transaction in listeners. Every other case may still end up with
-				// the transaction in a block.
-				if err := vm.webSocketServer.RemoveTx(txID, err); err != nil {
-					vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
-				}
-				errs = append(errs, err)
-				continue
-			}
-		}
+		// if verifySig {
+		// 	sigVerify := tx.AuthAsyncVerify()
+		// 	if err := sigVerify(); err != nil {
+		// 		// Failed signature verification is the only safe place to remove
+		// 		// a transaction in listeners. Every other case may still end up with
+		// 		// the transaction in a block.
+		// 		if err := vm.webSocketServer.RemoveTx(txID, err); err != nil {
+		// 			vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
+		// 		}
+		// 		errs = append(errs, err)
+		// 		continue
+		// 	}
+		// }
 		// Avoid any state lookup if we already have tx in mempool
 		if vm.mempool.Has(ctx, txID) {
 			// Don't remove from listeners, it will be removed elsewhere if not

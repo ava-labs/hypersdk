@@ -23,7 +23,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
-	"github.com/ava-labs/hypersdk/workers"
 )
 
 type TxBlock struct {
@@ -66,7 +65,7 @@ type StatelessTxBlock struct {
 	vm    VM
 	state merkledb.TrieView
 
-	sigJob *workers.Job
+	// sigJob *workers.Job
 }
 
 func NewGenesisTxBlock(minUnitPrice uint64) *TxBlock {
@@ -108,18 +107,18 @@ func (b *StatelessTxBlock) populateTxs(ctx context.Context) error {
 	defer span.End()
 
 	// Setup signature verification job
-	job, err := b.vm.Workers().NewJob(len(b.Txs))
-	if err != nil {
-		return err
-	}
-	b.sigJob = job
+	// job, err := b.vm.Workers().NewJob(len(b.Txs))
+	// if err != nil {
+	// 	return err
+	// }
+	// b.sigJob = job
 
 	// Process transactions
-	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
+	// _, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	b.warpMessages = map[ids.ID]*warpJob{}
 	for _, tx := range b.Txs {
-		b.sigJob.Go(tx.AuthAsyncVerify())
+		// b.sigJob.Go(tx.AuthAsyncVerify())
 		if b.txsSet.Contains(tx.ID()) {
 			return ErrDuplicateTx
 		}
@@ -153,7 +152,7 @@ func (b *StatelessTxBlock) populateTxs(ctx context.Context) error {
 	if len(b.warpMessages) > 0 && !b.ContainsWarp {
 		return ErrWarpResultMismatch
 	}
-	b.sigJob.Done(func() { sspan.End() })
+	// b.sigJob.Done(func() { sspan.End() })
 	return nil
 }
 
