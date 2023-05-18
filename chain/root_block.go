@@ -319,7 +319,7 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 		if blk.ContainsWarp {
 			containsWarp = true
 		}
-		if blk.state == nil {
+		if (blk.Last && blk.state == nil) || (!blk.Last && blk.processor == nil) {
 			return errors.New("tx block state not ready")
 		}
 		unitsConsumed += blk.UnitsConsumed

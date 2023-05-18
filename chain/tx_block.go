@@ -21,6 +21,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
 )
@@ -62,8 +63,9 @@ type StatelessTxBlock struct {
 
 	results []*Result
 
-	vm    VM
-	state merkledb.TrieView
+	vm        VM
+	state     merkledb.TrieView
+	processor *Processor
 
 	// sigJob *workers.Job
 }
@@ -277,7 +279,7 @@ func (b *StatelessTxBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *
 	return true
 }
 
-func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) error {
+func (b *StatelessTxBlock) Verify(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessTxBlock.Verify",
 		oteltrace.WithAttributes(
@@ -394,11 +396,19 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 	}
 
 	// Optimisticaly fetch state
-	processor := NewProcessor(b.vm.Tracer(), b)
-	processor.Prefetch(ctx, base)
+	if parent.Last {
+		state, err := parent.ChildState(ctx, 30_000)
+		if err != nil {
+			return err
+		}
+		b.processor = NewProcessor(b.vm.Tracer(), state, tstate.New(30_000))
+	} else {
+		b.processor = parent.processor
+	}
+	b.processor.Prefetch(ctx, b)
 
 	// Process new transactions
-	unitsConsumed, results, stateChanges, stateOps, err := processor.Execute(ctx, ectx, r)
+	unitsConsumed, results, stateChanges, stateOps, err := b.processor.Execute(ctx, ectx, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return err
@@ -431,26 +441,32 @@ func (b *StatelessTxBlock) Verify(ctx context.Context, base merkledb.TrieView) e
 		return ErrWarpResultMismatch
 	}
 
-	// Store height in state to prevent duplicate roots
-	if err := base.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return err
-	}
-	b.vm.RecordTxBlockVerify(time.Since(start)) // we purposely avoid root calc (which would make this spikey)
+	// We purposely avoid root calc (which would make this spikey)
+	b.vm.RecordTxBlockVerify(time.Since(start))
 
 	// Compute state root if last
 	//
 	// TODO: better protect against malicious usage of this (may need to be
 	// invoked by caller block)
 	if b.Last {
+		// Commit to base
+		if err := b.processor.Commit(ctx); err != nil {
+			return err
+		}
+		// Store height in state to prevent duplicate roots
+		base := b.processor.db
+		if err := base.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+			return err
+		}
 		start := time.Now()
 		if _, err := base.GetMerkleRoot(ctx); err != nil {
 			return err
 		}
 		b.vm.RecordRootCalculated(time.Since(start))
+		b.state = base
 	}
 
 	// We wait for signatures in root block.
-	b.state = base
 	b.results = results
 	return nil
 }

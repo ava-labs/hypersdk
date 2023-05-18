@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/tstate"
 )
@@ -25,27 +26,29 @@ type txData struct {
 
 type Processor struct {
 	tracer trace.Tracer
+	db     merkledb.TrieView
+	ts     *tstate.TState
 
 	blk         *StatelessTxBlock
 	readyTxs    chan *txData
-	db          Database
 	prefetchErr error
 }
 
 // Only prepare for population if above last accepted height
-func NewProcessor(tracer trace.Tracer, b *StatelessTxBlock) *Processor {
+func NewProcessor(tracer trace.Tracer, db merkledb.TrieView, ts *tstate.TState) *Processor {
 	return &Processor{
 		tracer: tracer,
-
-		blk:      b,
-		readyTxs: make(chan *txData, len(b.GetTxs())),
+		db:     db,
+		ts:     ts,
 	}
 }
 
-func (p *Processor) Prefetch(ctx context.Context, db Database) {
+func (p *Processor) Prefetch(ctx context.Context, b *StatelessTxBlock) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Prefetch")
-	p.db = db
+	p.blk = b
 	sm := p.blk.vm.StateManager()
+	p.readyTxs = make(chan *txData, len(p.blk.GetTxs())) // clear from last run
+	p.prefetchErr = nil
 	go func() {
 		defer span.End()
 
@@ -61,7 +64,7 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 					}
 					continue
 				}
-				v, err := db.GetValue(ctx, k)
+				v, err := p.db.GetValue(ctx, k)
 				if errors.Is(err, database.ErrNotFound) {
 					alreadyFetched[sk] = &fetchData{nil, false}
 					continue
@@ -93,20 +96,21 @@ func (p *Processor) Execute(
 
 	var (
 		unitsConsumed = uint64(0)
-		ts            = tstate.New(len(p.blk.Txs) * 2) // TODO: tune this heuristic
 		t             = p.blk.GetTimestamp()
 		results       = []*Result{}
 		sm            = p.blk.vm.StateManager()
+		pending       = p.ts.PendingChanges()
+		opIndex       = p.ts.OpIndex()
 	)
 	for txData := range p.readyTxs {
 		tx := txData.tx
 
 		// It is critical we explicitly set the scope before each transaction is
 		// processed
-		ts.SetScope(ctx, tx.StateKeys(sm), txData.storage)
+		p.ts.SetScope(ctx, tx.StateKeys(sm), txData.storage)
 
 		// Execute tx
-		if err := tx.PreExecute(ctx, ectx, r, ts, t); err != nil {
+		if err := tx.PreExecute(ctx, ectx, r, p.ts, t); err != nil {
 			return 0, nil, 0, 0, err
 		}
 		// Wait to execute transaction until we have the warp result processed.
@@ -122,7 +126,7 @@ func (p *Processor) Execute(
 				return 0, nil, 0, 0, ctx.Err()
 			}
 		}
-		result, err := tx.Execute(ctx, ectx, r, sm, ts, t, ok && warpVerified)
+		result, err := tx.Execute(ctx, ectx, r, sm, p.ts, t, ok && warpVerified)
 		if err != nil {
 			return 0, nil, 0, 0, err
 		}
@@ -135,12 +139,10 @@ func (p *Processor) Execute(
 			return 0, nil, 0, 0, ErrBlockTooBig
 		}
 	}
-	if p.prefetchErr != nil {
-		return 0, nil, 0, 0, p.prefetchErr
-	}
-	// Wait until end to write changes to avoid conflicting with pre-fetching
-	if err := ts.WriteChanges(ctx, p.db, p.tracer); err != nil {
-		return 0, nil, 0, 0, err
-	}
-	return unitsConsumed, results, ts.PendingChanges(), ts.OpIndex(), nil
+	return unitsConsumed, results, p.ts.PendingChanges() - pending, p.ts.OpIndex() - opIndex, p.prefetchErr
+}
+
+// Wait until end to write changes to avoid conflicting with pre-fetching
+func (p *Processor) Commit(ctx context.Context) error {
+	return p.ts.WriteChanges(ctx, p.db, p.tracer)
 }

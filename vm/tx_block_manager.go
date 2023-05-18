@@ -605,26 +605,18 @@ func (c *TxBlockManager) Verify(blkID ids.ID) error {
 		return errors.New("tx block already verified")
 	}
 	parent := c.txBlocks.Get(blk.blk.Prnt)
-	var prntBlk *chain.StatelessTxBlock
 	if parent != nil {
 		if !parent.verified.Load() {
 			return errors.New("parent tx block not verified")
 		}
-		prntBlk = parent.blk
 	} else {
-		// TODO: change name to getTxBlk
-		prnt, err := c.vm.GetTxBlock(blk.blk.Prnt)
+		// Ensure on-disk if not in-memory
+		_, err := c.vm.GetTxBlock(blk.blk.Prnt)
 		if err != nil {
 			return err
 		}
-		prntBlk = prnt
 	}
-	state, err := prntBlk.ChildState(context.Background(), len(blk.blk.Txs)*2)
-	if err != nil {
-		c.vm.Logger().Error("unable to create child state", zap.Error(err))
-		return err
-	}
-	if err := blk.blk.Verify(context.Background(), state); err != nil {
+	if err := blk.blk.Verify(context.Background()); err != nil {
 		c.vm.Logger().Error("blk.blk.Verify failed", zap.Error(err))
 		return err
 	}

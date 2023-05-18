@@ -164,13 +164,13 @@ func BuildBlock(
 			//
 			// TODO: handle case where tx is larger than max size of TxBlock
 			if txBlock.UnitsConsumed+nextUnits > r.GetMaxTxBlockUnits() {
-				if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
-					return false, true, false, err
-				}
-				if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
-					return false, true, false, err
-				}
 				if len(txBlocks)+1 /* account for current */ >= r.GetMaxTxBlocks() {
+					if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
+						return false, true, false, err
+					}
+					if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
+						return false, true, false, err
+					}
 					txBlock.Last = true
 				}
 				txBlock.Issued = time.Now().UnixMilli()
@@ -184,12 +184,6 @@ func BuildBlock(
 					txBlock = nil
 					return false, true, false, nil
 				}
-
-				state, err = txBlock.ChildState(ctx, changesEstimate)
-				if err != nil {
-					return false, true, false, err
-				}
-				ts = tstate.New(changesEstimate)
 				parentTxBlock = txBlock
 				tectx, err = GenerateTxExecutionContext(ctx, vm.ChainID(), nextTime, parentTxBlock, vm.Tracer(), r)
 				if err != nil {
@@ -297,13 +291,13 @@ func BuildBlock(
 	// TODO: unify this logic with inner block tracker
 	if txBlock != nil && len(txBlock.Txs) > 0 {
 		txBlock.Last = true
-		txBlock.Issued = time.Now().UnixMilli()
 		if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
 			return nil, err
 		}
 		if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
 			return nil, err
 		}
+		txBlock.Issued = time.Now().UnixMilli()
 		if err := txBlock.initializeBuilt(ctx, state, results); err != nil {
 			return nil, err
 		}
