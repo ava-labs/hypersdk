@@ -10,24 +10,26 @@ import (
 )
 
 type Metrics struct {
-	unitsVerified    prometheus.Counter
-	unitsAccepted    prometheus.Counter
-	txsSubmitted     prometheus.Counter // includes gossip
-	txsVerified      prometheus.Counter
-	txBlocksVerified prometheus.Counter
-	txsAccepted      prometheus.Counter
-	txBlocksAccepted prometheus.Counter
-	stateChanges     prometheus.Counter
-	stateOperations  prometheus.Counter
-	txBlocksMissing  prometheus.Counter
-	mempoolSize      prometheus.Gauge
-	acceptorDrift    prometheus.Gauge
-	rootCalculated   metric.Averager
-	commitState      metric.Averager
-	waitSignatures   metric.Averager
-	buildBlock       metric.Averager
-	verifyWait       metric.Averager
-	txBlockVerify    metric.Averager
+	unitsVerified         prometheus.Counter
+	unitsAccepted         prometheus.Counter
+	txsSubmitted          prometheus.Counter // includes gossip
+	txsVerified           prometheus.Counter
+	txBlocksVerified      prometheus.Counter
+	txsAccepted           prometheus.Counter
+	txBlocksAccepted      prometheus.Counter
+	stateChanges          prometheus.Counter
+	stateOperations       prometheus.Counter
+	txBlocksMissing       prometheus.Counter
+	mempoolSize           prometheus.Gauge
+	acceptorDrift         prometheus.Gauge
+	rootCalculated        metric.Averager
+	commitState           metric.Averager
+	waitSignatures        metric.Averager
+	buildBlock            metric.Averager
+	verifyWait            metric.Averager
+	txBlockVerify         metric.Averager
+	txBlockIssuanceDiff   metric.Averager
+	rootBlockIssuanceDiff metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -82,6 +84,24 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"tx_block_verify",
 		"time spent verifying a tx block",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	txBlockIssuanceDiff, err := metric.NewAverager(
+		"chain",
+		"tx_block_issuance_diff",
+		"delay for tx block to be received after issuance",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	rootBlockIssuanceDiff, err := metric.NewAverager(
+		"chain",
+		"root_block_issuance_diff",
+		"delay for root block to be received after issuance",
 		r,
 	)
 	if err != nil {
@@ -149,12 +169,14 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "acceptor_drift",
 			Help:      "number of blocks behind tip",
 		}),
-		rootCalculated: rootCalculated,
-		commitState:    commitState,
-		waitSignatures: waitSignatures,
-		buildBlock:     buildBlock,
-		verifyWait:     verifyWait,
-		txBlockVerify:  txBlockVerify,
+		rootCalculated:        rootCalculated,
+		commitState:           commitState,
+		waitSignatures:        waitSignatures,
+		buildBlock:            buildBlock,
+		verifyWait:            verifyWait,
+		txBlockVerify:         txBlockVerify,
+		txBlockIssuanceDiff:   txBlockIssuanceDiff,
+		rootBlockIssuanceDiff: rootBlockIssuanceDiff,
 	}
 	errs := wrappers.Errs{}
 	errs.Add(

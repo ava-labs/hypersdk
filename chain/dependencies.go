@@ -75,6 +75,8 @@ type VM interface {
 	RecordWaitSignatures(time.Duration) // only called in Verify
 	RecordTxBlockVerify(time.Duration)
 	RecordVerifyWait(time.Duration)
+	RecordTxBlockIssuanceDiff(time.Duration)
+	RecordRootBlockIssuanceDiff(time.Duration)
 	RecordStateChanges(int)
 	RecordStateOperations(int)
 	RecordTxBlocksMissing(int)

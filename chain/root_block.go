@@ -44,6 +44,8 @@ type RootBlock struct {
 	// TODO: migrate state root to be that of parent
 	StateRoot     ids.ID `json:"stateRoot"`
 	UnitsConsumed uint64 `json:"unitsConsumed"`
+
+	Issued int64 `json:"issued"`
 }
 
 // Stateless is defined separately from "Block"
@@ -157,6 +159,7 @@ func ParseRootBlock(
 	}
 
 	// Ensure we are tracking the block chunks we just parsed
+	b.vm.RecordRootBlockIssuanceDiff(time.Since(time.UnixMilli(b.Issued)))
 	b.vm.RecordTxBlocksMissing(b.vm.RequireTxBlocks(ctx, b.MinTxHght, b.Txs))
 	return b, nil
 }
@@ -553,6 +556,7 @@ func (b *RootBlock) Marshal() ([]byte, error) {
 
 	p.PackID(b.StateRoot)
 	p.PackUint64(b.UnitsConsumed)
+	p.PackInt64(b.Issued)
 
 	return p.Bytes(), p.Err()
 }
@@ -588,6 +592,7 @@ func UnmarshalRootBlock(raw []byte, parser Parser) (*RootBlock, error) {
 
 	p.UnpackID(false, &b.StateRoot)
 	b.UnitsConsumed = p.UnpackUint64(false) // could be 0 in genesis
+	b.Issued = p.UnpackInt64(false)
 
 	if !p.Empty() {
 		// Ensure no leftover bytes

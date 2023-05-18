@@ -42,6 +42,9 @@ type TxBlock struct {
 	WarpResults   set.Bits64     `json:"warpResults"`
 	UnitsConsumed uint64         `json:"unitsConsumed"`
 	Last          bool           `json:"last"`
+
+	// TEMP
+	Issued int64 `json:"issued"`
 }
 
 // Stateless is defined separately from "Block"
@@ -201,6 +204,7 @@ func ParseTxBlock(
 	}
 
 	// Populate hashes and tx set
+	b.vm.RecordTxBlockIssuanceDiff(time.Since(time.UnixMilli(b.Issued)))
 	return b, b.populateTxs(ctx)
 }
 
@@ -578,6 +582,7 @@ func (b *TxBlock) Marshal(
 	p.PackUint64(uint64(b.WarpResults))
 	p.PackUint64(b.UnitsConsumed)
 	p.PackBool(b.Last)
+	p.PackInt64(b.Issued)
 
 	return p.Bytes(), p.Err()
 }
@@ -616,6 +621,7 @@ func UnmarshalTxBlock(raw []byte, parser Parser) (*TxBlock, error) {
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
 	b.UnitsConsumed = p.UnpackUint64(false)
 	b.Last = p.UnpackBool()
+	b.Issued = p.UnpackInt64(false)
 
 	if !p.Empty() {
 		// Ensure no leftover bytes

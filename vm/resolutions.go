@@ -396,6 +396,14 @@ func (vm *VM) RecordTxBlockVerify(t time.Duration) {
 	vm.metrics.txBlockVerify.Observe(float64(t))
 }
 
+func (vm *VM) RecordTxBlockIssuanceDiff(t time.Duration) {
+	vm.metrics.txBlockIssuanceDiff.Observe(float64(t))
+}
+
+func (vm *VM) RecordRootBlockIssuanceDiff(t time.Duration) {
+	vm.metrics.rootBlockIssuanceDiff.Observe(float64(t))
+}
+
 func (vm *VM) RecordStateChanges(c int) {
 	vm.metrics.stateChanges.Add(float64(c))
 }

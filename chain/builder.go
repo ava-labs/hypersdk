@@ -52,6 +52,8 @@ func BuildBlock(
 	defer span.End()
 	log := vm.Logger()
 
+	// TODO: migrate to milli
+	// nextTime := time.Now().UnixMilli()
 	nextTime := time.Now().Unix()
 	r := vm.Rules(nextTime)
 	parent, err := vm.GetStatelessRootBlock(ctx, preferred)
@@ -294,6 +296,7 @@ func BuildBlock(
 	// TODO: unify this logic with inner block tracker
 	if txBlock != nil && len(txBlock.Txs) > 0 {
 		txBlock.Last = true
+		txBlock.Issued = time.Now().UnixMilli()
 		if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
 			return nil, err
 		}
