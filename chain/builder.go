@@ -173,6 +173,7 @@ func BuildBlock(
 				if len(txBlocks)+1 /* account for current */ >= r.GetMaxTxBlocks() {
 					txBlock.Last = true
 				}
+				txBlock.Issued = time.Now().UnixMilli()
 				if err := txBlock.initializeBuilt(ctx, state, results); err != nil {
 					return false, true, false, err
 				}
