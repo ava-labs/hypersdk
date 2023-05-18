@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -93,7 +94,15 @@ func BuildBlock(
 
 		start    = time.Now()
 		lockWait time.Duration
+
+		pool = &sync.Pool{
+			New: func() interface{} {
+				b := make([][]byte, 0, 512) // WIP tune
+				return &b
+			},
+		}
 	)
+
 	mempoolErr := mempool.Build(
 		ctx,
 		func(fctx context.Context, next *Transaction) (cont bool, restore bool, removeAcct bool, err error) {
@@ -157,7 +166,12 @@ func BuildBlock(
 			// TODO: prefetch state of upcoming txs that we will pull (should make much
 			// faster)
 			txStart := ts.OpIndex()
-			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), state); err != nil {
+
+			keys := pool.Get().(*[][]byte)
+			*keys = (*keys)[:0]
+			defer pool.Put(keys)
+
+			if err := ts.FetchAndSetScope(ctx, next.StateKeysBuffer(sm, *keys), state); err != nil {
 				return false, true, false, err
 			}
 

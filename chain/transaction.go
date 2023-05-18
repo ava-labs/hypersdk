@@ -142,6 +142,22 @@ func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
 	return keys
 }
 
+func (t *Transaction) StateKeysBuffer(stateMapping StateManager, buf [][]byte) [][]byte {
+	if len(t.stateKeys) != 0 {
+		buf = append(buf, t.stateKeys...)
+		return buf
+	}
+
+	buf = append(buf, t.Action.StateKeys(t.Auth, t.ID())...)
+	buf = append(buf, t.Auth.StateKeys()...)
+	if t.WarpMessage != nil {
+		buf = append(buf, stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
+	}
+	// Always assume a message could export a warp message
+	buf = append(buf, stateMapping.OutgoingWarpKey(t.id))
+	return buf
+}
+
 // Units is charged whether or not a transaction is successful because state
 // lookup is not free.
 func (t *Transaction) MaxUnits(r Rules) (txFee uint64, err error) {
