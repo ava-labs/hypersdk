@@ -483,7 +483,6 @@ func (b *StatelessTxBlock) Accept(ctx context.Context) error {
 func (b *StatelessTxBlock) Reject(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessTxBlock.Reject")
 	defer span.End()
-
 	return nil
 }
 

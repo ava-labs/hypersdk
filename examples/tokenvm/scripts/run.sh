@@ -103,7 +103,7 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   rm -f /tmp/tokenvm.genesis
   /tmp/token-cli genesis generate /tmp/allocations.json \
   --max-tx-blocks 12 \
-  --max-tx-block-units 256000 \
+  --max-tx-block-units 1800000 \
   --window-target-units 100000000000 \
   --window-target-blocks 30 \
   --genesis-file /tmp/tokenvm.genesis
