@@ -106,26 +106,36 @@ func (c *Controller) Initialize(
 	}
 	// TODO: tune Pebble config based on each sub-db focus
 	cfg := pebble.NewDefaultConfig()
-	blockDB, err := pebble.New(blockPath, cfg)
+	blockDB, blockDBRegistry, err := pebble.New(blockPath, cfg)
 	if err != nil {
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+	}
+	if err := gatherer.Register("blockdb", blockDBRegistry); err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	statePath, err := utils.InitSubDirectory(snowCtx.ChainDataDir, "state")
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
-	stateDB, err := pebble.New(statePath, cfg)
+	stateDB, stateDBRegistry, err := pebble.New(statePath, cfg)
 	if err != nil {
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+	}
+	if err := gatherer.Register("statedb", stateDBRegistry); err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	metaPath, err := utils.InitSubDirectory(snowCtx.ChainDataDir, "metadata")
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
-	c.metaDB, err = pebble.New(metaPath, cfg)
+	metaDB, metaDBRegistry, err := pebble.New(metaPath, cfg)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
+	if err := gatherer.Register("metadb", metaDBRegistry); err != nil {
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+	}
+	c.metaDB = metaDB
 
 	// Create handlers
 	//
