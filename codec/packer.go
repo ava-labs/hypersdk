@@ -14,6 +14,8 @@ import (
 	"github.com/ava-labs/hypersdk/window"
 )
 
+var initialSliceCap = 128
+
 // Packer is a wrapper struct for the Packer struct
 // from avalanchego/utils/wrappers/packing.go. It adds methods to
 // pack/unpack ids, PublicKeys and Signatures. A bool [required] parameter is
@@ -33,8 +35,21 @@ func NewReader(src []byte, limit int) *Packer {
 
 // NewWriter returns a Packer instance with its MaxSize set to [limit].
 func NewWriter(limit int) *Packer {
+	return newPacker(limit, initialSliceCap)
+}
+
+// NewWriterWithCapacity returns a Packer instance with its MaxSize set to [limit]
+// and the initial capacity of Bytes as [startCap].
+func NewWriterWithCapacity(limit, startCap int) *Packer {
+	return newPacker(limit, startCap)
+}
+
+func newPacker(maxSize, startCap int) *Packer {
 	return &Packer{
-		p: &wrappers.Packer{MaxSize: limit},
+		p: &wrappers.Packer{
+			MaxSize: maxSize,
+			Bytes:   make([]byte, 0, startCap),
+		},
 	}
 }
 
