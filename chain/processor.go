@@ -53,22 +53,21 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 		for _, tx := range p.blk.GetTxs() {
 			storage := map[string][]byte{}
 			for _, k := range tx.StateKeys(sm) {
-				sk := string(k)
-				if v, ok := alreadyFetched[sk]; ok {
+				if v, ok := alreadyFetched[string(k)]; ok {
 					if v.exists {
-						storage[sk] = v.v
+						storage[string(k)] = v.v
 					}
 					continue
 				}
 				v, err := db.GetValue(ctx, k)
 				if errors.Is(err, database.ErrNotFound) {
-					alreadyFetched[sk] = &fetchData{nil, false}
+					alreadyFetched[string(k)] = &fetchData{nil, false}
 					continue
 				} else if err != nil {
 					panic(err)
 				}
-				alreadyFetched[sk] = &fetchData{v, true}
-				storage[sk] = v
+				alreadyFetched[string(k)] = &fetchData{v, true}
+				storage[string(k)] = v
 			}
 			p.readyTxs <- &txData{tx, storage}
 		}
