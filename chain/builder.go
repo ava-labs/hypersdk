@@ -97,8 +97,7 @@ func BuildBlock(
 
 		pool = &sync.Pool{
 			New: func() interface{} {
-				b := make([][]byte, 0, 512) // WIP tune
-				return &b
+				return make([][]byte, 0, 512) // WIP tune
 			},
 		}
 	)
@@ -167,11 +166,12 @@ func BuildBlock(
 			// faster)
 			txStart := ts.OpIndex()
 
-			keys := pool.Get().(*[][]byte)
-			*keys = (*keys)[:0]
+			keys := pool.Get().([][]byte)
+			keys = (keys)[:0]
+			//nolint:staticcheck // Ignore SA6002 
 			defer pool.Put(keys)
 
-			if err := ts.FetchAndSetScope(ctx, next.StateKeysBuffer(sm, *keys), state); err != nil {
+			if err := ts.FetchAndSetScope(ctx, next.StateKeysBuffer(sm, keys), state); err != nil {
 				return false, true, false, err
 			}
 
