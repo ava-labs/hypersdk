@@ -144,18 +144,18 @@ func newMetrics() (*prometheus.Registry, *metrics, error) {
 		getLatency: getLatency,
 		l0Compactions: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "pebble",
-			Name:      "export_asset",
-			Help:      "number of export asset actions",
+			Name:      "l0_compactions",
+			Help:      "number of l0 compactions",
 		}),
 		otherCompactions: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "pebble",
-			Name:      "export_asset",
-			Help:      "number of export asset actions",
+			Name:      "other_compactions",
+			Help:      "number of l1+ compactions",
 		}),
 		activeCompactions: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "pebble",
-			Name:      "mempool_size",
-			Help:      "number of transactions in the mempool",
+			Name:      "active_compactions",
+			Help:      "number of active compactions",
 		}),
 	}
 	errs := wrappers.Errs{}

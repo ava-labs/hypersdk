@@ -65,7 +65,7 @@ func init() {
 	rootCmd.PersistentPreRunE = func(*cobra.Command, []string) error {
 		utils.Outf("{{yellow}}database:{{/}} %s\n", dbPath)
 		var err error
-		db, err = pebble.New(dbPath, pebble.NewDefaultConfig())
+		db, _, err = pebble.New(dbPath, pebble.NewDefaultConfig())
 		return err
 	}
 	rootCmd.PersistentPostRunE = func(*cobra.Command, []string) error {
