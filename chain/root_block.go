@@ -387,15 +387,17 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 	}
 
 	// Ensure signatures are verified
-	// _, sspan := b.vm.Tracer().Start(ctx, "StatelessRootBlock.Verify.WaitSignatures")
-	// defer sspan.End()
-	// start := time.Now()
-	// for _, job := range txBlocks {
-	// 	if err := job.sigJob.Wait(); err != nil {
-	// 		return err
-	// 	}
-	// }
-	// b.vm.RecordWaitSignatures(time.Since(start))
+	if b.vm.GetVerifySignatures() {
+		_, sspan := b.vm.Tracer().Start(ctx, "StatelessRootBlock.Verify.WaitSignatures")
+		defer sspan.End()
+		start := time.Now()
+		for _, job := range txBlocks {
+			if err := job.sigJob.Wait(); err != nil {
+				return err
+			}
+		}
+		b.vm.RecordWaitSignatures(time.Since(start))
+	}
 	b.txBlocks = txBlocks // only set once we know verification has passed
 	return nil
 }

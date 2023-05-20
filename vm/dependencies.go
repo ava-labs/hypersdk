@@ -28,7 +28,6 @@ type Config interface {
 	GetMempoolSize() int
 	GetMempoolPayerSize() int
 	GetMempoolExemptPayers() [][]byte
-	GetMempoolVerifyBalances() bool
 	GetStreamingBacklogSize() int
 	GetStateHistoryLength() int // how many roots back of data to keep to serve state queries
 	GetStateCacheSize() int     // how many items to keep in value cache and node cache
@@ -39,6 +38,7 @@ type Config interface {
 	GetBlockLRUSize() int
 	GetContinuousProfilerConfig() *profiler.Config
 	GetRootBlockPruneDiff() uint64
+	GetVerifySignatures() bool
 }
 
 type Genesis interface {

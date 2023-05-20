@@ -459,3 +459,7 @@ func (vm *VM) GetStatelessTxBlock(ctx context.Context, blkID ids.ID, hght uint64
 	}
 	return vm.GetTxBlock(hght)
 }
+
+func (vm *VM) GetVerifySignatures() bool {
+	return vm.config.GetVerifySignatures()
+}

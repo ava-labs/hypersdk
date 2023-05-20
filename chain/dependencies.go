@@ -41,6 +41,7 @@ type VM interface {
 	Tracer() trace.Tracer
 	Logger() logging.Logger
 	Mempool() Mempool
+	GetVerifySignatures() bool
 
 	// UpdateSyncTarget returns a bool that is true if the root
 	// was updated and the sync is continuing with the new specified root
