@@ -207,7 +207,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				"snow-mixed-query-num-push-vdr":"10",
 				"consensus-on-accept-gossip-validator-size":"10",
 				"consensus-on-accept-gossip-peer-size":"10",
-				"network-compression-type":"zstd",
+				"network-compression-type":"none",
 				"consensus-app-concurrency":"512"
 			}`),
 	)
