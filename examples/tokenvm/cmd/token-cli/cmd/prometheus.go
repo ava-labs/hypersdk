@@ -142,6 +142,15 @@ var generatePrometheusCmd = &cobra.Command{
 		panels = append(panels, "avalanche_resource_tracker_cpu_usage")
 		utils.Outf("{{yellow}}CPU usage:{{/}} %s\n", panels[len(panels)-1])
 
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_blockdb_pebble_l0_compactions[30s]) + increase(avalanche_%s_vm_blockdb_pebble_other_compactions[30s])", chainID, chainID))
+		utils.Outf("{{yellow}}blockdb compactions:{{/}} %s\n", panels[len(panels)-1])
+
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_statedb_pebble_l0_compactions[30s]) + increase(avalanche_%s_vm_statedb_pebble_other_compactions[30s])", chainID, chainID))
+		utils.Outf("{{yellow}}statedb compactions:{{/}} %s\n", panels[len(panels)-1])
+
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_metadb_pebble_l0_compactions[30s]) + increase(avalanche_%s_vm_metadb_pebble_other_compactions[30s])", chainID, chainID))
+		utils.Outf("{{yellow}}metadb compactions:{{/}} %s\n", panels[len(panels)-1])
+
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_handler_chits_sum[30s])/1000000/30 + increase(avalanche_%s_handler_notify_sum[30s])/1000000/30 + increase(avalanche_%s_handler_get_sum[30s])/1000000/30 + increase(avalanche_%s_handler_push_query_sum[30s])/1000000/30 + increase(avalanche_%s_handler_put_sum[30s])/1000000/30 + increase(avalanche_%s_handler_pull_query_sum[30s])/1000000/30 + increase(avalanche_%s_handler_query_failed_sum[30s])/1000000/30", chainID, chainID, chainID, chainID, chainID, chainID, chainID))
 		utils.Outf("{{yellow}}consensus engine processing (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
