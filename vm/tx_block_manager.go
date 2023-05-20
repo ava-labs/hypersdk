@@ -471,6 +471,7 @@ func (c *TxBlockManager) HandleRequest(
 	}
 
 	// Check accepted
+	// TODO: include both blkID + height in request
 	txBlk, err := c.vm.GetTxBlock(txBlkID)
 	if err != nil {
 		c.vm.snowCtx.Log.Warn("unable to find txBlock", zap.Stringer("txBlkID", txBlkID), zap.Error(err))

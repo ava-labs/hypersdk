@@ -20,6 +20,7 @@ type Metrics struct {
 	stateChanges          prometheus.Counter
 	stateOperations       prometheus.Counter
 	txBlocksMissing       prometheus.Counter
+	deletedTxBlocks       prometheus.Counter
 	mempoolSize           prometheus.Gauge
 	acceptorDrift         prometheus.Gauge
 	rootCalculated        metric.Averager
@@ -159,6 +160,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "tx_blocks_missing",
 			Help:      "number of tx blocks missing when root block is parsed",
 		}),
+		deletedTxBlocks: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "deleted_tx_blocks",
+			Help:      "number of tx blocks deleted",
+		}),
 		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "mempool_size",
@@ -190,6 +196,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
 		r.Register(m.txBlocksMissing),
+		r.Register(m.deletedTxBlocks),
 		r.Register(m.mempoolSize),
 		r.Register(m.acceptorDrift),
 	)

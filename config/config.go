@@ -45,3 +45,5 @@ func (c *Config) GetBlockLRUSize() int                   { return 128 }
 func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	return &profiler.Config{Enabled: false}
 }
+
+func (c *Config) GetRootBlockPruneDiff() uint64 { return 1024 }

@@ -158,12 +158,37 @@ func (vm *VM) processAcceptedBlocks() {
 	// closed.
 	for b := range vm.acceptedQueue {
 		// Update TxBlock store
+		batch := vm.vmDB.NewBatch()
 		for _, txBlock := range b.GetTxBlocks() {
-			if err := vm.StoreTxBlock(txBlock); err != nil {
+			if err := vm.StoreTxBlock(batch, txBlock); err != nil {
 				vm.snowCtx.Log.Fatal("unable to store tx block", zap.Error(err))
 			}
 		}
+		if b.Hght > vm.config.GetRootBlockPruneDiff() { // > ensures we don't prune genesis
+			prunableHeight := b.Hght - vm.config.GetRootBlockPruneDiff()
+			bid, err := vm.GetDiskBlockIDAtHeight(prunableHeight)
+			if err == nil {
+				rootBlock, err := vm.GetDiskBlock(bid)
+				if err == nil {
+					for i := 0; i < len(rootBlock.Txs); i++ {
+						if err := vm.DeleteTxBlock(batch, rootBlock.MinTxHght+uint64(i)); err != nil {
+							vm.snowCtx.Log.Fatal("unable to delete tx block", zap.Error(err))
+						}
+						vm.metrics.deletedTxBlocks.Inc()
+					}
+				} else {
+					vm.snowCtx.Log.Debug("not deleting tx blocks at height", zap.Error(err))
+				}
+			} else {
+				vm.snowCtx.Log.Debug("not deleting tx blocks at height", zap.Error(err))
+			}
+		}
+		if err := batch.Write(); err != nil {
+			vm.snowCtx.Log.Fatal("unable to commit tx block batch", zap.Error(err))
+		}
 		vm.txBlockManager.Accept(b.MaxTxHght())
+
+		// TODO: remove old txBlocks from disk (delta off of root block)
 
 		// We skip blocks that were not processed because metadata required to
 		// process blocks opaquely (like looking at results) is not populated.

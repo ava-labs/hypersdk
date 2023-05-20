@@ -130,6 +130,9 @@ var generatePrometheusCmd = &cobra.Command{
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_tx_blocks_missing[30s])", chainID))
 		utils.Outf("{{yellow}}missing tx blocks:{{/}} %s\n", panels[len(panels)-1])
 
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_deleted_tx_blocks[30s])", chainID))
+		utils.Outf("{{yellow}}deleted tx blocks:{{/}} %s\n", panels[len(panels)-1])
+
 		panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hyper_sdk_chain_mempool_size", chainID))
 		utils.Outf("{{yellow}}mempool size:{{/}} %s\n", panels[len(panels)-1])
 

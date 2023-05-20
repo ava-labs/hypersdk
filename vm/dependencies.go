@@ -38,6 +38,7 @@ type Config interface {
 	GetStateSyncServerDelay() time.Duration
 	GetBlockLRUSize() int
 	GetContinuousProfilerConfig() *profiler.Config
+	GetRootBlockPruneDiff() uint64
 }
 
 type Genesis interface {

@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
+	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 )
@@ -32,9 +33,17 @@ var (
 	lastAccepted = []byte("last_accepted")
 	isSyncing    = []byte("is_syncing")
 
-	signatureLRU = &cache.LRU[string, *chain.WarpSignature]{Size: 1024}
-	txBlockLRU   = &cache.LRU[ids.ID, *chain.StatelessTxBlock]{Size: 128}
+	signatureCache = &cache.LRU[string, *chain.WarpSignature]{Size: 1024}
+	txBlockCache   *hcache.FIFO[uint64, *chain.StatelessTxBlock]
 )
+
+func init() {
+	cache, err := hcache.NewFIFO[uint64, *chain.StatelessTxBlock](128)
+	if err != nil {
+		panic(err)
+	}
+	txBlockCache = cache
+}
 
 func PrefixBlockIDKey(id ids.ID) []byte {
 	k := make([]byte, 1+consts.IDLen)
@@ -146,14 +155,14 @@ func (vm *VM) StoreWarpSignature(txID ids.ID, signer *bls.PublicKey, signature [
 	k := PrefixWarpSignatureKey(txID, signer)
 	// Cache any signature we produce for later queries from peers
 	if bytes.Equal(vm.pkBytes, bls.PublicKeyToBytes(signer)) {
-		signatureLRU.Put(string(k), chain.NewWarpSignature(vm.pkBytes, signature))
+		signatureCache.Put(string(k), chain.NewWarpSignature(vm.pkBytes, signature))
 	}
 	return vm.vmDB.Put(k, signature)
 }
 
 func (vm *VM) GetWarpSignature(txID ids.ID, signer *bls.PublicKey) (*chain.WarpSignature, error) {
 	k := PrefixWarpSignatureKey(txID, signer)
-	if ws, ok := signatureLRU.Get(string(k)); ok {
+	if ws, ok := signatureCache.Get(string(k)); ok {
 		return ws, nil
 	}
 	v, err := vm.vmDB.Get(k)
@@ -213,24 +222,23 @@ func (vm *VM) GetWarpFetch(txID ids.ID) (int64, error) {
 	return int64(binary.BigEndian.Uint64(v)), nil
 }
 
-func PrefixTxBlockIDKey(txBlkID ids.ID) []byte {
-	k := make([]byte, 1+consts.IDLen)
+func PrefixTxBlockIDKey(h uint64) []byte {
+	k := make([]byte, 1+consts.Uint64Len)
 	k[0] = txBlockPrefix
-	copy(k[1:], txBlkID[:])
+	binary.BigEndian.PutUint64(k[1:], h)
 	return k
 }
 
-func (vm *VM) StoreTxBlock(txBlk *chain.StatelessTxBlock) error {
-	txBlockLRU.Put(txBlk.ID(), txBlk)
-	return nil
-	// return vm.vmDB.Put(PrefixTxBlockIDKey(txBlk.ID()), txBlk.Bytes())
+func (vm *VM) StoreTxBlock(batch database.Batch, txBlk *chain.StatelessTxBlock) error {
+	txBlockCache.Put(txBlk.Hght, txBlk)
+	return batch.Put(PrefixTxBlockIDKey(txBlk.Hght), txBlk.Bytes())
 }
 
-func (vm *VM) GetTxBlock(txBlkID ids.ID) (*chain.StatelessTxBlock, error) {
-	if chunk, ok := txBlockLRU.Get(txBlkID); ok {
+func (vm *VM) GetTxBlock(h uint64) (*chain.StatelessTxBlock, error) {
+	if chunk, ok := txBlockCache.Get(h); ok {
 		return chunk, nil
 	}
-	v, err := vm.vmDB.Get(PrefixTxBlockIDKey(txBlkID))
+	v, err := vm.vmDB.Get(PrefixTxBlockIDKey(h))
 	if err != nil {
 		return nil, err
 	}
@@ -240,4 +248,8 @@ func (vm *VM) GetTxBlock(txBlkID ids.ID) (*chain.StatelessTxBlock, error) {
 	}
 	// Should never populate txs
 	return chain.ParseTxBlock(context.TODO(), ublk, v, vm)
+}
+
+func (vm *VM) DeleteTxBlock(batch database.Batch, height uint64) error {
+	return batch.Delete(PrefixTxBlockIDKey(height))
 }
