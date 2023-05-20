@@ -292,8 +292,13 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("unable to init genesis block", zap.Error(err))
 			return err
 		}
-		if err := vm.StoreTxBlock(genesisTxBlk); err != nil {
+		batch := vm.vmDB.NewBatch()
+		if err := vm.StoreTxBlock(batch, genesisTxBlk); err != nil {
 			snowCtx.Log.Error("could not store genesis tx blk", zap.Error(err))
+			return err
+		}
+		if err := batch.Write(); err != nil {
+			snowCtx.Log.Error("could not commit genesis tx blk", zap.Error(err))
 			return err
 		}
 		genesisBlk, err := chain.ParseRootBlock(
