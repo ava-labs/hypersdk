@@ -197,16 +197,18 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessRootBlock
 		results := txBlk.Results()
 		for i, tx := range txBlk.Txs {
 			result := results[i]
-			err := storage.StoreTransaction(
-				ctx,
-				batch,
-				tx.ID(),
-				blk.GetTimestamp(),
-				result.Success,
-				result.Units,
-			)
-			if err != nil {
-				return err
+			if c.config.GetStoreTransactions() {
+				err := storage.StoreTransaction(
+					ctx,
+					batch,
+					tx.ID(),
+					blk.GetTimestamp(),
+					result.Success,
+					result.Units,
+				)
+				if err != nil {
+					return err
+				}
 			}
 			if result.Success {
 				switch action := tx.Action.(type) {

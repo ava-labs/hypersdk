@@ -73,10 +73,11 @@ type Config struct {
 	TrackedPairs []string `json:"trackedPairs"` // which asset ID pairs we care about
 
 	// Misc
-	TestMode         bool          `json:"testMode"` // makes gossip/building manual
-	LogLevel         logging.Level `json:"logLevel"`
-	Parallelism      int           `json:"parallelism"`
-	VerifySignatures bool          `json:"verifySignatures"`
+	TestMode          bool          `json:"testMode"` // makes gossip/building manual
+	LogLevel          logging.Level `json:"logLevel"`
+	Parallelism       int           `json:"parallelism"`
+	VerifySignatures  bool          `json:"verifySignatures"`
+	StoreTransactions bool          `json:"storeTransactions"`
 
 	// State Sync
 	StateSyncServerDelay time.Duration `json:"stateSyncServerDelay"` // for testing
@@ -156,4 +157,5 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 		MaxNumFiles: defaultContinuousProfilerMaxFiles,
 	}
 }
-func (c *Config) GetVerifySignatures() bool { return c.VerifySignatures }
+func (c *Config) GetVerifySignatures() bool  { return c.VerifySignatures }
+func (c *Config) GetStoreTransactions() bool { return c.StoreTransactions }

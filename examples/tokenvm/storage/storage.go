@@ -80,17 +80,16 @@ func StoreTransaction(
 	success bool,
 	units uint64,
 ) error {
-	return nil
-	// k := PrefixTxKey(id)
-	// v := make([]byte, consts.Uint64Len+1+consts.Uint64Len)
-	// binary.BigEndian.PutUint64(v, uint64(t))
-	// if success {
-	// 	v[consts.Uint64Len] = successByte
-	// } else {
-	// 	v[consts.Uint64Len] = failureByte
-	// }
-	// binary.BigEndian.PutUint64(v[consts.Uint64Len+1:], units)
-	// return db.Put(k, v)
+	k := PrefixTxKey(id)
+	v := make([]byte, consts.Uint64Len+1+consts.Uint64Len)
+	binary.BigEndian.PutUint64(v, uint64(t))
+	if success {
+		v[consts.Uint64Len] = successByte
+	} else {
+		v[consts.Uint64Len] = failureByte
+	}
+	binary.BigEndian.PutUint64(v[consts.Uint64Len+1:], units)
+	return db.Put(k, v)
 }
 
 func GetTransaction(
