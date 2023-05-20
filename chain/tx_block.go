@@ -308,7 +308,11 @@ func (b *StatelessTxBlock) Verify(ctx context.Context) error {
 	}
 
 	// Verify parent is verified and available
-	parent, err := b.vm.GetStatelessTxBlock(ctx, b.Prnt)
+	var prntHght uint64
+	if b.Hght > 0 {
+		prntHght = b.Hght - 1
+	}
+	parent, err := b.vm.GetStatelessTxBlock(ctx, b.Prnt, prntHght)
 	if err != nil {
 		log.Warn("could not get parent", zap.Stringer("id", b.Prnt))
 		return err
@@ -523,7 +527,12 @@ func (b *StatelessTxBlock) IsRepeat(
 			return true, nil
 		}
 	}
-	prnt, err := b.vm.GetStatelessTxBlock(ctx, b.Prnt)
+	var prntHght uint64
+	if b.Hght > 0 {
+		// TODO: consider making a helper
+		prntHght = b.Hght - 1
+	}
+	prnt, err := b.vm.GetStatelessTxBlock(ctx, b.Prnt, prntHght)
 	if err != nil {
 		return false, err
 	}

@@ -63,7 +63,8 @@ func BuildBlock(
 	}
 	var parentTxBlock *StatelessTxBlock
 	if len(parent.Txs) > 0 { // if first block, will not have any tx blocks
-		parentTxBlock, err = vm.GetStatelessTxBlock(ctx, parent.Txs[len(parent.Txs)-1])
+		idx := len(parent.Txs) - 1
+		parentTxBlock, err = vm.GetStatelessTxBlock(ctx, parent.Txs[idx], parent.MinTxHght+uint64(idx))
 		if err != nil {
 			log.Warn("block building failed: couldn't get parent tx block", zap.Error(err))
 			return nil, err

@@ -56,7 +56,7 @@ type VM interface {
 
 	IssueTxBlock(context.Context, *StatelessTxBlock)
 	RequireTxBlocks(context.Context, uint64, []ids.ID) int
-	GetStatelessTxBlock(context.Context, ids.ID) (*StatelessTxBlock, error)
+	GetStatelessTxBlock(context.Context, ids.ID, uint64) (*StatelessTxBlock, error)
 
 	LastAcceptedBlock() *StatelessRootBlock
 	GetStatelessRootBlock(context.Context, ids.ID) (*StatelessRootBlock, error)

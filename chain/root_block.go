@@ -297,7 +297,7 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 	var containsWarp bool
 	var unitsConsumed uint64
 	for i, blkID := range b.Txs {
-		blk, err := b.vm.GetStatelessTxBlock(ctx, blkID)
+		blk, err := b.vm.GetStatelessTxBlock(ctx, blkID, b.MinTxHght+uint64(i))
 		if err != nil {
 			return err
 		}

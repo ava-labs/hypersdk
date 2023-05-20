@@ -23,7 +23,7 @@ import (
 const (
 	maxChunkRetries = 20
 	retrySleep      = 50 * time.Millisecond
-	gossipFrequency = 5000 * time.Millisecond
+	gossipFrequency = 100 * time.Millisecond
 )
 
 type NodeChunks struct {
@@ -129,7 +129,12 @@ func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock, verified bool) (bool, 
 			return true, false
 		}
 	} else {
-		if _, err := c.vm.GetTxBlock(txBlock.Prnt); err != nil {
+		var prntHght uint64
+		if txBlock.Hght > 0 {
+			// TODO: consider making a helper
+			prntHght = txBlock.Hght - 1
+		}
+		if _, err := c.vm.GetTxBlock(prntHght); err != nil {
 			c.vm.Logger().Warn("not verifying because tx block parent not found", zap.Stringer("parent", txBlock.Prnt), zap.Error(err))
 			return true, false
 		}
@@ -399,7 +404,7 @@ func (c *TxBlockManager) RequestTxBlock(ctx context.Context, height uint64, hint
 		}
 
 		// Handle received message
-		msg, err := c.requestTxBlockNodeID(ctx, peer, blkID)
+		msg, err := c.requestTxBlockNodeID(ctx, peer, height, blkID)
 		if err != nil {
 			time.Sleep(retrySleep)
 			continue
@@ -413,8 +418,7 @@ func (c *TxBlockManager) RequestTxBlock(ctx context.Context, height uint64, hint
 	c.txBlocks.AbandonFetch(blkID)
 }
 
-func (c *TxBlockManager) requestTxBlockNodeID(ctx context.Context, recipient ids.NodeID, blkID ids.ID) ([]byte, error) {
-
+func (c *TxBlockManager) requestTxBlockNodeID(ctx context.Context, recipient ids.NodeID, height uint64, blkID ids.ID) ([]byte, error) {
 	// Send request
 	rch := make(chan []byte)
 	c.requestLock.Lock()
@@ -422,11 +426,18 @@ func (c *TxBlockManager) requestTxBlockNodeID(ctx context.Context, recipient ids
 	c.requestID++
 	c.requests[requestID] = rch
 	c.requestLock.Unlock()
+	req := codec.NewWriter(consts.Uint64Len + consts.IDLen)
+	req.PackUint64(height)
+	req.PackID(blkID)
+	if err := req.Err(); err != nil {
+		c.vm.snowCtx.Log.Warn("chunk fetch request failed", zap.Stringer("blkID", blkID), zap.Error(err))
+		return nil, err
+	}
 	if err := c.appSender.SendAppRequest(
 		ctx,
 		set.Set[ids.NodeID]{recipient: struct{}{}},
 		requestID,
-		blkID[:],
+		req.Bytes(),
 	); err != nil {
 		c.vm.snowCtx.Log.Warn("chunk fetch request failed", zap.Stringer("blkID", blkID), zap.Error(err))
 		return nil, err
@@ -459,8 +470,11 @@ func (c *TxBlockManager) HandleRequest(
 	requestID uint32,
 	request []byte,
 ) error {
-	txBlkID, err := ids.ToID(request)
-	if err != nil {
+	p := codec.NewReader(request, consts.Uint64Len+consts.IDLen)
+	txBlkHght := p.UnpackUint64(true)
+	var txBlkID ids.ID
+	p.UnpackID(true, &txBlkID)
+	if err := p.Err(); err != nil {
 		c.vm.snowCtx.Log.Warn("unable to parse chunk request", zap.Error(err))
 		return nil
 	}
@@ -471,8 +485,7 @@ func (c *TxBlockManager) HandleRequest(
 	}
 
 	// Check accepted
-	// TODO: include both blkID + height in request
-	txBlk, err := c.vm.GetTxBlock(txBlkID)
+	txBlk, err := c.vm.GetTxBlock(txBlkHght)
 	if err != nil {
 		c.vm.snowCtx.Log.Warn("unable to find txBlock", zap.Stringer("txBlkID", txBlkID), zap.Error(err))
 		return c.appSender.SendAppResponse(ctx, nodeID, requestID, []byte{})
@@ -612,7 +625,12 @@ func (c *TxBlockManager) Verify(blkID ids.ID) error {
 		}
 	} else {
 		// Ensure on-disk if not in-memory
-		_, err := c.vm.GetTxBlock(blk.blk.Prnt)
+		var prntHght uint64
+		if blk.blk.Hght > 0 {
+			// TODO: consider making a helper
+			prntHght = blk.blk.Hght - 1
+		}
+		_, err := c.vm.GetTxBlock(prntHght)
 		if err != nil {
 			return err
 		}
