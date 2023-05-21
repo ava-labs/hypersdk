@@ -82,6 +82,11 @@ func (b *BurnAsset) Marshal(p *codec.Packer) {
 	p.PackUint64(b.Value)
 }
 
+func (*BurnAsset) Size() int {
+	// TODO: make size-based fee separate from compute fee and state fee
+	return consts.IDLen + consts.Uint64Len
+}
+
 func UnmarshalBurnAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var burn BurnAsset
 	p.UnpackID(false, &burn.Asset) // can burn native asset

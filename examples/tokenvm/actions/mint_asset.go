@@ -92,6 +92,10 @@ func (*MintAsset) MaxUnits(chain.Rules) uint64 {
 	return crypto.PublicKeyLen + consts.IDLen + consts.Uint64Len
 }
 
+func (*MintAsset) Size() int {
+	return crypto.PublicKeyLen + consts.IDLen + consts.Uint64Len
+}
+
 func (m *MintAsset) Marshal(p *codec.Packer) {
 	p.PackPublicKey(m.To)
 	p.PackID(m.Asset)
