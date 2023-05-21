@@ -441,6 +441,10 @@ func (vm *VM) RecordStateOperations(c int) {
 	vm.metrics.stateOperations.Add(float64(c))
 }
 
+func (vm *VM) RecordEarlyBuildStop() {
+	vm.metrics.earlyBuildStop.Inc()
+}
+
 func (vm *VM) IssueTxBlock(ctx context.Context, blk *chain.StatelessTxBlock) {
 	vm.txBlockManager.IssueTxBlock(ctx, blk)
 }
@@ -462,4 +466,8 @@ func (vm *VM) GetStatelessTxBlock(ctx context.Context, blkID ids.ID, hght uint64
 
 func (vm *VM) GetVerifySignatures() bool {
 	return vm.config.GetVerifySignatures()
+}
+
+func (vm *VM) GetMaxBuildTime() time.Duration {
+	return vm.config.GetMaxBuildTime()
 }

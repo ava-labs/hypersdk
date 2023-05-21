@@ -39,6 +39,7 @@ type Config interface {
 	GetContinuousProfilerConfig() *profiler.Config
 	GetRootBlockPruneDiff() uint64
 	GetVerifySignatures() bool
+	GetMaxBuildTime() time.Duration
 }
 
 type Genesis interface {

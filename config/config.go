@@ -45,5 +45,6 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	return &profiler.Config{Enabled: false}
 }
 
-func (c *Config) GetRootBlockPruneDiff() uint64 { return 1024 }
-func (c *Config) GetVerifySignatures() bool     { return true }
+func (c *Config) GetRootBlockPruneDiff() uint64  { return 1024 }
+func (c *Config) GetVerifySignatures() bool      { return true }
+func (c *Config) GetMaxBuildTime() time.Duration { return 500 * time.Millisecond } // still need to limit with units to avoid DoS on verify

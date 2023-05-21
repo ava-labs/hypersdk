@@ -114,6 +114,12 @@ func BuildBlock(
 	mempoolErr := mempool.Build(
 		ctx,
 		func(fctx context.Context, next *Transaction) (cont bool, restore bool, removeAcct bool, err error) {
+			// Avoid building for too long
+			if time.Since(start) > vm.GetMaxBuildTime() {
+				vm.RecordEarlyBuildStop()
+				return false, true, false, nil
+			}
+
 			if txsAttempted == 0 {
 				lockWait = time.Since(start)
 			}
