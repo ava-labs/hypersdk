@@ -32,6 +32,9 @@ type Transaction struct {
 	Action      Action        `json:"action"`
 	Auth        Auth          `json:"auth"`
 
+	authAsyncVerified    bool
+	authAsyncVerifiedErr error
+
 	digest         []byte
 	bytes          []byte
 	size           int
@@ -114,7 +117,13 @@ func (t *Transaction) Sign(
 
 func (t *Transaction) AuthAsyncVerify() func() error {
 	return func() error {
-		return t.Auth.AsyncVerify(t.digest)
+		if t.authAsyncVerified {
+			return t.authAsyncVerifiedErr
+		}
+		err := t.Auth.AsyncVerify(t.digest)
+		t.authAsyncVerifiedErr = err
+		t.authAsyncVerified = true
+		return err
 	}
 }
 
