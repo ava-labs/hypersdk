@@ -32,9 +32,9 @@ func NewReader(src []byte, limit int) *Packer {
 }
 
 // NewWriter returns a Packer instance with its MaxSize set to [limit].
-func NewWriter(limit int) *Packer {
+func NewWriter(initial int, limit int) *Packer {
 	return &Packer{
-		p: &wrappers.Packer{MaxSize: limit},
+		p: &wrappers.Packer{Bytes: make([]byte, 0, initial), MaxSize: limit},
 	}
 }
 

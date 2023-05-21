@@ -25,7 +25,7 @@ type OptionalPacker struct {
 // OptionalPackers MaxItems to MaxItems
 func NewOptionalWriter() *OptionalPacker {
 	return &OptionalPacker{
-		ip: NewWriter(consts.MaxInt),
+		ip: NewWriter(0, consts.MaxInt),
 	}
 }
 

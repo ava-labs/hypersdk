@@ -158,7 +158,7 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 	// Gossip highest paying txs
 	var (
 		txs   = []*chain.Transaction{}
-		size  = uint64(0)
+		size  = 0
 		start = time.Now()
 		now   = start.Unix()
 		r     = g.vm.Rules(now)
@@ -221,7 +221,7 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 
 			// Gossip up to [consts.NetworkSizeLimit]
 			txSize := next.Size()
-			if txSize+size > uint64(g.cfg.GossipMaxSize) {
+			if txSize+size > g.cfg.GossipMaxSize {
 				return false, true, false, nil
 			}
 			txs = append(txs, next)

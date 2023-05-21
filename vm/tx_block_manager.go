@@ -32,7 +32,7 @@ type NodeChunks struct {
 }
 
 func (n *NodeChunks) Marshal() ([]byte, error) {
-	p := codec.NewWriter(consts.NetworkSizeLimit)
+	p := codec.NewWriter(consts.Uint64Len*2, consts.NetworkSizeLimit)
 	p.PackUint64(n.Min)
 	p.PackUint64(n.Max)
 	return p.Bytes(), p.Err()
@@ -426,7 +426,7 @@ func (c *TxBlockManager) requestTxBlockNodeID(ctx context.Context, recipient ids
 	c.requestID++
 	c.requests[requestID] = rch
 	c.requestLock.Unlock()
-	req := codec.NewWriter(consts.Uint64Len + consts.IDLen)
+	req := codec.NewWriter(consts.Uint64Len+consts.IDLen, consts.Uint64Len+consts.IDLen)
 	req.PackUint64(height)
 	req.PackID(blkID)
 	if err := req.Err(); err != nil {
