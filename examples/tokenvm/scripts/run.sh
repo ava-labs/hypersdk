@@ -133,6 +133,8 @@ cat <<EOF > /tmp/tokenvm.config
   "verifyTimeout": 5,
   "trackedPairs":["*"],
   "preferredBlocksPerSecond": 3,
+  "verifySignatures": true,
+  "storeTransactions": false,
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
