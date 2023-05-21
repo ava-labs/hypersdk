@@ -17,9 +17,11 @@ type Result struct {
 }
 
 func (r *Result) Size() int {
-	size := 1 + consts.Uint64Len + len(r.Output)
+	size := codec.BoolLen + consts.Uint64Len + codec.BytesLen(r.Output)
 	if r.WarpMessage != nil {
-		size += consts.IntLen + len(r.WarpMessage.Bytes())
+		size += codec.BytesLen(r.WarpMessage.Bytes())
+	} else {
+		size += codec.BytesLen(nil)
 	}
 	return size
 }

@@ -72,7 +72,7 @@ func (t *Transaction) Digest(
 	if t.WarpMessage != nil {
 		warpBytes = t.WarpMessage.Bytes()
 	}
-	size := t.Base.Size() + consts.IntLen + len(warpBytes) + 1 + t.Action.Size()
+	size := t.Base.Size() + codec.BytesLen(warpBytes) + consts.ByteLen + t.Action.Size()
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
 	p.PackBytes(warpBytes)
@@ -99,7 +99,7 @@ func (t *Transaction) Sign(
 
 	// Ensure transaction is fully initialized and correct by reloading it from
 	// bytes
-	size := len(msg) + 1 + auth.Size()
+	size := len(msg) + consts.ByteLen + auth.Size()
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	if err := t.Marshal(p, actionRegistry, authRegistry); err != nil {
 		return nil, err

@@ -541,7 +541,9 @@ func (b *StatelessRootBlock) txBlockState() merkledb.TrieView {
 }
 
 func (b *RootBlock) Marshal() ([]byte, error) {
-	size := consts.IDLen + consts.Uint64Len + consts.Uint64Len + window.WindowSliceSize + consts.Uint64Len + 1 + consts.IntLen + len(b.Txs)*consts.IDLen + consts.IDLen + consts.Uint64Len + consts.Uint64Len
+	size := consts.IDLen + consts.Uint64Len + consts.Uint64Len + window.WindowSliceSize +
+		consts.Uint64Len + codec.BoolLen + consts.IntLen + len(b.Txs)*consts.IDLen + consts.IDLen +
+		consts.Uint64Len + consts.Uint64Len
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	p.PackID(b.Prnt)

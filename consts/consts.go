@@ -15,6 +15,7 @@ const (
 	Uint64Len       = 8
 	MaxUint64Offset = 63
 	MaxUint64       = ^uint64(0)
+	ByteLen         = 1
 
 	// AvalancheGo imposes a limit of 2 MiB on the network, so we limit at
 	// 2 MiB - ProposerVM header - Protobuf encoding overhead (we assume this is

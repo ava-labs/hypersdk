@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/utils"
@@ -53,11 +52,11 @@ func (c *CreateAsset) Execute(
 func (c *CreateAsset) MaxUnits(chain.Rules) uint64 {
 	// We use size as the price of this transaction but we could just as easily
 	// use any other calculation.
-	return consts.IntLen + uint64(len(c.Metadata))
+	return uint64(codec.BytesLen(c.Metadata))
 }
 
 func (c *CreateAsset) Size() int {
-	return consts.IntLen + len(c.Metadata)
+	return codec.BytesLen(c.Metadata)
 }
 
 func (c *CreateAsset) Marshal(p *codec.Packer) {

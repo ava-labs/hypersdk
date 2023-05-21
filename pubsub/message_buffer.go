@@ -126,7 +126,7 @@ func (m *MessageBuffer) Send(msg []byte) error {
 func CreateBatchMessage(maxSize int, msgs [][]byte) ([]byte, error) {
 	size := consts.IntLen
 	for _, msg := range msgs {
-		size += len(msg)
+		size += codec.BytesLen(msg)
 	}
 	msgBatch := codec.NewWriter(size, maxSize)
 	msgBatch.PackInt(len(msgs))

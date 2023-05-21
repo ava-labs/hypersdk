@@ -18,16 +18,16 @@ const (
 )
 
 func PackBlockMessage(b *chain.StatelessRootBlock) ([]byte, error) {
-	size := consts.IntLen + len(b.Bytes()) + consts.IntLen
+	size := codec.BytesLen(b.Bytes()) + consts.IntLen
 	txBlocks := b.GetTxBlocks()
 	res := make([][]byte, len(txBlocks))
 	for i, txBlock := range txBlocks {
-		size += consts.IntLen + len(txBlock.Bytes())
+		size += codec.BytesLen(txBlock.Bytes())
 		results, err := chain.MarshalResults(txBlock.Results())
 		if err != nil {
 			return nil, err
 		}
-		size += len(results)
+		size += codec.BytesLen(results)
 		res[i] = results
 	}
 	p := codec.NewWriter(size, consts.MaxInt)
@@ -79,7 +79,7 @@ func UnpackBlockMessage(
 // Could be a better place for these methods
 // Packs an accepted block message
 func PackAcceptedTxMessage(txID ids.ID, result *chain.Result) ([]byte, error) {
-	p := codec.NewWriter(consts.IDLen+1+result.Size(), consts.MaxInt)
+	p := codec.NewWriter(consts.IDLen+codec.BoolLen+result.Size(), consts.MaxInt)
 	p.PackID(txID)
 	p.PackBool(false)
 	result.Marshal(p)
@@ -89,7 +89,7 @@ func PackAcceptedTxMessage(txID ids.ID, result *chain.Result) ([]byte, error) {
 // Packs a removed block message
 func PackRemovedTxMessage(txID ids.ID, err error) ([]byte, error) {
 	errString := err.Error()
-	p := codec.NewWriter(consts.IDLen+1+consts.IDLen+len(errString), consts.MaxInt)
+	p := codec.NewWriter(consts.IDLen+codec.BoolLen+codec.StringLen(errString), consts.MaxInt)
 	p.PackID(txID)
 	p.PackBool(true)
 	p.PackString(errString)

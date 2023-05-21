@@ -12,7 +12,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
@@ -206,11 +205,11 @@ func (i *ImportAsset) Execute(
 }
 
 func (i *ImportAsset) MaxUnits(chain.Rules) uint64 {
-	return consts.IntLen + uint64(len(i.warpMessage.Payload)) + 1
+	return uint64(codec.BytesLen(i.warpMessage.Payload)) + codec.BoolLen
 }
 
 func (i *ImportAsset) Size() int {
-	return consts.IntLen + len(i.warpMessage.Payload) + 1
+	return codec.BytesLen(i.warpMessage.Payload) + codec.BoolLen
 }
 
 // All we encode that is action specific for now is the type byte from the
