@@ -7,6 +7,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/timer"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"go.uber.org/zap"
 )
 
@@ -123,7 +124,11 @@ func (m *MessageBuffer) Send(msg []byte) error {
 }
 
 func CreateBatchMessage(maxSize int, msgs [][]byte) ([]byte, error) {
-	msgBatch := codec.NewWriter(maxSize)
+	size := consts.IntLen
+	for _, msg := range msgs {
+		size += codec.BytesLen(msg)
+	}
+	msgBatch := codec.NewWriter(size, maxSize)
 	msgBatch.PackInt(len(msgs))
 	for _, msg := range msgs {
 		msgBatch.PackBytes(msg)

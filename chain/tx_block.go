@@ -592,7 +592,13 @@ func (b *TxBlock) Marshal(
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
 ) ([]byte, error) {
-	p := codec.NewWriter(consts.NetworkSizeLimit)
+	size := consts.IDLen + consts.Uint64Len + consts.Uint64Len + consts.Uint64Len +
+		window.WindowSliceSize + codec.BoolLen + consts.Uint64Len + consts.IntLen
+	for _, tx := range b.Txs {
+		size += tx.Size()
+	}
+	size += consts.Uint64Len + consts.Uint64Len + codec.BoolLen + consts.Uint64Len
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	p.PackID(b.Prnt)
 	p.PackInt64(b.Tmstmp)

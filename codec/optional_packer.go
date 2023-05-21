@@ -10,6 +10,8 @@ import (
 	"github.com/ava-labs/hypersdk/crypto"
 )
 
+const defaultOptionalCapacity = 128
+
 // OptionalPacker defines a struct that includes a Packer [ip], a bitset
 // [b] and an offset [offset]. [b] indicates which fields in the OptionalPacker
 // are present and which are not.
@@ -25,7 +27,7 @@ type OptionalPacker struct {
 // OptionalPackers MaxItems to MaxItems
 func NewOptionalWriter() *OptionalPacker {
 	return &OptionalPacker{
-		ip: NewWriter(consts.MaxInt),
+		ip: NewWriter(defaultOptionalCapacity, consts.MaxInt),
 	}
 }
 

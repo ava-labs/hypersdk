@@ -161,6 +161,7 @@ type Action interface {
 	) (result *Result, err error) // err should only be returned if fatal
 
 	Marshal(p *codec.Packer)
+	Size() int
 }
 
 type Auth interface {
@@ -189,6 +190,7 @@ type Auth interface {
 	Refund(ctx context.Context, db Database, amount uint64) error // only invoked if amount > 0
 
 	Marshal(p *codec.Packer)
+	Size() int
 }
 
 type AuthFactory interface {

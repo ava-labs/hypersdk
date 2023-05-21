@@ -103,6 +103,10 @@ func (d *ED25519) Refund(
 	return storage.AddBalance(ctx, db, d.Signer, ids.Empty, amount)
 }
 
+func (d *ED25519) Size() int {
+	return crypto.PublicKeyLen + crypto.PrivateKeyLen
+}
+
 var _ chain.AuthFactory = (*ED25519Factory)(nil)
 
 func NewED25519Factory(priv crypto.PrivateKey) *ED25519Factory {

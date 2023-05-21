@@ -45,7 +45,7 @@ type WarpTransfer struct {
 }
 
 func (w *WarpTransfer) Marshal() ([]byte, error) {
-	p := codec.NewWriter(WarpTransferSize)
+	p := codec.NewWriter(WarpTransferSize, WarpTransferSize)
 	p.PackPublicKey(w.To)
 	p.PackID(w.Asset)
 	p.PackUint64(w.Value)

@@ -104,6 +104,10 @@ func (c *CreateOrder) Marshal(p *codec.Packer) {
 	p.PackUint64(c.Supply)
 }
 
+func (*CreateOrder) Size() int {
+	return consts.IDLen*2 + consts.Uint64Len*3
+}
+
 func UnmarshalCreateOrder(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var create CreateOrder
 	p.UnpackID(false, &create.In) // empty ID is the native asset

@@ -223,6 +223,13 @@ func (*ExportAsset) MaxUnits(chain.Rules) uint64 {
 		consts.Uint64Len + consts.IDLen
 }
 
+func (*ExportAsset) Size() int {
+	return crypto.PublicKeyLen + consts.IDLen +
+		consts.Uint64Len + 1 + consts.Uint64Len +
+		consts.Uint64Len + consts.IDLen + consts.Uint64Len +
+		consts.Uint64Len + consts.IDLen
+}
+
 func (e *ExportAsset) Marshal(p *codec.Packer) {
 	p.PackPublicKey(e.To)
 	p.PackID(e.Asset)

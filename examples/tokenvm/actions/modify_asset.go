@@ -82,7 +82,11 @@ func (m *ModifyAsset) Execute(
 func (m *ModifyAsset) MaxUnits(chain.Rules) uint64 {
 	// We use size as the price of this transaction but we could just as easily
 	// use any other calculation.
-	return consts.IDLen + crypto.PublicKeyLen + uint64(len(m.Metadata))
+	return consts.IDLen + crypto.PublicKeyLen + uint64(codec.BytesLen(m.Metadata))
+}
+
+func (m *ModifyAsset) Size() int {
+	return consts.IDLen + crypto.PublicKeyLen + codec.BytesLen(m.Metadata)
 }
 
 func (m *ModifyAsset) Marshal(p *codec.Packer) {

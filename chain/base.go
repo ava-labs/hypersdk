@@ -6,6 +6,7 @@ package chain
 import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 type Base struct {
@@ -33,6 +34,10 @@ func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 	default:
 		return nil
 	}
+}
+
+func (b *Base) Size() int {
+	return consts.Uint64Len*2 + consts.IDLen
 }
 
 func (b *Base) Marshal(p *codec.Packer) {
