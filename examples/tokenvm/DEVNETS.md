@@ -94,6 +94,7 @@ TODO: add support for `keep-resources-except-asg-ssm` and
 --network-name custom \
 --avalanchego-release-tag v1.10.1 \
 --create-dev-machine \
+--keep-resources-except-asg-ssm \
 --keys-to-generate 5
 ```
 
@@ -206,10 +207,14 @@ avalancheup-aws apply \
 --delete-s3-objects \
 --delete-ebs-volumes \
 --delete-elastic-ips \
+--override-keep-resources-except-asg-ssm \
 --spec-file-path /home/ubuntu/aops-custom-****-***.yaml
 ```
 
 That is, `apply` creates AWS resources, whereas `delete` destroys after testing is done.
+
+If you wish to re-deploy and don't want to tear down everything, remove the
+`--override-keep-resources-except-asg-ssm` flag.
 
 If you see the following command, that is expected (it means `avalanche-ops` is
 reusing a S3 bucket it previously created):
@@ -248,8 +253,8 @@ EOF
 
 /tmp/token-cli genesis generate /tmp/avalanche-ops/allocations.json \
 --genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
---max-tx-blocks 12 \
---max-tx-block-units 1800000 \
+--max-tx-blocks 48 \
+--max-tx-block-units 512000 \
 --window-target-units 100000000000 \
 --window-target-blocks 30
 cat /tmp/avalanche-ops/tokenvm-genesis.json
