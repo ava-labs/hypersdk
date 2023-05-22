@@ -22,6 +22,8 @@ type Metrics struct {
 	txBlocksMissing       prometheus.Counter
 	deletedTxBlocks       prometheus.Counter
 	earlyBuildStop        prometheus.Counter
+	txBlockBytesSent      prometheus.Counter
+	txBlockBytesReceived  prometheus.Counter
 	mempoolSize           prometheus.Gauge
 	acceptorDrift         prometheus.Gauge
 	rootCalculated        metric.Averager
@@ -181,6 +183,16 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "early_build_stop",
 			Help:      "number of blocks we stop building because of time limit",
 		}),
+		txBlockBytesSent: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "tx_block_bytes_sent",
+			Help:      "tx block bytes sent",
+		}),
+		txBlockBytesReceived: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "tx_block_bytes_received",
+			Help:      "tx block bytes received",
+		}),
 		rootCalculated:        rootCalculated,
 		commitState:           commitState,
 		waitSignatures:        waitSignatures,
@@ -206,6 +218,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.mempoolSize),
 		r.Register(m.acceptorDrift),
 		r.Register(m.earlyBuildStop),
+		r.Register(m.txBlockBytesSent),
+		r.Register(m.txBlockBytesReceived),
 	)
 	return r, m, errs.Err
 }

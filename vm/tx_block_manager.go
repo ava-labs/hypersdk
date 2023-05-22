@@ -304,6 +304,7 @@ func (c *TxBlockManager) Run(appSender common.AppSender) {
 			msg = append([]byte{0}, b...)
 		} else {
 			msg = append([]byte{1}, msg...)
+			c.vm.metrics.txBlockBytesSent.Add(float64(len(msg) * c.nodeSet.Len()))
 		}
 		if err := c.appSender.SendAppGossipSpecific(context.TODO(), c.nodeSet, msg); err != nil {
 			c.vm.snowCtx.Log.Warn("unable to send gossip", zap.Error(err))
@@ -315,7 +316,8 @@ func (c *TxBlockManager) Run(appSender common.AppSender) {
 // Called when building a chunk
 func (c *TxBlockManager) IssueTxBlock(ctx context.Context, txBlock *chain.StatelessTxBlock) {
 	c.txBlocks.Add(txBlock, true)
-	c.update <- txBlock.Bytes()
+	msg := txBlock.Bytes()
+	c.update <- msg
 	if txBlock.Hght > c.max {
 		c.max = txBlock.Hght
 	}
@@ -409,6 +411,7 @@ func (c *TxBlockManager) RequestTxBlock(ctx context.Context, height uint64, hint
 			time.Sleep(retrySleep)
 			continue
 		}
+		c.vm.metrics.txBlockBytesReceived.Add(float64(len(msg)))
 		if err := c.handleBlock(ctx, msg, &height, hint, recursive); err != nil {
 			time.Sleep(retrySleep)
 			continue
@@ -481,7 +484,9 @@ func (c *TxBlockManager) HandleRequest(
 
 	// Check processing
 	if txBlk := c.txBlocks.Get(txBlkID); txBlk != nil {
-		return c.appSender.SendAppResponse(ctx, nodeID, requestID, txBlk.blk.Bytes())
+		msg := txBlk.blk.Bytes()
+		c.vm.metrics.txBlockBytesSent.Add(float64(len(msg)))
+		return c.appSender.SendAppResponse(ctx, nodeID, requestID, msg)
 	}
 
 	// Check accepted
@@ -490,7 +495,9 @@ func (c *TxBlockManager) HandleRequest(
 		c.vm.snowCtx.Log.Warn("unable to find txBlock", zap.Stringer("txBlkID", txBlkID), zap.Error(err))
 		return c.appSender.SendAppResponse(ctx, nodeID, requestID, []byte{})
 	}
-	return c.appSender.SendAppResponse(ctx, nodeID, requestID, txBlk.Bytes())
+	msg := txBlk.Bytes()
+	c.vm.metrics.txBlockBytesSent.Add(float64(len(msg)))
+	return c.appSender.SendAppResponse(ctx, nodeID, requestID, msg)
 }
 
 func (c *TxBlockManager) HandleResponse(nodeID ids.NodeID, requestID uint32, msg []byte) error {
@@ -538,6 +545,7 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 	case 1:
 		b := msg[1:]
 		blkID := utils.ToID(b)
+		c.vm.metrics.txBlockBytesReceived.Add(float64(len(b)))
 
 		// Option 0: already have txBlock, drop
 		if !c.txBlocks.Fetch(blkID) {
@@ -649,6 +657,10 @@ func (c *TxBlockManager) Verify(blkID ids.ID) error {
 
 // Send info to new peer on handshake
 func (c *TxBlockManager) HandleConnect(ctx context.Context, nodeID ids.NodeID) error {
+	if c.vm.NodeID() == nodeID {
+		return nil
+	}
+
 	nc := &NodeChunks{
 		Min: c.min,
 		Max: c.max,
@@ -671,6 +683,10 @@ func (c *TxBlockManager) HandleConnect(ctx context.Context, nodeID ids.NodeID) e
 // When disconnecting from a node, we remove it from the map because we should
 // no longer request chunks from it.
 func (c *TxBlockManager) HandleDisconnect(ctx context.Context, nodeID ids.NodeID) error {
+	if c.vm.NodeID() == nodeID {
+		return nil
+	}
+
 	c.nodeChunkLock.Lock()
 	delete(c.nodeChunks, nodeID)
 	c.nodeSet.Remove(nodeID)

@@ -142,6 +142,12 @@ var generatePrometheusCmd = &cobra.Command{
 		panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hyper_sdk_chain_acceptor_drift", chainID))
 		utils.Outf("{{yellow}}acceptor drift:{{/}} %s\n", panels[len(panels)-1])
 
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_tx_block_bytes_sent[30s])/30", chainID))
+		utils.Outf("{{yellow}}block bytes sent (B/s):{{/}} %s\n", panels[len(panels)-1])
+
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_tx_block_bytes_received[30s])/30", chainID))
+		utils.Outf("{{yellow}}block bytes received (B/s):{{/}} %s\n", panels[len(panels)-1])
+
 		panels = append(panels, "avalanche_resource_tracker_cpu_usage")
 		utils.Outf("{{yellow}}CPU usage:{{/}} %s\n", panels[len(panels)-1])
 
