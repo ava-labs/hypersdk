@@ -27,7 +27,10 @@ type WebSocketClient struct {
 	pendingBlocks chan []byte
 	pendingTxs    chan []byte
 
-	err error
+	startedClose bool
+	closed       bool
+	err          error
+	errl         sync.Once
 }
 
 // NewWebSocketClient creates a new client for the decision rpc server.
@@ -58,7 +61,9 @@ func NewWebSocketClient(uri string, pending int, maxSize int) (*WebSocketClient,
 		for {
 			_, msgBatch, err := conn.ReadMessage()
 			if err != nil {
-				wc.err = err
+				wc.errl.Do(func() {
+					wc.err = err
+				})
 				return
 			}
 			if len(msgBatch) == 0 {
@@ -93,7 +98,11 @@ func NewWebSocketClient(uri string, pending int, maxSize int) (*WebSocketClient,
 					return
 				}
 				if err := wc.conn.WriteMessage(websocket.BinaryMessage, msg); err != nil {
-					utils.Outf("{{orange}}unable to write message:{{/}} %v\n", err)
+					wc.errl.Do(func() {
+						wc.err = err
+					})
+					_ = wc.conn.Close()
+					return
 				}
 			case <-wc.readStopped:
 				// If we exit here, the connection must've failed ungracefully
@@ -103,10 +112,21 @@ func NewWebSocketClient(uri string, pending int, maxSize int) (*WebSocketClient,
 			}
 		}
 	}()
+	go func() {
+		<-wc.writeStopped
+		<-wc.readStopped
+		if !wc.startedClose {
+			utils.Outf("{{orange}}unclean client shutdown:{{/}} %v\n", wc.err)
+		}
+		wc.closed = true
+	}()
 	return wc, nil
 }
 
 func (c *WebSocketClient) RegisterBlocks() error {
+	if c.closed {
+		return ErrClosed
+	}
 	return c.mb.Send([]byte{BlockMode})
 }
 
@@ -127,6 +147,9 @@ func (c *WebSocketClient) ListenBlock(
 
 // IssueTx sends [tx] to the streaming rpc server.
 func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
+	if c.closed {
+		return ErrClosed
+	}
 	return c.mb.Send(append([]byte{TxMode}, tx.Bytes()...))
 }
 
@@ -146,6 +169,8 @@ func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.R
 func (c *WebSocketClient) Close() error {
 	var err error
 	c.cl.Do(func() {
+		c.startedClose = true
+
 		// Flush all unwritten messages before we close the connection
 		_ = c.mb.Close()
 		<-c.writeStopped
@@ -154,4 +179,8 @@ func (c *WebSocketClient) Close() error {
 		err = c.conn.Close()
 	})
 	return err
+}
+
+func (c *WebSocketClient) Closed() bool {
+	return c.closed
 }

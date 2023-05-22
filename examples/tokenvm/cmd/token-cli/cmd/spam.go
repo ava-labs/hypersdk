@@ -42,6 +42,7 @@ type txIssuer struct {
 	d  *rpc.WebSocketClient
 
 	l              sync.Mutex
+	abandoned      error
 	outstandingTxs int
 }
 
@@ -53,11 +54,78 @@ func (t *timeModifier) Base(b *chain.Base) {
 	b.Timestamp = t.Timestamp
 }
 
+var (
+	issuerWg sync.WaitGroup
+	exiting  sync.Once
+
+	transferFee uint64
+
+	l            sync.Mutex
+	confirmedTxs uint64
+	totalTxs     uint64
+
+	inflight atomic.Int64
+	sent     atomic.Int64
+)
+
 var spamCmd = &cobra.Command{
 	Use: "spam",
 	RunE: func(*cobra.Command, []string) error {
 		return ErrMissingSubcommand
 	},
+}
+
+func startIssuer(cctx context.Context, issuer *txIssuer) {
+	issuerWg.Add(1)
+	go func() {
+		for {
+			_, dErr, result, err := issuer.d.ListenTx(context.TODO())
+			if err != nil {
+				return
+			}
+			inflight.Add(-1)
+			issuer.l.Lock()
+			issuer.outstandingTxs--
+			issuer.l.Unlock()
+			l.Lock()
+			if result != nil {
+				if result.Success {
+					confirmedTxs++
+				} else {
+					hutils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Output), result.Success)
+				}
+			} else {
+				// We can't error match here because we receive it over the wire.
+				if !strings.Contains(dErr.Error(), rpc.ErrExpired.Error()) {
+					hutils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", dErr)
+				}
+			}
+			totalTxs++
+			l.Unlock()
+		}
+	}()
+	go func() {
+		defer func() {
+			_ = issuer.d.Close()
+			issuerWg.Done()
+		}()
+
+		<-cctx.Done()
+		start := time.Now()
+		for time.Since(start) < issuerShutdownTimeout {
+			if issuer.d.Closed() {
+				return
+			}
+			issuer.l.Lock()
+			outstanding := issuer.outstandingTxs
+			issuer.l.Unlock()
+			if outstanding == 0 {
+				return
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+		hutils.Outf("{{orange}}issuer shutdown timeout{{/}}\n")
+	}()
 }
 
 func getRandomRecipient(self int, keys []crypto.PrivateKey) (crypto.PublicKey, error) {
@@ -80,9 +148,9 @@ func getRandomRecipient(self int, keys []crypto.PrivateKey) (crypto.PublicKey, e
 	return keys[index].PublicKey(), nil
 }
 
-func getRandomIssuer(issuers []*txIssuer) *txIssuer {
+func getRandomIssuer(issuers []*txIssuer) (int, *txIssuer) {
 	index := rand.Int() % len(issuers)
-	return issuers[index]
+	return index, issuers[index]
 }
 
 var runSpamCmd = &cobra.Command{
@@ -212,71 +280,12 @@ var runSpamCmd = &cobra.Command{
 		}
 		signals := make(chan os.Signal, 2)
 		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-		var (
-			transferFee uint64
-			wg          sync.WaitGroup
-
-			l            sync.Mutex
-			confirmedTxs uint64
-			totalTxs     uint64
-		)
 
 		// confirm txs (track failure rate)
 		cctx, cancel := context.WithCancel(ctx)
 		defer cancel()
-		var inflight atomic.Int64
-		var sent atomic.Int64
-		var exiting sync.Once
-		for i := 0; i < len(clients); i++ {
-			j := i
-			issuer := clients[i]
-			wg.Add(1)
-			go func() {
-				for {
-					_, dErr, result, err := issuer.d.ListenTx(context.TODO())
-					if err != nil {
-						return
-					}
-					inflight.Add(-1)
-					issuer.l.Lock()
-					issuer.outstandingTxs--
-					issuer.l.Unlock()
-					l.Lock()
-					if result != nil {
-						if result.Success {
-							confirmedTxs++
-						} else {
-							hutils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Output), result.Success)
-						}
-					} else {
-						// We can't error match here because we receive it over the wire.
-						if !strings.Contains(dErr.Error(), rpc.ErrExpired.Error()) {
-							hutils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", dErr)
-						}
-					}
-					totalTxs++
-					l.Unlock()
-				}
-			}()
-			go func() {
-				defer func() {
-					_ = issuer.d.Close()
-					wg.Done()
-				}()
-
-				<-cctx.Done()
-				start := time.Now()
-				for time.Since(start) < issuerShutdownTimeout {
-					issuer.l.Lock()
-					outstanding := issuer.outstandingTxs
-					issuer.l.Unlock()
-					if outstanding == 0 {
-						return
-					}
-					time.Sleep(500 * time.Millisecond)
-				}
-				hutils.Outf("{{orange}}issuer %d shutdown timeout{{/}}\n", j)
-			}()
+		for _, client := range clients {
+			startIssuer(cctx, client)
 		}
 
 		// log stats
@@ -318,7 +327,7 @@ var runSpamCmd = &cobra.Command{
 				t := time.NewTimer(0) // ensure no duplicates created
 				defer t.Stop()
 
-				issuer := getRandomIssuer(clients)
+				issuerIndex, issuer := getRandomIssuer(clients)
 				factory := auth.NewED25519Factory(accounts[i])
 				fundsL.Lock()
 				balance := funds[accounts[i].PublicKey()]
@@ -367,6 +376,25 @@ var runSpamCmd = &cobra.Command{
 							}
 							transferFee = fees
 							if err := issuer.d.RegisterTx(tx); err != nil {
+								issuer.l.Lock()
+								if issuer.d.Closed() {
+									if issuer.abandoned != nil {
+										issuer.l.Unlock()
+										return issuer.abandoned
+									}
+									// recreate issuer
+									dcli, err := rpc.NewWebSocketClient(uris[issuerIndex], 128_000, pubsub.MaxReadMessageSize)
+									if err != nil {
+										issuer.abandoned = err
+										hutils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
+										issuer.l.Unlock()
+										return err
+									}
+									issuer.d = dcli
+									startIssuer(cctx, issuer)
+									issuer.l.Unlock()
+									hutils.Outf("{{green}}re-created closed issuer:{{/}} %d\n", issuerIndex)
+								}
 								continue
 							}
 							balance -= (fees + uint64(v))
@@ -417,7 +445,7 @@ var runSpamCmd = &cobra.Command{
 				}
 			}
 		}()
-		wg.Wait()
+		issuerWg.Wait()
 		cancel()
 
 		// Return funds
