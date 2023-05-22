@@ -416,10 +416,11 @@ func (w *WrappedAppSender) SendCrossChainAppRequest(
 	requestID uint32,
 	appRequestBytes []byte,
 ) error {
+	newRequestID := w.n.getSharedRequestID(w.handler, ids.EmptyNodeID, requestID)
 	return w.n.sender.SendCrossChainAppRequest(
 		ctx,
 		chainID,
-		requestID,
+		newRequestID,
 		w.createMessageBytes(appRequestBytes),
 	)
 }
