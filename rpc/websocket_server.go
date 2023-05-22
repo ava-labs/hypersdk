@@ -97,13 +97,15 @@ func (w *WebSocketServer) SetMinTx(t int64) error {
 }
 
 func (w *WebSocketServer) AcceptBlock(b *chain.StatelessRootBlock) error {
-	bytes, err := PackBlockMessage(b)
-	if err != nil {
-		return err
-	}
-	inactiveConnection := w.s.Publish(append([]byte{BlockMode}, bytes...), w.blockListeners)
-	for _, conn := range inactiveConnection {
-		w.blockListeners.Remove(conn)
+	if w.blockListeners.Len() > 0 {
+		bytes, err := PackBlockMessage(b)
+		if err != nil {
+			return err
+		}
+		inactiveConnection := w.s.Publish(append([]byte{BlockMode}, bytes...), w.blockListeners)
+		for _, conn := range inactiveConnection {
+			w.blockListeners.Remove(conn)
+		}
 	}
 
 	w.txL.Lock()
