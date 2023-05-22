@@ -306,6 +306,9 @@ func (c *TxBlockManager) Run(appSender common.AppSender) {
 			msg = append([]byte{1}, msg...)
 			c.vm.metrics.txBlockBytesSent.Add(float64(len(msg) * c.nodeSet.Len()))
 		}
+		// TODO: need to lock nodeSet?
+		// TODO: better to send message one at a time (probably better in a group
+		// to avoid gRPC overhead)?
 		if err := c.appSender.SendAppGossipSpecific(context.TODO(), c.nodeSet, msg); err != nil {
 			c.vm.snowCtx.Log.Warn("unable to send gossip", zap.Error(err))
 			continue
