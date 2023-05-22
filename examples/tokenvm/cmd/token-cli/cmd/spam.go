@@ -31,8 +31,9 @@ import (
 )
 
 const (
-	feePerTx     = 1000
-	defaultRange = 32
+	feePerTx              = 1000
+	defaultRange          = 32
+	issuerShutdownTimeout = 120 * time.Second
 )
 
 type txIssuer struct {
@@ -227,6 +228,7 @@ var runSpamCmd = &cobra.Command{
 		var sent atomic.Int64
 		var exiting sync.Once
 		for i := 0; i < len(clients); i++ {
+			j := i
 			issuer := clients[i]
 			wg.Add(1)
 			go func() {
@@ -257,18 +259,23 @@ var runSpamCmd = &cobra.Command{
 				}
 			}()
 			go func() {
+				defer func() {
+					_ = issuer.d.Close()
+					wg.Done()
+				}()
+
 				<-cctx.Done()
-				for {
+				start := time.Now()
+				for time.Since(start) < issuerShutdownTimeout {
 					issuer.l.Lock()
 					outstanding := issuer.outstandingTxs
 					issuer.l.Unlock()
 					if outstanding == 0 {
-						_ = issuer.d.Close()
-						wg.Done()
 						return
 					}
 					time.Sleep(500 * time.Millisecond)
 				}
+				hutils.Outf("{{orange}}issuer %d shutdown timeout{{/}}\n", j)
 			}()
 		}
 
