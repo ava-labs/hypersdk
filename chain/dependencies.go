@@ -42,6 +42,7 @@ type VM interface {
 	Logger() logging.Logger
 	Mempool() Mempool
 	GetVerifySignatures() bool
+	GetMaxBuildTime() time.Duration
 
 	// UpdateSyncTarget returns a bool that is true if the root
 	// was updated and the sync is continuing with the new specified root
@@ -81,6 +82,7 @@ type VM interface {
 	RecordStateChanges(int)
 	RecordStateOperations(int)
 	RecordTxBlocksMissing(int)
+	RecordEarlyBuildStop()
 }
 
 type Mempool interface {

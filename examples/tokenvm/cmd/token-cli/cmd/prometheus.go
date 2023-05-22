@@ -115,6 +115,9 @@ var generatePrometheusCmd = &cobra.Command{
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_build_block_sum[30s])/increase(avalanche_%s_vm_hyper_sdk_chain_build_block_count[30s])/1000000", chainID, chainID))
 		utils.Outf("{{yellow}}build block (ms):{{/}} %s\n", panels[len(panels)-1])
 
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_early_build_stop[30s])", chainID))
+		utils.Outf("{{yellow}}early build stop:{{/}} %s\n", panels[len(panels)-1])
+
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_tx_block_verify_sum[30s])/increase(avalanche_%s_vm_hyper_sdk_chain_tx_block_verify_count[30s])/1000000", chainID, chainID))
 		utils.Outf("{{yellow}}verify tx block (ms):{{/}} %s\n", panels[len(panels)-1])
 

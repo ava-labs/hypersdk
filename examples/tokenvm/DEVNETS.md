@@ -384,6 +384,9 @@ AWS Console
 #### Option 2: Prometheus
 To view metrics, first download and install [Prometheus](https://prometheus.io/download/)
 using the following commands:
+
+
+##### Option 1: Install `prometheus` on Mac
 ```bash
 rm -f /tmp/prometheus
 wget https://github.com/prometheus/prometheus/releases/download/v2.43.0/prometheus-2.43.0.darwin-amd64.tar.gz
@@ -391,6 +394,16 @@ tar -xvf prometheus-2.43.0.darwin-amd64.tar.gz
 rm prometheus-2.43.0.darwin-amd64.tar.gz
 mv prometheus-2.43.0.darwin-amd64/prometheus /tmp/prometheus
 rm -rf prometheus-2.43.0.darwin-amd64
+```
+
+##### Option 2: Install `prometheus` on Linux
+```bash
+rm -f /tmp/prometheus
+wget https://github.com/prometheus/prometheus/releases/download/v2.43.0/prometheus-2.43.0.linux-amd64.tar.gz
+tar -xvf prometheus-2.43.0.linux-amd64.tar.gz
+rm prometheus-2.43.0.linux-amd64.tar.gz
+mv prometheus-2.43.0.linux-amd64/prometheus /tmp/prometheus
+rm -rf prometheus-2.43.0.linux-amd64
 ```
 
 Once you have Prometheus installed, run the following command to auto-generate
