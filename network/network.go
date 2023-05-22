@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package vm
+package network
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
 	"go.uber.org/zap"
@@ -26,7 +27,7 @@ type request struct {
 }
 
 type NetworkManager struct {
-	vm     *VM
+	log    logging.Logger
 	sender common.AppSender
 	l      sync.RWMutex
 
@@ -38,9 +39,9 @@ type NetworkManager struct {
 	chainRequesters map[ids.ID]*requester
 }
 
-func NewNetworkManager(vm *VM, sender common.AppSender) *NetworkManager {
+func NewNetworkManager(log logging.Logger, sender common.AppSender) *NetworkManager {
 	return &NetworkManager{
-		vm:              vm,
+		log:             log,
 		sender:          sender,
 		handlers:        map[uint8]NetworkHandler{},
 		pendingHandlers: map[uint8]struct{}{},
@@ -97,7 +98,7 @@ func (n *NetworkManager) SetHandler(handler uint8, h NetworkHandler) {
 
 	_, ok := n.pendingHandlers[handler]
 	if !ok {
-		n.vm.snowCtx.Log.Error("pending handler does not exist", zap.Uint8("id", handler))
+		n.log.Error("pending handler does not exist", zap.Uint8("id", handler))
 		return
 	}
 	delete(n.pendingHandlers, handler)
@@ -208,7 +209,7 @@ func (n *NetworkManager) handleChainRequestID(
 func (n *NetworkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	parsedMsg, handler, ok := n.routeIncomingMessage(msg)
 	if !ok {
-		n.vm.snowCtx.Log.Debug(
+		n.log.Debug(
 			"could not route incoming AppGossip",
 			zap.Stringer("nodeID", nodeID),
 		)
@@ -227,7 +228,7 @@ func (n *NetworkManager) AppRequest(
 ) error {
 	parsedMsg, handler, ok := n.routeIncomingMessage(request)
 	if !ok {
-		n.vm.snowCtx.Log.Debug(
+		n.log.Debug(
 			"could not route incoming AppRequest",
 			zap.Stringer("nodeID", nodeID),
 			zap.Uint32("requestID", requestID),
@@ -245,7 +246,7 @@ func (n *NetworkManager) AppRequestFailed(
 ) error {
 	handler, cRequestID, ok := n.handleNodeRequestID(nodeID, requestID)
 	if !ok {
-		n.vm.snowCtx.Log.Debug(
+		n.log.Debug(
 			"could not handle incoming AppRequestFailed",
 			zap.Stringer("nodeID", nodeID),
 			zap.Uint32("requestID", requestID),
@@ -264,7 +265,7 @@ func (n *NetworkManager) AppResponse(
 ) error {
 	handler, cRequestID, ok := n.handleNodeRequestID(nodeID, requestID)
 	if !ok {
-		n.vm.snowCtx.Log.Debug(
+		n.log.Debug(
 			"could not handle incoming AppResponse",
 			zap.Stringer("nodeID", nodeID),
 			zap.Uint32("requestID", requestID),
@@ -284,7 +285,7 @@ func (n *NetworkManager) Connected(
 	defer n.l.RUnlock()
 	for k, handler := range n.handlers {
 		if err := handler.Connected(ctx, nodeID, v); err != nil {
-			n.vm.snowCtx.Log.Debug(
+			n.log.Debug(
 				"handler could not hanlde connected message",
 				zap.Stringer("nodeID", nodeID),
 				zap.Uint8("handler", k),
@@ -301,7 +302,7 @@ func (n *NetworkManager) Disconnected(ctx context.Context, nodeID ids.NodeID) er
 	defer n.l.RUnlock()
 	for k, handler := range n.handlers {
 		if err := handler.Disconnected(ctx, nodeID); err != nil {
-			n.vm.snowCtx.Log.Debug(
+			n.log.Debug(
 				"handler could not hanlde disconnected message",
 				zap.Stringer("nodeID", nodeID),
 				zap.Uint8("handler", k),
@@ -321,7 +322,7 @@ func (n *NetworkManager) CrossChainAppRequest(
 ) error {
 	parsedMsg, handler, ok := n.routeIncomingMessage(msg)
 	if !ok {
-		n.vm.snowCtx.Log.Debug(
+		n.log.Debug(
 			"could not route incoming CrossChainAppRequest",
 			zap.Stringer("chainID", chainID),
 			zap.Uint32("requestID", requestID),
@@ -338,7 +339,7 @@ func (n *NetworkManager) CrossChainAppRequestFailed(
 ) error {
 	handler, cRequestID, ok := n.handleChainRequestID(chainID, requestID)
 	if !ok {
-		n.vm.snowCtx.Log.Debug(
+		n.log.Debug(
 			"could not handle incoming CrossChainAppRequestFailed",
 			zap.Stringer("chainID", chainID),
 			zap.Uint32("requestID", requestID),
@@ -356,7 +357,7 @@ func (n *NetworkManager) CrossChainAppResponse(
 ) error {
 	handler, cRequestID, ok := n.handleChainRequestID(chainID, requestID)
 	if !ok {
-		n.vm.snowCtx.Log.Debug(
+		n.log.Debug(
 			"could not handle incoming CrossChainAppResponse",
 			zap.Stringer("chainID", chainID),
 			zap.Uint32("requestID", requestID),
