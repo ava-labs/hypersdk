@@ -25,6 +25,7 @@ type Metrics struct {
 	txBlockBytesSent      prometheus.Counter
 	txBlockBytesReceived  prometheus.Counter
 	mempoolSize           prometheus.Gauge
+	mempoolSizeAfterBuild prometheus.Gauge
 	acceptorDrift         prometheus.Gauge
 	rootCalculated        metric.Averager
 	commitState           metric.Averager
@@ -172,6 +173,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Namespace: "chain",
 			Name:      "mempool_size",
 			Help:      "number of transactions in the mempool",
+		}),
+		mempoolSizeAfterBuild: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "mempool_size_after_build",
+			Help:      "number of transactions in the mempool after build",
 		}),
 		acceptorDrift: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",

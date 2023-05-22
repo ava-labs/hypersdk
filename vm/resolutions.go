@@ -471,3 +471,7 @@ func (vm *VM) GetVerifySignatures() bool {
 func (vm *VM) GetMaxBuildTime() time.Duration {
 	return vm.config.GetMaxBuildTime()
 }
+
+func (vm *VM) RecordMempoolSizeAfterBuild(size int) {
+	vm.metrics.mempoolSizeAfterBuild.Set(float64(size))
+}

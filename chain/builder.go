@@ -332,12 +332,14 @@ func BuildBlock(
 	if err := b.initializeBuilt(ctx, txBlocks); err != nil {
 		return nil, err
 	}
+	mempoolSize := b.vm.Mempool().Len(ctx)
+	vm.RecordMempoolSizeAfterBuild(mempoolSize)
 	log.Info(
 		"built block",
 		zap.Uint64("hght", b.Hght),
 		zap.Int("attempted", txsAttempted),
 		zap.Int("added", len(b.Txs)),
-		zap.Int("mempool size", b.vm.Mempool().Len(ctx)),
+		zap.Int("mempool size", mempoolSize),
 		zap.Duration("mempool lock wait", lockWait),
 		zap.Bool("context", blockContext != nil),
 		zap.Int("state changes", ts.PendingChanges()),
