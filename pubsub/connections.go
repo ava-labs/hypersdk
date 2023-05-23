@@ -24,6 +24,7 @@ func NewConnections() *Connections {
 func (c *Connections) Conns() []*Connection {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
+
 	return c.conns.List()
 }
 
@@ -57,4 +58,11 @@ func (c *Connections) Len() int {
 	defer c.lock.RUnlock()
 
 	return c.conns.Len()
+}
+
+func (c *Connections) Peek() (*Connection, bool) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return c.conns.Peek()
 }

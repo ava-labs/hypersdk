@@ -5,6 +5,7 @@
 package cmd
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -34,6 +35,8 @@ var (
 	maxTxBacklog       int
 	deleteOtherChains  bool
 	checkAllChains     bool
+	prometheusFile     string
+	prometheusData     string
 
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
@@ -50,7 +53,7 @@ func init() {
 		chainCmd,
 		actionCmd,
 		spamCmd,
-		metricsCmd,
+		prometheusCmd,
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
@@ -174,9 +177,21 @@ func init() {
 		runSpamCmd,
 	)
 
-	// metrics
-	metricsCmd.AddCommand(
-		prometheusCmd,
+	// prometheus
+	generatePrometheusCmd.PersistentFlags().StringVar(
+		&prometheusFile,
+		"prometheus-file",
+		"/tmp/prometheus.yaml",
+		"prometheus file location",
+	)
+	generatePrometheusCmd.PersistentFlags().StringVar(
+		&prometheusData,
+		"prometheus-data",
+		fmt.Sprintf("/tmp/prometheus-%d", time.Now().Unix()),
+		"prometheus data location",
+	)
+	prometheusCmd.AddCommand(
+		generatePrometheusCmd,
 	)
 }
 

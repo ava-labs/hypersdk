@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
 	"github.com/ava-labs/hypersdk/workers"
@@ -31,17 +32,6 @@ var (
 	_ snowman.Block           = &StatelessBlock{}
 	_ block.WithVerifyContext = &StatelessBlock{}
 	_ block.StateSummary      = &SyncableBlock{}
-)
-
-const (
-	// AvalancheGo imposes a limit of 2 MiB on the network, so we limit at
-	// 2 MiB - ProposerVM header - Protobuf encoding overhead (we assume this is
-	// no more than 50 KiB of overhead but is likely much less)
-	NetworkSizeLimit = 2_044_723 // 1.95 MiB
-
-	// MaxWarpMessages is the maximum number of warp messages allows in a single
-	// block.
-	MaxWarpMessages = 64
 )
 
 type StatefulBlock struct {
@@ -248,7 +238,11 @@ func ParseStatefulBlock(
 }
 
 // [initializeBuilt] is invoked after a block is built
-func (b *StatelessBlock) initializeBuilt(ctx context.Context, state merkledb.TrieView, results []*Result) error {
+func (b *StatelessBlock) initializeBuilt(
+	ctx context.Context,
+	state merkledb.TrieView,
+	results []*Result,
+) error {
 	_, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
 	defer span.End()
 
@@ -324,12 +318,20 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 	case !stateReady:
 		// If the state of the accepted tip has not been fully fetched, it is not safe to
 		// verify any block.
-		log.Info("skipping verification, state not ready", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()))
+		log.Info(
+			"skipping verification, state not ready",
+			zap.Uint64("height", b.Hght),
+			zap.Stringer("blkID", b.ID()),
+		)
 	case b.Processed():
 		// If we built the block, the state will already be populated and we don't
 		// need to compute it (we assume that we built a correct block and it isn't
 		// necessary to re-verify anything).
-		log.Info("skipping verification, already processed", zap.Uint64("height", b.Hght), zap.Stringer("blkID", b.ID()))
+		log.Info(
+			"skipping verification, already processed",
+			zap.Uint64("height", b.Hght),
+			zap.Stringer("blkID", b.ID()),
+		)
 	default:
 		// Parent may not be processed when we verify this block so [verify] may
 		// recursively compute missing state.
@@ -804,7 +806,7 @@ func (b *StatefulBlock) Marshal(
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
 ) ([]byte, error) {
-	p := codec.NewWriter(NetworkSizeLimit)
+	p := codec.NewWriter(consts.NetworkSizeLimit)
 
 	p.PackID(b.Prnt)
 	p.PackInt64(b.Tmstmp)
@@ -832,7 +834,7 @@ func (b *StatefulBlock) Marshal(
 
 func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	var (
-		p = codec.NewReader(raw, NetworkSizeLimit)
+		p = codec.NewReader(raw, consts.NetworkSizeLimit)
 		b StatefulBlock
 	)
 

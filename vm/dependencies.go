@@ -29,8 +29,6 @@ type Config interface {
 	GetMempoolPayerSize() int
 	GetMempoolExemptPayers() [][]byte
 	GetMempoolVerifyBalances() bool
-	GetDecisionsPort() uint16
-	GetBlocksPort() uint16
 	GetStreamingBacklogSize() int
 	GetStateHistoryLength() int // how many roots back of data to keep to serve state queries
 	GetStateCacheSize() int     // how many items to keep in value cache and node cache

@@ -10,17 +10,16 @@ import (
 )
 
 type Metrics struct {
-	unitsVerified           prometheus.Counter
-	unitsAccepted           prometheus.Counter
-	txsSubmitted            prometheus.Counter // includes gossip
-	txsVerified             prometheus.Counter
-	txsAccepted             prometheus.Counter
-	stateChanges            prometheus.Counter
-	stateOperations         prometheus.Counter
-	decisionsRPCConnections prometheus.Gauge
-	blocksRPCConnections    prometheus.Gauge
-	rootCalculated          metric.Averager
-	waitSignatures          metric.Averager
+	unitsVerified   prometheus.Counter
+	unitsAccepted   prometheus.Counter
+	txsSubmitted    prometheus.Counter // includes gossip
+	txsVerified     prometheus.Counter
+	txsAccepted     prometheus.Counter
+	stateChanges    prometheus.Counter
+	stateOperations prometheus.Counter
+	mempoolSize     prometheus.Gauge
+	rootCalculated  metric.Averager
+	waitSignatures  metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -81,15 +80,10 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "state_operations",
 			Help:      "number of state operations",
 		}),
-		decisionsRPCConnections: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "vm",
-			Name:      "decisions_rpc_connections",
-			Help:      "number of open decisions connections",
-		}),
-		blocksRPCConnections: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "vm",
-			Name:      "blocks_rpc_connections",
-			Help:      "number of open blocks connections",
+		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "mempool_size",
+			Help:      "number of transactions in the mempool",
 		}),
 		rootCalculated: rootCalculated,
 		waitSignatures: waitSignatures,
@@ -103,8 +97,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txsAccepted),
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
-		r.Register(m.decisionsRPCConnections),
-		r.Register(m.blocksRPCConnections),
+		r.Register(m.mempoolSize),
 	)
 	return r, m, errs.Err
 }

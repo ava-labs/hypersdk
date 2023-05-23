@@ -1,8 +1,11 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package listeners
+package rpc
 
 import "errors"
 
-var ErrExpired = errors.New("expired")
+var (
+	ErrTxNotFound    = errors.New("tx not found")
+	ErrAssetNotFound = errors.New("asset not found")
+)

@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,26 +20,25 @@ import (
 
 const dummyAddr = "localhost:8080"
 
-var (
-	callbackEmptyResponse = "EMPTY_ID"
-	callbackResponse      = "ID_RECEIVED"
-)
-
 // This is a dummy struct to test the callback function
 type counter struct {
 	val int
+	// lock
+	l sync.RWMutex
 }
 
-func (x *counter) dummyProcessTXCallback(b []byte, _ *Connection) []byte {
+func (x *counter) dummyProcessTXCallback(b []byte, _ *Connection) {
 	x.val++
 	id, err := ids.ToID(b)
+	x.l.Lock()
+	defer x.l.Unlock()
 	if err != nil {
-		return []byte("ERROR")
+		return
 	}
 	if ids.Empty == id {
-		return []byte(callbackEmptyResponse)
+		return
 	} else {
-		return []byte(callbackResponse)
+		x.val++
 	}
 }
 
@@ -51,28 +51,35 @@ func TestServerPublish(t *testing.T) {
 	// Create a new logger for the test
 	logger := logging.NoLog{}
 	// Create a new pubsub server
-	server := New(dummyAddr, nil, logger, NewDefaultServerConfig())
+	handler := New(logger, NewDefaultServerConfig(), nil)
 	// Channels for ensuring if connections/server are closed
 	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
 	dummyMsg := "dummy_msg"
 	// Go routine that listens on dummyAddress for connections
+	var server *http.Server
 	go func() {
 		defer close(serverDone)
-		err := server.Start()
-		require.ErrorIs(err, http.ErrServerClosed, "Incorrect error closing server.")
+		server = &http.Server{
+			Addr:              dummyAddr,
+			Handler:           handler,
+			ReadHeaderTimeout: 30 * time.Second,
+		}
+		require.ErrorIs(
+			server.ListenAndServe(),
+			http.ErrServerClosed,
+			"Incorrect error closing server.",
+		)
 	}()
 	// Connect to pubsub server
 	u := url.URL{Scheme: "ws", Host: dummyAddr}
 	// Wait for server to start accepting requests
-	<-time.After(10 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	webCon, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp.Body.Close()
 	// Publish to subscribed connections
-	server.lock.Lock()
-	server.Publish([]byte(dummyMsg), server.conns)
-	server.lock.Unlock()
+	handler.Publish([]byte(dummyMsg), handler.Connections())
 	// Receive the message from the publish
 	_, msg, err := webCon.ReadMessage()
 	require.NoError(err, "Error receiveing message.")
@@ -82,14 +89,10 @@ func TestServerPublish(t *testing.T) {
 	go func() {
 		webCon.Close()
 		for {
-			server.lock.Lock()
-			len := server.conns.Len()
-			if len == 0 {
-				server.lock.Unlock()
+			if handler.conns.Len() == 0 {
 				closeConnection <- true
 				return
 			}
-			server.lock.Unlock()
 			time.Sleep(10 * time.Millisecond)
 		}
 	}()
@@ -118,46 +121,48 @@ func TestServerRead(t *testing.T) {
 		val: 10,
 	}
 	// Create a new pubsub server
-	server := New(dummyAddr, counter.dummyProcessTXCallback,
-		logger, NewDefaultServerConfig())
+	handler := New(logger, NewDefaultServerConfig(), counter.dummyProcessTXCallback)
 	// Channels for ensuring if connections/server are closed
 	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
 	// Go routine that listens on dummyAddress for connections
+	var server *http.Server
 	go func() {
 		defer close(serverDone)
-		err := server.Start()
-		require.ErrorIs(err, http.ErrServerClosed, "Incorrect error closing server.")
+		server = &http.Server{
+			Addr:              dummyAddr,
+			Handler:           handler,
+			ReadHeaderTimeout: 30 * time.Second,
+		}
+		require.ErrorIs(
+			server.ListenAndServe(),
+			http.ErrServerClosed,
+			"Incorrect error closing server.",
+		)
 	}()
-	// Connect to pubsub server
-	u := url.URL{Scheme: "ws", Host: dummyAddr}
 	// Wait for server to start accepting requests
-	<-time.After(10 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
+	u := url.URL{Scheme: "ws", Host: dummyAddr}
 	webCon, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp.Body.Close()
 	id := ids.GenerateTestID()
 	err = webCon.WriteMessage(websocket.TextMessage, id[:])
 	require.NoError(err, "Error writing message to server.")
-	// Receive the message from the publish
-	_, msg, err := webCon.ReadMessage()
-	require.NoError(err, "Error reading from connection.")
+	// Wait for callback to be called
+	time.Sleep(10 * time.Millisecond)
 	// Callback was correctly called
-	require.Equal(11, counter.val, "Callback not called correctly.")
-	// Verify that the received message is the expected dummy message
-	require.Equal(callbackResponse, string(msg), "Response is unexpected.")
+	counter.l.Lock()
+	require.Equal(12, counter.val, "Callback not called correctly.")
+	counter.l.Unlock()
 	// Close the connection and wait for it to be closed on the server side
 	go func() {
 		webCon.Close()
 		for {
-			server.lock.Lock()
-			len := server.conns.Len()
-			if len == 0 {
-				server.lock.Unlock()
+			if handler.conns.Len() == 0 {
 				closeConnection <- true
 				return
 			}
-			server.lock.Unlock()
 			time.Sleep(10 * time.Millisecond)
 		}
 	}()
@@ -187,39 +192,45 @@ func TestServerPublishSpecific(t *testing.T) {
 		val: 10,
 	}
 	// Create a new pubsub server
-	server := New(dummyAddr, counter.dummyProcessTXCallback,
-		logger, NewDefaultServerConfig())
-
+	handler := New(logger, NewDefaultServerConfig(), counter.dummyProcessTXCallback)
 	// Channels for ensuring if connections/server are closed
 	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
 	dummyMsg := "dummy_msg"
 	// Go routine that listens on dummyAddress for connections
+	var server *http.Server
 	go func() {
 		defer close(serverDone)
-		err := server.Start()
-		require.ErrorIs(err, http.ErrServerClosed, "Incorrect error closing server.")
+		server = &http.Server{
+			Addr:              dummyAddr,
+			Handler:           handler,
+			ReadHeaderTimeout: 30 * time.Second,
+		}
+		require.ErrorIs(
+			server.ListenAndServe(),
+			http.ErrServerClosed,
+			"Incorrect error closing server.",
+		)
 	}()
 	// Connect to pubsub server
 	u := url.URL{Scheme: "ws", Host: dummyAddr}
 	// Wait for server to start accepting requests
-	<-time.After(10 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	webCon1, resp1, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp1.Body.Close()
 	sendConns := NewConnections()
-	server.lock.Lock()
-	peekCon, _ := server.conns.conns.Peek()
-	server.lock.Unlock()
+	peekCon, _ := handler.conns.Peek()
 	sendConns.Add(peekCon)
 	webCon2, resp2, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	require.NoError(err, "Error connecting to the server.")
 	defer resp2.Body.Close()
-	require.Equal(2, server.conns.Len(), "Server didn't add connection correctly.")
+	require.Eventually(
+		func() bool { return handler.conns.Len() == 2 },
+		10*time.Second, 10*time.Millisecond, "Server didn't add connection correctly.",
+	)
 	// Publish to subscribed connections
-	server.lock.Lock()
-	server.Publish([]byte(dummyMsg), sendConns)
-	server.lock.Unlock()
+	handler.Publish([]byte(dummyMsg), sendConns)
 	go func() {
 		// Receive the message from the publish
 		_, msg, err := webCon1.ReadMessage()
@@ -228,14 +239,10 @@ func TestServerPublishSpecific(t *testing.T) {
 		require.Equal([]byte(dummyMsg), msg, "Message not as expected.")
 		webCon1.Close()
 		for {
-			server.lock.Lock()
-			len := server.conns.Len()
-			if len == 0 {
-				server.lock.Unlock()
+			if handler.conns.Len() == 0 {
 				closeConnection <- true
 				return
 			}
-			server.lock.Unlock()
 			time.Sleep(10 * time.Millisecond)
 		}
 	}()
@@ -251,14 +258,10 @@ func TestServerPublishSpecific(t *testing.T) {
 		require.True(netErr.Timeout(), "Error is not a timeout error")
 		webCon2.Close()
 		for {
-			server.lock.Lock()
-			len := server.conns.Len()
-			if len == 0 {
-				server.lock.Unlock()
+			if handler.conns.Len() == 0 {
 				closeConnection <- true
 				return
 			}
-			server.lock.Unlock()
 			time.Sleep(10 * time.Millisecond)
 		}
 	}()

@@ -131,9 +131,9 @@ func (n *NetworkManager) routeIncomingMessage(msg []byte) ([]byte, NetworkHandle
 	if l == 0 {
 		return nil, nil, false
 	}
-	handlerID := msg[l-1]
+	handlerID := msg[0]
 	handler, ok := n.handlers[handlerID]
-	return msg[:l-1], handler, ok
+	return msg[1:], handler, ok
 }
 
 func (n *NetworkManager) handleSharedRequestID(
@@ -344,7 +344,7 @@ func (w *WrappedAppSender) SendAppRequest(
 	requestID uint32,
 	appRequestBytes []byte,
 ) error {
-	appRequestBytes = append(appRequestBytes, w.handler)
+	appRequestBytes = w.createMessageBytes(appRequestBytes)
 	for nodeID := range nodeIDs {
 		newRequestID := w.n.getSharedRequestID(w.handler, nodeID, requestID)
 		if err := w.n.sender.SendAppRequest(
@@ -384,7 +384,7 @@ func (w *WrappedAppSender) SendAppResponse(
 func (w *WrappedAppSender) SendAppGossip(ctx context.Context, appGossipBytes []byte) error {
 	return w.n.sender.SendAppGossip(
 		ctx,
-		append(appGossipBytes, w.handler),
+		w.createMessageBytes(appGossipBytes),
 	)
 }
 
@@ -396,7 +396,7 @@ func (w *WrappedAppSender) SendAppGossipSpecific(
 	return w.n.sender.SendAppGossipSpecific(
 		ctx,
 		nodeIDs,
-		append(appGossipBytes, w.handler),
+		w.createMessageBytes(appGossipBytes),
 	)
 }
 
@@ -420,7 +420,7 @@ func (w *WrappedAppSender) SendCrossChainAppRequest(
 		ctx,
 		chainID,
 		requestID,
-		append(appRequestBytes, w.handler),
+		w.createMessageBytes(appRequestBytes),
 	)
 }
 
@@ -440,4 +440,11 @@ func (w *WrappedAppSender) SendCrossChainAppResponse(
 	// We don't need to wrap this response because the sender should know what
 	// requestID is associated with which handler.
 	return w.n.sender.SendCrossChainAppResponse(ctx, chainID, requestID, appResponseBytes)
+}
+
+func (w *WrappedAppSender) createMessageBytes(src []byte) []byte {
+	messageBytes := make([]byte, 1+len(src))
+	messageBytes[0] = w.handler
+	copy(messageBytes[1:], src)
+	return messageBytes
 }

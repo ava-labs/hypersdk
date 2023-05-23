@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package vm
+package rpc
 
 import (
 	"context"
@@ -14,27 +14,24 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"go.uber.org/zap"
 )
 
-const (
-	Endpoint = "/rpc"
-)
-
-type Handler struct {
-	vm *VM
+type JSONRPCServer struct {
+	vm VM
 }
 
-func (vm *VM) Handler() *Handler {
-	return &Handler{vm}
+func NewJSONRPCServer(vm VM) *JSONRPCServer {
+	return &JSONRPCServer{vm}
 }
 
 type PingReply struct {
 	Success bool `json:"success"`
 }
 
-func (h *Handler) Ping(_ *http.Request, _ *struct{}, reply *PingReply) (err error) {
-	h.vm.snowCtx.Log.Info("ping")
+func (j *JSONRPCServer) Ping(_ *http.Request, _ *struct{}, reply *PingReply) (err error) {
+	j.vm.Logger().Info("ping")
 	reply.Success = true
 	return nil
 }
@@ -45,10 +42,10 @@ type NetworkReply struct {
 	ChainID   ids.ID `json:"chainId"`
 }
 
-func (h *Handler) Network(_ *http.Request, _ *struct{}, reply *NetworkReply) (err error) {
-	reply.NetworkID = h.vm.snowCtx.NetworkID
-	reply.SubnetID = h.vm.snowCtx.SubnetID
-	reply.ChainID = h.vm.snowCtx.ChainID
+func (j *JSONRPCServer) Network(_ *http.Request, _ *struct{}, reply *NetworkReply) (err error) {
+	reply.NetworkID = j.vm.NetworkID()
+	reply.SubnetID = j.vm.SubnetID()
+	reply.ChainID = j.vm.ChainID()
 	return nil
 }
 
@@ -60,12 +57,17 @@ type SubmitTxReply struct {
 	TxID ids.ID `json:"txId"`
 }
 
-func (h *Handler) SubmitTx(req *http.Request, args *SubmitTxArgs, reply *SubmitTxReply) error {
-	ctx, span := h.vm.Tracer().Start(req.Context(), "Handler.SubmitTx")
+func (j *JSONRPCServer) SubmitTx(
+	req *http.Request,
+	args *SubmitTxArgs,
+	reply *SubmitTxReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SubmitTx")
 	defer span.End()
 
-	rtx := codec.NewReader(args.Tx, chain.NetworkSizeLimit) // will likely be much smaller than this
-	tx, err := chain.UnmarshalTx(rtx, h.vm.actionRegistry, h.vm.authRegistry)
+	actionRegistry, authRegistry := j.vm.Registry()
+	rtx := codec.NewReader(args.Tx, consts.NetworkSizeLimit) // will likely be much smaller than this
+	tx, err := chain.UnmarshalTx(rtx, actionRegistry, authRegistry)
 	if err != nil {
 		return fmt.Errorf("%w: unable to unmarshal on public service", err)
 	}
@@ -77,7 +79,7 @@ func (h *Handler) SubmitTx(req *http.Request, args *SubmitTxArgs, reply *SubmitT
 	}
 	txID := tx.ID()
 	reply.TxID = txID
-	return h.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]
+	return j.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]
 }
 
 type LastAcceptedReply struct {
@@ -86,8 +88,8 @@ type LastAcceptedReply struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
-func (h *Handler) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
-	blk := h.vm.lastAccepted
+func (j *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
+	blk := j.vm.LastAcceptedBlock()
 	reply.Height = blk.Hght
 	reply.BlockID = blk.ID()
 	reply.Timestamp = blk.Tmstmp
@@ -99,34 +101,20 @@ type SuggestedRawFeeReply struct {
 	BlockCost uint64 `json:"blockCost"`
 }
 
-func (h *Handler) SuggestedRawFee(
+func (j *JSONRPCServer) SuggestedRawFee(
 	req *http.Request,
 	_ *struct{},
 	reply *SuggestedRawFeeReply,
 ) error {
-	ctx, span := h.vm.Tracer().Start(req.Context(), "Handler.SuggestedRawFee")
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SuggestedRawFee")
 	defer span.End()
 
-	unitPrice, blockCost, err := h.vm.SuggestedFee(ctx)
+	unitPrice, blockCost, err := j.vm.SuggestedFee(ctx)
 	if err != nil {
 		return err
 	}
 	reply.UnitPrice = unitPrice
 	reply.BlockCost = blockCost
-	return nil
-}
-
-type PortReply struct {
-	Port uint16 `json:"port"`
-}
-
-func (h *Handler) DecisionsPort(_ *http.Request, _ *struct{}, reply *PortReply) error {
-	reply.Port = h.vm.DecisionsPort()
-	return nil
-}
-
-func (h *Handler) BlocksPort(_ *http.Request, _ *struct{}, reply *PortReply) error {
-	reply.Port = h.vm.BlocksPort()
 	return nil
 }
 
@@ -141,20 +129,20 @@ type WarpValidator struct {
 }
 
 type GetWarpSignaturesReply struct {
-	Validators []*WarpValidator      `json:"validators"`
-	Message    *warp.UnsignedMessage `json:"message"`
-	Signatures []*WarpSignature      `json:"signatures"`
+	Validators []*WarpValidator       `json:"validators"`
+	Message    *warp.UnsignedMessage  `json:"message"`
+	Signatures []*chain.WarpSignature `json:"signatures"`
 }
 
-func (h *Handler) GetWarpSignatures(
+func (j *JSONRPCServer) GetWarpSignatures(
 	req *http.Request,
 	args *GetWarpSignaturesArgs,
 	reply *GetWarpSignaturesReply,
 ) error {
-	_, span := h.vm.Tracer().Start(req.Context(), "Handler.GetWarpSignatures")
+	_, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetWarpSignatures")
 	defer span.End()
 
-	message, err := h.vm.GetOutgoingWarpMessage(args.TxID)
+	message, err := j.vm.GetOutgoingWarpMessage(args.TxID)
 	if err != nil {
 		return err
 	}
@@ -162,15 +150,15 @@ func (h *Handler) GetWarpSignatures(
 		return ErrMessageMissing
 	}
 
-	signatures, err := h.vm.GetWarpSignatures(args.TxID)
+	signatures, err := j.vm.GetWarpSignatures(args.TxID)
 	if err != nil {
 		return err
 	}
 
 	// Ensure we only return valid signatures
-	validSignatures := []*WarpSignature{}
+	validSignatures := []*chain.WarpSignature{}
 	warpValidators := []*WarpValidator{}
-	validators, publicKeys := h.vm.proposerMonitor.Validators(req.Context())
+	validators, publicKeys := j.vm.CurrentValidators(req.Context())
 	for _, sig := range signatures {
 		if _, ok := publicKeys[string(sig.PublicKey)]; !ok {
 			continue
@@ -190,7 +178,7 @@ func (h *Handler) GetWarpSignatures(
 
 	// Optimistically request that we gather signatures if we don't have all of them
 	if len(validSignatures) < len(publicKeys) {
-		h.vm.snowCtx.Log.Info(
+		j.vm.Logger().Info(
 			"fetching missing signatures",
 			zap.Stringer("txID", args.TxID),
 			zap.Int(
@@ -200,7 +188,7 @@ func (h *Handler) GetWarpSignatures(
 			zap.Int("valid", len(validSignatures)),
 			zap.Int("current public key count", len(publicKeys)),
 		)
-		h.vm.warpManager.GatherSignatures(context.TODO(), args.TxID, message.Bytes())
+		j.vm.GatherSignatures(context.TODO(), args.TxID, message.Bytes())
 	}
 
 	reply.Message = message
