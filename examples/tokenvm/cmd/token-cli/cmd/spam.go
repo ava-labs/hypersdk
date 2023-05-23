@@ -42,6 +42,7 @@ type txIssuer struct {
 	d  *rpc.WebSocketClient
 
 	l              sync.Mutex
+	uri            int
 	abandoned      error
 	outstandingTxs int
 }
@@ -268,15 +269,25 @@ var runSpamCmd = &cobra.Command{
 		hutils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", numAccounts)
 
 		// Kickoff txs
-		clients := make([]*txIssuer, len(uris))
+		numClients, err := promptInt("number of clients per node")
+		if err != nil {
+			return err
+		}
+		if numClients == 0 {
+			numClients = 1
+			hutils.Outf("{{orange}}must have at least 1 client{{/}}\n")
+		}
+		clients := []*txIssuer{}
 		for i := 0; i < len(uris); i++ {
-			cli := rpc.NewJSONRPCClient(uris[i])
-			tcli := trpc.NewJSONRPCClient(uris[i], chainID)
-			dcli, err := rpc.NewWebSocketClient(uris[i], 128_000, pubsub.MaxReadMessageSize)
-			if err != nil {
-				return err
+			for j := 0; j < numClients; j++ {
+				cli := rpc.NewJSONRPCClient(uris[i])
+				tcli := trpc.NewJSONRPCClient(uris[i], chainID)
+				dcli, err := rpc.NewWebSocketClient(uris[i], 128_000, pubsub.MaxReadMessageSize)
+				if err != nil {
+					return err
+				}
+				clients = append(clients, &txIssuer{c: cli, tc: tcli, d: dcli, uri: i})
 			}
-			clients[i] = &txIssuer{c: cli, tc: tcli, d: dcli}
 		}
 		signals := make(chan os.Signal, 2)
 		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
@@ -383,7 +394,8 @@ var runSpamCmd = &cobra.Command{
 										return issuer.abandoned
 									}
 									// recreate issuer
-									dcli, err := rpc.NewWebSocketClient(uris[issuerIndex], 128_000, pubsub.MaxReadMessageSize)
+									hutils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %d\n", issuerIndex, issuer.uri)
+									dcli, err := rpc.NewWebSocketClient(uris[issuer.uri], 128_000, pubsub.MaxReadMessageSize)
 									if err != nil {
 										issuer.abandoned = err
 										hutils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)

@@ -222,6 +222,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txBlocksMissing),
 		r.Register(m.deletedTxBlocks),
 		r.Register(m.mempoolSize),
+		r.Register(m.mempoolSizeAfterBuild),
 		r.Register(m.acceptorDrift),
 		r.Register(m.earlyBuildStop),
 		r.Register(m.txBlockBytesSent),

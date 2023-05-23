@@ -5,8 +5,10 @@ package rpc
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -15,6 +17,8 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/gorilla/websocket"
 )
+
+const handshakeTimeout = 10 * time.Second
 
 type WebSocketClient struct {
 	cl   sync.Once
@@ -43,7 +47,12 @@ func NewWebSocketClient(uri string, pending int, maxSize int) (*WebSocketClient,
 	}
 	uri = strings.TrimSuffix(uri, "/")
 	uri += WebSocketEndpoint
-	conn, resp, err := websocket.DefaultDialer.Dial(uri, nil)
+	// source: https://github.com/gorilla/websocket/blob/76ecc29eff79f0cedf70c530605e486fc32131d1/client.go#L140-L144
+	dialer := &websocket.Dialer{
+		Proxy:            http.ProxyFromEnvironment,
+		HandshakeTimeout: handshakeTimeout,
+	}
+	conn, resp, err := dialer.Dial(uri, nil)
 	if err != nil {
 		return nil, err
 	}
