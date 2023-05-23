@@ -218,7 +218,7 @@ function cleanup() {
   fi
 
   echo "avalanche-network-runner shutting down..."
-  ./stop.sh;
+  ./scripts/stop.sh;
 }
 trap cleanup EXIT
 
