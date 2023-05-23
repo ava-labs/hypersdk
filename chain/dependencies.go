@@ -42,6 +42,8 @@ type VM interface {
 	Logger() logging.Logger
 	Mempool() Mempool
 	GetVerifySignatures() bool
+
+	GetMinBuildTime() time.Duration
 	GetMaxBuildTime() time.Duration
 
 	// UpdateSyncTarget returns a bool that is true if the root

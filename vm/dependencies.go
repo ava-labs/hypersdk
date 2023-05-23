@@ -39,6 +39,7 @@ type Config interface {
 	GetContinuousProfilerConfig() *profiler.Config
 	GetRootBlockPruneDiff() uint64
 	GetVerifySignatures() bool
+	GetMinBuildTime() time.Duration
 	GetMaxBuildTime() time.Duration
 }
 

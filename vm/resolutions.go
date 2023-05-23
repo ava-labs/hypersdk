@@ -468,6 +468,10 @@ func (vm *VM) GetVerifySignatures() bool {
 	return vm.config.GetVerifySignatures()
 }
 
+func (vm *VM) GetMinBuildTime() time.Duration {
+	return vm.config.GetMinBuildTime()
+}
+
 func (vm *VM) GetMaxBuildTime() time.Duration {
 	return vm.config.GetMaxBuildTime()
 }
