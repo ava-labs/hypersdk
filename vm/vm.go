@@ -673,7 +673,8 @@ func (vm *VM) buildBlock(
 			vm.metrics.buildBlock.Observe(float64(dur))
 			vm.builder.TriggerBuild()
 		}()
-		vm.builder.HandleGenerateBlock()
+		// Now that we do a 250ms wait, we don't need this additional sleep
+		// vm.builder.HandleGenerateBlock()
 		return nil, errors.New("building block")
 	}
 	vm.parsedBlocks.Put(builtBlock.ID(), builtBlock)

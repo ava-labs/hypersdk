@@ -85,11 +85,15 @@ func (b *Time) Run() {
 		case <-t.C:
 			ctx := context.Background()
 
-			// Prevent runaway block production during window
-			if time.Since(b.lastBuild) < b.cfg.BuildInterval {
-				b.vm.Logger().Debug("skipping build because build block recently")
+			if b.vm.IsBuilding() {
+				b.vm.Logger().Debug("skipping build currently building")
 				continue
 			}
+			// Prevent runaway block production during window
+			// if time.Since(b.lastBuild) < b.cfg.BuildInterval {
+			// 	b.vm.Logger().Debug("skipping build because build block recently")
+			// 	continue
+			// }
 			if b.vm.Mempool().Len(ctx) == 0 {
 				b.vm.Logger().Debug("skipping build because no transactions in mempool")
 				continue

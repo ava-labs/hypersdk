@@ -17,4 +17,5 @@ type VM interface {
 	PreferredBlock(context.Context) (*chain.StatelessRootBlock, error)
 	Logger() logging.Logger
 	Mempool() chain.Mempool
+	IsBuilding() bool
 }
