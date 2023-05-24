@@ -29,6 +29,8 @@ type Processor struct {
 	db     merkledb.TrieView
 	ts     *tstate.TState
 
+	alreadyFetched map[string]*fetchData
+
 	blk         *StatelessTxBlock
 	readyTxs    chan *txData
 	prefetchErr error
@@ -37,9 +39,10 @@ type Processor struct {
 // Only prepare for population if above last accepted height
 func NewProcessor(tracer trace.Tracer, db merkledb.TrieView, ts *tstate.TState) *Processor {
 	return &Processor{
-		tracer: tracer,
-		db:     db,
-		ts:     ts,
+		tracer:         tracer,
+		db:             db,
+		ts:             ts,
+		alreadyFetched: map[string]*fetchData{},
 	}
 }
 
@@ -53,12 +56,11 @@ func (p *Processor) Prefetch(ctx context.Context, b *StatelessTxBlock) {
 		defer span.End()
 
 		// Store required keys for each set
-		alreadyFetched := make(map[string]*fetchData, len(p.blk.GetTxs()))
 		for _, tx := range p.blk.GetTxs() {
 			storage := map[string][]byte{}
 			for _, k := range tx.StateKeys(sm) {
 				sk := string(k)
-				if v, ok := alreadyFetched[sk]; ok {
+				if v, ok := p.alreadyFetched[sk]; ok {
 					if v.exists {
 						storage[sk] = v.v
 					}
@@ -66,7 +68,7 @@ func (p *Processor) Prefetch(ctx context.Context, b *StatelessTxBlock) {
 				}
 				v, err := p.db.GetValue(ctx, k)
 				if errors.Is(err, database.ErrNotFound) {
-					alreadyFetched[sk] = &fetchData{nil, false}
+					p.alreadyFetched[sk] = &fetchData{nil, false}
 					continue
 				} else if err != nil {
 					// This can happen if the underlying view changes (if we are
@@ -75,7 +77,7 @@ func (p *Processor) Prefetch(ctx context.Context, b *StatelessTxBlock) {
 					close(p.readyTxs)
 					return
 				}
-				alreadyFetched[sk] = &fetchData{v, true}
+				p.alreadyFetched[sk] = &fetchData{v, true}
 				storage[sk] = v
 			}
 			p.readyTxs <- &txData{tx, storage}
