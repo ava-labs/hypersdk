@@ -133,6 +133,12 @@ func BuildBlock(
 		go func() {
 			// Store required keys for each set
 			for i, tx := range txs {
+				if txBlock == nil {
+					// This happens when at last tx block
+					stopIndex = i
+					close(readyTxs)
+					return
+				}
 				storage := map[string][]byte{}
 				for _, k := range tx.StateKeys(sm) {
 					sk := string(k)
@@ -170,7 +176,7 @@ func BuildBlock(
 			next := nextTx.tx
 
 			// Avoid bulding if there is an error
-			if execErr != nil {
+			if txBlock == nil || execErr != nil {
 				restorable = append(restorable, next)
 				continue
 			}
@@ -258,7 +264,6 @@ func BuildBlock(
 				if txBlock.Last {
 					txBlock = nil
 					restorable = append(restorable, next)
-					execErr = err
 					continue
 				}
 				parentTxBlock = txBlock
