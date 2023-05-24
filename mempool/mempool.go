@@ -322,6 +322,8 @@ func (th *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 
 // TODO: break build apart into:
 // * fetch of X txs (kept in pending map to avoid duplicate entry)
+//   - could use MaxUnits to determine and try to build 1 tx block at a time
+//
 // * pre-fetch state, iterate repeatedly until max time has elapsed our out of
 // txs
 func (th *Mempool[T]) Build(
