@@ -2,6 +2,7 @@ package chain
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"testing"
 	"time"
@@ -16,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupProcessor(b *testing.B, txCount int) (*Processor, merkledb.TrieView) {
+func setupProcessor(b *testing.B, txCount, stateKeyCount int) (*Processor, merkledb.TrieView) {
 	b.Helper()
 	require := require.New(b)
 	chainId := ids.GenerateTestID()
@@ -75,20 +76,33 @@ func setupProcessor(b *testing.B, txCount int) (*Processor, merkledb.TrieView) {
 
 	txs := make([]*Transaction, 0, txCount)
 	for i := 0; i < txCount; i++ {
-		txs = append(txs, createTestTx(b, 10, nextTime, chainId, txId))
+		keys := make([][]byte, 0, stateKeyCount)
+		for i := 0; i < stateKeyCount/2; i++ {
+			key := prefixTestTxKey(ids.GenerateTestID())
+			keys = append(keys, key)
+			trie.Insert(context.TODO(), key, randomBytes(8))
+		}
+		txs = append(txs, createTestTx(b, 10, nextTime, chainId, txId, keys))
 	}
 
 	blk.Txs = txs
 	return NewProcessor(tracer, blk), trie
 }
 
+func randomBytes(size int) []byte {
+	bytes := make([]byte, size)
+	_, _ = rand.Read(bytes)
+	return bytes
+}
+
 func BenchmarkProcessorPrefetch(b *testing.B) {
 	b.ResetTimer()
 	txCount := 1000
-	b.Run(fmt.Sprintf("processor_tx_count_%d_keys_%d", txCount, 10), func(b *testing.B) {
+	stateKeyCount := 10
+	b.Run(fmt.Sprintf("processor_tx_count_%d_state_keys_%d", txCount, stateKeyCount), func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
-			p, db := setupProcessor(b, txCount)
+			p, db := setupProcessor(b, txCount, stateKeyCount)
 			b.StartTimer()
 			p.Prefetch(context.Background(), db)
 			// clear channel
@@ -98,19 +112,14 @@ func BenchmarkProcessorPrefetch(b *testing.B) {
 	})
 }
 
-func createTestTx(b *testing.B, keySize int, tmstp int64, chainId, txId ids.ID) *Transaction {
+func createTestTx(b *testing.B, keySize int, tmstp int64, chainId, txId ids.ID, stateKeys [][]byte) *Transaction {
 	b.Helper()
 	ctrl := gomock.NewController(b)
 	act := NewMockAction(ctrl)
 	auth := NewMockAuth(ctrl)
 
-	keys := make([][]byte, 0, keySize)
-	for i := 0; i < keySize/2; i++ {
-		keys = append(keys, prefixTestTxKey(ids.GenerateTestID()))
-	}
-
-	auth.EXPECT().StateKeys().Return(keys).AnyTimes()
-	act.EXPECT().StateKeys(auth, txId).Return(keys).AnyTimes()
+	auth.EXPECT().StateKeys().Return(stateKeys).AnyTimes()
+	act.EXPECT().StateKeys(auth, txId).Return(stateKeys).AnyTimes()
 	tx := &Transaction{
 		Base: &Base{
 			Timestamp: tmstp,
