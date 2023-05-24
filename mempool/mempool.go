@@ -6,17 +6,21 @@ package mempool
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/utils/metric"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const maxPrealloc = 4_096
 
 type Mempool[T Item] struct {
-	tracer trace.Tracer
+	tracer  trace.Tracer
+	metrics *metrics
 
 	mu sync.RWMutex
 
@@ -41,7 +45,7 @@ func New[T Item](
 	maxSize int,
 	maxPayerSize int,
 	exemptPayers [][]byte,
-) *Mempool[T] {
+) (*Mempool[T], *prometheus.Registry, error) {
 	m := &Mempool[T]{
 		tracer: tracer,
 
@@ -62,7 +66,56 @@ func New[T Item](
 	for _, payer := range exemptPayers {
 		m.exemptPayers.Add(string(payer))
 	}
-	return m
+	registry, metrics, err := newMetrics()
+	if err != nil {
+		return nil, nil, err
+	}
+	m.metrics = metrics
+	return m, registry, nil
+}
+
+type metrics struct {
+	buildOverhead   metric.Averager
+	setMinTimestamp metric.Averager
+	add             metric.Averager
+}
+
+func newMetrics() (*prometheus.Registry, *metrics, error) {
+	r := prometheus.NewRegistry()
+	buildOverhead, err := metric.NewAverager(
+		"mempool",
+		"build_overhead",
+		"time spent handling mempool build",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	setMinTimestamp, err := metric.NewAverager(
+		"mempool",
+		"set_min_timestamp",
+		"time spent setting min timestamp",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	add, err := metric.NewAverager(
+		"mempool",
+		"add",
+		"time spent adding",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	m := &metrics{
+		buildOverhead:   buildOverhead,
+		setMinTimestamp: setMinTimestamp,
+		add:             add,
+		// TODO: add size
+	}
+	return r, m, nil
 }
 
 func (th *Mempool[T]) removeFromOwned(item T) {
@@ -95,6 +148,11 @@ func (th *Mempool[T]) Has(ctx context.Context, itemID ids.ID) bool {
 func (th *Mempool[T]) Add(ctx context.Context, items []T) {
 	_, span := th.tracer.Start(ctx, "Mempool.Add")
 	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		th.metrics.add.Observe(float64(time.Since(start)))
+	}()
 
 	th.mu.Lock()
 	defer th.mu.Unlock()
@@ -246,6 +304,11 @@ func (th *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 	_, span := th.tracer.Start(ctx, "Mempool.SetMinTimesamp")
 	defer span.End()
 
+	start := time.Now()
+	defer func() {
+		th.metrics.setMinTimestamp.Observe(float64(time.Since(start)))
+	}()
+
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
@@ -264,6 +327,12 @@ func (th *Mempool[T]) Build(
 	ctx, span := th.tracer.Start(ctx, "Mempool.Build")
 	defer span.End()
 
+	start := time.Now()
+	var vmTime time.Duration
+	defer func() {
+		th.metrics.buildOverhead.Observe(float64(time.Since(start) - vmTime))
+	}()
+
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
@@ -271,7 +340,9 @@ func (th *Mempool[T]) Build(
 	var err error
 	for th.pm.Len() > 0 {
 		max, _ := th.pm.PopMax()
+		vmStart := time.Now()
 		cont, restore, removeAccount, fErr := f(ctx, max)
+		vmTime += time.Since(vmStart)
 		if restore {
 			// Waiting to restore unused transactions ensures that an account will be
 			// excluded from future price mempool iterations

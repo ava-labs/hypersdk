@@ -234,12 +234,19 @@ func (vm *VM) Initialize(
 	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessRootBlock]{Size: vm.config.GetBlockLRUSize()}
 	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessRootBlock)
 
-	vm.mempool = mempool.New[*chain.Transaction](
+	mem, mempoolRegistry, err := mempool.New[*chain.Transaction](
 		vm.tracer,
 		vm.config.GetMempoolSize(),
 		vm.config.GetMempoolPayerSize(),
 		vm.config.GetMempoolExemptPayers(),
 	)
+	if err != nil {
+		return err
+	}
+	if err := gatherer.Register("mempool", mempoolRegistry); err != nil {
+		return err
+	}
+	vm.mempool = mem
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()

@@ -142,6 +142,9 @@ var generatePrometheusCmd = &cobra.Command{
 		panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hyper_sdk_chain_mempool_size_after_build", chainID))
 		utils.Outf("{{yellow}}mempool size after build:{{/}} %s\n", panels[len(panels)-1])
 
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_mempool_mempool_build_overhead_sum[30s])/increase(avalanche_%s_vm_mempool_mempool_build_overhead_count[30s])/1000000", chainID, chainID))
+		utils.Outf("{{yellow}}mempool build overhead (ms):{{/}} %s\n", panels[len(panels)-1])
+
 		panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hyper_sdk_chain_acceptor_drift", chainID))
 		utils.Outf("{{yellow}}acceptor drift:{{/}} %s\n", panels[len(panels)-1])
 
