@@ -4,7 +4,6 @@
 package tstate
 
 import (
-	"bytes"
 	"context"
 	"errors"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	art "github.com/plar/go-adaptive-radix-tree"
 )
 
 type op struct {
@@ -30,6 +30,7 @@ type tempStorage struct {
 type cacheItem struct {
 	Value  []byte
 	Exists bool
+	Scope  bool
 }
 
 // TState defines a struct for storing temporary state.
@@ -40,8 +41,7 @@ type TState struct {
 	// We don't differentiate between read and write scope because it is very
 	// uncommon for a user to write something without first reading what is
 	// there.
-	scope        [][]byte // stores a list of managed keys in the TState struct
-	scopeStorage map[string][]byte
+	scopeStorage art.Tree
 
 	// Ops is a record of all operations performed on [TState]. Tracking
 	// operations allows for reverting state to a certain point-in-time.
@@ -64,41 +64,45 @@ func New(changedSize int) *TState {
 // associated [key]. If [key] does not exist in readScope or if it is not found
 // in storage an error is returned.
 func (ts *TState) GetValue(ctx context.Context, key []byte) ([]byte, error) {
-	if !ts.checkScope(ctx, key) {
-		return nil, ErrKeyNotSpecified
+	v, _, exists, err := ts.getValue(ctx, string(key))
+	if err != nil {
+		return nil, err
 	}
-	k := string(key)
-	v, _, exists := ts.getValue(ctx, k)
 	if !exists {
 		return nil, database.ErrNotFound
 	}
 	return v, nil
 }
-
-func (ts *TState) getValue(_ context.Context, key string) ([]byte, bool, bool) {
+func (ts *TState) getValue(_ context.Context, key string) ([]byte, bool, bool, error) {
+	sv, ok := ts.scopeStorage.Search(art.Key(key))
+    if !ok {
+        return nil, false, false, ErrKeyNotSpecified
+    }
+	
 	if v, ok := ts.changedKeys[key]; ok {
 		if v.removed {
-			return nil, true, false
+			return nil, true, false, nil
 		}
-		return v.v, true, true
+		return v.v, true, true, nil
 	}
-	v, ok := ts.scopeStorage[key]
-	if !ok {
-		return nil, false, false
+
+	if sv != nil {
+		return sv.([]byte), false, true, nil
 	}
-	return v, false, true
+
+	return nil, false, false, nil
 }
 
 // FetchAndSetScope updates ts to include the [db] values associated with [keys].
 // FetchAndSetScope then sets the scope of ts to [keys]. If a key exists in
 // ts.fetchCache set the key's value to the value from cache.
 func (ts *TState) FetchAndSetScope(ctx context.Context, keys [][]byte, db Database) error {
-	ts.scopeStorage = map[string][]byte{}
+	ts.scopeStorage = art.New()
 	for _, key := range keys {
 		k := string(key)
 		if val, ok := ts.fetchCache[k]; ok {
 			if val.Exists {
-				ts.scopeStorage[k] = val.Value
+				ts.scopeStorage.Insert(art.Key(key), val.Value)
 			}
 			continue
 		}
@@ -111,36 +115,32 @@ func (ts *TState) FetchAndSetScope(ctx context.Context, keys [][]byte, db Databa
 			return err
 		}
 		ts.fetchCache[k] = &cacheItem{Value: v, Exists: true}
-		ts.scopeStorage[k] = v
+		ts.scopeStorage.Insert(art.Key(key), v)
 	}
-	ts.scope = keys
 	return nil
 }
 
 // SetReadScope sets the readscope of ts to [keys].
-func (ts *TState) SetScope(_ context.Context, keys [][]byte, storage map[string][]byte) {
-	ts.scope = keys
+func (ts *TState) SetScope(_ context.Context, storage art.Tree) {
 	ts.scopeStorage = storage
 }
 
 // checkScope returns whether [k] is in ts.readScope.
-func (ts *TState) checkScope(_ context.Context, k []byte) bool {
-	for _, s := range ts.scope {
-		// TODO: benchmark and see if creating map is worth overhead
-		if bytes.Equal(k, s) {
-			return true
-		}
-	}
-	return false
+func (ts *TState) checkScope(_ context.Context, k []byte) []byte {
+	v, ok := ts.scopeStorage.Search(art.Key(k))
+    if ok {
+        return v.([]byte)
+    }
+	return nil
 }
 
 // Insert sets or updates ts.storage[key] to equal {value, false}.
 func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
-	if !ts.checkScope(ctx, key) {
-		return ErrKeyNotSpecified
-	}
 	k := string(key)
-	past, changed, exists := ts.getValue(ctx, k)
+	past, changed, exists, err := ts.getValue(ctx, k)
+	if err != nil {
+		return err
+	}
 	ts.ops = append(ts.ops, &op{
 		k:           k,
 		pastExists:  exists,
@@ -153,11 +153,11 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 
 // Renove deletes a key-value pair from ts.storage.
 func (ts *TState) Remove(ctx context.Context, key []byte) error {
-	if !ts.checkScope(ctx, key) {
-		return ErrKeyNotSpecified
-	}
 	k := string(key)
-	past, changed, exists := ts.getValue(ctx, k)
+	past, changed, exists, err := ts.getValue(ctx, k)
+	if err != nil {
+		return err
+	}
 	if !exists {
 		return nil
 	}

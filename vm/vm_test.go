@@ -33,6 +33,7 @@ func TestBlockCache(t *testing.T) {
 			Hght:      10000,
 			UnitPrice: 1000,
 			BlockCost: 100,
+			Txs: []*chain.Transaction{},
 		},
 	}
 	blkID := blk.ID()

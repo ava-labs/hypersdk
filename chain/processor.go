@@ -10,6 +10,8 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
 
+	art "github.com/plar/go-adaptive-radix-tree"
+
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
@@ -20,7 +22,7 @@ type fetchData struct {
 
 type txData struct {
 	tx      *Transaction
-	storage map[string][]byte
+	storage art.Tree
 }
 
 type Processor struct {
@@ -51,12 +53,12 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 		// Store required keys for each set
 		alreadyFetched := make(map[string]*fetchData, len(p.blk.GetTxs()))
 		for _, tx := range p.blk.GetTxs() {
-			storage := map[string][]byte{}
+			storage := art.New()
 			for _, k := range tx.StateKeys(sm) {
 				sk := string(k)
 				if v, ok := alreadyFetched[sk]; ok {
 					if v.exists {
-						storage[sk] = v.v
+						storage.Insert(art.Key(k), v.v)
 					}
 					continue
 				}
@@ -68,7 +70,7 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 					panic(err)
 				}
 				alreadyFetched[sk] = &fetchData{v, true}
-				storage[sk] = v
+				storage.Insert(art.Key(k), v)
 			}
 			p.readyTxs <- &txData{tx, storage}
 		}
@@ -100,7 +102,7 @@ func (p *Processor) Execute(
 
 		// It is critical we explicitly set the scope before each transaction is
 		// processed
-		ts.SetScope(ctx, tx.StateKeys(sm), txData.storage)
+		ts.SetScope(ctx, txData.storage)
 
 		// Execute tx
 		if err := tx.PreExecute(ctx, ectx, r, ts, t); err != nil {
