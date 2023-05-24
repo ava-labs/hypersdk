@@ -9,6 +9,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/math"
@@ -108,30 +109,73 @@ func BuildBlock(
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
 
-		start = time.Now()
+		start          = time.Now()
+		alreadyFetched = map[string]*fetchData{}
 	)
 	b.MinTxHght = txBlock.Hght
 
 	mempool.StartBuild(ctx)
-	for txBlock != nil && (time.Since(start) < vm.GetMinBuildTime() || mempool.Len(ctx) > 0) {
+	for txBlock != nil && (time.Since(start) < vm.GetMinBuildTime() || mempool.Len(ctx) > 0) && time.Since(start) < vm.GetMaxBuildTime() {
 		var execErr error
 		txs := mempool.LeaseItems(ctx, 1000)
-		// TODO: pre-fetch lease items
 		if len(txs) == 0 {
 			mempool.ClearLease(ctx, nil, nil)
 			time.Sleep(25 * time.Millisecond)
 			continue
 		}
+
+		// prefetch all lease items
+		readyTxs := make(chan *txData, len(txs))
+		stopIndex := -1
+		go func() {
+			// Store required keys for each set
+			for i, tx := range txs {
+				storage := map[string][]byte{}
+				for _, k := range tx.StateKeys(sm) {
+					sk := string(k)
+					if v, ok := alreadyFetched[sk]; ok {
+						if v.exists {
+							storage[sk] = v.v
+						}
+						continue
+					}
+					v, err := state.GetValue(ctx, k)
+					if errors.Is(err, database.ErrNotFound) {
+						alreadyFetched[sk] = &fetchData{nil, false}
+						continue
+					} else if err != nil {
+						// This can happen if the underlying view changes (if we are
+						// verifying a block that can never be accepted).
+						execErr = err
+						stopIndex = i
+						close(readyTxs)
+						return
+					}
+					alreadyFetched[sk] = &fetchData{v, true}
+					storage[sk] = v
+				}
+				readyTxs <- &txData{tx, storage}
+			}
+
+			// Let caller know all sets have been readied
+			close(readyTxs)
+		}()
+
 		restorable := make([]*Transaction, 0, 1000)
 		exempt := make([]*Transaction, 0, 10)
-		for i := 0; i < len(txs); i++ {
-			next := txs[i]
+		for nextTx := range readyTxs {
+			next := nextTx.tx
+
+			// Avoid bulding if there is an error
+			if execErr != nil {
+				restorable = append(restorable, next)
+				continue
+			}
 
 			// Avoid building for too long
 			if time.Since(start) > vm.GetMaxBuildTime() {
-				restorable = append(restorable, txs[i:]...)
-				vm.RecordEarlyBuildStop()
-				break
+				restorable = append(restorable, next)
+				continue
 			}
 			txsAttempted++
 
@@ -163,9 +207,9 @@ func BuildBlock(
 			// for every tx
 			dup, err := parentTxBlock.IsRepeat(ctx, oldestAllowed, []*Transaction{next})
 			if err != nil {
-				restorable = append(restorable, txs[i:]...)
+				restorable = append(restorable, next)
 				execErr = err
-				break
+				continue // need to finish processing txs
 			}
 			if dup {
 				continue
@@ -188,62 +232,55 @@ func BuildBlock(
 			if txBlock.UnitsConsumed+nextUnits > r.GetMaxTxBlockUnits() {
 				if len(txBlocks)+1 /* account for current */ >= r.GetMaxTxBlocks() {
 					if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
-						restorable = append(restorable, txs[i:]...)
+						restorable = append(restorable, next)
 						execErr = err
-						break
+						continue
 					}
 					if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
-						restorable = append(restorable, txs[i:]...)
+						restorable = append(restorable, next)
 						execErr = err
-						break
+						continue
 					}
 					txBlock.Last = true
 				}
 				txBlock.Issued = time.Now().UnixMilli()
 				if err := txBlock.initializeBuilt(ctx, state, results); err != nil {
-					restorable = append(restorable, txs[i:]...)
+					restorable = append(restorable, next)
 					execErr = err
-					break
+					continue
 				}
 				b.Txs = append(b.Txs, txBlock.ID())
 				txBlocks = append(txBlocks, txBlock)
 				vm.IssueTxBlock(ctx, txBlock)
 				if txBlock.Last {
 					txBlock = nil
-					restorable = append(restorable, txs[i:]...)
+					restorable = append(restorable, next)
 					execErr = err
-					break
+					continue
 				}
 				parentTxBlock = txBlock
 				tectx, err = GenerateTxExecutionContext(ctx, vm.ChainID(), nextTime, parentTxBlock, vm.Tracer(), r)
 				if err != nil {
-					restorable = append(restorable, txs[i:]...)
+					restorable = append(restorable, next)
 					execErr = err
-					break
+					continue
 				}
 				txBlock = NewTxBlock(tectx, vm, txBlock, nextTime)
 				results = []*Result{}
 			}
 
 			// Populate required transaction state and restrict which keys can be used
-			//
-			// TODO: prefetch state of upcoming txs that we will pull (should make much
-			// faster)
 			txStart := ts.OpIndex()
-			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), state); err != nil {
-				restorable = append(restorable, txs[i:]...)
-				execErr = err
-				break
-			}
+			ts.SetScope(ctx, next.StateKeys(sm), nextTx.storage)
 
 			// PreExecute next to see if it is fit
 			if err := next.PreExecute(ctx, tectx, r, ts, nextTime); err != nil {
 				ts.Rollback(ctx, txStart)
 				cont, restore, _ := HandlePreExecute(err)
 				if !cont {
-					restorable = append(restorable, txs[i:]...)
+					restorable = append(restorable, next)
 					execErr = err
-					break
+					continue
 				}
 				if restore {
 					restorable = append(restorable, next)
@@ -292,9 +329,9 @@ func BuildBlock(
 				// This error should only be raised by the handler, not the
 				// implementation itself
 				log.Warn("unexpected post-execution error", zap.Error(err))
-				restorable = append(restorable, txs[i:]...)
+				restorable = append(restorable, next)
 				execErr = err
-				break
+				continue
 			}
 
 			// Update block with new transaction
@@ -312,6 +349,10 @@ func BuildBlock(
 			}
 			totalUnits += result.Units
 			txsAdded++
+		}
+		if stopIndex >= 0 {
+			// If we stopped prefetching, make sure to add those txs back
+			restorable = append(restorable, txs[stopIndex:]...)
 		}
 		mempool.ClearLease(ctx, restorable, exempt)
 		span.SetAttributes(
@@ -331,6 +372,11 @@ func BuildBlock(
 		}
 	}
 	mempool.FinishBuild(ctx)
+
+	// Record if went to the limit
+	if time.Since(start) >= vm.GetMaxBuildTime() {
+		vm.RecordEarlyBuildStop()
+	}
 
 	// Create last tx block
 	//
