@@ -13,11 +13,12 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/math"
-	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/tstate"
 )
+
+const txBatchSize = 4_096
 
 func HandlePreExecute(
 	err error,
@@ -117,7 +118,7 @@ func BuildBlock(
 	mempool.StartBuild(ctx)
 	for txBlock != nil && (time.Since(start) < vm.GetMinBuildTime() || mempool.Len(ctx) > 0) && time.Since(start) < vm.GetMaxBuildTime() {
 		var execErr error
-		txs := mempool.LeaseItems(ctx, 1000)
+		txs := mempool.LeaseItems(ctx, txBatchSize)
 		if len(txs) == 0 {
 			mempool.ClearLease(ctx, nil, nil)
 			time.Sleep(25 * time.Millisecond)
@@ -125,6 +126,8 @@ func BuildBlock(
 		}
 
 		// prefetch all lease items
+		//
+		// TODO: move this to a function
 		readyTxs := make(chan *txData, len(txs))
 		stopIndex := -1
 		go func() {
@@ -161,7 +164,7 @@ func BuildBlock(
 			close(readyTxs)
 		}()
 
-		restorable := make([]*Transaction, 0, 1000)
+		restorable := make([]*Transaction, 0, txBatchSize)
 		exempt := make([]*Transaction, 0, 10)
 		for nextTx := range readyTxs {
 			next := nextTx.tx
@@ -355,10 +358,6 @@ func BuildBlock(
 			restorable = append(restorable, txs[stopIndex:]...)
 		}
 		mempool.ClearLease(ctx, restorable, exempt)
-		span.SetAttributes(
-			attribute.Int("attempted", txsAttempted),
-			attribute.Int("added", len(b.Txs)),
-		)
 		if execErr != nil {
 			for _, block := range txBlocks {
 				b.vm.Mempool().Add(ctx, block.Txs)
