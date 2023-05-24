@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
-	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/trace"
 	gomock "github.com/golang/mock/gomock"
@@ -16,11 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupProcessor(b *testing.B) (*Processor, merkledb.TrieView){
+func setupProcessor(b *testing.B, txCount int) (*Processor, merkledb.TrieView) {
 	b.Helper()
 	require := require.New(b)
-	
 	chainId := ids.GenerateTestID()
+	txId := ids.GenerateTestID()
 	rawStateDB := memdb.New()
 	tracer, err := trace.New(&trace.Config{Enabled: false})
 	require.NoError(err)
@@ -46,12 +46,12 @@ func setupProcessor(b *testing.B) (*Processor, merkledb.TrieView){
 
 	parent := &StatelessBlock{
 		StatefulBlock: &StatefulBlock{
-			Tmstmp: 1,
-			Prnt:   ids.Empty,
-			Hght:   0, 
+			Tmstmp:    1,
+			Prnt:      ids.Empty,
+			Hght:      0,
 			BlockCost: 1000,
 		},
-		st: choices.Processing,
+		st: choices.Accepted,
 	}
 
 	// rules
@@ -62,8 +62,8 @@ func setupProcessor(b *testing.B) (*Processor, merkledb.TrieView){
 	r.EXPECT().GetBlockCostChangeDenominator().AnyTimes()
 	r.EXPECT().GetMinBlockCost().AnyTimes()
 
-	// sm
-	sm.EXPECT().OutgoingWarpKey(chainId).Return(prefixTestTxKey(chainId)).AnyTimes()
+	// state manager
+	sm.EXPECT().OutgoingWarpKey(txId).Return(prefixTestTxKey(txId)).AnyTimes()
 
 	// vm
 	vm.EXPECT().StateManager().Return(sm).AnyTimes()
@@ -72,47 +72,55 @@ func setupProcessor(b *testing.B) (*Processor, merkledb.TrieView){
 	require.NoError(err)
 
 	blk := NewBlock(ectx, vm, parent, nextTime)
-	blk.Txs = []*Transaction{createTestTx(b, 10, nextTime, chainId)}
+
+	txs := make([]*Transaction, 0, txCount)
+	for i := 0; i < txCount; i++ {
+		txs = append(txs, createTestTx(b, 10, nextTime, chainId, txId))
+	}
+
+	blk.Txs = txs
 	return NewProcessor(tracer, blk), trie
 }
 
 func BenchmarkProcessorPrefetch(b *testing.B) {
-		b.ResetTimer()
-		b.Run(fmt.Sprintf("processor_%d_keys", 10), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				b.StopTimer()
-				p, db := setupProcessor(b)
-				b.StartTimer()
-				p.Prefetch(context.Background(), db)
-				// clear channel
-				for range p.readyTxs {}
+	b.ResetTimer()
+	txCount := 1000
+	b.Run(fmt.Sprintf("processor_tx_count_%d_keys_%d", txCount, 10), func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			p, db := setupProcessor(b, txCount)
+			b.StartTimer()
+			p.Prefetch(context.Background(), db)
+			// clear channel
+			for range p.readyTxs {
 			}
-		})
+		}
+	})
 }
 
-func createTestTx(b *testing.B, keySize int, tmstp int64, chainId ids.ID)*Transaction {
+func createTestTx(b *testing.B, keySize int, tmstp int64, chainId, txId ids.ID) *Transaction {
 	b.Helper()
 	ctrl := gomock.NewController(b)
 	act := NewMockAction(ctrl)
 	auth := NewMockAuth(ctrl)
 
 	keys := make([][]byte, 0, keySize)
-	for i := 0; i < keySize/2 ; i++ {
+	for i := 0; i < keySize/2; i++ {
 		keys = append(keys, prefixTestTxKey(ids.GenerateTestID()))
 	}
 
 	auth.EXPECT().StateKeys().Return(keys).AnyTimes()
-	act.EXPECT().StateKeys(auth, chainId).Return(keys).AnyTimes()
+	act.EXPECT().StateKeys(auth, txId).Return(keys).AnyTimes()
 	tx := &Transaction{
-			Base: &Base{
-				Timestamp: tmstp,
-				ChainID: chainId,
-				UnitPrice:  10,
-			},
-			Action: act,
-			Auth: auth,
-			id: chainId,
-		}
+		Base: &Base{
+			Timestamp: tmstp,
+			ChainID:   chainId,
+			UnitPrice: 10,
+		},
+		Action: act,
+		Auth:   auth,
+		id:     txId,
+	}
 
 	return tx
 }
