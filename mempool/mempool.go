@@ -39,6 +39,7 @@ type Mempool[T Item] struct {
 
 	// items we are currently executing that we don't want to allow duplicates of
 	leasedItems set.Set[ids.ID]
+	exemptItems map[ids.ID]T
 }
 
 // New creates a new [Mempool]. [maxSize] must be > 0 or else the
@@ -168,6 +169,11 @@ func (th *Mempool[T]) add(ctx context.Context, items []T) {
 		sender := item.Payer()
 
 		// Ensure no duplicate
+		if th.exemptItems != nil {
+			if _, ok := th.exemptItems[item.ID()]; ok {
+				continue
+			}
+		}
 		if th.leasedItems != nil && th.leasedItems.Contains(item.ID()) {
 			continue
 		}
@@ -389,6 +395,13 @@ func (th *Mempool[T]) Build(
 	return err
 }
 
+func (th *Mempool[T]) StartBuild(ctx context.Context) {
+	th.mu.Lock()
+	defer th.mu.Unlock()
+
+	th.exemptItems = map[ids.ID]T{}
+}
+
 func (th *Mempool[T]) LeaseItems(ctx context.Context, count int) []T {
 	ctx, span := th.tracer.Start(ctx, "Mempool.LeaseTxs")
 	defer span.End()
@@ -409,7 +422,7 @@ func (th *Mempool[T]) LeaseItems(ctx context.Context, count int) []T {
 	return txs
 }
 
-func (th *Mempool[T]) ClearLease(ctx context.Context, restore []T) {
+func (th *Mempool[T]) ClearLease(ctx context.Context, restore []T, exempt []T) {
 	// We don't handle removed txs here, we just skip
 	ctx, span := th.tracer.Start(ctx, "Mempool.ClearLease")
 	defer span.End()
@@ -419,4 +432,17 @@ func (th *Mempool[T]) ClearLease(ctx context.Context, restore []T) {
 
 	th.leasedItems = nil
 	th.add(ctx, restore)
+	for _, ex := range exempt {
+		th.exemptItems[ex.ID()] = ex
+	}
+}
+
+func (th *Mempool[T]) FinishBuild(ctx context.Context) {
+	th.mu.Lock()
+	defer th.mu.Unlock()
+
+	for _, ex := range th.exemptItems {
+		th.add(ctx, []T{ex})
+	}
+	th.exemptItems = nil
 }

@@ -112,16 +112,18 @@ func BuildBlock(
 	)
 	b.MinTxHght = txBlock.Hght
 
+	mempool.StartBuild(ctx)
 	for txBlock != nil && (time.Since(start) < vm.GetMinBuildTime() || mempool.Len(ctx) > 0) {
 		var execErr error
 		txs := mempool.LeaseItems(ctx, 1000)
 		// TODO: pre-fetch lease items
 		if len(txs) == 0 {
-			mempool.ClearLease(ctx, nil)
+			mempool.ClearLease(ctx, nil, nil)
 			time.Sleep(25 * time.Millisecond)
 			continue
 		}
 		restorable := make([]*Transaction, 0, 1000)
+		exempt := make([]*Transaction, 0, 10)
 		for i := 0; i < len(txs); i++ {
 			next := txs[i]
 
@@ -146,15 +148,12 @@ func BuildBlock(
 			}
 
 			// Skip warp message if at max
-			//
-			// TODO: need to handle case where txs are restored but still building
-			// (continued lease to ensure we don't get same tx back we just tried)
 			if next.WarpMessage != nil && warpCount == MaxWarpMessages {
 				log.Info(
 					"dropping pending warp message because already have MaxWarpMessages",
 					zap.Stringer("txID", next.ID()),
 				)
-				restorable = append(restorable, next)
+				exempt = append(exempt, next)
 				continue
 			}
 
@@ -314,7 +313,7 @@ func BuildBlock(
 			totalUnits += result.Units
 			txsAdded++
 		}
-		mempool.ClearLease(ctx, restorable)
+		mempool.ClearLease(ctx, restorable, exempt)
 		span.SetAttributes(
 			attribute.Int("attempted", txsAttempted),
 			attribute.Int("added", len(b.Txs)),
@@ -326,10 +325,12 @@ func BuildBlock(
 			if txBlock != nil {
 				b.vm.Mempool().Add(ctx, txBlock.Txs)
 			}
+			mempool.FinishBuild(ctx)
 			b.vm.Logger().Warn("build failed", zap.Error(execErr))
 			return nil, execErr
 		}
 	}
+	mempool.FinishBuild(ctx)
 
 	// Create last tx block
 	//
