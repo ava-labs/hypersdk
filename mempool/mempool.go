@@ -36,6 +36,9 @@ type Mempool[T Item] struct {
 
 	// payers that are exempt from [maxPayerSize]
 	exemptPayers set.Set[string]
+
+	// items we are currently executing that we don't want to allow duplicates of
+	leasedItems set.Set[ids.ID]
 }
 
 // New creates a new [Mempool]. [maxSize] must be > 0 or else the
@@ -157,10 +160,17 @@ func (th *Mempool[T]) Add(ctx context.Context, items []T) {
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
+	th.add(ctx, items)
+}
+
+func (th *Mempool[T]) add(ctx context.Context, items []T) {
 	for _, item := range items {
 		sender := item.Payer()
 
 		// Ensure no duplicate
+		if th.leasedItems != nil && th.leasedItems.Contains(item.ID()) {
+			continue
+		}
 		if th.pm.Has(item.ID()) {
 			// Don't drop because already exists
 			continue
@@ -222,6 +232,10 @@ func (th *Mempool[T]) PopMax(ctx context.Context) (T, bool) { // O(log N)
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
+	return th.popMax()
+}
+
+func (th *Mempool[T]) popMax() (T, bool) {
 	max, ok := th.pm.PopMax()
 	if ok {
 		th.tm.Remove(max.ID())
@@ -373,4 +387,36 @@ func (th *Mempool[T]) Build(
 		th.pm.Add(item)
 	}
 	return err
+}
+
+func (th *Mempool[T]) LeaseItems(ctx context.Context, count int) []T {
+	ctx, span := th.tracer.Start(ctx, "Mempool.LeaseTxs")
+	defer span.End()
+
+	th.mu.Lock()
+	defer th.mu.Unlock()
+
+	txs := make([]T, 0, count)
+	th.leasedItems = set.NewSet[ids.ID](count)
+	for len(txs) < count {
+		item, ok := th.popMax()
+		if !ok {
+			break
+		}
+		th.leasedItems.Add(item.ID())
+		txs = append(txs, item)
+	}
+	return txs
+}
+
+func (th *Mempool[T]) ClearLease(ctx context.Context, restore []T) {
+	// We don't handle removed txs here, we just skip
+	ctx, span := th.tracer.Start(ctx, "Mempool.ClearLease")
+	defer span.End()
+
+	th.mu.Lock()
+	defer th.mu.Unlock()
+
+	th.leasedItems = nil
+	th.add(ctx, restore)
 }

@@ -95,6 +95,8 @@ type Mempool interface {
 		context.Context,
 		func(context.Context, *Transaction) (bool /* continue */, bool /* restore */, bool /* remove account */, error),
 	) error
+	LeaseItems(context.Context, int) []*Transaction
+	ClearLease(context.Context, []*Transaction)
 }
 
 type Database interface {

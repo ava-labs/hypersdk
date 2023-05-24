@@ -108,198 +108,226 @@ func BuildBlock(
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
 
-		start    = time.Now()
-		lockWait time.Duration
+		start = time.Now()
 	)
 	b.MinTxHght = txBlock.Hght
 
-	iters := 0
-	for txBlock != nil && time.Since(start) < vm.GetMinBuildTime() {
-		if iters > 0 {
-			// Give block time to fill/avoid busy loop
+	for txBlock != nil && (time.Since(start) < vm.GetMinBuildTime() || mempool.Len(ctx) > 0) {
+		var execErr error
+		txs := mempool.LeaseItems(ctx, 1000)
+		// TODO: pre-fetch lease items
+		if len(txs) == 0 {
+			mempool.ClearLease(ctx, nil)
 			time.Sleep(25 * time.Millisecond)
+			continue
 		}
-		iters++
-		mempoolErr := mempool.Build(
-			ctx,
-			func(fctx context.Context, next *Transaction) (cont bool, restore bool, removeAcct bool, err error) {
-				// Avoid building for too long
-				if time.Since(start) > vm.GetMaxBuildTime() {
-					vm.RecordEarlyBuildStop()
-					return false, true, false, nil
-				}
+		restorable := make([]*Transaction, 0, 1000)
+		for i := 0; i < len(txs); i++ {
+			next := txs[i]
 
-				if txsAttempted == 0 {
-					lockWait = time.Since(start)
-				}
-				txsAttempted++
+			// Avoid building for too long
+			if time.Since(start) > vm.GetMaxBuildTime() {
+				restorable = append(restorable, txs[i:]...)
+				vm.RecordEarlyBuildStop()
+				break
+			}
+			txsAttempted++
 
-				// Ensure we can process if transaction includes a warp message
-				if next.WarpMessage != nil && blockContext == nil {
-					log.Info(
-						"dropping pending warp message because no context provided",
-						zap.Stringer("txID", next.ID()),
-					)
-					return true, next.Base.Timestamp > oldestAllowed, false, nil
-				}
-
-				// Skip warp message if at max
-				if next.WarpMessage != nil && warpCount == MaxWarpMessages {
-					log.Info(
-						"dropping pending warp message because already have MaxWarpMessages",
-						zap.Stringer("txID", next.ID()),
-					)
-					return true, true, false, nil
-				}
-
-				// Check for repeats
-				//
-				// TODO: check a bunch at once during pre-fetch to avoid re-walking blocks
-				// for every tx
-				dup, err := parentTxBlock.IsRepeat(ctx, oldestAllowed, []*Transaction{next})
-				if err != nil {
-					return false, false, false, err
-				}
-				if dup {
-					// tx will be restored when ancestry is rejected
-					return true, false, false, nil
-				}
-
-				// Ensure we have room
-				nextUnits, err := next.MaxUnits(r)
-				if err != nil {
-					// Should never happen
-					log.Debug(
-						"skipping invalid tx",
-						zap.Error(err),
-					)
-					return true, false, false, nil
-				}
-
-				// Determine if we need to create a new TxBlock
-				//
-				// TODO: handle case where tx is larger than max size of TxBlock
-				if txBlock.UnitsConsumed+nextUnits > r.GetMaxTxBlockUnits() {
-					if len(txBlocks)+1 /* account for current */ >= r.GetMaxTxBlocks() {
-						if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
-							return false, true, false, err
-						}
-						if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
-							return false, true, false, err
-						}
-						txBlock.Last = true
-					}
-					txBlock.Issued = time.Now().UnixMilli()
-					if err := txBlock.initializeBuilt(ctx, state, results); err != nil {
-						return false, true, false, err
-					}
-					b.Txs = append(b.Txs, txBlock.ID())
-					txBlocks = append(txBlocks, txBlock)
-					vm.IssueTxBlock(ctx, txBlock)
-					if txBlock.Last {
-						txBlock = nil
-						return false, true, false, nil
-					}
-					parentTxBlock = txBlock
-					tectx, err = GenerateTxExecutionContext(ctx, vm.ChainID(), nextTime, parentTxBlock, vm.Tracer(), r)
-					if err != nil {
-						return false, true, false, err
-					}
-					txBlock = NewTxBlock(tectx, vm, txBlock, nextTime)
-					results = []*Result{}
-				}
-
-				// Populate required transaction state and restrict which keys can be used
-				//
-				// TODO: prefetch state of upcoming txs that we will pull (should make much
-				// faster)
-				txStart := ts.OpIndex()
-				if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), state); err != nil {
-					return false, true, false, err
-				}
-
-				// PreExecute next to see if it is fit
-				if err := next.PreExecute(fctx, tectx, r, ts, nextTime); err != nil {
-					ts.Rollback(ctx, txStart)
-					cont, restore, removeAcct := HandlePreExecute(err)
-					return cont, restore, removeAcct, nil
-				}
-
-				// Verify warp message, if it exists
-				//
-				// We don't drop invalid warp messages because we must collect fees for
-				// the work the sender made us do (otherwise this would be a DoS).
-				//
-				// We wait as long as possible to verify the signature to ensure we don't
-				// spend unnecessary time on an invalid tx.
-				var warpErr error
-				if next.WarpMessage != nil {
-					num, denom, err := preVerifyWarpMessage(next.WarpMessage, vm.ChainID(), r)
-					if err == nil {
-						warpErr = next.WarpMessage.Signature.Verify(
-							ctx, &next.WarpMessage.UnsignedMessage,
-							vdrState, blockContext.PChainHeight, num, denom,
-						)
-					} else {
-						warpErr = err
-					}
-					if warpErr != nil {
-						log.Warn(
-							"warp verification failed",
-							zap.Stringer("txID", next.ID()),
-							zap.Error(warpErr),
-						)
-					}
-				}
-
-				// If execution works, keep moving forward with new state
-				result, err := next.Execute(
-					fctx,
-					tectx,
-					r,
-					sm,
-					ts,
-					nextTime,
-					next.WarpMessage != nil && warpErr == nil,
+			// Ensure we can process if transaction includes a warp message
+			if next.WarpMessage != nil && blockContext == nil {
+				log.Info(
+					"dropping pending warp message because no context provided",
+					zap.Stringer("txID", next.ID()),
 				)
-				if err != nil {
-					// This error should only be raised by the handler, not the
-					// implementation itself
-					log.Warn("unexpected post-execution error", zap.Error(err))
-					return false, false, false, err
+				if next.Base.Timestamp > oldestAllowed {
+					restorable = append(restorable, next)
+					continue
 				}
+			}
 
-				// Update block with new transaction
-				txBlock.Txs = append(txBlock.Txs, next)
-				txBlock.UnitsConsumed += result.Units
-				results = append(results, result)
-				if next.WarpMessage != nil {
-					if warpErr == nil {
-						// Add a bit if the warp message was verified
-						txBlock.WarpResults.Add(uint(warpCount))
+			// Skip warp message if at max
+			//
+			// TODO: need to handle case where txs are restored but still building
+			// (continued lease to ensure we don't get same tx back we just tried)
+			if next.WarpMessage != nil && warpCount == MaxWarpMessages {
+				log.Info(
+					"dropping pending warp message because already have MaxWarpMessages",
+					zap.Stringer("txID", next.ID()),
+				)
+				restorable = append(restorable, next)
+				continue
+			}
+
+			// Check for repeats
+			//
+			// TODO: check a bunch at once during pre-fetch to avoid re-walking blocks
+			// for every tx
+			dup, err := parentTxBlock.IsRepeat(ctx, oldestAllowed, []*Transaction{next})
+			if err != nil {
+				restorable = append(restorable, txs[i:]...)
+				execErr = err
+				break
+			}
+			if dup {
+				continue
+			}
+
+			// Ensure we have room
+			nextUnits, err := next.MaxUnits(r)
+			if err != nil {
+				// Should never happen
+				log.Debug(
+					"skipping invalid tx",
+					zap.Error(err),
+				)
+				continue
+			}
+
+			// Determine if we need to create a new TxBlock
+			//
+			// TODO: handle case where tx is larger than max size of TxBlock
+			if txBlock.UnitsConsumed+nextUnits > r.GetMaxTxBlockUnits() {
+				if len(txBlocks)+1 /* account for current */ >= r.GetMaxTxBlocks() {
+					if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
+						restorable = append(restorable, txs[i:]...)
+						execErr = err
+						break
 					}
-					warpCount++
-					txBlock.ContainsWarp = true
-					txBlock.PChainHeight = blockContext.PChainHeight
+					if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
+						restorable = append(restorable, txs[i:]...)
+						execErr = err
+						break
+					}
+					txBlock.Last = true
 				}
-				totalUnits += result.Units
-				txsAdded++
-				return true, false, false, nil
-			},
-		)
+				txBlock.Issued = time.Now().UnixMilli()
+				if err := txBlock.initializeBuilt(ctx, state, results); err != nil {
+					restorable = append(restorable, txs[i:]...)
+					execErr = err
+					break
+				}
+				b.Txs = append(b.Txs, txBlock.ID())
+				txBlocks = append(txBlocks, txBlock)
+				vm.IssueTxBlock(ctx, txBlock)
+				if txBlock.Last {
+					txBlock = nil
+					restorable = append(restorable, txs[i:]...)
+					execErr = err
+					break
+				}
+				parentTxBlock = txBlock
+				tectx, err = GenerateTxExecutionContext(ctx, vm.ChainID(), nextTime, parentTxBlock, vm.Tracer(), r)
+				if err != nil {
+					restorable = append(restorable, txs[i:]...)
+					execErr = err
+					break
+				}
+				txBlock = NewTxBlock(tectx, vm, txBlock, nextTime)
+				results = []*Result{}
+			}
+
+			// Populate required transaction state and restrict which keys can be used
+			//
+			// TODO: prefetch state of upcoming txs that we will pull (should make much
+			// faster)
+			txStart := ts.OpIndex()
+			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), state); err != nil {
+				restorable = append(restorable, txs[i:]...)
+				execErr = err
+				break
+			}
+
+			// PreExecute next to see if it is fit
+			if err := next.PreExecute(ctx, tectx, r, ts, nextTime); err != nil {
+				ts.Rollback(ctx, txStart)
+				cont, restore, _ := HandlePreExecute(err)
+				if !cont {
+					restorable = append(restorable, txs[i:]...)
+					execErr = err
+					break
+				}
+				if restore {
+					restorable = append(restorable, next)
+				}
+				continue
+			}
+
+			// Verify warp message, if it exists
+			//
+			// We don't drop invalid warp messages because we must collect fees for
+			// the work the sender made us do (otherwise this would be a DoS).
+			//
+			// We wait as long as possible to verify the signature to ensure we don't
+			// spend unnecessary time on an invalid tx.
+			var warpErr error
+			if next.WarpMessage != nil {
+				num, denom, err := preVerifyWarpMessage(next.WarpMessage, vm.ChainID(), r)
+				if err == nil {
+					warpErr = next.WarpMessage.Signature.Verify(
+						ctx, &next.WarpMessage.UnsignedMessage,
+						vdrState, blockContext.PChainHeight, num, denom,
+					)
+				} else {
+					warpErr = err
+				}
+				if warpErr != nil {
+					log.Warn(
+						"warp verification failed",
+						zap.Stringer("txID", next.ID()),
+						zap.Error(warpErr),
+					)
+				}
+			}
+
+			// If execution works, keep moving forward with new state
+			result, err := next.Execute(
+				ctx,
+				tectx,
+				r,
+				sm,
+				ts,
+				nextTime,
+				next.WarpMessage != nil && warpErr == nil,
+			)
+			if err != nil {
+				// This error should only be raised by the handler, not the
+				// implementation itself
+				log.Warn("unexpected post-execution error", zap.Error(err))
+				restorable = append(restorable, txs[i:]...)
+				execErr = err
+				break
+			}
+
+			// Update block with new transaction
+			txBlock.Txs = append(txBlock.Txs, next)
+			txBlock.UnitsConsumed += result.Units
+			results = append(results, result)
+			if next.WarpMessage != nil {
+				if warpErr == nil {
+					// Add a bit if the warp message was verified
+					txBlock.WarpResults.Add(uint(warpCount))
+				}
+				warpCount++
+				txBlock.ContainsWarp = true
+				txBlock.PChainHeight = blockContext.PChainHeight
+			}
+			totalUnits += result.Units
+			txsAdded++
+		}
+		mempool.ClearLease(ctx, restorable)
 		span.SetAttributes(
 			attribute.Int("attempted", txsAttempted),
 			attribute.Int("added", len(b.Txs)),
 		)
-		if mempoolErr != nil {
+		if execErr != nil {
 			for _, block := range txBlocks {
 				b.vm.Mempool().Add(ctx, block.Txs)
 			}
 			if txBlock != nil {
 				b.vm.Mempool().Add(ctx, txBlock.Txs)
 			}
-			b.vm.Logger().Warn("build failed", zap.Error(mempoolErr))
-			return nil, mempoolErr
+			b.vm.Logger().Warn("build failed", zap.Error(execErr))
+			return nil, execErr
 		}
 	}
 
@@ -350,7 +378,6 @@ func BuildBlock(
 		zap.Int("attempted", txsAttempted),
 		zap.Int("added", len(b.Txs)),
 		zap.Int("mempool size", mempoolSize),
-		zap.Duration("mempool lock wait", lockWait),
 		zap.Bool("context", blockContext != nil),
 		zap.Int("state changes", ts.PendingChanges()),
 		zap.Int("state operations", ts.OpIndex()),
