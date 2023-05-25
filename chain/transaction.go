@@ -154,6 +154,14 @@ func (t *Transaction) MaxUnits(r Rules) (txFee uint64, err error) {
 	if err != nil {
 		return 0, err
 	}
+	stateKeyFee, err := smath.Mul64(uint64(len(t.stateKeys)), r.GetStateKeyFee())
+	if err != nil {
+		return 0, err
+	}
+	txFee, err = smath.Add64(txFee, stateKeyFee)
+	if err != nil {
+		return 0, err
+	}
 	if t.WarpMessage != nil {
 		txFee, err = smath.Add64(txFee, r.GetWarpBaseFee())
 		if err != nil {

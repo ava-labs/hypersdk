@@ -107,6 +107,9 @@ type Rules interface {
 	GetWarpBaseFee() uint64
 	GetWarpFeePerSigner() uint64
 
+	// Fee charged for each state key
+	GetStateKeyFee() uint64
+
 	FetchCustom(string) (any, bool)
 }
 

@@ -137,6 +137,20 @@ func (mr *MockRulesMockRecorder) GetMinUnitPrice() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMinUnitPrice", reflect.TypeOf((*MockRules)(nil).GetMinUnitPrice))
 }
 
+// GetStateKeyFee mocks base method.
+func (m *MockRules) GetStateKeyFee() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStateKeyFee")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetStateKeyFee indicates an expected call of GetStateKeyFee.
+func (mr *MockRulesMockRecorder) GetStateKeyFee() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStateKeyFee", reflect.TypeOf((*MockRules)(nil).GetStateKeyFee))
+}
+
 // GetUnitPriceChangeDenominator mocks base method.
 func (m *MockRules) GetUnitPriceChangeDenominator() uint64 {
 	m.ctrl.T.Helper()

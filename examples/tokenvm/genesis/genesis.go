@@ -53,6 +53,9 @@ type Genesis struct {
 	WarpBaseFee      uint64 `json:"warpBaseFee"`
 	WarpFeePerSigner uint64 `json:"warpFeePerSigner"`
 
+	// State key pricing
+	StateKeyFee   uint64 `json:"stateKeyFee"`
+
 	// Allocations
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
 }
@@ -78,6 +81,9 @@ func Default() *Genesis {
 		MinBlockCost:               0,
 		BlockCostChangeDenominator: 48,
 		WindowTargetBlocks:         20, // 10s
+
+		// State key pricing
+	    StateKeyFee:   5,
 
 		// Warp pricing
 		WarpBaseFee:      1_024,

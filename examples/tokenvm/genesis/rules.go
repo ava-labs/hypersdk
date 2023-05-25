@@ -75,6 +75,10 @@ func (r *Rules) GetWindowTargetBlocks() uint64 {
 	return r.g.WindowTargetBlocks
 }
 
+func (r *Rules) GetStateKeyFee() uint64 {
+	return r.g.StateKeyFee
+}
+
 func (*Rules) FetchCustom(string) (any, bool) {
 	return nil, false
 }
