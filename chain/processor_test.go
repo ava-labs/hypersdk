@@ -113,23 +113,23 @@ func BenchmarkProcessorPrefetch(b *testing.B) {
 	})
 }
 
-func createTestTx(b *testing.B, tmstp int64, chainId, txId ids.ID, stateKeys [][]byte) *Transaction {
+func createTestTx(b *testing.B, tmstp int64, chainID, txID ids.ID, stateKeys [][]byte) *Transaction {
 	b.Helper()
 	ctrl := gomock.NewController(b)
 	act := NewMockAction(ctrl)
 	auth := NewMockAuth(ctrl)
 
 	auth.EXPECT().StateKeys().Return(stateKeys).AnyTimes()
-	act.EXPECT().StateKeys(auth, txId).Return(stateKeys).AnyTimes()
+	act.EXPECT().StateKeys(auth, txID).Return(stateKeys).AnyTimes()
 	tx := &Transaction{
 		Base: &Base{
 			Timestamp: tmstp,
-			ChainID:   chainId,
+			ChainID:   chainID,
 			UnitPrice: 10,
 		},
 		Action: act,
 		Auth:   auth,
-		id:     txId,
+		id:     txID,
 	}
 
 	return tx
