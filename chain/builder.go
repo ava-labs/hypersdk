@@ -130,10 +130,11 @@ func BuildBlock(
 		// TODO: move this to a function
 		readyTxs := make(chan *txData, len(txs))
 		stopIndex := -1
+		var timeExceeded bool
 		go func() {
 			// Store required keys for each set
 			for i, tx := range txs {
-				if txBlock == nil {
+				if txBlock == nil || timeExceeded {
 					// This happens when at last tx block
 					stopIndex = i
 					close(readyTxs)
@@ -183,6 +184,7 @@ func BuildBlock(
 
 			// Avoid building for too long
 			if time.Since(start) > vm.GetMaxBuildTime() {
+				timeExceeded = true
 				restorable = append(restorable, next)
 				continue
 			}
