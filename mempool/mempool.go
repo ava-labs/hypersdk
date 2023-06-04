@@ -82,6 +82,7 @@ type metrics struct {
 	buildOverhead   metric.Averager
 	setMinTimestamp metric.Averager
 	add             metric.Averager
+	leaseCreate     metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *metrics, error) {
@@ -113,10 +114,20 @@ func newMetrics() (*prometheus.Registry, *metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	leaseCreate, err := metric.NewAverager(
+		"mempool",
+		"lease_create",
+		"time spent creating a lease",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 	m := &metrics{
 		buildOverhead:   buildOverhead,
 		setMinTimestamp: setMinTimestamp,
 		add:             add,
+		leaseCreate:     leaseCreate,
 		// TODO: add size
 	}
 	return r, m, nil
@@ -405,6 +416,7 @@ func (th *Mempool[T]) StartBuild(ctx context.Context) {
 func (th *Mempool[T]) LeaseItems(ctx context.Context, count int) []T {
 	ctx, span := th.tracer.Start(ctx, "Mempool.LeaseTxs")
 	defer span.End()
+	start := time.Now()
 
 	th.mu.Lock()
 	defer th.mu.Unlock()
@@ -419,6 +431,7 @@ func (th *Mempool[T]) LeaseItems(ctx context.Context, count int) []T {
 		th.leasedItems.Add(item.ID())
 		txs = append(txs, item)
 	}
+	th.metrics.leaseCreate.Observe(float64(time.Since(start)))
 	return txs
 }
 
