@@ -169,6 +169,10 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	txBlk, err := blk.LastTxBlock()
+	if err != nil {
+		return err
+	}
 	state, err := blk.State()
 	if err != nil {
 		return err
@@ -177,7 +181,7 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 		ctx,
 		g.vm.ChainID(),
 		now,
-		blk.LastTxBlock(),
+		txBlk,
 		g.vm.Tracer(),
 		g.vm.Rules(now),
 	)

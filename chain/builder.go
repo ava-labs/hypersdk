@@ -64,15 +64,6 @@ func BuildBlock(
 		log.Warn("block building failed: couldn't get parent", zap.Error(err))
 		return nil, err
 	}
-	var parentTxBlock *StatelessTxBlock
-	if len(parent.Txs) > 0 { // if first block, will not have any tx blocks
-		idx := len(parent.Txs) - 1
-		parentTxBlock, err = vm.GetStatelessTxBlock(ctx, parent.Txs[idx], parent.MinTxHght+uint64(idx))
-		if err != nil {
-			log.Warn("block building failed: couldn't get parent tx block", zap.Error(err))
-			return nil, err
-		}
-	}
 	ectx, err := GenerateRootExecutionContext(ctx, vm.ChainID(), nextTime, parent, vm.Tracer(), r)
 	if err != nil {
 		log.Warn("block building failed: couldn't get execution context", zap.Error(err))
@@ -82,6 +73,11 @@ func BuildBlock(
 	b := NewRootBlock(ectx, vm, parent, nextTime)
 
 	changesEstimate := math.Min(vm.Mempool().Len(ctx), 10_000) // TODO: improve estimate
+	parentTxBlock, err := parent.LastTxBlock()
+	if err != nil {
+		log.Warn("block building failed: couldn't get parent tx block", zap.Error(err))
+		return nil, err
+	}
 	state, err := parentTxBlock.ChildState(ctx, changesEstimate)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))

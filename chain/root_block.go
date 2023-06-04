@@ -59,7 +59,8 @@ type StatelessRootBlock struct {
 	t     time.Time
 	bytes []byte
 
-	bctx     *block.Context
+	bctx *block.Context
+	// These will only be populated if block was verified and still in cache
 	txBlocks []*StatelessTxBlock
 
 	firstVerify    time.Time
@@ -503,12 +504,13 @@ func (b *StatelessRootBlock) State() (Database, error) {
 	return nil, ErrBlockNotProcessed
 }
 
-func (b *StatelessRootBlock) LastTxBlock() *StatelessTxBlock {
+func (b *StatelessRootBlock) LastTxBlock() (*StatelessTxBlock, error) {
 	l := len(b.txBlocks)
-	if l == 0 {
-		return nil
+	if l > 0 {
+		return b.txBlocks[l-1], nil
 	}
-	return b.txBlocks[l-1]
+	lid := b.Txs[len(b.Txs)-1]
+	return b.vm.GetStatelessTxBlock(context.TODO(), lid, b.MinTxHght+uint64(len(b.Txs)-1))
 }
 
 func (b *StatelessRootBlock) GetTxs() []ids.ID {

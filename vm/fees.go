@@ -24,7 +24,10 @@ func (vm *VM) SuggestedFee(ctx context.Context) (uint64, error) {
 		return 0, err
 	}
 	preferred := rpreferred.(*chain.StatelessRootBlock)
-	txBlk := preferred.LastTxBlock()
+	txBlk, err := preferred.LastTxBlock()
+	if err != nil {
+		return 0, err
+	}
 
 	// We scale down unit price to prevent a spiral up in price
 	r := vm.c.Rules(time.Now().Unix())

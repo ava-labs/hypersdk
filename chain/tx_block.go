@@ -582,6 +582,9 @@ func (b *StatelessTxBlock) ChildState(
 	}
 
 	// Process block if not yet processed and not yet accepted.
+	//
+	// We don't need to handle the case where the tx block is loaded from disk
+	// because that will hit the first if check here.
 	if b.state == nil {
 		return nil, errors.New("not implemented")
 	}

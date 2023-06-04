@@ -100,7 +100,7 @@ func GenerateRootExecutionContext(
 	ctx context.Context,
 	chainID ids.ID,
 	currTime int64,
-	parent *StatelessRootBlock,
+	parent *StatelessRootBlock, // TODO: doesn't need stateless
 	tracer trace.Tracer, //nolint:interfacer
 	r Rules,
 ) (*RootExecutionContext, error) {
@@ -131,7 +131,7 @@ func GenerateTxExecutionContext(
 	ctx context.Context,
 	chainID ids.ID,
 	currTime int64,
-	parent *StatelessTxBlock,
+	parent *StatelessTxBlock, // TODO: doesn't need stateless
 	tracer trace.Tracer, //nolint:interfacer
 	r Rules,
 ) (*TxExecutionContext, error) {

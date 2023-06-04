@@ -28,6 +28,7 @@ import (
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
+	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"go.uber.org/zap"
@@ -78,7 +79,7 @@ type VM struct {
 
 	// cache block objects to optimize "GetBlockStateless"
 	// only put when a block is accepted
-	blocks *cache.LRU[ids.ID, *chain.StatelessRootBlock]
+	blocks *hcache.FIFO[ids.ID, *chain.StatelessRootBlock]
 
 	// We cannot use a map here because we may parse blocks up in the ancestry
 	parsedBlocks *cache.LRU[ids.ID, *chain.StatelessRootBlock]
@@ -228,10 +229,13 @@ func (vm *VM) Initialize(
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
 
-	vm.blocks = &cache.LRU[ids.ID, *chain.StatelessRootBlock]{Size: vm.config.GetBlockLRUSize()}
+	vm.blocks, err = hcache.NewFIFO[ids.ID, *chain.StatelessRootBlock](vm.config.GetAcceptedBlockCacheSize())
+	if err != nil {
+		return err
+	}
 	vm.acceptedQueue = make(chan *chain.StatelessRootBlock, vm.config.GetAcceptorSize())
 	vm.acceptorDone = make(chan struct{})
-	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessRootBlock]{Size: vm.config.GetBlockLRUSize()}
+	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessRootBlock]{Size: vm.config.GetParsedBlockCacheSize()}
 	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessRootBlock)
 
 	mem, mempoolRegistry, err := mempool.New[*chain.Transaction](
@@ -724,11 +728,14 @@ func (vm *VM) Submit(
 	}
 
 	// Create temporary execution context
-	blk, err := vm.GetStatelessRootBlock(ctx, vm.preferred)
+	blk, err := vm.PreferredBlock(ctx)
 	if err != nil {
 		return []error{err}
 	}
-	txBlk := blk.LastTxBlock() // could be nil if last accepted is genesis
+	txBlk, err := blk.LastTxBlock() // could be nil if last accepted is genesis
+	if err != nil {
+		return []error{err}
+	}
 	state, err := blk.State()
 	if err != nil {
 		// This will error if a block does not yet have processed state.
