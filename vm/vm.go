@@ -800,7 +800,7 @@ func (vm *VM) Submit(
 			temp :=  tx.Action.FromAddress
 			tx.Action = &actions.DASequencerMsg{
 								Data:    serialized,
-								FromAddress: temp
+								FromAddress: temp,
 							}
 		}
 
