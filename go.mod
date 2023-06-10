@@ -1,4 +1,4 @@
-module github.com/ava-labs/hypersdk
+module github.com/AnomalyFi/hypersdk
 
 go 1.20
 
