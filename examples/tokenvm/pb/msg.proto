@@ -1,0 +1,13 @@
+// generate go file with:
+// go install github.com/gogo/protobuf/protoc-gen-gofast
+// protoc --gofast_out=. msg.proto -I=. && mv github.com/histolabs/metro/pb/msg.pb.go . && rm -r github.com
+
+syntax = "proto3";
+option go_package = "github.com/histolabs/metro/pb";
+package metro.pb;
+
+message SequencerMsg {
+    bytes chain_id = 1;
+    bytes data = 2;
+    string from_address = 3;
+}

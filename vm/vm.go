@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+	"encoding/binary"
+	"encoding/hex"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/cache"
@@ -40,6 +42,11 @@ import (
 	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
+	"github.com/AnomalyFi/hypersdk/examples/tokenvm/actions"
+	
+	"github.com/celestiaorg/go-cnc"
+
+
 )
 
 type VM struct {
@@ -113,6 +120,9 @@ type VM struct {
 	metrics  *Metrics
 	profiler profiler.ContinuousProfiler
 
+	daClient  *cnc.Client
+	namespace cnc.Namespace
+
 	ready chan struct{}
 	stop  chan struct{}
 }
@@ -162,6 +172,21 @@ func (vm *VM) Initialize(
 	vm.networkManager.SetHandler(warpHandler, NewWarpHandler(vm))
 	go vm.warpManager.Run(warpSender)
 	vm.manager = manager
+
+	//TODO need to switch this to be a command line option or env variable
+	daClient, err := cnc.NewClient("http://192.168.0.230:26659", cnc.WithTimeout(90*time.Second))
+	if err != nil {
+		return err
+	}
+	NamespaceId := "74e9f25edd9922f1"
+	nsBytes, err := hex.DecodeString(NamespaceId)
+	if err != nil {
+		return err
+	}
+
+	namespace := cnc.MustNewV0(nsBytes)
+
+	vm.daClient = daClient
 
 	// Always initialize implementation first
 	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.vmDB,
@@ -654,6 +679,8 @@ func (vm *VM) Submit(
 	verifySig bool,
 	txs []*chain.Transaction,
 ) (errs []error) {
+	//TODO this will need to be modified similiar to SimpleTxManager
+	//It should either be here or after Mempool because this part checks the validity of the transactions
 	ctx, span := vm.tracer.Start(ctx, "VM.Submit")
 	defer span.End()
 	vm.metrics.txsSubmitted.Add(float64(len(txs)))
@@ -730,6 +757,52 @@ func (vm *VM) Submit(
 			errs = append(errs, err)
 			continue
 		}
+
+		if tx.Action.(type) == *actions.SequencerMsg {
+			vm.snowCtx.Log.Warn("This code worked")
+			res, err := vm.daClient.SubmitPFB(ctx, vm.namespace, tx.Action.Data, 70000, 700000)
+			if err != nil {
+				vm.snowCtx.Log.Warn("unable to publish tx to celestia", zap.Error(err))
+				errs = append(errs, err)
+				continue
+			}
+			fmt.Printf("res: %v\n", res)
+
+			height := res.Height
+
+			// FIXME: needs to be tx index / share index?
+			index := uint32(0) // res.Logs[0].MsgIndex
+
+			// DA pointer serialization format
+			// | -------------------------|
+			// | 8 bytes       | 4 bytes  |
+			// | block height | tx index  |
+			// | -------------------------|
+
+			buf := new(bytes.Buffer)
+			err = binary.Write(buf, binary.BigEndian, height)
+			if err != nil {
+				vm.snowCtx.Log.Warn("data pointer block height serialization failed: %w",  zap.Error(err))
+				errs = append(errs, err)
+				continue
+			}
+			err = binary.Write(buf, binary.BigEndian, index)
+			if err != nil {
+				vm.snowCtx.Log.Warn("data pointer tx index serialization failed: %w",  zap.Error(err))
+				errs = append(errs, err)
+				continue
+			}
+
+			serialized := buf.Bytes()
+			fmt.Printf("TxData: %v\n", serialized)
+			//tx = TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit}
+			temp :=  tx.Action.FromAddress
+			tx.Action = &actions.DASequencerMsg{
+								Data:    serialized,
+								FromAddress: temp
+							}
+		}
+
 		errs = append(errs, nil)
 		validTxs = append(validTxs, tx)
 	}

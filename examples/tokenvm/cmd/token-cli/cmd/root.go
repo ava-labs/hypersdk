@@ -149,6 +149,7 @@ func init() {
 
 		createAssetCmd,
 		mintAssetCmd,
+		sequencerMsgCmd,
 		// burnAssetCmd,
 		// modifyAssetCmd,
 
