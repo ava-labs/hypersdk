@@ -795,7 +795,7 @@ func (vm *VM) Submit(
 
 			serialized := buf.Bytes()
 			fmt.Printf("TxData: %v\n", serialized)
-			//tx = TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit}
+			// tx = TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit}
 			temp :=  tx.Action.FromAddress
 			tx.Action = &actions.DASequencerMsg{
 								Data:    serialized,
