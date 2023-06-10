@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/hypersdk/trace"
+	"github.com/AnomalyFi/hypersdk/trace"
 
 	"github.com/stretchr/testify/require"
 )

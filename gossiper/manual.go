@@ -9,7 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/chain"
 	"go.uber.org/zap"
 )
 

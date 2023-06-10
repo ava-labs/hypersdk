@@ -42,7 +42,7 @@ export OS_TYPE=$(uname | tr '[:upper:]' '[:lower:]')
 echo ${OS_TYPE}
 export HYPERSDK_VERSION="0.0.7"
 rm -f /tmp/token-cli
-wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz"
+wget "https://github.com/AnomalyFi/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz"
 mkdir tmp-hypersdk
 tar -xvf hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz -C tmp-hypersdk
 rm -rf hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz
@@ -58,7 +58,7 @@ building with [`v3+`](https://github.com/golang/go/wiki/MinimumRequirements#amd6
 ```bash
 export HYPERSDK_VERSION="0.0.7"
 rm -f /tmp/tokenvm
-wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz"
+wget "https://github.com/AnomalyFi/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz"
 mkdir tmp-hypersdk
 tar -xvf hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz -C tmp-hypersdk
 rm -rf hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz
@@ -134,7 +134,7 @@ You can specify a single instance type (`--instance-types=c5.2xlarge`) or a comm
 
 `avalanchego` will use at least `<expected block size> * (2048[bytesToIDCache] + 2048[decidedBlocksCache])`
 for caching blocks. This overhead will be significantly reduced when
-[this issue is resolved](https://github.com/ava-labs/hypersdk/issues/129).
+[this issue is resolved](https://github.com/AnomalyFi/hypersdk/issues/129).
 
 #### Increasing Rate Limits
 If you are attempting to stress test the Devnet, you should disable CPU, Disk,

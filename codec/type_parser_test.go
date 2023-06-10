@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ava-labs/hypersdk/consts"
+	"github.com/AnomalyFi/hypersdk/consts"
 	"github.com/stretchr/testify/require"
 )
 

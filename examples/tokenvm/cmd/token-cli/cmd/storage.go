@@ -8,9 +8,9 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
-	"github.com/ava-labs/hypersdk/utils"
+	"github.com/AnomalyFi/hypersdk/consts"
+	"github.com/AnomalyFi/hypersdk/crypto"
+	"github.com/AnomalyFi/hypersdk/utils"
 )
 
 const (

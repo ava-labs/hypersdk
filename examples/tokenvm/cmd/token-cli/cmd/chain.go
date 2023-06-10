@@ -17,18 +17,18 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/math"
-	hconsts "github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/rpc"
-	"github.com/ava-labs/hypersdk/utils"
-	"github.com/ava-labs/hypersdk/window"
+	hconsts "github.com/AnomalyFi/hypersdk/consts"
+	"github.com/AnomalyFi/hypersdk/rpc"
+	"github.com/AnomalyFi/hypersdk/utils"
+	"github.com/AnomalyFi/hypersdk/window"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 
-	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/AnomalyFi/hypersdk/examples/tokenvm/actions"
+	"github.com/AnomalyFi/hypersdk/examples/tokenvm/auth"
+	"github.com/AnomalyFi/hypersdk/examples/tokenvm/consts"
+	trpc "github.com/AnomalyFi/hypersdk/examples/tokenvm/rpc"
+	tutils "github.com/AnomalyFi/hypersdk/examples/tokenvm/utils"
 )
 
 var chainCmd = &cobra.Command{

@@ -11,8 +11,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/ulimit"
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/tokenvm/version"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/controller"
+	"github.com/AnomalyFi/hypersdk/examples/tokenvm/cmd/tokenvm/version"
+	"github.com/AnomalyFi/hypersdk/examples/tokenvm/controller"
 	"github.com/spf13/cobra"
 )
 

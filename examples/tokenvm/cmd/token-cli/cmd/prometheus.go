@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/ava-labs/hypersdk/utils"
+	"github.com/AnomalyFi/hypersdk/utils"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 )

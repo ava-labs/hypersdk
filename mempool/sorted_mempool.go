@@ -6,7 +6,7 @@ package mempool
 import (
 	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/hypersdk/heap"
+	"github.com/AnomalyFi/hypersdk/heap"
 )
 
 // Item is the interface that any item put in the mempool must adheare to.

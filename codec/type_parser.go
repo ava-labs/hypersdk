@@ -6,7 +6,7 @@ package codec
 import (
 	"fmt"
 
-	"github.com/ava-labs/hypersdk/consts"
+	"github.com/AnomalyFi/hypersdk/consts"
 )
 
 type decoder[T any, X any, Y any] struct {

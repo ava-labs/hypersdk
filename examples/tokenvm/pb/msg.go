@@ -1,7 +1,7 @@
 package pb
 
 // import (
-// 	"github.com/ava-labs/hypersdk/crypto"
+// 	"github.com/AnomalyFi/hypersdk/crypto"
 // )
 // crypto.PublicKey
 //TODO need to figure out how to override

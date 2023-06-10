@@ -15,7 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/chain"
 )
 
 type stateSyncerClient struct {

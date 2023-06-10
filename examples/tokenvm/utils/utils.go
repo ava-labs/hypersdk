@@ -4,9 +4,9 @@
 package utils
 
 import (
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/AnomalyFi/hypersdk/crypto"
 
-	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
+	"github.com/AnomalyFi/hypersdk/examples/tokenvm/consts"
 )
 
 func Address(pk crypto.PublicKey) string {

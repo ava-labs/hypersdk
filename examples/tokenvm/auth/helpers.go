@@ -4,8 +4,8 @@
 package auth
 
 import (
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/AnomalyFi/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/crypto"
 )
 
 func GetActor(auth chain.Auth) crypto.PublicKey {

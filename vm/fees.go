@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/chain"
 )
 
 const (

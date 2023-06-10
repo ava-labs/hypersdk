@@ -12,12 +12,12 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	smath "github.com/ava-labs/avalanchego/utils/math"
 
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/crypto"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
-	"github.com/ava-labs/hypersdk/vm"
+	"github.com/AnomalyFi/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/crypto"
+	"github.com/AnomalyFi/hypersdk/examples/tokenvm/consts"
+	"github.com/AnomalyFi/hypersdk/examples/tokenvm/storage"
+	"github.com/AnomalyFi/hypersdk/examples/tokenvm/utils"
+	"github.com/AnomalyFi/hypersdk/vm"
 )
 
 var _ vm.Genesis = (*Genesis)(nil)

@@ -5,10 +5,10 @@
   Mint, Transfer, and Trade User-Generated Tokens, All On-Chain
 </p>
 <p align="center">
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-static-analysis.yml/badge.svg" /></a>
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-unit-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-unit-tests.yml/badge.svg" /></a>
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-sync-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-sync-tests.yml/badge.svg" /></a>
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-load-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-load-tests.yml/badge.svg" /></a>
+  <a href="https://github.com/AnomalyFi/hypersdk/actions/workflows/tokenvm-static-analysis.yml"><img src="https://github.com/AnomalyFi/hypersdk/actions/workflows/tokenvm-static-analysis.yml/badge.svg" /></a>
+  <a href="https://github.com/AnomalyFi/hypersdk/actions/workflows/tokenvm-unit-tests.yml"><img src="https://github.com/AnomalyFi/hypersdk/actions/workflows/tokenvm-unit-tests.yml/badge.svg" /></a>
+  <a href="https://github.com/AnomalyFi/hypersdk/actions/workflows/tokenvm-sync-tests.yml"><img src="https://github.com/AnomalyFi/hypersdk/actions/workflows/tokenvm-sync-tests.yml/badge.svg" /></a>
+  <a href="https://github.com/AnomalyFi/hypersdk/actions/workflows/tokenvm-load-tests.yml"><img src="https://github.com/AnomalyFi/hypersdk/actions/workflows/tokenvm-load-tests.yml/badge.svg" /></a>
 </p>
 
 ---
@@ -437,7 +437,7 @@ your own custom network or on Fuji, check out this [doc](DEVNETS.md).
 
 ## Future Work
 _If you want to take the lead on any of these items, please
-[start a discussion](https://github.com/ava-labs/hypersdk/discussions) or reach
+[start a discussion](https://github.com/AnomalyFi/hypersdk/discussions) or reach
 out on the Avalanche Discord._
 
 * Add more config options for determining which order books to store in-memory

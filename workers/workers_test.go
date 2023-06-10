@@ -24,7 +24,7 @@ import (
 //
 // goos: darwin
 // goarch: arm64
-// pkg: github.com/ava-labs/hypersdk/workers
+// pkg: github.com/AnomalyFi/hypersdk/workers
 // BenchmarkWorker/10-10   	             10000	     10752 ns/op	    5921 B/op	      60 allocs/op
 // BenchmarkWorker/50-10   	             10000	     36131 ns/op	   29603 B/op	     300 allocs/op
 // BenchmarkWorker/100-10  	             10000	    107860 ns/op	   59203 B/op	     600 allocs/op

@@ -7,13 +7,13 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/crypto"
-	hutils "github.com/ava-labs/hypersdk/utils"
+	"github.com/AnomalyFi/hypersdk/crypto"
+	hutils "github.com/AnomalyFi/hypersdk/utils"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	trpc "github.com/AnomalyFi/hypersdk/examples/tokenvm/rpc"
+	"github.com/AnomalyFi/hypersdk/examples/tokenvm/utils"
 )
 
 var keyCmd = &cobra.Command{

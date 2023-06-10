@@ -18,9 +18,9 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"golang.org/x/exp/maps"
 
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/requester"
-	"github.com/ava-labs/hypersdk/utils"
+	"github.com/AnomalyFi/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/requester"
+	"github.com/AnomalyFi/hypersdk/utils"
 )
 
 const (

@@ -13,12 +13,12 @@ import (
 	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/emap"
-	"github.com/ava-labs/hypersdk/mempool"
-	"github.com/ava-labs/hypersdk/tstate"
-	"github.com/ava-labs/hypersdk/utils"
+	"github.com/AnomalyFi/hypersdk/codec"
+	"github.com/AnomalyFi/hypersdk/consts"
+	"github.com/AnomalyFi/hypersdk/emap"
+	"github.com/AnomalyFi/hypersdk/mempool"
+	"github.com/AnomalyFi/hypersdk/tstate"
+	"github.com/AnomalyFi/hypersdk/utils"
 )
 
 var (

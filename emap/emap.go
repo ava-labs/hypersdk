@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/heap"
+	"github.com/AnomalyFi/hypersdk/heap"
 )
 
 type bucket struct {

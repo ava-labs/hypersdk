@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/chain"
 )
 
 type VM interface {

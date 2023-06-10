@@ -14,10 +14,10 @@ import (
 	atrace "github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 
-	"github.com/ava-labs/hypersdk/builder"
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/gossiper"
-	trace "github.com/ava-labs/hypersdk/trace"
+	"github.com/AnomalyFi/hypersdk/builder"
+	"github.com/AnomalyFi/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/gossiper"
+	trace "github.com/AnomalyFi/hypersdk/trace"
 )
 
 type Handlers map[string]*common.HTTPHandler
