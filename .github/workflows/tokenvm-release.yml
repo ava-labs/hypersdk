@@ -6,7 +6,7 @@ name: TokenVM Release
 on:
   push:
     branches:
-      - main
+      - redux
     tags:
       - "*"
   pull_request:
@@ -16,7 +16,7 @@ jobs:
     # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
     runs-on: ubuntu-20.04-32
     environment: 'long-ci'
-    if: ${{ github.ref != 'refs/heads/main' && startsWith(github.event.ref, 'refs/tags/v') == false }}
+    if: ${{ github.ref != 'refs/heads/redux' && startsWith(github.event.ref, 'refs/tags/v') == false }}
     steps:
       - name: Git checkout
         uses: actions/checkout@v3
@@ -61,7 +61,7 @@ jobs:
  main-release:
     # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
     runs-on: ubuntu-20.04-32
-    if: ${{ github.ref == 'refs/heads/main' || startsWith(github.event.ref, 'refs/tags/v') }}
+    if: ${{ github.ref == 'refs/heads/redux' || startsWith(github.event.ref, 'refs/tags/v') }}
     steps:
       - name: Git checkout
         uses: actions/checkout@v3
