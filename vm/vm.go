@@ -758,8 +758,8 @@ func (vm *VM) Submit(
 			errs = append(errs, err)
 			continue
 		}
-
-		if tx.Action.(type) == *actions.SequencerMsg {
+		switch action := tx.Action.(type) {
+		case *actions.SequencerMsg:
 			vm.snowCtx.Log.Warn("This code worked")
 			res, err := vm.daClient.SubmitPFB(ctx, vm.namespace, tx.Action.Data, 70000, 700000)
 			if err != nil {
@@ -802,8 +802,9 @@ func (vm *VM) Submit(
 								Data:    serialized,
 								FromAddress: temp,
 							}
+		case default: 
+			continue	
 		}
-
 		errs = append(errs, nil)
 		validTxs = append(validTxs, tx)
 	}
