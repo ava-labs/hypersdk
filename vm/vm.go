@@ -761,7 +761,7 @@ func (vm *VM) Submit(
 		switch action := tx.Action.(type) {
 		case *actions.SequencerMsg:
 			vm.snowCtx.Log.Warn("This code worked")
-			res, err := vm.daClient.SubmitPFB(ctx, vm.namespace, tx.Action.Data, 70000, 700000)
+			res, err := vm.daClient.SubmitPFB(ctx, vm.namespace, action.Data, 70000, 700000)
 			if err != nil {
 				vm.snowCtx.Log.Warn("unable to publish tx to celestia", zap.Error(err))
 				errs = append(errs, err)
@@ -797,8 +797,8 @@ func (vm *VM) Submit(
 			serialized := buf.Bytes()
 			fmt.Printf("TxData: %v\n", serialized)
 			// tx = TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit}
-			temp :=  tx.Action.FromAddress
-			tx.Action = &actions.DASequencerMsg{
+			temp :=  action.FromAddress
+			action = &actions.DASequencerMsg{
 								Data:    serialized,
 								FromAddress: temp,
 							}
