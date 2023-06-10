@@ -679,11 +679,12 @@ func (vm *VM) Submit(
 	verifySig bool,
 	txs []*chain.Transaction,
 ) (errs []error) {
-	//TODO this will need to be modified similiar to SimpleTxManager
-	//It should either be here or after Mempool because this part checks the validity of the transactions
 	ctx, span := vm.tracer.Start(ctx, "VM.Submit")
 	defer span.End()
 	vm.metrics.txsSubmitted.Add(float64(len(txs)))
+	//TODO this will need to be modified similiar to SimpleTxManager
+	//It should either be here or after Mempool because this part checks the validity of the transactions
+
 
 	// We should not allow any transactions to be submitted if the VM is not
 	// ready yet. We should never reach this point because of other checks but it
