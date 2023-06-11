@@ -799,7 +799,7 @@ func (vm *VM) Submit(
 				errs = append(errs, err)
 				continue
 			}
-			vm.snowCtx.Log.Warn("tx data before serialized id: %w height: %s", zap.String(txID.String()), zap.String(string(height)))
+			vm.snowCtx.Log.Warn("tx data before serialized id: %w height: %s", zap.String("ID:",  txID.String()), zap.String("Height:", string(height)))
 
 			serialized := buf.Bytes()
 			vm.snowCtx.Log.Warn("TxData: \n", zap.String("Here is data:", string(serialized)))
