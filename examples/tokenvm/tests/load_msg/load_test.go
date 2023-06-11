@@ -466,6 +466,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 	})
 
 	ginkgo.It("verifies blocks", func() {
+		//TODO this is where the first function is called
 		for i, instance := range instances[1:] {
 			log.Warn("sleeping 10s before starting verification", zap.Int("instance", i+1))
 			time.Sleep(10 * time.Second)

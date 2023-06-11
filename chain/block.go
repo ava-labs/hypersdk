@@ -313,6 +313,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 }
 
 func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
+	//TODO this is the second part
 	log := b.vm.Logger()
 	switch {
 	case !stateReady:
@@ -341,6 +342,7 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 		}
 		b.state = state
 	}
+	
 
 	// At any point after this, we may attempt to verify the block. We should be
 	// sure we are prepared to do so.
@@ -657,6 +659,10 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	// syncing)
 	if err := b.state.CommitToDB(ctx); err != nil {
 		return err
+	}
+
+	for _, tx := range b.Txs {
+		vm.snowCtx.Log.Info("Accepted tx action data is:", zap.Stringer("type_of_action", reflect.TypeOf(tx.Action)))
 	}
 
 	// Set last accepted block

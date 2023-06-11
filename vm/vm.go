@@ -574,6 +574,7 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 // implements "block.ChainVM.commom.VM.Parser"
 // replaces "core.SnowmanVM.ParseBlock"
 func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
+	//TODO first goes here
 	ctx, span := vm.tracer.Start(ctx, "VM.ParseBlock")
 	defer span.End()
 
@@ -820,13 +821,15 @@ func (vm *VM) Submit(
 			errs = append(errs, nil)
 			validTxs = append(validTxs, modified_tx)
 			continue
+		default:
+			errs = append(errs, nil)
+			validTxs = append(validTxs, tx)
 		// default:
 		// 	continue	
 		}
 		
 		
-		errs = append(errs, nil)
-		validTxs = append(validTxs, tx)
+		
 	}
 	vm.mempool.Add(ctx, validTxs)
 	return errs

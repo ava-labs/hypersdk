@@ -6,6 +6,7 @@ package vm
 import (
 	"context"
 	"time"
+	"reflect"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
@@ -113,6 +114,11 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	vm.parsedBlocks.Evict(b.ID())
 	vm.mempool.Remove(ctx, b.Txs)
 	vm.gossiper.BlockVerified(b.Tmstmp)
+
+	for _, tx := range b.Txs {
+		vm.snowCtx.Log.Info("Verified tx action data is:", zap.Stringer("type_of_action", reflect.TypeOf(tx.Action)))
+	}
+
 	vm.snowCtx.Log.Info(
 		"verified block",
 		zap.Stringer("blkID", b.ID()),
@@ -259,6 +265,10 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	// Enqueue block for processing
 	vm.acceptedQueue <- b
 
+	for _, tx := range b.Txs {
+		vm.snowCtx.Log.Info("tx action data is:", zap.Stringer("type_of_action", reflect.TypeOf(tx.Action)))
+	}
+	//TODO this is the last step so I want to print out the transactions actions at this point
 	vm.snowCtx.Log.Info(
 		"accepted block",
 		zap.Stringer("blkID", b.ID()),
