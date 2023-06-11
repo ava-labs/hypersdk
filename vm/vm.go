@@ -776,7 +776,7 @@ func (vm *VM) Submit(
 			height := res.Height
 
 			// FIXME: needs to be tx index / share index?
-			index := uint32(0) // res.Logs[0].MsgIndex
+			//index := uint32(0) // res.Logs[0].MsgIndex
 
 			// DA pointer serialization format
 			// | -------------------------|
@@ -792,13 +792,14 @@ func (vm *VM) Submit(
 				continue
 			}
 
-			_, err := buf.Write(txID[:])
+			index, err := buf.Write(txID[:])
 			// err = binary.Write(buf, binary.BigEndian, index)
 			if err != nil {
 				vm.snowCtx.Log.Warn("data pointer tx id serialization failed: %w",  zap.Error(err))
 				errs = append(errs, err)
 				continue
 			}
+			vm.snowCtx.Log.Warn("tx data before serialized id: %w height: %s", zap.String(txID.String()), zap.String(string(height)))
 
 			serialized := buf.Bytes()
 			vm.snowCtx.Log.Warn("TxData: \n", zap.String("Here is data:", string(serialized)))
