@@ -197,7 +197,6 @@ var sequencerMsgCmd = &cobra.Command{
 		}
 		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.SequencerMsg{
 			Data:  []byte{0x00, 0x01, 0x02},
-			//generateRandHexEncodedNamespaceID(),
 			FromAddress: recipient,
 		}, factory)
 		if err != nil {
@@ -935,16 +934,5 @@ var exportAssetCmd = &cobra.Command{
 		}
 		return StoreDefault(defaultChainKey, destination[:])
 	},
-}
-
-func generateRandHexEncodedNamespaceID() []byte {
-	seed := 50042069
-	rand.Seed(int64(seed))
-	nID := make([]byte, 8)
-	_, err := rand.Read(nID)
-	if err != nil {
-		panic(err)
-	}
-	return nId
 }
 

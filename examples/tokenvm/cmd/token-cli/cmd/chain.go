@@ -412,7 +412,7 @@ var watchChainCmd = &cobra.Command{
 							summaryStr += fmt.Sprintf(" | swap in: %s %s swap out: %s %s expiry: %d", valueString(outputAssetID, wt.SwapIn), assetString(outputAssetID), valueString(wt.AssetOut, wt.SwapOut), assetString(wt.AssetOut), wt.SwapExpiry)
 						}
 					case *actions.SequencerMsg:
-						summaryStr = fmt.Sprintf("chainid: %s data: %s", string(action.ChainId), string(action.Data))
+						summaryStr = fmt.Sprintf("data: %s", string(action.Data))
 					case *actions.DASequencerMsg:
 						summaryStr = fmt.Sprintf("data: %s", string(action.Data))
 					}
