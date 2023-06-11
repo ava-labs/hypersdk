@@ -83,7 +83,7 @@ TODO: add support for `keep-resources-except-asg-ssm` and
 ```bash
 /tmp/avalancheup-aws default-spec \
 --arch-type amd64 \
---rust-os-type ubuntu20.04 \
+--os-type ubuntu20.04 \
 --anchor-nodes 3 \
 --non-anchor-nodes 3 \
 --regions us-west-2 \
@@ -92,7 +92,7 @@ TODO: add support for `keep-resources-except-asg-ssm` and
 --ip-mode=ephemeral \
 --metrics-fetch-interval-seconds 60 \
 --network-name custom \
---avalanchego-release-tag v1.10.1 \
+--avalanchego-release-tag v1.10.2 \
 --create-dev-machine \
 --keep-resources-except-asg-ssm \
 --keys-to-generate 5

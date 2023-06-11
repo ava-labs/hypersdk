@@ -17,7 +17,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=b45966175ae88273e7a5915d17d9ac99b8db8546
+VERSION=v1.10.2
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 AVALANCHE_LOG_LEVEL=${AVALANCHE_LOG_LEVEL:-INFO}
@@ -135,6 +135,7 @@ cat <<EOF > /tmp/tokenvm.config
   "preferredBlocksPerSecond": 3,
   "verifySignatures": true,
   "storeTransactions": false,
+  "continuousProfilerDir": "",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }

@@ -271,7 +271,7 @@ func BuildBlock(
 					execErr = err
 					continue
 				}
-				txBlock = NewTxBlock(tectx, vm, txBlock, nextTime)
+				txBlock = NewTxBlock(tectx, vm, parentTxBlock, nextTime)
 				results = []*Result{}
 			}
 
