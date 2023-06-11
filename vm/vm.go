@@ -805,7 +805,12 @@ func (vm *VM) Submit(
 								Data:    serialized,
 								FromAddress: temp,
 							}
-			modified_tx := tx.ModifyAction(temp_action)
+			modified_tx, err := tx.ModifyAction(temp_action)
+			if err != nil {
+				vm.snowCtx.Log.Warn("Failed to modify action: %w",  zap.Error(err))
+				errs = append(errs, err)
+				continue
+			}
 			errs = append(errs, nil)
 			validTxs = append(validTxs, modified_tx)
 			continue
