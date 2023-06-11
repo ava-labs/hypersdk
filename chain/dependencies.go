@@ -53,7 +53,7 @@ type VM interface {
 	StateReady() bool
 	IsBootstrapped() bool
 
-	State() (*merkledb.Database, error)
+	State() (merkledb.MerkleDB, error)
 	StateManager() StateManager
 	ValidatorState() validators.State
 	IsRepeat(context.Context, []*Transaction) bool

@@ -605,6 +605,7 @@ func (c *TxBlockManager) handleBlock(ctx context.Context, msg []byte, expected *
 }
 
 // TODO: add lock to ensure only one async verify job happens at once
+// TODO: also grab lock when issuing blocks?
 func (c *TxBlockManager) VerifyAll(blkID ids.ID) {
 	next := []ids.ID{blkID}
 	for len(next) > 0 {

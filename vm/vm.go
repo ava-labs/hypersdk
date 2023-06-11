@@ -62,7 +62,7 @@ type VM struct {
 
 	gossiper       gossiper.Gossiper
 	rawStateDB     database.Database
-	stateDB        *merkledb.Database
+	stateDB        merkledb.MerkleDB
 	vmDB           database.Database
 	handlers       Handlers
 	actionRegistry chain.ActionRegistry
