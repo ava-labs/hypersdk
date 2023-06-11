@@ -185,7 +185,9 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	vm.namespace := cnc.MustNewV0(nsBytes)
+	namespace := cnc.MustNewV0(nsBytes)
+
+	vm.namespace = namespace
 
 	vm.daClient = daClient
 
