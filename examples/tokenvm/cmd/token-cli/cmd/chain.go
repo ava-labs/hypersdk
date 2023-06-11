@@ -439,7 +439,8 @@ var watchChainCmd = &cobra.Command{
 						fmt.Sprintf("requesting data from celestia namespace: %s height: %s", hex.EncodeToString(namespace.Bytes()), height)
 						data, err := daClient.NamespacedData(context.Background(), namespace, uint64(height))
 						if err != nil {
-							return NewResetError(fmt.Errorf("failed to retrieve data from celestia: %w", err))
+							fmt.Errorf("failed to retrieve data from celestia: %w", err)
+							return err
 						}
 						summaryStr = fmt.Sprintf("Retrieved Celestia Data: %s", hex.EncodeToString(data[index]))
 					}
