@@ -179,7 +179,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	NamespaceId := "000008e5f679bf7116cb"
+	NamespaceId := "000008e5f679bf7116cd"
 	nsBytes, err := hex.DecodeString(NamespaceId)
 	if err != nil {
 		return err
