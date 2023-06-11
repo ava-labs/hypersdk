@@ -10,31 +10,33 @@ import (
 )
 
 type Metrics struct {
-	unitsVerified         prometheus.Counter
-	unitsAccepted         prometheus.Counter
-	txsSubmitted          prometheus.Counter // includes gossip
-	txsVerified           prometheus.Counter
-	txBlocksVerified      prometheus.Counter
-	txsAccepted           prometheus.Counter
-	txBlocksAccepted      prometheus.Counter
-	stateChanges          prometheus.Counter
-	stateOperations       prometheus.Counter
-	txBlocksMissing       prometheus.Counter
-	deletedTxBlocks       prometheus.Counter
-	earlyBuildStop        prometheus.Counter
-	txBlockBytesSent      prometheus.Counter
-	txBlockBytesReceived  prometheus.Counter
-	mempoolSize           prometheus.Gauge
-	mempoolSizeAfterBuild prometheus.Gauge
-	acceptorDrift         prometheus.Gauge
-	rootCalculated        metric.Averager
-	commitState           metric.Averager
-	waitSignatures        metric.Averager
-	buildBlock            metric.Averager
-	verifyWait            metric.Averager
-	txBlockVerify         metric.Averager
-	txBlockIssuanceDiff   metric.Averager
-	rootBlockIssuanceDiff metric.Averager
+	unitsVerified                 prometheus.Counter
+	unitsAccepted                 prometheus.Counter
+	txsSubmitted                  prometheus.Counter // includes gossip
+	txsVerified                   prometheus.Counter
+	txBlocksVerified              prometheus.Counter
+	txBlocksVerifiedFailed        prometheus.Counter
+	txBlocksVerifiedFailedManager prometheus.Counter
+	txsAccepted                   prometheus.Counter
+	txBlocksAccepted              prometheus.Counter
+	stateChanges                  prometheus.Counter
+	stateOperations               prometheus.Counter
+	txBlocksMissing               prometheus.Counter
+	deletedTxBlocks               prometheus.Counter
+	earlyBuildStop                prometheus.Counter
+	txBlockBytesSent              prometheus.Counter
+	txBlockBytesReceived          prometheus.Counter
+	mempoolSize                   prometheus.Gauge
+	mempoolSizeAfterBuild         prometheus.Gauge
+	acceptorDrift                 prometheus.Gauge
+	rootCalculated                metric.Averager
+	commitState                   metric.Averager
+	waitSignatures                metric.Averager
+	buildBlock                    metric.Averager
+	verifyWait                    metric.Averager
+	txBlockVerify                 metric.Averager
+	txBlockIssuanceDiff           metric.Averager
+	rootBlockIssuanceDiff         metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -139,6 +141,16 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "tx_blocks_verified",
 			Help:      "number of tx blocks verified by vm",
 		}),
+		txBlocksVerifiedFailed: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "vm",
+			Name:      "tx_blocks_verified_failed",
+			Help:      "number of tx blocks that fail verification",
+		}),
+		txBlocksVerifiedFailedManager: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "vm",
+			Name:      "tx_blocks_verified_failed_manager",
+			Help:      "number of tx blocks that fail verification in manager",
+		}),
 		txsAccepted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
 			Name:      "txs_accepted",
@@ -215,6 +227,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txsSubmitted),
 		r.Register(m.txsVerified),
 		r.Register(m.txBlocksVerified),
+		r.Register(m.txBlocksVerifiedFailed),
+		r.Register(m.txBlocksVerifiedFailedManager),
 		r.Register(m.txsAccepted),
 		r.Register(m.txBlocksAccepted),
 		r.Register(m.stateChanges),

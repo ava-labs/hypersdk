@@ -604,6 +604,7 @@ func (c *TxBlockManager) handleBlock(ctx context.Context, msg []byte, expected *
 	return nil
 }
 
+// TODO: add lock to ensure only one async verify job happens at once
 func (c *TxBlockManager) VerifyAll(blkID ids.ID) {
 	next := []ids.ID{blkID}
 	for len(next) > 0 {
@@ -612,6 +613,7 @@ func (c *TxBlockManager) VerifyAll(blkID ids.ID) {
 			err := c.Verify(blkID)
 			if err != nil {
 				c.vm.Logger().Warn("manager block verification failed", zap.Error(err))
+				c.vm.metrics.txBlocksVerifiedFailedManager.Inc()
 			} else {
 				c.vm.Logger().Info("manager block verification success", zap.Stringer("blkID", blkID))
 			}
@@ -648,6 +650,7 @@ func (c *TxBlockManager) Verify(blkID ids.ID) error {
 	}
 	if err := blk.blk.Verify(context.Background()); err != nil {
 		c.vm.Logger().Error("blk.blk.Verify failed", zap.Error(err))
+		c.vm.metrics.txBlocksVerifiedFailed.Inc()
 		return err
 	}
 	if blk.blk.Hght > c.max {

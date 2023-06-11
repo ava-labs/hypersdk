@@ -97,6 +97,12 @@ var generatePrometheusCmd = &cobra.Command{
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_vm_txs_accepted[5s])/5", chainID))
 		utils.Outf("{{yellow}}transactions per second:{{/}} %s\n", panels[len(panels)-1])
 
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_vm_tx_blocks_verified_failed[5s])", chainID))
+		utils.Outf("{{yellow}}failed tx block verifications:{{/}} %s\n", panels[len(panels)-1])
+
+		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_vm_tx_blocks_verified_failed_manager[5s])", chainID))
+		utils.Outf("{{yellow}}failed tx block verifications in manager:{{/}} %s\n", panels[len(panels)-1])
+
 		panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hyper_sdk_chain_state_operations[5s])/5", chainID))
 		utils.Outf("{{yellow}}state operations per second:{{/}} %s\n", panels[len(panels)-1])
 
