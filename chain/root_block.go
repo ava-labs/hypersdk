@@ -512,6 +512,7 @@ func (b *StatelessRootBlock) LastTxBlock() (*StatelessTxBlock, error) {
 		return b.txBlocks[l-1], nil
 	}
 	lid := b.Txs[len(b.Txs)-1]
+	// 10 + [10, 11, 12, 13]
 	return b.vm.GetStatelessTxBlock(context.TODO(), lid, b.MinTxHght+uint64(len(b.Txs)-1))
 }
 
