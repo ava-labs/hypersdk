@@ -267,11 +267,13 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "streamingBacklogSize": 10000000,
   "gossipMaxSize": 32768,
   "gossipProposerDepth": 1,
-  "buildProposerDiff": 10,
+  "buildProposerDiff": 1,
   "verifyTimeout": 5,
+  "verifySignatures": true,
+  "storeTransactions": false,
   "trackedPairs":["*"],
   "logLevel": "info",
-  "preferredBlocksPerSecond": 3
+  "preferredBlocksPerSecond": 5
 }
 EOF
 cat /tmp/avalanche-ops/tokenvm-chain-config.json

@@ -336,7 +336,7 @@ func (b *StatelessTxBlock) Verify(ctx context.Context) error {
 	case b.UnitPrice != ectx.NextUnitPrice:
 		return ErrInvalidUnitPrice
 	case b.UnitWindow != ectx.NextUnitWindow:
-		b.vm.Logger().Warn("unit window mismatch", zap.Uint64("height", b.Hght), zap.Bool("parent", parent != nil), zap.Binary("found", b.UnitWindow[:]), zap.Binary("expected", ectx.NextUnitWindow[:]))
+		b.vm.Logger().Warn("unit window mismatch", zap.Uint64("height", b.Hght), zap.Stringer("parent", parent.ID()), zap.Binary("found", b.UnitWindow[:]), zap.Binary("expected", ectx.NextUnitWindow[:]))
 		return ErrInvalidUnitWindow
 	}
 	log.Info(
