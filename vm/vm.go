@@ -791,15 +791,17 @@ func (vm *VM) Submit(
 				errs = append(errs, err)
 				continue
 			}
-			err = binary.Write(buf, binary.BigEndian, index)
+
+			_, err := buf.Write(txID[:])
+			// err = binary.Write(buf, binary.BigEndian, index)
 			if err != nil {
-				vm.snowCtx.Log.Warn("data pointer tx index serialization failed: %w",  zap.Error(err))
+				vm.snowCtx.Log.Warn("data pointer tx id serialization failed: %w",  zap.Error(err))
 				errs = append(errs, err)
 				continue
 			}
 
 			serialized := buf.Bytes()
-			vm.snowCtx.Log.Warn("TxData: %v\n", zap.String("Here is data:", string(serialized)))
+			vm.snowCtx.Log.Warn("TxData: \n", zap.String("Here is data:", string(serialized)))
 			// tx = TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit}
 			temp :=  action.FromAddress
 			temp_action := &actions.DASequencerMsg{
