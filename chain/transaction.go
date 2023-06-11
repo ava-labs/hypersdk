@@ -126,7 +126,7 @@ func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 func (t *Transaction) UnitPrice() uint64 { return t.Base.UnitPrice }
 
 func (t *Transaction) ModifyAction(act Action) {
-  t.Action = Action
+  t.Action = act
 }
 
 // It is ok to have duplicate ReadKeys...the processor will skip them
