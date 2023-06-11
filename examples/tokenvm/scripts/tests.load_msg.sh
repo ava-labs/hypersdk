@@ -10,7 +10,7 @@ set -e
 # to pass this flag to all child processes spawned by the shell.
 export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 
-if ! [[ "$0" =~ scripts/tests.load.sh ]]; then
+if ! [[ "$0" =~ scripts/tests.load_msg.sh ]]; then
   echo "must be run from repository root"
   exit 255
 fi
