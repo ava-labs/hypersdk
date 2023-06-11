@@ -807,8 +807,8 @@ func (vm *VM) Submit(
 							}
 			tx.ModifyAction(temp_action)
 			
-		default:
-			continue	
+		// default:
+		// 	continue	
 		}
 		errs = append(errs, nil)
 		validTxs = append(validTxs, tx)
