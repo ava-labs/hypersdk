@@ -185,7 +185,7 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	namespace := cnc.MustNewV0(nsBytes)
+	vm.namespace := cnc.MustNewV0(nsBytes)
 
 	vm.daClient = daClient
 
@@ -799,7 +799,7 @@ func (vm *VM) Submit(
 			fmt.Printf("TxData: %v\n", serialized)
 			// tx = TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit}
 			temp :=  action.FromAddress
-			action = &actions.DASequencerMsg{
+			action = actions.DASequencerMsg{
 								Data:    serialized,
 								FromAddress: temp,
 							}
