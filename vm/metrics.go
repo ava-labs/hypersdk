@@ -22,6 +22,7 @@ type Metrics struct {
 	stateChanges                  prometheus.Counter
 	stateOperations               prometheus.Counter
 	txBlocksMissing               prometheus.Counter
+	txBlocksDropped               prometheus.Counter
 	deletedTxBlocks               prometheus.Counter
 	earlyBuildStop                prometheus.Counter
 	txBlockBytesSent              prometheus.Counter
@@ -186,6 +187,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "tx_blocks_missing",
 			Help:      "number of tx blocks missing when root block is parsed",
 		}),
+		txBlocksDropped: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "tx_blocks_dropped",
+			Help:      "number of tx blocks dropped without being verified when root block is accepted",
+		}),
 		deletedTxBlocks: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
 			Name:      "deleted_tx_blocks",
@@ -245,6 +251,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
 		r.Register(m.txBlocksMissing),
+		r.Register(m.txBlocksDropped),
 		r.Register(m.deletedTxBlocks),
 		r.Register(m.mempoolSize),
 		r.Register(m.mempoolSizeAfterBuild),

@@ -197,6 +197,10 @@ func (c *TxBlockMap) SetMin(h uint64) []ids.ID {
 		}
 		c.bh.Pop()
 		for chunkID := range b.Item.items {
+			item := c.items[chunkID]
+			if !item.verified.Load() {
+				c.vm.metrics.txBlocksDropped.Inc()
+			}
 			delete(c.items, chunkID)
 			evicted = append(evicted, chunkID)
 		}
