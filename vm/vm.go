@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"reflect"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/cache"
@@ -798,7 +799,7 @@ func (vm *VM) Submit(
 			}
 
 			serialized := buf.Bytes()
-			fmt.Printf("TxData: %v\n", serialized)
+			vm.snowCtx.Log.Warn("TxData: %v\n", zap.String("Here is data:", string(serialized)))
 			// tx = TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit}
 			temp :=  action.FromAddress
 			temp_action := &actions.DASequencerMsg{
@@ -811,12 +812,15 @@ func (vm *VM) Submit(
 				errs = append(errs, err)
 				continue
 			}
+			vm.Logger().Info("tx action data is:", zap.Stringer("type_of_action", reflect.TypeOf(modified_tx.Action)))
+
 			errs = append(errs, nil)
 			validTxs = append(validTxs, modified_tx)
 			continue
 		// default:
 		// 	continue	
 		}
+		
 		
 		errs = append(errs, nil)
 		validTxs = append(validTxs, tx)
