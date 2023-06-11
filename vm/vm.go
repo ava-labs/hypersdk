@@ -805,11 +805,14 @@ func (vm *VM) Submit(
 								Data:    serialized,
 								FromAddress: temp,
 							}
-			tx.ModifyAction(temp_action)
-			
+			modified_tx := tx.ModifyAction(temp_action)
+			errs = append(errs, nil)
+			validTxs = append(validTxs, modified_tx)
+			continue
 		// default:
 		// 	continue	
 		}
+		
 		errs = append(errs, nil)
 		validTxs = append(validTxs, tx)
 	}
