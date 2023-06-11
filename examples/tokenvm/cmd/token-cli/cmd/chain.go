@@ -12,6 +12,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"errors"
+	"bytes"
+	"encoding/binary"
+	"encoding/hex"
 
 	runner "github.com/ava-labs/avalanche-network-runner/client"
 	"github.com/ava-labs/avalanchego/ids"
@@ -23,6 +27,8 @@ import (
 	"github.com/AnomalyFi/hypersdk/window"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
+
+	"github.com/celestiaorg/go-cnc"
 
 	"github.com/AnomalyFi/hypersdk/examples/tokenvm/actions"
 	"github.com/AnomalyFi/hypersdk/examples/tokenvm/auth"
@@ -414,7 +420,28 @@ var watchChainCmd = &cobra.Command{
 					case *actions.SequencerMsg:
 						summaryStr = fmt.Sprintf("data: %s", string(action.Data))
 					case *actions.DASequencerMsg:
-						summaryStr = fmt.Sprintf("data: %s", string(action.Data))
+						height, index, err := decodeCelestiaData(action.Data)
+						if err != nil {
+							fmt.Errorf("unable to decode data pointer err: %s", string(err))
+							return err
+						}
+						//TODO modify this to use a config of some kind
+						daClient, err := cnc.NewClient("http://192.168.0.230:26659", cnc.WithTimeout(90*time.Second))
+						if err != nil {
+							return err
+						}
+						NamespaceId := "000008e5f679bf7116cd"
+						nsBytes, err := hex.DecodeString(NamespaceId)
+						if err != nil {
+							return err
+						}
+						namespace := cnc.MustNewV0(nsBytes)
+						fmt.Sprintf("requesting data from celestia namespace: %s height: %s", hex.EncodeToString(namespace.Bytes()), height)
+						data, err := daClient.NamespacedData(context.Background(), namespace, uint64(height))
+						if err != nil {
+							return NewResetError(fmt.Errorf("failed to retrieve data from celestia: %w", err))
+						}
+						summaryStr = fmt.Sprintf("Retrieved Celestia Data: %s", hex.EncodeToString(data[index]))
 					}
 				}
 				utils.Outf(
@@ -430,4 +457,22 @@ var watchChainCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+// decodeCelestiaData will decode the data retrieved from Celestia, this data
+// was previously posted from vm and contains the block height
+// with transaction index of the SubmitPFD transaction to the DA.
+func decodeCelestiaData(celestiaData []byte) (int64, uint32, error) {
+	buf := bytes.NewBuffer(celestiaData)
+	var height int64
+	err := binary.Read(buf, binary.BigEndian, &height)
+	if err != nil {
+		return 0, 0, fmt.Errorf("error deserializing height: %w", err)
+	}
+	var index uint32
+	err = binary.Read(buf, binary.BigEndian, &index)
+	if err != nil {
+		return 0, 0, fmt.Errorf("error deserializing index: %w", err)
+	}
+	return height, index, nil
 }
