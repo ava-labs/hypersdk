@@ -81,6 +81,7 @@ type VM interface {
 	RecordVerifyWait(time.Duration)
 	RecordTxBlockIssuanceDiff(time.Duration)
 	RecordRootBlockIssuanceDiff(time.Duration)
+	RecordRootBlockAcceptanceDiff(time.Duration)
 	RecordStateChanges(int)
 	RecordStateOperations(int)
 	RecordTxBlocksMissing(int)

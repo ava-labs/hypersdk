@@ -429,6 +429,10 @@ func (vm *VM) RecordRootBlockIssuanceDiff(t time.Duration) {
 	vm.metrics.rootBlockIssuanceDiff.Observe(float64(t))
 }
 
+func (vm *VM) RecordRootBlockAcceptanceDiff(t time.Duration) {
+	vm.metrics.rootBlockAcceptanceDiff.Observe(float64(t))
+}
+
 func (vm *VM) RecordStateChanges(c int) {
 	vm.metrics.stateChanges.Add(float64(c))
 }

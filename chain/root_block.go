@@ -408,6 +408,8 @@ func (b *StatelessRootBlock) Accept(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessRootBlock.Accept")
 	defer span.End()
 
+	b.vm.RecordRootBlockAcceptanceDiff(time.Since(time.UnixMilli(b.Issued)))
+
 	// Consider verifying the a block if it is not processed and we are no longer
 	// syncing.
 	state := b.txBlockState()

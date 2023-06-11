@@ -37,6 +37,7 @@ type Metrics struct {
 	txBlockVerify                 metric.Averager
 	txBlockIssuanceDiff           metric.Averager
 	rootBlockIssuanceDiff         metric.Averager
+	rootBlockAcceptanceDiff       metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -108,6 +109,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	rootBlockIssuanceDiff, err := metric.NewAverager(
 		"chain",
 		"root_block_issuance_diff",
+		"delay for root block to be received after issuance",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	rootBlockAcceptanceDiff, err := metric.NewAverager(
+		"chain",
+		"root_block_acceptance_diff",
 		"delay for root block to be received after issuance",
 		r,
 	)
@@ -211,14 +221,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "tx_block_bytes_received",
 			Help:      "tx block bytes received",
 		}),
-		rootCalculated:        rootCalculated,
-		commitState:           commitState,
-		waitSignatures:        waitSignatures,
-		buildBlock:            buildBlock,
-		verifyWait:            verifyWait,
-		txBlockVerify:         txBlockVerify,
-		txBlockIssuanceDiff:   txBlockIssuanceDiff,
-		rootBlockIssuanceDiff: rootBlockIssuanceDiff,
+		rootCalculated:          rootCalculated,
+		commitState:             commitState,
+		waitSignatures:          waitSignatures,
+		buildBlock:              buildBlock,
+		verifyWait:              verifyWait,
+		txBlockVerify:           txBlockVerify,
+		txBlockIssuanceDiff:     txBlockIssuanceDiff,
+		rootBlockIssuanceDiff:   rootBlockIssuanceDiff,
+		rootBlockAcceptanceDiff: rootBlockAcceptanceDiff,
 	}
 	errs := wrappers.Errs{}
 	errs.Add(
