@@ -772,7 +772,7 @@ func (vm *VM) Submit(
 			height := res.Height
 
 			// FIXME: needs to be tx index / share index?
-			index := uint32(0) // res.Logs[0].MsgIndex
+			index := uint32(txID) // res.Logs[0].MsgIndex
 
 			// DA pointer serialization format
 			// | -------------------------|
@@ -802,7 +802,7 @@ func (vm *VM) Submit(
 								Data:    serialized,
 								FromAddress: temp,
 							}
-		case default: 
+		default:
 			continue	
 		}
 		errs = append(errs, nil)
