@@ -765,7 +765,6 @@ func (vm *VM) Submit(
 		}
 		switch action := tx.Action.(type) {
 		case *actions.SequencerMsg:
-			vm.snowCtx.Log.Warn("This code worked")
 			res, err := vm.daClient.SubmitPFB(ctx, vm.namespace, action.Data, 70000, 700000)
 			if err != nil {
 				vm.snowCtx.Log.Warn("unable to publish tx to celestia", zap.Error(err))
@@ -788,7 +787,7 @@ func (vm *VM) Submit(
 			buf := new(bytes.Buffer)
 			err = binary.Write(buf, binary.BigEndian, height)
 			if err != nil {
-				vm.snowCtx.Log.Warn("data pointer block height serialization failed: %w",  zap.Error(err))
+				vm.snowCtx.Log.Warn("data pointer block height serialization failed: ",  zap.Error(err))
 				errs = append(errs, err)
 				continue
 			}
@@ -796,14 +795,14 @@ func (vm *VM) Submit(
 			index, err := buf.Write(txID[:])
 			// err = binary.Write(buf, binary.BigEndian, index)
 			if err != nil {
-				vm.snowCtx.Log.Warn("data pointer tx id serialization failed: %w",  zap.Error(err))
+				vm.snowCtx.Log.Warn("data pointer tx id serialization failed: ",  zap.Error(err))
 				errs = append(errs, err)
 				continue
 			}
-			vm.snowCtx.Log.Warn("tx data before serialized id: %w height: %s index: %d", zap.String("ID:",  txID.String()), zap.String("Height:", string(height)), zap.String("index", string(index)))
+			vm.snowCtx.Log.Warn("tx data before serialized: ", zap.String("ID:",  txID.String()), zap.String("Height:", string(height)), zap.String("index", string(index)))
 
 			serialized := buf.Bytes()
-			vm.snowCtx.Log.Warn("TxData: \n", zap.String("Here is data:", string(serialized)))
+			vm.snowCtx.Log.Warn("TxData: \n", zap.String("data:", string(serialized)))
 			// tx = TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit}
 			temp :=  action.FromAddress
 			temp_action := &actions.DASequencerMsg{
