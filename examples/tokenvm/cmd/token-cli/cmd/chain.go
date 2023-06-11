@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"errors"
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
@@ -422,7 +421,7 @@ var watchChainCmd = &cobra.Command{
 					case *actions.DASequencerMsg:
 						height, index, err := decodeCelestiaData(action.Data)
 						if err != nil {
-							fmt.Errorf("unable to decode data pointer err: %s", string(err))
+							fmt.Errorf("unable to decode data pointer err: %s", err)
 							return err
 						}
 						//TODO modify this to use a config of some kind
