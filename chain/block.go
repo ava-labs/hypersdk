@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"time"
+	"reflect"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
