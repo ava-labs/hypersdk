@@ -662,7 +662,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	}
 
 	for _, tx := range b.Txs {
-		vm.snowCtx.Log.Info("Accepted tx action data is:", zap.Stringer("type_of_action", reflect.TypeOf(tx.Action)))
+		b.vm.Logger()..Info("Accepted tx action data is:", zap.Stringer("type_of_action", reflect.TypeOf(tx.Action)))
 	}
 
 	// Set last accepted block
