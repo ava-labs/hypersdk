@@ -54,6 +54,9 @@ type bucket struct {
 type blkItem struct {
 	blk *chain.StatelessTxBlock
 
+	recorded bool
+	added    time.Time
+
 	// TODO: consider adding to txBlock directly
 	verified atomic.Bool
 }
@@ -96,7 +99,7 @@ func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock, verified bool) bool {
 	}
 
 	// Add to items
-	item := &blkItem{blk: txBlock}
+	item := &blkItem{blk: txBlock, added: time.Now()}
 	c.items[txBlock.ID()] = item
 	if ok {
 		// Check if bucket with height already exists
@@ -645,6 +648,10 @@ func (c *TxBlockManager) Verify(blkID ids.ID) error {
 		if err != nil {
 			return err
 		}
+	}
+	if !blk.recorded {
+		blk.recorded = true
+		c.vm.metrics.addVerifyDiff.Observe(float64(time.Since(blk.added)))
 	}
 	if err := blk.blk.Verify(context.Background()); err != nil {
 		c.vm.Logger().Error("blk.blk.Verify failed", zap.Error(err))
