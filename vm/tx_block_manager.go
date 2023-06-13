@@ -54,8 +54,8 @@ type bucket struct {
 type blkItem struct {
 	blk *chain.StatelessTxBlock
 
-	verifying atomic.Bool
-	verified  atomic.Bool
+	// TODO: consider adding to txBlock directly
+	verified atomic.Bool
 }
 
 type TxBlockMap struct {
@@ -83,7 +83,7 @@ func NewTxBlockMap(vm *VM) *TxBlockMap {
 }
 
 // TODO: don't store in block map unless can fetch ancestry back to known block
-func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock, verified bool) (bool, bool) {
+func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock, verified bool) bool {
 	c.l.Lock()
 	defer c.l.Unlock()
 
@@ -92,7 +92,7 @@ func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock, verified bool) (bool, 
 	// Ensure txBlock is not already registered
 	b, ok := c.heights[txBlock.Hght]
 	if ok && b.items.Contains(txBlock.ID()) {
-		return false, false
+		return false
 	}
 
 	// Add to items
@@ -119,27 +119,8 @@ func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock, verified bool) (bool, 
 		// TODO: handle the case where we want to verify others here (seems like it
 		// shouldn't happen after issue but may be an invariant to support)?
 		item.verified.Store(true)
-		return true, false
 	}
-
-	// Determine if should verify
-	blkItem, bok := c.items[txBlock.Prnt]
-	if bok {
-		if !blkItem.verified.Load() {
-			return true, false
-		}
-	} else {
-		var prntHght uint64
-		if txBlock.Hght > 0 {
-			// TODO: consider making a helper
-			prntHght = txBlock.Hght - 1
-		}
-		if _, err := c.vm.GetTxBlock(prntHght); err != nil {
-			c.vm.Logger().Warn("not verifying because tx block parent not found", zap.Stringer("parent", txBlock.Prnt), zap.Error(err))
-			return true, false
-		}
-	}
-	return true, item.verifying.CompareAndSwap(false, true)
+	return true
 }
 
 func (c *TxBlockMap) Verified(blkID ids.ID, success bool) []ids.ID {
@@ -150,9 +131,7 @@ func (c *TxBlockMap) Verified(blkID ids.ID, success bool) []ids.ID {
 	blk := c.items[blkID]
 	if success {
 		blk.verified.Store(true)
-	}
-	blk.verifying.Store(false)
-	if !success {
+	} else {
 		return nil
 	}
 
@@ -164,9 +143,6 @@ func (c *TxBlockMap) Verified(blkID ids.ID, success bool) []ids.ID {
 	for cblkID := range bucket.items {
 		cblk := c.items[cblkID]
 		if cblk.blk.Prnt != blkID {
-			continue
-		}
-		if !cblk.verifying.CompareAndSwap(false, true) {
 			continue
 		}
 		toVerify = append(toVerify, cblkID)
@@ -192,7 +168,7 @@ func (c *TxBlockMap) SetMin(h uint64) []ids.ID {
 	evicted := []ids.ID{}
 	for {
 		b := c.bh.First()
-		if b == nil || b.Val >= h {
+		if b == nil || b.Val > h {
 			break
 		}
 		c.bh.Pop()
@@ -261,7 +237,8 @@ type TxBlockManager struct {
 	nodeSet       set.Set[ids.NodeID]
 
 	update chan []byte
-	done   chan struct{}
+	verify chan ids.ID
+	wg     sync.WaitGroup
 }
 
 func NewTxBlockManager(vm *VM) *TxBlockManager {
@@ -271,53 +248,74 @@ func NewTxBlockManager(vm *VM) *TxBlockManager {
 		txBlocks:   NewTxBlockMap(vm),
 		nodeChunks: map[ids.NodeID]*NodeChunks{},
 		nodeSet:    set.NewSet[ids.NodeID](64),
-		update:     make(chan []byte, 32),
-		done:       make(chan struct{}),
+		update:     make(chan []byte, 256),
+		verify:     make(chan ids.ID, 256),
 	}
 }
 
 func (c *TxBlockManager) Run(appSender common.AppSender) {
 	c.appSender = appSender
 
-	c.vm.Logger().Info("starting chunk manager")
-	defer close(c.done)
+	// TxBlock gossiper
+	c.wg.Add(1)
+	go func() {
+		c.vm.Logger().Info("starting chunk gossiper")
+		defer c.wg.Done()
 
-	timer := time.NewTicker(gossipFrequency)
-	defer timer.Stop()
+		timer := time.NewTicker(gossipFrequency)
+		defer timer.Stop()
 
-	for {
-		var msg []byte
-		select {
-		case b := <-c.update:
-			msg = b
-		case <-timer.C:
-		case <-c.vm.stop:
-			c.vm.Logger().Info("stopping chunk manager")
-			return
-		}
-		if len(msg) == 0 {
-			nc := &NodeChunks{
-				Min: c.min,
-				Max: c.max,
+		for {
+			var msg []byte
+			select {
+			case b := <-c.update:
+				msg = b
+			case <-timer.C:
+			case <-c.vm.stop:
+				c.vm.Logger().Info("stopping chunk gossiper")
+				return
 			}
-			b, err := nc.Marshal()
-			if err != nil {
-				c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip", zap.Error(err))
+			if len(msg) == 0 {
+				nc := &NodeChunks{
+					Min: c.min,
+					Max: c.max,
+				}
+				b, err := nc.Marshal()
+				if err != nil {
+					c.vm.snowCtx.Log.Warn("unable to marshal chunk gossip", zap.Error(err))
+					continue
+				}
+				msg = append([]byte{0}, b...)
+			} else {
+				msg = append([]byte{1}, msg...)
+				c.vm.metrics.txBlockBytesSent.Add(float64(len(msg) * c.nodeSet.Len()))
+			}
+			// TODO: need to lock nodeSet?
+			// TODO: better to send message one at a time (probably better in a group
+			// to avoid gRPC overhead)?
+			if err := c.appSender.SendAppGossipSpecific(context.TODO(), c.nodeSet, msg); err != nil {
+				c.vm.snowCtx.Log.Warn("unable to send gossip", zap.Error(err))
 				continue
 			}
-			msg = append([]byte{0}, b...)
-		} else {
-			msg = append([]byte{1}, msg...)
-			c.vm.metrics.txBlockBytesSent.Add(float64(len(msg) * c.nodeSet.Len()))
 		}
-		// TODO: need to lock nodeSet?
-		// TODO: better to send message one at a time (probably better in a group
-		// to avoid gRPC overhead)?
-		if err := c.appSender.SendAppGossipSpecific(context.TODO(), c.nodeSet, msg); err != nil {
-			c.vm.snowCtx.Log.Warn("unable to send gossip", zap.Error(err))
-			continue
+	}()
+
+	// TxBlock verifier
+	c.wg.Add(1)
+	go func() {
+		c.vm.Logger().Info("starting chunk verifier")
+		defer c.wg.Done()
+
+		for {
+			select {
+			case blockID := <-c.verify:
+				c.VerifyAll(blockID)
+			case <-c.vm.stop:
+				c.vm.Logger().Info("exiting chunk verifier")
+				return
+			}
 		}
-	}
+	}()
 }
 
 // Called when building a chunk
@@ -345,7 +343,7 @@ func (c *TxBlockManager) SetMin(min uint64) {
 //
 // Ensure chunks are persisted before calling this method
 func (c *TxBlockManager) Accept(height uint64) {
-	evicted := c.txBlocks.SetMin(height + 1)
+	evicted := c.txBlocks.SetMin(height)
 	c.update <- nil
 	c.vm.snowCtx.Log.Info("evicted chunks from memory", zap.Int("n", len(evicted)))
 }
@@ -361,7 +359,10 @@ func (c *TxBlockManager) RequireTxBlocks(ctx context.Context, minTxBlkHeight uin
 		if !c.txBlocks.Tracking(blkID) {
 			missing++
 		}
-		go c.RequestTxBlock(ctx, minTxBlkHeight+uint64(i), ids.EmptyNodeID, blkID, i == 0)
+		next := minTxBlkHeight + uint64(i)
+		if next > 0 {
+			go c.RequestTxBlock(ctx, next, ids.EmptyNodeID, blkID, i == 0)
+		}
 	}
 	return missing
 }
@@ -590,26 +591,18 @@ func (c *TxBlockManager) handleBlock(ctx context.Context, msg []byte, expected *
 	if err != nil {
 		return err
 	}
-	added, shouldVerify := c.txBlocks.Add(txBlk, false)
-	if !added {
+	if !c.txBlocks.Add(txBlk, false) {
 		return nil
 	}
-	// TODO: returning false here because not in-memory
-	if shouldVerify {
-		// We cannot verify if we don't have ancestry, so no need to fetch
-		// anything else (exception: state sync)
-		go c.VerifyAll(txBlk.ID())
-		return nil
-	}
-	if recursive && txBlk.Hght > 0 && (txBlk.Hght-1 > c.vm.LastAcceptedBlock().MaxTxHght() || c.vm.LastAcceptedBlock().Hght == 0) {
+	if recursive && txBlk.Hght > 1 && (txBlk.Hght-1 > c.vm.LastAcceptedBlock().MaxTxHght() || c.vm.LastAcceptedBlock().Hght == 0) {
 		// TODO: don't do recursively to avoid stack blowup
 		c.RequestTxBlock(ctx, txBlk.Hght-1, hint, txBlk.Prnt, recursive)
 	}
+	// TODO: only send verify if RequestTxBlock resolves
+	c.verify <- txBlk.ID()
 	return nil
 }
 
-// TODO: add lock to ensure only one async verify job happens at once
-// TODO: also grab lock when issuing blocks?
 func (c *TxBlockManager) VerifyAll(blkID ids.ID) {
 	next := []ids.ID{blkID}
 	for len(next) > 0 {
@@ -706,5 +699,5 @@ func (c *TxBlockManager) HandleDisconnect(ctx context.Context, nodeID ids.NodeID
 }
 
 func (c *TxBlockManager) Done() {
-	<-c.done
+	c.wg.Wait()
 }
