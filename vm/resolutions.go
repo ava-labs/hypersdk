@@ -457,6 +457,10 @@ func (vm *VM) RequireTxBlocks(ctx context.Context, minHght uint64, blks []ids.ID
 	return vm.txBlockManager.RequireTxBlocks(ctx, minHght, blks)
 }
 
+func (vm *VM) RetryVerify(ctx context.Context, blks []ids.ID) {
+	vm.txBlockManager.RetryVerify(ctx, blks)
+}
+
 func (vm *VM) GetStatelessTxBlock(ctx context.Context, blkID ids.ID, hght uint64) (*chain.StatelessTxBlock, error) {
 	blk := vm.txBlockManager.txBlocks.Get(blkID)
 	if blk != nil {

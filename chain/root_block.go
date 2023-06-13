@@ -300,6 +300,9 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 	for i, blkID := range b.Txs {
 		blk, err := b.vm.GetStatelessTxBlock(ctx, blkID, b.MinTxHght+uint64(i))
 		if err != nil {
+			// TODO: stopgap that should be removed
+			b.vm.Logger().Warn("missing tx block when starting verify", zap.Stringer("blkID", blkID))
+			b.vm.RetryVerify(ctx, b.Txs)
 			return err
 		}
 		if blk.Tmstmp != b.Tmstmp {

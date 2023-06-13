@@ -347,9 +347,9 @@ func (c *TxBlockManager) SetMin(min uint64) {
 //
 // Ensure chunks are persisted before calling this method
 func (c *TxBlockManager) Accept(height uint64) {
-	// evicted := c.txBlocks.SetMin(height)
-	// c.update <- nil
-	// c.vm.snowCtx.Log.Info("evicted chunks from memory", zap.Int("n", len(evicted)))
+	evicted := c.txBlocks.SetMin(height)
+	c.update <- nil
+	c.vm.snowCtx.Log.Info("evicted chunks from memory", zap.Int("n", len(evicted)))
 }
 
 // TODO: pre-store chunks on disk if bootstrapping
@@ -369,6 +369,19 @@ func (c *TxBlockManager) RequireTxBlocks(ctx context.Context, minTxBlkHeight uin
 		}
 	}
 	return missing
+}
+
+func (c *TxBlockManager) RetryVerify(ctx context.Context, blkIDs []ids.ID) {
+	for _, blkID := range blkIDs {
+		if item := c.txBlocks.Get(blkID); item != nil {
+			// Stop gap to see if we are just dropping verification accidentally
+			//
+			// TODO: should not be necessry to re-prompt verify?
+			if !item.verified.Load() {
+				c.verify <- blkID
+			}
+		}
+	}
 }
 
 // RequestChunk may spawn a goroutine
@@ -584,6 +597,7 @@ func (c *TxBlockManager) handleBlock(ctx context.Context, msg []byte, expected *
 		return err
 	}
 	if rtxBlk.Hght <= c.vm.LastAcceptedBlock().MaxTxHght() && c.vm.LastAcceptedBlock().Hght > 0 {
+		// TODO: could explain why we don't have block?
 		return nil
 	}
 	if expected != nil && rtxBlk.Hght != *expected {
