@@ -3,6 +3,7 @@ package vm
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -346,9 +347,9 @@ func (c *TxBlockManager) SetMin(min uint64) {
 //
 // Ensure chunks are persisted before calling this method
 func (c *TxBlockManager) Accept(height uint64) {
-	evicted := c.txBlocks.SetMin(height)
-	c.update <- nil
-	c.vm.snowCtx.Log.Info("evicted chunks from memory", zap.Int("n", len(evicted)))
+	// evicted := c.txBlocks.SetMin(height)
+	// c.update <- nil
+	// c.vm.snowCtx.Log.Info("evicted chunks from memory", zap.Int("n", len(evicted)))
 }
 
 // TODO: pre-store chunks on disk if bootstrapping
@@ -627,7 +628,7 @@ func (c *TxBlockManager) VerifyAll(blkID ids.ID) {
 func (c *TxBlockManager) Verify(blkID ids.ID) error {
 	blk := c.txBlocks.Get(blkID)
 	if blk == nil {
-		return errors.New("tx block is missing")
+		return fmt.Errorf("tx block is missing: %v", blkID)
 	}
 	if blk.verified.Load() {
 		return errors.New("tx block already verified")

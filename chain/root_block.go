@@ -533,6 +533,7 @@ func (b *StatelessRootBlock) MaxTxHght() uint64 {
 	if l == 0 {
 		return b.MinTxHght
 	}
+	// 10 + [10,11,12,13]
 	return b.MinTxHght + uint64(l-1)
 }
 
