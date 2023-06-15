@@ -418,30 +418,30 @@ var watchChainCmd = &cobra.Command{
 						}
 					case *actions.SequencerMsg:
 						summaryStr = fmt.Sprintf("data: %s", string(action.Data))
-					case *actions.DASequencerMsg:
-						height, index, err := decodeCelestiaData(action.Data)
-						if err != nil {
-							fmt.Errorf("unable to decode data pointer err: %s", err)
-							return err
-						}
-						//TODO modify this to use a config of some kind
-						daClient, err := cnc.NewClient("http://192.168.0.230:26659", cnc.WithTimeout(90*time.Second))
-						if err != nil {
-							return err
-						}
-						NamespaceId := "000008e5f679bf7116cd"
-						nsBytes, err := hex.DecodeString(NamespaceId)
-						if err != nil {
-							return err
-						}
-						namespace := cnc.MustNewV0(nsBytes)
-						fmt.Sprintf("requesting data from celestia namespace: %s height: %s", hex.EncodeToString(namespace.Bytes()), height)
-						data, err := daClient.NamespacedData(context.Background(), namespace, uint64(height))
-						if err != nil {
-							fmt.Errorf("failed to retrieve data from celestia: %w", err)
-							return err
-						}
-						summaryStr = fmt.Sprintf("Retrieved Celestia Data: %s", hex.EncodeToString(data[index]))
+					// case *actions.DASequencerMsg:
+					// 	height, index, err := decodeCelestiaData(action.Data)
+					// 	if err != nil {
+					// 		fmt.Errorf("unable to decode data pointer err: %s", err)
+					// 		return err
+					// 	}
+					// 	//TODO modify this to use a config of some kind
+					// 	daClient, err := cnc.NewClient("http://192.168.0.230:26659", cnc.WithTimeout(90*time.Second))
+					// 	if err != nil {
+					// 		return err
+					// 	}
+					// 	NamespaceId := "000008e5f679bf7116cd"
+					// 	nsBytes, err := hex.DecodeString(NamespaceId)
+					// 	if err != nil {
+					// 		return err
+					// 	}
+					// 	namespace := cnc.MustNewV0(nsBytes)
+					// 	fmt.Sprintf("requesting data from celestia namespace: %s height: %s", hex.EncodeToString(namespace.Bytes()), height)
+					// 	data, err := daClient.NamespacedData(context.Background(), namespace, uint64(height))
+					// 	if err != nil {
+					// 		fmt.Errorf("failed to retrieve data from celestia: %w", err)
+					// 		return err
+					// 	}
+					// 	summaryStr = fmt.Sprintf("Retrieved Celestia Data: %s", hex.EncodeToString(data[index]))
 					}
 				}
 				utils.Outf(
