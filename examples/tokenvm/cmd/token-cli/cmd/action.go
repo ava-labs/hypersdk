@@ -9,14 +9,10 @@ import (
 	"context"
 	"errors"
 	"time"
+
 	// "math/rand"
 	// "encoding/hex"
 
-
-
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/consts"
 	"github.com/AnomalyFi/hypersdk/crypto"
@@ -25,6 +21,9 @@ import (
 	"github.com/AnomalyFi/hypersdk/examples/tokenvm/utils"
 	"github.com/AnomalyFi/hypersdk/rpc"
 	hutils "github.com/AnomalyFi/hypersdk/utils"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
@@ -196,7 +195,8 @@ var sequencerMsgCmd = &cobra.Command{
 			return err
 		}
 		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.SequencerMsg{
-			Data:  []byte{0x00, 0x01, 0x02},
+			Data:        []byte{0x00, 0x01, 0x02},
+			ChainId:     []byte{0x00},
 			FromAddress: recipient,
 		}, factory)
 		if err != nil {
@@ -935,4 +935,3 @@ var exportAssetCmd = &cobra.Command{
 		return StoreDefault(defaultChainKey, destination[:])
 	},
 }
-

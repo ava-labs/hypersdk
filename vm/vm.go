@@ -763,69 +763,69 @@ func (vm *VM) Submit(
 			errs = append(errs, err)
 			continue
 		}
-		switch action := tx.Action.(type) {
-		case *actions.SequencerMsg:
-			res, err := vm.daClient.SubmitPFB(ctx, vm.namespace, action.Data, 70000, 700000)
-			if err != nil {
-				vm.snowCtx.Log.Warn("unable to publish tx to celestia", zap.Error(err))
-				errs = append(errs, err)
-				continue
-			}
-			fmt.Printf("res: %v\n", res)
+		// switch action := tx.Action.(type) {
+		// case *actions.SequencerMsg:
+		// 	res, err := vm.daClient.SubmitPFB(ctx, vm.namespace, action.Data, 70000, 700000)
+		// 	if err != nil {
+		// 		vm.snowCtx.Log.Warn("unable to publish tx to celestia", zap.Error(err))
+		// 		errs = append(errs, err)
+		// 		continue
+		// 	}
+		// 	fmt.Printf("res: %v\n", res)
 
-			height := res.Height
+		// 	height := res.Height
 
-			// FIXME: needs to be tx index / share index?
-			//index := uint32(0) // res.Logs[0].MsgIndex
+		// 	// FIXME: needs to be tx index / share index?
+		// 	//index := uint32(0) // res.Logs[0].MsgIndex
 
-			// DA pointer serialization format
-			// | -------------------------|
-			// | 8 bytes       | 4 bytes  |
-			// | block height | tx index  |
-			// | -------------------------|
+		// 	// DA pointer serialization format
+		// 	// | -------------------------|
+		// 	// | 8 bytes       | 4 bytes  |
+		// 	// | block height | tx index  |
+		// 	// | -------------------------|
 
-			buf := new(bytes.Buffer)
-			err = binary.Write(buf, binary.BigEndian, height)
-			if err != nil {
-				vm.snowCtx.Log.Warn("data pointer block height serialization failed: ",  zap.Error(err))
-				errs = append(errs, err)
-				continue
-			}
+		// 	buf := new(bytes.Buffer)
+		// 	err = binary.Write(buf, binary.BigEndian, height)
+		// 	if err != nil {
+		// 		vm.snowCtx.Log.Warn("data pointer block height serialization failed: ",  zap.Error(err))
+		// 		errs = append(errs, err)
+		// 		continue
+		// 	}
 
-			index, err := buf.Write(txID[:])
-			// err = binary.Write(buf, binary.BigEndian, index)
-			if err != nil {
-				vm.snowCtx.Log.Warn("data pointer tx id serialization failed: ",  zap.Error(err))
-				errs = append(errs, err)
-				continue
-			}
-			vm.snowCtx.Log.Warn("tx data before serialized: ", zap.String("ID:",  txID.String()), zap.String("Height:", string(height)), zap.String("index", string(index)))
+		// 	index, err := buf.Write(txID[:])
+		// 	// err = binary.Write(buf, binary.BigEndian, index)
+		// 	if err != nil {
+		// 		vm.snowCtx.Log.Warn("data pointer tx id serialization failed: ",  zap.Error(err))
+		// 		errs = append(errs, err)
+		// 		continue
+		// 	}
+		// 	vm.snowCtx.Log.Warn("tx data before serialized: ", zap.String("ID:",  txID.String()), zap.String("Height:", string(height)), zap.String("index", string(index)))
 
-			serialized := buf.Bytes()
-			vm.snowCtx.Log.Warn("TxData: \n", zap.String("data:", string(serialized)))
-			// tx = TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit}
-			temp :=  action.FromAddress
-			temp_action := &actions.DASequencerMsg{
-								Data:    serialized,
-								FromAddress: temp,
-							}
-			modified_tx, err := tx.ModifyAction(temp_action)
-			if err != nil {
-				vm.snowCtx.Log.Warn("Failed to modify action: %w",  zap.Error(err))
-				errs = append(errs, err)
-				continue
-			}
-			vm.Logger().Info("tx action data is:", zap.Stringer("type_of_action", reflect.TypeOf(modified_tx.Action)))
+		// 	serialized := buf.Bytes()
+		// 	vm.snowCtx.Log.Warn("TxData: \n", zap.String("data:", string(serialized)))
+		// 	// tx = TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit}
+		// 	temp :=  action.FromAddress
+		// 	temp_action := &actions.DASequencerMsg{
+		// 						Data:    serialized,
+		// 						FromAddress: temp,
+		// 					}
+		// 	modified_tx, err := tx.ModifyAction(temp_action)
+		// 	if err != nil {
+		// 		vm.snowCtx.Log.Warn("Failed to modify action: %w",  zap.Error(err))
+		// 		errs = append(errs, err)
+		// 		continue
+		// 	}
+		// 	vm.Logger().Info("tx action data is:", zap.Stringer("type_of_action", reflect.TypeOf(modified_tx.Action)))
 
-			errs = append(errs, nil)
-			validTxs = append(validTxs, modified_tx)
-			continue
-		default:
-			errs = append(errs, nil)
-			validTxs = append(validTxs, tx)
+		// 	errs = append(errs, nil)
+		// 	validTxs = append(validTxs, modified_tx)
+		// 	continue
 		// default:
-		// 	continue	
-		}
+		// 	errs = append(errs, nil)
+		// 	validTxs = append(validTxs, tx)
+		// // default:
+		// // 	continue	
+		// }
 		
 		
 		

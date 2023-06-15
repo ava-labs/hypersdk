@@ -6,20 +6,20 @@ package actions
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/crypto"
 	"github.com/AnomalyFi/hypersdk/examples/tokenvm/storage"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 )
 
 var _ chain.Action = (*SequencerMsg)(nil)
 
 type SequencerMsg struct {
 	//TODO might need to add this back in at some point but rn it should be fine
-	// ChainId     []byte `protobuf:"bytes,1,opt,name=chain_id,json=chainId,proto3" json:"chain_id,omitempty"`
-	Data        []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	ChainId     []byte           `protobuf:"bytes,1,opt,name=chain_id,json=chainId,proto3" json:"chain_id,omitempty"`
+	Data        []byte           `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 	FromAddress crypto.PublicKey `json:"from_address"`
 	// `protobuf:"bytes,3,opt,name=from_address,json=fromAddress,proto3" json:"from_address,omitempty"`
 }
@@ -58,7 +58,7 @@ func (*SequencerMsg) MaxUnits(chain.Rules) uint64 {
 func (t *SequencerMsg) Marshal(p *codec.Packer) {
 	p.PackPublicKey(t.FromAddress)
 	p.PackBytes(t.Data)
-	// p.PackBytes(t.ChainId)
+	p.PackBytes(t.ChainId)
 }
 
 func UnmarshalSequencerMsg(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
@@ -66,7 +66,7 @@ func UnmarshalSequencerMsg(p *codec.Packer, _ *warp.Message) (chain.Action, erro
 	p.UnpackPublicKey(false, &sequencermsg.FromAddress)
 	//TODO need to correct this and see if I need chainId or nah
 	p.UnpackBytes(8, false, &sequencermsg.Data)
-	//p.UnpackBytes(4, false, &sequencermsg.ChainId)
+	p.UnpackBytes(4, false, &sequencermsg.ChainId)
 	return &sequencermsg, p.Err()
 }
 

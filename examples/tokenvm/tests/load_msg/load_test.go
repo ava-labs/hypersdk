@@ -493,6 +493,7 @@ func issueSequencerSimpleTx(
 		nil,
 		&actions.SequencerMsg{
 			Data:  []byte{0x00, 0x01, 0x02},
+			ChainId:  []byte{0x00, 0x01, 0x02},
 			FromAddress: to,
 		},
 	)
