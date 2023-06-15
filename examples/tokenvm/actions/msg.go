@@ -66,7 +66,7 @@ func UnmarshalSequencerMsg(p *codec.Packer, _ *warp.Message) (chain.Action, erro
 	p.UnpackPublicKey(false, &sequencermsg.FromAddress)
 	//TODO need to correct this and see if I need chainId or nah
 	p.UnpackBytes(8, false, &sequencermsg.Data)
-	p.UnpackBytes(4, false, &sequencermsg.ChainId)
+	p.UnpackBytes(8, false, &sequencermsg.ChainId)
 	return &sequencermsg, p.Err()
 }
 
