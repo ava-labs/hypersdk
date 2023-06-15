@@ -5,29 +5,30 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
-	"bytes"
-	"encoding/binary"
-	"encoding/hex"
 
-	runner "github.com/ava-labs/avalanche-network-runner/client"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/math"
+	//"encoding/hex"
+
 	hconsts "github.com/AnomalyFi/hypersdk/consts"
 	"github.com/AnomalyFi/hypersdk/rpc"
 	"github.com/AnomalyFi/hypersdk/utils"
 	"github.com/AnomalyFi/hypersdk/window"
+	runner "github.com/ava-labs/avalanche-network-runner/client"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 
-	"github.com/celestiaorg/go-cnc"
+	//"github.com/celestiaorg/go-cnc"
 
 	"github.com/AnomalyFi/hypersdk/examples/tokenvm/actions"
 	"github.com/AnomalyFi/hypersdk/examples/tokenvm/auth"
@@ -418,30 +419,30 @@ var watchChainCmd = &cobra.Command{
 						}
 					case *actions.SequencerMsg:
 						summaryStr = fmt.Sprintf("data: %s", string(action.Data))
-					// case *actions.DASequencerMsg:
-					// 	height, index, err := decodeCelestiaData(action.Data)
-					// 	if err != nil {
-					// 		fmt.Errorf("unable to decode data pointer err: %s", err)
-					// 		return err
-					// 	}
-					// 	//TODO modify this to use a config of some kind
-					// 	daClient, err := cnc.NewClient("http://192.168.0.230:26659", cnc.WithTimeout(90*time.Second))
-					// 	if err != nil {
-					// 		return err
-					// 	}
-					// 	NamespaceId := "000008e5f679bf7116cd"
-					// 	nsBytes, err := hex.DecodeString(NamespaceId)
-					// 	if err != nil {
-					// 		return err
-					// 	}
-					// 	namespace := cnc.MustNewV0(nsBytes)
-					// 	fmt.Sprintf("requesting data from celestia namespace: %s height: %s", hex.EncodeToString(namespace.Bytes()), height)
-					// 	data, err := daClient.NamespacedData(context.Background(), namespace, uint64(height))
-					// 	if err != nil {
-					// 		fmt.Errorf("failed to retrieve data from celestia: %w", err)
-					// 		return err
-					// 	}
-					// 	summaryStr = fmt.Sprintf("Retrieved Celestia Data: %s", hex.EncodeToString(data[index]))
+						// case *actions.DASequencerMsg:
+						// 	height, index, err := decodeCelestiaData(action.Data)
+						// 	if err != nil {
+						// 		fmt.Errorf("unable to decode data pointer err: %s", err)
+						// 		return err
+						// 	}
+						// 	//TODO modify this to use a config of some kind
+						// 	daClient, err := cnc.NewClient("http://192.168.0.230:26659", cnc.WithTimeout(90*time.Second))
+						// 	if err != nil {
+						// 		return err
+						// 	}
+						// 	NamespaceId := "000008e5f679bf7116cd"
+						// 	nsBytes, err := hex.DecodeString(NamespaceId)
+						// 	if err != nil {
+						// 		return err
+						// 	}
+						// 	namespace := cnc.MustNewV0(nsBytes)
+						// 	fmt.Sprintf("requesting data from celestia namespace: %s height: %s", hex.EncodeToString(namespace.Bytes()), height)
+						// 	data, err := daClient.NamespacedData(context.Background(), namespace, uint64(height))
+						// 	if err != nil {
+						// 		fmt.Errorf("failed to retrieve data from celestia: %w", err)
+						// 		return err
+						// 	}
+						// 	summaryStr = fmt.Sprintf("Retrieved Celestia Data: %s", hex.EncodeToString(data[index]))
 					}
 				}
 				utils.Outf(
