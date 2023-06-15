@@ -122,8 +122,8 @@ type VM struct {
 	metrics  *Metrics
 	profiler profiler.ContinuousProfiler
 
-	daClient  *cnc.Client
-	namespace cnc.Namespace
+	// daClient  *cnc.Client
+	// namespace cnc.Namespace
 
 	ready chan struct{}
 	stop  chan struct{}
@@ -176,21 +176,21 @@ func (vm *VM) Initialize(
 	vm.manager = manager
 
 	//TODO need to switch this to be a command line option or env variable
-	daClient, err := cnc.NewClient("http://192.168.0.230:26659", cnc.WithTimeout(90*time.Second))
-	if err != nil {
-		return err
-	}
-	NamespaceId := "000008e5f679bf7116cd"
-	nsBytes, err := hex.DecodeString(NamespaceId)
-	if err != nil {
-		return err
-	}
+	// daClient, err := cnc.NewClient("http://192.168.0.230:26659", cnc.WithTimeout(90*time.Second))
+	// if err != nil {
+	// 	return err
+	// }
+	// NamespaceId := "000008e5f679bf7116cd"
+	// nsBytes, err := hex.DecodeString(NamespaceId)
+	// if err != nil {
+	// 	return err
+	// }
 
-	namespace := cnc.MustNewV0(nsBytes)
+	// namespace := cnc.MustNewV0(nsBytes)
 
-	vm.namespace = namespace
+	// vm.namespace = namespace
 
-	vm.daClient = daClient
+	// vm.daClient = daClient
 
 	// Always initialize implementation first
 	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.vmDB,
@@ -763,6 +763,8 @@ func (vm *VM) Submit(
 			errs = append(errs, err)
 			continue
 		}
+		errs = append(errs, nil)
+		validTxs = append(validTxs, tx)
 		// switch action := tx.Action.(type) {
 		// case *actions.SequencerMsg:
 		// 	res, err := vm.daClient.SubmitPFB(ctx, vm.namespace, action.Data, 70000, 700000)
