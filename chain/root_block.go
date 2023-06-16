@@ -10,6 +10,8 @@ import (
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -35,9 +37,10 @@ type RootBlock struct {
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	MinTxHght    uint64   `json:"minTxHeight"`
-	ContainsWarp bool     `json:"containsWarp"`
-	TxBlocks     []ids.ID `json:"txBlocks"`
+	MinTxHght uint64   `json:"minTxHeight"`
+	TxBlocks  []ids.ID `json:"txBlocks"`
+
+	ContainsWarp bool `json:"containsWarp"`
 
 	// TEMP
 	Issued int64 `json:"issued"`
@@ -57,7 +60,11 @@ type StatelessRootBlock struct {
 	bctx *block.Context
 
 	// These will only be populated if block was verified and still in cache
-	txBlocks []*StatelessTxBlock
+	txBlocks     []*StatelessTxBlock
+	state        merkledb.TrieView
+	warpMessages map[ids.ID]*warpJob
+	vdrState     validators.State
+	results      []*Result
 
 	firstVerify    time.Time
 	recordedVerify bool
@@ -607,3 +614,234 @@ func NewSyncableBlock(sb *StatelessRootBlock) *SyncableBlock {
 func (sb *SyncableBlock) String() string {
 	return fmt.Sprintf("%d:%s root=%s", sb.Height(), sb.ID(), sb.StateRoot)
 }
+
+// warpJob is used to signal to a listner that a *warp.Message has been
+// verified.
+type warpJob struct {
+	msg          *warp.Message
+	signers      int
+	verifiedChan chan bool
+	verified     bool
+	warpNum      int
+}
+
+func extraVerify() {
+	b.warpMessages = map[ids.ID]*warpJob{}
+	
+// Check if we need the block context to verify the block (which contains
+// an Avalanche Warp Message)
+//
+// Instead of erroring out if a warp message is invalid, we mark the
+// verification as skipped and include it in the verification result so
+// that a fee can still be deducted.
+if tx.WarpMessage != nil {
+	if !b.ContainsWarp {
+		return ErrWarpResultMismatch
+	}
+	if len(b.warpMessages) == MaxWarpMessages {
+		return ErrTooManyWarpMessages
+	}
+	signers, err := tx.WarpMessage.Signature.NumSigners()
+	if err != nil {
+		return err
+	}
+	b.warpMessages[tx.ID()] = &warpJob{
+		msg:          tx.WarpMessage,
+		signers:      signers,
+		verifiedChan: make(chan bool, 1),
+		warpNum:      len(b.warpMessages),
+	}
+}
+}
+if len(b.warpMessages) > 0 && !b.ContainsWarp {
+return ErrWarpResultMismatch
+}
+	// Start validating warp messages, if they exist
+	var invalidWarpResult bool
+	if b.ContainsWarp {
+		_, sspan := b.vm.Tracer().Start(ctx, "StatelessTxBlock.verifyWarpMessages")
+		b.vdrState = b.vm.ValidatorState()
+		go func() {
+			defer sspan.End()
+			// We don't use [b.vm.Workers] here because we need the warp verification
+			// results during normal execution. If we added a job to the workers queue,
+			// it would get executed after all signatures. Additionally, BLS
+			// Multi-Signature verification is already parallelized so we should just
+			// do one at a time to avoid overwhelming the CPU.
+			for txID, msg := range b.warpMessages {
+				if ctx.Err() != nil {
+					return
+				}
+				blockVerified := b.WarpResults.Contains(uint(msg.warpNum))
+				if b.vm.IsBootstrapped() && !invalidWarpResult {
+					start := time.Now()
+					verified := b.verifyWarpMessage(ctx, r, msg.msg)
+					msg.verifiedChan <- verified
+					msg.verified = verified
+					log.Info(
+						"processed warp message",
+						zap.Stringer("txID", txID),
+						zap.Bool("verified", verified),
+						zap.Int("signers", msg.signers),
+						zap.Duration("t", time.Since(start)),
+					)
+					if blockVerified != verified {
+						invalidWarpResult = true
+					}
+				} else {
+					// When we are bootstrapping, we just use the result in the block.
+					//
+					// We also use the result in the block when we have found
+					// a verification mismatch (our verify result is different than the
+					// block) to avoid doing extra work.
+					msg.verifiedChan <- blockVerified
+					msg.verified = blockVerified
+				}
+			}
+		}()
+	}
+
+	// Optimisticaly fetch state
+	if parent.Last {
+		state, err := parent.ChildState(ctx, 30_000)
+		if err != nil {
+			return err
+		}
+		b.processor = NewProcessor(b.vm.Tracer(), state, tstate.New(30_000))
+	} else {
+		b.processor = parent.processor
+	}
+	b.processor.Prefetch(ctx, b)
+
+	// Process new transactions
+	unitsConsumed, results, stateChanges, stateOps, err := b.processor.Execute(ctx, ectx, r)
+	if err != nil {
+		log.Error("failed to execute block", zap.Error(err))
+		return err
+	}
+	b.vm.RecordStateChanges(stateChanges)
+	b.vm.RecordStateOperations(stateOps)
+	if b.UnitsConsumed != unitsConsumed {
+		return fmt.Errorf(
+			"%w: required=%d found=%d",
+			ErrInvalidUnitsConsumed,
+			unitsConsumed,
+			b.UnitsConsumed,
+		)
+	}
+
+	// Ensure warp results are correct
+	if invalidWarpResult {
+		return ErrWarpResultMismatch
+	}
+	numWarp := len(b.warpMessages)
+	if numWarp > MaxWarpMessages {
+		return ErrTooManyWarpMessages
+	}
+	var warpResultsLimit set.Bits64
+	warpResultsLimit.Add(uint(numWarp))
+	if b.WarpResults >= warpResultsLimit {
+		// If the value of [WarpResults] is greater than the value of uint64 with
+		// a 1-bit shifted [numWarp] times, then there are unused bits set to
+		// 1 (which should is not allowed).
+		return ErrWarpResultMismatch
+	}
+
+	// Compute state root if last
+	//
+	// TODO: better protect against malicious usage of this (may need to be
+	// invoked by caller block)
+	if b.Last {
+		// Commit to base
+		if err := b.processor.Commit(ctx); err != nil {
+			return err
+		}
+		// Store height in state to prevent duplicate roots
+		base := b.processor.db
+		if err := base.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+			return err
+		}
+		start := time.Now()
+		if _, err := base.GetMerkleRoot(ctx); err != nil {
+			return err
+		}
+		b.vm.RecordRootCalculated(time.Since(start))
+		b.state = base
+	}
+
+	// We wait for signatures in root block.
+	b.results = results
+}
+
+
+func preVerifyWarpMessage(msg *warp.Message, chainID ids.ID, r Rules) (uint64, uint64, error) {
+	if msg.DestinationChainID != chainID && msg.DestinationChainID != ids.Empty {
+		return 0, 0, ErrInvalidChainID
+	}
+	if msg.SourceChainID == chainID {
+		return 0, 0, ErrInvalidChainID
+	}
+	if msg.SourceChainID == msg.DestinationChainID {
+		return 0, 0, ErrInvalidChainID
+	}
+	allowed, num, denom := r.GetWarpConfig(msg.SourceChainID)
+	if !allowed {
+		return 0, 0, ErrDisabledChainID
+	}
+	return num, denom, nil
+}
+
+// verifyWarpMessage will attempt to verify a given warp message provided by an
+// Action.
+func (b *StatelessTxBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *warp.Message) bool {
+	warpID := utils.ToID(msg.Payload)
+	num, denom, err := preVerifyWarpMessage(msg, b.vm.ChainID(), r)
+	if err != nil {
+		b.vm.Logger().
+			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
+		return false
+	}
+	if err := msg.Signature.Verify(
+		ctx,
+		&msg.UnsignedMessage,
+		b.vdrState,
+		b.PChainHeight,
+		num,
+		denom,
+	); err != nil {
+		b.vm.Logger().
+			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
+		return false
+	}
+	return true
+}
+
+
+// We assume this will only be called once we are done syncing, so it is safe
+// to assume we will eventually get to a block with state.
+func (b *StatelessTxBlock) ChildState(
+	ctx context.Context,
+	estimatedChanges int,
+) (merkledb.TrieView, error) {
+	ctx, span := b.vm.Tracer().Start(ctx, "StatelessTxBlock.childState")
+	defer span.End()
+
+	// Return committed state if block is accepted or this is genesis.
+	if b.Hght <= b.vm.LastAcceptedBlock().MaxTxHght() {
+		state, err := b.vm.State()
+		if err != nil {
+			return nil, err
+		}
+		return state.NewPreallocatedView(estimatedChanges)
+	}
+
+	// Process block if not yet processed and not yet accepted.
+	//
+	// We don't need to handle the case where the tx block is loaded from disk
+	// because that will hit the first if check here.
+	if b.state == nil {
+		return nil, errors.New("not implemented")
+	}
+	return b.state.NewPreallocatedView(estimatedChanges)
+}
+

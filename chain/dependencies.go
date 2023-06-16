@@ -110,8 +110,7 @@ type Database interface {
 }
 
 type Rules interface {
-	GetMaxTxBlocks() int
-	GetMaxTxBlockUnits() uint64
+	GetMaxTxBlocks() int // max size is just network size
 
 	GetValidityWindow() int64
 	GetBaseUnits() uint64
