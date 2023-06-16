@@ -39,7 +39,6 @@ type RootBlock struct {
 
 	MinTxHght uint64   `json:"minTxHeight"`
 	TxBlocks  []ids.ID `json:"txBlocks"`
-
 	ContainsWarp bool `json:"containsWarp"`
 
 	// TEMP
@@ -293,9 +292,6 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 
 	// Populate txBlocks
 	txBlocks := make([]*StatelessTxBlock, len(b.TxBlocks))
-	var state merkledb.TrieView
-	var containsWarp bool
-	var unitsConsumed uint64
 	for i, blkID := range b.TxBlocks {
 		blk, err := b.vm.GetStatelessTxBlock(ctx, blkID, b.MinTxHght+uint64(i))
 		if err != nil {
@@ -308,31 +304,7 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 			// TODO: make block un-reverifiable
 			return errors.New("invalid timestamp")
 		}
-		if b.ContainsWarp {
-			if blk.PChainHeight != b.bctx.PChainHeight {
-				// TODO: make block un-reverifiable
-				return fmt.Errorf("invalid p-chain height with warp; found=%d context=%d", blk.PChainHeight, b.bctx.PChainHeight)
-			}
-		} else {
-			if blk.PChainHeight != 0 {
-				// TODO: make block un-reverifiable
-				return fmt.Errorf("invalid p-chain height without warp; found=%d", blk.PChainHeight)
-			}
-		}
-		if blk.ContainsWarp {
-			containsWarp = true
-		}
-		if (blk.Last && blk.state == nil) || (!blk.Last && blk.processor == nil) {
-			return errors.New("tx block state not ready")
-		}
-		unitsConsumed += blk.UnitsConsumed
-		// Can't get from txBlockState because not populated yet
-		state = blk.state
 		txBlocks[i] = blk
-	}
-	if containsWarp != b.ContainsWarp {
-		// TODO: make block un-reverifiable
-		return errors.New("invalid warp status")
 	}
 	if !b.recordedVerify {
 		b.vm.RecordVerifyWait(time.Since(b.firstVerify))
@@ -362,21 +334,6 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 	if b.Timestamp().Unix() < parent.Timestamp().Unix() {
 		return ErrTimestampTooEarly
 	}
-
-	// // Root was already computed in TxBlock so this should return immediately
-	// computedRoot, err := state.GetMerkleRoot(ctx)
-	// if err != nil {
-	// 	return err
-	// }
-	// if b.StateRoot != computedRoot {
-	// 	// TODO: make block un-reverifiable
-	// 	return fmt.Errorf(
-	// 		"%w: expected=%s found=%s",
-	// 		ErrStateRootMismatch,
-	// 		computedRoot,
-	// 		b.StateRoot,
-	// 	)
-	// }
 
 	// Ensure signatures are verified
 	if b.vm.GetVerifySignatures() {
@@ -420,14 +377,6 @@ func (b *StatelessRootBlock) Accept(ctx context.Context) error {
 		// TODO: iterate through stateless tx blocks and verify
 		return errors.New("not implemented")
 	}
-
-	// Commit state if we don't return before here (would happen if we are still
-	// syncing)
-	// start := time.Now()
-	// if err := state.CommitToDB(ctx); err != nil {
-	// 	return err
-	// }
-	// b.vm.RecordCommitState(time.Since(start))
 
 	// Set last accepted block
 	return b.SetLastAccepted(ctx)
@@ -497,16 +446,6 @@ func (b *StatelessRootBlock) State() (Database, error) {
 	return nil, ErrBlockNotProcessed
 }
 
-func (b *StatelessRootBlock) LastTxBlock() (*StatelessTxBlock, error) {
-	l := len(b.txBlocks)
-	if l > 0 {
-		return b.txBlocks[l-1], nil
-	}
-	lid := b.Txs[len(b.Txs)-1]
-	// 10 + [10, 11, 12, 13]
-	return b.vm.GetStatelessTxBlock(context.TODO(), lid, b.MinTxHght+uint64(len(b.Txs)-1))
-}
-
 func (b *StatelessRootBlock) GetTxs() []ids.ID {
 	return b.Txs
 }
@@ -528,19 +467,10 @@ func (b *StatelessRootBlock) MaxTxHght() uint64 {
 	return b.MinTxHght + uint64(l-1)
 }
 
-func (b *StatelessRootBlock) txBlockState() merkledb.TrieView {
-	l := len(b.txBlocks)
-	if l == 0 {
-		return nil
-	}
-	// TODO: handle case where empty during state sync
-	return b.txBlocks[l-1].state
-}
-
 func (b *RootBlock) Marshal() ([]byte, error) {
-	size := consts.IDLen + consts.Uint64Len + consts.Uint64Len + window.WindowSliceSize +
-		consts.Uint64Len + codec.BoolLen + consts.IntLen + len(b.Txs)*consts.IDLen + consts.IDLen +
-		consts.Uint64Len + consts.Uint64Len
+	size := consts.IDLen + consts.Uint64Len + consts.Uint64Len +
+		consts.Uint64Len +  consts.IntLen + len(b.Txs)*consts.IDLen + consts.ByteLen+
+		consts.Uint64Len 
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	p.PackID(b.Prnt)
@@ -548,16 +478,13 @@ func (b *RootBlock) Marshal() ([]byte, error) {
 	p.PackUint64(b.Hght)
 
 	p.PackUint64(b.MinTxHght)
-	p.PackBool(b.ContainsWarp)
 	p.PackInt(len(b.Txs))
 	for _, tx := range b.Txs {
 		p.PackID(tx)
 	}
+	p.PackBool(b.ContainsWarp)
 
-	p.PackID(b.StateRoot)
-	p.PackUint64(b.UnitsConsumed)
 	p.PackInt64(b.Issued)
-
 	return p.Bytes(), p.Err()
 }
 
@@ -570,9 +497,7 @@ func UnmarshalRootBlock(raw []byte, parser Parser) (*RootBlock, error) {
 	p.UnpackID(false, &b.Prnt)
 	b.Tmstmp = p.UnpackInt64(false)
 	b.Hght = p.UnpackUint64(false)
-
 	b.MinTxHght = p.UnpackUint64(false)
-	b.ContainsWarp = p.UnpackBool()
 	if err := p.Err(); err != nil {
 		// Check that header was parsed properly before unwrapping transactions
 		return nil, err
@@ -587,11 +512,9 @@ func UnmarshalRootBlock(raw []byte, parser Parser) (*RootBlock, error) {
 		p.UnpackID(true, &txID)
 		b.Txs = append(b.Txs, txID)
 	}
+	b.ContainsWarp = p.UnpackBool()
 
-	p.UnpackID(false, &b.StateRoot)
-	b.UnitsConsumed = p.UnpackUint64(false) // could be 0 in genesis
 	b.Issued = p.UnpackInt64(false)
-
 	if !p.Empty() {
 		// Ensure no leftover bytes
 		return nil, ErrInvalidObject
@@ -771,6 +694,31 @@ return ErrWarpResultMismatch
 
 	// We wait for signatures in root block.
 	b.results = results
+
+	// // Root was already computed in TxBlock so this should return immediately
+	// computedRoot, err := state.GetMerkleRoot(ctx)
+	// if err != nil {
+	// 	return err
+	// }
+	// if b.StateRoot != computedRoot {
+	// 	// TODO: make block un-reverifiable
+	// 	return fmt.Errorf(
+	// 		"%w: expected=%s found=%s",
+	// 		ErrStateRootMismatch,
+	// 		computedRoot,
+	// 		b.StateRoot,
+	// 	)
+	// }
+
+	// Commit state if we don't return before here (would happen if we are still
+	// syncing)
+	// start := time.Now()
+	// if err := state.CommitToDB(ctx); err != nil {
+	// 	return err
+	// }
+	// b.vm.RecordCommitState(time.Since(start))
+
+
 }
 
 
