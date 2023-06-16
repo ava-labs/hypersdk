@@ -314,7 +314,6 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 }
 
 func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
-	//TODO this is the second part
 	log := b.vm.Logger()
 	switch {
 	case !stateReady:
@@ -714,7 +713,6 @@ func (b *StatelessBlock) Timestamp() time.Time { return b.t }
 
 // State is used to verify txs in the mempool. It should never be written to.
 //
-// TODO: we should modify the interface here to only allow read-like messages
 func (b *StatelessBlock) State() (Database, error) {
 	if b.st == choices.Accepted {
 		return b.vm.State()

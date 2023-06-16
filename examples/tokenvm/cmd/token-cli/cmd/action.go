@@ -4,7 +4,6 @@
 //nolint:lll
 package cmd
 
-//TODO get rid of all this
 import (
 	"context"
 	"errors"

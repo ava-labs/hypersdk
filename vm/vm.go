@@ -175,23 +175,6 @@ func (vm *VM) Initialize(
 	go vm.warpManager.Run(warpSender)
 	vm.manager = manager
 
-	//TODO need to switch this to be a command line option or env variable
-	// daClient, err := cnc.NewClient("http://192.168.0.230:26659", cnc.WithTimeout(90*time.Second))
-	// if err != nil {
-	// 	return err
-	// }
-	// NamespaceId := "000008e5f679bf7116cd"
-	// nsBytes, err := hex.DecodeString(NamespaceId)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// namespace := cnc.MustNewV0(nsBytes)
-
-	// vm.namespace = namespace
-
-	// vm.daClient = daClient
-
 	// Always initialize implementation first
 	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.vmDB,
 		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, err = vm.c.Initialize(
@@ -574,7 +557,6 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 // implements "block.ChainVM.commom.VM.Parser"
 // replaces "core.SnowmanVM.ParseBlock"
 func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
-	//TODO first goes here
 	ctx, span := vm.tracer.Start(ctx, "VM.ParseBlock")
 	defer span.End()
 
@@ -687,9 +669,6 @@ func (vm *VM) Submit(
 	ctx, span := vm.tracer.Start(ctx, "VM.Submit")
 	defer span.End()
 	vm.metrics.txsSubmitted.Add(float64(len(txs)))
-	//TODO this will need to be modified similiar to SimpleTxManager
-	//It should either be here or after Mempool because this part checks the validity of the transactions
-
 
 	// We should not allow any transactions to be submitted if the VM is not
 	// ready yet. We should never reach this point because of other checks but it
@@ -764,73 +743,7 @@ func (vm *VM) Submit(
 			continue
 		}
 		errs = append(errs, nil)
-		validTxs = append(validTxs, tx)
-		// switch action := tx.Action.(type) {
-		// case *actions.SequencerMsg:
-		// 	res, err := vm.daClient.SubmitPFB(ctx, vm.namespace, action.Data, 70000, 700000)
-		// 	if err != nil {
-		// 		vm.snowCtx.Log.Warn("unable to publish tx to celestia", zap.Error(err))
-		// 		errs = append(errs, err)
-		// 		continue
-		// 	}
-		// 	fmt.Printf("res: %v\n", res)
-
-		// 	height := res.Height
-
-		// 	// FIXME: needs to be tx index / share index?
-		// 	//index := uint32(0) // res.Logs[0].MsgIndex
-
-		// 	// DA pointer serialization format
-		// 	// | -------------------------|
-		// 	// | 8 bytes       | 4 bytes  |
-		// 	// | block height | tx index  |
-		// 	// | -------------------------|
-
-		// 	buf := new(bytes.Buffer)
-		// 	err = binary.Write(buf, binary.BigEndian, height)
-		// 	if err != nil {
-		// 		vm.snowCtx.Log.Warn("data pointer block height serialization failed: ",  zap.Error(err))
-		// 		errs = append(errs, err)
-		// 		continue
-		// 	}
-
-		// 	index, err := buf.Write(txID[:])
-		// 	// err = binary.Write(buf, binary.BigEndian, index)
-		// 	if err != nil {
-		// 		vm.snowCtx.Log.Warn("data pointer tx id serialization failed: ",  zap.Error(err))
-		// 		errs = append(errs, err)
-		// 		continue
-		// 	}
-		// 	vm.snowCtx.Log.Warn("tx data before serialized: ", zap.String("ID:",  txID.String()), zap.String("Height:", string(height)), zap.String("index", string(index)))
-
-		// 	serialized := buf.Bytes()
-		// 	vm.snowCtx.Log.Warn("TxData: \n", zap.String("data:", string(serialized)))
-		// 	// tx = TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit}
-		// 	temp :=  action.FromAddress
-		// 	temp_action := &actions.DASequencerMsg{
-		// 						Data:    serialized,
-		// 						FromAddress: temp,
-		// 					}
-		// 	modified_tx, err := tx.ModifyAction(temp_action)
-		// 	if err != nil {
-		// 		vm.snowCtx.Log.Warn("Failed to modify action: %w",  zap.Error(err))
-		// 		errs = append(errs, err)
-		// 		continue
-		// 	}
-		// 	vm.Logger().Info("tx action data is:", zap.Stringer("type_of_action", reflect.TypeOf(modified_tx.Action)))
-
-		// 	errs = append(errs, nil)
-		// 	validTxs = append(validTxs, modified_tx)
-		// 	continue
-		// default:
-		// 	errs = append(errs, nil)
-		// 	validTxs = append(validTxs, tx)
-		// // default:
-		// // 	continue	
-		// }
-		
-		
-		
+		validTxs = append(validTxs, tx)		
 	}
 	vm.mempool.Add(ctx, validTxs)
 	return errs
