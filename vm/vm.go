@@ -99,10 +99,11 @@ type VM struct {
 	// Reuse gorotuine group to avoid constant re-allocation
 	workers *workers.Workers
 
-	bootstrapped utils.Atomic[bool]
-	preferred    ids.ID
-	lastAccepted *chain.StatelessRootBlock
-	toEngine     chan<- common.Message
+	bootstrapped  utils.Atomic[bool]
+	preferred     ids.ID
+	lastAccepted  *chain.StatelessRootBlock
+	lastProcessed *chain.StatelessRootBlock
+	toEngine      chan<- common.Message
 
 	// State Sync client and AppRequest handlers
 	stateSyncClient        *stateSyncerClient
@@ -271,7 +272,7 @@ func (vm *VM) Initialize(
 			return err
 		}
 
-		vm.preferred, vm.lastAccepted = blkID, blk
+		vm.preferred, vm.lastAccepted, vm.lastProcessed = blkID, blk, blk
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
 	} else {
 		// Set Balances
@@ -314,7 +315,7 @@ func (vm *VM) Initialize(
 		}
 		genesisBlk, err := chain.ParseRootBlock(
 			ctx,
-			chain.NewGenesisRootBlock(genesisTxBlk.ID(), root),
+			chain.NewGenesisRootBlock(genesisTxBlk.ID()),
 			[]*chain.StatelessTxBlock{genesisTxBlk},
 			nil,
 			choices.Accepted,
@@ -729,6 +730,8 @@ func (vm *VM) Submit(
 	}
 
 	// Create temporary execution context
+	// TODO: use last processed block here instead of preferred
+	// TODO: just verify signatures and no duplicates here?
 	blk, err := vm.PreferredBlock(ctx)
 	if err != nil {
 		return []error{err}

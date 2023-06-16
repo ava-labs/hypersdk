@@ -157,6 +157,13 @@ func (vm *VM) processAcceptedBlocks() {
 	// persist indexed state) instead of just exiting as soon as `vm.stop` is
 	// closed.
 	for b := range vm.acceptedQueue {
+		// Process block (can just have chunks be txs + height)
+		for _, txBlock := range b.GetTxBlocks() {
+
+		}
+
+		vm.lastProcessed = b
+
 		// Update TxBlock store
 		batch := vm.vmDB.NewBatch()
 		for _, txBlock := range b.GetTxBlocks() {

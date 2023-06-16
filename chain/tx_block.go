@@ -32,17 +32,17 @@ type TxBlock struct {
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	UnitPrice  uint64        `json:"unitPrice"`
-	UnitWindow window.Window `json:"unitWindow"`
+	// TODO: need to put in state (because won't know when parsing block)
+	// UnitPrice  uint64        `json:"unitPrice"`
+	// UnitWindow window.Window `json:"unitWindow"`
 
 	// PChainHeight is needed to verify warp messages
 	ContainsWarp bool   `json:"containsWarp"`
 	PChainHeight uint64 `json:"pchainHeight"`
 
-	Txs           []*Transaction `json:"txs"`
-	WarpResults   set.Bits64     `json:"warpResults"`
-	UnitsConsumed uint64         `json:"unitsConsumed"`
-	Last          bool           `json:"last"`
+	Txs []*Transaction `json:"txs"`
+	// TODO: store in state
+	// WarpResults set.Bits64     `json:"warpResults"`
 
 	// TEMP
 	Issued int64 `json:"issued"`
@@ -71,13 +71,8 @@ type StatelessTxBlock struct {
 	sigJob *workers.Job
 }
 
-func NewGenesisTxBlock(minUnitPrice uint64) *TxBlock {
-	return &TxBlock{
-		UnitPrice:  minUnitPrice,
-		UnitWindow: window.Window{},
-
-		Last: true,
-	}
+func NewGenesisTxBlock() *TxBlock {
+	return &TxBlock{}
 }
 
 func NewTxBlock(ectx *TxExecutionContext, vm VM, parent *StatelessTxBlock, tmstmp int64) *StatelessTxBlock {
@@ -86,9 +81,6 @@ func NewTxBlock(ectx *TxExecutionContext, vm VM, parent *StatelessTxBlock, tmstm
 			Tmstmp: tmstmp,
 			Prnt:   parent.ID(),
 			Hght:   parent.Hght + 1,
-
-			UnitPrice:  ectx.NextUnitPrice,
-			UnitWindow: ectx.NextUnitWindow,
 		},
 		vm: vm,
 	}
@@ -184,6 +176,7 @@ func ParseTxBlock(
 			return nil, ErrNoTxs
 		}
 		r := vm.Rules(blk.Tmstmp)
+		// TODO: transition to block size
 		if blk.UnitsConsumed > r.GetMaxTxBlockUnits() {
 			return nil, ErrBlockTooBig
 		}

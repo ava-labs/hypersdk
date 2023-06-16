@@ -35,16 +35,11 @@ type RootBlock struct {
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	BlockWindow window.Window `json:"blockWindow"`
-
 	MinTxHght    uint64   `json:"minTxHeight"`
 	ContainsWarp bool     `json:"containsWarp"`
-	Txs          []ids.ID `json:"txs"`
+	TxBlocks     []ids.ID `json:"txBlocks"`
 
-	// TODO: migrate state root to be that of parent
-	StateRoot     ids.ID `json:"stateRoot"`
-	UnitsConsumed uint64 `json:"unitsConsumed"`
-
+	// TEMP
 	Issued int64 `json:"issued"`
 }
 
@@ -60,6 +55,7 @@ type StatelessRootBlock struct {
 	bytes []byte
 
 	bctx *block.Context
+
 	// These will only be populated if block was verified and still in cache
 	txBlocks []*StatelessTxBlock
 
@@ -69,11 +65,9 @@ type StatelessRootBlock struct {
 	vm VM
 }
 
-func NewGenesisRootBlock(txBlkID ids.ID, root ids.ID) *RootBlock {
+func NewGenesisRootBlock(txBlkID ids.ID) *RootBlock {
 	return &RootBlock{
-		BlockWindow: window.Window{},
-		Txs:         []ids.ID{txBlkID},
-		StateRoot:   root,
+		TxBlocks: []ids.ID{txBlkID},
 	}
 }
 
@@ -83,8 +77,6 @@ func NewRootBlock(ectx *RootExecutionContext, vm VM, parent snowman.Block, tmstp
 			Prnt:   parent.ID(),
 			Tmstmp: tmstp,
 			Hght:   parent.Height() + 1,
-
-			BlockWindow: ectx.NextBlockWindow,
 		},
 		vm: vm,
 		st: choices.Processing,
@@ -125,11 +117,11 @@ func ParseRootBlock(
 		if blk.Tmstmp >= time.Now().Add(FutureBound).Unix() {
 			return nil, ErrTimestampTooLate
 		}
-		if len(blk.Txs) == 0 {
+		if len(blk.TxBlocks) == 0 {
 			return nil, ErrNoTxs
 		}
 		r := vm.Rules(blk.Tmstmp)
-		if len(blk.Txs) > r.GetMaxTxBlocks() {
+		if len(blk.TxBlocks) > r.GetMaxTxBlocks() {
 			return nil, ErrBlockTooBig
 		}
 		// TODO: ensure aren't too many blocks in time period
@@ -161,7 +153,7 @@ func ParseRootBlock(
 
 	// Ensure we are tracking the block chunks we just parsed
 	b.vm.RecordRootBlockIssuanceDiff(time.Since(time.UnixMilli(b.Issued)))
-	b.vm.RecordTxBlocksMissing(b.vm.RequireTxBlocks(context.Background(), b.MinTxHght, b.Txs))
+	b.vm.RecordTxBlocksMissing(b.vm.RequireTxBlocks(context.Background(), b.MinTxHght, b.TxBlocks))
 	return b, nil
 }
 
@@ -198,7 +190,7 @@ func (b *StatelessRootBlock) VerifyWithContext(ctx context.Context, bctx *block.
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.VerifyWithContext",
 		oteltrace.WithAttributes(
-			attribute.Int("txs", len(b.Txs)),
+			attribute.Int("txs", len(b.TxBlocks)),
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
 			attribute.Int64("pchainHeight", int64(bctx.PChainHeight)),
@@ -220,7 +212,7 @@ func (b *StatelessRootBlock) Verify(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.Verify",
 		oteltrace.WithAttributes(
-			attribute.Int("txs", len(b.Txs)),
+			attribute.Int("txs", len(b.TxBlocks)),
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
 			attribute.Bool("built", b.Processed()),
@@ -293,16 +285,16 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 	}
 
 	// Populate txBlocks
-	txBlocks := make([]*StatelessTxBlock, len(b.Txs))
+	txBlocks := make([]*StatelessTxBlock, len(b.TxBlocks))
 	var state merkledb.TrieView
 	var containsWarp bool
 	var unitsConsumed uint64
-	for i, blkID := range b.Txs {
+	for i, blkID := range b.TxBlocks {
 		blk, err := b.vm.GetStatelessTxBlock(ctx, blkID, b.MinTxHght+uint64(i))
 		if err != nil {
 			// TODO: stopgap that should be removed
 			b.vm.Logger().Warn("missing tx block when starting verify", zap.Stringer("blkID", blkID))
-			b.vm.RetryVerify(ctx, b.Txs)
+			b.vm.RetryVerify(ctx, b.TxBlocks)
 			return err
 		}
 		if blk.Tmstmp != b.Tmstmp {
@@ -348,15 +340,13 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 	switch {
 	case b.Timestamp().Unix() >= time.Now().Add(FutureBound).Unix():
 		return ErrTimestampTooLate
-	case len(b.Txs) == 0:
+	case len(b.TxBlocks) == 0:
 		return ErrNoTxs
-	case len(b.Txs) > r.GetMaxTxBlocks():
+	case len(b.TxBlocks) > r.GetMaxTxBlocks():
 		return ErrBlockTooBig
-	case unitsConsumed != b.UnitsConsumed:
-		return fmt.Errorf("%w: found=%d expected=%d", ErrInvalidUnitsConsumed, unitsConsumed, b.UnitsConsumed)
 	}
 
-	// Verify parent is verified and available
+	// Verify parent is available
 	parent, err := b.vm.GetStatelessRootBlock(ctx, b.Prnt)
 	if err != nil {
 		log.Debug("could not get parent", zap.Stringer("id", b.Prnt))
@@ -365,30 +355,21 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 	if b.Timestamp().Unix() < parent.Timestamp().Unix() {
 		return ErrTimestampTooEarly
 	}
-	ectx, err := GenerateRootExecutionContext(ctx, b.vm.ChainID(), b.Tmstmp, parent, b.vm.Tracer(), r)
-	if err != nil {
-		return err
-	}
-	switch {
-	case b.BlockWindow != ectx.NextBlockWindow:
-		// TODO: make block un-reverifiable
-		return ErrInvalidBlockWindow
-	}
 
-	// Root was already computed in TxBlock so this should return immediately
-	computedRoot, err := state.GetMerkleRoot(ctx)
-	if err != nil {
-		return err
-	}
-	if b.StateRoot != computedRoot {
-		// TODO: make block un-reverifiable
-		return fmt.Errorf(
-			"%w: expected=%s found=%s",
-			ErrStateRootMismatch,
-			computedRoot,
-			b.StateRoot,
-		)
-	}
+	// // Root was already computed in TxBlock so this should return immediately
+	// computedRoot, err := state.GetMerkleRoot(ctx)
+	// if err != nil {
+	// 	return err
+	// }
+	// if b.StateRoot != computedRoot {
+	// 	// TODO: make block un-reverifiable
+	// 	return fmt.Errorf(
+	// 		"%w: expected=%s found=%s",
+	// 		ErrStateRootMismatch,
+	// 		computedRoot,
+	// 		b.StateRoot,
+	// 	)
+	// }
 
 	// Ensure signatures are verified
 	if b.vm.GetVerifySignatures() {
@@ -417,29 +398,29 @@ func (b *StatelessRootBlock) Accept(ctx context.Context) error {
 	// syncing.
 	state := b.txBlockState()
 	if state == nil {
-		// The state of this block was not calculated during the call to
-		// [StatelessBlock.Verify]. This is because the VM was state syncing
-		// and did not have the state necessary to verify the block.
-		updated, err := b.vm.UpdateSyncTarget(b)
-		if err != nil {
-			return err
-		}
-		if updated {
-			b.vm.Logger().
-				Info("updated state sync target", zap.Stringer("id", b.ID()), zap.Stringer("root", b.StateRoot))
-			return nil // the sync is still ongoing
-		}
+		// // The state of this block was not calculated during the call to
+		// // [StatelessBlock.Verify]. This is because the VM was state syncing
+		// // and did not have the state necessary to verify the block.
+		// updated, err := b.vm.UpdateSyncTarget(b)
+		// if err != nil {
+		// 	return err
+		// }
+		// if updated {
+		// 	b.vm.Logger().
+		// 		Info("updated state sync target", zap.Stringer("id", b.ID()), zap.Stringer("root", b.StateRoot))
+		// 	return nil // the sync is still ongoing
+		// }
 		// TODO: iterate through stateless tx blocks and verify
 		return errors.New("not implemented")
 	}
 
 	// Commit state if we don't return before here (would happen if we are still
 	// syncing)
-	start := time.Now()
-	if err := state.CommitToDB(ctx); err != nil {
-		return err
-	}
-	b.vm.RecordCommitState(time.Since(start))
+	// start := time.Now()
+	// if err := state.CommitToDB(ctx); err != nil {
+	// 	return err
+	// }
+	// b.vm.RecordCommitState(time.Since(start))
 
 	// Set last accepted block
 	return b.SetLastAccepted(ctx)
@@ -559,8 +540,6 @@ func (b *RootBlock) Marshal() ([]byte, error) {
 	p.PackInt64(b.Tmstmp)
 	p.PackUint64(b.Hght)
 
-	p.PackWindow(b.BlockWindow)
-
 	p.PackUint64(b.MinTxHght)
 	p.PackBool(b.ContainsWarp)
 	p.PackInt(len(b.Txs))
@@ -584,8 +563,6 @@ func UnmarshalRootBlock(raw []byte, parser Parser) (*RootBlock, error) {
 	p.UnpackID(false, &b.Prnt)
 	b.Tmstmp = p.UnpackInt64(false)
 	b.Hght = p.UnpackUint64(false)
-
-	p.UnpackWindow(&b.BlockWindow)
 
 	b.MinTxHght = p.UnpackUint64(false)
 	b.ContainsWarp = p.UnpackBool()
