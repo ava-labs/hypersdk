@@ -716,6 +716,7 @@ func (b *StatelessRootBlock) Execute(ctx context.Context, parent *StatelessRootB
 	if err != nil {
 		return err
 	}
+	log.Info("execution context", zap.Uint64("unit price", nextUnitPrice), zap.Uint64("height", b.Hght))
 	unitsConsumed, results, stateChanges, stateOps, err := processor.Execute(ctx, &TxExecutionContext{
 		ChainID: b.vm.ChainID(),
 

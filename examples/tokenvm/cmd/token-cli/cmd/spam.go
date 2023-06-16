@@ -409,6 +409,9 @@ var runSpamCmd = &cobra.Command{
 								}
 								continue
 							}
+							if fees+uint64(v) > balance {
+								panic("insufficient balance")
+							}
 							balance -= (fees + uint64(v))
 							issuer.l.Lock()
 							issuer.outstandingTxs++
