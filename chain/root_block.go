@@ -494,7 +494,7 @@ func (b *StatelessRootBlock) ChildState(
 	defer span.End()
 
 	// Return committed state if block is accepted or this is genesis.
-	if b.Hght <= b.vm.LastAcceptedBlock().MaxTxHght() {
+	if b.Hght <= b.vm.LastProcessedBlock().Hght {
 		state, err := b.vm.State()
 		if err != nil {
 			return nil, err
@@ -544,8 +544,10 @@ func UnmarshalRootBlock(raw []byte, parser Parser) (*RootBlock, error) {
 	p.UnpackID(false, &b.Prnt)
 	b.Tmstmp = p.UnpackInt64(false)
 	b.Hght = p.UnpackUint64(false)
-	b.MinTxHght = p.UnpackUint64(false)
+
 	p.UnpackWindow(&b.BlockWindow)
+
+	b.MinTxHght = p.UnpackUint64(false)
 	if err := p.Err(); err != nil {
 		// Check that header was parsed properly before unwrapping transactions
 		return nil, err

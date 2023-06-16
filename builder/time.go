@@ -86,7 +86,7 @@ func (b *Time) Run() {
 			ctx := context.Background()
 
 			if b.vm.IsBuilding() {
-				b.vm.Logger().Debug("skipping build currently building")
+				// b.vm.Logger().Debug("skipping build currently building")
 				continue
 			}
 			// Prevent runaway block production during window
@@ -95,7 +95,7 @@ func (b *Time) Run() {
 			// 	continue
 			// }
 			if b.vm.Mempool().Len(ctx) == 0 {
-				b.vm.Logger().Debug("skipping build because no transactions in mempool")
+				// b.vm.Logger().Debug("skipping build because no transactions in mempool")
 				continue
 			}
 			build, err := b.shouldBuild(ctx)

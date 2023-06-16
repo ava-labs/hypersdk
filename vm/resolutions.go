@@ -79,6 +79,10 @@ func (vm *VM) LastAcceptedBlock() *chain.StatelessRootBlock {
 	return vm.lastAccepted
 }
 
+func (vm *VM) LastProcessedBlock() *chain.StatelessRootBlock {
+	return vm.lastProcessed
+}
+
 func (vm *VM) IsBootstrapped() bool {
 	return vm.bootstrapped.Get()
 }

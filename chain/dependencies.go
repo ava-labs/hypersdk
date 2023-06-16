@@ -63,6 +63,7 @@ type VM interface {
 	GetStatelessTxBlock(context.Context, ids.ID, uint64) (*StatelessTxBlock, error)
 	RetryVerify(context.Context, []ids.ID)
 
+	LastProcessedBlock() *StatelessRootBlock
 	LastAcceptedBlock() *StatelessRootBlock
 	GetStatelessRootBlock(context.Context, ids.ID) (*StatelessRootBlock, error)
 	SetLastAccepted(*StatelessRootBlock) error
