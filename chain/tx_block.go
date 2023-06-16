@@ -10,7 +10,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -52,7 +51,7 @@ func NewGenesisTxBlock() *TxBlock {
 	return &TxBlock{}
 }
 
-func NewTxBlock(ectx *TxExecutionContext, vm VM, parent *StatelessTxBlock, tmstmp int64) *StatelessTxBlock {
+func NewTxBlock(vm VM, parent *StatelessTxBlock, tmstmp int64) *StatelessTxBlock {
 	return &StatelessTxBlock{
 		TxBlock: &TxBlock{
 			Tmstmp: tmstmp,
@@ -147,8 +146,6 @@ func ParseTxBlock(
 // [initializeBuilt] is invoked after a block is built
 func (b *StatelessTxBlock) initializeBuilt(
 	ctx context.Context,
-	state merkledb.TrieView,
-	results []*Result,
 ) error {
 	_, span := b.vm.Tracer().Start(ctx, "StatelessTxBlock.initializeBuilt")
 	defer span.End()

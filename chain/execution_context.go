@@ -4,10 +4,7 @@
 package chain
 
 import (
-	"context"
-
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/window"
@@ -96,65 +93,65 @@ func computeNextPriceWindow(
 	return nextPrice, newRollupWindow, nil
 }
 
-func GenerateRootExecutionContext(
-	ctx context.Context,
-	chainID ids.ID,
-	currTime int64,
-	parent *StatelessRootBlock, // TODO: doesn't need stateless
-	tracer trace.Tracer, //nolint:interfacer
-	r Rules,
-) (*RootExecutionContext, error) {
-	_, span := tracer.Start(ctx, "chain.GenerateRootExecutionContext")
-	defer span.End()
-
-	since := int(currTime - parent.Tmstmp)
-	_, nextBlockWindow, err := computeNextPriceWindow(
-		parent.BlockWindow,
-		1,
-		1, // TODO: change price?
-		r.GetWindowTargetBlocks(),
-		r.GetBlockCostChangeDenominator(),
-		r.GetMinBlockCost(),
-		since,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &RootExecutionContext{
-		ChainID: chainID,
-
-		NextBlockWindow: nextBlockWindow,
-	}, nil
-}
-
-func GenerateTxExecutionContext(
-	ctx context.Context,
-	chainID ids.ID,
-	currTime int64,
-	parent *StatelessTxBlock, // TODO: doesn't need stateless
-	tracer trace.Tracer, //nolint:interfacer
-	r Rules,
-) (*TxExecutionContext, error) {
-	_, span := tracer.Start(ctx, "chain.GenerateExecutionContext")
-	defer span.End()
-
-	since := int(currTime - parent.Tmstmp)
-	nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
-		parent.UnitWindow,
-		parent.UnitsConsumed,
-		parent.UnitPrice,
-		r.GetWindowTargetUnits(),
-		r.GetUnitPriceChangeDenominator(),
-		r.GetMinUnitPrice(),
-		since,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &TxExecutionContext{
-		ChainID: chainID,
-
-		NextUnitPrice:  nextUnitPrice,
-		NextUnitWindow: nextUnitWindow,
-	}, nil
-}
+// func GenerateRootExecutionContext(
+// 	ctx context.Context,
+// 	chainID ids.ID,
+// 	currTime int64,
+// 	parent *StatelessRootBlock, // TODO: doesn't need stateless
+// 	tracer trace.Tracer, //nolint:interfacer
+// 	r Rules,
+// ) (*RootExecutionContext, error) {
+// 	_, span := tracer.Start(ctx, "chain.GenerateRootExecutionContext")
+// 	defer span.End()
+//
+// 	since := int(currTime - parent.Tmstmp)
+// 	_, nextBlockWindow, err := computeNextPriceWindow(
+// 		parent.BlockWindow,
+// 		1,
+// 		1, // TODO: change price?
+// 		r.GetWindowTargetBlocks(),
+// 		r.GetBlockCostChangeDenominator(),
+// 		r.GetMinBlockCost(),
+// 		since,
+// 	)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return &RootExecutionContext{
+// 		ChainID: chainID,
+//
+// 		NextBlockWindow: nextBlockWindow,
+// 	}, nil
+// }
+//
+// func GenerateTxExecutionContext(
+// 	ctx context.Context,
+// 	chainID ids.ID,
+// 	currTime int64,
+// 	parent *StatelessTxBlock, // TODO: doesn't need stateless
+// 	tracer trace.Tracer, //nolint:interfacer
+// 	r Rules,
+// ) (*TxExecutionContext, error) {
+// 	_, span := tracer.Start(ctx, "chain.GenerateExecutionContext")
+// 	defer span.End()
+//
+// 	since := int(currTime - parent.Tmstmp)
+// 	nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
+// 		parent.UnitWindow,
+// 		parent.UnitsConsumed,
+// 		parent.UnitPrice,
+// 		r.GetWindowTargetUnits(),
+// 		r.GetUnitPriceChangeDenominator(),
+// 		r.GetMinUnitPrice(),
+// 		since,
+// 	)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return &TxExecutionContext{
+// 		ChainID: chainID,
+//
+// 		NextUnitPrice:  nextUnitPrice,
+// 		NextUnitWindow: nextUnitWindow,
+// 	}, nil
+// }

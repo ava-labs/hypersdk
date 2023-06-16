@@ -79,7 +79,7 @@ func NewGenesisRootBlock(txBlkID ids.ID) *RootBlock {
 	}
 }
 
-func NewRootBlock(ectx *RootExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessRootBlock {
+func NewRootBlock(vm VM, parent snowman.Block, tmstp int64) *StatelessRootBlock {
 	return &StatelessRootBlock{
 		RootBlock: &RootBlock{
 			Prnt:   parent.ID(),
@@ -802,4 +802,14 @@ func (b *StatelessRootBlock) UnitsConsumed() uint64 {
 
 func (b *StatelessRootBlock) Results() []*Result {
 	return b.results
+}
+
+func (b *StatelessRootBlock) LastTxBlock() (*StatelessTxBlock, error) {
+	l := len(b.txBlocks)
+	if l > 0 {
+		return b.txBlocks[l-1], nil
+	}
+	lid := b.TxBlocks[len(b.TxBlocks)-1]
+	// 10 + [10, 11, 12, 13]
+	return b.vm.GetStatelessTxBlock(context.TODO(), lid, b.MinTxHght+uint64(len(b.TxBlocks)-1))
 }

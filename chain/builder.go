@@ -5,17 +5,13 @@ package chain
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"time"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/hypersdk/consts"
 	"go.uber.org/zap"
-
-	"github.com/ava-labs/hypersdk/tstate"
 )
 
 const txBatchSize = 4_096
@@ -64,56 +60,31 @@ func BuildBlock(
 		log.Warn("block building failed: couldn't get parent", zap.Error(err))
 		return nil, err
 	}
-	ectx, err := GenerateRootExecutionContext(ctx, vm.ChainID(), nextTime, parent, vm.Tracer(), r)
-	if err != nil {
-		log.Warn("block building failed: couldn't get execution context", zap.Error(err))
-		return nil, err
-	}
-
-	b := NewRootBlock(ectx, vm, parent, nextTime)
-
-	changesEstimate := math.Min(vm.Mempool().Len(ctx), 10_000) // TODO: improve estimate
 	parentTxBlock, err := parent.LastTxBlock()
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent tx block", zap.Error(err))
 		return nil, err
 	}
-	state, err := parentTxBlock.ChildState(ctx, changesEstimate)
-	if err != nil {
-		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
-		return nil, err
-	}
-	ts := tstate.New(changesEstimate)
 
-	// Restorable txs after block attempt finishes
-	tectx, err := GenerateTxExecutionContext(ctx, vm.ChainID(), nextTime, parentTxBlock, vm.Tracer(), r)
-	if err != nil {
-		return nil, err
-	}
+	b := NewRootBlock(vm, parent, nextTime)
 	var (
 		oldestAllowed = nextTime - r.GetValidityWindow()
 		mempool       = vm.Mempool()
 
-		txBlocks = []*StatelessTxBlock{}
-		txBlock  = NewTxBlock(tectx, vm, parentTxBlock, nextTime)
-		results  = []*Result{}
+		txBlocks    = []*StatelessTxBlock{}
+		txBlock     = NewTxBlock(vm, parentTxBlock, nextTime)
+		txBlockSize = 0
 
-		totalUnits   = uint64(0)
 		txsAttempted = 0
 		txsAdded     = 0
 		warpCount    = 0
 
-		vdrState = vm.ValidatorState()
-		sm       = vm.StateManager()
-
-		start          = time.Now()
-		alreadyFetched = map[string]*fetchData{}
+		start = time.Now()
 	)
 	b.MinTxHght = txBlock.Hght
 
 	mempool.StartBuild(ctx)
 	for txBlock != nil && (time.Since(start) < vm.GetMinBuildTime() || mempool.Len(ctx) > 0) && time.Since(start) < vm.GetMaxBuildTime() {
-		var execErr error
 		txs := mempool.LeaseItems(ctx, txBatchSize)
 		if len(txs) == 0 {
 			mempool.ClearLease(ctx, nil, nil)
@@ -121,69 +92,10 @@ func BuildBlock(
 			continue
 		}
 
-		// prefetch all lease items
-		//
-		// TODO: move this to a function
-		readyTxs := make(chan *txData, len(txs))
-		stopIndex := -1
-		var timeExceeded bool
-		go func() {
-			// Store required keys for each set
-			for i, tx := range txs {
-				if txBlock == nil || timeExceeded {
-					// This happens when at last tx block
-					stopIndex = i
-					close(readyTxs)
-					return
-				}
-				storage := map[string][]byte{}
-				for _, k := range tx.StateKeys(sm) {
-					sk := string(k)
-					if v, ok := alreadyFetched[sk]; ok {
-						if v.exists {
-							storage[sk] = v.v
-						}
-						continue
-					}
-					v, err := state.GetValue(ctx, k)
-					if errors.Is(err, database.ErrNotFound) {
-						alreadyFetched[sk] = &fetchData{nil, false}
-						continue
-					} else if err != nil {
-						// This can happen if the underlying view changes (if we are
-						// verifying a block that can never be accepted).
-						execErr = err
-						stopIndex = i
-						close(readyTxs)
-						return
-					}
-					alreadyFetched[sk] = &fetchData{v, true}
-					storage[sk] = v
-				}
-				readyTxs <- &txData{tx, storage}
-			}
-
-			// Let caller know all sets have been readied
-			close(readyTxs)
-		}()
-
 		restorable := make([]*Transaction, 0, txBatchSize)
 		exempt := make([]*Transaction, 0, 10)
-		for nextTx := range readyTxs {
-			next := nextTx.tx
-
-			// Avoid bulding if there is an error
-			if txBlock == nil || execErr != nil {
-				restorable = append(restorable, next)
-				continue
-			}
-
-			// Avoid building for too long
-			if time.Since(start) > vm.GetMaxBuildTime() {
-				timeExceeded = true
-				restorable = append(restorable, next)
-				continue
-			}
+		var execErr error
+		for i, next := range txs {
 			txsAttempted++
 
 			// Ensure we can process if transaction includes a warp message
@@ -214,151 +126,48 @@ func BuildBlock(
 			// for every tx
 			dup, err := parentTxBlock.IsRepeat(ctx, oldestAllowed, []*Transaction{next})
 			if err != nil {
-				restorable = append(restorable, next)
+				restorable = append(restorable, txs[i:]...)
 				execErr = err
-				continue // need to finish processing txs
+				break
 			}
 			if dup {
 				continue
 			}
 
-			// Ensure we have room
-			nextUnits, err := next.MaxUnits(r)
-			if err != nil {
-				// Should never happen
-				log.Debug(
-					"skipping invalid tx",
-					zap.Error(err),
-				)
-				continue
-			}
+			// TODO: verify units space
+			nextSize := next.Size()
 
 			// Determine if we need to create a new TxBlock
 			//
 			// TODO: handle case where tx is larger than max size of TxBlock
-			if txBlock.UnitsConsumed+nextUnits > r.GetMaxTxBlockUnits() {
-				if len(txBlocks)+1 /* account for current */ >= r.GetMaxTxBlocks() {
-					if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
-						restorable = append(restorable, next)
-						execErr = err
-						continue
-					}
-					if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
-						restorable = append(restorable, next)
-						execErr = err
-						continue
-					}
-					txBlock.Last = true
-				}
+			if txBlockSize+nextSize > consts.NetworkSizeLimit-4_096 {
 				txBlock.Issued = time.Now().UnixMilli()
-				if err := txBlock.initializeBuilt(ctx, state, results); err != nil {
-					restorable = append(restorable, next)
+				if err := txBlock.initializeBuilt(ctx); err != nil {
+					restorable = append(restorable, txs[i:]...)
 					execErr = err
-					continue
+					break
 				}
-				b.Txs = append(b.Txs, txBlock.ID())
+				b.TxBlocks = append(b.TxBlocks, txBlock.ID())
 				txBlocks = append(txBlocks, txBlock)
 				vm.IssueTxBlock(ctx, txBlock)
-				if txBlock.Last {
+
+				if len(txBlocks)+1 /* account for current */ >= r.GetMaxTxBlocks() {
 					txBlock = nil
-					restorable = append(restorable, next)
-					continue
+					restorable = append(restorable, txs[i:]...)
+					break
 				}
 				parentTxBlock = txBlock
-				tectx, err = GenerateTxExecutionContext(ctx, vm.ChainID(), nextTime, parentTxBlock, vm.Tracer(), r)
-				if err != nil {
-					restorable = append(restorable, next)
-					execErr = err
-					continue
-				}
-				txBlock = NewTxBlock(tectx, vm, parentTxBlock, nextTime)
-				results = []*Result{}
-			}
-
-			// Populate required transaction state and restrict which keys can be used
-			txStart := ts.OpIndex()
-			ts.SetScope(ctx, next.StateKeys(sm), nextTx.storage)
-
-			// PreExecute next to see if it is fit
-			if err := next.PreExecute(ctx, tectx, r, ts, nextTime); err != nil {
-				ts.Rollback(ctx, txStart)
-				cont, restore, _ := HandlePreExecute(err)
-				if !cont {
-					restorable = append(restorable, next)
-					execErr = err
-					continue
-				}
-				if restore {
-					restorable = append(restorable, next)
-				}
-				continue
-			}
-
-			// Verify warp message, if it exists
-			//
-			// We don't drop invalid warp messages because we must collect fees for
-			// the work the sender made us do (otherwise this would be a DoS).
-			//
-			// We wait as long as possible to verify the signature to ensure we don't
-			// spend unnecessary time on an invalid tx.
-			var warpErr error
-			if next.WarpMessage != nil {
-				num, denom, err := preVerifyWarpMessage(next.WarpMessage, vm.ChainID(), r)
-				if err == nil {
-					warpErr = next.WarpMessage.Signature.Verify(
-						ctx, &next.WarpMessage.UnsignedMessage,
-						vdrState, blockContext.PChainHeight, num, denom,
-					)
-				} else {
-					warpErr = err
-				}
-				if warpErr != nil {
-					log.Warn(
-						"warp verification failed",
-						zap.Stringer("txID", next.ID()),
-						zap.Error(warpErr),
-					)
-				}
-			}
-
-			// If execution works, keep moving forward with new state
-			result, err := next.Execute(
-				ctx,
-				tectx,
-				r,
-				sm,
-				ts,
-				nextTime,
-				next.WarpMessage != nil && warpErr == nil,
-			)
-			if err != nil {
-				// This error should only be raised by the handler, not the
-				// implementation itself
-				log.Warn("unexpected post-execution error", zap.Error(err))
-				restorable = append(restorable, next)
-				execErr = err
-				continue
+				txBlockSize = 0
+				txBlock = NewTxBlock(vm, parentTxBlock, nextTime)
 			}
 
 			// Update block with new transaction
 			txBlock.Txs = append(txBlock.Txs, next)
-			txBlock.UnitsConsumed += result.Units
-			results = append(results, result)
 			if next.WarpMessage != nil {
-				if warpErr == nil {
-					// Add a bit if the warp message was verified
-					txBlock.WarpResults.Add(uint(warpCount))
-				}
 				warpCount++
-				txBlock.ContainsWarp = true
-				txBlock.PChainHeight = blockContext.PChainHeight
 			}
-			totalUnits += result.Units
+			txBlockSize++
 			txsAdded++
-		}
-		if stopIndex >= 0 {
-			// If we stopped prefetching, make sure to add those txs back
-			restorable = append(restorable, txs[stopIndex:]...)
 		}
 		mempool.ClearLease(ctx, restorable, exempt)
 		if execErr != nil {
@@ -384,38 +193,21 @@ func BuildBlock(
 	//
 	// TODO: unify this logic with inner block tracker
 	if txBlock != nil && len(txBlock.Txs) > 0 {
-		txBlock.Last = true
-		if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
-			return nil, err
-		}
-		if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, txBlock.Hght)); err != nil {
-			return nil, err
-		}
 		txBlock.Issued = time.Now().UnixMilli()
-		if err := txBlock.initializeBuilt(ctx, state, results); err != nil {
+		if err := txBlock.initializeBuilt(ctx); err != nil {
 			return nil, err
 		}
-		b.Txs = append(b.Txs, txBlock.ID())
+		b.TxBlocks = append(b.TxBlocks, txBlock.ID())
 		txBlocks = append(txBlocks, txBlock)
 		vm.IssueTxBlock(ctx, txBlock)
 	}
 
 	// Perform basic validity checks to make sure the block is well-formatted
-	if len(b.Txs) == 0 {
+	if len(b.TxBlocks) == 0 {
 		return nil, ErrNoTxs
 	}
-
-	// Compute state root after all data has been written to trie
-	root, err := state.GetMerkleRoot(ctx)
-	if err != nil {
-		return nil, err
-	}
-	b.StateRoot = root
-	b.UnitsConsumed = totalUnits
 	b.ContainsWarp = warpCount > 0
 	b.Issued = time.Now().UnixMilli()
-
-	// Compute block hash and marshaled representation
 	if err := b.initializeBuilt(ctx, txBlocks); err != nil {
 		return nil, err
 	}
@@ -425,11 +217,9 @@ func BuildBlock(
 		"built block",
 		zap.Uint64("hght", b.Hght),
 		zap.Int("attempted", txsAttempted),
-		zap.Int("added", len(b.Txs)),
+		zap.Int("added", len(b.TxBlocks)),
 		zap.Int("mempool size", mempoolSize),
 		zap.Bool("context", blockContext != nil),
-		zap.Int("state changes", ts.PendingChanges()),
-		zap.Int("state operations", ts.OpIndex()),
 	)
 	return b, nil
 }
