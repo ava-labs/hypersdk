@@ -158,10 +158,10 @@ func (vm *VM) processAcceptedBlocks() {
 	// closed.
 	for b := range vm.acceptedQueue {
 		// Process block (can just have chunks be txs + height)
-		for _, txBlock := range b.GetTxBlocks() {
-
+		if err := b.Execute(context.TODO(), vm.lastProcessed); err != nil {
+			vm.Logger().Fatal("unable to execute block", zap.Error(err))
+			return
 		}
-
 		vm.lastProcessed = b
 
 		// Update TxBlock store
@@ -177,9 +177,10 @@ func (vm *VM) processAcceptedBlocks() {
 			if err == nil {
 				rootBlock, err := vm.GetDiskBlock(bid)
 				if err == nil {
-					for i := 0; i < len(rootBlock.Txs); i++ {
+					for i := 0; i < len(rootBlock.TxBlocks); i++ {
 						if err := vm.DeleteTxBlock(batch, rootBlock.MinTxHght+uint64(i)); err != nil {
 							vm.snowCtx.Log.Fatal("unable to delete tx block", zap.Error(err))
+							return
 						}
 						vm.metrics.deletedTxBlocks.Inc()
 					}
@@ -192,6 +193,7 @@ func (vm *VM) processAcceptedBlocks() {
 		}
 		if err := batch.Write(); err != nil {
 			vm.snowCtx.Log.Fatal("unable to commit tx block batch", zap.Error(err))
+			return
 		}
 		vm.txBlockManager.Accept(b.MaxTxHght())
 
@@ -210,50 +212,54 @@ func (vm *VM) processAcceptedBlocks() {
 		// Update controller
 		if err := vm.c.Accepted(context.TODO(), b); err != nil {
 			vm.snowCtx.Log.Fatal("accepted processing failed", zap.Error(err))
+			return
 		}
 
 		// Sign and store any warp messages (regardless if validator now, may become one)
-		for _, txBlock := range b.GetTxBlocks() {
-			if !txBlock.ContainsWarp {
-				continue
-			}
-			results := txBlock.Results()
-			for i, tx := range txBlock.Txs {
-				result := results[i]
-				if result.WarpMessage == nil {
-					continue
-				}
-				start := time.Now()
-				signature, err := vm.snowCtx.WarpSigner.Sign(result.WarpMessage)
-				if err != nil {
-					vm.snowCtx.Log.Fatal("unable to sign warp message", zap.Error(err))
-				}
-				if err := vm.StoreWarpSignature(tx.ID(), vm.snowCtx.PublicKey, signature); err != nil {
-					vm.snowCtx.Log.Fatal("unable to store warp signature", zap.Error(err))
-				}
-				vm.snowCtx.Log.Info(
-					"signed and stored warp message signature",
-					zap.Stringer("txID", tx.ID()),
-					zap.Duration("t", time.Since(start)),
-				)
+		if b.ContainsWarp {
+			for _, txBlock := range b.GetTxBlocks() {
+				results := txBlock.Results()
+				for i, tx := range txBlock.Txs {
+					result := results[i]
+					if result.WarpMessage == nil {
+						continue
+					}
+					start := time.Now()
+					signature, err := vm.snowCtx.WarpSigner.Sign(result.WarpMessage)
+					if err != nil {
+						vm.snowCtx.Log.Fatal("unable to sign warp message", zap.Error(err))
+						return
+					}
+					if err := vm.StoreWarpSignature(tx.ID(), vm.snowCtx.PublicKey, signature); err != nil {
+						vm.snowCtx.Log.Fatal("unable to store warp signature", zap.Error(err))
+						return
+					}
+					vm.snowCtx.Log.Info(
+						"signed and stored warp message signature",
+						zap.Stringer("txID", tx.ID()),
+						zap.Duration("t", time.Since(start)),
+					)
 
-				// Kickoff job to fetch signatures from other validators in the
-				// background
-				//
-				// We pass bytes here so that signatures returned from validators can be
-				// verified before they are persisted.
-				vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
+					// Kickoff job to fetch signatures from other validators in the
+					// background
+					//
+					// We pass bytes here so that signatures returned from validators can be
+					// verified before they are persisted.
+					vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
+				}
 			}
 		}
 
 		// Update server
 		if err := vm.webSocketServer.AcceptBlock(b); err != nil {
 			vm.snowCtx.Log.Fatal("unable to accept block in websocket server", zap.Error(err))
+			return
 		}
 		// Must clear accepted txs before [SetMinTx] or else we will errnoueously
 		// send [ErrExpired] messages.
 		if err := vm.webSocketServer.SetMinTx(b.Tmstmp); err != nil {
 			vm.snowCtx.Log.Fatal("unable to set min tx in websocket server", zap.Error(err))
+			return
 		}
 		vm.snowCtx.Log.Info(
 			"accepted block processed",

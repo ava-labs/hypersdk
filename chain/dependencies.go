@@ -135,6 +135,9 @@ type Rules interface {
 // state written by actions or auth.
 type StateManager interface {
 	HeightKey() []byte
+	ParentUnitWindowKey() []byte
+	ParentUnitsConsumedKey() []byte
+	ParentUnitPriceKey() []byte
 	IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) []byte
 	OutgoingWarpKey(txID ids.ID) []byte
 }

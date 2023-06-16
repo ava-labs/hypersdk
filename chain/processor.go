@@ -8,11 +8,14 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/tstate"
 )
+
+const readyTxBacklog = 8_192
 
 type fetchData struct {
 	v      []byte
@@ -31,7 +34,7 @@ type Processor struct {
 
 	alreadyFetched map[string]*fetchData
 
-	blk         *StatelessTxBlock
+	blk         *StatelessRootBlock
 	readyTxs    chan *txData
 	prefetchErr error
 }
@@ -46,41 +49,43 @@ func NewProcessor(tracer trace.Tracer, db merkledb.TrieView, ts *tstate.TState) 
 	}
 }
 
-func (p *Processor) Prefetch(ctx context.Context, b *StatelessTxBlock) {
+func (p *Processor) Prefetch(ctx context.Context, b *StatelessRootBlock) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Prefetch")
 	p.blk = b
 	sm := p.blk.vm.StateManager()
-	p.readyTxs = make(chan *txData, len(p.blk.GetTxs())) // clear from last run
+	p.readyTxs = make(chan *txData, readyTxBacklog) // clear from last run
 	p.prefetchErr = nil
 	go func() {
 		defer span.End()
 
 		// Store required keys for each set
-		for _, tx := range p.blk.GetTxs() {
-			storage := map[string][]byte{}
-			for _, k := range tx.StateKeys(sm) {
-				sk := string(k)
-				if v, ok := p.alreadyFetched[sk]; ok {
-					if v.exists {
-						storage[sk] = v.v
+		for _, txBlk := range p.blk.GetTxBlocks() {
+			for _, tx := range txBlk.Txs {
+				storage := map[string][]byte{}
+				for _, k := range tx.StateKeys(sm) {
+					sk := string(k)
+					if v, ok := p.alreadyFetched[sk]; ok {
+						if v.exists {
+							storage[sk] = v.v
+						}
+						continue
 					}
-					continue
+					v, err := p.db.GetValue(ctx, k)
+					if errors.Is(err, database.ErrNotFound) {
+						p.alreadyFetched[sk] = &fetchData{nil, false}
+						continue
+					} else if err != nil {
+						// This can happen if the underlying view changes (if we are
+						// verifying a block that can never be accepted).
+						p.prefetchErr = err
+						close(p.readyTxs)
+						return
+					}
+					p.alreadyFetched[sk] = &fetchData{v, true}
+					storage[sk] = v
 				}
-				v, err := p.db.GetValue(ctx, k)
-				if errors.Is(err, database.ErrNotFound) {
-					p.alreadyFetched[sk] = &fetchData{nil, false}
-					continue
-				} else if err != nil {
-					// This can happen if the underlying view changes (if we are
-					// verifying a block that can never be accepted).
-					p.prefetchErr = err
-					close(p.readyTxs)
-					return
-				}
-				p.alreadyFetched[sk] = &fetchData{v, true}
-				storage[sk] = v
+				p.readyTxs <- &txData{tx, storage}
 			}
-			p.readyTxs <- &txData{tx, storage}
 		}
 
 		// Let caller know all sets have been readied
@@ -92,6 +97,7 @@ func (p *Processor) Execute(
 	ctx context.Context,
 	ectx *TxExecutionContext,
 	r Rules,
+	warpMessages map[ids.ID]*warpJob,
 ) (uint64, []*Result, int, int, error) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Execute")
 	defer span.End()
@@ -120,7 +126,7 @@ func (p *Processor) Execute(
 		// TODO: parallel execution will greatly improve performance in the case
 		// that we are waiting for signature verification.
 		var warpVerified bool
-		warpMsg, ok := p.blk.warpMessages[tx.ID()]
+		warpMsg, ok := warpMessages[tx.ID()]
 		if ok {
 			select {
 			case warpVerified = <-warpMsg.verifiedChan:
@@ -136,10 +142,6 @@ func (p *Processor) Execute(
 
 		// Update block metadata
 		unitsConsumed += result.Units
-		if unitsConsumed > r.GetMaxTxBlockUnits() {
-			// Exit as soon as we hit our max
-			return 0, nil, 0, 0, ErrBlockTooBig
-		}
 	}
 	return unitsConsumed, results, p.ts.PendingChanges() - pending, p.ts.OpIndex() - opIndex, p.prefetchErr
 }

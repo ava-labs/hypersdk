@@ -2,10 +2,12 @@ package chain
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
@@ -15,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
 	"go.opentelemetry.io/otel/attribute"
@@ -37,9 +40,9 @@ type RootBlock struct {
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	MinTxHght uint64   `json:"minTxHeight"`
-	TxBlocks  []ids.ID `json:"txBlocks"`
-	ContainsWarp bool `json:"containsWarp"`
+	MinTxHght    uint64   `json:"minTxHeight"`
+	TxBlocks     []ids.ID `json:"txBlocks"`
+	ContainsWarp bool     `json:"containsWarp"`
 
 	// TEMP
 	Issued int64 `json:"issued"`
@@ -59,11 +62,9 @@ type StatelessRootBlock struct {
 	bctx *block.Context
 
 	// These will only be populated if block was verified and still in cache
-	txBlocks     []*StatelessTxBlock
-	state        merkledb.TrieView
-	warpMessages map[ids.ID]*warpJob
-	vdrState     validators.State
-	results      []*Result
+	txBlocks []*StatelessTxBlock
+	state    merkledb.TrieView
+	results  []*Result
 
 	firstVerify    time.Time
 	recordedVerify bool
@@ -200,7 +201,6 @@ func (b *StatelessRootBlock) VerifyWithContext(ctx context.Context, bctx *block.
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
 			attribute.Int64("pchainHeight", int64(bctx.PChainHeight)),
-			attribute.Bool("built", b.txBlockState() != nil),
 		),
 	)
 	defer span.End()
@@ -230,7 +230,7 @@ func (b *StatelessRootBlock) Verify(ctx context.Context) error {
 }
 
 func (b *StatelessRootBlock) Processed() bool {
-	return b.txBlockState() != nil
+	return len(b.txBlocks) > 0
 }
 
 func (b *StatelessRootBlock) verify(ctx context.Context, stateReady bool) error {
@@ -358,25 +358,25 @@ func (b *StatelessRootBlock) Accept(ctx context.Context) error {
 
 	b.vm.RecordRootBlockAcceptanceDiff(time.Since(time.UnixMilli(b.Issued)))
 
-	// Consider verifying the a block if it is not processed and we are no longer
-	// syncing.
-	state := b.txBlockState()
-	if state == nil {
-		// // The state of this block was not calculated during the call to
-		// // [StatelessBlock.Verify]. This is because the VM was state syncing
-		// // and did not have the state necessary to verify the block.
-		// updated, err := b.vm.UpdateSyncTarget(b)
-		// if err != nil {
-		// 	return err
-		// }
-		// if updated {
-		// 	b.vm.Logger().
-		// 		Info("updated state sync target", zap.Stringer("id", b.ID()), zap.Stringer("root", b.StateRoot))
-		// 	return nil // the sync is still ongoing
-		// }
-		// TODO: iterate through stateless tx blocks and verify
-		return errors.New("not implemented")
-	}
+	// // Consider verifying the a block if it is not processed and we are no longer
+	// // syncing.
+	// state := b.txBlockState()
+	// if state == nil {
+	// 	// // The state of this block was not calculated during the call to
+	// 	// // [StatelessBlock.Verify]. This is because the VM was state syncing
+	// 	// // and did not have the state necessary to verify the block.
+	// 	// updated, err := b.vm.UpdateSyncTarget(b)
+	// 	// if err != nil {
+	// 	// 	return err
+	// 	// }
+	// 	// if updated {
+	// 	// 	b.vm.Logger().
+	// 	// 		Info("updated state sync target", zap.Stringer("id", b.ID()), zap.Stringer("root", b.StateRoot))
+	// 	// 	return nil // the sync is still ongoing
+	// 	// }
+	// 	// TODO: iterate through stateless tx blocks and verify
+	// 	return errors.New("not implemented")
+	// }
 
 	// Set last accepted block
 	return b.SetLastAccepted(ctx)
@@ -440,14 +440,14 @@ func (b *StatelessRootBlock) State() (Database, error) {
 	if b.st == choices.Accepted {
 		return b.vm.State()
 	}
-	if state := b.txBlockState(); state != nil {
-		return state, nil
+	if b.state != nil {
+		return b.state, nil
 	}
 	return nil, ErrBlockNotProcessed
 }
 
 func (b *StatelessRootBlock) GetTxs() []ids.ID {
-	return b.Txs
+	return b.TxBlocks
 }
 
 func (b *StatelessRootBlock) GetTxBlocks() []*StatelessTxBlock {
@@ -459,7 +459,7 @@ func (b *StatelessRootBlock) GetTimestamp() int64 {
 }
 
 func (b *StatelessRootBlock) MaxTxHght() uint64 {
-	l := len(b.Txs)
+	l := len(b.TxBlocks)
 	if l == 0 {
 		return b.MinTxHght
 	}
@@ -467,10 +467,38 @@ func (b *StatelessRootBlock) MaxTxHght() uint64 {
 	return b.MinTxHght + uint64(l-1)
 }
 
+// We assume this will only be called once we are done syncing, so it is safe
+// to assume we will eventually get to a block with state.
+func (b *StatelessRootBlock) ChildState(
+	ctx context.Context,
+	estimatedChanges int,
+) (merkledb.TrieView, error) {
+	ctx, span := b.vm.Tracer().Start(ctx, "StatelessRootBlock.childState")
+	defer span.End()
+
+	// Return committed state if block is accepted or this is genesis.
+	if b.Hght <= b.vm.LastAcceptedBlock().MaxTxHght() {
+		state, err := b.vm.State()
+		if err != nil {
+			return nil, err
+		}
+		return state.NewPreallocatedView(estimatedChanges)
+	}
+
+	// Process block if not yet processed and not yet accepted.
+	//
+	// We don't need to handle the case where the tx block is loaded from disk
+	// because that will hit the first if check here.
+	if b.state == nil {
+		return nil, errors.New("not implemented")
+	}
+	return b.state.NewPreallocatedView(estimatedChanges)
+}
+
 func (b *RootBlock) Marshal() ([]byte, error) {
 	size := consts.IDLen + consts.Uint64Len + consts.Uint64Len +
-		consts.Uint64Len +  consts.IntLen + len(b.Txs)*consts.IDLen + consts.ByteLen+
-		consts.Uint64Len 
+		consts.Uint64Len + consts.IntLen + len(b.TxBlocks)*consts.IDLen + consts.ByteLen +
+		consts.Uint64Len
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	p.PackID(b.Prnt)
@@ -478,8 +506,8 @@ func (b *RootBlock) Marshal() ([]byte, error) {
 	p.PackUint64(b.Hght)
 
 	p.PackUint64(b.MinTxHght)
-	p.PackInt(len(b.Txs))
-	for _, tx := range b.Txs {
+	p.PackInt(len(b.TxBlocks))
+	for _, tx := range b.TxBlocks {
 		p.PackID(tx)
 	}
 	p.PackBool(b.ContainsWarp)
@@ -505,12 +533,12 @@ func UnmarshalRootBlock(raw []byte, parser Parser) (*RootBlock, error) {
 
 	// Parse transactions
 	txCount := p.UnpackInt(false) // could be 0 in genesis
-	b.Txs = []ids.ID{}            // don't preallocate all to avoid DoS
+	b.TxBlocks = []ids.ID{}       // don't preallocate all to avoid DoS
 	// TODO: check limit len here
 	for i := 0; i < txCount; i++ {
 		var txID ids.ID
 		p.UnpackID(true, &txID)
-		b.Txs = append(b.Txs, txID)
+		b.TxBlocks = append(b.TxBlocks, txID)
 	}
 	b.ContainsWarp = p.UnpackBool()
 
@@ -535,7 +563,9 @@ func NewSyncableBlock(sb *StatelessRootBlock) *SyncableBlock {
 }
 
 func (sb *SyncableBlock) String() string {
-	return fmt.Sprintf("%d:%s root=%s", sb.Height(), sb.ID(), sb.StateRoot)
+	// return fmt.Sprintf("%d:%s root=%s", sb.Height(), sb.ID(), sb.StateRoot)
+	// TODO: need to make this gossip based
+	return fmt.Sprintf("%d:%s", sb.Height(), sb.ID())
 }
 
 // warpJob is used to signal to a listner that a *warp.Message has been
@@ -548,42 +578,51 @@ type warpJob struct {
 	warpNum      int
 }
 
-func extraVerify() {
-	b.warpMessages = map[ids.ID]*warpJob{}
-	
-// Check if we need the block context to verify the block (which contains
-// an Avalanche Warp Message)
-//
-// Instead of erroring out if a warp message is invalid, we mark the
-// verification as skipped and include it in the verification result so
-// that a fee can still be deducted.
-if tx.WarpMessage != nil {
-	if !b.ContainsWarp {
+func (b *StatelessRootBlock) Execute(ctx context.Context, parent *StatelessRootBlock) error {
+	r := b.vm.Rules(b.Tmstmp)
+	log := b.vm.Logger()
+	warpMessages := map[ids.ID]*warpJob{}
+	txs := 0
+	for _, txBlock := range b.txBlocks {
+		for _, tx := range txBlock.Txs {
+			// Check if we need the block context to verify the block (which contains
+			// an Avalanche Warp Message)
+			//
+			// Instead of erroring out if a warp message is invalid, we mark the
+			// verification as skipped and include it in the verification result so
+			// that a fee can still be deducted.
+			if tx.WarpMessage != nil {
+				if !b.ContainsWarp {
+					return ErrWarpResultMismatch
+				}
+				if len(warpMessages) == MaxWarpMessages {
+					return ErrTooManyWarpMessages
+				}
+				signers, err := tx.WarpMessage.Signature.NumSigners()
+				if err != nil {
+					return err
+				}
+				warpMessages[tx.ID()] = &warpJob{
+					msg:          tx.WarpMessage,
+					signers:      signers,
+					verifiedChan: make(chan bool, 1),
+					warpNum:      len(warpMessages),
+				}
+			}
+			txs++
+		}
+	}
+	if len(warpMessages) > 0 && !b.ContainsWarp {
 		return ErrWarpResultMismatch
 	}
-	if len(b.warpMessages) == MaxWarpMessages {
-		return ErrTooManyWarpMessages
+	if b.ContainsWarp && b.bctx == nil {
+		return ErrWarpResultMismatch
 	}
-	signers, err := tx.WarpMessage.Signature.NumSigners()
-	if err != nil {
-		return err
-	}
-	b.warpMessages[tx.ID()] = &warpJob{
-		msg:          tx.WarpMessage,
-		signers:      signers,
-		verifiedChan: make(chan bool, 1),
-		warpNum:      len(b.warpMessages),
-	}
-}
-}
-if len(b.warpMessages) > 0 && !b.ContainsWarp {
-return ErrWarpResultMismatch
-}
+
 	// Start validating warp messages, if they exist
-	var invalidWarpResult bool
 	if b.ContainsWarp {
 		_, sspan := b.vm.Tracer().Start(ctx, "StatelessTxBlock.verifyWarpMessages")
-		b.vdrState = b.vm.ValidatorState()
+		vdrState := b.vm.ValidatorState()
 		go func() {
 			defer sspan.End()
 			// We don't use [b.vm.Workers] here because we need the warp verification
@@ -591,136 +630,127 @@ return ErrWarpResultMismatch
 			// it would get executed after all signatures. Additionally, BLS
 			// Multi-Signature verification is already parallelized so we should just
 			// do one at a time to avoid overwhelming the CPU.
-			for txID, msg := range b.warpMessages {
+			for txID, msg := range warpMessages {
 				if ctx.Err() != nil {
 					return
 				}
-				blockVerified := b.WarpResults.Contains(uint(msg.warpNum))
-				if b.vm.IsBootstrapped() && !invalidWarpResult {
-					start := time.Now()
-					verified := b.verifyWarpMessage(ctx, r, msg.msg)
-					msg.verifiedChan <- verified
-					msg.verified = verified
-					log.Info(
-						"processed warp message",
-						zap.Stringer("txID", txID),
-						zap.Bool("verified", verified),
-						zap.Int("signers", msg.signers),
-						zap.Duration("t", time.Since(start)),
-					)
-					if blockVerified != verified {
-						invalidWarpResult = true
-					}
-				} else {
-					// When we are bootstrapping, we just use the result in the block.
-					//
-					// We also use the result in the block when we have found
-					// a verification mismatch (our verify result is different than the
-					// block) to avoid doing extra work.
-					msg.verifiedChan <- blockVerified
-					msg.verified = blockVerified
-				}
+				start := time.Now()
+				verified := b.verifyWarpMessage(ctx, vdrState, r, msg.msg)
+				msg.verifiedChan <- verified
+				msg.verified = verified
+				log.Info(
+					"processed warp message",
+					zap.Stringer("txID", txID),
+					zap.Bool("verified", verified),
+					zap.Int("signers", msg.signers),
+					zap.Duration("t", time.Since(start)),
+				)
+
+				// TODO: record somewhere so don't need to reverify during bootstrapping
 			}
 		}()
 	}
 
 	// Optimisticaly fetch state
-	if parent.Last {
-		state, err := parent.ChildState(ctx, 30_000)
-		if err != nil {
-			return err
-		}
-		b.processor = NewProcessor(b.vm.Tracer(), state, tstate.New(30_000))
-	} else {
-		b.processor = parent.processor
+	state, err := parent.ChildState(ctx, txs)
+	if err != nil {
+		return err
 	}
-	b.processor.Prefetch(ctx, b)
+	processor := NewProcessor(b.vm.Tracer(), state, tstate.New(txs))
+	processor.Prefetch(ctx, b)
 
 	// Process new transactions
-	unitsConsumed, results, stateChanges, stateOps, err := b.processor.Execute(ctx, ectx, r)
+	wbytes, err := state.GetValue(ctx, b.vm.StateManager().ParentUnitWindowKey())
+	w := window.Window{}
+	if err != nil && !errors.Is(err, database.ErrNotFound) {
+		return err
+	} else if err == nil {
+		w = window.Window(wbytes)
+	}
+	ubytes, err := state.GetValue(ctx, b.vm.StateManager().ParentUnitsConsumedKey())
+	var u uint64
+	if err != nil && !errors.Is(err, database.ErrNotFound) {
+		return err
+	} else if err == nil {
+		u = binary.BigEndian.Uint64(ubytes)
+	}
+	pbytes, err := state.GetValue(ctx, b.vm.StateManager().ParentUnitPriceKey())
+	var p uint64
+	if err != nil && !errors.Is(err, database.ErrNotFound) {
+		return err
+	} else if err == nil {
+		p = binary.BigEndian.Uint64(pbytes)
+	}
+	since := int(b.Tmstmp - parent.Tmstmp)
+	nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
+		w,
+		u,
+		p,
+		r.GetWindowTargetUnits(),
+		r.GetUnitPriceChangeDenominator(),
+		r.GetMinUnitPrice(),
+		since,
+	)
+	if err != nil {
+		return err
+	}
+	unitsConsumed, results, stateChanges, stateOps, err := processor.Execute(ctx, &TxExecutionContext{
+		ChainID: b.vm.ChainID(),
+
+		NextUnitPrice:  nextUnitPrice,
+		NextUnitWindow: nextUnitWindow,
+	}, r, warpMessages)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return err
 	}
 	b.vm.RecordStateChanges(stateChanges)
 	b.vm.RecordStateOperations(stateOps)
-	if b.UnitsConsumed != unitsConsumed {
-		return fmt.Errorf(
-			"%w: required=%d found=%d",
-			ErrInvalidUnitsConsumed,
-			unitsConsumed,
-			b.UnitsConsumed,
-		)
-	}
 
 	// Ensure warp results are correct
-	if invalidWarpResult {
-		return ErrWarpResultMismatch
-	}
-	numWarp := len(b.warpMessages)
+	numWarp := len(warpMessages)
 	if numWarp > MaxWarpMessages {
 		return ErrTooManyWarpMessages
 	}
-	var warpResultsLimit set.Bits64
-	warpResultsLimit.Add(uint(numWarp))
-	if b.WarpResults >= warpResultsLimit {
-		// If the value of [WarpResults] is greater than the value of uint64 with
-		// a 1-bit shifted [numWarp] times, then there are unused bits set to
-		// 1 (which should is not allowed).
-		return ErrWarpResultMismatch
-	}
 
 	// Compute state root if last
-	//
-	// TODO: better protect against malicious usage of this (may need to be
-	// invoked by caller block)
-	if b.Last {
-		// Commit to base
-		if err := b.processor.Commit(ctx); err != nil {
-			return err
-		}
-		// Store height in state to prevent duplicate roots
-		base := b.processor.db
-		if err := base.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-			return err
-		}
-		start := time.Now()
-		if _, err := base.GetMerkleRoot(ctx); err != nil {
-			return err
-		}
-		b.vm.RecordRootCalculated(time.Since(start))
-		b.state = base
+	if err := processor.Commit(ctx); err != nil {
+		return err
 	}
+	// Store height in state to prevent duplicate roots
+	base := processor.db
+	if err := base.Insert(ctx, b.vm.StateManager().ParentUnitWindowKey(), nextUnitWindow[:]); err != nil {
+		return err
+	}
+	if err := base.Insert(ctx, b.vm.StateManager().ParentUnitsConsumedKey(), binary.BigEndian.AppendUint64(nil, unitsConsumed)); err != nil {
+		return err
+	}
+	if err := base.Insert(ctx, b.vm.StateManager().ParentUnitPriceKey(), binary.BigEndian.AppendUint64(nil, nextUnitPrice)); err != nil {
+		return err
+	}
+	if err := base.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return err
+	}
+	start := time.Now()
+	if _, err := base.GetMerkleRoot(ctx); err != nil {
+		return err
+	}
+	// TODO: gossip this root (store per block/compare to others at this height)
+	b.vm.RecordRootCalculated(time.Since(start))
+	b.state = base
 
 	// We wait for signatures in root block.
 	b.results = results
 
-	// // Root was already computed in TxBlock so this should return immediately
-	// computedRoot, err := state.GetMerkleRoot(ctx)
-	// if err != nil {
-	// 	return err
-	// }
-	// if b.StateRoot != computedRoot {
-	// 	// TODO: make block un-reverifiable
-	// 	return fmt.Errorf(
-	// 		"%w: expected=%s found=%s",
-	// 		ErrStateRootMismatch,
-	// 		computedRoot,
-	// 		b.StateRoot,
-	// 	)
-	// }
-
 	// Commit state if we don't return before here (would happen if we are still
 	// syncing)
-	// start := time.Now()
-	// if err := state.CommitToDB(ctx); err != nil {
-	// 	return err
-	// }
-	// b.vm.RecordCommitState(time.Since(start))
-
-
+	start = time.Now()
+	if err := state.CommitToDB(ctx); err != nil {
+		return err
+	}
+	b.vm.RecordCommitState(time.Since(start))
+	return nil
 }
-
 
 func preVerifyWarpMessage(msg *warp.Message, chainID ids.ID, r Rules) (uint64, uint64, error) {
 	if msg.DestinationChainID != chainID && msg.DestinationChainID != ids.Empty {
@@ -741,7 +771,7 @@ func preVerifyWarpMessage(msg *warp.Message, chainID ids.ID, r Rules) (uint64, u
 
 // verifyWarpMessage will attempt to verify a given warp message provided by an
 // Action.
-func (b *StatelessTxBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *warp.Message) bool {
+func (b *StatelessRootBlock) verifyWarpMessage(ctx context.Context, vdrState validators.State, r Rules, msg *warp.Message) bool {
 	warpID := utils.ToID(msg.Payload)
 	num, denom, err := preVerifyWarpMessage(msg, b.vm.ChainID(), r)
 	if err != nil {
@@ -752,8 +782,8 @@ func (b *StatelessTxBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *
 	if err := msg.Signature.Verify(
 		ctx,
 		&msg.UnsignedMessage,
-		b.vdrState,
-		b.PChainHeight,
+		vdrState,
+		b.bctx.PChainHeight,
 		num,
 		denom,
 	); err != nil {
@@ -763,33 +793,3 @@ func (b *StatelessTxBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *
 	}
 	return true
 }
-
-
-// We assume this will only be called once we are done syncing, so it is safe
-// to assume we will eventually get to a block with state.
-func (b *StatelessTxBlock) ChildState(
-	ctx context.Context,
-	estimatedChanges int,
-) (merkledb.TrieView, error) {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessTxBlock.childState")
-	defer span.End()
-
-	// Return committed state if block is accepted or this is genesis.
-	if b.Hght <= b.vm.LastAcceptedBlock().MaxTxHght() {
-		state, err := b.vm.State()
-		if err != nil {
-			return nil, err
-		}
-		return state.NewPreallocatedView(estimatedChanges)
-	}
-
-	// Process block if not yet processed and not yet accepted.
-	//
-	// We don't need to handle the case where the tx block is loaded from disk
-	// because that will hit the first if check here.
-	if b.state == nil {
-		return nil, errors.New("not implemented")
-	}
-	return b.state.NewPreallocatedView(estimatedChanges)
-}
-
