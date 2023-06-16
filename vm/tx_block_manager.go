@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/rand"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -24,7 +23,7 @@ import (
 const (
 	maxChunkRetries = 20
 	retrySleep      = 50 * time.Millisecond
-	gossipFrequency = 100 * time.Millisecond
+	gossipFrequency = 500 * time.Millisecond
 )
 
 type NodeChunks struct {
@@ -58,8 +57,7 @@ type blkItem struct {
 	recorded bool
 	added    time.Time
 
-	// TODO: consider adding to txBlock directly
-	verified atomic.Bool
+	verified bool
 }
 
 type TxBlockMap struct {
@@ -122,7 +120,7 @@ func (c *TxBlockMap) Add(txBlock *chain.StatelessTxBlock, verified bool) bool {
 	if verified {
 		// TODO: handle the case where we want to verify others here (seems like it
 		// shouldn't happen after issue but may be an invariant to support)?
-		item.verified.Store(true)
+		item.verified = true
 	}
 	return true
 }
@@ -134,7 +132,7 @@ func (c *TxBlockMap) Verified(blkID ids.ID, success bool) []ids.ID {
 	// Scan all items at height + 1 that rely on
 	blk := c.items[blkID]
 	if success {
-		blk.verified.Store(true)
+		blk.verified = true
 	} else {
 		return nil
 	}
@@ -178,7 +176,7 @@ func (c *TxBlockMap) SetMin(h uint64) []ids.ID {
 		c.bh.Pop()
 		for chunkID := range b.Item.items {
 			item := c.items[chunkID]
-			if !item.verified.Load() {
+			if !item.verified {
 				c.vm.metrics.txBlocksDropped.Inc()
 			}
 			delete(c.items, chunkID)
@@ -330,7 +328,6 @@ func (c *TxBlockManager) IssueTxBlock(ctx context.Context, txBlock *chain.Statel
 	if txBlock.Hght > c.max {
 		c.max = txBlock.Hght
 	}
-	c.update <- nil
 }
 
 // Called when pruning chunks from accepted blocks
@@ -340,7 +337,6 @@ func (c *TxBlockManager) IssueTxBlock(ctx context.Context, txBlock *chain.Statel
 // TODO: Set when state syncing
 func (c *TxBlockManager) SetMin(min uint64) {
 	c.min = min
-	c.update <- nil
 }
 
 // Called when a block is accepted
@@ -348,7 +344,6 @@ func (c *TxBlockManager) SetMin(min uint64) {
 // Ensure chunks are persisted before calling this method
 func (c *TxBlockManager) Accept(height uint64) {
 	evicted := c.txBlocks.SetMin(height)
-	c.update <- nil
 	c.vm.snowCtx.Log.Info("evicted chunks from memory", zap.Int("n", len(evicted)))
 }
 
@@ -377,7 +372,7 @@ func (c *TxBlockManager) RetryVerify(ctx context.Context, blkIDs []ids.ID) {
 			// Stop gap to see if we are just dropping verification accidentally
 			//
 			// TODO: should not be necessry to re-prompt verify?
-			if !item.verified.Load() {
+			if !item.verified {
 				c.verify <- blkID
 			}
 		}
@@ -644,12 +639,12 @@ func (c *TxBlockManager) Verify(blkID ids.ID) error {
 	if blk == nil {
 		return fmt.Errorf("tx block is missing: %v", blkID)
 	}
-	if blk.verified.Load() {
+	if blk.verified {
 		return errors.New("tx block already verified")
 	}
 	parent := c.txBlocks.Get(blk.blk.Prnt)
 	if parent != nil {
-		if !parent.verified.Load() {
+		if !parent.verified {
 			return errors.New("parent tx block not verified")
 		}
 	} else {
@@ -676,7 +671,6 @@ func (c *TxBlockManager) Verify(blkID ids.ID) error {
 	if blk.blk.Hght > c.max {
 		// Only update if verified up to that height
 		c.max = blk.blk.Hght
-		c.update <- nil
 	}
 	return nil
 }

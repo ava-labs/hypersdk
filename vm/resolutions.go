@@ -464,7 +464,7 @@ func (vm *VM) RetryVerify(ctx context.Context, blks []ids.ID) {
 func (vm *VM) GetStatelessTxBlock(ctx context.Context, blkID ids.ID, hght uint64) (*chain.StatelessTxBlock, error) {
 	blk := vm.txBlockManager.txBlocks.Get(blkID)
 	if blk != nil {
-		if !blk.verified.Load() {
+		if !blk.verified {
 			return nil, fmt.Errorf("blk not verified; height=%d id=%s", blk.blk.Hght, blkID)
 		}
 		return blk.blk, nil

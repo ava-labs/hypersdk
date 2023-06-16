@@ -711,6 +711,7 @@ func (vm *VM) BuildBlockWithContext(
 	return vm.buildBlock(ctx, blockContext)
 }
 
+// TODO: batch submit to better amortize block context overhead
 func (vm *VM) Submit(
 	ctx context.Context,
 	verifySig bool,
