@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -410,7 +411,7 @@ var runSpamCmd = &cobra.Command{
 								continue
 							}
 							if fees+uint64(v) > balance {
-								panic("insufficient balance")
+								panic(fmt.Sprintf("insufficient balance: fees=%d v=%d", fees, v))
 							}
 							balance -= (fees + uint64(v))
 							issuer.l.Lock()

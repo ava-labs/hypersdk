@@ -26,7 +26,7 @@ func (vm *VM) SuggestedFee(ctx context.Context) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	ubytes, err := db.GetValue(ctx, vm.StateManager().ParentUnitsConsumedKey())
+	ubytes, err := db.GetValue(ctx, vm.StateManager().ParentUnitPriceKey())
 	var u uint64
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return 0, err
