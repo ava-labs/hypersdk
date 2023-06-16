@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/http"
@@ -284,6 +285,9 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}
+		if err := view.Insert(ctx, vm.StateManager().ParentUnitPriceKey(), binary.BigEndian.AppendUint64(nil, vm.Rules(0).GetMinUnitPrice())); err != nil {
+			return err
+		}
 		if err := view.CommitToDB(ctx); err != nil {
 			return err
 		}
@@ -296,7 +300,7 @@ func (vm *VM) Initialize(
 		// Create genesis block
 		genesisTxBlk, err := chain.ParseTxBlock(
 			ctx,
-			chain.NewGenesisTxBlock(vm.Rules(0).GetMinUnitPrice()),
+			chain.NewGenesisTxBlock(),
 			nil,
 			vm,
 		)
@@ -330,7 +334,7 @@ func (vm *VM) Initialize(
 			return err
 		}
 		gBlkID := genesisBlk.ID()
-		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
+		vm.preferred, vm.lastAccepted, vm.lastProcessed = gBlkID, genesisBlk, genesisBlk
 		vm.blocks.Put(gBlkID, genesisBlk)
 		snowCtx.Log.Info("initialized vm from genesis", zap.Stringer("block", gBlkID))
 	}
@@ -740,17 +744,8 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	state, err := blk.State()
-	if err != nil {
-		// This will error if a block does not yet have processed state.
-		return []error{err}
-	}
 	now := time.Now().Unix()
 	r := vm.c.Rules(now)
-	ectx, err := chain.GenerateTxExecutionContext(ctx, vm.snowCtx.ChainID, now, txBlk, vm.tracer, r)
-	if err != nil {
-		return []error{err}
-	}
 	oldestAllowed := now - r.GetValidityWindow()
 	validTxs := []*chain.Transaction{}
 	for _, tx := range txs {
@@ -788,15 +783,6 @@ func (vm *VM) Submit(
 				errs = append(errs, chain.ErrDuplicateTx)
 				continue
 			}
-		}
-		// PreExecute does not make any changes to state
-		//
-		// This may fail if the state we are utilizing is invalidated (if a trie
-		// view from a different branch is committed underneath it). We prefer this
-		// instead of putting a lock around all commits.
-		if err := tx.PreExecute(ctx, ectx, r, state, now); err != nil {
-			errs = append(errs, err)
-			continue
 		}
 		errs = append(errs, nil)
 		validTxs = append(validTxs, tx)

@@ -14,6 +14,16 @@ func (*StateManager) HeightKey() []byte {
 	return storage.HeightKey()
 }
 
+func (*StateManager) ParentUnitWindowKey() []byte {
+	return storage.ParentUnitWindowKey()
+}
+func (*StateManager) ParentUnitsConsumedKey() []byte {
+	return storage.ParentUnitsConsumedKey()
+}
+func (*StateManager) ParentUnitPriceKey() []byte {
+	return storage.ParentUnitPriceKey()
+}
+
 func (*StateManager) IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) []byte {
 	return storage.IncomingWarpKeyPrefix(sourceChainID, msgID)
 }

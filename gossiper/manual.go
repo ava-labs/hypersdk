@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/consts"
 	"go.uber.org/zap"
 )
 
@@ -38,9 +39,8 @@ func (g *Manual) Run(appSender common.AppSender) {
 func (g *Manual) TriggerGossip(ctx context.Context) error {
 	// Gossip highest paying txs
 	txs := []*chain.Transaction{}
-	totalUnits := uint64(0)
+	size := 0
 	now := time.Now().Unix()
-	r := g.vm.Rules(now)
 	mempoolErr := g.vm.Mempool().Build(
 		ctx,
 		func(ictx context.Context, next *chain.Transaction) (cont bool, restore bool, removeAcct bool, err error) {
@@ -49,18 +49,13 @@ func (g *Manual) TriggerGossip(ctx context.Context) error {
 				return true, false, false, nil
 			}
 
-			// Gossip up to a block of content
-			units, err := next.MaxUnits(r)
-			if err != nil {
-				// Should never happen
-				return true, false, false, nil
-			}
-			if units+totalUnits > r.GetMaxTxBlockUnits() {
+			nextSize := next.Size()
+			if size+nextSize > consts.NetworkSizeLimit-4_096 {
 				// Attempt to mirror the function of building a block without execution
 				return false, true, false, nil
 			}
 			txs = append(txs, next)
-			totalUnits += units
+			size += nextSize
 			return true, true, false, nil
 		},
 	)

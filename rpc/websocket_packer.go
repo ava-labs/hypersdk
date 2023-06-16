@@ -20,23 +20,21 @@ const (
 func PackBlockMessage(b *chain.StatelessRootBlock) ([]byte, error) {
 	size := codec.BytesLen(b.Bytes()) + consts.IntLen
 	txBlocks := b.GetTxBlocks()
-	res := make([][]byte, len(txBlocks))
-	for i, txBlock := range txBlocks {
+	results, err := chain.MarshalResults(b.Results())
+	if err != nil {
+		return nil, err
+	}
+	size += codec.BytesLen(results)
+	for _, txBlock := range txBlocks {
 		size += codec.BytesLen(txBlock.Bytes())
-		results, err := chain.MarshalResults(txBlock.Results())
-		if err != nil {
-			return nil, err
-		}
-		size += codec.BytesLen(results)
-		res[i] = results
 	}
 	p := codec.NewWriter(size, consts.MaxInt)
 	p.PackBytes(b.Bytes())
 	p.PackInt(len(txBlocks))
-	for i, txBlock := range txBlocks {
+	for _, txBlock := range txBlocks {
 		p.PackBytes(txBlock.Bytes())
-		p.PackBytes(res[i])
 	}
+	p.PackBytes(results)
 	return p.Bytes(), p.Err()
 }
 
@@ -53,7 +51,6 @@ func UnpackBlockMessage(
 	}
 	txBlkCount := p.UnpackInt(false) // genesis blk
 	txBlks := []*chain.TxBlock{}
-	results := []*chain.Result{}
 	for i := 0; i < txBlkCount; i++ {
 		var txBlkMsg []byte
 		p.UnpackBytes(-1, true, &txBlkMsg)
@@ -62,13 +59,12 @@ func UnpackBlockMessage(
 			return nil, nil, nil, err
 		}
 		txBlks = append(txBlks, txBlk)
-		var resultsMsg []byte
-		p.UnpackBytes(-1, true, &resultsMsg)
-		result, err := chain.UnmarshalResults(resultsMsg)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		results = append(results, result...)
+	}
+	var resultsMsg []byte
+	p.UnpackBytes(-1, true, &resultsMsg)
+	results, err := chain.UnmarshalResults(resultsMsg)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	if !p.Empty() {
 		return nil, nil, nil, chain.ErrInvalidObject

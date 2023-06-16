@@ -283,25 +283,23 @@ var watchChainCmd = &cobra.Command{
 				runningDuration := time.Since(start)
 				tpsDivisor := math.Min(window.WindowSize, runningDuration.Seconds())
 				utils.Outf(
-					"{{green}}height:{{/}}%d {{green}}tx blks:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s {{green}}TPS:{{/}}%.2f {{green}}split:{{/}}%dms\n", //nolint:lll
+					"{{green}}height:{{/}}%d {{green}}tx blks:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}TPS:{{/}}%.2f {{green}}split:{{/}}%dms\n", //nolint:lll
 					blk.Hght,
 					len(txBlks),
 					totalTxs,
-					blk.UnitsConsumed,
 					blk.StateRoot,
 					float64(window.Sum(tpsWindow))/tpsDivisor,
 					time.Since(lastBlockDetailed).Milliseconds(),
 				)
 			} else {
 				utils.Outf(
-					"{{green}}height:{{/}}%d {{green}}tx blks:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s\n", //nolint:lll
+					"{{green}}height:{{/}}%d {{green}}tx blks:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s\n", //nolint:lll
 					blk.Hght,
 					len(txBlks),
 					totalTxs,
-					blk.UnitsConsumed,
 					blk.StateRoot,
 				)
-				window.Update(&tpsWindow, window.WindowSliceSize-hconsts.Uint64Len, uint64(len(blk.Txs)))
+				window.Update(&tpsWindow, window.WindowSliceSize-hconsts.Uint64Len, uint64(len(results)))
 			}
 			lastBlock = now.Unix()
 			lastBlockDetailed = now

@@ -135,6 +135,7 @@ type Rules interface {
 // state written by actions or auth.
 type StateManager interface {
 	HeightKey() []byte
+	// TODO: make the fee pricing values one key -> just use for inner fees, data fees should be in block
 	ParentUnitWindowKey() []byte
 	ParentUnitsConsumedKey() []byte
 	ParentUnitPriceKey() []byte

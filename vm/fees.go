@@ -5,10 +5,12 @@ package vm
 
 import (
 	"context"
+	"encoding/binary"
+	"errors"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/hypersdk/chain"
 )
 
 const (
@@ -19,24 +21,23 @@ func (vm *VM) SuggestedFee(ctx context.Context) (uint64, error) {
 	ctx, span := vm.tracer.Start(ctx, "VM.SuggestedFee")
 	defer span.End()
 
-	rpreferred, err := vm.GetBlock(ctx, vm.preferred)
+	last := vm.lastProcessed
+	db, err := last.State()
 	if err != nil {
 		return 0, err
 	}
-	preferred := rpreferred.(*chain.StatelessRootBlock)
-	txBlk, err := preferred.LastTxBlock()
-	if err != nil {
+	ubytes, err := db.GetValue(ctx, vm.StateManager().ParentUnitsConsumedKey())
+	var u uint64
+	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return 0, err
+	} else if err == nil {
+		u = binary.BigEndian.Uint64(ubytes)
 	}
 
 	// We scale down unit price to prevent a spiral up in price
 	r := vm.c.Rules(time.Now().Unix())
-	var lastUnitPrice uint64
-	if txBlk != nil {
-		lastUnitPrice = txBlk.UnitPrice
-	}
 	return math.Max(
-		uint64(float64(lastUnitPrice)*feeScaler),
+		uint64(float64(u)*feeScaler),
 		r.GetMinUnitPrice(),
 	), nil
 }

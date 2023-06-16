@@ -161,30 +161,10 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 		size  = 0
 		start = time.Now()
 		now   = start.Unix()
-		r     = g.vm.Rules(now)
 	)
 
 	// Create temporary execution context
 	blk, err := g.vm.PreferredBlock(ctx)
-	if err != nil {
-		return err
-	}
-	txBlk, err := blk.LastTxBlock()
-	if err != nil {
-		return err
-	}
-	state, err := blk.State()
-	if err != nil {
-		return err
-	}
-	ectx, err := chain.GenerateTxExecutionContext(
-		ctx,
-		g.vm.ChainID(),
-		now,
-		txBlk,
-		g.vm.Tracer(),
-		g.vm.Rules(now),
-	)
 	if err != nil {
 		return err
 	}
@@ -210,17 +190,6 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 			// the highest-paying transaction to execute at a given time.
 			if _, has := g.receivedTxs.Get(next.ID()); has {
 				return true, true, false, nil
-			}
-
-			// PreExecute does not make any changes to state
-			//
-			// TODO: consider removing this check (requires at least 1 database call
-			// per gossiped tx)
-			if err := next.PreExecute(ctx, ectx, r, state, now); err != nil {
-				// Do not gossip invalid txs (may become invalid during normal block
-				// processing)
-				cont, restore, removeAcct := chain.HandlePreExecute(err)
-				return cont, restore, removeAcct, nil
 			}
 
 			// Gossip up to [consts.NetworkSizeLimit]

@@ -110,16 +110,18 @@ func (w *WebSocketServer) AcceptBlock(b *chain.StatelessRootBlock) error {
 
 	w.txL.Lock()
 	defer w.txL.Unlock()
+	results := b.Results()
+	seen := 0
 	for _, txBlk := range b.GetTxBlocks() {
-		results := txBlk.Results()
-		for i, tx := range txBlk.Txs {
+		for _, tx := range txBlk.Txs {
+			seen++
 			txID := tx.ID()
 			listeners, ok := w.txListeners[txID]
 			if !ok {
 				continue
 			}
 			// Publish to tx listener
-			bytes, err := PackAcceptedTxMessage(txID, results[i])
+			bytes, err := PackAcceptedTxMessage(txID, results[seen-1])
 			if err != nil {
 				return err
 			}

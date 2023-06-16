@@ -40,9 +40,13 @@ type RootBlock struct {
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
+	BlockWindow window.Window `json:"blockWindow"`
+
 	MinTxHght    uint64   `json:"minTxHeight"`
 	TxBlocks     []ids.ID `json:"txBlocks"`
 	ContainsWarp bool     `json:"containsWarp"`
+
+	StateRoot ids.ID // TODO: this will be the external balance root
 
 	// TEMP
 	Issued int64 `json:"issued"`
@@ -75,16 +79,19 @@ type StatelessRootBlock struct {
 
 func NewGenesisRootBlock(txBlkID ids.ID) *RootBlock {
 	return &RootBlock{
-		TxBlocks: []ids.ID{txBlkID},
+		BlockWindow: window.Window{},
+		TxBlocks:    []ids.ID{txBlkID},
 	}
 }
 
-func NewRootBlock(vm VM, parent snowman.Block, tmstp int64) *StatelessRootBlock {
+func NewRootBlock(ectx *RootExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessRootBlock {
 	return &StatelessRootBlock{
 		RootBlock: &RootBlock{
 			Prnt:   parent.ID(),
 			Tmstmp: tmstp,
 			Hght:   parent.Height() + 1,
+
+			BlockWindow: ectx.NextBlockWindow,
 		},
 		vm: vm,
 		st: choices.Processing,
@@ -335,6 +342,15 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 	if b.Timestamp().Unix() < parent.Timestamp().Unix() {
 		return ErrTimestampTooEarly
 	}
+	ectx, err := GenerateRootExecutionContext(ctx, b.vm.ChainID(), b.Tmstmp, parent, b.vm.Tracer(), r)
+	if err != nil {
+		return err
+	}
+	switch {
+	case b.BlockWindow != ectx.NextBlockWindow:
+		// TODO: make block un-reverifiable
+		return ErrInvalidBlockWindow
+	}
 
 	// Ensure signatures are verified
 	if b.vm.GetVerifySignatures() {
@@ -497,7 +513,7 @@ func (b *StatelessRootBlock) ChildState(
 }
 
 func (b *RootBlock) Marshal() ([]byte, error) {
-	size := consts.IDLen + consts.Uint64Len + consts.Uint64Len +
+	size := consts.IDLen + consts.Uint64Len + consts.Uint64Len + window.WindowSliceSize +
 		consts.Uint64Len + consts.IntLen + len(b.TxBlocks)*consts.IDLen + consts.ByteLen +
 		consts.Uint64Len
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
@@ -505,6 +521,8 @@ func (b *RootBlock) Marshal() ([]byte, error) {
 	p.PackID(b.Prnt)
 	p.PackInt64(b.Tmstmp)
 	p.PackUint64(b.Hght)
+
+	p.PackWindow(b.BlockWindow)
 
 	p.PackUint64(b.MinTxHght)
 	p.PackInt(len(b.TxBlocks))
@@ -527,6 +545,7 @@ func UnmarshalRootBlock(raw []byte, parser Parser) (*RootBlock, error) {
 	b.Tmstmp = p.UnpackInt64(false)
 	b.Hght = p.UnpackUint64(false)
 	b.MinTxHght = p.UnpackUint64(false)
+	p.UnpackWindow(&b.BlockWindow)
 	if err := p.Err(); err != nil {
 		// Check that header was parsed properly before unwrapping transactions
 		return nil, err

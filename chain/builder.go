@@ -66,7 +66,13 @@ func BuildBlock(
 		return nil, err
 	}
 
-	b := NewRootBlock(vm, parent, nextTime)
+	ectx, err := GenerateRootExecutionContext(ctx, vm.ChainID(), nextTime, parent, vm.Tracer(), r)
+	if err != nil {
+		log.Warn("block building failed: couldn't get execution context", zap.Error(err))
+		return nil, err
+	}
+	b := NewRootBlock(ectx, vm, parent, nextTime)
+
 	var (
 		oldestAllowed = nextTime - r.GetValidityWindow()
 		mempool       = vm.Mempool()

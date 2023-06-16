@@ -193,10 +193,13 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessRootBlock
 	batch := c.metaDB.NewBatch()
 	defer batch.Reset()
 
+	results := blk.Results()
+	seen := 0
 	for _, txBlk := range blk.GetTxBlocks() {
-		results := txBlk.Results()
-		for i, tx := range txBlk.Txs {
-			result := results[i]
+		for _, tx := range txBlk.Txs {
+			result := results[seen]
+			seen++
+
 			if c.config.GetStoreTransactions() {
 				err := storage.StoreTransaction(
 					ctx,

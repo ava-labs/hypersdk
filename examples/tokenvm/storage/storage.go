@@ -510,6 +510,16 @@ func HeightKey() (k []byte) {
 	return heightKey
 }
 
+func ParentUnitWindowKey() []byte {
+	return []byte{0x7}
+}
+func ParentUnitsConsumedKey() []byte {
+	return []byte{0x8}
+}
+func ParentUnitPriceKey() []byte {
+	return []byte{0x9}
+}
+
 func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen*2)
 	k[0] = incomingWarpPrefix
