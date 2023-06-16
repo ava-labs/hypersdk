@@ -106,13 +106,12 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessRootBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Verified")
 	defer span.End()
 
-	vm.metrics.unitsVerified.Add(float64(b.UnitsConsumed))
 	blkTxs := 0
 	for _, txBlk := range b.GetTxBlocks() {
 		blkTxs += len(txBlk.Txs)
 	}
 	vm.metrics.txsVerified.Add(float64(blkTxs))
-	vm.metrics.txBlocksVerified.Add(float64(len(b.Txs)))
+	vm.metrics.txBlocksVerified.Add(float64(len(b.TxBlocks)))
 	vm.verifiedL.Lock()
 	vm.verifiedBlocks[b.ID()] = b
 	vm.verifiedL.Unlock()
@@ -125,7 +124,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessRootBlock) {
 		"verified block",
 		zap.Stringer("blkID", b.ID()),
 		zap.Uint64("height", b.Hght),
-		zap.Int("txs", len(b.Txs)),
+		zap.Int("txs", blkTxs),
 		zap.Bool("state ready", vm.StateReady()),
 	)
 }
@@ -162,6 +161,7 @@ func (vm *VM) processAcceptedBlocks() {
 			vm.Logger().Fatal("unable to execute block", zap.Error(err))
 			return
 		}
+		vm.metrics.unitsAccepted.Add(float64(b.UnitsConsumed()))
 		vm.lastProcessed = b
 
 		// Update TxBlock store
@@ -217,11 +217,15 @@ func (vm *VM) processAcceptedBlocks() {
 
 		// Sign and store any warp messages (regardless if validator now, may become one)
 		if b.ContainsWarp {
+			results := b.Results()
+			count := 0
 			for _, txBlock := range b.GetTxBlocks() {
-				results := txBlock.Results()
-				for i, tx := range txBlock.Txs {
-					result := results[i]
+				for _, tx := range txBlock.Txs {
+					result := results[count]
+					count++
+
 					if result.WarpMessage == nil {
+						// failed execution
 						continue
 					}
 					start := time.Now()
@@ -276,13 +280,12 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessRootBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
-	vm.metrics.unitsAccepted.Add(float64(b.UnitsConsumed))
 	blkTxs := 0
 	for _, txBlk := range b.GetTxBlocks() {
 		blkTxs += len(txBlk.Txs)
 	}
 	vm.metrics.txsAccepted.Add(float64(blkTxs))
-	vm.metrics.txBlocksAccepted.Add(float64(len(b.Txs)))
+	vm.metrics.txBlocksAccepted.Add(float64(len(b.TxBlocks)))
 	vm.blocks.Put(b.ID(), b)
 	vm.verifiedL.Lock()
 	delete(vm.verifiedBlocks, b.ID())
@@ -332,9 +335,8 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessRootBlock) {
 		"accepted block",
 		zap.Stringer("blkID", b.ID()),
 		zap.Uint64("height", b.Hght),
-		zap.Int("txs", len(b.Txs)),
+		zap.Int("txs", blkTxs),
 		zap.Int("size", len(b.Bytes())),
-		zap.Uint64("units", b.UnitsConsumed),
 		zap.Int("dropped mempool txs", len(removed)),
 		zap.Bool("state ready", vm.StateReady()),
 	)

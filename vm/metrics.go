@@ -10,7 +10,6 @@ import (
 )
 
 type Metrics struct {
-	unitsVerified                 prometheus.Counter
 	unitsAccepted                 prometheus.Counter
 	txsSubmitted                  prometheus.Counter // includes gossip
 	txsVerified                   prometheus.Counter
@@ -137,11 +136,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	}
 
 	m := &Metrics{
-		unitsVerified: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
-			Name:      "units_verified",
-			Help:      "amount of units verified",
-		}),
 		unitsAccepted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
 			Name:      "units_accepted",
@@ -250,7 +244,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	}
 	errs := wrappers.Errs{}
 	errs.Add(
-		r.Register(m.unitsVerified),
 		r.Register(m.unitsAccepted),
 		r.Register(m.txsSubmitted),
 		r.Register(m.txsVerified),

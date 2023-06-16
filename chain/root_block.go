@@ -62,9 +62,10 @@ type StatelessRootBlock struct {
 	bctx *block.Context
 
 	// These will only be populated if block was verified and still in cache
-	txBlocks []*StatelessTxBlock
-	state    merkledb.TrieView
-	results  []*Result
+	txBlocks      []*StatelessTxBlock
+	state         merkledb.TrieView
+	results       []*Result
+	unitsConsumed uint64
 
 	firstVerify    time.Time
 	recordedVerify bool
@@ -741,6 +742,7 @@ func (b *StatelessRootBlock) Execute(ctx context.Context, parent *StatelessRootB
 
 	// We wait for signatures in root block.
 	b.results = results
+	b.unitsConsumed = unitsConsumed
 
 	// Commit state if we don't return before here (would happen if we are still
 	// syncing)
@@ -792,4 +794,12 @@ func (b *StatelessRootBlock) verifyWarpMessage(ctx context.Context, vdrState val
 		return false
 	}
 	return true
+}
+
+func (b *StatelessRootBlock) UnitsConsumed() uint64 {
+	return b.unitsConsumed
+}
+
+func (b *StatelessRootBlock) Results() []*Result {
+	return b.results
 }
