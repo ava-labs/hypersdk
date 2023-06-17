@@ -210,11 +210,11 @@ var _ = ginkgo.BeforeSuite(func() {
 				"consensus-app-concurrency":"512"
 			}`),
 		runner_sdk.WithCustomNodeConfigs(`{
-				"node1":"{\"http-port\":9650}",
-				"node2":"{\"http-port\":9652}",
-				"node3":"{\"http-port\":9654}",
-				"node4":"{\"http-port\":9656}",
-				"node5":"{\"http-port\":9658}"
+				"node1":"{"http-port":9650}",
+				"node2":"{"http-port":9652}",
+				"node3":"{"http-port":9654}",
+				"node4":"{"http-port":9656}",
+				"node5":"{"http-port":9658}"
 			}`),
 	)
 	cancel()
