@@ -65,6 +65,14 @@ var (
 	blockchainIDB string
 
 	trackSubnetsOpt runner_sdk.OpOption
+
+	customNodeConfigs = map[string]string{
+		"node1": `{"http-port":9650}`,
+		"node2": `{"http-port":9652}`,
+		"node3": `{"http-port":9654}`,
+		"node4": `{"http-port":9656}`,
+		"node5": `{"http-port":9658}`,
+	}
 )
 
 func init() {
@@ -184,13 +192,6 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	// Start cluster
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	customNodeConfigs = map[string]string{
-		"node1": `{"http-port":9650}`,
-		"node2": `{"http-port":9652}`,
-		"node3": `{"http-port":9654}`,
-		"node4": `{"http-port":9656}`,
-		"node5": `{"http-port":9658}`,
-	}
 	//TODO start with custom node configs
 	resp, err := anrCli.Start(
 		ctx,
@@ -199,6 +200,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		// We don't disable PUT gossip here because the E2E test adds multiple
 		// non-validating nodes (which will fall behind).
 		runner_sdk.WithGlobalNodeConfig(`{
+				"http-host":"0.0.0.0",
 				"log-display-level":"info",
 				"proposervm-use-current-height":true,
 				"throttler-inbound-validator-alloc-size":"10737418240",
