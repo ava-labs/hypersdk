@@ -115,6 +115,10 @@ func (t *Transaction) Sign(
 	return UnmarshalTx(p, actionRegistry, authRegistry)
 }
 
+func (t *Transaction) AuthAsyncVerified() (bool, error) {
+	return t.authAsyncVerified, t.authAsyncVerifiedErr
+}
+
 func (t *Transaction) AuthAsyncVerify() func() error {
 	return func() error {
 		if t.authAsyncVerified {

@@ -613,7 +613,14 @@ func (b *StatelessRootBlock) Execute(ctx context.Context, parent *StatelessRootB
 	for _, txBlock := range b.txBlocks {
 		for _, tx := range txBlock.Txs {
 			if verifySignatues {
-				sigJob.Go(tx.AuthAsyncVerify())
+				done, err := tx.AuthAsyncVerified()
+				if err != nil {
+					// allow partial failures
+					return err
+				}
+				if !done {
+					sigJob.Go(tx.AuthAsyncVerify())
+				}
 			}
 			// Check if we need the block context to verify the block (which contains
 			// an Avalanche Warp Message)
