@@ -20,6 +20,7 @@ import (
 	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
+	"github.com/ava-labs/hypersdk/workers"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -352,18 +353,6 @@ func (b *StatelessRootBlock) innerVerify(ctx context.Context) error {
 		return ErrInvalidBlockWindow
 	}
 
-	// Ensure signatures are verified
-	if b.vm.GetVerifySignatures() {
-		_, sspan := b.vm.Tracer().Start(ctx, "StatelessRootBlock.Verify.WaitSignatures")
-		defer sspan.End()
-		start := time.Now()
-		for _, job := range txBlocks {
-			if err := job.sigJob.Wait(); err != nil {
-				return err
-			}
-		}
-		b.vm.RecordWaitSignatures(time.Since(start))
-	}
 	b.txBlocks = txBlocks // only set once we know verification has passed
 	return nil
 }
@@ -601,12 +590,31 @@ type warpJob struct {
 }
 
 func (b *StatelessRootBlock) Execute(ctx context.Context, parent *StatelessRootBlock) error {
-	r := b.vm.Rules(b.Tmstmp)
-	log := b.vm.Logger()
-	warpMessages := map[ids.ID]*warpJob{}
-	txs := 0
+	var (
+		r               = b.vm.Rules(b.Tmstmp)
+		log             = b.vm.Logger()
+		warpMessages    = map[ids.ID]*warpJob{}
+		txs             = 0
+		verifySignatues = b.vm.GetVerifySignatures()
+	)
+	for _, txBlock := range b.txBlocks {
+		txs += len(txBlock.Txs)
+	}
+	var sigJob *workers.Job
+	var sspan oteltrace.Span
+	if verifySignatues {
+		job, err := b.vm.Workers().NewJob(txs)
+		if err != nil {
+			return err
+		}
+		sigJob = job
+		_, sspan = b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
+	}
 	for _, txBlock := range b.txBlocks {
 		for _, tx := range txBlock.Txs {
+			if verifySignatues {
+				sigJob.Go(tx.AuthAsyncVerify())
+			}
 			// Check if we need the block context to verify the block (which contains
 			// an Avalanche Warp Message)
 			//
@@ -631,8 +639,10 @@ func (b *StatelessRootBlock) Execute(ctx context.Context, parent *StatelessRootB
 					warpNum:      len(warpMessages),
 				}
 			}
-			txs++
 		}
+	}
+	if verifySignatues {
+		sigJob.Done(func() { sspan.End() })
 	}
 	if len(warpMessages) > 0 && !b.ContainsWarp {
 		return ErrWarpResultMismatch
@@ -758,6 +768,20 @@ func (b *StatelessRootBlock) Execute(ctx context.Context, parent *StatelessRootB
 	if _, err := base.GetMerkleRoot(ctx); err != nil {
 		return err
 	}
+
+	// Ensure signatures are verified
+	//
+	// TODO: wait to execute each tx until this happens (because blocks can have partial failure)
+	if verifySignatues {
+		_, sspan := b.vm.Tracer().Start(ctx, "StatelessRootBlock.Verify.WaitSignatures")
+		defer sspan.End()
+		start := time.Now()
+		if err := sigJob.Wait(); err != nil {
+			return err
+		}
+		b.vm.RecordWaitSignatures(time.Since(start))
+	}
+
 	// TODO: gossip this root (store per block/compare to others at this height)
 	b.vm.RecordRootCalculated(time.Since(start))
 	b.state = base

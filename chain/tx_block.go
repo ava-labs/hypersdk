@@ -17,7 +17,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/ava-labs/hypersdk/workers"
 )
 
 type TxBlock struct {
@@ -43,8 +42,6 @@ type StatelessTxBlock struct {
 	txsSet set.Set[ids.ID]
 
 	vm VM
-
-	sigJob *workers.Job
 }
 
 func NewGenesisTxBlock() *TxBlock {
@@ -67,31 +64,13 @@ func (b *StatelessTxBlock) populateTxs(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.populateTxs")
 	defer span.End()
 
-	// Setup signature verification job
-	var sspan oteltrace.Span
-	verifySignatures := b.vm.GetVerifySignatures()
-	if verifySignatures {
-		job, err := b.vm.Workers().NewJob(len(b.Txs))
-		if err != nil {
-			return err
-		}
-		b.sigJob = job
-		_, sspan = b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
-	}
-
 	// Process transactions
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
-		if verifySignatures {
-			b.sigJob.Go(tx.AuthAsyncVerify())
-		}
 		if b.txsSet.Contains(tx.ID()) {
 			return ErrDuplicateTx
 		}
 		b.txsSet.Add(tx.ID())
-	}
-	if verifySignatures {
-		b.sigJob.Done(func() { sspan.End() })
 	}
 	return nil
 }
