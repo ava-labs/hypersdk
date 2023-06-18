@@ -209,7 +209,6 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	}
 
 	// Build transaction
-	//TODO I will have to modify this to batch transactions eventually
 	actionRegistry, authRegistry := parser.Registry()
 	tx := chain.NewTx(base, wm, action)
 	tx, err := tx.Sign(authFactory, actionRegistry, authRegistry)
