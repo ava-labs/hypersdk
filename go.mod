@@ -4,6 +4,8 @@ go 1.20
 
 require (
 	github.com/ava-labs/avalanchego v1.10.1
+	github.com/celestiaorg/go-cnc v0.4.1
+	github.com/celestiaorg/go-cnc v0.4.1
 	github.com/cockroachdb/pebble v0.0.0-20230224221607-fccb83b60d5c
 	github.com/golang/mock v1.6.0
 	github.com/gorilla/rpc v1.2.0
@@ -11,9 +13,7 @@ require (
 	github.com/neilotoole/errgroup v0.1.6
 	github.com/onsi/ginkgo/v2 v2.7.0
 	github.com/prometheus/client_golang v1.14.0
-	github.com/celestiaorg/go-cnc v0.4.1
 	github.com/stretchr/testify v1.8.2
-	github.com/celestiaorg/go-cnc v0.4.1
 	go.opentelemetry.io/otel v1.11.2
 	go.opentelemetry.io/otel/exporters/zipkin v1.11.2
 	go.opentelemetry.io/otel/sdk v1.11.2
@@ -36,6 +36,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/go-resty/resty/v2 v2.7.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
@@ -57,7 +58,6 @@ require (
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/supranational/blst v0.3.11-0.20220920110316-f72618070295 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a // indirect
-	github.com/go-resty/resty/v2 v2.7.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.11.2 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.2 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.11.2 // indirect
@@ -78,3 +78,5 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/ava-labs/hypersdk => /
