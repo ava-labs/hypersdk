@@ -775,6 +775,7 @@ func (b *StatelessRootBlock) Execute(ctx context.Context, parent *StatelessRootB
 	if _, err := base.GetMerkleRoot(ctx); err != nil {
 		return err
 	}
+	b.vm.RecordRootCalculated(time.Since(start))
 
 	// Ensure signatures are verified
 	//
@@ -790,7 +791,6 @@ func (b *StatelessRootBlock) Execute(ctx context.Context, parent *StatelessRootB
 	}
 
 	// TODO: gossip this root (store per block/compare to others at this height)
-	b.vm.RecordRootCalculated(time.Since(start))
 	b.state = base
 
 	// We wait for signatures in root block.
