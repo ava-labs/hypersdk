@@ -58,8 +58,13 @@ jobs:
       - name: Archive Builds
         uses: actions/upload-artifact@v3
         with:
-          name: tokenvm
+          name: tokenvm_amd64
           path: ./examples/tokenvm/dist/tokenvm_linux_amd64_v1/tokenvm
+      - name: Archive Builds
+        uses: actions/upload-artifact@v3
+        with:
+          name: tokenvm_arm64
+          path: ./examples/tokenvm/dist/tokenvm_linux_arm64/tokenvm
  main-release:
     # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
     runs-on: ubuntu-20.04-32
