@@ -26,6 +26,7 @@ type Metrics struct {
 	earlyBuildStop                prometheus.Counter
 	txBlockBytesSent              prometheus.Counter
 	txBlockBytesReceived          prometheus.Counter
+	txFailedExecution             prometheus.Counter
 	mempoolSize                   prometheus.Gauge
 	mempoolSizeAfterBuild         prometheus.Gauge
 	acceptorDrift                 prometheus.Gauge
@@ -201,6 +202,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "deleted_tx_blocks",
 			Help:      "number of tx blocks deleted",
 		}),
+		txFailedExecution: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "tx_failed_execution",
+			Help:      "number of txs that fail execution after acceptance",
+		}),
 		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "mempool_size",
@@ -257,6 +263,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txBlocksMissing),
 		r.Register(m.txBlocksDropped),
 		r.Register(m.deletedTxBlocks),
+		r.Register(m.txFailedExecution),
 		r.Register(m.mempoolSize),
 		r.Register(m.mempoolSizeAfterBuild),
 		r.Register(m.acceptorDrift),

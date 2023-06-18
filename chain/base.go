@@ -23,6 +23,7 @@ type Base struct {
 
 func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 	switch {
+	// TODO: need to restrict for execution
 	case b.Timestamp < timestamp: // tx: 100 block: 110
 		return ErrTimestampTooLate
 	case b.Timestamp > timestamp+r.GetValidityWindow(): // tx: 100 block 10

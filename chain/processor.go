@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/tstate"
 )
@@ -109,6 +110,7 @@ func (p *Processor) Execute(
 		sm            = p.blk.vm.StateManager()
 		pending       = p.ts.PendingChanges()
 		opIndex       = p.ts.OpIndex()
+		logger        = p.blk.vm.Logger()
 	)
 	for txData := range p.readyTxs {
 		tx := txData.tx
@@ -119,7 +121,10 @@ func (p *Processor) Execute(
 
 		// Execute tx
 		if err := tx.PreExecute(ctx, ectx, r, p.ts, t); err != nil {
-			return 0, nil, 0, 0, err
+			logger.Warn("tx failed execution", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.blk.vm.RecordTxFailedExecution()
+			results = append(results, &Result{})
+			continue
 		}
 		// Wait to execute transaction until we have the warp result processed.
 		//

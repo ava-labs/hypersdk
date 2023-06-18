@@ -89,6 +89,7 @@ type VM interface {
 	RecordTxBlocksMissing(int)
 	RecordEarlyBuildStop()
 	RecordMempoolSizeAfterBuild(int)
+	RecordTxFailedExecution()
 }
 
 type Mempool interface {

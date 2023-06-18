@@ -468,6 +468,10 @@ func (vm *VM) RecordEarlyBuildStop() {
 	vm.metrics.earlyBuildStop.Inc()
 }
 
+func (vm *VM) RecordTxFailedExecution() {
+	vm.metrics.txFailedExecution.Inc()
+}
+
 func (vm *VM) IssueTxBlock(ctx context.Context, blk *chain.StatelessTxBlock) {
 	vm.txBlockManager.IssueTxBlock(ctx, blk)
 }
