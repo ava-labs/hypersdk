@@ -210,6 +210,7 @@ func (b *StatelessTxBlock) Accept(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessTxBlock.Accept")
 	defer span.End()
 
+	// we cannot clear any memory here because the block will be processed AFTER acceptance
 	return nil
 }
 
