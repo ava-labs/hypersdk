@@ -207,7 +207,7 @@ func BuildBlock(
 		txBlocks = append(txBlocks, txBlock)
 		vm.IssueTxBlock(ctx, txBlock)
 	}
-	vm.RecordTxsAttempted(txsAttempted)
+	vm.RecordTxsAttempted(txsAttempted - txsAdded)
 
 	// Perform basic validity checks to make sure the block is well-formatted
 	if len(b.TxBlocks) == 0 {
@@ -224,7 +224,7 @@ func BuildBlock(
 		"built block",
 		zap.Uint64("hght", b.Hght),
 		zap.Int("attempted", txsAttempted),
-		zap.Int("added", len(b.TxBlocks)),
+		zap.Int("added", txsAdded),
 		zap.Int("mempool size", mempoolSize),
 		zap.Bool("context", blockContext != nil),
 	)
