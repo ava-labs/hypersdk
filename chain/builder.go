@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/units"
+	"github.com/ava-labs/hypersdk/consts"
 	"go.uber.org/zap"
 )
 
@@ -146,7 +147,7 @@ func BuildBlock(
 			// Determine if we need to create a new TxBlock
 			//
 			// TODO: handle case where tx is larger than max size of TxBlock
-			if txBlockSize+nextSize > 256*units.KiB {
+			if txBlockSize+nextSize > consts.NetworkSizeLimit-32*units.KiB {
 				txBlock.Issued = time.Now().UnixMilli()
 				if err := txBlock.initializeBuilt(ctx); err != nil {
 					restorable = append(restorable, txs[i:]...)
