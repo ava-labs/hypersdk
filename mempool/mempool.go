@@ -111,7 +111,7 @@ func (th *Mempool[T]) Len(ctx context.Context) int {
 // txs
 func (th *Mempool[T]) Build(
 	ctx context.Context,
-	minBuildTime time.Duration,
+	_ time.Duration,
 	maxBuildTime time.Duration,
 	f func(context.Context, T) (cont bool, restore bool, err error),
 ) error {
@@ -129,34 +129,29 @@ func (th *Mempool[T]) Build(
 		err  error
 		stop bool
 	)
+
 	for !stop || time.Since(start) > maxBuildTime {
 		select {
-		case max := <-th.c:
+		case next := <-th.c:
 			vmStart := time.Now()
-			cont, restore, fErr := f(ctx, max)
+			cont, restore, fErr := f(ctx, next)
 			vmTime += time.Since(vmStart)
 			if restore {
 				// Waiting to restore unused transactions ensures that an account will be
 				// excluded from future price mempool iterations
-				restorableItems = append(restorableItems, max)
+				restorableItems = append(restorableItems, next)
 			} else {
 				th.size.Add(-1)
 			}
 			if !cont || fErr != nil {
 				err = fErr
 				stop = true
-				break
 			}
 		default:
-			if time.Since(start) < minBuildTime {
-				time.Sleep(20 * time.Millisecond)
-				continue
-			}
 			stop = true
-			break
 		}
 	}
-	//
+
 	// Restore unused items
 	for _, item := range restorableItems {
 		th.c <- item
