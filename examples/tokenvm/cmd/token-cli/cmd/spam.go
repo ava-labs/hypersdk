@@ -209,6 +209,14 @@ var runSpamCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		numClients, err := promptInt("number of clients per node")
+		if err != nil {
+			return err
+		}
+		if numClients == 0 {
+			numClients = 1
+			hutils.Outf("{{orange}}must have at least 1 client{{/}}\n")
+		}
 		witholding := uint64(feePerTx * numAccounts)
 		distAmount := (balance - witholding) / uint64(numAccounts)
 		hutils.Outf(
@@ -270,14 +278,6 @@ var runSpamCmd = &cobra.Command{
 		hutils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", numAccounts)
 
 		// Kickoff txs
-		numClients, err := promptInt("number of clients per node")
-		if err != nil {
-			return err
-		}
-		if numClients == 0 {
-			numClients = 1
-			hutils.Outf("{{orange}}must have at least 1 client{{/}}\n")
-		}
 		clients := []*txIssuer{}
 		for i := 0; i < len(uris); i++ {
 			for j := 0; j < numClients; j++ {
