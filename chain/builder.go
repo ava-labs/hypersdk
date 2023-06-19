@@ -95,8 +95,7 @@ func BuildBlock(
 		txs := mempool.LeaseItems(ctx, txBatchSize)
 		if len(txs) == 0 {
 			mempool.ClearLease(ctx, nil, nil)
-			time.Sleep(25 * time.Millisecond)
-			continue
+			break
 		}
 
 		restorable := make([]*Transaction, 0, txBatchSize)

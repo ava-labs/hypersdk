@@ -6,7 +6,6 @@ package vm
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -57,9 +56,7 @@ type VM struct {
 	config  Config
 	genesis Genesis
 
-	builder    builder.Builder
-	builtBlock *chain.StatelessRootBlock
-	building   bool
+	builder builder.Builder
 
 	gossiper       gossiper.Gossiper
 	rawStateDB     database.Database
@@ -643,58 +640,18 @@ func (vm *VM) buildBlock(
 		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrNotReady))
 		return nil, ErrNotReady
 	}
-
-	if vm.building {
-		return nil, errors.New("already building block")
+	vm.snowCtx.Log.Info("starting build", zap.Stringer("parent", vm.preferred))
+	start := time.Now()
+	blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
+	if err != nil {
+		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
+		return nil, err
 	}
-	var builtBlock *chain.StatelessRootBlock
-	if vm.builtBlock != nil {
-		if vm.builtBlock.Prnt == vm.preferred {
-			builtBlock = vm.builtBlock
-			vm.snowCtx.Log.Info("found previously built block", zap.Stringer("blkID", builtBlock.ID()))
-		} else {
-			// TODO: cancel ongoing building in verify
-			vm.snowCtx.Log.Warn("discarding previously built block", zap.Stringer("blkID", vm.builtBlock.ID()))
-			// Re-add transactions to mempool when block is discarded
-			for _, txBlock := range vm.builtBlock.GetTxBlocks() {
-				_ = vm.Submit(ctx, false, txBlock.Txs)
-			}
-		}
-		vm.builtBlock = nil
-	}
-	if builtBlock == nil {
-		vm.building = true
-		preferred := vm.preferred
-		vm.snowCtx.Log.Info("starting async build", zap.Stringer("parent", preferred))
-		start := time.Now()
-		go func() {
-			defer func() {
-				vm.building = false
-			}()
-			blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
-			if err != nil {
-				vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
-				return
-			}
-			if blk.Prnt != vm.preferred {
-				vm.snowCtx.Log.Warn("abandoning built blk", zap.Error(err))
-				for _, txBlock := range blk.GetTxBlocks() {
-					_ = vm.Submit(ctx, false, txBlock.Txs)
-				}
-				return
-			}
-			vm.builtBlock = blk
-			dur := time.Since(start)
-			vm.snowCtx.Log.Info("built block async", zap.Duration("t", dur))
-			vm.metrics.buildBlock.Observe(float64(dur))
-			vm.builder.TriggerBuild()
-		}()
-		// Now that we do a 250ms wait, we don't need this additional sleep
-		// vm.builder.HandleGenerateBlock()
-		return nil, errors.New("building block")
-	}
-	vm.parsedBlocks.Put(builtBlock.ID(), builtBlock)
-	return builtBlock, nil
+	dur := time.Since(start)
+	vm.snowCtx.Log.Info("built block", zap.Duration("t", dur))
+	vm.metrics.buildBlock.Observe(float64(dur))
+	vm.parsedBlocks.Put(blk.ID(), blk)
+	return blk, nil
 }
 
 // implements "block.ChainVM"

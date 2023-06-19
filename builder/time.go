@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const buildCheck = 50 * time.Millisecond
+const buildCheck = 20 * time.Millisecond
 
 var _ Builder = (*Time)(nil)
 
@@ -60,6 +60,10 @@ func (b *Time) shouldBuild(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	if time.Now().UnixMilli()-preferredBlk.Issued < 200 {
+		// require 200ms gap between issuance
+		return false, nil
+	}
 	now := time.Now().Unix()
 	since := int(now - preferredBlk.Tmstmp)
 	newRollupWindow, err := window.Roll(preferredBlk.BlockWindow, since)
@@ -84,11 +88,6 @@ func (b *Time) Run() {
 		select {
 		case <-t.C:
 			ctx := context.Background()
-
-			if b.vm.IsBuilding() {
-				// b.vm.Logger().Debug("skipping build currently building")
-				continue
-			}
 			// Prevent runaway block production during window
 			// if time.Since(b.lastBuild) < b.cfg.BuildInterval {
 			// 	b.vm.Logger().Debug("skipping build because build block recently")
@@ -105,6 +104,7 @@ func (b *Time) Run() {
 					zap.Error(err),
 				)
 			}
+			// TODO: only send if proposer (otherwise can leave latent triggers)
 			if !build {
 				continue
 			}

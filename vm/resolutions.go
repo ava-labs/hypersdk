@@ -510,7 +510,3 @@ func (vm *VM) GetMaxBuildTime() time.Duration {
 func (vm *VM) RecordMempoolSizeAfterBuild(size int) {
 	vm.metrics.mempoolSizeAfterBuild.Set(float64(size))
 }
-
-func (vm *VM) IsBuilding() bool {
-	return vm.building
-}
