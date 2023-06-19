@@ -210,7 +210,6 @@ func (b *StatelessTxBlock) Accept(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessTxBlock.Accept")
 	defer span.End()
 
-	b.txsSet = nil // only used for replay protection when processing
 	return nil
 }
 
