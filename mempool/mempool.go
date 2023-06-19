@@ -130,7 +130,7 @@ func (th *Mempool[T]) Build(
 		stop bool
 	)
 
-	for !stop || time.Since(start) > maxBuildTime {
+	for !stop && time.Since(start) < maxBuildTime {
 		select {
 		case next := <-th.c:
 			vmStart := time.Now()
@@ -153,6 +153,8 @@ func (th *Mempool[T]) Build(
 	}
 
 	// Restore unused items
+	//
+	// TODO: this could block
 	for _, item := range restorableItems {
 		th.c <- item
 	}

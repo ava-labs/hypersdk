@@ -162,7 +162,7 @@ avalanchego_config:
   consensus-on-accept-gossip-non-validator-size: 0
   consensus-on-accept-gossip-peer-size: 10
   consensus-accepted-frontier-gossip-peer-size: 0
-  consensus-app-concurrency: 512
+  consensus-app-concurrency: 16
   network-compression-type: none
 ```
 
