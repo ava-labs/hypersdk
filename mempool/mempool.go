@@ -111,6 +111,8 @@ func (th *Mempool[T]) Len(ctx context.Context) int {
 // txs
 func (th *Mempool[T]) Build(
 	ctx context.Context,
+	minBuildTime time.Duration,
+	maxBuildTime time.Duration,
 	f func(context.Context, T) (cont bool, restore bool, err error),
 ) error {
 	ctx, span := th.tracer.Start(ctx, "Mempool.Build")
@@ -127,7 +129,7 @@ func (th *Mempool[T]) Build(
 		err  error
 		stop bool
 	)
-	for !stop {
+	for !stop || time.Since(start) > maxBuildTime {
 		select {
 		case max := <-th.c:
 			vmStart := time.Now()
@@ -146,6 +148,10 @@ func (th *Mempool[T]) Build(
 				break
 			}
 		default:
+			if time.Since(start) < minBuildTime {
+				time.Sleep(20 * time.Millisecond)
+				continue
+			}
 			stop = true
 			break
 		}

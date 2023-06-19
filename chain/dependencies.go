@@ -98,6 +98,8 @@ type Mempool interface {
 	Add(context.Context, []*Transaction)
 	Build(
 		context.Context,
+		time.Duration,
+		time.Duration,
 		func(context.Context, *Transaction) (bool /* continue */, bool /* restore */, error),
 	) error
 }

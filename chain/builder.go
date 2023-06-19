@@ -92,6 +92,8 @@ func BuildBlock(
 
 	mempoolErr := mempool.Build(
 		ctx,
+		vm.GetMinBuildTime(),
+		vm.GetMaxBuildTime(),
 		func(fctx context.Context, next *Transaction) (cont bool, restore bool, err error) {
 			txsAttempted++
 			if next.Base.Timestamp < oldestAllowed {
@@ -159,7 +161,7 @@ func BuildBlock(
 			}
 			txBlockSize += nextSize
 			txsAdded++
-			return txBlock != nil && time.Since(start) < vm.GetMaxBuildTime(), false, nil
+			return txBlock != nil, false, nil
 		},
 	)
 	if mempoolErr != nil {
