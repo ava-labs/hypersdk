@@ -312,6 +312,7 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 --chain-config-local-path /tmp/avalanche-ops/tokenvm-chain-config.json \
 --chain-config-remote-dir /data/avalanche-configs/chains \
 --avalanchego-config-remote-path /data/avalanche-configs/config.json \
+--staking-amount-in-avax 2000 \
 --ssm-doc <TODO> \
 --target-nodes <TODO>
 ```
