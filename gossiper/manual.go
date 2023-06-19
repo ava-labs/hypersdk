@@ -43,20 +43,20 @@ func (g *Manual) TriggerGossip(ctx context.Context) error {
 	now := time.Now().Unix()
 	mempoolErr := g.vm.Mempool().Build(
 		ctx,
-		func(ictx context.Context, next *chain.Transaction) (cont bool, restore bool, removeAcct bool, err error) {
+		func(ictx context.Context, next *chain.Transaction) (cont bool, restore bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
-				return true, false, false, nil
+				return true, false, nil
 			}
 
 			nextSize := next.Size()
 			if size+nextSize > consts.NetworkSizeLimit-4_096 {
 				// Attempt to mirror the function of building a block without execution
-				return false, true, false, nil
+				return false, true, nil
 			}
 			txs = append(txs, next)
 			size += nextSize
-			return true, true, false, nil
+			return true, true, nil
 		},
 	)
 	if mempoolErr != nil {

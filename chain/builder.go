@@ -90,20 +90,13 @@ func BuildBlock(
 	)
 	b.MinTxHght = txBlock.Hght
 
-	mempool.StartBuild(ctx)
-	for txBlock != nil && (time.Since(start) < vm.GetMinBuildTime() || mempool.Len(ctx) > 0) && time.Since(start) < vm.GetMaxBuildTime() {
-		txs := mempool.LeaseItems(ctx, txBatchSize)
-		if len(txs) == 0 {
-			mempool.ClearLease(ctx, nil, nil)
-			time.Sleep(25 * time.Millisecond)
-			continue
-		}
-
-		restorable := make([]*Transaction, 0, txBatchSize)
-		exempt := make([]*Transaction, 0, 10)
-		var execErr error
-		for i, next := range txs {
+	mempoolErr := mempool.Build(
+		ctx,
+		func(fctx context.Context, next *Transaction) (cont bool, restore bool, err error) {
 			txsAttempted++
+			if next.Base.Timestamp < oldestAllowed {
+				return true, false, nil
+			}
 
 			// Ensure we can process if transaction includes a warp message
 			if next.WarpMessage != nil && blockContext == nil {
@@ -111,10 +104,7 @@ func BuildBlock(
 					"dropping pending warp message because no context provided",
 					zap.Stringer("txID", next.ID()),
 				)
-				if next.Base.Timestamp > oldestAllowed {
-					restorable = append(restorable, next)
-					continue
-				}
+				return true, true, nil
 			}
 
 			// Skip warp message if at max
@@ -123,22 +113,19 @@ func BuildBlock(
 					"dropping pending warp message because already have MaxWarpMessages",
 					zap.Stringer("txID", next.ID()),
 				)
-				exempt = append(exempt, next)
-				continue
+				return true, true, nil
 			}
 
 			// Check for repeats
 			//
 			// TODO: check a bunch at once during pre-fetch to avoid re-walking blocks
 			// for every tx
-			dup, err := parentTxBlock.IsRepeat(ctx, oldestAllowed, []*Transaction{next})
+			dup, err := parentTxBlock.IsRepeat(fctx, oldestAllowed, []*Transaction{next})
 			if err != nil {
-				restorable = append(restorable, txs[i:]...)
-				execErr = err
-				break
+				return false, true, err
 			}
 			if dup {
-				continue
+				return true, false, nil
 			}
 
 			// TODO: verify units space
@@ -150,9 +137,7 @@ func BuildBlock(
 			if txBlockSize+nextSize > consts.NetworkSizeLimit-32*units.KiB {
 				txBlock.Issued = time.Now().UnixMilli()
 				if err := txBlock.initializeBuilt(ctx); err != nil {
-					restorable = append(restorable, txs[i:]...)
-					execErr = err
-					break
+					return false, true, err
 				}
 				b.TxBlocks = append(b.TxBlocks, txBlock.ID())
 				txBlocks = append(txBlocks, txBlock)
@@ -160,8 +145,7 @@ func BuildBlock(
 
 				if len(txBlocks)+1 /* account for current */ >= r.GetMaxTxBlocks() {
 					txBlock = nil
-					restorable = append(restorable, txs[i:]...)
-					break
+					return false, true, nil
 				}
 				parentTxBlock = txBlock
 				txBlockSize = 0
@@ -175,21 +159,19 @@ func BuildBlock(
 			}
 			txBlockSize += nextSize
 			txsAdded++
+			return txBlock != nil && time.Since(start) < vm.GetMaxBuildTime(), false, nil
+		},
+	)
+	if mempoolErr != nil {
+		for _, block := range txBlocks {
+			b.vm.Mempool().Add(ctx, block.Txs)
 		}
-		mempool.ClearLease(ctx, restorable, exempt)
-		if execErr != nil {
-			for _, block := range txBlocks {
-				b.vm.Mempool().Add(ctx, block.Txs)
-			}
-			if txBlock != nil {
-				b.vm.Mempool().Add(ctx, txBlock.Txs)
-			}
-			mempool.FinishBuild(ctx)
-			b.vm.Logger().Warn("build failed", zap.Error(execErr))
-			return nil, execErr
+		if txBlock != nil {
+			b.vm.Mempool().Add(ctx, txBlock.Txs)
 		}
+		b.vm.Logger().Warn("build failed", zap.Error(mempoolErr))
+		return nil, mempoolErr
 	}
-	mempool.FinishBuild(ctx)
 
 	// Record if went to the limit
 	if time.Since(start) >= vm.GetMaxBuildTime() {

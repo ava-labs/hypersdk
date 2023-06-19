@@ -5,14 +5,11 @@ package mempool
 
 import (
 	"context"
-	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/metric"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -22,24 +19,8 @@ type Mempool[T Item] struct {
 	tracer  trace.Tracer
 	metrics *metrics
 
-	mu sync.RWMutex
-
-	maxSize      int
-	maxPayerSize int // Maximum items allowed by a single payer
-
-	pm *SortedMempool[T] // Price Mempool
-	tm *SortedMempool[T] // Time Mempool
-
-	// [Owned] used to remove all items from an account when the balance is
-	// insufficient
-	owned map[string]set.Set[ids.ID]
-
-	// payers that are exempt from [maxPayerSize]
-	exemptPayers set.Set[string]
-
-	// items we are currently executing that we don't want to allow duplicates of
-	leasedItems set.Set[ids.ID]
-	exemptItems map[ids.ID]T
+	c    chan T
+	size atomic.Int32
 }
 
 // New creates a new [Mempool]. [maxSize] must be > 0 or else the
@@ -47,28 +28,10 @@ type Mempool[T Item] struct {
 func New[T Item](
 	tracer trace.Tracer,
 	maxSize int,
-	maxPayerSize int,
-	exemptPayers [][]byte,
 ) (*Mempool[T], *prometheus.Registry, error) {
 	m := &Mempool[T]{
 		tracer: tracer,
-
-		maxSize:      maxSize,
-		maxPayerSize: maxPayerSize,
-
-		pm: NewSortedMempool(
-			math.Min(maxSize, maxPrealloc),
-			func(item T) uint64 { return item.UnitPrice() },
-		),
-		tm: NewSortedMempool(
-			math.Min(maxSize, maxPrealloc),
-			func(item T) uint64 { return uint64(item.Expiry()) },
-		),
-		owned:        map[string]set.Set[ids.ID]{},
-		exemptPayers: set.Set[string]{},
-	}
-	for _, payer := range exemptPayers {
-		m.exemptPayers.Add(string(payer))
+		c:      make(chan T, maxSize),
 	}
 	registry, metrics, err := newMetrics()
 	if err != nil {
@@ -96,15 +59,6 @@ func newMetrics() (*prometheus.Registry, *metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	setMinTimestamp, err := metric.NewAverager(
-		"mempool",
-		"set_min_timestamp",
-		"time spent setting min timestamp",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
 	add, err := metric.NewAverager(
 		"mempool",
 		"add",
@@ -114,46 +68,12 @@ func newMetrics() (*prometheus.Registry, *metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	leaseCreate, err := metric.NewAverager(
-		"mempool",
-		"lease_create",
-		"time spent creating a lease",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
 	m := &metrics{
-		buildOverhead:   buildOverhead,
-		setMinTimestamp: setMinTimestamp,
-		add:             add,
-		leaseCreate:     leaseCreate,
+		buildOverhead: buildOverhead,
+		add:           add,
 		// TODO: add size
 	}
 	return r, m, nil
-}
-
-func (th *Mempool[T]) removeFromOwned(item T) {
-	sender := item.Payer()
-	acct, ok := th.owned[sender]
-	if !ok {
-		// May no longer be populated
-		return
-	}
-	acct.Remove(item.ID())
-	if len(acct) == 0 {
-		delete(th.owned, sender)
-	}
-}
-
-// Has returns if the pm of [th] contains [itemID]
-func (th *Mempool[T]) Has(ctx context.Context, itemID ids.ID) bool {
-	_, span := th.tracer.Start(ctx, "Mempool.Has")
-	defer span.End()
-
-	th.mu.Lock()
-	defer th.mu.Unlock()
-	return th.pm.Has(itemID)
 }
 
 // Add pushes all new items from [items] to th. Does not add a item if
@@ -169,129 +89,9 @@ func (th *Mempool[T]) Add(ctx context.Context, items []T) {
 		th.metrics.add.Observe(float64(time.Since(start)))
 	}()
 
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
-	th.add(ctx, items)
-}
-
-func (th *Mempool[T]) add(ctx context.Context, items []T) {
 	for _, item := range items {
-		sender := item.Payer()
-
-		// Ensure no duplicate
-		if th.exemptItems != nil {
-			if _, ok := th.exemptItems[item.ID()]; ok {
-				continue
-			}
-		}
-		if th.leasedItems != nil && th.leasedItems.Contains(item.ID()) {
-			continue
-		}
-		if th.pm.Has(item.ID()) {
-			// Don't drop because already exists
-			continue
-		}
-
-		// Optimistically add to both mempools
-		acct, ok := th.owned[sender]
-		if !ok {
-			acct = set.Set[ids.ID]{}
-			th.owned[sender] = acct
-		}
-		if !th.exemptPayers.Contains(sender) && acct.Len() == th.maxPayerSize {
-			continue // do nothing, wait for items to expire
-		}
-		th.pm.Add(item)
-		th.tm.Add(item)
-		acct.Add(item.ID())
-
-		// Remove the lowest paying item if at global max
-		if th.pm.Len() > th.maxSize {
-			// Remove the lowest paying item
-			lowItem, _ := th.pm.PopMin()
-			th.tm.Remove(lowItem.ID())
-			th.removeFromOwned(lowItem)
-		}
-	}
-}
-
-// PeekMax returns the highest valued item in th.pm.
-// Assumes there is non-zero items in [Mempool]
-func (th *Mempool[T]) PeekMax(ctx context.Context) (T, bool) {
-	_, span := th.tracer.Start(ctx, "Mempool.PeekMax")
-	defer span.End()
-
-	th.mu.RLock()
-	defer th.mu.RUnlock()
-
-	return th.pm.PeekMax()
-}
-
-// PeekMin returns the lowest valued item in th.pm.
-// Assumes there is non-zero items in [Mempool]
-func (th *Mempool[T]) PeekMin(ctx context.Context) (T, bool) {
-	_, span := th.tracer.Start(ctx, "Mempool.PeekMin")
-	defer span.End()
-
-	th.mu.RLock()
-	defer th.mu.RUnlock()
-
-	return th.pm.PeekMin()
-}
-
-// PopMax removes and returns the highest valued item in th.pm.
-// Assumes there is non-zero items in [Mempool]
-func (th *Mempool[T]) PopMax(ctx context.Context) (T, bool) { // O(log N)
-	_, span := th.tracer.Start(ctx, "Mempool.PopMax")
-	defer span.End()
-
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
-	return th.popMax()
-}
-
-func (th *Mempool[T]) popMax() (T, bool) {
-	max, ok := th.pm.PopMax()
-	if ok {
-		th.tm.Remove(max.ID())
-		th.removeFromOwned(max)
-	}
-	return max, ok
-}
-
-// PopMin removes and returns the lowest valued item in th.pm.
-// Assumes there is non-zero items in [Mempool]
-func (th *Mempool[T]) PopMin(ctx context.Context) (T, bool) { // O(log N)
-	_, span := th.tracer.Start(ctx, "Mempool.PopMin")
-	defer span.End()
-
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
-	min, ok := th.pm.PopMin()
-	if ok {
-		th.tm.Remove(min.ID())
-		th.removeFromOwned(min)
-	}
-	return min, ok
-}
-
-// Remove removes [items] from th.
-func (th *Mempool[T]) Remove(ctx context.Context, items []T) {
-	_, span := th.tracer.Start(ctx, "Mempool.Remove")
-	defer span.End()
-
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
-	for _, item := range items {
-		th.pm.Remove(item.ID())
-		th.tm.Remove(item.ID())
-		th.removeFromOwned(item)
-		// Remove is called when verifying a block. We should not drop transactions at
-		// this time.
+		th.c <- item
+		th.size.Add(1)
 	}
 }
 
@@ -300,55 +100,7 @@ func (th *Mempool[T]) Len(ctx context.Context) int {
 	_, span := th.tracer.Start(ctx, "Mempool.Len")
 	defer span.End()
 
-	th.mu.RLock()
-	defer th.mu.RUnlock()
-
-	return th.pm.Len()
-}
-
-// RemoveAccount removes all items by [sender] from th.
-func (th *Mempool[T]) RemoveAccount(ctx context.Context, sender string) {
-	_, span := th.tracer.Start(ctx, "Mempool.RemoveAccount")
-	defer span.End()
-
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
-	th.removeAccount(sender)
-}
-
-func (th *Mempool[T]) removeAccount(sender string) {
-	acct, ok := th.owned[sender]
-	if !ok {
-		return
-	}
-	for item := range acct {
-		th.pm.Remove(item)
-		th.tm.Remove(item)
-	}
-	delete(th.owned, sender)
-}
-
-// SetMinTimestamp removes all items with a lower expiry than [t] from th.
-// SetMinTimestamp returns the list of removed items.
-func (th *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
-	_, span := th.tracer.Start(ctx, "Mempool.SetMinTimesamp")
-	defer span.End()
-
-	start := time.Now()
-	defer func() {
-		th.metrics.setMinTimestamp.Observe(float64(time.Since(start)))
-	}()
-
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
-	removed := th.tm.SetMinVal(uint64(t))
-	for _, remove := range removed {
-		th.pm.Remove(remove.ID())
-		th.removeFromOwned(remove)
-	}
-	return removed
+	return int(th.size.Load())
 }
 
 // TODO: break build apart into:
@@ -359,7 +111,7 @@ func (th *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 // txs
 func (th *Mempool[T]) Build(
 	ctx context.Context,
-	f func(context.Context, T) (cont bool, restore bool, removeAcct bool, err error),
+	f func(context.Context, T) (cont bool, restore bool, err error),
 ) error {
 	ctx, span := th.tracer.Start(ctx, "Mempool.Build")
 	defer span.End()
@@ -370,92 +122,38 @@ func (th *Mempool[T]) Build(
 		th.metrics.buildOverhead.Observe(float64(time.Since(start) - vmTime))
 	}()
 
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
 	restorableItems := []T{}
-	var err error
-	for th.pm.Len() > 0 {
-		max, _ := th.pm.PopMax()
-		vmStart := time.Now()
-		cont, restore, removeAccount, fErr := f(ctx, max)
-		vmTime += time.Since(vmStart)
-		if restore {
-			// Waiting to restore unused transactions ensures that an account will be
-			// excluded from future price mempool iterations
-			restorableItems = append(restorableItems, max)
-		} else {
-			th.tm.Remove(max.ID())
-			th.removeFromOwned(max)
-		}
-		if removeAccount {
-			// We remove the account typically when the next execution results in an
-			// invalid balance
-			th.removeAccount(max.Payer())
-		}
-		if !cont || fErr != nil {
-			err = fErr
+	var (
+		err  error
+		stop bool
+	)
+	for !stop {
+		select {
+		case max := <-th.c:
+			vmStart := time.Now()
+			cont, restore, fErr := f(ctx, max)
+			vmTime += time.Since(vmStart)
+			if restore {
+				// Waiting to restore unused transactions ensures that an account will be
+				// excluded from future price mempool iterations
+				restorableItems = append(restorableItems, max)
+			} else {
+				th.size.Add(-1)
+			}
+			if !cont || fErr != nil {
+				err = fErr
+				stop = true
+				break
+			}
+		default:
+			stop = true
 			break
 		}
 	}
 	//
 	// Restore unused items
 	for _, item := range restorableItems {
-		th.pm.Add(item)
+		th.c <- item
 	}
 	return err
-}
-
-func (th *Mempool[T]) StartBuild(ctx context.Context) {
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
-	th.exemptItems = map[ids.ID]T{}
-}
-
-func (th *Mempool[T]) LeaseItems(ctx context.Context, count int) []T {
-	ctx, span := th.tracer.Start(ctx, "Mempool.LeaseTxs")
-	defer span.End()
-	start := time.Now()
-
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
-	txs := make([]T, 0, count)
-	th.leasedItems = set.NewSet[ids.ID](count)
-	for len(txs) < count {
-		item, ok := th.popMax()
-		if !ok {
-			break
-		}
-		th.leasedItems.Add(item.ID())
-		txs = append(txs, item)
-	}
-	th.metrics.leaseCreate.Observe(float64(time.Since(start)))
-	return txs
-}
-
-func (th *Mempool[T]) ClearLease(ctx context.Context, restore []T, exempt []T) {
-	// We don't handle removed txs here, we just skip
-	ctx, span := th.tracer.Start(ctx, "Mempool.ClearLease")
-	defer span.End()
-
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
-	th.leasedItems = nil
-	th.add(ctx, restore)
-	for _, ex := range exempt {
-		th.exemptItems[ex.ID()] = ex
-	}
-}
-
-func (th *Mempool[T]) FinishBuild(ctx context.Context) {
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
-	for _, ex := range th.exemptItems {
-		th.add(ctx, []T{ex})
-	}
-	th.exemptItems = nil
 }

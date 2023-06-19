@@ -120,9 +120,6 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessRootBlock) {
 	vm.verifiedBlocks[b.ID()] = b
 	vm.verifiedL.Unlock()
 	vm.parsedBlocks.Evict(b.ID())
-	for _, txBlock := range b.GetTxBlocks() {
-		vm.mempool.Remove(ctx, txBlock.Txs)
-	}
 	vm.gossiper.BlockVerified(b.Tmstmp)
 	vm.snowCtx.Log.Info(
 		"verified block",
@@ -325,13 +322,6 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessRootBlock) {
 		}
 	}
 
-	// Update timestamp in mempool
-	//
-	// We rely on the [vm.waiters] map to notify listeners of dropped
-	// transactions instead of the mempool because we won't need to iterate
-	// through as many transactions.
-	removed := vm.mempool.SetMinTimestamp(ctx, blkTime)
-
 	// Enqueue block for processing
 	vm.acceptedQueue <- b
 
@@ -341,7 +331,6 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessRootBlock) {
 		zap.Uint64("height", b.Hght),
 		zap.Int("txs", blkTxs),
 		zap.Int("size", len(b.Bytes())),
-		zap.Int("dropped mempool txs", len(removed)),
 		zap.Bool("state ready", vm.StateReady()),
 	)
 }

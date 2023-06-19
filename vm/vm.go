@@ -243,8 +243,6 @@ func (vm *VM) Initialize(
 	mem, mempoolRegistry, err := mempool.New[*chain.Transaction](
 		vm.tracer,
 		vm.config.GetMempoolSize(),
-		vm.config.GetMempoolPayerSize(),
-		vm.config.GetMempoolExemptPayers(),
 	)
 	if err != nil {
 		return err
@@ -763,13 +761,6 @@ func (vm *VM) Submit(
 				errs = append(errs, err)
 				continue
 			}
-		}
-		// Avoid any state lookup if we already have tx in mempool
-		if vm.mempool.Has(ctx, txID) {
-			// Don't remove from listeners, it will be removed elsewhere if not
-			// included
-			errs = append(errs, ErrNotAdded)
-			continue
 		}
 		// TODO: do we need this? (just ensures people can't spam mempool with
 		// txs from already verified blocks)
