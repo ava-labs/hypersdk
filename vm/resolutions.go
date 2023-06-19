@@ -511,6 +511,10 @@ func (vm *VM) RecordMempoolSizeAfterBuild(size int) {
 	vm.metrics.mempoolSizeAfterBuild.Set(float64(size))
 }
 
+func (vm *VM) RecordTxsAttempted(attempted int) {
+	vm.metrics.txsAttempted.Add(float64(attempted))
+}
+
 func (vm *VM) IsBuilding() bool {
 	return vm.building
 }

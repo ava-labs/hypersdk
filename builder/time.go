@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const buildCheck = 50 * time.Millisecond
+const buildCheck = 20 * time.Millisecond
 
 var _ Builder = (*Time)(nil)
 

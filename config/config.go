@@ -49,4 +49,4 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 func (c *Config) GetRootBlockPruneDiff() uint64  { return 1024 }
 func (c *Config) GetVerifySignatures() bool      { return true }
 func (c *Config) GetMinBuildTime() time.Duration { return 256 * time.Millisecond } // still need to limit with units to avoid DoS on verify
-func (c *Config) GetMaxBuildTime() time.Duration { return 512 * time.Millisecond } // still need to limit with units to avoid DoS on verify
+func (c *Config) GetMaxBuildTime() time.Duration { return 257 * time.Millisecond } // still need to limit with units to avoid DoS on verify

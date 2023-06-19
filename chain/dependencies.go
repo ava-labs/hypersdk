@@ -84,6 +84,7 @@ type VM interface {
 	RecordTxBlockIssuanceDiff(time.Duration)
 	RecordRootBlockIssuanceDiff(time.Duration)
 	RecordRootBlockAcceptanceDiff(time.Duration)
+	RecordTxsAttempted(int)
 	RecordStateChanges(int)
 	RecordStateOperations(int)
 	RecordTxBlocksMissing(int)
