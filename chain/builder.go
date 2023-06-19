@@ -96,7 +96,7 @@ func BuildBlock(
 		func(fctx context.Context, next *Transaction) (cont bool, restore bool, err error) {
 			txsAttempted++
 			if next.Base.Timestamp < oldestAllowed {
-				return true, false, nil
+				return txBlock != nil, false, nil
 			}
 
 			// Ensure we can process if transaction includes a warp message
@@ -105,7 +105,7 @@ func BuildBlock(
 					"dropping pending warp message because no context provided",
 					zap.Stringer("txID", next.ID()),
 				)
-				return true, true, nil
+				return txBlock != nil, true, nil
 			}
 
 			// Skip warp message if at max
@@ -114,7 +114,7 @@ func BuildBlock(
 					"dropping pending warp message because already have MaxWarpMessages",
 					zap.Stringer("txID", next.ID()),
 				)
-				return true, true, nil
+				return txBlock != nil, true, nil
 			}
 
 			// Check for repeats
@@ -126,7 +126,7 @@ func BuildBlock(
 				return false, true, err
 			}
 			if dup {
-				return true, false, nil
+				return txBlock != nil, false, nil
 			}
 
 			// TODO: verify units space
