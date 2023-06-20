@@ -578,7 +578,7 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 			c.vm.Logger().Error("unable to handle txBlock", zap.Error(err))
 			return nil
 		}
-		c.vm.Logger().Info("received tx block gossip", zap.Stringer("blkID", blkID))
+		c.vm.Logger().Debug("received tx block gossip", zap.Stringer("blkID", blkID))
 	default:
 		c.vm.Logger().Error("unexpected message type", zap.Uint8("type", msg[0]))
 		return nil
@@ -623,10 +623,9 @@ func (c *TxBlockManager) VerifyAll(blkID ids.ID) {
 		for _, blkID := range next {
 			err := c.Verify(blkID)
 			if err != nil {
-				c.vm.Logger().Warn("manager block verification failed", zap.Error(err))
 				c.vm.metrics.txBlocksVerifiedFailedManager.Inc()
 			} else {
-				c.vm.Logger().Info("manager block verification success", zap.Stringer("blkID", blkID))
+				c.vm.Logger().Debug("manager block verification success", zap.Stringer("blkID", blkID))
 			}
 			nextRound = append(nextRound, c.txBlocks.Verified(blkID, err == nil)...)
 		}
