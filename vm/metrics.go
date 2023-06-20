@@ -4,9 +4,14 @@
 package vm
 
 import (
+	"fmt"
+	"runtime/metrics"
+	"time"
+
 	"github.com/ava-labs/avalanchego/utils/metric"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 type Metrics struct {
@@ -293,4 +298,55 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txBlockBytesReceived),
 	)
 	return r, m, errs.Err
+}
+
+func (vm *VM) runMetricsCollector() {
+	t := time.NewTicker(3 * time.Second)
+	defer t.Stop()
+
+	var previousSched *metrics.Float64Histogram
+	for {
+		select {
+		case <-t.C:
+			sample := make([]metrics.Sample, 2)
+			sample[0].Name = "/sched/latencies:seconds"
+			sample[1].Name = "/sync/mutex/wait/total:seconds"
+
+			metrics.Read(sample)
+
+			// Values here are cummulative
+			cummBuckets := []string{}
+			buckets := sample[0].Value.Float64Histogram().Buckets
+			counts := sample[0].Value.Float64Histogram().Counts
+			total := float64(0)
+			for i := 0; i < len(buckets)-1; i++ {
+				total += float64(counts[i])
+			}
+			for i := 0; i < len(buckets)-1; i++ {
+				cummBuckets = append(cummBuckets, fmt.Sprintf("[%v,%v) count=%d (%.2f%%)", buckets[i], buckets[i+1], counts[i], float64(counts[i])/total*100))
+			}
+			latestBuckets := []string{}
+			if previousSched != nil {
+				buckets := sample[0].Value.Float64Histogram().Buckets
+				prevCounts := previousSched.Counts
+				total := float64(0)
+				for i := 0; i < len(buckets)-1; i++ {
+					total += float64(counts[i] - prevCounts[i])
+				}
+				for i := 0; i < len(buckets)-1; i++ {
+					latestBuckets = append(latestBuckets, fmt.Sprintf("[%v,%v) count=%d (%.2f%%)", buckets[i], buckets[i+1], counts[i]-prevCounts[i], float64(counts[i]-prevCounts[i])/total*100))
+				}
+			}
+
+			vm.snowCtx.Log.Info(
+				"experimental metrics",
+				zap.Any("scheduling latency (cummulative)", cummBuckets),
+				zap.Any("scheduling latency (latest)", latestBuckets),
+				zap.Any("mutex wait", sample[1].Value.Float64()),
+			)
+			previousSched = sample[0].Value.Float64Histogram()
+		case <-vm.stop:
+			return
+		}
+	}
 }

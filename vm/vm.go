@@ -166,6 +166,7 @@ func (vm *VM) Initialize(
 		return err
 	}
 	vm.metrics = metrics
+	go vm.runMetricsCollector()
 
 	vm.proposerMonitor = NewProposerMonitor(vm)
 	vm.networkManager = NewNetworkManager(vm, appSender)
