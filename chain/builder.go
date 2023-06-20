@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"go.uber.org/zap"
 )
@@ -126,20 +127,6 @@ func BuildBlock(
 				return true, true, nil
 			}
 
-			// Check for repeats
-			//
-			// TODO: check all tx block at once (then remove txs that conflict -> don't need to do state so ok)
-			// TODO: check async when marshaling block
-			rstart := time.Now()
-			dup, err := parentTxBlock.IsRepeat(fctx, oldestAllowed, []*Transaction{next})
-			if err != nil {
-				return false, true, err
-			}
-			timeRepeating += time.Since(rstart)
-			if dup {
-				return true, false, nil
-			}
-
 			// TODO: verify units space
 			nextSize := next.Size()
 
@@ -147,23 +134,49 @@ func BuildBlock(
 			//
 			// TODO: handle case where tx is larger than max size of TxBlock
 			if txBlockSize+nextSize > 1*units.MiB {
-				txBlock.Issued = time.Now().UnixMilli()
-				mstart := time.Now()
-				if err := txBlock.initializeBuilt(ctx); err != nil {
+				// Check for repeats
+				//
+				// TODO: check all tx block at once (then remove txs that conflict -> don't need to do state so ok)
+				// TODO: check async when marshaling block
+				rstart := time.Now()
+				bset := set.NewBits()
+				if err := parentTxBlock.CollectRepeats(fctx, oldestAllowed, txBlock.Txs, &bset); err != nil {
 					return false, true, err
 				}
-				timeMarshaling += time.Since(mstart)
-				b.TxBlocks = append(b.TxBlocks, txBlock.ID())
-				txBlocks = append(txBlocks, txBlock)
-				vm.IssueTxBlock(ctx, txBlock)
-
-				if len(txBlocks)+1 /* account for current */ >= r.GetMaxTxBlocks() {
-					txBlock = nil
-					return false, true, nil
+				if bset.Len() > 0 {
+					newTxs := make([]*Transaction, 0, len(txBlock.Txs))
+					for i, tx := range txBlock.Txs {
+						if bset.Contains(i) {
+							txBlockSize -= tx.Size()
+							continue
+						}
+						newTxs = append(newTxs, tx)
+					}
+					txBlock.Txs = newTxs
 				}
-				parentTxBlock = txBlock
-				txBlockSize = 0
-				txBlock = NewTxBlock(vm, parentTxBlock, nextTime)
+				timeRepeating += time.Since(rstart)
+
+				if txBlockSize+nextSize > 756*units.KiB {
+					// Only move forward if block still decently large (don't stay right at 1MB in case we keep removing 1 at
+					// a time)
+					txBlock.Issued = time.Now().UnixMilli()
+					mstart := time.Now()
+					if err := txBlock.initializeBuilt(ctx); err != nil {
+						return false, true, err
+					}
+					timeMarshaling += time.Since(mstart)
+					b.TxBlocks = append(b.TxBlocks, txBlock.ID())
+					txBlocks = append(txBlocks, txBlock)
+					vm.IssueTxBlock(ctx, txBlock)
+
+					if len(txBlocks)+1 /* account for current */ >= r.GetMaxTxBlocks() {
+						txBlock = nil
+						return false, true, nil
+					}
+					parentTxBlock = txBlock
+					txBlockSize = 0
+					txBlock = NewTxBlock(vm, parentTxBlock, nextTime)
+				}
 			}
 
 			// Update block with new transaction
@@ -196,15 +209,35 @@ func BuildBlock(
 	//
 	// TODO: unify this logic with inner block tracker
 	if txBlock != nil && len(txBlock.Txs) > 0 {
-		txBlock.Issued = time.Now().UnixMilli()
-		mstart := time.Now()
-		if err := txBlock.initializeBuilt(ctx); err != nil {
+		rstart := time.Now()
+		bset := set.NewBits()
+		if err := parentTxBlock.CollectRepeats(ctx, oldestAllowed, txBlock.Txs, &bset); err != nil {
 			return nil, err
 		}
-		timeMarshaling += time.Since(mstart)
-		b.TxBlocks = append(b.TxBlocks, txBlock.ID())
-		txBlocks = append(txBlocks, txBlock)
-		vm.IssueTxBlock(ctx, txBlock)
+		if bset.Len() > 0 {
+			newTxs := make([]*Transaction, 0, len(txBlock.Txs))
+			for i, tx := range txBlock.Txs {
+				if bset.Contains(i) {
+					continue
+				}
+				newTxs = append(newTxs, tx)
+			}
+			txBlock.Txs = newTxs
+		}
+		timeRepeating += time.Since(rstart)
+
+		if len(txBlock.Txs) > 0 {
+			// May have removed all txs
+			txBlock.Issued = time.Now().UnixMilli()
+			mstart := time.Now()
+			if err := txBlock.initializeBuilt(ctx); err != nil {
+				return nil, err
+			}
+			timeMarshaling += time.Since(mstart)
+			b.TxBlocks = append(b.TxBlocks, txBlock.ID())
+			txBlocks = append(txBlocks, txBlock)
+			vm.IssueTxBlock(ctx, txBlock)
+		}
 	}
 	vm.RecordTxsAttempted(txsAttempted - txsAdded)
 

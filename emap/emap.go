@@ -112,14 +112,16 @@ func (e *EMap[T]) SetMin(t int64) []ids.ID {
 }
 
 // Any returns true if any items have been seen by EMap.
-func (e *EMap[T]) Any(items []T) bool {
+func (e *EMap[T]) CollectRepeats(items []T, repeats *set.Bits) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	for _, item := range items {
+	for i, item := range items {
+		if repeats.Contains(i) {
+			continue
+		}
 		if e.seen.Contains(item.ID()) {
-			return true
+			repeats.Add(i)
 		}
 	}
-	return false
 }

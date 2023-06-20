@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
@@ -56,7 +57,7 @@ type VM interface {
 	State() (merkledb.MerkleDB, error)
 	StateManager() StateManager
 	ValidatorState() validators.State
-	IsRepeat(context.Context, []*Transaction) bool
+	CollectRepeats(context.Context, []*Transaction, *set.Bits)
 
 	IssueTxBlock(context.Context, *StatelessTxBlock)
 	RequireTxBlocks(context.Context, uint64, []ids.ID) int

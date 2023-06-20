@@ -99,11 +99,11 @@ func (vm *VM) Mempool() chain.Mempool {
 	return vm.mempool
 }
 
-func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction) bool {
-	_, span := vm.tracer.Start(ctx, "VM.IsRepeat")
+func (vm *VM) CollectRepeats(ctx context.Context, txs []*chain.Transaction, repeats *set.Bits) {
+	_, span := vm.tracer.Start(ctx, "VM.CollectRepeats")
 	defer span.End()
 
-	return vm.seen.Any(txs)
+	vm.seen.CollectRepeats(txs, repeats)
 }
 
 func (vm *VM) Verified(ctx context.Context, b *chain.StatelessRootBlock) {

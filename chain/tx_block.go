@@ -193,11 +193,12 @@ func (b *StatelessTxBlock) Verify(ctx context.Context) error {
 		// Can occur if verifying genesis
 		oldestAllowed = 0
 	}
-	dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs)
-	if err != nil {
+	repeats := set.NewBits()
+	// TODO: may not need to pass by reference because inner is pointer
+	if err := parent.CollectRepeats(ctx, oldestAllowed, b.Txs, &repeats); err != nil {
 		return err
 	}
-	if dup {
+	if repeats.Len() > 0 {
 		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
 	}
 
@@ -234,29 +235,35 @@ func (b *StatelessTxBlock) Height() uint64 { return b.TxBlock.Hght }
 // implements "snowman.Block"
 func (b *StatelessTxBlock) Timestamp() time.Time { return b.t }
 
-func (b *StatelessTxBlock) IsRepeat(
+func (b *StatelessTxBlock) CollectRepeats(
 	ctx context.Context,
 	oldestAllowed int64,
 	txs []*Transaction,
-) (bool, error) {
+	repeats *set.Bits,
+) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessTxBlock.IsRepeat")
 	defer span.End()
 
 	// Early exit if we are already back at least [ValidityWindow]
 	if b.Tmstmp < oldestAllowed {
-		return false, nil
+		return nil
 	}
 
 	// If we are at an accepted block or genesis, we can use the emap on the VM
 	// instead of checking each block
 	if b.Hght <= b.vm.LastProcessedBlock().MaxTxHght() {
-		return b.vm.IsRepeat(ctx, txs), nil
+		b.vm.CollectRepeats(ctx, txs, repeats)
+		return nil
 	}
 
 	// Check if block contains any overlapping txs
-	for _, tx := range txs {
+	for i, tx := range txs {
+		if repeats.Contains(i) {
+			// Doing a bit check is faster than a map lookup
+			continue
+		}
 		if b.txsSet.Contains(tx.ID()) {
-			return true, nil
+			repeats.Add(i)
 		}
 	}
 	var prntHght uint64
@@ -266,9 +273,10 @@ func (b *StatelessTxBlock) IsRepeat(
 	}
 	prnt, err := b.vm.GetStatelessTxBlock(ctx, b.Prnt, prntHght)
 	if err != nil {
-		return false, err
+		return err
 	}
-	return prnt.IsRepeat(ctx, oldestAllowed, txs)
+	prnt.CollectRepeats(ctx, oldestAllowed, txs, repeats)
+	return nil
 }
 
 func (b *StatelessTxBlock) GetTxs() []*Transaction {

@@ -26,6 +26,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
@@ -762,15 +763,14 @@ func (vm *VM) Submit(
 				continue
 			}
 		}
-		// TODO: do we need this? (just ensures people can't spam mempool with
-		// txs from already verified blocks)
+		// TODO: batch this check?
 		if txBlk != nil {
-			repeat, err := txBlk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx})
-			if err != nil {
+			rset := set.NewBits()
+			if err := txBlk.CollectRepeats(ctx, oldestAllowed, []*chain.Transaction{tx}, &rset); err != nil {
 				errs = append(errs, err)
 				continue
 			}
-			if repeat {
+			if rset.Len() > 0 {
 				errs = append(errs, chain.ErrDuplicateTx)
 				continue
 			}
