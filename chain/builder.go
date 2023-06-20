@@ -135,7 +135,7 @@ func BuildBlock(
 			// Determine if we need to create a new TxBlock
 			//
 			// TODO: handle case where tx is larger than max size of TxBlock
-			if txBlockSize+nextSize > 512*units.KiB {
+			if txBlockSize+nextSize > 1*units.MiB {
 				txBlock.Issued = time.Now().UnixMilli()
 				if err := txBlock.initializeBuilt(ctx); err != nil {
 					return false, true, err

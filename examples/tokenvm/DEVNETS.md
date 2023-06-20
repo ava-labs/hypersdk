@@ -178,6 +178,7 @@ filters:
 #### Disable Metrics
 ```yaml
 metrics_fetch_interval_seconds: 0
+disable_logs_auto_removal: true
 ```
 
 ### Step 6: Apply Local Network Deploy
