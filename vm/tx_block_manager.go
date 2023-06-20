@@ -568,6 +568,8 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 		c.vm.metrics.txBlockBytesReceived.Add(float64(len(b)))
 
 		// Option 0: already have txBlock, drop
+		//
+		// TODO: should not drop if trying to fetch it, instad cancel
 		if !c.txBlocks.Fetch(blkID) {
 			return nil
 		}

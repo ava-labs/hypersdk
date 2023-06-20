@@ -5,6 +5,7 @@ package builder
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/ava-labs/avalanchego/snow/engine/common"
@@ -62,6 +63,10 @@ func (b *Time) shouldBuild(ctx context.Context) (bool, error) {
 	}
 	now := time.Now().Unix()
 	since := int(now - preferredBlk.Tmstmp)
+	if since < 0 {
+		// TODO: better handle this (can panic without protection)
+		return false, errors.New("preferred block greater than current")
+	}
 	newRollupWindow, err := window.Roll(preferredBlk.BlockWindow, since)
 	if err != nil {
 		return false, err
