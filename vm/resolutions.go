@@ -162,6 +162,38 @@ func (vm *VM) processAcceptedBlocks() {
 			vm.Logger().Fatal("unable to execute block", zap.Error(err))
 			return
 		}
+
+		// Update replay protection heap
+		//
+		// We check against seen during "Execute" so we need to do this after we've verified txs in the block.
+		blkTime := b.Tmstmp
+		vm.seen.SetMin(blkTime)
+		for _, txBlock := range b.GetTxBlocks() {
+			vm.seen.Add(txBlock.Txs)
+		}
+
+		// Verify if emap is now sufficient (we need a consecutive run of blocks with
+		// timestamps of at least [ValidityWindow] for this to occur).
+		if !vm.isReady() {
+			select {
+			case <-vm.seenValidityWindow:
+				// We could not be ready but seen a window of transactions if the state
+				// to sync is large (takes longer to fetch than [ValidityWindow]).
+			default:
+				// The value of [vm.startSeenTime] can only be negative if we are
+				// performing state sync.
+				if vm.startSeenTime < 0 {
+					vm.startSeenTime = blkTime
+				}
+				r := vm.Rules(blkTime)
+				if blkTime-vm.startSeenTime > r.GetValidityWindow() {
+					vm.seenValidityWindowOnce.Do(func() {
+						close(vm.seenValidityWindow)
+					})
+				}
+			}
+		}
+
 		vm.metrics.unitsAccepted.Add(float64(b.UnitsConsumed()))
 		vm.lastProcessed = b
 
@@ -292,35 +324,6 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessRootBlock) {
 	delete(vm.verifiedBlocks, b.ID())
 	vm.verifiedL.Unlock()
 	vm.lastAccepted = b
-
-	// Update replay protection heap
-	blkTime := b.Tmstmp
-	vm.seen.SetMin(blkTime)
-	for _, txBlock := range b.GetTxBlocks() {
-		vm.seen.Add(txBlock.Txs)
-	}
-
-	// Verify if emap is now sufficient (we need a consecutive run of blocks with
-	// timestamps of at least [ValidityWindow] for this to occur).
-	if !vm.isReady() {
-		select {
-		case <-vm.seenValidityWindow:
-			// We could not be ready but seen a window of transactions if the state
-			// to sync is large (takes longer to fetch than [ValidityWindow]).
-		default:
-			// The value of [vm.startSeenTime] can only be negative if we are
-			// performing state sync.
-			if vm.startSeenTime < 0 {
-				vm.startSeenTime = blkTime
-			}
-			r := vm.Rules(blkTime)
-			if blkTime-vm.startSeenTime > r.GetValidityWindow() {
-				vm.seenValidityWindowOnce.Do(func() {
-					close(vm.seenValidityWindow)
-				})
-			}
-		}
-	}
 
 	// Enqueue block for processing
 	vm.acceptedQueue <- b

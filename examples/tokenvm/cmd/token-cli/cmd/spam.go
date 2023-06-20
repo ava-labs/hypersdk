@@ -263,7 +263,7 @@ var runSpamCmd = &cobra.Command{
 			}
 		}
 		for i := 0; i < numAccounts; i++ {
-			_, dErr, result, err := dcli.ListenTx(ctx)
+			txID, dErr, result, err := dcli.ListenTx(ctx)
 			if err != nil {
 				return err
 			}
@@ -272,7 +272,7 @@ var runSpamCmd = &cobra.Command{
 			}
 			if !result.Success {
 				// Should never happen
-				return ErrTxFailed
+				return fmt.Errorf("%w: %v", ErrTxFailed, txID)
 			}
 		}
 		hutils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", numAccounts)

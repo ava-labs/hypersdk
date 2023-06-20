@@ -624,10 +624,14 @@ func (b *StatelessRootBlock) Execute(ctx context.Context, parent *StatelessRootB
 		// Check repeats and populate block object
 		repeats := set.NewBits()
 		// TODO: may not need to pass by reference because inner is pointer
-		if err := txBlock.parent.CollectRepeats(ctx, oldestAllowed, txBlock.Txs, &repeats); err != nil {
-			return err
+		if txBlock.Hght > 1 {
+			// parent will be nil if genesis
+			if err := txBlock.parent.CollectRepeats(ctx, oldestAllowed, txBlock.Txs, &repeats); err != nil {
+				return err
+			}
 		}
 		txBlock.repeats = repeats
+		log.Info("repeats", zap.Any("bits", repeats), zap.Binary("bits", repeats.Bytes()))
 
 		for i, tx := range txBlock.Txs {
 			if txBlock.repeats.Contains(i) {

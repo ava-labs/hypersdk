@@ -57,6 +57,7 @@ func (p *Processor) Prefetch(ctx context.Context, b *StatelessRootBlock) {
 	sm := p.blk.vm.StateManager()
 	p.readyTxs = make(chan *txData, readyTxBacklog) // clear from last run
 	p.prefetchErr = nil
+	verifySignatues := p.blk.vm.GetVerifySignatures()
 	go func() {
 		defer span.End()
 
@@ -70,10 +71,12 @@ func (p *Processor) Prefetch(ctx context.Context, b *StatelessRootBlock) {
 				}
 
 				// Check signature before we interact with disk
-				if err := tx.WaitAuthVerified(ctx); err != nil {
-					p.blk.vm.Logger().Warn("tx signature is wrong", zap.Stringer("txID", tx.ID()), zap.Error(err))
-					p.readyTxs <- &txData{tx, nil, true}
-					continue
+				if verifySignatues {
+					if err := tx.WaitAuthVerified(ctx); err != nil {
+						p.blk.vm.Logger().Warn("tx signature is wrong", zap.Stringer("txID", tx.ID()), zap.Error(err))
+						p.readyTxs <- &txData{tx, nil, true}
+						continue
+					}
 				}
 
 				storage := map[string][]byte{}

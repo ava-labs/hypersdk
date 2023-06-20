@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"go.uber.org/zap"
 )
@@ -87,7 +88,8 @@ func BuildBlock(
 
 		start = time.Now()
 
-		// TODO: consider keeping all txs used in a set to avoid re-repeats later
+		// Ensure we don't add duplicate txs to same block (checked in parse)
+		txIDs = set.NewSet[ids.ID](txBatchSize)
 	)
 	b.MinTxHght = txBlock.Hght
 
@@ -106,6 +108,11 @@ func BuildBlock(
 
 			txsAttempted++
 			if next.Base.Timestamp < oldestAllowed {
+				return true, false, nil
+			}
+
+			// Already added tx to block
+			if txIDs.Contains(next.ID()) {
 				return true, false, nil
 			}
 
@@ -162,6 +169,7 @@ func BuildBlock(
 			}
 			txBlockSize += nextSize
 			txsAdded++
+			txIDs.Add(next.ID())
 			return txBlock != nil, false, nil
 		},
 	)

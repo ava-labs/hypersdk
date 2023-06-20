@@ -748,6 +748,8 @@ func (vm *VM) Submit(
 	oldestAllowed := now - r.GetValidityWindow()
 	validTxs := []*chain.Transaction{}
 	for _, tx := range txs {
+		// TODO: need to verify recent
+
 		txID := tx.ID()
 		// We already verify in streamer, let's avoid re-verification
 		if verifySig && vm.config.GetVerifySignatures() {

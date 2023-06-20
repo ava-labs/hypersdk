@@ -57,7 +57,8 @@ func NewTxBlock(vm VM, parent *StatelessTxBlock, tmstmp int64) *StatelessTxBlock
 			Prnt:   parent.ID(),
 			Hght:   parent.Hght + 1,
 		},
-		vm: vm,
+		vm:     vm,
+		parent: parent,
 	}
 }
 
@@ -69,6 +70,9 @@ func (b *StatelessTxBlock) populateTxs(ctx context.Context) error {
 	// Process transactions
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
+		// Don't allow duplicates in same block
+		//
+		// TODO: may want to remove this so can pre-build txBlocks?
 		if b.txsSet.Contains(tx.ID()) {
 			return ErrDuplicateTx
 		}
