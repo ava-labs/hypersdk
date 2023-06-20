@@ -89,11 +89,20 @@ func BuildBlock(
 	)
 	b.MinTxHght = txBlock.Hght
 
+	last := time.Now()
+	var timeSelecting time.Duration
+	var timeMarshaling time.Duration
+	var timeRepeating time.Duration
 	mempoolErr := mempool.Build(
 		ctx,
 		vm.GetMinBuildTime(),
 		vm.GetMaxBuildTime(),
 		func(fctx context.Context, next *Transaction) (cont bool, restore bool, err error) {
+			timeSelecting += time.Since(last)
+			defer func() {
+				last = time.Now()
+			}()
+
 			txsAttempted++
 			if next.Base.Timestamp < oldestAllowed {
 				return true, false, nil
@@ -119,12 +128,14 @@ func BuildBlock(
 
 			// Check for repeats
 			//
-			// TODO: check a bunch at once during pre-fetch to avoid re-walking blocks
-			// for every tx
+			// TODO: check all tx block at once (then remove txs that conflict -> don't need to do state so ok)
+			// TODO: check async when marshaling block
+			rstart := time.Now()
 			dup, err := parentTxBlock.IsRepeat(fctx, oldestAllowed, []*Transaction{next})
 			if err != nil {
 				return false, true, err
 			}
+			timeRepeating += time.Since(rstart)
 			if dup {
 				return true, false, nil
 			}
@@ -137,9 +148,11 @@ func BuildBlock(
 			// TODO: handle case where tx is larger than max size of TxBlock
 			if txBlockSize+nextSize > 1*units.MiB {
 				txBlock.Issued = time.Now().UnixMilli()
+				mstart := time.Now()
 				if err := txBlock.initializeBuilt(ctx); err != nil {
 					return false, true, err
 				}
+				timeMarshaling += time.Since(mstart)
 				b.TxBlocks = append(b.TxBlocks, txBlock.ID())
 				txBlocks = append(txBlocks, txBlock)
 				vm.IssueTxBlock(ctx, txBlock)
@@ -184,9 +197,11 @@ func BuildBlock(
 	// TODO: unify this logic with inner block tracker
 	if txBlock != nil && len(txBlock.Txs) > 0 {
 		txBlock.Issued = time.Now().UnixMilli()
+		mstart := time.Now()
 		if err := txBlock.initializeBuilt(ctx); err != nil {
 			return nil, err
 		}
+		timeMarshaling += time.Since(mstart)
 		b.TxBlocks = append(b.TxBlocks, txBlock.ID())
 		txBlocks = append(txBlocks, txBlock)
 		vm.IssueTxBlock(ctx, txBlock)
@@ -199,11 +214,17 @@ func BuildBlock(
 	}
 	b.ContainsWarp = warpCount > 0
 	b.Issued = time.Now().UnixMilli()
+	mstart := time.Now()
 	if err := b.initializeBuilt(ctx, txBlocks); err != nil {
 		return nil, err
 	}
+	timeMarshaling += time.Since(mstart)
 	mempoolSize := b.vm.Mempool().Len(ctx)
 	vm.RecordMempoolSizeAfterBuild(mempoolSize)
+	vm.RecordBuildSelect(timeSelecting)
+	vm.RecordBuildMarshal(timeMarshaling)
+	vm.RecordBuildRepeat(timeRepeating)
+
 	log.Info(
 		"built block",
 		zap.Uint64("hght", b.Hght),

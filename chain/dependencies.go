@@ -91,6 +91,9 @@ type VM interface {
 	RecordEarlyBuildStop()
 	RecordMempoolSizeAfterBuild(int)
 	RecordTxFailedExecution()
+	RecordBuildSelect(time.Duration)
+	RecordBuildMarshal(time.Duration)
+	RecordBuildRepeat(time.Duration)
 }
 
 type Mempool interface {

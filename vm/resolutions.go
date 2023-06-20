@@ -511,3 +511,15 @@ func (vm *VM) IsBuilding() bool {
 func (vm *VM) RecordGossipTrigger() {
 	vm.metrics.txGossipTriggered.Inc()
 }
+
+func (vm *VM) RecordBuildSelect(t time.Duration) {
+	vm.metrics.buildSelect.Observe(float64(t))
+}
+
+func (vm *VM) RecordBuildMarshal(t time.Duration) {
+	vm.metrics.buildMarshal.Observe(float64(t))
+}
+
+func (vm *VM) RecordBuildRepeat(t time.Duration) {
+	vm.metrics.buildRepeat.Observe(float64(t))
+}

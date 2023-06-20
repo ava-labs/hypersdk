@@ -43,6 +43,9 @@ type Metrics struct {
 	rootBlockIssuanceDiff         metric.Averager
 	rootBlockAcceptanceDiff       metric.Averager
 	addVerifyDiff                 metric.Averager
+	buildSelect                   metric.Averager
+	buildMarshal                  metric.Averager
+	buildRepeat                   metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -133,6 +136,33 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"vm",
 		"add_verify_diff",
 		"time spent waiting to verify a tx block",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	buildSelect, err := metric.NewAverager(
+		"chain",
+		"build_select",
+		"time spent waiting for next tx in builder",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	buildMarshal, err := metric.NewAverager(
+		"chain",
+		"build_marshal",
+		"time spent marshaling in builder",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	buildRepeat, err := metric.NewAverager(
+		"chain",
+		"build_repeat",
+		"time spent checking repeats in builder",
 		r,
 	)
 	if err != nil {
@@ -265,6 +295,9 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		rootBlockIssuanceDiff:   rootBlockIssuanceDiff,
 		rootBlockAcceptanceDiff: rootBlockAcceptanceDiff,
 		addVerifyDiff:           addVerifyDiff,
+		buildSelect:             buildSelect,
+		buildMarshal:            buildMarshal,
+		buildRepeat:             buildRepeat,
 	}
 	errs := wrappers.Errs{}
 	errs.Add(
