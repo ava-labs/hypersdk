@@ -29,6 +29,7 @@ type Metrics struct {
 	txFailedExecution             prometheus.Counter
 	txsAttempted                  prometheus.Counter
 	txGossipTriggered             prometheus.Counter
+	requestFulfilledByGossip      prometheus.Counter
 	mempoolSize                   prometheus.Gauge
 	mempoolSizeAfterBuild         prometheus.Gauge
 	acceptorDrift                 prometheus.Gauge
@@ -219,6 +220,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "tx_gossip_triggered",
 			Help:      "number of times we attempt to gossip",
 		}),
+		requestFulfilledByGossip: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "request_fulfilled_by_gossip",
+			Help:      "number of times tx block request fulfilled by gossip",
+		}),
 		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "mempool_size",
@@ -278,6 +284,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txFailedExecution),
 		r.Register(m.txGossipTriggered),
 		r.Register(m.txsAttempted),
+		r.Register(m.requestFulfilledByGossip),
 		r.Register(m.mempoolSize),
 		r.Register(m.mempoolSizeAfterBuild),
 		r.Register(m.acceptorDrift),

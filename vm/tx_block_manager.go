@@ -163,6 +163,13 @@ func (c *TxBlockMap) Get(blkID ids.ID) *blkItem {
 	return blk
 }
 
+func (c *TxBlockMap) Outstanding(blkID ids.ID) bool {
+	c.l.RLock()
+	defer c.l.RUnlock()
+
+	return c.outstanding.Contains(blkID)
+}
+
 func (c *TxBlockMap) SetMin(h uint64) []ids.ID {
 	c.l.Lock()
 	defer c.l.Unlock()
@@ -392,6 +399,11 @@ func (c *TxBlockManager) RequestTxBlock(ctx context.Context, height uint64, hint
 			c.txBlocks.AbandonFetch(blkID)
 			return
 		}
+		if c.txBlocks.Get(blkID) != nil {
+			// Came in via gossip while we were retrying
+			c.txBlocks.AbandonFetch(blkID)
+			return
+		}
 
 		var peer ids.NodeID
 		if hint != ids.EmptyNodeID && i <= 1 {
@@ -569,9 +581,13 @@ func (c *TxBlockManager) HandleAppGossip(ctx context.Context, nodeID ids.NodeID,
 
 		// Option 0: already have txBlock, drop
 		//
-		// TODO: should not drop if trying to fetch it, instad cancel
-		if !c.txBlocks.Fetch(blkID) {
+		// This may fulfill some outstanding requests...those should exit as soon as this arrives
+		if c.txBlocks.Get(blkID) != nil {
+			// TODO: track useless gossip
 			return nil
+		}
+		if c.txBlocks.Outstanding(blkID) {
+			c.vm.metrics.requestFulfilledByGossip.Inc()
 		}
 
 		// Don't yet have txBlock in cache, figure out what to do

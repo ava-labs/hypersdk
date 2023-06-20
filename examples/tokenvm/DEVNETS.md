@@ -162,7 +162,7 @@ avalanchego_config:
   consensus-on-accept-gossip-non-validator-size: 0
   consensus-on-accept-gossip-peer-size: 10
   consensus-accepted-frontier-gossip-peer-size: 0
-  consensus-app-concurrency: 128
+  consensus-app-concurrency: 32
   network-compression-type: none
 ```
 
@@ -178,7 +178,6 @@ filters:
 #### Disable Metrics
 ```yaml
 metrics_fetch_interval_seconds: 0
-disable_logs_auto_removal: true
 ```
 
 ### Step 6: Apply Local Network Deploy
