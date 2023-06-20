@@ -95,6 +95,7 @@ type VM interface {
 	RecordBuildSelect(time.Duration)
 	RecordBuildMarshal(time.Duration)
 	RecordBuildRepeat(time.Duration)
+	// TODO: track repeats found
 }
 
 type Mempool interface {
