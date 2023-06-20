@@ -5,7 +5,6 @@ package chain
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -34,6 +33,9 @@ type TxBlock struct {
 // without mocking VM or parent block
 type StatelessTxBlock struct {
 	*TxBlock `json:"block"`
+
+	parent  *StatelessTxBlock
+	repeats set.Bits
 
 	id    ids.ID
 	t     time.Time
@@ -158,7 +160,6 @@ func (b *StatelessTxBlock) Verify(ctx context.Context) error {
 
 	var (
 		log   = b.vm.Logger()
-		r     = b.vm.Rules(b.Tmstmp)
 		start = time.Now()
 	)
 
@@ -183,24 +184,9 @@ func (b *StatelessTxBlock) Verify(ctx context.Context) error {
 	if b.Tmstmp < parent.Tmstmp {
 		return ErrTimestampTooEarly
 	}
+	b.parent = parent
 
-	// Ensure tx cannot be replayed
-	//
-	// Before node is considered ready (emap is fully populated), this may return
-	// false when other validators think it is true.
-	oldestAllowed := b.Tmstmp - r.GetValidityWindow()
-	if oldestAllowed < 0 {
-		// Can occur if verifying genesis
-		oldestAllowed = 0
-	}
-	repeats := set.NewBits()
-	// TODO: may not need to pass by reference because inner is pointer
-	if err := parent.CollectRepeats(ctx, oldestAllowed, b.Txs, &repeats); err != nil {
-		return err
-	}
-	if repeats.Len() > 0 {
-		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
-	}
+	// We don't verify signatures or repeats here. We do all of this during deferred verification.
 
 	// We purposely avoid root calc (which would make this spikey)
 	b.vm.RecordTxBlockVerify(time.Since(start))

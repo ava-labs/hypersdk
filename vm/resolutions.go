@@ -519,7 +519,3 @@ func (vm *VM) RecordBuildSelect(t time.Duration) {
 func (vm *VM) RecordBuildMarshal(t time.Duration) {
 	vm.metrics.buildMarshal.Observe(float64(t))
 }
-
-func (vm *VM) RecordBuildRepeat(t time.Duration) {
-	vm.metrics.buildRepeat.Observe(float64(t))
-}

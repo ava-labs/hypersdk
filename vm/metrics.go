@@ -45,7 +45,6 @@ type Metrics struct {
 	addVerifyDiff                 metric.Averager
 	buildSelect                   metric.Averager
 	buildMarshal                  metric.Averager
-	buildRepeat                   metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -154,15 +153,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"build_marshal",
 		"time spent marshaling in builder",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	buildRepeat, err := metric.NewAverager(
-		"chain",
-		"build_repeat",
-		"time spent checking repeats in builder",
 		r,
 	)
 	if err != nil {
@@ -297,7 +287,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		addVerifyDiff:           addVerifyDiff,
 		buildSelect:             buildSelect,
 		buildMarshal:            buildMarshal,
-		buildRepeat:             buildRepeat,
 	}
 	errs := wrappers.Errs{}
 	errs.Add(

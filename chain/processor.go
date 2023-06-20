@@ -26,6 +26,7 @@ type fetchData struct {
 type txData struct {
 	tx      *Transaction
 	storage map[string][]byte
+	skip    bool
 }
 
 type Processor struct {
@@ -61,7 +62,20 @@ func (p *Processor) Prefetch(ctx context.Context, b *StatelessRootBlock) {
 
 		// Store required keys for each set
 		for _, txBlk := range p.blk.GetTxBlocks() {
-			for _, tx := range txBlk.Txs {
+			for i, tx := range txBlk.Txs {
+				if txBlk.repeats.Contains(i) {
+					p.blk.vm.Logger().Warn("tx is duplicate", zap.Stringer("txID", tx.ID()))
+					p.readyTxs <- &txData{tx, nil, true}
+					continue
+				}
+
+				// Check signature before we interact with disk
+				if err := tx.WaitAuthVerified(ctx); err != nil {
+					p.blk.vm.Logger().Warn("tx signature is wrong", zap.Stringer("txID", tx.ID()), zap.Error(err))
+					p.readyTxs <- &txData{tx, nil, true}
+					continue
+				}
+
 				storage := map[string][]byte{}
 				for _, k := range tx.StateKeys(sm) {
 					sk := string(k)
@@ -85,7 +99,7 @@ func (p *Processor) Prefetch(ctx context.Context, b *StatelessRootBlock) {
 					p.alreadyFetched[sk] = &fetchData{v, true}
 					storage[sk] = v
 				}
-				p.readyTxs <- &txData{tx, storage}
+				p.readyTxs <- &txData{tx, storage, false}
 			}
 		}
 
@@ -114,6 +128,11 @@ func (p *Processor) Execute(
 	)
 	for txData := range p.readyTxs {
 		tx := txData.tx
+		if txData.skip {
+			p.blk.vm.RecordTxFailedExecution()
+			results = append(results, &Result{})
+			continue
+		}
 
 		// It is critical we explicitly set the scope before each transaction is
 		// processed
@@ -130,6 +149,8 @@ func (p *Processor) Execute(
 		//
 		// TODO: parallel execution will greatly improve performance in the case
 		// that we are waiting for signature verification.
+		//
+		// We keep this here because we charge fees regardless of whether the message is successful.
 		var warpVerified bool
 		warpMsg, ok := warpMessages[tx.ID()]
 		if ok {

@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/codec"
@@ -611,16 +612,29 @@ func (b *StatelessRootBlock) Execute(ctx context.Context, parent *StatelessRootB
 		_, sspan = b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
 	}
 	for _, txBlock := range b.txBlocks {
-		for _, tx := range txBlock.Txs {
+		// Ensure tx cannot be replayed
+		//
+		// Before node is considered ready (emap is fully populated), this may return
+		// false when other validators think it is true.
+		oldestAllowed := txBlock.Tmstmp - r.GetValidityWindow()
+		if oldestAllowed < 0 {
+			// Can occur if verifying genesis
+			oldestAllowed = 0
+		}
+		// Check repeats and populate block object
+		repeats := set.NewBits()
+		// TODO: may not need to pass by reference because inner is pointer
+		if err := txBlock.parent.CollectRepeats(ctx, oldestAllowed, txBlock.Txs, &repeats); err != nil {
+			return err
+		}
+		txBlock.repeats = repeats
+
+		for i, tx := range txBlock.Txs {
+			if txBlock.repeats.Contains(i) {
+				continue
+			}
 			if verifySignatues {
-				done, err := tx.AuthAsyncVerified()
-				if err != nil {
-					// allow partial failures
-					return err
-				}
-				if !done {
-					sigJob.Go(tx.AuthAsyncVerify())
-				}
+				sigJob.Go(tx.AuthAsyncVerify())
 			}
 			// Check if we need the block context to verify the block (which contains
 			// an Avalanche Warp Message)

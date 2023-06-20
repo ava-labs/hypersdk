@@ -34,6 +34,7 @@ type Transaction struct {
 
 	authAsyncVerified    bool
 	authAsyncVerifiedErr error
+	authDone             chan struct{}
 
 	digest         []byte
 	bytes          []byte
@@ -115,10 +116,6 @@ func (t *Transaction) Sign(
 	return UnmarshalTx(p, actionRegistry, authRegistry)
 }
 
-func (t *Transaction) AuthAsyncVerified() (bool, error) {
-	return t.authAsyncVerified, t.authAsyncVerifiedErr
-}
-
 func (t *Transaction) AuthAsyncVerify() func() error {
 	return func() error {
 		if t.authAsyncVerified {
@@ -127,7 +124,17 @@ func (t *Transaction) AuthAsyncVerify() func() error {
 		err := t.Auth.AsyncVerify(t.digest)
 		t.authAsyncVerifiedErr = err
 		t.authAsyncVerified = true
+		close(t.authDone)
 		return err
+	}
+}
+
+func (t *Transaction) WaitAuthVerified(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.authDone:
+		return t.authAsyncVerifiedErr
 	}
 }
 
@@ -486,6 +493,7 @@ func UnmarshalTx(
 	tx.Action = action
 	tx.WarpMessage = warpMessage
 	tx.Auth = auth
+	tx.authDone = make(chan struct{})
 	if err := p.Err(); err != nil {
 		return nil, p.Err()
 	}
