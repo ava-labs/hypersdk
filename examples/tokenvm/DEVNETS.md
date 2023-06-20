@@ -162,7 +162,7 @@ avalanchego_config:
   consensus-on-accept-gossip-non-validator-size: 0
   consensus-on-accept-gossip-peer-size: 10
   consensus-accepted-frontier-gossip-peer-size: 0
-  consensus-app-concurrency: 16
+  consensus-app-concurrency: 128
   network-compression-type: none
 ```
 
@@ -173,6 +173,11 @@ CloudWatch. To ingest all metrics, change the configured filters in
 ```yaml
 filters:
   - regex: ^*$
+```
+
+#### Disable Metrics
+```yaml
+metrics_fetch_interval_seconds: 0
 ```
 
 ### Step 6: Apply Local Network Deploy

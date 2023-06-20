@@ -37,6 +37,8 @@ func (g *Manual) Run(appSender common.AppSender) {
 }
 
 func (g *Manual) TriggerGossip(ctx context.Context) error {
+	g.vm.RecordGossipTrigger()
+
 	// Gossip highest paying txs
 	txs := []*chain.Transaction{}
 	size := 0

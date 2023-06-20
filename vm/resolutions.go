@@ -507,3 +507,7 @@ func (vm *VM) RecordTxsAttempted(attempted int) {
 func (vm *VM) IsBuilding() bool {
 	return vm.building
 }
+
+func (vm *VM) RecordGossipTrigger() {
+	vm.metrics.txGossipTriggered.Inc()
+}

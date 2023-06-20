@@ -152,6 +152,8 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 // Triggers "AppGossip" on the pending transactions in the mempool.
 // "force" is true to re-gossip whether recently gossiped or not
 func (g *Proposer) TriggerGossip(ctx context.Context) error {
+	g.vm.RecordGossipTrigger()
+
 	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.GossipTxs")
 	defer span.End()
 
@@ -210,14 +212,22 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 	if len(txs) == 0 {
 		return nil
 	}
+	if err := g.sendTxs(ctx, txs); err != nil {
+		g.vm.Logger().Info(
+			"gossip transactions failed", zap.Int("txs", len(txs)),
+			zap.Uint64("preferred height", blk.Hght), zap.Error(err),
+		)
+		return err
+	}
 	g.vm.Logger().Info(
-		"gossiping transactions", zap.Int("txs", len(txs)),
+		"gossiped transactions", zap.Int("txs", len(txs)),
 		zap.Uint64("preferred height", blk.Hght), zap.Duration("t", time.Since(start)),
 	)
-	return g.sendTxs(ctx, txs)
+	return nil
 }
 
 func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+	// TODO: this will verify txs while in the handler goroutine
 	actionRegistry, authRegistry := g.vm.Registry()
 	txs, err := chain.UnmarshalTxs(msg, actionRegistry, authRegistry)
 	if err != nil {
@@ -295,20 +305,11 @@ func (g *Proposer) Run(appSender common.AppSender) {
 			// Check if we are going to propose if it has been less than
 			// [VerifyTimeout] since the last time we verified a block.
 			if time.Now().Unix()-g.lastVerified < g.cfg.VerifyTimeout {
-				proposers, err := g.vm.Proposers(
-					tctx,
-					g.cfg.BuildProposerDiff,
-					1,
-				)
-				if err == nil && proposers.Contains(g.vm.NodeID()) {
-					g.vm.Logger().Debug("not gossiping because soon to propose")
-					continue
-				} else if err != nil {
-					g.vm.Logger().Warn("unable to determine if will propose soon, gossiping anyways", zap.Error(err))
-				}
-			} else {
-				g.vm.Logger().Info("gossiping because past verify timeout")
+				// TODO: consider gossiping in this case if we haven't build a block in a while and we aren't about to build
+				// one.
+				continue
 			}
+			g.vm.Logger().Info("gossiping because past verify timeout")
 
 			// Gossip to proposers who will produce next
 			if err := g.TriggerGossip(tctx); err != nil {
