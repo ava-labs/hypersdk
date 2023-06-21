@@ -158,10 +158,12 @@ func (vm *VM) processAcceptedBlocks() {
 	// closed.
 	for b := range vm.acceptedQueue {
 		// Process block (can just have chunks be txs + height)
+		start := time.Now()
 		if err := b.Execute(context.TODO(), vm.lastProcessed); err != nil {
 			vm.Logger().Fatal("unable to execute block", zap.Error(err))
 			return
 		}
+		vm.metrics.rootBlockExecute.Observe(float64(time.Since(start)))
 
 		// Update replay protection heap
 		//
@@ -203,6 +205,7 @@ func (vm *VM) processAcceptedBlocks() {
 			if err := vm.StoreTxBlock(batch, txBlock); err != nil {
 				vm.snowCtx.Log.Fatal("unable to store tx block", zap.Error(err))
 			}
+			txBlock.Free() // clears memory from execute
 		}
 		if b.Hght > vm.config.GetRootBlockPruneDiff() { // > ensures we don't prune genesis
 			prunableHeight := b.Hght - vm.config.GetRootBlockPruneDiff()

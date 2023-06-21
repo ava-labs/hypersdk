@@ -39,6 +39,7 @@ type Metrics struct {
 	buildBlock                    metric.Averager
 	verifyWait                    metric.Averager
 	txBlockVerify                 metric.Averager
+	rootBlockExecute              metric.Averager
 	txBlockIssuanceDiff           metric.Averager
 	rootBlockIssuanceDiff         metric.Averager
 	rootBlockAcceptanceDiff       metric.Averager
@@ -153,6 +154,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"build_marshal",
 		"time spent marshaling in builder",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	rootBlockExecute, err := metric.NewAverager(
+		"chain",
+		"root_block_execute",
+		"time spent executing a tx block",
 		r,
 	)
 	if err != nil {
@@ -281,6 +291,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		buildBlock:              buildBlock,
 		verifyWait:              verifyWait,
 		txBlockVerify:           txBlockVerify,
+		rootBlockExecute:        rootBlockExecute,
 		txBlockIssuanceDiff:     txBlockIssuanceDiff,
 		rootBlockIssuanceDiff:   rootBlockIssuanceDiff,
 		rootBlockAcceptanceDiff: rootBlockAcceptanceDiff,

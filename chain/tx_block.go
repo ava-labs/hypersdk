@@ -213,6 +213,11 @@ func (b *StatelessTxBlock) Reject(ctx context.Context) error {
 	return nil
 }
 
+func (b *StatelessTxBlock) Free() {
+	// TODO: reset txSet (requires lock so don't remove while someone is checking repeats)
+	b.parent = nil // otherwise all blocks will stay in memory
+}
+
 // implements "snowman.Block"
 func (b *StatelessTxBlock) Parent() ids.ID { return b.TxBlock.Prnt }
 
