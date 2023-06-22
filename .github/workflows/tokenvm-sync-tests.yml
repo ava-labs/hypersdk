@@ -20,10 +20,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: "1.20"
           check-latest: true
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            examples/tokenvm/go.sum
       - name: Run sync tests
         working-directory: ./examples/tokenvm
         shell: bash
@@ -39,10 +43,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: "1.20"
           check-latest: true
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            examples/tokenvm/go.sum
       - name: Run sync tests
         working-directory: ./examples/tokenvm
         shell: bash
