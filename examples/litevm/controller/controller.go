@@ -21,11 +21,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/examples/litevm/actions"
-	"github.com/ava-labs/hypersdk/examples/litevm/auth"
 	"github.com/ava-labs/hypersdk/examples/litevm/config"
 	"github.com/ava-labs/hypersdk/examples/litevm/consts"
 	"github.com/ava-labs/hypersdk/examples/litevm/genesis"
-	"github.com/ava-labs/hypersdk/examples/litevm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/litevm/rpc"
 	"github.com/ava-labs/hypersdk/examples/litevm/storage"
 	"github.com/ava-labs/hypersdk/examples/litevm/version"
@@ -44,8 +42,6 @@ type Controller struct {
 	metrics *metrics
 
 	metaDB database.Database
-
-	orderBook *orderbook.OrderBook
 }
 
 func New() *vm.VM {
@@ -164,9 +160,6 @@ func (c *Controller) Initialize(
 		gcfg.VerifyTimeout = c.config.VerifyTimeout
 		gossip = gossiper.NewProposer(inner, gcfg)
 	}
-
-	// Initialize order book used to track all open orders
-	c.orderBook = orderbook.New(c, c.config.TrackedPairs)
 	return c.config, c.genesis, build, gossip, blockDB, stateDB, apis, consts.ActionRegistry, consts.AuthRegistry, nil
 }
 
@@ -198,40 +191,9 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 			return err
 		}
 		if result.Success {
-			switch action := tx.Action.(type) {
-			case *actions.CreateAsset:
-				c.metrics.createAsset.Inc()
-			case *actions.MintAsset:
-				c.metrics.mintAsset.Inc()
-			case *actions.BurnAsset:
-				c.metrics.burnAsset.Inc()
-			case *actions.ModifyAsset:
-				c.metrics.modifyAsset.Inc()
+			switch tx.Action.(type) {
 			case *actions.Transfer:
 				c.metrics.transfer.Inc()
-			case *actions.CreateOrder:
-				c.metrics.createOrder.Inc()
-				actor := auth.GetActor(tx.Auth)
-				c.orderBook.Add(tx.ID(), actor, action)
-			case *actions.FillOrder:
-				c.metrics.fillOrder.Inc()
-				orderResult, err := actions.UnmarshalOrderResult(result.Output)
-				if err != nil {
-					// This should never happen
-					return err
-				}
-				if orderResult.Remaining == 0 {
-					c.orderBook.Remove(action.Order)
-					continue
-				}
-				c.orderBook.UpdateRemaining(action.Order, orderResult.Remaining)
-			case *actions.CloseOrder:
-				c.metrics.closeOrder.Inc()
-				c.orderBook.Remove(action.Order)
-			case *actions.ImportAsset:
-				c.metrics.importAsset.Inc()
-			case *actions.ExportAsset:
-				c.metrics.exportAsset.Inc()
 			}
 		}
 	}

@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/litevm/genesis"
-	"github.com/ava-labs/hypersdk/examples/litevm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/litevm/storage"
 )
 
@@ -34,29 +33,9 @@ func (c *Controller) GetTransaction(
 	return storage.GetTransaction(ctx, c.metaDB, txID)
 }
 
-func (c *Controller) GetAssetFromState(
-	ctx context.Context,
-	asset ids.ID,
-) (bool, []byte, uint64, crypto.PublicKey, bool, error) {
-	return storage.GetAssetFromState(ctx, c.inner.ReadState, asset)
-}
-
 func (c *Controller) GetBalanceFromState(
 	ctx context.Context,
 	pk crypto.PublicKey,
-	asset ids.ID,
 ) (uint64, error) {
-	return storage.GetBalanceFromState(ctx, c.inner.ReadState, pk, asset)
-}
-
-func (c *Controller) Orders(pair string, limit int) []*orderbook.Order {
-	return c.orderBook.Orders(pair, limit)
-}
-
-func (c *Controller) GetLoanFromState(
-	ctx context.Context,
-	asset ids.ID,
-	destination ids.ID,
-) (uint64, error) {
-	return storage.GetLoanFromState(ctx, c.inner.ReadState, asset, destination)
+	return storage.GetBalanceFromState(ctx, c.inner.ReadState, pk)
 }
