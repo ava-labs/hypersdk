@@ -73,11 +73,11 @@ fi
 echo "building litevm"
 
 # delete previous (if exists)
-rm -f /tmp/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
+rm -f /tmp/avalanchego-v${VERSION}/plugins/pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7
 
 # rebuild with latest code
 go build \
--o /tmp/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
+-o /tmp/avalanchego-v${VERSION}/plugins/pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7 \
 ./cmd/litevm
 
 echo "building lite-cli"

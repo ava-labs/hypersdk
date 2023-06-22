@@ -18,7 +18,7 @@ if ! [[ "$0" =~ scripts/build.sh ]]; then
 fi
 
 # Set default binary directory location
-name="tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8"
+name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
 
 # Build litevm, which is run as a subprocess
 mkdir -p ./build

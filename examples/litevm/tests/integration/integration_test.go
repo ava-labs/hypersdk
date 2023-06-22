@@ -42,6 +42,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/examples/litevm/actions"
 	"github.com/ava-labs/hypersdk/examples/litevm/auth"
+	lconsts "github.com/ava-labs/hypersdk/examples/litevm/consts"
 	"github.com/ava-labs/hypersdk/examples/litevm/controller"
 	"github.com/ava-labs/hypersdk/examples/litevm/genesis"
 	lrpc "github.com/ava-labs/hypersdk/examples/litevm/rpc"
@@ -129,6 +130,7 @@ type instance struct {
 }
 
 var _ = ginkgo.BeforeSuite(func() {
+	log.Info("VMID", zap.Stringer("id", lconsts.ID))
 	gomega.Ω(vms).Should(gomega.BeNumerically(">", 1))
 
 	var err error
