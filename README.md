@@ -33,7 +33,7 @@ efficiently for them.
 
 This opinionated design methodology means that most runtimes built on the
 `hypersdk`, called a `hypervm`, only need to implement 500-1000 lines of their own
-code to add custom interaction patterns (and don't need to copy-pasta code from upstream
+code to add custom interaction patterns (and don't need to copy-paste code from upstream
 that they need to keep up-to-date). However, if you do want to provide your own
 mechanism, you can always override anything you are using upstream if you can
 compose something better suited for your application. That same DEX-based
