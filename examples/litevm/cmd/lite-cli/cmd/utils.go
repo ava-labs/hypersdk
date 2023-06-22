@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/litevm/auth"
 	"github.com/ava-labs/hypersdk/examples/litevm/consts"
@@ -140,24 +139,6 @@ func promptChoice(label string, max int) (int, error) {
 	return strconv.Atoi(rawIndex)
 }
 
-func promptTime(label string) (int64, error) {
-	promptText := promptui.Prompt{
-		Label: label,
-		Validate: func(input string) error {
-			if len(input) == 0 {
-				return ErrInputEmpty
-			}
-			_, err := strconv.ParseInt(input, 10, 64)
-			return err
-		},
-	}
-	rawTime, err := promptText.Run()
-	if err != nil {
-		return -1, err
-	}
-	return strconv.ParseInt(rawTime, 10, 64)
-}
-
 func promptContinue() (bool, error) {
 	promptText := promptui.Prompt{
 		Label: "continue (y/n)",
@@ -179,31 +160,6 @@ func promptContinue() (bool, error) {
 	cont := strings.ToLower(rawContinue)
 	if cont == "n" {
 		hutils.Outf("{{red}}exiting...{{/}}\n")
-		return false, nil
-	}
-	return true, nil
-}
-
-func promptBool(label string) (bool, error) {
-	promptText := promptui.Prompt{
-		Label: fmt.Sprintf("%s (y/n)", label),
-		Validate: func(input string) error {
-			if len(input) == 0 {
-				return ErrInputEmpty
-			}
-			lower := strings.ToLower(input)
-			if lower == "y" || lower == "n" {
-				return nil
-			}
-			return ErrInvalidChoice
-		},
-	}
-	rawContinue, err := promptText.Run()
-	if err != nil {
-		return false, err
-	}
-	cont := strings.ToLower(rawContinue)
-	if cont == "n" {
 		return false, nil
 	}
 	return true, nil
@@ -232,18 +188,13 @@ func promptID(label string) (ids.ID, error) {
 	return id, nil
 }
 
-func promptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, error) {
+func promptChain(label string) (ids.ID, []string, error) {
 	chains, err := GetChains()
 	if err != nil {
 		return ids.Empty, nil, err
 	}
 	filteredChains := make([]ids.ID, 0, len(chains))
-	excludedChains := []ids.ID{}
 	for chainID := range chains {
-		if excluded != nil && excluded.Contains(chainID) {
-			excludedChains = append(excludedChains, chainID)
-			continue
-		}
 		filteredChains = append(filteredChains, chainID)
 	}
 	if len(filteredChains) == 0 {
@@ -252,9 +203,8 @@ func promptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, erro
 
 	// Select chain
 	hutils.Outf(
-		"{{cyan}}available chains:{{/}} %d {{cyan}}excluded:{{/}} %+v\n",
+		"{{cyan}}available chains:{{/}} %d\n",
 		len(filteredChains),
-		excludedChains,
 	)
 	keys := make([]ids.ID, 0, len(filteredChains))
 	for _, chainID := range filteredChains {

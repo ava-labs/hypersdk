@@ -23,11 +23,11 @@ func (*Rules) GetWarpConfig(ids.ID) (bool, uint64, uint64) {
 	return false, 0, 0
 }
 
-func (r *Rules) GetWarpBaseFee() uint64 {
+func (*Rules) GetWarpBaseFee() uint64 {
 	return 0
 }
 
-func (r *Rules) GetWarpFeePerSigner() uint64 {
+func (*Rules) GetWarpFeePerSigner() uint64 {
 	return 0
 }
 
