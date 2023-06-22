@@ -20,19 +20,15 @@ func (g *Genesis) Rules(int64) *Rules {
 }
 
 func (*Rules) GetWarpConfig(ids.ID) (bool, uint64, uint64) {
-	// We allow inbound transfers from all sources as long as 80% of stake has
-	// signed a message.
-	//
-	// This is safe because the tokenvm scopes all assets by their source chain.
-	return true, 4, 5
+	return false, 0, 0
 }
 
 func (r *Rules) GetWarpBaseFee() uint64 {
-	return r.g.WarpBaseFee
+	return 0
 }
 
 func (r *Rules) GetWarpFeePerSigner() uint64 {
-	return r.g.WarpFeePerSigner
+	return 0
 }
 
 func (r *Rules) GetMaxBlockTxs() int {

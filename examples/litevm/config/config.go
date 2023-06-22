@@ -66,13 +66,6 @@ type Config struct {
 	MempoolExemptPayers   []string `json:"mempoolExemptPayers"`
 	MempoolVerifyBalances bool     `json:"mempoolVerifyBalances"`
 
-	// Order Book
-	//
-	// This is denoted as <asset 1>-<asset 2>
-	//
-	// TODO: add ability to denote min rate/min amount for tracking to avoid spam
-	TrackedPairs []string `json:"trackedPairs"` // which asset ID pairs we care about
-
 	// Misc
 	TestMode    bool          `json:"testMode"` // makes gossip/building manual
 	LogLevel    logging.Level `json:"logLevel"`

@@ -8,12 +8,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	smath "github.com/ava-labs/avalanchego/utils/math"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
@@ -49,10 +47,6 @@ type Genesis struct {
 	BlockCostChangeDenominator uint64 `json:"blockCostChangeDenominator"`
 	WindowTargetBlocks         uint64 `json:"windowTargetBlocks"` // 10s
 
-	// Warp pricing
-	WarpBaseFee      uint64 `json:"warpBaseFee"`
-	WarpFeePerSigner uint64 `json:"warpFeePerSigner"`
-
 	// Allocations
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
 }
@@ -78,10 +72,6 @@ func Default() *Genesis {
 		MinBlockCost:               0,
 		BlockCostChangeDenominator: 48,
 		WindowTargetBlocks:         20, // 10s
-
-		// Warp pricing
-		WarpBaseFee:      1_024,
-		WarpFeePerSigner: 128,
 	}
 }
 
@@ -119,17 +109,9 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Databa
 		if err != nil {
 			return err
 		}
-		if err := storage.SetBalance(ctx, db, pk, ids.Empty, alloc.Balance); err != nil {
+		if err := storage.SetBalance(ctx, db, pk, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}
-	return storage.SetAsset(
-		ctx,
-		db,
-		ids.Empty,
-		[]byte(consts.Symbol),
-		supply,
-		crypto.EmptyPublicKey,
-		false,
-	)
+	return nil
 }
