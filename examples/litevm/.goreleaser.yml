@@ -3,9 +3,9 @@
 
 # ref. https://goreleaser.com/customization/build/
 builds:
-  - id: token-cli
-    main: ./cmd/token-cli
-    binary: token-cli
+  - id: lite-cli
+    main: ./cmd/lite-cli
+    binary: lite-cli
     flags:
       - -v
     goos:
@@ -31,9 +31,9 @@ builds:
         goamd64: v1
         env:
           - CC=o64-clang
-  - id: tokenvm
-    main: ./cmd/tokenvm
-    binary: tokenvm
+  - id: litevm
+    main: ./cmd/litevm
+    binary: litevm
     flags:
       - -v
     goos:

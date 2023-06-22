@@ -20,15 +20,15 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/config"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/version"
+	"github.com/ava-labs/hypersdk/examples/litevm/actions"
+	"github.com/ava-labs/hypersdk/examples/litevm/auth"
+	"github.com/ava-labs/hypersdk/examples/litevm/config"
+	"github.com/ava-labs/hypersdk/examples/litevm/consts"
+	"github.com/ava-labs/hypersdk/examples/litevm/genesis"
+	"github.com/ava-labs/hypersdk/examples/litevm/orderbook"
+	"github.com/ava-labs/hypersdk/examples/litevm/rpc"
+	"github.com/ava-labs/hypersdk/examples/litevm/storage"
+	"github.com/ava-labs/hypersdk/examples/litevm/version"
 )
 
 var _ vm.Controller = (*Controller)(nil)

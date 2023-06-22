@@ -3,8 +3,4 @@
 
 package rpc
 
-const (
-	JSONRPCEndpoint = "/tokenapi"
-
-	ordersToSend = 128
-)
+const JSONRPCEndpoint = "/liteapi"

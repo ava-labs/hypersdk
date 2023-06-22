@@ -10,10 +10,10 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
-	_ "github.com/ava-labs/hypersdk/examples/tokenvm/registry" // ensure registry populated
+	"github.com/ava-labs/hypersdk/examples/litevm/consts"
+	"github.com/ava-labs/hypersdk/examples/litevm/genesis"
+	"github.com/ava-labs/hypersdk/examples/litevm/orderbook"
+	_ "github.com/ava-labs/hypersdk/examples/litevm/registry" // ensure registry populated
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"

@@ -11,15 +11,15 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/ulimit"
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/tokenvm/version"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/controller"
+	"github.com/ava-labs/hypersdk/examples/litevm/cmd/litevm/version"
+	"github.com/ava-labs/hypersdk/examples/litevm/controller"
 	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
-	Use:        "tokenvm",
+	Use:        "litevm",
 	Short:      "TokenVM agent",
-	SuggestFor: []string{"tokenvm"},
+	SuggestFor: []string{"litevm"},
 	RunE:       runFunc,
 }
 
@@ -35,7 +35,7 @@ func init() {
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "tokenvm failed %v\n", err)
+		fmt.Fprintf(os.Stderr, "litevm failed %v\n", err)
 		os.Exit(1)
 	}
 	os.Exit(0)

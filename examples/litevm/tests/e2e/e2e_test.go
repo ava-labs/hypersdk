@@ -17,12 +17,12 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/crypto"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
-	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/examples/litevm/actions"
+	"github.com/ava-labs/hypersdk/examples/litevm/auth"
+	"github.com/ava-labs/hypersdk/examples/litevm/consts"
+	"github.com/ava-labs/hypersdk/examples/litevm/genesis"
+	trpc "github.com/ava-labs/hypersdk/examples/litevm/rpc"
+	"github.com/ava-labs/hypersdk/examples/litevm/utils"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/fatih/color"
@@ -39,7 +39,7 @@ const (
 
 func TestE2e(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "tokenvm e2e test suites")
+	ginkgo.RunSpecs(t, "litevm e2e test suites")
 }
 
 var (

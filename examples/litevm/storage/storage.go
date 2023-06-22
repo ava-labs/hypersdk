@@ -17,7 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/examples/litevm/utils"
 )
 
 type ReadState func(context.Context, [][]byte) ([][]byte, []error)

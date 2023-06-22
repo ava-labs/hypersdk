@@ -70,7 +70,7 @@ fi
 ############################
 
 ############################
-echo "building tokenvm"
+echo "building litevm"
 
 # delete previous (if exists)
 rm -f /tmp/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
@@ -78,7 +78,7 @@ rm -f /tmp/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYm
 # rebuild with latest code
 go build \
 -o /tmp/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
-./cmd/tokenvm
+./cmd/litevm
 
 echo "building token-cli"
 go build -v -o /tmp/token-cli ./cmd/token-cli
@@ -99,16 +99,16 @@ EOF
 GENESIS_PATH=$2
 if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
-  rm -f /tmp/tokenvm.genesis
+  rm -f /tmp/litevm.genesis
   /tmp/token-cli genesis generate /tmp/allocations.json \
   --max-block-units 4000000 \
   --window-target-units 100000000000 \
   --window-target-blocks 30 \
-  --genesis-file /tmp/tokenvm.genesis
+  --genesis-file /tmp/litevm.genesis
 else
   echo "copying custom genesis file"
-  rm -f /tmp/tokenvm.genesis
-  cp ${GENESIS_PATH} /tmp/tokenvm.genesis
+  rm -f /tmp/litevm.genesis
+  cp ${GENESIS_PATH} /tmp/litevm.genesis
 fi
 
 ############################
@@ -116,9 +116,9 @@ fi
 ############################
 
 echo "creating vm config"
-rm -f /tmp/tokenvm.config
-rm -rf /tmp/tokenvm-e2e-profiles
-cat <<EOF > /tmp/tokenvm.config
+rm -f /tmp/litevm.config
+rm -rf /tmp/litevm-e2e-profiles
+cat <<EOF > /tmp/litevm.config
 {
   "mempoolSize": 10000000,
   "mempoolPayerSize": 10000000,
@@ -131,20 +131,20 @@ cat <<EOF > /tmp/tokenvm.config
   "verifyTimeout": 5,
   "trackedPairs":["*"],
   "preferredBlocksPerSecond": 3,
-  "continuousProfilerDir":"/tmp/tokenvm-e2e-profiles/*",
+  "continuousProfilerDir":"/tmp/litevm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
-mkdir -p /tmp/tokenvm-e2e-profiles
+mkdir -p /tmp/litevm-e2e-profiles
 
 ############################
 
 ############################
 
 echo "creating subnet config"
-rm -f /tmp/tokenvm.subnet
-cat <<EOF > /tmp/tokenvm.subnet
+rm -f /tmp/litevm.subnet
+cat <<EOF > /tmp/litevm.subnet
 {
   "proposerMinBlockDelay": ${PROPOSER_MIN_BLOCK_DELAY}
 }
@@ -226,9 +226,9 @@ echo "running e2e tests"
 --network-runner-grpc-gateway-endpoint="0.0.0.0:12353" \
 --avalanchego-path=${AVALANCHEGO_PATH} \
 --avalanchego-plugin-dir=${AVALANCHEGO_PLUGIN_DIR} \
---vm-genesis-path=/tmp/tokenvm.genesis \
---vm-config-path=/tmp/tokenvm.config \
---subnet-config-path=/tmp/tokenvm.subnet \
+--vm-genesis-path=/tmp/litevm.genesis \
+--vm-config-path=/tmp/litevm.config \
+--subnet-config-path=/tmp/litevm.subnet \
 --output-path=/tmp/avalanchego-v${VERSION}/output.yaml \
 --mode=${MODE}
 

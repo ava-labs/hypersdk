@@ -12,9 +12,9 @@ import (
 	smath "github.com/ava-labs/avalanchego/utils/math"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/examples/litevm/consts"
+	"github.com/ava-labs/hypersdk/examples/litevm/storage"
+	"github.com/ava-labs/hypersdk/examples/litevm/utils"
 	"github.com/ava-labs/hypersdk/vm"
 )
 

@@ -12,8 +12,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	trpc "github.com/ava-labs/hypersdk/examples/litevm/rpc"
+	"github.com/ava-labs/hypersdk/examples/litevm/utils"
 )
 
 var keyCmd = &cobra.Command{

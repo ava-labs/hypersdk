@@ -1,4 +1,4 @@
-module github.com/ava-labs/hypersdk/examples/tokenvm
+module github.com/ava-labs/hypersdk/examples/litevm
 
 go 1.20
 
