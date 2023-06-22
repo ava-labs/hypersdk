@@ -23,7 +23,7 @@ LOGLEVEL=${LOGLEVEL:-info}
 AVALANCHE_LOG_LEVEL=${AVALANCHE_LOG_LEVEL:-INFO}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 PROPOSER_MIN_BLOCK_DELAY=${PROPOSER_MIN_BLOCK_DELAY:-0}
-if [[ ${MODE} != "run" && ${MODE} != "run-single" ]]; then
+if [[ ${MODE} != "run" ]]; then
   STATESYNC_DELAY=500000000 # 500ms
   PROPOSER_MIN_BLOCK_DELAY=100000000 # 100ms
 fi
@@ -80,8 +80,8 @@ go build \
 -o /tmp/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
 ./cmd/litevm
 
-echo "building token-cli"
-go build -v -o /tmp/token-cli ./cmd/token-cli
+echo "building lite-cli"
+go build -v -o /tmp/lite-cli ./cmd/lite-cli
 
 # log everything in the avalanchego directory
 find /tmp/avalanchego-v${VERSION}
@@ -93,14 +93,14 @@ find /tmp/avalanchego-v${VERSION}
 # Always create allocations (linter doesn't like tab)
 echo "creating allocations file"
 cat <<EOF > /tmp/allocations.json
-[{"address":"token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":1000000000000}]
+[{"address":"lite1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":1000000000000}]
 EOF
 
 GENESIS_PATH=$2
 if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f /tmp/litevm.genesis
-  /tmp/token-cli genesis generate /tmp/allocations.json \
+  /tmp/lite-cli genesis generate /tmp/allocations.json \
   --max-block-units 4000000 \
   --window-target-units 100000000000 \
   --window-target-blocks 30 \
@@ -122,14 +122,13 @@ cat <<EOF > /tmp/litevm.config
 {
   "mempoolSize": 10000000,
   "mempoolPayerSize": 10000000,
-  "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
+  "mempoolExemptPayers":["lite1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "parallelism": 5,
   "streamingBacklogSize": 10000000,
   "gossipMaxSize": 32768,
   "gossipProposerDepth": 1,
   "buildProposerDiff": 1,
   "verifyTimeout": 5,
-  "trackedPairs":["*"],
   "preferredBlocksPerSecond": 3,
   "continuousProfilerDir":"/tmp/litevm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
@@ -233,7 +232,7 @@ echo "running e2e tests"
 --mode=${MODE}
 
 ############################
-if [[ ${MODE} == "run" || ${MODE} == "run-single" ]]; then
+if [[ ${MODE} == "run" ]]; then
   echo "cluster is ready!"
   # We made it past initialization and should avoid shutting down the network
   KEEPALIVE=true
