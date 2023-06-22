@@ -6,12 +6,12 @@ package cmd
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/ava-labs/hypersdk/examples/litevm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/litevm/rpc"
 	"github.com/ava-labs/hypersdk/examples/litevm/utils"
 )
@@ -97,15 +97,16 @@ var setKeyCmd = &cobra.Command{
 		hutils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
 		for i := 0; i < len(keys); i++ {
 			address := utils.Address(keys[i].PublicKey())
-			balance, err := cli.Balance(context.TODO(), address, ids.Empty)
+			balance, err := cli.Balance(context.TODO(), address)
 			if err != nil {
 				return err
 			}
 			hutils.Outf(
-				"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s TKN\n",
+				"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 				i,
 				address,
-				valueString(ids.Empty, balance),
+				hutils.FormatBalance(balance),
+				consts.Symbol,
 			)
 		}
 
@@ -134,18 +135,13 @@ var balanceKeyCmd = &cobra.Command{
 			return err
 		}
 
-		assetID, err := promptAsset("assetID", true)
-		if err != nil {
-			return err
-		}
-
 		max := len(uris)
 		if !checkAllChains {
 			max = 1
 		}
 		for _, uri := range uris[:max] {
 			hutils.Outf("{{yellow}}uri:{{/}} %s\n", uri)
-			if _, _, err = getAssetInfo(ctx, trpc.NewJSONRPCClient(uri, chainID), priv.PublicKey(), assetID, true); err != nil {
+			if _, err = getBalance(ctx, trpc.NewJSONRPCClient(uri, chainID), priv.PublicKey()); err != nil {
 				return err
 			}
 		}

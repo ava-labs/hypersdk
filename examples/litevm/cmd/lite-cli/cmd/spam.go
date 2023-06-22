@@ -15,11 +15,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/litevm/actions"
 	"github.com/ava-labs/hypersdk/examples/litevm/auth"
+	"github.com/ava-labs/hypersdk/examples/litevm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/litevm/rpc"
 	"github.com/ava-labs/hypersdk/examples/litevm/utils"
 	"github.com/ava-labs/hypersdk/rpc"
@@ -99,16 +99,17 @@ var runSpamCmd = &cobra.Command{
 		balances := make([]uint64, len(keys))
 		for i := 0; i < len(keys); i++ {
 			address := utils.Address(keys[i].PublicKey())
-			balance, err := tcli.Balance(ctx, address, ids.Empty)
+			balance, err := tcli.Balance(ctx, address)
 			if err != nil {
 				return err
 			}
 			balances[i] = balance
 			hutils.Outf(
-				"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s TKN\n",
+				"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 				i,
 				address,
-				valueString(ids.Empty, balance),
+				hutils.FormatBalance(balance),
+				consts.Symbol,
 			)
 		}
 		keyIndex, err := promptChoice("select root key", len(keys))
@@ -132,8 +133,8 @@ var runSpamCmd = &cobra.Command{
 		distAmount := (balance - witholding) / uint64(numAccounts)
 		hutils.Outf(
 			"{{yellow}}distributing funds to each account:{{/}} %s %s\n",
-			valueString(ids.Empty, distAmount),
-			assetString(ids.Empty),
+			hutils.FormatBalance(distAmount),
+			consts.Symbol,
 		)
 		accounts := make([]crypto.PrivateKey, numAccounts)
 		dcli, err := rpc.NewWebSocketClient(uris[0])
@@ -157,7 +158,6 @@ var runSpamCmd = &cobra.Command{
 			// Send funds
 			_, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
 				To:    pk.PublicKey(),
-				Asset: ids.Empty,
 				Value: distAmount,
 			}, factory)
 			if err != nil {
@@ -332,7 +332,6 @@ var runSpamCmd = &cobra.Command{
 							selected[recipient] = v
 							_, tx, fees, err := issuer.c.GenerateTransactionManual(parser, nil, &actions.Transfer{
 								To:    recipient,
-								Asset: ids.Empty,
 								Value: uint64(v), // ensure txs are unique
 							}, factory, unitPrice)
 							if err != nil {
@@ -410,7 +409,6 @@ var runSpamCmd = &cobra.Command{
 			returnAmt := balance - transferFee
 			_, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
 				To:    key.PublicKey(),
-				Asset: ids.Empty,
 				Value: returnAmt,
 			}, auth.NewED25519Factory(accounts[i]))
 			if err != nil {
@@ -441,8 +439,8 @@ var runSpamCmd = &cobra.Command{
 		}
 		hutils.Outf(
 			"{{yellow}}returned funds:{{/}} %s %s\n",
-			valueString(ids.Empty, returnedBalance),
-			assetString(ids.Empty),
+			hutils.FormatBalance(returnedBalance),
+			consts.Symbol,
 		)
 		return nil
 	},

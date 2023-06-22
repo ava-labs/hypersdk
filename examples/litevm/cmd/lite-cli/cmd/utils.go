@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
-	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/litevm/auth"
 	"github.com/ava-labs/hypersdk/examples/litevm/consts"
@@ -58,45 +57,8 @@ func promptString(label string) (string, error) {
 	return strings.TrimSpace(text), err
 }
 
-func promptAsset(label string, allowNative bool) (ids.ID, error) {
-	text := fmt.Sprintf("%s (use TKN for native token)", label)
-	if !allowNative {
-		text = label
-	}
-	promptText := promptui.Prompt{
-		Label: text,
-		Validate: func(input string) error {
-			if len(input) == 0 {
-				return ErrInputEmpty
-			}
-			if allowNative && len(input) == 3 && input == consts.Symbol {
-				return nil
-			}
-			_, err := ids.FromString(input)
-			return err
-		},
-	}
-	asset, err := promptText.Run()
-	if err != nil {
-		return ids.Empty, err
-	}
-	asset = strings.TrimSpace(asset)
-	var assetID ids.ID
-	if asset != consts.Symbol {
-		assetID, err = ids.FromString(asset)
-		if err != nil {
-			return ids.Empty, err
-		}
-	}
-	if !allowNative && assetID == ids.Empty {
-		return ids.Empty, ErrInvalidChoice
-	}
-	return assetID, nil
-}
-
 func promptAmount(
 	label string,
-	assetID ids.ID,
 	balance uint64,
 	f func(input uint64) error,
 ) (uint64, error) {
@@ -106,13 +68,7 @@ func promptAmount(
 			if len(input) == 0 {
 				return ErrInputEmpty
 			}
-			var amount uint64
-			var err error
-			if assetID == ids.Empty {
-				amount, err = hutils.ParseBalance(input)
-			} else {
-				amount, err = strconv.ParseUint(input, 10, 64)
-			}
+			amount, err := hutils.ParseBalance(input)
 			if err != nil {
 				return err
 			}
@@ -130,13 +86,7 @@ func promptAmount(
 		return 0, err
 	}
 	rawAmount = strings.TrimSpace(rawAmount)
-	var amount uint64
-	if assetID == ids.Empty {
-		amount, err = hutils.ParseBalance(rawAmount)
-	} else {
-		amount, err = strconv.ParseUint(rawAmount, 10, 64)
-	}
-	return amount, err
+	return hutils.ParseBalance(rawAmount)
 }
 
 func promptInt(
@@ -324,21 +274,6 @@ func promptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, erro
 	return chainID, chains[chainID], nil
 }
 
-func valueString(assetID ids.ID, value uint64) string {
-	if assetID == ids.Empty {
-		return hutils.FormatBalance(value)
-	}
-	// Custom assets are denoted in raw units
-	return strconv.FormatUint(value, 10)
-}
-
-func assetString(assetID ids.ID) string {
-	if assetID == ids.Empty {
-		return consts.Symbol
-	}
-	return assetID.String()
-}
-
 func printStatus(txID ids.ID, success bool) {
 	status := "⚠️"
 	if success {
@@ -347,62 +282,28 @@ func printStatus(txID ids.ID, success bool) {
 	hutils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, txID)
 }
 
-func getAssetInfo(
+func getBalance(
 	ctx context.Context,
 	cli *trpc.JSONRPCClient,
 	publicKey crypto.PublicKey,
-	assetID ids.ID,
-	checkBalance bool,
-) (uint64, ids.ID, error) {
-	var sourceChainID ids.ID
-	if assetID != ids.Empty {
-		exists, metadata, supply, _, warp, err := cli.Asset(ctx, assetID)
-		if err != nil {
-			return 0, ids.Empty, err
-		}
-		if !exists {
-			hutils.Outf("{{red}}%s does not exist{{/}}\n", assetID)
-			hutils.Outf("{{red}}exiting...{{/}}\n")
-			return 0, ids.Empty, nil
-		}
-		if warp {
-			sourceChainID = ids.ID(metadata[hconsts.IDLen:])
-			sourceAssetID := ids.ID(metadata[:hconsts.IDLen])
-			hutils.Outf(
-				"{{yellow}}sourceChainID:{{/}} %s {{yellow}}sourceAssetID:{{/}} %s {{yellow}}supply:{{/}} %d\n",
-				sourceChainID,
-				sourceAssetID,
-				supply,
-			)
-		} else {
-			hutils.Outf(
-				"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
-				string(metadata),
-				supply,
-				warp,
-			)
-		}
-	}
-	if !checkBalance {
-		return 0, sourceChainID, nil
-	}
+) (uint64, error) {
 	addr := utils.Address(publicKey)
-	balance, err := cli.Balance(ctx, addr, assetID)
+	balance, err := cli.Balance(ctx, addr)
 	if err != nil {
-		return 0, ids.Empty, err
+		return 0, err
 	}
 	if balance == 0 {
-		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", assetID)
+		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", consts.Symbol)
 		hutils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
 		hutils.Outf("{{red}}exiting...{{/}}\n")
-		return 0, sourceChainID, nil
+		return 0, nil
 	}
 	hutils.Outf(
 		"{{yellow}}balance:{{/}} %s %s\n",
-		valueString(assetID, balance),
-		assetString(assetID),
+		hutils.FormatBalance(balance),
+		consts.Symbol,
 	)
-	return balance, sourceChainID, nil
+	return balance, nil
 }
 
 func defaultActor() (ids.ID, crypto.PrivateKey, *auth.ED25519Factory, *rpc.JSONRPCClient, *trpc.JSONRPCClient, error) {

@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-// "token-cli" implements litevm client operation interface.
+// "lite-cli" implements litevm client operation interface.
 package cmd
 
 import (
@@ -17,7 +17,7 @@ import (
 const (
 	requestTimeout  = 30 * time.Second
 	fsModeWrite     = 0o600
-	defaultDatabase = ".token-cli"
+	defaultDatabase = ".lite-cli"
 	defaultGenesis  = "genesis.json"
 )
 
@@ -39,9 +39,9 @@ var (
 	prometheusData     string
 
 	rootCmd = &cobra.Command{
-		Use:        "token-cli",
-		Short:      "TokenVM CLI",
-		SuggestFor: []string{"token-cli", "tokencli"},
+		Use:        "lite-cli",
+		Short:      "LiteVM CLI",
+		SuggestFor: []string{"lite-cli", "litecli"},
 	}
 )
 
@@ -146,18 +146,6 @@ func init() {
 	// actions
 	actionCmd.AddCommand(
 		transferCmd,
-
-		createAssetCmd,
-		mintAssetCmd,
-		// burnAssetCmd,
-		// modifyAssetCmd,
-
-		createOrderCmd,
-		fillOrderCmd,
-		closeOrderCmd,
-
-		importAssetCmd,
-		exportAssetCmd,
 	)
 
 	// spam
