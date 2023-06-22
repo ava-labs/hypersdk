@@ -89,7 +89,7 @@ Now we can spin up a new network of 6 nodes with some defaults:
 --ip-mode=ephemeral \
 --metrics-fetch-interval-seconds 60 \
 --network-name custom \
---avalanchego-release-tag v1.10.1 \
+--avalanchego-release-tag v1.10.3 \
 --create-dev-machine \
 --keys-to-generate 5
 ```
@@ -153,7 +153,6 @@ avalanchego_config:
   throttler-inbound-disk-validator-alloc: 10737418240000
   throttler-outbound-validator-alloc-size: 10737418240
   throttler-outbound-at-large-alloc-size: 10737418240
-  snow-mixed-query-num-push-vdr: 10
   consensus-on-accept-gossip-validator-size: 10
   consensus-on-accept-gossip-non-validator-size: 0
   consensus-on-accept-gossip-peer-size: 10
@@ -301,6 +300,7 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 --chain-config-local-path /tmp/avalanche-ops/tokenvm-chain-config.json \
 --chain-config-remote-dir /data/avalanche-configs/chains \
 --avalanchego-config-remote-path /data/avalanche-configs/config.json \
+--staking-amount-in-avax 2000 \
 --ssm-doc <TODO> \
 --target-nodes <TODO>
 ```
