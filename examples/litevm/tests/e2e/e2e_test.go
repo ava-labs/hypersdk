@@ -172,6 +172,16 @@ var _ = ginkgo.BeforeSuite(func() {
 	}, log)
 	gomega.Expect(err).Should(gomega.BeNil())
 
+	// Load default pk
+	priv, err = crypto.HexToKey(
+		"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
+	)
+	gomega.Ω(err).Should(gomega.BeNil())
+	factory = auth.NewED25519Factory(priv)
+	rsender = priv.PublicKey()
+	sender = utils.Address(rsender)
+	hutils.Outf("\n{{yellow}}$ loaded address:{{/}} %s\n\n", sender)
+
 	hutils.Outf(
 		"{{green}}sending 'start' with binary path:{{/}} %q (%q)\n",
 		execPath,
@@ -295,16 +305,6 @@ var _ = ginkgo.BeforeSuite(func() {
 		break
 	}
 	gomega.Ω(err).Should(gomega.BeNil())
-
-	// Load default pk
-	priv, err = crypto.HexToKey(
-		"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
-	)
-	gomega.Ω(err).Should(gomega.BeNil())
-	factory = auth.NewED25519Factory(priv)
-	rsender = priv.PublicKey()
-	sender = utils.Address(rsender)
-	hutils.Outf("\n{{yellow}}$ loaded address:{{/}} %s\n\n", sender)
 })
 
 var (

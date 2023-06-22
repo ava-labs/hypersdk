@@ -93,7 +93,7 @@ find /tmp/avalanchego-v${VERSION}
 # Always create allocations (linter doesn't like tab)
 echo "creating allocations file"
 cat <<EOF > /tmp/allocations.json
-[{"address":"lite1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":1000000000000}]
+[{"address":"lite1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nswdwfmv", "balance":1000000000000}]
 EOF
 
 GENESIS_PATH=$2
@@ -122,7 +122,7 @@ cat <<EOF > /tmp/litevm.config
 {
   "mempoolSize": 10000000,
   "mempoolPayerSize": 10000000,
-  "mempoolExemptPayers":["lite1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
+  "mempoolExemptPayers":["lite1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nswdwfmv"],
   "parallelism": 5,
   "streamingBacklogSize": 10000000,
   "gossipMaxSize": 32768,
