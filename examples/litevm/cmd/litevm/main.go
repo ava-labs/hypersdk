@@ -18,7 +18,7 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:        "litevm",
-	Short:      "TokenVM agent",
+	Short:      "LiteVM agent",
 	SuggestFor: []string{"litevm"},
 	RunE:       runFunc,
 }
