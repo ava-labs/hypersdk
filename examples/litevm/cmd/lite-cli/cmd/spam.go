@@ -80,7 +80,7 @@ var runSpamCmd = &cobra.Command{
 		ctx := context.Background()
 
 		// Select chain
-		chainID, uris, err := promptChain("select chainID", nil)
+		chainID, uris, err := promptChain("select chainID")
 		if err != nil {
 			return err
 		}

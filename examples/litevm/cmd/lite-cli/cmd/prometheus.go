@@ -43,7 +43,7 @@ var generatePrometheusCmd = &cobra.Command{
 	Use: "generate",
 	RunE: func(_ *cobra.Command, args []string) error {
 		// Generate Prometheus-compatible endpoints
-		chainID, uris, err := promptChain("select chainID", nil)
+		chainID, uris, err := promptChain("select chainID")
 		if err != nil {
 			return err
 		}

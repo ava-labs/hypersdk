@@ -195,7 +195,7 @@ var importAvalancheOpsChainCmd = &cobra.Command{
 var setChainCmd = &cobra.Command{
 	Use: "set",
 	RunE: func(*cobra.Command, []string) error {
-		chainID, _, err := promptChain("set default chain", nil)
+		chainID, _, err := promptChain("set default chain")
 		if err != nil {
 			return err
 		}
@@ -206,7 +206,7 @@ var setChainCmd = &cobra.Command{
 var chainInfoCmd = &cobra.Command{
 	Use: "info",
 	RunE: func(_ *cobra.Command, args []string) error {
-		_, uris, err := promptChain("select chainID", nil)
+		_, uris, err := promptChain("select chainID")
 		if err != nil {
 			return err
 		}
@@ -229,7 +229,7 @@ var watchChainCmd = &cobra.Command{
 	Use: "watch",
 	RunE: func(_ *cobra.Command, args []string) error {
 		ctx := context.Background()
-		chainID, uris, err := promptChain("select chainID", nil)
+		chainID, uris, err := promptChain("select chainID")
 		if err != nil {
 			return err
 		}
