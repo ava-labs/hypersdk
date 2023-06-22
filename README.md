@@ -586,6 +586,15 @@ compatible with most `hypervms` (and maintained in the `hypersdk`)._
   <a href="https://star-history.com/#ava-labs/hypersdk&Date"><img width="90%" alt="star history" src="https://api.star-history.com/svg?repos=ava-labs/hypersdk&type=Date" /></a>
 </p>
 
+## Community Posts
+_This is a collection of posts from the community about the `hypersdk` and how to use it in your own `hypervm`._
+
+* [Introducing HyperSDK](https://twitter.com/_patrickogrady/status/1628109791267819520)
+* [HyperSDK - Chorus One](https://twitter.com/ChorusOne/status/1628404359381024775)
+* [An Analysis of the Developing State of Avalanche’s Technology](https://www.thetie.io/insights/research/an-analysis-of-the-developing-state-of-avalanches-technology/)
+* [Launching Custom Tokens With HyperSDK By Avalanche](https://pythontony.hashnode.dev/launching-custom-tokens-with-hypersdk-by-avalanche)
+* [Avalanche VMs deep-dive #1: HyperSDK/tokenvm](https://ashavax.hashnode.dev/avalanche-vms-deep-dive-1-hypersdktokenvm)
+
 ## Future Work
 _If you want to take the lead on any of these items, please
 [start a discussion](https://github.com/ava-labs/hypersdk/discussions) or reach
