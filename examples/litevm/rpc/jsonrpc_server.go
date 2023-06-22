@@ -9,7 +9,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/examples/litevm/genesis"
-	"github.com/ava-labs/hypersdk/examples/litevm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/litevm/utils"
 )
 
@@ -57,38 +56,8 @@ func (j *JSONRPCServer) Tx(req *http.Request, args *TxArgs, reply *TxReply) erro
 	return nil
 }
 
-type AssetArgs struct {
-	Asset ids.ID `json:"asset"`
-}
-
-type AssetReply struct {
-	Metadata []byte `json:"metadata"`
-	Supply   uint64 `json:"supply"`
-	Owner    string `json:"owner"`
-	Warp     bool   `json:"warp"`
-}
-
-func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetReply) error {
-	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Asset")
-	defer span.End()
-
-	exists, metadata, supply, owner, warp, err := j.c.GetAssetFromState(ctx, args.Asset)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return ErrAssetNotFound
-	}
-	reply.Metadata = metadata
-	reply.Supply = supply
-	reply.Owner = utils.Address(owner)
-	reply.Warp = warp
-	return err
-}
-
 type BalanceArgs struct {
 	Address string `json:"address"`
-	Asset   ids.ID `json:"asset"`
 }
 
 type BalanceReply struct {
@@ -103,47 +72,10 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	if err != nil {
 		return err
 	}
-	balance, err := j.c.GetBalanceFromState(ctx, addr, args.Asset)
+	balance, err := j.c.GetBalanceFromState(ctx, addr)
 	if err != nil {
 		return err
 	}
 	reply.Amount = balance
 	return err
-}
-
-type OrdersArgs struct {
-	Pair string `json:"pair"`
-}
-
-type OrdersReply struct {
-	Orders []*orderbook.Order `json:"orders"`
-}
-
-func (j *JSONRPCServer) Orders(req *http.Request, args *OrdersArgs, reply *OrdersReply) error {
-	_, span := j.c.Tracer().Start(req.Context(), "Server.Orders")
-	defer span.End()
-
-	reply.Orders = j.c.Orders(args.Pair, ordersToSend)
-	return nil
-}
-
-type LoanArgs struct {
-	Destination ids.ID `json:"destination"`
-	Asset       ids.ID `json:"asset"`
-}
-
-type LoanReply struct {
-	Amount uint64 `json:"amount"`
-}
-
-func (j *JSONRPCServer) Loan(req *http.Request, args *LoanArgs, reply *LoanReply) error {
-	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Loan")
-	defer span.End()
-
-	amount, err := j.c.GetLoanFromState(ctx, args.Asset, args.Destination)
-	if err != nil {
-		return err
-	}
-	reply.Amount = amount
-	return nil
 }

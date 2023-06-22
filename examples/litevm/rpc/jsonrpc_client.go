@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/litevm/consts"
 	"github.com/ava-labs/hypersdk/examples/litevm/genesis"
-	"github.com/ava-labs/hypersdk/examples/litevm/orderbook"
 	_ "github.com/ava-labs/hypersdk/examples/litevm/registry" // ensure registry populated
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/rpc"
@@ -72,69 +71,13 @@ func (cli *JSONRPCClient) Tx(ctx context.Context, id ids.ID) (bool, bool, int64,
 	return true, resp.Success, resp.Timestamp, nil
 }
 
-func (cli *JSONRPCClient) Asset(
-	ctx context.Context,
-	asset ids.ID,
-) (bool, []byte, uint64, string, bool, error) {
-	resp := new(AssetReply)
-	err := cli.requester.SendRequest(
-		ctx,
-		"asset",
-		&AssetArgs{
-			Asset: asset,
-		},
-		resp,
-	)
-	switch {
-	// We use string parsing here because the JSON-RPC library we use may not
-	// allows us to perform errors.Is.
-	case err != nil && strings.Contains(err.Error(), ErrAssetNotFound.Error()):
-		return false, nil, 0, "", false, nil
-	case err != nil:
-		return false, nil, 0, "", false, err
-	}
-	return true, resp.Metadata, resp.Supply, resp.Owner, resp.Warp, nil
-}
-
-func (cli *JSONRPCClient) Balance(ctx context.Context, addr string, asset ids.ID) (uint64, error) {
+func (cli *JSONRPCClient) Balance(ctx context.Context, addr string) (uint64, error) {
 	resp := new(BalanceReply)
 	err := cli.requester.SendRequest(
 		ctx,
 		"balance",
 		&BalanceArgs{
 			Address: addr,
-			Asset:   asset,
-		},
-		resp,
-	)
-	return resp.Amount, err
-}
-
-func (cli *JSONRPCClient) Orders(ctx context.Context, pair string) ([]*orderbook.Order, error) {
-	resp := new(OrdersReply)
-	err := cli.requester.SendRequest(
-		ctx,
-		"orders",
-		&OrdersArgs{
-			Pair: pair,
-		},
-		resp,
-	)
-	return resp.Orders, err
-}
-
-func (cli *JSONRPCClient) Loan(
-	ctx context.Context,
-	asset ids.ID,
-	destination ids.ID,
-) (uint64, error) {
-	resp := new(LoanReply)
-	err := cli.requester.SendRequest(
-		ctx,
-		"loan",
-		&LoanArgs{
-			Asset:       asset,
-			Destination: destination,
 		},
 		resp,
 	)
@@ -144,11 +87,10 @@ func (cli *JSONRPCClient) Loan(
 func (cli *JSONRPCClient) WaitForBalance(
 	ctx context.Context,
 	addr string,
-	asset ids.ID,
 	min uint64,
 ) error {
 	return rpc.Wait(ctx, func(ctx context.Context) (bool, error) {
-		balance, err := cli.Balance(ctx, addr, asset)
+		balance, err := cli.Balance(ctx, addr)
 		if err != nil {
 			return false, err
 		}
