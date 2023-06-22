@@ -26,5 +26,5 @@ mkdir -p ./build
 echo "Building litevm in ./build/$name"
 go build -o ./build/$name ./cmd/litevm
 
-echo "Building token-cli in ./build/token-cli"
-go build -o ./build/token-cli ./cmd/token-cli
+echo "Building lite-cli in ./build/lite-cli"
+go build -o ./build/lite-cli ./cmd/lite-cli
