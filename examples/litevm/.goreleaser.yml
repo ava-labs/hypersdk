@@ -1,0 +1,66 @@
+# Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+# See the file LICENSE for licensing terms.
+
+# ref. https://goreleaser.com/customization/build/
+builds:
+  - id: token-cli
+    main: ./cmd/token-cli
+    binary: token-cli
+    flags:
+      - -v
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=1
+      - CGO_CFLAGS=-O -D__BLST_PORTABLE__ # Set the CGO flags to use the portable version of BLST
+    overrides:
+      - goos: linux
+        goarch: arm64
+        env:
+          - CC=aarch64-linux-gnu-gcc
+      - goos: darwin
+        goarch: arm64
+        env:
+          - CC=oa64-clang
+      - goos: darwin
+        goarch: amd64
+        goamd64: v1
+        env:
+          - CC=o64-clang
+  - id: tokenvm
+    main: ./cmd/tokenvm
+    binary: tokenvm
+    flags:
+      - -v
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=1
+      - CGO_CFLAGS=-O -D__BLST_PORTABLE__ # Set the CGO flags to use the portable version of BLST
+    overrides:
+      - goos: linux
+        goarch: arm64
+        env:
+          - CC=aarch64-linux-gnu-gcc
+      - goos: darwin
+        goarch: arm64
+        env:
+          - CC=oa64-clang
+      - goos: darwin
+        goarch: amd64
+        goamd64: v1
+        env:
+          - CC=o64-clang
+
+release:
+  github:
+    owner: ava-labs
+    name: hypersdk
