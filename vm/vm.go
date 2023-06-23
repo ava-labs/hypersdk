@@ -66,8 +66,9 @@ type VM struct {
 	actionRegistry chain.ActionRegistry
 	authRegistry   chain.AuthRegistry
 
-	statelessView   merkledb.StatelessView
-	statelessWindow buffer.Queue[*chain.StatelessBlock]
+	statelessView         merkledb.StatelessView
+	statelessWindow       buffer.Queue[*chain.StatelessBlock]
+	statelessLookbackLock sync.Mutex // not parallel yet
 
 	tracer  trace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -755,6 +756,7 @@ func (vm *VM) Submit(
 		}
 
 		// Prepare Proofs
+		vm.statelessLookbackLock.Lock()
 		newBlk.SetTxProofState(ctx, stateless, tx)
 
 		// PreExecute does not make any changes to state
@@ -762,8 +764,10 @@ func (vm *VM) Submit(
 		// This may fail if the state we are utilizing is invalidated (if a trie
 		// view from a different branch is committed underneath it). We prefer this
 		// instead of putting a lock around all commits.
-		if err := tx.PreExecute(ctx, ectx, r, stateless, now); err != nil {
-			errs = append(errs, err)
+		perr := tx.PreExecute(ctx, ectx, r, stateless, now)
+		vm.statelessLookbackLock.Unlock()
+		if perr != nil {
+			errs = append(errs, perr)
 			continue
 		}
 		errs = append(errs, nil)
@@ -911,4 +915,12 @@ func (vm *VM) SetStatelessView(b *chain.StatelessBlock) {
 	vm.statelessWindow.Push(b)
 
 	// TODO: add values/nodes to previous blocks as permanent
+}
+
+func (vm *VM) LookbackLock() {
+	vm.statelessLookbackLock.Lock()
+}
+
+func (vm *VM) LookbackUnlock() {
+	vm.statelessLookbackLock.Unlock()
 }

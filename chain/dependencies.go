@@ -51,6 +51,8 @@ type VM interface {
 	StatelessView() merkledb.StatelessView
 	SetStatelessView(*StatelessBlock)
 	ValidatorState() validators.State
+	LookbackLock()
+	LookbackUnlock()
 
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction) bool

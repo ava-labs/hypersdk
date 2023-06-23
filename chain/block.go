@@ -670,6 +670,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, me
 	}
 
 	// Go back up to 256 blocks and set temporary state or clear what was there
+	b.vm.LookbackLock()
 	b.setTemporaryState(ctx, statelessView, b.values, b.nodes)
 
 	// Optimisticaly fetch state
@@ -678,6 +679,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, me
 
 	// Process new transactions
 	unitsConsumed, surplusFee, results, stateChanges, stateOps, err := processor.Execute(ctx, ectx, r)
+	b.vm.LookbackUnlock()
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		if len(processor.badKey) > 0 {
@@ -796,8 +798,10 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	}
 
 	// Update oldest view
+	b.vm.LookbackLock()
 	b.vm.SetStatelessView(b)
 	b.setPermanentState(ctx, b.statelessView)
+	b.vm.LookbackUnlock()
 
 	// Commit state if we don't return before here (would happen if we are still
 	// syncing)

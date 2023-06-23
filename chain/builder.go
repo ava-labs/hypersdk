@@ -165,6 +165,7 @@ func BuildBlock(
 				b.vm.Logger().Warn("skipping old tx", zap.Stringer("txID", next.ID()))
 				return true, false, false, nil
 			}
+			vm.LookbackLock()
 			values, nodes := b.SetTxProofState(ctx, stateless, next)
 
 			// Populate required transaction state and restrict which keys can be used
@@ -173,6 +174,7 @@ func BuildBlock(
 			// faster)
 			txStart := ts.OpIndex()
 			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), stateless); err != nil {
+				vm.LookbackUnlock()
 				if len(ts.BadKey) > 0 {
 					_, ok := b.values[next.Proof.Root][merkledb.NewPath(ts.BadKey)]
 					_, pok := values[next.Proof.Root][merkledb.NewPath(ts.BadKey)]
@@ -185,6 +187,7 @@ func BuildBlock(
 
 			// PreExecute next to see if it is fit
 			if err := next.PreExecute(fctx, ectx, r, ts, nextTime); err != nil {
+				vm.LookbackUnlock()
 				ts.Rollback(ctx, txStart)
 				cont, restore, removeAcct := HandlePreExecute(err)
 				return cont, restore, removeAcct, nil
@@ -227,6 +230,7 @@ func BuildBlock(
 				nextTime,
 				next.WarpMessage != nil && warpErr == nil,
 			)
+			vm.LookbackUnlock()
 			if err != nil {
 				// This error should only be raised by the handler, not the
 				// implementation itself
