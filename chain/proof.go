@@ -21,7 +21,7 @@ type Proof struct {
 
 // TODO: get values out to apply to MerkleDB
 
-func (p *Proof) MaxUnits(Rules) uint64 {
+func (p *Proof) Units(Rules) uint64 {
 	// TODO: measure size
 	return 1000
 }

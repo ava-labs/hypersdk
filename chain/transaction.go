@@ -199,7 +199,7 @@ func (t *Transaction) MaxUnits(r Rules) (txFee uint64, err error) {
 			return 0, err
 		}
 	}
-	txFee, err = smath.Add64(txFee, t.Proof.MaxUnits(r))
+	txFee, err = smath.Add64(txFee, t.Proof.Units(r))
 	if err != nil {
 		return 0, err
 	}
@@ -316,7 +316,7 @@ func (t *Transaction) Execute(
 	}
 
 	// Update action units with other items
-	result.Units += r.GetBaseUnits() + authUnits + t.Proof.MaxUnits(r)
+	result.Units += r.GetBaseUnits() + authUnits + t.Proof.Units(r)
 	if t.WarpMessage != nil {
 		result.Units += r.GetWarpBaseFee()
 		result.Units += uint64(t.numWarpSigners) * r.GetWarpFeePerSigner()
