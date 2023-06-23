@@ -680,6 +680,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	}
 
 	// TODO: update base stateless view (on new depth)
+	b.vm.SetStatelessView(b.statelessView)
 
 	// Commit state if we don't return before here (would happen if we are still
 	// syncing)

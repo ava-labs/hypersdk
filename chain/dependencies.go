@@ -49,6 +49,7 @@ type VM interface {
 
 	State() (merkledb.MerkleDB, error)
 	StatelessView() merkledb.StatelessView
+	SetStatelessView(merkledb.StatelessView)
 	ValidatorState() validators.State
 
 	Mempool() Mempool

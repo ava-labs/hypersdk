@@ -889,3 +889,8 @@ func (vm *VM) LastAcceptedView() (merkledb.TrieView, error) {
 func (vm *VM) StatelessView() merkledb.StatelessView {
 	return vm.statelessView
 }
+
+func (vm *VM) SetStatelessView(v merkledb.StatelessView) {
+	// TODO: Add old ones to window
+	vm.statelessView = v
+}
