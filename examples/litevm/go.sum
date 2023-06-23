@@ -65,6 +65,10 @@ github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623074342-e123a8fceda4 h1:q9
 github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623074342-e123a8fceda4/go.mod h1:lQNBWn4f27MWJGH9Jj1zOX1GlJDeHofMG/TBRaqSNSg=
 github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623152435-8744c3b08af9 h1:27SCQ6KHIuubu7Yeu4XxVwOmdd2gJHS4tMKHbr1aw1k=
 github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623152435-8744c3b08af9/go.mod h1:lQNBWn4f27MWJGH9Jj1zOX1GlJDeHofMG/TBRaqSNSg=
+github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623182028-24a502cb085e h1:C13BY3vPyfo4QnLl2mzw4uLSPd+WZB5oOFEMwCEgbf0=
+github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623182028-24a502cb085e/go.mod h1:lQNBWn4f27MWJGH9Jj1zOX1GlJDeHofMG/TBRaqSNSg=
+github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623183625-9346fa2beff2 h1:w0b+45HFfATZQT7K889iY/gumTAQL8aRSpqHnglhv4o=
+github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623183625-9346fa2beff2/go.mod h1:lQNBWn4f27MWJGH9Jj1zOX1GlJDeHofMG/TBRaqSNSg=
 github.com/ava-labs/coreth v0.12.4-rc.0 h1:/xARLNSrreCEkyHgNqtcauo4vnBJdJkHVfauyfA2XBM=
 github.com/ava-labs/coreth v0.12.4-rc.0/go.mod h1:550N2pndShlx1Xv8qCOyPUcIrgfU3dLq+OlHSrPri4E=
 github.com/aymerick/raymond v2.0.3-0.20180322193309-b565731e1464+incompatible/go.mod h1:osfaiScAUVup+UC9Nfq76eWqDhXlp+4UYaA8uhTBO6g=
