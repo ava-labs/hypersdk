@@ -193,7 +193,13 @@ func BuildBlock(
 			// faster)
 			txStart := ts.OpIndex()
 			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), stateless); err != nil {
-				return false, true, false, err
+				if len(ts.BadKey) > 0 {
+					_, ok := b.values[next.Proof.Root][merkledb.NewPath(ts.BadKey)]
+					txValues, _ := next.Proof.State()
+					_, tok := txValues[merkledb.NewPath(ts.BadKey)]
+					return false, true, false, fmt.Errorf("%w: could not fetch and set scope (key=%x, values=%t, tx=%t)", err, ts.BadKey, ok, tok)
+				}
+				return false, true, false, fmt.Errorf("%w: could not fetch and set scope", err)
 			}
 
 			// PreExecute next to see if it is fit
@@ -270,7 +276,7 @@ func BuildBlock(
 	)
 	if mempoolErr != nil {
 		b.vm.Mempool().Add(ctx, b.Txs)
-		return nil, mempoolErr
+		return nil, fmt.Errorf("%w: error while processing tx", mempoolErr)
 	}
 
 	// Perform basic validity checks to make sure the block is well-formatted

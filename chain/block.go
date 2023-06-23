@@ -630,8 +630,10 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, me
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		if len(processor.badKey) > 0 {
-			_, ok := b.values[parent.StateRoot][merkledb.NewPath(processor.badKey)]
-			return nil, nil, fmt.Errorf("%w: execution failed (key=%x exists in values=%t", err, processor.badKey, ok)
+			_, ok := b.values[processor.badTx.Proof.Root][merkledb.NewPath(processor.badKey)]
+			txValues, _ := processor.badTx.Proof.State()
+			_, tok := txValues[merkledb.NewPath(processor.badKey)]
+			return nil, nil, fmt.Errorf("%w: execution failed (key=%x values=%t tx=%t", err, processor.badKey, ok, tok)
 		}
 		return nil, nil, fmt.Errorf("%w: execution failed", err)
 	}
