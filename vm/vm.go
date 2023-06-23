@@ -23,6 +23,7 @@ import (
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils"
+	"github.com/ava-labs/avalanchego/utils/buffer"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/version"
@@ -58,11 +59,13 @@ type VM struct {
 	gossiper       gossiper.Gossiper
 	rawStateDB     database.Database
 	stateDB        merkledb.MerkleDB
-	statelessView  merkledb.StatelessView
 	vmDB           database.Database
 	handlers       Handlers
 	actionRegistry chain.ActionRegistry
 	authRegistry   chain.AuthRegistry
+
+	statelessView   merkledb.StatelessView
+	statelessWindow buffer.Queue[merkledb.StatelessView]
 
 	tracer  trace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -306,6 +309,13 @@ func (vm *VM) Initialize(
 		return err
 	}
 	vm.statelessView = statelessView
+	// TODO: make a const
+	statelessWindow, err := buffer.NewBoundedQueue[merkledb.StatelessView](256, nil)
+	if err != nil {
+		return err
+	}
+	vm.statelessWindow = statelessWindow
+	vm.statelessWindow.Push(statelessView)
 	mroot, err := vm.statelessView.GetMerkleRoot(ctx)
 	if err != nil {
 		return err
@@ -895,6 +905,7 @@ func (vm *VM) StatelessView() merkledb.StatelessView {
 }
 
 func (vm *VM) SetStatelessView(v merkledb.StatelessView) {
-	// TODO: Add old ones to window
 	vm.statelessView = v
+	vm.statelessView.SetBase()
+	vm.statelessWindow.Push(v)
 }
