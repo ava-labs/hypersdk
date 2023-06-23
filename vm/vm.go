@@ -289,7 +289,7 @@ func (vm *VM) Initialize(
 		if err != nil {
 			return err
 		}
-		statelessView, err := merkledb.NewBaseStatelessView(rootBytes, defaultRegistry, vm.tracer, 1000, rootLookback)
+		statelessView, err := merkledb.NewBaseStatelessView(rootBytes, vm.Logger(), defaultRegistry, vm.tracer, 1000, rootLookback)
 		if err != nil {
 			return err
 		}

@@ -195,9 +195,10 @@ func BuildBlock(
 			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), stateless); err != nil {
 				if len(ts.BadKey) > 0 {
 					_, ok := b.values[next.Proof.Root][merkledb.NewPath(ts.BadKey)]
+					_, pok := values[next.Proof.Root][merkledb.NewPath(ts.BadKey)]
 					txValues, _ := next.Proof.State()
 					_, tok := txValues[merkledb.NewPath(ts.BadKey)]
-					return false, true, false, fmt.Errorf("%w: could not fetch and set scope (key=%x, values=%t, tx=%t)", err, ts.BadKey, ok, tok)
+					return false, true, false, fmt.Errorf("%w: could not fetch and set scope (key=%x, values=%t, pending values=%t, tx=%t)", err, ts.BadKey, ok, pok, tok)
 				}
 				return false, true, false, fmt.Errorf("%w: could not fetch and set scope", err)
 			}
