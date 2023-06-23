@@ -108,6 +108,11 @@ var (
 	rsender2 crypto.PublicKey
 	sender2  string
 
+	priv3    crypto.PrivateKey
+	factory3 *auth.ED25519Factory
+	rsender3 crypto.PublicKey
+	sender3  string
+
 	// when used with embedded VMs
 	genesisBytes []byte
 	instances    []instance
@@ -152,6 +157,17 @@ var _ = ginkgo.BeforeSuite(func() {
 		"generated key",
 		zap.String("addr", sender2),
 		zap.String("pk", hex.EncodeToString(priv2[:])),
+	)
+
+	priv3, err = crypto.GeneratePrivateKey()
+	gomega.Ω(err).Should(gomega.BeNil())
+	factory3 = auth.NewED25519Factory(priv2)
+	rsender3 = priv2.PublicKey()
+	sender3 = utils.Address(rsender3)
+	log.Debug(
+		"generated key",
+		zap.String("addr", sender3),
+		zap.String("pk", hex.EncodeToString(priv3[:])),
 	)
 
 	// create embedded VMs
@@ -674,6 +690,54 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 		// Close connection when done
 		gomega.Ω(cli.Close()).Should(gomega.BeNil())
+	})
+
+	ginkgo.It("ensure proof lookback works", func() {
+		// Clear existing
+		accept := expectBlk(instances[2])
+		accept()
+
+		// Geneate first tx
+		parser, err := instances[2].lcli.Parser(context.Background())
+		gomega.Ω(err).Should(gomega.BeNil())
+		submitA, _, _, err := instances[2].cli.GenerateTransaction(
+			context.Background(),
+			parser,
+			nil,
+			&actions.Transfer{
+				To:    rsender2,
+				Value: 1000,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+
+		// Generate second tx
+		submitB, _, _, err := instances[2].cli.GenerateTransaction(
+			context.Background(),
+			parser,
+			nil,
+			&actions.Transfer{
+				To:    rsender3,
+				Value: 1001,
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+
+		// Directly on parent root
+		gomega.Ω(submitA(context.Background())).Should(gomega.BeNil())
+		accept = expectBlk(instances[2])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+
+		// Proof is one back
+		gomega.Ω(submitB(context.Background())).Should(gomega.BeNil())
+		accept = expectBlk(instances[2])
+		results = accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 	})
 })
 

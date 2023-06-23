@@ -23,6 +23,7 @@ import (
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils"
+	"github.com/ava-labs/avalanchego/utils/buffer"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/version"
@@ -43,6 +44,8 @@ import (
 	"github.com/ava-labs/hypersdk/workers"
 )
 
+const rootLookback = 256
+
 type VM struct {
 	c Controller
 	v *version.Semantic
@@ -58,11 +61,13 @@ type VM struct {
 	gossiper       gossiper.Gossiper
 	rawStateDB     database.Database
 	stateDB        merkledb.MerkleDB
-	statelessView  merkledb.StatelessView
 	vmDB           database.Database
 	handlers       Handlers
 	actionRegistry chain.ActionRegistry
 	authRegistry   chain.AuthRegistry
+
+	statelessView   merkledb.StatelessView
+	statelessWindow buffer.Queue[*chain.StatelessBlock]
 
 	tracer  trace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -208,7 +213,7 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	// Setup worker cluster
+	// Setup workers cluster
 	vm.workers = workers.New(vm.config.GetParallelism(), 100)
 
 	// Init channels before initializing other structs
@@ -234,20 +239,7 @@ func (vm *VM) Initialize(
 		return err
 	}
 	if has { //nolint:nestif
-		blkID, err := vm.GetLastAccepted()
-		if err != nil {
-			snowCtx.Log.Error("could not get last accepted", zap.Error(err))
-			return err
-		}
-
-		blk, err := vm.GetStatelessBlock(ctx, blkID)
-		if err != nil {
-			snowCtx.Log.Error("could not load last accepted", zap.Error(err))
-			return err
-		}
-
-		vm.preferred, vm.lastAccepted = blkID, blk
-		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
+		panic("yikes")
 	} else {
 		// Set Balances
 		view, err := vm.stateDB.NewView()
@@ -291,26 +283,34 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
 		vm.blocks.Put(gBlkID, genesisBlk)
 		snowCtx.Log.Info("initialized vm from genesis", zap.Stringer("block", gBlkID))
+
+		// Set up stateless view
+		rootBytes, err := vm.stateDB.GetRoot()
+		if err != nil {
+			return err
+		}
+		statelessView, err := merkledb.NewBaseStatelessView(rootBytes, defaultRegistry, vm.tracer, 1000, rootLookback)
+		if err != nil {
+			return err
+		}
+		vm.statelessView = statelessView
+		statelessWindow, err := buffer.NewBoundedQueue(rootLookback, func(b *chain.StatelessBlock) {
+			// Should never go back this far
+			b.ClearParent()
+		})
+		if err != nil {
+			return err
+		}
+		vm.statelessWindow = statelessWindow
+		genesisBlk.SetStatelessView(statelessView)
+		vm.statelessWindow.Push(genesisBlk)
+
+		mroot, err := vm.statelessView.GetMerkleRoot(ctx)
+		if err != nil {
+			return err
+		}
+		snowCtx.Log.Info("intialized stateless view", zap.Stringer("root", mroot))
 	}
-	// TODO: Get root directly from DB
-	view, err := vm.stateDB.NewView()
-	if err != nil {
-		return err
-	}
-	root, err := view.GetRoot()
-	if err != nil {
-		return err
-	}
-	statelessView, err := merkledb.NewBaseStatelessView(root, defaultRegistry, vm.tracer, 1000)
-	if err != nil {
-		return err
-	}
-	vm.statelessView = statelessView
-	mroot, err := vm.statelessView.GetMerkleRoot(ctx)
-	if err != nil {
-		return err
-	}
-	snowCtx.Log.Info("intialized stateless view", zap.Stringer("root", mroot))
 	go vm.processAcceptedBlocks()
 
 	// Setup state syncing
@@ -894,7 +894,10 @@ func (vm *VM) StatelessView() merkledb.StatelessView {
 	return vm.statelessView
 }
 
-func (vm *VM) SetStatelessView(v merkledb.StatelessView) {
-	// TODO: Add old ones to window
-	vm.statelessView = v
+func (vm *VM) SetStatelessView(b *chain.StatelessBlock) {
+	vm.statelessView = b.GetStatelessView()
+	vm.statelessView.SetBase()
+	vm.statelessWindow.Push(b)
+
+	// TODO: add values/nodes to previous blocks as permanent
 }
