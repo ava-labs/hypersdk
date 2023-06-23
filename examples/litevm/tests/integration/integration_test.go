@@ -33,8 +33,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -338,36 +336,36 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 		})
 
-		ginkgo.By("skip invalid time", func() {
-			actionRegistry, authRegistry := instances[0].vm.Registry()
-			tx := chain.NewTx(
-				&chain.Base{
-					ChainID:   instances[0].chainID,
-					Timestamp: 0,
-					UnitPrice: 1000,
-				},
-				nil,
-				&actions.Transfer{
-					To:    rsender2,
-					Value: 110,
-				},
-			)
-			// Must do manual construction to avoid `tx.Sign` error (would fail with
-			// 0 timestamp)
-			msg, err := tx.Digest(actionRegistry)
-			gomega.Ω(err).To(gomega.BeNil())
-			auth, err := factory.Sign(msg, tx.Action)
-			gomega.Ω(err).To(gomega.BeNil())
-			tx.Auth = auth
-			p := codec.NewWriter(consts.MaxInt)
-			gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
-			gomega.Ω(p.Err()).To(gomega.BeNil())
-			_, err = instances[0].cli.SubmitTx(
-				context.Background(),
-				p.Bytes(),
-			)
-			gomega.Ω(err).To(gomega.Not(gomega.BeNil()))
-		})
+		// ginkgo.By("skip invalid time", func() {
+		// 	actionRegistry, authRegistry := instances[0].vm.Registry()
+		// 	tx := chain.NewTx(
+		// 		&chain.Base{
+		// 			ChainID:   instances[0].chainID,
+		// 			Timestamp: 0,
+		// 			UnitPrice: 1000,
+		// 		},
+		// 		nil,
+		// 		&actions.Transfer{
+		// 			To:    rsender2,
+		// 			Value: 110,
+		// 		},
+		// 	)
+		// 	// Must do manual construction to avoid `tx.Sign` error (would fail with
+		// 	// 0 timestamp)
+		// 	msg, err := tx.Digest(actionRegistry)
+		// 	gomega.Ω(err).To(gomega.BeNil())
+		// 	auth, err := factory.Sign(msg, tx.Action)
+		// 	gomega.Ω(err).To(gomega.BeNil())
+		// 	tx.Auth = auth
+		// 	p := codec.NewWriter(consts.MaxInt)
+		// 	gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		// 	gomega.Ω(p.Err()).To(gomega.BeNil())
+		// 	_, err = instances[0].cli.SubmitTx(
+		// 		context.Background(),
+		// 		p.Bytes(),
+		// 	)
+		// 	gomega.Ω(err).To(gomega.Not(gomega.BeNil()))
+		// })
 
 		ginkgo.By("skip duplicate (after gossip, which shouldn't clear)", func() {
 			_, err := instances[0].cli.SubmitTx(

@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -261,5 +262,6 @@ func (j *JSONRPCServer) GetProof(
 		return err
 	}
 	reply.Proof = c.Bytes()
+	j.vm.Logger().Info("sending proof", zap.String("proof", hex.EncodeToString(reply.Proof)))
 	return nil
 }

@@ -171,6 +171,7 @@ func (cli *JSONRPCClient) GetProof(ctx context.Context, keys [][]byte) (*chain.P
 	if err != nil {
 		return nil, err
 	}
+	utils.Outf("{{cyan}}received proof:{{/}} %x\n", resp.Proof)
 	c := codec.NewReader(resp.Proof, consts.MaxInt)
 	return chain.UnmarshalProof(c)
 }

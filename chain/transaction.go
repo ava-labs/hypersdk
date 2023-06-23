@@ -97,7 +97,7 @@ func (t *Transaction) Sign(
 	// Generate auth
 	msg, err := t.Digest(actionRegistry)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: could not create digest", err)
 	}
 	auth, err := factory.Sign(msg, t.Action)
 	if err != nil {
@@ -115,7 +115,11 @@ func (t *Transaction) Sign(
 		return nil, err
 	}
 	p = codec.NewReader(p.Bytes(), consts.MaxInt)
-	return UnmarshalTx(p, actionRegistry, authRegistry)
+	tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
+	if err != nil {
+		return nil, fmt.Errorf("%w: unable to unmarshal tx", err)
+	}
+	return tx, nil
 }
 
 func (t *Transaction) AuthAsyncVerify() func() error {
@@ -377,6 +381,9 @@ func (t *Transaction) Marshal(
 	p.PackBytes(warpBytes)
 	p.PackByte(actionByte)
 	t.Action.Marshal(p)
+	if err := t.Proof.Marshal(p); err != nil {
+		return err
+	}
 	p.PackByte(authByte)
 	t.Auth.Marshal(p)
 	return p.Err()

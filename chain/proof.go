@@ -3,6 +3,7 @@ package chain
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/x/merkledb"
@@ -89,7 +90,7 @@ func UnmarshalProof(p *codec.Packer) (*Proof, error) {
 			return nil, errors.New("invalid version")
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: unable to decode proof (%x)", err, b)
 		}
 		proofs = append(proofs, &proof)
 	}
@@ -104,7 +105,7 @@ func UnmarshalProof(p *codec.Packer) (*Proof, error) {
 			return nil, errors.New("invalid version")
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: unable to decode path proof (%x)", err, b)
 		}
 		pathProofs = append(pathProofs, &pathProof)
 	}
