@@ -176,7 +176,7 @@ func (cli *JSONRPCClient) GetProof(ctx context.Context, keys [][]byte) (*chain.P
 	if err != nil {
 		return nil, err
 	}
-	utils.Outf("{{cyan}}received proof (%s):{{/}} %x\n", p.Root, resp.Proof)
+	// utils.Outf("{{cyan}}received proof (%s):{{/}} %x\n", p.Root, resp.Proof)
 	return p, nil
 }
 

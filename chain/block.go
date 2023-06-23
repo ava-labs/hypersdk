@@ -433,6 +433,7 @@ func (b *StatelessBlock) setTemporaryState(
 	processing := []*StatelessBlock{}
 	for i := 0; i < 256; /* make constant */ i++ {
 		if next.parent == nil {
+			b.vm.Logger().Debug("exiting temp state loop", zap.Uint64("hght", next.Hght))
 			break
 		}
 		if next.st != choices.Accepted {
@@ -470,9 +471,7 @@ func (b *StatelessBlock) setPermanentState(ctx context.Context, current merkledb
 			break
 		}
 		parent := next.parent
-		if _, ok := b.values[parent.StateRoot]; ok {
-			next.statelessView.AddPermanentState(b.values[parent.StateRoot], b.nodes[parent.StateRoot])
-		}
+		next.statelessView.AddPermanentState(b.values[parent.StateRoot], b.nodes[parent.StateRoot])
 		next = parent
 	}
 }
