@@ -168,7 +168,8 @@ func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
 		keys = append(keys, stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
 	}
 	// Always assume a message could export a warp message
-	keys = append(keys, stateMapping.OutgoingWarpKey(t.id))
+	// TODO: change key for warp (txID depends on proof)
+	// keys = append(keys, stateMapping.OutgoingWarpKey(t.id))
 	t.stateKeys = keys
 	return keys
 }

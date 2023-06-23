@@ -31,6 +31,9 @@ type Processor struct {
 
 	stateless Database
 	stateful  Database // optional
+
+	err    error
+	badKey []byte
 }
 
 // Only prepare for population if above last accepted height
@@ -69,7 +72,10 @@ func (p *Processor) Prefetch(ctx context.Context) {
 					alreadyFetched[sk] = &fetchData{nil, false}
 					continue
 				} else if err != nil {
-					panic(err)
+					p.badKey = k
+					p.err = err
+					close(p.readyTxs)
+					return
 				}
 				alreadyFetched[sk] = &fetchData{v, true}
 				storage[sk] = v
@@ -136,6 +142,9 @@ func (p *Processor) Execute(
 			// Exit as soon as we hit our max
 			return 0, 0, nil, 0, 0, ErrBlockTooBig
 		}
+	}
+	if p.err != nil {
+		return 0, 0, nil, 0, 0, p.err
 	}
 	// Wait until end to write changes to avoid conflicting with pre-fetching
 	if err := ts.WriteChanges(ctx, p.stateless, p.tracer); err != nil {

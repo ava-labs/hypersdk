@@ -568,7 +568,11 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	unitsConsumed, surplusFee, results, stateChanges, stateOps, err := processor.Execute(ctx, ectx, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
-		return nil, err
+		if len(processor.badKey) > 0 {
+			_, ok := b.values[parent.StateRoot][merkledb.NewPath(processor.badKey)]
+			return nil, fmt.Errorf("%w: execution failed (key=%x exists in values=%t", err, processor.badKey, ok)
+		}
+		return nil, fmt.Errorf("%w: execution failed", err)
 	}
 	b.vm.RecordStateChanges(stateChanges)
 	b.vm.RecordStateOperations(stateOps)
