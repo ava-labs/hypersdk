@@ -44,6 +44,8 @@ import (
 	"github.com/ava-labs/hypersdk/workers"
 )
 
+const rootLookback = 256
+
 type VM struct {
 	c Controller
 	v *version.Semantic
@@ -287,13 +289,12 @@ func (vm *VM) Initialize(
 		if err != nil {
 			return err
 		}
-		statelessView, err := merkledb.NewBaseStatelessView(rootBytes, defaultRegistry, vm.tracer, 1000)
+		statelessView, err := merkledb.NewBaseStatelessView(rootBytes, defaultRegistry, vm.tracer, 1000, rootLookback)
 		if err != nil {
 			return err
 		}
 		vm.statelessView = statelessView
-		// TODO: make a const
-		statelessWindow, err := buffer.NewBoundedQueue[*chain.StatelessBlock](256, nil)
+		statelessWindow, err := buffer.NewBoundedQueue[*chain.StatelessBlock](rootLookback, nil)
 		if err != nil {
 			return err
 		}
