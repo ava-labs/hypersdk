@@ -65,7 +65,7 @@ type VM struct {
 	authRegistry   chain.AuthRegistry
 
 	statelessView   merkledb.StatelessView
-	statelessWindow buffer.Queue[merkledb.StatelessView]
+	statelessWindow buffer.Queue[*chain.StatelessBlock]
 
 	tracer  trace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -237,20 +237,7 @@ func (vm *VM) Initialize(
 		return err
 	}
 	if has { //nolint:nestif
-		blkID, err := vm.GetLastAccepted()
-		if err != nil {
-			snowCtx.Log.Error("could not get last accepted", zap.Error(err))
-			return err
-		}
-
-		blk, err := vm.GetStatelessBlock(ctx, blkID)
-		if err != nil {
-			snowCtx.Log.Error("could not load last accepted", zap.Error(err))
-			return err
-		}
-
-		vm.preferred, vm.lastAccepted = blkID, blk
-		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
+		panic("yikes")
 	} else {
 		// Set Balances
 		view, err := vm.stateDB.NewView()
@@ -294,33 +281,32 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
 		vm.blocks.Put(gBlkID, genesisBlk)
 		snowCtx.Log.Info("initialized vm from genesis", zap.Stringer("block", gBlkID))
+
+		// Set up stateless view
+		rootBytes, err := vm.stateDB.GetRoot()
+		if err != nil {
+			return err
+		}
+		statelessView, err := merkledb.NewBaseStatelessView(rootBytes, defaultRegistry, vm.tracer, 1000)
+		if err != nil {
+			return err
+		}
+		vm.statelessView = statelessView
+		// TODO: make a const
+		statelessWindow, err := buffer.NewBoundedQueue[*chain.StatelessBlock](256, nil)
+		if err != nil {
+			return err
+		}
+		vm.statelessWindow = statelessWindow
+		genesisBlk.SetStatelessView(statelessView)
+		vm.statelessWindow.Push(genesisBlk)
+
+		mroot, err := vm.statelessView.GetMerkleRoot(ctx)
+		if err != nil {
+			return err
+		}
+		snowCtx.Log.Info("intialized stateless view", zap.Stringer("root", mroot))
 	}
-	// TODO: Get root directly from DB
-	view, err := vm.stateDB.NewView()
-	if err != nil {
-		return err
-	}
-	root, err := view.GetRoot()
-	if err != nil {
-		return err
-	}
-	statelessView, err := merkledb.NewBaseStatelessView(root, defaultRegistry, vm.tracer, 1000)
-	if err != nil {
-		return err
-	}
-	vm.statelessView = statelessView
-	// TODO: make a const
-	statelessWindow, err := buffer.NewBoundedQueue[merkledb.StatelessView](256, nil)
-	if err != nil {
-		return err
-	}
-	vm.statelessWindow = statelessWindow
-	vm.statelessWindow.Push(statelessView)
-	mroot, err := vm.statelessView.GetMerkleRoot(ctx)
-	if err != nil {
-		return err
-	}
-	snowCtx.Log.Info("intialized stateless view", zap.Stringer("root", mroot))
 	go vm.processAcceptedBlocks()
 
 	// Setup state syncing
@@ -904,8 +890,8 @@ func (vm *VM) StatelessView() merkledb.StatelessView {
 	return vm.statelessView
 }
 
-func (vm *VM) SetStatelessView(v merkledb.StatelessView) {
-	vm.statelessView = v
+func (vm *VM) SetStatelessView(b *chain.StatelessBlock) {
+	vm.statelessView = b.GetStatelessView()
 	vm.statelessView.SetBase()
-	vm.statelessWindow.Push(v)
+	vm.statelessWindow.Push(b)
 }

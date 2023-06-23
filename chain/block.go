@@ -418,6 +418,11 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 	return true
 }
 
+// func (b *StatelessBlock) initializeStatelessViews(ctx context.Context, current merkledb.StatelessView) {
+// 	current.SetState(b.values[parent.StateRoot], b.nodes[parent.StateRoot])
+//
+// }
+
 // Must handle re-reverification...
 //
 // Invariants:
@@ -683,8 +688,8 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		panic("yikes")
 	}
 
-	// TODO: update base stateless view (on new depth)
-	b.vm.SetStatelessView(b.statelessView)
+	// Update oldest view
+	b.vm.SetStatelessView(b)
 
 	// Commit state if we don't return before here (would happen if we are still
 	// syncing)
@@ -799,6 +804,14 @@ func (b *StatelessBlock) childStatelessView(
 		panic("yikes")
 	}
 	return b.statelessView.NewStatelessView(estimatedChanges), nil
+}
+
+func (b *StatelessBlock) GetStatelessView() merkledb.StatelessView {
+	return b.statelessView
+}
+
+func (b *StatelessBlock) SetStatelessView(m merkledb.StatelessView) {
+	b.statelessView = m
 }
 
 func (b *StatelessBlock) IsRepeat(
