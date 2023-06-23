@@ -28,6 +28,7 @@ func (p *Proof) MaxUnits(Rules) uint64 {
 }
 
 func (p *Proof) AsyncVerify(ctx context.Context) error {
+	// TODO: enforce sorted order
 	for i, proof := range p.Proofs {
 		if err := proof.Verify(ctx, p.Root); err != nil {
 			return fmt.Errorf("%w: proof %d failed", err, i)
@@ -42,6 +43,7 @@ func (p *Proof) AsyncVerify(ctx context.Context) error {
 }
 
 func (p *Proof) Marshal(pk *codec.Packer) error {
+	// TODO: enforce sorted order
 	pk.PackID(p.Root)
 	pk.PackInt(len(p.Proofs))
 	for _, proof := range p.Proofs {

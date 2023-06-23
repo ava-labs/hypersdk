@@ -248,6 +248,7 @@ func (j *JSONRPCServer) GetProof(
 		return err
 	}
 	values, nodes := view.GetInterceptedProofs()
+	// TODO: enforce sorted order
 	proof := &chain.Proof{
 		Root:       preRoot,
 		Proofs:     values,
