@@ -473,6 +473,7 @@ func (b *StatelessBlock) setPermanentState(ctx context.Context, current merkledb
 		if _, ok := b.values[parent.StateRoot]; ok {
 			next.statelessView.AddPermanentState(b.values[parent.StateRoot], b.nodes[parent.StateRoot])
 		}
+		next = parent
 	}
 }
 

@@ -313,9 +313,10 @@ var watchChainCmd = &cobra.Command{
 					}
 				}
 				utils.Outf(
-					"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}units:{{/}} %d {{yellow}}summary (%s):{{/}} [%s]\n",
+					"%s {{yellow}}%s{{/}} {{yellow}}root:{{/}} %s {{yellow}}actor:{{/}} %s {{yellow}}units:{{/}} %d {{yellow}}summary (%s):{{/}} [%s]\n",
 					status,
 					tx.ID(),
+					tx.Proof.Root,
 					tutils.Address(actor),
 					result.Units,
 					reflect.TypeOf(tx.Action),
