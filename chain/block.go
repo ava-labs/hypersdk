@@ -460,15 +460,16 @@ func (b *StatelessBlock) setTemporaryState(
 	current.SetTemporaryState(allValues[b.parent.StateRoot], allNodes[b.parent.StateRoot])
 	next := b.parent
 	for i := 0; i < 256; /* make constant */ i++ {
+		parent := next.parent
+		if parent == nil {
+			break
+		}
+
 		if next.st != choices.Accepted {
 			unionMaps(allValues, next.values)
 			unionMaps(allNodes, next.nodes)
 		}
 
-		parent := next.parent
-		if parent == nil {
-			break
-		}
 		next.statelessView.SetTemporaryState(allValues[parent.StateRoot], allNodes[parent.StateRoot])
 		next = parent
 	}
