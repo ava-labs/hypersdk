@@ -47,7 +47,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/litevm/utils"
 )
 
-const transferTxFee = 400 /* base fee */ + 40 /* transfer fee */
+const transferTxFee = 400 /* base fee */ + 40 /* transfer fee */ + 1000 /* proof fee */
 
 var (
 	logFactory logging.Factory
@@ -408,7 +408,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].lcli.Balance(context.Background(), sender)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899560)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9898560)))
 			balance2, err := instances[1].lcli.Balance(context.Background(), sender2)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))

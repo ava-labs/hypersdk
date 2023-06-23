@@ -17,14 +17,13 @@ type Proof struct {
 
 	Proofs     []*merkledb.Proof
 	PathProofs []*merkledb.PathProof
-
-	size uint64
 }
 
 // TODO: get values out to apply to MerkleDB
 
 func (p *Proof) MaxUnits(Rules) uint64 {
-	return p.size
+	// TODO: measure size
+	return 1000
 }
 
 func (p *Proof) AsyncVerify(ctx context.Context) error {
@@ -78,7 +77,6 @@ func (p *Proof) State() (map[merkledb.Path]merkledb.Maybe[[]byte], map[merkledb.
 }
 
 func UnmarshalProof(p *codec.Packer) (*Proof, error) {
-	start := p.Offset()
 	var root ids.ID
 	p.UnpackID(true, &root)
 	proofCount := p.UnpackInt(true)
@@ -111,5 +109,5 @@ func UnmarshalProof(p *codec.Packer) (*Proof, error) {
 		}
 		pathProofs = append(pathProofs, &pathProof)
 	}
-	return &Proof{root, proofs, pathProofs, uint64(p.Offset() - start)}, nil
+	return &Proof{root, proofs, pathProofs}, nil
 }

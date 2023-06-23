@@ -316,7 +316,7 @@ func (t *Transaction) Execute(
 	}
 
 	// Update action units with other items
-	result.Units += r.GetBaseUnits() + authUnits
+	result.Units += r.GetBaseUnits() + authUnits + t.Proof.MaxUnits(r)
 	if t.WarpMessage != nil {
 		result.Units += r.GetWarpBaseFee()
 		result.Units += uint64(t.numWarpSigners) * r.GetWarpFeePerSigner()
