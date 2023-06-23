@@ -63,6 +63,12 @@ github.com/ava-labs/avalanche-network-runner v1.4.1 h1:S4dS/Sef3O2XdN04NRO9Tk9xi
 github.com/ava-labs/avalanche-network-runner v1.4.1/go.mod h1:SOUom+OuOYwm9CUev09IeG3P4JS4mh0OiwsPhfboLJ8=
 github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623013055-65c122bedd8c h1:fCwWcF+Y1fTz+neWXTK7SDl6T65S1cH0HPrsZDetCxU=
 github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623013055-65c122bedd8c/go.mod h1:lQNBWn4f27MWJGH9Jj1zOX1GlJDeHofMG/TBRaqSNSg=
+github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623014443-a700b0dcc31c h1:UgJk6Mq9Jc9ZlrahtzLxB4rFIYBtfceP1w4e7y1W6KQ=
+github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623014443-a700b0dcc31c/go.mod h1:lQNBWn4f27MWJGH9Jj1zOX1GlJDeHofMG/TBRaqSNSg=
+github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623015745-cc331c062b50 h1:BB2UqY4iFQAXKj12yJesZxVidun+hfJ6mUmYqzgW+iE=
+github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623015745-cc331c062b50/go.mod h1:lQNBWn4f27MWJGH9Jj1zOX1GlJDeHofMG/TBRaqSNSg=
+github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623020316-eaef96b9435f h1:pk9fZjSTrng1cKP2WlyKAxR6LTpc2dhY5X/XuwoKgXs=
+github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623020316-eaef96b9435f/go.mod h1:lQNBWn4f27MWJGH9Jj1zOX1GlJDeHofMG/TBRaqSNSg=
 github.com/ava-labs/coreth v0.12.4-rc.0 h1:/xARLNSrreCEkyHgNqtcauo4vnBJdJkHVfauyfA2XBM=
 github.com/ava-labs/coreth v0.12.4-rc.0/go.mod h1:550N2pndShlx1Xv8qCOyPUcIrgfU3dLq+OlHSrPri4E=
 github.com/aymerick/raymond v2.0.3-0.20180322193309-b565731e1464+incompatible/go.mod h1:osfaiScAUVup+UC9Nfq76eWqDhXlp+4UYaA8uhTBO6g=

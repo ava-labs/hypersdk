@@ -61,6 +61,19 @@ func (p *Proof) Marshal(pk *codec.Packer) error {
 	return nil
 }
 
+func (p *Proof) State() (map[merkledb.Path]merkledb.Maybe[[]byte], map[merkledb.Path]merkledb.Maybe[*merkledb.Node]) {
+	values := make(map[merkledb.Path]merkledb.Maybe[[]byte])
+	for _, proof := range p.Proofs {
+		values[merkledb.NewPath(proof.Key)] = proof.Value
+	}
+	nodes := make(map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
+	for _, proof := range p.PathProofs {
+		key := proof.KeyPath.Deserialize()
+		nodes[key] = proof.ToNode()
+	}
+	return values, nodes
+}
+
 func unmarshalProof(p *codec.Packer) (*Proof, error) {
 	start := p.Offset()
 	var root ids.ID
