@@ -31,6 +31,7 @@ type Transaction struct {
 	WarpMessage *warp.Message `json:"warpMessage"`
 	Action      Action        `json:"action"`
 	Auth        Auth          `json:"auth"`
+	Proof       *Proof        `json:"proof"`
 
 	digest         []byte
 	bytes          []byte
@@ -50,11 +51,12 @@ type WarpResult struct {
 	VerifyErr error
 }
 
-func NewTx(base *Base, wm *warp.Message, act Action) *Transaction {
+func NewTx(base *Base, wm *warp.Message, act Action, proof *Proof) *Transaction {
 	return &Transaction{
 		Base:        base,
 		WarpMessage: wm,
 		Action:      act,
+		Proof:       proof,
 	}
 }
 
@@ -77,6 +79,8 @@ func (t *Transaction) Digest(
 	p.PackBytes(warpBytes)
 	p.PackByte(actionByte)
 	t.Action.Marshal(p)
+	// TODO: add more proof types?
+	t.Proof.Marshal(p)
 	return p.Bytes(), p.Err()
 }
 
@@ -110,8 +114,15 @@ func (t *Transaction) Sign(
 }
 
 func (t *Transaction) AuthAsyncVerify() func() error {
+	// TODO: check this before performing any DB IO for transaction
 	return func() error {
-		return t.Auth.AsyncVerify(t.digest)
+		if err := t.Auth.AsyncVerify(t.digest); err != nil {
+			return err
+		}
+		if err := t.Proof.AsyncVerify(); err != nil {
+			return err
+		}
+		return nil
 	}
 }
 
@@ -167,6 +178,10 @@ func (t *Transaction) MaxUnits(r Rules) (txFee uint64, err error) {
 		if err != nil {
 			return 0, err
 		}
+	}
+	txFee, err = smath.Add64(txFee, t.Proof.MaxUnits(r))
+	if err != nil {
+		return 0, err
 	}
 	if txFee > 0 {
 		return txFee, nil
@@ -447,6 +462,10 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal action", err)
 	}
+	proof, err := unmarshalProof(p)
+	if err != nil {
+		return nil, fmt.Errorf("%w: could not unmarshal proof", err)
+	}
 	digest := p.Offset()
 	authType := p.UnpackByte()
 	unmarshalAuth, authWarp, ok := authRegistry.LookupIndex(authType)
@@ -467,9 +486,9 @@ func UnmarshalTx(
 
 	var tx Transaction
 	tx.Base = base
-	tx.Action = action
 	tx.WarpMessage = warpMessage
-	tx.Proof
+	tx.Action = action
+	tx.Proof = proof
 	tx.Auth = auth
 	if err := p.Err(); err != nil {
 		return nil, p.Err()
