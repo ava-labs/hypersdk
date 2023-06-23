@@ -262,6 +262,6 @@ func (j *JSONRPCServer) GetProof(
 		return err
 	}
 	reply.Proof = c.Bytes()
-	j.vm.Logger().Info("sending proof", zap.String("proof", hex.EncodeToString(reply.Proof)))
+	j.vm.Logger().Info("sending proof", zap.Stringer("root", preRoot), zap.String("proof", hex.EncodeToString(reply.Proof)))
 	return nil
 }
