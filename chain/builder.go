@@ -281,7 +281,7 @@ func BuildBlock(
 			b.nodes[root][path] = node
 		}
 	}
-	stateless.SetState(b.values[parent.StateRoot], b.nodes[parent.StateRoot])
+	stateless.SetTemporaryState(b.values[parent.StateRoot], b.nodes[parent.StateRoot])
 	if err := ts.WriteChanges(ctx, stateless, vm.Tracer()); err != nil {
 		return nil, err
 	}

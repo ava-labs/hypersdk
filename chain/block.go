@@ -87,6 +87,8 @@ type StatelessBlock struct {
 	bytes  []byte
 	txsSet set.Set[ids.ID]
 
+	parent *StatelessBlock
+
 	values map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte]
 	nodes  map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node]
 
@@ -104,7 +106,7 @@ type StatelessBlock struct {
 	sigJob *workers.Job
 }
 
-func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
+func NewBlock(ectx *ExecutionContext, vm VM, parent *StatelessBlock, tmstp int64) *StatelessBlock {
 	return &StatelessBlock{
 		StatefulBlock: &StatefulBlock{
 			Prnt:   parent.ID(),
@@ -117,8 +119,9 @@ func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) 
 			BlockCost:   ectx.NextBlockCost,
 			BlockWindow: ectx.NextBlockWindow,
 		},
-		vm: vm,
-		st: choices.Processing,
+		vm:     vm,
+		st:     choices.Processing,
+		parent: parent,
 	}
 }
 
@@ -418,10 +421,48 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 	return true
 }
 
-// func (b *StatelessBlock) initializeStatelessViews(ctx context.Context, current merkledb.StatelessView) {
-// 	current.SetState(b.values[parent.StateRoot], b.nodes[parent.StateRoot])
-//
-// }
+// returns false if a root is not accounted for (invalid)
+func (b *StatelessBlock) setTemporaryState(ctx context.Context, current merkledb.StatelessView) {
+	current.SetTemporaryState(b.values[b.parent.StateRoot], b.nodes[b.parent.StateRoot])
+	next := b.parent
+	processing := []*StatelessBlock{b}
+	for i := 0; i < 256; /* make constant */ i++ {
+		if next.parent == nil {
+			break
+		}
+		if next.st != choices.Accepted {
+			processing = append(processing, next)
+		}
+		parent := next.parent
+		rootUnionValues := make(map[merkledb.Path]merkledb.Maybe[[]byte])
+		rootUnionNodes := make(map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
+		for _, proc := range processing {
+			for path, v := range proc.values[parent.StateRoot] {
+				rootUnionValues[path] = v
+			}
+			for path, n := range proc.nodes[parent.StateRoot] {
+				rootUnionNodes[path] = n
+			}
+		}
+		next.statelessView.SetTemporaryState(rootUnionValues, rootUnionNodes)
+	}
+
+	// TODO: make sure all transactions have recent roots
+}
+
+func (b *StatelessBlock) setPermanentState(ctx context.Context, current merkledb.StatelessView) {
+	current.AddPermanentState(b.values[b.parent.StateRoot], b.nodes[b.parent.StateRoot])
+	next := b.parent
+	for i := 0; i < 256; /* make constant */ i++ {
+		if next.parent == nil {
+			break
+		}
+		parent := next.parent
+		if _, ok := b.values[parent.StateRoot]; ok {
+			next.statelessView.AddPermanentState(b.values[parent.StateRoot], b.nodes[parent.StateRoot])
+		}
+	}
+}
 
 // Must handle re-reverification...
 //
@@ -457,6 +498,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, me
 		log.Debug("could not get parent", zap.Stringer("id", b.Prnt))
 		return nil, nil, err
 	}
+	b.parent = parent
 	if b.Timestamp().Unix() < parent.Timestamp().Unix() {
 		return nil, nil, ErrTimestampTooEarly
 	}
@@ -563,9 +605,9 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, me
 	if err != nil {
 		return nil, nil, err
 	}
-	// TODO: need to iterate over parents and SetState with everything we have
-	// TODO: optimize for what we have accepted
-	statelessView.SetState(b.values[parent.StateRoot], b.nodes[parent.StateRoot])
+
+	// Go back up to 256 blocks and set temporary state or clear what was there
+	b.setTemporaryState(ctx, statelessView)
 
 	// Optimisticaly fetch state
 	processor := NewProcessor(b.vm.Tracer(), b, statelessView, state)
@@ -690,6 +732,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 
 	// Update oldest view
 	b.vm.SetStatelessView(b)
+	b.setPermanentState(ctx, b.statelessView)
 
 	// Commit state if we don't return before here (would happen if we are still
 	// syncing)
@@ -860,6 +903,10 @@ func (b *StatelessBlock) GetUnitPrice() uint64 {
 
 func (b *StatelessBlock) Results() []*Result {
 	return b.results
+}
+
+func (b *StatelessBlock) ClearParent() {
+	b.parent = nil
 }
 
 func (b *StatefulBlock) Marshal(

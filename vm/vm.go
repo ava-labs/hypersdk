@@ -294,7 +294,10 @@ func (vm *VM) Initialize(
 			return err
 		}
 		vm.statelessView = statelessView
-		statelessWindow, err := buffer.NewBoundedQueue[*chain.StatelessBlock](rootLookback, nil)
+		statelessWindow, err := buffer.NewBoundedQueue(rootLookback, func(b *chain.StatelessBlock) {
+			// Should never go back this far
+			b.ClearParent()
+		})
 		if err != nil {
 			return err
 		}
@@ -895,4 +898,6 @@ func (vm *VM) SetStatelessView(b *chain.StatelessBlock) {
 	vm.statelessView = b.GetStatelessView()
 	vm.statelessView.SetBase()
 	vm.statelessWindow.Push(b)
+
+	// TODO: add values/nodes to previous blocks as permanent
 }
