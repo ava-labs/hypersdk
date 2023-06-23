@@ -100,6 +100,8 @@ func BuildBlock(
 		start    = time.Now()
 		lockWait time.Duration
 	)
+	b.values = make(map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte])
+	b.nodes = make(map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
 	mempoolErr := mempool.Build(
 		ctx,
 		func(fctx context.Context, next *Transaction) (cont bool, restore bool, removeAcct bool, err error) {
@@ -158,12 +160,39 @@ func BuildBlock(
 				return false /* make simpler */, true, false, nil // could be txs that fit that are smaller
 			}
 
+			// Prepare proofs
+			nvalues, nnodes := next.Proof.State()
+			values := map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte]{next.Proof.Root: nvalues}
+			nodes := map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node]{next.Proof.Root: nnodes}
+			for root, m := range b.values {
+				for path, value := range m {
+					if _, ok := values[root]; !ok {
+						values[root] = make(map[merkledb.Path]merkledb.Maybe[[]byte])
+					}
+					values[root][path] = value
+				}
+			}
+			for root, m := range b.nodes {
+				for path, node := range m {
+					if _, ok := nodes[root]; !ok {
+						nodes[root] = make(map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
+					}
+					nodes[root][path] = node
+				}
+			}
+			b.setTemporaryState(
+				ctx,
+				stateless,
+				values,
+				nodes,
+			)
+
 			// Populate required transaction state and restrict which keys can be used
 			//
 			// TODO: prefetch state of upcoming txs that we will pull (should make much
 			// faster)
 			txStart := ts.OpIndex()
-			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), state); err != nil {
+			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), stateless); err != nil {
 				return false, true, false, err
 			}
 
@@ -230,6 +259,8 @@ func BuildBlock(
 				}
 				warpCount++
 			}
+			b.values = values
+			b.nodes = nodes
 			return len(b.Txs) < r.GetMaxBlockTxs(), false, false, nil
 		},
 	)
@@ -260,28 +291,6 @@ func BuildBlock(
 	b.SurplusFee = surplusFee
 
 	// Get root from underlying state changes after writing all changed keys
-	//
-	// TODO: perform stateless building (need to lookback per tx)
-	b.values = make(map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte])
-	b.nodes = make(map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
-	for _, tx := range b.Txs {
-		// Populate union
-		root := tx.Proof.Root
-		if _, ok := b.values[root]; !ok {
-			b.values[root] = make(map[merkledb.Path]merkledb.Maybe[[]byte])
-		}
-		if _, ok := b.nodes[root]; !ok {
-			b.nodes[root] = make(map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
-		}
-		values, nodes := tx.Proof.State()
-		for path, value := range values {
-			b.values[root][path] = value
-		}
-		for path, node := range nodes {
-			b.nodes[root][path] = node
-		}
-	}
-	stateless.SetTemporaryState(b.values[parent.StateRoot], b.nodes[parent.StateRoot])
 	if err := ts.WriteChanges(ctx, stateless, vm.Tracer()); err != nil {
 		return nil, err
 	}

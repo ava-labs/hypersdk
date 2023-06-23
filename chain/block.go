@@ -422,10 +422,15 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 }
 
 // returns false if a root is not accounted for (invalid)
-func (b *StatelessBlock) setTemporaryState(ctx context.Context, current merkledb.StatelessView) {
-	current.SetTemporaryState(b.values[b.parent.StateRoot], b.nodes[b.parent.StateRoot])
+func (b *StatelessBlock) setTemporaryState(
+	ctx context.Context,
+	current merkledb.StatelessView,
+	values map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte],
+	nodes map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node],
+) {
+	current.SetTemporaryState(values[b.parent.StateRoot], nodes[b.parent.StateRoot])
 	next := b.parent
-	processing := []*StatelessBlock{b}
+	processing := []*StatelessBlock{}
 	for i := 0; i < 256; /* make constant */ i++ {
 		if next.parent == nil {
 			break
@@ -436,6 +441,12 @@ func (b *StatelessBlock) setTemporaryState(ctx context.Context, current merkledb
 		parent := next.parent
 		rootUnionValues := make(map[merkledb.Path]merkledb.Maybe[[]byte])
 		rootUnionNodes := make(map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
+		for path, v := range values[parent.StateRoot] {
+			rootUnionValues[path] = v
+		}
+		for path, n := range nodes[parent.StateRoot] {
+			rootUnionNodes[path] = n
+		}
 		for _, proc := range processing {
 			for path, v := range proc.values[parent.StateRoot] {
 				rootUnionValues[path] = v
@@ -445,6 +456,7 @@ func (b *StatelessBlock) setTemporaryState(ctx context.Context, current merkledb
 			}
 		}
 		next.statelessView.SetTemporaryState(rootUnionValues, rootUnionNodes)
+		next = parent
 	}
 
 	// TODO: make sure all transactions have recent roots
@@ -607,7 +619,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, me
 	}
 
 	// Go back up to 256 blocks and set temporary state or clear what was there
-	b.setTemporaryState(ctx, statelessView)
+	b.setTemporaryState(ctx, statelessView, b.values, b.nodes)
 
 	// Optimisticaly fetch state
 	processor := NewProcessor(b.vm.Tracer(), b, statelessView, state)
