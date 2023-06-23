@@ -208,7 +208,7 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	// Setup worker cluster
+	// Setup workers cluster
 	vm.workers = workers.New(vm.config.GetParallelism(), 100)
 
 	// Init channels before initializing other structs
