@@ -469,6 +469,7 @@ func UnmarshalTx(
 	tx.Base = base
 	tx.Action = action
 	tx.WarpMessage = warpMessage
+	tx.Proof
 	tx.Auth = auth
 	if err := p.Err(); err != nil {
 		return nil, p.Err()
