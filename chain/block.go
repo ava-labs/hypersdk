@@ -263,6 +263,7 @@ func ParseStatefulBlock(
 func (b *StatelessBlock) initializeBuilt(
 	ctx context.Context,
 	state merkledb.TrieView,
+	stateless merkledb.StatelessView,
 	results []*Result,
 ) error {
 	_, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
@@ -275,6 +276,7 @@ func (b *StatelessBlock) initializeBuilt(
 	b.bytes = blk
 	b.id = utils.ToID(b.bytes)
 	b.state = state
+	b.statelessView = stateless
 	b.t = time.Unix(b.StatefulBlock.Tmstmp, 0)
 	b.results = results
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))

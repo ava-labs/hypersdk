@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
@@ -77,9 +78,9 @@ func BuildBlock(
 		log.Warn("block building failed: couldn't get stateless view", zap.Error(err))
 		return nil, err
 	}
-	ts := tstate.New(changesEstimate)
 
 	// Restorable txs after block attempt finishes
+	ts := tstate.New(changesEstimate)
 	b.Txs = []*Transaction{}
 	var (
 		oldestAllowed = nextTime - r.GetValidityWindow()
@@ -161,7 +162,7 @@ func BuildBlock(
 			// TODO: prefetch state of upcoming txs that we will pull (should make much
 			// faster)
 			txStart := ts.OpIndex()
-			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), stateless); err != nil {
+			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), state); err != nil {
 				return false, true, false, err
 			}
 
@@ -258,6 +259,28 @@ func BuildBlock(
 	b.SurplusFee = surplusFee
 
 	// Get root from underlying state changes after writing all changed keys
+	//
+	// TODO: perform stateless building (need to lookback per tx)
+	b.values = make(map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte])
+	b.nodes = make(map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
+	for _, tx := range b.Txs {
+		// Populate union
+		root := tx.Proof.Root
+		if _, ok := b.values[root]; !ok {
+			b.values[root] = make(map[merkledb.Path]merkledb.Maybe[[]byte])
+		}
+		if _, ok := b.nodes[root]; !ok {
+			b.nodes[root] = make(map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
+		}
+		values, nodes := tx.Proof.State()
+		for path, value := range values {
+			b.values[root][path] = value
+		}
+		for path, node := range nodes {
+			b.nodes[root][path] = node
+		}
+	}
+	stateless.SetState(b.values[parent.StateRoot], b.nodes[parent.StateRoot])
 	if err := ts.WriteChanges(ctx, stateless, vm.Tracer()); err != nil {
 		return nil, err
 	}
@@ -286,7 +309,7 @@ func BuildBlock(
 	b.StateRoot = root
 
 	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, state, results); err != nil {
+	if err := b.initializeBuilt(ctx, state, stateless, results); err != nil {
 		return nil, err
 	}
 	log.Info(
