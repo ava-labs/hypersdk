@@ -74,7 +74,7 @@ func BuildBlock(
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err
 	}
-	stateless, err := parent.childStatelessView(ctx, r.GetMaxBlockTxs())
+	stateless, err := parent.ChildStatelessView(ctx, r.GetMaxBlockTxs())
 	if err != nil {
 		log.Warn("block building failed: couldn't get stateless view", zap.Error(err))
 		return nil, err
@@ -165,31 +165,7 @@ func BuildBlock(
 				b.vm.Logger().Warn("skipping old tx", zap.Stringer("txID", next.ID()))
 				return true, false, false, nil
 			}
-			nvalues, nnodes := next.Proof.State()
-			values := map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte]{next.Proof.Root: nvalues}
-			nodes := map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node]{next.Proof.Root: nnodes}
-			for root, m := range b.values {
-				for path, value := range m {
-					if _, ok := values[root]; !ok {
-						values[root] = make(map[merkledb.Path]merkledb.Maybe[[]byte])
-					}
-					values[root][path] = value
-				}
-			}
-			for root, m := range b.nodes {
-				for path, node := range m {
-					if _, ok := nodes[root]; !ok {
-						nodes[root] = make(map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
-					}
-					nodes[root][path] = node
-				}
-			}
-			b.setTemporaryState(
-				ctx,
-				stateless,
-				values,
-				nodes,
-			)
+			values, nodes := b.SetTxProofState(ctx, stateless, next)
 
 			// Populate required transaction state and restrict which keys can be used
 			//

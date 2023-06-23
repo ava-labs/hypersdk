@@ -422,7 +422,36 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 	return true
 }
 
-// returns false if a root is not accounted for (invalid)
+// Must lock during whatever execution over entire view lookback
+func (b *StatelessBlock) SetTxProofState(ctx context.Context, stateless merkledb.StatelessView, tx *Transaction) (map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte], map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node]) {
+	nvalues, nnodes := tx.Proof.State()
+	values := map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte]{tx.Proof.Root: nvalues}
+	nodes := map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node]{tx.Proof.Root: nnodes}
+	for root, m := range b.values {
+		for path, value := range m {
+			if _, ok := values[root]; !ok {
+				values[root] = make(map[merkledb.Path]merkledb.Maybe[[]byte])
+			}
+			values[root][path] = value
+		}
+	}
+	for root, m := range b.nodes {
+		for path, node := range m {
+			if _, ok := nodes[root]; !ok {
+				nodes[root] = make(map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
+			}
+			nodes[root][path] = node
+		}
+	}
+	b.setTemporaryState(
+		ctx,
+		stateless,
+		values,
+		nodes,
+	)
+	return values, nodes
+}
+
 func (b *StatelessBlock) setTemporaryState(
 	ctx context.Context,
 	current merkledb.StatelessView,
@@ -628,7 +657,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, me
 	if err != nil {
 		return nil, nil, err
 	}
-	statelessView, err := parent.childStatelessView(ctx, len(b.Txs)*2)
+	statelessView, err := parent.ChildStatelessView(ctx, len(b.Txs)*2)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -865,7 +894,7 @@ func (b *StatelessBlock) childState(
 	return b.state.NewPreallocatedView(estimatedChanges)
 }
 
-func (b *StatelessBlock) childStatelessView(
+func (b *StatelessBlock) ChildStatelessView(
 	ctx context.Context,
 	estimatedChanges int,
 ) (merkledb.StatelessView, error) {
