@@ -66,8 +66,9 @@ type VM struct {
 	actionRegistry chain.ActionRegistry
 	authRegistry   chain.AuthRegistry
 
-	statelessView   merkledb.StatelessView
-	statelessWindow buffer.Queue[*chain.StatelessBlock]
+	statelessView         merkledb.StatelessView
+	statelessWindow       buffer.Queue[*chain.StatelessBlock]
+	statelessLookbackLock sync.Mutex // not parallel yet
 
 	tracer  trace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -698,26 +699,26 @@ func (vm *VM) Submit(
 	}
 
 	// Create temporary execution context
-	blk, err := vm.GetStatelessBlock(ctx, vm.preferred)
+	parent, err := vm.GetStatelessBlock(ctx, vm.preferred)
 	if err != nil {
-		return []error{err}
-	}
-	state, err := blk.State()
-	if err != nil {
-		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
 	now := time.Now().Unix()
 	r := vm.c.Rules(now)
-	ectx, err := chain.GenerateExecutionContext(ctx, vm.snowCtx.ChainID, now, blk, vm.tracer, r)
+	ectx, err := chain.GenerateExecutionContext(ctx, vm.snowCtx.ChainID, now, parent, vm.tracer, r)
+	if err != nil {
+		return []error{err}
+	}
+	newBlk := chain.NewBlock(ectx, vm, parent, now)
+	stateless, err := parent.ChildStatelessView(ctx, r.GetMaxBlockTxs())
 	if err != nil {
 		return []error{err}
 	}
 	oldestAllowed := now - r.GetValidityWindow()
 	validTxs := []*chain.Transaction{}
 	for _, tx := range txs {
-		if !blk.RootInWindow(ctx, tx.Proof.Root) {
-			errs = append(errs, fmt.Errorf("root not in window: %s (tip=%d)", tx.Proof.Root, blk.Hght))
+		if !parent.RootInWindow(ctx, tx.Proof.Root) {
+			errs = append(errs, fmt.Errorf("root not in window: %s (tip=%d)", tx.Proof.Root, parent.Hght))
 			continue
 		}
 		txID := tx.ID()
@@ -744,7 +745,7 @@ func (vm *VM) Submit(
 		}
 		// TODO: do we need this? (just ensures people can't spam mempool with
 		// txs from already verified blocks)
-		repeat, err := blk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx})
+		repeat, err := parent.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx})
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -753,13 +754,20 @@ func (vm *VM) Submit(
 			errs = append(errs, chain.ErrDuplicateTx)
 			continue
 		}
+
+		// Prepare Proofs
+		vm.statelessLookbackLock.Lock()
+		newBlk.SetTxProofState(ctx, stateless, tx)
+
 		// PreExecute does not make any changes to state
 		//
 		// This may fail if the state we are utilizing is invalidated (if a trie
 		// view from a different branch is committed underneath it). We prefer this
 		// instead of putting a lock around all commits.
-		if err := tx.PreExecute(ctx, ectx, r, state, now); err != nil {
-			errs = append(errs, err)
+		perr := tx.PreExecute(ctx, ectx, r, stateless, now)
+		vm.statelessLookbackLock.Unlock()
+		if perr != nil {
+			errs = append(errs, perr)
 			continue
 		}
 		errs = append(errs, nil)
@@ -907,4 +915,12 @@ func (vm *VM) SetStatelessView(b *chain.StatelessBlock) {
 	vm.statelessWindow.Push(b)
 
 	// TODO: add values/nodes to previous blocks as permanent
+}
+
+func (vm *VM) LookbackLock() {
+	vm.statelessLookbackLock.Lock()
+}
+
+func (vm *VM) LookbackUnlock() {
+	vm.statelessLookbackLock.Unlock()
 }

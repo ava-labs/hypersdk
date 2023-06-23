@@ -74,7 +74,7 @@ func BuildBlock(
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err
 	}
-	stateless, err := parent.childStatelessView(ctx, r.GetMaxBlockTxs())
+	stateless, err := parent.ChildStatelessView(ctx, r.GetMaxBlockTxs())
 	if err != nil {
 		log.Warn("block building failed: couldn't get stateless view", zap.Error(err))
 		return nil, err
@@ -165,31 +165,8 @@ func BuildBlock(
 				b.vm.Logger().Warn("skipping old tx", zap.Stringer("txID", next.ID()))
 				return true, false, false, nil
 			}
-			nvalues, nnodes := next.Proof.State()
-			values := map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte]{next.Proof.Root: nvalues}
-			nodes := map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node]{next.Proof.Root: nnodes}
-			for root, m := range b.values {
-				for path, value := range m {
-					if _, ok := values[root]; !ok {
-						values[root] = make(map[merkledb.Path]merkledb.Maybe[[]byte])
-					}
-					values[root][path] = value
-				}
-			}
-			for root, m := range b.nodes {
-				for path, node := range m {
-					if _, ok := nodes[root]; !ok {
-						nodes[root] = make(map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
-					}
-					nodes[root][path] = node
-				}
-			}
-			b.setTemporaryState(
-				ctx,
-				stateless,
-				values,
-				nodes,
-			)
+			vm.LookbackLock()
+			values, nodes := b.SetTxProofState(ctx, stateless, next)
 
 			// Populate required transaction state and restrict which keys can be used
 			//
@@ -197,6 +174,7 @@ func BuildBlock(
 			// faster)
 			txStart := ts.OpIndex()
 			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), stateless); err != nil {
+				vm.LookbackUnlock()
 				if len(ts.BadKey) > 0 {
 					_, ok := b.values[next.Proof.Root][merkledb.NewPath(ts.BadKey)]
 					_, pok := values[next.Proof.Root][merkledb.NewPath(ts.BadKey)]
@@ -209,6 +187,7 @@ func BuildBlock(
 
 			// PreExecute next to see if it is fit
 			if err := next.PreExecute(fctx, ectx, r, ts, nextTime); err != nil {
+				vm.LookbackUnlock()
 				ts.Rollback(ctx, txStart)
 				cont, restore, removeAcct := HandlePreExecute(err)
 				return cont, restore, removeAcct, nil
@@ -251,6 +230,7 @@ func BuildBlock(
 				nextTime,
 				next.WarpMessage != nil && warpErr == nil,
 			)
+			vm.LookbackUnlock()
 			if err != nil {
 				// This error should only be raised by the handler, not the
 				// implementation itself
