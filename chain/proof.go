@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/compression"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -43,23 +44,33 @@ func (p *Proof) AsyncVerify(ctx context.Context) error {
 
 func (p *Proof) Marshal(pk *codec.Packer) error {
 	// TODO: enforce sorted order
-	pk.PackID(p.Root)
-	pk.PackInt(len(p.Proofs))
+	innerCodec := codec.NewWriter(consts.MaxInt)
+	innerCodec.PackID(p.Root)
+	innerCodec.PackInt(len(p.Proofs))
 	for _, proof := range p.Proofs {
 		b, err := merkledb.Codec.EncodeProof(merkledb.Version, proof)
 		if err != nil {
 			return err
 		}
-		pk.PackBytes(b)
+		innerCodec.PackBytes(b)
 	}
-	pk.PackInt(len(p.PathProofs))
+	innerCodec.PackInt(len(p.PathProofs))
 	for _, proof := range p.PathProofs {
 		b, err := merkledb.Codec.EncodePathProof(merkledb.Version, proof)
 		if err != nil {
 			return err
 		}
-		pk.PackBytes(b)
+		innerCodec.PackBytes(b)
 	}
+	cmp, err := compression.NewZstdCompressor(int64(consts.MaxInt))
+	if err != nil {
+		return err
+	}
+	mini, err := cmp.Compress(innerCodec.Bytes())
+	if err != nil {
+		return err
+	}
+	pk.PackBytes(mini)
 	return nil
 }
 
@@ -76,7 +87,18 @@ func (p *Proof) State() (map[merkledb.Path]merkledb.Maybe[[]byte], map[merkledb.
 	return values, nodes
 }
 
-func UnmarshalProof(p *codec.Packer) (*Proof, error) {
+func UnmarshalProof(op *codec.Packer) (*Proof, error) {
+	dcmp, err := compression.NewZstdCompressor(int64(consts.MaxInt))
+	if err != nil {
+		return nil, err
+	}
+	var raw []byte
+	op.UnpackBytes(consts.MaxInt, true, &raw)
+	mini, err := dcmp.Decompress(raw)
+	if err != nil {
+		return nil, err
+	}
+
 	var root ids.ID
 	p.UnpackID(true, &root)
 	proofCount := p.UnpackInt(true)
