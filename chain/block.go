@@ -6,6 +6,7 @@ package chain
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"time"
 
@@ -463,6 +464,20 @@ func (b *StatelessBlock) setTemporaryState(
 	// TODO: make sure all transactions have recent roots
 }
 
+func (b *StatelessBlock) RootInWindow(ctx context.Context, root ids.ID) bool {
+	next := b
+	for i := 0; i < 256; /* make constant */ i++ {
+		if next.StateRoot == root {
+			return true
+		}
+		if next.parent == nil {
+			break
+		}
+		next = next.parent
+	}
+	return false
+}
+
 func (b *StatelessBlock) setPermanentState(ctx context.Context, current merkledb.StatelessView) {
 	current.AddPermanentState(b.values[b.parent.StateRoot], b.nodes[b.parent.StateRoot])
 	next := b.parent
@@ -618,6 +633,13 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, me
 		return nil, nil, err
 	}
 
+	// TODO: combine this check with other lookbacks
+	for _, tx := range b.Txs {
+		if !parent.RootInWindow(ctx, tx.Proof.Root) {
+			return nil, nil, errors.New("root not in window")
+		}
+	}
+
 	// Go back up to 256 blocks and set temporary state or clear what was there
 	b.setTemporaryState(ctx, statelessView, b.values, b.nodes)
 
@@ -630,8 +652,10 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, me
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		if len(processor.badKey) > 0 {
-			_, ok := b.values[parent.StateRoot][merkledb.NewPath(processor.badKey)]
-			return nil, nil, fmt.Errorf("%w: execution failed (key=%x exists in values=%t", err, processor.badKey, ok)
+			_, ok := b.values[processor.badTx.Proof.Root][merkledb.NewPath(processor.badKey)]
+			txValues, _ := processor.badTx.Proof.State()
+			_, tok := txValues[merkledb.NewPath(processor.badKey)]
+			return nil, nil, fmt.Errorf("%w: execution failed (key=%x values=%t tx=%t", err, processor.badKey, ok, tok)
 		}
 		return nil, nil, fmt.Errorf("%w: execution failed", err)
 	}

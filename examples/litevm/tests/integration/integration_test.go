@@ -161,8 +161,8 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	priv3, err = crypto.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
-	factory3 = auth.NewED25519Factory(priv2)
-	rsender3 = priv2.PublicKey()
+	factory3 = auth.NewED25519Factory(priv3)
+	rsender3 = priv3.PublicKey()
 	sender3 = utils.Address(rsender3)
 	log.Debug(
 		"generated key",
@@ -578,6 +578,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			err = blk4.Accept(ctx)
 			gomega.Ω(err).Should(gomega.BeNil())
+			n.vm.SetPreference(ctx, blk4.ID())
 		})
 	})
 
@@ -694,50 +695,45 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 	ginkgo.It("ensure proof lookback works", func() {
 		// Clear existing
-		accept := expectBlk(instances[2])
-		accept()
+		// accept := expectBlk(instances[2])
+		// accept()
 
-		// Geneate first tx
-		parser, err := instances[2].lcli.Parser(context.Background())
-		gomega.Ω(err).Should(gomega.BeNil())
-		submitA, _, _, err := instances[2].cli.GenerateTransaction(
-			context.Background(),
-			parser,
-			nil,
-			&actions.Transfer{
-				To:    rsender2,
-				Value: 1000,
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-
-		// Generate second tx
-		submitB, _, _, err := instances[2].cli.GenerateTransaction(
-			context.Background(),
-			parser,
-			nil,
-			&actions.Transfer{
-				To:    rsender3,
-				Value: 1001,
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-
-		// Directly on parent root
-		gomega.Ω(submitA(context.Background())).Should(gomega.BeNil())
-		accept = expectBlk(instances[2])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-
-		// Proof is one back
-		gomega.Ω(submitB(context.Background())).Should(gomega.BeNil())
-		accept = expectBlk(instances[2])
-		results = accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+		submits := make([]func(context.Context) error, 512)
+		for i := 0; i < 512; i++ {
+			sender := rsender2
+			if i%2 == 0 {
+				sender = rsender3
+			}
+			parser, err := instances[2].lcli.Parser(context.Background())
+			gomega.Ω(err).Should(gomega.BeNil())
+			submit, _, _, err := instances[2].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				nil,
+				&actions.Transfer{
+					To:    sender,
+					Value: 1000 + uint64(i),
+				},
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			submits[i] = submit
+		}
+		for i := 0; i < 256; i++ {
+			submit := submits[i]
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			accept := expectBlk(instances[2])
+			results := accept()
+			gomega.Ω(results).Should(gomega.HaveLen(1))
+			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+			log.Info("block accepted", zap.Int("index", i))
+		}
+		for i := 256; i < 512; i++ {
+			submit := submits[i]
+			err := submit(context.Background())
+			gomega.Ω(err).Should(gomega.Not(gomega.BeNil()))
+			gomega.Ω(err.Error()).Should(gomega.ContainSubstring("root not in window"))
+		}
 	})
 })
 
@@ -750,6 +746,9 @@ func expectBlk(i instance) func() []*chain.Result {
 	<-i.toEngine
 
 	blk, err := i.vm.BuildBlock(ctx)
+	if err != nil {
+		panic(err)
+	}
 	gomega.Ω(err).To(gomega.BeNil())
 	gomega.Ω(blk).To(gomega.Not(gomega.BeNil()))
 

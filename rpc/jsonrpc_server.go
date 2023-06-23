@@ -5,11 +5,9 @@ package rpc
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -213,7 +211,7 @@ func (j *JSONRPCServer) GetProof(
 	args *GetProofArgs,
 	reply *GetProofReply,
 ) error {
-	start := time.Now()
+	// start := time.Now()
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetProof")
 	defer span.End()
 
@@ -265,12 +263,12 @@ func (j *JSONRPCServer) GetProof(
 		return err
 	}
 	reply.Proof = c.Bytes()
-	j.vm.Logger().Debug(
-		"sending proof",
-		zap.Stringer("root", preRoot),
-		zap.String("proof", hex.EncodeToString(reply.Proof)),
-		zap.Duration("t", time.Since(start)),
-		zap.Int("size", len(reply.Proof)),
-	)
+	// j.vm.Logger().Debug(
+	// 	"sending proof",
+	// 	zap.Stringer("root", preRoot),
+	// 	zap.String("proof", hex.EncodeToString(reply.Proof)),
+	// 	zap.Duration("t", time.Since(start)),
+	// 	zap.Int("size", len(reply.Proof)),
+	// )
 	return nil
 }

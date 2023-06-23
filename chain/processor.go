@@ -34,6 +34,7 @@ type Processor struct {
 
 	err    error
 	badKey []byte
+	badTx  *Transaction
 }
 
 // Only prepare for population if above last accepted height
@@ -73,6 +74,7 @@ func (p *Processor) Prefetch(ctx context.Context) {
 					continue
 				} else if err != nil {
 					p.badKey = k
+					p.badTx = tx
 					p.err = err
 					close(p.readyTxs)
 					return
