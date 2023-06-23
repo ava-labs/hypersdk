@@ -183,14 +183,6 @@ func setBalance(
 	return db.Insert(ctx, dbKey, binary.BigEndian.AppendUint64(nil, balance))
 }
 
-func DeleteBalance(
-	ctx context.Context,
-	db chain.Database,
-	pk crypto.PublicKey,
-) error {
-	return db.Remove(ctx, PrefixBalanceKey(pk))
-}
-
 func AddBalance(
 	ctx context.Context,
 	db chain.Database,
