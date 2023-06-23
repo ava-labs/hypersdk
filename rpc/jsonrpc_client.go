@@ -158,6 +158,9 @@ func (cli *JSONRPCClient) GetWarpSignatures(
 	return resp.Message, m, resp.Signatures, nil
 }
 
+func (cli *JSONRPCClient) GetProof(ctx context.Context) {
+}
+
 type Modifier interface {
 	Base(*chain.Base)
 }

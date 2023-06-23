@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -194,5 +195,43 @@ func (j *JSONRPCServer) GetWarpSignatures(
 	reply.Message = message
 	reply.Validators = warpValidators
 	reply.Signatures = validSignatures
+	return nil
+}
+
+type GetProofArgs struct {
+	StateKeys [][]byte `json:"stateKeys"`
+}
+
+type GetProofReply struct {
+	// TODO: may need to send as bytes
+	Proof *chain.Proof `json:"proof"`
+}
+
+func (j *JSONRPCServer) SimulateTx(
+	req *http.Request,
+	args *GetProofArgs,
+	reply *GetProofReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SimulateTx")
+	defer span.End()
+
+	// Change value of all keys
+	view := j.vm.LastAcceptedView()
+	for _, key := range args.StateKeys {
+		v, err := view.GetValue(ctx, key)
+		if err != nil && err == database.ErrNotFound {
+			v = []byte{}
+		} else if err != nil {
+			return err
+		}
+		// Make sure we always change the value
+		// TODO: make more efficient
+		v = append(v, []byte{0x1}...)
+		if err := view.Insert(ctx, key, v); err != nil {
+			return err
+		}
+	}
+
+	// TODO: Extract proof from view interceptor
 	return nil
 }
