@@ -759,7 +759,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			submits[i] = submit
 
-			old = i - 5
+			old = i - 1
 			if old >= 0 {
 				submit := submits[old]
 				err := submit(context.Background())
