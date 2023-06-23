@@ -57,6 +57,7 @@ type VM struct {
 	gossiper       gossiper.Gossiper
 	rawStateDB     database.Database
 	stateDB        merkledb.MerkleDB
+	statelessView  merkledb.StatelessView
 	vmDB           database.Database
 	handlers       Handlers
 	actionRegistry chain.ActionRegistry
@@ -287,6 +288,25 @@ func (vm *VM) Initialize(
 		vm.blocks.Put(gBlkID, genesisBlk)
 		snowCtx.Log.Info("initialized vm from genesis", zap.Stringer("block", gBlkID))
 	}
+	// TODO: Get root directly from DB
+	view, err := vm.stateDB.NewView()
+	if err != nil {
+		return err
+	}
+	root, err := view.GetRoot()
+	if err != nil {
+		return err
+	}
+	statelessView, err := merkledb.NewBaseStatelessView(root, defaultRegistry, vm.tracer, 1000)
+	if err != nil {
+		return err
+	}
+	vm.statelessView = statelessView
+	mroot, err := vm.statelessView.GetMerkleRoot(ctx)
+	if err != nil {
+		return err
+	}
+	snowCtx.Log.Info("intialized stateless view", zap.Stringer("root", mroot))
 	go vm.processAcceptedBlocks()
 
 	// Setup state syncing
@@ -864,4 +884,8 @@ func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, erro
 
 func (vm *VM) LastAcceptedView() (merkledb.TrieView, error) {
 	return vm.stateDB.NewView()
+}
+
+func (vm *VM) StatelessView() merkledb.StatelessView {
+	return vm.statelessView
 }

@@ -48,6 +48,7 @@ type VM interface {
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
 	State() (merkledb.MerkleDB, error)
+	StatelessView() merkledb.StatelessView
 	ValidatorState() validators.State
 
 	Mempool() Mempool

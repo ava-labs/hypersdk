@@ -5,7 +5,6 @@ package chain
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
@@ -71,6 +70,11 @@ func BuildBlock(
 	state, err := parent.childState(ctx, changesEstimate)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
+		return nil, err
+	}
+	stateless, err := parent.childStatelessView(ctx, r.GetMaxBlockTxs())
+	if err != nil {
+		log.Warn("block building failed: couldn't get stateless view", zap.Error(err))
 		return nil, err
 	}
 	ts := tstate.New(changesEstimate)
@@ -157,7 +161,7 @@ func BuildBlock(
 			// TODO: prefetch state of upcoming txs that we will pull (should make much
 			// faster)
 			txStart := ts.OpIndex()
-			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), state); err != nil {
+			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), stateless); err != nil {
 				return false, true, false, err
 			}
 
@@ -254,19 +258,30 @@ func BuildBlock(
 	b.SurplusFee = surplusFee
 
 	// Get root from underlying state changes after writing all changed keys
+	if err := ts.WriteChanges(ctx, stateless, vm.Tracer()); err != nil {
+		return nil, err
+	}
+	// TODO: only do if state is not nil
 	if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
 		return nil, err
 	}
 
-	// Store height in state to prevent duplicate roots
-	if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return nil, err
-	}
+	// // Store height in state to prevent duplicate roots
+	// if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+	// 	return nil, err
+	// }
 
 	// Compute state root after all data has been written to trie
-	root, err := state.GetMerkleRoot(ctx)
+	root, err := stateless.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
+	}
+	sroot, err := state.GetMerkleRoot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if root != sroot {
+		panic("state mismatch after build")
 	}
 	b.StateRoot = root
 

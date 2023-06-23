@@ -86,6 +86,9 @@ type StatelessBlock struct {
 	bytes  []byte
 	txsSet set.Set[ids.ID]
 
+	values map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte]
+	nodes  map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node]
+
 	warpMessages map[ids.ID]*warpJob
 	containsWarp bool // this allows us to avoid allocating a map when we build
 	bctx         *block.Context
@@ -93,8 +96,9 @@ type StatelessBlock struct {
 
 	results []*Result
 
-	vm    VM
-	state merkledb.TrieView
+	vm            VM
+	state         merkledb.TrieView
+	statelessView merkledb.StatelessView
 
 	sigJob *workers.Job
 }
@@ -150,7 +154,26 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	b.warpMessages = map[ids.ID]*warpJob{}
+	b.values = make(map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte])
+	b.nodes = make(map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
 	for _, tx := range b.Txs {
+		// Populate union
+		root := tx.Proof.Root
+		if _, ok := b.values[root]; !ok {
+			b.values[root] = make(map[merkledb.Path]merkledb.Maybe[[]byte])
+		}
+		if _, ok := b.nodes[root]; !ok {
+			b.nodes[root] = make(map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
+		}
+		values, nodes := tx.Proof.State()
+		for path, value := range values {
+			b.values[root][path] = value
+		}
+		for path, node := range nodes {
+			b.nodes[root][path] = node
+		}
+
+		// Enqueue txs for verification
 		b.sigJob.Go(tx.AuthAsyncVerify())
 		if b.txsSet.Contains(tx.ID()) {
 			return ErrDuplicateTx
@@ -527,10 +550,17 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	if err != nil {
 		return nil, err
 	}
+	statelessView, err := parent.childStatelessView(ctx, len(b.Txs)*2)
+	if err != nil {
+		return nil, err
+	}
+	// TODO: need to iterate over parents and SetState with everything we have
+	// TODO: optimize for what we have accepted
+	statelessView.SetState(b.values[parent.StateRoot], b.nodes[parent.StateRoot])
 
 	// Optimisticaly fetch state
-	processor := NewProcessor(b.vm.Tracer(), b)
-	processor.Prefetch(ctx, state)
+	processor := NewProcessor(b.vm.Tracer(), b, statelessView, state)
+	processor.Prefetch(ctx)
 
 	// Process new transactions
 	unitsConsumed, surplusFee, results, stateChanges, stateOps, err := processor.Execute(ctx, ectx, r)
@@ -594,17 +624,29 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Compute state root
 	start := time.Now()
-	computedRoot, err := state.GetMerkleRoot(ctx)
+	statelessComputedRoot, err := statelessView.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
 	b.vm.RecordRootCalculated(time.Since(start))
-	if b.StateRoot != computedRoot {
+	if b.StateRoot != statelessComputedRoot {
 		return nil, fmt.Errorf(
-			"%w: expected=%s found=%s",
+			"%w: block=%s stateless=%s",
 			ErrStateRootMismatch,
-			computedRoot,
+			statelessComputedRoot,
 			b.StateRoot,
+		)
+	}
+	statefulComputedRoot, err := state.GetMerkleRoot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if statefulComputedRoot != statelessComputedRoot {
+		return nil, fmt.Errorf(
+			"%w: stateful=%s stateless=%s",
+			ErrStateRootMismatch,
+			statefulComputedRoot,
+			statelessComputedRoot,
 		)
 	}
 
@@ -627,31 +669,10 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	// Consider verifying the a block if it is not processed and we are no longer
 	// syncing.
 	if !b.Processed() {
-		// The state of this block was not calculated during the call to
-		// [StatelessBlock.Verify]. This is because the VM was state syncing
-		// and did not have the state necessary to verify the block.
-		updated, err := b.vm.UpdateSyncTarget(b)
-		if err != nil {
-			return err
-		}
-		if updated {
-			b.vm.Logger().
-				Info("updated state sync target", zap.Stringer("id", b.ID()), zap.Stringer("root", b.StateRoot))
-			return nil // the sync is still ongoing
-		}
-		b.vm.Logger().
-			Info("verifying unprocessed block in accept", zap.Stringer("id", b.ID()), zap.Stringer("root", b.StateRoot))
-		// This check handles the case where blocks were not
-		// verified during state sync (stopped syncing with a processing block).
-		//
-		// If state sync completes before accept is called
-		// then we need to rebuild it here.
-		state, err := b.innerVerify(ctx)
-		if err != nil {
-			return err
-		}
-		b.state = state
+		panic("yikes")
 	}
+
+	// TODO: update base stateless view (on new depth)
 
 	// Commit state if we don't return before here (would happen if we are still
 	// syncing)
@@ -752,6 +773,26 @@ func (b *StatelessBlock) childState(
 		b.state = state
 	}
 	return b.state.NewPreallocatedView(estimatedChanges)
+}
+
+func (b *StatelessBlock) childStatelessView(
+	ctx context.Context,
+	estimatedChanges int,
+) (merkledb.StatelessView, error) {
+	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.childStatelessView")
+	defer span.End()
+
+	// Return committed state if block is accepted or this is genesis.
+	if b.st == choices.Accepted || b.Hght == 0 /* genesis */ {
+		state := b.vm.StatelessView()
+		return state.NewStatelessView(estimatedChanges), nil
+	}
+
+	// Process block if not yet processed and not yet accepted.
+	if !b.Processed() {
+		panic("yikes")
+	}
+	return b.statelessView.NewStatelessView(estimatedChanges), nil
 }
 
 func (b *StatelessBlock) IsRepeat(
