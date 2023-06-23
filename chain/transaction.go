@@ -80,7 +80,9 @@ func (t *Transaction) Digest(
 	p.PackByte(actionByte)
 	t.Action.Marshal(p)
 	// TODO: add more proof types?
-	t.Proof.Marshal(p)
+	if err := t.Proof.Marshal(p); err != nil {
+		return nil, fmt.Errorf("%w: unable to marshal proof", err)
+	}
 	return p.Bytes(), p.Err()
 }
 
