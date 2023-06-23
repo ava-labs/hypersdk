@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
@@ -289,10 +290,13 @@ func BuildBlock(
 		return nil, err
 	}
 
-	// // Store height in state to prevent duplicate roots
-	// if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-	// 	return nil, err
-	// }
+	// Store height in state to prevent duplicate roots
+	if err := stateless.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return nil, err
+	}
+	if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return nil, err
+	}
 
 	// Compute state root after all data has been written to trie
 	root, err := stateless.GetMerkleRoot(ctx)
