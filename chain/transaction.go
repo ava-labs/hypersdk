@@ -121,7 +121,7 @@ func (t *Transaction) AuthAsyncVerify() func() error {
 		if err := t.Auth.AsyncVerify(t.digest); err != nil {
 			return err
 		}
-		if err := t.Proof.AsyncVerify(); err != nil {
+		if err := t.Proof.AsyncVerify(context.TODO()); err != nil {
 			return err
 		}
 		return nil

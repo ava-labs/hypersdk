@@ -1,8 +1,10 @@
 package chain
 
 import (
+	"context"
 	"errors"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -10,6 +12,8 @@ import (
 
 // TODO: make an interface? seems unneeded if using HyperSDK
 type Proof struct {
+	Root ids.ID
+
 	Proofs     []*merkledb.Proof
 	PathProofs []*merkledb.PathProof
 
@@ -22,12 +26,22 @@ func (p *Proof) MaxUnits(Rules) uint64 {
 	return p.size
 }
 
-func (p *Proof) AsyncVerify() error {
-	// TODO: ensure valid proof
+func (p *Proof) AsyncVerify(ctx context.Context) error {
+	for _, proof := range p.Proofs {
+		if err := proof.Verify(ctx, p.Root); err != nil {
+			return err
+		}
+	}
+	for _, proof := range p.PathProofs {
+		if err := proof.Verify(ctx, p.Root); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (p *Proof) Marshal(pk *codec.Packer) error {
+	pk.PackID(p.Root)
 	pk.PackInt(len(p.Proofs))
 	for _, proof := range p.Proofs {
 		b, err := merkledb.Codec.EncodeProof(merkledb.Version, proof)
@@ -49,6 +63,8 @@ func (p *Proof) Marshal(pk *codec.Packer) error {
 
 func unmarshalProof(p *codec.Packer) (*Proof, error) {
 	start := p.Offset()
+	var root ids.ID
+	p.UnpackID(true, &root)
 	proofCount := p.UnpackInt(true)
 	proofs := []*merkledb.Proof{}
 	for i := 0; i < proofCount; i++ {
@@ -79,5 +95,5 @@ func unmarshalProof(p *codec.Packer) (*Proof, error) {
 		}
 		pathProofs = append(pathProofs, &pathProof)
 	}
-	return &Proof{proofs, pathProofs, uint64(p.Offset() - start)}, nil
+	return &Proof{root, proofs, pathProofs, uint64(p.Offset() - start)}, nil
 }
