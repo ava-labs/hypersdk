@@ -203,8 +203,7 @@ type GetProofArgs struct {
 }
 
 type GetProofReply struct {
-	// TODO: may need to send as bytes
-	Proof *chain.Proof `json:"proof"`
+	Proof []byte `json:"proof"`
 }
 
 func (j *JSONRPCServer) GetProof(
@@ -248,10 +247,19 @@ func (j *JSONRPCServer) GetProof(
 		return err
 	}
 	values, nodes := view.GetInterceptedProofs()
-	reply.Proof = &chain.Proof{
+	proof := &chain.Proof{
 		Root:       preRoot,
 		Proofs:     values,
 		PathProofs: nodes,
 	}
+	// We must marshal because the `Maybe` type is not serialized properly
+	c := codec.NewWriter(consts.MaxInt)
+	if err := proof.Marshal(c); err != nil {
+		return err
+	}
+	if err := c.Err(); err != nil {
+		return err
+	}
+	reply.Proof = c.Bytes()
 	return nil
 }

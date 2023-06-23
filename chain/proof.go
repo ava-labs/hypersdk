@@ -74,7 +74,7 @@ func (p *Proof) State() (map[merkledb.Path]merkledb.Maybe[[]byte], map[merkledb.
 	return values, nodes
 }
 
-func unmarshalProof(p *codec.Packer) (*Proof, error) {
+func UnmarshalProof(p *codec.Packer) (*Proof, error) {
 	start := p.Offset()
 	var root ids.ID
 	p.UnpackID(true, &root)

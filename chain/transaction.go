@@ -467,7 +467,7 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal action", err)
 	}
-	proof, err := unmarshalProof(p)
+	proof, err := UnmarshalProof(p)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal proof", err)
 	}
