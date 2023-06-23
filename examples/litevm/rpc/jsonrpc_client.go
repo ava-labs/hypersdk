@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/litevm/consts"
 	"github.com/ava-labs/hypersdk/examples/litevm/genesis"
 	_ "github.com/ava-labs/hypersdk/examples/litevm/registry" // ensure registry populated
+	"github.com/ava-labs/hypersdk/examples/litevm/storage"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
@@ -138,6 +139,10 @@ func (p *Parser) Rules(t int64) chain.Rules {
 
 func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return consts.ActionRegistry, consts.AuthRegistry
+}
+
+func (*Parser) StateManager() chain.StateManager {
+	return &storage.StateManager{}
 }
 
 func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {

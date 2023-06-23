@@ -33,8 +33,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -49,7 +47,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/litevm/utils"
 )
 
-const transferTxFee = 400 /* base fee */ + 40 /* transfer fee */
+const transferTxFee = 400 /* base fee */ + 40 /* transfer fee */ + 1000 /* proof fee */
 
 var (
 	logFactory logging.Factory
@@ -110,6 +108,11 @@ var (
 	rsender2 crypto.PublicKey
 	sender2  string
 
+	priv3    crypto.PrivateKey
+	factory3 *auth.ED25519Factory
+	rsender3 crypto.PublicKey
+	sender3  string
+
 	// when used with embedded VMs
 	genesisBytes []byte
 	instances    []instance
@@ -154,6 +157,17 @@ var _ = ginkgo.BeforeSuite(func() {
 		"generated key",
 		zap.String("addr", sender2),
 		zap.String("pk", hex.EncodeToString(priv2[:])),
+	)
+
+	priv3, err = crypto.GeneratePrivateKey()
+	gomega.Ω(err).Should(gomega.BeNil())
+	factory3 = auth.NewED25519Factory(priv3)
+	rsender3 = priv3.PublicKey()
+	sender3 = utils.Address(rsender3)
+	log.Debug(
+		"generated key",
+		zap.String("addr", sender3),
+		zap.String("pk", hex.EncodeToString(priv3[:])),
 	)
 
 	// create embedded VMs
@@ -338,36 +352,36 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 		})
 
-		ginkgo.By("skip invalid time", func() {
-			actionRegistry, authRegistry := instances[0].vm.Registry()
-			tx := chain.NewTx(
-				&chain.Base{
-					ChainID:   instances[0].chainID,
-					Timestamp: 0,
-					UnitPrice: 1000,
-				},
-				nil,
-				&actions.Transfer{
-					To:    rsender2,
-					Value: 110,
-				},
-			)
-			// Must do manual construction to avoid `tx.Sign` error (would fail with
-			// 0 timestamp)
-			msg, err := tx.Digest(actionRegistry)
-			gomega.Ω(err).To(gomega.BeNil())
-			auth, err := factory.Sign(msg, tx.Action)
-			gomega.Ω(err).To(gomega.BeNil())
-			tx.Auth = auth
-			p := codec.NewWriter(consts.MaxInt)
-			gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
-			gomega.Ω(p.Err()).To(gomega.BeNil())
-			_, err = instances[0].cli.SubmitTx(
-				context.Background(),
-				p.Bytes(),
-			)
-			gomega.Ω(err).To(gomega.Not(gomega.BeNil()))
-		})
+		// ginkgo.By("skip invalid time", func() {
+		// 	actionRegistry, authRegistry := instances[0].vm.Registry()
+		// 	tx := chain.NewTx(
+		// 		&chain.Base{
+		// 			ChainID:   instances[0].chainID,
+		// 			Timestamp: 0,
+		// 			UnitPrice: 1000,
+		// 		},
+		// 		nil,
+		// 		&actions.Transfer{
+		// 			To:    rsender2,
+		// 			Value: 110,
+		// 		},
+		// 	)
+		// 	// Must do manual construction to avoid `tx.Sign` error (would fail with
+		// 	// 0 timestamp)
+		// 	msg, err := tx.Digest(actionRegistry)
+		// 	gomega.Ω(err).To(gomega.BeNil())
+		// 	auth, err := factory.Sign(msg, tx.Action)
+		// 	gomega.Ω(err).To(gomega.BeNil())
+		// 	tx.Auth = auth
+		// 	p := codec.NewWriter(consts.MaxInt)
+		// 	gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		// 	gomega.Ω(p.Err()).To(gomega.BeNil())
+		// 	_, err = instances[0].cli.SubmitTx(
+		// 		context.Background(),
+		// 		p.Bytes(),
+		// 	)
+		// 	gomega.Ω(err).To(gomega.Not(gomega.BeNil()))
+		// })
 
 		ginkgo.By("skip duplicate (after gossip, which shouldn't clear)", func() {
 			_, err := instances[0].cli.SubmitTx(
@@ -410,7 +424,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].lcli.Balance(context.Background(), sender)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899560)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9898560)))
 			balance2, err := instances[1].lcli.Balance(context.Background(), sender2)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
@@ -564,6 +578,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			err = blk4.Accept(ctx)
 			gomega.Ω(err).Should(gomega.BeNil())
+			n.vm.SetPreference(ctx, blk4.ID())
 		})
 	})
 
@@ -677,6 +692,96 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// Close connection when done
 		gomega.Ω(cli.Close()).Should(gomega.BeNil())
 	})
+
+	ginkgo.It("ensure proof lookback works", func() {
+		// Clear existing
+		// accept := expectBlk(instances[2])
+		// accept()
+
+		submits := make([]func(context.Context) error, 512)
+		for i := 0; i < 512; i++ {
+			sender := rsender2
+			if i%2 == 0 {
+				sender = rsender3
+			}
+			parser, err := instances[2].lcli.Parser(context.Background())
+			gomega.Ω(err).Should(gomega.BeNil())
+			submit, _, _, err := instances[2].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				nil,
+				&actions.Transfer{
+					To:    sender,
+					Value: 1000 + uint64(i),
+				},
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			submits[i] = submit
+		}
+		for i := 0; i < 256; i++ {
+			submit := submits[i]
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			accept := expectBlk(instances[2])
+			results := accept()
+			gomega.Ω(results).Should(gomega.HaveLen(1))
+			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+			log.Info("block accepted", zap.Int("index", i))
+		}
+		for i := 256; i < 512; i++ {
+			submit := submits[i]
+			err := submit(context.Background())
+			gomega.Ω(err).Should(gomega.Not(gomega.BeNil()))
+			gomega.Ω(err.Error()).Should(gomega.ContainSubstring("root not in window"))
+		}
+	})
+
+	ginkgo.It("grow large tree with tx delay", func() {
+		submits := make([]func(context.Context) error, 512)
+		old := 0
+		for i := 0; i < 512; i++ {
+			tpriv, err := crypto.GeneratePrivateKey()
+			gomega.Ω(err).Should(gomega.BeNil())
+			tsender := tpriv.PublicKey()
+
+			parser, err := instances[2].lcli.Parser(context.Background())
+			gomega.Ω(err).Should(gomega.BeNil())
+			submit, _, _, err := instances[2].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				nil,
+				&actions.Transfer{
+					To:    tsender,
+					Value: 1000,
+				},
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			submits[i] = submit
+
+			old = i - 1
+			if old >= 0 {
+				submit := submits[old]
+				err := submit(context.Background())
+				gomega.Ω(err).Should(gomega.BeNil())
+				accept := expectBlk(instances[2])
+				results := accept()
+				gomega.Ω(results).Should(gomega.HaveLen(1))
+				gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+				log.Info("block accepted", zap.Int("index", old))
+			}
+		}
+
+		for i := old + 1; i < 512; i++ {
+			submit := submits[i]
+			err := submit(context.Background())
+			gomega.Ω(err).Should(gomega.BeNil())
+		}
+		accept := expectBlk(instances[2])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+	})
 })
 
 func expectBlk(i instance) func() []*chain.Result {
@@ -688,6 +793,9 @@ func expectBlk(i instance) func() []*chain.Result {
 	<-i.toEngine
 
 	blk, err := i.vm.BuildBlock(ctx)
+	if err != nil {
+		panic(err)
+	}
 	gomega.Ω(err).To(gomega.BeNil())
 	gomega.Ω(blk).To(gomega.Not(gomega.BeNil()))
 

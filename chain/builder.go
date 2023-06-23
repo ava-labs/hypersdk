@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
@@ -73,9 +74,14 @@ func BuildBlock(
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err
 	}
-	ts := tstate.New(changesEstimate)
+	stateless, err := parent.ChildStatelessView(ctx, r.GetMaxBlockTxs())
+	if err != nil {
+		log.Warn("block building failed: couldn't get stateless view", zap.Error(err))
+		return nil, err
+	}
 
 	// Restorable txs after block attempt finishes
+	ts := tstate.New(changesEstimate)
 	b.Txs = []*Transaction{}
 	var (
 		oldestAllowed = nextTime - r.GetValidityWindow()
@@ -94,6 +100,8 @@ func BuildBlock(
 		start    = time.Now()
 		lockWait time.Duration
 	)
+	b.values = make(map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte])
+	b.nodes = make(map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
 	mempoolErr := mempool.Build(
 		ctx,
 		func(fctx context.Context, next *Transaction) (cont bool, restore bool, removeAcct bool, err error) {
@@ -152,17 +160,34 @@ func BuildBlock(
 				return false /* make simpler */, true, false, nil // could be txs that fit that are smaller
 			}
 
+			// Prepare proofs
+			if !parent.RootInWindow(ctx, next.Proof.Root) {
+				b.vm.Logger().Warn("skipping old tx", zap.Stringer("txID", next.ID()))
+				return true, false, false, nil
+			}
+			vm.LookbackLock()
+			values, nodes := b.SetTxProofState(ctx, stateless, next)
+
 			// Populate required transaction state and restrict which keys can be used
 			//
 			// TODO: prefetch state of upcoming txs that we will pull (should make much
 			// faster)
 			txStart := ts.OpIndex()
-			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), state); err != nil {
-				return false, true, false, err
+			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), stateless); err != nil {
+				vm.LookbackUnlock()
+				if len(ts.BadKey) > 0 {
+					_, ok := b.values[next.Proof.Root][merkledb.NewPath(ts.BadKey)]
+					_, pok := values[next.Proof.Root][merkledb.NewPath(ts.BadKey)]
+					txValues, _ := next.Proof.State()
+					_, tok := txValues[merkledb.NewPath(ts.BadKey)]
+					return false, true, false, fmt.Errorf("%w: could not fetch and set scope (key=%x, values=%t, pending values=%t, tx=%t)", err, ts.BadKey, ok, pok, tok)
+				}
+				return false, true, false, fmt.Errorf("%w: could not fetch and set scope", err)
 			}
 
 			// PreExecute next to see if it is fit
 			if err := next.PreExecute(fctx, ectx, r, ts, nextTime); err != nil {
+				vm.LookbackUnlock()
 				ts.Rollback(ctx, txStart)
 				cont, restore, removeAcct := HandlePreExecute(err)
 				return cont, restore, removeAcct, nil
@@ -205,6 +230,7 @@ func BuildBlock(
 				nextTime,
 				next.WarpMessage != nil && warpErr == nil,
 			)
+			vm.LookbackUnlock()
 			if err != nil {
 				// This error should only be raised by the handler, not the
 				// implementation itself
@@ -224,6 +250,8 @@ func BuildBlock(
 				}
 				warpCount++
 			}
+			b.values = values
+			b.nodes = nodes
 			return len(b.Txs) < r.GetMaxBlockTxs(), false, false, nil
 		},
 	)
@@ -233,7 +261,7 @@ func BuildBlock(
 	)
 	if mempoolErr != nil {
 		b.vm.Mempool().Add(ctx, b.Txs)
-		return nil, err
+		return nil, fmt.Errorf("%w: error while processing tx", mempoolErr)
 	}
 
 	// Perform basic validity checks to make sure the block is well-formatted
@@ -254,24 +282,38 @@ func BuildBlock(
 	b.SurplusFee = surplusFee
 
 	// Get root from underlying state changes after writing all changed keys
+	if err := ts.WriteChanges(ctx, stateless, vm.Tracer()); err != nil {
+		return nil, err
+	}
+	// TODO: only do if state is not nil
 	if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
 		return nil, err
 	}
 
 	// Store height in state to prevent duplicate roots
+	if err := stateless.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return nil, err
+	}
 	if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, err
 	}
 
 	// Compute state root after all data has been written to trie
-	root, err := state.GetMerkleRoot(ctx)
+	root, err := stateless.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
+	}
+	sroot, err := state.GetMerkleRoot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if root != sroot {
+		return nil, errors.New("state mismatch")
 	}
 	b.StateRoot = root
 
 	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, state, results); err != nil {
+	if err := b.initializeBuilt(ctx, state, stateless, results); err != nil {
 		return nil, err
 	}
 	log.Info(

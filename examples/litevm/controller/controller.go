@@ -37,7 +37,7 @@ type Controller struct {
 	snowCtx      *snow.Context
 	genesis      *genesis.Genesis
 	config       *config.Config
-	stateManager *StateManager
+	stateManager *storage.StateManager
 
 	metrics *metrics
 
@@ -69,7 +69,7 @@ func (c *Controller) Initialize(
 ) {
 	c.inner = inner
 	c.snowCtx = snowCtx
-	c.stateManager = &StateManager{}
+	c.stateManager = &storage.StateManager{}
 
 	// Instantiate metrics
 	var err error

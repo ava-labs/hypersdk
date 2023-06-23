@@ -28,22 +28,30 @@ type Processor struct {
 
 	blk      *StatelessBlock
 	readyTxs chan *txData
-	db       Database
+
+	stateless Database
+	stateful  Database // optional
+
+	err    error
+	badKey []byte
+	badTx  *Transaction
 }
 
 // Only prepare for population if above last accepted height
-func NewProcessor(tracer trace.Tracer, b *StatelessBlock) *Processor {
+func NewProcessor(tracer trace.Tracer, b *StatelessBlock, stateless Database, stateful Database) *Processor {
 	return &Processor{
 		tracer: tracer,
 
 		blk:      b,
 		readyTxs: make(chan *txData, len(b.GetTxs())),
+
+		stateless: stateless,
+		stateful:  stateful,
 	}
 }
 
-func (p *Processor) Prefetch(ctx context.Context, db Database) {
+func (p *Processor) Prefetch(ctx context.Context) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Prefetch")
-	p.db = db
 	sm := p.blk.vm.StateManager()
 	go func() {
 		defer span.End()
@@ -60,12 +68,16 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 					}
 					continue
 				}
-				v, err := db.GetValue(ctx, k)
+				v, err := p.stateless.GetValue(ctx, k)
 				if errors.Is(err, database.ErrNotFound) {
 					alreadyFetched[sk] = &fetchData{nil, false}
 					continue
 				} else if err != nil {
-					panic(err)
+					p.badKey = k
+					p.badTx = tx
+					p.err = err
+					close(p.readyTxs)
+					return
 				}
 				alreadyFetched[sk] = &fetchData{v, true}
 				storage[sk] = v
@@ -133,9 +145,17 @@ func (p *Processor) Execute(
 			return 0, 0, nil, 0, 0, ErrBlockTooBig
 		}
 	}
+	if p.err != nil {
+		return 0, 0, nil, 0, 0, p.err
+	}
 	// Wait until end to write changes to avoid conflicting with pre-fetching
-	if err := ts.WriteChanges(ctx, p.db, p.tracer); err != nil {
+	if err := ts.WriteChanges(ctx, p.stateless, p.tracer); err != nil {
 		return 0, 0, nil, 0, 0, err
+	}
+	if p.stateful != nil {
+		if err := ts.WriteChanges(ctx, p.stateful, p.tracer); err != nil {
+			return 0, 0, nil, 0, 0, err
+		}
 	}
 	return unitsConsumed, surplusFee, results, ts.PendingChanges(), ts.OpIndex(), nil
 }

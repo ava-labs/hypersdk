@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -194,5 +195,80 @@ func (j *JSONRPCServer) GetWarpSignatures(
 	reply.Message = message
 	reply.Validators = warpValidators
 	reply.Signatures = validSignatures
+	return nil
+}
+
+type GetProofArgs struct {
+	StateKeys [][]byte `json:"stateKeys"`
+}
+
+type GetProofReply struct {
+	Proof []byte `json:"proof"`
+}
+
+func (j *JSONRPCServer) GetProof(
+	req *http.Request,
+	args *GetProofArgs,
+	reply *GetProofReply,
+) error {
+	// start := time.Now()
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetProof")
+	defer span.End()
+
+	// Change value of all keys
+	view, err := j.vm.LastAcceptedView()
+	if err != nil {
+		return err
+	}
+	preRoot, err := view.GetMerkleRoot(ctx)
+	if err != nil {
+		return err
+	}
+
+	view.SetIntercepter()
+	for _, key := range args.StateKeys {
+		v, err := view.GetValue(ctx, key)
+		if err != nil && err == database.ErrNotFound {
+			v = []byte{}
+		} else if err != nil {
+			return err
+		}
+		// Make sure we always change the value
+		// TODO: make more efficient
+		v = append(v, []byte{0x1}...)
+		if err := view.Insert(ctx, key, v); err != nil {
+			return err
+		}
+
+		// TODO: should we also remove things?
+	}
+
+	// Extract proof from view interceptor
+	if _, err := view.GetMerkleRoot(ctx); err != nil {
+		return err
+	}
+	values, nodes := view.GetInterceptedProofs()
+	// TODO: enforce sorted order
+	proof := &chain.Proof{
+		Root:       preRoot,
+		Proofs:     values,
+		PathProofs: nodes,
+	}
+	// We must marshal because the `Maybe` type is not serialized properly
+	c := codec.NewWriter(consts.MaxInt)
+	if err := proof.Marshal(c); err != nil {
+		return err
+	}
+	if err := c.Err(); err != nil {
+		return err
+	}
+	reply.Proof = c.Bytes()
+	// j.vm.Logger().Debug(
+	// 	"sending proof",
+	// 	zap.Stringer("root", preRoot),
+	// 	zap.String("proof", hex.EncodeToString(reply.Proof)),
+	// 	zap.Duration("t", time.Since(start)),
+	// 	zap.Int("size", len(reply.Proof)),
+	// )
 	return nil
 }

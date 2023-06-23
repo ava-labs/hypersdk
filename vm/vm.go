@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net/http"
 	"sync"
@@ -22,6 +23,7 @@ import (
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils"
+	"github.com/ava-labs/avalanchego/utils/buffer"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/version"
@@ -42,6 +44,8 @@ import (
 	"github.com/ava-labs/hypersdk/workers"
 )
 
+const rootLookback = 256
+
 type VM struct {
 	c Controller
 	v *version.Semantic
@@ -61,6 +65,10 @@ type VM struct {
 	handlers       Handlers
 	actionRegistry chain.ActionRegistry
 	authRegistry   chain.AuthRegistry
+
+	statelessView         merkledb.StatelessView
+	statelessWindow       buffer.Queue[*chain.StatelessBlock]
+	statelessLookbackLock sync.Mutex // not parallel yet
 
 	tracer  trace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -206,7 +214,7 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	// Setup worker cluster
+	// Setup workers cluster
 	vm.workers = workers.New(vm.config.GetParallelism(), 100)
 
 	// Init channels before initializing other structs
@@ -232,20 +240,7 @@ func (vm *VM) Initialize(
 		return err
 	}
 	if has { //nolint:nestif
-		blkID, err := vm.GetLastAccepted()
-		if err != nil {
-			snowCtx.Log.Error("could not get last accepted", zap.Error(err))
-			return err
-		}
-
-		blk, err := vm.GetStatelessBlock(ctx, blkID)
-		if err != nil {
-			snowCtx.Log.Error("could not load last accepted", zap.Error(err))
-			return err
-		}
-
-		vm.preferred, vm.lastAccepted = blkID, blk
-		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
+		panic("yikes")
 	} else {
 		// Set Balances
 		view, err := vm.stateDB.NewView()
@@ -254,6 +249,9 @@ func (vm *VM) Initialize(
 		}
 		if err := vm.genesis.Load(ctx, vm.tracer, view); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
+			return err
+		}
+		if err := view.Insert(ctx, vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
 		if err := view.CommitToDB(ctx); err != nil {
@@ -286,6 +284,37 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
 		vm.blocks.Put(gBlkID, genesisBlk)
 		snowCtx.Log.Info("initialized vm from genesis", zap.Stringer("block", gBlkID))
+
+		// Set up stateless view
+		rootBytes, err := vm.stateDB.GetRoot()
+		if err != nil {
+			return err
+		}
+		statelessView, err := merkledb.NewBaseStatelessView(rootBytes, vm.Logger(), defaultRegistry, vm.tracer, 1000, rootLookback)
+		if err != nil {
+			return err
+		}
+		vm.statelessView = statelessView
+		statelessWindow, err := buffer.NewBoundedQueue(rootLookback, func(b *chain.StatelessBlock) {
+			// Should never go back this far
+			b.ClearParent()
+
+			// Deque doesn't hold a lock
+			b.GetStatelessView().SetBase() // this is technically further back than we'd ever need to go
+			vm.snowCtx.Log.Info("setting base", zap.Uint64("blkHeight", b.Hght))
+		})
+		if err != nil {
+			return err
+		}
+		vm.statelessWindow = statelessWindow
+		genesisBlk.SetStatelessView(statelessView)
+		vm.statelessWindow.Push(genesisBlk)
+
+		mroot, err := vm.statelessView.GetMerkleRoot(ctx)
+		if err != nil {
+			return err
+		}
+		snowCtx.Log.Info("intialized stateless view", zap.Stringer("root", mroot))
 	}
 	go vm.processAcceptedBlocks()
 
@@ -670,24 +699,28 @@ func (vm *VM) Submit(
 	}
 
 	// Create temporary execution context
-	blk, err := vm.GetStatelessBlock(ctx, vm.preferred)
+	parent, err := vm.GetStatelessBlock(ctx, vm.preferred)
 	if err != nil {
-		return []error{err}
-	}
-	state, err := blk.State()
-	if err != nil {
-		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
 	now := time.Now().Unix()
 	r := vm.c.Rules(now)
-	ectx, err := chain.GenerateExecutionContext(ctx, vm.snowCtx.ChainID, now, blk, vm.tracer, r)
+	ectx, err := chain.GenerateExecutionContext(ctx, vm.snowCtx.ChainID, now, parent, vm.tracer, r)
+	if err != nil {
+		return []error{err}
+	}
+	newBlk := chain.NewBlock(ectx, vm, parent, now)
+	stateless, err := parent.ChildStatelessView(ctx, r.GetMaxBlockTxs())
 	if err != nil {
 		return []error{err}
 	}
 	oldestAllowed := now - r.GetValidityWindow()
 	validTxs := []*chain.Transaction{}
 	for _, tx := range txs {
+		if !parent.RootInWindow(ctx, tx.Proof.Root) {
+			errs = append(errs, fmt.Errorf("root not in window: %s (tip=%d)", tx.Proof.Root, parent.Hght))
+			continue
+		}
 		txID := tx.ID()
 		// We already verify in streamer, let's avoid re-verification
 		if verifySig {
@@ -712,7 +745,7 @@ func (vm *VM) Submit(
 		}
 		// TODO: do we need this? (just ensures people can't spam mempool with
 		// txs from already verified blocks)
-		repeat, err := blk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx})
+		repeat, err := parent.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx})
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -721,13 +754,20 @@ func (vm *VM) Submit(
 			errs = append(errs, chain.ErrDuplicateTx)
 			continue
 		}
+
+		// Prepare Proofs
+		vm.statelessLookbackLock.Lock()
+		newBlk.SetTxProofState(ctx, stateless, tx)
+
 		// PreExecute does not make any changes to state
 		//
 		// This may fail if the state we are utilizing is invalidated (if a trie
 		// view from a different branch is committed underneath it). We prefer this
 		// instead of putting a lock around all commits.
-		if err := tx.PreExecute(ctx, ectx, r, state, now); err != nil {
-			errs = append(errs, err)
+		perr := tx.PreExecute(ctx, ectx, r, stateless, now)
+		vm.statelessLookbackLock.Unlock()
+		if perr != nil {
+			errs = append(errs, perr)
 			continue
 		}
 		errs = append(errs, nil)
@@ -860,4 +900,27 @@ func (*VM) VerifyHeightIndex(context.Context) error { return nil }
 // Note: must return database.ErrNotFound if the index at height is unknown.
 func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, error) {
 	return vm.GetDiskBlockIDAtHeight(height)
+}
+
+func (vm *VM) LastAcceptedView() (merkledb.TrieView, error) {
+	return vm.stateDB.NewView()
+}
+
+func (vm *VM) StatelessView() merkledb.StatelessView {
+	return vm.statelessView
+}
+
+func (vm *VM) SetStatelessView(b *chain.StatelessBlock) {
+	vm.statelessView = b.GetStatelessView()
+	vm.statelessWindow.Push(b)
+
+	// TODO: add values/nodes to previous blocks as permanent
+}
+
+func (vm *VM) LookbackLock() {
+	vm.statelessLookbackLock.Lock()
+}
+
+func (vm *VM) LookbackUnlock() {
+	vm.statelessLookbackLock.Unlock()
 }

@@ -19,6 +19,8 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -158,6 +160,26 @@ func (cli *JSONRPCClient) GetWarpSignatures(
 	return resp.Message, m, resp.Signatures, nil
 }
 
+func (cli *JSONRPCClient) GetProof(ctx context.Context, keys [][]byte) (*chain.Proof, error) {
+	resp := new(GetProofReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getProof",
+		&GetProofArgs{StateKeys: keys},
+		resp,
+	)
+	if err != nil {
+		return nil, err
+	}
+	c := codec.NewReader(resp.Proof, consts.MaxInt)
+	p, err := chain.UnmarshalProof(c)
+	if err != nil {
+		return nil, err
+	}
+	// utils.Outf("{{cyan}}received proof (%s):{{/}} %x\n", p.Root, resp.Proof)
+	return p, nil
+}
+
 type Modifier interface {
 	Base(*chain.Base)
 }
@@ -211,7 +233,18 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	// Build transaction
 	actionRegistry, authRegistry := parser.Registry()
 	tx := chain.NewTx(base, wm, action)
-	tx, err := tx.Sign(authFactory, actionRegistry, authRegistry)
+	preAuth, err := authFactory.Sign([]byte{0x1}, action) // TODO: remove this jank, needed to get state keys
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("%w: failed to get preauth", err)
+	}
+	tx.Auth = preAuth
+	proof, err := cli.GetProof(context.TODO(), tx.StateKeys(parser.StateManager()))
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("%w: failed to get proof", err)
+	}
+	tx.Auth = nil
+	tx.SetProof(proof)
+	tx, err = tx.Sign(authFactory, actionRegistry, authRegistry)
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("%w: failed to sign transaction", err)
 	}

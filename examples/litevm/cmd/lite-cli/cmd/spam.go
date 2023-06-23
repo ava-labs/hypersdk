@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	feePerTx     = 1000
+	feePerTx     = 2000
 	defaultRange = 32
 )
 
