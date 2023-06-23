@@ -28,14 +28,14 @@ func (p *Proof) MaxUnits(Rules) uint64 {
 }
 
 func (p *Proof) AsyncVerify(ctx context.Context) error {
-	for _, proof := range p.Proofs {
+	for i, proof := range p.Proofs {
 		if err := proof.Verify(ctx, p.Root); err != nil {
-			return err
+			return fmt.Errorf("%w: proof %d failed", err, i)
 		}
 	}
-	for _, proof := range p.PathProofs {
+	for i, proof := range p.PathProofs {
 		if err := proof.Verify(ctx, p.Root); err != nil {
-			return err
+			return fmt.Errorf("%w: path proof %d failed", err, i)
 		}
 	}
 	return nil

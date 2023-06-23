@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -129,6 +130,16 @@ func (t *Transaction) AuthAsyncVerify() func() error {
 			return err
 		}
 		if err := t.Proof.AsyncVerify(context.TODO()); err != nil {
+			text := fmt.Sprintf("{{red}}proof verification failed to verify:{{/}} %s\n", t.Proof.Root)
+			for i, proof := range t.Proof.Proofs {
+				b, _ := merkledb.Codec.EncodeProof(merkledb.Version, proof)
+				text += fmt.Sprintf("proof %d) %x\n", i, b)
+			}
+			for i, proof := range t.Proof.PathProofs {
+				b, _ := merkledb.Codec.EncodePathProof(merkledb.Version, proof)
+				text += fmt.Sprintf("path proof %d) %x\n", i, b)
+			}
+			utils.Outf(text)
 			return err
 		}
 		return nil
