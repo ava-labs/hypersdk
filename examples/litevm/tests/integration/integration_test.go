@@ -735,6 +735,53 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err.Error()).Should(gomega.ContainSubstring("root not in window"))
 		}
 	})
+
+	ginkgo.It("grow large tree with tx delay", func() {
+		submits := make([]func(context.Context) error, 512)
+		old := 0
+		for i := 0; i < 512; i++ {
+			tpriv, err := crypto.GeneratePrivateKey()
+			gomega.Ω(err).Should(gomega.BeNil())
+			tsender := tpriv.PublicKey()
+
+			parser, err := instances[2].lcli.Parser(context.Background())
+			gomega.Ω(err).Should(gomega.BeNil())
+			submit, _, _, err := instances[2].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				nil,
+				&actions.Transfer{
+					To:    tsender,
+					Value: 1000,
+				},
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			submits[i] = submit
+
+			old = i - 5
+			if old >= 0 {
+				submit := submits[old]
+				err := submit(context.Background())
+				gomega.Ω(err).Should(gomega.BeNil())
+				accept := expectBlk(instances[2])
+				results := accept()
+				gomega.Ω(results).Should(gomega.HaveLen(1))
+				gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+				log.Info("block accepted", zap.Int("index", old))
+			}
+		}
+
+		for i := old + 1; i < 512; i++ {
+			submit := submits[i]
+			err := submit(context.Background())
+			gomega.Ω(err).Should(gomega.BeNil())
+		}
+		accept := expectBlk(instances[2])
+		results := accept()
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+	})
 })
 
 func expectBlk(i instance) func() []*chain.Result {
