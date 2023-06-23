@@ -421,41 +421,55 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 	return true
 }
 
+func unionMaps[T any](
+	dest map[ids.ID]map[merkledb.Path]T,
+	src map[ids.ID]map[merkledb.Path]T,
+) {
+	for rootID, values := range src {
+		addMaps(dest, rootID, values)
+	}
+}
+
+func addMaps[T any](
+	allValues map[ids.ID]map[merkledb.Path]T,
+	rootID ids.ID,
+	values map[merkledb.Path]T,
+) {
+	mainValues, ok := allValues[rootID]
+	if !ok {
+		mainValues = make(map[merkledb.Path]T)
+		allValues[rootID] = mainValues
+	}
+	for path, value := range values {
+		mainValues[path] = value
+	}
+}
+
 // returns false if a root is not accounted for (invalid)
 func (b *StatelessBlock) setTemporaryState(
-	ctx context.Context,
+	_ context.Context,
 	current merkledb.StatelessView,
 	values map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte],
 	nodes map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node],
 ) {
-	current.SetTemporaryState(values[b.parent.StateRoot], nodes[b.parent.StateRoot])
+	allValues := make(map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte])
+	allNodes := make(map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
+	unionMaps(allValues, values)
+	unionMaps(allNodes, nodes)
+
+	current.SetTemporaryState(allValues[b.parent.StateRoot], allNodes[b.parent.StateRoot])
 	next := b.parent
-	processing := []*StatelessBlock{}
 	for i := 0; i < 256; /* make constant */ i++ {
-		if next.parent == nil {
+		if next.st != choices.Accepted {
+			unionMaps(allValues, next.values)
+			unionMaps(allNodes, next.nodes)
+		}
+
+		parent := next.parent
+		if parent == nil {
 			break
 		}
-		if next.st != choices.Accepted {
-			processing = append(processing, next)
-		}
-		parent := next.parent
-		rootUnionValues := make(map[merkledb.Path]merkledb.Maybe[[]byte])
-		rootUnionNodes := make(map[merkledb.Path]merkledb.Maybe[*merkledb.Node])
-		for path, v := range values[parent.StateRoot] {
-			rootUnionValues[path] = v
-		}
-		for path, n := range nodes[parent.StateRoot] {
-			rootUnionNodes[path] = n
-		}
-		for _, proc := range processing {
-			for path, v := range proc.values[parent.StateRoot] {
-				rootUnionValues[path] = v
-			}
-			for path, n := range proc.nodes[parent.StateRoot] {
-				rootUnionNodes[path] = n
-			}
-		}
-		next.statelessView.SetTemporaryState(rootUnionValues, rootUnionNodes)
+		next.statelessView.SetTemporaryState(allValues[parent.StateRoot], allNodes[parent.StateRoot])
 		next = parent
 	}
 
