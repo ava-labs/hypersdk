@@ -27,10 +27,10 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 //   -> [txID] => timestamp
 //
 // State
+// / (height) => store in root
+//   -> [heightPrefix] => height
 // 0x0/ (balance)
 //   -> [owner] => balance
-// 0x1/ (height)
-//   -> [heightPrefix] => height
 // TODO: make sure to keep inclusion proof around so can insert for all validators
 // 0x2/ (hypersdk-incoming warp)
 // 0x3/ (hypersdk-outgoing warp)
@@ -39,16 +39,15 @@ const (
 	txPrefix = 0x0
 
 	balancePrefix = 0x0
-	heightPrefix  = 0x1
 	// Not used
-	incomingWarpPrefix = 0x2
-	outgoingWarpPrefix = 0x3
+	incomingWarpPrefix = 0x1
+	outgoingWarpPrefix = 0x2
 )
 
 var (
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
-	heightKey   = []byte{heightPrefix}
+	heightKey   = []byte{}
 
 	// TODO: extend to other types
 	balancePrefixPool = sync.Pool{

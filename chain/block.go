@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -625,9 +626,12 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, me
 
 	// Store height in state to prevent duplicate roots
 	// TODO: add this back once we keep an exclusion proof around
-	// if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-	// 	return nil, err
-	// }
+	if err := statelessView.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return nil, nil, err
+	}
+	if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return nil, nil, err
+	}
 
 	// Compute state root
 	start := time.Now()
