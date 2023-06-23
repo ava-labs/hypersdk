@@ -10,10 +10,14 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 // TODO: make an interface? seems unneeded if using HyperSDK
 type Proof struct {
+	// compression is deterministic on same version: https://github.com/facebook/zstd/issues/2079
+	// TODO: not safe to use in prod without way more controls
+
 	Root ids.ID
 
 	Proofs     []*merkledb.Proof
@@ -62,7 +66,7 @@ func (p *Proof) Marshal(pk *codec.Packer) error {
 		}
 		innerCodec.PackBytes(b)
 	}
-	cmp, err := compression.NewZstdCompressor(int64(consts.MaxInt))
+	cmp, err := compression.NewZstdCompressor(int64(consts.NetworkSizeLimit))
 	if err != nil {
 		return err
 	}
@@ -71,6 +75,12 @@ func (p *Proof) Marshal(pk *codec.Packer) error {
 		return err
 	}
 	pk.PackBytes(mini)
+	utils.Outf(
+		"{{yellow}}compression savings:{{/}} %.2f%% %d->%d\n",
+		float64(len(innerCodec.Bytes())-len(mini))/float64(len(innerCodec.Bytes()))*100,
+		len(innerCodec.Bytes()),
+		len(mini),
+	)
 	return nil
 }
 
@@ -88,7 +98,7 @@ func (p *Proof) State() (map[merkledb.Path]merkledb.Maybe[[]byte], map[merkledb.
 }
 
 func UnmarshalProof(op *codec.Packer) (*Proof, error) {
-	dcmp, err := compression.NewZstdCompressor(int64(consts.MaxInt))
+	dcmp, err := compression.NewZstdCompressor(int64(consts.NetworkSizeLimit))
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +108,7 @@ func UnmarshalProof(op *codec.Packer) (*Proof, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	p := codec.NewReader(mini, consts.MaxInt)
 	var root ids.ID
 	p.UnpackID(true, &root)
 	proofCount := p.UnpackInt(true)
