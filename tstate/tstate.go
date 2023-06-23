@@ -46,6 +46,8 @@ type TState struct {
 	// Ops is a record of all operations performed on [TState]. Tracking
 	// operations allows for reverting state to a certain point-in-time.
 	ops []*op
+
+	BadKey []byte
 }
 
 // New returns a new instance of TState. Initializes the storage and changedKeys
@@ -108,6 +110,7 @@ func (ts *TState) FetchAndSetScope(ctx context.Context, keys [][]byte, db Databa
 			continue
 		}
 		if err != nil {
+			ts.BadKey = key
 			return err
 		}
 		ts.fetchCache[k] = &cacheItem{Value: v, Exists: true}

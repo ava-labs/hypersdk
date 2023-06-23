@@ -29,6 +29,7 @@ type Parser interface {
 	Rules(int64) Rules
 
 	Registry() (ActionRegistry, AuthRegistry)
+	StateManager() StateManager
 }
 
 type VM interface {
@@ -47,8 +48,11 @@ type VM interface {
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
 	State() (merkledb.MerkleDB, error)
-	StateManager() StateManager
+	StatelessView() merkledb.StatelessView
+	SetStatelessView(*StatelessBlock)
 	ValidatorState() validators.State
+	LookbackLock()
+	LookbackUnlock()
 
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction) bool

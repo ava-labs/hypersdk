@@ -1,0 +1,116 @@
+# Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+# See the file LICENSE for licensing terms.
+
+# https://golangci-lint.run/usage/configuration/
+run:
+  timeout: 10m
+  # skip auto-generated files.
+  skip-files:
+    - ".*\\.pb\\.go$"
+    - ".*mock.*"
+
+issues:
+  # Maximum count of issues with the same text. Set to 0 to disable. Default is 3.
+  max-same-issues: 0
+
+linters:
+  # please, do not use `enable-all`: it's deprecated and will be removed soon.
+  # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
+  disable-all: true
+  enable:
+    - asciicheck
+    - depguard
+    - errcheck
+    - errorlint
+    - exportloopref
+    - goconst
+    - gocritic
+    - gofmt
+    - gofumpt
+    - goimports
+    - revive
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - nolintlint
+    - prealloc
+    - stylecheck
+    - unconvert
+    - unparam
+    - unused
+    - unconvert
+    - whitespace
+    - staticcheck
+    - bodyclose
+    - structcheck
+    - lll
+      # - gomnd
+    - goprintffuncname
+    - interfacer
+    - typecheck
+      # - goerr113
+    - noctx
+
+linters-settings:
+  errorlint:
+    # Check for plain type assertions and type switches.
+    asserts: false
+    # Check for plain error comparisons.
+    comparison: false
+  revive:
+    rules:
+      # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#bool-literal-in-expr
+      - name: bool-literal-in-expr
+        disabled: false
+      # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#early-return
+      - name: early-return
+        disabled: false
+      # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#empty-lines
+      - name: empty-lines
+        disabled: false
+      # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#struct-tag
+      - name: struct-tag
+        disabled: false
+      # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#unexported-naming
+      - name: unexported-naming
+        disabled: false
+      # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#unhandled-error
+      - name: unhandled-error
+        disabled: false
+        arguments:
+          - "fmt.Fprint"
+          - "fmt.Fprintf"
+          - "fmt.Print"
+          - "fmt.Printf"
+          - "fmt.Println"
+          - "rand.Read"
+          - "sb.WriteString"
+      # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#unused-parameter
+      - name: unused-parameter
+        disabled: false
+      # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#unused-receiver
+      - name: unused-receiver
+        disabled: false
+      # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#useless-break
+      - name: useless-break
+        disabled: false
+  staticcheck:
+    go: "1.20"
+    # https://staticcheck.io/docs/options#checks
+    checks:
+      - "all"
+      - "-SA6002" # argument should be pointer-like to avoid allocation, for sync.Pool
+      - "-SA1019" # deprecated packages e.g., golang.org/x/crypto/ripemd160
+  # https://golangci-lint.run/usage/linters#gosec
+  gosec:
+    excludes:
+      - G107 # https://securego.io/docs/rules/g107.html
+  depguard:
+    list-type: blacklist
+    packages-with-error-message:
+      - io/ioutil: 'io/ioutil is deprecated. Use package io or os instead.'
+      - github.com/stretchr/testify/assert: 'github.com/stretchr/testify/require should be used instead.'
+    include-go-root: true

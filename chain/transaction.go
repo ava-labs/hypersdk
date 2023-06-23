@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -31,6 +32,7 @@ type Transaction struct {
 	WarpMessage *warp.Message `json:"warpMessage"`
 	Action      Action        `json:"action"`
 	Auth        Auth          `json:"auth"`
+	Proof       *Proof        `json:"proof"`
 
 	digest         []byte
 	bytes          []byte
@@ -58,6 +60,10 @@ func NewTx(base *Base, wm *warp.Message, act Action) *Transaction {
 	}
 }
 
+func (t *Transaction) SetProof(proof *Proof) {
+	t.Proof = proof
+}
+
 func (t *Transaction) Digest(
 	actionRegistry *codec.TypeParser[Action, *warp.Message, bool],
 ) ([]byte, error) {
@@ -77,6 +83,10 @@ func (t *Transaction) Digest(
 	p.PackBytes(warpBytes)
 	p.PackByte(actionByte)
 	t.Action.Marshal(p)
+	// TODO: add more proof types?
+	if err := t.Proof.Marshal(p); err != nil {
+		return nil, fmt.Errorf("%w: unable to marshal proof", err)
+	}
 	return p.Bytes(), p.Err()
 }
 
@@ -88,7 +98,7 @@ func (t *Transaction) Sign(
 	// Generate auth
 	msg, err := t.Digest(actionRegistry)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: could not create digest", err)
 	}
 	auth, err := factory.Sign(msg, t.Action)
 	if err != nil {
@@ -106,12 +116,33 @@ func (t *Transaction) Sign(
 		return nil, err
 	}
 	p = codec.NewReader(p.Bytes(), consts.MaxInt)
-	return UnmarshalTx(p, actionRegistry, authRegistry)
+	tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
+	if err != nil {
+		return nil, fmt.Errorf("%w: unable to unmarshal tx", err)
+	}
+	return tx, nil
 }
 
 func (t *Transaction) AuthAsyncVerify() func() error {
+	// TODO: check this before performing any DB IO for transaction
 	return func() error {
-		return t.Auth.AsyncVerify(t.digest)
+		if err := t.Auth.AsyncVerify(t.digest); err != nil {
+			return err
+		}
+		if err := t.Proof.AsyncVerify(context.TODO()); err != nil {
+			text := fmt.Sprintf("{{red}}proof verification failed to verify:{{/}} %s\n", t.Proof.Root)
+			for i, proof := range t.Proof.Proofs {
+				b, _ := merkledb.Codec.EncodeProof(merkledb.Version, proof)
+				text += fmt.Sprintf("proof %d) %x\n", i, b)
+			}
+			for i, proof := range t.Proof.PathProofs {
+				b, _ := merkledb.Codec.EncodePathProof(merkledb.Version, proof)
+				text += fmt.Sprintf("path proof %d) %x\n", i, b)
+			}
+			utils.Outf(text)
+			return err
+		}
+		return nil
 	}
 }
 
@@ -137,7 +168,8 @@ func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
 		keys = append(keys, stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
 	}
 	// Always assume a message could export a warp message
-	keys = append(keys, stateMapping.OutgoingWarpKey(t.id))
+	// TODO: change key for warp (txID depends on proof)
+	// keys = append(keys, stateMapping.OutgoingWarpKey(t.id))
 	t.stateKeys = keys
 	return keys
 }
@@ -167,6 +199,10 @@ func (t *Transaction) MaxUnits(r Rules) (txFee uint64, err error) {
 		if err != nil {
 			return 0, err
 		}
+	}
+	txFee, err = smath.Add64(txFee, t.Proof.Units(r))
+	if err != nil {
+		return 0, err
 	}
 	if txFee > 0 {
 		return txFee, nil
@@ -281,7 +317,7 @@ func (t *Transaction) Execute(
 	}
 
 	// Update action units with other items
-	result.Units += r.GetBaseUnits() + authUnits
+	result.Units += r.GetBaseUnits() + authUnits + t.Proof.Units(r)
 	if t.WarpMessage != nil {
 		result.Units += r.GetWarpBaseFee()
 		result.Units += uint64(t.numWarpSigners) * r.GetWarpFeePerSigner()
@@ -357,6 +393,9 @@ func (t *Transaction) Marshal(
 	p.PackBytes(warpBytes)
 	p.PackByte(actionByte)
 	t.Action.Marshal(p)
+	if err := t.Proof.Marshal(p); err != nil {
+		return err
+	}
 	p.PackByte(authByte)
 	t.Auth.Marshal(p)
 	return p.Err()
@@ -447,6 +486,10 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal action", err)
 	}
+	proof, err := UnmarshalProof(p)
+	if err != nil {
+		return nil, fmt.Errorf("%w: could not unmarshal proof", err)
+	}
 	digest := p.Offset()
 	authType := p.UnpackByte()
 	unmarshalAuth, authWarp, ok := authRegistry.LookupIndex(authType)
@@ -467,8 +510,9 @@ func UnmarshalTx(
 
 	var tx Transaction
 	tx.Base = base
-	tx.Action = action
 	tx.WarpMessage = warpMessage
+	tx.Action = action
+	tx.Proof = proof
 	tx.Auth = auth
 	if err := p.Err(); err != nil {
 		return nil, p.Err()
