@@ -6,6 +6,7 @@ package chain
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"time"
 
@@ -463,6 +464,20 @@ func (b *StatelessBlock) setTemporaryState(
 	// TODO: make sure all transactions have recent roots
 }
 
+func (b *StatelessBlock) RootInWindow(ctx context.Context, root ids.ID) bool {
+	next := b
+	for i := 0; i < 256; /* make constant */ i++ {
+		if next.StateRoot == root {
+			return true
+		}
+		if next.parent == nil {
+			break
+		}
+		next = next.parent
+	}
+	return false
+}
+
 func (b *StatelessBlock) setPermanentState(ctx context.Context, current merkledb.StatelessView) {
 	current.AddPermanentState(b.values[b.parent.StateRoot], b.nodes[b.parent.StateRoot])
 	next := b.parent
@@ -616,6 +631,13 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, me
 	statelessView, err := parent.childStatelessView(ctx, len(b.Txs)*2)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// TODO: combine this check with other lookbacks
+	for _, tx := range b.Txs {
+		if !parent.RootInWindow(ctx, tx.Proof.Root) {
+			return nil, nil, errors.New("root not in window")
+		}
 	}
 
 	// Go back up to 256 blocks and set temporary state or clear what was there

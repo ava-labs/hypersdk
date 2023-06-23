@@ -161,6 +161,10 @@ func BuildBlock(
 			}
 
 			// Prepare proofs
+			if !parent.RootInWindow(ctx, next.Proof.Root) {
+				b.vm.Logger().Warn("skipping old tx", zap.Stringer("txID", next.ID()))
+				return true, false, false, nil
+			}
 			nvalues, nnodes := next.Proof.State()
 			values := map[ids.ID]map[merkledb.Path]merkledb.Maybe[[]byte]{next.Proof.Root: nvalues}
 			nodes := map[ids.ID]map[merkledb.Path]merkledb.Maybe[*merkledb.Node]{next.Proof.Root: nnodes}

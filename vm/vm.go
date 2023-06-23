@@ -297,6 +297,10 @@ func (vm *VM) Initialize(
 		statelessWindow, err := buffer.NewBoundedQueue(rootLookback, func(b *chain.StatelessBlock) {
 			// Should never go back this far
 			b.ClearParent()
+
+			// Deque doesn't hold a lock
+			b.GetStatelessView().SetBase() // this is technically further back than we'd ever need to go
+			vm.snowCtx.Log.Info("setting base", zap.Uint64("blkHeight", b.Hght))
 		})
 		if err != nil {
 			return err
@@ -712,6 +716,10 @@ func (vm *VM) Submit(
 	oldestAllowed := now - r.GetValidityWindow()
 	validTxs := []*chain.Transaction{}
 	for _, tx := range txs {
+		if !blk.RootInWindow(ctx, tx.Proof.Root) {
+			errs = append(errs, fmt.Errorf("root not in window: %s (tip=%d)", tx.Proof.Root, blk.Hght))
+			continue
+		}
 		txID := tx.ID()
 		// We already verify in streamer, let's avoid re-verification
 		if verifySig {
@@ -896,7 +904,6 @@ func (vm *VM) StatelessView() merkledb.StatelessView {
 
 func (vm *VM) SetStatelessView(b *chain.StatelessBlock) {
 	vm.statelessView = b.GetStatelessView()
-	vm.statelessView.SetBase()
 	vm.statelessWindow.Push(b)
 
 	// TODO: add values/nodes to previous blocks as permanent
