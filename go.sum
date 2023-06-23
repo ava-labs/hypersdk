@@ -54,6 +54,8 @@ github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623015745-cc331c062b50 h1:BB
 github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623015745-cc331c062b50/go.mod h1:lQNBWn4f27MWJGH9Jj1zOX1GlJDeHofMG/TBRaqSNSg=
 github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623020316-eaef96b9435f h1:pk9fZjSTrng1cKP2WlyKAxR6LTpc2dhY5X/XuwoKgXs=
 github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623020316-eaef96b9435f/go.mod h1:lQNBWn4f27MWJGH9Jj1zOX1GlJDeHofMG/TBRaqSNSg=
+github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623023102-8216a7143b3b h1:MNgwA93ysHfctATeHFailNqwVJMwaKYkWjl9B661Abk=
+github.com/ava-labs/avalanchego v1.10.4-rc.0.0.20230623023102-8216a7143b3b/go.mod h1:lQNBWn4f27MWJGH9Jj1zOX1GlJDeHofMG/TBRaqSNSg=
 github.com/aymerick/raymond v2.0.3-0.20180322193309-b565731e1464+incompatible/go.mod h1:osfaiScAUVup+UC9Nfq76eWqDhXlp+4UYaA8uhTBO6g=
 github.com/benbjohnson/clock v1.3.0 h1:ip6w0uFQkncKQ979AypyG0ER7mqUSBdKLOgAle/AT8A=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=

@@ -158,7 +158,15 @@ func (cli *JSONRPCClient) GetWarpSignatures(
 	return resp.Message, m, resp.Signatures, nil
 }
 
-func (cli *JSONRPCClient) GetProof(ctx context.Context) {
+func (cli *JSONRPCClient) GetProof(ctx context.Context, keys [][]byte) (*chain.Proof, error) {
+	resp := new(GetProofReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getProof",
+		&GetProofArgs{StateKeys: keys},
+		resp,
+	)
+	return resp.Proof, err
 }
 
 type Modifier interface {
@@ -214,7 +222,12 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	// Build transaction
 	actionRegistry, authRegistry := parser.Registry()
 	tx := chain.NewTx(base, wm, action)
-	tx, err := tx.Sign(authFactory, actionRegistry, authRegistry)
+	proof, err := cli.GetProof(context.TODO(), tx.StateKeys(parser.StateManager()))
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("%w: failed to get proof", err)
+	}
+	tx.SetProof(proof)
+	tx, err = tx.Sign(authFactory, actionRegistry, authRegistry)
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("%w: failed to sign transaction", err)
 	}

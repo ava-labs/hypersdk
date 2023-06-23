@@ -35,5 +35,5 @@ type VM interface {
 		context.Context,
 	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
 	GatherSignatures(context.Context, ids.ID, []byte)
-	LastAcceptedView() merkledb.TrieView
+	LastAcceptedView() (merkledb.TrieView, error)
 }

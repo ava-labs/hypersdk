@@ -207,16 +207,25 @@ type GetProofReply struct {
 	Proof *chain.Proof `json:"proof"`
 }
 
-func (j *JSONRPCServer) SimulateTx(
+func (j *JSONRPCServer) GetProof(
 	req *http.Request,
 	args *GetProofArgs,
 	reply *GetProofReply,
 ) error {
-	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SimulateTx")
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetProof")
 	defer span.End()
 
 	// Change value of all keys
-	view := j.vm.LastAcceptedView()
+	view, err := j.vm.LastAcceptedView()
+	if err != nil {
+		return err
+	}
+	preRoot, err := view.GetMerkleRoot(ctx)
+	if err != nil {
+		return err
+	}
+
+	view.SetIntercepter()
 	for _, key := range args.StateKeys {
 		v, err := view.GetValue(ctx, key)
 		if err != nil && err == database.ErrNotFound {
@@ -230,8 +239,19 @@ func (j *JSONRPCServer) SimulateTx(
 		if err := view.Insert(ctx, key, v); err != nil {
 			return err
 		}
+
+		// TODO: should we also remove things?
 	}
 
-	// TODO: Extract proof from view interceptor
+	// Extract proof from view interceptor
+	if _, err := view.GetMerkleRoot(ctx); err != nil {
+		return err
+	}
+	values, nodes := view.GetInterceptedProofs()
+	reply.Proof = &chain.Proof{
+		Root:       preRoot,
+		Proofs:     values,
+		PathProofs: nodes,
+	}
 	return nil
 }

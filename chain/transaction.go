@@ -51,13 +51,16 @@ type WarpResult struct {
 	VerifyErr error
 }
 
-func NewTx(base *Base, wm *warp.Message, act Action, proof *Proof) *Transaction {
+func NewTx(base *Base, wm *warp.Message, act Action) *Transaction {
 	return &Transaction{
 		Base:        base,
 		WarpMessage: wm,
 		Action:      act,
-		Proof:       proof,
 	}
+}
+
+func (t *Transaction) SetProof(proof *Proof) {
+	t.Proof = proof
 }
 
 func (t *Transaction) Digest(

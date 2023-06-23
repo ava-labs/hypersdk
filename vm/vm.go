@@ -861,3 +861,7 @@ func (*VM) VerifyHeightIndex(context.Context) error { return nil }
 func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, error) {
 	return vm.GetDiskBlockIDAtHeight(height)
 }
+
+func (vm *VM) LastAcceptedView() (merkledb.TrieView, error) {
+	return vm.stateDB.NewView()
+}
