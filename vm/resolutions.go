@@ -82,7 +82,7 @@ func (vm *VM) IsBootstrapped() bool {
 	return vm.bootstrapped.Get()
 }
 
-func (vm *VM) State() (*merkledb.Database, error) {
+func (vm *VM) State() (merkledb.MerkleDB, error) {
 	// As soon as synced (before ready), we can safely request data from the db.
 	if !vm.StateReady() {
 		return nil, ErrStateMissing
