@@ -8,6 +8,7 @@
   <a href="https://goreportcard.com/report/github.com/ava-labs/hypersdk"><img src="https://goreportcard.com/badge/github.com/ava-labs/hypersdk" /></a>
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/unit-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/unit-tests.yml/badge.svg" /></a>
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/static-analysis.yml/badge.svg" /></a>
+  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-sync-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-sync-tests.yml/badge.svg" /></a>
 <a href="./LICENSE" ><img src="https://img.shields.io/badge/License-Ecosystem-blue.svg" /></a>
 </p>
 
@@ -33,7 +34,7 @@ efficiently for them.
 
 This opinionated design methodology means that most runtimes built on the
 `hypersdk`, called a `hypervm`, only need to implement 500-1000 lines of their own
-code to add custom interaction patterns (and don't need to copy-pasta code from upstream
+code to add custom interaction patterns (and don't need to copy-paste code from upstream
 that they need to keep up-to-date). However, if you do want to provide your own
 mechanism, you can always override anything you are using upstream if you can
 compose something better suited for your application. That same DEX-based
@@ -585,6 +586,15 @@ compatible with most `hypervms` (and maintained in the `hypersdk`)._
 <p align="center">
   <a href="https://star-history.com/#ava-labs/hypersdk&Date"><img width="90%" alt="star history" src="https://api.star-history.com/svg?repos=ava-labs/hypersdk&type=Date" /></a>
 </p>
+
+## Community Posts
+_This is a collection of posts from the community about the `hypersdk` and how to use it in your own `hypervm`._
+
+* [Introducing HyperSDK](https://twitter.com/_patrickogrady/status/1628109791267819520)
+* [HyperSDK - Chorus One](https://twitter.com/ChorusOne/status/1628404359381024775)
+* [An Analysis of the Developing State of Avalanche’s Technology](https://www.thetie.io/insights/research/an-analysis-of-the-developing-state-of-avalanches-technology/)
+* [Launching Custom Tokens With HyperSDK By Avalanche](https://pythontony.hashnode.dev/launching-custom-tokens-with-hypersdk-by-avalanche)
+* [Avalanche VMs deep-dive #1: HyperSDK/tokenvm](https://ashavax.hashnode.dev/avalanche-vms-deep-dive-1-hypersdktokenvm)
 
 ## Future Work
 _If you want to take the lead on any of these items, please
