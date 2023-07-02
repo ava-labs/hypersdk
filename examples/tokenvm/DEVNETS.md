@@ -12,8 +12,8 @@ page](https://github.com/ava-labs/avalanche-ops/releases/tag/latest).
 #### Option 1: Install `avalanche-ops` on Mac
 ```bash
 rm -f /tmp/avalancheup-aws
-wget https://github.com/ava-labs/avalanche-ops/releases/download/latest/avalancheup-aws.x86_64-apple-darwin
-mv ./avalancheup-aws.x86_64-apple-darwin /tmp/avalancheup-aws
+wget https://github.com/ava-labs/avalanche-ops/releases/download/latest/avalancheup-aws.aarch64-apple-darwin
+mv ./avalancheup-aws.aarch64-apple-darwin /tmp/avalancheup-aws
 chmod +x /tmp/avalancheup-aws
 /tmp/avalancheup-aws --help
 ```
