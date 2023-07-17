@@ -569,7 +569,11 @@ var _ = ginkgo.Describe("[Test]", func() {
 		ginkgo.By("submitting an export action on source", func() {
 			otherBalance, err := instancesA[0].tcli.Balance(context.Background(), aother, ids.Empty)
 			gomega.Ω(err).Should(gomega.BeNil())
-			senderBalance, err := instancesA[0].tcli.Balance(context.Background(), sender, ids.Empty)
+			senderBalance, err := instancesA[0].tcli.Balance(
+				context.Background(),
+				sender,
+				ids.Empty,
+			)
 			gomega.Ω(err).Should(gomega.BeNil())
 
 			parser, err := instancesA[0].tcli.Parser(context.TODO())
@@ -605,7 +609,11 @@ var _ = ginkgo.Describe("[Test]", func() {
 			amount, err := instancesA[0].tcli.Loan(context.Background(), ids.Empty, destination)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(amount).Should(gomega.Equal(sendAmount))
-			aotherBalance, err := instancesA[0].tcli.Balance(context.Background(), aother, ids.Empty)
+			aotherBalance, err := instancesA[0].tcli.Balance(
+				context.Background(),
+				aother,
+				ids.Empty,
+			)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(otherBalance).Should(gomega.Equal(aotherBalance))
 			asenderBalance, err := instancesA[0].tcli.Balance(

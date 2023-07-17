@@ -274,7 +274,11 @@ var watchChainCmd = &cobra.Command{
 					return err
 				}
 				tpsWindow = newWindow
-				window.Update(&tpsWindow, window.WindowSliceSize-hconsts.Uint64Len, uint64(len(blk.Txs)))
+				window.Update(
+					&tpsWindow,
+					window.WindowSliceSize-hconsts.Uint64Len,
+					uint64(len(blk.Txs)),
+				)
 				runningDuration := time.Since(start)
 				tpsDivisor := math.Min(window.WindowSize, runningDuration.Seconds())
 				utils.Outf(

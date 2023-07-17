@@ -330,11 +330,17 @@ var runSpamCmd = &cobra.Command{
 							}
 							v := selected[recipient] + 1
 							selected[recipient] = v
-							_, tx, fees, err := issuer.c.GenerateTransactionManual(parser, nil, &actions.Transfer{
-								To:    recipient,
-								Asset: ids.Empty,
-								Value: uint64(v), // ensure txs are unique
-							}, factory, unitPrice)
+							_, tx, fees, err := issuer.c.GenerateTransactionManual(
+								parser,
+								nil,
+								&actions.Transfer{
+									To:    recipient,
+									Asset: ids.Empty,
+									Value: uint64(v), // ensure txs are unique
+								},
+								factory,
+								unitPrice,
+							)
 							if err != nil {
 								hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
 								continue
