@@ -40,14 +40,14 @@ function find_go_files {
 }
 
 # automatically checks license headers
-# to modify the file headers (if missing), remove "--check" flag
-# TESTS='license_header' ADDLICENSE_FLAGS="-v" ./scripts/lint.sh
+# to modify the file headers (if missing), remove "--verify" flag
+# TESTS='license_header' ADDLICENSE_FLAGS="--verify --debug" ./scripts/tests.lint.sh
 _addlicense_flags=${ADDLICENSE_FLAGS:-"--verify --debug"}
 function test_license_header {
   go install -v github.com/palantir/go-license@latest
   local target="${1}"
   local files=()
-  while IFS= read -r line; do files+=("$line"); done < <(find_go_files "${target}")
+  while IFS= read -r line; do files+=("$line"); done < <(find . -type f -name '*.go' ! -name '*.pb.go' ! -name 'mock_*.go')
 
   # ignore 3rd party code
   go-license \
