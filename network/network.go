@@ -28,6 +28,7 @@ type request struct {
 
 type Manager struct {
 	log    logging.Logger
+	nodeID ids.NodeID
 	sender common.AppSender
 	l      sync.RWMutex
 
@@ -38,9 +39,10 @@ type Manager struct {
 	requesters map[ids.NodeID]*nodeIDRequester
 }
 
-func NewManager(log logging.Logger, sender common.AppSender) *Manager {
+func NewManager(log logging.Logger, nodeID ids.NodeID, sender common.AppSender) *Manager {
 	return &Manager{
 		log:             log,
+		nodeID:          nodeID,
 		sender:          sender,
 		handlers:        map[uint8]Handler{},
 		pendingHandlers: map[uint8]struct{}{},
@@ -295,7 +297,7 @@ func (n *Manager) CrossChainAppRequestFailed(
 	chainID ids.ID,
 	requestID uint32,
 ) error {
-	handler, cRequestID, ok := n.handleSharedRequestID(ids.EmptyNodeID, requestID)
+	handler, cRequestID, ok := n.handleSharedRequestID(n.nodeID, requestID)
 	if !ok {
 		n.log.Debug(
 			"could not handle incoming CrossChainAppRequestFailed",
@@ -313,7 +315,7 @@ func (n *Manager) CrossChainAppResponse(
 	requestID uint32,
 	response []byte,
 ) error {
-	handler, cRequestID, ok := n.handleSharedRequestID(ids.EmptyNodeID, requestID)
+	handler, cRequestID, ok := n.handleSharedRequestID(n.nodeID, requestID)
 	if !ok {
 		n.log.Debug(
 			"could not handle incoming CrossChainAppResponse",
@@ -417,7 +419,7 @@ func (w *WrappedAppSender) SendCrossChainAppRequest(
 	requestID uint32,
 	appRequestBytes []byte,
 ) error {
-	newRequestID := w.n.getSharedRequestID(w.handler, ids.EmptyNodeID, requestID)
+	newRequestID := w.n.getSharedRequestID(w.handler, w.n.nodeID, requestID)
 	return w.n.sender.SendCrossChainAppRequest(
 		ctx,
 		chainID,
