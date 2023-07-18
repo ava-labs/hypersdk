@@ -37,7 +37,7 @@ type Genesis struct {
 
 	// Tx params
 	BaseUnits      uint64 `json:"baseUnits"`
-	ValidityWindow int64  `json:"validityWindow"` // seconds
+	ValidityWindow int64  `json:"validityWindow"` // ms
 
 	// Unit pricing
 	MinUnitPrice               uint64 `json:"minUnitPrice"`
@@ -66,8 +66,8 @@ func Default() *Genesis {
 		MaxBlockUnits: 1_800_000, // 1.8 MiB
 
 		// Tx params
-		BaseUnits:      48, // timestamp(8) + chainID(32) + unitPrice(8)
-		ValidityWindow: 60,
+		BaseUnits:      48,        // timestamp(8) + chainID(32) + unitPrice(8)
+		ValidityWindow: 60 * 1000, // ms
 
 		// Unit pricing
 		MinUnitPrice:               1,

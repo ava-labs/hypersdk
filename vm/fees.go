@@ -26,7 +26,7 @@ func (vm *VM) SuggestedFee(ctx context.Context) (uint64, uint64, error) {
 	preferred := rpreferred.(*chain.StatelessBlock)
 
 	// We scale down unit price to prevent a spiral up in price
-	r := vm.c.Rules(time.Now().Unix())
+	r := vm.c.Rules(time.Now().UnixMilli())
 	return math.Max(
 			uint64(float64(preferred.UnitPrice)*feeScaler),
 			r.GetMinUnitPrice(),

@@ -53,7 +53,7 @@ func BuildBlock(
 	defer span.End()
 	log := vm.Logger()
 
-	nextTime := time.Now().Unix()
+	nextTime := time.Now().UnixMilli()
 	r := vm.Rules(nextTime)
 	parent, err := vm.GetStatelessBlock(ctx, preferred)
 	if err != nil {

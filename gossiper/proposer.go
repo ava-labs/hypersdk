@@ -20,7 +20,7 @@ import (
 
 var _ Gossiper = (*Proposer)(nil)
 
-var proposerWindow = int64(proposer.MaxDelay.Seconds())
+var proposerWindow = int64(proposer.MaxDelay.Milliseconds())
 
 type Proposer struct {
 	vm         VM
@@ -41,10 +41,10 @@ type ProposerConfig struct {
 	GossipInterval          time.Duration
 	GossipPeerCacheSize     int
 	GossipReceivedCacheSize int
-	GossipMinLife           int64 // seconds
+	GossipMinLife           int64 // ms
 	GossipMaxSize           int
 	BuildProposerDiff       int
-	VerifyTimeout           int64 // seconds
+	VerifyTimeout           int64 // ms
 }
 
 func DefaultProposerConfig() *ProposerConfig {
@@ -54,7 +54,7 @@ func DefaultProposerConfig() *ProposerConfig {
 		GossipInterval:          1 * time.Second,
 		GossipPeerCacheSize:     10_240,
 		GossipReceivedCacheSize: 65_536,
-		GossipMinLife:           5,
+		GossipMinLife:           5 * 1000,
 		GossipMaxSize:           consts.NetworkSizeLimit,
 		BuildProposerDiff:       2,
 		VerifyTimeout:           proposerWindow / 2,
@@ -160,7 +160,7 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 		txs   = []*chain.Transaction{}
 		size  = uint64(0)
 		start = time.Now()
-		now   = start.Unix()
+		now   = start.UnixMilli()
 		r     = g.vm.Rules(now)
 	)
 
@@ -243,7 +243,7 @@ func (g *Proposer) TriggerGossip(ctx context.Context) error {
 }
 
 func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	r := g.vm.Rules(time.Now().Unix())
+	r := g.vm.Rules(time.Now().UnixMilli())
 	actionRegistry, authRegistry := g.vm.Registry()
 	txs, err := chain.UnmarshalTxs(msg, r.GetMaxBlockTxs(), actionRegistry, authRegistry)
 	if err != nil {
@@ -320,7 +320,7 @@ func (g *Proposer) Run(appSender common.AppSender) {
 
 			// Check if we are going to propose if it has been less than
 			// [VerifyTimeout] since the last time we verified a block.
-			if time.Now().Unix()-g.lastVerified < g.cfg.VerifyTimeout {
+			if time.Now().UnixMilli()-g.lastVerified < g.cfg.VerifyTimeout {
 				proposers, err := g.vm.Proposers(
 					tctx,
 					g.cfg.BuildProposerDiff,

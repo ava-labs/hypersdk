@@ -60,7 +60,7 @@ func (b *Time) shouldBuild(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	now := time.Now().Unix()
+	now := time.Now().UnixMilli()
 	since := int(now - preferredBlk.Tmstmp)
 	newRollupWindow, err := window.Roll(preferredBlk.BlockWindow, since)
 	if err != nil {

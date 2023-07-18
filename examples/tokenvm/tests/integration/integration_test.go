@@ -639,7 +639,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		g, err := instances[0].tcli.Genesis(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
-		r := g.Rules(time.Now().Unix())
+		r := g.Rules(time.Now().UnixMilli())
 		maxUnits, err := rawTx.MaxUnits(r)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(balancea + maxUnits + 1))
@@ -769,7 +769,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().Unix(),
+				Timestamp: time.Now().UnixMilli(),
 				UnitPrice: 1000,
 			},
 			nil,
@@ -989,7 +989,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().Unix(),
+				Timestamp: time.Now().UnixMilli(),
 				UnitPrice: 1000,
 			},
 			nil,
@@ -1135,7 +1135,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().Unix(),
+				Timestamp: time.Now().UnixMilli(),
 				UnitPrice: 1000,
 			},
 			nil,
@@ -1659,7 +1659,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().Unix(),
+				Timestamp: time.Now().UnixMilli(),
 				UnitPrice: 1000,
 			},
 			nil,
@@ -1689,7 +1689,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().Unix(),
+				Timestamp: time.Now().UnixMilli(),
 				UnitPrice: 1000,
 			},
 			wm,
@@ -1721,7 +1721,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().Unix(),
+				Timestamp: time.Now().UnixMilli(),
 				UnitPrice: 1000,
 			},
 			wm,
@@ -1756,7 +1756,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().Unix(),
+				Timestamp: time.Now().UnixMilli(),
 				UnitPrice: 1000,
 			},
 			wm,

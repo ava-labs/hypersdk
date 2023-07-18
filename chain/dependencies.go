@@ -92,7 +92,7 @@ type Rules interface {
 	GetMaxBlockTxs() int
 	GetMaxBlockUnits() uint64 // should ensure can't get above block max size
 
-	GetValidityWindow() int64
+	GetValidityWindow() int64 // in ms
 	GetBaseUnits() uint64
 
 	GetMinUnitPrice() uint64

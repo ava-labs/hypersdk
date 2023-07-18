@@ -487,7 +487,7 @@ func issueSimpleTx(
 ) (ids.ID, error) {
 	tx := chain.NewTx(
 		&chain.Base{
-			Timestamp: time.Now().Unix() + 100_000,
+			Timestamp: time.Now().UnixMilli() + 100_000,
 			ChainID:   i.chainID,
 			UnitPrice: 1,
 		},

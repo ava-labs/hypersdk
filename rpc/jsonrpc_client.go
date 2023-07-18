@@ -188,7 +188,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	modifiers ...Modifier,
 ) (func(context.Context) error, *chain.Transaction, uint64, error) {
 	// Construct transaction
-	now := time.Now().Unix()
+	now := time.Now().UnixMilli()
 	rules := parser.Rules(now)
 	base := &chain.Base{
 		Timestamp: now + rules.GetValidityWindow(),

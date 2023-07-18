@@ -39,7 +39,7 @@ func (g *Manual) TriggerGossip(ctx context.Context) error {
 	// Gossip highest paying txs
 	txs := []*chain.Transaction{}
 	totalUnits := uint64(0)
-	now := time.Now().Unix()
+	now := time.Now().UnixMilli()
 	r := g.vm.Rules(now)
 	mempoolErr := g.vm.Mempool().Build(
 		ctx,
@@ -87,7 +87,7 @@ func (g *Manual) TriggerGossip(ctx context.Context) error {
 }
 
 func (g *Manual) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	r := g.vm.Rules(time.Now().Unix())
+	r := g.vm.Rules(time.Now().UnixMilli())
 	actionRegistry, authRegistry := g.vm.Registry()
 	txs, err := chain.UnmarshalTxs(msg, r.GetMaxBlockTxs(), actionRegistry, authRegistry)
 	if err != nil {

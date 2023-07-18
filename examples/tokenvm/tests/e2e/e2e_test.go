@@ -1172,7 +1172,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 					SwapIn:      100,
 					AssetOut:    ids.Empty,
 					SwapOut:     200,
-					SwapExpiry:  time.Now().Unix() + 10_000,
+					SwapExpiry:  time.Now().UnixMilli() + 100_000,
 					Destination: destination,
 				},
 				factory,

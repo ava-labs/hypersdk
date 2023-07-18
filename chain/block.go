@@ -197,7 +197,7 @@ func ParseStatefulBlock(
 
 	// Perform basic correctness checks before doing any expensive work
 	if blk.Hght > 0 { // skip genesis
-		if blk.Tmstmp >= time.Now().Add(FutureBound).Unix() {
+		if blk.Tmstmp >= time.Now().Add(FutureBound).UnixMilli() {
 			return nil, ErrTimestampTooLate
 		}
 		if len(blk.Txs) == 0 {
@@ -219,7 +219,7 @@ func ParseStatefulBlock(
 	}
 	b := &StatelessBlock{
 		StatefulBlock: blk,
-		t:             time.Unix(blk.Tmstmp, 0),
+		t:             time.UnixMilli(blk.Tmstmp),
 		bytes:         source,
 		st:            status,
 		vm:            vm,
@@ -253,7 +253,7 @@ func (b *StatelessBlock) initializeBuilt(
 	b.bytes = blk
 	b.id = utils.ToID(b.bytes)
 	b.state = state
-	b.t = time.Unix(b.StatefulBlock.Tmstmp, 0)
+	b.t = time.UnixMilli(b.StatefulBlock.Tmstmp)
 	b.results = results
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
@@ -412,7 +412,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Perform basic correctness checks before doing any expensive work
 	switch {
-	case b.Timestamp().Unix() >= time.Now().Add(FutureBound).Unix():
+	case b.Timestamp().UnixMilli() >= time.Now().Add(FutureBound).UnixMilli():
 		return nil, ErrTimestampTooLate
 	case len(b.Txs) == 0:
 		return nil, ErrNoTxs
@@ -426,7 +426,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		log.Debug("could not get parent", zap.Stringer("id", b.Prnt))
 		return nil, err
 	}
-	if b.Timestamp().Unix() < parent.Timestamp().Unix() {
+	if b.Timestamp().UnixMilli() < parent.Timestamp().UnixMilli() {
 		return nil, ErrTimestampTooEarly
 	}
 
