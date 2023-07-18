@@ -36,6 +36,7 @@ import (
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/mempool"
+	"github.com/ava-labs/hypersdk/network"
 	"github.com/ava-labs/hypersdk/rpc"
 	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -108,7 +109,7 @@ type VM struct {
 	warpManager *WarpManager
 
 	// Network manager routes p2p messages to pre-registered handlers
-	networkManager *NetworkManager
+	networkManager *network.Manager
 
 	metrics  *Metrics
 	profiler profiler.ContinuousProfiler
@@ -156,7 +157,8 @@ func (vm *VM) Initialize(
 	}
 	vm.metrics = metrics
 	vm.proposerMonitor = NewProposerMonitor(vm)
-	vm.networkManager = NewNetworkManager(vm, appSender)
+	vm.networkManager = network.NewManager(vm.snowCtx.Log, vm.snowCtx.NodeID, appSender)
+
 	warpHandler, warpSender := vm.networkManager.Register()
 	vm.warpManager = NewWarpManager(vm)
 	vm.networkManager.SetHandler(warpHandler, NewWarpHandler(vm))
