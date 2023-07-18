@@ -12,14 +12,14 @@ import (
 )
 
 type bucket struct {
-	t     int64    // Timestamp
+	t     int64    // Timestamp (ms)
 	items []ids.ID // Array of AvalancheGo ids
 }
 
 // Item defines an interface accepted by EMap
 type Item interface {
-	ID() ids.ID    // method for returning an id of the item
-	Expiry() int64 // method for returing this items timestamp
+	ID() ids.ID    // method for returning an ID of the item
+	Expiry() int64 // method for returing this item's timestamp (ms)
 }
 
 // A Emap implements en eviction map that stores the status
@@ -56,7 +56,9 @@ func (e *EMap[T]) Add(items []T) {
 // is genesis(0) or the id has been seen already, add returns. The id is
 // added to a bucket with timestamp [t]. If no bucket exists, add creates a
 // new bucket and pushes it to the binaryHeap.
-func (e *EMap[T]) add(id ids.ID, t int64) {
+func (e *EMap[T]) add(id ids.ID, rt int64) {
+	t := reducePrecision(rt)
+
 	// Assume genesis txs can't be placed in seen tracker
 	if t == 0 {
 		return
@@ -90,7 +92,9 @@ func (e *EMap[T]) add(id ids.ID, t int64) {
 
 // SetMin removes all buckets with a lower
 // timestamp than [t] from e's bucketHeap.
-func (e *EMap[T]) SetMin(t int64) []ids.ID {
+func (e *EMap[T]) SetMin(rt int64) []ids.ID {
+	t := reducePrecision(rt)
+
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
