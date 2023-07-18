@@ -48,7 +48,7 @@ func (e *EMap[T]) Add(items []T) {
 	defer e.mu.Unlock()
 
 	for _, item := range items {
-		e.add(item.ID(), item.Expiry())
+		e.add(item.ID(), reducePrecision(item.Expiry()))
 	}
 }
 
@@ -56,9 +56,9 @@ func (e *EMap[T]) Add(items []T) {
 // is genesis(0) or the id has been seen already, add returns. The id is
 // added to a bucket with timestamp [t]. If no bucket exists, add creates a
 // new bucket and pushes it to the binaryHeap.
-func (e *EMap[T]) add(id ids.ID, rt int64) {
-	t := reducePrecision(rt)
-
+//
+// Assumes that the precision of [t] has already been reduced.
+func (e *EMap[T]) add(id ids.ID, t int64) {
 	// Assume genesis txs can't be placed in seen tracker
 	if t == 0 {
 		return
