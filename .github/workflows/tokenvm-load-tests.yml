@@ -11,7 +11,7 @@ on:
 
 jobs:
   cond-tests:
-    if: ${{ github.event.label.name == 'run CI' }}
+    if: contains(github.event.pull_request.labels.*.name, 'run CI')
     strategy:
       matrix:
         level: [v1, v2, v3] # v4 is not supported
