@@ -109,7 +109,7 @@ type VM struct {
 	warpManager *WarpManager
 
 	// Network manager routes p2p messages to pre-registered handlers
-	networkManager *network.NetworkManager
+	networkManager *network.Manager
 
 	metrics  *Metrics
 	profiler profiler.ContinuousProfiler
@@ -157,7 +157,7 @@ func (vm *VM) Initialize(
 	}
 	vm.metrics = metrics
 	vm.proposerMonitor = NewProposerMonitor(vm)
-	vm.networkManager = network.NewNetworkManager(vm.snowCtx.Log, appSender)
+	vm.networkManager = network.NewManager(vm.snowCtx.Log, appSender)
 	warpHandler, warpSender := vm.networkManager.Register()
 	vm.warpManager = NewWarpManager(vm)
 	vm.networkManager.SetHandler(warpHandler, NewWarpHandler(vm))
