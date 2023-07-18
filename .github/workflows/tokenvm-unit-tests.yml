@@ -10,7 +10,7 @@ on:
   pull_request:
 
 jobs:
-  tests:
+  tokenvm-unit-tests:
     runs-on:
       labels: ubuntu-20.04-32
     timeout-minutes: 10

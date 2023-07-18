@@ -13,7 +13,7 @@ on:
     types: [labeled,synchronize,reopened]
 
 jobs:
- release:
+ tokenvm-release:
     # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
     runs-on: ubuntu-20.04-32
     if: ${{ github.ref == 'refs/heads/main' || startsWith(github.event.ref, 'refs/tags/v') || contains(github.event.pull_request.labels.*.name, 'run release') }}
