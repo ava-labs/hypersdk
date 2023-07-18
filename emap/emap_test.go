@@ -5,6 +5,7 @@ package emap
 
 import (
 	"testing"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -59,7 +60,7 @@ func TestEmapAddIDNewBucket(t *testing.T) {
 	require := require.New(t)
 
 	e := NewEMap[*TestTx]()
-	var timestamp int64 = 1
+	timestamp := time.Now().UnixMilli()
 
 	id := ids.GenerateTestID()
 	tx := &TestTx{
@@ -73,7 +74,7 @@ func TestEmapAddIDNewBucket(t *testing.T) {
 	_, okSeen := e.seen[tx.ID()]
 	require.True(okSeen, "Could not find id in seen map")
 	// get bucket
-	b, okBucket := e.times[timestamp]
+	b, okBucket := e.times[reducePrecision(timestamp)]
 	require.True(okBucket, "Could not find time bucket")
 	require.Equal(len(b.items), 1, "Bucket length is incorrect")
 
@@ -85,7 +86,7 @@ func TestEmapAddIDExists(t *testing.T) {
 	require := require.New(t)
 	e := NewEMap[*TestTx]()
 
-	var timestamp int64 = 1
+	timestamp := time.Now().UnixMilli()
 	id := ids.GenerateTestID()
 	tx1 := &TestTx{
 		t:  timestamp,
@@ -99,7 +100,7 @@ func TestEmapAddIDExists(t *testing.T) {
 	entry, ok := e.bh.Get(id)
 	// Check bh
 	require.True(ok, "BH does not have ID")
-	require.Equal(entry.Val, tx1.t, "BH incorrectly set val.")
+	require.Equal(entry.Val, reducePrecision(tx1.t), "BH incorrectly set val.")
 
 	tx2 := &TestTx{
 		t:  timestamp * 3,
@@ -109,14 +110,14 @@ func TestEmapAddIDExists(t *testing.T) {
 	e.Add(txs)
 
 	// get bucket
-	b, okBucket := e.times[timestamp]
+	b, okBucket := e.times[reducePrecision(timestamp)]
 	require.True(okBucket, "Could not find time bucket")
 	require.Equal(len(b.items), 1, "Bucket length is incorrect")
 
 	entry, ok = e.bh.Get(id)
 	// Check bh
 	require.True(ok, "BH does not have ID")
-	require.Equal(entry.Val, tx1.t, "BH incorrectly updated.")
+	require.Equal(entry.Val, reducePrecision(tx1.t), "BH incorrectly updated.")
 }
 
 func TestEmapAddIDBucketExists(t *testing.T) {
@@ -124,7 +125,7 @@ func TestEmapAddIDBucketExists(t *testing.T) {
 
 	e := NewEMap[*TestTx]()
 
-	var timestamp int64 = 1
+	timestamp := time.Now().UnixMilli()
 
 	id1 := ids.GenerateTestID()
 	id2 := ids.GenerateTestID()
@@ -147,7 +148,7 @@ func TestEmapAddIDBucketExists(t *testing.T) {
 	_, okSeen = e.seen[tx2.ID()]
 	require.True(okSeen, "Could not find id in seen map")
 	// get bucket
-	b, okBucket := e.times[timestamp]
+	b, okBucket := e.times[reducePrecision(timestamp)]
 	require.True(okBucket, "Could not find time bucket")
 	require.Equal(1, e.bh.Len(), "Number of buckets is incorrect.")
 	require.Equal(len(b.items), 2, "Bucket length is incorrect")
@@ -162,7 +163,7 @@ func TestEmapAny(t *testing.T) {
 	require := require.New(t)
 	e := NewEMap[*TestTx]()
 
-	var timestamp int64 = 1
+	timestamp := time.Now().UnixMilli()
 	id := ids.GenerateTestID()
 	tx := &TestTx{
 		t:  timestamp,
