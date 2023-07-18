@@ -20,7 +20,7 @@ import (
 
 var _ Gossiper = (*Proposer)(nil)
 
-var proposerWindow = int64(proposer.MaxDelay.Milliseconds())
+var proposerWindow = proposer.MaxDelay.Milliseconds()
 
 type Proposer struct {
 	vm         VM
