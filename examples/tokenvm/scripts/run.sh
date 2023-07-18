@@ -17,7 +17,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=1.10.3
+VERSION=1.10.4
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 AVALANCHE_LOG_LEVEL=${AVALANCHE_LOG_LEVEL:-INFO}
