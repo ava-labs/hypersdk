@@ -39,28 +39,32 @@ echo PROPOSER_MIN_BLOCK_DELAY: ${PROPOSER_MIN_BLOCK_DELAY}
 # https://github.com/ava-labs/avalanchego/releases
 GOARCH=$(go env GOARCH)
 GOOS=$(go env GOOS)
-AVALANCHEGO_PATH=/tmp/avalanchego-v${VERSION}/avalanchego
-AVALANCHEGO_PLUGIN_DIR=/tmp/avalanchego-v${VERSION}/plugins
+TMPDIR=/tmp/hypersdk
+
+echo "working directory: $TMPDIR"
+
+AVALANCHEGO_PATH=${TMPDIR}/avalanchego-v${VERSION}/avalanchego
+AVALANCHEGO_PLUGIN_DIR=${TMPDIR}/avalanchego-v${VERSION}/plugins
 
 if [ ! -f "$AVALANCHEGO_PATH" ]; then
   echo "building avalanchego"
   CWD=$(pwd)
 
   # Clear old folders
-  rm -rf /tmp/avalanchego-v${VERSION}
-  mkdir -p /tmp/avalanchego-v${VERSION}
-  rm -rf /tmp/avalanchego-src
-  mkdir -p /tmp/avalanchego-src
+  rm -rf ${TMPDIR}/avalanchego-v${VERSION}
+  mkdir -p ${TMPDIR}/avalanchego-v${VERSION}
+  rm -rf ${TMPDIR}/avalanchego-src
+  mkdir -p ${TMPDIR}/avalanchego-src
 
   # Download src
-  cd /tmp/avalanchego-src
+  cd ${TMPDIR}/avalanchego-src
   git clone https://github.com/ava-labs/avalanchego.git
   cd avalanchego
   git checkout v${VERSION}
 
   # Build avalanchego
   ./scripts/build.sh
-  mv build/avalanchego /tmp/avalanchego-v${VERSION}
+  mv build/avalanchego ${TMPDIR}/avalanchego-v${VERSION}
 
   cd ${CWD}
 else
@@ -73,18 +77,18 @@ fi
 echo "building tokenvm"
 
 # delete previous (if exists)
-rm -f /tmp/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
+rm -f ${TMPDIR}/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
 
 # rebuild with latest code
 go build \
--o /tmp/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
+-o ${TMPDIR}/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
 ./cmd/tokenvm
 
 echo "building token-cli"
-go build -v -o /tmp/token-cli ./cmd/token-cli
+go build -v -o ${TMPDIR}/token-cli ./cmd/token-cli
 
 # log everything in the avalanchego directory
-find /tmp/avalanchego-v${VERSION}
+find ${TMPDIR}/avalanchego-v${VERSION}
 
 ############################
 
@@ -92,23 +96,23 @@ find /tmp/avalanchego-v${VERSION}
 
 # Always create allocations (linter doesn't like tab)
 echo "creating allocations file"
-cat <<EOF > /tmp/allocations.json
+cat <<EOF > ${TMPDIR}/allocations.json
 [{"address":"token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":1000000000000}]
 EOF
 
 GENESIS_PATH=$2
 if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
-  rm -f /tmp/tokenvm.genesis
-  /tmp/token-cli genesis generate /tmp/allocations.json \
+  rm -f ${TMPDIR}/tokenvm.genesis
+  ${TMPDIR}/token-cli genesis generate ${TMPDIR}/allocations.json \
   --max-block-units 4000000 \
   --window-target-units 100000000000 \
   --window-target-blocks 30 \
-  --genesis-file /tmp/tokenvm.genesis
+  --genesis-file ${TMPDIR}/tokenvm.genesis
 else
   echo "copying custom genesis file"
-  rm -f /tmp/tokenvm.genesis
-  cp ${GENESIS_PATH} /tmp/tokenvm.genesis
+  rm -f ${TMPDIR}/tokenvm.genesis
+  cp ${GENESIS_PATH} ${TMPDIR}/tokenvm.genesis
 fi
 
 ############################
@@ -116,9 +120,9 @@ fi
 ############################
 
 echo "creating vm config"
-rm -f /tmp/tokenvm.config
-rm -rf /tmp/tokenvm-e2e-profiles
-cat <<EOF > /tmp/tokenvm.config
+rm -f ${TMPDIR}/tokenvm.config
+rm -rf ${TMPDIR}/tokenvm-e2e-profiles
+cat <<EOF > ${TMPDIR}/tokenvm.config
 {
   "mempoolSize": 10000000,
   "mempoolPayerSize": 10000000,
@@ -131,20 +135,20 @@ cat <<EOF > /tmp/tokenvm.config
   "verifyTimeout": 5,
   "trackedPairs":["*"],
   "preferredBlocksPerSecond": 3,
-  "continuousProfilerDir":"/tmp/tokenvm-e2e-profiles/*",
+  "continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
-mkdir -p /tmp/tokenvm-e2e-profiles
+mkdir -p ${TMPDIR}/tokenvm-e2e-profiles
 
 ############################
 
 ############################
 
 echo "creating subnet config"
-rm -f /tmp/tokenvm.subnet
-cat <<EOF > /tmp/tokenvm.subnet
+rm -f ${TMPDIR}/tokenvm.subnet
+cat <<EOF > ${TMPDIR}/tokenvm.subnet
 {
   "proposerMinBlockDelay": ${PROPOSER_MIN_BLOCK_DELAY}
 }
@@ -208,13 +212,13 @@ function cleanup() {
     echo ""
     echo "use the following command to terminate:"
     echo ""
-    echo "killall avalanche-network-runner"
+    echo "./scripts/stop.sh;"
     echo ""
     exit
   fi
 
   echo "avalanche-network-runner shutting down..."
-  killall avalanche-network-runner
+  ./scripts/stop.sh;
 }
 trap cleanup EXIT
 
@@ -226,10 +230,10 @@ echo "running e2e tests"
 --network-runner-grpc-gateway-endpoint="0.0.0.0:12353" \
 --avalanchego-path=${AVALANCHEGO_PATH} \
 --avalanchego-plugin-dir=${AVALANCHEGO_PLUGIN_DIR} \
---vm-genesis-path=/tmp/tokenvm.genesis \
---vm-config-path=/tmp/tokenvm.config \
---subnet-config-path=/tmp/tokenvm.subnet \
---output-path=/tmp/avalanchego-v${VERSION}/output.yaml \
+--vm-genesis-path=${TMPDIR}/tokenvm.genesis \
+--vm-config-path=${TMPDIR}/tokenvm.config \
+--subnet-config-path=${TMPDIR}/tokenvm.subnet \
+--output-path=${TMPDIR}/avalanchego-v${VERSION}/output.yaml \
 --mode=${MODE}
 
 ############################
