@@ -21,7 +21,7 @@ import (
 type stateSyncerClient struct {
 	vm          *VM
 	gatherer    ametrics.MultiGatherer
-	syncManager *syncEng.StateSyncManager
+	syncManager *syncEng.Manager
 
 	// tracks the sync target so we can update last accepted
 	// block when sync completes.
@@ -128,8 +128,8 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 	if err := s.gatherer.Register("syncer", r); err != nil {
 		return block.StateSyncSkipped, err
 	}
-	s.syncManager, err = syncEng.NewStateSyncManager(syncEng.StateSyncConfig{
-		SyncDB: s.vm.stateDB,
+	s.syncManager, err = syncEng.NewManager(syncEng.ManagerConfig{
+		DB: s.vm.stateDB,
 		Client: syncEng.NewClient(&syncEng.ClientConfig{
 			NetworkClient:    s.vm.stateSyncNetworkClient,
 			Log:              s.vm.snowCtx.Log,
@@ -165,7 +165,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 	}
 
 	// Kickoff state syncing from [s.target]
-	if err := s.syncManager.StartSyncing(context.Background()); err != nil {
+	if err := s.syncManager.Start(context.Background()); err != nil {
 		s.vm.snowCtx.Log.Warn("not starting state syncing", zap.Error(err))
 		return block.StateSyncSkipped, err
 	}

@@ -12,7 +12,7 @@ page](https://github.com/ava-labs/avalanche-ops/releases/tag/latest).
 #### Option 1: Install `avalanche-ops` on Mac
 ```bash
 rm -f /tmp/avalancheup-aws
-wget "https://github.com/ava-labs/avalanche-ops/releases/download/latest/avalancheup-aws.aarch64-apple-darwin"
+wget https://github.com/ava-labs/avalanche-ops/releases/download/latest/avalancheup-aws.aarch64-apple-darwin
 mv ./avalancheup-aws.aarch64-apple-darwin /tmp/avalancheup-aws
 chmod +x /tmp/avalancheup-aws
 /tmp/avalancheup-aws --help
@@ -21,8 +21,8 @@ chmod +x /tmp/avalancheup-aws
 #### Option 2: Install `avalanche-ops` on Linux
 ```bash
 rm -f /tmp/avalancheup-aws
-wget "https://github.com/ava-labs/avalanche-ops/releases/download/latest/avalancheup-aws.x86_64-linux-gnu"
-mv ./avalancheup-aws.x86_64-linux-gnu /tmp/avalancheup-aws
+wget https://github.com/ava-labs/avalanche-ops/releases/download/latest/avalancheup-aws.x86_64-unknown-linux-gnu
+mv ./avalancheup-aws.x86_64-unknown-linux-gnu /tmp/avalancheup-aws
 chmod +x /tmp/avalancheup-aws
 /tmp/avalancheup-aws --help
 ```
@@ -37,6 +37,7 @@ use while deploying your devnet.
 ### Step 3: Install `token-cli`
 ```bash
 export ARCH_TYPE=$(uname -m)
+[ $ARCH_TYPE = x86_64 ] && ARCH_TYPE=amd64
 echo ${ARCH_TYPE}
 export OS_TYPE=$(uname | tr '[:upper:]' '[:lower:]')
 echo ${OS_TYPE}
@@ -80,16 +81,16 @@ Now we can spin up a new network of 6 nodes with some defaults:
 ```bash
 /tmp/avalancheup-aws default-spec \
 --arch-type amd64 \
---rust-os-type ubuntu20.04 \
+--os-type ubuntu20.04 \
 --anchor-nodes 3 \
 --non-anchor-nodes 3 \
 --regions us-west-2 \
 --instance-mode=on-demand \
---instance-types=c5.4xlarge \
+--instance-types='{"us-west-2":["c5.4xlarge"]}' \
 --ip-mode=ephemeral \
 --metrics-fetch-interval-seconds 60 \
 --network-name custom \
---avalanchego-release-tag v1.10.1 \
+--avalanchego-release-tag v1.10.3 \
 --create-dev-machine \
 --keys-to-generate 5
 ```
@@ -129,8 +130,8 @@ It is recommended to specify your own artifacts to avoid flaky github release pa
 By default, `avalanche-ops` will attempt to use all available instance types of
 a given size (scoped by `--instance-size`) in a region in your cluster. If you'd like to restrict which
 instance types are used (and override `--instance-size`), you can populate the `--instance-types` flag.
-You can specify a single instance type (`--instance-types=c5.2xlarge`) or a comma-separated list
-(`--instance-types=c5.2xlarge,m5.2xlarge`).
+You can specify a single instance type (`--instance-types='{"us-west-2":["c5.2xlarge"]}'`) or a comma-separated list
+(`--instance-types='{"us-west-2":["c5.2xlarge,m5.2xlarge"]}'`).
 
 `avalanchego` will use at least `<expected block size> * (2048[bytesToIDCache] + 2048[decidedBlocksCache])`
 for caching blocks. This overhead will be significantly reduced when
@@ -153,7 +154,6 @@ avalanchego_config:
   throttler-inbound-disk-validator-alloc: 10737418240000
   throttler-outbound-validator-alloc-size: 10737418240
   throttler-outbound-at-large-alloc-size: 10737418240
-  snow-mixed-query-num-push-vdr: 10
   consensus-on-accept-gossip-validator-size: 10
   consensus-on-accept-gossip-non-validator-size: 0
   consensus-on-accept-gossip-peer-size: 10
@@ -301,6 +301,7 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 --chain-config-local-path /tmp/avalanche-ops/tokenvm-chain-config.json \
 --chain-config-remote-dir /data/avalanche-configs/chains \
 --avalanchego-config-remote-path /data/avalanche-configs/config.json \
+--staking-amount-in-avax 2000 \
 --ssm-doc <TODO> \
 --target-nodes <TODO>
 ```
@@ -448,7 +449,7 @@ Same as above, except you use `--network-name fuji` and do not need anchor nodes
 ```bash
 avalancheup-aws default-spec \
 --arch-type amd64 \
---rust-os-type ubuntu20.04 \
+--os-type ubuntu20.04 \
 --non-anchor-nodes 6 \
 --regions us-west-2 \
 --instance-mode=on-demand \
