@@ -10,7 +10,7 @@ on:
     tags:
       - "*"
   pull_request:
-    types: [labeled,synchronized,reopened]
+    types: [labeled,synchronize,reopened]
 
 jobs:
  cond-release:
