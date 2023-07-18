@@ -175,15 +175,15 @@ func TestEmapAny(t *testing.T) {
 }
 
 func TestSetMin(t *testing.T) {
-	// Sets min to timestamp 3. Requires all buckets
-	// to be removed with timestamp t less than min
+	// Sets min to timestamp now + 2s. Requires all buckets
+	// to be removed with timestamp t less than min.
 	require := require.New(t)
 	e := NewEMap[*TestTx]()
 
 	pushedIds := []ids.ID{}
-	startT := int64(1)
-	minT := int64(3)
-	endT := int64(6)
+	startT := time.Now().UnixMilli()
+	endT := startT + 5000 // 5s
+	minT := startT + 2000 // 2s
 	for n := startT; n < endT; n++ {
 		id := ids.GenerateTestID()
 		e.add(id, n)
@@ -195,27 +195,30 @@ func TestSetMin(t *testing.T) {
 	// Check bh
 	require.Equal(len(pushedIds), e.bh.Len(), "BH not added to properly")
 
-	// Set min to 3
+	// Set min
 	removedIds := e.SetMin(minT)
 	// Check removed_ids = min_ids
-	require.Equal(pushedIds[:minT-1], removedIds, "Did not set the minimum correctly")
+	removedIndex := reducePrecision(minT) - startT
+	require.EqualValues(pushedIds[:removedIndex], removedIds, "Did not set the minimum correctly")
 	// Check ids were removed from seen list
-	for t, id := range pushedIds {
+	for i, id := range pushedIds {
 		_, okSeen := e.seen[id]
 		// Convert from index to t
-		if int64(t)+1 < minT {
+		if int64(i) < removedIndex {
 			require.False(okSeen, "Id not removed from seen list")
 		} else {
 			require.True(okSeen, "Id removed from seen list")
 		}
 	}
 	// Check that buckets were removed from bh
-	for t := startT; t < minT; t++ {
-		_, ok := e.times[t]
+	i := 0
+	for t := startT; t < reducePrecision(minT); t++ {
+		_, ok := e.times[reducePrecision(t)]
 		require.False(ok, "Bucket not removed from bh")
-		require.False(e.bh.Has(pushedIds[t-1]), "Bucket not removed from bh")
+		require.False(e.bh.Has(pushedIds[i]), "Bucket not removed from bh")
+		i++
 	}
-	require.Equal(int(endT-minT), e.bh.Len(), "Items not removed from bh")
+	require.Equal(int(endT-reducePrecision(minT)), e.bh.Len(), "Items not removed from bh")
 }
 
 func TestSetMinPopsAll(t *testing.T) {
@@ -225,9 +228,9 @@ func TestSetMinPopsAll(t *testing.T) {
 	e := NewEMap[*TestTx]()
 
 	pushedIds := []ids.ID{}
-	startT := int64(1)
-	endT := int64(6)
-	minT := int64(10)
+	startT := time.Now().UnixMilli()
+	endT := startT + 6000   // 6s
+	minT := startT + 10_000 // 10s
 
 	for n := startT; n < endT; n++ {
 		id := ids.GenerateTestID()
