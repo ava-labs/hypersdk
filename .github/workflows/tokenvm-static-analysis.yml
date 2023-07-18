@@ -10,8 +10,7 @@ on:
   pull_request:
 
 jobs:
-  Lint:
-    name: Lint
+  tokenvm-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
