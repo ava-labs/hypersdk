@@ -13,8 +13,8 @@ if ! [[ "$0" =~ scripts/fix.lint.sh ]]; then
 fi
 
 echo "adding license header"
-go install -v github.com/google/addlicense@latest
-addlicense -f ./LICENSE.header .
+go install -v github.com/palantir/go-license@latest
+go-license --config=./license.yml **/*.go
 
 echo "gofumpt files"
 go install mvdan.cc/gofumpt@latest
