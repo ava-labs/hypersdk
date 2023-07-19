@@ -42,14 +42,10 @@ type StatefulBlock struct {
 	UnitPrice  uint64        `json:"unitPrice"`
 	UnitWindow window.Window `json:"unitWindow"`
 
-	BlockCost   uint64        `json:"blockCost"`
-	BlockWindow window.Window `json:"blockWindow"`
-
 	Txs []*Transaction `json:"txs"`
 
 	StateRoot     ids.ID     `json:"stateRoot"`
 	UnitsConsumed uint64     `json:"unitsConsumed"`
-	SurplusFee    uint64     `json:"surplusFee"`
 	WarpResults   set.Bits64 `json:"warpResults"`
 }
 
@@ -63,13 +59,10 @@ type warpJob struct {
 	warpNum      int
 }
 
-func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBlock {
+func NewGenesisBlock(root ids.ID, minUnit uint64) *StatefulBlock {
 	return &StatefulBlock{
 		UnitPrice:  minUnit,
 		UnitWindow: window.Window{},
-
-		BlockCost:   minBlock,
-		BlockWindow: window.Window{},
 
 		StateRoot: root,
 	}
@@ -109,9 +102,6 @@ func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) 
 
 			UnitPrice:  ectx.NextUnitPrice,
 			UnitWindow: ectx.NextUnitWindow,
-
-			BlockCost:   ectx.NextBlockCost,
-			BlockWindow: ectx.NextBlockWindow,
 		},
 		vm: vm,
 		st: choices.Processing,
@@ -456,16 +446,11 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, ErrInvalidUnitPrice
 	case b.UnitWindow != ectx.NextUnitWindow:
 		return nil, ErrInvalidUnitWindow
-	case b.BlockCost != ectx.NextBlockCost:
-		return nil, ErrInvalidBlockCost
-	case b.BlockWindow != ectx.NextBlockWindow:
-		return nil, ErrInvalidBlockWindow
 	}
 	log.Info(
 		"verify context",
 		zap.Uint64("height", b.Hght),
 		zap.Uint64("unit price", b.UnitPrice),
-		zap.Uint64("block cost", b.BlockCost),
 	)
 
 	// Start validating warp messages, if they exist
@@ -534,7 +519,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	processor.Prefetch(ctx, state)
 
 	// Process new transactions
-	unitsConsumed, surplusFee, results, stateChanges, stateOps, err := processor.Execute(ctx, ectx, r)
+	unitsConsumed, results, stateChanges, stateOps, err := processor.Execute(ctx, ectx, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return nil, err
@@ -548,25 +533,6 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 			ErrInvalidUnitsConsumed,
 			unitsConsumed,
 			b.UnitsConsumed,
-		)
-	}
-
-	// Ensure enough fee is paid to compensate for block production speed
-	if b.SurplusFee != surplusFee {
-		return nil, fmt.Errorf(
-			"%w: required=%d found=%d",
-			ErrInvalidSurplus,
-			b.SurplusFee,
-			surplusFee,
-		)
-	}
-	requiredSurplus := b.UnitPrice * b.BlockCost
-	if surplusFee < requiredSurplus {
-		return nil, fmt.Errorf(
-			"%w: required=%d found=%d",
-			ErrInsufficientSurplus,
-			requiredSurplus,
-			surplusFee,
 		)
 	}
 
@@ -815,9 +781,6 @@ func (b *StatefulBlock) Marshal(
 	p.PackUint64(b.UnitPrice)
 	p.PackWindow(b.UnitWindow)
 
-	p.PackUint64(b.BlockCost)
-	p.PackWindow(b.BlockWindow)
-
 	p.PackInt(len(b.Txs))
 	for _, tx := range b.Txs {
 		if err := tx.Marshal(p, actionRegistry, authRegistry); err != nil {
@@ -827,7 +790,6 @@ func (b *StatefulBlock) Marshal(
 
 	p.PackID(b.StateRoot)
 	p.PackUint64(b.UnitsConsumed)
-	p.PackUint64(b.SurplusFee)
 	p.PackUint64(uint64(b.WarpResults))
 	return p.Bytes(), p.Err()
 }
@@ -844,9 +806,6 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 
 	b.UnitPrice = p.UnpackUint64(false)
 	p.UnpackWindow(&b.UnitWindow)
-
-	b.BlockCost = p.UnpackUint64(false)
-	p.UnpackWindow(&b.BlockWindow)
 	if err := p.Err(); err != nil {
 		// Check that header was parsed properly before unwrapping transactions
 		return nil, err
@@ -866,7 +825,6 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 
 	p.UnpackID(false, &b.StateRoot)
 	b.UnitsConsumed = p.UnpackUint64(false)
-	b.SurplusFee = p.UnpackUint64(false)
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
 
 	if !p.Empty() {

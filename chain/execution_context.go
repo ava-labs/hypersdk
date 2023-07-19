@@ -18,9 +18,6 @@ type ExecutionContext struct {
 
 	NextUnitPrice  uint64
 	NextUnitWindow window.Window
-
-	NextBlockCost   uint64
-	NextBlockWindow window.Window
 }
 
 func computeNextPriceWindow(
@@ -118,25 +115,10 @@ func GenerateExecutionContext(
 	if err != nil {
 		return nil, err
 	}
-	nextBlockCost, nextBlockWindow, err := computeNextPriceWindow(
-		parent.BlockWindow,
-		1,
-		parent.BlockCost,
-		r.GetWindowTargetBlocks(),
-		r.GetBlockCostChangeDenominator(),
-		r.GetMinBlockCost(),
-		since,
-	)
-	if err != nil {
-		return nil, err
-	}
 	return &ExecutionContext{
 		ChainID: chainID,
 
 		NextUnitPrice:  nextUnitPrice,
 		NextUnitWindow: nextUnitWindow,
-
-		NextBlockCost:   nextBlockCost,
-		NextBlockWindow: nextBlockWindow,
 	}, nil
 }

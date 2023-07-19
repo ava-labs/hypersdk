@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -240,18 +239,6 @@ func BuildBlock(
 	if len(b.Txs) == 0 {
 		return nil, ErrNoTxs
 	}
-	requiredSurplus := b.UnitPrice * b.BlockCost
-	if surplusFee < requiredSurplus {
-		// This is a very common result during block building
-		b.vm.Mempool().Add(ctx, b.Txs)
-		return nil, fmt.Errorf(
-			"%w: required=%d found=%d",
-			ErrInsufficientSurplus,
-			requiredSurplus,
-			surplusFee,
-		)
-	}
-	b.SurplusFee = surplusFee
 
 	// Get root from underlying state changes after writing all changed keys
 	if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
