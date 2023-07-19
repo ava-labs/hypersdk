@@ -5,114 +5,64 @@ package builder
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/hypersdk/window"
+	"github.com/ava-labs/avalanchego/utils/timer"
 	"go.uber.org/zap"
 )
-
-const buildCheck = 50 * time.Millisecond
 
 var _ Builder = (*Time)(nil)
 
 // Time tells the engine when to build blocks and gossip transactions
 type Time struct {
-	vm  VM
-	cfg *TimeConfig
-
+	vm        VM
 	doneBuild chan struct{}
 
-	lastBuild time.Time
+	timer   *timer.Timer
+	waiting atomic.Bool
 }
 
-type TimeConfig struct {
-	PreferredBlocksPerSecond uint64
-	BuildInterval            time.Duration
-}
-
-func DefaultTimeConfig() *TimeConfig {
-	return &TimeConfig{
-		PreferredBlocksPerSecond: 2, // make sure to synchronize this with any VMs
-		BuildInterval:            200 * time.Millisecond,
-	}
-}
-
-func NewTime(vm VM, cfg *TimeConfig) *Time {
+func NewTime(vm VM) *Time {
 	b := &Time{
-		vm:  vm,
-		cfg: cfg,
-
+		vm:        vm,
 		doneBuild: make(chan struct{}),
 	}
+	b.timer = timer.NewTimer(b.handleTimerNotify)
 	return b
 }
 
-// HandleGenerateBlock should be called immediately after [BuildBlock].
-// [HandleGenerateBlock] invocation could lead to quiesence, building a block with
-// some delay, or attempting to build another block immediately.
-func (b *Time) HandleGenerateBlock() {
-	b.lastBuild = time.Now()
+func (b *Time) Run() {
+	b.timer.Dispatch()
 }
 
-func (b *Time) shouldBuild(ctx context.Context) (bool, error) {
-	preferredBlk, err := b.vm.PreferredBlock(ctx)
+func (b *Time) handleTimerNotify() {
+	b.Notify()
+	b.waiting.Store(false)
+}
+
+func (b *Time) MaybeNotify() {
+	if !b.waiting.CompareAndSwap(false, true) {
+		return
+	}
+	preferredBlk, err := b.vm.PreferredBlock(context.TODO())
 	if err != nil {
-		return false, err
+		b.waiting.Store(false)
+		b.vm.Logger().Warn("unable to load preferred block", zap.Error(err))
+		return
 	}
 	now := time.Now().UnixMilli()
-	since := int(now - preferredBlk.Tmstmp)
-	newRollupWindow, err := window.Roll(preferredBlk.BlockWindow, since)
-	if err != nil {
-		return false, err
+	wait := now - preferredBlk.Tmstmp + b.vm.Rules(now).GetMinBlockGap()
+	if wait <= 0 {
+		b.Notify()
+		b.waiting.Store(false)
+		return
 	}
-	// [preferredBlk.BlockWindow] already includes the preferred block, so we
-	// don't need to add 1 before determining if we should build another block.
-	return window.Last(&newRollupWindow) < b.cfg.PreferredBlocksPerSecond, nil
+	b.timer.SetTimeoutIn(time.Duration(wait * int64(time.Millisecond)))
 }
 
-func (b *Time) Run() {
-	b.vm.Logger().Info(
-		"starting builder",
-		zap.Duration("interval", b.cfg.BuildInterval),
-	)
-	defer close(b.doneBuild)
-
-	t := time.NewTicker(buildCheck)
-	defer t.Stop()
-	for {
-		select {
-		case <-t.C:
-			ctx := context.Background()
-
-			// Prevent runaway block production during window
-			if time.Since(b.lastBuild) < b.cfg.BuildInterval {
-				b.vm.Logger().Debug("skipping build because build block recently")
-				continue
-			}
-			if b.vm.Mempool().Len(ctx) == 0 {
-				b.vm.Logger().Debug("skipping build because no transactions in mempool")
-				continue
-			}
-			build, err := b.shouldBuild(ctx)
-			if err != nil {
-				b.vm.Logger().Warn(
-					"unable to determined if should build, building anyways",
-					zap.Error(err),
-				)
-			}
-			if !build {
-				continue
-			}
-			b.TriggerBuild()
-		case <-b.vm.StopChan():
-			b.vm.Logger().Info("stopping build loop")
-			return
-		}
-	}
-}
-
-func (b *Time) TriggerBuild() {
+func (b *Time) Notify() {
 	select {
 	case b.vm.EngineChan() <- common.PendingTxs:
 	default:
@@ -121,5 +71,5 @@ func (b *Time) TriggerBuild() {
 }
 
 func (b *Time) Done() {
-	<-b.doneBuild
+	b.timer.Stop()
 }

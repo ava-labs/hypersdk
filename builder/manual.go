@@ -23,9 +23,9 @@ func (b *Manual) Run() {
 	close(b.doneBuild)
 }
 
-func (*Manual) HandleGenerateBlock() {}
+func (*Manual) MaybeNotify() {}
 
-func (b *Manual) TriggerBuild() {
+func (b *Manual) Notify() {
 	select {
 	case b.vm.EngineChan() <- common.PendingTxs:
 	default:

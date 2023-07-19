@@ -272,7 +272,7 @@ func (vm *VM) Initialize(
 		genesisRules := vm.c.Rules(0)
 		genesisBlk, err := chain.ParseStatefulBlock(
 			ctx,
-			chain.NewGenesisBlock(root, genesisRules.GetMinUnitPrice(), genesisRules.GetMinBlockCost()),
+			chain.NewGenesisBlock(root, genesisRules.GetMinUnitPrice()),
 			nil,
 			choices.Accepted,
 			vm,
@@ -594,8 +594,16 @@ func (vm *VM) buildBlock(
 		return nil, ErrNotReady
 	}
 
+	// Notify builder if we should build again (whether or not we are successful this time)
+	defer func() {
+		if vm.mempool.Len(ctx) == 0 {
+			return
+		}
+		vm.builder.MaybeNotify()
+	}()
+
+	// Build block and store as parsed
 	blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
-	vm.builder.HandleGenerateBlock()
 	if err != nil {
 		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
 		return nil, err
@@ -648,6 +656,9 @@ func (vm *VM) submitStateless(
 		validTxs = append(validTxs, tx)
 	}
 	vm.mempool.Add(ctx, validTxs)
+	if len(validTxs) > 0 {
+		vm.builder.MaybeNotify()
+	}
 	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	return errs
 }
@@ -737,6 +748,10 @@ func (vm *VM) Submit(
 		validTxs = append(validTxs, tx)
 	}
 	vm.mempool.Add(ctx, validTxs)
+	if len(validTxs) > 0 {
+		vm.builder.MaybeNotify()
+	}
+	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	return errs
 }
 

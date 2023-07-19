@@ -59,6 +59,10 @@ func BuildBlock(
 		log.Warn("block building failed: couldn't get parent", zap.Error(err))
 		return nil, err
 	}
+	if nextTime < parent.Tmstmp+r.GetMinBlockGap() {
+		log.Warn("block building failed", zap.Error(ErrTimestampTooEarly))
+		return nil, ErrTimestampTooEarly
+	}
 	ectx, err := GenerateExecutionContext(ctx, vm.ChainID(), nextTime, parent, vm.Tracer(), r)
 	if err != nil {
 		log.Warn("block building failed: couldn't get execution context", zap.Error(err))

@@ -5,7 +5,7 @@ package builder
 
 type Builder interface {
 	Run()
-	TriggerBuild()
-	HandleGenerateBlock()
+	MaybeNotify() // new tx, block verified, post-block build (if mempool > 0)
+	Notify()
 	Done() // wait after stop
 }
