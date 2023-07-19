@@ -52,6 +52,11 @@ func BuildBlock(
 	defer span.End()
 	log := vm.Logger()
 
+	mempoolSize := vm.Mempool().Len(ctx)
+	if mempoolSize == 0 {
+		log.Warn("block building failed", zap.Error(ErrNoTxs))
+		return nil, ErrNoTxs
+	}
 	nextTime := time.Now().UnixMilli()
 	r := vm.Rules(nextTime)
 	parent, err := vm.GetStatelessBlock(ctx, preferred)
@@ -70,7 +75,7 @@ func BuildBlock(
 	}
 	b := NewBlock(ectx, vm, parent, nextTime)
 
-	changesEstimate := math.Min(vm.Mempool().Len(ctx), 10_000)
+	changesEstimate := math.Min(mempoolSize, 10_000)
 	state, err := parent.childState(ctx, changesEstimate)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
