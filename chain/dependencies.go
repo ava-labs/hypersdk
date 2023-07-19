@@ -89,23 +89,18 @@ type Database interface {
 }
 
 type Rules interface {
-	GetMaxBlockTxs() int
-	GetMaxBlockUnits() uint64 // should ensure can't get above block max size
-
-	GetValidityWindow() int64 // in ms
-	GetBaseUnits() uint64
-
 	GetMinUnitPrice() uint64
 	GetUnitPriceChangeDenominator() uint64
 	GetWindowTargetUnits() uint64
+	GetMaxBlockUnits() uint64 // should ensure can't get above block max size
 
-	GetMinBlockCost() uint64
-	GetBlockCostChangeDenominator() uint64
-	GetWindowTargetBlocks() uint64
-
-	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
+	GetBaseUnits() uint64
 	GetWarpBaseFee() uint64
 	GetWarpFeePerSigner() uint64
+
+	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
+
+	GetValidityWindow() int64 // in seconds because emap buckets are in seconds
 
 	FetchCustom(string) (any, bool)
 }
