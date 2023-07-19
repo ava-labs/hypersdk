@@ -5,7 +5,6 @@ package emap
 
 import (
 	"testing"
-	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -60,7 +59,7 @@ func TestEmapAddIDNewBucket(t *testing.T) {
 	require := require.New(t)
 
 	e := NewEMap[*TestTx]()
-	timestamp := time.Now().UnixMilli()
+	var timestamp int64 = 1
 
 	id := ids.GenerateTestID()
 	tx := &TestTx{
@@ -74,7 +73,7 @@ func TestEmapAddIDNewBucket(t *testing.T) {
 	_, okSeen := e.seen[tx.ID()]
 	require.True(okSeen, "Could not find id in seen map")
 	// get bucket
-	b, okBucket := e.times[reducePrecision(timestamp)]
+	b, okBucket := e.times[timestamp]
 	require.True(okBucket, "Could not find time bucket")
 	require.Equal(len(b.items), 1, "Bucket length is incorrect")
 
@@ -86,7 +85,7 @@ func TestEmapAddIDExists(t *testing.T) {
 	require := require.New(t)
 	e := NewEMap[*TestTx]()
 
-	timestamp := time.Now().UnixMilli()
+	var timestamp int64 = 1
 	id := ids.GenerateTestID()
 	tx1 := &TestTx{
 		t:  timestamp,
@@ -100,7 +99,7 @@ func TestEmapAddIDExists(t *testing.T) {
 	entry, ok := e.bh.Get(id)
 	// Check bh
 	require.True(ok, "BH does not have ID")
-	require.Equal(entry.Val, reducePrecision(tx1.t), "BH incorrectly set val.")
+	require.Equal(entry.Val, tx1.t, "BH incorrectly set val.")
 
 	tx2 := &TestTx{
 		t:  timestamp * 3,
@@ -110,14 +109,14 @@ func TestEmapAddIDExists(t *testing.T) {
 	e.Add(txs)
 
 	// get bucket
-	b, okBucket := e.times[reducePrecision(timestamp)]
+	b, okBucket := e.times[timestamp]
 	require.True(okBucket, "Could not find time bucket")
 	require.Equal(len(b.items), 1, "Bucket length is incorrect")
 
 	entry, ok = e.bh.Get(id)
 	// Check bh
 	require.True(ok, "BH does not have ID")
-	require.Equal(entry.Val, reducePrecision(tx1.t), "BH incorrectly updated.")
+	require.Equal(entry.Val, tx1.t, "BH incorrectly updated.")
 }
 
 func TestEmapAddIDBucketExists(t *testing.T) {
@@ -125,7 +124,7 @@ func TestEmapAddIDBucketExists(t *testing.T) {
 
 	e := NewEMap[*TestTx]()
 
-	timestamp := time.Now().UnixMilli()
+	var timestamp int64 = 1
 
 	id1 := ids.GenerateTestID()
 	id2 := ids.GenerateTestID()
@@ -148,7 +147,7 @@ func TestEmapAddIDBucketExists(t *testing.T) {
 	_, okSeen = e.seen[tx2.ID()]
 	require.True(okSeen, "Could not find id in seen map")
 	// get bucket
-	b, okBucket := e.times[reducePrecision(timestamp)]
+	b, okBucket := e.times[timestamp]
 	require.True(okBucket, "Could not find time bucket")
 	require.Equal(1, e.bh.Len(), "Number of buckets is incorrect.")
 	require.Equal(len(b.items), 2, "Bucket length is incorrect")
@@ -163,7 +162,7 @@ func TestEmapAny(t *testing.T) {
 	require := require.New(t)
 	e := NewEMap[*TestTx]()
 
-	timestamp := time.Now().UnixMilli()
+	var timestamp int64 = 1
 	id := ids.GenerateTestID()
 	tx := &TestTx{
 		t:  timestamp,
@@ -175,15 +174,15 @@ func TestEmapAny(t *testing.T) {
 }
 
 func TestSetMin(t *testing.T) {
-	// Sets min to timestamp now + 2s. Requires all buckets
-	// to be removed with timestamp t less than min.
+	// Sets min to timestamp 3. Requires all buckets
+	// to be removed with timestamp t less than min
 	require := require.New(t)
 	e := NewEMap[*TestTx]()
 
 	pushedIds := []ids.ID{}
-	startT := time.Now().UnixMilli()
-	endT := startT + 5000 // 5s
-	minT := startT + 2000 // 2s
+	startT := int64(1)
+	minT := int64(3)
+	endT := int64(6)
 	for n := startT; n < endT; n++ {
 		id := ids.GenerateTestID()
 		e.add(id, n)
@@ -195,30 +194,27 @@ func TestSetMin(t *testing.T) {
 	// Check bh
 	require.Equal(len(pushedIds), e.bh.Len(), "BH not added to properly")
 
-	// Set min
+	// Set min to 3
 	removedIds := e.SetMin(minT)
 	// Check removed_ids = min_ids
-	removedIndex := reducePrecision(minT) - startT
-	require.EqualValues(pushedIds[:removedIndex], removedIds, "Did not set the minimum correctly")
+	require.Equal(pushedIds[:minT-1], removedIds, "Did not set the minimum correctly")
 	// Check ids were removed from seen list
-	for i, id := range pushedIds {
+	for t, id := range pushedIds {
 		_, okSeen := e.seen[id]
 		// Convert from index to t
-		if int64(i) < removedIndex {
+		if int64(t)+1 < minT {
 			require.False(okSeen, "Id not removed from seen list")
 		} else {
 			require.True(okSeen, "Id removed from seen list")
 		}
 	}
 	// Check that buckets were removed from bh
-	i := 0
-	for t := startT; t < reducePrecision(minT); t++ {
-		_, ok := e.times[reducePrecision(t)]
+	for t := startT; t < minT; t++ {
+		_, ok := e.times[t]
 		require.False(ok, "Bucket not removed from bh")
-		require.False(e.bh.Has(pushedIds[i]), "Bucket not removed from bh")
-		i++
+		require.False(e.bh.Has(pushedIds[t-1]), "Bucket not removed from bh")
 	}
-	require.Equal(int(endT-reducePrecision(minT)), e.bh.Len(), "Items not removed from bh")
+	require.Equal(int(endT-minT), e.bh.Len(), "Items not removed from bh")
 }
 
 func TestSetMinPopsAll(t *testing.T) {
@@ -228,9 +224,9 @@ func TestSetMinPopsAll(t *testing.T) {
 	e := NewEMap[*TestTx]()
 
 	pushedIds := []ids.ID{}
-	startT := time.Now().UnixMilli()
-	endT := startT + 6000   // 6s
-	minT := startT + 10_000 // 10s
+	startT := int64(1)
+	endT := int64(6)
+	minT := int64(10)
 
 	for n := startT; n < endT; n++ {
 		id := ids.GenerateTestID()
