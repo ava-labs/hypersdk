@@ -66,7 +66,7 @@ func BuildBlock(
 	}
 	b := NewBlock(ectx, vm, parent, nextTime)
 
-	changesEstimate := math.Min(vm.Mempool().Len(ctx), r.GetMaxBlockTxs())
+	changesEstimate := math.Min(vm.Mempool().Len(ctx), 10_000)
 	state, err := parent.childState(ctx, changesEstimate)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
@@ -223,7 +223,7 @@ func BuildBlock(
 				}
 				warpCount++
 			}
-			return len(b.Txs) < r.GetMaxBlockTxs(), false, false, nil
+			return true, false, false, nil
 		},
 	)
 	span.SetAttributes(

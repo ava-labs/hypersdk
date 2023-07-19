@@ -193,10 +193,6 @@ func ParseStatefulBlock(
 		if len(blk.Txs) == 0 {
 			return nil, ErrNoTxs
 		}
-		r := vm.Rules(blk.Tmstmp)
-		if len(blk.Txs) > r.GetMaxBlockTxs() {
-			return nil, ErrBlockTooBig
-		}
 	}
 
 	if len(source) == 0 {
@@ -406,8 +402,6 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, ErrTimestampTooLate
 	case len(b.Txs) == 0:
 		return nil, ErrNoTxs
-	case len(b.Txs) > r.GetMaxBlockTxs():
-		return nil, ErrBlockTooBig
 	}
 
 	// Verify parent is verified and available
@@ -416,7 +410,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		log.Debug("could not get parent", zap.Stringer("id", b.Prnt))
 		return nil, err
 	}
-	if b.Timestamp().UnixMilli() < parent.Timestamp().UnixMilli() {
+	if b.Timestamp().UnixMilli() < parent.Timestamp().UnixMilli()+r.GetMinBlockGap() {
 		return nil, ErrTimestampTooEarly
 	}
 
