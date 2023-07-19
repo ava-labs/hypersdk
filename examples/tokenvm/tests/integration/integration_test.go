@@ -585,6 +585,42 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 	})
 
+	ginkgo.It("ensure replay protection works", func() {
+		ginkgo.By("submit a previously accepted transaction", func() {
+			// TODO: make this a helper
+			ctx := context.TODO()
+			o := instances[2]
+			blks := []snowman.Block{}
+			next, err := o.vm.LastAccepted(ctx)
+			gomega.Ω(err).Should(gomega.BeNil())
+			for {
+				blk, err := o.vm.GetBlock(ctx, next)
+				gomega.Ω(err).Should(gomega.BeNil())
+				blks = append([]snowman.Block{blk}, blks...)
+				if blk.Height() == 1 {
+					break
+				}
+				next = blk.Parent()
+			}
+
+			// Select old tx
+			blk := blks[1].(*chain.StatelessBlock)
+			tx := blk.Txs[0]
+
+			// Check on latest block
+			lblk := blks[len(blks)-1].(*chain.StatelessBlock)
+			ok, err := lblk.IsRepeat(ctx, 0, []*chain.Transaction{tx})
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(ok).Should(gomega.BeFalse())
+
+			// Check on vm
+			ok = o.vm.IsRepeat(ctx, []*chain.Transaction{tx})
+			gomega.Ω(ok).Should(gomega.BeFalse())
+		})
+
+		// TODO: ensure this also works on processing tip
+	})
+
 	ginkgo.It("processes valid index transactions (w/block listening)", func() {
 		// Clear previous txs on instance 0
 		accept := expectBlk(instances[0])
