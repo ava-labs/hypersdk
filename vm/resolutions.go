@@ -244,15 +244,14 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 			// The value of [vm.startSeenTime] can only be negative if we are
 			// performing state sync.
 			if vm.startSeenTime < 0 {
-				vm.startSeenTime = blkTime
+				// We align the start time with the next [seen] heap bucket to ensure we wait to mark ourselves
+				// as ready until we have ingested an entire second of transactions (if we avoid doing this,
+				// we may disagree with other nodes on whether a tx should be valid).
+				vm.startSeenTime = blkTime - blkTime%consts.MillisecondsPerSecond + consts.MillisecondsPerSecond
 			}
 			r := vm.Rules(blkTime)
-			// We add 1 second here to handle the situation where the first block
-			// we see is not aligned at 0 milliseconds (the [seen] heap will round this down to 0 and
-			// thus there may be part of a bucket we haven't seen, which would cause non-determinism).
-			//
 			// TODO: should we instead transform [blkTime] or [vm.startSeenTime]?
-			if blkTime-vm.startSeenTime > r.GetValidityWindow()+consts.MillisecondsPerSecond {
+			if blkTime-vm.startSeenTime > r.GetValidityWindow() {
 				vm.seenValidityWindowOnce.Do(func() {
 					close(vm.seenValidityWindow)
 				})
