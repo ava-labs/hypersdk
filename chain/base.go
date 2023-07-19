@@ -4,6 +4,8 @@
 package chain
 
 import (
+	"fmt"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/codec"
 )
@@ -25,7 +27,7 @@ func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 	case b.Timestamp < timestamp: // tx: 100 block: 110
 		return ErrTimestampTooLate
 	case b.Timestamp > timestamp+r.GetValidityWindow(): // tx: 100 block 10
-		return ErrTimestampTooEarly
+		return fmt.Errorf("%w: have=%d latest=%d", ErrTimestampTooEarly, b.Timestamp, timestamp+r.GetValidityWindow())
 	case b.ChainID != chainID:
 		return ErrInvalidChainID
 	case b.UnitPrice < r.GetMinUnitPrice():

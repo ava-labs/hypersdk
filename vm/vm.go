@@ -693,7 +693,7 @@ func (vm *VM) Submit(
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
-	now := time.Now().Unix()
+	now := time.Now().UnixMilli()
 	r := vm.c.Rules(now)
 	ectx, err := chain.GenerateExecutionContext(ctx, vm.snowCtx.ChainID, now, blk, vm.tracer, r)
 	if err != nil {
