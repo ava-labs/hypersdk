@@ -101,8 +101,8 @@ func GenerateExecutionContext(
 	_, span := tracer.Start(ctx, "chain.GenerateExecutionContext")
 	defer span.End()
 
-	// TODO: would it make sense to have more granular fee adjustment periods?
-	since := int((currTime - parent.Tmstmp) / 1000) // convert to s
+	// TODO: support more granular fee adjustment periods?
+	since := int((currTime - parent.Tmstmp) / consts.MillisecondsPerSecond) // convert to seconds
 	nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
 		parent.UnitWindow,
 		parent.UnitsConsumed,
