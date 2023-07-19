@@ -30,7 +30,6 @@ const (
 	defaultGossipProposerDepth         = 2
 	defaultBuildProposerDiff           = 2
 	defaultVerifyTimeout               = 10
-	defaultPreferredBlocksPerSecond    = 2
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
 	defaultMempoolVerifyBalances       = true
@@ -38,9 +37,6 @@ const (
 
 type Config struct {
 	*config.Config
-
-	// Builder
-	PreferredBlocksPerSecond uint64 `json:"preferredBlocksPerSecond"`
 
 	// Gossip
 	GossipInterval      time.Duration `json:"gossipInterval"`
@@ -116,7 +112,6 @@ func (c *Config) setDefault() {
 	c.BuildProposerDiff = defaultBuildProposerDiff
 	c.VerifyTimeout = defaultVerifyTimeout
 	c.Parallelism = c.Config.GetParallelism()
-	c.PreferredBlocksPerSecond = defaultPreferredBlocksPerSecond
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()
 	c.MempoolVerifyBalances = defaultMempoolVerifyBalances
@@ -124,14 +119,13 @@ func (c *Config) setDefault() {
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 }
 
-func (c *Config) GetLogLevel() logging.Level          { return c.LogLevel }
-func (c *Config) GetTestMode() bool                   { return c.TestMode }
-func (c *Config) GetParallelism() int                 { return c.Parallelism }
-func (c *Config) GetPreferredBlocksPerSecond() uint64 { return c.PreferredBlocksPerSecond }
-func (c *Config) GetMempoolSize() int                 { return c.MempoolSize }
-func (c *Config) GetMempoolPayerSize() int            { return c.MempoolPayerSize }
-func (c *Config) GetMempoolExemptPayers() [][]byte    { return c.parsedExemptPayers }
-func (c *Config) GetMempoolVerifyBalances() bool      { return c.MempoolVerifyBalances }
+func (c *Config) GetLogLevel() logging.Level       { return c.LogLevel }
+func (c *Config) GetTestMode() bool                { return c.TestMode }
+func (c *Config) GetParallelism() int              { return c.Parallelism }
+func (c *Config) GetMempoolSize() int              { return c.MempoolSize }
+func (c *Config) GetMempoolPayerSize() int         { return c.MempoolPayerSize }
+func (c *Config) GetMempoolExemptPayers() [][]byte { return c.parsedExemptPayers }
+func (c *Config) GetMempoolVerifyBalances() bool   { return c.MempoolVerifyBalances }
 func (c *Config) GetTraceConfig() *trace.Config {
 	return &trace.Config{
 		Enabled:         c.TraceEnabled,
