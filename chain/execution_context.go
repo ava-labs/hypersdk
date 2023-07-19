@@ -96,7 +96,7 @@ func computeNextPriceWindow(
 func GenerateExecutionContext(
 	ctx context.Context,
 	chainID ids.ID,
-	currTime int64,
+	currTime int64, // ms
 	parent *StatelessBlock,
 	tracer trace.Tracer, //nolint:interfacer
 	r Rules,
@@ -104,7 +104,8 @@ func GenerateExecutionContext(
 	_, span := tracer.Start(ctx, "chain.GenerateExecutionContext")
 	defer span.End()
 
-	since := int(currTime - parent.Tmstmp)
+	// TODO: would it make sense to have more granular fee adjustment periods?
+	since := int((currTime - parent.Tmstmp) / 1000) // convert to s
 	nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
 		parent.UnitWindow,
 		parent.UnitsConsumed,
