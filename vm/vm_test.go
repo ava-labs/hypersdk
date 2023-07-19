@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/trace"
@@ -32,7 +33,6 @@ func TestBlockCache(t *testing.T) {
 			Prnt:      ids.GenerateTestID(),
 			Hght:      10000,
 			UnitPrice: 1000,
-			BlockCost: 100,
 		},
 	}
 	blkID := blk.ID()
@@ -46,7 +46,7 @@ func TestBlockCache(t *testing.T) {
 
 		blocks:         &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: 3},
 		verifiedBlocks: make(map[ids.ID]*chain.StatelessBlock),
-		seen:           emap.NewEMap[*chain.Transaction](),
+		seen:           emap.NewEMap[*chain.Transaction](consts.MillisecondsPerSecond),
 		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32, nil),
 		acceptedQueue:  make(chan *chain.StatelessBlock, 1024), // don't block on queue
 		c:              controller,
@@ -57,7 +57,7 @@ func TestBlockCache(t *testing.T) {
 	reg, m, err := newMetrics()
 	require.NoError(err)
 	vm.metrics = m
-	require.NoError(gatherer.Register("hyper_sdk", reg))
+	require.NoError(gatherer.Register("hypersdk", reg))
 	require.NoError(vm.snowCtx.Metrics.Register(gatherer))
 
 	// put the block into the cache "vm.blocks"
