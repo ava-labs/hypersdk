@@ -451,6 +451,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			time.Sleep(2 * time.Second) // for replay test
 			accept := expectBlk(instances[1])
 			results := accept()
 			gomega.Ω(results).Should(gomega.HaveLen(1))
@@ -480,6 +481,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			time.Sleep(2 * time.Second) // for replay test
 			accept = expectBlk(instances[1])
 
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
@@ -494,6 +496,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			time.Sleep(2 * time.Second) // for replay test
 			accept2 = expectBlk(instances[1])
 		})
 
@@ -532,7 +535,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 	})
 
-	ginkgo.It("ensure unprocessed tip works", func() {
+	ginkgo.It("ensure unprocessed tip and replay protection works", func() {
 		ginkgo.By("import accepted blocks to instance 2", func() {
 			ctx := context.TODO()
 			o := instances[1]
@@ -567,6 +570,14 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			err = blk3.Verify(ctx)
 			gomega.Ω(err).Should(gomega.BeNil())
 
+			// Check if tx from old block would be considered a repeat on processing tip
+			tx := blk2.(*chain.StatelessBlock).Txs[0]
+			sblk3 := blk3.(*chain.StatelessBlock)
+			sblk3t := sblk3.Timestamp().UnixMilli()
+			ok, err := sblk3.IsRepeat(ctx, sblk3t-n.vm.Rules(sblk3t).GetValidityWindow(), []*chain.Transaction{tx})
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(ok).Should(gomega.BeTrue())
+
 			// Accept tip
 			err = blk1.Accept(ctx)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -582,43 +593,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			err = blk4.Accept(ctx)
 			gomega.Ω(err).Should(gomega.BeNil())
+
+			// Check if tx from old block would be considered a repeat on accepted tip
+			//
+			// TODO: need to ensure blocks happen at different times
+			time.Sleep(2 * time.Second)
+			gomega.Ω(n.vm.IsRepeat(ctx, []*chain.Transaction{tx})).Should(gomega.BeTrue())
 		})
-	})
-
-	ginkgo.It("ensure replay protection works", func() {
-		ginkgo.By("submit a previously accepted transaction", func() {
-			// TODO: make this a helper
-			ctx := context.TODO()
-			o := instances[2]
-			blks := []snowman.Block{}
-			next, err := o.vm.LastAccepted(ctx)
-			gomega.Ω(err).Should(gomega.BeNil())
-			for {
-				blk, err := o.vm.GetBlock(ctx, next)
-				gomega.Ω(err).Should(gomega.BeNil())
-				blks = append([]snowman.Block{blk}, blks...)
-				if blk.Height() == 1 {
-					break
-				}
-				next = blk.Parent()
-			}
-
-			// Select old tx
-			blk := blks[1].(*chain.StatelessBlock)
-			tx := blk.Txs[0]
-
-			// Check on latest block
-			lblk := blks[len(blks)-1].(*chain.StatelessBlock)
-			ok, err := lblk.IsRepeat(ctx, 0, []*chain.Transaction{tx})
-			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(ok).Should(gomega.BeFalse())
-
-			// Check on vm
-			ok = o.vm.IsRepeat(ctx, []*chain.Transaction{tx})
-			gomega.Ω(ok).Should(gomega.BeFalse())
-		})
-
-		// TODO: ensure this also works on processing tip
 	})
 
 	ginkgo.It("processes valid index transactions (w/block listening)", func() {

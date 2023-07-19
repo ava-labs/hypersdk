@@ -225,8 +225,8 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 
 	// Update replay protection heap
 	blkTime := b.Tmstmp
-	// TODO: shouldn't this be kept for `GetValidityWindow`?
-	vm.seen.SetMin(blkTime)
+	evicted := vm.seen.SetMin(blkTime)
+	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evicted)))
 	vm.seen.Add(b.Txs)
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
