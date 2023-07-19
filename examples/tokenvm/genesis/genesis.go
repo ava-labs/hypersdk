@@ -31,19 +31,22 @@ type Genesis struct {
 	// Address prefix
 	HRP string `json:"hrp"`
 
+	// Chain Parameters
+	MinBlockGap int64 `json:"minBlockGap"` // ms
+
 	// Chain Fee Parameters
 	MinUnitPrice               uint64 `json:"minUnitPrice"`
 	UnitPriceChangeDenominator uint64 `json:"unitPriceChangeDenominator"`
 	WindowTargetUnits          uint64 `json:"windowTargetUnits"` // 10s
 	MaxBlockUnits              uint64 `json:"maxBlockUnits"`     // must be possible to reach before block too large
 
+	// Tx Parameters
+	ValidityWindow int64 `json:"validityWindow"` // s
+
 	// Tx Fee Parameters
 	BaseUnits          uint64 `json:"baseUnits"`
 	WarpBaseUnits      uint64 `json:"warpBaseUnits"`
 	WarpUnitsPerSigner uint64 `json:"warpUnitsPerSigner"`
-
-	// Tx Parameters
-	ValidityWindow int64 `json:"validityWindow"` // s
 
 	// Allocations
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
@@ -53,19 +56,22 @@ func Default() *Genesis {
 	return &Genesis{
 		HRP: consts.HRP,
 
+		// Chain Parameters
+		MinBlockGap: 100,
+
 		// Chain Fee Parameters
 		MinUnitPrice:               1,
 		UnitPriceChangeDenominator: 48,
 		WindowTargetUnits:          20_000_000,
 		MaxBlockUnits:              1_800_000, // 1.8 MiB
 
+		// Tx Parameters
+		ValidityWindow: 60, // s
+
 		// Tx Fee Parameters
 		BaseUnits:          48, // timestamp(8) + chainID(32) + unitPrice(8)
 		WarpBaseUnits:      1_024,
 		WarpUnitsPerSigner: 128,
-
-		// Tx Parameters
-		ValidityWindow: 60, // s
 	}
 }
 

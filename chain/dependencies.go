@@ -89,14 +89,16 @@ type Database interface {
 }
 
 type Rules interface {
+	GetMinBlockGap() int64
+
 	GetMinUnitPrice() uint64
 	GetUnitPriceChangeDenominator() uint64
 	GetWindowTargetUnits() uint64
 	GetMaxBlockUnits() uint64 // should ensure can't get above block max size
 
 	GetBaseUnits() uint64
-	GetWarpBaseFee() uint64
-	GetWarpFeePerSigner() uint64
+	GetWarpBaseUnits() uint64
+	GetWarpUnitsPerSigner() uint64
 
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
 
