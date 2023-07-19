@@ -102,7 +102,7 @@ type Rules interface {
 
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
 
-	GetValidityWindow() int64 // in seconds because emap buckets are in seconds
+	GetValidityWindow() int64 // in milliseconds
 
 	FetchCustom(string) (any, bool)
 }

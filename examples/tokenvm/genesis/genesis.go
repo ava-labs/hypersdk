@@ -13,6 +13,7 @@ import (
 	smath "github.com/ava-labs/avalanchego/utils/math"
 
 	"github.com/ava-labs/hypersdk/chain"
+	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
@@ -41,7 +42,7 @@ type Genesis struct {
 	MaxBlockUnits              uint64 `json:"maxBlockUnits"`     // must be possible to reach before block too large
 
 	// Tx Parameters
-	ValidityWindow int64 `json:"validityWindow"` // s
+	ValidityWindow int64 `json:"validityWindow"` // ms
 
 	// Tx Fee Parameters
 	BaseUnits          uint64 `json:"baseUnits"`
@@ -66,7 +67,7 @@ func Default() *Genesis {
 		MaxBlockUnits:              1_800_000, // 1.8 MiB
 
 		// Tx Parameters
-		ValidityWindow: 60, // s
+		ValidityWindow: 60 * hconsts.MillisecondsPerSecond, // ms
 
 		// Tx Fee Parameters
 		BaseUnits:          48, // timestamp(8) + chainID(32) + unitPrice(8)

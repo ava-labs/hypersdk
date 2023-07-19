@@ -225,6 +225,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 
 	// Update replay protection heap
 	blkTime := b.Tmstmp
+	// TODO: shouldn't this be kept for `GetValidityWindow`?
 	vm.seen.SetMin(blkTime)
 	vm.seen.Add(b.Txs)
 
@@ -242,6 +243,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 				vm.startSeenTime = blkTime
 			}
 			r := vm.Rules(blkTime)
+			// TODO: need to do ValidityWindow + 1 second if used with modulus emap
 			if blkTime-vm.startSeenTime > r.GetValidityWindow() {
 				vm.seenValidityWindowOnce.Do(func() {
 					close(vm.seenValidityWindow)
