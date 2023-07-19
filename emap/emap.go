@@ -28,18 +28,32 @@ type Item interface {
 type EMap[T Item] struct {
 	mu sync.RWMutex
 
+	modulus int64
+
 	bh    *heap.Heap[*bucket, int64]
 	seen  set.Set[ids.ID]   // Stores a set of unique tx ids
 	times map[int64]*bucket // Uses timestamp as keys to map to buckets of ids.
 }
 
-// NewEMap returns a pointer to a instance of an empty EMap struct.
-func NewEMap[T Item]() *EMap[T] {
+// NewEMap returns a pointer to a instance of an empty EMap struct. The provided [modulus]
+// is used to limit the number of buckets that may be used to cover a time range. For example,
+// a user may wish to modulo [Expiry] values denominated in ms by 1000 to convert to second-level
+// granularity.
+//
+// Assumes [divisor] is > 0.
+func NewEMap[T Item](modulus int64) *EMap[T] {
 	return &EMap[T]{
-		seen:  set.Set[ids.ID]{},
-		times: make(map[int64]*bucket),
-		bh:    heap.New[*bucket, int64](120, true),
+		modulus: modulus,
+		seen:    set.Set[ids.ID]{},
+		times:   make(map[int64]*bucket),
+		bh:      heap.New[*bucket, int64](120, true),
 	}
+}
+
+// TODO: ensure this is inlined
+// TODO: add a test for non-zero modulus
+func (e *EMap[T]) transformExpiry(t int64) int64 {
+	return t - t%e.modulus
 }
 
 // Add adds a list of txs to the EMap.
@@ -48,7 +62,7 @@ func (e *EMap[T]) Add(items []T) {
 	defer e.mu.Unlock()
 
 	for _, item := range items {
-		e.add(item.ID(), item.Expiry())
+		e.add(item.ID(), e.transformExpiry(item.Expiry()))
 	}
 }
 
@@ -90,7 +104,9 @@ func (e *EMap[T]) add(id ids.ID, t int64) {
 
 // SetMin removes all buckets with a lower
 // timestamp than [t] from e's bucketHeap.
-func (e *EMap[T]) SetMin(t int64) []ids.ID {
+func (e *EMap[T]) SetMin(tr int64) []ids.ID {
+	t := e.transformExpiry(tr)
+
 	e.mu.Lock()
 	defer e.mu.Unlock()
 

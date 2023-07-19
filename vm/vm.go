@@ -33,6 +33,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/mempool"
@@ -140,7 +141,7 @@ func (vm *VM) Initialize(
 	// backfill existing blocks (during normal bootstrapping).
 	vm.startSeenTime = -1
 	// Init seen for tracking transactions that have been accepted on-chain
-	vm.seen = emap.NewEMap[*chain.Transaction]()
+	vm.seen = emap.NewEMap[*chain.Transaction](consts.MillisecondsPerSecond)
 	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
@@ -152,7 +153,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	if err := gatherer.Register("hyper_sdk", defaultRegistry); err != nil {
+	if err := gatherer.Register("hypersdk", defaultRegistry); err != nil {
 		return err
 	}
 	vm.metrics = metrics

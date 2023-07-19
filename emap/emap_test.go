@@ -22,7 +22,7 @@ func (tx *TestTx) Expiry() int64 { return tx.t }
 
 func TestEmapNew(t *testing.T) {
 	require := require.New(t)
-	e := NewEMap[*TestTx]()
+	e := NewEMap[*TestTx](1)
 	emptyE := &EMap[*TestTx]{
 		seen:  set.Set[ids.ID]{},
 		times: make(map[int64]*bucket),
@@ -35,7 +35,7 @@ func TestEmapNew(t *testing.T) {
 
 func TestEmapAddIDGenesis(t *testing.T) {
 	require := require.New(t)
-	e := NewEMap[*TestTx]()
+	e := NewEMap[*TestTx](1)
 	var timestamp int64 = 0
 	id := ids.GenerateTestID()
 	tx := &TestTx{
@@ -58,7 +58,7 @@ func TestEmapAddIDGenesis(t *testing.T) {
 func TestEmapAddIDNewBucket(t *testing.T) {
 	require := require.New(t)
 
-	e := NewEMap[*TestTx]()
+	e := NewEMap[*TestTx](1)
 	var timestamp int64 = 1
 
 	id := ids.GenerateTestID()
@@ -83,7 +83,7 @@ func TestEmapAddIDNewBucket(t *testing.T) {
 
 func TestEmapAddIDExists(t *testing.T) {
 	require := require.New(t)
-	e := NewEMap[*TestTx]()
+	e := NewEMap[*TestTx](1)
 
 	var timestamp int64 = 1
 	id := ids.GenerateTestID()
@@ -122,7 +122,7 @@ func TestEmapAddIDExists(t *testing.T) {
 func TestEmapAddIDBucketExists(t *testing.T) {
 	require := require.New(t)
 
-	e := NewEMap[*TestTx]()
+	e := NewEMap[*TestTx](1)
 
 	var timestamp int64 = 1
 
@@ -160,7 +160,7 @@ func TestEmapAddIDBucketExists(t *testing.T) {
 
 func TestEmapAny(t *testing.T) {
 	require := require.New(t)
-	e := NewEMap[*TestTx]()
+	e := NewEMap[*TestTx](1)
 
 	var timestamp int64 = 1
 	id := ids.GenerateTestID()
@@ -177,7 +177,7 @@ func TestSetMin(t *testing.T) {
 	// Sets min to timestamp 3. Requires all buckets
 	// to be removed with timestamp t less than min
 	require := require.New(t)
-	e := NewEMap[*TestTx]()
+	e := NewEMap[*TestTx](1)
 
 	pushedIds := []ids.ID{}
 	startT := int64(1)
@@ -221,7 +221,7 @@ func TestSetMinPopsAll(t *testing.T) {
 	// Sets min to be higher than all timestamps. Should remove all
 	// buckets and ids in EMap.
 	require := require.New(t)
-	e := NewEMap[*TestTx]()
+	e := NewEMap[*TestTx](1)
 
 	pushedIds := []ids.ID{}
 	startT := int64(1)
@@ -239,7 +239,7 @@ func TestSetMinPopsAll(t *testing.T) {
 	// Check removed_ids = min_ids
 	require.Equal(pushedIds, removedIds, "Not all ids were returned")
 	// Check EMap is empty
-	emptyEmap := NewEMap[*TestTx]()
+	emptyEmap := NewEMap[*TestTx](1)
 
 	require.Equal(emptyEmap, e, "EMap not empty")
 }
