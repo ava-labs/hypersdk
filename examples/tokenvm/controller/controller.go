@@ -152,9 +152,7 @@ func (c *Controller) Initialize(
 		build = builder.NewManual(inner)
 		gossip = gossiper.NewManual(inner)
 	} else {
-		bcfg := builder.DefaultTimeConfig()
-		bcfg.PreferredBlocksPerSecond = c.config.GetPreferredBlocksPerSecond()
-		build = builder.NewTime(inner, bcfg)
+		build = builder.NewTime(inner)
 		gcfg := gossiper.DefaultProposerConfig()
 		gcfg.GossipInterval = c.config.GossipInterval
 		gcfg.GossipMaxSize = c.config.GossipMaxSize
