@@ -107,7 +107,6 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   ${TMPDIR}/token-cli genesis generate ${TMPDIR}/allocations.json \
   --max-block-units 4000000 \
   --window-target-units 100000000000 \
-  --window-target-blocks 30 \
   --genesis-file ${TMPDIR}/tokenvm.genesis
 else
   echo "copying custom genesis file"

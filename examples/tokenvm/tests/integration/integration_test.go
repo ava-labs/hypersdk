@@ -174,7 +174,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	if minPrice >= 0 {
 		gen.MinUnitPrice = uint64(minPrice)
 	}
-	gen.WindowTargetBlocks = 1_000_000 // deactivate block fee
+	gen.MinBlockGap = 0
 	gen.CustomAllocation = []*genesis.CustomAllocation{
 		{
 			Address: sender,
@@ -396,7 +396,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("receive gossip in the node 1, and signal block build", func() {
-			instances[1].vm.Builder().TriggerBuild()
+			instances[1].vm.Builder().Notify()
 			<-instances[1].toEngine
 		})
 
@@ -1807,7 +1807,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 
 		// Build block with no context (should fail)
-		instances[0].vm.Builder().TriggerBuild()
+		instances[0].vm.Builder().Notify()
 		<-instances[0].toEngine
 		blk, err := instances[0].vm.BuildBlock(context.TODO())
 		gomega.Ω(err).To(gomega.Not(gomega.BeNil()))
@@ -1902,7 +1902,7 @@ func expectBlk(i instance) func() []*chain.Result {
 	ctx := context.TODO()
 
 	// manually signal ready
-	i.vm.Builder().TriggerBuild()
+	i.vm.Builder().Notify()
 	// manually ack ready sig as in engine
 	<-i.toEngine
 
@@ -1932,7 +1932,7 @@ func expectBlkWithContext(i instance) func() []*chain.Result {
 	ctx := context.TODO()
 
 	// manually signal ready
-	i.vm.Builder().TriggerBuild()
+	i.vm.Builder().Notify()
 	// manually ack ready sig as in engine
 	<-i.toEngine
 

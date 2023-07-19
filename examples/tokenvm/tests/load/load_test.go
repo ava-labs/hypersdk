@@ -177,9 +177,9 @@ var _ = ginkgo.BeforeSuite(func() {
 	// create embedded VMs
 	instances = make([]*instance, vms)
 	gen = genesis.Default()
-	gen.WindowTargetUnits = 1_000_000_000  // disable unit price increase
-	gen.WindowTargetBlocks = 1_000_000_000 // disable block cost increase
-	gen.ValidityWindow = 100_000           // txs shouldn't expire
+	gen.WindowTargetUnits = 1_000_000_000 // disable unit price increase
+	gen.MinBlockGap = 0                   // don't require time between blocks
+	gen.ValidityWindow = 100_000          // txs shouldn't expire
 	gen.CustomAllocation = []*genesis.CustomAllocation{
 		{
 			Address: sender,
