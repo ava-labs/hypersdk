@@ -20,6 +20,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/workers"
 )
@@ -224,6 +225,9 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	vm.lastAccepted = b
 
 	// Update replay protection heap
+	//
+	// Transactions are added to [seen] with their [expiry], so we don't need to
+	// transform [blkTime] when calling [SetMin] here.
 	blkTime := b.Tmstmp
 	evicted := vm.seen.SetMin(blkTime)
 	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evicted)))
@@ -243,8 +247,12 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 				vm.startSeenTime = blkTime
 			}
 			r := vm.Rules(blkTime)
-			// TODO: need to do ValidityWindow + 1 second if used with modulus emap
-			if blkTime-vm.startSeenTime > r.GetValidityWindow() {
+			// We add 1 second here to handle the situation where the first block
+			// we see is at .5 seconds (the [seen] heap will round this down to 0 and thus there
+			// may be part of a bucket we haven't seen, which would cause non-determinism).
+			//
+			// TODO: should we instead transform [blkTime] or [vm.startSeenTime]?
+			if blkTime-vm.startSeenTime > r.GetValidityWindow()+consts.MillisecondsPerSecond {
 				vm.seenValidityWindowOnce.Do(func() {
 					close(vm.seenValidityWindow)
 				})
