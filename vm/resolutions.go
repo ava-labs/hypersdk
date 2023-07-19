@@ -248,8 +248,8 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 			}
 			r := vm.Rules(blkTime)
 			// We add 1 second here to handle the situation where the first block
-			// we see is at .5 seconds (the [seen] heap will round this down to 0 and thus there
-			// may be part of a bucket we haven't seen, which would cause non-determinism).
+			// we see is not aligned at 0 milliseconds (the [seen] heap will round this down to 0 and
+			// thus there may be part of a bucket we haven't seen, which would cause non-determinism).
 			//
 			// TODO: should we instead transform [blkTime] or [vm.startSeenTime]?
 			if blkTime-vm.startSeenTime > r.GetValidityWindow()+consts.MillisecondsPerSecond {
