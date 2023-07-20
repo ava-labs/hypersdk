@@ -200,7 +200,7 @@ var runSpamCmd = &cobra.Command{
 			clients[i] = &txIssuer{c: cli, tc: tcli, d: dcli}
 		}
 		signals := make(chan os.Signal, 2)
-		signal.ForceNotify(signals, syscall.SIGINT, syscall.SIGTERM)
+		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 		var (
 			transferFee uint64
 			wg          sync.WaitGroup
