@@ -3,7 +3,10 @@ This folder is dedicated to all "example" `hypervms` that we build to showcase
 the capability of the `hypersdk`. If you are interested in writing your own
 `hypervm`, this is usally the right place to start.
 
-## Beginner: `tokenvm`
+## Beginner: `basevm`
+TODO
+
+## Moderate: `tokenvm`
 We created the [`tokenvm`](./tokenvm) to showcase how to use the
 `hypersdk` in an application most readers are already familiar with, token minting
 and token trading. The `tokenvm` lets anyone create any asset, mint more of
