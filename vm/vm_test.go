@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/trace"
@@ -46,7 +45,7 @@ func TestBlockCache(t *testing.T) {
 
 		blocks:         &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: 3},
 		verifiedBlocks: make(map[ids.ID]*chain.StatelessBlock),
-		seen:           emap.NewEMap[*chain.Transaction](consts.MillisecondsPerSecond),
+		seen:           emap.NewEMap[*chain.Transaction](),
 		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32, nil),
 		acceptedQueue:  make(chan *chain.StatelessBlock, 1024), // don't block on queue
 		c:              controller,
