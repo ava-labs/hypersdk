@@ -595,8 +595,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 
 			// Check if tx from old block would be considered a repeat on accepted tip
-			//
-			// TODO: need to ensure blocks happen at different times
 			time.Sleep(2 * time.Second)
 			gomega.Ω(n.vm.IsRepeat(ctx, []*chain.Transaction{tx})).Should(gomega.BeTrue())
 		})

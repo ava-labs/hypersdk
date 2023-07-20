@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	dummyBlockAgeThreshold = 25 * 1000
+	dummyBlockAgeThreshold = 25 * consts.MillisecondsPerSecond
 	dummyHeightThreshold   = 3
 )
 

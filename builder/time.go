@@ -38,8 +38,15 @@ func (b *Time) Run() {
 }
 
 func (b *Time) handleTimerNotify() {
-	b.ForceNotify()
+	// Avoid notifying the engine if there is nothing to do (will block when VM
+	// is later invoked)
+	var sent bool
+	if b.vm.Mempool().Len(context.TODO()) > 0 {
+		b.ForceNotify()
+		sent = true
+	}
 	b.waiting.Store(false)
+	b.vm.Logger().Debug("trigger to notify", zap.Bool("sent", sent))
 }
 
 func (b *Time) QueueNotify() {
@@ -59,14 +66,19 @@ func (b *Time) QueueNotify() {
 	}
 	gap := b.vm.Rules(now).GetMinBlockGap()
 	if since >= gap {
-		b.ForceNotify()
+		var sent bool
+		if b.vm.Mempool().Len(context.TODO()) > 0 {
+			b.ForceNotify()
+			sent = true
+		}
 		b.waiting.Store(false)
-		b.vm.Logger().Warn("not waiting for block")
+		b.vm.Logger().Debug("notifying to build without waiting", zap.Bool("sent", sent))
 		return
 	}
 	sleep := gap - since
-	b.timer.SetTimeoutIn(time.Duration(sleep * int64(time.Millisecond)))
-	b.vm.Logger().Warn("waiting for", zap.Duration("t", time.Duration(sleep*int64(time.Millisecond))))
+	sleepDur := time.Duration(sleep * int64(time.Millisecond))
+	b.timer.SetTimeoutIn(sleepDur)
+	b.vm.Logger().Debug("waiting to notify to build", zap.Duration("t", sleepDur))
 }
 
 func (b *Time) ForceNotify() {

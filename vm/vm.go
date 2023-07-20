@@ -594,12 +594,10 @@ func (vm *VM) buildBlock(
 	}
 
 	// Notify builder if we should build again (whether or not we are successful this time)
-	defer func() {
-		if vm.mempool.Len(ctx) == 0 {
-			return
-		}
-		vm.builder.QueueNotify()
-	}()
+	//
+	// Note: builder should regulate whether or not it actually decides to build based on state
+	// of the mempool.
+	defer vm.builder.QueueNotify()
 
 	// Build block and store as parsed
 	blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
@@ -655,9 +653,7 @@ func (vm *VM) submitStateless(
 		validTxs = append(validTxs, tx)
 	}
 	vm.mempool.Add(ctx, validTxs)
-	if len(validTxs) > 0 {
-		vm.builder.QueueNotify()
-	}
+	vm.builder.QueueNotify()
 	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	return errs
 }
@@ -747,11 +743,7 @@ func (vm *VM) Submit(
 		validTxs = append(validTxs, tx)
 	}
 	vm.mempool.Add(ctx, validTxs)
-	if len(validTxs) > 0 {
-		vm.builder.QueueNotify()
-	} else {
-		vm.Logger().Warn("no valid txs found", zap.Errors("err", errs))
-	}
+	vm.builder.QueueNotify()
 	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	return errs
 }

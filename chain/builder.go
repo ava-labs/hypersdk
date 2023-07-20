@@ -18,6 +18,8 @@ import (
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
+const maxViewPreallocation = 10_000
+
 func HandlePreExecute(
 	err error,
 ) (bool /* continue */, bool /* restore */, bool /* remove account */) {
@@ -64,7 +66,7 @@ func BuildBlock(
 	}
 	nextTime := time.Now().UnixMilli()
 	r := vm.Rules(nextTime)
-	if nextTime < parent.Tmstmp+r.GetMinBlockGap() {
+	if parent.Tmstmp+r.GetMinBlockGap() > nextTime {
 		log.Warn("block building failed", zap.Error(ErrTimestampTooEarly))
 		return nil, ErrTimestampTooEarly
 	}
@@ -75,7 +77,7 @@ func BuildBlock(
 	}
 	b := NewBlock(ectx, vm, parent, nextTime)
 
-	changesEstimate := math.Min(mempoolSize, 10_000)
+	changesEstimate := math.Min(mempoolSize, maxViewPreallocation)
 	state, err := parent.childState(ctx, changesEstimate)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
@@ -280,8 +282,8 @@ func BuildBlock(
 		zap.Bool("context", blockContext != nil),
 		zap.Int("state changes", ts.PendingChanges()),
 		zap.Int("state operations", ts.OpIndex()),
-		zap.Int64("parent t", parent.Tmstmp),
-		zap.Int64("block t", b.Tmstmp),
+		zap.Int64("parent (t)", parent.Tmstmp),
+		zap.Int64("block (t)", b.Tmstmp),
 	)
 	return b, nil
 }

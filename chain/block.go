@@ -420,7 +420,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		log.Debug("could not get parent", zap.Stringer("id", b.Prnt))
 		return nil, err
 	}
-	if b.Timestamp().UnixMilli() < parent.Timestamp().UnixMilli()+r.GetMinBlockGap() {
+	if parent.Timestamp().UnixMilli()+r.GetMinBlockGap() > b.Timestamp().UnixMilli() {
 		return nil, ErrTimestampTooEarly
 	}
 
@@ -673,10 +673,7 @@ func (b *StatelessBlock) Bytes() []byte { return b.bytes }
 func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Hght }
 
 // implements "snowman.Block"
-func (b *StatelessBlock) Timestamp() time.Time {
-	b.vm.Logger().Warn("fetching block time", zap.Time("t", b.t))
-	return b.t
-}
+func (b *StatelessBlock) Timestamp() time.Time { return b.t }
 
 // State is used to verify txs in the mempool. It should never be written to.
 //
