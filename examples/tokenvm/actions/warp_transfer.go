@@ -14,7 +14,8 @@ import (
 
 const WarpTransferSize = crypto.PublicKeyLen + consts.IDLen +
 	consts.Uint64Len + 1 + consts.Uint64Len + consts.Uint64Len +
-	consts.IDLen + consts.Uint64Len + consts.Uint64Len + consts.IDLen
+	consts.IDLen + consts.Uint64Len + consts.Uint64Len + consts.IDLen +
+	consts.IDLen
 
 type WarpTransfer struct {
 	To    crypto.PublicKey `json:"to"`
@@ -42,6 +43,10 @@ type WarpTransfer struct {
 	// TxID is the transaction that created this message. This is used to ensure
 	// there is WarpID uniqueness.
 	TxID ids.ID `json:"txID"`
+
+	// DestinationChainID is the destination of this transfer. We assume this
+	// must be populated (not anycast).
+	DestinationChainID ids.ID `json:"destinationChainID"`
 }
 
 func (w *WarpTransfer) Marshal() ([]byte, error) {
@@ -58,6 +63,7 @@ func (w *WarpTransfer) Marshal() ([]byte, error) {
 	op.PackInt64(w.SwapExpiry)
 	p.PackOptional(op)
 	p.PackID(w.TxID)
+	p.PackID(w.DestinationChainID)
 	return p.Bytes(), p.Err()
 }
 
@@ -87,6 +93,7 @@ func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
 	transfer.SwapExpiry = op.UnpackInt64()
 	op.Done()
 	p.UnpackID(true, &transfer.TxID)
+	p.UnpackID(true, &transfer.DestinationChainID)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}

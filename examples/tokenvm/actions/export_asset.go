@@ -110,16 +110,17 @@ func (e *ExportAsset) executeReturn(
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	wt := &WarpTransfer{
-		To:         e.To,
-		Asset:      originalAsset,
-		Value:      e.Value,
-		Return:     e.Return,
-		Reward:     e.Reward,
-		SwapIn:     e.SwapIn,
-		AssetOut:   e.AssetOut,
-		SwapOut:    e.SwapOut,
-		SwapExpiry: e.SwapExpiry,
-		TxID:       txID,
+		To:                 e.To,
+		Asset:              originalAsset,
+		Value:              e.Value,
+		Return:             e.Return,
+		Reward:             e.Reward,
+		SwapIn:             e.SwapIn,
+		AssetOut:           e.AssetOut,
+		SwapOut:            e.SwapOut,
+		SwapExpiry:         e.SwapExpiry,
+		TxID:               txID,
+		DestinationChainID: e.Destination,
 	}
 	payload, err := wt.Marshal()
 	if err != nil {
@@ -166,16 +167,17 @@ func (e *ExportAsset) executeLoan(
 		}
 	}
 	wt := &WarpTransfer{
-		To:         e.To,
-		Asset:      e.Asset,
-		Value:      e.Value,
-		Return:     e.Return,
-		Reward:     e.Reward,
-		SwapIn:     e.SwapIn,
-		AssetOut:   e.AssetOut,
-		SwapOut:    e.SwapOut,
-		SwapExpiry: e.SwapExpiry,
-		TxID:       txID,
+		To:                 e.To,
+		Asset:              e.Asset,
+		Value:              e.Value,
+		Return:             e.Return,
+		Reward:             e.Reward,
+		SwapIn:             e.SwapIn,
+		AssetOut:           e.AssetOut,
+		SwapOut:            e.SwapOut,
+		SwapExpiry:         e.SwapExpiry,
+		TxID:               txID,
+		DestinationChainID: e.Destination,
 	}
 	payload, err := wt.Marshal()
 	if err != nil {

@@ -160,6 +160,9 @@ func (i *ImportAsset) Execute(
 			Output:  OutputWarpVerificationFailed,
 		}, nil
 	}
+	if i.warpTransfer.DestinationChainID != r.ChainID() {
+		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputInvalidDestination}, nil
+	}
 	if i.warpTransfer.Value == 0 {
 		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
 	}
