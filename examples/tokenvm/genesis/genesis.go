@@ -89,13 +89,13 @@ func New(b []byte, _ []byte /* upgradeBytes */) (*Genesis, error) {
 	return g, nil
 }
 
-func (g *Genesis) GetHRP() string {
-	return g.HRP
-}
-
 func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Database) error {
 	ctx, span := tracer.Start(ctx, "Genesis.Load")
 	defer span.End()
+
+	if consts.HRP != g.HRP {
+		return ErrInvalidHRP
+	}
 
 	supply := uint64(0)
 	for _, alloc := range g.CustomAllocation {

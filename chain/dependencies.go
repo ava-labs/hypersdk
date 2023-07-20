@@ -88,7 +88,6 @@ type Rules interface {
 	// a live network)
 	NetworkID() uint32
 	ChainID() ids.ID
-	HRP() string
 
 	GetMinBlockGap() int64
 

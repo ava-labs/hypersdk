@@ -34,10 +34,6 @@ var (
 	_ block.BuildBlockWithContextChainVM = (*VM)(nil)
 )
 
-func (vm *VM) HRP() string {
-	return vm.genesis.GetHRP()
-}
-
 func (vm *VM) ChainID() ids.ID {
 	return vm.snowCtx.ChainID
 }

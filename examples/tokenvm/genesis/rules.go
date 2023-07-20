@@ -38,10 +38,6 @@ func (r *Rules) ChainID() ids.ID {
 	return r.chainID
 }
 
-func (r *Rules) HRP() string {
-	return r.g.HRP
-}
-
 func (r *Rules) GetMinBlockGap() int64 {
 	return r.g.MinBlockGap
 }

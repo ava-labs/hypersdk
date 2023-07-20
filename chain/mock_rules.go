@@ -207,20 +207,6 @@ func (mr *MockRulesMockRecorder) GetWindowTargetUnits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWindowTargetUnits", reflect.TypeOf((*MockRules)(nil).GetWindowTargetUnits))
 }
 
-// HRP mocks base method.
-func (m *MockRules) HRP() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HRP")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// HRP indicates an expected call of HRP.
-func (mr *MockRulesMockRecorder) HRP() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HRP", reflect.TypeOf((*MockRules)(nil).HRP))
-}
-
 // NetworkID mocks base method.
 func (m *MockRules) NetworkID() uint32 {
 	m.ctrl.T.Helper()
