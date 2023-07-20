@@ -23,6 +23,9 @@ type Base struct {
 
 func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 	switch {
+	case b.Timestamp%consts.MillisecondsPerSecond != 0:
+		// TODO: make this modulus configurable
+		return ErrMisalignedTime
 	case b.Timestamp < timestamp: // tx: 100 block: 110
 		return ErrTimestampTooLate
 	case b.Timestamp > timestamp+r.GetValidityWindow(): // tx: 100 block 10

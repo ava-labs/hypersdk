@@ -187,7 +187,7 @@ func ParseStatefulBlock(
 
 	// Perform basic correctness checks before doing any expensive work
 	if blk.Hght > 0 { // skip genesis
-		if blk.Tmstmp >= time.Now().Add(FutureBound).UnixMilli() {
+		if blk.Tmstmp > time.Now().Add(FutureBound).UnixMilli() {
 			return nil, ErrTimestampTooLate
 		}
 		if len(blk.Txs) == 0 {
@@ -398,7 +398,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Perform basic correctness checks before doing any expensive work
 	switch {
-	case b.Timestamp().UnixMilli() >= time.Now().Add(FutureBound).UnixMilli():
+	case b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli():
 		return nil, ErrTimestampTooLate
 	case len(b.Txs) == 0:
 		return nil, ErrNoTxs
