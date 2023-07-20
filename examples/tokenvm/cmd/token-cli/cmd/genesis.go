@@ -40,6 +40,9 @@ var genGenesisCmd = &cobra.Command{
 		if windowTargetUnits >= 0 {
 			g.WindowTargetUnits = uint64(windowTargetUnits)
 		}
+		if minBlockGap >= 0 {
+			g.MinBlockGap = minBlockGap
+		}
 
 		a, err := os.ReadFile(args[0])
 		if err != nil {

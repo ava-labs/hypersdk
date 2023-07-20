@@ -29,6 +29,7 @@ var (
 	minUnitPrice      int64
 	maxBlockUnits     int64
 	windowTargetUnits int64
+	minBlockGap       int64
 	hideTxs           bool
 	randomRecipient   bool
 	maxTxBacklog      int
@@ -95,6 +96,12 @@ func init() {
 		"window-target-units",
 		-1,
 		"window target units",
+	)
+	genGenesisCmd.PersistentFlags().Int64Var(
+		&minBlockGap,
+		"min-block-gap",
+		-1,
+		"minimum block gap (ms)",
 	)
 	genesisCmd.AddCommand(
 		genGenesisCmd,

@@ -23,9 +23,11 @@ LOGLEVEL=${LOGLEVEL:-info}
 AVALANCHE_LOG_LEVEL=${AVALANCHE_LOG_LEVEL:-INFO}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 PROPOSER_MIN_BLOCK_DELAY=${PROPOSER_MIN_BLOCK_DELAY:-0}
+MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-0}
 if [[ ${MODE} != "run" && ${MODE} != "run-single" ]]; then
   STATESYNC_DELAY=500000000 # 500ms
   PROPOSER_MIN_BLOCK_DELAY=100000000 # 100ms
+  MIN_BLOCK_GAP=750000000 #750ms
 fi
 
 echo "Running with:"
@@ -107,6 +109,7 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   ${TMPDIR}/token-cli genesis generate ${TMPDIR}/allocations.json \
   --max-block-units 4000000 \
   --window-target-units 100000000000 \
+  --min-block-gap ${MIN_BLOCK_GAP} \
   --genesis-file ${TMPDIR}/tokenvm.genesis
 else
   echo "copying custom genesis file"
