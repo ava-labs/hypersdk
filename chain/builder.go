@@ -57,13 +57,13 @@ func BuildBlock(
 		log.Warn("block building failed", zap.Error(ErrNoTxs))
 		return nil, ErrNoTxs
 	}
-	nextTime := time.Now().UnixMilli()
-	r := vm.Rules(nextTime)
 	parent, err := vm.GetStatelessBlock(ctx, preferred)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent", zap.Error(err))
 		return nil, err
 	}
+	nextTime := time.Now().UnixMilli()
+	r := vm.Rules(nextTime)
 	if nextTime < parent.Tmstmp+r.GetMinBlockGap() {
 		log.Warn("block building failed", zap.Error(ErrTimestampTooEarly))
 		return nil, ErrTimestampTooEarly
@@ -280,6 +280,8 @@ func BuildBlock(
 		zap.Bool("context", blockContext != nil),
 		zap.Int("state changes", ts.PendingChanges()),
 		zap.Int("state operations", ts.OpIndex()),
+		zap.Int64("parent t", parent.Tmstmp),
+		zap.Int64("block t", b.Tmstmp),
 	)
 	return b, nil
 }

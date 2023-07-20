@@ -61,6 +61,11 @@ type warpJob struct {
 
 func NewGenesisBlock(root ids.ID, minUnit uint64) *StatefulBlock {
 	return &StatefulBlock{
+		// ProposerVM header is granularity in seconds. During the fork activiation, the truncated seconds post fork block may be less than the prefork block.
+		//
+		// TODO: could hardcode as the proposervm activation in avalanchego
+		Tmstmp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
+
 		UnitPrice:  minUnit,
 		UnitWindow: window.Window{},
 
@@ -663,7 +668,10 @@ func (b *StatelessBlock) Bytes() []byte { return b.bytes }
 func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Hght }
 
 // implements "snowman.Block"
-func (b *StatelessBlock) Timestamp() time.Time { return b.t }
+func (b *StatelessBlock) Timestamp() time.Time {
+	b.vm.Logger().Warn("fetching block time", zap.Time("t", b.t))
+	return b.t
+}
 
 // State is used to verify txs in the mempool. It should never be written to.
 //

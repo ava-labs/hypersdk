@@ -749,6 +749,8 @@ func (vm *VM) Submit(
 	vm.mempool.Add(ctx, validTxs)
 	if len(validTxs) > 0 {
 		vm.builder.QueueNotify()
+	} else {
+		vm.Logger().Warn("no valid txs found", zap.Errors("err", errs))
 	}
 	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	return errs

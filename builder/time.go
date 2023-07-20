@@ -61,10 +61,12 @@ func (b *Time) QueueNotify() {
 	if since >= gap {
 		b.ForceNotify()
 		b.waiting.Store(false)
+		b.vm.Logger().Warn("not waiting for block")
 		return
 	}
 	sleep := gap - since
 	b.timer.SetTimeoutIn(time.Duration(sleep * int64(time.Millisecond)))
+	b.vm.Logger().Warn("waiting for", zap.Duration("t", time.Duration(sleep*int64(time.Millisecond))))
 }
 
 func (b *Time) ForceNotify() {
