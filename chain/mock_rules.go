@@ -36,6 +36,20 @@ func (m *MockRules) EXPECT() *MockRulesMockRecorder {
 	return m.recorder
 }
 
+// ChainID mocks base method.
+func (m *MockRules) ChainID() ids.ID {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ChainID")
+	ret0, _ := ret[0].(ids.ID)
+	return ret0
+}
+
+// ChainID indicates an expected call of ChainID.
+func (mr *MockRulesMockRecorder) ChainID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChainID", reflect.TypeOf((*MockRules)(nil).ChainID))
+}
+
 // FetchCustom mocks base method.
 func (m *MockRules) FetchCustom(arg0 string) (interface{}, bool) {
 	m.ctrl.T.Helper()
@@ -191,4 +205,32 @@ func (m *MockRules) GetWindowTargetUnits() uint64 {
 func (mr *MockRulesMockRecorder) GetWindowTargetUnits() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWindowTargetUnits", reflect.TypeOf((*MockRules)(nil).GetWindowTargetUnits))
+}
+
+// HRP mocks base method.
+func (m *MockRules) HRP() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HRP")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// HRP indicates an expected call of HRP.
+func (mr *MockRulesMockRecorder) HRP() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HRP", reflect.TypeOf((*MockRules)(nil).HRP))
+}
+
+// NetworkID mocks base method.
+func (m *MockRules) NetworkID() uint32 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NetworkID")
+	ret0, _ := ret[0].(uint32)
+	return ret0
+}
+
+// NetworkID indicates an expected call of NetworkID.
+func (mr *MockRulesMockRecorder) NetworkID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NetworkID", reflect.TypeOf((*MockRules)(nil).NetworkID))
 }
