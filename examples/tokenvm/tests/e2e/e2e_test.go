@@ -312,7 +312,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		nodeID, err := ids.NodeIDFromString(info.GetId())
 		gomega.Expect(err).Should(gomega.BeNil())
 		cli := rpc.NewJSONRPCClient(u)
-		networkID, _, _, err := cli.Network(ctx)
+		networkID, _, _, err := cli.Network(context.TODO())
 		gomega.Expect(err).Should(gomega.BeNil())
 		instancesA = append(instancesA, instance{
 			nodeID: nodeID,
@@ -332,7 +332,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			nodeID, err := ids.NodeIDFromString(info.GetId())
 			gomega.Expect(err).Should(gomega.BeNil())
 			cli := rpc.NewJSONRPCClient(u)
-			networkID, _, _, err := cli.Network(ctx)
+			networkID, _, _, err := cli.Network(context.TODO())
 			gomega.Expect(err).Should(gomega.BeNil())
 			instancesB = append(instancesB, instance{
 				nodeID: nodeID,
