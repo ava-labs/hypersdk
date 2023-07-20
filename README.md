@@ -365,7 +365,6 @@ a default codec._
 ### Genesis
 ```golang
 type Genesis interface {
-	GetHRP() string
 	Load(context.Context, atrace.Tracer, chain.Database) error
 }
 ```

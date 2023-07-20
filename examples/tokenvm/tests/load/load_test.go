@@ -276,7 +276,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			JSONRPCServer:      jsonRPCServer,
 			TokenJSONRPCServer: tjsonRPCServer,
 			cli:                rpc.NewJSONRPCClient(jsonRPCServer.URL),
-			tcli:               trpc.NewJSONRPCClient(tjsonRPCServer.URL, snowCtx.ChainID),
+			tcli:               trpc.NewJSONRPCClient(tjsonRPCServer.URL, snowCtx.NetworkID, snowCtx.ChainID),
 			dbDir:              dname,
 		}
 

@@ -346,43 +346,28 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 	return nil
 }
 
-func preVerifyWarpMessage(msg *warp.Message, chainID ids.ID, r Rules) (uint64, uint64, error) {
-	if msg.DestinationChainID != chainID && msg.DestinationChainID != ids.Empty {
-		return 0, 0, ErrInvalidChainID
-	}
-	if msg.SourceChainID == chainID {
-		return 0, 0, ErrInvalidChainID
-	}
-	if msg.SourceChainID == msg.DestinationChainID {
-		return 0, 0, ErrInvalidChainID
-	}
-	allowed, num, denom := r.GetWarpConfig(msg.SourceChainID)
-	if !allowed {
-		return 0, 0, ErrDisabledChainID
-	}
-	return num, denom, nil
-}
-
 // verifyWarpMessage will attempt to verify a given warp message provided by an
 // Action.
 func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *warp.Message) bool {
-	warpID := utils.ToID(msg.Payload)
-	num, denom, err := preVerifyWarpMessage(msg, b.vm.ChainID(), r)
-	if err != nil {
+	// We do not check the validity of [SourceChainID] because a VM could send
+	// itself a message to trigger a chain upgrade.
+	allowed, num, denom := r.GetWarpConfig(msg.SourceChainID)
+	if !allowed {
 		b.vm.Logger().
-			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
+			Warn("unable to verify warp message", zap.Stringer("warpID", msg.ID()), zap.Error(ErrDisabledChainID))
 		return false
 	}
 	if err := msg.Signature.Verify(
 		ctx,
 		&msg.UnsignedMessage,
+		r.NetworkID(),
 		b.vdrState,
 		b.bctx.PChainHeight,
 		num,
 		denom,
 	); err != nil {
 		b.vm.Logger().
-			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
+			Warn("unable to verify warp message", zap.Stringer("warpID", msg.ID()), zap.Error(err))
 		return false
 	}
 	return true
@@ -441,7 +426,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
 	}
 
-	ectx, err := GenerateExecutionContext(ctx, b.vm.ChainID(), b.Tmstmp, parent, b.vm.Tracer(), r)
+	ectx, err := GenerateExecutionContext(ctx, b.Tmstmp, parent, b.vm.Tracer(), r)
 	if err != nil {
 		return nil, err
 	}

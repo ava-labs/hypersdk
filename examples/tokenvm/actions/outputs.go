@@ -29,4 +29,5 @@ var (
 	OutputWrongDestination       = []byte("wrong destination")
 	OutputMustFill               = []byte("must fill request")
 	OutputWarpVerificationFailed = []byte("warp verification failed")
+	OutputInvalidDestination     = []byte("invalid destination")
 )

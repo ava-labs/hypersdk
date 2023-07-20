@@ -182,7 +182,7 @@ func (t *Transaction) PreExecute(
 	db Database,
 	timestamp int64,
 ) error {
-	if err := t.Base.Execute(ectx.ChainID, r, timestamp); err != nil {
+	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
 		return err
 	}
 	start, end := t.Action.ValidRange(r)
@@ -220,7 +220,6 @@ func (t *Transaction) PreExecute(
 // Execute after knowing a transaction can pay a fee
 func (t *Transaction) Execute(
 	ctx context.Context,
-	ectx *ExecutionContext,
 	r Rules,
 	s StateManager,
 	tdb *tstate.TState,
@@ -308,7 +307,8 @@ func (t *Transaction) Execute(
 		// always sign for a message
 		if result.WarpMessage != nil {
 			// Enforce we are the source of our own messages
-			result.WarpMessage.SourceChainID = ectx.ChainID
+			result.WarpMessage.NetworkID = r.NetworkID()
+			result.WarpMessage.SourceChainID = r.ChainID()
 			// Initialize message (compute bytes) now that everything is populated
 			if err := result.WarpMessage.Initialize(); err != nil {
 				return nil, err

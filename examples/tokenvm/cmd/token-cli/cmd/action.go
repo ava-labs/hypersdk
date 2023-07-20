@@ -40,7 +40,7 @@ var transferCmd = &cobra.Command{
 	Use: "transfer",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, tcli, err := defaultActor()
+		_, _, priv, factory, cli, tcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -102,7 +102,7 @@ var createAssetCmd = &cobra.Command{
 	Use: "create-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, _, factory, cli, tcli, err := defaultActor()
+		_, _, _, factory, cli, tcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -155,7 +155,7 @@ var mintAssetCmd = &cobra.Command{
 	Use: "mint-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, tcli, err := defaultActor()
+		_, _, priv, factory, cli, tcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -237,7 +237,7 @@ var closeOrderCmd = &cobra.Command{
 	Use: "close-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, _, factory, cli, tcli, err := defaultActor()
+		_, _, _, factory, cli, tcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -288,7 +288,7 @@ var createOrderCmd = &cobra.Command{
 	Use: "create-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, tcli, err := defaultActor()
+		_, _, priv, factory, cli, tcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -391,7 +391,7 @@ var fillOrderCmd = &cobra.Command{
 	Use: "fill-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, tcli, err := defaultActor()
+		_, _, priv, factory, cli, tcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -702,7 +702,7 @@ var importAssetCmd = &cobra.Command{
 	Use: "import-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		currentChainID, priv, factory, dcli, dtcli, err := defaultActor()
+		_, currentChainID, priv, factory, dcli, dtcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -723,7 +723,7 @@ var exportAssetCmd = &cobra.Command{
 	Use: "export-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		currentChainID, priv, factory, cli, tcli, err := defaultActor()
+		_, currentChainID, priv, factory, cli, tcli, err := defaultActor()
 		if err != nil {
 			return err
 		}
@@ -856,7 +856,11 @@ var exportAssetCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if err := performImport(ctx, cli, rpc.NewJSONRPCClient(uris[0]), trpc.NewJSONRPCClient(uris[0], destination), tx.ID(), priv, factory); err != nil {
+			networkID, _, _, err := cli.Network(ctx)
+			if err != nil {
+				return err
+			}
+			if err := performImport(ctx, cli, rpc.NewJSONRPCClient(uris[0]), trpc.NewJSONRPCClient(uris[0], networkID, destination), tx.ID(), priv, factory); err != nil {
 				return err
 			}
 		}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -93,7 +94,12 @@ var setKeyCmd = &cobra.Command{
 			hutils.Outf("{{red}}no available chains{{/}}\n")
 			return nil
 		}
-		cli := trpc.NewJSONRPCClient(uris[0], chainID)
+		rcli := rpc.NewJSONRPCClient(uris[0])
+		networkID, _, _, err := rcli.Network(context.TODO())
+		if err != nil {
+			return err
+		}
+		cli := trpc.NewJSONRPCClient(uris[0], networkID, chainID)
 		hutils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
 		for i := 0; i < len(keys); i++ {
 			address := utils.Address(keys[i].PublicKey())
@@ -133,7 +139,6 @@ var balanceKeyCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-
 		assetID, err := promptAsset("assetID", true)
 		if err != nil {
 			return err
@@ -145,7 +150,15 @@ var balanceKeyCmd = &cobra.Command{
 		}
 		for _, uri := range uris[:max] {
 			hutils.Outf("{{yellow}}uri:{{/}} %s\n", uri)
-			if _, _, err = getAssetInfo(ctx, trpc.NewJSONRPCClient(uri, chainID), priv.PublicKey(), assetID, true); err != nil {
+			rcli := rpc.NewJSONRPCClient(uris[0])
+			networkID, _, _, err := rcli.Network(context.TODO())
+			if err != nil {
+				return err
+			}
+			if _, _, err = getAssetInfo(
+				ctx, trpc.NewJSONRPCClient(uri, networkID, chainID),
+				priv.PublicKey(), assetID, true,
+			); err != nil {
 				return err
 			}
 		}

@@ -117,7 +117,7 @@ func (p *Processor) Execute(
 				return 0, nil, 0, 0, ctx.Err()
 			}
 		}
-		result, err := tx.Execute(ctx, ectx, r, sm, ts, t, ok && warpVerified)
+		result, err := tx.Execute(ctx, r, sm, ts, t, ok && warpVerified)
 		if err != nil {
 			return 0, nil, 0, 0, err
 		}

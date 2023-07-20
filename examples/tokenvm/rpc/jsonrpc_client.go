@@ -22,16 +22,17 @@ import (
 type JSONRPCClient struct {
 	requester *requester.EndpointRequester
 
-	chainID ids.ID
-	g       *genesis.Genesis
+	networkID uint32
+	chainID   ids.ID
+	g         *genesis.Genesis
 }
 
 // New creates a new client object.
-func NewJSONRPCClient(uri string, chainID ids.ID) *JSONRPCClient {
+func NewJSONRPCClient(uri string, networkID uint32, chainID ids.ID) *JSONRPCClient {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += JSONRPCEndpoint
 	req := requester.New(uri, consts.Name)
-	return &JSONRPCClient{req, chainID, nil}
+	return &JSONRPCClient{req, networkID, chainID, nil}
 }
 
 func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.Genesis, error) {
@@ -182,16 +183,13 @@ func (cli *JSONRPCClient) WaitForTransaction(ctx context.Context, txID ids.ID) (
 var _ chain.Parser = (*Parser)(nil)
 
 type Parser struct {
-	chainID ids.ID
-	genesis *genesis.Genesis
-}
-
-func (p *Parser) ChainID() ids.ID {
-	return p.chainID
+	networkID uint32
+	chainID   ids.ID
+	genesis   *genesis.Genesis
 }
 
 func (p *Parser) Rules(t int64) chain.Rules {
-	return p.genesis.Rules(t)
+	return p.genesis.Rules(t, p.networkID, p.chainID)
 }
 
 func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
@@ -203,5 +201,5 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Parser{cli.chainID, g}, nil
+	return &Parser{cli.networkID, cli.chainID, g}, nil
 }

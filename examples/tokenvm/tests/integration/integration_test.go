@@ -122,7 +122,8 @@ var (
 	genesisBytes []byte
 	instances    []instance
 
-	gen *genesis.Genesis
+	networkID uint32
+	gen       *genesis.Genesis
 )
 
 type instance struct {
@@ -184,7 +185,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	genesisBytes, err = json.Marshal(gen)
 	gomega.Ω(err).Should(gomega.BeNil())
 
-	networkID := uint32(1)
+	networkID = uint32(1)
 	subnetID := ids.GenerateTestID()
 	chainID := ids.GenerateTestID()
 
@@ -206,7 +207,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			ChainDataDir:   dname,
 			Metrics:        metrics.NewOptionalGatherer(),
 			PublicKey:      bls.PublicFromSecretKey(sk),
-			WarpSigner:     warp.NewSigner(sk, chainID),
+			WarpSigner:     warp.NewSigner(sk, networkID, chainID),
 			ValidatorState: &validators.TestState{},
 		}
 
@@ -245,7 +246,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			TokenJSONRPCServer: tjsonRPCServer,
 			WebSocketServer:    webSocketServer,
 			cli:                rpc.NewJSONRPCClient(jsonRPCServer.URL),
-			tcli:               trpc.NewJSONRPCClient(tjsonRPCServer.URL, snowCtx.ChainID),
+			tcli:               trpc.NewJSONRPCClient(tjsonRPCServer.URL, snowCtx.NetworkID, snowCtx.ChainID),
 		}
 
 		// Force sync ready (to mimic bootstrapping from genesis)
@@ -654,7 +655,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		g, err := instances[0].tcli.Genesis(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
-		r := g.Rules(time.Now().UnixMilli())
+		r := g.Rules(time.Now().UnixMilli(), networkID, instances[0].chainID)
 		maxUnits, err := rawTx.MaxUnits(r)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(balancea + maxUnits + 1))
@@ -1728,7 +1729,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("import with wrong payload", func() {
-		uwm, err := warp.NewUnsignedMessage(ids.Empty, ids.Empty, []byte("hello"))
+		uwm, err := warp.NewUnsignedMessage(networkID, ids.Empty, []byte("hello"))
 		gomega.Ω(err).Should(gomega.BeNil())
 		wm, err := warp.NewMessage(uwm, &warp.BitSetSignature{})
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -1763,7 +1764,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		wt := &actions.WarpTransfer{}
 		wtb, err := wt.Marshal()
 		gomega.Ω(err).Should(gomega.BeNil())
-		uwm, err := warp.NewUnsignedMessage(ids.Empty, ids.Empty, wtb)
+		uwm, err := warp.NewUnsignedMessage(networkID, ids.Empty, wtb)
 		gomega.Ω(err).Should(gomega.BeNil())
 		wm, err := warp.NewMessage(uwm, &warp.BitSetSignature{})
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -1796,16 +1797,17 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 	ginkgo.It("import with wrong destination", func() {
 		wt := &actions.WarpTransfer{
-			To:     rsender,
-			Asset:  ids.GenerateTestID(),
-			Value:  100,
-			Return: false,
-			Reward: 100,
-			TxID:   ids.GenerateTestID(),
+			To:                 rsender,
+			Asset:              ids.GenerateTestID(),
+			Value:              100,
+			Return:             false,
+			Reward:             100,
+			TxID:               ids.GenerateTestID(),
+			DestinationChainID: ids.GenerateTestID(),
 		}
 		wtb, err := wt.Marshal()
 		gomega.Ω(err).Should(gomega.BeNil())
-		uwm, err := warp.NewUnsignedMessage(ids.Empty, ids.Empty, wtb)
+		uwm, err := warp.NewUnsignedMessage(networkID, ids.Empty, wtb)
 		gomega.Ω(err).Should(gomega.BeNil())
 		wm, err := warp.NewMessage(uwm, &warp.BitSetSignature{})
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -1867,16 +1869,17 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeTrue())
 		wt := &actions.WarpTransfer{
-			To:     rsender,
-			Asset:  ids.Empty,
-			Value:  100,
-			Return: false,
-			Reward: 10,
-			TxID:   tx.ID(),
+			To:                 rsender,
+			Asset:              ids.Empty,
+			Value:              100,
+			Return:             false,
+			Reward:             10,
+			TxID:               tx.ID(),
+			DestinationChainID: dest,
 		}
 		wtb, err := wt.Marshal()
 		gomega.Ω(err).Should(gomega.BeNil())
-		wm, err := warp.NewUnsignedMessage(instances[0].chainID, dest, wtb)
+		wm, err := warp.NewUnsignedMessage(networkID, instances[0].chainID, wtb)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(result.WarpMessage).Should(gomega.Equal(wm))
 

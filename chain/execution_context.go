@@ -6,7 +6,6 @@ package chain
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/hypersdk/consts"
@@ -14,8 +13,6 @@ import (
 )
 
 type ExecutionContext struct {
-	ChainID ids.ID
-
 	NextUnitPrice  uint64
 	NextUnitWindow window.Window
 }
@@ -92,7 +89,6 @@ func computeNextPriceWindow(
 
 func GenerateExecutionContext(
 	ctx context.Context,
-	chainID ids.ID,
 	currTime int64, // ms
 	parent *StatelessBlock,
 	tracer trace.Tracer, //nolint:interfacer
@@ -116,8 +112,6 @@ func GenerateExecutionContext(
 		return nil, err
 	}
 	return &ExecutionContext{
-		ChainID: chainID,
-
 		NextUnitPrice:  nextUnitPrice,
 		NextUnitWindow: nextUnitWindow,
 	}, nil

@@ -311,11 +311,14 @@ var _ = ginkgo.BeforeSuite(func() {
 		gomega.Expect(err).Should(gomega.BeNil())
 		nodeID, err := ids.NodeIDFromString(info.GetId())
 		gomega.Expect(err).Should(gomega.BeNil())
+		cli := rpc.NewJSONRPCClient(u)
+		networkID, _, _, err := cli.Network(context.TODO())
+		gomega.Expect(err).Should(gomega.BeNil())
 		instancesA = append(instancesA, instance{
 			nodeID: nodeID,
 			uri:    u,
-			cli:    rpc.NewJSONRPCClient(u),
-			tcli:   trpc.NewJSONRPCClient(u, bid),
+			cli:    cli,
+			tcli:   trpc.NewJSONRPCClient(u, networkID, bid),
 		})
 	}
 
@@ -328,11 +331,14 @@ var _ = ginkgo.BeforeSuite(func() {
 			gomega.Expect(err).Should(gomega.BeNil())
 			nodeID, err := ids.NodeIDFromString(info.GetId())
 			gomega.Expect(err).Should(gomega.BeNil())
+			cli := rpc.NewJSONRPCClient(u)
+			networkID, _, _, err := cli.Network(context.TODO())
+			gomega.Expect(err).Should(gomega.BeNil())
 			instancesB = append(instancesB, instance{
 				nodeID: nodeID,
 				uri:    u,
-				cli:    rpc.NewJSONRPCClient(u),
-				tcli:   trpc.NewJSONRPCClient(u, bid),
+				cli:    cli,
+				tcli:   trpc.NewJSONRPCClient(u, networkID, bid),
 			})
 		}
 	}
@@ -1341,7 +1347,9 @@ var _ = ginkgo.Describe("[Test]", func() {
 		hutils.Outf("{{blue}}bootstrap node uri: %s{{/}}\n", uri)
 		c := rpc.NewJSONRPCClient(uri)
 		syncClient = c
-		tc := trpc.NewJSONRPCClient(uri, bid)
+		networkID, _, _, err := syncClient.Network(context.TODO())
+		gomega.Expect(err).Should(gomega.BeNil())
+		tc := trpc.NewJSONRPCClient(uri, networkID, bid)
 		tsyncClient = tc
 		instancesA = append(instancesA, instance{
 			uri:  uri,
@@ -1380,7 +1388,9 @@ var _ = ginkgo.Describe("[Test]", func() {
 		gomega.Expect(err).To(gomega.BeNil())
 		hutils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
 		syncClient = rpc.NewJSONRPCClient(uri)
-		tsyncClient = trpc.NewJSONRPCClient(uri, bid)
+		networkID, _, _, err := syncClient.Network(context.TODO())
+		gomega.Expect(err).To(gomega.BeNil())
+		tsyncClient = trpc.NewJSONRPCClient(uri, networkID, bid)
 	})
 
 	ginkgo.It("accepts transaction after state sync", func() {
@@ -1449,7 +1459,9 @@ var _ = ginkgo.Describe("[Test]", func() {
 		gomega.Expect(err).To(gomega.BeNil())
 		hutils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
 		syncClient = rpc.NewJSONRPCClient(uri)
-		tsyncClient = trpc.NewJSONRPCClient(uri, bid)
+		networkID, _, _, err := syncClient.Network(context.TODO())
+		gomega.Expect(err).To(gomega.BeNil())
+		tsyncClient = trpc.NewJSONRPCClient(uri, networkID, bid)
 		cancel()
 	})
 

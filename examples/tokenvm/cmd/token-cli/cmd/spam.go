@@ -94,7 +94,11 @@ var runSpamCmd = &cobra.Command{
 			return ErrNoKeys
 		}
 		cli := rpc.NewJSONRPCClient(uris[0])
-		tcli := trpc.NewJSONRPCClient(uris[0], chainID)
+		networkID, _, _, err := cli.Network(ctx)
+		if err != nil {
+			return err
+		}
+		tcli := trpc.NewJSONRPCClient(uris[0], networkID, chainID)
 		hutils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
 		balances := make([]uint64, len(keys))
 		for i := 0; i < len(keys); i++ {
@@ -192,7 +196,11 @@ var runSpamCmd = &cobra.Command{
 		clients := make([]*txIssuer, len(uris))
 		for i := 0; i < len(uris); i++ {
 			cli := rpc.NewJSONRPCClient(uris[i])
-			tcli := trpc.NewJSONRPCClient(uris[i], chainID)
+			networkID, _, _, err := cli.Network(ctx)
+			if err != nil {
+				return err
+			}
+			tcli := trpc.NewJSONRPCClient(uris[i], networkID, chainID)
 			dcli, err := rpc.NewWebSocketClient(uris[i])
 			if err != nil {
 				return err

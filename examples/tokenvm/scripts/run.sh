@@ -17,7 +17,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=1.10.4
+VERSION=v1.10.5
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 AVALANCHE_LOG_LEVEL=${AVALANCHE_LOG_LEVEL:-INFO}
@@ -43,16 +43,16 @@ TMPDIR=/tmp/hypersdk
 
 echo "working directory: $TMPDIR"
 
-AVALANCHEGO_PATH=${TMPDIR}/avalanchego-v${VERSION}/avalanchego
-AVALANCHEGO_PLUGIN_DIR=${TMPDIR}/avalanchego-v${VERSION}/plugins
+AVALANCHEGO_PATH=${TMPDIR}/avalanchego-${VERSION}/avalanchego
+AVALANCHEGO_PLUGIN_DIR=${TMPDIR}/avalanchego-${VERSION}/plugins
 
 if [ ! -f "$AVALANCHEGO_PATH" ]; then
   echo "building avalanchego"
   CWD=$(pwd)
 
   # Clear old folders
-  rm -rf ${TMPDIR}/avalanchego-v${VERSION}
-  mkdir -p ${TMPDIR}/avalanchego-v${VERSION}
+  rm -rf ${TMPDIR}/avalanchego-${VERSION}
+  mkdir -p ${TMPDIR}/avalanchego-${VERSION}
   rm -rf ${TMPDIR}/avalanchego-src
   mkdir -p ${TMPDIR}/avalanchego-src
 
@@ -60,11 +60,11 @@ if [ ! -f "$AVALANCHEGO_PATH" ]; then
   cd ${TMPDIR}/avalanchego-src
   git clone https://github.com/ava-labs/avalanchego.git
   cd avalanchego
-  git checkout v${VERSION}
+  git checkout ${VERSION}
 
   # Build avalanchego
   ./scripts/build.sh
-  mv build/avalanchego ${TMPDIR}/avalanchego-v${VERSION}
+  mv build/avalanchego ${TMPDIR}/avalanchego-${VERSION}
 
   cd ${CWD}
 else
@@ -77,18 +77,18 @@ fi
 echo "building tokenvm"
 
 # delete previous (if exists)
-rm -f ${TMPDIR}/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
+rm -f ${TMPDIR}/avalanchego-${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
 
 # rebuild with latest code
 go build \
--o ${TMPDIR}/avalanchego-v${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
+-o ${TMPDIR}/avalanchego-${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
 ./cmd/tokenvm
 
 echo "building token-cli"
 go build -v -o ${TMPDIR}/token-cli ./cmd/token-cli
 
 # log everything in the avalanchego directory
-find ${TMPDIR}/avalanchego-v${VERSION}
+find ${TMPDIR}/avalanchego-${VERSION}
 
 ############################
 
@@ -176,7 +176,7 @@ ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 # download avalanche-network-runner
 # https://github.com/ava-labs/avalanche-network-runner
 ANR_REPO_PATH=github.com/ava-labs/avalanche-network-runner
-ANR_VERSION=v1.7.0
+ANR_VERSION=07c99958518220d3d8bec21e92183368d4f1903c
 # version set
 go install -v ${ANR_REPO_PATH}@${ANR_VERSION}
 
@@ -233,7 +233,7 @@ echo "running e2e tests"
 --vm-genesis-path=${TMPDIR}/tokenvm.genesis \
 --vm-config-path=${TMPDIR}/tokenvm.config \
 --subnet-config-path=${TMPDIR}/tokenvm.subnet \
---output-path=${TMPDIR}/avalanchego-v${VERSION}/output.yaml \
+--output-path=${TMPDIR}/avalanchego-${VERSION}/output.yaml \
 --mode=${MODE}
 
 ############################

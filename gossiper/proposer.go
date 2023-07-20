@@ -175,7 +175,6 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 	}
 	ectx, err := chain.GenerateExecutionContext(
 		ctx,
-		g.vm.ChainID(),
 		now,
 		blk,
 		g.vm.Tracer(),
