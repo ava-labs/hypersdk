@@ -53,13 +53,18 @@ func (b *Time) QueueNotify() {
 		return
 	}
 	now := time.Now().UnixMilli()
-	wait := now - preferredBlk.Tmstmp + b.vm.Rules(now).GetMinBlockGap()
-	if wait <= 0 {
+	since := now - preferredBlk.Tmstmp
+	if since < 0 {
+		since = 0
+	}
+	gap := b.vm.Rules(now).GetMinBlockGap()
+	if since >= gap {
 		b.ForceNotify()
 		b.waiting.Store(false)
 		return
 	}
-	b.timer.SetTimeoutIn(time.Duration(wait * int64(time.Millisecond)))
+	sleep := gap - since
+	b.timer.SetTimeoutIn(time.Duration(sleep * int64(time.Millisecond)))
 }
 
 func (b *Time) ForceNotify() {
