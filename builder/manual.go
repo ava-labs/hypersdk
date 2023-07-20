@@ -23,7 +23,7 @@ func (b *Manual) Run() {
 	close(b.doneBuild)
 }
 
-func (*Manual) MaybeNotify() {}
+func (*Manual) QueueNotify() {}
 
 func (b *Manual) Notify() {
 	select {

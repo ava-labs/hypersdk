@@ -598,7 +598,7 @@ func (vm *VM) buildBlock(
 		if vm.mempool.Len(ctx) == 0 {
 			return
 		}
-		vm.builder.MaybeNotify()
+		vm.builder.QueueNotify()
 	}()
 
 	// Build block and store as parsed
@@ -656,7 +656,7 @@ func (vm *VM) submitStateless(
 	}
 	vm.mempool.Add(ctx, validTxs)
 	if len(validTxs) > 0 {
-		vm.builder.MaybeNotify()
+		vm.builder.QueueNotify()
 	}
 	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	return errs
@@ -748,7 +748,7 @@ func (vm *VM) Submit(
 	}
 	vm.mempool.Add(ctx, validTxs)
 	if len(validTxs) > 0 {
-		vm.builder.MaybeNotify()
+		vm.builder.QueueNotify()
 	}
 	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	return errs

@@ -42,7 +42,7 @@ func (b *Time) handleTimerNotify() {
 	b.waiting.Store(false)
 }
 
-func (b *Time) MaybeNotify() {
+func (b *Time) QueueNotify() {
 	if !b.waiting.CompareAndSwap(false, true) {
 		return
 	}
