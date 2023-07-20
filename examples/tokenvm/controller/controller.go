@@ -170,7 +170,7 @@ func (c *Controller) Initialize(
 
 func (c *Controller) Rules(t int64) chain.Rules {
 	// TODO: extend with [UpgradeBytes]
-	return c.genesis.Rules(t)
+	return c.genesis.Rules(t, c.snowCtx.NetworkID, c.snowCtx.ChainID)
 }
 
 func (c *Controller) StateManager() chain.StateManager {

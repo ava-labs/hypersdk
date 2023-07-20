@@ -25,16 +25,12 @@ type (
 )
 
 type Parser interface {
-	NetworkID() uint32
-	ChainID() ids.ID
 	Rules(int64) Rules
-
 	Registry() (ActionRegistry, AuthRegistry)
 }
 
 type VM interface {
 	Parser
-	HRP() string
 
 	Workers() *workers.Workers
 	Tracer() trace.Tracer
@@ -88,6 +84,12 @@ type Database interface {
 }
 
 type Rules interface {
+	// Should almost always be constant (unless there is a fork of
+	// a live network)
+	NetworkID() uint32
+	ChainID() ids.ID
+	HRP() string
+
 	GetMinBlockGap() int64
 
 	GetMinUnitPrice() uint64

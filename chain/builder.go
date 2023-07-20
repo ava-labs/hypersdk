@@ -70,7 +70,7 @@ func BuildBlock(
 		log.Warn("block building failed", zap.Error(ErrTimestampTooEarly))
 		return nil, ErrTimestampTooEarly
 	}
-	ectx, err := GenerateExecutionContext(ctx, vm.NetworkID(), vm.ChainID(), nextTime, parent, vm.Tracer(), r)
+	ectx, err := GenerateExecutionContext(ctx, nextTime, parent, vm.Tracer(), r)
 	if err != nil {
 		log.Warn("block building failed: couldn't get execution context", zap.Error(err))
 		return nil, err
@@ -192,7 +192,7 @@ func BuildBlock(
 				allowed, num, denom := r.GetWarpConfig(next.WarpMessage.SourceChainID)
 				if allowed {
 					warpErr = next.WarpMessage.Signature.Verify(
-						ctx, &next.WarpMessage.UnsignedMessage, b.vm.NetworkID(),
+						ctx, &next.WarpMessage.UnsignedMessage, r.NetworkID(),
 						vdrState, blockContext.PChainHeight, num, denom,
 					)
 				} else {

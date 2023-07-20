@@ -856,7 +856,11 @@ var exportAssetCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if err := performImport(ctx, cli, rpc.NewJSONRPCClient(uris[0]), trpc.NewJSONRPCClient(uris[0], destination), tx.ID(), priv, factory); err != nil {
+			networkID, _, _, err := cli.Network(ctx)
+			if err != nil {
+				return err
+			}
+			if err := performImport(ctx, cli, rpc.NewJSONRPCClient(uris[0]), trpc.NewJSONRPCClient(uris[0], networkID, destination), tx.ID(), priv, factory); err != nil {
 				return err
 			}
 		}
