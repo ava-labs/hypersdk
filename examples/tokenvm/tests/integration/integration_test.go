@@ -1803,7 +1803,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			Return:             false,
 			Reward:             100,
 			TxID:               ids.GenerateTestID(),
-			DestinationChainID: ids.Empty,
+			DestinationChainID: ids.GenerateTestID(),
 		}
 		wtb, err := wt.Marshal()
 		gomega.Ω(err).Should(gomega.BeNil())
