@@ -42,14 +42,10 @@ type StatefulBlock struct {
 	UnitPrice  uint64        `json:"unitPrice"`
 	UnitWindow window.Window `json:"unitWindow"`
 
-	BlockCost   uint64        `json:"blockCost"`
-	BlockWindow window.Window `json:"blockWindow"`
-
 	Txs []*Transaction `json:"txs"`
 
 	StateRoot     ids.ID     `json:"stateRoot"`
 	UnitsConsumed uint64     `json:"unitsConsumed"`
-	SurplusFee    uint64     `json:"surplusFee"`
 	WarpResults   set.Bits64 `json:"warpResults"`
 }
 
@@ -63,13 +59,20 @@ type warpJob struct {
 	warpNum      int
 }
 
-func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBlock {
+func NewGenesisBlock(root ids.ID, minUnit uint64) *StatefulBlock {
 	return &StatefulBlock{
+		// We set the genesis block timestamp to be after the ProposerVM fork activation.
+		//
+		// This prevents an issue (when using millisecond timestamps) during ProposerVM activation
+		// where the child timestamp is rounded down to the nearest second (which may be before
+		// the timestamp of its parent, which is denoted in milliseconds).
+		//
+		// Link: https://github.com/ava-labs/avalanchego/blob/0ec52a9c6e5b879e367688db01bb10174d70b212
+		// .../vms/proposervm/pre_fork_block.go#L201
+		Tmstmp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
+
 		UnitPrice:  minUnit,
 		UnitWindow: window.Window{},
-
-		BlockCost:   minBlock,
-		BlockWindow: window.Window{},
 
 		StateRoot: root,
 	}
@@ -109,9 +112,6 @@ func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) 
 
 			UnitPrice:  ectx.NextUnitPrice,
 			UnitWindow: ectx.NextUnitWindow,
-
-			BlockCost:   ectx.NextBlockCost,
-			BlockWindow: ectx.NextBlockWindow,
 		},
 		vm: vm,
 		st: choices.Processing,
@@ -197,15 +197,11 @@ func ParseStatefulBlock(
 
 	// Perform basic correctness checks before doing any expensive work
 	if blk.Hght > 0 { // skip genesis
-		if blk.Tmstmp >= time.Now().Add(FutureBound).Unix() {
+		if blk.Tmstmp > time.Now().Add(FutureBound).UnixMilli() {
 			return nil, ErrTimestampTooLate
 		}
 		if len(blk.Txs) == 0 {
 			return nil, ErrNoTxs
-		}
-		r := vm.Rules(blk.Tmstmp)
-		if len(blk.Txs) > r.GetMaxBlockTxs() {
-			return nil, ErrBlockTooBig
 		}
 	}
 
@@ -219,7 +215,7 @@ func ParseStatefulBlock(
 	}
 	b := &StatelessBlock{
 		StatefulBlock: blk,
-		t:             time.Unix(blk.Tmstmp, 0),
+		t:             time.UnixMilli(blk.Tmstmp),
 		bytes:         source,
 		st:            status,
 		vm:            vm,
@@ -253,7 +249,7 @@ func (b *StatelessBlock) initializeBuilt(
 	b.bytes = blk
 	b.id = utils.ToID(b.bytes)
 	b.state = state
-	b.t = time.Unix(b.StatefulBlock.Tmstmp, 0)
+	b.t = time.UnixMilli(b.StatefulBlock.Tmstmp)
 	b.results = results
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
@@ -412,12 +408,10 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Perform basic correctness checks before doing any expensive work
 	switch {
-	case b.Timestamp().Unix() >= time.Now().Add(FutureBound).Unix():
+	case b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli():
 		return nil, ErrTimestampTooLate
 	case len(b.Txs) == 0:
 		return nil, ErrNoTxs
-	case len(b.Txs) > r.GetMaxBlockTxs():
-		return nil, ErrBlockTooBig
 	}
 
 	// Verify parent is verified and available
@@ -426,7 +420,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		log.Debug("could not get parent", zap.Stringer("id", b.Prnt))
 		return nil, err
 	}
-	if b.Timestamp().Unix() < parent.Timestamp().Unix() {
+	if parent.Timestamp().UnixMilli()+r.GetMinBlockGap() > b.Timestamp().UnixMilli() {
 		return nil, ErrTimestampTooEarly
 	}
 
@@ -456,16 +450,11 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, ErrInvalidUnitPrice
 	case b.UnitWindow != ectx.NextUnitWindow:
 		return nil, ErrInvalidUnitWindow
-	case b.BlockCost != ectx.NextBlockCost:
-		return nil, ErrInvalidBlockCost
-	case b.BlockWindow != ectx.NextBlockWindow:
-		return nil, ErrInvalidBlockWindow
 	}
 	log.Info(
 		"verify context",
 		zap.Uint64("height", b.Hght),
 		zap.Uint64("unit price", b.UnitPrice),
-		zap.Uint64("block cost", b.BlockCost),
 	)
 
 	// Start validating warp messages, if they exist
@@ -534,7 +523,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	processor.Prefetch(ctx, state)
 
 	// Process new transactions
-	unitsConsumed, surplusFee, results, stateChanges, stateOps, err := processor.Execute(ctx, ectx, r)
+	unitsConsumed, results, stateChanges, stateOps, err := processor.Execute(ctx, ectx, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return nil, err
@@ -548,25 +537,6 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 			ErrInvalidUnitsConsumed,
 			unitsConsumed,
 			b.UnitsConsumed,
-		)
-	}
-
-	// Ensure enough fee is paid to compensate for block production speed
-	if b.SurplusFee != surplusFee {
-		return nil, fmt.Errorf(
-			"%w: required=%d found=%d",
-			ErrInvalidSurplus,
-			b.SurplusFee,
-			surplusFee,
-		)
-	}
-	requiredSurplus := b.UnitPrice * b.BlockCost
-	if surplusFee < requiredSurplus {
-		return nil, fmt.Errorf(
-			"%w: required=%d found=%d",
-			ErrInsufficientSurplus,
-			requiredSurplus,
-			surplusFee,
 		)
 	}
 
@@ -763,6 +733,9 @@ func (b *StatelessBlock) IsRepeat(
 	defer span.End()
 
 	// Early exit if we are already back at least [ValidityWindow]
+	//
+	// It is critical to ensure this logic is equivalent to [emap] to avoid
+	// non-deterministic verification.
 	if b.Tmstmp < oldestAllowed {
 		return false, nil
 	}
@@ -815,9 +788,6 @@ func (b *StatefulBlock) Marshal(
 	p.PackUint64(b.UnitPrice)
 	p.PackWindow(b.UnitWindow)
 
-	p.PackUint64(b.BlockCost)
-	p.PackWindow(b.BlockWindow)
-
 	p.PackInt(len(b.Txs))
 	for _, tx := range b.Txs {
 		if err := tx.Marshal(p, actionRegistry, authRegistry); err != nil {
@@ -827,7 +797,6 @@ func (b *StatefulBlock) Marshal(
 
 	p.PackID(b.StateRoot)
 	p.PackUint64(b.UnitsConsumed)
-	p.PackUint64(b.SurplusFee)
 	p.PackUint64(uint64(b.WarpResults))
 	return p.Bytes(), p.Err()
 }
@@ -844,9 +813,6 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 
 	b.UnitPrice = p.UnpackUint64(false)
 	p.UnpackWindow(&b.UnitWindow)
-
-	b.BlockCost = p.UnpackUint64(false)
-	p.UnpackWindow(&b.BlockWindow)
 	if err := p.Err(); err != nil {
 		// Check that header was parsed properly before unwrapping transactions
 		return nil, err
@@ -866,7 +832,6 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 
 	p.UnpackID(false, &b.StateRoot)
 	b.UnitsConsumed = p.UnpackUint64(false)
-	b.SurplusFee = p.UnpackUint64(false)
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
 
 	if !p.Empty() {

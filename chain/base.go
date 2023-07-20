@@ -6,10 +6,11 @@ package chain
 import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 type Base struct {
-	// Timestamp is the expiry of the transaction. Once this time passes and the
+	// Timestamp is the expiry of the transaction (inclusive). Once this time passes and the
 	// transaction is not included in a block, it is safe to regenerate it.
 	Timestamp int64 `json:"nonce"`
 
@@ -22,6 +23,9 @@ type Base struct {
 
 func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 	switch {
+	case b.Timestamp%consts.MillisecondsPerSecond != 0:
+		// TODO: make this modulus configurable
+		return ErrMisalignedTime
 	case b.Timestamp < timestamp: // tx: 100 block: 110
 		return ErrTimestampTooLate
 	case b.Timestamp > timestamp+r.GetValidityWindow(): // tx: 100 block 10
@@ -44,6 +48,10 @@ func (b *Base) Marshal(p *codec.Packer) {
 func UnmarshalBase(p *codec.Packer) (*Base, error) {
 	var base Base
 	base.Timestamp = p.UnpackInt64(true)
+	if base.Timestamp%consts.MillisecondsPerSecond != 0 {
+		// TODO: make this modulus configurable
+		return nil, ErrMisalignedTime
+	}
 	p.UnpackID(true, &base.ChainID)
 	base.UnitPrice = p.UnpackUint64(true)
 	return &base, p.Err()

@@ -19,7 +19,3 @@ go-license --config=./license.yml **/*.go
 echo "gofumpt files"
 go install mvdan.cc/gofumpt@latest
 gofumpt -l -w .
-
-echo "shortening long lines"
-go install github.com/segmentio/golines@latest
-golines -w .

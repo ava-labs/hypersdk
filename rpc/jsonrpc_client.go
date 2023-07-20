@@ -37,7 +37,6 @@ type JSONRPCClient struct {
 
 	lastSuggestedFee time.Time
 	unitPrice        uint64
-	blockCost        uint64
 }
 
 func NewJSONRPCClient(uri string) *JSONRPCClient {
@@ -89,9 +88,9 @@ func (cli *JSONRPCClient) Accepted(ctx context.Context) (ids.ID, uint64, int64, 
 	return resp.BlockID, resp.Height, resp.Timestamp, err
 }
 
-func (cli *JSONRPCClient) SuggestedRawFee(ctx context.Context) (uint64, uint64, error) {
+func (cli *JSONRPCClient) SuggestedRawFee(ctx context.Context) (uint64, error) {
 	if time.Since(cli.lastSuggestedFee) < suggestedFeeCacheRefresh {
-		return cli.unitPrice, cli.blockCost, nil
+		return cli.unitPrice, nil
 	}
 
 	resp := new(SuggestedRawFeeReply)
@@ -102,14 +101,13 @@ func (cli *JSONRPCClient) SuggestedRawFee(ctx context.Context) (uint64, uint64, 
 		resp,
 	)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	cli.unitPrice = resp.UnitPrice
-	cli.blockCost = resp.BlockCost
 	// We update the time last in case there are concurrent requests being
 	// processed (we don't want them to get an inconsistent view).
 	cli.lastSuggestedFee = time.Now()
-	return resp.UnitPrice, resp.BlockCost, nil
+	return resp.UnitPrice, nil
 }
 
 func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error) {
@@ -171,7 +169,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 	modifiers ...Modifier,
 ) (func(context.Context) error, *chain.Transaction, uint64, error) {
 	// Get latest fee info
-	unitPrice, _, err := cli.SuggestedRawFee(ctx)
+	unitPrice, err := cli.SuggestedRawFee(ctx)
 	if err != nil {
 		return nil, nil, 0, err
 	}
@@ -188,10 +186,10 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	modifiers ...Modifier,
 ) (func(context.Context) error, *chain.Transaction, uint64, error) {
 	// Construct transaction
-	now := time.Now().Unix()
+	now := time.Now().UnixMilli()
 	rules := parser.Rules(now)
 	base := &chain.Base{
-		Timestamp: now + rules.GetValidityWindow(),
+		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
 		ChainID:   parser.ChainID(),
 		UnitPrice: unitPrice, // never pay blockCost
 	}

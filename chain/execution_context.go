@@ -18,9 +18,6 @@ type ExecutionContext struct {
 
 	NextUnitPrice  uint64
 	NextUnitWindow window.Window
-
-	NextBlockCost   uint64
-	NextBlockWindow window.Window
 }
 
 func computeNextPriceWindow(
@@ -96,7 +93,7 @@ func computeNextPriceWindow(
 func GenerateExecutionContext(
 	ctx context.Context,
 	chainID ids.ID,
-	currTime int64,
+	currTime int64, // ms
 	parent *StatelessBlock,
 	tracer trace.Tracer, //nolint:interfacer
 	r Rules,
@@ -104,7 +101,8 @@ func GenerateExecutionContext(
 	_, span := tracer.Start(ctx, "chain.GenerateExecutionContext")
 	defer span.End()
 
-	since := int(currTime - parent.Tmstmp)
+	// TODO: support more granular fee adjustment periods?
+	since := int((currTime - parent.Tmstmp) / consts.MillisecondsPerSecond) // convert to seconds
 	nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
 		parent.UnitWindow,
 		parent.UnitsConsumed,
@@ -117,25 +115,10 @@ func GenerateExecutionContext(
 	if err != nil {
 		return nil, err
 	}
-	nextBlockCost, nextBlockWindow, err := computeNextPriceWindow(
-		parent.BlockWindow,
-		1,
-		parent.BlockCost,
-		r.GetWindowTargetBlocks(),
-		r.GetBlockCostChangeDenominator(),
-		r.GetMinBlockCost(),
-		since,
-	)
-	if err != nil {
-		return nil, err
-	}
 	return &ExecutionContext{
 		ChainID: chainID,
 
 		NextUnitPrice:  nextUnitPrice,
 		NextUnitWindow: nextUnitWindow,
-
-		NextBlockCost:   nextBlockCost,
-		NextBlockWindow: nextBlockWindow,
 	}, nil
 }

@@ -113,6 +113,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	vm.parsedBlocks.Evict(b.ID())
 	vm.mempool.Remove(ctx, b.Txs)
 	vm.gossiper.BlockVerified(b.Tmstmp)
+	vm.builder.QueueNotify()
 	vm.snowCtx.Log.Info(
 		"verified block",
 		zap.Stringer("blkID", b.ID()),
@@ -223,8 +224,12 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	vm.lastAccepted = b
 
 	// Update replay protection heap
+	//
+	// Transactions are added to [seen] with their [expiry], so we don't need to
+	// transform [blkTime] when calling [SetMin] here.
 	blkTime := b.Tmstmp
-	vm.seen.SetMin(blkTime)
+	evicted := vm.seen.SetMin(blkTime)
+	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evicted)))
 	vm.seen.Add(b.Txs)
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with

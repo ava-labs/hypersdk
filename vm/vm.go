@@ -152,7 +152,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	if err := gatherer.Register("hyper_sdk", defaultRegistry); err != nil {
+	if err := gatherer.Register("hypersdk", defaultRegistry); err != nil {
 		return err
 	}
 	vm.metrics = metrics
@@ -271,7 +271,7 @@ func (vm *VM) Initialize(
 		genesisRules := vm.c.Rules(0)
 		genesisBlk, err := chain.ParseStatefulBlock(
 			ctx,
-			chain.NewGenesisBlock(root, genesisRules.GetMinUnitPrice(), genesisRules.GetMinBlockCost()),
+			chain.NewGenesisBlock(root, genesisRules.GetMinUnitPrice()),
 			nil,
 			choices.Accepted,
 			vm,
@@ -593,8 +593,14 @@ func (vm *VM) buildBlock(
 		return nil, ErrNotReady
 	}
 
+	// Notify builder if we should build again (whether or not we are successful this time)
+	//
+	// Note: builder should regulate whether or not it actually decides to build based on state
+	// of the mempool.
+	defer vm.builder.QueueNotify()
+
+	// Build block and store as parsed
 	blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
-	vm.builder.HandleGenerateBlock()
 	if err != nil {
 		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
 		return nil, err
@@ -647,6 +653,7 @@ func (vm *VM) submitStateless(
 		validTxs = append(validTxs, tx)
 	}
 	vm.mempool.Add(ctx, validTxs)
+	vm.builder.QueueNotify()
 	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	return errs
 }
@@ -681,7 +688,7 @@ func (vm *VM) Submit(
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
-	now := time.Now().Unix()
+	now := time.Now().UnixMilli()
 	r := vm.c.Rules(now)
 	ectx, err := chain.GenerateExecutionContext(ctx, vm.snowCtx.ChainID, now, blk, vm.tracer, r)
 	if err != nil {
@@ -736,6 +743,8 @@ func (vm *VM) Submit(
 		validTxs = append(validTxs, tx)
 	}
 	vm.mempool.Add(ctx, validTxs)
+	vm.builder.QueueNotify()
+	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	return errs
 }
 

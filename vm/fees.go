@@ -11,28 +11,22 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 )
 
-const (
-	feeScaler = 0.8
-)
+const feeScaler = 0.8
 
-func (vm *VM) SuggestedFee(ctx context.Context) (uint64, uint64, error) {
+func (vm *VM) SuggestedFee(ctx context.Context) (uint64, error) {
 	ctx, span := vm.tracer.Start(ctx, "VM.SuggestedFee")
 	defer span.End()
 
 	rpreferred, err := vm.GetBlock(ctx, vm.preferred)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	preferred := rpreferred.(*chain.StatelessBlock)
 
 	// We scale down unit price to prevent a spiral up in price
-	r := vm.c.Rules(time.Now().Unix())
+	r := vm.c.Rules(time.Now().UnixMilli())
 	return math.Max(
-			uint64(float64(preferred.UnitPrice)*feeScaler),
-			r.GetMinUnitPrice(),
-		),
-		math.Max(
-			uint64(float64(preferred.BlockCost)*feeScaler),
-			r.GetMinBlockCost(),
-		), nil
+		uint64(float64(preferred.UnitPrice)*feeScaler),
+		r.GetMinUnitPrice(),
+	), nil
 }

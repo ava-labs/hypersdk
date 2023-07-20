@@ -68,7 +68,7 @@ type Controller interface {
 		err error,
 	)
 
-	Rules(t int64) chain.Rules
+	Rules(t int64) chain.Rules // ms
 
 	// StateManager is used by the VM to request keys to store required
 	// information in state (without clobbering things the Controller is

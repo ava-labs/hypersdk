@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -18,6 +17,8 @@ import (
 
 	"github.com/ava-labs/hypersdk/tstate"
 )
+
+const maxViewPreallocation = 10_000
 
 func HandlePreExecute(
 	err error,
@@ -53,12 +54,21 @@ func BuildBlock(
 	defer span.End()
 	log := vm.Logger()
 
-	nextTime := time.Now().Unix()
-	r := vm.Rules(nextTime)
+	mempoolSize := vm.Mempool().Len(ctx)
+	if mempoolSize == 0 {
+		log.Warn("block building failed", zap.Error(ErrNoTxs))
+		return nil, ErrNoTxs
+	}
 	parent, err := vm.GetStatelessBlock(ctx, preferred)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent", zap.Error(err))
 		return nil, err
+	}
+	nextTime := time.Now().UnixMilli()
+	r := vm.Rules(nextTime)
+	if parent.Tmstmp+r.GetMinBlockGap() > nextTime {
+		log.Warn("block building failed", zap.Error(ErrTimestampTooEarly))
+		return nil, ErrTimestampTooEarly
 	}
 	ectx, err := GenerateExecutionContext(ctx, vm.ChainID(), nextTime, parent, vm.Tracer(), r)
 	if err != nil {
@@ -67,7 +77,7 @@ func BuildBlock(
 	}
 	b := NewBlock(ectx, vm, parent, nextTime)
 
-	changesEstimate := math.Min(vm.Mempool().Len(ctx), r.GetMaxBlockTxs())
+	changesEstimate := math.Min(mempoolSize, maxViewPreallocation)
 	state, err := parent.childState(ctx, changesEstimate)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
@@ -224,7 +234,7 @@ func BuildBlock(
 				}
 				warpCount++
 			}
-			return len(b.Txs) < r.GetMaxBlockTxs(), false, false, nil
+			return true, false, false, nil
 		},
 	)
 	span.SetAttributes(
@@ -240,18 +250,6 @@ func BuildBlock(
 	if len(b.Txs) == 0 {
 		return nil, ErrNoTxs
 	}
-	requiredSurplus := b.UnitPrice * b.BlockCost
-	if surplusFee < requiredSurplus {
-		// This is a very common result during block building
-		b.vm.Mempool().Add(ctx, b.Txs)
-		return nil, fmt.Errorf(
-			"%w: required=%d found=%d",
-			ErrInsufficientSurplus,
-			requiredSurplus,
-			surplusFee,
-		)
-	}
-	b.SurplusFee = surplusFee
 
 	// Get root from underlying state changes after writing all changed keys
 	if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
@@ -284,6 +282,8 @@ func BuildBlock(
 		zap.Bool("context", blockContext != nil),
 		zap.Int("state changes", ts.PendingChanges()),
 		zap.Int("state operations", ts.OpIndex()),
+		zap.Int64("parent (t)", parent.Tmstmp),
+		zap.Int64("block (t)", b.Tmstmp),
 	)
 	return b, nil
 }

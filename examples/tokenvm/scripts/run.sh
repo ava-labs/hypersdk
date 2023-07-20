@@ -22,17 +22,17 @@ MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 AVALANCHE_LOG_LEVEL=${AVALANCHE_LOG_LEVEL:-INFO}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
-PROPOSER_MIN_BLOCK_DELAY=${PROPOSER_MIN_BLOCK_DELAY:-0}
+MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
 if [[ ${MODE} != "run" && ${MODE} != "run-single" ]]; then
-  STATESYNC_DELAY=500000000 # 500ms
-  PROPOSER_MIN_BLOCK_DELAY=100000000 # 100ms
+  STATESYNC_DELAY=100000000 # 100ms
+  MIN_BLOCK_GAP=250 #ms
 fi
 
 echo "Running with:"
 echo VERSION: ${VERSION}
 echo MODE: ${MODE}
-echo STATESYNC_DELAY: ${STATESYNC_DELAY}
-echo PROPOSER_MIN_BLOCK_DELAY: ${PROPOSER_MIN_BLOCK_DELAY}
+echo STATESYNC_DELAY \(ns\): ${STATESYNC_DELAY}
+echo MIN_BLOCK_GAP \(ms\): ${MIN_BLOCK_GAP}
 
 ############################
 # build avalanchego
@@ -107,7 +107,7 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   ${TMPDIR}/token-cli genesis generate ${TMPDIR}/allocations.json \
   --max-block-units 4000000 \
   --window-target-units 100000000000 \
-  --window-target-blocks 30 \
+  --min-block-gap ${MIN_BLOCK_GAP} \
   --genesis-file ${TMPDIR}/tokenvm.genesis
 else
   echo "copying custom genesis file"
@@ -150,7 +150,7 @@ echo "creating subnet config"
 rm -f ${TMPDIR}/tokenvm.subnet
 cat <<EOF > ${TMPDIR}/tokenvm.subnet
 {
-  "proposerMinBlockDelay": ${PROPOSER_MIN_BLOCK_DELAY}
+  "proposerMinBlockDelay": 0
 }
 EOF
 

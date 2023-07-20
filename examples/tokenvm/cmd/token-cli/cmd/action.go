@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	dummyBlockAgeThreshold = 25
+	dummyBlockAgeThreshold = 25 * consts.MillisecondsPerSecond
 	dummyHeightThreshold   = 3
 )
 
@@ -614,7 +614,7 @@ func performImport(
 			return err
 		}
 	}
-	if !fill && wt.SwapExpiry > time.Now().Unix() {
+	if !fill && wt.SwapExpiry > time.Now().UnixMilli() {
 		return ErrMustFill
 	}
 
@@ -662,7 +662,7 @@ func submitDummy(
 			return err
 		}
 		underHeight := h < dummyHeightThreshold
-		if underHeight || time.Now().Unix()-t > dummyBlockAgeThreshold {
+		if underHeight || time.Now().UnixMilli()-t > dummyBlockAgeThreshold {
 			if underHeight && !logEmitted {
 				hutils.Outf(
 					"{{yellow}}waiting for snowman++ activation (needed for AWM)...{{/}}\n",

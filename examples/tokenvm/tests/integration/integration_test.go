@@ -174,7 +174,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	if minPrice >= 0 {
 		gen.MinUnitPrice = uint64(minPrice)
 	}
-	gen.WindowTargetBlocks = 1_000_000 // deactivate block fee
+	gen.MinBlockGap = 0
 	gen.CustomAllocation = []*genesis.CustomAllocation{
 		{
 			Address: sender,
@@ -352,7 +352,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("send gossip from node 0 to 1", func() {
-			err := instances[0].vm.Gossiper().TriggerGossip(context.TODO())
+			err := instances[0].vm.Gossiper().ForceGossip(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
 		})
 
@@ -396,7 +396,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("receive gossip in the node 1, and signal block build", func() {
-			instances[1].vm.Builder().TriggerBuild()
+			instances[1].vm.Builder().ForceNotify()
 			<-instances[1].toEngine
 		})
 
@@ -451,6 +451,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			time.Sleep(2 * time.Second) // for replay test
 			accept := expectBlk(instances[1])
 			results := accept()
 			gomega.Ω(results).Should(gomega.HaveLen(1))
@@ -480,6 +481,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			time.Sleep(2 * time.Second) // for replay test
 			accept = expectBlk(instances[1])
 
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
@@ -494,6 +496,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			time.Sleep(2 * time.Second) // for replay test
 			accept2 = expectBlk(instances[1])
 		})
 
@@ -524,7 +527,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 
-			err = instances[1].vm.Gossiper().TriggerGossip(context.TODO())
+			err = instances[1].vm.Gossiper().ForceGossip(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
 
 			// mempool in 0 should be 1 (old amount), since gossip/submit failed
@@ -532,7 +535,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 	})
 
-	ginkgo.It("ensure unprocessed tip works", func() {
+	ginkgo.It("ensure unprocessed tip and replay protection works", func() {
 		ginkgo.By("import accepted blocks to instance 2", func() {
 			ctx := context.TODO()
 			o := instances[1]
@@ -567,6 +570,14 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			err = blk3.Verify(ctx)
 			gomega.Ω(err).Should(gomega.BeNil())
 
+			// Check if tx from old block would be considered a repeat on processing tip
+			tx := blk2.(*chain.StatelessBlock).Txs[0]
+			sblk3 := blk3.(*chain.StatelessBlock)
+			sblk3t := sblk3.Timestamp().UnixMilli()
+			ok, err := sblk3.IsRepeat(ctx, sblk3t-n.vm.Rules(sblk3t).GetValidityWindow(), []*chain.Transaction{tx})
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(ok).Should(gomega.BeTrue())
+
 			// Accept tip
 			err = blk1.Accept(ctx)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -582,6 +593,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			err = blk4.Accept(ctx)
 			gomega.Ω(err).Should(gomega.BeNil())
+
+			// Check if tx from old block would be considered a repeat on accepted tip
+			time.Sleep(2 * time.Second)
+			gomega.Ω(n.vm.IsRepeat(ctx, []*chain.Transaction{tx})).Should(gomega.BeTrue())
 		})
 	})
 
@@ -639,7 +654,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		g, err := instances[0].tcli.Genesis(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
-		r := g.Rules(time.Now().Unix())
+		r := g.Rules(time.Now().UnixMilli())
 		maxUnits, err := rawTx.MaxUnits(r)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(balancea + maxUnits + 1))
@@ -769,7 +784,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().Unix(),
+				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				UnitPrice: 1000,
 			},
 			nil,
@@ -989,7 +1004,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().Unix(),
+				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				UnitPrice: 1000,
 			},
 			nil,
@@ -1135,7 +1150,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().Unix(),
+				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				UnitPrice: 1000,
 			},
 			nil,
@@ -1659,7 +1674,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().Unix(),
+				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				UnitPrice: 1000,
 			},
 			nil,
@@ -1689,7 +1704,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().Unix(),
+				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				UnitPrice: 1000,
 			},
 			wm,
@@ -1721,7 +1736,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().Unix(),
+				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				UnitPrice: 1000,
 			},
 			wm,
@@ -1756,7 +1771,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().Unix(),
+				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				UnitPrice: 1000,
 			},
 			wm,
@@ -1807,7 +1822,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 
 		// Build block with no context (should fail)
-		instances[0].vm.Builder().TriggerBuild()
+		instances[0].vm.Builder().ForceNotify()
 		<-instances[0].toEngine
 		blk, err := instances[0].vm.BuildBlock(context.TODO())
 		gomega.Ω(err).To(gomega.Not(gomega.BeNil()))
@@ -1902,7 +1917,7 @@ func expectBlk(i instance) func() []*chain.Result {
 	ctx := context.TODO()
 
 	// manually signal ready
-	i.vm.Builder().TriggerBuild()
+	i.vm.Builder().ForceNotify()
 	// manually ack ready sig as in engine
 	<-i.toEngine
 
@@ -1932,7 +1947,7 @@ func expectBlkWithContext(i instance) func() []*chain.Result {
 	ctx := context.TODO()
 
 	// manually signal ready
-	i.vm.Builder().TriggerBuild()
+	i.vm.Builder().ForceNotify()
 	// manually ack ready sig as in engine
 	<-i.toEngine
 

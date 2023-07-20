@@ -11,10 +11,12 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/perms"
+	"github.com/ava-labs/hypersdk/consts"
 	formatter "github.com/onsi/ginkgo/v2/formatter"
 )
 
@@ -82,4 +84,19 @@ func Repeat[T any](v T, n int) []T {
 		arr[i] = v
 	}
 	return arr
+}
+
+// UnixRMilli returns the current unix time in milliseconds, rounded
+// down to the nearsest second.
+//
+// [now] is used as the current unix time in milliseconds if >= 0.
+//
+// [add] (in ms) is added to the unix time before it is rounded (typically
+// used when generating an expiry time with a validity window).
+func UnixRMilli(now, add int64) int64 {
+	if now < 0 {
+		now = time.Now().UnixMilli()
+	}
+	t := now + add
+	return t - t%consts.MillisecondsPerSecond
 }

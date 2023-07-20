@@ -17,4 +17,5 @@ type VM interface {
 	PreferredBlock(context.Context) (*chain.StatelessBlock, error)
 	Logger() logging.Logger
 	Mempool() chain.Mempool
+	Rules(int64) chain.Rules
 }

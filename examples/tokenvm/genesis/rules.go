@@ -27,16 +27,16 @@ func (*Rules) GetWarpConfig(ids.ID) (bool, uint64, uint64) {
 	return true, 4, 5
 }
 
-func (r *Rules) GetWarpBaseFee() uint64 {
-	return r.g.WarpBaseFee
+func (r *Rules) GetMinBlockGap() int64 {
+	return r.g.MinBlockGap
 }
 
-func (r *Rules) GetWarpFeePerSigner() uint64 {
-	return r.g.WarpFeePerSigner
+func (r *Rules) GetWarpBaseUnits() uint64 {
+	return r.g.WarpBaseUnits
 }
 
-func (r *Rules) GetMaxBlockTxs() int {
-	return r.g.MaxBlockTxs
+func (r *Rules) GetWarpUnitsPerSigner() uint64 {
+	return r.g.WarpUnitsPerSigner
 }
 
 func (r *Rules) GetValidityWindow() int64 {
@@ -61,18 +61,6 @@ func (r *Rules) GetUnitPriceChangeDenominator() uint64 {
 
 func (r *Rules) GetWindowTargetUnits() uint64 {
 	return r.g.WindowTargetUnits
-}
-
-func (r *Rules) GetMinBlockCost() uint64 {
-	return r.g.MinBlockCost
-}
-
-func (r *Rules) GetBlockCostChangeDenominator() uint64 {
-	return r.g.BlockCostChangeDenominator
-}
-
-func (r *Rules) GetWindowTargetBlocks() uint64 {
-	return r.g.WindowTargetBlocks
 }
 
 func (*Rules) FetchCustom(string) (any, bool) {

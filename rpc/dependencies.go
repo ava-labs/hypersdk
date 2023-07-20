@@ -27,7 +27,7 @@ type VM interface {
 		txs []*chain.Transaction,
 	) (errs []error)
 	LastAcceptedBlock() *chain.StatelessBlock
-	SuggestedFee(context.Context) (uint64, uint64, error)
+	SuggestedFee(context.Context) (uint64, error)
 	GetOutgoingWarpMessage(ids.ID) (*warp.UnsignedMessage, error)
 	GetWarpSignatures(ids.ID) ([]*chain.WarpSignature, error)
 	CurrentValidators(

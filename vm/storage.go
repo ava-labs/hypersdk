@@ -196,7 +196,7 @@ func PrefixWarpFetchKey(txID ids.ID) []byte {
 
 func (vm *VM) StoreWarpFetch(txID ids.ID) error {
 	k := PrefixWarpFetchKey(txID)
-	return vm.vmDB.Put(k, binary.BigEndian.AppendUint64(nil, uint64(time.Now().Unix())))
+	return vm.vmDB.Put(k, binary.BigEndian.AppendUint64(nil, uint64(time.Now().UnixMilli())))
 }
 
 func (vm *VM) GetWarpFetch(txID ids.ID) (int64, error) {

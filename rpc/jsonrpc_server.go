@@ -98,7 +98,6 @@ func (j *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAc
 
 type SuggestedRawFeeReply struct {
 	UnitPrice uint64 `json:"unitPrice"`
-	BlockCost uint64 `json:"blockCost"`
 }
 
 func (j *JSONRPCServer) SuggestedRawFee(
@@ -109,12 +108,11 @@ func (j *JSONRPCServer) SuggestedRawFee(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SuggestedRawFee")
 	defer span.End()
 
-	unitPrice, blockCost, err := j.vm.SuggestedFee(ctx)
+	unitPrice, err := j.vm.SuggestedFee(ctx)
 	if err != nil {
 		return err
 	}
 	reply.UnitPrice = unitPrice
-	reply.BlockCost = blockCost
 	return nil
 }
 

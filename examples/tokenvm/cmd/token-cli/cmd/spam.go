@@ -290,7 +290,7 @@ var runSpamCmd = &cobra.Command{
 		}()
 
 		// broadcast txs
-		unitPrice, _, err := clients[0].c.SuggestedRawFee(ctx)
+		unitPrice, err := clients[0].c.SuggestedRawFee(ctx)
 		if err != nil {
 			return err
 		}

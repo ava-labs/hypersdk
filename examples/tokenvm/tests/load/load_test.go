@@ -37,6 +37,7 @@ import (
 	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/pebble"
+	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/ava-labs/hypersdk/workers"
 
@@ -177,9 +178,9 @@ var _ = ginkgo.BeforeSuite(func() {
 	// create embedded VMs
 	instances = make([]*instance, vms)
 	gen = genesis.Default()
-	gen.WindowTargetUnits = 1_000_000_000  // disable unit price increase
-	gen.WindowTargetBlocks = 1_000_000_000 // disable block cost increase
-	gen.ValidityWindow = 100_000           // txs shouldn't expire
+	gen.WindowTargetUnits = 1_000_000_000                      // disable unit price increase
+	gen.MinBlockGap = 0                                        // don't require time between blocks
+	gen.ValidityWindow = 1_000 * hconsts.MillisecondsPerSecond // txs shouldn't expire
 	gen.CustomAllocation = []*genesis.CustomAllocation{
 		{
 			Address: sender,
@@ -487,7 +488,7 @@ func issueSimpleTx(
 ) (ids.ID, error) {
 	tx := chain.NewTx(
 		&chain.Base{
-			Timestamp: time.Now().Unix() + 100_000,
+			Timestamp: hutils.UnixRMilli(-1, 100*hconsts.MillisecondsPerSecond),
 			ChainID:   i.chainID,
 			UnitPrice: 1,
 		},

@@ -35,11 +35,11 @@ func (g *Manual) Run(appSender common.AppSender) {
 	close(g.doneGossip)
 }
 
-func (g *Manual) TriggerGossip(ctx context.Context) error {
+func (g *Manual) ForceGossip(ctx context.Context) error {
 	// Gossip highest paying txs
 	txs := []*chain.Transaction{}
 	totalUnits := uint64(0)
-	now := time.Now().Unix()
+	now := time.Now().UnixMilli()
 	r := g.vm.Rules(now)
 	mempoolErr := g.vm.Mempool().Build(
 		ctx,
@@ -50,18 +50,20 @@ func (g *Manual) TriggerGossip(ctx context.Context) error {
 			}
 
 			// Gossip up to a block of content
+			// TODO: handle case where large tx with a ton of units clogs
 			units, err := next.MaxUnits(r)
 			if err != nil {
 				// Should never happen
 				return true, false, false, nil
 			}
+			// TODO: limit to a smaller amount
 			if units+totalUnits > r.GetMaxBlockUnits() {
 				// Attempt to mirror the function of building a block without execution
 				return false, true, false, nil
 			}
 			txs = append(txs, next)
 			totalUnits += units
-			return len(txs) < r.GetMaxBlockTxs(), true, false, nil
+			return true, true, false, nil
 		},
 	)
 	if mempoolErr != nil {
@@ -87,9 +89,8 @@ func (g *Manual) TriggerGossip(ctx context.Context) error {
 }
 
 func (g *Manual) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	r := g.vm.Rules(time.Now().Unix())
 	actionRegistry, authRegistry := g.vm.Registry()
-	txs, err := chain.UnmarshalTxs(msg, r.GetMaxBlockTxs(), actionRegistry, authRegistry)
+	txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionRegistry, authRegistry)
 	if err != nil {
 		g.vm.Logger().Warn(
 			"AppGossip provided invalid txs",

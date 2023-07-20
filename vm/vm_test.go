@@ -32,7 +32,6 @@ func TestBlockCache(t *testing.T) {
 			Prnt:      ids.GenerateTestID(),
 			Hght:      10000,
 			UnitPrice: 1000,
-			BlockCost: 100,
 		},
 	}
 	blkID := blk.ID()
@@ -57,7 +56,7 @@ func TestBlockCache(t *testing.T) {
 	reg, m, err := newMetrics()
 	require.NoError(err)
 	vm.metrics = m
-	require.NoError(gatherer.Register("hyper_sdk", reg))
+	require.NoError(gatherer.Register("hypersdk", reg))
 	require.NoError(vm.snowCtx.Metrics.Register(gatherer))
 
 	// put the block into the cache "vm.blocks"

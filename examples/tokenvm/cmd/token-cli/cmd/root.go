@@ -25,18 +25,18 @@ var (
 	dbPath string
 	db     database.Database
 
-	genesisFile        string
-	minUnitPrice       int64
-	maxBlockUnits      int64
-	windowTargetUnits  int64
-	windowTargetBlocks int64
-	hideTxs            bool
-	randomRecipient    bool
-	maxTxBacklog       int
-	deleteOtherChains  bool
-	checkAllChains     bool
-	prometheusFile     string
-	prometheusData     string
+	genesisFile       string
+	minUnitPrice      int64
+	maxBlockUnits     int64
+	windowTargetUnits int64
+	minBlockGap       int64
+	hideTxs           bool
+	randomRecipient   bool
+	maxTxBacklog      int
+	deleteOtherChains bool
+	checkAllChains    bool
+	prometheusFile    string
+	prometheusData    string
 
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
@@ -98,10 +98,10 @@ func init() {
 		"window target units",
 	)
 	genGenesisCmd.PersistentFlags().Int64Var(
-		&windowTargetBlocks,
-		"window-target-blocks",
+		&minBlockGap,
+		"min-block-gap",
 		-1,
-		"window target blocks",
+		"minimum block gap (ms)",
 	)
 	genesisCmd.AddCommand(
 		genGenesisCmd,

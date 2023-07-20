@@ -155,11 +155,11 @@ func (t *Transaction) MaxUnits(r Rules) (txFee uint64, err error) {
 		return 0, err
 	}
 	if t.WarpMessage != nil {
-		txFee, err = smath.Add64(txFee, r.GetWarpBaseFee())
+		txFee, err = smath.Add64(txFee, r.GetWarpBaseUnits())
 		if err != nil {
 			return 0, err
 		}
-		warpSignerFee, err := smath.Mul64(uint64(t.numWarpSigners), r.GetWarpFeePerSigner())
+		warpSignerFee, err := smath.Mul64(uint64(t.numWarpSigners), r.GetWarpUnitsPerSigner())
 		if err != nil {
 			return 0, err
 		}
@@ -283,8 +283,8 @@ func (t *Transaction) Execute(
 	// Update action units with other items
 	result.Units += r.GetBaseUnits() + authUnits
 	if t.WarpMessage != nil {
-		result.Units += r.GetWarpBaseFee()
-		result.Units += uint64(t.numWarpSigners) * r.GetWarpFeePerSigner()
+		result.Units += r.GetWarpBaseUnits()
+		result.Units += uint64(t.numWarpSigners) * r.GetWarpUnitsPerSigner()
 	}
 
 	// Return any funds from unused units
@@ -382,22 +382,19 @@ func MarshalTxs(
 
 func UnmarshalTxs(
 	raw []byte,
-	maxCount int,
+	initialCapacity int,
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
 ) ([]*Transaction, error) {
 	p := codec.NewReader(raw, consts.NetworkSizeLimit)
 	txCount := p.UnpackInt(true)
-	if txCount > maxCount {
-		return nil, ErrTooManyTxs
-	}
-	txs := make([]*Transaction, txCount)
+	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
 	for i := 0; i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, err
 		}
-		txs[i] = tx
+		txs = append(txs, tx)
 	}
 	if !p.Empty() {
 		// Ensure no leftover bytes
