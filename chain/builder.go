@@ -210,7 +210,6 @@ func BuildBlock(
 			// If execution works, keep moving forward with new state
 			result, err := next.Execute(
 				fctx,
-				ectx,
 				r,
 				sm,
 				ts,

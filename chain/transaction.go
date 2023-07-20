@@ -220,7 +220,6 @@ func (t *Transaction) PreExecute(
 // Execute after knowing a transaction can pay a fee
 func (t *Transaction) Execute(
 	ctx context.Context,
-	ectx *ExecutionContext,
 	r Rules,
 	s StateManager,
 	tdb *tstate.TState,
