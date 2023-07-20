@@ -62,7 +62,7 @@ func (b *Time) QueueNotify() {
 	b.timer.SetTimeoutIn(time.Duration(wait * int64(time.Millisecond)))
 }
 
-func (b *Time) Notify() {
+func (b *Time) ForceNotify() {
 	select {
 	case b.vm.EngineChan() <- common.PendingTxs:
 	default:

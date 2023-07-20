@@ -25,7 +25,7 @@ func (b *Manual) Run() {
 
 func (*Manual) QueueNotify() {}
 
-func (b *Manual) Notify() {
+func (b *Manual) ForceNotify() {
 	select {
 	case b.vm.EngineChan() <- common.PendingTxs:
 	default:
