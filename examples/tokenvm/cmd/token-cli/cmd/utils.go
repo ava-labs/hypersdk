@@ -405,7 +405,11 @@ func getAssetInfo(
 	return balance, sourceChainID, nil
 }
 
-func defaultActor() (uint32, ids.ID, crypto.PrivateKey, *auth.ED25519Factory, *rpc.JSONRPCClient, *trpc.JSONRPCClient, error) {
+//nolint:unparam
+func defaultActor() (
+	uint32, ids.ID, crypto.PrivateKey, *auth.ED25519Factory,
+	*rpc.JSONRPCClient, *trpc.JSONRPCClient, error,
+) {
 	priv, err := GetDefaultKey()
 	if err != nil {
 		return 0, ids.Empty, crypto.EmptyPrivateKey, nil, nil, nil, err

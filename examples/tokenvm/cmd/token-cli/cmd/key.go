@@ -155,7 +155,10 @@ var balanceKeyCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if _, _, err = getAssetInfo(ctx, trpc.NewJSONRPCClient(uri, networkID, chainID), priv.PublicKey(), assetID, true); err != nil {
+			if _, _, err = getAssetInfo(
+				ctx, trpc.NewJSONRPCClient(uri, networkID, chainID),
+				priv.PublicKey(), assetID, true,
+			); err != nil {
 				return err
 			}
 		}
