@@ -786,7 +786,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().UnixMilli(),
+				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				UnitPrice: 1000,
 			},
 			nil,
@@ -1006,7 +1006,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().UnixMilli(),
+				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				UnitPrice: 1000,
 			},
 			nil,
@@ -1152,7 +1152,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().UnixMilli(),
+				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				UnitPrice: 1000,
 			},
 			nil,
@@ -1676,7 +1676,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().UnixMilli(),
+				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				UnitPrice: 1000,
 			},
 			nil,
@@ -1706,7 +1706,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().UnixMilli(),
+				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				UnitPrice: 1000,
 			},
 			wm,
@@ -1738,7 +1738,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().UnixMilli(),
+				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				UnitPrice: 1000,
 			},
 			wm,
@@ -1773,7 +1773,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
-				Timestamp: time.Now().UnixMilli(),
+				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				UnitPrice: 1000,
 			},
 			wm,

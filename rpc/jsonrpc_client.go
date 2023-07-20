@@ -189,7 +189,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	now := time.Now().UnixMilli()
 	rules := parser.Rules(now)
 	base := &chain.Base{
-		Timestamp: now + rules.GetValidityWindow(),
+		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
 		ChainID:   parser.ChainID(),
 		UnitPrice: unitPrice, // never pay blockCost
 	}

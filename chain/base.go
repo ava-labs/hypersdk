@@ -4,10 +4,9 @@
 package chain
 
 import (
-	"fmt"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 type Base struct {
@@ -27,7 +26,7 @@ func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 	case b.Timestamp < timestamp: // tx: 100 block: 110
 		return ErrTimestampTooLate
 	case b.Timestamp > timestamp+r.GetValidityWindow(): // tx: 100 block 10
-		return fmt.Errorf("%w: have=%d latest=%d", ErrTimestampTooEarly, b.Timestamp, timestamp+r.GetValidityWindow())
+		return ErrTimestampTooEarly
 	case b.ChainID != chainID:
 		return ErrInvalidChainID
 	case b.UnitPrice < r.GetMinUnitPrice():
@@ -46,6 +45,10 @@ func (b *Base) Marshal(p *codec.Packer) {
 func UnmarshalBase(p *codec.Packer) (*Base, error) {
 	var base Base
 	base.Timestamp = p.UnpackInt64(true)
+	if base.Timestamp%consts.MillisecondsPerSecond != 0 {
+		// TODO: make this modulus configurable
+		return nil, ErrMisalignedTime
+	}
 	p.UnpackID(true, &base.ChainID)
 	base.UnitPrice = p.UnpackUint64(true)
 	return &base, p.Err()

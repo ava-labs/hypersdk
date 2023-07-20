@@ -20,7 +20,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/workers"
 )
@@ -244,13 +243,9 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 			// The value of [vm.startSeenTime] can only be negative if we are
 			// performing state sync.
 			if vm.startSeenTime < 0 {
-				// We align the start time with the next [seen] heap bucket to ensure we wait to mark ourselves
-				// as ready until we have ingested an entire second of transactions (if we avoid doing this,
-				// we may disagree with other nodes on whether a tx should be valid).
-				vm.startSeenTime = blkTime - blkTime%consts.MillisecondsPerSecond + consts.MillisecondsPerSecond
+				vm.startSeenTime = blkTime
 			}
 			r := vm.Rules(blkTime)
-			// TODO: should we instead transform [blkTime] or [vm.startSeenTime]?
 			if blkTime-vm.startSeenTime > r.GetValidityWindow() {
 				vm.seenValidityWindowOnce.Do(func() {
 					close(vm.seenValidityWindow)

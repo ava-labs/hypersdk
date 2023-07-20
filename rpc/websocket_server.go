@@ -34,7 +34,7 @@ func NewWebSocketServer(vm VM, maxPendingMessages int) (*WebSocketServer, *pubsu
 		logger:         vm.Logger(),
 		blockListeners: pubsub.NewConnections(),
 		txListeners:    map[ids.ID]*pubsub.Connections{},
-		expiringTxs:    emap.NewEMap[*chain.Transaction](consts.MillisecondsPerSecond),
+		expiringTxs:    emap.NewEMap[*chain.Transaction](),
 	}
 	cfg := pubsub.NewDefaultServerConfig()
 	cfg.MaxPendingMessages = maxPendingMessages

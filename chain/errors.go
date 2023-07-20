@@ -46,6 +46,7 @@ var (
 	ErrActionNotActivated   = errors.New("action not activated")
 	ErrAuthNotActivated     = errors.New("auth not activated")
 	ErrAuthFailed           = errors.New("auth failed")
+	ErrMisalignedTime       = errors.New("misaligned time")
 
 	// Execution Correctness
 	ErrInvalidBalance  = errors.New("invalid balance")
