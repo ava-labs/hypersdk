@@ -723,7 +723,9 @@ func (b *StatelessBlock) IsRepeat(
 	defer span.End()
 
 	// Early exit if we are already back at least [ValidityWindow]
-	// TODO: need to handle case where time is truncated
+	//
+	// It is critical to ensure this logic is equivalent to [emap] to avoid
+	// non-deterministic verification.
 	if b.Tmstmp < oldestAllowed {
 		return false, nil
 	}
