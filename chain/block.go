@@ -67,7 +67,7 @@ func NewGenesisBlock(root ids.ID, minUnit uint64) *StatefulBlock {
 		// where the child timestamp is rounded down to the nearest second (which may be before
 		// the timestamp of its parent, which is denoted in milliseconds).
 		//
-		// Link: https://github.com/ava-labs/avalanchego/blob/0ec52a9c6e5b879e367688db01bb10174d70b212/vms/proposervm/pre_fork_block.go#L201
+		// Link: https://github.com/ava-labs/avalanchego/blob/0ec52a9c6e5b879e367688db01bb10174d70b212/vms/proposervm/pre_fork_block.go#L201 //nolint:lll
 		Tmstmp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
 
 		UnitPrice:  minUnit,
