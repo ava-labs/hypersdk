@@ -25,6 +25,7 @@ type (
 )
 
 type Parser interface {
+	NetworkID() uint32
 	ChainID() ids.ID
 	Rules(int64) Rules
 
@@ -33,10 +34,7 @@ type Parser interface {
 
 type VM interface {
 	Parser
-
 	HRP() string
-	NetworkID() uint32
-	ChainID() ids.ID
 
 	Workers() *workers.Workers
 	Tracer() trace.Tracer
