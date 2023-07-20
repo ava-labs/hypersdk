@@ -61,9 +61,13 @@ type warpJob struct {
 
 func NewGenesisBlock(root ids.ID, minUnit uint64) *StatefulBlock {
 	return &StatefulBlock{
-		// ProposerVM header is granularity in seconds. During the fork activiation, the truncated seconds post fork block may be less than the prefork block.
+		// We set the genesis block timestamp to be after the ProposerVM fork activation.
 		//
-		// TODO: could hardcode as the proposervm activation in avalanchego
+		// This prevents an issue (when using millisecond timestamps) during ProposerVM activation
+		// where the child timestamp is rounded down to the nearest second (which may be before
+		// the timestamp of its parent, which is denoted in milliseconds).
+		//
+		// Link: https://github.com/ava-labs/avalanchego/blob/0ec52a9c6e5b879e367688db01bb10174d70b212/vms/proposervm/pre_fork_block.go#L201
 		Tmstmp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
 
 		UnitPrice:  minUnit,
