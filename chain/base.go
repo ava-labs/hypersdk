@@ -10,7 +10,7 @@ import (
 )
 
 type Base struct {
-	// Timestamp is the expiry of the transaction. Once this time passes and the
+	// Timestamp is the expiry of the transaction (inclusive). Once this time passes and the
 	// transaction is not included in a block, it is safe to regenerate it.
 	Timestamp int64 `json:"nonce"`
 
