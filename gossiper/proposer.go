@@ -151,7 +151,7 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 
 // Triggers "AppGossip" on the pending transactions in the mempool.
 // "force" is true to re-gossip whether recently gossiped or not
-func (g *Proposer) TriggerGossip(ctx context.Context) error {
+func (g *Proposer) ForceGossip(ctx context.Context) error {
 	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.GossipTxs")
 	defer span.End()
 
@@ -336,7 +336,7 @@ func (g *Proposer) Run(appSender common.AppSender) {
 			}
 
 			// Gossip to proposers who will produce next
-			if err := g.TriggerGossip(tctx); err != nil {
+			if err := g.ForceGossip(tctx); err != nil {
 				g.vm.Logger().Warn("gossip txs failed", zap.Error(err))
 			}
 		case <-g.vm.StopChan():

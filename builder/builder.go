@@ -6,6 +6,6 @@ package builder
 type Builder interface {
 	Run()
 	MaybeNotify() // new tx, block verified, post-block build (if mempool > 0)
-	Notify()
+	ForceNotify()
 	Done() // wait after stop
 }

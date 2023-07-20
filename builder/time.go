@@ -38,7 +38,7 @@ func (b *Time) Run() {
 }
 
 func (b *Time) handleTimerNotify() {
-	b.Notify()
+	b.ForceNotify()
 	b.waiting.Store(false)
 }
 
@@ -55,7 +55,7 @@ func (b *Time) MaybeNotify() {
 	now := time.Now().UnixMilli()
 	wait := now - preferredBlk.Tmstmp + b.vm.Rules(now).GetMinBlockGap()
 	if wait <= 0 {
-		b.Notify()
+		b.ForceNotify()
 		b.waiting.Store(false)
 		return
 	}

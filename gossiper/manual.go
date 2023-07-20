@@ -35,7 +35,7 @@ func (g *Manual) Run(appSender common.AppSender) {
 	close(g.doneGossip)
 }
 
-func (g *Manual) TriggerGossip(ctx context.Context) error {
+func (g *Manual) ForceGossip(ctx context.Context) error {
 	// Gossip highest paying txs
 	txs := []*chain.Transaction{}
 	totalUnits := uint64(0)
