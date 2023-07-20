@@ -426,7 +426,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
 	}
 
-	ectx, err := GenerateExecutionContext(ctx, b.vm.ChainID(), b.Tmstmp, parent, b.vm.Tracer(), r)
+	ectx, err := GenerateExecutionContext(ctx, b.vm.NetworkID(), b.vm.ChainID(), b.Tmstmp, parent, b.vm.Tracer(), r)
 	if err != nil {
 		return nil, err
 	}

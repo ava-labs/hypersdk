@@ -14,7 +14,8 @@ import (
 )
 
 type ExecutionContext struct {
-	ChainID ids.ID
+	NetworkID uint32
+	ChainID   ids.ID
 
 	NextUnitPrice  uint64
 	NextUnitWindow window.Window
@@ -92,6 +93,7 @@ func computeNextPriceWindow(
 
 func GenerateExecutionContext(
 	ctx context.Context,
+	networkID uint32,
 	chainID ids.ID,
 	currTime int64, // ms
 	parent *StatelessBlock,
@@ -116,7 +118,8 @@ func GenerateExecutionContext(
 		return nil, err
 	}
 	return &ExecutionContext{
-		ChainID: chainID,
+		NetworkID: networkID,
+		ChainID:   chainID,
 
 		NextUnitPrice:  nextUnitPrice,
 		NextUnitWindow: nextUnitWindow,

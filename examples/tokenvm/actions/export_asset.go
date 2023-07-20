@@ -126,8 +126,7 @@ func (e *ExportAsset) executeReturn(
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	wm := &warp.UnsignedMessage{
-		DestinationChainID: e.Destination,
-		// SourceChainID is populated by hypersdk
+		// NetworkID + SourceChainID is populated by hypersdk
 		Payload: payload,
 	}
 	return &chain.Result{Success: true, Units: unitsUsed, WarpMessage: wm}, nil
@@ -183,8 +182,7 @@ func (e *ExportAsset) executeLoan(
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	wm := &warp.UnsignedMessage{
-		DestinationChainID: e.Destination,
-		// SourceChainID is populated by hypersdk
+		// NetworkID + SourceChainID is populated by hypersdk
 		Payload: payload,
 	}
 	return &chain.Result{Success: true, Units: unitsUsed, WarpMessage: wm}, nil

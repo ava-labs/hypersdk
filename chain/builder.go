@@ -70,7 +70,7 @@ func BuildBlock(
 		log.Warn("block building failed", zap.Error(ErrTimestampTooEarly))
 		return nil, ErrTimestampTooEarly
 	}
-	ectx, err := GenerateExecutionContext(ctx, vm.ChainID(), nextTime, parent, vm.Tracer(), r)
+	ectx, err := GenerateExecutionContext(ctx, vm.NetworkID(), vm.ChainID(), nextTime, parent, vm.Tracer(), r)
 	if err != nil {
 		log.Warn("block building failed: couldn't get execution context", zap.Error(err))
 		return nil, err

@@ -14,6 +14,7 @@ import (
 )
 
 type VM interface {
+	NetworkID() uint32
 	ChainID() ids.ID
 	StopChan() chan struct{}
 	Tracer() trace.Tracer

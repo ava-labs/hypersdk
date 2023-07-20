@@ -308,6 +308,7 @@ func (t *Transaction) Execute(
 		// always sign for a message
 		if result.WarpMessage != nil {
 			// Enforce we are the source of our own messages
+			result.WarpMessage.NetworkID = ectx.NetworkID
 			result.WarpMessage.SourceChainID = ectx.ChainID
 			// Initialize message (compute bytes) now that everything is populated
 			if err := result.WarpMessage.Initialize(); err != nil {
