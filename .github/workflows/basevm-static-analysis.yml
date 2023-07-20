@@ -1,7 +1,7 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-name: LiteVM Static Analysis
+name: BaseVM Static Analysis
 
 on:
   push:
@@ -10,8 +10,7 @@ on:
   pull_request:
 
 jobs:
-  Lint:
-    name: Lint
+  basevm-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -25,9 +24,9 @@ jobs:
           cache: true
           cache-dependency-path: |
             go.sum
-            examples/litevm/go.sum
+            examples/basevm/go.sum
       - name: Run static analysis tests
-        working-directory: ./examples/litevm
+        working-directory: ./examples/basevm
         shell: bash
         run: scripts/tests.lint.sh
 
