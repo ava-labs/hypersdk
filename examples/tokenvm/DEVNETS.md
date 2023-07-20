@@ -29,10 +29,9 @@ chmod +x /tmp/avalancheup-aws
 
 ### Step 2: Install and Configure `aws-cli`
 Next, install the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html). This is used to
-manipulate CloudFormation.
+authenticate to AWS and manipulate CloudFormation.
 
-Once you've installed the AWS CLI, run `aws configure` to set the access key to
-use while deploying your devnet.
+Once you've installed the AWS CLI, run `aws configure sso` to login to AWS locally. See [the avalanche-ops documentation](https://github.com/ava-labs/avalanche-ops#permissions) for additional details. Set a `profile_name` when logging in, as it will be referenced directly by avalanche-ops commands.
 
 ### Step 3: Install `token-cli`
 ```bash
@@ -92,13 +91,16 @@ Now we can spin up a new network of 6 nodes with some defaults:
 --network-name custom \
 --avalanchego-release-tag v1.10.3 \
 --create-dev-machine \
---keys-to-generate 5
+--keys-to-generate 5 \
+--profile-name <AWS_PROFILE_NAME>
 ```
 
 The `default-spec` (and `apply`) command only provisions nodes, not Custom VMs.
 The Subnet and Custom VM installation are done via `install-subnet-chain` sub-commands that follow.
 
 *NOTE*: The `--auto-regions 3` flag only lists the pre-defined regions and evenly distributes anchor and non-anchor nodes across regions in the default spec output. It is up to the user to change the regions and spec file based on the regional resource limits (e.g., pick the regions with higher EIP limits). To see what regions available in your AWS account, simply run the [`aws account list-regions`](https://docs.aws.amazon.com/cli/latest/reference/account/list-regions.html) command, or look at the dropdown menu of your AWS console.
+
+*NOTE*: Multiple regions can alternatively be selected by providing a comma-separated list of regions to the `--regions` flag. This will also spin up a dev machine in each region selected, if `--create-dev-machine` is enabled.
 
 #### Profiling `avalanchego`
 If you'd like to profile `avalanchego`'s CPU and RAM, provide the following
@@ -214,8 +216,7 @@ reusing a S3 bucket it previously created):
 [2023-03-23T23:49:01Z WARN  aws_manager::s3] bucket already exists so returning early (original error 'service error')
 ```
 
-*SECURITY*: By default, the SSH and HTTP ports are open to public. Once you complete provisioning the nodes, go to EC2 security
-group to restrict the inbound rules to your IP.
+*SECURITY*: By default, inbound traffic is only permitted from your current IP address. SSH access is now disabled by default (it can be manually enabled via the `--enable-ssh` flag). To access the node network, use the dev machine, which is automatically added to the network security group.
 
 *NOTE*: In rare cases, you may encounter [aws-sdk-rust#611](https://github.com/awslabs/aws-sdk-rust/issues/611)
 where AWS SDK call hangs, which blocks node bootstraps. If a node takes too long to start, connect to that
@@ -304,6 +305,7 @@ replace the `***` fields, IP addresses, key, and `node-ids-to-instance-ids` with
 --staking-amount-in-avax 2000 \
 --ssm-doc <TODO> \
 --target-nodes <TODO>
+--profile-name <AWS_PROFILE_NAME>
 ```
 
 #### Example Params
@@ -409,6 +411,7 @@ are emitted during `apply` and look something like this:
 ```bash
 ssh -o "StrictHostKeyChecking no" -i aops-custom-202303-21qJUU-ec2-access.key ubuntu@34.209.76.123
 ```
+:warning: SSH access is now disabled by default, and can only be enabled via the `--enable-ssh` flag. Nodes can be accessed via the dev machine, or by using the AWS EC2 UI. Sending commands to all nodes via SSM is another alternative.
 
 ### [OPTIONAL] Step 15: Deploy Another Subnet
 To test Avalanche Warp Messaging, you must be running at least 2 Subnets. To do
