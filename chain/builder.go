@@ -187,14 +187,16 @@ func BuildBlock(
 			// spend unnecessary time on an invalid tx.
 			var warpErr error
 			if next.WarpMessage != nil {
-				num, denom, err := preVerifyWarpMessage(next.WarpMessage, vm.ChainID(), r)
-				if err == nil {
+				// We do not check the validity of [SourceChainID] because a VM could send
+				// itself a message to trigger a chain upgrade.
+				allowed, num, denom := r.GetWarpConfig(next.WarpMessage.SourceChainID)
+				if allowed {
 					warpErr = next.WarpMessage.Signature.Verify(
-						ctx, &next.WarpMessage.UnsignedMessage,
+						ctx, &next.WarpMessage.UnsignedMessage, b.vm.NetworkID(),
 						vdrState, blockContext.PChainHeight, num, denom,
 					)
 				} else {
-					warpErr = err
+					warpErr = ErrDisabledChainID
 				}
 				if warpErr != nil {
 					log.Warn(

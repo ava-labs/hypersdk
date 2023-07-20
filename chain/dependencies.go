@@ -35,6 +35,7 @@ type VM interface {
 	Parser
 
 	HRP() string
+	NetworkID() uint32
 	ChainID() ids.ID
 
 	Workers() *workers.Workers
