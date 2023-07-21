@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/basevm/actions"
 	"github.com/ava-labs/hypersdk/examples/basevm/auth"
@@ -60,7 +61,7 @@ func getRandomIssuer(issuers []*txIssuer) *txIssuer {
 	return issuers[index]
 }
 
-func (h *Handler) Spam() error {
+func (h *Handler) Spam(maxTxBacklog int, randomRecipient bool) error {
 	ctx := context.Background()
 
 	// Select chain
@@ -93,13 +94,14 @@ func (h *Handler) Spam() error {
 		}
 		balances[i] = balance
 		utils.Outf(
-			"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s TKN\n",
+			"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 			i,
 			address,
-			valueString(ids.Empty, balance),
+			h.ValueString(ids.Empty, balance),
+			h.AssetString(ids.Empty),
 		)
 	}
-	keyIndex, err := promptChoice("select root key", len(keys))
+	keyIndex, err := h.PromptChoice("select root key", len(keys))
 	if err != nil {
 		return err
 	}
@@ -108,11 +110,11 @@ func (h *Handler) Spam() error {
 	factory := auth.NewED25519Factory(key)
 
 	// Distribute funds
-	numAccounts, err := promptInt("number of accounts")
+	numAccounts, err := h.PromptInt("number of accounts")
 	if err != nil {
 		return err
 	}
-	numTxsPerAccount, err := promptInt("number of transactions per account per second")
+	numTxsPerAccount, err := h.PromptInt("number of transactions per account per second")
 	if err != nil {
 		return err
 	}
@@ -120,8 +122,8 @@ func (h *Handler) Spam() error {
 	distAmount := (balance - witholding) / uint64(numAccounts)
 	utils.Outf(
 		"{{yellow}}distributing funds to each account:{{/}} %s %s\n",
-		valueString(ids.Empty, distAmount),
-		assetString(ids.Empty),
+		h.ValueString(ids.Empty, distAmount),
+		h.AssetString(ids.Empty),
 	)
 	accounts := make([]crypto.PrivateKey, numAccounts)
 	dcli, err := rpc.NewWebSocketClient(uris[0])
@@ -316,7 +318,7 @@ func (h *Handler) Spam() error {
 					start := time.Now()
 					selected := map[crypto.PublicKey]int{}
 					for k := 0; k < numTxsPerAccount; k++ {
-						recipient, err := getRandomRecipient(i, accounts)
+						recipient, err := getNextRecipient(randomRecipient, i, accounts)
 						if err != nil {
 							return err
 						}
@@ -345,7 +347,7 @@ func (h *Handler) Spam() error {
 
 					// Determine how long to sleep
 					dur := time.Since(start)
-					sleep := math.Max(1000-dur.Milliseconds(), 0)
+					sleep := math.Max(float64(consts.MillisecondsPerSecond-dur.Milliseconds()), 0)
 					t.Reset(time.Duration(sleep) * time.Millisecond)
 				case <-gctx.Done():
 					return gctx.Err()
@@ -377,7 +379,13 @@ func (h *Handler) Spam() error {
 			select {
 			case <-t.C:
 				utils.Outf("{{yellow}}remaining:{{/}} %d\n", inflight.Load())
-				_ = submitDummy(dctx, cli, tcli, key.PublicKey(), factory)
+				handler.Root().SubmitDummy(dctx, cli, func(ictx context.Context, count uint64) error {
+					_, _, err = sendAndWait(ictx, nil, &actions.Transfer{
+						To:    key.PublicKey(),
+						Value: count, // prevent duplicate txs
+					}, cli, tcli, factory, false)
+					return err
+				})
 			case <-dctx.Done():
 				return
 			}
