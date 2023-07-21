@@ -77,11 +77,11 @@ fi
 echo "building tokenvm"
 
 # delete previous (if exists)
-rm -f ${TMPDIR}/avalanchego-${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
+rm -f ${TMPDIR}/avalanchego-${VERSION}/plugins/kL184aRyEhXdZeB28JDCq3uNwHZLZNjx1WF1B4nLhZ9HiXNuc
 
 # rebuild with latest code
 go build \
--o ${TMPDIR}/avalanchego-${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
+-o ${TMPDIR}/avalanchego-${VERSION}/plugins/kL184aRyEhXdZeB28JDCq3uNwHZLZNjx1WF1B4nLhZ9HiXNuc \
 ./cmd/tokenvm
 
 echo "building token-cli"
