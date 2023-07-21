@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/basevm/actions"
 	trpc "github.com/ava-labs/hypersdk/examples/basevm/rpc"
@@ -17,7 +18,7 @@ import (
 )
 
 const (
-	dummyBlockAgeThreshold = 25
+	dummyBlockAgeThreshold = 25 * consts.MillisecondsPerSecond
 	dummyHeightThreshold   = 3
 )
 
@@ -102,7 +103,7 @@ func submitDummy(
 			return err
 		}
 		underHeight := h < dummyHeightThreshold
-		if underHeight || time.Now().Unix()-t > dummyBlockAgeThreshold {
+		if underHeight || time.Now().UnixMilli()-t > dummyBlockAgeThreshold {
 			if underHeight && !logEmitted {
 				hutils.Outf(
 					"{{yellow}}waiting for snowman++ activation (needed for AWM)...{{/}}\n",

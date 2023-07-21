@@ -273,7 +273,7 @@ var watchChainCmd = &cobra.Command{
 				start = now
 			}
 			if lastBlock != 0 {
-				since := now.UnixMilli() - lastBlock
+				since := now.Unix() - lastBlock
 				newWindow, err := window.Roll(tpsWindow, int(since))
 				if err != nil {
 					return err
@@ -301,7 +301,7 @@ var watchChainCmd = &cobra.Command{
 				)
 				window.Update(&tpsWindow, window.WindowSliceSize-hconsts.Uint64Len, uint64(len(blk.Txs)))
 			}
-			lastBlock = now.UnixMilli()
+			lastBlock = now.Unix()
 			lastBlockDetailed = now
 			if hideTxs {
 				continue
