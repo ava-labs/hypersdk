@@ -28,11 +28,12 @@ const (
 
 func (h *Handler) Spam(
 	maxTxBacklog int, randomRecipient bool,
+	createClient func(string, uint32, ids.ID), // must save on caller side
 	getFactory func(crypto.PrivateKey) chain.AuthFactory,
-	lookupBalance func(int, string, string, uint32, ids.ID) (uint64, error),
+	lookupBalance func(int, string) (uint64, error),
 	getParser func(context.Context, ids.ID) (chain.Parser, error),
 	getTransfer func(crypto.PublicKey, uint64) chain.Action,
-	submitDummy func(context.Context, uint64) error,
+	submitDummy func(*rpc.JSONRPCClient, crypto.PrivateKey) func(context.Context, uint64) error,
 ) error {
 	ctx := context.Background()
 
@@ -57,9 +58,10 @@ func (h *Handler) Spam(
 		return err
 	}
 	balances := make([]uint64, len(keys))
+	createClient(uris[0], networkID, chainID)
 	for i := 0; i < len(keys); i++ {
 		address := h.c.Address(keys[i].PublicKey())
-		balance, err := lookupBalance(i, address, uris[0], networkID, chainID)
+		balance, err := lookupBalance(i, address)
 		if err != nil {
 			return err
 		}
@@ -330,7 +332,7 @@ func (h *Handler) Spam(
 			select {
 			case <-t.C:
 				utils.Outf("{{yellow}}remaining:{{/}} %d\n", inflight.Load())
-				h.SubmitDummy(dctx, cli, submitDummy)
+				h.SubmitDummy(dctx, cli, submitDummy(cli, key))
 			case <-dctx.Done():
 				return
 			}
