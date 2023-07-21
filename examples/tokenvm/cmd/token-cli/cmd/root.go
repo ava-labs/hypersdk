@@ -1,7 +1,6 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-// "token-cli" implements tokenvm client operation interface.
 package cmd
 
 import (
@@ -14,7 +13,6 @@ import (
 )
 
 const (
-	requestTimeout  = 30 * time.Second
 	fsModeWrite     = 0o600
 	defaultDatabase = ".token-cli"
 	defaultGenesis  = "genesis.json"

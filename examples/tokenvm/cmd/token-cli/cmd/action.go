@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -72,27 +73,12 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		parser, err := tcli.Parser(ctx)
-		if err != nil {
-			return err
-		}
-		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
+		_, _, err = sendAndWait(ctx, nil, &actions.Transfer{
 			To:    recipient,
 			Asset: assetID,
 			Value: amount,
-		}, factory)
-		if err != nil {
-			return err
-		}
-		if err := submit(ctx); err != nil {
-			return err
-		}
-		success, err := tcli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return err
-		}
-		handler.Root().PrintStatus(tx.ID(), success)
-		return nil
+		}, cli, tcli, factory, true)
+		return err
 	},
 }
 
@@ -118,25 +104,10 @@ var createAssetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		parser, err := tcli.Parser(ctx)
-		if err != nil {
-			return err
-		}
-		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CreateAsset{
+		_, _, err = sendAndWait(ctx, nil, &actions.CreateAsset{
 			Metadata: []byte(metadata),
-		}, factory)
-		if err != nil {
-			return err
-		}
-		if err := submit(ctx); err != nil {
-			return err
-		}
-		success, err := tcli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return err
-		}
-		handler.Root().PrintStatus(tx.ID(), success)
-		return nil
+		}, cli, tcli, factory, true)
+		return err
 	},
 }
 
@@ -198,27 +169,12 @@ var mintAssetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		parser, err := tcli.Parser(ctx)
-		if err != nil {
-			return err
-		}
-		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.MintAsset{
+		_, _, err = sendAndWait(ctx, nil, &actions.MintAsset{
 			Asset: assetID,
 			To:    recipient,
 			Value: amount,
-		}, factory)
-		if err != nil {
-			return err
-		}
-		if err := submit(ctx); err != nil {
-			return err
-		}
-		success, err := tcli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return err
-		}
-		handler.Root().PrintStatus(tx.ID(), success)
-		return nil
+		}, cli, tcli, factory, true)
+		return err
 	},
 }
 
@@ -250,28 +206,11 @@ var closeOrderCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		//
-		// TODO: make this a helper
-		parser, err := tcli.Parser(ctx)
-		if err != nil {
-			return err
-		}
-		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CloseOrder{
+		_, _, err = sendAndWait(ctx, nil, &actions.CloseOrder{
 			Order: orderID,
 			Out:   outAssetID,
-		}, factory)
-		if err != nil {
-			return err
-		}
-		if err := submit(ctx); err != nil {
-			return err
-		}
-		success, err := tcli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return err
-		}
-		handler.Root().PrintStatus(tx.ID(), success)
-		return nil
+		}, cli, tcli, factory, true)
+		return err
 	},
 }
 
@@ -352,29 +291,14 @@ var createOrderCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		parser, err := tcli.Parser(ctx)
-		if err != nil {
-			return err
-		}
-		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CreateOrder{
+		_, _, err = sendAndWait(ctx, nil, &actions.CreateOrder{
 			In:      inAssetID,
 			InTick:  inTick,
 			Out:     outAssetID,
 			OutTick: outTick,
 			Supply:  supply,
-		}, factory)
-		if err != nil {
-			return err
-		}
-		if err := submit(ctx); err != nil {
-			return err
-		}
-		success, err := tcli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return err
-		}
-		handler.Root().PrintStatus(tx.ID(), success)
-		return nil
+		}, cli, tcli, factory, true)
+		return err
 	},
 }
 
@@ -483,29 +407,14 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		parser, err := tcli.Parser(ctx)
-		if err != nil {
-			return err
-		}
-		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.FillOrder{
+		_, _, err = sendAndWait(ctx, nil, &actions.FillOrder{
 			Order: order.ID,
 			Owner: owner,
 			In:    inAssetID,
 			Out:   outAssetID,
 			Value: value,
-		}, factory)
-		if err != nil {
-			return err
-		}
-		if err := submit(ctx); err != nil {
-			return err
-		}
-		success, err := tcli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return err
-		}
-		handler.Root().PrintStatus(tx.ID(), success)
-		return nil
+		}, cli, tcli, factory, true)
+		return err
 	},
 }
 
@@ -615,25 +524,10 @@ func performImport(
 	}
 
 	// Generate transaction
-	parser, err := dtcli.Parser(ctx)
-	if err != nil {
-		return err
-	}
-	submit, tx, _, err := dcli.GenerateTransaction(ctx, parser, msg, &actions.ImportAsset{
+	_, _, err = sendAndWait(ctx, msg, &actions.ImportAsset{
 		Fill: fill,
-	}, factory)
-	if err != nil {
-		return err
-	}
-	if err := submit(ctx); err != nil {
-		return err
-	}
-	success, err := dtcli.WaitForTransaction(ctx, tx.ID())
-	if err != nil {
-		return err
-	}
-	handler.Root().PrintStatus(tx.ID(), success)
-	return nil
+	}, dcli, dtcli, factory, true)
+	return err
 }
 
 func submitDummy(
@@ -660,21 +554,11 @@ func submitDummy(
 				)
 				logEmitted = true
 			}
-			parser, err := tcli.Parser(ctx)
-			if err != nil {
-				return err
-			}
-			submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
+			_, _, err = sendAndWait(ctx, nil, &actions.Transfer{
 				To:    dest,
 				Value: txsSent + 1, // prevent duplicate txs
-			}, factory)
+			}, cli, tcli, factory, false)
 			if err != nil {
-				return err
-			}
-			if err := submit(ctx); err != nil {
-				return err
-			}
-			if _, err := tcli.WaitForTransaction(ctx, tx.ID()); err != nil {
 				return err
 			}
 			txsSent++
@@ -809,11 +693,7 @@ var exportAssetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		parser, err := tcli.Parser(ctx)
-		if err != nil {
-			return err
-		}
-		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.ExportAsset{
+		success, txID, err := sendAndWait(ctx, nil, &actions.ExportAsset{
 			To:          recipient,
 			Asset:       assetID,
 			Value:       amount,
@@ -824,18 +704,13 @@ var exportAssetCmd = &cobra.Command{
 			SwapOut:     swapOut,
 			SwapExpiry:  swapExpiry,
 			Destination: destination,
-		}, factory)
+		}, cli, tcli, factory, true)
 		if err != nil {
 			return err
 		}
-		if err := submit(ctx); err != nil {
-			return err
+		if !success {
+			return errors.New("not successful")
 		}
-		success, err := tcli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return err
-		}
-		handler.Root().PrintStatus(tx.ID(), success)
 
 		// Perform import
 		imp, err := handler.Root().PromptBool("perform import on destination")
@@ -851,7 +726,7 @@ var exportAssetCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if err := performImport(ctx, cli, rpc.NewJSONRPCClient(uris[0]), trpc.NewJSONRPCClient(uris[0], networkID, destination), tx.ID(), priv, factory); err != nil {
+			if err := performImport(ctx, cli, rpc.NewJSONRPCClient(uris[0]), trpc.NewJSONRPCClient(uris[0], networkID, destination), txID, priv, factory); err != nil {
 				return err
 			}
 		}
