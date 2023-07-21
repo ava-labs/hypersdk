@@ -265,13 +265,17 @@ func defaultActor() (ids.ID, crypto.PrivateKey, *auth.ED25519Factory, *rpc.JSONR
 	if err != nil {
 		return ids.Empty, crypto.EmptyPrivateKey, nil, nil, nil, err
 	}
+	cli := rpc.NewJSONRPCClient(uris[0])
+	networkID, _, _, err := cli.Network(context.TODO())
+	if err != nil {
+		return ids.Empty, crypto.EmptyPrivateKey, nil, nil, nil, err
+	}
 	// For [defaultActor], we always send requests to the first returned URI.
 	return chainID, priv, auth.NewED25519Factory(
 			priv,
-		), rpc.NewJSONRPCClient(
+		), cli, trpc.NewJSONRPCClient(
 			uris[0],
-		), trpc.NewJSONRPCClient(
-			uris[0],
+			networkID,
 			chainID,
 		), nil
 }
