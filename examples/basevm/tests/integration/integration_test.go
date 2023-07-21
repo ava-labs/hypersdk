@@ -49,7 +49,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/basevm/utils"
 )
 
-const transferTxFee = 400 /* base fee */ + 40 /* transfer fee */ + 1000 /* proof fee */
+const transferTxFee = 400 /* base fee */ + 40 /* transfer fee */
 
 var (
 	logFactory logging.Factory
@@ -694,96 +694,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 		// Close connection when done
 		gomega.Ω(cli.Close()).Should(gomega.BeNil())
-	})
-
-	ginkgo.It("ensure proof lookback works", func() {
-		// Clear existing
-		// accept := expectBlk(instances[2])
-		// accept()
-
-		submits := make([]func(context.Context) error, 512)
-		for i := 0; i < 512; i++ {
-			sender := rsender2
-			if i%2 == 0 {
-				sender = rsender3
-			}
-			parser, err := instances[2].lcli.Parser(context.Background())
-			gomega.Ω(err).Should(gomega.BeNil())
-			submit, _, _, err := instances[2].cli.GenerateTransaction(
-				context.Background(),
-				parser,
-				nil,
-				&actions.Transfer{
-					To:    sender,
-					Value: 1000 + uint64(i),
-				},
-				factory,
-			)
-			gomega.Ω(err).Should(gomega.BeNil())
-			submits[i] = submit
-		}
-		for i := 0; i < 256; i++ {
-			submit := submits[i]
-			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-			accept := expectBlk(instances[2])
-			results := accept()
-			gomega.Ω(results).Should(gomega.HaveLen(1))
-			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-			log.Info("block accepted", zap.Int("index", i))
-		}
-		for i := 256; i < 512; i++ {
-			submit := submits[i]
-			err := submit(context.Background())
-			gomega.Ω(err).Should(gomega.Not(gomega.BeNil()))
-			gomega.Ω(err.Error()).Should(gomega.ContainSubstring("root not in window"))
-		}
-	})
-
-	ginkgo.It("grow large tree with tx delay", func() {
-		submits := make([]func(context.Context) error, 512)
-		old := 0
-		for i := 0; i < 512; i++ {
-			tpriv, err := crypto.GeneratePrivateKey()
-			gomega.Ω(err).Should(gomega.BeNil())
-			tsender := tpriv.PublicKey()
-
-			parser, err := instances[2].lcli.Parser(context.Background())
-			gomega.Ω(err).Should(gomega.BeNil())
-			submit, _, _, err := instances[2].cli.GenerateTransaction(
-				context.Background(),
-				parser,
-				nil,
-				&actions.Transfer{
-					To:    tsender,
-					Value: 1000,
-				},
-				factory,
-			)
-			gomega.Ω(err).Should(gomega.BeNil())
-			submits[i] = submit
-
-			old = i - 1
-			if old >= 0 {
-				submit := submits[old]
-				err := submit(context.Background())
-				gomega.Ω(err).Should(gomega.BeNil())
-				accept := expectBlk(instances[2])
-				results := accept()
-				gomega.Ω(results).Should(gomega.HaveLen(1))
-				gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-				log.Info("block accepted", zap.Int("index", old))
-			}
-		}
-
-		for i := old + 1; i < 512; i++ {
-			submit := submits[i]
-			err := submit(context.Background())
-			gomega.Ω(err).Should(gomega.BeNil())
-		}
-		accept := expectBlk(instances[2])
-		results := accept()
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 	})
 })
 

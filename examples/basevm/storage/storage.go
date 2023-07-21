@@ -31,15 +31,13 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 //   -> [heightPrefix] => height
 // 0x0/ (balance)
 //   -> [owner] => balance
-// TODO: make sure to keep inclusion proof around so can insert for all validators
-// 0x2/ (hypersdk-incoming warp)
-// 0x3/ (hypersdk-outgoing warp)
+// 0x1/ (hypersdk-incoming warp)
+// 0x2/ (hypersdk-outgoing warp)
 
 const (
 	txPrefix = 0x0
 
-	balancePrefix = 0x0
-	// Not used
+	balancePrefix      = 0x0
 	incomingWarpPrefix = 0x1
 	outgoingWarpPrefix = 0x2
 )
