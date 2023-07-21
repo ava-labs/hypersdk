@@ -393,7 +393,13 @@ var runSpamCmd = &cobra.Command{
 				select {
 				case <-t.C:
 					hutils.Outf("{{yellow}}remaining:{{/}} %d\n", inflight.Load())
-					_ = submitDummy(dctx, cli, tcli, key.PublicKey(), factory)
+					handler.Root().SubmitDummy(dctx, cli, func(ictx context.Context, count uint64) error {
+						_, _, err = sendAndWait(ictx, nil, &actions.Transfer{
+							To:    key.PublicKey(),
+							Value: count, // prevent duplicate txs
+						}, cli, tcli, factory, false)
+						return err
+					})
 				case <-dctx.Done():
 					return
 				}
