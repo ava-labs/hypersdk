@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"time"
@@ -10,9 +11,11 @@ import (
 	runner "github.com/ava-labs/avalanche-network-runner/client"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/window"
 	"gopkg.in/yaml.v2"
 )
 
@@ -176,5 +179,89 @@ func (h *Handler) PrintChainInfo() error {
 		subnetID,
 		chainID,
 	)
+	return nil
+}
+
+func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID) (chain.Parser, error), handleTx func(*chain.Transaction, *chain.Result)) error {
+	ctx := context.Background()
+	chainID, uris, err := h.PromptChain("select chainID", nil)
+	if err != nil {
+		return err
+	}
+	if err := h.CloseDatabase(); err != nil {
+		return err
+	}
+	utils.Outf("{{yellow}}uri:{{/}} %s\n", uris[0])
+	rcli := rpc.NewJSONRPCClient(uris[0])
+	networkID, _, _, err := rcli.Network(context.TODO())
+	if err != nil {
+		return err
+	}
+	parser, err := getParser(uris[0], networkID, chainID)
+	if err != nil {
+		return err
+	}
+	scli, err := rpc.NewWebSocketClient(uris[0])
+	if err != nil {
+		return err
+	}
+	defer scli.Close()
+	if err := scli.RegisterBlocks(); err != nil {
+		return err
+	}
+	utils.Outf("{{green}}watching for new blocks on %s 👀{{/}}\n", chainID)
+	var (
+		start             time.Time
+		lastBlock         int64
+		lastBlockDetailed time.Time
+		tpsWindow         = window.Window{}
+	)
+	for ctx.Err() == nil {
+		blk, results, err := scli.ListenBlock(ctx, parser)
+		if err != nil {
+			return err
+		}
+		now := time.Now()
+		if start.IsZero() {
+			start = now
+		}
+		if lastBlock != 0 {
+			since := now.Unix() - lastBlock
+			newWindow, err := window.Roll(tpsWindow, int(since))
+			if err != nil {
+				return err
+			}
+			tpsWindow = newWindow
+			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))
+			runningDuration := time.Since(start)
+			tpsDivisor := math.Min(window.WindowSize, runningDuration.Seconds())
+			utils.Outf(
+				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s {{green}}TPS:{{/}}%.2f {{green}}split:{{/}}%dms\n", //nolint:lll
+				blk.Hght,
+				len(blk.Txs),
+				blk.UnitsConsumed,
+				blk.StateRoot,
+				float64(window.Sum(tpsWindow))/tpsDivisor,
+				time.Since(lastBlockDetailed).Milliseconds(),
+			)
+		} else {
+			utils.Outf(
+				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s\n", //nolint:lll
+				blk.Hght,
+				len(blk.Txs),
+				blk.UnitsConsumed,
+				blk.StateRoot,
+			)
+			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))
+		}
+		lastBlock = now.Unix()
+		lastBlockDetailed = now
+		if hideTxs {
+			continue
+		}
+		for i, tx := range blk.Txs {
+			handleTx(tx, results[i])
+		}
+	}
 	return nil
 }
