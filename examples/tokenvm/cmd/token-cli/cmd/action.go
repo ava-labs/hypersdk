@@ -519,7 +519,13 @@ func performImport(
 	}
 
 	// Attempt to send dummy transaction if needed
-	if err := submitDummy(ctx, dcli, dtcli, priv.PublicKey(), factory); err != nil {
+	if err := handler.Root().SubmitDummy(ctx, dcli, func(ictx context.Context, count uint64) error {
+		_, _, err = sendAndWait(ictx, nil, &actions.Transfer{
+			To:    priv.PublicKey(),
+			Value: count, // prevent duplicate txs
+		}, dcli, dtcli, factory, false)
+		return err
+	}); err != nil {
 		return err
 	}
 
@@ -528,49 +534,6 @@ func performImport(
 		Fill: fill,
 	}, dcli, dtcli, factory, true)
 	return err
-}
-
-func submitDummy(
-	ctx context.Context,
-	cli *rpc.JSONRPCClient,
-	tcli *trpc.JSONRPCClient,
-	dest crypto.PublicKey,
-	factory chain.AuthFactory,
-) error {
-	var (
-		logEmitted bool
-		txsSent    uint64
-	)
-	for ctx.Err() == nil {
-		_, h, t, err := cli.Accepted(ctx)
-		if err != nil {
-			return err
-		}
-		underHeight := h < dummyHeightThreshold
-		if underHeight || time.Now().UnixMilli()-t > dummyBlockAgeThreshold {
-			if underHeight && !logEmitted {
-				hutils.Outf(
-					"{{yellow}}waiting for snowman++ activation (needed for AWM)...{{/}}\n",
-				)
-				logEmitted = true
-			}
-			_, _, err = sendAndWait(ctx, nil, &actions.Transfer{
-				To:    dest,
-				Value: txsSent + 1, // prevent duplicate txs
-			}, cli, tcli, factory, false)
-			if err != nil {
-				return err
-			}
-			txsSent++
-			time.Sleep(750 * time.Millisecond)
-			continue
-		}
-		if logEmitted {
-			hutils.Outf("{{yellow}}snowman++ activated{{/}}\n")
-		}
-		return nil
-	}
-	return ctx.Err()
 }
 
 var importAssetCmd = &cobra.Command{
@@ -688,7 +651,13 @@ var exportAssetCmd = &cobra.Command{
 		}
 
 		// Attempt to send dummy transaction if needed
-		if err := submitDummy(ctx, cli, tcli, priv.PublicKey(), factory); err != nil {
+		if err := handler.Root().SubmitDummy(ctx, cli, func(ictx context.Context, count uint64) error {
+			_, _, err = sendAndWait(ictx, nil, &actions.Transfer{
+				To:    priv.PublicKey(),
+				Value: count, // prevent duplicate txs
+			}, cli, tcli, factory, false)
+			return err
+		}); err != nil {
 			return err
 		}
 

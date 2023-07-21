@@ -4,10 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
-	"github.com/ava-labs/hypersdk/examples/basevm/actions"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -17,12 +14,10 @@ const (
 	dummyHeightThreshold   = 3
 )
 
-func submitDummy(
+func (*Handler) SubmitDummy(
 	ctx context.Context,
 	cli *rpc.JSONRPCClient,
-	tcli *trpc.JSONRPCClient,
-	dest crypto.PublicKey,
-	factory chain.AuthFactory,
+	sendAndWait func(context.Context, uint64) error,
 ) error {
 	var (
 		logEmitted bool
@@ -41,21 +36,7 @@ func submitDummy(
 				)
 				logEmitted = true
 			}
-			parser, err := tcli.Parser(ctx)
-			if err != nil {
-				return err
-			}
-			submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
-				To:    dest,
-				Value: txsSent + 1, // prevent duplicate txs
-			}, factory)
-			if err != nil {
-				return err
-			}
-			if err := submit(ctx); err != nil {
-				return err
-			}
-			if _, err := tcli.WaitForTransaction(ctx, tx.ID()); err != nil {
+			if err := sendAndWait(ctx, txsSent+1); err != nil {
 				return err
 			}
 			txsSent++
