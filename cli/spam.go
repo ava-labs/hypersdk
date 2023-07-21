@@ -75,6 +75,11 @@ func (h *Handler) Spam(
 	balance := balances[keyIndex]
 	factory := getFactory(key)
 
+	// No longer using db, so we close
+	if err := h.CloseDatabase(); err != nil {
+		return err
+	}
+
 	// Distribute funds
 	numAccounts, err := h.PromptInt("number of accounts")
 	if err != nil {
