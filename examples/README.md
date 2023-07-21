@@ -22,7 +22,7 @@ orders is < 100 lines of code!).
 To ensure the `hypersdk` stays reliable as we optimize and evolve the codebase,
 we also run E2E tests in the `tokenvm` on each PR to the `hypersdk` core modules.
 
-## Expert: `indexvm`
+## Expert: `indexvm` [DEPRECATED]
 The [`indexvm`](https://github.com/ava-labs/indexvm) is much more complex than
 the `tokenvm` (more elaborate mechanisms and a new use case you may not be
 familiar with). It was built during the design of the `hypersdk` to test out the
