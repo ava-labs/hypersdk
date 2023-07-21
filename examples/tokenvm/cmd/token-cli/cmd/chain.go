@@ -41,18 +41,18 @@ var chainCmd = &cobra.Command{
 var importChainCmd = &cobra.Command{
 	Use: "import",
 	RunE: func(_ *cobra.Command, args []string) error {
-		chainID, err := promptID("chainID")
+		chainID, err := handler.Root().PromptID("chainID")
 		if err != nil {
 			return err
 		}
-		uri, err := promptString("uri")
+		uri, err := handler.Root().PromptString("uri", 0, hconsts.MaxInt)
 		if err != nil {
 			return err
 		}
-		if err := StoreChain(chainID, uri); err != nil {
+		if err := handler.Root().StoreChain(chainID, uri); err != nil {
 			return err
 		}
-		if err := StoreDefault(defaultChainKey, chainID[:]); err != nil {
+		if err := handler.Root().StoreDefaultChain(chainID); err != nil {
 			return err
 		}
 		return nil
@@ -65,7 +65,7 @@ var importANRChainCmd = &cobra.Command{
 		ctx := context.Background()
 
 		// Delete previous items
-		oldChains, err := DeleteChains()
+		oldChains, err := handler.Root().DeleteChains()
 		if err != nil {
 			return err
 		}
@@ -115,7 +115,7 @@ var importANRChainCmd = &cobra.Command{
 				}
 				for _, chainID := range subnets[subnetID] {
 					uri := fmt.Sprintf("%s/ext/bc/%s", nodeInfo.Uri, chainID)
-					if err := StoreChain(chainID, uri); err != nil {
+					if err := handler.Root().StoreChain(chainID, uri); err != nil {
 						return err
 					}
 					utils.Outf(
@@ -127,7 +127,7 @@ var importANRChainCmd = &cobra.Command{
 				}
 			}
 		}
-		return StoreDefault(defaultChainKey, filledChainID[:])
+		return handler.Root().StoreDefaultChain(filledChainID)
 	},
 }
 
@@ -151,7 +151,7 @@ var importAvalancheOpsChainCmd = &cobra.Command{
 	RunE: func(_ *cobra.Command, args []string) error {
 		// Delete previous items
 		if deleteOtherChains {
-			oldChains, err := DeleteChains()
+			oldChains, err := handler.Root().DeleteChains()
 			if err != nil {
 				return err
 			}
@@ -180,7 +180,7 @@ var importAvalancheOpsChainCmd = &cobra.Command{
 		// Add chains
 		for _, node := range opsConfig.Resources.CreatedNodes {
 			uri := fmt.Sprintf("%s/ext/bc/%s", node.HTTPEndpoint, chainID)
-			if err := StoreChain(chainID, uri); err != nil {
+			if err := handler.Root().StoreChain(chainID, uri); err != nil {
 				return err
 			}
 			utils.Outf(
@@ -189,25 +189,25 @@ var importAvalancheOpsChainCmd = &cobra.Command{
 				uri,
 			)
 		}
-		return StoreDefault(defaultChainKey, chainID[:])
+		return handler.Root().StoreDefaultChain(chainID)
 	},
 }
 
 var setChainCmd = &cobra.Command{
 	Use: "set",
 	RunE: func(*cobra.Command, []string) error {
-		chainID, _, err := promptChain("set default chain", nil)
+		chainID, _, err := handler.Root().PromptChain("set default chain", nil)
 		if err != nil {
 			return err
 		}
-		return StoreDefault(defaultChainKey, chainID[:])
+		return handler.Root().StoreDefaultChain(chainID)
 	},
 }
 
 var chainInfoCmd = &cobra.Command{
 	Use: "info",
 	RunE: func(_ *cobra.Command, args []string) error {
-		_, uris, err := promptChain("select chainID", nil)
+		_, uris, err := handler.Root().PromptChain("select chainID", nil)
 		if err != nil {
 			return err
 		}
@@ -230,11 +230,11 @@ var watchChainCmd = &cobra.Command{
 	Use: "watch",
 	RunE: func(_ *cobra.Command, args []string) error {
 		ctx := context.Background()
-		chainID, uris, err := promptChain("select chainID", nil)
+		chainID, uris, err := handler.Root().PromptChain("select chainID", nil)
 		if err != nil {
 			return err
 		}
-		if err := CloseDatabase(); err != nil {
+		if err := handler.Root().CloseDatabase(); err != nil {
 			return err
 		}
 		rcli := rpc.NewJSONRPCClient(uris[0])
@@ -388,16 +388,16 @@ var watchChainCmd = &cobra.Command{
 						var outputAssetID ids.ID
 						if wt.Return {
 							outputAssetID = wt.Asset
-							summaryStr += fmt.Sprintf("%s %s -> %s (return: %t)", valueString(wt.Asset, wt.Value), assetString(wt.Asset), tutils.Address(wt.To), wt.Return)
+							summaryStr += fmt.Sprintf("%s %s -> %s (return: %t)", handler.Root().ValueString(wt.Asset, wt.Value), handler.Root().AssetString(wt.Asset), tutils.Address(wt.To), wt.Return)
 						} else {
 							outputAssetID = actions.ImportedAssetID(wt.Asset, wm.SourceChainID)
-							summaryStr += fmt.Sprintf("%s %s (original: %s) -> %s (return: %t)", valueString(outputAssetID, wt.Value), outputAssetID, wt.Asset, tutils.Address(wt.To), wt.Return)
+							summaryStr += fmt.Sprintf("%s %s (original: %s) -> %s (return: %t)", handler.Root().ValueString(outputAssetID, wt.Value), outputAssetID, wt.Asset, tutils.Address(wt.To), wt.Return)
 						}
 						if wt.Reward > 0 {
-							summaryStr += fmt.Sprintf(" | reward: %s", valueString(outputAssetID, wt.Reward))
+							summaryStr += fmt.Sprintf(" | reward: %s", handler.Root().ValueString(outputAssetID, wt.Reward))
 						}
 						if wt.SwapIn > 0 {
-							summaryStr += fmt.Sprintf(" | swap in: %s %s swap out: %s %s expiry: %d fill: %t", valueString(outputAssetID, wt.SwapIn), assetString(outputAssetID), valueString(wt.AssetOut, wt.SwapOut), assetString(wt.AssetOut), wt.SwapExpiry, action.Fill)
+							summaryStr += fmt.Sprintf(" | swap in: %s %s swap out: %s %s expiry: %d fill: %t", handler.Root().ValueString(outputAssetID, wt.SwapIn), handler.Root().AssetString(outputAssetID), handler.Root().ValueString(wt.AssetOut, wt.SwapOut), handler.Root().AssetString(wt.AssetOut), wt.SwapExpiry, action.Fill)
 						}
 					case *actions.ExportAsset:
 						wt, _ := actions.UnmarshalWarpTransfer(result.WarpMessage.Payload)
@@ -405,16 +405,16 @@ var watchChainCmd = &cobra.Command{
 						var outputAssetID ids.ID
 						if !action.Return {
 							outputAssetID = actions.ImportedAssetID(action.Asset, result.WarpMessage.SourceChainID)
-							summaryStr += fmt.Sprintf("%s %s -> %s (return: %t)", valueString(action.Asset, action.Value), assetString(action.Asset), tutils.Address(action.To), action.Return)
+							summaryStr += fmt.Sprintf("%s %s -> %s (return: %t)", handler.Root().ValueString(action.Asset, action.Value), handler.Root().AssetString(action.Asset), tutils.Address(action.To), action.Return)
 						} else {
 							outputAssetID = wt.Asset
-							summaryStr += fmt.Sprintf("%s %s (original: %s) -> %s (return: %t)", valueString(action.Asset, action.Value), action.Asset, assetString(wt.Asset), tutils.Address(action.To), action.Return)
+							summaryStr += fmt.Sprintf("%s %s (original: %s) -> %s (return: %t)", handler.Root().ValueString(action.Asset, action.Value), action.Asset, handler.Root().AssetString(wt.Asset), tutils.Address(action.To), action.Return)
 						}
 						if wt.Reward > 0 {
-							summaryStr += fmt.Sprintf(" | reward: %s", valueString(outputAssetID, wt.Reward))
+							summaryStr += fmt.Sprintf(" | reward: %s", handler.Root().ValueString(outputAssetID, wt.Reward))
 						}
 						if wt.SwapIn > 0 {
-							summaryStr += fmt.Sprintf(" | swap in: %s %s swap out: %s %s expiry: %d", valueString(outputAssetID, wt.SwapIn), assetString(outputAssetID), valueString(wt.AssetOut, wt.SwapOut), assetString(wt.AssetOut), wt.SwapExpiry)
+							summaryStr += fmt.Sprintf(" | swap in: %s %s swap out: %s %s expiry: %d", handler.Root().ValueString(outputAssetID, wt.SwapIn), handler.Root().AssetString(outputAssetID), handler.Root().ValueString(wt.AssetOut, wt.SwapOut), handler.Root().AssetString(wt.AssetOut), wt.SwapExpiry)
 						}
 					}
 				}
