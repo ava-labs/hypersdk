@@ -252,7 +252,10 @@ these functions with avalanchego means existing avalanchego monitoring tools
 work out of the box on your `hypervm`.
 
 ## Examples
-### Beginner: `tokenvm`
+### Beginner: `basevm`
+...
+
+### Moderate: `tokenvm`
 We created the [`tokenvm`](./examples/tokenvm) to showcase how to use the
 `hypersdk` in an application most readers are already familiar with, token minting
 and token trading. The `tokenvm` lets anyone create any asset, mint more of
@@ -268,7 +271,7 @@ orders is < 100 lines of code!).
 To ensure the `hypersdk` remains reliable as we optimize and evolve the codebase,
 we also run E2E tests in the `tokenvm` on each PR to the `hypersdk` core modules.
 
-### Expert: `indexvm`
+### Expert: `indexvm` [DEPRECATED]
 The [`indexvm`](https://github.com/ava-labs/indexvm) is much more complex than
 the `tokenvm` (more elaborate mechanisms and a new use case you may not be
 familiar with). It was built during the design of the `hypersdk` to test out the
