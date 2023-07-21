@@ -12,27 +12,38 @@ var _ chain.Rules = (*Rules)(nil)
 
 type Rules struct {
 	g *Genesis
+
+	networkID uint32
+	chainID   ids.ID
 }
 
 // TODO: use upgradeBytes
-func (g *Genesis) Rules(int64) *Rules {
-	return &Rules{g}
+func (g *Genesis) Rules(_ int64, networkID uint32, chainID ids.ID) *Rules {
+	return &Rules{g, networkID, chainID}
 }
 
 func (*Rules) GetWarpConfig(ids.ID) (bool, uint64, uint64) {
 	return false, 0, 0
 }
 
-func (*Rules) GetWarpBaseFee() uint64 {
-	return 0
+func (r *Rules) NetworkID() uint32 {
+	return r.networkID
 }
 
-func (*Rules) GetWarpFeePerSigner() uint64 {
-	return 0
+func (r *Rules) ChainID() ids.ID {
+	return r.chainID
 }
 
-func (r *Rules) GetMaxBlockTxs() int {
-	return r.g.MaxBlockTxs
+func (r *Rules) GetMinBlockGap() int64 {
+	return r.g.MinBlockGap
+}
+
+func (r *Rules) GetWarpBaseUnits() uint64 {
+	return r.g.WarpBaseUnits
+}
+
+func (r *Rules) GetWarpUnitsPerSigner() uint64 {
+	return r.g.WarpUnitsPerSigner
 }
 
 func (r *Rules) GetValidityWindow() int64 {
@@ -57,18 +68,6 @@ func (r *Rules) GetUnitPriceChangeDenominator() uint64 {
 
 func (r *Rules) GetWindowTargetUnits() uint64 {
 	return r.g.WindowTargetUnits
-}
-
-func (r *Rules) GetMinBlockCost() uint64 {
-	return r.g.MinBlockCost
-}
-
-func (r *Rules) GetBlockCostChangeDenominator() uint64 {
-	return r.g.BlockCostChangeDenominator
-}
-
-func (r *Rules) GetWindowTargetBlocks() uint64 {
-	return r.g.WindowTargetBlocks
 }
 
 func (*Rules) FetchCustom(string) (any, bool) {

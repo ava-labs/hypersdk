@@ -5,4 +5,7 @@ package genesis
 
 import "errors"
 
-var ErrInvalidTarget = errors.New("invalid target")
+var (
+	ErrInvalidHRP    = errors.New("invalid HRP")
+	ErrInvalidTarget = errors.New("invalid target")
+)
