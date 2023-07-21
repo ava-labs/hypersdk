@@ -7,22 +7,17 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"reflect"
 	"strconv"
-	"strings"
 	"time"
 
-	runner "github.com/ava-labs/avalanche-network-runner/client"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/math"
 	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
@@ -41,102 +36,15 @@ var chainCmd = &cobra.Command{
 var importChainCmd = &cobra.Command{
 	Use: "import",
 	RunE: func(_ *cobra.Command, args []string) error {
-		chainID, err := handler.Root().PromptID("chainID")
-		if err != nil {
-			return err
-		}
-		uri, err := handler.Root().PromptString("uri", 0, hconsts.MaxInt)
-		if err != nil {
-			return err
-		}
-		if err := handler.Root().StoreChain(chainID, uri); err != nil {
-			return err
-		}
-		if err := handler.Root().StoreDefaultChain(chainID); err != nil {
-			return err
-		}
-		return nil
+		return handler.Root().ImportChain()
 	},
 }
 
 var importANRChainCmd = &cobra.Command{
 	Use: "import-anr",
 	RunE: func(_ *cobra.Command, args []string) error {
-		ctx := context.Background()
-
-		// Delete previous items
-		oldChains, err := handler.Root().DeleteChains()
-		if err != nil {
-			return err
-		}
-		if len(oldChains) > 0 {
-			utils.Outf("{{yellow}}deleted old chains:{{/}} %+v\n", oldChains)
-		}
-
-		// Load new items from ANR
-		anrCli, err := runner.New(runner.Config{
-			Endpoint:    "0.0.0.0:12352",
-			DialTimeout: 10 * time.Second,
-		}, logging.NoLog{})
-		if err != nil {
-			return err
-		}
-		status, err := anrCli.Status(ctx)
-		if err != nil {
-			return err
-		}
-		subnets := map[ids.ID][]ids.ID{}
-		for chain, chainInfo := range status.ClusterInfo.CustomChains {
-			chainID, err := ids.FromString(chain)
-			if err != nil {
-				return err
-			}
-			subnetID, err := ids.FromString(chainInfo.SubnetId)
-			if err != nil {
-				return err
-			}
-			chainIDs, ok := subnets[subnetID]
-			if !ok {
-				chainIDs = []ids.ID{}
-			}
-			chainIDs = append(chainIDs, chainID)
-			subnets[subnetID] = chainIDs
-		}
-		var filledChainID ids.ID
-		for _, nodeInfo := range status.ClusterInfo.NodeInfos {
-			if len(nodeInfo.WhitelistedSubnets) == 0 {
-				continue
-			}
-			trackedSubnets := strings.Split(nodeInfo.WhitelistedSubnets, ",")
-			for _, subnet := range trackedSubnets {
-				subnetID, err := ids.FromString(subnet)
-				if err != nil {
-					return err
-				}
-				for _, chainID := range subnets[subnetID] {
-					uri := fmt.Sprintf("%s/ext/bc/%s", nodeInfo.Uri, chainID)
-					if err := handler.Root().StoreChain(chainID, uri); err != nil {
-						return err
-					}
-					utils.Outf(
-						"{{yellow}}stored chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n",
-						chainID,
-						uri,
-					)
-					filledChainID = chainID
-				}
-			}
-		}
-		return handler.Root().StoreDefaultChain(filledChainID)
+		return handler.Root().ImportANR()
 	},
-}
-
-type AvalancheOpsConfig struct {
-	Resources struct {
-		CreatedNodes []struct {
-			HTTPEndpoint string `yaml:"httpEndpoint"`
-		} `yaml:"created_nodes"`
-	} `yaml:"resources"`
 }
 
 var importAvalancheOpsChainCmd = &cobra.Command{
@@ -149,80 +57,21 @@ var importAvalancheOpsChainCmd = &cobra.Command{
 		return err
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		// Delete previous items
-		if deleteOtherChains {
-			oldChains, err := handler.Root().DeleteChains()
-			if err != nil {
-				return err
-			}
-			if len(oldChains) > 0 {
-				utils.Outf("{{yellow}}deleted old chains:{{/}} %+v\n", oldChains)
-			}
-		}
-
-		// Load chainID
-		chainID, err := ids.FromString(args[0])
-		if err != nil {
-			return err
-		}
-
-		// Load yaml file
-		var opsConfig AvalancheOpsConfig
-		yamlFile, err := os.ReadFile(args[1])
-		if err != nil {
-			return err
-		}
-		err = yaml.Unmarshal(yamlFile, &opsConfig)
-		if err != nil {
-			return err
-		}
-
-		// Add chains
-		for _, node := range opsConfig.Resources.CreatedNodes {
-			uri := fmt.Sprintf("%s/ext/bc/%s", node.HTTPEndpoint, chainID)
-			if err := handler.Root().StoreChain(chainID, uri); err != nil {
-				return err
-			}
-			utils.Outf(
-				"{{yellow}}stored chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n",
-				chainID,
-				uri,
-			)
-		}
-		return handler.Root().StoreDefaultChain(chainID)
+		return handler.Root().ImportOps(args[0], args[1])
 	},
 }
 
 var setChainCmd = &cobra.Command{
 	Use: "set",
 	RunE: func(*cobra.Command, []string) error {
-		chainID, _, err := handler.Root().PromptChain("set default chain", nil)
-		if err != nil {
-			return err
-		}
-		return handler.Root().StoreDefaultChain(chainID)
+		return handler.Root().SetDefaultChain()
 	},
 }
 
 var chainInfoCmd = &cobra.Command{
 	Use: "info",
 	RunE: func(_ *cobra.Command, args []string) error {
-		_, uris, err := handler.Root().PromptChain("select chainID", nil)
-		if err != nil {
-			return err
-		}
-		cli := rpc.NewJSONRPCClient(uris[0])
-		networkID, subnetID, chainID, err := cli.Network(context.Background())
-		if err != nil {
-			return err
-		}
-		utils.Outf(
-			"{{cyan}}networkID:{{/}} %d {{cyan}}subnetID:{{/}} %s {{cyan}}chainID:{{/}} %s",
-			networkID,
-			subnetID,
-			chainID,
-		)
-		return nil
+		return handler.Root().PrintChainInfo()
 	},
 }
 

@@ -1,6 +1,8 @@
 package cli
 
-import "github.com/ava-labs/hypersdk/crypto"
+import (
+	"github.com/ava-labs/hypersdk/crypto"
+)
 
 type Controller interface {
 	DatabasePath() string
