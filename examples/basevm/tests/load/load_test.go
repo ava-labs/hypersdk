@@ -53,7 +53,7 @@ import (
 
 const (
 	genesisBalance  uint64 = hconsts.MaxUint64
-	transferTxUnits        = 472
+	transferTxUnits        = 440
 	maxTxsPerBlock  int    = 1_800_000 /* max block units */ / transferTxUnits
 )
 
