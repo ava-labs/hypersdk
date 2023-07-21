@@ -223,7 +223,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	)
 	logsDir = resp.GetClusterInfo().GetRootDataDir()
 
-	// Name 10 new validators (which should have BLS key registered)
+	// Name 5 new validators (which should have BLS key registered)
 	subnet := []string{}
 	for i := 1; i <= 5; i++ {
 		n := fmt.Sprintf("node%d-bls", i)

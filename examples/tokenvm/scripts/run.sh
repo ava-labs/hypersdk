@@ -77,11 +77,11 @@ fi
 echo "building tokenvm"
 
 # delete previous (if exists)
-rm -f ${TMPDIR}/avalanchego-${VERSION}/plugins/kL184aRyEhXdZeB28JDCq3uNwHZLZNjx1WF1B4nLhZ9HiXNuc
+rm -f ${TMPDIR}/avalanchego-${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
 
 # rebuild with latest code
 go build \
--o ${TMPDIR}/avalanchego-${VERSION}/plugins/kL184aRyEhXdZeB28JDCq3uNwHZLZNjx1WF1B4nLhZ9HiXNuc \
+-o ${TMPDIR}/avalanchego-${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
 ./cmd/tokenvm
 
 echo "building token-cli"
@@ -134,7 +134,6 @@ cat <<EOF > ${TMPDIR}/tokenvm.config
   "buildProposerDiff": 1,
   "verifyTimeout": 5,
   "trackedPairs":["*"],
-  "preferredBlocksPerSecond": 3,
   "continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}

@@ -23,7 +23,7 @@ LOGLEVEL=${LOGLEVEL:-info}
 AVALANCHE_LOG_LEVEL=${AVALANCHE_LOG_LEVEL:-INFO}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
-if [[ ${MODE} != "run" && ${MODE} != "run-single" ]]; then
+if [[ ${MODE} != "run" ]]; then
   STATESYNC_DELAY=100000000 # 100ms
   MIN_BLOCK_GAP=250 #ms
 fi
@@ -77,11 +77,11 @@ fi
 echo "building basevm"
 
 # delete previous (if exists)
-rm -f ${TMPDIR}/avalanchego-${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
+rm -f ${TMPDIR}/avalanchego-${VERSION}/plugins/kL184aRyEhXdZeB28JDCq3uNwHZLZNjx1WF1B4nLhZ9HiXNuc
 
 # rebuild with latest code
 go build \
--o ${TMPDIR}/avalanchego-${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
+-o ${TMPDIR}/avalanchego-${VERSION}/plugins/kL184aRyEhXdZeB28JDCq3uNwHZLZNjx1WF1B4nLhZ9HiXNuc \
 ./cmd/basevm
 
 echo "building base-cli"
@@ -97,7 +97,7 @@ find ${TMPDIR}/avalanchego-${VERSION}
 # Always create allocations (linter doesn't like tab)
 echo "creating allocations file"
 cat <<EOF > ${TMPDIR}/allocations.json
-[{"address":"base1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":1000000000000}]
+[{"address":"base1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsgkuwsr", "balance":1000000000000}]
 EOF
 
 GENESIS_PATH=$2
@@ -126,15 +126,13 @@ cat <<EOF > ${TMPDIR}/basevm.config
 {
   "mempoolSize": 10000000,
   "mempoolPayerSize": 10000000,
-  "mempoolExemptPayers":["base1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
+  "mempoolExemptPayers":["base1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsgkuwsr"],
   "parallelism": 5,
   "streamingBacklogSize": 10000000,
   "gossipMaxSize": 32768,
   "gossipProposerDepth": 1,
   "buildProposerDiff": 1,
   "verifyTimeout": 5,
-  "trackedPairs":["*"],
-  "preferredBlocksPerSecond": 3,
   "continuousProfilerDir":"${TMPDIR}/basevm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
@@ -237,7 +235,7 @@ echo "running e2e tests"
 --mode=${MODE}
 
 ############################
-if [[ ${MODE} == "run" || ${MODE} == "run-single" ]]; then
+if [[ ${MODE} == "run" ]]; then
   echo "cluster is ready!"
   # We made it past initialization and should avoid shutting down the network
   KEEPALIVE=true
