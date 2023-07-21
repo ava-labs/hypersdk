@@ -8,13 +8,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	smath "github.com/ava-labs/avalanchego/utils/math"
 
 	"github.com/ava-labs/hypersdk/chain"
 	hconsts "github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/basevm/consts"
 	"github.com/ava-labs/hypersdk/examples/basevm/storage"
 	"github.com/ava-labs/hypersdk/examples/basevm/utils"
@@ -107,17 +105,9 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Databa
 		if err != nil {
 			return err
 		}
-		if err := storage.SetBalance(ctx, db, pk, ids.Empty, alloc.Balance); err != nil {
+		if err := storage.SetBalance(ctx, db, pk, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}
-	return storage.SetAsset(
-		ctx,
-		db,
-		ids.Empty,
-		[]byte(consts.Symbol),
-		supply,
-		crypto.EmptyPublicKey,
-		false,
-	)
+	return nil
 }
