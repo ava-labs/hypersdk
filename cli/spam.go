@@ -13,12 +13,11 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
-	"github.com/ava-labs/hypersdk/examples/basevm/actions"
-	"github.com/ava-labs/hypersdk/examples/basevm/auth"
-	"github.com/ava-labs/hypersdk/examples/basevm/utils"
 	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/neilotoole/errgroup"
 )
 
@@ -27,41 +26,14 @@ const (
 	defaultRange = 32
 )
 
-type txIssuer struct {
-	c  *rpc.JSONRPCClient
-	tc *trpc.JSONRPCClient
-	d  *rpc.WebSocketClient
-
-	l              sync.Mutex
-	outstandingTxs int
-}
-
-func getNextRecipient(randomRecipient bool, self int, keys []crypto.PrivateKey) (crypto.PublicKey, error) {
-	if randomRecipient {
-		priv, err := crypto.GeneratePrivateKey()
-		if err != nil {
-			return crypto.EmptyPublicKey, err
-		}
-		return priv.PublicKey(), nil
-	}
-
-	// Select item from array
-	index := rand.Int() % len(keys)
-	if index == self {
-		index++
-		if index == len(keys) {
-			index = 0
-		}
-	}
-	return keys[index].PublicKey(), nil
-}
-
-func getRandomIssuer(issuers []*txIssuer) *txIssuer {
-	index := rand.Int() % len(issuers)
-	return issuers[index]
-}
-
-func (h *Handler) Spam(maxTxBacklog int, randomRecipient bool) error {
+func (h *Handler) Spam(
+	maxTxBacklog int, randomRecipient bool,
+	getFactory func(crypto.PrivateKey) chain.AuthFactory,
+	lookupBalance func(int, string, string, uint32, ids.ID) (uint64, error),
+	getParser func(context.Context, ids.ID) (chain.Parser, error),
+	getTransfer func(crypto.PublicKey, uint64) chain.Action,
+	submitDummy func(context.Context, uint64) error,
+) error {
 	ctx := context.Background()
 
 	// Select chain
@@ -84,22 +56,14 @@ func (h *Handler) Spam(maxTxBacklog int, randomRecipient bool) error {
 	if err != nil {
 		return err
 	}
-	tcli := trpc.NewJSONRPCClient(uris[0], networkID, chainID)
 	balances := make([]uint64, len(keys))
 	for i := 0; i < len(keys); i++ {
-		address := utils.Address(keys[i].PublicKey())
-		balance, err := tcli.Balance(ctx, address, ids.Empty)
+		address := h.c.Address(keys[i].PublicKey())
+		balance, err := lookupBalance(i, address, uris[0], networkID, chainID)
 		if err != nil {
 			return err
 		}
 		balances[i] = balance
-		utils.Outf(
-			"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
-			i,
-			address,
-			h.ValueString(ids.Empty, balance),
-			h.AssetString(ids.Empty),
-		)
 	}
 	keyIndex, err := h.PromptChoice("select root key", len(keys))
 	if err != nil {
@@ -107,7 +71,7 @@ func (h *Handler) Spam(maxTxBacklog int, randomRecipient bool) error {
 	}
 	key := keys[keyIndex]
 	balance := balances[keyIndex]
-	factory := auth.NewED25519Factory(key)
+	factory := getFactory(key)
 
 	// Distribute funds
 	numAccounts, err := h.PromptInt("number of accounts")
@@ -131,7 +95,7 @@ func (h *Handler) Spam(maxTxBacklog int, randomRecipient bool) error {
 		return err
 	}
 	funds := map[crypto.PublicKey]uint64{}
-	parser, err := tcli.Parser(ctx)
+	parser, err := getParser(ctx, chainID)
 	if err != nil {
 		return err
 	}
@@ -145,11 +109,7 @@ func (h *Handler) Spam(maxTxBacklog int, randomRecipient bool) error {
 		accounts[i] = pk
 
 		// Send funds
-		_, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
-			To:    pk.PublicKey(),
-			Asset: ids.Empty,
-			Value: distAmount,
-		}, factory)
+		_, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, getTransfer(pk.PublicKey(), distAmount), factory)
 		if err != nil {
 			return err
 		}
@@ -182,16 +142,11 @@ func (h *Handler) Spam(maxTxBacklog int, randomRecipient bool) error {
 	clients := make([]*txIssuer, len(uris))
 	for i := 0; i < len(uris); i++ {
 		cli := rpc.NewJSONRPCClient(uris[i])
-		networkID, _, _, err := cli.Network(ctx)
-		if err != nil {
-			return err
-		}
-		tcli := trpc.NewJSONRPCClient(uris[i], networkID, chainID)
 		dcli, err := rpc.NewWebSocketClient(uris[i])
 		if err != nil {
 			return err
 		}
-		clients[i] = &txIssuer{c: cli, tc: tcli, d: dcli}
+		clients[i] = &txIssuer{c: cli, d: dcli}
 	}
 	signals := make(chan os.Signal, 2)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
@@ -296,7 +251,7 @@ func (h *Handler) Spam(maxTxBacklog int, randomRecipient bool) error {
 			defer t.Stop()
 
 			issuer := getRandomIssuer(clients)
-			factory := auth.NewED25519Factory(accounts[i])
+			factory := getFactory(accounts[i])
 			fundsL.Lock()
 			balance := funds[accounts[i].PublicKey()]
 			fundsL.Unlock()
@@ -324,11 +279,7 @@ func (h *Handler) Spam(maxTxBacklog int, randomRecipient bool) error {
 						}
 						v := selected[recipient] + 1
 						selected[recipient] = v
-						_, tx, fees, err := issuer.c.GenerateTransactionManual(parser, nil, &actions.Transfer{
-							To:    recipient,
-							Asset: ids.Empty,
-							Value: uint64(v), // ensure txs are unique
-						}, factory, unitPrice)
+						_, tx, fees, err := issuer.c.GenerateTransactionManual(parser, nil, getTransfer(recipient, uint64(v)), factory, unitPrice)
 						if err != nil {
 							utils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
 							continue
@@ -379,13 +330,7 @@ func (h *Handler) Spam(maxTxBacklog int, randomRecipient bool) error {
 			select {
 			case <-t.C:
 				utils.Outf("{{yellow}}remaining:{{/}} %d\n", inflight.Load())
-				handler.Root().SubmitDummy(dctx, cli, func(ictx context.Context, count uint64) error {
-					_, _, err = sendAndWait(ictx, nil, &actions.Transfer{
-						To:    key.PublicKey(),
-						Value: count, // prevent duplicate txs
-					}, cli, tcli, factory, false)
-					return err
-				})
+				h.SubmitDummy(dctx, cli, submitDummy)
 			case <-dctx.Done():
 				return
 			}
@@ -395,7 +340,7 @@ func (h *Handler) Spam(maxTxBacklog int, randomRecipient bool) error {
 	cancel()
 
 	// Return funds
-	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", utils.Address(key.PublicKey()))
+	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.PublicKey()))
 	var (
 		returnedBalance uint64
 		returnsSent     int
@@ -408,11 +353,7 @@ func (h *Handler) Spam(maxTxBacklog int, randomRecipient bool) error {
 		returnsSent++
 		// Send funds
 		returnAmt := balance - transferFee
-		_, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
-			To:    key.PublicKey(),
-			Asset: ids.Empty,
-			Value: returnAmt,
-		}, auth.NewED25519Factory(accounts[i]))
+		_, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, getTransfer(key.PublicKey(), returnAmt), getFactory(accounts[i]))
 		if err != nil {
 			return err
 		}
@@ -445,4 +386,37 @@ func (h *Handler) Spam(maxTxBacklog int, randomRecipient bool) error {
 		h.AssetString(ids.Empty),
 	)
 	return nil
+}
+
+type txIssuer struct {
+	c *rpc.JSONRPCClient
+	d *rpc.WebSocketClient
+
+	l              sync.Mutex
+	outstandingTxs int
+}
+
+func getNextRecipient(randomRecipient bool, self int, keys []crypto.PrivateKey) (crypto.PublicKey, error) {
+	if randomRecipient {
+		priv, err := crypto.GeneratePrivateKey()
+		if err != nil {
+			return crypto.EmptyPublicKey, err
+		}
+		return priv.PublicKey(), nil
+	}
+
+	// Select item from array
+	index := rand.Int() % len(keys)
+	if index == self {
+		index++
+		if index == len(keys) {
+			index = 0
+		}
+	}
+	return keys[index].PublicKey(), nil
+}
+
+func getRandomIssuer(issuers []*txIssuer) *txIssuer {
+	index := rand.Int() % len(issuers)
+	return issuers[index]
 }
