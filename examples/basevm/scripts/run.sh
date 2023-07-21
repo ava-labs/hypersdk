@@ -17,50 +17,54 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=1.10.3
+VERSION=v1.10.5
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 AVALANCHE_LOG_LEVEL=${AVALANCHE_LOG_LEVEL:-INFO}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
-PROPOSER_MIN_BLOCK_DELAY=${PROPOSER_MIN_BLOCK_DELAY:-0}
-if [[ ${MODE} != "run" ]]; then
-  STATESYNC_DELAY=500000000 # 500ms
-  PROPOSER_MIN_BLOCK_DELAY=100000000 # 100ms
+MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
+if [[ ${MODE} != "run" && ${MODE} != "run-single" ]]; then
+  STATESYNC_DELAY=100000000 # 100ms
+  MIN_BLOCK_GAP=250 #ms
 fi
 
 echo "Running with:"
 echo VERSION: ${VERSION}
 echo MODE: ${MODE}
-echo STATESYNC_DELAY: ${STATESYNC_DELAY}
-echo PROPOSER_MIN_BLOCK_DELAY: ${PROPOSER_MIN_BLOCK_DELAY}
+echo STATESYNC_DELAY \(ns\): ${STATESYNC_DELAY}
+echo MIN_BLOCK_GAP \(ms\): ${MIN_BLOCK_GAP}
 
 ############################
 # build avalanchego
 # https://github.com/ava-labs/avalanchego/releases
 GOARCH=$(go env GOARCH)
 GOOS=$(go env GOOS)
-AVALANCHEGO_PATH=/tmp/avalanchego-v${VERSION}/avalanchego
-AVALANCHEGO_PLUGIN_DIR=/tmp/avalanchego-v${VERSION}/plugins
+TMPDIR=/tmp/hypersdk
+
+echo "working directory: $TMPDIR"
+
+AVALANCHEGO_PATH=${TMPDIR}/avalanchego-${VERSION}/avalanchego
+AVALANCHEGO_PLUGIN_DIR=${TMPDIR}/avalanchego-${VERSION}/plugins
 
 if [ ! -f "$AVALANCHEGO_PATH" ]; then
   echo "building avalanchego"
   CWD=$(pwd)
 
   # Clear old folders
-  rm -rf /tmp/avalanchego-v${VERSION}
-  mkdir -p /tmp/avalanchego-v${VERSION}
-  rm -rf /tmp/avalanchego-src
-  mkdir -p /tmp/avalanchego-src
+  rm -rf ${TMPDIR}/avalanchego-${VERSION}
+  mkdir -p ${TMPDIR}/avalanchego-${VERSION}
+  rm -rf ${TMPDIR}/avalanchego-src
+  mkdir -p ${TMPDIR}/avalanchego-src
 
   # Download src
-  cd /tmp/avalanchego-src
+  cd ${TMPDIR}/avalanchego-src
   git clone https://github.com/ava-labs/avalanchego.git
   cd avalanchego
-  git checkout v${VERSION}
+  git checkout ${VERSION}
 
   # Build avalanchego
   ./scripts/build.sh
-  mv build/avalanchego /tmp/avalanchego-v${VERSION}
+  mv build/avalanchego ${TMPDIR}/avalanchego-${VERSION}
 
   cd ${CWD}
 else
@@ -73,18 +77,18 @@ fi
 echo "building basevm"
 
 # delete previous (if exists)
-rm -f /tmp/avalanchego-v${VERSION}/plugins/pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7
+rm -f ${TMPDIR}/avalanchego-${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
 
 # rebuild with latest code
 go build \
--o /tmp/avalanchego-v${VERSION}/plugins/pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7 \
+-o ${TMPDIR}/avalanchego-${VERSION}/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
 ./cmd/basevm
 
 echo "building base-cli"
-go build -v -o /tmp/base-cli ./cmd/base-cli
+go build -v -o ${TMPDIR}/base-cli ./cmd/base-cli
 
 # log everything in the avalanchego directory
-find /tmp/avalanchego-v${VERSION}
+find ${TMPDIR}/avalanchego-${VERSION}
 
 ############################
 
@@ -92,23 +96,23 @@ find /tmp/avalanchego-v${VERSION}
 
 # Always create allocations (linter doesn't like tab)
 echo "creating allocations file"
-cat <<EOF > /tmp/allocations.json
-[{"address":"base1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nswdwfmv", "balance":1000000000000}]
+cat <<EOF > ${TMPDIR}/allocations.json
+[{"address":"base1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":1000000000000}]
 EOF
 
 GENESIS_PATH=$2
 if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
-  rm -f /tmp/basevm.genesis
-  /tmp/base-cli genesis generate /tmp/allocations.json \
+  rm -f ${TMPDIR}/basevm.genesis
+  ${TMPDIR}/base-cli genesis generate ${TMPDIR}/allocations.json \
   --max-block-units 4000000 \
   --window-target-units 100000000000 \
-  --window-target-blocks 30 \
-  --genesis-file /tmp/basevm.genesis
+  --min-block-gap ${MIN_BLOCK_GAP} \
+  --genesis-file ${TMPDIR}/basevm.genesis
 else
   echo "copying custom genesis file"
-  rm -f /tmp/basevm.genesis
-  cp ${GENESIS_PATH} /tmp/basevm.genesis
+  rm -f ${TMPDIR}/basevm.genesis
+  cp ${GENESIS_PATH} ${TMPDIR}/basevm.genesis
 fi
 
 ############################
@@ -116,36 +120,37 @@ fi
 ############################
 
 echo "creating vm config"
-rm -f /tmp/basevm.config
-rm -rf /tmp/basevm-e2e-profiles
-cat <<EOF > /tmp/basevm.config
+rm -f ${TMPDIR}/basevm.config
+rm -rf ${TMPDIR}/basevm-e2e-profiles
+cat <<EOF > ${TMPDIR}/basevm.config
 {
   "mempoolSize": 10000000,
   "mempoolPayerSize": 10000000,
-  "mempoolExemptPayers":["base1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nswdwfmv"],
+  "mempoolExemptPayers":["base1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "parallelism": 5,
   "streamingBacklogSize": 10000000,
   "gossipMaxSize": 32768,
   "gossipProposerDepth": 1,
   "buildProposerDiff": 1,
   "verifyTimeout": 5,
+  "trackedPairs":["*"],
   "preferredBlocksPerSecond": 3,
-  "continuousProfilerDir":"/tmp/basevm-e2e-profiles/*",
+  "continuousProfilerDir":"${TMPDIR}/basevm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
-mkdir -p /tmp/basevm-e2e-profiles
+mkdir -p ${TMPDIR}/basevm-e2e-profiles
 
 ############################
 
 ############################
 
 echo "creating subnet config"
-rm -f /tmp/basevm.subnet
-cat <<EOF > /tmp/basevm.subnet
+rm -f ${TMPDIR}/basevm.subnet
+cat <<EOF > ${TMPDIR}/basevm.subnet
 {
-  "proposerMinBlockDelay": ${PROPOSER_MIN_BLOCK_DELAY}
+  "proposerMinBlockDelay": 0
 }
 EOF
 
@@ -171,7 +176,7 @@ ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 # download avalanche-network-runner
 # https://github.com/ava-labs/avalanche-network-runner
 ANR_REPO_PATH=github.com/ava-labs/avalanche-network-runner
-ANR_VERSION=v1.6.0
+ANR_VERSION=07c99958518220d3d8bec21e92183368d4f1903c
 # version set
 go install -v ${ANR_REPO_PATH}@${ANR_VERSION}
 
@@ -207,13 +212,13 @@ function cleanup() {
     echo ""
     echo "use the following command to terminate:"
     echo ""
-    echo "killall avalanche-network-runner"
+    echo "./scripts/stop.sh;"
     echo ""
     exit
   fi
 
   echo "avalanche-network-runner shutting down..."
-  killall avalanche-network-runner
+  ./scripts/stop.sh;
 }
 trap cleanup EXIT
 
@@ -225,14 +230,14 @@ echo "running e2e tests"
 --network-runner-grpc-gateway-endpoint="0.0.0.0:12353" \
 --avalanchego-path=${AVALANCHEGO_PATH} \
 --avalanchego-plugin-dir=${AVALANCHEGO_PLUGIN_DIR} \
---vm-genesis-path=/tmp/basevm.genesis \
---vm-config-path=/tmp/basevm.config \
---subnet-config-path=/tmp/basevm.subnet \
---output-path=/tmp/avalanchego-v${VERSION}/output.yaml \
+--vm-genesis-path=${TMPDIR}/basevm.genesis \
+--vm-config-path=${TMPDIR}/basevm.config \
+--subnet-config-path=${TMPDIR}/basevm.subnet \
+--output-path=${TMPDIR}/avalanchego-${VERSION}/output.yaml \
 --mode=${MODE}
 
 ############################
-if [[ ${MODE} == "run" ]]; then
+if [[ ${MODE} == "run" || ${MODE} == "run-single" ]]; then
   echo "cluster is ready!"
   # We made it past initialization and should avoid shutting down the network
   KEEPALIVE=true
