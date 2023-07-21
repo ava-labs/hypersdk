@@ -104,7 +104,7 @@ func (h *Handler) GetKeys() ([]crypto.PrivateKey, error) {
 	return privateKeys, iter.Error()
 }
 
-func (h *Handler) StoreDefaultKey(pk crypto.PrivateKey) error {
+func (h *Handler) StoreDefaultKey(pk crypto.PublicKey) error {
 	return h.StoreDefault(defaultKeyKey, pk[:])
 }
 
