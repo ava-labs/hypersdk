@@ -14,7 +14,7 @@ import (
 const (
 	HRP    = "base"
 	Name   = "basevm"
-	Symbol = "WCGW"
+	Symbol = "BASE"
 )
 
 var ID ids.ID
