@@ -70,7 +70,7 @@ fi
 ############################
 
 ############################
-echo "building litevm"
+echo "building basevm"
 
 # delete previous (if exists)
 rm -f /tmp/avalanchego-v${VERSION}/plugins/pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7
@@ -78,10 +78,10 @@ rm -f /tmp/avalanchego-v${VERSION}/plugins/pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiY
 # rebuild with latest code
 go build \
 -o /tmp/avalanchego-v${VERSION}/plugins/pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7 \
-./cmd/litevm
+./cmd/basevm
 
-echo "building lite-cli"
-go build -v -o /tmp/lite-cli ./cmd/lite-cli
+echo "building base-cli"
+go build -v -o /tmp/base-cli ./cmd/base-cli
 
 # log everything in the avalanchego directory
 find /tmp/avalanchego-v${VERSION}
@@ -93,22 +93,22 @@ find /tmp/avalanchego-v${VERSION}
 # Always create allocations (linter doesn't like tab)
 echo "creating allocations file"
 cat <<EOF > /tmp/allocations.json
-[{"address":"lite1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nswdwfmv", "balance":1000000000000}]
+[{"address":"base1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nswdwfmv", "balance":1000000000000}]
 EOF
 
 GENESIS_PATH=$2
 if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
-  rm -f /tmp/litevm.genesis
-  /tmp/lite-cli genesis generate /tmp/allocations.json \
+  rm -f /tmp/basevm.genesis
+  /tmp/base-cli genesis generate /tmp/allocations.json \
   --max-block-units 4000000 \
   --window-target-units 100000000000 \
   --window-target-blocks 30 \
-  --genesis-file /tmp/litevm.genesis
+  --genesis-file /tmp/basevm.genesis
 else
   echo "copying custom genesis file"
-  rm -f /tmp/litevm.genesis
-  cp ${GENESIS_PATH} /tmp/litevm.genesis
+  rm -f /tmp/basevm.genesis
+  cp ${GENESIS_PATH} /tmp/basevm.genesis
 fi
 
 ############################
@@ -116,13 +116,13 @@ fi
 ############################
 
 echo "creating vm config"
-rm -f /tmp/litevm.config
-rm -rf /tmp/litevm-e2e-profiles
-cat <<EOF > /tmp/litevm.config
+rm -f /tmp/basevm.config
+rm -rf /tmp/basevm-e2e-profiles
+cat <<EOF > /tmp/basevm.config
 {
   "mempoolSize": 10000000,
   "mempoolPayerSize": 10000000,
-  "mempoolExemptPayers":["lite1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nswdwfmv"],
+  "mempoolExemptPayers":["base1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nswdwfmv"],
   "parallelism": 5,
   "streamingBacklogSize": 10000000,
   "gossipMaxSize": 32768,
@@ -130,20 +130,20 @@ cat <<EOF > /tmp/litevm.config
   "buildProposerDiff": 1,
   "verifyTimeout": 5,
   "preferredBlocksPerSecond": 3,
-  "continuousProfilerDir":"/tmp/litevm-e2e-profiles/*",
+  "continuousProfilerDir":"/tmp/basevm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
-mkdir -p /tmp/litevm-e2e-profiles
+mkdir -p /tmp/basevm-e2e-profiles
 
 ############################
 
 ############################
 
 echo "creating subnet config"
-rm -f /tmp/litevm.subnet
-cat <<EOF > /tmp/litevm.subnet
+rm -f /tmp/basevm.subnet
+cat <<EOF > /tmp/basevm.subnet
 {
   "proposerMinBlockDelay": ${PROPOSER_MIN_BLOCK_DELAY}
 }
@@ -225,9 +225,9 @@ echo "running e2e tests"
 --network-runner-grpc-gateway-endpoint="0.0.0.0:12353" \
 --avalanchego-path=${AVALANCHEGO_PATH} \
 --avalanchego-plugin-dir=${AVALANCHEGO_PLUGIN_DIR} \
---vm-genesis-path=/tmp/litevm.genesis \
---vm-config-path=/tmp/litevm.config \
---subnet-config-path=/tmp/litevm.subnet \
+--vm-genesis-path=/tmp/basevm.genesis \
+--vm-config-path=/tmp/basevm.config \
+--subnet-config-path=/tmp/basevm.subnet \
 --output-path=/tmp/avalanchego-v${VERSION}/output.yaml \
 --mode=${MODE}
 

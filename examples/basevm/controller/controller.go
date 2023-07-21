@@ -20,13 +20,13 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/examples/litevm/actions"
-	"github.com/ava-labs/hypersdk/examples/litevm/config"
-	"github.com/ava-labs/hypersdk/examples/litevm/consts"
-	"github.com/ava-labs/hypersdk/examples/litevm/genesis"
-	"github.com/ava-labs/hypersdk/examples/litevm/rpc"
-	"github.com/ava-labs/hypersdk/examples/litevm/storage"
-	"github.com/ava-labs/hypersdk/examples/litevm/version"
+	"github.com/ava-labs/hypersdk/examples/basevm/actions"
+	"github.com/ava-labs/hypersdk/examples/basevm/config"
+	"github.com/ava-labs/hypersdk/examples/basevm/consts"
+	"github.com/ava-labs/hypersdk/examples/basevm/genesis"
+	"github.com/ava-labs/hypersdk/examples/basevm/rpc"
+	"github.com/ava-labs/hypersdk/examples/basevm/storage"
+	"github.com/ava-labs/hypersdk/examples/basevm/version"
 )
 
 var _ vm.Controller = (*Controller)(nil)

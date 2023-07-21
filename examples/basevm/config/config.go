@@ -16,9 +16,9 @@ import (
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
 
-	"github.com/ava-labs/hypersdk/examples/litevm/consts"
-	"github.com/ava-labs/hypersdk/examples/litevm/utils"
-	"github.com/ava-labs/hypersdk/examples/litevm/version"
+	"github.com/ava-labs/hypersdk/examples/basevm/consts"
+	"github.com/ava-labs/hypersdk/examples/basevm/utils"
+	"github.com/ava-labs/hypersdk/examples/basevm/version"
 )
 
 var _ vm.Config = (*Config)(nil)
@@ -141,7 +141,7 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 		return &profiler.Config{Enabled: false}
 	}
 	// Replace all instances of "*" with nodeID. This is useful when
-	// running multiple instances of litevm on the same machine.
+	// running multiple instances of basevm on the same machine.
 	c.ContinuousProfilerDir = strings.ReplaceAll(c.ContinuousProfilerDir, "*", c.nodeID.String())
 	return &profiler.Config{
 		Enabled:     true,

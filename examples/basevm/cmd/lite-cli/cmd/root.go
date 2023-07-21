@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-// "lite-cli" implements litevm client operation interface.
+// "base-cli" implements basevm client operation interface.
 package cmd
 
 import (
@@ -17,7 +17,7 @@ import (
 const (
 	requestTimeout  = 30 * time.Second
 	fsModeWrite     = 0o600
-	defaultDatabase = ".lite-cli"
+	defaultDatabase = ".base-cli"
 	defaultGenesis  = "genesis.json"
 )
 
@@ -39,9 +39,9 @@ var (
 	prometheusData     string
 
 	rootCmd = &cobra.Command{
-		Use:        "lite-cli",
-		Short:      "LiteVM CLI",
-		SuggestFor: []string{"lite-cli", "litecli"},
+		Use:        "base-cli",
+		Short:      "BaseVM CLI",
+		SuggestFor: []string{"base-cli", "basecli"},
 	}
 )
 

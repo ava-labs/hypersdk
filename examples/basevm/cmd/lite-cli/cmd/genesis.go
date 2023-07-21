@@ -10,7 +10,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/litevm/genesis"
+	"github.com/ava-labs/hypersdk/examples/basevm/genesis"
 )
 
 var genesisCmd = &cobra.Command{

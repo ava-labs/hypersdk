@@ -3,4 +3,4 @@
 
 package rpc
 
-const JSONRPCEndpoint = "/liteapi"
+const JSONRPCEndpoint = "/baseapi"

@@ -8,15 +8,15 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/litevm/consts"
-	"github.com/ava-labs/hypersdk/examples/litevm/version"
+	"github.com/ava-labs/hypersdk/examples/basevm/consts"
+	"github.com/ava-labs/hypersdk/examples/basevm/version"
 )
 
 func init() {
 	cobra.EnablePrefixMatching = true
 }
 
-// NewCommand implements "litevm version" command.
+// NewCommand implements "basevm version" command.
 func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",

@@ -9,8 +9,8 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto"
-	"github.com/ava-labs/hypersdk/examples/litevm/actions"
-	trpc "github.com/ava-labs/hypersdk/examples/litevm/rpc"
+	"github.com/ava-labs/hypersdk/examples/basevm/actions"
+	trpc "github.com/ava-labs/hypersdk/examples/basevm/rpc"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"

@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	HRP    = "lite"
-	Name   = "litevm"
+	HRP    = "base"
+	Name   = "basevm"
 	Symbol = "WCGW"
 )
 

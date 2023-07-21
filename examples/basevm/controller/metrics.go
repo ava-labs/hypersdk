@@ -6,7 +6,7 @@ package controller
 import (
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/hypersdk/examples/litevm/consts"
+	"github.com/ava-labs/hypersdk/examples/basevm/consts"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

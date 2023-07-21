@@ -1,4 +1,4 @@
-module github.com/ava-labs/hypersdk/examples/litevm
+module github.com/ava-labs/hypersdk/examples/basevm
 
 go 1.20
 

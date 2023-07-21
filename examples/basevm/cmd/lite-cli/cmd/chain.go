@@ -23,11 +23,11 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 
-	"github.com/ava-labs/hypersdk/examples/litevm/actions"
-	"github.com/ava-labs/hypersdk/examples/litevm/auth"
-	"github.com/ava-labs/hypersdk/examples/litevm/consts"
-	trpc "github.com/ava-labs/hypersdk/examples/litevm/rpc"
-	tutils "github.com/ava-labs/hypersdk/examples/litevm/utils"
+	"github.com/ava-labs/hypersdk/examples/basevm/actions"
+	"github.com/ava-labs/hypersdk/examples/basevm/auth"
+	"github.com/ava-labs/hypersdk/examples/basevm/consts"
+	trpc "github.com/ava-labs/hypersdk/examples/basevm/rpc"
+	tutils "github.com/ava-labs/hypersdk/examples/basevm/utils"
 )
 
 var chainCmd = &cobra.Command{

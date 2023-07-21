@@ -8,8 +8,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/hypersdk/examples/litevm/genesis"
-	"github.com/ava-labs/hypersdk/examples/litevm/utils"
+	"github.com/ava-labs/hypersdk/examples/basevm/genesis"
+	"github.com/ava-labs/hypersdk/examples/basevm/utils"
 )
 
 type JSONRPCServer struct {

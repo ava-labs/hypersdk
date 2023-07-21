@@ -9,9 +9,9 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 
-	"github.com/ava-labs/hypersdk/examples/litevm/actions"
-	"github.com/ava-labs/hypersdk/examples/litevm/auth"
-	"github.com/ava-labs/hypersdk/examples/litevm/consts"
+	"github.com/ava-labs/hypersdk/examples/basevm/actions"
+	"github.com/ava-labs/hypersdk/examples/basevm/auth"
+	"github.com/ava-labs/hypersdk/examples/basevm/consts"
 )
 
 // Setup types

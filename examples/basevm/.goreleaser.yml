@@ -3,9 +3,9 @@
 
 # ref. https://goreleaser.com/customization/build/
 builds:
-  - id: lite-cli
-    main: ./cmd/lite-cli
-    binary: lite-cli
+  - id: base-cli
+    main: ./cmd/base-cli
+    binary: base-cli
     flags:
       - -v
     goos:
@@ -31,9 +31,9 @@ builds:
         goamd64: v1
         env:
           - CC=o64-clang
-  - id: litevm
-    main: ./cmd/litevm
-    binary: litevm
+  - id: basevm
+    main: ./cmd/basevm
+    binary: basevm
     flags:
       - -v
     goos:

@@ -20,11 +20,11 @@ fi
 # Set default binary directory location
 name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
 
-# Build litevm, which is run as a subprocess
+# Build basevm, which is run as a subprocess
 mkdir -p ./build
 
-echo "Building litevm in ./build/$name"
-go build -o ./build/$name ./cmd/litevm
+echo "Building basevm in ./build/$name"
+go build -o ./build/$name ./cmd/basevm
 
-echo "Building lite-cli in ./build/lite-cli"
-go build -o ./build/lite-cli ./cmd/lite-cli
+echo "Building base-cli in ./build/base-cli"
+go build -o ./build/base-cli ./cmd/base-cli
