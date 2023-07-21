@@ -148,9 +148,7 @@ func (c *Controller) Initialize(
 		build = builder.NewManual(inner)
 		gossip = gossiper.NewManual(inner)
 	} else {
-		bcfg := builder.DefaultTimeConfig()
-		bcfg.PreferredBlocksPerSecond = c.config.GetPreferredBlocksPerSecond()
-		build = builder.NewTime(inner, bcfg)
+		build = builder.NewTime(inner)
 		gcfg := gossiper.DefaultProposerConfig()
 		gcfg.GossipInterval = c.config.GossipInterval
 		gcfg.GossipMaxSize = c.config.GossipMaxSize
@@ -165,7 +163,7 @@ func (c *Controller) Initialize(
 
 func (c *Controller) Rules(t int64) chain.Rules {
 	// TODO: extend with [UpgradeBytes]
-	return c.genesis.Rules(t)
+	return c.genesis.Rules(t, c.snowCtx.NetworkID, c.snowCtx.ChainID)
 }
 
 func (c *Controller) StateManager() chain.StateManager {
