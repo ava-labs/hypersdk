@@ -30,12 +30,15 @@ func (h *Handler) PromptAddress(label string) (crypto.PublicKey, error) {
 	return h.c.ParseAddress(recipient)
 }
 
-func (*Handler) PromptString(label string) (string, error) {
+func (*Handler) PromptString(label string, min int, max int) (string, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
-			if len(input) == 0 {
+			if len(input) < min {
 				return ErrInputEmpty
+			}
+			if len(input) > max {
+				return ErrInputTooLarge
 			}
 			return nil
 		},

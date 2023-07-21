@@ -6,7 +6,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -20,7 +19,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
 
@@ -40,35 +38,35 @@ var transferCmd = &cobra.Command{
 	Use: "transfer",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, _, priv, factory, cli, tcli, err := defaultActor()
+		_, priv, factory, cli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
 
 		// Select token to send
-		assetID, err := promptAsset("assetID", true)
+		assetID, err := handler.Root().PromptAsset("assetID", true)
 		if err != nil {
 			return err
 		}
-		balance, _, err := getAssetInfo(ctx, tcli, priv.PublicKey(), assetID, true)
+		balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), assetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
 
 		// Select recipient
-		recipient, err := promptAddress("recipient")
+		recipient, err := handler.Root().PromptAddress("recipient")
 		if err != nil {
 			return err
 		}
 
 		// Select amount
-		amount, err := promptAmount("amount", assetID, balance, nil)
+		amount, err := handler.Root().PromptAmount("amount", assetID, balance, nil)
 		if err != nil {
 			return err
 		}
 
 		// Confirm action
-		cont, err := promptContinue()
+		cont, err := handler.Root().PromptContinue()
 		if !cont || err != nil {
 			return err
 		}
@@ -93,7 +91,7 @@ var transferCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		printStatus(tx.ID(), success)
+		handler.Root().PrintStatus(tx.ID(), success)
 		return nil
 	},
 }
@@ -102,28 +100,19 @@ var createAssetCmd = &cobra.Command{
 	Use: "create-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, _, _, factory, cli, tcli, err := defaultActor()
+		_, _, factory, cli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
 
 		// Add metadata to token
-		promptText := promptui.Prompt{
-			Label: "metadata (can be changed later)",
-			Validate: func(input string) error {
-				if len(input) > actions.MaxMetadataSize {
-					return errors.New("input too large")
-				}
-				return nil
-			},
-		}
-		metadata, err := promptText.Run()
+		metadata, err := handler.Root().PromptString("metadata (can be changed later)", 0, actions.MaxMetadataSize)
 		if err != nil {
 			return err
 		}
 
 		// Confirm action
-		cont, err := promptContinue()
+		cont, err := handler.Root().PromptContinue()
 		if !cont || err != nil {
 			return err
 		}
@@ -146,7 +135,7 @@ var createAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		printStatus(tx.ID(), success)
+		handler.Root().PrintStatus(tx.ID(), success)
 		return nil
 	},
 }
@@ -155,13 +144,13 @@ var mintAssetCmd = &cobra.Command{
 	Use: "mint-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, _, priv, factory, cli, tcli, err := defaultActor()
+		_, priv, factory, cli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
 
 		// Select token to mint
-		assetID, err := promptAsset("assetID", false)
+		assetID, err := handler.Root().PromptAsset("assetID", false)
 		if err != nil {
 			return err
 		}
@@ -191,19 +180,19 @@ var mintAssetCmd = &cobra.Command{
 		)
 
 		// Select recipient
-		recipient, err := promptAddress("recipient")
+		recipient, err := handler.Root().PromptAddress("recipient")
 		if err != nil {
 			return err
 		}
 
 		// Select amount
-		amount, err := promptAmount("amount", assetID, consts.MaxUint64-supply, nil)
+		amount, err := handler.Root().PromptAmount("amount", assetID, consts.MaxUint64-supply, nil)
 		if err != nil {
 			return err
 		}
 
 		// Confirm action
-		cont, err := promptContinue()
+		cont, err := handler.Root().PromptContinue()
 		if !cont || err != nil {
 			return err
 		}
@@ -228,7 +217,7 @@ var mintAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		printStatus(tx.ID(), success)
+		handler.Root().PrintStatus(tx.ID(), success)
 		return nil
 	},
 }
@@ -237,30 +226,32 @@ var closeOrderCmd = &cobra.Command{
 	Use: "close-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, _, _, factory, cli, tcli, err := defaultActor()
+		_, _, factory, cli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
 
 		// Select inbound token
-		orderID, err := promptID("orderID")
+		orderID, err := handler.Root().PromptID("orderID")
 		if err != nil {
 			return err
 		}
 
 		// Select outbound token
-		outAssetID, err := promptAsset("out assetID", true)
+		outAssetID, err := handler.Root().PromptAsset("out assetID", true)
 		if err != nil {
 			return err
 		}
 
 		// Confirm action
-		cont, err := promptContinue()
+		cont, err := handler.Root().PromptContinue()
 		if !cont || err != nil {
 			return err
 		}
 
 		// Generate transaction
+		//
+		// TODO: make this a helper
 		parser, err := tcli.Parser(ctx)
 		if err != nil {
 			return err
@@ -279,7 +270,7 @@ var closeOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		printStatus(tx.ID(), success)
+		handler.Root().PrintStatus(tx.ID(), success)
 		return nil
 	},
 }
@@ -288,13 +279,13 @@ var createOrderCmd = &cobra.Command{
 	Use: "create-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, _, priv, factory, cli, tcli, err := defaultActor()
+		_, priv, factory, cli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
 
 		// Select inbound token
-		inAssetID, err := promptAsset("in assetID", true)
+		inAssetID, err := handler.Root().PromptAsset("in assetID", true)
 		if err != nil {
 			return err
 		}
@@ -317,29 +308,29 @@ var createOrderCmd = &cobra.Command{
 		}
 
 		// Select in tick
-		inTick, err := promptAmount("in tick", inAssetID, consts.MaxUint64, nil)
+		inTick, err := handler.Root().PromptAmount("in tick", inAssetID, consts.MaxUint64, nil)
 		if err != nil {
 			return err
 		}
 
 		// Select outbound token
-		outAssetID, err := promptAsset("out assetID", true)
+		outAssetID, err := handler.Root().PromptAsset("out assetID", true)
 		if err != nil {
 			return err
 		}
-		balance, _, err := getAssetInfo(ctx, tcli, priv.PublicKey(), outAssetID, true)
+		balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), outAssetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
 
 		// Select out tick
-		outTick, err := promptAmount("out tick", outAssetID, consts.MaxUint64, nil)
+		outTick, err := handler.Root().PromptAmount("out tick", outAssetID, consts.MaxUint64, nil)
 		if err != nil {
 			return err
 		}
 
 		// Select supply
-		supply, err := promptAmount(
+		supply, err := handler.Root().PromptAmount(
 			"supply (must be multiple of out tick)",
 			outAssetID,
 			balance,
@@ -355,7 +346,7 @@ var createOrderCmd = &cobra.Command{
 		}
 
 		// Confirm action
-		cont, err := promptContinue()
+		cont, err := handler.Root().PromptContinue()
 		if !cont || err != nil {
 			return err
 		}
@@ -382,7 +373,7 @@ var createOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		printStatus(tx.ID(), success)
+		handler.Root().PrintStatus(tx.ID(), success)
 		return nil
 	},
 }
@@ -397,7 +388,7 @@ var fillOrderCmd = &cobra.Command{
 		}
 
 		// Select inbound token
-		inAssetID, err := promptAsset("in assetID", true)
+		inAssetID, err := handler.Root().PromptAsset("in assetID", true)
 		if err != nil {
 			return err
 		}
@@ -407,7 +398,7 @@ var fillOrderCmd = &cobra.Command{
 		}
 
 		// Select outbound token
-		outAssetID, err := promptAsset("out assetID", true)
+		outAssetID, err := handler.Root().PromptAsset("out assetID", true)
 		if err != nil {
 			return err
 		}
@@ -436,12 +427,12 @@ var fillOrderCmd = &cobra.Command{
 				"%d) {{cyan}}Rate(in/out):{{/}} %.4f {{cyan}}InTick:{{/}} %s %s {{cyan}}OutTick:{{/}} %s %s {{cyan}}Remaining:{{/}} %s %s\n", //nolint:lll
 				i,
 				float64(order.InTick)/float64(order.OutTick),
-				valueString(inAssetID, order.InTick),
-				assetString(inAssetID),
-				valueString(outAssetID, order.OutTick),
-				assetString(outAssetID),
-				valueString(outAssetID, order.Remaining),
-				assetString(outAssetID),
+				handler.Root().ValueString(inAssetID, order.InTick),
+				handler.Root().AssetString(inAssetID),
+				handler.Root().ValueString(outAssetID, order.OutTick),
+				handler.Root().AssetString(outAssetID),
+				handler.Root().ValueString(outAssetID, order.Remaining),
+				handler.Root().AssetString(outAssetID),
 			)
 		}
 
@@ -453,7 +444,7 @@ var fillOrderCmd = &cobra.Command{
 		order := orders[orderIndex]
 
 		// Select input to trade
-		value, err := promptAmount(
+		value, err := handler.Root().PromptAmount(
 			"value (must be multiple of in tick)",
 			inAssetID,
 			balance,
@@ -476,14 +467,14 @@ var fillOrderCmd = &cobra.Command{
 		outAmount := multiples * order.OutTick
 		hutils.Outf(
 			"{{orange}}in:{{/}} %s %s {{orange}}out:{{/}} %s %s\n",
-			valueString(inAssetID, value),
-			assetString(inAssetID),
-			valueString(outAssetID, outAmount),
-			assetString(outAssetID),
+			handler.Root().ValueString(inAssetID, value),
+			handler.Root().AssetString(inAssetID),
+			handler.Root().ValueString(outAssetID, outAmount),
+			handler.Root().AssetString(outAssetID),
 		)
 
 		// Confirm action
-		cont, err := promptContinue()
+		cont, err := handler.Root().PromptContinue()
 		if !cont || err != nil {
 			return err
 		}
@@ -513,7 +504,7 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		printStatus(tx.ID(), success)
+		handler.Root().PrintStatus(tx.ID(), success)
 		return nil
 	},
 }
@@ -555,7 +546,7 @@ func performImport(
 		} else {
 			hutils.Outf("{{red}}encountered error:{{/}} %v\n", err)
 		}
-		cont, err := promptBool("try again")
+		cont, err := handler.Root().PromptBool("try again")
 		if err != nil {
 			return err
 		}
@@ -581,22 +572,22 @@ func performImport(
 			msg.UnsignedMessage.Payload,
 		),
 		utils.Address(wt.To),
-		assetString(wt.Asset),
-		assetString(outputAssetID),
-		valueString(outputAssetID, wt.Value),
-		valueString(outputAssetID, wt.Reward),
+		handler.Root().AssetString(wt.Asset),
+		handler.Root().AssetString(outputAssetID),
+		handler.Root().ValueString(outputAssetID, wt.Value),
+		handler.Root().ValueString(outputAssetID, wt.Reward),
 		wt.Return,
 	)
 	if wt.SwapIn > 0 {
 		hutils.Outf(
 			"{{yellow}}asset in:{{/}} %s {{yellow}}swap in:{{/}} %s {{yellow}}asset out:{{/}} %s {{yellow}}swap out:{{/}} %s {{yellow}}swap expiry:{{/}} %d\n",
-			assetString(outputAssetID),
-			valueString(
+			handler.Root().AssetString(outputAssetID),
+			handler.Root().ValueString(
 				outputAssetID,
 				wt.SwapIn,
 			),
-			assetString(wt.AssetOut),
-			valueString(wt.AssetOut, wt.SwapOut),
+			handler.Root().AssetString(wt.AssetOut),
+			handler.Root().ValueString(wt.AssetOut, wt.SwapOut),
 			wt.SwapExpiry,
 		)
 	}
@@ -609,7 +600,7 @@ func performImport(
 	// Select fill
 	var fill bool
 	if wt.SwapIn > 0 {
-		fill, err = promptBool("fill")
+		fill, err = handler.Root().PromptBool("fill")
 		if err != nil {
 			return err
 		}
@@ -641,7 +632,7 @@ func performImport(
 	if err != nil {
 		return err
 	}
-	printStatus(tx.ID(), success)
+	handler.Root().PrintStatus(tx.ID(), success)
 	return nil
 }
 
@@ -702,13 +693,13 @@ var importAssetCmd = &cobra.Command{
 	Use: "import-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, currentChainID, priv, factory, dcli, dtcli, err := defaultActor()
+		currentChainID, priv, factory, dcli, dtcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
 
 		// Select source
-		_, uris, err := promptChain("sourceChainID", set.Set[ids.ID]{currentChainID: {}})
+		_, uris, err := handler.Root().PromptChain("sourceChainID", set.Set[ids.ID]{currentChainID: {}})
 		if err != nil {
 			return err
 		}
@@ -729,7 +720,7 @@ var exportAssetCmd = &cobra.Command{
 		}
 
 		// Select token to send
-		assetID, err := promptAsset("assetID", true)
+		assetID, err := handler.Root().PromptAsset("assetID", true)
 		if err != nil {
 			return err
 		}
@@ -745,7 +736,7 @@ var exportAssetCmd = &cobra.Command{
 		}
 
 		// Select amount
-		amount, err := promptAmount("amount", assetID, balance, nil)
+		amount, err := handler.Root().PromptAmount("amount", assetID, balance, nil)
 		if err != nil {
 			return err
 		}
@@ -757,7 +748,7 @@ var exportAssetCmd = &cobra.Command{
 		}
 
 		// Select reward
-		reward, err := promptAmount("reward", assetID, balance-amount, nil)
+		reward, err := handler.Root().PromptAmount("reward", assetID, balance-amount, nil)
 		if err != nil {
 			return err
 		}
@@ -772,7 +763,7 @@ var exportAssetCmd = &cobra.Command{
 		}
 
 		// Determine if swap in
-		swap, err := promptBool("swap on import")
+		swap, err := handler.Root().PromptBool("swap on import")
 		if err != nil {
 			return err
 		}
@@ -783,15 +774,15 @@ var exportAssetCmd = &cobra.Command{
 			swapExpiry int64
 		)
 		if swap {
-			swapIn, err = promptAmount("swap in", assetID, amount, nil)
+			swapIn, err = handler.Root().PromptAmount("swap in", assetID, amount, nil)
 			if err != nil {
 				return err
 			}
-			assetOut, err = promptAsset("asset out (on destination)", true)
+			assetOut, err = handler.Root().PromptAsset("asset out (on destination)", true)
 			if err != nil {
 				return err
 			}
-			swapOut, err = promptAmount(
+			swapOut, err = handler.Root().PromptAmount(
 				"swap out (on destination)",
 				assetOut,
 				consts.MaxUint64,
@@ -807,7 +798,7 @@ var exportAssetCmd = &cobra.Command{
 		}
 
 		// Confirm action
-		cont, err := promptContinue()
+		cont, err := handler.Root().PromptContinue()
 		if !cont || err != nil {
 			return err
 		}
@@ -844,15 +835,15 @@ var exportAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		printStatus(tx.ID(), success)
+		handler.Root().PrintStatus(tx.ID(), success)
 
 		// Perform import
-		imp, err := promptBool("perform import on destination")
+		imp, err := handler.Root().PromptBool("perform import on destination")
 		if err != nil {
 			return err
 		}
 		if imp {
-			uris, err := GetChain(destination)
+			uris, err := handler.Root().GetChain(destination)
 			if err != nil {
 				return err
 			}
@@ -866,13 +857,13 @@ var exportAssetCmd = &cobra.Command{
 		}
 
 		// Ask if user would like to switch to destination chain
-		sw, err := promptBool("switch default chain to destination")
+		sw, err := handler.Root().PromptBool("switch default chain to destination")
 		if err != nil {
 			return err
 		}
 		if !sw {
 			return nil
 		}
-		return StoreDefault(defaultChainKey, destination[:])
+		return h.Root().StoreDefault(cli.DefaultChainKey, destination[:])
 	},
 }

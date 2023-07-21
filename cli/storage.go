@@ -16,8 +16,8 @@ const (
 	keyPrefix     = 0x1
 	chainPrefix   = 0x2
 
-	defaultKeyKey   = "key"
-	defaultChainKey = "chain"
+	DefaultKeyKey   = "key"
+	DefaultChainKey = "chain"
 )
 
 func (h *Handler) StoreDefault(key string, value []byte) error {
@@ -42,7 +42,7 @@ func (h *Handler) GetDefault(key string) ([]byte, error) {
 }
 
 func (h *Handler) GetDefaultChain() (ids.ID, []string, error) {
-	v, err := h.GetDefault(defaultChainKey)
+	v, err := h.GetDefault(DefaultChainKey)
 	if err != nil {
 		return ids.Empty, nil, err
 	}
@@ -101,7 +101,7 @@ func (h *Handler) GetKeys() ([]crypto.PrivateKey, error) {
 }
 
 func (h *Handler) GetDefaultKey() (crypto.PrivateKey, error) {
-	v, err := h.GetDefault(defaultKeyKey)
+	v, err := h.GetDefault(DefaultKeyKey)
 	if err != nil {
 		return crypto.EmptyPrivateKey, err
 	}
@@ -200,5 +200,7 @@ func (h *Handler) CloseDatabase() error {
 	if err := h.db.Close(); err != nil {
 		return fmt.Errorf("unable to close database: %w", err)
 	}
+	// Allow DB to be closed multiple times
+	h.db = nil
 	return nil
 }

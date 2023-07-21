@@ -8,8 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/hypersdk/pebble"
+	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 )
@@ -22,9 +21,9 @@ const (
 )
 
 var (
-	dbPath string
-	db     database.Database
+	handler *Handler
 
+	dbPath            string
 	genesisFile       string
 	minUnitPrice      int64
 	maxBlockUnits     int64
@@ -63,12 +62,16 @@ func init() {
 	)
 	rootCmd.PersistentPreRunE = func(*cobra.Command, []string) error {
 		utils.Outf("{{yellow}}database:{{/}} %s\n", dbPath)
-		var err error
-		db, err = pebble.New(dbPath, pebble.NewDefaultConfig())
-		return err
+		controller := NewController(dbPath)
+		root, err := cli.New(controller)
+		if err != nil {
+			return err
+		}
+		handler = NewHandler(root)
+		return nil
 	}
 	rootCmd.PersistentPostRunE = func(*cobra.Command, []string) error {
-		return CloseDatabase()
+		return handler.Root().CloseDatabase()
 	}
 	rootCmd.SilenceErrors = true
 
