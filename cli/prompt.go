@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/manifoldco/promptui"
@@ -273,6 +274,48 @@ func (*Handler) PromptID(label string) (ids.ID, error) {
 		return ids.Empty, err
 	}
 	return id, nil
+}
+
+func (h *Handler) PromptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, error) {
+	chains, err := h.GetChains()
+	if err != nil {
+		return ids.Empty, nil, err
+	}
+	filteredChains := make([]ids.ID, 0, len(chains))
+	excludedChains := []ids.ID{}
+	for chainID := range chains {
+		if excluded != nil && excluded.Contains(chainID) {
+			excludedChains = append(excludedChains, chainID)
+			continue
+		}
+		filteredChains = append(filteredChains, chainID)
+	}
+	if len(filteredChains) == 0 {
+		return ids.Empty, nil, ErrNoChains
+	}
+
+	// Select chain
+	utils.Outf(
+		"{{cyan}}available chains:{{/}} %d {{cyan}}excluded:{{/}} %+v\n",
+		len(filteredChains),
+		excludedChains,
+	)
+	keys := make([]ids.ID, 0, len(filteredChains))
+	for _, chainID := range filteredChains {
+		utils.Outf(
+			"%d) {{cyan}}chainID:{{/}} %s\n",
+			len(keys),
+			chainID,
+		)
+		keys = append(keys, chainID)
+	}
+
+	chainIndex, err := h.PromptChoice(label, len(keys))
+	if err != nil {
+		return ids.Empty, nil, err
+	}
+	chainID := keys[chainIndex]
+	return chainID, chains[chainID], nil
 }
 
 func (*Handler) ValueString(assetID ids.ID, value uint64) string {
