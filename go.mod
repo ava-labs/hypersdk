@@ -8,6 +8,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/gorilla/rpc v1.2.0
 	github.com/gorilla/websocket v1.5.0
+	github.com/manifoldco/promptui v0.9.0
 	github.com/neilotoole/errgroup v0.1.6
 	github.com/onsi/ginkgo/v2 v2.8.1
 	github.com/prometheus/client_golang v1.16.0
@@ -27,6 +28,7 @@ require (
 	github.com/btcsuite/btcd/btcutil v1.1.3 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/cockroachdb/errors v1.9.1 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
 	github.com/cockroachdb/redact v1.1.3 // indirect
