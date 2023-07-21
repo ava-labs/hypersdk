@@ -382,7 +382,7 @@ var fillOrderCmd = &cobra.Command{
 	Use: "fill-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, _, priv, factory, cli, tcli, err := defaultActor()
+		_, priv, factory, cli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -392,7 +392,7 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		balance, _, err := getAssetInfo(ctx, tcli, priv.PublicKey(), inAssetID, true)
+		balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), inAssetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -402,7 +402,7 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if _, _, err := getAssetInfo(ctx, tcli, priv.PublicKey(), outAssetID, false); err != nil {
+		if _, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), outAssetID, false); err != nil {
 			return err
 		}
 
@@ -437,7 +437,7 @@ var fillOrderCmd = &cobra.Command{
 		}
 
 		// Select order
-		orderIndex, err := promptChoice("select order", max)
+		orderIndex, err := handler.Root().PromptChoice("select order", max)
 		if err != nil {
 			return err
 		}
@@ -521,7 +521,7 @@ func performImport(
 	// Select TxID (if not provided)
 	var err error
 	if exportTxID == ids.Empty {
-		exportTxID, err = promptID("export txID")
+		exportTxID, err = handler.Root().PromptID("export txID")
 		if err != nil {
 			return err
 		}
@@ -714,7 +714,7 @@ var exportAssetCmd = &cobra.Command{
 	Use: "export-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, currentChainID, priv, factory, cli, tcli, err := defaultActor()
+		currentChainID, priv, factory, cli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -724,13 +724,13 @@ var exportAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		balance, sourceChainID, err := getAssetInfo(ctx, tcli, priv.PublicKey(), assetID, true)
+		balance, sourceChainID, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), assetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
 
 		// Select recipient
-		recipient, err := promptAddress("recipient")
+		recipient, err := handler.Root().PromptAddress("recipient")
 		if err != nil {
 			return err
 		}
@@ -756,7 +756,7 @@ var exportAssetCmd = &cobra.Command{
 		// Determine destination
 		destination := sourceChainID
 		if !ret {
-			destination, _, err = promptChain("destination", set.Set[ids.ID]{currentChainID: {}})
+			destination, _, err = handler.Root().PromptChain("destination", set.Set[ids.ID]{currentChainID: {}})
 			if err != nil {
 				return err
 			}
@@ -791,7 +791,7 @@ var exportAssetCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			swapExpiry, err = promptTime("swap expiry")
+			swapExpiry, err = handler.Root().PromptTime("swap expiry")
 			if err != nil {
 				return err
 			}
@@ -864,6 +864,6 @@ var exportAssetCmd = &cobra.Command{
 		if !sw {
 			return nil
 		}
-		return h.Root().StoreDefault(cli.DefaultChainKey, destination[:])
+		return handler.Root().StoreDefaultChain(destination)
 	},
 }

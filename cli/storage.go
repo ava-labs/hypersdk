@@ -16,8 +16,8 @@ const (
 	keyPrefix     = 0x1
 	chainPrefix   = 0x2
 
-	DefaultKeyKey   = "key"
-	DefaultChainKey = "chain"
+	defaultKeyKey   = "key"
+	defaultChainKey = "chain"
 )
 
 func (h *Handler) StoreDefault(key string, value []byte) error {
@@ -41,8 +41,12 @@ func (h *Handler) GetDefault(key string) ([]byte, error) {
 	return v, nil
 }
 
+func (h *Handler) StoreDefaultChain(chainID ids.ID) error {
+	return h.StoreDefault(defaultChainKey, chainID[:])
+}
+
 func (h *Handler) GetDefaultChain() (ids.ID, []string, error) {
-	v, err := h.GetDefault(DefaultChainKey)
+	v, err := h.GetDefault(defaultChainKey)
 	if err != nil {
 		return ids.Empty, nil, err
 	}
@@ -100,8 +104,12 @@ func (h *Handler) GetKeys() ([]crypto.PrivateKey, error) {
 	return privateKeys, iter.Error()
 }
 
+func (h *Handler) StoreDefaultKey(pk crypto.PrivateKey) error {
+	return h.StoreDefault(defaultKeyKey, pk[:])
+}
+
 func (h *Handler) GetDefaultKey() (crypto.PrivateKey, error) {
-	v, err := h.GetDefault(DefaultKeyKey)
+	v, err := h.GetDefault(defaultKeyKey)
 	if err != nil {
 		return crypto.EmptyPrivateKey, err
 	}
