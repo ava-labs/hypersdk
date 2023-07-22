@@ -251,19 +251,13 @@ these functions with avalanchego means existing avalanchego monitoring tools
 work out of the box on your `hypervm`.
 
 ## Examples
+We've created three `hypervm` examples, of increasing complexity, that demonstrate what you
+can build with the `hypersdk`. When you are ready to build your own `hypervm`, we recommend
+using the `simplevm` as a template!
+
 ### Beginner: `simplevm`
-The [`simplevm`](/.examples/simplevm) is the "simplest `hypervm` you could make."
-
-
-All you can do on the
-`simplevm` is send native tokens between standard ed25519 public keys.
-
-thing this
-`hypervm` 
-
-The `simplevm` It only has
-one purpose: native token transfers. This is a great repo to use as a template for creating
-your own `hypervm`.
+The [`simplevm`](/.examples/simplevm) is the "simplest `hypervm` you could make." The `simplevm`
+lets you do one thing and one thing only: native token transfers.
 
 To ensure the `hypersdk` remains reliable as we optimize and evolve the codebase,
 we also run E2E tests in the `simplevm` on each PR to the `hypersdk` core modules.
