@@ -252,7 +252,12 @@ work out of the box on your `hypervm`.
 
 ## Examples
 ### Beginner: `basevm`
-...
+The [`basevm`](/.examples/basevm) is the "simplest `hypervm` you could make." It only has
+one purpose: native token transfers. This is a great repo to use as a template for creating
+your own `hypervm`.
+
+To ensure the `hypersdk` remains reliable as we optimize and evolve the codebase,
+we also run E2E tests in the `basevm` on each PR to the `hypersdk` core modules.
 
 ### Moderate: `tokenvm`
 We created the [`tokenvm`](./examples/tokenvm) to showcase how to use the
