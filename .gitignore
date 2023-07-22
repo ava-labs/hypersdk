@@ -57,7 +57,7 @@ dist/
 *.pk
 tmp-storage-testing
 .token-cli*
-.base-cli*
+.simple-cli*
 *.html
 data/
 osxcross/

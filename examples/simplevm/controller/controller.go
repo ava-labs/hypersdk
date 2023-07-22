@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/datasimple"
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/hypersdk/builder"
@@ -41,7 +41,7 @@ type Controller struct {
 
 	metrics *metrics
 
-	metaDB datasimple.Datasimple
+	metaDB database.Database
 }
 
 func New() *vm.VM {
@@ -60,8 +60,8 @@ func (c *Controller) Initialize(
 	vm.Genesis,
 	builder.Builder,
 	gossiper.Gossiper,
-	datasimple.Datasimple,
-	datasimple.Datasimple,
+	database.Database,
+	database.Database,
 	vm.Handlers,
 	chain.ActionRegistry,
 	chain.AuthRegistry,
@@ -197,7 +197,7 @@ func (*Controller) Rejected(context.Context, *chain.StatelessBlock) error {
 }
 
 func (*Controller) Shutdown(context.Context) error {
-	// Do not close any datasimples provided during initialization. The VM will
-	// close any datasimples your provided.
+	// Do not close any databases provided during initialization. The VM will
+	// close any databases your provided.
 	return nil
 }

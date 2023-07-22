@@ -84,15 +84,15 @@ func (*Handler) GetBalance(
 }
 
 type Controller struct {
-	datasimplePath string
+	databasePath string
 }
 
-func NewController(datasimplePath string) *Controller {
-	return &Controller{datasimplePath}
+func NewController(databasePath string) *Controller {
+	return &Controller{databasePath}
 }
 
-func (c *Controller) DatasimplePath() string {
-	return c.datasimplePath
+func (c *Controller) DatabasePath() string {
+	return c.databasePath
 }
 
 func (*Controller) Symbol() string {

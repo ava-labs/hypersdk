@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/datasimple/manager"
+	"github.com/ava-labs/avalanchego/database/manager"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
@@ -222,10 +222,10 @@ var _ = ginkgo.BeforeSuite(func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		pdb, err := pebble.New(dname, pebble.NewDefaultConfig())
 		gomega.Ω(err).Should(gomega.BeNil())
-		db, err := manager.NewManagerFromDBs([]*manager.VersionedDatasimple{
+		db, err := manager.NewManagerFromDBs([]*manager.VersionedDatabase{
 			{
-				Datasimple: pdb,
-				Version:  avago_version.CurrentDatasimple,
+				Database: pdb,
+				Version:  avago_version.CurrentDatabase,
 			},
 		})
 		gomega.Ω(err).Should(gomega.BeNil())

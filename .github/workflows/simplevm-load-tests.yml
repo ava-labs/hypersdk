@@ -1,17 +1,23 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-name: BaseVM Static Analysis
+name: SimpleVM Load Tests
 
 on:
   push:
     branches:
       - main
   pull_request:
+    types: [labeled,synchronize,reopened]
 
 jobs:
-  basevm-lint:
-    runs-on: ubuntu-latest
+  simplevm-load-tests:
+    if: ${{ github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'run load') }}
+    strategy:
+      matrix:
+        level: [v1, v2, v3] # v4 is not supported
+    runs-on:
+      labels: ubuntu-20.04-32
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -24,12 +30,11 @@ jobs:
           cache: true
           cache-dependency-path: |
             go.sum
-            examples/basevm/go.sum
-      - name: Run static analysis tests
-        working-directory: ./examples/basevm
+            examples/simplevm/go.sum
+      - name: Run load tests
+        working-directory: ./examples/simplevm
         shell: bash
-        run: scripts/tests.lint.sh
-
+        run: GOAMD64=${{ matrix.level }} scripts/tests.load.sh
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true

@@ -47,7 +47,7 @@ func (d *ED25519) AsyncVerify(msg []byte) error {
 func (d *ED25519) Verify(
 	_ context.Context,
 	r chain.Rules,
-	_ chain.Datasimple,
+	_ chain.Database,
 	_ chain.Action,
 ) (uint64, error) {
 	// We don't do anything during verify (there is no additional state to check
@@ -73,7 +73,7 @@ func UnmarshalED25519(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 
 func (d *ED25519) CanDeduct(
 	ctx context.Context,
-	db chain.Datasimple,
+	db chain.Database,
 	amount uint64,
 ) error {
 	bal, err := storage.GetBalance(ctx, db, d.Signer)
@@ -88,7 +88,7 @@ func (d *ED25519) CanDeduct(
 
 func (d *ED25519) Deduct(
 	ctx context.Context,
-	db chain.Datasimple,
+	db chain.Database,
 	amount uint64,
 ) error {
 	return storage.SubBalance(ctx, db, d.Signer, amount)
@@ -96,7 +96,7 @@ func (d *ED25519) Deduct(
 
 func (d *ED25519) Refund(
 	ctx context.Context,
-	db chain.Datasimple,
+	db chain.Database,
 	amount uint64,
 ) error {
 	return storage.AddBalance(ctx, db, d.Signer, amount)

@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ava-labs/avalanchego/datasimple"
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/hypersdk/chain"
@@ -66,7 +66,7 @@ func PrefixTxKey(id ids.ID) (k []byte) {
 
 func StoreTransaction(
 	_ context.Context,
-	db datasimple.KeyValueWriter,
+	db database.KeyValueWriter,
 	id ids.ID,
 	t int64,
 	success bool,
@@ -86,12 +86,12 @@ func StoreTransaction(
 
 func GetTransaction(
 	_ context.Context,
-	db datasimple.KeyValueReader,
+	db database.KeyValueReader,
 	id ids.ID,
 ) (bool, int64, bool, uint64, error) {
 	k := PrefixTxKey(id)
 	v, err := db.Get(k)
-	if errors.Is(err, datasimple.ErrNotFound) {
+	if errors.Is(err, database.ErrNotFound) {
 		return false, 0, false, 0, nil
 	}
 	if err != nil {
@@ -117,7 +117,7 @@ func PrefixBalanceKey(pk crypto.PublicKey) (k []byte) {
 // If locked is 0, then account does not exist
 func GetBalance(
 	ctx context.Context,
-	db chain.Datasimple,
+	db chain.Database,
 	pk crypto.PublicKey,
 ) (uint64, error) {
 	dbKey, bal, err := getBalance(ctx, db, pk)
@@ -127,7 +127,7 @@ func GetBalance(
 
 func getBalance(
 	ctx context.Context,
-	db chain.Datasimple,
+	db chain.Database,
 	pk crypto.PublicKey,
 ) ([]byte, uint64, error) {
 	k := PrefixBalanceKey(pk)
@@ -152,7 +152,7 @@ func innerGetBalance(
 	v []byte,
 	err error,
 ) (uint64, error) {
-	if errors.Is(err, datasimple.ErrNotFound) {
+	if errors.Is(err, database.ErrNotFound) {
 		return 0, nil
 	}
 	if err != nil {
@@ -163,7 +163,7 @@ func innerGetBalance(
 
 func SetBalance(
 	ctx context.Context,
-	db chain.Datasimple,
+	db chain.Database,
 	pk crypto.PublicKey,
 	balance uint64,
 ) error {
@@ -173,7 +173,7 @@ func SetBalance(
 
 func setBalance(
 	ctx context.Context,
-	db chain.Datasimple,
+	db chain.Database,
 	dbKey []byte,
 	balance uint64,
 ) error {
@@ -182,7 +182,7 @@ func setBalance(
 
 func AddBalance(
 	ctx context.Context,
-	db chain.Datasimple,
+	db chain.Database,
 	pk crypto.PublicKey,
 	amount uint64,
 ) error {
@@ -205,7 +205,7 @@ func AddBalance(
 
 func SubBalance(
 	ctx context.Context,
-	db chain.Datasimple,
+	db chain.Database,
 	pk crypto.PublicKey,
 	amount uint64,
 ) error {

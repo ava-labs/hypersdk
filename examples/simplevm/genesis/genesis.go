@@ -87,7 +87,7 @@ func New(b []byte, _ []byte /* upgradeBytes */) (*Genesis, error) {
 	return g, nil
 }
 
-func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Datasimple) error {
+func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Database) error {
 	ctx, span := tracer.Start(ctx, "Genesis.Load")
 	defer span.End()
 

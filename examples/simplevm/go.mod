@@ -1,4 +1,4 @@
-module github.com/ava-labs/hypersdk/examples/basevm
+module github.com/ava-labs/hypersdk/examples/simplevm
 
 go 1.20
 

@@ -74,18 +74,18 @@ fi
 ############################
 
 ############################
-echo "building basevm"
+echo "building simplevm"
 
 # delete previous (if exists)
-rm -f ${TMPDIR}/avalanchego-${VERSION}/plugins/kL184aRyEhXdZeB28JDCq3uNwHZLZNjx1WF1B4nLhZ9HiXNuc
+rm -f ${TMPDIR}/avalanchego-${VERSION}/plugins/sq3LEY9T9KKPpR4iaADLeHKtdqrtmKfEXuJLcfHuTjHJZFFrG
 
 # rebuild with latest code
 go build \
--o ${TMPDIR}/avalanchego-${VERSION}/plugins/kL184aRyEhXdZeB28JDCq3uNwHZLZNjx1WF1B4nLhZ9HiXNuc \
-./cmd/basevm
+-o ${TMPDIR}/avalanchego-${VERSION}/plugins/sq3LEY9T9KKPpR4iaADLeHKtdqrtmKfEXuJLcfHuTjHJZFFrG \
+./cmd/simplevm
 
-echo "building base-cli"
-go build -v -o ${TMPDIR}/base-cli ./cmd/base-cli
+echo "building simple-cli"
+go build -v -o ${TMPDIR}/simple-cli ./cmd/simple-cli
 
 # log everything in the avalanchego directory
 find ${TMPDIR}/avalanchego-${VERSION}
@@ -97,22 +97,22 @@ find ${TMPDIR}/avalanchego-${VERSION}
 # Always create allocations (linter doesn't like tab)
 echo "creating allocations file"
 cat <<EOF > ${TMPDIR}/allocations.json
-[{"address":"base1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsgkuwsr", "balance":1000000000000}]
+[{"address":"simple1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97ns3deh6g", "balance":1000000000000}]
 EOF
 
 GENESIS_PATH=$2
 if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
-  rm -f ${TMPDIR}/basevm.genesis
-  ${TMPDIR}/base-cli genesis generate ${TMPDIR}/allocations.json \
+  rm -f ${TMPDIR}/simplevm.genesis
+  ${TMPDIR}/simple-cli genesis generate ${TMPDIR}/allocations.json \
   --max-block-units 4000000 \
   --window-target-units 100000000000 \
   --min-block-gap ${MIN_BLOCK_GAP} \
-  --genesis-file ${TMPDIR}/basevm.genesis
+  --genesis-file ${TMPDIR}/simplevm.genesis
 else
   echo "copying custom genesis file"
-  rm -f ${TMPDIR}/basevm.genesis
-  cp ${GENESIS_PATH} ${TMPDIR}/basevm.genesis
+  rm -f ${TMPDIR}/simplevm.genesis
+  cp ${GENESIS_PATH} ${TMPDIR}/simplevm.genesis
 fi
 
 ############################
@@ -120,33 +120,33 @@ fi
 ############################
 
 echo "creating vm config"
-rm -f ${TMPDIR}/basevm.config
-rm -rf ${TMPDIR}/basevm-e2e-profiles
-cat <<EOF > ${TMPDIR}/basevm.config
+rm -f ${TMPDIR}/simplevm.config
+rm -rf ${TMPDIR}/simplevm-e2e-profiles
+cat <<EOF > ${TMPDIR}/simplevm.config
 {
   "mempoolSize": 10000000,
   "mempoolPayerSize": 10000000,
-  "mempoolExemptPayers":["base1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsgkuwsr"],
+  "mempoolExemptPayers":["simple1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97ns3deh6g"],
   "parallelism": 5,
   "streamingBacklogSize": 10000000,
   "gossipMaxSize": 32768,
   "gossipProposerDepth": 1,
   "buildProposerDiff": 1,
   "verifyTimeout": 5,
-  "continuousProfilerDir":"${TMPDIR}/basevm-e2e-profiles/*",
+  "continuousProfilerDir":"${TMPDIR}/simplevm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
-mkdir -p ${TMPDIR}/basevm-e2e-profiles
+mkdir -p ${TMPDIR}/simplevm-e2e-profiles
 
 ############################
 
 ############################
 
 echo "creating subnet config"
-rm -f ${TMPDIR}/basevm.subnet
-cat <<EOF > ${TMPDIR}/basevm.subnet
+rm -f ${TMPDIR}/simplevm.subnet
+cat <<EOF > ${TMPDIR}/simplevm.subnet
 {
   "proposerMinBlockDelay": 0
 }
@@ -228,9 +228,9 @@ echo "running e2e tests"
 --network-runner-grpc-gateway-endpoint="0.0.0.0:12353" \
 --avalanchego-path=${AVALANCHEGO_PATH} \
 --avalanchego-plugin-dir=${AVALANCHEGO_PLUGIN_DIR} \
---vm-genesis-path=${TMPDIR}/basevm.genesis \
---vm-config-path=${TMPDIR}/basevm.config \
---subnet-config-path=${TMPDIR}/basevm.subnet \
+--vm-genesis-path=${TMPDIR}/simplevm.genesis \
+--vm-config-path=${TMPDIR}/simplevm.config \
+--subnet-config-path=${TMPDIR}/simplevm.subnet \
 --output-path=${TMPDIR}/avalanchego-${VERSION}/output.yaml \
 --mode=${MODE}
 

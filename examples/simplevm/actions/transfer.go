@@ -37,7 +37,7 @@ func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 func (t *Transfer) Execute(
 	ctx context.Context,
 	r chain.Rules,
-	db chain.Datasimple,
+	db chain.Database,
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,

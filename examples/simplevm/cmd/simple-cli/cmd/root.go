@@ -15,7 +15,7 @@ import (
 
 const (
 	fsModeWrite     = 0o600
-	defaultDatasimple = ".simple-cli"
+	defaultDatabase = ".simple-cli"
 	defaultGenesis  = "genesis.json"
 )
 
@@ -54,12 +54,12 @@ func init() {
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
-		"datasimple",
-		defaultDatasimple,
-		"path to datasimple (will create it missing)",
+		"database",
+		defaultDatabase,
+		"path to database (will create it missing)",
 	)
 	rootCmd.PersistentPreRunE = func(*cobra.Command, []string) error {
-		utils.Outf("{{yellow}}datasimple:{{/}} %s\n", dbPath)
+		utils.Outf("{{yellow}}database:{{/}} %s\n", dbPath)
 		controller := NewController(dbPath)
 		root, err := cli.New(controller)
 		if err != nil {
@@ -69,7 +69,7 @@ func init() {
 		return err
 	}
 	rootCmd.PersistentPostRunE = func(*cobra.Command, []string) error {
-		return handler.Root().CloseDatasimple()
+		return handler.Root().CloseDatabase()
 	}
 	rootCmd.SilenceErrors = true
 
