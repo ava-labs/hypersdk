@@ -48,10 +48,11 @@ func lookupSetKeyBalance(choice int, address string, uri string, networkID uint3
 		return err
 	}
 	hutils.Outf(
-		"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s BASE\n",
+		"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 		choice,
 		address,
 		handler.Root().ValueString(ids.Empty, balance),
+		handler.Root().AssetString(ids.Empty),
 	)
 	return nil
 }

@@ -42,15 +42,15 @@ var runSpamCmd = &cobra.Command{
 					return 0, err
 				}
 				hutils.Outf(
-					"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s TKN\n",
+					"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 					choice,
 					address,
 					handler.Root().ValueString(ids.Empty, balance),
+					handler.Root().AssetString(ids.Empty),
 				)
 				return balance, err
 			},
 			func(ctx context.Context, chainID ids.ID) (chain.Parser, error) {
-				// We assume this is set in the previous function call
 				return tclient.Parser(ctx)
 			},
 			func(pk crypto.PublicKey, amount uint64) chain.Action {

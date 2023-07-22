@@ -6,19 +6,12 @@ package cmd
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/basevm/actions"
-	"github.com/ava-labs/hypersdk/examples/basevm/auth"
-	"github.com/ava-labs/hypersdk/examples/basevm/consts"
 	brpc "github.com/ava-labs/hypersdk/examples/basevm/rpc"
-	tutils "github.com/ava-labs/hypersdk/examples/basevm/utils"
 )
 
 var chainCmd = &cobra.Command{
@@ -68,28 +61,6 @@ var chainInfoCmd = &cobra.Command{
 	RunE: func(_ *cobra.Command, args []string) error {
 		return handler.Root().PrintChainInfo()
 	},
-}
-
-func handleTx(tx *chain.Transaction, result *chain.Result) {
-	summaryStr := string(result.Output)
-	actor := auth.GetActor(tx.Auth)
-	status := "⚠️"
-	if result.Success {
-		status = "✅"
-		switch action := tx.Action.(type) {
-		case *actions.Transfer:
-			summaryStr = fmt.Sprintf("%s %s -> %s", utils.FormatBalance(action.Value), consts.Symbol, tutils.Address(action.To))
-		}
-	}
-	utils.Outf(
-		"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}units:{{/}} %d {{yellow}}summary (%s):{{/}} [%s]\n",
-		status,
-		tx.ID(),
-		tutils.Address(actor),
-		result.Units,
-		reflect.TypeOf(tx.Action),
-		summaryStr,
-	)
 }
 
 var watchChainCmd = &cobra.Command{
