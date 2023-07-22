@@ -46,7 +46,7 @@ linters:
     - staticcheck
     - bodyclose
     - structcheck
-    - lll
+      # - lll
       # - gomnd
     - goprintffuncname
     - interfacer

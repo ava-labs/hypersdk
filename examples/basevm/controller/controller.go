@@ -150,12 +150,6 @@ func (c *Controller) Initialize(
 	} else {
 		build = builder.NewTime(inner)
 		gcfg := gossiper.DefaultProposerConfig()
-		gcfg.GossipInterval = c.config.GossipInterval
-		gcfg.GossipMaxSize = c.config.GossipMaxSize
-		gcfg.GossipProposerDiff = c.config.GossipProposerDiff
-		gcfg.GossipProposerDepth = c.config.GossipProposerDepth
-		gcfg.BuildProposerDiff = c.config.BuildProposerDiff
-		gcfg.VerifyTimeout = c.config.VerifyTimeout
 		gossip = gossiper.NewProposer(inner, gcfg)
 	}
 	return c.config, c.genesis, build, gossip, blockDB, stateDB, apis, consts.ActionRegistry, consts.AuthRegistry, nil

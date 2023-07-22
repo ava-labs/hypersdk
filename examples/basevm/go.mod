@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk/examples/basevm
 go 1.20
 
 require (
-	github.com/ava-labs/avalanche-network-runner v1.7.1-0.20230720220603-07c999585182
+	github.com/ava-labs/avalanche-network-runner v1.7.1
 	github.com/ava-labs/avalanchego v1.10.5
 	github.com/ava-labs/hypersdk v0.0.1
 	github.com/fatih/color v1.13.0
@@ -85,6 +85,7 @@ require (
 	github.com/mitchellh/pointerstructure v1.2.0 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/nbutton23/zxcvbn-go v0.0.0-20180912185939-ae427f1e4c1d // indirect
+	github.com/neilotoole/errgroup v0.1.6 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/openzipkin/zipkin-go v0.4.1 // indirect
 	github.com/otiai10/copy v1.11.0 // indirect

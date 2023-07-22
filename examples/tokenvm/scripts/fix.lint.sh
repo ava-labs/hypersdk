@@ -14,7 +14,9 @@ fi
 
 echo "adding license header"
 go install -v github.com/palantir/go-license@latest
-go-license --config=./license.yml **/*.go
+files=()
+while IFS= read -r line; do files+=("$line"); done < <(find . -type f -name '*.go' ! -name '*.pb.go' ! -name 'mock_*.go')
+go-license --config=./license.yml "${files[@]}"
 
 echo "gofumpt files"
 go install mvdan.cc/gofumpt@latest

@@ -1,35 +1,28 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package cmd
+package cli
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
-	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
-	"github.com/ava-labs/hypersdk/rpc"
-	hutils "github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/manifoldco/promptui"
 )
 
-func promptAddress(label string) (crypto.PublicKey, error) {
+func (h *Handler) PromptAddress(label string) (crypto.PublicKey, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
 			if len(input) == 0 {
 				return ErrInputEmpty
 			}
-			_, err := utils.ParseAddress(input)
+			_, err := h.c.ParseAddress(input)
 			return err
 		},
 	}
@@ -38,15 +31,18 @@ func promptAddress(label string) (crypto.PublicKey, error) {
 		return crypto.EmptyPublicKey, err
 	}
 	recipient = strings.TrimSpace(recipient)
-	return utils.ParseAddress(recipient)
+	return h.c.ParseAddress(recipient)
 }
 
-func promptString(label string) (string, error) {
+func (*Handler) PromptString(label string, min int, max int) (string, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
-			if len(input) == 0 {
+			if len(input) < min {
 				return ErrInputEmpty
+			}
+			if len(input) > max {
+				return ErrInputTooLarge
 			}
 			return nil
 		},
@@ -58,8 +54,9 @@ func promptString(label string) (string, error) {
 	return strings.TrimSpace(text), err
 }
 
-func promptAsset(label string, allowNative bool) (ids.ID, error) {
-	text := fmt.Sprintf("%s (use TKN for native token)", label)
+func (h *Handler) PromptAsset(label string, allowNative bool) (ids.ID, error) {
+	symbol := h.c.Symbol()
+	text := fmt.Sprintf("%s (use %s for native token)", label, symbol)
 	if !allowNative {
 		text = label
 	}
@@ -69,7 +66,7 @@ func promptAsset(label string, allowNative bool) (ids.ID, error) {
 			if len(input) == 0 {
 				return ErrInputEmpty
 			}
-			if allowNative && len(input) == 3 && input == consts.Symbol {
+			if allowNative && input == symbol {
 				return nil
 			}
 			_, err := ids.FromString(input)
@@ -82,7 +79,7 @@ func promptAsset(label string, allowNative bool) (ids.ID, error) {
 	}
 	asset = strings.TrimSpace(asset)
 	var assetID ids.ID
-	if asset != consts.Symbol {
+	if asset != symbol {
 		assetID, err = ids.FromString(asset)
 		if err != nil {
 			return ids.Empty, err
@@ -94,7 +91,7 @@ func promptAsset(label string, allowNative bool) (ids.ID, error) {
 	return assetID, nil
 }
 
-func promptAmount(
+func (*Handler) PromptAmount(
 	label string,
 	assetID ids.ID,
 	balance uint64,
@@ -109,7 +106,7 @@ func promptAmount(
 			var amount uint64
 			var err error
 			if assetID == ids.Empty {
-				amount, err = hutils.ParseBalance(input)
+				amount, err = utils.ParseBalance(input)
 			} else {
 				amount, err = strconv.ParseUint(input, 10, 64)
 			}
@@ -132,14 +129,14 @@ func promptAmount(
 	rawAmount = strings.TrimSpace(rawAmount)
 	var amount uint64
 	if assetID == ids.Empty {
-		amount, err = hutils.ParseBalance(rawAmount)
+		amount, err = utils.ParseBalance(rawAmount)
 	} else {
 		amount, err = strconv.ParseUint(rawAmount, 10, 64)
 	}
 	return amount, err
 }
 
-func promptInt(
+func (*Handler) PromptInt(
 	label string,
 ) (int, error) {
 	promptText := promptui.Prompt{
@@ -166,7 +163,7 @@ func promptInt(
 	return strconv.Atoi(rawAmount)
 }
 
-func promptChoice(label string, max int) (int, error) {
+func (*Handler) PromptChoice(label string, max int) (int, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
@@ -190,7 +187,7 @@ func promptChoice(label string, max int) (int, error) {
 	return strconv.Atoi(rawIndex)
 }
 
-func promptTime(label string) (int64, error) {
+func (*Handler) PromptTime(label string) (int64, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
@@ -208,7 +205,7 @@ func promptTime(label string) (int64, error) {
 	return strconv.ParseInt(rawTime, 10, 64)
 }
 
-func promptContinue() (bool, error) {
+func (*Handler) PromptContinue() (bool, error) {
 	promptText := promptui.Prompt{
 		Label: "continue (y/n)",
 		Validate: func(input string) error {
@@ -228,13 +225,13 @@ func promptContinue() (bool, error) {
 	}
 	cont := strings.ToLower(rawContinue)
 	if cont == "n" {
-		hutils.Outf("{{red}}exiting...{{/}}\n")
+		utils.Outf("{{red}}exiting...{{/}}\n")
 		return false, nil
 	}
 	return true, nil
 }
 
-func promptBool(label string) (bool, error) {
+func (*Handler) PromptBool(label string) (bool, error) {
 	promptText := promptui.Prompt{
 		Label: fmt.Sprintf("%s (y/n)", label),
 		Validate: func(input string) error {
@@ -259,7 +256,7 @@ func promptBool(label string) (bool, error) {
 	return true, nil
 }
 
-func promptID(label string) (ids.ID, error) {
+func (*Handler) PromptID(label string) (ids.ID, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
@@ -282,8 +279,8 @@ func promptID(label string) (ids.ID, error) {
 	return id, nil
 }
 
-func promptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, error) {
-	chains, err := GetChains()
+func (h *Handler) PromptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, error) {
+	chains, err := h.GetChains()
 	if err != nil {
 		return ids.Empty, nil, err
 	}
@@ -301,14 +298,14 @@ func promptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, erro
 	}
 
 	// Select chain
-	hutils.Outf(
+	utils.Outf(
 		"{{cyan}}available chains:{{/}} %d {{cyan}}excluded:{{/}} %+v\n",
 		len(filteredChains),
 		excludedChains,
 	)
 	keys := make([]ids.ID, 0, len(filteredChains))
 	for _, chainID := range filteredChains {
-		hutils.Outf(
+		utils.Outf(
 			"%d) {{cyan}}chainID:{{/}} %s\n",
 			len(keys),
 			chainID,
@@ -316,7 +313,7 @@ func promptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, erro
 		keys = append(keys, chainID)
 	}
 
-	chainIndex, err := promptChoice(label, len(keys))
+	chainIndex, err := h.PromptChoice(label, len(keys))
 	if err != nil {
 		return ids.Empty, nil, err
 	}
@@ -324,156 +321,25 @@ func promptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, erro
 	return chainID, chains[chainID], nil
 }
 
-func valueString(assetID ids.ID, value uint64) string {
+func (*Handler) ValueString(assetID ids.ID, value uint64) string {
 	if assetID == ids.Empty {
-		return hutils.FormatBalance(value)
+		return utils.FormatBalance(value)
 	}
 	// Custom assets are denoted in raw units
 	return strconv.FormatUint(value, 10)
 }
 
-func assetString(assetID ids.ID) string {
+func (h *Handler) AssetString(assetID ids.ID) string {
 	if assetID == ids.Empty {
-		return consts.Symbol
+		return h.c.Symbol()
 	}
 	return assetID.String()
 }
 
-func printStatus(txID ids.ID, success bool) {
+func (*Handler) PrintStatus(txID ids.ID, success bool) {
 	status := "⚠️"
 	if success {
 		status = "✅"
 	}
-	hutils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, txID)
-}
-
-func getAssetInfo(
-	ctx context.Context,
-	cli *trpc.JSONRPCClient,
-	publicKey crypto.PublicKey,
-	assetID ids.ID,
-	checkBalance bool,
-) (uint64, ids.ID, error) {
-	var sourceChainID ids.ID
-	if assetID != ids.Empty {
-		exists, metadata, supply, _, warp, err := cli.Asset(ctx, assetID)
-		if err != nil {
-			return 0, ids.Empty, err
-		}
-		if !exists {
-			hutils.Outf("{{red}}%s does not exist{{/}}\n", assetID)
-			hutils.Outf("{{red}}exiting...{{/}}\n")
-			return 0, ids.Empty, nil
-		}
-		if warp {
-			sourceChainID = ids.ID(metadata[hconsts.IDLen:])
-			sourceAssetID := ids.ID(metadata[:hconsts.IDLen])
-			hutils.Outf(
-				"{{yellow}}sourceChainID:{{/}} %s {{yellow}}sourceAssetID:{{/}} %s {{yellow}}supply:{{/}} %d\n",
-				sourceChainID,
-				sourceAssetID,
-				supply,
-			)
-		} else {
-			hutils.Outf(
-				"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
-				string(metadata),
-				supply,
-				warp,
-			)
-		}
-	}
-	if !checkBalance {
-		return 0, sourceChainID, nil
-	}
-	addr := utils.Address(publicKey)
-	balance, err := cli.Balance(ctx, addr, assetID)
-	if err != nil {
-		return 0, ids.Empty, err
-	}
-	if balance == 0 {
-		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", assetID)
-		hutils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
-		hutils.Outf("{{red}}exiting...{{/}}\n")
-		return 0, sourceChainID, nil
-	}
-	hutils.Outf(
-		"{{yellow}}balance:{{/}} %s %s\n",
-		valueString(assetID, balance),
-		assetString(assetID),
-	)
-	return balance, sourceChainID, nil
-}
-
-//nolint:unparam
-func defaultActor() (
-	uint32, ids.ID, crypto.PrivateKey, *auth.ED25519Factory,
-	*rpc.JSONRPCClient, *trpc.JSONRPCClient, error,
-) {
-	priv, err := GetDefaultKey()
-	if err != nil {
-		return 0, ids.Empty, crypto.EmptyPrivateKey, nil, nil, nil, err
-	}
-	chainID, uris, err := GetDefaultChain()
-	if err != nil {
-		return 0, ids.Empty, crypto.EmptyPrivateKey, nil, nil, nil, err
-	}
-	cli := rpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := cli.Network(context.TODO())
-	if err != nil {
-		return 0, ids.Empty, crypto.EmptyPrivateKey, nil, nil, nil, err
-	}
-	// For [defaultActor], we always send requests to the first returned URI.
-	return networkID, chainID, priv, auth.NewED25519Factory(
-			priv,
-		), cli,
-		trpc.NewJSONRPCClient(
-			uris[0],
-			networkID,
-			chainID,
-		), nil
-}
-
-func GetDefaultKey() (crypto.PrivateKey, error) {
-	v, err := GetDefault(defaultKeyKey)
-	if err != nil {
-		return crypto.EmptyPrivateKey, err
-	}
-	if len(v) == 0 {
-		return crypto.EmptyPrivateKey, ErrNoKeys
-	}
-	publicKey := crypto.PublicKey(v)
-	priv, err := GetKey(publicKey)
-	if err != nil {
-		return crypto.EmptyPrivateKey, err
-	}
-	hutils.Outf("{{yellow}}address:{{/}} %s\n", utils.Address(publicKey))
-	return priv, nil
-}
-
-func GetDefaultChain() (ids.ID, []string, error) {
-	v, err := GetDefault(defaultChainKey)
-	if err != nil {
-		return ids.Empty, nil, err
-	}
-	if len(v) == 0 {
-		return ids.Empty, nil, ErrNoChains
-	}
-	chainID := ids.ID(v)
-	uris, err := GetChain(chainID)
-	if err != nil {
-		return ids.Empty, nil, err
-	}
-	hutils.Outf("{{yellow}}chainID:{{/}} %s\n", chainID)
-	return chainID, uris, nil
-}
-
-func CloseDatabase() error {
-	if db == nil {
-		return nil
-	}
-	if err := db.Close(); err != nil {
-		return fmt.Errorf("unable to close database: %w", err)
-	}
-	return nil
+	utils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, txID)
 }

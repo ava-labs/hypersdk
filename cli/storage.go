@@ -1,10 +1,11 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package cmd
+package cli
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -22,18 +23,18 @@ const (
 	defaultChainKey = "chain"
 )
 
-func StoreDefault(key string, value []byte) error {
+func (h *Handler) StoreDefault(key string, value []byte) error {
 	k := make([]byte, 1+len(key))
 	k[0] = defaultPrefix
 	copy(k[1:], []byte(key))
-	return db.Put(k, value)
+	return h.db.Put(k, value)
 }
 
-func GetDefault(key string) ([]byte, error) {
+func (h *Handler) GetDefault(key string) ([]byte, error) {
 	k := make([]byte, 1+len(key))
 	k[0] = defaultPrefix
 	copy(k[1:], []byte(key))
-	v, err := db.Get(k)
+	v, err := h.db.Get(k)
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, nil
 	}
@@ -43,26 +44,47 @@ func GetDefault(key string) ([]byte, error) {
 	return v, nil
 }
 
-func StoreKey(privateKey crypto.PrivateKey) error {
+func (h *Handler) StoreDefaultChain(chainID ids.ID) error {
+	return h.StoreDefault(defaultChainKey, chainID[:])
+}
+
+func (h *Handler) GetDefaultChain() (ids.ID, []string, error) {
+	v, err := h.GetDefault(defaultChainKey)
+	if err != nil {
+		return ids.Empty, nil, err
+	}
+	if len(v) == 0 {
+		return ids.Empty, nil, ErrNoChains
+	}
+	chainID := ids.ID(v)
+	uris, err := h.GetChain(chainID)
+	if err != nil {
+		return ids.Empty, nil, err
+	}
+	utils.Outf("{{yellow}}chainID:{{/}} %s\n", chainID)
+	return chainID, uris, nil
+}
+
+func (h *Handler) StoreKey(privateKey crypto.PrivateKey) error {
 	publicKey := privateKey.PublicKey()
 	k := make([]byte, 1+crypto.PublicKeyLen)
 	k[0] = keyPrefix
 	copy(k[1:], publicKey[:])
-	has, err := db.Has(k)
+	has, err := h.db.Has(k)
 	if err != nil {
 		return err
 	}
 	if has {
 		return ErrDuplicate
 	}
-	return db.Put(k, privateKey[:])
+	return h.db.Put(k, privateKey[:])
 }
 
-func GetKey(publicKey crypto.PublicKey) (crypto.PrivateKey, error) {
+func (h *Handler) GetKey(publicKey crypto.PublicKey) (crypto.PrivateKey, error) {
 	k := make([]byte, 1+crypto.PublicKeyLen)
 	k[0] = keyPrefix
 	copy(k[1:], publicKey[:])
-	v, err := db.Get(k)
+	v, err := h.db.Get(k)
 	if errors.Is(err, database.ErrNotFound) {
 		return crypto.EmptyPrivateKey, nil
 	}
@@ -72,8 +94,8 @@ func GetKey(publicKey crypto.PublicKey) (crypto.PrivateKey, error) {
 	return crypto.PrivateKey(v), nil
 }
 
-func GetKeys() ([]crypto.PrivateKey, error) {
-	iter := db.NewIteratorWithPrefix([]byte{keyPrefix})
+func (h *Handler) GetKeys() ([]crypto.PrivateKey, error) {
+	iter := h.db.NewIteratorWithPrefix([]byte{keyPrefix})
 	defer iter.Release()
 
 	privateKeys := []crypto.PrivateKey{}
@@ -85,30 +107,51 @@ func GetKeys() ([]crypto.PrivateKey, error) {
 	return privateKeys, iter.Error()
 }
 
-func StoreChain(chainID ids.ID, rpc string) error {
+func (h *Handler) StoreDefaultKey(pk crypto.PublicKey) error {
+	return h.StoreDefault(defaultKeyKey, pk[:])
+}
+
+func (h *Handler) GetDefaultKey() (crypto.PrivateKey, error) {
+	v, err := h.GetDefault(defaultKeyKey)
+	if err != nil {
+		return crypto.EmptyPrivateKey, err
+	}
+	if len(v) == 0 {
+		return crypto.EmptyPrivateKey, ErrNoKeys
+	}
+	publicKey := crypto.PublicKey(v)
+	priv, err := h.GetKey(publicKey)
+	if err != nil {
+		return crypto.EmptyPrivateKey, err
+	}
+	utils.Outf("{{yellow}}address:{{/}} %s\n", h.c.Address(publicKey))
+	return priv, nil
+}
+
+func (h *Handler) StoreChain(chainID ids.ID, rpc string) error {
 	k := make([]byte, 1+consts.IDLen*2)
 	k[0] = chainPrefix
 	copy(k[1:], chainID[:])
 	brpc := []byte(rpc)
 	rpcID := utils.ToID(brpc)
 	copy(k[1+consts.IDLen:], rpcID[:])
-	has, err := db.Has(k)
+	has, err := h.db.Has(k)
 	if err != nil {
 		return err
 	}
 	if has {
 		return ErrDuplicate
 	}
-	return db.Put(k, brpc)
+	return h.db.Put(k, brpc)
 }
 
-func GetChain(chainID ids.ID) ([]string, error) {
+func (h *Handler) GetChain(chainID ids.ID) ([]string, error) {
 	k := make([]byte, 1+consts.IDLen)
 	k[0] = chainPrefix
 	copy(k[1:], chainID[:])
 
 	rpcs := []string{}
-	iter := db.NewIteratorWithPrefix(k)
+	iter := h.db.NewIteratorWithPrefix(k)
 	defer iter.Release()
 	for iter.Next() {
 		// It is safe to use these bytes directly because the database copies the
@@ -118,8 +161,8 @@ func GetChain(chainID ids.ID) ([]string, error) {
 	return rpcs, iter.Error()
 }
 
-func GetChains() (map[ids.ID][]string, error) {
-	iter := db.NewIteratorWithPrefix([]byte{chainPrefix})
+func (h *Handler) GetChains() (map[ids.ID][]string, error) {
+	iter := h.db.NewIteratorWithPrefix([]byte{chainPrefix})
 	defer iter.Release()
 
 	chains := map[ids.ID][]string{}
@@ -138,8 +181,8 @@ func GetChains() (map[ids.ID][]string, error) {
 	return chains, iter.Error()
 }
 
-func DeleteChains() ([]ids.ID, error) {
-	chains, err := GetChains()
+func (h *Handler) DeleteChains() ([]ids.ID, error) {
+	chains, err := h.GetChains()
 	if err != nil {
 		return nil, err
 	}
@@ -152,11 +195,23 @@ func DeleteChains() ([]ids.ID, error) {
 			brpc := []byte(rpc)
 			rpcID := utils.ToID(brpc)
 			copy(k[1+consts.IDLen:], rpcID[:])
-			if err := db.Delete(k); err != nil {
+			if err := h.db.Delete(k); err != nil {
 				return nil, err
 			}
 		}
 		chainIDs = append(chainIDs, chainID)
 	}
 	return chainIDs, nil
+}
+
+func (h *Handler) CloseDatabase() error {
+	if h.db == nil {
+		return nil
+	}
+	if err := h.db.Close(); err != nil {
+		return fmt.Errorf("unable to close database: %w", err)
+	}
+	// Allow DB to be closed multiple times
+	h.db = nil
+	return nil
 }
