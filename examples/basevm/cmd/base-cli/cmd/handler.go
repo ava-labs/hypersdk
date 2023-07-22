@@ -11,6 +11,7 @@ import (
 	brpc "github.com/ava-labs/hypersdk/examples/basevm/rpc"
 	"github.com/ava-labs/hypersdk/examples/basevm/utils"
 	"github.com/ava-labs/hypersdk/rpc"
+	hutils "github.com/ava-labs/hypersdk/utils"
 )
 
 var _ cli.Controller = (*Controller)(nil)
@@ -53,6 +54,30 @@ func (h *Handler) DefaultActor() (
 			networkID,
 			chainID,
 		), nil
+}
+
+func (h *Handler) GetBalance(
+	ctx context.Context,
+	cli *brpc.JSONRPCClient,
+	publicKey crypto.PublicKey,
+) (uint64, error) {
+	addr := utils.Address(publicKey)
+	balance, err := cli.Balance(ctx, addr)
+	if err != nil {
+		return 0, err
+	}
+	if balance == 0 {
+		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", consts.Symbol)
+		hutils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
+		hutils.Outf("{{red}}exiting...{{/}}\n")
+		return 0, nil
+	}
+	hutils.Outf(
+		"{{yellow}}balance:{{/}} %s %s\n",
+		hutils.FormatBalance(balance),
+		consts.Symbol,
+	)
+	return balance, nil
 }
 
 type Controller struct {
