@@ -252,8 +252,9 @@ work out of the box on your `hypervm`.
 
 ## Examples
 We've created three `hypervm` examples, of increasing complexity, that demonstrate what you
-can build with the `hypersdk`. When you are ready to build your own `hypervm`, we recommend
-using the `simplevm` as a template!
+can build with the `hypersdk` (with more on the way).
+
+When you are ready to build your own `hypervm`, we recommend using the `simplevm` as a template!
 
 ### Beginner: `simplevm`
 The [`simplevm`](/.examples/simplevm) is the "simplest `hypervm` you could make." The `simplevm`

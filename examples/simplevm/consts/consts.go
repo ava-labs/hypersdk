@@ -14,7 +14,7 @@ import (
 const (
 	HRP    = "simple"
 	Name   = "simplevm"
-	Symbol = "BASE"
+	Symbol = "SIMP"
 )
 
 var ID ids.ID
