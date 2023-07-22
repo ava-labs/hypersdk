@@ -23,11 +23,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	dummyBlockAgeThreshold = 25 * consts.MillisecondsPerSecond
-	dummyHeightThreshold   = 3
-)
-
 var actionCmd = &cobra.Command{
 	Use: "action",
 	RunE: func(*cobra.Command, []string) error {
