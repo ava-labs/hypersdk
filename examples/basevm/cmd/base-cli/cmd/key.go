@@ -64,7 +64,7 @@ var setKeyCmd = &cobra.Command{
 	},
 }
 
-func lookupKeyBalance(pk crypto.PublicKey, uri string, networkID uint32, chainID ids.ID, assetID ids.ID) error {
+func lookupKeyBalance(pk crypto.PublicKey, uri string, networkID uint32, chainID ids.ID, _ ids.ID) error {
 	_, err := handler.GetBalance(context.TODO(), brpc.NewJSONRPCClient(uri, networkID, chainID), pk)
 	return err
 }

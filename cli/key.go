@@ -1,3 +1,5 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
 package cli
 
 import (
@@ -72,7 +74,9 @@ func (h *Handler) SetKey(lookupBalance func(int, string, string, uint32, ids.ID)
 	}
 	utils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
 	for i := 0; i < len(keys); i++ {
-		lookupBalance(i, h.c.Address(keys[i].PublicKey()), uris[0], networkID, chainID)
+		if err := lookupBalance(i, h.c.Address(keys[i].PublicKey()), uris[0], networkID, chainID); err != nil {
+			return err
+		}
 	}
 
 	// Select key

@@ -69,7 +69,7 @@ func init() {
 		return err
 	}
 	rootCmd.PersistentPostRunE = func(*cobra.Command, []string) error {
-		return CloseDatabase()
+		return handler.Root().CloseDatabase()
 	}
 	rootCmd.SilenceErrors = true
 

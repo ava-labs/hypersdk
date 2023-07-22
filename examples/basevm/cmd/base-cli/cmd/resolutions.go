@@ -21,7 +21,7 @@ import (
 func sendAndWait(
 	ctx context.Context, warpMsg *warp.Message, action chain.Action, cli *rpc.JSONRPCClient,
 	bcli *brpc.JSONRPCClient, factory chain.AuthFactory, printStatus bool,
-) (bool, ids.ID, error) {
+) (bool, ids.ID, error) { //nolint:unparam
 	parser, err := bcli.Parser(ctx)
 	if err != nil {
 		return false, ids.Empty, err
@@ -49,7 +49,7 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 	status := "⚠️"
 	if result.Success {
 		status = "✅"
-		switch action := tx.Action.(type) {
+		switch action := tx.Action.(type) { //nolint:gocritic
 		case *actions.Transfer:
 			summaryStr = fmt.Sprintf("%s %s -> %s", utils.FormatBalance(action.Value), consts.Symbol, tutils.Address(action.To))
 		}

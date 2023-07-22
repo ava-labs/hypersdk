@@ -1,3 +1,5 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
 package cli
 
 import (
@@ -333,7 +335,7 @@ func (h *Handler) AssetString(assetID ids.ID) string {
 	return assetID.String()
 }
 
-func (h *Handler) PrintStatus(txID ids.ID, success bool) {
+func (*Handler) PrintStatus(txID ids.ID, success bool) {
 	status := "⚠️"
 	if success {
 		status = "✅"

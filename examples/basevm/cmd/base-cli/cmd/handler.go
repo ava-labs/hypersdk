@@ -56,7 +56,7 @@ func (h *Handler) DefaultActor() (
 		), nil
 }
 
-func (h *Handler) GetBalance(
+func (*Handler) GetBalance(
 	ctx context.Context,
 	cli *brpc.JSONRPCClient,
 	publicKey crypto.PublicKey,

@@ -1,3 +1,7 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+//
+//nolint:gosec
 package cli
 
 import (
@@ -337,7 +341,7 @@ func (h *Handler) Spam(
 			select {
 			case <-t.C:
 				utils.Outf("{{yellow}}remaining:{{/}} %d\n", inflight.Load())
-				h.SubmitDummy(dctx, cli, submitDummy(cli, key))
+				_ = h.SubmitDummy(dctx, cli, submitDummy(cli, key))
 			case <-dctx.Done():
 				return
 			}
