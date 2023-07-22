@@ -68,10 +68,7 @@ func lookupKeyBalance(pk crypto.PublicKey, uri string, networkID uint32, chainID
 	_, _, err := handler.GetAssetInfo(
 		context.TODO(), trpc.NewJSONRPCClient(uri, networkID, chainID),
 		pk, assetID, true)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 var balanceKeyCmd = &cobra.Command{

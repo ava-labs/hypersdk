@@ -19,24 +19,6 @@ var prometheusCmd = &cobra.Command{
 	},
 }
 
-type PrometheusStaticConfig struct {
-	Targets []string `yaml:"targets"`
-}
-
-type PrometheusScrapeConfig struct {
-	JobName       string                    `yaml:"job_name"`
-	StaticConfigs []*PrometheusStaticConfig `yaml:"static_configs"`
-	MetricsPath   string                    `yaml:"metrics_path"`
-}
-
-type PrometheusConfig struct {
-	Global struct {
-		ScrapeInterval     string `yaml:"scrape_interval"`
-		EvaluationInterval string `yaml:"evaluation_interval"`
-	} `yaml:"global"`
-	ScrapeConfigs []*PrometheusScrapeConfig `yaml:"scrape_configs"`
-}
-
 var generatePrometheusCmd = &cobra.Command{
 	Use: "generate",
 	RunE: func(_ *cobra.Command, args []string) error {

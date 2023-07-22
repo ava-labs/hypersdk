@@ -31,7 +31,6 @@ var (
 	hideTxs           bool
 	randomRecipient   bool
 	maxTxBacklog      int
-	deleteOtherChains bool
 	checkAllChains    bool
 	prometheusFile    string
 	prometheusData    string
@@ -129,12 +128,6 @@ func init() {
 		"hide-txs",
 		false,
 		"hide txs",
-	)
-	importAvalancheOpsChainCmd.PersistentFlags().BoolVar(
-		&deleteOtherChains,
-		"delete-other-chains",
-		true,
-		"delete other chains",
 	)
 	chainCmd.AddCommand(
 		importChainCmd,
