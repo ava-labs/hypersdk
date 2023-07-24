@@ -254,19 +254,25 @@ work out of the box on your `hypervm`.
 We've created three `hypervm` examples, of increasing complexity, that demonstrate what you
 can build with the `hypersdk` (with more on the way).
 
-When you are ready to build your own `hypervm`, we recommend using the `simplevm` as a template!
+When you are ready to build your own `hypervm`, we recommend using the `morpheusvm` as a template!
 
-### Beginner: `simplevm`
-The [`simplevm`](/.examples/simplevm) is the "simplest `hypervm` you could make." The `simplevm`
-lets you do one thing and one thing only: native token transfers.
+### Beginner: `morpheusvm`
+_[Who is Morpheus ("The Matrix")?](https://www.youtube.com/watch?v=zE7PKRjrid4)_
 
-To ensure the `hypersdk` remains reliable as we optimize and evolve the codebase,
-we also run E2E tests in the `simplevm` on each PR to the `hypersdk` core modules.
+The [`morpheusvm`](./examples/morpheusvm) provides the first glimpse into the world of the `hypersdk`.
+After learning how to implement native token transfers in a `hypervm` (one of the simplest Custom VMs
+you could make), you will have the choice to go deeper (red pill) or to turn back to the VMs that you
+already know (blue pill).
+
+_To ensure the `hypersdk` remains reliable as we optimize and evolve the codebase,
+we also run E2E tests in the `morpheusvm` on each PR to the `hypersdk` core modules._
 
 ### Moderate: `tokenvm`
 We created the [`tokenvm`](./examples/tokenvm) to showcase how to use the
 `hypersdk` in an application most readers are already familiar with, token minting
-and token trading. The `tokenvm` lets anyone create any asset, mint more of
+and token trading.
+
+The `tokenvm` lets anyone create any asset, mint more of
 their asset, modify the metadata of their asset (if they reveal some info), and
 burn their asset. Additionally, there is an embedded on-chain exchange that
 allows anyone to create orders and fill (partial) orders of anyone else. To
@@ -276,10 +282,12 @@ maintains by syncing blocks. If you are interested in the intersection of
 exchanges and blockchains, it is definitely worth a read (the logic for filling
 orders is < 100 lines of code!).
 
-To ensure the `hypersdk` remains reliable as we optimize and evolve the codebase,
-we also run E2E tests in the `tokenvm` on each PR to the `hypersdk` core modules.
+_To ensure the `hypersdk` remains reliable as we optimize and evolve the codebase,
+we also run E2E tests in the `tokenvm` on each PR to the `hypersdk` core modules._
 
 ### Expert: `indexvm` [DEPRECATED]
+_The `indexvm` will be rewritten using the new WASM Progams module._
+
 The [`indexvm`](https://github.com/ava-labs/indexvm) is much more complex than
 the `tokenvm` (more elaborate mechanisms and a new use case you may not be
 familiar with). It was built during the design of the `hypersdk` to test out the
