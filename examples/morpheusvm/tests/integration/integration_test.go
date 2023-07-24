@@ -40,16 +40,16 @@ import (
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 
-	"github.com/ava-labs/hypersdk/examples/simplevm/actions"
-	"github.com/ava-labs/hypersdk/examples/simplevm/auth"
-	lconsts "github.com/ava-labs/hypersdk/examples/simplevm/consts"
-	"github.com/ava-labs/hypersdk/examples/simplevm/controller"
-	"github.com/ava-labs/hypersdk/examples/simplevm/genesis"
-	lrpc "github.com/ava-labs/hypersdk/examples/simplevm/rpc"
-	"github.com/ava-labs/hypersdk/examples/simplevm/utils"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
+	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 )
 
-const transferTxFee = 400 /* simple fee */ + 40 /* transfer fee */
+const transferTxFee = 400 /* base fee */ + 40 /* transfer fee */
 
 var (
 	logFactory logging.Factory
@@ -69,7 +69,7 @@ func init() {
 
 func TestIntegration(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "simplevm integration test suites")
+	ginkgo.RunSpecs(t, "morpheusvm integration test suites")
 }
 
 var (

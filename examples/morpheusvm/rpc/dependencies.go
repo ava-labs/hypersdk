@@ -9,7 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/hypersdk/crypto"
-	"github.com/ava-labs/hypersdk/examples/simplevm/genesis"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 )
 
 type Controller interface {

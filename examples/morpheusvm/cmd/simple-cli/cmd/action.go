@@ -7,7 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/examples/simplevm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/spf13/cobra"
 )
 

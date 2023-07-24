@@ -20,13 +20,13 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/examples/simplevm/actions"
-	"github.com/ava-labs/hypersdk/examples/simplevm/config"
-	"github.com/ava-labs/hypersdk/examples/simplevm/consts"
-	"github.com/ava-labs/hypersdk/examples/simplevm/genesis"
-	"github.com/ava-labs/hypersdk/examples/simplevm/rpc"
-	"github.com/ava-labs/hypersdk/examples/simplevm/storage"
-	"github.com/ava-labs/hypersdk/examples/simplevm/version"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/config"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
 )
 
 var _ vm.Controller = (*Controller)(nil)
@@ -100,7 +100,7 @@ func (c *Controller) Initialize(
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
-	// TODO: tune Pebble config simpled on each sub-db focus
+	// TODO: tune Pebble config based on each sub-db focus
 	cfg := pebble.NewDefaultConfig()
 	blockDB, err := pebble.New(blockPath, cfg)
 	if err != nil {

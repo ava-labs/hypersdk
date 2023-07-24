@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	HRP    = "simple"
-	Name   = "simplevm"
-	Symbol = "SIMP"
+	HRP    = "morpheus"
+	Name   = "morpheusvm"
+	Symbol = "RED"
 )
 
 var ID ids.ID

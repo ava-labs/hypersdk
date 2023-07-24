@@ -12,8 +12,8 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
-	"github.com/ava-labs/hypersdk/examples/simplevm/auth"
-	"github.com/ava-labs/hypersdk/examples/simplevm/storage"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/utils"
 )
 

@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-// "simple-cli" implements simplevm client operation interface.
+// "morpheus-cli" implements morpheusvm client operation interface.
 package cmd
 
 import (
@@ -15,7 +15,7 @@ import (
 
 const (
 	fsModeWrite     = 0o600
-	defaultDatabase = ".simple-cli"
+	defaultDatabase = ".morpheus-cli"
 	defaultGenesis  = "genesis.json"
 )
 
@@ -36,9 +36,9 @@ var (
 	prometheusData    string
 
 	rootCmd = &cobra.Command{
-		Use:        "simple-cli",
+		Use:        "morpheus-cli",
 		Short:      "BaseVM CLI",
-		SuggestFor: []string{"simple-cli", "simplecli"},
+		SuggestFor: []string{"morpheus-cli", "morpheuscli"},
 	}
 )
 

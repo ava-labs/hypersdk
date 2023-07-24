@@ -41,13 +41,13 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/ava-labs/hypersdk/workers"
 
-	"github.com/ava-labs/hypersdk/examples/simplevm/actions"
-	"github.com/ava-labs/hypersdk/examples/simplevm/auth"
-	"github.com/ava-labs/hypersdk/examples/simplevm/consts"
-	"github.com/ava-labs/hypersdk/examples/simplevm/controller"
-	"github.com/ava-labs/hypersdk/examples/simplevm/genesis"
-	trpc "github.com/ava-labs/hypersdk/examples/simplevm/rpc"
-	"github.com/ava-labs/hypersdk/examples/simplevm/utils"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	trpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/rpc"
 )
 

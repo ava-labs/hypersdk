@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
-	"github.com/ava-labs/hypersdk/examples/simplevm/storage"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 )
 
 var _ chain.Auth = (*ED25519)(nil)

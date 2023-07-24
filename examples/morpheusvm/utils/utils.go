@@ -6,7 +6,7 @@ package utils
 import (
 	"github.com/ava-labs/hypersdk/crypto"
 
-	"github.com/ava-labs/hypersdk/examples/simplevm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
 func Address(pk crypto.PublicKey) string {

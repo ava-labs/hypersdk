@@ -3,9 +3,9 @@
 
 # ref. https://goreleaser.com/customization/build/
 builds:
-  - id: simple-cli
-    main: ./cmd/simple-cli
-    binary: simple-cli
+  - id: morpheus-cli
+    main: ./cmd/morpheus-cli
+    binary: morpheus-cli
     flags:
       - -v
     goos:
@@ -31,9 +31,9 @@ builds:
         goamd64: v1
         env:
           - CC=o64-clang
-  - id: simplevm
-    main: ./cmd/simplevm
-    binary: simplevm
+  - id: morpheusvm
+    main: ./cmd/morpheusvm
+    binary: morpheusvm
     flags:
       - -v
     goos:

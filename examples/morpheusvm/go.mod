@@ -1,4 +1,4 @@
-module github.com/ava-labs/hypersdk/examples/simplevm
+module github.com/ava-labs/hypersdk/examples/morpheusvm
 
 go 1.20
 

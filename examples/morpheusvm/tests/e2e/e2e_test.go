@@ -16,12 +16,12 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto"
-	"github.com/ava-labs/hypersdk/examples/simplevm/actions"
-	"github.com/ava-labs/hypersdk/examples/simplevm/auth"
-	"github.com/ava-labs/hypersdk/examples/simplevm/consts"
-	"github.com/ava-labs/hypersdk/examples/simplevm/genesis"
-	lrpc "github.com/ava-labs/hypersdk/examples/simplevm/rpc"
-	"github.com/ava-labs/hypersdk/examples/simplevm/utils"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/fatih/color"
@@ -38,7 +38,7 @@ const (
 
 func TestE2e(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "simplevm e2e test suites")
+	ginkgo.RunSpecs(t, "morpheusvm e2e test suites")
 }
 
 var (

@@ -13,9 +13,9 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	hconsts "github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/examples/simplevm/consts"
-	"github.com/ava-labs/hypersdk/examples/simplevm/storage"
-	"github.com/ava-labs/hypersdk/examples/simplevm/utils"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/vm"
 )
 
@@ -43,7 +43,7 @@ type Genesis struct {
 	ValidityWindow int64 `json:"validityWindow"` // ms
 
 	// Tx Fee Parameters
-	BaseUnits          uint64 `json:"simpleUnits"`
+	BaseUnits          uint64 `json:"baseUnits"`
 	WarpBaseUnits      uint64 `json:"warpBaseUnits"`
 	WarpUnitsPerSigner uint64 `json:"warpUnitsPerSigner"`
 

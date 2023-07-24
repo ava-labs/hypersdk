@@ -20,11 +20,11 @@ fi
 # Set default binary directory location
 name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
 
-# Build simplevm, which is run as a subprocess
+# Build morpheusvm, which is run as a subprocess
 mkdir -p ./build
 
-echo "Building simplevm in ./build/$name"
-go build -o ./build/$name ./cmd/simplevm
+echo "Building morpheusvm in ./build/$name"
+go build -o ./build/$name ./cmd/morpheusvm
 
-echo "Building simple-cli in ./build/simple-cli"
-go build -o ./build/simple-cli ./cmd/simple-cli
+echo "Building morpheus-cli in ./build/morpheus-cli"
+go build -o ./build/morpheus-cli ./cmd/morpheus-cli

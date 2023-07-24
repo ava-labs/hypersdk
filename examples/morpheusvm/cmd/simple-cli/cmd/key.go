@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
-	brpc "github.com/ava-labs/hypersdk/examples/simplevm/rpc"
+	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 )

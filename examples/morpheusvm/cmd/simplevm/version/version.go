@@ -8,15 +8,15 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/simplevm/consts"
-	"github.com/ava-labs/hypersdk/examples/simplevm/version"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
 )
 
 func init() {
 	cobra.EnablePrefixMatching = true
 }
 
-// NewCommand implements "simplevm version" command.
+// NewCommand implements "morpheusvm version" command.
 func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
