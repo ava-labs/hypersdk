@@ -72,6 +72,6 @@ func lookupKeyBalance(pk crypto.PublicKey, uri string, networkID uint32, chainID
 var balanceKeyCmd = &cobra.Command{
 	Use: "balance",
 	RunE: func(*cobra.Command, []string) error {
-		return handler.Root().Balance(checkAllChains, lookupKeyBalance)
+		return handler.Root().Balance(checkAllChains, false, lookupKeyBalance)
 	},
 }

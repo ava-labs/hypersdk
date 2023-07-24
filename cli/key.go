@@ -89,7 +89,7 @@ func (h *Handler) SetKey(lookupBalance func(int, string, string, uint32, ids.ID)
 	return h.StoreDefaultKey(key.PublicKey())
 }
 
-func (h *Handler) Balance(checkAllChains bool, printBalance func(crypto.PublicKey, string, uint32, ids.ID, ids.ID) error) error {
+func (h *Handler) Balance(checkAllChains bool, promptAsset bool, printBalance func(crypto.PublicKey, string, uint32, ids.ID, ids.ID) error) error {
 	priv, err := h.GetDefaultKey()
 	if err != nil {
 		return err
@@ -98,9 +98,12 @@ func (h *Handler) Balance(checkAllChains bool, printBalance func(crypto.PublicKe
 	if err != nil {
 		return err
 	}
-	assetID, err := h.PromptAsset("assetID", true)
-	if err != nil {
-		return err
+	var assetID ids.ID
+	if promptAsset {
+		assetID, err = h.PromptAsset("assetID", true)
+		if err != nil {
+			return err
+		}
 	}
 
 	max := len(uris)
