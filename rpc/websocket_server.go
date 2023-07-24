@@ -97,13 +97,15 @@ func (w *WebSocketServer) SetMinTx(t int64) error {
 }
 
 func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) error {
-	bytes, err := PackBlockMessage(b)
-	if err != nil {
-		return err
-	}
-	inactiveConnection := w.s.Publish(append([]byte{BlockMode}, bytes...), w.blockListeners)
-	for _, conn := range inactiveConnection {
-		w.blockListeners.Remove(conn)
+	if w.blockListeners.Len() > 0 {
+		bytes, err := PackBlockMessage(b)
+		if err != nil {
+			return err
+		}
+		inactiveConnection := w.s.Publish(append([]byte{BlockMode}, bytes...), w.blockListeners)
+		for _, conn := range inactiveConnection {
+			w.blockListeners.Remove(conn)
+		}
 	}
 
 	w.txL.Lock()
@@ -167,12 +169,14 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 			}
 
 			// Verify tx
-			sigVerify := tx.AuthAsyncVerify()
-			if err := sigVerify(); err != nil {
-				log.Error("failed to verify sig",
-					zap.Error(err),
-				)
-				return
+			if vm.GetVerifySignatures() {
+				sigVerify := tx.AuthAsyncVerify()
+				if err := sigVerify(); err != nil {
+					log.Error("failed to verify sig",
+						zap.Error(err),
+					)
+					return
+				}
 			}
 			w.AddTxListener(tx, c)
 
