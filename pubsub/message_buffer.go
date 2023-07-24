@@ -132,7 +132,7 @@ func CreateBatchMessage(_ int, msgs [][]byte) ([]byte, error) {
 	for _, msg := range msgs {
 		size += codec.BytesLen(msg)
 	}
-	msgBatch := codec.NewWriter(size) //, maxSize)
+	msgBatch := codec.NewWriter(size)
 	msgBatch.PackInt(len(msgs))
 	for _, msg := range msgs {
 		msgBatch.PackBytes(msg)

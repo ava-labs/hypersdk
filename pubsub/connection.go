@@ -101,7 +101,7 @@ func (c *Connection) readPump() {
 			)
 			return
 		}
-		msgs, err := ParseBatchMessage(int(c.s.config.MaxReadMessageSize), responseBytes)
+		msgs, err := ParseBatchMessage(c.s.config.MaxReadMessageSize, responseBytes)
 		if err != nil {
 			c.s.log.Debug("unable to read websockets message",
 				zap.Error(err),
