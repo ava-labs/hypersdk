@@ -36,6 +36,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
@@ -591,7 +592,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		accept() // don't care about results
 
 		// Subscribe to blocks
-		cli, err := rpc.NewWebSocketClient(instances[0].WebSocketServer.URL)
+		cli, err := rpc.NewWebSocketClient(instances[0].WebSocketServer.URL, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(cli.RegisterBlocks()).Should(gomega.BeNil())
 
@@ -649,7 +650,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 	ginkgo.It("processes valid index transactions (w/streaming verification)", func() {
 		// Create streaming client
-		cli, err := rpc.NewWebSocketClient(instances[0].WebSocketServer.URL)
+		cli, err := rpc.NewWebSocketClient(instances[0].WebSocketServer.URL, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Create tx
