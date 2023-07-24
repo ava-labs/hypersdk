@@ -8,13 +8,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto"
-	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
 var keyCmd = &cobra.Command{
@@ -27,23 +24,7 @@ var keyCmd = &cobra.Command{
 var genKeyCmd = &cobra.Command{
 	Use: "generate",
 	RunE: func(*cobra.Command, []string) error {
-		// TODO: encrypt key
-		priv, err := crypto.GeneratePrivateKey()
-		if err != nil {
-			return err
-		}
-		if err := StoreKey(priv); err != nil {
-			return err
-		}
-		publicKey := priv.PublicKey()
-		if err := StoreDefault(defaultKeyKey, publicKey[:]); err != nil {
-			return err
-		}
-		color.Green(
-			"created address %s",
-			utils.Address(publicKey),
-		)
-		return nil
+		return handler.Root().GenerateKey()
 	},
 }
 
@@ -56,112 +37,44 @@ var importKeyCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		priv, err := crypto.LoadKey(args[0])
-		if err != nil {
-			return err
-		}
-		if err := StoreKey(priv); err != nil {
-			return err
-		}
-		publicKey := priv.PublicKey()
-		if err := StoreDefault(defaultKeyKey, publicKey[:]); err != nil {
-			return err
-		}
-		color.Green(
-			"imported address %s",
-			utils.Address(publicKey),
-		)
-		return nil
+		return handler.Root().ImportKey(args[0])
 	},
+}
+
+func lookupSetKeyBalance(choice int, address string, uri string, networkID uint32, chainID ids.ID) error {
+	// TODO: just load once
+	cli := trpc.NewJSONRPCClient(uri, networkID, chainID)
+	balance, err := cli.Balance(context.TODO(), address, ids.Empty)
+	if err != nil {
+		return err
+	}
+	hutils.Outf(
+		"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
+		choice,
+		address,
+		handler.Root().ValueString(ids.Empty, balance),
+		handler.Root().AssetString(ids.Empty),
+	)
+	return nil
 }
 
 var setKeyCmd = &cobra.Command{
 	Use: "set",
 	RunE: func(*cobra.Command, []string) error {
-		keys, err := GetKeys()
-		if err != nil {
-			return err
-		}
-		if len(keys) == 0 {
-			hutils.Outf("{{red}}no stored keys{{/}}\n")
-			return nil
-		}
-		chainID, uris, err := GetDefaultChain()
-		if err != nil {
-			return err
-		}
-		if len(uris) == 0 {
-			hutils.Outf("{{red}}no available chains{{/}}\n")
-			return nil
-		}
-		rcli := rpc.NewJSONRPCClient(uris[0])
-		networkID, _, _, err := rcli.Network(context.TODO())
-		if err != nil {
-			return err
-		}
-		cli := trpc.NewJSONRPCClient(uris[0], networkID, chainID)
-		hutils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
-		for i := 0; i < len(keys); i++ {
-			address := utils.Address(keys[i].PublicKey())
-			balance, err := cli.Balance(context.TODO(), address, ids.Empty)
-			if err != nil {
-				return err
-			}
-			hutils.Outf(
-				"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s TKN\n",
-				i,
-				address,
-				valueString(ids.Empty, balance),
-			)
-		}
-
-		// Select key
-		keyIndex, err := promptChoice("set default key", len(keys))
-		if err != nil {
-			return err
-		}
-		key := keys[keyIndex]
-		publicKey := key.PublicKey()
-		return StoreDefault(defaultKeyKey, publicKey[:])
+		return handler.Root().SetKey(lookupSetKeyBalance)
 	},
+}
+
+func lookupKeyBalance(pk crypto.PublicKey, uri string, networkID uint32, chainID ids.ID, assetID ids.ID) error {
+	_, _, err := handler.GetAssetInfo(
+		context.TODO(), trpc.NewJSONRPCClient(uri, networkID, chainID),
+		pk, assetID, true)
+	return err
 }
 
 var balanceKeyCmd = &cobra.Command{
 	Use: "balance",
 	RunE: func(*cobra.Command, []string) error {
-		ctx := context.Background()
-
-		priv, err := GetDefaultKey()
-		if err != nil {
-			return err
-		}
-		chainID, uris, err := GetDefaultChain()
-		if err != nil {
-			return err
-		}
-		assetID, err := promptAsset("assetID", true)
-		if err != nil {
-			return err
-		}
-
-		max := len(uris)
-		if !checkAllChains {
-			max = 1
-		}
-		for _, uri := range uris[:max] {
-			hutils.Outf("{{yellow}}uri:{{/}} %s\n", uri)
-			rcli := rpc.NewJSONRPCClient(uris[0])
-			networkID, _, _, err := rcli.Network(context.TODO())
-			if err != nil {
-				return err
-			}
-			if _, _, err = getAssetInfo(
-				ctx, trpc.NewJSONRPCClient(uri, networkID, chainID),
-				priv.PublicKey(), assetID, true,
-			); err != nil {
-				return err
-			}
-		}
-		return nil
+		return handler.Root().Balance(checkAllChains, true, lookupKeyBalance)
 	},
 }

@@ -324,7 +324,7 @@ account.
 
 #### Bonus: Watch Activity in Real-Time
 To provide a better sense of what is actually happening on-chain, the
-`index-cli` comes bundled with a simple explorer that logs all blocks/txs that
+`token-cli` comes bundled with a simple explorer that logs all blocks/txs that
 occur on-chain. You can run this utility by running the following command from
 this location:
 ```bash
@@ -455,5 +455,5 @@ out on the Avalanche Discord._
 <br>
 <br>
 <p align="center">
-  <a href="https://github.com/ava-labs/hypersdk"><img width="40%" alt="tokenvm" src="assets/hypersdk.png"></a>
+  <a href="https://github.com/ava-labs/hypersdk"><img width="40%" alt="powered-by-hypersdk" src="assets/hypersdk.png"></a>
 </p>

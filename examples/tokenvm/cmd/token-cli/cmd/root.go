@@ -1,30 +1,27 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-// "token-cli" implements tokenvm client operation interface.
 package cmd
 
 import (
 	"fmt"
 	"time"
 
-	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/hypersdk/pebble"
+	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 )
 
 const (
-	requestTimeout  = 30 * time.Second
 	fsModeWrite     = 0o600
 	defaultDatabase = ".token-cli"
 	defaultGenesis  = "genesis.json"
 )
 
 var (
-	dbPath string
-	db     database.Database
+	handler *Handler
 
+	dbPath            string
 	genesisFile       string
 	minUnitPrice      int64
 	maxBlockUnits     int64
@@ -33,7 +30,6 @@ var (
 	hideTxs           bool
 	randomRecipient   bool
 	maxTxBacklog      int
-	deleteOtherChains bool
 	checkAllChains    bool
 	prometheusFile    string
 	prometheusData    string
@@ -63,12 +59,16 @@ func init() {
 	)
 	rootCmd.PersistentPreRunE = func(*cobra.Command, []string) error {
 		utils.Outf("{{yellow}}database:{{/}} %s\n", dbPath)
-		var err error
-		db, err = pebble.New(dbPath, pebble.NewDefaultConfig())
-		return err
+		controller := NewController(dbPath)
+		root, err := cli.New(controller)
+		if err != nil {
+			return err
+		}
+		handler = NewHandler(root)
+		return nil
 	}
 	rootCmd.PersistentPostRunE = func(*cobra.Command, []string) error {
-		return CloseDatabase()
+		return handler.Root().CloseDatabase()
 	}
 	rootCmd.SilenceErrors = true
 
@@ -127,12 +127,6 @@ func init() {
 		"hide-txs",
 		false,
 		"hide txs",
-	)
-	importAvalancheOpsChainCmd.PersistentFlags().BoolVar(
-		&deleteOtherChains,
-		"delete-other-chains",
-		true,
-		"delete other chains",
 	)
 	chainCmd.AddCommand(
 		importChainCmd,

@@ -134,7 +134,6 @@ cat <<EOF > ${TMPDIR}/tokenvm.config
   "buildProposerDiff": 1,
   "verifyTimeout": 5,
   "trackedPairs":["*"],
-  "preferredBlocksPerSecond": 3,
   "continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
@@ -176,7 +175,7 @@ ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 # download avalanche-network-runner
 # https://github.com/ava-labs/avalanche-network-runner
 ANR_REPO_PATH=github.com/ava-labs/avalanche-network-runner
-ANR_VERSION=07c99958518220d3d8bec21e92183368d4f1903c
+ANR_VERSION=v1.7.1
 # version set
 go install -v ${ANR_REPO_PATH}@${ANR_VERSION}
 
