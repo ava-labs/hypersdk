@@ -3,8 +3,12 @@
 
 package rpc
 
+import "time"
+
 const (
 	Name              = "hypersdk"
 	JSONRPCEndpoint   = "/coreapi"
 	WebSocketEndpoint = "/corews"
+
+	DefaultHandshakeTimeout = 10 * time.Second
 )

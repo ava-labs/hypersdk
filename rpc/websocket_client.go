@@ -18,8 +18,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-const DefaultHandshakeTimeout = 10 * time.Second
-
 type WebSocketClient struct {
 	cl   sync.Once
 	conn *websocket.Conn
