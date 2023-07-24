@@ -26,7 +26,6 @@ var _ vm.Config = (*Config)(nil)
 const (
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
-	defaultVerifySignatures            = true
 )
 
 type Config struct {
@@ -89,7 +88,7 @@ func (c *Config) setDefault() {
 	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
-	c.VerifySignatures = defaultVerifySignatures
+	c.VerifySignatures = c.Config.GetVerifySignatures()
 }
 
 func (c *Config) GetLogLevel() logging.Level       { return c.LogLevel }
