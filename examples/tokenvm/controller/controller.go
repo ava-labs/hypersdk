@@ -14,9 +14,8 @@ import (
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/gossiper"
-	"github.com/ava-labs/hypersdk/pebble"
 	hrpc "github.com/ava-labs/hypersdk/rpc"
-	"github.com/ava-labs/hypersdk/utils"
+	hstorage "github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/vm"
 	"go.uber.org/zap"
 
@@ -100,32 +99,11 @@ func (c *Controller) Initialize(
 	snowCtx.Log.Info("loaded genesis", zap.Any("genesis", c.genesis))
 
 	// Create DBs
-	blockPath, err := utils.InitSubDirectory(snowCtx.ChainDataDir, "block")
+	blockDB, stateDB, metaDB, err := hstorage.New(snowCtx.ChainDataDir)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
-	// TODO: tune Pebble config based on each sub-db focus
-	cfg := pebble.NewDefaultConfig()
-	blockDB, err := pebble.New(blockPath, cfg)
-	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
-	}
-	statePath, err := utils.InitSubDirectory(snowCtx.ChainDataDir, "state")
-	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
-	}
-	stateDB, err := pebble.New(statePath, cfg)
-	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
-	}
-	metaPath, err := utils.InitSubDirectory(snowCtx.ChainDataDir, "metadata")
-	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
-	}
-	c.metaDB, err = pebble.New(metaPath, cfg)
-	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
-	}
+	c.metaDB = metaDB
 
 	// Create handlers
 	//
