@@ -77,11 +77,11 @@ fi
 echo "building morpheusvm"
 
 # delete previous (if exists)
-rm -f ${TMPDIR}/avalanchego-${VERSION}/plugins/sq3LEY9T9KKPpR4iaADLeHKtdqrtmKfEXuJLcfHuTjHJZFFrG
+rm -f ${TMPDIR}/avalanchego-${VERSION}/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
 
 # rebuild with latest code
 go build \
--o ${TMPDIR}/avalanchego-${VERSION}/plugins/sq3LEY9T9KKPpR4iaADLeHKtdqrtmKfEXuJLcfHuTjHJZFFrG \
+-o ${TMPDIR}/avalanchego-${VERSION}/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
 ./cmd/morpheusvm
 
 echo "building morpheus-cli"
@@ -97,7 +97,7 @@ find ${TMPDIR}/avalanchego-${VERSION}
 # Always create allocations (linter doesn't like tab)
 echo "creating allocations file"
 cat <<EOF > ${TMPDIR}/allocations.json
-[{"address":"simple1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97ns3deh6g", "balance":1000000000000}]
+[{"address":"morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp", "balance":1000000000000}]
 EOF
 
 GENESIS_PATH=$2
@@ -126,7 +126,7 @@ cat <<EOF > ${TMPDIR}/morpheusvm.config
 {
   "mempoolSize": 10000000,
   "mempoolPayerSize": 10000000,
-  "mempoolExemptPayers":["simple1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97ns3deh6g"],
+  "mempoolExemptPayers":["morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp"],
   "parallelism": 5,
   "streamingBacklogSize": 10000000,
   "gossipMaxSize": 32768,

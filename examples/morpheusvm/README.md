@@ -44,7 +44,7 @@ use the following command to terminate:
 ./scripts/stop.sh;
 ```
 
-_By default, this allocates all funds on the network to `simple1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97ns3deh6g`. The private
+_By default, this allocates all funds on the network to `morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp`. The private
 key for this address is `0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7`.
 For convenience, this key has is also stored at `demo.pk`._
 
@@ -67,7 +67,7 @@ Next, you'll need to add the chains you created and the default key to the
 If the key is added corretcly, you'll see the following log:
 ```
 database: .morpheus-cli
-imported address: simple1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97ns3deh6g
+imported address: morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp
 ```
 
 Next, you'll need to store the URLs of the nodes running on your Subnet:
@@ -100,7 +100,7 @@ following command to get the current balance of the key you added:
 If successful, the balance response should look like this:
 ```
 database: .morpheus-cli
-address: simple1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97ns3deh6g
+address: morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp
 chainID: 2mQy8Q9Af9dtZvVM8pKsh2rB3cT3QNLjghpet5Mm5db4N7Hwgk
 uri: http://127.0.0.1:45778/ext/bc/2mQy8Q9Af9dtZvVM8pKsh2rB3cT3QNLjghpet5Mm5db4N7Hwgk
 balance: 1000.000000000 RED
@@ -117,7 +117,7 @@ we use bech32 addresses, we can't just put a random string of characters as the 
 If successful, the `morpheus-cli` will emit the new address:
 ```
 database: .morpheus-cli
-created address: simple1lst0js5nrhavcrquj2td97x02vxj0ktw3fre02p4qutw2ehd20nslnqv60
+created address: morpheus1s3ukd2gnhxl96xa5spzg69w7qd2x4ypve0j5vm0qflvlqr4na5zsezaf2f
 ```
 
 By default, the `morpheus-cli` sets newly generated addresses to be the default. We run
@@ -131,8 +131,8 @@ You should see something like this:
 database: .morpheus-cli
 chainID: 2mQy8Q9Af9dtZvVM8pKsh2rB3cT3QNLjghpet5Mm5db4N7Hwgk
 stored keys: 2
-0) address: simple1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97ns3deh6g balance: 1000.000000000 RED
-1) address: simple1lst0js5nrhavcrquj2td97x02vxj0ktw3fre02p4qutw2ehd20nslnqv60 balance: 0.000000000 RED
+0) address: morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp balance: 1000.000000000 RED
+1) address: morpheus1s3ukd2gnhxl96xa5spzg69w7qd2x4ypve0j5vm0qflvlqr4na5zsezaf2f balance: 0.000000000 RED
 set default key: 0
 ```
 
@@ -145,10 +145,10 @@ Lastly, we trigger the transfer:
 The `morpheus-cli` will emit the following logs when the transfer is successful:
 ```
 database: .morpheus-cli
-address: simple1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97ns3deh6g
+address: morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp
 chainID: 2mQy8Q9Af9dtZvVM8pKsh2rB3cT3QNLjghpet5Mm5db4N7Hwgk
 balance: 1000.000000000 RED
-recipient: simple1lst0js5nrhavcrquj2td97x02vxj0ktw3fre02p4qutw2ehd20nslnqv60
+recipient: morpheus1s3ukd2gnhxl96xa5spzg69w7qd2x4ypve0j5vm0qflvlqr4na5zsezaf2f
 ✔ amount: 10
 continue (y/n): y
 ✅ txID: sceRdaoqu2AAyLdHCdQkENZaXngGjRoc8nFdGyG8D9pCbTjbk
@@ -173,7 +173,7 @@ select chainID: 0
 uri: http://127.0.0.1:45778/ext/bc/2mQy8Q9Af9dtZvVM8pKsh2rB3cT3QNLjghpet5Mm5db4N7Hwgk
 watching for new blocks on 2mQy8Q9Af9dtZvVM8pKsh2rB3cT3QNLjghpet5Mm5db4N7Hwgk 👀
 height:1 txs:1 units:440 root:WspVPrHNAwBcJRJPVwt7TW6WT4E74dN8DuD3WXueQTMt5FDdi
-✅ sceRdaoqu2AAyLdHCdQkENZaXngGjRoc8nFdGyG8D9pCbTjbk actor: simple1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97ns3deh6g units: 440 summary (*actions.Transfer): [10.000000000 RED -> simple1lst0js5nrhavcrquj2td97x02vxj0ktw3fre02p4qutw2ehd20nslnqv60]
+✅ sceRdaoqu2AAyLdHCdQkENZaXngGjRoc8nFdGyG8D9pCbTjbk actor: morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp units: 440 summary (*actions.Transfer): [10.000000000 RED -> morpheus1s3ukd2gnhxl96xa5spzg69w7qd2x4ypve0j5vm0qflvlqr4na5zsezaf2f]
 ```
 
 <br>
