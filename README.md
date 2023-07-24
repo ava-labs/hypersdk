@@ -254,14 +254,20 @@ work out of the box on your `hypervm`.
 We've created three `hypervm` examples, of increasing complexity, that demonstrate what you
 can build with the `hypersdk` (with more on the way).
 
-When you are ready to build your own `hypervm`, we recommend using the `simplevm` as a template!
+When you are ready to build your own `hypervm`, we recommend using the `morpheusvm` as a template!
 
-### Beginner: `simplevm`
-The [`simplevm`](/.examples/simplevm) is the "simplest `hypervm` you could make." The `simplevm`
+### Beginner: `morpheusvm`
+The [`morpheusvm`](./examples/morpheusvm) is the first step into the world of the `hypersdk`. It
+is just enough to get a taste of what you can do with the `hypersdk` without being overwhelming.
+
+The [`simplevm`](./examples/simplevm) is the "simplest `hypervm` you could make." The `simplevm`
 lets you do one thing and one thing only: native token transfers.
 
 To ensure the `hypersdk` remains reliable as we optimize and evolve the codebase,
 we also run E2E tests in the `simplevm` on each PR to the `hypersdk` core modules.
+
+_For those that aren't familiar with "The Matrix", [Morpheus gave Neo a choice](https://www.youtube.com/watch?v=zE7PKRjrid4)
+to,..._
 
 ### Moderate: `tokenvm`
 We created the [`tokenvm`](./examples/tokenvm) to showcase how to use the

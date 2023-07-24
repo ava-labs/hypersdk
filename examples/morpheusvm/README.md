@@ -2,7 +2,7 @@
   <img width="90%" alt="simplevm" src="assets/logo.png">
 </p>
 <p align="center">
-  Native Token Transfers. All Day. Every Day.
+  TODO
 </p>
 <p align="center">
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/simplevm-static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/simplevm-static-analysis.yml/badge.svg" /></a>
