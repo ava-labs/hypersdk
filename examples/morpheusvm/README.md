@@ -1,8 +1,8 @@
 <p align="center">
-  <img width="90%" alt="morpheusvm" src="assets/logo.png">
+  <img width="90%" alt="morpheusvm" src="assets/logo.jpeg">
 </p>
 <p align="center">
-  TODO
+  The Choice is Yours
 </p>
 <p align="center">
   <a href="https://github.com/ava-labs/hypersdk/actions/workflows/morpheusvm-static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/morpheusvm-static-analysis.yml/badge.svg" /></a>
@@ -13,11 +13,14 @@
 
 ---
 
-The `morpheusvm` is the "simplest `hypervm` you could make." The `morpheusvm`
-lets you do one thing and one thing only: native token transfers.
+_[Who is Morpheus ("The Matrix")?](https://www.youtube.com/watch?v=zE7PKRjrid4)_
 
-When you are ready to build your own `hypervm`, we recommend
-using the `morpheusvm` as a template!
+The [`morpheusvm`](./examples/morpheusvm) provides the first glimpse into the world of the `hypersdk`.
+After learning how to implement native token transfers in a `hypervm` (one of the simplest Custom VMs
+you could make), you will have the choice to go deeper (red pill) or to turn back to the VMs that you
+already know (blue pill).
+
+When you are ready to build your own `hypervm`, we recommend using the `morpheusvm` as a template!
 
 ## Status
 `morpheusvm` is considered **ALPHA** software and is not safe to use in
