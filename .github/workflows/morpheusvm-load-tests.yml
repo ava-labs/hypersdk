@@ -1,7 +1,7 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-name: SimpleVM Load Tests
+name: MorpheusVM Load Tests
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
     types: [labeled,synchronize,reopened]
 
 jobs:
-  simplevm-load-tests:
+  morpheusvm-load-tests:
     if: ${{ github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'run load') }}
     strategy:
       matrix:
@@ -30,9 +30,9 @@ jobs:
           cache: true
           cache-dependency-path: |
             go.sum
-            examples/simplevm/go.sum
+            examples/morpheusvm/go.sum
       - name: Run load tests
-        working-directory: ./examples/simplevm
+        working-directory: ./examples/morpheusvm
         shell: bash
         run: GOAMD64=${{ matrix.level }} scripts/tests.load.sh
 concurrency:

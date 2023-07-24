@@ -1,7 +1,7 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-name: SimpleVM Release
+name: MorpheusVM Release
 
 on:
   push:
@@ -13,7 +13,7 @@ on:
     types: [labeled,synchronize,reopened]
 
 jobs:
- simplevm-release:
+ morpheusvm-release:
     # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
     runs-on: ubuntu-20.04-32
     if: ${{ github.ref == 'refs/heads/main' || startsWith(github.event.ref, 'refs/tags/v') || contains(github.event.pull_request.labels.*.name, 'run release') }}
@@ -28,7 +28,7 @@ jobs:
           cache: true
           cache-dependency-path: |
             go.sum
-            examples/simplevm/go.sum
+            examples/morpheusvm/go.sum
       - name: Set up arm64 cross compiler
         run: |
           sudo apt-get -y update
@@ -55,7 +55,7 @@ jobs:
           distribution: goreleaser
           version: latest
           args: release
-          workdir: ./examples/simplevm/
+          workdir: ./examples/morpheusvm/
         env:
           # https://docs.github.com/en/actions/security-guides/automatic-token-authentication#about-the-github_token-secret
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -63,7 +63,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: dist
-          path: ./examples/simplevm/dist
+          path: ./examples/morpheusvm/dist
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true

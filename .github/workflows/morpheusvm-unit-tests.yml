@@ -1,7 +1,7 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-name: SimpleVM Unit Tests
+name: MorpheusVM Unit Tests
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
     types: [labeled,synchronize,reopened]
 
 jobs:
-  simplevm-unit-tests:
+  morpheusvm-unit-tests:
     if: ${{ github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'run unit') }}
     runs-on:
       labels: ubuntu-20.04-32
@@ -27,27 +27,27 @@ jobs:
           cache: true
           cache-dependency-path: |
             go.sum
-            examples/simplevm/go.sum
+            examples/morpheusvm/go.sum
       - name: Run unit tests
-        working-directory: ./examples/simplevm
+        working-directory: ./examples/morpheusvm
         shell: bash
         run: scripts/tests.unit.sh
       - name: Run integration tests
-        working-directory: ./examples/simplevm
+        working-directory: ./examples/morpheusvm
         shell: bash
         run: scripts/tests.integration.sh
       - name: Archive code coverage results (text)
         uses: actions/upload-artifact@v3
         with:
           name: code-coverage-out
-          path: ./examples/simplevm/integration.coverage.out
+          path: ./examples/morpheusvm/integration.coverage.out
       - name: Archive code coverage results (html)
         uses: actions/upload-artifact@v3
         with:
           name: code-coverage-html
-          path: ./examples/simplevm/integration.coverage.html
+          path: ./examples/morpheusvm/integration.coverage.html
       - name: Run e2e tests
-        working-directory: ./examples/simplevm
+        working-directory: ./examples/morpheusvm
         shell: bash
         run: scripts/run.sh
         env:
