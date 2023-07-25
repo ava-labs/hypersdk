@@ -64,6 +64,10 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 		// Although we use `pebble.NoSync`, we still keep the WAL enabled. Pebble
 		// will fsync the WAL during shutdown and should ensure the db is
 		// recoverable if shutdown correctly.
+		//
+		// TODO: consider re-enabling:
+		// * https://github.com/cockroachdb/pebble/issues/2624
+		// * https://github.com/ethereum/go-ethereum/pull/27522
 		WALBytesPerSync:             cfg.WALBytesPerSync,
 		MemTableStopWritesThreshold: cfg.MemTableStopWritesThreshold,
 		MemTableSize:                cfg.MemTableSize,
