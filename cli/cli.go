@@ -15,7 +15,7 @@ type Handler struct {
 }
 
 func New(c Controller) (*Handler, error) {
-	db, err := pebble.New(c.DatabasePath(), pebble.NewDefaultConfig())
+	db, _, err := pebble.New(c.DatabasePath(), pebble.NewDefaultConfig())
 	if err != nil {
 		return nil, err
 	}
