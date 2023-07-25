@@ -220,7 +220,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 		dname, err = os.MkdirTemp("", fmt.Sprintf("%s-root", nodeID.String()))
 		gomega.Ω(err).Should(gomega.BeNil())
-		pdb, err := pebble.New(dname, pebble.NewDefaultConfig())
+		pdb, _, err := pebble.New(dname, pebble.NewDefaultConfig())
 		gomega.Ω(err).Should(gomega.BeNil())
 		db, err := manager.NewManagerFromDBs([]*manager.VersionedDatabase{
 			{
