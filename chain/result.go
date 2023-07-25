@@ -16,6 +16,16 @@ type Result struct {
 	WarpMessage *warp.UnsignedMessage
 }
 
+func (r *Result) Size() int {
+	size := codec.BoolLen + consts.Uint64Len + codec.BytesLen(r.Output)
+	if r.WarpMessage != nil {
+		size += codec.BytesLen(r.WarpMessage.Bytes())
+	} else {
+		size += codec.BytesLen(nil)
+	}
+	return size
+}
+
 func (r *Result) Marshal(p *codec.Packer) {
 	p.PackBool(r.Success)
 	p.PackUint64(r.Units)
@@ -28,7 +38,11 @@ func (r *Result) Marshal(p *codec.Packer) {
 }
 
 func MarshalResults(src []*Result) ([]byte, error) {
-	p := codec.NewWriter(consts.MaxInt) // could be much larger than [NetworkSizeLimit]
+	size := consts.IntLen
+	for _, result := range src {
+		size += result.Size()
+	}
+	p := codec.NewWriter(size, consts.MaxInt) // could be much larger than [NetworkSizeLimit]
 	p.PackInt(len(src))
 	for _, result := range src {
 		result.Marshal(p)
