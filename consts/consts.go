@@ -4,6 +4,7 @@
 package consts
 
 const (
+	ByteLen               = 1
 	IDLen                 = 32
 	NodeIDLen             = 20
 	MaxUint8              = ^uint8(0)
