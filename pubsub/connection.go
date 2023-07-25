@@ -25,7 +25,7 @@ type Connection struct {
 	conn *websocket.Conn
 
 	// Buffered channel of outbound messages.
-	send chan []byte
+	mb *MessageBuffer
 
 	// Represents if the connection can receive new messages.
 	active atomic.Bool
@@ -39,6 +39,7 @@ func (c *Connection) isActive() bool {
 // deactivate deactivates the connection.
 func (c *Connection) deactivate() {
 	c.active.Store(false)
+	_ = c.mb.Close()
 }
 
 // Send sends [msg] to c's send channel and returns whether the message was sent.
@@ -46,13 +47,11 @@ func (c *Connection) Send(msg []byte) bool {
 	if !c.isActive() {
 		return false
 	}
-	select {
-	case c.send <- msg:
-		return true
-	default:
-		c.s.log.Debug("msg was dropped")
+	if err := c.mb.Send(msg); err != nil {
+		c.s.log.Debug("unable to send message", zap.Error(err))
+		return false
 	}
-	return false
+	return true
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -70,7 +69,7 @@ func (c *Connection) readPump() {
 		_ = c.conn.Close()
 	}()
 
-	c.conn.SetReadLimit(c.s.config.MaxMessageSize)
+	c.conn.SetReadLimit(int64(c.s.config.MaxReadMessageSize))
 	// SetReadDeadline returns an error if the connection is corrupted
 	if err := c.conn.SetReadDeadline(time.Now().Add(c.s.config.PongWait)); err != nil {
 		return
@@ -92,15 +91,25 @@ func (c *Connection) readPump() {
 			}
 			return
 		}
-		if c.s.callback != nil {
-			responseBytes, err := io.ReadAll(reader)
-			if err != nil {
-				c.s.log.Debug("unexpected error reading bytes from websockets",
-					zap.Error(err),
-				)
-				return
-			}
-			c.s.callback(responseBytes, c)
+		if c.s.callback == nil {
+			continue
+		}
+		responseBytes, err := io.ReadAll(reader)
+		if err != nil {
+			c.s.log.Debug("unexpected error reading bytes from websockets",
+				zap.Error(err),
+			)
+			return
+		}
+		msgs, err := ParseBatchMessage(c.s.config.MaxReadMessageSize, responseBytes)
+		if err != nil {
+			c.s.log.Debug("unable to read websockets message",
+				zap.Error(err),
+			)
+			return
+		}
+		for _, msg := range msgs {
+			c.s.callback(msg, c)
 		}
 	}
 }
@@ -123,7 +132,7 @@ func (c *Connection) writePump() {
 	}()
 	for {
 		select {
-		case message, ok := <-c.send:
+		case message, ok := <-c.mb.Queue:
 			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.config.WriteWait)); err != nil {
 				c.s.log.Debug("closing the connection",
 					zap.String("reason", "failed to set the write deadline"),
@@ -138,6 +147,10 @@ func (c *Connection) writePump() {
 				return
 			}
 			if err := c.conn.WriteMessage(websocket.BinaryMessage, message); err != nil {
+				c.s.log.Debug("closing the connection",
+					zap.String("reason", "failed to write message"),
+					zap.Error(err),
+				)
 				return
 			}
 		case <-ticker.C:

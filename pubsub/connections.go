@@ -45,6 +45,8 @@ func (c *Connections) Remove(conn *Connection) {
 }
 
 // Add adds [conn] to the [c].
+//
+// TODO: consider allowing same connection to register for duplicate events
 func (c *Connections) Add(conn *Connection) {
 	c.lock.Lock()
 	defer c.lock.Unlock()

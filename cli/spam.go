@@ -20,6 +20,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/neilotoole/errgroup"
@@ -101,7 +102,7 @@ func (h *Handler) Spam(
 		h.AssetString(ids.Empty),
 	)
 	accounts := make([]crypto.PrivateKey, numAccounts)
-	dcli, err := rpc.NewWebSocketClient(uris[0])
+	dcli, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err
 	}
@@ -153,7 +154,7 @@ func (h *Handler) Spam(
 	clients := make([]*txIssuer, len(uris))
 	for i := 0; i < len(uris); i++ {
 		cli := rpc.NewJSONRPCClient(uris[i])
-		dcli, err := rpc.NewWebSocketClient(uris[i])
+		dcli, err := rpc.NewWebSocketClient(uris[i], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 		if err != nil {
 			return err
 		}

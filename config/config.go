@@ -31,7 +31,6 @@ func (c *Config) GetParallelism() int {
 func (c *Config) GetMempoolSize() int                    { return 2_048 }
 func (c *Config) GetMempoolPayerSize() int               { return 32 }
 func (c *Config) GetMempoolExemptPayers() [][]byte       { return nil }
-func (c *Config) GetMempoolVerifyBalances() bool         { return true }
 func (c *Config) GetStreamingBacklogSize() int           { return 1024 }
 func (c *Config) GetStateHistoryLength() int             { return 256 }
 func (c *Config) GetStateCacheSize() int                 { return 65_536 } // nodes
@@ -45,3 +44,4 @@ func (c *Config) GetBlockLRUSize() int                   { return 128 }
 func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	return &profiler.Config{Enabled: false}
 }
+func (c *Config) GetVerifySignatures() bool { return true }

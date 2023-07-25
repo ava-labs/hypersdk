@@ -81,10 +81,13 @@ func TestServerPublish(t *testing.T) {
 	// Publish to subscribed connections
 	handler.Publish([]byte(dummyMsg), handler.Connections())
 	// Receive the message from the publish
-	_, msg, err := webCon.ReadMessage()
+	_, batchMsg, err := webCon.ReadMessage()
 	require.NoError(err, "Error receiveing message.")
+	msgs, err := ParseBatchMessage(MaxWriteMessageSize, batchMsg)
+	require.NoError(err, "Error parsing message.")
+	require.Len(msgs, 1)
 	// Verify that the received message is the expected dummy message
-	require.Equal([]byte(dummyMsg), msg, "Response from server not correct.")
+	require.Equal([]byte(dummyMsg), msgs[0], "Response from server not correct.")
 	// Close the connection and wait for it to be closed on the server side
 	go func() {
 		webCon.Close()
@@ -147,7 +150,9 @@ func TestServerRead(t *testing.T) {
 	require.NoError(err, "Error connecting to the server.")
 	defer resp.Body.Close()
 	id := ids.GenerateTestID()
-	err = webCon.WriteMessage(websocket.TextMessage, id[:])
+	batchMsg, err := CreateBatchMessage(0, [][]byte{id[:]})
+	require.NoError(err)
+	err = webCon.WriteMessage(websocket.TextMessage, batchMsg)
 	require.NoError(err, "Error writing message to server.")
 	// Wait for callback to be called
 	time.Sleep(10 * time.Millisecond)
@@ -194,7 +199,6 @@ func TestServerPublishSpecific(t *testing.T) {
 	// Create a new pubsub server
 	handler := New(logger, NewDefaultServerConfig(), counter.dummyProcessTXCallback)
 	// Channels for ensuring if connections/server are closed
-	closeConnection := make(chan bool)
 	serverDone := make(chan struct{})
 	dummyMsg := "dummy_msg"
 	// Go routine that listens on dummyAddress for connections
@@ -233,22 +237,18 @@ func TestServerPublishSpecific(t *testing.T) {
 	handler.Publish([]byte(dummyMsg), sendConns)
 	go func() {
 		// Receive the message from the publish
-		_, msg, err := webCon1.ReadMessage()
+		_, batchMsg, err := webCon1.ReadMessage()
 		require.NoError(err, "Error reading to connection.")
+		msgs, err := ParseBatchMessage(MaxWriteMessageSize, batchMsg)
+		require.NoError(err, "Error parsing message.")
+		require.Len(msgs, 1)
 		// Verify that the received message is the expected dummy message
-		require.Equal([]byte(dummyMsg), msg, "Message not as expected.")
+		require.Equal([]byte(dummyMsg), msgs[0], "Message not as expected.")
 		webCon1.Close()
-		for {
-			if handler.conns.Len() == 0 {
-				closeConnection <- true
-				return
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
 	}()
 	// not receive from the other
 	go func() {
-		err := webCon2.SetReadDeadline(time.Now().Add(time.Second))
+		err := webCon2.SetReadDeadline(time.Now().Add(5 * time.Second))
 		require.NoError(err, "Error setting connection deadline.")
 		// Make sure connection wasn't written too
 		_, _, err = webCon2.ReadMessage()
@@ -257,22 +257,12 @@ func TestServerPublishSpecific(t *testing.T) {
 		require.True(ok, "Error is not a net.Error")
 		require.True(netErr.Timeout(), "Error is not a timeout error")
 		webCon2.Close()
-		for {
-			if handler.conns.Len() == 0 {
-				closeConnection <- true
-				return
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
 	}()
 	// Wait for the connection to be closed or for a timeout to occur
-	select {
-	case <-closeConnection:
-		// Connection was closed on the server side, test passed
-	case <-time.After(2 * time.Second):
-		// Timeout occurred, connection was not closed on the server side, test failed
-		require.Fail("connection was not closed on the server side")
-	}
+	require.Eventually(
+		func() bool { return handler.conns.Len() == 0 },
+		15*time.Second, 10*time.Millisecond, "Server didn't close connections correctly.",
+	)
 	// Gracefully shutdown the server
 	err = server.Shutdown(context.TODO())
 	require.NoError(err, "Error shuting down server.")

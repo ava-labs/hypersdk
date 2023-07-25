@@ -628,36 +628,6 @@ func (vm *VM) BuildBlockWithContext(
 	return vm.buildBlock(ctx, blockContext)
 }
 
-func (vm *VM) submitStateless(
-	ctx context.Context,
-	verifySig bool,
-	txs []*chain.Transaction,
-) (errs []error) {
-	validTxs := []*chain.Transaction{}
-	for _, tx := range txs {
-		txID := tx.ID()
-		// We already verify in streamer, let's avoid re-verification
-		if verifySig {
-			sigVerify := tx.AuthAsyncVerify()
-			if err := sigVerify(); err != nil {
-				// Failed signature verification is the only safe place to remove
-				// a transaction in listeners. Every other case may still end up with
-				// the transaction in a block.
-				if err := vm.webSocketServer.RemoveTx(txID, err); err != nil {
-					vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
-				}
-				errs = append(errs, err)
-				continue
-			}
-		}
-		validTxs = append(validTxs, tx)
-	}
-	vm.mempool.Add(ctx, validTxs)
-	vm.builder.QueueNotify()
-	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
-	return errs
-}
-
 func (vm *VM) Submit(
 	ctx context.Context,
 	verifySig bool,
@@ -672,10 +642,6 @@ func (vm *VM) Submit(
 	// is good to be defensive.
 	if !vm.isReady() {
 		return []error{ErrNotReady}
-	}
-
-	if !vm.config.GetMempoolVerifyBalances() {
-		return vm.submitStateless(ctx, verifySig, txs)
 	}
 
 	// Create temporary execution context
@@ -699,7 +665,7 @@ func (vm *VM) Submit(
 	for _, tx := range txs {
 		txID := tx.ID()
 		// We already verify in streamer, let's avoid re-verification
-		if verifySig {
+		if verifySig && vm.config.GetVerifySignatures() {
 			sigVerify := tx.AuthAsyncVerify()
 			if err := sigVerify(); err != nil {
 				// Failed signature verification is the only safe place to remove
@@ -719,8 +685,7 @@ func (vm *VM) Submit(
 			errs = append(errs, ErrNotAdded)
 			continue
 		}
-		// TODO: do we need this? (just ensures people can't spam mempool with
-		// txs from already verified blocks)
+		// TODO: Batch this repeat check (and collect multiple txs at once)
 		repeat, err := blk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx})
 		if err != nil {
 			errs = append(errs, err)

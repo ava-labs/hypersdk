@@ -36,6 +36,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
@@ -591,9 +592,12 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		accept() // don't care about results
 
 		// Subscribe to blocks
-		cli, err := rpc.NewWebSocketClient(instances[0].WebSocketServer.URL)
+		cli, err := rpc.NewWebSocketClient(instances[0].WebSocketServer.URL, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(cli.RegisterBlocks()).Should(gomega.BeNil())
+
+		// Wait for message to be sent
+		time.Sleep(2 * pubsub.MaxMessageWait)
 
 		// Fetch balances
 		balance, err := instances[0].lcli.Balance(context.TODO(), sender)
@@ -649,7 +653,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 	ginkgo.It("processes valid index transactions (w/streaming verification)", func() {
 		// Create streaming client
-		cli, err := rpc.NewWebSocketClient(instances[0].WebSocketServer.URL)
+		cli, err := rpc.NewWebSocketClient(instances[0].WebSocketServer.URL, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Create tx
@@ -672,6 +676,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 		// Submit tx and accept block
 		gomega.Ω(cli.RegisterTx(tx)).Should(gomega.BeNil())
+
+		// Wait for message to be sent
+		time.Sleep(2 * pubsub.MaxMessageWait)
+
 		for instances[0].vm.Mempool().Len(context.TODO()) == 0 {
 			// We need to wait for mempool to be populated because issuance will
 			// return as soon as bytes are on the channel.

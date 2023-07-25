@@ -26,7 +26,6 @@ var _ vm.Config = (*Config)(nil)
 const (
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
-	defaultMempoolVerifyBalances       = true
 )
 
 type Config struct {
@@ -43,15 +42,15 @@ type Config struct {
 	StreamingBacklogSize int `json:"streamingBacklogSize"`
 
 	// Mempool
-	MempoolSize           int      `json:"mempoolSize"`
-	MempoolPayerSize      int      `json:"mempoolPayerSize"`
-	MempoolExemptPayers   []string `json:"mempoolExemptPayers"`
-	MempoolVerifyBalances bool     `json:"mempoolVerifyBalances"`
+	MempoolSize         int      `json:"mempoolSize"`
+	MempoolPayerSize    int      `json:"mempoolPayerSize"`
+	MempoolExemptPayers []string `json:"mempoolExemptPayers"`
 
 	// Misc
-	TestMode    bool          `json:"testMode"` // makes gossip/building manual
-	LogLevel    logging.Level `json:"logLevel"`
-	Parallelism int           `json:"parallelism"`
+	VerifySignatures bool          `json:"verifySignatures"`
+	TestMode         bool          `json:"testMode"` // makes gossip/building manual
+	LogLevel         logging.Level `json:"logLevel"`
+	Parallelism      int           `json:"parallelism"`
 
 	// State Sync
 	StateSyncServerDelay time.Duration `json:"stateSyncServerDelay"` // for testing
@@ -87,9 +86,9 @@ func (c *Config) setDefault() {
 	c.Parallelism = c.Config.GetParallelism()
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()
-	c.MempoolVerifyBalances = defaultMempoolVerifyBalances
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
+	c.VerifySignatures = c.Config.GetVerifySignatures()
 }
 
 func (c *Config) GetLogLevel() logging.Level       { return c.LogLevel }
@@ -98,7 +97,6 @@ func (c *Config) GetParallelism() int              { return c.Parallelism }
 func (c *Config) GetMempoolSize() int              { return c.MempoolSize }
 func (c *Config) GetMempoolPayerSize() int         { return c.MempoolPayerSize }
 func (c *Config) GetMempoolExemptPayers() [][]byte { return c.parsedExemptPayers }
-func (c *Config) GetMempoolVerifyBalances() bool   { return c.MempoolVerifyBalances }
 func (c *Config) GetTraceConfig() *trace.Config {
 	return &trace.Config{
 		Enabled:         c.TraceEnabled,
@@ -124,3 +122,4 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 		MaxNumFiles: defaultContinuousProfilerMaxFiles,
 	}
 }
+func (c *Config) GetVerifySignatures() bool { return c.VerifySignatures }
