@@ -71,24 +71,24 @@ func newMetrics() (*prometheus.Registry, *metrics, error) {
 	return r, m, errs.Err
 }
 
-func (d *Database) onCompactionBegin(info pebble.CompactionInfo) {
-	d.metrics.activeCompactions.Inc()
+func (db *Database) onCompactionBegin(info pebble.CompactionInfo) {
+	db.metrics.activeCompactions.Inc()
 	l0 := info.Input[0]
 	if l0.Level == 0 {
-		d.metrics.l0Compactions.Inc()
+		db.metrics.l0Compactions.Inc()
 	} else {
-		d.metrics.otherCompactions.Inc()
+		db.metrics.otherCompactions.Inc()
 	}
 }
 
-func (d *Database) onCompactionEnd(pebble.CompactionInfo) {
-	d.metrics.activeCompactions.Dec()
+func (db *Database) onCompactionEnd(pebble.CompactionInfo) {
+	db.metrics.activeCompactions.Dec()
 }
 
-func (d *Database) onWriteStallBegin(pebble.WriteStallBeginInfo) {
-	d.metrics.delayStart = time.Now()
+func (db *Database) onWriteStallBegin(pebble.WriteStallBeginInfo) {
+	db.metrics.delayStart = time.Now()
 }
 
-func (d *Database) onWriteStallEnd() {
-	d.metrics.writeStall.Observe(float64(time.Since(d.metrics.delayStart)))
+func (db *Database) onWriteStallEnd() {
+	db.metrics.writeStall.Observe(float64(time.Since(db.metrics.delayStart)))
 }
