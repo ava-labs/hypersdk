@@ -8,12 +8,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/slices"
 )
 
@@ -26,7 +27,8 @@ var (
 )
 
 type Database struct {
-	db *pebble.DB
+	db      *pebble.DB
+	metrics *metrics
 
 	closed utils.Atomic[bool]
 }
@@ -38,6 +40,7 @@ type Config struct {
 	MemTableStopWritesThreshold int // num tables
 	MemTableSize                int // B
 	MaxOpenFiles                int
+	ConcurrentCompactions       func() int
 }
 
 func NewDefaultConfig() Config {
@@ -48,24 +51,37 @@ func NewDefaultConfig() Config {
 		MemTableStopWritesThreshold: 8,
 		MemTableSize:                16 * 1024 * 1024,
 		MaxOpenFiles:                4_096,
+		ConcurrentCompactions:       func() int { return 1 },
 	}
 }
 
-func New(file string, cfg Config) (database.Database, error) {
+func New(file string, cfg Config) (database.Database, *prometheus.Registry, error) {
 	// These default settings are based on https://github.com/ethereum/go-ethereum/blob/master/ethdb/pebble/pebble.go
+	d := &Database{}
 	opts := &pebble.Options{
 		Cache:        pebble.NewCache(int64(cfg.CacheSize)),
 		BytesPerSync: cfg.BytesPerSync,
 		// Although we use `pebble.NoSync`, we still keep the WAL enabled. Pebble
 		// will fsync the WAL during shutdown and should ensure the db is
 		// recoverable if shutdown correctly.
+		//
+		// TODO: consider re-enabling:
+		// * https://github.com/cockroachdb/pebble/issues/2624
+		// * https://github.com/ethereum/go-ethereum/pull/27522
 		WALBytesPerSync:             cfg.WALBytesPerSync,
 		MemTableStopWritesThreshold: cfg.MemTableStopWritesThreshold,
 		MemTableSize:                cfg.MemTableSize,
 		MaxOpenFiles:                cfg.MaxOpenFiles,
-		MaxConcurrentCompactions:    runtime.NumCPU,
+		MaxConcurrentCompactions:    cfg.ConcurrentCompactions, // TODO: may want to tweak this?
 		Levels:                      make([]pebble.LevelOptions, 7),
 		// TODO: add support for adding a custom logger
+
+		EventListener: &pebble.EventListener{
+			CompactionBegin: d.onCompactionBegin,
+			CompactionEnd:   d.onCompactionEnd,
+			WriteStallBegin: d.onWriteStallBegin,
+			WriteStallEnd:   d.onWriteStallEnd,
+		},
 	}
 	// Default configuration sourced from:
 	// https://github.com/cockroachdb/pebble/blob/master/cmd/pebble/db.go#L76-L86
@@ -80,11 +96,17 @@ func New(file string, cfg Config) (database.Database, error) {
 		}
 	}
 	opts.Experimental.ReadSamplingMultiplier = -1 // explicitly disable seek compaction
+	registry, metrics, err := newMetrics()
+	if err != nil {
+		return nil, nil, err
+	}
+	d.metrics = metrics
 	db, err := pebble.Open(file, opts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return &Database{db: db}, nil
+	d.db = db
+	return d, registry, nil
 }
 
 func (db *Database) Close() error {
@@ -112,7 +134,9 @@ func (db *Database) Has(key []byte) (bool, error) {
 
 // Get returns the value the key maps to in the database
 func (db *Database) Get(key []byte) ([]byte, error) {
+	start := time.Now()
 	data, closer, err := db.db.Get(key)
+	db.metrics.getLatency.Observe(float64(time.Since(start)))
 	if err != nil {
 		return nil, updateError(err)
 	}
