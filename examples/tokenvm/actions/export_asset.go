@@ -19,6 +19,12 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
+const exportAssetSize = crypto.PublicKeyLen + consts.IDLen +
+	consts.Uint64Len + consts.BoolLen +
+	consts.Uint64Len + /* op bits */
+	consts.Uint64Len + consts.Uint64Len + consts.IDLen + consts.Uint64Len +
+	consts.Int64Len + consts.IDLen
+
 var _ chain.Action = (*ExportAsset)(nil)
 
 type ExportAsset struct {
@@ -217,10 +223,11 @@ func (e *ExportAsset) Execute(
 }
 
 func (*ExportAsset) MaxUnits(chain.Rules) uint64 {
-	return crypto.PublicKeyLen + consts.IDLen +
-		consts.Uint64Len + 1 + consts.Uint64Len +
-		consts.Uint64Len + consts.IDLen + consts.Uint64Len +
-		consts.Uint64Len + consts.IDLen
+	return exportAssetSize
+}
+
+func (*ExportAsset) Size() int {
+	return exportAssetSize
 }
 
 func (e *ExportAsset) Marshal(p *codec.Packer) {
@@ -228,7 +235,7 @@ func (e *ExportAsset) Marshal(p *codec.Packer) {
 	p.PackID(e.Asset)
 	p.PackUint64(e.Value)
 	p.PackBool(e.Return)
-	op := codec.NewOptionalWriter()
+	op := codec.NewOptionalWriter(consts.Uint64Len*3 + consts.Int64Len + consts.IDLen)
 	op.PackUint64(e.Reward)
 	op.PackUint64(e.SwapIn)
 	op.PackID(e.AssetOut)

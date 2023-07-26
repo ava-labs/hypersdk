@@ -85,6 +85,10 @@ func (m *ModifyAsset) MaxUnits(chain.Rules) uint64 {
 	return consts.IDLen + crypto.PublicKeyLen + uint64(len(m.Metadata))
 }
 
+func (m *ModifyAsset) Size() int {
+	return consts.IDLen + crypto.PublicKeyLen + codec.BytesLen(m.Metadata)
+}
+
 func (m *ModifyAsset) Marshal(p *codec.Packer) {
 	p.PackID(m.Asset)
 	p.PackPublicKey(m.Owner)

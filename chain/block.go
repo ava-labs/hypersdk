@@ -764,7 +764,12 @@ func (b *StatefulBlock) Marshal(
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
 ) ([]byte, error) {
-	p := codec.NewWriter(consts.NetworkSizeLimit)
+	size := consts.IDLen + consts.Uint64Len + consts.Uint64Len +
+		consts.Uint64Len + window.WindowSliceSize +
+		consts.IntLen + codec.CummSize(b.Txs) +
+		consts.IDLen + consts.Uint64Len + consts.Uint64Len
+
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	p.PackID(b.Prnt)
 	p.PackInt64(b.Tmstmp)

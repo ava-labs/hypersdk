@@ -96,6 +96,10 @@ func (*CreateOrder) MaxUnits(chain.Rules) uint64 {
 	return consts.IDLen*2 + consts.Uint64Len*3
 }
 
+func (*CreateOrder) Size() int {
+	return consts.IDLen*2 + consts.Uint64Len*3
+}
+
 func (c *CreateOrder) Marshal(p *codec.Packer) {
 	p.PackID(c.In)
 	p.PackUint64(c.InTick)

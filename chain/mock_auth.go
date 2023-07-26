@@ -134,6 +134,20 @@ func (mr *MockAuthMockRecorder) Refund(arg0, arg1, arg2 interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Refund", reflect.TypeOf((*MockAuth)(nil).Refund), arg0, arg1, arg2)
 }
 
+// Size mocks base method.
+func (m *MockAuth) Size() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Size")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Size indicates an expected call of Size.
+func (mr *MockAuthMockRecorder) Size() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockAuth)(nil).Size))
+}
+
 // StateKeys mocks base method.
 func (m *MockAuth) StateKeys() [][]byte {
 	m.ctrl.T.Helper()

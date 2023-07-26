@@ -5,6 +5,18 @@ package codec
 
 import "github.com/ava-labs/hypersdk/consts"
 
+type SizeType interface {
+	Size() int
+}
+
+func CummSize[T SizeType](arr []T) int {
+	size := 0
+	for _, item := range arr {
+		size += item.Size()
+	}
+	return size
+}
+
 func BytesLen(msg []byte) int {
 	return consts.IntLen + len(msg)
 }
