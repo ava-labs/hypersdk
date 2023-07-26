@@ -27,6 +27,10 @@ func (*CreateAsset) StateKeys(_ chain.Auth, txID ids.ID) [][]byte {
 	return [][]byte{storage.PrefixAssetKey(txID)}
 }
 
+func (c *CreateAsset) GetTypeID() uint8 {
+	return createAssetID
+}
+
 func (c *CreateAsset) Execute(
 	ctx context.Context,
 	r chain.Rules,

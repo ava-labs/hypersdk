@@ -117,6 +117,7 @@ type StateManager interface {
 }
 
 type Action interface {
+	GetTypeID() uint8                          // identify uniquely the action
 	MaxUnits(Rules) uint64                     // max units that could be charged via execute
 	ValidRange(Rules) (start int64, end int64) // -1 means no start/end
 
@@ -152,6 +153,7 @@ type Action interface {
 }
 
 type Auth interface {
+	GetTypeID() uint8 // identify uniquely the auth
 	MaxUnits(Rules) uint64
 	ValidRange(Rules) (start int64, end int64) // -1 means no start/end
 
