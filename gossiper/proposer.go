@@ -330,8 +330,6 @@ func (g *Proposer) Run(appSender common.AppSender) {
 				} else if err != nil {
 					g.vm.Logger().Warn("unable to determine if will propose soon, gossiping anyways", zap.Error(err))
 				}
-			} else {
-				g.vm.Logger().Info("gossiping because past verify timeout")
 			}
 
 			// Gossip to proposers who will produce next
