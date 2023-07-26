@@ -312,8 +312,20 @@ var _ = ginkgo.BeforeSuite(func() {
 		nodeID, err := ids.NodeIDFromString(info.GetId())
 		gomega.Expect(err).Should(gomega.BeNil())
 		cli := rpc.NewJSONRPCClient(u)
-		networkID, _, _, err := cli.Network(context.TODO())
+
+		// After returning healthy, the node may not respond right away
+		//
+		// TODO: figure out why
+		var networkID uint32
+		for i := 0; i < 10; i++ {
+			networkID, _, _, err = cli.Network(context.TODO())
+			if err != nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
+		}
 		gomega.Expect(err).Should(gomega.BeNil())
+
 		instancesA = append(instancesA, instance{
 			nodeID: nodeID,
 			uri:    u,
@@ -332,8 +344,20 @@ var _ = ginkgo.BeforeSuite(func() {
 			nodeID, err := ids.NodeIDFromString(info.GetId())
 			gomega.Expect(err).Should(gomega.BeNil())
 			cli := rpc.NewJSONRPCClient(u)
-			networkID, _, _, err := cli.Network(context.TODO())
+
+			// After returning healthy, the node may not respond right away
+			//
+			// TODO: figure out why
+			var networkID uint32
+			for i := 0; i < 10; i++ {
+				networkID, _, _, err = cli.Network(context.TODO())
+				if err != nil {
+					time.Sleep(1 * time.Second)
+					continue
+				}
+			}
 			gomega.Expect(err).Should(gomega.BeNil())
+
 			instancesB = append(instancesB, instance{
 				nodeID: nodeID,
 				uri:    u,
@@ -342,34 +366,6 @@ var _ = ginkgo.BeforeSuite(func() {
 			})
 		}
 	}
-
-	// Ensure nodes are healthy
-	//
-	// TODO: figure out why this is necessary after all nodes return healthy
-	for i := 0; i < 10; i++ {
-		for j := 0; j < len(instancesA); j++ {
-			gen, err = instancesA[j].tcli.Genesis(context.Background())
-			if err != nil {
-				break
-			}
-		}
-		if err != nil {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		for j := 0; j < len(instancesB); j++ {
-			gen, err = instancesB[j].tcli.Genesis(context.Background())
-			if err != nil {
-				break
-			}
-		}
-		if err != nil {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		break
-	}
-	gomega.Ω(err).Should(gomega.BeNil())
 
 	// Load default pk
 	priv, err = crypto.HexToKey(

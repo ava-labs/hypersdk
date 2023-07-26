@@ -281,8 +281,20 @@ var _ = ginkgo.BeforeSuite(func() {
 		nodeID, err := ids.NodeIDFromString(info.GetId())
 		gomega.Expect(err).Should(gomega.BeNil())
 		cli := rpc.NewJSONRPCClient(u)
-		networkID, _, _, err := cli.Network(context.TODO())
+
+		// After returning healthy, the node may not respond right away
+		//
+		// TODO: figure out why
+		var networkID uint32
+		for i := 0; i < 10; i++ {
+			networkID, _, _, err = cli.Network(context.TODO())
+			if err != nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
+		}
 		gomega.Expect(err).Should(gomega.BeNil())
+
 		instances = append(instances, instance{
 			nodeID: nodeID,
 			uri:    u,
@@ -290,24 +302,6 @@ var _ = ginkgo.BeforeSuite(func() {
 			lcli:   lrpc.NewJSONRPCClient(u, networkID, bid),
 		})
 	}
-
-	// Ensure nodes are healthy
-	//
-	// TODO: figure out why this is necessary after all nodes return healthy
-	for i := 0; i < 10; i++ {
-		for j := 0; j < len(instances); j++ {
-			gen, err = instances[j].lcli.Genesis(context.Background())
-			if err != nil {
-				break
-			}
-		}
-		if err != nil {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		break
-	}
-	gomega.Ω(err).Should(gomega.BeNil())
 })
 
 var (
