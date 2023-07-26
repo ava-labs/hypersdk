@@ -26,6 +26,7 @@ var _ vm.Config = (*Config)(nil)
 const (
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
+	defaultStoreTransactions           = true
 )
 
 type Config struct {
@@ -47,10 +48,11 @@ type Config struct {
 	MempoolExemptPayers []string `json:"mempoolExemptPayers"`
 
 	// Misc
-	VerifySignatures bool          `json:"verifySignatures"`
-	TestMode         bool          `json:"testMode"` // makes gossip/building manual
-	LogLevel         logging.Level `json:"logLevel"`
-	Parallelism      int           `json:"parallelism"`
+	VerifySignatures  bool          `json:"verifySignatures"`
+	StoreTransactions bool          `json:"storeTransactions"`
+	TestMode          bool          `json:"testMode"` // makes gossip/building manual
+	LogLevel          logging.Level `json:"logLevel"`
+	Parallelism       int           `json:"parallelism"`
 
 	// State Sync
 	StateSyncServerDelay time.Duration `json:"stateSyncServerDelay"` // for testing
@@ -89,6 +91,7 @@ func (c *Config) setDefault() {
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 	c.VerifySignatures = c.Config.GetVerifySignatures()
+	c.StoreTransactions = defaultStoreTransactions
 }
 
 func (c *Config) GetLogLevel() logging.Level       { return c.LogLevel }
@@ -122,4 +125,5 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 		MaxNumFiles: defaultContinuousProfilerMaxFiles,
 	}
 }
-func (c *Config) GetVerifySignatures() bool { return c.VerifySignatures }
+func (c *Config) GetVerifySignatures() bool  { return c.VerifySignatures }
+func (c *Config) GetStoreTransactions() bool { return c.StoreTransactions }
