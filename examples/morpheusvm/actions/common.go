@@ -3,7 +3,7 @@
 
 package actions
 
+// Note: Registry will error during initialization if a duplicate ID is assigned. We explicitly assign IDs to avoid accidental remapping.
 const (
-	// IDs explicitly listed. Registry will avoid usage of duplicated IDs by returning an error when occurs
 	transferID uint8 = 0
 )

@@ -3,8 +3,8 @@
 
 package actions
 
+// Note: Registry will error during initialization if a duplicate ID is assigned. We explicitly assign IDs to avoid accidental remapping.
 const (
-	// IDs explicitly listed. Registry will avoid usage of duplicated IDs by returning an error when occurs
 	burnAssetID   uint8 = 0
 	closeOrderID  uint8 = 1
 	createAssetID uint8 = 2
