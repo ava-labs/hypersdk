@@ -132,7 +132,6 @@ cat <<EOF > ${TMPDIR}/tokenvm.config
   "gossipMaxSize": 32768,
   "gossipProposerDepth": 1,
   "buildProposerDiff": 1,
-  "verifyTimeout": 5,
   "trackedPairs":["*"],
   "continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
