@@ -238,6 +238,7 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 		"gossiping transactions", zap.Int("txs", len(txs)),
 		zap.Uint64("preferred height", blk.Hght), zap.Duration("t", time.Since(start)),
 	)
+	g.vm.RecordTxsGossiped(len(txs))
 	return g.sendTxs(ctx, txs)
 }
 
@@ -252,6 +253,7 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 		)
 		return nil
 	}
+	g.vm.RecordTxsReceived(len(txs))
 
 	// Mark incoming gossip as held by [nodeID], if it is a validator
 	isValidator, err := g.vm.IsValidator(ctx, nodeID)
@@ -292,9 +294,10 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 		)
 	}
 	g.vm.Logger().Info(
-		"submitted gossipped transactions",
+		"tx gossip received",
 		zap.Int("txs", len(txs)),
-		zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)),
+		zap.Stringer("nodeID", nodeID),
+		zap.Duration("t", time.Since(start)),
 	)
 
 	// only trace error to prevent VM's being shutdown
@@ -330,8 +333,6 @@ func (g *Proposer) Run(appSender common.AppSender) {
 				} else if err != nil {
 					g.vm.Logger().Warn("unable to determine if will propose soon, gossiping anyways", zap.Error(err))
 				}
-			} else {
-				g.vm.Logger().Info("gossiping because past verify timeout")
 			}
 
 			// Gossip to proposers who will produce next

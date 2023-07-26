@@ -99,8 +99,9 @@ func (g *Manual) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		)
 		return nil
 	}
+	g.vm.RecordTxsReceived(len(txs))
 
-	g.vm.Logger().Info("AppGossip transactions are being submitted", zap.Int("txs", len(txs)))
+	start := time.Now()
 	for _, err := range g.vm.Submit(ctx, true, txs) {
 		if err == nil {
 			continue
@@ -111,6 +112,12 @@ func (g *Manual) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.Error(err),
 		)
 	}
+	g.vm.Logger().Info(
+		"tx gossip received",
+		zap.Int("txs", len(txs)),
+		zap.Stringer("nodeID", nodeID),
+		zap.Duration("t", time.Since(start)),
+	)
 	return nil
 }
 

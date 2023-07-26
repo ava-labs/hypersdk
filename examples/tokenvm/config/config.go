@@ -30,7 +30,7 @@ const (
 	defaultGossipProposerDiff          = 3
 	defaultGossipProposerDepth         = 2
 	defaultBuildProposerDiff           = 2
-	defaultVerifyTimeout               = 10
+	defaultVerifyTimeout               = 2_000 // ms
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
 )
