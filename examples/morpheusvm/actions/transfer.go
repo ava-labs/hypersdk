@@ -63,6 +63,10 @@ func (*Transfer) MaxUnits(chain.Rules) uint64 {
 	return crypto.PublicKeyLen + consts.Uint64Len
 }
 
+func (*Transfer) Size() int {
+	return crypto.PublicKeyLen + consts.Uint64Len
+}
+
 func (t *Transfer) Marshal(p *codec.Packer) {
 	p.PackPublicKey(t.To)
 	p.PackUint64(t.Value)

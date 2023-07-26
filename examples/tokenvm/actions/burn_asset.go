@@ -77,6 +77,10 @@ func (*BurnAsset) MaxUnits(chain.Rules) uint64 {
 	return consts.IDLen + consts.Uint64Len
 }
 
+func (*BurnAsset) Size() int {
+	return consts.IDLen + consts.Uint64Len
+}
+
 func (b *BurnAsset) Marshal(p *codec.Packer) {
 	p.PackID(b.Asset)
 	p.PackUint64(b.Value)

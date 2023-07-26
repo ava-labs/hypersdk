@@ -55,6 +55,10 @@ func (c *CreateAsset) MaxUnits(chain.Rules) uint64 {
 	return uint64(len(c.Metadata))
 }
 
+func (c *CreateAsset) Size() int {
+	return codec.BytesLen(c.Metadata)
+}
+
 func (c *CreateAsset) Marshal(p *codec.Packer) {
 	p.PackBytes(c.Metadata)
 }

@@ -218,7 +218,14 @@ func (e *ExportAsset) Execute(
 
 func (*ExportAsset) MaxUnits(chain.Rules) uint64 {
 	return crypto.PublicKeyLen + consts.IDLen +
-		consts.Uint64Len + 1 + consts.Uint64Len +
+		consts.Uint64Len + codec.BoolLen + consts.Uint64Len +
+		consts.Uint64Len + consts.IDLen + consts.Uint64Len +
+		consts.Uint64Len + consts.IDLen
+}
+
+func (*ExportAsset) Size() int {
+	return crypto.PublicKeyLen + consts.IDLen +
+		consts.Uint64Len + codec.BoolLen + consts.Uint64Len +
 		consts.Uint64Len + consts.IDLen + consts.Uint64Len +
 		consts.Uint64Len + consts.IDLen
 }
@@ -228,7 +235,7 @@ func (e *ExportAsset) Marshal(p *codec.Packer) {
 	p.PackID(e.Asset)
 	p.PackUint64(e.Value)
 	p.PackBool(e.Return)
-	op := codec.NewOptionalWriter()
+	op := codec.NewOptionalWriter(consts.Uint64Len*4 + consts.IDLen)
 	op.PackUint64(e.Reward)
 	op.PackUint64(e.SwapIn)
 	op.PackID(e.AssetOut)
