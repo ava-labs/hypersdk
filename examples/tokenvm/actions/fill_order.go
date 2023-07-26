@@ -159,6 +159,10 @@ func (*FillOrder) MaxUnits(chain.Rules) uint64 {
 	return basePrice + tradeSucceededPrice
 }
 
+func (*FillOrder) Size() int {
+	return consts.IDLen*3 + crypto.PublicKeyLen + consts.Uint64Len
+}
+
 func (f *FillOrder) Marshal(p *codec.Packer) {
 	p.PackID(f.Order)
 	p.PackPublicKey(f.Owner)
@@ -200,7 +204,7 @@ func UnmarshalOrderResult(b []byte) (*OrderResult, error) {
 }
 
 func (o *OrderResult) Marshal() ([]byte, error) {
-	p := codec.NewWriter(consts.Uint64Len * 3)
+	p := codec.NewWriter(consts.Uint64Len*3, consts.Uint64Len*3)
 	p.PackUint64(o.In)
 	p.PackUint64(o.Out)
 	p.PackUint64(o.Remaining)

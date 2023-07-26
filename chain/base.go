@@ -39,6 +39,10 @@ func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 	}
 }
 
+func (*Base) Size() int {
+	return consts.Uint64Len*2 + consts.IDLen
+}
+
 func (b *Base) Marshal(p *codec.Packer) {
 	p.PackInt64(b.Timestamp)
 	p.PackID(b.ChainID)

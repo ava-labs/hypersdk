@@ -147,6 +147,7 @@ type Action interface {
 		warpVerified bool,
 	) (result *Result, err error) // err should only be returned if fatal
 
+	Size() int
 	Marshal(p *codec.Packer)
 }
 
@@ -175,6 +176,7 @@ type Auth interface {
 	Deduct(ctx context.Context, db Database, amount uint64) error
 	Refund(ctx context.Context, db Database, amount uint64) error // only invoked if amount > 0
 
+	Size() int
 	Marshal(p *codec.Packer)
 }
 

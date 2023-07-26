@@ -23,9 +23,9 @@ type OptionalPacker struct {
 // a new Packer instance with MaxSize set to the maximum size. The maximum items
 // OptionalPacker can hold is set to [size]. If [size] > MaxItems sets
 // OptionalPackers MaxItems to MaxItems
-func NewOptionalWriter() *OptionalPacker {
+func NewOptionalWriter(initial int) *OptionalPacker {
 	return &OptionalPacker{
-		ip: NewWriter(consts.MaxInt),
+		ip: NewWriter(initial, consts.MaxInt),
 	}
 }
 

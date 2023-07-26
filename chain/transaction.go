@@ -34,7 +34,7 @@ type Transaction struct {
 
 	digest         []byte
 	bytes          []byte
-	size           uint64
+	size           int
 	id             ids.ID
 	numWarpSigners int
 	// warpID is just the hash of the *warp.Message.Payload. We assumed that
@@ -68,12 +68,15 @@ func (t *Transaction) Digest(
 	if !ok {
 		return nil, fmt.Errorf("unknown action type %T", t.Action)
 	}
-	p := codec.NewWriter(consts.NetworkSizeLimit)
-	t.Base.Marshal(p)
 	var warpBytes []byte
 	if t.WarpMessage != nil {
 		warpBytes = t.WarpMessage.Bytes()
 	}
+	size := t.Base.Size() +
+		codec.BytesLen(warpBytes) +
+		consts.ByteLen + t.Action.Size()
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
+	t.Base.Marshal(p)
 	p.PackBytes(warpBytes)
 	p.PackByte(actionByte)
 	t.Action.Marshal(p)
@@ -98,7 +101,8 @@ func (t *Transaction) Sign(
 
 	// Ensure transaction is fully initialized and correct by reloading it from
 	// bytes
-	p := codec.NewWriter(consts.NetworkSizeLimit)
+	size := len(msg) + consts.ByteLen + t.Auth.Size()
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	if err := t.Marshal(p, actionRegistry, authRegistry); err != nil {
 		return nil, err
 	}
@@ -117,7 +121,7 @@ func (t *Transaction) AuthAsyncVerify() func() error {
 
 func (t *Transaction) Bytes() []byte { return t.bytes }
 
-func (t *Transaction) Size() uint64 { return t.size }
+func (t *Transaction) Size() int { return t.size }
 
 func (t *Transaction) ID() ids.ID { return t.id }
 
@@ -370,7 +374,8 @@ func MarshalTxs(
 	if len(txs) == 0 {
 		return nil, ErrNoTxs
 	}
-	p := codec.NewWriter(consts.NetworkSizeLimit)
+	size := consts.IntLen + codec.CummSize(txs)
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	p.PackInt(len(txs))
 	for _, tx := range txs {
 		if err := tx.Marshal(p, actionRegistry, authRegistry); err != nil {
@@ -473,7 +478,7 @@ func UnmarshalTx(
 	codecBytes := p.Bytes()
 	tx.digest = codecBytes[start:digest]
 	tx.bytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
-	tx.size = uint64(len(tx.bytes))
+	tx.size = len(tx.bytes)
 	tx.id = utils.ToID(tx.bytes)
 	if tx.WarpMessage != nil {
 		tx.numWarpSigners = numWarpSigners

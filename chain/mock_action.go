@@ -80,6 +80,20 @@ func (mr *MockActionMockRecorder) MaxUnits(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxUnits", reflect.TypeOf((*MockAction)(nil).MaxUnits), arg0)
 }
 
+// Size mocks base method.
+func (m *MockAction) Size() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Size")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Size indicates an expected call of Size.
+func (mr *MockActionMockRecorder) Size() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockAction)(nil).Size))
+}
+
 // StateKeys mocks base method.
 func (m *MockAction) StateKeys(arg0 Auth, arg1 ids.ID) [][]byte {
 	m.ctrl.T.Helper()

@@ -34,7 +34,7 @@ var (
 
 func TestNewWriter(t *testing.T) {
 	require := require.New(t)
-	wr := NewWriter(2)
+	wr := NewWriter(2, 2)
 	require.True(wr.Empty(), "Writer not empty when initialized.")
 	// Pack up to the limit
 	bytes := []byte{1, 2}
@@ -48,7 +48,7 @@ func TestNewWriter(t *testing.T) {
 
 func TestPackerPublicKey(t *testing.T) {
 	require := require.New(t)
-	wp := NewWriter(crypto.PublicKeyLen)
+	wp := NewWriter(crypto.PublicKeyLen, crypto.PublicKeyLen)
 	var pubKey crypto.PublicKey
 	copy(pubKey[:], TestPublicKey)
 	t.Run("Pack", func(t *testing.T) {
@@ -73,7 +73,7 @@ func TestPackerPublicKey(t *testing.T) {
 
 func TestPackerSignature(t *testing.T) {
 	require := require.New(t)
-	wp := NewWriter(crypto.SignatureLen)
+	wp := NewWriter(crypto.SignatureLen, crypto.SignatureLen)
 	var sig crypto.Signature
 	copy(sig[:], TestSignature)
 	t.Run("Pack", func(t *testing.T) {
@@ -98,7 +98,7 @@ func TestPackerSignature(t *testing.T) {
 
 func TestPackerID(t *testing.T) {
 	require := require.New(t)
-	wp := NewWriter(consts.IDLen)
+	wp := NewWriter(consts.IDLen, consts.IDLen)
 	// Pack
 	id := ids.GenerateTestID()
 	t.Run("Pack", func(t *testing.T) {
@@ -127,7 +127,7 @@ func TestPackerID(t *testing.T) {
 
 func TestPackerWindow(t *testing.T) {
 	require := require.New(t)
-	wp := NewWriter(window.WindowSliceSize)
+	wp := NewWriter(window.WindowSliceSize, window.WindowSliceSize)
 	var wind window.Window
 	// Fill window
 	copy(wind[:], TestWindow)
@@ -156,7 +156,7 @@ func TestPackerWindow(t *testing.T) {
 func TestNewReader(t *testing.T) {
 	require := require.New(t)
 	vInt := 900
-	wp := NewWriter(5)
+	wp := NewWriter(5, 5)
 	// Add an int and a bool
 	wp.PackInt(vInt)
 	wp.PackBool(true)

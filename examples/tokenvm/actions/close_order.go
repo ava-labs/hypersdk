@@ -74,6 +74,10 @@ func (*CloseOrder) MaxUnits(chain.Rules) uint64 {
 	return consts.IDLen * 2
 }
 
+func (*CloseOrder) Size() int {
+	return consts.IDLen * 2
+}
+
 func (c *CloseOrder) Marshal(p *codec.Packer) {
 	p.PackID(c.Order)
 	p.PackID(c.Out)
