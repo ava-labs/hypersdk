@@ -5,6 +5,8 @@ package tstate
 
 import (
 	"context"
+	"crypto/rand"
+	"fmt"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -54,7 +56,7 @@ func TestGetValue(t *testing.T) {
 	_, err := ts.GetValue(ctx, TestKey)
 	require.ErrorIs(err, ErrKeyNotSpecified, "No error thrown.")
 	// SetScope
-	ts.SetScope(ctx, [][]byte{TestKey}, map[string][]byte{string(TestKey): TestVal})
+	ts.SetScope(ctx, [][]byte{TestKey}, map[Key][]byte{ToStateKeyArray(TestKey): TestVal})
 	val, err := ts.GetValue(ctx, TestKey)
 	require.NoError(err, "Error getting value.")
 	require.Equal(TestVal, val, "Value was not saved correctly.")
@@ -65,7 +67,7 @@ func TestGetValueNoStorage(t *testing.T) {
 	ctx := context.TODO()
 	ts := New(10)
 	// SetScope but dont add to storage
-	ts.SetScope(ctx, [][]byte{TestKey}, map[string][]byte{})
+	ts.SetScope(ctx, [][]byte{TestKey}, map[Key][]byte{})
 	_, err := ts.GetValue(ctx, TestKey)
 	require.ErrorIs(database.ErrNotFound, err, "No error thrown.")
 }
@@ -78,7 +80,7 @@ func TestInsertNew(t *testing.T) {
 	err := ts.Insert(ctx, TestKey, TestVal)
 	require.ErrorIs(ErrKeyNotSpecified, err, "No error thrown.")
 	// SetScope
-	ts.SetScope(ctx, [][]byte{TestKey}, map[string][]byte{})
+	ts.SetScope(ctx, [][]byte{TestKey}, map[Key][]byte{})
 	// Insert key
 	err = ts.Insert(ctx, TestKey, TestVal)
 	require.NoError(err, "Error thrown.")
@@ -93,7 +95,7 @@ func TestInsertUpdate(t *testing.T) {
 	ctx := context.TODO()
 	ts := New(10)
 	// SetScope and add
-	ts.SetScope(ctx, [][]byte{TestKey}, map[string][]byte{string(TestKey): TestVal})
+	ts.SetScope(ctx, [][]byte{TestKey}, map[Key][]byte{ToStateKeyArray(TestKey): TestVal})
 	require.Equal(0, ts.OpIndex(), "SetStorage operation was not added.")
 	// Insert key
 	newVal := []byte("newVal")
@@ -121,7 +123,7 @@ func TestFetchAndSetScope(t *testing.T) {
 	}
 	err := ts.FetchAndSetScope(ctx, keys, db)
 	require.NoError(err, "Error thrown.")
-	require.Equal(0, ts.OpIndex(), "Opertions not updated correctly.")
+	require.Equal(0, ts.OpIndex(), "Operations not updated correctly.")
 	require.Equal(keys, ts.scope, "Scope not updated correctly.")
 	// Check values
 	for i, key := range keys {
@@ -145,7 +147,7 @@ func TestFetchAndSetScopeMissingKey(t *testing.T) {
 	}
 	err := ts.FetchAndSetScope(ctx, keys, db)
 	require.NoError(err, "Error thrown.")
-	require.Equal(0, ts.OpIndex(), "Opertions not updated correctly.")
+	require.Equal(0, ts.OpIndex(), "Operations not updated correctly.")
 	require.Equal(keys, ts.scope, "Scope not updated correctly.")
 	// Check values
 	for i, key := range keys[:len(keys)-1] {
@@ -162,7 +164,7 @@ func TestSetScope(t *testing.T) {
 	ts := New(10)
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
-	ts.SetScope(ctx, keys, map[string][]byte{})
+	ts.SetScope(ctx, keys, map[Key][]byte{})
 	require.Equal(keys, ts.scope, "Scope not updated correctly.")
 }
 
@@ -170,27 +172,27 @@ func TestRemoveInsertRollback(t *testing.T) {
 	require := require.New(t)
 	ts := New(10)
 	ctx := context.TODO()
-	ts.SetScope(ctx, [][]byte{TestKey}, map[string][]byte{})
+	ts.SetScope(ctx, [][]byte{TestKey}, map[Key][]byte{})
 	// Insert
 	err := ts.Insert(ctx, TestKey, TestVal)
 	require.NoError(err, "Error from insert.")
 	v, err := ts.GetValue(ctx, TestKey)
 	require.NoError(err)
 	require.Equal(TestVal, v)
-	require.Equal(1, ts.OpIndex(), "Opertions not updated correctly.")
+	require.Equal(1, ts.OpIndex(), "Operations not updated correctly.")
 	// Remove
 	err = ts.Remove(ctx, TestKey)
 	require.NoError(err, "Error from remove.")
 	_, err = ts.GetValue(ctx, TestKey)
 	require.ErrorIs(err, database.ErrNotFound, "Key not deleted from storage.")
-	require.Equal(2, ts.OpIndex(), "Opertions not updated correctly.")
+	require.Equal(2, ts.OpIndex(), "Operations not updated correctly.")
 	// Insert
 	err = ts.Insert(ctx, TestKey, TestVal)
 	require.NoError(err, "Error from insert.")
 	v, err = ts.GetValue(ctx, TestKey)
 	require.NoError(err)
 	require.Equal(TestVal, v)
-	require.Equal(3, ts.OpIndex(), "Opertions not updated correctly.")
+	require.Equal(3, ts.OpIndex(), "Operations not updated correctly.")
 	require.Equal(1, ts.PendingChanges())
 	// Rollback
 	ts.Rollback(ctx, 2)
@@ -218,7 +220,7 @@ func TestRestoreInsert(t *testing.T) {
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
-	ts.SetScope(ctx, keys, map[string][]byte{})
+	ts.SetScope(ctx, keys, map[Key][]byte{})
 	for i, key := range keys {
 		err := ts.Insert(ctx, key, vals[i])
 		require.NoError(err, "Error inserting.")
@@ -248,10 +250,10 @@ func TestRestoreDelete(t *testing.T) {
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
-	ts.SetScope(ctx, keys, map[string][]byte{
-		string(keys[0]): vals[0],
-		string(keys[1]): vals[1],
-		string(keys[2]): vals[2],
+	ts.SetScope(ctx, keys, map[Key][]byte{
+		ToStateKeyArray(keys[0]): vals[0],
+		ToStateKeyArray(keys[1]): vals[1],
+		ToStateKeyArray(keys[2]): vals[2],
 	})
 	// Check scope
 	for i, key := range keys {
@@ -287,7 +289,7 @@ func TestWriteChanges(t *testing.T) {
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
-	ts.SetScope(ctx, keys, map[string][]byte{})
+	ts.SetScope(ctx, keys, map[Key][]byte{})
 	// Add
 	for i, key := range keys {
 		err := ts.Insert(ctx, key, vals[i])
@@ -305,10 +307,10 @@ func TestWriteChanges(t *testing.T) {
 	}
 	// Remove
 	ts = New(10)
-	ts.SetScope(ctx, keys, map[string][]byte{
-		string(keys[0]): vals[0],
-		string(keys[1]): vals[1],
-		string(keys[2]): vals[2],
+	ts.SetScope(ctx, keys, map[Key][]byte{
+		ToStateKeyArray(keys[0]): vals[0],
+		ToStateKeyArray(keys[1]): vals[1],
+		ToStateKeyArray(keys[2]): vals[2],
 	})
 	for _, key := range keys {
 		err := ts.Remove(ctx, key)
@@ -323,4 +325,118 @@ func TestWriteChanges(t *testing.T) {
 		_, err := db.GetValue(ctx, key)
 		require.ErrorIs(err, database.ErrNotFound, "Value not removed from db.")
 	}
+}
+
+func BenchmarkFetchAndSetScope(b *testing.B) {
+	for _, size := range []int{4, 8, 16, 32, 64, 128} {
+		b.Run(fmt.Sprintf("fetch_and_set_scope_%d_keys", size), func(b *testing.B) {
+			benchmarkFetchAndSetScope(b, size)
+		})
+	}
+}
+
+func BenchmarkInsert(b *testing.B) {
+	for _, size := range []int{4, 8, 16, 32, 64, 128} {
+		b.Run(fmt.Sprintf("insert_%d_keys", size), func(b *testing.B) {
+			benchmarkInsert(b, size)
+		})
+	}
+}
+
+
+func BenchmarkGetValue(b *testing.B) {
+	for _, size := range []int{4, 8, 16, 32, 64, 128} {
+		b.Run(fmt.Sprintf("get_%d_keys", size), func(b *testing.B) {
+			benchmarkGetValue(b, size)
+		})
+	}
+}
+
+func benchmarkFetchAndSetScope(b *testing.B, size int) {
+	require := require.New(b)
+	ts := New(size)
+	db := NewTestDB()
+	ctx := context.TODO()
+
+	keys, vals := initializeSet(size)
+	for i, key := range keys {
+		err := db.Insert(ctx, key, vals[i])
+		require.NoError(err, "Error during insert.")
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := ts.FetchAndSetScope(ctx, keys, db)
+		require.NoError(err)
+	}
+	b.ReportAllocs()
+	b.StopTimer()
+}
+
+func benchmarkInsert(b *testing.B, size int) {
+	require := require.New(b)
+	ts := New(size)
+	ctx := context.TODO()
+
+	keys, vals := initializeSet(size)
+
+	storage := map[Key][]byte{}
+	for i, key := range keys {
+		storage[ToStateKeyArray(key)] = vals[i]
+	}
+
+	ts.SetScope(ctx, keys, storage)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for i, key := range keys {
+			err := ts.Insert(ctx, key, vals[i])
+			require.NoError(err, "Error during insert.")
+		}
+	}
+	b.ReportAllocs()
+	b.StopTimer()
+}
+
+func benchmarkGetValue(b *testing.B, size int) {
+	require := require.New(b)
+	ts := New(size)
+	ctx := context.TODO()
+
+	keys, vals := initializeSet(size)
+
+	storage := map[Key][]byte{}
+	for i, key := range keys {
+		storage[ToStateKeyArray(key)] = vals[i]
+	}
+
+	ts.SetScope(ctx, keys, storage)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, key := range keys {
+			_, err := ts.GetValue(ctx, key)
+			require.NoError(err, "Error during insert.")
+		}
+	}
+	b.ReportAllocs()
+	b.StopTimer()
+}
+
+func initializeSet(size int) ([][]byte, [][]byte) {
+	keys := [][]byte{}
+	vals := [][]byte{}
+
+	for i := 0; i <= size; i++ {
+		keys = append(keys, randomBytes(33))
+		vals = append(vals, randomBytes(8))
+	}
+
+	return keys, vals
+}
+
+func randomBytes(size int) []byte {
+	bytes := make([]byte, size)
+	rand.Read(bytes)
+	return bytes
 }
