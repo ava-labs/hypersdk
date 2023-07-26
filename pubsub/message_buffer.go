@@ -126,13 +126,12 @@ func (m *MessageBuffer) Send(msg []byte) error {
 	return nil
 }
 
-// TODO: re-add maxSize once add codec preallocate
-func CreateBatchMessage(_ int, msgs [][]byte) ([]byte, error) {
+func CreateBatchMessage(maxSize int, msgs [][]byte) ([]byte, error) {
 	size := consts.IntLen
 	for _, msg := range msgs {
 		size += codec.BytesLen(msg)
 	}
-	msgBatch := codec.NewWriter(size)
+	msgBatch := codec.NewWriter(size, maxSize)
 	msgBatch.PackInt(len(msgs))
 	for _, msg := range msgs {
 		msgBatch.PackBytes(msg)
