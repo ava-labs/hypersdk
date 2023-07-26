@@ -14,6 +14,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 )
@@ -150,7 +151,7 @@ func TestServerRead(t *testing.T) {
 	require.NoError(err, "Error connecting to the server.")
 	defer resp.Body.Close()
 	id := ids.GenerateTestID()
-	batchMsg, err := CreateBatchMessage(0, [][]byte{id[:]})
+	batchMsg, err := CreateBatchMessage(consts.NetworkSizeLimit, [][]byte{id[:]})
 	require.NoError(err)
 	err = webCon.WriteMessage(websocket.TextMessage, batchMsg)
 	require.NoError(err, "Error writing message to server.")
