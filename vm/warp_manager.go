@@ -200,18 +200,11 @@ func (w *WarpManager) request(
 	w.requestID++
 	w.jobs[requestID] = j
 
-	p := codec.NewWriter(consts.IDLen)
-	p.PackID(j.txID)
-	if err := p.Err(); err != nil {
-		// Should never happen
-		delete(w.jobs, requestID)
-		return nil
-	}
 	return w.appSender.SendAppRequest(
 		ctx,
 		set.Set[ids.NodeID]{j.nodeID: struct{}{}},
 		requestID,
-		p.Bytes(),
+		j.txID[:],
 	)
 }
 
@@ -255,7 +248,8 @@ func (w *WarpManager) AppRequest(
 			Signature: rSig,
 		}
 	}
-	wp := codec.NewWriter(maxWarpResponse)
+	size := len(sig.PublicKey) + len(sig.Signature)
+	wp := codec.NewWriter(size, maxWarpResponse)
 	wp.PackFixedBytes(sig.PublicKey)
 	wp.PackFixedBytes(sig.Signature)
 	if err := wp.Err(); err != nil {
