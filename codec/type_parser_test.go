@@ -18,13 +18,19 @@ type Blah1 struct{}
 
 func (*Blah1) Bark() string { return "blah1" }
 
+func (*Blah1) GetTypeID() uint8 { return 0 }
+
 type Blah2 struct{}
 
 func (*Blah2) Bark() string { return "blah2" }
 
+func (*Blah2) GetTypeID() uint8 { return 1 }
+
 type Blah3 struct{}
 
 func (*Blah3) Bark() string { return "blah3" }
+
+func (*Blah3) GetTypeID() uint8 { return 2 }
 
 func TestTypeParser(t *testing.T) {
 	tp := NewTypeParser[Blah, any, bool]()
@@ -35,58 +41,38 @@ func TestTypeParser(t *testing.T) {
 		require.Nil(f)
 		require.False(ok)
 		require.False(b)
-		index, f, b, ok := tp.LookupType(&Blah1{})
-		require.Equal(uint8(0), index)
-		require.Nil(f)
-		require.False(ok)
-		require.False(b)
 	})
 
 	t.Run("populated parser", func(t *testing.T) {
 		require := require.New(t)
+
+		blah1 := &Blah1{}
+		blah2 := &Blah2{}
 		require.NoError(
 			tp.Register(
-				&Blah1{},
+				blah1.GetTypeID(),
 				func(p *Packer, a any) (Blah, error) { return nil, errors.New("blah1") },
 				true,
 			),
 		)
-		require.Equal(uint8(1), tp.index)
 		require.NoError(
 			tp.Register(
-				&Blah2{},
+				blah2.GetTypeID(),
 				func(p *Packer, a any) (Blah, error) { return nil, errors.New("blah2") },
 				false,
 			),
 		)
-		require.Equal(uint8(2), tp.index)
 
-		f, b, ok := tp.LookupIndex(0)
+		f, b, ok := tp.LookupIndex(blah1.GetTypeID())
 		require.True(ok)
 		require.True(b)
 		res, err := f(nil, nil)
 		require.Nil(res)
 		require.ErrorContains(err, "blah1")
 
-		index, f, b, ok := tp.LookupType(&Blah1{})
-		require.True(ok)
-		require.True(b)
-		require.Equal(uint8(0), index)
-		res, err = f(nil, nil)
-		require.Nil(res)
-		require.ErrorContains(err, "blah1")
-
-		f, b, ok = tp.LookupIndex(1)
+		f, b, ok = tp.LookupIndex(blah2.GetTypeID())
 		require.True(ok)
 		require.False(b)
-		res, err = f(nil, nil)
-		require.Nil(res)
-		require.ErrorContains(err, "blah2")
-
-		index, f, b, ok = tp.LookupType(&Blah2{})
-		require.True(ok)
-		require.False(b)
-		require.Equal(uint8(1), index)
 		res, err = f(nil, nil)
 		require.Nil(res)
 		require.ErrorContains(err, "blah2")
@@ -94,12 +80,17 @@ func TestTypeParser(t *testing.T) {
 
 	t.Run("duplicate item", func(t *testing.T) {
 		require := require.New(t)
-		require.ErrorIs(tp.Register(&Blah1{}, nil, true), ErrDuplicateItem)
+		require.ErrorIs(tp.Register((&Blah1{}).GetTypeID(), nil, true), ErrDuplicateItem)
 	})
 
 	t.Run("too many items", func(t *testing.T) {
 		require := require.New(t)
-		tp.index = consts.MaxUint8 // force max
-		require.ErrorIs(tp.Register(&Blah3{}, nil, true), ErrTooManyItems)
+		arrayLength := int(consts.MaxUint8) + 1 - len(tp.indexToDecoder)
+		for index := range make([]struct{}, arrayLength) {
+			// 0 and 1 are already existing -> we use index + 2
+			require.NoError(tp.Register(uint8(index+2), nil, true))
+		}
+		// all possible uint8 value should already be store, using any return ErrTooManyItems
+		require.ErrorIs(tp.Register(uint8(4), nil, true), ErrTooManyItems)
 	})
 }

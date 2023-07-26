@@ -27,6 +27,10 @@ type CloseOrder struct {
 	Out ids.ID `json:"out"`
 }
 
+func (*CloseOrder) GetTypeID() uint8 {
+	return closeOrderID
+}
+
 func (c *CloseOrder) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 	actor := auth.GetActor(rauth)
 	return [][]byte{

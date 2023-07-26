@@ -47,6 +47,10 @@ type CreateOrder struct {
 	//   refunded any unused assets.
 }
 
+func (*CreateOrder) GetTypeID() uint8 {
+	return createOrderID
+}
+
 func (c *CreateOrder) StateKeys(rauth chain.Auth, txID ids.ID) [][]byte {
 	actor := auth.GetActor(rauth)
 	return [][]byte{

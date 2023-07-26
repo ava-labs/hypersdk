@@ -88,8 +88,7 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 			zap.Error(err),
 		)
 
-		actionRegistry, authRegistry := g.vm.Registry()
-		b, err := chain.MarshalTxs(txs, actionRegistry, authRegistry)
+		b, err := chain.MarshalTxs(txs)
 		if err != nil {
 			return err
 		}
@@ -131,8 +130,7 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 		}
 
 		// TODO: cache marshalization
-		actionRegistry, authRegistry := g.vm.Registry()
-		b, err := chain.MarshalTxs(toGossip, actionRegistry, authRegistry)
+		b, err := chain.MarshalTxs(toGossip)
 		if err != nil {
 			return err
 		}

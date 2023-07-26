@@ -28,6 +28,10 @@ type BurnAsset struct {
 	Value uint64 `json:"value"`
 }
 
+func (*BurnAsset) GetTypeID() uint8 {
+	return burnAssetID
+}
+
 func (b *BurnAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 	actor := auth.GetActor(rauth)
 	return [][]byte{

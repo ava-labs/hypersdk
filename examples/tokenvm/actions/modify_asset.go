@@ -35,6 +35,10 @@ type ModifyAsset struct {
 	Metadata []byte `json:"metadata"`
 }
 
+func (*ModifyAsset) GetTypeID() uint8 {
+	return modifyAssetID
+}
+
 func (m *ModifyAsset) StateKeys(chain.Auth, ids.ID) [][]byte {
 	return [][]byte{storage.PrefixAssetKey(m.Asset)}
 }

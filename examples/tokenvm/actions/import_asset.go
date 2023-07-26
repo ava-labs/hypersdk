@@ -34,6 +34,10 @@ type ImportAsset struct {
 	warpMessage *warp.Message
 }
 
+func (*ImportAsset) GetTypeID() uint8 {
+	return importAssetID
+}
+
 func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 	var (
 		keys    [][]byte

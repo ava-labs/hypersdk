@@ -206,8 +206,7 @@ func ParseStatefulBlock(
 	}
 
 	if len(source) == 0 {
-		actionRegistry, authRegistry := vm.Registry()
-		nsource, err := blk.Marshal(actionRegistry, authRegistry)
+		nsource, err := blk.Marshal()
 		if err != nil {
 			return nil, err
 		}
@@ -242,7 +241,7 @@ func (b *StatelessBlock) initializeBuilt(
 	_, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
 	defer span.End()
 
-	blk, err := b.StatefulBlock.Marshal(b.vm.Registry())
+	blk, err := b.StatefulBlock.Marshal()
 	if err != nil {
 		return err
 	}
@@ -760,10 +759,7 @@ func (b *StatelessBlock) Results() []*Result {
 	return b.results
 }
 
-func (b *StatefulBlock) Marshal(
-	actionRegistry ActionRegistry,
-	authRegistry AuthRegistry,
-) ([]byte, error) {
+func (b *StatefulBlock) Marshal() ([]byte, error) {
 	size := consts.IDLen + consts.Uint64Len + consts.Uint64Len +
 		consts.Uint64Len + window.WindowSliceSize +
 		consts.IntLen + codec.CummSize(b.Txs) +
@@ -780,7 +776,7 @@ func (b *StatefulBlock) Marshal(
 
 	p.PackInt(len(b.Txs))
 	for _, tx := range b.Txs {
-		if err := tx.Marshal(p, actionRegistry, authRegistry); err != nil {
+		if err := tx.Marshal(p); err != nil {
 			return nil, err
 		}
 	}

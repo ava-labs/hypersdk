@@ -32,6 +32,10 @@ type MintAsset struct {
 	Value uint64 `json:"value"`
 }
 
+func (*MintAsset) GetTypeID() uint8 {
+	return mintAssetID
+}
+
 func (m *MintAsset) StateKeys(chain.Auth, ids.ID) [][]byte {
 	return [][]byte{
 		storage.PrefixAssetKey(m.Asset),

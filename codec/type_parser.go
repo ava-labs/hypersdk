@@ -4,8 +4,6 @@
 package codec
 
 import (
-	"fmt"
-
 	"github.com/ava-labs/hypersdk/consts"
 )
 
@@ -18,8 +16,6 @@ type decoder[T any, X any, Y any] struct {
 type TypeParser[T any, X any, Y any] struct {
 	typeToIndex    map[string]uint8
 	indexToDecoder map[uint8]*decoder[T, X, Y]
-
-	index uint8
 }
 
 // NewTypeParser returns an instance of a Typeparser with generic type [T].
@@ -33,29 +29,15 @@ func NewTypeParser[T any, X any, Y bool]() *TypeParser[T, X, Y] {
 // Register registers a new type into TypeParser [p]. Registers the type by using
 // the string representation of [o], and sets the decoder of that index to [f].
 // Returns an error if [o] has already been registered or the TypeParser is full.
-func (p *TypeParser[T, X, Y]) Register(o T, f func(*Packer, X) (T, error), y Y) error {
-	if p.index == consts.MaxUint8 {
+func (p *TypeParser[T, X, Y]) Register(id uint8, f func(*Packer, X) (T, error), y Y) error {
+	if len(p.indexToDecoder) == int(consts.MaxUint8)+1 {
 		return ErrTooManyItems
 	}
-	k := fmt.Sprintf("%T", o)
-	if _, ok := p.typeToIndex[k]; ok {
+	if _, ok := p.indexToDecoder[id]; ok {
 		return ErrDuplicateItem
 	}
-	p.typeToIndex[k] = p.index
-	p.indexToDecoder[p.index] = &decoder[T, X, Y]{f, y}
-	p.index++
+	p.indexToDecoder[id] = &decoder[T, X, Y]{f, y}
 	return nil
-}
-
-// LookupType returns the index, decoder function and the success of lookup of
-// type [o] from Typeparser [p].
-func (p *TypeParser[T, X, Y]) LookupType(o T) (uint8, func(*Packer, X) (T, error), Y, bool) {
-	index, ok := p.typeToIndex[fmt.Sprintf("%T", o)]
-	if !ok {
-		return 0, nil, *new(Y), false
-	}
-	d := p.indexToDecoder[index]
-	return index, d.f, d.y, true
 }
 
 // LookupIndex returns the decoder function and success of lookup of [index]

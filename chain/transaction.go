@@ -58,16 +58,11 @@ func NewTx(base *Base, wm *warp.Message, act Action) *Transaction {
 	}
 }
 
-func (t *Transaction) Digest(
-	actionRegistry *codec.TypeParser[Action, *warp.Message, bool],
-) ([]byte, error) {
+func (t *Transaction) Digest() ([]byte, error) {
 	if len(t.digest) > 0 {
 		return t.digest, nil
 	}
-	actionByte, _, _, ok := actionRegistry.LookupType(t.Action)
-	if !ok {
-		return nil, fmt.Errorf("unknown action type %T", t.Action)
-	}
+	actionID := t.Action.GetTypeID()
 	var warpBytes []byte
 	if t.WarpMessage != nil {
 		warpBytes = t.WarpMessage.Bytes()
@@ -78,7 +73,7 @@ func (t *Transaction) Digest(
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
 	p.PackBytes(warpBytes)
-	p.PackByte(actionByte)
+	p.PackByte(actionID)
 	t.Action.Marshal(p)
 	return p.Bytes(), p.Err()
 }
@@ -89,7 +84,7 @@ func (t *Transaction) Sign(
 	authRegistry AuthRegistry,
 ) (*Transaction, error) {
 	// Generate auth
-	msg, err := t.Digest(actionRegistry)
+	msg, err := t.Digest()
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +98,7 @@ func (t *Transaction) Sign(
 	// bytes
 	size := len(msg) + consts.ByteLen + t.Auth.Size()
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	if err := t.Marshal(p, actionRegistry, authRegistry); err != nil {
+	if err := t.Marshal(p); err != nil {
 		return nil, err
 	}
 	if err := p.Err(); err != nil {
@@ -332,24 +327,14 @@ func (t *Transaction) Payer() string {
 	return string(t.Auth.Payer())
 }
 
-func (t *Transaction) Marshal(
-	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action, *warp.Message, bool],
-	authRegistry *codec.TypeParser[Auth, *warp.Message, bool],
-) error {
+func (t *Transaction) Marshal(p *codec.Packer) error {
 	if len(t.bytes) > 0 {
 		p.PackFixedBytes(t.bytes)
 		return p.Err()
 	}
 
-	actionByte, _, _, ok := actionRegistry.LookupType(t.Action)
-	if !ok {
-		return fmt.Errorf("unknown action type %T", t.Action)
-	}
-	authByte, _, _, ok := authRegistry.LookupType(t.Auth)
-	if !ok {
-		return fmt.Errorf("unknown auth type %T", t.Auth)
-	}
+	actionID := t.Action.GetTypeID()
+	authID := t.Auth.GetTypeID()
 	t.Base.Marshal(p)
 	var warpBytes []byte
 	if t.WarpMessage != nil {
@@ -359,18 +344,14 @@ func (t *Transaction) Marshal(
 		}
 	}
 	p.PackBytes(warpBytes)
-	p.PackByte(actionByte)
+	p.PackByte(actionID)
 	t.Action.Marshal(p)
-	p.PackByte(authByte)
+	p.PackByte(authID)
 	t.Auth.Marshal(p)
 	return p.Err()
 }
 
-func MarshalTxs(
-	txs []*Transaction,
-	actionRegistry ActionRegistry,
-	authRegistry AuthRegistry,
-) ([]byte, error) {
+func MarshalTxs(txs []*Transaction) ([]byte, error) {
 	if len(txs) == 0 {
 		return nil, ErrNoTxs
 	}
@@ -378,7 +359,7 @@ func MarshalTxs(
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	p.PackInt(len(txs))
 	for _, tx := range txs {
-		if err := tx.Marshal(p, actionRegistry, authRegistry); err != nil {
+		if err := tx.Marshal(p); err != nil {
 			return nil, err
 		}
 	}

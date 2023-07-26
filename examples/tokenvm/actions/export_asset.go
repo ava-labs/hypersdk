@@ -40,6 +40,10 @@ type ExportAsset struct {
 	Destination ids.ID           `json:"destination"`
 }
 
+func (*ExportAsset) GetTypeID() uint8 {
+	return exportAssetID
+}
+
 func (e *ExportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 	var (
 		keys  [][]byte

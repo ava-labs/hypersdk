@@ -30,6 +30,10 @@ type Transfer struct {
 	Value uint64 `json:"value"`
 }
 
+func (*Transfer) GetTypeID() uint8 {
+	return transferID
+}
+
 func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 	return [][]byte{
 		storage.PrefixBalanceKey(auth.GetActor(rauth), t.Asset),

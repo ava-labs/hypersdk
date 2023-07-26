@@ -72,8 +72,7 @@ func (g *Manual) ForceGossip(ctx context.Context) error {
 	if len(txs) == 0 {
 		return nil
 	}
-	actionRegistry, authRegistry := g.vm.Registry()
-	b, err := chain.MarshalTxs(txs, actionRegistry, authRegistry)
+	b, err := chain.MarshalTxs(txs)
 	if err != nil {
 		return err
 	}

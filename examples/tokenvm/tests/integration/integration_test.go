@@ -359,7 +359,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("skip invalid time", func() {
-			actionRegistry, authRegistry := instances[0].vm.Registry()
 			tx := chain.NewTx(
 				&chain.Base{
 					ChainID:   instances[0].chainID,
@@ -374,13 +373,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			)
 			// Must do manual construction to avoid `tx.Sign` error (would fail with
 			// 0 timestamp)
-			msg, err := tx.Digest(actionRegistry)
+			msg, err := tx.Digest()
 			gomega.Ω(err).To(gomega.BeNil())
 			auth, err := factory.Sign(msg, tx.Action)
 			gomega.Ω(err).To(gomega.BeNil())
 			tx.Auth = auth
 			p := codec.NewWriter(0, consts.MaxInt) // test codec growth
-			gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+			gomega.Ω(tx.Marshal(p)).To(gomega.BeNil())
 			gomega.Ω(p.Err()).To(gomega.BeNil())
 			_, err = instances[0].cli.SubmitTx(
 				context.Background(),
@@ -789,7 +788,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("create asset with too long of metadata", func() {
-		actionRegistry, authRegistry := instances[0].vm.Registry()
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
@@ -803,13 +801,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		)
 		// Must do manual construction to avoid `tx.Sign` error (would fail with
 		// too large)
-		msg, err := tx.Digest(actionRegistry)
+		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
 		auth, err := factory.Sign(msg, tx.Action)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
-		gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		gomega.Ω(tx.Marshal(p)).To(gomega.BeNil())
 		gomega.Ω(p.Err()).To(gomega.BeNil())
 		_, err = instances[0].cli.SubmitTx(
 			context.Background(),
@@ -1009,7 +1007,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	ginkgo.It("rejects empty mint", func() {
 		other, err := crypto.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		actionRegistry, authRegistry := instances[0].vm.Registry()
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
@@ -1024,13 +1021,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		)
 		// Must do manual construction to avoid `tx.Sign` error (would fail with
 		// bad codec)
-		msg, err := tx.Digest(actionRegistry)
+		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
 		auth, err := factory.Sign(msg, tx.Action)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
-		gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		gomega.Ω(tx.Marshal(p)).To(gomega.BeNil())
 		gomega.Ω(p.Err()).To(gomega.BeNil())
 		_, err = instances[0].cli.SubmitTx(
 			context.Background(),
@@ -1155,7 +1152,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	ginkgo.It("rejects mint of native token", func() {
 		other, err := crypto.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		actionRegistry, authRegistry := instances[0].vm.Registry()
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
@@ -1170,13 +1166,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		)
 		// Must do manual construction to avoid `tx.Sign` error (would fail with
 		// bad codec)
-		msg, err := tx.Digest(actionRegistry)
+		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
 		auth, err := factory.Sign(msg, tx.Action)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
-		gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		gomega.Ω(tx.Marshal(p)).To(gomega.BeNil())
 		gomega.Ω(p.Err()).To(gomega.BeNil())
 		_, err = instances[0].cli.SubmitTx(
 			context.Background(),
@@ -1679,7 +1675,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("import warp message with nil when expected", func() {
-		actionRegistry, authRegistry := instances[0].vm.Registry()
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
@@ -1691,13 +1686,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		)
 		// Must do manual construction to avoid `tx.Sign` error (would fail with
 		// empty warp)
-		msg, err := tx.Digest(actionRegistry)
+		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
 		auth, err := factory.Sign(msg, tx.Action)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
-		gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		gomega.Ω(tx.Marshal(p)).To(gomega.BeNil())
 		gomega.Ω(p.Err()).To(gomega.BeNil())
 		_, err = instances[0].cli.SubmitTx(
 			context.Background(),
@@ -1709,7 +1704,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	ginkgo.It("import warp message empty", func() {
 		wm, err := warp.NewMessage(&warp.UnsignedMessage{}, &warp.BitSetSignature{})
 		gomega.Ω(err).Should(gomega.BeNil())
-		actionRegistry, authRegistry := instances[0].vm.Registry()
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
@@ -1721,13 +1715,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		)
 		// Must do manual construction to avoid `tx.Sign` error (would fail with
 		// empty warp)
-		msg, err := tx.Digest(actionRegistry)
+		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
 		auth, err := factory.Sign(msg, tx.Action)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
-		gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		gomega.Ω(tx.Marshal(p)).To(gomega.BeNil())
 		gomega.Ω(p.Err()).To(gomega.BeNil())
 		_, err = instances[0].cli.SubmitTx(
 			context.Background(),
@@ -1741,7 +1735,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		wm, err := warp.NewMessage(uwm, &warp.BitSetSignature{})
 		gomega.Ω(err).Should(gomega.BeNil())
-		actionRegistry, authRegistry := instances[0].vm.Registry()
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
@@ -1753,13 +1746,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		)
 		// Must do manual construction to avoid `tx.Sign` error (would fail with
 		// invalid object)
-		msg, err := tx.Digest(actionRegistry)
+		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
 		auth, err := factory.Sign(msg, tx.Action)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
-		gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		gomega.Ω(tx.Marshal(p)).To(gomega.BeNil())
 		gomega.Ω(p.Err()).To(gomega.BeNil())
 		_, err = instances[0].cli.SubmitTx(
 			context.Background(),
@@ -1776,7 +1769,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		wm, err := warp.NewMessage(uwm, &warp.BitSetSignature{})
 		gomega.Ω(err).Should(gomega.BeNil())
-		actionRegistry, authRegistry := instances[0].vm.Registry()
 		tx := chain.NewTx(
 			&chain.Base{
 				ChainID:   instances[0].chainID,
@@ -1788,13 +1780,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		)
 		// Must do manual construction to avoid `tx.Sign` error (would fail with
 		// invalid object)
-		msg, err := tx.Digest(actionRegistry)
+		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
 		auth, err := factory.Sign(msg, tx.Action)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
-		gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+		gomega.Ω(tx.Marshal(p)).To(gomega.BeNil())
 		gomega.Ω(p.Err()).To(gomega.BeNil())
 		_, err = instances[0].cli.SubmitTx(
 			context.Background(),
