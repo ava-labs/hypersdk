@@ -327,9 +327,7 @@ func (t *Transaction) Payer() string {
 	return string(t.Auth.Payer())
 }
 
-func (t *Transaction) Marshal(
-	p *codec.Packer,
-) error {
+func (t *Transaction) Marshal(p *codec.Packer) error {
 	if len(t.bytes) > 0 {
 		p.PackFixedBytes(t.bytes)
 		return p.Err()
@@ -353,9 +351,7 @@ func (t *Transaction) Marshal(
 	return p.Err()
 }
 
-func MarshalTxs(
-	txs []*Transaction,
-) ([]byte, error) {
+func MarshalTxs(txs []*Transaction) ([]byte, error) {
 	if len(txs) == 0 {
 		return nil, ErrNoTxs
 	}
