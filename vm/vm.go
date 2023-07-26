@@ -32,6 +32,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/builder"
+	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/gossiper"
@@ -74,7 +75,7 @@ type VM struct {
 
 	// cache block objects to optimize "GetBlockStateless"
 	// only put when a block is accepted
-	blocks *cache.LRU[ids.ID, *chain.StatelessBlock]
+	blocks *hcache.FIFO[ids.ID, *chain.StatelessBlock]
 
 	// We cannot use a map here because we may parse blocks up in the ancestry
 	parsedBlocks *cache.LRU[ids.ID, *chain.StatelessBlock]
@@ -214,11 +215,14 @@ func (vm *VM) Initialize(
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
 
-	vm.blocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetBlockLRUSize()}
+	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetParsedBlockCacheSize()}
+	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
+	vm.blocks, err = hcache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.GetAcceptedBlockCacheSize())
+	if err != nil {
+		return err
+	}
 	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.GetAcceptorSize())
 	vm.acceptorDone = make(chan struct{})
-	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetBlockLRUSize()}
-	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
 
 	vm.mempool = mempool.New[*chain.Transaction](
 		vm.tracer,

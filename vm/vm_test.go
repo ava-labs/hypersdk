@@ -8,13 +8,13 @@ import (
 	"testing"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
+	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/mempool"
@@ -37,13 +37,14 @@ func TestBlockCache(t *testing.T) {
 	blkID := blk.ID()
 
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	bcache, _ := hcache.NewFIFO[ids.ID, *chain.StatelessBlock](3)
 	controller := NewMockController(ctrl)
 	vm := VM{
 		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: ametrics.NewOptionalGatherer()},
 
 		tracer: tracer,
 
-		blocks:         &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: 3},
+		blocks:         bcache,
 		verifiedBlocks: make(map[ids.ID]*chain.StatelessBlock),
 		seen:           emap.NewEMap[*chain.Transaction](),
 		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32, nil),

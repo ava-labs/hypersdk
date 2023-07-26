@@ -36,7 +36,8 @@ type Config interface {
 	GetStateSyncParallelism() int
 	GetStateSyncMinBlocks() uint64
 	GetStateSyncServerDelay() time.Duration
-	GetBlockLRUSize() int
+	GetParsedBlockCacheSize() int
+	GetAcceptedBlockCacheSize() int
 	GetContinuousProfilerConfig() *profiler.Config
 }
 
