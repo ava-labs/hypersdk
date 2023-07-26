@@ -30,7 +30,7 @@ func NewTypeParser[T any, X any, Y bool]() *TypeParser[T, X, Y] {
 // the string representation of [o], and sets the decoder of that index to [f].
 // Returns an error if [o] has already been registered or the TypeParser is full.
 func (p *TypeParser[T, X, Y]) Register(id uint8, f func(*Packer, X) (T, error), y Y) error {
-	if uint8(len(p.indexToDecoder)) == consts.MaxUint8 {
+	if len(p.indexToDecoder) == int(consts.MaxUint8)+1 {
 		return ErrTooManyItems
 	}
 	if _, ok := p.indexToDecoder[id]; ok {

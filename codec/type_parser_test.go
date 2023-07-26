@@ -85,8 +85,9 @@ func TestTypeParser(t *testing.T) {
 
 	t.Run("too many items", func(t *testing.T) {
 		require := require.New(t)
-		// 0 and 1 are already existing -> we use index + 2
-		for index := range make([]struct{}, consts.MaxUint8-2) {
+		arrayLength := int(consts.MaxUint8) + 1 - len(tp.indexToDecoder)
+		for index := range make([]struct{}, arrayLength) {
+			// 0 and 1 are already existing -> we use index + 2
 			require.NoError(tp.Register(uint8(index+2), nil, true))
 		}
 		// all possible uint8 value should already be store, using any return ErrTooManyItems
