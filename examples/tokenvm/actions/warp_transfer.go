@@ -13,9 +13,10 @@ import (
 )
 
 const WarpTransferSize = crypto.PublicKeyLen + consts.IDLen +
-	consts.Uint64Len + 1 + consts.Uint64Len + consts.Uint64Len +
-	consts.IDLen + consts.Uint64Len + consts.Uint64Len + consts.IDLen +
-	consts.IDLen
+	consts.Uint64Len + consts.BoolLen +
+	consts.Uint64Len + /* op bits */
+	consts.Uint64Len + consts.Uint64Len + consts.IDLen + consts.Uint64Len + consts.Int64Len +
+	consts.IDLen + consts.IDLen
 
 type WarpTransfer struct {
 	To    crypto.PublicKey `json:"to"`
@@ -50,12 +51,12 @@ type WarpTransfer struct {
 }
 
 func (w *WarpTransfer) Marshal() ([]byte, error) {
-	p := codec.NewWriter(WarpTransferSize)
+	p := codec.NewWriter(WarpTransferSize, WarpTransferSize)
 	p.PackPublicKey(w.To)
 	p.PackID(w.Asset)
 	p.PackUint64(w.Value)
 	p.PackBool(w.Return)
-	op := codec.NewOptionalWriter()
+	op := codec.NewOptionalWriter(consts.Uint64Len*3 + consts.IDLen + consts.Int64Len)
 	op.PackUint64(w.Reward)
 	op.PackUint64(w.SwapIn)
 	op.PackID(w.AssetOut)
