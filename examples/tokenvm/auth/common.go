@@ -4,5 +4,5 @@
 package auth
 
 const (
-	ed25519ID uint8 = iota
+	ed25519ID uint8 = 0
 )

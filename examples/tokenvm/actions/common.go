@@ -4,14 +4,14 @@
 package actions
 
 const (
-	burnAssetID uint8 = iota
-	closeOrderID
-	createAssetID
-	exportAssetID
-	importAssetID
-	createOrderID
-	fillOrderID
-	mintAssetID
-	modifyAssetID
-	transferID
+	burnAssetID   uint8 = 0
+	closeOrderID        = 1
+	createAssetID       = 2
+	exportAssetID       = 3
+	importAssetID       = 4
+	createOrderID       = 5
+	fillOrderID         = 6
+	mintAssetID         = 7
+	modifyAssetID       = 8
+	transferID          = 9
 )
