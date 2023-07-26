@@ -34,7 +34,7 @@ type ImportAsset struct {
 	warpMessage *warp.Message
 }
 
-func (i *ImportAsset) GetTypeID() uint8 {
+func (*ImportAsset) GetTypeID() uint8 {
 	return importAssetID
 }
 

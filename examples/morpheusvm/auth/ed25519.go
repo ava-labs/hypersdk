@@ -20,6 +20,10 @@ type ED25519 struct {
 	Signature crypto.Signature `json:"signature"`
 }
 
+func (*ED25519) GetTypeID() uint8 {
+	return ed25519ID
+}
+
 func (*ED25519) MaxUnits(
 	chain.Rules,
 ) uint64 {

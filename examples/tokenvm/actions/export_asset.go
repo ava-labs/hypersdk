@@ -40,7 +40,7 @@ type ExportAsset struct {
 	Destination ids.ID           `json:"destination"`
 }
 
-func (e *ExportAsset) GetTypeID() uint8 {
+func (*ExportAsset) GetTypeID() uint8 {
 	return exportAssetID
 }
 

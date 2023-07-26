@@ -35,7 +35,7 @@ type ModifyAsset struct {
 	Metadata []byte `json:"metadata"`
 }
 
-func (m *ModifyAsset) GetTypeID() uint8 {
+func (*ModifyAsset) GetTypeID() uint8 {
 	return modifyAssetID
 }
 

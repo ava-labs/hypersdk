@@ -30,7 +30,7 @@ type Transfer struct {
 	Value uint64 `json:"value"`
 }
 
-func (t *Transfer) GetTypeID() uint8 {
+func (*Transfer) GetTypeID() uint8 {
 	return transferID
 }
 

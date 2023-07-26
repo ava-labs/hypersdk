@@ -27,7 +27,7 @@ type CloseOrder struct {
 	Out ids.ID `json:"out"`
 }
 
-func (c *CloseOrder) GetTypeID() uint8 {
+func (*CloseOrder) GetTypeID() uint8 {
 	return closeOrderID
 }
 

@@ -28,7 +28,7 @@ type BurnAsset struct {
 	Value uint64 `json:"value"`
 }
 
-func (b *BurnAsset) GetTypeID() uint8 {
+func (*BurnAsset) GetTypeID() uint8 {
 	return burnAssetID
 }
 

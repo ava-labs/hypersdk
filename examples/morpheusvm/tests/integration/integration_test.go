@@ -357,7 +357,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("skip invalid time", func() {
-			actionRegistry, authRegistry := instances[0].vm.Registry()
 			tx := chain.NewTx(
 				&chain.Base{
 					ChainID:   instances[0].chainID,
@@ -372,13 +371,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			)
 			// Must do manual construction to avoid `tx.Sign` error (would fail with
 			// 0 timestamp)
-			msg, err := tx.Digest(actionRegistry)
+			msg, err := tx.Digest()
 			gomega.Ω(err).To(gomega.BeNil())
 			auth, err := factory.Sign(msg, tx.Action)
 			gomega.Ω(err).To(gomega.BeNil())
 			tx.Auth = auth
 			p := codec.NewWriter(0, consts.MaxInt) // test codec growth
-			gomega.Ω(tx.Marshal(p, actionRegistry, authRegistry)).To(gomega.BeNil())
+			gomega.Ω(tx.Marshal(p)).To(gomega.BeNil())
 			gomega.Ω(p.Err()).To(gomega.BeNil())
 			_, err = instances[0].cli.SubmitTx(
 				context.Background(),

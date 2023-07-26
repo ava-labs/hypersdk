@@ -47,7 +47,7 @@ type CreateOrder struct {
 	//   refunded any unused assets.
 }
 
-func (c *CreateOrder) GetTypeID() uint8 {
+func (*CreateOrder) GetTypeID() uint8 {
 	return createOrderID
 }
 

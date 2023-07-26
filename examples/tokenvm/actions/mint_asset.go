@@ -32,7 +32,7 @@ type MintAsset struct {
 	Value uint64 `json:"value"`
 }
 
-func (m *MintAsset) GetTypeID() uint8 {
+func (*MintAsset) GetTypeID() uint8 {
 	return mintAssetID
 }
 

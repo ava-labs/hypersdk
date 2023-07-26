@@ -22,10 +22,10 @@ func init() {
 	errs := &wrappers.Errs{}
 	errs.Add(
 		// When registering new actions, ALWAYS make sure to append at the end.
-		consts.ActionRegistry.Register(&actions.Transfer{}, actions.UnmarshalTransfer, false),
+		consts.ActionRegistry.Register((&actions.Transfer{}).GetTypeID(), actions.UnmarshalTransfer, false),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
-		consts.AuthRegistry.Register(&auth.ED25519{}, auth.UnmarshalED25519, false),
+		consts.AuthRegistry.Register((&auth.ED25519{}).GetTypeID(), auth.UnmarshalED25519, false),
 	)
 	if errs.Errored() {
 		panic(errs.Err)

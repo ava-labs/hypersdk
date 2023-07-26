@@ -46,7 +46,7 @@ type FillOrder struct {
 	Value uint64 `json:"value"`
 }
 
-func (f *FillOrder) GetTypeID() uint8 {
+func (*FillOrder) GetTypeID() uint8 {
 	return fillOrderID
 }
 
