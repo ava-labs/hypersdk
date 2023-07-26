@@ -186,7 +186,7 @@ left to the implementer.
 The `hypersdk` handles all of the above items for you except for defining when
 you should emit a Warp Message to send to another Subnet (i.e. what an export looks like on-chain),
 what this Warp Message should look like (i.e. what do you want to send to another Subnet), and
-what you should do if you recieve a Warp Message (i.e. mint assets if you
+what you should do if you receive a Warp Message (i.e. mint assets if you
 receive an import).
 
 ### Easy Functionality Upgrades
