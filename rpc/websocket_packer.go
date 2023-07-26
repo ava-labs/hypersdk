@@ -56,7 +56,7 @@ func UnpackBlockMessage(
 // Could be a better place for these methods
 // Packs an accepted block message
 func PackAcceptedTxMessage(txID ids.ID, result *chain.Result) ([]byte, error) {
-	size := consts.IDLen + codec.BoolLen + result.Size()
+	size := consts.IDLen + consts.BoolLen + result.Size()
 	p := codec.NewWriter(size, consts.MaxInt)
 	p.PackID(txID)
 	p.PackBool(false)
@@ -67,7 +67,7 @@ func PackAcceptedTxMessage(txID ids.ID, result *chain.Result) ([]byte, error) {
 // Packs a removed block message
 func PackRemovedTxMessage(txID ids.ID, err error) ([]byte, error) {
 	errString := err.Error()
-	size := consts.IDLen + codec.BoolLen + codec.StringLen(errString)
+	size := consts.IDLen + consts.BoolLen + codec.StringLen(errString)
 	p := codec.NewWriter(size, consts.MaxInt)
 	p.PackID(txID)
 	p.PackBool(true)

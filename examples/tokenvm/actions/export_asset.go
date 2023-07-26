@@ -218,14 +218,14 @@ func (e *ExportAsset) Execute(
 
 func (*ExportAsset) MaxUnits(chain.Rules) uint64 {
 	return crypto.PublicKeyLen + consts.IDLen +
-		consts.Uint64Len + codec.BoolLen + consts.Uint64Len +
+		consts.Uint64Len + consts.BoolLen + consts.Uint64Len +
 		consts.Uint64Len + consts.IDLen + consts.Uint64Len +
 		consts.Uint64Len + consts.IDLen
 }
 
 func (*ExportAsset) Size() int {
 	return crypto.PublicKeyLen + consts.IDLen +
-		consts.Uint64Len + codec.BoolLen + consts.Uint64Len +
+		consts.Uint64Len + consts.BoolLen + consts.Uint64Len +
 		consts.Uint64Len + consts.IDLen + consts.Uint64Len +
 		consts.Uint64Len + consts.IDLen
 }

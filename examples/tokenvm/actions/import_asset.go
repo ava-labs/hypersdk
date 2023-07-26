@@ -208,11 +208,11 @@ func (i *ImportAsset) Execute(
 }
 
 func (i *ImportAsset) MaxUnits(chain.Rules) uint64 {
-	return uint64(len(i.warpMessage.Payload)) + codec.BoolLen
+	return uint64(len(i.warpMessage.Payload)) + consts.BoolLen
 }
 
 func (*ImportAsset) Size() int {
-	return codec.BoolLen
+	return consts.BoolLen
 }
 
 // All we encode that is action specific for now is the type byte from the
