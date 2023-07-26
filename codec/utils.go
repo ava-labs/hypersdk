@@ -9,7 +9,7 @@ type SizeType interface {
 	Size() int
 }
 
-func TotalSize[T SizeType](arr []T) int {
+func CummSize[T SizeType](arr []T) int {
 	size := 0
 	for _, item := range arr {
 		size += item.Size()

@@ -38,7 +38,7 @@ func (r *Result) Marshal(p *codec.Packer) {
 }
 
 func MarshalResults(src []*Result) ([]byte, error) {
-	size := consts.IntLen + codec.TotalSize(src)
+	size := consts.IntLen + codec.CummSize(src)
 	p := codec.NewWriter(size, consts.MaxInt) // could be much larger than [NetworkSizeLimit]
 	p.PackInt(len(src))
 	for _, result := range src {

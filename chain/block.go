@@ -766,7 +766,7 @@ func (b *StatefulBlock) Marshal(
 ) ([]byte, error) {
 	size := consts.IDLen + consts.Uint64Len + consts.Uint64Len +
 		consts.Uint64Len + window.WindowSliceSize +
-		consts.IntLen + codec.TotalSize(b.Txs) +
+		consts.IntLen + codec.CummSize(b.Txs) +
 		consts.IDLen + consts.Uint64Len + consts.Uint64Len
 
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)

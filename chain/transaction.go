@@ -374,7 +374,7 @@ func MarshalTxs(
 	if len(txs) == 0 {
 		return nil, ErrNoTxs
 	}
-	size := consts.IntLen + codec.TotalSize(txs)
+	size := consts.IntLen + codec.CummSize(txs)
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	p.PackInt(len(txs))
 	for _, tx := range txs {
