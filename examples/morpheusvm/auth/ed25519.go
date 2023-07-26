@@ -59,6 +59,10 @@ func (d *ED25519) Payer() []byte {
 	return d.Signer[:]
 }
 
+func (*ED25519) Size() int {
+	return crypto.PublicKeyLen + crypto.SignatureLen
+}
+
 func (d *ED25519) Marshal(p *codec.Packer) {
 	p.PackPublicKey(d.Signer)
 	p.PackSignature(d.Signature)
