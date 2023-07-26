@@ -365,3 +365,11 @@ func (vm *VM) RecordStateOperations(c int) {
 func (vm *VM) GetVerifySignatures() bool {
 	return vm.config.GetVerifySignatures()
 }
+
+func (vm *VM) RecordTxsGossiped(c int) {
+	vm.metrics.txsGossiped.Add(float64(c))
+}
+
+func (vm *VM) RecordTxsReceived(c int) {
+	vm.metrics.txsReceived.Add(float64(c))
+}
