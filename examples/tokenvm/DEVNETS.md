@@ -474,3 +474,9 @@ If you get the following error, make sure to install `gcc` before running
 # github.com/supranational/blst/bindings/go
 ../../../go/pkg/mod/github.com/supranational/blst@v0.3.11-0.20220920110316-f72618070295/bindings/go/rb_tree.go:130:18: undefined: Message
 ```
+
+### `bad CPU type in executable: /tmp/prometheus`
+Make sure to install Rosetta 2 if you have an aarch64 Mac:
+```
+softwareupdate --install-rosetta
+```

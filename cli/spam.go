@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
@@ -23,7 +25,6 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/neilotoole/errgroup"
 )
 
 const (
@@ -287,17 +288,19 @@ func (h *Handler) Spam(
 					for k := 0; k < numTxsPerAccount; k++ {
 						recipient, err := getNextRecipient(randomRecipient, i, accounts)
 						if err != nil {
+							utils.Outf("{{orange}}failed to get next recipient:{{/}} %v\n", err)
 							return err
 						}
 						v := selected[recipient] + 1
 						selected[recipient] = v
 						_, tx, fees, err := issuer.c.GenerateTransactionManual(parser, nil, getTransfer(recipient, uint64(v)), factory, unitPrice)
 						if err != nil {
-							utils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
+							utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
 							continue
 						}
 						transferFee = fees
 						if err := issuer.d.RegisterTx(tx); err != nil {
+							utils.Outf("{{orange}}failed to register tx:{{/}} %v\n", err)
 							continue
 						}
 						balance -= (fees + uint64(v))

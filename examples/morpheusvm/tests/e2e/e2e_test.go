@@ -210,7 +210,9 @@ var _ = ginkgo.BeforeSuite(func() {
 				"consensus-on-accept-gossip-validator-size":"10",
 				"consensus-on-accept-gossip-peer-size":"10",
 				"network-compression-type":"zstd",
-				"consensus-app-concurrency":"512"
+				"consensus-app-concurrency":"512",
+				"profile-continuous-enabled":true,
+				"profile-continuous-freq":"1m"
 			}`),
 	)
 	cancel()
