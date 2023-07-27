@@ -53,8 +53,8 @@ func (h *Handler) GeneratePrometheus(prometheusFile string, prometheusData strin
 
 	// Create Prometheus YAML
 	var prometheusConfig PrometheusConfig
-	prometheusConfig.Global.ScrapeInterval = "15s"
-	prometheusConfig.Global.EvaluationInterval = "15s"
+	prometheusConfig.Global.ScrapeInterval = "1s"
+	prometheusConfig.Global.EvaluationInterval = "1s"
 	prometheusConfig.ScrapeConfigs = []*PrometheusScrapeConfig{
 		{
 			JobName: "prometheus",
@@ -85,7 +85,7 @@ func (h *Handler) GeneratePrometheus(prometheusFile string, prometheusData strin
 		if i == 0 {
 			appendChar = "?"
 		}
-		dashboard = fmt.Sprintf("%s%sg%d.expr=%s&g%d.tab=0", dashboard, appendChar, i, url.QueryEscape(panel), i)
+		dashboard = fmt.Sprintf("%s%sg%d.expr=%s&g%d.tab=0&g%d.step_input=1&g%d.range_input=5m", dashboard, appendChar, i, url.QueryEscape(panel), i, i, i)
 	}
 	utils.Outf("{{orange}}pre-built dashboard:{{/}} %s\n", dashboard)
 
