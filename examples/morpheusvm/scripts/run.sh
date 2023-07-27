@@ -17,7 +17,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=v1.10.5
+VERSION=d7e6e8e3e2fabb5e03cb2e051cd268b27c74a8e1
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 AVALANCHE_LOG_LEVEL=${AVALANCHE_LOG_LEVEL:-INFO}
@@ -128,8 +128,8 @@ cat <<EOF > ${TMPDIR}/morpheusvm.config
   "mempoolPayerSize": 10000000,
   "mempoolExemptPayers":["morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp"],
   "parallelism": 5,
-  "verifySignatures":true,
-  "storeTransactions":true,
+  "verifySignatures":false,
+  "storeTransactions":false,
   "streamingBacklogSize": 10000000,
   "gossipMaxSize": 32768,
   "gossipProposerDepth": 1,
