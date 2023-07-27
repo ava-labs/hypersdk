@@ -33,8 +33,20 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_blks_rejected_count[5s])/5", chainID))
 			utils.Outf("{{yellow}}blocks rejected per second:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_submitted[5s])/5", chainID))
+			utils.Outf("{{yellow}}transactions submitted per second:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_gossiped[5s])/5", chainID))
+			utils.Outf("{{yellow}}transactions gossiped per second:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_received[5s])/5", chainID))
+			utils.Outf("{{yellow}}transactions received per second:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_verified[5s])/5", chainID))
+			utils.Outf("{{yellow}}transactions verified per second:{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_accepted[5s])/5", chainID))
-			utils.Outf("{{yellow}}transactions per second:{{/}} %s\n", panels[len(panels)-1])
+			utils.Outf("{{yellow}}transactions accepted per second:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_operations[5s])/5", chainID))
 			utils.Outf("{{yellow}}state operations per second:{{/}} %s\n", panels[len(panels)-1])
@@ -54,8 +66,16 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, "avalanche_resource_tracker_cpu_usage")
 			utils.Outf("{{yellow}}CPU usage:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, "avalanche_go_memstats_alloc_bytes")
+			utils.Outf("{{yellow}}memory (avalanchego) usage:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_go_memstats_alloc_bytes", chainID))
+			utils.Outf("{{yellow}}memory (tokenvm) usage:{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_handler_chits_sum[5s])/1000000/5 + increase(avalanche_%s_handler_notify_sum[5s])/1000000/5 + increase(avalanche_%s_handler_get_sum[5s])/1000000/5 + increase(avalanche_%s_handler_push_query_sum[5s])/1000000/5 + increase(avalanche_%s_handler_put_sum[5s])/1000000/5 + increase(avalanche_%s_handler_pull_query_sum[5s])/1000000/5 + increase(avalanche_%s_handler_query_failed_sum[5s])/1000000/5", chainID, chainID, chainID, chainID, chainID, chainID, chainID))
 			utils.Outf("{{yellow}}consensus engine processing (ms/s):{{/}} %s\n", panels[len(panels)-1])
+
+			// TODO: add bandwidth usage
 
 			return panels
 		})
