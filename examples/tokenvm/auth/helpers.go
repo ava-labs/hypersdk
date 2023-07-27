@@ -9,18 +9,18 @@ import (
 )
 
 func GetActor(auth chain.Auth) crypto.PublicKey {
-	switch a := auth.(type) {
-	case *ED25519:
-		return a.Signer
+	switch auth.GetTypeID() {
+	case (&ED25519{}).GetTypeID():
+		return auth.(*ED25519).Signer
 	default:
 		return crypto.EmptyPublicKey
 	}
 }
 
 func GetSigner(auth chain.Auth) crypto.PublicKey {
-	switch a := auth.(type) {
-	case *ED25519:
-		return a.Signer
+	switch auth.GetTypeID() {
+	case (&ED25519{}).GetTypeID():
+		return auth.(*ED25519).Signer
 	default:
 		return crypto.EmptyPublicKey
 	}

@@ -163,8 +163,8 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 			}
 		}
 		if result.Success {
-			switch tx.Action.(type) { //nolint:gocritic
-			case *actions.Transfer:
+			switch tx.Action.GetTypeID() { //nolint:gocritic
+			case (&actions.Transfer{}).GetTypeID():
 				c.metrics.transfer.Inc()
 			}
 		}

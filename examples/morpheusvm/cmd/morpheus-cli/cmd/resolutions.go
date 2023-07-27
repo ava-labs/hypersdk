@@ -52,8 +52,9 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 	status := "⚠️"
 	if result.Success {
 		status = "✅"
-		switch action := tx.Action.(type) { //nolint:gocritic
-		case *actions.Transfer:
+		switch tx.Action.GetTypeID() { //nolint:gocritic
+		case (&actions.Transfer{}).GetTypeID():
+			action := tx.Action.(*actions.Transfer)
 			summaryStr = fmt.Sprintf("%s %s -> %s", utils.FormatBalance(action.Value), consts.Symbol, tutils.Address(action.To))
 		}
 	}

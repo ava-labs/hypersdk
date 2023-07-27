@@ -176,23 +176,24 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 			}
 		}
 		if result.Success {
-			switch action := tx.Action.(type) {
-			case *actions.CreateAsset:
+			switch tx.Action.GetTypeID() {
+			case (&actions.CreateAsset{}).GetTypeID():
 				c.metrics.createAsset.Inc()
-			case *actions.MintAsset:
+			case (&actions.MintAsset{}).GetTypeID():
 				c.metrics.mintAsset.Inc()
-			case *actions.BurnAsset:
+			case (&actions.BurnAsset{}).GetTypeID():
 				c.metrics.burnAsset.Inc()
-			case *actions.ModifyAsset:
+			case (&actions.ModifyAsset{}).GetTypeID():
 				c.metrics.modifyAsset.Inc()
-			case *actions.Transfer:
+			case (&actions.Transfer{}).GetTypeID():
 				c.metrics.transfer.Inc()
-			case *actions.CreateOrder:
+			case (&actions.CreateOrder{}).GetTypeID():
 				c.metrics.createOrder.Inc()
 				actor := auth.GetActor(tx.Auth)
-				c.orderBook.Add(tx.ID(), actor, action)
-			case *actions.FillOrder:
+				c.orderBook.Add(tx.ID(), actor, tx.Action.(*actions.CreateOrder))
+			case (&actions.FillOrder{}).GetTypeID():
 				c.metrics.fillOrder.Inc()
+				action := tx.Action.(*actions.FillOrder)
 				orderResult, err := actions.UnmarshalOrderResult(result.Output)
 				if err != nil {
 					// This should never happen
@@ -203,12 +204,12 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 					continue
 				}
 				c.orderBook.UpdateRemaining(action.Order, orderResult.Remaining)
-			case *actions.CloseOrder:
+			case (&actions.CloseOrder{}).GetTypeID():
 				c.metrics.closeOrder.Inc()
-				c.orderBook.Remove(action.Order)
-			case *actions.ImportAsset:
+				c.orderBook.Remove(tx.Action.(*actions.CloseOrder).Order)
+			case (&actions.ImportAsset{}).GetTypeID():
 				c.metrics.importAsset.Inc()
-			case *actions.ExportAsset:
+			case (&actions.ExportAsset{}).GetTypeID():
 				c.metrics.exportAsset.Inc()
 			}
 		}
