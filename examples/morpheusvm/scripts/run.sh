@@ -128,6 +128,8 @@ cat <<EOF > ${TMPDIR}/morpheusvm.config
   "mempoolPayerSize": 10000000,
   "mempoolExemptPayers":["morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp"],
   "parallelism": 5,
+  "verifySignatures":true,
+  "storeTransactions":true,
   "streamingBacklogSize": 10000000,
   "gossipMaxSize": 32768,
   "gossipProposerDepth": 1,

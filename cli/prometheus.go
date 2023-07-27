@@ -53,8 +53,8 @@ func (h *Handler) GeneratePrometheus(prometheusFile string, prometheusData strin
 
 	// Create Prometheus YAML
 	var prometheusConfig PrometheusConfig
-	prometheusConfig.Global.ScrapeInterval = "1s"
-	prometheusConfig.Global.EvaluationInterval = "1s"
+	prometheusConfig.Global.ScrapeInterval = "5s"
+	prometheusConfig.Global.EvaluationInterval = "5s"
 	prometheusConfig.ScrapeConfigs = []*PrometheusScrapeConfig{
 		{
 			JobName: "prometheus",
