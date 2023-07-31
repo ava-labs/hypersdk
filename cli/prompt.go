@@ -164,7 +164,13 @@ func (*Handler) PromptInt(
 }
 
 func (*Handler) PromptChoice(label string, max int) (int, error) {
-	// TODO: auto-select if only 1 option provided
+	// auto-select if only 1 option provided
+	if max == 1 {
+		utils.Outf(
+			"{{cyan}}only one chain available:{{/}} autoselect\n",
+		)
+		return 0, nil
+	}
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
