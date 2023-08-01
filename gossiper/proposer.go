@@ -43,7 +43,7 @@ type ProposerConfig struct {
 	GossipReceivedCacheSize int
 	GossipMinLife           int64 // ms
 	GossipMaxSize           int
-	BuildProposerDiff       int
+	NoGossipBuilderDiff       int
 	VerifyTimeout           int64 // ms
 }
 
@@ -56,7 +56,7 @@ func DefaultProposerConfig() *ProposerConfig {
 		GossipReceivedCacheSize: 65_536,
 		GossipMinLife:           5 * 1000,
 		GossipMaxSize:           consts.NetworkSizeLimit,
-		BuildProposerDiff:       2,
+		NoGossipBuilderDiff:       2,
 		VerifyTimeout:           proposerWindow / 2,
 	}
 }
@@ -322,7 +322,7 @@ func (g *Proposer) Run(appSender common.AppSender) {
 			if time.Now().UnixMilli()-g.lastVerified < g.cfg.VerifyTimeout {
 				proposers, err := g.vm.Proposers(
 					tctx,
-					g.cfg.BuildProposerDiff,
+					g.cfg.NoGossipBuilderDiff,
 					1,
 				)
 				if err == nil && proposers.Contains(g.vm.NodeID()) {

@@ -136,7 +136,7 @@ func (c *Controller) Initialize(
 		gcfg.GossipMaxSize = c.config.GossipMaxSize
 		gcfg.GossipProposerDiff = c.config.GossipProposerDiff
 		gcfg.GossipProposerDepth = c.config.GossipProposerDepth
-		gcfg.BuildProposerDiff = c.config.BuildProposerDiff
+		gcfg.NoGossipBuilderDiff = c.config.NoGossipBuilderDiff
 		gcfg.VerifyTimeout = c.config.VerifyTimeout
 		gossip = gossiper.NewProposer(inner, gcfg)
 	}

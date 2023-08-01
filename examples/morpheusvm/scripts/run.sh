@@ -133,7 +133,7 @@ cat <<EOF > ${TMPDIR}/morpheusvm.config
   "streamingBacklogSize": 10000000,
   "gossipMaxSize": 32768,
   "gossipProposerDepth": 1,
-  "buildProposerDiff": 1,
+  "noGossipBuilderDiff": 5,
   "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}

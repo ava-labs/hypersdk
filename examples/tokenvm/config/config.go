@@ -29,7 +29,7 @@ const (
 	defaultGossipMaxSize               = hconsts.NetworkSizeLimit
 	defaultGossipProposerDiff          = 3
 	defaultGossipProposerDepth         = 2
-	defaultBuildProposerDiff           = 2
+	defaultNoGossipBuilderDiff           = 2
 	defaultVerifyTimeout               = 2_000 // ms
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
@@ -44,7 +44,7 @@ type Config struct {
 	GossipMaxSize       int           `json:"gossipMaxSize"`
 	GossipProposerDiff  int           `json:"gossipProposerDiff"`
 	GossipProposerDepth int           `json:"gossipProposerDepth"`
-	BuildProposerDiff   int           `json:"buildProposerDiff"`
+	NoGossipBuilderDiff   int           `json:"noGossipBuilderDiff"`
 	VerifyTimeout       int64         `json:"verifyTimeout"`
 
 	// Tracing
@@ -111,7 +111,7 @@ func (c *Config) setDefault() {
 	c.GossipMaxSize = defaultGossipMaxSize
 	c.GossipProposerDiff = defaultGossipProposerDiff
 	c.GossipProposerDepth = defaultGossipProposerDepth
-	c.BuildProposerDiff = defaultBuildProposerDiff
+	c.NoGossipBuilderDiff = defaultNoGossipBuilderDiff
 	c.VerifyTimeout = defaultVerifyTimeout
 	c.Parallelism = c.Config.GetParallelism()
 	c.MempoolSize = c.Config.GetMempoolSize()
