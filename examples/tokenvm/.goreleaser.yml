@@ -60,6 +60,9 @@ builds:
         env:
           - CC=o64-clang
 
+checksum:
+  name_template: "tokenvm_checksums.txt"
+
 archives:
   name_template: 'tokenvm_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
 
