@@ -61,7 +61,7 @@ builds:
           - CC=o64-clang
 
 archives:
-  name_template: 'tokenvm_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}_{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{ end }}'
+  name_template: 'tokenvm_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
 
 release:
   github:
