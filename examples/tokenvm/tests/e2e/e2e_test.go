@@ -7,6 +7,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -53,6 +54,7 @@ var (
 
 	vmGenesisPath    string
 	vmConfigPath     string
+	vmConfig         string
 	subnetConfigPath string
 	outputPath       string
 
@@ -180,6 +182,15 @@ var _ = ginkgo.BeforeSuite(func() {
 		execPath,
 		consts.ID,
 	)
+
+	// Load config data
+	if len(vmConfigPath) > 0 {
+		configData, err := os.ReadFile(vmConfigPath)
+		gomega.Expect(err).Should(gomega.BeNil())
+		vmConfig = string(configData)
+	} else {
+		vmConfig = "{}"
+	}
 
 	// Start cluster
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -1331,6 +1342,9 @@ var _ = ginkgo.Describe("[Test]", func() {
 			"bootstrap",
 			execPath,
 			trackSubnetsOpt,
+			runner_sdk.WithChainConfigs(map[string]string{
+				blockchainIDA: vmConfig,
+			}),
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 		awaitHealthy(anrCli, []instance{instancesA[0]})
@@ -1372,6 +1386,9 @@ var _ = ginkgo.Describe("[Test]", func() {
 			"sync",
 			execPath,
 			trackSubnetsOpt,
+			runner_sdk.WithChainConfigs(map[string]string{
+				blockchainIDA: vmConfig,
+			}),
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 
@@ -1444,6 +1461,9 @@ var _ = ginkgo.Describe("[Test]", func() {
 			"sync_concurrent",
 			execPath,
 			trackSubnetsOpt,
+			runner_sdk.WithChainConfigs(map[string]string{
+				blockchainIDA: vmConfig,
+			}),
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 		awaitHealthy(anrCli, []instance{instancesA[0]})
