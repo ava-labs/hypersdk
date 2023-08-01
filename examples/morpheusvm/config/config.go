@@ -57,6 +57,7 @@ type Config struct {
 	// State Sync
 	StateSyncServerDelay time.Duration `json:"stateSyncServerDelay"` // for testing
 
+	loaded             bool
 	nodeID             ids.NodeID
 	parsedExemptPayers [][]byte
 }
@@ -68,6 +69,7 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 		if err := json.Unmarshal(b, c); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal config %s: %w", string(b), err)
 		}
+		c.loaded = true
 	}
 
 	// Parse any exempt payers (usually used when a single account is
@@ -127,3 +129,4 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 }
 func (c *Config) GetVerifySignatures() bool  { return c.VerifySignatures }
 func (c *Config) GetStoreTransactions() bool { return c.StoreTransactions }
+func (c *Config) Loaded() bool               { return c.loaded }

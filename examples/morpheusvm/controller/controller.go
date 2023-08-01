@@ -83,7 +83,7 @@ func (c *Controller) Initialize(
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	c.snowCtx.Log.SetLevel(c.config.GetLogLevel())
-	snowCtx.Log.Info("loaded config", zap.Any("contents", c.config))
+	snowCtx.Log.Info("initialized config", zap.Bool("loaded", c.config.Loaded()), zap.Any("contents", c.config))
 
 	c.genesis, err = genesis.New(genesisBytes, upgradeBytes)
 	if err != nil {
