@@ -60,8 +60,10 @@ builds:
         env:
           - CC=o64-clang
 
+archives:
+  name_template: 'tokenvm_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}_{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{ end }}'
+
 release:
   github:
     owner: ava-labs
     name: hypersdk
-  name_template: "tokenvm-v{{.Version}}"
