@@ -64,7 +64,8 @@ checksum:
   name_template: "morpheusvm_checksums.txt"
 
 archives:
-  name_template: 'morpheusvm_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+  - id: default
+    name_template: 'morpheusvm_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
 
 release:
   github:
