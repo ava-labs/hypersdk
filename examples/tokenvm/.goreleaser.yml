@@ -64,3 +64,4 @@ release:
   github:
     owner: ava-labs
     name: hypersdk
+  name_template: "tokenvm-v{{.Version}}"
