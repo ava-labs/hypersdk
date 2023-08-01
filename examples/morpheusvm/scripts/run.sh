@@ -132,6 +132,7 @@ cat <<EOF > ${TMPDIR}/morpheusvm.config
   "storeTransactions":true,
   "streamingBacklogSize": 10000000,
   "gossipMaxSize": 32768,
+  "gossipProposerDiff": 3,
   "gossipProposerDepth": 1,
   "noGossipBuilderDiff": 5,
   "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",

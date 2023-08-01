@@ -132,6 +132,7 @@ cat <<EOF > ${TMPDIR}/tokenvm.config
   "storeTransactions":true,
   "streamingBacklogSize": 10000000,
   "gossipMaxSize": 32768,
+  "gossipProposerDiff": 3,
   "gossipProposerDepth": 1,
   "noGossipBuilderDiff": 5,
   "trackedPairs":["*"],

@@ -29,7 +29,7 @@ const (
 	defaultGossipMaxSize               = hconsts.NetworkSizeLimit
 	defaultGossipProposerDiff          = 3
 	defaultGossipProposerDepth         = 2
-	defaultNoGossipBuilderDiff           = 2
+	defaultNoGossipBuilderDiff         = 2
 	defaultVerifyTimeout               = 2_000 // ms
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
@@ -44,7 +44,7 @@ type Config struct {
 	GossipMaxSize       int           `json:"gossipMaxSize"`
 	GossipProposerDiff  int           `json:"gossipProposerDiff"`
 	GossipProposerDepth int           `json:"gossipProposerDepth"`
-	NoGossipBuilderDiff   int           `json:"noGossipBuilderDiff"`
+	NoGossipBuilderDiff int           `json:"noGossipBuilderDiff"`
 	VerifyTimeout       int64         `json:"verifyTimeout"`
 
 	// Tracing
