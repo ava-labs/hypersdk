@@ -28,8 +28,8 @@ const (
 	defaultGossipInterval              = 1 * time.Second
 	defaultGossipMaxSize               = hconsts.NetworkSizeLimit
 	defaultGossipProposerDiff          = 3
-	defaultGossipProposerDepth         = 2
-	defaultNoGossipBuilderDiff         = 2
+	defaultGossipProposerDepth         = 1
+	defaultNoGossipBuilderDiff         = 5
 	defaultVerifyTimeout               = 2_000 // ms
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
