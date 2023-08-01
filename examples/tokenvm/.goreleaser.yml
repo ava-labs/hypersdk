@@ -60,6 +60,13 @@ builds:
         env:
           - CC=o64-clang
 
+checksum:
+  name_template: "tokenvm_checksums.txt"
+
+archives:
+  - id: default
+    name_template: 'tokenvm_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+
 release:
   github:
     owner: ava-labs
