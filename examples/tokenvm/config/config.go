@@ -13,7 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/hypersdk/config"
-	hconsts "github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -25,12 +25,6 @@ import (
 var _ vm.Config = (*Config)(nil)
 
 const (
-	defaultGossipInterval              = 1 * time.Second
-	defaultGossipMaxSize               = hconsts.NetworkSizeLimit
-	defaultGossipProposerDiff          = 3
-	defaultGossipProposerDepth         = 2
-	defaultBuildProposerDiff           = 2
-	defaultVerifyTimeout               = 2_000 // ms
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
 	defaultStoreTransactions           = true
@@ -44,7 +38,7 @@ type Config struct {
 	GossipMaxSize       int           `json:"gossipMaxSize"`
 	GossipProposerDiff  int           `json:"gossipProposerDiff"`
 	GossipProposerDepth int           `json:"gossipProposerDepth"`
-	BuildProposerDiff   int           `json:"buildProposerDiff"`
+	NoGossipBuilderDiff int           `json:"noGossipBuilderDiff"`
 	VerifyTimeout       int64         `json:"verifyTimeout"`
 
 	// Tracing
@@ -107,12 +101,13 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
-	c.GossipInterval = defaultGossipInterval
-	c.GossipMaxSize = defaultGossipMaxSize
-	c.GossipProposerDiff = defaultGossipProposerDiff
-	c.GossipProposerDepth = defaultGossipProposerDepth
-	c.BuildProposerDiff = defaultBuildProposerDiff
-	c.VerifyTimeout = defaultVerifyTimeout
+	gcfg := gossiper.DefaultProposerConfig()
+	c.GossipInterval = gcfg.GossipInterval
+	c.GossipMaxSize = gcfg.GossipMaxSize
+	c.GossipProposerDiff = gcfg.GossipProposerDiff
+	c.GossipProposerDepth = gcfg.GossipProposerDepth
+	c.NoGossipBuilderDiff = gcfg.NoGossipBuilderDiff
+	c.VerifyTimeout = gcfg.VerifyTimeout
 	c.Parallelism = c.Config.GetParallelism()
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()

@@ -17,7 +17,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=v1.10.5
+VERSION=6e97e33e06422ef6e03a765729aaa90eb26d01a5
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 AVALANCHE_LOG_LEVEL=${AVALANCHE_LOG_LEVEL:-INFO}
@@ -131,9 +131,6 @@ cat <<EOF > ${TMPDIR}/morpheusvm.config
   "verifySignatures":true,
   "storeTransactions":true,
   "streamingBacklogSize": 10000000,
-  "gossipMaxSize": 32768,
-  "gossipProposerDepth": 1,
-  "buildProposerDiff": 1,
   "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
