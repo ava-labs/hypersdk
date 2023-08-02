@@ -62,6 +62,8 @@ var (
 	blockchainID string
 
 	trackSubnetsOpt runner_sdk.OpOption
+
+	numValidators uint
 )
 
 func init() {
@@ -139,6 +141,13 @@ func init() {
 		"mode",
 		"test",
 		"'test' to shut down cluster after tests, 'run' to skip tests and only run without shutdown",
+	)
+
+	flag.UintVar(
+		&numValidators,
+		"num-validators",
+		5,
+		"number of validators by blockchain",
 	)
 }
 
@@ -226,7 +235,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	// Name 5 new validators (which should have BLS key registered)
 	subnet := []string{}
-	for i := 1; i <= 5; i++ {
+	for i := 1; i <= int(numValidators); i++ {
 		n := fmt.Sprintf("node%d-bls", i)
 		subnet = append(subnet, n)
 	}
