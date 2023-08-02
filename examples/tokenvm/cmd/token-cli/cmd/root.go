@@ -33,6 +33,7 @@ var (
 	checkAllChains    bool
 	prometheusFile    string
 	prometheusData    string
+	runPrometheus     bool
 
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
@@ -183,6 +184,12 @@ func init() {
 		"prometheus-data",
 		fmt.Sprintf("/tmp/prometheus-%d", time.Now().Unix()),
 		"prometheus data location",
+	)
+	generatePrometheusCmd.PersistentFlags().BoolVar(
+		&runPrometheus,
+		"run-prometheus",
+		true,
+		"start prometheus",
 	)
 	prometheusCmd.AddCommand(
 		generatePrometheusCmd,

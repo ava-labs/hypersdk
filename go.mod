@@ -12,6 +12,7 @@ require (
 	github.com/manifoldco/promptui v0.9.0
 	github.com/neilotoole/errgroup v0.1.6
 	github.com/onsi/ginkgo/v2 v2.8.1
+	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/prometheus/client_golang v1.16.0
 	github.com/stretchr/testify v1.8.3
 	go.opentelemetry.io/otel v1.11.2
