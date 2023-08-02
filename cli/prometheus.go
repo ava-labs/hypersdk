@@ -4,12 +4,16 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/pkg/browser"
 	"gopkg.in/yaml.v2"
 )
 
@@ -48,9 +52,12 @@ type PrometheusConfig struct {
 	ScrapeConfigs []*PrometheusScrapeConfig `yaml:"scrape_configs"`
 }
 
-func (h *Handler) GeneratePrometheus(prometheusFile string, prometheusData string, getPanels func(ids.ID) []string) error {
+func (h *Handler) GeneratePrometheus(open bool, prometheusFile string, prometheusData string, getPanels func(ids.ID) []string) error {
 	chainID, uris, err := h.PromptChain("select chainID", nil)
 	if err != nil {
+		return err
+	}
+	if err := h.CloseDatabase(); err != nil {
 		return err
 	}
 	endpoints := make([]string, len(uris))
@@ -102,9 +109,39 @@ func (h *Handler) GeneratePrometheus(prometheusFile string, prometheusData strin
 		}
 		dashboard = fmt.Sprintf("%s%sg%d.expr=%s&g%d.tab=0&g%d.step_input=1&g%d.range_input=5m", dashboard, appendChar, i, url.QueryEscape(panel), i, i, i)
 	}
-	utils.Outf("{{orange}}pre-built dashboard:{{/}} %s\n", dashboard)
 
-	// Emit command to run prometheus
-	utils.Outf("{{green}}prometheus cmd:{{/}} /tmp/prometheus --config.file=%s --storage.tsdb.path=%s\n", prometheusFile, prometheusData)
+	if !open {
+		utils.Outf("{{orange}}pre-built dashboard:{{/}} %s\n", dashboard)
+
+		// Emit command to run prometheus
+		utils.Outf("{{green}}prometheus cmd:{{/}} /tmp/prometheus --config.file=%s --storage.tsdb.path=%s\n", prometheusFile, prometheusData)
+		return nil
+	}
+
+	// Start prometheus and open browser
+	//
+	// Attempting to exit from the terminal will gracefully
+	// stop this process.
+	cmd := exec.CommandContext(context.Background(), "/tmp/prometheus", fmt.Sprintf("--config.file=%s", prometheusFile), fmt.Sprintf("--storage.tsdb.path=%s", prometheusData))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	errChan := make(chan error)
+	go func() {
+		select {
+		case <-errChan:
+			return
+		case <-time.After(5 * time.Second):
+			utils.Outf("{{cyan}}opening dashboard{{/}}\n")
+			if err := browser.OpenURL(dashboard); err != nil {
+				utils.Outf("{{red}}unable to open dashboard:{{/}} %s\n", err.Error())
+			}
+		}
+	}()
+
+	utils.Outf("{{cyan}}starting prometheus (/tmp/prometheus) in background{{/}}\n")
+	if err := cmd.Run(); err != nil {
+		errChan <- err
+		return err
+	}
 	return nil
 }

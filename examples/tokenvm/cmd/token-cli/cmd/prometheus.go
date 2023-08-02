@@ -23,7 +23,7 @@ var prometheusCmd = &cobra.Command{
 var generatePrometheusCmd = &cobra.Command{
 	Use: "generate",
 	RunE: func(_ *cobra.Command, args []string) error {
-		return handler.Root().GeneratePrometheus(prometheusFile, prometheusData, func(chainID ids.ID) []string {
+		return handler.Root().GeneratePrometheus(runPrometheus, prometheusFile, prometheusData, func(chainID ids.ID) []string {
 			panels := []string{}
 			panels = append(panels, fmt.Sprintf("avalanche_%s_blks_processing", chainID))
 			utils.Outf("{{yellow}}blocks processing:{{/}} %s\n", panels[len(panels)-1])
