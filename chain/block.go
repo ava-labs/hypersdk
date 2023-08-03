@@ -790,6 +790,7 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	p.PackID(b.StateRoot)
 	p.PackUint64(b.UnitsConsumed)
 	p.PackUint64(uint64(b.WarpResults))
+	b.size = len(p.Bytes())
 	return p.Bytes(), p.Err()
 }
 
