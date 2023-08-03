@@ -790,8 +790,12 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	p.PackID(b.StateRoot)
 	p.PackUint64(b.UnitsConsumed)
 	p.PackUint64(uint64(b.WarpResults))
-	b.size = len(p.Bytes())
-	return p.Bytes(), p.Err()
+	bytes := p.Bytes()
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
+	b.size = len(bytes)
+	return bytes, nil
 }
 
 func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
@@ -799,6 +803,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 		p = codec.NewReader(raw, consts.NetworkSizeLimit)
 		b StatefulBlock
 	)
+	b.size = len(raw)
 
 	p.UnpackID(false, &b.Prnt)
 	b.Tmstmp = p.UnpackInt64(false)
@@ -826,7 +831,6 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	p.UnpackID(false, &b.StateRoot)
 	b.UnitsConsumed = p.UnpackUint64(false)
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
-	b.size = len(raw)
 
 	if !p.Empty() {
 		// Ensure no leftover bytes

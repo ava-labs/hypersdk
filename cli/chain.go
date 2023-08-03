@@ -14,6 +14,7 @@ import (
 	runner "github.com/ava-labs/avalanche-network-runner/client"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/pubsub"
@@ -240,22 +241,24 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 			runningDuration := time.Since(start)
 			tpsDivisor := math.Min(window.WindowSize, runningDuration.Seconds())
 			utils.Outf(
-				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s {{green}}TPS:{{/}}%.2f {{green}}split:{{/}}%dms {{green}}size:{{/}}%.2fKB\n",
+				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB [{{green}}TPS:{{/}}%.2f {{green}}latency:{{/}}%dms {{green}}gap:{{/}}%dms]\n",
 				blk.Hght,
 				len(blk.Txs),
 				blk.UnitsConsumed,
 				blk.StateRoot,
+				float64(blk.Size())/units.KiB,
 				float64(window.Sum(tpsWindow))/tpsDivisor,
+				time.Now().UnixMilli()-blk.Tmstmp,
 				time.Since(lastBlockDetailed).Milliseconds(),
-				float64(blk.Size())/float64(1024),
 			)
 		} else {
 			utils.Outf(
-				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s\n",
+				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB\n",
 				blk.Hght,
 				len(blk.Txs),
 				blk.UnitsConsumed,
 				blk.StateRoot,
+				float64(blk.Size())/units.KiB,
 			)
 			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))
 		}
