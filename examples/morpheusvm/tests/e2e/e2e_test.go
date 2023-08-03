@@ -64,6 +64,8 @@ var (
 	blockchainID string
 
 	trackSubnetsOpt runner_sdk.OpOption
+
+	numValidators uint
 )
 
 func init() {
@@ -142,6 +144,13 @@ func init() {
 		"test",
 		"'test' to shut down cluster after tests, 'run' to skip tests and only run without shutdown",
 	)
+
+	flag.UintVar(
+		&numValidators,
+		"num-validators",
+		5,
+		"number of validators per blockchain",
+	)
 }
 
 const (
@@ -158,6 +167,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		gomega.Equal(modeFullTest),
 		gomega.Equal(modeRun),
 	))
+	gomega.Expect(numValidators).Should(gomega.BeNumerically(">", 0))
 	logLevel, err := logging.ToLevel(networkRunnerLogLevel)
 	gomega.Expect(err).Should(gomega.BeNil())
 	logFactory := logging.NewFactory(logging.Config{
@@ -237,7 +247,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	// Name 5 new validators (which should have BLS key registered)
 	subnet := []string{}
-	for i := 1; i <= 5; i++ {
+	for i := 1; i <= int(numValidators); i++ {
 		n := fmt.Sprintf("node%d-bls", i)
 		subnet = append(subnet, n)
 	}
