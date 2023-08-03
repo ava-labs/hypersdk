@@ -28,8 +28,23 @@ import (
 )
 
 const (
-	feePerTx     = 1000
-	defaultRange = 32
+	feePerTx              = 1000
+	defaultRange          = 32
+	issuerShutdownTimeout = 60 * time.Second
+)
+
+var (
+	issuerWg sync.WaitGroup
+	exiting  sync.Once
+
+	transferFee uint64
+
+	l            sync.Mutex
+	confirmedTxs uint64
+	totalTxs     uint64
+
+	inflight atomic.Int64
+	sent     atomic.Int64
 )
 
 func (h *Handler) Spam(
@@ -95,6 +110,10 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
+	numClients, err := h.PromptInt("number of clients per node")
+	if err != nil {
+		return err
+	}
 	witholding := uint64(feePerTx * numAccounts)
 	distAmount := (balance - witholding) / uint64(numAccounts)
 	utils.Outf(
@@ -152,76 +171,25 @@ func (h *Handler) Spam(
 	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", numAccounts)
 
 	// Kickoff txs
-	clients := make([]*txIssuer, len(uris))
+	clients := []*txIssuer{}
 	for i := 0; i < len(uris); i++ {
-		cli := rpc.NewJSONRPCClient(uris[i])
-		dcli, err := rpc.NewWebSocketClient(uris[i], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
-		if err != nil {
-			return err
+		for j := 0; j < numClients; j++ {
+			cli := rpc.NewJSONRPCClient(uris[i])
+			dcli, err := rpc.NewWebSocketClient(uris[i], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+			if err != nil {
+				return err
+			}
+			clients = append(clients, &txIssuer{c: cli, d: dcli, uri: i})
 		}
-		clients[i] = &txIssuer{c: cli, d: dcli}
 	}
 	signals := make(chan os.Signal, 2)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-	var (
-		transferFee uint64
-		wg          sync.WaitGroup
-
-		l            sync.Mutex
-		confirmedTxs uint64
-		totalTxs     uint64
-	)
 
 	// confirm txs (track failure rate)
 	cctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	var inflight atomic.Int64
-	var sent atomic.Int64
-	var exiting sync.Once
-	for i := 0; i < len(clients); i++ {
-		issuer := clients[i]
-		wg.Add(1)
-		go func() {
-			for {
-				_, dErr, result, err := issuer.d.ListenTx(context.TODO())
-				if err != nil {
-					return
-				}
-				inflight.Add(-1)
-				issuer.l.Lock()
-				issuer.outstandingTxs--
-				issuer.l.Unlock()
-				l.Lock()
-				if result != nil {
-					if result.Success {
-						confirmedTxs++
-					} else {
-						utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Output), result.Success)
-					}
-				} else {
-					// We can't error match here because we receive it over the wire.
-					if !strings.Contains(dErr.Error(), rpc.ErrExpired.Error()) {
-						utils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", dErr)
-					}
-				}
-				totalTxs++
-				l.Unlock()
-			}
-		}()
-		go func() {
-			<-cctx.Done()
-			for {
-				issuer.l.Lock()
-				outstanding := issuer.outstandingTxs
-				issuer.l.Unlock()
-				if outstanding == 0 {
-					_ = issuer.d.Close()
-					wg.Done()
-					return
-				}
-				time.Sleep(500 * time.Millisecond)
-			}
-		}()
+	for _, client := range clients {
+		startIssuer(cctx, client)
 	}
 
 	// log stats
@@ -263,7 +231,7 @@ func (h *Handler) Spam(
 			t := time.NewTimer(0) // ensure no duplicates created
 			defer t.Stop()
 
-			issuer := getRandomIssuer(clients)
+			issuerIndex, issuer := getRandomIssuer(clients)
 			factory := getFactory(accounts[i])
 			fundsL.Lock()
 			balance := funds[accounts[i].PublicKey()]
@@ -300,7 +268,26 @@ func (h *Handler) Spam(
 						}
 						transferFee = fees
 						if err := issuer.d.RegisterTx(tx); err != nil {
-							utils.Outf("{{orange}}failed to register tx:{{/}} %v\n", err)
+							issuer.l.Lock()
+							if issuer.d.Closed() {
+								if issuer.abandoned != nil {
+									issuer.l.Unlock()
+									return issuer.abandoned
+								}
+								// recreate issuer
+								utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %d\n", issuerIndex, issuer.uri)
+								dcli, err := rpc.NewWebSocketClient(uris[issuer.uri], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+								if err != nil {
+									issuer.abandoned = err
+									utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
+									issuer.l.Unlock()
+									return err
+								}
+								issuer.d = dcli
+								startIssuer(cctx, issuer)
+								issuer.l.Unlock()
+								utils.Outf("{{green}}re-created closed issuer:{{/}} %d\n", issuerIndex)
+							}
 							continue
 						}
 						balance -= (fees + uint64(v))
@@ -351,7 +338,7 @@ func (h *Handler) Spam(
 			}
 		}
 	}()
-	wg.Wait()
+	issuerWg.Wait()
 	cancel()
 
 	// Return funds
@@ -408,7 +395,62 @@ type txIssuer struct {
 	d *rpc.WebSocketClient
 
 	l              sync.Mutex
+	uri            int
+	abandoned      error
 	outstandingTxs int
+}
+
+func startIssuer(cctx context.Context, issuer *txIssuer) {
+	issuerWg.Add(1)
+	go func() {
+		for {
+			_, dErr, result, err := issuer.d.ListenTx(context.TODO())
+			if err != nil {
+				return
+			}
+			inflight.Add(-1)
+			issuer.l.Lock()
+			issuer.outstandingTxs--
+			issuer.l.Unlock()
+			l.Lock()
+			if result != nil {
+				if result.Success {
+					confirmedTxs++
+				} else {
+					utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Output), result.Success)
+				}
+			} else {
+				// We can't error match here because we receive it over the wire.
+				if !strings.Contains(dErr.Error(), rpc.ErrExpired.Error()) {
+					utils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", dErr)
+				}
+			}
+			totalTxs++
+			l.Unlock()
+		}
+	}()
+	go func() {
+		defer func() {
+			_ = issuer.d.Close()
+			issuerWg.Done()
+		}()
+
+		<-cctx.Done()
+		start := time.Now()
+		for time.Since(start) < issuerShutdownTimeout {
+			if issuer.d.Closed() {
+				return
+			}
+			issuer.l.Lock()
+			outstanding := issuer.outstandingTxs
+			issuer.l.Unlock()
+			if outstanding == 0 {
+				return
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+		utils.Outf("{{orange}}issuer shutdown timeout{{/}}\n")
+	}()
 }
 
 func getNextRecipient(randomRecipient bool, self int, keys []crypto.PrivateKey) (crypto.PublicKey, error) {
@@ -431,7 +473,7 @@ func getNextRecipient(randomRecipient bool, self int, keys []crypto.PrivateKey) 
 	return keys[index].PublicKey(), nil
 }
 
-func getRandomIssuer(issuers []*txIssuer) *txIssuer {
+func getRandomIssuer(issuers []*txIssuer) (int, *txIssuer) {
 	index := rand.Int() % len(issuers)
-	return issuers[index]
+	return index, issuers[index]
 }
