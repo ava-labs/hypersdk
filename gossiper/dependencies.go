@@ -5,6 +5,7 @@ package gossiper
 
 import (
 	"context"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
@@ -19,6 +20,7 @@ type VM interface {
 	StopChan() chan struct{}
 	Tracer() trace.Tracer
 	Mempool() chain.Mempool
+	GetTargetGossipDuration() time.Duration
 	Proposers(ctx context.Context, diff int, depth int) (set.Set[ids.NodeID], error)
 	IsValidator(context.Context, ids.NodeID) (bool, error)
 	Logger() logging.Logger
