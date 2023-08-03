@@ -147,7 +147,7 @@ func init() {
 		&numValidators,
 		"num-validators",
 		5,
-		"number of validators by blockchain",
+		"number of validators per blockchain",
 	)
 }
 
@@ -165,6 +165,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		gomega.Equal(modeFullTest),
 		gomega.Equal(modeRun),
 	))
+	gomega.Expect(numValidators).Should(gomega.BeNumerically(">", 0))
 	logLevel, err := logging.ToLevel(networkRunnerLogLevel)
 	gomega.Expect(err).Should(gomega.BeNil())
 	logFactory := logging.NewFactory(logging.Config{
