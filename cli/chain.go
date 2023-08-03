@@ -239,15 +239,15 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))
 			runningDuration := time.Since(start)
 			tpsDivisor := math.Min(window.WindowSize, runningDuration.Seconds())
-			// TODO: add block size in KB
 			utils.Outf(
-				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s {{green}}TPS:{{/}}%.2f {{green}}split:{{/}}%dms\n",
+				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s {{green}}TPS:{{/}}%.2f {{green}}split:{{/}}%dms {{green}}size:{{/}}%.2fKB\n",
 				blk.Hght,
 				len(blk.Txs),
 				blk.UnitsConsumed,
 				blk.StateRoot,
 				float64(window.Sum(tpsWindow))/tpsDivisor,
 				time.Since(lastBlockDetailed).Milliseconds(),
+				float64(blk.Size())/float64(1024),
 			)
 		} else {
 			utils.Outf(
