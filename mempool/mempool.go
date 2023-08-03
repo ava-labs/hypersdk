@@ -6,6 +6,7 @@ package mempool
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
@@ -259,6 +260,7 @@ func (th *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 
 func (th *Mempool[T]) Build(
 	ctx context.Context,
+	targetDuration time.Duration,
 	f func(context.Context, T) (cont bool, restore bool, removeAcct bool, err error),
 ) error {
 	ctx, span := th.tracer.Start(ctx, "Mempool.Build")
@@ -267,8 +269,11 @@ func (th *Mempool[T]) Build(
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	restorableItems := []T{}
-	var err error
+	var (
+		start           = time.Now()
+		restorableItems = []T{}
+		err             error
+	)
 	for th.pm.Len() > 0 {
 		max, _ := th.pm.PopMax()
 		cont, restore, removeAccount, fErr := f(ctx, max)
@@ -285,12 +290,12 @@ func (th *Mempool[T]) Build(
 			// invalid balance
 			th.removeAccount(max.Payer())
 		}
-		if !cont || fErr != nil {
+		if !cont || time.Since(start) > targetDuration || fErr != nil {
 			err = fErr
 			break
 		}
 	}
-	//
+
 	// Restore unused items
 	for _, item := range restorableItems {
 		th.pm.Add(item)
