@@ -47,6 +47,12 @@ type StatefulBlock struct {
 	StateRoot     ids.ID     `json:"stateRoot"`
 	UnitsConsumed uint64     `json:"unitsConsumed"`
 	WarpResults   set.Bits64 `json:"warpResults"`
+
+	size int
+}
+
+func (b *StatefulBlock) Size() int {
+	return b.size
 }
 
 // warpJob is used to signal to a listner that a *warp.Message has been
@@ -819,6 +825,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	p.UnpackID(false, &b.StateRoot)
 	b.UnitsConsumed = p.UnpackUint64(false)
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
+	b.size = len(raw)
 
 	if !p.Empty() {
 		// Ensure no leftover bytes
