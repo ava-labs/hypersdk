@@ -409,25 +409,19 @@ _Run this test RARELY. It writes/reads many GBs from your disk and can fry an
 SSD if you run it too often. We run this in CI to standardize the result of all
 load tests._
 
-## Zipkin Tracing
-To trace the performance of `tokenvm` during load testing, we use `OpenTelemetry + Zipkin`.
+## Uptrace Tracing
+To trace the performance of `tokenvm` during load testing, we use `OpenTelemetry + Uptrace`.
 
-To get started, startup the `Zipkin` backend and `ElasticSearch` database (inside `hypersdk/trace`):
-```bash
-docker-compose -f trace/zipkin.yml up
-```
-Once `Zipkin` is running, you can visit it at `http://localhost:9411`.
+To get started, startup the `Uptrace` backend :
+[Run uptrace with docker](https://github.com/uptrace/uptrace/tree/master/example/docker#getting-started)
 
-Next, startup the load tester (it will automatically send traces to `Zipkin`):
+Once `Uptrace` is running, you can visit it at `http://localhost:14318/`.
+Next, startup the load tester (it will automatically send traces to `Uptrace`):
 ```bash
 TRACE=true ./scripts/tests.load.sh
 ```
 
-When you are done, you can tear everything down by running the following
-command:
-```bash
-docker-compose -f trace/zipkin.yml down
-```
+When you are done, you can tear everything down by stopping uptrace
 
 ## Deploying to a Devnet
 _In the world of Avalanche, we refer to short-lived, test Subnets as Devnets._

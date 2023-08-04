@@ -7,14 +7,13 @@ import (
 	"context"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/zipkin"
-	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/ava-labs/avalanchego/trace"
+
+	"github.com/uptrace/uptrace-go/uptrace"
 )
 
 const (
@@ -36,18 +35,19 @@ type Config struct {
 	AppName string `json:"appName"`
 	Agent   string `json:"agent"`
 	Version string `json:"version"`
+	DSN     string `json:"dsn"`
 }
 
 type tracer struct {
 	oteltrace.Tracer
 
-	tp *sdktrace.TracerProvider
+	tp oteltrace.TracerProvider
 }
 
-func (t *tracer) Close() error {
+func (*tracer) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), tracerProviderShutdownTimeout)
 	defer cancel()
-	return t.tp.Shutdown(ctx)
+	return uptrace.Shutdown(ctx)
 }
 
 func New(config *Config) (trace.Tracer, error) {
@@ -57,26 +57,16 @@ func New(config *Config) (trace.Tracer, error) {
 		}, nil
 	}
 
-	exporter, err := zipkin.New(
-		"http://localhost:9411/api/v2/spans",
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	tracerProviderOpts := []sdktrace.TracerProviderOption{
-		sdktrace.WithBatcher(exporter, sdktrace.WithExportTimeout(tracerExportTimeout)),
-		sdktrace.WithResource(
-			resource.NewWithAttributes(
-				semconv.SchemaURL,
-				attribute.String("version", config.Version),
-				semconv.ServiceNameKey.String(config.Agent),
-			),
+	uptrace.ConfigureOpentelemetry(
+		uptrace.WithDSN(config.DSN),
+		uptrace.WithServiceName(config.Agent),
+		uptrace.WithServiceVersion(config.Version),
+		uptrace.WithBatchSpanProcessorOption(
+			sdktrace.WithExportTimeout(tracerExportTimeout),
 		),
-		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(config.TraceSampleRate)),
-	}
-
-	tracerProvider := sdktrace.NewTracerProvider(tracerProviderOpts...)
+		uptrace.WithTraceSampler(sdktrace.TraceIDRatioBased(config.TraceSampleRate)),
+	)
+	tracerProvider := otel.GetTracerProvider()
 	return &tracer{
 		Tracer: tracerProvider.Tracer(config.AppName),
 		tp:     tracerProvider,

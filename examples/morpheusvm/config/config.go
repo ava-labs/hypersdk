@@ -35,6 +35,7 @@ type Config struct {
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
 	TraceSampleRate float64 `json:"traceSampleRate"`
+	DSN             string  `json:"dsn"`
 
 	// Profiling
 	ContinuousProfilerDir string `json:"continuousProfilerDir"` // "*" is replaced with rand int
@@ -109,6 +110,7 @@ func (c *Config) GetTraceConfig() *trace.Config {
 		AppName:         consts.Name,
 		Agent:           c.nodeID.String(),
 		Version:         version.Version.String(),
+		DSN:             c.DSN,
 	}
 }
 func (c *Config) GetStateSyncServerDelay() time.Duration { return c.StateSyncServerDelay }

@@ -237,9 +237,9 @@ var _ = ginkgo.BeforeSuite(func() {
 		if trace {
 			switch i {
 			case 0:
-				tracePrefix = `"traceEnabled":true, "traceSampleRate":1, "traceAgent":"builder", `
+				tracePrefix = `"traceEnabled":true, "traceSampleRate":1, "traceAgent":"builder", "dsn":"http://project2_secret_token@localhost:14317/2", `
 			case 1:
-				tracePrefix = `"traceEnabled":true, "traceSampleRate":1, "traceAgent":"verifier", `
+				tracePrefix = `"traceEnabled":true, "traceSampleRate":1, "traceAgent":"verifier", "dsn":"http://project2_secret_token@localhost:14317/2", `
 			}
 		}
 		err = c.Initialize(
