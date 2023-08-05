@@ -54,11 +54,6 @@ func BuildBlock(
 	defer span.End()
 	log := vm.Logger()
 
-	mempoolSize := vm.Mempool().Len(ctx)
-	if mempoolSize == 0 {
-		log.Warn("block building failed", zap.Error(ErrNoTxs))
-		return nil, ErrNoTxs
-	}
 	parent, err := vm.GetStatelessBlock(ctx, preferred)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent", zap.Error(err))
@@ -66,7 +61,7 @@ func BuildBlock(
 	}
 	nextTime := time.Now().UnixMilli()
 	r := vm.Rules(nextTime)
-	if parent.Tmstmp+r.GetMinBlockGap() > nextTime {
+	if nextTime < parent.Tmstmp+r.GetMinBlockGap() {
 		log.Warn("block building failed", zap.Error(ErrTimestampTooEarly))
 		return nil, ErrTimestampTooEarly
 	}
@@ -77,6 +72,7 @@ func BuildBlock(
 	}
 	b := NewBlock(ectx, vm, parent, nextTime)
 
+	mempoolSize := vm.Mempool().Len(ctx)
 	changesEstimate := math.Min(mempoolSize, maxViewPreallocation)
 	state, err := parent.childState(ctx, changesEstimate)
 	if err != nil {
@@ -253,7 +249,11 @@ func BuildBlock(
 
 	// Perform basic validity checks to make sure the block is well-formatted
 	if len(b.Txs) == 0 {
-		return nil, ErrNoTxs
+		if nextTime < parent.Tmstmp+r.GetMinEmptyBlockGap() {
+			return nil, ErrNoTxs
+		}
+
+		vm.RecordEmptyBlockBuilt()
 	}
 
 	// Get root from underlying state changes after writing all changed keys

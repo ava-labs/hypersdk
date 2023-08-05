@@ -75,6 +75,7 @@ func (b *Time) QueueNotify() {
 		b.vm.Logger().Debug("notifying to build without waiting", zap.Bool("sent", sent))
 		return
 	}
+	// TODO: ensure we wait at least X milliseconds here (otherwise can loop on failure)
 	sleep := gap - since
 	sleepDur := time.Duration(sleep * int64(time.Millisecond))
 	b.timer.SetTimeoutIn(sleepDur)
