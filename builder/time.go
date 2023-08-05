@@ -38,6 +38,7 @@ func NewTime(vm VM) *Time {
 
 func (b *Time) Run() {
 	b.timer.Dispatch()
+	b.QueueNotify() // start building loop (may not be an initial trigger)
 }
 
 func (b *Time) handleTimerNotify() {
