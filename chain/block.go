@@ -817,7 +817,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	}
 
 	// Parse transactions
-	txCount := p.UnpackInt(false) // could be 0 in genesis
+	txCount := p.UnpackInt(false) // can produce empty blocks
 	actionRegistry, authRegistry := parser.Registry()
 	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
 	for i := 0; i < txCount; i++ {
