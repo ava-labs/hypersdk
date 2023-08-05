@@ -47,6 +47,7 @@ type VM interface {
 
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction) bool
+	GetTargetBuildDuration() time.Duration
 
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
@@ -66,6 +67,7 @@ type VM interface {
 	RecordWaitSignatures(time.Duration) // only called in Verify
 	RecordStateChanges(int)
 	RecordStateOperations(int)
+	RecordBuildCapped()
 }
 
 type Mempool interface {
@@ -73,6 +75,7 @@ type Mempool interface {
 	Add(context.Context, []*Transaction)
 	Build(
 		context.Context,
+		time.Duration,
 		func(context.Context, *Transaction) (bool /* continue */, bool /* restore */, bool /* remove account */, error),
 	) error
 }

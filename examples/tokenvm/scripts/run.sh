@@ -136,12 +136,13 @@ cat <<EOF > ${TMPDIR}/tokenvm.config
   "gossipProposerDepth": 1,
   "noGossipBuilderDiff": 5,
   "trackedPairs":["*"],
-  "continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
 mkdir -p ${TMPDIR}/tokenvm-e2e-profiles
+
+# Profiling config: {"continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*"}
 
 ############################
 

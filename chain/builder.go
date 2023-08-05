@@ -106,6 +106,7 @@ func BuildBlock(
 	)
 	mempoolErr := mempool.Build(
 		ctx,
+		vm.GetTargetBuildDuration(),
 		func(fctx context.Context, next *Transaction) (cont bool, restore bool, removeAcct bool, err error) {
 			if txsAttempted == 0 {
 				lockWait = time.Since(start)
@@ -238,6 +239,9 @@ func BuildBlock(
 			return true, false, false, nil
 		},
 	)
+	if time.Since(start) > b.vm.GetTargetBuildDuration() {
+		b.vm.RecordBuildCapped()
+	}
 	span.SetAttributes(
 		attribute.Int("attempted", txsAttempted),
 		attribute.Int("added", len(b.Txs)),
