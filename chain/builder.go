@@ -239,6 +239,9 @@ func BuildBlock(
 			return true, false, false, nil
 		},
 	)
+	if time.Since(start) > b.vm.GetTargetBuildDuration() {
+		b.vm.RecordBuildCapped()
+	}
 	span.SetAttributes(
 		attribute.Int("attempted", txsAttempted),
 		attribute.Int("added", len(b.Txs)),

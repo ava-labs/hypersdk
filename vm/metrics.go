@@ -19,6 +19,7 @@ type Metrics struct {
 	txsAccepted     prometheus.Counter
 	stateChanges    prometheus.Counter
 	stateOperations prometheus.Counter
+	buildCapped     prometheus.Counter
 	mempoolSize     prometheus.Gauge
 	rootCalculated  metric.Averager
 	waitSignatures  metric.Averager
@@ -92,6 +93,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "state_operations",
 			Help:      "number of state operations",
 		}),
+		buildCapped: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "build_capped",
+			Help:      "number of times build capped by target duration",
+		}),
 		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "mempool_size",
@@ -112,6 +118,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
 		r.Register(m.mempoolSize),
+		r.Register(m.buildCapped),
 	)
 	return r, m, errs.Err
 }
