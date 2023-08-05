@@ -39,6 +39,8 @@ type Config interface {
 	GetParsedBlockCacheSize() int
 	GetAcceptedBlockCacheSize() int
 	GetContinuousProfilerConfig() *profiler.Config
+	GetTargetBuildDuration() time.Duration
+	GetTargetGossipDuration() time.Duration
 }
 
 type Genesis interface {

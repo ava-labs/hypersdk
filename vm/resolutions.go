@@ -373,3 +373,11 @@ func (vm *VM) RecordTxsGossiped(c int) {
 func (vm *VM) RecordTxsReceived(c int) {
 	vm.metrics.txsReceived.Add(float64(c))
 }
+
+func (vm *VM) GetTargetBuildDuration() time.Duration {
+	return vm.config.GetTargetBuildDuration()
+}
+
+func (vm *VM) GetTargetGossipDuration() time.Duration {
+	return vm.config.GetTargetGossipDuration()
+}
