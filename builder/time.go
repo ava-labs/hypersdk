@@ -13,6 +13,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const minBuildGap int64 = 30 // ms
+
 var _ Builder = (*Time)(nil)
 
 // Time tells the engine when to build blocks and gossip transactions
@@ -20,8 +22,9 @@ type Time struct {
 	vm        VM
 	doneBuild chan struct{}
 
-	timer   *timer.Timer
-	waiting atomic.Bool
+	timer     *timer.Timer
+	lastQueue int64
+	waiting   atomic.Bool
 }
 
 func NewTime(vm VM) *Time {
@@ -38,15 +41,10 @@ func (b *Time) Run() {
 }
 
 func (b *Time) handleTimerNotify() {
-	// Avoid notifying the engine if there is nothing to do (will block when VM
-	// is later invoked)
-	var sent bool
-	if b.vm.Mempool().Len(context.TODO()) > 0 {
-		b.ForceNotify()
-		sent = true
-	}
+	b.ForceNotify()
 	b.waiting.Store(false)
-	b.vm.Logger().Debug("trigger to notify", zap.Bool("sent", sent))
+	txs := b.vm.Mempool().Len(context.TODO())
+	b.vm.Logger().Debug("trigger to notify", zap.Int("txs", txs))
 }
 
 func (b *Time) QueueNotify() {
@@ -60,23 +58,21 @@ func (b *Time) QueueNotify() {
 		return
 	}
 	now := time.Now().UnixMilli()
-	since := now - preferredBlk.Tmstmp
-	if since < 0 {
-		since = 0
-	}
 	gap := b.vm.Rules(now).GetMinBlockGap()
-	if since >= gap {
-		var sent bool
-		if b.vm.Mempool().Len(context.TODO()) > 0 {
+	var sleep int64
+	if now >= preferredBlk.Tmstmp+gap {
+		if now < b.lastQueue+minBuildGap {
+			sleep = b.lastQueue + minBuildGap - now
+		} else {
 			b.ForceNotify()
-			sent = true
+			b.waiting.Store(false)
+			txs := b.vm.Mempool().Len(context.TODO())
+			b.vm.Logger().Debug("notifying to build without waiting", zap.Int("txs", txs))
+			return
 		}
-		b.waiting.Store(false)
-		b.vm.Logger().Debug("notifying to build without waiting", zap.Bool("sent", sent))
-		return
+	} else {
+		sleep = preferredBlk.Tmstmp + gap - now
 	}
-	// TODO: ensure we wait at least X milliseconds here (otherwise can loop on failure)
-	sleep := gap - since
 	sleepDur := time.Duration(sleep * int64(time.Millisecond))
 	b.timer.SetTimeoutIn(sleepDur)
 	b.vm.Logger().Debug("waiting to notify to build", zap.Duration("t", sleepDur))
@@ -85,6 +81,7 @@ func (b *Time) QueueNotify() {
 func (b *Time) ForceNotify() {
 	select {
 	case b.vm.EngineChan() <- common.PendingTxs:
+		b.lastQueue = time.Now().UnixMilli()
 	default:
 		b.vm.Logger().Debug("dropping message to consensus engine")
 	}
