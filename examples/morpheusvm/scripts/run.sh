@@ -131,12 +131,13 @@ cat <<EOF > ${TMPDIR}/morpheusvm.config
   "verifySignatures":true,
   "storeTransactions":true,
   "streamingBacklogSize": 10000000,
-  "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
 mkdir -p ${TMPDIR}/morpheusvm-e2e-profiles
+
+# Profiling config:  {"continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*"}
 
 ############################
 
