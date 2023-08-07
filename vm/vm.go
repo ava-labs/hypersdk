@@ -307,10 +307,12 @@ func (vm *VM) Initialize(
 	vm.stateSyncNetworkServer = syncEng.NewNetworkServer(stateSyncSender, vm.stateDB, vm.Logger())
 	vm.networkManager.SetHandler(stateSyncHandler, NewStateSyncHandler(vm))
 
-	// Startup block builder and gossiper
-	go vm.builder.Run()
+	// Setup gossip networking
 	gossipHandler, gossipSender := vm.networkManager.Register()
 	vm.networkManager.SetHandler(gossipHandler, NewTxGossipHandler(vm))
+
+	// Startup block builder and gossiper
+	go vm.builder.Run()
 	go vm.gossiper.Run(gossipSender)
 
 	// Wait until VM is ready and then send a state sync message to engine
@@ -356,6 +358,7 @@ func (vm *VM) markReady() {
 		"node is now ready",
 		zap.Bool("synced", vm.stateSyncClient.Started()),
 	)
+	vm.builder.QueueNotify()
 }
 
 func (vm *VM) isReady() bool {
@@ -434,6 +437,7 @@ func (vm *VM) ForceReady() {
 
 // onNormalOperationsStarted marks this VM as bootstrapped
 func (vm *VM) onNormalOperationsStarted() error {
+	vm.builder.QueueNotify()
 	if vm.bootstrapped.Get() {
 		return nil
 	}
@@ -592,16 +596,17 @@ func (vm *VM) buildBlock(
 	ctx context.Context,
 	blockContext *smblock.Context,
 ) (snowman.Block, error) {
-	if !vm.isReady() {
-		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrNotReady))
-		return nil, ErrNotReady
-	}
-
 	// Notify builder if we should build again (whether or not we are successful this time)
 	//
 	// Note: builder should regulate whether or not it actually decides to build based on state
 	// of the mempool.
 	defer vm.builder.QueueNotify()
+
+	// If the node isn't ready, we should stop
+	if !vm.isReady() {
+		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrNotReady))
+		return nil, ErrNotReady
+	}
 
 	// Build block and store as parsed
 	blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)

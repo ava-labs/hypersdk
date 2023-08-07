@@ -37,8 +37,8 @@ func NewTime(vm VM) *Time {
 }
 
 func (b *Time) Run() {
-	b.timer.Dispatch()
-	b.QueueNotify() // start building loop (may not be an initial trigger)
+	b.QueueNotify()    // start building loop (may not be an initial trigger)
+	b.timer.Dispatch() // this blocks
 }
 
 func (b *Time) handleTimerNotify() {
@@ -49,9 +49,6 @@ func (b *Time) handleTimerNotify() {
 }
 
 func (b *Time) QueueNotify() {
-	// TODO: this isn't being triggered on startup
-	b.vm.Logger().Debug("queued build notify")
-
 	if !b.waiting.CompareAndSwap(false, true) {
 		b.vm.Logger().Debug("unable to acquire waiting lock")
 		return
