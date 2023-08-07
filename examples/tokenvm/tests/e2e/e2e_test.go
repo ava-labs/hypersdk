@@ -1509,31 +1509,9 @@ func awaitHealthy(cli runner_sdk.Client, instances []instance) {
 			return
 		}
 		hutils.Outf(
-			"{{yellow}}waiting for health check to pass...broadcasting tx while waiting:{{/}} %v\n",
+			"{{yellow}}waiting for health check to pass:{{/}} %v\n",
 			err,
 		)
-
-		// Add more txs via other nodes until healthy (should eventually happen after
-		// [ValidityWindow] processed)
-		other, err := crypto.GeneratePrivateKey()
-		gomega.Ω(err).Should(gomega.BeNil())
-		for _, instance := range instances {
-			parser, err := instance.tcli.Parser(context.Background())
-			gomega.Ω(err).Should(gomega.BeNil())
-			submit, _, _, err := instance.cli.GenerateTransaction(
-				context.Background(),
-				parser,
-				nil,
-				&actions.Transfer{
-					To:    other.PublicKey(),
-					Value: 1,
-				},
-				factory,
-			)
-			gomega.Ω(err).Should(gomega.BeNil())
-			// Broadcast and wait for transaction
-			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		}
 	}
 }
 

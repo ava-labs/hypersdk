@@ -149,11 +149,6 @@ func (h *Handler) Spam(
 			return err
 		}
 		funds[pk.PublicKey()] = distAmount
-
-		// Ensure Snowman++ is activated
-		if i < 10 {
-			time.Sleep(500 * time.Millisecond)
-		}
 	}
 	for i := 0; i < numAccounts; i++ {
 		_, dErr, result, err := dcli.ListenTx(ctx)
@@ -375,11 +370,6 @@ func (h *Handler) Spam(
 			return err
 		}
 		returnedBalance += returnAmt
-
-		// Ensure Snowman++ is activated
-		if i < 10 {
-			time.Sleep(500 * time.Millisecond)
-		}
 	}
 	for i := 0; i < returnsSent; i++ {
 		_, dErr, result, err := dcli.ListenTx(ctx)
