@@ -49,7 +49,11 @@ func (b *Time) handleTimerNotify() {
 }
 
 func (b *Time) QueueNotify() {
+	// TODO: this isn't being triggered on startup
+	b.vm.Logger().Debug("queued build notify")
+
 	if !b.waiting.CompareAndSwap(false, true) {
+		b.vm.Logger().Debug("unable to acquire waiting lock")
 		return
 	}
 	preferredBlk, err := b.vm.PreferredBlock(context.TODO())

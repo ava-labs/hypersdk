@@ -202,13 +202,8 @@ func ParseStatefulBlock(
 	defer span.End()
 
 	// Perform basic correctness checks before doing any expensive work
-	if blk.Hght > 0 { // skip genesis
-		if blk.Tmstmp > time.Now().Add(FutureBound).UnixMilli() {
-			return nil, ErrTimestampTooLate
-		}
-		if len(blk.Txs) == 0 {
-			return nil, ErrNoTxs
-		}
+	if blk.Tmstmp > time.Now().Add(FutureBound).UnixMilli() {
+		return nil, ErrTimestampTooLate
 	}
 
 	if len(source) == 0 {
@@ -834,7 +829,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 
 	if !p.Empty() {
 		// Ensure no leftover bytes
-		return nil, ErrInvalidObject
+		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
 	}
 	return &b, p.Err()
 }

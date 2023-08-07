@@ -19,7 +19,7 @@ fi
 
 VERSION=v1.10.7
 MODE=${MODE:-run}
-LOGLEVEL=${LOGLEVEL:-info}
+LOGLEVEL=${LOGLEVEL:-debug}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
 if [[ ${MODE} != "run" ]]; then
@@ -31,6 +31,7 @@ fi
 echo "Running with:"
 echo VERSION: ${VERSION}
 echo MODE: ${MODE}
+echo LOG LEVEL: ${LOGLEVEL}
 echo STATESYNC_DELAY \(ns\): ${STATESYNC_DELAY}
 echo MIN_BLOCK_GAP \(ms\): ${MIN_BLOCK_GAP}
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -250,7 +251,7 @@ func BuildBlock(
 	// Perform basic validity checks to make sure the block is well-formatted
 	if len(b.Txs) == 0 {
 		if nextTime < parent.Tmstmp+r.GetMinEmptyBlockGap() {
-			return nil, ErrNoTxs
+			return nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime)
 		}
 
 		vm.RecordEmptyBlockBuilt()
