@@ -596,17 +596,20 @@ func (vm *VM) buildBlock(
 	ctx context.Context,
 	blockContext *smblock.Context,
 ) (snowman.Block, error) {
+	// If the node isn't ready, we should exit.
+	//
+	// We call [QueueNotify] when the VM becomes ready, so exiting
+	// early here should not cause us to stop producing blocks.
+	if !vm.isReady() {
+		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrNotReady))
+		return nil, ErrNotReady
+	}
+
 	// Notify builder if we should build again (whether or not we are successful this time)
 	//
 	// Note: builder should regulate whether or not it actually decides to build based on state
 	// of the mempool.
 	defer vm.builder.QueueNotify()
-
-	// If the node isn't ready, we should stop
-	if !vm.isReady() {
-		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrNotReady))
-		return nil, ErrNotReady
-	}
 
 	// Build block and store as parsed
 	blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
