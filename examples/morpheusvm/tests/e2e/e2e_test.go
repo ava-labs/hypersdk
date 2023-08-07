@@ -500,7 +500,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			}),
 		)
 		gomega.Expect(err).To(gomega.BeNil())
-		awaitHealthy(anrCli, []instance{instances[0]})
+		awaitHealthy(anrCli)
 
 		nodeURI := cluster.ClusterInfo.NodeInfos["bootstrap"].Uri
 		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
@@ -545,7 +545,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 
-		awaitHealthy(anrCli, []instance{instances[0]})
+		awaitHealthy(anrCli)
 
 		nodeURI := cluster.ClusterInfo.NodeInfos["sync"].Uri
 		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
@@ -570,7 +570,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 
-		awaitHealthy(anrCli, []instance{instances[0]})
+		awaitHealthy(anrCli)
 
 		ok, err := syncClient.Ping(context.Background())
 		gomega.Ω(ok).Should(gomega.BeFalse())
@@ -589,7 +589,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 
-		awaitHealthy(anrCli, []instance{instances[0]})
+		awaitHealthy(anrCli)
 	})
 
 	ginkgo.It("accepts transaction after restarted node state sync", func() {
@@ -619,7 +619,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			}),
 		)
 		gomega.Expect(err).To(gomega.BeNil())
-		awaitHealthy(anrCli, []instance{instances[0]})
+		awaitHealthy(anrCli)
 
 		nodeURI := cluster.ClusterInfo.NodeInfos["sync_concurrent"].Uri
 		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
@@ -640,7 +640,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	// TODO: restart all nodes (crisis simulation)
 })
 
-func awaitHealthy(cli runner_sdk.Client, instances []instance) {
+func awaitHealthy(cli runner_sdk.Client) {
 	for {
 		time.Sleep(healthPollInterval)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
