@@ -63,15 +63,14 @@ func (b *Time) QueueNotify() {
 	gap := b.vm.Rules(now).GetMinBlockGap()
 	var sleep int64
 	if now >= preferredBlk.Tmstmp+gap {
-		if now < b.lastQueue+minBuildGap {
-			sleep = b.lastQueue + minBuildGap - now
-		} else {
+		if now >= b.lastQueue+minBuildGap {
 			b.ForceNotify()
 			b.waiting.Store(false)
 			txs := b.vm.Mempool().Len(context.TODO())
 			b.vm.Logger().Debug("notifying to build without waiting", zap.Int("txs", txs))
 			return
 		}
+		sleep = b.lastQueue + minBuildGap - now
 	} else {
 		sleep = preferredBlk.Tmstmp + gap - now
 	}
