@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	oed25519 "github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
+	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519/extra/cache"
 
 	"github.com/stretchr/testify/require"
 )
@@ -300,3 +301,65 @@ func BenchmarkOasisVerifySingle(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkOasisVerifyCache(b *testing.B) {
+	cacheVerifier := cache.NewVerifier(cache.NewLRUCache(10000))
+	pub, priv, err := oed25519.GenerateKey(nil)
+	if err != nil {
+		panic(err)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		msg := make([]byte, 128)
+		_, err := rand.Read(msg)
+		if err != nil {
+			panic(err)
+		}
+		sig := oed25519.Sign(priv, msg)
+		b.StartTimer()
+		if !cacheVerifier.Verify(pub, msg, sig) {
+			panic("invalid signature")
+		}
+	}
+}
+
+func benchmarkOasisBatchVerify(b *testing.B, numItems int) {
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		pubs := make([][]byte, numItems)
+		msgs := make([][]byte, numItems)
+		sigs := make([][]byte, numItems)
+		for j := 0; j < numItems; j++ {
+			pub, priv, err := oed25519.GenerateKey(nil)
+			if err != nil {
+				panic(err)
+			}
+			pubs[j] = pub
+			msg := make([]byte, 128)
+			_, err = rand.Read(msg)
+			if err != nil {
+				panic(err)
+			}
+			msgs[j] = msg
+			sig := oed25519.Sign(priv, msg)
+			sigs[j] = sig
+		}
+		b.StartTimer()
+		bv := oed25519.NewBatchVerifier()
+		for j := 0; j < numItems; j++ {
+			bv.Add(pubs[j], msgs[j], sigs[j])
+		}
+		if !bv.VerifyBatchOnly(nil) {
+			panic("invalid signature")
+		}
+	}
+}
+
+func BenchmarkOasisBatchVerify16(b *testing.B)    { benchmarkOasisBatchVerify(b, 16) }
+func BenchmarkOasisBatchVerify64(b *testing.B)    { benchmarkOasisBatchVerify(b, 64) }
+func BenchmarkOasisBatchVerify128(b *testing.B)   { benchmarkOasisBatchVerify(b, 128) }
+func BenchmarkOasisBatchVerify512(b *testing.B)   { benchmarkOasisBatchVerify(b, 512) }
+func BenchmarkOasisBatchVerify1024(b *testing.B)  { benchmarkOasisBatchVerify(b, 1024) }
+func BenchmarkOasisBatchVerify4096(b *testing.B)  { benchmarkOasisBatchVerify(b, 4096) }
+func BenchmarkOasisBatchVerify16384(b *testing.B) { benchmarkOasisBatchVerify(b, 16384) }
