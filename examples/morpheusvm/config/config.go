@@ -24,6 +24,7 @@ import (
 var _ vm.Config = (*Config)(nil)
 
 const (
+	defaultDSN                         = "http://project2_secret_token@localhost:14317/2"
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
 	defaultStoreTransactions           = true
@@ -95,6 +96,7 @@ func (c *Config) setDefault() {
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 	c.VerifySignatures = c.Config.GetVerifySignatures()
 	c.StoreTransactions = defaultStoreTransactions
+	c.DSN = defaultDSN
 }
 
 func (c *Config) GetLogLevel() logging.Level       { return c.LogLevel }
