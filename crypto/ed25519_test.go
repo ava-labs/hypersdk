@@ -5,9 +5,12 @@ package crypto
 
 import (
 	"crypto/ed25519"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
+
+	oed25519 "github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
 
 	"github.com/stretchr/testify/require"
 )
@@ -250,4 +253,50 @@ func TestHexToKey(t *testing.T) {
 func TestKeyToHex(t *testing.T) {
 	require := require.New(t)
 	require.Equal(TestPrivateKeyHex, TestPrivateKey.ToHex())
+}
+
+// TODO: benchmarks
+// * std crypto/ed25519
+// * oasis crypto/ed25519
+// * oasis crypto/ed25519 with pubkey cache
+// * oasis crypto/ed25519 with batch verifier + pubkey cache
+
+func BenchmarkStdLibVerifySingle(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		msg := make([]byte, 128)
+		_, err := rand.Read(msg)
+		if err != nil {
+			panic(err)
+		}
+		pub, priv, err := ed25519.GenerateKey(nil)
+		if err != nil {
+			panic(err)
+		}
+		sig := ed25519.Sign(priv, msg)
+		b.StartTimer()
+		if !ed25519.Verify(pub, msg, sig) {
+			panic("invalid signature")
+		}
+	}
+}
+
+func BenchmarkOasisVerifySingle(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		msg := make([]byte, 128)
+		_, err := rand.Read(msg)
+		if err != nil {
+			panic(err)
+		}
+		pub, priv, err := oed25519.GenerateKey(nil)
+		if err != nil {
+			panic(err)
+		}
+		sig := oed25519.Sign(priv, msg)
+		b.StartTimer()
+		if !oed25519.Verify(pub, msg, sig) {
+			panic("invalid signature")
+		}
+	}
 }

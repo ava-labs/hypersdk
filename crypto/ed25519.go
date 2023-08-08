@@ -1,9 +1,6 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-// Package crypto provides functionality for interacting with Ed25519
-// public and private keys. Package crypto uses the "crypto/ed25519"
-// package from  Go's standard library for the underlying cryptography.
 package crypto
 
 import (
