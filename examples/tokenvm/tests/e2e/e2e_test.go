@@ -498,15 +498,6 @@ var _ = ginkgo.Describe("[Test]", func() {
 		return
 	}
 
-	ginkgo.It("get currently accepted block ID", func() {
-		for _, inst := range instancesA {
-			cli := inst.cli
-			_, h, _, err := cli.Accepted(context.Background())
-			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(h).Should(gomega.Equal(uint64(0)))
-		}
-	})
-
 	ginkgo.It("transfer in a single node (raw)", func() {
 		nativeBalance, err := instancesA[0].tcli.Balance(context.TODO(), sender, ids.Empty)
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -1359,7 +1350,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			}),
 		)
 		gomega.Expect(err).To(gomega.BeNil())
-		awaitHealthy(anrCli, []instance{instancesA[0]})
+		awaitHealthy(anrCli)
 
 		nodeURI := cluster.ClusterInfo.NodeInfos["bootstrap"].Uri
 		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainIDA)
@@ -1404,7 +1395,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 
-		awaitHealthy(anrCli, []instance{instancesA[0]})
+		awaitHealthy(anrCli)
 
 		nodeURI := cluster.ClusterInfo.NodeInfos["sync"].Uri
 		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainIDA)
@@ -1429,7 +1420,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 
-		awaitHealthy(anrCli, []instance{instancesA[0]})
+		awaitHealthy(anrCli)
 
 		ok, err := syncClient.Ping(context.Background())
 		gomega.Ω(ok).Should(gomega.BeFalse())
@@ -1448,7 +1439,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 
-		awaitHealthy(anrCli, []instance{instancesA[0], instancesB[0]})
+		awaitHealthy(anrCli)
 	})
 
 	ginkgo.It("accepts transaction after restarted node state sync", func() {
@@ -1478,7 +1469,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			}),
 		)
 		gomega.Expect(err).To(gomega.BeNil())
-		awaitHealthy(anrCli, []instance{instancesA[0]})
+		awaitHealthy(anrCli)
 
 		nodeURI := cluster.ClusterInfo.NodeInfos["sync_concurrent"].Uri
 		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainIDA)
@@ -1499,7 +1490,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	// TODO: restart all nodes (crisis simulation)
 })
 
-func awaitHealthy(cli runner_sdk.Client, instances []instance) {
+func awaitHealthy(cli runner_sdk.Client) {
 	for {
 		time.Sleep(healthPollInterval)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -1509,31 +1500,9 @@ func awaitHealthy(cli runner_sdk.Client, instances []instance) {
 			return
 		}
 		hutils.Outf(
-			"{{yellow}}waiting for health check to pass...broadcasting tx while waiting:{{/}} %v\n",
+			"{{yellow}}waiting for health check to pass:{{/}} %v\n",
 			err,
 		)
-
-		// Add more txs via other nodes until healthy (should eventually happen after
-		// [ValidityWindow] processed)
-		other, err := crypto.GeneratePrivateKey()
-		gomega.Ω(err).Should(gomega.BeNil())
-		for _, instance := range instances {
-			parser, err := instance.tcli.Parser(context.Background())
-			gomega.Ω(err).Should(gomega.BeNil())
-			submit, _, _, err := instance.cli.GenerateTransaction(
-				context.Background(),
-				parser,
-				nil,
-				&actions.Transfer{
-					To:    other.PublicKey(),
-					Value: 1,
-				},
-				factory,
-			)
-			gomega.Ω(err).Should(gomega.BeNil())
-			// Broadcast and wait for transaction
-			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		}
 	}
 }
 

@@ -25,6 +25,13 @@ var generatePrometheusCmd = &cobra.Command{
 	RunE: func(_ *cobra.Command, args []string) error {
 		return handler.Root().GeneratePrometheus(runPrometheus, prometheusFile, prometheusData, func(chainID ids.ID) []string {
 			panels := []string{}
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_empty_block_built[5s])", chainID))
+			utils.Outf("{{yellow}}empty blocks built (5s):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_build_capped[5s])", chainID))
+			utils.Outf("{{yellow}}build time capped (5s):{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("avalanche_%s_blks_processing", chainID))
 			utils.Outf("{{yellow}}blocks processing:{{/}} %s\n", panels[len(panels)-1])
 
@@ -33,9 +40,6 @@ var generatePrometheusCmd = &cobra.Command{
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_blks_rejected_count[5s])/5", chainID))
 			utils.Outf("{{yellow}}blocks rejected per second:{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_build_capped[5s])/5", chainID))
-			utils.Outf("{{yellow}}build capped per second:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_submitted[5s])/5", chainID))
 			utils.Outf("{{yellow}}transactions submitted per second:{{/}} %s\n", panels[len(panels)-1])

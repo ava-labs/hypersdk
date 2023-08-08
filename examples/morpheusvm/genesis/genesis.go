@@ -31,7 +31,8 @@ type Genesis struct {
 	HRP string `json:"hrp"`
 
 	// Chain Parameters
-	MinBlockGap int64 `json:"minBlockGap"` // ms
+	MinBlockGap      int64 `json:"minBlockGap"`      // ms
+	MinEmptyBlockGap int64 `json:"minEmptyBlockGap"` // ms
 
 	// Chain Fee Parameters
 	MinUnitPrice               uint64 `json:"minUnitPrice"`
@@ -56,7 +57,8 @@ func Default() *Genesis {
 		HRP: consts.HRP,
 
 		// Chain Parameters
-		MinBlockGap: 100,
+		MinBlockGap:      100,
+		MinEmptyBlockGap: 2_500,
 
 		// Chain Fee Parameters
 		MinUnitPrice:               1,

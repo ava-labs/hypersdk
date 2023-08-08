@@ -38,6 +38,10 @@ func (r *Rules) GetMinBlockGap() int64 {
 	return r.g.MinBlockGap
 }
 
+func (r *Rules) GetMinEmptyBlockGap() int64 {
+	return r.g.MinEmptyBlockGap
+}
+
 func (r *Rules) GetWarpBaseUnits() uint64 {
 	return r.g.WarpBaseUnits
 }

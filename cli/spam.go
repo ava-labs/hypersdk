@@ -149,11 +149,6 @@ func (h *Handler) Spam(
 			return err
 		}
 		funds[pk.PublicKey()] = distAmount
-
-		// Ensure Snowman++ is activated
-		if i < 10 {
-			time.Sleep(500 * time.Millisecond)
-		}
 	}
 	for i := 0; i < numAccounts; i++ {
 		_, dErr, result, err := dcli.ListenTx(ctx)
@@ -241,6 +236,7 @@ func (h *Handler) Spam(
 				funds[accounts[i].PublicKey()] = balance
 				fundsL.Unlock()
 			}()
+			ut := time.Now().Unix()
 			for {
 				select {
 				case <-t.C:
@@ -249,6 +245,17 @@ func (h *Handler) Spam(
 						t.Reset(1 * time.Second)
 						continue
 					}
+
+					// Select tx time
+					//
+					// Needed to prevent duplicates if called within the same
+					// unix second.
+					nextTime := time.Now().Unix()
+					if nextTime <= ut {
+						nextTime = ut + 1
+					}
+					ut = nextTime
+					tm := &timeModifier{nextTime*consts.MillisecondsPerSecond + parser.Rules(nextTime).GetValidityWindow() - 5*consts.MillisecondsPerSecond}
 
 					// Send transaction
 					start := time.Now()
@@ -261,7 +268,7 @@ func (h *Handler) Spam(
 						}
 						v := selected[recipient] + 1
 						selected[recipient] = v
-						_, tx, fees, err := issuer.c.GenerateTransactionManual(parser, nil, getTransfer(recipient, uint64(v)), factory, unitPrice)
+						_, tx, fees, err := issuer.c.GenerateTransactionManual(parser, nil, getTransfer(recipient, uint64(v)), factory, unitPrice, tm)
 						if err != nil {
 							utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
 							continue
@@ -363,11 +370,6 @@ func (h *Handler) Spam(
 			return err
 		}
 		returnedBalance += returnAmt
-
-		// Ensure Snowman++ is activated
-		if i < 10 {
-			time.Sleep(500 * time.Millisecond)
-		}
 	}
 	for i := 0; i < returnsSent; i++ {
 		_, dErr, result, err := dcli.ListenTx(ctx)
@@ -398,6 +400,14 @@ type txIssuer struct {
 	uri            int
 	abandoned      error
 	outstandingTxs int
+}
+
+type timeModifier struct {
+	Timestamp int64
+}
+
+func (t *timeModifier) Base(b *chain.Base) {
+	b.Timestamp = t.Timestamp
 }
 
 func startIssuer(cctx context.Context, issuer *txIssuer) {

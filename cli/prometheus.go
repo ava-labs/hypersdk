@@ -142,7 +142,9 @@ func (h *Handler) GeneratePrometheus(open bool, prometheusFile string, prometheu
 	utils.Outf("{{cyan}}starting prometheus (/tmp/prometheus) in background{{/}}\n")
 	if err := cmd.Run(); err != nil {
 		errChan <- err
+		utils.Outf("{{orange}}prometheus exited with error:{{/}} %v\n", err)
 		return err
 	}
+	utils.Outf("{{cyan}}prometheus exited{{/}}\n")
 	return nil
 }

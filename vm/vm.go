@@ -297,20 +297,31 @@ func (vm *VM) Initialize(
 
 	// Setup state syncing
 	stateSyncHandler, stateSyncSender := vm.networkManager.Register()
-	vm.stateSyncNetworkClient = syncEng.NewNetworkClient(
+	syncRegistry := prometheus.NewRegistry()
+	vm.stateSyncNetworkClient, err = syncEng.NewNetworkClient(
 		stateSyncSender,
 		vm.snowCtx.NodeID,
 		int64(vm.config.GetStateSyncParallelism()),
 		vm.Logger(),
+		"",
+		syncRegistry,
 	)
+	if err != nil {
+		return err
+	}
+	if err := gatherer.Register("sync", syncRegistry); err != nil {
+		return err
+	}
 	vm.stateSyncClient = vm.NewStateSyncClient(gatherer)
 	vm.stateSyncNetworkServer = syncEng.NewNetworkServer(stateSyncSender, vm.stateDB, vm.Logger())
 	vm.networkManager.SetHandler(stateSyncHandler, NewStateSyncHandler(vm))
 
-	// Startup block builder and gossiper
-	go vm.builder.Run()
+	// Setup gossip networking
 	gossipHandler, gossipSender := vm.networkManager.Register()
 	vm.networkManager.SetHandler(gossipHandler, NewTxGossipHandler(vm))
+
+	// Startup block builder and gossiper
+	go vm.builder.Run()
 	go vm.gossiper.Run(gossipSender)
 
 	// Wait until VM is ready and then send a state sync message to engine
@@ -356,6 +367,7 @@ func (vm *VM) markReady() {
 		"node is now ready",
 		zap.Bool("synced", vm.stateSyncClient.Started()),
 	)
+	vm.builder.QueueNotify()
 }
 
 func (vm *VM) isReady() bool {
@@ -434,6 +446,7 @@ func (vm *VM) ForceReady() {
 
 // onNormalOperationsStarted marks this VM as bootstrapped
 func (vm *VM) onNormalOperationsStarted() error {
+	vm.builder.QueueNotify()
 	if vm.bootstrapped.Get() {
 		return nil
 	}
@@ -592,6 +605,10 @@ func (vm *VM) buildBlock(
 	ctx context.Context,
 	blockContext *smblock.Context,
 ) (snowman.Block, error) {
+	// If the node isn't ready, we should exit.
+	//
+	// We call [QueueNotify] when the VM becomes ready, so exiting
+	// early here should not cause us to stop producing blocks.
 	if !vm.isReady() {
 		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrNotReady))
 		return nil, ErrNotReady

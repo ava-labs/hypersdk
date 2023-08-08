@@ -202,13 +202,8 @@ func ParseStatefulBlock(
 	defer span.End()
 
 	// Perform basic correctness checks before doing any expensive work
-	if blk.Hght > 0 { // skip genesis
-		if blk.Tmstmp > time.Now().Add(FutureBound).UnixMilli() {
-			return nil, ErrTimestampTooLate
-		}
-		if len(blk.Txs) == 0 {
-			return nil, ErrNoTxs
-		}
+	if blk.Tmstmp > time.Now().Add(FutureBound).UnixMilli() {
+		return nil, ErrTimestampTooLate
 	}
 
 	if len(source) == 0 {
@@ -397,11 +392,8 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	)
 
 	// Perform basic correctness checks before doing any expensive work
-	switch {
-	case b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli():
+	if b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli() {
 		return nil, ErrTimestampTooLate
-	case len(b.Txs) == 0:
-		return nil, ErrNoTxs
 	}
 
 	// Verify parent is verified and available
@@ -410,7 +402,10 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		log.Debug("could not get parent", zap.Stringer("id", b.Prnt))
 		return nil, err
 	}
-	if parent.Timestamp().UnixMilli()+r.GetMinBlockGap() > b.Timestamp().UnixMilli() {
+	if b.Timestamp().UnixMilli() < parent.Timestamp().UnixMilli()+r.GetMinBlockGap() {
+		return nil, ErrTimestampTooEarly
+	}
+	if len(b.Txs) == 0 && b.Timestamp().UnixMilli() < parent.Timestamp().UnixMilli()+r.GetMinEmptyBlockGap() {
 		return nil, ErrTimestampTooEarly
 	}
 
@@ -817,7 +812,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	}
 
 	// Parse transactions
-	txCount := p.UnpackInt(false) // could be 0 in genesis
+	txCount := p.UnpackInt(false) // can produce empty blocks
 	actionRegistry, authRegistry := parser.Registry()
 	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
 	for i := 0; i < txCount; i++ {
@@ -834,7 +829,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 
 	if !p.Empty() {
 		// Ensure no leftover bytes
-		return nil, ErrInvalidObject
+		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
 	}
 	return &b, p.Err()
 }

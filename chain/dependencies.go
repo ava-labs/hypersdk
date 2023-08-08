@@ -68,6 +68,7 @@ type VM interface {
 	RecordStateChanges(int)
 	RecordStateOperations(int)
 	RecordBuildCapped()
+	RecordEmptyBlockBuilt()
 }
 
 type Mempool interface {
@@ -93,6 +94,7 @@ type Rules interface {
 	ChainID() ids.ID
 
 	GetMinBlockGap() int64
+	GetMinEmptyBlockGap() int64
 
 	GetMinUnitPrice() uint64
 	GetUnitPriceChangeDenominator() uint64

@@ -385,3 +385,7 @@ func (vm *VM) GetTargetBuildDuration() time.Duration {
 func (vm *VM) GetTargetGossipDuration() time.Duration {
 	return vm.config.GetTargetGossipDuration()
 }
+
+func (vm *VM) RecordEmptyBlockBuilt() {
+	vm.metrics.emptyBlockBuilt.Inc()
+}

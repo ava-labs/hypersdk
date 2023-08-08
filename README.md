@@ -239,6 +239,18 @@ backends and/or traditional cloud infrastructure. For example, a `hypervm`
 developer may wish to manage state objects (for the Path-Based Merkelized Radix
 Tree) on-disk but use S3 to store blocks and PostgreSQL to store transaction metadata.
 
+### Continuous Block Production
+Unlike other VMs on Avalanche, `hypervms` produce blocks continuously (even if empty).
+While this may sound wasteful, it improves the "worst case" AWM verification cost (AWM verfication
+requires creating a reverse diff to the last referenced P-Chain block), prevents a fallback to leaderless
+block production (which can lead to more rejected blocks), and avoids a prolonged post-bootstrap
+readiness wait (`hypersdk` waits to mark itself as ready until it has seen a `ValidityWindow` of blocks).
+
+Looking ahead, support for continuous block production paves the way for the introduction
+of [chain/validator-driven actions](https://github.com/ava-labs/hypersdk/issues/336), which should
+be included on-chain every X seconds (like a price oracle update) regardless of how many user-submitted
+transactions are present.
+
 ### Unified Metrics, Tracing, and Logging
 It is functionally impossible to improve the performance of any runtime without
 detailed metrics and comprehensive tracing. For this reason, the `hypersdk`
