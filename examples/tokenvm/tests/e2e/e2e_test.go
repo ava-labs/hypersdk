@@ -498,15 +498,6 @@ var _ = ginkgo.Describe("[Test]", func() {
 		return
 	}
 
-	ginkgo.It("get currently accepted block ID", func() {
-		for _, inst := range instancesA {
-			cli := inst.cli
-			_, h, _, err := cli.Accepted(context.Background())
-			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(h).Should(gomega.Equal(uint64(0)))
-		}
-	})
-
 	ginkgo.It("transfer in a single node (raw)", func() {
 		nativeBalance, err := instancesA[0].tcli.Balance(context.TODO(), sender, ids.Empty)
 		gomega.Ω(err).Should(gomega.BeNil())

@@ -17,9 +17,9 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=v1.10.7
+VERSION=8579d7f19452e9ded1a06b69e9c8567bf7570a54
 MODE=${MODE:-run}
-LOGLEVEL=${LOGLEVEL:-debug}
+LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
 if [[ ${MODE} != "run" ]]; then

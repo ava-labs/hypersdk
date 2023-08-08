@@ -297,12 +297,21 @@ func (vm *VM) Initialize(
 
 	// Setup state syncing
 	stateSyncHandler, stateSyncSender := vm.networkManager.Register()
-	vm.stateSyncNetworkClient = syncEng.NewNetworkClient(
+	syncRegistry := prometheus.NewRegistry()
+	vm.stateSyncNetworkClient, err = syncEng.NewNetworkClient(
 		stateSyncSender,
 		vm.snowCtx.NodeID,
 		int64(vm.config.GetStateSyncParallelism()),
 		vm.Logger(),
+		"",
+		syncRegistry,
 	)
+	if err != nil {
+		return err
+	}
+	if err := gatherer.Register("sync", syncRegistry); err != nil {
+		return err
+	}
 	vm.stateSyncClient = vm.NewStateSyncClient(gatherer)
 	vm.stateSyncNetworkServer = syncEng.NewNetworkServer(stateSyncSender, vm.stateDB, vm.Logger())
 	vm.networkManager.SetHandler(stateSyncHandler, NewStateSyncHandler(vm))
