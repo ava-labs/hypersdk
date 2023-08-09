@@ -4,9 +4,10 @@
 package crypto
 
 import (
-	"crypto/ed25519"
 	"encoding/hex"
 	"os"
+
+	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
 
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 )
@@ -31,7 +32,25 @@ var (
 	EmptyPublicKey  = [ed25519.PublicKeySize]byte{}
 	EmptyPrivateKey = [ed25519.PrivateKeySize]byte{}
 	EmptySignature  = [ed25519.SignatureSize]byte{}
+
+	verifyOptions ed25519.Options
 )
+
+func init() {
+	// We use the ZIP-215 specification for ed25519 signature
+	// verification (https://zips.z.cash/zip-0215) because it provides
+	// an explicit validity criteria for signatures, supports batch
+	// verification, and is broadly compatible with signatures produced
+	// by almost all ed25519 implementations (which don't require
+	// canonically-encoded points).
+	//
+	// You can read more about the rationale for ZIP-215 here:
+	// https://hdevalence.ca/blog/2020-10-04-its-25519am
+	//
+	// You can read more about the challenge of ed25519 verification here:
+	// https://eprint.iacr.org/2020/1244.pdf
+	verifyOptions.Verify = ed25519.VerifyOptionsZIP_215
+}
 
 // Address returns a Bech32 address from hrp and p.
 // This function uses avalanchego's FormatBech32 function.

@@ -257,19 +257,6 @@ func TestKeyToHex(t *testing.T) {
 	require.Equal(TestPrivateKeyHex, TestPrivateKey.ToHex())
 }
 
-// TODO: benchmarks
-// * std crypto/ed25519
-// * oasis crypto/ed25519
-// * oasis crypto/ed25519 with pubkey cache
-// * oasis crypto/ed25519 with batch verifier + pubkey cache
-
-// TODO: move to const
-var opts oed25519.Options
-
-func init() {
-	opts.Verify = oed25519.VerifyOptionsZIP_215
-}
-
 func BenchmarkStdLibVerifySingle(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
@@ -304,7 +291,7 @@ func BenchmarkOasisVerifySingle(b *testing.B) {
 		}
 		sig := oed25519.Sign(priv, msg)
 		b.StartTimer()
-		if !oed25519.VerifyWithOptions(pub, msg, sig, &opts) {
+		if !oed25519.VerifyWithOptions(pub, msg, sig, &verifyOptions) {
 			panic("invalid signature")
 		}
 	}
@@ -326,7 +313,7 @@ func BenchmarkOasisVerifyCache(b *testing.B) {
 		sig := oed25519.Sign(priv, msg)
 		cacheVerifier.AddPublicKey(pub)
 		b.StartTimer()
-		if !cacheVerifier.VerifyWithOptions(pub, msg, sig, &opts) {
+		if !cacheVerifier.VerifyWithOptions(pub, msg, sig, &verifyOptions) {
 			panic("invalid signature")
 		}
 	}
@@ -358,7 +345,7 @@ func BenchmarkOasisBatchVerify(b *testing.B) {
 				b.StartTimer()
 				bv := oed25519.NewBatchVerifierWithCapacity(numItems)
 				for j := 0; j < numItems; j++ {
-					bv.AddWithOptions(pubs[j], msgs[j], sigs[j], &opts)
+					bv.AddWithOptions(pubs[j], msgs[j], sigs[j], &verifyOptions)
 				}
 				if !bv.VerifyBatchOnly(nil) {
 					panic("invalid signature")
@@ -396,7 +383,7 @@ func BenchmarkOasisBatchVerifyCache(b *testing.B) {
 				b.StartTimer()
 				bv := oed25519.NewBatchVerifierWithCapacity(numItems)
 				for j := 0; j < numItems; j++ {
-					cacheVerifier.AddWithOptions(bv, pubs[j], msgs[j], sigs[j], &opts)
+					cacheVerifier.AddWithOptions(bv, pubs[j], msgs[j], sigs[j], &verifyOptions)
 				}
 				if !bv.VerifyBatchOnly(nil) {
 					panic("invalid signature")
