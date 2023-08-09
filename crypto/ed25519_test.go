@@ -5,7 +5,7 @@ package crypto
 
 import (
 	"crypto/ed25519"
-	"math/rand"
+	"crypto/rand"
 	"os"
 	"path/filepath"
 	"strconv"
