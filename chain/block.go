@@ -158,6 +158,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	b.warpMessages = map[ids.ID]*warpJob{}
 	for _, tx := range b.Txs {
+		// TODO: should DRAMATICALLY reduce number of channel usage by passing entire block
 		b.sigJob.Go(tx.AuthAsyncVerify())
 		if b.txsSet.Contains(tx.ID()) {
 			return ErrDuplicateTx
