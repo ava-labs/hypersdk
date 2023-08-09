@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	oed25519 "github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
@@ -262,6 +263,13 @@ func TestKeyToHex(t *testing.T) {
 // * oasis crypto/ed25519 with pubkey cache
 // * oasis crypto/ed25519 with batch verifier + pubkey cache
 
+// TODO: move to const
+var opts oed25519.Options
+
+func init() {
+	opts.Verify = oed25519.VerifyOptionsZIP_215
+}
+
 func BenchmarkStdLibVerifySingle(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
@@ -296,7 +304,7 @@ func BenchmarkOasisVerifySingle(b *testing.B) {
 		}
 		sig := oed25519.Sign(priv, msg)
 		b.StartTimer()
-		if !oed25519.Verify(pub, msg, sig) {
+		if !oed25519.VerifyWithOptions(pub, msg, sig, &opts) {
 			panic("invalid signature")
 		}
 	}
@@ -304,11 +312,6 @@ func BenchmarkOasisVerifySingle(b *testing.B) {
 
 func BenchmarkOasisVerifyCache(b *testing.B) {
 	cacheVerifier := cache.NewVerifier(cache.NewLRUCache(10000))
-	pub, priv, err := oed25519.GenerateKey(nil)
-	if err != nil {
-		panic(err)
-	}
-	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
 		msg := make([]byte, 128)
@@ -316,50 +319,89 @@ func BenchmarkOasisVerifyCache(b *testing.B) {
 		if err != nil {
 			panic(err)
 		}
+		pub, priv, err := oed25519.GenerateKey(nil)
+		if err != nil {
+			panic(err)
+		}
 		sig := oed25519.Sign(priv, msg)
+		cacheVerifier.AddPublicKey(pub)
 		b.StartTimer()
-		if !cacheVerifier.Verify(pub, msg, sig) {
+		if !cacheVerifier.VerifyWithOptions(pub, msg, sig, &opts) {
 			panic("invalid signature")
 		}
 	}
 }
 
-func benchmarkOasisBatchVerify(b *testing.B, numItems int) {
-	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		pubs := make([][]byte, numItems)
-		msgs := make([][]byte, numItems)
-		sigs := make([][]byte, numItems)
-		for j := 0; j < numItems; j++ {
-			pub, priv, err := oed25519.GenerateKey(nil)
-			if err != nil {
-				panic(err)
+func BenchmarkOasisBatchVerify(b *testing.B) {
+	for _, numItems := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
+		b.Run(strconv.Itoa(numItems), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				pubs := make([][]byte, numItems)
+				msgs := make([][]byte, numItems)
+				sigs := make([][]byte, numItems)
+				for j := 0; j < numItems; j++ {
+					pub, priv, err := oed25519.GenerateKey(nil)
+					if err != nil {
+						panic(err)
+					}
+					pubs[j] = pub
+					msg := make([]byte, 128)
+					_, err = rand.Read(msg)
+					if err != nil {
+						panic(err)
+					}
+					msgs[j] = msg
+					sig := oed25519.Sign(priv, msg)
+					sigs[j] = sig
+				}
+				b.StartTimer()
+				bv := oed25519.NewBatchVerifierWithCapacity(numItems)
+				for j := 0; j < numItems; j++ {
+					bv.AddWithOptions(pubs[j], msgs[j], sigs[j], &opts)
+				}
+				if !bv.VerifyBatchOnly(nil) {
+					panic("invalid signature")
+				}
 			}
-			pubs[j] = pub
-			msg := make([]byte, 128)
-			_, err = rand.Read(msg)
-			if err != nil {
-				panic(err)
-			}
-			msgs[j] = msg
-			sig := oed25519.Sign(priv, msg)
-			sigs[j] = sig
-		}
-		b.StartTimer()
-		bv := oed25519.NewBatchVerifier()
-		for j := 0; j < numItems; j++ {
-			bv.Add(pubs[j], msgs[j], sigs[j])
-		}
-		if !bv.VerifyBatchOnly(nil) {
-			panic("invalid signature")
-		}
+		})
 	}
 }
 
-func BenchmarkOasisBatchVerify16(b *testing.B)    { benchmarkOasisBatchVerify(b, 16) }
-func BenchmarkOasisBatchVerify64(b *testing.B)    { benchmarkOasisBatchVerify(b, 64) }
-func BenchmarkOasisBatchVerify128(b *testing.B)   { benchmarkOasisBatchVerify(b, 128) }
-func BenchmarkOasisBatchVerify512(b *testing.B)   { benchmarkOasisBatchVerify(b, 512) }
-func BenchmarkOasisBatchVerify1024(b *testing.B)  { benchmarkOasisBatchVerify(b, 1024) }
-func BenchmarkOasisBatchVerify4096(b *testing.B)  { benchmarkOasisBatchVerify(b, 4096) }
-func BenchmarkOasisBatchVerify16384(b *testing.B) { benchmarkOasisBatchVerify(b, 16384) }
+func BenchmarkOasisBatchVerifyCache(b *testing.B) {
+	cacheVerifier := cache.NewVerifier(cache.NewLRUCache(30000))
+	for _, numItems := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
+		b.Run(strconv.Itoa(numItems), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				pubs := make([][]byte, numItems)
+				msgs := make([][]byte, numItems)
+				sigs := make([][]byte, numItems)
+				for j := 0; j < numItems; j++ {
+					pub, priv, err := oed25519.GenerateKey(nil)
+					if err != nil {
+						panic(err)
+					}
+					cacheVerifier.AddPublicKey(pub)
+					pubs[j] = pub
+					msg := make([]byte, 128)
+					_, err = rand.Read(msg)
+					if err != nil {
+						panic(err)
+					}
+					msgs[j] = msg
+					sig := oed25519.Sign(priv, msg)
+					sigs[j] = sig
+				}
+				b.StartTimer()
+				bv := oed25519.NewBatchVerifierWithCapacity(numItems)
+				for j := 0; j < numItems; j++ {
+					cacheVerifier.AddWithOptions(bv, pubs[j], msgs[j], sigs[j], &opts)
+				}
+				if !bv.VerifyBatchOnly(nil) {
+					panic("invalid signature")
+				}
+			}
+		})
+	}
+}
