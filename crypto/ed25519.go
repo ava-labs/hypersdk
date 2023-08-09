@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
+	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519/extra/cache"
 
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 )
@@ -26,6 +27,8 @@ const (
 	// to extract the publicKey below.
 	PrivateKeySeedLen = ed25519.SeedSize
 	SignatureLen      = ed25519.SignatureSize
+
+	cacheSize = 128_000 // ~179MB (keys are ~1.4KB each)
 )
 
 var (
@@ -34,6 +37,7 @@ var (
 	EmptySignature  = [ed25519.SignatureSize]byte{}
 
 	verifyOptions ed25519.Options
+	cacheVerifier *cache.Verifier
 )
 
 func init() {
@@ -50,6 +54,10 @@ func init() {
 	// You can read more about the challenge of ed25519 verification here:
 	// https://eprint.iacr.org/2020/1244.pdf
 	verifyOptions.Verify = ed25519.VerifyOptionsZIP_215
+
+	// cacheVerifier stores expanded ed25519 Public Keys (each is ~1.4KB). Using
+	// a cached expanded key reduces verification latency by ~25%.
+	cacheVerifier = cache.NewVerifier(cache.NewLRUCache(cacheSize))
 }
 
 // Address returns a Bech32 address from hrp and p.
@@ -130,7 +138,9 @@ func Sign(msg []byte, pk PrivateKey) Signature {
 
 // Verify returns whether s is a valid signature of msg by p.
 func Verify(msg []byte, p PublicKey, s Signature) bool {
-	return ed25519.Verify(p[:], msg, s[:])
+	// TODO: only evict items from cache when verifying blocks (otherwise RPC interaction can
+	// clear the cache)
+	return cacheVerifier.VerifyWithOptions(p[:], msg, s[:], &verifyOptions)
 }
 
 // HexToKey Converts a hexadecimal encoded key into a PrivateKey. Returns
