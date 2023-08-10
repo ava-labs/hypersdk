@@ -389,3 +389,7 @@ func (vm *VM) GetTargetGossipDuration() time.Duration {
 func (vm *VM) RecordEmptyBlockBuilt() {
 	vm.metrics.emptyBlockBuilt.Inc()
 }
+
+func (vm *VM) GetBatchAsyncVerifier(t uint8, cores int, count int) (chain.AuthBatchAsyncVerifier, bool) {
+	return vm.c.GetBatchAsyncVerifier(t, cores, count)
+}

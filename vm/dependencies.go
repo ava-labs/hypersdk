@@ -86,4 +86,7 @@ type Controller interface {
 	// processes it may be running in the background. It is invoked when
 	// `vm.Shutdown` is called.
 	Shutdown(context.Context) error
+
+	// TODO: unify
+	GetBatchAsyncVerifier(uint8, int, int) (chain.AuthBatchAsyncVerifier, bool)
 }

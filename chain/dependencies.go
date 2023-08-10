@@ -167,7 +167,6 @@ type AuthBatchAsyncVerifier interface {
 
 type Auth interface {
 	GetTypeID() uint8 // identify uniquely the auth
-	GetBatchAsyncVerifier(int, int) (AuthBatchAsyncVerifier, bool)
 
 	MaxUnits(Rules) uint64
 	ValidRange(Rules) (start int64, end int64) // -1 means no start/end
