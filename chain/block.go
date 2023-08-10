@@ -193,9 +193,8 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 			b.containsWarp = true
 		}
 	}
-	batchVerifier.Done() // ensures all jobs are spawned
-	// TODO: should batchVerifier handle calling sigJob done?
-	b.sigJob.Done(func() { sspan.End() })
+	// BatchVerifier calls sigJob done because it may add things to the work queue async
+	go batchVerifier.Done(func() { sspan.End() }) // ensures all jobs are spawned
 	return nil
 }
 

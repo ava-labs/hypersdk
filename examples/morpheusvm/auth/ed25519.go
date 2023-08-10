@@ -143,13 +143,15 @@ func NewConcurrentBatch(cores int, count int) *ConcurrentBatch {
 	return &ConcurrentBatch{
 		batchSize: batchSize,
 		total:     count,
-		batch:     crypto.NewBatch(batchSize),
 	}
 }
 
 // TODO: invariant that only providing right auth here
 func (cb *ConcurrentBatch) Add(msg []byte, rauth chain.Auth) func() error {
 	auth := rauth.(*ED25519)
+	if cb.batch == nil {
+		cb.batch = crypto.NewBatch(cb.batchSize)
+	}
 	cb.batch.Add(msg, auth.Signer, auth.Signature)
 	cb.counter++
 	cb.totalCounter++
