@@ -158,6 +158,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	b.warpMessages = map[ids.ID]*warpJob{}
+	batchVerifier := NewBatch(b.vm, b.sigJob, b.authCounts)
 	for _, tx := range b.Txs {
 		// Ensure there are no duplicate transactions
 		if b.txsSet.Contains(tx.ID()) {
@@ -166,10 +167,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 		b.txsSet.Add(tx.ID())
 
 		// Verify signature.
-		// TODO: should DRAMATICALLY reduce number of channel usage by passing entire block
-		// TODO: how to deal with heterogenous cryptography usage here? we need auth-specific batching/context to pass in?
-		// TODO: we can't create a batch before hand because we don't know what crypto will be used?
-		b.sigJob.Go(tx.AuthAsyncVerify())
+		batchVerifier.Add(tx.digest, tx.Auth)
 
 		// Check if we need the block context to verify the block (which contains
 		// an Avalanche Warp Message)
@@ -194,6 +192,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 			b.containsWarp = true
 		}
 	}
+	batchVerifier.Done() // ensures all jobs are spawned
 	b.sigJob.Done(func() { sspan.End() })
 	return nil
 }

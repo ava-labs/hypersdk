@@ -69,6 +69,9 @@ type VM interface {
 	RecordStateOperations(int)
 	RecordBuildCapped()
 	RecordEmptyBlockBuilt()
+
+	// TODO: find a better place for this
+	GetBatchAsyncVerifier(uint8, int, int) (AuthBatchAsyncVerifier, bool)
 }
 
 type Mempool interface {
@@ -158,7 +161,7 @@ type Action interface {
 }
 
 type AuthBatchAsyncVerifier interface {
-	Add([]byte, Auth)
+	Add([]byte, Auth) func() error
 	Done() []func() error
 }
 
