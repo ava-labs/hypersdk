@@ -6,22 +6,17 @@ import (
 	"github.com/ava-labs/hypersdk/workers"
 )
 
-type BatchVerifier interface {
-	Add([]byte, Auth)
-	Done() []func() error
-}
-
 type Batch struct {
 	job *workers.Job
-	bvs map[uint8]BatchVerifier
+	bvs map[uint8]AuthBatchAsyncVerifier
 }
 
 func NewBatch(job *workers.Job, authRegistry *codec.TypeParser[Auth, *warp.Message, bool], authTypes map[uint8]int) *Batch {
-	bvs := map[uint8]BatchVerifier{}
+	bvs := map[uint8]AuthBatchAsyncVerifier{}
 	for t, count := range authTypes {
 		// Already verified that all authTypes are valid
-		a, _, _ := authRegistry.LookupIndex(t)
-		bv, ok := a.GetBatchVerifier(job.Workers(), count)
+		auth, _, _ := authRegistry.LookupIndex(t)
+		bv, ok := auth.GetBatchAsyncVerifier(job.Workers(), count)
 		if !ok {
 			continue
 		}

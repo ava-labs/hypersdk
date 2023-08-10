@@ -157,8 +157,15 @@ type Action interface {
 	Marshal(p *codec.Packer)
 }
 
+type AuthBatchAsyncVerifier interface {
+	Add([]byte, Auth)
+	Done() []func() error
+}
+
 type Auth interface {
 	GetTypeID() uint8 // identify uniquely the auth
+	GetBatchAsyncVerifier(int, int) (AuthBatchAsyncVerifier, bool)
+
 	MaxUnits(Rules) uint64
 	ValidRange(Rules) (start int64, end int64) // -1 means no start/end
 
