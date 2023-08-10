@@ -138,7 +138,7 @@ type ConcurrentBatch struct {
 }
 
 func NewConcurrentBatch(cores int, count int) *ConcurrentBatch {
-	batchSize := math.Min(count/cores, 16)
+	batchSize := math.Max(count/cores, 16)
 	fmt.Println("creating concurrent batch", "batchSize", batchSize)
 	return &ConcurrentBatch{
 		batchSize: batchSize,
