@@ -45,7 +45,7 @@ func NewBatch(vm VM, job *workers.Job, authTypes map[uint8]int) *Batch {
 		if !ok {
 			continue
 		}
-		bw := &batchWorker{job, bv, make(chan *batchObject, 1024), make(chan struct{})}
+		bw := &batchWorker{job, bv, make(chan *batchObject, 40_000), make(chan struct{})}
 		go bw.start()
 		bvs[t] = bw
 	}
