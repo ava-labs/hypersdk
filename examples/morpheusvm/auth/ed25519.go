@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
 )
 
 var _ chain.Auth = (*ED25519)(nil)
@@ -41,7 +42,24 @@ func (d *ED25519) StateKeys() [][]byte {
 	}
 }
 
+func AddTx(digest []byte, auth)
+
+func (d *ED25519) NewBatch(numElements int) {
+	return ed25519.NewBatchVerifierWithCapacity(numElements)
+}
+
+func (d *ED25519) AsyncBatchVerify(msg []byte) error {
+	// Just extract components to add to batch then have a final "run batch" on all auth seen?
+	// .... seems suboptimal to copy twice
+
+	// pass map to store vars between calls? (would be batch verifier)
+}
+
+func (d *ED25519) VerifyBatch() bool {
+}
+
 func (d *ED25519) AsyncVerify(msg []byte) error {
+	// TODO: should add to batch if doesn't exist?
 	if !crypto.Verify(msg, d.Signer, d.Signature) {
 		return ErrInvalidSignature
 	}

@@ -48,7 +48,8 @@ type StatefulBlock struct {
 	UnitsConsumed uint64     `json:"unitsConsumed"`
 	WarpResults   set.Bits64 `json:"warpResults"`
 
-	size int
+	size       int
+	authCounts map[uint8]int
 }
 
 func (b *StatefulBlock) Size() int {
@@ -158,12 +159,17 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	b.warpMessages = map[ids.ID]*warpJob{}
 	for _, tx := range b.Txs {
-		// TODO: should DRAMATICALLY reduce number of channel usage by passing entire block
-		b.sigJob.Go(tx.AuthAsyncVerify())
+		// Ensure there are no duplicate transactions
 		if b.txsSet.Contains(tx.ID()) {
 			return ErrDuplicateTx
 		}
 		b.txsSet.Add(tx.ID())
+
+		// Verify signature.
+		// TODO: should DRAMATICALLY reduce number of channel usage by passing entire block
+		// TODO: how to deal with heterogenous cryptography usage here? we need auth-specific batching/context to pass in?
+		// TODO: we can't create a batch before hand because we don't know what crypto will be used?
+		b.sigJob.Go(tx.AuthAsyncVerify())
 
 		// Check if we need the block context to verify the block (which contains
 		// an Avalanche Warp Message)
@@ -777,10 +783,12 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	p.PackWindow(b.UnitWindow)
 
 	p.PackInt(len(b.Txs))
+	b.authCounts = map[uint8]int{}
 	for _, tx := range b.Txs {
 		if err := tx.Marshal(p); err != nil {
 			return nil, err
 		}
+		b.authCounts[tx.Auth.GetTypeID()]++
 	}
 
 	p.PackID(b.StateRoot)
@@ -816,14 +824,15 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	txCount := p.UnpackInt(false) // can produce empty blocks
 	actionRegistry, authRegistry := parser.Registry()
 	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
+	b.authCounts = map[uint8]int{}
 	for i := 0; i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, err
 		}
 		b.Txs = append(b.Txs, tx)
+		b.authCounts[tx.Auth.GetTypeID()]++
 	}
-
 	p.UnpackID(false, &b.StateRoot)
 	b.UnitsConsumed = p.UnpackUint64(false)
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
