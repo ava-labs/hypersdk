@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/config"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
@@ -180,4 +181,11 @@ func (*Controller) Shutdown(context.Context) error {
 	// Do not close any databases provided during initialization. The VM will
 	// close any databases your provided.
 	return nil
+}
+
+func (*Controller) GetBatchAsyncVerifier(t uint8, cores int, count int) (chain.AuthBatchAsyncVerifier, bool) {
+	if t != 0 {
+		return nil, false
+	}
+	return auth.NewConcurrentBatch(cores, count), true
 }

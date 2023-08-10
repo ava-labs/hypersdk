@@ -6,6 +6,7 @@ package crypto
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"os"
 
 	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
@@ -175,4 +176,13 @@ func (b *Batch) Add(msg []byte, p PublicKey, s Signature) {
 
 func (b *Batch) Verify() bool {
 	return b.bv.VerifyBatchOnly(rand.Reader)
+}
+
+func (b *Batch) VerifyAsync() func() error {
+	return func() error {
+		if b.Verify() {
+			return nil
+		}
+		return errors.New("invalid signature")
+	}
 }

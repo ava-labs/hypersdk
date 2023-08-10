@@ -1,6 +1,8 @@
 package chain
 
 import (
+	"fmt"
+
 	"github.com/ava-labs/hypersdk/workers"
 )
 
@@ -33,6 +35,7 @@ func (b *Batch) Add(digest []byte, auth Auth) {
 	// May finish parts of batch early, let's start computing them as soon as possible
 	if j := bv.Add(digest, auth); j != nil {
 		b.job.Go(j)
+		fmt.Println("enqueued batch for processing during add")
 	}
 }
 
@@ -41,6 +44,7 @@ func (b *Batch) Done() {
 		// TODO: start bv's earlier?
 		for _, item := range bv.Done() {
 			b.job.Go(item)
+			fmt.Println("enqueued batch for processing during done")
 		}
 	}
 }

@@ -5,13 +5,14 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
 )
 
 var _ chain.Auth = (*ED25519)(nil)
@@ -40,22 +41,6 @@ func (d *ED25519) StateKeys() [][]byte {
 		// We always pay fees with the native asset (which is [ids.Empty])
 		storage.PrefixBalanceKey(d.Signer),
 	}
-}
-
-func AddTx(digest []byte, auth)
-
-func (d *ED25519) NewBatch(numElements int) {
-	return ed25519.NewBatchVerifierWithCapacity(numElements)
-}
-
-func (d *ED25519) AsyncBatchVerify(msg []byte) error {
-	// Just extract components to add to batch then have a final "run batch" on all auth seen?
-	// .... seems suboptimal to copy twice
-
-	// pass map to store vars between calls? (would be batch verifier)
-}
-
-func (d *ED25519) VerifyBatch() bool {
 }
 
 func (d *ED25519) AsyncVerify(msg []byte) error {
@@ -141,4 +126,48 @@ type ED25519Factory struct {
 func (d *ED25519Factory) Sign(msg []byte, _ chain.Action) (chain.Auth, error) {
 	sig := crypto.Sign(msg, d.priv)
 	return &ED25519{d.priv.PublicKey(), sig}, nil
+}
+
+type ConcurrentBatch struct {
+	batchSize int
+	total     int
+
+	counter      int
+	totalCounter int
+	batch        *crypto.Batch
+}
+
+func NewConcurrentBatch(cores int, count int) *ConcurrentBatch {
+	batchSize := math.Min(count/cores, 16)
+	fmt.Println("creating concurrent batch", "batchSize", batchSize)
+	return &ConcurrentBatch{
+		batchSize: batchSize,
+		total:     count,
+		batch:     crypto.NewBatch(batchSize),
+	}
+}
+
+// TODO: invariant that only providing right auth here
+func (cb *ConcurrentBatch) Add(msg []byte, rauth chain.Auth) func() error {
+	auth := rauth.(*ED25519)
+	cb.batch.Add(msg, auth.Signer, auth.Signature)
+	cb.counter++
+	cb.totalCounter++
+	if cb.counter == cb.batchSize {
+		last := cb.batch
+		cb.counter = 0
+		if cb.totalCounter < cb.total {
+			// don't create a new batch if we are done
+			cb.batch = crypto.NewBatch(cb.batchSize)
+		}
+		return last.VerifyAsync()
+	}
+	return nil
+}
+
+func (cb *ConcurrentBatch) Done() []func() error {
+	if cb.batch == nil {
+		return nil
+	}
+	return []func() error{cb.batch.VerifyAsync()}
 }
