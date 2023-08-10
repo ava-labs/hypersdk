@@ -4,6 +4,7 @@
 package crypto
 
 import (
+	"crypto/rand"
 	"encoding/hex"
 	"os"
 
@@ -154,4 +155,24 @@ func HexToKey(key string) (PrivateKey, error) {
 		return EmptyPrivateKey, ErrInvalidPrivateKey
 	}
 	return PrivateKey(bytes), nil
+}
+
+type Batch struct {
+	bv *ed25519.BatchVerifier
+}
+
+func NewBatch(numItems int) *Batch {
+	if numItems <= 0 {
+		return &Batch{ed25519.NewBatchVerifier()}
+	}
+	return &Batch{ed25519.NewBatchVerifierWithCapacity(numItems)}
+}
+
+func (b *Batch) Add(msg []byte, p PublicKey, s Signature) {
+	// TODO: add own cache that only adds to verifier when block accepted
+	cacheVerifier.AddWithOptions(b.bv, p[:], msg, s[:], &verifyOptions)
+}
+
+func (b *Batch) Verify() bool {
+	return b.bv.VerifyBatchOnly(rand.Reader)
 }

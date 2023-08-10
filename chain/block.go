@@ -167,6 +167,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 		b.txsSet.Add(tx.ID())
 
 		// Verify signature.
+		// TODO: call public method for digest
 		batchVerifier.Add(tx.digest, tx.Auth)
 
 		// Check if we need the block context to verify the block (which contains
@@ -193,6 +194,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 		}
 	}
 	batchVerifier.Done() // ensures all jobs are spawned
+	// TODO: should batchVerifier handle calling sigJob done?
 	b.sigJob.Done(func() { sspan.End() })
 	return nil
 }
