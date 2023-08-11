@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -124,4 +125,56 @@ type ED25519Factory struct {
 func (d *ED25519Factory) Sign(msg []byte, _ chain.Action) (chain.Auth, error) {
 	sig := ed25519.Sign(msg, d.priv)
 	return &ED25519{d.priv.PublicKey(), sig}, nil
+}
+
+// TODO: unify this with MorpheusVM
+type ED25519AuthEngine struct{}
+
+func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatchVerifier {
+	batchSize := math.Max(count/cores, 16)
+	return &ED25519Batch{
+		batchSize: batchSize,
+		total:     count,
+	}
+}
+
+func (*ED25519AuthEngine) Cache(auth chain.Auth) {
+	pk := GetSigner(auth)
+	ed25519.CachePublicKey(pk)
+}
+
+type ED25519Batch struct {
+	batchSize int
+	total     int
+
+	counter      int
+	totalCounter int
+	batch        *ed25519.Batch
+}
+
+func (b *ED25519Batch) Add(msg []byte, rauth chain.Auth) func() error {
+	auth := rauth.(*ED25519)
+	if b.batch == nil {
+		b.batch = ed25519.NewBatch(b.batchSize)
+	}
+	b.batch.Add(msg, auth.Signer, auth.Signature)
+	b.counter++
+	b.totalCounter++
+	if b.counter == b.batchSize {
+		last := b.batch
+		b.counter = 0
+		if b.totalCounter < b.total {
+			// don't create a new batch if we are done
+			b.batch = ed25519.NewBatch(b.batchSize)
+		}
+		return last.VerifyAsync()
+	}
+	return nil
+}
+
+func (b *ED25519Batch) Done() []func() error {
+	if b.batch == nil {
+		return nil
+	}
+	return []func() error{b.batch.VerifyAsync()}
 }
