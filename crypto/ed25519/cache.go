@@ -38,7 +38,7 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-package crypto
+package ed25519
 
 import (
 	"github.com/oasisprotocol/curve25519-voi/curve"

@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package crypto
+package ed25519
 
 import (
 	"crypto/rand"
@@ -30,6 +30,7 @@ const (
 	PrivateKeySeedLen = ed25519.SeedSize
 	SignatureLen      = ed25519.SignatureSize
 
+	// TODO: make this tunable
 	cacheSize = 128_000 // ~179MB (keys are ~1.4KB each)
 )
 
@@ -140,8 +141,6 @@ func Sign(msg []byte, pk PrivateKey) Signature {
 
 // Verify returns whether s is a valid signature of msg by p.
 func Verify(msg []byte, p PublicKey, s Signature) bool {
-	// TODO: only evict items from cache when verifying blocks (otherwise RPC interaction can
-	// clear the cache)
 	return cacheVerifier.VerifyWithOptions(p[:], msg, s[:], &verifyOptions)
 }
 
@@ -156,6 +155,10 @@ func HexToKey(key string) (PrivateKey, error) {
 		return EmptyPrivateKey, ErrInvalidPrivateKey
 	}
 	return PrivateKey(bytes), nil
+}
+
+func CachePublicKey(p PublicKey) {
+	cacheVerifier.AddPublicKey(p[:])
 }
 
 type Batch struct {
@@ -184,9 +187,4 @@ func (b *Batch) VerifyAsync() func() error {
 		}
 		return errors.New("invalid signature")
 	}
-}
-
-// TODO: call this whenever a block is accepted on all public keys
-func CachePublicKey(p PublicKey) {
-	cacheVerifier.AddPublicKey(p[:])
 }
