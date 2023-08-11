@@ -89,4 +89,5 @@ type Controller interface {
 
 	// TODO: unify
 	GetBatchAsyncVerifier(uint8, int, int) (chain.AuthBatchAsyncVerifier, bool)
+	CacheAuth(chain.Auth)
 }

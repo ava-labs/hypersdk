@@ -173,3 +173,8 @@ func (cb *ConcurrentBatch) Done() []func() error {
 	}
 	return []func() error{cb.batch.VerifyAsync()}
 }
+
+func Cache(rauth chain.Auth) {
+	auth := rauth.(*ED25519)
+	crypto.CachePublicKey(auth.Signer)
+}

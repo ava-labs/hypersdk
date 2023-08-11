@@ -162,6 +162,9 @@ func (vm *VM) processAcceptedBlocks() {
 		// Sign and store any warp messages (regardless if validator now, may become one)
 		results := b.Results()
 		for i, tx := range b.Txs {
+			// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
+			vm.c.CacheAuth(tx.Auth)
+
 			result := results[i]
 			if result.WarpMessage == nil {
 				continue

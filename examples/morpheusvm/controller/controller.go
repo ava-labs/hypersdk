@@ -189,3 +189,10 @@ func (*Controller) GetBatchAsyncVerifier(t uint8, cores int, count int) (chain.A
 	}
 	return auth.NewConcurrentBatch(cores, count), true
 }
+
+func (*Controller) CacheAuth(a chain.Auth) {
+	if a.GetTypeID() != 0 {
+		return
+	}
+	return auth.Cache(a), true
+}
