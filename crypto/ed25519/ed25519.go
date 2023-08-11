@@ -6,7 +6,6 @@ package ed25519
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"os"
 
 	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
@@ -182,9 +181,9 @@ func (b *Batch) Verify() bool {
 
 func (b *Batch) VerifyAsync() func() error {
 	return func() error {
-		if b.Verify() {
-			return nil
+		if !b.Verify() {
+			return ErrInvalidSignature
 		}
-		return errors.New("invalid signature")
+		return nil
 	}
 }
