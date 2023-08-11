@@ -756,6 +756,9 @@ func (b *StatelessBlock) IsRepeat(
 		}
 		if b.txsSet.Contains(tx.ID()) {
 			marker.Add(i)
+			if stop {
+				return marker, nil
+			}
 		}
 	}
 	prnt, err := b.vm.GetStatelessBlock(ctx, b.Prnt)
