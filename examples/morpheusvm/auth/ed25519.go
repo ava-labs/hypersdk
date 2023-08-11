@@ -5,7 +5,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -137,15 +136,6 @@ type ConcurrentBatch struct {
 	batch        *crypto.Batch
 }
 
-func NewConcurrentBatch(cores int, count int) *ConcurrentBatch {
-	batchSize := math.Max(count/cores, 16)
-	fmt.Println("creating concurrent batch", "batchSize", batchSize)
-	return &ConcurrentBatch{
-		batchSize: batchSize,
-		total:     count,
-	}
-}
-
 // TODO: invariant that only providing right auth here
 func (cb *ConcurrentBatch) Add(msg []byte, rauth chain.Auth) func() error {
 	auth := rauth.(*ED25519)
@@ -174,7 +164,17 @@ func (cb *ConcurrentBatch) Done() []func() error {
 	return []func() error{cb.batch.VerifyAsync()}
 }
 
-func Cache(rauth chain.Auth) {
-	auth := rauth.(*ED25519)
-	crypto.CachePublicKey(auth.Signer)
+type ED25519AuthEngine struct{}
+
+func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatchVerifier {
+	batchSize := math.Max(count/cores, 16)
+	return &ConcurrentBatch{
+		batchSize: batchSize,
+		total:     count,
+	}
+}
+
+func (*ED25519AuthEngine) Cache(auth chain.Auth) {
+	pk := GetSigner(auth)
+	crypto.CachePublicKey(pk)
 }

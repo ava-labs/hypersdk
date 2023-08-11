@@ -65,6 +65,7 @@ func (c *Controller) Initialize(
 	vm.Handlers,
 	chain.ActionRegistry,
 	chain.AuthRegistry,
+	map[uint8]vm.AuthEngine,
 	error,
 ) {
 	c.inner = inner
@@ -75,20 +76,20 @@ func (c *Controller) Initialize(
 	var err error
 	c.metrics, err = newMetrics(gatherer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	// Load config and genesis
 	c.config, err = config.New(c.snowCtx.NodeID, configBytes)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	c.snowCtx.Log.SetLevel(c.config.GetLogLevel())
 	snowCtx.Log.Info("initialized config", zap.Bool("loaded", c.config.Loaded()), zap.Any("contents", c.config))
 
 	c.genesis, err = genesis.New(genesisBytes, upgradeBytes)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf(
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf(
 			"unable to read genesis: %w",
 			err,
 		)
@@ -98,7 +99,7 @@ func (c *Controller) Initialize(
 	// Create DBs
 	blockDB, stateDB, metaDB, err := hstorage.New(snowCtx.ChainDataDir, gatherer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	c.metaDB = metaDB
 
@@ -113,7 +114,7 @@ func (c *Controller) Initialize(
 		common.NoLock,
 	)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	apis[rpc.JSONRPCEndpoint] = jsonRPCHandler
 
@@ -131,7 +132,7 @@ func (c *Controller) Initialize(
 		gcfg := gossiper.DefaultProposerConfig()
 		gossip = gossiper.NewProposer(inner, gcfg)
 	}
-	return c.config, c.genesis, build, gossip, blockDB, stateDB, apis, consts.ActionRegistry, consts.AuthRegistry, nil
+	return c.config, c.genesis, build, gossip, blockDB, stateDB, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
 }
 
 func (c *Controller) Rules(t int64) chain.Rules {
@@ -181,18 +182,4 @@ func (*Controller) Shutdown(context.Context) error {
 	// Do not close any databases provided during initialization. The VM will
 	// close any databases your provided.
 	return nil
-}
-
-func (*Controller) GetBatchAsyncVerifier(t uint8, cores int, count int) (chain.AuthBatchAsyncVerifier, bool) {
-	if t != 0 {
-		return nil, false
-	}
-	return auth.NewConcurrentBatch(cores, count), true
-}
-
-func (*Controller) CacheAuth(a chain.Auth) {
-	if a.GetTypeID() != 0 {
-		return
-	}
-	return auth.Cache(a), true
 }
