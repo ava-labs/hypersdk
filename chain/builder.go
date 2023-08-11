@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
@@ -155,16 +156,25 @@ func BuildBlock(
 		}()
 
 		// Perform a batch repeat check while we are waiting for state prefetching
-		//
-		// TODO: make this return which txs are repeats rather than all/nothing
+		dup, err := parent.IsRepeat(ctx, oldestAllowed, txs, set.Bits{}, false)
+		if err != nil {
+			execErr = err
+		}
 
 		// Execute transactions as they become ready
+		seen := 0
 		for nextTxData := range readyTxs {
 			next := nextTxData.tx
 			if execErr != nil {
 				restorable = append(restorable, next)
 				continue
 			}
+
+			// Skip if tx is a duplicate
+			if dup.Contains(seen) {
+				continue
+			}
+			seen++
 
 			// Ensure we can process if transaction includes a warp message
 			if next.WarpMessage != nil && blockContext == nil {
@@ -183,21 +193,6 @@ func BuildBlock(
 					zap.Stringer("txID", next.ID()),
 				)
 				restorable = append(restorable, next)
-				continue
-			}
-
-			// Check for repeats
-			//
-			// TODO: check a bunch at once during pre-fetch to avoid re-walking blocks
-			// for every tx
-			dup, err := parent.IsRepeat(ctx, oldestAllowed, []*Transaction{next})
-			if err != nil {
-				restorable = append(restorable, next)
-				execErr = err
-				continue // need to finish processing txs
-			}
-			if dup {
-				// tx will be restored when ancestry is rejected
 				continue
 			}
 

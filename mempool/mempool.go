@@ -275,6 +275,7 @@ func (th *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 	return removed
 }
 
+// TODO: use a different name for this
 func (th *Mempool[T]) Build(
 	ctx context.Context,
 	targetDuration time.Duration,
