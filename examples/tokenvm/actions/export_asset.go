@@ -29,15 +29,15 @@ var _ chain.Action = (*ExportAsset)(nil)
 
 type ExportAsset struct {
 	To          ed25519.PublicKey `json:"to"`
-	Asset       ids.ID           `json:"asset"`
-	Value       uint64           `json:"value"`
-	Return      bool             `json:"return"`
-	Reward      uint64           `json:"reward"`
-	SwapIn      uint64           `json:"swapIn"`
-	AssetOut    ids.ID           `json:"assetOut"`
-	SwapOut     uint64           `json:"swapOut"`
-	SwapExpiry  int64            `json:"swapExpiry"`
-	Destination ids.ID           `json:"destination"`
+	Asset       ids.ID            `json:"asset"`
+	Value       uint64            `json:"value"`
+	Return      bool              `json:"return"`
+	Reward      uint64            `json:"reward"`
+	SwapIn      uint64            `json:"swapIn"`
+	AssetOut    ids.ID            `json:"assetOut"`
+	SwapOut     uint64            `json:"swapOut"`
+	SwapExpiry  int64             `json:"swapExpiry"`
+	Destination ids.ID            `json:"destination"`
 }
 
 func (*ExportAsset) GetTypeID() uint8 {

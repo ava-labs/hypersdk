@@ -20,8 +20,8 @@ const WarpTransferSize = ed25519.PublicKeyLen + consts.IDLen +
 
 type WarpTransfer struct {
 	To    ed25519.PublicKey `json:"to"`
-	Asset ids.ID           `json:"asset"`
-	Value uint64           `json:"value"`
+	Asset ids.ID            `json:"asset"`
+	Value uint64            `json:"value"`
 
 	// Return is set to true when a warp message is sending funds back to the
 	// chain where they were created.
