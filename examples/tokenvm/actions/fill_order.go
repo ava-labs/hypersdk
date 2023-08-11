@@ -13,7 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/utils"
@@ -22,7 +22,7 @@ import (
 var _ chain.Action = (*FillOrder)(nil)
 
 const (
-	basePrice           = 3*consts.IDLen + consts.Uint64Len + crypto.PublicKeyLen
+	basePrice           = 3*consts.IDLen + consts.Uint64Len + ed25519.PublicKeyLen
 	tradeSucceededPrice = 1_000
 )
 
@@ -32,7 +32,7 @@ type FillOrder struct {
 
 	// [Owner] is the owner of the order and the recipient of the trade
 	// proceeds.
-	Owner crypto.PublicKey `json:"owner"`
+	Owner ed25519.PublicKey `json:"owner"`
 
 	// [In] is the asset that will be sent to the owner from the fill. We need to provide this to
 	// populate [StateKeys].
@@ -164,7 +164,7 @@ func (*FillOrder) MaxUnits(chain.Rules) uint64 {
 }
 
 func (*FillOrder) Size() int {
-	return consts.IDLen*3 + crypto.PublicKeyLen + consts.Uint64Len
+	return consts.IDLen*3 + ed25519.PublicKeyLen + consts.Uint64Len
 }
 
 func (f *FillOrder) Marshal(p *codec.Packer) {

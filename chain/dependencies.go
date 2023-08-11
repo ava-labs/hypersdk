@@ -36,6 +36,10 @@ type VM interface {
 	Tracer() trace.Tracer
 	Logger() logging.Logger
 
+	// We don't include this in registry because it would never be used
+	// by any client of the hypersdk.
+	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
+
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
 	SetLastAccepted(*StatelessBlock) error
@@ -157,8 +161,14 @@ type Action interface {
 	Marshal(p *codec.Packer)
 }
 
+type AuthBatchVerifier interface {
+	Add([]byte, Auth) func() error
+	Done() []func() error
+}
+
 type Auth interface {
 	GetTypeID() uint8 // identify uniquely the auth
+
 	MaxUnits(Rules) uint64
 	ValidRange(Rules) (start int64, end int64) // -1 means no start/end
 

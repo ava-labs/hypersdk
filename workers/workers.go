@@ -142,6 +142,7 @@ func (w *Workers) Stop() {
 }
 
 type Job struct {
+	count     int
 	tasks     chan func() error
 	completed chan struct{}
 	result    chan error
@@ -171,6 +172,12 @@ func (j *Job) Wait() error {
 	return <-j.result
 }
 
+// Workers returns the number of workers that will execute the job. This can be used
+// by callers to generate batch sizes that lead to the most efficient computation.
+func (j *Job) Workers() int {
+	return j.count
+}
+
 // NewJob creates a new job and adds it to the workers' queue. [taskBacklog]
 // specifies the maximum number of tasks that can be added to the created job
 // channel.
@@ -185,6 +192,7 @@ func (w *Workers) NewJob(taskBacklog int) (*Job, error) {
 		return nil, ErrShutdown
 	}
 	j := &Job{
+		count:     w.count,
 		tasks:     make(chan func() error, taskBacklog),
 		completed: make(chan struct{}),
 		result:    make(chan error, 1),

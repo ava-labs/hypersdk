@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/utils"
@@ -21,7 +21,7 @@ var _ chain.Action = (*Transfer)(nil)
 
 type Transfer struct {
 	// To is the recipient of the [Value].
-	To crypto.PublicKey `json:"to"`
+	To ed25519.PublicKey `json:"to"`
 
 	// Amount are transferred to [To].
 	Value uint64 `json:"value"`
@@ -64,11 +64,11 @@ func (t *Transfer) Execute(
 func (*Transfer) MaxUnits(chain.Rules) uint64 {
 	// We use size as the price of this transaction but we could just as easily
 	// use any other calculation.
-	return crypto.PublicKeyLen + consts.Uint64Len
+	return ed25519.PublicKeyLen + consts.Uint64Len
 }
 
 func (*Transfer) Size() int {
-	return crypto.PublicKeyLen + consts.Uint64Len
+	return ed25519.PublicKeyLen + consts.Uint64Len
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {

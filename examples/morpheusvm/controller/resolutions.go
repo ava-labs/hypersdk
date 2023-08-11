@@ -9,7 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 )
@@ -35,7 +35,7 @@ func (c *Controller) GetTransaction(
 
 func (c *Controller) GetBalanceFromState(
 	ctx context.Context,
-	pk crypto.PublicKey,
+	pk ed25519.PublicKey,
 ) (uint64, error) {
 	return storage.GetBalanceFromState(ctx, c.inner.ReadState, pk)
 }

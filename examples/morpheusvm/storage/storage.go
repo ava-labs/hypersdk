@@ -15,7 +15,7 @@ import (
 	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 )
@@ -50,7 +50,7 @@ var (
 	// TODO: extend to other types
 	balancePrefixPool = sync.Pool{
 		New: func() any {
-			return make([]byte, 1+crypto.PublicKeyLen)
+			return make([]byte, 1+ed25519.PublicKeyLen)
 		},
 	}
 )
@@ -107,7 +107,7 @@ func GetTransaction(
 }
 
 // [accountPrefix] + [address]
-func PrefixBalanceKey(pk crypto.PublicKey) (k []byte) {
+func PrefixBalanceKey(pk ed25519.PublicKey) (k []byte) {
 	k = balancePrefixPool.Get().([]byte)
 	k[0] = balancePrefix
 	copy(k[1:], pk[:])
@@ -118,7 +118,7 @@ func PrefixBalanceKey(pk crypto.PublicKey) (k []byte) {
 func GetBalance(
 	ctx context.Context,
 	db chain.Database,
-	pk crypto.PublicKey,
+	pk ed25519.PublicKey,
 ) (uint64, error) {
 	dbKey, bal, err := getBalance(ctx, db, pk)
 	balancePrefixPool.Put(dbKey)
@@ -128,7 +128,7 @@ func GetBalance(
 func getBalance(
 	ctx context.Context,
 	db chain.Database,
-	pk crypto.PublicKey,
+	pk ed25519.PublicKey,
 ) ([]byte, uint64, error) {
 	k := PrefixBalanceKey(pk)
 	bal, err := innerGetBalance(db.GetValue(ctx, k))
@@ -139,7 +139,7 @@ func getBalance(
 func GetBalanceFromState(
 	ctx context.Context,
 	f ReadState,
-	pk crypto.PublicKey,
+	pk ed25519.PublicKey,
 ) (uint64, error) {
 	k := PrefixBalanceKey(pk)
 	values, errs := f(ctx, [][]byte{k})
@@ -164,7 +164,7 @@ func innerGetBalance(
 func SetBalance(
 	ctx context.Context,
 	db chain.Database,
-	pk crypto.PublicKey,
+	pk ed25519.PublicKey,
 	balance uint64,
 ) error {
 	k := PrefixBalanceKey(pk)
@@ -183,7 +183,7 @@ func setBalance(
 func AddBalance(
 	ctx context.Context,
 	db chain.Database,
-	pk crypto.PublicKey,
+	pk ed25519.PublicKey,
 	amount uint64,
 ) error {
 	dbKey, bal, err := getBalance(ctx, db, pk)
@@ -206,7 +206,7 @@ func AddBalance(
 func SubBalance(
 	ctx context.Context,
 	db chain.Database,
-	pk crypto.PublicKey,
+	pk ed25519.PublicKey,
 	amount uint64,
 ) error {
 	dbKey, bal, err := getBalance(ctx, db, pk)

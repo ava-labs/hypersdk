@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -65,9 +65,9 @@ func (h *Handler) GetDefaultChain() (ids.ID, []string, error) {
 	return chainID, uris, nil
 }
 
-func (h *Handler) StoreKey(privateKey crypto.PrivateKey) error {
+func (h *Handler) StoreKey(privateKey ed25519.PrivateKey) error {
 	publicKey := privateKey.PublicKey()
-	k := make([]byte, 1+crypto.PublicKeyLen)
+	k := make([]byte, 1+ed25519.PublicKeyLen)
 	k[0] = keyPrefix
 	copy(k[1:], publicKey[:])
 	has, err := h.db.Has(k)
@@ -80,49 +80,49 @@ func (h *Handler) StoreKey(privateKey crypto.PrivateKey) error {
 	return h.db.Put(k, privateKey[:])
 }
 
-func (h *Handler) GetKey(publicKey crypto.PublicKey) (crypto.PrivateKey, error) {
-	k := make([]byte, 1+crypto.PublicKeyLen)
+func (h *Handler) GetKey(publicKey ed25519.PublicKey) (ed25519.PrivateKey, error) {
+	k := make([]byte, 1+ed25519.PublicKeyLen)
 	k[0] = keyPrefix
 	copy(k[1:], publicKey[:])
 	v, err := h.db.Get(k)
 	if errors.Is(err, database.ErrNotFound) {
-		return crypto.EmptyPrivateKey, nil
+		return ed25519.EmptyPrivateKey, nil
 	}
 	if err != nil {
-		return crypto.EmptyPrivateKey, err
+		return ed25519.EmptyPrivateKey, err
 	}
-	return crypto.PrivateKey(v), nil
+	return ed25519.PrivateKey(v), nil
 }
 
-func (h *Handler) GetKeys() ([]crypto.PrivateKey, error) {
+func (h *Handler) GetKeys() ([]ed25519.PrivateKey, error) {
 	iter := h.db.NewIteratorWithPrefix([]byte{keyPrefix})
 	defer iter.Release()
 
-	privateKeys := []crypto.PrivateKey{}
+	privateKeys := []ed25519.PrivateKey{}
 	for iter.Next() {
 		// It is safe to use these bytes directly because the database copies the
 		// iterator value for us.
-		privateKeys = append(privateKeys, crypto.PrivateKey(iter.Value()))
+		privateKeys = append(privateKeys, ed25519.PrivateKey(iter.Value()))
 	}
 	return privateKeys, iter.Error()
 }
 
-func (h *Handler) StoreDefaultKey(pk crypto.PublicKey) error {
+func (h *Handler) StoreDefaultKey(pk ed25519.PublicKey) error {
 	return h.StoreDefault(defaultKeyKey, pk[:])
 }
 
-func (h *Handler) GetDefaultKey() (crypto.PrivateKey, error) {
+func (h *Handler) GetDefaultKey() (ed25519.PrivateKey, error) {
 	v, err := h.GetDefault(defaultKeyKey)
 	if err != nil {
-		return crypto.EmptyPrivateKey, err
+		return ed25519.EmptyPrivateKey, err
 	}
 	if len(v) == 0 {
-		return crypto.EmptyPrivateKey, ErrNoKeys
+		return ed25519.EmptyPrivateKey, ErrNoKeys
 	}
-	publicKey := crypto.PublicKey(v)
+	publicKey := ed25519.PublicKey(v)
 	priv, err := h.GetKey(publicKey)
 	if err != nil {
-		return crypto.EmptyPrivateKey, err
+		return ed25519.EmptyPrivateKey, err
 	}
 	utils.Outf("{{yellow}}address:{{/}} %s\n", h.c.Address(publicKey))
 	return priv, nil

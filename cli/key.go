@@ -7,14 +7,14 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 func (h *Handler) GenerateKey() error {
 	// TODO: encrypt key
-	priv, err := crypto.GeneratePrivateKey()
+	priv, err := ed25519.GeneratePrivateKey()
 	if err != nil {
 		return err
 	}
@@ -33,7 +33,7 @@ func (h *Handler) GenerateKey() error {
 }
 
 func (h *Handler) ImportKey(keyPath string) error {
-	priv, err := crypto.LoadKey(keyPath)
+	priv, err := ed25519.LoadKey(keyPath)
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func (h *Handler) SetKey(lookupBalance func(int, string, string, uint32, ids.ID)
 	return h.StoreDefaultKey(key.PublicKey())
 }
 
-func (h *Handler) Balance(checkAllChains bool, promptAsset bool, printBalance func(crypto.PublicKey, string, uint32, ids.ID, ids.ID) error) error {
+func (h *Handler) Balance(checkAllChains bool, promptAsset bool, printBalance func(ed25519.PublicKey, string, uint32, ids.ID, ids.ID) error) error {
 	priv, err := h.GetDefaultKey()
 	if err != nil {
 		return err

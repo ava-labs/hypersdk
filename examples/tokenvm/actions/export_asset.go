@@ -13,13 +13,13 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-const exportAssetSize = crypto.PublicKeyLen + consts.IDLen +
+const exportAssetSize = ed25519.PublicKeyLen + consts.IDLen +
 	consts.Uint64Len + consts.BoolLen +
 	consts.Uint64Len + /* op bits */
 	consts.Uint64Len + consts.Uint64Len + consts.IDLen + consts.Uint64Len +
@@ -28,16 +28,16 @@ const exportAssetSize = crypto.PublicKeyLen + consts.IDLen +
 var _ chain.Action = (*ExportAsset)(nil)
 
 type ExportAsset struct {
-	To          crypto.PublicKey `json:"to"`
-	Asset       ids.ID           `json:"asset"`
-	Value       uint64           `json:"value"`
-	Return      bool             `json:"return"`
-	Reward      uint64           `json:"reward"`
-	SwapIn      uint64           `json:"swapIn"`
-	AssetOut    ids.ID           `json:"assetOut"`
-	SwapOut     uint64           `json:"swapOut"`
-	SwapExpiry  int64            `json:"swapExpiry"`
-	Destination ids.ID           `json:"destination"`
+	To          ed25519.PublicKey `json:"to"`
+	Asset       ids.ID            `json:"asset"`
+	Value       uint64            `json:"value"`
+	Return      bool              `json:"return"`
+	Reward      uint64            `json:"reward"`
+	SwapIn      uint64            `json:"swapIn"`
+	AssetOut    ids.ID            `json:"assetOut"`
+	SwapOut     uint64            `json:"swapOut"`
+	SwapExpiry  int64             `json:"swapExpiry"`
+	Destination ids.ID            `json:"destination"`
 }
 
 func (*ExportAsset) GetTypeID() uint8 {
@@ -69,7 +69,7 @@ func (e *ExportAsset) executeReturn(
 	ctx context.Context,
 	r chain.Rules,
 	db chain.Database,
-	actor crypto.PublicKey,
+	actor ed25519.PublicKey,
 	txID ids.ID,
 ) (*chain.Result, error) {
 	unitsUsed := e.MaxUnits(r)
@@ -99,7 +99,7 @@ func (e *ExportAsset) executeReturn(
 		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 	}
 	if newSupply > 0 {
-		if err := storage.SetAsset(ctx, db, e.Asset, metadata, newSupply, crypto.EmptyPublicKey, true); err != nil {
+		if err := storage.SetAsset(ctx, db, e.Asset, metadata, newSupply, ed25519.EmptyPublicKey, true); err != nil {
 			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
 		}
 	} else {
@@ -147,7 +147,7 @@ func (e *ExportAsset) executeLoan(
 	ctx context.Context,
 	r chain.Rules,
 	db chain.Database,
-	actor crypto.PublicKey,
+	actor ed25519.PublicKey,
 	txID ids.ID,
 ) (*chain.Result, error) {
 	unitsUsed := e.MaxUnits(r)

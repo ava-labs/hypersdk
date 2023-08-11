@@ -162,6 +162,9 @@ func (vm *VM) processAcceptedBlocks() {
 		// Sign and store any warp messages (regardless if validator now, may become one)
 		results := b.Results()
 		for i, tx := range b.Txs {
+			// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
+			vm.cacheAuth(tx.Auth)
+
 			result := results[i]
 			if result.WarpMessage == nil {
 				continue
@@ -388,4 +391,20 @@ func (vm *VM) GetTargetGossipDuration() time.Duration {
 
 func (vm *VM) RecordEmptyBlockBuilt() {
 	vm.metrics.emptyBlockBuilt.Inc()
+}
+
+func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
+	bv, ok := vm.authEngine[authTypeID]
+	if !ok {
+		return nil, false
+	}
+	return bv.GetBatchVerifier(cores, count), ok
+}
+
+func (vm *VM) cacheAuth(auth chain.Auth) {
+	bv, ok := vm.authEngine[auth.GetTypeID()]
+	if !ok {
+		return
+	}
+	bv.Cache(auth)
 }

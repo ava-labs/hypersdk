@@ -9,7 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +30,7 @@ func TestOptionalPackerWriter(t *testing.T) {
 	require := require.New(t)
 	opw := NewOptionalWriter(10_000)
 	require.Empty(opw.ip.Bytes())
-	var pubKey crypto.PublicKey
+	var pubKey ed25519.PublicKey
 	copy(pubKey[:], TestPublicKey)
 	// Fill OptionalPacker
 	i := 0
@@ -39,7 +39,7 @@ func TestOptionalPackerWriter(t *testing.T) {
 		i += 1
 	}
 	require.Equal(
-		(consts.MaxUint64Offset+1)*crypto.PublicKeyLen,
+		(consts.MaxUint64Offset+1)*ed25519.PublicKeyLen,
 		len(opw.ip.Bytes()),
 		"Bytes not added correctly.",
 	)
@@ -51,11 +51,11 @@ func TestOptionalPackerWriter(t *testing.T) {
 func TestOptionalPackerPublicKey(t *testing.T) {
 	require := require.New(t)
 	opw := NewOptionalWriter(10_000)
-	var pubKey crypto.PublicKey
+	var pubKey ed25519.PublicKey
 	copy(pubKey[:], TestPublicKey)
 	t.Run("Pack", func(t *testing.T) {
 		// Pack empty
-		opw.PackPublicKey(crypto.EmptyPublicKey)
+		opw.PackPublicKey(ed25519.EmptyPublicKey)
 		require.Empty(opw.ip.Bytes(), "PackPublickey packed an empty ID.")
 		// Pack ID
 		opw.PackPublicKey(pubKey)
@@ -64,10 +64,10 @@ func TestOptionalPackerPublicKey(t *testing.T) {
 	t.Run("Unpack", func(t *testing.T) {
 		// Setup optional reader
 		opr := opw.toReader()
-		var unpackedPubkey crypto.PublicKey
+		var unpackedPubkey ed25519.PublicKey
 		// Unpack
 		opr.UnpackPublicKey(&unpackedPubkey)
-		require.Equal(crypto.EmptyPublicKey[:], unpackedPubkey[:], "PublicKey unpacked correctly")
+		require.Equal(ed25519.EmptyPublicKey[:], unpackedPubkey[:], "PublicKey unpacked correctly")
 		opr.UnpackPublicKey(&unpackedPubkey)
 		require.Equal(pubKey, unpackedPubkey, "PublicKey unpacked correctly")
 		opr.Done()

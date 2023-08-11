@@ -9,7 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
@@ -37,13 +37,13 @@ func (c *Controller) GetTransaction(
 func (c *Controller) GetAssetFromState(
 	ctx context.Context,
 	asset ids.ID,
-) (bool, []byte, uint64, crypto.PublicKey, bool, error) {
+) (bool, []byte, uint64, ed25519.PublicKey, bool, error) {
 	return storage.GetAssetFromState(ctx, c.inner.ReadState, asset)
 }
 
 func (c *Controller) GetBalanceFromState(
 	ctx context.Context,
-	pk crypto.PublicKey,
+	pk ed25519.PublicKey,
 	asset ids.ID,
 ) (uint64, error) {
 	return storage.GetBalanceFromState(ctx, c.inner.ReadState, pk, asset)

@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/window"
 )
 
@@ -119,27 +119,27 @@ func (p *Packer) UnpackInt64(required bool) int64 {
 	return int64(v)
 }
 
-func (p *Packer) PackPublicKey(src crypto.PublicKey) {
+func (p *Packer) PackPublicKey(src ed25519.PublicKey) {
 	p.p.PackFixedBytes(src[:])
 }
 
-// UnpackPublicKey crypto.PublicKey into [dest].
-func (p *Packer) UnpackPublicKey(required bool, dest *crypto.PublicKey) {
-	copy((*dest)[:], p.p.UnpackFixedBytes(crypto.PublicKeyLen))
-	if required && *dest == crypto.EmptyPublicKey {
+// UnpackPublicKey ed25519.PublicKey into [dest].
+func (p *Packer) UnpackPublicKey(required bool, dest *ed25519.PublicKey) {
+	copy((*dest)[:], p.p.UnpackFixedBytes(ed25519.PublicKeyLen))
+	if required && *dest == ed25519.EmptyPublicKey {
 		p.addErr(fmt.Errorf("%w: PublicKey field is not populated", ErrFieldNotPopulated))
 	}
 }
 
-func (p *Packer) PackSignature(src crypto.Signature) {
+func (p *Packer) PackSignature(src ed25519.Signature) {
 	p.p.PackFixedBytes(src[:])
 }
 
-// UnpackPublicKey crypto.Signature into [dest].
+// UnpackPublicKey ed25519.Signature into [dest].
 // TODO: should add required param?
-func (p *Packer) UnpackSignature(dest *crypto.Signature) {
-	copy((*dest)[:], p.p.UnpackFixedBytes(crypto.SignatureLen))
-	if *dest == crypto.EmptySignature {
+func (p *Packer) UnpackSignature(dest *ed25519.Signature) {
+	copy((*dest)[:], p.p.UnpackFixedBytes(ed25519.SignatureLen))
+	if *dest == ed25519.EmptySignature {
 		p.addErr(fmt.Errorf("%w: Signature field is not populated", ErrFieldNotPopulated))
 	}
 }

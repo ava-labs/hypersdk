@@ -7,7 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
@@ -64,7 +64,7 @@ var setKeyCmd = &cobra.Command{
 	},
 }
 
-func lookupKeyBalance(pk crypto.PublicKey, uri string, networkID uint32, chainID ids.ID, _ ids.ID) error {
+func lookupKeyBalance(pk ed25519.PublicKey, uri string, networkID uint32, chainID ids.ID, _ ids.ID) error {
 	_, err := handler.GetBalance(context.TODO(), brpc.NewJSONRPCClient(uri, networkID, chainID), pk)
 	return err
 }
