@@ -13,7 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/utils"
@@ -23,7 +23,7 @@ var _ chain.Action = (*MintAsset)(nil)
 
 type MintAsset struct {
 	// To is the recipient of the [Value].
-	To crypto.PublicKey `json:"to"`
+	To ed25519.PublicKey `json:"to"`
 
 	// Asset is the [TxID] that created the asset.
 	Asset ids.ID `json:"asset"`
@@ -93,11 +93,11 @@ func (m *MintAsset) Execute(
 func (*MintAsset) MaxUnits(chain.Rules) uint64 {
 	// We use size as the price of this transaction but we could just as easily
 	// use any other calculation.
-	return crypto.PublicKeyLen + consts.IDLen + consts.Uint64Len
+	return ed25519.PublicKeyLen + consts.IDLen + consts.Uint64Len
 }
 
 func (*MintAsset) Size() int {
-	return crypto.PublicKeyLen + consts.IDLen + consts.Uint64Len
+	return ed25519.PublicKeyLen + consts.IDLen + consts.Uint64Len
 }
 
 func (m *MintAsset) Marshal(p *codec.Packer) {

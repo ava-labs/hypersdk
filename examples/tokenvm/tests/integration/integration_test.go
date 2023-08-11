@@ -36,7 +36,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -102,14 +102,14 @@ func init() {
 }
 
 var (
-	priv    crypto.PrivateKey
+	priv    ed25519.PrivateKey
 	factory *auth.ED25519Factory
-	rsender crypto.PublicKey
+	rsender ed25519.PublicKey
 	sender  string
 
-	priv2    crypto.PrivateKey
+	priv2    ed25519.PrivateKey
 	factory2 *auth.ED25519Factory
-	rsender2 crypto.PublicKey
+	rsender2 ed25519.PublicKey
 	sender2  string
 
 	asset1   []byte
@@ -143,7 +143,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Ω(vms).Should(gomega.BeNumerically(">", 1))
 
 	var err error
-	priv, err = crypto.GeneratePrivateKey()
+	priv, err = ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
 	factory = auth.NewED25519Factory(priv)
 	rsender = priv.PublicKey()
@@ -154,7 +154,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		zap.String("pk", hex.EncodeToString(priv[:])),
 	)
 
-	priv2, err = crypto.GeneratePrivateKey()
+	priv2, err = ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
 	factory2 = auth.NewED25519Factory(priv2)
 	rsender2 = priv2.PublicKey()
@@ -273,7 +273,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(string(metadata)).Should(gomega.Equal(tconsts.Symbol))
 		gomega.Ω(supply).Should(gomega.Equal(csupply))
-		gomega.Ω(owner).Should(gomega.Equal(utils.Address(crypto.EmptyPublicKey)))
+		gomega.Ω(owner).Should(gomega.Equal(utils.Address(ed25519.EmptyPublicKey)))
 		gomega.Ω(warp).Should(gomega.BeFalse())
 	}
 
@@ -619,7 +619,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Send tx
-		other, err := crypto.GeneratePrivateKey()
+		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		transfer := &actions.Transfer{
 			To:    other.PublicKey(),
@@ -673,7 +673,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Create tx
-		other, err := crypto.GeneratePrivateKey()
+		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		transfer := &actions.Transfer{
 			To:    other.PublicKey(),
@@ -721,7 +721,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("mint an asset that doesn't exist", func() {
-		other, err := crypto.GeneratePrivateKey()
+		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		assetID := ids.GenerateTestID()
 		parser, err := instances[0].tcli.Parser(context.Background())
@@ -893,7 +893,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("mint asset from wrong owner", func() {
-		other, err := crypto.GeneratePrivateKey()
+		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		parser, err := instances[0].tcli.Parser(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -1005,7 +1005,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("rejects empty mint", func() {
-		other, err := crypto.GeneratePrivateKey()
+		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		tx := chain.NewTx(
 			&chain.Base{
@@ -1089,7 +1089,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			&actions.ModifyAsset{
 				Asset:    asset1ID,
 				Metadata: []byte("blah"),
-				Owner:    crypto.EmptyPublicKey,
+				Owner:    ed25519.EmptyPublicKey,
 			},
 			factory,
 		)
@@ -1115,7 +1115,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal([]byte("blah")))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(10)))
-		gomega.Ω(owner).Should(gomega.Equal(utils.Address(crypto.EmptyPublicKey)))
+		gomega.Ω(owner).Should(gomega.Equal(utils.Address(ed25519.EmptyPublicKey)))
 		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
@@ -1150,7 +1150,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("rejects mint of native token", func() {
-		other, err := crypto.GeneratePrivateKey()
+		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		tx := chain.NewTx(
 			&chain.Base{

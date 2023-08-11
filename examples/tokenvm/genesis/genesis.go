@@ -14,7 +14,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	hconsts "github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
@@ -119,7 +119,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Databa
 		ids.Empty,
 		[]byte(consts.Symbol),
 		supply,
-		crypto.EmptyPublicKey,
+		ed25519.EmptyPublicKey,
 		false,
 	)
 }

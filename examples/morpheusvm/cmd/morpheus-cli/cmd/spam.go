@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
@@ -32,7 +32,7 @@ var runSpamCmd = &cobra.Command{
 			func(uri string, networkID uint32, chainID ids.ID) {
 				bclient = brpc.NewJSONRPCClient(uri, networkID, chainID)
 			},
-			func(pk crypto.PrivateKey) chain.AuthFactory {
+			func(pk ed25519.PrivateKey) chain.AuthFactory {
 				return auth.NewED25519Factory(pk)
 			},
 			func(choice int, address string) (uint64, error) {
@@ -52,13 +52,13 @@ var runSpamCmd = &cobra.Command{
 			func(ctx context.Context, chainID ids.ID) (chain.Parser, error) {
 				return bclient.Parser(ctx)
 			},
-			func(pk crypto.PublicKey, amount uint64) chain.Action {
+			func(pk ed25519.PublicKey, amount uint64) chain.Action {
 				return &actions.Transfer{
 					To:    pk,
 					Value: amount,
 				}
 			},
-			func(cli *rpc.JSONRPCClient, pk crypto.PrivateKey) func(context.Context, uint64) error {
+			func(cli *rpc.JSONRPCClient, pk ed25519.PrivateKey) func(context.Context, uint64) error {
 				return func(ictx context.Context, count uint64) error {
 					_, _, err := sendAndWait(ictx, nil, &actions.Transfer{
 						To:    pk.PublicKey(),

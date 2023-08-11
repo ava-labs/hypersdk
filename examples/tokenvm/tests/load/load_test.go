@@ -35,7 +35,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	hconsts "github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/pebble"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
@@ -89,9 +89,9 @@ type instance struct {
 }
 
 type account struct {
-	priv    crypto.PrivateKey
+	priv    ed25519.PrivateKey
 	factory *auth.ED25519Factory
-	rsender crypto.PublicKey
+	rsender ed25519.PublicKey
 	sender  string
 }
 
@@ -164,7 +164,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Ω(vms).Should(gomega.BeNumerically(">", 1))
 
 	var err error
-	priv, err := crypto.GeneratePrivateKey()
+	priv, err := ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
 	rsender := priv.PublicKey()
 	sender := utils.Address(rsender)
@@ -361,7 +361,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 		ginkgo.By("create accounts", func() {
 			senders = make([]*account, accts)
 			for i := 0; i < accts; i++ {
-				tpriv, err := crypto.GeneratePrivateKey()
+				tpriv, err := ed25519.GeneratePrivateKey()
 				gomega.Ω(err).Should(gomega.BeNil())
 				trsender := tpriv.PublicKey()
 				tsender := utils.Address(trsender)
@@ -482,7 +482,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 
 func issueSimpleTx(
 	i *instance,
-	to crypto.PublicKey,
+	to ed25519.PublicKey,
 	amount uint64,
 	factory chain.AuthFactory,
 ) (ids.ID, error) {

@@ -14,7 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
@@ -419,7 +419,7 @@ func performImport(
 	dcli *rpc.JSONRPCClient,
 	dtcli *trpc.JSONRPCClient,
 	exportTxID ids.ID,
-	priv crypto.PrivateKey,
+	priv ed25519.PrivateKey,
 	factory chain.AuthFactory,
 ) error {
 	// Select TxID (if not provided)

@@ -4,12 +4,12 @@
 package cli
 
 import (
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 )
 
 type Controller interface {
 	DatabasePath() string
 	Symbol() string
-	Address(crypto.PublicKey) string
-	ParseAddress(string) (crypto.PublicKey, error)
+	Address(ed25519.PublicKey) string
+	ParseAddress(string) (ed25519.PublicKey, error)
 }

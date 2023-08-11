@@ -15,7 +15,7 @@ import (
 	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
@@ -58,7 +58,7 @@ var (
 	// TODO: extend to other types
 	balancePrefixPool = sync.Pool{
 		New: func() any {
-			return make([]byte, 1+crypto.PublicKeyLen+consts.IDLen)
+			return make([]byte, 1+ed25519.PublicKeyLen+consts.IDLen)
 		},
 	}
 )
@@ -115,11 +115,11 @@ func GetTransaction(
 }
 
 // [accountPrefix] + [address] + [asset]
-func PrefixBalanceKey(pk crypto.PublicKey, asset ids.ID) (k []byte) {
+func PrefixBalanceKey(pk ed25519.PublicKey, asset ids.ID) (k []byte) {
 	k = balancePrefixPool.Get().([]byte)
 	k[0] = balancePrefix
 	copy(k[1:], pk[:])
-	copy(k[1+crypto.PublicKeyLen:], asset[:])
+	copy(k[1+ed25519.PublicKeyLen:], asset[:])
 	return
 }
 
@@ -127,7 +127,7 @@ func PrefixBalanceKey(pk crypto.PublicKey, asset ids.ID) (k []byte) {
 func GetBalance(
 	ctx context.Context,
 	db chain.Database,
-	pk crypto.PublicKey,
+	pk ed25519.PublicKey,
 	asset ids.ID,
 ) (uint64, error) {
 	dbKey, bal, err := getBalance(ctx, db, pk, asset)
@@ -138,7 +138,7 @@ func GetBalance(
 func getBalance(
 	ctx context.Context,
 	db chain.Database,
-	pk crypto.PublicKey,
+	pk ed25519.PublicKey,
 	asset ids.ID,
 ) ([]byte, uint64, error) {
 	k := PrefixBalanceKey(pk, asset)
@@ -150,7 +150,7 @@ func getBalance(
 func GetBalanceFromState(
 	ctx context.Context,
 	f ReadState,
-	pk crypto.PublicKey,
+	pk ed25519.PublicKey,
 	asset ids.ID,
 ) (uint64, error) {
 	k := PrefixBalanceKey(pk, asset)
@@ -176,7 +176,7 @@ func innerGetBalance(
 func SetBalance(
 	ctx context.Context,
 	db chain.Database,
-	pk crypto.PublicKey,
+	pk ed25519.PublicKey,
 	asset ids.ID,
 	balance uint64,
 ) error {
@@ -196,7 +196,7 @@ func setBalance(
 func DeleteBalance(
 	ctx context.Context,
 	db chain.Database,
-	pk crypto.PublicKey,
+	pk ed25519.PublicKey,
 	asset ids.ID,
 ) error {
 	return db.Remove(ctx, PrefixBalanceKey(pk, asset))
@@ -205,7 +205,7 @@ func DeleteBalance(
 func AddBalance(
 	ctx context.Context,
 	db chain.Database,
-	pk crypto.PublicKey,
+	pk ed25519.PublicKey,
 	asset ids.ID,
 	amount uint64,
 ) error {
@@ -230,7 +230,7 @@ func AddBalance(
 func SubBalance(
 	ctx context.Context,
 	db chain.Database,
-	pk crypto.PublicKey,
+	pk ed25519.PublicKey,
 	asset ids.ID,
 	amount uint64,
 ) error {
@@ -270,7 +270,7 @@ func GetAssetFromState(
 	ctx context.Context,
 	f ReadState,
 	asset ids.ID,
-) (bool, []byte, uint64, crypto.PublicKey, bool, error) {
+) (bool, []byte, uint64, ed25519.PublicKey, bool, error) {
 	values, errs := f(ctx, [][]byte{PrefixAssetKey(asset)})
 	return innerGetAsset(values[0], errs[0])
 }
@@ -279,7 +279,7 @@ func GetAsset(
 	ctx context.Context,
 	db chain.Database,
 	asset ids.ID,
-) (bool, []byte, uint64, crypto.PublicKey, bool, error) {
+) (bool, []byte, uint64, ed25519.PublicKey, bool, error) {
 	k := PrefixAssetKey(asset)
 	return innerGetAsset(db.GetValue(ctx, k))
 }
@@ -287,19 +287,19 @@ func GetAsset(
 func innerGetAsset(
 	v []byte,
 	err error,
-) (bool, []byte, uint64, crypto.PublicKey, bool, error) {
+) (bool, []byte, uint64, ed25519.PublicKey, bool, error) {
 	if errors.Is(err, database.ErrNotFound) {
-		return false, nil, 0, crypto.EmptyPublicKey, false, nil
+		return false, nil, 0, ed25519.EmptyPublicKey, false, nil
 	}
 	if err != nil {
-		return false, nil, 0, crypto.EmptyPublicKey, false, err
+		return false, nil, 0, ed25519.EmptyPublicKey, false, err
 	}
 	metadataLen := binary.BigEndian.Uint16(v)
 	metadata := v[consts.Uint16Len : consts.Uint16Len+metadataLen]
 	supply := binary.BigEndian.Uint64(v[consts.Uint16Len+metadataLen:])
-	var pk crypto.PublicKey
+	var pk ed25519.PublicKey
 	copy(pk[:], v[consts.Uint16Len+metadataLen+consts.Uint64Len:])
-	warp := v[consts.Uint16Len+metadataLen+consts.Uint64Len+crypto.PublicKeyLen] == 0x1
+	warp := v[consts.Uint16Len+metadataLen+consts.Uint64Len+ed25519.PublicKeyLen] == 0x1
 	return true, metadata, supply, pk, warp, nil
 }
 
@@ -309,12 +309,12 @@ func SetAsset(
 	asset ids.ID,
 	metadata []byte,
 	supply uint64,
-	owner crypto.PublicKey,
+	owner ed25519.PublicKey,
 	warp bool,
 ) error {
 	k := PrefixAssetKey(asset)
 	metadataLen := len(metadata)
-	v := make([]byte, consts.Uint16Len+metadataLen+consts.Uint64Len+crypto.PublicKeyLen+1)
+	v := make([]byte, consts.Uint16Len+metadataLen+consts.Uint64Len+ed25519.PublicKeyLen+1)
 	binary.BigEndian.PutUint16(v, uint16(metadataLen))
 	copy(v[consts.Uint16Len:], metadata)
 	binary.BigEndian.PutUint64(v[consts.Uint16Len+metadataLen:], supply)
@@ -323,7 +323,7 @@ func SetAsset(
 	if warp {
 		b = 0x1
 	}
-	v[consts.Uint16Len+metadataLen+consts.Uint64Len+crypto.PublicKeyLen] = b
+	v[consts.Uint16Len+metadataLen+consts.Uint64Len+ed25519.PublicKeyLen] = b
 	return db.Insert(ctx, k, v)
 }
 
@@ -349,10 +349,10 @@ func SetOrder(
 	out ids.ID,
 	outTick uint64,
 	supply uint64,
-	owner crypto.PublicKey,
+	owner ed25519.PublicKey,
 ) error {
 	k := PrefixOrderKey(txID)
-	v := make([]byte, consts.IDLen*2+consts.Uint64Len*3+crypto.PublicKeyLen)
+	v := make([]byte, consts.IDLen*2+consts.Uint64Len*3+ed25519.PublicKeyLen)
 	copy(v, in[:])
 	binary.BigEndian.PutUint64(v[consts.IDLen:], inTick)
 	copy(v[consts.IDLen+consts.Uint64Len:], out[:])
@@ -373,16 +373,16 @@ func GetOrder(
 	ids.ID, // out
 	uint64, // outTick
 	uint64, // remaining
-	crypto.PublicKey, // owner
+	ed25519.PublicKey, // owner
 	error,
 ) {
 	k := PrefixOrderKey(order)
 	v, err := db.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
-		return false, ids.Empty, 0, ids.Empty, 0, 0, crypto.EmptyPublicKey, nil
+		return false, ids.Empty, 0, ids.Empty, 0, 0, ed25519.EmptyPublicKey, nil
 	}
 	if err != nil {
-		return false, ids.Empty, 0, ids.Empty, 0, 0, crypto.EmptyPublicKey, err
+		return false, ids.Empty, 0, ids.Empty, 0, 0, ed25519.EmptyPublicKey, err
 	}
 	var in ids.ID
 	copy(in[:], v[:consts.IDLen])
@@ -391,7 +391,7 @@ func GetOrder(
 	copy(out[:], v[consts.IDLen+consts.Uint64Len:consts.IDLen*2+consts.Uint64Len])
 	outTick := binary.BigEndian.Uint64(v[consts.IDLen*2+consts.Uint64Len:])
 	supply := binary.BigEndian.Uint64(v[consts.IDLen*2+consts.Uint64Len*2:])
-	var owner crypto.PublicKey
+	var owner ed25519.PublicKey
 	copy(owner[:], v[consts.IDLen*2+consts.Uint64Len*3:])
 	return true, in, inTick, out, outTick, supply, owner, nil
 }

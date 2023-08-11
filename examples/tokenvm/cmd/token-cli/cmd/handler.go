@@ -9,7 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/cli"
 	hconsts "github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
@@ -35,7 +35,7 @@ func (h *Handler) Root() *cli.Handler {
 func (h *Handler) GetAssetInfo(
 	ctx context.Context,
 	cli *trpc.JSONRPCClient,
-	publicKey crypto.PublicKey,
+	publicKey ed25519.PublicKey,
 	assetID ids.ID,
 	checkBalance bool,
 ) (uint64, ids.ID, error) {
@@ -91,21 +91,21 @@ func (h *Handler) GetAssetInfo(
 }
 
 func (h *Handler) DefaultActor() (
-	ids.ID, crypto.PrivateKey, *auth.ED25519Factory,
+	ids.ID, ed25519.PrivateKey, *auth.ED25519Factory,
 	*rpc.JSONRPCClient, *trpc.JSONRPCClient, error,
 ) {
 	priv, err := h.h.GetDefaultKey()
 	if err != nil {
-		return ids.Empty, crypto.EmptyPrivateKey, nil, nil, nil, err
+		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
 	}
 	chainID, uris, err := h.h.GetDefaultChain()
 	if err != nil {
-		return ids.Empty, crypto.EmptyPrivateKey, nil, nil, nil, err
+		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
 	}
 	cli := rpc.NewJSONRPCClient(uris[0])
 	networkID, _, _, err := cli.Network(context.TODO())
 	if err != nil {
-		return ids.Empty, crypto.EmptyPrivateKey, nil, nil, nil, err
+		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
 	}
 	// For [defaultActor], we always send requests to the first returned URI.
 	return chainID, priv, auth.NewED25519Factory(
@@ -134,10 +134,10 @@ func (*Controller) Symbol() string {
 	return consts.Symbol
 }
 
-func (*Controller) Address(pk crypto.PublicKey) string {
+func (*Controller) Address(pk ed25519.PublicKey) string {
 	return utils.Address(pk)
 }
 
-func (*Controller) ParseAddress(address string) (crypto.PublicKey, error) {
+func (*Controller) ParseAddress(address string) (ed25519.PublicKey, error) {
 	return utils.ParseAddress(address)
 }
