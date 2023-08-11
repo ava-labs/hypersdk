@@ -36,6 +36,8 @@ type VM interface {
 	Tracer() trace.Tracer
 	Logger() logging.Logger
 
+	GetAuthBatchVerifier(uint8, int, int) (AuthBatchVerifier, bool)
+
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
 	SetLastAccepted(*StatelessBlock) error
@@ -69,9 +71,6 @@ type VM interface {
 	RecordStateOperations(int)
 	RecordBuildCapped()
 	RecordEmptyBlockBuilt()
-
-	// TODO: find a better place for this
-	GetBatchAsyncVerifier(uint8, int, int) (AuthBatchAsyncVerifier, bool)
 }
 
 type Mempool interface {
@@ -160,7 +159,7 @@ type Action interface {
 	Marshal(p *codec.Packer)
 }
 
-type AuthBatchAsyncVerifier interface {
+type AuthBatchVerifier interface {
 	Add([]byte, Auth) func() error
 	Done() []func() error
 }
