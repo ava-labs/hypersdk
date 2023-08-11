@@ -163,7 +163,7 @@ func (vm *VM) processAcceptedBlocks() {
 		results := b.Results()
 		for i, tx := range b.Txs {
 			// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
-			vm.c.CacheAuth(tx.Auth)
+			vm.cacheAuth(tx.Auth)
 
 			result := results[i]
 			if result.WarpMessage == nil {
@@ -393,6 +393,18 @@ func (vm *VM) RecordEmptyBlockBuilt() {
 	vm.metrics.emptyBlockBuilt.Inc()
 }
 
-func (vm *VM) GetBatchAsyncVerifier(t uint8, cores int, count int) (chain.AuthBatchAsyncVerifier, bool) {
-	return vm.c.GetBatchAsyncVerifier(t, cores, count)
+func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
+	bv, ok := vm.authEngine[authTypeID]
+	if !ok {
+		return nil, false
+	}
+	return bv.GetBatchVerifier(cores, count), ok
+}
+
+func (vm *VM) cacheAuth(auth chain.Auth) {
+	bv, ok := vm.authEngine[auth.GetTypeID()]
+	if !ok {
+		return
+	}
+	bv.Cache(auth)
 }
