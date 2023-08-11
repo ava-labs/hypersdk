@@ -16,31 +16,6 @@ type AuthBatch struct {
 	bvs map[uint8]*authBatchWorker
 }
 
-type authBatchObject struct {
-	digest []byte
-	auth   Auth
-}
-
-type authBatchWorker struct {
-	vm    VM
-	job   *workers.Job
-	bv    AuthBatchVerifier
-	items chan *authBatchObject
-	done  chan struct{}
-}
-
-func (b *authBatchWorker) start() {
-	defer close(b.done)
-
-	for object := range b.items {
-		if j := b.bv.Add(object.digest, object.auth); j != nil {
-			// May finish parts of batch early, let's start computing them as soon as possible
-			b.job.Go(j)
-			b.vm.Logger().Debug("enqueued batch for processing during add")
-		}
-	}
-}
-
 func NewAuthBatch(vm VM, job *workers.Job, authTypes map[uint8]int) *AuthBatch {
 	bvs := map[uint8]*authBatchWorker{}
 	for t, count := range authTypes {
@@ -83,4 +58,29 @@ func (a *AuthBatch) Done(f func()) {
 		}
 	}
 	a.job.Done(f)
+}
+
+type authBatchObject struct {
+	digest []byte
+	auth   Auth
+}
+
+type authBatchWorker struct {
+	vm    VM
+	job   *workers.Job
+	bv    AuthBatchVerifier
+	items chan *authBatchObject
+	done  chan struct{}
+}
+
+func (b *authBatchWorker) start() {
+	defer close(b.done)
+
+	for object := range b.items {
+		if j := b.bv.Add(object.digest, object.auth); j != nil {
+			// May finish parts of batch early, let's start computing them as soon as possible
+			b.job.Go(j)
+			b.vm.Logger().Debug("enqueued batch for processing during add")
+		}
+	}
 }
