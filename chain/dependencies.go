@@ -83,6 +83,9 @@ type Mempool interface {
 		time.Duration,
 		func(context.Context, *Transaction) (bool /* continue */, bool /* restore */, bool /* remove account */, error),
 	) error
+	StartBuild(context.Context)
+	LeaseItems(context.Context, int) []*Transaction
+	FinishBuild(context.Context, []*Transaction)
 }
 
 type Database interface {

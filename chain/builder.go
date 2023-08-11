@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/math"
@@ -98,17 +99,72 @@ func BuildBlock(
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
 
-		start    = time.Now()
-		lockWait time.Duration
+		start          = time.Now()
+		restorable     = []*Transaction{}
+		alreadyFetched = map[string]*fetchData{}
 	)
-	mempoolErr := mempool.Build(
-		ctx,
-		vm.GetTargetBuildDuration(),
-		func(fctx context.Context, next *Transaction) (cont bool, restore bool, removeAcct bool, err error) {
-			if txsAttempted == 0 {
-				lockWait = time.Since(start)
+	mempool.StartBuild(ctx)
+	for time.Since(start) < vm.GetTargetBuildDuration() {
+		// Bulk fetch items from mempool to unblock incoming RPC/Gossip traffic
+		var execErr error
+		txs := mempool.LeaseItems(ctx, 256)
+		if len(txs) == 0 {
+			break
+		}
+
+		// Prefetch all transactions
+		readyTxs := make(chan *txData, len(txs))
+		stopIndex := -1
+		go func() {
+			for i, tx := range txs {
+				if execErr != nil {
+					stopIndex = i
+					close(readyTxs)
+					return
+				}
+
+				storage := map[string][]byte{}
+				for _, k := range tx.StateKeys(sm) {
+					sk := string(k)
+					if v, ok := alreadyFetched[sk]; ok {
+						if v.exists {
+							storage[sk] = v.v
+						}
+						continue
+					}
+					v, err := state.GetValue(ctx, k)
+					if errors.Is(err, database.ErrNotFound) {
+						alreadyFetched[sk] = &fetchData{nil, false}
+						continue
+					} else if err != nil {
+						// This can happen if the underlying view changes (if we are
+						// verifying a block that can never be accepted).
+						execErr = err
+						stopIndex = i
+						close(readyTxs)
+						return
+					}
+					alreadyFetched[sk] = &fetchData{v, true}
+					storage[sk] = v
+				}
+				readyTxs <- &txData{tx, storage}
 			}
-			txsAttempted++
+
+			// Let caller know all sets have been readied
+			close(readyTxs)
+		}()
+
+		// Perform a batch repeat check while we are waiting for state prefetching
+		//
+		// TODO: make this return which txs are repeats rather than all/nothing
+
+		// Execute transactions as they become ready
+		for nextTxData := range readyTxs {
+			next := nextTxData.tx
+			if execErr != nil {
+				restorable = append(restorable, next)
+				continue
+			}
 
 			// Ensure we can process if transaction includes a warp message
 			if next.WarpMessage != nil && blockContext == nil {
@@ -116,7 +172,8 @@ func BuildBlock(
 					"dropping pending warp message because no context provided",
 					zap.Stringer("txID", next.ID()),
 				)
-				return true, next.Base.Timestamp > oldestAllowed, false, nil
+				restorable = append(restorable, next)
+				continue
 			}
 
 			// Skip warp message if at max
@@ -125,7 +182,8 @@ func BuildBlock(
 					"dropping pending warp message because already have MaxWarpMessages",
 					zap.Stringer("txID", next.ID()),
 				)
-				return true, true, false, nil
+				restorable = append(restorable, next)
+				continue
 			}
 
 			// Check for repeats
@@ -134,11 +192,13 @@ func BuildBlock(
 			// for every tx
 			dup, err := parent.IsRepeat(ctx, oldestAllowed, []*Transaction{next})
 			if err != nil {
-				return false, false, false, err
+				restorable = append(restorable, next)
+				execErr = err
+				continue // need to finish processing txs
 			}
 			if dup {
 				// tx will be restored when ancestry is rejected
-				return true, false, false, nil
+				continue
 			}
 
 			// Ensure we have room
@@ -149,7 +209,7 @@ func BuildBlock(
 					"skipping invalid tx",
 					zap.Error(err),
 				)
-				return true, false, false, nil
+				continue
 			}
 			if b.UnitsConsumed+nextUnits > r.GetMaxBlockUnits() {
 				log.Debug(
@@ -157,23 +217,29 @@ func BuildBlock(
 					zap.Uint64("block units", b.UnitsConsumed),
 					zap.Uint64("tx max units", nextUnits),
 				)
-				return false /* make simpler */, true, false, nil // could be txs that fit that are smaller
+				restorable = append(restorable, next)
+				// TODO: add a const here to exit if we are close enough
+				continue
 			}
 
 			// Populate required transaction state and restrict which keys can be used
-			//
-			// TODO: prefetch state of upcoming txs that we will pull (should make much
-			// faster)
 			txStart := ts.OpIndex()
-			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), state); err != nil {
-				return false, true, false, err
-			}
+			ts.SetScope(ctx, next.StateKeys(sm), nextTxData.storage)
 
 			// PreExecute next to see if it is fit
-			if err := next.PreExecute(fctx, ectx, r, ts, nextTime); err != nil {
+			if err := next.PreExecute(ctx, ectx, r, ts, nextTime); err != nil {
 				ts.Rollback(ctx, txStart)
-				cont, restore, removeAcct := HandlePreExecute(err)
-				return cont, restore, removeAcct, nil
+				// TODO: support remove account?
+				cont, restore, _ := HandlePreExecute(err)
+				if !cont {
+					restorable = append(restorable, next)
+					execErr = err
+					continue
+				}
+				if restore {
+					restorable = append(restorable, next)
+				}
+				continue
 			}
 
 			// Verify warp message, if it exists
@@ -207,7 +273,7 @@ func BuildBlock(
 
 			// If execution works, keep moving forward with new state
 			result, err := next.Execute(
-				fctx,
+				ctx,
 				r,
 				sm,
 				ts,
@@ -218,7 +284,9 @@ func BuildBlock(
 				// This error should only be raised by the handler, not the
 				// implementation itself
 				log.Warn("unexpected post-execution error", zap.Error(err))
-				return false, false, false, err
+				restorable = append(restorable, next)
+				execErr = err
+				continue
 			}
 
 			// Update block with new transaction
@@ -233,19 +301,26 @@ func BuildBlock(
 				}
 				warpCount++
 			}
-			return true, false, false, nil
-		},
-	)
-	if time.Since(start) > b.vm.GetTargetBuildDuration() {
-		b.vm.RecordBuildCapped()
+		}
+		if stopIndex >= 0 {
+			// If we stopped prefetching, make sure to add those txs back
+			restorable = append(restorable, txs[stopIndex:]...)
+		}
+		if execErr != nil {
+			mempool.FinishBuild(ctx, append(b.Txs, restorable...))
+			b.vm.Logger().Warn("build failed", zap.Error(execErr))
+			return nil, execErr
+		}
 	}
+	mempool.FinishBuild(ctx, restorable)
+
+	// Update tracking metrics
 	span.SetAttributes(
 		attribute.Int("attempted", txsAttempted),
 		attribute.Int("added", len(b.Txs)),
 	)
-	if mempoolErr != nil {
-		b.vm.Mempool().Add(ctx, b.Txs)
-		return nil, err
+	if time.Since(start) > b.vm.GetTargetBuildDuration() {
+		b.vm.RecordBuildCapped()
 	}
 
 	// Perform basic validity checks to make sure the block is well-formatted
@@ -284,7 +359,6 @@ func BuildBlock(
 		zap.Int("attempted", txsAttempted),
 		zap.Int("added", len(b.Txs)),
 		zap.Int("mempool size", b.vm.Mempool().Len(ctx)),
-		zap.Duration("mempool lock wait", lockWait),
 		zap.Bool("context", blockContext != nil),
 		zap.Int("state changes", ts.PendingChanges()),
 		zap.Int("state operations", ts.OpIndex()),

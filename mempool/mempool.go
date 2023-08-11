@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"golang.org/x/exp/maps"
 )
 
 const maxPrealloc = 4_096
@@ -36,10 +35,6 @@ type Mempool[T Item] struct {
 	// leasedItems have been tentatively removed from the mempool while
 	// they are evaluate for block building.
 	leasedItems set.Set[ids.ID]
-
-	// exemptItems will not be included in a built block but should not be
-	// returned to the mempool until after building has concluded.
-	exemptItems map[ids.ID]T
 
 	// payers that are exempt from [maxPayerSize]
 	exemptPayers set.Set[string]
@@ -119,11 +114,6 @@ func (th *Mempool[T]) add(items []T) {
 
 		// Ensure no duplicate
 		itemID := item.ID()
-		if th.exemptItems != nil {
-			if _, ok := th.exemptItems[itemID]; ok {
-				continue
-			}
-		}
 		if th.leasedItems != nil && th.leasedItems.Contains(itemID) {
 			continue
 		}
@@ -335,7 +325,7 @@ func (th *Mempool[T]) StartBuild(ctx context.Context) {
 	defer th.mu.Unlock()
 
 	th.bl.Lock()
-	th.exemptItems = map[ids.ID]T{}
+	th.leasedItems = set.NewSet[ids.ID](1_024)
 }
 
 func (th *Mempool[T]) LeaseItems(ctx context.Context, count int) []T {
@@ -346,7 +336,6 @@ func (th *Mempool[T]) LeaseItems(ctx context.Context, count int) []T {
 	defer th.mu.Unlock()
 
 	txs := make([]T, 0, count)
-	th.leasedItems = set.NewSet[ids.ID](count)
 	for len(txs) < count {
 		item, ok := th.popMax()
 		if !ok {
@@ -358,26 +347,10 @@ func (th *Mempool[T]) LeaseItems(ctx context.Context, count int) []T {
 	return txs
 }
 
-func (th *Mempool[T]) ClearLease(ctx context.Context, restore []T, exempt []T) {
-	// We don't handle removed txs here, we just skip
-	ctx, span := th.tracer.Start(ctx, "Mempool.ClearLease")
-	defer span.End()
-
+func (th *Mempool[T]) FinishBuild(ctx context.Context, restorable []T) {
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	th.leasedItems = nil
-	th.add(restore)
-	for _, ex := range exempt {
-		th.exemptItems[ex.ID()] = ex
-	}
-}
-
-func (th *Mempool[T]) FinishBuild(ctx context.Context) {
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
-	th.add(maps.Values(th.exemptItems))
-	th.exemptItems = nil
+	th.add(restorable)
 	th.bl.Unlock()
 }
