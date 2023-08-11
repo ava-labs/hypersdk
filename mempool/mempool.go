@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"golang.org/x/exp/maps"
 )
 
 const maxPrealloc = 4_096
@@ -20,6 +21,7 @@ type Mempool[T Item] struct {
 	tracer trace.Tracer
 
 	mu sync.RWMutex
+	bl sync.Mutex // should never be needed
 
 	maxSize      int
 	maxPayerSize int // Maximum items allowed by a single payer
@@ -30,6 +32,14 @@ type Mempool[T Item] struct {
 	// [Owned] used to remove all items from an account when the balance is
 	// insufficient
 	owned map[string]set.Set[ids.ID]
+
+	// leasedItems have been tentatively removed from the mempool while
+	// they are evaluate for block building.
+	leasedItems set.Set[ids.ID]
+
+	// exemptItems will not be included in a built block but should not be
+	// returned to the mempool until after building has concluded.
+	exemptItems map[ids.ID]T
 
 	// payers that are exempt from [maxPayerSize]
 	exemptPayers set.Set[string]
@@ -100,11 +110,24 @@ func (th *Mempool[T]) Add(ctx context.Context, items []T) {
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
+	th.add(items)
+}
+
+func (th *Mempool[T]) add(items []T) {
 	for _, item := range items {
 		sender := item.Payer()
 
 		// Ensure no duplicate
-		if th.pm.Has(item.ID()) {
+		itemID := item.ID()
+		if th.exemptItems != nil {
+			if _, ok := th.exemptItems[itemID]; ok {
+				continue
+			}
+		}
+		if th.leasedItems != nil && th.leasedItems.Contains(itemID) {
+			continue
+		}
+		if th.pm.Has(itemID) {
 			// Don't drop because already exists
 			continue
 		}
@@ -165,6 +188,10 @@ func (th *Mempool[T]) PopMax(ctx context.Context) (T, bool) { // O(log N)
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
+	return th.popMax()
+}
+
+func (th *Mempool[T]) popMax() (T, bool) {
 	max, ok := th.pm.PopMax()
 	if ok {
 		th.tm.Remove(max.ID())
@@ -301,4 +328,56 @@ func (th *Mempool[T]) Build(
 		th.pm.Add(item)
 	}
 	return err
+}
+
+func (th *Mempool[T]) StartBuild(ctx context.Context) {
+	th.mu.Lock()
+	defer th.mu.Unlock()
+
+	th.bl.Lock()
+	th.exemptItems = map[ids.ID]T{}
+}
+
+func (th *Mempool[T]) LeaseItems(ctx context.Context, count int) []T {
+	ctx, span := th.tracer.Start(ctx, "Mempool.LeaseTxs")
+	defer span.End()
+
+	th.mu.Lock()
+	defer th.mu.Unlock()
+
+	txs := make([]T, 0, count)
+	th.leasedItems = set.NewSet[ids.ID](count)
+	for len(txs) < count {
+		item, ok := th.popMax()
+		if !ok {
+			break
+		}
+		th.leasedItems.Add(item.ID())
+		txs = append(txs, item)
+	}
+	return txs
+}
+
+func (th *Mempool[T]) ClearLease(ctx context.Context, restore []T, exempt []T) {
+	// We don't handle removed txs here, we just skip
+	ctx, span := th.tracer.Start(ctx, "Mempool.ClearLease")
+	defer span.End()
+
+	th.mu.Lock()
+	defer th.mu.Unlock()
+
+	th.leasedItems = nil
+	th.add(restore)
+	for _, ex := range exempt {
+		th.exemptItems[ex.ID()] = ex
+	}
+}
+
+func (th *Mempool[T]) FinishBuild(ctx context.Context) {
+	th.mu.Lock()
+	defer th.mu.Unlock()
+
+	th.add(maps.Values(th.exemptItems))
+	th.exemptItems = nil
+	th.bl.Unlock()
 }
