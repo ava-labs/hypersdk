@@ -47,6 +47,11 @@ type Genesis interface {
 	Load(context.Context, atrace.Tracer, chain.Database) error
 }
 
+type AuthEngine interface {
+	GetBatchVerifier(cores int, count int) chain.AuthBatchVerifier
+	Cache(auth chain.Auth)
+}
+
 type Controller interface {
 	Initialize(
 		inner *VM, // hypersdk VM
@@ -67,6 +72,7 @@ type Controller interface {
 		handler Handlers,
 		actionRegistry chain.ActionRegistry,
 		authRegistry chain.AuthRegistry,
+		authEngines map[uint8]AuthEngine,
 		err error,
 	)
 

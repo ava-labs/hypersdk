@@ -7,7 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 
@@ -65,7 +65,7 @@ var setKeyCmd = &cobra.Command{
 	},
 }
 
-func lookupKeyBalance(pk crypto.PublicKey, uri string, networkID uint32, chainID ids.ID, assetID ids.ID) error {
+func lookupKeyBalance(pk ed25519.PublicKey, uri string, networkID uint32, chainID ids.ID, assetID ids.ID) error {
 	_, _, err := handler.GetAssetInfo(
 		context.TODO(), trpc.NewJSONRPCClient(uri, networkID, chainID),
 		pk, assetID, true)

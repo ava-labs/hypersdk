@@ -4,15 +4,15 @@
 package utils
 
 import (
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 )
 
-func Address(pk crypto.PublicKey) string {
-	return crypto.Address(consts.HRP, pk)
+func Address(pk ed25519.PublicKey) string {
+	return ed25519.Address(consts.HRP, pk)
 }
 
-func ParseAddress(s string) (crypto.PublicKey, error) {
-	return crypto.ParseAddress(consts.HRP, s)
+func ParseAddress(s string) (ed25519.PublicKey, error) {
+	return ed25519.ParseAddress(consts.HRP, s)
 }

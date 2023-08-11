@@ -13,7 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/utils"
@@ -77,7 +77,7 @@ func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 func (i *ImportAsset) executeMint(
 	ctx context.Context,
 	db chain.Database,
-	actor crypto.PublicKey,
+	actor ed25519.PublicKey,
 ) []byte {
 	asset := ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
 	exists, metadata, supply, _, warp, err := storage.GetAsset(ctx, db, asset)
@@ -99,7 +99,7 @@ func (i *ImportAsset) executeMint(
 	if err != nil {
 		return utils.ErrBytes(err)
 	}
-	if err := storage.SetAsset(ctx, db, asset, metadata, newSupply, crypto.EmptyPublicKey, true); err != nil {
+	if err := storage.SetAsset(ctx, db, asset, metadata, newSupply, ed25519.EmptyPublicKey, true); err != nil {
 		return utils.ErrBytes(err)
 	}
 	if err := storage.AddBalance(ctx, db, i.warpTransfer.To, asset, i.warpTransfer.Value); err != nil {
@@ -116,7 +116,7 @@ func (i *ImportAsset) executeMint(
 func (i *ImportAsset) executeReturn(
 	ctx context.Context,
 	db chain.Database,
-	actor crypto.PublicKey,
+	actor ed25519.PublicKey,
 ) []byte {
 	if err := storage.SubLoan(
 		ctx, db, i.warpTransfer.Asset,

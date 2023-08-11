@@ -21,7 +21,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
@@ -50,11 +50,11 @@ var (
 func (h *Handler) Spam(
 	maxTxBacklog int, randomRecipient bool,
 	createClient func(string, uint32, ids.ID), // must save on caller side
-	getFactory func(crypto.PrivateKey) chain.AuthFactory,
+	getFactory func(ed25519.PrivateKey) chain.AuthFactory,
 	lookupBalance func(int, string) (uint64, error),
 	getParser func(context.Context, ids.ID) (chain.Parser, error),
-	getTransfer func(crypto.PublicKey, uint64) chain.Action,
-	submitDummy func(*rpc.JSONRPCClient, crypto.PrivateKey) func(context.Context, uint64) error,
+	getTransfer func(ed25519.PublicKey, uint64) chain.Action,
+	submitDummy func(*rpc.JSONRPCClient, ed25519.PrivateKey) func(context.Context, uint64) error,
 ) error {
 	ctx := context.Background()
 
@@ -121,12 +121,12 @@ func (h *Handler) Spam(
 		h.ValueString(ids.Empty, distAmount),
 		h.AssetString(ids.Empty),
 	)
-	accounts := make([]crypto.PrivateKey, numAccounts)
+	accounts := make([]ed25519.PrivateKey, numAccounts)
 	dcli, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err
 	}
-	funds := map[crypto.PublicKey]uint64{}
+	funds := map[ed25519.PublicKey]uint64{}
 	parser, err := getParser(ctx, chainID)
 	if err != nil {
 		return err
@@ -134,7 +134,7 @@ func (h *Handler) Spam(
 	var fundsL sync.Mutex
 	for i := 0; i < numAccounts; i++ {
 		// Create account
-		pk, err := crypto.GeneratePrivateKey()
+		pk, err := ed25519.GeneratePrivateKey()
 		if err != nil {
 			return err
 		}
@@ -259,7 +259,7 @@ func (h *Handler) Spam(
 
 					// Send transaction
 					start := time.Now()
-					selected := map[crypto.PublicKey]int{}
+					selected := map[ed25519.PublicKey]int{}
 					for k := 0; k < numTxsPerAccount; k++ {
 						recipient, err := getNextRecipient(randomRecipient, i, accounts)
 						if err != nil {
@@ -463,11 +463,11 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 	}()
 }
 
-func getNextRecipient(randomRecipient bool, self int, keys []crypto.PrivateKey) (crypto.PublicKey, error) {
+func getNextRecipient(randomRecipient bool, self int, keys []ed25519.PrivateKey) (ed25519.PublicKey, error) {
 	if randomRecipient {
-		priv, err := crypto.GeneratePrivateKey()
+		priv, err := ed25519.GeneratePrivateKey()
 		if err != nil {
-			return crypto.EmptyPublicKey, err
+			return ed25519.EmptyPublicKey, err
 		}
 		return priv.PublicKey(), nil
 	}

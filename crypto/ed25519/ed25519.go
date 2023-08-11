@@ -1,9 +1,10 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package crypto
+package ed25519
 
 import (
+	"crypto/rand"
 	"encoding/hex"
 	"os"
 
@@ -28,6 +29,7 @@ const (
 	PrivateKeySeedLen = ed25519.SeedSize
 	SignatureLen      = ed25519.SignatureSize
 
+	// TODO: make this tunable
 	cacheSize = 128_000 // ~179MB (keys are ~1.4KB each)
 )
 
@@ -37,7 +39,7 @@ var (
 	EmptySignature  = [ed25519.SignatureSize]byte{}
 
 	verifyOptions ed25519.Options
-	cacheVerifier *cache.Verifier
+	cacheVerifier *Verifier
 )
 
 func init() {
@@ -57,7 +59,7 @@ func init() {
 
 	// cacheVerifier stores expanded ed25519 Public Keys (each is ~1.4KB). Using
 	// a cached expanded key reduces verification latency by ~25%.
-	cacheVerifier = cache.NewVerifier(cache.NewLRUCache(cacheSize))
+	cacheVerifier = NewVerifier(cache.NewLRUCache(cacheSize))
 }
 
 // Address returns a Bech32 address from hrp and p.
@@ -138,8 +140,6 @@ func Sign(msg []byte, pk PrivateKey) Signature {
 
 // Verify returns whether s is a valid signature of msg by p.
 func Verify(msg []byte, p PublicKey, s Signature) bool {
-	// TODO: only evict items from cache when verifying blocks (otherwise RPC interaction can
-	// clear the cache)
 	return cacheVerifier.VerifyWithOptions(p[:], msg, s[:], &verifyOptions)
 }
 
@@ -154,4 +154,36 @@ func HexToKey(key string) (PrivateKey, error) {
 		return EmptyPrivateKey, ErrInvalidPrivateKey
 	}
 	return PrivateKey(bytes), nil
+}
+
+func CachePublicKey(p PublicKey) {
+	cacheVerifier.AddPublicKey(p[:])
+}
+
+type Batch struct {
+	bv *ed25519.BatchVerifier
+}
+
+func NewBatch(numItems int) *Batch {
+	if numItems <= 0 {
+		return &Batch{ed25519.NewBatchVerifier()}
+	}
+	return &Batch{ed25519.NewBatchVerifierWithCapacity(numItems)}
+}
+
+func (b *Batch) Add(msg []byte, p PublicKey, s Signature) {
+	cacheVerifier.AddWithOptions(b.bv, p[:], msg, s[:], &verifyOptions)
+}
+
+func (b *Batch) Verify() bool {
+	return b.bv.VerifyBatchOnly(rand.Reader)
+}
+
+func (b *Batch) VerifyAsync() func() error {
+	return func() error {
+		if !b.Verify() {
+			return ErrInvalidSignature
+		}
+		return nil
+	}
 }

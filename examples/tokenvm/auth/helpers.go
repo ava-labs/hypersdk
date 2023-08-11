@@ -5,23 +5,23 @@ package auth
 
 import (
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 )
 
-func GetActor(auth chain.Auth) crypto.PublicKey {
+func GetActor(auth chain.Auth) ed25519.PublicKey {
 	switch a := auth.(type) {
 	case *ED25519:
 		return a.Signer
 	default:
-		return crypto.EmptyPublicKey
+		return ed25519.EmptyPublicKey
 	}
 }
 
-func GetSigner(auth chain.Auth) crypto.PublicKey {
+func GetSigner(auth chain.Auth) ed25519.PublicKey {
 	switch a := auth.(type) {
 	case *ED25519:
 		return a.Signer
 	default:
-		return crypto.EmptyPublicKey
+		return ed25519.EmptyPublicKey
 	}
 }
