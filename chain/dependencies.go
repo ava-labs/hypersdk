@@ -36,6 +36,8 @@ type VM interface {
 	Tracer() trace.Tracer
 	Logger() logging.Logger
 
+	// We don't include this in registry because it would never be used
+	// by any client of the hypersdk.
 	GetAuthBatchVerifier(uint8, int, int) (AuthBatchVerifier, bool)
 
 	IsBootstrapped() bool
