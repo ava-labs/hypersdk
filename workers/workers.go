@@ -172,6 +172,8 @@ func (j *Job) Wait() error {
 	return <-j.result
 }
 
+// Workers returns the number of workers that will execute the job. This can be used
+// by callers to generate batch sizes that lead to the most efficient computation.
 func (j *Job) Workers() int {
 	return j.count
 }
