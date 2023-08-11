@@ -15,7 +15,7 @@ import (
 )
 
 type op struct {
-	k string
+	k []byte
 
 	pastExists  bool
 	pastV       []byte
@@ -67,22 +67,21 @@ func (ts *TState) GetValue(ctx context.Context, key []byte) ([]byte, error) {
 	if !ts.checkScope(ctx, key) {
 		return nil, ErrKeyNotSpecified
 	}
-	k := string(key)
-	v, _, exists := ts.getValue(ctx, k)
+	v, _, exists := ts.getValue(ctx, key)
 	if !exists {
 		return nil, database.ErrNotFound
 	}
 	return v, nil
 }
 
-func (ts *TState) getValue(_ context.Context, key string) ([]byte, bool, bool) {
-	if v, ok := ts.changedKeys[key]; ok {
+func (ts *TState) getValue(_ context.Context, key []byte) ([]byte, bool, bool) {
+	if v, ok := ts.changedKeys[string(key)]; ok {
 		if v.removed {
 			return nil, true, false
 		}
 		return v.v, true, true
 	}
-	v, ok := ts.scopeStorage[key]
+	v, ok := ts.scopeStorage[string(key)]
 	if !ok {
 		return nil, false, false
 	}
@@ -93,25 +92,24 @@ func (ts *TState) getValue(_ context.Context, key string) ([]byte, bool, bool) {
 // FetchAndSetScope then sets the scope of ts to [keys]. If a key exists in
 // ts.fetchCache set the key's value to the value from cache.
 func (ts *TState) FetchAndSetScope(ctx context.Context, keys [][]byte, db Database) error {
-	ts.scopeStorage = map[string][]byte{}
+	ts.scopeStorage = make(map[string][]byte, len(keys))
 	for _, key := range keys {
-		k := string(key)
-		if val, ok := ts.fetchCache[k]; ok {
+		if val, ok := ts.fetchCache[string(key)]; ok {
 			if val.Exists {
-				ts.scopeStorage[k] = val.Value
+				ts.scopeStorage[string(key)] = val.Value
 			}
 			continue
 		}
 		v, err := db.GetValue(ctx, key)
 		if errors.Is(err, database.ErrNotFound) {
-			ts.fetchCache[k] = &cacheItem{Exists: false}
+			ts.fetchCache[string(key)] = &cacheItem{Exists: false}
 			continue
 		}
 		if err != nil {
 			return err
 		}
-		ts.fetchCache[k] = &cacheItem{Value: v, Exists: true}
-		ts.scopeStorage[k] = v
+		ts.fetchCache[string(key)] = &cacheItem{Value: v, Exists: true}
+		ts.scopeStorage[string(key)] = v
 	}
 	ts.scope = keys
 	return nil
@@ -126,7 +124,6 @@ func (ts *TState) SetScope(_ context.Context, keys [][]byte, storage map[string]
 // checkScope returns whether [k] is in ts.readScope.
 func (ts *TState) checkScope(_ context.Context, k []byte) bool {
 	for _, s := range ts.scope {
-		// TODO: benchmark and see if creating map is worth overhead
 		if bytes.Equal(k, s) {
 			return true
 		}
@@ -139,15 +136,14 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
-	k := string(key)
-	past, changed, exists := ts.getValue(ctx, k)
+	past, changed, exists := ts.getValue(ctx, key)
 	ts.ops = append(ts.ops, &op{
-		k:           k,
+		k:           key,
 		pastExists:  exists,
 		pastV:       past,
 		pastChanged: changed,
 	})
-	ts.changedKeys[k] = &tempStorage{value, false}
+	ts.changedKeys[string(key)] = &tempStorage{value, false}
 	return nil
 }
 
@@ -156,18 +152,17 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
-	k := string(key)
-	past, changed, exists := ts.getValue(ctx, k)
+	past, changed, exists := ts.getValue(ctx, key)
 	if !exists {
 		return nil
 	}
 	ts.ops = append(ts.ops, &op{
-		k:           k,
+		k:           key,
 		pastExists:  true,
 		pastV:       past,
 		pastChanged: changed,
 	})
-	ts.changedKeys[k] = &tempStorage{nil, true}
+	ts.changedKeys[string(key)] = &tempStorage{nil, true}
 	return nil
 }
 
@@ -188,13 +183,13 @@ func (ts *TState) Rollback(_ context.Context, restorePoint int) {
 		//
 		// remove: Removed key that was modified for first time in run
 		if !op.pastChanged {
-			delete(ts.changedKeys, op.k)
+			delete(ts.changedKeys, string(op.k))
 			continue
 		}
 		// insert: Modified key for the nth time
 		//
 		// remove: Removed key that was previously modified in run
-		ts.changedKeys[op.k] = &tempStorage{op.pastV, !op.pastExists}
+		ts.changedKeys[string(op.k)] = &tempStorage{op.pastV, !op.pastExists}
 	}
 	ts.ops = ts.ops[:restorePoint]
 }
