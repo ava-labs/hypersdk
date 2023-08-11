@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -54,7 +55,6 @@ import (
 const (
 	genesisBalance  uint64 = hconsts.MaxUint64
 	transferTxUnits        = 440
-	maxTxsPerBlock  int    = 1_800_000 /* max block units */ / transferTxUnits
 )
 
 var (
@@ -178,7 +178,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	// create embedded VMs
 	instances = make([]*instance, vms)
 	gen = genesis.Default()
-	gen.WindowTargetUnits = 1_000_000_000                      // disable unit price increase
+	gen.WindowTargetUnits = 1_000_000_000 // disable unit price increase
+	gen.MaxBlockUnits = 4_500_000
 	gen.MinBlockGap = 0                                        // don't require time between blocks
 	gen.ValidityWindow = 1_000 * hconsts.MillisecondsPerSecond // txs shouldn't expire
 	gen.CustomAllocation = []*genesis.CustomAllocation{
@@ -375,10 +376,6 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			// leave some left over for root
 			fundSplit := (genesisBalance - remainder) / uint64(accts)
 			gomega.Ω(fundSplit).Should(gomega.Not(gomega.BeZero()))
-			requiredBlocks := accts / maxTxsPerBlock
-			if accts%maxTxsPerBlock > 0 {
-				requiredBlocks++
-			}
 			requiredTxs := map[ids.ID]struct{}{}
 			for _, acct := range senders {
 				id, err := issueSimpleTx(instances[0], acct.rsender, fundSplit, root.factory)
@@ -386,13 +383,16 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				requiredTxs[id] = struct{}{}
 			}
 
-			for i := 0; i < requiredBlocks; i++ {
+			for {
 				blk := produceBlock(instances[0])
-				log.Debug("block produced", zap.Int("txs", len(blk.Txs)))
+				if blk == nil {
+					break
+				}
+				log.Debug("block produced", zap.Uint64("height", blk.Hght), zap.Int("txs", len(blk.Txs)))
 				for _, result := range blk.Results() {
 					if !result.Success {
 						// Used for debugging
-						fmt.Println(string(result.Output), i, requiredBlocks)
+						fmt.Println(string(result.Output))
 					}
 					gomega.Ω(result.Success).Should(gomega.BeTrue())
 				}
@@ -450,13 +450,12 @@ var _ = ginkgo.Describe("load tests vm", func() {
 
 		ginkgo.By("producing blks", func() {
 			start := time.Now()
-			requiredBlocks := txs / maxTxsPerBlock
-			if txs%maxTxsPerBlock > 0 {
-				requiredBlocks++
-			}
-			for i := 0; i < requiredBlocks; i++ {
+			for {
 				blk := produceBlock(instances[0])
-				log.Debug("block produced", zap.Int("txs", len(blk.Txs)))
+				if blk == nil {
+					break
+				}
+				log.Debug("block produced", zap.Uint64("height", blk.Hght), zap.Int("txs", len(blk.Txs)))
 				for _, tx := range blk.Txs {
 					delete(allTxs, tx.ID())
 				}
@@ -510,6 +509,9 @@ func produceBlock(i *instance) *chain.StatelessBlock {
 	ctx := context.TODO()
 
 	blk, err := i.vm.BuildBlock(ctx)
+	if errors.Is(err, chain.ErrNoTxs) {
+		return nil
+	}
 	gomega.Ω(err).To(gomega.BeNil())
 	gomega.Ω(blk).To(gomega.Not(gomega.BeNil()))
 
