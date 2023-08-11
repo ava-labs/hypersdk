@@ -58,7 +58,7 @@ func (mr *MockControllerMockRecorder) Accepted(arg0, arg1 interface{}) *gomock.C
 }
 
 // Initialize mocks base method.
-func (m *MockController) Initialize(arg0 *VM, arg1 *snow.Context, arg2 metrics.MultiGatherer, arg3, arg4, arg5 []byte) (Config, Genesis, builder.Builder, gossiper.Gossiper, database.Database, database.Database, Handlers, chain.ActionRegistry, chain.AuthRegistry, error) {
+func (m *MockController) Initialize(arg0 *VM, arg1 *snow.Context, arg2 metrics.MultiGatherer, arg3, arg4, arg5 []byte) (Config, Genesis, builder.Builder, gossiper.Gossiper, database.Database, database.Database, Handlers, chain.ActionRegistry, chain.AuthRegistry, map[byte]AuthEngine, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Initialize", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].(Config)
@@ -70,8 +70,9 @@ func (m *MockController) Initialize(arg0 *VM, arg1 *snow.Context, arg2 metrics.M
 	ret6, _ := ret[6].(Handlers)
 	ret7, _ := ret[7].(chain.ActionRegistry)
 	ret8, _ := ret[8].(chain.AuthRegistry)
-	ret9, _ := ret[9].(error)
-	return ret0, ret1, ret2, ret3, ret4, ret5, ret6, ret7, ret8, ret9
+	ret9, _ := ret[9].(map[byte]AuthEngine)
+	ret10, _ := ret[10].(error)
+	return ret0, ret1, ret2, ret3, ret4, ret5, ret6, ret7, ret8, ret9, ret10
 }
 
 // Initialize indicates an expected call of Initialize.
