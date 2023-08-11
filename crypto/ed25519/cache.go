@@ -1,6 +1,6 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
-//
+
 // This file derives from the following file in the upstream oasisprotocol/curve25519-voi
 // package:
 //
