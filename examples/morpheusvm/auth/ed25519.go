@@ -43,9 +43,8 @@ func (d *ED25519) StateKeys() [][]byte {
 }
 
 func (d *ED25519) AsyncVerify(msg []byte) error {
-	// TODO: should add to batch if doesn't exist?
 	if !ed25519.Verify(msg, d.Signer, d.Signature) {
-		return ErrInvalidSignature
+		return ed25519.ErrInvalidSignature
 	}
 	return nil
 }
@@ -151,7 +150,6 @@ type ED25519Batch struct {
 	batch        *ed25519.Batch
 }
 
-// TODO: invariant that only providing right auth here
 func (b *ED25519Batch) Add(msg []byte, rauth chain.Auth) func() error {
 	auth := rauth.(*ED25519)
 	if b.batch == nil {
