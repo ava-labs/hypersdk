@@ -108,6 +108,7 @@ func BuildBlock(
 	for time.Since(start) < vm.GetTargetBuildDuration() {
 		// Bulk fetch items from mempool to unblock incoming RPC/Gossip traffic
 		var execErr error
+		// TODO: make this size a config
 		txs := mempool.LeaseItems(ctx, 256)
 		if len(txs) == 0 {
 			break
@@ -156,7 +157,7 @@ func BuildBlock(
 		}()
 
 		// Perform a batch repeat check while we are waiting for state prefetching
-		dup, err := parent.IsRepeat(ctx, oldestAllowed, txs, set.Bits{}, false)
+		dup, err := parent.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), false)
 		if err != nil {
 			execErr = err
 		}

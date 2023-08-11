@@ -709,7 +709,7 @@ func (vm *VM) Submit(
 			continue
 		}
 		// TODO: Batch this repeat check (and collect multiple txs at once)
-		repeat, err := blk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx}, set.Bits{}, true)
+		repeat, err := blk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx}, set.NewBits(), true)
 		if err != nil {
 			errs = append(errs, err)
 			continue

@@ -434,7 +434,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		// Can occur if verifying genesis
 		oldestAllowed = 0
 	}
-	dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs, set.Bits{}, true)
+	dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs, set.NewBits(), true)
 	if err != nil {
 		return nil, err
 	}
