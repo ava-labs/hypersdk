@@ -10,15 +10,15 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 )
 
 var _ chain.Auth = (*ED25519)(nil)
 
 type ED25519 struct {
-	Signer    crypto.PublicKey `json:"signer"`
-	Signature crypto.Signature `json:"signature"`
+	Signer    ed25519.PublicKey `json:"signer"`
+	Signature ed25519.Signature `json:"signature"`
 }
 
 func (*ED25519) GetTypeID() uint8 {
@@ -28,7 +28,7 @@ func (*ED25519) GetTypeID() uint8 {
 func (*ED25519) MaxUnits(
 	chain.Rules,
 ) uint64 {
-	return crypto.PublicKeyLen + crypto.SignatureLen*5 // make signatures more expensive
+	return ed25519.PublicKeyLen + ed25519.SignatureLen*5 // make signatures more expensive
 }
 
 func (*ED25519) ValidRange(chain.Rules) (int64, int64) {
@@ -44,7 +44,7 @@ func (d *ED25519) StateKeys() [][]byte {
 
 func (d *ED25519) AsyncVerify(msg []byte) error {
 	// TODO: should add to batch if doesn't exist?
-	if !crypto.Verify(msg, d.Signer, d.Signature) {
+	if !ed25519.Verify(msg, d.Signer, d.Signature) {
 		return ErrInvalidSignature
 	}
 	return nil
@@ -66,7 +66,7 @@ func (d *ED25519) Payer() []byte {
 }
 
 func (*ED25519) Size() int {
-	return crypto.PublicKeyLen + crypto.SignatureLen
+	return ed25519.PublicKeyLen + ed25519.SignatureLen
 }
 
 func (d *ED25519) Marshal(p *codec.Packer) {
@@ -114,61 +114,24 @@ func (d *ED25519) Refund(
 
 var _ chain.AuthFactory = (*ED25519Factory)(nil)
 
-func NewED25519Factory(priv crypto.PrivateKey) *ED25519Factory {
+func NewED25519Factory(priv ed25519.PrivateKey) *ED25519Factory {
 	return &ED25519Factory{priv}
 }
 
 type ED25519Factory struct {
-	priv crypto.PrivateKey
+	priv ed25519.PrivateKey
 }
 
 func (d *ED25519Factory) Sign(msg []byte, _ chain.Action) (chain.Auth, error) {
-	sig := crypto.Sign(msg, d.priv)
+	sig := ed25519.Sign(msg, d.priv)
 	return &ED25519{d.priv.PublicKey(), sig}, nil
-}
-
-type ConcurrentBatch struct {
-	batchSize int
-	total     int
-
-	counter      int
-	totalCounter int
-	batch        *crypto.Batch
-}
-
-// TODO: invariant that only providing right auth here
-func (cb *ConcurrentBatch) Add(msg []byte, rauth chain.Auth) func() error {
-	auth := rauth.(*ED25519)
-	if cb.batch == nil {
-		cb.batch = crypto.NewBatch(cb.batchSize)
-	}
-	cb.batch.Add(msg, auth.Signer, auth.Signature)
-	cb.counter++
-	cb.totalCounter++
-	if cb.counter == cb.batchSize {
-		last := cb.batch
-		cb.counter = 0
-		if cb.totalCounter < cb.total {
-			// don't create a new batch if we are done
-			cb.batch = crypto.NewBatch(cb.batchSize)
-		}
-		return last.VerifyAsync()
-	}
-	return nil
-}
-
-func (cb *ConcurrentBatch) Done() []func() error {
-	if cb.batch == nil {
-		return nil
-	}
-	return []func() error{cb.batch.VerifyAsync()}
 }
 
 type ED25519AuthEngine struct{}
 
 func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatchVerifier {
 	batchSize := math.Max(count/cores, 16)
-	return &ConcurrentBatch{
+	return &ED25519Batch{
 		batchSize: batchSize,
 		total:     count,
 	}
@@ -176,5 +139,42 @@ func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatch
 
 func (*ED25519AuthEngine) Cache(auth chain.Auth) {
 	pk := GetSigner(auth)
-	crypto.CachePublicKey(pk)
+	ed25519.CachePublicKey(pk)
+}
+
+type ED25519Batch struct {
+	batchSize int
+	total     int
+
+	counter      int
+	totalCounter int
+	batch        *ed25519.Batch
+}
+
+// TODO: invariant that only providing right auth here
+func (b *ED25519Batch) Add(msg []byte, rauth chain.Auth) func() error {
+	auth := rauth.(*ED25519)
+	if b.batch == nil {
+		b.batch = ed25519.NewBatch(b.batchSize)
+	}
+	b.batch.Add(msg, auth.Signer, auth.Signature)
+	b.counter++
+	b.totalCounter++
+	if b.counter == b.batchSize {
+		last := b.batch
+		b.counter = 0
+		if b.totalCounter < b.total {
+			// don't create a new batch if we are done
+			b.batch = ed25519.NewBatch(b.batchSize)
+		}
+		return last.VerifyAsync()
+	}
+	return nil
+}
+
+func (b *ED25519Batch) Done() []func() error {
+	if b.batch == nil {
+		return nil
+	}
+	return []func() error{b.batch.VerifyAsync()}
 }
