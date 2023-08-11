@@ -39,7 +39,7 @@ var (
 	EmptySignature  = [ed25519.SignatureSize]byte{}
 
 	verifyOptions ed25519.Options
-	cacheVerifier *cache.Verifier
+	cacheVerifier *Verifier
 )
 
 func init() {
@@ -59,7 +59,7 @@ func init() {
 
 	// cacheVerifier stores expanded ed25519 Public Keys (each is ~1.4KB). Using
 	// a cached expanded key reduces verification latency by ~25%.
-	cacheVerifier = cache.NewVerifier(cache.NewLRUCache(cacheSize))
+	cacheVerifier = NewVerifier(cache.NewLRUCache(cacheSize))
 }
 
 // Address returns a Bech32 address from hrp and p.
@@ -170,7 +170,6 @@ func NewBatch(numItems int) *Batch {
 }
 
 func (b *Batch) Add(msg []byte, p PublicKey, s Signature) {
-	// TODO: add own cache that only adds to verifier when block accepted
 	cacheVerifier.AddWithOptions(b.bv, p[:], msg, s[:], &verifyOptions)
 }
 
@@ -185,4 +184,9 @@ func (b *Batch) VerifyAsync() func() error {
 		}
 		return errors.New("invalid signature")
 	}
+}
+
+// TODO: call this whenever a block is accepted on all public keys
+func CachePublicKey(p PublicKey) {
+	cacheVerifier.AddPublicKey(p[:])
 }
