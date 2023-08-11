@@ -48,7 +48,10 @@ type StatefulBlock struct {
 	UnitsConsumed uint64     `json:"unitsConsumed"`
 	WarpResults   set.Bits64 `json:"warpResults"`
 
-	size       int
+	size int
+
+	// authCounts can be used by batch signature verification
+	// to preallocate memory
 	authCounts map[uint8]int
 }
 
@@ -148,17 +151,18 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	defer span.End()
 
 	// Setup signature verification job
+	_, sigVerifySpan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
 	job, err := b.vm.Workers().NewJob(len(b.Txs))
 	if err != nil {
 		return err
 	}
 	b.sigJob = job
+	batchVerifier := NewAuthBatch(b.vm, b.sigJob, b.authCounts)
 
-	// Process transactions
-	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
+	// Confirm no transaction duplicates and setup
+	// AWM processing
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	b.warpMessages = map[ids.ID]*warpJob{}
-	batchVerifier := NewBatch(b.vm, b.sigJob, b.authCounts)
 	for _, tx := range b.Txs {
 		// Ensure there are no duplicate transactions
 		if b.txsSet.Contains(tx.ID()) {
@@ -166,9 +170,12 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 		}
 		b.txsSet.Add(tx.ID())
 
-		// Verify signature.
-		// TODO: call public method for digest
-		batchVerifier.Add(tx.digest, tx.Auth)
+		// Verify signature async
+		txDigest, err := tx.Digest()
+		if err != nil {
+			return err
+		}
+		batchVerifier.Add(txDigest, tx.Auth)
 
 		// Check if we need the block context to verify the block (which contains
 		// an Avalanche Warp Message)
@@ -193,8 +200,10 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 			b.containsWarp = true
 		}
 	}
-	// BatchVerifier calls sigJob done because it may add things to the work queue async
-	go batchVerifier.Done(func() { sspan.End() }) // ensures all jobs are spawned
+
+	// BatchVerifier is given the responsibility to call [b.sigJob.Done()] because it may add things
+	// to the work queue async and that may not have completed by this point.
+	go batchVerifier.Done(func() { sigVerifySpan.End() })
 	return nil
 }
 
@@ -460,10 +469,10 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 			)
 			return nil, ErrMissingBlockContext
 		}
-		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
+		_, warpVerifySpan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
 		b.vdrState = b.vm.ValidatorState()
 		go func() {
-			defer sspan.End()
+			defer warpVerifySpan.End()
 			// We don't use [b.vm.Workers] here because we need the warp verification
 			// results during normal execution. If we added a job to the workers queue,
 			// it would get executed after all signatures. Additionally, BLS
