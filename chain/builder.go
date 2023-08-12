@@ -119,7 +119,7 @@ func BuildBlock(
 	for time.Since(start) < vm.GetTargetBuildDuration() {
 		// Bulk fetch items from mempool to unblock incoming RPC/Gossip traffic
 		var execErr error
-		fl.Lock()
+		fl.Lock() // ensures we don't run Prepare twice without reading values first
 		txs := mempool.LeaseItems(ctx, leaseBatch)
 		fl.Unlock()
 		if len(txs) == 0 {
