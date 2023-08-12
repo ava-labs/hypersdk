@@ -111,7 +111,7 @@ func BuildBlock(
 		// Bulk fetch items from mempool to unblock incoming RPC/Gossip traffic
 		var execErr error
 		// TODO: make this size a config
-		txs := mempool.LeaseItems(ctx, 2048)
+		txs := mempool.LeaseItems(ctx, 1_024)
 		if len(txs) == 0 {
 			break
 		}
@@ -120,6 +120,9 @@ func BuildBlock(
 		readyTxs := make(chan *txData, len(txs))
 		stopIndex := -1
 		go func() {
+			ctx, prefetchSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Prefetch")
+			defer prefetchSpan.End()
+
 			for i, tx := range txs {
 				if execErr != nil {
 					stopIndex = i
@@ -165,6 +168,7 @@ func BuildBlock(
 		}
 
 		// Execute transactions as they become ready
+		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Execute")
 		seen := 0
 		for nextTxData := range readyTxs {
 			txsAttempted++
@@ -304,6 +308,9 @@ func BuildBlock(
 				warpCount++
 			}
 		}
+		executeSpan.End()
+
+		// Handle execution result
 		if execErr != nil {
 			if stopIndex >= 0 {
 				// If we stopped prefetching, make sure to add those txs back
@@ -317,7 +324,7 @@ func BuildBlock(
 			break
 		}
 	}
-	mempool.FinishBuild(ctx, restorable)
+	go mempool.FinishBuild(ctx, restorable)
 
 	// Update tracking metrics
 	span.SetAttributes(
