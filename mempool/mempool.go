@@ -118,12 +118,10 @@ func (th *Mempool[T]) add(items []T) {
 		// Ensure no duplicate
 		itemID := item.ID()
 		if th.leasedItems != nil && th.leasedItems.Contains(itemID) {
-			panic("in leased")
 			continue
 		}
 		if th.pm.Has(itemID) {
 			// Don't drop because already exists
-			panic("already exists")
 			continue
 		}
 
@@ -146,7 +144,6 @@ func (th *Mempool[T]) add(items []T) {
 			lowItem, _ := th.pm.PopMin()
 			th.tm.Remove(lowItem.ID())
 			th.removeFromOwned(lowItem)
-			panic("larger than max")
 		}
 	}
 }
@@ -385,8 +382,8 @@ func (th *Mempool[T]) FinishBuild(ctx context.Context, restorable []T) {
 	th.leasedItems = nil
 	th.add(restorable)
 	if th.nextLeastFetched {
-		fmt.Println("next lease restored", len(th.nextLease))
 		th.add(th.nextLease)
+		fmt.Println("next lease restored", len(th.nextLease))
 		th.nextLease = nil
 		th.nextLeastFetched = false
 	}

@@ -111,13 +111,17 @@ func BuildBlock(
 		alreadyFetched = map[string]*fetchData{}
 
 		// Ensures we don't exit without waiting for all prepare leases to come back
+		//
+		// TODO: find a way to refactor to remove this
 		fl sync.Mutex
 	)
 	mempool.StartBuild(ctx)
 	for time.Since(start) < vm.GetTargetBuildDuration() {
 		// Bulk fetch items from mempool to unblock incoming RPC/Gossip traffic
 		var execErr error
+		fl.Lock()
 		txs := mempool.LeaseItems(ctx, leaseBatch)
+		fl.Unlock()
 		if len(txs) == 0 {
 			break
 		}
