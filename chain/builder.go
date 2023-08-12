@@ -23,6 +23,8 @@ import (
 
 const maxViewPreallocation = 10_000
 
+var errBlockFull = errors.New("block full")
+
 func HandlePreExecute(
 	err error,
 ) (bool /* continue */, bool /* restore */, bool /* remove account */) {
@@ -109,7 +111,7 @@ func BuildBlock(
 		// Bulk fetch items from mempool to unblock incoming RPC/Gossip traffic
 		var execErr error
 		// TODO: make this size a config
-		txs := mempool.LeaseItems(ctx, 256)
+		txs := mempool.LeaseItems(ctx, 2048)
 		if len(txs) == 0 {
 			break
 		}
@@ -165,6 +167,7 @@ func BuildBlock(
 		// Execute transactions as they become ready
 		seen := 0
 		for nextTxData := range readyTxs {
+			txsAttempted++
 			next := nextTxData.tx
 			if execErr != nil {
 				restorable = append(restorable, next)
@@ -215,6 +218,9 @@ func BuildBlock(
 				)
 				restorable = append(restorable, next)
 				// TODO: add a const here to exit if we are close enough
+				if r.GetMaxBlockUnits()-b.UnitsConsumed < 1_000 {
+					execErr = errBlockFull
+				}
 				continue
 			}
 
@@ -298,14 +304,17 @@ func BuildBlock(
 				warpCount++
 			}
 		}
-		if stopIndex >= 0 {
-			// If we stopped prefetching, make sure to add those txs back
-			restorable = append(restorable, txs[stopIndex:]...)
-		}
 		if execErr != nil {
-			mempool.FinishBuild(ctx, append(b.Txs, restorable...))
-			b.vm.Logger().Warn("build failed", zap.Error(execErr))
-			return nil, execErr
+			if stopIndex >= 0 {
+				// If we stopped prefetching, make sure to add those txs back
+				restorable = append(restorable, txs[stopIndex:]...)
+			}
+			if !errors.Is(execErr, errBlockFull) {
+				mempool.FinishBuild(ctx, append(b.Txs, restorable...))
+				b.vm.Logger().Warn("build failed", zap.Error(execErr))
+				return nil, execErr
+			}
+			break
 		}
 	}
 	mempool.FinishBuild(ctx, restorable)
@@ -354,6 +363,7 @@ func BuildBlock(
 		zap.Uint64("hght", b.Hght),
 		zap.Int("attempted", txsAttempted),
 		zap.Int("added", len(b.Txs)),
+		zap.Int("restored", len(restorable)),
 		zap.Int("mempool size", b.vm.Mempool().Len(ctx)),
 		zap.Bool("context", blockContext != nil),
 		zap.Int("state changes", ts.PendingChanges()),

@@ -326,7 +326,7 @@ func (th *Mempool[T]) StartBuild(ctx context.Context) {
 	defer th.mu.Unlock()
 
 	th.bl.Lock()
-	th.leasedItems = set.NewSet[ids.ID](1_024)
+	th.leasedItems = set.NewSet[ids.ID](16_384)
 }
 
 func (th *Mempool[T]) LeaseItems(ctx context.Context, count int) []T {
@@ -352,6 +352,7 @@ func (th *Mempool[T]) FinishBuild(ctx context.Context, restorable []T) {
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
+	th.leasedItems = nil
 	th.add(restorable)
 	th.bl.Unlock()
 }
