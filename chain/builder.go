@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -21,7 +22,10 @@ import (
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
-const maxViewPreallocation = 10_000
+const (
+	maxViewPreallocation = 10_000
+	leaseBatch           = 256
+)
 
 var errBlockFull = errors.New("block full")
 
@@ -105,13 +109,15 @@ func BuildBlock(
 		start          = time.Now()
 		restorable     = []*Transaction{}
 		alreadyFetched = map[string]*fetchData{}
+
+		// Ensures we don't exit without waiting for all prepare leases to come back
+		fl sync.Mutex
 	)
 	mempool.StartBuild(ctx)
 	for time.Since(start) < vm.GetTargetBuildDuration() {
 		// Bulk fetch items from mempool to unblock incoming RPC/Gossip traffic
 		var execErr error
-		// TODO: make this size a config
-		txs := mempool.LeaseItems(ctx, 1_024)
+		txs := mempool.LeaseItems(ctx, leaseBatch)
 		if len(txs) == 0 {
 			break
 		}
@@ -128,6 +134,14 @@ func BuildBlock(
 					stopIndex = i
 					close(readyTxs)
 					return
+				}
+
+				if i == leaseBatch/2 {
+					fl.Lock()
+					go func() {
+						mempool.PrepareLeaseItems(ctx, leaseBatch)
+						fl.Unlock()
+					}()
 				}
 
 				storage := map[string][]byte{}
@@ -317,13 +331,18 @@ func BuildBlock(
 				restorable = append(restorable, txs[stopIndex:]...)
 			}
 			if !errors.Is(execErr, errBlockFull) {
-				mempool.FinishBuild(ctx, append(b.Txs, restorable...))
+				fl.Lock() // we never need to unlock this as it will not be used after this
+				go mempool.FinishBuild(ctx, append(b.Txs, restorable...))
 				b.vm.Logger().Warn("build failed", zap.Error(execErr))
 				return nil, execErr
 			}
 			break
 		}
 	}
+
+	// Wait for lease preparation to finish to make
+	// sure all transactions are returned to the mempool.
+	fl.Lock() // we never need to unlock this as it will not be used after this
 	go mempool.FinishBuild(ctx, restorable)
 
 	// Update tracking metrics

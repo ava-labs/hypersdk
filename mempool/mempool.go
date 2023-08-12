@@ -5,6 +5,7 @@ package mempool
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -34,7 +35,9 @@ type Mempool[T Item] struct {
 
 	// leasedItems have been tentatively removed from the mempool while
 	// they are evaluate for block building.
-	leasedItems set.Set[ids.ID]
+	leasedItems      set.Set[ids.ID]
+	nextLease        []T
+	nextLeastFetched bool
 
 	// payers that are exempt from [maxPayerSize]
 	exemptPayers set.Set[string]
@@ -115,10 +118,12 @@ func (th *Mempool[T]) add(items []T) {
 		// Ensure no duplicate
 		itemID := item.ID()
 		if th.leasedItems != nil && th.leasedItems.Contains(itemID) {
+			panic("in leased")
 			continue
 		}
 		if th.pm.Has(itemID) {
 			// Don't drop because already exists
+			panic("already exists")
 			continue
 		}
 
@@ -141,6 +146,7 @@ func (th *Mempool[T]) add(items []T) {
 			lowItem, _ := th.pm.PopMin()
 			th.tm.Remove(lowItem.ID())
 			th.removeFromOwned(lowItem)
+			panic("larger than max")
 		}
 	}
 }
@@ -336,6 +342,16 @@ func (th *Mempool[T]) LeaseItems(ctx context.Context, count int) []T {
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
+	if th.nextLeastFetched {
+		txs := th.nextLease
+		th.nextLease = nil
+		th.nextLeastFetched = false
+		return txs
+	}
+	return th.leaseItems(count)
+}
+
+func (th *Mempool[T]) leaseItems(count int) []T {
 	txs := make([]T, 0, count)
 	for len(txs) < count {
 		item, ok := th.popMax()
@@ -348,11 +364,31 @@ func (th *Mempool[T]) LeaseItems(ctx context.Context, count int) []T {
 	return txs
 }
 
+func (th *Mempool[T]) PrepareLeaseItems(ctx context.Context, count int) {
+	ctx, span := th.tracer.Start(ctx, "Mempool.PrepareLeaseTxs")
+	defer span.End()
+
+	th.mu.Lock()
+	defer th.mu.Unlock()
+
+	th.nextLease = th.leaseItems(count)
+	th.nextLeastFetched = true
+}
+
 func (th *Mempool[T]) FinishBuild(ctx context.Context, restorable []T) {
+	ctx, span := th.tracer.Start(ctx, "Mempool.FinishBuild")
+	defer span.End()
+
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
 	th.leasedItems = nil
 	th.add(restorable)
+	if th.nextLeastFetched {
+		fmt.Println("next lease restored", len(th.nextLease))
+		th.add(th.nextLease)
+		th.nextLease = nil
+		th.nextLeastFetched = false
+	}
 	th.bl.Unlock()
 }

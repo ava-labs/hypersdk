@@ -404,7 +404,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				}
 			}
 
-			gomega.Ω(requiredTxs).To(gomega.BeEmpty())
+			gomega.Ω(len(requiredTxs)).To(gomega.BeZero())
 		})
 	})
 
@@ -418,6 +418,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			for i := 0; i < txs; i++ {
 				j.Go(func() error {
+					// TODO make this way more efficient
 					var txID ids.ID
 					for {
 						// It is ok if a transfer is to self
@@ -461,7 +462,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				}
 				blks = append(blks, blk)
 			}
-			gomega.Ω(allTxs).To(gomega.BeEmpty())
+			gomega.Ω(len(allTxs)).To(gomega.BeZero())
 			blockGen = time.Since(start)
 		})
 	})
