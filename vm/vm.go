@@ -95,7 +95,7 @@ type VM struct {
 	webSocketServer *rpc.WebSocketServer
 
 	// Reuse gorotuine group to avoid constant re-allocation
-	workers *workers.Workers
+	workers workers.Workers
 
 	bootstrapped utils.Atomic[bool]
 	preferred    ids.ID
@@ -212,7 +212,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Setup worker cluster
-	vm.workers = workers.New(vm.config.GetParallelism(), 100)
+	vm.workers = workers.NewParallel(vm.config.GetParallelism(), 100)
 
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
