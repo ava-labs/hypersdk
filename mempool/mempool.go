@@ -325,7 +325,7 @@ func (th *Mempool[T]) Top(
 // Streaming is useful for block building because we can get a feed of the
 // best txs to build without holding the lock during the duration of the build
 // process. Streaming in batches allows for various state prefetching operations.
-func (th *Mempool[T]) StartStreaming(ctx context.Context) {
+func (th *Mempool[T]) StartStreaming(_ context.Context) {
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
