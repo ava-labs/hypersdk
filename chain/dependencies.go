@@ -89,7 +89,7 @@ type Mempool interface {
 	StartStreaming(context.Context)
 	PrepareStream(context.Context, int)
 	Stream(context.Context, int) []*Transaction
-	FinishStreaming(context.Context, []*Transaction)
+	FinishStreaming(context.Context, []*Transaction) int
 }
 
 type Database interface {

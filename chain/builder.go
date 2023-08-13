@@ -108,8 +108,7 @@ func BuildBlock(
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
 
-		start   = time.Now()
-		execErr error
+		start = time.Now()
 
 		// restorable txs after block attempt finishes
 		restorable = []*Transaction{}
@@ -137,8 +136,11 @@ func BuildBlock(
 		// Prefetch all transactions
 		//
 		// TODO: unify logic with https://github.com/ava-labs/hypersdk/blob/4e10b911c3cd88e0ccd8d9de5210515b1d3a3ac4/chain/processor.go#L44-L79
-		readyTxs := make(chan *txData, len(txs))
-		stopIndex := -1
+		var (
+			readyTxs  = make(chan *txData, len(txs))
+			stopIndex = -1
+			execErr   error
+		)
 		go func() {
 			ctx, prefetchSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Prefetch")
 			defer prefetchSpan.End()
@@ -353,7 +355,8 @@ func BuildBlock(
 				// sure all transactions are returned to the mempool.
 				go func() {
 					prepareStreamLock.Lock() // we never need to unlock this as it will not be used after this
-					mempool.FinishStreaming(ctx, append(b.Txs, restorable...))
+					restored := mempool.FinishStreaming(ctx, append(b.Txs, restorable...))
+					b.vm.Logger().Debug("transactions restored to mempool", zap.Int("count", restored))
 				}()
 				b.vm.Logger().Warn("build failed", zap.Error(execErr))
 				return nil, execErr
@@ -366,7 +369,8 @@ func BuildBlock(
 	// sure all transactions are returned to the mempool.
 	go func() {
 		prepareStreamLock.Lock()
-		mempool.FinishStreaming(ctx, restorable)
+		restored := mempool.FinishStreaming(ctx, restorable)
+		b.vm.Logger().Debug("transactions restored to mempool", zap.Int("count", restored))
 	}()
 
 	// Update tracking metrics

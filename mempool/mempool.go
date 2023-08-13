@@ -379,19 +379,22 @@ func (th *Mempool[T]) streamItems(count int) []T {
 
 // FinishStreaming restores [restorable] items to the mempool and clears
 // the set of all previously streamed items.
-func (th *Mempool[T]) FinishStreaming(ctx context.Context, restorable []T) {
+func (th *Mempool[T]) FinishStreaming(ctx context.Context, restorable []T) int {
 	_, span := th.tracer.Start(ctx, "Mempool.FinishStreaming")
 	defer span.End()
 
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
+	restored := len(restorable)
 	th.streamedItems = nil
 	th.add(restorable)
 	if th.nextStreamFetched {
 		th.add(th.nextStream)
+		restored += len(th.nextStream)
 		th.nextStream = nil
 		th.nextStreamFetched = false
 	}
 	th.streamLock.Unlock()
+	return restored
 }
