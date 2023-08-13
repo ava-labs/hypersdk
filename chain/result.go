@@ -17,6 +17,7 @@ type Result struct {
 
 	StateCreated  uint64
 	StateModified uint64
+	StateDeleted  uint64
 
 	ComputeUnits uint64
 	StorageUnits uint64
