@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net/http"
 	"sync"
@@ -262,6 +263,9 @@ func (vm *VM) Initialize(
 		}
 		if err := vm.genesis.Load(ctx, vm.tracer, view); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
+			return err
+		}
+		if err := view.Insert(ctx, vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
 		if err := view.CommitToDB(ctx); err != nil {
