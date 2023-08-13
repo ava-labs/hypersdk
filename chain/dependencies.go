@@ -86,10 +86,10 @@ type Mempool interface {
 		func(context.Context, *Transaction) (cont bool, restore bool, err error),
 	) error
 
-	StartBuild(context.Context)
-	PrepareLeaseItems(context.Context, int)
-	LeaseItems(context.Context, int) []*Transaction
-	FinishBuild(context.Context, []*Transaction)
+	StartStreaming(context.Context)
+	PrepareStream(context.Context, int)
+	Stream(context.Context, int) []*Transaction
+	FinishStreaming(context.Context, []*Transaction)
 }
 
 type Database interface {

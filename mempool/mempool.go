@@ -20,7 +20,6 @@ type Mempool[T Item] struct {
 	tracer trace.Tracer
 
 	mu sync.RWMutex
-	bl sync.Mutex // should never be needed
 
 	maxSize      int
 	maxPayerSize int // Maximum items allowed by a single payer
@@ -32,11 +31,12 @@ type Mempool[T Item] struct {
 	// insufficient
 	owned map[string]set.Set[ids.ID]
 
-	// leasedItems have been tentatively removed from the mempool while
-	// they are evaluate for block building.
-	leasedItems      set.Set[ids.ID]
-	nextLease        []T
-	nextLeastFetched bool
+	// streamedItems have been removed from the mempool during streaming
+	// and should not be re-added by calls to [Add].
+	streamLock        sync.Mutex // should never be needed
+	streamedItems     set.Set[ids.ID]
+	nextStream        []T
+	nextStreamFetched bool
 
 	// payers that are exempt from [maxPayerSize]
 	exemptPayers set.Set[string]
@@ -116,7 +116,7 @@ func (th *Mempool[T]) add(items []T) {
 
 		// Ensure no duplicate
 		itemID := item.ID()
-		if th.leasedItems != nil && th.leasedItems.Contains(itemID) {
+		if th.streamedItems != nil && th.streamedItems.Contains(itemID) {
 			continue
 		}
 		if th.pm.Has(itemID) {
@@ -318,72 +318,80 @@ func (th *Mempool[T]) Top(
 	return err
 }
 
-// StartLease allows for async iteration over the highest-value items
-// in the mempool. When done using the lease, it should be returned
-// using [EndLease].
+// StartStreaming allows for async iteration over the highest-value items
+// in the mempool. When done streaming, invoke [FinishStreaming] with all
+// items that should be restored.
 //
-// TODO: better name
-func (th *Mempool[T]) StartLease(ctx context.Context) {
+// Streaming is useful for block building because we can get a feed of the
+// best txs to build without holding the lock during the duration of the build
+// process. Streaming in batches allows for various state prefetching operations.
+func (th *Mempool[T]) StartStreaming(ctx context.Context) {
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	th.bl.Lock()
-	th.leasedItems = set.NewSet[ids.ID](16_384)
+	th.streamLock.Lock()
+	th.streamedItems = set.NewSet[ids.ID](maxPrealloc)
 }
 
-func (th *Mempool[T]) PrepareLeaseItems(ctx context.Context, count int) {
-	ctx, span := th.tracer.Start(ctx, "Mempool.PrepareLeaseTxs")
+// PrepareStream prefetches the next [count] items from the mempool to
+// reduce the latency of calls to [StreamItems].
+func (th *Mempool[T]) PrepareStream(ctx context.Context, count int) {
+	ctx, span := th.tracer.Start(ctx, "Mempool.PrepareStream")
 	defer span.End()
 
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	th.nextLease = th.leaseItems(count)
-	th.nextLeastFetched = true
+	th.nextStream = th.streamItems(count)
+	th.nextStreamFetched = true
 }
 
-func (th *Mempool[T]) LeaseItems(ctx context.Context, count int) []T {
-	ctx, span := th.tracer.Start(ctx, "Mempool.LeaseTxs")
+// Stream gets the next highest-valued [count] items from the mempool, not
+// including what has already been streamed.
+func (th *Mempool[T]) Stream(ctx context.Context, count int) []T {
+	ctx, span := th.tracer.Start(ctx, "Mempool.Stream")
 	defer span.End()
 
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	if th.nextLeastFetched {
-		txs := th.nextLease
-		th.nextLease = nil
-		th.nextLeastFetched = false
+	if th.nextStreamFetched {
+		txs := th.nextStream
+		th.nextStream = nil
+		th.nextStreamFetched = false
 		return txs
 	}
-	return th.leaseItems(count)
+	return th.streamItems(count)
 }
 
-func (th *Mempool[T]) leaseItems(count int) []T {
+func (th *Mempool[T]) streamItems(count int) []T {
 	txs := make([]T, 0, count)
 	for len(txs) < count {
 		item, ok := th.popMax()
 		if !ok {
 			break
 		}
-		th.leasedItems.Add(item.ID())
+		th.streamedItems.Add(item.ID())
 		txs = append(txs, item)
 	}
 	return txs
 }
 
-func (th *Mempool[T]) EndLease(ctx context.Context, restorable []T) {
-	ctx, span := th.tracer.Start(ctx, "Mempool.FinishBuild")
+// FinishStreaming restores [restorable] items to the mempool and clears
+// the set of all previously streamed items.
+func (th *Mempool[T]) FinishStreaming(ctx context.Context, restorable []T) {
+	ctx, span := th.tracer.Start(ctx, "Mempool.FinishStreaming")
 	defer span.End()
 
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	th.leasedItems = nil
+	th.streamedItems = nil
 	th.add(restorable)
-	if th.nextLeastFetched {
-		th.add(th.nextLease)
-		th.nextLease = nil
-		th.nextLeastFetched = false
+	if th.nextStreamFetched {
+		th.add(th.nextStream)
+		th.nextStream = nil
+		th.nextStreamFetched = false
 	}
-	th.bl.Unlock()
+	th.streamLock.Unlock()
 }

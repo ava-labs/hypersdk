@@ -24,7 +24,11 @@ import (
 
 const (
 	maxViewPreallocation = 10_000
-	leaseBatch           = 256
+
+	// TODO: make these tunable
+	streamBatch             = 256
+	streamPrefetchThreshold = streamBatch / 2
+	stopBuildingThreshold   = 2_048 // units
 )
 
 var errBlockFull = errors.New("block full")
@@ -90,8 +94,6 @@ func BuildBlock(
 	}
 	ts := tstate.New(changesEstimate)
 
-	// Restorable txs after block attempt finishes
-	b.Txs = []*Transaction{}
 	var (
 		oldestAllowed = nextTime - r.GetValidityWindow()
 
@@ -106,48 +108,59 @@ func BuildBlock(
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
 
-		start          = time.Now()
-		restorable     = []*Transaction{}
+		start   = time.Now()
+		execErr error
+
+		// restorable txs after block attempt finishes
+		restorable = []*Transaction{}
+
+		// alreadyFetched contains keys already fetched from state that can be
+		// used during prefetching.
 		alreadyFetched = map[string]*fetchData{}
 
-		// Ensures we don't exit without waiting for all prepare leases to come back
-		//
-		// TODO: find a way to refactor to remove this
-		fl sync.Mutex
+		// prepareStreamLock ensures we don't overwrite stream prefetching spawned
+		// asynchronously.
+		prepareStreamLock sync.Mutex
 	)
-	mempool.StartBuild(ctx)
+
+	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
+	mempool.StartStreaming(ctx)
+	b.Txs = []*Transaction{}
 	for time.Since(start) < vm.GetTargetBuildDuration() {
-		// Bulk fetch items from mempool to unblock incoming RPC/Gossip traffic
-		var execErr error
-		fl.Lock() // ensures we don't run Prepare twice without reading values first
-		txs := mempool.LeaseItems(ctx, leaseBatch)
-		fl.Unlock()
+		prepareStreamLock.Lock()
+		txs := mempool.Stream(ctx, streamBatch)
+		prepareStreamLock.Unlock()
 		if len(txs) == 0 {
 			break
 		}
 
 		// Prefetch all transactions
+		//
+		// TODO: unify logic with https://github.com/ava-labs/hypersdk/blob/4e10b911c3cd88e0ccd8d9de5210515b1d3a3ac4/chain/processor.go#L44-L79
 		readyTxs := make(chan *txData, len(txs))
 		stopIndex := -1
 		go func() {
 			ctx, prefetchSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Prefetch")
 			defer prefetchSpan.End()
+			defer close(readyTxs)
 
 			for i, tx := range txs {
 				if execErr != nil {
 					stopIndex = i
-					close(readyTxs)
 					return
 				}
 
-				if i == leaseBatch/2 {
-					fl.Lock()
+				// Once we get part way through a prefetching job, we start
+				// to prepare for the next stream.
+				if i == streamPrefetchThreshold {
+					prepareStreamLock.Lock()
 					go func() {
-						mempool.PrepareLeaseItems(ctx, leaseBatch)
-						fl.Unlock()
+						mempool.PrepareStream(ctx, streamBatch)
+						prepareStreamLock.Unlock()
 					}()
 				}
 
+				// Prefetch all values from state
 				storage := map[string][]byte{}
 				for _, k := range tx.StateKeys(sm) {
 					sk := string(k)
@@ -166,7 +179,6 @@ func BuildBlock(
 						// verifying a block that can never be accepted).
 						execErr = err
 						stopIndex = i
-						close(readyTxs)
 						return
 					}
 					alreadyFetched[sk] = &fetchData{v, true}
@@ -174,9 +186,6 @@ func BuildBlock(
 				}
 				readyTxs <- &txData{tx, storage}
 			}
-
-			// Let caller know all sets have been readied
-			close(readyTxs)
 		}()
 
 		// Perform a batch repeat check while we are waiting for state prefetching
@@ -226,8 +235,8 @@ func BuildBlock(
 			nextUnits, err := next.MaxUnits(r)
 			if err != nil {
 				// Should never happen
-				log.Debug(
-					"skipping invalid tx",
+				log.Warn(
+					"skipping tx: invalid max units",
 					zap.Error(err),
 				)
 				continue
@@ -239,8 +248,7 @@ func BuildBlock(
 					zap.Uint64("tx max units", nextUnits),
 				)
 				restorable = append(restorable, next)
-				// TODO: add a const here to exit if we are close enough
-				if r.GetMaxBlockUnits()-b.UnitsConsumed < 1_000 {
+				if r.GetMaxBlockUnits()-b.UnitsConsumed < stopBuildingThreshold {
 					execErr = errBlockFull
 				}
 				continue
@@ -253,7 +261,6 @@ func BuildBlock(
 			// PreExecute next to see if it is fit
 			if err := next.PreExecute(ctx, ectx, r, ts, nextTime); err != nil {
 				ts.Rollback(ctx, txStart)
-				// TODO: support remove account?
 				cont, restore, _ := HandlePreExecute(err)
 				if !cont {
 					restorable = append(restorable, next)
@@ -335,8 +342,12 @@ func BuildBlock(
 				restorable = append(restorable, txs[stopIndex:]...)
 			}
 			if !errors.Is(execErr, errBlockFull) {
-				fl.Lock() // we never need to unlock this as it will not be used after this
-				go mempool.FinishBuild(ctx, append(b.Txs, restorable...))
+				// Wait for stream preparation to finish to make
+				// sure all transactions are returned to the mempool.
+				go func() {
+					prepareStreamLock.Lock() // we never need to unlock this as it will not be used after this
+					mempool.FinishStreaming(ctx, append(b.Txs, restorable...))
+				}()
 				b.vm.Logger().Warn("build failed", zap.Error(execErr))
 				return nil, execErr
 			}
@@ -344,10 +355,12 @@ func BuildBlock(
 		}
 	}
 
-	// Wait for lease preparation to finish to make
+	// Wait for stream preparation to finish to make
 	// sure all transactions are returned to the mempool.
-	fl.Lock() // we never need to unlock this as it will not be used after this
-	go mempool.FinishBuild(ctx, restorable)
+	go func() {
+		prepareStreamLock.Lock()
+		mempool.FinishStreaming(ctx, restorable)
+	}()
 
 	// Update tracking metrics
 	span.SetAttributes(
@@ -363,7 +376,6 @@ func BuildBlock(
 		if nextTime < parent.Tmstmp+r.GetMinEmptyBlockGap() {
 			return nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime)
 		}
-
 		vm.RecordEmptyBlockBuilt()
 	}
 
