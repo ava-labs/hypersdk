@@ -5,7 +5,6 @@ package mempool
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -278,13 +277,13 @@ func (th *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 	return removed
 }
 
-// TODO: use a different name for this
-func (th *Mempool[T]) Build(
+// Top iterates over the highest-valued items in the mempool.
+func (th *Mempool[T]) Top(
 	ctx context.Context,
 	targetDuration time.Duration,
-	f func(context.Context, T) (cont bool, restore bool, removeAcct bool, err error),
+	f func(context.Context, T) (cont bool, restore bool, err error),
 ) error {
-	ctx, span := th.tracer.Start(ctx, "Mempool.Build")
+	ctx, span := th.tracer.Start(ctx, "Mempool.Top")
 	defer span.End()
 
 	th.mu.Lock()
@@ -297,7 +296,7 @@ func (th *Mempool[T]) Build(
 	)
 	for th.pm.Len() > 0 {
 		max, _ := th.pm.PopMax()
-		cont, restore, removeAccount, fErr := f(ctx, max)
+		cont, restore, fErr := f(ctx, max)
 		if restore {
 			// Waiting to restore unused transactions ensures that an account will be
 			// excluded from future price mempool iterations
@@ -305,11 +304,6 @@ func (th *Mempool[T]) Build(
 		} else {
 			th.tm.Remove(max.ID())
 			th.removeFromOwned(max)
-		}
-		if removeAccount {
-			// We remove the account typically when the next execution results in an
-			// invalid balance
-			th.removeAccount(max.Payer())
 		}
 		if !cont || time.Since(start) > targetDuration || fErr != nil {
 			err = fErr
@@ -324,12 +318,28 @@ func (th *Mempool[T]) Build(
 	return err
 }
 
-func (th *Mempool[T]) StartBuild(ctx context.Context) {
+// StartLease allows for async iteration over the highest-value items
+// in the mempool. When done using the lease, it should be returned
+// using [EndLease].
+//
+// TODO: better name
+func (th *Mempool[T]) StartLease(ctx context.Context) {
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
 	th.bl.Lock()
 	th.leasedItems = set.NewSet[ids.ID](16_384)
+}
+
+func (th *Mempool[T]) PrepareLeaseItems(ctx context.Context, count int) {
+	ctx, span := th.tracer.Start(ctx, "Mempool.PrepareLeaseTxs")
+	defer span.End()
+
+	th.mu.Lock()
+	defer th.mu.Unlock()
+
+	th.nextLease = th.leaseItems(count)
+	th.nextLeastFetched = true
 }
 
 func (th *Mempool[T]) LeaseItems(ctx context.Context, count int) []T {
@@ -361,18 +371,7 @@ func (th *Mempool[T]) leaseItems(count int) []T {
 	return txs
 }
 
-func (th *Mempool[T]) PrepareLeaseItems(ctx context.Context, count int) {
-	ctx, span := th.tracer.Start(ctx, "Mempool.PrepareLeaseTxs")
-	defer span.End()
-
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
-	th.nextLease = th.leaseItems(count)
-	th.nextLeastFetched = true
-}
-
-func (th *Mempool[T]) FinishBuild(ctx context.Context, restorable []T) {
+func (th *Mempool[T]) EndLease(ctx context.Context, restorable []T) {
 	ctx, span := th.tracer.Start(ctx, "Mempool.FinishBuild")
 	defer span.End()
 
@@ -383,7 +382,6 @@ func (th *Mempool[T]) FinishBuild(ctx context.Context, restorable []T) {
 	th.add(restorable)
 	if th.nextLeastFetched {
 		th.add(th.nextLease)
-		fmt.Println("next lease restored", len(th.nextLease))
 		th.nextLease = nil
 		th.nextLeastFetched = false
 	}

@@ -79,11 +79,13 @@ type VM interface {
 type Mempool interface {
 	Len(context.Context) int
 	Add(context.Context, []*Transaction)
-	Build(
+
+	Top(
 		context.Context,
 		time.Duration,
-		func(context.Context, *Transaction) (bool /* continue */, bool /* restore */, bool /* remove account */, error),
+		func(context.Context, *Transaction) (cont bool, restore bool, err error),
 	) error
+
 	StartBuild(context.Context)
 	PrepareLeaseItems(context.Context, int)
 	LeaseItems(context.Context, int) []*Transaction
