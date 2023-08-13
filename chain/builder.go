@@ -196,7 +196,7 @@ func BuildBlock(
 
 		// Execute transactions as they become ready
 		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Execute")
-		seen := 0
+		txIndex := 0
 		for nextTxData := range readyTxs {
 			txsAttempted++
 			next := nextTxData.tx
@@ -206,10 +206,10 @@ func BuildBlock(
 			}
 
 			// Skip if tx is a duplicate
-			if dup.Contains(seen) {
+			if dup.Contains(txIndex) {
 				continue
 			}
-			seen++
+			txIndex++
 
 			// Ensure we can process if transaction includes a warp message
 			if next.WarpMessage != nil && blockContext == nil {
@@ -402,12 +402,10 @@ func BuildBlock(
 	}
 	log.Info(
 		"built block",
+		zap.Bool("context", blockContext != nil),
 		zap.Uint64("hght", b.Hght),
 		zap.Int("attempted", txsAttempted),
 		zap.Int("added", len(b.Txs)),
-		zap.Int("restored", len(restorable)),
-		zap.Int("mempool size", b.vm.Mempool().Len(ctx)),
-		zap.Bool("context", blockContext != nil),
 		zap.Int("state changes", ts.PendingChanges()),
 		zap.Int("state operations", ts.OpIndex()),
 		zap.Int64("parent (t)", parent.Tmstmp),
