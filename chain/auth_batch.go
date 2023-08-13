@@ -21,11 +21,11 @@ type AuthVM interface {
 // not require each batch package to re-implement this logic.
 type AuthBatch struct {
 	vm  AuthVM
-	job *workers.Job
+	job workers.Job
 	bvs map[uint8]*authBatchWorker
 }
 
-func NewAuthBatch(vm AuthVM, job *workers.Job, authTypes map[uint8]int) *AuthBatch {
+func NewAuthBatch(vm AuthVM, job workers.Job, authTypes map[uint8]int) *AuthBatch {
 	bvs := map[uint8]*authBatchWorker{}
 	for t, count := range authTypes {
 		bv, ok := vm.GetAuthBatchVerifier(t, job.Workers(), count)
@@ -76,7 +76,7 @@ type authBatchObject struct {
 
 type authBatchWorker struct {
 	vm    AuthVM
-	job   *workers.Job
+	job   workers.Job
 	bv    AuthBatchVerifier
 	items chan *authBatchObject
 	done  chan struct{}

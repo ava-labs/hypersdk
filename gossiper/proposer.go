@@ -34,15 +34,9 @@ type Proposer struct {
 	// bounded by validator count (may be slightly out of date as composition changes)
 	gossipedTxs map[ids.NodeID]*cache.LRU[ids.ID, struct{}]
 	receivedTxs *cache.LRU[ids.ID, struct{}]
-
-	// workers is responsible for verifying the signatures of any transactions
-	// that come over the wire
-	workers *workers.Workers
 }
 
 type ProposerConfig struct {
-	GossipWorkers           int
-	GossipWorkerBacklog     int
 	GossipProposerDiff      int
 	GossipProposerDepth     int
 	GossipInterval          time.Duration
@@ -56,8 +50,6 @@ type ProposerConfig struct {
 
 func DefaultProposerConfig() *ProposerConfig {
 	return &ProposerConfig{
-		GossipWorkers:           1,
-		GossipWorkerBacklog:     1_024,
 		GossipProposerDiff:      3,
 		GossipProposerDepth:     1,
 		GossipInterval:          1 * time.Second,
@@ -79,7 +71,6 @@ func NewProposer(vm VM, cfg *ProposerConfig) *Proposer {
 
 		gossipedTxs: map[ids.NodeID]*cache.LRU[ids.ID, struct{}]{},
 		receivedTxs: &cache.LRU[ids.ID, struct{}]{Size: cfg.GossipReceivedCacheSize},
-		workers:     workers.New(cfg.GossipWorkers, cfg.GossipWorkerBacklog),
 	}
 }
 
@@ -284,8 +275,11 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	}
 
 	// Add incoming transactions to our caches to prevent useless gossip and perform
-	// batch signature verification
-	job, err := g.workers.NewJob(len(txs))
+	// batch signature verification.
+	//
+	// We rely on AppGossipConcurrency to regulate concurrency here, so we don't create
+	// a separate pool of workers for this verification.
+	job, err := workers.NewSerial().NewJob(len(txs))
 	if err != nil {
 		g.vm.Logger().Warn(
 			"unable to spawn new worker",
@@ -328,8 +322,6 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	}
 
 	// Submit incoming gossip to mempool
-	//
-	// TODO: use batch verification and batched repeat check
 	start := time.Now()
 	for _, err := range g.vm.Submit(ctx, false, txs) {
 		if err == nil || errors.Is(err, chain.ErrDuplicateTx) {
