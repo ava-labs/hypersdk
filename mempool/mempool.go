@@ -31,6 +31,13 @@ type Mempool[T Item] struct {
 	// insufficient
 	owned map[string]set.Set[ids.ID]
 
+	// streamedItems have been removed from the mempool during streaming
+	// and should not be re-added by calls to [Add].
+	streamLock        sync.Mutex // should never be needed
+	streamedItems     set.Set[ids.ID]
+	nextStream        []T
+	nextStreamFetched bool
+
 	// payers that are exempt from [maxPayerSize]
 	exemptPayers set.Set[string]
 }
@@ -100,11 +107,19 @@ func (th *Mempool[T]) Add(ctx context.Context, items []T) {
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
+	th.add(items)
+}
+
+func (th *Mempool[T]) add(items []T) {
 	for _, item := range items {
 		sender := item.Payer()
 
 		// Ensure no duplicate
-		if th.pm.Has(item.ID()) {
+		itemID := item.ID()
+		if th.streamedItems != nil && th.streamedItems.Contains(itemID) {
+			continue
+		}
+		if th.pm.Has(itemID) {
 			// Don't drop because already exists
 			continue
 		}
@@ -165,6 +180,10 @@ func (th *Mempool[T]) PopMax(ctx context.Context) (T, bool) { // O(log N)
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
+	return th.popMax()
+}
+
+func (th *Mempool[T]) popMax() (T, bool) {
 	max, ok := th.pm.PopMax()
 	if ok {
 		th.tm.Remove(max.ID())
@@ -258,12 +277,13 @@ func (th *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 	return removed
 }
 
-func (th *Mempool[T]) Build(
+// Top iterates over the highest-valued items in the mempool.
+func (th *Mempool[T]) Top(
 	ctx context.Context,
 	targetDuration time.Duration,
-	f func(context.Context, T) (cont bool, restore bool, removeAcct bool, err error),
+	f func(context.Context, T) (cont bool, restore bool, err error),
 ) error {
-	ctx, span := th.tracer.Start(ctx, "Mempool.Build")
+	ctx, span := th.tracer.Start(ctx, "Mempool.Top")
 	defer span.End()
 
 	th.mu.Lock()
@@ -276,7 +296,7 @@ func (th *Mempool[T]) Build(
 	)
 	for th.pm.Len() > 0 {
 		max, _ := th.pm.PopMax()
-		cont, restore, removeAccount, fErr := f(ctx, max)
+		cont, restore, fErr := f(ctx, max)
 		if restore {
 			// Waiting to restore unused transactions ensures that an account will be
 			// excluded from future price mempool iterations
@@ -284,11 +304,6 @@ func (th *Mempool[T]) Build(
 		} else {
 			th.tm.Remove(max.ID())
 			th.removeFromOwned(max)
-		}
-		if removeAccount {
-			// We remove the account typically when the next execution results in an
-			// invalid balance
-			th.removeAccount(max.Payer())
 		}
 		if !cont || time.Since(start) > targetDuration || fErr != nil {
 			err = fErr
@@ -301,4 +316,85 @@ func (th *Mempool[T]) Build(
 		th.pm.Add(item)
 	}
 	return err
+}
+
+// StartStreaming allows for async iteration over the highest-value items
+// in the mempool. When done streaming, invoke [FinishStreaming] with all
+// items that should be restored.
+//
+// Streaming is useful for block building because we can get a feed of the
+// best txs to build without holding the lock during the duration of the build
+// process. Streaming in batches allows for various state prefetching operations.
+func (th *Mempool[T]) StartStreaming(_ context.Context) {
+	th.mu.Lock()
+	defer th.mu.Unlock()
+
+	th.streamLock.Lock()
+	th.streamedItems = set.NewSet[ids.ID](maxPrealloc)
+}
+
+// PrepareStream prefetches the next [count] items from the mempool to
+// reduce the latency of calls to [StreamItems].
+func (th *Mempool[T]) PrepareStream(ctx context.Context, count int) {
+	_, span := th.tracer.Start(ctx, "Mempool.PrepareStream")
+	defer span.End()
+
+	th.mu.Lock()
+	defer th.mu.Unlock()
+
+	th.nextStream = th.streamItems(count)
+	th.nextStreamFetched = true
+}
+
+// Stream gets the next highest-valued [count] items from the mempool, not
+// including what has already been streamed.
+func (th *Mempool[T]) Stream(ctx context.Context, count int) []T {
+	_, span := th.tracer.Start(ctx, "Mempool.Stream")
+	defer span.End()
+
+	th.mu.Lock()
+	defer th.mu.Unlock()
+
+	if th.nextStreamFetched {
+		txs := th.nextStream
+		th.nextStream = nil
+		th.nextStreamFetched = false
+		return txs
+	}
+	return th.streamItems(count)
+}
+
+func (th *Mempool[T]) streamItems(count int) []T {
+	txs := make([]T, 0, count)
+	for len(txs) < count {
+		item, ok := th.popMax()
+		if !ok {
+			break
+		}
+		th.streamedItems.Add(item.ID())
+		txs = append(txs, item)
+	}
+	return txs
+}
+
+// FinishStreaming restores [restorable] items to the mempool and clears
+// the set of all previously streamed items.
+func (th *Mempool[T]) FinishStreaming(ctx context.Context, restorable []T) int {
+	_, span := th.tracer.Start(ctx, "Mempool.FinishStreaming")
+	defer span.End()
+
+	th.mu.Lock()
+	defer th.mu.Unlock()
+
+	restored := len(restorable)
+	th.streamedItems = nil
+	th.add(restorable)
+	if th.nextStreamFetched {
+		th.add(th.nextStream)
+		restored += len(th.nextStream)
+		th.nextStream = nil
+		th.nextStreamFetched = false
+	}
+	th.streamLock.Unlock()
+	return restored
 }

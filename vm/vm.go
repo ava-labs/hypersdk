@@ -24,6 +24,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
@@ -708,12 +709,12 @@ func (vm *VM) Submit(
 			continue
 		}
 		// TODO: Batch this repeat check (and collect multiple txs at once)
-		repeat, err := blk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx})
+		repeat, err := blk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx}, set.NewBits(), true)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		if repeat {
+		if repeat.Len() > 0 {
 			errs = append(errs, chain.ErrDuplicateTx)
 			continue
 		}

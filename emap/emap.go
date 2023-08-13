@@ -123,3 +123,21 @@ func (e *EMap[T]) Any(items []T) bool {
 	}
 	return false
 }
+
+func (e *EMap[T]) Contains(items []T, marker set.Bits, stop bool) set.Bits {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	for i, item := range items {
+		if marker.Contains(i) {
+			continue
+		}
+		if e.seen.Contains(item.ID()) {
+			marker.Add(i)
+			if stop {
+				return marker
+			}
+		}
+	}
+	return marker
+}

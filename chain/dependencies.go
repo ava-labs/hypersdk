@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
@@ -50,7 +51,7 @@ type VM interface {
 	ValidatorState() validators.State
 
 	Mempool() Mempool
-	IsRepeat(context.Context, []*Transaction) bool
+	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
 	GetTargetBuildDuration() time.Duration
 
 	Verified(context.Context, *StatelessBlock)
@@ -78,11 +79,17 @@ type VM interface {
 type Mempool interface {
 	Len(context.Context) int
 	Add(context.Context, []*Transaction)
-	Build(
+
+	Top(
 		context.Context,
 		time.Duration,
-		func(context.Context, *Transaction) (bool /* continue */, bool /* restore */, bool /* remove account */, error),
+		func(context.Context, *Transaction) (cont bool, restore bool, err error),
 	) error
+
+	StartStreaming(context.Context)
+	PrepareStream(context.Context, int)
+	Stream(context.Context, int) []*Transaction
+	FinishStreaming(context.Context, []*Transaction) int
 }
 
 type Database interface {

@@ -181,19 +181,19 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	mempoolErr := g.vm.Mempool().Build(
+	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
-		func(ictx context.Context, next *chain.Transaction) (cont bool, restore bool, removeAcct bool, err error) {
+		func(ictx context.Context, next *chain.Transaction) (cont bool, restore bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
-				return true, false, false, nil
+				return true, false, nil
 			}
 
 			// Don't gossip txs that are about to expire
 			life := next.Base.Timestamp - now
 			if life < g.cfg.GossipMinLife {
-				return true, true, false, nil
+				return true, true, nil
 			}
 
 			// Don't gossip txs we received from other nodes (original gossiper will
@@ -203,7 +203,7 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 			// We still keep these transactions in our mempool as they may still be
 			// the highest-paying transaction to execute at a given time.
 			if _, has := g.receivedTxs.Get(next.ID()); has {
-				return true, true, false, nil
+				return true, true, nil
 			}
 
 			// PreExecute does not make any changes to state
@@ -213,18 +213,18 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 			if err := next.PreExecute(ctx, ectx, r, state, now); err != nil {
 				// Do not gossip invalid txs (may become invalid during normal block
 				// processing)
-				cont, restore, removeAcct := chain.HandlePreExecute(err)
-				return cont, restore, removeAcct, nil
+				cont, restore, _ := chain.HandlePreExecute(err)
+				return cont, restore, nil
 			}
 
 			// Gossip up to [consts.NetworkSizeLimit]
 			txSize := next.Size()
 			if txSize+size > g.cfg.GossipMaxSize {
-				return false, true, false, nil
+				return false, true, nil
 			}
 			txs = append(txs, next)
 			size += txSize
-			return true, true, false, nil
+			return true, true, nil
 		},
 	)
 	if mempoolErr != nil {
@@ -282,6 +282,8 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	}
 
 	// Submit incoming gossip to mempool
+	//
+	// TODO: use batch verification and batched repeat check
 	start := time.Now()
 	for _, err := range g.vm.Submit(ctx, true, txs) {
 		if err == nil || errors.Is(err, chain.ErrDuplicateTx) {

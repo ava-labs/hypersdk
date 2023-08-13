@@ -575,9 +575,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			tx := blk2.(*chain.StatelessBlock).Txs[0]
 			sblk3 := blk3.(*chain.StatelessBlock)
 			sblk3t := sblk3.Timestamp().UnixMilli()
-			ok, err := sblk3.IsRepeat(ctx, sblk3t-n.vm.Rules(sblk3t).GetValidityWindow(), []*chain.Transaction{tx})
+			ok, err := sblk3.IsRepeat(ctx, sblk3t-n.vm.Rules(sblk3t).GetValidityWindow(), []*chain.Transaction{tx}, set.NewBits(), false)
 			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(ok).Should(gomega.BeTrue())
+			gomega.Ω(ok.Len()).Should(gomega.Equal(1))
 
 			// Accept tip
 			err = blk1.Accept(ctx)
@@ -597,7 +597,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 			// Check if tx from old block would be considered a repeat on accepted tip
 			time.Sleep(2 * time.Second)
-			gomega.Ω(n.vm.IsRepeat(ctx, []*chain.Transaction{tx})).Should(gomega.BeTrue())
+			gomega.Ω(n.vm.IsRepeat(ctx, []*chain.Transaction{tx}, set.NewBits(), false).Len()).Should(gomega.Equal(1))
 		})
 	})
 
@@ -1829,6 +1829,15 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		blk, err := instances[0].vm.BuildBlock(context.TODO())
 		gomega.Ω(err).To(gomega.Not(gomega.BeNil()))
 		gomega.Ω(blk).To(gomega.BeNil())
+
+		// Wait for mempool to be size 1 (txs are restored async)
+		for {
+			if instances[0].vm.Mempool().Len(context.Background()) > 0 {
+				break
+			}
+			log.Info("waiting for txs to be restored")
+			time.Sleep(100 * time.Millisecond)
+		}
 
 		// Build block with context
 		accept := expectBlkWithContext(instances[0])

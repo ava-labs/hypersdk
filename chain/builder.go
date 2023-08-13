@@ -8,18 +8,30 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
-const maxViewPreallocation = 10_000
+const (
+	maxViewPreallocation = 10_000
+
+	// TODO: make these tunable
+	streamBatch             = 256
+	streamPrefetchThreshold = streamBatch / 2
+	stopBuildingThreshold   = 2_048 // units
+)
+
+var errBlockFull = errors.New("block full")
 
 func HandlePreExecute(
 	err error,
@@ -82,8 +94,6 @@ func BuildBlock(
 	}
 	ts := tstate.New(changesEstimate)
 
-	// Restorable txs after block attempt finishes
-	b.Txs = []*Transaction{}
 	var (
 		oldestAllowed = nextTime - r.GetValidityWindow()
 
@@ -98,17 +108,110 @@ func BuildBlock(
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
 
-		start    = time.Now()
-		lockWait time.Duration
+		start = time.Now()
+
+		// restorable txs after block attempt finishes
+		restorable = []*Transaction{}
+
+		// alreadyFetched contains keys already fetched from state that can be
+		// used during prefetching.
+		alreadyFetched = map[string]*fetchData{}
+
+		// prepareStreamLock ensures we don't overwrite stream prefetching spawned
+		// asynchronously.
+		prepareStreamLock sync.Mutex
 	)
-	mempoolErr := mempool.Build(
-		ctx,
-		vm.GetTargetBuildDuration(),
-		func(fctx context.Context, next *Transaction) (cont bool, restore bool, removeAcct bool, err error) {
-			if txsAttempted == 0 {
-				lockWait = time.Since(start)
+
+	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
+	mempool.StartStreaming(ctx)
+	b.Txs = []*Transaction{}
+	for time.Since(start) < vm.GetTargetBuildDuration() {
+		prepareStreamLock.Lock()
+		txs := mempool.Stream(ctx, streamBatch)
+		prepareStreamLock.Unlock()
+		if len(txs) == 0 {
+			break
+		}
+
+		// Prefetch all transactions
+		//
+		// TODO: unify logic with https://github.com/ava-labs/hypersdk/blob/4e10b911c3cd88e0ccd8d9de5210515b1d3a3ac4/chain/processor.go#L44-L79
+		var (
+			readyTxs  = make(chan *txData, len(txs))
+			stopIndex = -1
+			execErr   error
+		)
+		go func() {
+			ctx, prefetchSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Prefetch")
+			defer prefetchSpan.End()
+			defer close(readyTxs)
+
+			for i, tx := range txs {
+				if execErr != nil {
+					stopIndex = i
+					return
+				}
+
+				// Once we get part way through a prefetching job, we start
+				// to prepare for the next stream.
+				if i == streamPrefetchThreshold {
+					prepareStreamLock.Lock()
+					go func() {
+						mempool.PrepareStream(ctx, streamBatch)
+						prepareStreamLock.Unlock()
+					}()
+				}
+
+				// Prefetch all values from state
+				storage := map[string][]byte{}
+				for _, k := range tx.StateKeys(sm) {
+					sk := string(k)
+					if v, ok := alreadyFetched[sk]; ok {
+						if v.exists {
+							storage[sk] = v.v
+						}
+						continue
+					}
+					v, err := state.GetValue(ctx, k)
+					if errors.Is(err, database.ErrNotFound) {
+						alreadyFetched[sk] = &fetchData{nil, false}
+						continue
+					} else if err != nil {
+						// This can happen if the underlying view changes (if we are
+						// verifying a block that can never be accepted).
+						execErr = err
+						stopIndex = i
+						return
+					}
+					alreadyFetched[sk] = &fetchData{v, true}
+					storage[sk] = v
+				}
+				readyTxs <- &txData{tx, storage}
 			}
+		}()
+
+		// Perform a batch repeat check while we are waiting for state prefetching
+		dup, err := parent.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), false)
+		if err != nil {
+			execErr = err
+		}
+
+		// Execute transactions as they become ready
+		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Execute")
+		txIndex := 0
+		for nextTxData := range readyTxs {
 			txsAttempted++
+			next := nextTxData.tx
+			if execErr != nil {
+				restorable = append(restorable, next)
+				continue
+			}
+
+			// Skip if tx is a duplicate
+			if dup.Contains(txIndex) {
+				continue
+			}
+			txIndex++
 
 			// Ensure we can process if transaction includes a warp message
 			if next.WarpMessage != nil && blockContext == nil {
@@ -116,7 +219,8 @@ func BuildBlock(
 					"dropping pending warp message because no context provided",
 					zap.Stringer("txID", next.ID()),
 				)
-				return true, next.Base.Timestamp > oldestAllowed, false, nil
+				restorable = append(restorable, next)
+				continue
 			}
 
 			// Skip warp message if at max
@@ -125,31 +229,19 @@ func BuildBlock(
 					"dropping pending warp message because already have MaxWarpMessages",
 					zap.Stringer("txID", next.ID()),
 				)
-				return true, true, false, nil
-			}
-
-			// Check for repeats
-			//
-			// TODO: check a bunch at once during pre-fetch to avoid re-walking blocks
-			// for every tx
-			dup, err := parent.IsRepeat(ctx, oldestAllowed, []*Transaction{next})
-			if err != nil {
-				return false, false, false, err
-			}
-			if dup {
-				// tx will be restored when ancestry is rejected
-				return true, false, false, nil
+				restorable = append(restorable, next)
+				continue
 			}
 
 			// Ensure we have room
 			nextUnits, err := next.MaxUnits(r)
 			if err != nil {
 				// Should never happen
-				log.Debug(
-					"skipping invalid tx",
+				log.Warn(
+					"skipping tx: invalid max units",
 					zap.Error(err),
 				)
-				return true, false, false, nil
+				continue
 			}
 			if b.UnitsConsumed+nextUnits > r.GetMaxBlockUnits() {
 				log.Debug(
@@ -157,23 +249,37 @@ func BuildBlock(
 					zap.Uint64("block units", b.UnitsConsumed),
 					zap.Uint64("tx max units", nextUnits),
 				)
-				return false /* make simpler */, true, false, nil // could be txs that fit that are smaller
+				restorable = append(restorable, next)
+
+				// We only stop building once we are within [stopBuildingThreshold] to protect
+				// against a case where there is a very large transaction in the mempool (and the
+				// block is still empty).
+				//
+				// We are willing to give up building early (although there may be some remaining space)
+				// to avoid iterating over everything in the mempool to find something that may fit.
+				if r.GetMaxBlockUnits()-b.UnitsConsumed < stopBuildingThreshold {
+					execErr = errBlockFull
+				}
+				continue
 			}
 
 			// Populate required transaction state and restrict which keys can be used
-			//
-			// TODO: prefetch state of upcoming txs that we will pull (should make much
-			// faster)
 			txStart := ts.OpIndex()
-			if err := ts.FetchAndSetScope(ctx, next.StateKeys(sm), state); err != nil {
-				return false, true, false, err
-			}
+			ts.SetScope(ctx, next.StateKeys(sm), nextTxData.storage)
 
 			// PreExecute next to see if it is fit
-			if err := next.PreExecute(fctx, ectx, r, ts, nextTime); err != nil {
+			if err := next.PreExecute(ctx, ectx, r, ts, nextTime); err != nil {
 				ts.Rollback(ctx, txStart)
-				cont, restore, removeAcct := HandlePreExecute(err)
-				return cont, restore, removeAcct, nil
+				cont, restore, _ := HandlePreExecute(err)
+				if !cont {
+					restorable = append(restorable, next)
+					execErr = err
+					continue
+				}
+				if restore {
+					restorable = append(restorable, next)
+				}
+				continue
 			}
 
 			// Verify warp message, if it exists
@@ -207,7 +313,7 @@ func BuildBlock(
 
 			// If execution works, keep moving forward with new state
 			result, err := next.Execute(
-				fctx,
+				ctx,
 				r,
 				sm,
 				ts,
@@ -218,7 +324,9 @@ func BuildBlock(
 				// This error should only be raised by the handler, not the
 				// implementation itself
 				log.Warn("unexpected post-execution error", zap.Error(err))
-				return false, false, false, err
+				restorable = append(restorable, next)
+				execErr = err
+				continue
 			}
 
 			// Update block with new transaction
@@ -233,19 +341,45 @@ func BuildBlock(
 				}
 				warpCount++
 			}
-			return true, false, false, nil
-		},
-	)
-	if time.Since(start) > b.vm.GetTargetBuildDuration() {
-		b.vm.RecordBuildCapped()
+		}
+		executeSpan.End()
+
+		// Handle execution result
+		if execErr != nil {
+			if stopIndex >= 0 {
+				// If we stopped prefetching, make sure to add those txs back
+				restorable = append(restorable, txs[stopIndex:]...)
+			}
+			if !errors.Is(execErr, errBlockFull) {
+				// Wait for stream preparation to finish to make
+				// sure all transactions are returned to the mempool.
+				go func() {
+					prepareStreamLock.Lock() // we never need to unlock this as it will not be used after this
+					restored := mempool.FinishStreaming(ctx, append(b.Txs, restorable...))
+					b.vm.Logger().Debug("transactions restored to mempool", zap.Int("count", restored))
+				}()
+				b.vm.Logger().Warn("build failed", zap.Error(execErr))
+				return nil, execErr
+			}
+			break
+		}
 	}
+
+	// Wait for stream preparation to finish to make
+	// sure all transactions are returned to the mempool.
+	go func() {
+		prepareStreamLock.Lock()
+		restored := mempool.FinishStreaming(ctx, restorable)
+		b.vm.Logger().Debug("transactions restored to mempool", zap.Int("count", restored))
+	}()
+
+	// Update tracking metrics
 	span.SetAttributes(
 		attribute.Int("attempted", txsAttempted),
 		attribute.Int("added", len(b.Txs)),
 	)
-	if mempoolErr != nil {
-		b.vm.Mempool().Add(ctx, b.Txs)
-		return nil, err
+	if time.Since(start) > b.vm.GetTargetBuildDuration() {
+		b.vm.RecordBuildCapped()
 	}
 
 	// Perform basic validity checks to make sure the block is well-formatted
@@ -253,7 +387,6 @@ func BuildBlock(
 		if nextTime < parent.Tmstmp+r.GetMinEmptyBlockGap() {
 			return nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime)
 		}
-
 		vm.RecordEmptyBlockBuilt()
 	}
 
@@ -280,12 +413,10 @@ func BuildBlock(
 	}
 	log.Info(
 		"built block",
+		zap.Bool("context", blockContext != nil),
 		zap.Uint64("hght", b.Hght),
 		zap.Int("attempted", txsAttempted),
 		zap.Int("added", len(b.Txs)),
-		zap.Int("mempool size", b.vm.Mempool().Len(ctx)),
-		zap.Duration("mempool lock wait", lockWait),
-		zap.Bool("context", blockContext != nil),
 		zap.Int("state changes", ts.PendingChanges()),
 		zap.Int("state operations", ts.OpIndex()),
 		zap.Int64("parent (t)", parent.Tmstmp),

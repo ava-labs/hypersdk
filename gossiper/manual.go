@@ -41,13 +41,13 @@ func (g *Manual) ForceGossip(ctx context.Context) error {
 	totalUnits := uint64(0)
 	now := time.Now().UnixMilli()
 	r := g.vm.Rules(now)
-	mempoolErr := g.vm.Mempool().Build(
+	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
-		func(ictx context.Context, next *chain.Transaction) (cont bool, restore bool, removeAcct bool, err error) {
+		func(ictx context.Context, next *chain.Transaction) (cont bool, restore bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
-				return true, false, false, nil
+				return true, false, nil
 			}
 
 			// Gossip up to a block of content
@@ -55,16 +55,16 @@ func (g *Manual) ForceGossip(ctx context.Context) error {
 			units, err := next.MaxUnits(r)
 			if err != nil {
 				// Should never happen
-				return true, false, false, nil
+				return true, false, nil
 			}
 			// TODO: limit to a smaller amount
 			if units+totalUnits > r.GetMaxBlockUnits() {
 				// Attempt to mirror the function of building a block without execution
-				return false, true, false, nil
+				return false, true, nil
 			}
 			txs = append(txs, next)
 			totalUnits += units
-			return true, true, false, nil
+			return true, true, nil
 		},
 	)
 	if mempoolErr != nil {

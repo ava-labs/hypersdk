@@ -434,11 +434,11 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		// Can occur if verifying genesis
 		oldestAllowed = 0
 	}
-	dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs)
+	dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs, set.NewBits(), true)
 	if err != nil {
 		return nil, err
 	}
-	if dup {
+	if dup.Len() > 0 {
 		return nil, fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
 	}
 
@@ -725,11 +725,18 @@ func (b *StatelessBlock) childState(
 	return b.state.NewPreallocatedView(estimatedChanges)
 }
 
+// IsRepeat returns a bitset of all transactions that are considered repeats in
+// the range that spans back to [oldestAllowed].
+//
+// If [stop] is set to true, IsRepeat will return as soon as the first repeat
+// is found (useful for block verification).
 func (b *StatelessBlock) IsRepeat(
 	ctx context.Context,
 	oldestAllowed int64,
 	txs []*Transaction,
-) (bool, error) {
+	marker set.Bits,
+	stop bool,
+) (set.Bits, error) {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.IsRepeat")
 	defer span.End()
 
@@ -738,26 +745,32 @@ func (b *StatelessBlock) IsRepeat(
 	// It is critical to ensure this logic is equivalent to [emap] to avoid
 	// non-deterministic verification.
 	if b.Tmstmp < oldestAllowed {
-		return false, nil
+		return marker, nil
 	}
 
 	// If we are at an accepted block or genesis, we can use the emap on the VM
 	// instead of checking each block
 	if b.st == choices.Accepted || b.Hght == 0 /* genesis */ {
-		return b.vm.IsRepeat(ctx, txs), nil
+		return b.vm.IsRepeat(ctx, txs, marker, stop), nil
 	}
 
 	// Check if block contains any overlapping txs
-	for _, tx := range txs {
+	for i, tx := range txs {
+		if marker.Contains(i) {
+			continue
+		}
 		if b.txsSet.Contains(tx.ID()) {
-			return true, nil
+			marker.Add(i)
+			if stop {
+				return marker, nil
+			}
 		}
 	}
 	prnt, err := b.vm.GetStatelessBlock(ctx, b.Prnt)
 	if err != nil {
-		return false, err
+		return marker, err
 	}
-	return prnt.IsRepeat(ctx, oldestAllowed, txs)
+	return prnt.IsRepeat(ctx, oldestAllowed, txs, marker, stop)
 }
 
 func (b *StatelessBlock) GetTxs() []*Transaction {
