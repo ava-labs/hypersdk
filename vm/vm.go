@@ -58,6 +58,7 @@ type VM struct {
 	config         Config
 	genesis        Genesis
 	builder        builder.Builder
+	isBuilding     bool
 	gossiper       gossiper.Gossiper
 	rawStateDB     database.Database
 	stateDB        merkledb.MerkleDB
@@ -611,7 +612,7 @@ func (vm *VM) buildBlock(
 	ctx context.Context,
 	blockContext *smblock.Context,
 ) (snowman.Block, error) {
-	// If the node isn't ready, we should exit.
+	// If the node isn't ready, we should return.
 	//
 	// We call [QueueNotify] when the VM becomes ready, so exiting
 	// early here should not cause us to stop producing blocks.
@@ -619,6 +620,18 @@ func (vm *VM) buildBlock(
 		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrNotReady))
 		return nil, ErrNotReady
 	}
+
+	// Check if we are already building a block
+	if vm.isBuilding {
+		vm.snowCtx.Log.Debug("already building block", zap.Error(ErrBuildingAsync))
+		return nil, ErrBuildingAsync
+	}
+
+	// If we have a built block, check if it has the right context
+	// and the right preference
+
+	// If we don't have a block or it is stale, kickoff a new build.
+	vm.isBuilding = true
 
 	// Notify builder if we should build again (whether or not we are successful this time)
 	//

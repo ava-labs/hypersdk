@@ -8,9 +8,10 @@ import (
 )
 
 var (
-	ErrNotAdded     = errors.New("not added")
-	ErrDropped      = errors.New("dropped")
-	ErrNotReady     = errors.New("not ready")
-	ErrStateMissing = errors.New("state missing")
-	ErrStateSyncing = errors.New("state still syncing")
+	ErrNotAdded      = errors.New("not added")
+	ErrDropped       = errors.New("dropped")
+	ErrNotReady      = errors.New("not ready")
+	ErrBuildingAsync = errors.New("building async")
+	ErrStateMissing  = errors.New("state missing")
+	ErrStateSyncing  = errors.New("state still syncing")
 )
