@@ -413,7 +413,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 		allTxs := map[ids.ID]struct{}{}
 		ginkgo.By("generate txs", func() {
 			start := time.Now()
-			w := workers.New(numWorkers, 10) // parallelize generation to speed things up
+			w := workers.NewParallel(numWorkers, 10) // parallelize generation to speed things up
 			j, err := w.NewJob(512)
 			gomega.Ω(err).Should(gomega.BeNil())
 			for i := 0; i < txs; i++ {

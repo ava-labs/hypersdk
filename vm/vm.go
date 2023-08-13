@@ -95,7 +95,7 @@ type VM struct {
 	webSocketServer *rpc.WebSocketServer
 
 	// Reuse gorotuine group to avoid constant re-allocation
-	workers *workers.Workers
+	workers workers.Workers
 
 	bootstrapped utils.Atomic[bool]
 	preferred    ids.ID
@@ -212,7 +212,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Setup worker cluster
-	vm.workers = workers.New(vm.config.GetParallelism(), 100)
+	vm.workers = workers.NewParallel(vm.config.GetParallelism(), 100)
 
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
@@ -683,11 +683,32 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
+
+	// Find repeats
 	oldestAllowed := now - r.GetValidityWindow()
+	repeats, err := blk.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), true)
+	if err != nil {
+		return []error{err}
+	}
+
 	validTxs := []*chain.Transaction{}
-	for _, tx := range txs {
+	for i, tx := range txs {
+		// Check if transaction is a repeat before doing any extra work
+		if repeats.Contains(i) {
+			errs = append(errs, chain.ErrDuplicateTx)
+			continue
+		}
+
+		// Avoid any sig verification or state lookup if we already have tx in mempool
 		txID := tx.ID()
-		// We already verify in streamer, let's avoid re-verification
+		if vm.mempool.Has(ctx, txID) {
+			// Don't remove from listeners, it will be removed elsewhere if not
+			// included
+			errs = append(errs, ErrNotAdded)
+			continue
+		}
+
+		// Verify signature if not already verified by caller
 		if verifySig && vm.config.GetVerifySignatures() {
 			sigVerify := tx.AuthAsyncVerify()
 			if err := sigVerify(); err != nil {
@@ -701,23 +722,7 @@ func (vm *VM) Submit(
 				continue
 			}
 		}
-		// Avoid any state lookup if we already have tx in mempool
-		if vm.mempool.Has(ctx, txID) {
-			// Don't remove from listeners, it will be removed elsewhere if not
-			// included
-			errs = append(errs, ErrNotAdded)
-			continue
-		}
-		// TODO: Batch this repeat check (and collect multiple txs at once)
-		repeat, err := blk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx}, set.NewBits(), true)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		if repeat.Len() > 0 {
-			errs = append(errs, chain.ErrDuplicateTx)
-			continue
-		}
+
 		// PreExecute does not make any changes to state
 		//
 		// This may fail if the state we are utilizing is invalidated (if a trie

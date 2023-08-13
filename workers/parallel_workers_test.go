@@ -56,7 +56,7 @@ func BenchmarkWorker(b *testing.B) {
 	}
 	for _, size := range []int{10, 50, 100, 500, 1000} {
 		b.Run(strconv.Itoa(size), func(b *testing.B) {
-			w := New(cores, 1_000)
+			w := NewParallel(cores, 1_000)
 			for n := 0; n < b.N; n++ {
 				j, _ := w.NewJob(size)
 				for i := 0; i < size; i++ {
@@ -138,7 +138,7 @@ func BenchmarkSerial(b *testing.B) {
 
 func TestJobWait(t *testing.T) {
 	require := require.New(t)
-	job := Job{
+	job := ParallelJob{
 		tasks:     make(chan func() error),
 		completed: make(chan struct{}),
 		result:    make(chan error),
@@ -153,7 +153,7 @@ func TestJobWait(t *testing.T) {
 
 func TestJobGo(t *testing.T) {
 	require := require.New(t)
-	job := Job{
+	job := ParallelJob{
 		tasks:     make(chan func() error, 2),
 		completed: make(chan struct{}),
 		result:    make(chan error),
@@ -185,7 +185,7 @@ func TestJobGo(t *testing.T) {
 
 func TestStopWorker(t *testing.T) {
 	require := require.New(t)
-	w := New(10, 100)
+	w := NewParallel(10, 100).(*ParallelWorkers)
 	require.False(w.shouldShutdown, "Shutdown val incorrectly initialized.")
 	w.Stop()
 	require.Empty(w.queue, "Worker queue not empty")
@@ -194,7 +194,7 @@ func TestStopWorker(t *testing.T) {
 
 func TestWorker(t *testing.T) {
 	require := require.New(t)
-	w := New(10, 10000)
+	w := NewParallel(10, 10000).(*ParallelWorkers)
 	// Require workers was created properly
 	require.Equal(10, w.count, "Count not set correctly")
 	require.Empty(w.queue, "Worker queue not empty")
@@ -206,7 +206,7 @@ func TestWorker(t *testing.T) {
 	// Value updated by the workers
 	var valLock sync.Mutex
 	val := 0
-	jobs := []*Job{}
+	jobs := []Job{}
 	for i := 0; i < 1000; i++ {
 		// Create a new job
 		job, err := w.NewJob(10)
@@ -232,7 +232,7 @@ func TestWorker(t *testing.T) {
 
 func TestWorkerStop(t *testing.T) {
 	require := require.New(t)
-	w := New(5, 100)
+	w := NewParallel(5, 100)
 	var valLock sync.Mutex
 	val := 0
 	// Create a new job
@@ -263,7 +263,7 @@ func TestWorkerStop(t *testing.T) {
 
 func TestNewJobShutdown(t *testing.T) {
 	require := require.New(t)
-	w := New(2, 10)
+	w := NewParallel(2, 10).(*ParallelWorkers)
 	w.shouldShutdown = true
 	job, err := w.NewJob(10)
 	require.ErrorIs(ErrShutdown, err, "NewJob returned no error")

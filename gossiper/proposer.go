@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/workers"
 	"go.uber.org/zap"
 )
 
@@ -243,7 +244,7 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 
 func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	actionRegistry, authRegistry := g.vm.Registry()
-	txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionRegistry, authRegistry)
+	authCounts, txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionRegistry, authRegistry)
 	if err != nil {
 		g.vm.Logger().Warn(
 			"received invalid txs",
@@ -273,19 +274,56 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 		}
 	}
 
-	// Add incoming transactions to our caches to prevent useless gossip
+	// Add incoming transactions to our caches to prevent useless gossip and perform
+	// batch signature verification.
+	//
+	// We rely on AppGossipConcurrency to regulate concurrency here, so we don't create
+	// a separate pool of workers for this verification.
+	job, err := workers.NewSerial().NewJob(len(txs))
+	if err != nil {
+		g.vm.Logger().Warn(
+			"unable to spawn new worker",
+			zap.Stringer("peerID", nodeID),
+			zap.Error(err),
+		)
+		return nil
+	}
+	batchVerifier := chain.NewAuthBatch(g.vm, job, authCounts)
 	for _, tx := range txs {
+		// Verify signature async
+		txDigest, err := tx.Digest()
+		if err != nil {
+			g.vm.Logger().Warn(
+				"unable to compute tx digest",
+				zap.Stringer("peerID", nodeID),
+				zap.Error(err),
+			)
+			batchVerifier.Done(nil)
+			return nil
+		}
+		batchVerifier.Add(txDigest, tx.Auth)
+
+		// Track incoming txs
 		if c != nil {
 			c.Put(tx.ID(), struct{}{})
 		}
 		g.receivedTxs.Put(tx.ID(), struct{}{})
 	}
+	batchVerifier.Done(nil)
+
+	// Wait for signature verification to finish
+	if err := job.Wait(); err != nil {
+		g.vm.Logger().Warn(
+			"received invalid gossip",
+			zap.Stringer("peerID", nodeID),
+			zap.Error(err),
+		)
+		return nil
+	}
 
 	// Submit incoming gossip to mempool
-	//
-	// TODO: use batch verification and batched repeat check
 	start := time.Now()
-	for _, err := range g.vm.Submit(ctx, true, txs) {
+	for _, err := range g.vm.Submit(ctx, false, txs) {
 		if err == nil || errors.Is(err, chain.ErrDuplicateTx) {
 			continue
 		}

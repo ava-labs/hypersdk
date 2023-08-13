@@ -31,4 +31,5 @@ type VM interface {
 	Submit(ctx context.Context, verify bool, txs []*chain.Transaction) []error
 	RecordTxsGossiped(int)
 	RecordTxsReceived(int)
+	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool)
 }

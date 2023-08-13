@@ -110,7 +110,7 @@ type StatelessBlock struct {
 	vm    VM
 	state merkledb.TrieView
 
-	sigJob *workers.Job
+	sigJob workers.Job
 }
 
 func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
@@ -159,6 +159,13 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	b.sigJob = job
 	batchVerifier := NewAuthBatch(b.vm, b.sigJob, b.authCounts)
 
+	// Make sure to always call [Done], otherwise we will block all future [Workers]
+	defer func() {
+		// BatchVerifier is given the responsibility to call [b.sigJob.Done()] because it may add things
+		// to the work queue async and that may not have completed by this point.
+		go batchVerifier.Done(func() { sigVerifySpan.End() })
+	}()
+
 	// Confirm no transaction duplicates and setup
 	// AWM processing
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
@@ -200,10 +207,6 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 			b.containsWarp = true
 		}
 	}
-
-	// BatchVerifier is given the responsibility to call [b.sigJob.Done()] because it may add things
-	// to the work queue async and that may not have completed by this point.
-	go batchVerifier.Done(func() { sigVerifySpan.End() })
 	return nil
 }
 

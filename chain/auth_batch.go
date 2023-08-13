@@ -4,22 +4,28 @@
 package chain
 
 import (
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/workers"
 )
 
 const authWorkerBacklog = 16_384
+
+type AuthVM interface {
+	Logger() logging.Logger
+	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
+}
 
 // Adding a signature to a verification batch
 // may perform complex cryptographic operations. We should
 // not block the caller when this happens and we should
 // not require each batch package to re-implement this logic.
 type AuthBatch struct {
-	vm  VM
-	job *workers.Job
+	vm  AuthVM
+	job workers.Job
 	bvs map[uint8]*authBatchWorker
 }
 
-func NewAuthBatch(vm VM, job *workers.Job, authTypes map[uint8]int) *AuthBatch {
+func NewAuthBatch(vm AuthVM, job workers.Job, authTypes map[uint8]int) *AuthBatch {
 	bvs := map[uint8]*authBatchWorker{}
 	for t, count := range authTypes {
 		bv, ok := vm.GetAuthBatchVerifier(t, job.Workers(), count)
@@ -69,8 +75,8 @@ type authBatchObject struct {
 }
 
 type authBatchWorker struct {
-	vm    VM
-	job   *workers.Job
+	vm    AuthVM
+	job   workers.Job
 	bv    AuthBatchVerifier
 	items chan *authBatchObject
 	done  chan struct{}
