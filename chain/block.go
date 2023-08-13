@@ -725,6 +725,11 @@ func (b *StatelessBlock) childState(
 	return b.state.NewPreallocatedView(estimatedChanges)
 }
 
+// IsRepeat returns a bitset of all transactions that are considered repeats in
+// the range that spans back to [oldestAllowed].
+//
+// If [stop] is set to true, IsRepeat will return as soon as the first repeat
+// is found (useful for block verification).
 func (b *StatelessBlock) IsRepeat(
 	ctx context.Context,
 	oldestAllowed int64,

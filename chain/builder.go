@@ -248,6 +248,13 @@ func BuildBlock(
 					zap.Uint64("tx max units", nextUnits),
 				)
 				restorable = append(restorable, next)
+
+				// We only stop building once we are within [stopBuildingThreshold] to protect
+				// against a case where there is a very large transaction in the mempool (and the
+				// block is still empty).
+				//
+				// We are willing to give up building early (although there may be some remaining space)
+				// to avoid iterating over everything in the mempool to find something that may fit.
 				if r.GetMaxBlockUnits()-b.UnitsConsumed < stopBuildingThreshold {
 					execErr = errBlockFull
 				}
