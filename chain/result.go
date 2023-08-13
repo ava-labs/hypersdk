@@ -10,10 +10,16 @@ import (
 )
 
 type Result struct {
-	Success     bool
-	Units       uint64
-	Output      []byte
+	Success bool
+	Output  [][]byte
+
 	WarpMessage *warp.UnsignedMessage
+
+	StateCreated  uint64
+	StateModified uint64
+
+	ComputeUnits uint64
+	StorageUnits uint64
 }
 
 func (r *Result) Size() int {
