@@ -645,6 +645,7 @@ func (vm *VM) buildBlock(
 		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
 		return nil, err
 	}
+	// TODO: only store in parsed after we actually use the block
 	vm.parsedBlocks.Put(blk.ID(), blk)
 	return blk, nil
 }
