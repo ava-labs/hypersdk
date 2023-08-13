@@ -575,9 +575,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			tx := blk2.(*chain.StatelessBlock).Txs[0]
 			sblk3 := blk3.(*chain.StatelessBlock)
 			sblk3t := sblk3.Timestamp().UnixMilli()
-			ok, err := sblk3.IsRepeat(ctx, sblk3t-n.vm.Rules(sblk3t).GetValidityWindow(), []*chain.Transaction{tx})
+			ok, err := sblk3.IsRepeat(ctx, sblk3t-n.vm.Rules(sblk3t).GetValidityWindow(), []*chain.Transaction{tx}, set.NewBits(), false)
 			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(ok).Should(gomega.BeTrue())
+			gomega.Ω(ok.Len()).Should(gomega.Equal(1))
 
 			// Accept tip
 			err = blk1.Accept(ctx)
@@ -597,7 +597,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 			// Check if tx from old block would be considered a repeat on accepted tip
 			time.Sleep(2 * time.Second)
-			gomega.Ω(n.vm.IsRepeat(ctx, []*chain.Transaction{tx})).Should(gomega.BeTrue())
+			gomega.Ω(n.vm.IsRepeat(ctx, []*chain.Transaction{tx}, set.NewBits(), false).Len()).Should(gomega.Equal(1))
 		})
 	})
 
