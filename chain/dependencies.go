@@ -33,7 +33,7 @@ type Parser interface {
 type VM interface {
 	Parser
 
-	Workers() *workers.Workers
+	Workers() workers.Workers
 	Tracer() trace.Tracer
 	Logger() logging.Logger
 

@@ -54,7 +54,7 @@ func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return vm.actionRegistry, vm.authRegistry
 }
 
-func (vm *VM) Workers() *workers.Workers {
+func (vm *VM) Workers() workers.Workers {
 	return vm.workers
 }
 

@@ -110,7 +110,7 @@ type StatelessBlock struct {
 	vm    VM
 	state merkledb.TrieView
 
-	sigJob *workers.Job
+	sigJob workers.Job
 }
 
 func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
