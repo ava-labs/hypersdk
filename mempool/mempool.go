@@ -336,7 +336,7 @@ func (th *Mempool[T]) StartStreaming(ctx context.Context) {
 // PrepareStream prefetches the next [count] items from the mempool to
 // reduce the latency of calls to [StreamItems].
 func (th *Mempool[T]) PrepareStream(ctx context.Context, count int) {
-	ctx, span := th.tracer.Start(ctx, "Mempool.PrepareStream")
+	_, span := th.tracer.Start(ctx, "Mempool.PrepareStream")
 	defer span.End()
 
 	th.mu.Lock()
@@ -349,7 +349,7 @@ func (th *Mempool[T]) PrepareStream(ctx context.Context, count int) {
 // Stream gets the next highest-valued [count] items from the mempool, not
 // including what has already been streamed.
 func (th *Mempool[T]) Stream(ctx context.Context, count int) []T {
-	ctx, span := th.tracer.Start(ctx, "Mempool.Stream")
+	_, span := th.tracer.Start(ctx, "Mempool.Stream")
 	defer span.End()
 
 	th.mu.Lock()
@@ -380,7 +380,7 @@ func (th *Mempool[T]) streamItems(count int) []T {
 // FinishStreaming restores [restorable] items to the mempool and clears
 // the set of all previously streamed items.
 func (th *Mempool[T]) FinishStreaming(ctx context.Context, restorable []T) {
-	ctx, span := th.tracer.Start(ctx, "Mempool.FinishStreaming")
+	_, span := th.tracer.Start(ctx, "Mempool.FinishStreaming")
 	defer span.End()
 
 	th.mu.Lock()
