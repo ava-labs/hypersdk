@@ -39,7 +39,9 @@ func (j *SerialJob) Go(f func() error) {
 }
 
 func (*SerialJob) Done(f func()) {
-	f()
+	if f != nil {
+		f()
+	}
 }
 
 func (j *SerialJob) Wait() error {
