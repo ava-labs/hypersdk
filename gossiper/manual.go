@@ -90,7 +90,7 @@ func (g *Manual) ForceGossip(ctx context.Context) error {
 
 func (g *Manual) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	actionRegistry, authRegistry := g.vm.Registry()
-	txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionRegistry, authRegistry)
+	_, txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionRegistry, authRegistry)
 	if err != nil {
 		g.vm.Logger().Warn(
 			"AppGossip provided invalid txs",
