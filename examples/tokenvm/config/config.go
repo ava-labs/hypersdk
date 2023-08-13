@@ -25,7 +25,9 @@ import (
 var _ vm.Config = (*Config)(nil)
 
 const (
-	defaultDSN                         = "http://project2_secret_token@localhost:14317/2"
+	defaultTraceInsecure               = true
+	defaultTraceEndpoint               = "localhost:14317"
+	defaultTraceDSN                    = "http://project2_secret_token@localhost:14317/2"
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
 	defaultStoreTransactions           = true
@@ -45,7 +47,9 @@ type Config struct {
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
 	TraceSampleRate float64 `json:"traceSampleRate"`
-	DSN             string  `json:"dsn"`
+	TraceEndpoint   string  `json:"traceEndpoint"`
+	TraceDSN        string  `json:"traceDSN"`
+	TraceInsecure   bool    `json:"traceInsecure"`
 
 	// Profiling
 	ContinuousProfilerDir string `json:"continuousProfilerDir"` // "*" is replaced with rand int
@@ -119,7 +123,9 @@ func (c *Config) setDefault() {
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 	c.VerifySignatures = c.Config.GetVerifySignatures()
 	c.StoreTransactions = defaultStoreTransactions
-	c.DSN = defaultDSN
+	c.TraceEndpoint = defaultTraceEndpoint
+	c.TraceDSN = defaultTraceDSN
+	c.TraceInsecure = defaultTraceInsecure
 }
 
 func (c *Config) GetLogLevel() logging.Level       { return c.LogLevel }
@@ -135,7 +141,9 @@ func (c *Config) GetTraceConfig() *trace.Config {
 		AppName:         consts.Name,
 		Agent:           c.nodeID.String(),
 		Version:         version.Version.String(),
-		DSN:             c.DSN,
+		Endpoint:        c.TraceEndpoint,
+		DSN:             c.TraceDSN,
+		Insecure:        c.TraceInsecure,
 	}
 }
 func (c *Config) GetStateSyncServerDelay() time.Duration { return c.StateSyncServerDelay }
