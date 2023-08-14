@@ -55,10 +55,14 @@ type VM struct {
 	proposerMonitor *ProposerMonitor
 	manager         manager.Manager
 
-	config         Config
-	genesis        Genesis
-	builder        builder.Builder
-	isBuilding     bool
+	config  Config
+	genesis Genesis
+
+	builder      builder.Builder
+	isBuilding   bool
+	builtBlock   *chain.StatelessBlock
+	builtContext *smblock.Context
+
 	gossiper       gossiper.Gossiper
 	rawStateDB     database.Database
 	stateDB        merkledb.MerkleDB
@@ -621,6 +625,25 @@ func (vm *VM) buildBlock(
 		return nil, ErrNotReady
 	}
 
+	// If async building is not enabled or the mempool is empty, we'll build synchronously
+	if !vm.config.GetAsyncBuildVerify() || vm.mempool.Len(ctx) == 0 {
+		// Notify builder if we should build again (whether or not we are successful this time)
+		//
+		// Note: builder should regulate whether or not it actually decides to build based on state
+		// of the mempool.
+		defer vm.builder.QueueNotify()
+
+		// Build block and store as parsed
+		blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
+		if err != nil {
+			vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
+			return nil, err
+		}
+		// TODO: only store in parsed after we actually use the block
+		vm.parsedBlocks.Put(blk.ID(), blk)
+		return blk, nil
+	}
+
 	// Check if we are already building a block
 	if vm.isBuilding {
 		vm.snowCtx.Log.Debug("already building block", zap.Error(ErrBuildingAsync))
@@ -629,25 +652,45 @@ func (vm *VM) buildBlock(
 
 	// If we have a built block, check if it has the right context
 	// and the right preference
+	if vm.builtBlock != nil {
+		builtBlock := vm.builtBlock
+		builtContext := vm.builtContext
+		vm.builtBlock = nil
+		vm.builtContext = nil
+		if builtBlock.Prnt == vm.preferred && ((builtContext == nil && blockContext == nil) || (builtContext != nil && blockContext != nil && builtContext.PChainHeight == blockContext.PChainHeight)) {
+			vm.snowCtx.Log.Info("found previously built block", zap.Stringer("blkID", builtBlock.ID()), zap.Uint64("height", builtBlock.Hght))
+			vm.parsedBlocks.Put(builtBlock.ID(), builtBlock)
+			return vm.builtBlock, nil
+		}
+		vm.snowCtx.Log.Info("discarding previously built block", zap.Stringer("blkID", builtBlock.ID()), zap.Uint64("height", builtBlock.Hght))
+		vm.mempool.Add(ctx, builtBlock.Txs)
+	}
 
 	// If we don't have a block or it is stale, kickoff a new build.
 	vm.isBuilding = true
+	preferred := vm.preferred
+	go func() {
+		defer func() {
+			vm.isBuilding = false
 
-	// Notify builder if we should build again (whether or not we are successful this time)
-	//
-	// Note: builder should regulate whether or not it actually decides to build based on state
-	// of the mempool.
-	defer vm.builder.QueueNotify()
+			// Notify builder if we should build again (whether or not we are successful this time)
+			//
+			// Note: builder should regulate whether or not it actually decides to build based on state
+			// of the mempool.
+			vm.builder.QueueNotify()
+		}()
 
-	// Build block and store as parsed
-	blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
-	if err != nil {
-		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
-		return nil, err
-	}
-	// TODO: only store in parsed after we actually use the block
-	vm.parsedBlocks.Put(blk.ID(), blk)
-	return blk, nil
+		// Build block and store as parsed
+		blk, err := chain.BuildBlock(ctx, vm, preferred, blockContext)
+		if err != nil {
+			vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
+			return
+		}
+		vm.builtBlock = blk
+		vm.builtContext = blockContext
+		vm.snowCtx.Log.Info("built block async", zap.Stringer("blkID", blk.ID()), zap.Uint64("height", blk.Hght))
+	}()
+	return nil, ErrBuildingAsync
 }
 
 // implements "block.ChainVM"

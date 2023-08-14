@@ -41,6 +41,7 @@ type Config interface {
 	GetContinuousProfilerConfig() *profiler.Config
 	GetTargetBuildDuration() time.Duration
 	GetTargetGossipDuration() time.Duration
+	GetAsyncBuildVerify() bool
 }
 
 type Genesis interface {
