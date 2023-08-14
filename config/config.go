@@ -48,3 +48,4 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 func (c *Config) GetVerifySignatures() bool              { return true }
 func (c *Config) GetTargetBuildDuration() time.Duration  { return 100 * time.Millisecond }
 func (c *Config) GetTargetGossipDuration() time.Duration { return 20 * time.Millisecond }
+func (c *Config) GetAsyncBuildVerify() bool              { return true }

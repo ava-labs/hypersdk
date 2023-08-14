@@ -408,3 +408,7 @@ func (vm *VM) cacheAuth(auth chain.Auth) {
 	}
 	bv.Cache(auth)
 }
+
+func (vm *VM) GetAsyncBuildVerify() bool {
+	return vm.config.GetAsyncBuildVerify()
+}
