@@ -66,4 +66,5 @@ var (
 	// Misc
 	ErrNotImplemented    = errors.New("not implemented")
 	ErrBlockNotProcessed = errors.New("block is not processed")
+	ErrVerifyingAsync    = errors.New("verifying async")
 )

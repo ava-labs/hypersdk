@@ -111,6 +111,8 @@ type StatelessBlock struct {
 	state merkledb.TrieView
 
 	sigJob workers.Job
+
+	verifying bool
 }
 
 func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
@@ -329,6 +331,15 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 
 func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 	log := b.vm.Logger()
+	if b.verifying {
+		log.Debug(
+			"skipping verification, verifying async",
+			zap.Uint64("height", b.Hght),
+			zap.Stringer("blkID", b.ID()),
+		)
+		return ErrVerifyingAsync
+	}
+
 	switch {
 	case !stateReady:
 		// If the state of the accepted tip has not been fully fetched, it is not safe to
@@ -348,13 +359,38 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 			zap.Stringer("blkID", b.ID()),
 		)
 	default:
+		// TODO: handle missing state
+		// TODO: ensure only one verification can occur at once
+
 		// Parent may not be processed when we verify this block so [verify] may
 		// recursively compute missing state.
-		state, err := b.innerVerify(ctx)
-		if err != nil {
-			return err
+		if !b.vm.GetAsyncBuildVerify() {
+			state, err := b.innerVerify(ctx)
+			if err != nil {
+				return err
+			}
+			b.state = state
+		} else {
+			b.verifying = true
+			go func() {
+				defer func() {
+					b.verifying = false
+				}()
+
+				state, err := b.innerVerify(ctx)
+				if err != nil {
+					log.Warn(
+						"verification failed",
+						zap.Uint64("height", b.Hght),
+						zap.Stringer("blkID", b.ID()),
+						zap.Error(err),
+					)
+					return
+				}
+				b.state = state
+			}()
+			return ErrVerifyingAsync
 		}
-		b.state = state
 	}
 
 	// At any point after this, we may attempt to verify the block. We should be
