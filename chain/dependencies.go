@@ -76,6 +76,7 @@ type VM interface {
 	RecordStateOperations(int)
 	RecordBuildCapped()
 	RecordEmptyBlockBuilt()
+	RecordClearedMempool()
 }
 
 type Mempool interface {

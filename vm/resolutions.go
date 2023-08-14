@@ -430,3 +430,7 @@ func (vm *VM) RecordBlockVerify(t time.Duration) {
 func (vm *VM) RecordBlockAccept(t time.Duration) {
 	vm.metrics.blockAccept.Observe(float64(t))
 }
+
+func (vm *VM) RecordClearedMempool() {
+	vm.metrics.clearedMempool.Inc()
+}
