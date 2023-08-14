@@ -566,6 +566,11 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 // implements "block.ChainVM.commom.VM.Parser"
 // replaces "core.SnowmanVM.ParseBlock"
 func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.blockParse.Observe(float64(time.Since(start)))
+	}()
+
 	ctx, span := vm.tracer.Start(ctx, "VM.ParseBlock")
 	defer span.End()
 
@@ -634,6 +639,11 @@ func (vm *VM) buildBlock(
 
 // implements "block.ChainVM"
 func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
+	}()
+
 	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
 	defer span.End()
 
@@ -645,6 +655,11 @@ func (vm *VM) BuildBlockWithContext(
 	ctx context.Context,
 	blockContext *smblock.Context,
 ) (snowman.Block, error) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
+	}()
+
 	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlockWithContext")
 	defer span.End()
 

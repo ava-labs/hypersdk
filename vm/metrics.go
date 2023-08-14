@@ -24,6 +24,11 @@ type Metrics struct {
 	mempoolSize     prometheus.Gauge
 	rootCalculated  metric.Averager
 	waitSignatures  metric.Averager
+	blockBuild      metric.Averager
+	blockParse      metric.Averager
+	blockVerify     metric.Averager
+	blockAccept     metric.Averager
+	blockProcess    metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -42,6 +47,51 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"wait_signatures",
 		"time spent waiting for signature verification in verify",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	blockBuild, err := metric.NewAverager(
+		"chain",
+		"block_build",
+		"time spent building blocks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	blockParse, err := metric.NewAverager(
+		"chain",
+		"block_parse",
+		"time spent parsing blocks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	blockVerify, err := metric.NewAverager(
+		"chain",
+		"block_verify",
+		"time spent verifying blocks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	blockAccept, err := metric.NewAverager(
+		"chain",
+		"block_accept",
+		"time spent accepting blocks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	blockProcess, err := metric.NewAverager(
+		"chain",
+		"block_process",
+		"time spent processing blocks",
 		r,
 	)
 	if err != nil {
@@ -111,6 +161,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		}),
 		rootCalculated: rootCalculated,
 		waitSignatures: waitSignatures,
+		blockBuild:     blockBuild,
+		blockParse:     blockParse,
+		blockVerify:    blockVerify,
+		blockAccept:    blockAccept,
+		blockProcess:   blockProcess,
 	}
 	errs := wrappers.Errs{}
 	errs.Add(

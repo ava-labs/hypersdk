@@ -70,6 +70,8 @@ type VM interface {
 	// TODO: break out into own interface
 	RecordRootCalculated(time.Duration) // only called in Verify
 	RecordWaitSignatures(time.Duration) // only called in Verify
+	RecordBlockVerify(time.Duration)
+	RecordBlockAccept(time.Duration)
 	RecordStateChanges(int)
 	RecordStateOperations(int)
 	RecordBuildCapped()
