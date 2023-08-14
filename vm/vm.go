@@ -660,7 +660,7 @@ func (vm *VM) buildBlock(
 		if builtBlock.Prnt == vm.preferred && ((builtContext == nil && blockContext == nil) || (builtContext != nil && blockContext != nil && builtContext.PChainHeight == blockContext.PChainHeight)) {
 			vm.snowCtx.Log.Info("found previously built block", zap.Stringer("blkID", builtBlock.ID()), zap.Uint64("height", builtBlock.Hght))
 			vm.parsedBlocks.Put(builtBlock.ID(), builtBlock)
-			return vm.builtBlock, nil
+			return builtBlock, nil
 		}
 		vm.snowCtx.Log.Info("discarding previously built block", zap.Stringer("blkID", builtBlock.ID()), zap.Uint64("height", builtBlock.Hght))
 		vm.mempool.Add(ctx, builtBlock.Txs)
