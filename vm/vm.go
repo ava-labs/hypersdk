@@ -625,8 +625,8 @@ func (vm *VM) buildBlock(
 		return nil, ErrNotReady
 	}
 
-	// If async building is not enabled or the mempool is empty, we'll build synchronously
-	if !vm.config.GetAsyncBuildVerify() || vm.mempool.Len(ctx) == 0 {
+	// If async building is not enabled, we'll build synchronously
+	if !vm.config.GetAsyncBuildVerify() {
 		// Notify builder if we should build again (whether or not we are successful this time)
 		//
 		// Note: builder should regulate whether or not it actually decides to build based on state
