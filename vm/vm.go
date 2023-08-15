@@ -273,7 +273,7 @@ func (vm *VM) Initialize(
 		genesisRules := vm.c.Rules(0)
 		feeManager := chain.NewFeeManager(nil)
 		minUnitPrice := genesisRules.GetMinUnitPrice()
-		for i := 0; i < chain.Dimensions; i++ {
+		for i := chain.Dimension(0); i < chain.FeeDimensions; i++ {
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 		}
 		if err := view.Insert(ctx, vm.StateManager().FeeKey(), feeManager.Bytes()); err != nil {
