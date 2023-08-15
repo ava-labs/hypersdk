@@ -39,14 +39,26 @@ type StatefulBlock struct {
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	UnitPrice  uint64        `json:"unitPrice"`
-	UnitWindow window.Window `json:"unitWindow"`
-
 	Txs []*Transaction `json:"txs"`
 
-	StateRoot     ids.ID     `json:"stateRoot"`
-	UnitsConsumed uint64     `json:"unitsConsumed"`
-	WarpResults   set.Bits64 `json:"warpResults"`
+	BandwidthUnitPrice     uint64        `json:"bandwidthUnitPrice"`
+	BandwidthUnitWindow    window.Window `json:"bandwidthUnitWindow"`
+	BandwidthUnitsConsumed uint64        `json:"bandwidthUnitsConsumed"`
+
+	ComputeUnitPrice     uint64        `json:"computeUnitPrice"`
+	ComputeUnitWindow    window.Window `json:"computeUnitWindow"`
+	ComputeUnitsConsumed uint64        `json:"computeUnitsConsumed"`
+
+	StorageCreationUnitPrice     uint64        `json:"storageCreationUnitPrice"`
+	StorageCreationUnitWindow    window.Window `json:"storageCreationUnitWindow"`
+	StorageCreationUnitsConsumed uint64        `json:"storageCreationUnitsConsumed"`
+
+	StorageModificationUnitPrice     uint64        `json:"storageModificationUnitPrice"`
+	StorageModificationUnitWindow    window.Window `json:"storageModificationUnitWindow"`
+	StorageModificationUnitsConsumed uint64        `json:"storageModificationUnitsConsumed"`
+
+	StateRoot   ids.ID     `json:"stateRoot"`
+	WarpResults set.Bits64 `json:"warpResults"`
 
 	size int
 
