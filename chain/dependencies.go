@@ -107,23 +107,21 @@ type Rules interface {
 	GetMinBlockGap() int64
 	GetMinEmptyBlockGap() int64
 
-	GetMinUnitPrice() (bandwidth uint64, compute uint64, storageCreation uint64, storageModification uint64)
-	GetUnitPriceChangeDenominator() (bandwidth uint64, compute uint64, storageCreation uint64, storageModification uint64)
-	GetWindowTargetUnits() (bandwidth uint64, compute uint64, storageCreation uint64, storageModification uint64)
-	GetMaxBlockUnits() (bandwidth uint64, compute uint64, storageCreation uint64, storageModification uint64)
+	GetValidityWindow() int64 // in milliseconds
 
-	GetBaseUnits() uint64
-	GetWarpBaseUnits() uint64
-	GetWarpUnitsPerSigner() uint64
+	GetMinUnitPrice() (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64)
+	GetUnitPriceChangeDenominator() (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64)
+	GetWindowTargetUnits() (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64)
+	GetMaxBlockUnits() (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64)
 
-	GetUnitsPerPrefetch()
-	GetUnitsPerCreation()
-	GetUnitsPerModification()
-	GetUnitsPerDeletion()
+	GetBaseComputeUnits() uint64
+	GetBaseWarpComputeUnits() uint64
+	GetWarpComputeUnitsPerSigner() uint64
+	GetStorageUnitsPerRead()
+	GetStorageUnitsPerCreation()
+	GetStorageUnitsPerModification()
 
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
-
-	GetValidityWindow() int64 // in milliseconds
 
 	FetchCustom(string) (any, bool)
 }

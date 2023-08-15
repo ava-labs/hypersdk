@@ -49,6 +49,10 @@ type StatefulBlock struct {
 	ComputeUnitWindow    window.Window `json:"computeUnitWindow"`
 	ComputeUnitsConsumed uint64        `json:"computeUnitsConsumed"`
 
+	StorageReadUnitPrice     uint64        `json:"storageReadUnitPrice"`
+	StorageReadUnitWindow    window.Window `json:"storageReadUnitWindow"`
+	StorageReadUnitsConsumed uint64        `json:"storageReadUnitsConsumed"`
+
 	StorageCreationUnitPrice     uint64        `json:"storageCreationUnitPrice"`
 	StorageCreationUnitWindow    window.Window `json:"storageCreationUnitWindow"`
 	StorageCreationUnitsConsumed uint64        `json:"storageCreationUnitsConsumed"`
