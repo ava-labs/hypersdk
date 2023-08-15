@@ -41,23 +41,6 @@ type StatefulBlock struct {
 
 	Txs []*Transaction `json:"txs"`
 
-	// TODO: make this bytes in state
-	BandwidthUnitPrice               uint64        `json:"bandwidthUnitPrice"`
-	BandwidthUnitWindow              window.Window `json:"bandwidthUnitWindow"`
-	BandwidthUnitsConsumed           uint64        `json:"bandwidthUnitsConsumed"`
-	ComputeUnitPrice                 uint64        `json:"computeUnitPrice"`
-	ComputeUnitWindow                window.Window `json:"computeUnitWindow"`
-	ComputeUnitsConsumed             uint64        `json:"computeUnitsConsumed"`
-	StorageReadUnitPrice             uint64        `json:"storageReadUnitPrice"`
-	StorageReadUnitWindow            window.Window `json:"storageReadUnitWindow"`
-	StorageReadUnitsConsumed         uint64        `json:"storageReadUnitsConsumed"`
-	StorageCreationUnitPrice         uint64        `json:"storageCreationUnitPrice"`
-	StorageCreationUnitWindow        window.Window `json:"storageCreationUnitWindow"`
-	StorageCreationUnitsConsumed     uint64        `json:"storageCreationUnitsConsumed"`
-	StorageModificationUnitPrice     uint64        `json:"storageModificationUnitPrice"`
-	StorageModificationUnitWindow    window.Window `json:"storageModificationUnitWindow"`
-	StorageModificationUnitsConsumed uint64        `json:"storageModificationUnitsConsumed"`
-
 	StateRoot   ids.ID     `json:"stateRoot"`
 	WarpResults set.Bits64 `json:"warpResults"`
 
@@ -94,17 +77,6 @@ func NewGenesisBlock(root ids.ID, bandwidth uint64, compute uint64, storageRead 
 		// .../vms/proposervm/pre_fork_block.go#L201
 		Tmstmp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
 
-		BandwidthUnitPrice:            bandwidth,
-		BandwidthUnitWindow:           window.Window{},
-		ComputeUnitPrice:              compute,
-		ComputeUnitWindow:             window.Window{},
-		StorageReadUnitPrice:          storageRead,
-		StorageReadUnitWindow:         window.Window{},
-		StorageCreationUnitPrice:      storageCreation,
-		StorageCreationUnitWindow:     window.Window{},
-		StorageModificationUnitPrice:  storageModification,
-		StorageModificationUnitWindow: window.Window{},
-
 		StateRoot: root,
 	}
 }
@@ -140,9 +112,6 @@ func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) 
 			Prnt:   parent.ID(),
 			Tmstmp: tmstp,
 			Hght:   parent.Height() + 1,
-
-			UnitPrice:  ectx.NextUnitPrice,
-			UnitWindow: ectx.NextUnitWindow,
 		},
 		vm: vm,
 		st: choices.Processing,
@@ -805,10 +774,6 @@ func (b *StatelessBlock) GetTimestamp() int64 {
 	return b.Tmstmp
 }
 
-func (b *StatelessBlock) GetUnitPrice() (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64) {
-	return b.BandwidthUnitPrice, b.ComputeUnitPrice, b.StorageReadUnitPrice, b.StorageCreationUnitPrice, b.StorageModificationUnitPrice
-}
-
 func (b *StatelessBlock) Results() []*Result {
 	return b.results
 }
@@ -833,22 +798,6 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 		}
 		b.authCounts[tx.Auth.GetTypeID()]++
 	}
-
-	p.PackUint64(b.BandwidthUnitPrice)
-	p.PackWindow(b.BandwidthUnitWindow)
-	p.PackUint64(b.BandwidthUnitsConsumed)
-	p.PackUint64(b.ComputeUnitPrice)
-	p.PackWindow(b.ComputeUnitWindow)
-	p.PackUint64(b.ComputeUnitsConsumed)
-	p.PackUint64(b.StorageReadUnitPrice)
-	p.PackWindow(b.StorageReadUnitWindow)
-	p.PackUint64(b.StorageReadUnitsConsumed)
-	p.PackUint64(b.StorageCreationUnitPrice)
-	p.PackWindow(b.StorageCreationUnitWindow)
-	p.PackUint64(b.StorageCreationUnitsConsumed)
-	p.PackUint64(b.StorageModificationUnitPrice)
-	p.PackWindow(b.StorageModificationUnitWindow)
-	p.PackUint64(b.StorageModificationUnitsConsumed)
 
 	p.PackID(b.StateRoot)
 	p.PackUint64(uint64(b.WarpResults))
@@ -884,22 +833,6 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 		b.Txs = append(b.Txs, tx)
 		b.authCounts[tx.Auth.GetTypeID()]++
 	}
-
-	b.BandwidthUnitPrice = p.UnpackUint64(false)
-	p.UnpackWindow(&b.BandwidthUnitWindow)
-	b.BandwidthUnitsConsumed = p.UnpackUint64(false)
-	b.ComputeUnitPrice = p.UnpackUint64(false)
-	p.UnpackWindow(&b.ComputeUnitWindow)
-	b.ComputeUnitsConsumed = p.UnpackUint64(false)
-	b.StorageReadUnitPrice = p.UnpackUint64(false)
-	p.UnpackWindow(&b.StorageReadUnitWindow)
-	b.StorageReadUnitsConsumed = p.UnpackUint64(false)
-	b.StorageCreationUnitPrice = p.UnpackUint64(false)
-	p.UnpackWindow(&b.StorageCreationUnitWindow)
-	b.StorageCreationUnitsConsumed = p.UnpackUint64(false)
-	b.StorageModificationUnitPrice = p.UnpackUint64(false)
-	p.UnpackWindow(&b.StorageModificationUnitWindow)
-	b.StorageModificationUnitsConsumed = p.UnpackUint64(false)
 
 	p.UnpackID(false, &b.StateRoot)
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
