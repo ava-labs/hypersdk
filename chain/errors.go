@@ -18,7 +18,7 @@ var (
 	ErrTimestampTooLate     = errors.New("timestamp too late")
 	ErrStateRootEmpty       = errors.New("state root empty")
 	ErrNoTxs                = errors.New("no transactions")
-	ErrInvalidUnitPrice     = errors.New("invalid unit price")
+	ErrInvalidFee           = errors.New("invalid fee")
 	ErrInvalidUnitWindow    = errors.New("invalid unit window")
 	ErrInvalidBlockCost     = errors.New("invalid block cost")
 	ErrInvalidBlockWindow   = errors.New("invalid block window")

@@ -19,8 +19,10 @@ type Base struct {
 	// ChainID protects against replay attacks on different VM instances.
 	ChainID ids.ID `json:"chainId"`
 
-	// Unit price is the value per unit to spend on this transaction.
-	UnitPrice uint64 `json:"unitPrice"`
+	// Fee is the max fee the user will pay for the transaction to be executed.
+	//
+	// If the fee is too low to pay all fees, the transaction will be dropped.
+	Fee uint64 `json:"fee"`
 }
 
 func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
@@ -34,15 +36,14 @@ func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 		return ErrTimestampTooEarly
 	case b.ChainID != chainID:
 		return ErrInvalidChainID
-	case b.UnitPrice < r.GetMinUnitPrice():
-		return ErrInvalidUnitPrice
+	case b.Fee < r.GetMinFee():
+		return ErrInvalidFee
 	default:
 		return nil
 	}
 }
 
-// TODO: change to bandwidth
-func (*Base) Size() int {
+func (*Base) Bandwidth() int {
 	return consts.Uint64Len*2 + consts.IDLen
 }
 

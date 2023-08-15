@@ -109,6 +109,7 @@ type Rules interface {
 
 	GetValidityWindow() int64 // in milliseconds
 
+	GetMinFee() uint64
 	GetMinUnitPrice() (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64)
 	GetUnitPriceChangeDenominator() (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64)
 	GetWindowTargetUnits() (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64)
@@ -137,8 +138,11 @@ type StateManager interface {
 
 type Action interface {
 	GetTypeID() uint8                          // identify uniquely the action
-	MaxUnits(Rules) uint64                     // max units that could be charged via execute
 	ValidRange(Rules) (start int64, end int64) // -1 means no start/end
+
+	// MaxUnits is used to determine whether the [Action] is executable in the given block. Implementors
+	// should make a best effort to specify these as close to possible to the actual max.
+	MaxUnits(Rules) (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64)
 
 	// Auth may contain an [Actor] that performs a transaction
 	//
@@ -167,7 +171,6 @@ type Action interface {
 		warpVerified bool,
 	) (result *Result, err error) // err should only be returned if fatal
 
-	Size() int
 	Marshal(p *codec.Packer)
 }
 
@@ -177,10 +180,10 @@ type AuthBatchVerifier interface {
 }
 
 type Auth interface {
-	GetTypeID() uint8 // identify uniquely the auth
-
-	MaxUnits(Rules) uint64
+	GetTypeID() uint8                          // identify uniquely the auth
 	ValidRange(Rules) (start int64, end int64) // -1 means no start/end
+
+	MaxUnits(Rules) (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64)
 
 	StateKeys() [][]byte
 
@@ -203,7 +206,6 @@ type Auth interface {
 	Deduct(ctx context.Context, db Database, amount uint64) error
 	Refund(ctx context.Context, db Database, amount uint64) error // only invoked if amount > 0
 
-	Size() int
 	Marshal(p *codec.Packer)
 }
 
