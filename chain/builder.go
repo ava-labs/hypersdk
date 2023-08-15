@@ -130,6 +130,7 @@ func BuildBlock(
 		txs := mempool.Stream(ctx, streamBatch)
 		prepareStreamLock.Unlock()
 		if len(txs) == 0 {
+			b.vm.RecordClearedMempool()
 			break
 		}
 

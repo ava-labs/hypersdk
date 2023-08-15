@@ -21,9 +21,15 @@ type Metrics struct {
 	stateOperations prometheus.Counter
 	buildCapped     prometheus.Counter
 	emptyBlockBuilt prometheus.Counter
+	clearedMempool  prometheus.Counter
 	mempoolSize     prometheus.Gauge
 	rootCalculated  metric.Averager
 	waitSignatures  metric.Averager
+	blockBuild      metric.Averager
+	blockParse      metric.Averager
+	blockVerify     metric.Averager
+	blockAccept     metric.Averager
+	blockProcess    metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -42,6 +48,51 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"wait_signatures",
 		"time spent waiting for signature verification in verify",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	blockBuild, err := metric.NewAverager(
+		"chain",
+		"block_build",
+		"time spent building blocks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	blockParse, err := metric.NewAverager(
+		"chain",
+		"block_parse",
+		"time spent parsing blocks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	blockVerify, err := metric.NewAverager(
+		"chain",
+		"block_verify",
+		"time spent verifying blocks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	blockAccept, err := metric.NewAverager(
+		"chain",
+		"block_accept",
+		"time spent accepting blocks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	blockProcess, err := metric.NewAverager(
+		"chain",
+		"block_process",
+		"time spent processing blocks",
 		r,
 	)
 	if err != nil {
@@ -104,6 +155,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "empty_block_built",
 			Help:      "number of times empty block built",
 		}),
+		clearedMempool: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "cleared_mempool",
+			Help:      "number of times cleared mempool while building",
+		}),
 		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "mempool_size",
@@ -111,6 +167,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		}),
 		rootCalculated: rootCalculated,
 		waitSignatures: waitSignatures,
+		blockBuild:     blockBuild,
+		blockParse:     blockParse,
+		blockVerify:    blockVerify,
+		blockAccept:    blockAccept,
+		blockProcess:   blockProcess,
 	}
 	errs := wrappers.Errs{}
 	errs.Add(
@@ -126,6 +187,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.mempoolSize),
 		r.Register(m.buildCapped),
 		r.Register(m.emptyBlockBuilt),
+		r.Register(m.clearedMempool),
 	)
 	return r, m, errs.Err
 }

@@ -281,6 +281,11 @@ func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) 
 
 // implements "block.WithVerifyContext"
 func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Context) error {
+	start := time.Now()
+	defer func() {
+		b.vm.RecordBlockVerify(time.Since(start))
+	}()
+
 	stateReady := b.vm.StateReady()
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.VerifyWithContext",
@@ -303,6 +308,11 @@ func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Cont
 
 // implements "snowman.Block"
 func (b *StatelessBlock) Verify(ctx context.Context) error {
+	start := time.Now()
+	defer func() {
+		b.vm.RecordBlockVerify(time.Since(start))
+	}()
+
 	stateReady := b.vm.StateReady()
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.Verify",
@@ -586,6 +596,11 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 // implements "snowman.Block.choices.Decidable"
 func (b *StatelessBlock) Accept(ctx context.Context) error {
+	start := time.Now()
+	defer func() {
+		b.vm.RecordBlockAccept(time.Since(start))
+	}()
+
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.Accept")
 	defer span.End()
 
