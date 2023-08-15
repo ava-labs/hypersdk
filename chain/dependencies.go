@@ -110,10 +110,10 @@ type Rules interface {
 	GetValidityWindow() int64 // in milliseconds
 
 	GetMinFee() uint64
-	GetMinUnitPrice() (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64)
-	GetUnitPriceChangeDenominator() (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64)
-	GetWindowTargetUnits() (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64)
-	GetMaxBlockUnits() (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64)
+	GetMinUnitPrice() []uint64
+	GetUnitPriceChangeDenominator() []uint64
+	GetWindowTargetUnits() []uint64
+	GetMaxBlockUnits() []uint64
 
 	GetBaseComputeUnits() uint64
 	GetBaseWarpComputeUnits() uint64
