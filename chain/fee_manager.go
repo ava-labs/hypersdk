@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 
 	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/window"
 )
@@ -22,6 +23,10 @@ const (
 
 type FeeManager struct {
 	raw []byte
+}
+
+func NewFeeManager(raw []byte) *FeeManager {
+	return &FeeManager{raw}
 }
 
 func (f *FeeManager) UnitPrice(dimension int) uint64 {
@@ -113,9 +118,8 @@ func (f *FeeManager) ComputeNext(lastTime int64, currTime int64, r Rules) (*FeeM
 	targetUnits := r.GetWindowTargetUnits()
 	unitPriceChangeDenom := r.GetUnitPriceChangeDenominator()
 	minUnitPrice := r.GetMinUnitPrice()
-
 	since := int((currTime - lastTime) / consts.MillisecondsPerSecond)
-	newRaw := []byte{}
+	packer := codec.NewWriter(dimensionSize*dimensions, consts.MaxInt)
 	for i := 0; i < dimensions; i++ {
 		nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
 			f.Window(i),
@@ -129,12 +133,18 @@ func (f *FeeManager) ComputeNext(lastTime int64, currTime int64, r Rules) (*FeeM
 		if err != nil {
 			return nil, err
 		}
-
-		// TODO: add items to raw
+		packer.PackUint64(nextUnitPrice)
+		packer.PackWindow(nextUnitWindow)
+		packer.PackUint64(0) // must set usage after block is processed
 	}
+	return &FeeManager{raw: packer.Bytes()}, packer.Err()
 }
 
 func (f *FeeManager) SetLastConsumed(dimension int, consumed uint64) {
 	start := dimensionSize*dimension + consts.Uint64Len + window.WindowSliceSize
 	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], consumed)
+}
+
+func (f *FeeManager) Bytes() []byte {
+	return f.raw
 }
