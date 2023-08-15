@@ -9,8 +9,6 @@ import (
 	"github.com/ava-labs/hypersdk/window"
 )
 
-type Dimension int
-
 const (
 	Bandwidth           Dimension = 0
 	Compute                       = 1
@@ -22,6 +20,9 @@ const (
 
 	dimensionSize = consts.Uint64Len + window.WindowSliceSize + consts.Uint64Len
 )
+
+type Dimension int
+type Dimensions [FeeDimensions]uint64
 
 type FeeManager struct {
 	raw []byte
@@ -47,6 +48,61 @@ func (f *FeeManager) Window(d Dimension) window.Window {
 func (f *FeeManager) LastConsumed(d Dimension) uint64 {
 	start := dimensionSize*d + consts.Uint64Len + window.WindowSliceSize
 	return binary.BigEndian.Uint64(f.raw[start : start+consts.Uint64Len])
+}
+
+func (f *FeeManager) ComputeNext(lastTime int64, currTime int64, r Rules) (*FeeManager, error) {
+	targetUnits := r.GetWindowTargetUnits()
+	unitPriceChangeDenom := r.GetUnitPriceChangeDenominator()
+	minUnitPrice := r.GetMinUnitPrice()
+	since := int((currTime - lastTime) / consts.MillisecondsPerSecond)
+	packer := codec.NewWriter(dimensionSize*FeeDimensions, consts.MaxInt)
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
+			f.Window(i),
+			f.LastConsumed(i),
+			f.UnitPrice(i),
+			targetUnits[i],
+			unitPriceChangeDenom[i],
+			minUnitPrice[i],
+			since,
+		)
+		if err != nil {
+			return nil, err
+		}
+		packer.PackUint64(nextUnitPrice)
+		packer.PackWindow(nextUnitWindow)
+		packer.PackUint64(0) // must set usage after block is processed
+	}
+	return &FeeManager{raw: packer.Bytes()}, packer.Err()
+}
+
+func (f *FeeManager) SetUnitPrice(d Dimension, price uint64) {
+	start := dimensionSize * d
+	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], price)
+}
+
+func (f *FeeManager) SetLastConsumed(d Dimension, consumed uint64) {
+	start := dimensionSize*d + consts.Uint64Len + window.WindowSliceSize
+	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], consumed)
+}
+
+func (f *FeeManager) Bytes() []byte {
+	return f.raw
+}
+
+func (f *FeeManager) MaxFee(d Dimensions) (uint64, error) {
+	fee := uint64(0)
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		contribution, err := math.Mul64(f.UnitPrice(i), d[i])
+		if err != nil {
+			return 0, err
+		}
+		fee, err = math.Add64(contribution, fee)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return fee, nil
 }
 
 func computeNextPriceWindow(
@@ -117,44 +173,4 @@ func computeNextPriceWindow(
 		nextPrice = minPrice
 	}
 	return nextPrice, newRollupWindow, nil
-}
-
-func (f *FeeManager) ComputeNext(lastTime int64, currTime int64, r Rules) (*FeeManager, error) {
-	targetUnits := r.GetWindowTargetUnits()
-	unitPriceChangeDenom := r.GetUnitPriceChangeDenominator()
-	minUnitPrice := r.GetMinUnitPrice()
-	since := int((currTime - lastTime) / consts.MillisecondsPerSecond)
-	packer := codec.NewWriter(dimensionSize*FeeDimensions, consts.MaxInt)
-	for i := Dimension(0); i < FeeDimensions; i++ {
-		nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
-			f.Window(i),
-			f.LastConsumed(i),
-			f.UnitPrice(i),
-			targetUnits[i],
-			unitPriceChangeDenom[i],
-			minUnitPrice[i],
-			since,
-		)
-		if err != nil {
-			return nil, err
-		}
-		packer.PackUint64(nextUnitPrice)
-		packer.PackWindow(nextUnitWindow)
-		packer.PackUint64(0) // must set usage after block is processed
-	}
-	return &FeeManager{raw: packer.Bytes()}, packer.Err()
-}
-
-func (f *FeeManager) SetUnitPrice(d Dimension, price uint64) {
-	start := dimensionSize * d
-	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], price)
-}
-
-func (f *FeeManager) SetLastConsumed(d Dimension, consumed uint64) {
-	start := dimensionSize*d + consts.Uint64Len + window.WindowSliceSize
-	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], consumed)
-}
-
-func (f *FeeManager) Bytes() []byte {
-	return f.raw
 }

@@ -113,17 +113,17 @@ type Rules interface {
 	GetValidityWindow() int64 // in milliseconds
 
 	GetMinFee() uint64
-	GetMinUnitPrice() []uint64
-	GetUnitPriceChangeDenominator() []uint64
-	GetWindowTargetUnits() []uint64
-	GetMaxBlockUnits() []uint64
+	GetMinUnitPrice() Dimensions
+	GetUnitPriceChangeDenominator() Dimensions
+	GetWindowTargetUnits() Dimensions
+	GetMaxBlockUnits() Dimensions
 
 	GetBaseComputeUnits() uint64
 	GetBaseWarpComputeUnits() uint64
 	GetWarpComputeUnitsPerSigner() uint64
-	GetStorageUnitsPerRead()
-	GetStorageUnitsPerCreation()
-	GetStorageUnitsPerModification()
+	GetStorageUnitsPerRead() uint64
+	GetStorageUnitsPerCreation() uint64
+	GetStorageUnitsPerModification() uint64
 
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
 
@@ -146,7 +146,7 @@ type Action interface {
 
 	// MaxUnits is used to determine whether the [Action] is executable in the given block. Implementors
 	// should make a best effort to specify these as close to possible to the actual max.
-	MaxUnits(Rules) (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64)
+	MaxUnits(Rules) Dimensions
 
 	// Auth may contain an [Actor] that performs a transaction
 	//
@@ -187,7 +187,7 @@ type Auth interface {
 	GetTypeID() uint8                          // identify uniquely the auth
 	ValidRange(Rules) (start int64, end int64) // -1 means no start/end
 
-	MaxUnits(Rules) (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64)
+	MaxUnits(Rules) Dimensions
 
 	StateKeys() [][]byte
 
