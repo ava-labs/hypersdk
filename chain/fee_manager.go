@@ -10,13 +10,13 @@ import (
 )
 
 const (
-	bandwidth           int = 0
-	compute                 = 1
-	storageRead             = 2
-	storageCreate           = 3
-	storageModification     = 4
+	Bandwidth           int = 0
+	Compute                 = 1
+	StorageRead             = 2
+	StorageCreate           = 3
+	StorageModification     = 4
 
-	dimensions = 5
+	Dimensions = 5
 
 	dimensionSize = consts.Uint64Len + window.WindowSliceSize + consts.Uint64Len
 )
@@ -27,7 +27,7 @@ type FeeManager struct {
 
 func NewFeeManager(raw []byte) *FeeManager {
 	if len(raw) == 0 {
-		raw = make([]byte, dimensions*dimensionSize)
+		raw = make([]byte, Dimensions*dimensionSize)
 	}
 	return &FeeManager{raw}
 }
@@ -122,8 +122,8 @@ func (f *FeeManager) ComputeNext(lastTime int64, currTime int64, r Rules) (*FeeM
 	unitPriceChangeDenom := r.GetUnitPriceChangeDenominator()
 	minUnitPrice := r.GetMinUnitPrice()
 	since := int((currTime - lastTime) / consts.MillisecondsPerSecond)
-	packer := codec.NewWriter(dimensionSize*dimensions, consts.MaxInt)
-	for i := 0; i < dimensions; i++ {
+	packer := codec.NewWriter(dimensionSize*Dimensions, consts.MaxInt)
+	for i := 0; i < Dimensions; i++ {
 		nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
 			f.Window(i),
 			f.LastConsumed(i),

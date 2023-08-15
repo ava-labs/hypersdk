@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net/http"
 	"sync"
@@ -255,7 +256,7 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = blkID, blk
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
 	} else {
-		// Set Balances
+		// Set balances
 		view, err := vm.stateDB.NewView()
 		if err != nil {
 			return err
@@ -264,8 +265,20 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}
-		// TODO: merge in height key change
-		// TODO: set FeeKey with minimums
+		// Set last height
+		if err := view.Insert(ctx, vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+			return err
+		}
+		// Set fee parameters
+		genesisRules := vm.c.Rules(0)
+		feeManager := chain.NewFeeManager(nil)
+		minUnitPrice := genesisRules.GetMinUnitPrice()
+		for i := 0; i < chain.Dimensions; i++ {
+			feeManager.SetUnitPrice(i, minUnitPrice[i])
+		}
+		if err := view.Insert(ctx, vm.StateManager().FeeKey(), feeManager.Bytes()); err != nil {
+			return err
+		}
 		if err := view.CommitToDB(ctx); err != nil {
 			return err
 		}
@@ -276,7 +289,6 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Debug("genesis state created", zap.Stringer("root", root))
 
 		// Create genesis block
-		genesisRules := vm.c.Rules(0)
 		genesisBlk, err := chain.ParseStatefulBlock(
 			ctx,
 			chain.NewGenesisBlock(root),
