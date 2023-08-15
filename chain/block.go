@@ -41,22 +41,18 @@ type StatefulBlock struct {
 
 	Txs []*Transaction `json:"txs"`
 
-	BandwidthUnitPrice     uint64        `json:"bandwidthUnitPrice"`
-	BandwidthUnitWindow    window.Window `json:"bandwidthUnitWindow"`
-	BandwidthUnitsConsumed uint64        `json:"bandwidthUnitsConsumed"`
-
-	ComputeUnitPrice     uint64        `json:"computeUnitPrice"`
-	ComputeUnitWindow    window.Window `json:"computeUnitWindow"`
-	ComputeUnitsConsumed uint64        `json:"computeUnitsConsumed"`
-
-	StorageReadUnitPrice     uint64        `json:"storageReadUnitPrice"`
-	StorageReadUnitWindow    window.Window `json:"storageReadUnitWindow"`
-	StorageReadUnitsConsumed uint64        `json:"storageReadUnitsConsumed"`
-
-	StorageCreationUnitPrice     uint64        `json:"storageCreationUnitPrice"`
-	StorageCreationUnitWindow    window.Window `json:"storageCreationUnitWindow"`
-	StorageCreationUnitsConsumed uint64        `json:"storageCreationUnitsConsumed"`
-
+	BandwidthUnitPrice               uint64        `json:"bandwidthUnitPrice"`
+	BandwidthUnitWindow              window.Window `json:"bandwidthUnitWindow"`
+	BandwidthUnitsConsumed           uint64        `json:"bandwidthUnitsConsumed"`
+	ComputeUnitPrice                 uint64        `json:"computeUnitPrice"`
+	ComputeUnitWindow                window.Window `json:"computeUnitWindow"`
+	ComputeUnitsConsumed             uint64        `json:"computeUnitsConsumed"`
+	StorageReadUnitPrice             uint64        `json:"storageReadUnitPrice"`
+	StorageReadUnitWindow            window.Window `json:"storageReadUnitWindow"`
+	StorageReadUnitsConsumed         uint64        `json:"storageReadUnitsConsumed"`
+	StorageCreationUnitPrice         uint64        `json:"storageCreationUnitPrice"`
+	StorageCreationUnitWindow        window.Window `json:"storageCreationUnitWindow"`
+	StorageCreationUnitsConsumed     uint64        `json:"storageCreationUnitsConsumed"`
 	StorageModificationUnitPrice     uint64        `json:"storageModificationUnitPrice"`
 	StorageModificationUnitWindow    window.Window `json:"storageModificationUnitWindow"`
 	StorageModificationUnitsConsumed uint64        `json:"storageModificationUnitsConsumed"`
@@ -800,8 +796,8 @@ func (b *StatelessBlock) GetTimestamp() int64 {
 	return b.Tmstmp
 }
 
-func (b *StatelessBlock) GetUnitPrice() uint64 {
-	return b.UnitPrice
+func (b *StatelessBlock) GetUnitPrice() (bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64) {
+	return b.BandwidthUnitPrice, b.ComputeUnitPrice, b.StorageReadUnitPrice, b.StorageCreationUnitPrice, b.StorageModificationUnitPrice
 }
 
 func (b *StatelessBlock) Results() []*Result {
@@ -820,9 +816,6 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	p.PackInt64(b.Tmstmp)
 	p.PackUint64(b.Hght)
 
-	p.PackUint64(b.UnitPrice)
-	p.PackWindow(b.UnitWindow)
-
 	p.PackInt(len(b.Txs))
 	b.authCounts = map[uint8]int{}
 	for _, tx := range b.Txs {
@@ -832,8 +825,23 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 		b.authCounts[tx.Auth.GetTypeID()]++
 	}
 
+	p.PackUint64(b.BandwidthUnitPrice)
+	p.PackWindow(b.BandwidthUnitWindow)
+	p.PackUint64(b.BandwidthUnitsConsumed)
+	p.PackUint64(b.ComputeUnitPrice)
+	p.PackWindow(b.ComputeUnitWindow)
+	p.PackUint64(b.ComputeUnitsConsumed)
+	p.PackUint64(b.StorageReadUnitPrice)
+	p.PackWindow(b.StorageReadUnitWindow)
+	p.PackUint64(b.StorageReadUnitsConsumed)
+	p.PackUint64(b.StorageCreationUnitPrice)
+	p.PackWindow(b.StorageCreationUnitWindow)
+	p.PackUint64(b.StorageCreationUnitsConsumed)
+	p.PackUint64(b.StorageModificationUnitPrice)
+	p.PackWindow(b.StorageModificationUnitWindow)
+	p.PackUint64(b.StorageModificationUnitsConsumed)
+
 	p.PackID(b.StateRoot)
-	p.PackUint64(b.UnitsConsumed)
 	p.PackUint64(uint64(b.WarpResults))
 	bytes := p.Bytes()
 	if err := p.Err(); err != nil {
@@ -854,13 +862,6 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	b.Tmstmp = p.UnpackInt64(false)
 	b.Hght = p.UnpackUint64(false)
 
-	b.UnitPrice = p.UnpackUint64(false)
-	p.UnpackWindow(&b.UnitWindow)
-	if err := p.Err(); err != nil {
-		// Check that header was parsed properly before unwrapping transactions
-		return nil, err
-	}
-
 	// Parse transactions
 	txCount := p.UnpackInt(false) // can produce empty blocks
 	actionRegistry, authRegistry := parser.Registry()
@@ -874,12 +875,28 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 		b.Txs = append(b.Txs, tx)
 		b.authCounts[tx.Auth.GetTypeID()]++
 	}
+
+	b.BandwidthUnitPrice = p.UnpackUint64(false)
+	p.UnpackWindow(&b.BandwidthUnitWindow)
+	b.BandwidthUnitsConsumed = p.UnpackUint64(false)
+	b.ComputeUnitPrice = p.UnpackUint64(false)
+	p.UnpackWindow(&b.ComputeUnitWindow)
+	b.ComputeUnitsConsumed = p.UnpackUint64(false)
+	b.StorageReadUnitPrice = p.UnpackUint64(false)
+	p.UnpackWindow(&b.StorageReadUnitWindow)
+	b.StorageReadUnitsConsumed = p.UnpackUint64(false)
+	b.StorageCreationUnitPrice = p.UnpackUint64(false)
+	p.UnpackWindow(&b.StorageCreationUnitWindow)
+	b.StorageCreationUnitsConsumed = p.UnpackUint64(false)
+	b.StorageModificationUnitPrice = p.UnpackUint64(false)
+	p.UnpackWindow(&b.StorageModificationUnitWindow)
+	b.StorageModificationUnitsConsumed = p.UnpackUint64(false)
+
 	p.UnpackID(false, &b.StateRoot)
-	b.UnitsConsumed = p.UnpackUint64(false)
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
 
+	// Ensure no leftover bytes
 	if !p.Empty() {
-		// Ensure no leftover bytes
 		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
 	}
 	return &b, p.Err()
