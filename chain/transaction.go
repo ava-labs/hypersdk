@@ -143,7 +143,7 @@ func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
 
 // Units is charged whether or not a transaction is successful because state
 // lookup is not free.
-func (t *Transaction) MaxUnits(r Rules) (txFee uint64, err error) {
+func (t *Transaction) MaxUnits(r Rules) (Dimensions, error) {
 	txFee = r.GetBaseUnits()
 	txFee, err = smath.Add64(txFee, t.Action.MaxUnits(r))
 	if err != nil {
@@ -198,9 +198,8 @@ func (t *Transaction) PreExecute(
 	if end >= 0 && timestamp > end {
 		return ErrAuthNotActivated
 	}
-	unitPrice := t.Base.UnitPrice
-	if unitPrice < ectx.NextUnitPrice {
-		return ErrInsufficientPrice
+	if t.Base.MaxFee < r.GetMinFee() {
+		return ErrInvalidFee
 	}
 	if _, err := t.Auth.Verify(ctx, r, db, t.Action); err != nil {
 		return fmt.Errorf("%w: %v", ErrAuthFailed, err) //nolint:errorlint
@@ -209,11 +208,11 @@ func (t *Transaction) PreExecute(
 	if err != nil {
 		return err
 	}
-	fee, err := smath.Mul64(maxUnits, unitPrice)
+	maxFee, err := feeManager.MaxFee(maxUnits)
 	if err != nil {
 		return err
 	}
-	return t.Auth.CanDeduct(ctx, db, fee)
+	return t.Auth.CanDeduct(ctx, db, maxFee)
 }
 
 // Execute after knowing a transaction can pay a fee

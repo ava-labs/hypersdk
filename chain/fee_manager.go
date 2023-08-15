@@ -90,14 +90,10 @@ func (f *FeeManager) Bytes() []byte {
 	return f.raw
 }
 
-func (f *FeeManager) MaxFee(action, auth Dimensions) (uint64, error) {
+func (f *FeeManager) MaxFee(d Dimensions) (uint64, error) {
 	fee := uint64(0)
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		maxUnits, err := math.Add64(action[i], auth[i])
-		if err != nil {
-			return 0, err
-		}
-		contribution, err := math.Mul64(f.UnitPrice(i), maxUnits)
+		contribution, err := math.Mul64(f.UnitPrice(i), d[i])
 		if err != nil {
 			return 0, err
 		}
