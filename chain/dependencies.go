@@ -107,10 +107,10 @@ type Rules interface {
 	GetMinBlockGap() int64
 	GetMinEmptyBlockGap() int64
 
-	GetMinUnitPrice() uint64
-	GetUnitPriceChangeDenominator() uint64
-	GetWindowTargetUnits() uint64
-	GetMaxBlockUnits() uint64 // should ensure can't get above block max size
+	GetMinUnitPrice() (bandwidth uint64, compute uint64, storageCreation uint64, storageModification uint64)
+	GetUnitPriceChangeDenominator() (bandwidth uint64, compute uint64, storageCreation uint64, storageModification uint64)
+	GetWindowTargetUnits() (bandwidth uint64, compute uint64, storageCreation uint64, storageModification uint64)
+	GetMaxBlockUnits() (bandwidth uint64, compute uint64, storageCreation uint64, storageModification uint64)
 
 	GetBaseUnits() uint64
 	GetWarpBaseUnits() uint64
