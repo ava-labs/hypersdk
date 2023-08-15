@@ -116,6 +116,11 @@ type Rules interface {
 	GetWarpBaseUnits() uint64
 	GetWarpUnitsPerSigner() uint64
 
+	GetUnitsPerPrefetch()
+	GetUnitsPerCreation()
+	GetUnitsPerModification()
+	GetUnitsPerDeletion()
+
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
 
 	GetValidityWindow() int64 // in milliseconds

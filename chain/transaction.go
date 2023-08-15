@@ -278,6 +278,11 @@ func (t *Transaction) Execute(
 		tdb.Rollback(ctx, start)
 	}
 
+	// TODO: deduct storage fees?
+	//
+	// What if can't pay for prefetch keys because burned all balance on compute fees?
+	// -> all other fees can be paid properly
+
 	// Update action units with other items
 	result.Units += r.GetBaseUnits() + authUnits
 	if t.WarpMessage != nil {
