@@ -19,10 +19,11 @@ type Base struct {
 	// ChainID protects against replay attacks on different VM instances.
 	ChainID ids.ID `json:"chainId"`
 
-	// Fee is the max fee the user will pay for the transaction to be executed.
+	// MaxFee is the max fee the user will pay for the transaction to be executed. The chain
+	// will charge anything up to this price if the transaction makes it on-chain.
 	//
 	// If the fee is too low to pay all fees, the transaction will be dropped.
-	Fee uint64 `json:"fee"`
+	MaxFee uint64 `json:"maxFee"`
 }
 
 func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
@@ -36,7 +37,7 @@ func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 		return ErrTimestampTooEarly
 	case b.ChainID != chainID:
 		return ErrInvalidChainID
-	case b.Fee < r.GetMinFee():
+	case b.MaxFee < r.GetMinFee():
 		return ErrInvalidFee
 	default:
 		return nil
@@ -50,7 +51,7 @@ func (*Base) Bandwidth() int {
 func (b *Base) Marshal(p *codec.Packer) {
 	p.PackInt64(b.Timestamp)
 	p.PackID(b.ChainID)
-	p.PackUint64(b.UnitPrice)
+	p.PackUint64(b.MaxFee)
 }
 
 func UnmarshalBase(p *codec.Packer) (*Base, error) {
@@ -61,6 +62,6 @@ func UnmarshalBase(p *codec.Packer) (*Base, error) {
 		return nil, fmt.Errorf("%w: timestamp=%d", ErrMisalignedTime, base.Timestamp)
 	}
 	p.UnpackID(true, &base.ChainID)
-	base.UnitPrice = p.UnpackUint64(true)
+	base.MaxFee = p.UnpackUint64(true)
 	return &base, p.Err()
 }
