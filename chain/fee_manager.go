@@ -26,6 +26,9 @@ type FeeManager struct {
 }
 
 func NewFeeManager(raw []byte) *FeeManager {
+	if len(raw) == 0 {
+		raw = make([]byte, dimensions*dimensionSize)
+	}
 	return &FeeManager{raw}
 }
 
@@ -138,6 +141,11 @@ func (f *FeeManager) ComputeNext(lastTime int64, currTime int64, r Rules) (*FeeM
 		packer.PackUint64(0) // must set usage after block is processed
 	}
 	return &FeeManager{raw: packer.Bytes()}, packer.Err()
+}
+
+func (f *FeeManager) SetUnitPrice(dimension int, price uint64) {
+	start := dimensionSize * dimension
+	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], price)
 }
 
 func (f *FeeManager) SetLastConsumed(dimension int, consumed uint64) {

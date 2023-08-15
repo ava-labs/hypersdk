@@ -264,6 +264,7 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}
+		// TODO: set FeeKey with minimums
 		if err := view.CommitToDB(ctx); err != nil {
 			return err
 		}
