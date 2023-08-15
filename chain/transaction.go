@@ -144,33 +144,26 @@ func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
 // Units is charged whether or not a transaction is successful because state
 // lookup is not free.
 func (t *Transaction) MaxUnits(r Rules) (Dimensions, error) {
-	txFee = r.GetBaseUnits()
-	txFee, err = smath.Add64(txFee, t.Action.MaxUnits(r))
+	d, err := Add(t.Action.MaxUnits(r), t.Auth.MaxUnits(r))
 	if err != nil {
-		return 0, err
+		return Dimensions{}, err
 	}
-	txFee, err = smath.Add64(txFee, t.Auth.MaxUnits(r))
-	if err != nil {
-		return 0, err
+	if err := d.Add(Compute, r.GetBaseComputeUnits()); err != nil {
+		return Dimensions{}, err
 	}
 	if t.WarpMessage != nil {
-		txFee, err = smath.Add64(txFee, r.GetWarpBaseUnits())
-		if err != nil {
-			return 0, err
+		if err := d.Add(Compute, r.GetBaseWarpComputeUnits()); err != nil {
+			return Dimensions{}, err
 		}
-		warpSignerFee, err := smath.Mul64(uint64(t.numWarpSigners), r.GetWarpUnitsPerSigner())
+		warpSignerComputeUnits, err := smath.Mul64(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
 		if err != nil {
-			return 0, err
+			return Dimensions{}, err
 		}
-		txFee, err = smath.Add64(txFee, warpSignerFee)
-		if err != nil {
-			return 0, err
+		if err := d.Add(Compute, warpSignerComputeUnits); err != nil {
+			return Dimensions{}, err
 		}
 	}
-	if txFee > 0 {
-		return txFee, nil
-	}
-	return 1, nil
+	return d, nil
 }
 
 // PreExecute must not modify state

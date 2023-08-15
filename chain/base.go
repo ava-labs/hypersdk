@@ -44,7 +44,7 @@ func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 	}
 }
 
-func (*Base) Bandwidth() int {
+func (*Base) Size() int {
 	return consts.Uint64Len*2 + consts.IDLen
 }
 

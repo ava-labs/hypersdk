@@ -175,3 +175,24 @@ func computeNextPriceWindow(
 	}
 	return nextPrice, newRollupWindow, nil
 }
+
+func Add(a, b Dimensions) (Dimensions, error) {
+	d := Dimensions{}
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		v, err := math.Add64(a[i], b[i])
+		if err != nil {
+			return Dimensions{}, err
+		}
+		d[i] = v
+	}
+	return d, nil
+}
+
+func (d Dimensions) Add(i Dimension, v uint64) error {
+	newValue, err := math.Add64(d[i], v)
+	if err != nil {
+		return err
+	}
+	d[i] = newValue
+	return nil
+}
