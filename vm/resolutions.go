@@ -128,9 +128,8 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 	vm.verifiedL.Unlock()
 	vm.mempool.Add(ctx, b.Txs)
 
-	// TODO: handle async?
 	if err := vm.c.Rejected(ctx, b); err != nil {
-		vm.snowCtx.Log.Fatal("rejected processing failed", zap.Error(err))
+		vm.Fatal("rejected processing failed", zap.Error(err))
 	}
 
 	// Ensure children of block are cleared, they may never be
@@ -138,76 +137,89 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
 }
 
+func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.blockProcess.Observe(float64(time.Since(start)))
+	}()
+
+	// We skip blocks that were not processed because metadata required to
+	// process blocks opaquely (like looking at results) is not populated.
+	//
+	// We don't need to worry about dangling messages in listeners because we
+	// don't allow subscription until the node is healthy.
+	if !b.Processed() {
+		vm.snowCtx.Log.Info("skipping unprocessed block", zap.Uint64("height", b.Hght))
+		return
+	}
+
+	// Update controller
+	if err := vm.c.Accepted(context.TODO(), b); err != nil {
+		vm.Fatal("accepted processing failed", zap.Error(err))
+	}
+
+	// Sign and store any warp messages (regardless if validator now, may become one)
+	results := b.Results()
+	for i, tx := range b.Txs {
+		// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
+		vm.cacheAuth(tx.Auth)
+
+		result := results[i]
+		if result.WarpMessage == nil {
+			continue
+		}
+		start := time.Now()
+		signature, err := vm.snowCtx.WarpSigner.Sign(result.WarpMessage)
+		if err != nil {
+			vm.Fatal("unable to sign warp message", zap.Error(err))
+		}
+		if err := vm.StoreWarpSignature(tx.ID(), vm.snowCtx.PublicKey, signature); err != nil {
+			vm.Fatal("unable to store warp signature", zap.Error(err))
+		}
+		vm.snowCtx.Log.Info(
+			"signed and stored warp message signature",
+			zap.Stringer("txID", tx.ID()),
+			zap.Duration("t", time.Since(start)),
+		)
+
+		// Kickoff job to fetch signatures from other validators in the
+		// background
+		//
+		// We pass bytes here so that signatures returned from validators can be
+		// verified before they are persisted.
+		vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
+	}
+
+	// Update server
+	if err := vm.webSocketServer.AcceptBlock(b); err != nil {
+		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
+	}
+	// Must clear accepted txs before [SetMinTx] or else we will errnoueously
+	// send [ErrExpired] messages.
+	if err := vm.webSocketServer.SetMinTx(b.Tmstmp); err != nil {
+		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
+	}
+}
+
 func (vm *VM) processAcceptedBlocks() {
+	// Always close [acceptorDone] or we may block shutdown.
+	defer func() {
+		close(vm.acceptorDone)
+		vm.snowCtx.Log.Info("acceptor queue shutdown")
+	}()
+
 	// The VM closes [acceptedQueue] during shutdown. We wait for all enqueued blocks
 	// to be processed before returning as a guarantee to listeners (which may
 	// persist indexed state) instead of just exiting as soon as `vm.stop` is
 	// closed.
 	for b := range vm.acceptedQueue {
-		// We skip blocks that were not processed because metadata required to
-		// process blocks opaquely (like looking at results) is not populated.
-		//
-		// We don't need to worry about dangling messages in listeners because we
-		// don't allow subscription until the node is healthy.
-		if !b.Processed() {
-			vm.snowCtx.Log.Info("skipping unprocessed block", zap.Uint64("height", b.Hght))
-			continue
-		}
-
-		// Update controller
-		if err := vm.c.Accepted(context.TODO(), b); err != nil {
-			vm.snowCtx.Log.Fatal("accepted processing failed", zap.Error(err))
-		}
-
-		// Sign and store any warp messages (regardless if validator now, may become one)
-		results := b.Results()
-		for i, tx := range b.Txs {
-			// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
-			vm.cacheAuth(tx.Auth)
-
-			result := results[i]
-			if result.WarpMessage == nil {
-				continue
-			}
-			start := time.Now()
-			signature, err := vm.snowCtx.WarpSigner.Sign(result.WarpMessage)
-			if err != nil {
-				vm.snowCtx.Log.Fatal("unable to sign warp message", zap.Error(err))
-			}
-			if err := vm.StoreWarpSignature(tx.ID(), vm.snowCtx.PublicKey, signature); err != nil {
-				vm.snowCtx.Log.Fatal("unable to store warp signature", zap.Error(err))
-			}
-			vm.snowCtx.Log.Info(
-				"signed and stored warp message signature",
-				zap.Stringer("txID", tx.ID()),
-				zap.Duration("t", time.Since(start)),
-			)
-
-			// Kickoff job to fetch signatures from other validators in the
-			// background
-			//
-			// We pass bytes here so that signatures returned from validators can be
-			// verified before they are persisted.
-			vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
-		}
-
-		// Update server
-		if err := vm.webSocketServer.AcceptBlock(b); err != nil {
-			vm.snowCtx.Log.Fatal("unable to accept block in websocket server", zap.Error(err))
-		}
-		// Must clear accepted txs before [SetMinTx] or else we will errnoueously
-		// send [ErrExpired] messages.
-		if err := vm.webSocketServer.SetMinTx(b.Tmstmp); err != nil {
-			vm.snowCtx.Log.Fatal("unable to set min tx in websocket server", zap.Error(err))
-		}
+		vm.processAcceptedBlock(b)
 		vm.snowCtx.Log.Info(
 			"block processed",
 			zap.Stringer("blkID", b.ID()),
 			zap.Uint64("height", b.Hght),
 		)
 	}
-	close(vm.acceptorDone)
-	vm.snowCtx.Log.Info("acceptor queue shutdown")
 }
 
 func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
@@ -407,4 +419,16 @@ func (vm *VM) cacheAuth(auth chain.Auth) {
 		return
 	}
 	bv.Cache(auth)
+}
+
+func (vm *VM) RecordBlockVerify(t time.Duration) {
+	vm.metrics.blockVerify.Observe(float64(t))
+}
+
+func (vm *VM) RecordBlockAccept(t time.Duration) {
+	vm.metrics.blockAccept.Observe(float64(t))
+}
+
+func (vm *VM) RecordClearedMempool() {
+	vm.metrics.clearedMempool.Inc()
 }

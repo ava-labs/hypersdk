@@ -566,6 +566,11 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 // implements "block.ChainVM.commom.VM.Parser"
 // replaces "core.SnowmanVM.ParseBlock"
 func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.blockParse.Observe(float64(time.Since(start)))
+	}()
+
 	ctx, span := vm.tracer.Start(ctx, "VM.ParseBlock")
 	defer span.End()
 
@@ -634,6 +639,11 @@ func (vm *VM) buildBlock(
 
 // implements "block.ChainVM"
 func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
+	}()
+
 	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
 	defer span.End()
 
@@ -645,6 +655,11 @@ func (vm *VM) BuildBlockWithContext(
 	ctx context.Context,
 	blockContext *smblock.Context,
 ) (snowman.Block, error) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
+	}()
+
 	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlockWithContext")
 	defer span.End()
 
@@ -864,4 +879,14 @@ func (*VM) VerifyHeightIndex(context.Context) error { return nil }
 // Note: must return database.ErrNotFound if the index at height is unknown.
 func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, error) {
 	return vm.GetDiskBlockIDAtHeight(height)
+}
+
+// Fatal logs the provided message and then panics to force an exit.
+//
+// While we could attempt a graceful shutdown, it is not clear that
+// the shutdown will complete given that we have encountered a fatal
+// issue. It is better to ensure we exit to surface the error.
+func (vm *VM) Fatal(msg string, fields ...zap.Field) {
+	vm.snowCtx.Log.Fatal(msg, fields...)
+	panic("fatal error")
 }
