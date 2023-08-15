@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -879,4 +880,21 @@ func (*VM) VerifyHeightIndex(context.Context) error { return nil }
 // Note: must return database.ErrNotFound if the index at height is unknown.
 func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, error) {
 	return vm.GetDiskBlockIDAtHeight(height)
+}
+
+// Fatal logs the provided message, attempts a graceful shutdown, and then
+// panics to force an exit.
+func (vm *VM) Fatal(msg string, fields ...zap.Field) {
+	vm.snowCtx.Log.Fatal(msg, fields...)
+
+	// We run [Shutdown] async to avoid any locking in the caller function
+	// that could interfere with this call.
+	go func() {
+		// We provide our own context here in case the caller cancels after
+		// returning the error that lead to the fatal.
+		if err := vm.Shutdown(context.Background()); err != nil {
+			vm.snowCtx.Log.Warn("shutdown error", zap.Error(err))
+		}
+		os.Exit(1)
+	}()
 }

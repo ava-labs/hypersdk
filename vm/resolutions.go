@@ -128,9 +128,9 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 	vm.verifiedL.Unlock()
 	vm.mempool.Add(ctx, b.Txs)
 
-	// TODO: handle async?
 	if err := vm.c.Rejected(ctx, b); err != nil {
-		vm.snowCtx.Log.Fatal("rejected processing failed", zap.Error(err))
+		vm.Fatal("rejected processing failed", zap.Error(err))
+		return
 	}
 
 	// Ensure children of block are cleared, they may never be
@@ -138,7 +138,7 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
 }
 
-func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
+func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) error {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockProcess.Observe(float64(time.Since(start)))
@@ -151,13 +151,13 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	// don't allow subscription until the node is healthy.
 	if !b.Processed() {
 		vm.snowCtx.Log.Info("skipping unprocessed block", zap.Uint64("height", b.Hght))
-		return
+		return nil
 	}
 
 	// Update controller
 	if err := vm.c.Accepted(context.TODO(), b); err != nil {
-		vm.snowCtx.Log.Fatal("accepted processing failed", zap.Error(err))
-		return
+		vm.Fatal("accepted processing failed", zap.Error(err))
+		return err
 	}
 
 	// Sign and store any warp messages (regardless if validator now, may become one)
@@ -173,12 +173,12 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 		start := time.Now()
 		signature, err := vm.snowCtx.WarpSigner.Sign(result.WarpMessage)
 		if err != nil {
-			vm.snowCtx.Log.Fatal("unable to sign warp message", zap.Error(err))
-			return
+			vm.Fatal("unable to sign warp message", zap.Error(err))
+			return err
 		}
 		if err := vm.StoreWarpSignature(tx.ID(), vm.snowCtx.PublicKey, signature); err != nil {
-			vm.snowCtx.Log.Fatal("unable to store warp signature", zap.Error(err))
-			return
+			vm.Fatal("unable to store warp signature", zap.Error(err))
+			return err
 		}
 		vm.snowCtx.Log.Info(
 			"signed and stored warp message signature",
@@ -196,32 +196,46 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 
 	// Update server
 	if err := vm.webSocketServer.AcceptBlock(b); err != nil {
-		vm.snowCtx.Log.Fatal("unable to accept block in websocket server", zap.Error(err))
-		return
+		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
+		return err
 	}
 	// Must clear accepted txs before [SetMinTx] or else we will errnoueously
 	// send [ErrExpired] messages.
 	if err := vm.webSocketServer.SetMinTx(b.Tmstmp); err != nil {
-		vm.snowCtx.Log.Fatal("unable to set min tx in websocket server", zap.Error(err))
-		return
+		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
+		return err
 	}
+	return nil
 }
 
 func (vm *VM) processAcceptedBlocks() {
+	// Always close [acceptorDone] or we may block shutdown.
+	defer func() {
+		close(vm.acceptorDone)
+		vm.snowCtx.Log.Info("acceptor queue shutdown")
+	}()
+
 	// The VM closes [acceptedQueue] during shutdown. We wait for all enqueued blocks
 	// to be processed before returning as a guarantee to listeners (which may
 	// persist indexed state) instead of just exiting as soon as `vm.stop` is
 	// closed.
 	for b := range vm.acceptedQueue {
-		vm.processAcceptedBlock(b)
+		if err := vm.processAcceptedBlock(b); err != nil {
+			vm.snowCtx.Log.Error(
+				"unable to process block",
+				zap.Stringer("blkID", b.ID()),
+				zap.Uint64("height", b.Hght),
+				zap.Error(err),
+			)
+			return
+		}
+
 		vm.snowCtx.Log.Info(
 			"block processed",
 			zap.Stringer("blkID", b.ID()),
 			zap.Uint64("height", b.Hght),
 		)
 	}
-	close(vm.acceptorDone)
-	vm.snowCtx.Log.Info("acceptor queue shutdown")
 }
 
 func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
