@@ -11,7 +11,7 @@ import (
 
 type Result struct {
 	Success bool
-	Output  [][]byte
+	Output  []byte
 
 	WarpMessage *warp.UnsignedMessage
 
