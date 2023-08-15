@@ -65,7 +65,7 @@ type warpJob struct {
 	warpNum      int
 }
 
-func NewGenesisBlock(root ids.ID, bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64) *StatefulBlock {
+func NewGenesisBlock(root ids.ID) *StatefulBlock {
 	return &StatefulBlock{
 		// We set the genesis block timestamp to be after the ProposerVM fork activation.
 		//
@@ -77,6 +77,7 @@ func NewGenesisBlock(root ids.ID, bandwidth uint64, compute uint64, storageRead 
 		// .../vms/proposervm/pre_fork_block.go#L201
 		Tmstmp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
 
+		// StateRoot should include all allocations made when loading the genesis file
 		StateRoot: root,
 	}
 }
