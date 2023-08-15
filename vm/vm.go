@@ -264,6 +264,7 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}
+		// TODO: merge in height key change
 		// TODO: set FeeKey with minimums
 		if err := view.CommitToDB(ctx); err != nil {
 			return err
@@ -278,7 +279,7 @@ func (vm *VM) Initialize(
 		genesisRules := vm.c.Rules(0)
 		genesisBlk, err := chain.ParseStatefulBlock(
 			ctx,
-			chain.NewGenesisBlock(root, genesisRules.GetMinUnitPrice()),
+			chain.NewGenesisBlock(root),
 			nil,
 			choices.Accepted,
 			vm,
