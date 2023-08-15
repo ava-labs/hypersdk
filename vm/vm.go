@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
@@ -882,19 +881,12 @@ func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, erro
 	return vm.GetDiskBlockIDAtHeight(height)
 }
 
-// Fatal logs the provided message, attempts a graceful shutdown, and then
-// panics to force an exit.
+// Fatal logs the provided message and then panics to force an exit.
+//
+// While we could attempt a graceful shutdown, it is not clear that
+// the shutdown will complete given that we have encountered a fatal
+// issue. It is better to ensure we exit to surface the error.
 func (vm *VM) Fatal(msg string, fields ...zap.Field) {
 	vm.snowCtx.Log.Fatal(msg, fields...)
-
-	// We run [Shutdown] async to avoid any locking in the caller function
-	// that could interfere with this call.
-	go func() {
-		// We provide our own context here in case the caller cancels after
-		// returning the error that lead to the fatal.
-		if err := vm.Shutdown(context.Background()); err != nil {
-			vm.snowCtx.Log.Warn("shutdown error", zap.Error(err))
-		}
-		os.Exit(1)
-	}()
+	panic("fatal error")
 }
