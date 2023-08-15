@@ -41,6 +41,7 @@ type StatefulBlock struct {
 
 	Txs []*Transaction `json:"txs"`
 
+	// TODO: make this bytes in state
 	BandwidthUnitPrice               uint64        `json:"bandwidthUnitPrice"`
 	BandwidthUnitWindow              window.Window `json:"bandwidthUnitWindow"`
 	BandwidthUnitsConsumed           uint64        `json:"bandwidthUnitsConsumed"`
@@ -81,7 +82,7 @@ type warpJob struct {
 	warpNum      int
 }
 
-func NewGenesisBlock(root ids.ID, minUnit uint64) *StatefulBlock {
+func NewGenesisBlock(root ids.ID, bandwidth uint64, compute uint64, storageRead uint64, storageCreation uint64, storageModification uint64) *StatefulBlock {
 	return &StatefulBlock{
 		// We set the genesis block timestamp to be after the ProposerVM fork activation.
 		//
@@ -93,8 +94,16 @@ func NewGenesisBlock(root ids.ID, minUnit uint64) *StatefulBlock {
 		// .../vms/proposervm/pre_fork_block.go#L201
 		Tmstmp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
 
-		UnitPrice:  minUnit,
-		UnitWindow: window.Window{},
+		BandwidthUnitPrice:            bandwidth,
+		BandwidthUnitWindow:           window.Window{},
+		ComputeUnitPrice:              compute,
+		ComputeUnitWindow:             window.Window{},
+		StorageReadUnitPrice:          storageRead,
+		StorageReadUnitWindow:         window.Window{},
+		StorageCreationUnitPrice:      storageCreation,
+		StorageCreationUnitWindow:     window.Window{},
+		StorageModificationUnitPrice:  storageModification,
+		StorageModificationUnitWindow: window.Window{},
 
 		StateRoot: root,
 	}
