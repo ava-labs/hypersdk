@@ -176,7 +176,7 @@ func (t *Transaction) MaxUnits(r Rules) (txFee uint64, err error) {
 // PreExecute must not modify state
 func (t *Transaction) PreExecute(
 	ctx context.Context,
-	ectx *ExecutionContext,
+	feeManager *FeeManager,
 	r Rules,
 	db Database,
 	timestamp int64,

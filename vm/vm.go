@@ -706,9 +706,14 @@ func (vm *VM) Submit(
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
+	feeRaw, err := state.GetValue(ctx, vm.StateManager().FeeKey())
+	if err != nil {
+		return []error{err}
+	}
+	feeManager := chain.NewFeeManager(feeRaw)
 	now := time.Now().UnixMilli()
 	r := vm.c.Rules(now)
-	ectx, err := chain.GenerateExecutionContext(ctx, now, blk, vm.tracer, r)
+	nextFeeManager, err := feeManager.ComputeNext(blk.Tmstmp, now, r)
 	if err != nil {
 		return []error{err}
 	}
@@ -757,7 +762,7 @@ func (vm *VM) Submit(
 		// This may fail if the state we are utilizing is invalidated (if a trie
 		// view from a different branch is committed underneath it). We prefer this
 		// instead of putting a lock around all commits.
-		if err := tx.PreExecute(ctx, ectx, r, state, now); err != nil {
+		if err := tx.PreExecute(ctx, nextFeeManager, r, state, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}
