@@ -213,6 +213,22 @@ func Add(a, b Dimensions) (Dimensions, error) {
 	return d, nil
 }
 
+func MulSum(a, b Dimensions) (uint64, error) {
+	val := uint64(0)
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		v, err := math.Mul64(a[i], b[i])
+		if err != nil {
+			return 0, err
+		}
+		newVal, err := math.Add64(val, v)
+		if err != nil {
+			return 0, err
+		}
+		val = newVal
+	}
+	return val, nil
+}
+
 func (d Dimensions) Add(i Dimension, v uint64) error {
 	newValue, err := math.Add64(d[i], v)
 	if err != nil {
