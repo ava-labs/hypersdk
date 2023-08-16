@@ -294,6 +294,7 @@ func (t *Transaction) Execute(
 	}
 
 	// Refund all units that went unused
+	// TODO: use uint64 operator
 	computeUnits := r.GetBaseComputeUnits() + authCUs + actionCUs
 	if t.WarpMessage != nil {
 		computeUnits += r.GetBaseWarpComputeUnits()
