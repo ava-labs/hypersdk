@@ -351,7 +351,7 @@ func (*Handler) PrintStatus(txID ids.ID, success bool) {
 
 func PrintUnitPrices(d chain.Dimensions) {
 	utils.Outf(
-		"unit prices {{yellow}}bandwidth:{{/}} %d {{yellow}}compute:{{/}} %d {{yellow}}storage[read]:{{/}} %d {{yellow}}storage[create]:{{/}} %d {{yellow}}storage[modify]:{{/}} %d\n",
+		"{{cyan}}unit prices{{/}} {{yellow}}bandwidth:{{/}} %d {{yellow}}compute:{{/}} %d {{yellow}}storage[read]:{{/}} %d {{yellow}}storage[create]:{{/}} %d {{yellow}}storage[modify]:{{/}} %d\n",
 		d[chain.Bandwidth],
 		d[chain.Compute],
 		d[chain.StorageRead],
