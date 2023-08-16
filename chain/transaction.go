@@ -136,7 +136,9 @@ func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
 		keys = append(keys, stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
 	}
 	// Always assume a message could export a warp message
-	keys = append(keys, stateMapping.OutgoingWarpKey(t.id))
+	if t.Action.OutputsWarpMessage() {
+		keys = append(keys, stateMapping.OutgoingWarpKey(t.id))
+	}
 	t.stateKeys = keys
 	return keys
 }
@@ -150,6 +152,9 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	if t.WarpMessage != nil {
 		maxComputeUnitsOp.Add(r.GetBaseWarpComputeUnits())
 		maxComputeUnitsOp.MulAdd(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
+	}
+	if t.Action.OutputsWarpMessage() {
+		maxComputeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
 	}
 	maxComputeUnits, err := maxComputeUnitsOp.Value()
 	if err != nil {
@@ -267,6 +272,9 @@ func (t *Transaction) Execute(
 		// fast)
 		return nil, ErrInvalidObject
 	}
+	if (warpMessage == nil && t.Action.OutputsWarpMessage()) || (warpMessage != nil && !t.Action.OutputsWarpMessage()) {
+		return nil, ErrInvalidObject
+	}
 	if !success {
 		// Only keep changes if successful
 		warpMessage = nil // warp messages can only be emitted on success
@@ -304,6 +312,9 @@ func (t *Transaction) Execute(
 	if t.WarpMessage != nil {
 		computeUnitsOp.Add(r.GetBaseWarpComputeUnits())
 		computeUnitsOp.MulAdd(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
+	}
+	if t.Action.OutputsWarpMessage() {
+		computeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
 	}
 	computeUnits, err := computeUnitsOp.Value()
 	if err != nil {
@@ -502,4 +513,8 @@ func UnmarshalTx(
 		tx.warpID = tx.WarpMessage.ID()
 	}
 	return &tx, nil
+}
+
+func EstimateMaxUnits(action Action, authFactory AuthFactory, warpMessage *warp.Message) Dimensions {
+
 }

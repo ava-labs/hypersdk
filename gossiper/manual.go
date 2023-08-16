@@ -41,6 +41,7 @@ func (g *Manual) ForceGossip(ctx context.Context) error {
 	totalUnits := chain.Dimensions{}
 	now := time.Now().UnixMilli()
 	r := g.vm.Rules(now)
+	sm := g.vm.StateManager()
 	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
@@ -52,7 +53,7 @@ func (g *Manual) ForceGossip(ctx context.Context) error {
 
 			// Gossip up to a block of content
 			// TODO: handle case where large tx with a ton of units clogs
-			units, err := next.MaxUnits(r)
+			units, err := next.MaxUnits(sm, r)
 			if err != nil {
 				// Should never happen
 				return true, false, nil

@@ -121,6 +121,7 @@ type Rules interface {
 	GetBaseComputeUnits() uint64
 	GetBaseWarpComputeUnits() uint64
 	GetWarpComputeUnitsPerSigner() uint64
+	GetOutgoingWarpComputeUnits() uint64
 
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
 
@@ -144,6 +145,9 @@ type Action interface {
 	// MaxUnits is used to determine whether the [Action] is executable in the given block. Implementors
 	// should make a best effort to specify these as close to possible to the actual max.
 	MaxComputeUnits(Rules) uint64
+
+	// Used to determine how many fees to charge for storage
+	OutputsWarpMessage() bool
 
 	// Auth may contain an [Actor] that performs a transaction
 	//
@@ -214,6 +218,8 @@ type Auth interface {
 }
 
 type AuthFactory interface {
-	// used by helpers, auth object should store internally to be ready for marshaling
+	// Sign is used by helpers, auth object should store internally to be ready for marshaling
 	Sign(msg []byte, action Action) (Auth, error)
+
+	MaxUnits() Dimensions
 }
