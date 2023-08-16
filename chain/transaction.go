@@ -302,6 +302,9 @@ func (t *Transaction) Execute(
 		computeUnits += uint64(t.numWarpSigners) * r.GetWarpComputeUnitsPerSigner()
 	}
 	// TODO: bound to distinct keys or total ops? we won't know total ops before execution
+	// TODO: can exclude keys from count that are referenced by admin that will be "forced modifications"
+	// -> still could create in refund if openly deployed
+	// -> Could allow action option then block on tdb
 	creations, modifications := tdb.CountOperations(ctx, execStart+1)
 	used := Dimensions{uint64(t.Size()), computeUnits, uint64(len(t.StateKeys(s))), uint64(creations), uint64(modifications)}
 	feeRequired, err := feeManager.MaxFee(used)
