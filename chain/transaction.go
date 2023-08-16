@@ -315,7 +315,8 @@ func (t *Transaction) Execute(
 		computeUnitsOp.Add(r.GetBaseWarpComputeUnits())
 		computeUnitsOp.MulAdd(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
 	}
-	if t.Action.OutputsWarpMessage() {
+	if success && t.Action.OutputsWarpMessage() {
+		// Only charge outgoing fee if successful
 		computeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
 	}
 	computeUnits, err := computeUnitsOp.Value()
