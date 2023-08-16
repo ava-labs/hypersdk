@@ -39,8 +39,6 @@ func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 		return ErrTimestampTooEarly
 	case b.ChainID != chainID:
 		return ErrInvalidChainID
-	case b.MaxFee < r.GetMinFee():
-		return ErrInvalidFee
 	default:
 		return nil
 	}

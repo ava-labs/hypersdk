@@ -42,10 +42,6 @@ func (r *Rules) GetMinEmptyBlockGap() int64 {
 	return r.g.MinEmptyBlockGap
 }
 
-func (r *Rules) GetMinFee() uint64 {
-	return r.g.MinFee
-}
-
 func (r *Rules) GetBaseWarpComputeUnits() uint64 {
 	return r.g.BaseWarpComputeUnits
 }

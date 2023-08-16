@@ -35,7 +35,6 @@ type Genesis struct {
 	MinEmptyBlockGap int64 `json:"minEmptyBlockGap"` // ms
 
 	// Chain Fee Parameters
-	MinFee                     uint64           `json:"minFee"`
 	MinUnitPrice               chain.Dimensions `json:"minUnitPrice"`
 	UnitPriceChangeDenominator chain.Dimensions `json:"unitPriceChangeDenominator"`
 	WindowTargetUnits          chain.Dimensions `json:"windowTargetUnits"` // 10s
@@ -63,7 +62,6 @@ func Default() *Genesis {
 		MinEmptyBlockGap: 2_500,
 
 		// Chain Fee Parameters
-		MinFee:                     1,
 		MinUnitPrice:               chain.Dimensions{1, 100, 100, 100, 100},
 		UnitPriceChangeDenominator: chain.Dimensions{48, 48, 48, 48, 48},
 		WindowTargetUnits:          chain.Dimensions{20_000_000, 1_000, 1_000, 1_000, 1_000},

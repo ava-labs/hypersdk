@@ -192,9 +192,6 @@ func (t *Transaction) PreExecute(
 	if end >= 0 && timestamp > end {
 		return ErrAuthNotActivated
 	}
-	if t.Base.MaxFee < r.GetMinFee() {
-		return ErrInvalidFee
-	}
 	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
 		return err
@@ -346,9 +343,6 @@ func (t *Transaction) Execute(
 	feeRequired, err := feeManager.MaxFee(used)
 	if err != nil {
 		return nil, err
-	}
-	if feeRequired < r.GetMinFee() {
-		feeRequired = r.GetMinFee()
 	}
 
 	// Return any funds from unused units

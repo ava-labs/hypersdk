@@ -112,7 +112,6 @@ type Rules interface {
 
 	GetValidityWindow() int64 // in milliseconds
 
-	GetMinFee() uint64
 	GetMinUnitPrice() Dimensions
 	GetUnitPriceChangeDenominator() Dimensions
 	GetWindowTargetUnits() Dimensions
