@@ -446,22 +446,6 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
 	}
 
-	ectx, err := GenerateExecutionContext(ctx, b.Tmstmp, parent, b.vm.Tracer(), r)
-	if err != nil {
-		return nil, err
-	}
-	switch {
-	case b.UnitPrice != ectx.NextUnitPrice:
-		return nil, ErrInvalidUnitPrice
-	case b.UnitWindow != ectx.NextUnitWindow:
-		return nil, ErrInvalidUnitWindow
-	}
-	log.Info(
-		"verify context",
-		zap.Uint64("height", b.Hght),
-		zap.Uint64("unit price", b.UnitPrice),
-	)
-
 	// Start validating warp messages, if they exist
 	var invalidWarpResult bool
 	if b.containsWarp {
@@ -523,12 +507,23 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, err
 	}
 
+	// Compute next unit prices to use
+	feeRaw, err := state.GetValue(ctx, b.vm.StateManager().FeeKey())
+	if err != nil {
+		return nil, err
+	}
+	feeManager := NewFeeManager(feeRaw)
+	nextFeeManager, err := feeManager.ComputeNext(parent.Tmstmp, b.Tmstmp, r)
+	if err != nil {
+		return nil, err
+	}
+
 	// Optimisticaly fetch state
 	processor := NewProcessor(b.vm.Tracer(), b)
 	processor.Prefetch(ctx, state)
 
 	// Process new transactions
-	unitsConsumed, results, stateChanges, stateOps, err := processor.Execute(ctx, ectx, r)
+	results, stateChanges, stateOps, err := processor.Execute(ctx, nextFeeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return nil, err
@@ -536,14 +531,6 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	b.vm.RecordStateChanges(stateChanges)
 	b.vm.RecordStateOperations(stateOps)
 	b.results = results
-	if b.UnitsConsumed != unitsConsumed {
-		return nil, fmt.Errorf(
-			"%w: required=%d found=%d",
-			ErrInvalidUnitsConsumed,
-			unitsConsumed,
-			b.UnitsConsumed,
-		)
-	}
 
 	// Ensure warp results are correct
 	if invalidWarpResult {
@@ -564,6 +551,11 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Store height in state to prevent duplicate roots
 	if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return nil, err
+	}
+
+	// Store fee parameters
+	if err := state.Insert(ctx, b.vm.StateManager().FeeKey(), nextFeeManager.Bytes()); err != nil {
 		return nil, err
 	}
 

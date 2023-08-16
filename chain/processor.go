@@ -6,6 +6,7 @@ package chain
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
@@ -80,29 +81,37 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 
 func (p *Processor) Execute(
 	ctx context.Context,
-	ectx *ExecutionContext,
+	feeManager *FeeManager,
 	r Rules,
-) (uint64, []*Result, int, int, error) {
+) ([]*Result, int, int, error) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Execute")
 	defer span.End()
 
 	var (
-		unitsConsumed = uint64(0)
-		ts            = tstate.New(len(p.blk.Txs) * 2) // TODO: tune this heuristic
-		t             = p.blk.GetTimestamp()
-		results       = []*Result{}
-		sm            = p.blk.vm.StateManager()
+		ts      = tstate.New(len(p.blk.Txs) * 2) // TODO: tune this heuristic
+		t       = p.blk.GetTimestamp()
+		results = []*Result{}
+		sm      = p.blk.vm.StateManager()
 	)
 	for txData := range p.readyTxs {
 		tx := txData.tx
+
+		// Ensure can process next tx
+		nextUnits, err := tx.MaxUnits(r)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		if ok, dimension := feeManager.CanConsume(nextUnits, r.GetMaxBlockUnits()); !ok {
+			return nil, 0, 0, fmt.Errorf("dimension %d exceeds limit", dimension)
+		}
 
 		// It is critical we explicitly set the scope before each transaction is
 		// processed
 		ts.SetScope(ctx, tx.StateKeys(sm), txData.storage)
 
 		// Execute tx
-		if err := tx.PreExecute(ctx, ectx, r, ts, t); err != nil {
-			return 0, nil, 0, 0, err
+		if err := tx.PreExecute(ctx, feeManager, r, ts, t); err != nil {
+			return nil, 0, 0, err
 		}
 		// Wait to execute transaction until we have the warp result processed.
 		//
@@ -114,25 +123,23 @@ func (p *Processor) Execute(
 			select {
 			case warpVerified = <-warpMsg.verifiedChan:
 			case <-ctx.Done():
-				return 0, nil, 0, 0, ctx.Err()
+				return nil, 0, 0, ctx.Err()
 			}
 		}
-		result, err := tx.Execute(ctx, r, sm, ts, t, ok && warpVerified)
+		result, err := tx.Execute(ctx, feeManager, r, sm, ts, t, ok && warpVerified)
 		if err != nil {
-			return 0, nil, 0, 0, err
+			return nil, 0, 0, err
 		}
 		results = append(results, result)
 
 		// Update block metadata
-		unitsConsumed += result.Units
-		if unitsConsumed > r.GetMaxBlockUnits() {
-			// Exit as soon as we hit our max
-			return 0, nil, 0, 0, ErrBlockTooBig
+		if err := feeManager.Consume(nextUnits); err != nil {
+			return nil, 0, 0, err
 		}
 	}
 	// Wait until end to write changes to avoid conflicting with pre-fetching
 	if err := ts.WriteChanges(ctx, p.db, p.tracer); err != nil {
-		return 0, nil, 0, 0, err
+		return nil, 0, 0, err
 	}
-	return unitsConsumed, results, ts.PendingChanges(), ts.OpIndex(), nil
+	return results, ts.PendingChanges(), ts.OpIndex(), nil
 }
