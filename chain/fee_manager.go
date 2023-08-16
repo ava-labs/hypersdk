@@ -17,6 +17,7 @@ const (
 	StorageModification           = 4
 
 	FeeDimensions = 5
+	DimensionsLen = consts.Uint64Len * FeeDimensions
 
 	dimensionSize = consts.Uint64Len + window.WindowSliceSize + consts.Uint64Len
 )
@@ -195,4 +196,21 @@ func (d Dimensions) Add(i Dimension, v uint64) error {
 	}
 	d[i] = newValue
 	return nil
+}
+
+func (d Dimensions) Bytes() ([]byte, error) {
+	packer := codec.NewWriter(DimensionsLen, consts.MaxInt)
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		packer.PackUint64(d[i])
+	}
+	return packer.Bytes(), packer.Err()
+}
+
+func UnpackDimensions(raw []byte) (Dimensions, error) {
+	d := Dimensions{}
+	packer := codec.NewReader(raw, DimensionsLen)
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		d[i] = packer.UnpackUint64(false)
+	}
+	return d, packer.Err()
 }

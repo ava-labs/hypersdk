@@ -12,15 +12,9 @@ import (
 type Result struct {
 	Success bool
 	Output  []byte
+	Used    Dimensions
 
 	WarpMessage *warp.UnsignedMessage
-
-	StateCreated  uint64
-	StateModified uint64
-	StateDeleted  uint64
-
-	ComputeUnits uint64
-	StorageUnits uint64
 }
 
 func (r *Result) Size() int {
@@ -33,15 +27,20 @@ func (r *Result) Size() int {
 	return size
 }
 
-func (r *Result) Marshal(p *codec.Packer) {
+func (r *Result) Marshal(p *codec.Packer) error {
 	p.PackBool(r.Success)
-	p.PackUint64(r.Units)
 	p.PackBytes(r.Output)
+	usedBytes, err := r.Used.Bytes()
+	if err != nil {
+		return err
+	}
+	p.PackFixedBytes(usedBytes)
 	var warpBytes []byte
 	if r.WarpMessage != nil {
 		warpBytes = r.WarpMessage.Bytes()
 	}
 	p.PackBytes(warpBytes)
+	return nil
 }
 
 func MarshalResults(src []*Result) ([]byte, error) {
@@ -57,13 +56,19 @@ func MarshalResults(src []*Result) ([]byte, error) {
 func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	result := &Result{
 		Success: p.UnpackBool(),
-		Units:   p.UnpackUint64(false),
 	}
 	p.UnpackBytes(consts.MaxInt, false, &result.Output)
 	if len(result.Output) == 0 {
 		// Enforce object standardization
 		result.Output = nil
 	}
+	dimensionsRaw := make([]byte, DimensionsLen)
+	p.UnpackFixedBytes(DimensionsLen, &dimensionsRaw)
+	dimensions, err := UnpackDimensions(dimensionsRaw)
+	if err != nil {
+		return nil, err
+	}
+	result.Used = dimensions
 	var warpMessage []byte
 	p.UnpackBytes(MaxWarpMessageSize, false, &warpMessage)
 	if len(warpMessage) > 0 {

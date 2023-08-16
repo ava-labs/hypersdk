@@ -122,8 +122,6 @@ func (t *Transaction) ID() ids.ID { return t.id }
 
 func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 
-func (t *Transaction) UnitPrice() uint64 { return t.Base.UnitPrice }
-
 // It is ok to have duplicate ReadKeys...the processor will skip them
 func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
 	// We assume that any transaction must modify some state key (at least to pay
@@ -211,6 +209,7 @@ func (t *Transaction) PreExecute(
 // Execute after knowing a transaction can pay a fee
 func (t *Transaction) Execute(
 	ctx context.Context,
+	feeManager *FeeManager,
 	r Rules,
 	s StateManager,
 	tdb *tstate.TState,
@@ -241,13 +240,17 @@ func (t *Transaction) Execute(
 	}
 
 	// Always charge fee first in case [Action] moves funds
-	unitPrice := t.Base.UnitPrice
 	maxUnits, err := t.MaxUnits(r)
 	if err != nil {
 		// Should never happen
 		return nil, err
 	}
-	if err := t.Auth.Deduct(ctx, tdb, unitPrice*maxUnits); err != nil {
+	maxFee, err := feeManager.MaxFee(maxUnits)
+	if err != nil {
+		// Should never happen
+		return nil, err
+	}
+	if err := t.Auth.Deduct(ctx, tdb, maxFee); err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
 		// immediately before.
 		return nil, err
@@ -270,10 +273,7 @@ func (t *Transaction) Execute(
 		tdb.Rollback(ctx, start)
 	}
 
-	// TODO: deduct storage fees?
-	//
-	// What if can't pay for prefetch keys because burned all balance on compute fees?
-	// -> all other fees can be paid properly
+	// TODO: refund all units that went unused
 
 	// Update action units with other items
 	result.Units += r.GetBaseUnits() + authUnits
