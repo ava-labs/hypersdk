@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/math"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
@@ -143,14 +144,20 @@ func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
 // Units is charged whether or not a transaction is successful because state
 // lookup is not free.
 func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
+	maxComputeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
+	maxComputeUnitsOp.Add(t.Action.MaxComputeUnits(r))
+	maxComputeUnitsOp.Add(t.Auth.MaxComputeUnits(r))
+	if t.WarpMessage != nil {
+		maxComputeUnitsOp.Add(r.GetBaseWarpComputeUnits())
+		maxComputeUnitsOp.MulAdd(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
+	}
+	maxComputeUnits, err := maxComputeUnitsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
 	// We can't charge by byte because we don't know the size
 	// of the objects before execution (and that's when we deduct fees).
 	stateKeys := uint64(len(t.StateKeys(sm))) // includes warp keys
-	maxComputeUnits := r.GetBaseComputeUnits() + t.Action.MaxComputeUnits(r) + t.Auth.MaxComputeUnits(r)
-	if t.WarpMessage != nil {
-		maxComputeUnits += r.GetBaseWarpComputeUnits()
-		maxComputeUnits += uint64(t.numWarpSigners) * r.GetWarpComputeUnitsPerSigner()
-	}
 	return Dimensions{uint64(t.Size()), maxComputeUnits, stateKeys, stateKeys, stateKeys}, nil
 }
 
@@ -241,9 +248,6 @@ func (t *Transaction) Execute(
 		switch {
 		case err == nil:
 			// Override all errors if warp message is a duplicate
-			//
-			// TODO: consider doing this check before performing signature
-			// verification.
 			warpVerified = false
 		case errors.Is(err, database.ErrNotFound):
 			// This means there are no conflicts
@@ -294,11 +298,16 @@ func (t *Transaction) Execute(
 	}
 
 	// Refund all units that went unused
-	// TODO: use uint64 operator
-	computeUnits := r.GetBaseComputeUnits() + authCUs + actionCUs
+	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
+	computeUnitsOp.Add(authCUs)
+	computeUnitsOp.Add(actionCUs)
 	if t.WarpMessage != nil {
-		computeUnits += r.GetBaseWarpComputeUnits()
-		computeUnits += uint64(t.numWarpSigners) * r.GetWarpComputeUnitsPerSigner()
+		computeUnitsOp.Add(r.GetBaseWarpComputeUnits())
+		computeUnitsOp.MulAdd(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
+	}
+	computeUnits, err := computeUnitsOp.Value()
+	if err != nil {
+		return nil, err
 	}
 	// Because the key database is abstracted from [Actions], we can compute
 	// all storage use in the background.
@@ -314,6 +323,7 @@ func (t *Transaction) Execute(
 		for _, key := range t.Auth.StateKeys() {
 			modifications.Add(string(key))
 		}
+
 		tdb.DisableNewKeys()
 		defer tdb.DisableNewKeys()
 	}
