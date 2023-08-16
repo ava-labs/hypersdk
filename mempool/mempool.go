@@ -58,7 +58,8 @@ func New[T Item](
 
 		pm: NewSortedMempool(
 			math.Min(maxSize, maxPrealloc),
-			func(item T) uint64 { return item.UnitPrice() },
+			// TODO: consider switch to FIFO
+			func(item T) uint64 { return item.MaxFee() },
 		),
 		tm: NewSortedMempool(
 			math.Min(maxSize, maxPrealloc),

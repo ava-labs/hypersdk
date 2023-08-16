@@ -14,7 +14,7 @@ type Item interface {
 	ID() ids.ID
 	Payer() string
 	Expiry() int64
-	UnitPrice() uint64
+	MaxFee() uint64
 }
 
 // SortedMempool contains a max-heap and min-heap. The order within each
