@@ -227,3 +227,15 @@ func (ts *TState) WriteChanges(
 	}
 	return nil
 }
+
+func (ts *TState) CountOperations(ctx context.Context, start int) (int, int) {
+	var creations, modifications int
+	for i := start; i < len(ts.ops); i++ {
+		if ts.ops[i].pastExists {
+			modifications++
+		} else {
+			creations++
+		}
+	}
+	return creations, modifications
+}

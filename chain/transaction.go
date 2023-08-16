@@ -221,6 +221,7 @@ func (t *Transaction) Execute(
 ) (*Result, error) {
 	// Check warp message is not duplicate
 	if t.WarpMessage != nil {
+		// TODO: count read
 		_, err := tdb.GetValue(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
 		switch {
 		case err == nil:
@@ -262,20 +263,28 @@ func (t *Transaction) Execute(
 	}
 
 	// We create a temp state to ensure we don't commit failed actions to state.
+	// TODO: move start to before any changes made (keep separate start for rollback)
 	start := tdb.OpIndex()
-	result, err := t.Action.Execute(ctx, r, tdb, timestamp, t.Auth, t.id, warpVerified)
+	success, computeUnits, output, warpMessage, err := t.Action.Execute(ctx, r, tdb, timestamp, t.Auth, t.id, warpVerified)
 	if err != nil {
 		return nil, err
 	}
-	if len(result.Output) == 0 && result.Output != nil {
+	if len(output) == 0 && output != nil {
 		// Enforce object standardization (this is a VM bug and we should fail
 		// fast)
 		return nil, ErrInvalidObject
 	}
-	if !result.Success {
+	if !success {
 		// Only keep changes if successful
-		result.WarpMessage = nil // warp messages can only be emitted on success
+		warpMessage = nil // warp messages can only be emitted on success
 		tdb.Rollback(ctx, start)
+	}
+
+	// Create Result
+	result := &Result{
+		Success:     success,
+		Output:      output,
+		WarpMessage: warpMessage,
 	}
 
 	// Refund all units that went unused
@@ -307,6 +316,7 @@ func (t *Transaction) Execute(
 	}
 
 	// Return any funds from unused units
+	// TODO: how to handle refund before counting fees? Can we assume this will just touch 1 key, no
 	refund := maxFee - feeRequired
 	if refund > 0 {
 		if err := t.Auth.Refund(ctx, tdb, refund); err != nil {
@@ -340,6 +350,8 @@ func (t *Transaction) Execute(
 			}
 		}
 	}
+
+	creations, modifications := tdb.CountOperations(ctx, start+1)
 	return result, nil
 }
 

@@ -170,7 +170,7 @@ type Action interface {
 		auth Auth,
 		txID ids.ID,
 		warpVerified bool,
-	) (result *Result, err error) // err should only be returned if fatal
+	) (success bool, computeUnits uint64, output []byte, warpMessage *warp.UnsignedMessage, err error) // err should only be returned if fatal
 
 	Marshal(p *codec.Packer)
 	Size() int
