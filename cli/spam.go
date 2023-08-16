@@ -215,10 +215,11 @@ func (h *Handler) Spam(
 	}()
 
 	// broadcast txs
-	unitPrice, err := clients[0].c.SuggestedRawFee(ctx)
-	if err != nil {
-		return err
-	}
+	// TODO: print out unit prices
+	// unitPrices, err := clients[0].c.UnitPrices(ctx)
+	// if err != nil {
+	// 	return err
+	// }
 	g, gctx := errgroup.WithContext(ctx)
 	for ri := 0; ri < numAccounts; ri++ {
 		i := ri
@@ -268,12 +269,13 @@ func (h *Handler) Spam(
 						}
 						v := selected[recipient] + 1
 						selected[recipient] = v
-						_, tx, fees, err := issuer.c.GenerateTransactionManual(parser, nil, getTransfer(recipient, uint64(v)), factory, unitPrice, tm)
+						maxFee := uint64(1000) // TODO: fix this
+						_, tx, err := issuer.c.GenerateTransactionManual(parser, nil, getTransfer(recipient, uint64(v)), factory, maxFee, tm)
 						if err != nil {
 							utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
 							continue
 						}
-						transferFee = fees
+						transferFee = maxFee
 						if err := issuer.d.RegisterTx(tx); err != nil {
 							issuer.l.Lock()
 							if issuer.d.Closed() {
@@ -297,7 +299,7 @@ func (h *Handler) Spam(
 							}
 							continue
 						}
-						balance -= (fees + uint64(v))
+						balance -= (maxFee + uint64(v))
 						issuer.l.Lock()
 						issuer.outstandingTxs++
 						issuer.l.Unlock()

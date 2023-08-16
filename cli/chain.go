@@ -241,10 +241,10 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 			runningDuration := time.Since(start)
 			tpsDivisor := math.Min(window.WindowSize, runningDuration.Seconds())
 			utils.Outf(
-				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB [{{green}}TPS:{{/}}%.2f {{green}}latency:{{/}}%dms {{green}}gap:{{/}}%dms]\n",
+				// TODO: indicate how many units used in each block?
+				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB [{{green}}TPS:{{/}}%.2f {{green}}latency:{{/}}%dms {{green}}gap:{{/}}%dms]\n",
 				blk.Hght,
 				len(blk.Txs),
-				blk.UnitsConsumed,
 				blk.StateRoot,
 				float64(blk.Size())/units.KiB,
 				float64(window.Sum(tpsWindow))/tpsDivisor,
@@ -253,10 +253,9 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 			)
 		} else {
 			utils.Outf(
-				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}units:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB\n",
+				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB\n",
 				blk.Hght,
 				len(blk.Txs),
-				blk.UnitsConsumed,
 				blk.StateRoot,
 				float64(blk.Size())/units.KiB,
 			)
