@@ -38,6 +38,14 @@ func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
 	}
 }
 
+func (t *Transfer) StateKeysCount() int {
+	return 2
+}
+
+func (t *Transfer) OutputsWarpMessage() bool {
+	return false
+}
+
 func (t *Transfer) Execute(
 	ctx context.Context,
 	r chain.Rules,
@@ -46,41 +54,22 @@ func (t *Transfer) Execute(
 	rauth chain.Auth,
 	_ ids.ID,
 	_ bool,
-) (*chain.Result, error) {
-	d := chain.Dimensions{}
-	d[chain.Bandwidth] = uint64(t.Size())
-	d[chain.StorageRead] = 2 // send/receiver balance
-
+) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	actor := auth.GetActor(rauth)
 	if t.Value == 0 {
-		return &chain.Result{Success: false, Used: d, Output: OutputValueZero}, nil
+		return false, 1, OutputValueZero, nil, nil
 	}
-	if _, err := storage.SubBalance(ctx, db, actor, t.Value); err != nil {
-		return &chain.Result{Success: false, Used: d, Output: utils.ErrBytes(err)}, nil
+	if err := storage.SubBalance(ctx, db, actor, t.Value); err != nil {
+		return false, 1, utils.ErrBytes(err), nil, nil
 	}
-	recipientExists, err := storage.AddBalance(ctx, db, t.To, t.Value)
-	if err != nil {
-		return &chain.Result{Success: false, Used: d, Output: utils.ErrBytes(err)}, nil
+	if err := storage.AddBalance(ctx, db, t.To, t.Value); err != nil {
+		return false, 1, utils.ErrBytes(err), nil, nil
 	}
-	if recipientExists {
-		// TODO: what to do if this key is also used for fee adjustment? We are
-		// now double-counting
-		d[chain.StorageModification] = 2 // send/receiver balance
-	} else {
-		d[chain.StorageModification] = 1 // send balance
-		d[chain.StorageCreate] = 1       // recipient
-	}
-	return &chain.Result{Success: true, Used: d}, nil
+	return true, 1, nil, nil, nil
 }
 
-func (t *Transfer) MaxUnits(chain.Rules) chain.Dimensions {
-	d := chain.Dimensions{}
-	d[chain.Bandwidth] = uint64(t.Size())
-	d[chain.Compute] = 1
-	d[chain.StorageRead] = 2         // send/receiver balance
-	d[chain.StorageCreate] = 1       // create receiver
-	d[chain.StorageModification] = 2 // send/receiver balance
-	return d
+func (t *Transfer) MaxComputeUnits(chain.Rules) uint64 {
+	return 1
 }
 
 func (*Transfer) Size() int {

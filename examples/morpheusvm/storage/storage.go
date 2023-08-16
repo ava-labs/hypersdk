@@ -129,20 +129,20 @@ func GetBalance(
 	ctx context.Context,
 	db chain.Database,
 	pk ed25519.PublicKey,
-) (uint64, bool, error) {
-	dbKey, bal, exists, err := getBalance(ctx, db, pk)
+) (uint64, error) {
+	dbKey, bal, err := getBalance(ctx, db, pk)
 	balancePrefixPool.Put(dbKey)
-	return bal, exists, err
+	return bal, err
 }
 
 func getBalance(
 	ctx context.Context,
 	db chain.Database,
 	pk ed25519.PublicKey,
-) ([]byte, uint64, bool, error) {
+) ([]byte, uint64, error) {
 	k := PrefixBalanceKey(pk)
-	bal, exists, err := innerGetBalance(db.GetValue(ctx, k))
-	return k, bal, exists, err
+	bal, err := innerGetBalance(db.GetValue(ctx, k))
+	return k, bal, err
 }
 
 // Used to serve RPC queries
@@ -150,25 +150,25 @@ func GetBalanceFromState(
 	ctx context.Context,
 	f ReadState,
 	pk ed25519.PublicKey,
-) (uint64, bool, error) {
+) (uint64, error) {
 	k := PrefixBalanceKey(pk)
 	values, errs := f(ctx, [][]byte{k})
-	bal, exists, err := innerGetBalance(values[0], errs[0])
+	bal, err := innerGetBalance(values[0], errs[0])
 	balancePrefixPool.Put(k)
-	return bal, exists, err
+	return bal, err
 }
 
 func innerGetBalance(
 	v []byte,
 	err error,
-) (uint64, bool, error) {
+) (uint64, error) {
 	if errors.Is(err, database.ErrNotFound) {
-		return 0, false, nil
+		return 0, nil
 	}
 	if err != nil {
-		return 0, false, err
+		return 0, err
 	}
-	return binary.BigEndian.Uint64(v), true, nil
+	return binary.BigEndian.Uint64(v), nil
 }
 
 func SetBalance(
@@ -195,14 +195,14 @@ func AddBalance(
 	db chain.Database,
 	pk ed25519.PublicKey,
 	amount uint64,
-) (bool, error) {
-	dbKey, bal, exists, err := getBalance(ctx, db, pk)
+) error {
+	dbKey, bal, err := getBalance(ctx, db, pk)
 	if err != nil {
-		return false, err
+		return err
 	}
 	nbal, err := smath.Add64(bal, amount)
 	if err != nil {
-		return false, fmt.Errorf(
+		return fmt.Errorf(
 			"%w: could not add balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
@@ -210,7 +210,7 @@ func AddBalance(
 			amount,
 		)
 	}
-	return exists, setBalance(ctx, db, dbKey, nbal)
+	return setBalance(ctx, db, dbKey, nbal)
 }
 
 func SubBalance(
@@ -218,14 +218,14 @@ func SubBalance(
 	db chain.Database,
 	pk ed25519.PublicKey,
 	amount uint64,
-) (bool, error) {
-	dbKey, bal, exists, err := getBalance(ctx, db, pk)
+) error {
+	dbKey, bal, err := getBalance(ctx, db, pk)
 	if err != nil {
-		return false, err
+		return err
 	}
 	nbal, err := smath.Sub(bal, amount)
 	if err != nil {
-		return false, fmt.Errorf(
+		return fmt.Errorf(
 			"%w: could not subtract balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
@@ -236,9 +236,9 @@ func SubBalance(
 	if nbal == 0 {
 		// If there is no balance left, we should delete the record instead of
 		// setting it to 0.
-		return exists, db.Remove(ctx, dbKey)
+		return db.Remove(ctx, dbKey)
 	}
-	return exists, setBalance(ctx, db, dbKey, nbal)
+	return setBalance(ctx, db, dbKey, nbal)
 }
 
 func HeightKey() (k []byte) {
