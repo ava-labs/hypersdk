@@ -11,6 +11,8 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 )
 
+const BaseSize = consts.Uint64Len*2 + consts.IDLen
+
 type Base struct {
 	// Timestamp is the expiry of the transaction (inclusive). Once this time passes and the
 	// transaction is not included in a block, it is safe to regenerate it.
@@ -45,7 +47,7 @@ func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 }
 
 func (*Base) Size() int {
-	return consts.Uint64Len*2 + consts.IDLen
+	return BaseSize
 }
 
 func (b *Base) Marshal(p *codec.Packer) {

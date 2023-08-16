@@ -518,6 +518,31 @@ func UnmarshalTx(
 	return &tx, nil
 }
 
-func EstimateMaxUnits(action Action, authFactory AuthFactory, warpMessage *warp.Message) Dimensions {
-
+func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessage *warp.Message) (Dimensions, error) {
+	authBandwidth, authCompute, authKeys := authFactory.MaxUnits()
+	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + authBandwidth
+	stateKeys := authKeys + uint64(action.StateKeysLen())
+	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
+	computeUnitsOp.Add(authCompute)
+	computeUnitsOp.Add(action.MaxComputeUnits(r))
+	if warpMessage != nil {
+		bandwidth += uint64(codec.BytesLen(warpMessage.Bytes()))
+		stateKeys++
+		computeUnitsOp.Add(r.GetBaseWarpComputeUnits())
+		numSigners, err := warpMessage.Signature.NumSigners()
+		if err != nil {
+			return Dimensions{}, err
+		}
+		computeUnitsOp.MulAdd(uint64(numSigners), r.GetWarpComputeUnitsPerSigner())
+	}
+	if action.OutputsWarpMessage() {
+		stateKeys++
+		// Only charge outgoing fee if successful
+		computeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
+	}
+	computeUnits, err := computeUnitsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
+	return Dimensions{bandwidth, computeUnits, stateKeys, stateKeys, stateKeys}, nil
 }

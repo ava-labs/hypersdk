@@ -157,6 +157,9 @@ type Action interface {
 	// If attempt to reference missing key, error...it is ok to not use all keys (conditional logic based on state)
 	StateKeys(auth Auth, txID ids.ID) [][]byte
 
+	// StateKeysCount is used for fee estimation when actual state keys can't be generated
+	StateKeysCount() int
+
 	// Key distinction with "Auth" is the payment of fees. All non-fee payments
 	// occur in Execute but Auth handles fees.
 	//
@@ -221,5 +224,5 @@ type AuthFactory interface {
 	// Sign is used by helpers, auth object should store internally to be ready for marshaling
 	Sign(msg []byte, action Action) (Auth, error)
 
-	MaxUnits() Dimensions
+	MaxUnits() (bandwidth uint64, compute uint64, stateKeysCount uint64)
 }
