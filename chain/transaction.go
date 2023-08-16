@@ -192,6 +192,7 @@ func (t *Transaction) PreExecute(
 	if t.Base.MaxFee < r.GetMinFee() {
 		return ErrInvalidFee
 	}
+	// TODO: check after fee
 	if _, err := t.Auth.Verify(ctx, r, db, t.Action); err != nil {
 		return fmt.Errorf("%w: %v", ErrAuthFailed, err) //nolint:errorlint
 	}
@@ -234,7 +235,9 @@ func (t *Transaction) Execute(
 	}
 
 	// Verify auth is correct prior to doing anything
-	authUnits, err := t.Auth.Verify(ctx, r, tdb, t.Action)
+	//
+	// TODO: run this after checking fee?
+	authUsed, err := t.Auth.Verify(ctx, r, tdb, t.Action)
 	if err != nil {
 		return nil, err
 	}
@@ -273,17 +276,33 @@ func (t *Transaction) Execute(
 		tdb.Rollback(ctx, start)
 	}
 
-	// TODO: refund all units that went unused
-
-	// Update action units with other items
-	result.Units += r.GetBaseUnits() + authUnits
+	// Refund all units that went unused
+	used, err := Add(authUsed, result.Used)
+	if err != nil {
+		return nil, err
+	}
+	if err := used.Add(Compute, r.GetBaseComputeUnits()); err != nil {
+		return nil, err
+	}
 	if t.WarpMessage != nil {
-		result.Units += r.GetWarpBaseUnits()
-		result.Units += uint64(t.numWarpSigners) * r.GetWarpUnitsPerSigner()
+		if err := used.Add(Compute, r.GetBaseWarpComputeUnits()); err != nil {
+			return nil, err
+		}
+		warpSignerComputeUnits, err := smath.Mul64(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
+		if err != nil {
+			return nil, err
+		}
+		if err := used.Add(Compute, warpSignerComputeUnits); err != nil {
+			return nil, err
+		}
+	}
+	feeRequired, err := feeManager.MaxFee(used)
+	if err != nil {
+		return nil, err
 	}
 
 	// Return any funds from unused units
-	refund := (maxUnits - result.Units) * unitPrice
+	refund := maxFee - feeRequired
 	if refund > 0 {
 		if err := t.Auth.Refund(ctx, tdb, refund); err != nil {
 			return nil, err
