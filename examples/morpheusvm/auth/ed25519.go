@@ -25,10 +25,15 @@ func (*ED25519) GetTypeID() uint8 {
 	return ed25519ID
 }
 
-func (*ED25519) MaxUnits(
+func (e *ED25519) MaxUnits(
 	chain.Rules,
-) uint64 {
-	return ed25519.PublicKeyLen + ed25519.SignatureLen*5 // make signatures more expensive
+) chain.Dimensions {
+	d := chain.Dimensions{}
+	d[chain.Bandwidth] = uint64(e.Size())
+	d[chain.Compute] = 5             // signature verification
+	d[chain.StorageRead] = 1         // balance
+	d[chain.StorageModification] = 1 // update balance
+	return d
 }
 
 func (*ED25519) ValidRange(chain.Rules) (int64, int64) {
@@ -54,7 +59,7 @@ func (d *ED25519) Verify(
 	r chain.Rules,
 	_ chain.Database,
 	_ chain.Action,
-) (uint64, error) {
+) (chain.Dimensions, error) {
 	// We don't do anything during verify (there is no additional state to check
 	// to authorize the signer other than verifying the signature)
 	return d.MaxUnits(r), nil
