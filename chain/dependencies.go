@@ -154,7 +154,7 @@ type Action interface {
 	// a unique identifier for things created in an action.
 	//
 	// If attempt to reference missing key, error...it is ok to not use all keys (conditional logic based on state)
-	StateKeys(auth Auth, txID ids.ID) [][]byte
+	StateKeys(auth Auth, txID ids.ID) []string
 
 	// StateKeysCount is used for fee estimation when actual state keys can't be generated
 	StateKeysCount() int
@@ -194,7 +194,7 @@ type Auth interface {
 	// MaxComputeUnits should take into account [AsyncVerify], [CanDeduct], [Deduct], and [Refund]
 	MaxComputeUnits(Rules) uint64
 
-	StateKeys() [][]byte
+	StateKeys() []string
 
 	// AsyncVerify will be run concurrently, optimistically start crypto ops (may not complete before [Verify])
 	AsyncVerify(msg []byte) error

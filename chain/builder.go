@@ -174,17 +174,16 @@ func BuildBlock(
 
 				// Prefetch all values from state
 				storage := map[string][]byte{}
-				for _, k := range tx.StateKeys(sm) {
-					sk := string(k)
-					if v, ok := alreadyFetched[sk]; ok {
+				for k := range tx.StateKeys(sm) {
+					if v, ok := alreadyFetched[k]; ok {
 						if v.exists {
-							storage[sk] = v.v
+							storage[k] = v.v
 						}
 						continue
 					}
-					v, err := state.GetValue(ctx, k)
+					v, err := state.GetValue(ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
-						alreadyFetched[sk] = &fetchData{nil, false}
+						alreadyFetched[k] = &fetchData{nil, false}
 						continue
 					} else if err != nil {
 						// This can happen if the underlying view changes (if we are
@@ -193,8 +192,8 @@ func BuildBlock(
 						stopIndex = i
 						return
 					}
-					alreadyFetched[sk] = &fetchData{v, true}
-					storage[sk] = v
+					alreadyFetched[k] = &fetchData{v, true}
+					storage[k] = v
 				}
 				readyTxs <- &txData{tx, storage}
 			}

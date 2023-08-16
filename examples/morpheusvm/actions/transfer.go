@@ -31,10 +31,10 @@ func (*Transfer) GetTypeID() uint8 {
 	return transferID
 }
 
-func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
-	return [][]byte{
-		storage.PrefixBalanceKey(auth.GetActor(rauth)),
-		storage.PrefixBalanceKey(t.To),
+func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) []string {
+	return []string{
+		string(storage.PrefixBalanceKey(auth.GetActor(rauth))),
+		string(storage.PrefixBalanceKey(t.To)),
 	}
 }
 

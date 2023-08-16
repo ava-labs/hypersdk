@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -42,7 +43,7 @@ type Transaction struct {
 	// prevents duplicates (like txID). We will not allow 2 instances of the same
 	// warpID from the same sourceChainID to be accepted.
 	warpID    ids.ID
-	stateKeys [][]byte
+	stateKeys set.Set[string]
 }
 
 type WarpResult struct {
@@ -125,19 +126,21 @@ func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
 
 // It is ok to have duplicate ReadKeys...the processor will skip them
-func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
+func (t *Transaction) StateKeys(stateMapping StateManager) set.Set[string] {
 	// We assume that any transaction must modify some state key (at least to pay
 	// fees)
-	if len(t.stateKeys) != 0 {
+	if t.stateKeys != nil {
 		return t.stateKeys
 	}
-	keys := append(t.Action.StateKeys(t.Auth, t.ID()), t.Auth.StateKeys()...)
+	keys := set.NewSet[string](16) // TODO: tune this
+	keys.Add(t.Action.StateKeys(t.Auth, t.ID())...)
+	keys.Add(t.Auth.StateKeys()...)
 	if t.WarpMessage != nil {
-		keys = append(keys, stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
+		keys.Add(string(stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID)))
 	}
 	// Always assume a message could export a warp message
 	if t.Action.OutputsWarpMessage() {
-		keys = append(keys, stateMapping.OutgoingWarpKey(t.id))
+		keys.Add(string(stateMapping.OutgoingWarpKey(t.id)))
 	}
 	t.stateKeys = keys
 	return keys
@@ -162,7 +165,7 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	}
 	// We can't charge by byte because we don't know the size
 	// of the objects before execution (and that's when we deduct fees).
-	stateKeys := uint64(len(t.StateKeys(sm))) // includes warp keys
+	stateKeys := uint64(t.StateKeys(sm).Len()) // includes warp keys
 	return Dimensions{uint64(t.Size()), maxComputeUnits, stateKeys, stateKeys, stateKeys}, nil
 }
 
@@ -326,20 +329,20 @@ func (t *Transaction) Execute(
 	// Because we compute the fee before [Auth.Refund] is called, we need
 	// to precompute the storage it will change.
 	for _, key := range t.Auth.StateKeys() {
-		exists, err := tdb.Exists(ctx, key)
+		exists, err := tdb.Exists(ctx, []byte(key))
 		if err != nil {
 			return nil, err
 		}
 		if !exists {
 			// We pessimistically assume any keys that are referenced will be created
 			// if they don't exist.
-			creations.Add(string(key))
+			creations.Add(key)
 		}
-		modifications.Add(string(key))
+		modifications.Add(key)
 	}
 	// We can only charge by storage key count (not size) because we don't know the size of
 	// what will be read/written/modified before execution.
-	used := Dimensions{uint64(t.Size()), computeUnits, uint64(len(t.StateKeys(s))), uint64(creations.Len()), uint64(modifications.Len())}
+	used := Dimensions{uint64(t.Size()), computeUnits, uint64(t.StateKeys(s).Len()), uint64(creations.Len()), uint64(modifications.Len())}
 	feeRequired, err := feeManager.MaxFee(used)
 	if err != nil {
 		return nil, err

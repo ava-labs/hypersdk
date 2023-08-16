@@ -4,7 +4,6 @@
 package tstate
 
 import (
-	"bytes"
 	"context"
 	"errors"
 
@@ -41,7 +40,7 @@ type TState struct {
 	// We don't differentiate between read and write scope because it is very
 	// uncommon for a user to write something without first reading what is
 	// there.
-	scope        [][]byte // stores a list of managed keys in the TState struct
+	scope        set.Set[string] // stores a list of managed keys in the TState struct
 	scopeStorage map[string][]byte
 
 	// Ops is a record of all operations performed on [TState]. Tracking
@@ -103,46 +102,39 @@ func (ts *TState) getValue(_ context.Context, key string) ([]byte, bool, bool) {
 // FetchAndSetScope updates ts to include the [db] values associated with [keys].
 // FetchAndSetScope then sets the scope of ts to [keys]. If a key exists in
 // ts.fetchCache set the key's value to the value from cache.
-func (ts *TState) FetchAndSetScope(ctx context.Context, keys [][]byte, db Database) error {
+func (ts *TState) FetchAndSetScope(ctx context.Context, keys set.Set[string], db Database) error {
 	ts.scopeStorage = map[string][]byte{}
-	for _, key := range keys {
-		k := string(key)
-		if val, ok := ts.fetchCache[k]; ok {
+	for key := range keys {
+		if val, ok := ts.fetchCache[key]; ok {
 			if val.Exists {
-				ts.scopeStorage[k] = val.Value
+				ts.scopeStorage[key] = val.Value
 			}
 			continue
 		}
-		v, err := db.GetValue(ctx, key)
+		v, err := db.GetValue(ctx, []byte(key))
 		if errors.Is(err, database.ErrNotFound) {
-			ts.fetchCache[k] = &cacheItem{Exists: false}
+			ts.fetchCache[key] = &cacheItem{Exists: false}
 			continue
 		}
 		if err != nil {
 			return err
 		}
-		ts.fetchCache[k] = &cacheItem{Value: v, Exists: true}
-		ts.scopeStorage[k] = v
+		ts.fetchCache[key] = &cacheItem{Value: v, Exists: true}
+		ts.scopeStorage[key] = v
 	}
 	ts.scope = keys
 	return nil
 }
 
 // SetReadScope sets the readscope of ts to [keys].
-func (ts *TState) SetScope(_ context.Context, keys [][]byte, storage map[string][]byte) {
+func (ts *TState) SetScope(_ context.Context, keys set.Set[string], storage map[string][]byte) {
 	ts.scope = keys
 	ts.scopeStorage = storage
 }
 
 // checkScope returns whether [k] is in ts.readScope.
 func (ts *TState) checkScope(_ context.Context, k []byte) bool {
-	for _, s := range ts.scope {
-		// TODO: benchmark and see if creating map is worth overhead
-		if bytes.Equal(k, s) {
-			return true
-		}
-	}
-	return false
+	return ts.scope.Contains(string(k))
 }
 
 // Insert sets or updates ts.storage[key] to equal {value, false}.
