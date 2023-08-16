@@ -185,14 +185,14 @@ type Auth interface {
 	GetTypeID() uint8                          // identify uniquely the auth
 	ValidRange(Rules) (start int64, end int64) // -1 means no start/end
 
+	// MaxComputeUnits should take into account [AsyncVerify], [CanDeduct], [Deduct], and [Refund]
 	MaxComputeUnits(Rules) uint64
 
 	StateKeys() [][]byte
 
-	// will be run concurrently, optimistically start crypto ops (may not complete before [Verify])
+	// AsyncVerify will be run concurrently, optimistically start crypto ops (may not complete before [Verify])
 	AsyncVerify(msg []byte) error
 
-	// Is Auth able to execute [Action], assuming [AsyncVerify] passes?
 	// ComputeUnits should take into account [AsyncVerify], [CanDeduct], [Deduct], and [Refund]
 	Verify(
 		ctx context.Context,
@@ -200,15 +200,14 @@ type Auth interface {
 		db Database, // Should only read, no mutate
 		action Action, // Authentication may be scoped to action type
 	) (computeUnits uint64, err error) // if there is account abstraction, may need to pull from state some mapping
-	// if verify is not validate, then what? -> can't actually change fee then?
-	// units should include any cost associated with [AsyncVerify]
 
-	// TODO: identifier->may be used to send to in action as well?
 	Payer() []byte // need to track mempool + charge fees -> used to clear related accounts if balance check fails
+
 	CanDeduct(ctx context.Context, db Database, amount uint64) error
 	Deduct(ctx context.Context, db Database, amount uint64) error
-	Refund(ctx context.Context, db Database, amount uint64) error // only invoked if amount > 0
+
 	RefundCreates() bool
+	Refund(ctx context.Context, db Database, amount uint64) error // only invoked if amount > 0
 
 	Marshal(p *codec.Packer)
 	Size() int
