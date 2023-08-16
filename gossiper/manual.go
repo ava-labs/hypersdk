@@ -38,7 +38,7 @@ func (g *Manual) Run(appSender common.AppSender) {
 func (g *Manual) ForceGossip(ctx context.Context) error {
 	// Gossip highest paying txs
 	txs := []*chain.Transaction{}
-	totalUnits := uint64(0)
+	totalUnits := chain.Dimensions{}
 	now := time.Now().UnixMilli()
 	r := g.vm.Rules(now)
 	mempoolErr := g.vm.Mempool().Top(
@@ -58,12 +58,16 @@ func (g *Manual) ForceGossip(ctx context.Context) error {
 				return true, false, nil
 			}
 			// TODO: limit to a smaller amount
-			if units+totalUnits > r.GetMaxBlockUnits() {
+			if !totalUnits.CanAdd(units, r.GetMaxBlockUnits()) {
 				// Attempt to mirror the function of building a block without execution
 				return false, true, nil
 			}
 			txs = append(txs, next)
-			totalUnits += units
+			newTotal, err := chain.Add(totalUnits, units)
+			if err != nil {
+				return false, false, nil
+			}
+			totalUnits = newTotal
 			return true, true, nil
 		},
 	)

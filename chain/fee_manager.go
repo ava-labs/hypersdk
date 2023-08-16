@@ -238,6 +238,19 @@ func (d Dimensions) Add(i Dimension, v uint64) error {
 	return nil
 }
 
+func (d Dimensions) CanAdd(a Dimensions, l Dimensions) bool {
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		consumed, err := math.Add64(d[i], a[i])
+		if err != nil {
+			return false
+		}
+		if consumed > l[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func (d Dimensions) Bytes() ([]byte, error) {
 	packer := codec.NewWriter(DimensionsLen, consts.MaxInt)
 	for i := Dimension(0); i < FeeDimensions; i++ {
