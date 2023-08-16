@@ -99,7 +99,8 @@ type StatelessBlock struct {
 	bctx         *block.Context
 	vdrState     validators.State
 
-	results []*Result
+	results    []*Result
+	feeManager *FeeManager
 
 	vm    VM
 	state merkledb.TrieView
@@ -248,6 +249,7 @@ func (b *StatelessBlock) initializeBuilt(
 	ctx context.Context,
 	state merkledb.TrieView,
 	results []*Result,
+	feeManager *FeeManager,
 ) error {
 	_, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
 	defer span.End()
@@ -261,6 +263,7 @@ func (b *StatelessBlock) initializeBuilt(
 	b.state = state
 	b.t = time.UnixMilli(b.StatefulBlock.Tmstmp)
 	b.results = results
+	b.feeManager = feeManager
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
 		b.txsSet.Add(tx.ID())
@@ -531,6 +534,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	b.vm.RecordStateChanges(stateChanges)
 	b.vm.RecordStateOperations(stateOps)
 	b.results = results
+	b.feeManager = nextFeeManager
 
 	// Ensure warp results are correct
 	if invalidWarpResult {
@@ -784,6 +788,10 @@ func (b *StatelessBlock) GetTimestamp() int64 {
 
 func (b *StatelessBlock) Results() []*Result {
 	return b.results
+}
+
+func (b *StatelessBlock) FeeManager() *FeeManager {
+	return b.feeManager
 }
 
 func (b *StatefulBlock) Marshal() ([]byte, error) {

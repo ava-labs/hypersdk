@@ -425,7 +425,7 @@ func BuildBlock(
 	b.StateRoot = root
 
 	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, state, results); err != nil {
+	if err := b.initializeBuilt(ctx, state, results, nextFeeManager); err != nil {
 		return nil, err
 	}
 	log.Info(
