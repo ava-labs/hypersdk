@@ -100,19 +100,18 @@ func BuildBlock(
 	if err != nil {
 		return nil, err
 	}
+	maxUnits := r.GetMaxBlockUnits()
 
 	ts := tstate.New(changesEstimate)
 
 	var (
 		oldestAllowed = nextTime - r.GetValidityWindow()
 
-		surplusFee = uint64(0)
-		mempool    = vm.Mempool()
+		mempool = vm.Mempool()
 
 		txsAttempted = 0
 		results      = []*Result{}
-
-		warpCount = 0
+		warpCount    = 0
 
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
@@ -253,23 +252,17 @@ func BuildBlock(
 				)
 				continue
 			}
-			if b.UnitsConsumed+nextUnits > r.GetMaxBlockUnits() {
+			if ok, dimension := nextFeeManager.CanConsume(nextUnits, maxUnits); !ok {
 				log.Debug(
 					"skipping tx: too many units",
-					zap.Uint64("block units", b.UnitsConsumed),
-					zap.Uint64("tx max units", nextUnits),
+					zap.Int("dimension", int(dimension)),
+					zap.Uint64("tx", nextUnits[dimension]),
+					zap.Uint64("block units", nextFeeManager.LastConsumed(dimension)),
+					zap.Uint64("max block units", maxUnits[dimension]),
 				)
 				restorable = append(restorable, next)
-
-				// We only stop building once we are within [stopBuildingThreshold] to protect
-				// against a case where there is a very large transaction in the mempool (and the
-				// block is still empty).
-				//
-				// We are willing to give up building early (although there may be some remaining space)
-				// to avoid iterating over everything in the mempool to find something that may fit.
-				if r.GetMaxBlockUnits()-b.UnitsConsumed < stopBuildingThreshold {
-					execErr = errBlockFull
-				}
+				// TODO: add more sophisticated handling for giving up building
+				execErr = errBlockFull
 				continue
 			}
 
@@ -342,8 +335,10 @@ func BuildBlock(
 
 			// Update block with new transaction
 			b.Txs = append(b.Txs, next)
-			b.UnitsConsumed += result.Units
-			surplusFee += (next.Base.UnitPrice - b.UnitPrice) * result.Units
+			if err := nextFeeManager.Consume(nextUnits); err != nil {
+				execErr = err
+				continue
+			}
 			results = append(results, result)
 			if next.WarpMessage != nil {
 				if warpErr == nil {
@@ -408,6 +403,11 @@ func BuildBlock(
 
 	// Store height in state to prevent duplicate roots
 	if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return nil, err
+	}
+
+	// Store fee parameters
+	if err := state.Insert(ctx, sm.FeeKey(), nextFeeManager.Bytes()); err != nil {
 		return nil, err
 	}
 

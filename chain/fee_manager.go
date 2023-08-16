@@ -87,6 +87,30 @@ func (f *FeeManager) SetLastConsumed(d Dimension, consumed uint64) {
 	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], consumed)
 }
 
+func (f *FeeManager) CanConsume(d Dimensions, l Dimensions) (bool, Dimension) {
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		consumed, err := math.Add64(f.LastConsumed(i), d[i])
+		if err != nil {
+			return false, i
+		}
+		if consumed > l[i] {
+			return false, i
+		}
+	}
+	return true, -1
+}
+
+func (f *FeeManager) Consume(d Dimensions) error {
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		consumed, err := math.Add64(f.LastConsumed(i), d[i])
+		if err != nil {
+			return err
+		}
+		f.SetLastConsumed(i, consumed)
+	}
+	return nil
+}
+
 func (f *FeeManager) Bytes() []byte {
 	return f.raw
 }
