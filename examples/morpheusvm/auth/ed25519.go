@@ -25,16 +25,7 @@ func (*ED25519) GetTypeID() uint8 {
 	return ed25519ID
 }
 
-func (e *ED25519) MaxUnits(
-	chain.Rules,
-) chain.Dimensions {
-	d := chain.Dimensions{}
-	d[chain.Bandwidth] = uint64(e.Size())
-	d[chain.Compute] = 5             // signature verification
-	d[chain.StorageRead] = 1         // balance
-	d[chain.StorageModification] = 1 // update balance
-	return d
-}
+func (*ED25519) MaxComputeUnits(chain.Rules) uint64 { return 5 }
 
 func (*ED25519) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
@@ -59,10 +50,10 @@ func (d *ED25519) Verify(
 	r chain.Rules,
 	_ chain.Database,
 	_ chain.Action,
-) (chain.Dimensions, error) {
+) (uint64, error) {
 	// We don't do anything during verify (there is no additional state to check
 	// to authorize the signer other than verifying the signature)
-	return d.MaxUnits(r), nil
+	return d.MaxComputeUnits(r), nil
 }
 
 func (d *ED25519) Payer() []byte {
@@ -131,6 +122,10 @@ type ED25519Factory struct {
 func (d *ED25519Factory) Sign(msg []byte, _ chain.Action) (chain.Auth, error) {
 	sig := ed25519.Sign(msg, d.priv)
 	return &ED25519{d.priv.PublicKey(), sig}, nil
+}
+
+func (*ED25519Factory) MaxUnits() (uint64, uint64, uint64) {
+	return ed25519.PublicKeyLen + ed25519.SignatureLen, 5, 1
 }
 
 type ED25519AuthEngine struct{}

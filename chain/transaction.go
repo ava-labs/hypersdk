@@ -328,18 +328,17 @@ func (t *Transaction) Execute(
 	creations, modifications := tdb.CountKeyOperations(ctx, execStart+1)
 	// Because we compute the fee before [Auth.Refund] is called, we need
 	// to precompute the storage it will change.
-	if t.Auth.RefundCreates() {
-		for _, key := range t.Auth.StateKeys() {
+	for _, key := range t.Auth.StateKeys() {
+		exists, err := tdb.Exists(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			// We pessimistically assume any keys that are referenced will be created
+			// if they don't exist.
 			creations.Add(string(key))
-			modifications.Add(string(key))
 		}
-	} else {
-		for _, key := range t.Auth.StateKeys() {
-			modifications.Add(string(key))
-		}
-
-		tdb.DisableNewKeys()
-		defer tdb.DisableNewKeys()
+		modifications.Add(string(key))
 	}
 	// We can only charge by storage key count (not size) because we don't know the size of
 	// what will be read/written/modified before execution.

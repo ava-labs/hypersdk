@@ -47,9 +47,6 @@ type TState struct {
 	// Ops is a record of all operations performed on [TState]. Tracking
 	// operations allows for reverting state to a certain point-in-time.
 	ops []*op
-
-	// disableNewKeys prevents any new keys from being created
-	disableNewKeys bool
 }
 
 // New returns a new instance of TState. Initializes the storage and changedKeys
@@ -77,6 +74,16 @@ func (ts *TState) GetValue(ctx context.Context, key []byte) ([]byte, error) {
 		return nil, database.ErrNotFound
 	}
 	return v, nil
+}
+
+// Exists returns whether or not the associated [key] is present.
+func (ts *TState) Exists(ctx context.Context, key []byte) (bool, error) {
+	if !ts.checkScope(ctx, key) {
+		return false, ErrKeyNotSpecified
+	}
+	k := string(key)
+	_, _, exists := ts.getValue(ctx, k)
+	return exists, nil
 }
 
 func (ts *TState) getValue(_ context.Context, key string) ([]byte, bool, bool) {
@@ -145,9 +152,6 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	}
 	k := string(key)
 	past, changed, exists := ts.getValue(ctx, k)
-	if !exists && ts.disableNewKeys {
-		return ErrNewKeysDisabled
-	}
 	ts.ops = append(ts.ops, &op{
 		k:           k,
 		pastExists:  exists,
@@ -249,12 +253,4 @@ func (ts *TState) CountKeyOperations(ctx context.Context, start int) (set.Set[st
 		}
 	}
 	return creations, modifications
-}
-
-func (ts *TState) DisableNewKeys() {
-	ts.disableNewKeys = true
-}
-
-func (ts *TState) EnableNewKeys() {
-	ts.disableNewKeys = false
 }

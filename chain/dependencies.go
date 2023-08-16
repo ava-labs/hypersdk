@@ -213,7 +213,6 @@ type Auth interface {
 	CanDeduct(ctx context.Context, db Database, amount uint64) error
 	Deduct(ctx context.Context, db Database, amount uint64) error
 
-	RefundCreates() bool
 	Refund(ctx context.Context, db Database, amount uint64) error // only invoked if amount > 0
 
 	Marshal(p *codec.Packer)
