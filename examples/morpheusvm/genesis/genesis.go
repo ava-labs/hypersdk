@@ -35,18 +35,19 @@ type Genesis struct {
 	MinEmptyBlockGap int64 `json:"minEmptyBlockGap"` // ms
 
 	// Chain Fee Parameters
-	MinUnitPrice               uint64 `json:"minUnitPrice"`
-	UnitPriceChangeDenominator uint64 `json:"unitPriceChangeDenominator"`
-	WindowTargetUnits          uint64 `json:"windowTargetUnits"` // 10s
-	MaxBlockUnits              uint64 `json:"maxBlockUnits"`     // must be possible to reach before block too large
+	MinFee                     uint64           `json:"minFee"`
+	MinUnitPrice               chain.Dimensions `json:"minUnitPrice"`
+	UnitPriceChangeDenominator chain.Dimensions `json:"unitPriceChangeDenominator"`
+	WindowTargetUnits          chain.Dimensions `json:"windowTargetUnits"` // 10s
+	MaxBlockUnits              chain.Dimensions `json:"maxBlockUnits"`     // must be possible to reach before block too large
 
 	// Tx Parameters
 	ValidityWindow int64 `json:"validityWindow"` // ms
 
 	// Tx Fee Parameters
-	BaseUnits          uint64 `json:"baseUnits"`
-	WarpBaseUnits      uint64 `json:"warpBaseUnits"`
-	WarpUnitsPerSigner uint64 `json:"warpUnitsPerSigner"`
+	BaseComputeUnits          uint64 `json:"baseUnits"`
+	BaseWarpComputeUnits      uint64 `json:"baseWarpUnits"`
+	WarpComputeUnitsPerSigner uint64 `json:"warpUnitsPerSigner"`
 
 	// Allocations
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
@@ -61,18 +62,19 @@ func Default() *Genesis {
 		MinEmptyBlockGap: 2_500,
 
 		// Chain Fee Parameters
-		MinUnitPrice:               1,
-		UnitPriceChangeDenominator: 48,
-		WindowTargetUnits:          20_000_000,
-		MaxBlockUnits:              1_800_000, // 1.8 MiB
+		MinFee:                     1,
+		MinUnitPrice:               chain.Dimensions{1, 100, 100, 100, 100},
+		UnitPriceChangeDenominator: chain.Dimensions{48, 48, 48, 48, 48},
+		WindowTargetUnits:          chain.Dimensions{20_000_000, 1_000, 1_000, 1_000, 1_000},
+		MaxBlockUnits:              chain.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
 
 		// Tx Parameters
 		ValidityWindow: 60 * hconsts.MillisecondsPerSecond, // ms
 
 		// Tx Fee Parameters
-		BaseUnits:          48, // timestamp(8) + chainID(32) + unitPrice(8)
-		WarpBaseUnits:      1_024,
-		WarpUnitsPerSigner: 128,
+		BaseComputeUnits:          1,
+		BaseWarpComputeUnits:      1_024,
+		WarpComputeUnitsPerSigner: 128,
 	}
 }
 
@@ -83,9 +85,9 @@ func New(b []byte, _ []byte /* upgradeBytes */) (*Genesis, error) {
 			return nil, fmt.Errorf("failed to unmarshal config %s: %w", string(b), err)
 		}
 	}
-	if g.WindowTargetUnits == 0 {
-		return nil, ErrInvalidTarget
-	}
+	// if g.WindowTargetUnits == 0 {
+	// 	return nil, ErrInvalidTarget
+	// }
 	return g, nil
 }
 

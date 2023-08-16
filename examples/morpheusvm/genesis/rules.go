@@ -42,16 +42,16 @@ func (r *Rules) GetMinEmptyBlockGap() int64 {
 	return r.g.MinEmptyBlockGap
 }
 
-func (*Rules) GetMinFee() uint64 {
-	return 1
+func (r *Rules) GetMinFee() uint64 {
+	return r.g.MinFee
 }
 
 func (r *Rules) GetBaseWarpComputeUnits() uint64 {
-	return r.g.WarpBaseUnits
+	return r.g.BaseWarpComputeUnits
 }
 
 func (r *Rules) GetWarpComputeUnitsPerSigner() uint64 {
-	return r.g.WarpUnitsPerSigner
+	return r.g.WarpComputeUnitsPerSigner
 }
 
 func (r *Rules) GetValidityWindow() int64 {
@@ -63,7 +63,7 @@ func (r *Rules) GetMaxBlockUnits() chain.Dimensions {
 }
 
 func (r *Rules) GetBaseComputeUnits() uint64 {
-	return r.g.BaseUnits
+	return r.g.BaseComputeUnits
 }
 
 func (r *Rules) GetMinUnitPrice() chain.Dimensions {
