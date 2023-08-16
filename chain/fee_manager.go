@@ -131,6 +131,14 @@ func (f *FeeManager) MaxFee(d Dimensions) (uint64, error) {
 	return fee, nil
 }
 
+func (f *FeeManager) UnitPrices() Dimensions {
+	var d Dimensions
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		d[i] = f.UnitPrice(i)
+	}
+	return d
+}
+
 func computeNextPriceWindow(
 	previous window.Window,
 	previousConsumed uint64,

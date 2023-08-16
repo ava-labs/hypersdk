@@ -443,5 +443,5 @@ func (vm *VM) UnitPrices(ctx context.Context) (chain.Dimensions, error) {
 	if err != nil {
 		return chain.Dimensions{}, err
 	}
-	return chain.UnpackDimensions(v)
+	return chain.NewFeeManager(v).UnitPrices(), nil
 }
