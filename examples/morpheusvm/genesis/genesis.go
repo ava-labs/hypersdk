@@ -48,6 +48,7 @@ type Genesis struct {
 	BaseComputeUnits          uint64 `json:"baseUnits"`
 	BaseWarpComputeUnits      uint64 `json:"baseWarpUnits"`
 	WarpComputeUnitsPerSigner uint64 `json:"warpUnitsPerSigner"`
+	OutgoingWarpComputeUnits  uint64 `json:"outgoingWarpComputeUnits"`
 
 	// Allocations
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
@@ -75,6 +76,7 @@ func Default() *Genesis {
 		BaseComputeUnits:          1,
 		BaseWarpComputeUnits:      1_024,
 		WarpComputeUnitsPerSigner: 128,
+		OutgoingWarpComputeUnits:  1_024,
 	}
 }
 

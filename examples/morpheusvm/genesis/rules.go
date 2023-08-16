@@ -54,6 +54,10 @@ func (r *Rules) GetWarpComputeUnitsPerSigner() uint64 {
 	return r.g.WarpComputeUnitsPerSigner
 }
 
+func (r *Rules) GetOutgoingWarpComputeUnits() uint64 {
+	return r.g.OutgoingWarpComputeUnits
+}
+
 func (r *Rules) GetValidityWindow() int64 {
 	return r.g.ValidityWindow
 }
