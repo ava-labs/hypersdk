@@ -279,6 +279,9 @@ func (t *Transaction) Execute(
 	}
 
 	// Refund all units that went unused
+	//
+	// TODO: don't redo this logic here, create standard location
+	// for warp
 	used, err := Add(authUsed, result.Used)
 	if err != nil {
 		return nil, err
