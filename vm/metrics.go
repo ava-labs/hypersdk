@@ -160,7 +160,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		}),
 		bandwidthPrice: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
-			Name:      "bandwith_price",
+			Name:      "bandwidth_price",
 			Help:      "unit price of bandwidth",
 		}),
 		computePrice: prometheus.NewGauge(prometheus.GaugeOpts{

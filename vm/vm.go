@@ -275,6 +275,7 @@ func (vm *VM) Initialize(
 		minUnitPrice := genesisRules.GetMinUnitPrice()
 		for i := chain.Dimension(0); i < chain.FeeDimensions; i++ {
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
+			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 		}
 		if err := view.Insert(ctx, vm.StateManager().FeeKey(), feeManager.Bytes()); err != nil {
 			return err
