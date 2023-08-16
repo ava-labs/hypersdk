@@ -10,7 +10,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -143,33 +142,23 @@ func (t *Transaction) StateKeys(stateMapping StateManager) [][]byte {
 
 // Units is charged whether or not a transaction is successful because state
 // lookup is not free.
-func (t *Transaction) MaxUnits(r Rules) (Dimensions, error) {
-	d, err := Add(t.Action.MaxUnits(r), t.Auth.MaxUnits(r))
-	if err != nil {
-		return Dimensions{}, err
-	}
-	if err := d.Add(Compute, r.GetBaseComputeUnits()); err != nil {
-		return Dimensions{}, err
-	}
+func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
+	// We can't charge by byte because we don't know the size
+	// of the objects before execution (and that's when we deduct fees).
+	stateKeys := uint64(len(t.StateKeys(sm))) // includes warp keys
+	maxComputeUnits := r.GetBaseComputeUnits() + t.Action.MaxComputeUnits(r) + t.Auth.MaxComputeUnits(r)
 	if t.WarpMessage != nil {
-		if err := d.Add(Compute, r.GetBaseWarpComputeUnits()); err != nil {
-			return Dimensions{}, err
-		}
-		warpSignerComputeUnits, err := smath.Mul64(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
-		if err != nil {
-			return Dimensions{}, err
-		}
-		if err := d.Add(Compute, warpSignerComputeUnits); err != nil {
-			return Dimensions{}, err
-		}
+		maxComputeUnits += r.GetBaseWarpComputeUnits()
+		maxComputeUnits += uint64(t.numWarpSigners) * r.GetWarpComputeUnitsPerSigner()
 	}
-	return d, nil
+	return Dimensions{uint64(t.Size()), maxComputeUnits, stateKeys, stateKeys, stateKeys}, nil
 }
 
 // PreExecute must not modify state
 func (t *Transaction) PreExecute(
 	ctx context.Context,
 	feeManager *FeeManager,
+	s StateManager,
 	r Rules,
 	db Database,
 	timestamp int64,
@@ -194,11 +183,7 @@ func (t *Transaction) PreExecute(
 	if t.Base.MaxFee < r.GetMinFee() {
 		return ErrInvalidFee
 	}
-	// TODO: check after fee
-	if _, err := t.Auth.Verify(ctx, r, db, t.Action); err != nil {
-		return fmt.Errorf("%w: %v", ErrAuthFailed, err) //nolint:errorlint
-	}
-	maxUnits, err := t.MaxUnits(r)
+	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
 		return err
 	}
@@ -206,22 +191,31 @@ func (t *Transaction) PreExecute(
 	if err != nil {
 		return err
 	}
-	return t.Auth.CanDeduct(ctx, db, maxFee)
+	if err := t.Auth.CanDeduct(ctx, db, maxFee); err != nil {
+		return err
+	}
+	if _, err := t.Auth.Verify(ctx, r, db, t.Action); err != nil {
+		return fmt.Errorf("%w: %v", ErrAuthFailed, err) //nolint:errorlint
+	}
+	return nil
 }
 
 // Execute after knowing a transaction can pay a fee
 func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *FeeManager,
-	r Rules,
 	s StateManager,
+	r Rules,
 	tdb *tstate.TState,
 	timestamp int64,
 	warpVerified bool,
 ) (*Result, error) {
+	execStart := tdb.OpIndex()
+
 	// Check warp message is not duplicate
 	if t.WarpMessage != nil {
 		// TODO: count read
+		// TODO: we need to ensure warp units are added to max units count
 		_, err := tdb.GetValue(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
 		switch {
 		case err == nil:
@@ -237,16 +231,8 @@ func (t *Transaction) Execute(
 		}
 	}
 
-	// Verify auth is correct prior to doing anything
-	//
-	// TODO: run this after checking fee?
-	authUsed, err := t.Auth.Verify(ctx, r, tdb, t.Action)
-	if err != nil {
-		return nil, err
-	}
-
 	// Always charge fee first in case [Action] moves funds
-	maxUnits, err := t.MaxUnits(r)
+	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
 		// Should never happen
 		return nil, err
@@ -262,10 +248,15 @@ func (t *Transaction) Execute(
 		return nil, err
 	}
 
+	// Verify auth is correct prior to doing anything
+	authCUs, err := t.Auth.Verify(ctx, r, tdb, t.Action)
+	if err != nil {
+		return nil, err
+	}
+
 	// We create a temp state to ensure we don't commit failed actions to state.
-	// TODO: move start to before any changes made (keep separate start for rollback)
-	start := tdb.OpIndex()
-	success, computeUnits, output, warpMessage, err := t.Action.Execute(ctx, r, tdb, timestamp, t.Auth, t.id, warpVerified)
+	actionStart := tdb.OpIndex()
+	success, actionCUs, output, warpMessage, err := t.Action.Execute(ctx, r, tdb, timestamp, t.Auth, t.id, warpVerified)
 	if err != nil {
 		return nil, err
 	}
@@ -277,55 +268,8 @@ func (t *Transaction) Execute(
 	if !success {
 		// Only keep changes if successful
 		warpMessage = nil // warp messages can only be emitted on success
-		tdb.Rollback(ctx, start)
-	}
-
-	// Create Result
-	result := &Result{
-		Success:     success,
-		Output:      output,
-		WarpMessage: warpMessage,
-	}
-
-	// Refund all units that went unused
-	//
-	// TODO: don't redo this logic here, create standard location
-	// for warp
-	used, err := Add(authUsed, result.Used)
-	if err != nil {
-		return nil, err
-	}
-	if err := used.Add(Compute, r.GetBaseComputeUnits()); err != nil {
-		return nil, err
-	}
-	if t.WarpMessage != nil {
-		if err := used.Add(Compute, r.GetBaseWarpComputeUnits()); err != nil {
-			return nil, err
-		}
-		warpSignerComputeUnits, err := smath.Mul64(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
-		if err != nil {
-			return nil, err
-		}
-		if err := used.Add(Compute, warpSignerComputeUnits); err != nil {
-			return nil, err
-		}
-	}
-	feeRequired, err := feeManager.MaxFee(used)
-	if err != nil {
-		return nil, err
-	}
-
-	// Return any funds from unused units
-	// TODO: how to handle refund before counting fees? Can we assume this will just touch 1 key, no
-	refund := maxFee - feeRequired
-	if refund > 0 {
-		if err := t.Auth.Refund(ctx, tdb, refund); err != nil {
-			return nil, err
-		}
-	}
-
-	// Handle all warp updates (if the transaction was successful)
-	if result.Success {
+		tdb.Rollback(ctx, actionStart)
+	} else {
 		// Store incoming warp messages in state by their ID to prevent replays
 		if t.WarpMessage != nil {
 			if err := tdb.Insert(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID), nil); err != nil {
@@ -335,24 +279,55 @@ func (t *Transaction) Execute(
 
 		// Store newly created warp messages in state by their txID to ensure we can
 		// always sign for a message
-		if result.WarpMessage != nil {
+		if warpMessage != nil {
 			// Enforce we are the source of our own messages
-			result.WarpMessage.NetworkID = r.NetworkID()
-			result.WarpMessage.SourceChainID = r.ChainID()
+			warpMessage.NetworkID = r.NetworkID()
+			warpMessage.SourceChainID = r.ChainID()
 			// Initialize message (compute bytes) now that everything is populated
-			if err := result.WarpMessage.Initialize(); err != nil {
+			if err := warpMessage.Initialize(); err != nil {
 				return nil, err
 			}
 			// We use txID here because did not know the warpID before execution (and
 			// we pre-reserve this key for the processor).
-			if err := tdb.Insert(ctx, s.OutgoingWarpKey(t.id), result.WarpMessage.Bytes()); err != nil {
+			if err := tdb.Insert(ctx, s.OutgoingWarpKey(t.id), warpMessage.Bytes()); err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	creations, modifications := tdb.CountOperations(ctx, start+1)
-	return result, nil
+	// Refund all units that went unused
+	computeUnits := r.GetBaseComputeUnits() + authCUs + actionCUs
+	if t.WarpMessage != nil {
+		computeUnits += r.GetBaseWarpComputeUnits()
+		computeUnits += uint64(t.numWarpSigners) * r.GetWarpComputeUnitsPerSigner()
+	}
+	// TODO: bound to distinct keys or total ops? we won't know total ops before execution
+	creations, modifications := tdb.CountOperations(ctx, execStart+1)
+	used := Dimensions{uint64(t.Size()), computeUnits, uint64(len(t.StateKeys(s))), uint64(creations), uint64(modifications)}
+	feeRequired, err := feeManager.MaxFee(used)
+	if err != nil {
+		return nil, err
+	}
+	if feeRequired < r.GetMinFee() {
+		feeRequired = r.GetMinFee()
+	}
+
+	// Return any funds from unused units
+	//
+	// TODO: how to count state access of refund? -> if deployed by end user, can't trust to tell us
+	refund := maxFee - feeRequired
+	if refund > 0 {
+		if err := t.Auth.Refund(ctx, tdb, refund); err != nil {
+			return nil, err
+		}
+	}
+	return &Result{
+		Success:     success,
+		Output:      output,
+		WarpMessage: warpMessage,
+
+		Used: used,
+	}, nil
 }
 
 // Used by mempool

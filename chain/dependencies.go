@@ -122,6 +122,12 @@ type Rules interface {
 	GetBaseWarpComputeUnits() uint64
 	GetWarpComputeUnitsPerSigner() uint64
 
+	// We can't charge by byte because we don't know the size
+	// of the objects before execution (and that's when we deduct fees).
+	GetReadStorageUnits() uint64
+	GetCreationStorageUnits() uint64
+	GetModificationStorageUnits() uint64
+
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
 
 	FetchCustom(string) (any, bool)
@@ -143,7 +149,7 @@ type Action interface {
 
 	// MaxUnits is used to determine whether the [Action] is executable in the given block. Implementors
 	// should make a best effort to specify these as close to possible to the actual max.
-	MaxUnits(Rules) Dimensions
+	MaxComputeUnits(Rules) uint64
 
 	// Auth may contain an [Actor] that performs a transaction
 	//
@@ -185,7 +191,7 @@ type Auth interface {
 	GetTypeID() uint8                          // identify uniquely the auth
 	ValidRange(Rules) (start int64, end int64) // -1 means no start/end
 
-	MaxUnits(Rules) Dimensions
+	MaxComputeUnits(Rules) uint64
 
 	StateKeys() [][]byte
 
@@ -193,12 +199,13 @@ type Auth interface {
 	AsyncVerify(msg []byte) error
 
 	// Is Auth able to execute [Action], assuming [AsyncVerify] passes?
+	// ComputeUnite should take into account asyncVerify units
 	Verify(
 		ctx context.Context,
 		r Rules,
 		db Database, // Should only read, no mutate
 		action Action, // Authentication may be scoped to action type
-	) (Dimensions, error) // if there is account abstraction, may need to pull from state some mapping
+	) (computeUnits uint64, err error) // if there is account abstraction, may need to pull from state some mapping
 	// if verify is not validate, then what? -> can't actually change fee then?
 	// units should include any cost associated with [AsyncVerify]
 
