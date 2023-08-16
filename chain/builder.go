@@ -67,6 +67,7 @@ func BuildBlock(
 	defer span.End()
 	log := vm.Logger()
 
+	// Setup new block
 	parent, err := vm.GetStatelessBlock(ctx, preferred)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent", zap.Error(err))
@@ -78,13 +79,9 @@ func BuildBlock(
 		log.Warn("block building failed", zap.Error(ErrTimestampTooEarly))
 		return nil, ErrTimestampTooEarly
 	}
-	ectx, err := GenerateExecutionContext(ctx, nextTime, parent, vm.Tracer(), r)
-	if err != nil {
-		log.Warn("block building failed: couldn't get execution context", zap.Error(err))
-		return nil, err
-	}
-	b := NewBlock(ectx, vm, parent, nextTime)
+	b := NewBlock(vm, parent, nextTime)
 
+	// Fetch state to build on
 	mempoolSize := vm.Mempool().Len(ctx)
 	changesEstimate := math.Min(mempoolSize, maxViewPreallocation)
 	state, err := parent.childState(ctx, changesEstimate)
@@ -92,6 +89,18 @@ func BuildBlock(
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err
 	}
+
+	// Compute next unit prices to use
+	feeRaw, err := state.GetValue(ctx, vm.StateManager().FeeKey())
+	if err != nil {
+		return nil, err
+	}
+	feeManager := NewFeeManager(feeRaw)
+	nextFeeManager, err := feeManager.ComputeNext(parent.Tmstmp, nextTime, r)
+	if err != nil {
+		return nil, err
+	}
+
 	ts := tstate.New(changesEstimate)
 
 	var (
@@ -269,7 +278,7 @@ func BuildBlock(
 			ts.SetScope(ctx, next.StateKeys(sm), nextTxData.storage)
 
 			// PreExecute next to see if it is fit
-			if err := next.PreExecute(ctx, ectx, r, ts, nextTime); err != nil {
+			if err := next.PreExecute(ctx, nextFeeManager, r, ts, nextTime); err != nil {
 				ts.Rollback(ctx, txStart)
 				cont, restore, _ := HandlePreExecute(err)
 				if !cont {
@@ -315,6 +324,7 @@ func BuildBlock(
 			// If execution works, keep moving forward with new state
 			result, err := next.Execute(
 				ctx,
+				nextFeeManager,
 				r,
 				sm,
 				ts,

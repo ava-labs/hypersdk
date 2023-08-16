@@ -107,7 +107,7 @@ type StatelessBlock struct {
 	sigJob workers.Job
 }
 
-func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
+func NewBlock(vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
 	return &StatelessBlock{
 		StatefulBlock: &StatefulBlock{
 			Prnt:   parent.ID(),
