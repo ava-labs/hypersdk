@@ -31,15 +31,15 @@ var genGenesisCmd = &cobra.Command{
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
 		g := genesis.Default()
-		if minUnitPrice >= 0 {
-			g.MinUnitPrice = uint64(minUnitPrice)
-		}
-		if maxBlockUnits >= 0 {
-			g.MaxBlockUnits = uint64(maxBlockUnits)
-		}
-		if windowTargetUnits >= 0 {
-			g.WindowTargetUnits = uint64(windowTargetUnits)
-		}
+		// if minUnitPrice >= 0 {
+		// 	g.MinUnitPrice = uint64(minUnitPrice)
+		// }
+		// if maxBlockUnits >= 0 {
+		// 	g.MaxBlockUnits = uint64(maxBlockUnits)
+		// }
+		// if windowTargetUnits >= 0 {
+		// 	g.WindowTargetUnits = uint64(windowTargetUnits)
+		// }
 		if minBlockGap >= 0 {
 			g.MinBlockGap = minBlockGap
 		}

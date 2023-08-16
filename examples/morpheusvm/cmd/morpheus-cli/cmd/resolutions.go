@@ -58,11 +58,10 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 		}
 	}
 	utils.Outf(
-		"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}units:{{/}} %d {{yellow}}summary (%s):{{/}} [%s]\n",
+		"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary (%s):{{/}} [%s]\n",
 		status,
 		tx.ID(),
 		tutils.Address(actor),
-		result.Units,
 		reflect.TypeOf(tx.Action),
 		summaryStr,
 	)
