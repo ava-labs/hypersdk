@@ -272,14 +272,16 @@ func (t *Transaction) Execute(
 		// fast)
 		return nil, ErrInvalidObject
 	}
-	if (warpMessage == nil && t.Action.OutputsWarpMessage()) || (warpMessage != nil && !t.Action.OutputsWarpMessage()) {
-		return nil, ErrInvalidObject
-	}
 	if !success {
 		// Only keep changes if successful
 		warpMessage = nil // warp messages can only be emitted on success
 		tdb.Rollback(ctx, actionStart)
 	} else {
+		// Ensure constraints hold if successful
+		if (warpMessage == nil && t.Action.OutputsWarpMessage()) || (warpMessage != nil && !t.Action.OutputsWarpMessage()) {
+			return nil, ErrInvalidObject
+		}
+
 		// Store incoming warp messages in state by their ID to prevent replays
 		if t.WarpMessage != nil {
 			if err := tdb.Insert(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID), nil); err != nil {
