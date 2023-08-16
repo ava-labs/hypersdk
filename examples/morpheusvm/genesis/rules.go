@@ -42,11 +42,15 @@ func (r *Rules) GetMinEmptyBlockGap() int64 {
 	return r.g.MinEmptyBlockGap
 }
 
-func (r *Rules) GetWarpBaseUnits() uint64 {
+func (*Rules) GetMinFee() uint64 {
+	return 1
+}
+
+func (r *Rules) GetBaseWarpComputeUnits() uint64 {
 	return r.g.WarpBaseUnits
 }
 
-func (r *Rules) GetWarpUnitsPerSigner() uint64 {
+func (r *Rules) GetWarpComputeUnitsPerSigner() uint64 {
 	return r.g.WarpUnitsPerSigner
 }
 
@@ -54,23 +58,23 @@ func (r *Rules) GetValidityWindow() int64 {
 	return r.g.ValidityWindow
 }
 
-func (r *Rules) GetMaxBlockUnits() uint64 {
+func (r *Rules) GetMaxBlockUnits() chain.Dimensions {
 	return r.g.MaxBlockUnits
 }
 
-func (r *Rules) GetBaseUnits() uint64 {
+func (r *Rules) GetBaseComputeUnits() uint64 {
 	return r.g.BaseUnits
 }
 
-func (r *Rules) GetMinUnitPrice() uint64 {
+func (r *Rules) GetMinUnitPrice() chain.Dimensions {
 	return r.g.MinUnitPrice
 }
 
-func (r *Rules) GetUnitPriceChangeDenominator() uint64 {
+func (r *Rules) GetUnitPriceChangeDenominator() chain.Dimensions {
 	return r.g.UnitPriceChangeDenominator
 }
 
-func (r *Rules) GetWindowTargetUnits() uint64 {
+func (r *Rules) GetWindowTargetUnits() chain.Dimensions {
 	return r.g.WindowTargetUnits
 }
 

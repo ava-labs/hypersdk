@@ -121,9 +121,6 @@ type Rules interface {
 	GetBaseComputeUnits() uint64
 	GetBaseWarpComputeUnits() uint64
 	GetWarpComputeUnitsPerSigner() uint64
-	GetStorageUnitsPerRead() uint64
-	GetStorageUnitsPerCreation() uint64
-	GetStorageUnitsPerModification() uint64
 
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
 
