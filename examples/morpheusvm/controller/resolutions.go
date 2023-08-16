@@ -30,7 +30,7 @@ func (c *Controller) Tracer() trace.Tracer {
 func (c *Controller) GetTransaction(
 	ctx context.Context,
 	txID ids.ID,
-) (bool, int64, bool, chain.Dimensions, error) {
+) (bool, int64, bool, chain.Dimensions, uint64, error) {
 	return storage.GetTransaction(ctx, c.metaDB, txID)
 }
 

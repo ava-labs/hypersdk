@@ -158,7 +158,8 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 				tx.ID(),
 				blk.GetTimestamp(),
 				result.Success,
-				result.Used,
+				result.Units,
+				result.Fee,
 			)
 			if err != nil {
 				return err

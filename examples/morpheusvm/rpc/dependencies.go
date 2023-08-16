@@ -16,6 +16,6 @@ import (
 type Controller interface {
 	Genesis() *genesis.Genesis
 	Tracer() trace.Tracer
-	GetTransaction(context.Context, ids.ID) (bool, int64, bool, chain.Dimensions, error)
+	GetTransaction(context.Context, ids.ID) (bool, int64, bool, chain.Dimensions, uint64, error)
 	GetBalanceFromState(context.Context, ed25519.PublicKey) (uint64, error)
 }

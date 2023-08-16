@@ -351,7 +351,18 @@ func (*Handler) PrintStatus(txID ids.ID, success bool) {
 
 func PrintUnitPrices(d chain.Dimensions) {
 	utils.Outf(
-		"{{cyan}}unit prices{{/}} {{yellow}}bandwidth:{{/}} %d {{yellow}}compute:{{/}} %d {{yellow}}storage[read]:{{/}} %d {{yellow}}storage[create]:{{/}} %d {{yellow}}storage[modify]:{{/}} %d\n",
+		"{{cyan}}unit prices{{/}} {{yellow}}bandwidth:{{/}} %d {{yellow}}compute:{{/}} %d {{yellow}}storage(read):{{/}} %d {{yellow}}storage(create):{{/}} %d {{yellow}}storage(modify):{{/}} %d\n",
+		d[chain.Bandwidth],
+		d[chain.Compute],
+		d[chain.StorageRead],
+		d[chain.StorageCreate],
+		d[chain.StorageModification],
+	)
+}
+
+func ParseDimensions(d chain.Dimensions) string {
+	return fmt.Sprintf(
+		"bandwidth=%d compute=%d storage(read)=%d storage(create)=%d storage(modify)=%d",
 		d[chain.Bandwidth],
 		d[chain.Compute],
 		d[chain.StorageRead],

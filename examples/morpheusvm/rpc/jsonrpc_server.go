@@ -37,13 +37,14 @@ type TxReply struct {
 	Timestamp int64  `json:"timestamp"`
 	Success   bool   `json:"success"`
 	Units     []byte `json:"units"`
+	Fee       uint64 `json:"fee"`
 }
 
 func (j *JSONRPCServer) Tx(req *http.Request, args *TxArgs, reply *TxReply) error {
 	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Tx")
 	defer span.End()
 
-	found, t, success, units, err := j.c.GetTransaction(ctx, args.TxID)
+	found, t, success, units, fee, err := j.c.GetTransaction(ctx, args.TxID)
 	if err != nil {
 		return err
 	}
@@ -57,6 +58,7 @@ func (j *JSONRPCServer) Tx(req *http.Request, args *TxArgs, reply *TxReply) erro
 		return err
 	}
 	reply.Units = raw
+	reply.Fee = fee
 	return nil
 }
 
