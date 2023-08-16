@@ -13,6 +13,10 @@ func (*StateManager) HeightKey() []byte {
 	return HeightKey()
 }
 
+func (*StateManager) FeeKey() []byte {
+	return FeeKey()
+}
+
 func (*StateManager) IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) []byte {
 	return IncomingWarpKeyPrefix(sourceChainID, msgID)
 }

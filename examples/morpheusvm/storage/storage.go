@@ -40,12 +40,15 @@ const (
 	balancePrefix      = 0x0
 	incomingWarpPrefix = 0x1
 	outgoingWarpPrefix = 0x2
+	heightPrefix       = 0x3
+	feePrefix          = 0x4
 )
 
 var (
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
-	heightKey   = []byte{}
+	heightKey   = []byte{heightPrefix}
+	feeKey      = []byte{feePrefix}
 
 	// TODO: extend to other types
 	balancePrefixPool = sync.Pool{
@@ -70,17 +73,21 @@ func StoreTransaction(
 	id ids.ID,
 	t int64,
 	success bool,
-	units uint64,
+	units chain.Dimensions,
 ) error {
 	k := PrefixTxKey(id)
-	v := make([]byte, consts.Uint64Len+1+consts.Uint64Len)
+	v := make([]byte, consts.Uint64Len+1+chain.DimensionsLen)
 	binary.BigEndian.PutUint64(v, uint64(t))
 	if success {
 		v[consts.Uint64Len] = successByte
 	} else {
 		v[consts.Uint64Len] = failureByte
 	}
-	binary.BigEndian.PutUint64(v[consts.Uint64Len+1:], units)
+	fees, err := units.Bytes()
+	if err != nil {
+		return err
+	}
+	copy(v[consts.Uint64Len+1:], fees)
 	return db.Put(k, v)
 }
 
@@ -88,22 +95,25 @@ func GetTransaction(
 	_ context.Context,
 	db database.KeyValueReader,
 	id ids.ID,
-) (bool, int64, bool, uint64, error) {
+) (bool, int64, bool, chain.Dimensions, error) {
 	k := PrefixTxKey(id)
 	v, err := db.Get(k)
 	if errors.Is(err, database.ErrNotFound) {
-		return false, 0, false, 0, nil
+		return false, 0, false, chain.Dimensions{}, nil
 	}
 	if err != nil {
-		return false, 0, false, 0, err
+		return false, 0, false, chain.Dimensions{}, err
 	}
 	t := int64(binary.BigEndian.Uint64(v))
 	success := true
 	if v[consts.Uint64Len] == failureByte {
 		success = false
 	}
-	units := binary.BigEndian.Uint64(v[consts.Uint64Len+1:])
-	return true, t, success, units, nil
+	d, err := chain.UnpackDimensions(v[consts.Uint64Len+1:])
+	if err != nil {
+		return false, 0, false, chain.Dimensions{}, err
+	}
+	return true, t, success, d, nil
 }
 
 // [accountPrefix] + [address]
@@ -233,6 +243,10 @@ func SubBalance(
 
 func HeightKey() (k []byte) {
 	return heightKey
+}
+
+func FeeKey() (k []byte) {
+	return feeKey
 }
 
 func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
