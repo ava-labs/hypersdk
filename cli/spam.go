@@ -215,11 +215,10 @@ func (h *Handler) Spam(
 	}()
 
 	// broadcast txs
-	// TODO: print out unit prices
-	// unitPrices, err := clients[0].c.UnitPrices(ctx)
-	// if err != nil {
-	// 	return err
-	// }
+	unitPrices, err := clients[0].c.UnitPrices(ctx)
+	if err != nil {
+		return err
+	}
 	g, gctx := errgroup.WithContext(ctx)
 	for ri := 0; ri < numAccounts; ri++ {
 		i := ri
@@ -269,8 +268,18 @@ func (h *Handler) Spam(
 						}
 						v := selected[recipient] + 1
 						selected[recipient] = v
-						maxFee := uint64(1000) // TODO: fix this
-						_, tx, err := issuer.c.GenerateTransactionManual(parser, nil, getTransfer(recipient, uint64(v)), factory, maxFee, tm)
+						action := getTransfer(recipient, uint64(v))
+						maxUnits, err := chain.EstimateMaxUnits(parser.Rules(nextTime*consts.MillisecondsPerSecond), action, factory, nil)
+						if err != nil {
+							utils.Outf("{{orange}}failed to estimate max units:{{/}} %v\n", err)
+							return err
+						}
+						maxFee, err := chain.MulSum(unitPrices, maxUnits)
+						if err != nil {
+							utils.Outf("{{orange}}failed to estimate max fee:{{/}} %v\n", err)
+							return err
+						}
+						_, tx, err := issuer.c.GenerateTransactionManual(parser, nil, action, factory, maxFee, tm)
 						if err != nil {
 							utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
 							continue

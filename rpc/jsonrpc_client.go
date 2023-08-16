@@ -178,13 +178,14 @@ func (cli *JSONRPCClient) GenerateTransaction(
 		return nil, nil, 0, err
 	}
 
-	// TODO: also get max units for auth
-	maxUnits := action.MaxUnits(parser.Rules(time.Now().UnixMilli()))
+	maxUnits, err := chain.EstimateMaxUnits(parser.Rules(time.Now().UnixMilli()), action, authFactory, wm)
+	if err != nil {
+		return nil, nil, 0, err
+	}
 	maxFee, err := chain.MulSum(unitPrices, maxUnits)
 	if err != nil {
 		return nil, nil, 0, err
 	}
-
 	f, tx, err := cli.GenerateTransactionManual(parser, wm, action, authFactory, maxFee, modifiers...)
 	if err != nil {
 		return nil, nil, 0, err
