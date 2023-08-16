@@ -6,6 +6,7 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"math/rand"
 	"os"
@@ -28,7 +29,7 @@ import (
 )
 
 const (
-	feePerTx              = 1000
+	feePerTx              = 100_000
 	defaultRange          = 32
 	issuerShutdownTimeout = 60 * time.Second
 )
@@ -146,7 +147,7 @@ func (h *Handler) Spam(
 			return err
 		}
 		if err := dcli.RegisterTx(tx); err != nil {
-			return err
+			return fmt.Errorf("%w: failed to register tx", err)
 		}
 		funds[pk.PublicKey()] = distAmount
 	}
@@ -160,7 +161,7 @@ func (h *Handler) Spam(
 		}
 		if !result.Success {
 			// Should never happen
-			return ErrTxFailed
+			return fmt.Errorf("%w: %s", ErrTxFailed, result.Output)
 		}
 	}
 	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", numAccounts)
@@ -393,7 +394,7 @@ func (h *Handler) Spam(
 		}
 		if !result.Success {
 			// Should never happen
-			return ErrTxFailed
+			return fmt.Errorf("%w: %s", ErrTxFailed, result.Output)
 		}
 	}
 	utils.Outf(
