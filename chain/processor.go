@@ -97,7 +97,7 @@ func (p *Processor) Execute(
 		tx := txData.tx
 
 		// Ensure can process next tx
-		nextUnits, err := tx.MaxUnits(r)
+		nextUnits, err := tx.MaxUnits(sm, r)
 		if err != nil {
 			return nil, 0, 0, err
 		}
@@ -110,7 +110,7 @@ func (p *Processor) Execute(
 		ts.SetScope(ctx, tx.StateKeys(sm), txData.storage)
 
 		// Execute tx
-		if err := tx.PreExecute(ctx, feeManager, r, ts, t); err != nil {
+		if err := tx.PreExecute(ctx, feeManager, sm, r, ts, t); err != nil {
 			return nil, 0, 0, err
 		}
 		// Wait to execute transaction until we have the warp result processed.
@@ -126,7 +126,7 @@ func (p *Processor) Execute(
 				return nil, 0, 0, ctx.Err()
 			}
 		}
-		result, err := tx.Execute(ctx, feeManager, r, sm, ts, t, ok && warpVerified)
+		result, err := tx.Execute(ctx, feeManager, sm, r, ts, t, ok && warpVerified)
 		if err != nil {
 			return nil, 0, 0, err
 		}

@@ -243,7 +243,7 @@ func BuildBlock(
 			}
 
 			// Ensure we have room
-			nextUnits, err := next.MaxUnits(r)
+			nextUnits, err := next.MaxUnits(sm, r)
 			if err != nil {
 				// Should never happen
 				log.Warn(
@@ -271,7 +271,7 @@ func BuildBlock(
 			ts.SetScope(ctx, next.StateKeys(sm), nextTxData.storage)
 
 			// PreExecute next to see if it is fit
-			if err := next.PreExecute(ctx, nextFeeManager, r, ts, nextTime); err != nil {
+			if err := next.PreExecute(ctx, nextFeeManager, sm, r, ts, nextTime); err != nil {
 				ts.Rollback(ctx, txStart)
 				cont, restore, _ := HandlePreExecute(err)
 				if !cont {
@@ -318,8 +318,8 @@ func BuildBlock(
 			result, err := next.Execute(
 				ctx,
 				nextFeeManager,
-				r,
 				sm,
+				r,
 				ts,
 				nextTime,
 				next.WarpMessage != nil && warpErr == nil,
