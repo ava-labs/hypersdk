@@ -47,24 +47,40 @@ func (t *Transfer) Execute(
 	_ ids.ID,
 	_ bool,
 ) (*chain.Result, error) {
+	d := chain.Dimensions{}
+	d[chain.Bandwidth] = uint64(t.Size())
+	d[chain.StorageRead] = 2 // send/receiver balance
+
 	actor := auth.GetActor(rauth)
-	unitsUsed := t.MaxUnits(r) // max units == units
 	if t.Value == 0 {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
+		return &chain.Result{Success: false, Used: d, Output: OutputValueZero}, nil
 	}
-	if err := storage.SubBalance(ctx, db, actor, t.Value); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	if _, err := storage.SubBalance(ctx, db, actor, t.Value); err != nil {
+		return &chain.Result{Success: false, Used: d, Output: utils.ErrBytes(err)}, nil
 	}
-	if err := storage.AddBalance(ctx, db, t.To, t.Value); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+	recipientExists, err := storage.AddBalance(ctx, db, t.To, t.Value)
+	if err != nil {
+		return &chain.Result{Success: false, Used: d, Output: utils.ErrBytes(err)}, nil
 	}
-	return &chain.Result{Success: true, Units: unitsUsed}, nil
+	if recipientExists {
+		// TODO: what to do if this key is also used for fee adjustment? We are
+		// now double-counting
+		d[chain.StorageModification] = 2 // send/receiver balance
+	} else {
+		d[chain.StorageModification] = 1 // send balance
+		d[chain.StorageCreate] = 1       // recipient
+	}
+	return &chain.Result{Success: true, Used: d}, nil
 }
 
-func (*Transfer) MaxUnits(chain.Rules) uint64 {
-	// We use size as the price of this transaction but we could just as easily
-	// use any other calculation.
-	return ed25519.PublicKeyLen + consts.Uint64Len
+func (t *Transfer) MaxUnits(chain.Rules) chain.Dimensions {
+	d := chain.Dimensions{}
+	d[chain.Bandwidth] = uint64(t.Size())
+	d[chain.Compute] = 1
+	d[chain.StorageRead] = 2         // send/receiver balance
+	d[chain.StorageCreate] = 1       // create receiver
+	d[chain.StorageModification] = 2 // send/receiver balance
+	return d
 }
 
 func (*Transfer) Size() int {
