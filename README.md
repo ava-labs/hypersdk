@@ -133,6 +133,13 @@ verification in this function and save any state lookups for the full `Auth.Veri
 stateless activities during execution can greatly reduce the e2e verification
 time of a block when running on powerful hardware.
 
+### Multi-Dimensional Fee Pricing
+TODO: instead of relying on a single price/units, there are 5
+
+This allows for better resource utilization of the entire network.
+
+https://arxiv.org/pdf/2208.07919.pdf
+
 ### Account Abstraction
 The `hypersdk` makes no assumptions about how `Actions` (the primitive for
 interactions with any `hyperchain`, as explained below) are verified. Rather,
