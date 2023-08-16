@@ -81,7 +81,7 @@ func (d *ED25519) CanDeduct(
 	db chain.Database,
 	amount uint64,
 ) error {
-	bal, _, err := storage.GetBalance(ctx, db, d.Signer)
+	bal, err := storage.GetBalance(ctx, db, d.Signer)
 	if err != nil {
 		return err
 	}
@@ -96,8 +96,7 @@ func (d *ED25519) Deduct(
 	db chain.Database,
 	amount uint64,
 ) error {
-	_, err := storage.SubBalance(ctx, db, d.Signer, amount)
-	return err
+	return storage.SubBalance(ctx, db, d.Signer, amount)
 }
 
 func (d *ED25519) Refund(
@@ -105,8 +104,7 @@ func (d *ED25519) Refund(
 	db chain.Database,
 	amount uint64,
 ) error {
-	_, err := storage.AddBalance(ctx, db, d.Signer, amount)
-	return err
+	return storage.AddBalance(ctx, db, d.Signer, amount)
 }
 
 var _ chain.AuthFactory = (*ED25519Factory)(nil)

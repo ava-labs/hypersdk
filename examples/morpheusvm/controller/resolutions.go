@@ -38,7 +38,5 @@ func (c *Controller) GetBalanceFromState(
 	ctx context.Context,
 	pk ed25519.PublicKey,
 ) (uint64, error) {
-	// TODO: return if exists
-	v, _, err := storage.GetBalanceFromState(ctx, c.inner.ReadState, pk)
-	return v, err
+	return storage.GetBalanceFromState(ctx, c.inner.ReadState, pk)
 }
