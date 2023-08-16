@@ -212,25 +212,6 @@ func (t *Transaction) Execute(
 ) (*Result, error) {
 	execStart := tdb.OpIndex()
 
-	// Check warp message is not duplicate
-	if t.WarpMessage != nil {
-		// TODO: count read
-		// TODO: we need to ensure warp units are added to max units count
-		_, err := tdb.GetValue(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
-		switch {
-		case err == nil:
-			// Override all errors if warp message is a duplicate
-			//
-			// TODO: consider doing this check before performing signature
-			// verification.
-			warpVerified = false
-		case errors.Is(err, database.ErrNotFound):
-			// This means there are no conflicts
-		case err != nil:
-			return nil, err
-		}
-	}
-
 	// Always charge fee first in case [Action] moves funds
 	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
@@ -252,6 +233,23 @@ func (t *Transaction) Execute(
 	authCUs, err := t.Auth.Verify(ctx, r, tdb, t.Action)
 	if err != nil {
 		return nil, err
+	}
+
+	// Check warp message is not duplicate
+	if t.WarpMessage != nil {
+		_, err := tdb.GetValue(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
+		switch {
+		case err == nil:
+			// Override all errors if warp message is a duplicate
+			//
+			// TODO: consider doing this check before performing signature
+			// verification.
+			warpVerified = false
+		case errors.Is(err, database.ErrNotFound):
+			// This means there are no conflicts
+		case err != nil:
+			return nil, err
+		}
 	}
 
 	// We create a temp state to ensure we don't commit failed actions to state.
@@ -301,12 +299,26 @@ func (t *Transaction) Execute(
 		computeUnits += r.GetBaseWarpComputeUnits()
 		computeUnits += uint64(t.numWarpSigners) * r.GetWarpComputeUnitsPerSigner()
 	}
-	// TODO: bound to distinct keys or total ops? we won't know total ops before execution
-	// TODO: can exclude keys from count that are referenced by admin that will be "forced modifications"
-	// -> still could create in refund if openly deployed
-	// -> Could allow action option then block on tdb
-	creations, modifications := tdb.CountOperations(ctx, execStart+1)
-	used := Dimensions{uint64(t.Size()), computeUnits, uint64(len(t.StateKeys(s))), uint64(creations), uint64(modifications)}
+	// Because the key database is abstracted from [Actions], we can compute
+	// all storage use in the background.
+	creations, modifications := tdb.CountKeyOperations(ctx, execStart+1)
+	// Because we compute the fee before [Auth.Refund] is called, we need
+	// to precompute the storage it will change.
+	if t.Auth.RefundCreates() {
+		for _, key := range t.Auth.StateKeys() {
+			creations.Add(string(key))
+			modifications.Add(string(key))
+		}
+	} else {
+		for _, key := range t.Auth.StateKeys() {
+			modifications.Add(string(key))
+		}
+		tdb.DisableNewKeys()
+		defer tdb.DisableNewKeys()
+	}
+	// We can only charge by storage key count (not size) because we don't know the size of
+	// what will be read/written/modified before execution.
+	used := Dimensions{uint64(t.Size()), computeUnits, uint64(len(t.StateKeys(s))), uint64(creations.Len()), uint64(modifications.Len())}
 	feeRequired, err := feeManager.MaxFee(used)
 	if err != nil {
 		return nil, err
@@ -317,7 +329,7 @@ func (t *Transaction) Execute(
 
 	// Return any funds from unused units
 	//
-	// TODO: how to count state access of refund? -> if deployed by end user, can't trust to tell us
+	// To avoid storage abuse of [Auth.Refund], we precharge for possible usage.
 	refund := maxFee - feeRequired
 	if refund > 0 {
 		if err := t.Auth.Refund(ctx, tdb, refund); err != nil {
@@ -325,11 +337,11 @@ func (t *Transaction) Execute(
 		}
 	}
 	return &Result{
-		Success:     success,
-		Output:      output,
-		WarpMessage: warpMessage,
+		Success: success,
+		Output:  output,
+		Used:    used,
 
-		Used: used,
+		WarpMessage: warpMessage,
 	}, nil
 }
 

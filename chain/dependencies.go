@@ -122,12 +122,6 @@ type Rules interface {
 	GetBaseWarpComputeUnits() uint64
 	GetWarpComputeUnitsPerSigner() uint64
 
-	// We can't charge by byte because we don't know the size
-	// of the objects before execution (and that's when we deduct fees).
-	GetReadStorageUnits() uint64
-	GetCreationStorageUnits() uint64
-	GetModificationStorageUnits() uint64
-
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
 
 	FetchCustom(string) (any, bool)
@@ -199,7 +193,7 @@ type Auth interface {
 	AsyncVerify(msg []byte) error
 
 	// Is Auth able to execute [Action], assuming [AsyncVerify] passes?
-	// ComputeUnite should take into account asyncVerify units
+	// ComputeUnits should take into account [AsyncVerify], [CanDeduct], [Deduct], and [Refund]
 	Verify(
 		ctx context.Context,
 		r Rules,
@@ -214,6 +208,7 @@ type Auth interface {
 	CanDeduct(ctx context.Context, db Database, amount uint64) error
 	Deduct(ctx context.Context, db Database, amount uint64) error
 	Refund(ctx context.Context, db Database, amount uint64) error // only invoked if amount > 0
+	RefundCreates() bool
 
 	Marshal(p *codec.Packer)
 	Size() int

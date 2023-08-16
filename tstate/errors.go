@@ -5,4 +5,7 @@ package tstate
 
 import "errors"
 
-var ErrKeyNotSpecified = errors.New("key not specified")
+var (
+	ErrNewKeysDisabled = errors.New("new keys disabled")
+	ErrKeyNotSpecified = errors.New("key not specified")
+)

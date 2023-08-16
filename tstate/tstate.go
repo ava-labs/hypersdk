@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
@@ -46,6 +47,9 @@ type TState struct {
 	// Ops is a record of all operations performed on [TState]. Tracking
 	// operations allows for reverting state to a certain point-in-time.
 	ops []*op
+
+	// disableNewKeys prevents any new keys from being created
+	disableNewKeys bool
 }
 
 // New returns a new instance of TState. Initializes the storage and changedKeys
@@ -141,6 +145,9 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	}
 	k := string(key)
 	past, changed, exists := ts.getValue(ctx, k)
+	if !exists && ts.disableNewKeys {
+		return ErrNewKeysDisabled
+	}
 	ts.ops = append(ts.ops, &op{
 		k:           k,
 		pastExists:  exists,
@@ -228,14 +235,26 @@ func (ts *TState) WriteChanges(
 	return nil
 }
 
-func (ts *TState) CountOperations(ctx context.Context, start int) (int, int) {
-	var creations, modifications int
+func (ts *TState) CountKeyOperations(ctx context.Context, start int) (set.Set[string], set.Set[string]) {
+	var (
+		creations     = set.NewSet[string](0)
+		modifications = set.NewSet[string](0)
+	)
 	for i := start; i < len(ts.ops); i++ {
+		k := ts.ops[i].k
 		if ts.ops[i].pastExists {
-			modifications++
+			modifications.Add(k)
 		} else {
-			creations++
+			creations.Add(k)
 		}
 	}
 	return creations, modifications
+}
+
+func (ts *TState) DisableNewKeys() {
+	ts.disableNewKeys = true
+}
+
+func (ts *TState) EnableNewKeys() {
+	ts.disableNewKeys = false
 }
