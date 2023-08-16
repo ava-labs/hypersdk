@@ -161,12 +161,6 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 		start = time.Now()
 		now   = start.UnixMilli()
 	)
-
-	// Create temporary execution context
-	blk, err := g.vm.PreferredBlock(ctx)
-	if err != nil {
-		return err
-	}
 	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
@@ -192,7 +186,7 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 				return true, true, nil
 			}
 
-			// Gossip up to [consts.NetworkSizeLimit]
+			// Gossip up to [GossipMaxSize]
 			txSize := next.Size()
 			if txSize+size > g.cfg.GossipMaxSize {
 				return false, true, nil
@@ -208,10 +202,7 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 	if len(txs) == 0 {
 		return nil
 	}
-	g.vm.Logger().Info(
-		"gossiping transactions", zap.Int("txs", len(txs)),
-		zap.Uint64("preferred height", blk.Hght), zap.Duration("t", time.Since(start)),
-	)
+	g.vm.Logger().Info("gossiping transactions", zap.Int("txs", len(txs)), zap.Duration("t", time.Since(start)))
 	g.vm.RecordTxsGossiped(len(txs))
 	return g.sendTxs(ctx, txs)
 }

@@ -101,6 +101,7 @@ func BuildBlock(
 		return nil, err
 	}
 	maxUnits := r.GetMaxBlockUnits()
+	targetUnits := r.GetWindowTargetUnits()
 
 	ts := tstate.New(changesEstimate)
 
@@ -261,8 +262,13 @@ func BuildBlock(
 					zap.Uint64("max block units", maxUnits[dimension]),
 				)
 				restorable = append(restorable, next)
-				// TODO: add more sophisticated handling for giving up building
-				execErr = errBlockFull
+
+				// If we are above the target for the dimension we can't consume, we will
+				// stop building. This prevents a full mempool iteration looking for the
+				// "perfect fit".
+				if nextFeeManager.LastConsumed(dimension) >= targetUnits[dimension] {
+					execErr = errBlockFull
+				}
 				continue
 			}
 
