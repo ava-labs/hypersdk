@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/manifoldco/promptui"
@@ -346,4 +347,15 @@ func (*Handler) PrintStatus(txID ids.ID, success bool) {
 		status = "✅"
 	}
 	utils.Outf("%s {{yellow}}txID:{{/}} %s\n", status, txID)
+}
+
+func PrintUnitPrices(d chain.Dimensions) {
+	utils.Outf(
+		"unit prices {{yellow}}bandwidth:{{/}} %d {{yellow}}compute:{{/}} %d {{yellow}}storage[read]:{{/}} %d {{yellow}}storage[create]:{{/}} %d {{yellow}}storage[modify]:{{/}} %d\n",
+		d[chain.Bandwidth],
+		d[chain.Compute],
+		d[chain.StorageRead],
+		d[chain.StorageCreate],
+		d[chain.StorageModification],
+	)
 }

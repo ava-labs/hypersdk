@@ -219,6 +219,7 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
+	PrintUnitPrices(unitPrices)
 	g, gctx := errgroup.WithContext(ctx)
 	for ri := 0; ri < numAccounts; ri++ {
 		i := ri
