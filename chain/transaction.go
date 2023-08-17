@@ -576,5 +576,17 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 	if err != nil {
 		return Dimensions{}, err
 	}
-	return Dimensions{bandwidth, computeUnits, stateKeysCount, stateKeysCount, stateKeysCount}, nil
+	readsOp := math.NewUint64Operator(stateKeysCount)
+	readsOp.Mul(r.GetColdStorageReadUnits())
+	reads, err := readsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
+	modificationsOp := math.NewUint64Operator(stateKeysCount)
+	modificationsOp.Mul(r.GetColdStorageModificationUnits())
+	modifications, err := modificationsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
+	return Dimensions{bandwidth, computeUnits, reads, stateKeysCount, modifications}, nil
 }
