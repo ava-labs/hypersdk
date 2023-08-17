@@ -166,7 +166,19 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	// We can't charge by byte because we don't know the size
 	// of the objects before execution (and that's when we deduct fees).
 	stateKeys := uint64(t.StateKeys(sm).Len()) // includes warp keys
-	return Dimensions{uint64(t.Size()), maxComputeUnits, stateKeys, stateKeys, stateKeys}, nil
+	readsOp := math.NewUint64Operator(stateKeys)
+	readsOp.Mul(r.GetColdStorageReadUnits())
+	reads, err := readsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
+	modificationsOp := math.NewUint64Operator(stateKeys)
+	modificationsOp.Mul(r.GetColdStorageModificationUnits())
+	modifications, err := modificationsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
+	return Dimensions{uint64(t.Size()), maxComputeUnits, reads, stateKeys, modifications}, nil
 }
 
 // PreExecute must not modify state
