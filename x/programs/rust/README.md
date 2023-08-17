@@ -1,4 +1,4 @@
-# Wasmlanche_SDK
+# Rust Program SDK
 
 The `wasm_guest` folder contains the `wasmlanche_sdk`, macros and example programs
 
@@ -14,7 +14,7 @@ Just a couple things to note. Serialization is minimal, yet there are certain as
 
 On the Go side, we unmarshal in the same order.
 
-### Wasmlanche_SDK
+### Rust Program SDK
 
 This folder provides the necessary tools to build WASM programs using rust.
 

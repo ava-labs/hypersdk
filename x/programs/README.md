@@ -1,5 +1,8 @@
 # WASM Based Programs
 
+## Status
+`Alpha` not ready for production use.
+
 ## TODOs
 
 - [ ] Harden metering and add prefetch support.
