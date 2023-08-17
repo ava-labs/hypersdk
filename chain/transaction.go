@@ -325,24 +325,38 @@ func (t *Transaction) Execute(
 	}
 	// Because the key database is abstracted from [Actions], we can compute
 	// all storage use in the background.
-	creations, modifications := tdb.CountKeyOperations(ctx, execStart+1)
+	creations, coldModifications, warmModifications := tdb.CountKeyOperations(ctx, execStart+1)
 	// Because we compute the fee before [Auth.Refund] is called, we need
 	// to precompute the storage it will change.
 	for _, key := range t.Auth.StateKeys() {
-		exists, err := tdb.Exists(ctx, []byte(key))
+		changed, exists, err := tdb.Exists(ctx, []byte(key))
 		if err != nil {
 			return nil, err
 		}
 		if !exists {
 			// We pessimistically assume any keys that are referenced will be created
-			// if they don't exist.
+			// if they don't yet exist.
 			creations.Add(key)
+			continue
 		}
-		modifications.Add(key)
+		if changed {
+			warmModifications.Contains(key)
+			continue
+		}
+		coldModifications.Add(key)
 	}
 	// We can only charge by storage key count (not size) because we don't know the size of
 	// what will be read/written/modified before execution.
-	used := Dimensions{uint64(t.Size()), computeUnits, uint64(t.StateKeys(s).Len()), uint64(creations.Len()), uint64(modifications.Len())}
+	//
+	// TODO: charge by size
+	modificationsOp := math.NewUint64Operator(0)
+	modificationsOp.MulAdd(uint64(coldModifications.Len()), r.GetColdStorageModificationUnits())
+	modificationsOp.MulAdd(uint64(warmModifications.Len()), r.GetWarmStorageModificationUnits())
+	modifications, err := modificationsOp.Value()
+	if err != nil {
+		return nil, err
+	}
+	used := Dimensions{uint64(t.Size()), computeUnits, uint64(t.StateKeys(s).Len()), uint64(creations.Len()), modifications}
 	feeRequired, err := feeManager.MaxFee(used)
 	if err != nil {
 		return nil, err

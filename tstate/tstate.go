@@ -76,13 +76,13 @@ func (ts *TState) GetValue(ctx context.Context, key []byte) ([]byte, error) {
 }
 
 // Exists returns whether or not the associated [key] is present.
-func (ts *TState) Exists(ctx context.Context, key []byte) (bool, error) {
+func (ts *TState) Exists(ctx context.Context, key []byte) (bool, bool, error) {
 	if !ts.checkScope(ctx, key) {
-		return false, ErrKeyNotSpecified
+		return false, false, ErrKeyNotSpecified
 	}
 	k := string(key)
-	_, _, exists := ts.getValue(ctx, k)
-	return exists, nil
+	_, changed, exists := ts.getValue(ctx, k)
+	return changed, exists, nil
 }
 
 func (ts *TState) getValue(_ context.Context, key string) ([]byte, bool, bool) {
@@ -231,18 +231,29 @@ func (ts *TState) WriteChanges(
 	return nil
 }
 
-func (ts *TState) CountKeyOperations(ctx context.Context, start int) (set.Set[string], set.Set[string]) {
+func (ts *TState) CountKeyOperations(ctx context.Context, start int) (set.Set[string], set.Set[string], set.Set[string]) {
 	var (
-		creations     = set.NewSet[string](0)
-		modifications = set.NewSet[string](0)
+		creations         = set.NewSet[string](0)
+		coldModifications = set.NewSet[string](0)
+		warmModifications = set.NewSet[string](0)
 	)
 	for i := start; i < len(ts.ops); i++ {
-		k := ts.ops[i].k
-		if ts.ops[i].pastExists {
-			modifications.Add(k)
+		op := ts.ops[i]
+		k := op.k
+		if op.pastExists {
+			if op.pastChanged {
+				// Ensure a key is only in one modification set and that
+				// if possible to be in both, it is only in cold.
+				if !coldModifications.Contains(k) {
+					warmModifications.Add(k)
+				}
+			} else {
+				coldModifications.Add(k)
+			}
 		} else {
 			creations.Add(k)
 		}
 	}
-	return creations, modifications
+	// TODO: not charging per modification, only charging to get into transaction scope?
+	return creations, coldModifications, warmModifications
 }
