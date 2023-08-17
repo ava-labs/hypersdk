@@ -103,15 +103,11 @@ func (cli *JSONRPCClient) UnitPrices(ctx context.Context) (chain.Dimensions, err
 	if err != nil {
 		return chain.Dimensions{}, err
 	}
-	unitPrices, err := chain.UnpackDimensions(resp.UnitPrices)
-	if err != nil {
-		return chain.Dimensions{}, err
-	}
-	cli.unitPrices = unitPrices
+	cli.unitPrices = resp.UnitPrices
 	// We update the time last in case there are concurrent requests being
 	// processed (we don't want them to get an inconsistent view).
 	cli.lastUnitPrices = time.Now()
-	return unitPrices, nil
+	return resp.UnitPrices, nil
 }
 
 func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error) {

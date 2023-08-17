@@ -97,7 +97,7 @@ func (j *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAc
 }
 
 type UnitPricesReply struct {
-	UnitPrices []byte `json:"unitPrices"`
+	UnitPrices chain.Dimensions `json:"unitPrices"`
 }
 
 func (j *JSONRPCServer) UnitPrices(
@@ -112,11 +112,7 @@ func (j *JSONRPCServer) UnitPrices(
 	if err != nil {
 		return err
 	}
-	raw, err := unitPrices.Bytes()
-	if err != nil {
-		return err
-	}
-	reply.UnitPrices = raw
+	reply.UnitPrices = unitPrices
 	return nil
 }
 
