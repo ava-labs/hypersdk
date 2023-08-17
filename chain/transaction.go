@@ -216,6 +216,8 @@ func (t *Transaction) PreExecute(
 func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *FeeManager,
+	coldStorageReads []string,
+	warmStorageReads []string,
 	s StateManager,
 	r Rules,
 	tdb *tstate.TState,
@@ -349,6 +351,13 @@ func (t *Transaction) Execute(
 	// what will be read/written/modified before execution.
 	//
 	// TODO: charge by size
+	readsOp := math.NewUint64Operator(0)
+	readsOp.MulAdd(uint64(len(coldStorageReads)), r.GetColdStorageReadUnits())
+	readsOp.MulAdd(uint64(len(warmStorageReads)), r.GetWarmStorageReadUnits())
+	reads, err := readsOp.Value()
+	if err != nil {
+		return nil, err
+	}
 	modificationsOp := math.NewUint64Operator(0)
 	modificationsOp.MulAdd(uint64(coldModifications.Len()), r.GetColdStorageModificationUnits())
 	modificationsOp.MulAdd(uint64(warmModifications.Len()), r.GetWarmStorageModificationUnits())
@@ -356,7 +365,7 @@ func (t *Transaction) Execute(
 	if err != nil {
 		return nil, err
 	}
-	used := Dimensions{uint64(t.Size()), computeUnits, uint64(t.StateKeys(s).Len()), uint64(creations.Len()), modifications}
+	used := Dimensions{uint64(t.Size()), computeUnits, reads, uint64(creations.Len()), modifications}
 	feeRequired, err := feeManager.MaxFee(used)
 	if err != nil {
 		return nil, err

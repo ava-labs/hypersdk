@@ -22,6 +22,10 @@ type fetchData struct {
 type txData struct {
 	tx      *Transaction
 	storage map[string][]byte
+
+	// TODO: change to map to get amoutn actually read
+	coldReads []string
+	warmReads []string
 }
 
 type Processor struct {
@@ -52,14 +56,18 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 		// Store required keys for each set
 		alreadyFetched := make(map[string]*fetchData, len(p.blk.GetTxs()))
 		for _, tx := range p.blk.GetTxs() {
+			coldReads := []string{}
+			warmReads := []string{}
 			storage := map[string][]byte{}
 			for k := range tx.StateKeys(sm) {
 				if v, ok := alreadyFetched[k]; ok {
+					warmReads = append(warmReads, k)
 					if v.exists {
 						storage[k] = v.v
 					}
 					continue
 				}
+				coldReads = append(coldReads, k)
 				v, err := db.GetValue(ctx, []byte(k))
 				if errors.Is(err, database.ErrNotFound) {
 					alreadyFetched[k] = &fetchData{nil, false}
@@ -70,7 +78,7 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 				alreadyFetched[k] = &fetchData{v, true}
 				storage[k] = v
 			}
-			p.readyTxs <- &txData{tx, storage}
+			p.readyTxs <- &txData{tx, storage, coldReads, warmReads}
 		}
 
 		// Let caller know all sets have been readied
@@ -125,7 +133,7 @@ func (p *Processor) Execute(
 				return nil, 0, 0, ctx.Err()
 			}
 		}
-		result, err := tx.Execute(ctx, feeManager, sm, r, ts, t, ok && warpVerified)
+		result, err := tx.Execute(ctx, feeManager, txData.coldReads, txData.warmReads, sm, r, ts, t, ok && warpVerified)
 		if err != nil {
 			return nil, 0, 0, err
 		}
