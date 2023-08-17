@@ -26,21 +26,20 @@ const (
 	deallocFnName = "dealloc"
 )
 
-func New(log logging.Logger, db chain.Database, meter meter.Meter, programPrefix byte) *runtime {
+func New(log logging.Logger, meter meter.Meter, programStorage ProgramStorage) *runtime {
 	return &runtime{
-		log:           log,
-		db:            db,
-		meter:         meter,
-		programPrefix: programPrefix,
-		exported:      make(map[string]api.Function),
+		log:            log,
+		meter:          meter,
+		programStorage: programStorage,
+		exported:       make(map[string]api.Function),
 	}
 }
 
 type runtime struct {
-	engine        wazero.Runtime
-	mod           api.Module
-	meter         meter.Meter
-	programPrefix byte
+	engine         wazero.Runtime
+	mod            api.Module
+	meter          meter.Meter
+	programStorage ProgramStorage
 	// functions exported by this runtime
 	exported map[string]api.Function
 	db       chain.Database
@@ -61,7 +60,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions
 	}
 
 	// enable program to program call delegation
-	delegateMod := NewDelegateModule(r.log, r.db, r.meter, r.programPrefix)
+	delegateMod := NewDelegateModule(r.log, r.db, r.meter, r.programStorage)
 	err = delegateMod.Instantiate(ctx, r.engine)
 	if err != nil {
 		return fmt.Errorf("failed to create delegate host module: %w", err)

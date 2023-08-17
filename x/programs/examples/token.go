@@ -48,8 +48,9 @@ func (t *Token) Run(ctx context.Context) error {
 
 	meter := meter.New(t.maxFee, t.costMap)
 	db := utils.NewTestDB()
+	store := newProgramStorage(db)
 
-	runtime := runtime.New(t.log, db, meter, programPrefix)
+	runtime := runtime.New(t.log, meter, store)
 	err := runtime.Initialize(ctx, t.programBytes, functions)
 	if err != nil {
 		return err

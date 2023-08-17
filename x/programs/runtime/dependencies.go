@@ -21,3 +21,8 @@ type Runtime interface {
 	// Stop performs a shutdown of the engine.
 	Stop(context.Context) error
 }
+
+type ProgramStorage interface {
+	Get(context.Context, uint32) ([]byte, bool, error)
+	Set(context.Context, uint32, uint32, []byte) error
+}

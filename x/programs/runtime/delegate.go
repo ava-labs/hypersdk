@@ -5,19 +5,15 @@ package runtime
 
 import (
 	"context"
-	"encoding/binary"
-	"errors"
 	"fmt"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/x/programs/meter"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
@@ -29,20 +25,20 @@ const (
 )
 
 type DelegateModule struct {
-	db            chain.Database
-	meter         meter.Meter
-	programPrefix byte
+	db             chain.Database
+	meter          meter.Meter
+	programStorage ProgramStorage
 
 	log logging.Logger
 }
 
 // NewDelegateModule returns a new delegate host module which can perform program to program calls.
-func NewDelegateModule(log logging.Logger, db chain.Database, meter meter.Meter, programPrefix byte) *DelegateModule {
+func NewDelegateModule(log logging.Logger, db chain.Database, meter meter.Meter, programStorage ProgramStorage) *DelegateModule {
 	return &DelegateModule{
-		db:            db,
-		meter:         meter,
-		programPrefix: programPrefix,
-		log:           log,
+		db:             db,
+		meter:          meter,
+		programStorage: programStorage,
+		log:            log,
 	}
 }
 
@@ -73,7 +69,7 @@ func (d *DelegateModule) delegateProgramFn(
 	entryFn := utils.GetGuestFnName(string(entryBuf))
 
 	// get the program bytes stored in state
-	data, ok, err := getProgramBytes(ctx, d.db, uint32(programID), d.programPrefix)
+	data, ok, err := d.programStorage.Get(ctx, uint32(programID))
 	if !ok {
 		return delegateErr
 	}
@@ -82,7 +78,7 @@ func (d *DelegateModule) delegateProgramFn(
 	}
 
 	// create new runtime for the delegated call
-	runtime := New(d.log, d.db, d.meter, d.programPrefix)
+	runtime := New(d.log, d.meter, d.programStorage)
 
 	// only export the function we are calling
 	exportedFunctions := []string{entryFn}
@@ -135,28 +131,4 @@ func getCallArgs(ctx context.Context, runtime Runtime, buffer []byte, delegatePr
 		return nil, fmt.Errorf("failed to unpack arguments: %w", p.Err())
 	}
 	return args, nil
-}
-
-func getProgramBytes(
-	ctx context.Context,
-	db chain.Database,
-	id uint32,
-	prefix byte,
-) ([]byte, bool, error) {
-	k := prefixProgramKey(prefix, id)
-	v, err := db.GetValue(ctx, k)
-	if errors.Is(err, database.ErrNotFound) {
-		return nil, false, nil
-	}
-	if err != nil {
-		return nil, false, err
-	}
-	return v, true, nil
-}
-
-func prefixProgramKey(prefix byte, asset uint32) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
-	k[0] = prefix
-	binary.BigEndian.PutUint32(k, asset)
-	return
 }
