@@ -124,6 +124,9 @@ func BuildBlock(
 
 		// alreadyFetched contains keys already fetched from state that can be
 		// used during prefetching.
+		//
+		// TODO: need to ensure we only include alreadyFetched of txs that will be included in build.
+		// Can add during separate build.
 		alreadyFetched = map[string]*fetchData{}
 
 		// prepareStreamLock ensures we don't overwrite stream prefetching spawned
@@ -134,6 +137,7 @@ func BuildBlock(
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
 	mempool.StartStreaming(ctx)
 	b.Txs = []*Transaction{}
+	usedKeys := set.NewSet[string](0)
 	for time.Since(start) < vm.GetTargetBuildDuration() {
 		prepareStreamLock.Lock()
 		txs := mempool.Stream(ctx, streamBatch)
@@ -195,7 +199,7 @@ func BuildBlock(
 					alreadyFetched[k] = &fetchData{v, true}
 					storage[k] = v
 				}
-				readyTxs <- &txData{tx, storage}
+				readyTxs <- &txData{tx, storage, nil, nil}
 			}
 		}()
 
@@ -320,9 +324,20 @@ func BuildBlock(
 			}
 
 			// If execution works, keep moving forward with new state
+			coldReads := []string{}
+			warmReads := []string{}
+			for k := range next.StateKeys(sm) {
+				if usedKeys.Contains(k) {
+					warmReads = append(warmReads, k)
+					continue
+				}
+				coldReads = append(coldReads, k)
+			}
 			result, err := next.Execute(
 				ctx,
 				nextFeeManager,
+				coldReads,
+				warmReads,
 				sm,
 				r,
 				ts,
@@ -340,6 +355,7 @@ func BuildBlock(
 
 			// Update block with new transaction
 			b.Txs = append(b.Txs, next)
+			usedKeys.Add(next.StateKeys(sm).List()...)
 			if err := nextFeeManager.Consume(nextUnits); err != nil {
 				execErr = err
 				continue
