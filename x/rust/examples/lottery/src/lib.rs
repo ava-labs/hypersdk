@@ -49,7 +49,7 @@ fn play(ctx: ProgramContext, player: Address) -> bool {
     };
 
     // Transfer
-    ctx.invoke(
+    ctx.program_invoke(
         &call_ctx,
         "transfer",
         &[

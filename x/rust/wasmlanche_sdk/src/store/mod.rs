@@ -1,5 +1,5 @@
 use crate::errors::StorageError;
-use crate::host::{get_bytes, get_bytes_len, invoke_program, store_bytes};
+use crate::host::{get_bytes, get_bytes_len, host_program_invoke, store_bytes};
 use crate::program::ProgramValue;
 use std::borrow::Cow;
 use std::str;
@@ -147,17 +147,17 @@ fn get_map_field<T: Store>(
     T::from_bytes(&map_value)
 }
 
-/// Implement the invoke function for the ProgramContext which allows a program to
+/// Implement the program_invoke function for the ProgramContext which allows a program to
 /// call another program.
 impl ProgramContext {
-    pub fn invoke(
+    pub fn program_invoke(
         &self,
         call_ctx: &ProgramContext,
         fn_name: &str,
         call_args: &[ProgramValue],
     ) -> ProgramValue {
         // hardcode first arg for now
-        let result = invoke_program(&self, call_ctx, fn_name, &Self::marshal_args(call_args));
+        let result = host_program_invoke(&self, call_ctx, fn_name, &Self::marshal_args(call_args));
         // Hardcode int for now
         ProgramValue::IntObject(result)
     }

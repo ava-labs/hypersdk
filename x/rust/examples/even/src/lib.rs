@@ -26,7 +26,7 @@ fn inc(ctx: ProgramContext, whose: Address, amt: i64) {
             return;
         }
     };
-    ctx.invoke(
+    ctx.program_invoke(
         &call_ctx,
         "inc",
         &[ProgramValue::from(whose), ProgramValue::IntObject(amt * 2)],
@@ -44,6 +44,6 @@ fn value(ctx: ProgramContext, whose: Address) -> i64 {
         }
     };
 
-    let result = ctx.invoke(&call_ctx, "value", &[ProgramValue::from(whose)]);
+    let result = ctx.program_invoke(&call_ctx, "value", &[ProgramValue::from(whose)]);
     i64::from(result)
 }

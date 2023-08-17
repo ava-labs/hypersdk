@@ -60,7 +60,7 @@ pub fn get_bytes(ctx: &ProgramContext, key_ptr: *const u8, key_len: usize, val_l
     unsafe { _get_bytes(ctx.program_id, key_ptr, key_len, val_len) }
 }
 
-pub fn invoke_program(
+pub fn host_program_invoke(
     ctx: &ProgramContext,
     call_ctx: &ProgramContext,
     method_name: &str,
