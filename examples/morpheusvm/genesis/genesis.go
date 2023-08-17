@@ -44,10 +44,14 @@ type Genesis struct {
 	ValidityWindow int64 `json:"validityWindow"` // ms
 
 	// Tx Fee Parameters
-	BaseComputeUnits          uint64 `json:"baseUnits"`
-	BaseWarpComputeUnits      uint64 `json:"baseWarpUnits"`
-	WarpComputeUnitsPerSigner uint64 `json:"warpUnitsPerSigner"`
-	OutgoingWarpComputeUnits  uint64 `json:"outgoingWarpComputeUnits"`
+	BaseComputeUnits             uint64 `json:"baseUnits"`
+	BaseWarpComputeUnits         uint64 `json:"baseWarpUnits"`
+	WarpComputeUnitsPerSigner    uint64 `json:"warpUnitsPerSigner"`
+	OutgoingWarpComputeUnits     uint64 `json:"outgoingWarpComputeUnits"`
+	ColdStorageReadUnits         uint64 `json:"coldStorageReadUnits"`
+	WarmStorageReadUnits         uint64 `json:"warmStorageReadUnits"`
+	ColdStorageModificationUnits uint64 `json:"coldStorageModificationUnits"`
+	WarmStorageModificationUnits uint64 `json:"warmStorageModificationUnits"`
 
 	// Allocations
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
@@ -71,10 +75,14 @@ func Default() *Genesis {
 		ValidityWindow: 60 * hconsts.MillisecondsPerSecond, // ms
 
 		// Tx Fee Parameters
-		BaseComputeUnits:          1,
-		BaseWarpComputeUnits:      1_024,
-		WarpComputeUnitsPerSigner: 128,
-		OutgoingWarpComputeUnits:  1_024,
+		BaseComputeUnits:             1,
+		BaseWarpComputeUnits:         1_024,
+		WarpComputeUnitsPerSigner:    128,
+		OutgoingWarpComputeUnits:     1_024,
+		ColdStorageReadUnits:         5,
+		WarmStorageReadUnits:         1,
+		ColdStorageModificationUnits: 10,
+		WarmStorageModificationUnits: 1,
 	}
 }
 
@@ -85,9 +93,6 @@ func New(b []byte, _ []byte /* upgradeBytes */) (*Genesis, error) {
 			return nil, fmt.Errorf("failed to unmarshal config %s: %w", string(b), err)
 		}
 	}
-	// if g.WindowTargetUnits == 0 {
-	// 	return nil, ErrInvalidTarget
-	// }
 	return g, nil
 }
 

@@ -66,6 +66,22 @@ func (r *Rules) GetBaseComputeUnits() uint64 {
 	return r.g.BaseComputeUnits
 }
 
+func (r *Rules) GetColdStorageReadUnits() uint64 {
+	return r.g.ColdStorageReadUnits
+}
+
+func (r *Rules) GetWarmStorageReadUnits() uint64 {
+	return r.g.WarmStorageReadUnits
+}
+
+func (r *Rules) GetColdStorageModificationUnits() uint64 {
+	return r.g.ColdStorageModificationUnits
+}
+
+func (r *Rules) GetWarmStorageModificationUnits() uint64 {
+	return r.g.WarmStorageModificationUnits
+}
+
 func (r *Rules) GetMinUnitPrice() chain.Dimensions {
 	return r.g.MinUnitPrice
 }
