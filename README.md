@@ -140,6 +140,11 @@ This allows for better resource utilization of the entire network.
 
 https://arxiv.org/pdf/2208.07919.pdf
 
+TODO: advanced fee model that discounts for warm reads/modifications across
+the block
+
+TODO: charge for storage read/create/modify on disk
+
 ### Account Abstraction
 The `hypersdk` makes no assumptions about how `Actions` (the primitive for
 interactions with any `hyperchain`, as explained below) are verified. Rather,
