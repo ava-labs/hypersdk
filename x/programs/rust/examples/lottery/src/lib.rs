@@ -11,7 +11,7 @@ static TOKEN_CONTRACT_NAME: &str = "token_contract";
 #[expose]
 fn init_contract() -> i64 {
     let token_contract = Program::new();
-    token_contract.publish().into()
+    token_contract.publish().unwrap().into()
 }
 
 /// Sets the token contract address and the lotto address. This needs to be set

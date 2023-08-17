@@ -5,12 +5,18 @@ pub enum StorageError {
     #[error("an unclassified error has occurred: {0}")]
     Other(String),
 
-    #[error("Invalid Bytes: {0}")]
-    InvalidBytes(String),
+    #[error("Invalid byte format.")]
+    InvalidBytes(),
+
+    #[error("Invalid Byte Length: {0}")]
+    InvalidByteLength(usize),
 
     #[error("Invalid Tag: {0}")]
-    InvalidTag(String),
+    InvalidTag(u8),
 
-    #[error("Host Error: {0}")]
-    HostError(String),
+    #[error("Error Storing Bytes In The Host")]
+    HostStoreError(),
+
+    #[error("Error Retrieving Bytes In The Host")]
+    HostRetrieveError(),
 }

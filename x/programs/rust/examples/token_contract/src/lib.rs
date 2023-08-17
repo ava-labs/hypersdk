@@ -13,7 +13,7 @@ pub fn init_contract() -> i64 {
     token_contract.add_field(String::from("symbol"), "WACK".into());
     token_contract.add_field(String::from("total_supply"), 123456789.into());
     token_contract.add_field(String::from("balances"), ProgramValue::MapObject);
-    token_contract.publish().into()
+    token_contract.publish().unwrap().into()
 }
 
 /// Gets total supply or -1 on error.

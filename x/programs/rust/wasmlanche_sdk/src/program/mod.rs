@@ -4,12 +4,12 @@ use crate::store::{to_string, ProgramContext, Store, Tag};
 use crate::types::Address;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use thiserror::Error;
 
-/// HostPointer contains a pointer to a location(most likely in the host) and the length of the data.
-#[derive(Copy, Clone)]
-pub struct HostPointer {
-    pub ptr: *const u8,
-    pub len: usize,
+#[derive(Clone, Error, Debug)]
+pub enum ProgramError {
+    #[error("{0}")]
+    Store(#[from] StorageError),
 }
 
 /// ProgramValue represents a value that can be stored in the host.
@@ -37,14 +37,14 @@ impl Program {
         self.fields.insert(name, val);
     }
     /// Initializes all the fields in the program and stores them in the host.
-    pub fn publish(self) -> ProgramContext {
+    pub fn publish(self) -> Result<ProgramContext, ProgramError> {
         // get the program_id from the host
         let ctx: ProgramContext = init_program_storage();
         // iterate through fields an set them in the host
         for (key, value) in &self.fields {
-            ctx.store_value(key, value).unwrap();
+            ctx.store_value(key, value)?;
         }
-        ctx
+        Ok(ctx)
     }
 }
 
@@ -76,9 +76,7 @@ impl Store for ProgramValue {
         Self: Sized,
     {
         if bytes.len() == 0 {
-            return Err(StorageError::InvalidBytes(
-                "Bytes must be non-empty".to_string(),
-            ));
+            return Err(StorageError::InvalidByteLength(0));
         }
         // First byte must represent the "tag" of the ProgramValue.
         let tag = Tag::from(bytes[0]);
@@ -86,9 +84,7 @@ impl Store for ProgramValue {
         match tag.0 {
             1 => match to_string(bytes.to_vec()) {
                 Ok(val) => Ok(ProgramValue::StringObject(val)),
-                Err(_) => Err(StorageError::InvalidBytes(
-                    "Unable to convert bytes to string".to_string(),
-                )),
+                Err(_) => Err(StorageError::InvalidBytes()),
             },
             2 => Ok(ProgramValue::MapObject),
             3 => {
@@ -99,9 +95,7 @@ impl Store for ProgramValue {
                 let address_bytes: [u8; 32] = match bytes.try_into() {
                     Ok(val) => val,
                     Err(_) => {
-                        return Err(StorageError::InvalidBytes(
-                            "Unable to convert bytes to address".to_string(),
-                        ));
+                        return Err(StorageError::InvalidBytes());
                     }
                 };
 
@@ -111,7 +105,7 @@ impl Store for ProgramValue {
                 let num = int_from_bytes(bytes)?;
                 Ok(ProgramValue::ProgramObject(ProgramContext::from(num)))
             }
-            _ => Err(StorageError::InvalidTag("Unknown tag".to_string())),
+            invalid_tag => Err(StorageError::InvalidTag(invalid_tag)),
         }
     }
 
@@ -128,11 +122,11 @@ impl Store for ProgramValue {
 }
 
 fn int_from_bytes(bytes: &[u8]) -> Result<i64, StorageError> {
-    if bytes.len() != 8 {
-        return Err(StorageError::InvalidBytes(
-            "Bytes must be 8 bytes long for ints".to_string(),
-        ));
+    match bytes.len() {
+        8 => (),
+        len => return Err(StorageError::InvalidByteLength(len)),
     }
+
     let mut array = [0u8; 8];
     array.copy_from_slice(&bytes);
     Ok(i64::from_be_bytes(array))

@@ -110,6 +110,10 @@ func (m *MapModule) getBytesLenFn(_ context.Context, mod api.Module, id uint64, 
 }
 
 func (m *MapModule) getBytesFn(ctx context.Context, mod api.Module, id uint64, keyPtr uint32, keyLength uint32, valLength int32) int32 {
+	// Ensure the key and value lengths are positive
+	if valLength < 0 || keyLength < 0 {
+		return mapErr
+	}
 	_, ok := m.store.state[id]
 	if !ok {
 		return mapErr

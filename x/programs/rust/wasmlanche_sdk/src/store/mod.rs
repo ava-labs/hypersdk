@@ -94,30 +94,24 @@ fn store_key_value<T: Store>(
         val_bytes.len(),
     ) {
         0 => Ok(()),
-        _ => Err(StorageError::HostError(
-            "Error storing bytes in host".to_string(),
-        )),
+        _ => Err(StorageError::HostStoreError()),
     }
 }
 
-fn get_field_as_bytes(ctx: &ProgramContext, name: Vec<u8>) -> Result<Vec<u8>, StorageError> {
+fn get_field_as_bytes(ctx: &ProgramContext, name: &[u8]) -> Result<Vec<u8>, StorageError> {
     let name_ptr = name.as_ptr();
     let name_len = name.len();
     // First get the length of the bytes from the host.
     let bytes_len = get_bytes_len(ctx, name_ptr, name_len);
     // Speculation that compiler might be optimizing out this if statement.
     if bytes_len < 0 {
-        return Err(StorageError::HostError(
-            "Error getting bytes from host".to_string(),
-        ));
+        return Err(StorageError::InvalidByteLength(bytes_len as usize));
     }
     // Get_bytes allocates bytes_len memory in the WASM module.
     let bytes_ptr = get_bytes(ctx, name_ptr, name_len, bytes_len);
     // Defensive check here to unsure we don't grab out of bounds memory.
     if bytes_ptr < 0 {
-        return Err(StorageError::HostError(
-            "Error getting bytes from host".to_string(),
-        ));
+        return Err(StorageError::HostRetrieveError());
     }
     let bytes_ptr = bytes_ptr as *mut u8;
 
@@ -133,14 +127,13 @@ pub fn to_string(bytes: Vec<u8>) -> Result<String, std::string::FromUtf8Error> {
 
 /// Gets the field [name] from the host and returns it as a ProgramValue.
 fn get_field<T: Store>(ctx: &ProgramContext, name: &str) -> Result<T, StorageError> {
-    let bytes = get_field_as_bytes(ctx, name.as_bytes().to_vec())?;
+    let bytes = get_field_as_bytes(ctx, name.as_bytes())?;
     T::from_bytes(&bytes)
 }
 
 /// Gets the correct key to in the host storage for a [map_name] and [key] within that map  
 fn get_map_key(map_name: &str, key: &ProgramValue) -> Vec<u8> {
     [map_name.as_bytes(), &key.as_bytes()].concat()
-    // String::from_utf8(key_bytes).unwrap_or(String::from("error"))
 }
 
 // Gets the value from the map [name] with key [key] from the host and returns it as a ProgramValue.
@@ -149,8 +142,8 @@ fn get_map_field<T: Store>(
     name: &str,
     key: ProgramValue,
 ) -> Result<T, StorageError> {
-    let result = get_map_key(&name, &key);
-    let map_value = get_field_as_bytes(ctx, result)?;
+    let map_key = get_map_key(&name, &key);
+    let map_value = get_field_as_bytes(ctx, &map_key)?;
     T::from_bytes(&map_value)
 }
 
