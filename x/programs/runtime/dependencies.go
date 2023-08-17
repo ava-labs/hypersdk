@@ -16,7 +16,7 @@ type Runtime interface {
 	// GetGuestBuffer returns a buffer from the guest at [offset] with length [length]. Returns
 	// false if out of range.
 	GetGuestBuffer(uint32, uint32) ([]byte, bool)
-	//	WriteGuestBuffer allocates buf to the heap on the guest and returns the offset.
+	// WriteGuestBuffer allocates buf to the heap on the guest and returns the offset.
 	WriteGuestBuffer(context.Context, []byte) (uint64, error)
 	// Stop performs a shutdown of the engine.
 	Stop(context.Context) error

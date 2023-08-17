@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ava-labs/avalanchego/database/memdb"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/tetratelabs/wazero/api"
+
+	"github.com/ava-labs/avalanchego/database/memdb"
+
+	"github.com/ava-labs/hypersdk/chain"
 )
 
 type testDB struct {
