@@ -1,0 +1,15 @@
+# extend if new rust crates are added so rust analyzer isnt confused
+[workspace]
+members = [
+    "x/programs/rust/expose_macro",
+    "x/programs/rust/wasmlanche_sdk",
+    "x/programs/rust/examples/token_contract",
+    "x/programs/rust/examples/counter_program",
+    "x/programs/rust/examples/even",
+    "x/programs/rust/examples/lottery",
+]
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
