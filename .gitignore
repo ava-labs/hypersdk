@@ -63,3 +63,4 @@ data/
 osxcross/
 
 target/
+Cargo.lock
