@@ -5,7 +5,7 @@ use wasmlanche_sdk::types::Address;
 
 /// Initializes the program. This program maps addresses with a count.
 #[expose]
-fn init_contract() -> i64 {
+fn init_program() -> i64 {
     let mut token_contract = Program::new();
     token_contract.add_field(String::from("counter"), 0.into());
     token_contract.add_field(String::from("counts"), ProgramValue::MapObject);

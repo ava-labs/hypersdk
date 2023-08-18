@@ -5,7 +5,7 @@ use wasmlanche_sdk::store::ProgramContext;
 use wasmlanche_sdk::types::Address;
 
 #[expose]
-fn init_contract() -> i64 {
+fn init_program() -> i64 {
     let token_contract = Program::new();
     token_contract.publish().unwrap().into()
 }

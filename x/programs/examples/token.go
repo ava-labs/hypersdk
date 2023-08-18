@@ -43,7 +43,7 @@ func (t *Token) Run(ctx context.Context) error {
 		"transfer",
 		"alloc",
 		"dealloc",
-		"init_contract",
+		"init_program",
 	}
 
 	meter := meter.New(t.maxFee, t.costMap)
@@ -56,7 +56,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	result, err := runtime.Call(ctx, "init_contract")
+	result, err := runtime.Call(ctx, "init_program")
 	if err != nil {
 		return err
 	}
