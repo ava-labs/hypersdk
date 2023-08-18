@@ -8,12 +8,12 @@ use expose_macro::expose;
 /// Technically adding the balances field is not necessary.
 #[expose]
 pub fn init_program() -> i64 {
-    let mut token_contract = Program::new();
-    token_contract.add_field(String::from("name"), "WasmCoin".into());
-    token_contract.add_field(String::from("symbol"), "WACK".into());
-    token_contract.add_field(String::from("total_supply"), 123456789.into());
-    token_contract.add_field(String::from("balances"), ProgramValue::MapObject);
-    token_contract.publish().unwrap().into()
+    let mut token_program = Program::new();
+    token_program.add_field(String::from("name"), "WasmCoin".into());
+    token_program.add_field(String::from("symbol"), "WACK".into());
+    token_program.add_field(String::from("total_supply"), 123456789.into());
+    token_program.add_field(String::from("balances"), ProgramValue::MapObject);
+    token_program.publish().unwrap().into()
 }
 
 /// Gets total supply or -1 on error.

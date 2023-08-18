@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	//go:embed testdata/token_contract.wasm
+	//go:embed testdata/token_program.wasm
 	tokenProgramBytes []byte
 
 	// example cost map

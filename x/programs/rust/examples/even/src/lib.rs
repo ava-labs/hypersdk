@@ -6,8 +6,8 @@ use wasmlanche_sdk::types::Address;
 
 #[expose]
 fn init_program() -> i64 {
-    let token_contract = Program::new();
-    token_contract.publish().unwrap().into()
+    let even_program = Program::new();
+    even_program.publish().unwrap().into()
 }
 
 #[expose]
