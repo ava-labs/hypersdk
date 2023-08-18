@@ -38,7 +38,7 @@ type meter struct {
 	waitCh chan struct{}
 }
 
-func (m *meter) AddCost(ctx context.Context, op string) error {
+func (m *meter) AddCost(_ context.Context, op string) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
