@@ -144,6 +144,9 @@ TODO: advanced fee model that discounts for warm reads/modifications across
 the block
 
 TODO: charge for storage read/create/modify on disk
+#### Storage
+TODO: only charge to get key/modify at bondary of tx...each access
+is really a compute question and should be charged
 
 ### Account Abstraction
 The `hypersdk` makes no assumptions about how `Actions` (the primitive for
