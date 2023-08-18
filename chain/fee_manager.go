@@ -293,11 +293,11 @@ func ParseDimensions(raw []string) (Dimensions, error) {
 	return d, nil
 }
 
-func MaxSize(k string) (uint32, bool) {
+func MaxChunks(k string) (uint16, bool) {
 	bk := []byte(k)
 	l := len(bk)
-	if l < consts.Uint32Len {
+	if l < consts.Uint16Len {
 		return 0, false
 	}
-	return binary.BigEndian.Uint32(bk[l-consts.Uint32Len:]), true
+	return binary.BigEndian.Uint16(bk[l-consts.Uint16Len:]), true
 }

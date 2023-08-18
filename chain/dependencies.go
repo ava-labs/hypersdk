@@ -121,10 +121,21 @@ type Rules interface {
 	GetBaseWarpComputeUnits() uint64
 	GetWarpComputeUnitsPerSigner() uint64
 	GetOutgoingWarpComputeUnits() uint64
-	GetColdStorageReadUnits() uint64
-	GetWarmStorageReadUnits() uint64
-	GetColdStorageModificationUnits() uint64
-	GetWarmStorageModificationUnits() uint64
+
+	GetMaxKeySize() uint32
+	GetChunkSize() uint32
+	GetMaxValueSize() uint16 // in chunks
+
+	GetColdStorageKeyReadUnits() uint64
+	GetColdStorageValueReadUnits() uint64 // per chunk
+	GetWarmStorageKeyReadUnits() uint64
+	GetWarmStorageValueReadUnits() uint64 // per chunk
+	GetStorageKeyCreateUnits() uint64
+	GetStorageValueCreateUnits() uint64 // per chunk
+	GetColdStorageKeyModificationUnits() uint64
+	GetColdStorageValueModificationUnits() uint64 // per chunk
+	GetWarmStorageKeyModificationUnits() uint64
+	GetWarmStorageValueModificationUnits() uint64 // per chunk
 
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
 
