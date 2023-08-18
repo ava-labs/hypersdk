@@ -166,7 +166,19 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	// We can't charge by byte because we don't know the size
 	// of the objects before execution (and that's when we deduct fees).
 	stateKeys := uint64(t.StateKeys(sm).Len()) // includes warp keys
-	return Dimensions{uint64(t.Size()), maxComputeUnits, stateKeys, stateKeys, stateKeys}, nil
+	readsOp := math.NewUint64Operator(stateKeys)
+	readsOp.Mul(r.GetColdStorageReadUnits())
+	reads, err := readsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
+	modificationsOp := math.NewUint64Operator(stateKeys)
+	modificationsOp.Mul(r.GetColdStorageModificationUnits())
+	modifications, err := modificationsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
+	return Dimensions{uint64(t.Size()), maxComputeUnits, reads, stateKeys, modifications}, nil
 }
 
 // PreExecute must not modify state
@@ -216,6 +228,8 @@ func (t *Transaction) PreExecute(
 func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *FeeManager,
+	coldStorageReads []string,
+	warmStorageReads []string,
 	s StateManager,
 	r Rules,
 	tdb *tstate.TState,
@@ -325,24 +339,45 @@ func (t *Transaction) Execute(
 	}
 	// Because the key database is abstracted from [Actions], we can compute
 	// all storage use in the background.
-	creations, modifications := tdb.CountKeyOperations(ctx, execStart+1)
+	creations, coldModifications, warmModifications := tdb.CountKeyOperations(ctx, execStart+1)
 	// Because we compute the fee before [Auth.Refund] is called, we need
 	// to precompute the storage it will change.
 	for _, key := range t.Auth.StateKeys() {
-		exists, err := tdb.Exists(ctx, []byte(key))
+		changed, exists, err := tdb.Exists(ctx, []byte(key))
 		if err != nil {
 			return nil, err
 		}
 		if !exists {
 			// We pessimistically assume any keys that are referenced will be created
-			// if they don't exist.
+			// if they don't yet exist.
 			creations.Add(key)
+			continue
 		}
-		modifications.Add(key)
+		if changed {
+			warmModifications.Contains(key)
+			continue
+		}
+		coldModifications.Add(key)
 	}
 	// We can only charge by storage key count (not size) because we don't know the size of
 	// what will be read/written/modified before execution.
-	used := Dimensions{uint64(t.Size()), computeUnits, uint64(t.StateKeys(s).Len()), uint64(creations.Len()), uint64(modifications.Len())}
+	//
+	// TODO: charge by size
+	readsOp := math.NewUint64Operator(0)
+	readsOp.MulAdd(uint64(len(coldStorageReads)), r.GetColdStorageReadUnits())
+	readsOp.MulAdd(uint64(len(warmStorageReads)), r.GetWarmStorageReadUnits())
+	reads, err := readsOp.Value()
+	if err != nil {
+		return nil, err
+	}
+	modificationsOp := math.NewUint64Operator(0)
+	modificationsOp.MulAdd(uint64(coldModifications.Len()), r.GetColdStorageModificationUnits())
+	modificationsOp.MulAdd(uint64(warmModifications.Len()), r.GetWarmStorageModificationUnits())
+	modifications, err := modificationsOp.Value()
+	if err != nil {
+		return nil, err
+	}
+	used := Dimensions{uint64(t.Size()), computeUnits, reads, uint64(creations.Len()), modifications}
 	feeRequired, err := feeManager.MaxFee(used)
 	if err != nil {
 		return nil, err
@@ -541,5 +576,17 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 	if err != nil {
 		return Dimensions{}, err
 	}
-	return Dimensions{bandwidth, computeUnits, stateKeysCount, stateKeysCount, stateKeysCount}, nil
+	readsOp := math.NewUint64Operator(stateKeysCount)
+	readsOp.Mul(r.GetColdStorageReadUnits())
+	reads, err := readsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
+	modificationsOp := math.NewUint64Operator(stateKeysCount)
+	modificationsOp.Mul(r.GetColdStorageModificationUnits())
+	modifications, err := modificationsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
+	return Dimensions{bandwidth, computeUnits, reads, stateKeysCount, modifications}, nil
 }

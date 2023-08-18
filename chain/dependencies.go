@@ -121,6 +121,10 @@ type Rules interface {
 	GetBaseWarpComputeUnits() uint64
 	GetWarpComputeUnitsPerSigner() uint64
 	GetOutgoingWarpComputeUnits() uint64
+	GetColdStorageReadUnits() uint64
+	GetWarmStorageReadUnits() uint64
+	GetColdStorageModificationUnits() uint64
+	GetWarmStorageModificationUnits() uint64
 
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
 
