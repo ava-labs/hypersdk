@@ -7,7 +7,7 @@ use expose_macro::expose;
 /// Initializes the contract with a name, symbol, and total supply.
 /// Technically adding the balances field is not necessary.
 #[expose]
-pub fn init_contract() -> i64 {
+pub fn init_program() -> i64 {
     let mut token_contract = Program::new();
     token_contract.add_field(String::from("name"), "WasmCoin".into());
     token_contract.add_field(String::from("symbol"), "WACK".into());
