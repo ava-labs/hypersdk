@@ -9,7 +9,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/x/programs/meter"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
 
@@ -46,7 +45,7 @@ func (t *Token) Run(ctx context.Context) error {
 		"init_program",
 	}
 
-	meter := meter.New(t.maxFee, t.costMap)
+	meter := runtime.NewMeter(t.maxFee, t.costMap)
 	db := utils.NewTestDB()
 	store := newProgramStorage(db)
 

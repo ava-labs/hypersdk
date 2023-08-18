@@ -10,7 +10,6 @@ import (
 	"github.com/tetratelabs/wazero/api"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/x/programs/meter"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
@@ -31,7 +30,7 @@ type storage struct {
 }
 
 type MapModule struct {
-	meter meter.Meter
+	meter Meter
 	log   logging.Logger
 	store storage
 }
@@ -39,7 +38,7 @@ type MapModule struct {
 // NewMapModule returns a new map host module which can manage in memory state.
 // This is a placeholder storage system intended to show how a wasm program
 // would access/modify persistent storage.
-func NewMapModule(log logging.Logger, meter meter.Meter) *MapModule {
+func NewMapModule(log logging.Logger, meter Meter) *MapModule {
 	return &MapModule{
 		meter: meter,
 		log:   log,
