@@ -11,6 +11,7 @@ const (
 	NodeIDLen = 20
 	IntLen    = 4
 	Uint16Len = 2
+	Uint32Len = 4
 	Uint64Len = 8
 	Int64Len  = 8
 

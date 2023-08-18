@@ -17,15 +17,21 @@ import (
 type fetchData struct {
 	v      []byte
 	exists bool
+
+	i *readInfo
+}
+
+type readInfo struct {
+	max    uint32
+	actual uint32
 }
 
 type txData struct {
 	tx      *Transaction
 	storage map[string][]byte
 
-	// TODO: change to map to get amoutn actually read
-	coldReads []string
-	warmReads []string
+	coldReads map[string]*readInfo
+	warmReads map[string]*readInfo
 }
 
 type Processor struct {
@@ -56,26 +62,36 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 		// Store required keys for each set
 		alreadyFetched := make(map[string]*fetchData, len(p.blk.GetTxs()))
 		for _, tx := range p.blk.GetTxs() {
-			coldReads := []string{}
-			warmReads := []string{}
+			coldReads := map[string]*readInfo{}
+			warmReads := map[string]*readInfo{}
 			storage := map[string][]byte{}
 			for k := range tx.StateKeys(sm) {
 				if v, ok := alreadyFetched[k]; ok {
-					warmReads = append(warmReads, k)
+					// TODO: override with whatever we pull out of modifications?
+					// TODO: pay difference of bytes with warm that we are writing + key value
+					warmReads[k] = v.i
 					if v.exists {
 						storage[k] = v.v
 					}
 					continue
 				}
-				coldReads = append(coldReads, k)
+				maxSize, ok := MaxSize(k)
+				if !ok {
+					// TODO: handle errors
+					panic("invalid max size")
+				}
 				v, err := db.GetValue(ctx, []byte(k))
 				if errors.Is(err, database.ErrNotFound) {
-					alreadyFetched[k] = &fetchData{nil, false}
+					i := &readInfo{maxSize, 0}
+					coldReads[k] = i
+					alreadyFetched[k] = &fetchData{nil, false, i}
 					continue
 				} else if err != nil {
 					panic(err)
 				}
-				alreadyFetched[k] = &fetchData{v, true}
+				i := &readInfo{maxSize, uint32(len(v))} // this is safe because we should never get a negative length
+				coldReads[k] = i
+				alreadyFetched[k] = &fetchData{v, true, i}
 				storage[k] = v
 			}
 			p.readyTxs <- &txData{tx, storage, coldReads, warmReads}

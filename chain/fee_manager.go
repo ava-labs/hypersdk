@@ -292,3 +292,12 @@ func ParseDimensions(raw []string) (Dimensions, error) {
 	}
 	return d, nil
 }
+
+func MaxSize(k string) (uint32, bool) {
+	bk := []byte(k)
+	l := len(bk)
+	if l < consts.Uint32Len {
+		return 0, false
+	}
+	return binary.BigEndian.Uint32(bk[l-consts.Uint32Len:]), true
+}
