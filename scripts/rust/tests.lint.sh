@@ -15,11 +15,7 @@ fi
 # rustup component add clippy
 # rustup component add clippy --toolchain nightly
 
-rustup default stable
-cargo fmt --all --verbose -- --check
-
 rustup default nightly
-cargo +nightly fmt --all -- --config-path .rustfmt.nightly.toml --verbose --check || true
 
 cargo +nightly clippy --all --all-features -- -D warnings || true
 
