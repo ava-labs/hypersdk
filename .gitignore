@@ -26,6 +26,7 @@ awscpu
 *logs/
 
 .vscode*
+.env
 
 *.pb*
 
@@ -61,3 +62,7 @@ tmp-storage-testing
 *.html
 data/
 osxcross/
+
+/target/
+Cargo.lock
+**/*.rs.bk
