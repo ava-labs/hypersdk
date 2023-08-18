@@ -17,7 +17,7 @@ fi
 
 rustup default nightly
 
-cargo +nightly clippy --all --all-features -- -D warnings || true
+cargo +nightly clippy --all --all-features -- -D warnings
 
 rustup default stable
 
