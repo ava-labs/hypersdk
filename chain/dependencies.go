@@ -158,6 +158,8 @@ type Action interface {
 	// a unique identifier for things created in an action.
 	//
 	// If attempt to reference missing key, error...it is ok to not use all keys (conditional logic based on state)
+	//
+	// Always assume the last 4 bytes are a uint32 of the max size to read
 	StateKeys(auth Auth, txID ids.ID) []string
 
 	// StateKeysCount is used for fee estimation when actual state keys can't be generated
