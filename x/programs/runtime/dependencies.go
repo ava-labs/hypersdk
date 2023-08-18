@@ -22,7 +22,7 @@ type Runtime interface {
 	Stop(context.Context) error
 }
 
-type ProgramStorage interface {
+type Storage interface {
 	Get(context.Context, uint32) ([]byte, bool, error)
 	Set(context.Context, uint32, uint32, []byte) error
 }

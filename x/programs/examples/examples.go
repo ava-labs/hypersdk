@@ -14,9 +14,9 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-var _ runtime.ProgramStorage = (*programStorage)(nil)
+var _ runtime.Storage = (*programStorage)(nil)
 
-// newProgramStorage returns an instance of program storage used for examples
+// newProgramStorage returns an instance of runtime storage used for examples
 // and backed by memDb.
 func newProgramStorage(db chain.Database) *programStorage {
 	return &programStorage{

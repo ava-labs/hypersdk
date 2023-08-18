@@ -65,8 +65,8 @@ github.com/ava-labs/avalanchego v1.10.8 h1:fUudA4J37y8wyNG3iiX0kpoZXunsWpCgvsGDg
 github.com/ava-labs/avalanchego v1.10.8/go.mod h1:2zuce+beHe25wQ5RlrEeDpa+SqY/sjEOjDky+Q1NxfU=
 github.com/ava-labs/coreth v0.12.5-rc.1 h1:rLJ6mT/44jgc+vPpKaspGpxDIdQGLkSK6wDSmKgYPxY=
 github.com/ava-labs/coreth v0.12.5-rc.1/go.mod h1:K7Xm2jqx90wxKZXfLvkLEL+zlM5843gGq9XkqVDwKds=
-github.com/ava-labs/wazero v0.0.1-hypersdk h1:l5lvgGYTSDgDqPFm7QawNmA5rDUb45Fhz7gCUCqO7lc=
-github.com/ava-labs/wazero v0.0.1-hypersdk/go.mod h1:0U0G41+ochRKoPKCJlh0jMg1CHkyfK8kDqiirMmKY8A=
+github.com/ava-labs/wazero v0.0.2-hypersdk h1:zsl0saXFEU/dnZ7/cFVDXoSKeavzjrqv1PoR/vKaKmY=
+github.com/ava-labs/wazero v0.0.2-hypersdk/go.mod h1:0U0G41+ochRKoPKCJlh0jMg1CHkyfK8kDqiirMmKY8A=
 github.com/aymerick/raymond v2.0.3-0.20180322193309-b565731e1464+incompatible/go.mod h1:osfaiScAUVup+UC9Nfq76eWqDhXlp+4UYaA8uhTBO6g=
 github.com/benbjohnson/clock v1.3.0 h1:ip6w0uFQkncKQ979AypyG0ER7mqUSBdKLOgAle/AT8A=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
