@@ -1,5 +1,5 @@
 [package]
-name = "token_contract"
+name = "token_program"
 version = "0.1.0"
 edition = "2021"
 
