@@ -14,7 +14,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/x/programs/meter"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
@@ -25,20 +24,20 @@ const (
 )
 
 type InvokeModule struct {
-	db             chain.Database
-	meter          meter.Meter
-	programStorage ProgramStorage
+	db      chain.Database
+	meter   Meter
+	storage Storage
 
 	log logging.Logger
 }
 
 // NewInvokeModule returns a new program invoke host module which can perform program to program calls.
-func NewInvokeModule(log logging.Logger, db chain.Database, meter meter.Meter, programStorage ProgramStorage) *InvokeModule {
+func NewInvokeModule(log logging.Logger, db chain.Database, meter Meter, storage Storage) *InvokeModule {
 	return &InvokeModule{
-		db:             db,
-		meter:          meter,
-		programStorage: programStorage,
-		log:            log,
+		db:      db,
+		meter:   meter,
+		storage: storage,
+		log:     log,
 	}
 }
 
@@ -69,7 +68,7 @@ func (m *InvokeModule) programInvokeFn(
 	entryFn := utils.GetGuestFnName(string(entryBuf))
 
 	// get the program bytes stored in state
-	data, ok, err := m.programStorage.Get(ctx, uint32(programID))
+	data, ok, err := m.storage.Get(ctx, uint32(programID))
 	if !ok {
 		return invokeErr
 	}
@@ -78,7 +77,7 @@ func (m *InvokeModule) programInvokeFn(
 	}
 
 	// create new runtime for the program invoke call
-	runtime := New(m.log, m.meter, m.programStorage)
+	runtime := New(m.log, m.meter, m.storage)
 
 	// only export the function we are calling
 	exportedFunctions := []string{entryFn}
