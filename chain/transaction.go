@@ -176,7 +176,7 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	// Calculate the max storage cost we could incur by processing all
 	// state keys.
 	//
-	// TODO: make this a tighter bound
+	// TODO: make this a tighter bound (allow for granular storage controls)
 	stateKeys, err := t.StateKeys(sm, r)
 	if err != nil {
 		return Dimensions{}, err
