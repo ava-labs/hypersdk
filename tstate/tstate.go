@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/chain"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
@@ -46,17 +47,25 @@ type TState struct {
 	// Ops is a record of all operations performed on [TState]. Tracking
 	// operations allows for reverting state to a certain point-in-time.
 	ops []*op
+
+	// maxKeySize and maxValueSize are used to restrict the size of individual
+	// state items.
+	maxKeySize   uint32
+	maxValueSize uint16
 }
 
 // New returns a new instance of TState. Initializes the storage and changedKeys
 // maps to have an initial size of [storageSize] and [changedSize] respectively.
-func New(changedSize int) *TState {
+func New(changedSize int, maxKeySize uint32, maxValueSize uint16) *TState {
 	return &TState{
 		changedKeys: make(map[string]*tempStorage, changedSize),
 
 		fetchCache: map[string]*cacheItem{},
 
 		ops: make([]*op, 0, changedSize),
+
+		maxKeySize:   maxKeySize,
+		maxValueSize: maxValueSize,
 	}
 }
 
@@ -139,6 +148,23 @@ func (ts *TState) checkScope(_ context.Context, k []byte) bool {
 
 // Insert sets or updates ts.storage[key] to equal {value, false}.
 func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
+	if uint32(len(key)) > ts.maxKeySize {
+		return errors.New("key too large")
+	}
+	valueChunks, ok := chain.NumChunks(value)
+	if !ok {
+		return errors.New("value too large")
+	}
+	if valueChunks > ts.maxValueSize {
+		return errors.New("value too large")
+	}
+	maxValueChunks, ok := chain.MaxSize(key)
+	if !ok {
+		return errors.New("invalid key")
+	}
+	if valueChunks > maxValueChunks {
+		return errors.New("value is not encoded in key correctly")
+	}
 	// TODO: ensure that key is properly restricts value size and that both are less
 	// than max.
 	if !ts.checkScope(ctx, key) {

@@ -122,7 +122,7 @@ type Rules interface {
 	GetOutgoingWarpComputeUnits() uint64
 
 	GetMaxKeySize() uint32
-	GetMaxValueSize() uint32 // in chunks
+	GetMaxValueSize() uint16 // in chunks
 
 	GetColdStorageKeyReadUnits() uint64
 	GetColdStorageValueReadUnits() uint64 // per chunk
