@@ -53,7 +53,7 @@ var (
 	// TODO: extend to other types
 	balancePrefixPool = sync.Pool{
 		New: func() any {
-			return make([]byte, 1+ed25519.PublicKeyLen)
+			return make([]byte, 1+ed25519.PublicKeyLen+consts.Uint16Len)
 		},
 	}
 )
@@ -124,6 +124,7 @@ func PrefixBalanceKey(pk ed25519.PublicKey) (k []byte) {
 	k = balancePrefixPool.Get().([]byte)
 	k[0] = balancePrefix
 	copy(k[1:], pk[:])
+	binary.BigEndian.PutUint16(k[1+ed25519.PublicKeyLen:], 1)
 	return
 }
 
@@ -253,16 +254,20 @@ func FeeKey() (k []byte) {
 }
 
 func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen*2)
+	k = make([]byte, 1+consts.IDLen*2+consts.Uint16Len)
 	k[0] = incomingWarpPrefix
 	copy(k[1:], sourceChainID[:])
 	copy(k[1+consts.IDLen:], msgID[:])
+	binary.BigEndian.PutUint16(k[1+consts.IDLen*2:], 0)
 	return k
 }
 
+// TODO: remove "Prefix" from these functions
 func OutgoingWarpKeyPrefix(txID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
+	k = make([]byte, 1+consts.IDLen+consts.Uint16Len)
 	k[0] = outgoingWarpPrefix
 	copy(k[1:], txID[:])
+	// TODO: make this MaxWarpMessage size a const somewhere?
+	binary.BigEndian.PutUint16(k[1+consts.IDLen:], 0)
 	return k
 }

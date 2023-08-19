@@ -96,11 +96,11 @@ type Mempool interface {
 }
 
 type Database interface {
-	// We can entirely hide the key wrapping from [Controllers] if we modify this
+	// TODO: We can entirely hide the key wrapping from [Controllers] if we modify this
 	// interface.
-	GetValue(ctx context.Context, key []byte, maxChunks uint16) ([]byte, error)
-	Insert(ctx context.Context, key []byte, maxChunks uint16, value []byte) error
-	Remove(ctx context.Context, key []byte, maxChunks uint16) error
+	GetValue(ctx context.Context, key []byte) ([]byte, error)
+	Insert(ctx context.Context, key []byte, value []byte) error
+	Remove(ctx context.Context, key []byte) error
 }
 
 type Rules interface {
@@ -122,10 +122,8 @@ type Rules interface {
 	GetBaseWarpComputeUnits() uint64
 	GetWarpComputeUnitsPerSigner() uint64
 	GetOutgoingWarpComputeUnits() uint64
-	GetOutgoingWarpMaxChunks() uint16
 
-	GetMaxKeySize() uint32
-	GetMaxValueChunks() uint16 // in chunks
+	// Controllers must manage the max key length and max value length
 
 	GetColdStorageKeyReadUnits() uint64
 	GetColdStorageValueReadUnits() uint64 // per chunk
@@ -172,7 +170,7 @@ type Action interface {
 	// If attempt to reference missing key, error...it is ok to not use all keys (conditional logic based on state)
 	//
 	// Always assume the last 4 bytes are a uint32 of the max size to read
-	StateKeys(auth Auth, txID ids.ID) map[string]uint16
+	StateKeys(auth Auth, txID ids.ID) []string
 
 	// StateKeysMaxChunks is used for fee estimation when actual state keys can't be generated
 	StateKeysMaxChunks() []uint16
@@ -212,7 +210,7 @@ type Auth interface {
 	// MaxComputeUnits should take into account [AsyncVerify], [CanDeduct], [Deduct], and [Refund]
 	MaxComputeUnits(Rules) uint64
 
-	StateKeys() map[string]uint16
+	StateKeys() []string
 
 	// AsyncVerify will be run concurrently, optimistically start crypto ops (may not complete before [Verify])
 	AsyncVerify(msg []byte) error
