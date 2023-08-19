@@ -613,10 +613,7 @@ future, we expect that there will be common message definitions that will be
 compatible with most `hypervms` (and maintained in the `hypersdk`)._
 
 ## Star History
-
-
 [![Star History](https://starchart.cc/ava-labs/hypersdk.svg)](https://starchart.cc/ava-labs/hypersdk)
-
 
 ## Community Posts
 _This is a collection of posts from the community about the `hypersdk` and how to use it in your own `hypervm`._
@@ -635,18 +632,8 @@ out on the Avalanche Discord._
 * Use pre-specified state keys to process transactions in parallel (txs with no
   overlap can be processed at the same time, create conflict sets on-the-fly
   instead of before execution)
-* Add a WASM runtime module to allow developers to embed smart contract
-  functionality in their hypervms
-* Overhaul streaming RPC (properly heartbeat and close connections)
-* Implement concurrent state pre-fetching in `chain/processor` (blocked on
-  `x/merkledb` locking improvements)
 * Create an embedded explorer and wallet that is compatible with any hypervm
 * Add support for Fixed-Fee Accounts (pay set unit price no matter what)
-* Add a state processing loop that always prioritizes access by `Verify` and
-  `Build` over handing `Gossip` and `Submit` requests (can cause starvation of
-  consensus process under load)
-* Pre-fetch state during block production loop (currently 30-40% slower than
-  normal execution)
 * Use a memory arena (pre-allocated memory) to avoid needing to dynamically
   allocate memory during block  and transaction parsing
 * Add a module that does Data Availability sampling on top of the networking
