@@ -8,6 +8,10 @@ import (
 
 const chunkSize = 64 // bytes
 
+func Valid(key string) bool {
+	return len(key) >= consts.Uint16Len
+}
+
 func MaxChunks(key []byte) (uint16, bool) {
 	l := len(key)
 	if l < consts.Uint16Len {

@@ -137,19 +137,18 @@ func (t *Transaction) StateKeys(stateMapping StateManager, r Rules) (set.Set[str
 	stateKeys := set.NewSet[string](len(actionKeys) + len(authKeys))
 	for _, arr := range [][]string{actionKeys, authKeys} {
 		for _, k := range arr {
-			if !keys.Verify(r.GetMaxKeySize(), r.GetMaxValueChunks(), []byte(k)) {
+			if !keys.Valid(k) {
 				return nil, ErrInvalidKeyValue
 			}
+			stateKeys.Add(k)
 		}
 	}
 	if t.WarpMessage != nil {
-		k := keys.EncodeChunks(stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID), 0)
-		stateKeys.Add(string(k))
+		stateKeys.Add(string(stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID)))
 	}
 	// Always assume a message could export a warp message
 	if t.Action.OutputsWarpMessage() {
-		k := keys.EncodeChunks(stateMapping.OutgoingWarpKey(t.id), r.GetOutgoingWarpMaxChunks())
-		stateKeys.Add(string(k))
+		stateKeys.Add(string(stateMapping.OutgoingWarpKey(t.id)))
 	}
 	t.stateKeys = stateKeys
 	return stateKeys, nil
@@ -296,7 +295,7 @@ func (t *Transaction) Execute(
 
 	// Check warp message is not duplicate
 	if t.WarpMessage != nil {
-		_, err := tdb.GetValue(ctx, keys.EncodeChunks(s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID), 0))
+		_, err := tdb.GetValue(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
 		switch {
 		case err == nil:
 			// Override all errors because warp message is a duplicate
@@ -333,7 +332,7 @@ func (t *Transaction) Execute(
 
 		// Store incoming warp messages in state by their ID to prevent replays
 		if t.WarpMessage != nil {
-			if err := tdb.Insert(ctx, keys.EncodeChunks(s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID), 0), nil); err != nil {
+			if err := tdb.Insert(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID), nil); err != nil {
 				tdb.Rollback(ctx, actionStart)
 				return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 			}
@@ -352,7 +351,7 @@ func (t *Transaction) Execute(
 			}
 			// We use txID here because did not know the warpID before execution (and
 			// we pre-reserve this key for the processor).
-			if err := tdb.Insert(ctx, keys.EncodeChunks(s.OutgoingWarpKey(t.id), r.GetOutgoingWarpMaxChunks()), warpMessage.Bytes()); err != nil {
+			if err := tdb.Insert(ctx, s.OutgoingWarpKey(t.id), warpMessage.Bytes()); err != nil {
 				tdb.Rollback(ctx, actionStart)
 				return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 			}
