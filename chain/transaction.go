@@ -249,16 +249,14 @@ func (t *Transaction) PreExecute(
 func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *FeeManager,
-	coldStorageReads map[string]int,
-	warmStorageReads map[string]int,
+	coldStorageReads map[string]uint16,
+	warmStorageReads map[string]uint16,
 	s StateManager,
 	r Rules,
 	tdb *tstate.TState,
 	timestamp int64,
 	warpVerified bool,
 ) (*Result, error) {
-	execStart := tdb.OpIndex()
-
 	// Always charge fee first in case [Action] moves funds
 	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
@@ -359,46 +357,73 @@ func (t *Transaction) Execute(
 		return nil, err
 	}
 	// Because the key database is abstracted from [Actions], we can compute
-	// all storage use in the background.
-	creations, coldModifications, warmModifications := tdb.CountKeyOperations(ctx, execStart+1)
+	// all storage use in the background. KeyOperations is reset whenever
+	// we set scope on [tdb].
+	creations, coldModifications, warmModifications := tdb.KeyOperations()
+
 	// Because we compute the fee before [Auth.Refund] is called, we need
 	// to precompute the storage it will change.
 	for _, key := range t.Auth.StateKeys() {
-		changed, exists, err := tdb.Exists(ctx, []byte(key))
+		bk := []byte(key)
+		changed, exists, err := tdb.Exists(ctx, bk)
 		if err != nil {
 			return nil, err
+		}
+		// maxChunks will be greater than the chunks read in any of these keys,
+		// so we don't need to check for pre-existing values.
+		maxChunks, ok := MaxChunks(bk)
+		if !ok {
+			return nil, ErrInvalidKeyValue
 		}
 		if !exists {
 			// We pessimistically assume any keys that are referenced will be created
 			// if they don't yet exist.
-			creations.Add(key)
+			creations[key] = maxChunks
 			continue
 		}
 		if changed {
-			warmModifications.Contains(key)
+			warmModifications[key] = maxChunks
 			continue
 		}
-		coldModifications.Add(key)
+		warmModifications[key] = maxChunks
 	}
-	// We can only charge by storage key count (not size) because we don't know the size of
-	// what will be read/written/modified before execution.
-	//
-	// TODO: charge by size
+	// We only charge for the storage read from disk instead of charging the max storage.
 	readsOp := math.NewUint64Operator(0)
-	readsOp.MulAdd(uint64(len(coldStorageReads)), r.GetColdStorageReadUnits())
-	readsOp.MulAdd(uint64(len(warmStorageReads)), r.GetWarmStorageReadUnits())
+	for _, chunksRead := range coldStorageReads {
+		readsOp.Add(r.GetColdStorageKeyReadUnits())
+		readsOp.MulAdd(uint64(chunksRead), r.GetColdStorageValueReadUnits())
+	}
+	for _, chunksRead := range warmStorageReads {
+		readsOp.Add(r.GetWarmStorageKeyReadUnits())
+		readsOp.MulAdd(uint64(chunksRead), r.GetWarmStorageValueReadUnits())
+	}
 	reads, err := readsOp.Value()
 	if err != nil {
 		return nil, err
 	}
+	creationsOp := math.NewUint64Operator(0)
+	for _, chunksStored := range creations {
+		creationsOp.Add(r.GetStorageKeyCreateUnits())
+		creationsOp.MulAdd(uint64(chunksStored), r.GetStorageValueCreateUnits())
+	}
+	creationUnits, err := creationsOp.Value()
+	if err != nil {
+		return nil, err
+	}
 	modificationsOp := math.NewUint64Operator(0)
-	modificationsOp.MulAdd(uint64(coldModifications.Len()), r.GetColdStorageModificationUnits())
-	modificationsOp.MulAdd(uint64(warmModifications.Len()), r.GetWarmStorageModificationUnits())
+	for _, chunksModified := range coldModifications {
+		modificationsOp.Add(r.GetColdStorageKeyModificationUnits())
+		modificationsOp.MulAdd(uint64(chunksModified), r.GetWarmStorageValueModificationUnits())
+	}
+	for _, chunksModified := range warmModifications {
+		modificationsOp.Add(r.GetWarmStorageKeyModificationUnits())
+		modificationsOp.MulAdd(uint64(chunksModified), r.GetWarmStorageValueModificationUnits())
+	}
 	modifications, err := modificationsOp.Value()
 	if err != nil {
 		return nil, err
 	}
-	used := Dimensions{uint64(t.Size()), computeUnits, reads, uint64(creations.Len()), modifications}
+	used := Dimensions{uint64(t.Size()), computeUnits, reads, creationUnits, modifications}
 	feeRequired, err := feeManager.MaxFee(used)
 	if err != nil {
 		return nil, err

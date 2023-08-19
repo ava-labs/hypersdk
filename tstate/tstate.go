@@ -48,9 +48,9 @@ type TState struct {
 
 	// Store which keys are modified and how large their values were. Reset
 	// whenever setting scope.
-	creations         map[string]int
-	coldModifications map[string]int
-	warmModifications map[string]int
+	creations         map[string]uint16
+	coldModifications map[string]uint16
+	warmModifications map[string]uint16
 
 	// Ops is a record of all operations performed on [TState]. Tracking
 	// operations allows for reverting state to a certain point-in-time.
@@ -140,9 +140,9 @@ func (ts *TState) FetchAndSetScope(ctx context.Context, keys set.Set[string], db
 		ts.scopeStorage[key] = v
 	}
 	ts.scope = keys
-	ts.creations = map[string]int{}
-	ts.coldModifications = map[string]int{}
-	ts.warmModifications = map[string]int{}
+	ts.creations = map[string]uint16{}
+	ts.coldModifications = map[string]uint16{}
+	ts.warmModifications = map[string]uint16{}
 	return nil
 }
 
@@ -150,9 +150,9 @@ func (ts *TState) FetchAndSetScope(ctx context.Context, keys set.Set[string], db
 func (ts *TState) SetScope(_ context.Context, keys set.Set[string], storage map[string][]byte) {
 	ts.scope = keys
 	ts.scopeStorage = storage
-	ts.creations = map[string]int{}
-	ts.coldModifications = map[string]int{}
-	ts.warmModifications = map[string]int{}
+	ts.creations = map[string]uint16{}
+	ts.coldModifications = map[string]uint16{}
+	ts.warmModifications = map[string]uint16{}
 }
 
 // checkScope returns whether [k] is in ts.readScope.
@@ -272,7 +272,7 @@ func (ts *TState) WriteChanges(
 }
 
 // TODO: return error or add invariants
-func updateChunks(m map[string]int, key string, value []byte) {
+func updateChunks(m map[string]uint16, key string, value []byte) {
 	chunks, _ := chain.NumChunks(value)
 	previousChunks, ok := m[key]
 	if !ok || chunks > previousChunks {
@@ -282,6 +282,6 @@ func updateChunks(m map[string]int, key string, value []byte) {
 
 // TODO: fill out comment
 // If a key is used more than once, the largest instance is taken
-func (ts *TState) KeyOperations() (map[string]int, map[string]int, map[string]int) {
+func (ts *TState) KeyOperations() (map[string]uint16, map[string]uint16, map[string]uint16) {
 	return ts.creations, ts.coldModifications, ts.warmModifications
 }
