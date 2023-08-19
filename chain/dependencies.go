@@ -96,6 +96,8 @@ type Mempool interface {
 }
 
 type Database interface {
+	// TODO: add max length here? how do we best abstract this away from VM implementers?
+	// If we did this, we'd still need to have a helper to create state keys.
 	GetValue(ctx context.Context, key []byte) ([]byte, error)
 	Insert(ctx context.Context, key []byte, value []byte) error
 	Remove(ctx context.Context, key []byte) error
