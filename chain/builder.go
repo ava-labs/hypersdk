@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
@@ -201,7 +202,7 @@ func BuildBlock(
 						stopIndex = i
 						return
 					}
-					numChunks, ok := NumChunks(v)
+					numChunks, ok := keys.NumChunks(v)
 					if !ok {
 						// Drop bad transaction and continue
 						continue
@@ -349,7 +350,7 @@ func BuildBlock(
 			var invalidStateKeys bool
 			for k := range stateKeys {
 				v := nextTxData.storage[k]
-				numChunks, ok := NumChunks(v)
+				numChunks, ok := keys.NumChunks(v)
 				if !ok {
 					// Should not happen
 					invalidStateKeys = true

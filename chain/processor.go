@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
 
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
@@ -89,7 +90,7 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 				}
 				// We verify that the [NumChunks] is already less than the number
 				// added on the write path, so we don't need to do so again here.
-				numChunks, ok := NumChunks(v)
+				numChunks, ok := keys.NumChunks(v)
 				if !ok {
 					p.err = ErrInvalidKeyValue
 					return

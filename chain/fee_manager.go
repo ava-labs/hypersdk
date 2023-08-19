@@ -19,10 +19,9 @@ const (
 	StorageModification           = 4
 
 	FeeDimensions = 5
-	DimensionsLen = consts.Uint64Len * FeeDimensions
-	dimensionSize = consts.Uint64Len + window.WindowSliceSize + consts.Uint64Len
 
-	chunkSize = 64 // bytes
+	DimensionsLen     = consts.Uint64Len * FeeDimensions
+	dimensionStateLen = consts.Uint64Len + window.WindowSliceSize + consts.Uint64Len
 )
 
 type Dimension int
@@ -34,23 +33,23 @@ type FeeManager struct {
 
 func NewFeeManager(raw []byte) *FeeManager {
 	if len(raw) == 0 {
-		raw = make([]byte, FeeDimensions*dimensionSize)
+		raw = make([]byte, FeeDimensions*dimensionStateLen)
 	}
 	return &FeeManager{raw}
 }
 
 func (f *FeeManager) UnitPrice(d Dimension) uint64 {
-	start := dimensionSize * d
+	start := dimensionStateLen * d
 	return binary.BigEndian.Uint64(f.raw[start : start+consts.Uint64Len])
 }
 
 func (f *FeeManager) Window(d Dimension) window.Window {
-	start := dimensionSize*d + consts.Uint64Len
+	start := dimensionStateLen*d + consts.Uint64Len
 	return window.Window(f.raw[start : start+window.WindowSliceSize])
 }
 
 func (f *FeeManager) LastConsumed(d Dimension) uint64 {
-	start := dimensionSize*d + consts.Uint64Len + window.WindowSliceSize
+	start := dimensionStateLen*d + consts.Uint64Len + window.WindowSliceSize
 	return binary.BigEndian.Uint64(f.raw[start : start+consts.Uint64Len])
 }
 
@@ -59,7 +58,7 @@ func (f *FeeManager) ComputeNext(lastTime int64, currTime int64, r Rules) (*FeeM
 	unitPriceChangeDenom := r.GetUnitPriceChangeDenominator()
 	minUnitPrice := r.GetMinUnitPrice()
 	since := int((currTime - lastTime) / consts.MillisecondsPerSecond)
-	packer := codec.NewWriter(dimensionSize*FeeDimensions, consts.MaxInt)
+	packer := codec.NewWriter(dimensionStateLen*FeeDimensions, consts.MaxInt)
 	for i := Dimension(0); i < FeeDimensions; i++ {
 		nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
 			f.Window(i),
@@ -81,12 +80,12 @@ func (f *FeeManager) ComputeNext(lastTime int64, currTime int64, r Rules) (*FeeM
 }
 
 func (f *FeeManager) SetUnitPrice(d Dimension, price uint64) {
-	start := dimensionSize * d
+	start := dimensionStateLen * d
 	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], price)
 }
 
 func (f *FeeManager) SetLastConsumed(d Dimension, consumed uint64) {
-	start := dimensionSize*d + consts.Uint64Len + window.WindowSliceSize
+	start := dimensionStateLen*d + consts.Uint64Len + window.WindowSliceSize
 	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], consumed)
 }
 
@@ -292,69 +291,4 @@ func ParseDimensions(raw []string) (Dimensions, error) {
 		d[i] = v
 	}
 	return d, nil
-}
-
-func MaxChunks(key []byte) (uint16, bool) {
-	l := len(key)
-	if l < consts.Uint16Len {
-		return 0, false
-	}
-	return binary.BigEndian.Uint16(key[l-consts.Uint16Len:]) * chunkSize, true
-}
-
-func NumChunks(value []byte) (uint16, bool) {
-	l := len(value)
-	return numChunks(l)
-}
-
-func numChunks(valueLen int) (uint16, bool) {
-	if valueLen == 0 {
-		return 0, true
-	}
-	raw := valueLen/chunkSize + 1
-	if raw > int(consts.MaxUint16) {
-		return 0, false
-	}
-	return uint16(raw), true
-}
-
-func VerifyKey(maxKeySize uint32, maxValueChunks uint16, key []byte) bool {
-	if uint32(len(key)) > maxKeySize {
-		return false
-	}
-	keyChunks, ok := MaxChunks(key)
-	if !ok {
-		return false
-	}
-	return keyChunks <= maxValueChunks
-}
-
-func VerifyKeyValue(maxKeySize uint32, maxValueChunks uint16, key []byte, value []byte) bool {
-	if uint32(len(key)) > maxKeySize {
-		return false
-	}
-	valueChunks, ok := NumChunks(value)
-	if !ok {
-		return false
-	}
-	if valueChunks > maxValueChunks {
-		return false
-	}
-	keyChunks, ok := MaxChunks(key)
-	if !ok {
-		return false
-	}
-	return valueChunks <= keyChunks
-}
-
-func EncodeKey(key []byte, maxSize int) ([]byte, bool) {
-	numChunks, ok := numChunks(maxSize)
-	if !ok {
-		return nil, false
-	}
-	return binary.BigEndian.AppendUint16(key, numChunks), true
-}
-
-func EncodeKeyChunks(key []byte, maxChunks uint16) []byte {
-	return binary.BigEndian.AppendUint16(key, maxChunks)
 }

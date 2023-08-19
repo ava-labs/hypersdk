@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/keys"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
@@ -163,7 +163,7 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
-	if !chain.VerifyKeyFormat(ts.maxKeySize, ts.maxValueChunks, key, value) {
+	if !keys.VerifyValue(ts.maxKeySize, ts.maxValueChunks, key, value) {
 		return ErrInvalidKeyValue
 	}
 	k := string(key)
@@ -271,7 +271,7 @@ func (ts *TState) WriteChanges(
 
 // TODO: return error or add invariants
 func updateChunks(m map[string]uint16, key string, value []byte) {
-	chunks, _ := chain.NumChunks(value)
+	chunks, _ := keys.NumChunks(value)
 	previousChunks, ok := m[key]
 	if !ok || chunks > previousChunks {
 		m[key] = chunks

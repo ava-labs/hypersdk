@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/math"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/tstate"
@@ -133,25 +134,25 @@ func (t *Transaction) StateKeys(stateMapping StateManager, r Rules) (set.Set[str
 	}
 	actionKeys := t.Action.StateKeys(t.Auth, t.ID())
 	authKeys := t.Auth.StateKeys()
-	keys := set.NewSet[string](len(actionKeys) + len(authKeys))
+	stateKeys := set.NewSet[string](len(actionKeys) + len(authKeys))
 	for _, arr := range [][]string{actionKeys, authKeys} {
 		for _, k := range arr {
-			if !VerifyKey(r.GetMaxKeySize(), r.GetMaxValueChunks(), []byte(k)) {
+			if !keys.Verify(r.GetMaxKeySize(), r.GetMaxValueChunks(), []byte(k)) {
 				return nil, ErrInvalidKeyValue
 			}
 		}
 	}
 	if t.WarpMessage != nil {
-		k := EncodeKeyChunks(stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID), 0)
-		keys.Add(string(k))
+		k := keys.EncodeChunks(stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID), 0)
+		stateKeys.Add(string(k))
 	}
 	// Always assume a message could export a warp message
 	if t.Action.OutputsWarpMessage() {
-		k := EncodeKeyChunks(stateMapping.OutgoingWarpKey(t.id), r.GetOutgoingWarpMaxChunks())
-		keys.Add(string(k))
+		k := keys.EncodeChunks(stateMapping.OutgoingWarpKey(t.id), r.GetOutgoingWarpMaxChunks())
+		stateKeys.Add(string(k))
 	}
-	t.stateKeys = keys
-	return keys, nil
+	t.stateKeys = stateKeys
+	return stateKeys, nil
 }
 
 // Units is charged whether or not a transaction is successful because state
@@ -191,7 +192,7 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 		modificationsOp.Add(r.GetColdStorageKeyModificationUnits())
 
 		// Compute value costs
-		maxChunks, ok := MaxChunks([]byte(k))
+		maxChunks, ok := keys.MaxChunks([]byte(k))
 		if !ok {
 			return Dimensions{}, ErrInvalidKeyValue
 		}
@@ -391,7 +392,7 @@ func (t *Transaction) Execute(
 		}
 		// maxChunks will be greater than the chunks read in any of these keys,
 		// so we don't need to check for pre-existing values.
-		maxChunks, ok := MaxChunks(bk)
+		maxChunks, ok := keys.MaxChunks(bk)
 		if !ok {
 			tdb.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(ErrInvalidKeyValue), maxUnits, maxFee, nil}, nil
