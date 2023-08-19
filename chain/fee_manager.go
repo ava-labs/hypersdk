@@ -294,19 +294,39 @@ func ParseDimensions(raw []string) (Dimensions, error) {
 	return d, nil
 }
 
-func MaxSize(key string) (uint32, bool) {
-	bk := []byte(key)
-	l := len(bk)
+func MaxChunks(key []byte) (uint16, bool) {
+	l := len(key)
 	if l < consts.Uint16Len {
 		return 0, false
 	}
-	return uint32(binary.BigEndian.Uint16(bk[l-consts.Uint16Len:])) * chunkSize, true
+	return binary.BigEndian.Uint16(key[l-consts.Uint16Len:]) * chunkSize, true
 }
 
 func NumChunks(value []byte) (uint16, bool) {
+	if len(value) == 0 {
+		return 0, true
+	}
 	raw := len(value)/chunkSize + 1
 	if raw > int(consts.MaxUint16) {
 		return 0, false
 	}
 	return uint16(raw), true
+}
+
+func VerifyKeyFormat(maxKeySize uint32, maxValueChunks uint16, key []byte, value []byte) bool {
+	if uint32(len(key)) > maxKeySize {
+		return false
+	}
+	valueChunks, ok := NumChunks(value)
+	if !ok {
+		return false
+	}
+	if valueChunks > maxValueChunks {
+		return false
+	}
+	maxSpecifiedValueChunks, ok := MaxChunks(key)
+	if !ok {
+		return false
+	}
+	return valueChunks <= maxSpecifiedValueChunks
 }

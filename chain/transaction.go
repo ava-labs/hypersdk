@@ -228,8 +228,8 @@ func (t *Transaction) PreExecute(
 func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *FeeManager,
-	coldStorageReads []string,
-	warmStorageReads []string,
+	coldStorageReads map[string]int,
+	warmStorageReads map[string]int,
 	s StateManager,
 	r Rules,
 	tdb *tstate.TState,

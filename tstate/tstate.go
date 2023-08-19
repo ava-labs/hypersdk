@@ -16,8 +16,7 @@ import (
 )
 
 type op struct {
-	k    string
-	vLen int
+	k string
 
 	pastExists  bool
 	pastV       []byte
@@ -42,22 +41,30 @@ type TState struct {
 	// We don't differentiate between read and write scope because it is very
 	// uncommon for a user to write something without first reading what is
 	// there.
+	//
+	// TODO: why do we need both of these?
 	scope        set.Set[string] // stores a list of managed keys in the TState struct
 	scopeStorage map[string][]byte
+
+	// Store which keys are modified and how large their values were. Reset
+	// whenever setting scope.
+	creations         map[string]int
+	coldModifications map[string]int
+	warmModifications map[string]int
 
 	// Ops is a record of all operations performed on [TState]. Tracking
 	// operations allows for reverting state to a certain point-in-time.
 	ops []*op
 
-	// maxKeySize and maxValueSize are used to restrict the size of individual
+	// maxKeySize and maxValueChunks are used to restrict the size of individual
 	// state items.
-	maxKeySize   uint32
-	maxValueSize uint16
+	maxKeySize     uint32
+	maxValueChunks uint16
 }
 
 // New returns a new instance of TState. Initializes the storage and changedKeys
 // maps to have an initial size of [storageSize] and [changedSize] respectively.
-func New(changedSize int, maxKeySize uint32, maxValueSize uint16) *TState {
+func New(changedSize int, maxKeySize uint32, maxValueChunks uint16) *TState {
 	return &TState{
 		changedKeys: make(map[string]*tempStorage, changedSize),
 
@@ -65,8 +72,8 @@ func New(changedSize int, maxKeySize uint32, maxValueSize uint16) *TState {
 
 		ops: make([]*op, 0, changedSize),
 
-		maxKeySize:   maxKeySize,
-		maxValueSize: maxValueSize,
+		maxKeySize:     maxKeySize,
+		maxValueChunks: maxValueChunks,
 	}
 }
 
@@ -133,6 +140,9 @@ func (ts *TState) FetchAndSetScope(ctx context.Context, keys set.Set[string], db
 		ts.scopeStorage[key] = v
 	}
 	ts.scope = keys
+	ts.creations = map[string]int{}
+	ts.coldModifications = map[string]int{}
+	ts.warmModifications = map[string]int{}
 	return nil
 }
 
@@ -140,6 +150,9 @@ func (ts *TState) FetchAndSetScope(ctx context.Context, keys set.Set[string], db
 func (ts *TState) SetScope(_ context.Context, keys set.Set[string], storage map[string][]byte) {
 	ts.scope = keys
 	ts.scopeStorage = storage
+	ts.creations = map[string]int{}
+	ts.coldModifications = map[string]int{}
+	ts.warmModifications = map[string]int{}
 }
 
 // checkScope returns whether [k] is in ts.readScope.
@@ -152,33 +165,27 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
-	if uint32(len(key)) > ts.maxKeySize {
-		return errors.New("key too large")
-	}
-	valueChunks, ok := chain.NumChunks(value)
-	if !ok {
-		return errors.New("value too large")
-	}
-	if valueChunks > ts.maxValueSize {
-		return errors.New("value too large")
-	}
-	maxValueChunks, ok := chain.MaxSize(key)
-	if !ok {
-		return errors.New("invalid key")
-	}
-	if valueChunks > maxValueChunks {
-		return errors.New("value is not encoded in key correctly")
+	if !chain.VerifyKeyFormat(ts.maxKeySize, ts.maxValueChunks, key, value) {
+		return ErrInvalidKeyValue
 	}
 	k := string(key)
 	past, changed, exists := ts.getValue(ctx, k)
 	ts.ops = append(ts.ops, &op{
 		k:           k,
-		vLen:        len(value),
 		pastExists:  exists,
 		pastV:       past,
 		pastChanged: changed,
 	})
 	ts.changedKeys[k] = &tempStorage{value, false}
+	if exists {
+		if changed {
+			updateChunks(ts.warmModifications, k, value)
+		} else {
+			updateChunks(ts.coldModifications, k, value)
+		}
+	} else {
+		updateChunks(ts.creations, k, value)
+	}
 	return nil
 }
 
@@ -199,6 +206,11 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 		pastChanged: changed,
 	})
 	ts.changedKeys[k] = &tempStorage{nil, true}
+	if changed {
+		updateChunks(ts.warmModifications, k, nil)
+	} else {
+		updateChunks(ts.coldModifications, k, nil)
+	}
 	return nil
 }
 
@@ -259,36 +271,17 @@ func (ts *TState) WriteChanges(
 	return nil
 }
 
-func updateChunks(m map[string]int, key string, chunks int) {
+// TODO: return error or add invariants
+func updateChunks(m map[string]int, key string, value []byte) {
+	chunks, _ := chain.NumChunks(value)
 	previousChunks, ok := m[key]
 	if !ok || chunks > previousChunks {
 		m[key] = chunks
 	}
 }
 
-func (ts *TState) CountKeyOperations(ctx context.Context, start int) (map[string]int, map[string]int, map[string]int) {
-	var (
-		creations         = map[string]int{}
-		coldModifications = map[string]int{}
-		warmModifications = map[string]int{}
-	)
-	for i := start; i < len(ts.ops); i++ {
-		op := ts.ops[i]
-		k := op.k
-		chunks, _ := chain.NumChunks(op.vLen) // already ensure length does not exceed max chunks
-		if op.pastExists {
-			if op.pastChanged {
-				// Ensure a key is only in one modification set and that
-				// if possible to be in both, it is only in cold.
-				if _, ok := coldModifications[k]; !ok {
-					updateChunks(warmModifications, k, chunks)
-				}
-			} else {
-				updateChunks(coldModifications, k, chunks)
-			}
-		} else {
-			updateChunks(creations, k, chunks)
-		}
-	}
-	return creations, coldModifications, warmModifications
+// TODO: fill out comment
+// If a key is used more than once, the largest instance is taken
+func (ts *TState) KeyOperations() (map[string]int, map[string]int, map[string]int) {
+	return ts.creations, ts.coldModifications, ts.warmModifications
 }
