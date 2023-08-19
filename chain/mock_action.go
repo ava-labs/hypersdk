@@ -54,6 +54,20 @@ func (mr *MockActionMockRecorder) Execute(arg0, arg1, arg2, arg3, arg4, arg5, ar
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockAction)(nil).Execute), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
+// GetTypeID mocks base method.
+func (m *MockAction) GetTypeID() byte {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTypeID")
+	ret0, _ := ret[0].(byte)
+	return ret0
+}
+
+// GetTypeID indicates an expected call of GetTypeID.
+func (mr *MockActionMockRecorder) GetTypeID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTypeID", reflect.TypeOf((*MockAction)(nil).GetTypeID))
+}
+
 // Marshal mocks base method.
 func (m *MockAction) Marshal(arg0 *codec.Packer) {
 	m.ctrl.T.Helper()

@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
@@ -32,9 +33,13 @@ type Parser interface {
 type VM interface {
 	Parser
 
-	Workers() *workers.Workers
+	Workers() workers.Workers
 	Tracer() trace.Tracer
 	Logger() logging.Logger
+
+	// We don't include this in registry because it would never be used
+	// by any client of the hypersdk.
+	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
@@ -46,7 +51,8 @@ type VM interface {
 	ValidatorState() validators.State
 
 	Mempool() Mempool
-	IsRepeat(context.Context, []*Transaction) bool
+	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
+	GetTargetBuildDuration() time.Duration
 
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
@@ -64,17 +70,29 @@ type VM interface {
 	// TODO: break out into own interface
 	RecordRootCalculated(time.Duration) // only called in Verify
 	RecordWaitSignatures(time.Duration) // only called in Verify
+	RecordBlockVerify(time.Duration)
+	RecordBlockAccept(time.Duration)
 	RecordStateChanges(int)
 	RecordStateOperations(int)
+	RecordBuildCapped()
+	RecordEmptyBlockBuilt()
+	RecordClearedMempool()
 }
 
 type Mempool interface {
 	Len(context.Context) int
 	Add(context.Context, []*Transaction)
-	Build(
+
+	Top(
 		context.Context,
-		func(context.Context, *Transaction) (bool /* continue */, bool /* restore */, bool /* remove account */, error),
+		time.Duration,
+		func(context.Context, *Transaction) (cont bool, restore bool, err error),
 	) error
+
+	StartStreaming(context.Context)
+	PrepareStream(context.Context, int)
+	Stream(context.Context, int) []*Transaction
+	FinishStreaming(context.Context, []*Transaction) int
 }
 
 type Database interface {
@@ -90,6 +108,7 @@ type Rules interface {
 	ChainID() ids.ID
 
 	GetMinBlockGap() int64
+	GetMinEmptyBlockGap() int64
 
 	GetMinUnitPrice() uint64
 	GetUnitPriceChangeDenominator() uint64
@@ -152,8 +171,14 @@ type Action interface {
 	Marshal(p *codec.Packer)
 }
 
+type AuthBatchVerifier interface {
+	Add([]byte, Auth) func() error
+	Done() []func() error
+}
+
 type Auth interface {
 	GetTypeID() uint8 // identify uniquely the auth
+
 	MaxUnits(Rules) uint64
 	ValidRange(Rules) (start int64, end int64) // -1 means no start/end
 

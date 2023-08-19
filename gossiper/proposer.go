@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/workers"
 	"go.uber.org/zap"
 )
 
@@ -181,18 +182,19 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	mempoolErr := g.vm.Mempool().Build(
+	mempoolErr := g.vm.Mempool().Top(
 		ctx,
-		func(ictx context.Context, next *chain.Transaction) (cont bool, restore bool, removeAcct bool, err error) {
+		g.vm.GetTargetGossipDuration(),
+		func(ictx context.Context, next *chain.Transaction) (cont bool, restore bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
-				return true, false, false, nil
+				return true, false, nil
 			}
 
 			// Don't gossip txs that are about to expire
 			life := next.Base.Timestamp - now
 			if life < g.cfg.GossipMinLife {
-				return true, true, false, nil
+				return true, true, nil
 			}
 
 			// Don't gossip txs we received from other nodes (original gossiper will
@@ -202,7 +204,7 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 			// We still keep these transactions in our mempool as they may still be
 			// the highest-paying transaction to execute at a given time.
 			if _, has := g.receivedTxs.Get(next.ID()); has {
-				return true, true, false, nil
+				return true, true, nil
 			}
 
 			// PreExecute does not make any changes to state
@@ -212,18 +214,18 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 			if err := next.PreExecute(ctx, ectx, r, state, now); err != nil {
 				// Do not gossip invalid txs (may become invalid during normal block
 				// processing)
-				cont, restore, removeAcct := chain.HandlePreExecute(err)
-				return cont, restore, removeAcct, nil
+				cont, restore, _ := chain.HandlePreExecute(err)
+				return cont, restore, nil
 			}
 
 			// Gossip up to [consts.NetworkSizeLimit]
 			txSize := next.Size()
 			if txSize+size > g.cfg.GossipMaxSize {
-				return false, true, false, nil
+				return false, true, nil
 			}
 			txs = append(txs, next)
 			size += txSize
-			return true, true, false, nil
+			return true, true, nil
 		},
 	)
 	if mempoolErr != nil {
@@ -242,7 +244,7 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 
 func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	actionRegistry, authRegistry := g.vm.Registry()
-	txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionRegistry, authRegistry)
+	authCounts, txs, err := chain.UnmarshalTxs(msg, initialCapacity, actionRegistry, authRegistry)
 	if err != nil {
 		g.vm.Logger().Warn(
 			"received invalid txs",
@@ -272,17 +274,56 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 		}
 	}
 
-	// Add incoming transactions to our caches to prevent useless gossip
+	// Add incoming transactions to our caches to prevent useless gossip and perform
+	// batch signature verification.
+	//
+	// We rely on AppGossipConcurrency to regulate concurrency here, so we don't create
+	// a separate pool of workers for this verification.
+	job, err := workers.NewSerial().NewJob(len(txs))
+	if err != nil {
+		g.vm.Logger().Warn(
+			"unable to spawn new worker",
+			zap.Stringer("peerID", nodeID),
+			zap.Error(err),
+		)
+		return nil
+	}
+	batchVerifier := chain.NewAuthBatch(g.vm, job, authCounts)
 	for _, tx := range txs {
+		// Verify signature async
+		txDigest, err := tx.Digest()
+		if err != nil {
+			g.vm.Logger().Warn(
+				"unable to compute tx digest",
+				zap.Stringer("peerID", nodeID),
+				zap.Error(err),
+			)
+			batchVerifier.Done(nil)
+			return nil
+		}
+		batchVerifier.Add(txDigest, tx.Auth)
+
+		// Track incoming txs
 		if c != nil {
 			c.Put(tx.ID(), struct{}{})
 		}
 		g.receivedTxs.Put(tx.ID(), struct{}{})
 	}
+	batchVerifier.Done(nil)
+
+	// Wait for signature verification to finish
+	if err := job.Wait(); err != nil {
+		g.vm.Logger().Warn(
+			"received invalid gossip",
+			zap.Stringer("peerID", nodeID),
+			zap.Error(err),
+		)
+		return nil
+	}
 
 	// Submit incoming gossip to mempool
 	start := time.Now()
-	for _, err := range g.vm.Submit(ctx, true, txs) {
+	for _, err := range g.vm.Submit(ctx, false, txs) {
 		if err == nil || errors.Is(err, chain.ErrDuplicateTx) {
 			continue
 		}

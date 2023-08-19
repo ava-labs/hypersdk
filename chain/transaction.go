@@ -371,22 +371,24 @@ func UnmarshalTxs(
 	initialCapacity int,
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
-) ([]*Transaction, error) {
+) (map[uint8]int, []*Transaction, error) {
 	p := codec.NewReader(raw, consts.NetworkSizeLimit)
 	txCount := p.UnpackInt(true)
+	authCounts := map[uint8]int{}
 	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
 	for i := 0; i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		txs = append(txs, tx)
+		authCounts[tx.Auth.GetTypeID()]++
 	}
 	if !p.Empty() {
 		// Ensure no leftover bytes
-		return nil, ErrInvalidObject
+		return nil, nil, ErrInvalidObject
 	}
-	return txs, p.Err()
+	return authCounts, txs, p.Err()
 }
 
 func UnmarshalTx(

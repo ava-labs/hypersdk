@@ -47,6 +47,16 @@ type StatefulBlock struct {
 	StateRoot     ids.ID     `json:"stateRoot"`
 	UnitsConsumed uint64     `json:"unitsConsumed"`
 	WarpResults   set.Bits64 `json:"warpResults"`
+
+	size int
+
+	// authCounts can be used by batch signature verification
+	// to preallocate memory
+	authCounts map[uint8]int
+}
+
+func (b *StatefulBlock) Size() int {
+	return b.size
 }
 
 // warpJob is used to signal to a listner that a *warp.Message has been
@@ -100,7 +110,7 @@ type StatelessBlock struct {
 	vm    VM
 	state merkledb.TrieView
 
-	sigJob *workers.Job
+	sigJob workers.Job
 }
 
 func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
@@ -141,22 +151,38 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	defer span.End()
 
 	// Setup signature verification job
+	_, sigVerifySpan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
 	job, err := b.vm.Workers().NewJob(len(b.Txs))
 	if err != nil {
 		return err
 	}
 	b.sigJob = job
+	batchVerifier := NewAuthBatch(b.vm, b.sigJob, b.authCounts)
 
-	// Process transactions
-	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
+	// Make sure to always call [Done], otherwise we will block all future [Workers]
+	defer func() {
+		// BatchVerifier is given the responsibility to call [b.sigJob.Done()] because it may add things
+		// to the work queue async and that may not have completed by this point.
+		go batchVerifier.Done(func() { sigVerifySpan.End() })
+	}()
+
+	// Confirm no transaction duplicates and setup
+	// AWM processing
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	b.warpMessages = map[ids.ID]*warpJob{}
 	for _, tx := range b.Txs {
-		b.sigJob.Go(tx.AuthAsyncVerify())
+		// Ensure there are no duplicate transactions
 		if b.txsSet.Contains(tx.ID()) {
 			return ErrDuplicateTx
 		}
 		b.txsSet.Add(tx.ID())
+
+		// Verify signature async
+		txDigest, err := tx.Digest()
+		if err != nil {
+			return err
+		}
+		batchVerifier.Add(txDigest, tx.Auth)
 
 		// Check if we need the block context to verify the block (which contains
 		// an Avalanche Warp Message)
@@ -181,7 +207,6 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 			b.containsWarp = true
 		}
 	}
-	b.sigJob.Done(func() { sspan.End() })
 	return nil
 }
 
@@ -196,13 +221,8 @@ func ParseStatefulBlock(
 	defer span.End()
 
 	// Perform basic correctness checks before doing any expensive work
-	if blk.Hght > 0 { // skip genesis
-		if blk.Tmstmp > time.Now().Add(FutureBound).UnixMilli() {
-			return nil, ErrTimestampTooLate
-		}
-		if len(blk.Txs) == 0 {
-			return nil, ErrNoTxs
-		}
+	if blk.Tmstmp > time.Now().Add(FutureBound).UnixMilli() {
+		return nil, ErrTimestampTooLate
 	}
 
 	if len(source) == 0 {
@@ -270,6 +290,11 @@ func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) 
 
 // implements "block.WithVerifyContext"
 func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Context) error {
+	start := time.Now()
+	defer func() {
+		b.vm.RecordBlockVerify(time.Since(start))
+	}()
+
 	stateReady := b.vm.StateReady()
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.VerifyWithContext",
@@ -292,6 +317,11 @@ func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Cont
 
 // implements "snowman.Block"
 func (b *StatelessBlock) Verify(ctx context.Context) error {
+	start := time.Now()
+	defer func() {
+		b.vm.RecordBlockVerify(time.Since(start))
+	}()
+
 	stateReady := b.vm.StateReady()
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.Verify",
@@ -391,11 +421,8 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	)
 
 	// Perform basic correctness checks before doing any expensive work
-	switch {
-	case b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli():
+	if b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli() {
 		return nil, ErrTimestampTooLate
-	case len(b.Txs) == 0:
-		return nil, ErrNoTxs
 	}
 
 	// Verify parent is verified and available
@@ -404,7 +431,10 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		log.Debug("could not get parent", zap.Stringer("id", b.Prnt))
 		return nil, err
 	}
-	if parent.Timestamp().UnixMilli()+r.GetMinBlockGap() > b.Timestamp().UnixMilli() {
+	if b.Timestamp().UnixMilli() < parent.Timestamp().UnixMilli()+r.GetMinBlockGap() {
+		return nil, ErrTimestampTooEarly
+	}
+	if len(b.Txs) == 0 && b.Timestamp().UnixMilli() < parent.Timestamp().UnixMilli()+r.GetMinEmptyBlockGap() {
 		return nil, ErrTimestampTooEarly
 	}
 
@@ -417,11 +447,11 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		// Can occur if verifying genesis
 		oldestAllowed = 0
 	}
-	dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs)
+	dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs, set.NewBits(), true)
 	if err != nil {
 		return nil, err
 	}
-	if dup {
+	if dup.Len() > 0 {
 		return nil, fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
 	}
 
@@ -452,10 +482,10 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 			)
 			return nil, ErrMissingBlockContext
 		}
-		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
+		_, warpVerifySpan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
 		b.vdrState = b.vm.ValidatorState()
 		go func() {
-			defer sspan.End()
+			defer warpVerifySpan.End()
 			// We don't use [b.vm.Workers] here because we need the warp verification
 			// results during normal execution. If we added a job to the workers queue,
 			// it would get executed after all signatures. Additionally, BLS
@@ -575,6 +605,11 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 // implements "snowman.Block.choices.Decidable"
 func (b *StatelessBlock) Accept(ctx context.Context) error {
+	start := time.Now()
+	defer func() {
+		b.vm.RecordBlockAccept(time.Since(start))
+	}()
+
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.Accept")
 	defer span.End()
 
@@ -708,11 +743,18 @@ func (b *StatelessBlock) childState(
 	return b.state.NewPreallocatedView(estimatedChanges)
 }
 
+// IsRepeat returns a bitset of all transactions that are considered repeats in
+// the range that spans back to [oldestAllowed].
+//
+// If [stop] is set to true, IsRepeat will return as soon as the first repeat
+// is found (useful for block verification).
 func (b *StatelessBlock) IsRepeat(
 	ctx context.Context,
 	oldestAllowed int64,
 	txs []*Transaction,
-) (bool, error) {
+	marker set.Bits,
+	stop bool,
+) (set.Bits, error) {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.IsRepeat")
 	defer span.End()
 
@@ -721,26 +763,32 @@ func (b *StatelessBlock) IsRepeat(
 	// It is critical to ensure this logic is equivalent to [emap] to avoid
 	// non-deterministic verification.
 	if b.Tmstmp < oldestAllowed {
-		return false, nil
+		return marker, nil
 	}
 
 	// If we are at an accepted block or genesis, we can use the emap on the VM
 	// instead of checking each block
 	if b.st == choices.Accepted || b.Hght == 0 /* genesis */ {
-		return b.vm.IsRepeat(ctx, txs), nil
+		return b.vm.IsRepeat(ctx, txs, marker, stop), nil
 	}
 
 	// Check if block contains any overlapping txs
-	for _, tx := range txs {
+	for i, tx := range txs {
+		if marker.Contains(i) {
+			continue
+		}
 		if b.txsSet.Contains(tx.ID()) {
-			return true, nil
+			marker.Add(i)
+			if stop {
+				return marker, nil
+			}
 		}
 	}
 	prnt, err := b.vm.GetStatelessBlock(ctx, b.Prnt)
 	if err != nil {
-		return false, err
+		return marker, err
 	}
-	return prnt.IsRepeat(ctx, oldestAllowed, txs)
+	return prnt.IsRepeat(ctx, oldestAllowed, txs, marker, stop)
 }
 
 func (b *StatelessBlock) GetTxs() []*Transaction {
@@ -775,16 +823,23 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	p.PackWindow(b.UnitWindow)
 
 	p.PackInt(len(b.Txs))
+	b.authCounts = map[uint8]int{}
 	for _, tx := range b.Txs {
 		if err := tx.Marshal(p); err != nil {
 			return nil, err
 		}
+		b.authCounts[tx.Auth.GetTypeID()]++
 	}
 
 	p.PackID(b.StateRoot)
 	p.PackUint64(b.UnitsConsumed)
 	p.PackUint64(uint64(b.WarpResults))
-	return p.Bytes(), p.Err()
+	bytes := p.Bytes()
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
+	b.size = len(bytes)
+	return bytes, nil
 }
 
 func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
@@ -792,6 +847,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 		p = codec.NewReader(raw, consts.NetworkSizeLimit)
 		b StatefulBlock
 	)
+	b.size = len(raw)
 
 	p.UnpackID(false, &b.Prnt)
 	b.Tmstmp = p.UnpackInt64(false)
@@ -805,24 +861,25 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	}
 
 	// Parse transactions
-	txCount := p.UnpackInt(false) // could be 0 in genesis
+	txCount := p.UnpackInt(false) // can produce empty blocks
 	actionRegistry, authRegistry := parser.Registry()
 	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
+	b.authCounts = map[uint8]int{}
 	for i := 0; i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, err
 		}
 		b.Txs = append(b.Txs, tx)
+		b.authCounts[tx.Auth.GetTypeID()]++
 	}
-
 	p.UnpackID(false, &b.StateRoot)
 	b.UnitsConsumed = p.UnpackUint64(false)
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
 
 	if !p.Empty() {
 		// Ensure no leftover bytes
-		return nil, ErrInvalidObject
+		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
 	}
 	return &b, p.Err()
 }

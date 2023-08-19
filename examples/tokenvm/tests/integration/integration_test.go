@@ -36,7 +36,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -102,14 +102,14 @@ func init() {
 }
 
 var (
-	priv    crypto.PrivateKey
+	priv    ed25519.PrivateKey
 	factory *auth.ED25519Factory
-	rsender crypto.PublicKey
+	rsender ed25519.PublicKey
 	sender  string
 
-	priv2    crypto.PrivateKey
+	priv2    ed25519.PrivateKey
 	factory2 *auth.ED25519Factory
-	rsender2 crypto.PublicKey
+	rsender2 ed25519.PublicKey
 	sender2  string
 
 	asset1   []byte
@@ -143,7 +143,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Ω(vms).Should(gomega.BeNumerically(">", 1))
 
 	var err error
-	priv, err = crypto.GeneratePrivateKey()
+	priv, err = ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
 	factory = auth.NewED25519Factory(priv)
 	rsender = priv.PublicKey()
@@ -154,7 +154,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		zap.String("pk", hex.EncodeToString(priv[:])),
 	)
 
-	priv2, err = crypto.GeneratePrivateKey()
+	priv2, err = ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
 	factory2 = auth.NewED25519Factory(priv2)
 	rsender2 = priv2.PublicKey()
@@ -273,7 +273,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(string(metadata)).Should(gomega.Equal(tconsts.Symbol))
 		gomega.Ω(supply).Should(gomega.Equal(csupply))
-		gomega.Ω(owner).Should(gomega.Equal(utils.Address(crypto.EmptyPublicKey)))
+		gomega.Ω(owner).Should(gomega.Equal(utils.Address(ed25519.EmptyPublicKey)))
 		gomega.Ω(warp).Should(gomega.BeFalse())
 	}
 
@@ -575,9 +575,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			tx := blk2.(*chain.StatelessBlock).Txs[0]
 			sblk3 := blk3.(*chain.StatelessBlock)
 			sblk3t := sblk3.Timestamp().UnixMilli()
-			ok, err := sblk3.IsRepeat(ctx, sblk3t-n.vm.Rules(sblk3t).GetValidityWindow(), []*chain.Transaction{tx})
+			ok, err := sblk3.IsRepeat(ctx, sblk3t-n.vm.Rules(sblk3t).GetValidityWindow(), []*chain.Transaction{tx}, set.NewBits(), false)
 			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(ok).Should(gomega.BeTrue())
+			gomega.Ω(ok.Len()).Should(gomega.Equal(1))
 
 			// Accept tip
 			err = blk1.Accept(ctx)
@@ -597,7 +597,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 			// Check if tx from old block would be considered a repeat on accepted tip
 			time.Sleep(2 * time.Second)
-			gomega.Ω(n.vm.IsRepeat(ctx, []*chain.Transaction{tx})).Should(gomega.BeTrue())
+			gomega.Ω(n.vm.IsRepeat(ctx, []*chain.Transaction{tx}, set.NewBits(), false).Len()).Should(gomega.Equal(1))
 		})
 	})
 
@@ -619,7 +619,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Send tx
-		other, err := crypto.GeneratePrivateKey()
+		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		transfer := &actions.Transfer{
 			To:    other.PublicKey(),
@@ -673,7 +673,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Create tx
-		other, err := crypto.GeneratePrivateKey()
+		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		transfer := &actions.Transfer{
 			To:    other.PublicKey(),
@@ -721,7 +721,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("mint an asset that doesn't exist", func() {
-		other, err := crypto.GeneratePrivateKey()
+		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		assetID := ids.GenerateTestID()
 		parser, err := instances[0].tcli.Parser(context.Background())
@@ -893,7 +893,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("mint asset from wrong owner", func() {
-		other, err := crypto.GeneratePrivateKey()
+		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		parser, err := instances[0].tcli.Parser(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -1005,7 +1005,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("rejects empty mint", func() {
-		other, err := crypto.GeneratePrivateKey()
+		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		tx := chain.NewTx(
 			&chain.Base{
@@ -1089,7 +1089,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			&actions.ModifyAsset{
 				Asset:    asset1ID,
 				Metadata: []byte("blah"),
-				Owner:    crypto.EmptyPublicKey,
+				Owner:    ed25519.EmptyPublicKey,
 			},
 			factory,
 		)
@@ -1115,7 +1115,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(metadata).Should(gomega.Equal([]byte("blah")))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(10)))
-		gomega.Ω(owner).Should(gomega.Equal(utils.Address(crypto.EmptyPublicKey)))
+		gomega.Ω(owner).Should(gomega.Equal(utils.Address(ed25519.EmptyPublicKey)))
 		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
@@ -1150,7 +1150,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("rejects mint of native token", func() {
-		other, err := crypto.GeneratePrivateKey()
+		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		tx := chain.NewTx(
 			&chain.Base{
@@ -1829,6 +1829,15 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		blk, err := instances[0].vm.BuildBlock(context.TODO())
 		gomega.Ω(err).To(gomega.Not(gomega.BeNil()))
 		gomega.Ω(blk).To(gomega.BeNil())
+
+		// Wait for mempool to be size 1 (txs are restored async)
+		for {
+			if instances[0].vm.Mempool().Len(context.Background()) > 0 {
+				break
+			}
+			log.Info("waiting for txs to be restored")
+			time.Sleep(100 * time.Millisecond)
+		}
 
 		// Build block with context
 		accept := expectBlkWithContext(instances[0])

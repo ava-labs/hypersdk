@@ -38,10 +38,17 @@ type Config interface {
 	GetParsedBlockCacheSize() int
 	GetAcceptedBlockCacheSize() int
 	GetContinuousProfilerConfig() *profiler.Config
+	GetTargetBuildDuration() time.Duration
+	GetTargetGossipDuration() time.Duration
 }
 
 type Genesis interface {
 	Load(context.Context, trace.Tracer, chain.Database) error
+}
+
+type AuthEngine interface {
+	GetBatchVerifier(cores int, count int) chain.AuthBatchVerifier
+	Cache(auth chain.Auth)
 }
 
 type Controller interface {
@@ -64,6 +71,7 @@ type Controller interface {
 		handler Handlers,
 		actionRegistry chain.ActionRegistry,
 		authRegistry chain.AuthRegistry,
+		authEngines map[uint8]AuthEngine,
 		err error,
 	)
 

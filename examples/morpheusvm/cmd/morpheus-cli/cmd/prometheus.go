@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 )
@@ -22,8 +23,15 @@ var prometheusCmd = &cobra.Command{
 var generatePrometheusCmd = &cobra.Command{
 	Use: "generate",
 	RunE: func(_ *cobra.Command, args []string) error {
-		return handler.Root().GeneratePrometheus(prometheusFile, prometheusData, func(chainID ids.ID) []string {
+		return handler.Root().GeneratePrometheus(runPrometheus, prometheusFile, prometheusData, func(chainID ids.ID) []string {
 			panels := []string{}
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_empty_block_built[5s])", chainID))
+			utils.Outf("{{yellow}}empty blocks built (5s):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_build_capped[5s])", chainID))
+			utils.Outf("{{yellow}}build time capped (5s):{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("avalanche_%s_blks_processing", chainID))
 			utils.Outf("{{yellow}}blocks processing:{{/}} %s\n", panels[len(panels)-1])
 
@@ -60,6 +68,9 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_signatures_sum[5s])/1000000/5", chainID))
 			utils.Outf("{{yellow}}signature verification wait (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_cleared_mempool[5s])/5", chainID))
+			utils.Outf("{{yellow}}cleared mempool per second:{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_mempool_size", chainID))
 			utils.Outf("{{yellow}}mempool size:{{/}} %s\n", panels[len(panels)-1])
 
@@ -70,12 +81,46 @@ var generatePrometheusCmd = &cobra.Command{
 			utils.Outf("{{yellow}}memory (avalanchego) usage:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_go_memstats_alloc_bytes", chainID))
-			utils.Outf("{{yellow}}memory (tokenvm) usage:{{/}} %s\n", panels[len(panels)-1])
+			utils.Outf("{{yellow}}memory (morpheusvm) usage:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_handler_chits_sum[5s])/1000000/5 + increase(avalanche_%s_handler_notify_sum[5s])/1000000/5 + increase(avalanche_%s_handler_get_sum[5s])/1000000/5 + increase(avalanche_%s_handler_push_query_sum[5s])/1000000/5 + increase(avalanche_%s_handler_put_sum[5s])/1000000/5 + increase(avalanche_%s_handler_pull_query_sum[5s])/1000000/5 + increase(avalanche_%s_handler_query_failed_sum[5s])/1000000/5", chainID, chainID, chainID, chainID, chainID, chainID, chainID))
 			utils.Outf("{{yellow}}consensus engine processing (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
-			// TODO: add bandwidth usage
+			panels = append(panels, cli.InboundBandwidth)
+			utils.Outf("{{yellow}}inbound bandwidth (B):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, cli.InboundCompressionSavingsPercent)
+			utils.Outf("{{yellow}}inbound compression savings (%):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, cli.DecompressionTime)
+			utils.Outf("{{yellow}}inbound decompression time (ms/s):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, cli.OutboundBandwidth)
+			utils.Outf("{{yellow}}outbound bandwidth (B):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, cli.OutboundCompressionSavingsPercent)
+			utils.Outf("{{yellow}}outbound compression savings (%):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, cli.CompressionTime)
+			utils.Outf("{{yellow}}outbound compression time (ms/s):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, cli.OutboundFailed)
+			utils.Outf("{{yellow}}outbound failed:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_block_build_sum[5s])/1000000/5", chainID))
+			utils.Outf("{{yellow}}block build (ms/s):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_block_parse_sum[5s])/1000000/5", chainID))
+			utils.Outf("{{yellow}}block parse (ms/s):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_block_verify_sum[5s])/1000000/5", chainID))
+			utils.Outf("{{yellow}}block verify (ms/s):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_block_accept_sum[5s])/1000000/5", chainID))
+			utils.Outf("{{yellow}}block accept (ms/s):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_block_process_sum[5s])/1000000/5", chainID))
+			utils.Outf("{{yellow}}block process [async] (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
 			return panels
 		})

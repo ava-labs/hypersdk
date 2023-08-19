@@ -14,7 +14,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	hconsts "github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
@@ -33,7 +33,8 @@ type Genesis struct {
 	HRP string `json:"hrp"`
 
 	// Chain Parameters
-	MinBlockGap int64 `json:"minBlockGap"` // ms
+	MinBlockGap      int64 `json:"minBlockGap"`      // ms
+	MinEmptyBlockGap int64 `json:"minEmptyBlockGap"` // ms
 
 	// Chain Fee Parameters
 	MinUnitPrice               uint64 `json:"minUnitPrice"`
@@ -58,7 +59,8 @@ func Default() *Genesis {
 		HRP: consts.HRP,
 
 		// Chain Parameters
-		MinBlockGap: 100,
+		MinBlockGap:      100,
+		MinEmptyBlockGap: 2_500,
 
 		// Chain Fee Parameters
 		MinUnitPrice:               1,
@@ -117,7 +119,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Databa
 		ids.Empty,
 		[]byte(consts.Symbol),
 		supply,
-		crypto.EmptyPublicKey,
+		ed25519.EmptyPublicKey,
 		false,
 	)
 }

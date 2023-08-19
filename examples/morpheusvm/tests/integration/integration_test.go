@@ -35,7 +35,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -101,19 +101,19 @@ func init() {
 }
 
 var (
-	priv    crypto.PrivateKey
+	priv    ed25519.PrivateKey
 	factory *auth.ED25519Factory
-	rsender crypto.PublicKey
+	rsender ed25519.PublicKey
 	sender  string
 
-	priv2    crypto.PrivateKey
+	priv2    ed25519.PrivateKey
 	factory2 *auth.ED25519Factory
-	rsender2 crypto.PublicKey
+	rsender2 ed25519.PublicKey
 	sender2  string
 
-	priv3    crypto.PrivateKey
+	priv3    ed25519.PrivateKey
 	factory3 *auth.ED25519Factory
-	rsender3 crypto.PublicKey
+	rsender3 ed25519.PublicKey
 	sender3  string
 
 	// when used with embedded VMs
@@ -141,7 +141,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Ω(vms).Should(gomega.BeNumerically(">", 1))
 
 	var err error
-	priv, err = crypto.GeneratePrivateKey()
+	priv, err = ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
 	factory = auth.NewED25519Factory(priv)
 	rsender = priv.PublicKey()
@@ -152,7 +152,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		zap.String("pk", hex.EncodeToString(priv[:])),
 	)
 
-	priv2, err = crypto.GeneratePrivateKey()
+	priv2, err = ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
 	factory2 = auth.NewED25519Factory(priv2)
 	rsender2 = priv2.PublicKey()
@@ -163,7 +163,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		zap.String("pk", hex.EncodeToString(priv2[:])),
 	)
 
-	priv3, err = crypto.GeneratePrivateKey()
+	priv3, err = ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
 	factory3 = auth.NewED25519Factory(priv3)
 	rsender3 = priv3.PublicKey()
@@ -603,7 +603,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Send tx
-		other, err := crypto.GeneratePrivateKey()
+		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		transfer := &actions.Transfer{
 			To:    other.PublicKey(),
@@ -656,7 +656,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Create tx
-		other, err := crypto.GeneratePrivateKey()
+		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		transfer := &actions.Transfer{
 			To:    other.PublicKey(),

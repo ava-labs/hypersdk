@@ -17,7 +17,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=6e97e33e06422ef6e03a765729aaa90eb26d01a5
+VERSION=v1.10.8
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
@@ -31,6 +31,7 @@ fi
 echo "Running with:"
 echo VERSION: ${VERSION}
 echo MODE: ${MODE}
+echo LOG LEVEL: ${LOGLEVEL}
 echo STATESYNC_DELAY \(ns\): ${STATESYNC_DELAY}
 echo MIN_BLOCK_GAP \(ms\): ${MIN_BLOCK_GAP}
 
@@ -131,12 +132,13 @@ cat <<EOF > ${TMPDIR}/morpheusvm.config
   "verifySignatures":true,
   "storeTransactions":true,
   "streamingBacklogSize": 10000000,
-  "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
 mkdir -p ${TMPDIR}/morpheusvm-e2e-profiles
+
+# Profiling config:  {"continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*"}
 
 ############################
 

@@ -45,4 +45,6 @@ func (c *Config) GetAcceptedBlockCacheSize() int         { return 128 }
 func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	return &profiler.Config{Enabled: false}
 }
-func (c *Config) GetVerifySignatures() bool { return true }
+func (c *Config) GetVerifySignatures() bool              { return true }
+func (c *Config) GetTargetBuildDuration() time.Duration  { return 100 * time.Millisecond }
+func (c *Config) GetTargetGossipDuration() time.Duration { return 20 * time.Millisecond }

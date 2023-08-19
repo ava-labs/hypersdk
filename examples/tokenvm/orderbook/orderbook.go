@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/heap"
@@ -26,7 +26,7 @@ type Order struct {
 	OutTick   uint64 `json:"outTick"`
 	Remaining uint64 `json:"remaining"`
 
-	owner crypto.PublicKey
+	owner ed25519.PublicKey
 }
 
 type OrderBook struct {
@@ -63,7 +63,7 @@ func New(c Controller, trackedPairs []string) *OrderBook {
 	}
 }
 
-func (o *OrderBook) Add(txID ids.ID, actor crypto.PublicKey, action *actions.CreateOrder) {
+func (o *OrderBook) Add(txID ids.ID, actor ed25519.PublicKey, action *actions.CreateOrder) {
 	pair := actions.PairID(action.In, action.Out)
 	order := &Order{
 		txID,

@@ -24,6 +24,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
@@ -62,6 +63,7 @@ type VM struct {
 	handlers       Handlers
 	actionRegistry chain.ActionRegistry
 	authRegistry   chain.AuthRegistry
+	authEngine     map[uint8]AuthEngine
 
 	tracer  trace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -92,7 +94,7 @@ type VM struct {
 	webSocketServer *rpc.WebSocketServer
 
 	// Reuse gorotuine group to avoid constant re-allocation
-	workers *workers.Workers
+	workers workers.Workers
 
 	bootstrapped utils.Atomic[bool]
 	preferred    ids.ID
@@ -167,7 +169,7 @@ func (vm *VM) Initialize(
 
 	// Always initialize implementation first
 	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.vmDB,
-		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, err = vm.c.Initialize(
+		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
 		vm,
 		snowCtx,
 		gatherer,
@@ -209,7 +211,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Setup worker cluster
-	vm.workers = workers.New(vm.config.GetParallelism(), 100)
+	vm.workers = workers.NewParallel(vm.config.GetParallelism(), 100)
 
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
@@ -296,20 +298,31 @@ func (vm *VM) Initialize(
 
 	// Setup state syncing
 	stateSyncHandler, stateSyncSender := vm.networkManager.Register()
-	vm.stateSyncNetworkClient = syncEng.NewNetworkClient(
+	syncRegistry := prometheus.NewRegistry()
+	vm.stateSyncNetworkClient, err = syncEng.NewNetworkClient(
 		stateSyncSender,
 		vm.snowCtx.NodeID,
 		int64(vm.config.GetStateSyncParallelism()),
 		vm.Logger(),
+		"",
+		syncRegistry,
 	)
+	if err != nil {
+		return err
+	}
+	if err := gatherer.Register("sync", syncRegistry); err != nil {
+		return err
+	}
 	vm.stateSyncClient = vm.NewStateSyncClient(gatherer)
 	vm.stateSyncNetworkServer = syncEng.NewNetworkServer(stateSyncSender, vm.stateDB, vm.Logger())
 	vm.networkManager.SetHandler(stateSyncHandler, NewStateSyncHandler(vm))
 
-	// Startup block builder and gossiper
-	go vm.builder.Run()
+	// Setup gossip networking
 	gossipHandler, gossipSender := vm.networkManager.Register()
 	vm.networkManager.SetHandler(gossipHandler, NewTxGossipHandler(vm))
+
+	// Startup block builder and gossiper
+	go vm.builder.Run()
 	go vm.gossiper.Run(gossipSender)
 
 	// Wait until VM is ready and then send a state sync message to engine
@@ -355,6 +368,7 @@ func (vm *VM) markReady() {
 		"node is now ready",
 		zap.Bool("synced", vm.stateSyncClient.Started()),
 	)
+	vm.builder.QueueNotify()
 }
 
 func (vm *VM) isReady() bool {
@@ -433,6 +447,7 @@ func (vm *VM) ForceReady() {
 
 // onNormalOperationsStarted marks this VM as bootstrapped
 func (vm *VM) onNormalOperationsStarted() error {
+	vm.builder.QueueNotify()
 	if vm.bootstrapped.Get() {
 		return nil
 	}
@@ -550,6 +565,11 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 // implements "block.ChainVM.commom.VM.Parser"
 // replaces "core.SnowmanVM.ParseBlock"
 func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.blockParse.Observe(float64(time.Since(start)))
+	}()
+
 	ctx, span := vm.tracer.Start(ctx, "VM.ParseBlock")
 	defer span.End()
 
@@ -591,6 +611,10 @@ func (vm *VM) buildBlock(
 	ctx context.Context,
 	blockContext *smblock.Context,
 ) (snowman.Block, error) {
+	// If the node isn't ready, we should exit.
+	//
+	// We call [QueueNotify] when the VM becomes ready, so exiting
+	// early here should not cause us to stop producing blocks.
 	if !vm.isReady() {
 		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrNotReady))
 		return nil, ErrNotReady
@@ -614,6 +638,11 @@ func (vm *VM) buildBlock(
 
 // implements "block.ChainVM"
 func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
+	}()
+
 	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
 	defer span.End()
 
@@ -625,6 +654,11 @@ func (vm *VM) BuildBlockWithContext(
 	ctx context.Context,
 	blockContext *smblock.Context,
 ) (snowman.Block, error) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
+	}()
+
 	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlockWithContext")
 	defer span.End()
 
@@ -663,11 +697,32 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
+
+	// Find repeats
 	oldestAllowed := now - r.GetValidityWindow()
+	repeats, err := blk.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), true)
+	if err != nil {
+		return []error{err}
+	}
+
 	validTxs := []*chain.Transaction{}
-	for _, tx := range txs {
+	for i, tx := range txs {
+		// Check if transaction is a repeat before doing any extra work
+		if repeats.Contains(i) {
+			errs = append(errs, chain.ErrDuplicateTx)
+			continue
+		}
+
+		// Avoid any sig verification or state lookup if we already have tx in mempool
 		txID := tx.ID()
-		// We already verify in streamer, let's avoid re-verification
+		if vm.mempool.Has(ctx, txID) {
+			// Don't remove from listeners, it will be removed elsewhere if not
+			// included
+			errs = append(errs, ErrNotAdded)
+			continue
+		}
+
+		// Verify signature if not already verified by caller
 		if verifySig && vm.config.GetVerifySignatures() {
 			sigVerify := tx.AuthAsyncVerify()
 			if err := sigVerify(); err != nil {
@@ -681,23 +736,7 @@ func (vm *VM) Submit(
 				continue
 			}
 		}
-		// Avoid any state lookup if we already have tx in mempool
-		if vm.mempool.Has(ctx, txID) {
-			// Don't remove from listeners, it will be removed elsewhere if not
-			// included
-			errs = append(errs, ErrNotAdded)
-			continue
-		}
-		// TODO: Batch this repeat check (and collect multiple txs at once)
-		repeat, err := blk.IsRepeat(ctx, oldestAllowed, []*chain.Transaction{tx})
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		if repeat {
-			errs = append(errs, chain.ErrDuplicateTx)
-			continue
-		}
+
 		// PreExecute does not make any changes to state
 		//
 		// This may fail if the state we are utilizing is invalidated (if a trie
@@ -839,4 +878,14 @@ func (*VM) VerifyHeightIndex(context.Context) error { return nil }
 // Note: must return database.ErrNotFound if the index at height is unknown.
 func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, error) {
 	return vm.GetDiskBlockIDAtHeight(height)
+}
+
+// Fatal logs the provided message and then panics to force an exit.
+//
+// While we could attempt a graceful shutdown, it is not clear that
+// the shutdown will complete given that we have encountered a fatal
+// issue. It is better to ensure we exit to surface the error.
+func (vm *VM) Fatal(msg string, fields ...zap.Field) {
+	vm.snowCtx.Log.Fatal(msg, fields...)
+	panic("fatal error")
 }

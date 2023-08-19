@@ -34,10 +34,11 @@ var (
 	checkAllChains    bool
 	prometheusFile    string
 	prometheusData    string
+	runPrometheus     bool
 
 	rootCmd = &cobra.Command{
 		Use:        "morpheus-cli",
-		Short:      "BaseVM CLI",
+		Short:      "MorpheusVM CLI",
 		SuggestFor: []string{"morpheus-cli", "morpheuscli"},
 	}
 )
@@ -172,6 +173,12 @@ func init() {
 		"prometheus-data",
 		fmt.Sprintf("/tmp/prometheus-%d", time.Now().Unix()),
 		"prometheus data location",
+	)
+	generatePrometheusCmd.PersistentFlags().BoolVar(
+		&runPrometheus,
+		"run-prometheus",
+		true,
+		"start prometheus",
 	)
 	prometheusCmd.AddCommand(
 		generatePrometheusCmd,

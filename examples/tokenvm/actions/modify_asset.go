@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/utils"
@@ -27,7 +27,7 @@ type ModifyAsset struct {
 	//
 	// If you want to retain ownership, set this to the signer. If you want to
 	// revoke ownership, set this to another key or the empty public key.
-	Owner crypto.PublicKey `json:"owner"`
+	Owner ed25519.PublicKey `json:"owner"`
 
 	// Metadata is the new metadata of the [Asset].
 	//
@@ -86,11 +86,11 @@ func (m *ModifyAsset) Execute(
 func (m *ModifyAsset) MaxUnits(chain.Rules) uint64 {
 	// We use size as the price of this transaction but we could just as easily
 	// use any other calculation.
-	return consts.IDLen + crypto.PublicKeyLen + uint64(len(m.Metadata))
+	return consts.IDLen + ed25519.PublicKeyLen + uint64(len(m.Metadata))
 }
 
 func (m *ModifyAsset) Size() int {
-	return consts.IDLen + crypto.PublicKeyLen + codec.BytesLen(m.Metadata)
+	return consts.IDLen + ed25519.PublicKeyLen + codec.BytesLen(m.Metadata)
 }
 
 func (m *ModifyAsset) Marshal(p *codec.Packer) {

@@ -8,20 +8,20 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-const WarpTransferSize = crypto.PublicKeyLen + consts.IDLen +
+const WarpTransferSize = ed25519.PublicKeyLen + consts.IDLen +
 	consts.Uint64Len + consts.BoolLen +
 	consts.Uint64Len + /* op bits */
 	consts.Uint64Len + consts.Uint64Len + consts.IDLen + consts.Uint64Len + consts.Int64Len +
 	consts.IDLen + consts.IDLen
 
 type WarpTransfer struct {
-	To    crypto.PublicKey `json:"to"`
-	Asset ids.ID           `json:"asset"`
-	Value uint64           `json:"value"`
+	To    ed25519.PublicKey `json:"to"`
+	Asset ids.ID            `json:"asset"`
+	Value uint64            `json:"value"`
 
 	// Return is set to true when a warp message is sending funds back to the
 	// chain where they were created.

@@ -108,6 +108,20 @@ func (mr *MockRulesMockRecorder) GetMinBlockGap() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMinBlockGap", reflect.TypeOf((*MockRules)(nil).GetMinBlockGap))
 }
 
+// GetMinEmptyBlockGap mocks base method.
+func (m *MockRules) GetMinEmptyBlockGap() int64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMinEmptyBlockGap")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// GetMinEmptyBlockGap indicates an expected call of GetMinEmptyBlockGap.
+func (mr *MockRulesMockRecorder) GetMinEmptyBlockGap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMinEmptyBlockGap", reflect.TypeOf((*MockRules)(nil).GetMinEmptyBlockGap))
+}
+
 // GetMinUnitPrice mocks base method.
 func (m *MockRules) GetMinUnitPrice() uint64 {
 	m.ctrl.T.Helper()

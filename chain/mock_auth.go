@@ -80,6 +80,20 @@ func (mr *MockAuthMockRecorder) Deduct(arg0, arg1, arg2 interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Deduct", reflect.TypeOf((*MockAuth)(nil).Deduct), arg0, arg1, arg2)
 }
 
+// GetTypeID mocks base method.
+func (m *MockAuth) GetTypeID() byte {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTypeID")
+	ret0, _ := ret[0].(byte)
+	return ret0
+}
+
+// GetTypeID indicates an expected call of GetTypeID.
+func (mr *MockAuthMockRecorder) GetTypeID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTypeID", reflect.TypeOf((*MockAuth)(nil).GetTypeID))
+}
+
 // Marshal mocks base method.
 func (m *MockAuth) Marshal(arg0 *codec.Packer) {
 	m.ctrl.T.Helper()

@@ -10,12 +10,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/manifoldco/promptui"
 )
 
-func (h *Handler) PromptAddress(label string) (crypto.PublicKey, error) {
+func (h *Handler) PromptAddress(label string) (ed25519.PublicKey, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
@@ -28,7 +28,7 @@ func (h *Handler) PromptAddress(label string) (crypto.PublicKey, error) {
 	}
 	recipient, err := promptText.Run()
 	if err != nil {
-		return crypto.EmptyPublicKey, err
+		return ed25519.EmptyPublicKey, err
 	}
 	recipient = strings.TrimSpace(recipient)
 	return h.c.ParseAddress(recipient)
@@ -164,7 +164,10 @@ func (*Handler) PromptInt(
 }
 
 func (*Handler) PromptChoice(label string, max int) (int, error) {
-	// TODO: auto-select if only 1 option provided
+	if max == 1 {
+		utils.Outf("{{yellow}}%s:{{/}} 0 [auto-selected]\n", label)
+		return 0, nil
+	}
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/window"
 	"github.com/stretchr/testify/require"
 )
@@ -48,8 +48,8 @@ func TestNewWriter(t *testing.T) {
 
 func TestPackerPublicKey(t *testing.T) {
 	require := require.New(t)
-	wp := NewWriter(crypto.PublicKeyLen, crypto.PublicKeyLen)
-	var pubKey crypto.PublicKey
+	wp := NewWriter(ed25519.PublicKeyLen, ed25519.PublicKeyLen)
+	var pubKey ed25519.PublicKey
 	copy(pubKey[:], TestPublicKey)
 	t.Run("Pack", func(t *testing.T) {
 		// Pack
@@ -59,9 +59,9 @@ func TestPackerPublicKey(t *testing.T) {
 	})
 	t.Run("Unpack", func(t *testing.T) {
 		// Unpack
-		rp := NewReader(wp.Bytes(), crypto.PublicKeyLen)
+		rp := NewReader(wp.Bytes(), ed25519.PublicKeyLen)
 		require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
-		var unpackedPubKey crypto.PublicKey
+		var unpackedPubKey ed25519.PublicKey
 		rp.UnpackPublicKey(true, &unpackedPubKey)
 		require.Equal(pubKey, unpackedPubKey, "UnpackPublicKey unpacked incorrectly.")
 		require.NoError(rp.Err(), "UnpackPublicKey set an error.")
@@ -73,8 +73,8 @@ func TestPackerPublicKey(t *testing.T) {
 
 func TestPackerSignature(t *testing.T) {
 	require := require.New(t)
-	wp := NewWriter(crypto.SignatureLen, crypto.SignatureLen)
-	var sig crypto.Signature
+	wp := NewWriter(ed25519.SignatureLen, ed25519.SignatureLen)
+	var sig ed25519.Signature
 	copy(sig[:], TestSignature)
 	t.Run("Pack", func(t *testing.T) {
 		// Pack
@@ -84,9 +84,9 @@ func TestPackerSignature(t *testing.T) {
 	})
 	t.Run("Unpack", func(t *testing.T) {
 		// Unpack
-		rp := NewReader(wp.Bytes(), crypto.SignatureLen)
+		rp := NewReader(wp.Bytes(), ed25519.SignatureLen)
 		require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
-		var unpackedSig crypto.Signature
+		var unpackedSig ed25519.Signature
 		rp.UnpackSignature(&unpackedSig)
 		require.Equal(sig, unpackedSig, "UnpackSignature unpacked incorrectly.")
 		require.NoError(rp.Err(), "UnpackSignature set an error.")

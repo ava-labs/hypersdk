@@ -17,7 +17,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=6e97e33e06422ef6e03a765729aaa90eb26d01a5
+VERSION=v1.10.8
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
@@ -136,12 +136,13 @@ cat <<EOF > ${TMPDIR}/tokenvm.config
   "gossipProposerDepth": 1,
   "noGossipBuilderDiff": 5,
   "trackedPairs":["*"],
-  "continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*",
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
 mkdir -p ${TMPDIR}/tokenvm-e2e-profiles
+
+# Profiling config: {"continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*"}
 
 ############################
 
