@@ -172,7 +172,7 @@ type Action interface {
 	StateKeys(auth Auth, txID ids.ID) []string
 
 	// StateKeysCount is used for fee estimation when actual state keys can't be generated
-	StateKeysCount() int
+	StateKeysCount() []uint16
 
 	// Key distinction with "Auth" is the payment of fees. All non-fee payments
 	// occur in Execute but Auth handles fees.
@@ -237,5 +237,5 @@ type AuthFactory interface {
 	// Sign is used by helpers, auth object should store internally to be ready for marshaling
 	Sign(msg []byte, action Action) (Auth, error)
 
-	MaxUnits() (bandwidth uint64, compute uint64, stateKeysCount uint64)
+	MaxUnits() (bandwidth uint64, compute uint64, stateKeysCount []uint16)
 }

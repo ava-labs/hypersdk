@@ -599,13 +599,13 @@ func UnmarshalTx(
 func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessage *warp.Message) (Dimensions, error) {
 	authBandwidth, authCompute, authStateKeysCount := authFactory.MaxUnits()
 	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + authBandwidth
-	stateKeysCount := authStateKeysCount + uint64(action.StateKeysCount())
+	stateKeysCount := append(authStateKeysCount, action.StateKeysCount()...) // may overlap but we won't know for sure
 	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	computeUnitsOp.Add(authCompute)
 	computeUnitsOp.Add(action.MaxComputeUnits(r))
 	if warpMessage != nil {
 		bandwidth += uint64(codec.BytesLen(warpMessage.Bytes()))
-		stateKeysCount++
+		stateKeysCount = append(stateKeysCount, 256) // TODO: get value
 		computeUnitsOp.Add(r.GetBaseWarpComputeUnits())
 		numSigners, err := warpMessage.Signature.NumSigners()
 		if err != nil {
@@ -614,7 +614,7 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 		computeUnitsOp.MulAdd(uint64(numSigners), r.GetWarpComputeUnitsPerSigner())
 	}
 	if action.OutputsWarpMessage() {
-		stateKeysCount++
+		stateKeysCount = append(stateKeysCount, 256) // TODO: get value
 		// Only charge outgoing fee if successful
 		computeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
 	}
@@ -622,17 +622,31 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 	if err != nil {
 		return Dimensions{}, err
 	}
-	readsOp := math.NewUint64Operator(stateKeysCount)
-	readsOp.Mul(r.GetColdStorageReadUnits())
+	readsOp := math.NewUint64Operator(0)
+	creationsOp := math.NewUint64Operator(0)
+	modificationsOp := math.NewUint64Operator(0)
+	for maxChunks := range stateKeysCount {
+		// Compute key costs
+		readsOp.Add(r.GetColdStorageKeyReadUnits())
+		creationsOp.Add(r.GetStorageKeyCreateUnits())
+		modificationsOp.Add(r.GetColdStorageKeyModificationUnits())
+
+		// Compute value costs
+		readsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueReadUnits())
+		creationsOp.MulAdd(uint64(maxChunks), r.GetStorageValueCreateUnits())
+		modificationsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueModificationUnits())
+	}
 	reads, err := readsOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	modificationsOp := math.NewUint64Operator(stateKeysCount)
-	modificationsOp.Mul(r.GetColdStorageModificationUnits())
+	creations, err := creationsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
 	modifications, err := modificationsOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	return Dimensions{bandwidth, computeUnits, reads, stateKeysCount, modifications}, nil
+	return Dimensions{bandwidth, computeUnits, reads, creations, modifications}, nil
 }
