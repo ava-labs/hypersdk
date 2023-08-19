@@ -126,28 +126,30 @@ func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
 
 // It is ok to have duplicate ReadKeys...the processor will skip them
-func (t *Transaction) StateKeys(stateMapping StateManager) (set.Set[string], error) {
+func (t *Transaction) StateKeys(stateMapping StateManager, r Rules) (set.Set[string], error) {
 	// We assume that any transaction must modify some state key (at least to pay
 	// fees)
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
-	keys := set.NewSet[string](16) // TODO: tune this
-	for _, arr := range [][]string{t.Action.StateKeys(t.Auth, t.ID()), t.Auth.StateKeys()} {
+	actionKeys := t.Action.StateKeys(t.Auth, t.ID())
+	authKeys := t.Auth.StateKeys()
+	keys := set.NewSet[string](len(actionKeys) + len(authKeys))
+	for _, arr := range [][]string{actionKeys, authKeys} {
 		for _, k := range arr {
-			// TODO: check key size is small enough + referenced chunk size is small enough
-			// TODO: may be easier to make that a constant here?
-			if _, ok := MaxChunks([]byte(k)); !ok {
+			if !VerifyKey(r.GetMaxKeySize(), r.GetMaxValueChunks(), []byte(k)) {
 				return nil, ErrInvalidKeyValue
 			}
 		}
 	}
 	if t.WarpMessage != nil {
-		keys.Add(string(stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID)))
+		k := EncodeKeyChunks(stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID), 0)
+		keys.Add(string(k))
 	}
 	// Always assume a message could export a warp message
 	if t.Action.OutputsWarpMessage() {
-		keys.Add(string(stateMapping.OutgoingWarpKey(t.id)))
+		k := EncodeKeyChunks(stateMapping.OutgoingWarpKey(t.id), r.GetOutgoingWarpMaxChunks())
+		keys.Add(string(k))
 	}
 	t.stateKeys = keys
 	return keys, nil

@@ -20,9 +20,9 @@ const (
 
 	FeeDimensions = 5
 	DimensionsLen = consts.Uint64Len * FeeDimensions
-
-	chunkSize     = 64
 	dimensionSize = consts.Uint64Len + window.WindowSliceSize + consts.Uint64Len
+
+	chunkSize = 64 // bytes
 )
 
 type Dimension int
@@ -318,7 +318,18 @@ func numChunks(valueLen int) (uint16, bool) {
 	return uint16(raw), true
 }
 
-func VerifyKeyFormat(maxKeySize uint32, maxValueChunks uint16, key []byte, value []byte) bool {
+func VerifyKey(maxKeySize uint32, maxValueChunks uint16, key []byte) bool {
+	if uint32(len(key)) > maxKeySize {
+		return false
+	}
+	keyChunks, ok := MaxChunks(key)
+	if !ok {
+		return false
+	}
+	return keyChunks <= maxValueChunks
+}
+
+func VerifyKeyValue(maxKeySize uint32, maxValueChunks uint16, key []byte, value []byte) bool {
 	if uint32(len(key)) > maxKeySize {
 		return false
 	}
@@ -329,11 +340,11 @@ func VerifyKeyFormat(maxKeySize uint32, maxValueChunks uint16, key []byte, value
 	if valueChunks > maxValueChunks {
 		return false
 	}
-	maxSpecifiedValueChunks, ok := MaxChunks(key)
+	keyChunks, ok := MaxChunks(key)
 	if !ok {
 		return false
 	}
-	return valueChunks <= maxSpecifiedValueChunks
+	return valueChunks <= keyChunks
 }
 
 func EncodeKey(key []byte, maxSize int) ([]byte, bool) {
@@ -342,4 +353,8 @@ func EncodeKey(key []byte, maxSize int) ([]byte, bool) {
 		return nil, false
 	}
 	return binary.BigEndian.AppendUint16(key, numChunks), true
+}
+
+func EncodeKeyChunks(key []byte, maxChunks uint16) []byte {
+	return binary.BigEndian.AppendUint16(key, maxChunks)
 }

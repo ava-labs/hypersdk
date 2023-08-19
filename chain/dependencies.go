@@ -122,9 +122,10 @@ type Rules interface {
 	GetBaseWarpComputeUnits() uint64
 	GetWarpComputeUnitsPerSigner() uint64
 	GetOutgoingWarpComputeUnits() uint64
+	GetOutgoingWarpMaxChunks() uint16
 
 	GetMaxKeySize() uint32
-	GetMaxValueSize() uint16 // in chunks
+	GetMaxValueChunks() uint16 // in chunks
 
 	GetColdStorageKeyReadUnits() uint64
 	GetColdStorageValueReadUnits() uint64 // per chunk

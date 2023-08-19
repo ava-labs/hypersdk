@@ -67,8 +67,6 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 			storage := map[string][]byte{}
 			for k := range tx.StateKeys(sm) {
 				if v, ok := alreadyFetched[k]; ok {
-					// TODO: override with whatever we pull out of modifications?
-					// TODO: pay difference of bytes with warm that we are writing + key value
 					warmReads[k] = v.i
 					if v.exists {
 						storage[k] = v.v
