@@ -107,10 +107,9 @@ type Rules interface {
 	NetworkID() uint32
 	ChainID() ids.ID
 
-	GetMinBlockGap() int64
-	GetMinEmptyBlockGap() int64
-
-	GetValidityWindow() int64 // in milliseconds
+	GetMinBlockGap() int64      // in milliseconds
+	GetMinEmptyBlockGap() int64 // in milliseconds
+	GetValidityWindow() int64   // in milliseconds
 
 	GetMinUnitPrice() Dimensions
 	GetUnitPriceChangeDenominator() Dimensions
@@ -123,8 +122,7 @@ type Rules interface {
 	GetOutgoingWarpComputeUnits() uint64
 
 	GetMaxKeySize() uint32
-	GetChunkSize() uint32
-	GetMaxValueSize() uint16 // in chunks
+	GetMaxValueSize() uint32 // in chunks
 
 	GetColdStorageKeyReadUnits() uint64
 	GetColdStorageValueReadUnits() uint64 // per chunk

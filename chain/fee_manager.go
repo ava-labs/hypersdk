@@ -21,6 +21,7 @@ const (
 	FeeDimensions = 5
 	DimensionsLen = consts.Uint64Len * FeeDimensions
 
+	chunkSize     = 64
 	dimensionSize = consts.Uint64Len + window.WindowSliceSize + consts.Uint64Len
 )
 
@@ -293,11 +294,19 @@ func ParseDimensions(raw []string) (Dimensions, error) {
 	return d, nil
 }
 
-func MaxChunks(k string) (uint16, bool) {
-	bk := []byte(k)
+func MaxSize(key string) (uint32, bool) {
+	bk := []byte(key)
 	l := len(bk)
 	if l < consts.Uint16Len {
 		return 0, false
 	}
-	return binary.BigEndian.Uint16(bk[l-consts.Uint16Len:]), true
+	return uint32(binary.BigEndian.Uint16(bk[l-consts.Uint16Len:])) * chunkSize, true
+}
+
+func NumChunks(value []byte) (uint16, bool) {
+	raw := len(value)/chunkSize + 1
+	if raw > int(consts.MaxUint16) {
+		return 0, false
+	}
+	return uint16(raw), true
 }

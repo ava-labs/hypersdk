@@ -89,7 +89,7 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 				} else if err != nil {
 					panic(err)
 				}
-				i := &readInfo{maxSize, uint32(len(v))} // this is safe because we should never get a negative length
+				i := &readInfo{maxSize, uint32(len(v))} // this is safe because we should never store a negative length
 				coldReads[k] = i
 				alreadyFetched[k] = &fetchData{v, true, i}
 				storage[k] = v

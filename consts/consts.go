@@ -21,6 +21,7 @@ const (
 	NetworkSizeLimit = 2_044_723 // 1.95 MiB
 
 	MaxUint8              = ^uint8(0)
+	MaxUint16             = ^uint16(0)
 	MaxUint8Offset        = 7
 	MaxUint               = ^uint(0)
 	MaxInt                = int(MaxUint >> 1)

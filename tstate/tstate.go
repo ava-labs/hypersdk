@@ -139,6 +139,8 @@ func (ts *TState) checkScope(_ context.Context, k []byte) bool {
 
 // Insert sets or updates ts.storage[key] to equal {value, false}.
 func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
+	// TODO: ensure that key is properly restricts value size and that both are less
+	// than max.
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
@@ -231,7 +233,7 @@ func (ts *TState) WriteChanges(
 	return nil
 }
 
-func (ts *TState) CountKeyOperations(ctx context.Context, start int) (set.Set[string], set.Set[string], set.Set[string]) {
+func (ts *TState) CountKeyOperations(ctx context.Context, start int) (map[string]int, map[string]int, map[string]int) {
 	var (
 		creations         = set.NewSet[string](0)
 		coldModifications = set.NewSet[string](0)
