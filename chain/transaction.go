@@ -149,6 +149,7 @@ func (t *Transaction) StateKeys(stateMapping StateManager) set.Set[string] {
 // Units is charged whether or not a transaction is successful because state
 // lookup is not free.
 func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
+	// Cacluate max compute costs
 	maxComputeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	maxComputeUnitsOp.Add(t.Action.MaxComputeUnits(r))
 	maxComputeUnitsOp.Add(t.Auth.MaxComputeUnits(r))
@@ -163,22 +164,42 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	if err != nil {
 		return Dimensions{}, err
 	}
-	// We can't charge by byte because we don't know the size
-	// of the objects before execution (and that's when we deduct fees).
-	stateKeys := uint64(t.StateKeys(sm).Len()) // includes warp keys
-	readsOp := math.NewUint64Operator(stateKeys)
-	readsOp.Mul(r.GetColdStorageReadUnits())
+
+	// Calculate the max storage cost we could incur by processing all
+	// state keys.
+	//
+	// TODO: make this a tighter bound
+	readsOp := math.NewUint64Operator(0)
+	creationsOp := math.NewUint64Operator(0)
+	modificationsOp := math.NewUint64Operator(0)
+	for k := range t.StateKeys(sm) {
+		// Compute key costs
+		readsOp.Add(r.GetColdStorageKeyReadUnits())
+		creationsOp.Add(r.GetStorageKeyCreateUnits())
+		modificationsOp.Add(r.GetColdStorageKeyModificationUnits())
+
+		// Compute value costs
+		maxChunks, ok := MaxChunks([]byte(k))
+		if !ok {
+			return Dimensions{}, ErrInvalidKeyValue
+		}
+		readsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueReadUnits())
+		creationsOp.MulAdd(uint64(maxChunks), r.GetStorageValueCreateUnits())
+		modificationsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueModificationUnits())
+	}
 	reads, err := readsOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	modificationsOp := math.NewUint64Operator(stateKeys)
-	modificationsOp.Mul(r.GetColdStorageModificationUnits())
+	creations, err := creationsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
 	modifications, err := modificationsOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	return Dimensions{uint64(t.Size()), maxComputeUnits, reads, stateKeys, modifications}, nil
+	return Dimensions{uint64(t.Size()), maxComputeUnits, reads, creations, modifications}, nil
 }
 
 // PreExecute must not modify state

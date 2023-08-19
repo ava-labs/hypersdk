@@ -66,4 +66,5 @@ var (
 	// Misc
 	ErrNotImplemented    = errors.New("not implemented")
 	ErrBlockNotProcessed = errors.New("block is not processed")
+	ErrInvalidKeyValue   = errors.New("invalid key or value")
 )
