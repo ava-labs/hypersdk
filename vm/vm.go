@@ -39,7 +39,6 @@ import (
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/network"
 	"github.com/ava-labs/hypersdk/rpc"
-	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
 )
@@ -181,7 +180,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Setup tracer
-	vm.tracer, err = htrace.New(vm.config.GetTraceConfig())
+	vm.tracer, err = trace.New(vm.config.GetTraceConfig())
 	if err != nil {
 		return err
 	}

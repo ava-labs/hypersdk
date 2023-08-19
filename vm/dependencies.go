@@ -11,19 +11,18 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	atrace "github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/gossiper"
-	trace "github.com/ava-labs/hypersdk/trace"
 )
 
 type Handlers map[string]*common.HTTPHandler
 
 type Config interface {
-	GetTraceConfig() *trace.Config
+	GetTraceConfig() trace.Config
 	GetParallelism() int // how many cores to use during verification
 	GetMempoolSize() int
 	GetMempoolPayerSize() int
@@ -42,7 +41,7 @@ type Config interface {
 }
 
 type Genesis interface {
-	Load(context.Context, atrace.Tracer, chain.Database) error
+	Load(context.Context, trace.Tracer, chain.Database) error
 }
 
 type Controller interface {

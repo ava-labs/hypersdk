@@ -10,16 +10,14 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/hypersdk/config"
 	"github.com/ava-labs/hypersdk/gossiper"
-	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
 
-	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/version"
 )
 
 var _ vm.Config = (*Config)(nil)
@@ -134,16 +132,18 @@ func (c *Config) GetParallelism() int              { return c.Parallelism }
 func (c *Config) GetMempoolSize() int              { return c.MempoolSize }
 func (c *Config) GetMempoolPayerSize() int         { return c.MempoolPayerSize }
 func (c *Config) GetMempoolExemptPayers() [][]byte { return c.parsedExemptPayers }
-func (c *Config) GetTraceConfig() *trace.Config {
-	return &trace.Config{
+func (c *Config) GetTraceConfig() trace.Config {
+	return trace.Config{
 		Enabled:         c.TraceEnabled,
 		TraceSampleRate: c.TraceSampleRate,
-		AppName:         consts.Name,
-		Agent:           c.nodeID.String(),
-		Version:         version.Version.String(),
-		Endpoint:        c.TraceEndpoint,
-		DSN:             c.TraceDSN,
-		Insecure:        c.TraceInsecure,
+		ExporterConfig: trace.ExporterConfig{
+			Endpoint: c.TraceEndpoint,
+			Insecure: c.TraceInsecure,
+			Headers: map[string]string{
+				"uptrace-dsn": c.TraceDSN,
+			},
+			Type: trace.GRPC,
+		},
 	}
 }
 func (c *Config) GetStateSyncServerDelay() time.Duration { return c.StateSyncServerDelay }

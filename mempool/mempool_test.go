@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ava-labs/hypersdk/trace"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +18,7 @@ func TestMempool(t *testing.T) {
 	defer ctrl.Finish()
 
 	ctx := context.TODO()
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, _ := trace.New(trace.Config{Enabled: false})
 	txm := New[*MempoolTestItem](tracer, 3, 16, nil)
 
 	for _, i := range []uint64{100, 200, 300, 400} {
@@ -40,7 +40,7 @@ func TestMempoolAddDuplicates(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	ctx := context.TODO()
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, _ := trace.New(trace.Config{Enabled: false})
 	txm := New[*MempoolTestItem](tracer, 3, 16, nil)
 	// Generate item
 	item := GenerateTestItem(testPayer, 1, 300)
@@ -65,7 +65,7 @@ func TestMempoolAddExceedMaxPayerSize(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	ctx := context.TODO()
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, _ := trace.New(trace.Config{Enabled: false})
 	exemptPayer := "IAMEXEMPT"
 	payer := "notexempt"
 	exemptPayers := []byte(exemptPayer)
@@ -88,7 +88,7 @@ func TestMempoolAddExceedMaxSize(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	ctx := context.TODO()
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, _ := trace.New(trace.Config{Enabled: false})
 
 	txm := New[*MempoolTestItem](tracer, 3, 20, nil)
 	// Add more tx's than txm.maxSize
@@ -115,7 +115,7 @@ func TestMempoolRemoveTxs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	ctx := context.TODO()
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, _ := trace.New(trace.Config{Enabled: false})
 
 	txm := New[*MempoolTestItem](tracer, 3, 20, nil)
 	// Add
@@ -135,7 +135,7 @@ func TestMempoolRemoveAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	ctx := context.TODO()
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, _ := trace.New(trace.Config{Enabled: false})
 
 	txm := New[*MempoolTestItem](tracer, 3, 20, nil)
 	// Add
@@ -157,7 +157,7 @@ func TestMempoolSetMinTimestamp(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	ctx := context.TODO()
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, _ := trace.New(trace.Config{Enabled: false})
 
 	txm := New[*MempoolTestItem](tracer, 20, 20, nil)
 	// Add more tx's than txm.maxSize

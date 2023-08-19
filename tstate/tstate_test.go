@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/hypersdk/trace"
+	"github.com/ava-labs/avalanchego/trace"
 
 	"github.com/stretchr/testify/require"
 )
@@ -284,7 +284,7 @@ func TestWriteChanges(t *testing.T) {
 	ts := New(10)
 	db := NewTestDB()
 	ctx := context.TODO()
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, _ := trace.New(trace.Config{Enabled: false})
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 	ts.SetScope(ctx, keys, map[string][]byte{})

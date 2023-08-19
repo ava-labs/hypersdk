@@ -14,11 +14,11 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/avalanchego/trace"
 	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/mempool"
-	"github.com/ava-labs/hypersdk/trace"
 )
 
 func TestBlockCache(t *testing.T) {
@@ -36,7 +36,7 @@ func TestBlockCache(t *testing.T) {
 	}
 	blkID := blk.ID()
 
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, _ := trace.New(trace.Config{Enabled: false})
 	bcache, _ := hcache.NewFIFO[ids.ID, *chain.StatelessBlock](3)
 	controller := NewMockController(ctrl)
 	vm := VM{
