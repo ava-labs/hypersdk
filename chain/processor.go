@@ -18,25 +18,21 @@ type fetchData struct {
 	v      []byte
 	exists bool
 
-	i *readInfo
-}
-
-type readInfo struct {
-	max    uint32
-	actual uint32
+	chunks uint16
 }
 
 type txData struct {
 	tx      *Transaction
 	storage map[string][]byte
 
-	coldReads map[string]*readInfo
-	warmReads map[string]*readInfo
+	coldReads map[string]uint16
+	warmReads map[string]uint16
 }
 
 type Processor struct {
 	tracer trace.Tracer
 
+	err      error
 	blk      *StatelessBlock
 	readyTxs chan *txData
 	db       Database
@@ -56,47 +52,55 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Prefetch")
 	p.db = db
 	sm := p.blk.vm.StateManager()
+	r := p.blk.vm.Rules(p.blk.Tmstmp)
 	go func() {
-		defer span.End()
+		defer func() {
+			close(p.readyTxs) // let caller know all sets have been readied
+			span.End()
+		}()
 
 		// Store required keys for each set
 		alreadyFetched := make(map[string]*fetchData, len(p.blk.GetTxs()))
 		for _, tx := range p.blk.GetTxs() {
-			coldReads := map[string]*readInfo{}
-			warmReads := map[string]*readInfo{}
+			coldReads := map[string]uint16{}
+			warmReads := map[string]uint16{}
 			storage := map[string][]byte{}
-			for k := range tx.StateKeys(sm) {
+			stateKeys, err := tx.StateKeys(sm, r)
+			if err != nil {
+				p.err = err
+				return
+			}
+			for k := range stateKeys {
 				if v, ok := alreadyFetched[k]; ok {
-					warmReads[k] = v.i
+					warmReads[k] = v.chunks
 					if v.exists {
 						storage[k] = v.v
 					}
 					continue
 				}
-				maxSize, ok := MaxSize(k)
-				if !ok {
-					// TODO: handle errors
-					panic("invalid max size")
-				}
 				v, err := db.GetValue(ctx, []byte(k))
 				if errors.Is(err, database.ErrNotFound) {
-					i := &readInfo{maxSize, 0}
-					coldReads[k] = i
-					alreadyFetched[k] = &fetchData{nil, false, i}
+					coldReads[k] = 0
+					alreadyFetched[k] = &fetchData{nil, false, 0}
 					continue
 				} else if err != nil {
-					panic(err)
+					p.err = err
+					return
 				}
-				i := &readInfo{maxSize, uint32(len(v))} // this is safe because we should never store a negative length
-				coldReads[k] = i
-				alreadyFetched[k] = &fetchData{v, true, i}
+				// We verify that the [NumChunks] is already less than the number
+				// added on the write path, so we don't need to do so again here.
+				numChunks, ok := NumChunks(v)
+				if !ok {
+					p.err = ErrInvalidKeyValue
+					return
+				}
+				coldReads[k] = numChunks
+				alreadyFetched[k] = &fetchData{v, true, numChunks}
 				storage[k] = v
 			}
 			p.readyTxs <- &txData{tx, storage, coldReads, warmReads}
 		}
 
-		// Let caller know all sets have been readied
-		close(p.readyTxs)
 	}()
 }
 
@@ -109,12 +113,16 @@ func (p *Processor) Execute(
 	defer span.End()
 
 	var (
-		ts      = tstate.New(len(p.blk.Txs)*2, r.GetMaxKeySize(), r.GetMaxValueSize()) // TODO: tune this heuristic
+		ts      = tstate.New(len(p.blk.Txs)*2, r.GetMaxKeySize(), r.GetMaxValueChunks()) // TODO: tune this heuristic
 		t       = p.blk.GetTimestamp()
 		results = []*Result{}
 		sm      = p.blk.vm.StateManager()
 	)
 	for txData := range p.readyTxs {
+		if p.err != nil {
+			return nil, 0, 0, p.err
+		}
+
 		tx := txData.tx
 
 		// Ensure can process next tx
@@ -128,7 +136,11 @@ func (p *Processor) Execute(
 
 		// It is critical we explicitly set the scope before each transaction is
 		// processed
-		ts.SetScope(ctx, tx.StateKeys(sm), txData.storage)
+		stateKeys, err := tx.StateKeys(sm, r)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		ts.SetScope(ctx, stateKeys, txData.storage)
 
 		// Execute tx
 		if err := tx.PreExecute(ctx, feeManager, sm, r, ts, t); err != nil {
@@ -136,8 +148,8 @@ func (p *Processor) Execute(
 		}
 		// Wait to execute transaction until we have the warp result processed.
 		//
-		// TODO: parallel execution will greatly improve performance in the case
-		// that we are waiting for signature verification.
+		// TODO: parallel execution will greatly improve performance when actions
+		// start taking longer than a few ns (i.e. with hypersdk programs).
 		var warpVerified bool
 		warpMsg, ok := p.blk.warpMessages[tx.ID()]
 		if ok {
@@ -159,6 +171,9 @@ func (p *Processor) Execute(
 		}
 	}
 	// Wait until end to write changes to avoid conflicting with pre-fetching
+	if p.err != nil {
+		return nil, 0, 0, p.err
+	}
 	if err := ts.WriteChanges(ctx, p.db, p.tracer); err != nil {
 		return nil, 0, 0, err
 	}
