@@ -38,8 +38,8 @@ func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) []string {
 	}
 }
 
-func (t *Transfer) StateKeysCount() int {
-	return 2
+func (t *Transfer) StateKeysMaxChunks() []uint16 {
+	return []uint16{1, 1}
 }
 
 func (t *Transfer) OutputsWarpMessage() bool {

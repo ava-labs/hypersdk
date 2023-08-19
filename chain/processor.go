@@ -114,7 +114,7 @@ func (p *Processor) Execute(
 	defer span.End()
 
 	var (
-		ts      = tstate.New(len(p.blk.Txs)*2, r.GetMaxKeySize(), r.GetMaxValueChunks()) // TODO: tune this heuristic
+		ts      = tstate.New(len(p.blk.Txs) * 2) // TODO: tune this heuristic
 		t       = p.blk.GetTimestamp()
 		results = []*Result{}
 		sm      = p.blk.vm.StateManager()

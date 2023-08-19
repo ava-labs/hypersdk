@@ -104,7 +104,7 @@ func BuildBlock(
 	maxUnits := r.GetMaxBlockUnits()
 	targetUnits := r.GetWindowTargetUnits()
 
-	ts := tstate.New(changesEstimate, r.GetMaxKeySize(), r.GetMaxValueChunks())
+	ts := tstate.New(changesEstimate)
 
 	var (
 		oldestAllowed = nextTime - r.GetValidityWindow()

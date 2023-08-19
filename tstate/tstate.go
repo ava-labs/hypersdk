@@ -53,25 +53,17 @@ type TState struct {
 	// Ops is a record of all operations performed on [TState]. Tracking
 	// operations allows for reverting state to a certain point-in-time.
 	ops []*op
-
-	// maxKeySize and maxValueChunks are used to restrict the size of individual
-	// state items.
-	maxKeySize     uint32
-	maxValueChunks uint16
 }
 
 // New returns a new instance of TState. Initializes the storage and changedKeys
 // maps to have an initial size of [storageSize] and [changedSize] respectively.
-func New(changedSize int, maxKeySize uint32, maxValueChunks uint16) *TState {
+func New(changedSize int) *TState {
 	return &TState{
 		changedKeys: make(map[string]*tempStorage, changedSize),
 
 		fetchCache: map[string]*cacheItem{},
 
 		ops: make([]*op, 0, changedSize),
-
-		maxKeySize:     maxKeySize,
-		maxValueChunks: maxValueChunks,
 	}
 }
 
@@ -163,7 +155,7 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
-	if !keys.VerifyValue(ts.maxKeySize, ts.maxValueChunks, key, value) {
+	if !keys.VerifyValue(key, value) {
 		return ErrInvalidKeyValue
 	}
 	k := string(key)

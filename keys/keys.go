@@ -47,15 +47,9 @@ func Verify(maxKeySize uint32, maxValueChunks uint16, key []byte) bool {
 	return keyChunks <= maxValueChunks
 }
 
-func VerifyValue(maxKeySize uint32, maxValueChunks uint16, key []byte, value []byte) bool {
-	if uint32(len(key)) > maxKeySize {
-		return false
-	}
+func VerifyValue(key []byte, value []byte) bool {
 	valueChunks, ok := NumChunks(value)
 	if !ok {
-		return false
-	}
-	if valueChunks > maxValueChunks {
 		return false
 	}
 	keyChunks, ok := MaxChunks(key)
