@@ -174,8 +174,8 @@ type Action interface {
 	// Always assume the last 4 bytes are a uint32 of the max size to read
 	StateKeys(auth Auth, txID ids.ID) []string
 
-	// StateKeysCount is used for fee estimation when actual state keys can't be generated
-	StateKeysCount() []uint16
+	// StateKeysMaxChunks is used for fee estimation when actual state keys can't be generated
+	StateKeysMaxChunks() []uint16
 
 	// Key distinction with "Auth" is the payment of fees. All non-fee payments
 	// occur in Execute but Auth handles fees.

@@ -626,7 +626,7 @@ func UnmarshalTx(
 func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessage *warp.Message) (Dimensions, error) {
 	authBandwidth, authCompute, authStateKeysCount := authFactory.MaxUnits()
 	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + authBandwidth
-	stateKeysCount := append(authStateKeysCount, action.StateKeysCount()...) // may overlap but we won't know for sure
+	stateKeysCount := append(authStateKeysCount, action.StateKeysMaxChunks()...) // may overlap but we won't know for sure
 	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	computeUnitsOp.Add(authCompute)
 	computeUnitsOp.Add(action.MaxComputeUnits(r))
