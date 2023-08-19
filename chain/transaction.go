@@ -126,15 +126,20 @@ func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
 
 // It is ok to have duplicate ReadKeys...the processor will skip them
-func (t *Transaction) StateKeys(stateMapping StateManager) set.Set[string] {
+func (t *Transaction) StateKeys(stateMapping StateManager) (set.Set[string], error) {
 	// We assume that any transaction must modify some state key (at least to pay
 	// fees)
 	if t.stateKeys != nil {
-		return t.stateKeys
+		return t.stateKeys, nil
 	}
 	keys := set.NewSet[string](16) // TODO: tune this
-	keys.Add(t.Action.StateKeys(t.Auth, t.ID())...)
-	keys.Add(t.Auth.StateKeys()...)
+	for _, arr := range [][]string{t.Action.StateKeys(t.Auth, t.ID()), t.Auth.StateKeys()} {
+		for _, k := range arr {
+			if _, ok := MaxChunks([]byte(k)); !ok {
+				return nil, ErrInvalidKeyValue
+			}
+		}
+	}
 	if t.WarpMessage != nil {
 		keys.Add(string(stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID)))
 	}
@@ -143,7 +148,7 @@ func (t *Transaction) StateKeys(stateMapping StateManager) set.Set[string] {
 		keys.Add(string(stateMapping.OutgoingWarpKey(t.id)))
 	}
 	t.stateKeys = keys
-	return keys
+	return keys, nil
 }
 
 // Units is charged whether or not a transaction is successful because state
@@ -169,10 +174,14 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	// state keys.
 	//
 	// TODO: make this a tighter bound
+	stateKeys, err := t.StateKeys(sm)
+	if err != nil {
+		return Dimensions{}, err
+	}
 	readsOp := math.NewUint64Operator(0)
 	creationsOp := math.NewUint64Operator(0)
 	modificationsOp := math.NewUint64Operator(0)
-	for k := range t.StateKeys(sm) {
+	for k := range stateKeys {
 		// Compute key costs
 		readsOp.Add(r.GetColdStorageKeyReadUnits())
 		creationsOp.Add(r.GetStorageKeyCreateUnits())
