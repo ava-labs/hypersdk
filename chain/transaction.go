@@ -125,7 +125,6 @@ func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 
 func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
 
-// It is ok to have duplicate ReadKeys...the processor will skip them
 func (t *Transaction) StateKeys(stateMapping StateManager, r Rules) (set.Set[string], error) {
 	// We assume that any transaction must modify some state key (at least to pay
 	// fees)
@@ -178,7 +177,7 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	// state keys.
 	//
 	// TODO: make this a tighter bound
-	stateKeys, err := t.StateKeys(sm)
+	stateKeys, err := t.StateKeys(sm, r)
 	if err != nil {
 		return Dimensions{}, err
 	}
