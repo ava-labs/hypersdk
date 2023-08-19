@@ -16,7 +16,8 @@ import (
 )
 
 type op struct {
-	k string
+	k    string
+	vLen int
 
 	pastExists  bool
 	pastV       []byte
@@ -148,6 +149,9 @@ func (ts *TState) checkScope(_ context.Context, k []byte) bool {
 
 // Insert sets or updates ts.storage[key] to equal {value, false}.
 func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
+	if !ts.checkScope(ctx, key) {
+		return ErrKeyNotSpecified
+	}
 	if uint32(len(key)) > ts.maxKeySize {
 		return errors.New("key too large")
 	}
@@ -165,15 +169,11 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	if valueChunks > maxValueChunks {
 		return errors.New("value is not encoded in key correctly")
 	}
-	// TODO: ensure that key is properly restricts value size and that both are less
-	// than max.
-	if !ts.checkScope(ctx, key) {
-		return ErrKeyNotSpecified
-	}
 	k := string(key)
 	past, changed, exists := ts.getValue(ctx, k)
 	ts.ops = append(ts.ops, &op{
 		k:           k,
+		vLen:        len(value),
 		pastExists:  exists,
 		pastV:       past,
 		pastChanged: changed,
@@ -259,29 +259,36 @@ func (ts *TState) WriteChanges(
 	return nil
 }
 
+func updateChunks(m map[string]int, key string, chunks int) {
+	previousChunks, ok := m[key]
+	if !ok || chunks > previousChunks {
+		m[key] = chunks
+	}
+}
+
 func (ts *TState) CountKeyOperations(ctx context.Context, start int) (map[string]int, map[string]int, map[string]int) {
 	var (
-		creations         = set.NewSet[string](0)
-		coldModifications = set.NewSet[string](0)
-		warmModifications = set.NewSet[string](0)
+		creations         = map[string]int{}
+		coldModifications = map[string]int{}
+		warmModifications = map[string]int{}
 	)
 	for i := start; i < len(ts.ops); i++ {
 		op := ts.ops[i]
 		k := op.k
+		chunks, _ := chain.NumChunks(op.vLen) // already ensure length does not exceed max chunks
 		if op.pastExists {
 			if op.pastChanged {
 				// Ensure a key is only in one modification set and that
 				// if possible to be in both, it is only in cold.
-				if !coldModifications.Contains(k) {
-					warmModifications.Add(k)
+				if _, ok := coldModifications[k]; !ok {
+					updateChunks(warmModifications, k, chunks)
 				}
 			} else {
-				coldModifications.Add(k)
+				updateChunks(coldModifications, k, chunks)
 			}
 		} else {
-			creations.Add(k)
+			updateChunks(creations, k, chunks)
 		}
 	}
-	// TODO: not charging per modification, only charging to get into transaction scope?
 	return creations, coldModifications, warmModifications
 }
