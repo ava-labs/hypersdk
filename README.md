@@ -616,9 +616,7 @@ compatible with most `hypervms` (and maintained in the `hypersdk`)._
 
 
 [![Star History](https://starchart.cc/ava-labs/hypersdk.svg)](https://starchart.cc/ava-labs/hypersdk)
-<p align="center">
 
-</p>
 
 ## Community Posts
 _This is a collection of posts from the community about the `hypersdk` and how to use it in your own `hypervm`._
