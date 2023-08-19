@@ -296,7 +296,7 @@ func (t *Transaction) Execute(
 
 	// Check warp message is not duplicate
 	if t.WarpMessage != nil {
-		_, err := tdb.GetValue(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
+		_, err := tdb.GetValue(ctx, keys.EncodeChunks(s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID), 0))
 		switch {
 		case err == nil:
 			// Override all errors because warp message is a duplicate
@@ -333,7 +333,7 @@ func (t *Transaction) Execute(
 
 		// Store incoming warp messages in state by their ID to prevent replays
 		if t.WarpMessage != nil {
-			if err := tdb.Insert(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID), nil); err != nil {
+			if err := tdb.Insert(ctx, keys.EncodeChunks(s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID), 0), nil); err != nil {
 				tdb.Rollback(ctx, actionStart)
 				return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 			}
@@ -352,7 +352,7 @@ func (t *Transaction) Execute(
 			}
 			// We use txID here because did not know the warpID before execution (and
 			// we pre-reserve this key for the processor).
-			if err := tdb.Insert(ctx, s.OutgoingWarpKey(t.id), warpMessage.Bytes()); err != nil {
+			if err := tdb.Insert(ctx, keys.EncodeChunks(s.OutgoingWarpKey(t.id), r.GetOutgoingWarpMaxChunks()), warpMessage.Bytes()); err != nil {
 				tdb.Rollback(ctx, actionStart)
 				return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 			}
