@@ -613,9 +613,10 @@ future, we expect that there will be common message definitions that will be
 compatible with most `hypervms` (and maintained in the `hypersdk`)._
 
 ## Star History
-<p align="center">
-  <a href="https://star-history.com/#ava-labs/hypersdk&Date"><img width="90%" alt="star history" src="https://api.star-history.com/svg?repos=ava-labs/hypersdk&type=Date" /></a>
-</p>
+
+
+[![Star History](https://starchart.cc/ava-labs/hypersdk.svg)](https://starchart.cc/ava-labs/hypersdk)
+
 
 ## Community Posts
 _This is a collection of posts from the community about the `hypersdk` and how to use it in your own `hypervm`._
