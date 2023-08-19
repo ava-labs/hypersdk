@@ -122,8 +122,9 @@ func (d *ED25519Factory) Sign(msg []byte, _ chain.Action) (chain.Auth, error) {
 	return &ED25519{d.priv.PublicKey(), sig}, nil
 }
 
-func (*ED25519Factory) MaxUnits() (uint64, uint64, uint64) {
-	return ed25519.PublicKeyLen + ed25519.SignatureLen, 5, 1
+func (*ED25519Factory) MaxUnits() (uint64, uint64, []uint16) {
+	// Balance is just a uint64, so only need 1 chunk (64B)
+	return ed25519.PublicKeyLen + ed25519.SignatureLen, 5, []uint16{1}
 }
 
 type ED25519AuthEngine struct{}
