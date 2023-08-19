@@ -303,10 +303,15 @@ func MaxChunks(key []byte) (uint16, bool) {
 }
 
 func NumChunks(value []byte) (uint16, bool) {
-	if len(value) == 0 {
+	l := len(value)
+	return numChunks(l)
+}
+
+func numChunks(valueLen int) (uint16, bool) {
+	if valueLen == 0 {
 		return 0, true
 	}
-	raw := len(value)/chunkSize + 1
+	raw := valueLen/chunkSize + 1
 	if raw > int(consts.MaxUint16) {
 		return 0, false
 	}
@@ -329,4 +334,12 @@ func VerifyKeyFormat(maxKeySize uint32, maxValueChunks uint16, key []byte, value
 		return false
 	}
 	return valueChunks <= maxSpecifiedValueChunks
+}
+
+func EncodeKey(key []byte, maxSize int) ([]byte, bool) {
+	numChunks, ok := numChunks(maxSize)
+	if !ok {
+		return nil, false
+	}
+	return binary.BigEndian.AppendUint16(key, numChunks), true
 }
