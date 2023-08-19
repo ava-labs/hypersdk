@@ -143,7 +143,8 @@ func (p *Processor) Execute(
 		ts.SetScope(ctx, stateKeys, txData.storage)
 
 		// Execute tx
-		if err := tx.PreExecute(ctx, feeManager, sm, r, ts, t); err != nil {
+		authCUs, err := tx.PreExecute(ctx, feeManager, sm, r, ts, t)
+		if err != nil {
 			return nil, 0, 0, err
 		}
 		// Wait to execute transaction until we have the warp result processed.
@@ -159,7 +160,7 @@ func (p *Processor) Execute(
 				return nil, 0, 0, ctx.Err()
 			}
 		}
-		result, err := tx.Execute(ctx, feeManager, txData.coldReads, txData.warmReads, sm, r, ts, t, ok && warpVerified)
+		result, err := tx.Execute(ctx, feeManager, authCUs, txData.coldReads, txData.warmReads, sm, r, ts, t, ok && warpVerified)
 		if err != nil {
 			return nil, 0, 0, err
 		}

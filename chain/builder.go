@@ -103,7 +103,7 @@ func BuildBlock(
 	maxUnits := r.GetMaxBlockUnits()
 	targetUnits := r.GetWindowTargetUnits()
 
-	ts := tstate.New(changesEstimate)
+	ts := tstate.New(changesEstimate, r.GetMaxKeySize(), r.GetMaxValueChunks())
 
 	var (
 		oldestAllowed = nextTime - r.GetValidityWindow()
@@ -178,7 +178,12 @@ func BuildBlock(
 
 				// Prefetch all values from state
 				storage := map[string][]byte{}
-				for k := range tx.StateKeys(sm) {
+				stateKeys, err := tx.StateKeys(sm, r)
+				if err != nil {
+					// Drop bad transaction and continue
+					continue
+				}
+				for k := range stateKeys {
 					if v, ok := alreadyFetched[k]; ok {
 						if v.exists {
 							storage[k] = v.v
@@ -187,7 +192,7 @@ func BuildBlock(
 					}
 					v, err := state.GetValue(ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
-						alreadyFetched[k] = &fetchData{nil, false}
+						alreadyFetched[k] = &fetchData{nil, false, 0}
 						continue
 					} else if err != nil {
 						// This can happen if the underlying view changes (if we are
@@ -196,7 +201,12 @@ func BuildBlock(
 						stopIndex = i
 						return
 					}
-					alreadyFetched[k] = &fetchData{v, true}
+					numChunks, ok := NumChunks(v)
+					if !ok {
+						// Drop bad transaction and continue
+						continue
+					}
+					alreadyFetched[k] = &fetchData{v, true, numChunks}
 					storage[k] = v
 				}
 				readyTxs <- &txData{tx, storage, nil, nil}
@@ -277,10 +287,20 @@ func BuildBlock(
 
 			// Populate required transaction state and restrict which keys can be used
 			txStart := ts.OpIndex()
-			ts.SetScope(ctx, next.StateKeys(sm), nextTxData.storage)
+			stateKeys, err := next.StateKeys(sm, r)
+			if err != nil {
+				// Should never happen
+				log.Warn(
+					"skipping tx: invalid stateKeys",
+					zap.Error(err),
+				)
+				continue
+			}
+			ts.SetScope(ctx, stateKeys, nextTxData.storage)
 
 			// PreExecute next to see if it is fit
-			if err := next.PreExecute(ctx, nextFeeManager, sm, r, ts, nextTime); err != nil {
+			authCUs, err := next.PreExecute(ctx, nextFeeManager, sm, r, ts, nextTime)
+			if err != nil {
 				ts.Rollback(ctx, txStart)
 				cont, restore, _ := HandlePreExecute(err)
 				if !cont {
@@ -324,18 +344,31 @@ func BuildBlock(
 			}
 
 			// If execution works, keep moving forward with new state
-			coldReads := []string{}
-			warmReads := []string{}
-			for k := range next.StateKeys(sm) {
+			coldReads := map[string]uint16{}
+			warmReads := map[string]uint16{}
+			var invalidStateKeys bool
+			for k := range stateKeys {
+				v := nextTxData.storage[k]
+				numChunks, ok := NumChunks(v)
+				if !ok {
+					// Should not happen
+					invalidStateKeys = true
+					break
+				}
 				if usedKeys.Contains(k) {
-					warmReads = append(warmReads, k)
+					warmReads[k] = numChunks
 					continue
 				}
-				coldReads = append(coldReads, k)
+				coldReads[k] = numChunks
+			}
+			if invalidStateKeys {
+				log.Warn("invalid tx: invalid state keys")
+				continue
 			}
 			result, err := next.Execute(
 				ctx,
 				nextFeeManager,
+				authCUs,
 				coldReads,
 				warmReads,
 				sm,
@@ -345,8 +378,8 @@ func BuildBlock(
 				next.WarpMessage != nil && warpErr == nil,
 			)
 			if err != nil {
-				// Execution can fail if state keys are not properly specified
-				// TODO: should never happen -> always deduct
+				// Almost all execution issues will return internal errors that still
+				// charge fees.
 				log.Warn("unexpected post-execution error", zap.Error(err))
 				restorable = append(restorable, next)
 				execErr = err
@@ -355,7 +388,7 @@ func BuildBlock(
 
 			// Update block with new transaction
 			b.Txs = append(b.Txs, next)
-			usedKeys.Add(next.StateKeys(sm).List()...)
+			usedKeys.Add(stateKeys.List()...)
 			if err := nextFeeManager.Consume(nextUnits); err != nil {
 				execErr = err
 				continue

@@ -260,6 +260,9 @@ func (t *Transaction) PreExecute(
 
 // Execute after knowing a transaction can pay a fee
 //
+// ColdRead/WarmRead size is based on the amount read BEFORE
+// the block begins.
+//
 // Invariant: preexecute is called just before execute
 func (t *Transaction) Execute(
 	ctx context.Context,
