@@ -345,8 +345,8 @@ func BuildBlock(
 				next.WarpMessage != nil && warpErr == nil,
 			)
 			if err != nil {
-				// This error should only be raised by the handler, not the
-				// implementation itself
+				// Execution can fail if state keys are not properly specified
+				// TODO: should never happen -> always deduct
 				log.Warn("unexpected post-execution error", zap.Error(err))
 				restorable = append(restorable, next)
 				execErr = err

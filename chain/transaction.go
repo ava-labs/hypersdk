@@ -222,45 +222,49 @@ func (t *Transaction) PreExecute(
 	r Rules,
 	db Database,
 	timestamp int64,
-) error {
+) (uint64, error) {
 	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
-		return err
+		return 0, err
 	}
 	start, end := t.Action.ValidRange(r)
 	if start >= 0 && timestamp < start {
-		return ErrActionNotActivated
+		return 0, ErrActionNotActivated
 	}
 	if end >= 0 && timestamp > end {
-		return ErrActionNotActivated
+		return 0, ErrActionNotActivated
 	}
 	start, end = t.Auth.ValidRange(r)
 	if start >= 0 && timestamp < start {
-		return ErrAuthNotActivated
+		return 0, ErrAuthNotActivated
 	}
 	if end >= 0 && timestamp > end {
-		return ErrAuthNotActivated
+		return 0, ErrAuthNotActivated
+	}
+	authCUs, err := t.Auth.Verify(ctx, r, db, t.Action)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrAuthFailed, err) //nolint:errorlint
 	}
 	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	maxFee, err := feeManager.MaxFee(maxUnits)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := t.Auth.CanDeduct(ctx, db, maxFee); err != nil {
-		return err
+		return 0, err
 	}
-	if _, err := t.Auth.Verify(ctx, r, db, t.Action); err != nil {
-		return fmt.Errorf("%w: %v", ErrAuthFailed, err) //nolint:errorlint
-	}
-	return nil
+	return authCUs, nil
 }
 
 // Execute after knowing a transaction can pay a fee
+//
+// Invariant: preexecute is called just before execute
 func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *FeeManager,
+	authCUs uint64,
 	coldStorageReads map[string]uint16,
 	warmStorageReads map[string]uint16,
 	s StateManager,
@@ -286,23 +290,17 @@ func (t *Transaction) Execute(
 		return nil, err
 	}
 
-	// Verify auth is correct prior to doing anything
-	authCUs, err := t.Auth.Verify(ctx, r, tdb, t.Action)
-	if err != nil {
-		return nil, err
-	}
-
 	// Check warp message is not duplicate
 	if t.WarpMessage != nil {
 		_, err := tdb.GetValue(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
 		switch {
 		case err == nil:
-			// Override all errors if warp message is a duplicate
+			// Override all errors because warp message is a duplicate
 			warpVerified = false
 		case errors.Is(err, database.ErrNotFound):
 			// This means there are no conflicts
 		case err != nil:
-			return nil, err
+			return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 		}
 	}
 
@@ -310,27 +308,30 @@ func (t *Transaction) Execute(
 	actionStart := tdb.OpIndex()
 	success, actionCUs, output, warpMessage, err := t.Action.Execute(ctx, r, tdb, timestamp, t.Auth, t.id, warpVerified)
 	if err != nil {
-		return nil, err
+		tdb.Rollback(ctx, actionStart)
+		return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 	}
 	if len(output) == 0 && output != nil {
 		// Enforce object standardization (this is a VM bug and we should fail
 		// fast)
-		return nil, ErrInvalidObject
+		tdb.Rollback(ctx, actionStart)
+		return &Result{false, utils.ErrBytes(ErrInvalidObject), maxUnits, maxFee, nil}, nil
 	}
 	if !success {
-		// Only keep changes if successful
-		warpMessage = nil // warp messages can only be emitted on success
 		tdb.Rollback(ctx, actionStart)
+		warpMessage = nil // warp messages can only be emitted on success
 	} else {
 		// Ensure constraints hold if successful
 		if (warpMessage == nil && t.Action.OutputsWarpMessage()) || (warpMessage != nil && !t.Action.OutputsWarpMessage()) {
-			return nil, ErrInvalidObject
+			tdb.Rollback(ctx, actionStart)
+			return &Result{false, utils.ErrBytes(ErrInvalidObject), maxUnits, maxFee, nil}, nil
 		}
 
 		// Store incoming warp messages in state by their ID to prevent replays
 		if t.WarpMessage != nil {
 			if err := tdb.Insert(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID), nil); err != nil {
-				return nil, err
+				tdb.Rollback(ctx, actionStart)
+				return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 			}
 		}
 
@@ -342,12 +343,14 @@ func (t *Transaction) Execute(
 			warpMessage.SourceChainID = r.ChainID()
 			// Initialize message (compute bytes) now that everything is populated
 			if err := warpMessage.Initialize(); err != nil {
-				return nil, err
+				tdb.Rollback(ctx, actionStart)
+				return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 			}
 			// We use txID here because did not know the warpID before execution (and
 			// we pre-reserve this key for the processor).
 			if err := tdb.Insert(ctx, s.OutgoingWarpKey(t.id), warpMessage.Bytes()); err != nil {
-				return nil, err
+				tdb.Rollback(ctx, actionStart)
+				return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 			}
 		}
 	}
@@ -366,7 +369,8 @@ func (t *Transaction) Execute(
 	}
 	computeUnits, err := computeUnitsOp.Value()
 	if err != nil {
-		return nil, err
+		tdb.Rollback(ctx, actionStart)
+		return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 	}
 	// Because the key database is abstracted from [Actions], we can compute
 	// all storage use in the background. KeyOperations is reset whenever
@@ -379,13 +383,15 @@ func (t *Transaction) Execute(
 		bk := []byte(key)
 		changed, exists, err := tdb.Exists(ctx, bk)
 		if err != nil {
-			return nil, err
+			tdb.Rollback(ctx, actionStart)
+			return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 		}
 		// maxChunks will be greater than the chunks read in any of these keys,
 		// so we don't need to check for pre-existing values.
 		maxChunks, ok := MaxChunks(bk)
 		if !ok {
-			return nil, ErrInvalidKeyValue
+			tdb.Rollback(ctx, actionStart)
+			return &Result{false, utils.ErrBytes(ErrInvalidKeyValue), maxUnits, maxFee, nil}, nil
 		}
 		if !exists {
 			// We pessimistically assume any keys that are referenced will be created
@@ -411,7 +417,8 @@ func (t *Transaction) Execute(
 	}
 	reads, err := readsOp.Value()
 	if err != nil {
-		return nil, err
+		tdb.Rollback(ctx, actionStart)
+		return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 	}
 	creationsOp := math.NewUint64Operator(0)
 	for _, chunksStored := range creations {
@@ -420,7 +427,8 @@ func (t *Transaction) Execute(
 	}
 	creationUnits, err := creationsOp.Value()
 	if err != nil {
-		return nil, err
+		tdb.Rollback(ctx, actionStart)
+		return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 	}
 	modificationsOp := math.NewUint64Operator(0)
 	for _, chunksModified := range coldModifications {
@@ -433,12 +441,14 @@ func (t *Transaction) Execute(
 	}
 	modifications, err := modificationsOp.Value()
 	if err != nil {
-		return nil, err
+		tdb.Rollback(ctx, actionStart)
+		return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 	}
 	used := Dimensions{uint64(t.Size()), computeUnits, reads, creationUnits, modifications}
 	feeRequired, err := feeManager.MaxFee(used)
 	if err != nil {
-		return nil, err
+		tdb.Rollback(ctx, actionStart)
+		return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 	}
 
 	// Return any funds from unused units
@@ -447,7 +457,8 @@ func (t *Transaction) Execute(
 	refund := maxFee - feeRequired
 	if refund > 0 {
 		if err := t.Auth.Refund(ctx, tdb, refund); err != nil {
-			return nil, err
+			tdb.Rollback(ctx, actionStart)
+			return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 		}
 	}
 	return &Result{
