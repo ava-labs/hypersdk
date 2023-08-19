@@ -135,6 +135,8 @@ func (t *Transaction) StateKeys(stateMapping StateManager) (set.Set[string], err
 	keys := set.NewSet[string](16) // TODO: tune this
 	for _, arr := range [][]string{t.Action.StateKeys(t.Auth, t.ID()), t.Auth.StateKeys()} {
 		for _, k := range arr {
+			// TODO: check key size is small enough + referenced chunk size is small enough
+			// TODO: may be easier to make that a constant here?
 			if _, ok := MaxChunks([]byte(k)); !ok {
 				return nil, ErrInvalidKeyValue
 			}
