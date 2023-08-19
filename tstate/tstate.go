@@ -38,11 +38,9 @@ type TState struct {
 	changedKeys map[string]*tempStorage
 	fetchCache  map[string]*cacheItem // in case we evict and want to re-fetch
 
-	// We don't differentiate between read and write scope because it is very
-	// uncommon for a user to write something without first reading what is
-	// there.
+	// We don't differentiate between read and write scope.
 	//
-	// TODO: why do we need both of these?
+	// TODO: unify this into a single map
 	scope        set.Set[string] // stores a list of managed keys in the TState struct
 	scopeStorage map[string][]byte
 
