@@ -436,7 +436,7 @@ func (t *Transaction) Execute(
 	modificationsOp := math.NewUint64Operator(0)
 	for _, chunksModified := range coldModifications {
 		modificationsOp.Add(r.GetColdStorageKeyModificationUnits())
-		modificationsOp.MulAdd(uint64(chunksModified), r.GetWarmStorageValueModificationUnits())
+		modificationsOp.MulAdd(uint64(chunksModified), r.GetColdStorageValueModificationUnits())
 	}
 	for _, chunksModified := range warmModifications {
 		modificationsOp.Add(r.GetWarmStorageKeyModificationUnits())

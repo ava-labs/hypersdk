@@ -124,7 +124,6 @@ type Rules interface {
 	GetOutgoingWarpComputeUnits() uint64
 
 	// Controllers must manage the max key length and max value length
-
 	GetColdStorageKeyReadUnits() uint64
 	GetColdStorageValueReadUnits() uint64 // per chunk
 	GetWarmStorageKeyReadUnits() uint64

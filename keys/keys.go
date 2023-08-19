@@ -17,7 +17,7 @@ func MaxChunks(key []byte) (uint16, bool) {
 	if l < consts.Uint16Len {
 		return 0, false
 	}
-	return binary.BigEndian.Uint16(key[l-consts.Uint16Len:]) * chunkSize, true
+	return binary.BigEndian.Uint16(key[l-consts.Uint16Len:]), true
 }
 
 func NumChunks(value []byte) (uint16, bool) {
