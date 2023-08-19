@@ -44,14 +44,21 @@ type Genesis struct {
 	ValidityWindow int64 `json:"validityWindow"` // ms
 
 	// Tx Fee Parameters
-	BaseComputeUnits             uint64 `json:"baseUnits"`
-	BaseWarpComputeUnits         uint64 `json:"baseWarpUnits"`
-	WarpComputeUnitsPerSigner    uint64 `json:"warpUnitsPerSigner"`
-	OutgoingWarpComputeUnits     uint64 `json:"outgoingWarpComputeUnits"`
-	ColdStorageReadUnits         uint64 `json:"coldStorageReadUnits"`
-	WarmStorageReadUnits         uint64 `json:"warmStorageReadUnits"`
-	ColdStorageModificationUnits uint64 `json:"coldStorageModificationUnits"`
-	WarmStorageModificationUnits uint64 `json:"warmStorageModificationUnits"`
+	BaseComputeUnits          uint64 `json:"baseUnits"`
+	BaseWarpComputeUnits      uint64 `json:"baseWarpUnits"`
+	WarpComputeUnitsPerSigner uint64 `json:"warpUnitsPerSigner"`
+	OutgoingWarpComputeUnits  uint64 `json:"outgoingWarpComputeUnits"`
+
+	ColdStorageKeyReadUnits           uint64 `json:"coldStorageKeyReadUnits"`
+	ColdStorageValueReadUnits         uint64 `json:"coldStorageValueReadUnits"` // per chunk
+	WarmStorageKeyReadUnits           uint64 `json:"warmStorageKeyReadUnits"`
+	WarmStorageValueReadUnits         uint64 `json:"warmStorageValueReadUnits"` // per chunk
+	StorageKeyCreateUnits             uint64 `json:"storageKeyCreateUnits"`
+	StorageValueCreateUnits           uint64 `json:"storageKeyValueUnits"` // per chunk
+	ColdStorageKeyModificationUnits   uint64 `json:"coldStorageKeyModificationUnits"`
+	ColdStorageValueModificationUnits uint64 `json:"coldStorageValueModificationUnits"` // per chunk
+	WarmStorageKeyModificationUnits   uint64 `json:"warmStorageKeyModificationUnits"`
+	WarmStorageValueModificationUnits uint64 `json:"warmStorageValueModificationUnits"` // per chunk
 
 	// Allocations
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
@@ -74,15 +81,25 @@ func Default() *Genesis {
 		// Tx Parameters
 		ValidityWindow: 60 * hconsts.MillisecondsPerSecond, // ms
 
-		// Tx Fee Parameters
-		BaseComputeUnits:             1,
-		BaseWarpComputeUnits:         1_024,
-		WarpComputeUnitsPerSigner:    128,
-		OutgoingWarpComputeUnits:     1_024,
-		ColdStorageReadUnits:         5,
-		WarmStorageReadUnits:         1,
-		ColdStorageModificationUnits: 10,
-		WarmStorageModificationUnits: 1,
+		// Tx Fee Compute Parameters
+		BaseComputeUnits:          1,
+		BaseWarpComputeUnits:      1_024,
+		WarpComputeUnitsPerSigner: 128,
+		OutgoingWarpComputeUnits:  1_024,
+
+		// Tx Fee Storage Parameters
+		//
+		// TODO: tune this
+		ColdStorageKeyReadUnits:           5,
+		ColdStorageValueReadUnits:         2,
+		WarmStorageKeyReadUnits:           1,
+		WarmStorageValueReadUnits:         1,
+		StorageKeyCreateUnits:             20,
+		StorageValueCreateUnits:           5,
+		ColdStorageKeyModificationUnits:   10,
+		ColdStorageValueModificationUnits: 3,
+		WarmStorageKeyModificationUnits:   5,
+		WarmStorageValueModificationUnits: 3,
 	}
 }
 
