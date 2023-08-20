@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const maxPrealloc = 4_096
@@ -383,6 +384,10 @@ func (th *Mempool[T]) streamItems(count int) []T {
 func (th *Mempool[T]) FinishStreaming(ctx context.Context, restorable []T) int {
 	_, span := th.tracer.Start(ctx, "Mempool.FinishStreaming")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.Int("restorable", len(restorable)),
+	)
 
 	th.mu.Lock()
 	defer th.mu.Unlock()

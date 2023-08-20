@@ -21,6 +21,7 @@ func (*StateManager) IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) []byte 
 	return IncomingWarpKey(sourceChainID, msgID)
 }
 
-func (*StateManager) OutgoingWarpKey(txID ids.ID) []byte {
+func (*StateManager) OutgoingWarpKey(txID ids.ID, _ uint16) []byte {
+	// TODO: fix this
 	return OutgoingWarpKey(txID)
 }
