@@ -3,7 +3,7 @@
 members = [
     "x/programs/rust/expose_macro",
     "x/programs/rust/wasmlanche_sdk",
-    "x/programs/rust/examples/token_contract",
+    "x/programs/rust/examples/token_program",
     "x/programs/rust/examples/counter_program",
     "x/programs/rust/examples/even",
     "x/programs/rust/examples/lottery",

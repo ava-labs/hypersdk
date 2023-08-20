@@ -17,7 +17,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/x/programs/meter"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
@@ -26,20 +25,21 @@ const (
 	deallocFnName = "dealloc"
 )
 
-func New(log logging.Logger, meter meter.Meter, programStorage ProgramStorage) *runtime {
+func New(log logging.Logger, meter Meter, storage Storage) *runtime {
 	return &runtime{
-		log:            log,
-		meter:          meter,
-		programStorage: programStorage,
-		exported:       make(map[string]api.Function),
+		log:      log,
+		meter:    meter,
+		storage:  storage,
+		exported: make(map[string]api.Function),
 	}
 }
 
 type runtime struct {
-	engine         wazero.Runtime
-	mod            api.Module
-	meter          meter.Meter
-	programStorage ProgramStorage
+	cancelFn context.CancelFunc
+	engine   wazero.Runtime
+	mod      api.Module
+	meter    Meter
+	storage  Storage
 	// functions exported by this runtime
 	exported map[string]api.Function
 	db       chain.Database
@@ -50,6 +50,8 @@ type runtime struct {
 }
 
 func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions []string) error {
+	ctx, r.cancelFn = context.WithCancel(ctx)
+
 	r.engine = wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigInterpreter())
 
 	// register host modules
@@ -60,7 +62,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions
 	}
 
 	// enable program to program calls
-	invokeMod := NewInvokeModule(r.log, r.db, r.meter, r.programStorage)
+	invokeMod := NewInvokeModule(r.log, r.db, r.meter, r.storage)
 	err = invokeMod.Instantiate(ctx, r.engine)
 	if err != nil {
 		return fmt.Errorf("failed to create delegate host module: %w", err)
@@ -151,6 +153,7 @@ func (r *runtime) WriteGuestBuffer(ctx context.Context, buf []byte) (uint64, err
 }
 
 func (r *runtime) Stop(ctx context.Context) error {
+	defer r.cancelFn()
 	if r.closed {
 		return nil
 	}
@@ -162,20 +165,15 @@ func (r *runtime) Stop(ctx context.Context) error {
 	if err := r.mod.Close(ctx); err != nil {
 		return fmt.Errorf("failed to close wasm api module: %w", err)
 	}
+
 	return nil
 }
 
 func (r *runtime) startMeter(ctx context.Context) {
-	defer func() {
-		if err := r.Stop(ctx); err != nil {
-			r.log.Error("failed to shutdown runtime:",
-				zap.Error(err),
-			)
-		}
-	}()
-
-	if err := r.meter.Run(ctx); err != nil {
-		r.log.Error("meter failed",
+	// errors are returned to Call
+	r.meter.Run(ctx)
+	if err := r.Stop(ctx); err != nil {
+		r.log.Error("failed to shutdown runtime:",
 			zap.Error(err),
 		)
 	}

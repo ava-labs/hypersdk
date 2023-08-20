@@ -9,7 +9,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/x/programs/meter"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
 
@@ -43,10 +42,10 @@ func (t *Token) Run(ctx context.Context) error {
 		"transfer",
 		"alloc",
 		"dealloc",
-		"init_contract",
+		"init_program",
 	}
 
-	meter := meter.New(t.maxFee, t.costMap)
+	meter := runtime.NewMeter(t.maxFee, t.costMap)
 	db := utils.NewTestDB()
 	store := newProgramStorage(db)
 
@@ -56,7 +55,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	result, err := runtime.Call(ctx, "init_contract")
+	result, err := runtime.Call(ctx, "init_program")
 	if err != nil {
 		return err
 	}
