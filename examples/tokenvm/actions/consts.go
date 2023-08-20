@@ -25,6 +25,7 @@ const (
 	ExportAssetComputeUnits = 10
 	ImportAssetComputeUnits = 10
 	CreateOrderComputeUnits = 5
+	NoFillOrderComputeUnits = 5
 	FillOrderComputeUnits   = 15
 	MintAssetComputeUnits   = 2
 	ModifyAssetComputeUnits = 2
