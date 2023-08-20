@@ -146,18 +146,14 @@ func (t *Transaction) StateKeys(stateMapping StateManager, r Rules) (set.Set[str
 
 	// Add keys used to manage warp operations
 	if t.WarpMessage != nil {
-		k := stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID)
-		max, ok := keys.MaxChunks(k)
-		if !ok {
-			return nil, ErrInvalidKeyValue
-		}
-		if max != IncomingWarpChunks {
-			return nil, ErrInvalidKeyValue
-		}
+		p := stateMapping.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
+		k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
 		stateKeys.Add(string(k))
 	}
-	if chunks, ok := t.Action.OutputsWarpMessage(); ok {
-		stateKeys.Add(string(stateMapping.OutgoingWarpKey(t.id, chunks)))
+	if t.Action.OutputsWarpMessage() {
+		p := stateMapping.OutgoingWarpKeyPrefix(t.id)
+		k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
+		stateKeys.Add(string(k))
 	}
 
 	// Cache keys if called again
@@ -176,7 +172,7 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 		maxComputeUnitsOp.Add(r.GetBaseWarpComputeUnits())
 		maxComputeUnitsOp.MulAdd(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
 	}
-	if _, ok := t.Action.OutputsWarpMessage(); ok {
+	if t.Action.OutputsWarpMessage() {
 		// Chunks later accounted for by call to [StateKeys]
 		maxComputeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
 	}
@@ -239,7 +235,7 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 	computeUnitsOp.Add(action.MaxComputeUnits(r))
 	if warpMessage != nil {
 		bandwidth += uint64(codec.BytesLen(warpMessage.Bytes()))
-		stateKeysMaxChunks = append(stateKeysMaxChunks, IncomingWarpChunks)
+		stateKeysMaxChunks = append(stateKeysMaxChunks, MaxIncomingWarpChunks)
 		computeUnitsOp.Add(r.GetBaseWarpComputeUnits())
 		numSigners, err := warpMessage.Signature.NumSigners()
 		if err != nil {
@@ -247,8 +243,8 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 		}
 		computeUnitsOp.MulAdd(uint64(numSigners), r.GetWarpComputeUnitsPerSigner())
 	}
-	if chunks, ok := action.OutputsWarpMessage(); ok {
-		stateKeysMaxChunks = append(stateKeysMaxChunks, chunks)
+	if action.OutputsWarpMessage() {
+		stateKeysMaxChunks = append(stateKeysMaxChunks, MaxOutgoingWarpChunks)
 		computeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
 	}
 	computeUnits, err := computeUnitsOp.Value()
@@ -370,7 +366,9 @@ func (t *Transaction) Execute(
 
 	// Check warp message is not duplicate
 	if t.WarpMessage != nil {
-		_, err := tdb.GetValue(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID))
+		p := s.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
+		k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
+		_, err := tdb.GetValue(ctx, k)
 		switch {
 		case err == nil:
 			// Override all errors because warp message is a duplicate
@@ -397,7 +395,7 @@ func (t *Transaction) Execute(
 		tdb.Rollback(ctx, actionStart)
 		return &Result{false, utils.ErrBytes(ErrInvalidObject), maxUnits, maxFee, nil}, nil
 	}
-	warpChunks, outputsWarp := t.Action.OutputsWarpMessage()
+	outputsWarp := t.Action.OutputsWarpMessage()
 	if !success {
 		tdb.Rollback(ctx, actionStart)
 		warpMessage = nil // warp messages can only be emitted on success
@@ -410,7 +408,9 @@ func (t *Transaction) Execute(
 
 		// Store incoming warp messages in state by their ID to prevent replays
 		if t.WarpMessage != nil {
-			if err := tdb.Insert(ctx, s.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID), nil); err != nil {
+			p := s.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
+			k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
+			if err := tdb.Insert(ctx, k, nil); err != nil {
 				tdb.Rollback(ctx, actionStart)
 				return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 			}
@@ -429,7 +429,9 @@ func (t *Transaction) Execute(
 			}
 			// We use txID here because did not know the warpID before execution (and
 			// we pre-reserve this key for the processor).
-			if err := tdb.Insert(ctx, s.OutgoingWarpKey(t.id, warpChunks), warpMessage.Bytes()); err != nil {
+			p := s.OutgoingWarpKeyPrefix(t.id)
+			k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
+			if err := tdb.Insert(ctx, k, warpMessage.Bytes()); err != nil {
 				tdb.Rollback(ctx, actionStart)
 				return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 			}

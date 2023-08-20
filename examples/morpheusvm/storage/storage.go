@@ -255,20 +255,17 @@ func FeeKey() (k []byte) {
 	return feeKey
 }
 
-func IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen*2+consts.Uint16Len)
+func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
+	k = make([]byte, 1+consts.IDLen*2)
 	k[0] = incomingWarpPrefix
 	copy(k[1:], sourceChainID[:])
 	copy(k[1+consts.IDLen:], msgID[:])
-	binary.BigEndian.PutUint16(k[1+consts.IDLen*2:], chain.IncomingWarpChunks)
 	return k
 }
 
-func OutgoingWarpKey(txID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen+consts.Uint16Len)
+func OutgoingWarpKeyPrefix(txID ids.ID) (k []byte) {
+	k = make([]byte, 1+consts.IDLen)
 	k[0] = outgoingWarpPrefix
 	copy(k[1:], txID[:])
-	// TODO: make this MaxWarpMessage size a const somewhere?
-	binary.BigEndian.PutUint16(k[1+consts.IDLen:], 0)
 	return k
 }

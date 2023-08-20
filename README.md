@@ -477,9 +477,9 @@ type Action interface {
 	// users don't need to have a large balance to call an [Action] (must prepay fee before execution).
 	MaxComputeUnits(Rules) uint64
 
-	// OutputsWarpMessage indicates whether an [Action] will produce a warp message, and if so how many
-	// chunks it will take to store it.
-	OutputsWarpMessage() (uint16, bool)
+	// OutputsWarpMessage indicates whether an [Action] will produce a warp message. The max size
+	// of any warp message is [MaxOutgoingWarpChunks].
+	OutputsWarpMessage()  bool
 
 	// StateKeys is a full enumeration of all database keys that could be touched during execution
 	// of an [Action]. This is used to prefetch state and will be used to parallelize execution (making

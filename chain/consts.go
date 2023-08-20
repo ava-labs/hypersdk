@@ -22,6 +22,12 @@ const (
 	// MaxWarpMessages is the maximum number of warp messages allows in a single
 	// block.
 	MaxWarpMessages = 64
-	// IncomingWarpChunks is the number of chunks stored for an incoming warp message.
-	IncomingWarpChunks = 0
+	// MaxIncomingWarpChunks is the number of chunks stored for an incoming warp message.
+	MaxIncomingWarpChunks = 0
+	// MaxOutgoingWarpChunks is the max number of chunks that can be stored for an outgoing warp message.
+	//
+	// This is defined as a constant because storage of warp messages is handled by the hypersdk,
+	// not the [Controller]. In this mechanism, we frequently query warp messages by TxID across
+	// ranges (so, we can't expose a way to modify this over time).
+	MaxOutgoingWarpChunks = 4
 )

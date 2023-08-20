@@ -18,6 +18,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/keys"
 )
 
 const (
@@ -120,8 +121,8 @@ func (vm *VM) PutDiskIsSyncing(v bool) error {
 }
 
 func (vm *VM) GetOutgoingWarpMessage(txID ids.ID) (*warp.UnsignedMessage, error) {
-	// TODO: fix this
-	k := vm.c.StateManager().OutgoingWarpKey(txID, 256)
+	p := vm.c.StateManager().OutgoingWarpKeyPrefix(txID)
+	k := keys.EncodeChunks(p, chain.MaxOutgoingWarpChunks)
 	vs, errs := vm.ReadState(context.TODO(), [][]byte{k})
 	v, err := vs[0], errs[0]
 	if errors.Is(err, database.ErrNotFound) {

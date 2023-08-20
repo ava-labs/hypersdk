@@ -44,8 +44,8 @@ func (t *Transfer) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
 }
 
-func (t *Transfer) OutputsWarpMessage() (uint16, bool) {
-	return 0, false
+func (t *Transfer) OutputsWarpMessage() bool {
+	return false
 }
 
 func (t *Transfer) Execute(

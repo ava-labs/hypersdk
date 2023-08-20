@@ -141,11 +141,15 @@ type Rules interface {
 // StateManager allows [Chain] to safely store certain types of items in state
 // in a structured manner. If we did not use [StateManager], we may overwrite
 // state written by actions or auth.
+//
+// None of these keys should be suffixed with the max amount of chunks they will
+// use. This will be handled by the hypersdk.
 type StateManager interface {
 	HeightKey() []byte
 	FeeKey() []byte
-	IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) []byte
-	OutgoingWarpKey(txID ids.ID, chunks uint16) []byte
+
+	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte
+	OutgoingWarpKeyPrefix(txID ids.ID) []byte
 }
 
 type Action interface {
@@ -166,9 +170,9 @@ type Action interface {
 	// users don't need to have a large balance to call an [Action] (must prepay fee before execution).
 	MaxComputeUnits(Rules) uint64
 
-	// OutputsWarpMessage indicates whether an [Action] will produce a warp message, and if so how many
-	// chunks it will take to store it.
-	OutputsWarpMessage() (uint16, bool)
+	// OutputsWarpMessage indicates whether an [Action] will produce a warp message. The max size
+	// of any warp message is [MaxOutgoingWarpChunks].
+	OutputsWarpMessage() bool
 
 	// StateKeys is a full enumeration of all database keys that could be touched during execution
 	// of an [Action]. This is used to prefetch state and will be used to parallelize execution (making

@@ -17,11 +17,10 @@ func (*StateManager) FeeKey() []byte {
 	return FeeKey()
 }
 
-func (*StateManager) IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) []byte {
-	return IncomingWarpKey(sourceChainID, msgID)
+func (*StateManager) IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte {
+	return IncomingWarpKeyPrefix(sourceChainID, msgID)
 }
 
-func (*StateManager) OutgoingWarpKey(txID ids.ID, _ uint16) []byte {
-	// TODO: fix this
-	return OutgoingWarpKey(txID)
+func (*StateManager) OutgoingWarpKeyPrefix(txID ids.ID) []byte {
+	return OutgoingWarpKeyPrefix(txID)
 }
