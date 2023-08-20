@@ -8,15 +8,10 @@ fi
 
 # https://rust-lang.github.io/rustup/installation/index.html
 # rustup toolchain install nightly --allow-downgrade --profile minimal --component clippy
-#
-# https://github.com/rust-lang/rustfmt
-# rustup component add rustfmt
-# rustup component add rustfmt --toolchain nightly
-# rustup component add clippy
-# rustup component add clippy --toolchain nightly
 
 rustup default nightly
 
+# use rust nightly clippy to check tests and all crate features
 cargo +nightly clippy --all --all-features -- -D warnings
 
 rustup default stable
