@@ -125,9 +125,6 @@ func BuildBlock(
 
 		// alreadyFetched contains keys already fetched from state that can be
 		// used during prefetching.
-		//
-		// TODO: need to ensure we only include alreadyFetched of txs that will be included in build.
-		// Can add during separate build.
 		alreadyFetched = map[string]*fetchData{}
 
 		// prepareStreamLock ensures we don't overwrite stream prefetching spawned
@@ -138,7 +135,7 @@ func BuildBlock(
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
 	mempool.StartStreaming(ctx)
 	b.Txs = []*Transaction{}
-	usedKeys := set.NewSet[string](0)
+	usedKeys := set.NewSet[string](0) // prefetch map for transactions in block
 	for time.Since(start) < vm.GetTargetBuildDuration() {
 		prepareStreamLock.Lock()
 		txs := mempool.Stream(ctx, streamBatch)
@@ -182,6 +179,9 @@ func BuildBlock(
 				stateKeys, err := tx.StateKeys(sm, r)
 				if err != nil {
 					// Drop bad transaction and continue
+					//
+					// This should not happen because we check this before
+					// adding a transaction to the mempool.
 					continue
 				}
 				for k := range stateKeys {
@@ -205,6 +205,9 @@ func BuildBlock(
 					numChunks, ok := keys.NumChunks(v)
 					if !ok {
 						// Drop bad transaction and continue
+						//
+						// This should not happen because we check this before
+						// adding a transaction to the mempool.
 						continue
 					}
 					alreadyFetched[k] = &fetchData{v, true, numChunks}
@@ -290,7 +293,8 @@ func BuildBlock(
 			txStart := ts.OpIndex()
 			stateKeys, err := next.StateKeys(sm, r)
 			if err != nil {
-				// Should never happen
+				// This should not happen because we check this before
+				// adding a transaction to the mempool.
 				log.Warn(
 					"skipping tx: invalid stateKeys",
 					zap.Error(err),
@@ -352,7 +356,6 @@ func BuildBlock(
 				v := nextTxData.storage[k]
 				numChunks, ok := keys.NumChunks(v)
 				if !ok {
-					// Should not happen
 					invalidStateKeys = true
 					break
 				}
@@ -363,6 +366,8 @@ func BuildBlock(
 				coldReads[k] = numChunks
 			}
 			if invalidStateKeys {
+				// This should not happen because we check this before
+				// adding a transaction to the mempool.
 				log.Warn("invalid tx: invalid state keys")
 				continue
 			}
@@ -379,8 +384,8 @@ func BuildBlock(
 				next.WarpMessage != nil && warpErr == nil,
 			)
 			if err != nil {
-				// Almost all execution issues will return internal errors that still
-				// charge fees.
+				// Returning an error here should be avoided at all costs (can be a DoS). Rather,
+				// all units for the transaction should be consumed and a fee should be charged.
 				log.Warn("unexpected post-execution error", zap.Error(err))
 				restorable = append(restorable, next)
 				execErr = err
