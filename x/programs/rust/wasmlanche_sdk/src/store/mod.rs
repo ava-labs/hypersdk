@@ -159,8 +159,7 @@ impl ProgramContext {
         call_args: &[ProgramValue],
     ) -> ProgramValue {
         // hardcode first arg for now
-        let result =
-            unsafe { host_program_invoke(self, call_ctx, fn_name, &Self::marshal_args(call_args)) };
+        let result = host_program_invoke(self, call_ctx, fn_name, &Self::marshal_args(call_args));
         // Hardcode int for now
         ProgramValue::IntObject(result)
     }
