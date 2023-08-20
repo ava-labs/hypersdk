@@ -35,14 +35,18 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x2/ (hypersdk-outgoing warp)
 
 const (
+	// metaDB
 	txPrefix = 0x0
 
+	// stateDB
 	balancePrefix      = 0x0
 	incomingWarpPrefix = 0x1
 	outgoingWarpPrefix = 0x2
 	heightPrefix       = 0x3
 	feePrefix          = 0x4
 )
+
+const BalanceChunks uint16 = 1
 
 var (
 	failureByte = byte(0x0)

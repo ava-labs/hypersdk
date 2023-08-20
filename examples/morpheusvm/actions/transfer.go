@@ -19,6 +19,8 @@ import (
 
 var _ chain.Action = (*Transfer)(nil)
 
+const TransferComputeUnits = 1
+
 type Transfer struct {
 	// To is the recipient of the [Value].
 	To ed25519.PublicKey `json:"to"`
@@ -39,11 +41,11 @@ func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) []string {
 }
 
 func (t *Transfer) StateKeysMaxChunks() []uint16 {
-	return []uint16{1, 1}
+	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
 }
 
-func (t *Transfer) OutputsWarpMessage() bool {
-	return false
+func (t *Transfer) OutputsWarpMessage() (uint16, bool) {
+	return 0, false
 }
 
 func (t *Transfer) Execute(
@@ -69,7 +71,7 @@ func (t *Transfer) Execute(
 }
 
 func (t *Transfer) MaxComputeUnits(chain.Rules) uint64 {
-	return 1
+	return TransferComputeUnits
 }
 
 func (*Transfer) Size() int {
