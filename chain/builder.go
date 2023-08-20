@@ -349,6 +349,9 @@ func BuildBlock(
 			}
 
 			// If execution works, keep moving forward with new state
+			//
+			// Note, these calculations must match block verification exactly
+			// otherwise they will produce a different state root.
 			coldReads := map[string]uint16{}
 			warmReads := map[string]uint16{}
 			var invalidStateKeys bool
