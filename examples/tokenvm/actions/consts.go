@@ -18,6 +18,7 @@ const (
 )
 
 const (
+	// TODO: tune this
 	BurnComputeUnits        = 2
 	CloseOrderComputeUnits  = 5
 	CreateAssetComputeUnits = 10
