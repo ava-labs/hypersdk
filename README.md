@@ -148,6 +148,10 @@ TODO: charge for storage read/create/modify on disk
 TODO: only charge to get key/modify at bondary of tx...each access
 is really a compute question and should be charged
 
+To hide this complexity from the user, everything other than compute units
+are done in the background. Just need to add uint16 to end of any keys
+to indicate the max bytes they could store.
+
 ### Account Abstraction
 The `hypersdk` makes no assumptions about how `Actions` (the primitive for
 interactions with any `hyperchain`, as explained below) are verified. Rather,
