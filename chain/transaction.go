@@ -258,12 +258,13 @@ func (t *Transaction) PreExecute(
 	return authCUs, nil
 }
 
-// Execute after knowing a transaction can pay a fee
+// Execute after knowing a transaction can pay a fee. Attempt
+// to charge the fee in as many cases as possible.
 //
 // ColdRead/WarmRead size is based on the amount read BEFORE
 // the block begins.
 //
-// Invariant: preexecute is called just before execute
+// Invariant: [PreExecute] is called just before [Execute]
 func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *FeeManager,
@@ -276,7 +277,7 @@ func (t *Transaction) Execute(
 	timestamp int64,
 	warpVerified bool,
 ) (*Result, error) {
-	// Always charge fee first in case [Action] moves funds
+	// Always charge fee first (in case [Action] moves funds)
 	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
 		// Should never happen
@@ -289,7 +290,7 @@ func (t *Transaction) Execute(
 	}
 	if err := t.Auth.Deduct(ctx, tdb, maxFee); err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
-		// immediately before.
+		// immediately before).
 		return nil, err
 	}
 
@@ -303,11 +304,13 @@ func (t *Transaction) Execute(
 		case errors.Is(err, database.ErrNotFound):
 			// This means there are no conflicts
 		case err != nil:
+			// An error here can indicate there is an issue with the database or that
+			// the key was not properly specified.
 			return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 		}
 	}
 
-	// We create a temp state to ensure we don't commit failed actions to state.
+	// We create a temp state checkpoint to ensure we don't commit failed actions to state.
 	actionStart := tdb.OpIndex()
 	success, actionCUs, output, warpMessage, err := t.Action.Execute(ctx, r, tdb, timestamp, t.Auth, t.id, warpVerified)
 	if err != nil {
@@ -358,7 +361,7 @@ func (t *Transaction) Execute(
 		}
 	}
 
-	// Refund all units that went unused
+	// Calculate units used
 	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	computeUnitsOp.Add(authCUs)
 	computeUnitsOp.Add(actionCUs)
@@ -367,7 +370,6 @@ func (t *Transaction) Execute(
 		computeUnitsOp.MulAdd(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
 	}
 	if success && t.Action.OutputsWarpMessage() {
-		// Only charge outgoing fee if successful
 		computeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
 	}
 	computeUnits, err := computeUnitsOp.Value()
@@ -375,13 +377,14 @@ func (t *Transaction) Execute(
 		tdb.Rollback(ctx, actionStart)
 		return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 	}
-	// Because the key database is abstracted from [Actions], we can compute
+
+	// Because the key database is abstracted from [Auth]/[Actions], we can compute
 	// all storage use in the background. KeyOperations is reset whenever
 	// we set scope on [tdb].
 	creations, coldModifications, warmModifications := tdb.KeyOperations()
 
 	// Because we compute the fee before [Auth.Refund] is called, we need
-	// to precompute the storage it will change.
+	// to pessimistically precompute the storage it will change.
 	for _, key := range t.Auth.StateKeys() {
 		bk := []byte(key)
 		changed, exists, err := tdb.Exists(ctx, bk)
@@ -408,7 +411,8 @@ func (t *Transaction) Execute(
 		}
 		warmModifications[key] = maxChunks
 	}
-	// We only charge for the storage read from disk instead of charging the max storage.
+	// We only charge for the chunks read from disk instead of charging for the max chunks
+	// specified by the key.
 	readsOp := math.NewUint64Operator(0)
 	for _, chunksRead := range coldStorageReads {
 		readsOp.Add(r.GetColdStorageKeyReadUnits())

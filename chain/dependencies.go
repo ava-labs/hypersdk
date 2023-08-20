@@ -212,7 +212,9 @@ type Auth interface {
 	// AsyncVerify will be run concurrently, optimistically start crypto ops (may not complete before [Verify])
 	AsyncVerify(msg []byte) error
 
-	// ComputeUnits should take into account [AsyncVerify], [CanDeduct], [Deduct], and [Refund]
+	// ComputeUnits should take into account [AsyncVerify], [CanDeduct], [Deduct], and [Refund].
+	//
+	// Invariant: [Verify] should not change state.
 	Verify(
 		ctx context.Context,
 		r Rules,
