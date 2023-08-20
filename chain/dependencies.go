@@ -265,12 +265,23 @@ type Auth interface {
 	// from a single Payer.
 	Payer() []byte
 
+	// CanDeduct returns an error if [amount] cannot be paid by [Auth].
 	CanDeduct(ctx context.Context, db Database, amount uint64) error
+
+	// Deduct removes [amount] from [Auth] during transaction execution to pay fees.
 	Deduct(ctx context.Context, db Database, amount uint64) error
 
-	Refund(ctx context.Context, db Database, amount uint64) error // only invoked if amount > 0
+	// Refund returns [amount] to [Auth] after transaction execution if any fees were
+	// not used.
+	//
+	// Refund is only invoked if [amount] > 0.
+	Refund(ctx context.Context, db Database, amount uint64) error
 
+	// Marshal encodes an [Auth] as bytes.
 	Marshal(p *codec.Packer)
+
+	// Size is the number of bytes it takes to represent this [Auth]. This is used to preallocate
+	// memory during encoding and to charge bandwidth fees.
 	Size() int
 }
 
