@@ -134,6 +134,10 @@ stateless activities during execution can greatly reduce the e2e verification
 time of a block when running on powerful hardware.
 
 ### Multi-Dimensional Fee Pricing
+Instead of using a single, fungible fee unit (like "gas"), the `hypersdk`
+incorporates 5 fee dimensions (bandwidth, compute, storage[read], storage[create],
+storage[modify]) to compute transaction fees.
+
 TODO: instead of relying on a single price/units, there are 5
 
 This allows for better resource utilization of the entire network.
@@ -144,6 +148,28 @@ TODO: advanced fee model that discounts for warm reads/modifications across
 the block
 
 TODO: charge for storage read/create/modify on disk
+
+#### Avoiding Complex Consruction
+When generating a transaction, all users need to specify is the max fee
+that they will pay. The amount of units used are inferred...
+
+The downside of this approach is that this inference is pessimistic
+and you may need a larger balance than otherwise to perform txs.
+
+The other side of this is that it reduces the viability of dust accounts.
+
+#### No Priority Fees
+Transactions are executed in FIFO order.
+
+#### Storage
+Chunks = 64B
+
+TODO: only charge to get key/modify at bondary of tx...each access
+is really a compute question and should be charged
+
+To hide this complexity from the user, everything other than compute units
+are done in the background. Just need to add uint16 to end of any keys
+to indicate the max bytes they could store.
 
 ### Account Abstraction
 The `hypersdk` makes no assumptions about how `Actions` (the primitive for
@@ -363,20 +389,32 @@ type Controller interface {
 		genesis Genesis,
 		builder builder.Builder,
 		gossiper gossiper.Gossiper,
+		// TODO: consider splitting out blockDB for use with more experimental
+		// databases
 		vmDB database.Database,
 		stateDB database.Database,
 		handler Handlers,
 		actionRegistry chain.ActionRegistry,
 		authRegistry chain.AuthRegistry,
+		authEngines map[uint8]AuthEngine,
 		err error,
 	)
 
-	Rules(t int64) chain.Rules
+	Rules(t int64) chain.Rules // ms
+
+	// StateManager is used by the VM to request keys to store required
+	// information in state (without clobbering things the Controller is
+	// storing).
 	StateManager() chain.StateManager
 
+	// Anything that the VM wishes to store outside of state or blocks must be
+	// recorded here
 	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
 	Rejected(ctx context.Context, blk *chain.StatelessBlock) error
 
+	// Shutdown should be used by the [Controller] to terminate any async
+	// processes it may be running in the background. It is invoked when
+	// `vm.Shutdown` is called.
 	Shutdown(context.Context) error
 }
 ```
@@ -424,10 +462,48 @@ You can view what this looks like in the `tokenvm` by clicking this
 ### Action
 ```golang
 type Action interface {
-	MaxUnits(Rules) uint64
+	// GetTypeID uniquely identifies each supported [Action]. We use IDs to avoid
+	// reflection.
+	GetTypeID() uint8
+
+	// ValidRange is the timestamp range (in ms) that this [Action] is considered valid.
+	//
+	// -1 means no start/end
 	ValidRange(Rules) (start int64, end int64)
 
-	StateKeys(auth Auth, txID ids.ID) [][]byte
+	// MaxComputeUnits is the maximum amount of compute a given [Action] could use. This is
+	// used to determine whether the [Action] can be included in a given block and to compute
+	// the required fee to execute.
+	//
+	// Developers should make every effort to bound this as tightly to the actual max so that
+	// users don't need to have a large balance to call an [Action] (must prepay fee before execution).
+	MaxComputeUnits(Rules) uint64
+
+	// OutputsWarpMessage indicates whether an [Action] will produce a warp message. The max size
+	// of any warp message is [MaxOutgoingWarpChunks].
+	OutputsWarpMessage()  bool
+
+	// StateKeys is a full enumeration of all database keys that could be touched during execution
+	// of an [Action]. This is used to prefetch state and will be used to parallelize execution (making
+	// an execution tree is trivial).
+	//
+	// All keys specified must be suffixed with the number of chunks that could ever be read from that
+	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
+	StateKeys(auth Auth, txID ids.ID) []string
+
+	// StateKeysMaxChunks is used to estimate the fee a transaction should pay. It includes the max
+	// chunks each state key could use without requiring the state keys to actually be provided (may
+	// not be known until execution).
+	StateKeysMaxChunks() []uint16
+
+	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
+	// be done here.
+	//
+	// If any keys are touched during [Execute] that are not specified in [StateKeys], the transaction
+	// will revert and the max fee will be charged.
+	//
+	// An error should only be returned if a fatal error was encountered, otherwise [success] should
+	// be marked as false and fees will still be charged.
 	Execute(
 		ctx context.Context,
 		r Rules,
@@ -436,9 +512,14 @@ type Action interface {
 		auth Auth,
 		txID ids.ID,
 		warpVerified bool,
-	) (result *Result, err error)
+	) (success bool, computeUnits uint64, output []byte, warpMessage *warp.UnsignedMessage, err error)
 
+	// Marshal encodes an [Action] as bytes.
 	Marshal(p *codec.Packer)
+
+	// Size is the number of bytes it takes to represent this [Action]. This is used to preallocate
+	// memory during encoding and to charge bandwidth fees.
+	Size() int
 }
 ```
 
@@ -453,9 +534,11 @@ and what a more complex "fill order" `Action` looks like [here](./examples/token
 #### Result
 ```golang
 type Result struct {
-	Success     bool
-	Units       uint64
-	Output      []byte
+	Success bool
+	Output  []byte
+	Units   Dimensions
+	Fee     uint64
+
 	WarpMessage *warp.UnsignedMessage
 }
 ```
@@ -469,19 +552,74 @@ and optionally a `WarpMessage` (which Subnet Validators will sign).
 ### Auth
 ```golang
 type Auth interface {
-	MaxUnits(Rules) uint64
+	// GetTypeID uniquely identifies each supported [Auth]. We use IDs to avoid
+	// reflection.
+	GetTypeID() uint8
+
+	// ValidRange is the timestamp range (in ms) that this [Auth] is considered valid.
+	//
+	// -1 means no start/end
 	ValidRange(Rules) (start int64, end int64)
 
-	StateKeys() [][]byte
-	AsyncVerify(msg []byte) error
-	Verify(ctx context.Context, r Rules, db Database, action Action) (units uint64, err error)
+	// MaxComputeUnits is the maximum amount of compute a given [Auth] could use. This is
+	// used to determine whether the [Auth] can be included in a given block and to compute
+	// the required fee to execute.
+	//
+	// Developers should make every effort to bound this as tightly to the actual max so that
+	// users don't need to have a large balance to call an [Auth] (must prepay fee before execution).
+	//
+	// MaxComputeUnits should take into account [AsyncVerify], [CanDeduct], [Deduct], and [Refund]
+	MaxComputeUnits(Rules) uint64
 
+	// StateKeys is a full enumeration of all database keys that could be touched during execution
+	// of an [Auth]. This is used to prefetch state and will be used to parallelize execution (making
+	// an execution tree is trivial).
+	//
+	// All keys specified must be suffixed with the number of chunks that could ever be read from that
+	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
+	StateKeys() []string
+
+	// AsyncVerify should perform any verification that can be run concurrently. It may not be run by the time
+	// [Verify] is invoked but will be checked before a [Transaction] is considered successful.
+	//
+	// AsyncVerify is typically used to perform cryptographic operations.
+	AsyncVerify(msg []byte) error
+
+	// Verify performs any checks against state required to determine if [Auth] is valid.
+	//
+	// This could be used, for example, to determine that the public key used to sign a transaction
+	// is registered as the signer for an account. This could also be used to pull a [Program] from disk.
+	//
+	// Invariant: [Verify] must not change state
+	Verify(
+		ctx context.Context,
+		r Rules,
+		db Database,
+		action Action,
+	) (computeUnits uint64, err error)
+
+	// Payer is the owner of [Auth]. It is used by the mempool to ensure that there aren't too many transactions
+	// from a single Payer.
 	Payer() []byte
+
+	// CanDeduct returns an error if [amount] cannot be paid by [Auth].
 	CanDeduct(ctx context.Context, db Database, amount uint64) error
+
+	// Deduct removes [amount] from [Auth] during transaction execution to pay fees.
 	Deduct(ctx context.Context, db Database, amount uint64) error
+
+	// Refund returns [amount] to [Auth] after transaction execution if any fees were
+	// not used.
+	//
+	// Refund is only invoked if [amount] > 0.
 	Refund(ctx context.Context, db Database, amount uint64) error
 
+	// Marshal encodes an [Auth] as bytes.
 	Marshal(p *codec.Packer)
+
+	// Size is the number of bytes it takes to represent this [Auth]. This is used to preallocate
+	// memory during encoding and to charge bandwidth fees.
+	Size() int
 }
 ```
 
@@ -510,23 +648,38 @@ that an account owner can call to perform any ACL modifications.
 ### Rules
 ```golang
 type Rules interface {
-	GetMaxBlockTxs() int
-	GetMaxBlockUnits() uint64 // should ensure can't get above block max size
+	// Should almost always be constant (unless there is a fork of
+	// a live network)
+	NetworkID() uint32
+	ChainID() ids.ID
 
-	GetValidityWindow() int64
-	GetBaseUnits() uint64
+	GetMinBlockGap() int64      // in milliseconds
+	GetMinEmptyBlockGap() int64 // in milliseconds
+	GetValidityWindow() int64   // in milliseconds
 
-	GetMinUnitPrice() uint64
-	GetUnitPriceChangeDenominator() uint64
-	GetWindowTargetUnits() uint64
+	GetMinUnitPrice() Dimensions
+	GetUnitPriceChangeDenominator() Dimensions
+	GetWindowTargetUnits() Dimensions
+	GetMaxBlockUnits() Dimensions
 
-	GetMinBlockCost() uint64
-	GetBlockCostChangeDenominator() uint64
-	GetWindowTargetBlocks() uint64
+	GetBaseComputeUnits() uint64
+	GetBaseWarpComputeUnits() uint64
+	GetWarpComputeUnitsPerSigner() uint64
+	GetOutgoingWarpComputeUnits() uint64
+
+	// Controllers must manage the max key length and max value length
+	GetColdStorageKeyReadUnits() uint64
+	GetColdStorageValueReadUnits() uint64 // per chunk
+	GetWarmStorageKeyReadUnits() uint64
+	GetWarmStorageValueReadUnits() uint64 // per chunk
+	GetStorageKeyCreateUnits() uint64
+	GetStorageValueCreateUnits() uint64 // per chunk
+	GetColdStorageKeyModificationUnits() uint64
+	GetColdStorageValueModificationUnits() uint64 // per chunk
+	GetWarmStorageKeyModificationUnits() uint64
+	GetWarmStorageValueModificationUnits() uint64 // per chunk
 
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
-	GetWarpBaseFee() uint64
-	GetWarpFeePerSigner() uint64
 
 	FetchCustom(string) (any, bool)
 }

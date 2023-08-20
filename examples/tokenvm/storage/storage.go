@@ -35,37 +35,48 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 //   -> [txID] => in|out|rate|remaining|owner
 // 0x3/ (loans)
 //   -> [assetID|destination] => amount
-// 0x4/ (hypersdk-incoming warp)
-// 0x5/ (hypersdk-outgoing warp)
+// 0x4/ (hypersdk-height)
+// 0x5/ (hypersdk-fee)
+// 0x6/ (hypersdk-incoming warp)
+// 0x7/ (hypersdk-outgoing warp)
 
 const (
+	// metaDB
 	txPrefix = 0x0
 
+	// stateDB
 	balancePrefix      = 0x0
 	assetPrefix        = 0x1
 	orderPrefix        = 0x2
 	loanPrefix         = 0x3
 	heightPrefix       = 0x4
-	incomingWarpPrefix = 0x5
-	outgoingWarpPrefix = 0x6
+	feePrefix          = 0x5
+	incomingWarpPrefix = 0x6
+	outgoingWarpPrefix = 0x7
+)
+
+const (
+	BalanceChunks uint16 = 1
+	AssetChunks   uint16 = 5
+	OrderChunks   uint16 = 2
+	LoanChunks    uint16 = 1
 )
 
 var (
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
 	heightKey   = []byte{heightPrefix}
+	feeKey      = []byte{feePrefix}
 
-	// TODO: extend to other types
-	balancePrefixPool = sync.Pool{
+	balanceKeyPool = sync.Pool{
 		New: func() any {
-			return make([]byte, 1+ed25519.PublicKeyLen+consts.IDLen)
+			return make([]byte, 1+ed25519.PublicKeyLen+consts.IDLen+consts.Uint16Len)
 		},
 	}
 )
 
 // [txPrefix] + [txID]
-func PrefixTxKey(id ids.ID) (k []byte) {
-	// TODO: use packer?
+func TxKey(id ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen)
 	k[0] = txPrefix
 	copy(k[1:], id[:])
@@ -78,17 +89,23 @@ func StoreTransaction(
 	id ids.ID,
 	t int64,
 	success bool,
-	units uint64,
+	units chain.Dimensions,
+	fee uint64,
 ) error {
-	k := PrefixTxKey(id)
-	v := make([]byte, consts.Uint64Len+1+consts.Uint64Len)
+	k := TxKey(id)
+	v := make([]byte, consts.Uint64Len+1+chain.DimensionsLen+consts.Uint64Len)
 	binary.BigEndian.PutUint64(v, uint64(t))
 	if success {
 		v[consts.Uint64Len] = successByte
 	} else {
 		v[consts.Uint64Len] = failureByte
 	}
-	binary.BigEndian.PutUint64(v[consts.Uint64Len+1:], units)
+	unitBytes, err := units.Bytes()
+	if err != nil {
+		return err
+	}
+	copy(v[consts.Uint64Len+1:], unitBytes)
+	binary.BigEndian.PutUint64(v[consts.Uint64Len+1+chain.DimensionsLen:], fee)
 	return db.Put(k, v)
 }
 
@@ -96,30 +113,35 @@ func GetTransaction(
 	_ context.Context,
 	db database.KeyValueReader,
 	id ids.ID,
-) (bool, int64, bool, uint64, error) {
-	k := PrefixTxKey(id)
+) (bool, int64, bool, chain.Dimensions, uint64, error) {
+	k := TxKey(id)
 	v, err := db.Get(k)
 	if errors.Is(err, database.ErrNotFound) {
-		return false, 0, false, 0, nil
+		return false, 0, false, chain.Dimensions{}, 0, nil
 	}
 	if err != nil {
-		return false, 0, false, 0, err
+		return false, 0, false, chain.Dimensions{}, 0, err
 	}
 	t := int64(binary.BigEndian.Uint64(v))
 	success := true
 	if v[consts.Uint64Len] == failureByte {
 		success = false
 	}
-	units := binary.BigEndian.Uint64(v[consts.Uint64Len+1:])
-	return true, t, success, units, nil
+	d, err := chain.UnpackDimensions(v[consts.Uint64Len+1:])
+	if err != nil {
+		return false, 0, false, chain.Dimensions{}, 0, err
+	}
+	fee := binary.BigEndian.Uint64(v[consts.Uint64Len+1+chain.DimensionsLen:])
+	return true, t, success, d, fee, nil
 }
 
 // [accountPrefix] + [address] + [asset]
-func PrefixBalanceKey(pk ed25519.PublicKey, asset ids.ID) (k []byte) {
-	k = balancePrefixPool.Get().([]byte)
+func BalanceKey(pk ed25519.PublicKey, asset ids.ID) (k []byte) {
+	k = balanceKeyPool.Get().([]byte)
 	k[0] = balancePrefix
 	copy(k[1:], pk[:])
 	copy(k[1+ed25519.PublicKeyLen:], asset[:])
+	binary.BigEndian.PutUint16(k[1+ed25519.PublicKeyLen+consts.IDLen:], BalanceChunks)
 	return
 }
 
@@ -131,7 +153,7 @@ func GetBalance(
 	asset ids.ID,
 ) (uint64, error) {
 	dbKey, bal, err := getBalance(ctx, db, pk, asset)
-	balancePrefixPool.Put(dbKey)
+	balanceKeyPool.Put(dbKey)
 	return bal, err
 }
 
@@ -141,7 +163,7 @@ func getBalance(
 	pk ed25519.PublicKey,
 	asset ids.ID,
 ) ([]byte, uint64, error) {
-	k := PrefixBalanceKey(pk, asset)
+	k := BalanceKey(pk, asset)
 	bal, err := innerGetBalance(db.GetValue(ctx, k))
 	return k, bal, err
 }
@@ -153,10 +175,10 @@ func GetBalanceFromState(
 	pk ed25519.PublicKey,
 	asset ids.ID,
 ) (uint64, error) {
-	k := PrefixBalanceKey(pk, asset)
+	k := BalanceKey(pk, asset)
 	values, errs := f(ctx, [][]byte{k})
 	bal, err := innerGetBalance(values[0], errs[0])
-	balancePrefixPool.Put(k)
+	balanceKeyPool.Put(k)
 	return bal, err
 }
 
@@ -180,7 +202,7 @@ func SetBalance(
 	asset ids.ID,
 	balance uint64,
 ) error {
-	k := PrefixBalanceKey(pk, asset)
+	k := BalanceKey(pk, asset)
 	return setBalance(ctx, db, k, balance)
 }
 
@@ -199,7 +221,7 @@ func DeleteBalance(
 	pk ed25519.PublicKey,
 	asset ids.ID,
 ) error {
-	return db.Remove(ctx, PrefixBalanceKey(pk, asset))
+	return db.Remove(ctx, BalanceKey(pk, asset))
 }
 
 func AddBalance(
@@ -258,10 +280,11 @@ func SubBalance(
 }
 
 // [assetPrefix] + [address]
-func PrefixAssetKey(asset ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
+func AssetKey(asset ids.ID) (k []byte) {
+	k = make([]byte, 1+consts.IDLen+consts.Uint16Len)
 	k[0] = assetPrefix
 	copy(k[1:], asset[:])
+	binary.BigEndian.PutUint16(k[1+consts.IDLen:], AssetChunks)
 	return
 }
 
@@ -271,7 +294,7 @@ func GetAssetFromState(
 	f ReadState,
 	asset ids.ID,
 ) (bool, []byte, uint64, ed25519.PublicKey, bool, error) {
-	values, errs := f(ctx, [][]byte{PrefixAssetKey(asset)})
+	values, errs := f(ctx, [][]byte{AssetKey(asset)})
 	return innerGetAsset(values[0], errs[0])
 }
 
@@ -280,7 +303,7 @@ func GetAsset(
 	db chain.Database,
 	asset ids.ID,
 ) (bool, []byte, uint64, ed25519.PublicKey, bool, error) {
-	k := PrefixAssetKey(asset)
+	k := AssetKey(asset)
 	return innerGetAsset(db.GetValue(ctx, k))
 }
 
@@ -312,7 +335,7 @@ func SetAsset(
 	owner ed25519.PublicKey,
 	warp bool,
 ) error {
-	k := PrefixAssetKey(asset)
+	k := AssetKey(asset)
 	metadataLen := len(metadata)
 	v := make([]byte, consts.Uint16Len+metadataLen+consts.Uint64Len+ed25519.PublicKeyLen+1)
 	binary.BigEndian.PutUint16(v, uint16(metadataLen))
@@ -328,15 +351,16 @@ func SetAsset(
 }
 
 func DeleteAsset(ctx context.Context, db chain.Database, asset ids.ID) error {
-	k := PrefixAssetKey(asset)
+	k := AssetKey(asset)
 	return db.Remove(ctx, k)
 }
 
 // [orderPrefix] + [txID]
-func PrefixOrderKey(txID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
+func OrderKey(txID ids.ID) (k []byte) {
+	k = make([]byte, 1+consts.IDLen+consts.Uint16Len)
 	k[0] = orderPrefix
 	copy(k[1:], txID[:])
+	binary.BigEndian.PutUint16(k[1+consts.IDLen:], OrderChunks)
 	return
 }
 
@@ -351,7 +375,7 @@ func SetOrder(
 	supply uint64,
 	owner ed25519.PublicKey,
 ) error {
-	k := PrefixOrderKey(txID)
+	k := OrderKey(txID)
 	v := make([]byte, consts.IDLen*2+consts.Uint64Len*3+ed25519.PublicKeyLen)
 	copy(v, in[:])
 	binary.BigEndian.PutUint64(v[consts.IDLen:], inTick)
@@ -376,7 +400,7 @@ func GetOrder(
 	ed25519.PublicKey, // owner
 	error,
 ) {
-	k := PrefixOrderKey(order)
+	k := OrderKey(order)
 	v, err := db.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
 		return false, ids.Empty, 0, ids.Empty, 0, 0, ed25519.EmptyPublicKey, nil
@@ -397,16 +421,17 @@ func GetOrder(
 }
 
 func DeleteOrder(ctx context.Context, db chain.Database, order ids.ID) error {
-	k := PrefixOrderKey(order)
+	k := OrderKey(order)
 	return db.Remove(ctx, k)
 }
 
 // [loanPrefix] + [asset] + [destination]
-func PrefixLoanKey(asset ids.ID, destination ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen*2)
+func LoanKey(asset ids.ID, destination ids.ID) (k []byte) {
+	k = make([]byte, 1+consts.IDLen*2+consts.Uint16Len)
 	k[0] = loanPrefix
 	copy(k[1:], asset[:])
 	copy(k[1+consts.IDLen:], destination[:])
+	binary.BigEndian.PutUint16(k[1+consts.IDLen*2:], LoanChunks)
 	return
 }
 
@@ -417,7 +442,7 @@ func GetLoanFromState(
 	asset ids.ID,
 	destination ids.ID,
 ) (uint64, error) {
-	values, errs := f(ctx, [][]byte{PrefixLoanKey(asset, destination)})
+	values, errs := f(ctx, [][]byte{LoanKey(asset, destination)})
 	return innerGetLoan(values[0], errs[0])
 }
 
@@ -437,7 +462,7 @@ func GetLoan(
 	asset ids.ID,
 	destination ids.ID,
 ) (uint64, error) {
-	k := PrefixLoanKey(asset, destination)
+	k := LoanKey(asset, destination)
 	v, err := db.GetValue(ctx, k)
 	return innerGetLoan(v, err)
 }
@@ -449,7 +474,7 @@ func SetLoan(
 	destination ids.ID,
 	amount uint64,
 ) error {
-	k := PrefixLoanKey(asset, destination)
+	k := LoanKey(asset, destination)
 	return db.Insert(ctx, k, binary.BigEndian.AppendUint64(nil, amount))
 }
 
@@ -501,13 +526,17 @@ func SubLoan(
 	if nloan == 0 {
 		// If there is no balance left, we should delete the record instead of
 		// setting it to 0.
-		return db.Remove(ctx, PrefixLoanKey(asset, destination))
+		return db.Remove(ctx, LoanKey(asset, destination))
 	}
 	return SetLoan(ctx, db, asset, destination, nloan)
 }
 
 func HeightKey() (k []byte) {
 	return heightKey
+}
+
+func FeeKey() (k []byte) {
+	return feeKey
 }
 
 func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {

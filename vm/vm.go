@@ -702,11 +702,12 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	state, err := blk.State()
+	rawState, err := blk.State()
 	if err != nil {
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
+	state := &chain.ReadOnlyDatabase{rawState}
 	feeRaw, err := state.GetValue(ctx, vm.StateManager().FeeKey())
 	if err != nil {
 		return []error{err}
@@ -743,6 +744,13 @@ func (vm *VM) Submit(
 			continue
 		}
 
+		// Ensure state keys are valid
+		_, err := tx.StateKeys(vm.c.StateManager(), r)
+		if err != nil {
+			errs = append(errs, ErrNotAdded)
+			continue
+		}
+
 		// Verify signature if not already verified by caller
 		if verifySig && vm.config.GetVerifySignatures() {
 			sigVerify := tx.AuthAsyncVerify()
@@ -763,7 +771,7 @@ func (vm *VM) Submit(
 		// This may fail if the state we are utilizing is invalidated (if a trie
 		// view from a different branch is committed underneath it). We prefer this
 		// instead of putting a lock around all commits.
-		if err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, state, now); err != nil {
+		if _, err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, state, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}

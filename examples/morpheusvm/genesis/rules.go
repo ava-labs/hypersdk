@@ -42,18 +42,6 @@ func (r *Rules) GetMinEmptyBlockGap() int64 {
 	return r.g.MinEmptyBlockGap
 }
 
-func (r *Rules) GetBaseWarpComputeUnits() uint64 {
-	return r.g.BaseWarpComputeUnits
-}
-
-func (r *Rules) GetWarpComputeUnitsPerSigner() uint64 {
-	return r.g.WarpComputeUnitsPerSigner
-}
-
-func (r *Rules) GetOutgoingWarpComputeUnits() uint64 {
-	return r.g.OutgoingWarpComputeUnits
-}
-
 func (r *Rules) GetValidityWindow() int64 {
 	return r.g.ValidityWindow
 }
@@ -66,20 +54,56 @@ func (r *Rules) GetBaseComputeUnits() uint64 {
 	return r.g.BaseComputeUnits
 }
 
-func (r *Rules) GetColdStorageReadUnits() uint64 {
-	return r.g.ColdStorageReadUnits
+func (r *Rules) GetBaseWarpComputeUnits() uint64 {
+	return r.g.BaseWarpComputeUnits
 }
 
-func (r *Rules) GetWarmStorageReadUnits() uint64 {
-	return r.g.WarmStorageReadUnits
+func (r *Rules) GetWarpComputeUnitsPerSigner() uint64 {
+	return r.g.WarpComputeUnitsPerSigner
 }
 
-func (r *Rules) GetColdStorageModificationUnits() uint64 {
-	return r.g.ColdStorageModificationUnits
+func (r *Rules) GetOutgoingWarpComputeUnits() uint64 {
+	return r.g.OutgoingWarpComputeUnits
 }
 
-func (r *Rules) GetWarmStorageModificationUnits() uint64 {
-	return r.g.WarmStorageModificationUnits
+func (r *Rules) GetColdStorageKeyReadUnits() uint64 {
+	return r.g.ColdStorageKeyReadUnits
+}
+
+func (r *Rules) GetColdStorageValueReadUnits() uint64 {
+	return r.g.ColdStorageValueReadUnits
+}
+
+func (r *Rules) GetWarmStorageKeyReadUnits() uint64 {
+	return r.g.WarmStorageKeyReadUnits
+}
+
+func (r *Rules) GetWarmStorageValueReadUnits() uint64 {
+	return r.g.WarmStorageValueReadUnits
+}
+
+func (r *Rules) GetStorageKeyCreateUnits() uint64 {
+	return r.g.StorageKeyCreateUnits
+}
+
+func (r *Rules) GetStorageValueCreateUnits() uint64 {
+	return r.g.StorageValueCreateUnits
+}
+
+func (r *Rules) GetColdStorageKeyModificationUnits() uint64 {
+	return r.g.ColdStorageKeyModificationUnits
+}
+
+func (r *Rules) GetColdStorageValueModificationUnits() uint64 {
+	return r.g.ColdStorageValueModificationUnits
+}
+
+func (r *Rules) GetWarmStorageKeyModificationUnits() uint64 {
+	return r.g.WarmStorageKeyModificationUnits
+}
+
+func (r *Rules) GetWarmStorageValueModificationUnits() uint64 {
+	return r.g.WarmStorageValueModificationUnits
 }
 
 func (r *Rules) GetMinUnitPrice() chain.Dimensions {

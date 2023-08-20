@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
@@ -124,9 +125,6 @@ func BuildBlock(
 
 		// alreadyFetched contains keys already fetched from state that can be
 		// used during prefetching.
-		//
-		// TODO: need to ensure we only include alreadyFetched of txs that will be included in build.
-		// Can add during separate build.
 		alreadyFetched = map[string]*fetchData{}
 
 		// prepareStreamLock ensures we don't overwrite stream prefetching spawned
@@ -137,7 +135,7 @@ func BuildBlock(
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
 	mempool.StartStreaming(ctx)
 	b.Txs = []*Transaction{}
-	usedKeys := set.NewSet[string](0)
+	usedKeys := set.NewSet[string](0) // prefetch map for transactions in block
 	for time.Since(start) < vm.GetTargetBuildDuration() {
 		prepareStreamLock.Lock()
 		txs := mempool.Stream(ctx, streamBatch)
@@ -178,7 +176,15 @@ func BuildBlock(
 
 				// Prefetch all values from state
 				storage := map[string][]byte{}
-				for k := range tx.StateKeys(sm) {
+				stateKeys, err := tx.StateKeys(sm, r)
+				if err != nil {
+					// Drop bad transaction and continue
+					//
+					// This should not happen because we check this before
+					// adding a transaction to the mempool.
+					continue
+				}
+				for k := range stateKeys {
 					if v, ok := alreadyFetched[k]; ok {
 						if v.exists {
 							storage[k] = v.v
@@ -187,7 +193,7 @@ func BuildBlock(
 					}
 					v, err := state.GetValue(ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
-						alreadyFetched[k] = &fetchData{nil, false}
+						alreadyFetched[k] = &fetchData{nil, false, 0}
 						continue
 					} else if err != nil {
 						// This can happen if the underlying view changes (if we are
@@ -196,7 +202,15 @@ func BuildBlock(
 						stopIndex = i
 						return
 					}
-					alreadyFetched[k] = &fetchData{v, true}
+					numChunks, ok := keys.NumChunks(v)
+					if !ok {
+						// Drop bad transaction and continue
+						//
+						// This should not happen because we check this before
+						// adding a transaction to the mempool.
+						continue
+					}
+					alreadyFetched[k] = &fetchData{v, true, numChunks}
 					storage[k] = v
 				}
 				readyTxs <- &txData{tx, storage, nil, nil}
@@ -277,10 +291,22 @@ func BuildBlock(
 
 			// Populate required transaction state and restrict which keys can be used
 			txStart := ts.OpIndex()
-			ts.SetScope(ctx, next.StateKeys(sm), nextTxData.storage)
+			stateKeys, err := next.StateKeys(sm, r)
+			if err != nil {
+				// This should not happen because we check this before
+				// adding a transaction to the mempool.
+				log.Warn(
+					"skipping tx: invalid stateKeys",
+					zap.Error(err),
+				)
+				continue
+			}
+			ts.SetScope(ctx, stateKeys, nextTxData.storage)
 
 			// PreExecute next to see if it is fit
-			if err := next.PreExecute(ctx, nextFeeManager, sm, r, ts, nextTime); err != nil {
+			preExecuteStart := ts.OpIndex()
+			authCUs, err := next.PreExecute(ctx, nextFeeManager, sm, r, ts, nextTime)
+			if err != nil {
 				ts.Rollback(ctx, txStart)
 				cont, restore, _ := HandlePreExecute(err)
 				if !cont {
@@ -291,6 +317,15 @@ func BuildBlock(
 				if restore {
 					restorable = append(restorable, next)
 				}
+				continue
+			}
+			if preExecuteStart != ts.OpIndex() {
+				// This should not happen because we check this before
+				// adding a transaction to the mempool.
+				log.Warn(
+					"skipping tx: preexecute mutates",
+					zap.Error(err),
+				)
 				continue
 			}
 
@@ -324,18 +359,35 @@ func BuildBlock(
 			}
 
 			// If execution works, keep moving forward with new state
-			coldReads := []string{}
-			warmReads := []string{}
-			for k := range next.StateKeys(sm) {
+			//
+			// Note, these calculations must match block verification exactly
+			// otherwise they will produce a different state root.
+			coldReads := map[string]uint16{}
+			warmReads := map[string]uint16{}
+			var invalidStateKeys bool
+			for k := range stateKeys {
+				v := nextTxData.storage[k]
+				numChunks, ok := keys.NumChunks(v)
+				if !ok {
+					invalidStateKeys = true
+					break
+				}
 				if usedKeys.Contains(k) {
-					warmReads = append(warmReads, k)
+					warmReads[k] = numChunks
 					continue
 				}
-				coldReads = append(coldReads, k)
+				coldReads[k] = numChunks
+			}
+			if invalidStateKeys {
+				// This should not happen because we check this before
+				// adding a transaction to the mempool.
+				log.Warn("invalid tx: invalid state keys")
+				continue
 			}
 			result, err := next.Execute(
 				ctx,
 				nextFeeManager,
+				authCUs,
 				coldReads,
 				warmReads,
 				sm,
@@ -345,8 +397,8 @@ func BuildBlock(
 				next.WarpMessage != nil && warpErr == nil,
 			)
 			if err != nil {
-				// This error should only be raised by the handler, not the
-				// implementation itself
+				// Returning an error here should be avoided at all costs (can be a DoS). Rather,
+				// all units for the transaction should be consumed and a fee should be charged.
 				log.Warn("unexpected post-execution error", zap.Error(err))
 				restorable = append(restorable, next)
 				execErr = err
@@ -355,7 +407,7 @@ func BuildBlock(
 
 			// Update block with new transaction
 			b.Txs = append(b.Txs, next)
-			usedKeys.Add(next.StateKeys(sm).List()...)
+			usedKeys.Add(stateKeys.List()...)
 			if err := nextFeeManager.Consume(nextUnits); err != nil {
 				execErr = err
 				continue

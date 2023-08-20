@@ -564,6 +564,9 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 
 	// Compute state root
+	//
+	// Because fee bytes are not recorded in state, it is sufficient to check the state root
+	// to verify all fee calcuations were correct.
 	start := time.Now()
 	computedRoot, err := state.GetMerkleRoot(ctx)
 	if err != nil {

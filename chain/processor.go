@@ -11,26 +11,29 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
 
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
 type fetchData struct {
 	v      []byte
 	exists bool
+
+	chunks uint16
 }
 
 type txData struct {
 	tx      *Transaction
 	storage map[string][]byte
 
-	// TODO: change to map to get amoutn actually read
-	coldReads []string
-	warmReads []string
+	coldReads map[string]uint16
+	warmReads map[string]uint16
 }
 
 type Processor struct {
 	tracer trace.Tracer
 
+	err      error
 	blk      *StatelessBlock
 	readyTxs chan *txData
 	db       Database
@@ -50,39 +53,55 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Prefetch")
 	p.db = db
 	sm := p.blk.vm.StateManager()
+	r := p.blk.vm.Rules(p.blk.Tmstmp)
 	go func() {
-		defer span.End()
+		defer func() {
+			close(p.readyTxs) // let caller know all sets have been readied
+			span.End()
+		}()
 
 		// Store required keys for each set
 		alreadyFetched := make(map[string]*fetchData, len(p.blk.GetTxs()))
 		for _, tx := range p.blk.GetTxs() {
-			coldReads := []string{}
-			warmReads := []string{}
+			coldReads := map[string]uint16{}
+			warmReads := map[string]uint16{}
 			storage := map[string][]byte{}
-			for k := range tx.StateKeys(sm) {
+			stateKeys, err := tx.StateKeys(sm, r)
+			if err != nil {
+				p.err = err
+				return
+			}
+			for k := range stateKeys {
 				if v, ok := alreadyFetched[k]; ok {
-					warmReads = append(warmReads, k)
+					warmReads[k] = v.chunks
 					if v.exists {
 						storage[k] = v.v
 					}
 					continue
 				}
-				coldReads = append(coldReads, k)
 				v, err := db.GetValue(ctx, []byte(k))
 				if errors.Is(err, database.ErrNotFound) {
-					alreadyFetched[k] = &fetchData{nil, false}
+					coldReads[k] = 0
+					alreadyFetched[k] = &fetchData{nil, false, 0}
 					continue
 				} else if err != nil {
-					panic(err)
+					p.err = err
+					return
 				}
-				alreadyFetched[k] = &fetchData{v, true}
+				// We verify that the [NumChunks] is already less than the number
+				// added on the write path, so we don't need to do so again here.
+				numChunks, ok := keys.NumChunks(v)
+				if !ok {
+					p.err = ErrInvalidKeyValue
+					return
+				}
+				coldReads[k] = numChunks
+				alreadyFetched[k] = &fetchData{v, true, numChunks}
 				storage[k] = v
 			}
 			p.readyTxs <- &txData{tx, storage, coldReads, warmReads}
 		}
 
-		// Let caller know all sets have been readied
-		close(p.readyTxs)
 	}()
 }
 
@@ -101,6 +120,10 @@ func (p *Processor) Execute(
 		sm      = p.blk.vm.StateManager()
 	)
 	for txData := range p.readyTxs {
+		if p.err != nil {
+			return nil, 0, 0, p.err
+		}
+
 		tx := txData.tx
 
 		// Ensure can process next tx
@@ -114,16 +137,25 @@ func (p *Processor) Execute(
 
 		// It is critical we explicitly set the scope before each transaction is
 		// processed
-		ts.SetScope(ctx, tx.StateKeys(sm), txData.storage)
+		stateKeys, err := tx.StateKeys(sm, r)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		ts.SetScope(ctx, stateKeys, txData.storage)
 
 		// Execute tx
-		if err := tx.PreExecute(ctx, feeManager, sm, r, ts, t); err != nil {
+		preExecuteStart := ts.OpIndex()
+		authCUs, err := tx.PreExecute(ctx, feeManager, sm, r, ts, t)
+		if err != nil {
 			return nil, 0, 0, err
+		}
+		if preExecuteStart != ts.OpIndex() {
+			return nil, 0, 0, ErrPreExecuteMutates
 		}
 		// Wait to execute transaction until we have the warp result processed.
 		//
-		// TODO: parallel execution will greatly improve performance in the case
-		// that we are waiting for signature verification.
+		// TODO: parallel execution will greatly improve performance when actions
+		// start taking longer than a few ns (i.e. with hypersdk programs).
 		var warpVerified bool
 		warpMsg, ok := p.blk.warpMessages[tx.ID()]
 		if ok {
@@ -133,7 +165,7 @@ func (p *Processor) Execute(
 				return nil, 0, 0, ctx.Err()
 			}
 		}
-		result, err := tx.Execute(ctx, feeManager, txData.coldReads, txData.warmReads, sm, r, ts, t, ok && warpVerified)
+		result, err := tx.Execute(ctx, feeManager, authCUs, txData.coldReads, txData.warmReads, sm, r, ts, t, ok && warpVerified)
 		if err != nil {
 			return nil, 0, 0, err
 		}
@@ -145,6 +177,9 @@ func (p *Processor) Execute(
 		}
 	}
 	// Wait until end to write changes to avoid conflicting with pre-fetching
+	if p.err != nil {
+		return nil, 0, 0, p.err
+	}
 	if err := ts.WriteChanges(ctx, p.db, p.tracer); err != nil {
 		return nil, 0, 0, err
 	}

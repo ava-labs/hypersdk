@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/keys"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
@@ -37,15 +38,19 @@ type TState struct {
 	changedKeys map[string]*tempStorage
 	fetchCache  map[string]*cacheItem // in case we evict and want to re-fetch
 
-	// We don't differentiate between read and write scope because it is very
-	// uncommon for a user to write something without first reading what is
-	// there.
+	// We don't differentiate between read and write scope.
 	scope        set.Set[string] // stores a list of managed keys in the TState struct
 	scopeStorage map[string][]byte
 
 	// Ops is a record of all operations performed on [TState]. Tracking
 	// operations allows for reverting state to a certain point-in-time.
 	ops []*op
+
+	// Store which keys are modified and how large their values were. Reset
+	// whenever setting scope.
+	creations         map[string]uint16
+	coldModifications map[string]uint16
+	warmModifications map[string]uint16
 }
 
 // New returns a new instance of TState. Initializes the storage and changedKeys
@@ -102,6 +107,8 @@ func (ts *TState) getValue(_ context.Context, key string) ([]byte, bool, bool) {
 // FetchAndSetScope updates ts to include the [db] values associated with [keys].
 // FetchAndSetScope then sets the scope of ts to [keys]. If a key exists in
 // ts.fetchCache set the key's value to the value from cache.
+//
+// If possible, this function should be avoided and state should be prefetched (much faster).
 func (ts *TState) FetchAndSetScope(ctx context.Context, keys set.Set[string], db Database) error {
 	ts.scopeStorage = map[string][]byte{}
 	for key := range keys {
@@ -123,6 +130,9 @@ func (ts *TState) FetchAndSetScope(ctx context.Context, keys set.Set[string], db
 		ts.scopeStorage[key] = v
 	}
 	ts.scope = keys
+	ts.creations = map[string]uint16{}
+	ts.coldModifications = map[string]uint16{}
+	ts.warmModifications = map[string]uint16{}
 	return nil
 }
 
@@ -130,6 +140,9 @@ func (ts *TState) FetchAndSetScope(ctx context.Context, keys set.Set[string], db
 func (ts *TState) SetScope(_ context.Context, keys set.Set[string], storage map[string][]byte) {
 	ts.scope = keys
 	ts.scopeStorage = storage
+	ts.creations = map[string]uint16{}
+	ts.coldModifications = map[string]uint16{}
+	ts.warmModifications = map[string]uint16{}
 }
 
 // checkScope returns whether [k] is in ts.readScope.
@@ -142,6 +155,9 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
+	if !keys.VerifyValue(key, value) {
+		return ErrInvalidKeyValue
+	}
 	k := string(key)
 	past, changed, exists := ts.getValue(ctx, k)
 	ts.ops = append(ts.ops, &op{
@@ -151,10 +167,20 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 		pastChanged: changed,
 	})
 	ts.changedKeys[k] = &tempStorage{value, false}
-	return nil
+	var err error
+	if exists {
+		if changed {
+			err = updateChunks(ts.warmModifications, k, value)
+		} else {
+			err = updateChunks(ts.coldModifications, k, value)
+		}
+	} else {
+		err = updateChunks(ts.creations, k, value)
+	}
+	return err
 }
 
-// Renove deletes a key-value pair from ts.storage.
+// Remove deletes a key-value pair from ts.storage.
 func (ts *TState) Remove(ctx context.Context, key []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
@@ -162,6 +188,7 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 	k := string(key)
 	past, changed, exists := ts.getValue(ctx, k)
 	if !exists {
+		// We do not update modificaations if the key does not exist.
 		return nil
 	}
 	ts.ops = append(ts.ops, &op{
@@ -171,7 +198,13 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 		pastChanged: changed,
 	})
 	ts.changedKeys[k] = &tempStorage{nil, true}
-	return nil
+	var err error
+	if changed {
+		err = updateChunks(ts.warmModifications, k, nil)
+	} else {
+		err = updateChunks(ts.coldModifications, k, nil)
+	}
+	return err
 }
 
 // OpIndex returns the number of operations done on ts.
@@ -231,29 +264,26 @@ func (ts *TState) WriteChanges(
 	return nil
 }
 
-func (ts *TState) CountKeyOperations(ctx context.Context, start int) (set.Set[string], set.Set[string], set.Set[string]) {
-	var (
-		creations         = set.NewSet[string](0)
-		coldModifications = set.NewSet[string](0)
-		warmModifications = set.NewSet[string](0)
-	)
-	for i := start; i < len(ts.ops); i++ {
-		op := ts.ops[i]
-		k := op.k
-		if op.pastExists {
-			if op.pastChanged {
-				// Ensure a key is only in one modification set and that
-				// if possible to be in both, it is only in cold.
-				if !coldModifications.Contains(k) {
-					warmModifications.Add(k)
-				}
-			} else {
-				coldModifications.Add(k)
-			}
-		} else {
-			creations.Add(k)
-		}
+// updateChunks sets the number of chunks associated with a key that will
+// be returned in [KeyOperations].
+func updateChunks(m map[string]uint16, key string, value []byte) error {
+	chunks, ok := keys.NumChunks(value)
+	if !ok {
+		return ErrInvalidKeyValue
 	}
-	// TODO: not charging per modification, only charging to get into transaction scope?
-	return creations, coldModifications, warmModifications
+	previousChunks, ok := m[key]
+	if !ok || chunks > previousChunks {
+		m[key] = chunks
+	}
+	return nil
+}
+
+// KeyOperations returns the number of operations performed since the scope
+// was last set.
+//
+// If an operation is performed more than once during this time, the largest
+// operation will be returned here (if 1 chunk then 2 chunks are written to a key,
+// this function will return 2 chunks).
+func (ts *TState) KeyOperations() (map[string]uint16, map[string]uint16, map[string]uint16) {
+	return ts.creations, ts.coldModifications, ts.warmModifications
 }

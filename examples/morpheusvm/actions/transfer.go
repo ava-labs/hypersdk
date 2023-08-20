@@ -33,13 +33,13 @@ func (*Transfer) GetTypeID() uint8 {
 
 func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) []string {
 	return []string{
-		string(storage.PrefixBalanceKey(auth.GetActor(rauth))),
-		string(storage.PrefixBalanceKey(t.To)),
+		string(storage.BalanceKey(auth.GetActor(rauth))),
+		string(storage.BalanceKey(t.To)),
 	}
 }
 
-func (t *Transfer) StateKeysCount() int {
-	return 2
+func (t *Transfer) StateKeysMaxChunks() []uint16 {
+	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
 }
 
 func (t *Transfer) OutputsWarpMessage() bool {
@@ -69,7 +69,7 @@ func (t *Transfer) Execute(
 }
 
 func (t *Transfer) MaxComputeUnits(chain.Rules) uint64 {
-	return 1
+	return TransferComputeUnits
 }
 
 func (*Transfer) Size() int {
