@@ -23,10 +23,10 @@ var (
 
 	dbPath            string
 	genesisFile       string
-	minUnitPrice      int64
-	maxBlockUnits     int64
-	windowTargetUnits int64
 	minBlockGap       int64
+	minUnitPrice      []string
+	maxBlockUnits     []string
+	windowTargetUnits []string
 	hideTxs           bool
 	randomRecipient   bool
 	maxTxBacklog      int
@@ -80,22 +80,22 @@ func init() {
 		defaultGenesis,
 		"genesis file path",
 	)
-	genGenesisCmd.PersistentFlags().Int64Var(
+	genGenesisCmd.PersistentFlags().StringSliceVar(
 		&minUnitPrice,
 		"min-unit-price",
-		-1,
+		[]string{},
 		"minimum price",
 	)
-	genGenesisCmd.PersistentFlags().Int64Var(
+	genGenesisCmd.PersistentFlags().StringSliceVar(
 		&maxBlockUnits,
 		"max-block-units",
-		-1,
+		[]string{},
 		"max block units",
 	)
-	genGenesisCmd.PersistentFlags().Int64Var(
+	genGenesisCmd.PersistentFlags().StringSliceVar(
 		&windowTargetUnits,
 		"window-target-units",
-		-1,
+		[]string{},
 		"window target units",
 	)
 	genGenesisCmd.PersistentFlags().Int64Var(

@@ -105,8 +105,8 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f ${TMPDIR}/tokenvm.genesis
   ${TMPDIR}/token-cli genesis generate ${TMPDIR}/allocations.json \
-  --max-block-units 4000000 \
-  --window-target-units 100000000000 \
+  --window-target-units "40000000,450000,450000,75000,450000" \
+  --max-block-units "1800000,15000,15000,2500,15000" \
   --min-block-gap ${MIN_BLOCK_GAP} \
   --genesis-file ${TMPDIR}/tokenvm.genesis
 else
