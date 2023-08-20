@@ -44,11 +44,10 @@ type Genesis struct {
 	ValidityWindow int64 `json:"validityWindow"` // ms
 
 	// Tx Fee Parameters
-	BaseComputeUnits          uint64 `json:"baseUnits"`
-	BaseWarpComputeUnits      uint64 `json:"baseWarpUnits"`
-	WarpComputeUnitsPerSigner uint64 `json:"warpUnitsPerSigner"`
-	OutgoingWarpComputeUnits  uint64 `json:"outgoingWarpComputeUnits"`
-
+	BaseComputeUnits                  uint64 `json:"baseUnits"`
+	BaseWarpComputeUnits              uint64 `json:"baseWarpUnits"`
+	WarpComputeUnitsPerSigner         uint64 `json:"warpUnitsPerSigner"`
+	OutgoingWarpComputeUnits          uint64 `json:"outgoingWarpComputeUnits"`
 	ColdStorageKeyReadUnits           uint64 `json:"coldStorageKeyReadUnits"`
 	ColdStorageValueReadUnits         uint64 `json:"coldStorageValueReadUnits"` // per chunk
 	WarmStorageKeyReadUnits           uint64 `json:"warmStorageKeyReadUnits"`

@@ -31,8 +31,10 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 //   -> [heightPrefix] => height
 // 0x0/ (balance)
 //   -> [owner] => balance
-// 0x1/ (hypersdk-incoming warp)
-// 0x2/ (hypersdk-outgoing warp)
+// 0x1/ (hypersdk-height)
+// 0x2/ (hypersdk-fee)
+// 0x3/ (hypersdk-incoming warp)
+// 0x4/ (hypersdk-outgoing warp)
 
 const (
 	// metaDB
@@ -40,10 +42,10 @@ const (
 
 	// stateDB
 	balancePrefix      = 0x0
-	incomingWarpPrefix = 0x1
-	outgoingWarpPrefix = 0x2
-	heightPrefix       = 0x3
-	feePrefix          = 0x4
+	heightPrefix       = 0x1
+	feePrefix          = 0x2
+	incomingWarpPrefix = 0x3
+	outgoingWarpPrefix = 0x4
 )
 
 const BalanceChunks uint16 = 1
@@ -126,7 +128,7 @@ func BalanceKey(pk ed25519.PublicKey) (k []byte) {
 	k = balanceKeyPool.Get().([]byte)
 	k[0] = balancePrefix
 	copy(k[1:], pk[:])
-	binary.BigEndian.PutUint16(k[1+ed25519.PublicKeyLen:], 1)
+	binary.BigEndian.PutUint16(k[1+ed25519.PublicKeyLen:], BalanceChunks)
 	return
 }
 
