@@ -29,6 +29,9 @@ A rust crate that contains an attribute procedural macro `expose` allowing progr
 
 # Examples
 
+Compile the examples using
+`cargo build --target wasm32-wasi --target-dir $<your_target_directory> --release`
+
 ### Token Contract
 
 A simple implementation of a token contract that allows functionality for `transferring` & `minting`. Can also query to retrieve `total_supply` and user `balances`.

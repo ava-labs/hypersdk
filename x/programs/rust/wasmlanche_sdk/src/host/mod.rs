@@ -42,7 +42,7 @@ pub fn init_program_storage() -> ProgramContext {
     unsafe { ProgramContext::from(_init_program()) }
 }
 
-pub fn store_bytes(
+pub unsafe fn store_bytes(
     ctx: &ProgramContext,
     key_ptr: *const u8,
     key_len: usize,
@@ -52,15 +52,20 @@ pub fn store_bytes(
     unsafe { _store_bytes(ctx.program_id, key_ptr, key_len, value_ptr, value_len) }
 }
 
-pub fn get_bytes_len(ctx: &ProgramContext, key_ptr: *const u8, key_len: usize) -> i32 {
+pub unsafe fn get_bytes_len(ctx: &ProgramContext, key_ptr: *const u8, key_len: usize) -> i32 {
     unsafe { _get_bytes_len(ctx.program_id, key_ptr, key_len) }
 }
 
-pub fn get_bytes(ctx: &ProgramContext, key_ptr: *const u8, key_len: usize, val_len: i32) -> i32 {
+pub unsafe fn get_bytes(
+    ctx: &ProgramContext,
+    key_ptr: *const u8,
+    key_len: usize,
+    val_len: i32,
+) -> i32 {
     unsafe { _get_bytes(ctx.program_id, key_ptr, key_len, val_len) }
 }
 
-pub fn host_program_invoke(
+pub unsafe fn host_program_invoke(
     ctx: &ProgramContext,
     call_ctx: &ProgramContext,
     method_name: &str,
@@ -100,6 +105,10 @@ pub fn alloc(len: usize) -> *mut u8 {
     ptr
 }
 
+/// # Safety
+/// `ptr` must be a pointer to a block of memory.
+///
+/// deallocates the memory block at `ptr` with a given `capacity`.
 #[no_mangle]
 pub unsafe fn dealloc(ptr: *mut u8, capacity: usize) {
     // always deallocate the full capacity, initialize vs uninitialized memory is irrelevant here
