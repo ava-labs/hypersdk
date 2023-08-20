@@ -162,6 +162,8 @@ The other side of this is that it reduces the viability of dust accounts.
 Transactions are executed in FIFO order.
 
 #### Storage
+Chunks = 64B
+
 TODO: only charge to get key/modify at bondary of tx...each access
 is really a compute question and should be charged
 
