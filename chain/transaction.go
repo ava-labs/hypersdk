@@ -127,11 +127,11 @@ func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
 
 func (t *Transaction) StateKeys(stateMapping StateManager, r Rules) (set.Set[string], error) {
-	// We assume that any transaction must modify some state key (at least to pay
-	// fees)
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
+
+	// Verify the formatting of state keys passed by the controller
 	actionKeys := t.Action.StateKeys(t.Auth, t.ID())
 	authKeys := t.Auth.StateKeys()
 	stateKeys := set.NewSet[string](len(actionKeys) + len(authKeys))
@@ -143,13 +143,16 @@ func (t *Transaction) StateKeys(stateMapping StateManager, r Rules) (set.Set[str
 			stateKeys.Add(k)
 		}
 	}
+
+	// Add keys used to manage warp operations
 	if t.WarpMessage != nil {
 		stateKeys.Add(string(stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID)))
 	}
-	// Always assume a message could export a warp message
 	if t.Action.OutputsWarpMessage() {
 		stateKeys.Add(string(stateMapping.OutgoingWarpKey(t.id)))
 	}
+
+	// Cache keys if called again
 	t.stateKeys = stateKeys
 	return stateKeys, nil
 }
@@ -212,6 +215,64 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 		return Dimensions{}, err
 	}
 	return Dimensions{uint64(t.Size()), maxComputeUnits, reads, creations, modifications}, nil
+}
+
+// EstimateMaxUnits provides a pessimistic estimate of the cost to execute a transaction. This is
+// typically used during transaction construction.
+func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessage *warp.Message) (Dimensions, error) {
+	authBandwidth, authCompute, authStateKeysMaxChunks := authFactory.MaxUnits()
+	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + authBandwidth
+	stateKeysCount := append(authStateKeysMaxChunks, action.StateKeysMaxChunks()...) // may overlap but we won't know for sure
+	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
+	computeUnitsOp.Add(authCompute)
+	computeUnitsOp.Add(action.MaxComputeUnits(r))
+	if warpMessage != nil {
+		bandwidth += uint64(codec.BytesLen(warpMessage.Bytes()))
+		stateKeysCount = append(stateKeysCount, 256) // TODO: get value
+		computeUnitsOp.Add(r.GetBaseWarpComputeUnits())
+		numSigners, err := warpMessage.Signature.NumSigners()
+		if err != nil {
+			return Dimensions{}, err
+		}
+		computeUnitsOp.MulAdd(uint64(numSigners), r.GetWarpComputeUnitsPerSigner())
+	}
+	if action.OutputsWarpMessage() {
+		stateKeysCount = append(stateKeysCount, 256) // TODO: get value
+		computeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
+	}
+	computeUnits, err := computeUnitsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
+
+	// TODO: unify this with [MaxUnits] handling
+	readsOp := math.NewUint64Operator(0)
+	creationsOp := math.NewUint64Operator(0)
+	modificationsOp := math.NewUint64Operator(0)
+	for maxChunks := range stateKeysCount {
+		// Compute key costs
+		readsOp.Add(r.GetColdStorageKeyReadUnits())
+		creationsOp.Add(r.GetStorageKeyCreateUnits())
+		modificationsOp.Add(r.GetColdStorageKeyModificationUnits())
+
+		// Compute value costs
+		readsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueReadUnits())
+		creationsOp.MulAdd(uint64(maxChunks), r.GetStorageValueCreateUnits())
+		modificationsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueModificationUnits())
+	}
+	reads, err := readsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
+	creations, err := creationsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
+	modifications, err := modificationsOp.Value()
+	if err != nil {
+		return Dimensions{}, err
+	}
+	return Dimensions{bandwidth, computeUnits, reads, creations, modifications}, nil
 }
 
 // PreExecute must not modify state
@@ -624,59 +685,4 @@ func UnmarshalTx(
 		tx.warpID = tx.WarpMessage.ID()
 	}
 	return &tx, nil
-}
-
-func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessage *warp.Message) (Dimensions, error) {
-	authBandwidth, authCompute, authStateKeysMaxChunks := authFactory.MaxUnits()
-	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + authBandwidth
-	stateKeysCount := append(authStateKeysMaxChunks, action.StateKeysMaxChunks()...) // may overlap but we won't know for sure
-	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
-	computeUnitsOp.Add(authCompute)
-	computeUnitsOp.Add(action.MaxComputeUnits(r))
-	if warpMessage != nil {
-		bandwidth += uint64(codec.BytesLen(warpMessage.Bytes()))
-		stateKeysCount = append(stateKeysCount, 256) // TODO: get value
-		computeUnitsOp.Add(r.GetBaseWarpComputeUnits())
-		numSigners, err := warpMessage.Signature.NumSigners()
-		if err != nil {
-			return Dimensions{}, err
-		}
-		computeUnitsOp.MulAdd(uint64(numSigners), r.GetWarpComputeUnitsPerSigner())
-	}
-	if action.OutputsWarpMessage() {
-		stateKeysCount = append(stateKeysCount, 256) // TODO: get value
-		// Only charge outgoing fee if successful
-		computeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
-	}
-	computeUnits, err := computeUnitsOp.Value()
-	if err != nil {
-		return Dimensions{}, err
-	}
-	readsOp := math.NewUint64Operator(0)
-	creationsOp := math.NewUint64Operator(0)
-	modificationsOp := math.NewUint64Operator(0)
-	for maxChunks := range stateKeysCount {
-		// Compute key costs
-		readsOp.Add(r.GetColdStorageKeyReadUnits())
-		creationsOp.Add(r.GetStorageKeyCreateUnits())
-		modificationsOp.Add(r.GetColdStorageKeyModificationUnits())
-
-		// Compute value costs
-		readsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueReadUnits())
-		creationsOp.MulAdd(uint64(maxChunks), r.GetStorageValueCreateUnits())
-		modificationsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueModificationUnits())
-	}
-	reads, err := readsOp.Value()
-	if err != nil {
-		return Dimensions{}, err
-	}
-	creations, err := creationsOp.Value()
-	if err != nil {
-		return Dimensions{}, err
-	}
-	modifications, err := modificationsOp.Value()
-	if err != nil {
-		return Dimensions{}, err
-	}
-	return Dimensions{bandwidth, computeUnits, reads, creations, modifications}, nil
 }
