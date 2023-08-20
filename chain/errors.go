@@ -18,6 +18,7 @@ var (
 	ErrTimestampTooLate     = errors.New("timestamp too late")
 	ErrStateRootEmpty       = errors.New("state root empty")
 	ErrNoTxs                = errors.New("no transactions")
+	ErrPreExecuteMutates    = errors.New("preexecute mutates state")
 	ErrInvalidFee           = errors.New("invalid fee")
 	ErrInvalidUnitWindow    = errors.New("invalid unit window")
 	ErrInvalidBlockCost     = errors.New("invalid block cost")
@@ -64,7 +65,8 @@ var (
 	ErrWarpResultMismatch        = errors.New("warp result mismatch")
 
 	// Misc
-	ErrNotImplemented    = errors.New("not implemented")
-	ErrBlockNotProcessed = errors.New("block is not processed")
-	ErrInvalidKeyValue   = errors.New("invalid key or value")
+	ErrNotImplemented         = errors.New("not implemented")
+	ErrBlockNotProcessed      = errors.New("block is not processed")
+	ErrInvalidKeyValue        = errors.New("invalid key or value")
+	ErrModificationNotAllowed = errors.New("modification not allowed")
 )

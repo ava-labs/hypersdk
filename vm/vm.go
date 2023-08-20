@@ -702,11 +702,12 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	state, err := blk.State()
+	rawState, err := blk.State()
 	if err != nil {
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
+	state := &chain.ReadOnlyDatabase{rawState}
 	feeRaw, err := state.GetValue(ctx, vm.StateManager().FeeKey())
 	if err != nil {
 		return []error{err}

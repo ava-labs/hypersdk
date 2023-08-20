@@ -304,6 +304,7 @@ func BuildBlock(
 			ts.SetScope(ctx, stateKeys, nextTxData.storage)
 
 			// PreExecute next to see if it is fit
+			preExecuteStart := ts.OpIndex()
 			authCUs, err := next.PreExecute(ctx, nextFeeManager, sm, r, ts, nextTime)
 			if err != nil {
 				ts.Rollback(ctx, txStart)
@@ -316,6 +317,15 @@ func BuildBlock(
 				if restore {
 					restorable = append(restorable, next)
 				}
+				continue
+			}
+			if preExecuteStart != ts.OpIndex() {
+				// This should not happen because we check this before
+				// adding a transaction to the mempool.
+				log.Warn(
+					"skipping tx: preexecute mutates",
+					zap.Error(err),
+				)
 				continue
 			}
 
