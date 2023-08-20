@@ -22,4 +22,6 @@ const (
 	// MaxWarpMessages is the maximum number of warp messages allows in a single
 	// block.
 	MaxWarpMessages = 64
+	// IncomingWarpChunks is the number of chunks stored for an incoming warp message.
+	IncomingWarpChunks = 0
 )

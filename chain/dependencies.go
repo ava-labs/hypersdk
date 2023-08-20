@@ -145,7 +145,7 @@ type StateManager interface {
 	HeightKey() []byte
 	FeeKey() []byte
 	IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) []byte
-	OutgoingWarpKey(txID ids.ID) []byte
+	OutgoingWarpKey(txID ids.ID, chunks uint16) []byte
 }
 
 type Action interface {
@@ -157,7 +157,7 @@ type Action interface {
 	MaxComputeUnits(Rules) uint64
 
 	// Used to determine how many fees to charge for storage
-	OutputsWarpMessage() bool
+	OutputsWarpMessage() (uint16, bool)
 
 	// Auth may contain an [Actor] that performs a transaction
 	//

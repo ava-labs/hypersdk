@@ -146,10 +146,18 @@ func (t *Transaction) StateKeys(stateMapping StateManager, r Rules) (set.Set[str
 
 	// Add keys used to manage warp operations
 	if t.WarpMessage != nil {
-		stateKeys.Add(string(stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID)))
+		k := stateMapping.IncomingWarpKey(t.WarpMessage.SourceChainID, t.warpID)
+		max, ok := keys.MaxChunks(k)
+		if !ok {
+			return nil, ErrInvalidKeyValue
+		}
+		if max != IncomingWarpChunks {
+			return nil, ErrInvalidKeyValue
+		}
+		stateKeys.Add(string(k))
 	}
-	if t.Action.OutputsWarpMessage() {
-		stateKeys.Add(string(stateMapping.OutgoingWarpKey(t.id)))
+	if chunks, ok := t.Action.OutputsWarpMessage(); ok {
+		stateKeys.Add(string(stateMapping.OutgoingWarpKey(t.id, chunks)))
 	}
 
 	// Cache keys if called again
@@ -168,7 +176,8 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 		maxComputeUnitsOp.Add(r.GetBaseWarpComputeUnits())
 		maxComputeUnitsOp.MulAdd(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
 	}
-	if t.Action.OutputsWarpMessage() {
+	if _, ok := t.Action.OutputsWarpMessage(); ok {
+		// Chunks later accounted for by call to [StateKeys]
 		maxComputeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
 	}
 	maxComputeUnits, err := maxComputeUnitsOp.Value()
@@ -222,13 +231,15 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessage *warp.Message) (Dimensions, error) {
 	authBandwidth, authCompute, authStateKeysMaxChunks := authFactory.MaxUnits()
 	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + authBandwidth
-	stateKeysCount := append(authStateKeysMaxChunks, action.StateKeysMaxChunks()...) // may overlap but we won't know for sure
+	stateKeysMaxChunks := append(authStateKeysMaxChunks, action.StateKeysMaxChunks()...) // may overlap but we won't know for sure
+
+	// Estimate compute costs
 	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	computeUnitsOp.Add(authCompute)
 	computeUnitsOp.Add(action.MaxComputeUnits(r))
 	if warpMessage != nil {
 		bandwidth += uint64(codec.BytesLen(warpMessage.Bytes()))
-		stateKeysCount = append(stateKeysCount, 256) // TODO: get value
+		stateKeysMaxChunks = append(stateKeysMaxChunks, IncomingWarpChunks)
 		computeUnitsOp.Add(r.GetBaseWarpComputeUnits())
 		numSigners, err := warpMessage.Signature.NumSigners()
 		if err != nil {
@@ -236,8 +247,8 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 		}
 		computeUnitsOp.MulAdd(uint64(numSigners), r.GetWarpComputeUnitsPerSigner())
 	}
-	if action.OutputsWarpMessage() {
-		stateKeysCount = append(stateKeysCount, 256) // TODO: get value
+	if chunks, ok := action.OutputsWarpMessage(); ok {
+		stateKeysMaxChunks = append(stateKeysMaxChunks, chunks)
 		computeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
 	}
 	computeUnits, err := computeUnitsOp.Value()
@@ -245,11 +256,13 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 		return Dimensions{}, err
 	}
 
+	// Estimate storage costs
+	//
 	// TODO: unify this with [MaxUnits] handling
 	readsOp := math.NewUint64Operator(0)
 	creationsOp := math.NewUint64Operator(0)
 	modificationsOp := math.NewUint64Operator(0)
-	for maxChunks := range stateKeysCount {
+	for maxChunks := range stateKeysMaxChunks {
 		// Compute key costs
 		readsOp.Add(r.GetColdStorageKeyReadUnits())
 		creationsOp.Add(r.GetStorageKeyCreateUnits())
@@ -384,12 +397,13 @@ func (t *Transaction) Execute(
 		tdb.Rollback(ctx, actionStart)
 		return &Result{false, utils.ErrBytes(ErrInvalidObject), maxUnits, maxFee, nil}, nil
 	}
+	warpChunks, outputsWarp := t.Action.OutputsWarpMessage()
 	if !success {
 		tdb.Rollback(ctx, actionStart)
 		warpMessage = nil // warp messages can only be emitted on success
 	} else {
 		// Ensure constraints hold if successful
-		if (warpMessage == nil && t.Action.OutputsWarpMessage()) || (warpMessage != nil && !t.Action.OutputsWarpMessage()) {
+		if (warpMessage == nil && outputsWarp) || (warpMessage != nil && !outputsWarp) {
 			tdb.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(ErrInvalidObject), maxUnits, maxFee, nil}, nil
 		}
@@ -415,7 +429,7 @@ func (t *Transaction) Execute(
 			}
 			// We use txID here because did not know the warpID before execution (and
 			// we pre-reserve this key for the processor).
-			if err := tdb.Insert(ctx, s.OutgoingWarpKey(t.id), warpMessage.Bytes()); err != nil {
+			if err := tdb.Insert(ctx, s.OutgoingWarpKey(t.id, warpChunks), warpMessage.Bytes()); err != nil {
 				tdb.Rollback(ctx, actionStart)
 				return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 			}
@@ -430,7 +444,7 @@ func (t *Transaction) Execute(
 		computeUnitsOp.Add(r.GetBaseWarpComputeUnits())
 		computeUnitsOp.MulAdd(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
 	}
-	if success && t.Action.OutputsWarpMessage() {
+	if success && outputsWarp {
 		computeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
 	}
 	computeUnits, err := computeUnitsOp.Value()
@@ -472,6 +486,7 @@ func (t *Transaction) Execute(
 		}
 		warmModifications[key] = maxChunks
 	}
+
 	// We only charge for the chunks read from disk instead of charging for the max chunks
 	// specified by the key.
 	readsOp := math.NewUint64Operator(0)

@@ -256,7 +256,7 @@ func IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
 	k[0] = incomingWarpPrefix
 	copy(k[1:], sourceChainID[:])
 	copy(k[1+consts.IDLen:], msgID[:])
-	binary.BigEndian.PutUint16(k[1+consts.IDLen*2:], 0)
+	binary.BigEndian.PutUint16(k[1+consts.IDLen*2:], chain.IncomingWarpChunks)
 	return k
 }
 
