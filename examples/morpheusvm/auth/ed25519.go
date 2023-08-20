@@ -33,8 +33,7 @@ func (*ED25519) ValidRange(chain.Rules) (int64, int64) {
 
 func (d *ED25519) StateKeys() []string {
 	return []string{
-		// We always pay fees with the native asset (which is [ids.Empty])
-		string(storage.PrefixBalanceKey(d.Signer)),
+		string(storage.BalanceKey(d.Signer)),
 	}
 }
 

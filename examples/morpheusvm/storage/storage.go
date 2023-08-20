@@ -50,8 +50,7 @@ var (
 	heightKey   = []byte{heightPrefix}
 	feeKey      = []byte{feePrefix}
 
-	// TODO: extend to other types
-	balancePrefixPool = sync.Pool{
+	balanceKeyPool = sync.Pool{
 		New: func() any {
 			return make([]byte, 1+ed25519.PublicKeyLen+consts.Uint16Len)
 		},
@@ -59,8 +58,7 @@ var (
 )
 
 // [txPrefix] + [txID]
-func PrefixTxKey(id ids.ID) (k []byte) {
-	// TODO: use packer?
+func TxKey(id ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen)
 	k[0] = txPrefix
 	copy(k[1:], id[:])
@@ -76,7 +74,7 @@ func StoreTransaction(
 	units chain.Dimensions,
 	fee uint64,
 ) error {
-	k := PrefixTxKey(id)
+	k := TxKey(id)
 	v := make([]byte, consts.Uint64Len+1+chain.DimensionsLen+consts.Uint64Len)
 	binary.BigEndian.PutUint64(v, uint64(t))
 	if success {
@@ -98,7 +96,7 @@ func GetTransaction(
 	db database.KeyValueReader,
 	id ids.ID,
 ) (bool, int64, bool, chain.Dimensions, uint64, error) {
-	k := PrefixTxKey(id)
+	k := TxKey(id)
 	v, err := db.Get(k)
 	if errors.Is(err, database.ErrNotFound) {
 		return false, 0, false, chain.Dimensions{}, 0, nil
@@ -119,9 +117,9 @@ func GetTransaction(
 	return true, t, success, d, fee, nil
 }
 
-// [accountPrefix] + [address]
-func PrefixBalanceKey(pk ed25519.PublicKey) (k []byte) {
-	k = balancePrefixPool.Get().([]byte)
+// [balancePrefix] + [address]
+func BalanceKey(pk ed25519.PublicKey) (k []byte) {
+	k = balanceKeyPool.Get().([]byte)
 	k[0] = balancePrefix
 	copy(k[1:], pk[:])
 	binary.BigEndian.PutUint16(k[1+ed25519.PublicKeyLen:], 1)
@@ -135,7 +133,7 @@ func GetBalance(
 	pk ed25519.PublicKey,
 ) (uint64, error) {
 	dbKey, bal, err := getBalance(ctx, db, pk)
-	balancePrefixPool.Put(dbKey)
+	balanceKeyPool.Put(dbKey)
 	return bal, err
 }
 
@@ -144,7 +142,7 @@ func getBalance(
 	db chain.Database,
 	pk ed25519.PublicKey,
 ) ([]byte, uint64, error) {
-	k := PrefixBalanceKey(pk)
+	k := BalanceKey(pk)
 	bal, err := innerGetBalance(db.GetValue(ctx, k))
 	return k, bal, err
 }
@@ -155,10 +153,10 @@ func GetBalanceFromState(
 	f ReadState,
 	pk ed25519.PublicKey,
 ) (uint64, error) {
-	k := PrefixBalanceKey(pk)
+	k := BalanceKey(pk)
 	values, errs := f(ctx, [][]byte{k})
 	bal, err := innerGetBalance(values[0], errs[0])
-	balancePrefixPool.Put(k)
+	balanceKeyPool.Put(k)
 	return bal, err
 }
 
@@ -181,7 +179,7 @@ func SetBalance(
 	pk ed25519.PublicKey,
 	balance uint64,
 ) error {
-	k := PrefixBalanceKey(pk)
+	k := BalanceKey(pk)
 	return setBalance(ctx, db, k, balance)
 }
 
@@ -253,7 +251,7 @@ func FeeKey() (k []byte) {
 	return feeKey
 }
 
-func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
+func IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen*2+consts.Uint16Len)
 	k[0] = incomingWarpPrefix
 	copy(k[1:], sourceChainID[:])
@@ -262,8 +260,7 @@ func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
 	return k
 }
 
-// TODO: remove "Prefix" from these functions
-func OutgoingWarpKeyPrefix(txID ids.ID) (k []byte) {
+func OutgoingWarpKey(txID ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen+consts.Uint16Len)
 	k[0] = outgoingWarpPrefix
 	copy(k[1:], txID[:])

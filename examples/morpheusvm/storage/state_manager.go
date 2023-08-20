@@ -18,9 +18,9 @@ func (*StateManager) FeeKey() []byte {
 }
 
 func (*StateManager) IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) []byte {
-	return IncomingWarpKeyPrefix(sourceChainID, msgID)
+	return IncomingWarpKey(sourceChainID, msgID)
 }
 
 func (*StateManager) OutgoingWarpKey(txID ids.ID) []byte {
-	return OutgoingWarpKeyPrefix(txID)
+	return OutgoingWarpKey(txID)
 }

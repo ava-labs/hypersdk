@@ -33,8 +33,8 @@ func (*Transfer) GetTypeID() uint8 {
 
 func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) []string {
 	return []string{
-		string(storage.PrefixBalanceKey(auth.GetActor(rauth))),
-		string(storage.PrefixBalanceKey(t.To)),
+		string(storage.BalanceKey(auth.GetActor(rauth))),
+		string(storage.BalanceKey(t.To)),
 	}
 }
 

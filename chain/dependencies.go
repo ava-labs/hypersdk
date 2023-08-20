@@ -96,8 +96,6 @@ type Mempool interface {
 }
 
 type Database interface {
-	// TODO: We can entirely hide the key wrapping from [Controllers] if we modify this
-	// interface.
 	GetValue(ctx context.Context, key []byte) ([]byte, error)
 	Insert(ctx context.Context, key []byte, value []byte) error
 	Remove(ctx context.Context, key []byte) error
