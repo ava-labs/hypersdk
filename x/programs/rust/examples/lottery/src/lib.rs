@@ -5,7 +5,7 @@ use wasmlanche_sdk::store::{ProgramContext, Store};
 use wasmlanche_sdk::types::Address;
 
 // Define the name of the token contract in the programs storage map.
-static TOKEN_CONTRACT_NAME: &str = "token_contract";
+static TOKEN_PROGRAM_NAME: &str = "token_contract";
 
 /// Initializes the program.
 #[expose]
@@ -19,7 +19,7 @@ fn init_program() -> i64 {
 #[expose]
 fn set(ctx: ProgramContext, counter_ctx: ProgramContext, lot_address: Address) {
     ctx.store_value(
-        &TOKEN_CONTRACT_NAME,
+        TOKEN_PROGRAM_NAME,
         &ProgramValue::ProgramObject(counter_ctx),
     )
     .expect("Failed to store token contract address");
@@ -34,7 +34,7 @@ fn set(ctx: ProgramContext, counter_ctx: ProgramContext, lot_address: Address) {
 fn play(ctx: ProgramContext, player: Address) -> bool {
     let num = get_random_number(player);
     // If win transfer to player
-    let call_ctx = match ctx.get_value(&TOKEN_CONTRACT_NAME) {
+    let call_ctx = match ctx.get_value(TOKEN_PROGRAM_NAME) {
         Ok(value) => ProgramContext::from(value),
         Err(_) => {
             return false;
