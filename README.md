@@ -134,6 +134,10 @@ stateless activities during execution can greatly reduce the e2e verification
 time of a block when running on powerful hardware.
 
 ### Multi-Dimensional Fee Pricing
+Instead of using a single, fungible fee unit (like "gas"), the `hypersdk`
+incorporates 5 fee dimensions (bandwidth, compute, storage[read], storage[create],
+storage[modify]) to compute transaction fees.
+
 TODO: instead of relying on a single price/units, there are 5
 
 This allows for better resource utilization of the entire network.
@@ -144,6 +148,19 @@ TODO: advanced fee model that discounts for warm reads/modifications across
 the block
 
 TODO: charge for storage read/create/modify on disk
+
+#### Avoiding Complex Consruction
+When generating a transaction, all users need to specify is the max fee
+that they will pay. The amount of units used are inferred...
+
+The downside of this approach is that this inference is pessimistic
+and you may need a larger balance than otherwise to perform txs.
+
+The other side of this is that it reduces the viability of dust accounts.
+
+#### No Priority Fees
+Transactions are executed in FIFO order.
+
 #### Storage
 TODO: only charge to get key/modify at bondary of tx...each access
 is really a compute question and should be charged
