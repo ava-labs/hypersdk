@@ -19,8 +19,6 @@ import (
 
 var _ chain.Action = (*Transfer)(nil)
 
-const TransferComputeUnits = 1
-
 type Transfer struct {
 	// To is the recipient of the [Value].
 	To ed25519.PublicKey `json:"to"`
