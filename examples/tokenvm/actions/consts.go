@@ -26,6 +26,7 @@ const (
 	CreateOrderComputeUnits = 5
 	FillOrderComputeUnits   = 15
 	MintAssetComputeUnits   = 2
+	ModifyAssetComputeUnits = 2
 	TransferComputeUnits    = 1
 
 	MaxMetadataSize = 256
