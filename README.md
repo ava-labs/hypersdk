@@ -124,7 +124,7 @@ into execution sets prior to execution was slower than just executing transactio
 serially with state pre-fetching. Rewriting this mechanism has been moved to the
 `Future Work` section and we expect to re-enable this functionality soon._
 
-#### Parallel Signature Verification
+#### [Optional] Parallel Signature Verification
 The `Auth` interface (detailed below) exposes a function called `AsyncVerify` that
 the `hypersdk` may call concurrently (may invoke on other transactions in the same
 block) at any time prior/during block execution. Most `hypervms` perform signature
@@ -132,6 +132,10 @@ verification in this function and save any state lookups for the full `Auth.Veri
 (which has access to state, unlike `AsyncVerify`). The generic support for performing certain
 stateless activities during execution can greatly reduce the e2e verification
 time of a block when running on powerful hardware.
+
+#### [Optional] Batch Signature Verification
+TODO: batch verification of ed25519, generically supported for any crypto that provides this
+capability.
 
 ### Multidimensional Fee Pricing
 Instead of mapping transaction resource usage to a one-dimensional unit (i.e. "gas"),
@@ -166,7 +170,7 @@ Transactions are executed in FIFO order. Price-sorted mempools are only
 required if transactions will sit for a while (not the case with 60s default
 validity window).
 
-#### Storage
+#### Key Flat Fee + Size-Based Fees
 Chunks = 64B
 
 TODO: only charge to get key/modify at bondary of tx...each access
@@ -176,10 +180,7 @@ To hide this complexity from the user, everything other than compute units
 are done in the background. Just need to add uint16 to end of any keys
 to indicate the max bytes they could store.
 
-##### Key Flat Fee + Size-Based Fees
-
-##### Hot Access Discount
-
+#### Hot Access Discount
 
 ### Account Abstraction
 The `hypersdk` makes no assumptions about how `Actions` (the primitive for
