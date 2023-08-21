@@ -33,8 +33,7 @@ type Mempool[T Item] struct {
 	maxPayerSize int // Maximum items allowed by a single payer
 
 	queue *list.List[T]
-	// TODO: remove double heaps
-	tm *SortedMempool[*list.Element[T]]
+	tm    *SortedMempool[*list.Element[T]]
 
 	// owned tracks the number of items in the mempool owned by a single
 	// [Payer]
@@ -116,10 +115,10 @@ func (th *Mempool[T]) Add(ctx context.Context, items []T) {
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	th.add(items)
+	th.add(items, false)
 }
 
-func (th *Mempool[T]) add(items []T) {
+func (th *Mempool[T]) add(items []T, front bool) {
 	for _, item := range items {
 		sender := item.Payer()
 
@@ -145,7 +144,12 @@ func (th *Mempool[T]) add(items []T) {
 		}
 
 		// Add to mempool
-		elem := th.queue.PushBack(item)
+		var elem *list.Element[T]
+		if !front {
+			elem = th.queue.PushBack(item)
+		} else {
+			elem = th.queue.PushFront(item)
+		}
 		th.tm.Add(elem)
 		th.owned[sender]++
 	}
@@ -337,10 +341,9 @@ func (th *Mempool[T]) FinishStreaming(ctx context.Context, restorable []T) int {
 
 	restored := len(restorable)
 	th.streamedItems = nil
-	// TODO: add to the front
-	th.add(restorable)
+	th.add(restorable, true)
 	if th.nextStreamFetched {
-		th.add(th.nextStream)
+		th.add(th.nextStream, true)
 		restored += len(th.nextStream)
 		th.nextStream = nil
 		th.nextStreamFetched = false

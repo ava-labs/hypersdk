@@ -24,8 +24,7 @@ type SortedMempool[T MempoolItem] struct {
 	// GetValue informs heaps how to get the an entry's value for ordering.
 	GetValue func(item T) uint64
 
-	minHeap *heap.Heap[T, uint64] // only includes lowest nonce
-	maxHeap *heap.Heap[T, uint64] // only includes lowest nonce
+	minHeap *heap.Heap[T, uint64]
 }
 
 // NewSortedMempool returns an instance of SortedMempool with minHeap and maxHeap
@@ -34,21 +33,14 @@ func NewSortedMempool[T MempoolItem](items int, f func(item T) uint64) *SortedMe
 	return &SortedMempool[T]{
 		GetValue: f,
 		minHeap:  heap.New[T, uint64](items, true),
-		maxHeap:  heap.New[T, uint64](items, false),
 	}
 }
 
 // Add pushes [item] to sm.
 func (sm *SortedMempool[T]) Add(item T) {
 	itemID := item.ID()
-	poolLen := sm.maxHeap.Len()
+	poolLen := sm.minHeap.Len()
 	val := sm.GetValue(item)
-	sm.maxHeap.Push(&heap.Entry[T, uint64]{
-		ID:    itemID,
-		Val:   val,
-		Item:  item,
-		Index: poolLen,
-	})
 	sm.minHeap.Push(&heap.Entry[T, uint64]{
 		ID:    itemID,
 		Val:   val,
@@ -59,19 +51,14 @@ func (sm *SortedMempool[T]) Add(item T) {
 
 // Remove removes [id] from sm. If the id does not exist, Remove returns.
 func (sm *SortedMempool[T]) Remove(id ids.ID) (T, bool) {
-	maxEntry, ok := sm.maxHeap.Get(id) // O(1)
-	if !ok {
-		return *new(T), false
-	}
-	sm.maxHeap.Remove(maxEntry.Index) // O(log N)
-	minEntry, ok := sm.minHeap.Get(id)
+	minEntry, ok := sm.minHeap.Get(id) // O(1)
 	if !ok {
 		// This should never happen, as that would mean the heaps are out of
 		// sync.
 		return *new(T), false
 	}
 	sm.minHeap.Remove(minEntry.Index) // O(log N)
-	return maxEntry.Item, true
+	return minEntry.Item, true
 }
 
 // SetMinVal removes all elements in sm with a value less than [val]. Returns
@@ -105,26 +92,6 @@ func (sm *SortedMempool[T]) PeekMin() (T, bool) {
 // PopMin removes the minimum value in sm.
 func (sm *SortedMempool[T]) PopMin() (T, bool) {
 	first := sm.minHeap.First()
-	if first == nil {
-		return *new(T), false
-	}
-	item := first.Item
-	sm.Remove(item.ID())
-	return item, true
-}
-
-// PopMin returns the maximum value in sm.
-func (sm *SortedMempool[T]) PeekMax() (T, bool) {
-	first := sm.maxHeap.First()
-	if first == nil {
-		return *new(T), false
-	}
-	return first.Item, true
-}
-
-// PopMin removes the maximum value in sm.
-func (sm *SortedMempool[T]) PopMax() (T, bool) {
-	first := sm.maxHeap.First()
 	if first == nil {
 		return *new(T), false
 	}
