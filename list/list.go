@@ -5,25 +5,34 @@ package list
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/emap"
 )
+
+// Item defines an interface accepted by [List].
+//
+// It is not necessary to include this constraint but
+// allows us to avoid wrapping [Element] when using it with [emap]
+// and/or [eheap].
+type Item interface {
+	ID() ids.ID    // method for returning an id of the item
+	Expiry() int64 // method for returing this items timestamp
+}
 
 // List implements a double-linked list. It offers
 // similar functionality as container/list but uses
 // generics.
 //
 // Original source: https://gist.github.com/pje/90e727f80685c78a6c1cfff35f62155a
-type List[T emap.Item] struct {
+type List[T Item] struct {
 	root Element[T]
 	size int
 }
 
-type Element[T emap.Item] struct {
+type Element[T Item] struct {
 	prev *Element[T]
 	next *Element[T]
 	list *List[T]
 
-	Value T
+	value T
 }
 
 func (e *Element[T]) Next() *Element[T] {
@@ -42,12 +51,16 @@ func (e *Element[T]) Prev() *Element[T] {
 	return p
 }
 
+func (e *Element[T]) Value() T {
+	return e.value
+}
+
 func (e *Element[T]) ID() ids.ID {
-	return e.Value.ID()
+	return e.value.ID()
 }
 
 func (e *Element[T]) Expiry() int64 {
-	return e.Value.Expiry()
+	return e.value.Expiry()
 }
 
 func (l *List[T]) First() *Element[T] {
@@ -82,7 +95,7 @@ func (l *List[T]) Remove(e *Element[T]) T {
 	if e.list == l {
 		l.remove(e)
 	}
-	return e.Value
+	return e.value
 }
 
 func (l *List[T]) Size() int {
@@ -106,7 +119,7 @@ func (l *List[T]) insertAfter(e *Element[T], at *Element[T]) *Element[T] {
 }
 
 func (l *List[T]) insertValueAfter(v T, at *Element[T]) *Element[T] {
-	e := Element[T]{Value: v}
+	e := Element[T]{value: v}
 	return l.insertAfter(&e, at)
 }
 
