@@ -41,17 +41,17 @@ func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) []string {
 	}
 }
 
-func (t *Transfer) StateKeysMaxChunks() []uint16 {
+func (*Transfer) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
 }
 
-func (t *Transfer) OutputsWarpMessage() bool {
+func (*Transfer) OutputsWarpMessage() bool {
 	return false
 }
 
 func (t *Transfer) Execute(
 	ctx context.Context,
-	r chain.Rules,
+	_ chain.Rules,
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,

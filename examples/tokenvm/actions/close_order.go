@@ -39,7 +39,7 @@ func (c *CloseOrder) StateKeys(rauth chain.Auth, _ ids.ID) []string {
 	}
 }
 
-func (c *CloseOrder) StateKeysMaxChunks() []uint16 {
+func (*CloseOrder) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.OrderChunks, storage.BalanceChunks}
 }
 
@@ -49,7 +49,7 @@ func (*CloseOrder) OutputsWarpMessage() bool {
 
 func (c *CloseOrder) Execute(
 	ctx context.Context,
-	r chain.Rules,
+	_ chain.Rules,
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,

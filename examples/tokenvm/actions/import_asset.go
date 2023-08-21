@@ -95,7 +95,7 @@ func (i *ImportAsset) StateKeysMaxChunks() []uint16 {
 	return chunks
 }
 
-func (i *ImportAsset) OutputsWarpMessage() bool {
+func (*ImportAsset) OutputsWarpMessage() bool {
 	return false
 }
 
@@ -232,7 +232,7 @@ func (i *ImportAsset) Execute(
 	return true, ImportAssetComputeUnits, nil, nil, nil
 }
 
-func (i *ImportAsset) MaxComputeUnits(chain.Rules) uint64 {
+func (*ImportAsset) MaxComputeUnits(chain.Rules) uint64 {
 	return ImportAssetComputeUnits
 }
 

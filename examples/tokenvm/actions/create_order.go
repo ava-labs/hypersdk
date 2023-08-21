@@ -59,17 +59,17 @@ func (c *CreateOrder) StateKeys(rauth chain.Auth, txID ids.ID) []string {
 	}
 }
 
-func (c *CreateOrder) StateKeysMaxChunks() []uint16 {
+func (*CreateOrder) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.BalanceChunks, storage.OrderChunks}
 }
 
-func (c *CreateOrder) OutputsWarpMessage() bool {
+func (*CreateOrder) OutputsWarpMessage() bool {
 	return false
 }
 
 func (c *CreateOrder) Execute(
 	ctx context.Context,
-	r chain.Rules,
+	_ chain.Rules,
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,

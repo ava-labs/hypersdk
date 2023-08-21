@@ -66,7 +66,6 @@ func (*ExportAsset) OutputsWarpMessage() bool {
 
 func (e *ExportAsset) executeReturn(
 	ctx context.Context,
-	r chain.Rules,
 	db chain.Database,
 	actor ed25519.PublicKey,
 	txID ids.ID,
@@ -143,7 +142,6 @@ func (e *ExportAsset) executeReturn(
 
 func (e *ExportAsset) executeLoan(
 	ctx context.Context,
-	r chain.Rules,
 	db chain.Database,
 	actor ed25519.PublicKey,
 	txID ids.ID,
@@ -199,7 +197,7 @@ func (e *ExportAsset) executeLoan(
 
 func (e *ExportAsset) Execute(
 	ctx context.Context,
-	r chain.Rules,
+	_ chain.Rules,
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,
@@ -217,9 +215,9 @@ func (e *ExportAsset) Execute(
 	}
 	// TODO: check if destination is ourselves
 	if e.Return {
-		return e.executeReturn(ctx, r, db, actor, txID)
+		return e.executeReturn(ctx, db, actor, txID)
 	}
-	return e.executeLoan(ctx, r, db, actor, txID)
+	return e.executeLoan(ctx, db, actor, txID)
 }
 
 func (*ExportAsset) MaxComputeUnits(chain.Rules) uint64 {

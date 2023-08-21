@@ -77,7 +77,6 @@ func TestIntegration(t *testing.T) {
 var (
 	requestTimeout time.Duration
 	vms            int
-	minPrice       int64
 )
 
 func init() {

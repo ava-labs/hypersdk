@@ -40,17 +40,17 @@ func (b *BurnAsset) StateKeys(rauth chain.Auth, _ ids.ID) []string {
 	}
 }
 
-func (b *BurnAsset) StateKeysMaxChunks() []uint16 {
+func (*BurnAsset) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.AssetChunks, storage.BalanceChunks}
 }
 
-func (b *BurnAsset) OutputsWarpMessage() bool {
+func (*BurnAsset) OutputsWarpMessage() bool {
 	return false
 }
 
 func (b *BurnAsset) Execute(
 	ctx context.Context,
-	r chain.Rules,
+	_ chain.Rules,
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,

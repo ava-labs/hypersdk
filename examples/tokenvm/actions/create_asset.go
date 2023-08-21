@@ -43,7 +43,7 @@ func (*CreateAsset) OutputsWarpMessage() bool {
 
 func (c *CreateAsset) Execute(
 	ctx context.Context,
-	r chain.Rules,
+	_ chain.Rules,
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,
@@ -62,7 +62,7 @@ func (c *CreateAsset) Execute(
 	return true, CreateAssetComputeUnits, nil, nil, nil
 }
 
-func (c *CreateAsset) MaxComputeUnits(chain.Rules) uint64 {
+func (*CreateAsset) MaxComputeUnits(chain.Rules) uint64 {
 	return CreateAssetComputeUnits
 }
 

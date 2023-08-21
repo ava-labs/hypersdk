@@ -45,17 +45,17 @@ func (m *ModifyAsset) StateKeys(chain.Auth, ids.ID) []string {
 	}
 }
 
-func (m *ModifyAsset) StateKeysMaxChunks() []uint16 {
+func (*ModifyAsset) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.AssetChunks}
 }
 
-func (m *ModifyAsset) OutputsWarpMessage() bool {
+func (*ModifyAsset) OutputsWarpMessage() bool {
 	return false
 }
 
 func (m *ModifyAsset) Execute(
 	ctx context.Context,
-	r chain.Rules,
+	_ chain.Rules,
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,
@@ -88,7 +88,7 @@ func (m *ModifyAsset) Execute(
 	return true, ModifyAssetComputeUnits, nil, nil, nil
 }
 
-func (m *ModifyAsset) MaxComputeUnits(chain.Rules) uint64 {
+func (*ModifyAsset) MaxComputeUnits(chain.Rules) uint64 {
 	return ModifyAssetComputeUnits
 }
 
