@@ -7,5 +7,8 @@ edition = "2021"
 
 [dependencies]
 thiserror = "1.0.46"
-
+serde = "1.0.185"
+serde_json = "1.0.105"
+serde_bytes = "0.11.12"
+serde_derive = "1.0.185"
 [lib]

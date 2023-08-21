@@ -1,10 +1,9 @@
-use crate::program::ProgramValue;
 use crate::store::ProgramContext;
-
+use serde_derive::{Deserialize, Serialize};
 /// A struct that enforces a fixed length of 32 bytes which represents an address.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Address {
-    bytes: [u8; Self::LEN],
+    bytes: [u8; 32],
 }
 
 impl Address {
@@ -18,29 +17,29 @@ impl Address {
     }
 }
 
-impl From<String> for ProgramValue {
-    fn from(value: String) -> Self {
-        ProgramValue::StringObject(value)
-    }
-}
+// impl From<String> for ProgramValue {
+//     fn from(value: String) -> Self {
+//         ProgramValue::StringObject(value)
+//     }
+// }
 
-impl From<&str> for ProgramValue {
-    fn from(value: &str) -> Self {
-        ProgramValue::StringObject(String::from(value))
-    }
-}
+// impl From<&str> for ProgramValue {
+//     fn from(value: &str) -> Self {
+//         ProgramValue::StringObject(String::from(value))
+//     }
+// }
 
-impl From<i64> for ProgramValue {
-    fn from(value: i64) -> Self {
-        ProgramValue::IntObject(value)
-    }
-}
+// impl From<i64> for ProgramValue {
+//     fn from(value: i64) -> Self {
+//         ProgramValue::IntObject(value)
+//     }
+// }
 
-impl From<Address> for ProgramValue {
-    fn from(value: Address) -> Self {
-        ProgramValue::AddressObject(value)
-    }
-}
+// impl From<Address> for ProgramValue {
+//     fn from(value: Address) -> Self {
+//         ProgramValue::AddressObject(value)
+//     }
+// }
 
 impl From<i64> for Address {
     fn from(value: i64) -> Self {
@@ -54,20 +53,20 @@ impl From<i64> for Address {
     }
 }
 
-impl From<ProgramValue> for i64 {
-    fn from(value: ProgramValue) -> Self {
-        match value {
-            ProgramValue::IntObject(i) => i,
-            _ => panic!("Cannot conver to i64"),
-        }
-    }
-}
+// impl From<ProgramValue> for i64 {
+//     fn from(value: ProgramValue) -> Self {
+//         match value {
+//             ProgramValue::IntObject(i) => i,
+//             _ => panic!("Cannot conver to i64"),
+//         }
+//     }
+// }
 
-impl From<ProgramValue> for ProgramContext {
-    fn from(value: ProgramValue) -> Self {
-        match value {
-            ProgramValue::ProgramObject(i) => i,
-            _ => panic!("Cannot conver to ProgramContext"),
-        }
-    }
-}
+// impl From<ProgramValue> for ProgramContext {
+//     fn from(value: ProgramValue) -> Self {
+//         match value {
+//             ProgramValue::ProgramObject(i) => i,
+//             _ => panic!("Cannot conver to ProgramContext"),
+//         }
+//     }
+// }

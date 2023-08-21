@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	//go:embed testdata/wasm_build/wasm32-wasi/release/token.wasm
+	//go:embed testdata/target/wasm32-wasi/release/token.wasm
 	tokenProgramBytes []byte
 
 	// example cost map
