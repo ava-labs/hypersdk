@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/list"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -19,7 +20,7 @@ import (
 const maxPrealloc = 4_096
 
 type Item interface {
-	MempoolItem
+	eheap.Item
 
 	Payer() string
 }
@@ -33,7 +34,7 @@ type Mempool[T Item] struct {
 	maxPayerSize int // Maximum items allowed by a single payer
 
 	queue *list.List[T]
-	tm    *SortedMempool[*list.Element[T]]
+	eh    *eheap.ExpiryHeap[*list.Element[T]]
 
 	// owned tracks the number of items in the mempool owned by a single
 	// [Payer]
@@ -65,10 +66,7 @@ func New[T Item](
 		maxPayerSize: maxPayerSize,
 
 		queue: &list.List[T]{},
-		tm: NewSortedMempool(
-			math.Min(maxSize, maxPrealloc),
-			func(item *list.Element[T]) uint64 { return uint64(item.Expiry()) },
-		),
+		eh:    eheap.New[*list.Element[T]](math.Min(maxSize, maxPrealloc)),
 
 		owned:        map[string]int{},
 		exemptPayers: set.Set[string]{},
@@ -101,7 +99,7 @@ func (th *Mempool[T]) Has(ctx context.Context, itemID ids.ID) bool {
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	return th.tm.Has(itemID)
+	return th.eh.Has(itemID)
 }
 
 // Add pushes all new items from [items] to th. Does not add a item if
@@ -127,7 +125,7 @@ func (th *Mempool[T]) add(items []T, front bool) {
 		if th.streamedItems != nil && th.streamedItems.Contains(itemID) {
 			continue
 		}
-		if th.tm.Has(itemID) {
+		if th.eh.Has(itemID) {
 			// Don't drop because already exists
 			continue
 		}
@@ -150,7 +148,7 @@ func (th *Mempool[T]) add(items []T, front bool) {
 		} else {
 			elem = th.queue.PushFront(item)
 		}
-		th.tm.Add(elem)
+		th.eh.Add(elem)
 		th.owned[sender]++
 	}
 }
@@ -189,7 +187,7 @@ func (th *Mempool[T]) popNext() (T, bool) {
 		return *new(T), false
 	}
 	v := th.queue.Remove(first)
-	th.tm.Remove(v.ID())
+	th.eh.Remove(v.ID())
 	th.removeFromOwned(v)
 	return v, true
 }
@@ -203,7 +201,7 @@ func (th *Mempool[T]) Remove(ctx context.Context, items []T) {
 	defer th.mu.Unlock()
 
 	for _, item := range items {
-		elem, ok := th.tm.Remove(item.ID())
+		elem, ok := th.eh.Remove(item.ID())
 		if !ok {
 			continue
 		}
@@ -220,7 +218,7 @@ func (th *Mempool[T]) Len(ctx context.Context) int {
 	th.mu.RLock()
 	defer th.mu.RUnlock()
 
-	return th.tm.Len()
+	return th.eh.Len()
 }
 
 // SetMinTimestamp removes all items with a lower expiry than [t] from th.
@@ -232,7 +230,7 @@ func (th *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	removedElems := th.tm.SetMinVal(uint64(t))
+	removedElems := th.eh.SetMinVal(t)
 	removed := make([]T, len(removedElems))
 	for i, remove := range removedElems {
 		th.queue.Remove(remove)
@@ -257,7 +255,7 @@ func (th *Mempool[T]) Top(
 	defer th.mu.Unlock()
 
 	start := time.Now()
-	for th.tm.Len() > 0 {
+	for th.eh.Len() > 0 {
 		next, _ := th.popNext()
 		cont, fErr := f(ctx, next)
 		if !cont || time.Since(start) > targetDuration || fErr != nil {
