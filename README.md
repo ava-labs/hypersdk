@@ -134,6 +134,7 @@ stateless activities during execution can greatly reduce the e2e verification
 time of a block when running on powerful hardware.
 
 #### [Optional] Batch Signature Verification
+Some cryptographic schemes provide batch verification support...
 TODO: batch verification of ed25519, generically supported for any crypto that provides this
 capability.
 
@@ -180,7 +181,7 @@ To hide this complexity from the user, everything other than compute units
 are done in the background. Just need to add uint16 to end of any keys
 to indicate the max bytes they could store.
 
-#### Hot Access Discount
+#### Hot Access Discount Over Block
 If a key has already been accessed in a given block, any future access
 will be cheaper. This goes for both fetching and updating.
 
