@@ -37,6 +37,21 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_blks_rejected_count[5s])/5", chainID))
 			utils.Outf("{{yellow}}blocks rejected per second:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_bandwidth_price", chainID))
+			utils.Outf("{{yellow}}bandwidth unit price:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_compute_price", chainID))
+			utils.Outf("{{yellow}}compute unit price:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_storage_read_price", chainID))
+			utils.Outf("{{yellow}}storage read unit price:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_storage_create_price", chainID))
+			utils.Outf("{{yellow}}storage create unit price:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_storage_modify_price", chainID))
+			utils.Outf("{{yellow}}storage modify unit price:{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_build_capped[5s])/5", chainID))
 			utils.Outf("{{yellow}}build capped per second:{{/}} %s\n", panels[len(panels)-1])
 
