@@ -141,22 +141,19 @@ and even parallelizes it out-of-the-box, if verifcation is single-threaded.
 
 ### Multidimensional Fee Pricing
 Instead of mapping transaction resource usage to a one-dimensional unit (i.e. "gas"),
-the `hypersdk` utilizes five independently parameterized dimensions (bandwidth,
+the `hypersdk` utilizes five independently parameterized unit dimensions (bandwidth,
 compute, storage[read], storage[create], storage[modify]) to meter activity on `hypervms`.
+Each unit dimension has a unique metering schedule (i.e. how many units each instance
+of resource usage costs, like reading a key from disk) and target per rolling 10s window.
 
-Each unit dimension has a unique unit price that fluctuates based on how many units are processed on-chain.
+When resources are precisely metered, network resources can be better priced and thus
+better utilized by network participants. For example, a one-dimensional unit requires
+a VM designer to compare storage access, bandwidth, and compute on a
+[single plane](https://github.com/ava-labs/coreth/blob/master/params/protocol_params.go).
 
-When resources are more granularly metered, resources can be better utilized
-in the network.
-
-This allows for better resource utilization of the entire network.
-
-https://arxiv.org/abs/2208.07919
-
-TODO: advanced fee model that discounts for warm reads/modifications across
-the block
-
-TODO: charge for storage read/create/modify on disk
+If you are interested in learning more about the theory behind multidimensional fee
+pricing, [Dynamic Pricing for Non-fungible Resources: Designing Multidimensional Blockchain Fee Markets](https://arxiv.org/abs/2208.07919)
+provides a great analysis.
 
 #### Avoiding Complex Consruction
 When generating a transaction, all users need to specify is the max fee
