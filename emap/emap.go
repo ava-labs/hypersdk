@@ -52,6 +52,13 @@ func (e *EMap[T]) Add(items []T) {
 	}
 }
 
+func (e *EMap[T]) AddSingle(item T) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.add(item.ID(), item.Expiry())
+}
+
 // Add adds an id with a timestampt [t] to the EMap. If the timestamp
 // is genesis(0) or the id has been seen already, add returns. The id is
 // added to a bucket with timestamp [t]. If no bucket exists, add creates a
@@ -122,6 +129,13 @@ func (e *EMap[T]) Any(items []T) bool {
 		}
 	}
 	return false
+}
+
+func (e *EMap[T]) HasID(id ids.ID) bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	return e.seen.Contains(id)
 }
 
 func (e *EMap[T]) Contains(items []T, marker set.Bits, stop bool) set.Bits {

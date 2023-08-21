@@ -86,7 +86,7 @@ type Mempool interface {
 	Top(
 		context.Context,
 		time.Duration,
-		func(context.Context, *Transaction) (cont bool, restore bool, err error),
+		func(context.Context, *Transaction) (cont bool, err error),
 	) error
 
 	StartStreaming(context.Context)

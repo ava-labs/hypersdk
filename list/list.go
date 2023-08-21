@@ -1,16 +1,21 @@
 package list
 
+import (
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/emap"
+)
+
 // List implements a double-linked list. It offers
 // similar functionality as container/list but uses
 // generics.
 //
 // Original source: https://gist.github.com/pje/90e727f80685c78a6c1cfff35f62155a
-type List[T any] struct {
+type List[T emap.Item] struct {
 	root Element[T]
-	Len  int
+	size int
 }
 
-type Element[T any] struct {
+type Element[T emap.Item] struct {
 	prev *Element[T]
 	next *Element[T]
 	list *List[T]
@@ -34,15 +39,23 @@ func (e *Element[T]) Prev() *Element[T] {
 	return p
 }
 
+func (e *Element[T]) ID() ids.ID {
+	return e.Value.ID()
+}
+
+func (e *Element[T]) Expiry() int64 {
+	return e.Value.Expiry()
+}
+
 func (l *List[T]) First() *Element[T] {
-	if l.Len == 0 {
+	if l.size == 0 {
 		return nil
 	}
 	return l.root.next
 }
 
 func (l *List[T]) Last() *Element[T] {
-	if l.Len == 0 {
+	if l.size == 0 {
 		return nil
 	}
 	return l.root.prev
@@ -69,6 +82,10 @@ func (l *List[T]) Remove(e *Element[T]) T {
 	return e.Value
 }
 
+func (l *List[T]) Size() int {
+	return l.size
+}
+
 func (l *List[T]) init() {
 	l.root = *new(Element[T])
 	l.root.next = &l.root
@@ -81,7 +98,7 @@ func (l *List[T]) insertAfter(e *Element[T], at *Element[T]) *Element[T] {
 	e.prev.next = e
 	e.next.prev = e
 	e.list = l
-	l.Len++
+	l.size++
 	return e
 }
 
@@ -96,5 +113,5 @@ func (l *List[T]) remove(e *Element[T]) {
 	e.next = nil
 	e.prev = nil
 	e.list = nil
-	l.Len--
+	l.size--
 }

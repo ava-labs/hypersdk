@@ -10,11 +10,9 @@ import (
 )
 
 // Item is the interface that any item put in the mempool must adheare to.
-type Item interface {
+type MempoolItem interface {
 	ID() ids.ID
-	Payer() string
 	Expiry() int64
-	MaxFee() uint64
 }
 
 // SortedMempool contains a max-heap and min-heap. The order within each
@@ -22,7 +20,7 @@ type Item interface {
 //
 // This data structure does not perform any synchronization and is not
 // safe to use concurrently without external locking.
-type SortedMempool[T Item] struct {
+type SortedMempool[T MempoolItem] struct {
 	// GetValue informs heaps how to get the an entry's value for ordering.
 	GetValue func(item T) uint64
 
@@ -32,7 +30,7 @@ type SortedMempool[T Item] struct {
 
 // NewSortedMempool returns an instance of SortedMempool with minHeap and maxHeap
 // containing [items] and prioritized with [f]
-func NewSortedMempool[T Item](items int, f func(item T) uint64) *SortedMempool[T] {
+func NewSortedMempool[T MempoolItem](items int, f func(item T) uint64) *SortedMempool[T] {
 	return &SortedMempool[T]{
 		GetValue: f,
 		minHeap:  heap.New[T, uint64](items, true),
@@ -60,19 +58,20 @@ func (sm *SortedMempool[T]) Add(item T) {
 }
 
 // Remove removes [id] from sm. If the id does not exist, Remove returns.
-func (sm *SortedMempool[T]) Remove(id ids.ID) {
+func (sm *SortedMempool[T]) Remove(id ids.ID) (T, bool) {
 	maxEntry, ok := sm.maxHeap.Get(id) // O(1)
 	if !ok {
-		return
+		return *new(T), false
 	}
 	sm.maxHeap.Remove(maxEntry.Index) // O(log N)
 	minEntry, ok := sm.minHeap.Get(id)
 	if !ok {
 		// This should never happen, as that would mean the heaps are out of
 		// sync.
-		return
+		return *new(T), false
 	}
 	sm.minHeap.Remove(minEntry.Index) // O(log N)
+	return maxEntry.Item, true
 }
 
 // SetMinVal removes all elements in sm with a value less than [val]. Returns

@@ -164,16 +164,16 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
-		func(ictx context.Context, next *chain.Transaction) (cont bool, restore bool, err error) {
+		func(ictx context.Context, next *chain.Transaction) (cont bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
-				return true, false, nil
+				return true, nil
 			}
 
 			// Don't gossip txs that are about to expire
 			life := next.Base.Timestamp - now
 			if life < g.cfg.GossipMinLife {
-				return true, true, nil
+				return true, nil
 			}
 
 			// Don't gossip txs we received from other nodes (original gossiper will
@@ -183,17 +183,17 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 			// We still keep these transactions in our mempool as they may still be
 			// the highest-paying transaction to execute at a given time.
 			if _, has := g.receivedTxs.Get(next.ID()); has {
-				return true, true, nil
+				return true, nil
 			}
 
 			// Gossip up to [GossipMaxSize]
 			txSize := next.Size()
 			if txSize+size > g.cfg.GossipMaxSize {
-				return false, true, nil
+				return false, nil
 			}
 			txs = append(txs, next)
 			size += txSize
-			return true, true, nil
+			return true, nil
 		},
 	)
 	if mempoolErr != nil {

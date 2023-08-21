@@ -12,10 +12,17 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/list"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 const maxPrealloc = 4_096
+
+type Item interface {
+	MempoolItem
+
+	Payer() string
+}
 
 type Mempool[T Item] struct {
 	tracer trace.Tracer
@@ -25,12 +32,13 @@ type Mempool[T Item] struct {
 	maxSize      int
 	maxPayerSize int // Maximum items allowed by a single payer
 
-	pm *SortedMempool[T] // Price Mempool
-	tm *SortedMempool[T] // Time Mempool
+	queue *list.List[T]
+	// TODO: remove double heaps
+	tm *SortedMempool[*list.Element[T]]
 
-	// [Owned] used to remove all items from an account when the balance is
-	// insufficient
-	owned map[string]set.Set[ids.ID]
+	// owned tracks the number of items in the mempool owned by a single
+	// [Payer]
+	owned map[string]int
 
 	// streamedItems have been removed from the mempool during streaming
 	// and should not be re-added by calls to [Add].
@@ -57,16 +65,13 @@ func New[T Item](
 		maxSize:      maxSize,
 		maxPayerSize: maxPayerSize,
 
-		pm: NewSortedMempool(
-			math.Min(maxSize, maxPrealloc),
-			// TODO: consider switch to FIFO
-			func(item T) uint64 { return item.MaxFee() },
-		),
+		queue: &list.List[T]{},
 		tm: NewSortedMempool(
 			math.Min(maxSize, maxPrealloc),
-			func(item T) uint64 { return uint64(item.Expiry()) },
+			func(item *list.Element[T]) uint64 { return uint64(item.Expiry()) },
 		),
-		owned:        map[string]set.Set[ids.ID]{},
+
+		owned:        map[string]int{},
 		exemptPayers: set.Set[string]{},
 	}
 	for _, payer := range exemptPayers {
@@ -77,15 +82,16 @@ func New[T Item](
 
 func (th *Mempool[T]) removeFromOwned(item T) {
 	sender := item.Payer()
-	acct, ok := th.owned[sender]
+	items, ok := th.owned[sender]
 	if !ok {
 		// May no longer be populated
 		return
 	}
-	acct.Remove(item.ID())
-	if len(acct) == 0 {
+	if items == 1 {
 		delete(th.owned, sender)
+		return
 	}
+	th.owned[sender] = items - 1
 }
 
 // Has returns if the pm of [th] contains [itemID]
@@ -95,7 +101,8 @@ func (th *Mempool[T]) Has(ctx context.Context, itemID ids.ID) bool {
 
 	th.mu.Lock()
 	defer th.mu.Unlock()
-	return th.pm.Has(itemID)
+
+	return th.tm.Has(itemID)
 }
 
 // Add pushes all new items from [items] to th. Does not add a item if
@@ -121,94 +128,66 @@ func (th *Mempool[T]) add(items []T) {
 		if th.streamedItems != nil && th.streamedItems.Contains(itemID) {
 			continue
 		}
-		if th.pm.Has(itemID) {
+		if th.tm.Has(itemID) {
 			// Don't drop because already exists
 			continue
 		}
 
-		// Optimistically add to both mempools
-		acct, ok := th.owned[sender]
-		if !ok {
-			acct = set.Set[ids.ID]{}
-			th.owned[sender] = acct
-		}
-		if !th.exemptPayers.Contains(sender) && acct.Len() == th.maxPayerSize {
+		// Ensure sender isn't abusing mempool
+		senderItems := th.owned[sender]
+		if !th.exemptPayers.Contains(sender) && senderItems == th.maxPayerSize {
 			continue // do nothing, wait for items to expire
 		}
-		th.pm.Add(item)
-		th.tm.Add(item)
-		acct.Add(item.ID())
 
-		// Remove the lowest paying item if at global max
-		if th.pm.Len() > th.maxSize {
-			// Remove the lowest paying item
-			lowItem, _ := th.pm.PopMin()
-			th.tm.Remove(lowItem.ID())
-			th.removeFromOwned(lowItem)
+		// Ensure mempool isn't full
+		if th.queue.Size() == th.maxSize {
+			continue // do nothing, wait for items to expire
 		}
+
+		// Add to mempool
+		elem := th.queue.PushBack(item)
+		th.tm.Add(elem)
+		th.owned[sender]++
 	}
 }
 
-// PeekMax returns the highest valued item in th.pm.
+// PeekNext returns the highest valued item in th.pm.
 // Assumes there is non-zero items in [Mempool]
-func (th *Mempool[T]) PeekMax(ctx context.Context) (T, bool) {
-	_, span := th.tracer.Start(ctx, "Mempool.PeekMax")
+func (th *Mempool[T]) PeekNext(ctx context.Context) (T, bool) {
+	_, span := th.tracer.Start(ctx, "Mempool.PeekNext")
 	defer span.End()
 
 	th.mu.RLock()
 	defer th.mu.RUnlock()
 
-	return th.pm.PeekMax()
+	first := th.queue.First()
+	if first == nil {
+		return *new(T), false
+	}
+	return first.Value, true
 }
 
-// PeekMin returns the lowest valued item in th.pm.
+// PopNext removes and returns the highest valued item in th.pm.
 // Assumes there is non-zero items in [Mempool]
-func (th *Mempool[T]) PeekMin(ctx context.Context) (T, bool) {
-	_, span := th.tracer.Start(ctx, "Mempool.PeekMin")
-	defer span.End()
-
-	th.mu.RLock()
-	defer th.mu.RUnlock()
-
-	return th.pm.PeekMin()
-}
-
-// PopMax removes and returns the highest valued item in th.pm.
-// Assumes there is non-zero items in [Mempool]
-func (th *Mempool[T]) PopMax(ctx context.Context) (T, bool) { // O(log N)
-	_, span := th.tracer.Start(ctx, "Mempool.PopMax")
+func (th *Mempool[T]) PopNext(ctx context.Context) (T, bool) { // O(log N)
+	_, span := th.tracer.Start(ctx, "Mempool.PopNext")
 	defer span.End()
 
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	return th.popMax()
+	return th.popNext()
 }
 
-func (th *Mempool[T]) popMax() (T, bool) {
-	max, ok := th.pm.PopMax()
-	if ok {
-		th.tm.Remove(max.ID())
-		th.removeFromOwned(max)
+func (th *Mempool[T]) popNext() (T, bool) {
+	first := th.queue.First()
+	if first == nil {
+		return *new(T), false
 	}
-	return max, ok
-}
-
-// PopMin removes and returns the lowest valued item in th.pm.
-// Assumes there is non-zero items in [Mempool]
-func (th *Mempool[T]) PopMin(ctx context.Context) (T, bool) { // O(log N)
-	_, span := th.tracer.Start(ctx, "Mempool.PopMin")
-	defer span.End()
-
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
-	min, ok := th.pm.PopMin()
-	if ok {
-		th.tm.Remove(min.ID())
-		th.removeFromOwned(min)
-	}
-	return min, ok
+	v := th.queue.Remove(first)
+	th.tm.Remove(v.ID())
+	th.removeFromOwned(v)
+	return v, true
 }
 
 // Remove removes [items] from th.
@@ -220,11 +199,12 @@ func (th *Mempool[T]) Remove(ctx context.Context, items []T) {
 	defer th.mu.Unlock()
 
 	for _, item := range items {
-		th.pm.Remove(item.ID())
-		th.tm.Remove(item.ID())
+		elem, ok := th.tm.Remove(item.ID())
+		if !ok {
+			continue
+		}
+		th.queue.Remove(elem)
 		th.removeFromOwned(item)
-		// Remove is called when verifying a block. We should not drop transactions at
-		// this time.
 	}
 }
 
@@ -236,30 +216,7 @@ func (th *Mempool[T]) Len(ctx context.Context) int {
 	th.mu.RLock()
 	defer th.mu.RUnlock()
 
-	return th.pm.Len()
-}
-
-// RemoveAccount removes all items by [sender] from th.
-func (th *Mempool[T]) RemoveAccount(ctx context.Context, sender string) {
-	_, span := th.tracer.Start(ctx, "Mempool.RemoveAccount")
-	defer span.End()
-
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
-	th.removeAccount(sender)
-}
-
-func (th *Mempool[T]) removeAccount(sender string) {
-	acct, ok := th.owned[sender]
-	if !ok {
-		return
-	}
-	for item := range acct {
-		th.pm.Remove(item)
-		th.tm.Remove(item)
-	}
-	delete(th.owned, sender)
+	return th.tm.Len()
 }
 
 // SetMinTimestamp removes all items with a lower expiry than [t] from th.
@@ -271,19 +228,23 @@ func (th *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	removed := th.tm.SetMinVal(uint64(t))
-	for _, remove := range removed {
-		th.pm.Remove(remove.ID())
-		th.removeFromOwned(remove)
+	removedElems := th.tm.SetMinVal(uint64(t))
+	removed := make([]T, len(removedElems))
+	for i, remove := range removedElems {
+		th.queue.Remove(remove)
+		th.removeFromOwned(remove.Value)
+		removed[i] = remove.Value
 	}
 	return removed
 }
 
-// Top iterates over the highest-valued items in the mempool.
+// Top removes the next items in the mempool.
+//
+// TODO: you either gossip or build
 func (th *Mempool[T]) Top(
 	ctx context.Context,
 	targetDuration time.Duration,
-	f func(context.Context, T) (cont bool, restore bool, err error),
+	f func(context.Context, T) (cont bool, err error),
 ) error {
 	ctx, span := th.tracer.Start(ctx, "Mempool.Top")
 	defer span.End()
@@ -291,33 +252,15 @@ func (th *Mempool[T]) Top(
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	var (
-		start           = time.Now()
-		restorableItems = []T{}
-		err             error
-	)
-	for th.pm.Len() > 0 {
-		max, _ := th.pm.PopMax()
-		cont, restore, fErr := f(ctx, max)
-		if restore {
-			// Waiting to restore unused transactions ensures that an account will be
-			// excluded from future price mempool iterations
-			restorableItems = append(restorableItems, max)
-		} else {
-			th.tm.Remove(max.ID())
-			th.removeFromOwned(max)
-		}
+	start := time.Now()
+	for th.tm.Len() > 0 {
+		next, _ := th.popNext()
+		cont, fErr := f(ctx, next)
 		if !cont || time.Since(start) > targetDuration || fErr != nil {
-			err = fErr
-			break
+			return fErr
 		}
 	}
-
-	// Restore unused items
-	for _, item := range restorableItems {
-		th.pm.Add(item)
-	}
-	return err
+	return nil
 }
 
 // StartStreaming allows for async iteration over the highest-value items
@@ -369,7 +312,7 @@ func (th *Mempool[T]) Stream(ctx context.Context, count int) []T {
 func (th *Mempool[T]) streamItems(count int) []T {
 	txs := make([]T, 0, count)
 	for len(txs) < count {
-		item, ok := th.popMax()
+		item, ok := th.popNext()
 		if !ok {
 			break
 		}

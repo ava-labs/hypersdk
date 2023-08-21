@@ -46,20 +46,20 @@ func (g *Manual) ForceGossip(ctx context.Context) error {
 	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
-		func(ictx context.Context, next *chain.Transaction) (cont bool, restore bool, err error) {
+		func(ictx context.Context, next *chain.Transaction) (cont bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
-				return true, false, nil
+				return true, nil
 			}
 
 			// Gossip up to [consts.NetworkSizeLimit]
 			txSize := next.Size()
 			if txSize+size > consts.NetworkSizeLimit {
-				return false, true, nil
+				return false, nil
 			}
 			txs = append(txs, next)
 			size += txSize
-			return true, true, nil
+			return true, nil
 		},
 	)
 	if mempoolErr != nil {
