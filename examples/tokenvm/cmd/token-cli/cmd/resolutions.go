@@ -38,7 +38,7 @@ func sendAndWait(
 	if err := submit(ctx); err != nil {
 		return false, ids.Empty, err
 	}
-	success, err := tcli.WaitForTransaction(ctx, tx.ID())
+	success, _, err := tcli.WaitForTransaction(ctx, tx.ID())
 	if err != nil {
 		return false, ids.Empty, err
 	}
