@@ -771,6 +771,10 @@ func (vm *VM) Submit(
 		// This may fail if the state we are utilizing is invalidated (if a trie
 		// view from a different branch is committed underneath it). We prefer this
 		// instead of putting a lock around all commits.
+		//
+		// Note, [PreExecute] ensures that the pending transaction does not have
+		// an expiry time further ahead than [ValidityWindow]. This ensures anything
+		// added to the [Mempool] is immediately executable.
 		if _, err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, state, now); err != nil {
 			errs = append(errs, err)
 			continue
