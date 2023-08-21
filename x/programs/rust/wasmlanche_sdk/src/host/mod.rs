@@ -42,11 +42,11 @@ pub fn init_program_storage() -> ProgramContext {
     unsafe { ProgramContext::from(_init_program()) }
 }
 
+/// Stores the bytes at value_ptr to the bytes at key ptr on the host.
+///
 /// # Safety
 /// The caller must ensure that key_ptr + key_len and
 /// value_ptr + value_len point to valid memory locations.
-///
-/// Stores the bytes at value_ptr to the bytes at key ptr on the host.
 pub unsafe fn store_bytes(
     ctx: &ProgramContext,
     key_ptr: *const u8,
@@ -57,18 +57,18 @@ pub unsafe fn store_bytes(
     unsafe { _store_bytes(ctx.program_id, key_ptr, key_len, value_ptr, value_len) }
 }
 
+/// Gets the length of the bytes associated with the key from the host.
+///
 /// # Safety
 /// The caller must ensure that key_ptr + key_len points to valid memory locations.
-///
-/// Gets the length of the bytes associated with the key from the host.
 pub unsafe fn get_bytes_len(ctx: &ProgramContext, key_ptr: *const u8, key_len: usize) -> i32 {
     unsafe { _get_bytes_len(ctx.program_id, key_ptr, key_len) }
 }
 
+/// Gets the bytes associated with the key from the host.
+///
 /// # Safety
 /// The caller must ensure that key_ptr + key_len points to valid memory locations.
-///
-/// Gets the bytes associated with the key from the host.
 pub unsafe fn get_bytes(
     ctx: &ProgramContext,
     key_ptr: *const u8,
