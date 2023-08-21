@@ -142,32 +142,47 @@ and even parallelizes it out-of-the-box, if verifcation is single-threaded.
 ### Multidimensional Fee Pricing
 Instead of mapping transaction resource usage to a one-dimensional unit (i.e. "gas"),
 the `hypersdk` utilizes five independently parameterized unit dimensions (bandwidth,
-compute, storage[read], storage[create], storage[modify]) to meter activity on `hypervms`.
-Each unit dimension has a unique metering schedule (i.e. how many units each instance
-of resource usage costs, like reading a key from disk) and target per rolling 10s window.
+compute, storage[read], storage[create], storage[modify]) to meter activity on a `hypervm`.
+Each unit dimension has a unique metering schedule (i.e. how many units each resource interaction
+costs, like reading a key from disk), target, and max usage per rolling 10s window.
 
-When resources are precisely metered, network resources can be better priced and thus
+When resources are individually metered, network resources can be better priced and thus
 better utilized by network participants. For example, a one-dimensional unit requires
 a VM designer to compare storage access, bandwidth, and compute on a
 [single plane](https://github.com/ava-labs/coreth/blob/master/params/protocol_params.go).
+Significant usage of any resource could drive the price of all resource usage up, even
+if said resource is not utilized at all. For example, a smart contract that counts to 10,000,000
+may use only compute...
 
 If you are interested in learning more about the theory behind multidimensional fee
 pricing, [Dynamic Pricing for Non-fungible Resources: Designing Multidimensional Blockchain Fee Markets](https://arxiv.org/abs/2208.07919)
 provides a great analysis.
 
+#### Invisible Support
+To enable support for multidimensional fees, a `hypervm` implementer doesn't need
+to do anything!
+
 #### Avoiding Complex Consruction
-When generating a transaction, all users need to specify is the max fee
-that they will pay. The amount of units used are inferred...
+With so many unit prices to specify, you may be concerned that transaction
+construction is very complex (specify 5 max units and 5 max unit prices).
+Users, however, only need to specify the `MaxFee` they'll pay across
+all unit dimensions.
 
+When determining if a transaction can be executed, the executor takes
+a pessimistic view and calculates the max amount of units a transaction could use.
 The downside of this approach is that this inference is pessimistic
-and you may need a larger balance than otherwise to perform txs.
-
-The other side of this is that it reduces the viability of dust accounts.
+and you may need a larger balance than otherwise to perform txs. The other
+side of this is that it reduces the viability of dust accounts.
 
 #### No Priority Fees
 Transactions are executed in FIFO order. Price-sorted mempools are only
 required if transactions will sit for a while (not the case with 60s default
-validity window).
+validity window). If a transaction cannot be executed, it will be dropped
+and must be resubmitted by the original issuer.
+
+As a convenient byproduct, this means the `hypersdk` mempool only needs
+to maintain a single heap for all pending transactions (just to clear expired
+txs).
 
 #### Key Flat Fee + Size-Based Fees
 Chunks = 64B
