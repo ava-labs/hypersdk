@@ -57,14 +57,15 @@ impl ProgramContext {
     pub fn store_map_value<T, U>(
         &self,
         map_name: &str,
-        key: U,
+        key: &U,
         value: &T,
     ) -> Result<(), StorageError>
     where
-        T: Serialize,
-        U: Serialize,
+        T: Serialize + std::fmt::Debug,
+        U: Serialize + std::fmt::Debug,
     {
-        let key_bytes = get_map_key(map_name, &key);
+        let key_bytes = get_map_key(map_name, &key)?;
+        println!("key_bytes: {:?}", key_bytes);
         // Add a tag(u8) to the start of val_bytes
         store_key_value(
             self,
@@ -81,11 +82,12 @@ impl ProgramContext {
     pub fn get_map_value<T, U>(&self, map_name: &str, key: &T) -> Result<U, StorageError>
     where
         T: DeserializeOwned,
-        T: Serialize,
+        T: Serialize + std::fmt::Debug,
         U: DeserializeOwned,
-        U: Serialize,
+        U: Serialize + std::fmt::Debug,
     {
         let result: U = get_map_field(self, map_name, key)?;
+        println!("result: {:?}", result);
         Ok(result)
     }
 }
@@ -160,26 +162,29 @@ where
 }
 
 /// Gets the correct key to in the host storage for a [map_name] and [key] within that map  
-fn get_map_key<T>(map_name: &str, key: &T) -> Vec<u8>
+fn get_map_key<T>(map_name: &str, key: &T) -> Result<Vec<u8>, StorageError>
 where
-    T: Serialize,
+    T: Serialize + std::fmt::Debug,
 {
-    [
-        map_name.as_bytes(),
-        &to_vec(key).expect("Serialization failed"),
-    ]
-    .concat()
+    println!("isize: {:?}", isize::MAX);
+    let key_bytes = match to_vec(key) {
+        Ok(bytes) => bytes,
+        Err(_) => return Err(StorageError::InvalidBytes()),
+    };
+    // println!("key_bytes: {:?}", key_bytes);
+    Ok([map_name.as_bytes(), &key_bytes].concat()) // 2147483647
 }
 
 // Gets the value from the map [name] with key [key] from the host and returns it as a ProgramValue.
 fn get_map_field<T, U>(ctx: &ProgramContext, name: &str, key: &T) -> Result<U, StorageError>
 where
     T: DeserializeOwned,
-    T: Serialize,
+    T: Serialize + std::fmt::Debug,
     U: DeserializeOwned,
     U: Serialize,
 {
-    let map_key = get_map_key(name, key);
+    println!("get_map_field: {:?} {:?}", name, key);
+    let map_key = get_map_key(name, key)?;
     let map_value = get_field_as_bytes(ctx, &map_key)?;
     from_slice(&map_value).map_err(|_| StorageError::HostRetrieveError())
 }

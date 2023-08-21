@@ -27,7 +27,7 @@ pub fn get_total_supply(ctx: ProgramContext) -> i64 {
 pub fn mint_to(ctx: ProgramContext, recipient: Address, amount: i64) -> bool {
     let new_amount: i64 = ctx.get_map_value("balances", &recipient).unwrap_or(0);
     println!("new_amount: {}", new_amount);
-    ctx.store_map_value("balances", recipient, &(new_amount + amount))
+    ctx.store_map_value("balances", &recipient, &(new_amount + amount))
         .is_ok()
 }
 
@@ -45,8 +45,8 @@ pub fn transfer(ctx: ProgramContext, sender: Address, recipient: Address, amount
         return false;
     }
     let recipient_balance: i64 = ctx.get_map_value("balances", &recipient).unwrap_or(0);
-    ctx.store_map_value("balances", sender, &(sender_balance - amount))
-        .and_then(|_| ctx.store_map_value("balances", recipient, &(recipient_balance + amount)))
+    ctx.store_map_value("balances", &sender, &(sender_balance - amount))
+        .and_then(|_| ctx.store_map_value("balances", &recipient, &(recipient_balance + amount)))
         .is_ok()
 }
 
