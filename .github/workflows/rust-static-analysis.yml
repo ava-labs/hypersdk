@@ -11,9 +11,6 @@ on:
       - "*"
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
   static_analysis:
     name: rust-lint
