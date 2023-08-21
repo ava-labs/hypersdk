@@ -50,7 +50,9 @@ func MarshalResults(src []*Result) ([]byte, error) {
 	p := codec.NewWriter(size, consts.MaxInt) // could be much larger than [NetworkSizeLimit]
 	p.PackInt(len(src))
 	for _, result := range src {
-		result.Marshal(p)
+		if err := result.Marshal(p); err != nil {
+			return nil, err
+		}
 	}
 	return p.Bytes(), p.Err()
 }

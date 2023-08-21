@@ -13,10 +13,10 @@ import (
 
 const (
 	Bandwidth           Dimension = 0
-	Compute                       = 1
-	StorageRead                   = 2
-	StorageCreate                 = 3
-	StorageModification           = 4
+	Compute             Dimension = 1
+	StorageRead         Dimension = 2
+	StorageCreate       Dimension = 3
+	StorageModification Dimension = 4
 
 	FeeDimensions = 5
 
@@ -24,8 +24,10 @@ const (
 	dimensionStateLen = consts.Uint64Len + window.WindowSliceSize + consts.Uint64Len
 )
 
-type Dimension int
-type Dimensions [FeeDimensions]uint64
+type (
+	Dimension  int
+	Dimensions [FeeDimensions]uint64
+)
 
 type FeeManager struct {
 	raw []byte

@@ -53,7 +53,6 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Prefetch")
 	p.db = db
 	sm := p.blk.vm.StateManager()
-	r := p.blk.vm.Rules(p.blk.Tmstmp)
 	go func() {
 		defer func() {
 			close(p.readyTxs) // let caller know all sets have been readied
@@ -66,7 +65,7 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 			coldReads := map[string]uint16{}
 			warmReads := map[string]uint16{}
 			storage := map[string][]byte{}
-			stateKeys, err := tx.StateKeys(sm, r)
+			stateKeys, err := tx.StateKeys(sm)
 			if err != nil {
 				p.err = err
 				return
@@ -101,7 +100,6 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 			}
 			p.readyTxs <- &txData{tx, storage, coldReads, warmReads}
 		}
-
 	}()
 }
 
@@ -137,7 +135,7 @@ func (p *Processor) Execute(
 
 		// It is critical we explicitly set the scope before each transaction is
 		// processed
-		stateKeys, err := tx.StateKeys(sm, r)
+		stateKeys, err := tx.StateKeys(sm)
 		if err != nil {
 			return nil, 0, 0, err
 		}

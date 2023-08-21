@@ -126,7 +126,7 @@ func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 
 func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
 
-func (t *Transaction) StateKeys(stateMapping StateManager, r Rules) (set.Set[string], error) {
+func (t *Transaction) StateKeys(stateMapping StateManager) (set.Set[string], error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
@@ -185,7 +185,7 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	// state keys.
 	//
 	// TODO: make this a tighter bound (allow for granular storage controls)
-	stateKeys, err := t.StateKeys(sm, r)
+	stateKeys, err := t.StateKeys(sm)
 	if err != nil {
 		return Dimensions{}, err
 	}
@@ -227,7 +227,10 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessage *warp.Message) (Dimensions, error) {
 	authBandwidth, authCompute, authStateKeysMaxChunks := authFactory.MaxUnits()
 	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + authBandwidth
-	stateKeysMaxChunks := append(authStateKeysMaxChunks, action.StateKeysMaxChunks()...) // may overlap but we won't know for sure
+	actionStateKeysMaxChunks := action.StateKeysMaxChunks()
+	stateKeysMaxChunks := make([]uint16, 0, len(authStateKeysMaxChunks)+len(actionStateKeysMaxChunks))
+	stateKeysMaxChunks = append(stateKeysMaxChunks, authStateKeysMaxChunks...)
+	stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
 
 	// Estimate compute costs
 	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())

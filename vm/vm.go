@@ -707,7 +707,7 @@ func (vm *VM) Submit(
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
-	state := &chain.ReadOnlyDatabase{rawState}
+	state := chain.NewReadOnlyDatabase(rawState)
 	feeRaw, err := state.GetValue(ctx, vm.StateManager().FeeKey())
 	if err != nil {
 		return []error{err}
@@ -745,7 +745,7 @@ func (vm *VM) Submit(
 		}
 
 		// Ensure state keys are valid
-		_, err := tx.StateKeys(vm.c.StateManager(), r)
+		_, err := tx.StateKeys(vm.c.StateManager())
 		if err != nil {
 			errs = append(errs, ErrNotAdded)
 			continue

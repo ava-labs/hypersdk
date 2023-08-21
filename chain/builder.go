@@ -176,7 +176,7 @@ func BuildBlock(
 
 				// Prefetch all values from state
 				storage := map[string][]byte{}
-				stateKeys, err := tx.StateKeys(sm, r)
+				stateKeys, err := tx.StateKeys(sm)
 				if err != nil {
 					// Drop bad transaction and continue
 					//
@@ -291,7 +291,7 @@ func BuildBlock(
 
 			// Populate required transaction state and restrict which keys can be used
 			txStart := ts.OpIndex()
-			stateKeys, err := next.StateKeys(sm, r)
+			stateKeys, err := next.StateKeys(sm)
 			if err != nil {
 				// This should not happen because we check this before
 				// adding a transaction to the mempool.

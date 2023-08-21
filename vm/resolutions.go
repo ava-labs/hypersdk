@@ -438,7 +438,7 @@ func (vm *VM) RecordClearedMempool() {
 	vm.metrics.clearedMempool.Inc()
 }
 
-func (vm *VM) UnitPrices(ctx context.Context) (chain.Dimensions, error) {
+func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
 	v, err := vm.stateDB.Get(vm.StateManager().FeeKey())
 	if err != nil {
 		return chain.Dimensions{}, err

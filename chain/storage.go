@@ -10,6 +10,10 @@ type ReadOnlyDatabase struct {
 	Database
 }
 
+func NewReadOnlyDatabase(db Database) *ReadOnlyDatabase {
+	return &ReadOnlyDatabase{db}
+}
+
 func (*ReadOnlyDatabase) Insert(_ context.Context, _ []byte, _ []byte) error {
 	return ErrModificationNotAllowed
 }
