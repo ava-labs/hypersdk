@@ -133,18 +133,19 @@ verification in this function and save any state lookups for the full `Auth.Veri
 stateless activities during execution can greatly reduce the e2e verification
 time of a block when running on powerful hardware.
 
-### Multi-Dimensional Fee Pricing
-Instead of mapping resource usage to a one-dimensional unit (like "gas"),
-the `hypersdk` utilizes five unit dimensions (bandwidth, compute, storage[read],
-storage[create], storage[modify]) to meter activity on `hypervms`. Each unit dimension
-has a unique unit price that fluctuates based on how many units are processed on-chain.
+### Multidimensional Fee Pricing
+Instead of mapping transaction resource usage to a one-dimensional unit (i.e. "gas"),
+the `hypersdk` utilizes five independently parameterized dimensions (bandwidth,
+compute, storage[read], storage[create], storage[modify]) to meter activity on `hypervms`.
+
+Each unit dimension has a unique unit price that fluctuates based on how many units are processed on-chain.
 
 When resources are more granularly metered, resources can be better utilized
 in the network.
 
 This allows for better resource utilization of the entire network.
 
-https://arxiv.org/pdf/2208.07919.pdf
+https://arxiv.org/abs/2208.07919
 
 TODO: advanced fee model that discounts for warm reads/modifications across
 the block
@@ -174,6 +175,11 @@ is really a compute question and should be charged
 To hide this complexity from the user, everything other than compute units
 are done in the background. Just need to add uint16 to end of any keys
 to indicate the max bytes they could store.
+
+##### Key Flat Fee + Size-Based Fees
+
+##### Hot Access Discount
+
 
 ### Account Abstraction
 The `hypersdk` makes no assumptions about how `Actions` (the primitive for
