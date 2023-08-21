@@ -75,24 +75,19 @@ func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) []string {
 }
 
 func (i *ImportAsset) StateKeysMaxChunks() []uint16 {
+	// Can't use [warpTransfer] because it may not be populated yet
 	chunks := []uint16{}
-	if i.warpTransfer.Return {
-		chunks = append(chunks, storage.LoanChunks)
-		chunks = append(chunks, storage.BalanceChunks)
-	} else {
-		chunks = append(chunks, storage.AssetChunks)
-		chunks = append(chunks, storage.BalanceChunks)
-	}
+	chunks = append(chunks, storage.LoanChunks)
+	chunks = append(chunks, storage.AssetChunks)
+	chunks = append(chunks, storage.BalanceChunks)
 
 	// If the [warpTransfer] specified a reward, we add the state key to make
 	// sure it is paid.
-	if i.warpTransfer.Reward > 0 {
-		chunks = append(chunks, storage.BalanceChunks)
-	}
+	chunks = append(chunks, storage.BalanceChunks)
 
 	// If the [warpTransfer] requests a swap, we add the state keys to transfer
 	// the required balances.
-	if i.Fill && i.warpTransfer.SwapIn > 0 {
+	if i.Fill {
 		chunks = append(chunks, storage.BalanceChunks)
 		chunks = append(chunks, storage.BalanceChunks)
 		chunks = append(chunks, storage.BalanceChunks)

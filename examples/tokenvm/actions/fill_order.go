@@ -155,7 +155,7 @@ func (f *FillOrder) Execute(
 	if err != nil {
 		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	return false, FillOrderComputeUnits, output, nil, nil
+	return true, FillOrderComputeUnits, output, nil, nil
 }
 
 func (*FillOrder) MaxComputeUnits(chain.Rules) uint64 {
