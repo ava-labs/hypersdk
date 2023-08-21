@@ -2,7 +2,7 @@
 
 set -x
 
-CARGO_TARGET_DIR=../examples/testdata/wasm_build
+CARGO_TARGET_DIR=../examples/testdata/target
 
 rm -r $CARGO_TARGET_DIR
 
