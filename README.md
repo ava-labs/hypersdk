@@ -134,11 +134,12 @@ stateless activities during execution can greatly reduce the e2e verification
 time of a block when running on powerful hardware.
 
 ### Multi-Dimensional Fee Pricing
-Instead of using a single, fungible fee unit (like "gas"), the `hypersdk`
-incorporates 5 fee dimensions (bandwidth, compute, storage[read], storage[create],
-storage[modify]) to 
+Instead of mapping all resource usage to a one-dimensional unit (like "gas"),
+the `hypersdk` utilizes five unit dimensions (bandwidth, compute, storage[read],
+storage[create], storage[modify]) to meter activity on `hypervms`. Each unit dimension
+has a unique unit price that fluctuates based on how many units are processed on-chain.
 
-TODO: instead of relying on a single price/units, there are 5
+When resources are more granularly metered, nodes can be more used.
 
 This allows for better resource utilization of the entire network.
 
