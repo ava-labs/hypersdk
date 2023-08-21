@@ -240,13 +240,11 @@ func (th *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 	return removed
 }
 
-// Top removes the next items in the mempool.
-//
-// TODO: you either gossip or build
+// Top iterates over the highest-valued items in the mempool.
 func (th *Mempool[T]) Top(
 	ctx context.Context,
 	targetDuration time.Duration,
-	f func(context.Context, T) (cont bool, err error),
+	f func(context.Context, T) (cont bool, restore bool, err error),
 ) error {
 	ctx, span := th.tracer.Start(ctx, "Mempool.Top")
 	defer span.End()
@@ -254,15 +252,28 @@ func (th *Mempool[T]) Top(
 	th.mu.Lock()
 	defer th.mu.Unlock()
 
-	start := time.Now()
+	var (
+		start           = time.Now()
+		restorableItems = []T{}
+		err             error
+	)
 	for th.eh.Len() > 0 {
 		next, _ := th.popNext()
-		cont, fErr := f(ctx, next)
+		cont, restore, fErr := f(ctx, next)
+		if restore {
+			// Waiting to restore unused transactions ensures that an account will be
+			// excluded from future price mempool iterations
+			restorableItems = append(restorableItems, next)
+		}
 		if !cont || time.Since(start) > targetDuration || fErr != nil {
-			return fErr
+			err = fErr
+			break
 		}
 	}
-	return nil
+
+	// Restore unused items
+	th.add(restorableItems, true)
+	return err
 }
 
 // StartStreaming allows for async iteration over the highest-value items
