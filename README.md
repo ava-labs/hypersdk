@@ -134,9 +134,10 @@ stateless activities during execution can greatly reduce the e2e verification
 time of a block when running on powerful hardware.
 
 #### [Optional] Batch Signature Verification
-Some cryptographic schemes provide batch verification support...
-TODO: batch verification of ed25519, generically supported for any crypto that provides this
-capability.
+Some public-key signature systems, like [Ed25519](https://ed25519.cr.yp.to/), provide support for
+verifying batches of signatures at once (which typically is more efficient than verifying each signature
+independently). The `hypersdk` supports this capability generically with `AuthBatchVerifier`
+and even parallelizes it out-of-the-box, if verifcation is single-threaded.
 
 ### Multidimensional Fee Pricing
 Instead of mapping transaction resource usage to a one-dimensional unit (i.e. "gas"),
