@@ -86,13 +86,15 @@ fn store_key_value<T: Store>(
     let val_bytes = std::iter::once(value.as_tag().as_u8())
         .chain(value.as_bytes().iter().copied())
         .collect::<Vec<u8>>();
-    match store_bytes(
-        ctx,
-        key_bytes.as_ptr(),
-        key_bytes.len(),
-        val_bytes.as_ptr(),
-        val_bytes.len(),
-    ) {
+    match unsafe {
+        store_bytes(
+            ctx,
+            key_bytes.as_ptr(),
+            key_bytes.len(),
+            val_bytes.as_ptr(),
+            val_bytes.len(),
+        )
+    } {
         0 => Ok(()),
         _ => Err(StorageError::HostStoreError()),
     }
@@ -102,13 +104,13 @@ fn get_field_as_bytes(ctx: &ProgramContext, name: &[u8]) -> Result<Vec<u8>, Stor
     let name_ptr = name.as_ptr();
     let name_len = name.len();
     // First get the length of the bytes from the host.
-    let bytes_len = get_bytes_len(ctx, name_ptr, name_len);
+    let bytes_len = unsafe { get_bytes_len(ctx, name_ptr, name_len) };
     // Speculation that compiler might be optimizing out this if statement.
     if bytes_len < 0 {
         return Err(StorageError::InvalidByteLength(bytes_len as usize));
     }
     // Get_bytes allocates bytes_len memory in the WASM module.
-    let bytes_ptr = get_bytes(ctx, name_ptr, name_len, bytes_len);
+    let bytes_ptr = unsafe { get_bytes(ctx, name_ptr, name_len, bytes_len) };
     // Defensive check here to unsure we don't grab out of bounds memory.
     if bytes_ptr < 0 {
         return Err(StorageError::HostRetrieveError());
@@ -142,7 +144,7 @@ fn get_map_field<T: Store>(
     name: &str,
     key: ProgramValue,
 ) -> Result<T, StorageError> {
-    let map_key = get_map_key(&name, &key);
+    let map_key = get_map_key(name, &key);
     let map_value = get_field_as_bytes(ctx, &map_key)?;
     T::from_bytes(&map_value)
 }
@@ -157,7 +159,7 @@ impl ProgramContext {
         call_args: &[ProgramValue],
     ) -> ProgramValue {
         // hardcode first arg for now
-        let result = host_program_invoke(&self, call_ctx, fn_name, &Self::marshal_args(call_args));
+        let result = host_program_invoke(self, call_ctx, fn_name, &Self::marshal_args(call_args));
         // Hardcode int for now
         ProgramValue::IntObject(result)
     }
