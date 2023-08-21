@@ -183,6 +183,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	// create embedded VMs
 	instances = make([]*instance, vms)
 	gen = genesis.Default()
+	gen.MinUnitPrice = chain.Dimensions{1, 1, 1, 1, 1}
 	// target must be set less than max, otherwise we will iterate through all txs in mempool
 	gen.WindowTargetUnits = chain.Dimensions{hconsts.NetworkSizeLimit - 10*units.KiB, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64} // disable unit price increase
 	gen.MaxBlockUnits = chain.Dimensions{hconsts.NetworkSizeLimit, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64}
@@ -398,7 +399,8 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				for _, result := range blk.Results() {
 					if !result.Success {
 						// Used for debugging
-						fmt.Println(string(result.Output))
+						unitPrices, _ := instances[0].cli.UnitPrices(context.Background())
+						fmt.Println("unit prices:", unitPrices, "used:", result.Units, "fee:", result.Fee, "output:", string(result.Output))
 					}
 					gomega.Ω(result.Success).Should(gomega.BeTrue())
 				}
