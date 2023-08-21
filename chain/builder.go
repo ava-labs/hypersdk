@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"go.opentelemetry.io/otel/attribute"
@@ -34,27 +35,26 @@ const (
 
 var errBlockFull = errors.New("block full")
 
-func HandlePreExecute(
-	err error,
-) (bool /* continue */, bool /* restore */, bool /* remove account */) {
+func HandlePreExecute(log logging.Logger, err error) bool {
 	switch {
 	case errors.Is(err, ErrInsufficientPrice):
-		return true, true, false
+		return false
 	case errors.Is(err, ErrTimestampTooEarly):
-		return true, true, false
+		return true
 	case errors.Is(err, ErrTimestampTooLate):
-		return true, false, false
+		return false
 	case errors.Is(err, ErrInvalidBalance):
-		return true, false, true
+		return false
 	case errors.Is(err, ErrAuthNotActivated):
-		return true, false, false
+		return false
 	case errors.Is(err, ErrAuthFailed):
-		return true, false, false
+		return false
 	case errors.Is(err, ErrActionNotActivated):
-		return true, false, false
+		return false
 	default:
 		// If unknown error, drop
-		return true, false, false
+		log.Warn("unknown PreExecute error", zap.Error(err))
+		return false
 	}
 }
 
@@ -308,13 +308,7 @@ func BuildBlock(
 			authCUs, err := next.PreExecute(ctx, nextFeeManager, sm, r, ts, nextTime)
 			if err != nil {
 				ts.Rollback(ctx, txStart)
-				cont, restore, _ := HandlePreExecute(err)
-				if !cont {
-					restorable = append(restorable, next)
-					execErr = err
-					continue
-				}
-				if restore {
+				if HandlePreExecute(log, err) {
 					restorable = append(restorable, next)
 				}
 				continue

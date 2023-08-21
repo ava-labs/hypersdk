@@ -134,12 +134,13 @@ stateless activities during execution can greatly reduce the e2e verification
 time of a block when running on powerful hardware.
 
 ### Multi-Dimensional Fee Pricing
-Instead of mapping all resource usage to a one-dimensional unit (like "gas"),
+Instead of mapping resource usage to a one-dimensional unit (like "gas"),
 the `hypersdk` utilizes five unit dimensions (bandwidth, compute, storage[read],
 storage[create], storage[modify]) to meter activity on `hypervms`. Each unit dimension
 has a unique unit price that fluctuates based on how many units are processed on-chain.
 
-When resources are more granularly metered, nodes can be more used.
+When resources are more granularly metered, resources can be better utilized
+in the network.
 
 This allows for better resource utilization of the entire network.
 
@@ -160,7 +161,9 @@ and you may need a larger balance than otherwise to perform txs.
 The other side of this is that it reduces the viability of dust accounts.
 
 #### No Priority Fees
-Transactions are executed in FIFO order.
+Transactions are executed in FIFO order. Price-sorted mempools are only
+required if transactions will sit for a while (not the case with 60s default
+validity window).
 
 #### Storage
 Chunks = 64B
