@@ -181,6 +181,12 @@ are done in the background. Just need to add uint16 to end of any keys
 to indicate the max bytes they could store.
 
 #### Hot Access Discount
+If a key has already been accessed in a given block, any future access
+will be cheaper. This goes for both fetching and updating.
+
+If someone is going to modify a value and then another tx comes along and
+modifies the same value, that is much cheaper for the `hypervm` to process (in many
+cases it will be no additional cost unless the value set is much larger).
 
 ### Account Abstraction
 The `hypersdk` makes no assumptions about how `Actions` (the primitive for
