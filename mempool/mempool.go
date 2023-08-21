@@ -337,6 +337,7 @@ func (th *Mempool[T]) FinishStreaming(ctx context.Context, restorable []T) int {
 
 	restored := len(restorable)
 	th.streamedItems = nil
+	// TODO: add to the front
 	th.add(restorable)
 	if th.nextStreamFetched {
 		th.add(th.nextStream)
