@@ -27,6 +27,12 @@ pub struct Program {
     fields: HashMap<String, ProgramValue>,
 }
 
+impl Default for Program {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Program {
     pub fn new() -> Self {
         Program {
@@ -52,7 +58,7 @@ impl Program {
 impl Store for ProgramValue {
     /// We use Cow because in the case of i64, we need to own & allocate a new Vec<u8> to store related bytes.
     /// In all other cases we can simply borrow.
-    fn as_bytes<'a>(&'a self) -> Cow<'a, [u8]> {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
         match self {
             ProgramValue::StringObject(val) => Cow::Borrowed(val.as_bytes()),
             ProgramValue::MapObject => Cow::Borrowed(&[]),
@@ -75,7 +81,7 @@ impl Store for ProgramValue {
     where
         Self: Sized,
     {
-        if bytes.len() == 0 {
+        if bytes.is_empty() {
             return Err(StorageError::InvalidByteLength(0));
         }
         // First byte must represent the "tag" of the ProgramValue.
@@ -128,6 +134,6 @@ fn int_from_bytes(bytes: &[u8]) -> Result<i64, StorageError> {
     }
 
     let mut array = [0u8; 8];
-    array.copy_from_slice(&bytes);
+    array.copy_from_slice(bytes);
     Ok(i64::from_be_bytes(array))
 }

@@ -42,7 +42,12 @@ pub fn init_program_storage() -> ProgramContext {
     unsafe { ProgramContext::from(_init_program()) }
 }
 
-pub fn store_bytes(
+/// Stores the bytes at value_ptr to the bytes at key ptr on the host.
+///
+/// # Safety
+/// The caller must ensure that key_ptr + key_len and
+/// value_ptr + value_len point to valid memory locations.
+pub unsafe fn store_bytes(
     ctx: &ProgramContext,
     key_ptr: *const u8,
     key_len: usize,
@@ -52,14 +57,28 @@ pub fn store_bytes(
     unsafe { _store_bytes(ctx.program_id, key_ptr, key_len, value_ptr, value_len) }
 }
 
-pub fn get_bytes_len(ctx: &ProgramContext, key_ptr: *const u8, key_len: usize) -> i32 {
+/// Gets the length of the bytes associated with the key from the host.
+///
+/// # Safety
+/// The caller must ensure that key_ptr + key_len points to valid memory locations.
+pub unsafe fn get_bytes_len(ctx: &ProgramContext, key_ptr: *const u8, key_len: usize) -> i32 {
     unsafe { _get_bytes_len(ctx.program_id, key_ptr, key_len) }
 }
 
-pub fn get_bytes(ctx: &ProgramContext, key_ptr: *const u8, key_len: usize, val_len: i32) -> i32 {
+/// Gets the bytes associated with the key from the host.
+///
+/// # Safety
+/// The caller must ensure that key_ptr + key_len points to valid memory locations.
+pub unsafe fn get_bytes(
+    ctx: &ProgramContext,
+    key_ptr: *const u8,
+    key_len: usize,
+    val_len: i32,
+) -> i32 {
     unsafe { _get_bytes(ctx.program_id, key_ptr, key_len, val_len) }
 }
 
+/// Invokes another program and returns the result.
 pub fn host_program_invoke(
     ctx: &ProgramContext,
     call_ctx: &ProgramContext,
@@ -100,6 +119,10 @@ pub fn alloc(len: usize) -> *mut u8 {
     ptr
 }
 
+/// # Safety
+/// `ptr` must be a pointer to a block of memory.
+///
+/// deallocates the memory block at `ptr` with a given `capacity`.
 #[no_mangle]
 pub unsafe fn dealloc(ptr: *mut u8, capacity: usize) {
     // always deallocate the full capacity, initialize vs uninitialized memory is irrelevant here

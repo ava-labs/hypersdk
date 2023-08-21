@@ -1,5 +1,5 @@
 [package]
-name = "token_program"
+name = "counter"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 expose_macro = { version = "0.1.0", path = "../../expose_macro" }
 wasmlanche_sdk = { version = "0.1.0", path = "../../wasmlanche_sdk" }
-
 
 [lib]
 crate-type = ["cdylib"] # set the crate(needed for cargo build to work properly)

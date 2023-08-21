@@ -38,7 +38,7 @@ impl From<i64> for ProgramValue {
 
 impl From<Address> for ProgramValue {
     fn from(value: Address) -> Self {
-        ProgramValue::AddressObject(value.clone())
+        ProgramValue::AddressObject(value)
     }
 }
 
