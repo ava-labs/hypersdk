@@ -164,7 +164,7 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
-		func(ictx context.Context, next *chain.Transaction) (cont bool, restore bool, err error) {
+		func(ictx context.Context, next *chain.Transaction) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
 				return true, false, nil
