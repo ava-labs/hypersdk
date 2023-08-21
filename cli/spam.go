@@ -29,7 +29,6 @@ import (
 )
 
 const (
-	feePerTx              = 100_000
 	defaultRange          = 32
 	issuerShutdownTimeout = 60 * time.Second
 )
@@ -37,8 +36,6 @@ const (
 var (
 	issuerWg sync.WaitGroup
 	exiting  sync.Once
-
-	transferFee uint64
 
 	l            sync.Mutex
 	confirmedTxs uint64
@@ -49,7 +46,7 @@ var (
 )
 
 func (h *Handler) Spam(
-	maxTxBacklog int, randomRecipient bool,
+	maxTxBacklog int, maxFee *uint64, randomRecipient bool,
 	createClient func(string, uint32, ids.ID), // must save on caller side
 	getFactory func(ed25519.PrivateKey) chain.AuthFactory,
 	lookupBalance func(int, string) (uint64, error),
@@ -102,6 +99,17 @@ func (h *Handler) Spam(
 		return err
 	}
 
+	// Compute max units
+	parser, err := getParser(ctx, chainID)
+	if err != nil {
+		return err
+	}
+	action := getTransfer(keys[0].PublicKey(), 0)
+	maxUnits, err := chain.EstimateMaxUnits(parser.Rules(time.Now().UnixMilli()), action, factory, nil)
+	if err != nil {
+		return err
+	}
+
 	// Distribute funds
 	numAccounts, err := h.PromptInt("number of accounts")
 	if err != nil {
@@ -115,7 +123,19 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	witholding := uint64(feePerTx * numAccounts)
+	unitPrices, err := cli.UnitPrices(ctx)
+	if err != nil {
+		return err
+	}
+	feePerTx, err := chain.MulSum(unitPrices, maxUnits)
+	if err != nil {
+		return err
+	}
+	if maxFee != nil {
+		feePerTx = *maxFee
+		utils.Outf("{{cyan}}overriding max fee:{{/}} %d\n", feePerTx)
+	}
+	witholding := feePerTx * uint64(numAccounts)
 	distAmount := (balance - witholding) / uint64(numAccounts)
 	utils.Outf(
 		"{{yellow}}distributing funds to each account:{{/}} %s %s\n",
@@ -128,10 +148,6 @@ func (h *Handler) Spam(
 		return err
 	}
 	funds := map[ed25519.PublicKey]uint64{}
-	parser, err := getParser(ctx, chainID)
-	if err != nil {
-		return err
-	}
 	var fundsL sync.Mutex
 	for i := 0; i < numAccounts; i++ {
 		// Create account
@@ -142,7 +158,7 @@ func (h *Handler) Spam(
 		accounts[i] = pk
 
 		// Send funds
-		_, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, getTransfer(pk.PublicKey(), distAmount), factory)
+		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(pk.PublicKey(), distAmount), factory, feePerTx)
 		if err != nil {
 			return err
 		}
@@ -182,6 +198,11 @@ func (h *Handler) Spam(
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	// confirm txs (track failure rate)
+	unitPrices, err = clients[0].c.UnitPrices(ctx)
+	if err != nil {
+		return err
+	}
+	PrintUnitPrices(unitPrices)
 	cctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	for _, client := range clients {
@@ -209,6 +230,12 @@ func (h *Handler) Spam(
 				}
 				l.Unlock()
 				psent = current
+
+				unitPrices, err = clients[0].c.UnitPrices(ctx)
+				if err != nil {
+					continue
+				}
+				PrintUnitPrices(unitPrices)
 			case <-cctx.Done():
 				return
 			}
@@ -216,11 +243,6 @@ func (h *Handler) Spam(
 	}()
 
 	// broadcast txs
-	unitPrices, err := clients[0].c.UnitPrices(ctx)
-	if err != nil {
-		return err
-	}
-	PrintUnitPrices(unitPrices)
 	g, gctx := errgroup.WithContext(ctx)
 	for ri := 0; ri < numAccounts; ri++ {
 		i := ri
@@ -271,22 +293,19 @@ func (h *Handler) Spam(
 						v := selected[recipient] + 1
 						selected[recipient] = v
 						action := getTransfer(recipient, uint64(v))
-						maxUnits, err := chain.EstimateMaxUnits(parser.Rules(nextTime*consts.MillisecondsPerSecond), action, factory, nil)
-						if err != nil {
-							utils.Outf("{{orange}}failed to estimate max units:{{/}} %v\n", err)
-							return err
-						}
-						maxFee, err := chain.MulSum(unitPrices, maxUnits)
+						fee, err := chain.MulSum(unitPrices, maxUnits)
 						if err != nil {
 							utils.Outf("{{orange}}failed to estimate max fee:{{/}} %v\n", err)
 							return err
 						}
-						_, tx, err := issuer.c.GenerateTransactionManual(parser, nil, action, factory, maxFee, tm)
+						if maxFee != nil {
+							fee = *maxFee
+						}
+						_, tx, err := issuer.c.GenerateTransactionManual(parser, nil, action, factory, fee, tm)
 						if err != nil {
 							utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
 							continue
 						}
-						transferFee = maxFee
 						if err := issuer.d.RegisterTx(tx); err != nil {
 							issuer.l.Lock()
 							if issuer.d.Closed() {
@@ -310,7 +329,7 @@ func (h *Handler) Spam(
 							}
 							continue
 						}
-						balance -= (maxFee + uint64(v))
+						balance -= (fee + uint64(v))
 						issuer.l.Lock()
 						issuer.outstandingTxs++
 						issuer.l.Unlock()
@@ -362,6 +381,17 @@ func (h *Handler) Spam(
 	cancel()
 
 	// Return funds
+	unitPrices, err = cli.UnitPrices(ctx)
+	if err != nil {
+		return err
+	}
+	feePerTx, err = chain.MulSum(unitPrices, maxUnits)
+	if err != nil {
+		return err
+	}
+	if maxFee != nil {
+		feePerTx = *maxFee
+	}
 	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.PublicKey()))
 	var (
 		returnedBalance uint64
@@ -369,13 +399,16 @@ func (h *Handler) Spam(
 	)
 	for i := 0; i < numAccounts; i++ {
 		balance := funds[accounts[i].PublicKey()]
-		if transferFee > balance {
+		if feePerTx > balance {
 			continue
 		}
 		returnsSent++
 		// Send funds
-		returnAmt := balance - transferFee
-		_, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, getTransfer(key.PublicKey(), returnAmt), getFactory(accounts[i]))
+		returnAmt := balance - feePerTx
+		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(key.PublicKey(), returnAmt), getFactory(accounts[i]), feePerTx)
+		if err != nil {
+			return err
+		}
 		if err != nil {
 			return err
 		}

@@ -34,6 +34,7 @@ var (
 	prometheusFile    string
 	prometheusData    string
 	runPrometheus     bool
+	maxFee            int64
 
 	rootCmd = &cobra.Command{
 		Use:        "morpheus-cli",
@@ -155,6 +156,12 @@ func init() {
 		"max-tx-backlog",
 		72_000,
 		"max tx backlog",
+	)
+	runSpamCmd.PersistentFlags().Int64Var(
+		&maxFee,
+		"max-fee",
+		-1,
+		"max fee per tx",
 	)
 	spamCmd.AddCommand(
 		runSpamCmd,
