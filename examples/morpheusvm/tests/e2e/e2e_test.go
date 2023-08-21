@@ -406,7 +406,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			// Generate transaction
 			parser, err := instances[0].lcli.Parser(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
-			submit, tx, fee, err := instances[0].cli.GenerateTransaction(
+			submit, tx, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
 				nil,
@@ -423,7 +423,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, err := instances[0].lcli.WaitForTransaction(ctx, tx.ID())
+			success, fee, err := instances[0].lcli.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(success).Should(gomega.BeTrue())
@@ -751,7 +751,7 @@ func acceptTransaction(cli *rpc.JSONRPCClient, lcli *lrpc.JSONRPCClient) {
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 		hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-		success, err := lcli.WaitForTransaction(ctx, tx.ID())
+		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
 		cancel()
 		if err != nil {
 			hutils.Outf("{{red}}cannot find transaction: %v{{/}}\n", err)
