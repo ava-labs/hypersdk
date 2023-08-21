@@ -49,7 +49,7 @@ func (g *Manual) ForceGossip(ctx context.Context) error {
 		func(ictx context.Context, next *chain.Transaction) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
-				return true, true, nil
+				return true, false, nil
 			}
 
 			// Gossip up to [consts.NetworkSizeLimit]
