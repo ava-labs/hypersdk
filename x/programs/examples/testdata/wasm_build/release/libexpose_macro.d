@@ -1,0 +1,1 @@
+/Users/sam.liokumovich/Documents/WASM/hypersdk/x/programs/rust/../examples/testdata/wasm_build/release/libexpose_macro.dylib: /Users/sam.liokumovich/Documents/WASM/hypersdk/x/programs/rust/expose_macro/src/lib.rs
