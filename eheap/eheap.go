@@ -57,9 +57,9 @@ func (eh *ExpiryHeap[T]) Remove(id ids.ID) (T, bool) {
 	return minEntry.Item, true
 }
 
-// SetMinVal removes all elements in eh with a value less than [val]. Returns
+// SetMin removes all elements in eh with a value less than [val]. Returns
 // the list of removed elements.
-func (eh *ExpiryHeap[T]) SetMinVal(val int64) []T {
+func (eh *ExpiryHeap[T]) SetMin(val int64) []T {
 	removed := []T{}
 	for {
 		min, ok := eh.PeekMin()
