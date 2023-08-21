@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type TestItem struct {
@@ -40,48 +40,49 @@ func GenerateTestItem(str string) *TestItem {
 
 // Original source: https://gist.github.com/pje/90e727f80685c78a6c1cfff35f62155a
 func TestList(t *testing.T) {
+	require := require.New(t)
 	l := List[*TestItem]{}
 
-	assert.Zero(t, l.root)
-	assert.Zero(t, l.Size())
-	assert.Zero(t, l.First())
-	assert.Zero(t, l.Last())
+	require.Zero(l.root)
+	require.Zero(l.Size())
+	require.Zero(l.First())
+	require.Zero(l.Last())
 
 	l.PushFront(GenerateTestItem("foo"))
-	assert.Equal(t, 1, l.Size())
-	assert.Equal(t, "foo", l.First().Value().Str())
+	require.Equal(1, l.Size())
+	require.Equal("foo", l.First().Value().Str())
 
 	l.PushFront(GenerateTestItem("bar"))
-	assert.Equal(t, 2, l.Size())
-	assert.Equal(t, "bar", l.First().Value().Str())
-	assert.Equal(t, "foo", l.Last().Value().Str())
+	require.Equal(2, l.Size())
+	require.Equal("bar", l.First().Value().Str())
+	require.Equal("foo", l.Last().Value().Str())
 
 	l.PushFront(GenerateTestItem("baz"))
-	assert.Equal(t, 3, l.Size())
-	assert.Equal(t, "baz", l.First().Value().Str())
-	assert.Equal(t, "foo", l.Last().Value().Str())
+	require.Equal(3, l.Size())
+	require.Equal("baz", l.First().Value().Str())
+	require.Equal("foo", l.Last().Value().Str())
 
 	// list is now (baz, bar, foo)
-	assert.Equal(t, "bar", l.First().Next().Value().Str())
-	assert.Nil(t, l.First().Prev())
-	assert.Equal(t, "foo", l.First().Next().Next().Value().Str())
-	assert.Equal(t, "baz", l.First().Next().Prev().Value().Str())
+	require.Equal("bar", l.First().Next().Value().Str())
+	require.Nil(l.First().Prev())
+	require.Equal("foo", l.First().Next().Next().Value().Str())
+	require.Equal("baz", l.First().Next().Prev().Value().Str())
 
 	v := l.Remove(l.First())
-	assert.Equal(t, 2, l.Size())
-	assert.Equal(t, "baz", v.Str())
-	assert.Equal(t, "bar", l.First().Value().Str())
-	assert.Equal(t, "foo", l.Last().Value().Str())
+	require.Equal(2, l.Size())
+	require.Equal("baz", v.Str())
+	require.Equal("bar", l.First().Value().Str())
+	require.Equal("foo", l.Last().Value().Str())
 
 	v = l.Remove(l.First())
-	assert.Equal(t, 1, l.Size())
-	assert.Equal(t, "bar", v.Str())
-	assert.Equal(t, "foo", l.First().Value().Str())
-	assert.Equal(t, "foo", l.Last().Value().Str())
+	require.Equal(1, l.Size())
+	require.Equal("bar", v.Str())
+	require.Equal("foo", l.First().Value().Str())
+	require.Equal("foo", l.Last().Value().Str())
 
 	v = l.Remove(l.First())
-	assert.Equal(t, 0, l.Size())
-	assert.Equal(t, "foo", v.Str())
-	assert.Nil(t, l.First())
-	assert.Nil(t, l.Last())
+	require.Equal(0, l.Size())
+	require.Equal("foo", v.Str())
+	require.Nil(l.First())
+	require.Nil(l.Last())
 }

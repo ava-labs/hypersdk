@@ -21,6 +21,9 @@ type Item interface {
 // similar functionality as container/list but uses
 // generics.
 //
+// This data structure is used to implement a FIFO mempool, which
+// requires arbitrary deletion of elements.
+//
 // Original source: https://gist.github.com/pje/90e727f80685c78a6c1cfff35f62155a
 type List[T Item] struct {
 	root Element[T]
@@ -103,7 +106,7 @@ func (l *List[T]) Size() int {
 }
 
 func (l *List[T]) init() {
-	l.root = *new(Element[T])
+	l.root = Element[T]{}
 	l.root.next = &l.root
 	l.root.prev = &l.root
 }

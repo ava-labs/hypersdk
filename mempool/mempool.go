@@ -166,7 +166,7 @@ func (m *Mempool[T]) PeekNext(ctx context.Context) (T, bool) {
 	if first == nil {
 		return *new(T), false
 	}
-	return first.Value, true
+	return first.Value(), true
 }
 
 // PopNext removes and returns the highest valued item in m.eh.
@@ -233,8 +233,8 @@ func (m *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 	removed := make([]T, len(removedElems))
 	for i, remove := range removedElems {
 		m.queue.Remove(remove)
-		m.removeFromOwned(remove.Value)
-		removed[i] = remove.Value
+		m.removeFromOwned(remove.Value())
+		removed[i] = remove.Value()
 	}
 	return removed
 }
