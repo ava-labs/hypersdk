@@ -7,10 +7,40 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
+
+const testPayer = "testPayer"
+
+type TestItem struct {
+	id        ids.ID
+	payer     string
+	timestamp int64
+}
+
+func (mti *TestItem) ID() ids.ID {
+	return mti.id
+}
+
+func (mti *TestItem) Payer() string {
+	return mti.payer
+}
+
+func (mti *TestItem) Expiry() int64 {
+	return mti.timestamp
+}
+
+func GenerateTestItem(payer string, t int64) *TestItem {
+	id := ids.GenerateTestID()
+	return &TestItem{
+		id:        id,
+		payer:     payer,
+		timestamp: t,
+	}
+}
 
 func TestMempool(t *testing.T) {
 	require := require.New(t)
@@ -19,19 +49,16 @@ func TestMempool(t *testing.T) {
 
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
-	txm := New[*MempoolTestItem](tracer, 3, 16, nil)
+	txm := New[*TestItem](tracer, 3, 16, nil)
 
-	for _, i := range []uint64{100, 200, 300, 400} {
-		item := GenerateTestItem(testPayer, 1, i)
-		items := []*MempoolTestItem{item}
+	for _, i := range []int64{100, 200, 300, 400} {
+		item := GenerateTestItem(testPayer, i)
+		items := []*TestItem{item}
 		txm.Add(ctx, items)
 	}
-	max, ok := txm.PeekMax(ctx)
+	next, ok := txm.PeekNext(ctx)
 	require.True(ok)
-	require.Equal(uint64(400), max.UnitPrice())
-	min, ok := txm.PeekMin(ctx)
-	require.True(ok)
-	require.Equal(uint64(200), min.UnitPrice())
+	require.Equal(int64(100), next.Expiry())
 	require.Equal(3, txm.Len(ctx))
 }
 
@@ -41,18 +68,15 @@ func TestMempoolAddDuplicates(t *testing.T) {
 	defer ctrl.Finish()
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
-	txm := New[*MempoolTestItem](tracer, 3, 16, nil)
+	txm := New[*TestItem](tracer, 3, 16, nil)
 	// Generate item
-	item := GenerateTestItem(testPayer, 1, 300)
-	items := []*MempoolTestItem{item}
+	item := GenerateTestItem(testPayer, 300)
+	items := []*TestItem{item}
 	txm.Add(ctx, items)
 	require.Equal(1, txm.Len(ctx), "Item not added.")
-	max, ok := txm.PeekMax(ctx)
+	next, ok := txm.PeekNext(ctx)
 	require.True(ok)
-	require.Equal(uint64(300), max.UnitPrice())
-	max, ok = txm.PeekMax(ctx)
-	require.True(ok)
-	require.Equal(uint64(300), max.UnitPrice())
+	require.Equal(int64(300), next.Expiry())
 	// Add again
 	txm.Add(ctx, items)
 	require.Equal(1, txm.Len(ctx), "Item not added.")
@@ -70,17 +94,17 @@ func TestMempoolAddExceedMaxPayerSize(t *testing.T) {
 	payer := "notexempt"
 	exemptPayers := []byte(exemptPayer)
 	// Non exempt payers max of 4
-	txm := New[*MempoolTestItem](tracer, 20, 4, [][]byte{exemptPayers})
+	txm := New[*TestItem](tracer, 20, 4, [][]byte{exemptPayers})
 	// Add 6 transactions for each payer
-	for i := uint64(0); i <= 5; i++ {
-		itemPayer := GenerateTestItem(payer, 1, i)
-		itemExempt := GenerateTestItem(exemptPayer, 1, i)
-		items := []*MempoolTestItem{itemPayer, itemExempt}
+	for i := int64(0); i <= 5; i++ {
+		itemPayer := GenerateTestItem(payer, i)
+		itemExempt := GenerateTestItem(exemptPayer, i)
+		items := []*TestItem{itemPayer, itemExempt}
 		txm.Add(ctx, items)
 	}
 	require.Equal(10, txm.Len(ctx), "Mempool has incorrect txs.")
-	require.Equal(4, len(txm.owned[payer]), "Payer has incorrect txs.")
-	require.Equal(6, len(txm.owned[exemptPayer]), "Payer has incorrect txs.")
+	require.Equal(4, txm.owned[payer], "Payer has incorrect txs.")
+	require.Equal(6, txm.owned[exemptPayer], "Payer has incorrect txs.")
 }
 
 func TestMempoolAddExceedMaxSize(t *testing.T) {
@@ -90,20 +114,23 @@ func TestMempoolAddExceedMaxSize(t *testing.T) {
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 
-	txm := New[*MempoolTestItem](tracer, 3, 20, nil)
+	txm := New[*TestItem](tracer, 3, 20, nil)
 	// Add more tx's than txm.maxSize
-	for i := uint64(0); i <= 9; i++ {
-		item := GenerateTestItem(testPayer, 1, i)
-		items := []*MempoolTestItem{item}
+	for i := int64(0); i < 10; i++ {
+		item := GenerateTestItem(testPayer, i)
+		items := []*TestItem{item}
 		txm.Add(ctx, items)
-		// Since UnitPrice() is increasing, tx should be included
-		require.True(txm.Has(ctx, item.ID()), "TX not included")
+		if i < 3 {
+			require.True(txm.Has(ctx, item.ID()), "TX not included")
+		} else {
+			require.False(txm.Has(ctx, item.ID()), "TX included")
+		}
 	}
 	// Pop and check values
-	for i := uint64(7); i <= 9; i++ {
-		popped, ok := txm.PopMin(ctx)
+	for i := int64(0); i < 3; i++ {
+		popped, ok := txm.PopNext(ctx)
 		require.True(ok)
-		require.Equal(i, popped.UnitPrice(), "Mempool did not pop correct tx.")
+		require.Equal(i, popped.Expiry(), "Mempool did not pop correct tx.")
 	}
 	_, ok := txm.owned[testPayer]
 	require.False(ok, "Payer not removed from owned.")
@@ -117,39 +144,17 @@ func TestMempoolRemoveTxs(t *testing.T) {
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 
-	txm := New[*MempoolTestItem](tracer, 3, 20, nil)
+	txm := New[*TestItem](tracer, 3, 20, nil)
 	// Add
-	item := GenerateTestItem(testPayer, 1, 10)
-	items := []*MempoolTestItem{item}
+	item := GenerateTestItem(testPayer, 10)
+	items := []*TestItem{item}
 	txm.Add(ctx, items)
 	require.True(txm.Has(ctx, item.ID()), "TX not included")
 	// Remove
-	itemNotIn := GenerateTestItem(testPayer, 1, 10)
-	items = []*MempoolTestItem{item, itemNotIn}
+	itemNotIn := GenerateTestItem(testPayer, 10)
+	items = []*TestItem{item, itemNotIn}
 	txm.Remove(ctx, items)
 	require.Equal(0, txm.Len(ctx), "Mempool has incorrect number of txs.")
-}
-
-func TestMempoolRemoveAccount(t *testing.T) {
-	require := require.New(t)
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	ctx := context.TODO()
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
-
-	txm := New[*MempoolTestItem](tracer, 3, 20, nil)
-	// Add
-	item1 := GenerateTestItem(testPayer, 1, 10)
-	item2 := GenerateTestItem(testPayer, 1, 20)
-
-	items := []*MempoolTestItem{item1, item2}
-	txm.Add(ctx, items)
-	require.True(txm.Has(ctx, item1.ID()), "TX not included")
-	require.True(txm.Has(ctx, item2.ID()), "TX not included")
-	txm.RemoveAccount(ctx, testPayer)
-	require.Equal(0, txm.Len(ctx), "Mempool has incorrect number of txs.")
-	_, owned := txm.owned[testPayer]
-	require.False(owned, "Payer not removed from owned.")
 }
 
 func TestMempoolSetMinTimestamp(t *testing.T) {
@@ -159,11 +164,11 @@ func TestMempoolSetMinTimestamp(t *testing.T) {
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 
-	txm := New[*MempoolTestItem](tracer, 20, 20, nil)
+	txm := New[*TestItem](tracer, 20, 20, nil)
 	// Add more tx's than txm.maxSize
-	for i := int64(0); i <= 9; i++ {
-		item := GenerateTestItem(testPayer, i, 10)
-		items := []*MempoolTestItem{item}
+	for i := int64(0); i < 10; i++ {
+		item := GenerateTestItem(testPayer, i)
+		items := []*TestItem{item}
 		txm.Add(ctx, items)
 		require.True(txm.Has(ctx, item.ID()), "TX not included")
 	}
@@ -180,9 +185,4 @@ func TestMempoolSetMinTimestamp(t *testing.T) {
 	}
 	// Mempool has same length
 	require.Equal(5, txm.Len(ctx), "Mempool has incorrect number of txs.")
-}
-
-func TestMempoolBuild(t *testing.T) {
-	require := require.New(t)
-	require.True(true, "not true")
 }
