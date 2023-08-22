@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/timer"
 	"go.uber.org/zap"
 )
@@ -49,6 +50,15 @@ func (b *Time) handleTimerNotify() {
 	b.vm.Logger().Debug("trigger to notify", zap.Int("txs", txs))
 }
 
+func (b *Time) nextTime(now int64, preferred int64) int64 {
+	gap := b.vm.Rules(now).GetMinBlockGap()
+	next := math.Max(b.lastQueue+minBuildGap, preferred+gap)
+	if next < now {
+		return -1
+	}
+	return next
+}
+
 func (b *Time) QueueNotify() {
 	if !b.waiting.CompareAndSwap(false, true) {
 		b.vm.Logger().Debug("unable to acquire waiting lock")
@@ -61,21 +71,15 @@ func (b *Time) QueueNotify() {
 		return
 	}
 	now := time.Now().UnixMilli()
-	gap := b.vm.Rules(now).GetMinBlockGap()
-	var sleep int64
-	if now >= preferredBlk.Tmstmp+gap {
-		if now >= b.lastQueue+minBuildGap {
-			b.ForceNotify()
-			b.waiting.Store(false)
-			txs := b.vm.Mempool().Len(context.TODO())
-			b.vm.Logger().Debug("notifying to build without waiting", zap.Int("txs", txs))
-			return
-		}
-		sleep = b.lastQueue + minBuildGap - now
-	} else {
-		// TODO: this may not respect minBuildGap
-		sleep = preferredBlk.Tmstmp + gap - now
+	next := b.nextTime(now, preferredBlk.Tmstmp)
+	if next < 0 {
+		b.ForceNotify()
+		b.waiting.Store(false)
+		txs := b.vm.Mempool().Len(context.TODO())
+		b.vm.Logger().Debug("notifying to build without waiting", zap.Int("txs", txs))
+		return
 	}
+	sleep := next - now
 	sleepDur := time.Duration(sleep * int64(time.Millisecond))
 	b.timer.SetTimeoutIn(sleepDur)
 	b.vm.Logger().Debug("waiting to notify to build", zap.Duration("t", sleepDur))

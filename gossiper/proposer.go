@@ -214,6 +214,14 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	return nil
 }
 
+func (g *Proposer) notify() {
+	select {
+	case g.q <- struct{}{}:
+		g.lastQueue = time.Now().UnixMilli()
+	default:
+	}
+}
+
 func (g *Proposer) handleNotify() {
 	g.notify()
 	g.waiting.Store(false)
@@ -321,12 +329,4 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 		recipients.Add(proposer)
 	}
 	return g.appSender.SendAppGossipSpecific(ctx, recipients, b)
-}
-
-func (g *Proposer) notify() {
-	select {
-	case g.q <- struct{}{}:
-		g.lastQueue = time.Now().UnixMilli()
-	default:
-	}
 }
