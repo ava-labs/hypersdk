@@ -26,7 +26,6 @@ pub fn get_total_supply(ctx: ProgramContext) -> i64 {
 #[expose]
 pub fn mint_to(ctx: ProgramContext, recipient: Address, amount: i64) -> bool {
     let new_amount: i64 = ctx.get_map_value("balances", &recipient).unwrap_or(0);
-    println!("new_amount: {}", new_amount);
     ctx.store_map_value("balances", &recipient, &(new_amount + amount))
         .is_ok()
 }

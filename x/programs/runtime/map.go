@@ -5,7 +5,6 @@ package runtime
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -70,7 +69,6 @@ func (m *MapModule) initializeFn(_ context.Context, mod api.Module) uint64 {
 }
 
 func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id uint64, keyPtr uint32, keyLength uint32, valuePtr uint32, valueLength uint32) int32 {
-	fmt.Println("storing bytes")
 	_, ok := m.store.state[id]
 	if !ok {
 		return mapErr
@@ -91,19 +89,16 @@ func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id uint64, k
 	copy(copiedValue, valBuf)
 
 	m.store.state[id][string(keyBuf)] = copiedValue
-	fmt.Println("ending store bytes")
 
 	return mapOk
 }
 
 func (m *MapModule) getBytesLenFn(_ context.Context, mod api.Module, id uint64, keyPtr uint32, keyLength uint32) int32 {
-	fmt.Println("keyLength: ", keyLength)
 	_, ok := m.store.state[id]
 	if !ok {
 		return mapErr
 	}
 	buf, ok := utils.GetBuffer(mod, keyPtr, keyLength)
-	fmt.Println("buf: ", buf)
 	if !ok {
 		return mapErr
 	}
@@ -111,14 +106,11 @@ func (m *MapModule) getBytesLenFn(_ context.Context, mod api.Module, id uint64, 
 	if !ok {
 		return mapErr
 	}
-	fmt.Println("ending: ", keyLength)
 	return int32(len(val))
 }
 
 func (m *MapModule) getBytesFn(ctx context.Context, mod api.Module, id uint64, keyPtr uint32, keyLength int32, valLength int32) int32 {
 	// Ensure the key and value lengths are positive
-	fmt.Println("keyLength: ", keyLength)
-	fmt.Println("valLength: ", keyLength)
 	if valLength < 0 || keyLength < 0 {
 		return mapErr
 	}

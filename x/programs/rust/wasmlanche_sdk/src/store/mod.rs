@@ -2,36 +2,10 @@ use serde::de::DeserializeOwned;
 use serde_json::from_slice;
 
 use crate::errors::StorageError;
-use crate::host::{get_bytes, get_bytes_len, host_program_invoke, store_bytes};
+use crate::host::{get_bytes, get_bytes_len, store_bytes};
 use serde::Serialize;
 use serde_json::to_vec;
-use serde_json::{from_str, to_string};
-use std::borrow::Cow;
 use std::str;
-
-pub struct Tag(pub u8);
-
-impl Tag {
-    pub fn as_u8(&self) -> u8 {
-        self.0
-    }
-}
-
-impl From<u8> for Tag {
-    fn from(tag: u8) -> Self {
-        Tag(tag)
-    }
-}
-
-/// Store represents any type that can be stored in the host.
-pub trait Store {
-    fn as_bytes(&self) -> Cow<'_, [u8]>;
-    /// Returns the tag of the type.
-    fn as_tag(&self) -> Tag;
-    fn from_bytes(bytes: &[u8]) -> Result<Self, StorageError>
-    where
-        Self: Sized;
-}
 
 /// ProgramContext defines helper methods for the program builder
 /// to interact with the host.
@@ -65,7 +39,6 @@ impl ProgramContext {
         U: Serialize + std::fmt::Debug,
     {
         let key_bytes = get_map_key(map_name, &key)?;
-        println!("key_bytes: {:?}", key_bytes);
         // Add a tag(u8) to the start of val_bytes
         store_key_value(
             self,
@@ -81,13 +54,10 @@ impl ProgramContext {
     }
     pub fn get_map_value<T, U>(&self, map_name: &str, key: &T) -> Result<U, StorageError>
     where
-        T: DeserializeOwned,
-        T: Serialize + std::fmt::Debug,
-        U: DeserializeOwned,
-        U: Serialize + std::fmt::Debug,
+        T: DeserializeOwned + Serialize + std::fmt::Debug,
+        U: DeserializeOwned + Serialize + std::fmt::Debug,
     {
         let result: U = get_map_field(self, map_name, key)?;
-        println!("result: {:?}", result);
         Ok(result)
     }
 }
@@ -147,11 +117,6 @@ fn get_field_as_bytes(ctx: &ProgramContext, name: &[u8]) -> Result<Vec<u8>, Stor
     Ok(bytes)
 }
 
-/// Converts a byte vector to a string
-// pub fn to_string(bytes: Vec<u8>) -> Result<String, std::string::FromUtf8Error> {
-//     String::from_utf8(bytes)
-// }
-
 /// Gets the field [name] from the host and returns it as a ProgramValue.
 fn get_field<T>(ctx: &ProgramContext, name: &str) -> Result<T, StorageError>
 where
@@ -166,24 +131,19 @@ fn get_map_key<T>(map_name: &str, key: &T) -> Result<Vec<u8>, StorageError>
 where
     T: Serialize + std::fmt::Debug,
 {
-    println!("isize: {:?}", isize::MAX);
     let key_bytes = match to_vec(key) {
         Ok(bytes) => bytes,
         Err(_) => return Err(StorageError::InvalidBytes()),
     };
-    // println!("key_bytes: {:?}", key_bytes);
     Ok([map_name.as_bytes(), &key_bytes].concat()) // 2147483647
 }
 
 // Gets the value from the map [name] with key [key] from the host and returns it as a ProgramValue.
 fn get_map_field<T, U>(ctx: &ProgramContext, name: &str, key: &T) -> Result<U, StorageError>
 where
-    T: DeserializeOwned,
-    T: Serialize + std::fmt::Debug,
-    U: DeserializeOwned,
-    U: Serialize,
+    T: DeserializeOwned + Serialize + std::fmt::Debug,
+    U: DeserializeOwned + Serialize,
 {
-    println!("get_map_field: {:?} {:?}", name, key);
     let map_key = get_map_key(name, key)?;
     let map_value = get_field_as_bytes(ctx, &map_key)?;
     from_slice(&map_value).map_err(|_| StorageError::HostRetrieveError())

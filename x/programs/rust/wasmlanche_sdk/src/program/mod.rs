@@ -1,11 +1,7 @@
 use crate::errors::StorageError;
 use crate::host::init_program_storage;
-use crate::store::{ProgramContext, Store, Tag};
-use crate::types::Address;
+use crate::store::ProgramContext;
 use serde::Serialize;
-use serde_json::{from_slice, to_vec};
-
-use std::borrow::Cow;
 use std::collections::HashMap;
 use thiserror::Error;
 
