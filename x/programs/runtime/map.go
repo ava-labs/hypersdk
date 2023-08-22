@@ -65,7 +65,7 @@ func (m *MapModule) initializeFn(_ context.Context, mod api.Module) int64 {
 	m.store.counter++
 	m.store.state[m.store.counter] = make(map[string][]byte)
 	m.store.mods[m.store.counter] = mod
-	return int64(m.store.counter)
+	return m.store.counter
 }
 
 func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id int64, keyPtr uint32, keyLength uint32, valuePtr uint32, valueLength uint32) int32 {

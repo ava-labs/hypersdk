@@ -69,8 +69,6 @@ func (t *Pokemon) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("new key")
-
 	// generate bob keys
 	bobPtr, err := newKeyPtr(ctx, runtime)
 	if err != nil {

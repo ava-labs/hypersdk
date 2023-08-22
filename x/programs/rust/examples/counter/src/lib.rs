@@ -13,10 +13,10 @@ fn init_program() -> i64 {
 
 /// Increments the count at the address by the amount.
 #[expose]
-fn inc(ctx: ProgramContext, to: Address, amount: i64) {
+fn inc(ctx: ProgramContext, to: Address, amount: i64) -> bool {
     let counter = amount + value(ctx.clone(), to);
     // dont check for error/ok
-    let _ = ctx.store_map_value("counts", &to, &counter);
+    ctx.store_map_value("counts", &to, &counter).is_ok()
 }
 
 /// Gets the count at the address.
