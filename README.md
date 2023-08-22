@@ -161,9 +161,13 @@ and storage in the next block would be more expensive although neither has been 
 In the `hypersdk`, only the price of bandwidth would go up and the price of CPU/storage
 would stay constant, a better reflection of supply/demand for each resource.
 
-If you are interested in reading more analysis of multidimensional fee pricing,
-[Dynamic Pricing for Non-fungible Resources: Designing Multidimensional
-Blockchain Fee Markets](https://arxiv.org/abs/2208.07919) is a great resource.
+So, why go through all this trouble? Accurate and granular resource metering is required to
+safely increase the throughput of a blockchain. Without such an approach, designers
+need to either overprovision the network to allow for one resource to be utlized to maximum
+capacity (max compute unit usage may also allow unsustainable state growth) or bound capacity
+to a level that leaves most resources unused. If you are interested in reading more analysis
+of multidimensional fee pricing, [Dynamic Pricing for Non-fungible Resources: Designing
+Multidimensional Blockchain Fee Markets](https://arxiv.org/abs/2208.07919) is a great resource.
 
 #### Invisible Support
 Developers must have to implement a ton of complex code to take advantage of this
@@ -292,21 +296,17 @@ This constraint is equivalent to deciding whether to use a `uint8`, `uint16`, `u
 the estimate will be for a user to interact with state. Users are only charged, however,
 based on the amount of chunks actually read/written from/to state.
 
-#### Hot Access Discount Over Block
+#### Block-Based Storage Access Discounts
 If a state key has already been accessed in a given block, future access
 by the same transaction/future transactions will be more efficient for the
-`hypersdk` to handle because the corresponding state is now sitting in memory.
-The `hypersdk` tracks which state it has already loaded to execute a block
-for each `hypervm` and can ch
+`hypersdk` to handle because the corresponding state is already sitting in memory.
+The `hypersdk` automatically tracks which state has already been loaded from disk (whether
+read or modified) over an entire block and charges different fees accordingly.
 
-been accessed for the `hypervm`
-and can charge a different fee
-
-If someone is going to modify a value and then another tx comes along and
-modifies the same value, that is much cheaper for the `hypervm` to process (in many
-cases it will be no additional cost unless the value set is much larger).
-
-Multiple reads in same tx, no additional fee (compute cost calculation).
+For example, if a transaction modifies a key and then another transaction
+is executed which modifies the same value, the net cost for modifying the key
+to the `hypervm` (and to the entire network) is much cheaper than modifying a
+new key.
 
 ### Account Abstraction
 The `hypersdk` makes no assumptions about how `Actions` (the primitive for
