@@ -9,9 +9,11 @@ pub struct Address(Bytes32);
 impl Address {
     pub const LEN: usize = 32;
     // Constructor function for Address
+    #[must_use]
     pub fn new(bytes: [u8; Self::LEN]) -> Self {
         Self(Bytes32::new(bytes))
     }
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
     }
@@ -29,16 +31,18 @@ impl From<i64> for Address {
 pub struct Bytes32([u8; Self::LEN]);
 impl Bytes32 {
     pub const LEN: usize = 32;
+    #[must_use]
     pub fn new(bytes: [u8; Self::LEN]) -> Self {
         Self(bytes)
     }
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
 }
 
 /// Implement the Display trait for Bytes32 so that we can print it.
-/// Enables to_string() on Bytes32.
+/// Enables `to_string()` on Bytes32.
 impl std::fmt::Display for Bytes32 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // Find the first null byte and only print up to that point.

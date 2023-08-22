@@ -38,11 +38,12 @@ fn play(ctx: Context, player: Address) -> bool {
     };
 
     // Transfer
-    ctx.program_invoke(
-        &call_ctx,
+    let _ = ctx.program_invoke(
+        call_ctx,
         "transfer",
         &[Box::new(lotto_addy), Box::new(player), Box::new(num)],
     );
+
     true
 }
 
