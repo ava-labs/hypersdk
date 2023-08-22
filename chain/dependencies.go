@@ -80,7 +80,8 @@ type VM interface {
 }
 
 type Mempool interface {
-	Len(context.Context) int
+	Len(context.Context) int  // items
+	Size(context.Context) int // bytes
 	Add(context.Context, []*Transaction)
 
 	Top(

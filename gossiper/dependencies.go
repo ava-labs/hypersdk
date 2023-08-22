@@ -28,7 +28,7 @@ type VM interface {
 	Registry() (chain.ActionRegistry, chain.AuthRegistry)
 	NodeID() ids.NodeID
 	Rules(int64) chain.Rules
-	Submit(ctx context.Context, validator bool, verify bool, txs []*chain.Transaction) []error
+	Submit(ctx context.Context, verify bool, txs []*chain.Transaction) []error
 	RecordTxsGossiped(int)
 	RecordTxsReceived(int)
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool)

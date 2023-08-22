@@ -213,19 +213,22 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 
 	// Submit incoming gossip to mempool
 	start := time.Now()
-	for _, err := range g.vm.Submit(ctx, isValidator, false, txs) {
+	for _, err := range g.vm.Submit(ctx, false, txs) {
 		if err == nil || errors.Is(err, chain.ErrDuplicateTx) {
 			continue
 		}
 		g.vm.Logger().Debug(
 			"failed to submit gossiped txs",
-			zap.Stringer("nodeID", nodeID), zap.Error(err),
+			zap.Stringer("nodeID", nodeID),
+			zap.Bool("validator", isValidator),
+			zap.Error(err),
 		)
 	}
 	g.vm.Logger().Info(
 		"tx gossip received",
 		zap.Int("txs", len(txs)),
 		zap.Stringer("nodeID", nodeID),
+		zap.Bool("validator", isValidator),
 		zap.Duration("t", time.Since(start)),
 	)
 
