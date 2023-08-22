@@ -35,10 +35,9 @@ type Proposer struct {
 	lastVerified int64
 
 	lastForce int64
-	lfl       sync.Mutex
-
-	timer   *timer.Timer
-	waiting atomic.Bool
+	l         sync.Mutex
+	timer     *timer.Timer
+	waiting   atomic.Bool
 }
 
 type ProposerConfig struct {
@@ -219,15 +218,21 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 }
 
 func (g *Proposer) handleNotify() {
+	g.l.Lock()
 	if !g.waiting.CompareAndSwap(true, false) {
+		g.l.Unlock()
 		// It is possible that we saw more than [GossipMinSize] and forced gossip before we could stop the timer.
 		return
 	}
 	g.lastForce = time.Now().UnixMilli()
-	g.Force(context.TODO())
+	g.l.Unlock()
+	if err := g.Force(context.TODO()); err != nil {
+		g.vm.Logger().Warn("unable to send gossip", zap.Error(err))
+	}
 }
 
 func (g *Proposer) Queue(ctx context.Context) error {
+	g.l.Lock()
 	now := time.Now().UnixMilli()
 
 	// If the mempool already has enough content, force gossip
@@ -235,25 +240,24 @@ func (g *Proposer) Queue(ctx context.Context) error {
 	//
 	// We use a lock here to ensure we only have one thread
 	// going through this at a time (TODO: remove).
-	g.lfl.Lock()
 	mempoolReady := g.vm.Mempool().Size(context.TODO()) > g.cfg.GossipMinSize
 	delay := g.lastForce + g.cfg.GossipMinDelay
 	if mempoolReady && now >= delay {
 		g.timer.Cancel()
+		g.waiting.Store(false)
 		g.lastForce = time.Now().UnixMilli()
-		g.lfl.Unlock()
+		g.l.Unlock()
 		if err := g.Force(ctx); err != nil {
 			g.vm.Logger().Warn("unable to send gossip", zap.Error(err))
 			return err
 		}
-		g.waiting.Store(false)
 		return nil
 	}
-	g.lfl.Unlock()
 
 	// If the mempool has enough content but we gossiped recently
 	// or the mempool does not have enough content, wait until it does.
 	if !g.waiting.CompareAndSwap(false, true) {
+		g.l.Unlock()
 		g.vm.Logger().Debug("unable to start waiting")
 		return nil
 	}
@@ -262,11 +266,12 @@ func (g *Proposer) Queue(ctx context.Context) error {
 		force := g.lastForce + g.cfg.GossipMaxDelay
 		if now >= force {
 			g.lastForce = time.Now().UnixMilli()
+			g.waiting.Store(false)
+			g.l.Unlock()
 			if err := g.Force(ctx); err != nil {
 				g.vm.Logger().Warn("unable to send gossip", zap.Error(err))
 				return err
 			}
-			g.waiting.Store(false)
 			return nil
 		}
 		sleep = force - now
@@ -275,6 +280,7 @@ func (g *Proposer) Queue(ctx context.Context) error {
 	}
 	sleepDur := time.Duration(sleep * int64(time.Millisecond))
 	g.timer.SetTimeoutIn(sleepDur)
+	g.l.Unlock()
 	g.vm.Logger().Debug("waiting to notify to build", zap.Duration("t", sleepDur))
 	return nil
 }
