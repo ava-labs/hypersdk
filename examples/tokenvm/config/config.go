@@ -10,21 +10,22 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/hypersdk/config"
 	"github.com/ava-labs/hypersdk/gossiper"
-	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
 
-	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/version"
 )
 
 var _ vm.Config = (*Config)(nil)
 
 const (
+	defaultTraceInsecure               = true
+	defaultTraceEndpoint               = "localhost:14317"
+	defaultTraceDSN                    = "http://project2_secret_token@localhost:14317/2"
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
 	defaultStoreTransactions           = true
@@ -44,6 +45,9 @@ type Config struct {
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
 	TraceSampleRate float64 `json:"traceSampleRate"`
+	TraceEndpoint   string  `json:"traceEndpoint"`
+	TraceDSN        string  `json:"traceDSN"`
+	TraceInsecure   bool    `json:"traceInsecure"`
 
 	// Profiling
 	ContinuousProfilerDir string `json:"continuousProfilerDir"` // "*" is replaced with rand int
@@ -117,6 +121,9 @@ func (c *Config) setDefault() {
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 	c.VerifySignatures = c.Config.GetVerifySignatures()
 	c.StoreTransactions = defaultStoreTransactions
+	c.TraceEndpoint = defaultTraceEndpoint
+	c.TraceDSN = defaultTraceDSN
+	c.TraceInsecure = defaultTraceInsecure
 }
 
 func (c *Config) GetLogLevel() logging.Level       { return c.LogLevel }
@@ -125,13 +132,18 @@ func (c *Config) GetParallelism() int              { return c.Parallelism }
 func (c *Config) GetMempoolSize() int              { return c.MempoolSize }
 func (c *Config) GetMempoolPayerSize() int         { return c.MempoolPayerSize }
 func (c *Config) GetMempoolExemptPayers() [][]byte { return c.parsedExemptPayers }
-func (c *Config) GetTraceConfig() *trace.Config {
-	return &trace.Config{
+func (c *Config) GetTraceConfig() trace.Config {
+	return trace.Config{
 		Enabled:         c.TraceEnabled,
 		TraceSampleRate: c.TraceSampleRate,
-		AppName:         consts.Name,
-		Agent:           c.nodeID.String(),
-		Version:         version.Version.String(),
+		ExporterConfig: trace.ExporterConfig{
+			Endpoint: c.TraceEndpoint,
+			Insecure: c.TraceInsecure,
+			Headers: map[string]string{
+				"uptrace-dsn": c.TraceDSN,
+			},
+			Type: trace.GRPC,
+		},
 	}
 }
 func (c *Config) GetStateSyncServerDelay() time.Duration { return c.StateSyncServerDelay }
