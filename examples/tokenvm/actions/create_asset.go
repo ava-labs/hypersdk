@@ -23,40 +23,47 @@ type CreateAsset struct {
 	Metadata []byte `json:"metadata"`
 }
 
-func (*CreateAsset) StateKeys(_ chain.Auth, txID ids.ID) [][]byte {
-	return [][]byte{storage.PrefixAssetKey(txID)}
-}
-
 func (*CreateAsset) GetTypeID() uint8 {
 	return createAssetID
 }
 
+func (*CreateAsset) StateKeys(_ chain.Auth, txID ids.ID) []string {
+	return []string{
+		string(storage.AssetKey(txID)),
+	}
+}
+
+func (*CreateAsset) StateKeysMaxChunks() []uint16 {
+	return []uint16{storage.AssetChunks}
+}
+
+func (*CreateAsset) OutputsWarpMessage() bool {
+	return false
+}
+
 func (c *CreateAsset) Execute(
 	ctx context.Context,
-	r chain.Rules,
+	_ chain.Rules,
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,
 	txID ids.ID,
 	_ bool,
-) (*chain.Result, error) {
+) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	actor := auth.GetActor(rauth)
-	unitsUsed := c.MaxUnits(r) // max units == units
 	if len(c.Metadata) > MaxMetadataSize {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputMetadataTooLarge}, nil
+		return false, CreateAssetComputeUnits, OutputMetadataTooLarge, nil, nil
 	}
 	// It should only be possible to overwrite an existing asset if there is
 	// a hash collision.
 	if err := storage.SetAsset(ctx, db, txID, c.Metadata, 0, actor, false); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, CreateAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	return &chain.Result{Success: true, Units: unitsUsed}, nil
+	return true, CreateAssetComputeUnits, nil, nil, nil
 }
 
-func (c *CreateAsset) MaxUnits(chain.Rules) uint64 {
-	// We use size as the price of this transaction but we could just as easily
-	// use any other calculation.
-	return uint64(len(c.Metadata))
+func (*CreateAsset) MaxComputeUnits(chain.Rules) uint64 {
+	return CreateAssetComputeUnits
 }
 
 func (c *CreateAsset) Size() int {

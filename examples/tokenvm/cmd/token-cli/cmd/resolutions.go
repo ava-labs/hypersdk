@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
@@ -37,7 +38,7 @@ func sendAndWait(
 	if err := submit(ctx); err != nil {
 		return false, ids.Empty, err
 	}
-	success, err := tcli.WaitForTransaction(ctx, tx.ID())
+	success, _, err := tcli.WaitForTransaction(ctx, tx.ID())
 	if err != nil {
 		return false, ids.Empty, err
 	}
@@ -159,12 +160,15 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 		}
 	}
 	utils.Outf(
-		"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}units:{{/}} %d {{yellow}}summary (%s):{{/}} [%s]\n",
+		"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary (%s):{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}units:{{/}} [%s]\n",
 		status,
 		tx.ID(),
 		tutils.Address(actor),
-		result.Units,
 		reflect.TypeOf(tx.Action),
 		summaryStr,
+		float64(result.Fee)/float64(tx.Base.MaxFee)*100,
+		handler.Root().ValueString(ids.Empty, result.Fee),
+		handler.Root().AssetString(ids.Empty),
+		cli.ParseDimensions(result.Units),
 	)
 }

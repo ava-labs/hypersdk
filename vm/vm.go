@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net/http"
 	"sync"
@@ -255,13 +256,28 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = blkID, blk
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
 	} else {
-		// Set Balances
+		// Set balances
 		view, err := vm.stateDB.NewView()
 		if err != nil {
 			return err
 		}
 		if err := vm.genesis.Load(ctx, vm.tracer, view); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
+			return err
+		}
+		// Set last height
+		if err := view.Insert(ctx, vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+			return err
+		}
+		// Set fee parameters
+		genesisRules := vm.c.Rules(0)
+		feeManager := chain.NewFeeManager(nil)
+		minUnitPrice := genesisRules.GetMinUnitPrice()
+		for i := chain.Dimension(0); i < chain.FeeDimensions; i++ {
+			feeManager.SetUnitPrice(i, minUnitPrice[i])
+			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
+		}
+		if err := view.Insert(ctx, vm.StateManager().FeeKey(), feeManager.Bytes()); err != nil {
 			return err
 		}
 		if err := view.CommitToDB(ctx); err != nil {
@@ -274,10 +290,9 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Debug("genesis state created", zap.Stringer("root", root))
 
 		// Create genesis block
-		genesisRules := vm.c.Rules(0)
 		genesisBlk, err := chain.ParseStatefulBlock(
 			ctx,
-			chain.NewGenesisBlock(root, genesisRules.GetMinUnitPrice()),
+			chain.NewGenesisBlock(root),
 			nil,
 			choices.Accepted,
 			vm,
@@ -687,14 +702,20 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	state, err := blk.State()
+	rawState, err := blk.State()
 	if err != nil {
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
+	state := chain.NewReadOnlyDatabase(rawState)
+	feeRaw, err := state.GetValue(ctx, vm.StateManager().FeeKey())
+	if err != nil {
+		return []error{err}
+	}
+	feeManager := chain.NewFeeManager(feeRaw)
 	now := time.Now().UnixMilli()
 	r := vm.c.Rules(now)
-	ectx, err := chain.GenerateExecutionContext(ctx, now, blk, vm.tracer, r)
+	nextFeeManager, err := feeManager.ComputeNext(blk.Tmstmp, now, r)
 	if err != nil {
 		return []error{err}
 	}
@@ -723,6 +744,13 @@ func (vm *VM) Submit(
 			continue
 		}
 
+		// Ensure state keys are valid
+		_, err := tx.StateKeys(vm.c.StateManager())
+		if err != nil {
+			errs = append(errs, ErrNotAdded)
+			continue
+		}
+
 		// Verify signature if not already verified by caller
 		if verifySig && vm.config.GetVerifySignatures() {
 			sigVerify := tx.AuthAsyncVerify()
@@ -743,7 +771,11 @@ func (vm *VM) Submit(
 		// This may fail if the state we are utilizing is invalidated (if a trie
 		// view from a different branch is committed underneath it). We prefer this
 		// instead of putting a lock around all commits.
-		if err := tx.PreExecute(ctx, ectx, r, state, now); err != nil {
+		//
+		// Note, [PreExecute] ensures that the pending transaction does not have
+		// an expiry time further ahead than [ValidityWindow]. This ensures anything
+		// added to the [Mempool] is immediately executable.
+		if _, err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, state, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}

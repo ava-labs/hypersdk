@@ -511,7 +511,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			// Generate transaction
 			parser, err := instancesA[0].tcli.Parser(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
-			submit, tx, fee, err := instancesA[0].cli.GenerateTransaction(
+			submit, tx, maxFee, err := instancesA[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
 				nil,
@@ -528,7 +528,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, err := instancesA[0].tcli.WaitForTransaction(ctx, tx.ID())
+			success, fee, err := instancesA[0].tcli.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(success).Should(gomega.BeTrue())
@@ -540,7 +540,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			hutils.Outf(
 				"{{yellow}}start=%d fee=%d send=%d balance=%d{{/}}\n",
 				startAmount,
-				fee,
+				maxFee,
 				sendAmount,
 				balance,
 			)
@@ -589,7 +589,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 
 			parser, err := instancesA[0].tcli.Parser(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
-			submit, tx, fees, err := instancesA[0].cli.GenerateTransaction(
+			submit, tx, _, err := instancesA[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
 				nil,
@@ -610,7 +610,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, err := instancesA[0].tcli.WaitForTransaction(ctx, tx.ID())
+			success, fee, err := instancesA[0].tcli.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(success).Should(gomega.BeTrue())
@@ -629,50 +629,39 @@ var _ = ginkgo.Describe("[Test]", func() {
 				ids.Empty,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(asenderBalance).Should(gomega.Equal(senderBalance - sendAmount - fees))
+			gomega.Ω(asenderBalance).Should(gomega.Equal(senderBalance - sendAmount - fee))
 		})
 
-		ginkgo.By(
-			"ensuring snowman++ is activated on destination + fund other account with native",
-			func() {
-				txs := make([]ids.ID, 5)
-				for i := 0; i < 5; i++ {
-					parser, err := instancesB[0].tcli.Parser(context.TODO())
-					gomega.Ω(err).Should(gomega.BeNil())
-					submit, tx, _, err := instancesB[0].cli.GenerateTransaction(
-						context.Background(),
-						parser,
-						nil,
-						&actions.Transfer{
-							To:    other.PublicKey(),
-							Asset: ids.Empty,
-							Value: 1000 + uint64(i), // ensure we don't produce same tx
-						},
-						factory,
-					)
-					gomega.Ω(err).Should(gomega.BeNil())
-					hutils.Outf("{{yellow}}generated transaction:{{/}} %s\n", txID)
+		ginkgo.By("fund other account with native", func() {
+			parser, err := instancesB[0].tcli.Parser(context.TODO())
+			gomega.Ω(err).Should(gomega.BeNil())
+			submit, tx, _, err := instancesB[0].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				nil,
+				&actions.Transfer{
+					To:    other.PublicKey(),
+					Asset: ids.Empty,
+					Value: 500_000_000,
+				},
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			txID := tx.ID()
+			hutils.Outf("{{yellow}}generated transaction:{{/}} %s\n", txID)
 
-					// Broadcast transaction (wait for after all broadcast)
-					gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-					hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
-					txs[i] = tx.ID()
+			// Broadcast transaction (wait for after all broadcast)
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 
-					// Ensure we sleep long enough that transactions end up in different
-					// blocks
-					time.Sleep(500 * time.Millisecond)
-				}
-				for i := 0; i < 5; i++ {
-					txID := txs[i]
-					ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-					success, err := instancesB[0].tcli.WaitForTransaction(ctx, txID)
-					cancel()
-					gomega.Ω(err).Should(gomega.BeNil())
-					gomega.Ω(success).Should(gomega.BeTrue())
-					hutils.Outf("{{yellow}}found transaction %s on B{{/}}\n", txID)
-				}
-			},
-		)
+			// Confirm transaction is accepted
+			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+			success, _, err := instancesB[0].tcli.WaitForTransaction(ctx, txID)
+			cancel()
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(success).Should(gomega.BeTrue())
+			hutils.Outf("{{yellow}}found transaction %s on B{{/}}\n", txID)
+		})
 
 		ginkgo.By("submitting an import action on destination", func() {
 			bIDA, err := ids.FromString(blockchainIDA)
@@ -737,7 +726,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 
 			parser, err := instancesB[0].tcli.Parser(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
-			submit, tx, fees, err := instancesB[0].cli.GenerateTransaction(
+			submit, tx, _, err := instancesB[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
 				msg,
@@ -750,7 +739,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, err := instancesB[0].tcli.WaitForTransaction(ctx, tx.ID())
+			success, fee, err := instancesB[0].tcli.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(success).Should(gomega.BeTrue())
@@ -777,7 +766,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 				ids.Empty,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(aNativeSenderBalance).Should(gomega.Equal(nativeSenderBalance - fees))
+			gomega.Ω(aNativeSenderBalance).Should(gomega.Equal(nativeSenderBalance - fee))
 			aNewSenderBalance, err := instancesB[0].tcli.Balance(
 				context.Background(),
 				sender,
@@ -823,7 +812,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, err := instancesB[0].tcli.WaitForTransaction(ctx, tx.ID())
+			success, _, err := instancesB[0].tcli.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(success).Should(gomega.BeFalse())
@@ -866,7 +855,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, err := instancesB[0].tcli.WaitForTransaction(ctx, tx.ID())
+			success, _, err := instancesB[0].tcli.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(success).Should(gomega.BeTrue())
@@ -954,7 +943,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 
 			parser, err := instancesA[0].tcli.Parser(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
-			submit, tx, fees, err := instancesA[0].cli.GenerateTransaction(
+			submit, tx, _, err := instancesA[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
 				msg,
@@ -967,7 +956,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, err := instancesA[0].tcli.WaitForTransaction(ctx, tx.ID())
+			success, fee, err := instancesA[0].tcli.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(success).Should(gomega.BeTrue())
@@ -995,7 +984,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(aNativeSenderBalance).
-				Should(gomega.Equal(nativeSenderBalance - fees + 2000 + 100))
+				Should(gomega.Equal(nativeSenderBalance - fee + 2000 + 100))
 			aNewSenderBalance, err := instancesA[0].tcli.Balance(
 				context.Background(),
 				sender,
@@ -1035,7 +1024,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, err := instancesB[0].tcli.WaitForTransaction(ctx, tx.ID())
+			success, _, err := instancesB[0].tcli.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(success).Should(gomega.BeTrue())
@@ -1116,7 +1105,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 
 			parser, err := instancesA[0].tcli.Parser(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
-			submit, tx, fees, err := instancesA[0].cli.GenerateTransaction(
+			submit, tx, _, err := instancesA[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
 				msg,
@@ -1129,7 +1118,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, err := instancesA[0].tcli.WaitForTransaction(ctx, tx.ID())
+			success, fee, err := instancesA[0].tcli.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(success).Should(gomega.BeTrue())
@@ -1156,7 +1145,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 				ids.Empty,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(aNativeSenderBalance).Should(gomega.Equal(nativeSenderBalance - fees))
+			gomega.Ω(aNativeSenderBalance).Should(gomega.Equal(nativeSenderBalance - fee))
 			aNewSenderBalance, err := instancesA[0].tcli.Balance(
 				context.Background(),
 				sender,
@@ -1200,7 +1189,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, err := instancesA[0].tcli.WaitForTransaction(ctx, tx.ID())
+			success, _, err := instancesA[0].tcli.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(success).Should(gomega.BeTrue())
@@ -1266,7 +1255,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 
 			parser, err = instancesB[0].tcli.Parser(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
-			submit, tx, fees, err := instancesB[0].cli.GenerateTransaction(
+			submit, tx, _, err = instancesB[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
 				msg,
@@ -1281,7 +1270,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel = context.WithTimeout(context.Background(), requestTimeout)
-			success, err = instancesB[0].tcli.WaitForTransaction(ctx, tx.ID())
+			success, fee, err := instancesB[0].tcli.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(success).Should(gomega.BeTrue())
@@ -1309,7 +1298,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(aNativeSenderBalance).
-				Should(gomega.Equal(nativeSenderBalance - fees - 200))
+				Should(gomega.Equal(nativeSenderBalance - fee - 200))
 			aNewSenderBalance, err := instancesB[0].tcli.Balance(
 				context.Background(),
 				sender,
@@ -1593,7 +1582,9 @@ func acceptTransaction(cli *rpc.JSONRPCClient, tcli *trpc.JSONRPCClient) {
 		// Generate transaction
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		submit, tx, _, err := cli.GenerateTransaction(
+		unitPrices, err := cli.UnitPrices(context.Background())
+		gomega.Ω(err).Should(gomega.BeNil())
+		submit, tx, maxFee, err := cli.GenerateTransaction(
 			context.Background(),
 			parser,
 			nil,
@@ -1604,13 +1595,13 @@ func acceptTransaction(cli *rpc.JSONRPCClient, tcli *trpc.JSONRPCClient) {
 			factory,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
-		hutils.Outf("{{yellow}}generated transaction{{/}}\n")
+		hutils.Outf("{{yellow}}generated transaction{{/}} prices: %+v maxFee: %d\n", unitPrices, maxFee)
 
 		// Broadcast and wait for transaction
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 		hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-		success, err := tcli.WaitForTransaction(ctx, tx.ID())
+		success, _, err := tcli.WaitForTransaction(ctx, tx.ID())
 		cancel()
 		if err != nil {
 			hutils.Outf("{{red}}cannot find transaction: %v{{/}}\n", err)

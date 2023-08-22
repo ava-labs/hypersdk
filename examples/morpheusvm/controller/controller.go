@@ -159,6 +159,7 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 				blk.GetTimestamp(),
 				result.Success,
 				result.Units,
+				result.Fee,
 			)
 			if err != nil {
 				return err

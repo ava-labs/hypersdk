@@ -19,12 +19,6 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-const exportAssetSize = ed25519.PublicKeyLen + consts.IDLen +
-	consts.Uint64Len + consts.BoolLen +
-	consts.Uint64Len + /* op bits */
-	consts.Uint64Len + consts.Uint64Len + consts.IDLen + consts.Uint64Len +
-	consts.Int64Len + consts.IDLen
-
 var _ chain.Action = (*ExportAsset)(nil)
 
 type ExportAsset struct {
@@ -44,80 +38,83 @@ func (*ExportAsset) GetTypeID() uint8 {
 	return exportAssetID
 }
 
-func (e *ExportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
-	var (
-		keys  [][]byte
-		actor = auth.GetActor(rauth)
-	)
+func (e *ExportAsset) StateKeys(rauth chain.Auth, _ ids.ID) []string {
+	actor := auth.GetActor(rauth)
 	if e.Return {
-		keys = [][]byte{
-			storage.PrefixAssetKey(e.Asset),
-			storage.PrefixBalanceKey(actor, e.Asset),
-		}
-	} else {
-		keys = [][]byte{
-			storage.PrefixAssetKey(e.Asset),
-			storage.PrefixLoanKey(e.Asset, e.Destination),
-			storage.PrefixBalanceKey(actor, e.Asset),
+		return []string{
+			string(storage.AssetKey(e.Asset)),
+			string(storage.BalanceKey(actor, e.Asset)),
 		}
 	}
+	return []string{
+		string(storage.AssetKey(e.Asset)),
+		string(storage.LoanKey(e.Asset, e.Destination)),
+		string(storage.BalanceKey(actor, e.Asset)),
+	}
+}
 
-	return keys
+func (e *ExportAsset) StateKeysMaxChunks() []uint16 {
+	if e.Return {
+		return []uint16{storage.AssetChunks, storage.BalanceChunks}
+	}
+	return []uint16{storage.AssetChunks, storage.LoanChunks, storage.BalanceChunks}
+}
+
+func (*ExportAsset) OutputsWarpMessage() bool {
+	return true
 }
 
 func (e *ExportAsset) executeReturn(
 	ctx context.Context,
-	r chain.Rules,
 	db chain.Database,
 	actor ed25519.PublicKey,
 	txID ids.ID,
-) (*chain.Result, error) {
-	unitsUsed := e.MaxUnits(r)
+) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	exists, metadata, supply, _, isWarp, err := storage.GetAsset(ctx, db, e.Asset)
 	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if !exists {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetMissing}, nil
+		return false, ExportAssetComputeUnits, OutputAssetMissing, nil, nil
 	}
 	if !isWarp {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputNotWarpAsset}, nil
+		return false, ExportAssetComputeUnits, OutputNotWarpAsset, nil, nil
 	}
 	allowedDestination, err := ids.ToID(metadata[consts.IDLen:])
 	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if allowedDestination != e.Destination {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputWrongDestination}, nil
+		return false, ExportAssetComputeUnits, OutputWrongDestination, nil, nil
 	}
 	newSupply, err := smath.Sub(supply, e.Value)
 	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	newSupply, err = smath.Sub(newSupply, e.Reward)
 	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if newSupply > 0 {
 		if err := storage.SetAsset(ctx, db, e.Asset, metadata, newSupply, ed25519.EmptyPublicKey, true); err != nil {
-			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+			return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 	} else {
 		if err := storage.DeleteAsset(ctx, db, e.Asset); err != nil {
-			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+			return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 	}
 	if err := storage.SubBalance(ctx, db, actor, e.Asset, e.Value); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if e.Reward > 0 {
 		if err := storage.SubBalance(ctx, db, actor, e.Asset, e.Reward); err != nil {
-			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+			return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 	}
 	originalAsset, err := ids.ToID(metadata[:consts.IDLen])
 	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	wt := &WarpTransfer{
 		To:                 e.To,
@@ -134,46 +131,44 @@ func (e *ExportAsset) executeReturn(
 	}
 	payload, err := wt.Marshal()
 	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	wm := &warp.UnsignedMessage{
 		// NetworkID + SourceChainID is populated by hypersdk
 		Payload: payload,
 	}
-	return &chain.Result{Success: true, Units: unitsUsed, WarpMessage: wm}, nil
+	return true, ExportAssetComputeUnits, nil, wm, nil
 }
 
 func (e *ExportAsset) executeLoan(
 	ctx context.Context,
-	r chain.Rules,
 	db chain.Database,
 	actor ed25519.PublicKey,
 	txID ids.ID,
-) (*chain.Result, error) {
-	unitsUsed := e.MaxUnits(r)
+) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	exists, _, _, _, isWarp, err := storage.GetAsset(ctx, db, e.Asset)
 	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if !exists {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetMissing}, nil
+		return false, ExportAssetComputeUnits, OutputAssetMissing, nil, nil
 	}
 	if isWarp {
 		// Cannot export an asset if it was warped in and not returning
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputWarpAsset}, nil
+		return false, ExportAssetComputeUnits, OutputWarpAsset, nil, nil
 	}
 	if err := storage.AddLoan(ctx, db, e.Asset, e.Destination, e.Value); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.SubBalance(ctx, db, actor, e.Asset, e.Value); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if e.Reward > 0 {
 		if err := storage.AddLoan(ctx, db, e.Asset, e.Destination, e.Reward); err != nil {
-			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+			return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 		if err := storage.SubBalance(ctx, db, actor, e.Asset, e.Reward); err != nil {
-			return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+			return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 	}
 	wt := &WarpTransfer{
@@ -191,47 +186,50 @@ func (e *ExportAsset) executeLoan(
 	}
 	payload, err := wt.Marshal()
 	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	wm := &warp.UnsignedMessage{
 		// NetworkID + SourceChainID is populated by hypersdk
 		Payload: payload,
 	}
-	return &chain.Result{Success: true, Units: unitsUsed, WarpMessage: wm}, nil
+	return true, ExportAssetComputeUnits, nil, wm, nil
 }
 
 func (e *ExportAsset) Execute(
 	ctx context.Context,
-	r chain.Rules,
+	_ chain.Rules,
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,
 	txID ids.ID,
 	_ bool,
-) (*chain.Result, error) {
+) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	actor := auth.GetActor(rauth)
-	unitsUsed := e.MaxUnits(r) // max units == units
 	if e.Value == 0 {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
+		return false, ExportAssetComputeUnits, OutputValueZero, nil, nil
 	}
 	if e.Destination == ids.Empty {
 		// This would result in multiplying balance export by whoever imports the
 		// transaction.
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAnycast}, nil
+		return false, ExportAssetComputeUnits, OutputAnycast, nil, nil
 	}
 	// TODO: check if destination is ourselves
 	if e.Return {
-		return e.executeReturn(ctx, r, db, actor, txID)
+		return e.executeReturn(ctx, db, actor, txID)
 	}
-	return e.executeLoan(ctx, r, db, actor, txID)
+	return e.executeLoan(ctx, db, actor, txID)
 }
 
-func (*ExportAsset) MaxUnits(chain.Rules) uint64 {
-	return exportAssetSize
+func (*ExportAsset) MaxComputeUnits(chain.Rules) uint64 {
+	return ExportAssetComputeUnits
 }
 
 func (*ExportAsset) Size() int {
-	return exportAssetSize
+	return ed25519.PublicKeyLen + consts.IDLen +
+		consts.Uint64Len + consts.BoolLen +
+		consts.Uint64Len + /* op bits */
+		consts.Uint64Len + consts.Uint64Len + consts.IDLen + consts.Uint64Len +
+		consts.Int64Len + consts.IDLen
 }
 
 func (e *ExportAsset) Marshal(p *codec.Packer) {

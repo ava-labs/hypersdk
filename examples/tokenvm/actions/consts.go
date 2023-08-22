@@ -3,4 +3,33 @@
 
 package actions
 
-const MaxMetadataSize = 256
+// Note: Registry will error during initialization if a duplicate ID is assigned. We explicitly assign IDs to avoid accidental remapping.
+const (
+	burnAssetID   uint8 = 0
+	closeOrderID  uint8 = 1
+	createAssetID uint8 = 2
+	exportAssetID uint8 = 3
+	importAssetID uint8 = 4
+	createOrderID uint8 = 5
+	fillOrderID   uint8 = 6
+	mintAssetID   uint8 = 7
+	modifyAssetID uint8 = 8
+	transferID    uint8 = 9
+)
+
+const (
+	// TODO: tune this
+	BurnComputeUnits        = 2
+	CloseOrderComputeUnits  = 5
+	CreateAssetComputeUnits = 10
+	ExportAssetComputeUnits = 10
+	ImportAssetComputeUnits = 10
+	CreateOrderComputeUnits = 5
+	NoFillOrderComputeUnits = 5
+	FillOrderComputeUnits   = 15
+	MintAssetComputeUnits   = 2
+	ModifyAssetComputeUnits = 2
+	TransferComputeUnits    = 1
+
+	MaxMetadataSize = 256
+)

@@ -38,40 +38,65 @@ func (*ImportAsset) GetTypeID() uint8 {
 	return importAssetID
 }
 
-func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
+func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) []string {
 	var (
-		keys    [][]byte
+		keys    []string
 		assetID ids.ID
 		actor   = auth.GetActor(rauth)
 	)
 	if i.warpTransfer.Return {
 		assetID = i.warpTransfer.Asset
-		keys = [][]byte{
-			storage.PrefixLoanKey(i.warpTransfer.Asset, i.warpMessage.SourceChainID),
-			storage.PrefixBalanceKey(i.warpTransfer.To, i.warpTransfer.Asset),
+		keys = []string{
+			string(storage.LoanKey(i.warpTransfer.Asset, i.warpMessage.SourceChainID)),
+			string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.Asset)),
 		}
 	} else {
 		assetID = ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
-		keys = [][]byte{
-			storage.PrefixAssetKey(assetID),
-			storage.PrefixBalanceKey(i.warpTransfer.To, assetID),
+		keys = []string{
+			string(storage.AssetKey(assetID)),
+			string(storage.BalanceKey(i.warpTransfer.To, assetID)),
 		}
 	}
 
 	// If the [warpTransfer] specified a reward, we add the state key to make
 	// sure it is paid.
 	if i.warpTransfer.Reward > 0 {
-		keys = append(keys, storage.PrefixBalanceKey(actor, assetID))
+		keys = append(keys, string(storage.BalanceKey(actor, assetID)))
 	}
 
 	// If the [warpTransfer] requests a swap, we add the state keys to transfer
 	// the required balances.
 	if i.Fill && i.warpTransfer.SwapIn > 0 {
-		keys = append(keys, storage.PrefixBalanceKey(actor, i.warpTransfer.AssetOut))
-		keys = append(keys, storage.PrefixBalanceKey(actor, assetID))
-		keys = append(keys, storage.PrefixBalanceKey(i.warpTransfer.To, i.warpTransfer.AssetOut))
+		keys = append(keys, string(storage.BalanceKey(actor, i.warpTransfer.AssetOut)))
+		keys = append(keys, string(storage.BalanceKey(actor, assetID)))
+		keys = append(keys, string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.AssetOut)))
 	}
 	return keys
+}
+
+func (i *ImportAsset) StateKeysMaxChunks() []uint16 {
+	// Can't use [warpTransfer] because it may not be populated yet
+	chunks := []uint16{}
+	chunks = append(chunks, storage.LoanChunks)
+	chunks = append(chunks, storage.AssetChunks)
+	chunks = append(chunks, storage.BalanceChunks)
+
+	// If the [warpTransfer] specified a reward, we add the state key to make
+	// sure it is paid.
+	chunks = append(chunks, storage.BalanceChunks)
+
+	// If the [warpTransfer] requests a swap, we add the state keys to transfer
+	// the required balances.
+	if i.Fill {
+		chunks = append(chunks, storage.BalanceChunks)
+		chunks = append(chunks, storage.BalanceChunks)
+		chunks = append(chunks, storage.BalanceChunks)
+	}
+	return chunks
+}
+
+func (*ImportAsset) OutputsWarpMessage() bool {
+	return false
 }
 
 func (i *ImportAsset) executeMint(
@@ -155,21 +180,16 @@ func (i *ImportAsset) Execute(
 	rauth chain.Auth,
 	_ ids.ID,
 	warpVerified bool,
-) (*chain.Result, error) {
+) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	actor := auth.GetActor(rauth)
-	unitsUsed := i.MaxUnits(r) // max units == units
 	if !warpVerified {
-		return &chain.Result{
-			Success: false,
-			Units:   unitsUsed,
-			Output:  OutputWarpVerificationFailed,
-		}, nil
+		return false, ImportAssetComputeUnits, OutputWarpVerificationFailed, nil, nil
 	}
 	if i.warpTransfer.DestinationChainID != r.ChainID() {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputInvalidDestination}, nil
+		return false, ImportAssetComputeUnits, OutputInvalidDestination, nil, nil
 	}
 	if i.warpTransfer.Value == 0 {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
+		return false, ImportAssetComputeUnits, OutputValueZero, nil, nil
 	}
 	var output []byte
 	if i.warpTransfer.Return {
@@ -178,17 +198,17 @@ func (i *ImportAsset) Execute(
 		output = i.executeMint(ctx, db, actor)
 	}
 	if len(output) > 0 {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: output}, nil
+		return false, ImportAssetComputeUnits, output, nil, nil
 	}
 	if i.warpTransfer.SwapIn == 0 {
 		// We are ensured that [i.Fill] is false here because of logic in unmarshal
-		return &chain.Result{Success: true, Units: unitsUsed}, nil
+		return true, ImportAssetComputeUnits, nil, nil, nil
 	}
 	if !i.Fill {
 		if i.warpTransfer.SwapExpiry > t {
-			return &chain.Result{Success: false, Units: unitsUsed, Output: OutputMustFill}, nil
+			return false, ImportAssetComputeUnits, OutputMustFill, nil, nil
 		}
-		return &chain.Result{Success: true, Units: unitsUsed}, nil
+		return true, ImportAssetComputeUnits, nil, nil, nil
 	}
 	// TODO: charge more if swap is performed
 	var assetIn ids.ID
@@ -198,22 +218,22 @@ func (i *ImportAsset) Execute(
 		assetIn = ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
 	}
 	if err := storage.SubBalance(ctx, db, i.warpTransfer.To, assetIn, i.warpTransfer.SwapIn); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, ImportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, db, actor, assetIn, i.warpTransfer.SwapIn); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, ImportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.SubBalance(ctx, db, actor, i.warpTransfer.AssetOut, i.warpTransfer.SwapOut); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, ImportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, db, i.warpTransfer.To, i.warpTransfer.AssetOut, i.warpTransfer.SwapOut); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, ImportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	return &chain.Result{Success: true, Units: unitsUsed}, nil
+	return true, ImportAssetComputeUnits, nil, nil, nil
 }
 
-func (i *ImportAsset) MaxUnits(chain.Rules) uint64 {
-	return uint64(len(i.warpMessage.Payload)) + consts.BoolLen
+func (*ImportAsset) MaxComputeUnits(chain.Rules) uint64 {
+	return ImportAssetComputeUnits
 }
 
 func (*ImportAsset) Size() int {

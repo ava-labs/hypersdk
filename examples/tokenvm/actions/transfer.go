@@ -34,40 +34,45 @@ func (*Transfer) GetTypeID() uint8 {
 	return transferID
 }
 
-func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
-	return [][]byte{
-		storage.PrefixBalanceKey(auth.GetActor(rauth), t.Asset),
-		storage.PrefixBalanceKey(t.To, t.Asset),
+func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) []string {
+	return []string{
+		string(storage.BalanceKey(auth.GetActor(rauth), t.Asset)),
+		string(storage.BalanceKey(t.To, t.Asset)),
 	}
+}
+
+func (*Transfer) StateKeysMaxChunks() []uint16 {
+	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
+}
+
+func (*Transfer) OutputsWarpMessage() bool {
+	return false
 }
 
 func (t *Transfer) Execute(
 	ctx context.Context,
-	r chain.Rules,
+	_ chain.Rules,
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
 	_ bool,
-) (*chain.Result, error) {
+) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	actor := auth.GetActor(rauth)
-	unitsUsed := t.MaxUnits(r) // max units == units
 	if t.Value == 0 {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
+		return false, TransferComputeUnits, OutputValueZero, nil, nil
 	}
 	if err := storage.SubBalance(ctx, db, actor, t.Asset, t.Value); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, TransferComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, db, t.To, t.Asset, t.Value); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, TransferComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	return &chain.Result{Success: true, Units: unitsUsed}, nil
+	return true, TransferComputeUnits, nil, nil, nil
 }
 
-func (*Transfer) MaxUnits(chain.Rules) uint64 {
-	// We use size as the price of this transaction but we could just as easily
-	// use any other calculation.
-	return ed25519.PublicKeyLen + consts.IDLen + consts.Uint64Len
+func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
+	return TransferComputeUnits
 }
 
 func (*Transfer) Size() int {

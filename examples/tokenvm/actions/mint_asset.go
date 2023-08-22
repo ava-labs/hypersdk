@@ -36,64 +36,65 @@ func (*MintAsset) GetTypeID() uint8 {
 	return mintAssetID
 }
 
-func (m *MintAsset) StateKeys(chain.Auth, ids.ID) [][]byte {
-	return [][]byte{
-		storage.PrefixAssetKey(m.Asset),
-		storage.PrefixBalanceKey(m.To, m.Asset),
+func (m *MintAsset) StateKeys(chain.Auth, ids.ID) []string {
+	return []string{
+		string(storage.AssetKey(m.Asset)),
+		string(storage.BalanceKey(m.To, m.Asset)),
 	}
+}
+
+func (*MintAsset) StateKeysMaxChunks() []uint16 {
+	return []uint16{storage.AssetChunks, storage.BalanceChunks}
+}
+
+func (*MintAsset) OutputsWarpMessage() bool {
+	return false
 }
 
 func (m *MintAsset) Execute(
 	ctx context.Context,
-	r chain.Rules,
+	_ chain.Rules,
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
 	_ bool,
-) (*chain.Result, error) {
+) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	actor := auth.GetActor(rauth)
-	unitsUsed := m.MaxUnits(r) // max units == units
 	if m.Asset == ids.Empty {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetIsNative}, nil
+		return false, MintAssetComputeUnits, OutputAssetIsNative, nil, nil
 	}
 	if m.Value == 0 {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputValueZero}, nil
+		return false, MintAssetComputeUnits, OutputValueZero, nil, nil
 	}
 	exists, metadata, supply, owner, isWarp, err := storage.GetAsset(ctx, db, m.Asset)
 	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if !exists {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputAssetMissing}, nil
+		return false, MintAssetComputeUnits, OutputAssetMissing, nil, nil
 	}
 	if isWarp {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputWarpAsset}, nil
+		return false, MintAssetComputeUnits, OutputWarpAsset, nil, nil
 	}
 	if owner != actor {
-		return &chain.Result{
-			Success: false,
-			Units:   unitsUsed,
-			Output:  OutputWrongOwner,
-		}, nil
+		return false, MintAssetComputeUnits, OutputWrongOwner, nil, nil
 	}
 	newSupply, err := smath.Add64(supply, m.Value)
 	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.SetAsset(ctx, db, m.Asset, metadata, newSupply, actor, isWarp); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, db, m.To, m.Asset, m.Value); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	return &chain.Result{Success: true, Units: unitsUsed}, nil
+	return true, MintAssetComputeUnits, nil, nil, nil
 }
 
-func (*MintAsset) MaxUnits(chain.Rules) uint64 {
-	// We use size as the price of this transaction but we could just as easily
-	// use any other calculation.
-	return ed25519.PublicKeyLen + consts.IDLen + consts.Uint64Len
+func (*MintAsset) MaxComputeUnits(chain.Rules) uint64 {
+	return MintAssetComputeUnits
 }
 
 func (*MintAsset) Size() int {

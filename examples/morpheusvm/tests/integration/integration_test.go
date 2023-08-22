@@ -50,7 +50,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 )
 
-const transferTxFee = 400 /* base fee */ + 40 /* transfer fee */
+var transferTxFee = chain.Dimensions{190, 7, 12, 25, 21}
 
 var (
 	logFactory logging.Factory
@@ -76,7 +76,6 @@ func TestIntegration(t *testing.T) {
 var (
 	requestTimeout time.Duration
 	vms            int
-	minPrice       int64
 )
 
 func init() {
@@ -91,12 +90,6 @@ func init() {
 		"vms",
 		3,
 		"number of VMs to create",
-	)
-	flag.Int64Var(
-		&minPrice,
-		"min-price",
-		-1,
-		"minimum price",
 	)
 }
 
@@ -178,9 +171,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	instances = make([]instance, vms)
 
 	gen = genesis.Default()
-	if minPrice >= 0 {
-		gen.MinUnitPrice = uint64(minPrice)
-	}
+	gen.MinUnitPrice = chain.Dimensions{1, 1, 1, 1, 1}
 	gen.MinBlockGap = 0
 	gen.CustomAllocation = []*genesis.CustomAllocation{
 		{
@@ -361,7 +352,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				&chain.Base{
 					ChainID:   instances[0].chainID,
 					Timestamp: 0,
-					UnitPrice: 1000,
+					MaxFee:    1000,
 				},
 				nil,
 				&actions.Transfer{
@@ -420,14 +411,14 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			results := blk.(*chain.StatelessBlock).Results()
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-			gomega.Ω(results[0].Units).Should(gomega.Equal(uint64(transferTxFee)))
+			gomega.Ω(results[0].Units).Should(gomega.Equal(transferTxFee))
 			gomega.Ω(results[0].Output).Should(gomega.BeNil())
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].lcli.Balance(context.Background(), sender)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899560)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899745)))
 			balance2, err := instances[1].lcli.Balance(context.Background(), sender2)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
@@ -612,7 +603,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 		parser, err := instances[0].lcli.Parser(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
-		submit, rawTx, _, err := instances[0].cli.GenerateTransaction(
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
 			nil,
@@ -639,12 +630,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// Check balance modifications are correct
 		balancea, err := instances[0].lcli.Balance(context.TODO(), sender)
 		gomega.Ω(err).Should(gomega.BeNil())
-		g, err := instances[0].lcli.Genesis(context.TODO())
-		gomega.Ω(err).Should(gomega.BeNil())
-		r := g.Rules(time.Now().UnixMilli(), networkID, instances[0].chainID)
-		maxUnits, err := rawTx.MaxUnits(r)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(balance).Should(gomega.Equal(balancea + maxUnits + 1))
+		gomega.Ω(balance).Should(gomega.Equal(balancea + lresults[0].Fee + 1))
 
 		// Close connection when done
 		gomega.Ω(cli.Close()).Should(gomega.BeNil())

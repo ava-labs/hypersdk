@@ -42,35 +42,79 @@ func (r *Rules) GetMinEmptyBlockGap() int64 {
 	return r.g.MinEmptyBlockGap
 }
 
-func (r *Rules) GetWarpBaseUnits() uint64 {
-	return r.g.WarpBaseUnits
-}
-
-func (r *Rules) GetWarpUnitsPerSigner() uint64 {
-	return r.g.WarpUnitsPerSigner
-}
-
 func (r *Rules) GetValidityWindow() int64 {
 	return r.g.ValidityWindow
 }
 
-func (r *Rules) GetMaxBlockUnits() uint64 {
+func (r *Rules) GetMaxBlockUnits() chain.Dimensions {
 	return r.g.MaxBlockUnits
 }
 
-func (r *Rules) GetBaseUnits() uint64 {
-	return r.g.BaseUnits
+func (r *Rules) GetBaseComputeUnits() uint64 {
+	return r.g.BaseComputeUnits
 }
 
-func (r *Rules) GetMinUnitPrice() uint64 {
+func (r *Rules) GetBaseWarpComputeUnits() uint64 {
+	return r.g.BaseWarpComputeUnits
+}
+
+func (r *Rules) GetWarpComputeUnitsPerSigner() uint64 {
+	return r.g.WarpComputeUnitsPerSigner
+}
+
+func (r *Rules) GetOutgoingWarpComputeUnits() uint64 {
+	return r.g.OutgoingWarpComputeUnits
+}
+
+func (r *Rules) GetColdStorageKeyReadUnits() uint64 {
+	return r.g.ColdStorageKeyReadUnits
+}
+
+func (r *Rules) GetColdStorageValueReadUnits() uint64 {
+	return r.g.ColdStorageValueReadUnits
+}
+
+func (r *Rules) GetWarmStorageKeyReadUnits() uint64 {
+	return r.g.WarmStorageKeyReadUnits
+}
+
+func (r *Rules) GetWarmStorageValueReadUnits() uint64 {
+	return r.g.WarmStorageValueReadUnits
+}
+
+func (r *Rules) GetStorageKeyCreateUnits() uint64 {
+	return r.g.StorageKeyCreateUnits
+}
+
+func (r *Rules) GetStorageValueCreateUnits() uint64 {
+	return r.g.StorageValueCreateUnits
+}
+
+func (r *Rules) GetColdStorageKeyModificationUnits() uint64 {
+	return r.g.ColdStorageKeyModificationUnits
+}
+
+func (r *Rules) GetColdStorageValueModificationUnits() uint64 {
+	return r.g.ColdStorageValueModificationUnits
+}
+
+func (r *Rules) GetWarmStorageKeyModificationUnits() uint64 {
+	return r.g.WarmStorageKeyModificationUnits
+}
+
+func (r *Rules) GetWarmStorageValueModificationUnits() uint64 {
+	return r.g.WarmStorageValueModificationUnits
+}
+
+func (r *Rules) GetMinUnitPrice() chain.Dimensions {
 	return r.g.MinUnitPrice
 }
 
-func (r *Rules) GetUnitPriceChangeDenominator() uint64 {
+func (r *Rules) GetUnitPriceChangeDenominator() chain.Dimensions {
 	return r.g.UnitPriceChangeDenominator
 }
 
-func (r *Rules) GetWindowTargetUnits() uint64 {
+func (r *Rules) GetWindowTargetUnits() chain.Dimensions {
 	return r.g.WindowTargetUnits
 }
 

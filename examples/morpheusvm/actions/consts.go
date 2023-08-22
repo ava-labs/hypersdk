@@ -7,3 +7,7 @@ package actions
 const (
 	transferID uint8 = 0
 )
+
+const (
+	TransferComputeUnits = 1
+)
