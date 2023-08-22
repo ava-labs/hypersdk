@@ -61,7 +61,7 @@ func DefaultProposerConfig() *ProposerConfig {
 }
 
 func NewProposer(vm VM, cfg *ProposerConfig) *Proposer {
-	return &Proposer{
+	g := &Proposer{
 		vm:         vm,
 		cfg:        cfg,
 		doneGossip: make(chan struct{}),
@@ -71,6 +71,8 @@ func NewProposer(vm VM, cfg *ProposerConfig) *Proposer {
 		q:         make(chan struct{}),
 		lastQueue: -1,
 	}
+	g.timer = timer.NewTimer(g.handleTimerNotify)
+	return g
 }
 
 func (g *Proposer) Force(ctx context.Context) error {
@@ -222,7 +224,7 @@ func (g *Proposer) notify() {
 	}
 }
 
-func (g *Proposer) handleNotify() {
+func (g *Proposer) handleTimerNotify() {
 	g.notify()
 	g.waiting.Store(false)
 }
@@ -294,6 +296,7 @@ func (g *Proposer) BlockVerified(t int64) {
 }
 
 func (g *Proposer) Done() {
+	g.timer.Stop()
 	<-g.doneGossip
 }
 
