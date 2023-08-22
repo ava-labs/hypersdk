@@ -60,7 +60,9 @@ func PackAcceptedTxMessage(txID ids.ID, result *chain.Result) ([]byte, error) {
 	p := codec.NewWriter(size, consts.MaxInt)
 	p.PackID(txID)
 	p.PackBool(false)
-	result.Marshal(p)
+	if err := result.Marshal(p); err != nil {
+		return nil, err
+	}
 	return p.Bytes(), p.Err()
 }
 

@@ -101,7 +101,6 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Verified")
 	defer span.End()
 
-	vm.metrics.unitsVerified.Add(float64(b.UnitsConsumed))
 	vm.metrics.txsVerified.Add(float64(len(b.Txs)))
 	vm.verifiedL.Lock()
 	vm.verifiedBlocks[b.ID()] = b
@@ -199,6 +198,14 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	if err := vm.webSocketServer.SetMinTx(b.Tmstmp); err != nil {
 		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
 	}
+
+	// Update price metrics
+	feeManager := b.FeeManager()
+	vm.metrics.bandwidthPrice.Set(float64(feeManager.UnitPrice(chain.Bandwidth)))
+	vm.metrics.computePrice.Set(float64(feeManager.UnitPrice(chain.Compute)))
+	vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(chain.StorageRead)))
+	vm.metrics.storageCreatePrice.Set(float64(feeManager.UnitPrice(chain.StorageCreate)))
+	vm.metrics.storageModifyPrice.Set(float64(feeManager.UnitPrice(chain.StorageModification)))
 }
 
 func (vm *VM) processAcceptedBlocks() {
@@ -226,7 +233,6 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
-	vm.metrics.unitsAccepted.Add(float64(b.UnitsConsumed))
 	vm.metrics.txsAccepted.Add(float64(len(b.Txs)))
 	vm.blocks.Put(b.ID(), b)
 	vm.verifiedL.Lock()
@@ -281,7 +287,6 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 		zap.Uint64("height", b.Hght),
 		zap.Int("txs", len(b.Txs)),
 		zap.Int("size", len(b.Bytes())),
-		zap.Uint64("units", b.UnitsConsumed),
 		zap.Int("dropped mempool txs", len(removed)),
 		zap.Bool("state ready", vm.StateReady()),
 	)
@@ -431,4 +436,12 @@ func (vm *VM) RecordBlockAccept(t time.Duration) {
 
 func (vm *VM) RecordClearedMempool() {
 	vm.metrics.clearedMempool.Inc()
+}
+
+func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
+	v, err := vm.stateDB.Get(vm.StateManager().FeeKey())
+	if err != nil {
+		return chain.Dimensions{}, err
+	}
+	return chain.NewFeeManager(v).UnitPrices(), nil
 }

@@ -28,7 +28,12 @@ var runSpamCmd = &cobra.Command{
 	Use: "run",
 	RunE: func(*cobra.Command, []string) error {
 		var tclient *trpc.JSONRPCClient
-		return handler.Root().Spam(maxTxBacklog, randomRecipient,
+		var maxFeeParsed *uint64
+		if maxFee >= 0 {
+			v := uint64(maxFee)
+			maxFeeParsed = &v
+		}
+		return handler.Root().Spam(maxTxBacklog, maxFeeParsed, randomRecipient,
 			func(uri string, networkID uint32, chainID ids.ID) {
 				tclient = trpc.NewJSONRPCClient(uri, networkID, chainID)
 			},

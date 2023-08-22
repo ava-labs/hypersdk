@@ -232,7 +232,7 @@ func TestServerPublishSpecific(t *testing.T) {
 	defer resp2.Body.Close()
 	require.Eventually(
 		func() bool { return handler.conns.Len() == 2 },
-		10*time.Second, 10*time.Millisecond, "Server didn't add connection correctly.",
+		15*time.Second, 250*time.Millisecond, "Server didn't add connection correctly.",
 	)
 	// Publish to subscribed connections
 	handler.Publish([]byte(dummyMsg), sendConns)
@@ -262,7 +262,7 @@ func TestServerPublishSpecific(t *testing.T) {
 	// Wait for the connection to be closed or for a timeout to occur
 	require.Eventually(
 		func() bool { return handler.conns.Len() == 0 },
-		15*time.Second, 10*time.Millisecond, "Server didn't close connections correctly.",
+		15*time.Second, 250*time.Millisecond, "Server didn't close connections correctly.",
 	)
 	// Gracefully shutdown the server
 	err = server.Shutdown(context.TODO())

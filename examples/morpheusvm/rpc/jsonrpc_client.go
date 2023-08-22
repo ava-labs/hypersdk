@@ -54,7 +54,7 @@ func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.Genesis, error)
 	return resp.Genesis, nil
 }
 
-func (cli *JSONRPCClient) Tx(ctx context.Context, id ids.ID) (bool, bool, int64, error) {
+func (cli *JSONRPCClient) Tx(ctx context.Context, id ids.ID) (bool, bool, int64, uint64, error) {
 	resp := new(TxReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -66,11 +66,11 @@ func (cli *JSONRPCClient) Tx(ctx context.Context, id ids.ID) (bool, bool, int64,
 	// We use string parsing here because the JSON-RPC library we use may not
 	// allows us to perform errors.Is.
 	case err != nil && strings.Contains(err.Error(), ErrTxNotFound.Error()):
-		return false, false, -1, nil
+		return false, false, -1, 0, nil
 	case err != nil:
-		return false, false, -1, err
+		return false, false, -1, 0, err
 	}
-	return true, resp.Success, resp.Timestamp, nil
+	return true, resp.Success, resp.Timestamp, resp.Fee, nil
 }
 
 func (cli *JSONRPCClient) Balance(ctx context.Context, addr string) (uint64, error) {
@@ -108,19 +108,21 @@ func (cli *JSONRPCClient) WaitForBalance(
 	})
 }
 
-func (cli *JSONRPCClient) WaitForTransaction(ctx context.Context, txID ids.ID) (bool, error) {
+func (cli *JSONRPCClient) WaitForTransaction(ctx context.Context, txID ids.ID) (bool, uint64, error) {
 	var success bool
+	var fee uint64
 	if err := rpc.Wait(ctx, func(ctx context.Context) (bool, error) {
-		found, isuccess, _, err := cli.Tx(ctx, txID)
+		found, isuccess, _, ifee, err := cli.Tx(ctx, txID)
 		if err != nil {
 			return false, err
 		}
 		success = isuccess
+		fee = ifee
 		return found, nil
 	}); err != nil {
-		return false, err
+		return false, 0, err
 	}
-	return success, nil
+	return success, fee, nil
 }
 
 var _ chain.Parser = (*Parser)(nil)

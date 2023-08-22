@@ -12,6 +12,7 @@ import (
 	reflect "reflect"
 
 	ids "github.com/ava-labs/avalanchego/ids"
+	warp "github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	codec "github.com/ava-labs/hypersdk/codec"
 	gomock "github.com/golang/mock/gomock"
 )
@@ -40,12 +41,15 @@ func (m *MockAction) EXPECT() *MockActionMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 Database, arg3 int64, arg4 Auth, arg5 ids.ID, arg6 bool) (*Result, error) {
+func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 Database, arg3 int64, arg4 Auth, arg5 ids.ID, arg6 bool) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
-	ret0, _ := ret[0].(*Result)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(uint64)
+	ret2, _ := ret[2].([]byte)
+	ret3, _ := ret[3].(*warp.UnsignedMessage)
+	ret4, _ := ret[4].(error)
+	return ret0, ret1, ret2, ret3, ret4
 }
 
 // Execute indicates an expected call of Execute.
@@ -80,18 +84,32 @@ func (mr *MockActionMockRecorder) Marshal(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Marshal", reflect.TypeOf((*MockAction)(nil).Marshal), arg0)
 }
 
-// MaxUnits mocks base method.
-func (m *MockAction) MaxUnits(arg0 Rules) uint64 {
+// MaxComputeUnits mocks base method.
+func (m *MockAction) MaxComputeUnits(arg0 Rules) uint64 {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MaxUnits", arg0)
+	ret := m.ctrl.Call(m, "MaxComputeUnits", arg0)
 	ret0, _ := ret[0].(uint64)
 	return ret0
 }
 
-// MaxUnits indicates an expected call of MaxUnits.
-func (mr *MockActionMockRecorder) MaxUnits(arg0 interface{}) *gomock.Call {
+// MaxComputeUnits indicates an expected call of MaxComputeUnits.
+func (mr *MockActionMockRecorder) MaxComputeUnits(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxUnits", reflect.TypeOf((*MockAction)(nil).MaxUnits), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxComputeUnits", reflect.TypeOf((*MockAction)(nil).MaxComputeUnits), arg0)
+}
+
+// OutputsWarpMessage mocks base method.
+func (m *MockAction) OutputsWarpMessage() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OutputsWarpMessage")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// OutputsWarpMessage indicates an expected call of OutputsWarpMessage.
+func (mr *MockActionMockRecorder) OutputsWarpMessage() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OutputsWarpMessage", reflect.TypeOf((*MockAction)(nil).OutputsWarpMessage))
 }
 
 // Size mocks base method.
@@ -109,10 +127,10 @@ func (mr *MockActionMockRecorder) Size() *gomock.Call {
 }
 
 // StateKeys mocks base method.
-func (m *MockAction) StateKeys(arg0 Auth, arg1 ids.ID) [][]byte {
+func (m *MockAction) StateKeys(arg0 Auth, arg1 ids.ID) []string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StateKeys", arg0, arg1)
-	ret0, _ := ret[0].([][]byte)
+	ret0, _ := ret[0].([]string)
 	return ret0
 }
 
@@ -120,6 +138,20 @@ func (m *MockAction) StateKeys(arg0 Auth, arg1 ids.ID) [][]byte {
 func (mr *MockActionMockRecorder) StateKeys(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StateKeys", reflect.TypeOf((*MockAction)(nil).StateKeys), arg0, arg1)
+}
+
+// StateKeysMaxChunks mocks base method.
+func (m *MockAction) StateKeysMaxChunks() []uint16 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StateKeysMaxChunks")
+	ret0, _ := ret[0].([]uint16)
+	return ret0
+}
+
+// StateKeysMaxChunks indicates an expected call of StateKeysMaxChunks.
+func (mr *MockActionMockRecorder) StateKeysMaxChunks() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StateKeysMaxChunks", reflect.TypeOf((*MockAction)(nil).StateKeysMaxChunks))
 }
 
 // ValidRange mocks base method.

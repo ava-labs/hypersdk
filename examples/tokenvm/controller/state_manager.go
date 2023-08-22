@@ -14,10 +14,14 @@ func (*StateManager) HeightKey() []byte {
 	return storage.HeightKey()
 }
 
-func (*StateManager) IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) []byte {
+func (*StateManager) FeeKey() []byte {
+	return storage.HeightKey()
+}
+
+func (*StateManager) IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte {
 	return storage.IncomingWarpKeyPrefix(sourceChainID, msgID)
 }
 
-func (*StateManager) OutgoingWarpKey(txID ids.ID) []byte {
+func (*StateManager) OutgoingWarpKeyPrefix(txID ids.ID) []byte {
 	return storage.OutgoingWarpKeyPrefix(txID)
 }

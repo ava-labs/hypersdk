@@ -11,6 +11,8 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 )
 
+const BaseSize = consts.Uint64Len*2 + consts.IDLen
+
 type Base struct {
 	// Timestamp is the expiry of the transaction (inclusive). Once this time passes and the
 	// transaction is not included in a block, it is safe to regenerate it.
@@ -19,8 +21,11 @@ type Base struct {
 	// ChainID protects against replay attacks on different VM instances.
 	ChainID ids.ID `json:"chainId"`
 
-	// Unit price is the value per unit to spend on this transaction.
-	UnitPrice uint64 `json:"unitPrice"`
+	// MaxFee is the max fee the user will pay for the transaction to be executed. The chain
+	// will charge anything up to this price if the transaction makes it on-chain.
+	//
+	// If the fee is too low to pay all fees, the transaction will be dropped.
+	MaxFee uint64 `json:"maxFee"`
 }
 
 func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
@@ -34,21 +39,19 @@ func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 		return ErrTimestampTooEarly
 	case b.ChainID != chainID:
 		return ErrInvalidChainID
-	case b.UnitPrice < r.GetMinUnitPrice():
-		return ErrInvalidUnitPrice
 	default:
 		return nil
 	}
 }
 
 func (*Base) Size() int {
-	return consts.Uint64Len*2 + consts.IDLen
+	return BaseSize
 }
 
 func (b *Base) Marshal(p *codec.Packer) {
 	p.PackInt64(b.Timestamp)
 	p.PackID(b.ChainID)
-	p.PackUint64(b.UnitPrice)
+	p.PackUint64(b.MaxFee)
 }
 
 func UnmarshalBase(p *codec.Packer) (*Base, error) {
@@ -59,6 +62,6 @@ func UnmarshalBase(p *codec.Packer) (*Base, error) {
 		return nil, fmt.Errorf("%w: timestamp=%d", ErrMisalignedTime, base.Timestamp)
 	}
 	p.UnpackID(true, &base.ChainID)
-	base.UnitPrice = p.UnpackUint64(true)
+	base.MaxFee = p.UnpackUint64(true)
 	return &base, p.Err()
 }

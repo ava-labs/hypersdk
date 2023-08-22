@@ -21,11 +21,6 @@ import (
 
 var _ chain.Action = (*FillOrder)(nil)
 
-const (
-	basePrice           = 3*consts.IDLen + consts.Uint64Len + ed25519.PublicKeyLen
-	tradeSucceededPrice = 1_000
-)
-
 type FillOrder struct {
 	// [Order] is the OrderID you wish to close.
 	Order ids.ID `json:"order"`
@@ -50,14 +45,22 @@ func (*FillOrder) GetTypeID() uint8 {
 	return fillOrderID
 }
 
-func (f *FillOrder) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
+func (f *FillOrder) StateKeys(rauth chain.Auth, _ ids.ID) []string {
 	actor := auth.GetActor(rauth)
-	return [][]byte{
-		storage.PrefixOrderKey(f.Order),
-		storage.PrefixBalanceKey(f.Owner, f.In),
-		storage.PrefixBalanceKey(actor, f.In),
-		storage.PrefixBalanceKey(actor, f.Out),
+	return []string{
+		string(storage.OrderKey(f.Order)),
+		string(storage.BalanceKey(f.Owner, f.In)),
+		string(storage.BalanceKey(actor, f.In)),
+		string(storage.BalanceKey(actor, f.Out)),
 	}
+}
+
+func (*FillOrder) StateKeysMaxChunks() []uint16 {
+	return []uint16{storage.OrderChunks, storage.BalanceChunks, storage.BalanceChunks, storage.BalanceChunks}
+}
+
+func (*FillOrder) OutputsWarpMessage() bool {
+	return false
 }
 
 func (f *FillOrder) Execute(
@@ -68,44 +71,40 @@ func (f *FillOrder) Execute(
 	rauth chain.Auth,
 	_ ids.ID,
 	_ bool,
-) (*chain.Result, error) {
+) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	actor := auth.GetActor(rauth)
 	exists, in, inTick, out, outTick, remaining, owner, err := storage.GetOrder(ctx, db, f.Order)
 	if err != nil {
-		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if !exists {
-		return &chain.Result{Success: false, Units: basePrice, Output: OutputOrderMissing}, nil
+		return false, NoFillOrderComputeUnits, OutputOrderMissing, nil, nil
 	}
 	if owner != f.Owner {
-		return &chain.Result{Success: false, Units: basePrice, Output: OutputWrongOwner}, nil
+		return false, NoFillOrderComputeUnits, OutputWrongOwner, nil, nil
 	}
 	if in != f.In {
-		return &chain.Result{Success: false, Units: basePrice, Output: OutputWrongIn}, nil
+		return false, NoFillOrderComputeUnits, OutputWrongIn, nil, nil
 	}
 	if out != f.Out {
-		return &chain.Result{Success: false, Units: basePrice, Output: OutputWrongOut}, nil
+		return false, NoFillOrderComputeUnits, OutputWrongOut, nil, nil
 	}
 	if f.Value == 0 {
 		// This should be guarded via [Unmarshal] but we check anyways.
-		return &chain.Result{Success: false, Units: basePrice, Output: OutputValueZero}, nil
+		return false, NoFillOrderComputeUnits, OutputValueZero, nil, nil
 	}
 	if f.Value%inTick != 0 {
-		return &chain.Result{Success: false, Units: basePrice, Output: OutputValueMisaligned}, nil
+		return false, NoFillOrderComputeUnits, OutputValueMisaligned, nil, nil
 	}
 	// Determine amount of [Out] counterparty will receive if the trade is
 	// successful.
 	outputAmount, err := smath.Mul64(outTick, f.Value/inTick)
 	if err != nil {
-		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if outputAmount == 0 {
 		// This should never happen because [f.Value] > 0
-		return &chain.Result{
-			Success: false,
-			Units:   basePrice,
-			Output:  OutputInsufficientOutput,
-		}, nil
+		return false, NoFillOrderComputeUnits, OutputInsufficientOutput, nil, nil
 	}
 	var (
 		inputAmount    = f.Value
@@ -131,36 +130,36 @@ func (f *FillOrder) Execute(
 	}
 	if inputAmount == 0 {
 		// Don't allow free trades (can happen due to refund rounding)
-		return &chain.Result{Success: false, Units: basePrice, Output: OutputInsufficientInput}, nil
+		return false, NoFillOrderComputeUnits, OutputInsufficientInput, nil, nil
 	}
 	if err := storage.SubBalance(ctx, db, actor, f.In, inputAmount); err != nil {
-		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, db, f.Owner, f.In, inputAmount); err != nil {
-		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, db, actor, f.Out, outputAmount); err != nil {
-		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if shouldDelete {
 		if err := storage.DeleteOrder(ctx, db, f.Order); err != nil {
-			return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+			return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 	} else {
 		if err := storage.SetOrder(ctx, db, f.Order, in, inTick, out, outTick, orderRemaining, owner); err != nil {
-			return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+			return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 	}
 	or := &OrderResult{In: inputAmount, Out: outputAmount, Remaining: orderRemaining}
 	output, err := or.Marshal()
 	if err != nil {
-		return &chain.Result{Success: false, Units: basePrice, Output: utils.ErrBytes(err)}, nil
+		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	return &chain.Result{Success: true, Units: basePrice + tradeSucceededPrice, Output: output}, nil
+	return true, FillOrderComputeUnits, output, nil, nil
 }
 
-func (*FillOrder) MaxUnits(chain.Rules) uint64 {
-	return basePrice + tradeSucceededPrice
+func (*FillOrder) MaxComputeUnits(chain.Rules) uint64 {
+	return FillOrderComputeUnits
 }
 
 func (*FillOrder) Size() int {

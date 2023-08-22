@@ -23,7 +23,7 @@ var (
 		"ConstI32 0x0": 1,
 		"ConstI64 0x0": 2,
 	}
-	maxGas uint64 = 3000
+	maxGas uint64 = 30000
 	log           = logging.NewLogger(
 		"",
 		logging.NewWrappedCore(

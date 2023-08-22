@@ -6,26 +6,34 @@ package chain
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
 
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
 type fetchData struct {
 	v      []byte
 	exists bool
+
+	chunks uint16
 }
 
 type txData struct {
 	tx      *Transaction
 	storage map[string][]byte
+
+	coldReads map[string]uint16
+	warmReads map[string]uint16
 }
 
 type Processor struct {
 	tracer trace.Tracer
 
+	err      error
 	blk      *StatelessBlock
 	readyTxs chan *txData
 	db       Database
@@ -46,93 +54,132 @@ func (p *Processor) Prefetch(ctx context.Context, db Database) {
 	p.db = db
 	sm := p.blk.vm.StateManager()
 	go func() {
-		defer span.End()
+		defer func() {
+			close(p.readyTxs) // let caller know all sets have been readied
+			span.End()
+		}()
 
 		// Store required keys for each set
 		alreadyFetched := make(map[string]*fetchData, len(p.blk.GetTxs()))
 		for _, tx := range p.blk.GetTxs() {
+			coldReads := map[string]uint16{}
+			warmReads := map[string]uint16{}
 			storage := map[string][]byte{}
-			for _, k := range tx.StateKeys(sm) {
-				sk := string(k)
-				if v, ok := alreadyFetched[sk]; ok {
+			stateKeys, err := tx.StateKeys(sm)
+			if err != nil {
+				p.err = err
+				return
+			}
+			for k := range stateKeys {
+				if v, ok := alreadyFetched[k]; ok {
+					warmReads[k] = v.chunks
 					if v.exists {
-						storage[sk] = v.v
+						storage[k] = v.v
 					}
 					continue
 				}
-				v, err := db.GetValue(ctx, k)
+				v, err := db.GetValue(ctx, []byte(k))
 				if errors.Is(err, database.ErrNotFound) {
-					alreadyFetched[sk] = &fetchData{nil, false}
+					coldReads[k] = 0
+					alreadyFetched[k] = &fetchData{nil, false, 0}
 					continue
 				} else if err != nil {
-					panic(err)
+					p.err = err
+					return
 				}
-				alreadyFetched[sk] = &fetchData{v, true}
-				storage[sk] = v
+				// We verify that the [NumChunks] is already less than the number
+				// added on the write path, so we don't need to do so again here.
+				numChunks, ok := keys.NumChunks(v)
+				if !ok {
+					p.err = ErrInvalidKeyValue
+					return
+				}
+				coldReads[k] = numChunks
+				alreadyFetched[k] = &fetchData{v, true, numChunks}
+				storage[k] = v
 			}
-			p.readyTxs <- &txData{tx, storage}
+			p.readyTxs <- &txData{tx, storage, coldReads, warmReads}
 		}
-
-		// Let caller know all sets have been readied
-		close(p.readyTxs)
 	}()
 }
 
 func (p *Processor) Execute(
 	ctx context.Context,
-	ectx *ExecutionContext,
+	feeManager *FeeManager,
 	r Rules,
-) (uint64, []*Result, int, int, error) {
+) ([]*Result, int, int, error) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Execute")
 	defer span.End()
 
 	var (
-		unitsConsumed = uint64(0)
-		ts            = tstate.New(len(p.blk.Txs) * 2) // TODO: tune this heuristic
-		t             = p.blk.GetTimestamp()
-		results       = []*Result{}
-		sm            = p.blk.vm.StateManager()
+		ts      = tstate.New(len(p.blk.Txs) * 2) // TODO: tune this heuristic
+		t       = p.blk.GetTimestamp()
+		results = []*Result{}
+		sm      = p.blk.vm.StateManager()
 	)
 	for txData := range p.readyTxs {
+		if p.err != nil {
+			return nil, 0, 0, p.err
+		}
+
 		tx := txData.tx
+
+		// Ensure can process next tx
+		nextUnits, err := tx.MaxUnits(sm, r)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		if ok, dimension := feeManager.CanConsume(nextUnits, r.GetMaxBlockUnits()); !ok {
+			return nil, 0, 0, fmt.Errorf("dimension %d exceeds limit", dimension)
+		}
 
 		// It is critical we explicitly set the scope before each transaction is
 		// processed
-		ts.SetScope(ctx, tx.StateKeys(sm), txData.storage)
+		stateKeys, err := tx.StateKeys(sm)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		ts.SetScope(ctx, stateKeys, txData.storage)
 
 		// Execute tx
-		if err := tx.PreExecute(ctx, ectx, r, ts, t); err != nil {
-			return 0, nil, 0, 0, err
+		preExecuteStart := ts.OpIndex()
+		authCUs, err := tx.PreExecute(ctx, feeManager, sm, r, ts, t)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		if preExecuteStart != ts.OpIndex() {
+			return nil, 0, 0, ErrPreExecuteMutates
 		}
 		// Wait to execute transaction until we have the warp result processed.
 		//
-		// TODO: parallel execution will greatly improve performance in the case
-		// that we are waiting for signature verification.
+		// TODO: parallel execution will greatly improve performance when actions
+		// start taking longer than a few ns (i.e. with hypersdk programs).
 		var warpVerified bool
 		warpMsg, ok := p.blk.warpMessages[tx.ID()]
 		if ok {
 			select {
 			case warpVerified = <-warpMsg.verifiedChan:
 			case <-ctx.Done():
-				return 0, nil, 0, 0, ctx.Err()
+				return nil, 0, 0, ctx.Err()
 			}
 		}
-		result, err := tx.Execute(ctx, r, sm, ts, t, ok && warpVerified)
+		result, err := tx.Execute(ctx, feeManager, authCUs, txData.coldReads, txData.warmReads, sm, r, ts, t, ok && warpVerified)
 		if err != nil {
-			return 0, nil, 0, 0, err
+			return nil, 0, 0, err
 		}
 		results = append(results, result)
 
 		// Update block metadata
-		unitsConsumed += result.Units
-		if unitsConsumed > r.GetMaxBlockUnits() {
-			// Exit as soon as we hit our max
-			return 0, nil, 0, 0, ErrBlockTooBig
+		if err := feeManager.Consume(nextUnits); err != nil {
+			return nil, 0, 0, err
 		}
 	}
 	// Wait until end to write changes to avoid conflicting with pre-fetching
-	if err := ts.WriteChanges(ctx, p.db, p.tracer); err != nil {
-		return 0, nil, 0, 0, err
+	if p.err != nil {
+		return nil, 0, 0, p.err
 	}
-	return unitsConsumed, results, ts.PendingChanges(), ts.OpIndex(), nil
+	if err := ts.WriteChanges(ctx, p.db, p.tracer); err != nil {
+		return nil, 0, 0, err
+	}
+	return results, ts.PendingChanges(), ts.OpIndex(), nil
 }

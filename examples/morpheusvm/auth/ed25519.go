@@ -16,6 +16,11 @@ import (
 
 var _ chain.Auth = (*ED25519)(nil)
 
+const (
+	ED25519ComputeUnits = 5
+	ED25519Size         = ed25519.PublicKeyLen + ed25519.SignatureLen
+)
+
 type ED25519 struct {
 	Signer    ed25519.PublicKey `json:"signer"`
 	Signature ed25519.Signature `json:"signature"`
@@ -25,20 +30,17 @@ func (*ED25519) GetTypeID() uint8 {
 	return ed25519ID
 }
 
-func (*ED25519) MaxUnits(
-	chain.Rules,
-) uint64 {
-	return ed25519.PublicKeyLen + ed25519.SignatureLen*5 // make signatures more expensive
+func (*ED25519) MaxComputeUnits(chain.Rules) uint64 {
+	return ED25519ComputeUnits
 }
 
 func (*ED25519) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-func (d *ED25519) StateKeys() [][]byte {
-	return [][]byte{
-		// We always pay fees with the native asset (which is [ids.Empty])
-		storage.PrefixBalanceKey(d.Signer),
+func (d *ED25519) StateKeys() []string {
+	return []string{
+		string(storage.BalanceKey(d.Signer)),
 	}
 }
 
@@ -57,7 +59,7 @@ func (d *ED25519) Verify(
 ) (uint64, error) {
 	// We don't do anything during verify (there is no additional state to check
 	// to authorize the signer other than verifying the signature)
-	return d.MaxUnits(r), nil
+	return d.MaxComputeUnits(r), nil
 }
 
 func (d *ED25519) Payer() []byte {
@@ -65,7 +67,7 @@ func (d *ED25519) Payer() []byte {
 }
 
 func (*ED25519) Size() int {
-	return ed25519.PublicKeyLen + ed25519.SignatureLen
+	return ED25519Size
 }
 
 func (d *ED25519) Marshal(p *codec.Packer) {
@@ -124,6 +126,10 @@ type ED25519Factory struct {
 func (d *ED25519Factory) Sign(msg []byte, _ chain.Action) (chain.Auth, error) {
 	sig := ed25519.Sign(msg, d.priv)
 	return &ED25519{d.priv.PublicKey(), sig}, nil
+}
+
+func (*ED25519Factory) MaxUnits() (uint64, uint64, []uint16) {
+	return ED25519Size, ED25519ComputeUnits, []uint16{storage.BalanceChunks}
 }
 
 type ED25519AuthEngine struct{}

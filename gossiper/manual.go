@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/consts"
 	"go.uber.org/zap"
 )
 
@@ -37,33 +38,27 @@ func (g *Manual) Run(appSender common.AppSender) {
 
 func (g *Manual) ForceGossip(ctx context.Context) error {
 	// Gossip highest paying txs
-	txs := []*chain.Transaction{}
-	totalUnits := uint64(0)
-	now := time.Now().UnixMilli()
-	r := g.vm.Rules(now)
+	var (
+		txs  = []*chain.Transaction{}
+		size = 0
+		now  = time.Now().UnixMilli()
+	)
 	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
-		func(ictx context.Context, next *chain.Transaction) (cont bool, restore bool, err error) {
+		func(ictx context.Context, next *chain.Transaction) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
 				return true, false, nil
 			}
 
-			// Gossip up to a block of content
-			// TODO: handle case where large tx with a ton of units clogs
-			units, err := next.MaxUnits(r)
-			if err != nil {
-				// Should never happen
-				return true, false, nil
-			}
-			// TODO: limit to a smaller amount
-			if units+totalUnits > r.GetMaxBlockUnits() {
-				// Attempt to mirror the function of building a block without execution
+			// Gossip up to [consts.NetworkSizeLimit]
+			txSize := next.Size()
+			if txSize+size > consts.NetworkSizeLimit {
 				return false, true, nil
 			}
 			txs = append(txs, next)
-			totalUnits += units
+			size += txSize
 			return true, true, nil
 		},
 	)
