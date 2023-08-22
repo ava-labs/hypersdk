@@ -3,9 +3,11 @@
 
 package builder
 
+import "context"
+
 type Builder interface {
 	Run()
-	Queue() // new tx, block verified, post-block build (if mempool > 0)
-	Force()
+	Queue(context.Context) // new tx, block verified, post-block build (if mempool > 0)
+	Force(context.Context) error
 	Done() // wait after stop
 }

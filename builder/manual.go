@@ -3,7 +3,11 @@
 
 package builder
 
-import "github.com/ava-labs/avalanchego/snow/engine/common"
+import (
+	"context"
+
+	"github.com/ava-labs/avalanchego/snow/engine/common"
+)
 
 var _ Builder = (*Manual)(nil)
 
@@ -24,14 +28,15 @@ func (b *Manual) Run() {
 }
 
 // Queue is a no-op in [Manual].
-func (*Manual) Queue() {}
+func (*Manual) Queue(context.Context) {}
 
-func (b *Manual) Force() {
+func (b *Manual) Force(context.Context) error {
 	select {
 	case b.vm.EngineChan() <- common.PendingTxs:
 	default:
 		b.vm.Logger().Debug("dropping message to consensus engine")
 	}
+	return nil
 }
 
 func (b *Manual) Done() {

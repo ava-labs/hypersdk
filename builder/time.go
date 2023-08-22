@@ -14,7 +14,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// TODO: block building can fail, fill in context
+// minBuildGap ensures we don't build blocks too quickly (can fail
+// if we build empty blocks too soon)
+//
+// TODO: consider replacing this with AvalancheGo block build metering
 const minBuildGap int64 = 30 // ms
 
 var _ Builder = (*Time)(nil)
@@ -39,12 +42,12 @@ func NewTime(vm VM) *Time {
 }
 
 func (b *Time) Run() {
-	b.Queue()          // start building loop (may not be an initial trigger)
-	b.timer.Dispatch() // this blocks
+	b.Queue(context.TODO()) // start building loop (may not be an initial trigger)
+	b.timer.Dispatch()      // this blocks
 }
 
 func (b *Time) handleTimerNotify() {
-	b.Force()
+	b.Force(context.TODO())
 	b.waiting.Store(false)
 	txs := b.vm.Mempool().Len(context.TODO())
 	b.vm.Logger().Debug("trigger to notify", zap.Int("txs", txs))
@@ -59,7 +62,7 @@ func (b *Time) nextTime(now int64, preferred int64) int64 {
 	return next
 }
 
-func (b *Time) Queue() {
+func (b *Time) Queue(ctx context.Context) {
 	if !b.waiting.CompareAndSwap(false, true) {
 		b.vm.Logger().Debug("unable to acquire waiting lock")
 		return
@@ -73,7 +76,7 @@ func (b *Time) Queue() {
 	now := time.Now().UnixMilli()
 	next := b.nextTime(now, preferredBlk.Tmstmp)
 	if next < 0 {
-		b.Force()
+		b.Force(ctx)
 		b.waiting.Store(false)
 		txs := b.vm.Mempool().Len(context.TODO())
 		b.vm.Logger().Debug("notifying to build without waiting", zap.Int("txs", txs))
@@ -85,13 +88,14 @@ func (b *Time) Queue() {
 	b.vm.Logger().Debug("waiting to notify to build", zap.Duration("t", sleepDur))
 }
 
-func (b *Time) Force() {
+func (b *Time) Force(context.Context) error {
 	select {
 	case b.vm.EngineChan() <- common.PendingTxs:
 		b.lastQueue = time.Now().UnixMilli()
 	default:
 		b.vm.Logger().Debug("dropping message to consensus engine")
 	}
+	return nil
 }
 
 func (b *Time) Done() {
