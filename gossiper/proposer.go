@@ -34,10 +34,11 @@ type Proposer struct {
 
 	lastVerified int64
 
-	l         sync.Mutex
-	timer     *timer.Timer
-	lastQueue int64
-	waiting   atomic.Bool
+	lastForce int64
+	lfl       sync.Mutex
+
+	timer   *timer.Timer
+	waiting atomic.Bool
 }
 
 type ProposerConfig struct {
@@ -76,45 +77,14 @@ func NewProposer(vm VM, cfg *ProposerConfig) *Proposer {
 	}
 }
 
-func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error {
-	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.sendTxs")
-	defer span.End()
-
-	// Marshal gossip
-	b, err := chain.MarshalTxs(txs)
-	if err != nil {
-		return err
-	}
-
-	// Select next set of proposers and send gossip to them
-	proposers, err := g.vm.Proposers(
-		ctx,
-		g.cfg.GossipProposerDiff,
-		g.cfg.GossipProposerDepth,
-	)
-	if err != nil || proposers.Len() == 0 {
-		g.vm.Logger().Warn(
-			"unable to find any proposers, falling back to all-to-all gossip",
-			zap.Error(err),
-		)
-		return g.appSender.SendAppGossip(ctx, b)
-	}
-	recipients := set.NewSet[ids.NodeID](len(proposers))
-	for proposer := range proposers {
-		// Don't gossip to self
-		if proposer == g.vm.NodeID() {
-			continue
-		}
-		recipients.Add(proposer)
-	}
-	return g.appSender.SendAppGossipSpecific(ctx, recipients, b)
-}
-
 func (g *Proposer) Force(ctx context.Context) error {
 	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.Force")
 	defer span.End()
 
-	// Gossip highest paying txs
+	// Gossip newest transactions
+	//
+	// We remove these transactions from the mempool
+	// so they cannot be used for building.
 	var (
 		txs   = []*chain.Transaction{}
 		size  = 0
@@ -143,13 +113,14 @@ func (g *Proposer) Force(ctx context.Context) error {
 			}
 			txs = append(txs, next)
 			size += txSize
-			return true, true, nil
+			return true, false, nil
 		},
 	)
 	if mempoolErr != nil {
 		return mempoolErr
 	}
 	if len(txs) == 0 {
+		g.vm.Logger().Warn("no transactions to gossip")
 		return nil
 	}
 	g.vm.Logger().Info("gossiping transactions", zap.Int("txs", len(txs)), zap.Duration("t", time.Since(start)))
@@ -252,28 +223,33 @@ func (g *Proposer) handleNotify() {
 		// It is possible that we saw more than [GossipMinSize] and forced gossip before we could stop the timer.
 		return
 	}
-	g.lastQueue = time.Now().UnixMilli()
+	g.lastForce = time.Now().UnixMilli()
 	g.Force(context.TODO())
 }
 
 func (g *Proposer) Queue(ctx context.Context) error {
-	g.l.Lock()
 	now := time.Now().UnixMilli()
 
 	// If the mempool already has enough content, force gossip
 	// and cancel any waiting timers.
+	//
+	// We use a lock here to ensure we only have one thread
+	// going through this at a time (TODO: remove).
+	g.lfl.Lock()
 	mempoolReady := g.vm.Mempool().Size(context.TODO()) > g.cfg.GossipMinSize
-	delay := g.lastQueue + g.cfg.GossipMinDelay
+	delay := g.lastForce + g.cfg.GossipMinDelay
 	if mempoolReady && now >= delay {
-		g.waiting.Store(false)
 		g.timer.Cancel()
-		g.l.Unlock()
+		g.lastForce = time.Now().UnixMilli()
+		g.lfl.Unlock()
 		if err := g.Force(ctx); err != nil {
 			g.vm.Logger().Warn("unable to send gossip", zap.Error(err))
 			return err
 		}
+		g.waiting.Store(false)
 		return nil
 	}
+	g.lfl.Unlock()
 
 	// If the mempool has enough content but we gossiped recently
 	// or the mempool does not have enough content, wait until it does.
@@ -283,8 +259,9 @@ func (g *Proposer) Queue(ctx context.Context) error {
 	}
 	var sleep int64
 	if !mempoolReady {
-		force := g.lastQueue + g.cfg.GossipMaxDelay
+		force := g.lastForce + g.cfg.GossipMaxDelay
 		if now >= force {
+			g.lastForce = time.Now().UnixMilli()
 			if err := g.Force(ctx); err != nil {
 				g.vm.Logger().Warn("unable to send gossip", zap.Error(err))
 				return err
@@ -352,4 +329,38 @@ func (g *Proposer) BlockVerified(t int64) {
 
 func (g *Proposer) Done() {
 	<-g.doneGossip
+}
+
+func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error {
+	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.sendTxs")
+	defer span.End()
+
+	// Marshal gossip
+	b, err := chain.MarshalTxs(txs)
+	if err != nil {
+		return err
+	}
+
+	// Select next set of proposers and send gossip to them
+	proposers, err := g.vm.Proposers(
+		ctx,
+		g.cfg.GossipProposerDiff,
+		g.cfg.GossipProposerDepth,
+	)
+	if err != nil || proposers.Len() == 0 {
+		g.vm.Logger().Warn(
+			"unable to find any proposers, falling back to all-to-all gossip",
+			zap.Error(err),
+		)
+		return g.appSender.SendAppGossip(ctx, b)
+	}
+	recipients := set.NewSet[ids.NodeID](len(proposers))
+	for proposer := range proposers {
+		// Don't gossip to self
+		if proposer == g.vm.NodeID() {
+			continue
+		}
+		recipients.Add(proposer)
+	}
+	return g.appSender.SendAppGossipSpecific(ctx, recipients, b)
 }
