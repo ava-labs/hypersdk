@@ -86,7 +86,7 @@ type Mempool interface {
 	Top(
 		context.Context,
 		time.Duration,
-		func(context.Context, *Transaction) (cont bool, restore bool, err error),
+		func(context.Context, *Transaction) (cont bool, rest bool, err error),
 	) error
 
 	StartStreaming(context.Context)
@@ -107,21 +107,33 @@ type Rules interface {
 	NetworkID() uint32
 	ChainID() ids.ID
 
-	GetMinBlockGap() int64
-	GetMinEmptyBlockGap() int64
+	GetMinBlockGap() int64      // in milliseconds
+	GetMinEmptyBlockGap() int64 // in milliseconds
+	GetValidityWindow() int64   // in milliseconds
 
-	GetMinUnitPrice() uint64
-	GetUnitPriceChangeDenominator() uint64
-	GetWindowTargetUnits() uint64
-	GetMaxBlockUnits() uint64 // should ensure can't get above block max size
+	GetMinUnitPrice() Dimensions
+	GetUnitPriceChangeDenominator() Dimensions
+	GetWindowTargetUnits() Dimensions
+	GetMaxBlockUnits() Dimensions
 
-	GetBaseUnits() uint64
-	GetWarpBaseUnits() uint64
-	GetWarpUnitsPerSigner() uint64
+	GetBaseComputeUnits() uint64
+	GetBaseWarpComputeUnits() uint64
+	GetWarpComputeUnitsPerSigner() uint64
+	GetOutgoingWarpComputeUnits() uint64
+
+	// Controllers must manage the max key length and max value length
+	GetColdStorageKeyReadUnits() uint64
+	GetColdStorageValueReadUnits() uint64 // per chunk
+	GetWarmStorageKeyReadUnits() uint64
+	GetWarmStorageValueReadUnits() uint64 // per chunk
+	GetStorageKeyCreateUnits() uint64
+	GetStorageValueCreateUnits() uint64 // per chunk
+	GetColdStorageKeyModificationUnits() uint64
+	GetColdStorageValueModificationUnits() uint64 // per chunk
+	GetWarmStorageKeyModificationUnits() uint64
+	GetWarmStorageValueModificationUnits() uint64 // per chunk
 
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
-
-	GetValidityWindow() int64 // in milliseconds
 
 	FetchCustom(string) (any, bool)
 }
@@ -129,34 +141,60 @@ type Rules interface {
 // StateManager allows [Chain] to safely store certain types of items in state
 // in a structured manner. If we did not use [StateManager], we may overwrite
 // state written by actions or auth.
+//
+// None of these keys should be suffixed with the max amount of chunks they will
+// use. This will be handled by the hypersdk.
 type StateManager interface {
 	HeightKey() []byte
-	IncomingWarpKey(sourceChainID ids.ID, msgID ids.ID) []byte
-	OutgoingWarpKey(txID ids.ID) []byte
+	FeeKey() []byte
+
+	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte
+	OutgoingWarpKeyPrefix(txID ids.ID) []byte
 }
 
 type Action interface {
-	GetTypeID() uint8                          // identify uniquely the action
-	MaxUnits(Rules) uint64                     // max units that could be charged via execute
-	ValidRange(Rules) (start int64, end int64) // -1 means no start/end
+	// GetTypeID uniquely identifies each supported [Action]. We use IDs to avoid
+	// reflection.
+	GetTypeID() uint8
 
-	// Auth may contain an [Actor] that performs a transaction
+	// ValidRange is the timestamp range (in ms) that this [Action] is considered valid.
 	//
-	// We provide the [txID] here because different actions like to use this as
-	// a unique identifier for things created in an action.
-	//
-	// If attempt to reference missing key, error...it is ok to not use all keys (conditional logic based on state)
-	StateKeys(auth Auth, txID ids.ID) [][]byte
+	// -1 means no start/end
+	ValidRange(Rules) (start int64, end int64)
 
-	// Key distinction with "Auth" is the payment of fees. All non-fee payments
-	// occur in Execute but Auth handles fees.
+	// MaxComputeUnits is the maximum amount of compute a given [Action] could use. This is
+	// used to determine whether the [Action] can be included in a given block and to compute
+	// the required fee to execute.
 	//
-	// The weird part of this is that they both need a shared understanding of
-	// balance tracking. Is it weird Auth then needs an understanding of storage
-	// structure? Not sure there is an easier way.
+	// Developers should make every effort to bound this as tightly to the actual max so that
+	// users don't need to have a large balance to call an [Action] (must prepay fee before execution).
+	MaxComputeUnits(Rules) uint64
+
+	// OutputsWarpMessage indicates whether an [Action] will produce a warp message. The max size
+	// of any warp message is [MaxOutgoingWarpChunks].
+	OutputsWarpMessage() bool
+
+	// StateKeys is a full enumeration of all database keys that could be touched during execution
+	// of an [Action]. This is used to prefetch state and will be used to parallelize execution (making
+	// an execution tree is trivial).
 	//
-	// It is also odd because we may pull some aspect of the transaction from
-	// auth (like where to pull balance from on a transfer).
+	// All keys specified must be suffixed with the number of chunks that could ever be read from that
+	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
+	StateKeys(auth Auth, txID ids.ID) []string
+
+	// StateKeysMaxChunks is used to estimate the fee a transaction should pay. It includes the max
+	// chunks each state key could use without requiring the state keys to actually be provided (may
+	// not be known until execution).
+	StateKeysMaxChunks() []uint16
+
+	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
+	// be done here.
+	//
+	// If any keys are touched during [Execute] that are not specified in [StateKeys], the transaction
+	// will revert and the max fee will be charged.
+	//
+	// An error should only be returned if a fatal error was encountered, otherwise [success] should
+	// be marked as false and fees will still be charged.
 	Execute(
 		ctx context.Context,
 		r Rules,
@@ -165,10 +203,14 @@ type Action interface {
 		auth Auth,
 		txID ids.ID,
 		warpVerified bool,
-	) (result *Result, err error) // err should only be returned if fatal
+	) (success bool, computeUnits uint64, output []byte, warpMessage *warp.UnsignedMessage, err error)
 
-	Size() int
+	// Marshal encodes an [Action] as bytes.
 	Marshal(p *codec.Packer)
+
+	// Size is the number of bytes it takes to represent this [Action]. This is used to preallocate
+	// memory during encoding and to charge bandwidth fees.
+	Size() int
 }
 
 type AuthBatchVerifier interface {
@@ -177,37 +219,79 @@ type AuthBatchVerifier interface {
 }
 
 type Auth interface {
-	GetTypeID() uint8 // identify uniquely the auth
+	// GetTypeID uniquely identifies each supported [Auth]. We use IDs to avoid
+	// reflection.
+	GetTypeID() uint8
 
-	MaxUnits(Rules) uint64
-	ValidRange(Rules) (start int64, end int64) // -1 means no start/end
+	// ValidRange is the timestamp range (in ms) that this [Auth] is considered valid.
+	//
+	// -1 means no start/end
+	ValidRange(Rules) (start int64, end int64)
 
-	StateKeys() [][]byte
+	// MaxComputeUnits is the maximum amount of compute a given [Auth] could use. This is
+	// used to determine whether the [Auth] can be included in a given block and to compute
+	// the required fee to execute.
+	//
+	// Developers should make every effort to bound this as tightly to the actual max so that
+	// users don't need to have a large balance to call an [Auth] (must prepay fee before execution).
+	//
+	// MaxComputeUnits should take into account [AsyncVerify], [CanDeduct], [Deduct], and [Refund]
+	MaxComputeUnits(Rules) uint64
 
-	// will be run concurrently, optimistically start crypto ops (may not complete before [Verify])
+	// StateKeys is a full enumeration of all database keys that could be touched during execution
+	// of an [Auth]. This is used to prefetch state and will be used to parallelize execution (making
+	// an execution tree is trivial).
+	//
+	// All keys specified must be suffixed with the number of chunks that could ever be read from that
+	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
+	StateKeys() []string
+
+	// AsyncVerify should perform any verification that can be run concurrently. It may not be run by the time
+	// [Verify] is invoked but will be checked before a [Transaction] is considered successful.
+	//
+	// AsyncVerify is typically used to perform cryptographic operations.
 	AsyncVerify(msg []byte) error
 
-	// Is Auth able to execute [Action], assuming [AsyncVerify] passes?
+	// Verify performs any checks against state required to determine if [Auth] is valid.
+	//
+	// This could be used, for example, to determine that the public key used to sign a transaction
+	// is registered as the signer for an account. This could also be used to pull a [Program] from disk.
+	//
+	// Invariant: [Verify] must not change state
 	Verify(
 		ctx context.Context,
 		r Rules,
-		db Database, // Should only read, no mutate
-		action Action, // Authentication may be scoped to action type
-	) (units uint64, err error) // if there is account abstraction, may need to pull from state some mapping
-	// if verify is not validate, then what? -> can't actually change fee then?
-	// units should include any cost associated with [AsyncVerify]
+		db Database,
+		action Action,
+	) (computeUnits uint64, err error)
 
-	// TODO: identifier->may be used to send to in action as well?
-	Payer() []byte // need to track mempool + charge fees -> used to clear related accounts if balance check fails
+	// Payer is the owner of [Auth]. It is used by the mempool to ensure that there aren't too many transactions
+	// from a single Payer.
+	Payer() []byte
+
+	// CanDeduct returns an error if [amount] cannot be paid by [Auth].
 	CanDeduct(ctx context.Context, db Database, amount uint64) error
-	Deduct(ctx context.Context, db Database, amount uint64) error
-	Refund(ctx context.Context, db Database, amount uint64) error // only invoked if amount > 0
 
-	Size() int
+	// Deduct removes [amount] from [Auth] during transaction execution to pay fees.
+	Deduct(ctx context.Context, db Database, amount uint64) error
+
+	// Refund returns [amount] to [Auth] after transaction execution if any fees were
+	// not used.
+	//
+	// Refund is only invoked if [amount] > 0.
+	Refund(ctx context.Context, db Database, amount uint64) error
+
+	// Marshal encodes an [Auth] as bytes.
 	Marshal(p *codec.Packer)
+
+	// Size is the number of bytes it takes to represent this [Auth]. This is used to preallocate
+	// memory during encoding and to charge bandwidth fees.
+	Size() int
 }
 
 type AuthFactory interface {
-	// used by helpers, auth object should store internally to be ready for marshaling
+	// Sign is used by helpers, auth object should store internally to be ready for marshaling
 	Sign(msg []byte, action Action) (Auth, error)
+
+	MaxUnits() (bandwidth uint64, compute uint64, stateKeysCount []uint16)
 }

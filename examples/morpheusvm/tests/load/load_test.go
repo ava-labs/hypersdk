@@ -28,6 +28,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/units"
 	avago_version "github.com/ava-labs/avalanchego/version"
 	"github.com/fatih/color"
 	ginkgo "github.com/onsi/ginkgo/v2"
@@ -52,10 +53,7 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 )
 
-const (
-	genesisBalance  uint64 = hconsts.MaxUint64
-	transferTxUnits        = 440
-)
+const genesisBalance uint64 = hconsts.MaxUint64
 
 var (
 	logFactory logging.Factory
@@ -96,11 +94,12 @@ type account struct {
 }
 
 var (
-	dist  string
-	vms   int
-	accts int
-	txs   int
-	trace bool
+	dist   string
+	vms    int
+	accts  int
+	txs    int
+	trace  bool
+	maxFee uint64
 
 	senders []*account
 	blks    []*chain.StatelessBlock
@@ -152,6 +151,12 @@ func init() {
 		false,
 		"trace function calls",
 	)
+	flag.Uint64Var(
+		&maxFee,
+		"max-fee",
+		1000,
+		"max fee per tx",
+	)
 }
 
 func TestLoad(t *testing.T) {
@@ -178,8 +183,10 @@ var _ = ginkgo.BeforeSuite(func() {
 	// create embedded VMs
 	instances = make([]*instance, vms)
 	gen = genesis.Default()
-	gen.WindowTargetUnits = 1_000_000_000 // disable unit price increase
-	gen.MaxBlockUnits = 4_500_000
+	gen.MinUnitPrice = chain.Dimensions{1, 1, 1, 1, 1}
+	// target must be set less than max, otherwise we will iterate through all txs in mempool
+	gen.WindowTargetUnits = chain.Dimensions{hconsts.NetworkSizeLimit - 10*units.KiB, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64} // disable unit price increase
+	gen.MaxBlockUnits = chain.Dimensions{hconsts.NetworkSizeLimit, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64}
 	gen.MinBlockGap = 0                                        // don't require time between blocks
 	gen.ValidityWindow = 1_000 * hconsts.MillisecondsPerSecond // txs shouldn't expire
 	gen.CustomAllocation = []*genesis.CustomAllocation{
@@ -372,7 +379,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 
 		ginkgo.By("load accounts", func() {
 			// sending 1 tx to each account
-			remainder := uint64(accts)*transferTxUnits + uint64(1_000_000)
+			remainder := uint64(accts)*maxFee + uint64(1_000_000)
 			// leave some left over for root
 			fundSplit := (genesisBalance - remainder) / uint64(accts)
 			gomega.Ω(fundSplit).Should(gomega.Not(gomega.BeZero()))
@@ -490,7 +497,7 @@ func issueSimpleTx(
 		&chain.Base{
 			Timestamp: hutils.UnixRMilli(-1, 100*hconsts.MillisecondsPerSecond),
 			ChainID:   i.chainID,
-			UnitPrice: 1,
+			MaxFee:    maxFee,
 		},
 		nil,
 		&actions.Transfer{

@@ -32,4 +32,5 @@ type VM interface {
 	RecordTxsGossiped(int)
 	RecordTxsReceived(int)
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool)
+	StateManager() chain.StateManager
 }

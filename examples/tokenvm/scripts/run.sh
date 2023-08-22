@@ -22,10 +22,12 @@ MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
+CREATE_TARGET=${CREATE_TARGET:-75000}
 if [[ ${MODE} != "run" && ${MODE} != "run-single" ]]; then
   LOGLEVEL=debug
   STATESYNC_DELAY=100000000 # 100ms
   MIN_BLOCK_GAP=250 #ms
+  CREATE_TARGET=100000000 # 4M accounts (we send to random addresses)
 fi
 
 echo "Running with:"
@@ -105,8 +107,8 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f ${TMPDIR}/tokenvm.genesis
   ${TMPDIR}/token-cli genesis generate ${TMPDIR}/allocations.json \
-  --max-block-units 4000000 \
-  --window-target-units 100000000000 \
+  --window-target-units "40000000,450000,450000,${CREATE_TARGET},450000" \
+  --max-block-units "1800000,15000,15000,2500,15000" \
   --min-block-gap ${MIN_BLOCK_GAP} \
   --genesis-file ${TMPDIR}/tokenvm.genesis
 else

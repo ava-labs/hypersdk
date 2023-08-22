@@ -51,53 +51,58 @@ func (*CreateOrder) GetTypeID() uint8 {
 	return createOrderID
 }
 
-func (c *CreateOrder) StateKeys(rauth chain.Auth, txID ids.ID) [][]byte {
+func (c *CreateOrder) StateKeys(rauth chain.Auth, txID ids.ID) []string {
 	actor := auth.GetActor(rauth)
-	return [][]byte{
-		storage.PrefixBalanceKey(actor, c.Out),
-		storage.PrefixOrderKey(txID),
+	return []string{
+		string(storage.BalanceKey(actor, c.Out)),
+		string(storage.OrderKey(txID)),
 	}
+}
+
+func (*CreateOrder) StateKeysMaxChunks() []uint16 {
+	return []uint16{storage.BalanceChunks, storage.OrderChunks}
+}
+
+func (*CreateOrder) OutputsWarpMessage() bool {
+	return false
 }
 
 func (c *CreateOrder) Execute(
 	ctx context.Context,
-	r chain.Rules,
+	_ chain.Rules,
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,
 	txID ids.ID,
 	_ bool,
-) (*chain.Result, error) {
+) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	actor := auth.GetActor(rauth)
-	unitsUsed := c.MaxUnits(r) // max units == units
 	if c.In == c.Out {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputSameInOut}, nil
+		return false, CreateOrderComputeUnits, OutputSameInOut, nil, nil
 	}
 	if c.InTick == 0 {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputInTickZero}, nil
+		return false, CreateOrderComputeUnits, OutputInTickZero, nil, nil
 	}
 	if c.OutTick == 0 {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputOutTickZero}, nil
+		return false, CreateOrderComputeUnits, OutputOutTickZero, nil, nil
 	}
 	if c.Supply == 0 {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputSupplyZero}, nil
+		return false, CreateOrderComputeUnits, OutputSupplyZero, nil, nil
 	}
 	if c.Supply%c.OutTick != 0 {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputSupplyMisaligned}, nil
+		return false, CreateOrderComputeUnits, OutputSupplyMisaligned, nil, nil
 	}
 	if err := storage.SubBalance(ctx, db, actor, c.Out, c.Supply); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.SetOrder(ctx, db, txID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	return &chain.Result{Success: true, Units: unitsUsed}, nil
+	return true, CreateOrderComputeUnits, nil, nil, nil
 }
 
-func (*CreateOrder) MaxUnits(chain.Rules) uint64 {
-	// We use size as the price of this transaction but we could just as easily
-	// use any other calculation.
-	return consts.IDLen*2 + consts.Uint64Len*3
+func (*CreateOrder) MaxComputeUnits(chain.Rules) uint64 {
+	return CreateOrderComputeUnits
 }
 
 func (*CreateOrder) Size() int {

@@ -39,14 +39,10 @@ type StatefulBlock struct {
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	UnitPrice  uint64        `json:"unitPrice"`
-	UnitWindow window.Window `json:"unitWindow"`
-
 	Txs []*Transaction `json:"txs"`
 
-	StateRoot     ids.ID     `json:"stateRoot"`
-	UnitsConsumed uint64     `json:"unitsConsumed"`
-	WarpResults   set.Bits64 `json:"warpResults"`
+	StateRoot   ids.ID     `json:"stateRoot"`
+	WarpResults set.Bits64 `json:"warpResults"`
 
 	size int
 
@@ -69,7 +65,7 @@ type warpJob struct {
 	warpNum      int
 }
 
-func NewGenesisBlock(root ids.ID, minUnit uint64) *StatefulBlock {
+func NewGenesisBlock(root ids.ID) *StatefulBlock {
 	return &StatefulBlock{
 		// We set the genesis block timestamp to be after the ProposerVM fork activation.
 		//
@@ -81,9 +77,7 @@ func NewGenesisBlock(root ids.ID, minUnit uint64) *StatefulBlock {
 		// .../vms/proposervm/pre_fork_block.go#L201
 		Tmstmp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
 
-		UnitPrice:  minUnit,
-		UnitWindow: window.Window{},
-
+		// StateRoot should include all allocations made when loading the genesis file
 		StateRoot: root,
 	}
 }
@@ -105,7 +99,8 @@ type StatelessBlock struct {
 	bctx         *block.Context
 	vdrState     validators.State
 
-	results []*Result
+	results    []*Result
+	feeManager *FeeManager
 
 	vm    VM
 	state merkledb.TrieView
@@ -113,15 +108,12 @@ type StatelessBlock struct {
 	sigJob workers.Job
 }
 
-func NewBlock(ectx *ExecutionContext, vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
+func NewBlock(vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
 	return &StatelessBlock{
 		StatefulBlock: &StatefulBlock{
 			Prnt:   parent.ID(),
 			Tmstmp: tmstp,
 			Hght:   parent.Height() + 1,
-
-			UnitPrice:  ectx.NextUnitPrice,
-			UnitWindow: ectx.NextUnitWindow,
 		},
 		vm: vm,
 		st: choices.Processing,
@@ -257,6 +249,7 @@ func (b *StatelessBlock) initializeBuilt(
 	ctx context.Context,
 	state merkledb.TrieView,
 	results []*Result,
+	feeManager *FeeManager,
 ) error {
 	_, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
 	defer span.End()
@@ -270,6 +263,7 @@ func (b *StatelessBlock) initializeBuilt(
 	b.state = state
 	b.t = time.UnixMilli(b.StatefulBlock.Tmstmp)
 	b.results = results
+	b.feeManager = feeManager
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
 		b.txsSet.Add(tx.ID())
@@ -455,22 +449,6 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
 	}
 
-	ectx, err := GenerateExecutionContext(ctx, b.Tmstmp, parent, b.vm.Tracer(), r)
-	if err != nil {
-		return nil, err
-	}
-	switch {
-	case b.UnitPrice != ectx.NextUnitPrice:
-		return nil, ErrInvalidUnitPrice
-	case b.UnitWindow != ectx.NextUnitWindow:
-		return nil, ErrInvalidUnitWindow
-	}
-	log.Info(
-		"verify context",
-		zap.Uint64("height", b.Hght),
-		zap.Uint64("unit price", b.UnitPrice),
-	)
-
 	// Start validating warp messages, if they exist
 	var invalidWarpResult bool
 	if b.containsWarp {
@@ -532,12 +510,23 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, err
 	}
 
+	// Compute next unit prices to use
+	feeRaw, err := state.GetValue(ctx, b.vm.StateManager().FeeKey())
+	if err != nil {
+		return nil, err
+	}
+	feeManager := NewFeeManager(feeRaw)
+	nextFeeManager, err := feeManager.ComputeNext(parent.Tmstmp, b.Tmstmp, r)
+	if err != nil {
+		return nil, err
+	}
+
 	// Optimisticaly fetch state
 	processor := NewProcessor(b.vm.Tracer(), b)
 	processor.Prefetch(ctx, state)
 
 	// Process new transactions
-	unitsConsumed, results, stateChanges, stateOps, err := processor.Execute(ctx, ectx, r)
+	results, stateChanges, stateOps, err := processor.Execute(ctx, nextFeeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return nil, err
@@ -545,14 +534,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	b.vm.RecordStateChanges(stateChanges)
 	b.vm.RecordStateOperations(stateOps)
 	b.results = results
-	if b.UnitsConsumed != unitsConsumed {
-		return nil, fmt.Errorf(
-			"%w: required=%d found=%d",
-			ErrInvalidUnitsConsumed,
-			unitsConsumed,
-			b.UnitsConsumed,
-		)
-	}
+	b.feeManager = nextFeeManager
 
 	// Ensure warp results are correct
 	if invalidWarpResult {
@@ -576,7 +558,15 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, err
 	}
 
+	// Store fee parameters
+	if err := state.Insert(ctx, b.vm.StateManager().FeeKey(), nextFeeManager.Bytes()); err != nil {
+		return nil, err
+	}
+
 	// Compute state root
+	//
+	// Because fee bytes are not recorded in state, it is sufficient to check the state root
+	// to verify all fee calcuations were correct.
 	start := time.Now()
 	computedRoot, err := state.GetMerkleRoot(ctx)
 	if err != nil {
@@ -799,12 +789,12 @@ func (b *StatelessBlock) GetTimestamp() int64 {
 	return b.Tmstmp
 }
 
-func (b *StatelessBlock) GetUnitPrice() uint64 {
-	return b.UnitPrice
-}
-
 func (b *StatelessBlock) Results() []*Result {
 	return b.results
+}
+
+func (b *StatelessBlock) FeeManager() *FeeManager {
+	return b.feeManager
 }
 
 func (b *StatefulBlock) Marshal() ([]byte, error) {
@@ -819,9 +809,6 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	p.PackInt64(b.Tmstmp)
 	p.PackUint64(b.Hght)
 
-	p.PackUint64(b.UnitPrice)
-	p.PackWindow(b.UnitWindow)
-
 	p.PackInt(len(b.Txs))
 	b.authCounts = map[uint8]int{}
 	for _, tx := range b.Txs {
@@ -832,7 +819,6 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	}
 
 	p.PackID(b.StateRoot)
-	p.PackUint64(b.UnitsConsumed)
 	p.PackUint64(uint64(b.WarpResults))
 	bytes := p.Bytes()
 	if err := p.Err(); err != nil {
@@ -853,13 +839,6 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	b.Tmstmp = p.UnpackInt64(false)
 	b.Hght = p.UnpackUint64(false)
 
-	b.UnitPrice = p.UnpackUint64(false)
-	p.UnpackWindow(&b.UnitWindow)
-	if err := p.Err(); err != nil {
-		// Check that header was parsed properly before unwrapping transactions
-		return nil, err
-	}
-
 	// Parse transactions
 	txCount := p.UnpackInt(false) // can produce empty blocks
 	actionRegistry, authRegistry := parser.Registry()
@@ -873,12 +852,12 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 		b.Txs = append(b.Txs, tx)
 		b.authCounts[tx.Auth.GetTypeID()]++
 	}
+
 	p.UnpackID(false, &b.StateRoot)
-	b.UnitsConsumed = p.UnpackUint64(false)
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
 
+	// Ensure no leftover bytes
 	if !p.Empty() {
-		// Ensure no leftover bytes
 		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
 	}
 	return &b, p.Err()

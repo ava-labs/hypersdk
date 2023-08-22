@@ -160,32 +160,11 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 		size  = 0
 		start = time.Now()
 		now   = start.UnixMilli()
-		r     = g.vm.Rules(now)
 	)
-
-	// Create temporary execution context
-	blk, err := g.vm.PreferredBlock(ctx)
-	if err != nil {
-		return err
-	}
-	state, err := blk.State()
-	if err != nil {
-		return err
-	}
-	ectx, err := chain.GenerateExecutionContext(
-		ctx,
-		now,
-		blk,
-		g.vm.Tracer(),
-		g.vm.Rules(now),
-	)
-	if err != nil {
-		return err
-	}
 	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
-		func(ictx context.Context, next *chain.Transaction) (cont bool, restore bool, err error) {
+		func(ictx context.Context, next *chain.Transaction) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
 				return true, false, nil
@@ -207,18 +186,7 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 				return true, true, nil
 			}
 
-			// PreExecute does not make any changes to state
-			//
-			// TODO: consider removing this check (requires at least 1 database call
-			// per gossiped tx)
-			if err := next.PreExecute(ctx, ectx, r, state, now); err != nil {
-				// Do not gossip invalid txs (may become invalid during normal block
-				// processing)
-				cont, restore, _ := chain.HandlePreExecute(err)
-				return cont, restore, nil
-			}
-
-			// Gossip up to [consts.NetworkSizeLimit]
+			// Gossip up to [GossipMaxSize]
 			txSize := next.Size()
 			if txSize+size > g.cfg.GossipMaxSize {
 				return false, true, nil
@@ -234,10 +202,7 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 	if len(txs) == 0 {
 		return nil
 	}
-	g.vm.Logger().Info(
-		"gossiping transactions", zap.Int("txs", len(txs)),
-		zap.Uint64("preferred height", blk.Hght), zap.Duration("t", time.Since(start)),
-	)
+	g.vm.Logger().Info("gossiping transactions", zap.Int("txs", len(txs)), zap.Duration("t", time.Since(start)))
 	g.vm.RecordTxsGossiped(len(txs))
 	return g.sendTxs(ctx, txs)
 }
