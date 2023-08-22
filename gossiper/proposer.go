@@ -8,10 +8,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
@@ -30,35 +30,30 @@ type Proposer struct {
 	doneGossip chan struct{}
 
 	lastVerified int64
-
-	// bounded by validator count (may be slightly out of date as composition changes)
-	gossipedTxs map[ids.NodeID]*cache.LRU[ids.ID, struct{}]
-	receivedTxs *cache.LRU[ids.ID, struct{}]
 }
 
 type ProposerConfig struct {
-	GossipProposerDiff      int
-	GossipProposerDepth     int
-	GossipInterval          time.Duration
-	GossipPeerCacheSize     int
-	GossipReceivedCacheSize int
-	GossipMinLife           int64 // ms
-	GossipMaxSize           int
-	NoGossipBuilderDiff     int
-	VerifyTimeout           int64 // ms
+	GossipProposerDiff  int
+	GossipProposerDepth int
+	GossipInterval      time.Duration
+	GossipMinLife       int64 // ms
+	GossipMinSize       int
+	GossipMaxDelay      int64 // ms
+	GossipMaxSize       int
+	NoGossipBuilderDiff int
+	VerifyTimeout       int64 // ms
 }
 
 func DefaultProposerConfig() *ProposerConfig {
 	return &ProposerConfig{
-		GossipProposerDiff:      3,
-		GossipProposerDepth:     1,
-		GossipInterval:          1 * time.Second,
-		GossipPeerCacheSize:     10_240,
-		GossipReceivedCacheSize: 65_536,
-		GossipMinLife:           5 * 1000,
-		GossipMaxSize:           consts.NetworkSizeLimit,
-		NoGossipBuilderDiff:     5,
-		VerifyTimeout:           proposerWindow / 2,
+		GossipProposerDiff:  3,
+		GossipProposerDepth: 1,
+		GossipMinLife:       5 * 1000,
+		GossipMinSize:       32 * units.KiB, // TODO: need to add size tracking to mempool
+		GossipMaxDelay:      50,             // wait for ms if below min size
+		GossipMaxSize:       consts.NetworkSizeLimit,
+		NoGossipBuilderDiff: 5,
+		VerifyTimeout:       proposerWindow / 2,
 	}
 }
 
@@ -68,9 +63,6 @@ func NewProposer(vm VM, cfg *ProposerConfig) *Proposer {
 		cfg:          cfg,
 		doneGossip:   make(chan struct{}),
 		lastVerified: -1,
-
-		gossipedTxs: map[ids.NodeID]*cache.LRU[ids.ID, struct{}]{},
-		receivedTxs: &cache.LRU[ids.ID, struct{}]{Size: cfg.GossipReceivedCacheSize},
 	}
 }
 
@@ -78,6 +70,13 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.sendTxs")
 	defer span.End()
 
+	// Marshal gossip
+	b, err := chain.MarshalTxs(txs)
+	if err != nil {
+		return err
+	}
+
+	// Select next set of proposers and send gossip to them
 	proposers, err := g.vm.Proposers(
 		ctx,
 		g.cfg.GossipProposerDiff,
@@ -88,69 +87,20 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 			"unable to find any proposers, falling back to all-to-all gossip",
 			zap.Error(err),
 		)
-
-		b, err := chain.MarshalTxs(txs)
-		if err != nil {
-			return err
-		}
-
-		if err := g.appSender.SendAppGossip(ctx, b); err != nil {
-			g.vm.Logger().Warn(
-				"GossipTxs failed",
-				zap.Error(err),
-			)
-			return err
-		}
-		return nil
+		return g.appSender.SendAppGossip(ctx, b)
 	}
-
+	recipients := set.NewSet[ids.NodeID](len(proposers))
 	for proposer := range proposers {
 		// Don't gossip to self
 		if proposer == g.vm.NodeID() {
 			continue
 		}
-
-		c, ok := g.gossipedTxs[proposer]
-		if !ok {
-			g.gossipedTxs[proposer] = &cache.LRU[ids.ID, struct{}]{Size: g.cfg.GossipPeerCacheSize}
-			c = g.gossipedTxs[proposer]
-		}
-
-		toGossip := make([]*chain.Transaction, 0, len(txs))
-		for _, tx := range txs {
-			if _, ok := c.Get(tx.ID()); ok {
-				continue
-			}
-			c.Put(tx.ID(), struct{}{})
-			toGossip = append(toGossip, tx)
-		}
-
-		if len(toGossip) == 0 {
-			g.vm.Logger().Debug("nothing to gossip", zap.Stringer("node", proposer))
-			continue
-		}
-
-		// TODO: cache marshalization
-		b, err := chain.MarshalTxs(toGossip)
-		if err != nil {
-			return err
-		}
-
-		if err := g.appSender.SendAppGossipSpecific(ctx, set.Set[ids.NodeID]{proposer: {}}, b); err != nil {
-			g.vm.Logger().Warn(
-				"GossipTxs failed",
-				zap.Stringer("node", proposer),
-				zap.Error(err),
-			)
-			return err
-		}
+		recipients.Add(proposer)
 	}
-	return nil
+	return g.appSender.SendAppGossipSpecific(ctx, recipients, b)
 }
 
-// Triggers "AppGossip" on the pending transactions in the mempool.
-// "force" is true to re-gossip whether recently gossiped or not
-func (g *Proposer) ForceGossip(ctx context.Context) error {
+func (g *Proposer) Force(ctx context.Context) error {
 	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.GossipTxs")
 	defer span.End()
 
@@ -173,16 +123,6 @@ func (g *Proposer) ForceGossip(ctx context.Context) error {
 			// Don't gossip txs that are about to expire
 			life := next.Base.Timestamp - now
 			if life < g.cfg.GossipMinLife {
-				return true, true, nil
-			}
-
-			// Don't gossip txs we received from other nodes (original gossiper will
-			// gossip again if the transaction is still important to them, so our
-			// gossip will just be useless bytes).
-			//
-			// We still keep these transactions in our mempool as they may still be
-			// the highest-paying transaction to execute at a given time.
-			if _, has := g.receivedTxs.Get(next.ID()); has {
 				return true, true, nil
 			}
 
@@ -220,25 +160,6 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	}
 	g.vm.RecordTxsReceived(len(txs))
 
-	// Mark incoming gossip as held by [nodeID], if it is a validator
-	isValidator, err := g.vm.IsValidator(ctx, nodeID)
-	if err != nil {
-		g.vm.Logger().Warn(
-			"unable to determine if nodeID is validator",
-			zap.Stringer("peerID", nodeID),
-			zap.Error(err),
-		)
-	}
-	var c *cache.LRU[ids.ID, struct{}]
-	if isValidator {
-		var ok bool
-		c, ok = g.gossipedTxs[nodeID]
-		if !ok {
-			g.gossipedTxs[nodeID] = &cache.LRU[ids.ID, struct{}]{Size: g.cfg.GossipPeerCacheSize}
-			c = g.gossipedTxs[nodeID]
-		}
-	}
-
 	// Add incoming transactions to our caches to prevent useless gossip and perform
 	// batch signature verification.
 	//
@@ -267,12 +188,6 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 			return nil
 		}
 		batchVerifier.Add(txDigest, tx.Auth)
-
-		// Track incoming txs
-		if c != nil {
-			c.Put(tx.ID(), struct{}{})
-		}
-		g.receivedTxs.Put(tx.ID(), struct{}{})
 	}
 	batchVerifier.Done(nil)
 
@@ -286,9 +201,19 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 		return nil
 	}
 
+	// Mark incoming gossip as held by [nodeID], if it is a validator
+	isValidator, err := g.vm.IsValidator(ctx, nodeID)
+	if err != nil {
+		g.vm.Logger().Warn(
+			"unable to determine if nodeID is validator",
+			zap.Stringer("peerID", nodeID),
+			zap.Error(err),
+		)
+	}
+
 	// Submit incoming gossip to mempool
 	start := time.Now()
-	for _, err := range g.vm.Submit(ctx, false, txs) {
+	for _, err := range g.vm.Submit(ctx, isValidator, false, txs) {
 		if err == nil || errors.Is(err, chain.ErrDuplicateTx) {
 			continue
 		}
@@ -307,6 +232,9 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	// only trace error to prevent VM's being shutdown
 	// from "AppGossip" returning an error
 	return nil
+}
+
+func (g *Proposer) Queue() {
 }
 
 // periodically but less aggressively force-regossip the pending
@@ -340,7 +268,7 @@ func (g *Proposer) Run(appSender common.AppSender) {
 			}
 
 			// Gossip to proposers who will produce next
-			if err := g.ForceGossip(tctx); err != nil {
+			if err := g.Force(tctx); err != nil {
 				g.vm.Logger().Warn("gossip txs failed", zap.Error(err))
 			}
 		case <-g.vm.StopChan():
