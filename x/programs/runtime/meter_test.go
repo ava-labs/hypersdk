@@ -34,8 +34,8 @@ var (
 		))
 )
 
-// go test -v -run ^TestMeter$ github.com/ava-labs/hypersdk/x/programs/runtime
-func TestMeter(t *testing.T) {
+// go test -v -run ^TestMeterInsufficientBalance$ github.com/ava-labs/hypersdk/x/programs/runtime
+func TestMeterInsufficientBalance(t *testing.T) {
 	require := require.New(t)
 	ctrl := gomock.NewController(t)
 	storage := NewMockStorage(ctrl)
@@ -43,7 +43,7 @@ func TestMeter(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	meter := NewMeter(maxFee, costMap)
+	meter := NewMeter(log, maxFee, costMap)
 	runtime := New(log, meter, storage)
 	err := runtime.Initialize(ctx, tokenProgramBytes, []string{"get"})
 	require.NoError(err)
@@ -53,7 +53,28 @@ func TestMeter(t *testing.T) {
 	require.NoError(err)
 	require.Equal(uint64(1), resp[0])
 
-	// second call should fail invalid
+	// second call should fail due to insufficient balance
 	_, err = runtime.Call(ctx, "get")
-	require.ErrorIs(err, ErrMeterInvalidBalance)
+	require.ErrorIs(err, ErrMeterInsufficientBalance)
+}
+
+func TestMeterRuntimeStop(t *testing.T) {
+	require := require.New(t)
+	ctrl := gomock.NewController(t)
+	storage := NewMockStorage(ctrl)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	meter := NewMeter(log, maxFee, costMap)
+	runtime := New(log, meter, storage)
+	err := runtime.Initialize(ctx, tokenProgramBytes, []string{"get"})
+	require.NoError(err)
+
+	// shutdown runtime
+	err = runtime.Stop(ctx)
+	require.NoError(err)
+
+	// meter should be independent to runtime
+	err = meter.AddCost(ctx, "ConstI32 0x0")
+	require.NoError(err)
 }
