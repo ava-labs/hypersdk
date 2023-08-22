@@ -248,14 +248,16 @@ execution). In the future, it will also be possible to optionally
 specify a max usage of each unit dimension to better bound this pessimism.
 
 #### No Priority Fees
-Transactions are executed in FIFO order. Price-sorted mempools are only
-required if transactions will sit for a while (not the case with 60s default
-validity window). If a transaction cannot be executed, it will be dropped
-and must be resubmitted by the original issuer.
+Transactions are executed in FIFO order by each validator and there is no
+way for a user to specify some "priority" fee to have their transaction
+included in a block sooner. If a transaction cannot be executed when
+it is pulled from the mempool (because its `MaxFee` is insufficient), it will
+be dropped and must be reissued.
 
-As a convenient byproduct, this means the `hypersdk` mempool only needs
-to maintain a single heap for all pending transactions (just to clear expired
-txs).
+Aside from FIFO handling being dramatically more efficient for each validator,
+price-sorted mempools are not particularly useful in high-throughput
+blockchains where the expected mempool size is ~0 or there is a bounded transaction
+lifetime (60 seconds by default on the `hypersdk`).
 
 #### Key Flat Fee + Size-Based Fees
 Chunks = 64B
