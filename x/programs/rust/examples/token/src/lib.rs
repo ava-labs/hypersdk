@@ -8,7 +8,6 @@ use expose_macro::expose;
 #[expose]
 pub fn init_program() -> i64 {
     let mut token_program = Program::new();
-
     token_program
         .add_field(String::from("name"), Bytes32::from("WasmCoin".to_string()))
         .and_then(|_| {

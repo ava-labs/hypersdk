@@ -63,12 +63,12 @@ fn play(ctx: ProgramContext, player: Address) -> bool {
 
 // Seeding WASM RNG with the the player's address(which is currently randomly generated from host)
 // For demo purposes only, as this isn't a true rng.
-fn get_random_number(seed: Address, index: usize) -> i64 {
-    use rand::Rng;
-    use rand_chacha::rand_core::SeedableRng;
-    use rand_chacha::ChaCha8Rng;
+// fn get_random_number(seed: Address, index: usize) -> i64 {
+//     use rand::Rng;
+//     use rand_chacha::rand_core::SeedableRng;
+//     use rand_chacha::ChaCha8Rng;
 
-    let first_val = seed;
-    let mut rng = ChaCha8Rng::seed_from_u64(first_val.as_bytes()[index] as u64);
-    rng.gen_range(0..100)
-}
+//     let first_val = seed;
+//     let mut rng = ChaCha8Rng::seed_from_u64(first_val.as_bytes()[index] as u64);
+//     rng.gen_range(0..100)
+// }
