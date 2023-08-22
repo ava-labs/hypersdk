@@ -1,13 +1,13 @@
 // /// Counter but only for even numbers
 // use expose_macro::expose;
-// use wasmlanche_sdk::program::{Program, ProgramValue};
+// use wasmlanche_sdk::program::Program;
 // use wasmlanche_sdk::store::ProgramContext;
 // use wasmlanche_sdk::types::Address;
 
 // #[expose]
 // fn init_program() -> i64 {
 //     let even_program = Program::new();
-//     even_program.publish().unwrap().into()
+//     even_program.into()
 // }
 
 // #[expose]

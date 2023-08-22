@@ -9,15 +9,13 @@ use expose_macro::expose;
 #[expose]
 pub fn init_program() -> i64 {
     let mut token_program = Program::new();
+
     token_program
         .add_field(String::from("name"), "WasmCoin")
+        .and_then(|_| token_program.add_field(String::from("symbol"), "WACK"))
+        .and_then(|_| token_program.add_field(String::from("total_supply"), 123456789))
         .unwrap();
-    token_program
-        .add_field(String::from("symbol"), "WACK")
-        .unwrap();
-    token_program
-        .add_field(String::from("total_supply"), 123456789)
-        .unwrap();
+
     token_program.into()
 }
 
