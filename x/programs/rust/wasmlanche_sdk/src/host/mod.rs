@@ -8,7 +8,7 @@ extern "C" {
 
     #[link_name = "store_bytes"]
     fn _store_bytes(
-        contractId: u64,
+        contractId: i64,
         key_ptr: *const u8,
         key_len: usize,
         value_ptr: *const u8,
@@ -16,10 +16,10 @@ extern "C" {
     ) -> i32;
 
     #[link_name = "get_bytes_len"]
-    fn _get_bytes_len(contract_id: u64, key_ptr: *const u8, key_len: usize) -> i32;
+    fn _get_bytes_len(contract_id: i64, key_ptr: *const u8, key_len: usize) -> i32;
 
     #[link_name = "get_bytes"]
-    fn _get_bytes(contract_id: u64, key_ptr: *const u8, key_len: usize, val_len: i32) -> i32;
+    fn _get_bytes(contract_id: i64, key_ptr: *const u8, key_len: usize, val_len: i32) -> i32;
 }
 
 // The program module contains functionality for invoking external programs.
@@ -27,8 +27,8 @@ extern "C" {
 extern "C" {
     #[link_name = "invoke_program"]
     fn _invoke_program(
-        contract_id: u64,
-        call_contract_id: u64,
+        contract_id: i64,
+        call_contract_id: i64,
         method_name_ptr: *const u8,
         method_name_len: usize,
         args_ptr: *const u8,

@@ -45,12 +45,12 @@ func (t *Token) Run(ctx context.Context) error {
 		"init_program",
 	}
 
-	meter := runtime.NewMeter(t.maxFee, t.costMap)
+	// meter := runtime.NewMeter(t.maxFee, t.costMap)
 	db := utils.NewTestDB()
 	store := newProgramStorage(db)
 
-	// runtime := runtime.New(t.log, nil, store)
-	runtime := runtime.New(t.log, meter, store)
+	runtime := runtime.New(t.log, nil, store)
+	// runtime := runtime.New(t.log, meter, store)
 	err := runtime.Initialize(ctx, t.programBytes, functions)
 	if err != nil {
 		return err

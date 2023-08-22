@@ -23,10 +23,10 @@ type maps map[string][]byte
 
 // Key value store for program data
 type storage struct {
-	// uint64 for simplicity, could be a real hash later
-	state   map[uint64]maps
-	mods    map[uint64]api.Module
-	counter uint64
+	// int64 for simplicity, could be a real hash later
+	state   map[int64]maps
+	mods    map[int64]api.Module
+	counter int64
 }
 
 type MapModule struct {
@@ -43,8 +43,8 @@ func NewMapModule(log logging.Logger, meter Meter) *MapModule {
 		meter: meter,
 		log:   log,
 		store: storage{
-			state:   make(map[uint64]maps),
-			mods:    make(map[uint64]api.Module),
+			state:   make(map[int64]maps),
+			mods:    make(map[int64]api.Module),
 			counter: 0,
 		},
 	}
@@ -61,14 +61,14 @@ func (m *MapModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
 	return err
 }
 
-func (m *MapModule) initializeFn(_ context.Context, mod api.Module) uint64 {
+func (m *MapModule) initializeFn(_ context.Context, mod api.Module) int64 {
 	m.store.counter++
 	m.store.state[m.store.counter] = make(map[string][]byte)
 	m.store.mods[m.store.counter] = mod
-	return m.store.counter
+	return int64(m.store.counter)
 }
 
-func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id uint64, keyPtr uint32, keyLength uint32, valuePtr uint32, valueLength uint32) int32 {
+func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id int64, keyPtr uint32, keyLength uint32, valuePtr uint32, valueLength uint32) int32 {
 	_, ok := m.store.state[id]
 	if !ok {
 		return mapErr
@@ -93,7 +93,7 @@ func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id uint64, k
 	return mapOk
 }
 
-func (m *MapModule) getBytesLenFn(_ context.Context, mod api.Module, id uint64, keyPtr uint32, keyLength uint32) int32 {
+func (m *MapModule) getBytesLenFn(_ context.Context, mod api.Module, id int64, keyPtr uint32, keyLength uint32) int32 {
 	_, ok := m.store.state[id]
 	if !ok {
 		return mapErr
@@ -109,7 +109,7 @@ func (m *MapModule) getBytesLenFn(_ context.Context, mod api.Module, id uint64, 
 	return int32(len(val))
 }
 
-func (m *MapModule) getBytesFn(ctx context.Context, mod api.Module, id uint64, keyPtr uint32, keyLength int32, valLength int32) int32 {
+func (m *MapModule) getBytesFn(ctx context.Context, mod api.Module, id int64, keyPtr uint32, keyLength int32, valLength int32) int32 {
 	// Ensure the key and value lengths are positive
 	if valLength < 0 || keyLength < 0 {
 		return mapErr

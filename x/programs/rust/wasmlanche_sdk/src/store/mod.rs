@@ -11,7 +11,7 @@ use std::str;
 /// to interact with the host.
 #[derive(Clone)]
 pub struct ProgramContext {
-    pub program_id: u64,
+    pub program_id: i64,
 }
 
 impl ProgramContext {
@@ -70,9 +70,7 @@ impl From<ProgramContext> for i64 {
 
 impl From<i64> for ProgramContext {
     fn from(value: i64) -> Self {
-        ProgramContext {
-            program_id: value as u64,
-        }
+        ProgramContext { program_id: value }
     }
 }
 
