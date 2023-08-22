@@ -64,7 +64,7 @@ impl ProgramContext {
 
 impl From<ProgramContext> for i64 {
     fn from(ctx: ProgramContext) -> Self {
-        ctx.program_id as i64
+        ctx.program_id
     }
 }
 

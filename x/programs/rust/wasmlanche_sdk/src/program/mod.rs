@@ -18,6 +18,12 @@ pub struct Program {
     ctx: ProgramContext,
 }
 
+impl Default for Program {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Program {
     pub fn new() -> Self {
         // get the program_id from the host
