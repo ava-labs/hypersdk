@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// TODO: block building can fail, fill in context
 const minBuildGap int64 = 30 // ms
 
 var _ Builder = (*Time)(nil)
@@ -72,6 +73,7 @@ func (b *Time) QueueNotify() {
 		}
 		sleep = b.lastQueue + minBuildGap - now
 	} else {
+		// TODO: this may not respect minBuildGap
 		sleep = preferredBlk.Tmstmp + gap - now
 	}
 	sleepDur := time.Duration(sleep * int64(time.Millisecond))
