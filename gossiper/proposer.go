@@ -6,6 +6,7 @@ package gossiper
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/timer"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
+	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/workers"
@@ -32,10 +34,14 @@ type Proposer struct {
 
 	lastVerified int64
 
+	fl sync.Mutex
+
 	q         chan struct{}
 	lastQueue int64
 	timer     *timer.Timer
 	waiting   atomic.Bool
+
+	cache *cache.FIFO[ids.ID, any]
 }
 
 type ProposerConfig struct {
@@ -72,12 +78,20 @@ func NewProposer(vm VM, cfg *ProposerConfig) *Proposer {
 		lastQueue: -1,
 	}
 	g.timer = timer.NewTimer(g.handleTimerNotify)
+	cache, err := cache.NewFIFO[ids.ID, any](1_000_000)
+	if err != nil {
+		panic(err)
+	}
+	g.cache = cache
 	return g
 }
 
 func (g *Proposer) Force(ctx context.Context) error {
 	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.Force")
 	defer span.End()
+
+	g.fl.Lock()
+	defer g.fl.Unlock()
 
 	// Gossip newest transactions
 	//
@@ -269,6 +283,7 @@ func (g *Proposer) Run(appSender common.AppSender) {
 					1,
 				)
 				if err == nil && proposers.Contains(g.vm.NodeID()) {
+					g.Queue(tctx) // requeue later in case peer validator
 					g.vm.Logger().Debug("not gossiping because soon to propose")
 					continue
 				} else if err != nil {
@@ -300,9 +315,22 @@ func (g *Proposer) Done() {
 	<-g.doneGossip
 }
 
-func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error {
+func (g *Proposer) sendTxs(ctx context.Context, rtxs []*chain.Transaction) error {
 	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.sendTxs")
 	defer span.End()
+
+	// Check txs in recent cache
+	//
+	// Avoid a cycle where we keep regossiping the same stuff
+	txs := make([]*chain.Transaction, 0, len(rtxs))
+	for _, tx := range txs {
+		txID := tx.ID()
+		if _, ok := g.cache.Get(txID); ok {
+			continue
+		}
+		txs = append(txs, tx)
+		g.cache.Put(txID, nil)
+	}
 
 	// Marshal gossip
 	b, err := chain.MarshalTxs(txs)
