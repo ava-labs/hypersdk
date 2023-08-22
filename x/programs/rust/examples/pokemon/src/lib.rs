@@ -1,6 +1,5 @@
 use expose_macro::expose;
 use serde_derive::{Deserialize, Serialize};
-use std::collections::HashMap;
 use wasmlanche_sdk::program::Program;
 use wasmlanche_sdk::store::ProgramContext;
 use wasmlanche_sdk::types::Address;
@@ -13,22 +12,14 @@ struct Pokemon {
     moves: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct Owned {
-    address: Address,
-    pokemon: Pokemon,
-}
-
-type OwnedPokemon = HashMap<String, Vec<Pokemon>>;
+// non-string keys are not supported by serde
+type OwnedPokemon = Vec<Pokemon>;
 
 #[expose]
 pub fn init_program() -> i64 {
     let mut pokemon = Program::new();
 
-    pokemon
-        .add_field(String::from("owned"), OwnedPokemon::new())
-        .and_then(|_| pokemon.add_field(String::from("total_supply"), 10))
-        .unwrap();
+    pokemon.add_field(String::from("total_supply"), 10).unwrap();
 
     pokemon.into()
 }
@@ -42,11 +33,13 @@ pub fn catch(ctx: ProgramContext, player: Address) -> bool {
         moves: vec![String::from("Thunderbolt"), String::from("Quick Attack")],
     };
 
-    let mut owned: OwnedPokemon = ctx.get_value("owned").unwrap();
-    let player_owned = owned.entry("player".to_string()).or_insert(vec![]);
-    player_owned.push(pokemon);
+    let mut owned: OwnedPokemon = ctx
+        .get_map_value("owned", &String::from("player"))
+        .unwrap_or(vec![]);
+    owned.push(pokemon);
 
-    ctx.store_value("owned", &owned).unwrap();
+    ctx.store_map_value("owned", &String::from("player"), &owned)
+        .unwrap();
     println!("Owned: {:?}", owned);
     true
 }
@@ -54,9 +47,13 @@ pub fn catch(ctx: ProgramContext, player: Address) -> bool {
 #[expose]
 pub fn get_owned(ctx: ProgramContext, player: Address) -> bool {
     // get players pokemon and print to screen
-    let owned: OwnedPokemon = ctx.get_value("owned").unwrap();
-    let player_owned = owned.get("player").unwrap();
-    println!("Owned: {:?}", player_owned);
+    let owned: OwnedPokemon = ctx
+        .get_map_value("owned", &String::from("player"))
+        .unwrap_or_else(|err| {
+            println!("Error: {:?}", err);
+            vec![]
+        });
+    println!("Getting owned: {:?}", owned);
     true
 }
 

@@ -104,7 +104,7 @@ fn get_field_as_bytes(ctx: &ProgramContext, name: &[u8]) -> Result<Vec<u8>, Stor
     let bytes_len = unsafe { get_bytes_len(ctx, name_ptr, name_len) };
     // Speculation that compiler might be optimizing out this if statement.
     if bytes_len < 0 {
-        return Err(StorageError::InvalidByteLength(bytes_len as usize));
+        return Err(StorageError::InvalidByteLength(bytes_len as i64));
     }
     // Get_bytes allocates bytes_len memory in the WASM module.
     let bytes_ptr = unsafe { get_bytes(ctx, name_ptr, name_len, bytes_len) };

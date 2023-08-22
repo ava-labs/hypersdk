@@ -87,7 +87,6 @@ func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id int64, ke
 	// Need to copy the value because the GC can collect the value after this function returns
 	copiedValue := make([]byte, len(valBuf))
 	copy(copiedValue, valBuf)
-
 	m.store.state[id][string(keyBuf)] = copiedValue
 
 	return mapOk

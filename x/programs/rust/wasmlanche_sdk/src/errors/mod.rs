@@ -9,7 +9,7 @@ pub enum StorageError {
     InvalidBytes(),
 
     #[error("Invalid Byte Length: {0}")]
-    InvalidByteLength(usize),
+    InvalidByteLength(i64),
 
     #[error("Invalid Tag: {0}")]
     InvalidTag(u8),
