@@ -221,18 +221,31 @@ WarmStorageValueModificationUnits: 3,
 ```
 
 #### Avoiding Complex Consruction
-With so many unit prices to specify, you may be concerned that transaction
-construction is very complex (specify 5 max units and 5 max unit prices).
-Users, however, only need to specify the `MaxFee` they'll pay across
-all unit dimensions.
+Historically, one of the largest barriers to supporting
+multidimensional fees has been the complex UX it can impose
+on users. Setting a one-dimensional unit price and max unit usage
+already confuses most, how could you even consider adding more?
 
-When determining if a transaction can be executed, the executor takes
-a pessimistic view and calculates the max amount of units a transaction could use.
-The downside of this approach is that this inference is pessimistic
-and you may need a larger balance than otherwise to perform txs. The other
-side of this is that it reduces the viability of dust accounts.
+The `hypersdk` takes a unique approach and requires users to set a
+single `Base.MaxFee` field, denominated in tokens rather than usage.
+The `hypersdk` uses this fee to determine whether or not a transaction
+can be executed and then only charges what it actually used. For
+example, a user may specify to use up to 5 TKN but may only be charged
+1 TKN, depending on their transaction's unit usage and the price of
+each unit dimension during execution. This approach is only possible
+because the `hypersdk` requires transactions to be "fully specified"
+before execution (i.e. an executor can determine the maximum amount
+of units that will be used by each resource without simulating the
+transaction).
 
-TODO: future work to make better
+It is important to note that the resource precomputation can be quite
+pessimistic (i.e. assumes the worse) and can lead to the maximum fee
+for a transaction being ~2x as large as the fee it uses on-chain (depending
+on the usage of cold/warm storage, as discussed later). In practice,
+this means that accounts may need a larger balance than they otherwise
+would to issue transactions (as the `MaxFee` must be payable during
+execution). In the future, it will also be possible to optionally
+specify a max usage of each unit dimension to better bound this pessimism.
 
 #### No Priority Fees
 Transactions are executed in FIFO order. Price-sorted mempools are only
