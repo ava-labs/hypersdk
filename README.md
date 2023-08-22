@@ -166,8 +166,59 @@ If you are interested in reading more analysis of multidimensional fee pricing,
 Blockchain Fee Markets](https://arxiv.org/abs/2208.07919) is a great resource.
 
 #### Invisible Support
-To enable support for multidimensional fees, a `hypervm` implementer doesn't need
-to do anything!
+Developers must have to implement a ton of complex code to take advantage of this
+fee mechanism, right? Nope!
+
+Multidimensional fees are abstracted away from `hypervm` developers and managed
+entirely by the `hypersdk`. `hypervm` designers return the fee schedule, targets,
+and max usage to use in `Rules` (allows values to change depending on timestamp) and
+the `hypersdk` will handle the rest:
+```golang
+GetMinUnitPrice() Dimensions
+GetUnitPriceChangeDenominator() Dimensions
+GetWindowTargetUnits() Dimensions
+GetMaxBlockUnits() Dimensions
+
+GetBaseComputeUnits() uint64
+GetBaseWarpComputeUnits() uint64
+GetWarpComputeUnitsPerSigner() uint64
+GetOutgoingWarpComputeUnits() uint64
+
+GetColdStorageKeyReadUnits() uint64
+GetColdStorageValueReadUnits() uint64 // per chunk
+GetWarmStorageKeyReadUnits() uint64
+GetWarmStorageValueReadUnits() uint64 // per chunk
+GetStorageKeyCreateUnits() uint64
+GetStorageValueCreateUnits() uint64 // per chunk
+GetColdStorageKeyModificationUnits() uint64
+GetColdStorageValueModificationUnits() uint64 // per chunk
+GetWarmStorageKeyModificationUnits() uint64
+GetWarmStorageValueModificationUnits() uint64 // per chunk
+```
+
+An example configuration may look something like:
+```golang
+MinUnitPrice:               chain.Dimensions{100, 100, 100, 100, 100},
+UnitPriceChangeDenominator: chain.Dimensions{48, 48, 48, 48, 48},
+WindowTargetUnits:          chain.Dimensions{20_000_000, 1_000, 1_000, 1_000, 1_000},
+MaxBlockUnits:              chain.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
+
+BaseComputeUnits:          1,
+BaseWarpComputeUnits:      1_024,
+WarpComputeUnitsPerSigner: 128,
+OutgoingWarpComputeUnits:  1_024,
+
+ColdStorageKeyReadUnits:           5,
+ColdStorageValueReadUnits:         2,
+WarmStorageKeyReadUnits:           1,
+WarmStorageValueReadUnits:         1,
+StorageKeyCreateUnits:             20,
+StorageValueCreateUnits:           5,
+ColdStorageKeyModificationUnits:   10,
+ColdStorageValueModificationUnits: 3,
+WarmStorageKeyModificationUnits:   5,
+WarmStorageValueModificationUnits: 3,
+```
 
 #### Avoiding Complex Consruction
 With so many unit prices to specify, you may be concerned that transaction
