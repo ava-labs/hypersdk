@@ -135,9 +135,10 @@ time of a block when running on powerful hardware.
 
 #### [Optional] Batch Signature Verification
 Some public-key signature systems, like [Ed25519](https://ed25519.cr.yp.to/), provide support for
-verifying batches of signatures at once (which typically is more efficient than verifying each signature
-independently). The `hypersdk` supports this capability generically with `AuthBatchVerifier`
-and even parallelizes it out-of-the-box, if verifcation is single-threaded.
+verifying batches of signatures (which can be more much efficient than verifying each signature individually).
+The `hypersdk` generically supports this capability for any `Auth` module that implements
+the `AuthBatchVerifier` interface, even parallelizing batch computation for systems that
+only use a single-thread to verify a batch.
 
 ### Multidimensional Fee Pricing
 Instead of mapping transaction resource usage to a one-dimensional unit (i.e. "gas"),
@@ -173,6 +174,8 @@ a pessimistic view and calculates the max amount of units a transaction could us
 The downside of this approach is that this inference is pessimistic
 and you may need a larger balance than otherwise to perform txs. The other
 side of this is that it reduces the viability of dust accounts.
+
+TODO: future work to make better
 
 #### No Priority Fees
 Transactions are executed in FIFO order. Price-sorted mempools are only
