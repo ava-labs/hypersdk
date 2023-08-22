@@ -24,8 +24,7 @@ pub fn init_program() -> i64 {
 /// Gets total supply or -1 on error.
 #[expose]
 pub fn get_total_supply(ctx: ProgramContext) -> i64 {
-    let total_supply: i64 = ctx.get_value("total_supply");
-    total_supply
+    ctx.get_value("total_supply")
 }
 
 /// Adds amount coins to the recipients balance.
