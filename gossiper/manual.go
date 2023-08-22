@@ -36,7 +36,7 @@ func (g *Manual) Run(appSender common.AppSender) {
 	close(g.doneGossip)
 }
 
-func (g *Manual) ForceGossip(ctx context.Context) error {
+func (g *Manual) Force(ctx context.Context) error {
 	// Gossip highest paying txs
 	var (
 		txs  = []*chain.Transaction{}
@@ -121,3 +121,6 @@ func (*Manual) BlockVerified(int64) {}
 func (g *Manual) Done() {
 	<-g.doneGossip
 }
+
+// Queue is a no-op in [Manual].
+func (*Manual) Queue(context.Context) {}

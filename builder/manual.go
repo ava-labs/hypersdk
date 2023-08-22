@@ -23,9 +23,10 @@ func (b *Manual) Run() {
 	close(b.doneBuild)
 }
 
-func (*Manual) QueueNotify() {}
+// Queue is a no-op in [Manual].
+func (*Manual) Queue() {}
 
-func (b *Manual) ForceNotify() {
+func (b *Manual) Force() {
 	select {
 	case b.vm.EngineChan() <- common.PendingTxs:
 	default:

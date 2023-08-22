@@ -39,12 +39,12 @@ func NewTime(vm VM) *Time {
 }
 
 func (b *Time) Run() {
-	b.QueueNotify()    // start building loop (may not be an initial trigger)
+	b.Queue()          // start building loop (may not be an initial trigger)
 	b.timer.Dispatch() // this blocks
 }
 
 func (b *Time) handleTimerNotify() {
-	b.ForceNotify()
+	b.Force()
 	b.waiting.Store(false)
 	txs := b.vm.Mempool().Len(context.TODO())
 	b.vm.Logger().Debug("trigger to notify", zap.Int("txs", txs))
@@ -59,7 +59,7 @@ func (b *Time) nextTime(now int64, preferred int64) int64 {
 	return next
 }
 
-func (b *Time) QueueNotify() {
+func (b *Time) Queue() {
 	if !b.waiting.CompareAndSwap(false, true) {
 		b.vm.Logger().Debug("unable to acquire waiting lock")
 		return
@@ -73,7 +73,7 @@ func (b *Time) QueueNotify() {
 	now := time.Now().UnixMilli()
 	next := b.nextTime(now, preferredBlk.Tmstmp)
 	if next < 0 {
-		b.ForceNotify()
+		b.Force()
 		b.waiting.Store(false)
 		txs := b.vm.Mempool().Len(context.TODO())
 		b.vm.Logger().Debug("notifying to build without waiting", zap.Int("txs", txs))
@@ -85,7 +85,7 @@ func (b *Time) QueueNotify() {
 	b.vm.Logger().Debug("waiting to notify to build", zap.Duration("t", sleepDur))
 }
 
-func (b *Time) ForceNotify() {
+func (b *Time) Force() {
 	select {
 	case b.vm.EngineChan() <- common.PendingTxs:
 		b.lastQueue = time.Now().UnixMilli()
