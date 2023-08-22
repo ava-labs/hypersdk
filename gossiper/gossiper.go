@@ -12,8 +12,9 @@ import (
 
 type Gossiper interface {
 	Run(common.AppSender)
-	ForceGossip(context.Context) error // may be triggered by run already
-	HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error
+	Queue()
+	Force(context.Context) error // may be triggered by run already
+	Handle(ctx context.Context, nodeID ids.NodeID, msg []byte) error
 	BlockVerified(int64)
 	Done() // wait after stop
 }

@@ -5,7 +5,7 @@ package builder
 
 type Builder interface {
 	Run()
-	QueueNotify() // new tx, block verified, post-block build (if mempool > 0)
-	ForceNotify()
+	Queue() // new tx, block verified, post-block build (if mempool > 0)
+	Force()
 	Done() // wait after stop
 }
