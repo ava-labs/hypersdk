@@ -158,23 +158,12 @@ without utilizing any CPU/storing data in state, they would exhaust the block ca
 without using 2 of the 3 available resources. This block would also increase the price
 of each unit because usage is above the target. As a result, the price to use compuate
 and storage in the next block would be more expensive although neither has been used.
+In the `hypersdk`, only the price of bandwidth would go up and the price of CPU/storage
+would stay constant, a better reflection of supply/demand for each resource.
 
-A VM designer is tasked with the difficult challenge of making relative
-
-may be most concerned with a storage
-DoS attack and limit unit con
-
-
-For example, a one-dimensional unit requires
-a VM designer to compare storage access, bandwidth, and compute on a
-[single plane](https://github.com/ava-labs/coreth/blob/master/params/protocol_params.go).
-Significant usage of any resource could drive the price of all resource usage up, even
-if said resource is not utilized at all. For example, a smart contract that counts to 10,000,000
-may use only compute...
-
-If you are interested in learning more about the theory behind multidimensional fee
-pricing, [Dynamic Pricing for Non-fungible Resources: Designing Multidimensional Blockchain Fee Markets](https://arxiv.org/abs/2208.07919)
-provides a great analysis.
+If you are interested in reading more analysis of multidimensional fee pricing,
+[Dynamic Pricing for Non-fungible Resources: Designing Multidimensional
+Blockchain Fee Markets](https://arxiv.org/abs/2208.07919) is a great resource.
 
 #### Invisible Support
 To enable support for multidimensional fees, a `hypervm` implementer doesn't need
