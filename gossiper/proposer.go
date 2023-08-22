@@ -6,11 +6,14 @@ package gossiper
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/timer"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"github.com/ava-labs/hypersdk/chain"
@@ -30,6 +33,11 @@ type Proposer struct {
 	doneGossip chan struct{}
 
 	lastVerified int64
+
+	l         sync.Mutex
+	timer     *timer.Timer
+	lastQueue int64
+	waiting   atomic.Bool
 }
 
 type ProposerConfig struct {
@@ -38,8 +46,9 @@ type ProposerConfig struct {
 	GossipInterval      time.Duration
 	GossipMinLife       int64 // ms
 	GossipMinSize       int
-	GossipMaxDelay      int64 // ms
 	GossipMaxSize       int
+	GossipMinDelay      int64 // ms
+	GossipMaxDelay      int64 // ms
 	NoGossipBuilderDiff int
 	VerifyTimeout       int64 // ms
 }
@@ -49,9 +58,10 @@ func DefaultProposerConfig() *ProposerConfig {
 		GossipProposerDiff:  3,
 		GossipProposerDepth: 1,
 		GossipMinLife:       5 * 1000,
-		GossipMinSize:       32 * units.KiB, // TODO: need to add size tracking to mempool
-		GossipMaxDelay:      50,             // wait for ms if below min size
+		GossipMinSize:       32 * units.KiB,
 		GossipMaxSize:       consts.NetworkSizeLimit,
+		GossipMinDelay:      10,  // wait for ms if above min size
+		GossipMaxDelay:      128, // wait for ms if below min size
 		NoGossipBuilderDiff: 5,
 		VerifyTimeout:       proposerWindow / 2,
 	}
@@ -101,7 +111,7 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 }
 
 func (g *Proposer) Force(ctx context.Context) error {
-	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.GossipTxs")
+	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.Force")
 	defer span.End()
 
 	// Gossip highest paying txs
@@ -237,7 +247,59 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	return nil
 }
 
-func (g *Proposer) Queue() {
+func (g *Proposer) handleNotify() {
+	if !g.waiting.CompareAndSwap(true, false) {
+		// It is possible that we saw more than [GossipMinSize] and forced gossip before we could stop the timer.
+		return
+	}
+	g.lastQueue = time.Now().UnixMilli()
+	g.Force(context.TODO())
+}
+
+func (g *Proposer) Queue(ctx context.Context) error {
+	g.l.Lock()
+	now := time.Now().UnixMilli()
+
+	// If the mempool already has enough content, force gossip
+	// and cancel any waiting timers.
+	mempoolReady := g.vm.Mempool().Size(context.TODO()) > g.cfg.GossipMinSize
+	delay := g.lastQueue + g.cfg.GossipMinDelay
+	if mempoolReady && now >= delay {
+		g.waiting.Store(false)
+		g.timer.Cancel()
+		g.l.Unlock()
+		if err := g.Force(ctx); err != nil {
+			g.vm.Logger().Warn("unable to send gossip", zap.Error(err))
+			return err
+		}
+		return nil
+	}
+
+	// If the mempool has enough content but we gossiped recently
+	// or the mempool does not have enough content, wait until it does.
+	if !g.waiting.CompareAndSwap(false, true) {
+		g.vm.Logger().Debug("unable to start waiting")
+		return nil
+	}
+	var sleep int64
+	if !mempoolReady {
+		force := g.lastQueue + g.cfg.GossipMaxDelay
+		if now >= force {
+			if err := g.Force(ctx); err != nil {
+				g.vm.Logger().Warn("unable to send gossip", zap.Error(err))
+				return err
+			}
+			g.waiting.Store(false)
+			return nil
+		}
+		sleep = force - now
+	} else {
+		sleep = delay - now
+	}
+	sleepDur := time.Duration(sleep * int64(time.Millisecond))
+	g.timer.SetTimeoutIn(sleepDur)
+	g.vm.Logger().Debug("waiting to notify to build", zap.Duration("t", sleepDur))
+	return nil
 }
 
 // periodically but less aggressively force-regossip the pending
