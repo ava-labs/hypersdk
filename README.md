@@ -134,21 +134,38 @@ stateless activities during execution can greatly reduce the e2e verification
 time of a block when running on powerful hardware.
 
 #### [Optional] Batch Signature Verification
-Some public-key signature systems, like [Ed25519](https://ed25519.cr.yp.to/), provide support for
-verifying batches of signatures (which can be more much efficient than verifying each signature individually).
-The `hypersdk` generically supports this capability for any `Auth` module that implements
-the `AuthBatchVerifier` interface, even parallelizing batch computation for systems that
-only use a single-thread to verify a batch.
+Some public-key signature systems, like [Ed25519](https://ed25519.cr.yp.to/), provide
+support for verifying batches of signatures (which can be more much efficient than
+verifying each signature individually). The `hypersdk` generically supports this
+capability for any `Auth` module that implements the `AuthBatchVerifier` interface,
+even parallelizing batch computation for systems that only use a single-thread to
+verify a batch.
 
 ### Multidimensional Fee Pricing
-Instead of mapping transaction resource usage to a one-dimensional unit (i.e. "gas"),
-the `hypersdk` utilizes five independently parameterized unit dimensions (bandwidth,
-compute, storage[read], storage[create], storage[modify]) to meter activity on a `hypervm`.
-Each unit dimension has a unique metering schedule (i.e. how many units each resource interaction
-costs, like reading a key from disk), target, and max usage per rolling 10s window.
+Instead of mapping transaction resource usage to a one-dimensional unit (i.e. "gas"
+or "fuel"), the `hypersdk` utilizes five independently parameterized unit dimensions
+(bandwidth, compute, storage[read], storage[create], storage[modify]) to meter
+activity on each `hypervm`. Each unit dimension has a unique metering schedule
+(i.e. how many units each resource interaction costs), target, and max utilization
+per rolling 10 second window.
 
-When resources are individually metered, network resources can be better priced and thus
-better utilized by network participants. For example, a one-dimensional unit requires
+When network resources are independently metered, they can an be granularly priced
+and thus better utilized by network participants. Consider a simple example of a
+one-dimensional fee mechanism where each byte is 2 units, each compute cycle is 5 units,
+each storage operation is 10 units, target usage is 7,500 units per block, and the max
+usage in any block is 10,000 units. If someone were to use 5,000 bytes of block data
+without utilizing any CPU/storing data in state, they would exhaust the block capacity
+without using 2 of the 3 available resources. This block would also increase the price
+of each unit because usage is above the target. As a result, the price to use compuate
+and storage in the next block would be more expensive although neither has been used.
+
+A VM designer is tasked with the difficult challenge of making relative
+
+may be most concerned with a storage
+DoS attack and limit unit con
+
+
+For example, a one-dimensional unit requires
 a VM designer to compare storage access, bandwidth, and compute on a
 [single plane](https://github.com/ava-labs/coreth/blob/master/params/protocol_params.go).
 Significant usage of any resource could drive the price of all resource usage up, even
