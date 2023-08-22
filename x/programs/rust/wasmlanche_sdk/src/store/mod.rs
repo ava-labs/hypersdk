@@ -3,13 +3,13 @@ use serde_json::from_slice;
 
 use crate::errors::StorageError;
 use crate::host::{get_bytes, get_bytes_len, store_bytes};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::to_vec;
 use std::str;
 
 /// ProgramContext defines helper methods for the program builder
 /// to interact with the host.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ProgramContext {
     pub program_id: i64,
 }

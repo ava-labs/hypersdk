@@ -177,3 +177,12 @@ func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (uint64, error) {
 	pk := priv.PublicKey()
 	return runtime.WriteGuestBuffer(ctx, pk[:])
 }
+
+// writeString writes a string to guest memory and returns the pointer to the string.
+// The string is padded with 0s to fit 32 bytes.
+func writeString(ctx context.Context, runtime runtime.Runtime, str string) (uint64, error) {
+	bytes := [32]byte{}
+	// push string to bytes
+	copy(bytes[:], str)
+	return runtime.WriteGuestBuffer(ctx, bytes[:])
+}

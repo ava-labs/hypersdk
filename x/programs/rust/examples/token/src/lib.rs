@@ -1,6 +1,6 @@
 use wasmlanche_sdk::program::Program;
 use wasmlanche_sdk::store::ProgramContext;
-use wasmlanche_sdk::types::Address;
+use wasmlanche_sdk::types::{Address, Bytes32};
 
 use expose_macro::expose;
 
@@ -10,8 +10,10 @@ pub fn init_program() -> i64 {
     let mut token_program = Program::new();
 
     token_program
-        .add_field(String::from("name"), "WasmCoin")
-        .and_then(|_| token_program.add_field(String::from("symbol"), "WACK"))
+        .add_field(String::from("name"), Bytes32::from("WasmCoin".to_string()))
+        .and_then(|_| {
+            token_program.add_field(String::from("symbol"), Bytes32::from("WACK".to_string()))
+        })
         .and_then(|_| token_program.add_field(String::from("total_supply"), 123456789))
         .unwrap();
 
