@@ -96,23 +96,23 @@ func (j *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAc
 	return nil
 }
 
-type SuggestedRawFeeReply struct {
-	UnitPrice uint64 `json:"unitPrice"`
+type UnitPricesReply struct {
+	UnitPrices chain.Dimensions `json:"unitPrices"`
 }
 
-func (j *JSONRPCServer) SuggestedRawFee(
+func (j *JSONRPCServer) UnitPrices(
 	req *http.Request,
 	_ *struct{},
-	reply *SuggestedRawFeeReply,
+	reply *UnitPricesReply,
 ) error {
-	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SuggestedRawFee")
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.UnitPrices")
 	defer span.End()
 
-	unitPrice, err := j.vm.SuggestedFee(ctx)
+	unitPrices, err := j.vm.UnitPrices(ctx)
 	if err != nil {
 		return err
 	}
-	reply.UnitPrice = unitPrice
+	reply.UnitPrices = unitPrices
 	return nil
 }
 

@@ -24,8 +24,8 @@ import (
 )
 
 const (
-	suggestedFeeCacheRefresh = 10 * time.Second
-	waitSleep                = 500 * time.Millisecond
+	unitPricesCacheRefresh = 10 * time.Second
+	waitSleep              = 500 * time.Millisecond
 )
 
 type JSONRPCClient struct {
@@ -35,8 +35,8 @@ type JSONRPCClient struct {
 	subnetID  ids.ID
 	chainID   ids.ID
 
-	lastSuggestedFee time.Time
-	unitPrice        uint64
+	lastUnitPrices time.Time
+	unitPrices     chain.Dimensions
 }
 
 func NewJSONRPCClient(uri string) *JSONRPCClient {
@@ -88,26 +88,26 @@ func (cli *JSONRPCClient) Accepted(ctx context.Context) (ids.ID, uint64, int64, 
 	return resp.BlockID, resp.Height, resp.Timestamp, err
 }
 
-func (cli *JSONRPCClient) SuggestedRawFee(ctx context.Context) (uint64, error) {
-	if time.Since(cli.lastSuggestedFee) < suggestedFeeCacheRefresh {
-		return cli.unitPrice, nil
+func (cli *JSONRPCClient) UnitPrices(ctx context.Context) (chain.Dimensions, error) {
+	if time.Since(cli.lastUnitPrices) < unitPricesCacheRefresh {
+		return cli.unitPrices, nil
 	}
 
-	resp := new(SuggestedRawFeeReply)
+	resp := new(UnitPricesReply)
 	err := cli.requester.SendRequest(
 		ctx,
-		"suggestedRawFee",
+		"unitPrices",
 		nil,
 		resp,
 	)
 	if err != nil {
-		return 0, err
+		return chain.Dimensions{}, err
 	}
-	cli.unitPrice = resp.UnitPrice
+	cli.unitPrices = resp.UnitPrices
 	// We update the time last in case there are concurrent requests being
 	// processed (we don't want them to get an inconsistent view).
-	cli.lastSuggestedFee = time.Now()
-	return resp.UnitPrice, nil
+	cli.lastUnitPrices = time.Now()
+	return resp.UnitPrices, nil
 }
 
 func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error) {
@@ -169,12 +169,24 @@ func (cli *JSONRPCClient) GenerateTransaction(
 	modifiers ...Modifier,
 ) (func(context.Context) error, *chain.Transaction, uint64, error) {
 	// Get latest fee info
-	unitPrice, err := cli.SuggestedRawFee(ctx)
+	unitPrices, err := cli.UnitPrices(ctx)
 	if err != nil {
 		return nil, nil, 0, err
 	}
 
-	return cli.GenerateTransactionManual(parser, wm, action, authFactory, unitPrice, modifiers...)
+	maxUnits, err := chain.EstimateMaxUnits(parser.Rules(time.Now().UnixMilli()), action, authFactory, wm)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	maxFee, err := chain.MulSum(unitPrices, maxUnits)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	f, tx, err := cli.GenerateTransactionManual(parser, wm, action, authFactory, maxFee, modifiers...)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	return f, tx, maxFee, nil
 }
 
 func (cli *JSONRPCClient) GenerateTransactionManual(
@@ -182,16 +194,16 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	wm *warp.Message,
 	action chain.Action,
 	authFactory chain.AuthFactory,
-	unitPrice uint64,
+	maxFee uint64,
 	modifiers ...Modifier,
-) (func(context.Context) error, *chain.Transaction, uint64, error) {
+) (func(context.Context) error, *chain.Transaction, error) {
 	// Construct transaction
 	now := time.Now().UnixMilli()
 	rules := parser.Rules(now)
 	base := &chain.Base{
 		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
 		ChainID:   rules.ChainID(),
-		UnitPrice: unitPrice, // never pay blockCost
+		MaxFee:    maxFee, // never pay blockCost
 	}
 
 	// Modify gathered data
@@ -202,7 +214,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	// Ensure warp message is intialized before we marshal it
 	if wm != nil {
 		if err := wm.Initialize(); err != nil {
-			return nil, nil, 0, err
+			return nil, nil, err
 		}
 	}
 
@@ -211,22 +223,14 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	tx := chain.NewTx(base, wm, action)
 	tx, err := tx.Sign(authFactory, actionRegistry, authRegistry)
 	if err != nil {
-		return nil, nil, 0, fmt.Errorf("%w: failed to sign transaction", err)
-	}
-	maxUnits, err := tx.MaxUnits(rules)
-	if err != nil {
-		return nil, nil, 0, err
-	}
-	fee, err := math.Mul64(maxUnits, unitPrice)
-	if err != nil {
-		return nil, nil, 0, err
+		return nil, nil, fmt.Errorf("%w: failed to sign transaction", err)
 	}
 
 	// Return max fee and transaction for issuance
 	return func(ictx context.Context) error {
 		_, err := cli.SubmitTx(ictx, tx.Bytes())
 		return err
-	}, tx, fee, nil
+	}, tx, nil
 }
 
 func Wait(ctx context.Context, check func(ctx context.Context) (bool, error)) error {

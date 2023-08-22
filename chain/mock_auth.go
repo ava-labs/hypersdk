@@ -106,18 +106,18 @@ func (mr *MockAuthMockRecorder) Marshal(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Marshal", reflect.TypeOf((*MockAuth)(nil).Marshal), arg0)
 }
 
-// MaxUnits mocks base method.
-func (m *MockAuth) MaxUnits(arg0 Rules) uint64 {
+// MaxComputeUnits mocks base method.
+func (m *MockAuth) MaxComputeUnits(arg0 Rules) uint64 {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MaxUnits", arg0)
+	ret := m.ctrl.Call(m, "MaxComputeUnits", arg0)
 	ret0, _ := ret[0].(uint64)
 	return ret0
 }
 
-// MaxUnits indicates an expected call of MaxUnits.
-func (mr *MockAuthMockRecorder) MaxUnits(arg0 interface{}) *gomock.Call {
+// MaxComputeUnits indicates an expected call of MaxComputeUnits.
+func (mr *MockAuthMockRecorder) MaxComputeUnits(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxUnits", reflect.TypeOf((*MockAuth)(nil).MaxUnits), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxComputeUnits", reflect.TypeOf((*MockAuth)(nil).MaxComputeUnits), arg0)
 }
 
 // Payer mocks base method.
@@ -163,10 +163,10 @@ func (mr *MockAuthMockRecorder) Size() *gomock.Call {
 }
 
 // StateKeys mocks base method.
-func (m *MockAuth) StateKeys() [][]byte {
+func (m *MockAuth) StateKeys() []string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StateKeys")
-	ret0, _ := ret[0].([][]byte)
+	ret0, _ := ret[0].([]string)
 	return ret0
 }
 

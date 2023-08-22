@@ -31,51 +31,56 @@ func (*CloseOrder) GetTypeID() uint8 {
 	return closeOrderID
 }
 
-func (c *CloseOrder) StateKeys(rauth chain.Auth, _ ids.ID) [][]byte {
+func (c *CloseOrder) StateKeys(rauth chain.Auth, _ ids.ID) []string {
 	actor := auth.GetActor(rauth)
-	return [][]byte{
-		storage.PrefixOrderKey(c.Order),
-		storage.PrefixBalanceKey(actor, c.Out),
+	return []string{
+		string(storage.OrderKey(c.Order)),
+		string(storage.BalanceKey(actor, c.Out)),
 	}
+}
+
+func (*CloseOrder) StateKeysMaxChunks() []uint16 {
+	return []uint16{storage.OrderChunks, storage.BalanceChunks}
+}
+
+func (*CloseOrder) OutputsWarpMessage() bool {
+	return false
 }
 
 func (c *CloseOrder) Execute(
 	ctx context.Context,
-	r chain.Rules,
+	_ chain.Rules,
 	db chain.Database,
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
 	_ bool,
-) (*chain.Result, error) {
+) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	actor := auth.GetActor(rauth)
-	unitsUsed := c.MaxUnits(r) // max units == units
 	exists, _, _, out, _, remaining, owner, err := storage.GetOrder(ctx, db, c.Order)
 	if err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if !exists {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputOrderMissing}, nil
+		return false, CloseOrderComputeUnits, OutputOrderMissing, nil, nil
 	}
 	if owner != actor {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputUnauthorized}, nil
+		return false, CloseOrderComputeUnits, OutputUnauthorized, nil, nil
 	}
 	if out != c.Out {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: OutputWrongOut}, nil
+		return false, CloseOrderComputeUnits, OutputWrongOut, nil, nil
 	}
 	if err := storage.DeleteOrder(ctx, db, c.Order); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, db, actor, c.Out, remaining); err != nil {
-		return &chain.Result{Success: false, Units: unitsUsed, Output: utils.ErrBytes(err)}, nil
+		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	return &chain.Result{Success: true, Units: unitsUsed}, nil
+	return true, CloseOrderComputeUnits, nil, nil, nil
 }
 
-func (*CloseOrder) MaxUnits(chain.Rules) uint64 {
-	// We use size as the price of this transaction but we could just as easily
-	// use any other calculation.
-	return consts.IDLen * 2
+func (*CloseOrder) MaxComputeUnits(chain.Rules) uint64 {
+	return CloseOrderComputeUnits
 }
 
 func (*CloseOrder) Size() int {

@@ -10,26 +10,29 @@ import (
 )
 
 type Metrics struct {
-	unitsVerified   prometheus.Counter
-	unitsAccepted   prometheus.Counter
-	txsSubmitted    prometheus.Counter // includes gossip
-	txsReceived     prometheus.Counter
-	txsGossiped     prometheus.Counter
-	txsVerified     prometheus.Counter
-	txsAccepted     prometheus.Counter
-	stateChanges    prometheus.Counter
-	stateOperations prometheus.Counter
-	buildCapped     prometheus.Counter
-	emptyBlockBuilt prometheus.Counter
-	clearedMempool  prometheus.Counter
-	mempoolSize     prometheus.Gauge
-	rootCalculated  metric.Averager
-	waitSignatures  metric.Averager
-	blockBuild      metric.Averager
-	blockParse      metric.Averager
-	blockVerify     metric.Averager
-	blockAccept     metric.Averager
-	blockProcess    metric.Averager
+	txsSubmitted       prometheus.Counter // includes gossip
+	txsReceived        prometheus.Counter
+	txsGossiped        prometheus.Counter
+	txsVerified        prometheus.Counter
+	txsAccepted        prometheus.Counter
+	stateChanges       prometheus.Counter
+	stateOperations    prometheus.Counter
+	buildCapped        prometheus.Counter
+	emptyBlockBuilt    prometheus.Counter
+	clearedMempool     prometheus.Counter
+	mempoolSize        prometheus.Gauge
+	bandwidthPrice     prometheus.Gauge
+	computePrice       prometheus.Gauge
+	storageReadPrice   prometheus.Gauge
+	storageCreatePrice prometheus.Gauge
+	storageModifyPrice prometheus.Gauge
+	rootCalculated     metric.Averager
+	waitSignatures     metric.Averager
+	blockBuild         metric.Averager
+	blockParse         metric.Averager
+	blockVerify        metric.Averager
+	blockAccept        metric.Averager
+	blockProcess       metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -100,16 +103,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	}
 
 	m := &Metrics{
-		unitsVerified: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
-			Name:      "units_verified",
-			Help:      "amount of units verified",
-		}),
-		unitsAccepted: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
-			Name:      "units_accepted",
-			Help:      "amount of units accepted",
-		}),
 		txsSubmitted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
 			Name:      "txs_submitted",
@@ -165,6 +158,31 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "mempool_size",
 			Help:      "number of transactions in the mempool",
 		}),
+		bandwidthPrice: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "bandwidth_price",
+			Help:      "unit price of bandwidth",
+		}),
+		computePrice: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "compute_price",
+			Help:      "unit price of compute",
+		}),
+		storageReadPrice: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "storage_read_price",
+			Help:      "unit price of storage reads",
+		}),
+		storageCreatePrice: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "storage_create_price",
+			Help:      "unit price of storage creates",
+		}),
+		storageModifyPrice: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "storage_modify_price",
+			Help:      "unit price of storage modifications",
+		}),
 		rootCalculated: rootCalculated,
 		waitSignatures: waitSignatures,
 		blockBuild:     blockBuild,
@@ -175,8 +193,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	}
 	errs := wrappers.Errs{}
 	errs.Add(
-		r.Register(m.unitsVerified),
-		r.Register(m.unitsAccepted),
 		r.Register(m.txsSubmitted),
 		r.Register(m.txsReceived),
 		r.Register(m.txsGossiped),
@@ -188,6 +204,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.buildCapped),
 		r.Register(m.emptyBlockBuilt),
 		r.Register(m.clearedMempool),
+		r.Register(m.bandwidthPrice),
+		r.Register(m.computePrice),
+		r.Register(m.storageReadPrice),
+		r.Register(m.storageCreatePrice),
+		r.Register(m.storageModifyPrice),
 	)
 	return r, m, errs.Err
 }

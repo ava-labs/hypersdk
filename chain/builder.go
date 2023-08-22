@@ -14,11 +14,13 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
@@ -33,27 +35,26 @@ const (
 
 var errBlockFull = errors.New("block full")
 
-func HandlePreExecute(
-	err error,
-) (bool /* continue */, bool /* restore */, bool /* remove account */) {
+func HandlePreExecute(log logging.Logger, err error) bool {
 	switch {
 	case errors.Is(err, ErrInsufficientPrice):
-		return true, true, false
+		return false
 	case errors.Is(err, ErrTimestampTooEarly):
-		return true, true, false
+		return true
 	case errors.Is(err, ErrTimestampTooLate):
-		return true, false, false
+		return false
 	case errors.Is(err, ErrInvalidBalance):
-		return true, false, true
+		return false
 	case errors.Is(err, ErrAuthNotActivated):
-		return true, false, false
+		return false
 	case errors.Is(err, ErrAuthFailed):
-		return true, false, false
+		return false
 	case errors.Is(err, ErrActionNotActivated):
-		return true, false, false
+		return false
 	default:
 		// If unknown error, drop
-		return true, false, false
+		log.Warn("unknown PreExecute error", zap.Error(err))
+		return false
 	}
 }
 
@@ -67,6 +68,7 @@ func BuildBlock(
 	defer span.End()
 	log := vm.Logger()
 
+	// Setup new block
 	parent, err := vm.GetStatelessBlock(ctx, preferred)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent", zap.Error(err))
@@ -78,13 +80,9 @@ func BuildBlock(
 		log.Warn("block building failed", zap.Error(ErrTimestampTooEarly))
 		return nil, ErrTimestampTooEarly
 	}
-	ectx, err := GenerateExecutionContext(ctx, nextTime, parent, vm.Tracer(), r)
-	if err != nil {
-		log.Warn("block building failed: couldn't get execution context", zap.Error(err))
-		return nil, err
-	}
-	b := NewBlock(ectx, vm, parent, nextTime)
+	b := NewBlock(vm, parent, nextTime)
 
+	// Fetch state to build on
 	mempoolSize := vm.Mempool().Len(ctx)
 	changesEstimate := math.Min(mempoolSize, maxViewPreallocation)
 	state, err := parent.childState(ctx, changesEstimate)
@@ -92,18 +90,30 @@ func BuildBlock(
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err
 	}
+
+	// Compute next unit prices to use
+	feeRaw, err := state.GetValue(ctx, vm.StateManager().FeeKey())
+	if err != nil {
+		return nil, err
+	}
+	feeManager := NewFeeManager(feeRaw)
+	nextFeeManager, err := feeManager.ComputeNext(parent.Tmstmp, nextTime, r)
+	if err != nil {
+		return nil, err
+	}
+	maxUnits := r.GetMaxBlockUnits()
+	targetUnits := r.GetWindowTargetUnits()
+
 	ts := tstate.New(changesEstimate)
 
 	var (
 		oldestAllowed = nextTime - r.GetValidityWindow()
 
-		surplusFee = uint64(0)
-		mempool    = vm.Mempool()
+		mempool = vm.Mempool()
 
 		txsAttempted = 0
 		results      = []*Result{}
-
-		warpCount = 0
+		warpCount    = 0
 
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
@@ -125,6 +135,7 @@ func BuildBlock(
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
 	mempool.StartStreaming(ctx)
 	b.Txs = []*Transaction{}
+	usedKeys := set.NewSet[string](0) // prefetch map for transactions in block
 	for time.Since(start) < vm.GetTargetBuildDuration() {
 		prepareStreamLock.Lock()
 		txs := mempool.Stream(ctx, streamBatch)
@@ -165,17 +176,24 @@ func BuildBlock(
 
 				// Prefetch all values from state
 				storage := map[string][]byte{}
-				for _, k := range tx.StateKeys(sm) {
-					sk := string(k)
-					if v, ok := alreadyFetched[sk]; ok {
+				stateKeys, err := tx.StateKeys(sm)
+				if err != nil {
+					// Drop bad transaction and continue
+					//
+					// This should not happen because we check this before
+					// adding a transaction to the mempool.
+					continue
+				}
+				for k := range stateKeys {
+					if v, ok := alreadyFetched[k]; ok {
 						if v.exists {
-							storage[sk] = v.v
+							storage[k] = v.v
 						}
 						continue
 					}
-					v, err := state.GetValue(ctx, k)
+					v, err := state.GetValue(ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
-						alreadyFetched[sk] = &fetchData{nil, false}
+						alreadyFetched[k] = &fetchData{nil, false, 0}
 						continue
 					} else if err != nil {
 						// This can happen if the underlying view changes (if we are
@@ -184,10 +202,18 @@ func BuildBlock(
 						stopIndex = i
 						return
 					}
-					alreadyFetched[sk] = &fetchData{v, true}
-					storage[sk] = v
+					numChunks, ok := keys.NumChunks(v)
+					if !ok {
+						// Drop bad transaction and continue
+						//
+						// This should not happen because we check this before
+						// adding a transaction to the mempool.
+						continue
+					}
+					alreadyFetched[k] = &fetchData{v, true, numChunks}
+					storage[k] = v
 				}
-				readyTxs <- &txData{tx, storage}
+				readyTxs <- &txData{tx, storage, nil, nil}
 			}
 		}()
 
@@ -235,7 +261,7 @@ func BuildBlock(
 			}
 
 			// Ensure we have room
-			nextUnits, err := next.MaxUnits(r)
+			nextUnits, err := next.MaxUnits(sm, r)
 			if err != nil {
 				// Should never happen
 				log.Warn(
@@ -244,21 +270,20 @@ func BuildBlock(
 				)
 				continue
 			}
-			if b.UnitsConsumed+nextUnits > r.GetMaxBlockUnits() {
+			if ok, dimension := nextFeeManager.CanConsume(nextUnits, maxUnits); !ok {
 				log.Debug(
 					"skipping tx: too many units",
-					zap.Uint64("block units", b.UnitsConsumed),
-					zap.Uint64("tx max units", nextUnits),
+					zap.Int("dimension", int(dimension)),
+					zap.Uint64("tx", nextUnits[dimension]),
+					zap.Uint64("block units", nextFeeManager.LastConsumed(dimension)),
+					zap.Uint64("max block units", maxUnits[dimension]),
 				)
 				restorable = append(restorable, next)
 
-				// We only stop building once we are within [stopBuildingThreshold] to protect
-				// against a case where there is a very large transaction in the mempool (and the
-				// block is still empty).
-				//
-				// We are willing to give up building early (although there may be some remaining space)
-				// to avoid iterating over everything in the mempool to find something that may fit.
-				if r.GetMaxBlockUnits()-b.UnitsConsumed < stopBuildingThreshold {
+				// If we are above the target for the dimension we can't consume, we will
+				// stop building. This prevents a full mempool iteration looking for the
+				// "perfect fit".
+				if nextFeeManager.LastConsumed(dimension) >= targetUnits[dimension] {
 					execErr = errBlockFull
 				}
 				continue
@@ -266,20 +291,35 @@ func BuildBlock(
 
 			// Populate required transaction state and restrict which keys can be used
 			txStart := ts.OpIndex()
-			ts.SetScope(ctx, next.StateKeys(sm), nextTxData.storage)
+			stateKeys, err := next.StateKeys(sm)
+			if err != nil {
+				// This should not happen because we check this before
+				// adding a transaction to the mempool.
+				log.Warn(
+					"skipping tx: invalid stateKeys",
+					zap.Error(err),
+				)
+				continue
+			}
+			ts.SetScope(ctx, stateKeys, nextTxData.storage)
 
 			// PreExecute next to see if it is fit
-			if err := next.PreExecute(ctx, ectx, r, ts, nextTime); err != nil {
+			preExecuteStart := ts.OpIndex()
+			authCUs, err := next.PreExecute(ctx, nextFeeManager, sm, r, ts, nextTime)
+			if err != nil {
 				ts.Rollback(ctx, txStart)
-				cont, restore, _ := HandlePreExecute(err)
-				if !cont {
-					restorable = append(restorable, next)
-					execErr = err
-					continue
-				}
-				if restore {
+				if HandlePreExecute(log, err) {
 					restorable = append(restorable, next)
 				}
+				continue
+			}
+			if preExecuteStart != ts.OpIndex() {
+				// This should not happen because we check this before
+				// adding a transaction to the mempool.
+				log.Warn(
+					"skipping tx: preexecute mutates",
+					zap.Error(err),
+				)
 				continue
 			}
 
@@ -313,17 +353,46 @@ func BuildBlock(
 			}
 
 			// If execution works, keep moving forward with new state
+			//
+			// Note, these calculations must match block verification exactly
+			// otherwise they will produce a different state root.
+			coldReads := map[string]uint16{}
+			warmReads := map[string]uint16{}
+			var invalidStateKeys bool
+			for k := range stateKeys {
+				v := nextTxData.storage[k]
+				numChunks, ok := keys.NumChunks(v)
+				if !ok {
+					invalidStateKeys = true
+					break
+				}
+				if usedKeys.Contains(k) {
+					warmReads[k] = numChunks
+					continue
+				}
+				coldReads[k] = numChunks
+			}
+			if invalidStateKeys {
+				// This should not happen because we check this before
+				// adding a transaction to the mempool.
+				log.Warn("invalid tx: invalid state keys")
+				continue
+			}
 			result, err := next.Execute(
 				ctx,
-				r,
+				nextFeeManager,
+				authCUs,
+				coldReads,
+				warmReads,
 				sm,
+				r,
 				ts,
 				nextTime,
 				next.WarpMessage != nil && warpErr == nil,
 			)
 			if err != nil {
-				// This error should only be raised by the handler, not the
-				// implementation itself
+				// Returning an error here should be avoided at all costs (can be a DoS). Rather,
+				// all units for the transaction should be consumed and a fee should be charged.
 				log.Warn("unexpected post-execution error", zap.Error(err))
 				restorable = append(restorable, next)
 				execErr = err
@@ -332,8 +401,11 @@ func BuildBlock(
 
 			// Update block with new transaction
 			b.Txs = append(b.Txs, next)
-			b.UnitsConsumed += result.Units
-			surplusFee += (next.Base.UnitPrice - b.UnitPrice) * result.Units
+			usedKeys.Add(stateKeys.List()...)
+			if err := nextFeeManager.Consume(nextUnits); err != nil {
+				execErr = err
+				continue
+			}
 			results = append(results, result)
 			if next.WarpMessage != nil {
 				if warpErr == nil {
@@ -401,6 +473,11 @@ func BuildBlock(
 		return nil, err
 	}
 
+	// Store fee parameters
+	if err := state.Insert(ctx, sm.FeeKey(), nextFeeManager.Bytes()); err != nil {
+		return nil, err
+	}
+
 	// Compute state root after all data has been written to trie
 	root, err := state.GetMerkleRoot(ctx)
 	if err != nil {
@@ -409,7 +486,7 @@ func BuildBlock(
 	b.StateRoot = root
 
 	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, state, results); err != nil {
+	if err := b.initializeBuilt(ctx, state, results, nextFeeManager); err != nil {
 		return nil, err
 	}
 	log.Info(
