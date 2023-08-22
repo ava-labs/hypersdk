@@ -1,6 +1,8 @@
 use serde_derive::{Deserialize, Serialize};
+use std::hash::{Hash, Hasher};
+
 /// A struct that enforces a fixed length of 32 bytes which represents an address.
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Debug, Hash)]
 pub struct Address([u8; 32]);
 
 impl Address {

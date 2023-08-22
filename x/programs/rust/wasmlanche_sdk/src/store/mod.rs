@@ -14,6 +14,7 @@ pub struct ProgramContext {
     pub program_id: i64,
 }
 
+/// Fails if we are storing a map with non-string keys
 impl ProgramContext {
     pub fn store_value<T>(&self, key: &str, value: &T) -> Result<(), StorageError>
     where
@@ -46,11 +47,14 @@ impl ProgramContext {
             to_vec(value).expect("Serialization failed"),
         )
     }
-    pub fn get_value<T>(&self, name: &str) -> T
+    pub fn get_value<T>(&self, name: &str) -> Result<T, StorageError>
     where
         T: DeserializeOwned,
     {
-        get_field(self, name).expect("msg")
+        match get_field(self, name).expect("msg") {
+            Some(value) => Ok(value),
+            None => Err(StorageError::HostRetrieveError()),
+        }
     }
     pub fn get_map_value<T, U>(&self, map_name: &str, key: &T) -> Result<U, StorageError>
     where

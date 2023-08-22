@@ -7,9 +7,11 @@ members = [
     "x/programs/rust/examples/counter",
     "x/programs/rust/examples/even",
     "x/programs/rust/examples/lottery",
+    "x/programs/rust/examples/pokemon",
 ]
 
 [profile.release]
-opt-level = "z"
+opt-level = 3
 lto = true
 codegen-units = 1
+overflow-checks = true
