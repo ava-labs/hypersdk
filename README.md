@@ -259,16 +259,18 @@ price-sorted mempools are not particularly useful in high-throughput
 blockchains where the expected mempool size is ~0 or there is a bounded transaction
 lifetime (60 seconds by default on the `hypersdk`).
 
-#### Key Flat Fee + Size-Based Fees
-Chunks = 64B
+#### Size-Encoded Storage Keys
+To compute the maximum amount of storage units that a transaction could use,
+it must be possible to determine how much data a particular key can read/write
+from/to state. The `hypersdk` requires that all state keys are suffixed with
+a big-endian encoded `uint16` of the number of "chunks" (each chunk is 64 bytes)
+that can be read/stored to satisfy this requirement.
 
-TODO: only charge to get key/modify at bondary of tx...each access
-is really a compute question and should be charged
-
-To hide this complexity from the user, everything other than compute units
-are done in the background. Just need to add uint16 to end of any keys
-to indicate the max bytes they could store. This allows for full fee precomputation
-for a reasonable burden for type storage.
+This constraint is equivalent to deciding whether to use a `uint8`, `uint16`, `uint32`,
+`uint64`, etc. when storing an unsigned integer value in memory. The tighter a
+`hypervm` developer bounds the max chunks to the chunks they will store, the cheaper
+the estimate will be for a user to interact with state. Users are only charged, however,
+based on the amount of chunks actually read/written from/to state.
 
 #### Hot Access Discount Over Block
 If a key has already been accessed in a given block, any future access
