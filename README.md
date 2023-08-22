@@ -259,6 +259,26 @@ price-sorted mempools are not particularly useful in high-throughput
 blockchains where the expected mempool size is ~0 or there is a bounded transaction
 lifetime (60 seconds by default on the `hypersdk`).
 
+#### Separate Metering for Storage Reads, Creations, Modifications
+To make the multidimensional fee implementation for the `hypersdk` simpler,
+it would have been possible to unify all storage operations (read, create,
+modify) into a single unit dimension. We opted not to go this route, however,
+because `hypervm` designers often wish to regulate state growth much differently
+than state reads or state modification.
+
+Fundamentally, it makes sense to combine resource usage into a single unit dimension
+if different operations are scaled substitutes of each other (an executor could translate
+between X units of one operation to Y units of another). It is not clear how to compare,
+for example, the verification of a signature with the storage of a new key in state
+but is clear how to compare the verification of a signature with the addition of two numbers
+(just different CPU cycle counts).
+
+Although more nuanced, the addition of new data to state is a categorically different operation
+than reading data from state and cannot be compared on a single plane. In other words,
+it is not clear how many reads a developer would or should trade for writes and/or that
+they are substitutes for each other in some sort of disk resource (by mapping to a
+single unit dimension, performing a bunch of reads would make writes more expensive).
+
 #### Size-Encoded Storage Keys
 To compute the maximum amount of storage units that a transaction could use,
 it must be possible to determine how much data a particular key can read/write
@@ -273,8 +293,14 @@ the estimate will be for a user to interact with state. Users are only charged, 
 based on the amount of chunks actually read/written from/to state.
 
 #### Hot Access Discount Over Block
-If a key has already been accessed in a given block, any future access
-will be cheaper. This goes for both fetching and updating.
+If a state key has already been accessed in a given block, future access
+by the same transaction/future transactions will be more efficient for the
+`hypersdk` to handle because the corresponding state is now sitting in memory.
+The `hypersdk` tracks which state it has already loaded to execute a block
+for each `hypervm` and can ch
+
+been accessed for the `hypervm`
+and can charge a different fee
 
 If someone is going to modify a value and then another tx comes along and
 modifies the same value, that is much cheaper for the `hypervm` to process (in many
