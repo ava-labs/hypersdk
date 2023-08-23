@@ -467,7 +467,7 @@ func (t *Transaction) Execute(
 	// to pessimistically precompute the storage it will change.
 	for _, key := range t.Auth.StateKeys() {
 		bk := []byte(key)
-		changed, exists, err := tdb.Exists(ctx, bk)
+		changed, _, err := tdb.Exists(ctx, bk)
 		if err != nil {
 			tdb.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
@@ -479,13 +479,9 @@ func (t *Transaction) Execute(
 			tdb.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(ErrInvalidKeyValue), maxUnits, maxFee, nil}, nil
 		}
-		// We pessimistically assume any keys that are referenced will be created
-		// if they don't yet exist.
-		if !exists {
-			// TODO: if remove, then create this would be wrong
-			creations[key] = maxChunks
-			// We can't [continue] here because we may also modify anything we create.
-		}
+		// We require that any refunds must not create keys, otherwise, we'd have
+		// to pessimistically charge all transactions for creation.
+		//
 		// If a key is already in [coldModifications], we should still
 		// consider it a [coldModification] even if it is [changed].
 		// This occurs when we modify a key for the second time in
@@ -561,10 +557,13 @@ func (t *Transaction) Execute(
 	}
 	refund := maxFee - feeRequired
 	if refund > 0 {
+		tdb.DisableCreation()
 		if err := t.Auth.Refund(ctx, tdb, refund); err != nil {
+			tdb.EnableCreation()
 			tdb.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 		}
+		tdb.EnableCreation()
 	}
 	return &Result{
 		Success: success,

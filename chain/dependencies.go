@@ -279,6 +279,9 @@ type Auth interface {
 	// Refund returns [amount] to [Auth] after transaction execution if any fees were
 	// not used.
 	//
+	// Refund will return an error if it attempts to create any new keys. It can only
+	// modify or remove existing keys.
+	//
 	// Refund is only invoked if [amount] > 0.
 	Refund(ctx context.Context, db Database, amount uint64) error
 

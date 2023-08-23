@@ -6,7 +6,8 @@ package tstate
 import "errors"
 
 var (
-	ErrNewKeysDisabled = errors.New("new keys disabled")
-	ErrKeyNotSpecified = errors.New("key not specified")
-	ErrInvalidKeyValue = errors.New("invalid key or value")
+	ErrNewKeysDisabled  = errors.New("new keys disabled")
+	ErrKeyNotSpecified  = errors.New("key not specified")
+	ErrInvalidKeyValue  = errors.New("invalid key or value")
+	ErrCreationDisabled = errors.New("creation disabled")
 )
