@@ -123,7 +123,7 @@ func GetTransaction(
 	if v[consts.Uint64Len] == failureByte {
 		success = false
 	}
-	d, err := chain.UnpackDimensions(v[consts.Uint64Len+1:])
+	d, err := chain.UnpackDimensions(v[consts.Uint64Len+1 : consts.Uint64Len+1+chain.DimensionsLen])
 	if err != nil {
 		return false, 0, false, chain.Dimensions{}, 0, err
 	}

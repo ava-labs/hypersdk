@@ -5,6 +5,7 @@ package chain
 
 import (
 	"encoding/binary"
+	"fmt"
 	"strconv"
 
 	"github.com/ava-labs/avalanchego/utils/math"
@@ -296,7 +297,7 @@ func (d Dimensions) Greater(o Dimensions) bool {
 
 func UnpackDimensions(raw []byte) (Dimensions, error) {
 	if len(raw) != DimensionsLen {
-		return Dimensions{}, ErrWrongDimensionSize
+		return Dimensions{}, fmt.Errorf("%w: found=%d wanted=%d", ErrWrongDimensionSize, len(raw), DimensionsLen)
 	}
 	d := Dimensions{}
 	for i := Dimension(0); i < FeeDimensions; i++ {
