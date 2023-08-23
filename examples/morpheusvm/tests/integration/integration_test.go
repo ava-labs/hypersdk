@@ -586,24 +586,24 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			//
 			// bandwidth: tx size
 			// compute: 5 for signature, 1 for base, 1 for transfer
-			// read: 2 warm keys reads (1 chunk)
+			// read: 2 warm keys reads (1 chunk, 0 chunk) -> note, this is based on disk BEFORE block
 			// create: 0 key created
 			// modify: 2 warm keys modified (1 chunk)
 			gomega.Ω(results[3].Success).Should(gomega.BeTrue())
-			transferTxFee = chain.Dimensions{190, 7, 14, 0, 26}
+			transferTxFee = chain.Dimensions{190, 7, 3, 0, 16}
 			gomega.Ω(results[3].Units).Should(gomega.Equal(transferTxFee))
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[3].Fee).Should(gomega.Equal(uint64(237)))
+			gomega.Ω(results[3].Fee).Should(gomega.Equal(uint64(216)))
 
 			// Check end balance
 			balance2, err := instances[1].lcli.Balance(context.Background(), sender2)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance2).To(gomega.Equal(uint64(100101)))
+			gomega.Ω(balance2).To(gomega.Equal(uint64(100306)))
 			balance3, err := instances[1].lcli.Balance(context.Background(), sender3)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance3).To(gomega.Equal(uint64(100101)))
+			gomega.Ω(balance3).To(gomega.Equal(uint64(209)))
 		})
 	})
 
