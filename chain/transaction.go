@@ -538,19 +538,23 @@ func (t *Transaction) Execute(
 		return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 	}
 	used := Dimensions{uint64(t.Size()), computeUnits, reads, creationUnits, modifications}
-	feeRequired, err := feeManager.MaxFee(used)
-	if err != nil {
-		tdb.Rollback(ctx, actionStart)
-		return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
+
+	// Check to see if the units consumed are greater than the max units
+	//
+	// This should never be the case but erroring here is better than
+	// underflowing the refund.
+	if !maxUnits.Greater(used) {
+		return nil, fmt.Errorf("%w: max=%+v consumed=%+v", ErrInvalidUnitsConsumed, maxUnits, used)
 	}
 
 	// Return any funds from unused units
 	//
 	// To avoid storage abuse of [Auth.Refund], we precharge for possible usage.
-	if feeRequired > maxFee {
-		panic(fmt.Errorf("impossible feeRequired=%d maxFee=%d used=%+v maxFeeUnits=%+v wmods=%+v cmods=%+v", feeRequired, maxFee, used, maxUnits, warmModifications, coldModifications))
+	feeRequired, err := feeManager.MaxFee(used)
+	if err != nil {
+		tdb.Rollback(ctx, actionStart)
+		return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 	}
-	// TODO: we are likely giving a refund that is greater than the max fee
 	refund := maxFee - feeRequired
 	if refund > 0 {
 		if err := t.Auth.Refund(ctx, tdb, refund); err != nil {
