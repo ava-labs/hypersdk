@@ -62,7 +62,7 @@ func (t *Transfer) Execute(
 	if err := storage.SubBalance(ctx, db, actor, t.Value); err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, db, t.To, t.Value); err != nil {
+	if err := storage.AddBalance(ctx, db, t.To, t.Value, true); err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 	return true, 1, nil, nil, nil

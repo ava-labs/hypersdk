@@ -112,7 +112,8 @@ func (d *ED25519) Refund(
 	db chain.Database,
 	amount uint64,
 ) error {
-	return storage.AddBalance(ctx, db, d.Signer, ids.Empty, amount)
+	// Don't create account if it doesn't exist (may have sent all funds).
+	return storage.AddBalance(ctx, db, d.Signer, ids.Empty, amount, false)
 }
 
 var _ chain.AuthFactory = (*ED25519Factory)(nil)

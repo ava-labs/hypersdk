@@ -65,7 +65,8 @@ func (t *Transfer) Execute(
 	if err := storage.SubBalance(ctx, db, actor, t.Asset, t.Value); err != nil {
 		return false, TransferComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, db, t.To, t.Asset, t.Value); err != nil {
+	// TODO: allow sender to configure whether they will pay to create
+	if err := storage.AddBalance(ctx, db, t.To, t.Asset, t.Value, true); err != nil {
 		return false, TransferComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, TransferComputeUnits, nil, nil, nil

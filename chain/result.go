@@ -31,11 +31,7 @@ func (r *Result) Size() int {
 func (r *Result) Marshal(p *codec.Packer) error {
 	p.PackBool(r.Success)
 	p.PackBytes(r.Output)
-	usedBytes, err := r.Units.Bytes()
-	if err != nil {
-		return err
-	}
-	p.PackFixedBytes(usedBytes)
+	p.PackFixedBytes(r.Units.Bytes())
 	p.PackUint64(r.Fee)
 	var warpBytes []byte
 	if r.WarpMessage != nil {

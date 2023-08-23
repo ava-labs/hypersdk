@@ -18,7 +18,7 @@ import (
 // if we build empty blocks too soon)
 //
 // TODO: consider replacing this with AvalancheGo block build metering
-const minBuildGap int64 = 30 // ms
+const minBuildGap int64 = 25 // ms
 
 var _ Builder = (*Time)(nil)
 
@@ -47,10 +47,13 @@ func (b *Time) Run() {
 }
 
 func (b *Time) handleTimerNotify() {
-	b.Force(context.TODO())
+	if err := b.Force(context.TODO()); err != nil {
+		b.vm.Logger().Warn("unable to build", zap.Error(err))
+	} else {
+		txs := b.vm.Mempool().Len(context.TODO())
+		b.vm.Logger().Debug("trigger to notify", zap.Int("txs", txs))
+	}
 	b.waiting.Store(false)
-	txs := b.vm.Mempool().Len(context.TODO())
-	b.vm.Logger().Debug("trigger to notify", zap.Int("txs", txs))
 }
 
 func (b *Time) nextTime(now int64, preferred int64) int64 {
@@ -76,10 +79,13 @@ func (b *Time) Queue(ctx context.Context) {
 	now := time.Now().UnixMilli()
 	next := b.nextTime(now, preferredBlk.Tmstmp)
 	if next < 0 {
-		b.Force(ctx)
+		if err := b.Force(ctx); err != nil {
+			b.vm.Logger().Warn("unable to build", zap.Error(err))
+		} else {
+			txs := b.vm.Mempool().Len(context.TODO())
+			b.vm.Logger().Debug("notifying to build without waiting", zap.Int("txs", txs))
+		}
 		b.waiting.Store(false)
-		txs := b.vm.Mempool().Len(context.TODO())
-		b.vm.Logger().Debug("notifying to build without waiting", zap.Int("txs", txs))
 		return
 	}
 	sleep := next - now

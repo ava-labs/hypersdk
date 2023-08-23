@@ -123,6 +123,16 @@ func (g *Proposer) Force(ctx context.Context) error {
 			if txSize+size > g.cfg.GossipMaxSize {
 				return false, true, nil
 			}
+
+			// Don't remove anything from mempool
+			// that will be dropped (this seems
+			// like we sent it then got sent it back?)
+			txID := next.ID()
+			if _, ok := g.cache.Get(txID); ok {
+				return true, true, nil
+			}
+			g.cache.Put(txID, nil)
+
 			txs = append(txs, next)
 			size += txSize
 			return true, false, nil
@@ -243,7 +253,7 @@ func (g *Proposer) handleTimerNotify() {
 	g.waiting.Store(false)
 }
 
-func (g *Proposer) Queue(ctx context.Context) {
+func (g *Proposer) Queue(context.Context) {
 	if !g.waiting.CompareAndSwap(false, true) {
 		g.vm.Logger().Debug("unable to start waiting")
 		return
@@ -315,22 +325,9 @@ func (g *Proposer) Done() {
 	<-g.doneGossip
 }
 
-func (g *Proposer) sendTxs(ctx context.Context, rtxs []*chain.Transaction) error {
+func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error {
 	ctx, span := g.vm.Tracer().Start(ctx, "Gossiper.sendTxs")
 	defer span.End()
-
-	// Check txs in recent cache
-	//
-	// Avoid a cycle where we keep regossiping the same stuff
-	txs := make([]*chain.Transaction, 0, len(rtxs))
-	for _, tx := range txs {
-		txID := tx.ID()
-		if _, ok := g.cache.Get(txID); ok {
-			continue
-		}
-		txs = append(txs, tx)
-		g.cache.Put(txID, nil)
-	}
 
 	// Marshal gossip
 	b, err := chain.MarshalTxs(txs)

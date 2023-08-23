@@ -87,7 +87,7 @@ func (m *MintAsset) Execute(
 	if err := storage.SetAsset(ctx, db, m.Asset, metadata, newSupply, actor, isWarp); err != nil {
 		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, db, m.To, m.Asset, m.Value); err != nil {
+	if err := storage.AddBalance(ctx, db, m.To, m.Asset, m.Value, true); err != nil {
 		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, MintAssetComputeUnits, nil, nil, nil

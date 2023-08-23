@@ -135,10 +135,10 @@ func (f *FillOrder) Execute(
 	if err := storage.SubBalance(ctx, db, actor, f.In, inputAmount); err != nil {
 		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, db, f.Owner, f.In, inputAmount); err != nil {
+	if err := storage.AddBalance(ctx, db, f.Owner, f.In, inputAmount, true); err != nil {
 		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, db, actor, f.Out, outputAmount); err != nil {
+	if err := storage.AddBalance(ctx, db, actor, f.Out, outputAmount, true); err != nil {
 		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if shouldDelete {

@@ -51,8 +51,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
-var transferTxFee = chain.Dimensions{222, 7, 12, 25, 21}
-
 var (
 	logFactory logging.Factory
 	log        logging.Logger
@@ -345,7 +343,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("send gossip from node 0 to 1", func() {
-			err := instances[0].vm.Gossiper().ForceGossip(context.TODO())
+			err := instances[0].vm.Gossiper().Force(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
 		})
 
@@ -388,7 +386,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("receive gossip in the node 1, and signal block build", func() {
-			instances[1].vm.Builder().ForceNotify()
+			gomega.Ω(instances[1].vm.Builder().Force(context.TODO())).To(gomega.BeNil())
 			<-instances[1].toEngine
 		})
 
@@ -413,14 +411,28 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			results := blk.(*chain.StatelessBlock).Results()
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-			gomega.Ω(results[0].Units).Should(gomega.Equal(transferTxFee))
 			gomega.Ω(results[0].Output).Should(gomega.BeNil())
+
+			// Unit explanation
+			//
+			// bandwidth: tx size
+			// compute: 5 for signature, 1 for base, 1 for transfer
+			// read: 2 keys reads, 1 had 0 chunks
+			// create: 1 key created
+			// modify: 1 cold key modified
+			transferTxFee := chain.Dimensions{222, 7, 12, 25, 13}
+			gomega.Ω(results[0].Units).Should(gomega.Equal(transferTxFee))
+
+			// Fee explanation
+			//
+			// Multiply all unit consumption by 1 and sum
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(279)))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].tcli.Balance(context.Background(), sender, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899713)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899721)))
 			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
@@ -519,7 +531,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 
-			err = instances[1].vm.Gossiper().ForceGossip(context.TODO())
+			err = instances[1].vm.Gossiper().Force(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
 
 			// mempool in 0 should be 1 (old amount), since gossip/submit failed
@@ -1810,7 +1822,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 
 		// Build block with no context (should fail)
-		instances[0].vm.Builder().ForceNotify()
+		gomega.Ω(instances[0].vm.Builder().Force(context.TODO())).To(gomega.BeNil())
 		<-instances[0].toEngine
 		blk, err := instances[0].vm.BuildBlock(context.TODO())
 		gomega.Ω(err).To(gomega.Not(gomega.BeNil()))
@@ -1915,7 +1927,7 @@ func expectBlk(i instance) func() []*chain.Result {
 	ctx := context.TODO()
 
 	// manually signal ready
-	i.vm.Builder().ForceNotify()
+	gomega.Ω(i.vm.Builder().Force(ctx)).To(gomega.BeNil())
 	// manually ack ready sig as in engine
 	<-i.toEngine
 
@@ -1945,7 +1957,7 @@ func expectBlkWithContext(i instance) func() []*chain.Result {
 	ctx := context.TODO()
 
 	// manually signal ready
-	i.vm.Builder().ForceNotify()
+	gomega.Ω(i.vm.Builder().Force(ctx)).To(gomega.BeNil())
 	// manually ack ready sig as in engine
 	<-i.toEngine
 

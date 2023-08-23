@@ -133,7 +133,6 @@ func (c *Controller) Initialize(
 	} else {
 		build = builder.NewTime(inner)
 		gcfg := gossiper.DefaultProposerConfig()
-		gcfg.GossipInterval = c.config.GossipInterval
 		gcfg.GossipMaxSize = c.config.GossipMaxSize
 		gcfg.GossipProposerDiff = c.config.GossipProposerDiff
 		gcfg.GossipProposerDepth = c.config.GossipProposerDepth
