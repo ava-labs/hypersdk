@@ -169,12 +169,17 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	ts.changedKeys[k] = &tempStorage{value, false}
 	var err error
 	if exists {
-		// It is possible that this transaction changed [key].
-		// TODO: add more context
+		// If a key is already in [coldModifications], we should still
+		// consider it a [coldModification] even if it is [changed].
+		// This occurs when we modify a key for the second time in
+		// a single transaction.
+		//
+		// If a key is not in [coldModifications] and it is [changed],
+		// it was either created/modified in a different transaction
+		// in the block or created in this transaction.
 		if _, ok := ts.coldModifications[k]; ok || !changed {
 			err = updateChunks(ts.coldModifications, k, value)
 		} else {
-			// TODO: This treats any created key that is motified as a warm modification.
 			err = updateChunks(ts.warmModifications, k, value)
 		}
 	} else {
@@ -201,6 +206,14 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 		pastChanged: changed,
 	})
 	ts.changedKeys[k] = &tempStorage{nil, true}
+	// If a key is already in [coldModifications], we should still
+	// consider it a [coldModification] even if it is [changed].
+	// This occurs when we modify a key for the second time in
+	// a single transaction.
+	//
+	// If a key is not in [coldModifications] and it is [changed],
+	// it was either created/modified in a different transaction
+	// in the block or created in this transaction.
 	var err error
 	if _, ok := ts.coldModifications[k]; ok || !changed {
 		err = updateChunks(ts.coldModifications, k, nil)
