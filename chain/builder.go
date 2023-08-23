@@ -406,7 +406,6 @@ func BuildBlock(
 				execErr = err
 				continue
 			}
-			b.vm.Logger().Info("tx added to block", zap.Any("consumed", nextFeeManager.UnitsConsumed()), zap.Any("tx result", result.Units))
 			results = append(results, result)
 			if next.WarpMessage != nil {
 				if warpErr == nil {
