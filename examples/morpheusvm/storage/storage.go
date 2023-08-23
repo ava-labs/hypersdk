@@ -88,11 +88,7 @@ func StoreTransaction(
 	} else {
 		v[consts.Uint64Len] = failureByte
 	}
-	unitBytes, err := units.Bytes()
-	if err != nil {
-		return err
-	}
-	copy(v[consts.Uint64Len+1:], unitBytes)
+	copy(v[consts.Uint64Len+1:], units.Bytes())
 	binary.BigEndian.PutUint64(v[consts.Uint64Len+1+chain.DimensionsLen:], fee)
 	return db.Put(k, v)
 }
