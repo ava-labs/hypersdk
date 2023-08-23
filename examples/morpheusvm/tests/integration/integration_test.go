@@ -384,7 +384,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("receive gossip in the node 1, and signal block build", func() {
-			instances[1].vm.Builder().Force(context.TODO())
+			gomega.Ω(instances[1].vm.Builder().Force(context.TODO())).To(gomega.BeNil())
 			<-instances[1].toEngine
 		})
 
@@ -849,7 +849,7 @@ func expectBlk(i instance) func() []*chain.Result {
 	ctx := context.TODO()
 
 	// manually signal ready
-	i.vm.Builder().Force(ctx)
+	gomega.Ω(i.vm.Builder().Force(ctx)).Should(gomega.BeNil())
 	// manually ack ready sig as in engine
 	<-i.toEngine
 

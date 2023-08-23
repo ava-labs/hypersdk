@@ -386,7 +386,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("receive gossip in the node 1, and signal block build", func() {
-			instances[1].vm.Builder().Force(context.TODO())
+			gomega.Ω(instances[1].vm.Builder().Force(context.TODO())).To(gomega.BeNil())
 			<-instances[1].toEngine
 		})
 
@@ -1822,7 +1822,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 
 		// Build block with no context (should fail)
-		instances[0].vm.Builder().Force(context.TODO())
+		gomega.Ω(instances[0].vm.Builder().Force(context.TODO())).To(gomega.BeNil())
 		<-instances[0].toEngine
 		blk, err := instances[0].vm.BuildBlock(context.TODO())
 		gomega.Ω(err).To(gomega.Not(gomega.BeNil()))
@@ -1927,7 +1927,7 @@ func expectBlk(i instance) func() []*chain.Result {
 	ctx := context.TODO()
 
 	// manually signal ready
-	i.vm.Builder().Force(ctx)
+	gomega.Ω(i.vm.Builder().Force(ctx)).To(gomega.BeNil())
 	// manually ack ready sig as in engine
 	<-i.toEngine
 
@@ -1957,7 +1957,7 @@ func expectBlkWithContext(i instance) func() []*chain.Result {
 	ctx := context.TODO()
 
 	// manually signal ready
-	i.vm.Builder().Force(ctx)
+	gomega.Ω(i.vm.Builder().Force(ctx)).To(gomega.BeNil())
 	// manually ack ready sig as in engine
 	<-i.toEngine
 
