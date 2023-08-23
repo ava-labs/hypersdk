@@ -1,5 +1,7 @@
 use serde_derive::{Deserialize, Serialize};
+use std::borrow::Cow;
 
+use crate::store::ProgramContext;
 /// A struct that enforces a fixed length of 32 bytes which represents an address.
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub struct Address(Bytes32);
@@ -47,6 +49,74 @@ impl From<i64> for Bytes32 {
                 .unwrap()
         };
         Self(bytes)
+    }
+}
+
+pub trait Argument {
+    fn as_bytes(&self) -> Cow<'_, [u8]>;
+    fn is_primitive(&self) -> bool;
+    fn len(&self) -> usize {
+        self.as_bytes().len()
+    }
+}
+
+impl Argument for Bytes32 {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Borrowed(&self.0)
+    }
+    fn is_primitive(&self) -> bool {
+        false
+    }
+}
+
+impl Argument for Address {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Borrowed(&self.0.as_bytes())
+    }
+    fn is_primitive(&self) -> bool {
+        false
+    }
+}
+
+impl Argument for i64 {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Owned(self.to_be_bytes().to_vec())
+    }
+    fn is_primitive(&self) -> bool {
+        true
+    }
+}
+
+impl Argument for ProgramContext {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        self.program_id.as_bytes()
+    }
+    fn is_primitive(&self) -> bool {
+        true
+    }
+}
+
+impl From<i64> for Box<dyn Argument> {
+    fn from(value: i64) -> Self {
+        Box::new(value)
+    }
+}
+
+impl From<Bytes32> for Box<dyn Argument> {
+    fn from(value: Bytes32) -> Self {
+        Box::new(value)
+    }
+}
+
+impl From<Address> for Box<dyn Argument> {
+    fn from(value: Address) -> Self {
+        Box::new(value)
+    }
+}
+
+impl From<ProgramContext> for Box<dyn Argument> {
+    fn from(value: ProgramContext) -> Self {
+        Box::new(value)
     }
 }
 
