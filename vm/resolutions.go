@@ -109,12 +109,15 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	vm.mempool.Remove(ctx, b.Txs)
 	vm.gossiper.BlockVerified(b.Tmstmp)
 	vm.checkActivity(ctx)
+	fm := b.FeeManager()
 	vm.snowCtx.Log.Info(
 		"verified block",
 		zap.Stringer("blkID", b.ID()),
 		zap.Uint64("height", b.Hght),
 		zap.Int("txs", len(b.Txs)),
 		zap.Bool("state ready", vm.StateReady()),
+		zap.Any("unit prices", fm.UnitPrices()),
+		zap.Any("units consumed", fm.UnitsConsumed()),
 	)
 }
 

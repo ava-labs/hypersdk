@@ -590,7 +590,6 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, err
 	}
 	b.vm.RecordWaitSignatures(time.Since(start))
-	b.vm.Logger().Info("block verified", zap.Any("prices", nextFeeManager.UnitPrices()), zap.Any("consumed", nextFeeManager.UnitsConsumed()))
 	return state, nil
 }
 
