@@ -181,6 +181,8 @@ type Action interface {
 	//
 	// All keys specified must be suffixed with the number of chunks that could ever be read from that
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
+	//
+	// If any key is removed and then re-created, this will count as a creation instead of a modification.
 	StateKeys(auth Auth, txID ids.ID) []string
 
 	// StateKeysMaxChunks is used to estimate the fee a transaction should pay. It includes the max
