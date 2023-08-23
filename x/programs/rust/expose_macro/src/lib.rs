@@ -3,9 +3,8 @@ extern crate proc_macro;
 use core::panic;
 
 use proc_macro::TokenStream;
-use quote::{ToTokens, quote};
-use syn::{Pat, parse_str, Type, parse_macro_input, FnArg, Ident, ItemFn, PatType};
-
+use quote::{quote, ToTokens};
+use syn::{parse_macro_input, parse_str, FnArg, Ident, ItemFn, Pat, PatType, Type};
 
 /// An attribute procedural macro that can be used to expose a function to the host.
 /// It does so by wrapping the [item] tokenstream in a new function that can be called by the host.
@@ -28,7 +27,9 @@ pub fn expose(_: TokenStream, item: TokenStream) -> TokenStream {
                 let param_type = if is_supported_primitive(ty) {
                     ty.to_token_stream()
                 } else {
-                    parse_str::<Type>("i64").expect("valid i64 type").to_token_stream()
+                    parse_str::<Type>("i64")
+                        .expect("valid i64 type")
+                        .to_token_stream()
                 };
                 return (param_name, param_type);
             }
@@ -50,11 +51,11 @@ pub fn expose(_: TokenStream, item: TokenStream) -> TokenStream {
     let return_type = &input.sig.output;
     let output = quote! {
         // Need to include the original function in the output, so contract can call itself
-        #input 
+        #input
         #[no_mangle]
         pub extern "C" fn #new_name(#(#param_names: #param_types), *) #return_type {
             // .into() uses the From() on each argument in the iterator to convert it to the type we want. 70% sure about this statement.
-            #name(#(#param_names_cloned.into()),*) // This means that every parameter type must implement From<i64>(except for the supported primitive types). 
+            #name(#(#param_names_cloned.into()),*) // This means that every parameter type must implement From<i64>(except for the supported primitive types).
         }
     };
     TokenStream::from(output)
