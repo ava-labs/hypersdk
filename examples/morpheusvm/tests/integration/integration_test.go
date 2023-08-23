@@ -50,8 +50,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 )
 
-var transferTxFee = chain.Dimensions{190, 7, 12, 25, 21}
-
 var (
 	logFactory logging.Factory
 	log        logging.Logger
@@ -411,14 +409,27 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			results := blk.(*chain.StatelessBlock).Results()
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-			gomega.Ω(results[0].Units).Should(gomega.Equal(transferTxFee))
 			gomega.Ω(results[0].Output).Should(gomega.BeNil())
+
+			// Unit explanation
+			//
+			// bandwidth: tx size
+			// compute: 5 for signature, 1 for base, 1 for transfer
+			// read: 2 keys reads, 1 had 0 chunks
+			// create: 1 key created
+			// modify: 1 cold key modified
+			transferTxFee := chain.Dimensions{190, 7, 12, 25, 13}
+			gomega.Ω(results[0].Units).Should(gomega.Equal(transferTxFee))
+			// Fee explanation
+			//
+			// Multiply all unit consumption by 1 and sum
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(247)))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].lcli.Balance(context.Background(), sender)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899745)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899753)))
 			balance2, err := instances[1].lcli.Balance(context.Background(), sender2)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
