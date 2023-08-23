@@ -343,7 +343,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("send gossip from node 0 to 1", func() {
-			err := instances[0].vm.Gossiper().ForceGossip(context.TODO())
+			err := instances[0].vm.Gossiper().Force(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
 		})
 
@@ -386,7 +386,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("receive gossip in the node 1, and signal block build", func() {
-			instances[1].vm.Builder().ForceNotify()
+			instances[1].vm.Builder().Force(context.TODO())
 			<-instances[1].toEngine
 		})
 
@@ -514,7 +514,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 
-			err = instances[1].vm.Gossiper().ForceGossip(context.TODO())
+			err = instances[1].vm.Gossiper().Force(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
 
 			// mempool in 0 should be 1 (old amount), since gossip/submit failed
@@ -694,7 +694,7 @@ func expectBlk(i instance) func() []*chain.Result {
 	ctx := context.TODO()
 
 	// manually signal ready
-	i.vm.Builder().ForceNotify()
+	i.vm.Builder().Force(ctx)
 	// manually ack ready sig as in engine
 	<-i.toEngine
 
