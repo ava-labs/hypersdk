@@ -402,10 +402,11 @@ func BuildBlock(
 			// Update block with new transaction
 			b.Txs = append(b.Txs, next)
 			usedKeys.Add(stateKeys.List()...)
-			if err := nextFeeManager.Consume(nextUnits); err != nil {
+			if err := nextFeeManager.Consume(result.Units); err != nil {
 				execErr = err
 				continue
 			}
+			b.vm.Logger().Info("tx added to block", zap.Any("consumed", nextFeeManager.UnitsConsumed()), zap.Any("tx result", result.Units))
 			results = append(results, result)
 			if next.WarpMessage != nil {
 				if warpErr == nil {

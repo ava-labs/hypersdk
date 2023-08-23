@@ -169,6 +169,7 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	ts.changedKeys[k] = &tempStorage{value, false}
 	var err error
 	if exists {
+		// TODO: if insert cold, then insert warm will get duplicates
 		if changed {
 			err = updateChunks(ts.warmModifications, k, value)
 		} else {

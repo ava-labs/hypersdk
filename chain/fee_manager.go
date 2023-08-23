@@ -146,6 +146,14 @@ func (f *FeeManager) UnitPrices() Dimensions {
 	return d
 }
 
+func (f *FeeManager) UnitsConsumed() Dimensions {
+	var d Dimensions
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		d[i] = f.LastConsumed(i)
+	}
+	return d
+}
+
 func computeNextPriceWindow(
 	previous window.Window,
 	previousConsumed uint64,

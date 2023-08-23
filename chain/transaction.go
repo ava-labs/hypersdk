@@ -485,11 +485,12 @@ func (t *Transaction) Execute(
 			creations[key] = maxChunks
 			continue
 		}
+		// TODO: Possible that the key was only changed in this transaction, this should not be used
 		if changed {
 			warmModifications[key] = maxChunks
 			continue
 		}
-		warmModifications[key] = maxChunks
+		coldModifications[key] = maxChunks
 	}
 
 	// We only charge for the chunks read from disk instead of charging for the max chunks
@@ -542,6 +543,10 @@ func (t *Transaction) Execute(
 	// Return any funds from unused units
 	//
 	// To avoid storage abuse of [Auth.Refund], we precharge for possible usage.
+	if feeRequired > maxFee {
+		panic(fmt.Errorf("impossible feeRequired=%d maxFee=%d used=%+v maxFeeUnits=%+v wmods=%+v cmods=%+v", feeRequired, maxFee, used, maxUnits, warmModifications, coldModifications))
+	}
+	// TODO: we are likely giving a refund that is greater than the max fee
 	refund := maxFee - feeRequired
 	if refund > 0 {
 		if err := t.Auth.Refund(ctx, tdb, refund); err != nil {
