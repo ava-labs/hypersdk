@@ -169,11 +169,12 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	ts.changedKeys[k] = &tempStorage{value, false}
 	var err error
 	if exists {
-		// TODO: if insert cold, then insert warm will get duplicates
-		if changed {
-			err = updateChunks(ts.warmModifications, k, value)
-		} else {
+		// It is possible that this transaction changed [key].
+		// TODO: add more context
+		if _, ok := ts.coldModifications[k]; ok || !changed {
 			err = updateChunks(ts.coldModifications, k, value)
+		} else {
+			err = updateChunks(ts.warmModifications, k, value)
 		}
 	} else {
 		err = updateChunks(ts.creations, k, value)
@@ -200,10 +201,10 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 	})
 	ts.changedKeys[k] = &tempStorage{nil, true}
 	var err error
-	if changed {
-		err = updateChunks(ts.warmModifications, k, nil)
-	} else {
+	if _, ok := ts.coldModifications[k]; ok || !changed {
 		err = updateChunks(ts.coldModifications, k, nil)
+	} else {
+		err = updateChunks(ts.warmModifications, k, nil)
 	}
 	return err
 }

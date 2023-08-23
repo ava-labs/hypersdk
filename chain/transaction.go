@@ -479,18 +479,22 @@ func (t *Transaction) Execute(
 			tdb.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(ErrInvalidKeyValue), maxUnits, maxFee, nil}, nil
 		}
+		// We pessimistically assume any keys that are referenced will be created
+		// if they don't yet exist.
 		if !exists {
-			// We pessimistically assume any keys that are referenced will be created
-			// if they don't yet exist.
 			creations[key] = maxChunks
 			continue
 		}
-		// TODO: Possible that the key was only changed in this transaction, this should not be used
-		if changed {
-			warmModifications[key] = maxChunks
+		// If the key [exists] and is in [coldModifications] or it has not changed, we just
+		// update [coldModifications].
+		//
+		// It is possible that this transaction changed [key]. If we just used [changed],
+		// we would have a key in both [coldModifications] and [warmModifications].
+		if _, ok := coldModifications[key]; ok || !changed {
+			coldModifications[key] = maxChunks
 			continue
 		}
-		coldModifications[key] = maxChunks
+		warmModifications[key] = maxChunks
 	}
 
 	// We only charge for the chunks read from disk instead of charging for the max chunks
