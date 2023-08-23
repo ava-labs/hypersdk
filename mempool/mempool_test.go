@@ -33,7 +33,7 @@ func (mti *TestItem) Expiry() int64 {
 	return mti.timestamp
 }
 
-func (mti *TestItem) Size() int {
+func (*TestItem) Size() int {
 	return 2 // distinguish from len
 }
 

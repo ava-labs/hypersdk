@@ -253,7 +253,7 @@ func (g *Proposer) handleTimerNotify() {
 	g.waiting.Store(false)
 }
 
-func (g *Proposer) Queue(ctx context.Context) {
+func (g *Proposer) Queue(context.Context) {
 	if !g.waiting.CompareAndSwap(false, true) {
 		g.vm.Logger().Debug("unable to start waiting")
 		return
