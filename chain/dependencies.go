@@ -123,14 +123,18 @@ type Rules interface {
 	GetOutgoingWarpComputeUnits() uint64
 
 	// Invariants:
-	// * If a key is removed and then re-created during a transaction, it counts
-	//   as a modification and a creation instead of just a modification
-	// * Keys are only charged once per transaction (even if used multiple times), it is
-	//   up to the controller to ensure multiple usage has some compute cost
-	// * Cold key reads/modifications are assumed to be more expensive than warm
-	//   when estimating the max fee
 	// * Controllers must manage the max key length and max value length (max network
 	//   limit is ~2MB)
+	// * Cold key reads/modifications are assumed to be more expensive than warm
+	//   when estimating the max fee
+	// * Keys are only charged once per transaction (even if used multiple times), it is
+	//   up to the controller to ensure multiple usage has some compute cost
+	//
+	// Interesting Scenarios:
+	// * If a key is created and then modified during a transaction, the second
+	//   read will be a warm read of 0 chunks (reads are based on disk contents before exec)
+	// * If a key is removed and then re-created during a transaction, it counts
+	//   as a modification and a creation instead of just a modification
 	GetColdStorageKeyReadUnits() uint64
 	GetColdStorageValueReadUnits() uint64 // per chunk
 	GetWarmStorageKeyReadUnits() uint64
