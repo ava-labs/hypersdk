@@ -134,7 +134,7 @@ func GetBalance(
 	db chain.Database,
 	pk ed25519.PublicKey,
 ) (uint64, error) {
-	dbKey, bal, err := getBalance(ctx, db, pk)
+	dbKey, bal, _, err := getBalance(ctx, db, pk)
 	balanceKeyPool.Put(dbKey)
 	return bal, err
 }
@@ -143,10 +143,10 @@ func getBalance(
 	ctx context.Context,
 	db chain.Database,
 	pk ed25519.PublicKey,
-) ([]byte, uint64, error) {
+) ([]byte, uint64, bool, error) {
 	k := BalanceKey(pk)
-	bal, err := innerGetBalance(db.GetValue(ctx, k))
-	return k, bal, err
+	bal, exists, err := innerGetBalance(db.GetValue(ctx, k))
+	return k, bal, exists, err
 }
 
 // Used to serve RPC queries
@@ -157,7 +157,7 @@ func GetBalanceFromState(
 ) (uint64, error) {
 	k := BalanceKey(pk)
 	values, errs := f(ctx, [][]byte{k})
-	bal, err := innerGetBalance(values[0], errs[0])
+	bal, _, err := innerGetBalance(values[0], errs[0])
 	balanceKeyPool.Put(k)
 	return bal, err
 }
@@ -165,14 +165,14 @@ func GetBalanceFromState(
 func innerGetBalance(
 	v []byte,
 	err error,
-) (uint64, error) {
+) (uint64, bool, error) {
 	if errors.Is(err, database.ErrNotFound) {
-		return 0, nil
+		return 0, false, nil
 	}
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
-	return binary.BigEndian.Uint64(v), nil
+	return binary.BigEndian.Uint64(v), true, nil
 }
 
 func SetBalance(
@@ -199,10 +199,16 @@ func AddBalance(
 	db chain.Database,
 	pk ed25519.PublicKey,
 	amount uint64,
+	create bool,
 ) error {
-	dbKey, bal, err := getBalance(ctx, db, pk)
+	dbKey, bal, exists, err := getBalance(ctx, db, pk)
 	if err != nil {
 		return err
+	}
+	// Don't add balance if account doesn't exist. This
+	// can be useful when processing fee refunds.
+	if !exists && !create {
+		return nil
 	}
 	nbal, err := smath.Add64(bal, amount)
 	if err != nil {
@@ -223,7 +229,7 @@ func SubBalance(
 	pk ed25519.PublicKey,
 	amount uint64,
 ) error {
-	dbKey, bal, err := getBalance(ctx, db, pk)
+	dbKey, bal, _, err := getBalance(ctx, db, pk)
 	if err != nil {
 		return err
 	}
