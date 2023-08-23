@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 var (
@@ -24,32 +25,48 @@ var (
 		"ConstI64 0x0": 2,
 	}
 	maxGas uint64 = 3000
-	log           = logging.NewLogger(
-		"",
-		logging.NewWrappedCore(
-			logging.Debug,
-			os.Stderr,
-			logging.Plain.ConsoleEncoder(),
-		))
 )
 
 // go test -v -timeout 30s -run ^TestTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples
 func TestTokenProgram(t *testing.T) {
 	require := require.New(t)
-	program := NewToken(log, tokenProgramBytes, maxGas, costMap)
-	err := program.Run(context.Background())
+	log := newLoggerWithLogLevel(logging.Debug)
+	meter := runtime.NewMeter(log, maxGas, costMap)
+	program := NewToken(log, tokenProgramBytes)
+	err := program.Run(context.Background(), meter)
 	require.NoError(err)
 }
 
 // go test -v -benchmem -run=^$ -bench ^BenchmarkTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func BenchmarkTokenProgram(b *testing.B) {
 	require := require.New(b)
-	program := NewToken(log, tokenProgramBytes, maxGas, costMap)
-	b.ResetTimer()
+	log := newLoggerWithLogLevel(logging.Info)
 	b.Run("benchmark_token_program", func(b *testing.B) {
+		program := NewToken(log, tokenProgramBytes)
+		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			err := program.Run(context.Background())
+			meter := runtime.NewMeter(log, maxGas, costMap)
+			err := program.Run(context.Background(), meter)
 			require.NoError(err)
 		}
 	})
+	b.Run("benchmark_token_program_no_metering", func(b *testing.B) {
+		program := NewToken(log, tokenProgramBytes)
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			var meter runtime.Meter
+			err := program.Run(context.Background(), meter)
+			require.NoError(err)
+		}
+	})
+}
+
+func newLoggerWithLogLevel(level logging.Level) logging.Logger {
+	return logging.NewLogger(
+		"",
+		logging.NewWrappedCore(
+			level,
+			os.Stderr,
+			logging.Plain.ConsoleEncoder(),
+		))
 }

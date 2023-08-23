@@ -15,25 +15,19 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewToken(log logging.Logger, programBytes []byte, maxFee uint64, costMap map[string]uint64) *Token {
+func NewToken(log logging.Logger, programBytes []byte) *Token {
 	return &Token{
 		log:          log,
 		programBytes: programBytes,
-		maxFee:       maxFee,
-		costMap:      costMap,
 	}
 }
 
 type Token struct {
 	log          logging.Logger
 	programBytes []byte
-
-	// metering
-	maxFee  uint64
-	costMap map[string]uint64
 }
 
-func (t *Token) Run(ctx context.Context) error {
+func (t *Token) Run(ctx context.Context, meter runtime.Meter) error {
 	// functions exported in this example
 	functions := []string{
 		"get_total_supply",
@@ -45,7 +39,6 @@ func (t *Token) Run(ctx context.Context) error {
 		"init_program",
 	}
 
-	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
 	db := utils.NewTestDB()
 	store := newProgramStorage(db)
 
