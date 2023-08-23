@@ -5,6 +5,7 @@ package chain
 
 import (
 	"encoding/binary"
+	"strconv"
 
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/hypersdk/consts"
@@ -300,6 +301,21 @@ func UnpackDimensions(raw []byte) (Dimensions, error) {
 	d := Dimensions{}
 	for i := Dimension(0); i < FeeDimensions; i++ {
 		d[i] = binary.BigEndian.Uint64(raw[i*consts.Uint64Len:])
+	}
+	return d, nil
+}
+
+func ParseDimensions(raw []string) (Dimensions, error) {
+	if len(raw) != FeeDimensions {
+		return Dimensions{}, ErrWrongDimensionSize
+	}
+	d := Dimensions{}
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		v, err := strconv.ParseUint(raw[i], 10, 64)
+		if err != nil {
+			return Dimensions{}, err
+		}
+		d[i] = v
 	}
 	return d, nil
 }
