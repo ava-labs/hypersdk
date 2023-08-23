@@ -482,10 +482,9 @@ func (t *Transaction) Execute(
 		// We pessimistically assume any keys that are referenced will be created
 		// if they don't yet exist.
 		if !exists {
+			// TODO: if remove, then create this would be wrong
 			creations[key] = maxChunks
-			// TODO: we should not continue here?
-			// could not exist, and already be in modified?
-			continue
+			// We can't [continue] here because we may also modify anything we create.
 		}
 		// If a key is already in [coldModifications], we should still
 		// consider it a [coldModification] even if it is [changed].
