@@ -174,6 +174,7 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 		if _, ok := ts.coldModifications[k]; ok || !changed {
 			err = updateChunks(ts.coldModifications, k, value)
 		} else {
+			// TODO: This treats any created key that is motified as a warm modification.
 			err = updateChunks(ts.warmModifications, k, value)
 		}
 	} else {
