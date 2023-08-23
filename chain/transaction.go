@@ -483,13 +483,18 @@ func (t *Transaction) Execute(
 		// if they don't yet exist.
 		if !exists {
 			creations[key] = maxChunks
+			// TODO: we should not continue here?
+			// could not exist, and already be in modified?
 			continue
 		}
-		// If the key [exists] and is in [coldModifications] or it has not changed, we just
-		// update [coldModifications].
+		// If a key is already in [coldModifications], we should still
+		// consider it a [coldModification] even if it is [changed].
+		// This occurs when we modify a key for the second time in
+		// a single transaction.
 		//
-		// It is possible that this transaction changed [key]. If we just used [changed],
-		// we would have a key in both [coldModifications] and [warmModifications].
+		// If a key is not in [coldModifications] and it is [changed],
+		// it was either created/modified in a different transaction
+		// in the block or created in this transaction.
 		if _, ok := coldModifications[key]; ok || !changed {
 			coldModifications[key] = maxChunks
 			continue
