@@ -64,12 +64,11 @@ func (m *InvokeModule) programInvokeFn(
 	if !ok {
 		return invokeErr
 	}
-	entryFn := utils.GetGuestFnName(string(entryBuf))
+	entryFn := string(entryBuf)
 
 	// get the program bytes stored in state
 	data, ok := GlobalStorage.Programs[uint32(invokeProgramID)]
 	if !ok {
-		fmt.Println("program invoke")
 		return invokeErr
 	}
 
@@ -93,18 +92,12 @@ func (m *InvokeModule) programInvokeFn(
 	if err != nil {
 		return invokeErr
 	}
-	fmt.Println("calling ", entryFn, "with params", params)
-	// bytes, _ := runtime.GetGuestBuffer(uint32(params[1]), 32)
-	// fmt.Println(bytes)
-	// bytes, _ = runtime.GetGuestBuffer(uint32(params[2]), 32)
-	// fmt.Println(bytes)
 
-	res, err := runtime.Call(ctx, "transfer_guest", params...)
+	res, err := runtime.Call(ctx, entryFn, params...)
 	if err != nil {
 		fmt.Println(err)
 		return invokeErr
 	}
-	fmt.Println("hereee")
 	return int64(res[0])
 }
 
@@ -122,7 +115,6 @@ func getCallArgs(ctx context.Context, runtime Runtime, buffer []byte, invokeProg
 		} else {
 			valueBytes := make([]byte, size)
 			p.UnpackFixedBytes(int(size), &valueBytes)
-			fmt.Println(valueBytes)
 			ptr, err := runtime.WriteGuestBuffer(ctx, valueBytes)
 			if err != nil {
 				return nil, err

@@ -97,7 +97,6 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions
 			r.exported[name] = r.mod.ExportedFunction(utils.GetGuestFnName(name))
 		}
 	}
-	r.exported["transfer_guest"] = r.mod.ExportedFunction("transfer_guest")
 
 	return nil
 }
@@ -122,7 +121,6 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 func (r *runtime) GetGuestBuffer(offset uint32, length uint32) ([]byte, bool) {
 	// TODO: add fee
 	// r.meter.AddCost()
-	fmt.Println("get guest buffer", offset, length)
 	return r.mod.Memory().Read(offset, length)
 }
 

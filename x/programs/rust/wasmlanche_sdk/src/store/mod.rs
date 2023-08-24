@@ -161,10 +161,7 @@ impl ProgramContext {
         fn_name: &str,
         call_args: &[Box<dyn Argument>],
     ) -> i64 {
-        // hardcode first arg for now
-        let result = host_program_invoke(self, call_ctx, fn_name, &Self::marshal_args(call_args));
-        // Hardcode int for now
-        result
+        host_program_invoke(self, call_ctx, fn_name, &Self::marshal_args(call_args))
     }
 
     fn marshal_args(args: &[Box<dyn Argument>]) -> Vec<u8> {

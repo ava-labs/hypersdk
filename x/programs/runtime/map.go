@@ -45,6 +45,9 @@ func NewMapModule(log logging.Logger, meter Meter) *MapModule {
 	}
 }
 
+// GlobalStorage is a global variable that holds the state of all programs.
+// This is a placeholder storage system intended to show how a wasm program would access/modify persistent storage.
+// Needs to be gloabl, so state can be persisted across multiple runtime intances.
 var GlobalStorage = storage{
 	state:    make(map[int64]maps),
 	mods:     make(map[int64]api.Module),

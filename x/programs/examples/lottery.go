@@ -129,29 +129,29 @@ func (t *Lottery) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	lottery_contract_id := result[0]
-	t.log.Debug("lottery contract id", zap.Uint64("id", lottery_contract_id))
+	lotteryContractId := result[0]
+	t.log.Debug("lottery contract id", zap.Uint64("id", lotteryContractId))
 	runtime.GlobalStorage.Programs[uint32(token_contract_id)] = t.tokenProgramBytes
 	// set the program_id in store to the lottery bytes
 
-	alice_lotto_ptr, err := lotteryRuntime.WriteGuestBuffer(ctx, alice_pk[:])
+	aliceLottoPtr, err := lotteryRuntime.WriteGuestBuffer(ctx, alice_pk[:])
 	if err != nil {
 		return err
 	}
 
-	bob_lotto_ptr, err := lotteryRuntime.WriteGuestBuffer(ctx, bob_pk[:])
+	bobLottoPtr, err := lotteryRuntime.WriteGuestBuffer(ctx, bob_pk[:])
 	if err != nil {
 		return err
 	}
 
 	// set the library contract
-	_, err = lotteryRuntime.Call(ctx, "set", lottery_contract_id, token_contract_id, alice_lotto_ptr)
+	_, err = lotteryRuntime.Call(ctx, "set", lotteryContractId, token_contract_id, aliceLottoPtr)
 	if err != nil {
 		return err
 	}
 
 	// play the lottery
-	result, err = lotteryRuntime.Call(ctx, "play", lottery_contract_id, bob_lotto_ptr)
+	result, err = lotteryRuntime.Call(ctx, "play", lotteryContractId, bobLottoPtr)
 	if err != nil {
 		return err
 	}

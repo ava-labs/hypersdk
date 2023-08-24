@@ -13,7 +13,7 @@ impl Address {
         Self(Bytes32::new(bytes))
     }
     pub fn as_bytes(&self) -> &[u8] {
-        &self.0.as_bytes()
+        self.0.as_bytes()
     }
 }
 
@@ -33,10 +33,16 @@ impl Bytes32 {
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
-    pub fn to_string(&self) -> String {
-        // Find the first null byte, or use the full length.
+}
+
+/// Implement the Display trait for Bytes32 so that we can print it.
+impl std::fmt::Display for Bytes32 {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // Find the first null byte and only print up to that point.
         let null_pos = self.0.iter().position(|&b| b == b'\0').unwrap_or(Self::LEN);
-        String::from_utf8_lossy(&self.0[..null_pos]).to_string()
+        String::from_utf8_lossy(&self.0[..null_pos])
+            .to_string()
+            .fmt(f)
     }
 }
 
@@ -58,6 +64,9 @@ pub trait Argument {
     fn len(&self) -> usize {
         self.as_bytes().len()
     }
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl Argument for Bytes32 {
@@ -71,7 +80,7 @@ impl Argument for Bytes32 {
 
 impl Argument for Address {
     fn as_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Borrowed(&self.0.as_bytes())
+        Cow::Borrowed(self.0.as_bytes())
     }
     fn is_primitive(&self) -> bool {
         false

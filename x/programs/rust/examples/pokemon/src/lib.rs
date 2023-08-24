@@ -33,7 +33,7 @@ pub fn catch(ctx: ProgramContext, player: Address) -> bool {
         moves: vec![String::from("Thunderbolt"), String::from("Quick Attack")],
     };
 
-    let mut owned: OwnedPokemon = ctx.get_map_value("owned", &player).unwrap_or(vec![]);
+    let mut owned: OwnedPokemon = ctx.get_map_value("owned", &player).unwrap_or_default();
     owned.push(pokemon);
 
     ctx.store_map_value("owned", &player, &owned).is_ok()
@@ -42,11 +42,10 @@ pub fn catch(ctx: ProgramContext, player: Address) -> bool {
 #[expose]
 pub fn get_owned(ctx: ProgramContext, player: Address) -> bool {
     // get players pokemon and print to screen
-    let owned: OwnedPokemon = ctx.get_map_value("owned", &player).unwrap_or_else(|err| {
-        println!("Error: {:?}", err);
-        vec![]
-    });
-    println!("Getting owned: {:?}", owned);
+    let owned: OwnedPokemon = ctx
+        .get_map_value("owned", &player)
+        .unwrap_or_else(|_| vec![]);
+    println!("Owned: {:?}", owned);
     true
 }
 
