@@ -149,15 +149,12 @@ func getProgram(
 	}
 	var owner ed25519.PublicKey
 	copy(owner[:], v[:ed25519.PublicKeyLen])
-
 	functionLen := binary.BigEndian.Uint32(v[ed25519.PublicKeyLen : ed25519.PublicKeyLen+consts.Uint32Len])
-
-	var functionBytes []byte
-	copy(functionBytes[:], v[ed25519.PublicKeyLen+consts.Uint32Len:ed25519.PublicKeyLen+consts.Uint32Len+functionLen])
-
+	functionBytes := make([]byte, functionLen)
+	copy(functionBytes, v[ed25519.PublicKeyLen+consts.Uint32Len:ed25519.PublicKeyLen+consts.Uint32Len+functionLen])
 	functions := strings.Split(string(functionBytes), ",")
-
-	var program []byte
+	programLen := uint32(len(v)) - ed25519.PublicKeyLen - consts.Uint32Len - functionLen
+	program := make([]byte, programLen)
 	copy(program[:], v[ed25519.PublicKeyLen+consts.Uint32Len+functionLen:])
 	return true, owner, functions, program, nil
 }
@@ -177,13 +174,10 @@ func setProgram(
 	functionLen := len(functions)
 	v := make([]byte, ed25519.PublicKeyLen+consts.Uint32Len+functionLen+len(program))
 	copy(v, owner[:])
-	fmt.Printf("owner: %v\n", v)
 	binary.BigEndian.PutUint32(v[ed25519.PublicKeyLen:ed25519.PublicKeyLen+consts.Uint32Len], uint32(functionLen))
-	fmt.Printf("add ln: %v\n", v)
+	fmt.Printf("functionBytes: %v\n", functions[:])
 	copy(v[ed25519.PublicKeyLen+consts.Uint32Len:], functions[:])
-	fmt.Printf("add fn: %v\n", v)
 	copy(v[ed25519.PublicKeyLen+consts.Uint32Len+functionLen:], program[:])
-	fmt.Printf("add program: %v,\n %v\n", k, v)
 	return db.Put(k, v)
 }
 
