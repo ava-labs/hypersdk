@@ -110,13 +110,13 @@ var programInvokeCmd = &cobra.Command{
 		}
 
 		params = append(params, caller)
-		_, err = runtime.Call(ctx, "main", params...)
+		resp, err := runtime.Call(ctx, functionName, params...)
 		if err != nil {
 			return err
 		}
 
-		// utils.Outf("{{green}}created a program:{{/}} %s\n", programID)
-		return db.Put([]byte("program"), []byte(args[0]))
+		utils.Outf("{{green}}response:{{/}} %v\n", resp)
+		return nil
 	},
 }
 
@@ -198,15 +198,15 @@ type programStorage struct {
 	programPrefix byte
 }
 
-func (p *programStorage) Get(_ context.Context, id uint32) (bool, ed25519.PublicKey, []byte, error) {
+func (p *programStorage) Get(_ context.Context, id uint32) (bool, ed25519.PublicKey, []string, []byte, error) {
 	buf := make([]byte, consts.IDLen)
 	binary.BigEndian.PutUint32(buf, id)
 	exists, owner, functions, payload, err := getProgram(db, ids.ID(buf))
 	if !exists {
-		return false, ed25519.EmptyPublicKey, nil, fmt.Errorf("program %s does not exist", id)
+		return false, ed25519.EmptyPublicKey, nil, nil, fmt.Errorf("program %s does not exist", id)
 	}
 	if err != nil {
-		return false, ed25519.EmptyPublicKey, nil, err
+		return false, ed25519.EmptyPublicKey, nil, nil, err
 	}
 
 	return exists, owner, functions, payload, err

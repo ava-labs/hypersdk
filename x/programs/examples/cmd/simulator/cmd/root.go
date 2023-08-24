@@ -57,11 +57,19 @@ func init() {
 		"id of the program",
 	)
 
+	programInvokeCmd.PersistentFlags().StringVar(
+		&functionName,
+		"function",
+		"",
+		"name of the function to invoke",
+	)
+
 }
 
 var (
 	pubKey           ed25519.PublicKey
 	programID        string
+	functionName	 string
 	dbPath           string
 	db               database.Database
 	log              logging.Logger
