@@ -145,7 +145,7 @@ func (c *Controller) Initialize(
 	}
 
 	// Initialize order book used to track all open orders
-	c.orderBook = orderbook.New(c, c.config.TrackedPairs)
+	c.orderBook = orderbook.New(c, c.config.TrackedPairs, c.config.MaxOrdersPerPair)
 	return c.config, c.genesis, build, gossip, blockDB, stateDB, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
 }
 
