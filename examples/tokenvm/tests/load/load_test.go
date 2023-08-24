@@ -525,6 +525,8 @@ func issueSimpleTx(
 func produceBlock(i *instance) *chain.StatelessBlock {
 	ctx := context.TODO()
 
+	// TODO: make build block granular instead of dividing build time
+	// (which includes sleep)
 	blk, err := i.vm.BuildBlock(ctx)
 	if errors.Is(err, chain.ErrNoTxs) {
 		return nil
