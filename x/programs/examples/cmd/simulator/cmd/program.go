@@ -23,6 +23,7 @@ import (
 const (
 	HRP           = "simulator"
 	programPrefix = 0x0
+	keyPrefix     = 0x1
 )
 
 var programCmd = &cobra.Command{
@@ -35,9 +36,16 @@ var programCmd = &cobra.Command{
 var programCreateCmd = &cobra.Command{
 	Use:   "create [path to wasm program]",
 	Short: "Creates a program from a wasm file and returns the program ID",
-	PreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(cmd *cobra.Command, args []string) (err error) {
 		if len(args) != 1 {
 			return ErrInvalidArgs
+		}
+		if callerAddress == "" {
+			return ErrMissingAddress
+		}
+		pubKey, err = parseAddress(callerAddress)
+		if err != nil {
+			return err
 		}
 		return nil
 	},
@@ -51,7 +59,14 @@ var programCreateCmd = &cobra.Command{
 		// spoof txID
 		txID := ids.GenerateTestID()
 
-		err = setProgram(db, txID, pubKey, []byte(functions), fileBytes)
+		pk, err := parseAddress(callerAddress)
+		if err != nil {
+			return err
+		}
+
+		getKey(db, pk)
+
+		err = setProgram(db, txID, pk, []byte(functions), fileBytes)
 		if err != nil {
 			return err
 		}
@@ -63,9 +78,16 @@ var programCreateCmd = &cobra.Command{
 var programInvokeCmd = &cobra.Command{
 	Use:   "invoke [options]",
 	Short: "Invokes a wasm program stored on disk",
-	PreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(cmd *cobra.Command, args []string) (err error) {
 		if programID == "" {
 			return fmt.Errorf("program --id cannot be empty")
+		}
+		if callerAddress == "" {
+			return ErrMissingAddress
+		}
+		pubKey, err = parseAddress(callerAddress)
+		if err != nil {
+			return err
 		}
 		return nil
 	},

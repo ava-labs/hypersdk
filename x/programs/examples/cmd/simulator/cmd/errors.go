@@ -7,6 +7,7 @@ import "errors"
 
 var (
 	ErrInvalidArgs        = errors.New("invalid args")
+	ErrMissingAddress     = errors.New("must specify a caller address")
 	ErrMissingSubcommand  = errors.New("must specify a subcommand")
 	ErrNotMultiple        = errors.New("must be a multiple")
 	ErrInsufficientSupply = errors.New("insufficient supply")

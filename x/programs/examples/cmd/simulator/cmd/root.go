@@ -19,10 +19,16 @@ func init() {
 	cobra.EnablePrefixMatching = true
 	rootCmd.AddCommand(
 		programCmd,
+		keyCmd,
 	)
 
 	programCmd.AddCommand(
 		programCreateCmd,
+		programInvokeCmd,
+	)
+
+	keyCmd.AddCommand(
+		genKeyCmd,
 	)
 
 	rootCmd.PersistentFlags().StringVar(
@@ -32,11 +38,21 @@ func init() {
 		"path to database (will create if missing)",
 	)
 
+	rootCmd.PersistentFlags().StringVar(
+		&callerAddress,
+		"address",
+		"",
+		"address of caller",
+	)
+
 	rootCmd.PersistentPreRunE = func(*cobra.Command, []string) (err error) {
-		utils.Outf("{{yellow}}database:{{/}} %s\n", dbPath)
-		db, _, err = pebble.New(dbPath, pebble.NewDefaultConfig())
 		log = xutils.NewLoggerWithLogLevel(logging.Debug)
-		return err
+		db, _, err = pebble.New(dbPath, pebble.NewDefaultConfig())
+		if err != nil {
+			return err
+		}
+		utils.Outf("{{yellow}}database:{{/}} %s\n", dbPath)
+		return nil
 	}
 
 	rootCmd.PersistentPostRunE = func(*cobra.Command, []string) error {
@@ -70,19 +86,19 @@ func init() {
 		"",
 		"comma separated list of params to pass to the function",
 	)
-
 }
 
 var (
-	pubKey       ed25519.PublicKey
-	programID    string
-	functionName string
-	dbPath       string
-	params       string
-	db           database.Database
-	log          logging.Logger
-	functions    string
-	rootCmd      = &cobra.Command{
+	callerAddress string
+	pubKey        ed25519.PublicKey
+	programID     string
+	functionName  string
+	dbPath        string
+	params        string
+	db            database.Database
+	log           logging.Logger
+	functions     string
+	rootCmd       = &cobra.Command{
 		Use:   "simulator",
 		Short: "HyperSDK program simulator",
 	}
