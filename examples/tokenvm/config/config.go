@@ -28,6 +28,7 @@ const (
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
 	defaultStoreTransactions           = true
+	defaultMaxOrdersPerPair            = 1024
 )
 
 type Config struct {
@@ -58,9 +59,8 @@ type Config struct {
 	// Order Book
 	//
 	// This is denoted as <asset 1>-<asset 2>
-	//
-	// TODO: add ability to denote min rate/min amount for tracking to avoid spam
-	TrackedPairs []string `json:"trackedPairs"` // which asset ID pairs we care about
+	MaxOrdersPerPair int      `json:"maxOrdersPerPair"`
+	TrackedPairs     []string `json:"trackedPairs"` // which asset ID pairs we care about
 
 	// Misc
 	VerifySignatures  bool          `json:"verifySignatures"`
@@ -115,6 +115,7 @@ func (c *Config) setDefault() {
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 	c.VerifySignatures = c.Config.GetVerifySignatures()
 	c.StoreTransactions = defaultStoreTransactions
+	c.MaxOrdersPerPair = defaultMaxOrdersPerPair
 }
 
 func (c *Config) GetLogLevel() logging.Level       { return c.LogLevel }
