@@ -133,13 +133,15 @@ func (c *Controller) Initialize(
 	} else {
 		build = builder.NewTime(inner)
 		gcfg := gossiper.DefaultProposerConfig()
-		gcfg.GossipInterval = c.config.GossipInterval
 		gcfg.GossipMaxSize = c.config.GossipMaxSize
 		gcfg.GossipProposerDiff = c.config.GossipProposerDiff
 		gcfg.GossipProposerDepth = c.config.GossipProposerDepth
 		gcfg.NoGossipBuilderDiff = c.config.NoGossipBuilderDiff
 		gcfg.VerifyTimeout = c.config.VerifyTimeout
-		gossip = gossiper.NewProposer(inner, gcfg)
+		gossip, err = gossiper.NewProposer(inner, gcfg)
+		if err != nil {
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		}
 	}
 
 	// Initialize order book used to track all open orders
@@ -170,7 +172,7 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 				tx.ID(),
 				blk.GetTimestamp(),
 				result.Success,
-				result.Units,
+				result.Consumed,
 				result.Fee,
 			)
 			if err != nil {

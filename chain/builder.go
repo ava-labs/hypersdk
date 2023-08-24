@@ -402,7 +402,7 @@ func BuildBlock(
 			// Update block with new transaction
 			b.Txs = append(b.Txs, next)
 			usedKeys.Add(stateKeys.List()...)
-			if err := nextFeeManager.Consume(nextUnits); err != nil {
+			if err := nextFeeManager.Consume(result.Consumed); err != nil {
 				execErr = err
 				continue
 			}

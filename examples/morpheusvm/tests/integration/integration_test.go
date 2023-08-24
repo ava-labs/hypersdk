@@ -50,8 +50,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 )
 
-var transferTxFee = chain.Dimensions{190, 7, 12, 25, 21}
-
 var (
 	logFactory logging.Factory
 	log        logging.Logger
@@ -343,7 +341,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("send gossip from node 0 to 1", func() {
-			err := instances[0].vm.Gossiper().ForceGossip(context.TODO())
+			err := instances[0].vm.Gossiper().Force(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
 		})
 
@@ -386,7 +384,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("receive gossip in the node 1, and signal block build", func() {
-			instances[1].vm.Builder().ForceNotify()
+			gomega.Ω(instances[1].vm.Builder().Force(context.TODO())).To(gomega.BeNil())
 			<-instances[1].toEngine
 		})
 
@@ -411,14 +409,28 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			results := blk.(*chain.StatelessBlock).Results()
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-			gomega.Ω(results[0].Units).Should(gomega.Equal(transferTxFee))
 			gomega.Ω(results[0].Output).Should(gomega.BeNil())
+
+			// Unit explanation
+			//
+			// bandwidth: tx size
+			// compute: 5 for signature, 1 for base, 1 for transfer
+			// read: 2 keys reads, 1 had 0 chunks
+			// create: 1 key created
+			// modify: 1 cold key modified
+			transferTxConsumed := chain.Dimensions{190, 7, 12, 25, 13}
+			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
+
+			// Fee explanation
+			//
+			// Multiply all unit consumption by 1 and sum
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(247)))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].lcli.Balance(context.Background(), sender)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899745)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899753)))
 			balance2, err := instances[1].lcli.Balance(context.Background(), sender2)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
@@ -446,9 +458,152 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
+			// Unit explanation
+			//
+			// bandwidth: tx size
+			// compute: 5 for signature, 1 for base, 1 for transfer
+			// read: 2 keys reads, 1 chunk each
+			// create: 0 key created
+			// modify: 2 cold key modified
+			transferTxConsumed := chain.Dimensions{190, 7, 14, 0, 26}
+			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
+
+			// Fee explanation
+			//
+			// Multiply all unit consumption by 1 and sum
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(237)))
+
 			balance2, err := instances[1].lcli.Balance(context.Background(), sender2)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100101)))
+		})
+
+		ginkgo.By("transfer funds again (test storage keys)", func() {
+			parser, err := instances[1].lcli.Parser(context.Background())
+			gomega.Ω(err).Should(gomega.BeNil())
+
+			submit, _, _, err := instances[1].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				nil,
+				&actions.Transfer{
+					To:    rsender2,
+					Value: 102,
+				},
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			submit, _, _, err = instances[1].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				nil,
+				&actions.Transfer{
+					To:    rsender2,
+					Value: 103,
+				},
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			submit, _, _, err = instances[1].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				nil,
+				&actions.Transfer{
+					To:    rsender3,
+					Value: 104,
+				},
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			submit, _, _, err = instances[1].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				nil,
+				&actions.Transfer{
+					To:    rsender3,
+					Value: 105,
+				},
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+
+			accept := expectBlk(instances[1])
+			results := accept()
+
+			// Check results
+			gomega.Ω(results).Should(gomega.HaveLen(4))
+
+			// Unit explanation
+			//
+			// bandwidth: tx size
+			// compute: 5 for signature, 1 for base, 1 for transfer
+			// read: 2 cold keys reads, 1 chunk each
+			// create: 0 key created
+			// modify: 2 cold key modified
+			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+			transferTxConsumed := chain.Dimensions{190, 7, 14, 0, 26}
+			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
+			// Fee explanation
+			//
+			// Multiply all unit consumption by 1 and sum
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(237)))
+
+			// Unit explanation
+			//
+			// bandwidth: tx size
+			// compute: 5 for signature, 1 for base, 1 for transfer
+			// read: 2 warm keys reads, 1 chunk each
+			// create: 0 key created
+			// modify: 2 warm keys modified
+			gomega.Ω(results[1].Success).Should(gomega.BeTrue())
+			transferTxConsumed = chain.Dimensions{190, 7, 4, 0, 16}
+			gomega.Ω(results[1].Consumed).Should(gomega.Equal(transferTxConsumed))
+			// Fee explanation
+			//
+			// Multiply all unit consumption by 1 and sum
+			gomega.Ω(results[1].Fee).Should(gomega.Equal(uint64(217)))
+
+			// Unit explanation
+			//
+			// bandwidth: tx size
+			// compute: 5 for signature, 1 for base, 1 for transfer
+			// read: 1 cold keys read (0 chunk), 1 warm key read (1 chunk)
+			// create: 1 key created (1 chunk)
+			// modify: 1 warm key modified (1 chunk)
+			gomega.Ω(results[2].Success).Should(gomega.BeTrue())
+			transferTxConsumed = chain.Dimensions{190, 7, 7, 25, 8}
+			gomega.Ω(results[2].Consumed).Should(gomega.Equal(transferTxConsumed))
+			// Fee explanation
+			//
+			// Multiply all unit consumption by 1 and sum
+			gomega.Ω(results[2].Fee).Should(gomega.Equal(uint64(237)))
+
+			// Unit explanation
+			//
+			// bandwidth: tx size
+			// compute: 5 for signature, 1 for base, 1 for transfer
+			// read: 2 warm keys reads (1 chunk, 0 chunk) -> note, this is based on disk BEFORE block
+			// create: 0 key created
+			// modify: 2 warm keys modified (1 chunk)
+			gomega.Ω(results[3].Success).Should(gomega.BeTrue())
+			transferTxConsumed = chain.Dimensions{190, 7, 3, 0, 16}
+			gomega.Ω(results[3].Consumed).Should(gomega.Equal(transferTxConsumed))
+			// Fee explanation
+			//
+			// Multiply all unit consumption by 1 and sum
+			gomega.Ω(results[3].Fee).Should(gomega.Equal(uint64(216)))
+
+			// Check end balance
+			balance2, err := instances[1].lcli.Balance(context.Background(), sender2)
+			gomega.Ω(err).To(gomega.BeNil())
+			gomega.Ω(balance2).To(gomega.Equal(uint64(100306)))
+			balance3, err := instances[1].lcli.Balance(context.Background(), sender3)
+			gomega.Ω(err).To(gomega.BeNil())
+			gomega.Ω(balance3).To(gomega.Equal(uint64(209)))
 		})
 	})
 
@@ -514,7 +669,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 
-			err = instances[1].vm.Gossiper().ForceGossip(context.TODO())
+			err = instances[1].vm.Gossiper().Force(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
 
 			// mempool in 0 should be 1 (old amount), since gossip/submit failed
@@ -620,12 +775,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
 		// Read item from connection
-		blk, lresults, err := cli.ListenBlock(context.TODO(), parser)
+		blk, lresults, prices, err := cli.ListenBlock(context.TODO(), parser)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(len(blk.Txs)).Should(gomega.Equal(1))
 		tx := blk.Txs[0].Action.(*actions.Transfer)
 		gomega.Ω(tx.Value).To(gomega.Equal(uint64(1)))
 		gomega.Ω(lresults).Should(gomega.Equal(results))
+		gomega.Ω(prices).Should(gomega.Equal(chain.Dimensions{1, 1, 1, 1, 1}))
 
 		// Check balance modifications are correct
 		balancea, err := instances[0].lcli.Balance(context.TODO(), sender)
@@ -694,7 +850,7 @@ func expectBlk(i instance) func() []*chain.Result {
 	ctx := context.TODO()
 
 	// manually signal ready
-	i.vm.Builder().ForceNotify()
+	gomega.Ω(i.vm.Builder().Force(ctx)).Should(gomega.BeNil())
 	// manually ack ready sig as in engine
 	<-i.toEngine
 

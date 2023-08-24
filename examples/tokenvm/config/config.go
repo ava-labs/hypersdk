@@ -34,12 +34,11 @@ type Config struct {
 	*config.Config
 
 	// Gossip
-	GossipInterval      time.Duration `json:"gossipInterval"`
-	GossipMaxSize       int           `json:"gossipMaxSize"`
-	GossipProposerDiff  int           `json:"gossipProposerDiff"`
-	GossipProposerDepth int           `json:"gossipProposerDepth"`
-	NoGossipBuilderDiff int           `json:"noGossipBuilderDiff"`
-	VerifyTimeout       int64         `json:"verifyTimeout"`
+	GossipMaxSize       int   `json:"gossipMaxSize"`
+	GossipProposerDiff  int   `json:"gossipProposerDiff"`
+	GossipProposerDepth int   `json:"gossipProposerDepth"`
+	NoGossipBuilderDiff int   `json:"noGossipBuilderDiff"`
+	VerifyTimeout       int64 `json:"verifyTimeout"`
 
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
@@ -104,7 +103,6 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
 	gcfg := gossiper.DefaultProposerConfig()
-	c.GossipInterval = gcfg.GossipInterval
 	c.GossipMaxSize = gcfg.GossipMaxSize
 	c.GossipProposerDiff = gcfg.GossipProposerDiff
 	c.GossipProposerDepth = gcfg.GossipProposerDepth

@@ -48,6 +48,7 @@ type TState struct {
 
 	// Store which keys are modified and how large their values were. Reset
 	// whenever setting scope.
+	canCreate         bool
 	creations         map[string]uint16
 	coldModifications map[string]uint16
 	warmModifications map[string]uint16
@@ -62,6 +63,8 @@ func New(changedSize int) *TState {
 		fetchCache: map[string]*cacheItem{},
 
 		ops: make([]*op, 0, changedSize),
+
+		canCreate: true,
 	}
 }
 
@@ -145,6 +148,24 @@ func (ts *TState) SetScope(_ context.Context, keys set.Set[string], storage map[
 	ts.warmModifications = map[string]uint16{}
 }
 
+// DisableCreation causes [Insert] to return an error if
+// it would create a new key. This can be useful for constraining
+// what a transaction can do during block execution (to allow for
+// cheaper fees).
+//
+// Note, creation defaults to true.
+func (ts *TState) DisableCreation() {
+	ts.canCreate = false
+}
+
+// EnableCreation removes the forcer error case in [Insert]
+// if a new key is created.
+//
+// Note, creation defaults to true.
+func (ts *TState) EnableCreation() {
+	ts.canCreate = true
+}
+
 // checkScope returns whether [k] is in ts.readScope.
 func (ts *TState) checkScope(_ context.Context, k []byte) bool {
 	return ts.scope.Contains(string(k))
@@ -160,6 +181,31 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	}
 	k := string(key)
 	past, changed, exists := ts.getValue(ctx, k)
+	var err error
+	if exists {
+		// If a key is already in [coldModifications], we should still
+		// consider it a [coldModification] even if it is [changed].
+		// This occurs when we modify a key for the second time in
+		// a single transaction.
+		//
+		// If a key is not in [coldModifications] and it is [changed],
+		// it was either created/modified in a different transaction
+		// in the block or created in this transaction.
+		if _, ok := ts.coldModifications[k]; ok || !changed {
+			err = updateChunks(ts.coldModifications, k, value)
+		} else {
+			err = updateChunks(ts.warmModifications, k, value)
+		}
+	} else {
+		if !ts.canCreate {
+			err = ErrCreationDisabled
+		} else {
+			err = updateChunks(ts.creations, k, value)
+		}
+	}
+	if err != nil {
+		return err
+	}
 	ts.ops = append(ts.ops, &op{
 		k:           k,
 		pastExists:  exists,
@@ -167,17 +213,7 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 		pastChanged: changed,
 	})
 	ts.changedKeys[k] = &tempStorage{value, false}
-	var err error
-	if exists {
-		if changed {
-			err = updateChunks(ts.warmModifications, k, value)
-		} else {
-			err = updateChunks(ts.coldModifications, k, value)
-		}
-	} else {
-		err = updateChunks(ts.creations, k, value)
-	}
-	return err
+	return nil
 }
 
 // Remove deletes a key-value pair from ts.storage.
@@ -191,6 +227,23 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 		// We do not update modificaations if the key does not exist.
 		return nil
 	}
+	// If a key is already in [coldModifications], we should still
+	// consider it a [coldModification] even if it is [changed].
+	// This occurs when we modify a key for the second time in
+	// a single transaction.
+	//
+	// If a key is not in [coldModifications] and it is [changed],
+	// it was either created/modified in a different transaction
+	// in the block or created in this transaction.
+	var err error
+	if _, ok := ts.coldModifications[k]; ok || !changed {
+		err = updateChunks(ts.coldModifications, k, nil)
+	} else {
+		err = updateChunks(ts.warmModifications, k, nil)
+	}
+	if err != nil {
+		return err
+	}
 	ts.ops = append(ts.ops, &op{
 		k:           k,
 		pastExists:  true,
@@ -198,13 +251,7 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 		pastChanged: changed,
 	})
 	ts.changedKeys[k] = &tempStorage{nil, true}
-	var err error
-	if changed {
-		err = updateChunks(ts.warmModifications, k, nil)
-	} else {
-		err = updateChunks(ts.coldModifications, k, nil)
-	}
-	return err
+	return nil
 }
 
 // OpIndex returns the number of operations done on ts.

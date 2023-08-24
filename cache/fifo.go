@@ -10,13 +10,15 @@ import (
 )
 
 type FIFO[K comparable, V any] struct {
-	l sync.RWMutex
-
+	l      sync.RWMutex
 	buffer buffer.Queue[K]
 	m      map[K]V
 }
 
 // NewFIFO creates a new First-In-First-Out cache of size [limit].
+//
+// If a duplicate item is stored, it will not be requeued but its
+// value will be changed.
 func NewFIFO[K comparable, V any](limit int) (*FIFO[K, V], error) {
 	c := &FIFO[K, V]{
 		m: make(map[K]V, limit),
@@ -29,12 +31,18 @@ func NewFIFO[K comparable, V any](limit int) (*FIFO[K, V], error) {
 	return c, nil
 }
 
-func (f *FIFO[K, V]) Put(key K, val V) {
+func (f *FIFO[K, V]) Put(key K, val V) bool {
 	f.l.Lock()
 	defer f.l.Unlock()
 
-	f.buffer.Push(key) // Insert will remove the oldest [K] if we are at the [limit]
+	var exists bool
+	if _, ok := f.m[key]; !ok {
+		f.buffer.Push(key) // Insert will remove the oldest [K] if we are at the [limit]
+	} else {
+		exists = true
+	}
 	f.m[key] = val
+	return exists
 }
 
 func (f *FIFO[K, V]) Get(key K) (V, bool) {

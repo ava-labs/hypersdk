@@ -88,8 +88,8 @@ func (cli *JSONRPCClient) Accepted(ctx context.Context) (ids.ID, uint64, int64, 
 	return resp.BlockID, resp.Height, resp.Timestamp, err
 }
 
-func (cli *JSONRPCClient) UnitPrices(ctx context.Context) (chain.Dimensions, error) {
-	if time.Since(cli.lastUnitPrices) < unitPricesCacheRefresh {
+func (cli *JSONRPCClient) UnitPrices(ctx context.Context, useCache bool) (chain.Dimensions, error) {
+	if useCache && time.Since(cli.lastUnitPrices) < unitPricesCacheRefresh {
 		return cli.unitPrices, nil
 	}
 
@@ -169,7 +169,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 	modifiers ...Modifier,
 ) (func(context.Context) error, *chain.Transaction, uint64, error) {
 	// Get latest fee info
-	unitPrices, err := cli.UnitPrices(ctx)
+	unitPrices, err := cli.UnitPrices(ctx, true)
 	if err != nil {
 		return nil, nil, 0, err
 	}

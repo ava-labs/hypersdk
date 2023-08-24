@@ -141,14 +141,14 @@ func (c *WebSocketClient) RegisterBlocks() error {
 func (c *WebSocketClient) ListenBlock(
 	ctx context.Context,
 	parser chain.Parser,
-) (*chain.StatefulBlock, []*chain.Result, error) {
+) (*chain.StatefulBlock, []*chain.Result, chain.Dimensions, error) {
 	select {
 	case msg := <-c.pendingBlocks:
 		return UnpackBlockMessage(msg, parser)
 	case <-c.readStopped:
-		return nil, nil, c.err
+		return nil, nil, chain.Dimensions{}, c.err
 	case <-ctx.Done():
-		return nil, nil, ctx.Err()
+		return nil, nil, chain.Dimensions{}, ctx.Err()
 	}
 }
 

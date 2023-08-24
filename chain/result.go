@@ -12,8 +12,9 @@ import (
 type Result struct {
 	Success bool
 	Output  []byte
-	Units   Dimensions
-	Fee     uint64
+
+	Consumed Dimensions
+	Fee      uint64
 
 	WarpMessage *warp.UnsignedMessage
 }
@@ -31,11 +32,7 @@ func (r *Result) Size() int {
 func (r *Result) Marshal(p *codec.Packer) error {
 	p.PackBool(r.Success)
 	p.PackBytes(r.Output)
-	usedBytes, err := r.Units.Bytes()
-	if err != nil {
-		return err
-	}
-	p.PackFixedBytes(usedBytes)
+	p.PackFixedBytes(r.Consumed.Bytes())
 	p.PackUint64(r.Fee)
 	var warpBytes []byte
 	if r.WarpMessage != nil {
@@ -66,13 +63,13 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 		// Enforce object standardization
 		result.Output = nil
 	}
-	dimensionsRaw := make([]byte, DimensionsLen)
-	p.UnpackFixedBytes(DimensionsLen, &dimensionsRaw)
-	dimensions, err := UnpackDimensions(dimensionsRaw)
+	consumedRaw := make([]byte, DimensionsLen)
+	p.UnpackFixedBytes(DimensionsLen, &consumedRaw)
+	consumed, err := UnpackDimensions(consumedRaw)
 	if err != nil {
 		return nil, err
 	}
-	result.Units = dimensions
+	result.Consumed = consumed
 	result.Fee = p.UnpackUint64(false)
 	var warpMessage []byte
 	p.UnpackBytes(MaxWarpMessageSize, false, &warpMessage)

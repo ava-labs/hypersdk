@@ -127,11 +127,11 @@ func (i *ImportAsset) executeMint(
 	if err := storage.SetAsset(ctx, db, asset, metadata, newSupply, ed25519.EmptyPublicKey, true); err != nil {
 		return utils.ErrBytes(err)
 	}
-	if err := storage.AddBalance(ctx, db, i.warpTransfer.To, asset, i.warpTransfer.Value); err != nil {
+	if err := storage.AddBalance(ctx, db, i.warpTransfer.To, asset, i.warpTransfer.Value, true); err != nil {
 		return utils.ErrBytes(err)
 	}
 	if i.warpTransfer.Reward > 0 {
-		if err := storage.AddBalance(ctx, db, actor, asset, i.warpTransfer.Reward); err != nil {
+		if err := storage.AddBalance(ctx, db, actor, asset, i.warpTransfer.Reward, true); err != nil {
 			return utils.ErrBytes(err)
 		}
 	}
@@ -152,6 +152,7 @@ func (i *ImportAsset) executeReturn(
 	if err := storage.AddBalance(
 		ctx, db, i.warpTransfer.To,
 		i.warpTransfer.Asset, i.warpTransfer.Value,
+		true,
 	); err != nil {
 		return utils.ErrBytes(err)
 	}
@@ -165,6 +166,7 @@ func (i *ImportAsset) executeReturn(
 		if err := storage.AddBalance(
 			ctx, db, actor,
 			i.warpTransfer.Asset, i.warpTransfer.Reward,
+			true,
 		); err != nil {
 			return utils.ErrBytes(err)
 		}
@@ -220,13 +222,13 @@ func (i *ImportAsset) Execute(
 	if err := storage.SubBalance(ctx, db, i.warpTransfer.To, assetIn, i.warpTransfer.SwapIn); err != nil {
 		return false, ImportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, db, actor, assetIn, i.warpTransfer.SwapIn); err != nil {
+	if err := storage.AddBalance(ctx, db, actor, assetIn, i.warpTransfer.SwapIn, true); err != nil {
 		return false, ImportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.SubBalance(ctx, db, actor, i.warpTransfer.AssetOut, i.warpTransfer.SwapOut); err != nil {
 		return false, ImportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, db, i.warpTransfer.To, i.warpTransfer.AssetOut, i.warpTransfer.SwapOut); err != nil {
+	if err := storage.AddBalance(ctx, db, i.warpTransfer.To, i.warpTransfer.AssetOut, i.warpTransfer.SwapOut, true); err != nil {
 		return false, ImportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, ImportAssetComputeUnits, nil, nil, nil
