@@ -19,7 +19,7 @@ const (
 
 func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
 	results := b.Results()
-	size := codec.BytesLen(b.Bytes()) + consts.IntLen + codec.CummSize(results)
+	size := codec.BytesLen(b.Bytes()) + consts.IntLen + codec.CummSize(results) + chain.DimensionsLen
 	p := codec.NewWriter(size, consts.MaxInt)
 	p.PackBytes(b.Bytes())
 	mresults, err := chain.MarshalResults(results)
@@ -27,30 +27,37 @@ func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
 		return nil, err
 	}
 	p.PackBytes(mresults)
+	p.PackFixedBytes(b.FeeManager().UnitPrices().Bytes())
 	return p.Bytes(), p.Err()
 }
 
 func UnpackBlockMessage(
 	msg []byte,
 	parser chain.Parser,
-) (*chain.StatefulBlock, []*chain.Result, error) {
+) (*chain.StatefulBlock, []*chain.Result, chain.Dimensions, error) {
 	p := codec.NewReader(msg, consts.MaxInt)
 	var blkMsg []byte
 	p.UnpackBytes(-1, true, &blkMsg)
 	blk, err := chain.UnmarshalBlock(blkMsg, parser)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, chain.Dimensions{}, err
 	}
 	var resultsMsg []byte
 	p.UnpackBytes(-1, true, &resultsMsg)
 	results, err := chain.UnmarshalResults(resultsMsg)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, chain.Dimensions{}, err
+	}
+	pricesMsg := make([]byte, chain.DimensionsLen)
+	p.UnpackFixedBytes(chain.DimensionsLen, &pricesMsg)
+	prices, err := chain.UnpackDimensions(pricesMsg)
+	if err != nil {
+		return nil, nil, chain.Dimensions{}, err
 	}
 	if !p.Empty() {
-		return nil, nil, chain.ErrInvalidObject
+		return nil, nil, chain.Dimensions{}, chain.ErrInvalidObject
 	}
-	return blk, results, p.Err()
+	return blk, results, prices, p.Err()
 }
 
 // Could be a better place for these methods

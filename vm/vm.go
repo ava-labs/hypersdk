@@ -362,6 +362,11 @@ func (vm *VM) Initialize(
 	return nil
 }
 
+func (vm *VM) checkActivity(ctx context.Context) {
+	vm.gossiper.Queue(ctx)
+	vm.builder.Queue(ctx)
+}
+
 func (vm *VM) markReady() {
 	select {
 	case <-vm.stop:
@@ -384,7 +389,7 @@ func (vm *VM) markReady() {
 		"node is now ready",
 		zap.Bool("synced", vm.stateSyncClient.Started()),
 	)
-	vm.builder.QueueNotify()
+	vm.checkActivity(context.TODO())
 }
 
 func (vm *VM) isReady() bool {
@@ -463,7 +468,7 @@ func (vm *VM) ForceReady() {
 
 // onNormalOperationsStarted marks this VM as bootstrapped
 func (vm *VM) onNormalOperationsStarted() error {
-	vm.builder.QueueNotify()
+	vm.checkActivity(context.TODO())
 	if vm.bootstrapped.Get() {
 		return nil
 	}
@@ -640,7 +645,7 @@ func (vm *VM) buildBlock(
 	//
 	// Note: builder should regulate whether or not it actually decides to build based on state
 	// of the mempool.
-	defer vm.builder.QueueNotify()
+	defer vm.checkActivity(ctx)
 
 	// Build block and store as parsed
 	blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
@@ -783,7 +788,7 @@ func (vm *VM) Submit(
 		validTxs = append(validTxs, tx)
 	}
 	vm.mempool.Add(ctx, validTxs)
-	vm.builder.QueueNotify()
+	vm.checkActivity(ctx)
 	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	return errs
 }

@@ -467,7 +467,7 @@ func (t *Transaction) Execute(
 	// to pessimistically precompute the storage it will change.
 	for _, key := range t.Auth.StateKeys() {
 		bk := []byte(key)
-		changed, exists, err := tdb.Exists(ctx, bk)
+		changed, _, err := tdb.Exists(ctx, bk)
 		if err != nil {
 			tdb.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
@@ -479,14 +479,19 @@ func (t *Transaction) Execute(
 			tdb.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(ErrInvalidKeyValue), maxUnits, maxFee, nil}, nil
 		}
-		if !exists {
-			// We pessimistically assume any keys that are referenced will be created
-			// if they don't yet exist.
-			creations[key] = maxChunks
-			continue
-		}
-		if changed {
-			warmModifications[key] = maxChunks
+		// We require that any refunds must not create keys, otherwise, we'd have
+		// to pessimistically charge all transactions for creation.
+		//
+		// If a key is already in [coldModifications], we should still
+		// consider it a [coldModification] even if it is [changed].
+		// This occurs when we modify a key for the second time in
+		// a single transaction.
+		//
+		// If a key is not in [coldModifications] and it is [changed],
+		// it was either created/modified in a different transaction
+		// in the block or created in this transaction.
+		if _, ok := coldModifications[key]; ok || !changed {
+			coldModifications[key] = maxChunks
 			continue
 		}
 		warmModifications[key] = maxChunks
@@ -533,27 +538,39 @@ func (t *Transaction) Execute(
 		return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 	}
 	used := Dimensions{uint64(t.Size()), computeUnits, reads, creationUnits, modifications}
-	feeRequired, err := feeManager.MaxFee(used)
-	if err != nil {
-		tdb.Rollback(ctx, actionStart)
-		return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
+
+	// Check to see if the units consumed are greater than the max units
+	//
+	// This should never be the case but erroring here is better than
+	// underflowing the refund.
+	if !maxUnits.Greater(used) {
+		return nil, fmt.Errorf("%w: max=%+v consumed=%+v", ErrInvalidUnitsConsumed, maxUnits, used)
 	}
 
 	// Return any funds from unused units
 	//
 	// To avoid storage abuse of [Auth.Refund], we precharge for possible usage.
+	feeRequired, err := feeManager.MaxFee(used)
+	if err != nil {
+		tdb.Rollback(ctx, actionStart)
+		return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
+	}
 	refund := maxFee - feeRequired
 	if refund > 0 {
+		tdb.DisableCreation()
 		if err := t.Auth.Refund(ctx, tdb, refund); err != nil {
+			tdb.EnableCreation()
 			tdb.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
 		}
+		tdb.EnableCreation()
 	}
 	return &Result{
 		Success: success,
 		Output:  output,
-		Units:   used,
-		Fee:     feeRequired,
+
+		Consumed: used,
+		Fee:      feeRequired,
 
 		WarpMessage: warpMessage,
 	}, nil

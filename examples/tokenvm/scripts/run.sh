@@ -121,6 +121,9 @@ fi
 
 ############################
 
+# When running a validator, the [trackedPairs] should be empty/limited or
+# else malicious entities can attempt to stuff memory with dust orders to cause
+# an OOM.
 echo "creating vm config"
 rm -f ${TMPDIR}/tokenvm.config
 rm -rf ${TMPDIR}/tokenvm-e2e-profiles
@@ -133,10 +136,6 @@ cat <<EOF > ${TMPDIR}/tokenvm.config
   "verifySignatures":true,
   "storeTransactions":true,
   "streamingBacklogSize": 10000000,
-  "gossipMaxSize": 32768,
-  "gossipProposerDiff": 3,
-  "gossipProposerDepth": 1,
-  "noGossipBuilderDiff": 5,
   "trackedPairs":["*"],
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}

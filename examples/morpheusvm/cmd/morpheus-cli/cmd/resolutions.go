@@ -59,7 +59,7 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 		}
 	}
 	utils.Outf(
-		"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary (%s):{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}units:{{/}} [%s]\n",
+		"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary (%s):{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
 		status,
 		tx.ID(),
 		tutils.Address(actor),
@@ -68,6 +68,6 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 		float64(result.Fee)/float64(tx.Base.MaxFee)*100,
 		handler.Root().ValueString(ids.Empty, result.Fee),
 		handler.Root().AssetString(ids.Empty),
-		cli.ParseDimensions(result.Units),
+		cli.ParseDimensions(result.Consumed),
 	)
 }
