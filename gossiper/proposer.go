@@ -96,7 +96,12 @@ func (g *Proposer) Force(ctx context.Context) error {
 	// Gossip newest transactions
 	//
 	// We remove these transactions from the mempool
-	// so they cannot be used for building.
+	// otherwise we'll just keep sending the same FIFO txs
+	// to the network over and over.
+	//
+	// If we are going to build, we should never be attempting
+	// to gossip and we should hold on to the txs we
+	// could execute.
 	var (
 		txs   = []*chain.Transaction{}
 		size  = 0
