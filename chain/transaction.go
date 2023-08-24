@@ -568,8 +568,9 @@ func (t *Transaction) Execute(
 	return &Result{
 		Success: success,
 		Output:  output,
-		Units:   used,
-		Fee:     feeRequired,
+
+		Consumed: used,
+		Fee:      feeRequired,
 
 		WarpMessage: warpMessage,
 	}, nil
