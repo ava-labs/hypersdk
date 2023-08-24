@@ -70,7 +70,7 @@ var programCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		utils.Outf("{{green}}created program tx successful:{{/}} %s\n", txID)
+		utils.Outf("{{green}}create program action successful txID:{{/}} %s\n", txID)
 		return nil
 	},
 }
@@ -115,15 +115,17 @@ var programInvokeCmd = &cobra.Command{
 			"ConstI32 0x0": 1,
 			"ConstI64 0x0": 2,
 		}
-		var maxGas uint64 = 3000
+
 		storage := newProgramStorage(db)
-		runtime := runtime.New(log, runtime.NewMeter(log, maxGas, costMap), storage)
+		runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), storage)
 		defer runtime.Stop(ctx)
 
 		err = runtime.Initialize(ctx, program, functions)
 		if err != nil {
 			return err
 		}
+
+		// TODO: parse params from flags
 
 		var params []uint64
 		// push caller onto stack
@@ -138,6 +140,10 @@ var programInvokeCmd = &cobra.Command{
 			return err
 		}
 
+		// spoof txID
+		txID := ids.GenerateTestID()
+
+		utils.Outf("{{green}}invoke action success txID:{{/}} %s\n", txID)
 		utils.Outf("{{green}}response:{{/}} %v\n", resp)
 		return nil
 	},

@@ -89,6 +89,13 @@ func init() {
 		"",
 		"comma separated list of params to pass to the function",
 	)
+
+	programCreateCmd.PersistentFlags().Uint64Var(
+		&maxFee,
+		"max-fee",
+		0,
+		"max fee to pay for the action",
+	)
 }
 
 var (
@@ -98,6 +105,7 @@ var (
 	functionName  string
 	dbPath        string
 	params        string
+	maxFee        uint64
 	db            database.Database
 	log           logging.Logger
 	functions     string
