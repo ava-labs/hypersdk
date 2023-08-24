@@ -63,7 +63,7 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 		// Enforce object standardization
 		result.Output = nil
 	}
-	var consumedRaw []byte
+	consumedRaw := make([]byte, DimensionsLen)
 	p.UnpackFixedBytes(DimensionsLen, &consumedRaw)
 	consumed, err := UnpackDimensions(consumedRaw)
 	if err != nil {
