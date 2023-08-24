@@ -24,8 +24,6 @@ import (
 
 var _ Gossiper = (*Proposer)(nil)
 
-var proposerWindow = proposer.MaxDelay.Milliseconds()
-
 type Proposer struct {
 	vm         VM
 	cfg        *ProposerConfig
@@ -41,6 +39,7 @@ type Proposer struct {
 	timer     *timer.Timer
 	waiting   atomic.Bool
 
+	// cache is thread-safe
 	cache *cache.FIFO[ids.ID, any]
 }
 
@@ -56,13 +55,13 @@ type ProposerConfig struct {
 
 func DefaultProposerConfig() *ProposerConfig {
 	return &ProposerConfig{
-		GossipProposerDiff:  3,
+		GossipProposerDiff:  4,
 		GossipProposerDepth: 1,
 		GossipMinLife:       5 * 1000,
 		GossipMaxSize:       consts.NetworkSizeLimit,
-		GossipMinDelay:      100,
-		NoGossipBuilderDiff: 5,
-		VerifyTimeout:       proposerWindow / 2,
+		GossipMinDelay:      50,
+		NoGossipBuilderDiff: 4,
+		VerifyTimeout:       proposer.MaxDelay.Milliseconds(),
 	}
 }
 
@@ -101,7 +100,10 @@ func (g *Proposer) Force(ctx context.Context) error {
 	//
 	// If we are going to build, we should never be attempting
 	// to gossip and we should hold on to the txs we
-	// could execute.
+	// could execute. By gossiping, we are basically saying that
+	// it is better if someone else builds with these txs because
+	// that increases the probability they'll be accepted
+	// before they expire.
 	var (
 		txs   = []*chain.Transaction{}
 		size  = 0
@@ -196,6 +198,11 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 			return nil
 		}
 		batchVerifier.Add(txDigest, tx.Auth)
+
+		// Add incoming txs to the cache to make
+		// sure we never gossip anything we receive (someone
+		// else will)
+		g.cache.Put(tx.ID(), nil)
 	}
 	batchVerifier.Done(nil)
 
