@@ -73,7 +73,7 @@ func (c *CloseOrder) Execute(
 	if err := storage.DeleteOrder(ctx, db, c.Order); err != nil {
 		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, db, actor, c.Out, remaining); err != nil {
+	if err := storage.AddBalance(ctx, db, actor, c.Out, remaining, true); err != nil {
 		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, CloseOrderComputeUnits, nil, nil, nil

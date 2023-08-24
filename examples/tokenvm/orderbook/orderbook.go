@@ -14,10 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	initialPairCapacity = 128
-	allPairs            = "*"
-)
+const allPairs = "*"
 
 type Order struct {
 	ID        ids.ID `json:"id"`
@@ -32,17 +29,19 @@ type Order struct {
 type OrderBook struct {
 	c Controller
 
-	// TODO: consider capping the number of orders in each heap (need to ensure
-	// that doing so does not make it possible to send a bunch of small, spam
-	// orders to clear -> may need to set a min order limit to watch)
-	orders      map[string]*heap.Heap[*Order, float64]
-	orderToPair map[ids.ID]string // needed to delete from [CloseOrder] actions
-	l           sync.RWMutex
+	// Fee required to create an order should be high enough to prevent too many
+	// dust orders from filling the heap.
+	//
+	// TODO: Allow operator to specify min creation supply per pair to be tracked
+	orders           map[string]*heap.Heap[*Order, float64]
+	orderToPair      map[ids.ID]string // needed to delete from [CloseOrder] actions
+	maxOrdersPerPair int
+	l                sync.RWMutex
 
 	trackAll bool
 }
 
-func New(c Controller, trackedPairs []string) *OrderBook {
+func New(c Controller, trackedPairs []string, maxOrdersPerPair int) *OrderBook {
 	m := map[string]*heap.Heap[*Order, float64]{}
 	trackAll := false
 	if len(trackedPairs) == 1 && trackedPairs[0] == allPairs {
@@ -51,15 +50,16 @@ func New(c Controller, trackedPairs []string) *OrderBook {
 	} else {
 		for _, pair := range trackedPairs {
 			// We use a max heap so we return the best rates in order.
-			m[pair] = heap.New[*Order, float64](initialPairCapacity, true)
+			m[pair] = heap.New[*Order, float64](maxOrdersPerPair+1, true)
 			c.Logger().Info("tracking order book", zap.String("pair", pair))
 		}
 	}
 	return &OrderBook{
-		c:           c,
-		orders:      m,
-		orderToPair: map[ids.ID]string{},
-		trackAll:    trackAll,
+		c:                c,
+		orders:           m,
+		orderToPair:      map[ids.ID]string{},
+		maxOrdersPerPair: maxOrdersPerPair,
+		trackAll:         trackAll,
 	}
 }
 
@@ -82,7 +82,7 @@ func (o *OrderBook) Add(txID ids.ID, actor ed25519.PublicKey, action *actions.Cr
 		return
 	case !ok && o.trackAll:
 		o.c.Logger().Info("tracking order book", zap.String("pair", pair))
-		h = heap.New[*Order, float64](initialPairCapacity, true)
+		h = heap.New[*Order, float64](o.maxOrdersPerPair+1, true)
 		o.orders[pair] = h
 	}
 	h.Push(&heap.Entry[*Order, float64]{
@@ -92,11 +92,19 @@ func (o *OrderBook) Add(txID ids.ID, actor ed25519.PublicKey, action *actions.Cr
 		Index: h.Len(),
 	})
 	o.orderToPair[order.ID] = pair
+
+	// Remove worst order if we are above the max we
+	// track per pair
+	if l := h.Len(); l > o.maxOrdersPerPair {
+		e := h.Remove(l - 1)
+		delete(o.orderToPair, e.ID)
+	}
 }
 
 func (o *OrderBook) Remove(id ids.ID) {
 	o.l.Lock()
 	defer o.l.Unlock()
+
 	pair, ok := o.orderToPair[id]
 	if !ok {
 		return
@@ -118,6 +126,7 @@ func (o *OrderBook) Remove(id ids.ID) {
 func (o *OrderBook) UpdateRemaining(id ids.ID, remaining uint64) {
 	o.l.Lock()
 	defer o.l.Unlock()
+
 	pair, ok := o.orderToPair[id]
 	if !ok {
 		return
@@ -138,6 +147,7 @@ func (o *OrderBook) UpdateRemaining(id ids.ID, remaining uint64) {
 func (o *OrderBook) Orders(pair string, limit int) []*Order {
 	o.l.RLock()
 	defer o.l.RUnlock()
+
 	h, ok := o.orders[pair]
 	if !ok {
 		return nil

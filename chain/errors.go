@@ -69,4 +69,5 @@ var (
 	ErrBlockNotProcessed      = errors.New("block is not processed")
 	ErrInvalidKeyValue        = errors.New("invalid key or value")
 	ErrModificationNotAllowed = errors.New("modification not allowed")
+	ErrWrongDimensionSize     = errors.New("wrong dimensions size")
 )

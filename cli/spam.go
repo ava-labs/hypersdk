@@ -123,7 +123,7 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	unitPrices, err := cli.UnitPrices(ctx)
+	unitPrices, err := cli.UnitPrices(ctx, false)
 	if err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func (h *Handler) Spam(
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	// confirm txs (track failure rate)
-	unitPrices, err = clients[0].c.UnitPrices(ctx)
+	unitPrices, err = clients[0].c.UnitPrices(ctx, false)
 	if err != nil {
 		return err
 	}
@@ -220,22 +220,21 @@ func (h *Handler) Spam(
 				current := sent.Load()
 				l.Lock()
 				if totalTxs > 0 {
+					unitPrices, err = clients[0].c.UnitPrices(ctx, false)
+					if err != nil {
+						continue
+					}
 					utils.Outf(
-						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d\n", //nolint:lll
+						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
 						totalTxs,
 						float64(confirmedTxs)/float64(totalTxs)*100,
 						inflight.Load(),
 						current-psent,
+						ParseDimensions(unitPrices),
 					)
 				}
 				l.Unlock()
 				psent = current
-
-				unitPrices, err = clients[0].c.UnitPrices(ctx)
-				if err != nil {
-					continue
-				}
-				PrintUnitPrices(unitPrices)
 			case <-cctx.Done():
 				return
 			}
@@ -381,7 +380,7 @@ func (h *Handler) Spam(
 	cancel()
 
 	// Return funds
-	unitPrices, err = cli.UnitPrices(ctx)
+	unitPrices, err = cli.UnitPrices(ctx, false)
 	if err != nil {
 		return err
 	}

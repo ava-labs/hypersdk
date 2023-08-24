@@ -219,6 +219,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		//
 		// TODO: re-enable profiling
 		runner_sdk.WithGlobalNodeConfig(`{
+				"log-level":"info",
 				"log-display-level":"info",
 				"proposervm-use-current-height":true,
 				"throttler-inbound-validator-alloc-size":"10737418240",
@@ -734,7 +735,7 @@ func acceptTransaction(cli *rpc.JSONRPCClient, lcli *lrpc.JSONRPCClient) {
 		// Generate transaction
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		unitPrices, err := cli.UnitPrices(context.Background())
+		unitPrices, err := cli.UnitPrices(context.Background(), false)
 		gomega.Ω(err).Should(gomega.BeNil())
 		submit, tx, maxFee, err := cli.GenerateTransaction(
 			context.Background(),

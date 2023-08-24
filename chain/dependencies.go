@@ -80,7 +80,8 @@ type VM interface {
 }
 
 type Mempool interface {
-	Len(context.Context) int
+	Len(context.Context) int  // items
+	Size(context.Context) int // bytes
 	Add(context.Context, []*Transaction)
 
 	Top(
@@ -121,7 +122,19 @@ type Rules interface {
 	GetWarpComputeUnitsPerSigner() uint64
 	GetOutgoingWarpComputeUnits() uint64
 
-	// Controllers must manage the max key length and max value length
+	// Invariants:
+	// * Controllers must manage the max key length and max value length (max network
+	//   limit is ~2MB)
+	// * Cold key reads/modifications are assumed to be more expensive than warm
+	//   when estimating the max fee
+	// * Keys are only charged once per transaction (even if used multiple times), it is
+	//   up to the controller to ensure multiple usage has some compute cost
+	//
+	// Interesting Scenarios:
+	// * If a key is created and then modified during a transaction, the second
+	//   read will be a warm read of 0 chunks (reads are based on disk contents before exec)
+	// * If a key is removed and then re-created during a transaction, it counts
+	//   as a modification and a creation instead of just a modification
 	GetColdStorageKeyReadUnits() uint64
 	GetColdStorageValueReadUnits() uint64 // per chunk
 	GetWarmStorageKeyReadUnits() uint64
@@ -180,6 +193,8 @@ type Action interface {
 	//
 	// All keys specified must be suffixed with the number of chunks that could ever be read from that
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
+	//
+	// If any key is removed and then re-created, this will count as a creation instead of a modification.
 	StateKeys(auth Auth, txID ids.ID) []string
 
 	// StateKeysMaxChunks is used to estimate the fee a transaction should pay. It includes the max
@@ -277,6 +292,9 @@ type Auth interface {
 
 	// Refund returns [amount] to [Auth] after transaction execution if any fees were
 	// not used.
+	//
+	// Refund will return an error if it attempts to create any new keys. It can only
+	// modify or remove existing keys.
 	//
 	// Refund is only invoked if [amount] > 0.
 	Refund(ctx context.Context, db Database, amount uint64) error

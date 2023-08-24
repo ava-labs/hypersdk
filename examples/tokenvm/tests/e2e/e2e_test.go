@@ -1582,7 +1582,7 @@ func acceptTransaction(cli *rpc.JSONRPCClient, tcli *trpc.JSONRPCClient) {
 		// Generate transaction
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		unitPrices, err := cli.UnitPrices(context.Background())
+		unitPrices, err := cli.UnitPrices(context.Background(), false)
 		gomega.Ω(err).Should(gomega.BeNil())
 		submit, tx, maxFee, err := cli.GenerateTransaction(
 			context.Background(),

@@ -169,8 +169,8 @@ func (p *Processor) Execute(
 		}
 		results = append(results, result)
 
-		// Update block metadata
-		if err := feeManager.Consume(nextUnits); err != nil {
+		// Update block metadata with units actually consumed
+		if err := feeManager.Consume(result.Consumed); err != nil {
 			return nil, 0, 0, err
 		}
 	}
