@@ -74,15 +74,15 @@ func init() {
 }
 
 var (
-	pubKey           ed25519.PublicKey
-	programID        string
-	functionName     string
-	dbPath           string
-	params		   string
-	db               database.Database
-	log              logging.Logger
-	functions        string
-	rootCmd          = &cobra.Command{
+	pubKey       ed25519.PublicKey
+	programID    string
+	functionName string
+	dbPath       string
+	params       string
+	db           database.Database
+	log          logging.Logger
+	functions    string
+	rootCmd      = &cobra.Command{
 		Use:   "simulator",
 		Short: "HyperSDK program simulator",
 	}

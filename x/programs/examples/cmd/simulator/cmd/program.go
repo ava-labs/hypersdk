@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	HRP    = "simulator"
+	HRP           = "simulator"
 	programPrefix = 0x0
 )
 
@@ -148,7 +148,7 @@ func getProgram(
 		return false, ed25519.EmptyPublicKey, nil, nil, err
 	}
 	var owner ed25519.PublicKey
-	copy(owner[:], v[ed25519.PublicKeyLen:])
+	copy(owner[:], v[:ed25519.PublicKeyLen])
 
 	functionLen := binary.BigEndian.Uint32(v[ed25519.PublicKeyLen : ed25519.PublicKeyLen+consts.Uint32Len])
 
@@ -175,11 +175,15 @@ func setProgram(
 ) error {
 	k := programKey(programID)
 	functionLen := len(functions)
-	v := make([]byte, ed25519.PublicKeyLen+functionLen+len(program))
+	v := make([]byte, ed25519.PublicKeyLen+consts.Uint32Len+functionLen+len(program))
 	copy(v, owner[:])
-	binary.BigEndian.PutUint32(v[ed25519.PublicKeyLen:], uint32(functionLen))
+	fmt.Printf("owner: %v\n", v)
+	binary.BigEndian.PutUint32(v[ed25519.PublicKeyLen:ed25519.PublicKeyLen+consts.Uint32Len], uint32(functionLen))
+	fmt.Printf("add ln: %v\n", v)
 	copy(v[ed25519.PublicKeyLen+consts.Uint32Len:], functions[:])
+	fmt.Printf("add fn: %v\n", v)
 	copy(v[ed25519.PublicKeyLen+consts.Uint32Len+functionLen:], program[:])
+	fmt.Printf("add program: %v,\n %v\n", k, v)
 	return db.Put(k, v)
 }
 
@@ -216,8 +220,6 @@ func (p *programStorage) Get(_ context.Context, id uint32) (bool, ed25519.Public
 func (p *programStorage) Set(_ context.Context, id uint32, _ uint32, data []byte) error {
 	return nil
 }
-
-
 
 func address(pk ed25519.PublicKey) string {
 	return ed25519.Address(HRP, pk)
