@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
+
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -54,7 +55,7 @@ func BenchmarkTokenProgram(b *testing.B) {
 		program := NewToken(log, tokenProgramBytes)
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			var meter runtime.Meter
+			var meter runtime.Meter // disabled
 			err := program.Run(context.Background(), meter)
 			require.NoError(err)
 		}
