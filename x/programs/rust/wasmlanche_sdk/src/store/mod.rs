@@ -1,12 +1,10 @@
-use serde::de::DeserializeOwned;
-use serde_json::from_slice;
-
 use crate::errors::StorageError;
 use crate::host::host_program_invoke;
 use crate::host::{get_bytes, get_bytes_len, store_bytes};
 use crate::types::Argument;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_json::to_vec;
+use serde_json::{from_slice, to_vec};
 use std::str;
 /// ProgramContext defines helper methods for the program builder
 /// to interact with the host.
@@ -37,8 +35,8 @@ impl ProgramContext {
         value: &T,
     ) -> Result<(), StorageError>
     where
-        T: Serialize + std::fmt::Debug,
-        U: Serialize + std::fmt::Debug,
+        T: Serialize,
+        U: Serialize,
     {
         let key_bytes = get_map_key(map_name, &key)?;
         // Add a tag(u8) to the start of val_bytes
@@ -59,8 +57,8 @@ impl ProgramContext {
     }
     pub fn get_map_value<T, U>(&self, map_name: &str, key: &T) -> Result<U, StorageError>
     where
-        T: DeserializeOwned + Serialize + std::fmt::Debug,
-        U: DeserializeOwned + Serialize + std::fmt::Debug,
+        T: DeserializeOwned + Serialize,
+        U: DeserializeOwned + Serialize,
     {
         let result: U = get_map_field(self, map_name, key)?;
         Ok(result)
@@ -132,7 +130,7 @@ where
 /// Gets the correct key to in the host storage for a [map_name] and [key] within that map  
 fn get_map_key<T>(map_name: &str, key: &T) -> Result<Vec<u8>, StorageError>
 where
-    T: Serialize + std::fmt::Debug,
+    T: Serialize,
 {
     let key_bytes = match to_vec(key) {
         Ok(bytes) => bytes,
@@ -144,7 +142,7 @@ where
 // Gets the value from the map [name] with key [key] from the host and returns it as a ProgramValue.
 fn get_map_field<T, U>(ctx: &ProgramContext, name: &str, key: &T) -> Result<U, StorageError>
 where
-    T: DeserializeOwned + Serialize + std::fmt::Debug,
+    T: DeserializeOwned + Serialize,
     U: DeserializeOwned + Serialize,
 {
     let map_key = get_map_key(name, key)?;

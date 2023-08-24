@@ -23,6 +23,8 @@ impl From<i64> for Address {
     }
 }
 
+/// A struct representing a fixed length of 32 bytes.
+/// This can be used for passing strings to the host. It caps the string at 32 bytes,
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub struct Bytes32([u8; Self::LEN]);
 impl Bytes32 {
@@ -36,6 +38,7 @@ impl Bytes32 {
 }
 
 /// Implement the Display trait for Bytes32 so that we can print it.
+/// Enables to_string() on Bytes32.
 impl std::fmt::Display for Bytes32 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // Find the first null byte and only print up to that point.
@@ -43,6 +46,14 @@ impl std::fmt::Display for Bytes32 {
         String::from_utf8_lossy(&self.0[..null_pos])
             .to_string()
             .fmt(f)
+    }
+}
+
+impl From<String> for Bytes32 {
+    fn from(value: String) -> Self {
+        let mut bytes: [u8; Self::LEN] = [0; Self::LEN];
+        bytes[..value.len()].copy_from_slice(value.as_bytes());
+        Self(bytes)
     }
 }
 
@@ -105,6 +116,7 @@ impl Argument for ProgramContext {
     }
 }
 
+// Implement Box<dyn Argument> for all types that implement Argument.
 impl From<i64> for Box<dyn Argument> {
     fn from(value: i64) -> Self {
         Box::new(value)
@@ -126,13 +138,5 @@ impl From<Address> for Box<dyn Argument> {
 impl From<ProgramContext> for Box<dyn Argument> {
     fn from(value: ProgramContext) -> Self {
         Box::new(value)
-    }
-}
-
-impl From<String> for Bytes32 {
-    fn from(value: String) -> Self {
-        let mut bytes: [u8; Self::LEN] = [0; Self::LEN];
-        bytes[..value.len()].copy_from_slice(value.as_bytes());
-        Self(bytes)
     }
 }

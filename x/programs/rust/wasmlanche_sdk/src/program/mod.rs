@@ -1,3 +1,4 @@
+#![allow(clippy::new_without_default)]
 use crate::errors::StorageError;
 use crate::host::init_program_storage;
 use crate::store::ProgramContext;
@@ -8,20 +9,11 @@ use thiserror::Error;
 pub enum ProgramError {
     #[error("{0}")]
     Store(#[from] StorageError),
-
-    #[error("Program Context Uninitialized")]
-    UninitalizedContextError(),
 }
 
 /// Program represents a program and its associated fields.
 pub struct Program {
     ctx: ProgramContext,
-}
-
-impl Default for Program {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl Program {

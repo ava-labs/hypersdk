@@ -1,4 +1,3 @@
-mod lottery;
 use expose_macro::expose;
 use wasmlanche_sdk::program::Program;
 use wasmlanche_sdk::store::ProgramContext;
@@ -10,8 +9,8 @@ static TOKEN_PROGRAM_NAME: &str = "token_contract";
 /// Initializes the program.
 #[expose]
 fn init_program() -> i64 {
-    let lottery = Program::new();
-    lottery.into()
+    // Initialize the program with no fields
+    Program::new().into()
 }
 
 /// Sets the token contract address and the lotto address. This needs to be set
@@ -29,7 +28,7 @@ fn set(ctx: ProgramContext, counter_ctx: ProgramContext, lot_address: Address) {
 /// transfer tokens to the player.
 #[expose]
 fn play(ctx: ProgramContext, player: Address) -> bool {
-    let num: i64 = get_random_number(player, 1);
+    let num = get_random_number(player, 1);
     // If win transfer to player
     let call_ctx = ctx
         .get_value(TOKEN_PROGRAM_NAME)
