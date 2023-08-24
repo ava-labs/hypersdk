@@ -51,6 +51,9 @@ func UnpackBlockMessage(
 	pricesMsg := make([]byte, chain.DimensionsLen)
 	p.UnpackFixedBytes(chain.DimensionsLen, &pricesMsg)
 	prices, err := chain.UnpackDimensions(pricesMsg)
+	if err != nil {
+		return nil, nil, chain.Dimensions{}, err
+	}
 	if !p.Empty() {
 		return nil, nil, chain.Dimensions{}, chain.ErrInvalidObject
 	}
