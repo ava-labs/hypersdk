@@ -32,9 +32,9 @@ const ListItem = ({ item, onSelect, selectedItem, title }) => {
     <Card.Grid hoverable={true} style={gridStyle} onClick={onClickHandler}>
       <Skeleton loading={loading} avatar active>
         <Card.Meta
-          avatar={<Avatar src={item.owner.avatar_url} />}
+          avatar={<Avatar src="https://cdn.pixabay.com/photo/2021/06/17/22/55/rick-and-morty-6344804_1280.jpg" />}
           title={title}
-          description={`Authored by ${item.owner.login}`}
+          description={`Authored by `}
         />
       </Skeleton>
     </Card.Grid>

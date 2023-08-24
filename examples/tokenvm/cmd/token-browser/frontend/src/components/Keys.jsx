@@ -1,17 +1,17 @@
 import {useEffect, useState} from "react";
-import {GetPublicRepositories} from "../../../wailsjs/go/main/App";
-import MasterDetail from "../MasterDetail";
+import {GetKeys} from "../../wailsjs/go/main/App";
+import MasterDetail from "./MasterDetail";
 import {message} from "antd";
 
 const Keys = () => {
-    const [repositories, setRepositories] = useState([]);
+    const [keys, setKeys] = useState([]);
     const [messageApi, contextHolder] = message.useMessage();
 
     useEffect(() => {
-        const getRepositories = async () => {
-            GetPublicRepositories()
-                .then((repositories) => {
-                    setRepositories(repositories);
+        const getKeys = async () => {
+            GetKeys()
+                .then((keys) => {
+                    setKeys(keys);
                 })
                 .catch((error) => {
                     messageApi.open({
@@ -19,18 +19,18 @@ const Keys = () => {
                     });
                 });
         };
-        getRepositories();
+        getKeys();
     }, []);
 
     const title = "Keys";
-    const getItemDescription = (repository) => repository.name;
-    const detailLayout = (repository) => (<KeyDetails repository={repository}/>);
+    const getItemDescription = (key) => key;
+    const detailLayout = (key) => (<KeyDetails key={key}/>);
 
     return (<>
             {contextHolder}
             <MasterDetail
                 title={title}
-                items={repositories}
+                items={keys}
                 getItemDescription={getItemDescription}
                 detailLayout={detailLayout}
             />

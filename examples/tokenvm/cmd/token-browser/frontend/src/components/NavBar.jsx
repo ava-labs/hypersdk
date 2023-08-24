@@ -15,33 +15,33 @@ function getItem(label, key, icon, children, type) {
 const items = [
   getItem("Public Actions", "sub1", <UnlockOutlined />, [
     getItem(
-      "Repositories",
+      "Keys",
       "g1",
       null,
       [
         getItem(
-          <Link to={"repositories/public"}>View all repositories</Link>,
+          <Link to={"keys"}>Keys</Link>,
           "1"
         ),
       ],
       "group"
     ),
     getItem(
-      "Gists",
+      "Keys2",
       "g2",
       null,
-      [getItem(<Link to={"gists/public"}>View all gists</Link>, "3")],
+      [getItem(<Link to={"keys"}>Keys 2</Link>, "3")],
       "group"
     ),
   ]),
   getItem("Private Actions", "sub2", <LockOutlined />, [
     getItem(
-      "Repositories",
+      "Chains",
       "g3",
       null,
       [
         getItem(
-          <Link to={"repositories/private"}>View my repositories</Link>,
+          <Link to={"chains"}>chains</Link>,
           "5"
         ),
       ],
@@ -52,8 +52,8 @@ const items = [
       "g4",
       null,
       [
-        getItem(<Link to={"gists/private"}>View my gists</Link>, "6"),
-        getItem(<Link to={"gist/new"}>Create new gist</Link>, "7"),
+        getItem(<Link to={"chains"}>Chains 2</Link>, "6"),
+        getItem(<Link to={"chains"}>Chains 3</Link>, "7"),
       ],
       "group"
     ),
