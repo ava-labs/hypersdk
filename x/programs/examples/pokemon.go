@@ -5,7 +5,6 @@ package examples
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 
@@ -48,13 +47,11 @@ func (t *Pokemon) Run(ctx context.Context) error {
 	db := utils.NewTestDB()
 	store := newProgramStorage(db)
 
-	// runtime := runtime.New(t.log, nil, store)
 	runtime := runtime.New(t.log, meter, store)
 	err := runtime.Initialize(ctx, t.programBytes, functions)
 	if err != nil {
 		return err
 	}
-	fmt.Println("initialized")
 	result, err := runtime.Call(ctx, "init_program")
 	if err != nil {
 		return err
@@ -96,7 +93,7 @@ func (t *Pokemon) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	t.log.Debug("Result",
+	t.log.Debug("Catch Result",
 		zap.Int64("Success", int64(result[0])),
 	)
 
@@ -108,15 +105,6 @@ func (t *Pokemon) Run(ctx context.Context) error {
 	t.log.Debug("Result",
 		zap.Int64("Success", int64(result[0])),
 	)
-
-	// // get owned
-	// result, err = runtime.Call(ctx, "get_owned", contract_id, alicePtr)
-	// if err != nil {
-	// 	return err
-	// }
-	// t.log.Debug("Result",
-	// 	zap.Int64("Success", int64(result[0])),
-	// )
 
 	return nil
 }

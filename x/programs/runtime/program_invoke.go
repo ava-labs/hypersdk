@@ -9,6 +9,7 @@ import (
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 
@@ -62,6 +63,7 @@ func (m *InvokeModule) programInvokeFn(
 	// get the entry function for invoke to call.
 	entryBuf, ok := utils.GetBuffer(mod, entryPtr, entryLen)
 	if !ok {
+		m.log.Error("failed to get entry function name")
 		return invokeErr
 	}
 	entryFn := string(entryBuf)
@@ -69,6 +71,7 @@ func (m *InvokeModule) programInvokeFn(
 	// get the program bytes stored in state
 	data, ok := GlobalStorage.Programs[uint32(invokeProgramID)]
 	if !ok {
+		m.log.Error("failed to get program bytes from storage")
 		return invokeErr
 	}
 
@@ -79,22 +82,26 @@ func (m *InvokeModule) programInvokeFn(
 	exportedFunctions := []string{entryFn, "alloc"}
 	err := runtime.Initialize(ctx, data, exportedFunctions)
 	if err != nil {
+		m.log.Error("failed to initialize runtime for program invoke call: %v", zap.Error(err))
 		return invokeErr
 	}
 
 	callArgsBuf, ok := utils.GetBuffer(mod, argsPtr, argsLen)
 	if !ok {
+		m.log.Error("failed to get call arguments")
 		return invokeErr
 	}
 
 	// sync args to new runtime and return arguments to the invoke call
 	params, err := getCallArgs(ctx, runtime, callArgsBuf, invokeProgramID)
 	if err != nil {
+		m.log.Error("failed to unmarshal call arguments: %v", zap.Error(err))
 		return invokeErr
 	}
 
 	res, err := runtime.Call(ctx, entryFn, params...)
 	if err != nil {
+		m.log.Error("failed to call entry function %v", zap.Error(err))
 		return invokeErr
 	}
 	return int64(res[0])

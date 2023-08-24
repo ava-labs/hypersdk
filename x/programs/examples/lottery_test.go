@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	//go:embed testdata/target/wasm32-wasi/release/lottery.wasm
+	//go:embed testdata/lottery.wasm
 	lotteryProgramBytes []byte
 )
 

@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	//go:embed testdata/target/wasm32-wasi/release/pokemon.wasm
+	//go:embed testdata/pokemon.wasm
 	pokemonProgramBytes []byte
 )
 

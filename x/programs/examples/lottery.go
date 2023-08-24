@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
 
@@ -67,7 +68,7 @@ func (t *Lottery) Run(ctx context.Context) error {
 		zap.Int("gas", 0),
 	)
 
-	token_contract_id := result[0]
+	tokenProgramId := result[0]
 
 	// generate alice keys
 	alicePtr, alice_pk, err := newKeyPtr(ctx, tokenRuntime)
@@ -81,8 +82,24 @@ func (t *Lottery) Run(ctx context.Context) error {
 		return err
 	}
 
+	// deallocate bytes
+	defer func() {
+		_, err = tokenRuntime.Call(ctx, "dealloc", alicePtr, ed25519.PublicKeyLen)
+		if err != nil {
+			t.log.Error("failed to deallocate alice ptr",
+				zap.Error(err),
+			)
+		}
+		_, err = tokenRuntime.Call(ctx, "dealloc", bobPtr, ed25519.PublicKeyLen)
+		if err != nil {
+			t.log.Error("failed to deallocate bob ptr",
+				zap.Error(err),
+			)
+		}
+	}()
+
 	// check balance of alice
-	result, err = tokenRuntime.Call(ctx, "get_balance", token_contract_id, alicePtr)
+	result, err = tokenRuntime.Call(ctx, "get_balance", tokenProgramId, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -91,7 +108,7 @@ func (t *Lottery) Run(ctx context.Context) error {
 	)
 
 	// check balance of bob
-	result, err = tokenRuntime.Call(ctx, "get_balance", token_contract_id, bobPtr)
+	result, err = tokenRuntime.Call(ctx, "get_balance", tokenProgramId, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -101,7 +118,7 @@ func (t *Lottery) Run(ctx context.Context) error {
 
 	// mint 100 tokens to alice
 	mintAlice := uint64(1000)
-	_, err = tokenRuntime.Call(ctx, "mint_to", token_contract_id, alicePtr, mintAlice)
+	_, err = tokenRuntime.Call(ctx, "mint_to", tokenProgramId, alicePtr, mintAlice)
 	if err != nil {
 		return err
 	}
@@ -110,7 +127,7 @@ func (t *Lottery) Run(ctx context.Context) error {
 	)
 
 	// check balance of alice
-	result, err = tokenRuntime.Call(ctx, "get_balance", token_contract_id, alicePtr)
+	result, err = tokenRuntime.Call(ctx, "get_balance", tokenProgramId, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -129,9 +146,9 @@ func (t *Lottery) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	lotteryContractId := result[0]
-	t.log.Debug("lottery contract id", zap.Uint64("id", lotteryContractId))
-	runtime.GlobalStorage.Programs[uint32(token_contract_id)] = t.tokenProgramBytes
+	lotteryProgramId := result[0]
+	t.log.Debug("lottery program id", zap.Uint64("id", lotteryProgramId))
+	runtime.GlobalStorage.Programs[uint32(tokenProgramId)] = t.tokenProgramBytes
 	// set the program_id in store to the lottery bytes
 
 	aliceLottoPtr, err := lotteryRuntime.WriteGuestBuffer(ctx, alice_pk[:])
@@ -144,21 +161,37 @@ func (t *Lottery) Run(ctx context.Context) error {
 		return err
 	}
 
-	// set the library contract
-	_, err = lotteryRuntime.Call(ctx, "set", lotteryContractId, token_contract_id, aliceLottoPtr)
+	// deallocate bytes
+	defer func() {
+		_, err = lotteryRuntime.Call(ctx, "dealloc", aliceLottoPtr, ed25519.PublicKeyLen)
+		if err != nil {
+			t.log.Error("failed to deallocate alice ptr",
+				zap.Error(err),
+			)
+		}
+		_, err = lotteryRuntime.Call(ctx, "dealloc", bobLottoPtr, ed25519.PublicKeyLen)
+		if err != nil {
+			t.log.Error("failed to deallocate bob ptr",
+				zap.Error(err),
+			)
+		}
+	}()
+
+	// set the library program
+	_, err = lotteryRuntime.Call(ctx, "set", lotteryProgramId, tokenProgramId, aliceLottoPtr)
 	if err != nil {
 		return err
 	}
 
 	// play the lottery
-	result, err = lotteryRuntime.Call(ctx, "play", lotteryContractId, bobLottoPtr)
+	result, err = lotteryRuntime.Call(ctx, "play", lotteryProgramId, bobLottoPtr)
 	if err != nil {
 		return err
 	}
 	t.log.Debug("set", zap.Uint64("result", result[0]))
 
 	// check balance of alice
-	result, err = tokenRuntime.Call(ctx, "get_balance", token_contract_id, alicePtr)
+	result, err = tokenRuntime.Call(ctx, "get_balance", tokenProgramId, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -167,7 +200,7 @@ func (t *Lottery) Run(ctx context.Context) error {
 	)
 
 	// check balance of bob
-	result, err = tokenRuntime.Call(ctx, "get_balance", token_contract_id, bobPtr)
+	result, err = tokenRuntime.Call(ctx, "get_balance", tokenProgramId, bobPtr)
 	if err != nil {
 		return err
 	}

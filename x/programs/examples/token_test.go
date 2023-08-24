@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	//go:embed testdata/target/wasm32-wasi/release/token.wasm
+	//go:embed testdata/token.wasm
 	tokenProgramBytes []byte
 
 	// example cost map
@@ -23,7 +23,7 @@ var (
 		"ConstI32 0x0": 1,
 		"ConstI64 0x0": 2,
 	}
-	maxGas uint64 = 30000
+	maxGas uint64 = 13000
 	log           = logging.NewLogger(
 		"",
 		logging.NewWrappedCore(

@@ -8,6 +8,7 @@ import (
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
@@ -73,6 +74,7 @@ func (m *MapModule) initializeFn(_ context.Context, mod api.Module) int64 {
 func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id int64, keyPtr uint32, keyLength uint32, valuePtr uint32, valueLength uint32) int32 {
 	_, ok := GlobalStorage.state[id]
 	if !ok {
+		m.log.Error("failed to find program id in storage")
 		return mapErr
 	}
 
@@ -97,6 +99,7 @@ func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id int64, ke
 func (m *MapModule) getBytesLenFn(_ context.Context, mod api.Module, id int64, keyPtr uint32, keyLength uint32) int32 {
 	_, ok := GlobalStorage.state[id]
 	if !ok {
+		m.log.Error("failed to find program id in storage")
 		return mapErr
 	}
 	buf, ok := utils.GetBuffer(mod, keyPtr, keyLength)
@@ -113,10 +116,12 @@ func (m *MapModule) getBytesLenFn(_ context.Context, mod api.Module, id int64, k
 func (m *MapModule) getBytesFn(ctx context.Context, mod api.Module, id int64, keyPtr uint32, keyLength int32, valLength int32) int32 {
 	// Ensure the key and value lengths are positive
 	if valLength < 0 || keyLength < 0 {
+		m.log.Error("key or value length is negative")
 		return mapErr
 	}
 	_, ok := GlobalStorage.state[id]
 	if !ok {
+		m.log.Error("failed to find program id in storage")
 		return mapErr
 	}
 	buf, ok := utils.GetBuffer(mod, keyPtr, uint32(keyLength))
@@ -130,11 +135,13 @@ func (m *MapModule) getBytesFn(ctx context.Context, mod api.Module, id int64, ke
 
 	result, err := mod.ExportedFunction("alloc").Call(ctx, uint64(valLength))
 	if err != nil {
+		m.log.Error("failed to allocate memory for value: %v", zap.Error(err))
 		return mapErr
 	}
 	ptr := result[0]
 	// write to memory
 	if !mod.Memory().Write(uint32(ptr), val) {
+		m.log.Error("failed to write value to memory")
 		return mapErr
 	}
 

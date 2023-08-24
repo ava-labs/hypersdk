@@ -5,6 +5,7 @@ package examples
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 
@@ -181,6 +182,9 @@ func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (uint64, ed25519.Pu
 // writeString writes a string to guest memory and returns the pointer to the string.
 // The string is padded with 0s to fit 32 bytes.
 func writeString(ctx context.Context, runtime runtime.Runtime, str string) (uint64, error) {
+	if len(str) > 32 {
+		return 0, fmt.Errorf("length of string %s exceeds 32 bytes", str)
+	}
 	bytes := [32]byte{}
 	// push string to bytes
 	copy(bytes[:], str)
