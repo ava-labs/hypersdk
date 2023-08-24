@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package cmd
 
 import (
@@ -40,7 +43,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(
 		&callerAddress,
-		"address",
+		"caller",
 		"",
 		"address of caller",
 	)
