@@ -248,6 +248,7 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	g.vm.Logger().Info(
 		"tx gossip received",
 		zap.Int("txs", len(txs)),
+		zap.Int("previously seen", seen),
 		zap.Stringer("nodeID", nodeID),
 		zap.Bool("validator", isValidator),
 		zap.Duration("t", time.Since(start)),
