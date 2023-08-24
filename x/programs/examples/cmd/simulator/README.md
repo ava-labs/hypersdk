@@ -18,16 +18,17 @@ created new private key with public address: simulator1fhfjlv9cu0psq276d3ve0nr0y
 ### create new program tx
 ```sh
 ./simulator \
-  --address simulator1fhfjlv9cu0psq276d3ve0nr0yl4daxvud2kcp3w8t3txcwk9t2esrfd0r7
-  program create --functions "alloc,dealloc,put,get" ./path/to/program.wasm
+  program create \
+  --address simulator1fhfjlv9cu0psq276d3ve0nr0yl4daxvud2kcp3w8t3txcwk9t2esrfd0r7 \
+  --functions "alloc,dealloc,put,get" ./path/to/program.wasm
 created program tx successful: 2mcwQKiD8VEspmMJpL1dc7okQQ5dDVAWeCBZ7FWBFAbxpv3t7w
 ```
 
 ### invoke program tx
 ```sh
 ./simulator \
-  --address simulator1fhfjlv9cu0psq276d3ve0nr0yl4daxvud2kcp3w8t3txcwk9t2esrfd0r7
   program invoke \
+  --address simulator1fhfjlv9cu0psq276d3ve0nr0yl4daxvud2kcp3w8t3txcwk9t2esrfd0r7
   --id 2mcwQKiD8VEspmMJpL1dc7okQQ5dDVAWeCBZ7FWBFAbxpv3t7w \
   --function "set" \
   --params "1" \
