@@ -1,28 +1,36 @@
-import {useState} from 'react';
-import logo from './assets/images/logo-universal.png';
-import './App.css';
-import {Greet} from "../wailsjs/go/main/App";
+import NavBar from "./components/NavBar";
+import { FloatButton, Layout } from "antd";
+import { Outlet } from "react-router-dom";
 
-function App() {
-    const [resultText, setResultText] = useState("Please enter your name below 👇");
-    const [name, setName] = useState('');
-    const updateName = (e) => setName(e.target.value);
-    const updateResultText = (result) => setResultText(result);
+const { Content } = Layout;
 
-    function greet() {
-        Greet(name).then(updateResultText);
-    }
+const App = () => {
+  return (
+    <Layout
+      style={{
+        minHeight: "100vh",
+      }}
+    >
+      <NavBar />
+      <Layout className="site-layout">
+        <Content
+          style={{
+            background: "white",
+            padding: "0 50px",
+          }}
+        >
+          <div
+            style={{
+              padding: 24,
+            }}
+          >
+            <Outlet />
+            <FloatButton.BackTop />
+          </div>
+        </Content>
+      </Layout>
+    </Layout>
+  );
+};
 
-    return (
-        <div id="App">
-            <img src={logo} id="logo" alt="logo"/>
-            <div id="result" className="result">{resultText}</div>
-            <div id="input" className="input-box">
-                <input id="name" className="input" onChange={updateName} autoComplete="off" name="input" type="text"/>
-                <button className="btn" onClick={greet}>Greet</button>
-            </div>
-        </div>
-    )
-}
-
-export default App
+export default App;
