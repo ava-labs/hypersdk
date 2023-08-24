@@ -5,6 +5,9 @@ package runtime
 
 import (
 	"context"
+
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
+
 )
 
 type Runtime interface {
@@ -23,6 +26,6 @@ type Runtime interface {
 }
 
 type Storage interface {
-	Get(context.Context, uint32) ([]byte, bool, error)
+	Get(context.Context, uint32) (bool, ed25519.PublicKey, []string, []byte, error)
 	Set(context.Context, uint32, uint32, []byte) error
 }

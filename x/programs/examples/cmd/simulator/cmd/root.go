@@ -4,8 +4,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/utils"
+	xutils "github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
 const (
@@ -32,6 +35,7 @@ func init() {
 	rootCmd.PersistentPreRunE = func(*cobra.Command, []string) (err error) {
 		utils.Outf("{{yellow}}database:{{/}} %s\n", dbPath)
 		db, _, err = pebble.New(dbPath, pebble.NewDefaultConfig())
+		log = xutils.NewLoggerWithLogLevel(logging.Debug)
 		return err
 	}
 
@@ -40,23 +44,33 @@ func init() {
 	}
 
 	programCreateCmd.PersistentFlags().StringVar(
-		&programName,
-		"name",
+		&functions,
+		"functions",
 		"",
-		"name of the program",
+		"comma separated list of function names",
+	)
+
+	programInvokeCmd.PersistentFlags().StringVar(
+		&programID,
+		"id",
+		"",
+		"id of the program",
 	)
 
 }
 
 var (
-	programName      string
+	pubKey           ed25519.PublicKey
+	programID        string
 	dbPath           string
 	db               database.Database
+	log              logging.Logger
 	logLevel         string
 	programPath      string
 	rustPath         string
 	profilingEnabled bool
 	meteringEnabled  bool
+	functions string
 	rootCmd          = &cobra.Command{
 		Use:   "simulator",
 		Short: "HyperSDK program simulator",

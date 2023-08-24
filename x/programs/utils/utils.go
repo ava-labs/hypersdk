@@ -11,6 +11,7 @@ import (
 	"github.com/tetratelabs/wazero/api"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/chain"
 )
@@ -72,4 +73,14 @@ func GetBuffer(mod api.Module, ptr uint32, length uint32) ([]byte, bool) {
 
 func GetProgramBytes(filePath string) ([]byte, error) {
 	return os.ReadFile(filePath)
+}
+
+func NewLoggerWithLogLevel(level logging.Level) logging.Logger {
+	return logging.NewLogger(
+		"",
+		logging.NewWrappedCore(
+			level,
+			os.Stderr,
+			logging.Plain.ConsoleEncoder(),
+		))
 }

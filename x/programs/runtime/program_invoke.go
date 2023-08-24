@@ -68,7 +68,7 @@ func (m *InvokeModule) programInvokeFn(
 	entryFn := utils.GetGuestFnName(string(entryBuf))
 
 	// get the program bytes stored in state
-	data, ok, err := m.storage.Get(ctx, uint32(programID))
+	ok, _, _, program, err := m.storage.Get(ctx, uint32(programID))
 	if !ok {
 		return invokeErr
 	}
@@ -81,7 +81,7 @@ func (m *InvokeModule) programInvokeFn(
 
 	// only export the function we are calling
 	exportedFunctions := []string{entryFn}
-	err = runtime.Initialize(ctx, data, exportedFunctions)
+	err = runtime.Initialize(ctx, program, exportedFunctions)
 	if err != nil {
 		return invokeErr
 	}

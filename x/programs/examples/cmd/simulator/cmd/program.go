@@ -5,9 +5,12 @@ package cmd
 
 import (
 	// "errors"
+	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	// "github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database"
@@ -15,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/spf13/cobra"
 )
 
@@ -46,8 +50,7 @@ var programCreateCmd = &cobra.Command{
 		// spoof txID
 		txID := ids.GenerateTestID()
 
-		k := prefixProgramKey(txID)
-		err = db.Put(k, fileBytes)
+		err = setProgram(db, txID, pubKey, []byte(functions), fileBytes)
 		if err != nil {
 			return err
 		}
@@ -60,32 +63,62 @@ var programInvokeCmd = &cobra.Command{
 	Use:   "invoke [options]",
 	Short: "Invokes a wasm program stored on disk",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
-		if programName == "" {
-			return fmt.Errorf("program --name cannot be empty")
+		if programID == "" {
+			return fmt.Errorf("program --id cannot be empty")
 		}
 		return nil
 	},
 
 	RunE: func(_ *cobra.Command, args []string) error {
-		utils.Outf("{{green}}created a program:{{/}} %s\n", programName)
+		id, err := ids.FromString(programID)
+		if err != nil {
+			return err
+		}
+		exists, owner, functions, program, err := getProgram(db, id)
+		if !exists {
+			return fmt.Errorf("program %s does not exist", id)
+		}
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("owner", owner)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// example cost map
+		costMap := map[string]uint64{
+			"ConstI32 0x0": 1,
+			"ConstI64 0x0": 2,
+		}
+		var maxGas uint64 = 3000
+		storage := newProgramStorage(db)
+		runtime := runtime.New(log, runtime.NewMeter(log, maxGas, costMap), storage)
+		defer runtime.Stop(ctx)
+		
+		err = runtime.Initialize(ctx, program, functions)
+		if err != nil {
+			return err
+		}
+
+		var params []uint64
+		// push caller onto stack
+		caller, err := runtime.WriteGuestBuffer(ctx, pubKey[:])
+		if err != nil {
+			return err
+		}
+
+		params = append(params, caller)
+		_, err = runtime.Call(ctx, "main", params...)
+		if err != nil {
+			return err
+		}
+
+		// utils.Outf("{{green}}created a program:{{/}} %s\n", programID)
 		return db.Put([]byte("program"), []byte(args[0]))
 	},
 }
-
-// func getProgramBytes(
-// 	db database.Database,
-// 	id uint32,
-// ) ([]byte, bool, error) {
-// 	k := prefixProgramKey(id)
-// 	v, err := db.Get(k)
-// 	if errors.Is(err, database.ErrNotFound) {
-// 		return nil, false, nil
-// 	}
-// 	if err != nil {
-// 		return nil, false, err
-// 	}
-// 	return v, true, nil
-// }
 
 func programKey(asset ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen)
@@ -94,35 +127,91 @@ func programKey(asset ids.ID) (k []byte) {
 	return
 }
 
-func GetProgram(
+// [programID] -> [exists, owner, functions, payload]
+func getProgram(
 	db database.Database,
-	program ids.ID,
+	programID ids.ID,
 ) (
 	bool, // exists
-	ids.ID, // in
-	uint64, // inTick
-	ids.ID, // out
-	uint64, // outTick
-	uint64, // remaining
 	ed25519.PublicKey, // owner
+	[]string, // functions
+	[]byte, // program bytes
 	error,
 ) {
-	k := programKey(program)
+	k := programKey(programID)
 	v, err := db.Get(k)
 	if errors.Is(err, database.ErrNotFound) {
-		return false, ids.Empty, 0, ids.Empty, 0, 0, ed25519.EmptyPublicKey, nil
+		return false, ed25519.EmptyPublicKey, nil, nil, nil
 	}
 	if err != nil {
-		return false, ids.Empty, 0, ids.Empty, 0, 0, ed25519.EmptyPublicKey, err
+		return false, ed25519.EmptyPublicKey, nil, nil, err
 	}
-	var in ids.ID
-	copy(in[:], v[:consts.IDLen])
-	inTick := binary.BigEndian.Uint64(v[consts.IDLen:])
-	var out ids.ID
-	copy(out[:], v[consts.IDLen+consts.Uint64Len:consts.IDLen*2+consts.Uint64Len])
-	outTick := binary.BigEndian.Uint64(v[consts.IDLen*2+consts.Uint64Len:])
-	supply := binary.BigEndian.Uint64(v[consts.IDLen*2+consts.Uint64Len*2:])
 	var owner ed25519.PublicKey
-	copy(owner[:], v[consts.IDLen*2+consts.Uint64Len*3:])
-	return true, in, inTick, out, outTick, supply, owner, nil
+	copy(owner[:], v[ed25519.PublicKeyLen:])
+
+	functionLen := binary.BigEndian.Uint32(v[ed25519.PublicKeyLen:ed25519.PublicKeyLen + consts.Uint32Len])
+
+	var functionBytes []byte
+	copy(functionBytes[:], v[ed25519.PublicKeyLen + consts.Uint32Len: ed25519.PublicKeyLen + consts.Uint32Len + functionLen])
+
+	functions := strings.Split(string(functionBytes), ",")
+
+	var program []byte
+	copy(program[:], v[ed25519.PublicKeyLen + consts.Uint32Len + functionLen:])
+	return true, owner, functions, program, nil
+}
+
+// [owner]
+// [functions length]
+// [functions]
+// [program]
+func setProgram(
+	db database.Database,
+	programID ids.ID,
+	owner ed25519.PublicKey,
+	functions []byte,
+	program []byte,
+) error {
+	k := programKey(programID)
+	functionLen := len(functions)
+	v := make([]byte, ed25519.PublicKeyLen+functionLen+len(program))
+	copy(v, owner[:])
+	binary.BigEndian.PutUint32(v[ed25519.PublicKeyLen:], uint32(functionLen))
+	copy(v[ed25519.PublicKeyLen + consts.Uint32Len:], functions[:])
+	copy(v[ed25519.PublicKeyLen + consts.Uint32Len + functionLen:], program[:])
+	return db.Put(k, v)
+}
+
+var _ runtime.Storage = (*programStorage)(nil)
+
+// newProgramStorage returns an instance of runtime storage used for examples
+// and backed by memDb.
+func newProgramStorage(db database.Database) *programStorage {
+	return &programStorage{
+		db:            db,
+		programPrefix: 0x0,
+	}
+}
+
+type programStorage struct {
+	db            database.Database
+	programPrefix byte
+}
+
+func (p *programStorage) Get(_ context.Context, id uint32) (bool, ed25519.PublicKey, []byte, error) {
+	buf := make([]byte, consts.IDLen)
+	binary.BigEndian.PutUint32(buf, id)
+	exists, owner, functions, payload, err := getProgram(db, ids.ID(buf))
+	if !exists {
+		return false, ed25519.EmptyPublicKey, nil, fmt.Errorf("program %s does not exist", id)
+	}
+	if err != nil {
+		return false, ed25519.EmptyPublicKey, nil, err
+	}
+
+	return exists, owner, functions, payload, err
+}
+
+func (p *programStorage) Set(_ context.Context, id uint32, _ uint32, data []byte) error {
+	return nil
 }

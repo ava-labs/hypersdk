@@ -30,13 +30,39 @@ type programStorage struct {
 	programPrefix byte
 }
 
-func (p *programStorage) Get(ctx context.Context, id uint32) ([]byte, bool, error) {
+func (p *programStorage) Get(ctx context.Context, id uint32) (bool, uint32, []byte, error) {
+	getProgramBytes(ctx, p.db, id, p.programPrefix)
 	return getProgramBytes(ctx, p.db, id, p.programPrefix)
 }
 
-func (p *programStorage) Set(ctx context.Context, id uint32, _ uint32, data []byte) error {
+func (p *programStorage) Set(ctx context.Context, id uint32, owner uint32, data []byte) error {
 	k := prefixProgramKey(p.programPrefix, id)
 	return p.db.Insert(ctx, k, data)
+}
+
+// [programID] -> [exists, owner, payload]
+func getProgram(
+	db database.Database,
+	programID ids.ID,
+) (
+	bool, // exists
+	ed25519.PublicKey, // owner
+	[]byte, // program bytes
+	error,
+) {
+	k := programKey(programID)
+	v, err := db.Get(k)
+	if errors.Is(err, database.ErrNotFound) {
+		return false, ed25519.EmptyPublicKey, nil, nil
+	}
+	if err != nil {
+		return false, ed25519.EmptyPublicKey, nil, err
+	}
+	var owner ed25519.PublicKey
+	copy(owner[:], v[ed25519.PublicKeyLen:])
+	var program []byte
+	copy(program[:], v[ed25519.PublicKeyLen:])
+	return true, owner, program, nil
 }
 
 func getProgramBytes(
