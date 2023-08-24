@@ -12,8 +12,6 @@ import (
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -99,11 +97,6 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions
 		}
 	}
 
-	if r.meter != nil {
-		r.log.Debug("Starting meter")
-		go r.startMeter(ctx)
-	}
-
 	return nil
 }
 
@@ -167,14 +160,4 @@ func (r *runtime) Stop(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (r *runtime) startMeter(ctx context.Context) {
-	// errors are returned to Call
-	r.meter.Run(ctx)
-	if err := r.Stop(ctx); err != nil {
-		r.log.Error("failed to shutdown runtime:",
-			zap.Error(err),
-		)
-	}
 }

@@ -6,62 +6,70 @@ package runtime
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 
+	"go.uber.org/zap"
+
 	"github.com/tetratelabs/wazero/api"
+
+	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
 var (
-	_                      Meter = (*meter)(nil)
-	ErrMeterInvalidBalance       = errors.New("operation cost greater than balance")
+	ErrMeterInsufficientBalance       = errors.New("operation failed insufficient balance")
+	_                           Meter = (*meter)(nil)
 )
 
 type Meter interface {
 	api.Meter
-	Run(context.Context)
+	GetBalance(context.Context) uint64
 }
 
-func NewMeter(maxFee uint64, costMap map[string]uint64) *meter {
+// NewMeter returns a meter capable of tracking the cost of operations.
+func NewMeter(log logging.Logger, maxFee uint64, costMap map[string]uint64) *meter {
 	return &meter{
+		log:     log,
 		costMap: costMap,
 		balance: maxFee,
-		waitCh:  make(chan struct{}),
 	}
 }
 
 type meter struct {
-	lock    sync.RWMutex
-	costMap map[string]uint64
-	balance uint64
+	lock         sync.RWMutex
+	costMap      map[string]uint64
+	balance      uint64
+	initialError error
 
-	waitCh chan struct{}
+	log logging.Logger
 }
 
 func (m *meter) AddCost(_ context.Context, op string) error {
+	if err := m.closed(); err != nil {
+		return err
+	}
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	cost := m.costMap[op]
-	if cost > m.balance {
-		defer close(m.waitCh)
-		m.waitCh <- struct{}{}
-		return fmt.Errorf("%w: %d: %d", ErrMeterInvalidBalance, cost, m.balance)
+	fee := m.costMap[op]
+	if fee > m.balance {
+		m.log.Debug("insufficient balance", zap.Uint64("fee", fee), zap.Uint64("balance", m.balance))
+		m.initialError = ErrMeterInsufficientBalance
+		return m.initialError
 	}
 
-	m.balance -= cost
+	m.balance -= fee
+
 	return nil
 }
 
-func (m *meter) GetBalance() uint64 {
+func (m *meter) GetBalance(_ context.Context) uint64 {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	return m.balance
 }
 
-func (m *meter) Run(ctx context.Context) {
-	select {
-	case <-m.waitCh:
-	case <-ctx.Done():
-	}
+func (m *meter) closed() error {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	return m.initialError
 }

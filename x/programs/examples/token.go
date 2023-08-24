@@ -45,7 +45,7 @@ func (t *Token) Run(ctx context.Context) error {
 		"init_program",
 	}
 
-	meter := runtime.NewMeter(t.maxFee, t.costMap)
+	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
 	db := utils.NewTestDB()
 	store := newProgramStorage(db)
 
