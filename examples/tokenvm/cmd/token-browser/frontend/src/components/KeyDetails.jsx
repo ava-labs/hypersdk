@@ -1,5 +1,5 @@
-const KeyDetails = ({key}) => {
-    return (<div>{key}</div>);
+const KeyDetails = ({address}) => {
+    return (<div>{address}</div>);
 };
 
 export default KeyDetails;

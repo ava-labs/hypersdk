@@ -1,6 +1,7 @@
 import {useEffect, useState} from "react";
 import {GetChains} from "../../wailsjs/go/main/App";
 import MasterDetail from "./MasterDetail";
+import ChainDetails from "./ChainDetails";
 import {message} from "antd";
 
 const Chains = () => {

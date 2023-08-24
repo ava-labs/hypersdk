@@ -1,4 +1,4 @@
-const ChainDetails= ({chain}) => {
+const ChainDetails = ({chain}) => {
     return (<div>{chain}</div>);
 };
 

@@ -22,10 +22,11 @@ const ListItem = ({ item, onSelect, selectedItem, title }) => {
     onSelect(item);
   };
 
+  // May want to remove entirely? We will just be loading from a local DB.
   useEffect(() => {
     setTimeout(() => {
       setLoading(false);
-    }, 3000);
+    }, 500);
   }, []);
 
   return (

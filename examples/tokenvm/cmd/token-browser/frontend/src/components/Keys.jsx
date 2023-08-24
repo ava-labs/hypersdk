@@ -1,6 +1,7 @@
 import {useEffect, useState} from "react";
 import {GetKeys} from "../../wailsjs/go/main/App";
 import MasterDetail from "./MasterDetail";
+import KeyDetails from "./KeyDetails";
 import {message} from "antd";
 
 const Keys = () => {
@@ -24,7 +25,8 @@ const Keys = () => {
 
     const title = "Keys";
     const getItemDescription = (key) => key;
-    const detailLayout = (key) => (<KeyDetails key={key}/>);
+    // must use [address] because key is a reserved prompt
+    const detailLayout = (key) => (<KeyDetails address={key}/>);
 
     return (<>
             {contextHolder}
