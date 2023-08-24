@@ -1,50 +1,21 @@
 import App from "./App";
 
-import CreateGist from "./components/Gist/CreateGist";
-import PrivateGists from "./components/Gist/PrivateGists";
-import PublicGists from "./components/Gist/PublicGists";
-
-import PrivateRepositories from "./components/Repository/PrivateRepositories";
-import PublicRepositories from "./components/Repository/PublicRepositories";
-import AuthContextProvider from "./components/context/AuthContext";
+import Chains from "./components/Chains";
+import Keys from "./components/Keys";
 
 const routes = [
   {
     path: "/",
     element: <App />,
     children: [
-      { index: true, element: <PublicRepositories /> },
+      { index: true, element: <Chains /> },
       {
-        path: "repositories/public",
-        element: <PublicRepositories />,
+        path: "chains",
+        element: <Chains />,
       },
       {
-        path: "gists/public",
-        element: <PublicGists />,
-      },
-      {
-        path: "gist/new",
-        element: (
-          <AuthContextProvider>
-            <CreateGist />
-          </AuthContextProvider>
-        ),
-      },
-      {
-        path: "repositories/private",
-        element: (
-          <AuthContextProvider>
-            <PrivateRepositories />
-          </AuthContextProvider>
-        ),
-      },
-      {
-        path: "gists/private",
-        element: (
-          <AuthContextProvider>
-            <PrivateGists />
-          </AuthContextProvider>
-        ),
+        path: "keys",
+        element: <Keys />,
       },
     ],
   },
