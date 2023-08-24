@@ -185,6 +185,7 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 		return nil
 	}
 	batchVerifier := chain.NewAuthBatch(g.vm, job, authCounts)
+	var seen int
 	for _, tx := range txs {
 		// Verify signature async
 		txDigest, err := tx.Digest()
@@ -202,9 +203,12 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 		// Add incoming txs to the cache to make
 		// sure we never gossip anything we receive (someone
 		// else will)
-		g.cache.Put(tx.ID(), nil)
+		if g.cache.Put(tx.ID(), nil) {
+			seen++
+		}
 	}
 	batchVerifier.Done(nil)
+	g.vm.RecordSeenTxsReceived(seen)
 
 	// Wait for signature verification to finish
 	if err := job.Wait(); err != nil {

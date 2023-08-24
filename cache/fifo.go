@@ -38,6 +38,7 @@ func (f *FIFO[K, V]) Put(key K, val V) bool {
 	var exists bool
 	if _, ok := f.m[key]; !ok {
 		f.buffer.Push(key) // Insert will remove the oldest [K] if we are at the [limit]
+	} else {
 		exists = true
 	}
 	f.m[key] = val

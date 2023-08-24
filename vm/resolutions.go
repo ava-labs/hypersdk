@@ -410,6 +410,10 @@ func (vm *VM) RecordTxsReceived(c int) {
 	vm.metrics.txsReceived.Add(float64(c))
 }
 
+func (vm *VM) RecordSeenTxsReceived(c int) {
+	vm.metrics.seenTxsReceived.Add(float64(c))
+}
+
 func (vm *VM) RecordBuildCapped() {
 	vm.metrics.buildCapped.Inc()
 }
