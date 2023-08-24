@@ -94,12 +94,13 @@ type account struct {
 }
 
 var (
-	dist   string
-	vms    int
-	accts  int
-	txs    int
-	trace  bool
-	maxFee uint64
+	dist     string
+	vms      int
+	accts    int
+	txs      int
+	trace    bool
+	maxFee   uint64
+	blockGap int64
 
 	senders []*account
 	blks    []*chain.StatelessBlock
@@ -157,6 +158,12 @@ func init() {
 		1000,
 		"max fee per tx",
 	)
+	flag.Int64Var(
+		&blockGap,
+		"block-gap",
+		250,
+		"gap between each build/verify (ms)",
+	)
 }
 
 func TestLoad(t *testing.T) {
@@ -179,6 +186,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		zap.String("addr", sender),
 		zap.String("pk", hex.EncodeToString(priv[:])),
 	)
+	log.Info("block gap", zap.Int64("t (ms)", blockGap))
 
 	// create embedded VMs
 	instances = make([]*instance, vms)
@@ -467,6 +475,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 					delete(allTxs, tx.ID())
 				}
 				blks = append(blks, blk)
+				time.Sleep(time.Duration(blockGap) * time.Millisecond)
 			}
 			gomega.Ω(allTxs).To(gomega.BeEmpty())
 			blockGen = time.Since(start)
@@ -480,6 +489,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			ginkgo.By(fmt.Sprintf("sync instance %d", i+1), func() {
 				for _, blk := range blks {
 					addBlock(instance, blk)
+					time.Sleep(time.Duration(blockGap) * time.Millisecond)
 				}
 			})
 		}
