@@ -4,7 +4,6 @@
 package cmd
 
 import (
-	// "errors"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -12,7 +11,6 @@ import (
 	"os"
 	"strings"
 
-	// "github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/consts"
@@ -96,7 +94,7 @@ var programInvokeCmd = &cobra.Command{
 		storage := newProgramStorage(db)
 		runtime := runtime.New(log, runtime.NewMeter(log, maxGas, costMap), storage)
 		defer runtime.Stop(ctx)
-		
+
 		err = runtime.Initialize(ctx, program, functions)
 		if err != nil {
 			return err
@@ -149,15 +147,15 @@ func getProgram(
 	var owner ed25519.PublicKey
 	copy(owner[:], v[ed25519.PublicKeyLen:])
 
-	functionLen := binary.BigEndian.Uint32(v[ed25519.PublicKeyLen:ed25519.PublicKeyLen + consts.Uint32Len])
+	functionLen := binary.BigEndian.Uint32(v[ed25519.PublicKeyLen : ed25519.PublicKeyLen+consts.Uint32Len])
 
 	var functionBytes []byte
-	copy(functionBytes[:], v[ed25519.PublicKeyLen + consts.Uint32Len: ed25519.PublicKeyLen + consts.Uint32Len + functionLen])
+	copy(functionBytes[:], v[ed25519.PublicKeyLen+consts.Uint32Len:ed25519.PublicKeyLen+consts.Uint32Len+functionLen])
 
 	functions := strings.Split(string(functionBytes), ",")
 
 	var program []byte
-	copy(program[:], v[ed25519.PublicKeyLen + consts.Uint32Len + functionLen:])
+	copy(program[:], v[ed25519.PublicKeyLen+consts.Uint32Len+functionLen:])
 	return true, owner, functions, program, nil
 }
 
@@ -177,8 +175,8 @@ func setProgram(
 	v := make([]byte, ed25519.PublicKeyLen+functionLen+len(program))
 	copy(v, owner[:])
 	binary.BigEndian.PutUint32(v[ed25519.PublicKeyLen:], uint32(functionLen))
-	copy(v[ed25519.PublicKeyLen + consts.Uint32Len:], functions[:])
-	copy(v[ed25519.PublicKeyLen + consts.Uint32Len + functionLen:], program[:])
+	copy(v[ed25519.PublicKeyLen+consts.Uint32Len:], functions[:])
+	copy(v[ed25519.PublicKeyLen+consts.Uint32Len+functionLen:], program[:])
 	return db.Put(k, v)
 }
 
@@ -203,7 +201,7 @@ func (p *programStorage) Get(_ context.Context, id uint32) (bool, ed25519.Public
 	binary.BigEndian.PutUint32(buf, id)
 	exists, owner, functions, payload, err := getProgram(db, ids.ID(buf))
 	if !exists {
-		return false, ed25519.EmptyPublicKey, nil, nil, fmt.Errorf("program %s does not exist", id)
+		return false, ed25519.EmptyPublicKey, nil, nil, fmt.Errorf("program %d does not exist", id)
 	}
 	if err != nil {
 		return false, ed25519.EmptyPublicKey, nil, nil, err

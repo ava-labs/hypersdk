@@ -69,7 +69,7 @@ func init() {
 var (
 	pubKey           ed25519.PublicKey
 	programID        string
-	functionName	 string
+	functionName     string
 	dbPath           string
 	db               database.Database
 	log              logging.Logger
@@ -78,7 +78,7 @@ var (
 	rustPath         string
 	profilingEnabled bool
 	meteringEnabled  bool
-	functions string
+	functions        string
 	rootCmd          = &cobra.Command{
 		Use:   "simulator",
 		Short: "HyperSDK program simulator",

@@ -11,6 +11,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	ed25519 "github.com/ava-labs/hypersdk/crypto/ed25519"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -38,13 +39,15 @@ func (m *MockStorage) EXPECT() *MockStorageMockRecorder {
 }
 
 // Get mocks base method.
-func (m *MockStorage) Get(arg0 context.Context, arg1 uint32) ([]byte, bool, error) {
+func (m *MockStorage) Get(arg0 context.Context, arg1 uint32) (bool, ed25519.PublicKey, []string, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", arg0, arg1)
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(ed25519.PublicKey)
+	ret2, _ := ret[2].([]string)
+	ret3, _ := ret[3].([]byte)
+	ret4, _ := ret[4].(error)
+	return ret0, ret1, ret2, ret3, ret4
 }
 
 // Get indicates an expected call of Get.

@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-
 )
 
 type Runtime interface {
