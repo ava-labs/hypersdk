@@ -64,6 +64,13 @@ func init() {
 		"name of the function to invoke",
 	)
 
+	programCreateCmd.PersistentFlags().StringVar(
+		&params,
+		"params",
+		"",
+		"comma separated list of params to pass to the function",
+	)
+
 }
 
 var (
@@ -71,13 +78,9 @@ var (
 	programID        string
 	functionName     string
 	dbPath           string
+	params		   string
 	db               database.Database
 	log              logging.Logger
-	logLevel         string
-	programPath      string
-	rustPath         string
-	profilingEnabled bool
-	meteringEnabled  bool
 	functions        string
 	rootCmd          = &cobra.Command{
 		Use:   "simulator",

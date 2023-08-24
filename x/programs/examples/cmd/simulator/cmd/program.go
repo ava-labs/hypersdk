@@ -20,7 +20,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const programPrefix = 0x0
+const (
+	HRP    = "simulator"
+	programPrefix = 0x0
+)
 
 var programCmd = &cobra.Command{
 	Use: "program",
@@ -212,4 +215,14 @@ func (p *programStorage) Get(_ context.Context, id uint32) (bool, ed25519.Public
 
 func (p *programStorage) Set(_ context.Context, id uint32, _ uint32, data []byte) error {
 	return nil
+}
+
+
+
+func address(pk ed25519.PublicKey) string {
+	return ed25519.Address(HRP, pk)
+}
+
+func parseAddress(s string) (ed25519.PublicKey, error) {
+	return ed25519.ParseAddress(HRP, s)
 }
