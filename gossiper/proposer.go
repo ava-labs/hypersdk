@@ -51,6 +51,7 @@ type ProposerConfig struct {
 	GossipMinDelay      int64 // ms
 	NoGossipBuilderDiff int
 	VerifyTimeout       int64 // ms
+	SeenCacheSize       int
 }
 
 func DefaultProposerConfig() *ProposerConfig {
@@ -62,10 +63,11 @@ func DefaultProposerConfig() *ProposerConfig {
 		GossipMinDelay:      50,
 		NoGossipBuilderDiff: 4,
 		VerifyTimeout:       proposer.MaxDelay.Milliseconds(),
+		SeenCacheSize:       2_500_000,
 	}
 }
 
-func NewProposer(vm VM, cfg *ProposerConfig) *Proposer {
+func NewProposer(vm VM, cfg *ProposerConfig) (*Proposer, error) {
 	g := &Proposer{
 		vm:         vm,
 		cfg:        cfg,
@@ -77,12 +79,12 @@ func NewProposer(vm VM, cfg *ProposerConfig) *Proposer {
 		lastQueue: -1,
 	}
 	g.timer = timer.NewTimer(g.handleTimerNotify)
-	cache, err := cache.NewFIFO[ids.ID, any](1_000_000)
+	cache, err := cache.NewFIFO[ids.ID, any](cfg.SeenCacheSize)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	g.cache = cache
-	return g
+	return g, nil
 }
 
 func (g *Proposer) Force(ctx context.Context) error {

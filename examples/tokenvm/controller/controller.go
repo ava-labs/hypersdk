@@ -138,7 +138,10 @@ func (c *Controller) Initialize(
 		gcfg.GossipProposerDepth = c.config.GossipProposerDepth
 		gcfg.NoGossipBuilderDiff = c.config.NoGossipBuilderDiff
 		gcfg.VerifyTimeout = c.config.VerifyTimeout
-		gossip = gossiper.NewProposer(inner, gcfg)
+		gossip, err = gossiper.NewProposer(inner, gcfg)
+		if err != nil {
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		}
 	}
 
 	// Initialize order book used to track all open orders
