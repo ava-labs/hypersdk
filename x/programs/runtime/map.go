@@ -25,7 +25,6 @@ type maps map[string][]byte
 type storage struct {
 	// int64 for simplicity, could be a real hash later
 	state    map[int64]maps
-	mods     map[int64]api.Module
 	counter  int64
 	Programs map[uint32][]byte
 }
@@ -50,7 +49,6 @@ func NewMapModule(log logging.Logger, meter Meter) *MapModule {
 // Needs to be gloabl, so state can be persisted across multiple runtime intances.
 var GlobalStorage = storage{
 	state:    make(map[int64]maps),
-	mods:     make(map[int64]api.Module),
 	counter:  0,
 	Programs: make(map[uint32][]byte),
 }
@@ -69,7 +67,6 @@ func (m *MapModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
 func (m *MapModule) initializeFn(_ context.Context, mod api.Module) int64 {
 	GlobalStorage.counter++
 	GlobalStorage.state[GlobalStorage.counter] = make(map[string][]byte)
-	GlobalStorage.mods[GlobalStorage.counter] = mod
 	return GlobalStorage.counter
 }
 

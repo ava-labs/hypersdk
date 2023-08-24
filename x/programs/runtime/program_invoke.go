@@ -75,7 +75,7 @@ func (m *InvokeModule) programInvokeFn(
 	// create new runtime for the program invoke call
 	runtime := New(m.log, m.meter, m.storage)
 
-	// only export the function we are calling
+	// also need to export alloc function, so we can write args to guest memory if needed
 	exportedFunctions := []string{entryFn, "alloc"}
 	err := runtime.Initialize(ctx, data, exportedFunctions)
 	if err != nil {
@@ -95,7 +95,6 @@ func (m *InvokeModule) programInvokeFn(
 
 	res, err := runtime.Call(ctx, entryFn, params...)
 	if err != nil {
-		fmt.Println(err)
 		return invokeErr
 	}
 	return int64(res[0])
