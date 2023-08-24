@@ -285,7 +285,7 @@ func (d Dimensions) Bytes() []byte {
 // Greater is used to determine if the max units allowed
 // are greater than the units consumed by a transaction.
 //
-// THis would be considered a fatal error.
+// This would be considered a fatal error.
 func (d Dimensions) Greater(o Dimensions) bool {
 	for i := Dimension(0); i < FeeDimensions; i++ {
 		if d[i] < o[i] {
