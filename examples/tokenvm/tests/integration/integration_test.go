@@ -420,8 +420,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// read: 2 keys reads, 1 had 0 chunks
 			// create: 1 key created
 			// modify: 1 cold key modified
-			transferTxFee := chain.Dimensions{222, 7, 12, 25, 13}
-			gomega.Ω(results[0].Units).Should(gomega.Equal(transferTxFee))
+			transferTxConsumed := chain.Dimensions{222, 7, 12, 25, 13}
+			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
 			//
@@ -648,13 +648,14 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
 		// Read item from connection
-		blk, lresults, err := cli.ListenBlock(context.TODO(), parser)
+		blk, lresults, prices, err := cli.ListenBlock(context.TODO(), parser)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(len(blk.Txs)).Should(gomega.Equal(1))
 		tx := blk.Txs[0].Action.(*actions.Transfer)
 		gomega.Ω(tx.Asset).To(gomega.Equal(ids.Empty))
 		gomega.Ω(tx.Value).To(gomega.Equal(uint64(1)))
 		gomega.Ω(lresults).Should(gomega.Equal(results))
+		gomega.Ω(prices).Should(gomega.Equal(chain.Dimensions{1, 1, 1, 1, 1}))
 
 		// Check balance modifications are correct
 		balancea, err := instances[0].tcli.Balance(context.TODO(), sender, ids.Empty)
