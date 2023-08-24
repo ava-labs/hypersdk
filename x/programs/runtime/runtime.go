@@ -42,9 +42,9 @@ type runtime struct {
 	exported map[string]api.Function
 	db       chain.Database
 
-	closed bool
-
-	log logging.Logger
+	closed    bool
+	log       logging.Logger
+	InvokeMod *InvokeModule
 }
 
 func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions []string) error {
@@ -61,6 +61,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions
 
 	// enable program to program calls
 	invokeMod := NewInvokeModule(r.log, r.db, r.meter, r.storage)
+	r.InvokeMod = invokeMod
 	err = invokeMod.Instantiate(ctx, r.engine)
 	if err != nil {
 		return fmt.Errorf("failed to create delegate host module: %w", err)
@@ -96,6 +97,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions
 			r.exported[name] = r.mod.ExportedFunction(utils.GetGuestFnName(name))
 		}
 	}
+	r.exported["transfer_guest"] = r.mod.ExportedFunction("transfer_guest")
 
 	return nil
 }
@@ -109,7 +111,6 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 	if !ok {
 		return nil, fmt.Errorf("failed to find exported function: %s", name)
 	}
-
 	result, err := api.Call(ctx, params...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call %s: %w", name, err)
@@ -121,7 +122,7 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 func (r *runtime) GetGuestBuffer(offset uint32, length uint32) ([]byte, bool) {
 	// TODO: add fee
 	// r.meter.AddCost()
-
+	fmt.Println("get guest buffer", offset, length)
 	return r.mod.Memory().Read(offset, length)
 }
 

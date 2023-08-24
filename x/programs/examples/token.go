@@ -74,13 +74,13 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// generate alice keys
-	alicePtr, err := newKeyPtr(ctx, runtime)
+	alicePtr, _, err := newKeyPtr(ctx, runtime)
 	if err != nil {
 		return err
 	}
 
 	// generate bob keys
-	bobPtr, err := newKeyPtr(ctx, runtime)
+	bobPtr, _, err := newKeyPtr(ctx, runtime)
 	if err != nil {
 		return err
 	}
@@ -168,14 +168,15 @@ func (t *Token) Run(ctx context.Context) error {
 	return nil
 }
 
-func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (uint64, error) {
+func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (uint64, ed25519.PublicKey, error) {
 	priv, err := ed25519.GeneratePrivateKey()
 	if err != nil {
-		return 0, err
+		return 0, ed25519.EmptyPublicKey, err
 	}
 
 	pk := priv.PublicKey()
-	return runtime.WriteGuestBuffer(ctx, pk[:])
+	ptr, err := runtime.WriteGuestBuffer(ctx, pk[:])
+	return ptr, pk, err
 }
 
 // writeString writes a string to guest memory and returns the pointer to the string.

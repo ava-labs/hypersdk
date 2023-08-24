@@ -24,15 +24,15 @@ type maps map[string][]byte
 // Key value store for program data
 type storage struct {
 	// int64 for simplicity, could be a real hash later
-	state   map[int64]maps
-	mods    map[int64]api.Module
-	counter int64
+	state    map[int64]maps
+	mods     map[int64]api.Module
+	counter  int64
+	Programs map[uint32][]byte
 }
 
 type MapModule struct {
 	meter Meter
 	log   logging.Logger
-	store storage
 }
 
 // NewMapModule returns a new map host module which can manage in memory state.
@@ -42,12 +42,14 @@ func NewMapModule(log logging.Logger, meter Meter) *MapModule {
 	return &MapModule{
 		meter: meter,
 		log:   log,
-		store: storage{
-			state:   make(map[int64]maps),
-			mods:    make(map[int64]api.Module),
-			counter: 0,
-		},
 	}
+}
+
+var GlobalStorage = storage{
+	state:    make(map[int64]maps),
+	mods:     make(map[int64]api.Module),
+	counter:  0,
+	Programs: make(map[uint32][]byte),
 }
 
 func (m *MapModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
@@ -62,14 +64,14 @@ func (m *MapModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
 }
 
 func (m *MapModule) initializeFn(_ context.Context, mod api.Module) int64 {
-	m.store.counter++
-	m.store.state[m.store.counter] = make(map[string][]byte)
-	m.store.mods[m.store.counter] = mod
-	return m.store.counter
+	GlobalStorage.counter++
+	GlobalStorage.state[GlobalStorage.counter] = make(map[string][]byte)
+	GlobalStorage.mods[GlobalStorage.counter] = mod
+	return GlobalStorage.counter
 }
 
 func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id int64, keyPtr uint32, keyLength uint32, valuePtr uint32, valueLength uint32) int32 {
-	_, ok := m.store.state[id]
+	_, ok := GlobalStorage.state[id]
 	if !ok {
 		return mapErr
 	}
@@ -87,13 +89,13 @@ func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id int64, ke
 	// Need to copy the value because the GC can collect the value after this function returns
 	copiedValue := make([]byte, len(valBuf))
 	copy(copiedValue, valBuf)
-	m.store.state[id][string(keyBuf)] = copiedValue
+	GlobalStorage.state[id][string(keyBuf)] = copiedValue
 
 	return mapOk
 }
 
 func (m *MapModule) getBytesLenFn(_ context.Context, mod api.Module, id int64, keyPtr uint32, keyLength uint32) int32 {
-	_, ok := m.store.state[id]
+	_, ok := GlobalStorage.state[id]
 	if !ok {
 		return mapErr
 	}
@@ -101,7 +103,7 @@ func (m *MapModule) getBytesLenFn(_ context.Context, mod api.Module, id int64, k
 	if !ok {
 		return mapErr
 	}
-	val, ok := m.store.state[id][string(buf)]
+	val, ok := GlobalStorage.state[id][string(buf)]
 	if !ok {
 		return mapErr
 	}
@@ -113,7 +115,7 @@ func (m *MapModule) getBytesFn(ctx context.Context, mod api.Module, id int64, ke
 	if valLength < 0 || keyLength < 0 {
 		return mapErr
 	}
-	_, ok := m.store.state[id]
+	_, ok := GlobalStorage.state[id]
 	if !ok {
 		return mapErr
 	}
@@ -121,7 +123,7 @@ func (m *MapModule) getBytesFn(ctx context.Context, mod api.Module, id int64, ke
 	if !ok {
 		return mapErr
 	}
-	val, ok := m.store.state[id][string(buf)]
+	val, ok := GlobalStorage.state[id][string(buf)]
 	if !ok {
 		return mapErr
 	}

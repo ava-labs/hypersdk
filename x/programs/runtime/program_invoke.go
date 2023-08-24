@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	invokeModuleName = "program_invoke"
+	invokeModuleName = "program"
 	invokeOK         = 0
 	invokeErr        = -1
 )
@@ -27,8 +27,7 @@ type InvokeModule struct {
 	db      chain.Database
 	meter   Meter
 	storage Storage
-
-	log logging.Logger
+	log     logging.Logger
 }
 
 // NewInvokeModule returns a new program invoke host module which can perform program to program calls.
@@ -43,7 +42,7 @@ func NewInvokeModule(log logging.Logger, db chain.Database, meter Meter, storage
 
 func (m *InvokeModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
 	_, err := r.NewHostModuleBuilder(invokeModuleName).
-		NewFunctionBuilder().WithFunc(m.programInvokeFn).Export(invokeModuleName).
+		NewFunctionBuilder().WithFunc(m.programInvokeFn).Export("program_invoke").
 		Instantiate(ctx)
 
 	return err
@@ -68,11 +67,9 @@ func (m *InvokeModule) programInvokeFn(
 	entryFn := utils.GetGuestFnName(string(entryBuf))
 
 	// get the program bytes stored in state
-	data, ok, err := m.storage.Get(ctx, uint32(programID))
+	data, ok := GlobalStorage.Programs[uint32(invokeProgramID)]
 	if !ok {
-		return invokeErr
-	}
-	if err != nil {
+		fmt.Println("program invoke")
 		return invokeErr
 	}
 
@@ -80,8 +77,8 @@ func (m *InvokeModule) programInvokeFn(
 	runtime := New(m.log, m.meter, m.storage)
 
 	// only export the function we are calling
-	exportedFunctions := []string{entryFn}
-	err = runtime.Initialize(ctx, data, exportedFunctions)
+	exportedFunctions := []string{entryFn, "alloc"}
+	err := runtime.Initialize(ctx, data, exportedFunctions)
 	if err != nil {
 		return invokeErr
 	}
@@ -96,12 +93,18 @@ func (m *InvokeModule) programInvokeFn(
 	if err != nil {
 		return invokeErr
 	}
+	fmt.Println("calling ", entryFn, "with params", params)
+	// bytes, _ := runtime.GetGuestBuffer(uint32(params[1]), 32)
+	// fmt.Println(bytes)
+	// bytes, _ = runtime.GetGuestBuffer(uint32(params[2]), 32)
+	// fmt.Println(bytes)
 
-	res, err := runtime.Call(ctx, entryFn, params...)
+	res, err := runtime.Call(ctx, "transfer_guest", params...)
 	if err != nil {
+		fmt.Println(err)
 		return invokeErr
 	}
-
+	fmt.Println("hereee")
 	return int64(res[0])
 }
 
@@ -119,6 +122,7 @@ func getCallArgs(ctx context.Context, runtime Runtime, buffer []byte, invokeProg
 		} else {
 			valueBytes := make([]byte, size)
 			p.UnpackFixedBytes(int(size), &valueBytes)
+			fmt.Println(valueBytes)
 			ptr, err := runtime.WriteGuestBuffer(ctx, valueBytes)
 			if err != nil {
 				return nil, err

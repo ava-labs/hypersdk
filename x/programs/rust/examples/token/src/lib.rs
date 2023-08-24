@@ -35,17 +35,23 @@ pub fn mint_to(ctx: ProgramContext, recipient: Address, amount: i64) -> bool {
 /// Transfers amount coins from the sender to the recipient. Returns whether successful.
 #[expose]
 pub fn transfer(ctx: ProgramContext, sender: Address, recipient: Address, amount: i64) -> bool {
+    println!("HEREEE {:?}**********", sender);
+    println!("HEREEE {:?}**********", recipient);
+
     // require sender != recipient
     if sender == recipient {
+        println!("same: ");
+
         return false;
     }
     // ensure the sender has adequate balance
     let sender_balance: i64 = ctx.get_map_value("balances", &sender).unwrap_or(0);
-
+    println!("sender: {}", sender_balance);
     if amount < 0 || sender_balance < amount {
+        println!("ouch: {}", sender_balance);
         return false;
     }
-
+    println!("sender: {}", sender_balance);
     let recipient_balance: i64 = ctx.get_map_value("balances", &recipient).unwrap_or(0);
     ctx.store_map_value("balances", &sender, &(sender_balance - amount))
         .and_then(|_| ctx.store_map_value("balances", &recipient, &(recipient_balance + amount)))
@@ -55,5 +61,7 @@ pub fn transfer(ctx: ProgramContext, sender: Address, recipient: Address, amount
 /// Gets the balance of the recipient.
 #[expose]
 pub fn get_balance(ctx: ProgramContext, recipient: Address) -> i64 {
+    println!("GETTING {:?}**********", recipient);
+
     ctx.get_map_value("balances", &recipient).unwrap_or(0)
 }

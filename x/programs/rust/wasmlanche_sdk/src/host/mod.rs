@@ -25,7 +25,7 @@ extern "C" {
 // The program module contains functionality for invoking external programs.
 #[link(wasm_import_module = "program")]
 extern "C" {
-    #[link_name = "invoke_program"]
+    #[link_name = "program_invoke"]
     fn _invoke_program(
         contract_id: i64,
         call_contract_id: i64,

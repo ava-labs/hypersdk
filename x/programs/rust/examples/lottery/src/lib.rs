@@ -3,8 +3,6 @@ use expose_macro::expose;
 use wasmlanche_sdk::program::Program;
 use wasmlanche_sdk::store::ProgramContext;
 use wasmlanche_sdk::types::Address;
-/// Counter but only for even numbers
-use wasmlanche_sdk::types::Argument;
 
 // Define the name of the token contract in the programs storage map.
 static TOKEN_PROGRAM_NAME: &str = "token_contract";

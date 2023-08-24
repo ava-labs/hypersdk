@@ -65,12 +65,12 @@ func (t *Pokemon) Run(ctx context.Context) error {
 	contract_id := result[0]
 
 	// generate alice keys
-	alicePtr, err := newKeyPtr(ctx, runtime)
+	alicePtr, _, err := newKeyPtr(ctx, runtime)
 	if err != nil {
 		return err
 	}
 	// generate bob keys
-	bobPtr, err := newKeyPtr(ctx, runtime)
+	bobPtr, _, err := newKeyPtr(ctx, runtime)
 	if err != nil {
 		return err
 	}
