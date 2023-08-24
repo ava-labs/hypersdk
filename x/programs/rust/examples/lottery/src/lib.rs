@@ -1,6 +1,6 @@
 use expose_macro::expose;
 use wasmlanche_sdk::program::Program;
-use wasmlanche_sdk::store::ProgramContext;
+use wasmlanche_sdk::store::Context;
 use wasmlanche_sdk::types::Address;
 
 // Define the name of the token contract in the programs storage map.
@@ -16,7 +16,7 @@ fn init_program() -> i64 {
 /// Sets the token contract address and the lotto address. This needs to be set
 /// before play can be called, otherwise there is no reference contract and address.
 #[expose]
-fn set(ctx: ProgramContext, counter_ctx: ProgramContext, lot_address: Address) {
+fn set(ctx: Context, counter_ctx: Context, lot_address: Address) {
     ctx.store_value(TOKEN_PROGRAM_NAME, &counter_ctx)
         .expect("Failed to store token contract address");
     ctx.store_value("address", &lot_address)
@@ -27,7 +27,7 @@ fn set(ctx: ProgramContext, counter_ctx: ProgramContext, lot_address: Address) {
 /// Calls the token contract(which is an external program call using invoke) to
 /// transfer tokens to the player.
 #[expose]
-fn play(ctx: ProgramContext, player: Address) -> bool {
+fn play(ctx: Context, player: Address) -> bool {
     let num = get_random_number(player, 1);
     // If win transfer to player
     let call_ctx = ctx

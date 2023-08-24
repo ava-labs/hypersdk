@@ -1,7 +1,7 @@
 #![allow(clippy::new_without_default)]
 use crate::errors::StorageError;
 use crate::host::init_program_storage;
-use crate::store::ProgramContext;
+use crate::store::Context;
 use serde::Serialize;
 use thiserror::Error;
 
@@ -13,7 +13,7 @@ pub enum ProgramError {
 
 /// Program represents a program and its associated fields.
 pub struct Program {
-    ctx: ProgramContext,
+    ctx: Context,
 }
 
 impl Program {

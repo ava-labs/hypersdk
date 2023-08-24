@@ -6,15 +6,15 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_slice, to_vec};
 use std::str;
-/// ProgramContext defines helper methods for the program builder
+/// Context defines helper methods for the program builder
 /// to interact with the host.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct ProgramContext {
+pub struct Context {
     pub program_id: i64,
 }
 
 /// Fails if we are storing a map with non-string keys
-impl ProgramContext {
+impl Context {
     pub fn store_value<T>(&self, key: &str, value: &T) -> Result<(), StorageError>
     where
         T: Serialize,
@@ -65,23 +65,19 @@ impl ProgramContext {
     }
 }
 
-impl From<ProgramContext> for i64 {
-    fn from(ctx: ProgramContext) -> Self {
+impl From<Context> for i64 {
+    fn from(ctx: Context) -> Self {
         ctx.program_id
     }
 }
 
-impl From<i64> for ProgramContext {
+impl From<i64> for Context {
     fn from(value: i64) -> Self {
-        ProgramContext { program_id: value }
+        Context { program_id: value }
     }
 }
 
-fn store_key_value(
-    ctx: &ProgramContext,
-    key_bytes: Vec<u8>,
-    value: Vec<u8>,
-) -> Result<(), StorageError> {
+fn store_key_value(ctx: &Context, key_bytes: Vec<u8>, value: Vec<u8>) -> Result<(), StorageError> {
     match unsafe {
         store_bytes(
             ctx,
@@ -96,7 +92,7 @@ fn store_key_value(
     }
 }
 
-fn get_field_as_bytes(ctx: &ProgramContext, name: &[u8]) -> Result<Vec<u8>, StorageError> {
+fn get_field_as_bytes(ctx: &Context, name: &[u8]) -> Result<Vec<u8>, StorageError> {
     let name_ptr = name.as_ptr();
     let name_len = name.len();
     // First get the length of the bytes from the host.
@@ -119,7 +115,7 @@ fn get_field_as_bytes(ctx: &ProgramContext, name: &[u8]) -> Result<Vec<u8>, Stor
 }
 
 /// Gets the field [name] from the host and returns it as a ProgramValue.
-fn get_field<T>(ctx: &ProgramContext, name: &str) -> Result<T, StorageError>
+fn get_field<T>(ctx: &Context, name: &str) -> Result<T, StorageError>
 where
     T: DeserializeOwned,
 {
@@ -140,7 +136,7 @@ where
 }
 
 // Gets the value from the map [name] with key [key] from the host and returns it as a ProgramValue.
-fn get_map_field<T, U>(ctx: &ProgramContext, name: &str, key: &T) -> Result<U, StorageError>
+fn get_map_field<T, U>(ctx: &Context, name: &str, key: &T) -> Result<U, StorageError>
 where
     T: DeserializeOwned + Serialize,
     U: DeserializeOwned + Serialize,
@@ -150,12 +146,12 @@ where
     from_slice(&map_value).map_err(|_| StorageError::HostRetrieveError())
 }
 
-/// Implement the program_invoke function for the ProgramContext which allows a program to
+/// Implement the program_invoke function for the Context which allows a program to
 /// call another program.
-impl ProgramContext {
+impl Context {
     pub fn program_invoke(
         &self,
-        call_ctx: &ProgramContext,
+        call_ctx: &Context,
         fn_name: &str,
         call_args: &[Box<dyn Argument>],
     ) -> i64 {

@@ -1,7 +1,7 @@
 use expose_macro::expose;
 use serde_derive::{Deserialize, Serialize};
 use wasmlanche_sdk::program::Program;
-use wasmlanche_sdk::store::ProgramContext;
+use wasmlanche_sdk::store::Context;
 use wasmlanche_sdk::types::Address;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -25,7 +25,7 @@ pub fn init_program() -> i64 {
 }
 
 #[expose]
-pub fn catch(ctx: ProgramContext, player: Address) -> bool {
+pub fn catch(ctx: Context, player: Address) -> bool {
     let pokemon = Pokemon {
         name: String::from("Pikachu"),
         level: 1,
@@ -40,7 +40,7 @@ pub fn catch(ctx: ProgramContext, player: Address) -> bool {
 }
 
 #[expose]
-pub fn get_owned(ctx: ProgramContext, player: Address) -> bool {
+pub fn get_owned(ctx: Context, player: Address) -> bool {
     // get players pokemon and print to screen
     let owned: OwnedPokemon = ctx
         .get_map_value("owned", &player)

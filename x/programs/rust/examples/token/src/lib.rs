@@ -1,5 +1,5 @@
 use wasmlanche_sdk::program::Program;
-use wasmlanche_sdk::store::ProgramContext;
+use wasmlanche_sdk::store::Context;
 use wasmlanche_sdk::types::{Address, Bytes32};
 
 use expose_macro::expose;
@@ -21,20 +21,20 @@ pub fn init_program() -> i64 {
 
 /// Gets total supply or -1 on error.
 #[expose]
-pub fn get_total_supply(ctx: ProgramContext) -> i64 {
+pub fn get_total_supply(ctx: Context) -> i64 {
     ctx.get_value("total_supply").unwrap()
 }
 
 /// Adds amount coins to the recipients balance.
 #[expose]
-pub fn mint_to(ctx: ProgramContext, recipient: Address, amount: i64) -> bool {
+pub fn mint_to(ctx: Context, recipient: Address, amount: i64) -> bool {
     let amount: i64 = amount + ctx.get_map_value("balances", &recipient).unwrap_or(0);
     ctx.store_map_value("balances", &recipient, &amount).is_ok()
 }
 
 /// Transfers amount coins from the sender to the recipient. Returns whether successful.
 #[expose]
-pub fn transfer(ctx: ProgramContext, sender: Address, recipient: Address, amount: i64) -> bool {
+pub fn transfer(ctx: Context, sender: Address, recipient: Address, amount: i64) -> bool {
     // require sender != recipient
     if sender == recipient {
         return false;
@@ -52,6 +52,6 @@ pub fn transfer(ctx: ProgramContext, sender: Address, recipient: Address, amount
 
 /// Gets the balance of the recipient.
 #[expose]
-pub fn get_balance(ctx: ProgramContext, recipient: Address) -> i64 {
+pub fn get_balance(ctx: Context, recipient: Address) -> i64 {
     ctx.get_map_value("balances", &recipient).unwrap_or(0)
 }
