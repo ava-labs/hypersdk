@@ -285,7 +285,7 @@ func (vm *VM) Initialize(
 		if err != nil {
 			snowCtx.Log.Error("could not get merkle root", zap.Error(err))
 		}
-		snowCtx.Log.Debug("genesis state created", zap.Stringer("root", root))
+		snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
 
 		// Create genesis block
 		genesisBlk, err := chain.ParseStatefulBlock(
@@ -711,7 +711,8 @@ func (vm *VM) Submit(
 		return []error{err}
 	}
 	state := chain.NewReadOnlyDatabase(rawState)
-	feeRaw, err := state.GetValue(ctx, vm.StateManager().FeeKey())
+	feeKey := keys.EncodeChunks(vm.StateManager().FeeKey(), chain.FeeKeyChunks)
+	feeRaw, err := state.GetValue(ctx, feeKey)
 	if err != nil {
 		return []error{err}
 	}

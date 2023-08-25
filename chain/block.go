@@ -512,7 +512,8 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 
 	// Compute next unit prices to use
-	feeRaw, err := parentState.GetValue(ctx, b.vm.StateManager().FeeKey())
+	feeKey := keys.EncodeChunks(b.vm.StateManager().FeeKey(), FeeKeyChunks)
+	feeRaw, err := parentState.GetValue(ctx, feeKey)
 	if err != nil {
 		return nil, err
 	}
@@ -556,7 +557,6 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	sm := b.vm.StateManager()
 	heightKey := keys.EncodeChunks(sm.HeightKey(), HeightKeyChunks)
 	heightKeyStr := string(heightKey)
-	feeKey := keys.EncodeChunks(sm.FeeKey(), FeeKeyChunks)
 	feeKeyStr := string(feeKey)
 	ts.SetScope(ctx, set.Set[string]{
 		heightKeyStr: {},
