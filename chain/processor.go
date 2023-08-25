@@ -107,7 +107,7 @@ func (p *Processor) Execute(
 	ctx context.Context,
 	feeManager *FeeManager,
 	r Rules,
-) ([]*Result, int, int, error) {
+) ([]*Result, *tstate.TState, error) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Execute")
 	defer span.End()
 
@@ -119,7 +119,7 @@ func (p *Processor) Execute(
 	)
 	for txData := range p.readyTxs {
 		if p.err != nil {
-			return nil, 0, 0, p.err
+			return nil, nil, p.err
 		}
 
 		tx := txData.tx
@@ -127,17 +127,17 @@ func (p *Processor) Execute(
 		// Ensure can process next tx
 		nextUnits, err := tx.MaxUnits(sm, r)
 		if err != nil {
-			return nil, 0, 0, err
+			return nil, nil, err
 		}
 		if ok, dimension := feeManager.CanConsume(nextUnits, r.GetMaxBlockUnits()); !ok {
-			return nil, 0, 0, fmt.Errorf("dimension %d exceeds limit", dimension)
+			return nil, nil, fmt.Errorf("dimension %d exceeds limit", dimension)
 		}
 
 		// It is critical we explicitly set the scope before each transaction is
 		// processed
 		stateKeys, err := tx.StateKeys(sm)
 		if err != nil {
-			return nil, 0, 0, err
+			return nil, nil, err
 		}
 		ts.SetScope(ctx, stateKeys, txData.storage)
 
@@ -145,10 +145,10 @@ func (p *Processor) Execute(
 		preExecuteStart := ts.OpIndex()
 		authCUs, err := tx.PreExecute(ctx, feeManager, sm, r, ts, t)
 		if err != nil {
-			return nil, 0, 0, err
+			return nil, nil, err
 		}
 		if preExecuteStart != ts.OpIndex() {
-			return nil, 0, 0, ErrPreExecuteMutates
+			return nil, nil, ErrPreExecuteMutates
 		}
 		// Wait to execute transaction until we have the warp result processed.
 		//
@@ -160,26 +160,23 @@ func (p *Processor) Execute(
 			select {
 			case warpVerified = <-warpMsg.verifiedChan:
 			case <-ctx.Done():
-				return nil, 0, 0, ctx.Err()
+				return nil, nil, ctx.Err()
 			}
 		}
 		result, err := tx.Execute(ctx, feeManager, authCUs, txData.coldReads, txData.warmReads, sm, r, ts, t, ok && warpVerified)
 		if err != nil {
-			return nil, 0, 0, err
+			return nil, nil, err
 		}
 		results = append(results, result)
 
 		// Update block metadata with units actually consumed
 		if err := feeManager.Consume(result.Consumed); err != nil {
-			return nil, 0, 0, err
+			return nil, nil, err
 		}
 	}
 	// Wait until end to write changes to avoid conflicting with pre-fetching
 	if p.err != nil {
-		return nil, 0, 0, p.err
+		return nil, nil, p.err
 	}
-	if err := ts.WriteChanges(ctx, p.db, p.tracer); err != nil {
-		return nil, 0, 0, err
-	}
-	return results, ts.PendingChanges(), ts.OpIndex(), nil
+	return results, ts, nil
 }

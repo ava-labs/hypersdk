@@ -96,6 +96,12 @@ type Mempool interface {
 	FinishStreaming(context.Context, []*Transaction) int
 }
 
+// TODO: better naming?
+type StateDatabase interface {
+	NewViewFromMap(ctx context.Context, changes map[string]*merkledb.ChangeOp, copyBytes bool) (merkledb.TrieView, error)
+	GetValue(ctx context.Context, key []byte) (value []byte, err error)
+}
+
 type Database interface {
 	GetValue(ctx context.Context, key []byte) ([]byte, error)
 }

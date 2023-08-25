@@ -505,13 +505,13 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	// Fetch parent state
 	//
 	// This function may verify the parent if it is not yet verified.
-	state, err := parent.childState(ctx, len(b.Txs)*2)
+	parentState, err := parent.State(ctx, true)
 	if err != nil {
 		return nil, err
 	}
 
 	// Compute next unit prices to use
-	feeRaw, err := state.GetValue(ctx, b.vm.StateManager().FeeKey())
+	feeRaw, err := parentState.GetValue(ctx, b.vm.StateManager().FeeKey())
 	if err != nil {
 		return nil, err
 	}
@@ -523,16 +523,14 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Optimisticaly fetch state
 	processor := NewProcessor(b.vm.Tracer(), b)
-	processor.Prefetch(ctx, state)
+	processor.Prefetch(ctx, parentState)
 
 	// Process new transactions
-	results, stateChanges, stateOps, err := processor.Execute(ctx, nextFeeManager, r)
+	results, ts, err := processor.Execute(ctx, nextFeeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return nil, err
 	}
-	b.vm.RecordStateChanges(stateChanges)
-	b.vm.RecordStateOperations(stateOps)
 	b.results = results
 	b.feeManager = nextFeeManager
 
@@ -554,12 +552,20 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 
 	// Store height in state to prevent duplicate roots
-	if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+	if err := ts.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, err
 	}
 
 	// Store fee parameters
-	if err := state.Insert(ctx, b.vm.StateManager().FeeKey(), nextFeeManager.Bytes()); err != nil {
+	if err := ts.Insert(ctx, b.vm.StateManager().FeeKey(), nextFeeManager.Bytes()); err != nil {
+		return nil, err
+	}
+
+	// Get view from [tstate] after writing all changed keys
+	b.vm.RecordStateChanges(ts.PendingChanges())
+	b.vm.RecordStateOperations(ts.OpIndex())
+	state, err := ts.CreateView(ctx, parentState, b.vm.Tracer())
+	if err != nil {
 		return nil, err
 	}
 
@@ -684,52 +690,39 @@ func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Hght }
 // implements "snowman.Block"
 func (b *StatelessBlock) Timestamp() time.Time { return b.t }
 
-// State is used to verify txs in the mempool. It should never be written to.
-//
-// TODO: we should modify the interface here to only allow read-like messages
-func (b *StatelessBlock) State() (Database, error) {
-	if b.st == choices.Accepted || b.Hght == 0 /* genesis */ {
-		return b.vm.State()
-	}
-	if b.Processed() {
-		return b.state, nil
-	}
-	return nil, ErrBlockNotProcessed
-}
-
 // Used to determine if should notify listeners and/or pass to controller
 func (b *StatelessBlock) Processed() bool {
 	return b.state != nil
 }
 
-// TODO: more info
+// State.....
+//
+// TODO: we should modify the interface here to only allow read-like messages
 // We assume this will only be called once we are done syncing, so it is safe
 // to assume we will eventually get to a block with state.
-func (b *StatelessBlock) StateAndVerifyIfNot(
-	ctx context.Context,
-	estimatedChanges int,
-) (merkledb.TrieView, error) {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.StateAndVerifyIfNot")
+func (b *StatelessBlock) State(ctx context.Context, verify bool) (StateDatabase, error) {
+	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.State",
+		oteltrace.WithAttributes(
+			attribute.Bool("verify", verify),
+			attribute.Bool("processed", b.Processed()),
+		),
+	)
 	defer span.End()
 
-	// Return committed state if block is accepted or this is genesis.
 	if b.st == choices.Accepted || b.Hght == 0 /* genesis */ {
-		state, err := b.vm.State()
-		if err != nil {
-			return nil, err
-		}
-		return state, nil
+		return b.vm.State()
 	}
-
-	// Process block if not yet processed and not yet accepted.
 	if !b.Processed() {
-		b.vm.Logger().
-			Info("verifying parent when childState requested", zap.Uint64("height", b.Hght))
-		state, err := b.innerVerify(ctx)
-		if err != nil {
-			return nil, err
+		if verify {
+			b.vm.Logger().Info("verifying parent when requesting state", zap.Uint64("height", b.Hght))
+			state, err := b.innerVerify(ctx)
+			if err != nil {
+				return nil, err
+			}
+			b.state = state
+		} else {
+			return nil, ErrBlockNotProcessed
 		}
-		b.state = state
 	}
 	return b.state, nil
 }
