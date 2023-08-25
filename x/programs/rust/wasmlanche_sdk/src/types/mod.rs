@@ -1,4 +1,4 @@
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
 use crate::store::Context;
@@ -113,30 +113,5 @@ impl Argument for Context {
     }
     fn is_primitive(&self) -> bool {
         true
-    }
-}
-
-// Implement Box<dyn Argument> for all types that implement Argument.
-impl From<i64> for Box<dyn Argument> {
-    fn from(value: i64) -> Self {
-        Box::new(value)
-    }
-}
-
-impl From<Bytes32> for Box<dyn Argument> {
-    fn from(value: Bytes32) -> Self {
-        Box::new(value)
-    }
-}
-
-impl From<Address> for Box<dyn Argument> {
-    fn from(value: Address) -> Self {
-        Box::new(value)
-    }
-}
-
-impl From<Context> for Box<dyn Argument> {
-    fn from(value: Context) -> Self {
-        Box::new(value)
     }
 }

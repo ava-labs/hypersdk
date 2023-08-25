@@ -6,17 +6,17 @@ pub enum StorageError {
     Other(String),
 
     #[error("Invalid byte format.")]
-    InvalidBytes(),
+    InvalidBytes,
 
     #[error("Invalid Byte Length: {0}")]
-    InvalidByteLength(i64),
+    InvalidByteLength(usize),
 
     #[error("Invalid Tag: {0}")]
     InvalidTag(u8),
 
     #[error("Error Storing Bytes In The Host")]
-    HostStoreError(),
+    HostStoreError,
 
     #[error("Error Retrieving Bytes In The Host")]
-    HostRetrieveError(),
+    HostRetrieveError,
 }

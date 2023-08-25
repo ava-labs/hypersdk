@@ -50,9 +50,9 @@ impl Context {
     where
         T: DeserializeOwned,
     {
-        match get_field(self, name).expect("msg") {
-            Some(value) => Ok(value),
-            None => Err(StorageError::HostRetrieveError()),
+        match get_field(self, name) {
+            Ok(value) => Ok(value),
+            Err(_) => Err(StorageError::HostRetrieveError),
         }
     }
     pub fn get_map_value<T, U>(&self, map_name: &str, key: &T) -> Result<U, StorageError>
@@ -88,7 +88,7 @@ fn store_key_value(ctx: &Context, key_bytes: Vec<u8>, value: Vec<u8>) -> Result<
         )
     } {
         0 => Ok(()),
-        _ => Err(StorageError::HostStoreError()),
+        _ => Err(StorageError::HostStoreError),
     }
 }
 
@@ -99,13 +99,13 @@ fn get_field_as_bytes(ctx: &Context, name: &[u8]) -> Result<Vec<u8>, StorageErro
     let bytes_len = unsafe { get_bytes_len(ctx, name_ptr, name_len) };
     // Speculation that compiler might be optimizing out this if statement.
     if bytes_len < 0 {
-        return Err(StorageError::InvalidByteLength(bytes_len as i64));
+        return Err(StorageError::HostRetrieveError);
     }
     // Get_bytes allocates bytes_len memory in the WASM module.
     let bytes_ptr = unsafe { get_bytes(ctx, name_ptr, name_len, bytes_len) };
     // Defensive check here to unsure we don't grab out of bounds memory.
     if bytes_ptr < 0 {
-        return Err(StorageError::HostRetrieveError());
+        return Err(StorageError::HostRetrieveError);
     }
     let bytes_ptr = bytes_ptr as *mut u8;
 
@@ -120,7 +120,7 @@ where
     T: DeserializeOwned,
 {
     let bytes = get_field_as_bytes(ctx, name.as_bytes())?;
-    from_slice(&bytes).map_err(|_| StorageError::HostRetrieveError())
+    from_slice(&bytes).map_err(|_| StorageError::HostRetrieveError)
 }
 
 /// Gets the correct key to in the host storage for a [map_name] and [key] within that map  
@@ -128,11 +128,9 @@ fn get_map_key<T>(map_name: &str, key: &T) -> Result<Vec<u8>, StorageError>
 where
     T: Serialize,
 {
-    let key_bytes = match to_vec(key) {
-        Ok(bytes) => bytes,
-        Err(_) => return Err(StorageError::InvalidBytes()),
-    };
-    Ok([map_name.as_bytes(), &key_bytes].concat()) // 2147483647
+    to_vec(key)
+        .map(|bytes| [map_name.as_bytes(), &bytes].concat())
+        .or(Err(StorageError::InvalidBytes))
 }
 
 // Gets the value from the map [name] with key [key] from the host and returns it as a ProgramValue.
@@ -143,7 +141,7 @@ where
 {
     let map_key = get_map_key(name, key)?;
     let map_value = get_field_as_bytes(ctx, &map_key)?;
-    from_slice(&map_value).map_err(|_| StorageError::HostRetrieveError())
+    from_slice(&map_value).map_err(|_| StorageError::HostRetrieveError)
 }
 
 /// Implement the program_invoke function for the Context which allows a program to
@@ -161,10 +159,10 @@ impl Context {
     fn marshal_args(args: &[Box<dyn Argument>]) -> Vec<u8> {
         use std::mem::size_of;
         // Size of meta data for each argument
-        let meta_size = size_of::<i64>() + 1;
+        const META_SIZE: usize = size_of::<i64>() + 1;
 
         // Calculate the total size of the combined byte slices
-        let total_size: usize = args.iter().map(|cow| cow.len() + meta_size).sum();
+        let total_size = args.iter().map(|cow| cow.len() + META_SIZE).sum();
 
         // Create a mutable Vec<u8> to hold the combined bytes
         let mut bytes = Vec::with_capacity(total_size);

@@ -43,7 +43,7 @@ fn play(ctx: Context, player: Address) -> bool {
     ctx.program_invoke(
         &call_ctx,
         "transfer",
-        &[lotto_addy.into(), player.into(), num.into()],
+        &[Box::new(lotto_addy), Box::new(player), Box::new(num)],
     );
     true
 }

@@ -1,5 +1,5 @@
 use expose_macro::expose;
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use wasmlanche_sdk::program::Program;
 use wasmlanche_sdk::store::Context;
 use wasmlanche_sdk::types::Address;

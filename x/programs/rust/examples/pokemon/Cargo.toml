@@ -10,8 +10,7 @@ expose_macro = { version = "0.1.0", path = "../../expose_macro" }
 wasmlanche_sdk = { version = "0.1.0", path = "../../wasmlanche_sdk" }
 rand = "0.8.5"
 rand_chacha = "0.3.1"
-serde_derive = "1.0.185"
-serde = "1.0.185"
+serde = { version = "1.0.185", features = ["derive"] }
 
 
 [lib]
