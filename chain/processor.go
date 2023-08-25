@@ -36,7 +36,7 @@ type Processor struct {
 	err      error
 	blk      *StatelessBlock
 	readyTxs chan *txData
-	db       Database
+	db       StateDatabase
 }
 
 // Only prepare for population if above last accepted height
@@ -49,7 +49,7 @@ func NewProcessor(tracer trace.Tracer, b *StatelessBlock) *Processor {
 	}
 }
 
-func (p *Processor) Prefetch(ctx context.Context, db Database) {
+func (p *Processor) Prefetch(ctx context.Context, db StateDatabase) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Prefetch")
 	p.db = db
 	sm := p.blk.vm.StateManager()

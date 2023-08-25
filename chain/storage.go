@@ -10,10 +10,10 @@ import (
 var _ Database = (*ReadOnlyDatabase)(nil)
 
 type ReadOnlyDatabase struct {
-	Database
+	StateDatabase
 }
 
-func NewReadOnlyDatabase(db Database) *ReadOnlyDatabase {
+func NewReadOnlyDatabase(db StateDatabase) Database {
 	return &ReadOnlyDatabase{db}
 }
 

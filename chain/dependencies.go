@@ -102,8 +102,11 @@ type StateDatabase interface {
 	GetValue(ctx context.Context, key []byte) (value []byte, err error)
 }
 
+// TODO: better naming
 type Database interface {
 	GetValue(ctx context.Context, key []byte) ([]byte, error)
+	Insert(ctx context.Context, key []byte, value []byte) error
+	Remove(ctx context.Context, key []byte) error
 }
 
 type Rules interface {
