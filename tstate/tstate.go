@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/keys"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -23,11 +24,6 @@ type op struct {
 	pastChanged bool
 }
 
-type tempStorage struct {
-	v       []byte
-	removed bool
-}
-
 type cacheItem struct {
 	Value  []byte
 	Exists bool
@@ -35,7 +31,7 @@ type cacheItem struct {
 
 // TState defines a struct for storing temporary state.
 type TState struct {
-	changedKeys map[string]*tempStorage
+	changedKeys map[string]*merkledb.ChangeOp
 	fetchCache  map[string]*cacheItem // in case we evict and want to re-fetch
 
 	// We don't differentiate between read and write scope.
@@ -58,7 +54,7 @@ type TState struct {
 // maps to have an initial size of [storageSize] and [changedSize] respectively.
 func New(changedSize int) *TState {
 	return &TState{
-		changedKeys: make(map[string]*tempStorage, changedSize),
+		changedKeys: make(map[string]*merkledb.ChangeOp, changedSize),
 
 		fetchCache: map[string]*cacheItem{},
 
@@ -95,10 +91,10 @@ func (ts *TState) Exists(ctx context.Context, key []byte) (bool, bool, error) {
 
 func (ts *TState) getValue(_ context.Context, key string) ([]byte, bool, bool) {
 	if v, ok := ts.changedKeys[key]; ok {
-		if v.removed {
+		if v.Delete {
 			return nil, true, false
 		}
-		return v.v, true, true
+		return v.Value, true, true
 	}
 	v, ok := ts.scopeStorage[key]
 	if !ok {
@@ -212,7 +208,7 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 		pastV:       past,
 		pastChanged: changed,
 	})
-	ts.changedKeys[k] = &tempStorage{value, false}
+	ts.changedKeys[k] = &merkledb.ChangeOp{Value: value, Delete: false}
 	return nil
 }
 
@@ -250,7 +246,7 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 		pastV:       past,
 		pastChanged: changed,
 	})
-	ts.changedKeys[k] = &tempStorage{nil, true}
+	ts.changedKeys[k] = &merkledb.ChangeOp{Value: nil, Delete: true}
 	return nil
 }
 
@@ -277,32 +273,27 @@ func (ts *TState) Rollback(_ context.Context, restorePoint int) {
 		// insert: Modified key for the nth time
 		//
 		// remove: Removed key that was previously modified in run
-		ts.changedKeys[op.k] = &tempStorage{op.pastV, !op.pastExists}
+		ts.changedKeys[op.k] = &merkledb.ChangeOp{Value: op.pastV, Delete: !op.pastExists}
 	}
 	ts.ops = ts.ops[:restorePoint]
 }
 
-// CreateBatch creates a slice of [database.BatchOp] of all
-// changes in [TState] that can be used to commit to the [merkledb].
-func (ts *TState) CollectChanges(
+// CreateView creates a slice of [database.BatchOp] of all
+// changes in [TState] that can be used to commit to [merkledb].
+func (ts *TState) CreateView(
 	ctx context.Context,
+	db Database,
 	t trace.Tracer, //nolint:interfacer
-) []database.BatchOp {
+) (merkledb.TrieView, error) {
 	ctx, span := t.Start(
-		ctx, "TState.CollectChanges",
+		ctx, "TState.CreateView",
 		oteltrace.WithAttributes(
 			attribute.Int("items", len(ts.changedKeys)),
 		),
 	)
 	defer span.End()
 
-	ops := make([]database.BatchOp, len(ts.changedKeys))
-	count := 0
-	for key, tstorage := range ts.changedKeys {
-		ops[count] = database.BatchOp{Key: []byte(key), Value: tstorage.v, Delete: tstorage.removed}
-		count++
-	}
-	return ops
+	return db.NewViewFromMap(ctx, ts.changedKeys, false)
 }
 
 // updateChunks sets the number of chunks associated with a key that will
