@@ -4,7 +4,7 @@ use crate::host::{get_bytes, get_bytes_len, store_bytes};
 use crate::types::Argument;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_json::{from_slice, to_vec};
+use serde_bare::{from_slice, to_vec};
 use std::str;
 /// Context defines helper methods for the program builder
 /// to interact with the host.
@@ -21,11 +21,8 @@ impl Context {
     {
         let key_bytes = key.as_bytes();
         // Add the tag(u8) to the start of val_bytes
-        store_key_value(
-            self,
-            key_bytes.to_vec(),
-            to_vec(value).expect("Serialization failed"),
-        )
+
+        store_key_value(self, key_bytes.to_vec(), value)
     }
 
     pub fn store_map_value<T, U>(
@@ -40,11 +37,7 @@ impl Context {
     {
         let key_bytes = get_map_key(map_name, &key)?;
         // Add a tag(u8) to the start of val_bytes
-        store_key_value(
-            self,
-            key_bytes,
-            to_vec(value).expect("Serialization failed"),
-        )
+        store_key_value(self, key_bytes, value)
     }
     pub fn get_value<T>(&self, name: &str) -> Result<T, StorageError>
     where
@@ -52,7 +45,7 @@ impl Context {
     {
         match get_field(self, name) {
             Ok(value) => Ok(value),
-            Err(_) => Err(StorageError::HostRetrieveError),
+            Err(err) => Err(err),
         }
     }
     pub fn get_map_value<T, U>(&self, map_name: &str, key: &T) -> Result<U, StorageError>
@@ -77,14 +70,18 @@ impl From<i64> for Context {
     }
 }
 
-fn store_key_value(ctx: &Context, key_bytes: Vec<u8>, value: Vec<u8>) -> Result<(), StorageError> {
+fn store_key_value<T>(ctx: &Context, key_bytes: Vec<u8>, value: &T) -> Result<(), StorageError>
+where
+    T: Serialize,
+{
+    let value_bytes = to_vec(value).expect("Serialization failed");
     match unsafe {
         store_bytes(
             ctx,
             key_bytes.as_ptr(),
             key_bytes.len(),
-            value.as_ptr(),
-            value.len(),
+            value_bytes.as_ptr(),
+            value_bytes.len(),
         )
     } {
         0 => Ok(()),
@@ -120,7 +117,7 @@ where
     T: DeserializeOwned,
 {
     let bytes = get_field_as_bytes(ctx, name.as_bytes())?;
-    from_slice(&bytes).map_err(|_| StorageError::HostRetrieveError)
+    from_slice(&bytes).map_err(|_| StorageError::InvalidBytes)
 }
 
 /// Gets the correct key to in the host storage for a [map_name] and [key] within that map  
