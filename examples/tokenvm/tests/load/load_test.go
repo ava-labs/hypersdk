@@ -352,6 +352,7 @@ var _ = ginkgo.AfterSuite(func() {
 		parse1, parse2, parseDur := getHalfAverages(instance.parse)
 		verify1, verify2, verifyDur := getHalfAverages(instance.verify)
 		accept1, accept2, acceptDur := getHalfAverages(instance.accept)
+		// TODO: this should include the gap?
 		t := parseDur + verifyDur + acceptDur
 		fb := float64(blocks)
 		log.Info("block verification",
