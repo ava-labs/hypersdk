@@ -42,6 +42,7 @@ import (
 	"github.com/ava-labs/hypersdk/network"
 	"github.com/ava-labs/hypersdk/rpc"
 	htrace "github.com/ava-labs/hypersdk/trace"
+	"github.com/ava-labs/hypersdk/tstate"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
 )
@@ -257,16 +258,13 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
 	} else {
 		// Set balances
-		view, err := vm.stateDB.NewView()
-		if err != nil {
-			return err
-		}
-		if err := vm.genesis.Load(ctx, vm.tracer, view); err != nil {
+		ts := tstate.New(1_024) // TODO: make a const
+		if err := vm.genesis.Load(ctx, vm.tracer, ts); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}
 		// Set last height
-		if err := view.Insert(ctx, vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := ts.Insert(ctx, vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
 		// Set fee parameters
@@ -277,7 +275,11 @@ func (vm *VM) Initialize(
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 		}
-		if err := view.Insert(ctx, vm.StateManager().FeeKey(), feeManager.Bytes()); err != nil {
+		if err := ts.Insert(ctx, vm.StateManager().FeeKey(), feeManager.Bytes()); err != nil {
+			return err
+		}
+		view, err := ts.CreateView(ctx, vm.stateDB, vm.tracer)
+		if err != nil {
 			return err
 		}
 		if err := view.CommitToDB(ctx); err != nil {
@@ -707,7 +709,7 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	rawState, err := blk.State()
+	rawState, err := blk.State(ctx, false)
 	if err != nil {
 		// This will error if a block does not yet have processed state.
 		return []error{err}
