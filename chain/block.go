@@ -23,6 +23,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
 	"github.com/ava-labs/hypersdk/workers"
@@ -551,13 +552,27 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, ErrWarpResultMismatch
 	}
 
+	// Set scope for [tstate] changes
+	sm := b.vm.StateManager()
+	heightKey := keys.EncodeChunks(sm.HeightKey(), HeightKeyChunks)
+	heightKeyStr := string(heightKey)
+	feeKey := keys.EncodeChunks(sm.FeeKey(), FeeKeyChunks)
+	feeKeyStr := string(feeKey)
+	ts.SetScope(ctx, set.Set[string]{
+		heightKeyStr: {},
+		feeKeyStr:    {},
+	}, map[string][]byte{
+		heightKeyStr: binary.BigEndian.AppendUint64(nil, parent.Hght),
+		feeKeyStr:    feeManager.Bytes(),
+	})
+
 	// Store height in state to prevent duplicate roots
-	if err := ts.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, err
 	}
 
 	// Store fee parameters
-	if err := ts.Insert(ctx, b.vm.StateManager().FeeKey(), nextFeeManager.Bytes()); err != nil {
+	if err := ts.Insert(ctx, feeKey, nextFeeManager.Bytes()); err != nil {
 		return nil, err
 	}
 

@@ -463,14 +463,27 @@ func BuildBlock(
 		vm.RecordEmptyBlockBuilt()
 	}
 
+	// Set scope for [tstate] changes
+	heightKey := keys.EncodeChunks(sm.HeightKey(), HeightKeyChunks)
+	heightKeyStr := string(heightKey)
+	feeKey := keys.EncodeChunks(sm.FeeKey(), FeeKeyChunks)
+	feeKeyStr := string(feeKey)
+	ts.SetScope(ctx, set.Set[string]{
+		heightKeyStr: {},
+		feeKeyStr:    {},
+	}, map[string][]byte{
+		heightKeyStr: binary.BigEndian.AppendUint64(nil, parent.Hght),
+		feeKeyStr:    feeManager.Bytes(),
+	})
+
 	// Store height in state to prevent duplicate roots
-	if err := ts.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return nil, err
+	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return nil, fmt.Errorf("%w: unable to insert height", err)
 	}
 
 	// Store fee parameters
-	if err := ts.Insert(ctx, sm.FeeKey(), nextFeeManager.Bytes()); err != nil {
-		return nil, err
+	if err := ts.Insert(ctx, feeKey, nextFeeManager.Bytes()); err != nil {
+		return nil, fmt.Errorf("%w: unable to insert fees", err)
 	}
 
 	// Get view from [tstate] after writing all changed keys

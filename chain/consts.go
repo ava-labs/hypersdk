@@ -30,4 +30,6 @@ const (
 	// not the [Controller]. In this mechanism, we frequently query warp messages by TxID across
 	// ranges (so, we can't expose a way to modify this over time).
 	MaxOutgoingWarpChunks = 4
+	HeightKeyChunks       = 1
+	FeeKeyChunks          = 8 // 96 (per dimension) * 5 (num dimensions)
 )

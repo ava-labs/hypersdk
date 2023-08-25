@@ -38,11 +38,11 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/gossiper"
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/network"
 	"github.com/ava-labs/hypersdk/rpc"
 	htrace "github.com/ava-labs/hypersdk/trace"
-	"github.com/ava-labs/hypersdk/tstate"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
 )
@@ -258,13 +258,13 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
 	} else {
 		// Set balances
-		ts := tstate.New(1_024) // TODO: make a const
-		if err := vm.genesis.Load(ctx, vm.tracer, ts); err != nil {
+		sdb := chain.NewSimpleDatabase(vm.stateDB)
+		if err := vm.genesis.Load(ctx, vm.tracer, sdb); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}
 		// Set last height
-		if err := ts.Insert(ctx, vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sdb.Insert(ctx, keys.EncodeChunks(vm.StateManager().HeightKey(), chain.HeightKeyChunks), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
 		// Set fee parameters
@@ -275,14 +275,10 @@ func (vm *VM) Initialize(
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 		}
-		if err := ts.Insert(ctx, vm.StateManager().FeeKey(), feeManager.Bytes()); err != nil {
+		if err := sdb.Insert(ctx, keys.EncodeChunks(vm.StateManager().FeeKey(), chain.FeeKeyChunks), feeManager.Bytes()); err != nil {
 			return err
 		}
-		view, err := ts.CreateView(ctx, vm.stateDB, vm.tracer)
-		if err != nil {
-			return err
-		}
-		if err := view.CommitToDB(ctx); err != nil {
+		if err := sdb.Commit(ctx); err != nil {
 			return err
 		}
 		root, err := vm.stateDB.GetMerkleRoot(ctx)
