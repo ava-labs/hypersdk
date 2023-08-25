@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -57,7 +58,7 @@ var programCreateCmd = &cobra.Command{
 		}
 
 		// spoof txID
-		txID := ids.GenerateTestID()
+		txID := fakeID()
 
 		pk, err := parseAddress(callerAddress)
 		if err != nil {
@@ -125,23 +126,46 @@ var programInvokeCmd = &cobra.Command{
 			return err
 		}
 
-		// TODO: parse params from flags
-
-		var params []uint64
-		// push caller onto stack
-		caller, err := runtime.WriteGuestBuffer(ctx, pubKey[:])
-		if err != nil {
-			return err
+		var callParams []uint64
+		for _, param := range strings.Split(params, ",") {
+			switch p := strings.ToLower(param); {
+			case p == "true":
+				callParams = append(callParams, 1)
+			case p == "false":
+				callParams = append(callParams, 0)
+			case strings.HasPrefix(p, HRP):
+				// address
+				pk, err := parseAddress(p)
+				if err != nil {
+					return err
+				}
+				ptr, err := runtime.WriteGuestBuffer(ctx, pk[:])
+				if err != nil {
+					return err
+				}
+				callParams = append(callParams, ptr)
+			default:
+				id, _ := ids.FromString(p)
+				// id
+				if id != ids.Empty {
+					ptr, err := runtime.WriteGuestBuffer(ctx, id[:])
+					if err != nil {
+						return err
+					}
+					callParams = append(callParams, ptr)
+				} else {
+					return fmt.Errorf("param not handled please implement: %s", param)
+				}
+			}
 		}
 
-		params = append(params, caller)
-		resp, err := runtime.Call(ctx, functionName, params...)
+		resp, err := runtime.Call(ctx, functionName, callParams...)
 		if err != nil {
 			return err
 		}
 
 		// spoof txID
-		txID := ids.GenerateTestID()
+		txID := fakeID()
 
 		utils.Outf("{{green}}invoke action success txID:{{/}} %s\n", txID)
 		utils.Outf("{{green}}response:{{/}} %v\n", resp)
@@ -249,4 +273,8 @@ func address(pk ed25519.PublicKey) string {
 
 func parseAddress(s string) (ed25519.PublicKey, error) {
 	return ed25519.ParseAddress(HRP, s)
+}
+
+func fakeID() ids.ID {
+	return ids.Empty.Prefix(uint64(time.Now().UnixNano()))
 }
