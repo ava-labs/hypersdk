@@ -3,10 +3,10 @@
 
 package tstate
 
-import "context"
+import (
+	"context"
+)
 
 type Database interface {
 	GetValue(ctx context.Context, key []byte) (value []byte, err error)
-	Insert(ctx context.Context, key []byte, value []byte) error
-	Remove(ctx context.Context, key []byte) error
 }

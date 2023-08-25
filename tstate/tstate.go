@@ -282,33 +282,27 @@ func (ts *TState) Rollback(_ context.Context, restorePoint int) {
 	ts.ops = ts.ops[:restorePoint]
 }
 
-// WriteChanges updates [db] to reflect changes in ts. Insert to [db] if
-// key was added, or remove key if otherwise.
-func (ts *TState) WriteChanges(
+// CreateBatch creates a slice of [database.BatchOp] of all
+// changes in [TState] that can be used to commit to the [merkledb].
+func (ts *TState) CollectChanges(
 	ctx context.Context,
-	db Database,
 	t trace.Tracer, //nolint:interfacer
-) error {
+) []database.BatchOp {
 	ctx, span := t.Start(
-		ctx, "TState.WriteChanges",
+		ctx, "TState.CollectChanges",
 		oteltrace.WithAttributes(
 			attribute.Int("items", len(ts.changedKeys)),
 		),
 	)
 	defer span.End()
 
+	ops := make([]database.BatchOp, len(ts.changedKeys))
+	count := 0
 	for key, tstorage := range ts.changedKeys {
-		if !tstorage.removed {
-			if err := db.Insert(ctx, []byte(key), tstorage.v); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := db.Remove(ctx, []byte(key)); err != nil {
-			return err
-		}
+		ops[count] = database.BatchOp{Key: []byte(key), Value: tstorage.v, Delete: tstorage.removed}
+		count++
 	}
-	return nil
+	return ops
 }
 
 // updateChunks sets the number of chunks associated with a key that will

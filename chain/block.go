@@ -688,7 +688,7 @@ func (b *StatelessBlock) Timestamp() time.Time { return b.t }
 //
 // TODO: we should modify the interface here to only allow read-like messages
 func (b *StatelessBlock) State() (Database, error) {
-	if b.st == choices.Accepted {
+	if b.st == choices.Accepted || b.Hght == 0 /* genesis */ {
 		return b.vm.State()
 	}
 	if b.Processed() {
@@ -704,11 +704,11 @@ func (b *StatelessBlock) Processed() bool {
 
 // We assume this will only be called once we are done syncing, so it is safe
 // to assume we will eventually get to a block with state.
-func (b *StatelessBlock) childState(
+func (b *StatelessBlock) StateAndVerifyIfNot(
 	ctx context.Context,
 	estimatedChanges int,
 ) (merkledb.TrieView, error) {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.childState")
+	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.StateAndVerifyIfNot")
 	defer span.End()
 
 	// Return committed state if block is accepted or this is genesis.
@@ -717,7 +717,7 @@ func (b *StatelessBlock) childState(
 		if err != nil {
 			return nil, err
 		}
-		return state.NewPreallocatedView(estimatedChanges)
+		return state, nil
 	}
 
 	// Process block if not yet processed and not yet accepted.
@@ -730,7 +730,7 @@ func (b *StatelessBlock) childState(
 		}
 		b.state = state
 	}
-	return b.state.NewPreallocatedView(estimatedChanges)
+	return b.state, nil
 }
 
 // IsRepeat returns a bitset of all transactions that are considered repeats in

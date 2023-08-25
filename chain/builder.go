@@ -463,30 +463,33 @@ func BuildBlock(
 		vm.RecordEmptyBlockBuilt()
 	}
 
-	// Get root from underlying state changes after writing all changed keys
-	if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
-		return nil, err
-	}
-
 	// Store height in state to prevent duplicate roots
-	if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+	if err := ts.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, err
 	}
 
 	// Store fee parameters
-	if err := state.Insert(ctx, sm.FeeKey(), nextFeeManager.Bytes()); err != nil {
+	if err := ts.Insert(ctx, sm.FeeKey(), nextFeeManager.Bytes()); err != nil {
+		return nil, err
+	}
+
+	// Get root from underlying state changes after writing all changed keys
+	vctx, viewSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.NewView")
+	v, err := state.NewView(vctx, ts.CollectChanges(vctx, vm.Tracer()))
+	viewSpan.End()
+	if err != nil {
 		return nil, err
 	}
 
 	// Compute state root after all data has been written to trie
-	root, err := state.GetMerkleRoot(ctx)
+	root, err := v.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
 	b.StateRoot = root
 
 	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, state, results, nextFeeManager); err != nil {
+	if err := b.initializeBuilt(ctx, v, results, nextFeeManager); err != nil {
 		return nil, err
 	}
 	log.Info(

@@ -98,8 +98,6 @@ type Mempool interface {
 
 type Database interface {
 	GetValue(ctx context.Context, key []byte) ([]byte, error)
-	Insert(ctx context.Context, key []byte, value []byte) error
-	Remove(ctx context.Context, key []byte) error
 }
 
 type Rules interface {
