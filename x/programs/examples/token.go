@@ -40,8 +40,6 @@ func (t *Token) Run(ctx context.Context) error {
 		"mint_to",
 		"get_balance",
 		"transfer",
-		"alloc",
-		"dealloc",
 		"init_program",
 	}
 
@@ -50,6 +48,8 @@ func (t *Token) Run(ctx context.Context) error {
 	store := newProgramStorage(db)
 
 	runtime := runtime.New(t.log, meter, store)
+	defer runtime.Stop(ctx)
+
 	err := runtime.Initialize(ctx, t.programBytes, functions)
 	if err != nil {
 		return err
@@ -111,22 +111,6 @@ func (t *Token) Run(ctx context.Context) error {
 	t.log.Debug("balance",
 		zap.Int64("alice", int64(result[0])),
 	)
-
-	// deallocate bytes
-	defer func() {
-		_, err = runtime.Call(ctx, "dealloc", alicePtr, ed25519.PublicKeyLen)
-		if err != nil {
-			t.log.Error("failed to deallocate alice ptr",
-				zap.Error(err),
-			)
-		}
-		_, err = runtime.Call(ctx, "dealloc", bobPtr, ed25519.PublicKeyLen)
-		if err != nil {
-			t.log.Error("failed to deallocate bob ptr",
-				zap.Error(err),
-			)
-		}
-	}()
 
 	// check balance of bob
 	result, err = runtime.Call(ctx, "get_balance", contract_id, bobPtr)

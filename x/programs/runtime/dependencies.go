@@ -19,7 +19,7 @@ type Runtime interface {
 	// WriteGuestBuffer allocates buf to the heap on the guest and returns the offset.
 	WriteGuestBuffer(context.Context, []byte) (uint64, error)
 	// Stop performs a shutdown of the engine.
-	Stop(context.Context) error
+	Stop(context.Context)
 }
 
 type Storage interface {

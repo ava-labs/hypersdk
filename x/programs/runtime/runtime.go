@@ -11,18 +11,15 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
-const (
-	allocFnName   = "alloc"
-	deallocFnName = "dealloc"
-)
-
+// New returns a new runtime instance. All runtimes are expected to run Stop
+// when no longer in use.
 func New(log logging.Logger, meter Meter, storage Storage) *runtime {
 	return &runtime{
 		log:      log,
@@ -35,10 +32,9 @@ func New(log logging.Logger, meter Meter, storage Storage) *runtime {
 type runtime struct {
 	cancelFn context.CancelFunc
 	engine   wazero.Runtime
-	mod      api.Module
+	client   *client
 	meter    Meter
 	storage  Storage
-	// functions exported by this runtime
 	exported map[string]api.Function
 	db       chain.Database
 
@@ -81,21 +77,12 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions
 		WithStderr(os.Stderr).
 		WithMeter(r.meter)
 
-	r.mod, err = r.engine.InstantiateModule(ctx, compiledModule, config)
+	mod, err := r.engine.InstantiateModule(ctx, compiledModule, config)
 	if err != nil {
 		return fmt.Errorf("failed to instantiate wasm module: %w", err)
 	}
-	r.log.Debug("Instantiated module")
 
-	// TODO: cleanup
-	for _, name := range functions {
-		switch name {
-		case allocFnName, deallocFnName:
-			r.exported[name] = r.mod.ExportedFunction(name)
-		default:
-			r.exported[name] = r.mod.ExportedFunction(utils.GetGuestFnName(name))
-		}
-	}
+	r.client = newClient(r.log, mod, functions)
 
 	return nil
 }
@@ -105,12 +92,7 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 		return nil, fmt.Errorf("failed to call: %s: runtime closed", name)
 	}
 
-	api, ok := r.exported[name]
-	if !ok {
-		return nil, fmt.Errorf("failed to find exported function: %s", name)
-	}
-
-	result, err := api.Call(ctx, params...)
+	result, err := r.client.call(ctx, name, params...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call %s: %w", name, err)
 	}
@@ -119,45 +101,37 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 }
 
 func (r *runtime) GetGuestBuffer(offset uint32, length uint32) ([]byte, bool) {
-	// TODO: add fee
-	// r.meter.AddCost()
-
-	return r.mod.Memory().Read(offset, length)
+	return r.client.readMemory(offset, length)
 }
 
-// TODO: ensure deallocate on Stop.
 func (r *runtime) WriteGuestBuffer(ctx context.Context, buf []byte) (uint64, error) {
-	// TODO: add fee
-	// r.meter.AddCost()
-
 	// allocate to guest and return offset
-	result, err := r.Call(ctx, allocFnName, uint64(len(buf)))
+	offset, err := r.client.alloc(ctx, uint64(len(buf)))
 	if err != nil {
 		return 0, err
 	}
 
-	offset := result[0]
-	ok := r.mod.Memory().Write(uint32(offset), buf)
-	if !ok {
-		return 0, fmt.Errorf("failed to write at offset: %d size: %d", offset, r.mod.Memory().Size())
+	err = r.client.writeMemory(uint32(offset), buf)
+	if err != nil {
+		return 0, err
 	}
 
 	return offset, nil
 }
 
-func (r *runtime) Stop(ctx context.Context) error {
-	defer r.cancelFn()
+func (r *runtime) Stop(ctx context.Context) {
 	if r.closed {
-		return nil
+		return
 	}
+	defer func() {
+		r.client.Close(ctx)
+		r.cancelFn()
+	}()
 	r.closed = true
 
 	if err := r.engine.Close(ctx); err != nil {
-		return fmt.Errorf("failed to close wasm runtime: %w", err)
+		r.log.Error("failed to close wasm runtime",
+			zap.Error(err),
+		)
 	}
-	if err := r.mod.Close(ctx); err != nil {
-		return fmt.Errorf("failed to close wasm api module: %w", err)
-	}
-
-	return nil
 }
