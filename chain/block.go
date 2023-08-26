@@ -709,11 +709,14 @@ func (b *StatelessBlock) Processed() bool {
 	return b.view != nil
 }
 
-// State.....
+// View returns the [merkledb.TrieView] of the block (representing the state
+// post-execution) or returns the accepted state if the block is accepted or is height 0.
 //
-// TODO: we should modify the interface here to only allow read-like messages
-// We assume this will only be called once we are done syncing, so it is safe
-// to assume we will eventually get to a block with view.
+// If [b.view] is nil, this function will either return an error or will
+// run verification depending on the value of [verify].
+//
+// Invariant: [View] with [verify] == true should not be called concurrently, otherwise,
+// it will result in undefined behavior.
 func (b *StatelessBlock) View(ctx context.Context, verify bool) (View, error) {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.State",
 		oteltrace.WithAttributes(
