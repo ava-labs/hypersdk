@@ -142,13 +142,9 @@ func (p *Processor) Execute(
 		ts.SetScope(ctx, stateKeys, txData.storage)
 
 		// Execute tx
-		preExecuteStart := ts.OpIndex()
 		authCUs, err := tx.PreExecute(ctx, feeManager, sm, r, ts, t)
 		if err != nil {
 			return nil, nil, err
-		}
-		if preExecuteStart != ts.OpIndex() {
-			return nil, nil, ErrPreExecuteMutates
 		}
 		// Wait to execute transaction until we have the warp result processed.
 		//
