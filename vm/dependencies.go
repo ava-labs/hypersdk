@@ -44,7 +44,7 @@ type Config interface {
 }
 
 type Genesis interface {
-	Load(context.Context, atrace.Tracer, chain.MutableState) error
+	Load(context.Context, atrace.Tracer, state.Mutable) error
 }
 
 type AuthEngine interface {

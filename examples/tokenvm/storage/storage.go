@@ -144,7 +144,7 @@ func BalanceKey(pk ed25519.PublicKey, asset ids.ID) (k []byte) {
 // If locked is 0, then account does not exist
 func GetBalance(
 	ctx context.Context,
-	im chain.ImmutableState,
+	im state.Immutable,
 	pk ed25519.PublicKey,
 	asset ids.ID,
 ) (uint64, error) {
@@ -155,7 +155,7 @@ func GetBalance(
 
 func getBalance(
 	ctx context.Context,
-	im chain.ImmutableState,
+	im state.Immutable,
 	pk ed25519.PublicKey,
 	asset ids.ID,
 ) ([]byte, uint64, bool, error) {
@@ -193,7 +193,7 @@ func innerGetBalance(
 
 func SetBalance(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	pk ed25519.PublicKey,
 	asset ids.ID,
 	balance uint64,
@@ -204,7 +204,7 @@ func SetBalance(
 
 func setBalance(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	key []byte,
 	balance uint64,
 ) error {
@@ -213,7 +213,7 @@ func setBalance(
 
 func DeleteBalance(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	pk ed25519.PublicKey,
 	asset ids.ID,
 ) error {
@@ -222,7 +222,7 @@ func DeleteBalance(
 
 func AddBalance(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	pk ed25519.PublicKey,
 	asset ids.ID,
 	amount uint64,
@@ -253,7 +253,7 @@ func AddBalance(
 
 func SubBalance(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	pk ed25519.PublicKey,
 	asset ids.ID,
 	amount uint64,
@@ -302,7 +302,7 @@ func GetAssetFromState(
 
 func GetAsset(
 	ctx context.Context,
-	im chain.ImmutableState,
+	im state.Immutable,
 	asset ids.ID,
 ) (bool, []byte, uint64, ed25519.PublicKey, bool, error) {
 	k := AssetKey(asset)
@@ -330,7 +330,7 @@ func innerGetAsset(
 
 func SetAsset(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	asset ids.ID,
 	metadata []byte,
 	supply uint64,
@@ -352,7 +352,7 @@ func SetAsset(
 	return mu.Insert(ctx, k, v)
 }
 
-func DeleteAsset(ctx context.Context, mu chain.MutableState, asset ids.ID) error {
+func DeleteAsset(ctx context.Context, mu state.Mutable, asset ids.ID) error {
 	k := AssetKey(asset)
 	return mu.Remove(ctx, k)
 }
@@ -368,7 +368,7 @@ func OrderKey(txID ids.ID) (k []byte) {
 
 func SetOrder(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	txID ids.ID,
 	in ids.ID,
 	inTick uint64,
@@ -390,7 +390,7 @@ func SetOrder(
 
 func GetOrder(
 	ctx context.Context,
-	im chain.ImmutableState,
+	im state.Immutable,
 	order ids.ID,
 ) (
 	bool, // exists
@@ -422,7 +422,7 @@ func GetOrder(
 	return true, in, inTick, out, outTick, supply, owner, nil
 }
 
-func DeleteOrder(ctx context.Context, mu chain.MutableState, order ids.ID) error {
+func DeleteOrder(ctx context.Context, mu state.Mutable, order ids.ID) error {
 	k := OrderKey(order)
 	return mu.Remove(ctx, k)
 }
@@ -460,7 +460,7 @@ func innerGetLoan(v []byte, err error) (uint64, error) {
 
 func GetLoan(
 	ctx context.Context,
-	im chain.ImmutableState,
+	im state.Immutable,
 	asset ids.ID,
 	destination ids.ID,
 ) (uint64, error) {
@@ -471,7 +471,7 @@ func GetLoan(
 
 func SetLoan(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	asset ids.ID,
 	destination ids.ID,
 	amount uint64,
@@ -482,7 +482,7 @@ func SetLoan(
 
 func AddLoan(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	asset ids.ID,
 	destination ids.ID,
 	amount uint64,
@@ -506,7 +506,7 @@ func AddLoan(
 
 func SubLoan(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	asset ids.ID,
 	destination ids.ID,
 	amount uint64,

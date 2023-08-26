@@ -19,7 +19,7 @@ type testDB struct {
 	db *memdb.Database
 }
 
-func NewTestDB() chain.MutableState {
+func NewTestDB() state.Mutable {
 	return &testDB{
 		db: memdb.New(),
 	}

@@ -56,7 +56,7 @@ func (d *ED25519) AsyncVerify(msg []byte) error {
 func (d *ED25519) Verify(
 	_ context.Context,
 	r chain.Rules,
-	_ chain.ImmutableState,
+	_ state.Immutable,
 	_ chain.Action,
 ) (uint64, error) {
 	// We don't do anything during verify (there is no additional state to check
@@ -86,7 +86,7 @@ func UnmarshalED25519(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 
 func (d *ED25519) CanDeduct(
 	ctx context.Context,
-	im chain.ImmutableState,
+	im state.Immutable,
 	amount uint64,
 ) error {
 	bal, err := storage.GetBalance(ctx, im, d.Signer, ids.Empty)
@@ -101,7 +101,7 @@ func (d *ED25519) CanDeduct(
 
 func (d *ED25519) Deduct(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	amount uint64,
 ) error {
 	return storage.SubBalance(ctx, mu, d.Signer, ids.Empty, amount)
@@ -109,7 +109,7 @@ func (d *ED25519) Deduct(
 
 func (d *ED25519) Refund(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	amount uint64,
 ) error {
 	// Don't create account if it doesn't exist (may have sent all funds).

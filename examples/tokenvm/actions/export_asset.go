@@ -66,7 +66,7 @@ func (*ExportAsset) OutputsWarpMessage() bool {
 
 func (e *ExportAsset) executeReturn(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	actor ed25519.PublicKey,
 	txID ids.ID,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
@@ -142,7 +142,7 @@ func (e *ExportAsset) executeReturn(
 
 func (e *ExportAsset) executeLoan(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	actor ed25519.PublicKey,
 	txID ids.ID,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
@@ -198,7 +198,7 @@ func (e *ExportAsset) executeLoan(
 func (e *ExportAsset) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	mu chain.MutableState,
+	mu state.Mutable,
 	_ int64,
 	rauth chain.Auth,
 	txID ids.ID,

@@ -54,7 +54,7 @@ func (*MintAsset) OutputsWarpMessage() bool {
 func (m *MintAsset) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	mu chain.MutableState,
+	mu state.Mutable,
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,

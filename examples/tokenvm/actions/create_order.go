@@ -70,7 +70,7 @@ func (*CreateOrder) OutputsWarpMessage() bool {
 func (c *CreateOrder) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	mu chain.MutableState,
+	mu state.Mutable,
 	_ int64,
 	rauth chain.Auth,
 	txID ids.ID,

@@ -101,7 +101,7 @@ func (*ImportAsset) OutputsWarpMessage() bool {
 
 func (i *ImportAsset) executeMint(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	actor ed25519.PublicKey,
 ) []byte {
 	asset := ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
@@ -140,7 +140,7 @@ func (i *ImportAsset) executeMint(
 
 func (i *ImportAsset) executeReturn(
 	ctx context.Context,
-	mu chain.MutableState,
+	mu state.Mutable,
 	actor ed25519.PublicKey,
 ) []byte {
 	if err := storage.SubLoan(
@@ -177,7 +177,7 @@ func (i *ImportAsset) executeReturn(
 func (i *ImportAsset) Execute(
 	ctx context.Context,
 	r chain.Rules,
-	mu chain.MutableState,
+	mu state.Mutable,
 	t int64,
 	rauth chain.Auth,
 	_ ids.ID,
