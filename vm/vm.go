@@ -257,7 +257,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
 	} else {
 		// Set balances
-		sps := chain.NewSimplePendingState(vm.stateDB)
+		sps := chain.NewSimpleMutableState(vm.stateDB)
 		if err := vm.genesis.Load(ctx, vm.tracer, sps); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err

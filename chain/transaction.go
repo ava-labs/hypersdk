@@ -292,7 +292,7 @@ func (t *Transaction) PreExecute(
 	feeManager *FeeManager,
 	s StateManager,
 	r Rules,
-	ro ReadOnlyState,
+	ro ImmutableState,
 	timestamp int64,
 ) (uint64, error) {
 	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {

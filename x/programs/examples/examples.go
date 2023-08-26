@@ -18,7 +18,7 @@ var _ runtime.Storage = (*programStorage)(nil)
 
 // newProgramStorage returns an instance of runtime storage used for examples
 // and backed by memDb.
-func newProgramStorage(ps chain.PendingState) *programStorage {
+func newProgramStorage(mu chain.MutableState) *programStorage {
 	return &programStorage{
 		ps:            ps,
 		programPrefix: 0x0,
@@ -26,7 +26,7 @@ func newProgramStorage(ps chain.PendingState) *programStorage {
 }
 
 type programStorage struct {
-	ps            chain.PendingState
+	mu            chain.MutableState
 	programPrefix byte
 }
 
@@ -41,7 +41,7 @@ func (p *programStorage) Set(ctx context.Context, id uint32, _ uint32, data []by
 
 func getProgramBytes(
 	ctx context.Context,
-	ps chain.PendingState,
+	mu chain.MutableState,
 	id uint32,
 	prefix byte,
 ) ([]byte, bool, error) {

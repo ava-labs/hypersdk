@@ -49,7 +49,7 @@ func (*Transfer) OutputsWarpMessage() bool {
 func (t *Transfer) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	ps chain.PendingState,
+	mu chain.MutableState,
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,

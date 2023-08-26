@@ -4,13 +4,13 @@
 package actions
 
 var (
-	OutputValueZero              = []byte("value is zero")
+	OutputValueZeim              = []byte("value is zero")
 	OutputAssetIsNative          = []byte("cannot mint native asset")
 	OutputAssetAlreadyExists     = []byte("asset already exists")
 	OutputAssetMissing           = []byte("asset missing")
-	OutputInTickZero             = []byte("in rate is zero")
-	OutputOutTickZero            = []byte("out rate is zero")
-	OutputSupplyZero             = []byte("supply is zero")
+	OutputInTickZeim             = []byte("in rate is zero")
+	OutputOutTickZeim            = []byte("out rate is zero")
+	OutputSupplyZeim             = []byte("supply is zero")
 	OutputSupplyMisaligned       = []byte("supply is misaligned")
 	OutputOrderMissing           = []byte("order is missing")
 	OutputUnauthorized           = []byte("unauthorized")

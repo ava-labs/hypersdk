@@ -36,7 +36,7 @@ type Processor struct {
 	err      error
 	blk      *StatelessBlock
 	readyTxs chan *txData
-	ro       ReadOnlyState
+	im       ImmutableState
 }
 
 // Only prepare for population if above last accepted height
@@ -49,7 +49,7 @@ func NewProcessor(tracer trace.Tracer, b *StatelessBlock) *Processor {
 	}
 }
 
-func (p *Processor) Prefetch(ctx context.Context, ro ReadOnlyState) {
+func (p *Processor) Prefetch(ctx context.Context, ro ImmutableState) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Prefetch")
 	p.ro = ro
 	sm := p.blk.vm.StateManager()

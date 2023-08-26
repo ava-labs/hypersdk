@@ -112,7 +112,7 @@ func New(b []byte, _ []byte /* upgradeBytes */) (*Genesis, error) {
 	return g, nil
 }
 
-func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, ps chain.PendingState) error {
+func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu chain.MutableState) error {
 	ctx, span := tracer.Start(ctx, "Genesis.Load")
 	defer span.End()
 

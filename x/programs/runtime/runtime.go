@@ -40,7 +40,7 @@ type runtime struct {
 	storage  Storage
 	// functions exported by this runtime
 	exported map[string]api.Function
-	ps       chain.PendingState
+	mu       chain.MutableState
 
 	closed bool
 

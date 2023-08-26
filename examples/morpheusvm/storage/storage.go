@@ -131,7 +131,7 @@ func BalanceKey(pk ed25519.PublicKey) (k []byte) {
 // If locked is 0, then account does not exist
 func GetBalance(
 	ctx context.Context,
-	ro chain.ReadOnlyState,
+	im chain.ImmutableState,
 	pk ed25519.PublicKey,
 ) (uint64, error) {
 	dbKey, bal, _, err := getBalance(ctx, ro, pk)
@@ -141,7 +141,7 @@ func GetBalance(
 
 func getBalance(
 	ctx context.Context,
-	ro chain.ReadOnlyState,
+	im chain.ImmutableState,
 	pk ed25519.PublicKey,
 ) ([]byte, uint64, bool, error) {
 	k := BalanceKey(pk)
@@ -177,7 +177,7 @@ func innerGetBalance(
 
 func SetBalance(
 	ctx context.Context,
-	ps chain.PendingState,
+	mu chain.MutableState,
 	pk ed25519.PublicKey,
 	balance uint64,
 ) error {
@@ -187,7 +187,7 @@ func SetBalance(
 
 func setBalance(
 	ctx context.Context,
-	ps chain.PendingState,
+	mu chain.MutableState,
 	dbKey []byte,
 	balance uint64,
 ) error {
@@ -196,7 +196,7 @@ func setBalance(
 
 func AddBalance(
 	ctx context.Context,
-	ps chain.PendingState,
+	mu chain.MutableState,
 	pk ed25519.PublicKey,
 	amount uint64,
 	create bool,
@@ -225,7 +225,7 @@ func AddBalance(
 
 func SubBalance(
 	ctx context.Context,
-	ps chain.PendingState,
+	mu chain.MutableState,
 	pk ed25519.PublicKey,
 	amount uint64,
 ) error {
