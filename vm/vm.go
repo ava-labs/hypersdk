@@ -704,12 +704,11 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	rawState, err := blk.State(ctx, false)
+	state, err := blk.State(ctx, false)
 	if err != nil {
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
-	state := chain.NewReadOnlyDatabase(rawState)
 	feeRaw, err := state.GetValue(ctx, chain.FeeKey(vm.StateManager().FeeKey()))
 	if err != nil {
 		return []error{err}
