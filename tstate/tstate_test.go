@@ -9,10 +9,13 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/trace"
 
 	"github.com/stretchr/testify/require"
 )
+
+var _ chain.View = (*TestDB)(nil)
 
 var (
 	TestKey = []byte("key")

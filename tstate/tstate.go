@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/keys"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -108,7 +109,7 @@ func (ts *TState) getValue(_ context.Context, key string) ([]byte, bool, bool) {
 // ts.fetchCache set the key's value to the value from cache.
 //
 // If possible, this function should be avoided and state should be prefetched (much faster).
-func (ts *TState) FetchAndSetScope(ctx context.Context, keys set.Set[string], db Database) error {
+func (ts *TState) FetchAndSetScope(ctx context.Context, keys set.Set[string], im chain.ImmutableState) error {
 	ts.scopeStorage = map[string][]byte{}
 	for key := range keys {
 		if val, ok := ts.fetchCache[key]; ok {
@@ -117,7 +118,7 @@ func (ts *TState) FetchAndSetScope(ctx context.Context, keys set.Set[string], db
 			}
 			continue
 		}
-		v, err := db.GetValue(ctx, []byte(key))
+		v, err := im.GetValue(ctx, []byte(key))
 		if errors.Is(err, database.ErrNotFound) {
 			ts.fetchCache[key] = &cacheItem{Exists: false}
 			continue
@@ -282,7 +283,8 @@ func (ts *TState) Rollback(_ context.Context, restorePoint int) {
 // changes in [TState] that can be used to commit to [merkledb].
 func (ts *TState) CreateView(
 	ctx context.Context,
-	db Database,
+	// TODO: move state interfaces outside of chain
+	view chain.View,
 	t trace.Tracer, //nolint:interfacer
 ) (merkledb.TrieView, error) {
 	ctx, span := t.Start(
@@ -293,7 +295,7 @@ func (ts *TState) CreateView(
 	)
 	defer span.End()
 
-	return db.NewViewFromMap(ctx, ts.changedKeys, false)
+	return view.NewViewFromMap(ctx, ts.changedKeys, false)
 }
 
 // updateChunks sets the number of chunks associated with a key that will
