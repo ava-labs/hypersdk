@@ -134,7 +134,7 @@ func GetBalance(
 	im chain.ImmutableState,
 	pk ed25519.PublicKey,
 ) (uint64, error) {
-	dbKey, bal, _, err := getBalance(ctx, ro, pk)
+	dbKey, bal, _, err := getBalance(ctx, im, pk)
 	balanceKeyPool.Put(dbKey)
 	return bal, err
 }
@@ -145,7 +145,7 @@ func getBalance(
 	pk ed25519.PublicKey,
 ) ([]byte, uint64, bool, error) {
 	k := BalanceKey(pk)
-	bal, exists, err := innerGetBalance(ro.GetValue(ctx, k))
+	bal, exists, err := innerGetBalance(im.GetValue(ctx, k))
 	return k, bal, exists, err
 }
 
@@ -182,7 +182,7 @@ func SetBalance(
 	balance uint64,
 ) error {
 	k := BalanceKey(pk)
-	return setBalance(ctx, ps, k, balance)
+	return setBalance(ctx, mu, k, balance)
 }
 
 func setBalance(
@@ -191,7 +191,7 @@ func setBalance(
 	dbKey []byte,
 	balance uint64,
 ) error {
-	return ps.Insert(ctx, dbKey, binary.BigEndian.AppendUint64(nil, balance))
+	return mu.Insert(ctx, dbKey, binary.BigEndian.AppendUint64(nil, balance))
 }
 
 func AddBalance(
@@ -201,7 +201,7 @@ func AddBalance(
 	amount uint64,
 	create bool,
 ) error {
-	dbKey, bal, exists, err := getBalance(ctx, ps, pk)
+	dbKey, bal, exists, err := getBalance(ctx, mu, pk)
 	if err != nil {
 		return err
 	}
@@ -220,7 +220,7 @@ func AddBalance(
 			amount,
 		)
 	}
-	return setBalance(ctx, ps, dbKey, nbal)
+	return setBalance(ctx, mu, dbKey, nbal)
 }
 
 func SubBalance(
@@ -229,7 +229,7 @@ func SubBalance(
 	pk ed25519.PublicKey,
 	amount uint64,
 ) error {
-	dbKey, bal, _, err := getBalance(ctx, ps, pk)
+	dbKey, bal, _, err := getBalance(ctx, mu, pk)
 	if err != nil {
 		return err
 	}
@@ -246,9 +246,9 @@ func SubBalance(
 	if nbal == 0 {
 		// If there is no balance left, we should delete the record instead of
 		// setting it to 0.
-		return ps.Remove(ctx, dbKey)
+		return mu.Remove(ctx, dbKey)
 	}
-	return setBalance(ctx, ps, dbKey, nbal)
+	return setBalance(ctx, mu, dbKey, nbal)
 }
 
 func HeightKey() (k []byte) {

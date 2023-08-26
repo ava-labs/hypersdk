@@ -34,7 +34,7 @@ type InvokeModule struct {
 // NewInvokeModule returns a new program invoke host module which can perform program to program calls.
 func NewInvokeModule(log logging.Logger, mu chain.MutableState, meter Meter, storage Storage) *InvokeModule {
 	return &InvokeModule{
-		ps:      ps,
+		mu:      mu,
 		meter:   meter,
 		storage: storage,
 		log:     log,

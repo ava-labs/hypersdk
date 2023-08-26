@@ -130,7 +130,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu chain.Mutabl
 		if err != nil {
 			return err
 		}
-		if err := storage.SetBalance(ctx, ps, pk, alloc.Balance); err != nil {
+		if err := storage.SetBalance(ctx, mu, pk, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}

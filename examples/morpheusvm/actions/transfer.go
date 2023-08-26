@@ -59,10 +59,10 @@ func (t *Transfer) Execute(
 	if t.Value == 0 {
 		return false, 1, OutputValueZero, nil, nil
 	}
-	if err := storage.SubBalance(ctx, ps, actor, t.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, ps, t.To, t.Value, true); err != nil {
+	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 	return true, 1, nil, nil, nil

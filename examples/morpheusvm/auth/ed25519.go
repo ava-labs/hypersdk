@@ -87,7 +87,7 @@ func (d *ED25519) CanDeduct(
 	im chain.ImmutableState,
 	amount uint64,
 ) error {
-	bal, err := storage.GetBalance(ctx, ro, d.Signer)
+	bal, err := storage.GetBalance(ctx, im, d.Signer)
 	if err != nil {
 		return err
 	}
@@ -102,7 +102,7 @@ func (d *ED25519) Deduct(
 	mu chain.MutableState,
 	amount uint64,
 ) error {
-	return storage.SubBalance(ctx, ps, d.Signer, amount)
+	return storage.SubBalance(ctx, mu, d.Signer, amount)
 }
 
 func (d *ED25519) Refund(
@@ -111,7 +111,7 @@ func (d *ED25519) Refund(
 	amount uint64,
 ) error {
 	// Don't create account if it doesn't exist (may have sent all funds).
-	return storage.AddBalance(ctx, ps, d.Signer, amount, false)
+	return storage.AddBalance(ctx, mu, d.Signer, amount, false)
 }
 
 var _ chain.AuthFactory = (*ED25519Factory)(nil)
