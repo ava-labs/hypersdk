@@ -292,7 +292,7 @@ func (t *Transaction) PreExecute(
 	feeManager *FeeManager,
 	s StateManager,
 	r Rules,
-	ro ImmutableState,
+	im ImmutableState,
 	timestamp int64,
 ) (uint64, error) {
 	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
@@ -312,7 +312,7 @@ func (t *Transaction) PreExecute(
 	if end >= 0 && timestamp > end {
 		return 0, ErrAuthNotActivated
 	}
-	authCUs, err := t.Auth.Verify(ctx, r, ro, t.Action)
+	authCUs, err := t.Auth.Verify(ctx, r, im, t.Action)
 	if err != nil {
 		return 0, fmt.Errorf("%w: %v", ErrAuthFailed, err) //nolint:errorlint
 	}
@@ -324,7 +324,7 @@ func (t *Transaction) PreExecute(
 	if err != nil {
 		return 0, err
 	}
-	if err := t.Auth.CanDeduct(ctx, ro, maxFee); err != nil {
+	if err := t.Auth.CanDeduct(ctx, im, maxFee); err != nil {
 		return 0, err
 	}
 	return authCUs, nil
