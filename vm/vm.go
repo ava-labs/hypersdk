@@ -41,6 +41,7 @@ import (
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/network"
 	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/state"
 	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
@@ -257,7 +258,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
 	} else {
 		// Set balances
-		sps := chain.NewSimpleMutableState(vm.stateDB)
+		sps := state.NewSimpleMutable(vm.stateDB)
 		if err := vm.genesis.Load(ctx, vm.tracer, sps); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
