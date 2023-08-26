@@ -96,21 +96,21 @@ type Mempool interface {
 	FinishStreaming(context.Context, []*Transaction) int
 }
 
-type ReadOnlyState interface {
+type ImmutableState interface {
 	GetValue(ctx context.Context, key []byte) (value []byte, err error)
 }
 
-type State interface {
-	ReadOnlyState
-
-	NewViewFromMap(ctx context.Context, changes map[string]*merkledb.ChangeOp, copyBytes bool) (merkledb.TrieView, error)
-}
-
-type PendingState interface {
-	ReadOnlyState
+type MutableState interface {
+	ImmutableState
 
 	Insert(ctx context.Context, key []byte, value []byte) error
 	Remove(ctx context.Context, key []byte) error
+}
+
+type View interface {
+	ImmutableState
+
+	NewViewFromMap(ctx context.Context, changes map[string]*merkledb.ChangeOp, copyBytes bool) (merkledb.TrieView, error)
 }
 
 type Rules interface {
@@ -224,7 +224,7 @@ type Action interface {
 	Execute(
 		ctx context.Context,
 		r Rules,
-		ps PendingState,
+		mu MutableState,
 		timestamp int64,
 		auth Auth,
 		txID ids.ID,
@@ -285,7 +285,7 @@ type Auth interface {
 	Verify(
 		ctx context.Context,
 		r Rules,
-		ro ReadOnlyState,
+		im ImmutableState,
 		action Action,
 	) (computeUnits uint64, err error)
 
@@ -294,10 +294,10 @@ type Auth interface {
 	Payer() []byte
 
 	// CanDeduct returns an error if [amount] cannot be paid by [Auth].
-	CanDeduct(ctx context.Context, ro ReadOnlyState, amount uint64) error
+	CanDeduct(ctx context.Context, im ImmutableState, amount uint64) error
 
 	// Deduct removes [amount] from [Auth] during transaction execution to pay fees.
-	Deduct(ctx context.Context, ps PendingState, amount uint64) error
+	Deduct(ctx context.Context, mu MutableState, amount uint64) error
 
 	// Refund returns [amount] to [Auth] after transaction execution if any fees were
 	// not used.
@@ -306,7 +306,7 @@ type Auth interface {
 	// modify or remove existing keys.
 	//
 	// Refund is only invoked if [amount] > 0.
-	Refund(ctx context.Context, ps PendingState, amount uint64) error
+	Refund(ctx context.Context, mu MutableState, amount uint64) error
 
 	// Marshal encodes an [Auth] as bytes.
 	Marshal(p *codec.Packer)
