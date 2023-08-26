@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/gossiper"
+	"github.com/ava-labs/hypersdk/state"
 	trace "github.com/ava-labs/hypersdk/trace"
 )
 

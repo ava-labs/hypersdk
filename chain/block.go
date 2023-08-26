@@ -23,6 +23,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
 	"github.com/ava-labs/hypersdk/workers"
@@ -717,7 +718,7 @@ func (b *StatelessBlock) Processed() bool {
 //
 // Invariant: [View] with [verify] == true should not be called concurrently, otherwise,
 // it will result in undefined behavior.
-func (b *StatelessBlock) View(ctx context.Context, verify bool) (View, error) {
+func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, error) {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.State",
 		oteltrace.WithAttributes(
 			attribute.Bool("verify", verify),

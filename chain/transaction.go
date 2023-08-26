@@ -19,6 +19,7 @@ import (
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/math"
 	"github.com/ava-labs/hypersdk/mempool"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -292,7 +293,7 @@ func (t *Transaction) PreExecute(
 	feeManager *FeeManager,
 	s StateManager,
 	r Rules,
-	im ImmutableState,
+	im state.Immutable,
 	timestamp int64,
 ) (uint64, error) {
 	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {

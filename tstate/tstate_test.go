@@ -15,8 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var _ state.View = (*TestDB)(nil)
-var _ state.Mutable = (*TestDB)(nil)
+var (
+	_ state.View    = (*TestDB)(nil)
+	_ state.Mutable = (*TestDB)(nil)
+)
 
 var (
 	TestKey = []byte("key")

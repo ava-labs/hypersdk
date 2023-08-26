@@ -11,8 +11,7 @@ import (
 	"github.com/tetratelabs/wazero/api"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
-
-	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/state"
 )
 
 type testDB struct {

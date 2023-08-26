@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 
 	"github.com/ava-labs/hypersdk/keys"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
@@ -36,7 +37,7 @@ type Processor struct {
 	err      error
 	blk      *StatelessBlock
 	readyTxs chan *txData
-	im       ImmutableState
+	im       state.Immutable
 }
 
 // Only prepare for population if above last accepted height
@@ -49,7 +50,7 @@ func NewProcessor(tracer trace.Tracer, b *StatelessBlock) *Processor {
 	}
 }
 
-func (p *Processor) Prefetch(ctx context.Context, im ImmutableState) {
+func (p *Processor) Prefetch(ctx context.Context, im state.Immutable) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Prefetch")
 	p.im = im
 	sm := p.blk.vm.StateManager()
