@@ -714,7 +714,7 @@ func (b *StatelessBlock) Processed() bool {
 // TODO: we should modify the interface here to only allow read-like messages
 // We assume this will only be called once we are done syncing, so it is safe
 // to assume we will eventually get to a block with state.
-func (b *StatelessBlock) State(ctx context.Context, verify bool) (StateDatabase, error) {
+func (b *StatelessBlock) State(ctx context.Context, verify bool) (State, error) {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.State",
 		oteltrace.WithAttributes(
 			attribute.Bool("verify", verify),

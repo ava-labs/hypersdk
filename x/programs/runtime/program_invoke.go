@@ -24,7 +24,7 @@ const (
 )
 
 type InvokeModule struct {
-	db      chain.Database
+	ps      chain.PendingState
 	meter   Meter
 	storage Storage
 
@@ -32,9 +32,9 @@ type InvokeModule struct {
 }
 
 // NewInvokeModule returns a new program invoke host module which can perform program to program calls.
-func NewInvokeModule(log logging.Logger, db chain.Database, meter Meter, storage Storage) *InvokeModule {
+func NewInvokeModule(log logging.Logger, ps chain.PendingState, meter Meter, storage Storage) *InvokeModule {
 	return &InvokeModule{
-		db:      db,
+		ps:      ps,
 		meter:   meter,
 		storage: storage,
 		log:     log,

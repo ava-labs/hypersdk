@@ -53,7 +53,7 @@ func (mr *MockAuthMockRecorder) AsyncVerify(arg0 interface{}) *gomock.Call {
 }
 
 // CanDeduct mocks base method.
-func (m *MockAuth) CanDeduct(arg0 context.Context, arg1 Database, arg2 uint64) error {
+func (m *MockAuth) CanDeduct(arg0 context.Context, arg1 ReadOnlyState, arg2 uint64) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CanDeduct", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -67,7 +67,7 @@ func (mr *MockAuthMockRecorder) CanDeduct(arg0, arg1, arg2 interface{}) *gomock.
 }
 
 // Deduct mocks base method.
-func (m *MockAuth) Deduct(arg0 context.Context, arg1 Database, arg2 uint64) error {
+func (m *MockAuth) Deduct(arg0 context.Context, arg1 PendingState, arg2 uint64) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Deduct", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -135,7 +135,7 @@ func (mr *MockAuthMockRecorder) Payer() *gomock.Call {
 }
 
 // Refund mocks base method.
-func (m *MockAuth) Refund(arg0 context.Context, arg1 Database, arg2 uint64) error {
+func (m *MockAuth) Refund(arg0 context.Context, arg1 PendingState, arg2 uint64) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Refund", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -192,7 +192,7 @@ func (mr *MockAuthMockRecorder) ValidRange(arg0 interface{}) *gomock.Call {
 }
 
 // Verify mocks base method.
-func (m *MockAuth) Verify(arg0 context.Context, arg1 Rules, arg2 Database, arg3 Action) (uint64, error) {
+func (m *MockAuth) Verify(arg0 context.Context, arg1 Rules, arg2 ReadOnlyState, arg3 Action) (uint64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Verify", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(uint64)

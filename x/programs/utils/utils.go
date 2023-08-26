@@ -19,7 +19,7 @@ type testDB struct {
 	db *memdb.Database
 }
 
-func NewTestDB() chain.Database {
+func NewTestDB() chain.PendingState {
 	return &testDB{
 		db: memdb.New(),
 	}

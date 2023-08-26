@@ -257,13 +257,13 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
 	} else {
 		// Set balances
-		sdb := chain.NewSimpleDatabase(vm.stateDB)
-		if err := vm.genesis.Load(ctx, vm.tracer, sdb); err != nil {
+		sps := chain.NewSimplePendingState(vm.stateDB)
+		if err := vm.genesis.Load(ctx, vm.tracer, sps); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}
 		// Set last height
-		if err := sdb.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
 		// Set fee parameters
@@ -274,10 +274,10 @@ func (vm *VM) Initialize(
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 		}
-		if err := sdb.Insert(ctx, chain.FeeKey(vm.StateManager().FeeKey()), feeManager.Bytes()); err != nil {
+		if err := sps.Insert(ctx, chain.FeeKey(vm.StateManager().FeeKey()), feeManager.Bytes()); err != nil {
 			return err
 		}
-		if err := sdb.Commit(ctx); err != nil {
+		if err := sps.Commit(ctx); err != nil {
 			return err
 		}
 		root, err := vm.stateDB.GetMerkleRoot(ctx)

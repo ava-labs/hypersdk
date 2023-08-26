@@ -40,7 +40,7 @@ type runtime struct {
 	storage  Storage
 	// functions exported by this runtime
 	exported map[string]api.Function
-	db       chain.Database
+	ps       chain.PendingState
 
 	closed bool
 
@@ -60,7 +60,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions
 	}
 
 	// enable program to program calls
-	invokeMod := NewInvokeModule(r.log, r.db, r.meter, r.storage)
+	invokeMod := NewInvokeModule(r.log, r.ps, r.meter, r.storage)
 	err = invokeMod.Instantiate(ctx, r.engine)
 	if err != nil {
 		return fmt.Errorf("failed to create delegate host module: %w", err)

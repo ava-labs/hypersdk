@@ -36,7 +36,7 @@ type Processor struct {
 	err      error
 	blk      *StatelessBlock
 	readyTxs chan *txData
-	db       StateDatabase
+	ro       ReadOnlyState
 }
 
 // Only prepare for population if above last accepted height
@@ -49,9 +49,9 @@ func NewProcessor(tracer trace.Tracer, b *StatelessBlock) *Processor {
 	}
 }
 
-func (p *Processor) Prefetch(ctx context.Context, db StateDatabase) {
+func (p *Processor) Prefetch(ctx context.Context, ro ReadOnlyState) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Prefetch")
-	p.db = db
+	p.ro = ro
 	sm := p.blk.vm.StateManager()
 	go func() {
 		defer func() {
@@ -78,7 +78,7 @@ func (p *Processor) Prefetch(ctx context.Context, db StateDatabase) {
 					}
 					continue
 				}
-				v, err := db.GetValue(ctx, []byte(k))
+				v, err := ro.GetValue(ctx, []byte(k))
 				if errors.Is(err, database.ErrNotFound) {
 					coldReads[k] = 0
 					alreadyFetched[k] = &fetchData{nil, false, 0}
