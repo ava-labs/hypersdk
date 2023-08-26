@@ -56,7 +56,7 @@ func (*ModifyAsset) OutputsWarpMessage() bool {
 func (m *ModifyAsset) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	db chain.Database,
+	mu chain.MutableState,
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
@@ -69,7 +69,7 @@ func (m *ModifyAsset) Execute(
 	if len(m.Metadata) > MaxMetadataSize {
 		return false, ModifyAssetComputeUnits, OutputMetadataTooLarge, nil, nil
 	}
-	exists, _, supply, owner, isWarp, err := storage.GetAsset(ctx, db, m.Asset)
+	exists, _, supply, owner, isWarp, err := storage.GetAsset(ctx, mu, m.Asset)
 	if err != nil {
 		return false, ModifyAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
@@ -82,7 +82,7 @@ func (m *ModifyAsset) Execute(
 	if owner != actor {
 		return false, ModifyAssetComputeUnits, OutputWrongOwner, nil, nil
 	}
-	if err := storage.SetAsset(ctx, db, m.Asset, m.Metadata, supply, m.Owner, isWarp); err != nil {
+	if err := storage.SetAsset(ctx, mu, m.Asset, m.Metadata, supply, m.Owner, isWarp); err != nil {
 		return false, ModifyAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, ModifyAssetComputeUnits, nil, nil, nil

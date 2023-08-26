@@ -52,7 +52,7 @@ func (*Transfer) OutputsWarpMessage() bool {
 func (t *Transfer) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	db chain.Database,
+	mu chain.MutableState,
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
@@ -62,11 +62,11 @@ func (t *Transfer) Execute(
 	if t.Value == 0 {
 		return false, TransferComputeUnits, OutputValueZero, nil, nil
 	}
-	if err := storage.SubBalance(ctx, db, actor, t.Asset, t.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, actor, t.Asset, t.Value); err != nil {
 		return false, TransferComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	// TODO: allow sender to configure whether they will pay to create
-	if err := storage.AddBalance(ctx, db, t.To, t.Asset, t.Value, true); err != nil {
+	if err := storage.AddBalance(ctx, mu, t.To, t.Asset, t.Value, true); err != nil {
 		return false, TransferComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, TransferComputeUnits, nil, nil, nil

@@ -51,7 +51,7 @@ func (*BurnAsset) OutputsWarpMessage() bool {
 func (b *BurnAsset) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	db chain.Database,
+	mu chain.MutableState,
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
@@ -61,10 +61,10 @@ func (b *BurnAsset) Execute(
 	if b.Value == 0 {
 		return false, BurnComputeUnits, OutputValueZero, nil, nil
 	}
-	if err := storage.SubBalance(ctx, db, actor, b.Asset, b.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, actor, b.Asset, b.Value); err != nil {
 		return false, BurnComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	exists, metadata, supply, owner, warp, err := storage.GetAsset(ctx, db, b.Asset)
+	exists, metadata, supply, owner, warp, err := storage.GetAsset(ctx, mu, b.Asset)
 	if err != nil {
 		return false, BurnComputeUnits, utils.ErrBytes(err), nil, nil
 	}
@@ -75,7 +75,7 @@ func (b *BurnAsset) Execute(
 	if err != nil {
 		return false, BurnComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.SetAsset(ctx, db, b.Asset, metadata, newSupply, owner, warp); err != nil {
+	if err := storage.SetAsset(ctx, mu, b.Asset, metadata, newSupply, owner, warp); err != nil {
 		return false, BurnComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, BurnComputeUnits, nil, nil, nil

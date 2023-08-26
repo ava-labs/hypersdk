@@ -50,14 +50,14 @@ func (*CloseOrder) OutputsWarpMessage() bool {
 func (c *CloseOrder) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	db chain.Database,
+	mu chain.MutableState,
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	actor := auth.GetActor(rauth)
-	exists, _, _, out, _, remaining, owner, err := storage.GetOrder(ctx, db, c.Order)
+	exists, _, _, out, _, remaining, owner, err := storage.GetOrder(ctx, mu, c.Order)
 	if err != nil {
 		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
@@ -70,10 +70,10 @@ func (c *CloseOrder) Execute(
 	if out != c.Out {
 		return false, CloseOrderComputeUnits, OutputWrongOut, nil, nil
 	}
-	if err := storage.DeleteOrder(ctx, db, c.Order); err != nil {
+	if err := storage.DeleteOrder(ctx, mu, c.Order); err != nil {
 		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, db, actor, c.Out, remaining, true); err != nil {
+	if err := storage.AddBalance(ctx, mu, actor, c.Out, remaining, true); err != nil {
 		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, CloseOrderComputeUnits, nil, nil, nil

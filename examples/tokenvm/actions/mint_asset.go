@@ -54,7 +54,7 @@ func (*MintAsset) OutputsWarpMessage() bool {
 func (m *MintAsset) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	db chain.Database,
+	mu chain.MutableState,
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
@@ -67,7 +67,7 @@ func (m *MintAsset) Execute(
 	if m.Value == 0 {
 		return false, MintAssetComputeUnits, OutputValueZero, nil, nil
 	}
-	exists, metadata, supply, owner, isWarp, err := storage.GetAsset(ctx, db, m.Asset)
+	exists, metadata, supply, owner, isWarp, err := storage.GetAsset(ctx, mu, m.Asset)
 	if err != nil {
 		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
@@ -84,10 +84,10 @@ func (m *MintAsset) Execute(
 	if err != nil {
 		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.SetAsset(ctx, db, m.Asset, metadata, newSupply, actor, isWarp); err != nil {
+	if err := storage.SetAsset(ctx, mu, m.Asset, metadata, newSupply, actor, isWarp); err != nil {
 		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, db, m.To, m.Asset, m.Value, true); err != nil {
+	if err := storage.AddBalance(ctx, mu, m.To, m.Asset, m.Value, true); err != nil {
 		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, MintAssetComputeUnits, nil, nil, nil

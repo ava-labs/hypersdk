@@ -66,11 +66,11 @@ func (*ExportAsset) OutputsWarpMessage() bool {
 
 func (e *ExportAsset) executeReturn(
 	ctx context.Context,
-	db chain.Database,
+	mu chain.MutableState,
 	actor ed25519.PublicKey,
 	txID ids.ID,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	exists, metadata, supply, _, isWarp, err := storage.GetAsset(ctx, db, e.Asset)
+	exists, metadata, supply, _, isWarp, err := storage.GetAsset(ctx, mu, e.Asset)
 	if err != nil {
 		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
@@ -96,19 +96,19 @@ func (e *ExportAsset) executeReturn(
 		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if newSupply > 0 {
-		if err := storage.SetAsset(ctx, db, e.Asset, metadata, newSupply, ed25519.EmptyPublicKey, true); err != nil {
+		if err := storage.SetAsset(ctx, mu, e.Asset, metadata, newSupply, ed25519.EmptyPublicKey, true); err != nil {
 			return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 	} else {
-		if err := storage.DeleteAsset(ctx, db, e.Asset); err != nil {
+		if err := storage.DeleteAsset(ctx, mu, e.Asset); err != nil {
 			return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 	}
-	if err := storage.SubBalance(ctx, db, actor, e.Asset, e.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, actor, e.Asset, e.Value); err != nil {
 		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if e.Reward > 0 {
-		if err := storage.SubBalance(ctx, db, actor, e.Asset, e.Reward); err != nil {
+		if err := storage.SubBalance(ctx, mu, actor, e.Asset, e.Reward); err != nil {
 			return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 	}
@@ -142,11 +142,11 @@ func (e *ExportAsset) executeReturn(
 
 func (e *ExportAsset) executeLoan(
 	ctx context.Context,
-	db chain.Database,
+	mu chain.MutableState,
 	actor ed25519.PublicKey,
 	txID ids.ID,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	exists, _, _, _, isWarp, err := storage.GetAsset(ctx, db, e.Asset)
+	exists, _, _, _, isWarp, err := storage.GetAsset(ctx, mu, e.Asset)
 	if err != nil {
 		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
@@ -157,17 +157,17 @@ func (e *ExportAsset) executeLoan(
 		// Cannot export an asset if it was warped in and not returning
 		return false, ExportAssetComputeUnits, OutputWarpAsset, nil, nil
 	}
-	if err := storage.AddLoan(ctx, db, e.Asset, e.Destination, e.Value); err != nil {
+	if err := storage.AddLoan(ctx, mu, e.Asset, e.Destination, e.Value); err != nil {
 		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.SubBalance(ctx, db, actor, e.Asset, e.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, actor, e.Asset, e.Value); err != nil {
 		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if e.Reward > 0 {
-		if err := storage.AddLoan(ctx, db, e.Asset, e.Destination, e.Reward); err != nil {
+		if err := storage.AddLoan(ctx, mu, e.Asset, e.Destination, e.Reward); err != nil {
 			return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 		}
-		if err := storage.SubBalance(ctx, db, actor, e.Asset, e.Reward); err != nil {
+		if err := storage.SubBalance(ctx, mu, actor, e.Asset, e.Reward); err != nil {
 			return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 	}
@@ -198,7 +198,7 @@ func (e *ExportAsset) executeLoan(
 func (e *ExportAsset) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	db chain.Database,
+	mu chain.MutableState,
 	_ int64,
 	rauth chain.Auth,
 	txID ids.ID,
@@ -215,9 +215,9 @@ func (e *ExportAsset) Execute(
 	}
 	// TODO: check if destination is ourselves
 	if e.Return {
-		return e.executeReturn(ctx, db, actor, txID)
+		return e.executeReturn(ctx, mu, actor, txID)
 	}
-	return e.executeLoan(ctx, db, actor, txID)
+	return e.executeLoan(ctx, mu, actor, txID)
 }
 
 func (*ExportAsset) MaxComputeUnits(chain.Rules) uint64 {
