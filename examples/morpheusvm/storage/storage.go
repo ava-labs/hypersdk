@@ -131,21 +131,21 @@ func BalanceKey(pk ed25519.PublicKey) (k []byte) {
 // If locked is 0, then account does not exist
 func GetBalance(
 	ctx context.Context,
-	db chain.Database,
+	ro chain.ReadOnlyState,
 	pk ed25519.PublicKey,
 ) (uint64, error) {
-	dbKey, bal, _, err := getBalance(ctx, db, pk)
+	dbKey, bal, _, err := getBalance(ctx, ro, pk)
 	balanceKeyPool.Put(dbKey)
 	return bal, err
 }
 
 func getBalance(
 	ctx context.Context,
-	db chain.Database,
+	ro chain.ReadOnlyState,
 	pk ed25519.PublicKey,
 ) ([]byte, uint64, bool, error) {
 	k := BalanceKey(pk)
-	bal, exists, err := innerGetBalance(db.GetValue(ctx, k))
+	bal, exists, err := innerGetBalance(ro.GetValue(ctx, k))
 	return k, bal, exists, err
 }
 
@@ -177,31 +177,31 @@ func innerGetBalance(
 
 func SetBalance(
 	ctx context.Context,
-	db chain.Database,
+	ps chain.PendingState,
 	pk ed25519.PublicKey,
 	balance uint64,
 ) error {
 	k := BalanceKey(pk)
-	return setBalance(ctx, db, k, balance)
+	return setBalance(ctx, ps, k, balance)
 }
 
 func setBalance(
 	ctx context.Context,
-	db chain.Database,
+	ps chain.PendingState,
 	dbKey []byte,
 	balance uint64,
 ) error {
-	return db.Insert(ctx, dbKey, binary.BigEndian.AppendUint64(nil, balance))
+	return ps.Insert(ctx, dbKey, binary.BigEndian.AppendUint64(nil, balance))
 }
 
 func AddBalance(
 	ctx context.Context,
-	db chain.Database,
+	ps chain.PendingState,
 	pk ed25519.PublicKey,
 	amount uint64,
 	create bool,
 ) error {
-	dbKey, bal, exists, err := getBalance(ctx, db, pk)
+	dbKey, bal, exists, err := getBalance(ctx, ps, pk)
 	if err != nil {
 		return err
 	}
@@ -220,16 +220,16 @@ func AddBalance(
 			amount,
 		)
 	}
-	return setBalance(ctx, db, dbKey, nbal)
+	return setBalance(ctx, ps, dbKey, nbal)
 }
 
 func SubBalance(
 	ctx context.Context,
-	db chain.Database,
+	ps chain.PendingState,
 	pk ed25519.PublicKey,
 	amount uint64,
 ) error {
-	dbKey, bal, _, err := getBalance(ctx, db, pk)
+	dbKey, bal, _, err := getBalance(ctx, ps, pk)
 	if err != nil {
 		return err
 	}
@@ -246,9 +246,9 @@ func SubBalance(
 	if nbal == 0 {
 		// If there is no balance left, we should delete the record instead of
 		// setting it to 0.
-		return db.Remove(ctx, dbKey)
+		return ps.Remove(ctx, dbKey)
 	}
-	return setBalance(ctx, db, dbKey, nbal)
+	return setBalance(ctx, ps, dbKey, nbal)
 }
 
 func HeightKey() (k []byte) {
