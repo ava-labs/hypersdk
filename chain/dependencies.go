@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/workers"
 )
 
@@ -94,23 +95,6 @@ type Mempool interface {
 	PrepareStream(context.Context, int)
 	Stream(context.Context, int) []*Transaction
 	FinishStreaming(context.Context, []*Transaction) int
-}
-
-type ImmutableState interface {
-	GetValue(ctx context.Context, key []byte) (value []byte, err error)
-}
-
-type MutableState interface {
-	ImmutableState
-
-	Insert(ctx context.Context, key []byte, value []byte) error
-	Remove(ctx context.Context, key []byte) error
-}
-
-type View interface {
-	ImmutableState
-
-	NewViewFromMap(ctx context.Context, changes map[string]*merkledb.ChangeOp, copyBytes bool) (merkledb.TrieView, error)
 }
 
 type Rules interface {
@@ -224,7 +208,7 @@ type Action interface {
 	Execute(
 		ctx context.Context,
 		r Rules,
-		mu MutableState,
+		mu state.Mutable,
 		timestamp int64,
 		auth Auth,
 		txID ids.ID,
@@ -285,7 +269,7 @@ type Auth interface {
 	Verify(
 		ctx context.Context,
 		r Rules,
-		im ImmutableState,
+		im state.Immutable,
 		action Action,
 	) (computeUnits uint64, err error)
 
@@ -294,10 +278,10 @@ type Auth interface {
 	Payer() []byte
 
 	// CanDeduct returns an error if [amount] cannot be paid by [Auth].
-	CanDeduct(ctx context.Context, im ImmutableState, amount uint64) error
+	CanDeduct(ctx context.Context, im state.Immutable, amount uint64) error
 
 	// Deduct removes [amount] from [Auth] during transaction execution to pay fees.
-	Deduct(ctx context.Context, mu MutableState, amount uint64) error
+	Deduct(ctx context.Context, mu state.Mutable, amount uint64) error
 
 	// Refund returns [amount] to [Auth] after transaction execution if any fees were
 	// not used.
@@ -306,7 +290,7 @@ type Auth interface {
 	// modify or remove existing keys.
 	//
 	// Refund is only invoked if [amount] > 0.
-	Refund(ctx context.Context, mu MutableState, amount uint64) error
+	Refund(ctx context.Context, mu state.Mutable, amount uint64) error
 
 	// Marshal encodes an [Auth] as bytes.
 	Marshal(p *codec.Packer)

@@ -11,8 +11,8 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/keys"
+	"github.com/ava-labs/hypersdk/state"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
@@ -109,7 +109,7 @@ func (ts *TState) getValue(_ context.Context, key string) ([]byte, bool, bool) {
 // ts.fetchCache set the key's value to the value from cache.
 //
 // If possible, this function should be avoided and state should be prefetched (much faster).
-func (ts *TState) FetchAndSetScope(ctx context.Context, keys set.Set[string], im chain.ImmutableState) error {
+func (ts *TState) FetchAndSetScope(ctx context.Context, keys set.Set[string], im state.Immutable) error {
 	ts.scopeStorage = map[string][]byte{}
 	for key := range keys {
 		if val, ok := ts.fetchCache[key]; ok {
@@ -283,8 +283,7 @@ func (ts *TState) Rollback(_ context.Context, restorePoint int) {
 // changes in [TState] that can be used to commit to [merkledb].
 func (ts *TState) CreateView(
 	ctx context.Context,
-	// TODO: move state interfaces outside of chain
-	view chain.View,
+	view state.View,
 	t trace.Tracer, //nolint:interfacer
 ) (merkledb.TrieView, error) {
 	ctx, span := t.Start(
