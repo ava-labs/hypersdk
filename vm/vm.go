@@ -704,12 +704,12 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	state, err := blk.State(ctx, false)
+	view, err := blk.View(ctx, false)
 	if err != nil {
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
-	feeRaw, err := state.GetValue(ctx, chain.FeeKey(vm.StateManager().FeeKey()))
+	feeRaw, err := view.GetValue(ctx, chain.FeeKey(vm.StateManager().FeeKey()))
 	if err != nil {
 		return []error{err}
 	}
@@ -776,7 +776,7 @@ func (vm *VM) Submit(
 		// Note, [PreExecute] ensures that the pending transaction does not have
 		// an expiry time further ahead than [ValidityWindow]. This ensures anything
 		// added to the [Mempool] is immediately executable.
-		if _, err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, state, now); err != nil {
+		if _, err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, view, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}

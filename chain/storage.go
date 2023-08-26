@@ -12,13 +12,13 @@ import (
 var _ MutableState = (*SimpleMutableState)(nil)
 
 type SimpleMutableState struct {
-	State
+	View
 
 	changes map[string]*merkledb.ChangeOp
 }
 
-func NewSimpleMutableState(s State) *SimpleMutableState {
-	return &SimpleMutableState{s, make(map[string]*merkledb.ChangeOp)}
+func NewSimpleMutableState(v View) *SimpleMutableState {
+	return &SimpleMutableState{v, make(map[string]*merkledb.ChangeOp)}
 }
 
 func (s *SimpleMutableState) Insert(_ context.Context, k []byte, v []byte) error {
@@ -32,7 +32,7 @@ func (s *SimpleMutableState) Remove(_ context.Context, k []byte) error {
 }
 
 func (s *SimpleMutableState) Commit(ctx context.Context) error {
-	view, err := s.State.NewViewFromMap(ctx, s.changes, false)
+	view, err := s.View.NewViewFromMap(ctx, s.changes, false)
 	if err != nil {
 		return err
 	}

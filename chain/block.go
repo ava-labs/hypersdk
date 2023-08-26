@@ -102,8 +102,8 @@ type StatelessBlock struct {
 	results    []*Result
 	feeManager *FeeManager
 
-	vm    VM
-	state merkledb.TrieView
+	vm   VM
+	view merkledb.TrieView
 
 	sigJob workers.Job
 }
@@ -247,7 +247,7 @@ func ParseStatefulBlock(
 // [initializeBuilt] is invoked after a block is built
 func (b *StatelessBlock) initializeBuilt(
 	ctx context.Context,
-	state merkledb.TrieView,
+	view merkledb.TrieView,
 	results []*Result,
 	feeManager *FeeManager,
 ) error {
@@ -260,7 +260,7 @@ func (b *StatelessBlock) initializeBuilt(
 	}
 	b.bytes = blk
 	b.id = utils.ToID(b.bytes)
-	b.state = state
+	b.view = view
 	b.t = time.UnixMilli(b.StatefulBlock.Tmstmp)
 	b.results = results
 	b.feeManager = feeManager
@@ -354,11 +354,11 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 	default:
 		// Parent may not be processed when we verify this block so [verify] may
 		// recursively compute missing state.
-		state, err := b.innerVerify(ctx)
+		view, err := b.innerVerify(ctx)
 		if err != nil {
 			return err
 		}
-		b.state = state
+		b.view = view
 	}
 
 	// At any point after this, we may attempt to verify the block. We should be
@@ -405,8 +405,8 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 //
 // When this may be called:
 //  1. [Verify|VerifyWithContext]
-//  2. If the parent state is missing when verifying (dynamic state sync)
-//  3. If the state of a block we are accepting is missing (finishing dynamic
+//  2. If the parent view is missing when verifying (dynamic state sync)
+//  3. If the view of a block we are accepting is missing (finishing dynamic
 //     state sync)
 func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, error) {
 	var (
@@ -502,17 +502,17 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		}()
 	}
 
-	// Fetch parent state
+	// Fetch parent view
 	//
 	// This function may verify the parent if it is not yet verified.
-	parentState, err := parent.State(ctx, true)
+	parentView, err := parent.View(ctx, true)
 	if err != nil {
 		return nil, err
 	}
 
 	// Compute next unit prices to use
 	feeKey := FeeKey(b.vm.StateManager().FeeKey())
-	feeRaw, err := parentState.GetValue(ctx, feeKey)
+	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
 		return nil, err
 	}
@@ -522,9 +522,9 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, err
 	}
 
-	// Optimisticaly fetch state
+	// Optimisticaly fetch view
 	processor := NewProcessor(b.vm.Tracer(), b)
-	processor.Prefetch(ctx, parentState)
+	processor.Prefetch(ctx, parentView)
 
 	// Process new transactions
 	results, ts, err := processor.Execute(ctx, nextFeeManager, r)
@@ -565,7 +565,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		feeKeyStr:    feeManager.Bytes(),
 	})
 
-	// Store height in state to prevent duplicate roots
+	// Store height in view to prevent duplicate roots
 	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, err
 	}
@@ -578,7 +578,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	// Get view from [tstate] after writing all changed keys
 	b.vm.RecordStateChanges(ts.PendingChanges())
 	b.vm.RecordStateOperations(ts.OpIndex())
-	state, err := ts.CreateView(ctx, parentState, b.vm.Tracer())
+	view, err := ts.CreateView(ctx, parentView, b.vm.Tracer())
 	if err != nil {
 		return nil, err
 	}
@@ -588,7 +588,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	// Because fee bytes are not recorded in state, it is sufficient to check the state root
 	// to verify all fee calcuations were correct.
 	start := time.Now()
-	computedRoot, err := state.GetMerkleRoot(ctx)
+	computedRoot, err := view.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -610,7 +610,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, err
 	}
 	b.vm.RecordWaitSignatures(time.Since(start))
-	return state, nil
+	return view, nil
 }
 
 // implements "snowman.Block.choices.Decidable"
@@ -645,16 +645,16 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		//
 		// If state sync completes before accept is called
 		// then we need to rebuild it here.
-		state, err := b.innerVerify(ctx)
+		view, err := b.innerVerify(ctx)
 		if err != nil {
 			return err
 		}
-		b.state = state
+		b.view = view
 	}
 
-	// Commit state if we don't return before here (would happen if we are still
+	// Commit view if we don't return before here (would happen if we are still
 	// syncing)
-	if err := b.state.CommitToDB(ctx); err != nil {
+	if err := b.view.CommitToDB(ctx); err != nil {
 		return err
 	}
 
@@ -706,15 +706,15 @@ func (b *StatelessBlock) Timestamp() time.Time { return b.t }
 
 // Used to determine if should notify listeners and/or pass to controller
 func (b *StatelessBlock) Processed() bool {
-	return b.state != nil
+	return b.view != nil
 }
 
 // State.....
 //
 // TODO: we should modify the interface here to only allow read-like messages
 // We assume this will only be called once we are done syncing, so it is safe
-// to assume we will eventually get to a block with state.
-func (b *StatelessBlock) State(ctx context.Context, verify bool) (State, error) {
+// to assume we will eventually get to a block with view.
+func (b *StatelessBlock) View(ctx context.Context, verify bool) (View, error) {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.State",
 		oteltrace.WithAttributes(
 			attribute.Bool("verify", verify),
@@ -729,16 +729,16 @@ func (b *StatelessBlock) State(ctx context.Context, verify bool) (State, error) 
 	if !b.Processed() {
 		if verify {
 			b.vm.Logger().Info("verifying parent when requesting state", zap.Uint64("height", b.Hght))
-			state, err := b.innerVerify(ctx)
+			view, err := b.innerVerify(ctx)
 			if err != nil {
 				return nil, err
 			}
-			b.state = state
+			b.view = view
 		} else {
 			return nil, ErrBlockNotProcessed
 		}
 	}
-	return b.state, nil
+	return b.view, nil
 }
 
 // IsRepeat returns a bitset of all transactions that are considered repeats in

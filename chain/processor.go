@@ -49,9 +49,9 @@ func NewProcessor(tracer trace.Tracer, b *StatelessBlock) *Processor {
 	}
 }
 
-func (p *Processor) Prefetch(ctx context.Context, ro ImmutableState) {
+func (p *Processor) Prefetch(ctx context.Context, im ImmutableState) {
 	ctx, span := p.tracer.Start(ctx, "Processor.Prefetch")
-	p.ro = ro
+	p.im = im
 	sm := p.blk.vm.StateManager()
 	go func() {
 		defer func() {
@@ -78,7 +78,7 @@ func (p *Processor) Prefetch(ctx context.Context, ro ImmutableState) {
 					}
 					continue
 				}
-				v, err := ro.GetValue(ctx, []byte(k))
+				v, err := im.GetValue(ctx, []byte(k))
 				if errors.Is(err, database.ErrNotFound) {
 					coldReads[k] = 0
 					alreadyFetched[k] = &fetchData{nil, false, 0}

@@ -85,7 +85,7 @@ func BuildBlock(
 	// Fetch state to build on
 	mempoolSize := vm.Mempool().Len(ctx)
 	changesEstimate := math.Min(mempoolSize, maxViewPreallocation)
-	parentState, err := parent.State(ctx, false)
+	parentView, err := parent.View(ctx, false)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err
@@ -93,7 +93,7 @@ func BuildBlock(
 
 	// Compute next unit prices to use
 	feeKey := FeeKey(vm.StateManager().FeeKey())
-	feeRaw, err := parentState.GetValue(ctx, feeKey)
+	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +192,7 @@ func BuildBlock(
 						}
 						continue
 					}
-					v, err := parentState.GetValue(ctx, []byte(k))
+					v, err := parentView.GetValue(ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
 						alreadyFetched[k] = &fetchData{nil, false, 0}
 						continue
@@ -487,20 +487,20 @@ func BuildBlock(
 	}
 
 	// Get view from [tstate] after writing all changed keys
-	state, err := ts.CreateView(ctx, parentState, vm.Tracer())
+	view, err := ts.CreateView(ctx, parentView, vm.Tracer())
 	if err != nil {
 		return nil, err
 	}
 
 	// Compute state root after all data has been written to trie
-	root, err := state.GetMerkleRoot(ctx)
+	root, err := view.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
 	b.StateRoot = root
 
 	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, state, results, nextFeeManager); err != nil {
+	if err := b.initializeBuilt(ctx, view, results, nextFeeManager); err != nil {
 		return nil, err
 	}
 	log.Info(
