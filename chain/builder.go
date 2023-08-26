@@ -97,8 +97,8 @@ func BuildBlock(
 	if err != nil {
 		return nil, err
 	}
-	feeManager := NewFeeManager(feeRaw)
-	nextFeeManager, err := feeManager.ComputeNext(parent.Tmstmp, nextTime, r)
+	parentFeeManager := NewFeeManager(feeRaw)
+	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, nextTime, r)
 	if err != nil {
 		return nil, err
 	}
@@ -271,12 +271,12 @@ func BuildBlock(
 				)
 				continue
 			}
-			if ok, dimension := nextFeeManager.CanConsume(nextUnits, maxUnits); !ok {
+			if ok, dimension := feeManager.CanConsume(nextUnits, maxUnits); !ok {
 				log.Debug(
 					"skipping tx: too many units",
 					zap.Int("dimension", int(dimension)),
 					zap.Uint64("tx", nextUnits[dimension]),
-					zap.Uint64("block units", nextFeeManager.LastConsumed(dimension)),
+					zap.Uint64("block units", feeManager.LastConsumed(dimension)),
 					zap.Uint64("max block units", maxUnits[dimension]),
 				)
 				restorable = append(restorable, next)
@@ -284,7 +284,7 @@ func BuildBlock(
 				// If we are above the target for the dimension we can't consume, we will
 				// stop building. This prevents a full mempool iteration looking for the
 				// "perfect fit".
-				if nextFeeManager.LastConsumed(dimension) >= targetUnits[dimension] {
+				if feeManager.LastConsumed(dimension) >= targetUnits[dimension] {
 					execErr = errBlockFull
 				}
 				continue
@@ -305,7 +305,7 @@ func BuildBlock(
 			ts.SetScope(ctx, stateKeys, nextTxData.storage)
 
 			// PreExecute next to see if it is fit
-			authCUs, err := next.PreExecute(ctx, nextFeeManager, sm, r, ts, nextTime)
+			authCUs, err := next.PreExecute(ctx, feeManager, sm, r, ts, nextTime)
 			if err != nil {
 				ts.Rollback(ctx, txStart)
 				if HandlePreExecute(log, err) {
@@ -371,7 +371,7 @@ func BuildBlock(
 			}
 			result, err := next.Execute(
 				ctx,
-				nextFeeManager,
+				feeManager,
 				authCUs,
 				coldReads,
 				warmReads,
@@ -393,7 +393,7 @@ func BuildBlock(
 			// Update block with new transaction
 			b.Txs = append(b.Txs, next)
 			usedKeys.Add(stateKeys.List()...)
-			if err := nextFeeManager.Consume(result.Consumed); err != nil {
+			if err := feeManager.Consume(result.Consumed); err != nil {
 				execErr = err
 				continue
 			}
@@ -463,7 +463,7 @@ func BuildBlock(
 		feeKeyStr:    {},
 	}, map[string][]byte{
 		heightKeyStr: binary.BigEndian.AppendUint64(nil, parent.Hght),
-		feeKeyStr:    feeManager.Bytes(),
+		feeKeyStr:    parentFeeManager.Bytes(),
 	})
 
 	// Store height in state to prevent duplicate roots
@@ -472,7 +472,7 @@ func BuildBlock(
 	}
 
 	// Store fee parameters
-	if err := ts.Insert(ctx, feeKey, nextFeeManager.Bytes()); err != nil {
+	if err := ts.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert fees", err)
 	}
 
@@ -490,7 +490,7 @@ func BuildBlock(
 	b.StateRoot = root
 
 	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, view, results, nextFeeManager); err != nil {
+	if err := b.initializeBuilt(ctx, view, results, feeManager); err != nil {
 		return nil, err
 	}
 	log.Info(

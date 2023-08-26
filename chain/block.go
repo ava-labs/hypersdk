@@ -516,8 +516,8 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	if err != nil {
 		return nil, err
 	}
-	feeManager := NewFeeManager(feeRaw)
-	nextFeeManager, err := feeManager.ComputeNext(parent.Tmstmp, b.Tmstmp, r)
+	parentFeeManager := NewFeeManager(feeRaw)
+	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, b.Tmstmp, r)
 	if err != nil {
 		return nil, err
 	}
@@ -527,13 +527,13 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	processor.Prefetch(ctx, parentView)
 
 	// Process new transactions
-	results, ts, err := processor.Execute(ctx, nextFeeManager, r)
+	results, ts, err := processor.Execute(ctx, feeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return nil, err
 	}
 	b.results = results
-	b.feeManager = nextFeeManager
+	b.feeManager = feeManager
 
 	// Ensure warp results are correct
 	if invalidWarpResult {
@@ -562,7 +562,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		feeKeyStr:    {},
 	}, map[string][]byte{
 		heightKeyStr: binary.BigEndian.AppendUint64(nil, parent.Hght),
-		feeKeyStr:    feeManager.Bytes(),
+		feeKeyStr:    parentFeeManager.Bytes(),
 	})
 
 	// Store height in view to prevent duplicate roots
@@ -571,7 +571,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 
 	// Store fee parameters
-	if err := ts.Insert(ctx, feeKey, nextFeeManager.Bytes()); err != nil {
+	if err := ts.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
 		return nil, err
 	}
 
