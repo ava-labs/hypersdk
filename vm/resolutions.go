@@ -21,7 +21,6 @@ import (
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/gossiper"
-	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/workers"
 )
 
@@ -459,8 +458,7 @@ func (vm *VM) RecordClearedMempool() {
 }
 
 func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
-	feeKey := keys.EncodeChunks(vm.StateManager().FeeKey(), chain.FeeKeyChunks)
-	v, err := vm.stateDB.Get(feeKey)
+	v, err := vm.stateDB.Get(chain.FeeKey(vm.StateManager().FeeKey()))
 	if err != nil {
 		return chain.Dimensions{}, err
 	}

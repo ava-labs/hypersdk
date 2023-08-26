@@ -38,7 +38,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/gossiper"
-	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/network"
 	"github.com/ava-labs/hypersdk/rpc"
@@ -264,7 +263,7 @@ func (vm *VM) Initialize(
 			return err
 		}
 		// Set last height
-		if err := sdb.Insert(ctx, keys.EncodeChunks(vm.StateManager().HeightKey(), chain.HeightKeyChunks), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sdb.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
 		// Set fee parameters
@@ -275,7 +274,7 @@ func (vm *VM) Initialize(
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 		}
-		if err := sdb.Insert(ctx, keys.EncodeChunks(vm.StateManager().FeeKey(), chain.FeeKeyChunks), feeManager.Bytes()); err != nil {
+		if err := sdb.Insert(ctx, chain.FeeKey(vm.StateManager().FeeKey()), feeManager.Bytes()); err != nil {
 			return err
 		}
 		if err := sdb.Commit(ctx); err != nil {
@@ -711,8 +710,7 @@ func (vm *VM) Submit(
 		return []error{err}
 	}
 	state := chain.NewReadOnlyDatabase(rawState)
-	feeKey := keys.EncodeChunks(vm.StateManager().FeeKey(), chain.FeeKeyChunks)
-	feeRaw, err := state.GetValue(ctx, feeKey)
+	feeRaw, err := state.GetValue(ctx, chain.FeeKey(vm.StateManager().FeeKey()))
 	if err != nil {
 		return []error{err}
 	}

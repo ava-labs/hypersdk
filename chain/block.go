@@ -23,7 +23,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
 	"github.com/ava-labs/hypersdk/workers"
@@ -512,7 +511,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 
 	// Compute next unit prices to use
-	feeKey := keys.EncodeChunks(b.vm.StateManager().FeeKey(), FeeKeyChunks)
+	feeKey := FeeKey(b.vm.StateManager().FeeKey())
 	feeRaw, err := parentState.GetValue(ctx, feeKey)
 	if err != nil {
 		return nil, err
@@ -555,7 +554,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Set scope for [tstate] changes
 	sm := b.vm.StateManager()
-	heightKey := keys.EncodeChunks(sm.HeightKey(), HeightKeyChunks)
+	heightKey := HeightKey(sm.HeightKey())
 	heightKeyStr := string(heightKey)
 	feeKeyStr := string(feeKey)
 	ts.SetScope(ctx, set.Set[string]{

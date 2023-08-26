@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/utils/units"
+	"github.com/ava-labs/hypersdk/keys"
 )
 
 const (
@@ -33,3 +34,11 @@ const (
 	HeightKeyChunks       = 1
 	FeeKeyChunks          = 8 // 96 (per dimension) * 5 (num dimensions)
 )
+
+func HeightKey(prefix []byte) []byte {
+	return keys.EncodeChunks(prefix, HeightKeyChunks)
+}
+
+func FeeKey(prefix []byte) []byte {
+	return keys.EncodeChunks(prefix, FeeKeyChunks)
+}

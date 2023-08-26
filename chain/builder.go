@@ -92,7 +92,7 @@ func BuildBlock(
 	}
 
 	// Compute next unit prices to use
-	feeKey := keys.EncodeChunks(vm.StateManager().FeeKey(), FeeKeyChunks)
+	feeKey := FeeKey(vm.StateManager().FeeKey())
 	feeRaw, err := parentState.GetValue(ctx, feeKey)
 	if err != nil {
 		return nil, err
@@ -465,7 +465,7 @@ func BuildBlock(
 	}
 
 	// Set scope for [tstate] changes
-	heightKey := keys.EncodeChunks(sm.HeightKey(), HeightKeyChunks)
+	heightKey := HeightKey(sm.HeightKey())
 	heightKeyStr := string(heightKey)
 	feeKeyStr := string(feeKey)
 	ts.SetScope(ctx, set.Set[string]{
