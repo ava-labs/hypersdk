@@ -16,6 +16,7 @@ import (
 )
 
 var _ state.View = (*TestDB)(nil)
+var _ state.Mutable = (*TestDB)(nil)
 
 var (
 	TestKey = []byte("key")
@@ -299,11 +300,11 @@ func TestWriteChanges(t *testing.T) {
 		require.NoError(err, "Error getting value.")
 		require.Equal(vals[i], val, "Value not set correctly.")
 	}
-	err := ts.WriteChanges(ctx, db, tracer)
+	view, err := ts.CreateView(ctx, db, tracer)
 	require.NoError(err, "Error writing changes.")
 	// Check if db was updated correctly
 	for i, key := range keys {
-		val, _ := db.GetValue(ctx, key)
+		val, _ := view.GetValue(ctx, key)
 		require.Equal(vals[i], val, "Value not updated in db.")
 	}
 	// Remove
