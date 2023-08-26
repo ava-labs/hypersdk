@@ -114,7 +114,7 @@ func New(b []byte, _ []byte /* upgradeBytes */) (*Genesis, error) {
 	return g, nil
 }
 
-func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Database) error {
+func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu chain.MutableState) error {
 	ctx, span := tracer.Start(ctx, "Genesis.Load")
 	defer span.End()
 
@@ -132,13 +132,13 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Databa
 		if err != nil {
 			return err
 		}
-		if err := storage.SetBalance(ctx, db, pk, ids.Empty, alloc.Balance); err != nil {
+		if err := storage.SetBalance(ctx, mu, pk, ids.Empty, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}
 	return storage.SetAsset(
 		ctx,
-		db,
+		mu,
 		ids.Empty,
 		[]byte(consts.Symbol),
 		supply,

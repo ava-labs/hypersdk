@@ -56,7 +56,7 @@ func (d *ED25519) AsyncVerify(msg []byte) error {
 func (d *ED25519) Verify(
 	_ context.Context,
 	r chain.Rules,
-	_ chain.Database,
+	_ chain.ImmutableState,
 	_ chain.Action,
 ) (uint64, error) {
 	// We don't do anything during verify (there is no additional state to check
@@ -86,10 +86,10 @@ func UnmarshalED25519(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 
 func (d *ED25519) CanDeduct(
 	ctx context.Context,
-	db chain.Database,
+	im chain.ImmutableState,
 	amount uint64,
 ) error {
-	bal, err := storage.GetBalance(ctx, db, d.Signer, ids.Empty)
+	bal, err := storage.GetBalance(ctx, im, d.Signer, ids.Empty)
 	if err != nil {
 		return err
 	}
@@ -101,19 +101,19 @@ func (d *ED25519) CanDeduct(
 
 func (d *ED25519) Deduct(
 	ctx context.Context,
-	db chain.Database,
+	mu chain.MutableState,
 	amount uint64,
 ) error {
-	return storage.SubBalance(ctx, db, d.Signer, ids.Empty, amount)
+	return storage.SubBalance(ctx, mu, d.Signer, ids.Empty, amount)
 }
 
 func (d *ED25519) Refund(
 	ctx context.Context,
-	db chain.Database,
+	mu chain.MutableState,
 	amount uint64,
 ) error {
 	// Don't create account if it doesn't exist (may have sent all funds).
-	return storage.AddBalance(ctx, db, d.Signer, ids.Empty, amount, false)
+	return storage.AddBalance(ctx, mu, d.Signer, ids.Empty, amount, false)
 }
 
 var _ chain.AuthFactory = (*ED25519Factory)(nil)
@@ -138,7 +138,7 @@ func (*ED25519Factory) MaxUnits() (uint64, uint64, []uint16) {
 type ED25519AuthEngine struct{}
 
 func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatchVerifier {
-	batchSize := math.Max(count/cores, 16)
+	batchSize := math.Max(count/cores, ed25519.MinBatchSize)
 	return &ED25519Batch{
 		batchSize: batchSize,
 		total:     count,

@@ -136,7 +136,7 @@ func (*ED25519Factory) MaxUnits() (uint64, uint64, []uint16) {
 type ED25519AuthEngine struct{}
 
 func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatchVerifier {
-	batchSize := math.Max(count/cores, 16)
+	batchSize := math.Max(count/cores, ed25519.MinBatchSize)
 	return &ED25519Batch{
 		batchSize: batchSize,
 		total:     count,
