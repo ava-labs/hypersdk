@@ -725,6 +725,8 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 	defer span.End()
 
 	if b.st == choices.Accepted || b.Hght == 0 /* genesis */ {
+		// TODO: ensure we are accessing the right state (last accepted state
+		// will be state of our grandparent right after state sync).
 		return b.vm.State()
 	}
 	if !b.Processed() {

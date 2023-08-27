@@ -6,6 +6,7 @@ package state
 import (
 	"context"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 )
 
@@ -24,4 +25,5 @@ type View interface {
 	Immutable
 
 	NewView(ctx context.Context, changes merkledb.ViewChanges) (merkledb.TrieView, error)
+	GetMerkleRoot(ctx context.Context) (ids.ID, error)
 }

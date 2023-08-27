@@ -11,6 +11,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	ids "github.com/ava-labs/avalanchego/ids"
 	merkledb "github.com/ava-labs/avalanchego/x/merkledb"
 	gomock "github.com/golang/mock/gomock"
 )
@@ -36,6 +37,21 @@ func NewMockView(ctrl *gomock.Controller) *MockView {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockView) EXPECT() *MockViewMockRecorder {
 	return m.recorder
+}
+
+// GetMerkleRoot mocks base method.
+func (m *MockView) GetMerkleRoot(arg0 context.Context) (ids.ID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMerkleRoot", arg0)
+	ret0, _ := ret[0].(ids.ID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMerkleRoot indicates an expected call of GetMerkleRoot.
+func (mr *MockViewMockRecorder) GetMerkleRoot(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMerkleRoot", reflect.TypeOf((*MockView)(nil).GetMerkleRoot), arg0)
 }
 
 // GetValue mocks base method.
