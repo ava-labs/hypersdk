@@ -8,9 +8,13 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/database/manager"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/version"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
+	"golang.org/x/exp/maps"
 
 	"github.com/stretchr/testify/require"
 )
@@ -26,31 +30,49 @@ var (
 )
 
 type TestDB struct {
-	storage map[string][]byte
+	mdb     merkledb.MerkleDB
+	storage map[string]*merkledb.ChangeOp
 }
 
-func NewTestDB() *TestDB {
+func NewTestDB(t *testing.T) *TestDB {
+	m := manager.NewMemDB(version.Semantic1_0_0)
+	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	mdb, err := merkledb.New(context.TODO(), m.Current().Database, merkledb.Config{
+		HistoryLength: 100,
+		NodeCacheSize: 1_000,
+		Tracer:        tracer,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	return &TestDB{
-		storage: make(map[string][]byte),
+		mdb:     mdb,
+		storage: make(map[string]*merkledb.ChangeOp),
 	}
 }
 
 func (db *TestDB) GetValue(_ context.Context, key []byte) (value []byte, err error) {
 	val, ok := db.storage[string(key)]
-	if !ok {
+	if !ok || val.Delete {
 		return nil, database.ErrNotFound
 	}
-	return val, nil
+	return val.Value, nil
 }
 
 func (db *TestDB) Insert(_ context.Context, key []byte, value []byte) error {
-	db.storage[string(key)] = value
+	db.storage[string(key)] = &merkledb.ChangeOp{Value: value, Delete: false}
 	return nil
 }
 
 func (db *TestDB) Remove(_ context.Context, key []byte) error {
-	delete(db.storage, string(key))
+	db.storage[string(key)] = &merkledb.ChangeOp{Value: nil, Delete: true}
 	return nil
+}
+
+func (db *TestDB) NewViewFromMap(ctx context.Context, changes map[string]*merkledb.ChangeOp, copyBytes bool) (merkledb.TrieView, error) {
+	v, err := db.mdb.NewViewFromMap(ctx, db.storage, false)
+	maps.Clear(db.storage)
+	return v, err
 }
 
 func TestGetValue(t *testing.T) {
@@ -118,7 +140,7 @@ func TestInsertUpdate(t *testing.T) {
 func TestFetchAndSetScope(t *testing.T) {
 	require := require.New(t)
 	ts := New(10)
-	db := NewTestDB()
+	db := NewTestDB(t)
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
@@ -143,7 +165,7 @@ func TestFetchAndSetScope(t *testing.T) {
 func TestFetchAndSetScopeMissingKey(t *testing.T) {
 	require := require.New(t)
 	ts := New(10)
-	db := NewTestDB()
+	db := NewTestDB(t)
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
@@ -284,10 +306,10 @@ func TestRestoreDelete(t *testing.T) {
 	}
 }
 
-func TestWriteChanges(t *testing.T) {
+func TestCreateView(t *testing.T) {
 	require := require.New(t)
 	ts := New(10)
-	db := NewTestDB()
+	db := NewTestDB(t)
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
@@ -304,9 +326,10 @@ func TestWriteChanges(t *testing.T) {
 	}
 	view, err := ts.CreateView(ctx, db, tracer)
 	require.NoError(err, "Error writing changes.")
+	require.NoError(view.CommitToDB(ctx))
 	// Check if db was updated correctly
 	for i, key := range keys {
-		val, _ := view.GetValue(ctx, key)
+		val, _ := db.GetValue(ctx, key)
 		require.Equal(vals[i], val, "Value not updated in db.")
 	}
 	// Remove
@@ -322,8 +345,9 @@ func TestWriteChanges(t *testing.T) {
 		_, err = ts.GetValue(ctx, key)
 		require.ErrorIs(err, database.ErrNotFound, "Key not removed.")
 	}
-	err = ts.WriteChanges(ctx, db, tracer)
+	view, err = ts.CreateView(ctx, db, tracer)
 	require.NoError(err, "Error writing changes.")
+	require.NoError(view.CommitToDB(ctx))
 	// Check if db was updated correctly
 	for _, key := range keys {
 		_, err := db.GetValue(ctx, key)
