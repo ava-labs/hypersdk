@@ -458,10 +458,7 @@ func BuildBlock(
 	heightKey := HeightKey(sm.HeightKey())
 	heightKeyStr := string(heightKey)
 	feeKeyStr := string(feeKey)
-	ts.SetScope(ctx, set.Set[string]{
-		heightKeyStr: {},
-		feeKeyStr:    {},
-	}, map[string][]byte{
+	ts.SetScope(ctx, set.Of(heightKeyStr, feeKeyStr), map[string][]byte{
 		heightKeyStr: binary.BigEndian.AppendUint64(nil, parent.Hght),
 		feeKeyStr:    parentFeeManager.Bytes(),
 	})

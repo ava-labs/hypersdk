@@ -202,7 +202,7 @@ func (w *WarpManager) request(
 
 	return w.appSender.SendAppRequest(
 		ctx,
-		set.Set[ids.NodeID]{j.nodeID: struct{}{}},
+		set.Of(j.nodeID),
 		requestID,
 		j.txID[:],
 	)

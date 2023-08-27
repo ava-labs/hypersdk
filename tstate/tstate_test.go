@@ -58,7 +58,7 @@ func TestGetValue(t *testing.T) {
 	_, err := ts.GetValue(ctx, TestKey)
 	require.ErrorIs(err, ErrKeyNotSpecified, "No error thrown.")
 	// SetScope
-	ts.SetScope(ctx, set.Set[string]{string(TestKey): {}}, map[string][]byte{string(TestKey): TestVal})
+	ts.SetScope(ctx, set.Of(string(TestKey)), map[string][]byte{string(TestKey): TestVal})
 	val, err := ts.GetValue(ctx, TestKey)
 	require.NoError(err, "Error getting value.")
 	require.Equal(TestVal, val, "Value was not saved correctly.")
@@ -69,7 +69,7 @@ func TestGetValueNoStorage(t *testing.T) {
 	ctx := context.TODO()
 	ts := New(10)
 	// SetScope but dont add to storage
-	ts.SetScope(ctx, set.Set[string]{string(TestKey): {}}, map[string][]byte{})
+	ts.SetScope(ctx, set.Of(string(TestKey)), map[string][]byte{})
 	_, err := ts.GetValue(ctx, TestKey)
 	require.ErrorIs(database.ErrNotFound, err, "No error thrown.")
 }
@@ -82,7 +82,7 @@ func TestInsertNew(t *testing.T) {
 	err := ts.Insert(ctx, TestKey, TestVal)
 	require.ErrorIs(ErrKeyNotSpecified, err, "No error thrown.")
 	// SetScope
-	ts.SetScope(ctx, set.Set[string]{string(TestKey): {}}, map[string][]byte{})
+	ts.SetScope(ctx, set.Of(string(TestKey)), map[string][]byte{})
 	// Insert key
 	err = ts.Insert(ctx, TestKey, TestVal)
 	require.NoError(err, "Error thrown.")
@@ -97,7 +97,7 @@ func TestInsertUpdate(t *testing.T) {
 	ctx := context.TODO()
 	ts := New(10)
 	// SetScope and add
-	ts.SetScope(ctx, set.Set[string]{string(TestKey): {}}, map[string][]byte{string(TestKey): TestVal})
+	ts.SetScope(ctx, set.Of(string(TestKey)), map[string][]byte{string(TestKey): TestVal})
 	require.Equal(0, ts.OpIndex(), "SetStorage operation was not added.")
 	// Insert key
 	newVal := []byte("newVal")
@@ -170,7 +170,7 @@ func TestRemoveInsertRollback(t *testing.T) {
 	require := require.New(t)
 	ts := New(10)
 	ctx := context.TODO()
-	ts.SetScope(ctx, set.Set[string]{string(TestKey): {}}, map[string][]byte{})
+	ts.SetScope(ctx, set.Of(string(TestKey)), map[string][]byte{})
 	// Insert
 	err := ts.Insert(ctx, TestKey, TestVal)
 	require.NoError(err, "Error from insert.")
@@ -217,7 +217,7 @@ func TestRestoreInsert(t *testing.T) {
 	ts := New(10)
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
-	keySet := set.Set[string]{"key1": {}, "key2": {}, "key3": {}}
+	keySet := set.Of("key1", "key2", "key3")
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 	ts.SetScope(ctx, keySet, map[string][]byte{})
 	for i, key := range keys {
@@ -248,7 +248,7 @@ func TestRestoreDelete(t *testing.T) {
 	ts := New(10)
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
-	keySet := set.Set[string]{"key1": {}, "key2": {}, "key3": {}}
+	keySet := set.Of("key1", "key2", "key3")
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 	ts.SetScope(ctx, keySet, map[string][]byte{
 		string(keys[0]): vals[0],
@@ -297,7 +297,7 @@ func TestCreateView(t *testing.T) {
 		t.Fatal(err)
 	}
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
-	keySet := set.Set[string]{"key1": {}, "key2": {}, "key3": {}}
+	keySet := set.Of("key1", "key2", "key3")
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 	ts.SetScope(ctx, keySet, map[string][]byte{})
 	// Add
