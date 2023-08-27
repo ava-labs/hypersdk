@@ -12,15 +12,9 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
 
 	"github.com/stretchr/testify/require"
-)
-
-var (
-	_ state.View    = (*TestDB)(nil)
-	_ state.Mutable = (*TestDB)(nil)
 )
 
 var (
@@ -28,54 +22,32 @@ var (
 	TestVal = []byte("value")
 )
 
-// TODO: rewrite this [TestDB] to remove [storage]
-// and use mock database
 type TestDB struct {
-	mdb     merkledb.MerkleDB
-	storage map[string]*merkledb.ChangeOp
+	storage map[string][]byte
 }
 
-func NewTestDB(t *testing.T) *TestDB {
-	m := manager.NewMemDB(version.Semantic1_0_0)
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
-	mdb, err := merkledb.New(context.TODO(), m.Current().Database, merkledb.Config{
-		HistoryLength: 100,
-		NodeCacheSize: 1_000,
-		Tracer:        tracer,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+func NewTestDB() *TestDB {
 	return &TestDB{
-		mdb:     mdb,
-		storage: make(map[string]*merkledb.ChangeOp),
+		storage: make(map[string][]byte),
 	}
 }
 
-func (db *TestDB) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+func (db *TestDB) GetValue(_ context.Context, key []byte) (value []byte, err error) {
 	val, ok := db.storage[string(key)]
-	if ok {
-		if val.Delete {
-			return nil, database.ErrNotFound
-		}
-		return val.Value, nil
+	if !ok {
+		return nil, database.ErrNotFound
 	}
-	return db.mdb.GetValue(ctx, key)
+	return val, nil
 }
 
 func (db *TestDB) Insert(_ context.Context, key []byte, value []byte) error {
-	db.storage[string(key)] = &merkledb.ChangeOp{Value: value, Delete: false}
+	db.storage[string(key)] = value
 	return nil
 }
 
 func (db *TestDB) Remove(_ context.Context, key []byte) error {
-	db.storage[string(key)] = &merkledb.ChangeOp{Value: nil, Delete: true}
+	delete(db.storage, string(key))
 	return nil
-}
-
-func (db *TestDB) NewViewFromMap(ctx context.Context, changes map[string]*merkledb.ChangeOp, copyBytes bool) (merkledb.TrieView, error) {
-	v, err := db.mdb.NewViewFromMap(ctx, changes, copyBytes)
-	return v, err
 }
 
 func TestGetValue(t *testing.T) {
@@ -143,7 +115,7 @@ func TestInsertUpdate(t *testing.T) {
 func TestFetchAndSetScope(t *testing.T) {
 	require := require.New(t)
 	ts := New(10)
-	db := NewTestDB(t)
+	db := NewTestDB()
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
@@ -168,7 +140,7 @@ func TestFetchAndSetScope(t *testing.T) {
 func TestFetchAndSetScopeMissingKey(t *testing.T) {
 	require := require.New(t)
 	ts := New(10)
-	db := NewTestDB(t)
+	db := NewTestDB()
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
@@ -311,10 +283,19 @@ func TestRestoreDelete(t *testing.T) {
 
 func TestCreateView(t *testing.T) {
 	require := require.New(t)
-	ts := New(10)
-	db := NewTestDB(t)
+
 	ctx := context.TODO()
+	ts := New(10)
+	m := manager.NewMemDB(version.Semantic1_0_0)
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	db, err := merkledb.New(ctx, m.Current().Database, merkledb.Config{
+		HistoryLength: 100,
+		NodeCacheSize: 1_000,
+		Tracer:        tracer,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	keySet := set.Set[string]{"key1": {}, "key2": {}, "key3": {}}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
