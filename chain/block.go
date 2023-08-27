@@ -576,20 +576,16 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, err
 	}
 
-	// Get view from [tstate] after writing all changed keys
-	b.vm.RecordStateChanges(ts.PendingChanges())
-	b.vm.RecordStateOperations(ts.OpIndex())
-	view, err := ts.CreateView(ctx, parentView, b.vm.Tracer())
-	if err != nil {
-		return nil, err
-	}
-
-	// Compute state root
+	// Check that root is correct
+	//
+	// TODO: we check the parent root here because...
+	// TODO: add span for wait?
+	// TODO: put span inside goroutine?
 	//
 	// Because fee bytes are not recorded in state, it is sufficient to check the state root
 	// to verify all fee calcuations were correct.
 	start := time.Now()
-	computedRoot, err := view.GetMerkleRoot(ctx)
+	computedRoot, err := parentView.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -603,6 +599,14 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		)
 	}
 
+	// Get view from [tstate] after writing all changed keys
+	b.vm.RecordStateChanges(ts.PendingChanges())
+	b.vm.RecordStateOperations(ts.OpIndex())
+	view, err := ts.CreateView(ctx, parentView, b.vm.Tracer())
+	if err != nil {
+		return nil, err
+	}
+
 	// Ensure signatures are verified
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitSignatures")
 	defer sspan.End()
@@ -611,6 +615,9 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, err
 	}
 	b.vm.RecordWaitSignatures(time.Since(start))
+
+	// Start async generation of root
+	go view.GetMerkleRoot(context.Background())
 	return view, nil
 }
 
