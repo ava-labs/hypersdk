@@ -579,12 +579,12 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	//
 	// Because fee bytes are not recorded in state, it is sufficient to check the state root
 	// to verify all fee calcuations were correct.
-	start := time.Now()
+	_, rspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitRoot")
 	computedRoot, err := parentView.GetMerkleRoot(ctx)
+	rspan.End()
 	if err != nil {
 		return nil, err
 	}
-	b.vm.RecordRootCalculated(time.Since(start))
 	if b.StateRoot != computedRoot {
 		return nil, fmt.Errorf(
 			"%w: expected=%s found=%s",
@@ -596,9 +596,10 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Ensure signatures are verified
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitSignatures")
-	defer sspan.End()
-	start = time.Now()
-	if err := b.sigJob.Wait(); err != nil {
+	start := time.Now()
+	err = b.sigJob.Wait()
+	sspan.End()
+	if err != nil {
 		return nil, err
 	}
 	b.vm.RecordWaitSignatures(time.Since(start))
