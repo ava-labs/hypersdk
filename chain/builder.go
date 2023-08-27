@@ -85,19 +85,20 @@ func BuildBlock(
 	// Fetch state to build on
 	mempoolSize := vm.Mempool().Len(ctx)
 	changesEstimate := math.Min(mempoolSize, maxViewPreallocation)
-	state, err := parent.childState(ctx, changesEstimate)
+	parentView, err := parent.View(ctx, false)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err
 	}
 
 	// Compute next unit prices to use
-	feeRaw, err := state.GetValue(ctx, vm.StateManager().FeeKey())
+	feeKey := FeeKey(vm.StateManager().FeeKey())
+	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
 		return nil, err
 	}
-	feeManager := NewFeeManager(feeRaw)
-	nextFeeManager, err := feeManager.ComputeNext(parent.Tmstmp, nextTime, r)
+	parentFeeManager := NewFeeManager(feeRaw)
+	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, nextTime, r)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +192,7 @@ func BuildBlock(
 						}
 						continue
 					}
-					v, err := state.GetValue(ctx, []byte(k))
+					v, err := parentView.GetValue(ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
 						alreadyFetched[k] = &fetchData{nil, false, 0}
 						continue
@@ -270,12 +271,12 @@ func BuildBlock(
 				)
 				continue
 			}
-			if ok, dimension := nextFeeManager.CanConsume(nextUnits, maxUnits); !ok {
+			if ok, dimension := feeManager.CanConsume(nextUnits, maxUnits); !ok {
 				log.Debug(
 					"skipping tx: too many units",
 					zap.Int("dimension", int(dimension)),
 					zap.Uint64("tx", nextUnits[dimension]),
-					zap.Uint64("block units", nextFeeManager.LastConsumed(dimension)),
+					zap.Uint64("block units", feeManager.LastConsumed(dimension)),
 					zap.Uint64("max block units", maxUnits[dimension]),
 				)
 				restorable = append(restorable, next)
@@ -283,7 +284,7 @@ func BuildBlock(
 				// If we are above the target for the dimension we can't consume, we will
 				// stop building. This prevents a full mempool iteration looking for the
 				// "perfect fit".
-				if nextFeeManager.LastConsumed(dimension) >= targetUnits[dimension] {
+				if feeManager.LastConsumed(dimension) >= targetUnits[dimension] {
 					execErr = errBlockFull
 				}
 				continue
@@ -304,22 +305,12 @@ func BuildBlock(
 			ts.SetScope(ctx, stateKeys, nextTxData.storage)
 
 			// PreExecute next to see if it is fit
-			preExecuteStart := ts.OpIndex()
-			authCUs, err := next.PreExecute(ctx, nextFeeManager, sm, r, ts, nextTime)
+			authCUs, err := next.PreExecute(ctx, feeManager, sm, r, ts, nextTime)
 			if err != nil {
 				ts.Rollback(ctx, txStart)
 				if HandlePreExecute(log, err) {
 					restorable = append(restorable, next)
 				}
-				continue
-			}
-			if preExecuteStart != ts.OpIndex() {
-				// This should not happen because we check this before
-				// adding a transaction to the mempool.
-				log.Warn(
-					"skipping tx: preexecute mutates",
-					zap.Error(err),
-				)
 				continue
 			}
 
@@ -380,7 +371,7 @@ func BuildBlock(
 			}
 			result, err := next.Execute(
 				ctx,
-				nextFeeManager,
+				feeManager,
 				authCUs,
 				coldReads,
 				warmReads,
@@ -402,7 +393,7 @@ func BuildBlock(
 			// Update block with new transaction
 			b.Txs = append(b.Txs, next)
 			usedKeys.Add(stateKeys.List()...)
-			if err := nextFeeManager.Consume(result.Consumed); err != nil {
+			if err := feeManager.Consume(result.Consumed); err != nil {
 				execErr = err
 				continue
 			}
@@ -463,30 +454,40 @@ func BuildBlock(
 		vm.RecordEmptyBlockBuilt()
 	}
 
-	// Get root from underlying state changes after writing all changed keys
-	if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
-		return nil, err
-	}
+	// Set scope for [tstate] changes
+	heightKey := HeightKey(sm.HeightKey())
+	heightKeyStr := string(heightKey)
+	feeKeyStr := string(feeKey)
+	ts.SetScope(ctx, set.Of(heightKeyStr, feeKeyStr), map[string][]byte{
+		heightKeyStr: binary.BigEndian.AppendUint64(nil, parent.Hght),
+		feeKeyStr:    parentFeeManager.Bytes(),
+	})
 
 	// Store height in state to prevent duplicate roots
-	if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return nil, err
+	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return nil, fmt.Errorf("%w: unable to insert height", err)
 	}
 
 	// Store fee parameters
-	if err := state.Insert(ctx, sm.FeeKey(), nextFeeManager.Bytes()); err != nil {
+	if err := ts.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
+		return nil, fmt.Errorf("%w: unable to insert fees", err)
+	}
+
+	// Get view from [tstate] after writing all changed keys
+	view, err := ts.CreateView(ctx, parentView, vm.Tracer())
+	if err != nil {
 		return nil, err
 	}
 
 	// Compute state root after all data has been written to trie
-	root, err := state.GetMerkleRoot(ctx)
+	root, err := view.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
 	b.StateRoot = root
 
 	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, state, results, nextFeeManager); err != nil {
+	if err := b.initializeBuilt(ctx, view, results, feeManager); err != nil {
 		return nil, err
 	}
 	log.Info(

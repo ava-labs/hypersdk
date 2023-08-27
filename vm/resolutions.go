@@ -29,7 +29,6 @@ var (
 	_ gossiper.VM                        = (*VM)(nil)
 	_ builder.VM                         = (*VM)(nil)
 	_ block.ChainVM                      = (*VM)(nil)
-	_ block.HeightIndexedChainVM         = (*VM)(nil)
 	_ block.StateSyncableVM              = (*VM)(nil)
 	_ block.BuildBlockWithContextChainVM = (*VM)(nil)
 )
@@ -459,7 +458,7 @@ func (vm *VM) RecordClearedMempool() {
 }
 
 func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
-	v, err := vm.stateDB.Get(vm.StateManager().FeeKey())
+	v, err := vm.stateDB.Get(chain.FeeKey(vm.StateManager().FeeKey()))
 	if err != nil {
 		return chain.Dimensions{}, err
 	}

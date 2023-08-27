@@ -2,5 +2,8 @@ github.com/ava-labs/hypersdk/chain=Action=chain/mock_action.go
 github.com/ava-labs/hypersdk/chain=Auth=chain/mock_auth.go
 github.com/ava-labs/hypersdk/chain=AuthFactory=chain/mock_auth_factory.go
 github.com/ava-labs/hypersdk/chain=Rules=chain/mock_rules.go
+github.com/ava-labs/hypersdk/state=Mutable=state/mock_mutable.go
+github.com/ava-labs/hypersdk/state=Immutable=state/mock_immutable.go
+github.com/ava-labs/hypersdk/state=View=state/mock_view.go
 github.com/ava-labs/hypersdk/vm=Controller=vm/mock_controller.go
 github.com/ava-labs/hypersdk/x/programs/runtime=Storage=x/programs/runtime/mock_storage.go

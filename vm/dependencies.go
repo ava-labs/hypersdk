@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/gossiper"
+	"github.com/ava-labs/hypersdk/state"
 	trace "github.com/ava-labs/hypersdk/trace"
 )
 
@@ -44,7 +45,7 @@ type Config interface {
 }
 
 type Genesis interface {
-	Load(context.Context, atrace.Tracer, chain.Database) error
+	Load(context.Context, atrace.Tracer, state.Mutable) error
 }
 
 type AuthEngine interface {

@@ -581,7 +581,7 @@ a default codec._
 ### Genesis
 ```golang
 type Genesis interface {
-	Load(context.Context, atrace.Tracer, chain.Database) error
+	Load(context.Context, atrace.Tracer, state.Mutable) error
 }
 ```
 
@@ -616,7 +616,7 @@ type Action interface {
 
 	// OutputsWarpMessage indicates whether an [Action] will produce a warp message. The max size
 	// of any warp message is [MaxOutgoingWarpChunks].
-	OutputsWarpMessage()  bool
+	OutputsWarpMessage() bool
 
 	// StateKeys is a full enumeration of all database keys that could be touched during execution
 	// of an [Action]. This is used to prefetch state and will be used to parallelize execution (making
@@ -624,6 +624,8 @@ type Action interface {
 	//
 	// All keys specified must be suffixed with the number of chunks that could ever be read from that
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
+	//
+	// If any key is removed and then re-created, this will count as a creation instead of a modification.
 	StateKeys(auth Auth, txID ids.ID) []string
 
 	// StateKeysMaxChunks is used to estimate the fee a transaction should pay. It includes the max
@@ -642,7 +644,7 @@ type Action interface {
 	Execute(
 		ctx context.Context,
 		r Rules,
-		db Database,
+		mu state.Mutable,
 		timestamp int64,
 		auth Auth,
 		txID ids.ID,
@@ -671,8 +673,9 @@ and what a more complex "fill order" `Action` looks like [here](./examples/token
 type Result struct {
 	Success bool
 	Output  []byte
-	Units   Dimensions
-	Fee     uint64
+
+	Consumed Dimensions
+	Fee      uint64
 
 	WarpMessage *warp.UnsignedMessage
 }
@@ -724,12 +727,10 @@ type Auth interface {
 	//
 	// This could be used, for example, to determine that the public key used to sign a transaction
 	// is registered as the signer for an account. This could also be used to pull a [Program] from disk.
-	//
-	// Invariant: [Verify] must not change state
 	Verify(
 		ctx context.Context,
 		r Rules,
-		db Database,
+		im state.Immutable,
 		action Action,
 	) (computeUnits uint64, err error)
 
@@ -738,16 +739,19 @@ type Auth interface {
 	Payer() []byte
 
 	// CanDeduct returns an error if [amount] cannot be paid by [Auth].
-	CanDeduct(ctx context.Context, db Database, amount uint64) error
+	CanDeduct(ctx context.Context, im state.Immutable, amount uint64) error
 
 	// Deduct removes [amount] from [Auth] during transaction execution to pay fees.
-	Deduct(ctx context.Context, db Database, amount uint64) error
+	Deduct(ctx context.Context, mu state.Mutable, amount uint64) error
 
 	// Refund returns [amount] to [Auth] after transaction execution if any fees were
 	// not used.
 	//
+	// Refund will return an error if it attempts to create any new keys. It can only
+	// modify or remove existing keys.
+	//
 	// Refund is only invoked if [amount] > 0.
-	Refund(ctx context.Context, db Database, amount uint64) error
+	Refund(ctx context.Context, mu state.Mutable, amount uint64) error
 
 	// Marshal encodes an [Auth] as bytes.
 	Marshal(p *codec.Packer)

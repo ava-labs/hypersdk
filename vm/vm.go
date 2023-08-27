@@ -41,6 +41,7 @@ import (
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/network"
 	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/state"
 	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
@@ -257,16 +258,13 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
 	} else {
 		// Set balances
-		view, err := vm.stateDB.NewView()
-		if err != nil {
-			return err
-		}
-		if err := vm.genesis.Load(ctx, vm.tracer, view); err != nil {
+		sps := state.NewSimpleMutable(vm.stateDB)
+		if err := vm.genesis.Load(ctx, vm.tracer, sps); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}
 		// Set last height
-		if err := view.Insert(ctx, vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
 		// Set fee parameters
@@ -277,17 +275,17 @@ func (vm *VM) Initialize(
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 		}
-		if err := view.Insert(ctx, vm.StateManager().FeeKey(), feeManager.Bytes()); err != nil {
+		if err := sps.Insert(ctx, chain.FeeKey(vm.StateManager().FeeKey()), feeManager.Bytes()); err != nil {
 			return err
 		}
-		if err := view.CommitToDB(ctx); err != nil {
+		if err := sps.Commit(ctx); err != nil {
 			return err
 		}
 		root, err := vm.stateDB.GetMerkleRoot(ctx)
 		if err != nil {
 			snowCtx.Log.Error("could not get merkle root", zap.Error(err))
 		}
-		snowCtx.Log.Debug("genesis state created", zap.Stringer("root", root))
+		snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
 
 		// Create genesis block
 		genesisBlk, err := chain.ParseStatefulBlock(
@@ -707,13 +705,12 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	rawState, err := blk.State()
+	view, err := blk.View(ctx, false)
 	if err != nil {
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
-	state := chain.NewReadOnlyDatabase(rawState)
-	feeRaw, err := state.GetValue(ctx, vm.StateManager().FeeKey())
+	feeRaw, err := view.GetValue(ctx, chain.FeeKey(vm.StateManager().FeeKey()))
 	if err != nil {
 		return []error{err}
 	}
@@ -780,7 +777,7 @@ func (vm *VM) Submit(
 		// Note, [PreExecute] ensures that the pending transaction does not have
 		// an expiry time further ahead than [ValidityWindow]. This ensures anything
 		// added to the [Mempool] is immediately executable.
-		if _, err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, state, now); err != nil {
+		if _, err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, view, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}

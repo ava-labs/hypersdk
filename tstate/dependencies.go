@@ -3,10 +3,14 @@
 
 package tstate
 
-import "context"
+import (
+	"context"
+
+	"github.com/ava-labs/avalanchego/utils/maybe"
+	"github.com/ava-labs/avalanchego/x/merkledb"
+)
 
 type Database interface {
+	NewViewFromMap(ctx context.Context, changes map[string]maybe.Maybe[[]byte], copyBytes bool) (merkledb.TrieView, error)
 	GetValue(ctx context.Context, key []byte) (value []byte, err error)
-	Insert(ctx context.Context, key []byte, value []byte) error
-	Remove(ctx context.Context, key []byte) error
 }

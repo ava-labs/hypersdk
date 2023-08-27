@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/state"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
@@ -144,23 +145,23 @@ func BalanceKey(pk ed25519.PublicKey, asset ids.ID) (k []byte) {
 // If locked is 0, then account does not exist
 func GetBalance(
 	ctx context.Context,
-	db chain.Database,
+	im state.Immutable,
 	pk ed25519.PublicKey,
 	asset ids.ID,
 ) (uint64, error) {
-	dbKey, bal, _, err := getBalance(ctx, db, pk, asset)
-	balanceKeyPool.Put(dbKey)
+	key, bal, _, err := getBalance(ctx, im, pk, asset)
+	balanceKeyPool.Put(key)
 	return bal, err
 }
 
 func getBalance(
 	ctx context.Context,
-	db chain.Database,
+	im state.Immutable,
 	pk ed25519.PublicKey,
 	asset ids.ID,
 ) ([]byte, uint64, bool, error) {
 	k := BalanceKey(pk, asset)
-	bal, exists, err := innerGetBalance(db.GetValue(ctx, k))
+	bal, exists, err := innerGetBalance(im.GetValue(ctx, k))
 	return k, bal, exists, err
 }
 
@@ -193,42 +194,42 @@ func innerGetBalance(
 
 func SetBalance(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	pk ed25519.PublicKey,
 	asset ids.ID,
 	balance uint64,
 ) error {
 	k := BalanceKey(pk, asset)
-	return setBalance(ctx, db, k, balance)
+	return setBalance(ctx, mu, k, balance)
 }
 
 func setBalance(
 	ctx context.Context,
-	db chain.Database,
-	dbKey []byte,
+	mu state.Mutable,
+	key []byte,
 	balance uint64,
 ) error {
-	return db.Insert(ctx, dbKey, binary.BigEndian.AppendUint64(nil, balance))
+	return mu.Insert(ctx, key, binary.BigEndian.AppendUint64(nil, balance))
 }
 
 func DeleteBalance(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	pk ed25519.PublicKey,
 	asset ids.ID,
 ) error {
-	return db.Remove(ctx, BalanceKey(pk, asset))
+	return mu.Remove(ctx, BalanceKey(pk, asset))
 }
 
 func AddBalance(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	pk ed25519.PublicKey,
 	asset ids.ID,
 	amount uint64,
 	create bool,
 ) error {
-	dbKey, bal, exists, err := getBalance(ctx, db, pk, asset)
+	key, bal, exists, err := getBalance(ctx, mu, pk, asset)
 	if err != nil {
 		return err
 	}
@@ -248,17 +249,17 @@ func AddBalance(
 			amount,
 		)
 	}
-	return setBalance(ctx, db, dbKey, nbal)
+	return setBalance(ctx, mu, key, nbal)
 }
 
 func SubBalance(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	pk ed25519.PublicKey,
 	asset ids.ID,
 	amount uint64,
 ) error {
-	dbKey, bal, _, err := getBalance(ctx, db, pk, asset)
+	key, bal, _, err := getBalance(ctx, mu, pk, asset)
 	if err != nil {
 		return err
 	}
@@ -276,9 +277,9 @@ func SubBalance(
 	if nbal == 0 {
 		// If there is no balance left, we should delete the record instead of
 		// setting it to 0.
-		return db.Remove(ctx, dbKey)
+		return mu.Remove(ctx, key)
 	}
-	return setBalance(ctx, db, dbKey, nbal)
+	return setBalance(ctx, mu, key, nbal)
 }
 
 // [assetPrefix] + [address]
@@ -302,11 +303,11 @@ func GetAssetFromState(
 
 func GetAsset(
 	ctx context.Context,
-	db chain.Database,
+	im state.Immutable,
 	asset ids.ID,
 ) (bool, []byte, uint64, ed25519.PublicKey, bool, error) {
 	k := AssetKey(asset)
-	return innerGetAsset(db.GetValue(ctx, k))
+	return innerGetAsset(im.GetValue(ctx, k))
 }
 
 func innerGetAsset(
@@ -330,7 +331,7 @@ func innerGetAsset(
 
 func SetAsset(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	asset ids.ID,
 	metadata []byte,
 	supply uint64,
@@ -349,12 +350,12 @@ func SetAsset(
 		b = 0x1
 	}
 	v[consts.Uint16Len+metadataLen+consts.Uint64Len+ed25519.PublicKeyLen] = b
-	return db.Insert(ctx, k, v)
+	return mu.Insert(ctx, k, v)
 }
 
-func DeleteAsset(ctx context.Context, db chain.Database, asset ids.ID) error {
+func DeleteAsset(ctx context.Context, mu state.Mutable, asset ids.ID) error {
 	k := AssetKey(asset)
-	return db.Remove(ctx, k)
+	return mu.Remove(ctx, k)
 }
 
 // [orderPrefix] + [txID]
@@ -368,7 +369,7 @@ func OrderKey(txID ids.ID) (k []byte) {
 
 func SetOrder(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	txID ids.ID,
 	in ids.ID,
 	inTick uint64,
@@ -385,12 +386,12 @@ func SetOrder(
 	binary.BigEndian.PutUint64(v[consts.IDLen*2+consts.Uint64Len:], outTick)
 	binary.BigEndian.PutUint64(v[consts.IDLen*2+consts.Uint64Len*2:], supply)
 	copy(v[consts.IDLen*2+consts.Uint64Len*3:], owner[:])
-	return db.Insert(ctx, k, v)
+	return mu.Insert(ctx, k, v)
 }
 
 func GetOrder(
 	ctx context.Context,
-	db chain.Database,
+	im state.Immutable,
 	order ids.ID,
 ) (
 	bool, // exists
@@ -403,7 +404,7 @@ func GetOrder(
 	error,
 ) {
 	k := OrderKey(order)
-	v, err := db.GetValue(ctx, k)
+	v, err := im.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
 		return false, ids.Empty, 0, ids.Empty, 0, 0, ed25519.EmptyPublicKey, nil
 	}
@@ -422,9 +423,9 @@ func GetOrder(
 	return true, in, inTick, out, outTick, supply, owner, nil
 }
 
-func DeleteOrder(ctx context.Context, db chain.Database, order ids.ID) error {
+func DeleteOrder(ctx context.Context, mu state.Mutable, order ids.ID) error {
 	k := OrderKey(order)
-	return db.Remove(ctx, k)
+	return mu.Remove(ctx, k)
 }
 
 // [loanPrefix] + [asset] + [destination]
@@ -460,34 +461,34 @@ func innerGetLoan(v []byte, err error) (uint64, error) {
 
 func GetLoan(
 	ctx context.Context,
-	db chain.Database,
+	im state.Immutable,
 	asset ids.ID,
 	destination ids.ID,
 ) (uint64, error) {
 	k := LoanKey(asset, destination)
-	v, err := db.GetValue(ctx, k)
+	v, err := im.GetValue(ctx, k)
 	return innerGetLoan(v, err)
 }
 
 func SetLoan(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	asset ids.ID,
 	destination ids.ID,
 	amount uint64,
 ) error {
 	k := LoanKey(asset, destination)
-	return db.Insert(ctx, k, binary.BigEndian.AppendUint64(nil, amount))
+	return mu.Insert(ctx, k, binary.BigEndian.AppendUint64(nil, amount))
 }
 
 func AddLoan(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	asset ids.ID,
 	destination ids.ID,
 	amount uint64,
 ) error {
-	loan, err := GetLoan(ctx, db, asset, destination)
+	loan, err := GetLoan(ctx, mu, asset, destination)
 	if err != nil {
 		return err
 	}
@@ -501,17 +502,17 @@ func AddLoan(
 			amount,
 		)
 	}
-	return SetLoan(ctx, db, asset, destination, nloan)
+	return SetLoan(ctx, mu, asset, destination, nloan)
 }
 
 func SubLoan(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	asset ids.ID,
 	destination ids.ID,
 	amount uint64,
 ) error {
-	loan, err := GetLoan(ctx, db, asset, destination)
+	loan, err := GetLoan(ctx, mu, asset, destination)
 	if err != nil {
 		return err
 	}
@@ -528,9 +529,9 @@ func SubLoan(
 	if nloan == 0 {
 		// If there is no balance left, we should delete the record instead of
 		// setting it to 0.
-		return db.Remove(ctx, LoanKey(asset, destination))
+		return mu.Remove(ctx, LoanKey(asset, destination))
 	}
-	return SetLoan(ctx, db, asset, destination, nloan)
+	return SetLoan(ctx, mu, asset, destination, nloan)
 }
 
 func HeightKey() (k []byte) {

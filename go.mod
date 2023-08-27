@@ -3,8 +3,8 @@ module github.com/ava-labs/hypersdk
 go 1.20
 
 require (
-	github.com/ava-labs/avalanche-network-runner v1.7.1
-	github.com/ava-labs/avalanchego v1.10.8
+	github.com/ava-labs/avalanche-network-runner v1.7.2-0.20230825184751-fbe081616f02
+	github.com/ava-labs/avalanchego v1.10.10-0.20230827182820-62cadd879473
 	github.com/cockroachdb/pebble v0.0.0-20230224221607-fccb83b60d5c
 	github.com/golang/mock v1.6.0
 	github.com/gorilla/rpc v1.2.0
@@ -32,7 +32,7 @@ require (
 	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/VictoriaMetrics/fastcache v1.10.0 // indirect
-	github.com/ava-labs/coreth v0.12.5-rc.1 // indirect
+	github.com/ava-labs/coreth v0.12.5-rc.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
 	github.com/btcsuite/btcd/btcutil v1.1.3 // indirect
@@ -126,6 +126,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.11.2 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
+	go.uber.org/mock v0.2.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.1.0 // indirect
 	golang.org/x/mod v0.10.0 // indirect

@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/state"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 )
@@ -131,21 +132,21 @@ func BalanceKey(pk ed25519.PublicKey) (k []byte) {
 // If locked is 0, then account does not exist
 func GetBalance(
 	ctx context.Context,
-	db chain.Database,
+	im state.Immutable,
 	pk ed25519.PublicKey,
 ) (uint64, error) {
-	dbKey, bal, _, err := getBalance(ctx, db, pk)
-	balanceKeyPool.Put(dbKey)
+	key, bal, _, err := getBalance(ctx, im, pk)
+	balanceKeyPool.Put(key)
 	return bal, err
 }
 
 func getBalance(
 	ctx context.Context,
-	db chain.Database,
+	im state.Immutable,
 	pk ed25519.PublicKey,
 ) ([]byte, uint64, bool, error) {
 	k := BalanceKey(pk)
-	bal, exists, err := innerGetBalance(db.GetValue(ctx, k))
+	bal, exists, err := innerGetBalance(im.GetValue(ctx, k))
 	return k, bal, exists, err
 }
 
@@ -177,31 +178,31 @@ func innerGetBalance(
 
 func SetBalance(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	pk ed25519.PublicKey,
 	balance uint64,
 ) error {
 	k := BalanceKey(pk)
-	return setBalance(ctx, db, k, balance)
+	return setBalance(ctx, mu, k, balance)
 }
 
 func setBalance(
 	ctx context.Context,
-	db chain.Database,
-	dbKey []byte,
+	mu state.Mutable,
+	key []byte,
 	balance uint64,
 ) error {
-	return db.Insert(ctx, dbKey, binary.BigEndian.AppendUint64(nil, balance))
+	return mu.Insert(ctx, key, binary.BigEndian.AppendUint64(nil, balance))
 }
 
 func AddBalance(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	pk ed25519.PublicKey,
 	amount uint64,
 	create bool,
 ) error {
-	dbKey, bal, exists, err := getBalance(ctx, db, pk)
+	key, bal, exists, err := getBalance(ctx, mu, pk)
 	if err != nil {
 		return err
 	}
@@ -220,16 +221,16 @@ func AddBalance(
 			amount,
 		)
 	}
-	return setBalance(ctx, db, dbKey, nbal)
+	return setBalance(ctx, mu, key, nbal)
 }
 
 func SubBalance(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	pk ed25519.PublicKey,
 	amount uint64,
 ) error {
-	dbKey, bal, _, err := getBalance(ctx, db, pk)
+	key, bal, _, err := getBalance(ctx, mu, pk)
 	if err != nil {
 		return err
 	}
@@ -246,9 +247,9 @@ func SubBalance(
 	if nbal == 0 {
 		// If there is no balance left, we should delete the record instead of
 		// setting it to 0.
-		return db.Remove(ctx, dbKey)
+		return mu.Remove(ctx, key)
 	}
-	return setBalance(ctx, db, dbKey, nbal)
+	return setBalance(ctx, mu, key, nbal)
 }
 
 func HeightKey() (k []byte) {

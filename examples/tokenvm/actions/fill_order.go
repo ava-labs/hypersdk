@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -66,14 +67,14 @@ func (*FillOrder) OutputsWarpMessage() bool {
 func (f *FillOrder) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	db chain.Database,
+	mu state.Mutable,
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	actor := auth.GetActor(rauth)
-	exists, in, inTick, out, outTick, remaining, owner, err := storage.GetOrder(ctx, db, f.Order)
+	exists, in, inTick, out, outTick, remaining, owner, err := storage.GetOrder(ctx, mu, f.Order)
 	if err != nil {
 		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
@@ -132,21 +133,21 @@ func (f *FillOrder) Execute(
 		// Don't allow free trades (can happen due to refund rounding)
 		return false, NoFillOrderComputeUnits, OutputInsufficientInput, nil, nil
 	}
-	if err := storage.SubBalance(ctx, db, actor, f.In, inputAmount); err != nil {
+	if err := storage.SubBalance(ctx, mu, actor, f.In, inputAmount); err != nil {
 		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, db, f.Owner, f.In, inputAmount, true); err != nil {
+	if err := storage.AddBalance(ctx, mu, f.Owner, f.In, inputAmount, true); err != nil {
 		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, db, actor, f.Out, outputAmount, true); err != nil {
+	if err := storage.AddBalance(ctx, mu, actor, f.Out, outputAmount, true); err != nil {
 		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if shouldDelete {
-		if err := storage.DeleteOrder(ctx, db, f.Order); err != nil {
+		if err := storage.DeleteOrder(ctx, mu, f.Order); err != nil {
 			return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 	} else {
-		if err := storage.SetOrder(ctx, db, f.Order, in, inTick, out, outTick, orderRemaining, owner); err != nil {
+		if err := storage.SetOrder(ctx, mu, f.Order, in, inTick, out, outTick, orderRemaining, owner); err != nil {
 			return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 	}

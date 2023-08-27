@@ -12,8 +12,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
@@ -24,7 +24,7 @@ const (
 )
 
 type InvokeModule struct {
-	db      chain.Database
+	mu      state.Mutable
 	meter   Meter
 	storage Storage
 
@@ -32,9 +32,9 @@ type InvokeModule struct {
 }
 
 // NewInvokeModule returns a new program invoke host module which can perform program to program calls.
-func NewInvokeModule(log logging.Logger, db chain.Database, meter Meter, storage Storage) *InvokeModule {
+func NewInvokeModule(log logging.Logger, mu state.Mutable, meter Meter, storage Storage) *InvokeModule {
 	return &InvokeModule{
-		db:      db,
+		mu:      mu,
 		meter:   meter,
 		storage: storage,
 		log:     log,

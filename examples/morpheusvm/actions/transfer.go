@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -49,7 +50,7 @@ func (*Transfer) OutputsWarpMessage() bool {
 func (t *Transfer) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	db chain.Database,
+	mu state.Mutable,
 	_ int64,
 	rauth chain.Auth,
 	_ ids.ID,
@@ -59,10 +60,10 @@ func (t *Transfer) Execute(
 	if t.Value == 0 {
 		return false, 1, OutputValueZero, nil, nil
 	}
-	if err := storage.SubBalance(ctx, db, actor, t.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, db, t.To, t.Value, true); err != nil {
+	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 	return true, 1, nil, nil, nil
