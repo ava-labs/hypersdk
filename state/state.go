@@ -23,5 +23,5 @@ type Mutable interface {
 type View interface {
 	Immutable
 
-	NewViewFromMap(ctx context.Context, changes map[string]*merkledb.ChangeOp, copyBytes bool) (merkledb.TrieView, error)
+	NewView(ctx context.Context, changes merkledb.ViewChanges) (merkledb.TrieView, error)
 }
