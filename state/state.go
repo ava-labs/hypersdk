@@ -6,7 +6,6 @@ package state
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 )
 
@@ -24,5 +23,5 @@ type Mutable interface {
 type View interface {
 	Immutable
 
-	NewViewFromMap(ctx context.Context, changes map[string]maybe.Maybe[[]byte], copyBytes bool) (merkledb.TrieView, error)
+	NewView(ctx context.Context, changes merkledb.ViewChanges) (merkledb.TrieView, error)
 }

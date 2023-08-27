@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/keys"
@@ -32,7 +33,7 @@ type cacheItem struct {
 
 // TState defines a struct for storing temporary state.
 type TState struct {
-	changedKeys map[string]*merkledb.ChangeOp
+	changedKeys map[string]maybe.Maybe[[]byte]
 	fetchCache  map[string]*cacheItem // in case we evict and want to re-fetch
 
 	// We don't differentiate between read and write scope.
@@ -55,7 +56,7 @@ type TState struct {
 // maps to have an initial size of [storageSize] and [changedSize] respectively.
 func New(changedSize int) *TState {
 	return &TState{
-		changedKeys: make(map[string]*merkledb.ChangeOp, changedSize),
+		changedKeys: make(map[string]maybe.Maybe[[]byte], changedSize),
 
 		fetchCache: map[string]*cacheItem{},
 
@@ -92,10 +93,10 @@ func (ts *TState) Exists(ctx context.Context, key []byte) (bool, bool, error) {
 
 func (ts *TState) getValue(_ context.Context, key string) ([]byte, bool, bool) {
 	if v, ok := ts.changedKeys[key]; ok {
-		if v.Delete {
+		if v.IsNothing() {
 			return nil, true, false
 		}
-		return v.Value, true, true
+		return v.Value(), true, true
 	}
 	v, ok := ts.scopeStorage[key]
 	if !ok {
@@ -169,6 +170,9 @@ func (ts *TState) checkScope(_ context.Context, k []byte) bool {
 }
 
 // Insert sets or updates ts.storage[key] to equal {value, false}.
+//
+// Any bytes passed into [Insert] will be consumed by [TState] and should
+// not be modified/referenced after this call.
 func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
@@ -209,7 +213,7 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 		pastV:       past,
 		pastChanged: changed,
 	})
-	ts.changedKeys[k] = &merkledb.ChangeOp{Value: value, Delete: false}
+	ts.changedKeys[k] = maybe.Some(value)
 	return nil
 }
 
@@ -247,7 +251,7 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 		pastV:       past,
 		pastChanged: changed,
 	})
-	ts.changedKeys[k] = &merkledb.ChangeOp{Value: nil, Delete: true}
+	ts.changedKeys[k] = maybe.Nothing[[]byte]()
 	return nil
 }
 
@@ -274,7 +278,11 @@ func (ts *TState) Rollback(_ context.Context, restorePoint int) {
 		// insert: Modified key for the nth time
 		//
 		// remove: Removed key that was previously modified in run
-		ts.changedKeys[op.k] = &merkledb.ChangeOp{Value: op.pastV, Delete: !op.pastExists}
+		if !op.pastExists {
+			ts.changedKeys[op.k] = maybe.Nothing[[]byte]()
+		} else {
+			ts.changedKeys[op.k] = maybe.Some(op.pastV)
+		}
 	}
 	ts.ops = ts.ops[:restorePoint]
 }
@@ -294,7 +302,7 @@ func (ts *TState) CreateView(
 	)
 	defer span.End()
 
-	return view.NewViewFromMap(ctx, ts.changedKeys, false)
+	return view.NewView(ctx, merkledb.ViewChanges{MapOps: ts.changedKeys, ConsumeBytes: true})
 }
 
 // updateChunks sets the number of chunks associated with a key that will

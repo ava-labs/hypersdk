@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/maybe"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 )
 
 var _ Mutable = (*SimpleMutable)(nil)
@@ -43,7 +44,7 @@ func (s *SimpleMutable) Remove(_ context.Context, k []byte) error {
 }
 
 func (s *SimpleMutable) Commit(ctx context.Context) error {
-	view, err := s.v.NewViewFromMap(ctx, s.changes, false)
+	view, err := s.v.NewView(ctx, merkledb.ViewChanges{MapOps: s.changes})
 	if err != nil {
 		return err
 	}

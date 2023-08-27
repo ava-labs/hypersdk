@@ -53,17 +53,17 @@ func (mr *MockViewMockRecorder) GetValue(arg0, arg1 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetValue", reflect.TypeOf((*MockView)(nil).GetValue), arg0, arg1)
 }
 
-// NewViewFromMap mocks base method.
-func (m *MockView) NewViewFromMap(arg0 context.Context, arg1 map[string]*merkledb.ChangeOp, arg2 bool) (merkledb.TrieView, error) {
+// NewView mocks base method.
+func (m *MockView) NewView(arg0 context.Context, arg1 merkledb.ViewChanges) (merkledb.TrieView, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewViewFromMap", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "NewView", arg0, arg1)
 	ret0, _ := ret[0].(merkledb.TrieView)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// NewViewFromMap indicates an expected call of NewViewFromMap.
-func (mr *MockViewMockRecorder) NewViewFromMap(arg0, arg1, arg2 interface{}) *gomock.Call {
+// NewView indicates an expected call of NewView.
+func (mr *MockViewMockRecorder) NewView(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewViewFromMap", reflect.TypeOf((*MockView)(nil).NewViewFromMap), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewView", reflect.TypeOf((*MockView)(nil).NewView), arg0, arg1)
 }
