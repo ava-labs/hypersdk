@@ -7,7 +7,7 @@ The `wasm_guest` folder contains the `wasmlanche_sdk`, macros and example progra
 Just a couple things to note. Serialization is minimal, yet there are certain aspects in the code that need to follow a specific format. Specifically there are currently only two places we modify the bytes coming in/out of rust.
 
 - The first is quite minimal. When storing a value in the host, the `wasmlanche_sdk` prepends a single byte representing the type of `ProgramValue` being stored. This single byte is necessary to inform Rust about the variable type when retrieving from the `host`.
-- The second area is a bit more complex and happens during a call to invoke another program. In this case we pass a byte array which contains the parameters for the external function call. To construct the this we marshal all the params with their metadata into one final byte array. Each parameter is added in this order
+- The second area is a bit more complex and happens during a call to invoke another program. In this case we pass a byte array which contains the parameters for the external function call. To construct this we marshal all the params with their metadata into one final byte array. Each parameter is added in this order
   - length of the parameter in bytes(stored as a i64)
   - boolean, [1] if the parameter is an Int, [0] otherwise
   - the actual bytes of the parameter.
