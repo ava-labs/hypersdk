@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
-	"golang.org/x/exp/maps"
 
 	"github.com/stretchr/testify/require"
 )
@@ -29,6 +28,8 @@ var (
 	TestVal = []byte("value")
 )
 
+// TODO: rewrite this [TestDB] to remove [storage]
+// and use mock database
 type TestDB struct {
 	mdb     merkledb.MerkleDB
 	storage map[string]*merkledb.ChangeOp
@@ -51,12 +52,15 @@ func NewTestDB(t *testing.T) *TestDB {
 	}
 }
 
-func (db *TestDB) GetValue(_ context.Context, key []byte) (value []byte, err error) {
+func (db *TestDB) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
 	val, ok := db.storage[string(key)]
-	if !ok || val.Delete {
-		return nil, database.ErrNotFound
+	if ok {
+		if val.Delete {
+			return nil, database.ErrNotFound
+		}
+		return val.Value, nil
 	}
-	return val.Value, nil
+	return db.mdb.GetValue(ctx, key)
 }
 
 func (db *TestDB) Insert(_ context.Context, key []byte, value []byte) error {
@@ -70,8 +74,7 @@ func (db *TestDB) Remove(_ context.Context, key []byte) error {
 }
 
 func (db *TestDB) NewViewFromMap(ctx context.Context, changes map[string]*merkledb.ChangeOp, copyBytes bool) (merkledb.TrieView, error) {
-	v, err := db.mdb.NewViewFromMap(ctx, db.storage, true)
-	maps.Clear(db.storage)
+	v, err := db.mdb.NewViewFromMap(ctx, changes, copyBytes)
 	return v, err
 }
 
