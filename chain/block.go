@@ -573,20 +573,14 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, err
 	}
 
-	// Get view from [tstate] after writing all changed keys
-	b.vm.RecordStateChanges(ts.PendingChanges())
-	b.vm.RecordStateOperations(ts.OpIndex())
-	view, err := ts.CreateView(ctx, parentView, b.vm.Tracer())
-	if err != nil {
-		return nil, err
-	}
-
-	// Compute state root
+	// Compare state root
+	//
+	// TODO: add metric wait here instead of calculation time
 	//
 	// Because fee bytes are not recorded in state, it is sufficient to check the state root
 	// to verify all fee calcuations were correct.
 	start := time.Now()
-	computedRoot, err := view.GetMerkleRoot(ctx)
+	computedRoot, err := parentView.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -608,6 +602,24 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, err
 	}
 	b.vm.RecordWaitSignatures(time.Since(start))
+
+	// Get view from [tstate] after processing all state transitions
+	b.vm.RecordStateChanges(ts.PendingChanges())
+	b.vm.RecordStateOperations(ts.OpIndex())
+	view, err := ts.CreateView(ctx, parentView, b.vm.Tracer())
+	if err != nil {
+		return nil, err
+	}
+
+	// Kickoff root generation
+	go func() {
+		start := time.Now()
+		if _, err := view.GetMerkleRoot(ctx); err != nil {
+			log.Error("merkle root generation failed", zap.Error(err))
+			return
+		}
+		b.vm.RecordRootCalculated(time.Since(start))
+	}()
 	return view, nil
 }
 

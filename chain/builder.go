@@ -473,18 +473,28 @@ func BuildBlock(
 		return nil, fmt.Errorf("%w: unable to insert fees", err)
 	}
 
+	// Compute state root after all data has been written to trie
+	root, err := parentView.GetMerkleRoot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	b.StateRoot = root
+
 	// Get view from [tstate] after writing all changed keys
 	view, err := ts.CreateView(ctx, parentView, vm.Tracer())
 	if err != nil {
 		return nil, err
 	}
 
-	// Compute state root after all data has been written to trie
-	root, err := view.GetMerkleRoot(ctx)
-	if err != nil {
-		return nil, err
-	}
-	b.StateRoot = root
+	// Kickoff root generation
+	go func() {
+		start := time.Now()
+		if _, err := view.GetMerkleRoot(ctx); err != nil {
+			log.Error("merkle root generation failed", zap.Error(err))
+			return
+		}
+		b.vm.RecordRootCalculated(time.Since(start))
+	}()
 
 	// Compute block hash and marshaled representation
 	if err := b.initializeBuilt(ctx, view, results, feeManager); err != nil {
