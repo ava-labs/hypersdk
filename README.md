@@ -124,6 +124,12 @@ into execution sets prior to execution was slower than just executing transactio
 serially with state pre-fetching. Rewriting this mechanism has been moved to the
 `Future Work` section and we expect to re-enable this functionality soon._
 
+#### Deferred Root Generation
+blocks contain the state root of their parent's post-execution
+
+this allows for generating the next root async while waiting for the next block
+
+
 #### [Optional] Parallel Signature Verification
 The `Auth` interface (detailed below) exposes a function called `AsyncVerify` that
 the `hypersdk` may call concurrently (may invoke on other transactions in the same
