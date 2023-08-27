@@ -171,11 +171,13 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 		b.txsSet.Add(tx.ID())
 
 		// Verify signature async
-		txDigest, err := tx.Digest()
-		if err != nil {
-			return err
+		if b.vm.GetVerifySignatures() {
+			txDigest, err := tx.Digest()
+			if err != nil {
+				return err
+			}
+			batchVerifier.Add(txDigest, tx.Auth)
 		}
-		batchVerifier.Add(txDigest, tx.Auth)
 
 		// Check if we need the block context to verify the block (which contains
 		// an Avalanche Warp Message)

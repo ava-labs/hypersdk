@@ -41,6 +41,7 @@ type VM interface {
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
+	GetVerifySignatures() bool
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
