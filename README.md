@@ -673,8 +673,9 @@ and what a more complex "fill order" `Action` looks like [here](./examples/token
 type Result struct {
 	Success bool
 	Output  []byte
-	Units   Dimensions
-	Fee     uint64
+
+	Consumed Dimensions
+	Fee      uint64
 
 	WarpMessage *warp.UnsignedMessage
 }

@@ -719,7 +719,7 @@ func (b *StatelessBlock) Processed() bool {
 // Invariant: [View] with [verify] == true should not be called concurrently, otherwise,
 // it will result in undefined behavior.
 func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, error) {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.State",
+	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.View",
 		oteltrace.WithAttributes(
 			attribute.Bool("verify", verify),
 			attribute.Bool("processed", b.Processed()),
@@ -734,7 +734,10 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 		if !verify {
 			return nil, ErrBlockNotProcessed
 		}
-		b.vm.Logger().Info("verifying parent when requesting state", zap.Uint64("height", b.Hght))
+		b.vm.Logger().Info("verifying parent when requesting view",
+			zap.Uint64("height", b.Hght),
+			zap.Stringer("id", b.ID()),
+		)
 		view, err := b.innerVerify(ctx)
 		if err != nil {
 			return nil, err
