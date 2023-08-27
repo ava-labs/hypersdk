@@ -70,7 +70,7 @@ func (db *TestDB) Remove(_ context.Context, key []byte) error {
 }
 
 func (db *TestDB) NewViewFromMap(ctx context.Context, changes map[string]*merkledb.ChangeOp, copyBytes bool) (merkledb.TrieView, error) {
-	v, err := db.mdb.NewViewFromMap(ctx, db.storage, false)
+	v, err := db.mdb.NewViewFromMap(ctx, db.storage, true)
 	maps.Clear(db.storage)
 	return v, err
 }
