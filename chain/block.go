@@ -731,16 +731,15 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 		return b.vm.State()
 	}
 	if !b.Processed() {
-		if verify {
-			b.vm.Logger().Info("verifying parent when requesting state", zap.Uint64("height", b.Hght))
-			view, err := b.innerVerify(ctx)
-			if err != nil {
-				return nil, err
-			}
-			b.view = view
-		} else {
+		if !verify {
 			return nil, ErrBlockNotProcessed
 		}
+		b.vm.Logger().Info("verifying parent when requesting state", zap.Uint64("height", b.Hght))
+		view, err := b.innerVerify(ctx)
+		if err != nil {
+			return nil, err
+		}
+		b.view = view
 	}
 	return b.view, nil
 }
