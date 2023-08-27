@@ -94,12 +94,13 @@ type account struct {
 }
 
 var (
-	dist   string
-	vms    int
-	accts  int
-	txs    int
-	trace  bool
-	maxFee uint64
+	dist        string
+	vms         int
+	accts       int
+	txs         int
+	trace       bool
+	maxFee      uint64
+	acceptDepth int
 
 	senders []*account
 	blks    []*chain.StatelessBlock
@@ -156,6 +157,12 @@ func init() {
 		"max-fee",
 		1000,
 		"max fee per tx",
+	)
+	flag.IntVar(
+		&acceptDepth,
+		"accept-depth",
+		1,
+		"depth to run block accept",
 	)
 }
 
@@ -391,10 +398,11 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			}
 
 			for {
-				blk := produceBlock(instances[0])
+				blk, accept := produceBlock(instances[0])
 				if blk == nil {
 					break
 				}
+				accept()
 				log.Debug("block produced", zap.Uint64("height", blk.Hght), zap.Int("txs", len(blk.Txs)))
 				for _, result := range blk.Results() {
 					if !result.Success {
@@ -407,7 +415,8 @@ var _ = ginkgo.Describe("load tests vm", func() {
 					delete(requiredTxs, tx.ID())
 				}
 				for _, instance := range instances[1:] {
-					addBlock(instance, blk)
+					accept := addBlock(instance, blk)
+					accept()
 				}
 			}
 
@@ -458,17 +467,33 @@ var _ = ginkgo.Describe("load tests vm", func() {
 
 		ginkgo.By("producing blks", func() {
 			start := time.Now()
+			acceptCalls := []func(){}
 			for {
-				blk := produceBlock(instances[0])
+				blk, accept := produceBlock(instances[0])
 				if blk == nil {
 					break
 				}
+				acceptCalls = append(acceptCalls, accept)
 				log.Debug("block produced", zap.Uint64("height", blk.Hght), zap.Int("txs", len(blk.Txs)))
 				for _, tx := range blk.Txs {
 					delete(allTxs, tx.ID())
 				}
 				blks = append(blks, blk)
+
+				// Accept blocks at some [acceptDepth]
+				acceptIndex := len(acceptCalls) - 1 - acceptDepth
+				if acceptIndex < 0 {
+					continue
+				}
+				acceptCalls[acceptIndex]()
 			}
+
+			// Accept remaining blocks
+			for i := len(acceptCalls) - acceptDepth; i < len(acceptCalls); i++ {
+				acceptCalls[i]()
+			}
+
+			// Ensure all transactions included in a block
 			gomega.Ω(len(allTxs)).To(gomega.BeZero())
 			blockGen = time.Since(start)
 		})
@@ -478,9 +503,23 @@ var _ = ginkgo.Describe("load tests vm", func() {
 		for i, instance := range instances[1:] {
 			log.Warn("sleeping 10s before starting verification", zap.Int("instance", i+1))
 			time.Sleep(10 * time.Second)
+
+			acceptCalls := []func(){}
 			ginkgo.By(fmt.Sprintf("sync instance %d", i+1), func() {
 				for _, blk := range blks {
-					addBlock(instance, blk)
+					acceptCalls = append(acceptCalls, addBlock(instance, blk))
+
+					// Accept blocks at some [acceptDepth]
+					acceptIndex := len(acceptCalls) - 1 - acceptDepth
+					if acceptIndex < 0 {
+						continue
+					}
+					acceptCalls[acceptIndex]()
+				}
+
+				// Accept remaining blocks
+				for i := len(acceptCalls) - acceptDepth; i < len(acceptCalls); i++ {
+					acceptCalls[i]()
 				}
 			})
 		}
@@ -513,12 +552,12 @@ func issueSimpleTx(
 	return tx.ID(), err
 }
 
-func produceBlock(i *instance) *chain.StatelessBlock {
+func produceBlock(i *instance) (*chain.StatelessBlock, func()) {
 	ctx := context.TODO()
 
 	blk, err := i.vm.BuildBlock(ctx)
 	if errors.Is(err, chain.ErrNoTxs) {
-		return nil
+		return nil, nil
 	}
 	gomega.Ω(err).To(gomega.BeNil())
 	gomega.Ω(blk).To(gomega.Not(gomega.BeNil()))
@@ -529,17 +568,17 @@ func produceBlock(i *instance) *chain.StatelessBlock {
 	err = i.vm.SetPreference(ctx, blk.ID())
 	gomega.Ω(err).To(gomega.BeNil())
 
-	gomega.Ω(blk.Accept(ctx)).To(gomega.BeNil())
-	gomega.Ω(blk.Status()).To(gomega.Equal(choices.Accepted))
+	return blk.(*chain.StatelessBlock), func() {
+		gomega.Ω(blk.Accept(ctx)).To(gomega.BeNil())
+		gomega.Ω(blk.Status()).To(gomega.Equal(choices.Accepted))
 
-	lastAccepted, err := i.vm.LastAccepted(ctx)
-	gomega.Ω(err).To(gomega.BeNil())
-	gomega.Ω(lastAccepted).To(gomega.Equal(blk.ID()))
-
-	return blk.(*chain.StatelessBlock)
+		lastAccepted, err := i.vm.LastAccepted(ctx)
+		gomega.Ω(err).To(gomega.BeNil())
+		gomega.Ω(lastAccepted).To(gomega.Equal(blk.ID()))
+	}
 }
 
-func addBlock(i *instance, blk *chain.StatelessBlock) {
+func addBlock(i *instance, blk *chain.StatelessBlock) func() {
 	ctx := context.TODO()
 	start := time.Now()
 	tblk, err := i.vm.ParseBlock(ctx, blk.Bytes())
@@ -548,9 +587,11 @@ func addBlock(i *instance, blk *chain.StatelessBlock) {
 	start = time.Now()
 	gomega.Ω(tblk.Verify(ctx)).Should(gomega.BeNil())
 	i.verify = append(i.verify, time.Since(start).Seconds())
-	start = time.Now()
-	gomega.Ω(tblk.Accept(ctx)).Should(gomega.BeNil())
-	i.accept = append(i.accept, time.Since(start).Seconds())
+	return func() {
+		start = time.Now()
+		gomega.Ω(tblk.Accept(ctx)).Should(gomega.BeNil())
+		i.accept = append(i.accept, time.Since(start).Seconds())
+	}
 }
 
 var _ common.AppSender = &appSender{}
