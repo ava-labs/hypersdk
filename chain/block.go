@@ -506,6 +506,9 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	// Fetch parent view
 	//
 	// This function may verify the parent if it is not yet verified.
+	//
+	// TODO: ensure we are accessing the right state (last accepted state
+	// will be state of our grandparent right after state sync).
 	parentView, err := parent.View(ctx, true)
 	if err != nil {
 		return nil, err
