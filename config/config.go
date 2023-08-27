@@ -22,6 +22,7 @@ type Config struct{}
 
 func (c *Config) GetLogLevel() logging.Level { return logging.Info }
 func (c *Config) GetParallelism() int {
+	// TODO: split between signatures/hashing
 	numCPUs := runtime.NumCPU()
 	if numCPUs > avalancheGoMinCPU {
 		return numCPUs - avalancheGoMinCPU
