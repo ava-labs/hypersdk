@@ -48,7 +48,7 @@ type VM interface {
 	SetLastAccepted(*StatelessBlock) error
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
-	GetVerifyContext(ctx context.Context, height uint64, parent ids.ID, parentRoot ids.ID) (VerifyContext, error)
+	GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID, parentRoot ids.ID) (VerifyContext, error)
 
 	State() (merkledb.MerkleDB, error)
 	StateManager() StateManager
