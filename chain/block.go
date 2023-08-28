@@ -617,10 +617,16 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	// Kickoff root generation
 	go func() {
 		start := time.Now()
-		if _, err := view.GetMerkleRoot(ctx); err != nil {
+		root, err := view.GetMerkleRoot(ctx)
+		if err != nil {
 			log.Error("merkle root generation failed", zap.Error(err))
 			return
 		}
+		log.Info("merkle root generated",
+			zap.Uint64("height", b.Hght),
+			zap.Stringer("blkID", b.ID()),
+			zap.Stringer("root", root),
+		)
 		b.vm.RecordRootCalculated(time.Since(start))
 	}()
 	return view, nil
@@ -760,6 +766,11 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID) (state.Vie
 		}
 		return b.view, nil
 	}
+	b.vm.Logger().Info("block not processed",
+		zap.Uint64("height", b.Hght),
+		zap.Stringer("blkID", b.ID()),
+		zap.Bool("attemptVerify", blockRoot != nil),
+	)
 	if blockRoot == nil {
 		return nil, ErrBlockNotProcessed
 	}
@@ -792,9 +803,9 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID) (state.Vie
 	// In this scenario, the last accepted block will not be processed
 	// and [acceptedState] will correspond to the post-execution state
 	// of the new block's grandparent (our parent).
-	b.vm.Logger().Info("verifying parent when view requested",
+	b.vm.Logger().Info("verifying block when view requested",
 		zap.Uint64("height", b.Hght),
-		zap.Stringer("id", b.ID()),
+		zap.Stringer("blkID", b.ID()),
 	)
 	view, err := b.innerVerify(ctx)
 	if err != nil {

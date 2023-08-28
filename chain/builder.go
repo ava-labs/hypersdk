@@ -487,20 +487,27 @@ func BuildBlock(
 		return nil, err
 	}
 
-	// Kickoff root generation
-	go func() {
-		start := time.Now()
-		if _, err := view.GetMerkleRoot(ctx); err != nil {
-			log.Error("merkle root generation failed", zap.Error(err))
-			return
-		}
-		b.vm.RecordRootCalculated(time.Since(start))
-	}()
-
 	// Compute block hash and marshaled representation
 	if err := b.initializeBuilt(ctx, view, results, feeManager); err != nil {
 		return nil, err
 	}
+
+	// Kickoff root generation
+	go func() {
+		start := time.Now()
+		root, err := view.GetMerkleRoot(ctx)
+		if err != nil {
+			log.Error("merkle root generation failed", zap.Error(err))
+			return
+		}
+		log.Info("merkle root generated",
+			zap.Uint64("height", b.Hght),
+			zap.Stringer("blkID", b.ID()),
+			zap.Stringer("root", root),
+		)
+		b.vm.RecordRootCalculated(time.Since(start))
+	}()
+
 	log.Info(
 		"built block",
 		zap.Bool("context", blockContext != nil),
