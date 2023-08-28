@@ -121,6 +121,9 @@ var programInvokeCmd = &cobra.Command{
 		if callerAddress == "" {
 			return ErrMissingAddress
 		}
+		if functionName == "" {
+			return fmt.Errorf("function --name cannot be empty")
+		}
 		// pubKey, err = parseAddress(callerAddress)
 		// if err != nil {
 		// 	return err
@@ -190,16 +193,14 @@ var programInvokeCmd = &cobra.Command{
 				}
 			}
 		}
+		// prepend programID
+		callParams = append([]uint64{programID}, callParams...)
 
 		resp, err := runtime.Call(ctx, functionName, callParams...)
 		if err != nil {
 			return err
 		}
 
-		// spoof txID
-		txID := fakeID()
-
-		utils.Outf("{{green}}invoke action success txID:{{/}} %s\n", txID)
 		utils.Outf("{{green}}response:{{/}} %v\n", resp)
 		return nil
 	},
