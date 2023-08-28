@@ -728,10 +728,11 @@ func (b *StatelessBlock) Processed() bool {
 }
 
 // View returns the [merkledb.TrieView] of the block (representing the state
-// post-execution) or returns the accepted state if the block is accepted or is height 0.
+// post-execution) or returns the accepted state if the block is accepted or
+// is height 0 (genesis).
 //
-// If [b.view] is nil, this function will either return an error or will
-// run verification depending on the value of [verify].
+// If [b.view] is nil (not processed), this function will either return an error or will
+// run verification depending on the value of [expectedRoot].
 //
 // Invariant: [View] with [verify] == true should not be called concurrently, otherwise,
 // it will result in undefined behavior.
@@ -759,18 +760,14 @@ func (b *StatelessBlock) View(ctx context.Context, expectedRoot *ids.ID) (state.
 	}
 
 	// If the block is not processed but the caller only needs
-	// the [acceptedState], we should just return it instead
-	// of verifying here.
+	// a reference to [acceptedState], we should just return it
+	// instead of re-verifying the block.
 	//
 	// This could happen if state sync finishes with a processing
 	// block. In this scenario, we will attempt to verify the block
 	// during accept and it will attempt to read the state associated
-	// with the root referenced...
-	//
-	//
-	// when fetching the [View] of the parent
-	// of the last accepted but unprocessed block right after
-	// state sync completes (which we may attempt to verify).
+	// with the root specified in [StateRoot] (which was the sync
+	// target).
 	acceptedState, err := b.vm.State()
 	if err != nil {
 		return nil, err
@@ -783,10 +780,13 @@ func (b *StatelessBlock) View(ctx context.Context, expectedRoot *ids.ID) (state.
 		return acceptedState, nil
 	}
 
-	// If block is not processed when [View] is called and [expectedRoot]
-	// does not equal , we must verify i
-	// regardless of whether or not it is already accepted because we only
-	// sync to the state of the block's parent post-execution.
+	// If there are no processing blocks when state sync finishes,
+	// the first block we attempt to verify will reach this execution
+	// path.
+	//
+	// In this scenario, the last accepted block will not be processed
+	// and [acceptedState] will correspond to the post-execution state
+	// of the new block's grandparent (our parent).
 	b.vm.Logger().Info("verifying parent when view requested",
 		zap.Uint64("height", b.Hght),
 		zap.Stringer("id", b.ID()),
@@ -796,11 +796,14 @@ func (b *StatelessBlock) View(ctx context.Context, expectedRoot *ids.ID) (state.
 		return nil, err
 	}
 	b.view = view
+	if b.st != choices.Accepted {
+		return b.view, nil
+	}
 
-	// If the block is accepted at this point (should
-	// be the case), we should update the base state
-	// accordingly (which may have been the state of our
-	// parent post-execution).
+	// If the block is accepted at this point, we should update
+	// the accepted state to ensure future calls to [View]
+	// return the correct state (now that the block is considered
+	// processed).
 	if err := b.view.CommitToDB(ctx); err != nil {
 		return nil, err
 	}
