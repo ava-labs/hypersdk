@@ -336,7 +336,7 @@ integrated block explorer. To do this, run the following command:
 /tmp/token-cli chain watch --hide-txs
 ```
 
-If you don't plan to load test the devnet, you may wush to just run the
+If you don't plan to load test the devnet, you may wish to just run the
 following command to get additional transaction details:
 ```bash
 /tmp/token-cli chain watch

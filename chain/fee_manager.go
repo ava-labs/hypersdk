@@ -5,11 +5,10 @@ package chain
 
 import (
 	"encoding/binary"
-	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/window"
 )
@@ -63,7 +62,7 @@ func (f *FeeManager) ComputeNext(lastTime int64, currTime int64, r Rules) (*FeeM
 	unitPriceChangeDenom := r.GetUnitPriceChangeDenominator()
 	minUnitPrice := r.GetMinUnitPrice()
 	since := int((currTime - lastTime) / consts.MillisecondsPerSecond)
-	packer := codec.NewWriter(dimensionStateLen*FeeDimensions, consts.MaxInt)
+	bytes := make([]byte, dimensionStateLen*FeeDimensions)
 	for i := Dimension(0); i < FeeDimensions; i++ {
 		nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
 			f.Window(i),
@@ -77,11 +76,12 @@ func (f *FeeManager) ComputeNext(lastTime int64, currTime int64, r Rules) (*FeeM
 		if err != nil {
 			return nil, err
 		}
-		packer.PackUint64(nextUnitPrice)
-		packer.PackWindow(nextUnitWindow)
-		packer.PackUint64(0) // must set usage after block is processed
+		start := dimensionStateLen * i
+		binary.BigEndian.PutUint64(bytes[start:start+consts.Uint64Len], nextUnitPrice)
+		copy(bytes[start+consts.Uint64Len:start+consts.Uint64Len+window.WindowSliceSize], nextUnitWindow[:])
+		// Usage must be set after block is processed (we leave as 0 for now)
 	}
-	return &FeeManager{raw: packer.Bytes()}, packer.Err()
+	return &FeeManager{raw: bytes}, nil
 }
 
 func (f *FeeManager) SetUnitPrice(d Dimension, price uint64) {
@@ -142,6 +142,14 @@ func (f *FeeManager) UnitPrices() Dimensions {
 	var d Dimensions
 	for i := Dimension(0); i < FeeDimensions; i++ {
 		d[i] = f.UnitPrice(i)
+	}
+	return d
+}
+
+func (f *FeeManager) UnitsConsumed() Dimensions {
+	var d Dimensions
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		d[i] = f.LastConsumed(i)
 	}
 	return d
 }
@@ -266,26 +274,41 @@ func (d Dimensions) CanAdd(a Dimensions, l Dimensions) bool {
 	return true
 }
 
-func (d Dimensions) Bytes() ([]byte, error) {
-	packer := codec.NewWriter(DimensionsLen, consts.MaxInt)
+func (d Dimensions) Bytes() []byte {
+	bytes := make([]byte, DimensionsLen)
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		packer.PackUint64(d[i])
+		binary.BigEndian.PutUint64(bytes[i*consts.Uint64Len:], d[i])
 	}
-	return packer.Bytes(), packer.Err()
+	return bytes
+}
+
+// Greater is used to determine if the max units allowed
+// are greater than the units consumed by a transaction.
+//
+// This would be considered a fatal error.
+func (d Dimensions) Greater(o Dimensions) bool {
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		if d[i] < o[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func UnpackDimensions(raw []byte) (Dimensions, error) {
-	d := Dimensions{}
-	packer := codec.NewReader(raw, DimensionsLen)
-	for i := Dimension(0); i < FeeDimensions; i++ {
-		d[i] = packer.UnpackUint64(false)
+	if len(raw) != DimensionsLen {
+		return Dimensions{}, fmt.Errorf("%w: found=%d wanted=%d", ErrWrongDimensionSize, len(raw), DimensionsLen)
 	}
-	return d, packer.Err()
+	d := Dimensions{}
+	for i := Dimension(0); i < FeeDimensions; i++ {
+		d[i] = binary.BigEndian.Uint64(raw[i*consts.Uint64Len:])
+	}
+	return d, nil
 }
 
 func ParseDimensions(raw []string) (Dimensions, error) {
 	if len(raw) != FeeDimensions {
-		return Dimensions{}, errors.New("invalid dimensions size")
+		return Dimensions{}, ErrWrongDimensionSize
 	}
 	d := Dimensions{}
 	for i := Dimension(0); i < FeeDimensions; i++ {

@@ -13,7 +13,7 @@
 
 ---
 
-The freedom to create your own [Virtual Machine (VM)](https://docs.avax.network/subnets#virtual-machines),
+The freedom to create your own [Virtual Machine (VM)](https://docs.avax.network/learn/avalanche/virtual-machines),
 or blockchain runtime, is one of the most exciting and powerful aspects of building
 on Avalanche, however, it is difficult and time-intensive to do from scratch. Forking
 existing Avalanche VMs makes it easier to get started, like [spacesvm](https://github.com/ava-labs/spacesvm)
@@ -149,21 +149,21 @@ activity on each `hypervm`. Each unit dimension has a unique metering schedule
 (i.e. how many units each resource interaction costs), target, and max utilization
 per rolling 10 second window.
 
-When network resources are independently metered, they can an be granularly priced
+When network resources are independently metered, they can be granularly priced
 and thus better utilized by network participants. Consider a simple example of a
 one-dimensional fee mechanism where each byte is 2 units, each compute cycle is 5 units,
 each storage operation is 10 units, target usage is 7,500 units per block, and the max
 usage in any block is 10,000 units. If someone were to use 5,000 bytes of block data
 without utilizing any CPU/storing data in state, they would exhaust the block capacity
 without using 2 of the 3 available resources. This block would also increase the price
-of each unit because usage is above the target. As a result, the price to use compuate
+of each unit because usage is above the target. As a result, the price to use compute
 and storage in the next block would be more expensive although neither has been used.
 In the `hypersdk`, only the price of bandwidth would go up and the price of CPU/storage
 would stay constant, a better reflection of supply/demand for each resource.
 
 So, why go through all this trouble? Accurate and granular resource metering is required to
 safely increase the throughput of a blockchain. Without such an approach, designers
-need to either overprovision the network to allow for one resource to be utlized to maximum
+need to either overprovision the network to allow for one resource to be utilized to maximum
 capacity (max compute unit usage may also allow unsustainable state growth) or bound capacity
 to a level that leaves most resources unused. If you are interested in reading more analysis
 of multidimensional fee pricing, [Dynamic Pricing for Non-fungible Resources: Designing
@@ -224,7 +224,7 @@ WarmStorageKeyModificationUnits:   5,
 WarmStorageValueModificationUnits: 3,
 ```
 
-#### Avoiding Complex Consruction
+#### Avoiding Complex Construction
 Historically, one of the largest barriers to supporting
 multidimensional fees has been the complex UX it can impose
 on users. Setting a one-dimensional unit price and max unit usage
@@ -336,7 +336,7 @@ the transactions for each account that can be executed at the moment).
 
 ### Avalanche Warp Messaging Support
 `hypersdk` provides support for Avalanche Warp Messaging (AWM) out-of-the-box. AWM enables any
-Avalanche Subnet to send arbitrary messages to any another Avalanche Subnet in just a few
+Avalanche Subnet to send arbitrary messages to any other Avalanche Subnet in just a few
 seconds (or less) without relying on a trusted relayer or bridge (just the validators of the Subnet sending the message).
 You can learn more about AWM and how it works
 [here](https://docs.google.com/presentation/d/1eV4IGMB7qNV7Fc4hp7NplWxK_1cFycwCMhjrcnsE9mU/edit).
@@ -416,7 +416,7 @@ Tree) on-disk but use S3 to store blocks and PostgreSQL to store transaction met
 
 ### Continuous Block Production
 Unlike other VMs on Avalanche, `hypervms` produce blocks continuously (even if empty).
-While this may sound wasteful, it improves the "worst case" AWM verification cost (AWM verfication
+While this may sound wasteful, it improves the "worst case" AWM verification cost (AWM verification
 requires creating a reverse diff to the last referenced P-Chain block), prevents a fallback to leaderless
 block production (which can lead to more rejected blocks), and avoids a prolonged post-bootstrap
 readiness wait (`hypersdk` waits to mark itself as ready until it has seen a `ValidityWindow` of blocks).
@@ -473,7 +473,7 @@ _To ensure the `hypersdk` remains reliable as we optimize and evolve the codebas
 we also run E2E tests in the `tokenvm` on each PR to the `hypersdk` core modules._
 
 ### Expert: `indexvm` [DEPRECATED]
-_The `indexvm` will be rewritten using the new WASM Progams module._
+_The `indexvm` will be rewritten using the new WASM Programs module._
 
 The [`indexvm`](https://github.com/ava-labs/indexvm) is much more complex than
 the `tokenvm` (more elaborate mechanisms and a new use case you may not be
@@ -569,10 +569,10 @@ ActionRegistry *codec.TypeParser[Action, *warp.Message, bool]
 AuthRegistry   *codec.TypeParser[Auth, *warp.Message, bool]
 ```
 
-The `ActionRegistry` and `AuthRegistry` are inform the `hypersdk` how to
+The `ActionRegistry` and `AuthRegistry` inform the `hypersdk` how to
 marshal/unmarshal bytes on-the-wire. If the `Controller` did not provide these,
 the `hypersdk` would not know how to extract anything from the bytes it was
-provded by the Avalanche Consensus Engine.
+provided by the Avalanche Consensus Engine.
 
 _In the future, we will provide an option to automatically marshal/unmarshal
 objects if an `ActionRegistry` and/or `AuthRegistry` is not provided using
@@ -581,7 +581,7 @@ a default codec._
 ### Genesis
 ```golang
 type Genesis interface {
-	Load(context.Context, atrace.Tracer, chain.Database) error
+	Load(context.Context, atrace.Tracer, state.Mutable) error
 }
 ```
 
@@ -616,7 +616,7 @@ type Action interface {
 
 	// OutputsWarpMessage indicates whether an [Action] will produce a warp message. The max size
 	// of any warp message is [MaxOutgoingWarpChunks].
-	OutputsWarpMessage()  bool
+	OutputsWarpMessage() bool
 
 	// StateKeys is a full enumeration of all database keys that could be touched during execution
 	// of an [Action]. This is used to prefetch state and will be used to parallelize execution (making
@@ -624,6 +624,8 @@ type Action interface {
 	//
 	// All keys specified must be suffixed with the number of chunks that could ever be read from that
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
+	//
+	// If any key is removed and then re-created, this will count as a creation instead of a modification.
 	StateKeys(auth Auth, txID ids.ID) []string
 
 	// StateKeysMaxChunks is used to estimate the fee a transaction should pay. It includes the max
@@ -642,7 +644,7 @@ type Action interface {
 	Execute(
 		ctx context.Context,
 		r Rules,
-		db Database,
+		mu state.Mutable,
 		timestamp int64,
 		auth Auth,
 		txID ids.ID,
@@ -671,8 +673,9 @@ and what a more complex "fill order" `Action` looks like [here](./examples/token
 type Result struct {
 	Success bool
 	Output  []byte
-	Units   Dimensions
-	Fee     uint64
+
+	Consumed Dimensions
+	Fee      uint64
 
 	WarpMessage *warp.UnsignedMessage
 }
@@ -724,12 +727,10 @@ type Auth interface {
 	//
 	// This could be used, for example, to determine that the public key used to sign a transaction
 	// is registered as the signer for an account. This could also be used to pull a [Program] from disk.
-	//
-	// Invariant: [Verify] must not change state
 	Verify(
 		ctx context.Context,
 		r Rules,
-		db Database,
+		im state.Immutable,
 		action Action,
 	) (computeUnits uint64, err error)
 
@@ -738,16 +739,19 @@ type Auth interface {
 	Payer() []byte
 
 	// CanDeduct returns an error if [amount] cannot be paid by [Auth].
-	CanDeduct(ctx context.Context, db Database, amount uint64) error
+	CanDeduct(ctx context.Context, im state.Immutable, amount uint64) error
 
 	// Deduct removes [amount] from [Auth] during transaction execution to pay fees.
-	Deduct(ctx context.Context, db Database, amount uint64) error
+	Deduct(ctx context.Context, mu state.Mutable, amount uint64) error
 
 	// Refund returns [amount] to [Auth] after transaction execution if any fees were
 	// not used.
 	//
+	// Refund will return an error if it attempts to create any new keys. It can only
+	// modify or remove existing keys.
+	//
 	// Refund is only invoked if [amount] > 0.
-	Refund(ctx context.Context, db Database, amount uint64) error
+	Refund(ctx context.Context, mu state.Mutable, amount uint64) error
 
 	// Marshal encodes an [Auth] as bytes.
 	Marshal(p *codec.Packer)
@@ -948,7 +952,7 @@ out on the Avalanche Discord._
   of `hypervm` participants (even better if this is made abstract to any implementer
   such that they can just register and request data from it and it is automatically
   handled by the network layer). This module should make it possible for an
-  operator to use a single backend (like S3) to power storage fro multiple
+  operator to use a single backend (like S3) to power storage for multiple
   hosts.
 * Only set `export CGO_CFLAGS="-O -D__BLST_PORTABLE__"` when running on
   MacOS/Windows (will make Linux much more performant)

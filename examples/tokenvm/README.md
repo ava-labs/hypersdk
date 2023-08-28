@@ -62,7 +62,7 @@ above). Each order requires only 152 bytes of
 state = `orderID=>inAsset|inTick|outAsset|outTick|remaining|owner`. This
 storage format also makes it possible to parallelize the execution of any fills
 that don't touch the same order (there may be hundreds or thousands of orders
-for the same pair, so this stil allows parallelization within a single pair
+for the same pair, so this still allows parallelization within a single pair
 unlike a pool-based trading mechanism like an AMM). This parallelism will take
 effect as soon as it is re-added upstream by the `hypersdk` (no action required
 in the `tokenvm`).
@@ -78,7 +78,7 @@ a simple max heap per pair where we arrange best on the best "rate" for a given
 asset (in/out).
 
 #### Sandwich-Resistant
-Because any fill must explicitly specify an order (it is up the client/CLI to
+Because any fill must explicitly specify an order (it is up to the client/CLI to
 implement a trading agent to perform a trade that may span multiple orders) to
 interact with, it is not possible for a bot to jump ahead of a transaction to
 negatively impact the price of your execution (all trades with an order occur
@@ -269,7 +269,7 @@ _`txID` is the `orderID` of your new order._
 
 The "in tick" is how much of the "in assetID" that someone must trade to get
 "out tick" of the "out assetID". Any fill of this order must send a multiple of
-"in tick" to be considered valid (this avoid ANY sort of precision issues with
+"in tick" to be considered valid (this avoids ANY sort of precision issues with
 computing decimal rates on-chain).
 
 #### Step 5: Fill Part of the Order
@@ -432,7 +432,7 @@ docker-compose -f trace/zipkin.yml down
 ## Deploying to a Devnet
 _In the world of Avalanche, we refer to short-lived, test Subnets as Devnets._
 
-To programaticaly deploy `tokenvm` to a distributed cluster of nodes running on
+To programmatically deploy `tokenvm` to a distributed cluster of nodes running on
 your own custom network or on Fuji, check out this [doc](DEVNETS.md).
 
 ## Future Work

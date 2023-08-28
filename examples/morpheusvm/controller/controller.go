@@ -130,7 +130,10 @@ func (c *Controller) Initialize(
 	} else {
 		build = builder.NewTime(inner)
 		gcfg := gossiper.DefaultProposerConfig()
-		gossip = gossiper.NewProposer(inner, gcfg)
+		gossip, err = gossiper.NewProposer(inner, gcfg)
+		if err != nil {
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		}
 	}
 	return c.config, c.genesis, build, gossip, blockDB, stateDB, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
 }
@@ -158,7 +161,7 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 				tx.ID(),
 				blk.GetTimestamp(),
 				result.Success,
-				result.Units,
+				result.Consumed,
 				result.Fee,
 			)
 			if err != nil {

@@ -23,12 +23,15 @@ type Item interface {
 	eheap.Item
 
 	Payer() string
+	Size() int
 }
 
 type Mempool[T Item] struct {
 	tracer trace.Tracer
 
 	mu sync.RWMutex
+
+	pendingSize int // bytes
 
 	maxSize      int
 	maxPayerSize int // Maximum items allowed by a single payer
@@ -55,7 +58,7 @@ type Mempool[T Item] struct {
 // implementation may panic.
 func New[T Item](
 	tracer trace.Tracer,
-	maxSize int,
+	maxSize int, // items
 	maxPayerSize int,
 	exemptPayers [][]byte,
 ) *Mempool[T] {
@@ -150,6 +153,7 @@ func (m *Mempool[T]) add(items []T, front bool) {
 		}
 		m.eh.Add(elem)
 		m.owned[sender]++
+		m.pendingSize += item.Size()
 	}
 }
 
@@ -189,6 +193,7 @@ func (m *Mempool[T]) popNext() (T, bool) {
 	v := m.queue.Remove(first)
 	m.eh.Remove(v.ID())
 	m.removeFromOwned(v)
+	m.pendingSize -= v.Size()
 	return v, true
 }
 
@@ -207,6 +212,7 @@ func (m *Mempool[T]) Remove(ctx context.Context, items []T) {
 		}
 		m.queue.Remove(elem)
 		m.removeFromOwned(item)
+		m.pendingSize -= item.Size()
 	}
 }
 
@@ -221,6 +227,14 @@ func (m *Mempool[T]) Len(ctx context.Context) int {
 	return m.eh.Len()
 }
 
+// Size returns the size (in bytes) of items in m.
+func (m *Mempool[T]) Size(context.Context) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return m.pendingSize
+}
+
 // SetMinTimestamp removes and returns all items with a lower expiry than [t] from m.
 func (m *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 	_, span := m.tracer.Start(ctx, "Mempool.SetMinTimesamp")
@@ -233,8 +247,10 @@ func (m *Mempool[T]) SetMinTimestamp(ctx context.Context, t int64) []T {
 	removed := make([]T, len(removedElems))
 	for i, remove := range removedElems {
 		m.queue.Remove(remove)
-		m.removeFromOwned(remove.Value())
-		removed[i] = remove.Value()
+		v := remove.Value()
+		m.removeFromOwned(v)
+		m.pendingSize -= v.Size()
+		removed[i] = v
 	}
 	return removed
 }
