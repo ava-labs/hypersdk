@@ -423,6 +423,9 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 
 	// Verify parent is verified and available
+	//
+	// TODO: remove assumption that parent will be accessible here, we should store
+	// all info we need to verify a block in state
 	parent, err := b.vm.GetStatelessBlock(ctx, b.Prnt)
 	if err != nil {
 		log.Debug("could not get parent", zap.Stringer("id", b.Prnt))
