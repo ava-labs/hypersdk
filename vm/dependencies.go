@@ -30,8 +30,8 @@ type Config interface {
 	// are added to signature verification.
 	//
 	// These operations are typically both done at the same time
-	// and will cause CPU thrashing if both given full access to a
-	// node's CPU.
+	// and will cause CPU thrashing if both given full access to all
+	// cores.
 	GetParallelism() int
 	GetMempoolSize() int
 	GetMempoolPayerSize() int
