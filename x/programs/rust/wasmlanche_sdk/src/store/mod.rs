@@ -8,7 +8,7 @@ use serde_bare::{from_slice, to_vec};
 use std::str;
 /// Context defines helper methods for the program builder
 /// to interact with the host.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Context {
     pub program_id: i64,
 }
@@ -50,7 +50,7 @@ impl Context {
     }
     pub fn get_map_value<T, U>(&self, map_name: &str, key: &T) -> Result<U, StorageError>
     where
-        T: DeserializeOwned + Serialize,
+        T: Serialize,
         U: DeserializeOwned + Serialize,
     {
         let result: U = get_map_field(self, map_name, key)?;
@@ -74,7 +74,7 @@ fn store_key_value<T>(ctx: &Context, key_bytes: Vec<u8>, value: &T) -> Result<()
 where
     T: Serialize,
 {
-    let value_bytes = to_vec(value).expect("Serialization failed");
+    let value_bytes = to_vec(value).map_err(|_| StorageError::SerializationError)?;
     match unsafe {
         store_bytes(
             ctx,
@@ -133,7 +133,7 @@ where
 // Gets the value from the map [name] with key [key] from the host and returns it as a ProgramValue.
 fn get_map_field<T, U>(ctx: &Context, name: &str, key: &T) -> Result<U, StorageError>
 where
-    T: DeserializeOwned + Serialize,
+    T: Serialize,
     U: DeserializeOwned + Serialize,
 {
     let map_key = get_map_key(name, key)?;
@@ -150,7 +150,7 @@ impl Context {
         fn_name: &str,
         call_args: &[Box<dyn Argument>],
     ) -> i64 {
-        host_program_invoke(self, call_ctx, fn_name, &Self::marshal_args(call_args))
+        host_program_invoke(call_ctx, fn_name, &Self::marshal_args(call_args))
     }
 
     fn marshal_args(args: &[Box<dyn Argument>]) -> Vec<u8> {

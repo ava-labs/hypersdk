@@ -13,7 +13,7 @@ pub fn init_program() -> i64 {
         .and_then(|_| {
             token_program.add_field(String::from("symbol"), Bytes32::from("WACK".to_string()))
         })
-        .and_then(|_| token_program.add_field(String::from("total_supply"), 123456789 as i64))
+        .and_then(|_| token_program.add_field(String::from("total_supply"), 123456789_i64))
         .unwrap();
 
     token_program.into()

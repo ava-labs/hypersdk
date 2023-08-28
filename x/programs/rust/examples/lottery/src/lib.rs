@@ -30,13 +30,14 @@ fn set(ctx: Context, counter_ctx: Context, lot_address: Address) {
 fn play(ctx: Context, player: Address) -> bool {
     let num = get_random_number(player, 1);
     // If win transfer to player
-    let call_ctx = ctx
-        .get_value(TOKEN_PROGRAM_NAME)
-        .expect("Failed to get token contract");
+    let call_ctx = match ctx.get_value(TOKEN_PROGRAM_NAME) {
+        Ok(ctx) => ctx,
+        Err(_) => return false,
+    };
 
-    let lotto_addy: Address = match ctx.get_value("address").expect("failed to get address") {
-        Some(addy) => addy,
-        None => return false,
+    let lotto_addy: Address = match ctx.get_value("address") {
+        Ok(addy) => addy,
+        Err(_) => return false,
     };
 
     // Transfer

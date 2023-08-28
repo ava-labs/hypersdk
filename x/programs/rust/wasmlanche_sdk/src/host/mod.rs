@@ -27,7 +27,6 @@ extern "C" {
 extern "C" {
     #[link_name = "program_invoke"]
     fn _invoke_program(
-        contract_id: i64,
         call_contract_id: i64,
         method_name_ptr: *const u8,
         method_name_len: usize,
@@ -74,16 +73,10 @@ pub unsafe fn get_bytes(ctx: &Context, key_ptr: *const u8, key_len: usize, val_l
 }
 
 /// Invokes another program and returns the result.
-pub fn host_program_invoke(
-    ctx: &Context,
-    call_ctx: &Context,
-    method_name: &str,
-    args: &[u8],
-) -> i64 {
+pub fn host_program_invoke(call_ctx: &Context, method_name: &str, args: &[u8]) -> i64 {
     let method_name_bytes = method_name.as_bytes();
     unsafe {
         _invoke_program(
-            ctx.program_id,
             call_ctx.program_id,
             method_name_bytes.as_ptr(),
             method_name_bytes.len(),

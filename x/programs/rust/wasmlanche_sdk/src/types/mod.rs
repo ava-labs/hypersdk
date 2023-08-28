@@ -71,7 +71,9 @@ impl From<i64> for Bytes32 {
 
 pub trait Argument {
     fn as_bytes(&self) -> Cow<'_, [u8]>;
-    fn is_primitive(&self) -> bool;
+    fn is_primitive(&self) -> bool {
+        false
+    }
     fn len(&self) -> usize {
         self.as_bytes().len()
     }
@@ -84,17 +86,11 @@ impl Argument for Bytes32 {
     fn as_bytes(&self) -> Cow<'_, [u8]> {
         Cow::Borrowed(&self.0)
     }
-    fn is_primitive(&self) -> bool {
-        false
-    }
 }
 
 impl Argument for Address {
     fn as_bytes(&self) -> Cow<'_, [u8]> {
         Cow::Borrowed(self.0.as_bytes())
-    }
-    fn is_primitive(&self) -> bool {
-        false
     }
 }
 

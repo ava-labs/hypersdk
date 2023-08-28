@@ -53,7 +53,6 @@ func (m *InvokeModule) Instantiate(ctx context.Context, r wazero.Runtime) error 
 func (m *InvokeModule) programInvokeFn(
 	ctx context.Context,
 	mod api.Module,
-	programID,
 	invokeProgramID uint64,
 	entryPtr,
 	entryLen,

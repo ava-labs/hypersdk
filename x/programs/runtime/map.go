@@ -47,7 +47,7 @@ func NewMapModule(log logging.Logger, meter Meter) *MapModule {
 
 // GlobalStorage is a global variable that holds the state of all programs.
 // This is a placeholder storage system intended to show how a wasm program would access/modify persistent storage.
-// Needs to be gloabl, so state can be persisted across multiple runtime intances.
+// Needs to be global, so state can be persisted across multiple runtime intances.
 var GlobalStorage = storage{
 	state:    make(map[int64]maps),
 	counter:  0,
@@ -56,7 +56,7 @@ var GlobalStorage = storage{
 
 func (m *MapModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
 	_, err := r.NewHostModuleBuilder(mapModuleName).
-		NewFunctionBuilder().WithFunc(m.initializeFn).Export("init_program").
+		NewFunctionBuilder().WithFunc(initializeFn).Export("init_program").
 		NewFunctionBuilder().WithFunc(m.storeBytesFn).Export("store_bytes").
 		NewFunctionBuilder().WithFunc(m.getBytesLenFn).Export("get_bytes_len").
 		NewFunctionBuilder().WithFunc(m.getBytesFn).Export("get_bytes").
@@ -65,7 +65,7 @@ func (m *MapModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
 	return err
 }
 
-func (m *MapModule) initializeFn(_ context.Context, mod api.Module) int64 {
+func initializeFn() int64 {
 	GlobalStorage.counter++
 	GlobalStorage.state[GlobalStorage.counter] = make(map[string][]byte)
 	return GlobalStorage.counter

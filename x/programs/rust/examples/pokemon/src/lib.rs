@@ -19,7 +19,9 @@ type OwnedPokemon = Vec<Pokemon>;
 pub fn init_program() -> i64 {
     let mut pokemon = Program::new();
 
-    pokemon.add_field(String::from("total_supply"), 10).unwrap();
+    pokemon
+        .add_field(String::from("total_supply"), 10_i64)
+        .unwrap();
 
     pokemon.into()
 }

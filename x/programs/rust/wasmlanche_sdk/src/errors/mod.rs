@@ -19,4 +19,7 @@ pub enum StorageError {
 
     #[error("Error Retrieving Bytes In The Host")]
     HostRetrieveError,
+
+    #[error("Error Serializing the Bytes")]
+    SerializationError,
 }
