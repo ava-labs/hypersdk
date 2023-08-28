@@ -38,7 +38,6 @@ fn play(ctx: Context, player: Address) -> bool {
     let Ok(lotto_addy) = ctx.get_value::<Address>("address") else {
         return false
     };
-    };
 
     // Transfer
     ctx.program_invoke(

@@ -48,7 +48,7 @@ impl Context {
     pub fn get_map_value<T, U>(&self, map_name: &str, key: &T) -> Result<U, StorageError>
     where
         T: Serialize,
-        U: DeserializeOwned + Serialize,
+        U: DeserializeOwned,
     {
         let result: U = get_map_field(self, map_name, key)?;
         Ok(result)
@@ -131,7 +131,7 @@ where
 fn get_map_field<T, U>(ctx: &Context, name: &str, key: &T) -> Result<U, StorageError>
 where
     T: Serialize,
-    U: DeserializeOwned + Serialize,
+    U: DeserializeOwned,
 {
     let map_key = get_map_key(name, key)?;
     let map_value = get_field_as_bytes(ctx, &map_key)?;
