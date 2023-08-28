@@ -69,10 +69,10 @@ func init() {
 		"comma separated list of function names",
 	)
 
-	programInvokeCmd.PersistentFlags().StringVar(
+	programInvokeCmd.PersistentFlags().Uint64Var(
 		&programID,
 		"id",
-		"",
+		0,
 		"id of the program",
 	)
 
@@ -90,10 +90,24 @@ func init() {
 		"comma separated list of params to pass to the function",
 	)
 
+	programInvokeCmd.PersistentFlags().StringVar(
+		&params,
+		"params",
+		"",
+		"comma separated list of params to pass to the function",
+	)
+
 	programCreateCmd.PersistentFlags().Uint64Var(
 		&maxFee,
 		"max-fee",
-		0,
+		3000,
+		"max fee to pay for the action",
+	)
+
+	programInvokeCmd.PersistentFlags().Uint64Var(
+		&maxFee,
+		"max-fee",
+		3000,
 		"max fee to pay for the action",
 	)
 }
@@ -101,7 +115,7 @@ func init() {
 var (
 	callerAddress string
 	pubKey        ed25519.PublicKey
-	programID     string
+	programID     uint64
 	functionName  string
 	dbPath        string
 	params        string

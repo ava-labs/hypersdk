@@ -23,9 +23,16 @@ import (
 
 const (
 	HRP           = "simulator"
+	HRP_KEY       = "simulator_key_"
 	programPrefix = 0x0
 	keyPrefix     = 0x1
 )
+
+// example cost map
+var costMap = map[string]uint64{
+	"ConstI32 0x0": 1,
+	"ConstI64 0x0": 2,
+}
 
 var programCmd = &cobra.Command{
 	Use: "program",
@@ -36,7 +43,7 @@ var programCmd = &cobra.Command{
 
 var programCreateCmd = &cobra.Command{
 	Use:   "create [path to wasm program]",
-	Short: "Creates a program from a wasm file and returns the program ID",
+	Short: "Creates a program from a wasm file, calls init_program and returns the program ID",
 	PreRunE: func(cmd *cobra.Command, args []string) (err error) {
 		if len(args) != 1 {
 			return ErrInvalidArgs
@@ -44,10 +51,10 @@ var programCreateCmd = &cobra.Command{
 		if callerAddress == "" {
 			return ErrMissingAddress
 		}
-		pubKey, err = parseAddress(callerAddress)
-		if err != nil {
-			return err
-		}
+		// pubKey, err = parseAddress(callerAddress)
+		// if err != nil {
+		// 	return err
+		// }
 		return nil
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
@@ -58,64 +65,86 @@ var programCreateCmd = &cobra.Command{
 		}
 
 		// spoof txID
-		txID := fakeID()
+		// txID := fakeID()
 
-		pk, err := parseAddress(callerAddress)
+		// pk, err := parseAddress(callerAddress)
+		// if err != nil {
+		// 	return err
+		// }
+		pk, err := getPublicKey(db, callerAddress)
 		if err != nil {
 			return err
 		}
 
-		getKey(db, pk)
-
-		err = setProgram(db, txID, pk, []byte(functions), fileBytes)
+		// getKey(db, pk)
+		programId, err := initalizeProgram(fileBytes)
 		if err != nil {
 			return err
 		}
-		utils.Outf("{{green}}create program action successful txID:{{/}} %s\n", txID)
+
+		err = setProgram(db, programId, pk, []byte(functions), fileBytes)
+		if err != nil {
+			return err
+		}
+		utils.Outf("{{green}}create program action successful program id:{{/}} %v\n", programId)
 		return nil
 	},
+}
+
+func initalizeProgram(programBytes []byte) (uint64, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	storage := newProgramStorage(db)
+	runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), storage)
+	defer runtime.Stop(ctx)
+
+	err := runtime.Initialize(ctx, programBytes, []string{"init_program"})
+	if err != nil {
+		return 0, err
+	}
+	// run init_program
+	resp, err := runtime.Call(ctx, "init_program")
+	if err != nil {
+		return 0, err
+	}
+	return resp[0], nil
 }
 
 var programInvokeCmd = &cobra.Command{
 	Use:   "invoke [options]",
 	Short: "Invokes a wasm program stored on disk",
 	PreRunE: func(cmd *cobra.Command, args []string) (err error) {
-		if programID == "" {
+		if programID == 0 {
 			return fmt.Errorf("program --id cannot be empty")
 		}
 		if callerAddress == "" {
 			return ErrMissingAddress
 		}
-		pubKey, err = parseAddress(callerAddress)
-		if err != nil {
-			return err
-		}
+		// pubKey, err = parseAddress(callerAddress)
+		// if err != nil {
+		// 	return err
+		// }
 		return nil
 	},
 
 	RunE: func(_ *cobra.Command, args []string) error {
-		id, err := ids.FromString(programID)
-		if err != nil {
-			return err
-		}
-		exists, owner, functions, program, err := getProgram(db, id)
+		// id, err := ids.FromString(programID)
+		// if err != nil {
+		// 	return err
+		// }
+		exists, owner, functions, program, err := getProgram(db, programID)
 		if !exists {
-			return fmt.Errorf("program %s does not exist", id)
+			return fmt.Errorf("program %v does not exist", programID)
 		}
 		if err != nil {
 			return err
 		}
 
 		fmt.Println("owner", owner)
-
+		fmt.Println("functions", functions)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-
-		// example cost map
-		costMap := map[string]uint64{
-			"ConstI32 0x0": 1,
-			"ConstI64 0x0": 2,
-		}
 
 		storage := newProgramStorage(db)
 		runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), storage)
@@ -126,35 +155,38 @@ var programInvokeCmd = &cobra.Command{
 			return err
 		}
 
+		fmt.Println("params", params)
 		var callParams []uint64
-		for _, param := range strings.Split(params, ",") {
-			switch p := strings.ToLower(param); {
-			case p == "true":
-				callParams = append(callParams, 1)
-			case p == "false":
-				callParams = append(callParams, 0)
-			case strings.HasPrefix(p, HRP):
-				// address
-				pk, err := parseAddress(p)
-				if err != nil {
-					return err
-				}
-				ptr, err := runtime.WriteGuestBuffer(ctx, pk[:])
-				if err != nil {
-					return err
-				}
-				callParams = append(callParams, ptr)
-			default:
-				id, _ := ids.FromString(p)
-				// id
-				if id != ids.Empty {
-					ptr, err := runtime.WriteGuestBuffer(ctx, id[:])
+		if params != "" {
+			for _, param := range strings.Split(params, ",") {
+				switch p := strings.ToLower(param); {
+				case p == "true":
+					callParams = append(callParams, 1)
+				case p == "false":
+					callParams = append(callParams, 0)
+				case strings.HasPrefix(p, HRP):
+					// address
+					pk, err := parseAddress(p)
+					if err != nil {
+						return err
+					}
+					ptr, err := runtime.WriteGuestBuffer(ctx, pk[:])
 					if err != nil {
 						return err
 					}
 					callParams = append(callParams, ptr)
-				} else {
-					return fmt.Errorf("param not handled please implement: %s", param)
+				default:
+					id, _ := ids.FromString(p)
+					// id
+					if id != ids.Empty {
+						ptr, err := runtime.WriteGuestBuffer(ctx, id[:])
+						if err != nil {
+							return err
+						}
+						callParams = append(callParams, ptr)
+					} else {
+						return fmt.Errorf("param not handled please implement: %s", param)
+					}
 				}
 			}
 		}
@@ -173,17 +205,18 @@ var programInvokeCmd = &cobra.Command{
 	},
 }
 
-func programKey(asset ids.ID) (k []byte) {
+func programKey(asset uint64) (k []byte) {
 	k = make([]byte, 1+consts.IDLen)
+	// convert uint64 to bytes
+	binary.BigEndian.PutUint64(k[1:], asset)
 	k[0] = programPrefix
-	copy(k[1:], asset[:])
 	return
 }
 
 // [programID] -> [exists, owner, functions, payload]
 func getProgram(
 	db database.Database,
-	programID ids.ID,
+	programID uint64,
 ) (
 	bool, // exists
 	ed25519.PublicKey, // owner
@@ -217,7 +250,7 @@ func getProgram(
 // [program]
 func setProgram(
 	db database.Database,
-	programID ids.ID,
+	programID uint64,
 	owner ed25519.PublicKey,
 	functions []byte,
 	program []byte,
@@ -225,9 +258,10 @@ func setProgram(
 	k := programKey(programID)
 	functionLen := len(functions)
 	v := make([]byte, ed25519.PublicKeyLen+consts.Uint32Len+functionLen+len(program))
+	fmt.Println("Owner set: ", owner)
 	copy(v, owner[:])
 	binary.BigEndian.PutUint32(v[ed25519.PublicKeyLen:ed25519.PublicKeyLen+consts.Uint32Len], uint32(functionLen))
-	fmt.Printf("functionBytes: %v\n", functions[:])
+	// fmt.Printf("functionBytes: %v\n", functions[:])
 	copy(v[ed25519.PublicKeyLen+consts.Uint32Len:], functions[:])
 	copy(v[ed25519.PublicKeyLen+consts.Uint32Len+functionLen:], program[:])
 	return db.Put(k, v)
@@ -252,7 +286,7 @@ type programStorage struct {
 func (p *programStorage) Get(_ context.Context, id uint32) (bool, ed25519.PublicKey, []string, []byte, error) {
 	buf := make([]byte, consts.IDLen)
 	binary.BigEndian.PutUint32(buf, id)
-	exists, owner, functions, payload, err := getProgram(db, ids.ID(buf))
+	exists, owner, functions, payload, err := getProgram(db, uint64(id))
 	if !exists {
 		return false, ed25519.EmptyPublicKey, nil, nil, fmt.Errorf("program %d does not exist", id)
 	}

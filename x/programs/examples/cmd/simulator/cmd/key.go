@@ -30,11 +30,18 @@ var genKeyCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-
-		utils.Outf("{{green}}created new private key with public address:{{/}} %s\n", address(priv.PublicKey()))
+		utils.Outf("{{green}}created new private key with public address:{{/}} %s\n", keyHRP(priv))
 		return setKey(db, priv)
 	},
 }
+
+func keyHRP(privateKey ed25519.PrivateKey) string {
+	return HRP_KEY + privateKey.ToHex()[0:3]
+}
+
+// func fromHRPKey(hrpKey string) (ed25519.PrivateKey, error) {
+// 	[]byte(hrpKey)
+// }
 
 func setKey(db database.Database, privateKey ed25519.PrivateKey) error {
 	publicKey := privateKey.PublicKey()
@@ -48,7 +55,11 @@ func setKey(db database.Database, privateKey ed25519.PrivateKey) error {
 	if has {
 		return cli.ErrDuplicate
 	}
-	return db.Put(k, privateKey[:])
+	err = db.Put(k, privateKey[:])
+	if err != nil {
+		return err
+	}
+	return db.Put([]byte(keyHRP(privateKey)), privateKey[:])
 }
 
 func getKey(db database.Database, publicKey ed25519.PublicKey) (ed25519.PrivateKey, error) {
@@ -63,4 +74,15 @@ func getKey(db database.Database, publicKey ed25519.PublicKey) (ed25519.PrivateK
 		return ed25519.EmptyPrivateKey, err
 	}
 	return ed25519.PrivateKey(v), nil
+}
+
+func getPublicKey(db database.Database, keyHRP string) (ed25519.PublicKey, error) {
+	v, err := db.Get([]byte(keyHRP))
+	if errors.Is(err, database.ErrNotFound) {
+		return ed25519.EmptyPublicKey, nil
+	}
+	if err != nil {
+		return ed25519.EmptyPublicKey, err
+	}
+	return ed25519.PublicKey(v), nil
 }

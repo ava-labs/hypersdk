@@ -1,0 +1,10 @@
+/Users/sam.liokumovich/Documents/WASM/hypersdk/x/programs/rust/../examples/testdata/target/wasm32-wasi/release/deps/ppv_lite86-b49e0b57cbc273b1.rmeta: /Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/lib.rs /Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/soft.rs /Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/types.rs /Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/generic.rs
+
+/Users/sam.liokumovich/Documents/WASM/hypersdk/x/programs/rust/../examples/testdata/target/wasm32-wasi/release/deps/libppv_lite86-b49e0b57cbc273b1.rlib: /Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/lib.rs /Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/soft.rs /Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/types.rs /Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/generic.rs
+
+/Users/sam.liokumovich/Documents/WASM/hypersdk/x/programs/rust/../examples/testdata/target/wasm32-wasi/release/deps/ppv_lite86-b49e0b57cbc273b1.d: /Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/lib.rs /Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/soft.rs /Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/types.rs /Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/generic.rs
+
+/Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/lib.rs:
+/Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/soft.rs:
+/Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/types.rs:
+/Users/sam.liokumovich/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ppv-lite86-0.2.17/src/generic.rs:
