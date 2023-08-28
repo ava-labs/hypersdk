@@ -742,24 +742,42 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 	)
 	defer span.End()
 
-	if b.st == choices.Accepted || b.Hght == 0 /* genesis */ {
-		// TODO: ensure we are accessing the right state (last accepted state
-		// will be state of our grandparent right after state sync).
-		return b.vm.State()
-	}
-	if !b.Processed() {
-		if !verify {
-			return nil, ErrBlockNotProcessed
+	if b.Processed() {
+		if b.st == choices.Accepted || b.Hght == 0 /* genesis */ {
+			// We assume that base state was properly updated if this
+			// block was accepted (this is not obvious because
+			// the accepted state may be that of the parent of the last
+			// accepted block right after state sync finishes).
+			return b.vm.State()
 		}
-		b.vm.Logger().Info("verifying parent when requesting view",
-			zap.Uint64("height", b.Hght),
-			zap.Stringer("id", b.ID()),
-		)
-		view, err := b.innerVerify(ctx)
-		if err != nil {
+		return b.view, nil
+	}
+	if !verify {
+		return nil, ErrBlockNotProcessed
+	}
+
+	// If block is not processed when [View] is called, we must verify it
+	// regardless of whether or not it is already accepted because we only
+	// sync to the state of the block's parent post-execution.
+	b.vm.Logger().Info("verifying parent when view requested",
+		zap.Uint64("height", b.Hght),
+		zap.Stringer("id", b.ID()),
+	)
+	view, err := b.innerVerify(ctx)
+	if err != nil {
+		return nil, err
+	}
+	b.view = view
+
+	// If the block is accepted at this point (should
+	// be the case), we should update the base state
+	// accordingly (which may have been the state of our
+	// parent post-execution).
+	if b.st == choices.Accepted && b.Hght != 0 {
+		if err := b.view.CommitToDB(ctx); err != nil {
 			return nil, err
 		}
-		b.view = view
+		return b.vm.State()
 	}
 	return b.view, nil
 }
