@@ -357,11 +357,13 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 	default:
 		// Parent may not be processed when we verify this block so [verify] may
 		// recursively compute missing state.
-		view, err := b.innerVerify(ctx)
+		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt, b.StateRoot)
 		if err != nil {
 			return err
 		}
-		b.view = view
+		if err := b.innerVerify(ctx, vctx); err != nil {
+			return err
+		}
 	}
 
 	// At any point after this, we may attempt to verify the block. We should be
@@ -411,7 +413,7 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 //  2. If the parent view is missing when verifying (dynamic state sync)
 //  3. If the view of a block we are accepting is missing (finishing dynamic
 //     state sync)
-func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) (merkledb.TrieView, error) {
+func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) error {
 	var (
 		log = b.vm.Logger()
 		r   = b.vm.Rules(b.Tmstmp)
@@ -419,24 +421,24 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) (m
 
 	// Perform basic correctness checks before doing any expensive work
 	if b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli() {
-		return nil, ErrTimestampTooLate
+		return ErrTimestampTooLate
 	}
 
 	// Fetch view where we will apply block state transitions
 	parentView, err := vctx.View(ctx, &b.StateRoot)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Fetch parent height key and ensure block height is valid
 	heightKey := HeightKey(b.vm.StateManager().HeightKey())
 	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	parentHeight := binary.BigEndian.Uint64(parentHeightRaw)
 	if b.Hght != parentHeight+1 {
-		return nil, ErrInvalidBlockHeight
+		return ErrInvalidBlockHeight
 	}
 
 	// Fetch parent timestamp and confirm block timestamp is valid
@@ -446,14 +448,14 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) (m
 	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
 	parentTimestampRaw, err := parentView.GetValue(ctx, timestampKey)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	parentTimestamp := int64(binary.BigEndian.Uint64(parentTimestampRaw))
 	if b.Tmstmp < parentTimestamp+r.GetMinBlockGap() {
-		return nil, ErrTimestampTooEarly
+		return ErrTimestampTooEarly
 	}
 	if len(b.Txs) == 0 && b.Tmstmp < parentTimestamp+r.GetMinEmptyBlockGap() {
-		return nil, ErrTimestampTooEarly
+		return ErrTimestampTooEarly
 	}
 
 	// Ensure tx cannot be replayed
@@ -467,10 +469,10 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) (m
 	}
 	dup, err := vctx.IsRepeat(ctx, oldestAllowed, b.Txs, set.NewBits(), true)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if dup.Len() > 0 {
-		return nil, fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
+		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
 	}
 
 	// Start validating warp messages, if they exist
@@ -482,7 +484,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) (m
 				zap.Uint64("height", b.Hght),
 				zap.Stringer("id", b.ID()),
 			)
-			return nil, ErrMissingBlockContext
+			return ErrMissingBlockContext
 		}
 		_, warpVerifySpan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
 		b.vdrState = b.vm.ValidatorState()
@@ -530,12 +532,12 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) (m
 	feeKey := FeeKey(b.vm.StateManager().FeeKey())
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	parentFeeManager := NewFeeManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(parentTimestamp, b.Tmstmp, r)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Optimisticaly fetch view
@@ -546,18 +548,18 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) (m
 	results, ts, err := processor.Execute(ctx, feeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
-		return nil, err
+		return err
 	}
 	b.results = results
 	b.feeManager = feeManager
 
 	// Ensure warp results are correct
 	if invalidWarpResult {
-		return nil, ErrWarpResultMismatch
+		return ErrWarpResultMismatch
 	}
 	numWarp := len(b.warpMessages)
 	if numWarp > MaxWarpMessages {
-		return nil, ErrTooManyWarpMessages
+		return ErrTooManyWarpMessages
 	}
 	var warpResultsLimit set.Bits64
 	warpResultsLimit.Add(uint(numWarp))
@@ -565,7 +567,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) (m
 		// If the value of [WarpResults] is greater than the value of uint64 with
 		// a 1-bit shifted [numWarp] times, then there are unused bits set to
 		// 1 (which should is not allowed).
-		return nil, ErrWarpResultMismatch
+		return ErrWarpResultMismatch
 	}
 
 	// Set scope for [tstate] changes
@@ -580,17 +582,17 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) (m
 
 	// Store height in view to prevent duplicate roots
 	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return nil, err
+		return err
 	}
 
 	// Store timestamp in block
 	if err := ts.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
-		return nil, err
+		return err
 	}
 
 	// Store fee parameters
 	if err := ts.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
-		return nil, err
+		return err
 	}
 
 	// Compare state root
@@ -602,11 +604,11 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) (m
 	computedRoot, err := parentView.GetMerkleRoot(ctx)
 	rspan.End()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	b.vm.RecordWaitRoot(time.Since(start))
 	if b.StateRoot != computedRoot {
-		return nil, fmt.Errorf(
+		return fmt.Errorf(
 			"%w: expected=%s found=%s",
 			ErrStateRootMismatch,
 			computedRoot,
@@ -620,7 +622,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) (m
 	err = b.sigJob.Wait()
 	sspan.End()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	b.vm.RecordWaitSignatures(time.Since(start))
 
@@ -629,8 +631,9 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) (m
 	b.vm.RecordStateOperations(ts.OpIndex())
 	view, err := ts.CreateView(ctx, parentView, b.vm.Tracer())
 	if err != nil {
-		return nil, err
+		return err
 	}
+	b.view = view
 
 	// Kickoff root generation
 	go func() {
@@ -647,7 +650,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) (m
 		)
 		b.vm.RecordRootCalculated(time.Since(start))
 	}()
-	return view, nil
+	return nil
 }
 
 // implements "snowman.Block.choices.Decidable"
@@ -677,21 +680,24 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 			)
 			return nil // the sync is still ongoing
 		}
-		b.vm.Logger().Info("verifying unprocessed block in accept",
-			zap.Stringer("id", b.ID()),
-			zap.Stringer("root", b.StateRoot),
-		)
+
 		// This check handles the case where blocks were not
 		// verified during state sync (stopped syncing with a
 		// processing block).
 		//
 		// If state sync completes before accept is called
 		// then we need to rebuild it here.
-		view, err := b.innerVerify(ctx)
+		b.vm.Logger().Info("verifying unprocessed block in accept",
+			zap.Stringer("id", b.ID()),
+			zap.Stringer("root", b.StateRoot),
+		)
+		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt, b.StateRoot)
 		if err != nil {
 			return err
 		}
-		b.view = view
+		if err := b.innerVerify(ctx, vctx); err != nil {
+			return err
+		}
 	}
 
 	// Commit view if we don't return before here (would happen if we are still
@@ -832,11 +838,13 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID) (state.Vie
 		zap.Stringer("blkID", b.ID()),
 		zap.Bool("accepted", b.st == choices.Accepted),
 	)
-	view, err := b.innerVerify(ctx)
+	vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt, b.StateRoot)
 	if err != nil {
 		return nil, err
 	}
-	b.view = view
+	if err := b.innerVerify(ctx, vctx); err != nil {
+		return nil, err
+	}
 	if b.st != choices.Accepted {
 		return b.view, nil
 	}
