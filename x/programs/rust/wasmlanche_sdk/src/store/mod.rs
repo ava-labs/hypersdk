@@ -43,10 +43,7 @@ impl Context {
     where
         T: DeserializeOwned,
     {
-        match get_field(self, name) {
-            Ok(value) => Ok(value),
-            Err(err) => Err(err),
-        }
+        get_field(self, name)
     }
     pub fn get_map_value<T, U>(&self, map_name: &str, key: &T) -> Result<U, StorageError>
     where
