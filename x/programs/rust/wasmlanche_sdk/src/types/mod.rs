@@ -44,7 +44,6 @@ impl std::fmt::Display for Bytes32 {
         // Find the first null byte and only print up to that point.
         let null_pos = self.0.iter().position(|&b| b == b'\0').unwrap_or(Self::LEN);
         String::from_utf8_lossy(&self.0[..null_pos])
-            .to_string()
             .fmt(f)
     }
 }
