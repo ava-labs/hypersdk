@@ -126,17 +126,16 @@ serially with state pre-fetching. Rewriting this mechanism has been moved to the
 
 #### Deferred Root Generation (TODO)
 `hypersdk` blocks contain the merkle root of the post-execution state of their parent
-instead of the merkle root of their own post-execution state. This approach allows
-the merkle root of a block's post-execution state to be generated asynchronously while
-the consensus engine votes on finalizing the block.
+instead of the merkle root of their own post-execution state. This design enables the
+`hypersdk` to generate the merkle root of a block's post-execution state asynchronously
+(usually the most time consuming part of block verification) while the consensus engine
+votes on finalizing the block.
 
-This design reduces the time 
+Importantly, reduces the time that a single block spends in the verify
+call, which blocks the engine from doing other useful work.
 
-Returning as early as possible from the `block.Verify` function
-
-while the consensus engine
-is working to finalize the block (where compute/IO are not utilized heavily)
-instead of blocking the verify call.
+_The block must include a merkle root to begin with because it is needed for the dynamic state syncing
+mechanism (which performs consensus on the next root to sync to)._
 
 #### [Optional] Parallel Signature Verification
 The `Auth` interface (detailed below) exposes a function called `AsyncVerify` that

@@ -739,8 +739,8 @@ func (b *StatelessBlock) Processed() bool {
 func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID) (state.View, error) {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.View",
 		oteltrace.WithAttributes(
-			attribute.Stringer("blockRoot", blockRoot),
 			attribute.Bool("processed", b.Processed()),
+			attribute.Bool("attemptVerify", blockRoot != nil),
 		),
 	)
 	defer span.End()
