@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
@@ -22,7 +21,7 @@ func TestStorage(t *testing.T) {
 	require.NoError(err)
 
 	pub := pk.PublicKey()
-	id := ids.GenerateTestID()
+	id := uint64(1)
 
 	program := []byte("super cool program")
 	f := "test,something,else"
