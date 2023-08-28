@@ -45,7 +45,7 @@ func TestMeterInsufficientBalance(t *testing.T) {
 
 	meter := NewMeter(log, maxFee, costMap)
 	runtime := New(log, meter, storage)
-	err := runtime.Initialize(ctx, tokenProgramBytes, []string{"get"})
+	err := runtime.Initialize(ctx, tokenProgramBytes)
 	require.NoError(err)
 
 	// first call should pass
@@ -67,7 +67,7 @@ func TestMeterRuntimeStop(t *testing.T) {
 
 	meter := NewMeter(log, maxFee, costMap)
 	runtime := New(log, meter, storage)
-	err := runtime.Initialize(ctx, tokenProgramBytes, []string{"get"})
+	err := runtime.Initialize(ctx, tokenProgramBytes)
 	require.NoError(err)
 
 	// shutdown runtime
