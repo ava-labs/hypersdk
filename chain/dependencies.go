@@ -34,12 +34,12 @@ type Parser interface {
 type VM interface {
 	Parser
 
-	Workers() workers.Workers
 	Tracer() trace.Tracer
 	Logger() logging.Logger
 
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.
+	SignatureWorkers() workers.Workers
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
 	GetVerifySignatures() bool
 

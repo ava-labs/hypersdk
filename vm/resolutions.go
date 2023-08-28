@@ -53,8 +53,8 @@ func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return vm.actionRegistry, vm.authRegistry
 }
 
-func (vm *VM) Workers() workers.Workers {
-	return vm.workers
+func (vm *VM) SignatureWorkers() workers.Workers {
+	return vm.sigWorkers
 }
 
 func (vm *VM) Tracer() trace.Tracer {

@@ -145,7 +145,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 
 	// Setup signature verification job
 	_, sigVerifySpan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
-	job, err := b.vm.Workers().NewJob(len(b.Txs))
+	job, err := b.vm.SignatureWorkers().NewJob(len(b.Txs))
 	if err != nil {
 		return err
 	}

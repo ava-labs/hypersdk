@@ -96,8 +96,9 @@ type VM struct {
 	// Transactions that streaming users are currently subscribed to
 	webSocketServer *rpc.WebSocketServer
 
-	// Reuse gorotuine group to avoid constant re-allocation
-	workers workers.Workers
+	// sigWorkers are used to verify signatures in parallel
+	// with limited parallelism
+	sigWorkers workers.Workers
 
 	bootstrapped utils.Atomic[bool]
 	preferred    ids.ID
@@ -199,12 +200,22 @@ func (vm *VM) Initialize(
 	}
 
 	// Instantiate DBs
+	parallelism := vm.config.GetParallelism()
+	rootGenParallelism := parallelism / 2
+	if rootGenParallelism == 0 {
+		rootGenParallelism = 1
+	}
 	merkleRegistry := prometheus.NewRegistry()
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
-		HistoryLength: vm.config.GetStateHistoryLength(),
-		NodeCacheSize: vm.config.GetStateCacheSize(),
-		Reg:           merkleRegistry,
-		Tracer:        vm.tracer,
+		// RootGenConcurrency only limits the number of goroutines
+		// that a single root generation will use, not the number
+		// of goroutines that all root generations will use if called
+		// concurrently.
+		RootGenConcurrency: rootGenParallelism,
+		HistoryLength:      vm.config.GetStateHistoryLength(),
+		NodeCacheSize:      vm.config.GetStateCacheSize(),
+		Reg:                merkleRegistry,
+		Tracer:             vm.tracer,
 	})
 	if err != nil {
 		return err
@@ -213,8 +224,15 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	// Setup worker cluster
-	vm.workers = workers.NewParallel(vm.config.GetParallelism(), 100)
+	// Setup worker cluster for verifying signatures
+	//
+	// If [parallelism] is odd, we assign the extra
+	// core to signature verification.
+	sigParallelism := parallelism/2 + parallelism%2
+	if sigParallelism == 0 {
+		sigParallelism = 1
+	}
+	vm.sigWorkers = workers.NewParallel(sigParallelism, 100) // TODO: make job backlog a const
 
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
@@ -491,7 +509,7 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	vm.warpManager.Done()
 	vm.builder.Done()
 	vm.gossiper.Done()
-	vm.workers.Stop()
+	vm.sigWorkers.Stop()
 	if vm.profiler != nil {
 		vm.profiler.Shutdown()
 	}
