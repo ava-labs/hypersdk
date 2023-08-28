@@ -426,6 +426,9 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	//
 	// TODO: remove assumption that parent will be accessible here, we should store
 	// all info we need to verify a block in state
+	//
+	// TODO: parent will only be acessible if processing to check "IsRepeat" or
+	// to get a View of pending state
 	parent, err := b.vm.GetStatelessBlock(ctx, b.Prnt)
 	if err != nil {
 		log.Debug("could not get parent", zap.Stringer("id", b.Prnt))
