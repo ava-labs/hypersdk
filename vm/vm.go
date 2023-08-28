@@ -665,7 +665,11 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (sn
 	defer vm.checkActivity(ctx)
 
 	// Build block and store as parsed
-	blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
+	preferredBlk, err := vm.GetStatelessBlock(ctx, vm.preferred)
+	if err != nil {
+		return nil, err
+	}
+	blk, err := chain.BuildBlock(ctx, vm, preferredBlk, blockContext)
 	if err != nil {
 		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
 		return nil, err
@@ -721,7 +725,7 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	view, err := blk.View(ctx, nil)
+	view, err := blk.View(ctx, nil, false)
 	if err != nil {
 		// This will error if a block does not yet have processed state.
 		return []error{err}
