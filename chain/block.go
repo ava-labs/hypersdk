@@ -762,7 +762,13 @@ func (b *StatelessBlock) View(ctx context.Context, expectedRoot *ids.ID) (state.
 	// the [acceptedState], we should just return it instead
 	// of verifying here.
 	//
-	// This could happen when fetching the [View] of the parent
+	// This could happen if state sync finishes with a processing
+	// block. In this scenario, we will attempt to verify the block
+	// during accept and it will attempt to read the state associated
+	// with the root referenced...
+	//
+	//
+	// when fetching the [View] of the parent
 	// of the last accepted but unprocessed block right after
 	// state sync completes (which we may attempt to verify).
 	acceptedState, err := b.vm.State()
