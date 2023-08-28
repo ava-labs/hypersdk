@@ -390,7 +390,8 @@ func (vm *VM) markReady() {
 	// we don't yet have a full [ValidityWindow].
 	vm.snowCtx.Log.Info("state sync client ready")
 
-	// Wait for a full [ValidityWindow]
+	// Wait for a full [ValidityWindow] before
+	// we are willing to vote on blocks.
 	select {
 	case <-vm.stop:
 		return
