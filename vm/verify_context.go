@@ -83,7 +83,7 @@ func (a *AcceptedVerifyContext) View(ctx context.Context, blockRoot ids.ID) (sta
 	return state, nil
 }
 
-func (a *AcceptedVerifyContext) IsRepeat(ctx context.Context, oldestAllowed int64, txs []*chain.Transaction, marker set.Bits, stop bool) (set.Bits, error) {
+func (a *AcceptedVerifyContext) IsRepeat(ctx context.Context, _ int64, txs []*chain.Transaction, marker set.Bits, stop bool) (set.Bits, error) {
 	bits := a.vm.IsRepeat(ctx, txs, marker, stop)
 	return bits, nil
 }

@@ -85,7 +85,7 @@ type VM interface {
 }
 
 type VerifyContext interface {
-	View(ctx context.Context, blockRoot ids.ID) (state.View, error)
+	View(ctx context.Context, blockRoot *ids.ID) (state.View, error)
 	IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction, marker set.Bits, stop bool) (set.Bits, error)
 }
 

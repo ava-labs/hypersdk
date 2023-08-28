@@ -379,12 +379,18 @@ func (vm *VM) checkActivity(ctx context.Context) {
 }
 
 func (vm *VM) markReady() {
+	// Wait for state syncing to complete
 	select {
 	case <-vm.stop:
 		return
 	case <-vm.stateSyncClient.done:
 	}
+
+	// We can't verify the block here because
+	// we don't yet have a full [ValidityWindow].
 	vm.snowCtx.Log.Info("state sync client ready")
+
+	// Wait for a full [ValidityWindow]
 	select {
 	case <-vm.stop:
 		return
@@ -396,6 +402,8 @@ func (vm *VM) markReady() {
 		vm.toEngine <- common.StateSyncDone
 	}
 	close(vm.ready)
+
+	// Mark node ready and attempt to build a block.
 	vm.snowCtx.Log.Info(
 		"node is now ready",
 		zap.Bool("synced", vm.stateSyncClient.Started()),
@@ -479,7 +487,8 @@ func (vm *VM) ForceReady() {
 
 // onNormalOperationsStarted marks this VM as bootstrapped
 func (vm *VM) onNormalOperationsStarted() error {
-	vm.checkActivity(context.TODO())
+	defer vm.checkActivity(context.TODO())
+
 	if vm.bootstrapped.Get() {
 		return nil
 	}
@@ -639,10 +648,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	return newBlk, nil
 }
 
-func (vm *VM) buildBlock(
-	ctx context.Context,
-	blockContext *smblock.Context,
-) (snowman.Block, error) {
+func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
 	// If the node isn't ready, we should exit.
 	//
 	// We call [QueueNotify] when the VM becomes ready, so exiting
@@ -682,10 +688,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 }
 
 // implements "block.BuildBlockWithContextChainVM"
-func (vm *VM) BuildBlockWithContext(
-	ctx context.Context,
-	blockContext *smblock.Context,
-) (snowman.Block, error) {
+func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockBuild.Observe(float64(time.Since(start)))

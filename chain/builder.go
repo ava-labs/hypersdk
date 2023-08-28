@@ -61,19 +61,30 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 func BuildBlock(
 	ctx context.Context,
 	vm VM,
-	preferred ids.ID,
+	parentHeight uint64,
+	parentID ids.ID,
 	blockContext *smblock.Context,
 ) (*StatelessBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
 	log := vm.Logger()
 
-	// Setup new block
-	parent, err := vm.GetStatelessBlock(ctx, preferred)
+	// Get verification context from [VM]
+	vctx, err := vm.GetVerifyContext(ctx, parentHeight+1, parentID)
 	if err != nil {
-		log.Warn("block building failed: couldn't get parent", zap.Error(err))
+		log.Warn("block building failed: couldn't get verification context", zap.Error(err))
 		return nil, err
 	}
+
+	// Fetch view where we will apply block state transitions
+	//
+	// We will not attempt to build a block if the parent is not processed.
+	parentView, err := vctx.View(ctx, nil)
+	if err != nil {
+		log.Warn("block building failed: couldn't get parent view", zap.Error(err))
+		return nil, err
+	}
+
 	nextTime := time.Now().UnixMilli()
 	r := vm.Rules(nextTime)
 	if nextTime < parent.Tmstmp+r.GetMinBlockGap() {
