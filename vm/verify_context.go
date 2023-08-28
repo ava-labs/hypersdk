@@ -61,7 +61,9 @@ type AcceptedVerifyContext struct {
 	vm *VM
 }
 
-func (a *AcceptedVerifyContext) View(ctx context.Context, blockRoot *ids.ID, verify bool) (state.View, error) {
+// We disregard [verify] because [GetVerifyContext] ensures
+// we will never need to verify a block if [AcceptedVerifyContext] is returned.
+func (a *AcceptedVerifyContext) View(ctx context.Context, blockRoot *ids.ID, _ bool) (state.View, error) {
 	state, err := a.vm.State()
 	if err != nil {
 		return nil, err
