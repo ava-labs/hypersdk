@@ -35,9 +35,9 @@ fn play(ctx: Context, player: Address) -> bool {
         Err(_) => return false,
     };
 
-    let lotto_addy: Address = match ctx.get_value("address") {
-        Ok(addy) => addy,
-        Err(_) => return false,
+    let Ok(lotto_addy) = ctx.get_value::<Address>("address") else {
+        return false
+    };
     };
 
     // Transfer
