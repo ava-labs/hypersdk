@@ -55,7 +55,6 @@ fn get_random_number(seed: Address, index: usize) -> i64 {
     use rand_chacha::rand_core::SeedableRng;
     use rand_chacha::ChaCha8Rng;
 
-    let first_val = seed;
-    let mut rng = ChaCha8Rng::seed_from_u64(first_val.as_bytes()[index] as u64);
+    let mut rng = ChaCha8Rng::seed_from_u64(seed.as_bytes()[index] as u64);
     rng.gen_range(0..100)
 }
