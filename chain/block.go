@@ -795,6 +795,12 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID) (state.Vie
 	if acceptedRoot == *blockRoot {
 		return acceptedState, nil
 	}
+	b.vm.Logger().Info("block root does not match accepted state",
+		zap.Uint64("height", b.Hght),
+		zap.Stringer("blkID", b.ID()),
+		zap.Stringer("accepted root", acceptedRoot),
+		zap.Stringer("block root", *blockRoot),
+	)
 
 	// If there are no processing blocks when state sync finishes,
 	// the first block we attempt to verify will reach this execution
@@ -806,6 +812,7 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID) (state.Vie
 	b.vm.Logger().Info("verifying block when view requested",
 		zap.Uint64("height", b.Hght),
 		zap.Stringer("blkID", b.ID()),
+		zap.Bool("accepted", b.st == choices.Accepted),
 	)
 	view, err := b.innerVerify(ctx)
 	if err != nil {

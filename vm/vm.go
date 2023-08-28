@@ -202,14 +202,14 @@ func (vm *VM) Initialize(
 
 	// Instantiate DBs
 	parallelism := vm.config.GetParallelism()
-	rootGenParallelism := parallelism / 2
+	rootGenParallelism := math.Max(parallelism/2, 1)
 	merkleRegistry := prometheus.NewRegistry()
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
 		// RootGenConcurrency only limits the number of goroutines
 		// that a single root generation will use, not the number
 		// of goroutines that all root generations will use if called
 		// concurrently.
-		RootGenConcurrency: math.Max(rootGenParallelism, 1),
+		RootGenConcurrency: rootGenParallelism,
 		HistoryLength:      vm.config.GetStateHistoryLength(),
 		NodeCacheSize:      vm.config.GetStateCacheSize(),
 		Reg:                merkleRegistry,
@@ -226,8 +226,8 @@ func (vm *VM) Initialize(
 	//
 	// If [parallelism] is odd, we assign the extra
 	// core to signature verification.
-	sigParallelism := parallelism - rootGenParallelism
-	vm.sigWorkers = workers.NewParallel(math.Max(sigParallelism, 1), 100) // TODO: make job backlog a const
+	sigParallelism := math.Max(parallelism-rootGenParallelism, 1)
+	vm.sigWorkers = workers.NewParallel(sigParallelism, 100) // TODO: make job backlog a const
 
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
