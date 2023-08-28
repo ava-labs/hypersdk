@@ -732,14 +732,14 @@ func (b *StatelessBlock) Processed() bool {
 // is height 0 (genesis).
 //
 // If [b.view] is nil (not processed), this function will either return an error or will
-// run verification depending on the value of [expectedRoot].
+// run verification depending on the value of [blockRoot].
 //
 // Invariant: [View] with [verify] == true should not be called concurrently, otherwise,
 // it will result in undefined behavior.
-func (b *StatelessBlock) View(ctx context.Context, expectedRoot *ids.ID) (state.View, error) {
+func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID) (state.View, error) {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.View",
 		oteltrace.WithAttributes(
-			attribute.Stringer("expectedRoot", expectedRoot),
+			attribute.Stringer("blockRoot", blockRoot),
 			attribute.Bool("processed", b.Processed()),
 		),
 	)
@@ -760,7 +760,7 @@ func (b *StatelessBlock) View(ctx context.Context, expectedRoot *ids.ID) (state.
 		}
 		return b.view, nil
 	}
-	if expectedRoot == nil {
+	if blockRoot == nil {
 		return nil, ErrBlockNotProcessed
 	}
 
@@ -781,7 +781,7 @@ func (b *StatelessBlock) View(ctx context.Context, expectedRoot *ids.ID) (state.
 	if err != nil {
 		return nil, err
 	}
-	if acceptedRoot == *expectedRoot {
+	if acceptedRoot == *blockRoot {
 		return acceptedState, nil
 	}
 

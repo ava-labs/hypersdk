@@ -126,9 +126,12 @@ serially with state pre-fetching. Rewriting this mechanism has been moved to the
 
 #### Deferred Root Generation (TODO)
 `hypersdk` blocks contain the merkle root of the post-execution state of their parent
-instead of the merkle root of their own post-execution state. This design allows for
-the merkle root of a block's post-execution state to be generated asynchronously (while
-the consensus engine is attempting to finalize the block over the network layer).
+instead of the merkle root of their own post-execution state. This approach allows
+the merkle root of a block's post-execution state to be generated asynchronously while
+the consensus engine votes on finalizing the block.
+
+This design reduces the time 
+
 Returning as early as possible from the `block.Verify` function
 
 while the consensus engine
