@@ -14,15 +14,18 @@ var _ chain.VerifyContext = (*AcceptedVerifyContext)(nil)
 var _ chain.VerifyContext = (*PendingVerifyContext)(nil)
 
 func (vm *VM) GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID, parentRoot ids.ID) (chain.VerifyContext, error) {
-	// Get processing block
-	if blockHeight > vm.lastAccepted.Hght {
-		blk, err := vm.GetStatelessBlock(ctx, parent)
-		if err != nil {
-			return nil, err
-		}
-		return &PendingVerifyContext{blk}, nil
+	// TODO: if parent is last accepted block but not processed yet, pass pending state because we need to verify it to get the view
+	// TODO: dedup logic with Block.View
+	if blockHeight == 0 || blockHeight-1 <= vm.lastAccepted.Hght {
+		return &AcceptedVerifyContext{vm}, nil
 	}
-	return &AcceptedVerifyContext{vm}, nil
+
+	// Get processing block
+	blk, err := vm.GetStatelessBlock(ctx, parent)
+	if err != nil {
+		return nil, err
+	}
+	return &PendingVerifyContext{blk}, nil
 }
 
 type PendingVerifyContext struct {
@@ -32,6 +35,7 @@ type PendingVerifyContext struct {
 func (p *PendingVerifyContext) View(ctx context.Context, blockRoot *ids.ID) (state.View, error) {
 	return p.blk.View(ctx, blockRoot)
 }
+
 func (p *PendingVerifyContext) IsRepeat(ctx context.Context, oldestAllowed int64, txs []*chain.Transaction, marker set.Bits, stop bool) (set.Bits, error) {
 	return p.blk.IsRepeat(ctx, oldestAllowed, txs, marker, stop)
 }

@@ -355,12 +355,17 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 			zap.Stringer("blkID", b.ID()),
 		)
 	default:
-		// Parent may not be processed when we verify this block so [verify] may
-		// recursively compute missing state.
+		// Get the [VerifyContext] needed to process this block. If the parent block's
+		// height is less than or equal to the last accepted height, the accepted
+		// state will be used as execution context. Otherwise, a processing block will
+		// be used as execution context.
 		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt, b.StateRoot)
 		if err != nil {
 			return err
 		}
+
+		// Parent may not be processed when we verify this block so [verify] may
+		// recursively compute missing state.
 		if err := b.innerVerify(ctx, vctx); err != nil {
 			return err
 		}
@@ -401,7 +406,7 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 	return true
 }
 
-// Must handle re-reverification...
+// innerVerify executes the block on top of the provided [VerifyContext].
 //
 // Invariants:
 // Accepted / Rejected blocks should never have Verify called on them.
