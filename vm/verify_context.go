@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package vm
 
 import (
@@ -10,8 +13,10 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ chain.VerifyContext = (*AcceptedVerifyContext)(nil)
-var _ chain.VerifyContext = (*PendingVerifyContext)(nil)
+var (
+	_ chain.VerifyContext = (*AcceptedVerifyContext)(nil)
+	_ chain.VerifyContext = (*PendingVerifyContext)(nil)
+)
 
 func (vm *VM) GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (chain.VerifyContext, error) {
 	// If [blockHeight] is 0, we throw an error because there is no pre-genesis verification context.
