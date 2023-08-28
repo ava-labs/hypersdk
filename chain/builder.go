@@ -85,7 +85,7 @@ func BuildBlock(
 	// Fetch state to build on
 	mempoolSize := vm.Mempool().Len(ctx)
 	changesEstimate := math.Min(mempoolSize, maxViewPreallocation)
-	parentView, err := parent.View(ctx, false)
+	parentView, err := parent.View(ctx, nil)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err
@@ -473,7 +473,8 @@ func BuildBlock(
 		return nil, fmt.Errorf("%w: unable to insert fees", err)
 	}
 
-	// Compute state root after all data has been written to trie
+	// Fetch [parentView] root as late as possible to allow
+	// for async processing to complete
 	root, err := parentView.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
