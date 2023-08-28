@@ -745,8 +745,13 @@ func (b *StatelessBlock) View(ctx context.Context, expectedRoot *ids.ID) (state.
 	)
 	defer span.End()
 
+	// If this is the genesis block, return the base state.
+	if b.Hght == 0 {
+		return b.vm.State()
+	}
+
 	if b.Processed() {
-		if b.st == choices.Accepted || b.Hght == 0 /* genesis */ {
+		if b.st == choices.Accepted {
 			// We assume that base state was properly updated if this
 			// block was accepted (this is not obvious because
 			// the accepted state may be that of the parent of the last
