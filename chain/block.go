@@ -508,7 +508,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	// Fetch parent view
 	//
 	// This function may verify the parent if it is not yet verified.
-	parentView, err := parent.View(ctx, true)
+	parentView, err := parent.View(ctx, &b.StateRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -647,20 +647,22 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 			return err
 		}
 		if updated {
-			b.vm.Logger().
-				Info("updated state sync target", zap.Stringer("id", b.ID()), zap.Stringer("root", b.StateRoot))
+			b.vm.Logger().Info("updated state sync target",
+				zap.Stringer("id", b.ID()),
+				zap.Stringer("root", b.StateRoot),
+			)
 			return nil // the sync is still ongoing
 		}
-		b.vm.Logger().
-			Info("verifying unprocessed block in accept", zap.Stringer("id", b.ID()), zap.Stringer("root", b.StateRoot))
+		b.vm.Logger().Info("verifying unprocessed block in accept",
+			zap.Stringer("id", b.ID()),
+			zap.Stringer("root", b.StateRoot),
+		)
 		// This check handles the case where blocks were not
-		// verified during state sync (stopped syncing with a processing block).
+		// verified during state sync (stopped syncing with a
+		// processing block).
 		//
 		// If state sync completes before accept is called
 		// then we need to rebuild it here.
-		//
-		// TODO: may need to verify parent here too (as our state root we are updating
-		// is before our execution) -> ideally this is just handled by innerVerify
 		view, err := b.innerVerify(ctx)
 		if err != nil {
 			return err
@@ -733,10 +735,10 @@ func (b *StatelessBlock) Processed() bool {
 //
 // Invariant: [View] with [verify] == true should not be called concurrently, otherwise,
 // it will result in undefined behavior.
-func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, error) {
+func (b *StatelessBlock) View(ctx context.Context, expectedRoot *ids.ID) (state.View, error) {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.View",
 		oteltrace.WithAttributes(
-			attribute.Bool("verify", verify),
+			attribute.Stringer("expectedRoot", expectedRoot),
 			attribute.Bool("processed", b.Processed()),
 		),
 	)
@@ -752,11 +754,31 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 		}
 		return b.view, nil
 	}
-	if !verify {
+	if expectedRoot == nil {
 		return nil, ErrBlockNotProcessed
 	}
 
-	// If block is not processed when [View] is called, we must verify it
+	// If the block is not processed but the caller only needs
+	// the [acceptedState], we should just return it instead
+	// of verifying here.
+	//
+	// This could happen when fetching the [View] of the parent
+	// of the last accepted but unprocessed block right after
+	// state sync completes (which we may attempt to verify).
+	acceptedState, err := b.vm.State()
+	if err != nil {
+		return nil, err
+	}
+	acceptedRoot, err := acceptedState.GetMerkleRoot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if acceptedRoot == *expectedRoot {
+		return acceptedState, nil
+	}
+
+	// If block is not processed when [View] is called and [expectedRoot]
+	// does not equal , we must verify i
 	// regardless of whether or not it is already accepted because we only
 	// sync to the state of the block's parent post-execution.
 	b.vm.Logger().Info("verifying parent when view requested",
@@ -773,13 +795,10 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 	// be the case), we should update the base state
 	// accordingly (which may have been the state of our
 	// parent post-execution).
-	if b.st == choices.Accepted && b.Hght != 0 {
-		if err := b.view.CommitToDB(ctx); err != nil {
-			return nil, err
-		}
-		return b.vm.State()
+	if err := b.view.CommitToDB(ctx); err != nil {
+		return nil, err
 	}
-	return b.view, nil
+	return b.vm.State()
 }
 
 // IsRepeat returns a bitset of all transactions that are considered repeats in
