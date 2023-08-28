@@ -49,8 +49,8 @@ type PendingVerifyContext struct {
 	blk *chain.StatelessBlock
 }
 
-func (p *PendingVerifyContext) View(ctx context.Context, blockRoot ids.ID) (state.View, error) {
-	return p.blk.View(ctx, &blockRoot)
+func (p *PendingVerifyContext) View(ctx context.Context, blockRoot *ids.ID, verify bool) (state.View, error) {
+	return p.blk.View(ctx, blockRoot, verify)
 }
 
 func (p *PendingVerifyContext) IsRepeat(ctx context.Context, oldestAllowed int64, txs []*chain.Transaction, marker set.Bits, stop bool) (set.Bits, error) {
@@ -61,24 +61,26 @@ type AcceptedVerifyContext struct {
 	vm *VM
 }
 
-func (a *AcceptedVerifyContext) View(ctx context.Context, blockRoot ids.ID) (state.View, error) {
+func (a *AcceptedVerifyContext) View(ctx context.Context, blockRoot *ids.ID, verify bool) (state.View, error) {
 	state, err := a.vm.State()
 	if err != nil {
 		return nil, err
 	}
-	// This does not make deferred root generation less
-	// efficient because the root must have already
-	// been calculated before the latest state was written
-	// to disk.
-	root, err := state.GetMerkleRoot(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if root != blockRoot {
-		// This should never happen but we check
-		// this to check subtle state handling bugs
-		// in the [chain] package.
-		return nil, ErrUnexpectedStateRoot
+	if blockRoot != nil {
+		// This does not make deferred root generation less
+		// efficient because the root must have already
+		// been calculated before the latest state was written
+		// to disk.
+		root, err := state.GetMerkleRoot(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if root != *blockRoot {
+			// This should never happen but we check
+			// this to check subtle state handling bugs
+			// in the [chain] package.
+			return nil, ErrUnexpectedStateRoot
+		}
 	}
 	return state, nil
 }

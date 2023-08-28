@@ -778,7 +778,7 @@ func (b *StatelessBlock) Processed() bool {
 //
 // Invariant: [View] with [verify] == true should not be called concurrently, otherwise,
 // it will result in undefined behavior.
-func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID) (state.View, error) {
+func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID, verify bool) (state.View, error) {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.View",
 		oteltrace.WithAttributes(
 			attribute.Bool("processed", b.Processed()),
@@ -808,35 +808,43 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID) (state.Vie
 		zap.Bool("attemptVerify", blockRoot != nil),
 	)
 	if blockRoot == nil {
-		return nil, ErrBlockNotProcessed
-	}
+		if !verify {
+			return nil, ErrBlockNotProcessed
+		}
 
-	// If the block is not processed but the caller only needs
-	// a reference to [acceptedState], we should just return it
-	// instead of re-verifying the block.
-	//
-	// This could happen if state sync finishes with a processing
-	// block. In this scenario, we will attempt to verify the block
-	// during accept and it will attempt to read the state associated
-	// with the root specified in [StateRoot] (which was the sync
-	// target).
-	acceptedState, err := b.vm.State()
-	if err != nil {
-		return nil, err
+		// If we don't know the [blockRoot] but we want to [verify],
+		// we pessimistically execute the block.
+		//
+		// This could happen when generating a block immediately after
+		// state sync finishes with no processing blocks.
+	} else {
+		// If the block is not processed but the caller only needs
+		// a reference to [acceptedState], we should just return it
+		// instead of re-verifying the block.
+		//
+		// This could happen if state sync finishes with a processing
+		// block. In this scenario, we will attempt to verify the block
+		// during accept and it will attempt to read the state associated
+		// with the root specified in [StateRoot] (which was the sync
+		// target).
+		acceptedState, err := b.vm.State()
+		if err != nil {
+			return nil, err
+		}
+		acceptedRoot, err := acceptedState.GetMerkleRoot(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if acceptedRoot == *blockRoot {
+			return acceptedState, nil
+		}
+		b.vm.Logger().Info("block root does not match accepted state",
+			zap.Uint64("height", b.Hght),
+			zap.Stringer("blkID", b.ID()),
+			zap.Stringer("accepted root", acceptedRoot),
+			zap.Stringer("block root", *blockRoot),
+		)
 	}
-	acceptedRoot, err := acceptedState.GetMerkleRoot(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if acceptedRoot == *blockRoot {
-		return acceptedState, nil
-	}
-	b.vm.Logger().Info("block root does not match accepted state",
-		zap.Uint64("height", b.Hght),
-		zap.Stringer("blkID", b.ID()),
-		zap.Stringer("accepted root", acceptedRoot),
-		zap.Stringer("block root", *blockRoot),
-	)
 
 	// If there are no processing blocks when state sync finishes,
 	// the first block we attempt to verify will reach this execution
