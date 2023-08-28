@@ -228,8 +228,8 @@ func (vm *VM) Initialize(
 	//
 	// If [parallelism] is odd, we assign the extra
 	// core to signature verification.
-	sigParallelism := parallelism/2 + parallelism%2
-	if sigParallelism == 0 {
+	sigParallelism := parallelism - rootGenParallelism
+	if sigParallelism <= 0 {
 		sigParallelism = 1
 	}
 	vm.sigWorkers = workers.NewParallel(sigParallelism, 100) // TODO: make job backlog a const
