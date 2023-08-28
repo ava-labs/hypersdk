@@ -385,6 +385,10 @@ func (vm *VM) RecordRootCalculated(t time.Duration) {
 	vm.metrics.rootCalculated.Observe(float64(t))
 }
 
+func (vm *VM) RecordWaitRoot(t time.Duration) {
+	vm.metrics.waitRoot.Observe(float64(t))
+}
+
 func (vm *VM) RecordWaitSignatures(t time.Duration) {
 	vm.metrics.waitSignatures.Observe(float64(t))
 }

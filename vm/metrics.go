@@ -28,6 +28,7 @@ type Metrics struct {
 	storageCreatePrice prometheus.Gauge
 	storageModifyPrice prometheus.Gauge
 	rootCalculated     metric.Averager
+	waitRoot           metric.Averager
 	waitSignatures     metric.Averager
 	blockBuild         metric.Averager
 	blockParse         metric.Averager
@@ -43,6 +44,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"root_calculated",
 		"time spent calculating the state root in verify",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	waitRoot, err := metric.NewAverager(
+		"chain",
+		"wait_root",
+		"time spent waiting for root calculation in verify",
 		r,
 	)
 	if err != nil {
@@ -190,6 +200,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Help:      "unit price of storage modifications",
 		}),
 		rootCalculated: rootCalculated,
+		waitRoot:       waitRoot,
 		waitSignatures: waitSignatures,
 		blockBuild:     blockBuild,
 		blockParse:     blockParse,
