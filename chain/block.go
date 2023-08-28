@@ -430,6 +430,8 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	}
 
 	// Fetch view where we will apply block state transitions
+	//
+	// This call may result in our ancestry being verified.
 	parentView, err := vctx.View(ctx, &b.StateRoot)
 	if err != nil {
 		return err

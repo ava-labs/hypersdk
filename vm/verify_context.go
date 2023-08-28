@@ -2,7 +2,6 @@ package vm
 
 import (
 	"context"
-	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -13,27 +12,24 @@ import (
 var _ chain.VerifyContext = (*AcceptedVerifyContext)(nil)
 var _ chain.VerifyContext = (*PendingVerifyContext)(nil)
 
-func (vm *VM) GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID, parentRoot ids.ID) (chain.VerifyContext, error) {
-	// TODO: if parent is last accepted block but not processed yet, pass pending state because we need to verify it to get the view
-	// TODO: dedup logic with Block.View
-	if blockHeight == 0 || blockHeight-1 <= vm.lastAccepted.Hght {
-		return &AcceptedVerifyContext{vm}, nil
+func (vm *VM) GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (chain.VerifyContext, error) {
+	// If last accepted block is not processed, we need to process it. This will happen when we call [View] on the parent.
+	if blockHeight != 0 && ((!vm.lastAccepted.Processed() && parent == vm.lastAccepted.ID()) || blockHeight-1 > vm.lastAccepted.Hght) {
+		blk, err := vm.GetStatelessBlock(ctx, parent)
+		if err != nil {
+			return nil, err
+		}
+		return &PendingVerifyContext{blk}, nil
 	}
-
-	// Get processing block
-	blk, err := vm.GetStatelessBlock(ctx, parent)
-	if err != nil {
-		return nil, err
-	}
-	return &PendingVerifyContext{blk}, nil
+	return &AcceptedVerifyContext{vm}, nil
 }
 
 type PendingVerifyContext struct {
 	blk *chain.StatelessBlock
 }
 
-func (p *PendingVerifyContext) View(ctx context.Context, blockRoot *ids.ID) (state.View, error) {
-	return p.blk.View(ctx, blockRoot)
+func (p *PendingVerifyContext) View(ctx context.Context, blockRoot ids.ID) (state.View, error) {
+	return p.blk.View(ctx, &blockRoot)
 }
 
 func (p *PendingVerifyContext) IsRepeat(ctx context.Context, oldestAllowed int64, txs []*chain.Transaction, marker set.Bits, stop bool) (set.Bits, error) {
@@ -44,23 +40,9 @@ type AcceptedVerifyContext struct {
 	vm *VM
 }
 
-func (a *AcceptedVerifyContext) View(ctx context.Context, blockRoot *ids.ID) (state.View, error) {
-	// TODO: confirm this handling
-	state, err := a.vm.State()
-	if err != nil {
-		return nil, err
-	}
-	if blockRoot == nil {
-		return state, nil
-	}
-	root, err := state.GetMerkleRoot(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if root != *blockRoot {
-		return nil, errors.New("TODO")
-	}
-	return state, nil
+// The caller of this should check for equality with the root during verification.
+func (a *AcceptedVerifyContext) View(ctx context.Context, _ ids.ID) (state.View, error) {
+	return a.vm.State()
 }
 
 func (a *AcceptedVerifyContext) IsRepeat(ctx context.Context, oldestAllowed int64, txs []*chain.Transaction, marker set.Bits, stop bool) (set.Bits, error) {
