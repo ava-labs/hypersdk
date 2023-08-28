@@ -411,7 +411,7 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 //  2. If the parent view is missing when verifying (dynamic state sync)
 //  3. If the view of a block we are accepting is missing (finishing dynamic
 //     state sync)
-func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, error) {
+func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) (merkledb.TrieView, error) {
 	var (
 		log = b.vm.Logger()
 		r   = b.vm.Rules(b.Tmstmp)
@@ -422,12 +422,21 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, ErrTimestampTooLate
 	}
 
-	// Fetch parent view
-	//
-	// This function may verify the parent if it is not yet verified.
-	parentView, err := parent.View(ctx, &b.StateRoot)
+	// Fetch view where we will apply block state transitions
+	parentView, err := vctx.View(ctx, &b.StateRoot)
 	if err != nil {
 		return nil, err
+	}
+
+	// Fetch parent height key and ensure block height is valid
+	heightKey := HeightKey(b.vm.StateManager().HeightKey())
+	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
+	if err != nil {
+		return nil, err
+	}
+	parentHeight := binary.BigEndian.Uint64(parentHeightRaw)
+	if b.Hght != parentHeight+1 {
+		return nil, ErrInvalidBlockHeight
 	}
 
 	// Fetch parent timestamp and confirm block timestamp is valid
@@ -456,7 +465,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		// Can occur if verifying genesis
 		oldestAllowed = 0
 	}
-	dup, err := parent.IsRepeat(ctx, oldestAllowed, b.Txs, set.NewBits(), true)
+	dup, err := vctx.IsRepeat(ctx, oldestAllowed, b.Txs, set.NewBits(), true)
 	if err != nil {
 		return nil, err
 	}
@@ -524,7 +533,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, err
 	}
 	parentFeeManager := NewFeeManager(feeRaw)
-	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, b.Tmstmp, r)
+	feeManager, err := parentFeeManager.ComputeNext(parentTimestamp, b.Tmstmp, r)
 	if err != nil {
 		return nil, err
 	}
@@ -560,13 +569,13 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	}
 
 	// Set scope for [tstate] changes
-	sm := b.vm.StateManager()
-	heightKey := HeightKey(sm.HeightKey())
 	heightKeyStr := string(heightKey)
+	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
 	ts.SetScope(ctx, set.Of(heightKeyStr, feeKeyStr), map[string][]byte{
-		heightKeyStr: binary.BigEndian.AppendUint64(nil, parent.Hght),
-		feeKeyStr:    parentFeeManager.Bytes(),
+		heightKeyStr:    parentHeightRaw,
+		timestampKeyStr: parentTimestampRaw,
+		feeKeyStr:       parentFeeManager.Bytes(),
 	})
 
 	// Store height in view to prevent duplicate roots

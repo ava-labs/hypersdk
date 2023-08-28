@@ -27,6 +27,7 @@ var (
 	ErrInvalidSurplus       = errors.New("invalid surplus fee")
 	ErrStateRootMismatch    = errors.New("state root mismatch")
 	ErrInvalidResult        = errors.New("invalid result")
+	ErrInvalidBlockHeight   = errors.New("invalid block height")
 
 	// Tx Correctness
 	ErrInvalidSignature     = errors.New("invalid signature")

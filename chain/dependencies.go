@@ -82,6 +82,11 @@ type VM interface {
 	RecordClearedMempool()
 }
 
+type VerifyContext interface {
+	View(ctx context.Context, blockRoot *ids.ID) (state.View, error)
+	IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction, marker set.Bits, stop bool) (set.Bits, error)
+}
+
 type Mempool interface {
 	Len(context.Context) int  // items
 	Size(context.Context) int // bytes
