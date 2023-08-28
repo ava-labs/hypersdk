@@ -28,7 +28,7 @@ pub fn get_total_supply(ctx: Context) -> i64 {
 /// Adds amount coins to the recipients balance.
 #[expose]
 pub fn mint_to(ctx: Context, recipient: Address, amount: i64) -> bool {
-    let amount: i64 = amount + ctx.get_map_value("balances", &recipient).unwrap_or(0);
+    let amount = amount + ctx.get_map_value("balances", &recipient).unwrap_or(0);
     ctx.store_map_value("balances", &recipient, &amount).is_ok()
 }
 
