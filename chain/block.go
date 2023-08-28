@@ -355,17 +355,18 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 			zap.Stringer("blkID", b.ID()),
 		)
 	default:
-		// Get the [VerifyContext] needed to process this block. If the parent block's
-		// height is less than or equal to the last accepted height, the accepted
-		// state will be used as execution context. Otherwise, a processing block will
-		// be used as execution context.
-		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt, b.StateRoot)
+		// Get the [VerifyContext] needed to process this block.
+		//
+		// If the parent block's height is less than or equal to the last accepted height (and
+		// the last accepted height is processed), the accepted state will be used as execution
+		// context. Otherwise, the parent block will be used as execution context.
+		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
 		if err != nil {
 			return err
 		}
 
-		// Parent may not be processed when we verify this block so [verify] may
-		// recursively compute missing state.
+		// Parent block may not be processed when we verify this block, so [innerVerify] may
+		// recursively compute ancestry.
 		if err := b.innerVerify(ctx, vctx); err != nil {
 			return err
 		}
@@ -432,7 +433,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	// Fetch view where we will apply block state transitions
 	//
 	// This call may result in our ancestry being verified.
-	parentView, err := vctx.View(ctx, &b.StateRoot)
+	parentView, err := vctx.View(ctx, b.StateRoot)
 	if err != nil {
 		return err
 	}
@@ -688,17 +689,17 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 			return nil // the sync is still ongoing
 		}
 
-		// This check handles the case where blocks were not
+		// This code handles the case where this block was not
 		// verified during state sync (stopped syncing with a
 		// processing block).
 		//
 		// If state sync completes before accept is called
-		// then we need to rebuild it here.
+		// then we need to process it here.
 		b.vm.Logger().Info("verifying unprocessed block in accept",
 			zap.Stringer("id", b.ID()),
 			zap.Stringer("root", b.StateRoot),
 		)
-		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt, b.StateRoot)
+		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
 		if err != nil {
 			return err
 		}
@@ -771,6 +772,10 @@ func (b *StatelessBlock) Processed() bool {
 // If [b.view] is nil (not processed), this function will either return an error or will
 // run verification depending on the value of [blockRoot].
 //
+// We still need to handle returning the accepted state here because
+// the [VM] will call [View] on the preferred tip of the chain (whether or
+// not it is accepted).
+//
 // Invariant: [View] with [verify] == true should not be called concurrently, otherwise,
 // it will result in undefined behavior.
 func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID) (state.View, error) {
@@ -839,13 +844,14 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID) (state.Vie
 	//
 	// In this scenario, the last accepted block will not be processed
 	// and [acceptedState] will correspond to the post-execution state
-	// of the new block's grandparent (our parent).
+	// of the new block's grandparent (our parent). To remedy this,
+	// we need to process this block to return a valid view.
 	b.vm.Logger().Info("verifying block when view requested",
 		zap.Uint64("height", b.Hght),
 		zap.Stringer("blkID", b.ID()),
 		zap.Bool("accepted", b.st == choices.Accepted),
 	)
-	vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt, b.StateRoot)
+	vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
 	if err != nil {
 		return nil, err
 	}
@@ -856,7 +862,7 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID) (state.Vie
 		return b.view, nil
 	}
 
-	// If the block is accepted at this point, we should update
+	// If the block is already accepted, we should update
 	// the accepted state to ensure future calls to [View]
 	// return the correct state (now that the block is considered
 	// processed).
