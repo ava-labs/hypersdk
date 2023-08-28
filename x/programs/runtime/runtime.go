@@ -43,8 +43,7 @@ type runtime struct {
 	mu       state.Mutable
 
 	closed bool
-
-	log logging.Logger
+	log    logging.Logger
 }
 
 func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions []string) error {

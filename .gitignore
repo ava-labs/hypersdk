@@ -64,5 +64,6 @@ data/
 osxcross/
 
 /target/
+target/
 Cargo.lock
 **/*.rs.bk

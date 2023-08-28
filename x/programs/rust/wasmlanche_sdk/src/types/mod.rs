@@ -1,48 +1,61 @@
-use crate::program::ProgramValue;
-use crate::store::ProgramContext;
+use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 
+use crate::store::Context;
 /// A struct that enforces a fixed length of 32 bytes which represents an address.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Address {
-    bytes: [u8; Self::LEN],
-}
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Debug)]
+pub struct Address(Bytes32);
 
 impl Address {
     pub const LEN: usize = 32;
     // Constructor function for Address
     pub fn new(bytes: [u8; Self::LEN]) -> Self {
-        Self { bytes }
+        Self(Bytes32::new(bytes))
     }
     pub fn as_bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-}
-
-impl From<String> for ProgramValue {
-    fn from(value: String) -> Self {
-        ProgramValue::StringObject(value)
-    }
-}
-
-impl From<&str> for ProgramValue {
-    fn from(value: &str) -> Self {
-        ProgramValue::StringObject(String::from(value))
-    }
-}
-
-impl From<i64> for ProgramValue {
-    fn from(value: i64) -> Self {
-        ProgramValue::IntObject(value)
-    }
-}
-
-impl From<Address> for ProgramValue {
-    fn from(value: Address) -> Self {
-        ProgramValue::AddressObject(value)
+        self.0.as_bytes()
     }
 }
 
 impl From<i64> for Address {
+    fn from(value: i64) -> Self {
+        Self(Bytes32::from(value))
+    }
+}
+
+/// A struct representing a fixed length of 32 bytes.
+/// This can be used for passing strings to the host. It caps the string at 32 bytes,
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Debug)]
+pub struct Bytes32([u8; Self::LEN]);
+impl Bytes32 {
+    pub const LEN: usize = 32;
+    pub fn new(bytes: [u8; Self::LEN]) -> Self {
+        Self(bytes)
+    }
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+/// Implement the Display trait for Bytes32 so that we can print it.
+/// Enables to_string() on Bytes32.
+impl std::fmt::Display for Bytes32 {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // Find the first null byte and only print up to that point.
+        let null_pos = self.0.iter().position(|&b| b == b'\0').unwrap_or(Self::LEN);
+        String::from_utf8_lossy(&self.0[..null_pos]).fmt(f)
+    }
+}
+
+impl From<String> for Bytes32 {
+    fn from(value: String) -> Self {
+        let mut bytes: [u8; Self::LEN] = [0; Self::LEN];
+        bytes[..value.len()].copy_from_slice(value.as_bytes());
+        Self(bytes)
+    }
+}
+
+impl From<i64> for Bytes32 {
     fn from(value: i64) -> Self {
         let bytes: [u8; Self::LEN] = unsafe {
             // We want to copy the bytes here, since [value] represents a ptr created by the host
@@ -50,24 +63,49 @@ impl From<i64> for Address {
                 .try_into()
                 .unwrap()
         };
-        Self { bytes }
+        Self(bytes)
     }
 }
 
-impl From<ProgramValue> for i64 {
-    fn from(value: ProgramValue) -> Self {
-        match value {
-            ProgramValue::IntObject(i) => i,
-            _ => panic!("Cannot conver to i64"),
-        }
+pub trait Argument {
+    fn as_bytes(&self) -> Cow<'_, [u8]>;
+    fn is_primitive(&self) -> bool {
+        false
+    }
+    fn len(&self) -> usize {
+        self.as_bytes().len()
+    }
+    fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
-impl From<ProgramValue> for ProgramContext {
-    fn from(value: ProgramValue) -> Self {
-        match value {
-            ProgramValue::ProgramObject(i) => i,
-            _ => panic!("Cannot conver to ProgramContext"),
-        }
+impl Argument for Bytes32 {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Borrowed(&self.0)
+    }
+}
+
+impl Argument for Address {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Borrowed(self.0.as_bytes())
+    }
+}
+
+impl Argument for i64 {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Owned(self.to_be_bytes().to_vec())
+    }
+    fn is_primitive(&self) -> bool {
+        true
+    }
+}
+
+impl Argument for Context {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        self.program_id.as_bytes()
+    }
+    fn is_primitive(&self) -> bool {
+        true
     }
 }

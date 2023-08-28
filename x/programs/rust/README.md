@@ -2,6 +2,17 @@
 
 The `wasm_guest` folder contains the `wasmlanche_sdk`, macros and example programs
 
+## Build Notes
+
+first install the wasm32-wasi target
+`rustup target add wasm32-wasi`
+
+build using `cargo build --target wasm32-wasi --target-dir $CARGO_TARGET_DIR --release`
+
+or, build into the testdata folder using the build script
+
+`./scripts/build.sh`
+
 ## Serialization Between Host(Go) & Guest(Rust)
 
 Just a couple things to note. Serialization is minimal, yet there are certain aspects in the code that need to follow a specific format. Specifically there are currently only two places we modify the bytes coming in/out of rust.
