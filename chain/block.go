@@ -804,6 +804,10 @@ func (b *StatelessBlock) View(ctx context.Context, expectedRoot *ids.ID) (state.
 	// the accepted state to ensure future calls to [View]
 	// return the correct state (now that the block is considered
 	// processed).
+	//
+	// It is not possible to reach this function if this block
+	// is not the child of the block whose post-execution state
+	// is currently stored on disk, so it is safe to call [CommitToDB].
 	if err := b.view.CommitToDB(ctx); err != nil {
 		return nil, err
 	}
