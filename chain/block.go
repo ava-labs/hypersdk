@@ -658,6 +658,9 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		//
 		// If state sync completes before accept is called
 		// then we need to rebuild it here.
+		//
+		// TODO: may need to verify parent here too (as our state root we are updating
+		// is before our execution) -> ideally this is just handled by innerVerify
 		view, err := b.innerVerify(ctx)
 		if err != nil {
 			return err
