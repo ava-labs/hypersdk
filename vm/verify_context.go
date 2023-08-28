@@ -2,6 +2,7 @@ package vm
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -13,8 +14,11 @@ var _ chain.VerifyContext = (*AcceptedVerifyContext)(nil)
 var _ chain.VerifyContext = (*PendingVerifyContext)(nil)
 
 func (vm *VM) GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (chain.VerifyContext, error) {
+	if blockHeight == 0 {
+		return nil, errors.New("cannot get context of genesis block")
+	}
 	// If last accepted block is not processed, we need to process it. This will happen when we call [View] on the parent.
-	if blockHeight != 0 && ((!vm.lastAccepted.Processed() && parent == vm.lastAccepted.ID()) || blockHeight-1 > vm.lastAccepted.Hght) {
+	if (!vm.lastAccepted.Processed() && parent == vm.lastAccepted.ID()) || blockHeight-1 > vm.lastAccepted.Hght {
 		blk, err := vm.GetStatelessBlock(ctx, parent)
 		if err != nil {
 			return nil, err
