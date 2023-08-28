@@ -422,22 +422,28 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, ErrTimestampTooLate
 	}
 
-	// Verify parent is verified and available
+	// Fetch parent view
 	//
-	// TODO: remove assumption that parent will be accessible here, we should store
-	// all info we need to verify a block in state
-	//
-	// TODO: parent will only be acessible if processing to check "IsRepeat" or
-	// to get a View of pending state
-	parent, err := b.vm.GetStatelessBlock(ctx, b.Prnt)
+	// This function may verify the parent if it is not yet verified.
+	parentView, err := parent.View(ctx, &b.StateRoot)
 	if err != nil {
-		log.Debug("could not get parent", zap.Stringer("id", b.Prnt))
 		return nil, err
 	}
-	if b.Timestamp().UnixMilli() < parent.Timestamp().UnixMilli()+r.GetMinBlockGap() {
+
+	// Fetch parent timestamp and confirm block timestamp is valid
+	//
+	// Parent may not be available (if we preformed state sync), so we
+	// can't rely on being able to fetch it during verification.
+	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
+	parentTimestampRaw, err := parentView.GetValue(ctx, timestampKey)
+	if err != nil {
+		return nil, err
+	}
+	parentTimestamp := int64(binary.BigEndian.Uint64(parentTimestampRaw))
+	if b.Tmstmp < parentTimestamp+r.GetMinBlockGap() {
 		return nil, ErrTimestampTooEarly
 	}
-	if len(b.Txs) == 0 && b.Timestamp().UnixMilli() < parent.Timestamp().UnixMilli()+r.GetMinEmptyBlockGap() {
+	if len(b.Txs) == 0 && b.Tmstmp < parentTimestamp+r.GetMinEmptyBlockGap() {
 		return nil, ErrTimestampTooEarly
 	}
 
@@ -511,14 +517,6 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		}()
 	}
 
-	// Fetch parent view
-	//
-	// This function may verify the parent if it is not yet verified.
-	parentView, err := parent.View(ctx, &b.StateRoot)
-	if err != nil {
-		return nil, err
-	}
-
 	// Compute next unit prices to use
 	feeKey := FeeKey(b.vm.StateManager().FeeKey())
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
@@ -573,6 +571,11 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 
 	// Store height in view to prevent duplicate roots
 	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return nil, err
+	}
+
+	// Store timestamp in block
+	if err := ts.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
 		return nil, err
 	}
 

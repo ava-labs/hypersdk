@@ -156,6 +156,7 @@ type Rules interface {
 // use. This will be handled by the hypersdk.
 type StateManager interface {
 	HeightKey() []byte
+	TimestampKey() []byte
 	FeeKey() []byte
 
 	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte
