@@ -1,5 +1,4 @@
 use expose_macro::expose;
-use wasmlanche_sdk::program::Program;
 use wasmlanche_sdk::store::Context;
 use wasmlanche_sdk::types::Address;
 
@@ -8,9 +7,9 @@ static TOKEN_PROGRAM_NAME: &str = "token_contract";
 
 /// Initializes the program.
 #[expose]
-fn init_program() -> i64 {
+fn init(_: Context) -> bool {
     // Initialize the program with no fields
-    Program::new().into()
+    true
 }
 
 /// Sets the token contract address and the lotto address. This needs to be set

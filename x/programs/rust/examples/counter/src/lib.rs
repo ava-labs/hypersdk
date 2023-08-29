@@ -1,14 +1,11 @@
 use expose_macro::expose;
-use wasmlanche_sdk::program::Program;
 use wasmlanche_sdk::store::Context;
 use wasmlanche_sdk::types::Address;
 
 /// Initializes the program. This program maps addresses with a count.
 #[expose]
-fn init_program() -> i64 {
-    let mut counter_program = Program::new();
-    let _ = counter_program.add_field(String::from("counter"), 0_i64);
-    counter_program.into()
+fn init(ctx: Context) -> bool {
+    ctx.store_value("counter", &0_i64).is_ok()
 }
 
 /// Increments the count at the address by the amount.

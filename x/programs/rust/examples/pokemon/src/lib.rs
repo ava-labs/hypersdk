@@ -1,6 +1,5 @@
 use expose_macro::expose;
 use serde::{Deserialize, Serialize};
-use wasmlanche_sdk::program::Program;
 use wasmlanche_sdk::store::Context;
 use wasmlanche_sdk::types::Address;
 
@@ -16,14 +15,8 @@ struct Pokemon {
 type OwnedPokemon = Vec<Pokemon>;
 
 #[expose]
-pub fn init_program() -> i64 {
-    let mut pokemon = Program::new();
-
-    pokemon
-        .add_field(String::from("total_supply"), 10_i64)
-        .unwrap();
-
-    pokemon.into()
+pub fn init(ctx: Context) -> bool {
+    ctx.store_value("total_supply", &10_i64).is_ok()
 }
 
 #[expose]
