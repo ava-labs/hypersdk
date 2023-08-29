@@ -6,6 +6,46 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_bare::{from_slice, to_vec};
 use std::str;
+
+pub enum StoreResult<'a> {
+    Ok(&'a Context),
+    Err(StorageError),
+}
+
+impl StoreResult<'_> {
+    pub fn store_value<T>(self, key: &str, value: &T) -> Self
+    where
+        T: Serialize + ?Sized,
+    {
+        match self {
+            Self::Ok(ctx) => ctx.store_value(key, value),
+            err => err,
+        }
+    }
+    pub fn store_map_value<T, U>(self, map_name: &str, key: &U, value: &T) -> Self
+    where
+        T: Serialize + ?Sized,
+        U: Serialize,
+    {
+        match self {
+            Self::Ok(ctx) => ctx.store_map_value(map_name, key, value),
+            err => err,
+        }
+    }
+    pub fn is_ok(self) -> bool {
+        match self {
+            Self::Ok(_) => true,
+            _ => false,
+        }
+    }
+    pub fn is_err(self) -> bool {
+        match self {
+            Self::Err(_) => true,
+            _ => false,
+        }
+    }
+}
+
 /// Context defines helper methods for the program builder
 /// to interact with the host.
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -15,29 +55,30 @@ pub struct Context {
 
 /// Fails if we are storing a map with non-string keys
 impl Context {
-    pub fn store_value<T>(&self, key: &str, value: &T) -> Result<(), StorageError>
+    pub fn store_value<T>(&self, key: &str, value: &T) -> StoreResult<'_>
     where
-        T: Serialize,
+        T: Serialize + ?Sized,
     {
         let key_bytes = key.as_bytes();
-        // Add the tag(u8) to the start of val_bytes
-
-        store_key_value(self, key_bytes.to_vec(), value)
+        match store_key_value(self, key_bytes.to_vec(), value) {
+            Ok(_) => StoreResult::Ok(self),
+            Err(e) => StoreResult::Err(e),
+        }
     }
 
-    pub fn store_map_value<T, U>(
-        &self,
-        map_name: &str,
-        key: &U,
-        value: &T,
-    ) -> Result<(), StorageError>
+    pub fn store_map_value<T, U>(&self, map_name: &str, key: &U, value: &T) -> StoreResult<'_>
     where
-        T: Serialize,
+        T: Serialize + ?Sized,
         U: Serialize,
     {
-        let key_bytes = get_map_key(map_name, &key)?;
-        // Add a tag(u8) to the start of val_bytes
-        store_key_value(self, key_bytes, value)
+        let key_bytes = match get_map_key(map_name, &key) {
+            Ok(bytes) => bytes,
+            Err(e) => return StoreResult::Err(e),
+        };
+        match store_key_value(self, key_bytes, value) {
+            Ok(_) => StoreResult::Ok(self),
+            Err(e) => StoreResult::Err(e),
+        }
     }
     pub fn get_value<T>(&self, name: &str) -> Result<T, StorageError>
     where
@@ -69,7 +110,7 @@ impl From<i64> for Context {
 
 fn store_key_value<T>(ctx: &Context, key_bytes: Vec<u8>, value: &T) -> Result<(), StorageError>
 where
-    T: Serialize,
+    T: Serialize + ?Sized,
 {
     let value_bytes = to_vec(value).map_err(|_| StorageError::SerializationError)?;
     match unsafe {

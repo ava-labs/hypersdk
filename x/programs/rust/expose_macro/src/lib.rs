@@ -3,8 +3,8 @@ extern crate proc_macro;
 use core::panic;
 
 use proc_macro::TokenStream;
+use proc_macro2::Span;
 use quote::{quote, ToTokens};
-use syn::__private::Span;
 use syn::{parse_macro_input, parse_str, FnArg, Ident, ItemFn, Pat, PatType, Type};
 /// An attribute procedural macro that can be used to expose a function to the host.
 /// It does so by wrapping the [item] tokenstream in a new function that can be called by the host.

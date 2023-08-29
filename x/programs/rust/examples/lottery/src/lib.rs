@@ -15,11 +15,10 @@ fn init(_: Context) -> bool {
 /// Sets the token contract address and the lotto address. This needs to be set
 /// before play can be called, otherwise there is no reference contract and address.
 #[expose]
-fn set(ctx: Context, counter_ctx: Context, lot_address: Address) {
+fn set(ctx: Context, counter_ctx: Context, lot_address: Address) -> bool {
     ctx.store_value(TOKEN_PROGRAM_NAME, &counter_ctx)
-        .expect("Failed to store token contract address");
-    ctx.store_value("address", &lot_address)
-        .expect("Failed to store address");
+        .store_value("address", &lot_address)
+        .is_ok()
 }
 
 /// Randomly generates a number (1-100) and transfers those tokens to the player.
