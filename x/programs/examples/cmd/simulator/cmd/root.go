@@ -61,14 +61,6 @@ func init() {
 	rootCmd.PersistentPostRunE = func(*cobra.Command, []string) error {
 		return db.Close()
 	}
-
-	programCreateCmd.PersistentFlags().StringVar(
-		&functions,
-		"functions",
-		"",
-		"comma separated list of function names",
-	)
-
 	programInvokeCmd.PersistentFlags().Uint64Var(
 		&programID,
 		"id",
@@ -122,7 +114,6 @@ var (
 	maxFee        uint64
 	db            database.Database
 	log           logging.Logger
-	functions     string
 	rootCmd       = &cobra.Command{
 		Use:   "simulator",
 		Short: "HyperSDK program simulator",

@@ -51,10 +51,6 @@ var programCreateCmd = &cobra.Command{
 		if callerAddress == "" {
 			return ErrMissingAddress
 		}
-		// pubKey, err = parseAddress(callerAddress)
-		// if err != nil {
-		// 	return err
-		// }
 		return nil
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
@@ -64,13 +60,6 @@ var programCreateCmd = &cobra.Command{
 			return err
 		}
 
-		// spoof txID
-		// txID := fakeID()
-
-		// pk, err := parseAddress(callerAddress)
-		// if err != nil {
-		// 	return err
-		// }
 		pk, err := getPublicKey(db, callerAddress)
 		if err != nil {
 			return err
@@ -82,7 +71,7 @@ var programCreateCmd = &cobra.Command{
 			return err
 		}
 
-		err = setProgram(db, programId, pk, []byte(functions), fileBytes)
+		err = setProgram(db, programId, pk, fileBytes)
 		if err != nil {
 			return err
 		}
@@ -99,16 +88,12 @@ func initalizeProgram(programBytes []byte) (uint64, error) {
 	runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), storage)
 	defer runtime.Stop(ctx)
 
-	err := runtime.Initialize(ctx, programBytes)
+	programID, err := runtime.Create(ctx, programBytes)
 	if err != nil {
 		return 0, err
 	}
-	// run init_program
-	resp, err := runtime.Call(ctx, "init_program")
-	if err != nil {
-		return 0, err
-	}
-	return resp[0], nil
+	fmt.Println("programID", programID)
+	return programID, nil
 }
 
 var programInvokeCmd = &cobra.Command{
@@ -246,25 +231,18 @@ func getProgram(
 }
 
 // [owner]
-// [functions length]
-// [functions]
 // [program]
 func setProgram(
 	db database.Database,
 	programID uint64,
 	owner ed25519.PublicKey,
-	functions []byte,
 	program []byte,
 ) error {
 	k := programKey(programID)
-	functionLen := len(functions)
-	v := make([]byte, ed25519.PublicKeyLen+consts.Uint32Len+functionLen+len(program))
+	v := make([]byte, ed25519.PublicKeyLen+len(program))
 	fmt.Println("Owner set: ", owner)
 	copy(v, owner[:])
-	binary.BigEndian.PutUint32(v[ed25519.PublicKeyLen:ed25519.PublicKeyLen+consts.Uint32Len], uint32(functionLen))
-	// fmt.Printf("functionBytes: %v\n", functions[:])
-	copy(v[ed25519.PublicKeyLen+consts.Uint32Len:], functions[:])
-	copy(v[ed25519.PublicKeyLen+consts.Uint32Len+functionLen:], program[:])
+	copy(v[ed25519.PublicKeyLen:], program[:])
 	return db.Put(k, v)
 }
 
