@@ -31,9 +31,9 @@ type programStorage struct {
 	programPrefix byte
 }
 
-func (p *programStorage) Get(ctx context.Context, id uint32) (bool, ed25519.PublicKey, []string, []byte, error) {
+func (p *programStorage) Get(ctx context.Context, id uint32) (bool, ed25519.PublicKey, []byte, error) {
 	data, ok, err := getProgramBytes(ctx, p.mu, id, p.programPrefix)
-	return ok, ed25519.EmptyPublicKey, nil, data, err
+	return ok, ed25519.EmptyPublicKey, data, err
 }
 
 func (p *programStorage) Set(ctx context.Context, id uint32, owner uint32, data []byte) error {

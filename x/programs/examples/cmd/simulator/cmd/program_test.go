@@ -4,7 +4,6 @@
 package cmd
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
@@ -24,17 +23,13 @@ func TestStorage(t *testing.T) {
 	id := uint64(1)
 
 	program := []byte("super cool program")
-	f := "test,something,else"
-	functionBytes := []byte(f)
-	functions := strings.Split(f, ",")
 
-	err = setProgram(db, id, pub, functionBytes, program)
+	err = setProgram(db, id, pub, program)
 	require.NoError(err)
 
-	ok, owner, fns, prog, err := getProgram(db, id)
+	ok, owner, prog, err := getProgram(db, id)
 	require.NoError(err)
 	require.True(ok)
 	require.Equal(pub[:], owner[:])
-	require.Equal(functions, fns)
 	require.Equal(program, prog)
 }

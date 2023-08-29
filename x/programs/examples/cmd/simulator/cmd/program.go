@@ -121,7 +121,7 @@ var programInvokeCmd = &cobra.Command{
 		// if err != nil {
 		// 	return err
 		// }
-		exists, owner, functions, program, err := getProgram(db, programID)
+		exists, owner, program, err := getProgram(db, programID)
 		if !exists {
 			return fmt.Errorf("program %v does not exist", programID)
 		}
@@ -130,7 +130,6 @@ var programInvokeCmd = &cobra.Command{
 		}
 
 		fmt.Println("owner", owner)
-		fmt.Println("functions", functions)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -206,28 +205,23 @@ func getProgram(
 ) (
 	bool, // exists
 	ed25519.PublicKey, // owner
-	[]string, // functions
 	[]byte, // program bytes
 	error,
 ) {
 	k := programKey(programID)
 	v, err := db.Get(k)
 	if errors.Is(err, database.ErrNotFound) {
-		return false, ed25519.EmptyPublicKey, nil, nil, nil
+		return false, ed25519.EmptyPublicKey, nil, nil
 	}
 	if err != nil {
-		return false, ed25519.EmptyPublicKey, nil, nil, err
+		return false, ed25519.EmptyPublicKey, nil, err
 	}
 	var owner ed25519.PublicKey
 	copy(owner[:], v[:ed25519.PublicKeyLen])
-	functionLen := binary.BigEndian.Uint32(v[ed25519.PublicKeyLen : ed25519.PublicKeyLen+consts.Uint32Len])
-	functionBytes := make([]byte, functionLen)
-	copy(functionBytes, v[ed25519.PublicKeyLen+consts.Uint32Len:ed25519.PublicKeyLen+consts.Uint32Len+functionLen])
-	functions := strings.Split(string(functionBytes), ",")
-	programLen := uint32(len(v)) - ed25519.PublicKeyLen - consts.Uint32Len - functionLen
+	programLen := uint32(len(v)) - ed25519.PublicKeyLen
 	program := make([]byte, programLen)
-	copy(program[:], v[ed25519.PublicKeyLen+consts.Uint32Len+functionLen:])
-	return true, owner, functions, program, nil
+	copy(program[:], v[ed25519.PublicKeyLen:])
+	return true, owner, program, nil
 }
 
 // [owner]
@@ -262,18 +256,18 @@ type programStorage struct {
 	programPrefix byte
 }
 
-func (p *programStorage) Get(_ context.Context, id uint32) (bool, ed25519.PublicKey, []string, []byte, error) {
+func (p *programStorage) Get(_ context.Context, id uint32) (bool, ed25519.PublicKey, []byte, error) {
 	buf := make([]byte, consts.IDLen)
 	binary.BigEndian.PutUint32(buf, id)
-	exists, owner, functions, payload, err := getProgram(db, uint64(id))
+	exists, owner, payload, err := getProgram(db, uint64(id))
 	if !exists {
-		return false, ed25519.EmptyPublicKey, nil, nil, fmt.Errorf("program %d does not exist", id)
+		return false, ed25519.EmptyPublicKey, nil, fmt.Errorf("program %d does not exist", id)
 	}
 	if err != nil {
-		return false, ed25519.EmptyPublicKey, nil, nil, err
+		return false, ed25519.EmptyPublicKey, nil, err
 	}
 
-	return exists, owner, functions, payload, err
+	return exists, owner, payload, err
 }
 
 func (p *programStorage) Set(_ context.Context, id uint32, _ uint32, data []byte) error {

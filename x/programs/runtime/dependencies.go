@@ -27,6 +27,6 @@ type Runtime interface {
 }
 
 type Storage interface {
-	Get(context.Context, uint32) (bool, ed25519.PublicKey, []string, []byte, error)
+	Get(context.Context, uint32) (bool, ed25519.PublicKey, []byte, error)
 	Set(context.Context, uint32, uint32, []byte) error
 }
