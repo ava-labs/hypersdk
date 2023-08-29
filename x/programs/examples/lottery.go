@@ -36,26 +36,13 @@ type Lottery struct {
 }
 
 func (t *Lottery) Run(ctx context.Context) error {
-	// functions exported in this example
-	functions := []string{
-		"get_total_supply",
-		"mint_to",
-		"get_balance",
-		"transfer",
-		"alloc",
-		"dealloc",
-		"init_program",
-		// lottery functions
-		"set",
-		"play",
-	}
 
 	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
 	db := utils.NewTestDB()
 	store := newProgramStorage(db)
 
 	tokenRuntime := runtime.New(t.log, meter, store)
-	err := tokenRuntime.Initialize(ctx, t.tokenProgramBytes, functions)
+	err := tokenRuntime.Initialize(ctx, t.tokenProgramBytes)
 	if err != nil {
 		return err
 	}
@@ -137,7 +124,7 @@ func (t *Lottery) Run(ctx context.Context) error {
 
 	// initialize lottery program
 	lotteryRuntime := runtime.New(t.log, meter, store)
-	err = lotteryRuntime.Initialize(ctx, t.lotteryProgramBytes, functions)
+	err = lotteryRuntime.Initialize(ctx, t.lotteryProgramBytes)
 	if err != nil {
 		return err
 	}

@@ -77,9 +77,7 @@ func (m *InvokeModule) programInvokeFn(
 	// create new runtime for the program invoke call
 	runtime := New(m.log, m.meter, m.storage)
 
-	// also need to export alloc function, so we can write args to guest memory if needed
-	exportedFunctions := []string{entryFn, "alloc"}
-	err := runtime.Initialize(ctx, data, exportedFunctions)
+	err := runtime.Initialize(ctx, data)
 	if err != nil {
 		m.log.Error("failed to initialize runtime for program invoke call: %v", zap.Error(err))
 		return invokeErr

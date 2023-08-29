@@ -25,10 +25,9 @@ const (
 
 func New(log logging.Logger, meter Meter, storage Storage) *runtime {
 	return &runtime{
-		log:      log,
-		meter:    meter,
-		storage:  storage,
-		exported: make(map[string]api.Function),
+		log:     log,
+		meter:   meter,
+		storage: storage,
 	}
 }
 
@@ -39,14 +38,13 @@ type runtime struct {
 	meter    Meter
 	storage  Storage
 	// functions exported by this runtime
-	exported map[string]api.Function
-	mu       state.Mutable
+	mu state.Mutable
 
 	closed bool
 	log    logging.Logger
 }
 
-func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions []string) error {
+func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 	ctx, r.cancelFn = context.WithCancel(ctx)
 
 	r.engine = wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigInterpreter())
@@ -86,16 +84,6 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions
 	}
 	r.log.Debug("Instantiated module")
 
-	// TODO: cleanup
-	for _, name := range functions {
-		switch name {
-		case allocFnName, deallocFnName:
-			r.exported[name] = r.mod.ExportedFunction(name)
-		default:
-			r.exported[name] = r.mod.ExportedFunction(utils.GetGuestFnName(name))
-		}
-	}
-
 	return nil
 }
 
@@ -104,8 +92,15 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 		return nil, fmt.Errorf("failed to call: %s: runtime closed", name)
 	}
 
-	api, ok := r.exported[name]
-	if !ok {
+	var api api.Function
+
+	if name == allocFnName || name == deallocFnName {
+		api = r.mod.ExportedFunction(name)
+	} else {
+		api = r.mod.ExportedFunction(utils.GetGuestFnName(name))
+	}
+
+	if api == nil {
 		return nil, fmt.Errorf("failed to find exported function: %s", name)
 	}
 

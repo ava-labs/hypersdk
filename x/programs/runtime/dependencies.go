@@ -9,7 +9,7 @@ import (
 
 type Runtime interface {
 	// Initialize's the wasm engine.
-	Initialize(context.Context, []byte, []string) error
+	Initialize(context.Context, []byte) error
 	// Call invokes the function with the given parameters and returns any results
 	// or an error for any failure looking up or invoking the function.
 	Call(context.Context, string, ...uint64) ([]uint64, error)
