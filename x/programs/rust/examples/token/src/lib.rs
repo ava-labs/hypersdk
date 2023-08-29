@@ -6,7 +6,7 @@ use expose_macro::expose;
 /// Initializes the program with a name, symbol, and total supply.
 #[expose]
 pub fn init(ctx: Context) -> bool {
-    ctx.store_value("total_supply", &0_i64)
+    ctx.store_value("total_supply", &123456789_i64)
         .and_then(|_| {
             ctx.store_value("name", &String::from("WasmCoin"))
                 .and_then(|_| ctx.store_value("symbol", &String::from("WACK")))

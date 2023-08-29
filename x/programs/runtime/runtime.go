@@ -50,10 +50,10 @@ func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, erro
 		return 0, err
 	}
 	// get programId
-	programId := initProgramStorage()
+	programID := initProgramStorage()
 
 	// call initialize
-	result, err := r.Call(ctx, "init", uint64(programId))
+	result, err := r.Call(ctx, "init", uint64(programID))
 	if err != nil {
 		return 0, err
 	}
