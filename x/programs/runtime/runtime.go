@@ -58,7 +58,7 @@ func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, erro
 		return 0, err
 	}
 
-	// check boolean result from int
+	// check boolean result from init
 	if result[0] == 0 {
 		return 0, fmt.Errorf("failed to initialize program")
 	}
