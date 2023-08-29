@@ -57,7 +57,12 @@ func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, erro
 	if err != nil {
 		return 0, err
 	}
-	return result[0], nil
+
+	// check boolean result from int
+	if result[0] == 0 {
+		return 0, fmt.Errorf("failed to initialize program")
+	}
+	return uint64(programID), nil
 }
 
 func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
