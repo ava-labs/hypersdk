@@ -42,20 +42,14 @@ func (t *Lottery) Run(ctx context.Context) error {
 	store := newProgramStorage(db)
 
 	tokenRuntime := runtime.New(t.log, meter, store)
-	err := tokenRuntime.Initialize(ctx, t.tokenProgramBytes)
+	tokenProgramId, err := tokenRuntime.Create(ctx, t.tokenProgramBytes)
 	if err != nil {
 		return err
 	}
 
-	result, err := tokenRuntime.Call(ctx, "init_program")
-	if err != nil {
-		return err
-	}
 	t.log.Debug("initial cost",
 		zap.Int("gas", 0),
 	)
-
-	tokenProgramId := result[0]
 
 	// generate alice keys
 	alicePtr, alice_pk, err := newKeyPtr(ctx, tokenRuntime)
@@ -86,7 +80,7 @@ func (t *Lottery) Run(ctx context.Context) error {
 	}()
 
 	// check balance of alice
-	result, err = tokenRuntime.Call(ctx, "get_balance", tokenProgramId, alicePtr)
+	result, err := tokenRuntime.Call(ctx, "get_balance", tokenProgramId, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -124,16 +118,11 @@ func (t *Lottery) Run(ctx context.Context) error {
 
 	// initialize lottery program
 	lotteryRuntime := runtime.New(t.log, meter, store)
-	err = lotteryRuntime.Initialize(ctx, t.lotteryProgramBytes)
+	lotteryProgramId, err := lotteryRuntime.Create(ctx, t.lotteryProgramBytes)
 	if err != nil {
 		return err
 	}
 
-	result, err = lotteryRuntime.Call(ctx, "init_program")
-	if err != nil {
-		return err
-	}
-	lotteryProgramId := result[0]
 	t.log.Debug("lottery program id", zap.Uint64("id", lotteryProgramId))
 	runtime.GlobalStorage.Programs[uint32(tokenProgramId)] = t.tokenProgramBytes
 	// set the program_id in store to the lottery bytes

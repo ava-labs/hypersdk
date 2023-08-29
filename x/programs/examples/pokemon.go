@@ -39,18 +39,13 @@ func (t *Pokemon) Run(ctx context.Context) error {
 	store := newProgramStorage(db)
 
 	runtime := runtime.New(t.log, meter, store)
-	err := runtime.Initialize(ctx, t.programBytes)
-	if err != nil {
-		return err
-	}
-	result, err := runtime.Call(ctx, "init_program")
+	contractId, err := runtime.Create(ctx, t.programBytes)
 	if err != nil {
 		return err
 	}
 	t.log.Debug("initial cost",
 		zap.Int("gas", 0),
 	)
-	contract_id := result[0]
 
 	// generate alice keys
 	alicePtr, _, err := newKeyPtr(ctx, runtime)
@@ -80,7 +75,7 @@ func (t *Pokemon) Run(ctx context.Context) error {
 	}()
 
 	// check balance of bob
-	result, err = runtime.Call(ctx, "catch", contract_id, bobPtr)
+	result, err := runtime.Call(ctx, "catch", contractId, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -89,7 +84,7 @@ func (t *Pokemon) Run(ctx context.Context) error {
 	)
 
 	// get owned
-	result, err = runtime.Call(ctx, "get_owned", contract_id, bobPtr)
+	result, err = runtime.Call(ctx, "get_owned", contractId, bobPtr)
 	if err != nil {
 		return err
 	}

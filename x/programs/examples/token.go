@@ -40,21 +40,17 @@ func (t *Token) Run(ctx context.Context) error {
 	store := newProgramStorage(db)
 
 	runtime := runtime.New(t.log, meter, store)
-	err := runtime.Initialize(ctx, t.programBytes)
+	contractId, err := runtime.Create(ctx, t.programBytes)
 	if err != nil {
 		return err
 	}
 
-	result, err := runtime.Call(ctx, "init_program")
-	if err != nil {
-		return err
-	}
 	t.log.Debug("initial cost",
 		zap.Int("gas", 0),
 	)
 
-	contract_id := result[0]
-	result, err = runtime.Call(ctx, "get_total_supply", contract_id)
+	// contract_id := result[0]
+	result, err := runtime.Call(ctx, "get_total_supply", contractId)
 	if err != nil {
 		return err
 	}
@@ -75,7 +71,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// check balance of alice
-	result, err = runtime.Call(ctx, "get_balance", contract_id, bobPtr)
+	result, err = runtime.Call(ctx, "get_balance", contractId, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -85,7 +81,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// mint 100 tokens to alice
 	mintAlice := uint64(100)
-	_, err = runtime.Call(ctx, "mint_to", contract_id, alicePtr, mintAlice)
+	_, err = runtime.Call(ctx, "mint_to", contractId, alicePtr, mintAlice)
 	if err != nil {
 		return err
 	}
@@ -94,7 +90,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// check balance of alice
-	result, err = runtime.Call(ctx, "get_balance", contract_id, alicePtr)
+	result, err = runtime.Call(ctx, "get_balance", contractId, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -119,7 +115,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}()
 
 	// check balance of bob
-	result, err = runtime.Call(ctx, "get_balance", contract_id, bobPtr)
+	result, err = runtime.Call(ctx, "get_balance", contractId, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -129,7 +125,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// transfer 50 from alice to bob
 	transferToBob := uint64(50)
-	_, err = runtime.Call(ctx, "transfer", contract_id, alicePtr, bobPtr, transferToBob)
+	_, err = runtime.Call(ctx, "transfer", contractId, alicePtr, bobPtr, transferToBob)
 	if err != nil {
 		return err
 	}
@@ -139,7 +135,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance alice
-	result, err = runtime.Call(ctx, "get_balance", contract_id, alicePtr)
+	result, err = runtime.Call(ctx, "get_balance", contractId, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -148,7 +144,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance bob
-	result, err = runtime.Call(ctx, "get_balance", contract_id, bobPtr)
+	result, err = runtime.Call(ctx, "get_balance", contractId, bobPtr)
 	if err != nil {
 		return err
 	}
