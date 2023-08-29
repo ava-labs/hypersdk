@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	//go:embed testdata/token_program.wasm
+	//go:embed testdata/token.wasm
 	tokenProgramBytes []byte
 
 	// example cost map
@@ -23,7 +23,7 @@ var (
 		"ConstI32 0x0": 1,
 		"ConstI64 0x0": 2,
 	}
-	maxGas uint64 = 3000
+	maxGas uint64 = 13000
 	log           = logging.NewLogger(
 		"",
 		logging.NewWrappedCore(
@@ -53,3 +53,6 @@ func BenchmarkTokenProgram(b *testing.B) {
 		}
 	})
 }
+
+// BenchmarkTokenProgram/benchmark_token_program-10                      46          22319237 ns/op         7989180 B/op     116432 allocs/op
+// BenchmarkTokenProgram/benchmark_token_program-10                     100          10157392 ns/op         4967247 B/op      46825 allocs/op

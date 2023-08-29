@@ -352,7 +352,7 @@ func (w *WrappedAppSender) SendAppRequest(
 		newRequestID := w.n.getSharedRequestID(w.handler, nodeID, requestID)
 		if err := w.n.sender.SendAppRequest(
 			ctx,
-			set.Set[ids.NodeID]{nodeID: struct{}{}},
+			set.Of(nodeID),
 			newRequestID,
 			appRequestBytes,
 		); err != nil {

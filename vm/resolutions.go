@@ -29,7 +29,6 @@ var (
 	_ gossiper.VM                        = (*VM)(nil)
 	_ builder.VM                         = (*VM)(nil)
 	_ block.ChainVM                      = (*VM)(nil)
-	_ block.HeightIndexedChainVM         = (*VM)(nil)
 	_ block.StateSyncableVM              = (*VM)(nil)
 	_ block.BuildBlockWithContextChainVM = (*VM)(nil)
 )
@@ -108,14 +107,30 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	vm.parsedBlocks.Evict(b.ID())
 	vm.mempool.Remove(ctx, b.Txs)
 	vm.gossiper.BlockVerified(b.Tmstmp)
-	vm.builder.QueueNotify()
-	vm.snowCtx.Log.Info(
-		"verified block",
-		zap.Stringer("blkID", b.ID()),
-		zap.Uint64("height", b.Hght),
-		zap.Int("txs", len(b.Txs)),
-		zap.Bool("state ready", vm.StateReady()),
-	)
+	vm.checkActivity(ctx)
+
+	if b.Processed() {
+		fm := b.FeeManager()
+		vm.snowCtx.Log.Info(
+			"verified block",
+			zap.Stringer("blkID", b.ID()),
+			zap.Uint64("height", b.Hght),
+			zap.Int("txs", len(b.Txs)),
+			zap.Bool("state ready", vm.StateReady()),
+			zap.Any("unit prices", fm.UnitPrices()),
+			zap.Any("units consumed", fm.UnitsConsumed()),
+		)
+	} else {
+		// [b.FeeManager] is not populated if the block
+		// has not been processed.
+		vm.snowCtx.Log.Info(
+			"skipped block verification",
+			zap.Stringer("blkID", b.ID()),
+			zap.Uint64("height", b.Hght),
+			zap.Int("txs", len(b.Txs)),
+			zap.Bool("state ready", vm.StateReady()),
+		)
+	}
 }
 
 func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
@@ -394,6 +409,10 @@ func (vm *VM) RecordTxsReceived(c int) {
 	vm.metrics.txsReceived.Add(float64(c))
 }
 
+func (vm *VM) RecordSeenTxsReceived(c int) {
+	vm.metrics.seenTxsReceived.Add(float64(c))
+}
+
 func (vm *VM) RecordBuildCapped() {
 	vm.metrics.buildCapped.Inc()
 }
@@ -439,7 +458,7 @@ func (vm *VM) RecordClearedMempool() {
 }
 
 func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
-	v, err := vm.stateDB.Get(vm.StateManager().FeeKey())
+	v, err := vm.stateDB.Get(chain.FeeKey(vm.StateManager().FeeKey()))
 	if err != nil {
 		return chain.Dimensions{}, err
 	}

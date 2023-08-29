@@ -23,6 +23,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
 	"github.com/ava-labs/hypersdk/workers"
@@ -102,8 +103,8 @@ type StatelessBlock struct {
 	results    []*Result
 	feeManager *FeeManager
 
-	vm    VM
-	state merkledb.TrieView
+	vm   VM
+	view merkledb.TrieView
 
 	sigJob workers.Job
 }
@@ -247,7 +248,7 @@ func ParseStatefulBlock(
 // [initializeBuilt] is invoked after a block is built
 func (b *StatelessBlock) initializeBuilt(
 	ctx context.Context,
-	state merkledb.TrieView,
+	view merkledb.TrieView,
 	results []*Result,
 	feeManager *FeeManager,
 ) error {
@@ -260,7 +261,7 @@ func (b *StatelessBlock) initializeBuilt(
 	}
 	b.bytes = blk
 	b.id = utils.ToID(b.bytes)
-	b.state = state
+	b.view = view
 	b.t = time.UnixMilli(b.StatefulBlock.Tmstmp)
 	b.results = results
 	b.feeManager = feeManager
@@ -354,11 +355,11 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 	default:
 		// Parent may not be processed when we verify this block so [verify] may
 		// recursively compute missing state.
-		state, err := b.innerVerify(ctx)
+		view, err := b.innerVerify(ctx)
 		if err != nil {
 			return err
 		}
-		b.state = state
+		b.view = view
 	}
 
 	// At any point after this, we may attempt to verify the block. We should be
@@ -405,8 +406,8 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 //
 // When this may be called:
 //  1. [Verify|VerifyWithContext]
-//  2. If the parent state is missing when verifying (dynamic state sync)
-//  3. If the state of a block we are accepting is missing (finishing dynamic
+//  2. If the parent view is missing when verifying (dynamic state sync)
+//  3. If the view of a block we are accepting is missing (finishing dynamic
 //     state sync)
 func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, error) {
 	var (
@@ -502,39 +503,38 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		}()
 	}
 
-	// Fetch parent state
+	// Fetch parent view
 	//
 	// This function may verify the parent if it is not yet verified.
-	state, err := parent.childState(ctx, len(b.Txs)*2)
+	parentView, err := parent.View(ctx, true)
 	if err != nil {
 		return nil, err
 	}
 
 	// Compute next unit prices to use
-	feeRaw, err := state.GetValue(ctx, b.vm.StateManager().FeeKey())
+	feeKey := FeeKey(b.vm.StateManager().FeeKey())
+	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
 		return nil, err
 	}
-	feeManager := NewFeeManager(feeRaw)
-	nextFeeManager, err := feeManager.ComputeNext(parent.Tmstmp, b.Tmstmp, r)
+	parentFeeManager := NewFeeManager(feeRaw)
+	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, b.Tmstmp, r)
 	if err != nil {
 		return nil, err
 	}
 
-	// Optimisticaly fetch state
+	// Optimisticaly fetch view
 	processor := NewProcessor(b.vm.Tracer(), b)
-	processor.Prefetch(ctx, state)
+	processor.Prefetch(ctx, parentView)
 
 	// Process new transactions
-	results, stateChanges, stateOps, err := processor.Execute(ctx, nextFeeManager, r)
+	results, ts, err := processor.Execute(ctx, feeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return nil, err
 	}
-	b.vm.RecordStateChanges(stateChanges)
-	b.vm.RecordStateOperations(stateOps)
 	b.results = results
-	b.feeManager = nextFeeManager
+	b.feeManager = feeManager
 
 	// Ensure warp results are correct
 	if invalidWarpResult {
@@ -553,13 +553,31 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, ErrWarpResultMismatch
 	}
 
-	// Store height in state to prevent duplicate roots
-	if err := state.Insert(ctx, b.vm.StateManager().HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+	// Set scope for [tstate] changes
+	sm := b.vm.StateManager()
+	heightKey := HeightKey(sm.HeightKey())
+	heightKeyStr := string(heightKey)
+	feeKeyStr := string(feeKey)
+	ts.SetScope(ctx, set.Of(heightKeyStr, feeKeyStr), map[string][]byte{
+		heightKeyStr: binary.BigEndian.AppendUint64(nil, parent.Hght),
+		feeKeyStr:    parentFeeManager.Bytes(),
+	})
+
+	// Store height in view to prevent duplicate roots
+	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, err
 	}
 
 	// Store fee parameters
-	if err := state.Insert(ctx, b.vm.StateManager().FeeKey(), nextFeeManager.Bytes()); err != nil {
+	if err := ts.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
+		return nil, err
+	}
+
+	// Get view from [tstate] after writing all changed keys
+	b.vm.RecordStateChanges(ts.PendingChanges())
+	b.vm.RecordStateOperations(ts.OpIndex())
+	view, err := ts.CreateView(ctx, parentView, b.vm.Tracer())
+	if err != nil {
 		return nil, err
 	}
 
@@ -568,7 +586,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 	// Because fee bytes are not recorded in state, it is sufficient to check the state root
 	// to verify all fee calcuations were correct.
 	start := time.Now()
-	computedRoot, err := state.GetMerkleRoot(ctx)
+	computedRoot, err := view.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -590,7 +608,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, err
 	}
 	b.vm.RecordWaitSignatures(time.Since(start))
-	return state, nil
+	return view, nil
 }
 
 // implements "snowman.Block.choices.Decidable"
@@ -625,16 +643,16 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		//
 		// If state sync completes before accept is called
 		// then we need to rebuild it here.
-		state, err := b.innerVerify(ctx)
+		view, err := b.innerVerify(ctx)
 		if err != nil {
 			return err
 		}
-		b.state = state
+		b.view = view
 	}
 
-	// Commit state if we don't return before here (would happen if we are still
+	// Commit view if we don't return before here (would happen if we are still
 	// syncing)
-	if err := b.state.CommitToDB(ctx); err != nil {
+	if err := b.view.CommitToDB(ctx); err != nil {
 		return err
 	}
 
@@ -684,53 +702,46 @@ func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Hght }
 // implements "snowman.Block"
 func (b *StatelessBlock) Timestamp() time.Time { return b.t }
 
-// State is used to verify txs in the mempool. It should never be written to.
-//
-// TODO: we should modify the interface here to only allow read-like messages
-func (b *StatelessBlock) State() (Database, error) {
-	if b.st == choices.Accepted {
-		return b.vm.State()
-	}
-	if b.Processed() {
-		return b.state, nil
-	}
-	return nil, ErrBlockNotProcessed
-}
-
 // Used to determine if should notify listeners and/or pass to controller
 func (b *StatelessBlock) Processed() bool {
-	return b.state != nil
+	return b.view != nil
 }
 
-// We assume this will only be called once we are done syncing, so it is safe
-// to assume we will eventually get to a block with state.
-func (b *StatelessBlock) childState(
-	ctx context.Context,
-	estimatedChanges int,
-) (merkledb.TrieView, error) {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.childState")
+// View returns the [merkledb.TrieView] of the block (representing the state
+// post-execution) or returns the accepted state if the block is accepted or is height 0.
+//
+// If [b.view] is nil, this function will either return an error or will
+// run verification depending on the value of [verify].
+//
+// Invariant: [View] with [verify] == true should not be called concurrently, otherwise,
+// it will result in undefined behavior.
+func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, error) {
+	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.View",
+		oteltrace.WithAttributes(
+			attribute.Bool("verify", verify),
+			attribute.Bool("processed", b.Processed()),
+		),
+	)
 	defer span.End()
 
-	// Return committed state if block is accepted or this is genesis.
 	if b.st == choices.Accepted || b.Hght == 0 /* genesis */ {
-		state, err := b.vm.State()
-		if err != nil {
-			return nil, err
-		}
-		return state.NewPreallocatedView(estimatedChanges)
+		return b.vm.State()
 	}
-
-	// Process block if not yet processed and not yet accepted.
 	if !b.Processed() {
-		b.vm.Logger().
-			Info("verifying parent when childState requested", zap.Uint64("height", b.Hght))
-		state, err := b.innerVerify(ctx)
+		if !verify {
+			return nil, ErrBlockNotProcessed
+		}
+		b.vm.Logger().Info("verifying parent when requesting view",
+			zap.Uint64("height", b.Hght),
+			zap.Stringer("id", b.ID()),
+		)
+		view, err := b.innerVerify(ctx)
 		if err != nil {
 			return nil, err
 		}
-		b.state = state
+		b.view = view
 	}
-	return b.state.NewPreallocatedView(estimatedChanges)
+	return b.view, nil
 }
 
 // IsRepeat returns a bitset of all transactions that are considered repeats in

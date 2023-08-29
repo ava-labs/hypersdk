@@ -13,14 +13,14 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
-	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/state"
 )
 
 type testDB struct {
 	db *memdb.Database
 }
 
-func NewTestDB() chain.Database {
+func NewTestDB() state.Mutable {
 	return &testDB{
 		db: memdb.New(),
 	}

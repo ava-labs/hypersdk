@@ -9,9 +9,9 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -19,36 +19,36 @@ var _ runtime.Storage = (*programStorage)(nil)
 
 // newProgramStorage returns an instance of runtime storage used for examples
 // and backed by memDb.
-func newProgramStorage(db chain.Database) *programStorage {
+func newProgramStorage(mu state.Mutable) *programStorage {
 	return &programStorage{
-		db:            db,
+		mu:            mu,
 		programPrefix: 0x0,
 	}
 }
 
 type programStorage struct {
-	db            chain.Database
+	mu            state.Mutable
 	programPrefix byte
 }
 
 func (p *programStorage) Get(ctx context.Context, id uint32) (bool, ed25519.PublicKey, []string, []byte, error) {
-	data, ok, err := getProgramBytes(ctx, p.db, id, p.programPrefix)
+	data, ok, err := getProgramBytes(ctx, p.mu, id, p.programPrefix)
 	return ok, ed25519.EmptyPublicKey, nil, data, err
 }
 
 func (p *programStorage) Set(ctx context.Context, id uint32, owner uint32, data []byte) error {
 	k := prefixProgramKey(p.programPrefix, id)
-	return p.db.Insert(ctx, k, data)
+	return p.mu.Insert(ctx, k, data)
 }
 
 func getProgramBytes(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	id uint32,
 	prefix byte,
 ) ([]byte, bool, error) {
 	k := prefixProgramKey(prefix, id)
-	v, err := db.GetValue(ctx, k)
+	v, err := mu.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, false, nil
 	}

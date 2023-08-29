@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -70,7 +71,7 @@ func (*CreateOrder) OutputsWarpMessage() bool {
 func (c *CreateOrder) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	db chain.Database,
+	mu state.Mutable,
 	_ int64,
 	rauth chain.Auth,
 	txID ids.ID,
@@ -92,10 +93,10 @@ func (c *CreateOrder) Execute(
 	if c.Supply%c.OutTick != 0 {
 		return false, CreateOrderComputeUnits, OutputSupplyMisaligned, nil, nil
 	}
-	if err := storage.SubBalance(ctx, db, actor, c.Out, c.Supply); err != nil {
+	if err := storage.SubBalance(ctx, mu, actor, c.Out, c.Supply); err != nil {
 		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.SetOrder(ctx, db, txID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
+	if err := storage.SetOrder(ctx, mu, txID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
 		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, CreateOrderComputeUnits, nil, nil, nil

@@ -30,6 +30,9 @@ const (
 	SignatureLen      = ed25519.SignatureSize
 
 	// TODO: make this tunable
+	MinBatchSize = 16
+
+	// TODO: make this tunable
 	cacheSize = 128_000 // ~179MB (keys are ~1.4KB each)
 )
 

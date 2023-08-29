@@ -222,9 +222,17 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 		tpsWindow         = window.Window{}
 	)
 	for ctx.Err() == nil {
-		blk, results, err := scli.ListenBlock(ctx, parser)
+		blk, results, prices, err := scli.ListenBlock(ctx, parser)
 		if err != nil {
 			return err
+		}
+		consumed := chain.Dimensions{}
+		for _, result := range results {
+			nconsumed, err := chain.Add(consumed, result.Consumed)
+			if err != nil {
+				return err
+			}
+			consumed = nconsumed
 		}
 		now := time.Now()
 		if start.IsZero() {
@@ -241,34 +249,31 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 			runningDuration := time.Since(start)
 			tpsDivisor := math.Min(window.WindowSize, runningDuration.Seconds())
 			utils.Outf(
-				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB [{{green}}TPS:{{/}}%.2f {{green}}latency:{{/}}%dms {{green}}gap:{{/}}%dms]\n",
+				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s] [{{green}}TPS:{{/}}%.2f {{green}}latency:{{/}}%dms {{green}}gap:{{/}}%dms]\n",
 				blk.Hght,
 				len(blk.Txs),
 				blk.StateRoot,
 				float64(blk.Size())/units.KiB,
+				ParseDimensions(consumed),
+				ParseDimensions(prices),
 				float64(window.Sum(tpsWindow))/tpsDivisor,
 				time.Now().UnixMilli()-blk.Tmstmp,
 				time.Since(lastBlockDetailed).Milliseconds(),
 			)
 		} else {
 			utils.Outf(
-				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB\n",
+				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s]\n",
 				blk.Hght,
 				len(blk.Txs),
 				blk.StateRoot,
 				float64(blk.Size())/units.KiB,
+				ParseDimensions(consumed),
+				ParseDimensions(prices),
 			)
 			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))
 		}
 		lastBlock = now.Unix()
 		lastBlockDetailed = now
-		if blk.Hght%10 == 0 {
-			unitPrices, err := rcli.UnitPrices(ctx)
-			if err != nil {
-				return err
-			}
-			PrintUnitPrices(unitPrices)
-		}
 		if hideTxs {
 			continue
 		}

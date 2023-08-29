@@ -17,7 +17,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=v1.10.8
+VERSION=62cadd879473b1d2c3a68f76492d209091e7b82c
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
@@ -121,6 +121,9 @@ fi
 
 ############################
 
+# When running a validator, the [trackedPairs] should be empty/limited or
+# else malicious entities can attempt to stuff memory with dust orders to cause
+# an OOM.
 echo "creating vm config"
 rm -f ${TMPDIR}/tokenvm.config
 rm -rf ${TMPDIR}/tokenvm-e2e-profiles
@@ -133,10 +136,6 @@ cat <<EOF > ${TMPDIR}/tokenvm.config
   "verifySignatures":true,
   "storeTransactions":true,
   "streamingBacklogSize": 10000000,
-  "gossipMaxSize": 32768,
-  "gossipProposerDiff": 3,
-  "gossipProposerDepth": 1,
-  "noGossipBuilderDiff": 5,
   "trackedPairs":["*"],
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
@@ -180,7 +179,7 @@ ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 # download avalanche-network-runner
 # https://github.com/ava-labs/avalanche-network-runner
 ANR_REPO_PATH=github.com/ava-labs/avalanche-network-runner
-ANR_VERSION=v1.7.1
+ANR_VERSION=fbe081616f02dd0142cc5923168c43ed5991d947
 # version set
 go install -v ${ANR_REPO_PATH}@${ANR_VERSION}
 

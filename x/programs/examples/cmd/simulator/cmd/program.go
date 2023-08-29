@@ -99,7 +99,7 @@ func initalizeProgram(programBytes []byte) (uint64, error) {
 	runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), storage)
 	defer runtime.Stop(ctx)
 
-	err := runtime.Initialize(ctx, programBytes, []string{"init_program"})
+	err := runtime.Initialize(ctx, programBytes)
 	if err != nil {
 		return 0, err
 	}
@@ -153,7 +153,7 @@ var programInvokeCmd = &cobra.Command{
 		runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), storage)
 		defer runtime.Stop(ctx)
 
-		err = runtime.Initialize(ctx, program, functions)
+		err = runtime.Initialize(ctx, program)
 		if err != nil {
 			return err
 		}

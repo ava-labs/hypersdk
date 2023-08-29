@@ -33,6 +33,10 @@ func (mti *TestItem) Expiry() int64 {
 	return mti.timestamp
 }
 
+func (*TestItem) Size() int {
+	return 2 // distinguish from len
+}
+
 func GenerateTestItem(payer string, t int64) *TestItem {
 	id := ids.GenerateTestID()
 	return &TestItem{
@@ -60,6 +64,7 @@ func TestMempool(t *testing.T) {
 	require.True(ok)
 	require.Equal(int64(100), next.Expiry())
 	require.Equal(3, txm.Len(ctx))
+	require.Equal(6, txm.Size(ctx))
 }
 
 func TestMempoolAddDuplicates(t *testing.T) {
