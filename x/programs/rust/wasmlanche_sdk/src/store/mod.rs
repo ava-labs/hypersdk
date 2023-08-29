@@ -33,16 +33,10 @@ impl StoreResult<'_> {
         }
     }
     pub fn is_ok(self) -> bool {
-        match self {
-            Self::Ok(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Ok(_))
     }
     pub fn is_err(self) -> bool {
-        match self {
-            Self::Err(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Err(_))
     }
 }
 
