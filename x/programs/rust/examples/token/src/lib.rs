@@ -1,22 +1,15 @@
-use wasmlanche_sdk::program::Program;
 use wasmlanche_sdk::store::Context;
-use wasmlanche_sdk::types::{Address, Bytes32};
+use wasmlanche_sdk::types::Address;
 
 use expose_macro::expose;
 
 /// Initializes the program with a name, symbol, and total supply.
 #[expose]
-pub fn init_program() -> i64 {
-    let mut token_program = Program::new();
-    token_program
-        .add_field(String::from("name"), Bytes32::from("WasmCoin".to_string()))
-        .and_then(|_| {
-            token_program.add_field(String::from("symbol"), Bytes32::from("WACK".to_string()))
-        })
-        .and_then(|_| token_program.add_field(String::from("total_supply"), 123456789_i64))
-        .unwrap();
-
-    token_program.into()
+pub fn init(ctx: Context) -> bool {
+    ctx.store_value("total_supply", &123456789_i64)
+        .store_value("name", "WasmCoin")
+        .store_value("symbol", "WACK")
+        .is_ok()
 }
 
 /// Gets total supply or -1 on error.
@@ -46,7 +39,7 @@ pub fn transfer(ctx: Context, sender: Address, recipient: Address, amount: i64) 
     }
     let recipient_balance: i64 = ctx.get_map_value("balances", &recipient).unwrap_or(0);
     ctx.store_map_value("balances", &sender, &(sender_balance - amount))
-        .and_then(|_| ctx.store_map_value("balances", &recipient, &(recipient_balance + amount)))
+        .store_map_value("balances", &recipient, &(recipient_balance + amount))
         .is_ok()
 }
 

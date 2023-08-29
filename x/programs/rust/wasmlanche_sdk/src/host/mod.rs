@@ -3,9 +3,6 @@ use crate::store::Context;
 // The map module contains functionality for storing and retrieving key-value pairs.
 #[link(wasm_import_module = "map")]
 extern "C" {
-    #[link_name = "init_program"]
-    fn _init_program() -> i64;
-
     #[link_name = "store_bytes"]
     fn _store_bytes(
         contractId: i64,
@@ -33,12 +30,6 @@ extern "C" {
         args_ptr: *const u8,
         args_len: usize,
     ) -> i64;
-}
-
-/* wrappers for unsafe imported functions ----- */
-/// Returns the map_id or None if there was an error
-pub fn init_program_storage() -> Context {
-    unsafe { Context::from(_init_program()) }
 }
 
 /// Stores the bytes at value_ptr to the bytes at key ptr on the host.

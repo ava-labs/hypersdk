@@ -56,7 +56,6 @@ var GlobalStorage = storage{
 
 func (m *MapModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
 	_, err := r.NewHostModuleBuilder(mapModuleName).
-		NewFunctionBuilder().WithFunc(initializeFn).Export("init_program").
 		NewFunctionBuilder().WithFunc(m.storeBytesFn).Export("store_bytes").
 		NewFunctionBuilder().WithFunc(m.getBytesLenFn).Export("get_bytes_len").
 		NewFunctionBuilder().WithFunc(m.getBytesFn).Export("get_bytes").
@@ -65,7 +64,7 @@ func (m *MapModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
 	return err
 }
 
-func initializeFn() int64 {
+func initProgramStorage() int64 {
 	GlobalStorage.counter++
 	GlobalStorage.state[GlobalStorage.counter] = make(map[string][]byte)
 	return GlobalStorage.counter

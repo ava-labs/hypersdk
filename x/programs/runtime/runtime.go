@@ -44,6 +44,27 @@ type runtime struct {
 	log    logging.Logger
 }
 
+func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, error) {
+	err := r.Initialize(ctx, programBytes)
+	if err != nil {
+		return 0, err
+	}
+	// get programId
+	programID := initProgramStorage()
+
+	// call initialize
+	result, err := r.Call(ctx, "init", uint64(programID))
+	if err != nil {
+		return 0, err
+	}
+
+	// check boolean result from init
+	if result[0] == 0 {
+		return 0, fmt.Errorf("failed to initialize program")
+	}
+	return uint64(programID), nil
+}
+
 func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 	ctx, r.cancelFn = context.WithCancel(ctx)
 
@@ -82,6 +103,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 	if err != nil {
 		return fmt.Errorf("failed to instantiate wasm module: %w", err)
 	}
+
 	r.log.Debug("Instantiated module")
 
 	return nil

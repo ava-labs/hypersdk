@@ -8,6 +8,8 @@ import (
 )
 
 type Runtime interface {
+	// Create initializes and calls the init function.
+	Create(context.Context, []byte) (uint64, error)
 	// Initialize's the wasm engine.
 	Initialize(context.Context, []byte) error
 	// Call invokes the function with the given parameters and returns any results
