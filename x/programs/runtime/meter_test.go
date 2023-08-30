@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 )
 
 var (
@@ -41,7 +42,7 @@ func TestMeterInsufficientBalance(t *testing.T) {
 	defer cancel()
 
 	meter := NewMeter(log, maxFee, costMap)
-	runtime := New(log, meter, nil)
+	runtime := New(log, meter, nil, ed25519.EmptyPublicKey)
 	err := runtime.Initialize(ctx, tokenProgramBytes)
 	require.NoError(err)
 
@@ -61,7 +62,7 @@ func TestMeterRuntimeStop(t *testing.T) {
 	defer cancel()
 
 	meter := NewMeter(log, maxFee, costMap)
-	runtime := New(log, meter, nil)
+	runtime := New(log, meter, nil, ed25519.EmptyPublicKey)
 	err := runtime.Initialize(ctx, tokenProgramBytes)
 	require.NoError(err)
 

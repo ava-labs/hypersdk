@@ -5,6 +5,7 @@ package examples
 
 import (
 	"context"
+
 	_ "embed"
 	"os"
 	"testing"
@@ -31,8 +32,6 @@ var (
 			logging.Plain.ConsoleEncoder(),
 		))
 )
-
-const DBPath = "test.db"
 
 // go test -v -timeout 30s -run ^TestTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples
 func TestTokenProgram(t *testing.T) {

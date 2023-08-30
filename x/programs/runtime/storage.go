@@ -73,6 +73,7 @@ func GetProgramCount(db database.Database) (uint64, error) {
 	return count, nil
 }
 
+// not sure why we need to return PublicKey here?
 // [programID] -> [exists, owner, functions, payload]
 func GetProgram(
 	db database.Database,

@@ -40,7 +40,7 @@ func (t *Lottery) Run(ctx context.Context) error {
 	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
 	db, _, err := pebble.New("test.db", pebble.NewDefaultConfig())
 	defer db.Close()
-	tokenRuntime := runtime.New(t.log, meter, db)
+	tokenRuntime := runtime.New(t.log, meter, db, runtimePublicKey)
 	defer tokenRuntime.Stop(ctx)
 
 	tokenProgramId, err := tokenRuntime.Create(ctx, t.tokenProgramBytes)
@@ -118,7 +118,7 @@ func (t *Lottery) Run(ctx context.Context) error {
 	)
 
 	// initialize lottery program
-	lotteryRuntime := runtime.New(t.log, meter, db)
+	lotteryRuntime := runtime.New(t.log, meter, db, runtimePublicKey)
 	defer lotteryRuntime.Stop(ctx)
 
 	lotteryProgramId, err := lotteryRuntime.Create(ctx, t.lotteryProgramBytes)
@@ -155,19 +155,17 @@ func (t *Lottery) Run(ctx context.Context) error {
 			)
 		}
 	}()
-
 	// set the library program
 	_, err = lotteryRuntime.Call(ctx, "set", lotteryProgramId, tokenProgramId, aliceLottoPtr)
 	if err != nil {
 		return err
 	}
-
 	// play the lottery
 	result, err = lotteryRuntime.Call(ctx, "play", lotteryProgramId, bobLottoPtr)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("set", zap.Uint64("result", result[0]))
+	t.log.Debug("Play", zap.Uint64("result", result[0]))
 
 	// check balance of alice
 	result, err = tokenRuntime.Call(ctx, "get_balance", tokenProgramId, alicePtr)

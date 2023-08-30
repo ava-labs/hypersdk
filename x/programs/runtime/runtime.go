@@ -5,6 +5,9 @@ package runtime
 
 import (
 	"context"
+
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
+
 	"fmt"
 	"os"
 
@@ -25,11 +28,12 @@ const (
 	deallocFnName = "dealloc"
 )
 
-func New(log logging.Logger, meter Meter, db database.Database) *runtime {
+func New(log logging.Logger, meter Meter, db database.Database, pubKey ed25519.PublicKey) *runtime {
 	return &runtime{
-		log:   log,
-		meter: meter,
-		db:    db,
+		log:    log,
+		meter:  meter,
+		db:     db,
+		pubKey: pubKey,
 	}
 }
 
@@ -46,9 +50,11 @@ type runtime struct {
 	log    logging.Logger
 	// db for persistant storage
 	db database.Database
+	// runtime pubkey
+	pubKey ed25519.PublicKey
 }
 
-func (r *runtime) initProgramStorage() int64 {
+func (r *runtime) initProgramStorage(programBytes []byte) int64 {
 	count, err := GetProgramCount(r.db)
 	if err != nil {
 		r.log.Error("failed to get program counter", zap.Error(err))
@@ -59,6 +65,8 @@ func (r *runtime) initProgramStorage() int64 {
 		r.log.Error("failed to increment program counter", zap.Error(err))
 	}
 	fmt.Println("program id", count)
+	// store program bytes
+	err = SetProgram(r.db, count, r.pubKey, programBytes)
 	return int64(count)
 }
 
@@ -68,7 +76,7 @@ func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, erro
 		return 0, err
 	}
 	// get programId
-	programID := r.initProgramStorage()
+	programID := r.initProgramStorage(programBytes)
 	// call initialize
 	result, err := r.Call(ctx, "init", uint64(programID))
 	if err != nil {
@@ -95,7 +103,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 	}
 
 	// enable program to program calls
-	invokeMod := NewInvokeModule(r.log, r.mu, r.meter, r.storage)
+	invokeMod := NewInvokeModule(r.log, r.mu, r.meter, r.storage, r.pubKey, r.db)
 	err = invokeMod.Instantiate(ctx, r.engine)
 	if err != nil {
 		return fmt.Errorf("failed to create delegate host module: %w", err)
