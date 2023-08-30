@@ -32,6 +32,7 @@ create program action successful program id: 1
 
 Reference the program id returned from the `create` tx, to invoke functions on your program!
 Remember to reference the correct program id, as each published program has its own storage space on disk.
+Pass your programs params(except `Context`) as a comma seperated list.
 
 ```sh
 ./simulator program invoke --id 1 --caller sim_key_dc2 --function mint_to --params sim_key_dc2,100
