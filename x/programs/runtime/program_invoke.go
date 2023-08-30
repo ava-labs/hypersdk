@@ -30,21 +30,19 @@ const (
 type InvokeModule struct {
 	mu            state.Mutable
 	meter         Meter
-	storage       Storage
 	log           logging.Logger
 	db            database.Database
 	callerAddress ed25519.PublicKey
 }
 
 // NewInvokeModule returns a new program invoke host module which can perform program to program calls.
-func NewInvokeModule(log logging.Logger, mu state.Mutable, meter Meter, storage Storage, callerAddress ed25519.PublicKey, db database.Database) *InvokeModule {
+func NewInvokeModule(log logging.Logger, mu state.Mutable, meter Meter, db database.Database, callerAddress ed25519.PublicKey) *InvokeModule {
 	return &InvokeModule{
 		mu:            mu,
 		meter:         meter,
-		storage:       storage,
 		log:           log,
-		callerAddress: callerAddress,
 		db:            db,
+		callerAddress: callerAddress,
 	}
 }
 

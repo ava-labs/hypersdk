@@ -28,12 +28,12 @@ const (
 	deallocFnName = "dealloc"
 )
 
-func New(log logging.Logger, meter Meter, db database.Database, pubKey ed25519.PublicKey) *runtime {
+func New(log logging.Logger, meter Meter, db database.Database, callerAddress ed25519.PublicKey) *runtime {
 	return &runtime{
-		log:    log,
-		meter:  meter,
-		db:     db,
-		pubKey: pubKey,
+		log:           log,
+		meter:         meter,
+		db:            db,
+		callerAddress: callerAddress,
 	}
 }
 
@@ -42,7 +42,6 @@ type runtime struct {
 	engine   wazero.Runtime
 	mod      api.Module
 	meter    Meter
-	storage  Storage
 	// functions exported by this runtime
 	mu state.Mutable
 
@@ -51,23 +50,28 @@ type runtime struct {
 	// db for persistant storage
 	db database.Database
 	// runtime pubkey
-	pubKey ed25519.PublicKey
+	callerAddress ed25519.PublicKey
 }
 
-func (r *runtime) initProgramStorage(programBytes []byte) int64 {
+func (r *runtime) initProgramStorage(programBytes []byte) (int64, error) {
 	count, err := GetProgramCount(r.db)
 	if err != nil {
 		r.log.Error("failed to get program counter", zap.Error(err))
+		return 0, err
 	}
 	// increment
 	err = IncrementProgramCount(r.db)
 	if err != nil {
 		r.log.Error("failed to increment program counter", zap.Error(err))
+		return 0, err
 	}
-	fmt.Println("program id", count)
 	// store program bytes
-	err = SetProgram(r.db, count, r.pubKey, programBytes)
-	return int64(count)
+	err = SetProgram(r.db, count, r.callerAddress, programBytes)
+	if err != nil {
+		r.log.Error("failed to set program", zap.Error(err))
+		return 0, err
+	}
+	return int64(count), nil
 }
 
 func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, error) {
@@ -76,7 +80,10 @@ func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, erro
 		return 0, err
 	}
 	// get programId
-	programID := r.initProgramStorage(programBytes)
+	programID, err := r.initProgramStorage(programBytes)
+	if err != nil {
+		return 0, err
+	}
 	// call initialize
 	result, err := r.Call(ctx, "init", uint64(programID))
 	if err != nil {
@@ -103,7 +110,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 	}
 
 	// enable program to program calls
-	invokeMod := NewInvokeModule(r.log, r.mu, r.meter, r.storage, r.pubKey, r.db)
+	invokeMod := NewInvokeModule(r.log, r.mu, r.meter, r.db, r.callerAddress)
 	err = invokeMod.Instantiate(ctx, r.engine)
 	if err != nil {
 		return fmt.Errorf("failed to create delegate host module: %w", err)

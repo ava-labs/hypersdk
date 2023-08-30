@@ -3,7 +3,6 @@ package runtime
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/hypersdk/consts"
@@ -110,7 +109,6 @@ func SetProgram(
 ) error {
 	k := ProgramKey(programID)
 	v := make([]byte, ed25519.PublicKeyLen+len(program))
-	fmt.Println("Owner set: ", owner)
 	copy(v, owner[:])
 	copy(v[ed25519.PublicKeyLen:], program[:])
 	return db.Put(k, v)
