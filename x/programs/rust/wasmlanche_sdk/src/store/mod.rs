@@ -167,7 +167,7 @@ fn get_field_as_bytes(ctx: Context, name: &[u8]) -> Result<Vec<u8>, StorageError
     Ok(bytes)
 }
 
-/// Gets the field [name] from the host and returns it as a `ProgramValue`.
+/// Gets the field `name` from the host and returns it as a `ProgramValue`.
 fn get_field<T>(ctx: Context, name: &str) -> Result<T, StorageError>
 where
     T: DeserializeOwned,
@@ -176,7 +176,7 @@ where
     from_slice(&bytes).map_err(|_| StorageError::InvalidBytes)
 }
 
-/// Gets the correct key to in the host storage for a [`map_name`] and [key] within that map  
+/// Gets the correct key to in the host storage for a `map_name` and `key` within that map
 fn get_map_key<T>(map_name: &str, key: &T) -> Result<Vec<u8>, StorageError>
 where
     T: Serialize,
