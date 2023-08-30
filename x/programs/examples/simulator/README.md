@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Program Simulator
+This simulator allows you to run, test and play around with your own compiled WASM programs!
 
 #### build
 
@@ -10,7 +10,7 @@ Program Simulator
 go build cmd/simulator/simulator.go
 ```
 
-### generate new private key and return address
+### generate new keys
 
 ```sh
 ./simulator key generate
