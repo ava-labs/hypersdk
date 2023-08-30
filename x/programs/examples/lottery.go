@@ -9,8 +9,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
-	"github.com/ava-labs/hypersdk/x/programs/utils"
 
 	"go.uber.org/zap"
 )
@@ -38,10 +38,8 @@ type Lottery struct {
 func (t *Lottery) Run(ctx context.Context) error {
 
 	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
-	db := utils.NewTestDB()
-	store := newProgramStorage(db)
-
-	tokenRuntime := runtime.New(t.log, meter, store)
+	db, _, err := pebble.New("test.db", pebble.NewDefaultConfig())
+	tokenRuntime := runtime.New(t.log, meter, &db)
 	tokenProgramId, err := tokenRuntime.Create(ctx, t.tokenProgramBytes)
 	if err != nil {
 		return err
@@ -117,7 +115,7 @@ func (t *Lottery) Run(ctx context.Context) error {
 	)
 
 	// initialize lottery program
-	lotteryRuntime := runtime.New(t.log, meter, store)
+	lotteryRuntime := runtime.New(t.log, meter, &db)
 	lotteryProgramId, err := lotteryRuntime.Create(ctx, t.lotteryProgramBytes)
 	if err != nil {
 		return err

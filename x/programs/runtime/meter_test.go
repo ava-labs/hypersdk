@@ -9,7 +9,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -37,14 +36,12 @@ var (
 // go test -v -run ^TestMeterInsufficientBalance$ github.com/ava-labs/hypersdk/x/programs/runtime
 func TestMeterInsufficientBalance(t *testing.T) {
 	require := require.New(t)
-	ctrl := gomock.NewController(t)
-	storage := NewMockStorage(ctrl)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	meter := NewMeter(log, maxFee, costMap)
-	runtime := New(log, meter, storage)
+	runtime := New(log, meter, nil)
 	err := runtime.Initialize(ctx, tokenProgramBytes)
 	require.NoError(err)
 
@@ -60,13 +57,11 @@ func TestMeterInsufficientBalance(t *testing.T) {
 
 func TestMeterRuntimeStop(t *testing.T) {
 	require := require.New(t)
-	ctrl := gomock.NewController(t)
-	storage := NewMockStorage(ctrl)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	meter := NewMeter(log, maxFee, costMap)
-	runtime := New(log, meter, storage)
+	runtime := New(log, meter, nil)
 	err := runtime.Initialize(ctx, tokenProgramBytes)
 	require.NoError(err)
 

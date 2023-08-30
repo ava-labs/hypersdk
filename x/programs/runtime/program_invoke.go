@@ -11,6 +11,7 @@ import (
 	"github.com/tetratelabs/wazero/api"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -29,6 +30,7 @@ type InvokeModule struct {
 	meter   Meter
 	storage Storage
 	log     logging.Logger
+	db      *database.Database
 }
 
 // NewInvokeModule returns a new program invoke host module which can perform program to program calls.
@@ -75,7 +77,7 @@ func (m *InvokeModule) programInvokeFn(
 	}
 
 	// create new runtime for the program invoke call
-	runtime := New(m.log, m.meter, m.storage)
+	runtime := New(m.log, m.meter, m.db)
 
 	err := runtime.Initialize(ctx, data)
 	if err != nil {

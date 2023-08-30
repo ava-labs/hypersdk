@@ -84,8 +84,7 @@ func initalizeProgram(programBytes []byte) (uint64, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	storage := newProgramStorage(db)
-	runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), storage)
+	runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), &db)
 	defer runtime.Stop(ctx)
 
 	programID, err := runtime.Create(ctx, programBytes)
@@ -133,8 +132,7 @@ var programInvokeCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		storage := newProgramStorage(db)
-		runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), storage)
+		runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), &db)
 		defer runtime.Stop(ctx)
 
 		err = runtime.Initialize(ctx, program)

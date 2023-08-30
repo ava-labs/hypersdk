@@ -12,6 +12,7 @@ import (
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/state"
@@ -23,11 +24,11 @@ const (
 	deallocFnName = "dealloc"
 )
 
-func New(log logging.Logger, meter Meter, storage Storage) *runtime {
+func New(log logging.Logger, meter Meter, db *database.Database) *runtime {
 	return &runtime{
-		log:     log,
-		meter:   meter,
-		storage: storage,
+		log:   log,
+		meter: meter,
+		db:    db,
 	}
 }
 
@@ -42,6 +43,8 @@ type runtime struct {
 
 	closed bool
 	log    logging.Logger
+	// db for persistant storage
+	db *database.Database
 }
 
 func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, error) {

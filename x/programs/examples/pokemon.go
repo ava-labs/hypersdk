@@ -9,8 +9,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
-	"github.com/ava-labs/hypersdk/x/programs/utils"
 
 	"go.uber.org/zap"
 )
@@ -35,10 +35,8 @@ type Pokemon struct {
 
 func (t *Pokemon) Run(ctx context.Context) error {
 	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
-	db := utils.NewTestDB()
-	store := newProgramStorage(db)
-
-	runtime := runtime.New(t.log, meter, store)
+	db, _, err := pebble.New("test.db", pebble.NewDefaultConfig())
+	runtime := runtime.New(t.log, meter, &db)
 	contractId, err := runtime.Create(ctx, t.programBytes)
 	if err != nil {
 		return err
