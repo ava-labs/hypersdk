@@ -4,8 +4,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -60,7 +58,6 @@ func init() {
 	}
 
 	rootCmd.PersistentPostRunE = func(*cobra.Command, []string) error {
-		fmt.Println("closing")
 		return db.Close()
 	}
 	programInvokeCmd.PersistentFlags().Uint64Var(

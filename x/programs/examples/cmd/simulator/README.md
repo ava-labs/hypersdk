@@ -14,30 +14,26 @@ go build cmd/simulator/simulator.go
 
 ```sh
 ./simulator key generate
-created new private key with public address: simulator1fhfjlv9cu0psq276d3ve0nr0yl4daxvud2kcp3w8t3txcwk9t2esrfd0r7
+
+created new private key with public address: sim_key_dc2
 ```
 
 ### create new program tx
 
 ```sh
-./simulator \
-  program create \
-  --caller simulator1fhfjlv9cu0psq276d3ve0nr0yl4daxvud2kcp3w8t3txcwk9t2esrfd0r7 \
-  ./path/to/program.wasm
-created program tx successful: 1
+./simulator program create --caller sim_key_dc2 ../examples/testdata/token.wasm
+
+create program action successful program id: 1
 ```
 
 ### invoke program tx
 
 ```sh
-./simulator \
-  program invoke \
-  --caller simulator1fhfjlv9cu0psq276d3ve0nr0yl4daxvud2kcp3w8t3txcwk9t2esrfd0r7
-  --id 1 \
-  --function "set" \
-  --params "1" \
-  --max-fee 30
+./simulator program invoke --id 1 --caller sim_key_dc2 --function mint_to --params sim_key_dc2,100
 
-created invoke tx successful: 2mcwQKiD8VEspmMJpL1dc7okQQ5dDVAWeCBZ7FWBFAbxpv3t7w
-response: 0
+response: [1]
+
+./simulator program invoke --id 1 --caller sim_key_dc2 --function get_balance --params sim_key_dc2
+
+response: [100]
 ```

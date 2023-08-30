@@ -90,7 +90,6 @@ func initalizeProgram(programBytes []byte, caller ed25519.PublicKey) (uint64, er
 	if err != nil {
 		return 0, err
 	}
-	fmt.Println("programID", programID)
 	return programID, nil
 }
 
@@ -127,7 +126,6 @@ var programInvokeCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Println("owner", owner)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -140,7 +138,6 @@ var programInvokeCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Println("params", params)
 		var callParams []uint64
 		if params != "" {
 			for _, param := range strings.Split(params, ",") {
@@ -152,7 +149,6 @@ var programInvokeCmd = &cobra.Command{
 				case strings.HasPrefix(p, HRP_KEY):
 					// address
 					pk, err := getPublicKey(db, p)
-					fmt.Println("pk", pk)
 					if err != nil {
 						return err
 					}

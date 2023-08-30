@@ -76,7 +76,6 @@ func (m *MapModule) getBytesLenFn(_ context.Context, mod api.Module, id int64, k
 	}
 	val, err := GetValue(m.db, uint64(id), buf)
 	if err != nil {
-		m.log.Error("failed to get value from database")
 		return mapErr
 	}
 	return int32(len(val))
@@ -96,7 +95,6 @@ func (m *MapModule) getBytesFn(ctx context.Context, mod api.Module, id int64, ke
 	// Get the value from the database
 	val, err := GetValue(m.db, uint64(id), buf)
 	if err != nil {
-		m.log.Error("failed to get value from database")
 		return mapErr
 	}
 
