@@ -861,9 +861,11 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID, verify boo
 	)
 	vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
 	if err != nil {
+		b.vm.Logger().Error("unable to get verify context", zap.Error(err))
 		return nil, err
 	}
 	if err := b.innerVerify(ctx, vctx); err != nil {
+		b.vm.Logger().Error("unable to verify block", zap.Error(err))
 		return nil, err
 	}
 	if b.st != choices.Accepted {
@@ -879,6 +881,7 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID, verify boo
 	// is not the child of the block whose post-execution state
 	// is currently stored on disk, so it is safe to call [CommitToDB].
 	if err := b.view.CommitToDB(ctx); err != nil {
+		b.vm.Logger().Error("unable to commit to DB", zap.Error(err))
 		return nil, err
 	}
 	return b.vm.State()
