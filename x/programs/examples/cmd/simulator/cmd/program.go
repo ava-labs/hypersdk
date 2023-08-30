@@ -6,7 +6,6 @@ package cmd
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -22,10 +21,9 @@ import (
 )
 
 const (
-	HRP           = "simulator"
-	HRP_KEY       = "simulator_key_"
-	programPrefix = 0x0
-	keyPrefix     = 0x1
+	HRP       = "simulator"
+	HRP_KEY   = "simulator_key_"
+	keyPrefix = 0x1
 )
 
 // example cost map
@@ -71,7 +69,7 @@ var programCreateCmd = &cobra.Command{
 			return err
 		}
 
-		err = setProgram(db, programId, pk, fileBytes)
+		err = runtime.SetProgram(db, programId, pk, fileBytes)
 		if err != nil {
 			return err
 		}
@@ -84,7 +82,7 @@ func initalizeProgram(programBytes []byte) (uint64, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), &db)
+	runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), db)
 	defer runtime.Stop(ctx)
 
 	programID, err := runtime.Create(ctx, programBytes)
@@ -120,7 +118,7 @@ var programInvokeCmd = &cobra.Command{
 		// if err != nil {
 		// 	return err
 		// }
-		exists, owner, program, err := getProgram(db, programID)
+		exists, owner, program, err := runtime.GetProgram(db, programID)
 		if !exists {
 			return fmt.Errorf("program %v does not exist", programID)
 		}
@@ -132,7 +130,7 @@ var programInvokeCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), &db)
+		runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), db)
 		defer runtime.Stop(ctx)
 
 		err = runtime.Initialize(ctx, program)
@@ -188,56 +186,6 @@ var programInvokeCmd = &cobra.Command{
 	},
 }
 
-func programKey(asset uint64) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
-	// convert uint64 to bytes
-	binary.BigEndian.PutUint64(k[1:], asset)
-	k[0] = programPrefix
-	return
-}
-
-// [programID] -> [exists, owner, functions, payload]
-func getProgram(
-	db database.Database,
-	programID uint64,
-) (
-	bool, // exists
-	ed25519.PublicKey, // owner
-	[]byte, // program bytes
-	error,
-) {
-	k := programKey(programID)
-	v, err := db.Get(k)
-	if errors.Is(err, database.ErrNotFound) {
-		return false, ed25519.EmptyPublicKey, nil, nil
-	}
-	if err != nil {
-		return false, ed25519.EmptyPublicKey, nil, err
-	}
-	var owner ed25519.PublicKey
-	copy(owner[:], v[:ed25519.PublicKeyLen])
-	programLen := uint32(len(v)) - ed25519.PublicKeyLen
-	program := make([]byte, programLen)
-	copy(program[:], v[ed25519.PublicKeyLen:])
-	return true, owner, program, nil
-}
-
-// [owner]
-// [program]
-func setProgram(
-	db database.Database,
-	programID uint64,
-	owner ed25519.PublicKey,
-	program []byte,
-) error {
-	k := programKey(programID)
-	v := make([]byte, ed25519.PublicKeyLen+len(program))
-	fmt.Println("Owner set: ", owner)
-	copy(v, owner[:])
-	copy(v[ed25519.PublicKeyLen:], program[:])
-	return db.Put(k, v)
-}
-
 var _ runtime.Storage = (*programStorage)(nil)
 
 // newProgramStorage returns an instance of runtime storage used for examples
@@ -257,7 +205,7 @@ type programStorage struct {
 func (p *programStorage) Get(_ context.Context, id uint32) (bool, ed25519.PublicKey, []byte, error) {
 	buf := make([]byte, consts.IDLen)
 	binary.BigEndian.PutUint32(buf, id)
-	exists, owner, payload, err := getProgram(db, uint64(id))
+	exists, owner, payload, err := runtime.GetProgram(db, uint64(id))
 	if !exists {
 		return false, ed25519.EmptyPublicKey, nil, fmt.Errorf("program %d does not exist", id)
 	}

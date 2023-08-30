@@ -24,7 +24,7 @@ const (
 	deallocFnName = "dealloc"
 )
 
-func New(log logging.Logger, meter Meter, db *database.Database) *runtime {
+func New(log logging.Logger, meter Meter, db database.Database) *runtime {
 	return &runtime{
 		log:   log,
 		meter: meter,
@@ -44,7 +44,14 @@ type runtime struct {
 	closed bool
 	log    logging.Logger
 	// db for persistant storage
-	db *database.Database
+	db database.Database
+}
+
+func initProgramStorage() int64 {
+
+	GlobalStorage.counter++
+	GlobalStorage.state[GlobalStorage.counter] = make(map[string][]byte)
+	return GlobalStorage.counter
 }
 
 func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, error) {
@@ -55,6 +62,21 @@ func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, erro
 	// get programId
 	programID := initProgramStorage()
 
+	_, err = GetProgramCount(r.db)
+	if err != nil {
+		fmt.Println("error getting program count")
+	}
+	err = IncrementProgramCount(r.db)
+	if err != nil {
+		fmt.Println("error incrementing program count")
+	}
+	IncrementProgramCount(r.db)
+	IncrementProgramCount(r.db)
+	count, err := GetProgramCount(r.db)
+	if err != nil {
+		fmt.Println("error getting program count")
+	}
+	fmt.Println("program count: ", count)
 	// call initialize
 	result, err := r.Call(ctx, "init", uint64(programID))
 	if err != nil {
@@ -74,7 +96,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 	r.engine = wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigInterpreter())
 
 	// register host modules
-	mapMod := NewMapModule(r.log, r.meter)
+	mapMod := NewMapModule(r.log, r.meter, r.db)
 	err := mapMod.Instantiate(ctx, r.engine)
 	if err != nil {
 		return fmt.Errorf("failed to create map host module: %w", err)

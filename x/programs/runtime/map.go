@@ -10,6 +10,7 @@ import (
 	"github.com/tetratelabs/wazero/api"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
@@ -33,15 +34,17 @@ type storage struct {
 type MapModule struct {
 	meter Meter
 	log   logging.Logger
+	db    database.Database
 }
 
 // NewMapModule returns a new map host module which can manage in memory state.
 // This is a placeholder storage system intended to show how a wasm program
 // would access/modify persistent storage.
-func NewMapModule(log logging.Logger, meter Meter) *MapModule {
+func NewMapModule(log logging.Logger, meter Meter, db database.Database) *MapModule {
 	return &MapModule{
 		meter: meter,
 		log:   log,
+		db:    db,
 	}
 }
 
@@ -62,12 +65,6 @@ func (m *MapModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
 		Instantiate(ctx)
 
 	return err
-}
-
-func initProgramStorage() int64 {
-	GlobalStorage.counter++
-	GlobalStorage.state[GlobalStorage.counter] = make(map[string][]byte)
-	return GlobalStorage.counter
 }
 
 func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id int64, keyPtr uint32, keyLength uint32, valuePtr uint32, valueLength uint32) int32 {

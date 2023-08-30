@@ -39,7 +39,7 @@ func (t *Lottery) Run(ctx context.Context) error {
 
 	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
 	db, _, err := pebble.New("test.db", pebble.NewDefaultConfig())
-	tokenRuntime := runtime.New(t.log, meter, &db)
+	tokenRuntime := runtime.New(t.log, meter, db)
 	tokenProgramId, err := tokenRuntime.Create(ctx, t.tokenProgramBytes)
 	if err != nil {
 		return err
@@ -115,7 +115,7 @@ func (t *Lottery) Run(ctx context.Context) error {
 	)
 
 	// initialize lottery program
-	lotteryRuntime := runtime.New(t.log, meter, &db)
+	lotteryRuntime := runtime.New(t.log, meter, db)
 	lotteryProgramId, err := lotteryRuntime.Create(ctx, t.lotteryProgramBytes)
 	if err != nil {
 		return err

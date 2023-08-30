@@ -1,0 +1,105 @@
+package runtime
+
+import (
+	"encoding/binary"
+	"errors"
+	"fmt"
+
+	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
+)
+
+const (
+	HRP                = "simulator"
+	HRP_KEY            = "simulator_key_"
+	programPrefix      = 0x0
+	programCountPrefix = 0x1
+)
+
+func ProgramKey(asset uint64) (k []byte) {
+	k = make([]byte, 1+consts.IDLen)
+	// convert uint64 to bytes
+	binary.BigEndian.PutUint64(k[1:], asset)
+	k[0] = programPrefix
+	return
+}
+
+func ProgramCountKey() []byte {
+	return []byte{programCountPrefix}
+}
+
+func IncrementProgramCount(db database.Database) error {
+	countKey := ProgramCountKey()
+	bytes, err := db.Get(countKey)
+	var count uint64
+	if err != nil {
+		count = 0
+	} else {
+		count = binary.BigEndian.Uint64(bytes)
+	}
+	count++
+	// TODO: dont hardcode size
+	countBytes := make([]byte, 8)
+
+	binary.BigEndian.PutUint64(countBytes, count)
+	err = db.Put(countKey, countBytes)
+	return err
+}
+
+func GetProgramCount(db database.Database) (uint64, error) {
+	countKey := ProgramCountKey()
+	bytes, err := db.Get(countKey)
+	if err != nil {
+		return 0, err
+	}
+	var count uint64
+	if len(bytes) == 0 {
+		count = 0
+	} else {
+		count = binary.BigEndian.Uint64(bytes)
+	}
+	return count, nil
+}
+
+// [programID] -> [exists, owner, functions, payload]
+func GetProgram(
+	db database.Database,
+	programID uint64,
+) (
+	bool, // exists
+	ed25519.PublicKey, // owner
+	[]byte, // program bytes
+	error,
+) {
+	k := ProgramKey(programID)
+	v, err := db.Get(k)
+	if errors.Is(err, database.ErrNotFound) {
+		return false, ed25519.EmptyPublicKey, nil, nil
+	}
+	if err != nil {
+		return false, ed25519.EmptyPublicKey, nil, err
+	}
+	var owner ed25519.PublicKey
+	copy(owner[:], v[:ed25519.PublicKeyLen])
+	programLen := uint32(len(v)) - ed25519.PublicKeyLen
+	program := make([]byte, programLen)
+	copy(program[:], v[ed25519.PublicKeyLen:])
+	return true, owner, program, nil
+}
+
+// [owner]
+// [program]
+func SetProgram(
+	db database.Database,
+	programID uint64,
+	owner ed25519.PublicKey,
+	program []byte,
+) error {
+	k := ProgramKey(programID)
+	v := make([]byte, ed25519.PublicKeyLen+len(program))
+	fmt.Println("Owner set: ", owner)
+	copy(v, owner[:])
+	copy(v[ed25519.PublicKeyLen:], program[:])
+	return db.Put(k, v)
+}

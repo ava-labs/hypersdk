@@ -30,7 +30,7 @@ type InvokeModule struct {
 	meter   Meter
 	storage Storage
 	log     logging.Logger
-	db      *database.Database
+	db      database.Database
 }
 
 // NewInvokeModule returns a new program invoke host module which can perform program to program calls.
