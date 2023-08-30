@@ -47,7 +47,7 @@ type runtime struct {
 
 	closed bool
 	log    logging.Logger
-	// db for persistant storage
+	// db for persistent storage
 	db database.Database
 	// runtime pubkey
 	callerAddress ed25519.PublicKey

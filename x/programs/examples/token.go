@@ -151,6 +151,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 	t.log.Debug("balance", zap.Int64("bob", int64(result[0])))
+
 	return nil
 }
 

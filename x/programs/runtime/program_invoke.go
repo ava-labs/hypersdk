@@ -32,7 +32,7 @@ type InvokeModule struct {
 	meter         Meter
 	log           logging.Logger
 	db            database.Database
-	callerAddress ed25519.PublicKey
+	callerAddress ed25519.PublicKey // the callerAddress of the new runtime during invoke.
 }
 
 // NewInvokeModule returns a new program invoke host module which can perform program to program calls.
@@ -55,6 +55,8 @@ func (m *InvokeModule) Instantiate(ctx context.Context, r wazero.Runtime) error 
 }
 
 // programInvokeFn makes a call to an entry function of a program in the context of another program's ID.
+// TODO: need to ensure the invokeProgramID is passed in correctly on rust side.
+// Currently, user can inject any program ID they want now, which can lead to unauthorized storage access.
 func (m *InvokeModule) programInvokeFn(
 	ctx context.Context,
 	mod api.Module,
@@ -73,22 +75,16 @@ func (m *InvokeModule) programInvokeFn(
 	entryFn := string(entryBuf)
 
 	// get the program bytes stored in state
-
-	exists, _, data, error := GetProgram(m.db, invokeProgramID)
-
-	if error != nil {
-		m.log.Error("failed to get program bytes from state", zap.Error(error))
-		return invokeErr
-	}
-	if !exists {
-		m.log.Error("program does not exist")
+	exists, _, data, err := GetProgram(m.db, invokeProgramID)
+	if err != nil || !exists {
+		m.log.Error("failed to get program bytes from state", zap.Error(err))
 		return invokeErr
 	}
 
 	// create new runtime for the program invoke call
 	runtime := New(m.log, m.meter, m.db, m.callerAddress)
 
-	err := runtime.Initialize(ctx, data)
+	err = runtime.Initialize(ctx, data)
 	if err != nil {
 		m.log.Error("failed to initialize runtime for program invoke call: %v", zap.Error(err))
 		return invokeErr

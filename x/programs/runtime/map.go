@@ -8,7 +8,6 @@ import (
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
-	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -21,16 +20,6 @@ const (
 	mapErr        = -1
 )
 
-type maps map[string][]byte
-
-// Key value store for program data
-type storage struct {
-	// int64 for simplicity, could be a real hash later
-	state    map[int64]maps
-	counter  int64
-	Programs map[uint32][]byte
-}
-
 type MapModule struct {
 	meter Meter
 	log   logging.Logger
@@ -38,8 +27,6 @@ type MapModule struct {
 }
 
 // NewMapModule returns a new map host module which can manage in memory state.
-// This is a placeholder storage system intended to show how a wasm program
-// would access/modify persistent storage.
 func NewMapModule(log logging.Logger, meter Meter, db database.Database) *MapModule {
 	return &MapModule{
 		meter: meter,
@@ -47,15 +34,6 @@ func NewMapModule(log logging.Logger, meter Meter, db database.Database) *MapMod
 		db:    db,
 	}
 }
-
-// GlobalStorage is a global variable that holds the state of all programs.
-// This is a placeholder storage system intended to show how a wasm program would access/modify persistent storage.
-// Needs to be global, so state can be persisted across multiple runtime intances.
-// var GlobalStorage = storage{
-// 	state:    make(map[int64]maps),
-// 	counter:  0,
-// 	Programs: make(map[uint32][]byte),
-// }
 
 func (m *MapModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
 	_, err := r.NewHostModuleBuilder(mapModuleName).
@@ -81,7 +59,13 @@ func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id int64, ke
 	// Need to copy the value because the GC can collect the value after this function returns
 	copiedValue := make([]byte, len(valBuf))
 	copy(copiedValue, valBuf)
-	SetValue(m.db, uint64(id), keyBuf, copiedValue)
+
+	err := SetValue(m.db, uint64(id), keyBuf, copiedValue)
+	if err != nil {
+		m.log.Error("failed to set value in database")
+		return mapErr
+	}
+
 	return mapOk
 }
 
@@ -107,18 +91,15 @@ func (m *MapModule) getBytesFn(ctx context.Context, mod api.Module, id int64, ke
 	if !ok {
 		return mapErr
 	}
+
+	// Get the value from the database
 	val, err := GetValue(m.db, uint64(id), buf)
 	if err != nil {
 		return mapErr
 	}
-	result, err := mod.ExportedFunction("alloc").Call(ctx, uint64(valLength))
+
+	ptr, err := utils.WriteBuffer(ctx, mod, val)
 	if err != nil {
-		m.log.Error("failed to allocate memory for value: %v", zap.Error(err))
-		return mapErr
-	}
-	ptr := result[0]
-	// write to memory
-	if !mod.Memory().Write(uint32(ptr), val) {
 		m.log.Error("failed to write value to memory")
 		return mapErr
 	}

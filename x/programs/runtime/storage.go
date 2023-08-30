@@ -35,10 +35,12 @@ func StorageKey(programID uint64, key []byte) (k []byte) {
 	return k
 }
 
+// ProgramCountKey returns the key used to store the program count
 func ProgramCountKey() []byte {
 	return []byte{programCountPrefix}
 }
 
+// IncrementProgramCount increments the program count by 1
 func IncrementProgramCount(db database.Database) error {
 	countKey := ProgramCountKey()
 	bytes, err := db.Get(countKey)
@@ -49,9 +51,8 @@ func IncrementProgramCount(db database.Database) error {
 		count = binary.BigEndian.Uint64(bytes)
 	}
 	count++
-	// TODO: dont hardcode size
-	countBytes := make([]byte, 8)
 
+	countBytes := make([]byte, consts.Int64Len)
 	binary.BigEndian.PutUint64(countBytes, count)
 	err = db.Put(countKey, countBytes)
 	return err
@@ -63,12 +64,8 @@ func GetProgramCount(db database.Database) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	var count uint64
-	if len(bytes) == 0 {
-		count = 0
-	} else {
-		count = binary.BigEndian.Uint64(bytes)
-	}
+
+	count := binary.BigEndian.Uint64(bytes)
 	return count, nil
 }
 
@@ -95,7 +92,7 @@ func GetProgram(
 	copy(owner[:], v[:ed25519.PublicKeyLen])
 	programLen := uint32(len(v)) - ed25519.PublicKeyLen
 	program := make([]byte, programLen)
-	copy(program[:], v[ed25519.PublicKeyLen:])
+	copy(program, v[ed25519.PublicKeyLen:])
 	return true, owner, program, nil
 }
 
@@ -110,12 +107,13 @@ func SetProgram(
 	k := ProgramKey(programID)
 	v := make([]byte, ed25519.PublicKeyLen+len(program))
 	copy(v, owner[:])
-	copy(v[ed25519.PublicKeyLen:], program[:])
+	copy(v[ed25519.PublicKeyLen:], program)
 	return db.Put(k, v)
 }
 
+// GetValue returns the value stored at [key] in the [programID] storage
 func GetValue(db database.Database, programID uint64, key []byte) ([]byte, error) {
-	k := StorageKey(uint64(programID), key)
+	k := StorageKey(programID, key)
 	value, err := db.Get(k)
 	if err != nil {
 		return nil, err
@@ -123,6 +121,7 @@ func GetValue(db database.Database, programID uint64, key []byte) ([]byte, error
 	return value, nil
 }
 
+// SetValue stores [value] at [key] in the [programID] storage
 func SetValue(db database.Database, programID uint64, key, value []byte) error {
 	k := StorageKey(programID, key)
 	return db.Put(k, value)
