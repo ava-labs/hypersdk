@@ -92,7 +92,10 @@ Now we can spin up a new network of 6 nodes with some defaults:
 --avalanchego-release-tag v1.10.3 \
 --create-dev-machine \
 --keys-to-generate 5 \
---profile-name <AWS_PROFILE_NAME>
+--profile-name <AWS_PROFILE_NAME> \
+--vm-binary-file <PATH_TO_VM_BINARY> \
+--chain-name <NAME> \
+--chain-genesis-file <PATH_TO_CHAIN_GENESIS_FILE>
 ```
 
 The `default-spec` (and `apply`) command only provisions nodes, not Custom VMs.
