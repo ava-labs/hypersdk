@@ -362,7 +362,7 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 		// context. Otherwise, the parent block will be used as execution context.
 		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: unable to load verify context", err)
 		}
 
 		// Parent block may not be processed when we verify this block, so [innerVerify] may
@@ -435,7 +435,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	// This call may result in our ancestry being verified.
 	parentView, err := vctx.View(ctx, &b.StateRoot, true)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: unable to load parent view", err)
 	}
 
 	// Fetch parent height key and ensure block height is valid

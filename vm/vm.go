@@ -280,6 +280,10 @@ func (vm *VM) Initialize(
 		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
+		// Set last timestamp
+		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+			return err
+		}
 		// Set fee parameters
 		genesisRules := vm.c.Rules(0)
 		feeManager := chain.NewFeeManager(nil)
@@ -294,6 +298,8 @@ func (vm *VM) Initialize(
 		if err := sps.Commit(ctx); err != nil {
 			return err
 		}
+		// TODO: root should be pre-genesis info but we should commit height/timestamp/fee changes after to get a different root
+		// for the first child block
 		root, err := vm.stateDB.GetMerkleRoot(ctx)
 		if err != nil {
 			snowCtx.Log.Error("could not get merkle root", zap.Error(err))
