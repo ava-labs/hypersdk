@@ -75,13 +75,6 @@ func init() {
 		"name of the function to invoke",
 	)
 
-	programCreateCmd.PersistentFlags().StringVar(
-		&params,
-		"params",
-		"",
-		"comma separated list of params to pass to the function",
-	)
-
 	programInvokeCmd.PersistentFlags().StringVar(
 		&params,
 		"params",

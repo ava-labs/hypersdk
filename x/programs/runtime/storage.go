@@ -62,6 +62,10 @@ func GetProgramCount(db database.Database) (uint64, error) {
 	countKey := ProgramCountKey()
 	bytes, err := db.Get(countKey)
 	if err != nil {
+		// if not found, db hasn't been set up yet
+		if errors.Is(err, database.ErrNotFound) {
+			return 1, nil
+		}
 		return 0, err
 	}
 

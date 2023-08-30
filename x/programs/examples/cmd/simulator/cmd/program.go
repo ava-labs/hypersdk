@@ -22,7 +22,7 @@ import (
 
 const (
 	HRP       = "simulator"
-	HRP_KEY   = "simulator_key_"
+	HRP_KEY   = "sim_key_"
 	keyPrefix = 0x1
 )
 
@@ -64,7 +64,7 @@ var programCreateCmd = &cobra.Command{
 		}
 
 		// getKey(db, pk)
-		programId, err := initalizeProgram(fileBytes)
+		programId, err := initalizeProgram(fileBytes, pk)
 		if err != nil {
 			return err
 		}
@@ -78,11 +78,11 @@ var programCreateCmd = &cobra.Command{
 	},
 }
 
-func initalizeProgram(programBytes []byte) (uint64, error) {
+func initalizeProgram(programBytes []byte, caller ed25519.PublicKey) (uint64, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), db)
+	runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), db, caller)
 	defer runtime.Stop(ctx)
 
 	programID, err := runtime.Create(ctx, programBytes)
@@ -130,7 +130,8 @@ var programInvokeCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), db)
+		// TODO: owner for now, change to caller later
+		runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), db, owner)
 		defer runtime.Stop(ctx)
 
 		err = runtime.Initialize(ctx, program)
@@ -147,9 +148,9 @@ var programInvokeCmd = &cobra.Command{
 					callParams = append(callParams, 1)
 				case p == "false":
 					callParams = append(callParams, 0)
-				case strings.HasPrefix(p, HRP):
+				case strings.HasPrefix(p, HRP_KEY):
 					// address
-					pk, err := parseAddress(p)
+					pk, err := getPublicKey(db, p)
 					if err != nil {
 						return err
 					}
