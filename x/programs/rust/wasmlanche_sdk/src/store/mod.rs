@@ -97,7 +97,7 @@ impl Context {
 
     /// Returns the value of the field `key` from the map `map_name` from the host.
     /// # Errors
-    /// Returns a `StorageError` if the field does not exist or if the bytes are invalid.
+    /// Returns a `StorageError` if there was an error retrieving from the host or the retrieved bytes are invalid.
     pub fn get_map_value<T, U>(self, map_name: &str, key: &T) -> Result<U, StorageError>
     where
         T: Serialize,
