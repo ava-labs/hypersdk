@@ -270,39 +270,19 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = blkID, blk
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
 	} else {
-		// Set balances
+		// Set balances and generate genesis root
 		sps := state.NewSimpleMutable(vm.stateDB)
 		if err := vm.genesis.Load(ctx, vm.tracer, sps); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}
-		// Set last height
-		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
-			return err
-		}
-		// Set last timestamp
-		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
-			return err
-		}
-		// Set fee parameters
-		genesisRules := vm.c.Rules(0)
-		feeManager := chain.NewFeeManager(nil)
-		minUnitPrice := genesisRules.GetMinUnitPrice()
-		for i := chain.Dimension(0); i < chain.FeeDimensions; i++ {
-			feeManager.SetUnitPrice(i, minUnitPrice[i])
-			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
-		}
-		if err := sps.Insert(ctx, chain.FeeKey(vm.StateManager().FeeKey()), feeManager.Bytes()); err != nil {
-			return err
-		}
 		if err := sps.Commit(ctx); err != nil {
 			return err
 		}
-		// TODO: root should be pre-genesis info but we should commit height/timestamp/fee changes after to get a different root
-		// for the first child block
 		root, err := vm.stateDB.GetMerkleRoot(ctx)
 		if err != nil {
 			snowCtx.Log.Error("could not get merkle root", zap.Error(err))
+			return err
 		}
 		snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
 
@@ -318,6 +298,40 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("unable to init genesis block", zap.Error(err))
 			return err
 		}
+
+		// Set last height
+		sps = state.NewSimpleMutable(vm.stateDB)
+		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+			return err
+		}
+
+		// Set last timestamp
+		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+			return err
+		}
+
+		// Set fee parameters
+		genesisRules := vm.c.Rules(0)
+		feeManager := chain.NewFeeManager(nil)
+		minUnitPrice := genesisRules.GetMinUnitPrice()
+		for i := chain.Dimension(0); i < chain.FeeDimensions; i++ {
+			feeManager.SetUnitPrice(i, minUnitPrice[i])
+			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
+		}
+		if err := sps.Insert(ctx, chain.FeeKey(vm.StateManager().FeeKey()), feeManager.Bytes()); err != nil {
+			return err
+		}
+
+		// Commit genesis block post-execution state and generate root
+		if err := sps.Commit(ctx); err != nil {
+			return err
+		}
+		if _, err := vm.stateDB.GetMerkleRoot(ctx); err != nil {
+			snowCtx.Log.Error("could not get merkle root", zap.Error(err))
+			return err
+		}
+
+		// Update last accepted and preferred block
 		if err := vm.SetLastAccepted(genesisBlk); err != nil {
 			snowCtx.Log.Error("could not set genesis as last accepted", zap.Error(err))
 			return err
