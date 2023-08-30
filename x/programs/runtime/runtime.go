@@ -11,6 +11,7 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -47,11 +48,20 @@ type runtime struct {
 	db database.Database
 }
 
-func initProgramStorage() int64 {
+func (r *runtime) initProgramStorage() int64 {
 
-	GlobalStorage.counter++
-	GlobalStorage.state[GlobalStorage.counter] = make(map[string][]byte)
-	return GlobalStorage.counter
+	count, err := GetProgramCount(r.db)
+	if err != nil {
+		r.log.Error("failed to get program counter", zap.Error(err))
+	}
+	GlobalStorage.state[int64(count)] = make(map[string][]byte)
+	// increment
+	err = IncrementProgramCount(r.db)
+	if err != nil {
+		r.log.Error("failed to increment program counter", zap.Error(err))
+	}
+	fmt.Println("program id", count)
+	return int64(count)
 }
 
 func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, error) {
@@ -60,23 +70,7 @@ func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, erro
 		return 0, err
 	}
 	// get programId
-	programID := initProgramStorage()
-
-	_, err = GetProgramCount(r.db)
-	if err != nil {
-		fmt.Println("error getting program count")
-	}
-	err = IncrementProgramCount(r.db)
-	if err != nil {
-		fmt.Println("error incrementing program count")
-	}
-	IncrementProgramCount(r.db)
-	IncrementProgramCount(r.db)
-	count, err := GetProgramCount(r.db)
-	if err != nil {
-		fmt.Println("error getting program count")
-	}
-	fmt.Println("program count: ", count)
+	programID := r.initProgramStorage()
 	// call initialize
 	result, err := r.Call(ctx, "init", uint64(programID))
 	if err != nil {
@@ -199,6 +193,5 @@ func (r *runtime) Stop(ctx context.Context) error {
 	if err := r.mod.Close(ctx); err != nil {
 		return fmt.Errorf("failed to close wasm api module: %w", err)
 	}
-
 	return nil
 }

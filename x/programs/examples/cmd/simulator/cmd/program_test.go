@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 func TestStorage(t *testing.T) {
@@ -24,10 +25,10 @@ func TestStorage(t *testing.T) {
 
 	program := []byte("super cool program")
 
-	err = setProgram(db, id, pub, program)
+	err = runtime.SetProgram(db, id, pub, program)
 	require.NoError(err)
 
-	ok, owner, prog, err := getProgram(db, id)
+	ok, owner, prog, err := runtime.GetProgram(db, id)
 	require.NoError(err)
 	require.True(ok)
 	require.Equal(pub[:], owner[:])

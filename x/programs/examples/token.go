@@ -38,7 +38,10 @@ func (t *Token) Run(ctx context.Context) error {
 	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
 
 	db, _, err := pebble.New("test.db", pebble.NewDefaultConfig())
+	defer db.Close()
+
 	runtime := runtime.New(t.log, meter, db)
+	defer runtime.Stop(ctx)
 	contractId, err := runtime.Create(ctx, t.programBytes)
 	if err != nil {
 		return err
@@ -148,7 +151,6 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 	t.log.Debug("balance", zap.Int64("bob", int64(result[0])))
-
 	return nil
 }
 
