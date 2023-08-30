@@ -126,7 +126,7 @@ func GetValue(db database.Database, programID uint64, key []byte) ([]byte, error
 }
 
 // SetValue stores [value] at [key] in the [programID] storage
-func SetValue(db database.Database, programID uint64, key, value []byte) error {
+func SetValue(db database.Database, programID uint64, key []byte, value []byte) error {
 	k := StorageKey(programID, key)
 	return db.Put(k, value)
 }

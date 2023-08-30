@@ -4,11 +4,12 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/utils"
 	xutils "github.com/ava-labs/hypersdk/x/programs/utils"
@@ -59,6 +60,7 @@ func init() {
 	}
 
 	rootCmd.PersistentPostRunE = func(*cobra.Command, []string) error {
+		fmt.Println("closing")
 		return db.Close()
 	}
 	programInvokeCmd.PersistentFlags().Uint64Var(
@@ -99,7 +101,6 @@ func init() {
 
 var (
 	callerAddress string
-	pubKey        ed25519.PublicKey
 	programID     uint64
 	functionName  string
 	dbPath        string

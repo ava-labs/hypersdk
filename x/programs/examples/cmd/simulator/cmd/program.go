@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -151,6 +152,7 @@ var programInvokeCmd = &cobra.Command{
 				case strings.HasPrefix(p, HRP_KEY):
 					// address
 					pk, err := getPublicKey(db, p)
+					fmt.Println("pk", pk)
 					if err != nil {
 						return err
 					}
@@ -160,17 +162,14 @@ var programInvokeCmd = &cobra.Command{
 					}
 					callParams = append(callParams, ptr)
 				default:
-					id, _ := ids.FromString(p)
-					// id
-					if id != ids.Empty {
-						ptr, err := runtime.WriteGuestBuffer(ctx, id[:])
-						if err != nil {
-							return err
-						}
-						callParams = append(callParams, ptr)
-					} else {
-						return fmt.Errorf("param not handled please implement: %s", param)
+					// treat like a number
+					var num uint64
+					num, err := strconv.ParseUint(p, 10, 64)
+
+					if err != nil {
+						return err
 					}
+					callParams = append(callParams, num)
 				}
 			}
 		}
