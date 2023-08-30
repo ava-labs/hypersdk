@@ -5,16 +5,11 @@ package cmd
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
@@ -22,8 +17,7 @@ import (
 )
 
 const (
-	HRP       = "simulator"
-	HRP_KEY   = "sim_key_"
+	HRP       = "sim_key_"
 	keyPrefix = 0x1
 )
 
@@ -146,7 +140,7 @@ var programInvokeCmd = &cobra.Command{
 					callParams = append(callParams, 1)
 				case p == "false":
 					callParams = append(callParams, 0)
-				case strings.HasPrefix(p, HRP_KEY):
+				case strings.HasPrefix(p, HRP):
 					// address
 					pk, err := getPublicKey(db, p)
 					if err != nil {
@@ -180,50 +174,4 @@ var programInvokeCmd = &cobra.Command{
 		utils.Outf("{{green}}response:{{/}} %v\n", resp)
 		return nil
 	},
-}
-
-var _ runtime.Storage = (*programStorage)(nil)
-
-// newProgramStorage returns an instance of runtime storage used for examples
-// and backed by memDb.
-func newProgramStorage(db database.Database) *programStorage {
-	return &programStorage{
-		db:            db,
-		programPrefix: 0x0,
-	}
-}
-
-type programStorage struct {
-	db            database.Database
-	programPrefix byte
-}
-
-func (p *programStorage) Get(_ context.Context, id uint32) (bool, ed25519.PublicKey, []byte, error) {
-	buf := make([]byte, consts.IDLen)
-	binary.BigEndian.PutUint32(buf, id)
-	exists, owner, payload, err := runtime.GetProgram(db, uint64(id))
-	if !exists {
-		return false, ed25519.EmptyPublicKey, nil, fmt.Errorf("program %d does not exist", id)
-	}
-	if err != nil {
-		return false, ed25519.EmptyPublicKey, nil, err
-	}
-
-	return exists, owner, payload, err
-}
-
-func (p *programStorage) Set(_ context.Context, id uint32, _ uint32, data []byte) error {
-	return nil
-}
-
-func address(pk ed25519.PublicKey) string {
-	return ed25519.Address(HRP, pk)
-}
-
-func parseAddress(s string) (ed25519.PublicKey, error) {
-	return ed25519.ParseAddress(HRP, s)
-}
-
-func fakeID() ids.ID {
-	return ids.Empty.Prefix(uint64(time.Now().UnixNano()))
 }

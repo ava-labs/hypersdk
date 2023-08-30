@@ -10,8 +10,7 @@ import (
 )
 
 const (
-	HRP                = "simulator"
-	HRP_KEY            = "simulator_key_"
+	HRP                = "simulator_key_"
 	programPrefix      = 0x0
 	programCountPrefix = 0x1
 	storagePrefix      = 0x2
@@ -103,7 +102,7 @@ func GetProgram(
 // [owner]
 // [program]
 func SetProgram(
-	db database.Database,
+	db database.KeyValueWriter,
 	programID uint64,
 	owner ed25519.PublicKey,
 	program []byte,
@@ -126,7 +125,7 @@ func GetValue(db database.Database, programID uint64, key []byte) ([]byte, error
 }
 
 // SetValue stores [value] at [key] in the [programID] storage
-func SetValue(db database.Database, programID uint64, key []byte, value []byte) error {
+func SetValue(db database.KeyValueWriter, programID uint64, key []byte, value []byte) error {
 	k := StorageKey(programID, key)
 	return db.Put(k, value)
 }

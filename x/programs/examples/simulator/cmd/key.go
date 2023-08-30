@@ -36,7 +36,7 @@ var genKeyCmd = &cobra.Command{
 }
 
 func keyHRP(privateKey ed25519.PrivateKey) string {
-	return HRP_KEY + privateKey.ToHex()[0:3]
+	return HRP + privateKey.ToHex()[0:3]
 }
 
 // func fromHRPKey(hrpKey string) (ed25519.PrivateKey, error) {
