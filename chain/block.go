@@ -470,17 +470,22 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	//
 	// Before node is considered ready (emap is fully populated), this may return
 	// false when other validators think it is true.
-	oldestAllowed := b.Tmstmp - r.GetValidityWindow()
-	if oldestAllowed < 0 {
-		// Can occur if verifying genesis
-		oldestAllowed = 0
-	}
-	dup, err := vctx.IsRepeat(ctx, oldestAllowed, b.Txs, set.NewBits(), true)
-	if err != nil {
-		return err
-	}
-	if dup.Len() > 0 {
-		return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
+	//
+	// If a block is already accepted, its transactions have already been added
+	// to the VM's transaction tracker and calling [IsRepeat] will return repeats.
+	if b.st != choices.Accepted {
+		oldestAllowed := b.Tmstmp - r.GetValidityWindow()
+		if oldestAllowed < 0 {
+			// Can occur if verifying genesis
+			oldestAllowed = 0
+		}
+		dup, err := vctx.IsRepeat(ctx, oldestAllowed, b.Txs, set.NewBits(), true)
+		if err != nil {
+			return err
+		}
+		if dup.Len() > 0 {
+			return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
+		}
 	}
 
 	// Start validating warp messages, if they exist
