@@ -49,12 +49,10 @@ type runtime struct {
 }
 
 func (r *runtime) initProgramStorage() int64 {
-
 	count, err := GetProgramCount(r.db)
 	if err != nil {
 		r.log.Error("failed to get program counter", zap.Error(err))
 	}
-	GlobalStorage.state[int64(count)] = make(map[string][]byte)
 	// increment
 	err = IncrementProgramCount(r.db)
 	if err != nil {

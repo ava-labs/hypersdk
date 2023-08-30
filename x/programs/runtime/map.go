@@ -51,11 +51,11 @@ func NewMapModule(log logging.Logger, meter Meter, db database.Database) *MapMod
 // GlobalStorage is a global variable that holds the state of all programs.
 // This is a placeholder storage system intended to show how a wasm program would access/modify persistent storage.
 // Needs to be global, so state can be persisted across multiple runtime intances.
-var GlobalStorage = storage{
-	state:    make(map[int64]maps),
-	counter:  0,
-	Programs: make(map[uint32][]byte),
-}
+// var GlobalStorage = storage{
+// 	state:    make(map[int64]maps),
+// 	counter:  0,
+// 	Programs: make(map[uint32][]byte),
+// }
 
 func (m *MapModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
 	_, err := r.NewHostModuleBuilder(mapModuleName).
@@ -68,12 +68,6 @@ func (m *MapModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
 }
 
 func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id int64, keyPtr uint32, keyLength uint32, valuePtr uint32, valueLength uint32) int32 {
-	_, ok := GlobalStorage.state[id]
-	if !ok {
-		m.log.Error("failed to find program id in storage")
-		return mapErr
-	}
-
 	keyBuf, ok := utils.GetBuffer(mod, keyPtr, keyLength)
 	if !ok {
 		return mapErr
@@ -87,23 +81,17 @@ func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id int64, ke
 	// Need to copy the value because the GC can collect the value after this function returns
 	copiedValue := make([]byte, len(valBuf))
 	copy(copiedValue, valBuf)
-	GlobalStorage.state[id][string(keyBuf)] = copiedValue
-
+	SetValue(m.db, uint64(id), keyBuf, copiedValue)
 	return mapOk
 }
 
 func (m *MapModule) getBytesLenFn(_ context.Context, mod api.Module, id int64, keyPtr uint32, keyLength uint32) int32 {
-	_, ok := GlobalStorage.state[id]
-	if !ok {
-		m.log.Error("failed to find program id in storage")
-		return mapErr
-	}
 	buf, ok := utils.GetBuffer(mod, keyPtr, keyLength)
 	if !ok {
 		return mapErr
 	}
-	val, ok := GlobalStorage.state[id][string(buf)]
-	if !ok {
+	val, err := GetValue(m.db, uint64(id), buf)
+	if err != nil {
 		return mapErr
 	}
 	return int32(len(val))
@@ -115,20 +103,14 @@ func (m *MapModule) getBytesFn(ctx context.Context, mod api.Module, id int64, ke
 		m.log.Error("key or value length is negative")
 		return mapErr
 	}
-	_, ok := GlobalStorage.state[id]
-	if !ok {
-		m.log.Error("failed to find program id in storage")
-		return mapErr
-	}
 	buf, ok := utils.GetBuffer(mod, keyPtr, uint32(keyLength))
 	if !ok {
 		return mapErr
 	}
-	val, ok := GlobalStorage.state[id][string(buf)]
-	if !ok {
+	val, err := GetValue(m.db, uint64(id), buf)
+	if err != nil {
 		return mapErr
 	}
-
 	result, err := mod.ExportedFunction("alloc").Call(ctx, uint64(valLength))
 	if err != nil {
 		m.log.Error("failed to allocate memory for value: %v", zap.Error(err))

@@ -15,6 +15,7 @@ const (
 	HRP_KEY            = "simulator_key_"
 	programPrefix      = 0x0
 	programCountPrefix = 0x1
+	storagePrefix      = 0x2
 )
 
 func ProgramKey(asset uint64) (k []byte) {
@@ -23,6 +24,16 @@ func ProgramKey(asset uint64) (k []byte) {
 	binary.BigEndian.PutUint64(k[1:], asset)
 	k[0] = programPrefix
 	return
+}
+
+// StorageKey returns the key used to store a value in the program's storage
+// [storagePrefix] + [programID] + [key]
+func StorageKey(programID uint64, key []byte) (k []byte) {
+	k = make([]byte, 1+consts.Int64Len+len(key))
+	k[0] = storagePrefix
+	binary.BigEndian.PutUint64(k[1:], programID)
+	copy(k[1+consts.Int64Len:], key)
+	return k
 }
 
 func ProgramCountKey() []byte {
@@ -102,4 +113,18 @@ func SetProgram(
 	copy(v, owner[:])
 	copy(v[ed25519.PublicKeyLen:], program[:])
 	return db.Put(k, v)
+}
+
+func GetValue(db database.Database, programID uint64, key []byte) ([]byte, error) {
+	k := StorageKey(uint64(programID), key)
+	value, err := db.Get(k)
+	if err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+func SetValue(db database.Database, programID uint64, key, value []byte) error {
+	k := StorageKey(programID, key)
+	return db.Put(k, value)
 }
