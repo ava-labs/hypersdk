@@ -64,7 +64,7 @@ impl Context {
         let key_bytes = key.as_bytes();
 
         match store_key_value(self, key_bytes, value) {
-            Ok(_) => StoreResult::Ok(self),
+            Ok(()) => StoreResult::Ok(self),
             Err(e) => StoreResult::Err(e),
         }
     }
@@ -80,7 +80,7 @@ impl Context {
         };
 
         match store_key_value(self, &key_bytes, value) {
-            Ok(_) => StoreResult::Ok(self),
+            Ok(()) => StoreResult::Ok(self),
             Err(e) => StoreResult::Err(e),
         }
     }
