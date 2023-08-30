@@ -87,7 +87,7 @@ impl Context {
 
     /// Returns the value of the field `name` from the host.
     /// # Errors
-    /// Returns a `StorageError` if the field does not exist or if the bytes are invalid.
+    /// Returns a `StorageError` if there was an error retrieving from the host or the retrieved bytes are invalid.
     pub fn get_value<T>(self, name: &str) -> Result<T, StorageError>
     where
         T: DeserializeOwned,
