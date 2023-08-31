@@ -7,7 +7,7 @@ use proc_macro2::Span;
 use quote::{quote, ToTokens};
 use syn::{parse_macro_input, parse_str, FnArg, Ident, ItemFn, Pat, PatType, Type};
 /// An attribute procedural macro that can be used to expose a function to the host.
-/// It does so by wrapping the [item] tokenstream in a new function that can be called by the host.
+/// It does so by wrapping the `item` tokenstream in a new function that can be called by the host.
 /// The wrapper function will have the same name as the original function, but with "_guest" appended to it.
 /// The wrapper functions parameters will be converted to WASM supported types. When called, the wrapper function
 /// calls the original function by converting the parameters back to their intended types using .into().

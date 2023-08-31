@@ -1,5 +1,5 @@
 use crate::errors::StorageError;
-use crate::host::host_program_invoke;
+use crate::host::program_invoke;
 use crate::host::{get_bytes, get_bytes_len, store_bytes};
 use crate::types::Argument;
 use serde::de::DeserializeOwned;
@@ -7,21 +7,25 @@ use serde::{Deserialize, Serialize};
 use serde_bare::{from_slice, to_vec};
 use std::str;
 
-pub enum StoreResult<'a> {
-    Ok(&'a Context),
+#[allow(clippy::module_name_repetitions)]
+pub enum StoreResult {
+    Ok(Context),
     Err(StorageError),
 }
 
-impl StoreResult<'_> {
+impl StoreResult {
+    #[must_use]
     pub fn store_value<T>(self, key: &str, value: &T) -> Self
     where
         T: Serialize + ?Sized,
     {
         match self {
             Self::Ok(ctx) => ctx.store_value(key, value),
-            err => err,
+            err @ Self::Err(_) => err,
         }
     }
+
+    #[must_use]
     pub fn store_map_value<T, U>(self, map_name: &str, key: &U, value: &T) -> Self
     where
         T: Serialize + ?Sized,
@@ -29,12 +33,16 @@ impl StoreResult<'_> {
     {
         match self {
             Self::Ok(ctx) => ctx.store_map_value(map_name, key, value),
-            err => err,
+            err @ Self::Err(_) => err,
         }
     }
+
+    #[must_use]
     pub fn is_ok(self) -> bool {
         matches!(self, Self::Ok(_))
     }
+
+    #[must_use]
     pub fn is_err(self) -> bool {
         matches!(self, Self::Err(_))
     }
@@ -49,18 +57,19 @@ pub struct Context {
 
 /// Fails if we are storing a map with non-string keys
 impl Context {
-    pub fn store_value<T>(&self, key: &str, value: &T) -> StoreResult<'_>
+    pub fn store_value<T>(self, key: &str, value: &T) -> StoreResult
     where
         T: Serialize + ?Sized,
     {
         let key_bytes = key.as_bytes();
-        match store_key_value(self, key_bytes.to_vec(), value) {
-            Ok(_) => StoreResult::Ok(self),
+
+        match store_key_value(self, key_bytes, value) {
+            Ok(()) => StoreResult::Ok(self),
             Err(e) => StoreResult::Err(e),
         }
     }
 
-    pub fn store_map_value<T, U>(&self, map_name: &str, key: &U, value: &T) -> StoreResult<'_>
+    pub fn store_map_value<T, U>(self, map_name: &str, key: &U, value: &T) -> StoreResult
     where
         T: Serialize + ?Sized,
         U: Serialize,
@@ -69,18 +78,27 @@ impl Context {
             Ok(bytes) => bytes,
             Err(e) => return StoreResult::Err(e),
         };
-        match store_key_value(self, key_bytes, value) {
-            Ok(_) => StoreResult::Ok(self),
+
+        match store_key_value(self, &key_bytes, value) {
+            Ok(()) => StoreResult::Ok(self),
             Err(e) => StoreResult::Err(e),
         }
     }
-    pub fn get_value<T>(&self, name: &str) -> Result<T, StorageError>
+
+    /// Returns the value of the field `name` from the host.
+    /// # Errors
+    /// Returns a `StorageError` if there was an error retrieving from the host or the retrieved bytes are invalid.
+    pub fn get_value<T>(self, name: &str) -> Result<T, StorageError>
     where
         T: DeserializeOwned,
     {
         get_field(self, name)
     }
-    pub fn get_map_value<T, U>(&self, map_name: &str, key: &T) -> Result<U, StorageError>
+
+    /// Returns the value of the field `key` from the map `map_name` from the host.
+    /// # Errors
+    /// Returns a `StorageError` if there was an error retrieving from the host or the retrieved bytes are invalid.
+    pub fn get_map_value<T, U>(self, map_name: &str, key: &T) -> Result<U, StorageError>
     where
         T: Serialize,
         U: DeserializeOwned,
@@ -102,7 +120,7 @@ impl From<i64> for Context {
     }
 }
 
-fn store_key_value<T>(ctx: &Context, key_bytes: Vec<u8>, value: &T) -> Result<(), StorageError>
+fn store_key_value<T>(ctx: Context, key_bytes: &[u8], value: &T) -> Result<(), StorageError>
 where
     T: Serialize + ?Sized,
 {
@@ -121,7 +139,7 @@ where
     }
 }
 
-fn get_field_as_bytes(ctx: &Context, name: &[u8]) -> Result<Vec<u8>, StorageError> {
+fn get_field_as_bytes(ctx: Context, name: &[u8]) -> Result<Vec<u8>, StorageError> {
     let name_ptr = name.as_ptr();
     let name_len = name.len();
     // First get the length of the bytes from the host.
@@ -139,12 +157,18 @@ fn get_field_as_bytes(ctx: &Context, name: &[u8]) -> Result<Vec<u8>, StorageErro
     let bytes_ptr = bytes_ptr as *mut u8;
 
     // Take ownership of those bytes grabbed from the host. We want Rust to manage the memory.
-    let bytes = unsafe { Vec::from_raw_parts(bytes_ptr, bytes_len as usize, bytes_len as usize) };
+    let bytes = unsafe {
+        Vec::from_raw_parts(
+            bytes_ptr,
+            bytes_len.try_into().unwrap(),
+            bytes_len.try_into().unwrap(),
+        )
+    };
     Ok(bytes)
 }
 
-/// Gets the field [name] from the host and returns it as a ProgramValue.
-fn get_field<T>(ctx: &Context, name: &str) -> Result<T, StorageError>
+/// Gets the field `name` from the host and returns it as a `ProgramValue`.
+fn get_field<T>(ctx: Context, name: &str) -> Result<T, StorageError>
 where
     T: DeserializeOwned,
 {
@@ -152,7 +176,7 @@ where
     from_slice(&bytes).map_err(|_| StorageError::InvalidBytes)
 }
 
-/// Gets the correct key to in the host storage for a [map_name] and [key] within that map  
+/// Gets the correct key to in the host storage for a `map_name` and `key` within that map
 fn get_map_key<T>(map_name: &str, key: &T) -> Result<Vec<u8>, StorageError>
 where
     T: Serialize,
@@ -163,7 +187,7 @@ where
 }
 
 // Gets the value from the map [name] with key [key] from the host and returns it as a ProgramValue.
-fn get_map_field<T, U>(ctx: &Context, name: &str, key: &T) -> Result<U, StorageError>
+fn get_map_field<T, U>(ctx: Context, name: &str, key: &T) -> Result<U, StorageError>
 where
     T: Serialize,
     U: DeserializeOwned,
@@ -173,16 +197,17 @@ where
     from_slice(&map_value).map_err(|_| StorageError::HostRetrieveError)
 }
 
-/// Implement the program_invoke function for the Context which allows a program to
+/// Implement the `program_invoke` function for the Context which allows a program to
 /// call another program.
 impl Context {
+    #[must_use]
     pub fn program_invoke(
         &self,
-        call_ctx: &Context,
+        call_ctx: Context,
         fn_name: &str,
         call_args: &[Box<dyn Argument>],
     ) -> i64 {
-        host_program_invoke(call_ctx, fn_name, &Self::marshal_args(call_args))
+        program_invoke(call_ctx, fn_name, &Self::marshal_args(call_args))
     }
 
     fn marshal_args(args: &[Box<dyn Argument>]) -> Vec<u8> {
@@ -200,7 +225,7 @@ impl Context {
             // if we want to be efficient we dont need to add length of bytes if its an int
             let len = i64::try_from(arg.len()).expect("Error converting to i64");
             bytes.extend_from_slice(&len.as_bytes());
-            bytes.extend_from_slice(&[arg.is_primitive() as u8]);
+            bytes.extend_from_slice(&[u8::from(arg.is_primitive())]);
             bytes.extend_from_slice(&arg.as_bytes());
         }
         bytes
