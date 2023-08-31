@@ -59,7 +59,7 @@ var programCreateCmd = &cobra.Command{
 		}
 
 		// getKey(db, pk)
-		programId, err := initalizeProgram(fileBytes, pk)
+		programId, err := InitializeProgram(fileBytes, pk)
 		if err != nil {
 			return err
 		}
@@ -73,7 +73,7 @@ var programCreateCmd = &cobra.Command{
 	},
 }
 
-func initalizeProgram(programBytes []byte, caller ed25519.PublicKey) (uint64, error) {
+func InitializeProgram(programBytes []byte, caller ed25519.PublicKey) (uint64, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
