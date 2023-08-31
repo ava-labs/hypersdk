@@ -402,8 +402,9 @@ func (vm *VM) markReady() {
 	case <-vm.stateSyncClient.done:
 	}
 
-	// We can't verify the block here because
-	// we don't yet have a full [ValidityWindow].
+	// We can begin partailly verifying blocks here because
+	// we have the full state but can't detect duplicate transactions
+	// because we haven't yet observed a full [ValidityWindow].
 	vm.snowCtx.Log.Info("state sync client ready")
 
 	// Wait for a full [ValidityWindow] before
@@ -415,7 +416,6 @@ func (vm *VM) markReady() {
 	}
 	vm.snowCtx.Log.Info("validity window ready")
 	if vm.stateSyncClient.Started() {
-		// only alert engine if we started
 		vm.toEngine <- common.StateSyncDone
 	}
 	close(vm.ready)
@@ -684,6 +684,7 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (sn
 	// Build block and store as parsed
 	preferredBlk, err := vm.GetStatelessBlock(ctx, vm.preferred)
 	if err != nil {
+		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Error(err))
 		return nil, err
 	}
 	blk, err := chain.BuildBlock(ctx, vm, preferredBlk, blockContext)
