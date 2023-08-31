@@ -131,6 +131,10 @@ instead of the merkle root of their own post-execution state. This design enable
 (usually the most time consuming part of block verification) while the consensus engine
 votes on finalizing the block.
 
+TODO: why can't the consensus enginge vote on block while still verifying?
+-> we only want to consider voting for blocks we consider to be valid, we trust that
+we compute correctly, so we don't need the root to tell us that?
+
 Importantly, reduces the time that a single block spends in the verify
 call, which blocks the engine from doing other useful work.
 
