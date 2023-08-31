@@ -454,7 +454,7 @@ func BuildBlock(
 		vm.RecordEmptyBlockBuilt()
 	}
 
-	// Set scope for [tstate] changes
+	// Update chain metadata
 	heightKey := HeightKey(sm.HeightKey())
 	heightKeyStr := string(heightKey)
 	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
@@ -465,18 +465,12 @@ func BuildBlock(
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 		feeKeyStr:       parentFeeManager.Bytes(),
 	})
-
-	// Store height in state to prevent duplicate roots
 	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert height", err)
 	}
-
-	// Store timestamp in block
 	if err := ts.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert timestamp", err)
 	}
-
-	// Store fee parameters
 	if err := ts.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert fees", err)
 	}

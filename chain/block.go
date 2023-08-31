@@ -358,15 +358,15 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 		// Get the [VerifyContext] needed to process this block.
 		//
 		// If the parent block's height is less than or equal to the last accepted height (and
-		// the last accepted height is processed), the accepted state will be used as execution
-		// context. Otherwise, the parent block will be used as execution context.
+		// the last accepted height is processed), the accepted state will be used as the execution
+		// context. Otherwise, the parent block will be used as the execution context.
 		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
 		if err != nil {
 			return fmt.Errorf("%w: unable to load verify context", err)
 		}
 
 		// Parent block may not be processed when we verify this block, so [innerVerify] may
-		// recursively compute ancestry.
+		// recursively verify ancestry.
 		if err := b.innerVerify(ctx, vctx); err != nil {
 			return err
 		}
@@ -472,7 +472,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	// false when other validators think it is true.
 	//
 	// If a block is already accepted, its transactions have already been added
-	// to the VM's transaction tracker and calling [IsRepeat] will return repeats.
+	// to the VM's seen emap and calling [IsRepeat] will return a non-zero value.
 	if b.st != choices.Accepted {
 		oldestAllowed := b.Tmstmp - r.GetValidityWindow()
 		if oldestAllowed < 0 {
@@ -583,7 +583,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 		return ErrWarpResultMismatch
 	}
 
-	// Set scope for [tstate] changes
+	// Update chain metadata
 	heightKeyStr := string(heightKey)
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
@@ -592,18 +592,12 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 		timestampKeyStr: parentTimestampRaw,
 		feeKeyStr:       parentFeeManager.Bytes(),
 	})
-
-	// Store height in view to prevent duplicate roots
 	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return err
 	}
-
-	// Store timestamp in block
 	if err := ts.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
 		return err
 	}
-
-	// Store fee parameters
 	if err := ts.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
 		return err
 	}
@@ -706,17 +700,17 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		)
 		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: unable to get verify context", err)
 		}
 		if err := b.innerVerify(ctx, vctx); err != nil {
-			return err
+			return fmt.Errorf("%w: unable to verify block", err)
 		}
 	}
 
 	// Commit view if we don't return before here (would happen if we are still
 	// syncing)
 	if err := b.view.CommitToDB(ctx); err != nil {
-		return err
+		return fmt.Errorf("%w: unable to commit block", err)
 	}
 
 	// Set last accepted block
@@ -820,7 +814,7 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID, verify boo
 		// If we don't know the [blockRoot] but we want to [verify],
 		// we pessimistically execute the block.
 		//
-		// This could happen when generating a block immediately after
+		// This could happen when building a block immediately after
 		// state sync finishes with no processing blocks.
 	} else {
 		// If the block is not processed but the caller only needs
