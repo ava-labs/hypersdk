@@ -35,8 +35,8 @@ func (vm *VM) GetVerifyContext(ctx context.Context, blockHeight uint64, parent i
 		return &PendingVerifyContext{vm.lastAccepted}, nil
 	}
 
-	// If the parent block is not yet accepted, we should return the block's verified but not accepted
-	// parent.
+	// If the parent block is not yet accepted, we should return the block's processing parent (it may
+	// or may not be verified yet).
 	if blockHeight-1 > vm.lastAccepted.Hght {
 		blk, err := vm.GetStatelessBlock(ctx, parent)
 		if err != nil {
