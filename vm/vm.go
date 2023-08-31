@@ -270,7 +270,7 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = blkID, blk
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
 	} else {
-		// Set balances and generate genesis root
+		// Set balances and compute genesis root
 		sps := state.NewSimpleMutable(vm.stateDB)
 		if err := vm.genesis.Load(ctx, vm.tracer, sps); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
@@ -299,18 +299,14 @@ func (vm *VM) Initialize(
 			return err
 		}
 
-		// Set last height
+		// Update chain metadata
 		sps = state.NewSimpleMutable(vm.stateDB)
 		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-
-		// Set last timestamp
 		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-
-		// Set fee parameters
 		genesisRules := vm.c.Rules(0)
 		feeManager := chain.NewFeeManager(nil)
 		minUnitPrice := genesisRules.GetMinUnitPrice()
@@ -322,7 +318,7 @@ func (vm *VM) Initialize(
 			return err
 		}
 
-		// Commit genesis block post-execution state and generate root
+		// Commit genesis block post-execution state and compute root
 		if err := sps.Commit(ctx); err != nil {
 			return err
 		}
