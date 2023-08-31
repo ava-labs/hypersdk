@@ -43,3 +43,19 @@ response: [1]
 
 response: [100]
 ```
+
+### lottery example
+
+```sh
+./simulator key generate <---- alice\'s key
+./simulator key generate <---- bob\'s key
+alice=sim_key_xxx
+bob=sim_key_xxx
+./simulator program create --caller $alice ../examples/testdata/token.wasm
+./simulator program create --caller $alice ../examples/testdata/lottery.wasm
+./simulator program invoke --id 1 --caller $alice --function mint_to --params $alice,10000
+./simulator program invoke --id 2 --caller $alice --function set --params 1,$alice
+./simulator program invoke --id 2 --caller $bob --function play --params $bob
+./simulator program invoke --id 1 --caller $alice --function get_balance --params $alice
+./simulator program invoke --id 1 --caller $bob --function get_balance --params $bob
+```

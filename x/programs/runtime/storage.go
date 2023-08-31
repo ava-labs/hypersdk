@@ -45,7 +45,7 @@ func IncrementProgramCount(db database.Database) error {
 	bytes, err := db.Get(countKey)
 	var count uint64
 	if err != nil {
-		count = 0
+		count = 1
 	} else {
 		count = binary.BigEndian.Uint64(bytes)
 	}

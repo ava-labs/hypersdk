@@ -151,6 +151,13 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 	} else {
 		api = r.mod.ExportedFunction(utils.GetGuestFnName(name))
 	}
+	functionDef := r.mod.ExportedFunctionDefinitions()
+	// loop through
+	keys := make([]string, 0, len(functionDef))
+	for k := range functionDef {
+		keys = append(keys, k)
+	}
+	fmt.Println(keys)
 
 	if api == nil {
 		return nil, fmt.Errorf("failed to find exported function: %s", name)
