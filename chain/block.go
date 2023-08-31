@@ -42,6 +42,16 @@ type StatefulBlock struct {
 
 	Txs []*Transaction `json:"txs"`
 
+	// TODO: still working on
+	//
+	// StateRoot is the root of the post-execution state
+	// of [Prnt].
+	//
+	// This "deferred root" design allows for merklization
+	// to be done asynchronously instead of during [Build]
+	// or [Verify], which reduces the amount of time we are
+	// blocking the consensus engine from voting on the block,
+	// starting the verification of another block, etc.
 	StateRoot   ids.ID     `json:"stateRoot"`
 	WarpResults set.Bits64 `json:"warpResults"`
 
