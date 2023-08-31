@@ -48,6 +48,8 @@ type VM interface {
 	SetLastAccepted(*StatelessBlock) error
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
+	GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error)
+
 	State() (merkledb.MerkleDB, error)
 	StateManager() StateManager
 	ValidatorState() validators.State
@@ -80,6 +82,11 @@ type VM interface {
 	RecordBuildCapped()
 	RecordEmptyBlockBuilt()
 	RecordClearedMempool()
+}
+
+type VerifyContext interface {
+	View(ctx context.Context, blockRoot *ids.ID, verify bool) (state.View, error)
+	IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction, marker set.Bits, stop bool) (set.Bits, error)
 }
 
 type Mempool interface {
@@ -156,6 +163,7 @@ type Rules interface {
 // use. This will be handled by the hypersdk.
 type StateManager interface {
 	HeightKey() []byte
+	TimestampKey() []byte
 	FeeKey() []byte
 
 	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/math"
@@ -61,19 +60,17 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 func BuildBlock(
 	ctx context.Context,
 	vm VM,
-	preferred ids.ID,
+	parent *StatelessBlock,
 	blockContext *smblock.Context,
 ) (*StatelessBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
 	log := vm.Logger()
 
-	// Setup new block
-	parent, err := vm.GetStatelessBlock(ctx, preferred)
-	if err != nil {
-		log.Warn("block building failed: couldn't get parent", zap.Error(err))
-		return nil, err
-	}
+	// We don't need to fetch the [VerifyContext] because
+	// we will always have a block to build on.
+
+	// Select next timestamp
 	nextTime := time.Now().UnixMilli()
 	r := vm.Rules(nextTime)
 	if nextTime < parent.Tmstmp+r.GetMinBlockGap() {
@@ -82,10 +79,13 @@ func BuildBlock(
 	}
 	b := NewBlock(vm, parent, nextTime)
 
-	// Fetch state to build on
+	// Fetch view where we will apply block state transitions
+	//
+	// If the parent block is not yet verified, we will attempt to
+	// execute it.
 	mempoolSize := vm.Mempool().Len(ctx)
 	changesEstimate := math.Min(mempoolSize, maxViewPreallocation)
-	parentView, err := parent.View(ctx, nil)
+	parentView, err := parent.View(ctx, nil, true)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err
@@ -454,21 +454,23 @@ func BuildBlock(
 		vm.RecordEmptyBlockBuilt()
 	}
 
-	// Set scope for [tstate] changes
+	// Update chain metadata
 	heightKey := HeightKey(sm.HeightKey())
 	heightKeyStr := string(heightKey)
+	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
+	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
-	ts.SetScope(ctx, set.Of(heightKeyStr, feeKeyStr), map[string][]byte{
-		heightKeyStr: binary.BigEndian.AppendUint64(nil, parent.Hght),
-		feeKeyStr:    parentFeeManager.Bytes(),
+	ts.SetScope(ctx, set.Of(heightKeyStr, timestampKeyStr, feeKeyStr), map[string][]byte{
+		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
+		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
+		feeKeyStr:       parentFeeManager.Bytes(),
 	})
-
-	// Store height in state to prevent duplicate roots
 	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert height", err)
 	}
-
-	// Store fee parameters
+	if err := ts.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
+		return nil, fmt.Errorf("%w: unable to insert timestamp", err)
+	}
 	if err := ts.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert fees", err)
 	}

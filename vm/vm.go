@@ -270,25 +270,10 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = blkID, blk
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
 	} else {
-		// Set balances
+		// Set balances and compute genesis root
 		sps := state.NewSimpleMutable(vm.stateDB)
 		if err := vm.genesis.Load(ctx, vm.tracer, sps); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
-			return err
-		}
-		// Set last height
-		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
-			return err
-		}
-		// Set fee parameters
-		genesisRules := vm.c.Rules(0)
-		feeManager := chain.NewFeeManager(nil)
-		minUnitPrice := genesisRules.GetMinUnitPrice()
-		for i := chain.Dimension(0); i < chain.FeeDimensions; i++ {
-			feeManager.SetUnitPrice(i, minUnitPrice[i])
-			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
-		}
-		if err := sps.Insert(ctx, chain.FeeKey(vm.StateManager().FeeKey()), feeManager.Bytes()); err != nil {
 			return err
 		}
 		if err := sps.Commit(ctx); err != nil {
@@ -297,6 +282,7 @@ func (vm *VM) Initialize(
 		root, err := vm.stateDB.GetMerkleRoot(ctx)
 		if err != nil {
 			snowCtx.Log.Error("could not get merkle root", zap.Error(err))
+			return err
 		}
 		snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
 
@@ -312,6 +298,36 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("unable to init genesis block", zap.Error(err))
 			return err
 		}
+
+		// Update chain metadata
+		sps = state.NewSimpleMutable(vm.stateDB)
+		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+			return err
+		}
+		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+			return err
+		}
+		genesisRules := vm.c.Rules(0)
+		feeManager := chain.NewFeeManager(nil)
+		minUnitPrice := genesisRules.GetMinUnitPrice()
+		for i := chain.Dimension(0); i < chain.FeeDimensions; i++ {
+			feeManager.SetUnitPrice(i, minUnitPrice[i])
+			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
+		}
+		if err := sps.Insert(ctx, chain.FeeKey(vm.StateManager().FeeKey()), feeManager.Bytes()); err != nil {
+			return err
+		}
+
+		// Commit genesis block post-execution state and compute root
+		if err := sps.Commit(ctx); err != nil {
+			return err
+		}
+		if _, err := vm.stateDB.GetMerkleRoot(ctx); err != nil {
+			snowCtx.Log.Error("could not get merkle root", zap.Error(err))
+			return err
+		}
+
+		// Update last accepted and preferred block
 		if err := vm.SetLastAccepted(genesisBlk); err != nil {
 			snowCtx.Log.Error("could not set genesis as last accepted", zap.Error(err))
 			return err
@@ -379,12 +395,20 @@ func (vm *VM) checkActivity(ctx context.Context) {
 }
 
 func (vm *VM) markReady() {
+	// Wait for state syncing to complete
 	select {
 	case <-vm.stop:
 		return
 	case <-vm.stateSyncClient.done:
 	}
+
+	// We can begin partailly verifying blocks here because
+	// we have the full state but can't detect duplicate transactions
+	// because we haven't yet observed a full [ValidityWindow].
 	vm.snowCtx.Log.Info("state sync client ready")
+
+	// Wait for a full [ValidityWindow] before
+	// we are willing to vote on blocks.
 	select {
 	case <-vm.stop:
 		return
@@ -392,10 +416,11 @@ func (vm *VM) markReady() {
 	}
 	vm.snowCtx.Log.Info("validity window ready")
 	if vm.stateSyncClient.Started() {
-		// only alert engine if we started
 		vm.toEngine <- common.StateSyncDone
 	}
 	close(vm.ready)
+
+	// Mark node ready and attempt to build a block.
 	vm.snowCtx.Log.Info(
 		"node is now ready",
 		zap.Bool("synced", vm.stateSyncClient.Started()),
@@ -479,7 +504,8 @@ func (vm *VM) ForceReady() {
 
 // onNormalOperationsStarted marks this VM as bootstrapped
 func (vm *VM) onNormalOperationsStarted() error {
-	vm.checkActivity(context.TODO())
+	defer vm.checkActivity(context.TODO())
+
 	if vm.bootstrapped.Get() {
 		return nil
 	}
@@ -639,10 +665,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	return newBlk, nil
 }
 
-func (vm *VM) buildBlock(
-	ctx context.Context,
-	blockContext *smblock.Context,
-) (snowman.Block, error) {
+func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
 	// If the node isn't ready, we should exit.
 	//
 	// We call [QueueNotify] when the VM becomes ready, so exiting
@@ -659,7 +682,12 @@ func (vm *VM) buildBlock(
 	defer vm.checkActivity(ctx)
 
 	// Build block and store as parsed
-	blk, err := chain.BuildBlock(ctx, vm, vm.preferred, blockContext)
+	preferredBlk, err := vm.GetStatelessBlock(ctx, vm.preferred)
+	if err != nil {
+		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Error(err))
+		return nil, err
+	}
+	blk, err := chain.BuildBlock(ctx, vm, preferredBlk, blockContext)
 	if err != nil {
 		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
 		return nil, err
@@ -682,10 +710,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 }
 
 // implements "block.BuildBlockWithContextChainVM"
-func (vm *VM) BuildBlockWithContext(
-	ctx context.Context,
-	blockContext *smblock.Context,
-) (snowman.Block, error) {
+func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
@@ -718,7 +743,7 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	view, err := blk.View(ctx, nil)
+	view, err := blk.View(ctx, nil, false)
 	if err != nil {
 		// This will error if a block does not yet have processed state.
 		return []error{err}
@@ -924,7 +949,16 @@ func (*VM) VerifyHeightIndex(context.Context) error { return nil }
 
 // GetBlockIDAtHeight implements snowmanblock.HeightIndexedChainVM
 // Note: must return database.ErrNotFound if the index at height is unknown.
+//
+// This is ONLY called pre-ProposerVM fork. Since we fork immediately after
+// genesis, we only need to be return the blockID of genesis.
 func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, error) {
+	if height != 0 {
+		return ids.ID{}, database.ErrNotFound
+	}
+
+	// TODO: remove support for looking up blockIDs by height
+	// and store genesis ID in memory.
 	return vm.GetDiskBlockIDAtHeight(height)
 }
 
