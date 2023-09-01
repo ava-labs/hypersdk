@@ -22,84 +22,49 @@ import (
 )
 
 const (
-	idPrefix            = 0x0
-	heightPrefix        = 0x1
-	warpSignaturePrefix = 0x2
-	warpFetchPrefix     = 0x3
+	warpSignaturePrefix = 0x0
+	warpFetchPrefix     = 0x1
 )
 
 var (
+	isSyncing = []byte("is_syncing")
+
+	genesis      = []byte("genesis")
 	lastAccepted = []byte("last_accepted")
-	isSyncing    = []byte("is_syncing")
 
 	signatureLRU = &cache.LRU[string, *chain.WarpSignature]{Size: 1024}
 )
 
-func PrefixBlockIDKey(id ids.ID) []byte {
-	k := make([]byte, 1+consts.IDLen)
-	k[0] = idPrefix
-	copy(k[1:], id[:])
-	return k
+func (vm *VM) SetGenesis(block *chain.StatelessBlock) error {
+	return vm.vmDB.Put(genesis, block.Bytes())
 }
 
-func PrefixBlockHeightKey(height uint64) []byte {
-	k := make([]byte, 1+consts.Uint64Len)
-	k[0] = heightPrefix
-	binary.BigEndian.PutUint64(k[1:], height)
-	return k
+func (vm *VM) HasGenesis() (bool, error) {
+	return vm.vmDB.Has(genesis)
 }
 
-func (vm *VM) SetLastAccepted(block *chain.StatelessBlock) error {
-	var (
-		bid  = block.ID()
-		vmDB = vm.vmDB
-	)
-	if err := vmDB.Put(lastAccepted, bid[:]); err != nil {
-		return err
-	}
-	if err := vmDB.Put(PrefixBlockIDKey(bid), block.Bytes()); err != nil {
-		return err
-	}
-	// TODO: store block bytes at height to reduce amount of compaction
-	if err := vmDB.Put(PrefixBlockHeightKey(block.Height()), bid[:]); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (vm *VM) HasLastAccepted() (bool, error) {
-	return vm.vmDB.Has(lastAccepted)
-}
-
-func (vm *VM) GetLastAccepted() (ids.ID, error) {
-	v, err := vm.vmDB.Get(lastAccepted)
-	if errors.Is(err, database.ErrNotFound) {
-		return ids.ID{}, nil
-	}
-	if err != nil {
-		return ids.ID{}, err
-	}
-	return ids.ToID(v)
-}
-
-func (vm *VM) GetDiskBlock(bid ids.ID) (*chain.StatefulBlock, error) {
-	b, err := vm.vmDB.Get(PrefixBlockIDKey(bid))
+func (vm *VM) GetGenesis() (*chain.StatefulBlock, error) {
+	b, err := vm.vmDB.Get(genesis)
 	if err != nil {
 		return nil, err
 	}
 	return chain.UnmarshalBlock(b, vm)
 }
 
-func (vm *VM) DeleteDiskBlock(bid ids.ID) error {
-	return vm.vmDB.Delete(PrefixBlockIDKey(bid))
+func (vm *VM) SetLastAccepted(block *chain.StatelessBlock) error {
+	return vm.vmDB.Put(lastAccepted, block.Bytes())
 }
 
-func (vm *VM) GetDiskBlockIDAtHeight(height uint64) (ids.ID, error) {
-	v, err := vm.vmDB.Get(PrefixBlockHeightKey(height))
+func (vm *VM) HasLastAccepted() (bool, error) {
+	return vm.vmDB.Has(lastAccepted)
+}
+
+func (vm *VM) GetLastAccepted() (*chain.StatefulBlock, error) {
+	b, err := vm.vmDB.Get(lastAccepted)
 	if err != nil {
-		return ids.Empty, nil
+		return nil, err
 	}
-	return ids.ToID(v)
+	return chain.UnmarshalBlock(b, vm)
 }
 
 func (vm *VM) GetDiskIsSyncing() (bool, error) {
