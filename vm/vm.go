@@ -603,7 +603,7 @@ func (vm *VM) GetBlock(ctx context.Context, id ids.ID) (snowman.Block, error) {
 }
 
 func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.StatelessBlock, error) {
-	ctx, span := vm.tracer.Start(ctx, "VM.GetStatelessBlock")
+	_, span := vm.tracer.Start(ctx, "VM.GetStatelessBlock")
 	defer span.End()
 
 	// has the block been verified, not yet accepted
