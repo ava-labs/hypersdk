@@ -251,7 +251,6 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	defer span.End()
 
 	vm.metrics.txsAccepted.Add(float64(len(b.Txs)))
-	vm.blocks.Put(b.ID(), b)
 	vm.verifiedL.Lock()
 	delete(vm.verifiedBlocks, b.ID())
 	vm.verifiedL.Unlock()
