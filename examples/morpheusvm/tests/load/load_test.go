@@ -94,13 +94,14 @@ type account struct {
 }
 
 var (
-	dist        string
-	vms         int
-	accts       int
-	txs         int
-	trace       bool
-	maxFee      uint64
-	acceptDepth int
+	dist             string
+	vms              int
+	accts            int
+	txs              int
+	trace            bool
+	maxFee           uint64
+	acceptDepth      int
+	verifySignatures bool
 
 	senders []*account
 	blks    []*chain.StatelessBlock
@@ -163,6 +164,12 @@ func init() {
 		"accept-depth",
 		1,
 		"depth to run block accept",
+	)
+	flag.BoolVar(
+		&verifySignatures,
+		"verify-signatures",
+		true,
+		"verify signatures over RPC and in block verification",
 	)
 }
 
@@ -265,11 +272,12 @@ var _ = ginkgo.BeforeSuite(func() {
 			nil,
 			[]byte(
 				fmt.Sprintf(
-					`{%s"parallelism":%d, "mempoolSize":%d, "mempoolPayerSize":%d, "testMode":true}`,
+					`{%s"parallelism":%d, "mempoolSize":%d, "mempoolPayerSize":%d, "verifySignatures":%t, "testMode":true}`,
 					tracePrefix,
 					numWorkers,
 					txs,
 					txs,
+					verifySignatures,
 				),
 			),
 			toEngine,

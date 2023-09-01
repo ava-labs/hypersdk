@@ -124,6 +124,44 @@ into execution sets prior to execution was slower than just executing transactio
 serially with state pre-fetching. Rewriting this mechanism has been moved to the
 `Future Work` section and we expect to re-enable this functionality soon._
 
+#### Deferred Root Generation
+All `hypersdk` blocks include a state root to support dynamic state sync. In dynamic
+state sync, the state target is updated to the root of the last accepted block while
+the sync is ongoing instead of staying pinned to the last accepted root when the sync
+started. Root block inclusion means consensus can be used to select the next state
+target to sync to instead of using some less secure, out-of-consensus mechanism.
+
+Dynamic state sync is required for high-throughput blockchains because it relieves
+the nodes that serve state sync queries from storing all historical state revisions
+(if a node doesn't update its sync target, any node serving requests would need to
+store revisions for at least as long as it takes to complete a sync, which may
+require significantly more storage).
+
+```golang
+type StatefulBlock struct {
+	Prnt   ids.ID `json:"parent"`
+	Tmstmp int64  `json:"timestamp"`
+	Hght   uint64 `json:"height"`
+
+	Txs []*Transaction `json:"txs"`
+
+	StateRoot   ids.ID     `json:"stateRoot"`
+	WarpResults set.Bits64 `json:"warpResults"`
+}
+```
+
+Most blockchains that store a state root in the block use the root of a merkle tree
+of state post-exectution, however, this requires waiting for state merklization to complete
+before block verification can finish. If merklization was fast, this wouldn't be an
+issue, however, this process is typically the most time consuming aspect of block
+verification.
+
+`hypersdk` blocks instead include the merkle root of the post-execution state of a block's
+parent rather than a merkle root of their own post-execution state. This design enables the
+`hypersdk` to generate the merkle root of a block's post-execution state anchronously
+while the consensus engine is working on other tasks that typically are network-bound rather
+than CPU-bound, like merklization, making better use of all available resources.
+
 #### [Optional] Parallel Signature Verification
 The `Auth` interface (detailed below) exposes a function called `AsyncVerify` that
 the `hypersdk` may call concurrently (may invoke on other transactions in the same

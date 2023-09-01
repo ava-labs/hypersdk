@@ -53,8 +53,8 @@ func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return vm.actionRegistry, vm.authRegistry
 }
 
-func (vm *VM) Workers() workers.Workers {
-	return vm.workers
+func (vm *VM) SignatureWorkers() workers.Workers {
+	return vm.sigWorkers
 }
 
 func (vm *VM) Tracer() trace.Tracer {
@@ -116,6 +116,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 			zap.Stringer("blkID", b.ID()),
 			zap.Uint64("height", b.Hght),
 			zap.Int("txs", len(b.Txs)),
+			zap.Stringer("parent root", b.StateRoot),
 			zap.Bool("state ready", vm.StateReady()),
 			zap.Any("unit prices", fm.UnitPrices()),
 			zap.Any("units consumed", fm.UnitsConsumed()),
@@ -128,6 +129,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 			zap.Stringer("blkID", b.ID()),
 			zap.Uint64("height", b.Hght),
 			zap.Int("txs", len(b.Txs)),
+			zap.Stringer("parent root", b.StateRoot),
 			zap.Bool("state ready", vm.StateReady()),
 		)
 	}
@@ -301,6 +303,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 		zap.Stringer("blkID", b.ID()),
 		zap.Uint64("height", b.Hght),
 		zap.Int("txs", len(b.Txs)),
+		zap.Stringer("parent root", b.StateRoot),
 		zap.Int("size", len(b.Bytes())),
 		zap.Int("dropped mempool txs", len(removed)),
 		zap.Bool("state ready", vm.StateReady()),
@@ -383,6 +386,10 @@ func (vm *VM) StateManager() chain.StateManager {
 
 func (vm *VM) RecordRootCalculated(t time.Duration) {
 	vm.metrics.rootCalculated.Observe(float64(t))
+}
+
+func (vm *VM) RecordWaitRoot(t time.Duration) {
+	vm.metrics.waitRoot.Observe(float64(t))
 }
 
 func (vm *VM) RecordWaitSignatures(t time.Duration) {

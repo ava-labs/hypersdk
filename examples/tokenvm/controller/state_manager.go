@@ -14,6 +14,10 @@ func (*StateManager) HeightKey() []byte {
 	return storage.HeightKey()
 }
 
+func (*StateManager) TimestampKey() []byte {
+	return storage.TimestampKey()
+}
+
 func (*StateManager) FeeKey() []byte {
 	return storage.HeightKey()
 }

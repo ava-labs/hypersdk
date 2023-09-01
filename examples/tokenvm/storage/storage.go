@@ -37,9 +37,10 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x3/ (loans)
 //   -> [assetID|destination] => amount
 // 0x4/ (hypersdk-height)
-// 0x5/ (hypersdk-fee)
-// 0x6/ (hypersdk-incoming warp)
-// 0x7/ (hypersdk-outgoing warp)
+// 0x5/ (hypersdk-timestamp)
+// 0x6/ (hypersdk-fee)
+// 0x7/ (hypersdk-incoming warp)
+// 0x8/ (hypersdk-outgoing warp)
 
 const (
 	// metaDB
@@ -51,9 +52,10 @@ const (
 	orderPrefix        = 0x2
 	loanPrefix         = 0x3
 	heightPrefix       = 0x4
-	feePrefix          = 0x5
-	incomingWarpPrefix = 0x6
-	outgoingWarpPrefix = 0x7
+	timestampPrefix    = 0x5
+	feePrefix          = 0x6
+	incomingWarpPrefix = 0x7
+	outgoingWarpPrefix = 0x8
 )
 
 const (
@@ -64,10 +66,11 @@ const (
 )
 
 var (
-	failureByte = byte(0x0)
-	successByte = byte(0x1)
-	heightKey   = []byte{heightPrefix}
-	feeKey      = []byte{feePrefix}
+	failureByte  = byte(0x0)
+	successByte  = byte(0x1)
+	heightKey    = []byte{heightPrefix}
+	timestampKey = []byte{timestampPrefix}
+	feeKey       = []byte{feePrefix}
 
 	balanceKeyPool = sync.Pool{
 		New: func() any {
@@ -536,6 +539,10 @@ func SubLoan(
 
 func HeightKey() (k []byte) {
 	return heightKey
+}
+
+func TimestampKey() (k []byte) {
+	return timestampKey
 }
 
 func FeeKey() (k []byte) {

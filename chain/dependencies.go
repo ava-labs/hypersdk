@@ -34,18 +34,21 @@ type Parser interface {
 type VM interface {
 	Parser
 
-	Workers() workers.Workers
 	Tracer() trace.Tracer
 	Logger() logging.Logger
 
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.
+	SignatureWorkers() workers.Workers
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
+	GetVerifySignatures() bool
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
 	SetLastAccepted(*StatelessBlock) error
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
+
+	GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error)
 
 	State() (merkledb.MerkleDB, error)
 	StateManager() StateManager
@@ -70,6 +73,7 @@ type VM interface {
 	//
 	// TODO: break out into own interface
 	RecordRootCalculated(time.Duration) // only called in Verify
+	RecordWaitRoot(time.Duration)       // only called in Verify
 	RecordWaitSignatures(time.Duration) // only called in Verify
 	RecordBlockVerify(time.Duration)
 	RecordBlockAccept(time.Duration)
@@ -78,6 +82,11 @@ type VM interface {
 	RecordBuildCapped()
 	RecordEmptyBlockBuilt()
 	RecordClearedMempool()
+}
+
+type VerifyContext interface {
+	View(ctx context.Context, blockRoot *ids.ID, verify bool) (state.View, error)
+	IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction, marker set.Bits, stop bool) (set.Bits, error)
 }
 
 type Mempool interface {
@@ -154,6 +163,7 @@ type Rules interface {
 // use. This will be handled by the hypersdk.
 type StateManager interface {
 	HeightKey() []byte
+	TimestampKey() []byte
 	FeeKey() []byte
 
 	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte

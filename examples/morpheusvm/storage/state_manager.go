@@ -13,6 +13,10 @@ func (*StateManager) HeightKey() []byte {
 	return HeightKey()
 }
 
+func (*StateManager) TimestampKey() []byte {
+	return TimestampKey()
+}
+
 func (*StateManager) FeeKey() []byte {
 	return FeeKey()
 }
