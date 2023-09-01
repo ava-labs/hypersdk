@@ -606,7 +606,7 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 	_, span := vm.tracer.Start(ctx, "VM.GetStatelessBlock")
 	defer span.End()
 
-	// has the block been verified, not yet accepted
+	// Check if verified block
 	vm.verifiedL.RLock()
 	if blk, exists := vm.verifiedBlocks[blkID]; exists {
 		vm.verifiedL.RUnlock()
@@ -614,10 +614,20 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 	}
 	vm.verifiedL.RUnlock()
 
-	// not found in memory, check if getting last accepted
+	// Check if last accepted
 	if vm.lastAccepted.ID() == blkID {
 		return vm.lastAccepted, nil
 	}
+
+	// Check if genesis
+	if vm.genesisBlk.ID() == blkID {
+		return vm.genesisBlk, nil
+	}
+
+	// We do not persist any blocks prior to the last accepted block (other
+	// than genesis). The ProposerVM will never ask us for anything prior
+	// to the last accepted block because only "wrapped" blocks are
+	// sent over the wire.
 	return nil, database.ErrNotFound
 }
 
