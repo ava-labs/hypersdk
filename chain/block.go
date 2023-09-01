@@ -42,8 +42,6 @@ type StatefulBlock struct {
 
 	Txs []*Transaction `json:"txs"`
 
-	// TODO: still working on
-	//
 	// StateRoot is the root of the post-execution state
 	// of [Prnt].
 	//
