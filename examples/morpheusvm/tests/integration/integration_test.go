@@ -863,12 +863,13 @@ func expectBlk(i instance) func(bool) []*chain.Result {
 		gomega.Ω(blk.Accept(ctx)).To(gomega.BeNil())
 		gomega.Ω(blk.Status()).To(gomega.Equal(choices.Accepted))
 
-		lastAccepted, err := i.vm.LastAccepted(ctx)
-		gomega.Ω(err).To(gomega.BeNil())
-		gomega.Ω(lastAccepted).To(gomega.Equal(blk.ID()))
 		if add {
 			blocks = append(blocks, blk)
 		}
+
+		lastAccepted, err := i.vm.LastAccepted(ctx)
+		gomega.Ω(err).To(gomega.BeNil())
+		gomega.Ω(lastAccepted).To(gomega.Equal(blk.ID()))
 		return blk.(*chain.StatelessBlock).Results()
 	}
 }
