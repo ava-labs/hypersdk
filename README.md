@@ -125,21 +125,39 @@ serially with state pre-fetching. Rewriting this mechanism has been moved to the
 `Future Work` section and we expect to re-enable this functionality soon._
 
 #### Deferred Root Generation (TODO)
-`hypersdk` blocks contain the merkle root of the post-execution state of their parent
-instead of the merkle root of their own post-execution state. This design enables the
-`hypersdk` to generate the merkle root of a block's post-execution state asynchronously
-(usually the most time consuming part of block verification) while the consensus engine
-votes on finalizing the block.
+All `hypersdk` blocks include a state root that nodes use when running dynamic state
+sync (sync target is updated to the latest accepted state while the sync is ongoing
+instead of staying pinned to the latest accepted root when the sync started):
 
-TODO: why can't the consensus enginge vote on block while still verifying?
--> we only want to consider voting for blocks we consider to be valid, we trust that
-we compute correctly, so we don't need the root to tell us that?
+```golang
+type StatefulBlock struct {
+	Prnt   ids.ID `json:"parent"`
+	Tmstmp int64  `json:"timestamp"`
+	Hght   uint64 `json:"height"`
 
-Importantly, reduces the time that a single block spends in the verify
-call, which blocks the engine from doing other useful work.
+	Txs []*Transaction `json:"txs"`
 
-_The block must include a merkle root to begin with because it is needed for the dynamic state syncing
-mechanism (which performs consensus on the next root to sync to)._
+	StateRoot   ids.ID     `json:"stateRoot"`
+	WarpResults set.Bits64 `json:"warpResults"`
+}
+```
+
+Dynamic state sync is required for high-throughput blockchains because it relieves
+nodes that serve state sync queries from storing all historical state revisions (if
+a node doesn't update its sync target, a node serving requests would need to store
+revisions for at least as long as it takes to complete a sync, which may require
+significantly more storage).
+
+Most blockchains that store a state root in the block use the root of a merkle tree
+of state post-exectution, however, this requires waiting for state merklization to complete
+before block verification can finish. If merklization was fast, this wouldn't be an
+issue but this is typically the most time consuming aspect of block verification.
+
+The `hypersdk` blocks instead include the merkle root of the post-execution state of a block's
+parent rather than a merkle root of their own post-execution state. This design enables the
+`hypersdk` to generate the merkle root of a block's post-execution state anchronously
+while the consensus engine is working on other tasks (would otherwise be waiting
+for `block.Verify` to complete).
 
 #### [Optional] Parallel Signature Verification
 The `Auth` interface (detailed below) exposes a function called `AsyncVerify` that
