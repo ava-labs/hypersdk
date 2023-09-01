@@ -153,7 +153,8 @@ echo "creating subnet config"
 rm -f ${TMPDIR}/tokenvm.subnet
 cat <<EOF > ${TMPDIR}/tokenvm.subnet
 {
-  "proposerMinBlockDelay": 0
+  "proposerMinBlockDelay": 0,
+  "proposerNumHistoricalBlocks": 256
 }
 EOF
 

@@ -150,7 +150,8 @@ echo "creating subnet config"
 rm -f ${TMPDIR}/morpheusvm.subnet
 cat <<EOF > ${TMPDIR}/morpheusvm.subnet
 {
-  "proposerMinBlockDelay": 0
+  "proposerMinBlockDelay": 0,
+  "proposerNumHistoricalBlocks": 256
 }
 EOF
 
