@@ -23,11 +23,13 @@ LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
 CREATE_TARGET=${CREATE_TARGET:-75000}
+STORE_TXS=${STORE_TXS:-false}
 if [[ ${MODE} != "run" ]]; then
   LOGLEVEL=debug
   STATESYNC_DELAY=100000000 # 100ms
   MIN_BLOCK_GAP=250 #ms
   CREATE_TARGET=100000000 # 4M accounts (we send to random addresses)
+  STORE_TXS=true
 fi
 
 echo "Running with:"
@@ -36,6 +38,7 @@ echo MODE: ${MODE}
 echo LOG LEVEL: ${LOGLEVEL}
 echo STATESYNC_DELAY \(ns\): ${STATESYNC_DELAY}
 echo MIN_BLOCK_GAP \(ms\): ${MIN_BLOCK_GAP}
+echo STORE_TXS: ${STORE_TXS}
 
 ############################
 # build avalanchego
@@ -132,7 +135,7 @@ cat <<EOF > ${TMPDIR}/morpheusvm.config
   "mempoolExemptPayers":["morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp"],
   "parallelism": 5,
   "verifySignatures":true,
-  "storeTransactions":true,
+  "storeTransactions": ${STORE_TXS},
   "streamingBacklogSize": 10000000,
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
