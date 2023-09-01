@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/ava-labs/avalanche-network-runner v1.7.2-0.20230825184751-fbe081616f02
-	github.com/ava-labs/avalanchego v1.10.10-0.20230827220016-d2deb9f7fc88
+	github.com/ava-labs/avalanchego v1.10.10-rc.0.0.20230831160820-2eabd228952b
 	github.com/cockroachdb/pebble v0.0.0-20230224221607-fccb83b60d5c
 	github.com/golang/mock v1.6.0
 	github.com/gorilla/rpc v1.2.0

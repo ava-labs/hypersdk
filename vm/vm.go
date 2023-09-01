@@ -209,11 +209,13 @@ func (vm *VM) Initialize(
 		// that a single root generation will use, not the number
 		// of goroutines that all root generations will use if called
 		// concurrently.
-		RootGenConcurrency: rootGenParallelism,
-		HistoryLength:      vm.config.GetStateHistoryLength(),
-		NodeCacheSize:      vm.config.GetStateCacheSize(),
-		Reg:                merkleRegistry,
-		Tracer:             vm.tracer,
+		RootGenConcurrency:        rootGenParallelism,
+		EvictionBatchSize:         vm.config.GetStateEvictionBatchSize(),
+		HistoryLength:             vm.config.GetStateHistoryLength(),
+		IntermediateNodeCacheSize: vm.config.GetIntermediateNodeCacheSize(),
+		ValueNodeCacheSize:        vm.config.GetValueNodeCacheSize(),
+		Reg:                       merkleRegistry,
+		Tracer:                    vm.tracer,
 	})
 	if err != nil {
 		return err

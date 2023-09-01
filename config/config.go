@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
 )
@@ -33,7 +34,9 @@ func (c *Config) GetMempoolPayerSize() int               { return 32 }
 func (c *Config) GetMempoolExemptPayers() [][]byte       { return nil }
 func (c *Config) GetStreamingBacklogSize() int           { return 1024 }
 func (c *Config) GetStateHistoryLength() int             { return 256 }
-func (c *Config) GetStateCacheSize() int                 { return 65_536 } // nodes
+func (c *Config) GetStateEvictionBatchSize() int         { return 4 * units.MiB }
+func (c *Config) GetIntermediateNodeCacheSize() int      { return 2 * units.GiB }
+func (c *Config) GetValueNodeCacheSize() int             { return 2 * units.GiB }
 func (c *Config) GetAcceptorSize() int                   { return 1024 }
 func (c *Config) GetTraceConfig() *trace.Config          { return &trace.Config{Enabled: false} }
 func (c *Config) GetStateSyncParallelism() int           { return 4 }
