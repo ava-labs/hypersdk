@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/manager"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/trace"
@@ -289,9 +290,11 @@ func TestCreateView(t *testing.T) {
 	m := manager.NewMemDB(version.Semantic1_0_0)
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	db, err := merkledb.New(ctx, m.Current().Database, merkledb.Config{
-		HistoryLength: 100,
-		NodeCacheSize: 1_000,
-		Tracer:        tracer,
+		HistoryLength:             100,
+		EvictionBatchSize:         units.MiB,
+		IntermediateNodeCacheSize: units.MiB,
+		ValueNodeCacheSize:        units.MiB,
+		Tracer:                    tracer,
 	})
 	if err != nil {
 		t.Fatal(err)

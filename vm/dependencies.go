@@ -38,9 +38,11 @@ type Config interface {
 	GetMempoolExemptPayers() [][]byte
 	GetVerifySignatures() bool
 	GetStreamingBacklogSize() int
-	GetStateHistoryLength() int // how many roots back of data to keep to serve state queries
-	GetStateCacheSize() int     // how many items to keep in value cache and node cache
-	GetAcceptorSize() int       // how far back we can fall in processing accepted blocks
+	GetStateHistoryLength() int        // how many roots back of data to keep to serve state queries
+	GetStateEvictionBatchSize() int    // how many bytes to evict at once
+	GetIntermediateNodeCacheSize() int // how many bytes to keep in intermediate cache
+	GetValueNodeCacheSize() int        // how many bytes to keep in value cache
+	GetAcceptorSize() int              // how far back we can fall in processing accepted blocks
 	GetStateSyncParallelism() int
 	GetStateSyncMinBlocks() uint64
 	GetStateSyncServerDelay() time.Duration
