@@ -74,7 +74,7 @@ to that team for all the work they put into researching this approach.
 Instead of requiring nodes to execute all previous transactions when joining
 any `hyperchain` (which may not be possible if there is very high throughput on a Subnet),
 the `hypersdk` just syncs the most recent state from the network. To avoid falling
-behind the network while syncing this state, the `hypersdk` acts as an Avalanche Light
+behind the network while syncing this state, the `hypersdk` acts as an Avalanche Lite
 Client and performs consensus on newly processed blocks without verifying them (updating its
 state sync target whenever a new block is accepted).
 
@@ -82,7 +82,22 @@ The `hypersdk` relies on [`x/sync`](https://github.com/ava-labs/avalanchego/tree
 a bandwidth-aware dynamic sync implementation provided by `avalanchego`, to
 sync to the tip of any `hyperchain`.
 
-#### Pebble as Default
+#### Block Pruning
+By default, the `hypersdk` only stores what is necessary to build/verfiy the next block
+and to help new nodes sync the current state. This means the `hypersdk` only needs to store
+the last accepted block, the genesis block, and the last 256 revisions of the current
+state (the ProposerVM is configured to store the last 256 accepted blocks as well).
+
+If the `hypersdk` did not do this, the storage requirements for validators
+would grow at an alarming rate each day (making running any `hypervm` impractical).
+Consider the simple example where we process 25k transactions per second (assume each
+transaction is ~400 bytes). This would would require the `hypersdk` to store 10MB per
+second (not including any overhead in the database for doing so). This works out to
+864GB per day or 20.7TB per year.
+
+_The 256 block history constant referenced above is tunable by any `hypervm`._
+
+#### PebbleDB
 Instead of employing [`goleveldb`](https://github.com/syndtr/goleveldb), the
 `hypersdk` uses CockroachDB's [`pebble`](https://github.com/cockroachdb/pebble) database for
 on-disk storage. This database is inspired by LevelDB/RocksDB but offers [a few
@@ -129,7 +144,8 @@ All `hypersdk` blocks include a state root to support dynamic state sync. In dyn
 state sync, the state target is updated to the root of the last accepted block while
 the sync is ongoing instead of staying pinned to the last accepted root when the sync
 started. Root block inclusion means consensus can be used to select the next state
-target to sync to instead of using some less secure, out-of-consensus mechanism.
+target to sync to instead of using some less secure, out-of-consensus mechanism (i.e.
+Avalanche Lite Client).
 
 Dynamic state sync is required for high-throughput blockchains because it relieves
 the nodes that serve state sync queries from storing all historical state revisions
