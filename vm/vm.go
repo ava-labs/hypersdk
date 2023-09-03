@@ -961,13 +961,10 @@ func (*VM) VerifyHeightIndex(context.Context) error { return nil }
 // GetBlockIDAtHeight implements snowmanblock.HeightIndexedChainVM
 // Note: must return database.ErrNotFound if the index at height is unknown.
 //
-// This is ONLY called pre-ProposerVM fork. Since we fork immediately after
-// genesis, we only need to be return the blockID of genesis.
+// This is called by the VM pre-ProposerVM fork and by the sync server
+// in [GetStateSummary].
 func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, error) {
-	if height != 0 {
-		return ids.ID{}, database.ErrNotFound
-	}
-	return vm.genesisBlk.ID(), nil
+	return vm.GetDiskBlockIDAtHeight(height)
 }
 
 // Fatal logs the provided message and then panics to force an exit.
