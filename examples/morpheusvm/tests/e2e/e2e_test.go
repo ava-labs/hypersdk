@@ -222,7 +222,6 @@ var _ = ginkgo.BeforeSuite(func() {
 				"log-level":"info",
 				"log-display-level":"info",
 				"proposervm-use-current-height":true,
-				"bootstrap-retry-enabled":false,
 				"throttler-inbound-validator-alloc-size":"10737418240",
 				"throttler-inbound-at-large-alloc-size":"10737418240",
 				"throttler-inbound-node-max-processing-msgs":"100000",
