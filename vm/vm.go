@@ -30,6 +30,7 @@ import (
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
+	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"go.uber.org/zap"
@@ -84,6 +85,10 @@ type VM struct {
 	// hasn't yet been accepted/rejected
 	verifiedL      sync.RWMutex
 	verifiedBlocks map[ids.ID]*chain.StatelessBlock
+
+	// We store the last [TODO] blocks....
+	acceptedBlocksByID     *hcache.FIFO[ids.ID, *chain.StatelessBlock]
+	acceptedBlocksByHeight *hcache.FIFO[uint64, ids.ID]
 
 	// Accepted block queue
 	acceptedQueue chan *chain.StatelessBlock
@@ -232,6 +237,14 @@ func (vm *VM) Initialize(
 
 	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetParsedBlockCacheSize()}
 	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
+	vm.acceptedBlocksByID, err = hcache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.GetAcceptedBlockCacheSize())
+	if err != nil {
+		return err
+	}
+	vm.acceptedBlocksByHeight, err = hcache.NewFIFO[uint64, ids.ID](vm.config.GetAcceptedBlockCacheSize())
+	if err != nil {
+		return err
+	}
 	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.GetAcceptorSize())
 	vm.acceptorDone = make(chan struct{})
 
@@ -624,6 +637,11 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 		return vm.genesisBlk, nil
 	}
 
+	// Check if recently accepted block
+	if blk, ok := vm.acceptedBlocksByID.Get(blkID); ok {
+		return blk, nil
+	}
+
 	// We do not persist any blocks prior to the last accepted block (other
 	// than genesis). The ProposerVM will never ask us for anything prior
 	// to the last accepted block because only "wrapped" blocks are
@@ -964,7 +982,19 @@ func (*VM) VerifyHeightIndex(context.Context) error { return nil }
 // This is called by the VM pre-ProposerVM fork and by the sync server
 // in [GetStateSummary].
 func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, error) {
-	return vm.GetDiskBlockIDAtHeight(height)
+	if height == vm.lastAccepted.Height() {
+		return vm.lastAccepted.ID(), nil
+	}
+	if height == vm.genesisBlk.Height() {
+		return vm.genesisBlk.ID(), nil
+	}
+
+	// Check if recently accepted block
+	if blkID, ok := vm.acceptedBlocksByHeight.Get(height); ok {
+		return blkID, nil
+	}
+
+	return ids.ID{}, database.ErrNotFound
 }
 
 // Fatal logs the provided message and then panics to force an exit.

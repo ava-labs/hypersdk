@@ -728,9 +728,6 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 // SetLastAccepted is called during [Accept] and at the start and end of state
 // sync.
 func (b *StatelessBlock) SetLastAccepted(ctx context.Context) error {
-	if err := b.vm.SetLastAccepted(b); err != nil {
-		return err
-	}
 	b.st = choices.Accepted
 	b.txsSet = nil // only used for replay protection when processing
 

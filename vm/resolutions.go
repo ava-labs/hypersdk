@@ -251,10 +251,22 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	defer span.End()
 
 	vm.metrics.txsAccepted.Add(float64(len(b.Txs)))
+
+	// Update accepted caches
+	if err := vm.SetLastAccepted(b); err != nil {
+		vm.Fatal("unable to update last accepted", zap.Error(err))
+	}
+	vm.lastAccepted = b
+	vm.acceptedBlocksByID.Put(b.ID(), b)
+	vm.acceptedBlocksByHeight.Put(b.Height(), b.ID())
+
+	// Remove from verified caches
+	//
+	// We do this after setting [lastAccepted] to avoid
+	// a race where the block isn't accessible.
 	vm.verifiedL.Lock()
 	delete(vm.verifiedBlocks, b.ID())
 	vm.verifiedL.Unlock()
-	vm.lastAccepted = b
 
 	// Update replay protection heap
 	//
