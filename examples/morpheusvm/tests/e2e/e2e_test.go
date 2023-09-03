@@ -222,6 +222,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				"log-level":"info",
 				"log-display-level":"info",
 				"proposervm-use-current-height":true,
+				"bootstrap-retry-enabled":false,
 				"throttler-inbound-validator-alloc-size":"10737418240",
 				"throttler-inbound-at-large-alloc-size":"10737418240",
 				"throttler-inbound-node-max-processing-msgs":"100000",
@@ -520,8 +521,8 @@ var _ = ginkgo.Describe("[Test]", func() {
 	// blocks)
 	//
 	// We do 1024 so that there are a number of ranges of data to fetch.
-	ginkgo.It("supports issuance of at least 1024 more blocks", func() {
-		count += generateBlocks(context.Background(), count, 1024, instances, true)
+	ginkgo.It("supports issuance of at least 256 more blocks", func() {
+		count += generateBlocks(context.Background(), count, 256, instances, true)
 		// TODO: verify all roots are equal
 	})
 

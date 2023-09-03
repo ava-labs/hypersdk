@@ -33,8 +33,10 @@ func (vm *VM) GetStateSummary(ctx context.Context, height uint64) (block.StateSu
 		return nil, err
 	}
 	summary := chain.NewSyncableBlock(block)
-	vm.Logger().
-		Info("Serving syncable block at requested height", zap.Uint64("height", height), zap.Stringer("summary", summary))
+	vm.Logger().Info("Serving syncable block at requested height",
+		zap.Uint64("height", height),
+		zap.Stringer("summary", summary),
+	)
 	return summary, nil
 }
 
