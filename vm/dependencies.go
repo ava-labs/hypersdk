@@ -50,6 +50,7 @@ type Config interface {
 	GetAcceptedBlockCacheSize() int
 	GetContinuousProfilerConfig() *profiler.Config
 	GetTargetBuildDuration() time.Duration
+	GetProcessingBuildSkip() int
 	GetTargetGossipDuration() time.Duration
 }
 

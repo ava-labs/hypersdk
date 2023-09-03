@@ -712,6 +712,14 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (sn
 	// of the mempool.
 	defer vm.checkActivity(ctx)
 
+	vm.verifiedL.RLock()
+	processingBlocks := len(vm.verifiedBlocks)
+	vm.verifiedL.RUnlock()
+	if processingBlocks > vm.config.GetProcessingBuildSkip() {
+		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrTooManyProcessing))
+		return nil, ErrTooManyProcessing
+	}
+
 	// Build block and store as parsed
 	preferredBlk, err := vm.GetStatelessBlock(ctx, vm.preferred)
 	if err != nil {
