@@ -325,6 +325,8 @@ func (s *stateSyncerClient) startingSync(state bool) {
 		}
 
 		// Set next blk in lookback
+		//
+		// TODO: need to handle lookback on bypass
 		blk, err = vm.GetStatelessBlock(context.Background(), blk.Prnt)
 		if err != nil {
 			vm.snowCtx.Log.Error("could not load block, exiting backfill", zap.Error(err))

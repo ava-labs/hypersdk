@@ -492,12 +492,13 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 				// node database.
 				return ErrStateSyncing
 			}
+			// TODO: add a config to FATAL here if could not state sync (likely won't be able to recover
+			// in networks where no one has the full state, bypass still starts sync)
+
 			// If we weren't previously syncing, we force state syncer completion so
 			// that the node will mark itself as ready.
 			vm.stateSyncClient.ForceDone()
 		}
-		// TODO: add a config to FATAL here if could not state sync (likely won't be able to recover
-		// in networks where no one has the full state)
 		vm.Logger().Info("bootstrapping started", zap.Bool("state sync started", syncStarted))
 		return vm.onBootstrapStarted()
 	case snow.NormalOp:
