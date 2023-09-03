@@ -517,12 +517,12 @@ var _ = ginkgo.Describe("[Test]", func() {
 		acceptTransaction(syncClient, lsyncClient)
 	})
 
-	// Create blocks before state sync starts (state sync requires at least 256
+	// Create blocks before state sync starts (state sync requires at least 1024
 	// blocks)
 	//
 	// We do 1024 so that there are a number of ranges of data to fetch.
-	ginkgo.It("supports issuance of at least 256 more blocks", func() {
-		count += generateBlocks(context.Background(), count, 256, instances, true)
+	ginkgo.It("supports issuance of at least 1024 more blocks", func() {
+		count += generateBlocks(context.Background(), count, 1024, instances, true)
 		// TODO: verify all roots are equal
 	})
 

@@ -731,8 +731,8 @@ func (b *StatelessBlock) SetLastAccepted(ctx context.Context) error {
 	b.st = choices.Accepted
 	b.txsSet = nil // only used for replay protection when processing
 
-	// [Accepted] will set in-memory variables needed to ensure we don't resync
-	// all blocks when state sync finishes
+	// [Accepted] will persist the block to disk and set in-memory variables
+	// needed to ensure we don't resync all blocks when state sync finishes.
 	//
 	// Note: We will not call [b.vm.Verified] before accepting during state sync
 	b.vm.Accepted(ctx, b)
