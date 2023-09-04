@@ -71,11 +71,17 @@ func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
 // disk.
 func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	batch := vm.vmDB.NewBatch()
-	batch.Put(lastAccepted, binary.BigEndian.AppendUint64(nil, blk.Height()))
-	batch.Put(PrefixBlockHeightKey(blk.Height()), blk.Bytes())
+	if err := batch.Put(lastAccepted, binary.BigEndian.AppendUint64(nil, blk.Height())); err != nil {
+		return err
+	}
+	if err := batch.Put(PrefixBlockHeightKey(blk.Height()), blk.Bytes()); err != nil {
+		return err
+	}
 	expiryHeight := blk.Height() - uint64(vm.config.GetAcceptedBlockWindow())
 	if expiryHeight > 0 && expiryHeight < blk.Height() { // ensure we don't free genesis
-		batch.Delete(PrefixBlockHeightKey(expiryHeight))
+		if err := batch.Delete(PrefixBlockHeightKey(expiryHeight)); err != nil {
+			return err
+		}
 	}
 	if err := batch.Write(); err != nil {
 		return fmt.Errorf("%w: unable to update last accepted", err)

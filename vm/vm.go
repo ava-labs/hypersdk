@@ -1095,7 +1095,6 @@ func (vm *VM) backfillSeenTransactions() {
 		zap.Uint64("start", oldest),
 		zap.Uint64("finish", vm.lastAccepted.Hght),
 	)
-	return
 }
 
 func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
