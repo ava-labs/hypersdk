@@ -29,9 +29,7 @@ const (
 )
 
 var (
-	isSyncing = []byte("is_syncing")
-
-	genesis      = []byte("genesis")
+	isSyncing    = []byte("is_syncing")
 	lastAccepted = []byte("last_accepted")
 
 	signatureLRU = &cache.LRU[string, *chain.WarpSignature]{Size: 1024}
