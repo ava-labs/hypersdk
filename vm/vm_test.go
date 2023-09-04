@@ -18,6 +18,7 @@ import (
 
 	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/config"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/trace"
@@ -43,6 +44,7 @@ func TestBlockCache(t *testing.T) {
 	controller := NewMockController(ctrl)
 	vm := VM{
 		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: ametrics.NewOptionalGatherer()},
+		config:  &config.Config{},
 
 		vmDB: manager.NewMemDB(version.Semantic1_0_0).Current().Database,
 

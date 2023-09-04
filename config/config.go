@@ -12,12 +12,9 @@ import (
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/trace"
-	"github.com/ava-labs/hypersdk/vm"
 )
 
 const avalancheGoMinCPU = 4
-
-var _ vm.Config = (*Config)(nil)
 
 type Config struct{}
 
