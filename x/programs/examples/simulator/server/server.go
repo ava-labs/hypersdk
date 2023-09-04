@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -86,7 +87,7 @@ func (r ProgramPublish) invokeHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
+	fmt.Println("here")
 	// Process the data
 	// For example, let's assume the JSON data has a "name" field
 	name, nameExists := data["name"].(string)
@@ -94,23 +95,28 @@ func (r ProgramPublish) invokeHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing 'name' field"})
 		return
 	}
-	params, paramsExists := data["params"].(string)
+
+	fmt.Println("Name: ", name)
+	// params is an array of strings
+	params, paramsExists := data["params"].([]interface{})
 	if !paramsExists {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing 'params' field"})
 		return
 	}
-	programID, programIDExists := data["programID"].(float64)
+	fmt.Println("Params: ", params)
+	value, programIDExists := data["programID"].(string)
 	if !programIDExists {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing 'programID' field"})
 		return
 	}
+	programID, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-	fmt.Println("Name: ", name)
-	fmt.Println("Params: ", params)
+	// now we have the function name, id and the params, can invoke
 	fmt.Println("ProgramID: ", programID)
-	// Perform your processing logic here...
-	// For example, you can store the name in a database or perform any other operations
-
 	c.JSON(http.StatusOK, gin.H{"message": "Data received and processed successfully"})
 }
 
