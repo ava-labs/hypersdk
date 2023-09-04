@@ -159,9 +159,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 	// Update the last accepted to the state target block,
 	// since we don't want bootstrapping to fetch all the blocks
 	// from genesis to the sync target.
-	if err := s.vm.UpdateLastAccepted(s.target); err != nil {
-		return block.StateSyncSkipped, err
-	}
+	s.target.MarkAccepted(context.Background())
 
 	// Kickoff state syncing from [s.target]
 	if err := s.syncManager.Start(context.Background()); err != nil {
@@ -201,9 +199,7 @@ func (s *stateSyncerClient) finishSync() error {
 		//
 		// NOTE: There may be a number of verified but unaccepted blocks above this
 		// block.
-		if err := s.vm.UpdateLastAccepted(s.target); err != nil {
-			return err
-		}
+		s.target.MarkAccepted(context.Background())
 	}
 	return s.vm.PutDiskIsSyncing(false)
 }

@@ -1022,16 +1022,6 @@ func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, erro
 	return ids.ID{}, database.ErrNotFound
 }
 
-// Fatal logs the provided message and then panics to force an exit.
-//
-// While we could attempt a graceful shutdown, it is not clear that
-// the shutdown will complete given that we have encountered a fatal
-// issue. It is better to ensure we exit to surface the error.
-func (vm *VM) Fatal(msg string, fields ...zap.Field) {
-	vm.snowCtx.Log.Fatal(msg, fields...)
-	panic("fatal error")
-}
-
 // backfillSeenTransactions makes a best effort to populate [vm.seen]
 // with whatever transactions we already have on-disk. This will lead
 // a node to becoming ready faster during a restart.
@@ -1122,4 +1112,14 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 		zap.Uint64("finish", vm.lastAccepted.Hght),
 	)
 	return nil
+}
+
+// Fatal logs the provided message and then panics to force an exit.
+//
+// While we could attempt a graceful shutdown, it is not clear that
+// the shutdown will complete given that we have encountered a fatal
+// issue. It is better to ensure we exit to surface the error.
+func (vm *VM) Fatal(msg string, fields ...zap.Field) {
+	vm.snowCtx.Log.Fatal(msg, fields...)
+	panic("fatal error")
 }

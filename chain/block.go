@@ -721,6 +721,12 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		return fmt.Errorf("%w: unable to commit block", err)
 	}
 
+	// Mark block as accepted and update last accepted in storage
+	b.MarkAccepted(ctx)
+	return nil
+}
+
+func (b *StatelessBlock) MarkAccepted(ctx context.Context) {
 	// Accept block and free unnecessary memory
 	b.st = choices.Accepted
 	b.txsSet = nil // only used for replay protection when processing
@@ -730,7 +736,6 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	//
 	// Note: We will not call [b.vm.Verified] before accepting during state sync
 	b.vm.Accepted(ctx, b)
-	return nil
 }
 
 // implements "snowman.Block.choices.Decidable"
