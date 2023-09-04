@@ -273,9 +273,14 @@ func (vm *VM) Initialize(
 			return err
 		}
 		vm.genesisBlk = genesisBlk
-		statefulBlock, err := vm.GetLastAccepted()
+		lastAcceptedHeight, err := vm.GetLastAcceptedHeight()
 		if err != nil {
 			snowCtx.Log.Error("could not get last accepted", zap.Error(err))
+			return err
+		}
+		statefulBlock, err := vm.GetDiskBlock(lastAcceptedHeight)
+		if err != nil {
+			snowCtx.Log.Error("could not get last accepted block", zap.Error(err))
 			return err
 		}
 		blk, err := chain.ParseStatefulBlock(ctx, statefulBlock, nil, choices.Accepted, vm)
@@ -284,6 +289,10 @@ func (vm *VM) Initialize(
 			return err
 		}
 		vm.preferred, vm.lastAccepted = blk.ID(), blk
+		if err := vm.loadAcceptedBlocks(ctx); err != nil {
+			snowCtx.Log.Error("could not load accepted blocks from disk", zap.Error(err))
+			return err
+		}
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
 		// Set balances and compute genesis root
@@ -344,13 +353,9 @@ func (vm *VM) Initialize(
 		}
 
 		// Update last accepted and preferred block
-		if err := vm.SetGenesis(genesisBlk); err != nil {
-			snowCtx.Log.Error("unable to store genesis block", zap.Error(err))
-			return err
-		}
 		vm.genesisBlk = genesisBlk
-		if err := vm.SetLastAccepted(genesisBlk); err != nil {
-			snowCtx.Log.Error("could not set genesis as last accepted", zap.Error(err))
+		if err := vm.UpdateLastAccepted(genesisBlk); err != nil {
+			snowCtx.Log.Error("could not set genesis block as last accepted", zap.Error(err))
 			return err
 		}
 		gBlkID := genesisBlk.ID()
@@ -1093,4 +1098,29 @@ func (vm *VM) backfillSeenTransactions() {
 		zap.Uint64("finish", vm.lastAccepted.Hght),
 	)
 	return
+}
+
+func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
+	start := uint64(0)
+	if vm.lastAccepted.Hght >= uint64(vm.config.GetAcceptedBlockCacheSize()) {
+		start = vm.lastAccepted.Hght - uint64(vm.config.GetAcceptedBlockCacheSize())
+	}
+	for i := start; i <= vm.lastAccepted.Hght; i++ {
+		stBlk, err := vm.GetDiskBlock(i)
+		if err != nil {
+			vm.snowCtx.Log.Warn("could not find block on-disk", zap.Uint64("height", i))
+			continue
+		}
+		blk, err := chain.ParseStatefulBlock(ctx, stBlk, nil, choices.Accepted, vm)
+		if err != nil {
+			return fmt.Errorf("%w: unable to parse block from disk", err)
+		}
+		vm.acceptedBlocksByID.Put(blk.ID(), blk)
+		vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
+	}
+	vm.snowCtx.Log.Info("loaded blocks from disk",
+		zap.Uint64("start", start),
+		zap.Uint64("finish", vm.lastAccepted.Hght),
+	)
+	return nil
 }

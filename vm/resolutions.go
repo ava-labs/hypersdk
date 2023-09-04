@@ -252,13 +252,10 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 
 	vm.metrics.txsAccepted.Add(float64(len(b.Txs)))
 
-	// Update accepted caches
-	if err := vm.SetLastAccepted(b); err != nil {
+	// Update accepted blocks on-disk and caches
+	if err := vm.UpdateLastAccepted(b); err != nil {
 		vm.Fatal("unable to update last accepted", zap.Error(err))
 	}
-	vm.lastAccepted = b
-	vm.acceptedBlocksByID.Put(b.ID(), b)
-	vm.acceptedBlocksByHeight.Put(b.Height(), b.ID())
 
 	// Remove from verified caches
 	//

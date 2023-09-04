@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/cache"
@@ -22,8 +23,9 @@ import (
 )
 
 const (
-	warpSignaturePrefix = 0x0
-	warpFetchPrefix     = 0x1
+	blockPrefix         = 0x0
+	warpSignaturePrefix = 0x1
+	warpFetchPrefix     = 0x2
 )
 
 var (
@@ -35,36 +37,75 @@ var (
 	signatureLRU = &cache.LRU[string, *chain.WarpSignature]{Size: 1024}
 )
 
-func (vm *VM) SetGenesis(block *chain.StatelessBlock) error {
-	return vm.vmDB.Put(genesis, block.Bytes())
+func PrefixBlockHeightKey(height uint64) []byte {
+	k := make([]byte, 1+consts.Uint64Len)
+	k[0] = blockPrefix
+	binary.BigEndian.PutUint64(k[1:], height)
+	return k
 }
 
 func (vm *VM) HasGenesis() (bool, error) {
-	return vm.vmDB.Has(genesis)
+	return vm.HasDiskBlock(0)
 }
 
 func (vm *VM) GetGenesis() (*chain.StatefulBlock, error) {
-	b, err := vm.vmDB.Get(genesis)
-	if err != nil {
-		return nil, err
-	}
-	return chain.UnmarshalBlock(b, vm)
+	return vm.GetDiskBlock(0)
 }
 
-func (vm *VM) SetLastAccepted(block *chain.StatelessBlock) error {
-	return vm.vmDB.Put(lastAccepted, block.Bytes())
+func (vm *VM) SetLastAcceptedHeight(height uint64) error {
+	return vm.vmDB.Put(lastAccepted, binary.BigEndian.AppendUint64(nil, height))
 }
 
 func (vm *VM) HasLastAccepted() (bool, error) {
 	return vm.vmDB.Has(lastAccepted)
 }
 
-func (vm *VM) GetLastAccepted() (*chain.StatefulBlock, error) {
+func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
 	b, err := vm.vmDB.Get(lastAccepted)
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint64(b), nil
+}
+
+// UpdateLastAccepted updates the [lastAccepted] index, stores [blk] on-disk,
+// adds [blk] to the [acceptedCache], and deletes any expired blocks from
+// disk.
+func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
+	batch := vm.vmDB.NewBatch()
+	batch.Put(lastAccepted, binary.BigEndian.AppendUint64(nil, blk.Height()))
+	batch.Put(PrefixBlockHeightKey(blk.Height()), blk.Bytes())
+	expiryHeight := blk.Height() - uint64(vm.config.GetAcceptedBlockCacheSize())
+	if expiryHeight > 0 && expiryHeight < blk.Height() { // ensure we don't free genesis
+		batch.Delete(PrefixBlockHeightKey(expiryHeight))
+	}
+	if err := batch.Write(); err != nil {
+		return fmt.Errorf("%w: unable to update last accepted", err)
+	}
+	vm.lastAccepted = blk
+	vm.acceptedBlocksByID.Put(blk.ID(), blk)
+	vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
+	return nil
+}
+
+func (vm *VM) PutDiskBlock(blk *chain.StatelessBlock) error {
+	return vm.vmDB.Put(PrefixBlockHeightKey(blk.Height()), blk.Bytes())
+}
+
+func (vm *VM) GetDiskBlock(height uint64) (*chain.StatefulBlock, error) {
+	b, err := vm.vmDB.Get(PrefixBlockHeightKey(height))
 	if err != nil {
 		return nil, err
 	}
 	return chain.UnmarshalBlock(b, vm)
+}
+
+func (vm *VM) DeleteDiskBlock(height uint64) error {
+	return vm.vmDB.Delete(PrefixBlockHeightKey(height))
+}
+
+func (vm *VM) HasDiskBlock(height uint64) (bool, error) {
+	return vm.vmDB.Has(PrefixBlockHeightKey(height))
 }
 
 func (vm *VM) GetDiskIsSyncing() (bool, error) {
