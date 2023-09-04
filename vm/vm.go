@@ -1102,8 +1102,9 @@ func (vm *VM) backfillSeenTransactions() {
 
 func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 	start := uint64(0)
-	if vm.lastAccepted.Hght >= uint64(vm.config.GetAcceptedBlockCacheSize()) {
-		start = vm.lastAccepted.Hght - uint64(vm.config.GetAcceptedBlockCacheSize())
+	lookback := uint64(vm.config.GetAcceptedBlockCacheSize()) - 1 // include latest
+	if vm.lastAccepted.Hght > lookback {
+		start = vm.lastAccepted.Hght - lookback
 	}
 	for i := start; i <= vm.lastAccepted.Hght; i++ {
 		stBlk, err := vm.GetDiskBlock(i)
