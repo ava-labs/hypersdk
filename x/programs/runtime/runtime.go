@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/tetratelabs/wazero"
@@ -151,18 +152,11 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 	} else {
 		api = r.mod.ExportedFunction(utils.GetGuestFnName(name))
 	}
-	functionDef := r.mod.ExportedFunctionDefinitions()
-	// loop through
-	keys := make([]string, 0, len(functionDef))
-	for k := range functionDef {
-		keys = append(keys, k)
-	}
-	fmt.Println(keys)
 
 	if api == nil {
 		return nil, fmt.Errorf("failed to find exported function: %s", name)
 	}
-
+	// api.Definition()
 	result, err := api.Call(ctx, params...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call %s: %w", name, err)
@@ -212,4 +206,30 @@ func (r *runtime) Stop(ctx context.Context) error {
 		return fmt.Errorf("failed to close wasm api module: %w", err)
 	}
 	return nil
+}
+
+func (r *runtime) GetUserData(ctx context.Context) (map[string]int, error) {
+	functionDef := r.mod.ExportedFunctionDefinitions()
+	// loop through
+	keys := make(map[string]int)
+	for k := range functionDef {
+		// todo: not hardcode init
+		if k != allocFnName && k != deallocFnName && strings.Contains(k, utils.FunctionSuffix) && k != "init_guest" {
+			replacement := ""
+			func_name := strings.Replace(k, utils.FunctionSuffix, replacement, -1)
+			// keys = append(keys, func_name)
+			// get exported function
+			fmt.Println(k)
+			api := r.mod.ExportedFunction(k)
+			// we subtract one for the program id param
+			keys[func_name] = len(api.Definition().ParamTypes()) - 1
+			// defensive check
+			if keys[func_name] < 0 {
+				return nil, fmt.Errorf("failed to get user data")
+			}
+			fmt.Println(api)
+			fmt.Println("len", len(api.Definition().ParamTypes()))
+		}
+	}
+	return keys, nil
 }

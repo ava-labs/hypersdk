@@ -56,6 +56,7 @@ func main() {
 	})
 
 	r.POST("/api/publish", programPublish.publishHandler)
+	r.POST("/api/invoke", programPublish.invokeHandler)
 
 	r.Run(":8080")
 }
@@ -67,7 +68,7 @@ func (r ProgramPublish) publishHandler(c *gin.Context) {
 		return
 	}
 
-	num, err := r.PublishProgram(data)
+	num, funcs, err := r.PublishProgram(data)
 	// bytes
 	if err != nil {
 		fmt.Println(err)
@@ -75,11 +76,45 @@ func (r ProgramPublish) publishHandler(c *gin.Context) {
 		return
 	}
 	fmt.Println("NUM: ", num)
-
-	c.JSON(http.StatusOK, gin.H{"message": "Data received successfully"})
+	fmt.Println("Funs: ", funcs)
+	c.JSON(http.StatusOK, gin.H{"message": "Data received successfully", "function_data": funcs, "id": num})
 }
 
-func (r ProgramPublish) PublishProgram(programBytes []byte) (uint64, error) {
+func (r ProgramPublish) invokeHandler(c *gin.Context) {
+	var data map[string]interface{}
+	if err := c.BindJSON(&data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Process the data
+	// For example, let's assume the JSON data has a "name" field
+	name, nameExists := data["name"].(string)
+	if !nameExists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing 'name' field"})
+		return
+	}
+	params, paramsExists := data["params"].(string)
+	if !paramsExists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing 'params' field"})
+		return
+	}
+	programID, programIDExists := data["programID"].(float64)
+	if !programIDExists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing 'programID' field"})
+		return
+	}
+
+	fmt.Println("Name: ", name)
+	fmt.Println("Params: ", params)
+	fmt.Println("ProgramID: ", programID)
+	// Perform your processing logic here...
+	// For example, you can store the name in a database or perform any other operations
+
+	c.JSON(http.StatusOK, gin.H{"message": "Data received and processed successfully"})
+}
+
+func (r ProgramPublish) PublishProgram(programBytes []byte) (uint64, map[string]int, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -88,9 +123,14 @@ func (r ProgramPublish) PublishProgram(programBytes []byte) (uint64, error) {
 
 	programID, err := runtime.Create(ctx, programBytes)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
-	return programID, nil
+	data, err := runtime.GetUserData(ctx)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return programID, data, nil
 }
 
 var (
@@ -102,3 +142,67 @@ var (
 	}
 	maxGas uint64 = 13000
 )
+
+// func () {
+// 	exists, owner, program, err := runtime.GetProgram(db, programID)
+// 		if !exists {
+// 			return fmt.Errorf("program %v does not exist", programID)
+// 		}
+// 		if err != nil {
+// 			return err
+// 		}
+
+// 		ctx, cancel := context.WithCancel(context.Background())
+// 		defer cancel()
+
+// 		// TODO: owner for now, change to caller later
+// 		runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), db, owner)
+// 		defer runtime.Stop(ctx)
+
+// 		err = runtime.Initialize(ctx, program)
+// 		if err != nil {
+// 			return err
+// 		}
+
+// 		var callParams []uint64
+// 		if params != "" {
+// 			for _, param := range strings.Split(params, ",") {
+// 				switch p := strings.ToLower(param); {
+// 				case p == "true":
+// 					callParams = append(callParams, 1)
+// 				case p == "false":
+// 					callParams = append(callParams, 0)
+// 				case strings.HasPrefix(p, HRP):
+// 					// address
+// 					pk, err := getPublicKey(db, p)
+// 					if err != nil {
+// 						return err
+// 					}
+// 					ptr, err := runtime.WriteGuestBuffer(ctx, pk[:])
+// 					if err != nil {
+// 						return err
+// 					}
+// 					callParams = append(callParams, ptr)
+// 				default:
+// 					// treat like a number
+// 					var num uint64
+// 					num, err := strconv.ParseUint(p, 10, 64)
+
+// 					if err != nil {
+// 						return err
+// 					}
+// 					callParams = append(callParams, num)
+// 				}
+// 			}
+// 		}
+// 		// prepend programID
+// 		callParams = append([]uint64{programID}, callParams...)
+
+// 		resp, err := runtime.Call(ctx, functionName, callParams...)
+// 		if err != nil {
+// 			return err
+// 		}
+
+// 		utils.Outf("{{green}}response:{{/}} %v\n", resp)
+// 		return nil
+// }

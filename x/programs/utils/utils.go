@@ -16,6 +16,10 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
+const (
+	FunctionSuffix = "_guest"
+)
+
 type testDB struct {
 	db *memdb.Database
 }
@@ -39,7 +43,7 @@ func (c *testDB) Remove(_ context.Context, key []byte) error {
 }
 
 func GetGuestFnName(name string) string {
-	return name + "_guest"
+	return name + FunctionSuffix
 }
 
 // WriteBuffer allocates [buffer] in the module's memory and returns the pointer

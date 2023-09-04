@@ -24,6 +24,8 @@ type Runtime interface {
 	WriteGuestBuffer(context.Context, []byte) (uint64, error)
 	// Stop performs a shutdown of the engine.
 	Stop(context.Context) error
+	// Gets the user defined functions
+	GetUserData(ctx context.Context) (map[string]int, error)
 }
 
 type Storage interface {
