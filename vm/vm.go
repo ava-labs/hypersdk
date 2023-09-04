@@ -476,6 +476,7 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 		vm.Logger().Info("state sync started")
 		return nil
 	case snow.Bootstrapping:
+		// Ensure state sync client marks itself as done if it was never started
 		syncStarted := vm.stateSyncClient.Started()
 		if !syncStarted {
 			// We must check if we finished syncing before starting bootstrapping.
@@ -492,13 +493,22 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 				// node database.
 				return ErrStateSyncing
 			}
-			// TODO: add a config to FATAL here if could not state sync (likely won't be able to recover
-			// in networks where no one has the full state, bypass still starts sync)
 
 			// If we weren't previously syncing, we force state syncer completion so
 			// that the node will mark itself as ready.
 			vm.stateSyncClient.ForceDone()
+
+			// TODO: add a config to FATAL here if could not state sync (likely won't be able to recover
+			// in networks where no one has the full state, bypass still starts sync)
+			// TODO: if there is no new height to sync to (accepted summary at tip, we will also skip)
 		}
+
+		// Backfill seen transactions, if any. This will exit as soon as we reach
+		// a block we no longer have on disk or if we have walked back the full
+		// [ValidityWindow].
+		vm.backfillSeenTransactions()
+
+		// Trigger that bootstrapping has started
 		vm.Logger().Info("bootstrapping started", zap.Bool("state sync started", syncStarted))
 		return vm.onBootstrapStarted()
 	case snow.NormalOp:
@@ -1016,4 +1026,71 @@ func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, erro
 func (vm *VM) Fatal(msg string, fields ...zap.Field) {
 	vm.snowCtx.Log.Fatal(msg, fields...)
 	panic("fatal error")
+}
+
+// backfillSeenTransactions makes a best effort to populate [vm.seen]
+// with whatever transactions we already have on-disk. This will lead
+// a node to becoming ready faster during a restart.
+func (vm *VM) backfillSeenTransactions() {
+	// Exit early if we don't have any blocks other than genesis (which
+	// contains no transactions)
+	blk := vm.lastAccepted
+	if blk.Hght == 0 {
+		vm.snowCtx.Log.Info("no seen transactions to backfill")
+		vm.startSeenTime = 0
+		vm.seenValidityWindowOnce.Do(func() {
+			close(vm.seenValidityWindow)
+		})
+		return
+	}
+
+	// Backfill [vm.seen] with lifeline worth of transactions
+	r := vm.Rules(vm.lastAccepted.Tmstmp)
+	oldest := uint64(0)
+	for {
+		if vm.lastAccepted.Tmstmp-blk.Tmstmp > r.GetValidityWindow() {
+			// We are assured this function won't be running while we accept
+			// a block, so we don't need to protect against closing this channel
+			// twice.
+			vm.seenValidityWindowOnce.Do(func() {
+				close(vm.seenValidityWindow)
+			})
+			break
+		}
+
+		// It is ok to add transactions from newest to oldest
+		vm.seen.Add(blk.Txs)
+		vm.startSeenTime = blk.Tmstmp
+		oldest = blk.Hght
+
+		// Exit early if next block to fetch is genesis (which contains no
+		// txs)
+		if blk.Hght <= 1 {
+			// If we have walked back from the last accepted block to genesis, then
+			// we can be sure we have all required transactions to start validation.
+			vm.startSeenTime = 0
+			vm.seenValidityWindowOnce.Do(func() {
+				close(vm.seenValidityWindow)
+			})
+			break
+		}
+
+		// Set next blk in lookback
+		tblk, err := vm.GetStatelessBlock(context.Background(), blk.Prnt)
+		if err != nil {
+			vm.snowCtx.Log.Error("could not load block, exiting backfill",
+				zap.Uint64("height", blk.Height()-1),
+				zap.Stringer("blockID", blk.Prnt),
+				zap.Error(err),
+			)
+			return
+		}
+		blk = tblk
+	}
+	vm.snowCtx.Log.Info(
+		"backfilled seen txs",
+		zap.Uint64("start", oldest),
+		zap.Uint64("finish", vm.lastAccepted.Hght),
+	)
+	return
 }
