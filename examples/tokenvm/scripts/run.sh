@@ -157,7 +157,7 @@ rm -f ${TMPDIR}/tokenvm.subnet
 cat <<EOF > ${TMPDIR}/tokenvm.subnet
 {
   "proposerMinBlockDelay": 0,
-  "proposerNumHistoricalBlocks": 256
+  "proposerNumHistoricalBlocks": 768
 }
 EOF
 

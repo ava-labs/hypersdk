@@ -84,18 +84,23 @@ sync to the tip of any `hyperchain`.
 
 #### Block Pruning
 By default, the `hypersdk` only stores what is necessary to build/verfiy the next block
-and to help new nodes sync the current state. This means the `hypersdk` only needs to store
-the last accepted block, the genesis block, and the last 256 revisions of the current
-state (the ProposerVM is configured to store the last 256 accepted blocks as well).
-
-If the `hypersdk` did not do this, the storage requirements for validators
+and to help new nodes sync the current state (not execute all historical state transitions).
+If the `hypersdk` did not limit block storage grwoth, the storage requirements for validators
 would grow at an alarming rate each day (making running any `hypervm` impractical).
 Consider the simple example where we process 25k transactions per second (assume each
 transaction is ~400 bytes). This would would require the `hypersdk` to store 10MB per
-second (not including any overhead in the database for doing so). This works out to
-864GB per day or 20.7TB per year.
+second (not including any overhead in the database for doing so). **This works out to
+864GB per day or 20.7TB per year.**
 
-_The 256 block history constant referenced above is tunable by any `hypervm`._
+In practice, this means the `hypersdk` only stores the last 768 accepted blocks the genesis block,
+and the last 256 revisions of state (the [ProposerVM](https://github.com/ava-labs/avalanchego/blob/master/vms/proposervm/README.md)
+also stores the last 768 blocks). With a 100ms `MinimumBlockGap`, the `hypersdk` must
+store at least ~600 blocks to allow for the entire `ValidityWindow` to be backfilled (otherwise
+a fully-synced, restarting `hypervm` will not become "ready" until it accepts a block at
+least `ValidityWindow` after the last accepted block).
+
+_The number of blocks and/or state revisions that the `hypersdk` stores, the `AcceptedBlockWindow`, can
+be tuned by any `hypervm`._
 
 #### PebbleDB
 Instead of employing [`goleveldb`](https://github.com/syndtr/goleveldb), the

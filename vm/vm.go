@@ -237,11 +237,11 @@ func (vm *VM) Initialize(
 
 	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetParsedBlockCacheSize()}
 	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
-	vm.acceptedBlocksByID, err = hcache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.GetAcceptedBlockCacheSize())
+	vm.acceptedBlocksByID, err = hcache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.GetAcceptedBlockWindow())
 	if err != nil {
 		return err
 	}
-	vm.acceptedBlocksByHeight, err = hcache.NewFIFO[uint64, ids.ID](vm.config.GetAcceptedBlockCacheSize())
+	vm.acceptedBlocksByHeight, err = hcache.NewFIFO[uint64, ids.ID](vm.config.GetAcceptedBlockWindow())
 	if err != nil {
 		return err
 	}
@@ -503,9 +503,9 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 			// that the node will mark itself as ready.
 			vm.stateSyncClient.ForceDone()
 
-			// TODO: add a config to FATAL here if could not state sync (likely won't be able to recover
-			// in networks where no one has the full state, bypass still starts sync)
-			// TODO: if there is no new height to sync to (accepted summary at tip, we will also skip)
+			// TODO: add a config to FATAL here if could not state sync (likely won't be
+			// able to recover in networks where no one has the full state, bypass
+			// still starts sync): https://github.com/ava-labs/hypersdk/issues/438
 		}
 
 		// Backfill seen transactions, if any. This will exit as soon as we reach
@@ -1102,7 +1102,7 @@ func (vm *VM) backfillSeenTransactions() {
 
 func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 	start := uint64(0)
-	lookback := uint64(vm.config.GetAcceptedBlockCacheSize()) - 1 // include latest
+	lookback := uint64(vm.config.GetAcceptedBlockWindow()) - 1 // include latest
 	if vm.lastAccepted.Hght > lookback {
 		start = vm.lastAccepted.Hght - lookback
 	}
