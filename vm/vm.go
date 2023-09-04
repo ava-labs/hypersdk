@@ -1013,12 +1013,9 @@ func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, erro
 	if height == vm.genesisBlk.Height() {
 		return vm.genesisBlk.ID(), nil
 	}
-
-	// Check if recently accepted block
 	if blkID, ok := vm.acceptedBlocksByHeight.Get(height); ok {
 		return blkID, nil
 	}
-
 	return ids.ID{}, database.ErrNotFound
 }
 
@@ -1072,7 +1069,7 @@ func (vm *VM) backfillSeenTransactions() {
 		// Set next blk in lookback
 		tblk, err := vm.GetStatelessBlock(context.Background(), blk.Prnt)
 		if err != nil {
-			vm.snowCtx.Log.Error("could not load block, exiting backfill",
+			vm.snowCtx.Log.Info("could not load block, exiting backfill",
 				zap.Uint64("height", blk.Height()-1),
 				zap.Stringer("blockID", blk.Prnt),
 				zap.Error(err),
@@ -1097,7 +1094,7 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 	for i := start; i <= vm.lastAccepted.Hght; i++ {
 		stBlk, err := vm.GetDiskBlock(i)
 		if err != nil {
-			vm.snowCtx.Log.Warn("could not find block on-disk", zap.Uint64("height", i))
+			vm.snowCtx.Log.Info("could not find block on-disk", zap.Uint64("height", i))
 			continue
 		}
 		blk, err := chain.ParseStatefulBlock(ctx, stBlk, nil, choices.Accepted, vm)

@@ -69,6 +69,12 @@ func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
 // UpdateLastAccepted updates the [lastAccepted] index, stores [blk] on-disk,
 // adds [blk] to the [acceptedCache], and deletes any expired blocks from
 // disk.
+//
+// Blocks written to disk are only used when restarting the node. During normal
+// operation, we only fetch blocks from memory.
+//
+// We store blocks by height because it doesn't cause nearly as much
+// compaction as storing blocks randomly on-disk (when using [block.ID]).
 func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	batch := vm.vmDB.NewBatch()
 	if err := batch.Put(lastAccepted, binary.BigEndian.AppendUint64(nil, blk.Height())); err != nil {
@@ -92,20 +98,12 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	return nil
 }
 
-func (vm *VM) PutDiskBlock(blk *chain.StatelessBlock) error {
-	return vm.vmDB.Put(PrefixBlockHeightKey(blk.Height()), blk.Bytes())
-}
-
 func (vm *VM) GetDiskBlock(height uint64) (*chain.StatefulBlock, error) {
 	b, err := vm.vmDB.Get(PrefixBlockHeightKey(height))
 	if err != nil {
 		return nil, err
 	}
 	return chain.UnmarshalBlock(b, vm)
-}
-
-func (vm *VM) DeleteDiskBlock(height uint64) error {
-	return vm.vmDB.Delete(PrefixBlockHeightKey(height))
 }
 
 func (vm *VM) HasDiskBlock(height uint64) (bool, error) {
