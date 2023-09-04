@@ -86,7 +86,8 @@ type VM struct {
 	verifiedL      sync.RWMutex
 	verifiedBlocks map[ids.ID]*chain.StatelessBlock
 
-	// We store the last [TODO] blocks....
+	// We store the last [AcceptedBlockWindow] blocks in memory
+	// to avoid reading blocks from disk.
 	acceptedBlocksByID     *hcache.FIFO[ids.ID, *chain.StatelessBlock]
 	acceptedBlocksByHeight *hcache.FIFO[uint64, ids.ID]
 
