@@ -75,7 +75,7 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	batch := vm.vmDB.NewBatch()
 	batch.Put(lastAccepted, binary.BigEndian.AppendUint64(nil, blk.Height()))
 	batch.Put(PrefixBlockHeightKey(blk.Height()), blk.Bytes())
-	expiryHeight := blk.Height() - uint64(vm.config.GetAcceptedBlockCacheSize())
+	expiryHeight := blk.Height() - uint64(vm.config.GetAcceptedBlockWindow())
 	if expiryHeight > 0 && expiryHeight < blk.Height() { // ensure we don't free genesis
 		batch.Delete(PrefixBlockHeightKey(expiryHeight))
 	}

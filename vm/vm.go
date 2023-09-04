@@ -660,10 +660,8 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 		return blk, nil
 	}
 
-	// We do not persist any blocks prior to the last accepted block (other
-	// than genesis). The ProposerVM will never ask us for anything prior
-	// to the last accepted block because only "wrapped" blocks are
-	// sent over the wire.
+	// If we don't know about the block or the block is past the
+	// [AcceptedBlockWindow], we return a not found error.
 	return nil, database.ErrNotFound
 }
 
