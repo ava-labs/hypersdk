@@ -21,6 +21,7 @@ type Metrics struct {
 	buildCapped        prometheus.Counter
 	emptyBlockBuilt    prometheus.Counter
 	clearedMempool     prometheus.Counter
+	deletedBlocks      prometheus.Counter
 	mempoolSize        prometheus.Gauge
 	bandwidthPrice     prometheus.Gauge
 	computePrice       prometheus.Gauge
@@ -169,6 +170,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "cleared_mempool",
 			Help:      "number of times cleared mempool while building",
 		}),
+		deletedBlocks: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "vm",
+			Name:      "deleted_blocks",
+			Help:      "number of blocks deleted",
+		}),
 		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "mempool_size",
@@ -222,6 +228,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.buildCapped),
 		r.Register(m.emptyBlockBuilt),
 		r.Register(m.clearedMempool),
+		r.Register(m.deletedBlocks),
 		r.Register(m.bandwidthPrice),
 		r.Register(m.computePrice),
 		r.Register(m.storageReadPrice),

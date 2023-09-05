@@ -88,6 +88,7 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 		if err := batch.Delete(PrefixBlockHeightKey(expiryHeight)); err != nil {
 			return err
 		}
+		vm.metrics.deletedBlocks.Inc()
 	}
 	if err := batch.Write(); err != nil {
 		return fmt.Errorf("%w: unable to update last accepted", err)
