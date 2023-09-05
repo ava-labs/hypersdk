@@ -6,12 +6,14 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/x/programs/examples/simulator/cmd"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	xutils "github.com/ava-labs/hypersdk/x/programs/utils"
 	"github.com/gin-contrib/cors"
@@ -56,10 +58,27 @@ func main() {
 		})
 	})
 
+	r.GET("/api/keys", programPublish.keysHandler)
 	r.POST("/api/publish", programPublish.publishHandler)
 	r.POST("/api/invoke", programPublish.invokeHandler)
 
 	r.Run(":8080")
+}
+
+func (r ProgramPublish) keysHandler(c *gin.Context) {
+	// get keys
+	keys, err := cmd.GetKeys(r.db)
+	if err != nil {
+		fmt.Println("Error: ", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	fmt.Println("Keys: ", keys)
+	c.JSON(200, gin.H{
+		"message": "success",
+		"keys":    keys,
+	})
+
 }
 
 func (r ProgramPublish) publishHandler(c *gin.Context) {
@@ -117,14 +136,20 @@ func (r ProgramPublish) invokeHandler(c *gin.Context) {
 
 	// now we have the function name, id and the params, can invoke
 	fmt.Println("ProgramID: ", programID)
-	c.JSON(http.StatusOK, gin.H{"message": "Data received and processed successfully"})
+	result, err := r.invokeProgram(programID, name, params)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	fmt.Println("Result: ", result)
+	c.JSON(http.StatusOK, gin.H{"message": "Data received and processed successfully", "result": result})
 }
 
 func (r ProgramPublish) PublishProgram(programBytes []byte) (uint64, map[string]int, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := runtime.New(r.log, runtime.NewMeter(r.log, maxGas, costMap), r.db, runtimePublicKey)
+	runtime := runtime.New(r.log, runtime.NewMeter(r.log, maxFee, costMap), r.db, runtimePublicKey)
 	defer runtime.Stop(ctx)
 
 	programID, err := runtime.Create(ctx, programBytes)
@@ -146,69 +171,70 @@ var (
 		"ConstI32 0x0": 1,
 		"ConstI64 0x0": 2,
 	}
-	maxGas uint64 = 13000
+	maxFee uint64 = 13000
 )
 
-// func () {
-// 	exists, owner, program, err := runtime.GetProgram(db, programID)
-// 		if !exists {
-// 			return fmt.Errorf("program %v does not exist", programID)
-// 		}
-// 		if err != nil {
-// 			return err
-// 		}
+func (r ProgramPublish) invokeProgram(programID uint64, functionName string, params []interface{}) (uint64, error) {
 
-// 		ctx, cancel := context.WithCancel(context.Background())
-// 		defer cancel()
+	exists, owner, program, err := runtime.GetProgram(r.db, programID)
+	if !exists {
+		return 0, fmt.Errorf("program %v does not exist", programID)
+	}
+	if err != nil {
+		return 0, err
+	}
 
-// 		// TODO: owner for now, change to caller later
-// 		runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), db, owner)
-// 		defer runtime.Stop(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-// 		err = runtime.Initialize(ctx, program)
-// 		if err != nil {
-// 			return err
-// 		}
+	// TODO: owner for now, change to caller later
+	runtime := runtime.New(r.log, runtime.NewMeter(r.log, maxFee, costMap), r.db, owner)
+	defer runtime.Stop(ctx)
 
-// 		var callParams []uint64
-// 		if params != "" {
-// 			for _, param := range strings.Split(params, ",") {
-// 				switch p := strings.ToLower(param); {
-// 				case p == "true":
-// 					callParams = append(callParams, 1)
-// 				case p == "false":
-// 					callParams = append(callParams, 0)
-// 				case strings.HasPrefix(p, HRP):
-// 					// address
-// 					pk, err := getPublicKey(db, p)
-// 					if err != nil {
-// 						return err
-// 					}
-// 					ptr, err := runtime.WriteGuestBuffer(ctx, pk[:])
-// 					if err != nil {
-// 						return err
-// 					}
-// 					callParams = append(callParams, ptr)
-// 				default:
-// 					// treat like a number
-// 					var num uint64
-// 					num, err := strconv.ParseUint(p, 10, 64)
+	err = runtime.Initialize(ctx, program)
+	if err != nil {
+		return 0, err
+	}
 
-// 					if err != nil {
-// 						return err
-// 					}
-// 					callParams = append(callParams, num)
-// 				}
-// 			}
-// 		}
-// 		// prepend programID
-// 		callParams = append([]uint64{programID}, callParams...)
+	var callParams []uint64
 
-// 		resp, err := runtime.Call(ctx, functionName, callParams...)
-// 		if err != nil {
-// 			return err
-// 		}
+	if len(params) > 0 {
+		for _, param := range params {
+			fmt.Printf("Type of x: %T\n", param)
+			switch p := strings.ToLower(param.(string)); {
+			case p == "true":
+				callParams = append(callParams, 1)
+			case p == "false":
+				callParams = append(callParams, 0)
+			case strings.HasPrefix(p, cmd.HRP):
+				// address
+				pk, err := cmd.GetPublicKey(r.db, p)
+				if err != nil {
+					return 0, err
+				}
+				ptr, err := runtime.WriteGuestBuffer(ctx, pk[:])
+				if err != nil {
+					return 0, err
+				}
+				callParams = append(callParams, ptr)
+			default:
+				// treat like a number
+				var num uint64
+				num, err := strconv.ParseUint(p, 10, 64)
+				if err != nil {
+					return 0, err
+				}
+				callParams = append(callParams, num)
+			}
+		}
+	}
+	// prepend programID
+	callParams = append([]uint64{programID}, callParams...)
 
-// 		utils.Outf("{{green}}response:{{/}} %v\n", resp)
-// 		return nil
-// }
+	resp, err := runtime.Call(ctx, functionName, callParams...)
+	if err != nil {
+		return 0, err
+	}
+
+	return resp[0], nil
+}
