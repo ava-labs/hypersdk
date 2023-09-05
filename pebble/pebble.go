@@ -152,7 +152,7 @@ func (db *Database) Delete(key []byte) error {
 }
 
 func (db *Database) Compact(start []byte, limit []byte) error {
-	return updateError(db.db.Compact(start, limit, true))
+	return updateError(db.db.Compact(start, limit, false))
 }
 
 // batch is a wrapper around a pebbleDB batch to contain sizes.

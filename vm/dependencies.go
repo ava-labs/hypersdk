@@ -52,6 +52,7 @@ type Config interface {
 	GetTargetBuildDuration() time.Duration
 	GetProcessingBuildSkip() int
 	GetTargetGossipDuration() time.Duration
+	GetBlockCompactionFrequency() int
 }
 
 type Genesis interface {

@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
@@ -84,10 +85,12 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 		return err
 	}
 	expiryHeight := blk.Height() - uint64(vm.config.GetAcceptedBlockWindow())
+	var expired bool
 	if expiryHeight > 0 && expiryHeight < blk.Height() { // ensure we don't free genesis
 		if err := batch.Delete(PrefixBlockHeightKey(expiryHeight)); err != nil {
 			return err
 		}
+		expired = true
 		vm.metrics.deletedBlocks.Inc()
 	}
 	if err := batch.Write(); err != nil {
@@ -96,6 +99,16 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	vm.lastAccepted = blk
 	vm.acceptedBlocksByID.Put(blk.ID(), blk)
 	vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
+	if expired && expiryHeight%uint64(vm.config.GetBlockCompactionFrequency()) == 0 {
+		go func() {
+			start := time.Now()
+			if err := vm.CompactDiskBlocks(expiryHeight); err != nil {
+				vm.Logger().Error("unable to compact blocks", zap.Error(err))
+				return
+			}
+			vm.Logger().Info("compacted disk blocks", zap.Uint64("end", expiryHeight), zap.Duration("t", time.Since(start)))
+		}()
+	}
 	return nil
 }
 
@@ -109,6 +122,14 @@ func (vm *VM) GetDiskBlock(height uint64) (*chain.StatefulBlock, error) {
 
 func (vm *VM) HasDiskBlock(height uint64) (bool, error) {
 	return vm.vmDB.Has(PrefixBlockHeightKey(height))
+}
+
+// CompactDiskBlocks forces compaction on the entire range of blocks up to [lastExpired].
+//
+// This can be used to ensure we clean up all large tombstoned keys on a regular basis instead
+// of waiting for the database to run a compaction (and potentially delete GBs of data at once).
+func (vm *VM) CompactDiskBlocks(lastExpired uint64) error {
+	return vm.vmDB.Compact([]byte{blockPrefix}, PrefixBlockHeightKey(lastExpired))
 }
 
 func (vm *VM) GetDiskIsSyncing() (bool, error) {
