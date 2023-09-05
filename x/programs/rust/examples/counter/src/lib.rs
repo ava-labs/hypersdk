@@ -1,4 +1,4 @@
-use public_macro::public;
+use wasmlanche_sdk::public;
 use wasmlanche_sdk::store::State;
 use wasmlanche_sdk::types::Address;
 

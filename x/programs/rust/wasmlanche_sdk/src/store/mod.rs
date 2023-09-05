@@ -20,7 +20,7 @@ impl StoreResult {
         T: Serialize + ?Sized,
     {
         match self {
-            Self::Ok(ctx) => ctx.store_value(key, value),
+            Self::Ok(state) => state.store_value(key, value),
             err @ Self::Err(_) => err,
         }
     }
@@ -32,7 +32,7 @@ impl StoreResult {
         U: Serialize,
     {
         match self {
-            Self::Ok(ctx) => ctx.store_map_value(map_name, key, value),
+            Self::Ok(state) => state.store_map_value(map_name, key, value),
             err @ Self::Err(_) => err,
         }
     }
@@ -109,8 +109,8 @@ impl State {
 }
 
 impl From<State> for i64 {
-    fn from(ctx: State) -> Self {
-        ctx.program_id
+    fn from(state: State) -> Self {
+        state.program_id
     }
 }
 
@@ -120,14 +120,14 @@ impl From<i64> for State {
     }
 }
 
-fn store_key_value<T>(ctx: State, key_bytes: &[u8], value: &T) -> Result<(), StorageError>
+fn store_key_value<T>(state: State, key_bytes: &[u8], value: &T) -> Result<(), StorageError>
 where
     T: Serialize + ?Sized,
 {
     let value_bytes = to_vec(value).map_err(|_| StorageError::SerializationError)?;
     match unsafe {
         store_bytes(
-            ctx,
+            state,
             key_bytes.as_ptr(),
             key_bytes.len(),
             value_bytes.as_ptr(),
@@ -139,17 +139,17 @@ where
     }
 }
 
-fn get_field_as_bytes(ctx: State, name: &[u8]) -> Result<Vec<u8>, StorageError> {
+fn get_field_as_bytes(state: State, name: &[u8]) -> Result<Vec<u8>, StorageError> {
     let name_ptr = name.as_ptr();
     let name_len = name.len();
     // First get the length of the bytes from the host.
-    let bytes_len = unsafe { get_bytes_len(ctx, name_ptr, name_len) };
+    let bytes_len = unsafe { get_bytes_len(state, name_ptr, name_len) };
     // Speculation that compiler might be optimizing out this if statement.
     if bytes_len < 0 {
         return Err(StorageError::HostRetrieveError);
     }
     // Get_bytes allocates bytes_len memory in the WASM module.
-    let bytes_ptr = unsafe { get_bytes(ctx, name_ptr, name_len, bytes_len) };
+    let bytes_ptr = unsafe { get_bytes(state, name_ptr, name_len, bytes_len) };
     // Defensive check here to unsure we don't grab out of bounds memory.
     if bytes_ptr < 0 {
         return Err(StorageError::HostRetrieveError);
@@ -168,11 +168,11 @@ fn get_field_as_bytes(ctx: State, name: &[u8]) -> Result<Vec<u8>, StorageError> 
 }
 
 /// Gets the field `name` from the host and returns it as a `ProgramValue`.
-fn get_field<T>(ctx: State, name: &str) -> Result<T, StorageError>
+fn get_field<T>(state: State, name: &str) -> Result<T, StorageError>
 where
     T: DeserializeOwned,
 {
-    let bytes = get_field_as_bytes(ctx, name.as_bytes())?;
+    let bytes = get_field_as_bytes(state, name.as_bytes())?;
     from_slice(&bytes).map_err(|_| StorageError::InvalidBytes)
 }
 
@@ -187,13 +187,13 @@ where
 }
 
 // Gets the value from the map [name] with key [key] from the host and returns it as a ProgramValue.
-fn get_map_field<T, U>(ctx: State, name: &str, key: &T) -> Result<U, StorageError>
+fn get_map_field<T, U>(state: State, name: &str, key: &T) -> Result<U, StorageError>
 where
     T: Serialize,
     U: DeserializeOwned,
 {
     let map_key = get_map_key(name, key)?;
-    let map_value = get_field_as_bytes(ctx, &map_key)?;
+    let map_value = get_field_as_bytes(state, &map_key)?;
     from_slice(&map_value).map_err(|_| StorageError::HostRetrieveError)
 }
 
@@ -203,11 +203,11 @@ impl State {
     #[must_use]
     pub fn invoke_program(
         &self,
-        call_ctx: State,
+        call_state: State,
         fn_name: &str,
         call_args: &[Box<dyn Argument>],
     ) -> i64 {
-        invoke_program(call_ctx, fn_name, &Self::marshal_args(call_args))
+        invoke_program(call_state, fn_name, &Self::marshal_args(call_args))
     }
 
     fn marshal_args(args: &[Box<dyn Argument>]) -> Vec<u8> {

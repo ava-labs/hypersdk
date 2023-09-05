@@ -1,7 +1,6 @@
+use wasmlanche_sdk::public;
 use wasmlanche_sdk::store::State;
 use wasmlanche_sdk::types::Address;
-
-use public_macro::public;
 
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
