@@ -397,7 +397,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	ginkgo.It("transfer in a single node (raw)", func() {
 		nativeBalance, err := instances[0].lcli.Balance(context.TODO(), sender)
 		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(nativeBalance).Should(gomega.Equal(uint64(1000000000000)))
+		gomega.Ω(nativeBalance).Should(gomega.Equal(uint64(10000000000000000000)))
 
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
