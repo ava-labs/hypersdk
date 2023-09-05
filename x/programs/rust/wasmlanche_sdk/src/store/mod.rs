@@ -1,5 +1,5 @@
 use crate::errors::StorageError;
-use crate::host::program_invoke;
+use crate::host::invoke_program;
 use crate::host::{get_bytes, get_bytes_len, store_bytes};
 use crate::types::Argument;
 use serde::de::DeserializeOwned;
@@ -197,17 +197,17 @@ where
     from_slice(&map_value).map_err(|_| StorageError::HostRetrieveError)
 }
 
-/// Implement the `program_invoke` function for the State which allows a program to
+/// Implement the `invoke_program` function for the State which allows a program to
 /// call another program.
 impl State {
     #[must_use]
-    pub fn program_invoke(
+    pub fn invoke_program(
         &self,
         call_ctx: State,
         fn_name: &str,
         call_args: &[Box<dyn Argument>],
     ) -> i64 {
-        program_invoke(call_ctx, fn_name, &Self::marshal_args(call_args))
+        invoke_program(call_ctx, fn_name, &Self::marshal_args(call_args))
     }
 
     fn marshal_args(args: &[Box<dyn Argument>]) -> Vec<u8> {

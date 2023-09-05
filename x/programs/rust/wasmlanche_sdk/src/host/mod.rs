@@ -22,7 +22,7 @@ extern "C" {
 // The program module contains functionality for invoking external programs.
 #[link(wasm_import_module = "program")]
 extern "C" {
-    #[link_name = "program_invoke"]
+    #[link_name = "invoke_program"]
     fn _invoke_program(
         call_contract_id: i64,
         method_name_ptr: *const u8,
@@ -68,7 +68,7 @@ pub unsafe fn get_bytes(ctx: State, key_ptr: *const u8, key_len: usize, val_len:
 
 /// Invokes another program and returns the result.
 #[must_use]
-pub fn program_invoke(call_ctx: State, method_name: &str, args: &[u8]) -> i64 {
+pub fn invoke_program(call_ctx: State, method_name: &str, args: &[u8]) -> i64 {
     let method_name_bytes = method_name.as_bytes();
     unsafe {
         _invoke_program(

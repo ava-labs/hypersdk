@@ -38,7 +38,7 @@ fn play(state: State, player: Address) -> bool {
     };
 
     // Transfer
-    let _ = state.program_invoke(
+    let _ = state.invoke_program(
         lottery_state,
         "transfer",
         &[Box::new(lotto_addy), Box::new(player), Box::new(num)],
