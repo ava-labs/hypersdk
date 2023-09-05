@@ -18,4 +18,4 @@ jobs:
       - shell: bash
         run: scripts/mock.gen.sh
       - shell: bash
-        run: .github/workflows/check-clean-branch.sh
+        run: scripts/tests.clean.sh
