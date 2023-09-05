@@ -370,12 +370,22 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 		// context. Otherwise, the parent block will be used as the execution context.
 		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
 		if err != nil {
+			b.vm.Logger().Warn("unable to get verify context",
+				zap.Uint64("height", b.Hght),
+				zap.Stringer("blkID", b.ID()),
+				zap.Error(err),
+			)
 			return fmt.Errorf("%w: unable to load verify context", err)
 		}
 
 		// Parent block may not be processed when we verify this block, so [innerVerify] may
 		// recursively verify ancestry.
 		if err := b.innerVerify(ctx, vctx); err != nil {
+			b.vm.Logger().Warn("verification failed",
+				zap.Uint64("height", b.Hght),
+				zap.Stringer("blkID", b.ID()),
+				zap.Error(err),
+			)
 			return err
 		}
 	}

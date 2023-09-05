@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/ava-labs/avalanchego/cache"
@@ -22,6 +23,15 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/keys"
 )
+
+// compactionOffset is used to randomize the height that we compact
+// deleted blocks. This prevents all nodes on the network from deleting
+// data from disk at the same time.
+var compactionOffset int = -1
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 const (
 	blockPrefix         = 0x0
@@ -67,6 +77,13 @@ func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
 	return binary.BigEndian.Uint64(b), nil
 }
 
+func (vm *VM) shouldComapct(expiryHeight uint64) bool {
+	if compactionOffset == -1 {
+		compactionOffset = rand.Intn(vm.config.GetBlockCompactionFrequency()) // Intn == [0, n)
+	}
+	return expiryHeight%uint64(vm.config.GetBlockCompactionFrequency()) == uint64(compactionOffset)
+}
+
 // UpdateLastAccepted updates the [lastAccepted] index, stores [blk] on-disk,
 // adds [blk] to the [acceptedCache], and deletes any expired blocks from
 // disk.
@@ -99,7 +116,7 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	vm.lastAccepted = blk
 	vm.acceptedBlocksByID.Put(blk.ID(), blk)
 	vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
-	if expired && expiryHeight%uint64(vm.config.GetBlockCompactionFrequency()) == 0 {
+	if expired && vm.shouldComapct(expiryHeight) {
 		go func() {
 			start := time.Now()
 			if err := vm.CompactDiskBlocks(expiryHeight); err != nil {
