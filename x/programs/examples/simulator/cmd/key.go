@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -76,7 +77,49 @@ func getKey(db database.Database, publicKey ed25519.PublicKey) (ed25519.PrivateK
 	return ed25519.PrivateKey(v), nil
 }
 
-func getPublicKey(db database.Database, keyHRP string) (ed25519.PublicKey, error) {
+// loops through the keys in the database and returns the first 5 keys, or makes them if not enough
+func GetKeys(db database.Database) ([]string, error) {
+	fmt.Println("GetKeys")
+	numKeys := 5
+	keys := make([]string, numKeys)
+	// loop through db
+	iter := db.NewIteratorWithPrefix([]byte(HRP))
+	defer iter.Release()
+
+	if iter.Error() != nil {
+		fmt.Println("Error: ", iter.Error())
+		// return nil, iter.Error()
+	}
+
+	i := 0
+	for iter.Next() {
+		if iter.Key() == nil {
+			fmt.Println("nil key")
+			continue
+		}
+		keys[i] = string(iter.Key()[:])
+		i++
+	}
+	// if i >= numKeys {
+	// fill if needed
+	for j := i; j < numKeys; j++ {
+		priv, err := ed25519.GeneratePrivateKey()
+		if err != nil {
+			return nil, err
+		}
+		err = setKey(db, priv)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println(j)
+		keys[j] = keyHRP(priv)
+	}
+	// }
+
+	return keys, nil
+}
+
+func GetPublicKey(db database.Database, keyHRP string) (ed25519.PublicKey, error) {
 	v, err := db.Get([]byte(keyHRP))
 	if errors.Is(err, database.ErrNotFound) {
 		return ed25519.EmptyPublicKey, nil

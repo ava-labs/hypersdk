@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	HRP       = "sim_key_"
+	HRP = "sim_key_"
+	// keyPrefix that stores pub key -> private key mapping
 	keyPrefix = 0x1
 )
 
@@ -53,7 +54,7 @@ var programCreateCmd = &cobra.Command{
 			return err
 		}
 
-		pk, err := getPublicKey(db, callerAddress)
+		pk, err := GetPublicKey(db, callerAddress)
 		if err != nil {
 			return err
 		}
@@ -142,7 +143,7 @@ var programInvokeCmd = &cobra.Command{
 					callParams = append(callParams, 0)
 				case strings.HasPrefix(p, HRP):
 					// address
-					pk, err := getPublicKey(db, p)
+					pk, err := GetPublicKey(db, p)
 					if err != nil {
 						return err
 					}
