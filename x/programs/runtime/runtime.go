@@ -56,8 +56,8 @@ func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, erro
 	// call initialize if it exists
 	result, err := r.Call(ctx, "init", uint64(programID))
 	if err != nil {
-		if !errors.Is(err, ExportedFunctionMissing) {
-			return 0, err		
+		if !errors.Is(err, ErrMissingExportedFunction) {
+			return 0, err
 		}
 	} else {
 		// check boolean result from init
@@ -126,7 +126,7 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 	}
 
 	if api == nil {
-		return nil, fmt.Errorf("%w: %s", ExportedFunctionMissing, name)
+		return nil, fmt.Errorf("%w: %s", ErrMissingExportedFunction, name)
 	}
 
 	result, err := api.Call(ctx, params...)

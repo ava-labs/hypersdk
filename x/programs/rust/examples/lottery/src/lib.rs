@@ -1,4 +1,4 @@
-use expose_macro::public;
+use public_macro::public;
 use wasmlanche_sdk::store::State;
 use wasmlanche_sdk::types::Address;
 
@@ -9,7 +9,8 @@ static TOKEN_PROGRAM_NAME: &str = "token_contract";
 /// before play can be called, otherwise there is no reference contract and address.
 #[public]
 fn set(state: State, lottery_state: State, lottery_address: Address) -> bool {
-    state.store_value(TOKEN_PROGRAM_NAME, &lottery_state)
+    state
+        .store_value(TOKEN_PROGRAM_NAME, &lottery_state)
         .store_value("address", &lottery_address)
         .is_ok()
 }

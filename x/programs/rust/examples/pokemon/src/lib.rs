@@ -1,4 +1,4 @@
-use expose_macro::public;
+use public_macro::public;
 use serde::{Deserialize, Serialize};
 use wasmlanche_sdk::store::State;
 use wasmlanche_sdk::types::Address;
