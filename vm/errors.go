@@ -14,4 +14,5 @@ var (
 	ErrStateMissing        = errors.New("state missing")
 	ErrStateSyncing        = errors.New("state still syncing")
 	ErrUnexpectedStateRoot = errors.New("unexpected state root")
+	ErrTooManyProcessing   = errors.New("too many processing")
 )

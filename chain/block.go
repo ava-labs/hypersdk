@@ -370,12 +370,22 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 		// context. Otherwise, the parent block will be used as the execution context.
 		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
 		if err != nil {
+			b.vm.Logger().Warn("unable to get verify context",
+				zap.Uint64("height", b.Hght),
+				zap.Stringer("blkID", b.ID()),
+				zap.Error(err),
+			)
 			return fmt.Errorf("%w: unable to load verify context", err)
 		}
 
 		// Parent block may not be processed when we verify this block, so [innerVerify] may
 		// recursively verify ancestry.
 		if err := b.innerVerify(ctx, vctx); err != nil {
+			b.vm.Logger().Warn("verification failed",
+				zap.Uint64("height", b.Hght),
+				zap.Stringer("blkID", b.ID()),
+				zap.Error(err),
+			)
 			return err
 		}
 	}
@@ -721,25 +731,21 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		return fmt.Errorf("%w: unable to commit block", err)
 	}
 
-	// Set last accepted block
-	return b.SetLastAccepted(ctx)
+	// Mark block as accepted and update last accepted in storage
+	b.MarkAccepted(ctx)
+	return nil
 }
 
-// SetLastAccepted is called during [Accept] and at the start and end of state
-// sync.
-func (b *StatelessBlock) SetLastAccepted(ctx context.Context) error {
-	if err := b.vm.SetLastAccepted(b); err != nil {
-		return err
-	}
+func (b *StatelessBlock) MarkAccepted(ctx context.Context) {
+	// Accept block and free unnecessary memory
 	b.st = choices.Accepted
 	b.txsSet = nil // only used for replay protection when processing
 
-	// [Accepted] will set in-memory variables needed to ensure we don't resync
-	// all blocks when state sync finishes
+	// [Accepted] will persist the block to disk and set in-memory variables
+	// needed to ensure we don't resync all blocks when state sync finishes.
 	//
 	// Note: We will not call [b.vm.Verified] before accepting during state sync
 	b.vm.Accepted(ctx, b)
-	return nil
 }
 
 // implements "snowman.Block.choices.Decidable"

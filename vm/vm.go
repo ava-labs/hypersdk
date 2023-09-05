@@ -30,12 +30,12 @@ import (
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
+	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/builder"
-	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/gossiper"
@@ -78,10 +78,6 @@ type VM struct {
 	seenValidityWindowOnce sync.Once
 	seenValidityWindow     chan struct{}
 
-	// cache block objects to optimize "GetBlockStateless"
-	// only put when a block is accepted
-	blocks *hcache.FIFO[ids.ID, *chain.StatelessBlock]
-
 	// We cannot use a map here because we may parse blocks up in the ancestry
 	parsedBlocks *cache.LRU[ids.ID, *chain.StatelessBlock]
 
@@ -89,6 +85,11 @@ type VM struct {
 	// hasn't yet been accepted/rejected
 	verifiedL      sync.RWMutex
 	verifiedBlocks map[ids.ID]*chain.StatelessBlock
+
+	// We store the last [AcceptedBlockWindow] blocks in memory
+	// to avoid reading blocks from disk.
+	acceptedBlocksByID     *hcache.FIFO[ids.ID, *chain.StatelessBlock]
+	acceptedBlocksByHeight *hcache.FIFO[uint64, ids.ID]
 
 	// Accepted block queue
 	acceptedQueue chan *chain.StatelessBlock
@@ -102,6 +103,7 @@ type VM struct {
 	sigWorkers workers.Workers
 
 	bootstrapped utils.Atomic[bool]
+	genesisBlk   *chain.StatelessBlock
 	preferred    ids.ID
 	lastAccepted *chain.StatelessBlock
 	toEngine     chan<- common.Message
@@ -236,7 +238,11 @@ func (vm *VM) Initialize(
 
 	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetParsedBlockCacheSize()}
 	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
-	vm.blocks, err = hcache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.GetAcceptedBlockCacheSize())
+	vm.acceptedBlocksByID, err = hcache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.GetAcceptedBlockWindow())
+	if err != nil {
+		return err
+	}
+	vm.acceptedBlocksByHeight, err = hcache.NewFIFO[uint64, ids.ID](vm.config.GetAcceptedBlockWindow())
 	if err != nil {
 		return err
 	}
@@ -257,20 +263,38 @@ func (vm *VM) Initialize(
 		return err
 	}
 	if has { //nolint:nestif
-		blkID, err := vm.GetLastAccepted()
+		statefulGenesis, err := vm.GetGenesis()
+		if err != nil {
+			snowCtx.Log.Error("could not get genesis", zap.Error(err))
+			return err
+		}
+		genesisBlk, err := chain.ParseStatefulBlock(ctx, statefulGenesis, nil, choices.Accepted, vm)
+		if err != nil {
+			snowCtx.Log.Error("could not parse genesis", zap.Error(err))
+			return err
+		}
+		vm.genesisBlk = genesisBlk
+		lastAcceptedHeight, err := vm.GetLastAcceptedHeight()
 		if err != nil {
 			snowCtx.Log.Error("could not get last accepted", zap.Error(err))
 			return err
 		}
-
-		blk, err := vm.GetStatelessBlock(ctx, blkID)
+		statefulBlock, err := vm.GetDiskBlock(lastAcceptedHeight)
 		if err != nil {
-			snowCtx.Log.Error("could not load last accepted", zap.Error(err))
+			snowCtx.Log.Error("could not get last accepted block", zap.Error(err))
 			return err
 		}
-
-		vm.preferred, vm.lastAccepted = blkID, blk
-		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blkID))
+		blk, err := chain.ParseStatefulBlock(ctx, statefulBlock, nil, choices.Accepted, vm)
+		if err != nil {
+			snowCtx.Log.Error("could not parse last accepted", zap.Error(err))
+			return err
+		}
+		vm.preferred, vm.lastAccepted = blk.ID(), blk
+		if err := vm.loadAcceptedBlocks(ctx); err != nil {
+			snowCtx.Log.Error("could not load accepted blocks from disk", zap.Error(err))
+			return err
+		}
+		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
 		// Set balances and compute genesis root
 		sps := state.NewSimpleMutable(vm.stateDB)
@@ -330,13 +354,13 @@ func (vm *VM) Initialize(
 		}
 
 		// Update last accepted and preferred block
-		if err := vm.SetLastAccepted(genesisBlk); err != nil {
-			snowCtx.Log.Error("could not set genesis as last accepted", zap.Error(err))
+		vm.genesisBlk = genesisBlk
+		if err := vm.UpdateLastAccepted(genesisBlk); err != nil {
+			snowCtx.Log.Error("could not set genesis block as last accepted", zap.Error(err))
 			return err
 		}
 		gBlkID := genesisBlk.ID()
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
-		vm.blocks.Put(gBlkID, genesisBlk)
 		snowCtx.Log.Info("initialized vm from genesis", zap.Stringer("block", gBlkID))
 	}
 	go vm.processAcceptedBlocks()
@@ -458,6 +482,7 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 		vm.Logger().Info("state sync started")
 		return nil
 	case snow.Bootstrapping:
+		// Ensure state sync client marks itself as done if it was never started
 		syncStarted := vm.stateSyncClient.Started()
 		if !syncStarted {
 			// We must check if we finished syncing before starting bootstrapping.
@@ -474,10 +499,22 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 				// node database.
 				return ErrStateSyncing
 			}
+
 			// If we weren't previously syncing, we force state syncer completion so
 			// that the node will mark itself as ready.
 			vm.stateSyncClient.ForceDone()
+
+			// TODO: add a config to FATAL here if could not state sync (likely won't be
+			// able to recover in networks where no one has the full state, bypass
+			// still starts sync): https://github.com/ava-labs/hypersdk/issues/438
 		}
+
+		// Backfill seen transactions, if any. This will exit as soon as we reach
+		// a block we no longer have on disk or if we have walked back the full
+		// [ValidityWindow].
+		vm.backfillSeenTransactions()
+
+		// Trigger that bootstrapping has started
 		vm.Logger().Info("bootstrapping started", zap.Bool("state sync started", syncStarted))
 		return vm.onBootstrapStarted()
 	case snow.NormalOp:
@@ -587,6 +624,8 @@ func (vm *VM) HealthCheck(context.Context) (interface{}, error) {
 
 // implements "block.ChainVM.commom.VM.Getter"
 // replaces "core.SnowmanVM.GetBlock"
+//
+// This is ONLY called on accepted blocks pre-ProposerVM fork.
 func (vm *VM) GetBlock(ctx context.Context, id ids.ID) (snowman.Block, error) {
 	ctx, span := vm.tracer.Start(ctx, "VM.GetBlock")
 	defer span.End()
@@ -596,16 +635,10 @@ func (vm *VM) GetBlock(ctx context.Context, id ids.ID) (snowman.Block, error) {
 }
 
 func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.StatelessBlock, error) {
-	ctx, span := vm.tracer.Start(ctx, "VM.GetStatelessBlock")
+	_, span := vm.tracer.Start(ctx, "VM.GetStatelessBlock")
 	defer span.End()
 
-	// has the block been cached from previous "Accepted" call
-	blk, exist := vm.blocks.Get(blkID)
-	if exist {
-		return blk, nil
-	}
-
-	// has the block been verified, not yet accepted
+	// Check if verified block
 	vm.verifiedL.RLock()
 	if blk, exists := vm.verifiedBlocks[blkID]; exists {
 		vm.verifiedL.RUnlock()
@@ -613,13 +646,24 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 	}
 	vm.verifiedL.RUnlock()
 
-	// not found in memory, fetch from disk if accepted
-	stBlk, err := vm.GetDiskBlock(blkID)
-	if err != nil {
-		return nil, err
+	// Check if last accepted
+	if vm.lastAccepted.ID() == blkID {
+		return vm.lastAccepted, nil
 	}
-	// If block on disk, it must've been accepted
-	return chain.ParseStatefulBlock(ctx, stBlk, nil, choices.Accepted, vm)
+
+	// Check if genesis
+	if vm.genesisBlk.ID() == blkID {
+		return vm.genesisBlk, nil
+	}
+
+	// Check if recently accepted block
+	if blk, ok := vm.acceptedBlocksByID.Get(blkID); ok {
+		return blk, nil
+	}
+
+	// If we don't know about the block or the block is past the
+	// [AcceptedBlockWindow], we return a not found error.
+	return nil, database.ErrNotFound
 }
 
 // implements "block.ChainVM.commom.VM.Parser"
@@ -682,6 +726,14 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (sn
 	// Note: builder should regulate whether or not it actually decides to build based on state
 	// of the mempool.
 	defer vm.checkActivity(ctx)
+
+	vm.verifiedL.RLock()
+	processingBlocks := len(vm.verifiedBlocks)
+	vm.verifiedL.RUnlock()
+	if processingBlocks > vm.config.GetProcessingBuildSkip() {
+		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrTooManyProcessing))
+		return nil, ErrTooManyProcessing
+	}
 
 	// Build block and store as parsed
 	preferredBlk, err := vm.GetStatelessBlock(ctx, vm.preferred)
@@ -952,16 +1004,111 @@ func (*VM) VerifyHeightIndex(context.Context) error { return nil }
 // GetBlockIDAtHeight implements snowmanblock.HeightIndexedChainVM
 // Note: must return database.ErrNotFound if the index at height is unknown.
 //
-// This is ONLY called pre-ProposerVM fork. Since we fork immediately after
-// genesis, we only need to be return the blockID of genesis.
+// This is called by the VM pre-ProposerVM fork and by the sync server
+// in [GetStateSummary].
 func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, error) {
-	if height != 0 {
-		return ids.ID{}, database.ErrNotFound
+	if height == vm.lastAccepted.Height() {
+		return vm.lastAccepted.ID(), nil
+	}
+	if height == vm.genesisBlk.Height() {
+		return vm.genesisBlk.ID(), nil
+	}
+	if blkID, ok := vm.acceptedBlocksByHeight.Get(height); ok {
+		return blkID, nil
+	}
+	return ids.ID{}, database.ErrNotFound
+}
+
+// backfillSeenTransactions makes a best effort to populate [vm.seen]
+// with whatever transactions we already have on-disk. This will lead
+// a node to becoming ready faster during a restart.
+func (vm *VM) backfillSeenTransactions() {
+	// Exit early if we don't have any blocks other than genesis (which
+	// contains no transactions)
+	blk := vm.lastAccepted
+	if blk.Hght == 0 {
+		vm.snowCtx.Log.Info("no seen transactions to backfill")
+		vm.startSeenTime = 0
+		vm.seenValidityWindowOnce.Do(func() {
+			close(vm.seenValidityWindow)
+		})
+		return
 	}
 
-	// TODO: remove support for looking up blockIDs by height
-	// and store genesis ID in memory.
-	return vm.GetDiskBlockIDAtHeight(height)
+	// Backfill [vm.seen] with lifeline worth of transactions
+	r := vm.Rules(vm.lastAccepted.Tmstmp)
+	oldest := uint64(0)
+	for {
+		if vm.lastAccepted.Tmstmp-blk.Tmstmp > r.GetValidityWindow() {
+			// We are assured this function won't be running while we accept
+			// a block, so we don't need to protect against closing this channel
+			// twice.
+			vm.seenValidityWindowOnce.Do(func() {
+				close(vm.seenValidityWindow)
+			})
+			break
+		}
+
+		// It is ok to add transactions from newest to oldest
+		vm.seen.Add(blk.Txs)
+		vm.startSeenTime = blk.Tmstmp
+		oldest = blk.Hght
+
+		// Exit early if next block to fetch is genesis (which contains no
+		// txs)
+		if blk.Hght <= 1 {
+			// If we have walked back from the last accepted block to genesis, then
+			// we can be sure we have all required transactions to start validation.
+			vm.startSeenTime = 0
+			vm.seenValidityWindowOnce.Do(func() {
+				close(vm.seenValidityWindow)
+			})
+			break
+		}
+
+		// Set next blk in lookback
+		tblk, err := vm.GetStatelessBlock(context.Background(), blk.Prnt)
+		if err != nil {
+			vm.snowCtx.Log.Info("could not load block, exiting backfill",
+				zap.Uint64("height", blk.Height()-1),
+				zap.Stringer("blockID", blk.Prnt),
+				zap.Error(err),
+			)
+			return
+		}
+		blk = tblk
+	}
+	vm.snowCtx.Log.Info(
+		"backfilled seen txs",
+		zap.Uint64("start", oldest),
+		zap.Uint64("finish", vm.lastAccepted.Hght),
+	)
+}
+
+func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
+	start := uint64(0)
+	lookback := uint64(vm.config.GetAcceptedBlockWindow()) - 1 // include latest
+	if vm.lastAccepted.Hght > lookback {
+		start = vm.lastAccepted.Hght - lookback
+	}
+	for i := start; i <= vm.lastAccepted.Hght; i++ {
+		stBlk, err := vm.GetDiskBlock(i)
+		if err != nil {
+			vm.snowCtx.Log.Info("could not find block on-disk", zap.Uint64("height", i))
+			continue
+		}
+		blk, err := chain.ParseStatefulBlock(ctx, stBlk, nil, choices.Accepted, vm)
+		if err != nil {
+			return fmt.Errorf("%w: unable to parse block from disk", err)
+		}
+		vm.acceptedBlocksByID.Put(blk.ID(), blk)
+		vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
+	}
+	vm.snowCtx.Log.Info("loaded blocks from disk",
+		zap.Uint64("start", start),
+		zap.Uint64("finish", vm.lastAccepted.Hght),
+	)
+	return nil
 }
 
 // Fatal logs the provided message and then panics to force an exit.

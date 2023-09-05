@@ -18,16 +18,27 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
 fi
 
 VERSION=2eabd228952b6b7c9075bc45653f70643d9a5a7c
+MAX_UINT64=18446744073709551615
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
-CREATE_TARGET=${CREATE_TARGET:-75000}
+STORE_TXS=${STORE_TXS:-false}
+UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
 if [[ ${MODE} != "run" ]]; then
   LOGLEVEL=debug
   STATESYNC_DELAY=100000000 # 100ms
   MIN_BLOCK_GAP=250 #ms
-  CREATE_TARGET=100000000 # 4M accounts (we send to random addresses)
+  STORE_TXS=true
+  UNLIMITED_USAGE=true
+fi
+
+WINDOW_TARGET_UNITS="40000000,450000,450000,450000,450000"
+MAX_BLOCK_UNITS="1800000,15000,15000,2500,15000"
+if ${UNLIMITED_USAGE}; then
+  WINDOW_TARGET_UNITS="${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64}"
+  # If we don't limit the block size, AvalancheGo will reject the block.
+  MAX_BLOCK_UNITS="1800000,${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64}"
 fi
 
 echo "Running with:"
@@ -36,6 +47,9 @@ echo MODE: ${MODE}
 echo LOG LEVEL: ${LOGLEVEL}
 echo STATESYNC_DELAY \(ns\): ${STATESYNC_DELAY}
 echo MIN_BLOCK_GAP \(ms\): ${MIN_BLOCK_GAP}
+echo STORE_TXS: ${STORE_TXS}
+echo WINDOW_TARGET_UNITS: ${WINDOW_TARGET_UNITS}
+echo MAX_BLOCK_UNITS: ${MAX_BLOCK_UNITS}
 
 ############################
 # build avalanchego
@@ -100,7 +114,7 @@ find ${TMPDIR}/avalanchego-${VERSION}
 # Always create allocations (linter doesn't like tab)
 echo "creating allocations file"
 cat <<EOF > ${TMPDIR}/allocations.json
-[{"address":"morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp", "balance":1000000000000}]
+[{"address":"morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp", "balance":10000000000000000000}]
 EOF
 
 GENESIS_PATH=$2
@@ -108,8 +122,8 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f ${TMPDIR}/morpheusvm.genesis
   ${TMPDIR}/morpheus-cli genesis generate ${TMPDIR}/allocations.json \
-  --window-target-units "40000000,450000,450000,${CREATE_TARGET},450000" \
-  --max-block-units "1800000,15000,15000,2500,15000" \
+  --window-target-units ${WINDOW_TARGET_UNITS} \
+  --max-block-units ${MAX_BLOCK_UNITS} \
   --min-block-gap ${MIN_BLOCK_GAP} \
   --genesis-file ${TMPDIR}/morpheusvm.genesis
 else
@@ -132,7 +146,7 @@ cat <<EOF > ${TMPDIR}/morpheusvm.config
   "mempoolExemptPayers":["morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp"],
   "parallelism": 5,
   "verifySignatures":true,
-  "storeTransactions":true,
+  "storeTransactions": ${STORE_TXS},
   "streamingBacklogSize": 10000000,
   "logLevel": "${LOGLEVEL}",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
@@ -150,7 +164,8 @@ echo "creating subnet config"
 rm -f ${TMPDIR}/morpheusvm.subnet
 cat <<EOF > ${TMPDIR}/morpheusvm.subnet
 {
-  "proposerMinBlockDelay": 0
+  "proposerMinBlockDelay": 0,
+  "proposerNumHistoricalBlocks": 768
 }
 EOF
 

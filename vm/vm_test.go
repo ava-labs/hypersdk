@@ -8,14 +8,17 @@ import (
 	"testing"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
+	"github.com/ava-labs/avalanchego/database/manager"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/version"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
 	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/config"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/trace"
@@ -36,14 +39,19 @@ func TestBlockCache(t *testing.T) {
 	blkID := blk.ID()
 
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
-	bcache, _ := hcache.NewFIFO[ids.ID, *chain.StatelessBlock](3)
+	bByID, _ := hcache.NewFIFO[ids.ID, *chain.StatelessBlock](3)
+	bByHeight, _ := hcache.NewFIFO[uint64, ids.ID](3)
 	controller := NewMockController(ctrl)
 	vm := VM{
 		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: ametrics.NewOptionalGatherer()},
+		config:  &config.Config{},
 
-		tracer: tracer,
+		vmDB: manager.NewMemDB(version.Semantic1_0_0).Current().Database,
 
-		blocks:         bcache,
+		tracer:                 tracer,
+		acceptedBlocksByID:     bByID,
+		acceptedBlocksByHeight: bByHeight,
+
 		verifiedBlocks: make(map[ids.ID]*chain.StatelessBlock),
 		seen:           emap.NewEMap[*chain.Transaction](),
 		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32, nil),

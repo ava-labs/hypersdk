@@ -30,13 +30,16 @@ type Database struct {
 	db      *pebble.DB
 	metrics *metrics
 
-	closed utils.Atomic[bool]
+	// We use an atomic bool for most
+	// checks because it is much faster
+	// than checking if a channel is closed.
+	closing chan struct{}
+	closed  utils.Atomic[bool]
 }
 
 type Config struct {
 	CacheSize                   int // B
 	BytesPerSync                int // B
-	WALBytesPerSync             int // B (0 disables)
 	MemTableStopWritesThreshold int // num tables
 	MemTableSize                int // B
 	MaxOpenFiles                int
@@ -47,7 +50,6 @@ func NewDefaultConfig() Config {
 	return Config{
 		CacheSize:                   1024 * 1024 * 1024,
 		BytesPerSync:                1024 * 1024,
-		WALBytesPerSync:             1024 * 1024,
 		MemTableStopWritesThreshold: 8,
 		MemTableSize:                16 * 1024 * 1024,
 		MaxOpenFiles:                4_096,
@@ -57,18 +59,10 @@ func NewDefaultConfig() Config {
 
 func New(file string, cfg Config) (database.Database, *prometheus.Registry, error) {
 	// These default settings are based on https://github.com/ethereum/go-ethereum/blob/master/ethdb/pebble/pebble.go
-	d := &Database{}
+	d := &Database{closing: make(chan struct{})}
 	opts := &pebble.Options{
-		Cache:        pebble.NewCache(int64(cfg.CacheSize)),
-		BytesPerSync: cfg.BytesPerSync,
-		// Although we use `pebble.NoSync`, we still keep the WAL enabled. Pebble
-		// will fsync the WAL during shutdown and should ensure the db is
-		// recoverable if shutdown correctly.
-		//
-		// TODO: consider re-enabling:
-		// * https://github.com/cockroachdb/pebble/issues/2624
-		// * https://github.com/ethereum/go-ethereum/pull/27522
-		WALBytesPerSync:             cfg.WALBytesPerSync,
+		Cache:                       pebble.NewCache(int64(cfg.CacheSize)),
+		BytesPerSync:                cfg.BytesPerSync,
 		MemTableStopWritesThreshold: cfg.MemTableStopWritesThreshold,
 		MemTableSize:                cfg.MemTableSize,
 		MaxOpenFiles:                cfg.MaxOpenFiles,
@@ -106,11 +100,13 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 		return nil, nil, err
 	}
 	d.db = db
+	go d.collectMetrics()
 	return d, registry, nil
 }
 
 func (db *Database) Close() error {
-	db.closed.Set(true)
+	defer db.closed.Set(true)
+	close(db.closing)
 	return updateError(db.db.Close())
 }
 
@@ -147,19 +143,16 @@ func (db *Database) Get(key []byte) ([]byte, error) {
 
 // Put sets the value of the provided key to the provided value
 func (db *Database) Put(key []byte, value []byte) error {
-	// Use of [pebble.NoSync] here means we don't wait for the [Set] to be
-	// persisted to the WAL before returning. Basic benchmarking indicates that
-	// waiting for the WAL to sync reduces performance by 20%.
-	return updateError(db.db.Set(key, value, pebble.NoSync))
+	return updateError(db.db.Set(key, value, pebble.Sync))
 }
 
 // Delete removes the key from the database
 func (db *Database) Delete(key []byte) error {
-	return updateError(db.db.Delete(key, pebble.NoSync))
+	return updateError(db.db.Delete(key, pebble.Sync))
 }
 
 func (db *Database) Compact(start []byte, limit []byte) error {
-	return updateError(db.db.Compact(start, limit, true))
+	return updateError(db.db.Compact(start, limit, false))
 }
 
 // batch is a wrapper around a pebbleDB batch to contain sizes.
@@ -175,13 +168,13 @@ func (db *Database) NewBatch() database.Batch { return &batch{batch: db.db.NewBa
 // Put the value into the batch for later writing
 func (b *batch) Put(key, value []byte) error {
 	b.size += len(key) + len(value) + 8 // TODO: find byte overhead
-	return b.batch.Set(key, value, pebble.NoSync)
+	return b.batch.Set(key, value, pebble.Sync)
 }
 
 // Delete the key during writing
 func (b *batch) Delete(key []byte) error {
 	b.size += len(key) + 8 // TODO: find byte overhead
-	return b.batch.Delete(key, pebble.NoSync)
+	return b.batch.Delete(key, pebble.Sync)
 }
 
 // Size retrieves the amount of data queued up for writing.
@@ -189,7 +182,8 @@ func (b *batch) Size() int { return b.size }
 
 // Write flushes any accumulated data to disk.
 func (b *batch) Write() error {
-	return updateError(b.batch.Commit(pebble.NoSync))
+	defer b.batch.Close()
+	return updateError(b.batch.Commit(pebble.Sync))
 }
 
 // Reset resets the batch for reuse.
