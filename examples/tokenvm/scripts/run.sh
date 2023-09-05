@@ -18,18 +18,27 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
 fi
 
 VERSION=2eabd228952b6b7c9075bc45653f70643d9a5a7c
+MAX_UINT64=18446744073709551615
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
-CREATE_TARGET=${CREATE_TARGET:-75000}
 STORE_TXS=${STORE_TXS:-false}
+UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
 if [[ ${MODE} != "run" && ${MODE} != "run-single" ]]; then
   LOGLEVEL=debug
   STATESYNC_DELAY=100000000 # 100ms
   MIN_BLOCK_GAP=250 #ms
-  CREATE_TARGET=100000000 # 4M accounts (we send to random addresses)
   STORE_TXS=true
+  UNLIMITED_USAGE=true
+fi
+
+WINDOW_TARGET_UNITS="40000000,450000,450000,450000,450000"
+MAX_BLOCK_UNITS="1800000,15000,15000,2500,15000"
+if ${UNLIMITED_USAGE}; then
+  WINDOW_TARGET_UNITS="${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64}"
+  # If we don't limit the block size, AvalancheGo will reject the block.
+  MAX_BLOCK_UNITS="1800000,${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64}"
 fi
 
 echo "Running with:"
@@ -38,6 +47,8 @@ echo MODE: ${MODE}
 echo STATESYNC_DELAY \(ns\): ${STATESYNC_DELAY}
 echo MIN_BLOCK_GAP \(ms\): ${MIN_BLOCK_GAP}
 echo STORE_TXS: ${STORE_TXS}
+echo WINDOW_TARGET_UNITS: ${WINDOW_TARGET_UNITS}
+echo MAX_BLOCK_UNITS: ${MAX_BLOCK_UNITS}
 
 ############################
 # build avalanchego
@@ -110,8 +121,8 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f ${TMPDIR}/tokenvm.genesis
   ${TMPDIR}/token-cli genesis generate ${TMPDIR}/allocations.json \
-  --window-target-units "40000000,450000,450000,${CREATE_TARGET},450000" \
-  --max-block-units "1800000,15000,15000,2500,15000" \
+  --window-target-units ${WINDOW_TARGET_UNITS} \
+  --max-block-units ${MAX_BLOCK_UNITS} \
   --min-block-gap ${MIN_BLOCK_GAP} \
   --genesis-file ${TMPDIR}/tokenvm.genesis
 else

@@ -100,7 +100,8 @@ a fully-synced, restarting `hypervm` will not become "ready" until it accepts a 
 least `ValidityWindow` after the last accepted block).
 
 _The number of blocks and/or state revisions that the `hypersdk` stores, the `AcceptedBlockWindow`, can
-be tuned by any `hypervm`._
+be tuned by any `hypervm`. It is not possible, however, to configure the `hypersdk` to store
+all historical blocks (the `AcceptedBlockWindow` is pinned to memory)._
 
 #### PebbleDB
 Instead of employing [`goleveldb`](https://github.com/syndtr/goleveldb), the
