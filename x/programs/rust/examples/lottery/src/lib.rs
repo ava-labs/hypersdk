@@ -5,13 +5,6 @@ use wasmlanche_sdk::types::Address;
 // Define the name of the token contract in the programs storage map.
 static TOKEN_PROGRAM_NAME: &str = "token_contract";
 
-/// Initializes the program.
-#[public]
-fn init(_: State) -> bool {
-    // Initialize the program with no fields
-    true
-}
-
 /// Sets the token contract address and the lotto address. This needs to be set
 /// before play can be called, otherwise there is no reference contract and address.
 #[public]
