@@ -1,4 +1,4 @@
-use crate::store::Context;
+use crate::store::State;
 
 // The map module contains functionality for storing and retrieving key-value pairs.
 #[link(wasm_import_module = "map")]
@@ -39,7 +39,7 @@ extern "C" {
 /// `value_ptr` + `value_len` point to valid memory locations.
 #[must_use]
 pub unsafe fn store_bytes(
-    ctx: Context,
+    ctx: State,
     key_ptr: *const u8,
     key_len: usize,
     value_ptr: *const u8,
@@ -53,7 +53,7 @@ pub unsafe fn store_bytes(
 /// # Safety
 /// The caller must ensure that `key_ptr` + `key_len` points to valid memory locations.
 #[must_use]
-pub unsafe fn get_bytes_len(ctx: Context, key_ptr: *const u8, key_len: usize) -> i32 {
+pub unsafe fn get_bytes_len(ctx: State, key_ptr: *const u8, key_len: usize) -> i32 {
     unsafe { _get_bytes_len(ctx.program_id, key_ptr, key_len) }
 }
 
@@ -62,13 +62,13 @@ pub unsafe fn get_bytes_len(ctx: Context, key_ptr: *const u8, key_len: usize) ->
 /// # Safety
 /// The caller must ensure that `key_ptr` + `key_len` points to valid memory locations.
 #[must_use]
-pub unsafe fn get_bytes(ctx: Context, key_ptr: *const u8, key_len: usize, val_len: i32) -> i32 {
+pub unsafe fn get_bytes(ctx: State, key_ptr: *const u8, key_len: usize, val_len: i32) -> i32 {
     unsafe { _get_bytes(ctx.program_id, key_ptr, key_len, val_len) }
 }
 
 /// Invokes another program and returns the result.
 #[must_use]
-pub fn program_invoke(call_ctx: Context, method_name: &str, args: &[u8]) -> i64 {
+pub fn program_invoke(call_ctx: State, method_name: &str, args: &[u8]) -> i64 {
     let method_name_bytes = method_name.as_bytes();
     unsafe {
         _invoke_program(

@@ -91,7 +91,7 @@ fn is_context(type_path: &std::boxed::Box<Type>) -> bool {
     if let Type::Path(ref type_path) = **type_path {
         let ident = &type_path.path.segments[0].ident;
         let ident_str = ident.to_string();
-        ident_str == "Context"
+        ident_str == "State"
     } else {
         false
     }

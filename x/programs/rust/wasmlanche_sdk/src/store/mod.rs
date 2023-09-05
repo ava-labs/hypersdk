@@ -9,7 +9,7 @@ use std::str;
 
 #[allow(clippy::module_name_repetitions)]
 pub enum StoreResult {
-    Ok(Context),
+    Ok(State),
     Err(StorageError),
 }
 
@@ -48,15 +48,15 @@ impl StoreResult {
     }
 }
 
-/// Context defines helper methods for the program builder
+/// State defines helper methods for the program builder
 /// to interact with the host.
 #[derive(Clone, Copy, Serialize, Deserialize)]
-pub struct Context {
+pub struct State {
     pub program_id: i64,
 }
 
 /// Fails if we are storing a map with non-string keys
-impl Context {
+impl State {
     pub fn store_value<T>(self, key: &str, value: &T) -> StoreResult
     where
         T: Serialize + ?Sized,
@@ -108,19 +108,19 @@ impl Context {
     }
 }
 
-impl From<Context> for i64 {
-    fn from(ctx: Context) -> Self {
+impl From<State> for i64 {
+    fn from(ctx: State) -> Self {
         ctx.program_id
     }
 }
 
-impl From<i64> for Context {
+impl From<i64> for State {
     fn from(value: i64) -> Self {
-        Context { program_id: value }
+        State { program_id: value }
     }
 }
 
-fn store_key_value<T>(ctx: Context, key_bytes: &[u8], value: &T) -> Result<(), StorageError>
+fn store_key_value<T>(ctx: State, key_bytes: &[u8], value: &T) -> Result<(), StorageError>
 where
     T: Serialize + ?Sized,
 {
@@ -139,7 +139,7 @@ where
     }
 }
 
-fn get_field_as_bytes(ctx: Context, name: &[u8]) -> Result<Vec<u8>, StorageError> {
+fn get_field_as_bytes(ctx: State, name: &[u8]) -> Result<Vec<u8>, StorageError> {
     let name_ptr = name.as_ptr();
     let name_len = name.len();
     // First get the length of the bytes from the host.
@@ -168,7 +168,7 @@ fn get_field_as_bytes(ctx: Context, name: &[u8]) -> Result<Vec<u8>, StorageError
 }
 
 /// Gets the field `name` from the host and returns it as a `ProgramValue`.
-fn get_field<T>(ctx: Context, name: &str) -> Result<T, StorageError>
+fn get_field<T>(ctx: State, name: &str) -> Result<T, StorageError>
 where
     T: DeserializeOwned,
 {
@@ -187,7 +187,7 @@ where
 }
 
 // Gets the value from the map [name] with key [key] from the host and returns it as a ProgramValue.
-fn get_map_field<T, U>(ctx: Context, name: &str, key: &T) -> Result<U, StorageError>
+fn get_map_field<T, U>(ctx: State, name: &str, key: &T) -> Result<U, StorageError>
 where
     T: Serialize,
     U: DeserializeOwned,
@@ -197,13 +197,13 @@ where
     from_slice(&map_value).map_err(|_| StorageError::HostRetrieveError)
 }
 
-/// Implement the `program_invoke` function for the Context which allows a program to
+/// Implement the `program_invoke` function for the State which allows a program to
 /// call another program.
-impl Context {
+impl State {
     #[must_use]
     pub fn program_invoke(
         &self,
-        call_ctx: Context,
+        call_ctx: State,
         fn_name: &str,
         call_args: &[Box<dyn Argument>],
     ) -> i64 {
