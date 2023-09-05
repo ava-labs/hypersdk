@@ -79,7 +79,8 @@ func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
 
 func (vm *VM) shouldComapct(expiryHeight uint64) bool {
 	if compactionOffset == -1 {
-		compactionOffset = rand.Intn(vm.config.GetBlockCompactionFrequency()) // Intn == [0, n)
+		compactionOffset = rand.Intn(vm.config.GetBlockCompactionFrequency()) //nolint:gosec
+		vm.Logger().Info("setting compaction offset", zap.Int("n", compactionOffset))
 	}
 	return expiryHeight%uint64(vm.config.GetBlockCompactionFrequency()) == uint64(compactionOffset)
 }
