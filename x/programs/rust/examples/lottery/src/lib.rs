@@ -1,4 +1,4 @@
-use expose_macro::expose;
+use expose_macro::public;
 use wasmlanche_sdk::store::State;
 use wasmlanche_sdk::types::Address;
 
@@ -6,7 +6,7 @@ use wasmlanche_sdk::types::Address;
 static TOKEN_PROGRAM_NAME: &str = "token_contract";
 
 /// Initializes the program.
-#[expose]
+#[public]
 fn init(_: State) -> bool {
     // Initialize the program with no fields
     true
@@ -14,7 +14,7 @@ fn init(_: State) -> bool {
 
 /// Sets the token contract address and the lotto address. This needs to be set
 /// before play can be called, otherwise there is no reference contract and address.
-#[expose]
+#[public]
 fn set(state: State, lottery_state: State, lottery_address: Address) -> bool {
     state.store_value(TOKEN_PROGRAM_NAME, &lottery_state)
         .store_value("address", &lottery_address)
@@ -24,7 +24,7 @@ fn set(state: State, lottery_state: State, lottery_address: Address) -> bool {
 /// Randomly generates a number (1-100) and transfers those tokens to the player.
 /// Calls the token contract(which is an external program call using invoke) to
 /// transfer tokens to the player.
-#[expose]
+#[public]
 fn play(state: State, player: Address) -> bool {
     let num = get_random_number(player, 1);
     // If win transfer to player

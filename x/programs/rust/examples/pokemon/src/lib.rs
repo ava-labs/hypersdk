@@ -1,4 +1,4 @@
-use expose_macro::expose;
+use expose_macro::public;
 use serde::{Deserialize, Serialize};
 use wasmlanche_sdk::store::State;
 use wasmlanche_sdk::types::Address;
@@ -14,12 +14,12 @@ struct Pokemon {
 // non-string keys are not supported by serde
 type OwnedPokemon = Vec<Pokemon>;
 
-#[expose]
+#[public]
 pub fn init(state: State) -> bool {
     state.store_value("total_supply", &10_i64).is_ok()
 }
 
-#[expose]
+#[public]
 pub fn catch(state: State, player: Address) -> bool {
     let pokemon = Pokemon {
         name: String::from("Pikachu"),
@@ -34,7 +34,7 @@ pub fn catch(state: State, player: Address) -> bool {
     state.store_map_value("owned", &player, &owned).is_ok()
 }
 
-#[expose]
+#[public]
 pub fn get_owned(state: State, player: Address) -> bool {
     // get players pokemon and print to screen
     let owned: OwnedPokemon = state

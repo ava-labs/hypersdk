@@ -1,10 +1,10 @@
 use wasmlanche_sdk::store::State;
 use wasmlanche_sdk::types::Address;
 
-use expose_macro::expose;
+use expose_macro::public;
 
 /// Initializes the program with a name, symbol, and total supply.
-#[expose]
+#[public]
 pub fn init(state: State) -> bool {
     state.store_value("total_supply", &123456789_i64)
         .store_value("name", "WasmCoin")
@@ -13,20 +13,20 @@ pub fn init(state: State) -> bool {
 }
 
 /// Gets total supply or -1 on error.
-#[expose]
+#[public]
 pub fn get_total_supply(state: State) -> i64 {
     state.get_value("total_supply").unwrap()
 }
 
 /// Adds amount coins to the recipients balance.
-#[expose]
+#[public]
 pub fn mint_to(state: State, recipient: Address, amount: i64) -> bool {
     let amount = amount + state.get_map_value("balances", &recipient).unwrap_or(0);
     state.store_map_value("balances", &recipient, &amount).is_ok()
 }
 
 /// Transfers amount coins from the sender to the recipient. Returns whether successful.
-#[expose]
+#[public]
 pub fn transfer(state: State, sender: Address, recipient: Address, amount: i64) -> bool {
     // require sender != recipient
     if sender == recipient {
@@ -44,7 +44,7 @@ pub fn transfer(state: State, sender: Address, recipient: Address, amount: i64) 
 }
 
 /// Gets the balance of the recipient.
-#[expose]
+#[public]
 pub fn get_balance(state: State, recipient: Address) -> i64 {
     state.get_map_value("balances", &recipient).unwrap_or(0)
 }
