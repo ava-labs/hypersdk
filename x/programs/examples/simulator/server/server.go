@@ -24,13 +24,13 @@ const (
 	dbPath = ".serverDb"
 )
 
-type ProgramPublish struct {
+type ProgramSimulator struct {
 	log logging.Logger
 	db  database.Database
 }
 
-func newProgramPublish(log logging.Logger, db database.Database) *ProgramPublish {
-	return &ProgramPublish{
+func newProgramPublish(log logging.Logger, db database.Database) *ProgramSimulator {
+	return &ProgramSimulator{
 		log: log,
 		db:  db,
 	}
@@ -65,7 +65,7 @@ func main() {
 	r.Run(":8080")
 }
 
-func (r ProgramPublish) keysHandler(c *gin.Context) {
+func (r ProgramSimulator) keysHandler(c *gin.Context) {
 	// get keys
 	keys, err := cmd.GetKeys(r.db)
 	if err != nil {
@@ -73,7 +73,6 @@ func (r ProgramPublish) keysHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Println("Keys: ", keys)
 	c.JSON(200, gin.H{
 		"message": "success",
 		"keys":    keys,
@@ -81,7 +80,7 @@ func (r ProgramPublish) keysHandler(c *gin.Context) {
 
 }
 
-func (r ProgramPublish) publishHandler(c *gin.Context) {
+func (r ProgramSimulator) publishHandler(c *gin.Context) {
 	data, err := ioutil.ReadAll(c.Request.Body)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -95,34 +94,28 @@ func (r ProgramPublish) publishHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Println("NUM: ", num)
-	fmt.Println("Funs: ", funcs)
 	c.JSON(http.StatusOK, gin.H{"message": "Data received successfully", "function_data": funcs, "id": num})
 }
 
-func (r ProgramPublish) invokeHandler(c *gin.Context) {
+func (r ProgramSimulator) invokeHandler(c *gin.Context) {
 	var data map[string]interface{}
 	if err := c.BindJSON(&data); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Println("here")
 	// Process the data
-	// For example, let's assume the JSON data has a "name" field
 	name, nameExists := data["name"].(string)
 	if !nameExists {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing 'name' field"})
 		return
 	}
 
-	fmt.Println("Name: ", name)
 	// params is an array of strings
 	params, paramsExists := data["params"].([]interface{})
 	if !paramsExists {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing 'params' field"})
 		return
 	}
-	fmt.Println("Params: ", params)
 	value, programIDExists := data["programID"].(string)
 	if !programIDExists {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing 'programID' field"})
@@ -135,17 +128,15 @@ func (r ProgramPublish) invokeHandler(c *gin.Context) {
 	}
 
 	// now we have the function name, id and the params, can invoke
-	fmt.Println("ProgramID: ", programID)
 	result, err := r.invokeProgram(programID, name, params)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Println("Result: ", result)
 	c.JSON(http.StatusOK, gin.H{"message": "Data received and processed successfully", "result": result})
 }
 
-func (r ProgramPublish) PublishProgram(programBytes []byte) (uint64, map[string]int, error) {
+func (r ProgramSimulator) PublishProgram(programBytes []byte) (uint64, map[string]int, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -174,7 +165,7 @@ var (
 	maxFee uint64 = 13000
 )
 
-func (r ProgramPublish) invokeProgram(programID uint64, functionName string, params []interface{}) (uint64, error) {
+func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, params []interface{}) (uint64, error) {
 
 	exists, owner, program, err := runtime.GetProgram(r.db, programID)
 	if !exists {
