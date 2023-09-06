@@ -1,7 +1,5 @@
-use wasmlanche_sdk::public;
 use serde::{Deserialize, Serialize};
-use wasmlanche_sdk::store::State;
-use wasmlanche_sdk::types::Address;
+use wasmlanche_sdk::{public, store::State, types::Address};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Pokemon {

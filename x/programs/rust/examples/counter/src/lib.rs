@@ -1,6 +1,4 @@
-use wasmlanche_sdk::public;
-use wasmlanche_sdk::store::State;
-use wasmlanche_sdk::types::Address;
+use wasmlanche_sdk::{public, store::State, types::Address};
 
 /// Initializes the program. This program maps addresses with a count.
 #[public]
