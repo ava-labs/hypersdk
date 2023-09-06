@@ -30,10 +30,10 @@ import (
 )
 
 const (
-	startAmount = uint64(1000000000000)
+	startAmount = uint64(10000000000000000000)
 	sendAmount  = uint64(5000)
 
-	healthPollInterval = 10 * time.Second
+	healthPollInterval = 3 * time.Second
 )
 
 func TestE2e(t *testing.T) {
@@ -397,7 +397,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	ginkgo.It("transfer in a single node (raw)", func() {
 		nativeBalance, err := instances[0].lcli.Balance(context.TODO(), sender)
 		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(nativeBalance).Should(gomega.Equal(uint64(1000000000000)))
+		gomega.Ω(nativeBalance).Should(gomega.Equal(startAmount))
 
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -516,7 +516,37 @@ var _ = ginkgo.Describe("[Test]", func() {
 		acceptTransaction(syncClient, lsyncClient)
 	})
 
-	// Create blocks before state sync starts (state sync requires at least 256
+	ginkgo.It("becomes ready quickly after restart", func() {
+		cluster, err := anrCli.RestartNode(context.Background(), "bootstrap")
+		gomega.Expect(err).To(gomega.BeNil())
+
+		// Upon restart, the node should be able to read blocks from disk
+		// to initialize its [seen] index and become ready in less than
+		// [ValidityWindow].
+		start := time.Now()
+		awaitHealthy(anrCli)
+		gomega.Expect(time.Since(start) < 20*time.Second).To(gomega.BeTrue())
+
+		// Update bootstrap info to latest in case it was assigned a new port
+		nodeURI := cluster.ClusterInfo.NodeInfos["bootstrap"].Uri
+		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
+		bid, err := ids.FromString(blockchainID)
+		gomega.Expect(err).To(gomega.BeNil())
+		hutils.Outf("{{blue}}bootstrap node uri: %s{{/}}\n", uri)
+		c := rpc.NewJSONRPCClient(uri)
+		syncClient = c
+		networkID, _, _, err := syncClient.Network(context.TODO())
+		gomega.Expect(err).Should(gomega.BeNil())
+		tc := lrpc.NewJSONRPCClient(uri, networkID, bid)
+		lsyncClient = tc
+		instances[len(instances)-1] = instance{
+			uri:  uri,
+			cli:  c,
+			lcli: tc,
+		}
+	})
+
+	// Create blocks before state sync starts (state sync requires at least 1024
 	// blocks)
 	//
 	// We do 1024 so that there are a number of ranges of data to fetch.
