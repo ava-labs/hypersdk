@@ -128,12 +128,14 @@ func (r ProgramSimulator) invokeHandler(c *gin.Context) {
 	}
 
 	// now we have the function name, id and the params, can invoke
-	result, err := r.invokeProgram(programID, name, params)
+	result, gas, err := r.invokeProgram(programID, name, params)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Data received and processed successfully", "result": result})
+
+
+	c.JSON(http.StatusOK, gin.H{"message": "Data received and processed successfully", "result": result, "gas": gas})
 }
 
 func (r ProgramSimulator) PublishProgram(programBytes []byte) (uint64, map[string]int, error) {
@@ -165,14 +167,14 @@ var (
 	maxFee uint64 = 13000
 )
 
-func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, params []interface{}) (uint64, error) {
+func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, params []interface{}) (uint64, uint64, error) {
 
 	exists, owner, program, err := runtime.GetProgram(r.db, programID)
 	if !exists {
-		return 0, fmt.Errorf("program %v does not exist", programID)
+		return 0,0, fmt.Errorf("program %v does not exist", programID)
 	}
 	if err != nil {
-		return 0, err
+		return 0,0, err
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -184,7 +186,7 @@ func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, p
 
 	err = runtime.Initialize(ctx, program)
 	if err != nil {
-		return 0, err
+		return 0,0, err
 	}
 
 	var callParams []uint64
@@ -201,11 +203,11 @@ func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, p
 				// address
 				pk, err := cmd.GetPublicKey(r.db, p)
 				if err != nil {
-					return 0, err
+					return 0,0, err
 				}
 				ptr, err := runtime.WriteGuestBuffer(ctx, pk[:])
 				if err != nil {
-					return 0, err
+					return 0,  0,err
 				}
 				callParams = append(callParams, ptr)
 			default:
@@ -213,7 +215,7 @@ func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, p
 				var num uint64
 				num, err := strconv.ParseUint(p, 10, 64)
 				if err != nil {
-					return 0, err
+					return 0, 0, err
 				}
 				callParams = append(callParams, num)
 			}
@@ -224,8 +226,8 @@ func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, p
 
 	resp, err := runtime.Call(ctx, functionName, callParams...)
 	if err != nil {
-		return 0, err
+		return 0,0, err
 	}
 
-	return resp[0], nil
+	return resp[0], runtime.GetCurrentGas(ctx), nil
 }

@@ -139,7 +139,9 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 
 	return nil
 }
-
+func (r *runtime) GetCurrentGas(ctx context.Context) uint64 {
+	return r.meter.GetBalance(ctx)
+}
 func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]uint64, error) {
 	if r.closed {
 		return nil, fmt.Errorf("failed to call: %s: runtime closed", name)
