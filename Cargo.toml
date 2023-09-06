@@ -1,7 +1,7 @@
 # extend if new rust crates are added so rust analyzer isnt confused
 [workspace]
 members = [
-    "x/programs/rust/expose_macro",
+    "x/programs/rust/sdk_macros",
     "x/programs/rust/wasmlanche_sdk",
     "x/programs/rust/examples/token",
     "x/programs/rust/examples/counter",

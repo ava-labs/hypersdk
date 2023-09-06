@@ -6,13 +6,13 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{quote, ToTokens};
 use syn::{parse_macro_input, parse_str, FnArg, Ident, ItemFn, Pat, PatType, Type};
-/// An attribute procedural macro that can be used to expose a function to the host.
+/// An attribute procedural macro that makes a function visable to the VM host.
 /// It does so by wrapping the `item` tokenstream in a new function that can be called by the host.
 /// The wrapper function will have the same name as the original function, but with "_guest" appended to it.
 /// The wrapper functions parameters will be converted to WASM supported types. When called, the wrapper function
 /// calls the original function by converting the parameters back to their intended types using .into().
 #[proc_macro_attribute]
-pub fn expose(_: TokenStream, item: TokenStream) -> TokenStream {
+pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
     let name = &input.sig.ident;
     let input_args = &input.sig.inputs;
@@ -91,7 +91,7 @@ fn is_context(type_path: &std::boxed::Box<Type>) -> bool {
     if let Type::Path(ref type_path) = **type_path {
         let ident = &type_path.path.segments[0].ident;
         let ident_str = ident.to_string();
-        ident_str == "Context"
+        ident_str == "State"
     } else {
         false
     }

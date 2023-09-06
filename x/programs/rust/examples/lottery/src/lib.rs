@@ -1,45 +1,37 @@
-use expose_macro::expose;
-use wasmlanche_sdk::store::Context;
-use wasmlanche_sdk::types::Address;
+use wasmlanche_sdk::{public, store::State, types::Address};
 
 // Define the name of the token contract in the programs storage map.
 static TOKEN_PROGRAM_NAME: &str = "token_contract";
 
-/// Initializes the program.
-#[expose]
-fn init(_: Context) -> bool {
-    // Initialize the program with no fields
-    true
-}
-
 /// Sets the token contract address and the lotto address. This needs to be set
 /// before play can be called, otherwise there is no reference contract and address.
-#[expose]
-fn set(ctx: Context, counter_ctx: Context, lot_address: Address) -> bool {
-    ctx.store_value(TOKEN_PROGRAM_NAME, &counter_ctx)
-        .store_value("address", &lot_address)
+#[public]
+fn set(state: State, lottery_state: State, lottery_address: Address) -> bool {
+    state
+        .store_value(TOKEN_PROGRAM_NAME, &lottery_state)
+        .store_value("address", &lottery_address)
         .is_ok()
 }
 
 /// Randomly generates a number (1-100) and transfers those tokens to the player.
 /// Calls the token contract(which is an external program call using invoke) to
 /// transfer tokens to the player.
-#[expose]
-fn play(ctx: Context, player: Address) -> bool {
+#[public]
+fn play(state: State, player: Address) -> bool {
     let num = get_random_number(player, 1);
     // If win transfer to player
-    let call_ctx = match ctx.get_value(TOKEN_PROGRAM_NAME) {
-        Ok(ctx) => ctx,
+    let lottery_state = match state.get_value(TOKEN_PROGRAM_NAME) {
+        Ok(state) => state,
         Err(_) => return false,
     };
 
-    let Ok(lotto_addy) = ctx.get_value::<Address>("address") else {
+    let Ok(lotto_addy) = state.get_value::<Address>("address") else {
         return false;
     };
 
     // Transfer
-    let _ = ctx.program_invoke(
-        call_ctx,
+    let _ = state.invoke_program(
+        lottery_state,
         "transfer",
         &[Box::new(lotto_addy), Box::new(player), Box::new(num)],
     );

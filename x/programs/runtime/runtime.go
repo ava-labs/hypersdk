@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -52,15 +53,17 @@ func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, erro
 	// get programId
 	programID := initProgramStorage()
 
-	// call initialize
+	// call initialize if it exists
 	result, err := r.Call(ctx, "init", uint64(programID))
 	if err != nil {
-		return 0, err
-	}
-
-	// check boolean result from init
-	if result[0] == 0 {
-		return 0, fmt.Errorf("failed to initialize program")
+		if !errors.Is(err, ErrMissingExportedFunction) {
+			return 0, err
+		}
+	} else {
+		// check boolean result from init
+		if result[0] == 0 {
+			return 0, fmt.Errorf("failed to initialize program")
+		}
 	}
 	return uint64(programID), nil
 }
@@ -123,7 +126,7 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 	}
 
 	if api == nil {
-		return nil, fmt.Errorf("failed to find exported function: %s", name)
+		return nil, fmt.Errorf("%w: %s", ErrMissingExportedFunction, name)
 	}
 
 	result, err := api.Call(ctx, params...)

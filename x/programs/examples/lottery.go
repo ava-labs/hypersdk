@@ -36,7 +36,6 @@ type Lottery struct {
 }
 
 func (t *Lottery) Run(ctx context.Context) error {
-
 	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
 	db := utils.NewTestDB()
 	store := newProgramStorage(db)

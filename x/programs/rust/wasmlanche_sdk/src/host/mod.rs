@@ -1,4 +1,4 @@
-use crate::store::Context;
+use crate::store::State;
 
 // The map module contains functionality for storing and retrieving key-value pairs.
 #[link(wasm_import_module = "map")]
@@ -22,7 +22,7 @@ extern "C" {
 // The program module contains functionality for invoking external programs.
 #[link(wasm_import_module = "program")]
 extern "C" {
-    #[link_name = "program_invoke"]
+    #[link_name = "invoke_program"]
     fn _invoke_program(
         call_contract_id: i64,
         method_name_ptr: *const u8,
@@ -39,13 +39,13 @@ extern "C" {
 /// `value_ptr` + `value_len` point to valid memory locations.
 #[must_use]
 pub unsafe fn store_bytes(
-    ctx: Context,
+    state: State,
     key_ptr: *const u8,
     key_len: usize,
     value_ptr: *const u8,
     value_len: usize,
 ) -> i32 {
-    unsafe { _store_bytes(ctx.program_id, key_ptr, key_len, value_ptr, value_len) }
+    unsafe { _store_bytes(state.program_id, key_ptr, key_len, value_ptr, value_len) }
 }
 
 /// Gets the length of the bytes associated with the key from the host.
@@ -53,8 +53,8 @@ pub unsafe fn store_bytes(
 /// # Safety
 /// The caller must ensure that `key_ptr` + `key_len` points to valid memory locations.
 #[must_use]
-pub unsafe fn get_bytes_len(ctx: Context, key_ptr: *const u8, key_len: usize) -> i32 {
-    unsafe { _get_bytes_len(ctx.program_id, key_ptr, key_len) }
+pub unsafe fn get_bytes_len(state: State, key_ptr: *const u8, key_len: usize) -> i32 {
+    unsafe { _get_bytes_len(state.program_id, key_ptr, key_len) }
 }
 
 /// Gets the bytes associated with the key from the host.
@@ -62,17 +62,17 @@ pub unsafe fn get_bytes_len(ctx: Context, key_ptr: *const u8, key_len: usize) ->
 /// # Safety
 /// The caller must ensure that `key_ptr` + `key_len` points to valid memory locations.
 #[must_use]
-pub unsafe fn get_bytes(ctx: Context, key_ptr: *const u8, key_len: usize, val_len: i32) -> i32 {
-    unsafe { _get_bytes(ctx.program_id, key_ptr, key_len, val_len) }
+pub unsafe fn get_bytes(state: State, key_ptr: *const u8, key_len: usize, val_len: i32) -> i32 {
+    unsafe { _get_bytes(state.program_id, key_ptr, key_len, val_len) }
 }
 
 /// Invokes another program and returns the result.
 #[must_use]
-pub fn program_invoke(call_ctx: Context, method_name: &str, args: &[u8]) -> i64 {
+pub fn invoke_program(call_state: State, method_name: &str, args: &[u8]) -> i64 {
     let method_name_bytes = method_name.as_bytes();
     unsafe {
         _invoke_program(
-            call_ctx.program_id,
+            call_state.program_id,
             method_name_bytes.as_ptr(),
             method_name_bytes.len(),
             args.as_ptr(),
