@@ -47,9 +47,6 @@ func (c *client) call(ctx context.Context, name string, params ...uint64) ([]uin
 	if !ok {
 		return nil, fmt.Errorf("failed to find exported function: %s", name)
 	}
-	if api == nil {
-		return nil, fmt.Errorf("failed to register an api module for function: %s", name)
-	}
 	return api.Call(ctx, params...)
 }
 
