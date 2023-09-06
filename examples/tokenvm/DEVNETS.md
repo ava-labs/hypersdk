@@ -40,13 +40,14 @@ export ARCH_TYPE=$(uname -m)
 echo ${ARCH_TYPE}
 export OS_TYPE=$(uname | tr '[:upper:]' '[:lower:]')
 echo ${OS_TYPE}
-export HYPERSDK_VERSION="0.0.9"
-rm -f /tmp/token-cli
-wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz"
+export HYPERSDK_VERSION="0.0.13"
+rm -f /tmp/avalanche-ops/token-cli
+mkdir -p /tmp/avalanche-ops
+wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz"
 mkdir tmp-hypersdk
-tar -xvf hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz -C tmp-hypersdk
-rm -rf hypersdk_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz
-mv tmp-hypersdk/token-cli /tmp/token-cli
+tar -xvf tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz -C tmp-hypersdk
+rm -rf tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz
+mv tmp-hypersdk/token-cli /tmp/avalanche-ops/token-cli
 rm -rf tmp-hypersdk
 ```
 
@@ -56,21 +57,45 @@ improve the performance of cryptographic operations, you should consider
 building with [`v3+`](https://github.com/golang/go/wiki/MinimumRequirements#amd64).
 
 ```bash
-export HYPERSDK_VERSION="0.0.9"
-rm -f /tmp/tokenvm
-wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz"
+export HYPERSDK_VERSION="0.0.13"
+rm -f /tmp/avalanche-ops/tokenvm
+wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz"
 mkdir tmp-hypersdk
-tar -xvf hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz -C tmp-hypersdk
-rm -rf hypersdk_${HYPERSDK_VERSION}_linux_amd64.tar.gz
-mv tmp-hypersdk/tokenvm /tmp/tokenvm
+tar -xvf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz -C tmp-hypersdk
+rm -rf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz
+mv tmp-hypersdk/tokenvm /tmp/avalanche-ops/tokenvm
 rm -rf tmp-hypersdk
 ```
 
-*Note*: We must install the linux build because that is compatible with the AWS
-deployment target. If you use Graivtron CPUs, make sure to use `arm64` here.
-
+_We must install the linux build because that is compatible with the AWS
+deployment target. If you use Graivtron CPUs, make sure to use `arm64` here._
 
 ### Step 5: Plan Local Network Deploy
+
+WIP
+```bash
+/tmp/avalancheup-aws default-spec \
+--arch-type amd64 \
+--os-type ubuntu20.04 \
+--anchor-nodes 3 \
+--non-anchor-nodes 3 \
+--regions us-west-2 \
+--instance-mode=on-demand \
+--instance-types='{"us-west-2":["c5.4xlarge"]}' \
+--ip-mode=ephemeral \
+--metrics-fetch-interval-seconds 60 \
+--network-name custom \
+--avalanchego-release-tag v1.10.3 \
+--create-dev-machine \
+--keys-to-generate 5 \
+--subnet-config-file /tmp/avalanche-ops/tokenvm-subnet-config.json \
+--vm-binary-file /tmp/avalanche-ops/tokenvm \
+--chain-name tokenvm1 \
+--chain-genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
+--chain-config-file /tmp/avalanche-ops/tokenvm-chain-config.json \
+--spec-file-path spec.yml \
+--profile-name <AWS_PROFILE_NAME> 
+```
 
 Now we can spin up a new network of 6 nodes with some defaults:
 - `avalanche-ops` supports [Graviton-based processors](https://aws.amazon.com/ec2/graviton/) (ARM64). Use `--arch-type arm64` to run nodes in ARM64 CPUs.
@@ -92,6 +117,16 @@ Now we can spin up a new network of 6 nodes with some defaults:
 --avalanchego-release-tag v1.10.3 \
 --create-dev-machine \
 --keys-to-generate 5 \
+--subnet-config-local-path /tmp/avalanche-ops/tokenvm-subnet-config.json \
+--subnet-config-remote-dir /data/avalanche-configs/subnets \
+--vm-binary-local-path /tmp/tokenvm \
+--vm-binary-remote-dir /data/avalanche-plugins \
+--chain-name tokenvm1 \
+--chain-genesis-path /tmp/avalanche-ops/tokenvm-genesis.json \
+--chain-config-local-path /tmp/avalanche-ops/tokenvm-chain-config.json \
+--chain-config-remote-dir /data/avalanche-configs/chains \
+--avalanchego-config-remote-path /data/avalanche-configs/config.json \
+--staking-amount-in-avax 2000 \
 --profile-name <AWS_PROFILE_NAME>
 ```
 
@@ -234,8 +269,7 @@ mkdir /tmp/avalanche-ops
 cat <<EOF > /tmp/avalanche-ops/tokenvm-subnet-config.json
 {
   "proposerMinBlockDelay": 0,
-  "gossipOnAcceptPeerSize": 0,
-  "gossipAcceptedFrontierPeerSize": 0
+  "proposerNumHistoricalBlocks": 768
 }
 EOF
 cat /tmp/avalanche-ops/tokenvm-subnet-config.json
@@ -244,11 +278,11 @@ cat <<EOF > /tmp/avalanche-ops/allocations.json
 [{"address":"token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":1000000000000000}]
 EOF
 
-/tmp/token-cli genesis generate /tmp/avalanche-ops/allocations.json \
+/tmp/avalanche-ops/token-cli genesis generate /tmp/avalanche-ops/allocations.json \
 --genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
---max-block-units 400000000 \
---window-target-units 100000000000 \
---window-target-blocks 40
+--max-block-units 18446744073709551615,18446744073709551615,18446744073709551615,18446744073709551615,18446744073709551615 \
+--window-target-units 1800000,18446744073709551615,18446744073709551615,18446744073709551615,18446744073709551615 \
+--min-block-gap 100 
 cat /tmp/avalanche-ops/tokenvm-genesis.json
 
 cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
@@ -257,13 +291,9 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "mempoolPayerSize": 10000000,
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "streamingBacklogSize": 10000000,
-  "gossipMaxSize": 32768,
-  "gossipProposerDepth": 1,
-  "buildProposerDiff": 10,
-  "verifyTimeout": 5,
+  "storeTransactions": false,
   "trackedPairs":["*"],
   "logLevel": "info",
-  "preferredBlocksPerSecond": 4
 }
 EOF
 cat /tmp/avalanche-ops/tokenvm-chain-config.json
