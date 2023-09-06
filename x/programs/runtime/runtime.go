@@ -95,7 +95,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions
 		if m == nil {
 			return fmt.Errorf("failed to find exported function: %s", name)
 		}
-		exported[name] = mod.ExportedFunction(utils.GetGuestFnName(name))
+		exported[name] = m
 	}
 
 	r.client = newClient(r.log, mod, exported)
