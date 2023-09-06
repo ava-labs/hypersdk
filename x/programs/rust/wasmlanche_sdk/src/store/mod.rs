@@ -1,5 +1,5 @@
 use crate::errors::StorageError;
-use crate::host::{invoke_program, get_bytes, get_bytes_len, store_bytes};
+use crate::host::{get_bytes, get_bytes_len, invoke_program, store_bytes};
 use crate::types::Argument;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_bare::{from_slice, to_vec};
