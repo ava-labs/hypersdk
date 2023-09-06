@@ -98,7 +98,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions
 		exported[name] = mod.ExportedFunction(utils.GetGuestFnName(name))
 	}
 
-	r.client = newClient(r.log, mod, functions)
+	r.client = newClient(r.log, mod, exported)
 
 	return nil
 }
