@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
 // New returns a new runtime instance. All runtimes are expected to run Stop
@@ -80,6 +81,21 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions
 	mod, err := r.engine.InstantiateModule(ctx, compiledModule, config)
 	if err != nil {
 		return fmt.Errorf("failed to instantiate wasm module: %w", err)
+	}
+
+	// initialize exported functions
+	exported := make(map[string]api.Function)
+
+	// default functions
+	exported[allocFnName] = mod.ExportedFunction(allocFnName)
+	exported[deallocFnName] = mod.ExportedFunction(deallocFnName)
+
+	for _, name := range functions {
+		m := mod.ExportedFunction(utils.GetGuestFnName(name))
+		if m == nil {
+			return fmt.Errorf("failed to find exported function: %s", name)
+		}
+		exported[name] = mod.ExportedFunction(utils.GetGuestFnName(name))
 	}
 
 	r.client = newClient(r.log, mod, functions)

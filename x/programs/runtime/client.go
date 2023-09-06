@@ -11,8 +11,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
-
-	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
 const (
@@ -22,18 +20,7 @@ const (
 
 // newClient returns a new runtime client capable of making calls to exported
 // functions of the guest. All clients must be closed when no longer in use.
-func newClient(log logging.Logger, mod api.Module, functions []string) *client {
-	// initialize exported functions
-	exported := make(map[string]api.Function)
-
-	// default functions
-	exported[allocFnName] = mod.ExportedFunction(allocFnName)
-	exported[deallocFnName] = mod.ExportedFunction(deallocFnName)
-
-	for _, name := range functions {
-		exported[name] = mod.ExportedFunction(utils.GetGuestFnName(name))
-	}
-
+func newClient(log logging.Logger, mod api.Module, exported map[string]api.Function) *client {
 	return &client{
 		log:      log,
 		mod:      mod,
