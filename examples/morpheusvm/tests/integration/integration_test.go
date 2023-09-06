@@ -110,6 +110,7 @@ var (
 	// when used with embedded VMs
 	genesisBytes []byte
 	instances    []instance
+	blocks       []snowman.Block
 
 	networkID uint32
 	gen       *genesis.Genesis
@@ -263,6 +264,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			csupply += alloc.Balance
 		}
 	}
+	blocks = []snowman.Block{}
 
 	app.instances = instances
 	color.Blue("created %d VMs", vms)
@@ -401,6 +403,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 			gomega.Ω(blk.Accept(ctx)).To(gomega.BeNil())
 			gomega.Ω(blk.Status()).To(gomega.Equal(choices.Accepted))
+			blocks = append(blocks, blk)
 
 			lastAccepted, err := instances[1].vm.LastAccepted(ctx)
 			gomega.Ω(err).To(gomega.BeNil())
@@ -454,7 +457,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			accept := expectBlk(instances[1])
-			results := accept()
+			results := accept(true)
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
@@ -532,7 +535,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 
 			accept := expectBlk(instances[1])
-			results := accept()
+			results := accept(true)
 
 			// Check results
 			gomega.Ω(results).Should(gomega.HaveLen(4))
@@ -608,7 +611,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("Test processing block handling", func() {
-		var accept, accept2 func() []*chain.Result
+		var accept, accept2 func(bool) []*chain.Result
 
 		ginkgo.By("create processing tip", func() {
 			parser, err := instances[1].lcli.Parser(context.Background())
@@ -643,10 +646,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("clear processing tip", func() {
-			results := accept()
+			results := accept(true)
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-			results = accept2()
+			results = accept2(true)
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 		})
@@ -680,30 +683,19 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	ginkgo.It("ensure unprocessed tip works", func() {
 		ginkgo.By("import accepted blocks to instance 2", func() {
 			ctx := context.TODO()
-			o := instances[1]
-			blks := []snowman.Block{}
-			next, err := o.vm.LastAccepted(ctx)
-			gomega.Ω(err).Should(gomega.BeNil())
-			for {
-				blk, err := o.vm.GetBlock(ctx, next)
-				gomega.Ω(err).Should(gomega.BeNil())
-				blks = append([]snowman.Block{blk}, blks...)
-				if blk.Height() == 1 {
-					break
-				}
-				next = blk.Parent()
-			}
+
+			gomega.Ω(blocks[0].Height()).Should(gomega.Equal(uint64(1)))
 
 			n := instances[2]
-			blk1, err := n.vm.ParseBlock(ctx, blks[0].Bytes())
+			blk1, err := n.vm.ParseBlock(ctx, blocks[0].Bytes())
 			gomega.Ω(err).Should(gomega.BeNil())
 			err = blk1.Verify(ctx)
 			gomega.Ω(err).Should(gomega.BeNil())
 
 			// Parse tip
-			blk2, err := n.vm.ParseBlock(ctx, blks[1].Bytes())
+			blk2, err := n.vm.ParseBlock(ctx, blocks[1].Bytes())
 			gomega.Ω(err).Should(gomega.BeNil())
-			blk3, err := n.vm.ParseBlock(ctx, blks[2].Bytes())
+			blk3, err := n.vm.ParseBlock(ctx, blocks[2].Bytes())
 			gomega.Ω(err).Should(gomega.BeNil())
 
 			// Verify tip
@@ -721,7 +713,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 
 			// Parse another
-			blk4, err := n.vm.ParseBlock(ctx, blks[3].Bytes())
+			blk4, err := n.vm.ParseBlock(ctx, blocks[3].Bytes())
 			gomega.Ω(err).Should(gomega.BeNil())
 			err = blk4.Verify(ctx)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -734,7 +726,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	ginkgo.It("processes valid index transactions (w/block listening)", func() {
 		// Clear previous txs on instance 0
 		accept := expectBlk(instances[0])
-		accept() // don't care about results
+		accept(false) // don't care about results
 
 		// Subscribe to blocks
 		cli, err := rpc.NewWebSocketClient(instances[0].WebSocketServer.URL, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
@@ -770,7 +762,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 		gomega.Ω(err).Should(gomega.BeNil())
 		accept = expectBlk(instances[0])
-		results := accept()
+		results := accept(false)
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
@@ -829,7 +821,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		}
 		gomega.Ω(err).Should(gomega.BeNil())
 		accept := expectBlk(instances[0])
-		results := accept()
+		results := accept(false)
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
@@ -846,7 +838,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 })
 
-func expectBlk(i instance) func() []*chain.Result {
+func expectBlk(i instance) func(bool) []*chain.Result {
 	ctx := context.TODO()
 
 	// manually signal ready
@@ -867,9 +859,13 @@ func expectBlk(i instance) func() []*chain.Result {
 	err = i.vm.SetPreference(ctx, blk.ID())
 	gomega.Ω(err).To(gomega.BeNil())
 
-	return func() []*chain.Result {
+	return func(add bool) []*chain.Result {
 		gomega.Ω(blk.Accept(ctx)).To(gomega.BeNil())
 		gomega.Ω(blk.Status()).To(gomega.Equal(choices.Accepted))
+
+		if add {
+			blocks = append(blocks, blk)
+		}
 
 		lastAccepted, err := i.vm.LastAccepted(ctx)
 		gomega.Ω(err).To(gomega.BeNil())

@@ -71,6 +71,11 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 	sb *chain.SyncableBlock,
 ) (block.StateSyncMode, error) {
 	s.init = true
+	s.vm.snowCtx.Log.Info("accepted syncable block",
+		zap.Uint64("height", sb.Height()),
+		zap.Stringer("blockID", sb.ID()),
+	)
+
 	// If we did not finish syncing, we must state sync.
 	syncing, err := s.vm.GetDiskIsSyncing()
 	if err != nil {
@@ -83,10 +88,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 			zap.Uint64("lastAccepted", s.vm.lastAccepted.Hght),
 			zap.Uint64("syncableHeight", sb.Height()),
 		)
-
-		// We should backfill the emap if we are starting from the last accepted
-		// block to avoid unnecessarily waiting for txs if we have recent blocks.
-		s.startingSync(false)
+		s.startedSync = true
 
 		// We trigger [done] immediately so we let the engine know we are
 		// synced as soon as the [ValidityWindow] worth of txs are verified.
@@ -114,10 +116,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 		zap.Stringer("summary", sb),
 		zap.Bool("already syncing", syncing),
 	)
-
-	// We don't backfill emap with old data because we are going to skip ahead
-	// from the last accepted block.
-	s.startingSync(true)
+	s.startedSync = true
 
 	// Initialize metrics for sync client
 	r := prometheus.NewRegistry()
@@ -160,9 +159,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 	// Update the last accepted to the state target block,
 	// since we don't want bootstrapping to fetch all the blocks
 	// from genesis to the sync target.
-	if err := s.target.SetLastAccepted(context.Background()); err != nil {
-		return block.StateSyncSkipped, err
-	}
+	s.target.MarkAccepted(context.Background())
 
 	// Kickoff state syncing from [s.target]
 	if err := s.syncManager.Start(context.Background()); err != nil {
@@ -202,9 +199,7 @@ func (s *stateSyncerClient) finishSync() error {
 		//
 		// NOTE: There may be a number of verified but unaccepted blocks above this
 		// block.
-		if err := s.target.SetLastAccepted(context.Background()); err != nil {
-			return err
-		}
+		s.target.MarkAccepted(context.Background())
 	}
 	return s.vm.PutDiskIsSyncing(false)
 }
@@ -267,73 +262,4 @@ func (s *stateSyncerClient) UpdateSyncTarget(b *chain.StatelessBlock) (bool, err
 	s.target = b           // Remember the new target
 	s.targetUpdated = true // Set [targetUpdated] so we call SetLastAccepted on finish
 	return true, nil       // Sync root target updated successfully
-}
-
-// startingSync is called before [AcceptedSyncableBlock] returns
-func (s *stateSyncerClient) startingSync(state bool) {
-	s.startedSync = true
-	vm := s.vm
-
-	// If state sync, we pessimistically assume nothing we have on-disk will
-	// be useful (as we will jump ahead to some future block).
-	if state {
-		return
-	}
-
-	// Exit early if we don't have any blocks other than genesis (which
-	// contains no transactions)
-	blk := vm.lastAccepted
-	if blk.Hght == 0 {
-		vm.snowCtx.Log.Info("no seen transactions to backfill")
-		vm.startSeenTime = 0
-		vm.seenValidityWindowOnce.Do(func() {
-			close(vm.seenValidityWindow)
-		})
-		return
-	}
-
-	// Backfill [vm.seen] with lifeline worth of transactions
-	r := vm.Rules(vm.lastAccepted.Tmstmp)
-	oldest := uint64(0)
-	var err error
-	for {
-		if vm.lastAccepted.Tmstmp-blk.Tmstmp > r.GetValidityWindow() {
-			// We are assured this function won't be running while we accept
-			// a block, so we don't need to protect against closing this channel
-			// twice.
-			vm.seenValidityWindowOnce.Do(func() {
-				close(vm.seenValidityWindow)
-			})
-			break
-		}
-
-		// It is ok to add transactions from newest to oldest
-		vm.seen.Add(blk.Txs)
-		vm.startSeenTime = blk.Tmstmp
-		oldest = blk.Hght
-
-		// Exit early if next block to fetch is genesis (which contains no
-		// txs)
-		if blk.Hght <= 1 {
-			// If we have walked back from the last accepted block to genesis, then
-			// we can be sure we have all required transactions to start validation.
-			vm.startSeenTime = 0
-			vm.seenValidityWindowOnce.Do(func() {
-				close(vm.seenValidityWindow)
-			})
-			break
-		}
-
-		// Set next blk in lookback
-		blk, err = vm.GetStatelessBlock(context.Background(), blk.Prnt)
-		if err != nil {
-			vm.snowCtx.Log.Error("could not load block, exiting backfill", zap.Error(err))
-			break
-		}
-	}
-	vm.snowCtx.Log.Info(
-		"backfilled seen txs",
-		zap.Uint64("start", oldest),
-		zap.Uint64("finish", vm.lastAccepted.Hght),
-	)
 }

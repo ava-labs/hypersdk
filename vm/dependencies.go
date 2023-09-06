@@ -47,10 +47,12 @@ type Config interface {
 	GetStateSyncMinBlocks() uint64
 	GetStateSyncServerDelay() time.Duration
 	GetParsedBlockCacheSize() int
-	GetAcceptedBlockCacheSize() int
+	GetAcceptedBlockWindow() int
 	GetContinuousProfilerConfig() *profiler.Config
 	GetTargetBuildDuration() time.Duration
+	GetProcessingBuildSkip() int
 	GetTargetGossipDuration() time.Duration
+	GetBlockCompactionFrequency() int
 }
 
 type Genesis interface {

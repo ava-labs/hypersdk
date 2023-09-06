@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	startAmount = uint64(1000000000000)
+	startAmount = uint64(10000000000000000000)
 	sendAmount  = uint64(5000)
 
 	healthPollInterval = 10 * time.Second
@@ -501,7 +501,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	ginkgo.It("transfer in a single node (raw)", func() {
 		nativeBalance, err := instancesA[0].tcli.Balance(context.TODO(), sender, ids.Empty)
 		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(nativeBalance).Should(gomega.Equal(uint64(1000000000000)))
+		gomega.Ω(nativeBalance).Should(gomega.Equal(startAmount))
 
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())

@@ -45,7 +45,6 @@ type VM interface {
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
-	SetLastAccepted(*StatelessBlock) error
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
 	GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error)
