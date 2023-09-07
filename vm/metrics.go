@@ -21,6 +21,7 @@ type Metrics struct {
 	buildCapped        prometheus.Counter
 	emptyBlockBuilt    prometheus.Counter
 	clearedMempool     prometheus.Counter
+	deletedBlocks      prometheus.Counter
 	mempoolSize        prometheus.Gauge
 	bandwidthPrice     prometheus.Gauge
 	computePrice       prometheus.Gauge
@@ -28,6 +29,7 @@ type Metrics struct {
 	storageCreatePrice prometheus.Gauge
 	storageModifyPrice prometheus.Gauge
 	rootCalculated     metric.Averager
+	waitRoot           metric.Averager
 	waitSignatures     metric.Averager
 	blockBuild         metric.Averager
 	blockParse         metric.Averager
@@ -43,6 +45,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"root_calculated",
 		"time spent calculating the state root in verify",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	waitRoot, err := metric.NewAverager(
+		"chain",
+		"wait_root",
+		"time spent waiting for root calculation in verify",
 		r,
 	)
 	if err != nil {
@@ -159,6 +170,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "cleared_mempool",
 			Help:      "number of times cleared mempool while building",
 		}),
+		deletedBlocks: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "vm",
+			Name:      "deleted_blocks",
+			Help:      "number of blocks deleted",
+		}),
 		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "mempool_size",
@@ -190,6 +206,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Help:      "unit price of storage modifications",
 		}),
 		rootCalculated: rootCalculated,
+		waitRoot:       waitRoot,
 		waitSignatures: waitSignatures,
 		blockBuild:     blockBuild,
 		blockParse:     blockParse,
@@ -211,6 +228,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.buildCapped),
 		r.Register(m.emptyBlockBuilt),
 		r.Register(m.clearedMempool),
+		r.Register(m.deletedBlocks),
 		r.Register(m.bandwidthPrice),
 		r.Register(m.computePrice),
 		r.Register(m.storageReadPrice),

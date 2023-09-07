@@ -33,9 +33,10 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x0/ (balance)
 //   -> [owner] => balance
 // 0x1/ (hypersdk-height)
-// 0x2/ (hypersdk-fee)
-// 0x3/ (hypersdk-incoming warp)
-// 0x4/ (hypersdk-outgoing warp)
+// 0x2/ (hypersdk-timestamp)
+// 0x3/ (hypersdk-fee)
+// 0x4/ (hypersdk-incoming warp)
+// 0x5/ (hypersdk-outgoing warp)
 
 const (
 	// metaDB
@@ -44,18 +45,20 @@ const (
 	// stateDB
 	balancePrefix      = 0x0
 	heightPrefix       = 0x1
-	feePrefix          = 0x2
-	incomingWarpPrefix = 0x3
-	outgoingWarpPrefix = 0x4
+	timestampPrefix    = 0x2
+	feePrefix          = 0x3
+	incomingWarpPrefix = 0x4
+	outgoingWarpPrefix = 0x5
 )
 
 const BalanceChunks uint16 = 1
 
 var (
-	failureByte = byte(0x0)
-	successByte = byte(0x1)
-	heightKey   = []byte{heightPrefix}
-	feeKey      = []byte{feePrefix}
+	failureByte  = byte(0x0)
+	successByte  = byte(0x1)
+	heightKey    = []byte{heightPrefix}
+	timestampKey = []byte{timestampPrefix}
+	feeKey       = []byte{feePrefix}
 
 	balanceKeyPool = sync.Pool{
 		New: func() any {
@@ -254,6 +257,10 @@ func SubBalance(
 
 func HeightKey() (k []byte) {
 	return heightKey
+}
+
+func TimestampKey() (k []byte) {
+	return timestampKey
 }
 
 func FeeKey() (k []byte) {

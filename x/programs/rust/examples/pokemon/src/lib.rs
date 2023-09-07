@@ -1,7 +1,5 @@
-use expose_macro::expose;
 use serde::{Deserialize, Serialize};
-use wasmlanche_sdk::store::Context;
-use wasmlanche_sdk::types::Address;
+use wasmlanche_sdk::{public, store::State, types::Address};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Pokemon {
@@ -14,13 +12,13 @@ struct Pokemon {
 // non-string keys are not supported by serde
 type OwnedPokemon = Vec<Pokemon>;
 
-#[expose]
-pub fn init(ctx: Context) -> bool {
-    ctx.store_value("total_supply", &10_i64).is_ok()
+#[public]
+pub fn init(state: State) -> bool {
+    state.store_value("total_supply", &10_i64).is_ok()
 }
 
-#[expose]
-pub fn catch(ctx: Context, player: Address) -> bool {
+#[public]
+pub fn catch(state: State, player: Address) -> bool {
     let pokemon = Pokemon {
         name: String::from("Pikachu"),
         level: 1,
@@ -28,16 +26,16 @@ pub fn catch(ctx: Context, player: Address) -> bool {
         moves: vec![String::from("Thunderbolt"), String::from("Quick Attack")],
     };
 
-    let mut owned: OwnedPokemon = ctx.get_map_value("owned", &player).unwrap_or_default();
+    let mut owned: OwnedPokemon = state.get_map_value("owned", &player).unwrap_or_default();
     owned.push(pokemon);
 
-    ctx.store_map_value("owned", &player, &owned).is_ok()
+    state.store_map_value("owned", &player, &owned).is_ok()
 }
 
-#[expose]
-pub fn get_owned(ctx: Context, player: Address) -> bool {
+#[public]
+pub fn get_owned(state: State, player: Address) -> bool {
     // get players pokemon and print to screen
-    let owned: OwnedPokemon = ctx
+    let owned: OwnedPokemon = state
         .get_map_value("owned", &player)
         .unwrap_or_else(|_| vec![]);
     println!("Owned: {:?}", owned);

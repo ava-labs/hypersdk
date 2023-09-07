@@ -25,23 +25,34 @@ type Handlers map[string]*common.HTTPHandler
 
 type Config interface {
 	GetTraceConfig() *trace.Config
-	GetParallelism() int // how many cores to use during verification
+	// Parallelism is split between signature verification
+	// and root generation (50/50), where any odd cores
+	// are added to signature verification.
+	//
+	// These operations are typically both done at the same time
+	// and will cause CPU thrashing if both given full access to all
+	// cores.
+	GetParallelism() int
 	GetMempoolSize() int
 	GetMempoolPayerSize() int
 	GetMempoolExemptPayers() [][]byte
 	GetVerifySignatures() bool
 	GetStreamingBacklogSize() int
-	GetStateHistoryLength() int // how many roots back of data to keep to serve state queries
-	GetStateCacheSize() int     // how many items to keep in value cache and node cache
-	GetAcceptorSize() int       // how far back we can fall in processing accepted blocks
+	GetStateHistoryLength() int        // how many roots back of data to keep to serve state queries
+	GetStateEvictionBatchSize() int    // how many bytes to evict at once
+	GetIntermediateNodeCacheSize() int // how many bytes to keep in intermediate cache
+	GetValueNodeCacheSize() int        // how many bytes to keep in value cache
+	GetAcceptorSize() int              // how far back we can fall in processing accepted blocks
 	GetStateSyncParallelism() int
 	GetStateSyncMinBlocks() uint64
 	GetStateSyncServerDelay() time.Duration
 	GetParsedBlockCacheSize() int
-	GetAcceptedBlockCacheSize() int
+	GetAcceptedBlockWindow() int
 	GetContinuousProfilerConfig() *profiler.Config
 	GetTargetBuildDuration() time.Duration
+	GetProcessingBuildSkip() int
 	GetTargetGossipDuration() time.Duration
+	GetBlockCompactionFrequency() int
 }
 
 type Genesis interface {

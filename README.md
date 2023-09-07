@@ -74,7 +74,7 @@ to that team for all the work they put into researching this approach.
 Instead of requiring nodes to execute all previous transactions when joining
 any `hyperchain` (which may not be possible if there is very high throughput on a Subnet),
 the `hypersdk` just syncs the most recent state from the network. To avoid falling
-behind the network while syncing this state, the `hypersdk` acts as an Avalanche Light
+behind the network while syncing this state, the `hypersdk` acts as an Avalanche Lite
 Client and performs consensus on newly processed blocks without verifying them (updating its
 state sync target whenever a new block is accepted).
 
@@ -82,7 +82,28 @@ The `hypersdk` relies on [`x/sync`](https://github.com/ava-labs/avalanchego/tree
 a bandwidth-aware dynamic sync implementation provided by `avalanchego`, to
 sync to the tip of any `hyperchain`.
 
-#### Pebble as Default
+#### Block Pruning
+By default, the `hypersdk` only stores what is necessary to build/verfiy the next block
+and to help new nodes sync the current state (not execute all historical state transitions).
+If the `hypersdk` did not limit block storage grwoth, the storage requirements for validators
+would grow at an alarming rate each day (making running any `hypervm` impractical).
+Consider the simple example where we process 25k transactions per second (assume each
+transaction is ~400 bytes). This would would require the `hypersdk` to store 10MB per
+second (not including any overhead in the database for doing so). **This works out to
+864GB per day or 20.7TB per year.**
+
+In practice, this means the `hypersdk` only stores the last 768 accepted blocks the genesis block,
+and the last 256 revisions of state (the [ProposerVM](https://github.com/ava-labs/avalanchego/blob/master/vms/proposervm/README.md)
+also stores the last 768 blocks). With a 100ms `MinimumBlockGap`, the `hypersdk` must
+store at least ~600 blocks to allow for the entire `ValidityWindow` to be backfilled (otherwise
+a fully-synced, restarting `hypervm` will not become "ready" until it accepts a block at
+least `ValidityWindow` after the last accepted block).
+
+_The number of blocks and/or state revisions that the `hypersdk` stores, the `AcceptedBlockWindow`, can
+be tuned by any `hypervm`. It is not possible, however, to configure the `hypersdk` to store
+all historical blocks (the `AcceptedBlockWindow` is pinned to memory)._
+
+#### PebbleDB
 Instead of employing [`goleveldb`](https://github.com/syndtr/goleveldb), the
 `hypersdk` uses CockroachDB's [`pebble`](https://github.com/cockroachdb/pebble) database for
 on-disk storage. This database is inspired by LevelDB/RocksDB but offers [a few
@@ -123,6 +144,45 @@ removed because the overhead of the naïve mechanism used to group transactions
 into execution sets prior to execution was slower than just executing transactions
 serially with state pre-fetching. Rewriting this mechanism has been moved to the
 `Future Work` section and we expect to re-enable this functionality soon._
+
+#### Deferred Root Generation
+All `hypersdk` blocks include a state root to support dynamic state sync. In dynamic
+state sync, the state target is updated to the root of the last accepted block while
+the sync is ongoing instead of staying pinned to the last accepted root when the sync
+started. Root block inclusion means consensus can be used to select the next state
+target to sync to instead of using some less secure, out-of-consensus mechanism (i.e.
+Avalanche Lite Client).
+
+Dynamic state sync is required for high-throughput blockchains because it relieves
+the nodes that serve state sync queries from storing all historical state revisions
+(if a node doesn't update its sync target, any node serving requests would need to
+store revisions for at least as long as it takes to complete a sync, which may
+require significantly more storage).
+
+```golang
+type StatefulBlock struct {
+	Prnt   ids.ID `json:"parent"`
+	Tmstmp int64  `json:"timestamp"`
+	Hght   uint64 `json:"height"`
+
+	Txs []*Transaction `json:"txs"`
+
+	StateRoot   ids.ID     `json:"stateRoot"`
+	WarpResults set.Bits64 `json:"warpResults"`
+}
+```
+
+Most blockchains that store a state root in the block use the root of a merkle tree
+of state post-exectution, however, this requires waiting for state merklization to complete
+before block verification can finish. If merklization was fast, this wouldn't be an
+issue, however, this process is typically the most time consuming aspect of block
+verification.
+
+`hypersdk` blocks instead include the merkle root of the post-execution state of a block's
+parent rather than a merkle root of their own post-execution state. This design enables the
+`hypersdk` to generate the merkle root of a block's post-execution state anchronously
+while the consensus engine is working on other tasks that typically are network-bound rather
+than CPU-bound, like merklization, making better use of all available resources.
 
 #### [Optional] Parallel Signature Verification
 The `Auth` interface (detailed below) exposes a function called `AsyncVerify` that

@@ -48,16 +48,16 @@ func NewInvokeModule(log logging.Logger, mu state.Mutable, meter Meter, db datab
 
 func (m *InvokeModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
 	_, err := r.NewHostModuleBuilder(invokeModuleName).
-		NewFunctionBuilder().WithFunc(m.programInvokeFn).Export("program_invoke").
+		NewFunctionBuilder().WithFunc(m.invokeProgramFn).Export("invoke_program").
 		Instantiate(ctx)
 
 	return err
 }
 
-// programInvokeFn makes a call to an entry function of a program in the context of another program's ID.
+// invokeProgramFn makes a call to an entry function of a program in the context of another program's ID.
 // TODO: need to ensure the invokeProgramID is passed in correctly on rust side.
 // Currently, user can inject any program ID they want now, which can lead to unauthorized storage access.
-func (m *InvokeModule) programInvokeFn(
+func (m *InvokeModule) invokeProgramFn(
 	ctx context.Context,
 	mod api.Module,
 	invokeProgramID uint64,
