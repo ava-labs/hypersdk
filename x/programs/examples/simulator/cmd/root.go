@@ -14,9 +14,6 @@ import (
 	xutils "github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
-const (
-	defaultDatabase = ".simulator"
-)
 
 func init() {
 	cobra.EnablePrefixMatching = true
@@ -37,7 +34,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
 		"database",
-		defaultDatabase,
+		examples.DBPath,
 		"path to database (will create if missing)",
 	)
 

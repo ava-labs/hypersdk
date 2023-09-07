@@ -6,9 +6,9 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
-const DBPath = "test.db"
 
 var (
+	DBPath = "examples.db"
 	// example cost map
 	CostMap = map[string]uint64{
 		"ConstI32 0x0": 1,

@@ -37,7 +37,7 @@ type Lottery struct {
 
 func (t *Lottery) Run(ctx context.Context) error {
 	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
-	db, _, err := pebble.New("test.db", pebble.NewDefaultConfig())
+	db, _, err := pebble.New(DBPath, pebble.NewDefaultConfig())
 	if err != nil {
 		return err
 	}
@@ -158,7 +158,7 @@ func (t *Lottery) Run(ctx context.Context) error {
 			)
 		}
 	}()
-	
+
 	// set the library program
 	_, err = lotteryRuntime.Call(ctx, "set", lotteryProgramId, tokenProgramId, aliceLottoPtr)
 	if err != nil {

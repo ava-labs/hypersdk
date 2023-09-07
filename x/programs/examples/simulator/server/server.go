@@ -20,9 +20,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const (
-	dbPath = ".serverDb"
-)
 
 type ProgramSimulator struct {
 	log logging.Logger
@@ -44,11 +41,11 @@ func main() {
 
 	// set log and db
 	log := xutils.NewLoggerWithLogLevel(logging.Debug)
-	db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
+	db, _, err := pebble.New(examples.DBPath, pebble.NewDefaultConfig())
 	if err != nil {
 		return
 	}
-	utils.Outf("{{yellow}}database:{{/}} %s\n", dbPath)
+	utils.Outf("{{yellow}}database:{{/}} %s\n", examples.DBPath)
 	programPublish := newProgramPublish(log, db)
 	r.Use(cors.New(config))
 

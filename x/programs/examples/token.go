@@ -37,7 +37,7 @@ type Token struct {
 func (t *Token) Run(ctx context.Context) error {
 	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
 
-	db, _, err := pebble.New("test.db", pebble.NewDefaultConfig())
+	db, _, err := pebble.New(DBPath, pebble.NewDefaultConfig())
 	if err != nil {
 		return err
 	}
