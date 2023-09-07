@@ -219,14 +219,13 @@ func (r *runtime) GetUserData() (map[string]int, error) {
 		// TODO: don't hardcode init
 		if k != allocFnName && k != deallocFnName && strings.Contains(k, utils.FunctionSuffix) && k != "init_guest" {
 			replacement := ""
-			func_name := strings.ReplaceAll(k, utils.FunctionSuffix, replacement)
-			// keys = append(keys, func_name)
+			funcName := strings.ReplaceAll(k, utils.FunctionSuffix, replacement)
 			// get exported function
 			api := r.mod.ExportedFunction(k)
 			// we subtract one for the program id param
-			keys[func_name] = len(api.Definition().ParamTypes()) - 1
+			keys[funcName] = len(api.Definition().ParamTypes()) - 1
 			// defensive check
-			if keys[func_name] < 0 {
+			if keys[funcName] < 0 {
 				return nil, fmt.Errorf("failed to get user data")
 			}
 		}
