@@ -160,7 +160,6 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 	if api == nil {
 		return nil, fmt.Errorf("%w: %s", ErrMissingExportedFunction, name)
 	}
-
 	result, err := api.Call(ctx, params...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call %s: %w", name, err)
