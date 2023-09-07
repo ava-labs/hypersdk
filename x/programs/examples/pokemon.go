@@ -36,6 +36,9 @@ type Pokemon struct {
 func (t *Pokemon) Run(ctx context.Context) error {
 	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
 	db, _, err := pebble.New("test.db", pebble.NewDefaultConfig())
+	if err != nil {
+		return err
+	}
 	defer db.Close()
 
 	runtime := runtime.New(t.log, meter, db)

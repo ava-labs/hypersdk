@@ -15,7 +15,7 @@ var (
 		"ConstI64 0x0": 2,
 	}
 	DefaultMaxFee uint64 = 10000
-	log           = logging.NewLogger(
+	log                  = logging.NewLogger(
 		"",
 		logging.NewWrappedCore(
 			logging.Debug,

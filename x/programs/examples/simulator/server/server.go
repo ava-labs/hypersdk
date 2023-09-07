@@ -135,7 +135,6 @@ func (r ProgramSimulator) invokeHandler(c *gin.Context) {
 		return
 	}
 
-
 	c.JSON(http.StatusOK, gin.H{"message": "Data received and processed successfully", "result": result, "gas": gas})
 }
 
@@ -164,10 +163,10 @@ func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, p
 
 	exists, program, err := runtime.GetProgram(r.db, programID)
 	if !exists {
-		return 0,0, fmt.Errorf("program %v does not exist", programID)
+		return 0, 0, fmt.Errorf("program %v does not exist", programID)
 	}
 	if err != nil {
-		return 0,0, err
+		return 0, 0, err
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -179,7 +178,7 @@ func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, p
 
 	err = runtime.Initialize(ctx, program)
 	if err != nil {
-		return 0,0, err
+		return 0, 0, err
 	}
 
 	var callParams []uint64
@@ -196,11 +195,11 @@ func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, p
 				// address
 				pk, err := cmd.GetPublicKey(r.db, p)
 				if err != nil {
-					return 0,0, err
+					return 0, 0, err
 				}
 				ptr, err := runtime.WriteGuestBuffer(ctx, pk[:])
 				if err != nil {
-					return 0,  0,err
+					return 0, 0, err
 				}
 				callParams = append(callParams, ptr)
 			default:
@@ -219,7 +218,7 @@ func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, p
 
 	resp, err := runtime.Call(ctx, functionName, callParams...)
 	if err != nil {
-		return 0,0, err
+		return 0, 0, err
 	}
 
 	return resp[0], runtime.GetCurrentGas(ctx), nil

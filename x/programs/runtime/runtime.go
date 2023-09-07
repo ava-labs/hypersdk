@@ -29,9 +29,9 @@ const (
 
 func New(log logging.Logger, meter Meter, db database.Database) *runtime {
 	return &runtime{
-		log:           log,
-		meter:         meter,
-		db:            db,
+		log:   log,
+		meter: meter,
+		db:    db,
 	}
 }
 
