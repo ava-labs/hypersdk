@@ -4,16 +4,21 @@
 package cmd
 
 import (
+	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/x/programs/examples"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 var keyCmd = &cobra.Command{
@@ -107,11 +112,51 @@ func GetKeys(db database.Database, numKeys int) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println(j)
 		keys[j] = keyHRP(priv)
 	}
 
 	return keys, nil
+}
+
+type data map[string]int
+
+// Just for the demo! Not fast at all :(
+func GetPrograms(db database.Database, log logging.Logger) (map[uint64]data, error) {
+	// loop through db
+	iter := db.NewIteratorWithPrefix([]byte(runtime.GetProgramPrefix()))
+	defer iter.Release()
+
+	if iter.Error() != nil {
+		return nil, iter.Error()
+	}
+	programs := make(map[uint64]data)
+	for iter.Next() {
+		if iter.Key() == nil {
+			continue
+		}
+		// get the value from the key
+		programID := binary.BigEndian.Uint64(iter.Key()[1:])
+		programBytes := iter.Value()
+
+		// grab data from program
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		runtime := runtime.New(log, runtime.NewMeter(log, examples.DefaultMaxFee, examples.CostMap), db)
+		defer runtime.Stop(ctx)
+
+		err := runtime.Initialize(ctx, programBytes)
+		if err != nil {
+			return nil, err
+		}
+		data, err := runtime.GetUserData()
+		if err != nil {
+			return nil, err
+		}
+		programs[programID] = data
+	}
+
+	return programs, nil
 }
 
 // GetPublicKey gets the public key mapped to the given [keyHRP]

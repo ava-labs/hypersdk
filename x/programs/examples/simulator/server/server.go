@@ -57,6 +57,7 @@ func main() {
 	})
 
 	r.GET("/api/keys", programPublish.keysHandler)
+	r.GET("/api/programs", programPublish.programsHandler)
 	r.POST("/api/publish", programPublish.publishHandler)
 	r.POST("/api/invoke", programPublish.invokeHandler)
 
@@ -73,6 +74,19 @@ func (r ProgramSimulator) keysHandler(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"message": "success",
 		"keys":    keys,
+	})
+}
+
+func (r ProgramSimulator) programsHandler(c *gin.Context) {
+	// get keys
+	programsData, err := cmd.GetPrograms(r.db, r.log)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{
+		"message":  "success",
+		"programs": programsData,
 	})
 }
 
@@ -170,19 +184,19 @@ func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, p
 	if err != nil {
 		return 0, 0, err
 	}
-    stringParams := make([]string, len(params))
+	stringParams := make([]string, len(params))
 	for i, v := range params {
-        if str, ok := v.(string); ok {
-            stringParams[i] = str
-        } else {
-            return 0, 0, fmt.Errorf("invalid type for param %v", i)
-        }
-    }
+		if str, ok := v.(string); ok {
+			stringParams[i] = str
+		} else {
+			return 0, 0, fmt.Errorf("invalid type for param %v", i)
+		}
+	}
 	callParams, err := cmd.ParseStringParams(runtime, programID, ctx, stringParams)
 	if err != nil {
 		return 0, 0, err
 	}
-	
+
 	resp, err := runtime.Call(ctx, functionName, callParams...)
 	if err != nil {
 		return 0, 0, err

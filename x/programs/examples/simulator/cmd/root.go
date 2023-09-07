@@ -87,14 +87,14 @@ func init() {
 }
 
 var (
-	programID     uint64
-	functionName  string
-	dbPath        string
-	params        string
-	maxFee        uint64
-	db            database.Database
-	log           logging.Logger
-	rootCmd       = &cobra.Command{
+	programID    uint64
+	functionName string
+	dbPath       string
+	params       string
+	maxFee       uint64
+	db           database.Database
+	log          logging.Logger
+	rootCmd      = &cobra.Command{
 		Use:   "simulator",
 		Short: "HyperSDK program simulator",
 	}

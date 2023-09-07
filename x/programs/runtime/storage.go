@@ -18,6 +18,10 @@ const (
 	storagePrefix      = 0x2
 )
 
+func GetProgramPrefix() []byte {
+	return []byte{programPrefix}
+}
+
 func ProgramKey(asset uint64) (k []byte) {
 	k = make([]byte, 1+consts.IDLen)
 	// convert uint64 to bytes
