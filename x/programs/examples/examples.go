@@ -30,12 +30,11 @@ type programStorage struct {
 	programPrefix byte
 }
 
-func (p *programStorage) Get(ctx context.Context, id uint32) (bool, []byte, error) {
-	data, ok, err := getProgramBytes(ctx, p.mu, id, p.programPrefix)
-	return ok, data, err
+func (p *programStorage) Get(ctx context.Context, id uint32) ([]byte, bool, error) {
+	return getProgramBytes(ctx, p.mu, id, p.programPrefix)
 }
 
-func (p *programStorage) Set(ctx context.Context, id uint32, owner uint32, data []byte) error {
+func (p *programStorage) Set(ctx context.Context, id uint32, _ uint32, data []byte) error {
 	k := prefixProgramKey(p.programPrefix, id)
 	return p.mu.Insert(ctx, k, data)
 }

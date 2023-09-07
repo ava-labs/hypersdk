@@ -40,19 +40,15 @@ func ProgramCountKey() []byte {
 
 // IncrementProgramCount increments the program count by 1
 func IncrementProgramCount(db database.Database) error {
-	countKey := ProgramCountKey()
-	bytes, err := db.Get(countKey)
-	var count uint64
+	count, err := GetProgramCount(db)
 	if err != nil {
-		count = 1
-	} else {
-		count = binary.BigEndian.Uint64(bytes)
+		return err
 	}
 	count++
 
 	countBytes := make([]byte, consts.Int64Len)
 	binary.BigEndian.PutUint64(countBytes, count)
-	err = db.Put(countKey, countBytes)
+	err = db.Put(ProgramCountKey(), countBytes)
 	return err
 }
 
@@ -91,8 +87,7 @@ func GetProgram(
 	return true, v, nil
 }
 
-// [owner]
-// [program]
+// SetProgram stores [program] at [programID]
 func SetProgram(
 	db database.KeyValueWriter,
 	programID uint64,

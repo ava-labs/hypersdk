@@ -22,13 +22,13 @@ type Runtime interface {
 	WriteGuestBuffer(context.Context, []byte) (uint64, error)
 	// Stop performs a shutdown of the engine.
 	Stop(context.Context) error
+	// TODO: remove these from the interface
 	// Gets the user defined functions
 	GetUserData() (map[string]int, error)
-
 	GetCurrentGas(ctx context.Context) uint64
 }
 
 type Storage interface {
-	Get(context.Context, uint32) (bool, []byte, error)
+	Get(context.Context, uint32) ([]byte, bool, error)
 	Set(context.Context, uint32, uint32, []byte) error
 }

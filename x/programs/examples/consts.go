@@ -8,12 +8,14 @@ import (
 
 var (
 	DBPath = "examples.db"
+	// TODO: add more robust default
 	// example cost map
 	CostMap = map[string]uint64{
 		"ConstI32 0x0": 1,
 		"ConstI64 0x0": 2,
 	}
 	DefaultMaxFee uint64 = 10000
+	// TODO: drop this and use NewLoggerWithLogLevel for now
 	log                  = logging.NewLogger(
 		"",
 		logging.NewWrappedCore(

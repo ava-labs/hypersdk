@@ -130,9 +130,8 @@ func (t *Lottery) Run(ctx context.Context) error {
 	}
 
 	t.log.Debug("lottery program id", zap.Uint64("id", lotteryProgramId))
-	// runtime.GlobalStorage.Programs[uint32(tokenProgramId)] = t.tokenProgramBytes
-	// set the program_id in store to the lottery bytes
 
+	// set the program_id in store to the lottery bytes
 	aliceLottoPtr, err := lotteryRuntime.WriteGuestBuffer(ctx, alice_pk[:])
 	if err != nil {
 		return err
@@ -170,7 +169,7 @@ func (t *Lottery) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	t.log.Debug("Play", zap.Uint64("result", result[0]))
+	t.log.Debug("play", zap.Uint64("result", result[0]))
 
 	// check balance of alice
 	result, err = tokenRuntime.Call(ctx, "get_balance", tokenProgramId, alicePtr)

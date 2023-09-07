@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -31,7 +30,7 @@ var programCmd = &cobra.Command{
 
 var programCreateCmd = &cobra.Command{
 	Use:   "create [path to wasm program]",
-	Short: "Creates a program from a wasm file, calls init_program and returns the program ID",
+	Short: "Creates a program from a wasm file, calls init(if exists) and returns the program ID",
 	PreRunE: func(cmd *cobra.Command, args []string) (err error) {
 		if len(args) != 1 {
 			return ErrInvalidArgs
@@ -48,7 +47,6 @@ var programCreateCmd = &cobra.Command{
 			return err
 		}
 
-		// getKey(db, pk)
 		programId, err := InitializeProgram(fileBytes)
 		if err != nil {
 			return err
@@ -82,13 +80,13 @@ var programInvokeCmd = &cobra.Command{
 	Short: "Invokes a wasm program stored on disk",
 	PreRunE: func(cmd *cobra.Command, args []string) (err error) {
 		if programID == 0 {
-			return fmt.Errorf("program --id cannot be empty")
+			return ErrMissingProgramID
 		}
 		if callerAddress == "" {
 			return ErrMissingAddress
 		}
 		if functionName == "" {
-			return fmt.Errorf("function --name cannot be empty")
+			return ErrMissingFunctionName
 		}
 		return nil
 	},
@@ -96,7 +94,7 @@ var programInvokeCmd = &cobra.Command{
 	RunE: func(_ *cobra.Command, args []string) error {
 		exists, program, err := runtime.GetProgram(db, programID)
 		if !exists {
-			return fmt.Errorf("program %v does not exist", programID)
+			return ErrInvalidProgramID
 		}
 		if err != nil {
 			return err
