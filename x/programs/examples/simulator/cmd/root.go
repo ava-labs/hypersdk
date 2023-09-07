@@ -37,13 +37,6 @@ func init() {
 		"path to database (will create if missing)",
 	)
 
-	rootCmd.PersistentFlags().StringVar(
-		&callerAddress,
-		"caller",
-		"",
-		"address of caller",
-	)
-
 	rootCmd.PersistentPreRunE = func(*cobra.Command, []string) (err error) {
 		log = xutils.NewLoggerWithLogLevel(logging.Debug)
 		db, _, err = pebble.New(dbPath, pebble.NewDefaultConfig())
@@ -94,7 +87,6 @@ func init() {
 }
 
 var (
-	callerAddress string
 	programID     uint64
 	functionName  string
 	dbPath        string

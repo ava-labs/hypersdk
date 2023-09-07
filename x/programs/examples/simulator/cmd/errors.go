@@ -7,7 +7,6 @@ import "errors"
 
 var (
 	ErrInvalidArgs         = errors.New("invalid args")
-	ErrMissingAddress      = errors.New("must specify a caller address")
 	ErrMissingSubcommand   = errors.New("must specify a subcommand")
 	ErrMissingProgramID    = errors.New("must specify a program ID")
 	ErrMissingFunctionName = errors.New("must specify a function name")

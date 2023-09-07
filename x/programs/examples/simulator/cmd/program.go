@@ -35,9 +35,6 @@ var programCreateCmd = &cobra.Command{
 		if len(args) != 1 {
 			return ErrInvalidArgs
 		}
-		if callerAddress == "" {
-			return ErrMissingAddress
-		}
 		return nil
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
@@ -81,9 +78,6 @@ var programInvokeCmd = &cobra.Command{
 	PreRunE: func(cmd *cobra.Command, args []string) (err error) {
 		if programID == 0 {
 			return ErrMissingProgramID
-		}
-		if callerAddress == "" {
-			return ErrMissingAddress
 		}
 		if functionName == "" {
 			return ErrMissingFunctionName
