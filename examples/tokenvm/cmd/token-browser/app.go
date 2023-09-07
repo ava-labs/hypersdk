@@ -45,8 +45,11 @@ type BlockInfo struct {
 	Consumed  string
 	Prices    string
 	StateRoot string
-	Txs       int
-	Latency   int64
+
+	Txs     int
+	FailTxs int
+
+	Latency int64
 }
 
 // NewApp creates a new App application struct
@@ -189,6 +192,11 @@ func (a *App) collectBlocks() {
 		bi.Consumed = hcli.ParseDimensions(consumed)
 		bi.Prices = hcli.ParseDimensions(prices)
 		bi.StateRoot = blk.StateRoot.String()
+		for _, result := range results {
+			if !result.Success {
+				bi.FailTxs++
+			}
+		}
 		bi.Txs = len(blk.Txs)
 
 		// TODO: find a more efficient way to support this

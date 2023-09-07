@@ -84,6 +84,9 @@ const Explorer = () => {
                   <Text strong>Timestamp:</Text> {item.Timestamp}
                   <br />
                   <Text strong>Transactions:</Text> {item.Txs}
+                  {item.Txs > 0 &&
+                    <Text italic type="danger"> (failed: {item.FailTxs})</Text>
+                  }
                   <br />
                   <Text strong>Units Consumed:</Text> {item.Consumed}
                   <br />
