@@ -164,7 +164,7 @@ var (
 		"ConstI32 0x0": 1,
 		"ConstI64 0x0": 2,
 	}
-	maxFee uint64 = 13000
+	maxFee uint64 = 1000
 )
 
 func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, params []interface{}) (uint64, uint64, error) {
