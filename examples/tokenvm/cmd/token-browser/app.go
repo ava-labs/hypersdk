@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strconv"
 	"sync"
 	"time"
 
@@ -40,7 +39,7 @@ type App struct {
 type BlockInfo struct {
 	Timestamp int64
 	ID        string
-	Height    string
+	Height    uint64
 	Size      string
 	TPS       string
 	Consumed  string
@@ -185,7 +184,7 @@ func (a *App) collectBlocks() {
 		}
 		bi.Timestamp = blk.Tmstmp
 		bi.ID = blkID.String()
-		bi.Height = strconv.FormatUint(blk.Hght, 10)
+		bi.Height = blk.Hght
 		bi.Size = fmt.Sprintf("%.2fKB", float64(blk.Size())/units.KiB)
 		bi.Consumed = hcli.ParseDimensions(consumed)
 		bi.Prices = hcli.ParseDimensions(prices)
