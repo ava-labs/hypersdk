@@ -1,7 +1,7 @@
 import { DashboardOutlined } from "@ant-design/icons";
 import { Layout, Menu } from "antd";
 import { Link } from "react-router-dom";
-import logo from "../assets/images/logo-universal.png";
+import logo from "../assets/images/logo-universal.jpeg";
 
 const items = [
   {
@@ -22,9 +22,7 @@ const NavBar = () => {
           padding: "1%",
         }}
       >
-        <Link to="/">
-          <img src={logo} style={{ width: "50px" }} />
-        </Link>
+      <img src={logo} style={{ width: "50px" }} />
       </div>
       <Menu
         defaultSelectedKeys={["explorer"]}
