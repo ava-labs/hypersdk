@@ -86,8 +86,9 @@ func (r ProgramSimulator) publishHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
+	fmt.Println("data: ")
 	num, funcs, err := r.PublishProgram(data)
+	fmt.Println("funcs: ", funcs)
 	// bytes
 	if err != nil {
 		fmt.Println(err)
@@ -145,10 +146,12 @@ func (r ProgramSimulator) PublishProgram(programBytes []byte) (uint64, map[strin
 	runtime := runtime.New(r.log, runtime.NewMeter(r.log, maxFee, costMap), r.db, runtimePublicKey)
 	defer runtime.Stop(ctx)
 
+	fmt.Println("in create")
 	programID, err := runtime.Create(ctx, programBytes)
 	if err != nil {
 		return 0, nil, err
 	}
+	fmt.Println("programID: ", programID)
 	data, err := runtime.GetUserData(ctx)
 	if err != nil {
 		return 0, nil, err
@@ -164,7 +167,7 @@ var (
 		"ConstI32 0x0": 1,
 		"ConstI64 0x0": 2,
 	}
-	maxFee uint64 = 1000
+	maxFee uint64 = 10000
 )
 
 func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, params []interface{}) (uint64, uint64, error) {

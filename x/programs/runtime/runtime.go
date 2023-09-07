@@ -79,6 +79,7 @@ func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, erro
 	if err != nil {
 		return 0, err
 	}
+	fmt.Println("here12")
 	// get programId
 	programID, err := r.initProgramStorage(programBytes)
 	if err != nil {
@@ -86,11 +87,13 @@ func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, erro
 	}
 	// call initialize if it exists
 	result, err := r.Call(ctx, "init", uint64(programID))
+	fmt.Println("result", result)
 	if err != nil {
 		if !errors.Is(err, ErrMissingExportedFunction) {
 			return 0, err
 		}
 	} else {
+		fmt.Println("here")
 		// check boolean result from init
 		if result[0] == 0 {
 			return 0, fmt.Errorf("failed to initialize program")

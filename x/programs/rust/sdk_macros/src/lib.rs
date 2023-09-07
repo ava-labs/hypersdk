@@ -23,7 +23,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         if let FnArg::Typed(PatType { pat, ty, .. }) = fn_arg {
             // ensure first parameter is Context
             if index == 0 && !is_context(ty) {
-                panic!("First parameter must be Context.");
+                panic!("First parameter must be State.");
             }
 
             if let Pat::Ident(ref pat_ident) = **pat {

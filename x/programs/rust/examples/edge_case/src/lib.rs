@@ -1,19 +1,13 @@
-use expose_macro::expose;
-use wasmlanche_sdk::store::Context;
+use wasmlanche_sdk::{public, store::State, types::Address};
 
-#[expose]
-fn init(_: Context) -> bool {
-    // Initialize the program with no fields
-    true
-}
 
-#[expose]
-fn many_params(_: Context, a : i64, b: i64, c : i64, d: i64, e: i64, f: i64) -> i64 {
+#[public]
+fn many_params(_: State, a : i64, b: i64, c : i64, d: i64, e: i64, f: i64) -> i64 {
     a + b + c + d + e + f
 }
 
-#[expose]
-fn while_true(_: Context) -> bool {
+#[public]
+fn while_true(_: State) -> bool {
     while true {
         let a = 1;
     }
