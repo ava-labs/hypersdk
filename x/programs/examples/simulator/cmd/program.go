@@ -77,7 +77,7 @@ func InitializeProgram(programBytes []byte) (uint64, error) {
 
 var programInvokeCmd = &cobra.Command{
 	Use:   "invoke [options]",
-	Short: "Invokes a wasm program stored on disk",
+	Short: "Invokes a deployed wasm program",
 	PreRunE: func(cmd *cobra.Command, args []string) (err error) {
 		if programID == 0 {
 			return ErrMissingProgramID
@@ -120,7 +120,7 @@ var programInvokeCmd = &cobra.Command{
 				case p == "false":
 					callParams = append(callParams, 0)
 				case strings.HasPrefix(p, HRP):
-					// address
+					// public key
 					pk, err := GetPublicKey(db, p)
 					if err != nil {
 						return err
