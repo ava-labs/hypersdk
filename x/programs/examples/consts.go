@@ -6,7 +6,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
-
 var (
 	DBPath = "examples.db"
 	// example cost map

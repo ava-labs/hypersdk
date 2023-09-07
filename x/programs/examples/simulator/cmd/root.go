@@ -14,7 +14,6 @@ import (
 	xutils "github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
-
 func init() {
 	cobra.EnablePrefixMatching = true
 	rootCmd.AddCommand(

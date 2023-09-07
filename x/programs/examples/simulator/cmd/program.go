@@ -136,7 +136,6 @@ var programInvokeCmd = &cobra.Command{
 					// treat like a number
 					var num uint64
 					num, err := strconv.ParseUint(p, 10, 64)
-
 					if err != nil {
 						return err
 					}

@@ -26,10 +26,10 @@ const (
 )
 
 type InvokeModule struct {
-	mu            state.Mutable
-	meter         Meter
-	log           logging.Logger
-	db            database.Database
+	mu    state.Mutable
+	meter Meter
+	log   logging.Logger
+	db    database.Database
 }
 
 // NewInvokeModule returns a new program invoke host module which can perform program to program calls.

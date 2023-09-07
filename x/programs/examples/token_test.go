@@ -11,10 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	//go:embed testdata/token.wasm
-	tokenProgramBytes []byte
-)
+//go:embed testdata/token.wasm
+var tokenProgramBytes []byte
 
 // go test -v -timeout 30s -run ^TestTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples
 func TestTokenProgram(t *testing.T) {

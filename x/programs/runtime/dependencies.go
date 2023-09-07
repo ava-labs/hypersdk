@@ -23,7 +23,7 @@ type Runtime interface {
 	// Stop performs a shutdown of the engine.
 	Stop(context.Context) error
 	// Gets the user defined functions
-	GetUserData(ctx context.Context) (map[string]int, error)
+	GetUserData() (map[string]int, error)
 
 	GetCurrentGas(ctx context.Context) uint64
 }

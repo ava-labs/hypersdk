@@ -138,9 +138,11 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 
 	return nil
 }
+
 func (r *runtime) GetCurrentGas(ctx context.Context) uint64 {
 	return r.meter.GetBalance(ctx)
 }
+
 func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]uint64, error) {
 	if r.closed {
 		return nil, fmt.Errorf("failed to call: %s: runtime closed", name)
@@ -209,15 +211,15 @@ func (r *runtime) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (r *runtime) GetUserData(ctx context.Context) (map[string]int, error) {
+func (r *runtime) GetUserData() (map[string]int, error) {
 	functionDef := r.mod.ExportedFunctionDefinitions()
 	// loop through
 	keys := make(map[string]int)
 	for k := range functionDef {
-		// todo: not hardcode init
+		// TODO: don't hardcode init
 		if k != allocFnName && k != deallocFnName && strings.Contains(k, utils.FunctionSuffix) && k != "init_guest" {
 			replacement := ""
-			func_name := strings.Replace(k, utils.FunctionSuffix, replacement, -1)
+			func_name := strings.ReplaceAll(k, utils.FunctionSuffix, replacement)
 			// keys = append(keys, func_name)
 			// get exported function
 			api := r.mod.ExportedFunction(k)

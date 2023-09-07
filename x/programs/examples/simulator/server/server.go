@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,7 +19,6 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
-
 
 type ProgramSimulator struct {
 	log logging.Logger
@@ -74,11 +73,10 @@ func (r ProgramSimulator) keysHandler(c *gin.Context) {
 		"message": "success",
 		"keys":    keys,
 	})
-
 }
 
 func (r ProgramSimulator) publishHandler(c *gin.Context) {
-	data, err := ioutil.ReadAll(c.Request.Body)
+	data, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -148,7 +146,7 @@ func (r ProgramSimulator) PublishProgram(programBytes []byte) (uint64, map[strin
 		return 0, nil, err
 	}
 	fmt.Println("programID: ", programID)
-	data, err := runtime.GetUserData(ctx)
+	data, err := runtime.GetUserData()
 	if err != nil {
 		return 0, nil, err
 	}
@@ -157,7 +155,6 @@ func (r ProgramSimulator) PublishProgram(programBytes []byte) (uint64, map[strin
 }
 
 func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, params []interface{}) (uint64, uint64, error) {
-
 	exists, program, err := runtime.GetProgram(r.db, programID)
 	if !exists {
 		return 0, 0, fmt.Errorf("program %v does not exist", programID)
