@@ -17,14 +17,22 @@ if ! [[ "$0" =~ scripts/build.sh ]]; then
   exit 255
 fi
 
-# Set default binary directory location
-name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
+if [[ $# -eq 1 ]]; then
+    BINARY_PATH=$1
+elif [[ $# -eq 0 ]]; then
+    # Set default binary directory location
+    name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
+    BINARY_PATH=./build/$name
+else
+    echo "Invalid arguments to build morpheusvm. Requires zero (default location) or one argument to specify binary location."
+    exit 1
+fi
 
-# Build morpheusvm, which is run as a subprocess
-mkdir -p ./build
 
-echo "Building morpheusvm in ./build/$name"
-go build -o ./build/$name ./cmd/morpheusvm
+echo "Building morpheusvm in $BINARY_PATH"
+mkdir -p $(dirname $BINARY_PATH)
+go build -o $BINARY_PATH ./cmd/morpheusvm
 
 echo "Building morpheus-cli in ./build/morpheus-cli"
+mkdir -p ./build/
 go build -o ./build/morpheus-cli ./cmd/morpheus-cli
