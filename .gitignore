@@ -66,5 +66,6 @@ osxcross/
 /target/
 target/
 /examples.db/
+simulator
 Cargo.lock
 **/*.rs.bk

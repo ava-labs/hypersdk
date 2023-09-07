@@ -65,7 +65,6 @@ func (r ProgramSimulator) keysHandler(c *gin.Context) {
 	// get keys
 	keys, err := cmd.GetKeys(r.db, 5)
 	if err != nil {
-		fmt.Println("Error: ", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -81,12 +80,9 @@ func (r ProgramSimulator) publishHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Println("data: ")
 	num, funcs, err := r.PublishProgram(data)
-	fmt.Println("funcs: ", funcs)
 	// bytes
 	if err != nil {
-		fmt.Println(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -140,12 +136,10 @@ func (r ProgramSimulator) PublishProgram(programBytes []byte) (uint64, map[strin
 	runtime := runtime.New(r.log, runtime.NewMeter(r.log, examples.DefaultMaxFee, examples.CostMap), r.db)
 	defer runtime.Stop(ctx)
 
-	fmt.Println("in create")
 	programID, err := runtime.Create(ctx, programBytes)
 	if err != nil {
 		return 0, nil, err
 	}
-	fmt.Println("programID: ", programID)
 	data, err := runtime.GetUserData()
 	if err != nil {
 		return 0, nil, err
@@ -179,7 +173,6 @@ func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, p
 
 	if len(params) > 0 {
 		for _, param := range params {
-			fmt.Printf("Type of x: %T\n", param)
 			switch p := strings.ToLower(param.(string)); {
 			case p == "true":
 				callParams = append(callParams, 1)
