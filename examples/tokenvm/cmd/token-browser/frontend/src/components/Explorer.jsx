@@ -1,6 +1,7 @@
 import {useEffect, useState} from "react";
 import {GetLatestBlocks,GetChainID} from "../../wailsjs/go/main/App";
 import {Space, Typography, Divider, List, Card, Col, Row, message} from "antd";
+import { Area } from '@ant-design/plots';
 const { Title, Text } = Typography;
 
 const Explorer = () => {
@@ -9,6 +10,8 @@ const Explorer = () => {
     const [chainID, setChainID] = useState("");
     const [prices, setPrices] = useState("");
     const [messageApi, contextHolder] = message.useMessage();
+
+      const [data, setData] = useState([]);
 
     useEffect(() => {
         const getLatestBlocks = async () => {
@@ -40,12 +43,31 @@ const Explorer = () => {
         };
         getChainID();
 
+        const asyncFetch = () => {
+          fetch('https://gw.alipayobjects.com/os/bmw-prod/360c3eae-0c73-46f0-a982-4746a6095010.json')
+            .then((response) => response.json())
+            .then((json) => setData(json))
+            .catch((error) => {
+              console.log('fetch data failed', error);
+            });
+        };
+        asyncFetch();
+
         const interval = setInterval(() => {
           getLatestBlocks();
         }, 500);
 
         return () => clearInterval(interval);
     }, []);
+
+  const config = {
+    data,
+    xField: "timePeriod",
+    yField: "value",
+    autoFit: true,
+    smooth: true,
+    height: 200,
+  };
 
     return (<>
             {contextHolder}
@@ -59,7 +81,7 @@ const Explorer = () => {
     </Col>
     <Col span={8}>
       <Card title="Accounts" bordered={true}>
-        [TODO]
+        <Area {...config} />;
       </Card>
     </Col>
     <Col span={8}>
