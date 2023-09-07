@@ -10,9 +10,9 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/x/programs/examples"
 	"github.com/ava-labs/hypersdk/x/programs/examples/simulator/cmd"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	xutils "github.com/ava-labs/hypersdk/x/programs/utils"
@@ -143,7 +143,7 @@ func (r ProgramSimulator) PublishProgram(programBytes []byte) (uint64, map[strin
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := runtime.New(r.log, runtime.NewMeter(r.log, maxFee, costMap), r.db, runtimePublicKey)
+	runtime := runtime.New(r.log, runtime.NewMeter(r.log, examples.DefaultMaxFee, examples.CostMap), r.db)
 	defer runtime.Stop(ctx)
 
 	fmt.Println("in create")
@@ -160,19 +160,9 @@ func (r ProgramSimulator) PublishProgram(programBytes []byte) (uint64, map[strin
 	return programID, data, nil
 }
 
-var (
-	runtimePublicKey = ed25519.EmptyPublicKey
-	// example cost map
-	costMap = map[string]uint64{
-		"ConstI32 0x0": 1,
-		"ConstI64 0x0": 2,
-	}
-	maxFee uint64 = 10000
-)
-
 func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, params []interface{}) (uint64, uint64, error) {
 
-	exists, owner, program, err := runtime.GetProgram(r.db, programID)
+	exists, program, err := runtime.GetProgram(r.db, programID)
 	if !exists {
 		return 0,0, fmt.Errorf("program %v does not exist", programID)
 	}
@@ -184,7 +174,7 @@ func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, p
 	defer cancel()
 
 	// TODO: owner for now, change to caller later
-	runtime := runtime.New(r.log, runtime.NewMeter(r.log, maxFee, costMap), r.db, owner)
+	runtime := runtime.New(r.log, runtime.NewMeter(r.log, examples.DefaultMaxFee, examples.CostMap), r.db)
 	defer runtime.Stop(ctx)
 
 	err = runtime.Initialize(ctx, program)

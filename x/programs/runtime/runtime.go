@@ -10,7 +10,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
@@ -28,12 +27,11 @@ const (
 	deallocFnName = "dealloc"
 )
 
-func New(log logging.Logger, meter Meter, db database.Database, callerAddress ed25519.PublicKey) *runtime {
+func New(log logging.Logger, meter Meter, db database.Database) *runtime {
 	return &runtime{
 		log:           log,
 		meter:         meter,
 		db:            db,
-		callerAddress: callerAddress,
 	}
 }
 
@@ -49,8 +47,6 @@ type runtime struct {
 	log    logging.Logger
 	// db for persistent storage
 	db database.Database
-	// runtime pubkey
-	callerAddress ed25519.PublicKey
 }
 
 func (r *runtime) initProgramStorage(programBytes []byte) (int64, error) {
@@ -66,7 +62,7 @@ func (r *runtime) initProgramStorage(programBytes []byte) (int64, error) {
 		return 0, err
 	}
 	// store program bytes
-	err = SetProgram(r.db, count, r.callerAddress, programBytes)
+	err = SetProgram(r.db, count, programBytes)
 	if err != nil {
 		r.log.Error("failed to set program", zap.Error(err))
 		return 0, err
@@ -115,7 +111,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 	}
 
 	// enable program to program calls
-	invokeMod := NewInvokeModule(r.log, r.mu, r.meter, r.db, r.callerAddress)
+	invokeMod := NewInvokeModule(r.log, r.mu, r.meter, r.db)
 	err = invokeMod.Instantiate(ctx, r.engine)
 	if err != nil {
 		return fmt.Errorf("failed to create delegate host module: %w", err)

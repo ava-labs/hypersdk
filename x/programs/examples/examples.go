@@ -10,7 +10,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
@@ -31,9 +30,9 @@ type programStorage struct {
 	programPrefix byte
 }
 
-func (p *programStorage) Get(ctx context.Context, id uint32) (bool, ed25519.PublicKey, []byte, error) {
+func (p *programStorage) Get(ctx context.Context, id uint32) (bool, []byte, error) {
 	data, ok, err := getProgramBytes(ctx, p.mu, id, p.programPrefix)
-	return ok, ed25519.EmptyPublicKey, data, err
+	return ok, data, err
 }
 
 func (p *programStorage) Set(ctx context.Context, id uint32, owner uint32, data []byte) error {

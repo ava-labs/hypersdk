@@ -6,7 +6,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 )
 
 const (
@@ -72,31 +71,24 @@ func GetProgramCount(db database.Database) (uint64, error) {
 	return count, nil
 }
 
-// not sure why we need to return PublicKey here?
-// [programID] -> [exists, owner, functions, payload]
+// [programID] -> [programBytes]
 func GetProgram(
 	db database.Database,
 	programID uint64,
 ) (
 	bool, // exists
-	ed25519.PublicKey, // owner
 	[]byte, // program bytes
 	error,
 ) {
 	k := ProgramKey(programID)
 	v, err := db.Get(k)
 	if errors.Is(err, database.ErrNotFound) {
-		return false, ed25519.EmptyPublicKey, nil, nil
+		return false, nil, nil
 	}
 	if err != nil {
-		return false, ed25519.EmptyPublicKey, nil, err
+		return false, nil, err
 	}
-	var owner ed25519.PublicKey
-	copy(owner[:], v[:ed25519.PublicKeyLen])
-	programLen := uint32(len(v)) - ed25519.PublicKeyLen
-	program := make([]byte, programLen)
-	copy(program, v[ed25519.PublicKeyLen:])
-	return true, owner, program, nil
+	return true, v, nil
 }
 
 // [owner]
@@ -104,13 +96,11 @@ func GetProgram(
 func SetProgram(
 	db database.KeyValueWriter,
 	programID uint64,
-	owner ed25519.PublicKey,
 	program []byte,
 ) error {
 	k := ProgramKey(programID)
-	v := make([]byte, ed25519.PublicKeyLen+len(program))
-	copy(v, owner[:])
-	copy(v[ed25519.PublicKeyLen:], program)
+	v := make([]byte, len(program))
+	copy(v, program)
 	return db.Put(k, v)
 }
 

@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/spf13/cobra"
@@ -54,18 +53,13 @@ var programCreateCmd = &cobra.Command{
 			return err
 		}
 
-		pk, err := GetPublicKey(db, callerAddress)
-		if err != nil {
-			return err
-		}
-
 		// getKey(db, pk)
-		programId, err := InitializeProgram(fileBytes, pk)
+		programId, err := InitializeProgram(fileBytes)
 		if err != nil {
 			return err
 		}
 
-		err = runtime.SetProgram(db, programId, pk, fileBytes)
+		err = runtime.SetProgram(db, programId, fileBytes)
 		if err != nil {
 			return err
 		}
@@ -74,11 +68,11 @@ var programCreateCmd = &cobra.Command{
 	},
 }
 
-func InitializeProgram(programBytes []byte, caller ed25519.PublicKey) (uint64, error) {
+func InitializeProgram(programBytes []byte) (uint64, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), db, caller)
+	runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), db)
 	defer runtime.Stop(ctx)
 
 	programID, err := runtime.Create(ctx, programBytes)
@@ -113,7 +107,7 @@ var programInvokeCmd = &cobra.Command{
 		// if err != nil {
 		// 	return err
 		// }
-		exists, owner, program, err := runtime.GetProgram(db, programID)
+		exists, program, err := runtime.GetProgram(db, programID)
 		if !exists {
 			return fmt.Errorf("program %v does not exist", programID)
 		}
@@ -125,7 +119,7 @@ var programInvokeCmd = &cobra.Command{
 		defer cancel()
 
 		// TODO: owner for now, change to caller later
-		runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), db, owner)
+		runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), db)
 		defer runtime.Stop(ctx)
 
 		err = runtime.Initialize(ctx, program)

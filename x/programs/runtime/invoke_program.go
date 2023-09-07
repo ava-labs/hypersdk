@@ -36,13 +36,12 @@ type InvokeModule struct {
 }
 
 // NewInvokeModule returns a new program invoke host module which can perform program to program calls.
-func NewInvokeModule(log logging.Logger, mu state.Mutable, meter Meter, db database.Database, callerAddress ed25519.PublicKey) *InvokeModule {
+func NewInvokeModule(log logging.Logger, mu state.Mutable, meter Meter, db database.Database) *InvokeModule {
 	return &InvokeModule{
 		mu:            mu,
 		meter:         meter,
 		log:           log,
 		db:            db,
-		callerAddress: callerAddress,
 	}
 }
 
@@ -75,14 +74,14 @@ func (m *InvokeModule) invokeProgramFn(
 	entryFn := string(entryBuf)
 
 	// get the program bytes stored in state
-	exists, _, data, err := GetProgram(m.db, invokeProgramID)
+	exists, data, err := GetProgram(m.db, invokeProgramID)
 	if err != nil || !exists {
 		m.log.Error("failed to get program bytes from state", zap.Error(err))
 		return invokeErr
 	}
 
 	// create new runtime for the program invoke call
-	runtime := New(m.log, m.meter, m.db, m.callerAddress)
+	runtime := New(m.log, m.meter, m.db)
 
 	err = runtime.Initialize(ctx, data)
 	if err != nil {

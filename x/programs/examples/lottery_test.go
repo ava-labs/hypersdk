@@ -17,7 +17,7 @@ var lotteryProgramBytes []byte
 // go test -v -timeout 30s -run ^TestLotteryProgram$ github.com/ava-labs/hypersdk/x/programs/examples
 func TestLotteryProgram(t *testing.T) {
 	require := require.New(t)
-	program := NewLottery(log, lotteryProgramBytes, tokenProgramBytes, maxGas, costMap)
+	program := NewLottery(log, lotteryProgramBytes, tokenProgramBytes, DefaultMaxFee, CostMap)
 	err := program.Run(context.Background())
 	require.NoError(err)
 }
