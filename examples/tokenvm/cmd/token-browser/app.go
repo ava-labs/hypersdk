@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
 	"sync"
 	"time"
 
@@ -37,13 +38,23 @@ type App struct {
 }
 
 type BlockInfo struct {
-	Str string
+	Timestamp int64
+	ID        string
+	Height    string
+	Size      string
+	TPS       string
+	Consumed  string
+	Prices    string
+	StateRoot string
+	Txs       int
+	Latency   int64
 }
 
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
-		log: logger.NewDefaultLogger(),
+		log:    logger.NewDefaultLogger(),
+		blocks: []*BlockInfo{},
 	}
 }
 
@@ -122,10 +133,9 @@ func (a *App) collectBlocks() {
 		return
 	}
 	var (
-		start             time.Time
-		lastBlock         int64
-		lastBlockDetailed time.Time
-		tpsWindow         = window.Window{}
+		start     time.Time
+		lastBlock int64
+		tpsWindow = window.Window{}
 	)
 	for ctx.Err() == nil {
 		blk, results, prices, err := scli.ListenBlock(ctx, parser)
@@ -161,41 +171,36 @@ func (a *App) collectBlocks() {
 			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))
 			runningDuration := time.Since(start)
 			tpsDivisor := math.Min(window.WindowSize, runningDuration.Seconds())
-			bi.Str = fmt.Sprintf(
-				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s] [{{green}}TPS:{{/}}%.2f {{green}}latency:{{/}}%dms {{green}}gap:{{/}}%dms]",
-				blk.Hght,
-				len(blk.Txs),
-				blk.StateRoot,
-				float64(blk.Size())/units.KiB,
-				hcli.ParseDimensions(consumed),
-				hcli.ParseDimensions(prices),
-				float64(window.Sum(tpsWindow))/tpsDivisor,
-				time.Now().UnixMilli()-blk.Tmstmp,
-				time.Since(lastBlockDetailed).Milliseconds(),
-			)
+			bi.TPS = fmt.Sprintf("%.2f", float64(window.Sum(tpsWindow))/tpsDivisor)
+			bi.Latency = time.Now().UnixMilli() - blk.Tmstmp
 		} else {
-			bi.Str = fmt.Sprintf(
-				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s]\n",
-				blk.Hght,
-				len(blk.Txs),
-				blk.StateRoot,
-				float64(blk.Size())/units.KiB,
-				hcli.ParseDimensions(consumed),
-				hcli.ParseDimensions(prices),
-			)
 			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))
+			bi.TPS = "0.0"
 		}
+		blkID, err := blk.ID()
+		if err != nil {
+			a.log.Error(err.Error())
+			runtime.Quit(ctx)
+			return
+		}
+		bi.Timestamp = blk.Tmstmp
+		bi.ID = blkID.String()
+		bi.Height = strconv.FormatUint(blk.Hght, 10)
+		bi.Size = fmt.Sprintf("%.2fKB", float64(blk.Size())/units.KiB)
+		bi.Consumed = hcli.ParseDimensions(consumed)
+		bi.Prices = hcli.ParseDimensions(prices)
+		bi.StateRoot = blk.StateRoot.String()
+		bi.Txs = len(blk.Txs)
 
 		// TODO: find a more efficient way to support this
 		a.blocksL.Lock()
 		a.blocks = append([]*BlockInfo{bi}, a.blocks...)
-		if len(a.blocks) > 10 {
-			a.blocks = a.blocks[:10]
+		if len(a.blocks) > 100 {
+			a.blocks = a.blocks[:100]
 		}
 		a.blocksL.Unlock()
 
 		lastBlock = now.Unix()
-		lastBlockDetailed = now
 	}
 }
 
@@ -211,4 +216,14 @@ func (a *App) GetLatestBlocks() []*BlockInfo {
 	defer a.blocksL.Unlock()
 
 	return a.blocks
+}
+
+func (a *App) GetChainID() string {
+	chainID, _, err := a.h.GetDefaultChain()
+	if err != nil {
+		a.log.Error(err.Error())
+		runtime.Quit(context.Background())
+		return ""
+	}
+	return chainID.String()
 }
