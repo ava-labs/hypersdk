@@ -111,7 +111,7 @@ balance: 1000.000000000 RED
 
 ### Generate Another Address
 Now that we have a balance to send, we need to generate another address to send to. Because
-we use bech32 addresses, we can't just put a random string of characters as the reciepient
+we use bech32 addresses, we can't just put a random string of characters as the recipient
 (won't pass checksum test that protects users from sending to off-by-one addresses).
 ```bash
 ./build/morpheus-cli key generate

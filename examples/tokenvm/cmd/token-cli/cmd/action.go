@@ -541,7 +541,7 @@ var importAssetCmd = &cobra.Command{
 		}
 
 		// Select source
-		_, uris, err := handler.Root().PromptChain("sourceChainID", set.Set[ids.ID]{currentChainID: {}})
+		_, uris, err := handler.Root().PromptChain("sourceChainID", set.Of(currentChainID))
 		if err != nil {
 			return err
 		}
@@ -598,7 +598,7 @@ var exportAssetCmd = &cobra.Command{
 		// Determine destination
 		destination := sourceChainID
 		if !ret {
-			destination, _, err = handler.Root().PromptChain("destination", set.Set[ids.ID]{currentChainID: {}})
+			destination, _, err = handler.Root().PromptChain("destination", set.Of(currentChainID))
 			if err != nil {
 				return err
 			}

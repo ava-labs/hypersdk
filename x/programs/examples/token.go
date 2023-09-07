@@ -5,6 +5,7 @@ package examples
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 
@@ -34,37 +35,22 @@ type Token struct {
 }
 
 func (t *Token) Run(ctx context.Context) error {
-	// functions exported in this example
-	functions := []string{
-		"get_total_supply",
-		"mint_to",
-		"get_balance",
-		"transfer",
-		"alloc",
-		"dealloc",
-		"init_program",
-	}
-
 	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
 	db := utils.NewTestDB()
 	store := newProgramStorage(db)
 
 	runtime := runtime.New(t.log, meter, store)
-	err := runtime.Initialize(ctx, t.programBytes, functions)
+	contractId, err := runtime.Create(ctx, t.programBytes)
 	if err != nil {
 		return err
 	}
 
-	result, err := runtime.Call(ctx, "init_program")
-	if err != nil {
-		return err
-	}
 	t.log.Debug("initial cost",
 		zap.Int("gas", 0),
 	)
 
-	contract_id := result[0]
-	result, err = runtime.Call(ctx, "get_total_supply", contract_id)
+	// contract_id := result[0]
+	result, err := runtime.Call(ctx, "get_total_supply", contractId)
 	if err != nil {
 		return err
 	}
@@ -73,19 +59,19 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// generate alice keys
-	alicePtr, err := newKeyPtr(ctx, runtime)
+	alicePtr, _, err := newKeyPtr(ctx, runtime)
 	if err != nil {
 		return err
 	}
 
 	// generate bob keys
-	bobPtr, err := newKeyPtr(ctx, runtime)
+	bobPtr, _, err := newKeyPtr(ctx, runtime)
 	if err != nil {
 		return err
 	}
 
 	// check balance of alice
-	result, err = runtime.Call(ctx, "get_balance", contract_id, bobPtr)
+	result, err = runtime.Call(ctx, "get_balance", contractId, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -95,7 +81,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// mint 100 tokens to alice
 	mintAlice := uint64(100)
-	_, err = runtime.Call(ctx, "mint_to", contract_id, alicePtr, mintAlice)
+	_, err = runtime.Call(ctx, "mint_to", contractId, alicePtr, mintAlice)
 	if err != nil {
 		return err
 	}
@@ -104,7 +90,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// check balance of alice
-	result, err = runtime.Call(ctx, "get_balance", contract_id, alicePtr)
+	result, err = runtime.Call(ctx, "get_balance", contractId, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -129,7 +115,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}()
 
 	// check balance of bob
-	result, err = runtime.Call(ctx, "get_balance", contract_id, bobPtr)
+	result, err = runtime.Call(ctx, "get_balance", contractId, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -139,7 +125,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// transfer 50 from alice to bob
 	transferToBob := uint64(50)
-	_, err = runtime.Call(ctx, "transfer", contract_id, alicePtr, bobPtr, transferToBob)
+	_, err = runtime.Call(ctx, "transfer", contractId, alicePtr, bobPtr, transferToBob)
 	if err != nil {
 		return err
 	}
@@ -149,7 +135,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance alice
-	result, err = runtime.Call(ctx, "get_balance", contract_id, alicePtr)
+	result, err = runtime.Call(ctx, "get_balance", contractId, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -158,7 +144,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance bob
-	result, err = runtime.Call(ctx, "get_balance", contract_id, bobPtr)
+	result, err = runtime.Call(ctx, "get_balance", contractId, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -167,12 +153,25 @@ func (t *Token) Run(ctx context.Context) error {
 	return nil
 }
 
-func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (uint64, error) {
+func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (uint64, ed25519.PublicKey, error) {
 	priv, err := ed25519.GeneratePrivateKey()
 	if err != nil {
-		return 0, err
+		return 0, ed25519.EmptyPublicKey, err
 	}
 
 	pk := priv.PublicKey()
-	return runtime.WriteGuestBuffer(ctx, pk[:])
+	ptr, err := runtime.WriteGuestBuffer(ctx, pk[:])
+	return ptr, pk, err
+}
+
+// writeString writes a string to guest memory and returns the pointer to the string.
+// The string is padded with 0s to fit 32 bytes.
+func writeString(ctx context.Context, runtime runtime.Runtime, str string) (uint64, error) {
+	if len(str) > 32 {
+		return 0, fmt.Errorf("length of string %s exceeds 32 bytes", str)
+	}
+	bytes := [32]byte{}
+	// push string to bytes
+	copy(bytes[:], str)
+	return runtime.WriteGuestBuffer(ctx, bytes[:])
 }

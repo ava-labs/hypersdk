@@ -9,32 +9,32 @@ import (
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
 const (
-	invokeModuleName = "program_invoke"
+	invokeModuleName = "program"
 	invokeOK         = 0
 	invokeErr        = -1
 )
 
 type InvokeModule struct {
-	db      chain.Database
+	mu      state.Mutable
 	meter   Meter
 	storage Storage
-
-	log logging.Logger
+	log     logging.Logger
 }
 
 // NewInvokeModule returns a new program invoke host module which can perform program to program calls.
-func NewInvokeModule(log logging.Logger, db chain.Database, meter Meter, storage Storage) *InvokeModule {
+func NewInvokeModule(log logging.Logger, mu state.Mutable, meter Meter, storage Storage) *InvokeModule {
 	return &InvokeModule{
-		db:      db,
+		mu:      mu,
 		meter:   meter,
 		storage: storage,
 		log:     log,
@@ -43,17 +43,16 @@ func NewInvokeModule(log logging.Logger, db chain.Database, meter Meter, storage
 
 func (m *InvokeModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
 	_, err := r.NewHostModuleBuilder(invokeModuleName).
-		NewFunctionBuilder().WithFunc(m.programInvokeFn).Export(invokeModuleName).
+		NewFunctionBuilder().WithFunc(m.invokeProgramFn).Export("invoke_program").
 		Instantiate(ctx)
 
 	return err
 }
 
-// programInvokeFn makes a call to an entry function of a program in the context of another program's ID.
-func (m *InvokeModule) programInvokeFn(
+// invokeProgramFn makes a call to an entry function of a program in the context of another program's ID.
+func (m *InvokeModule) invokeProgramFn(
 	ctx context.Context,
 	mod api.Module,
-	programID,
 	invokeProgramID uint64,
 	entryPtr,
 	entryLen,
@@ -63,45 +62,45 @@ func (m *InvokeModule) programInvokeFn(
 	// get the entry function for invoke to call.
 	entryBuf, ok := utils.GetBuffer(mod, entryPtr, entryLen)
 	if !ok {
+		m.log.Error("failed to get entry function name")
 		return invokeErr
 	}
-	entryFn := utils.GetGuestFnName(string(entryBuf))
+	entryFn := string(entryBuf)
 
 	// get the program bytes stored in state
-	data, ok, err := m.storage.Get(ctx, uint32(programID))
+	data, ok := GlobalStorage.Programs[uint32(invokeProgramID)]
 	if !ok {
-		return invokeErr
-	}
-	if err != nil {
+		m.log.Error("failed to get program bytes from storage")
 		return invokeErr
 	}
 
 	// create new runtime for the program invoke call
 	runtime := New(m.log, m.meter, m.storage)
 
-	// only export the function we are calling
-	exportedFunctions := []string{entryFn}
-	err = runtime.Initialize(ctx, data, exportedFunctions)
+	err := runtime.Initialize(ctx, data)
 	if err != nil {
+		m.log.Error("failed to initialize runtime for program invoke call: %v", zap.Error(err))
 		return invokeErr
 	}
 
 	callArgsBuf, ok := utils.GetBuffer(mod, argsPtr, argsLen)
 	if !ok {
+		m.log.Error("failed to get call arguments")
 		return invokeErr
 	}
 
 	// sync args to new runtime and return arguments to the invoke call
 	params, err := getCallArgs(ctx, runtime, callArgsBuf, invokeProgramID)
 	if err != nil {
+		m.log.Error("failed to unmarshal call arguments: %v", zap.Error(err))
 		return invokeErr
 	}
 
 	res, err := runtime.Call(ctx, entryFn, params...)
 	if err != nil {
+		m.log.Error("failed to call entry function %v", zap.Error(err))
 		return invokeErr
 	}
-
 	return int64(res[0])
 }
 

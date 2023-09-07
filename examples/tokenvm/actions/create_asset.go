@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -44,7 +45,7 @@ func (*CreateAsset) OutputsWarpMessage() bool {
 func (c *CreateAsset) Execute(
 	ctx context.Context,
 	_ chain.Rules,
-	db chain.Database,
+	mu state.Mutable,
 	_ int64,
 	rauth chain.Auth,
 	txID ids.ID,
@@ -56,7 +57,7 @@ func (c *CreateAsset) Execute(
 	}
 	// It should only be possible to overwrite an existing asset if there is
 	// a hash collision.
-	if err := storage.SetAsset(ctx, db, txID, c.Metadata, 0, actor, false); err != nil {
+	if err := storage.SetAsset(ctx, mu, txID, c.Metadata, 0, actor, false); err != nil {
 		return false, CreateAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, CreateAssetComputeUnits, nil, nil, nil

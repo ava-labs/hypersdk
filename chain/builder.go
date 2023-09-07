@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/math"
@@ -61,19 +60,17 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 func BuildBlock(
 	ctx context.Context,
 	vm VM,
-	preferred ids.ID,
+	parent *StatelessBlock,
 	blockContext *smblock.Context,
 ) (*StatelessBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
 	log := vm.Logger()
 
-	// Setup new block
-	parent, err := vm.GetStatelessBlock(ctx, preferred)
-	if err != nil {
-		log.Warn("block building failed: couldn't get parent", zap.Error(err))
-		return nil, err
-	}
+	// We don't need to fetch the [VerifyContext] because
+	// we will always have a block to build on.
+
+	// Select next timestamp
 	nextTime := time.Now().UnixMilli()
 	r := vm.Rules(nextTime)
 	if nextTime < parent.Tmstmp+r.GetMinBlockGap() {
@@ -82,22 +79,26 @@ func BuildBlock(
 	}
 	b := NewBlock(vm, parent, nextTime)
 
-	// Fetch state to build on
+	// Fetch view where we will apply block state transitions
+	//
+	// If the parent block is not yet verified, we will attempt to
+	// execute it.
 	mempoolSize := vm.Mempool().Len(ctx)
 	changesEstimate := math.Min(mempoolSize, maxViewPreallocation)
-	state, err := parent.childState(ctx, changesEstimate)
+	parentView, err := parent.View(ctx, nil, true)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err
 	}
 
 	// Compute next unit prices to use
-	feeRaw, err := state.GetValue(ctx, vm.StateManager().FeeKey())
+	feeKey := FeeKey(vm.StateManager().FeeKey())
+	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
 		return nil, err
 	}
-	feeManager := NewFeeManager(feeRaw)
-	nextFeeManager, err := feeManager.ComputeNext(parent.Tmstmp, nextTime, r)
+	parentFeeManager := NewFeeManager(feeRaw)
+	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, nextTime, r)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +192,7 @@ func BuildBlock(
 						}
 						continue
 					}
-					v, err := state.GetValue(ctx, []byte(k))
+					v, err := parentView.GetValue(ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
 						alreadyFetched[k] = &fetchData{nil, false, 0}
 						continue
@@ -270,12 +271,12 @@ func BuildBlock(
 				)
 				continue
 			}
-			if ok, dimension := nextFeeManager.CanConsume(nextUnits, maxUnits); !ok {
+			if ok, dimension := feeManager.CanConsume(nextUnits, maxUnits); !ok {
 				log.Debug(
 					"skipping tx: too many units",
 					zap.Int("dimension", int(dimension)),
 					zap.Uint64("tx", nextUnits[dimension]),
-					zap.Uint64("block units", nextFeeManager.LastConsumed(dimension)),
+					zap.Uint64("block units", feeManager.LastConsumed(dimension)),
 					zap.Uint64("max block units", maxUnits[dimension]),
 				)
 				restorable = append(restorable, next)
@@ -283,7 +284,7 @@ func BuildBlock(
 				// If we are above the target for the dimension we can't consume, we will
 				// stop building. This prevents a full mempool iteration looking for the
 				// "perfect fit".
-				if nextFeeManager.LastConsumed(dimension) >= targetUnits[dimension] {
+				if feeManager.LastConsumed(dimension) >= targetUnits[dimension] {
 					execErr = errBlockFull
 				}
 				continue
@@ -304,22 +305,12 @@ func BuildBlock(
 			ts.SetScope(ctx, stateKeys, nextTxData.storage)
 
 			// PreExecute next to see if it is fit
-			preExecuteStart := ts.OpIndex()
-			authCUs, err := next.PreExecute(ctx, nextFeeManager, sm, r, ts, nextTime)
+			authCUs, err := next.PreExecute(ctx, feeManager, sm, r, ts, nextTime)
 			if err != nil {
 				ts.Rollback(ctx, txStart)
 				if HandlePreExecute(log, err) {
 					restorable = append(restorable, next)
 				}
-				continue
-			}
-			if preExecuteStart != ts.OpIndex() {
-				// This should not happen because we check this before
-				// adding a transaction to the mempool.
-				log.Warn(
-					"skipping tx: preexecute mutates",
-					zap.Error(err),
-				)
 				continue
 			}
 
@@ -380,7 +371,7 @@ func BuildBlock(
 			}
 			result, err := next.Execute(
 				ctx,
-				nextFeeManager,
+				feeManager,
 				authCUs,
 				coldReads,
 				warmReads,
@@ -402,7 +393,7 @@ func BuildBlock(
 			// Update block with new transaction
 			b.Txs = append(b.Txs, next)
 			usedKeys.Add(stateKeys.List()...)
-			if err := nextFeeManager.Consume(result.Consumed); err != nil {
+			if err := feeManager.Consume(result.Consumed); err != nil {
 				execErr = err
 				continue
 			}
@@ -463,32 +454,62 @@ func BuildBlock(
 		vm.RecordEmptyBlockBuilt()
 	}
 
-	// Get root from underlying state changes after writing all changed keys
-	if err := ts.WriteChanges(ctx, state, vm.Tracer()); err != nil {
-		return nil, err
+	// Update chain metadata
+	heightKey := HeightKey(sm.HeightKey())
+	heightKeyStr := string(heightKey)
+	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
+	timestampKeyStr := string(timestampKey)
+	feeKeyStr := string(feeKey)
+	ts.SetScope(ctx, set.Of(heightKeyStr, timestampKeyStr, feeKeyStr), map[string][]byte{
+		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
+		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
+		feeKeyStr:       parentFeeManager.Bytes(),
+	})
+	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+		return nil, fmt.Errorf("%w: unable to insert height", err)
+	}
+	if err := ts.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
+		return nil, fmt.Errorf("%w: unable to insert timestamp", err)
+	}
+	if err := ts.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
+		return nil, fmt.Errorf("%w: unable to insert fees", err)
 	}
 
-	// Store height in state to prevent duplicate roots
-	if err := state.Insert(ctx, sm.HeightKey(), binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return nil, err
-	}
-
-	// Store fee parameters
-	if err := state.Insert(ctx, sm.FeeKey(), nextFeeManager.Bytes()); err != nil {
-		return nil, err
-	}
-
-	// Compute state root after all data has been written to trie
-	root, err := state.GetMerkleRoot(ctx)
+	// Fetch [parentView] root as late as possible to allow
+	// for async processing to complete
+	root, err := parentView.GetMerkleRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
 	b.StateRoot = root
 
-	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, state, results, nextFeeManager); err != nil {
+	// Get view from [tstate] after writing all changed keys
+	view, err := ts.CreateView(ctx, parentView, vm.Tracer())
+	if err != nil {
 		return nil, err
 	}
+
+	// Compute block hash and marshaled representation
+	if err := b.initializeBuilt(ctx, view, results, feeManager); err != nil {
+		return nil, err
+	}
+
+	// Kickoff root generation
+	go func() {
+		start := time.Now()
+		root, err := view.GetMerkleRoot(ctx)
+		if err != nil {
+			log.Error("merkle root generation failed", zap.Error(err))
+			return
+		}
+		log.Info("merkle root generated",
+			zap.Uint64("height", b.Hght),
+			zap.Stringer("blkID", b.ID()),
+			zap.Stringer("root", root),
+		)
+		b.vm.RecordRootCalculated(time.Since(start))
+	}()
+
 	log.Info(
 		"built block",
 		zap.Bool("context", blockContext != nil),

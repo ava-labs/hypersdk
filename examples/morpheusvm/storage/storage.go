@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/state"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 )
@@ -32,9 +33,10 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x0/ (balance)
 //   -> [owner] => balance
 // 0x1/ (hypersdk-height)
-// 0x2/ (hypersdk-fee)
-// 0x3/ (hypersdk-incoming warp)
-// 0x4/ (hypersdk-outgoing warp)
+// 0x2/ (hypersdk-timestamp)
+// 0x3/ (hypersdk-fee)
+// 0x4/ (hypersdk-incoming warp)
+// 0x5/ (hypersdk-outgoing warp)
 
 const (
 	// metaDB
@@ -43,18 +45,20 @@ const (
 	// stateDB
 	balancePrefix      = 0x0
 	heightPrefix       = 0x1
-	feePrefix          = 0x2
-	incomingWarpPrefix = 0x3
-	outgoingWarpPrefix = 0x4
+	timestampPrefix    = 0x2
+	feePrefix          = 0x3
+	incomingWarpPrefix = 0x4
+	outgoingWarpPrefix = 0x5
 )
 
 const BalanceChunks uint16 = 1
 
 var (
-	failureByte = byte(0x0)
-	successByte = byte(0x1)
-	heightKey   = []byte{heightPrefix}
-	feeKey      = []byte{feePrefix}
+	failureByte  = byte(0x0)
+	successByte  = byte(0x1)
+	heightKey    = []byte{heightPrefix}
+	timestampKey = []byte{timestampPrefix}
+	feeKey       = []byte{feePrefix}
 
 	balanceKeyPool = sync.Pool{
 		New: func() any {
@@ -131,21 +135,21 @@ func BalanceKey(pk ed25519.PublicKey) (k []byte) {
 // If locked is 0, then account does not exist
 func GetBalance(
 	ctx context.Context,
-	db chain.Database,
+	im state.Immutable,
 	pk ed25519.PublicKey,
 ) (uint64, error) {
-	dbKey, bal, _, err := getBalance(ctx, db, pk)
-	balanceKeyPool.Put(dbKey)
+	key, bal, _, err := getBalance(ctx, im, pk)
+	balanceKeyPool.Put(key)
 	return bal, err
 }
 
 func getBalance(
 	ctx context.Context,
-	db chain.Database,
+	im state.Immutable,
 	pk ed25519.PublicKey,
 ) ([]byte, uint64, bool, error) {
 	k := BalanceKey(pk)
-	bal, exists, err := innerGetBalance(db.GetValue(ctx, k))
+	bal, exists, err := innerGetBalance(im.GetValue(ctx, k))
 	return k, bal, exists, err
 }
 
@@ -177,31 +181,31 @@ func innerGetBalance(
 
 func SetBalance(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	pk ed25519.PublicKey,
 	balance uint64,
 ) error {
 	k := BalanceKey(pk)
-	return setBalance(ctx, db, k, balance)
+	return setBalance(ctx, mu, k, balance)
 }
 
 func setBalance(
 	ctx context.Context,
-	db chain.Database,
-	dbKey []byte,
+	mu state.Mutable,
+	key []byte,
 	balance uint64,
 ) error {
-	return db.Insert(ctx, dbKey, binary.BigEndian.AppendUint64(nil, balance))
+	return mu.Insert(ctx, key, binary.BigEndian.AppendUint64(nil, balance))
 }
 
 func AddBalance(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	pk ed25519.PublicKey,
 	amount uint64,
 	create bool,
 ) error {
-	dbKey, bal, exists, err := getBalance(ctx, db, pk)
+	key, bal, exists, err := getBalance(ctx, mu, pk)
 	if err != nil {
 		return err
 	}
@@ -220,16 +224,16 @@ func AddBalance(
 			amount,
 		)
 	}
-	return setBalance(ctx, db, dbKey, nbal)
+	return setBalance(ctx, mu, key, nbal)
 }
 
 func SubBalance(
 	ctx context.Context,
-	db chain.Database,
+	mu state.Mutable,
 	pk ed25519.PublicKey,
 	amount uint64,
 ) error {
-	dbKey, bal, _, err := getBalance(ctx, db, pk)
+	key, bal, _, err := getBalance(ctx, mu, pk)
 	if err != nil {
 		return err
 	}
@@ -246,13 +250,17 @@ func SubBalance(
 	if nbal == 0 {
 		// If there is no balance left, we should delete the record instead of
 		// setting it to 0.
-		return db.Remove(ctx, dbKey)
+		return mu.Remove(ctx, key)
 	}
-	return setBalance(ctx, db, dbKey, nbal)
+	return setBalance(ctx, mu, key, nbal)
 }
 
 func HeightKey() (k []byte) {
 	return heightKey
+}
+
+func TimestampKey() (k []byte) {
+	return timestampKey
 }
 
 func FeeKey() (k []byte) {

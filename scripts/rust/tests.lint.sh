@@ -9,6 +9,10 @@ fi
 # https://rust-lang.github.io/rustup/installation/index.html
 # rustup toolchain install nightly --allow-downgrade --profile minimal --component clippy
 
+rustup default stable
+
+cargo fmt --all --verbose -- --check
+
 rustup default nightly
 
 # use rust nightly clippy to check tests and all crate features

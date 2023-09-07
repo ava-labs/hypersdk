@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -14,7 +15,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 
-	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
@@ -25,10 +26,9 @@ const (
 
 func New(log logging.Logger, meter Meter, storage Storage) *runtime {
 	return &runtime{
-		log:      log,
-		meter:    meter,
-		storage:  storage,
-		exported: make(map[string]api.Function),
+		log:     log,
+		meter:   meter,
+		storage: storage,
 	}
 }
 
@@ -39,15 +39,36 @@ type runtime struct {
 	meter    Meter
 	storage  Storage
 	// functions exported by this runtime
-	exported map[string]api.Function
-	db       chain.Database
+	mu state.Mutable
 
 	closed bool
-
-	log logging.Logger
+	log    logging.Logger
 }
 
-func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions []string) error {
+func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, error) {
+	err := r.Initialize(ctx, programBytes)
+	if err != nil {
+		return 0, err
+	}
+	// get programId
+	programID := initProgramStorage()
+
+	// call initialize if it exists
+	result, err := r.Call(ctx, "init", uint64(programID))
+	if err != nil {
+		if !errors.Is(err, ErrMissingExportedFunction) {
+			return 0, err
+		}
+	} else {
+		// check boolean result from init
+		if result[0] == 0 {
+			return 0, fmt.Errorf("failed to initialize program")
+		}
+	}
+	return uint64(programID), nil
+}
+
+func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 	ctx, r.cancelFn = context.WithCancel(ctx)
 
 	r.engine = wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigInterpreter())
@@ -60,7 +81,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions
 	}
 
 	// enable program to program calls
-	invokeMod := NewInvokeModule(r.log, r.db, r.meter, r.storage)
+	invokeMod := NewInvokeModule(r.log, r.mu, r.meter, r.storage)
 	err = invokeMod.Instantiate(ctx, r.engine)
 	if err != nil {
 		return fmt.Errorf("failed to create delegate host module: %w", err)
@@ -85,17 +106,8 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte, functions
 	if err != nil {
 		return fmt.Errorf("failed to instantiate wasm module: %w", err)
 	}
-	r.log.Debug("Instantiated module")
 
-	// TODO: cleanup
-	for _, name := range functions {
-		switch name {
-		case allocFnName, deallocFnName:
-			r.exported[name] = r.mod.ExportedFunction(name)
-		default:
-			r.exported[name] = r.mod.ExportedFunction(utils.GetGuestFnName(name))
-		}
-	}
+	r.log.Debug("Instantiated module")
 
 	return nil
 }
@@ -105,9 +117,16 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 		return nil, fmt.Errorf("failed to call: %s: runtime closed", name)
 	}
 
-	api, ok := r.exported[name]
-	if !ok {
-		return nil, fmt.Errorf("failed to find exported function: %s", name)
+	var api api.Function
+
+	if name == allocFnName || name == deallocFnName {
+		api = r.mod.ExportedFunction(name)
+	} else {
+		api = r.mod.ExportedFunction(utils.GetGuestFnName(name))
+	}
+
+	if api == nil {
+		return nil, fmt.Errorf("%w: %s", ErrMissingExportedFunction, name)
 	}
 
 	result, err := api.Call(ctx, params...)

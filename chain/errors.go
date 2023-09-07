@@ -18,7 +18,6 @@ var (
 	ErrTimestampTooLate     = errors.New("timestamp too late")
 	ErrStateRootEmpty       = errors.New("state root empty")
 	ErrNoTxs                = errors.New("no transactions")
-	ErrPreExecuteMutates    = errors.New("preexecute mutates state")
 	ErrInvalidFee           = errors.New("invalid fee")
 	ErrInvalidUnitWindow    = errors.New("invalid unit window")
 	ErrInvalidBlockCost     = errors.New("invalid block cost")
@@ -28,6 +27,7 @@ var (
 	ErrInvalidSurplus       = errors.New("invalid surplus fee")
 	ErrStateRootMismatch    = errors.New("state root mismatch")
 	ErrInvalidResult        = errors.New("invalid result")
+	ErrInvalidBlockHeight   = errors.New("invalid block height")
 
 	// Tx Correctness
 	ErrInvalidSignature     = errors.New("invalid signature")

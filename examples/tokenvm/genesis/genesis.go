@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
 )
 
@@ -114,7 +115,7 @@ func New(b []byte, _ []byte /* upgradeBytes */) (*Genesis, error) {
 	return g, nil
 }
 
-func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Database) error {
+func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutable) error {
 	ctx, span := tracer.Start(ctx, "Genesis.Load")
 	defer span.End()
 
@@ -132,13 +133,13 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, db chain.Databa
 		if err != nil {
 			return err
 		}
-		if err := storage.SetBalance(ctx, db, pk, ids.Empty, alloc.Balance); err != nil {
+		if err := storage.SetBalance(ctx, mu, pk, ids.Empty, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}
 	return storage.SetAsset(
 		ctx,
-		db,
+		mu,
 		ids.Empty,
 		[]byte(consts.Symbol),
 		supply,

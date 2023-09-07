@@ -29,7 +29,6 @@ var (
 	_ gossiper.VM                        = (*VM)(nil)
 	_ builder.VM                         = (*VM)(nil)
 	_ block.ChainVM                      = (*VM)(nil)
-	_ block.HeightIndexedChainVM         = (*VM)(nil)
 	_ block.StateSyncableVM              = (*VM)(nil)
 	_ block.BuildBlockWithContextChainVM = (*VM)(nil)
 )
@@ -54,8 +53,8 @@ func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return vm.actionRegistry, vm.authRegistry
 }
 
-func (vm *VM) Workers() workers.Workers {
-	return vm.workers
+func (vm *VM) SignatureWorkers() workers.Workers {
+	return vm.sigWorkers
 }
 
 func (vm *VM) Tracer() trace.Tracer {
@@ -117,6 +116,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 			zap.Stringer("blkID", b.ID()),
 			zap.Uint64("height", b.Hght),
 			zap.Int("txs", len(b.Txs)),
+			zap.Stringer("parent root", b.StateRoot),
 			zap.Bool("state ready", vm.StateReady()),
 			zap.Any("unit prices", fm.UnitPrices()),
 			zap.Any("units consumed", fm.UnitsConsumed()),
@@ -129,6 +129,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 			zap.Stringer("blkID", b.ID()),
 			zap.Uint64("height", b.Hght),
 			zap.Int("txs", len(b.Txs)),
+			zap.Stringer("parent root", b.StateRoot),
 			zap.Bool("state ready", vm.StateReady()),
 		)
 	}
@@ -250,11 +251,19 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	defer span.End()
 
 	vm.metrics.txsAccepted.Add(float64(len(b.Txs)))
-	vm.blocks.Put(b.ID(), b)
+
+	// Update accepted blocks on-disk and caches
+	if err := vm.UpdateLastAccepted(b); err != nil {
+		vm.Fatal("unable to update last accepted", zap.Error(err))
+	}
+
+	// Remove from verified caches
+	//
+	// We do this after setting [lastAccepted] to avoid
+	// a race where the block isn't accessible.
 	vm.verifiedL.Lock()
 	delete(vm.verifiedBlocks, b.ID())
 	vm.verifiedL.Unlock()
-	vm.lastAccepted = b
 
 	// Update replay protection heap
 	//
@@ -302,6 +311,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 		zap.Stringer("blkID", b.ID()),
 		zap.Uint64("height", b.Hght),
 		zap.Int("txs", len(b.Txs)),
+		zap.Stringer("parent root", b.StateRoot),
 		zap.Int("size", len(b.Bytes())),
 		zap.Int("dropped mempool txs", len(removed)),
 		zap.Bool("state ready", vm.StateReady()),
@@ -386,6 +396,10 @@ func (vm *VM) RecordRootCalculated(t time.Duration) {
 	vm.metrics.rootCalculated.Observe(float64(t))
 }
 
+func (vm *VM) RecordWaitRoot(t time.Duration) {
+	vm.metrics.waitRoot.Observe(float64(t))
+}
+
 func (vm *VM) RecordWaitSignatures(t time.Duration) {
 	vm.metrics.waitSignatures.Observe(float64(t))
 }
@@ -459,7 +473,7 @@ func (vm *VM) RecordClearedMempool() {
 }
 
 func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
-	v, err := vm.stateDB.Get(vm.StateManager().FeeKey())
+	v, err := vm.stateDB.Get(chain.FeeKey(vm.StateManager().FeeKey()))
 	if err != nil {
 		return chain.Dimensions{}, err
 	}
