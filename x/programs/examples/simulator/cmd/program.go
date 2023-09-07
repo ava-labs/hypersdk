@@ -134,10 +134,10 @@ var programInvokeCmd = &cobra.Command{
 }
 
 // ParseStringParams parses the string params into uint64 which can be passed to the wasm program
-func ParseStringParams(runtime runtime.Runtime, ctx context.Context, stringParams []interface{}) ([]uint64, error) {
+func ParseStringParams(runtime runtime.Runtime, ctx context.Context, stringParams []string) ([]uint64, error) {
 	params := []uint64{}
 	for _, param := range stringParams {
-		switch p := strings.ToLower(param.(string)); {
+		switch p := strings.ToLower(param); {
 		case p == "true":
 			params = append(params, 1)
 		case p == "false":

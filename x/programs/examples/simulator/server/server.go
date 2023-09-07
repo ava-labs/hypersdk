@@ -171,8 +171,19 @@ func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, p
 		return 0, 0, err
 	}
 
-	callParams, err := cmd.ParseStringParams(runtime, ctx, params)
-
+    stringParams := make([]string, len(params))
+	for i, v := range params {
+        if str, ok := v.(string); ok {
+            stringParams[i] = str
+        } else {
+            return 0, 0, fmt.Errorf("invalid type for param %v", i)
+        }
+    }
+	callParams, err := cmd.ParseStringParams(runtime, ctx, stringParams)
+	if err != nil {
+		return 0, 0, err
+	}
+	
 	resp, err := runtime.Call(ctx, functionName, callParams...)
 	if err != nil {
 		return 0, 0, err
