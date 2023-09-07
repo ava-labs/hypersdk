@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -172,39 +171,7 @@ func (r ProgramSimulator) invokeProgram(programID uint64, functionName string, p
 		return 0, 0, err
 	}
 
-	var callParams []uint64
-
-	if len(params) > 0 {
-		for _, param := range params {
-			switch p := strings.ToLower(param.(string)); {
-			case p == "true":
-				callParams = append(callParams, 1)
-			case p == "false":
-				callParams = append(callParams, 0)
-			case strings.HasPrefix(p, cmd.HRP):
-				// address
-				pk, err := cmd.GetPublicKey(r.db, p)
-				if err != nil {
-					return 0, 0, err
-				}
-				ptr, err := runtime.WriteGuestBuffer(ctx, pk[:])
-				if err != nil {
-					return 0, 0, err
-				}
-				callParams = append(callParams, ptr)
-			default:
-				// treat like a number
-				var num uint64
-				num, err := strconv.ParseUint(p, 10, 64)
-				if err != nil {
-					return 0, 0, err
-				}
-				callParams = append(callParams, num)
-			}
-		}
-	}
-	// prepend programID
-	callParams = append([]uint64{programID}, callParams...)
+	callParams, err := cmd.ParseStringParams(runtime, ctx, params)
 
 	resp, err := runtime.Call(ctx, functionName, callParams...)
 	if err != nil {

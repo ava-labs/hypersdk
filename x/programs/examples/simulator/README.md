@@ -3,6 +3,8 @@
 ## Introduction
 
 This simulator allows you to run, test and play around with your own compiled WASM programs!
+Run the simulator through the command line, or start the server and connect to the endpoint
+by running `go run server.go` from the `server` directory.
 
 #### build
 

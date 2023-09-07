@@ -111,38 +111,17 @@ var programInvokeCmd = &cobra.Command{
 			return err
 		}
 
-		var callParams []uint64
+		var stringParams []string
 		if params != "" {
-			for _, param := range strings.Split(params, ",") {
-				switch p := strings.ToLower(param); {
-				case p == "true":
-					callParams = append(callParams, 1)
-				case p == "false":
-					callParams = append(callParams, 0)
-				case strings.HasPrefix(p, HRP):
-					// public key
-					pk, err := GetPublicKey(db, p)
-					if err != nil {
-						return err
-					}
-					ptr, err := runtime.WriteGuestBuffer(ctx, pk[:])
-					if err != nil {
-						return err
-					}
-					callParams = append(callParams, ptr)
-				default:
-					// treat like a number
-					var num uint64
-					num, err := strconv.ParseUint(p, 10, 64)
-					if err != nil {
-						return err
-					}
-					callParams = append(callParams, num)
-				}
-			}
+			stringParams = strings.Split(params, ",")
+		} else {
+			stringParams = []string{}
 		}
-		// prepend programID
-		callParams = append([]uint64{programID}, callParams...)
+
+		callParams, err := ParseStringParams(runtime, ctx, stringParams)
+		if err != nil {
+			return err
+		}
 
 		resp, err := runtime.Call(ctx, functionName, callParams...)
 		if err != nil {
@@ -152,4 +131,39 @@ var programInvokeCmd = &cobra.Command{
 		utils.Outf("{{green}}response:{{/}} %v\n", resp)
 		return nil
 	},
+}
+
+// ParseStringParams parses the string params into uint64 which can be passed to the wasm program
+func ParseStringParams(runtime runtime.Runtime, ctx context.Context, stringParams []interface{}) ([]uint64, error) {
+	params := []uint64{}
+	for _, param := range stringParams {
+		switch p := strings.ToLower(param.(string)); {
+		case p == "true":
+			params = append(params, 1)
+		case p == "false":
+			params = append(params, 0)
+		case strings.HasPrefix(p, HRP):
+			// public key
+			pk, err := GetPublicKey(db, p)
+			if err != nil {
+				return nil, err
+			}
+			ptr, err := runtime.WriteGuestBuffer(ctx, pk[:])
+			if err != nil {
+				return nil, err
+			}
+			params = append(params, ptr)
+		default:
+			// treat like a number
+			var num uint64
+			num, err := strconv.ParseUint(p, 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			params = append(params, num)
+		}
+	}
+	// prepend programID
+	params = append([]uint64{programID}, params...)
+	return params, nil
 }
