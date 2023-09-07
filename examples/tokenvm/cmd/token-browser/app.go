@@ -2,10 +2,20 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"math"
+	"sync"
+	"time"
 
-	"github.com/ava-labs/hypersdk/cli"
+	"github.com/ava-labs/avalanchego/utils/units"
+	"github.com/ava-labs/hypersdk/chain"
+	hcli "github.com/ava-labs/hypersdk/cli"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-cli/cmd"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
+	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/window"
 
 	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -20,7 +30,14 @@ type App struct {
 	ctx context.Context
 
 	log logger.Logger
-	h   *cli.Handler
+	h   *hcli.Handler
+
+	blocks  []*BlockInfo
+	blocksL sync.Mutex
+}
+
+type BlockInfo struct {
+	Str string
 }
 
 // NewApp creates a new App application struct
@@ -34,7 +51,7 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	h, err := cli.New(cmd.NewController(databasePath))
+	h, err := hcli.New(cmd.NewController(databasePath))
 	if err != nil {
 		a.log.Error(err.Error())
 		runtime.Quit(ctx)
@@ -43,10 +60,18 @@ func (a *App) startup(ctx context.Context) {
 	a.h = h
 
 	// Generate key
-	if err := h.GenerateKey(); err != nil {
+	keys, err := h.GetKeys()
+	if err != nil {
 		a.log.Error(err.Error())
 		runtime.Quit(ctx)
 		return
+	}
+	if len(keys) == 0 {
+		if err := h.GenerateKey(); err != nil {
+			a.log.Error(err.Error())
+			runtime.Quit(ctx)
+			return
+		}
 	}
 
 	// Import ANR
@@ -54,6 +79,123 @@ func (a *App) startup(ctx context.Context) {
 		a.log.Error(err.Error())
 		runtime.Quit(ctx)
 		return
+	}
+
+	// Start fetching blocks
+	go a.collectBlocks()
+}
+
+func (a *App) collectBlocks() {
+	ctx := context.Background()
+	chainID, uris, err := a.h.GetDefaultChain()
+	if err != nil {
+		a.log.Error(err.Error())
+		runtime.Quit(ctx)
+		return
+	}
+
+	uri := uris[0]
+	rcli := rpc.NewJSONRPCClient(uri)
+	networkID, _, _, err := rcli.Network(context.TODO())
+	if err != nil {
+		a.log.Error(err.Error())
+		runtime.Quit(ctx)
+		return
+	}
+	cli := trpc.NewJSONRPCClient(uri, networkID, chainID)
+	parser, err := cli.Parser(context.TODO())
+	if err != nil {
+		a.log.Error(err.Error())
+		runtime.Quit(ctx)
+		return
+	}
+	scli, err := rpc.NewWebSocketClient(uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	if err != nil {
+		a.log.Error(err.Error())
+		runtime.Quit(ctx)
+		return
+	}
+	defer scli.Close()
+	if err := scli.RegisterBlocks(); err != nil {
+		a.log.Error(err.Error())
+		runtime.Quit(ctx)
+		return
+	}
+	var (
+		start             time.Time
+		lastBlock         int64
+		lastBlockDetailed time.Time
+		tpsWindow         = window.Window{}
+	)
+	for ctx.Err() == nil {
+		blk, results, prices, err := scli.ListenBlock(ctx, parser)
+		if err != nil {
+			a.log.Error(err.Error())
+			runtime.Quit(ctx)
+			return
+		}
+		consumed := chain.Dimensions{}
+		for _, result := range results {
+			nconsumed, err := chain.Add(consumed, result.Consumed)
+			if err != nil {
+				a.log.Error(err.Error())
+				runtime.Quit(ctx)
+				return
+			}
+			consumed = nconsumed
+		}
+		now := time.Now()
+		if start.IsZero() {
+			start = now
+		}
+		bi := &BlockInfo{}
+		if lastBlock != 0 {
+			since := now.Unix() - lastBlock
+			newWindow, err := window.Roll(tpsWindow, int(since))
+			if err != nil {
+				a.log.Error(err.Error())
+				runtime.Quit(ctx)
+				return
+			}
+			tpsWindow = newWindow
+			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))
+			runningDuration := time.Since(start)
+			tpsDivisor := math.Min(window.WindowSize, runningDuration.Seconds())
+			bi.Str = fmt.Sprintf(
+				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s] [{{green}}TPS:{{/}}%.2f {{green}}latency:{{/}}%dms {{green}}gap:{{/}}%dms]",
+				blk.Hght,
+				len(blk.Txs),
+				blk.StateRoot,
+				float64(blk.Size())/units.KiB,
+				hcli.ParseDimensions(consumed),
+				hcli.ParseDimensions(prices),
+				float64(window.Sum(tpsWindow))/tpsDivisor,
+				time.Now().UnixMilli()-blk.Tmstmp,
+				time.Since(lastBlockDetailed).Milliseconds(),
+			)
+		} else {
+			bi.Str = fmt.Sprintf(
+				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s]\n",
+				blk.Hght,
+				len(blk.Txs),
+				blk.StateRoot,
+				float64(blk.Size())/units.KiB,
+				hcli.ParseDimensions(consumed),
+				hcli.ParseDimensions(prices),
+			)
+			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))
+		}
+
+		// TODO: find a more efficient way to support this
+		a.blocksL.Lock()
+		a.blocks = append([]*BlockInfo{bi}, a.blocks...)
+		if len(a.blocks) > 10 {
+			a.blocks = a.blocks[:10]
+		}
+		a.blocksL.Unlock()
+
+		lastBlock = now.Unix()
+		lastBlockDetailed = now
 	}
 }
 
@@ -64,28 +206,9 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 }
 
-func (a *App) GetChains() ([]string, error) {
-	rawChains, err := a.h.GetChains()
-	if err != nil {
-		return nil, err
-	}
-	chains := make([]string, len(rawChains))
-	i := 0
-	for c := range rawChains {
-		chains[i] = c.String()
-		i++
-	}
-	return chains, nil
-}
+func (a *App) GetLatestBlocks() []*BlockInfo {
+	a.blocksL.Lock()
+	defer a.blocksL.Unlock()
 
-func (a *App) GetKeys() ([]string, error) {
-	pks, err := a.h.GetKeys()
-	if err != nil {
-		return nil, err
-	}
-	addresses := make([]string, len(pks))
-	for i, pk := range pks {
-		addresses[i] = utils.Address(pk.PublicKey())
-	}
-	return addresses, nil
+	return a.blocks
 }

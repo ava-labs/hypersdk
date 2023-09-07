@@ -1,21 +1,16 @@
 import App from "./App";
 
-import Chains from "./components/Chains";
-import Keys from "./components/Keys";
+import Explorer from "./components/Explorer";
 
 const routes = [
   {
     path: "/",
     element: <App />,
     children: [
-      { index: true, element: <Chains /> },
+      { index: true, element: <Explorer /> },
       {
-        path: "chains",
-        element: <Chains />,
-      },
-      {
-        path: "keys",
-        element: <Keys />,
+        path: "explorer",
+        element: <Explorer />,
       },
     ],
   },

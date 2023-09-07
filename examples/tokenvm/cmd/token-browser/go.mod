@@ -3,6 +3,7 @@ module changeme
 go 1.18
 
 require (
+	github.com/ava-labs/avalanchego v1.10.10-rc.0.0.20230831160820-2eabd228952b
 	github.com/ava-labs/hypersdk v0.0.12
 	github.com/ava-labs/hypersdk/examples/tokenvm v0.0.0-20230824015821-2ac391b5950b
 	github.com/wailsapp/wails/v2 v2.5.1
@@ -15,7 +16,6 @@ require (
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/VictoriaMetrics/fastcache v1.10.0 // indirect
 	github.com/ava-labs/avalanche-network-runner v1.7.2-0.20230825184751-fbe081616f02 // indirect
-	github.com/ava-labs/avalanchego v1.10.10-rc.0.0.20230831160820-2eabd228952b // indirect
 	github.com/ava-labs/coreth v0.12.5-rc.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
