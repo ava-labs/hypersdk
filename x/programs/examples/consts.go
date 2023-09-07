@@ -16,7 +16,7 @@ var (
 	}
 	DefaultMaxFee uint64 = 10000
 	// TODO: drop this and use NewLoggerWithLogLevel for now
-	log                  = logging.NewLogger(
+	log = logging.NewLogger(
 		"",
 		logging.NewWrappedCore(
 			logging.Debug,
