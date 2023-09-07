@@ -165,6 +165,7 @@ func GetPublicKey(db database.Database, keyHRP string) (ed25519.PublicKey, error
 	if errors.Is(err, database.ErrNotFound) {
 		return ed25519.EmptyPublicKey, nil
 	}
+
 	if err != nil {
 		return ed25519.EmptyPublicKey, err
 	}

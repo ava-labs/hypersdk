@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/x/programs/examples"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
@@ -112,7 +113,7 @@ var programInvokeCmd = &cobra.Command{
 			stringParams = []string{}
 		}
 
-		callParams, err := ParseStringParams(runtime, programID, ctx, stringParams)
+		callParams, err := ParseStringParams(runtime, db, programID, ctx, stringParams)
 		if err != nil {
 			return err
 		}
@@ -128,7 +129,7 @@ var programInvokeCmd = &cobra.Command{
 }
 
 // ParseStringParams parses the string params into uint64 which can be passed to the wasm program
-func ParseStringParams(runtime runtime.Runtime, programID uint64, ctx context.Context, stringParams []string) ([]uint64, error) {
+func ParseStringParams(runtime runtime.Runtime, db database.Database, programID uint64, ctx context.Context, stringParams []string) ([]uint64, error) {
 	params := []uint64{}
 	for _, param := range stringParams {
 		switch p := strings.ToLower(param); {
