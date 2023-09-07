@@ -7,7 +7,6 @@ members = [
     "x/programs/rust/examples/counter",
     "x/programs/rust/examples/lottery",
     "x/programs/rust/examples/pokemon",
-    "x/programs/rust/examples/edge_case",
 ]
 resolver = "2"
 
