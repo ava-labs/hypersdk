@@ -75,7 +75,6 @@ func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, erro
 	if err != nil {
 		return 0, err
 	}
-	fmt.Println("here12")
 	// get programId
 	programID, err := r.initProgramStorage(programBytes)
 	if err != nil {
@@ -83,13 +82,11 @@ func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, erro
 	}
 	// call initialize if it exists
 	result, err := r.Call(ctx, "init", uint64(programID))
-	fmt.Println("result", result)
 	if err != nil {
 		if !errors.Is(err, ErrMissingExportedFunction) {
 			return 0, err
 		}
 	} else {
-		fmt.Println("here")
 		// check boolean result from init
 		if result[0] == 0 {
 			return 0, fmt.Errorf("failed to initialize program")
@@ -223,7 +220,6 @@ func (r *runtime) GetUserData(ctx context.Context) (map[string]int, error) {
 			func_name := strings.Replace(k, utils.FunctionSuffix, replacement, -1)
 			// keys = append(keys, func_name)
 			// get exported function
-			fmt.Println(k)
 			api := r.mod.ExportedFunction(k)
 			// we subtract one for the program id param
 			keys[func_name] = len(api.Definition().ParamTypes()) - 1
@@ -231,8 +227,6 @@ func (r *runtime) GetUserData(ctx context.Context) (map[string]int, error) {
 			if keys[func_name] < 0 {
 				return nil, fmt.Errorf("failed to get user data")
 			}
-			fmt.Println(api)
-			fmt.Println("len", len(api.Definition().ParamTypes()))
 		}
 	}
 	return keys, nil

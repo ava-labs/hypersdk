@@ -40,10 +40,7 @@ func keyHRP(privateKey ed25519.PrivateKey) string {
 	return HRP + privateKey.ToHex()[0:3]
 }
 
-// func fromHRPKey(hrpKey string) (ed25519.PrivateKey, error) {
-// 	[]byte(hrpKey)
-// }
-
+// setKey sets the private key mapped to the given [publicKey]
 func setKey(db database.Database, privateKey ed25519.PrivateKey) error {
 	publicKey := privateKey.PublicKey()
 	k := make([]byte, 1+ed25519.PublicKeyLen)
@@ -63,6 +60,7 @@ func setKey(db database.Database, privateKey ed25519.PrivateKey) error {
 	return db.Put([]byte(keyHRP(privateKey)), privateKey[:])
 }
 
+// getKey gets the private key mapped to the given [publicKey]
 func getKey(db database.Database, publicKey ed25519.PublicKey) (ed25519.PrivateKey, error) {
 	k := make([]byte, 1+ed25519.PublicKeyLen)
 	k[0] = keyPrefix
@@ -77,10 +75,8 @@ func getKey(db database.Database, publicKey ed25519.PublicKey) (ed25519.PrivateK
 	return ed25519.PrivateKey(v), nil
 }
 
-// loops through the keys in the database and returns the first 5 keys, or makes them if not enough
-func GetKeys(db database.Database) ([]string, error) {
-	fmt.Println("GetKeys")
-	numKeys := 5
+// GetKeys loops through the keys in the database and returns the first [x] keys, or makes them if not enough
+func GetKeys(db database.Database, numKeys int) ([]string, error) {
 	keys := make([]string, numKeys)
 	// loop through db
 	iter := db.NewIteratorWithPrefix([]byte(HRP))
@@ -100,7 +96,7 @@ func GetKeys(db database.Database) ([]string, error) {
 		keys[i] = string(iter.Key()[:])
 		i++
 	}
-	// if i >= numKeys {
+
 	// fill if needed
 	for j := i; j < numKeys; j++ {
 		priv, err := ed25519.GeneratePrivateKey()
@@ -114,11 +110,11 @@ func GetKeys(db database.Database) ([]string, error) {
 		fmt.Println(j)
 		keys[j] = keyHRP(priv)
 	}
-	// }
 
 	return keys, nil
 }
 
+// GetPublicKey gets the public key mapped to the given [keyHRP]
 func GetPublicKey(db database.Database, keyHRP string) (ed25519.PublicKey, error) {
 	v, err := db.Get([]byte(keyHRP))
 	if errors.Is(err, database.ErrNotFound) {

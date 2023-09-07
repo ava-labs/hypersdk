@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/x/programs/examples"
 	xutils "github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
@@ -84,14 +85,14 @@ func init() {
 	programCreateCmd.PersistentFlags().Uint64Var(
 		&maxFee,
 		"max-fee",
-		3000,
+		examples.DefaultMaxFee,
 		"max fee to pay for the action",
 	)
 
 	programInvokeCmd.PersistentFlags().Uint64Var(
 		&maxFee,
 		"max-fee",
-		3000,
+		examples.DefaultMaxFee,
 		"max fee to pay for the action",
 	)
 }

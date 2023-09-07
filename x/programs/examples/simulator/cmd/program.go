@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/x/programs/examples"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/spf13/cobra"
 )
@@ -20,12 +21,6 @@ const (
 	// keyPrefix that stores pub key -> private key mapping
 	keyPrefix = 0x1
 )
-
-// example cost map
-var costMap = map[string]uint64{
-	"ConstI32 0x0": 1,
-	"ConstI64 0x0": 2,
-}
 
 var programCmd = &cobra.Command{
 	Use: "program",
@@ -72,7 +67,7 @@ func InitializeProgram(programBytes []byte) (uint64, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), db)
+	runtime := runtime.New(log, runtime.NewMeter(log, maxFee, examples.CostMap), db)
 	defer runtime.Stop(ctx)
 
 	programID, err := runtime.Create(ctx, programBytes)
@@ -95,18 +90,10 @@ var programInvokeCmd = &cobra.Command{
 		if functionName == "" {
 			return fmt.Errorf("function --name cannot be empty")
 		}
-		// pubKey, err = parseAddress(callerAddress)
-		// if err != nil {
-		// 	return err
-		// }
 		return nil
 	},
 
 	RunE: func(_ *cobra.Command, args []string) error {
-		// id, err := ids.FromString(programID)
-		// if err != nil {
-		// 	return err
-		// }
 		exists, program, err := runtime.GetProgram(db, programID)
 		if !exists {
 			return fmt.Errorf("program %v does not exist", programID)
@@ -118,8 +105,7 @@ var programInvokeCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		// TODO: owner for now, change to caller later
-		runtime := runtime.New(log, runtime.NewMeter(log, maxFee, costMap), db)
+		runtime := runtime.New(log, runtime.NewMeter(log, maxFee, examples.CostMap), db)
 		defer runtime.Stop(ctx)
 
 		err = runtime.Initialize(ctx, program)

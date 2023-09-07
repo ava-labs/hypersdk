@@ -67,7 +67,7 @@ func main() {
 
 func (r ProgramSimulator) keysHandler(c *gin.Context) {
 	// get keys
-	keys, err := cmd.GetKeys(r.db)
+	keys, err := cmd.GetKeys(r.db, 5)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

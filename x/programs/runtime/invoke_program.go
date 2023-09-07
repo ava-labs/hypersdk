@@ -7,8 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"go.uber.org/zap"
@@ -32,7 +30,6 @@ type InvokeModule struct {
 	meter         Meter
 	log           logging.Logger
 	db            database.Database
-	callerAddress ed25519.PublicKey // the callerAddress of the new runtime during invoke.
 }
 
 // NewInvokeModule returns a new program invoke host module which can perform program to program calls.
