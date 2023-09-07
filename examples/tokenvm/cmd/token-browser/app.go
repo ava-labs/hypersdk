@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/chain"
 	hcli "github.com/ava-labs/hypersdk/cli"
@@ -32,8 +33,17 @@ type App struct {
 	log logger.Logger
 	h   *hcli.Handler
 
-	blocks  []*BlockInfo
-	blocksL sync.Mutex
+	workLock    sync.Mutex
+	blocks      []*BlockInfo
+	stats       []*TimeStat
+	currentStat *TimeStat
+}
+
+type TimeStat struct {
+	Timestamp    int64
+	Transactions int
+	Accounts     set.Set[string]
+	Prices       chain.Dimensions
 }
 
 type BlockInfo struct {
@@ -57,6 +67,7 @@ func NewApp() *App {
 	return &App{
 		log:    logger.NewDefaultLogger(),
 		blocks: []*BlockInfo{},
+		stats:  []*TimeStat{},
 	}
 }
 
@@ -200,12 +211,34 @@ func (a *App) collectBlocks() {
 		bi.Txs = len(blk.Txs)
 
 		// TODO: find a more efficient way to support this
-		a.blocksL.Lock()
+		a.workLock.Lock()
 		a.blocks = append([]*BlockInfo{bi}, a.blocks...)
 		if len(a.blocks) > 100 {
 			a.blocks = a.blocks[:100]
 		}
-		a.blocksL.Unlock()
+		sTime := blk.Tmstmp / consts.MillisecondsPerSecond
+		if a.currentStat != nil && a.currentStat.Timestamp != sTime {
+			a.stats = append(a.stats, a.currentStat)
+			a.currentStat = nil
+		}
+		if a.currentStat == nil {
+			a.currentStat = &TimeStat{Timestamp: sTime, Accounts: set.Set[string]{}}
+		}
+		a.currentStat.Transactions += bi.Txs
+		for _, tx := range blk.Txs {
+			a.currentStat.Accounts.Add(string(tx.Auth.Payer()))
+		}
+		a.currentStat.Prices = prices
+		snow := time.Now().Unix()
+		newStart := 0
+		for i, item := range a.stats {
+			newStart = i
+			if snow-item.Timestamp < 120 {
+				break
+			}
+		}
+		a.stats = a.stats[newStart:]
+		a.workLock.Unlock()
 
 		lastBlock = now.Unix()
 	}
@@ -219,10 +252,52 @@ func (a *App) shutdown(ctx context.Context) {
 }
 
 func (a *App) GetLatestBlocks() []*BlockInfo {
-	a.blocksL.Lock()
-	defer a.blocksL.Unlock()
+	a.workLock.Lock()
+	defer a.workLock.Unlock()
 
 	return a.blocks
+}
+
+type GenericInfo struct {
+	Timestamp int64
+	Count     uint64
+	Category  string
+}
+
+func (a *App) GetTransactionStats() []*GenericInfo {
+	a.workLock.Lock()
+	defer a.workLock.Unlock()
+
+	info := make([]*GenericInfo, len(a.stats))
+	for i := 0; i < len(a.stats); i++ {
+		info[i] = &GenericInfo{a.stats[i].Timestamp, uint64(a.stats[i].Transactions), ""}
+	}
+	return info
+}
+
+func (a *App) GetAccountStats() []*GenericInfo {
+	a.workLock.Lock()
+	defer a.workLock.Unlock()
+
+	info := make([]*GenericInfo, len(a.stats))
+	for i := 0; i < len(a.stats); i++ {
+		info[i] = &GenericInfo{a.stats[i].Timestamp, uint64(a.stats[i].Accounts.Len()), ""}
+	}
+	return info
+}
+func (a *App) GetUnitPrices() []*GenericInfo {
+	a.workLock.Lock()
+	defer a.workLock.Unlock()
+
+	info := make([]*GenericInfo, 0, len(a.stats)*chain.FeeDimensions)
+	for i := 0; i < len(a.stats); i++ {
+		info = append(info, &GenericInfo{a.stats[i].Timestamp, a.stats[i].Prices[0], "Bandwidth"})
+		info = append(info, &GenericInfo{a.stats[i].Timestamp, a.stats[i].Prices[1], "Compute"})
+		info = append(info, &GenericInfo{a.stats[i].Timestamp, a.stats[i].Prices[2], "Storage [Read]"})
+		info = append(info, &GenericInfo{a.stats[i].Timestamp, a.stats[i].Prices[3], "Storage [Create]"})
+		info = append(info, &GenericInfo{a.stats[i].Timestamp, a.stats[i].Prices[4], "Storage [Modify]"})
+	}
+	return info
 }
 
 func (a *App) GetChainID() string {

@@ -1,27 +1,22 @@
 import {useEffect, useState} from "react";
-import {GetLatestBlocks,GetChainID} from "../../wailsjs/go/main/App";
+import {GetLatestBlocks,GetTransactionStats,GetAccountStats,GetUnitPrices,GetChainID} from "../../wailsjs/go/main/App";
 import {Space, Typography, Divider, List, Card, Col, Row, message} from "antd";
-import { Area } from '@ant-design/plots';
+import { Area, Line } from '@ant-design/plots';
 const { Title, Text } = Typography;
 
 const Explorer = () => {
     const [blocks, setBlocks] = useState([]);
-    const [tps, setTPS] = useState("0");
+    const [transactionStats, setTransactionStats] = useState([]);
+    const [accountStats, setAccountStats] = useState([]);
+    const [unitPrices, setUnitPrices] = useState([]);
     const [chainID, setChainID] = useState("");
-    const [prices, setPrices] = useState("");
     const [messageApi, contextHolder] = message.useMessage();
-
-      const [data, setData] = useState([]);
 
     useEffect(() => {
         const getLatestBlocks = async () => {
             GetLatestBlocks()
                 .then((blocks) => {
                     setBlocks(blocks);
-                    if (blocks && blocks.length) {
-                      setTPS(blocks[0].TPS);
-                      setPrices(blocks[0].Prices);
-                    }
                 })
                 .catch((error) => {
                     messageApi.open({
@@ -43,31 +38,51 @@ const Explorer = () => {
         };
         getChainID();
 
-        const asyncFetch = () => {
-          fetch('https://gw.alipayobjects.com/os/bmw-prod/360c3eae-0c73-46f0-a982-4746a6095010.json')
-            .then((response) => response.json())
-            .then((json) => setData(json))
-            .catch((error) => {
-              console.log('fetch data failed', error);
-            });
+        const getTransactionStats = async () => {
+            GetTransactionStats()
+                .then((stats) => {
+                    setTransactionStats(stats);
+                })
+                .catch((error) => {
+                    messageApi.open({
+                        type: "error", content: error,
+                    });
+                });
         };
-        asyncFetch();
+
+        const getAccountStats = async () => {
+            GetAccountStats()
+                .then((stats) => {
+                    setAccountStats(stats);
+                })
+                .catch((error) => {
+                    messageApi.open({
+                        type: "error", content: error,
+                    });
+                });
+        };
+
+        const getUnitPrices = async () => {
+            GetUnitPrices()
+                .then((prices) => {
+                    setUnitPrices(prices);
+                })
+                .catch((error) => {
+                    messageApi.open({
+                        type: "error", content: error,
+                    });
+                });
+        };
 
         const interval = setInterval(() => {
           getLatestBlocks();
+          getTransactionStats();
+          getAccountStats();
+          getUnitPrices();
         }, 500);
 
         return () => clearInterval(interval);
     }, []);
-
-  const config = {
-    data,
-    xField: "timePeriod",
-    yField: "value",
-    autoFit: true,
-    smooth: true,
-    height: 200,
-  };
 
     return (<>
             {contextHolder}
@@ -75,18 +90,18 @@ const Explorer = () => {
             <br />
         <Row gutter={16}>
     <Col span={8}>
-      <Card title="Transactions" bordered={true}>
-        All-Time: [TODO] (TPS: {tps})
+      <Card title="Transactions Per Second" bordered={true}>
+        <Area data={transactionStats} xField={"Timestamp"} yField={"Count"} autoFit={true} height={200} />
       </Card>
     </Col>
     <Col span={8}>
-      <Card title="Accounts" bordered={true}>
-        <Area {...config} />;
+      <Card title="Active Accounts" bordered={true}>
+        <Area data={accountStats} xField={"Timestamp"} yField={"Count"} autoFit={true} height={200} />
       </Card>
     </Col>
     <Col span={8}>
       <Card title="Unit Prices" bordered={true}>
-        {prices}
+        <Line data={unitPrices} xField={"Timestamp"} yField={"Count"} seriesField={"Category"} autoFit={true} height={200} />
       </Card>
     </Col>
   </Row>
