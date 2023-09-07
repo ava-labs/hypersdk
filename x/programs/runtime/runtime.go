@@ -26,6 +26,7 @@ const (
 	allocFnName   = "alloc"
 	deallocFnName = "dealloc"
 )
+
 // TODO: remove database.Database to make this runtime more generic
 func New(log logging.Logger, meter Meter, db database.Database) *runtime {
 	return &runtime{
