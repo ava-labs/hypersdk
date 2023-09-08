@@ -1,7 +1,8 @@
 import {useEffect, useState} from "react";
 import {GetLatestBlocks,GetTransactionStats,GetAccountStats,GetUnitPrices,GetChainID} from "../../wailsjs/go/main/App";
-import {Space, Typography, Divider, List, Card, Col, Row, message} from "antd";
+import {Space, Typography, Divider, List, Card, Col, Row, Tooltip, message} from "antd";
 import { Area, Line } from '@ant-design/plots';
+import { ResponsiveLine } from '@nivo/line';
 const { Title, Text } = Typography;
 
 const Explorer = () => {
@@ -86,30 +87,33 @@ const Explorer = () => {
 
     return (<>
             {contextHolder}
-            <Divider orientation="center">Metrics</Divider>
-            <br />
+            <Divider orientation="center">
+              <Tooltip title="Last 2 Minutes">
+                Metrics
+              </Tooltip>
+            </Divider>
         <Row gutter={16}>
     <Col span={8}>
       <Card title="Transactions Per Second" bordered={true}>
-        <Area data={transactionStats} xField={"Timestamp"} yField={"Count"} autoFit={true} height={200} />
+        <Area data={transactionStats} xField={"Timestamp"} yField={"Count"} autoFit={true} height={200} animation={false} xAxis={{tickCount: 0}} />
       </Card>
     </Col>
     <Col span={8}>
       <Card title="Active Accounts" bordered={true}>
-        <Area data={accountStats} xField={"Timestamp"} yField={"Count"} autoFit={true} height={200} />
+        <Area data={accountStats} xField={"Timestamp"} yField={"Count"} autoFit={true} height={200} animation={false} xAxis={{tickCount: 0}} />
       </Card>
     </Col>
     <Col span={8}>
       <Card title="Unit Prices" bordered={true}>
-        <Line data={unitPrices} xField={"Timestamp"} yField={"Count"} seriesField={"Category"} autoFit={true} height={200} />
+        <Line data={unitPrices} xField={"Timestamp"} yField={"Count"} seriesField={"Category"} autoFit={true} height={200} animation={false} legend={false} xAxis={{tickCount: 0}} />
       </Card>
     </Col>
   </Row>
-            <Divider orientation="center">Blocks</Divider>
-            <Row justify="center">
-              <Text italic type="warning">ChainID: {chainID}</Text>
-            </Row>
-            <br />
+            <Divider orientation="center">
+              <Tooltip title={`ChainID: ${chainID}`}>
+                Recent Blocks
+              </Tooltip>
+            </Divider>
             <List
               bordered
               dataSource={blocks}
