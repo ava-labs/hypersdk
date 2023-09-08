@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { GetBalance, GetAddress } from "../../wailsjs/go/main/App";
 import { DashboardOutlined, BankOutlined, SendOutlined, ThunderboltOutlined } from "@ant-design/icons";
-import { Layout, Menu, Typography, Drawer, message } from "antd";
-const { Text, Link } = Typography;
+import { Layout, Menu, Typography, Drawer, List, message } from "antd";
+const { Text, Title, Link } = Typography;
 import { Link as RLink } from "react-router-dom";
 import logo from "../assets/images/logo-universal.jpeg";
 
@@ -97,11 +97,17 @@ const NavBar = () => {
           position: "relative",
         }}
       />
-    <Drawer title={"Account"} placement="right" onClose={onClose} open={open}>
-      <Text>{address}</Text>
-      <br />
-      <br />
-      <Text>{balance} TKN</Text>
+    <Drawer title={address} size={"large"} placement="right" onClose={onClose} open={open}>
+      {/* use a real data source */}
+      <List
+        bordered
+        dataSource={[{"Balance":balance, "Symbol": "TKN"}]}
+        renderItem={(item) => (
+          <List.Item>
+            <Text>{item.Balance} {item.Symbol}</Text>
+          </List.Item>
+        )}
+      />
     </Drawer>
     </Layout.Header>
   );
