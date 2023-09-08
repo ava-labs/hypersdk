@@ -18,10 +18,12 @@ const Explorer = () => {
     };
 
     const handleOk = () => {
+      const start = (new Date()).getTime();
       CreateAsset(tokenName)
           .then(() => {
+              const finish = (new Date()).getTime();
               messageApi.open({
-                  type: "success", content: "hello",
+                  type: "success", content: `Transaction Finalized (${finish-start} ms)`,
               });
           })
           .catch((error) => {

@@ -1,42 +1,66 @@
-import {useEffect, useState} from "react";
-import { GetBalance } from "../../wailsjs/go/main/App";
+import { useEffect, useState } from "react";
+import { GetBalance, GetAddress } from "../../wailsjs/go/main/App";
 import { DashboardOutlined, BankOutlined, SendOutlined, ThunderboltOutlined } from "@ant-design/icons";
-import { Layout, Menu, Typography } from "antd";
-const { Text } = Typography;
-import { Link } from "react-router-dom";
+import { Layout, Menu, Typography, Drawer, message } from "antd";
+const { Text, Link } = Typography;
+import { Link as RLink } from "react-router-dom";
 import logo from "../assets/images/logo-universal.jpeg";
 
 const items = [
   {
-    label: <Link to={"explorer"}>Explorer</Link>,
+    label: <RLink to={"explorer"}>Explorer</RLink>,
     key: "explorer",
     icon: <DashboardOutlined />,
   },
   {
-    label: <Link to={"mint"}>Mint</Link>,
+    label: <RLink to={"mint"}>Mint</RLink>,
     key: "mint",
     icon: <BankOutlined />,
   },
   {
-    label: <Link to={"transfer"}>Transfer</Link>,
+    label: <RLink to={"transfer"}>Transfer</RLink>,
     key: "transfer",
     icon: <SendOutlined />,
   },
   {
-    label: <Link to={"faucet"}>Faucet</Link>,
+    label: <RLink to={"faucet"}>Faucet</RLink>,
     key: "faucet",
     icon: <ThunderboltOutlined />,
   },
 ];
 
 const NavBar = () => {
+  const [messageApi, contextHolder] = message.useMessage();
   const [balance, setBalance] = useState("");
+  const [address, setAddress] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const showDrawer = () => {
+    setOpen(true);
+  };
+
+  const onClose = () => {
+    setOpen(false);
+  };
 
   useEffect(() => {
+    const getAddress = async () => {
+        GetAddress()
+            .then((address) => {
+                setAddress(address);
+            })
+            .catch((error) => {
+                messageApi.open({
+                    type: "error", content: error,
+                });
+            });
+    };
+    getAddress();
+
     const getBalance = async () => {
         GetBalance("11111111111111111111111111111111LpoYY")
-            .then((balance) => {
-                setBalance(balance);
+            .then((newBalance) => {
+                setBalance(newBalance);
             })
             .catch((error) => {
                 messageApi.open({
@@ -63,7 +87,7 @@ const NavBar = () => {
       </div>
       {/* compute to string represenation */}
       <div style={{ float: "right" }}>
-        <Text>{balance} TKN</Text>
+        <Link strong onClick={showDrawer}>{balance} TKN</Link>
       </div>
       <Menu
         defaultSelectedKeys={["explorer"]}
@@ -73,6 +97,12 @@ const NavBar = () => {
           position: "relative",
         }}
       />
+    <Drawer title={"Account"} placement="right" onClose={onClose} open={open}>
+      <Text>{address}</Text>
+      <br />
+      <br />
+      <Text>{balance} TKN</Text>
+    </Drawer>
     </Layout.Header>
   );
 };
