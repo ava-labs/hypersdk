@@ -1,6 +1,7 @@
 import App from "./App";
 
 import Explorer from "./components/Explorer";
+import Mint from "./components/Mint";
 
 const routes = [
   {
@@ -11,6 +12,10 @@ const routes = [
       {
         path: "explorer",
         element: <Explorer />,
+      },
+      {
+        path: "mint",
+        element: <Mint />,
       },
     ],
   },

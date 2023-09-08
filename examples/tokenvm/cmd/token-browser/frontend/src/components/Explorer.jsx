@@ -2,7 +2,6 @@ import {useEffect, useState} from "react";
 import {GetLatestBlocks,GetTransactionStats,GetAccountStats,GetUnitPrices,GetChainID} from "../../wailsjs/go/main/App";
 import {Space, Typography, Divider, List, Card, Col, Row, Tooltip, message} from "antd";
 import { Area, Line } from '@ant-design/plots';
-import { ResponsiveLine } from '@nivo/line';
 const { Title, Text } = Typography;
 
 const Explorer = () => {
@@ -92,7 +91,7 @@ const Explorer = () => {
                 Metrics
               </Tooltip>
             </Divider>
-        <Row gutter={16}>
+  <Row gutter={16}>
     <Col span={8}>
       <Card title="Transactions Per Second" bordered={true}>
         <Area data={transactionStats} xField={"Timestamp"} yField={"Count"} autoFit={true} height={200} animation={false} xAxis={{tickCount: 0}} />

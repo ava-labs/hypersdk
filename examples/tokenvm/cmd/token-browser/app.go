@@ -7,13 +7,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/chain"
 	hcli "github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-cli/cmd"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/window"
@@ -33,10 +38,15 @@ type App struct {
 	log logger.Logger
 	h   *hcli.Handler
 
+	scli *rpc.WebSocketClient
+
 	workLock    sync.Mutex
 	blocks      []*BlockInfo
 	stats       []*TimeStat
 	currentStat *TimeStat
+
+	// TODO: move this to DB
+	assets []string
 }
 
 type TimeStat struct {
@@ -140,6 +150,7 @@ func (a *App) collectBlocks() {
 		return
 	}
 	defer scli.Close()
+	a.scli = scli
 	if err := scli.RegisterBlocks(); err != nil {
 		a.log.Error(err.Error())
 		runtime.Quit(ctx)
@@ -308,4 +319,104 @@ func (a *App) GetChainID() string {
 		return ""
 	}
 	return chainID.String()
+}
+
+type AssetInfo struct {
+	ID       string
+	Creator  string
+	Metadata string
+}
+
+func (a *App) GetAssets() []*AssetInfo {
+	assets := []*AssetInfo{}
+	for _, asset := range a.assets {
+		assets = append(assets, &AssetInfo{ID: asset})
+	}
+	return assets
+}
+
+func (a *App) defaultActor() (
+	ids.ID, ed25519.PrivateKey, *auth.ED25519Factory,
+	*rpc.JSONRPCClient, *trpc.JSONRPCClient, error,
+) {
+	priv, err := a.h.GetDefaultKey()
+	if err != nil {
+		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
+	}
+	chainID, uris, err := a.h.GetDefaultChain()
+	if err != nil {
+		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
+	}
+	cli := rpc.NewJSONRPCClient(uris[0])
+	networkID, _, _, err := cli.Network(context.TODO())
+	if err != nil {
+		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
+	}
+	// For [defaultActor], we always send requests to the first returned URI.
+	return chainID, priv, auth.NewED25519Factory(
+			priv,
+		), cli,
+		trpc.NewJSONRPCClient(
+			uris[0],
+			networkID,
+			chainID,
+		), nil
+}
+
+func (a *App) CreateAsset(metadata string) error {
+	ctx := context.Background()
+	// TODO: share client
+	_, _, factory, cli, tcli, err := a.defaultActor()
+	if err != nil {
+		return err
+	}
+
+	// Generate transaction
+	parser, err := tcli.Parser(ctx)
+	if err != nil {
+		return err
+	}
+	_, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CreateAsset{
+		Metadata: []byte(metadata),
+	}, factory)
+	if err != nil {
+		return err
+	}
+	if err := a.scli.RegisterTx(tx); err != nil {
+		return err
+	}
+
+	// Wait for transaction
+	txID, dErr, result, err := a.scli.ListenTx(ctx)
+	if err != nil {
+		return err
+	}
+	if dErr != nil {
+		return err
+	}
+	if !result.Success {
+		return fmt.Errorf("transaction failed on-chain: %s", result.Output)
+	}
+	a.assets = append(a.assets, txID.String())
+	return nil
+}
+
+func (a *App) GetAddress() (string, error) {
+	_, priv, _, _, _, err := a.defaultActor()
+	if err != nil {
+		return "", err
+	}
+	return utils.Address(priv.PublicKey()), nil
+}
+
+func (a *App) GetBalance(assetID string) (uint64, error) {
+	_, priv, _, _, tcli, err := a.defaultActor()
+	if err != nil {
+		return 0, err
+	}
+	id, err := ids.FromString(assetID)
+	if err != nil {
+		return 0, err
+	}
+	return tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), id)
 }

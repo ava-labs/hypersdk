@@ -1,4 +1,4 @@
-import { DashboardOutlined } from "@ant-design/icons";
+import { DashboardOutlined, BankOutlined, SendOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { Layout, Menu } from "antd";
 import { Link } from "react-router-dom";
 import logo from "../assets/images/logo-universal.jpeg";
@@ -8,6 +8,21 @@ const items = [
     label: <Link to={"explorer"}>Explorer</Link>,
     key: "explorer",
     icon: <DashboardOutlined />,
+  },
+  {
+    label: <Link to={"mint"}>Mint</Link>,
+    key: "mint",
+    icon: <BankOutlined />,
+  },
+  {
+    label: <Link to={"transfer"}>Transfer</Link>,
+    key: "transfer",
+    icon: <SendOutlined />,
+  },
+  {
+    label: <Link to={"faucet"}>Faucet</Link>,
+    key: "faucet",
+    icon: <ThunderboltOutlined />,
   },
 ];
 
