@@ -74,6 +74,10 @@ const Explorer = () => {
                 });
         };
 
+        getLatestBlocks();
+        getTransactionStats();
+        getAccountStats();
+        getUnitPrices();
         const interval = setInterval(() => {
           getLatestBlocks();
           getTransactionStats();

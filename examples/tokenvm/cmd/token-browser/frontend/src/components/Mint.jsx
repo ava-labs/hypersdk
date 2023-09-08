@@ -75,6 +75,8 @@ const Explorer = () => {
                 });
         };
 
+        getAssets();
+        getBalance();
         const interval = setInterval(() => {
           getAssets();
           getBalance();
@@ -85,7 +87,6 @@ const Explorer = () => {
 
     return (<>
             {contextHolder}
-            <Text>{address}: {balance}</Text>
             <FloatButton icon={<PlusOutlined />} type="primary" onClick={showModal} />
             <Divider orientation="center">
               Tokens

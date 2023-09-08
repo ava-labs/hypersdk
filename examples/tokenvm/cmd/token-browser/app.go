@@ -418,5 +418,6 @@ func (a *App) GetBalance(assetID string) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
+	// TODO: pull decimals from chain
 	return tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), id)
 }
