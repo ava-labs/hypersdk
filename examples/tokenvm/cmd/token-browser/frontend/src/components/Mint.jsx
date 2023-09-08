@@ -1,25 +1,32 @@
 import {useEffect, useState} from "react";
 import {GetAssets, CreateAsset, GetBalance, GetAddress} from "../../wailsjs/go/main/App";
 import { PlusOutlined } from "@ant-design/icons";
-import { Input, Space, Typography, Divider, List, Card, Col, Row, Tooltip, Button, Modal, FloatButton, message } from "antd";
+import { Input, Space, Typography, Divider, List, Card, Col, Row, Tooltip, Button, Drawer, FloatButton, Form, message } from "antd";
 import { Area, Line } from '@ant-design/plots';
 const { Title, Text } = Typography;
 
 const Explorer = () => {
     const [assets, setAssets] = useState([]);
-    const [tokenName, setTokenName] = useState("");
     const [address, setAddress] = useState("");
     const [balance, setBalance] = useState("");
     const [messageApi, contextHolder] = message.useMessage();
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [open, setOpen] = useState(false);
+    const [form] = Form.useForm();
 
-    const showModal = () => {
-      setIsModalOpen(true);
+    const showDrawer = () => {
+      setOpen(true);
     };
 
-    const handleOk = () => {
+    const onClose = () => {
+      form.resetFields();
+      setOpen(false);
+    };
+
+    const onFinish = (values) => {
+      console.log('Success:', values);
+
       const start = (new Date()).getTime();
-      CreateAsset(tokenName)
+      CreateAsset(values.Symbol)
           .then(() => {
               const finish = (new Date()).getTime();
               messageApi.open({
@@ -31,12 +38,12 @@ const Explorer = () => {
                   type: "error", content: error,
               });
           });
-      setTokenName("");
-      setIsModalOpen(false);
+      form.resetFields();
+      setOpen(false);
     };
-
-    const handleCancel = () => {
-      setIsModalOpen(false);
+    
+    const onFinishFailed = (errorInfo) => {
+      console.log('Failed:', errorInfo);
     };
 
     useEffect(() => {
@@ -89,7 +96,7 @@ const Explorer = () => {
 
     return (<>
             {contextHolder}
-            <FloatButton icon={<PlusOutlined />} type="primary" onClick={showModal} />
+            <FloatButton icon={<PlusOutlined />} type="primary" onClick={showDrawer} />
             <Divider orientation="center">
               Tokens
             </Divider>
@@ -102,10 +109,28 @@ const Explorer = () => {
                 </List.Item>
               )}
             />
-            <Modal title="Create Your Own Token" open={isModalOpen} onOk={handleOk} onCancel={handleCancel} okText={"Create"}>
-              <br />
-              <Input placeholder={"Name"} allowClear={true} value={tokenName} onChange={(e) => setTokenName(e.target.value)} />
-            </Modal>
+            <Drawer title={"Create a Token"} placement={"right"} onClose={onClose} open={open}>
+              <Form
+                name="basic"
+                form={form}
+                initialValues={{ remember: false }}
+                onFinish={onFinish}
+                onFinishFailed={onFinishFailed}
+                autoComplete="off"
+              >
+                <Form.Item name="Symbol" rules={[{ required: true }]}>
+                  <Input  placeholder="Symbol"/>
+                </Form.Item>
+                <Form.Item name="Metadata" rules={[{ required: true }]}>
+                  <Input placeholder="Metadata"/>
+                </Form.Item>
+                <Form.Item>
+                  <Button type="primary" htmlType="submit">
+                    Create
+                  </Button>
+                </Form.Item>
+              </Form>
+            </Drawer>
         </>);
 };
 
