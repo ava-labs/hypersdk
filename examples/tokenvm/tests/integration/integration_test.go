@@ -258,10 +258,11 @@ var _ = ginkgo.BeforeSuite(func() {
 			gomega.Ω(balance).Should(gomega.Equal(alloc.Balance))
 			csupply += alloc.Balance
 		}
-		exists, metadata, supply, owner, warp, err := cli.Asset(context.Background(), ids.Empty)
+		exists, symbol, decimals, metadata, supply, owner, warp, err := cli.Asset(context.Background(), ids.Empty)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
-		gomega.Ω(string(metadata)).Should(gomega.Equal(tconsts.Symbol))
+		gomega.Ω(string(symbol)).Should(gomega.Equal(tconsts.Symbol))
+		gomega.Ω(string(metadata)).Should(gomega.Equal(tconsts.Name))
 		gomega.Ω(supply).Should(gomega.Equal(csupply))
 		gomega.Ω(owner).Should(gomega.Equal(utils.Address(ed25519.EmptyPublicKey)))
 		gomega.Ω(warp).Should(gomega.BeFalse())
@@ -1068,76 +1069,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(supply).Should(gomega.Equal(uint64(10)))
 		gomega.Ω(owner).Should(gomega.Equal(sender))
 		gomega.Ω(warp).Should(gomega.BeFalse())
-	})
-
-	ginkgo.It("modify an existing asset", func() {
-		parser, err := instances[0].tcli.Parser(context.Background())
-		gomega.Ω(err).Should(gomega.BeNil())
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			parser,
-			nil,
-			&actions.ModifyAsset{
-				Asset:    asset1ID,
-				Metadata: []byte("blah"),
-				Owner:    ed25519.EmptyPublicKey,
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept(false)
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-
-		balance, err := instances[0].tcli.Balance(context.TODO(), sender2, asset1ID)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(balance).Should(gomega.Equal(uint64(10)))
-		balance, err = instances[0].tcli.Balance(context.TODO(), sender, asset1ID)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
-
-		exists, metadata, supply, owner, warp, err := instances[0].tcli.Asset(
-			context.TODO(),
-			asset1ID,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(exists).Should(gomega.BeTrue())
-		gomega.Ω(metadata).Should(gomega.Equal([]byte("blah")))
-		gomega.Ω(supply).Should(gomega.Equal(uint64(10)))
-		gomega.Ω(owner).Should(gomega.Equal(utils.Address(ed25519.EmptyPublicKey)))
-		gomega.Ω(warp).Should(gomega.BeFalse())
-	})
-
-	ginkgo.It("modify an asset that doesn't exist", func() {
-		assetID := ids.GenerateTestID()
-		parser, err := instances[0].tcli.Parser(context.Background())
-		gomega.Ω(err).Should(gomega.BeNil())
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			parser,
-			nil,
-			&actions.ModifyAsset{
-				Asset:    assetID,
-				Metadata: []byte("cool"),
-				Owner:    rsender,
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept(false)
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).
-			Should(gomega.ContainSubstring("asset missing"))
-
-		exists, _, _, _, _, err := instances[0].tcli.Asset(context.TODO(), assetID)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(exists).Should(gomega.BeFalse())
 	})
 
 	ginkgo.It("rejects mint of native token", func() {

@@ -76,7 +76,7 @@ func (cli *JSONRPCClient) Tx(ctx context.Context, id ids.ID) (bool, bool, int64,
 func (cli *JSONRPCClient) Asset(
 	ctx context.Context,
 	asset ids.ID,
-) (bool, []byte, uint64, string, bool, error) {
+) (bool, []byte, uint8, []byte, uint64, string, bool, error) {
 	resp := new(AssetReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -90,11 +90,11 @@ func (cli *JSONRPCClient) Asset(
 	// We use string parsing here because the JSON-RPC library we use may not
 	// allows us to perform errors.Is.
 	case err != nil && strings.Contains(err.Error(), ErrAssetNotFound.Error()):
-		return false, nil, 0, "", false, nil
+		return false, nil, 0, nil, 0, "", false, nil
 	case err != nil:
-		return false, nil, 0, "", false, err
+		return false, nil, 0, nil, 0, "", false, err
 	}
-	return true, resp.Metadata, resp.Supply, resp.Owner, resp.Warp, nil
+	return true, resp.Symbol, resp.Decimals, resp.Metadata, resp.Supply, resp.Owner, resp.Warp, nil
 }
 
 func (cli *JSONRPCClient) Balance(ctx context.Context, addr string, asset ids.ID) (uint64, error) {
