@@ -5,7 +5,7 @@ import { Input, Space, Typography, Divider, List, Card, Col, Row, Tooltip, Butto
 import { Area, Line } from '@ant-design/plots';
 const { Title, Text } = Typography;
 
-const Explorer = () => {
+const Mint = () => {
     const [assets, setAssets] = useState([]);
     const [address, setAddress] = useState("");
     const [messageApi, contextHolder] = message.useMessage();
@@ -105,4 +105,4 @@ const Explorer = () => {
         </>);
 };
 
-export default Explorer;
+export default Mint;
