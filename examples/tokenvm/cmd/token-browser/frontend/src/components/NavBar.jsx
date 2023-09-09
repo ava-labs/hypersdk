@@ -97,7 +97,7 @@ const NavBar = () => {
           position: "relative",
         }}
       />
-    <Drawer title={address} size={"large"} placement="right" onClose={onClose} open={open}>
+    <Drawer title={<Text copyable>{address}</Text>} size={"large"} placement="right" onClose={onClose} open={open}>
       {/* use a real data source */}
       <List
         bordered

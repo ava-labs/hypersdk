@@ -8,7 +8,6 @@ const { Title, Text } = Typography;
 const Explorer = () => {
     const [assets, setAssets] = useState([]);
     const [address, setAddress] = useState("");
-    const [balance, setBalance] = useState("");
     const [messageApi, contextHolder] = message.useMessage();
     const [open, setOpen] = useState(false);
     const [form] = Form.useForm();
@@ -24,22 +23,28 @@ const Explorer = () => {
 
     const onFinish = (values) => {
       console.log('Success:', values);
-
-      const start = (new Date()).getTime();
-      CreateAsset(values.Symbol)
-          .then(() => {
-              const finish = (new Date()).getTime();
-              messageApi.open({
-                  type: "success", content: `Transaction Finalized (${finish-start} ms)`,
-              });
-          })
-          .catch((error) => {
-              messageApi.open({
-                  type: "error", content: error,
-              });
-          });
-      form.resetFields();
       setOpen(false);
+
+      (async () => {
+        try {
+          const balance = await GetBalance("11111111111111111111111111111111LpoYY");
+          if (balance != 0) {
+            throw new Error("Insufficient Balance");
+          }
+          const start = (new Date()).getTime();
+          await CreateAsset(values.Symbol);
+          const finish = (new Date()).getTime();
+          messageApi.open({
+            type: "success", content: `Transaction Finalized (${finish-start} ms)`,
+          });
+
+          form.resetFields();
+        } catch (e) {
+          messageApi.open({
+            type: "error", content: e.toString(),
+          });
+        }
+      })();
     };
     
     const onFinishFailed = (errorInfo) => {
@@ -59,36 +64,9 @@ const Explorer = () => {
                 });
         };
 
-        const getAddress = async () => {
-            GetAddress()
-                .then((address) => {
-                    setAddress(address);
-                })
-                .catch((error) => {
-                    messageApi.open({
-                        type: "error", content: error,
-                    });
-                });
-        };
-        getAddress();
-
-        const getBalance = async () => {
-            GetBalance("11111111111111111111111111111111LpoYY")
-                .then((balance) => {
-                    setBalance(balance);
-                })
-                .catch((error) => {
-                    messageApi.open({
-                        type: "error", content: error,
-                    });
-                });
-        };
-
         getAssets();
-        getBalance();
         const interval = setInterval(() => {
           getAssets();
-          getBalance();
         }, 500);
 
         return () => clearInterval(interval);
