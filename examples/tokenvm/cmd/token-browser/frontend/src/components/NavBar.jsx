@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { GetBalance, GetAddress } from "../../wailsjs/go/main/App";
-import { DashboardOutlined, BankOutlined, SendOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { DashboardOutlined, BankOutlined, SendOutlined, SwapOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { Layout, Menu, Typography, Drawer, List, message } from "antd";
 const { Text, Title, Link } = Typography;
 import { Link as RLink } from "react-router-dom";
@@ -21,6 +21,11 @@ const items = [
     label: <RLink to={"transfer"}>Transfer</RLink>,
     key: "transfer",
     icon: <SendOutlined />,
+  },
+  {
+    label: <RLink to={"trade"}>Trade</RLink>,
+    key: "trade",
+    icon: <SwapOutlined />,
   },
   {
     label: <RLink to={"faucet"}>Faucet</RLink>,
