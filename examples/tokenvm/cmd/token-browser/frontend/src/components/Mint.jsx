@@ -92,6 +92,9 @@ const Mint = () => {
                 <Form.Item name="Symbol" rules={[{ required: true }]}>
                   <Input  placeholder="Symbol"/>
                 </Form.Item>
+                <Form.Item name="Decimals" rules={[{ required: true }]}>
+                  <Input  placeholder="Decimals"/>
+                </Form.Item>
                 <Form.Item name="Metadata" rules={[{ required: true }]}>
                   <Input placeholder="Metadata"/>
                 </Form.Item>

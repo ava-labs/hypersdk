@@ -67,11 +67,6 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 			summaryStr = fmt.Sprintf("%s %s -> %s", amountStr, assetStr, tutils.Address(action.To))
 		case *actions.BurnAsset:
 			summaryStr = fmt.Sprintf("%d %s -> 🔥", action.Value, action.Asset)
-		case *actions.ModifyAsset:
-			summaryStr = fmt.Sprintf(
-				"assetID: %s metadata:%s owner:%s",
-				action.Asset, string(action.Metadata), tutils.Address(action.Owner),
-			)
 
 		case *actions.Transfer:
 			amountStr := strconv.FormatUint(action.Value, 10)

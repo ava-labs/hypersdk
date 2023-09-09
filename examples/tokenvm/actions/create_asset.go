@@ -59,7 +59,7 @@ func (c *CreateAsset) Execute(
 	if len(c.Symbol) > MaxSymbolSize {
 		return false, CreateAssetComputeUnits, OutputSymbolTooLarge, nil, nil
 	}
-	if c.Decimals > 9 {
+	if c.Decimals > MaxDecimals {
 		return false, CreateAssetComputeUnits, OutputDecimalsTooLarge, nil, nil
 	}
 	if len(c.Metadata) == 0 {

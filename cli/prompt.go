@@ -139,6 +139,7 @@ func (*Handler) PromptAmount(
 
 func (*Handler) PromptInt(
 	label string,
+	max int,
 ) (int, error) {
 	promptText := promptui.Prompt{
 		Label: label,
@@ -152,6 +153,9 @@ func (*Handler) PromptInt(
 			}
 			if amount <= 0 {
 				return fmt.Errorf("%d must be > 0", amount)
+			}
+			if amount > max {
+				return fmt.Errorf("%d must be <= %d", amount, max)
 			}
 			return nil
 		},

@@ -86,8 +86,20 @@ var createAssetCmd = &cobra.Command{
 			return err
 		}
 
+		// Add symbol to token
+		symbol, err := handler.Root().PromptString("symbol", 1, actions.MaxSymbolSize)
+		if err != nil {
+			return err
+		}
+
+		// Add decimal to token
+		decimals, err := handler.Root().PromptInt("decimals", actions.MaxDecimals)
+		if err != nil {
+			return err
+		}
+
 		// Add metadata to token
-		metadata, err := handler.Root().PromptString("metadata (can be changed later)", 0, actions.MaxMetadataSize)
+		metadata, err := handler.Root().PromptString("metadata", 1, actions.MaxMetadataSize)
 		if err != nil {
 			return err
 		}
@@ -100,6 +112,8 @@ var createAssetCmd = &cobra.Command{
 
 		// Generate transaction
 		_, _, err = sendAndWait(ctx, nil, &actions.CreateAsset{
+			Symbol:   []byte(symbol),
+			Decimals: uint8(decimals), // already constrain above to prevent overflow
 			Metadata: []byte(metadata),
 		}, cli, tcli, factory, true)
 		return err

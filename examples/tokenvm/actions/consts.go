@@ -31,4 +31,5 @@ const (
 
 	MaxMetadataSize = 256
 	MaxSymbolSize   = 32 // allow ID for warp
+	MaxDecimals     = 9
 )
