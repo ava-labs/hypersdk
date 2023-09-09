@@ -45,28 +45,14 @@ const NavBar = () => {
 
   useEffect(() => {
     const getAddress = async () => {
-        GetAddress()
-            .then((address) => {
-                setAddress(address);
-            })
-            .catch((error) => {
-                messageApi.open({
-                    type: "error", content: error,
-                });
-            });
+      const address = await GetAddress();
+      setAddress(address);
     };
     getAddress();
 
     const getBalance = async () => {
-        GetBalance("11111111111111111111111111111111LpoYY")
-            .then((newBalance) => {
-                setBalance(newBalance);
-            })
-            .catch((error) => {
-                messageApi.open({
-                    type: "error", content: error,
-                });
-            });
+        const newBalance = await GetBalance("11111111111111111111111111111111LpoYY");
+        setBalance(newBalance);
     };
 
     getBalance();

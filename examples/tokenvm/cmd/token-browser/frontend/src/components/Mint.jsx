@@ -53,15 +53,8 @@ const Explorer = () => {
 
     useEffect(() => {
         const getAssets = async () => {
-            GetAssets()
-                .then((assets) => {
-                    setAssets(assets);
-                })
-                .catch((error) => {
-                    messageApi.open({
-                        type: "error", content: error,
-                    });
-                });
+            const assets = await GetAssets();
+            setAssets(assets);
         };
 
         getAssets();
