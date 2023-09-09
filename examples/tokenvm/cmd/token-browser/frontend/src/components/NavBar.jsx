@@ -13,6 +13,11 @@ const items = [
     icon: <DashboardOutlined />,
   },
   {
+    label: <RLink to={"faucet"}>Faucet</RLink>,
+    key: "faucet",
+    icon: <ThunderboltOutlined />,
+  },
+  {
     label: <RLink to={"mint"}>Mint</RLink>,
     key: "mint",
     icon: <BankOutlined />,
@@ -26,11 +31,6 @@ const items = [
     label: <RLink to={"trade"}>Trade</RLink>,
     key: "trade",
     icon: <SwapOutlined />,
-  },
-  {
-    label: <RLink to={"faucet"}>Faucet</RLink>,
-    key: "faucet",
-    icon: <ThunderboltOutlined />,
   },
 ];
 
