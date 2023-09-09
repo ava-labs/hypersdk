@@ -38,7 +38,7 @@ func (c *Controller) GetTransaction(
 func (c *Controller) GetAssetFromState(
 	ctx context.Context,
 	asset ids.ID,
-) (bool, []byte, uint64, ed25519.PublicKey, bool, error) {
+) (bool, []byte, uint8, []byte, uint64, ed25519.PublicKey, bool, error) {
 	return storage.GetAssetFromState(ctx, c.inner.ReadState, asset)
 }
 

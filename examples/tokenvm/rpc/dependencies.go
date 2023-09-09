@@ -18,7 +18,7 @@ type Controller interface {
 	Genesis() *genesis.Genesis
 	Tracer() trace.Tracer
 	GetTransaction(context.Context, ids.ID) (bool, int64, bool, chain.Dimensions, uint64, error)
-	GetAssetFromState(context.Context, ids.ID) (bool, []byte, uint64, ed25519.PublicKey, bool, error)
+	GetAssetFromState(context.Context, ids.ID) (bool, []byte, uint8, []byte, uint64, ed25519.PublicKey, bool, error)
 	GetBalanceFromState(context.Context, ed25519.PublicKey, ids.ID) (uint64, error)
 	Orders(pair string, limit int) []*orderbook.Order
 	GetLoanFromState(context.Context, ids.ID, ids.ID) (uint64, error)
