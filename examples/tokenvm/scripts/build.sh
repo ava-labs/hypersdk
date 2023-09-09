@@ -18,6 +18,10 @@ TOKENVM_PATH=$(
     cd .. && pwd
 )
 
+realpath() {
+    [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+}
+
 if [[ $# -eq 1 ]]; then
     BINARY_PATH=$(realpath $1)
 elif [[ $# -eq 0 ]]; then
