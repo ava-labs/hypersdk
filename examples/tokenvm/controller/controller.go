@@ -187,8 +187,6 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 				c.metrics.mintAsset.Inc()
 			case *actions.BurnAsset:
 				c.metrics.burnAsset.Inc()
-			case *actions.ModifyAsset:
-				c.metrics.modifyAsset.Inc()
 			case *actions.Transfer:
 				c.metrics.transfer.Inc()
 			case *actions.CreateOrder:

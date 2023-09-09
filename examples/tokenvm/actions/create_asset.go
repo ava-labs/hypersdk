@@ -22,8 +22,6 @@ var _ chain.Action = (*CreateAsset)(nil)
 type CreateAsset struct {
 	Symbol   []byte `json:"symbol"`
 	Decimals uint8  `json:"decimals"`
-	// Metadata is creator-specified information about the asset. This can be
-	// modified using the [ModifyAsset] action.
 	Metadata []byte `json:"metadata"`
 }
 

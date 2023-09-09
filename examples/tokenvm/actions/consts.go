@@ -13,8 +13,7 @@ const (
 	createOrderID uint8 = 5
 	fillOrderID   uint8 = 6
 	mintAssetID   uint8 = 7
-	modifyAssetID uint8 = 8
-	transferID    uint8 = 9
+	transferID    uint8 = 8
 )
 
 const (
@@ -28,9 +27,8 @@ const (
 	NoFillOrderComputeUnits = 5
 	FillOrderComputeUnits   = 15
 	MintAssetComputeUnits   = 2
-	ModifyAssetComputeUnits = 2
 	TransferComputeUnits    = 1
 
 	MaxMetadataSize = 256
-	MaxSymbolSize   = 5
+	MaxSymbolSize   = 32 // allow ID for warp
 )

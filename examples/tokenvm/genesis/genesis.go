@@ -142,6 +142,8 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 		mu,
 		ids.Empty,
 		[]byte(consts.Symbol),
+		consts.Decimals,
+		[]byte(consts.Name),
 		supply,
 		ed25519.EmptyPublicKey,
 		false,

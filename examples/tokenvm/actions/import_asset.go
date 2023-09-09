@@ -106,7 +106,7 @@ func (i *ImportAsset) executeMint(
 	actor ed25519.PublicKey,
 ) []byte {
 	asset := ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
-	exists, metadata, supply, _, warp, err := storage.GetAsset(ctx, mu, asset)
+	exists, symbol, decimals, metadata, supply, _, warp, err := storage.GetAsset(ctx, mu, asset)
 	if err != nil {
 		return utils.ErrBytes(err)
 	}
@@ -115,6 +115,8 @@ func (i *ImportAsset) executeMint(
 		return OutputConflictingAsset
 	}
 	if !exists {
+		symbol = i.warpTransfer.Asset[:]
+		decimals = 0 // explicit
 		metadata = ImportedAssetMetadata(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
 	}
 	newSupply, err := smath.Add64(supply, i.warpTransfer.Value)
@@ -125,7 +127,7 @@ func (i *ImportAsset) executeMint(
 	if err != nil {
 		return utils.ErrBytes(err)
 	}
-	if err := storage.SetAsset(ctx, mu, asset, metadata, newSupply, ed25519.EmptyPublicKey, true); err != nil {
+	if err := storage.SetAsset(ctx, mu, asset, symbol, decimals, metadata, newSupply, ed25519.EmptyPublicKey, true); err != nil {
 		return utils.ErrBytes(err)
 	}
 	if err := storage.AddBalance(ctx, mu, i.warpTransfer.To, asset, i.warpTransfer.Value, true); err != nil {

@@ -71,7 +71,7 @@ func (e *ExportAsset) executeReturn(
 	actor ed25519.PublicKey,
 	txID ids.ID,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	exists, metadata, supply, _, isWarp, err := storage.GetAsset(ctx, mu, e.Asset)
+	exists, symbol, decimals, metadata, supply, _, isWarp, err := storage.GetAsset(ctx, mu, e.Asset)
 	if err != nil {
 		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
@@ -97,7 +97,7 @@ func (e *ExportAsset) executeReturn(
 		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if newSupply > 0 {
-		if err := storage.SetAsset(ctx, mu, e.Asset, metadata, newSupply, ed25519.EmptyPublicKey, true); err != nil {
+		if err := storage.SetAsset(ctx, mu, e.Asset, symbol, decimals, metadata, newSupply, ed25519.EmptyPublicKey, true); err != nil {
 			return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 	} else {
@@ -147,7 +147,7 @@ func (e *ExportAsset) executeLoan(
 	actor ed25519.PublicKey,
 	txID ids.ID,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	exists, _, _, _, isWarp, err := storage.GetAsset(ctx, mu, e.Asset)
+	exists, _, _, _, _, _, isWarp, err := storage.GetAsset(ctx, mu, e.Asset)
 	if err != nil {
 		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}

@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	HRP    = "token"
-	Name   = "tokenvm"
-	Symbol = "TKN"
+	HRP      = "token"
+	Name     = "tokenvm"
+	Symbol   = "TKN"
+	Decimals = 9
 )
 
 var ID ids.ID

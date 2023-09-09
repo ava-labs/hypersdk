@@ -14,7 +14,6 @@ type metrics struct {
 	createAsset prometheus.Counter
 	mintAsset   prometheus.Counter
 	burnAsset   prometheus.Counter
-	modifyAsset prometheus.Counter
 
 	transfer prometheus.Counter
 
@@ -42,11 +41,6 @@ func newMetrics(gatherer ametrics.MultiGatherer) (*metrics, error) {
 			Namespace: "actions",
 			Name:      "burn_asset",
 			Help:      "number of burn asset actions",
-		}),
-		modifyAsset: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "actions",
-			Name:      "modify_asset",
-			Help:      "number of modify asset actions",
 		}),
 		transfer: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "actions",
@@ -85,7 +79,6 @@ func newMetrics(gatherer ametrics.MultiGatherer) (*metrics, error) {
 		r.Register(m.createAsset),
 		r.Register(m.mintAsset),
 		r.Register(m.burnAsset),
-		r.Register(m.modifyAsset),
 
 		r.Register(m.transfer),
 
