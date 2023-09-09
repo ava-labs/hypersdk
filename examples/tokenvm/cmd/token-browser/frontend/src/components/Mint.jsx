@@ -32,7 +32,7 @@ const Mint = () => {
             throw new Error("Insufficient Balance");
           }
           const start = (new Date()).getTime();
-          await CreateAsset(values.Symbol);
+          await CreateAsset(values.Symbol, values.Decimals, values.Metadata);
           const finish = (new Date()).getTime();
           messageApi.open({
             type: "success", content: `Transaction Finalized (${finish-start} ms)`,

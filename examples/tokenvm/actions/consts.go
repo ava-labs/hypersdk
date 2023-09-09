@@ -32,4 +32,5 @@ const (
 	TransferComputeUnits    = 1
 
 	MaxMetadataSize = 256
+	MaxSymbolSize   = 5
 )

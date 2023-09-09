@@ -299,7 +299,7 @@ func GetAssetFromState(
 	ctx context.Context,
 	f ReadState,
 	asset ids.ID,
-) (bool, []byte, uint64, ed25519.PublicKey, bool, error) {
+) (bool, []byte, uint8, []byte, uint64, ed25519.PublicKey, bool, error) {
 	values, errs := f(ctx, [][]byte{AssetKey(asset)})
 	return innerGetAsset(values[0], errs[0])
 }
@@ -308,7 +308,7 @@ func GetAsset(
 	ctx context.Context,
 	im state.Immutable,
 	asset ids.ID,
-) (bool, []byte, uint64, ed25519.PublicKey, bool, error) {
+) (bool, []byte, uint8, []byte, uint64, ed25519.PublicKey, bool, error) {
 	k := AssetKey(asset)
 	return innerGetAsset(im.GetValue(ctx, k))
 }
@@ -316,43 +316,60 @@ func GetAsset(
 func innerGetAsset(
 	v []byte,
 	err error,
-) (bool, []byte, uint64, ed25519.PublicKey, bool, error) {
+) (bool, []byte, uint8, []byte, uint64, ed25519.PublicKey, bool, error) {
 	if errors.Is(err, database.ErrNotFound) {
-		return false, nil, 0, ed25519.EmptyPublicKey, false, nil
+		return false, nil, 0, nil, 0, ed25519.EmptyPublicKey, false, nil
 	}
 	if err != nil {
-		return false, nil, 0, ed25519.EmptyPublicKey, false, err
+		return false, nil, 0, nil, 0, ed25519.EmptyPublicKey, false, err
 	}
-	metadataLen := binary.BigEndian.Uint16(v)
-	metadata := v[consts.Uint16Len : consts.Uint16Len+metadataLen]
-	supply := binary.BigEndian.Uint64(v[consts.Uint16Len+metadataLen:])
+	symbolLen := binary.BigEndian.Uint16(v)
+	symbol := v[consts.Uint16Len : consts.Uint16Len+symbolLen]
+	decimals := v[consts.Uint16Len+symbolLen]
+	metadataLen := binary.BigEndian.Uint16(v[consts.Uint16Len+symbolLen+consts.Uint8Len:])
+	metadata := v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len : consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen]
+	supply := binary.BigEndian.Uint64(v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen:])
 	var pk ed25519.PublicKey
-	copy(pk[:], v[consts.Uint16Len+metadataLen+consts.Uint64Len:])
-	warp := v[consts.Uint16Len+metadataLen+consts.Uint64Len+ed25519.PublicKeyLen] == 0x1
-	return true, metadata, supply, pk, warp, nil
+	copy(pk[:], v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len:])
+	warp := v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len+ed25519.PublicKeyLen] == 0x1
+	return true, symbol, decimals, metadata, supply, pk, warp, nil
 }
 
 func SetAsset(
 	ctx context.Context,
 	mu state.Mutable,
 	asset ids.ID,
+	symbol []byte,
+	decimals uint8,
 	metadata []byte,
 	supply uint64,
 	owner ed25519.PublicKey,
 	warp bool,
 ) error {
 	k := AssetKey(asset)
+	symbolLen := len(symbol)
 	metadataLen := len(metadata)
-	v := make([]byte, consts.Uint16Len+metadataLen+consts.Uint64Len+ed25519.PublicKeyLen+1)
-	binary.BigEndian.PutUint16(v, uint16(metadataLen))
-	copy(v[consts.Uint16Len:], metadata)
-	binary.BigEndian.PutUint64(v[consts.Uint16Len+metadataLen:], supply)
-	copy(v[consts.Uint16Len+metadataLen+consts.Uint64Len:], owner[:])
+	v := make([]byte, consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len+ed25519.PublicKeyLen+1)
+	l := 0
+	binary.BigEndian.PutUint16(v, uint16(symbolLen))
+	l += consts.Uint16Len
+	copy(v[l:], symbol)
+	l += symbolLen
+	v[l] = decimals
+	l += consts.Uint8Len
+	binary.BigEndian.PutUint16(v[l:], uint16(metadataLen))
+	l += consts.Uint16Len
+	copy(v[l:], metadata)
+	l += metadataLen
+	binary.BigEndian.PutUint64(v[l:], supply)
+	l += consts.Uint64Len
+	copy(v[l:], owner[:])
+	l += ed25519.PublicKeyLen
 	b := byte(0x0)
 	if warp {
 		b = 0x1
 	}
-	v[consts.Uint16Len+metadataLen+consts.Uint64Len+ed25519.PublicKeyLen] = b
+	v[l] = b
 	return mu.Insert(ctx, k, v)
 }
 
