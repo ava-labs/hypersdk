@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	databasePath = ".token-browser"
+	databasePath = ".token-wallet"
 )
 
 // App struct

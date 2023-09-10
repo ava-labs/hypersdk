@@ -1,13 +1,13 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "token-browser",
-  "outputfilename": "token-browser",
+  "name": "token-wallet",
+  "outputfilename": "token-wallet",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "",
-    "email": "prohb125@gmail.com"
+    "name": "Patrick O'Grady",
+    "email": "contact@patrickogrady.xyz"
   }
 }
