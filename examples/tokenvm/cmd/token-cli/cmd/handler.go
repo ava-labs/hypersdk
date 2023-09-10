@@ -41,7 +41,7 @@ func (h *Handler) GetAssetInfo(
 	checkBalance bool,
 ) ([]byte, uint8, uint64, ids.ID, error) {
 	var sourceChainID ids.ID
-	exists, symbol, decimals, metadata, supply, _, warp, err := cli.Asset(ctx, assetID)
+	exists, symbol, decimals, metadata, supply, _, warp, err := cli.Asset(ctx, assetID, false)
 	if err != nil {
 		return nil, 0, 0, ids.Empty, err
 	}
