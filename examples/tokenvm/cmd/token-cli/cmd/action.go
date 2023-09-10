@@ -655,7 +655,6 @@ var exportAssetCmd = &cobra.Command{
 				return err
 			}
 			dcli := trpc.NewJSONRPCClient(uris[0], networkID, destination)
-			// TODO: this will fail if swapping for asset bridged in and does not yet exist
 			_, decimals, _, _, err := handler.GetAssetInfo(ctx, dcli, priv.PublicKey(), assetOut, false)
 			if err != nil {
 				return err
