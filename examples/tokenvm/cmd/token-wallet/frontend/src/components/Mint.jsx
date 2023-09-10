@@ -1,5 +1,5 @@
 import {useEffect, useState} from "react";
-import {GetAssets, CreateAsset, GetBalance, GetAddress} from "../../wailsjs/go/main/App";
+import {GetMyAssets, CreateAsset, GetBalance, GetAddress} from "../../wailsjs/go/main/App";
 import { PlusOutlined } from "@ant-design/icons";
 import { Input, Space, Typography, Divider, List, Card, Col, Row, Tooltip, Button, Drawer, FloatButton, Form, message } from "antd";
 import { Area, Line } from '@ant-design/plots';
@@ -27,10 +27,6 @@ const Mint = () => {
 
       (async () => {
         try {
-          const balance = await GetBalance("11111111111111111111111111111111LpoYY");
-          if (balance == 0) {
-            throw new Error("Insufficient Balance");
-          }
           const start = (new Date()).getTime();
           await CreateAsset(values.Symbol, values.Decimals, values.Metadata);
           const finish = (new Date()).getTime();

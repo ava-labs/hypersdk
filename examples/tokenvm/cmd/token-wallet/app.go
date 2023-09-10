@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -21,6 +22,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-cli/cmd"
+	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/pubsub"
@@ -51,7 +53,21 @@ type App struct {
 	currentStat *TimeStat
 
 	// TODO: move this to DB
-	assets []string
+	ownedAssets  []ids.ID
+	otherAssets  []ids.ID
+	transactions []*TransactionInfo
+}
+
+type TransactionInfo struct {
+	ID        string
+	Timestamp int64
+	Actor     string
+	Created   bool
+
+	Type    string
+	Units   string
+	Fee     string
+	Summary string
 }
 
 type TimeStat struct {
@@ -80,9 +96,10 @@ type BlockInfo struct {
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
-		log:    logger.NewDefaultLogger(),
-		blocks: []*BlockInfo{},
-		stats:  []*TimeStat{},
+		log:          logger.NewDefaultLogger(),
+		blocks:       []*BlockInfo{},
+		stats:        []*TimeStat{},
+		transactions: []*TransactionInfo{},
 	}
 }
 
@@ -128,6 +145,13 @@ func (a *App) startup(ctx context.Context) {
 
 func (a *App) collectBlocks() {
 	ctx := context.Background()
+	priv, err := a.h.GetDefaultKey()
+	if err != nil {
+		a.log.Error(err.Error())
+		runtime.Quit(ctx)
+		return
+	}
+	pk := priv.PublicKey()
 	chainID, uris, err := a.h.GetDefaultChain()
 	if err != nil {
 		a.log.Error(err.Error())
@@ -168,6 +192,7 @@ func (a *App) collectBlocks() {
 		lastBlock int64
 		tpsWindow = window.Window{}
 	)
+
 	for ctx.Err() == nil {
 		blk, results, prices, err := scli.ListenBlock(ctx, parser)
 		if err != nil {
@@ -176,7 +201,50 @@ func (a *App) collectBlocks() {
 			return
 		}
 		consumed := chain.Dimensions{}
-		for _, result := range results {
+		for i, result := range results {
+			tx := blk.Txs[i]
+			actor := auth.GetActor(tx.Auth)
+			switch action := tx.Action.(type) {
+			case *actions.Transfer:
+				_, symbol, decimals, _, _, _, _, err := cli.Asset(context.Background(), action.Asset, true)
+				if err != nil {
+					a.log.Error(err.Error())
+					runtime.Quit(ctx)
+					return
+				}
+				txInfo := &TransactionInfo{
+					ID:        tx.ID().String(),
+					Timestamp: blk.Tmstmp,
+					Actor:     utils.Address(actor),
+					Type:      "Transfer",
+					Units:     hcli.ParseDimensions(result.Consumed),
+					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
+					Summary:   fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To)),
+				}
+				if actor == pk {
+					txInfo.Created = true
+					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
+				} else if action.To == pk {
+					txInfo.Created = false
+					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
+				}
+			case *actions.CreateAsset:
+				if actor == pk {
+					a.ownedAssets = append(a.ownedAssets, tx.ID())
+					a.transactions = append([]*TransactionInfo{{
+						ID:        tx.ID().String(),
+						Timestamp: blk.Tmstmp,
+						Actor:     utils.Address(actor),
+						Created:   true,
+						Type:      "Create",
+						Units:     hcli.ParseDimensions(result.Consumed),
+						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
+						Summary:   fmt.Sprintf("assetID: %s symbol: %s decimals: %d metadata: %s", tx.ID(), action.Symbol, action.Decimals, action.Metadata),
+					}}, a.transactions...)
+				} else {
+					a.otherAssets = append(a.ownedAssets, tx.ID())
+				}
+			}
 			nconsumed, err := chain.Add(consumed, result.Consumed)
 			if err != nil {
 				a.log.Error(err.Error())
@@ -330,15 +398,38 @@ func (a *App) GetChainID() string {
 }
 
 type AssetInfo struct {
-	ID       string
-	Creator  string
+	ID string
+
+	Symbol   string
+	Decimals int
 	Metadata string
+	Supply   uint64
+	Creator  string
 }
 
-func (a *App) GetAssets() []*AssetInfo {
+func (a *App) GetMyAssets() []*AssetInfo {
+	_, _, _, _, tcli, err := a.defaultActor()
+	if err != nil {
+		a.log.Error(err.Error())
+		runtime.Quit(context.Background())
+		return nil
+	}
 	assets := []*AssetInfo{}
-	for _, asset := range a.assets {
-		assets = append(assets, &AssetInfo{ID: asset})
+	for _, asset := range a.ownedAssets {
+		_, symbol, decimals, metadata, supply, owner, _, err := tcli.Asset(context.Background(), asset, false)
+		if err != nil {
+			a.log.Error(err.Error())
+			runtime.Quit(context.Background())
+			return nil
+		}
+		assets = append(assets, &AssetInfo{
+			ID:       asset.String(),
+			Symbol:   string(symbol),
+			Decimals: int(decimals),
+			Metadata: string(metadata),
+			Supply:   supply,
+			Creator:  owner,
+		})
 	}
 	return assets
 }
@@ -374,7 +465,13 @@ func (a *App) defaultActor() (
 func (a *App) CreateAsset(symbol string, decimals string, metadata string) error {
 	ctx := context.Background()
 	// TODO: share client
-	_, _, factory, cli, tcli, err := a.defaultActor()
+	_, priv, factory, cli, tcli, err := a.defaultActor()
+	if err != nil {
+		return err
+	}
+
+	// Ensure have sufficient balance
+	bal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), ids.Empty)
 	if err != nil {
 		return err
 	}
@@ -388,7 +485,7 @@ func (a *App) CreateAsset(symbol string, decimals string, metadata string) error
 	if err != nil {
 		return err
 	}
-	_, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CreateAsset{
+	_, tx, maxFee, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CreateAsset{
 		Symbol:   []byte(symbol),
 		Decimals: uint8(udecimals),
 		Metadata: []byte(metadata),
@@ -396,12 +493,15 @@ func (a *App) CreateAsset(symbol string, decimals string, metadata string) error
 	if err != nil {
 		return fmt.Errorf("%w: unable to generate transaction", err)
 	}
+	if maxFee > bal {
+		return errors.New("insufficient balance")
+	}
 	if err := a.scli.RegisterTx(tx); err != nil {
 		return err
 	}
 
 	// Wait for transaction
-	txID, dErr, result, err := a.scli.ListenTx(ctx)
+	_, dErr, result, err := a.scli.ListenTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -411,7 +511,6 @@ func (a *App) CreateAsset(symbol string, decimals string, metadata string) error
 	if !result.Success {
 		return fmt.Errorf("transaction failed on-chain: %s", result.Output)
 	}
-	a.assets = append(a.assets, txID.String())
 	return nil
 }
 
@@ -423,22 +522,36 @@ func (a *App) GetAddress() (string, error) {
 	return utils.Address(priv.PublicKey()), nil
 }
 
-func (a *App) GetBalance(assetID string) (string, error) {
+func (a *App) GetBalance() ([]string, error) {
 	_, priv, _, _, tcli, err := a.defaultActor()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	id, err := ids.FromString(assetID)
+	_, symbol, decimals, _, _, _, _, err := tcli.Asset(context.Background(), ids.Empty, true)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	_, symbol, decimals, _, _, _, _, err := tcli.Asset(context.Background(), id, true)
+	bal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), ids.Empty)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	bal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), id)
-	if err != nil {
-		return "", err
+	balances := []string{fmt.Sprintf("%s %s", hutils.FormatBalance(bal, decimals), symbol)}
+	for _, arr := range [][]ids.ID{a.ownedAssets, a.otherAssets} {
+		for _, asset := range arr {
+			_, symbol, decimals, _, _, _, _, err := tcli.Asset(context.Background(), asset, true)
+			if err != nil {
+				return nil, err
+			}
+			bal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), asset)
+			if err != nil {
+				return nil, err
+			}
+			balances = append(balances, fmt.Sprintf("%s %s (%s)", hutils.FormatBalance(bal, decimals), symbol, asset))
+		}
 	}
-	return fmt.Sprintf("%s %s", hutils.FormatBalance(bal, decimals), string(symbol)), nil
+	return balances, nil
+}
+
+func (a *App) GetTransactions() []*TransactionInfo {
+	return a.transactions
 }

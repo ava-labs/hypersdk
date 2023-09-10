@@ -8,14 +8,16 @@ export function GetAccountStats():Promise<Array<main.GenericInfo>>;
 
 export function GetAddress():Promise<string>;
 
-export function GetAssets():Promise<Array<main.AssetInfo>>;
-
-export function GetBalance(arg1:string):Promise<string>;
+export function GetBalance():Promise<Array<string>>;
 
 export function GetChainID():Promise<string>;
 
 export function GetLatestBlocks():Promise<Array<main.BlockInfo>>;
 
+export function GetMyAssets():Promise<Array<main.AssetInfo>>;
+
 export function GetTransactionStats():Promise<Array<main.GenericInfo>>;
+
+export function GetTransactions():Promise<Array<main.TransactionInfo>>;
 
 export function GetUnitPrices():Promise<Array<main.GenericInfo>>;

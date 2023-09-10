@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { GetBalance, GetAddress } from "../../wailsjs/go/main/App";
+import { GetBalance, GetTransactions, GetAddress } from "../../wailsjs/go/main/App";
 import { DashboardOutlined, BankOutlined, SendOutlined, SwapOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { Layout, Menu, Typography, Drawer, List, Divider, message } from "antd";
 const { Text, Title, Link } = Typography;
@@ -36,7 +36,8 @@ const items = [
 
 const NavBar = () => {
   const [messageApi, contextHolder] = message.useMessage();
-  const [balance, setBalance] = useState("");
+  const [balance, setBalance] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [address, setAddress] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -56,13 +57,20 @@ const NavBar = () => {
     getAddress();
 
     const getBalance = async () => {
-        const newBalance = await GetBalance("11111111111111111111111111111111LpoYY");
+        const newBalance = await GetBalance();
         setBalance(newBalance);
     };
 
+    const getTransactions = async () => {
+        const txs = await GetTransactions();
+        setTransactions(txs);
+    };
+
     getBalance();
+    getTransactions();
     const interval = setInterval(() => {
       getBalance();
+      getTransactions();
     }, 500);
 
     return () => clearInterval(interval);
@@ -76,10 +84,11 @@ const NavBar = () => {
       >
         <img src={logo} style={{ width: "50px" }} />
       </div>
-      {/* compute to string represenation */}
-      <div style={{ float: "right" }}>
-        <Link strong onClick={showDrawer}>{balance}</Link>
-      </div>
+      {balance.length > 0 &&
+        <div style={{ float: "right" }}>
+          <Link strong onClick={showDrawer}>{balance[0]}</Link>
+        </div>
+      }
       <Menu
         defaultSelectedKeys={["explorer"]}
         mode="horizontal"
@@ -95,10 +104,10 @@ const NavBar = () => {
       </Divider>
       <List
         bordered
-        dataSource={[{"Balance":balance}]}
+        dataSource={balance}
         renderItem={(item) => (
           <List.Item>
-            <Text>{item.Balance}</Text>
+            <Text>{item}</Text>
           </List.Item>
         )}
       />
@@ -107,10 +116,22 @@ const NavBar = () => {
       </Divider>
       <List
         bordered
-        dataSource={[]}
+        dataSource={transactions}
         renderItem={(item) => (
           <List.Item>
-            <Text>{item.TxID}</Text>
+            <Text strong>{item.ID}</Text>
+            <br />
+            <Text strong>Type:</Text> {item.Type}
+            <br />
+            <Text strong>Timestamp:</Text> {item.Timestamp}
+            <br />
+            <Text strong>Units:</Text> {item.Units}
+            <br />
+            <Text strong>Summary:</Text> {item.Summary}
+            <br />
+            <Text strong>Fee:</Text> {item.Fee}
+            <br />
+            <Text strong>Actor:</Text> {item.Actor}
           </List.Item>
         )}
       />

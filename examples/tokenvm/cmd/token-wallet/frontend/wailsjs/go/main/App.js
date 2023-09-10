@@ -14,12 +14,8 @@ export function GetAddress() {
   return window['go']['main']['App']['GetAddress']();
 }
 
-export function GetAssets() {
-  return window['go']['main']['App']['GetAssets']();
-}
-
-export function GetBalance(arg1) {
-  return window['go']['main']['App']['GetBalance'](arg1);
+export function GetBalance() {
+  return window['go']['main']['App']['GetBalance']();
 }
 
 export function GetChainID() {
@@ -30,8 +26,16 @@ export function GetLatestBlocks() {
   return window['go']['main']['App']['GetLatestBlocks']();
 }
 
+export function GetMyAssets() {
+  return window['go']['main']['App']['GetMyAssets']();
+}
+
 export function GetTransactionStats() {
   return window['go']['main']['App']['GetTransactionStats']();
+}
+
+export function GetTransactions() {
+  return window['go']['main']['App']['GetTransactions']();
 }
 
 export function GetUnitPrices() {
