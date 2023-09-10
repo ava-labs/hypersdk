@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { GetBalance, GetTransactions, GetAddress } from "../../wailsjs/go/main/App";
-import { DashboardOutlined, BankOutlined, SendOutlined, SwapOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { DashboardOutlined, BankOutlined, SendOutlined, SwapOutlined, ThunderboltOutlined, LeftCircleTwoTone, RightCircleTwoTone } from "@ant-design/icons";
 import { Layout, Menu, Typography, Drawer, List, Divider, message } from "antd";
 const { Text, Title, Link } = Typography;
 import { Link as RLink } from "react-router-dom";
@@ -119,7 +119,13 @@ const NavBar = () => {
         dataSource={transactions}
         renderItem={(item) => (
           <List.Item>
-            <Text strong>{item.ID}</Text>
+            {item.Created &&
+              <LeftCircleTwoTone twoToneColor="green" />
+            }
+            {!item.Created &&
+              <RightCircleTwoTone twoToneColor="red" />
+            }
+            <Text strong> {item.ID}</Text>
             <br />
             <Text strong>Type:</Text> {item.Type}
             <br />
