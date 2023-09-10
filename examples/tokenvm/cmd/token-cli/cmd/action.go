@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
@@ -440,7 +439,6 @@ func performImport(
 	dscli *rpc.WebSocketClient,
 	dtcli *trpc.JSONRPCClient,
 	exportTxID ids.ID,
-	priv ed25519.PrivateKey,
 	factory chain.AuthFactory,
 ) error {
 	// Select TxID (if not provided)
@@ -548,7 +546,7 @@ var importAssetCmd = &cobra.Command{
 	Use: "import-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		currentChainID, priv, factory, dcli, dscli, dtcli, err := handler.DefaultActor()
+		currentChainID, _, factory, dcli, dscli, dtcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -561,7 +559,7 @@ var importAssetCmd = &cobra.Command{
 		scli := rpc.NewJSONRPCClient(uris[0])
 
 		// Perform import
-		return performImport(ctx, scli, dcli, dscli, dtcli, ids.Empty, priv, factory)
+		return performImport(ctx, scli, dcli, dscli, dtcli, ids.Empty, factory)
 	},
 }
 
@@ -709,7 +707,7 @@ var exportAssetCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if err := performImport(ctx, cli, rpc.NewJSONRPCClient(uris[0]), dscli, trpc.NewJSONRPCClient(uris[0], networkID, destination), txID, priv, factory); err != nil {
+			if err := performImport(ctx, cli, rpc.NewJSONRPCClient(uris[0]), dscli, trpc.NewJSONRPCClient(uris[0], networkID, destination), txID, factory); err != nil {
 				return err
 			}
 		}

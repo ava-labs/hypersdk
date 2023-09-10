@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -54,7 +53,7 @@ var runSpamCmd = &cobra.Command{
 				if err != nil {
 					return 0, err
 				}
-				hutils.Outf(
+				utils.Outf(
 					"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 					choice,
 					address,

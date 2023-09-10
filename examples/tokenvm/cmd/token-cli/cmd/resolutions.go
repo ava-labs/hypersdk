@@ -130,13 +130,10 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 			signers, _ := wm.Signature.NumSigners()
 			wt, _ := actions.UnmarshalWarpTransfer(wm.Payload)
 			summaryStr = fmt.Sprintf("source: %s signers: %d | ", wm.SourceChainID, signers)
-			var outputAssetID ids.ID
 			if wt.Return {
-				outputAssetID = wt.Asset
 				summaryStr += fmt.Sprintf("%s %s -> %s (return: %t)", utils.FormatBalance(wt.Value, wt.Decimals), wt.Symbol, tutils.Address(wt.To), wt.Return)
 			} else {
-				outputAssetID = actions.ImportedAssetID(wt.Asset, wm.SourceChainID)
-				summaryStr += fmt.Sprintf("%s %s (new: %s, original: %s) -> %s (return: %t)", utils.FormatBalance(wt.Value, wt.Decimals), wt.Symbol, outputAssetID, wt.Asset, tutils.Address(wt.To), wt.Return)
+				summaryStr += fmt.Sprintf("%s %s (new: %s, original: %s) -> %s (return: %t)", utils.FormatBalance(wt.Value, wt.Decimals), wt.Symbol, actions.ImportedAssetID(wt.Asset, wm.SourceChainID), wt.Asset, tutils.Address(wt.To), wt.Return)
 			}
 			if wt.Reward > 0 {
 				summaryStr += fmt.Sprintf(" | reward: %s", utils.FormatBalance(wt.Reward, wt.Decimals))

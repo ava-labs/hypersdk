@@ -33,7 +33,7 @@ func (h *Handler) Root() *cli.Handler {
 	return h.h
 }
 
-func (h *Handler) GetAssetInfo(
+func (*Handler) GetAssetInfo(
 	ctx context.Context,
 	cli *trpc.JSONRPCClient,
 	publicKey ed25519.PublicKey,
