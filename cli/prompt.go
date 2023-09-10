@@ -92,7 +92,7 @@ func (h *Handler) PromptAsset(label string, allowNative bool) (ids.ID, error) {
 	return assetID, nil
 }
 
-func (h *Handler) PromptAmount(
+func (*Handler) PromptAmount(
 	label string,
 	decimals uint8,
 	balance uint64,
