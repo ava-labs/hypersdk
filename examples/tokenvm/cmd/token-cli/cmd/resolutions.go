@@ -67,7 +67,7 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 		status = "✅"
 		switch action := tx.Action.(type) {
 		case *actions.CreateAsset:
-			summaryStr = fmt.Sprintf("assetID: %s metadata:%s", tx.ID(), string(action.Metadata))
+			summaryStr = fmt.Sprintf("assetID: %s symbol: %s decimals: %d metadata: %s", tx.ID(), action.Symbol, action.Decimals, action.Metadata)
 		case *actions.MintAsset:
 			_, symbol, decimals, _, _, _, _, err := c.Asset(context.TODO(), action.Asset, true)
 			if err != nil {

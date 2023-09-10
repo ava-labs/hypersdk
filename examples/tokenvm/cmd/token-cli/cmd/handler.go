@@ -63,9 +63,9 @@ func (*Handler) GetAssetInfo(
 		} else {
 			hutils.Outf(
 				"{{yellow}}symbol:{{/}} %s {{yellow}}decimals:{{/}} %d {{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
-				string(symbol),
+				symbol,
 				decimals,
-				string(metadata),
+				metadata,
 				supply,
 				warp,
 			)
