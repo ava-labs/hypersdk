@@ -10,6 +10,7 @@ import (
 type Controller interface {
 	DatabasePath() string
 	Symbol() string
+	Decimals() uint8
 	Address(ed25519.PublicKey) string
 	ParseAddress(string) (ed25519.PublicKey, error)
 }

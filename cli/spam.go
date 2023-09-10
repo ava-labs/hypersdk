@@ -139,8 +139,8 @@ func (h *Handler) Spam(
 	distAmount := (balance - witholding) / uint64(numAccounts)
 	utils.Outf(
 		"{{yellow}}distributing funds to each account:{{/}} %s %s\n",
-		h.ValueString(ids.Empty, distAmount),
-		h.AssetString(ids.Empty),
+		utils.FormatBalance(distAmount, h.c.Decimals()),
+		h.c.Symbol(),
 	)
 	accounts := make([]ed25519.PrivateKey, numAccounts)
 	dcli, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
@@ -431,8 +431,8 @@ func (h *Handler) Spam(
 	}
 	utils.Outf(
 		"{{yellow}}returned funds:{{/}} %s %s\n",
-		h.ValueString(ids.Empty, returnedBalance),
-		h.AssetString(ids.Empty),
+		utils.FormatBalance(returnedBalance, h.c.Decimals()),
+		h.c.Symbol(),
 	)
 	return nil
 }

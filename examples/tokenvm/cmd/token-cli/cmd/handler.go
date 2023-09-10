@@ -38,17 +38,17 @@ func (h *Handler) GetAssetInfo(
 	publicKey ed25519.PublicKey,
 	assetID ids.ID,
 	checkBalance bool,
-) (uint64, ids.ID, error) {
+) ([]byte, uint8, uint64, ids.ID, error) {
 	var sourceChainID ids.ID
+	exists, symbol, decimals, metadata, supply, _, warp, err := cli.Asset(ctx, assetID)
+	if err != nil {
+		return nil, 0, 0, ids.Empty, err
+	}
 	if assetID != ids.Empty {
-		exists, metadata, supply, _, warp, err := cli.Asset(ctx, assetID)
-		if err != nil {
-			return 0, ids.Empty, err
-		}
 		if !exists {
 			hutils.Outf("{{red}}%s does not exist{{/}}\n", assetID)
 			hutils.Outf("{{red}}exiting...{{/}}\n")
-			return 0, ids.Empty, nil
+			return nil, 0, 0, ids.Empty, nil
 		}
 		if warp {
 			sourceChainID = ids.ID(metadata[hconsts.IDLen:])
@@ -61,7 +61,9 @@ func (h *Handler) GetAssetInfo(
 			)
 		} else {
 			hutils.Outf(
-				"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
+				"{{yellow}}symbol:{{/}} %s {{yellow}}decimals:{{/}} %d {{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
+				string(symbol),
+				decimals,
 				string(metadata),
 				supply,
 				warp,
@@ -69,25 +71,25 @@ func (h *Handler) GetAssetInfo(
 		}
 	}
 	if !checkBalance {
-		return 0, sourceChainID, nil
+		return symbol, decimals, 0, sourceChainID, nil
 	}
 	addr := utils.Address(publicKey)
 	balance, err := cli.Balance(ctx, addr, assetID)
 	if err != nil {
-		return 0, ids.Empty, err
+		return nil, 0, 0, ids.Empty, err
 	}
 	if balance == 0 {
 		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", assetID)
 		hutils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
 		hutils.Outf("{{red}}exiting...{{/}}\n")
-		return 0, sourceChainID, nil
+	} else {
+		hutils.Outf(
+			"{{yellow}}balance:{{/}} %s %s\n",
+			hutils.FormatBalance(balance, decimals),
+			symbol,
+		)
 	}
-	hutils.Outf(
-		"{{yellow}}balance:{{/}} %s %s\n",
-		h.h.ValueString(assetID, balance),
-		h.h.AssetString(assetID),
-	)
-	return balance, sourceChainID, nil
+	return symbol, decimals, balance, sourceChainID, nil
 }
 
 func (h *Handler) DefaultActor() (
@@ -132,6 +134,10 @@ func (c *Controller) DatabasePath() string {
 
 func (*Controller) Symbol() string {
 	return consts.Symbol
+}
+
+func (*Controller) Decimals() uint8 {
+	return consts.Decimals
 }
 
 func (*Controller) Address(pk ed25519.PublicKey) string {
