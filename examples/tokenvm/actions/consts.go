@@ -30,6 +30,6 @@ const (
 	TransferComputeUnits    = 1
 
 	MaxMetadataSize = 256
-	MaxSymbolSize   = 32 // allow ID for warp
+	MaxSymbolSize   = 16
 	MaxDecimals     = 9
 )
