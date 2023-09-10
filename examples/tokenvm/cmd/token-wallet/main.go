@@ -25,7 +25,7 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:  "Token Browser",
+		Title:  "Token Wallet",
 		Width:  1024,
 		Height: 768,
 		AssetServer: &assetserver.Options{
@@ -50,7 +50,7 @@ func main() {
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  false,
 			About: &mac.AboutInfo{
-				Title: "Token Browser",
+				Title: "Token Wallet",
 				Icon:  icon,
 			},
 		},

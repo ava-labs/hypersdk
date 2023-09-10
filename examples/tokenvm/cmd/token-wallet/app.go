@@ -112,6 +112,8 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	// Import ANR
+	//
+	// TODO: replace with DEVENT URL
 	if err := h.ImportANR(); err != nil {
 		a.log.Error(err.Error())
 		runtime.Quit(ctx)
