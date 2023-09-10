@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -26,6 +27,8 @@ type JSONRPCClient struct {
 	networkID uint32
 	chainID   ids.ID
 	g         *genesis.Genesis
+	assetsL   sync.Mutex
+	assets    map[ids.ID]*AssetReply
 }
 
 // New creates a new client object.
@@ -33,7 +36,12 @@ func NewJSONRPCClient(uri string, networkID uint32, chainID ids.ID) *JSONRPCClie
 	uri = strings.TrimSuffix(uri, "/")
 	uri += JSONRPCEndpoint
 	req := requester.New(uri, consts.Name)
-	return &JSONRPCClient{req, networkID, chainID, nil}
+	return &JSONRPCClient{
+		requester: req,
+		networkID: networkID,
+		chainID:   chainID,
+		assets:    map[ids.ID]*AssetReply{},
+	}
 }
 
 func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.Genesis, error) {
@@ -78,6 +86,12 @@ func (cli *JSONRPCClient) Asset(
 	ctx context.Context,
 	asset ids.ID,
 ) (bool, []byte, uint8, []byte, uint64, string, bool, error) {
+	cli.assetsL.Lock()
+	r, ok := cli.assets[asset]
+	cli.assetsL.Unlock()
+	if ok {
+		return true, r.Symbol, r.Decimals, r.Metadata, r.Supply, r.Owner, r.Warp, nil
+	}
 	resp := new(AssetReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -95,6 +109,9 @@ func (cli *JSONRPCClient) Asset(
 	case err != nil:
 		return false, nil, 0, nil, 0, "", false, err
 	}
+	cli.assetsL.Lock()
+	cli.assets[asset] = resp
+	cli.assetsL.Unlock()
 	return true, resp.Symbol, resp.Decimals, resp.Metadata, resp.Supply, resp.Owner, resp.Warp, nil
 }
 
