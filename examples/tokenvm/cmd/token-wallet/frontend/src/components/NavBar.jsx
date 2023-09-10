@@ -78,7 +78,7 @@ const NavBar = () => {
       </div>
       {/* compute to string represenation */}
       <div style={{ float: "right" }}>
-        <Link strong onClick={showDrawer}>{balance} TKN</Link>
+        <Link strong onClick={showDrawer}>{balance}</Link>
       </div>
       <Menu
         defaultSelectedKeys={["explorer"]}
@@ -95,10 +95,10 @@ const NavBar = () => {
       </Divider>
       <List
         bordered
-        dataSource={[{"Balance":balance, "Symbol": "TKN"}]}
+        dataSource={[{"Balance":balance}]}
         renderItem={(item) => (
           <List.Item>
-            <Text>{item.Balance} {item.Symbol}</Text>
+            <Text>{item.Balance}</Text>
           </List.Item>
         )}
       />

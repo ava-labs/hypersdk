@@ -24,6 +24,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
+	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
 
 	"github.com/wailsapp/wails/v2/pkg/logger"
@@ -415,15 +416,22 @@ func (a *App) GetAddress() (string, error) {
 	return utils.Address(priv.PublicKey()), nil
 }
 
-func (a *App) GetBalance(assetID string) (uint64, error) {
+func (a *App) GetBalance(assetID string) (string, error) {
 	_, priv, _, _, tcli, err := a.defaultActor()
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	id, err := ids.FromString(assetID)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	// TODO: pull decimals from chain
-	return tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), id)
+	_, symbol, decimals, _, _, _, _, err := tcli.Asset(context.Background(), id, true)
+	if err != nil {
+		return "", err
+	}
+	bal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), id)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s %s", hutils.FormatBalance(bal, decimals), string(symbol)), nil
 }

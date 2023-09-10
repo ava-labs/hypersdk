@@ -10,7 +10,7 @@ export function GetAddress():Promise<string>;
 
 export function GetAssets():Promise<Array<main.AssetInfo>>;
 
-export function GetBalance(arg1:string):Promise<number>;
+export function GetBalance(arg1:string):Promise<string>;
 
 export function GetChainID():Promise<string>;
 
