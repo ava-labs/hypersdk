@@ -55,7 +55,7 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 		status = "✅"
 		switch action := tx.Action.(type) { //nolint:gocritic
 		case *actions.Transfer:
-			summaryStr = fmt.Sprintf("%s %s -> %s", utils.FormatBalance(action.Value), consts.Symbol, tutils.Address(action.To))
+			summaryStr = fmt.Sprintf("%s %s -> %s", utils.FormatBalance(action.Value, consts.Decimals), consts.Symbol, tutils.Address(action.To))
 		}
 	}
 	utils.Outf(
@@ -66,8 +66,8 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 		reflect.TypeOf(tx.Action),
 		summaryStr,
 		float64(result.Fee)/float64(tx.Base.MaxFee)*100,
-		handler.Root().ValueString(ids.Empty, result.Fee),
-		handler.Root().AssetString(ids.Empty),
+		utils.FormatBalance(result.Fee, consts.Decimals),
+		consts.Symbol,
 		cli.ParseDimensions(result.Consumed),
 	)
 }
