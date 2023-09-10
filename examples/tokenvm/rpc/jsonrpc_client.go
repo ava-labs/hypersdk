@@ -5,7 +5,9 @@ package rpc
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -25,6 +27,8 @@ type JSONRPCClient struct {
 	networkID uint32
 	chainID   ids.ID
 	g         *genesis.Genesis
+	assetsL   sync.Mutex
+	assets    map[ids.ID]*AssetReply
 }
 
 // New creates a new client object.
@@ -32,7 +36,12 @@ func NewJSONRPCClient(uri string, networkID uint32, chainID ids.ID) *JSONRPCClie
 	uri = strings.TrimSuffix(uri, "/")
 	uri += JSONRPCEndpoint
 	req := requester.New(uri, consts.Name)
-	return &JSONRPCClient{req, networkID, chainID, nil}
+	return &JSONRPCClient{
+		requester: req,
+		networkID: networkID,
+		chainID:   chainID,
+		assets:    map[ids.ID]*AssetReply{},
+	}
 }
 
 func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.Genesis, error) {
@@ -76,7 +85,14 @@ func (cli *JSONRPCClient) Tx(ctx context.Context, id ids.ID) (bool, bool, int64,
 func (cli *JSONRPCClient) Asset(
 	ctx context.Context,
 	asset ids.ID,
+	useCache bool,
 ) (bool, []byte, uint8, []byte, uint64, string, bool, error) {
+	cli.assetsL.Lock()
+	r, ok := cli.assets[asset]
+	cli.assetsL.Unlock()
+	if ok && useCache {
+		return true, r.Symbol, r.Decimals, r.Metadata, r.Supply, r.Owner, r.Warp, nil
+	}
 	resp := new(AssetReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -94,6 +110,9 @@ func (cli *JSONRPCClient) Asset(
 	case err != nil:
 		return false, nil, 0, nil, 0, "", false, err
 	}
+	cli.assetsL.Lock()
+	cli.assets[asset] = resp
+	cli.assetsL.Unlock()
 	return true, resp.Symbol, resp.Decimals, resp.Metadata, resp.Supply, resp.Owner, resp.Warp, nil
 }
 
@@ -148,6 +167,14 @@ func (cli *JSONRPCClient) WaitForBalance(
 	asset ids.ID,
 	min uint64,
 ) error {
+	exists, symbol, decimals, _, _, _, _, err := cli.Asset(ctx, asset, true)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("%s does not exist", asset)
+	}
+
 	return rpc.Wait(ctx, func(ctx context.Context) (bool, error) {
 		balance, err := cli.Balance(ctx, addr, asset)
 		if err != nil {
@@ -156,8 +183,9 @@ func (cli *JSONRPCClient) WaitForBalance(
 		shouldExit := balance >= min
 		if !shouldExit {
 			utils.Outf(
-				"{{yellow}}waiting for %s balance: %s{{/}}\n",
-				utils.FormatBalance(min),
+				"{{yellow}}waiting for %s %s on %s{{/}}\n",
+				utils.FormatBalance(min, decimals),
+				symbol,
 				addr,
 			)
 		}

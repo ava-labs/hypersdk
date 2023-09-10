@@ -21,6 +21,10 @@ func BytesLen(msg []byte) int {
 	return consts.IntLen + len(msg)
 }
 
+func BytesLenSize(msgSize int) int {
+	return consts.IntLen + msgSize
+}
+
 func StringLen(msg string) int {
 	return consts.IntLen + len(msg)
 }

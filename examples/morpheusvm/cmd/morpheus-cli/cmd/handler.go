@@ -77,7 +77,7 @@ func (*Handler) GetBalance(
 	}
 	hutils.Outf(
 		"{{yellow}}balance:{{/}} %s %s\n",
-		hutils.FormatBalance(balance),
+		hutils.FormatBalance(balance, consts.Decimals),
 		consts.Symbol,
 	)
 	return balance, nil
@@ -97,6 +97,10 @@ func (c *Controller) DatabasePath() string {
 
 func (*Controller) Symbol() string {
 	return consts.Symbol
+}
+
+func (*Controller) Decimals() uint8 {
+	return consts.Decimals
 }
 
 func (*Controller) Address(pk ed25519.PublicKey) string {

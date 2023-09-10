@@ -111,15 +111,15 @@ func (h *Handler) Spam(
 	}
 
 	// Distribute funds
-	numAccounts, err := h.PromptInt("number of accounts")
+	numAccounts, err := h.PromptInt("number of accounts", consts.MaxInt)
 	if err != nil {
 		return err
 	}
-	numTxsPerAccount, err := h.PromptInt("number of transactions per account per second")
+	numTxsPerAccount, err := h.PromptInt("number of transactions per account per second", consts.MaxInt)
 	if err != nil {
 		return err
 	}
-	numClients, err := h.PromptInt("number of clients per node")
+	numClients, err := h.PromptInt("number of clients per node", consts.MaxInt)
 	if err != nil {
 		return err
 	}
@@ -139,8 +139,8 @@ func (h *Handler) Spam(
 	distAmount := (balance - witholding) / uint64(numAccounts)
 	utils.Outf(
 		"{{yellow}}distributing funds to each account:{{/}} %s %s\n",
-		h.ValueString(ids.Empty, distAmount),
-		h.AssetString(ids.Empty),
+		utils.FormatBalance(distAmount, h.c.Decimals()),
+		h.c.Symbol(),
 	)
 	accounts := make([]ed25519.PrivateKey, numAccounts)
 	dcli, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
@@ -431,8 +431,8 @@ func (h *Handler) Spam(
 	}
 	utils.Outf(
 		"{{yellow}}returned funds:{{/}} %s %s\n",
-		h.ValueString(ids.Empty, returnedBalance),
-		h.AssetString(ids.Empty),
+		utils.FormatBalance(returnedBalance, h.c.Decimals()),
+		h.c.Symbol(),
 	)
 	return nil
 }

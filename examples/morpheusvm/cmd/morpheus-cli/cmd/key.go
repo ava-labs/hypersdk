@@ -8,8 +8,9 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
-	hutils "github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -47,12 +48,12 @@ func lookupSetKeyBalance(choice int, address string, uri string, networkID uint3
 	if err != nil {
 		return err
 	}
-	hutils.Outf(
+	utils.Outf(
 		"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 		choice,
 		address,
-		handler.Root().ValueString(ids.Empty, balance),
-		handler.Root().AssetString(ids.Empty),
+		utils.FormatBalance(balance, consts.Decimals),
+		consts.Symbol,
 	)
 	return nil
 }

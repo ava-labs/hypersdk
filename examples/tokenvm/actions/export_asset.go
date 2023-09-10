@@ -119,6 +119,8 @@ func (e *ExportAsset) executeReturn(
 	}
 	wt := &WarpTransfer{
 		To:                 e.To,
+		Symbol:             symbol,
+		Decimals:           decimals,
 		Asset:              originalAsset,
 		Value:              e.Value,
 		Return:             e.Return,
@@ -147,7 +149,7 @@ func (e *ExportAsset) executeLoan(
 	actor ed25519.PublicKey,
 	txID ids.ID,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	exists, _, _, _, _, _, isWarp, err := storage.GetAsset(ctx, mu, e.Asset)
+	exists, symbol, decimals, _, _, _, isWarp, err := storage.GetAsset(ctx, mu, e.Asset)
 	if err != nil {
 		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
@@ -174,6 +176,8 @@ func (e *ExportAsset) executeLoan(
 	}
 	wt := &WarpTransfer{
 		To:                 e.To,
+		Symbol:             symbol,
+		Decimals:           decimals,
 		Asset:              e.Asset,
 		Value:              e.Value,
 		Return:             e.Return,

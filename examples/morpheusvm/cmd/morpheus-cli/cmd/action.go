@@ -6,8 +6,8 @@ package cmd
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/spf13/cobra"
 )
 
@@ -40,7 +40,7 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Select amount
-		amount, err := handler.Root().PromptAmount("amount", ids.Empty, balance, nil)
+		amount, err := handler.Root().PromptAmount("amount", consts.Decimals, balance, nil)
 		if err != nil {
 			return err
 		}

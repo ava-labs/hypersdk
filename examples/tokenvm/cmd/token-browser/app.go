@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package main
 
 import (
@@ -296,6 +299,7 @@ func (a *App) GetAccountStats() []*GenericInfo {
 	}
 	return info
 }
+
 func (a *App) GetUnitPrices() []*GenericInfo {
 	a.workLock.Lock()
 	defer a.workLock.Unlock()

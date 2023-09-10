@@ -14,10 +14,10 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
@@ -34,7 +34,7 @@ var transferCmd = &cobra.Command{
 	Use: "transfer",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, tcli, err := handler.DefaultActor()
+		_, priv, factory, cli, scli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -44,7 +44,7 @@ var transferCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), assetID, true)
+		_, decimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), assetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -56,7 +56,7 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Select amount
-		amount, err := handler.Root().PromptAmount("amount", assetID, balance, nil)
+		amount, err := handler.Root().PromptAmount("amount", decimals, balance, nil)
 		if err != nil {
 			return err
 		}
@@ -72,7 +72,7 @@ var transferCmd = &cobra.Command{
 			To:    recipient,
 			Asset: assetID,
 			Value: amount,
-		}, cli, tcli, factory, true)
+		}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -81,7 +81,7 @@ var createAssetCmd = &cobra.Command{
 	Use: "create-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, _, factory, cli, tcli, err := handler.DefaultActor()
+		_, _, factory, cli, scli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -115,7 +115,7 @@ var createAssetCmd = &cobra.Command{
 			Symbol:   []byte(symbol),
 			Decimals: uint8(decimals), // already constrain above to prevent overflow
 			Metadata: []byte(metadata),
-		}, cli, tcli, factory, true)
+		}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -124,7 +124,7 @@ var mintAssetCmd = &cobra.Command{
 	Use: "mint-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, tcli, err := handler.DefaultActor()
+		_, priv, factory, cli, scli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -134,7 +134,7 @@ var mintAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		exists, metadata, supply, owner, warp, err := tcli.Asset(ctx, assetID)
+		exists, symbol, decimals, metadata, supply, owner, warp, err := tcli.Asset(ctx, assetID, false)
 		if err != nil {
 			return err
 		}
@@ -154,7 +154,9 @@ var mintAssetCmd = &cobra.Command{
 			return nil
 		}
 		hutils.Outf(
-			"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n",
+			"{{yellow}}symbol:{{/}} %s {{yellow}}decimals:{{/}} %s {{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n",
+			string(symbol),
+			decimals,
 			string(metadata),
 			supply,
 		)
@@ -166,7 +168,7 @@ var mintAssetCmd = &cobra.Command{
 		}
 
 		// Select amount
-		amount, err := handler.Root().PromptAmount("amount", assetID, consts.MaxUint64-supply, nil)
+		amount, err := handler.Root().PromptAmount("amount", decimals, consts.MaxUint64-supply, nil)
 		if err != nil {
 			return err
 		}
@@ -182,7 +184,7 @@ var mintAssetCmd = &cobra.Command{
 			Asset: assetID,
 			To:    recipient,
 			Value: amount,
-		}, cli, tcli, factory, true)
+		}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -191,7 +193,7 @@ var closeOrderCmd = &cobra.Command{
 	Use: "close-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, _, factory, cli, tcli, err := handler.DefaultActor()
+		_, _, factory, cli, scli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -218,7 +220,7 @@ var closeOrderCmd = &cobra.Command{
 		_, _, err = sendAndWait(ctx, nil, &actions.CloseOrder{
 			Order: orderID,
 			Out:   outAssetID,
-		}, cli, tcli, factory, true)
+		}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -227,7 +229,7 @@ var createOrderCmd = &cobra.Command{
 	Use: "create-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, tcli, err := handler.DefaultActor()
+		_, priv, factory, cli, scli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -237,18 +239,20 @@ var createOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		exists, symbol, decimals, metadata, supply, _, warp, err := tcli.Asset(ctx, inAssetID, false)
+		if err != nil {
+			return err
+		}
 		if inAssetID != ids.Empty {
-			exists, metadata, supply, _, warp, err := tcli.Asset(ctx, inAssetID)
-			if err != nil {
-				return err
-			}
 			if !exists {
 				hutils.Outf("{{red}}%s does not exist{{/}}\n", inAssetID)
 				hutils.Outf("{{red}}exiting...{{/}}\n")
 				return nil
 			}
 			hutils.Outf(
-				"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
+				"{{yellow}}symbol:{{/}} %s {{yellow}}decimals:{{/}} %d {{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
+				string(symbol),
+				decimals,
 				string(metadata),
 				supply,
 				warp,
@@ -256,7 +260,7 @@ var createOrderCmd = &cobra.Command{
 		}
 
 		// Select in tick
-		inTick, err := handler.Root().PromptAmount("in tick", inAssetID, consts.MaxUint64, nil)
+		inTick, err := handler.Root().PromptAmount("in tick", decimals, consts.MaxUint64, nil)
 		if err != nil {
 			return err
 		}
@@ -266,21 +270,21 @@ var createOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), outAssetID, true)
+		_, decimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), outAssetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
 
 		// Select out tick
-		outTick, err := handler.Root().PromptAmount("out tick", outAssetID, consts.MaxUint64, nil)
+		outTick, err := handler.Root().PromptAmount("out tick", decimals, consts.MaxUint64, nil)
 		if err != nil {
 			return err
 		}
 
 		// Select supply
-		supply, err := handler.Root().PromptAmount(
+		supply, err = handler.Root().PromptAmount(
 			"supply (must be multiple of out tick)",
-			outAssetID,
+			decimals,
 			balance,
 			func(input uint64) error {
 				if input%outTick != 0 {
@@ -306,7 +310,7 @@ var createOrderCmd = &cobra.Command{
 			Out:     outAssetID,
 			OutTick: outTick,
 			Supply:  supply,
-		}, cli, tcli, factory, true)
+		}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -315,7 +319,7 @@ var fillOrderCmd = &cobra.Command{
 	Use: "fill-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, tcli, err := handler.DefaultActor()
+		_, priv, factory, cli, scli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -325,7 +329,7 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), inAssetID, true)
+		inSymbol, inDecimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), inAssetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -335,7 +339,8 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if _, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), outAssetID, false); err != nil {
+		outSymbol, outDecimals, _, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), outAssetID, false)
+		if err != nil {
 			return err
 		}
 
@@ -360,12 +365,12 @@ var fillOrderCmd = &cobra.Command{
 				"%d) {{cyan}}Rate(in/out):{{/}} %.4f {{cyan}}InTick:{{/}} %s %s {{cyan}}OutTick:{{/}} %s %s {{cyan}}Remaining:{{/}} %s %s\n", //nolint:lll
 				i,
 				float64(order.InTick)/float64(order.OutTick),
-				handler.Root().ValueString(inAssetID, order.InTick),
-				handler.Root().AssetString(inAssetID),
-				handler.Root().ValueString(outAssetID, order.OutTick),
-				handler.Root().AssetString(outAssetID),
-				handler.Root().ValueString(outAssetID, order.Remaining),
-				handler.Root().AssetString(outAssetID),
+				hutils.FormatBalance(order.InTick, inDecimals),
+				inSymbol,
+				hutils.FormatBalance(order.OutTick, outDecimals),
+				outSymbol,
+				hutils.FormatBalance(order.Remaining, outDecimals),
+				outSymbol,
 			)
 		}
 
@@ -379,7 +384,7 @@ var fillOrderCmd = &cobra.Command{
 		// Select input to trade
 		value, err := handler.Root().PromptAmount(
 			"value (must be multiple of in tick)",
-			inAssetID,
+			inDecimals,
 			balance,
 			func(input uint64) error {
 				if input%order.InTick != 0 {
@@ -400,10 +405,10 @@ var fillOrderCmd = &cobra.Command{
 		outAmount := multiples * order.OutTick
 		hutils.Outf(
 			"{{orange}}in:{{/}} %s %s {{orange}}out:{{/}} %s %s\n",
-			handler.Root().ValueString(inAssetID, value),
-			handler.Root().AssetString(inAssetID),
-			handler.Root().ValueString(outAssetID, outAmount),
-			handler.Root().AssetString(outAssetID),
+			hutils.FormatBalance(value, inDecimals),
+			inSymbol,
+			hutils.FormatBalance(outAmount, outDecimals),
+			outSymbol,
 		)
 
 		// Confirm action
@@ -422,7 +427,7 @@ var fillOrderCmd = &cobra.Command{
 			In:    inAssetID,
 			Out:   outAssetID,
 			Value: value,
-		}, cli, tcli, factory, true)
+		}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -431,9 +436,9 @@ func performImport(
 	ctx context.Context,
 	scli *rpc.JSONRPCClient,
 	dcli *rpc.JSONRPCClient,
+	dscli *rpc.WebSocketClient,
 	dtcli *trpc.JSONRPCClient,
 	exportTxID ids.ID,
-	priv ed25519.PrivateKey,
 	factory chain.AuthFactory,
 ) error {
 	// Select TxID (if not provided)
@@ -485,27 +490,30 @@ func performImport(
 		outputAssetID = actions.ImportedAssetID(wt.Asset, msg.SourceChainID)
 	}
 	hutils.Outf(
-		"%s {{yellow}}to:{{/}} %s {{yellow}}source assetID:{{/}} %s {{yellow}}output assetID:{{/}} %s {{yellow}}value:{{/}} %s {{yellow}}reward:{{/}} %s {{yellow}}return:{{/}} %t\n",
+		"%s {{yellow}}to:{{/}} %s {{yellow}}source assetID:{{/}} %s {{yellow}}source symbol:{{/}} %s {{yellow}}output assetID:{{/}} %s {{yellow}}value:{{/}} %s {{yellow}}reward:{{/}} %s {{yellow}}return:{{/}} %t\n",
 		hutils.ToID(
 			msg.UnsignedMessage.Payload,
 		),
 		utils.Address(wt.To),
-		handler.Root().AssetString(wt.Asset),
-		handler.Root().AssetString(outputAssetID),
-		handler.Root().ValueString(outputAssetID, wt.Value),
-		handler.Root().ValueString(outputAssetID, wt.Reward),
+		wt.Asset,
+		wt.Symbol,
+		outputAssetID,
+		hutils.FormatBalance(wt.Value, wt.Decimals),
+		hutils.FormatBalance(wt.Reward, wt.Decimals),
 		wt.Return,
 	)
 	if wt.SwapIn > 0 {
+		_, outSymbol, outDecimals, _, _, _, _, err := dtcli.Asset(ctx, wt.AssetOut, false)
+		if err != nil {
+			return err
+		}
 		hutils.Outf(
-			"{{yellow}}asset in:{{/}} %s {{yellow}}swap in:{{/}} %s {{yellow}}asset out:{{/}} %s {{yellow}}swap out:{{/}} %s {{yellow}}swap expiry:{{/}} %d\n",
-			handler.Root().AssetString(outputAssetID),
-			handler.Root().ValueString(
-				outputAssetID,
-				wt.SwapIn,
-			),
-			handler.Root().AssetString(wt.AssetOut),
-			handler.Root().ValueString(wt.AssetOut, wt.SwapOut),
+			"{{yellow}}asset in:{{/}} %s {{yellow}}swap in:{{/}} %s {{yellow}}asset out:{{/}} %s {{yellow}}symbol out:{{/}} %s {{yellow}}swap out:{{/}} %s {{yellow}}swap expiry:{{/}} %d\n",
+			outputAssetID,
+			hutils.FormatBalance(wt.SwapIn, wt.Decimals),
+			wt.AssetOut,
+			outSymbol,
+			hutils.FormatBalance(wt.SwapOut, outDecimals),
 			wt.SwapExpiry,
 		)
 	}
@@ -527,21 +535,10 @@ func performImport(
 		return ErrMustFill
 	}
 
-	// Attempt to send dummy transaction if needed
-	if err := handler.Root().SubmitDummy(ctx, dcli, func(ictx context.Context, count uint64) error {
-		_, _, err = sendAndWait(ictx, nil, &actions.Transfer{
-			To:    priv.PublicKey(),
-			Value: count, // prevent duplicate txs
-		}, dcli, dtcli, factory, false)
-		return err
-	}); err != nil {
-		return err
-	}
-
 	// Generate transaction
 	_, _, err = sendAndWait(ctx, msg, &actions.ImportAsset{
 		Fill: fill,
-	}, dcli, dtcli, factory, true)
+	}, dcli, dscli, dtcli, factory, true)
 	return err
 }
 
@@ -549,7 +546,7 @@ var importAssetCmd = &cobra.Command{
 	Use: "import-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		currentChainID, priv, factory, dcli, dtcli, err := handler.DefaultActor()
+		currentChainID, _, factory, dcli, dscli, dtcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -562,7 +559,7 @@ var importAssetCmd = &cobra.Command{
 		scli := rpc.NewJSONRPCClient(uris[0])
 
 		// Perform import
-		return performImport(ctx, scli, dcli, dtcli, ids.Empty, priv, factory)
+		return performImport(ctx, scli, dcli, dscli, dtcli, ids.Empty, factory)
 	},
 }
 
@@ -570,7 +567,7 @@ var exportAssetCmd = &cobra.Command{
 	Use: "export-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		currentChainID, priv, factory, cli, tcli, err := handler.DefaultActor()
+		currentChainID, priv, factory, cli, scli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -580,7 +577,7 @@ var exportAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		balance, sourceChainID, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), assetID, true)
+		_, decimals, balance, sourceChainID, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), assetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -592,7 +589,7 @@ var exportAssetCmd = &cobra.Command{
 		}
 
 		// Select amount
-		amount, err := handler.Root().PromptAmount("amount", assetID, balance, nil)
+		amount, err := handler.Root().PromptAmount("amount", decimals, balance, nil)
 		if err != nil {
 			return err
 		}
@@ -604,7 +601,7 @@ var exportAssetCmd = &cobra.Command{
 		}
 
 		// Select reward
-		reward, err := handler.Root().PromptAmount("reward", assetID, balance-amount, nil)
+		reward, err := handler.Root().PromptAmount("reward", decimals, balance-amount, nil)
 		if err != nil {
 			return err
 		}
@@ -630,7 +627,7 @@ var exportAssetCmd = &cobra.Command{
 			swapExpiry int64
 		)
 		if swap {
-			swapIn, err = handler.Root().PromptAmount("swap in", assetID, amount, nil)
+			swapIn, err = handler.Root().PromptAmount("swap in", decimals, amount, nil)
 			if err != nil {
 				return err
 			}
@@ -638,9 +635,22 @@ var exportAssetCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
+			uris, err := handler.Root().GetChain(destination)
+			if err != nil {
+				return err
+			}
+			networkID, _, _, err := cli.Network(ctx)
+			if err != nil {
+				return err
+			}
+			dcli := trpc.NewJSONRPCClient(uris[0], networkID, destination)
+			_, decimals, _, _, err := handler.GetAssetInfo(ctx, dcli, priv.PublicKey(), assetOut, false)
+			if err != nil {
+				return err
+			}
 			swapOut, err = handler.Root().PromptAmount(
-				"swap out (on destination)",
-				assetOut,
+				"swap out (on destination, no decimals)",
+				decimals,
 				consts.MaxUint64,
 				nil,
 			)
@@ -659,17 +669,6 @@ var exportAssetCmd = &cobra.Command{
 			return err
 		}
 
-		// Attempt to send dummy transaction if needed
-		if err := handler.Root().SubmitDummy(ctx, cli, func(ictx context.Context, count uint64) error {
-			_, _, err = sendAndWait(ictx, nil, &actions.Transfer{
-				To:    priv.PublicKey(),
-				Value: count, // prevent duplicate txs
-			}, cli, tcli, factory, false)
-			return err
-		}); err != nil {
-			return err
-		}
-
 		// Generate transaction
 		success, txID, err := sendAndWait(ctx, nil, &actions.ExportAsset{
 			To:          recipient,
@@ -682,7 +681,7 @@ var exportAssetCmd = &cobra.Command{
 			SwapOut:     swapOut,
 			SwapExpiry:  swapExpiry,
 			Destination: destination,
-		}, cli, tcli, factory, true)
+		}, cli, scli, tcli, factory, true)
 		if err != nil {
 			return err
 		}
@@ -704,7 +703,11 @@ var exportAssetCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if err := performImport(ctx, cli, rpc.NewJSONRPCClient(uris[0]), trpc.NewJSONRPCClient(uris[0], networkID, destination), txID, priv, factory); err != nil {
+			dscli, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+			if err != nil {
+				return err
+			}
+			if err := performImport(ctx, cli, rpc.NewJSONRPCClient(uris[0]), dscli, trpc.NewJSONRPCClient(uris[0], networkID, destination), txID, factory); err != nil {
 				return err
 			}
 		}
