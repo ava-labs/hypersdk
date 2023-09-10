@@ -11,8 +11,11 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/utils"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 )
@@ -27,6 +30,7 @@ var spamCmd = &cobra.Command{
 var runSpamCmd = &cobra.Command{
 	Use: "run",
 	RunE: func(*cobra.Command, []string) error {
+		var sclient *rpc.WebSocketClient
 		var tclient *trpc.JSONRPCClient
 		var maxFeeParsed *uint64
 		if maxFee >= 0 {
@@ -36,6 +40,11 @@ var runSpamCmd = &cobra.Command{
 		return handler.Root().Spam(maxTxBacklog, maxFeeParsed, randomRecipient,
 			func(uri string, networkID uint32, chainID ids.ID) {
 				tclient = trpc.NewJSONRPCClient(uri, networkID, chainID)
+				sc, err := rpc.NewWebSocketClient(uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+				if err != nil {
+					panic(err)
+				}
+				sclient = sc
 			},
 			func(pk ed25519.PrivateKey) chain.AuthFactory {
 				return auth.NewED25519Factory(pk)
@@ -49,8 +58,8 @@ var runSpamCmd = &cobra.Command{
 					"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 					choice,
 					address,
-					handler.Root().ValueString(ids.Empty, balance),
-					handler.Root().AssetString(ids.Empty),
+					utils.FormatBalance(balance, consts.Decimals),
+					consts.Symbol,
 				)
 				return balance, err
 			},
@@ -69,7 +78,7 @@ var runSpamCmd = &cobra.Command{
 					_, _, err := sendAndWait(ictx, nil, &actions.Transfer{
 						To:    pk.PublicKey(),
 						Value: count, // prevent duplicate txs
-					}, cli, tclient, auth.NewED25519Factory(pk), false)
+					}, cli, sclient, tclient, auth.NewED25519Factory(pk), false)
 					return err
 				}
 			},
