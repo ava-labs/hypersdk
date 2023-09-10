@@ -69,7 +69,7 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 		case *actions.CreateAsset:
 			summaryStr = fmt.Sprintf("assetID: %s metadata:%s", tx.ID(), string(action.Metadata))
 		case *actions.MintAsset:
-			_, symbol, decimals, _, _, _, _, err := c.Asset(context.TODO(), action.Asset)
+			_, symbol, decimals, _, _, _, _, err := c.Asset(context.TODO(), action.Asset, true)
 			if err != nil {
 				utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
 				return
@@ -80,7 +80,7 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 			summaryStr = fmt.Sprintf("%d %s -> 🔥", action.Value, action.Asset)
 
 		case *actions.Transfer:
-			_, symbol, decimals, _, _, _, _, err := c.Asset(context.TODO(), action.Asset)
+			_, symbol, decimals, _, _, _, _, err := c.Asset(context.TODO(), action.Asset, true)
 			if err != nil {
 				utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
 				return
@@ -89,13 +89,13 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 			summaryStr = fmt.Sprintf("%s %s -> %s", amountStr, symbol, tutils.Address(action.To))
 
 		case *actions.CreateOrder:
-			_, inSymbol, inDecimals, _, _, _, _, err := c.Asset(context.TODO(), action.In)
+			_, inSymbol, inDecimals, _, _, _, _, err := c.Asset(context.TODO(), action.In, true)
 			if err != nil {
 				utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
 				return
 			}
 			inTickStr := utils.FormatBalance(action.InTick, inDecimals)
-			_, outSymbol, outDecimals, _, _, _, _, err := c.Asset(context.TODO(), action.Out)
+			_, outSymbol, outDecimals, _, _, _, _, err := c.Asset(context.TODO(), action.Out, true)
 			if err != nil {
 				utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
 				return
@@ -105,13 +105,13 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 			summaryStr = fmt.Sprintf("%s %s -> %s %s (supply: %s %s)", inTickStr, inSymbol, outTickStr, outSymbol, supplyStr, outSymbol)
 		case *actions.FillOrder:
 			or, _ := actions.UnmarshalOrderResult(result.Output)
-			_, inSymbol, inDecimals, _, _, _, _, err := c.Asset(context.TODO(), action.In)
+			_, inSymbol, inDecimals, _, _, _, _, err := c.Asset(context.TODO(), action.In, true)
 			if err != nil {
 				utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
 				return
 			}
 			inAmtStr := utils.FormatBalance(or.In, inDecimals)
-			_, outSymbol, outDecimals, _, _, _, _, err := c.Asset(context.TODO(), action.Out)
+			_, outSymbol, outDecimals, _, _, _, _, err := c.Asset(context.TODO(), action.Out, true)
 			if err != nil {
 				utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
 				return
@@ -142,7 +142,7 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 				summaryStr += fmt.Sprintf(" | reward: %s", utils.FormatBalance(wt.Reward, wt.Decimals))
 			}
 			if wt.SwapIn > 0 {
-				_, outSymbol, outDecimals, _, _, _, _, err := c.Asset(context.TODO(), wt.AssetOut)
+				_, outSymbol, outDecimals, _, _, _, _, err := c.Asset(context.TODO(), wt.AssetOut, true)
 				if err != nil {
 					utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
 					return
@@ -164,7 +164,7 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 				summaryStr += fmt.Sprintf(" | reward: %s", utils.FormatBalance(wt.Reward, wt.Decimals))
 			}
 			if wt.SwapIn > 0 {
-				_, outSymbol, outDecimals, _, _, _, _, err := c.Asset(context.TODO(), wt.AssetOut)
+				_, outSymbol, outDecimals, _, _, _, _, err := c.Asset(context.TODO(), wt.AssetOut, true)
 				if err != nil {
 					utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
 					return

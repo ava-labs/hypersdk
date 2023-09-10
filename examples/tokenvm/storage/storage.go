@@ -350,26 +350,18 @@ func SetAsset(
 	symbolLen := len(symbol)
 	metadataLen := len(metadata)
 	v := make([]byte, consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len+ed25519.PublicKeyLen+1)
-	l := 0
 	binary.BigEndian.PutUint16(v, uint16(symbolLen))
-	l += consts.Uint16Len
-	copy(v[l:], symbol)
-	l += symbolLen
-	v[l] = decimals
-	l += consts.Uint8Len
-	binary.BigEndian.PutUint16(v[l:], uint16(metadataLen))
-	l += consts.Uint16Len
-	copy(v[l:], metadata)
-	l += metadataLen
-	binary.BigEndian.PutUint64(v[l:], supply)
-	l += consts.Uint64Len
-	copy(v[l:], owner[:])
-	l += ed25519.PublicKeyLen
+	copy(v[consts.Uint16Len:], symbol)
+	v[consts.Uint16Len+symbolLen] = decimals
+	binary.BigEndian.PutUint16(v[consts.Uint16Len+symbolLen+consts.Uint8Len:], uint16(metadataLen))
+	copy(v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len:], metadata)
+	binary.BigEndian.PutUint64(v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen:], supply)
+	copy(v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len:], owner[:])
 	b := byte(0x0)
 	if warp {
 		b = 0x1
 	}
-	v[l] = b
+	v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len+ed25519.PublicKeyLen] = b
 	return mu.Insert(ctx, k, v)
 }
 

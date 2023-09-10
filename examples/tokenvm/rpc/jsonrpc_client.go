@@ -85,11 +85,12 @@ func (cli *JSONRPCClient) Tx(ctx context.Context, id ids.ID) (bool, bool, int64,
 func (cli *JSONRPCClient) Asset(
 	ctx context.Context,
 	asset ids.ID,
+	useCache bool,
 ) (bool, []byte, uint8, []byte, uint64, string, bool, error) {
 	cli.assetsL.Lock()
 	r, ok := cli.assets[asset]
 	cli.assetsL.Unlock()
-	if ok {
+	if ok && useCache {
 		return true, r.Symbol, r.Decimals, r.Metadata, r.Supply, r.Owner, r.Warp, nil
 	}
 	resp := new(AssetReply)
@@ -166,7 +167,7 @@ func (cli *JSONRPCClient) WaitForBalance(
 	asset ids.ID,
 	min uint64,
 ) error {
-	exists, symbol, decimals, _, _, _, _, err := cli.Asset(ctx, asset)
+	exists, symbol, decimals, _, _, _, _, err := cli.Asset(ctx, asset, true)
 	if err != nil {
 		return err
 	}

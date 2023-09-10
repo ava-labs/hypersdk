@@ -135,7 +135,7 @@ var mintAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		exists, symbol, decimals, metadata, supply, owner, warp, err := tcli.Asset(ctx, assetID)
+		exists, symbol, decimals, metadata, supply, owner, warp, err := tcli.Asset(ctx, assetID, false)
 		if err != nil {
 			return err
 		}
@@ -240,7 +240,7 @@ var createOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		exists, symbol, decimals, metadata, supply, _, warp, err := tcli.Asset(ctx, inAssetID)
+		exists, symbol, decimals, metadata, supply, _, warp, err := tcli.Asset(ctx, inAssetID, false)
 		if err != nil {
 			return err
 		}
@@ -505,7 +505,7 @@ func performImport(
 		wt.Return,
 	)
 	if wt.SwapIn > 0 {
-		_, outSymbol, outDecimals, _, _, _, _, err := dtcli.Asset(ctx, wt.AssetOut)
+		_, outSymbol, outDecimals, _, _, _, _, err := dtcli.Asset(ctx, wt.AssetOut, false)
 		if err != nil {
 			return err
 		}

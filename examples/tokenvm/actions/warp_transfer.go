@@ -86,7 +86,7 @@ func ImportedAssetMetadata(assetID ids.ID, sourceChainID ids.ID) []byte {
 }
 
 func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
-	maxWarpTransferSize := ed25519.PublicKeyLen + codec.BytesLen(ids.Empty[:]) + consts.Uint8Len + consts.IDLen +
+	maxWarpTransferSize := ed25519.PublicKeyLen + codec.BytesLenSize(MaxSymbolSize) + consts.Uint8Len + consts.IDLen +
 		consts.Uint64Len + consts.BoolLen +
 		consts.Uint64Len + /* op bits */
 		consts.Uint64Len + consts.Uint64Len + consts.IDLen + consts.Uint64Len + consts.Int64Len +
