@@ -11,6 +11,7 @@ import (
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 
+	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 )
 
@@ -52,8 +53,8 @@ func lookupSetKeyBalance(choice int, address string, uri string, networkID uint3
 		"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 		choice,
 		address,
-		handler.Root().ValueString(ids.Empty, balance),
-		handler.Root().AssetString(ids.Empty),
+		hutils.FormatBalance(balance, tconsts.Decimals),
+		tconsts.Symbol,
 	)
 	return nil
 }
@@ -66,7 +67,7 @@ var setKeyCmd = &cobra.Command{
 }
 
 func lookupKeyBalance(pk ed25519.PublicKey, uri string, networkID uint32, chainID ids.ID, assetID ids.ID) error {
-	_, _, err := handler.GetAssetInfo(
+	_, _, _, _, err := handler.GetAssetInfo(
 		context.TODO(), trpc.NewJSONRPCClient(uri, networkID, chainID),
 		pk, assetID, true)
 	return err
