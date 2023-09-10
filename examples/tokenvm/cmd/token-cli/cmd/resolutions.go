@@ -24,7 +24,7 @@ import (
 // sendAndWait may not be used concurrently
 func sendAndWait(
 	ctx context.Context, warpMsg *warp.Message, action chain.Action, cli *rpc.JSONRPCClient,
-	tcli *trpc.JSONRPCClient, scli *rpc.WebSocketClient, factory chain.AuthFactory, printStatus bool,
+	scli *rpc.WebSocketClient, tcli *trpc.JSONRPCClient, factory chain.AuthFactory, printStatus bool,
 ) (bool, ids.ID, error) {
 	parser, err := tcli.Parser(ctx)
 	if err != nil {

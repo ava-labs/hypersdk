@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
@@ -34,7 +35,7 @@ var transferCmd = &cobra.Command{
 	Use: "transfer",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, tcli, err := handler.DefaultActor()
+		_, priv, factory, cli, scli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -72,7 +73,7 @@ var transferCmd = &cobra.Command{
 			To:    recipient,
 			Asset: assetID,
 			Value: amount,
-		}, cli, tcli, factory, true)
+		}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -81,7 +82,7 @@ var createAssetCmd = &cobra.Command{
 	Use: "create-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, _, factory, cli, tcli, err := handler.DefaultActor()
+		_, _, factory, cli, scli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -115,7 +116,7 @@ var createAssetCmd = &cobra.Command{
 			Symbol:   []byte(symbol),
 			Decimals: uint8(decimals), // already constrain above to prevent overflow
 			Metadata: []byte(metadata),
-		}, cli, tcli, factory, true)
+		}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -124,7 +125,7 @@ var mintAssetCmd = &cobra.Command{
 	Use: "mint-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, tcli, err := handler.DefaultActor()
+		_, priv, factory, cli, scli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -184,7 +185,7 @@ var mintAssetCmd = &cobra.Command{
 			Asset: assetID,
 			To:    recipient,
 			Value: amount,
-		}, cli, tcli, factory, true)
+		}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -193,7 +194,7 @@ var closeOrderCmd = &cobra.Command{
 	Use: "close-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, _, factory, cli, tcli, err := handler.DefaultActor()
+		_, _, factory, cli, scli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -220,7 +221,7 @@ var closeOrderCmd = &cobra.Command{
 		_, _, err = sendAndWait(ctx, nil, &actions.CloseOrder{
 			Order: orderID,
 			Out:   outAssetID,
-		}, cli, tcli, factory, true)
+		}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -229,7 +230,7 @@ var createOrderCmd = &cobra.Command{
 	Use: "create-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, tcli, err := handler.DefaultActor()
+		_, priv, factory, cli, scli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -310,7 +311,7 @@ var createOrderCmd = &cobra.Command{
 			Out:     outAssetID,
 			OutTick: outTick,
 			Supply:  supply,
-		}, cli, tcli, factory, true)
+		}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -319,7 +320,7 @@ var fillOrderCmd = &cobra.Command{
 	Use: "fill-order",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, tcli, err := handler.DefaultActor()
+		_, priv, factory, cli, scli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -427,7 +428,7 @@ var fillOrderCmd = &cobra.Command{
 			In:    inAssetID,
 			Out:   outAssetID,
 			Value: value,
-		}, cli, tcli, factory, true)
+		}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -436,6 +437,7 @@ func performImport(
 	ctx context.Context,
 	scli *rpc.JSONRPCClient,
 	dcli *rpc.JSONRPCClient,
+	dscli *rpc.WebSocketClient,
 	dtcli *trpc.JSONRPCClient,
 	exportTxID ids.ID,
 	priv ed25519.PrivateKey,
@@ -535,21 +537,10 @@ func performImport(
 		return ErrMustFill
 	}
 
-	// Attempt to send dummy transaction if needed
-	if err := handler.Root().SubmitDummy(ctx, dcli, func(ictx context.Context, count uint64) error {
-		_, _, err = sendAndWait(ictx, nil, &actions.Transfer{
-			To:    priv.PublicKey(),
-			Value: count, // prevent duplicate txs
-		}, dcli, dtcli, factory, false)
-		return err
-	}); err != nil {
-		return err
-	}
-
 	// Generate transaction
 	_, _, err = sendAndWait(ctx, msg, &actions.ImportAsset{
 		Fill: fill,
-	}, dcli, dtcli, factory, true)
+	}, dcli, dscli, dtcli, factory, true)
 	return err
 }
 
@@ -557,7 +548,7 @@ var importAssetCmd = &cobra.Command{
 	Use: "import-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		currentChainID, priv, factory, dcli, dtcli, err := handler.DefaultActor()
+		currentChainID, priv, factory, dcli, dscli, dtcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -570,7 +561,7 @@ var importAssetCmd = &cobra.Command{
 		scli := rpc.NewJSONRPCClient(uris[0])
 
 		// Perform import
-		return performImport(ctx, scli, dcli, dtcli, ids.Empty, priv, factory)
+		return performImport(ctx, scli, dcli, dscli, dtcli, ids.Empty, priv, factory)
 	},
 }
 
@@ -578,7 +569,7 @@ var exportAssetCmd = &cobra.Command{
 	Use: "export-asset",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		currentChainID, priv, factory, cli, tcli, err := handler.DefaultActor()
+		currentChainID, priv, factory, cli, scli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -680,17 +671,6 @@ var exportAssetCmd = &cobra.Command{
 			return err
 		}
 
-		// Attempt to send dummy transaction if needed
-		if err := handler.Root().SubmitDummy(ctx, cli, func(ictx context.Context, count uint64) error {
-			_, _, err = sendAndWait(ictx, nil, &actions.Transfer{
-				To:    priv.PublicKey(),
-				Value: count, // prevent duplicate txs
-			}, cli, tcli, factory, false)
-			return err
-		}); err != nil {
-			return err
-		}
-
 		// Generate transaction
 		success, txID, err := sendAndWait(ctx, nil, &actions.ExportAsset{
 			To:          recipient,
@@ -703,7 +683,7 @@ var exportAssetCmd = &cobra.Command{
 			SwapOut:     swapOut,
 			SwapExpiry:  swapExpiry,
 			Destination: destination,
-		}, cli, tcli, factory, true)
+		}, cli, scli, tcli, factory, true)
 		if err != nil {
 			return err
 		}
@@ -725,7 +705,11 @@ var exportAssetCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if err := performImport(ctx, cli, rpc.NewJSONRPCClient(uris[0]), trpc.NewJSONRPCClient(uris[0], networkID, destination), txID, priv, factory); err != nil {
+			dscli, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+			if err != nil {
+				return err
+			}
+			if err := performImport(ctx, cli, rpc.NewJSONRPCClient(uris[0]), dscli, trpc.NewJSONRPCClient(uris[0], networkID, destination), txID, priv, factory); err != nil {
 				return err
 			}
 		}

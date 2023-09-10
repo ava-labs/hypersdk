@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 )
@@ -94,25 +95,32 @@ func (h *Handler) GetAssetInfo(
 
 func (h *Handler) DefaultActor() (
 	ids.ID, ed25519.PrivateKey, *auth.ED25519Factory,
-	*rpc.JSONRPCClient, *trpc.JSONRPCClient, error,
+	*rpc.JSONRPCClient, *rpc.WebSocketClient, *trpc.JSONRPCClient, error,
 ) {
 	priv, err := h.h.GetDefaultKey()
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
+		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, nil, err
 	}
 	chainID, uris, err := h.h.GetDefaultChain()
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
+		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, nil, err
 	}
+	// For [defaultActor], we always send requests to the first returned URI.
 	cli := rpc.NewJSONRPCClient(uris[0])
 	networkID, _, _, err := cli.Network(context.TODO())
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
+		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, nil, err
 	}
-	// For [defaultActor], we always send requests to the first returned URI.
-	return chainID, priv, auth.NewED25519Factory(
-			priv,
-		), cli,
+	scli, err := rpc.NewWebSocketClient(
+		uris[0],
+		rpc.DefaultHandshakeTimeout,
+		pubsub.MaxPendingMessages,
+		pubsub.MaxReadMessageSize,
+	)
+	if err != nil {
+		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, nil, err
+	}
+	return chainID, priv, auth.NewED25519Factory(priv), cli, scli,
 		trpc.NewJSONRPCClient(
 			uris[0],
 			networkID,
