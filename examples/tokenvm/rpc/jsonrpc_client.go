@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -148,6 +149,14 @@ func (cli *JSONRPCClient) WaitForBalance(
 	asset ids.ID,
 	min uint64,
 ) error {
+	exists, symbol, decimals, _, _, _, _, err := cli.Asset(ctx, asset)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("%s does not exist", asset)
+	}
+
 	return rpc.Wait(ctx, func(ctx context.Context) (bool, error) {
 		balance, err := cli.Balance(ctx, addr, asset)
 		if err != nil {
@@ -156,8 +165,9 @@ func (cli *JSONRPCClient) WaitForBalance(
 		shouldExit := balance >= min
 		if !shouldExit {
 			utils.Outf(
-				"{{yellow}}waiting for %s balance: %s{{/}}\n",
-				utils.FormatBalance(min),
+				"{{yellow}}waiting for %s %s on %s{{/}}\n",
+				utils.FormatBalance(min, decimals),
+				symbol,
 				addr,
 			)
 		}

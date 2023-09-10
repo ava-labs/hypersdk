@@ -134,7 +134,7 @@ var mintAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		exists, metadata, supply, owner, warp, err := tcli.Asset(ctx, assetID)
+		exists, symbol, decimals, metadata, supply, owner, warp, err := tcli.Asset(ctx, assetID)
 		if err != nil {
 			return err
 		}
@@ -154,7 +154,9 @@ var mintAssetCmd = &cobra.Command{
 			return nil
 		}
 		hutils.Outf(
-			"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n",
+			"{{yellow}}symbol:{{/}} %s {{yellow}}decimals:{{/}} %s {{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n",
+			string(symbol),
+			decimals,
 			string(metadata),
 			supply,
 		)

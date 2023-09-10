@@ -111,15 +111,15 @@ func (h *Handler) Spam(
 	}
 
 	// Distribute funds
-	numAccounts, err := h.PromptInt("number of accounts")
+	numAccounts, err := h.PromptInt("number of accounts", consts.MaxInt)
 	if err != nil {
 		return err
 	}
-	numTxsPerAccount, err := h.PromptInt("number of transactions per account per second")
+	numTxsPerAccount, err := h.PromptInt("number of transactions per account per second", consts.MaxInt)
 	if err != nil {
 		return err
 	}
-	numClients, err := h.PromptInt("number of clients per node")
+	numClients, err := h.PromptInt("number of clients per node", consts.MaxInt)
 	if err != nil {
 		return err
 	}
