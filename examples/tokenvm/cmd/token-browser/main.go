@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package main
 
 import (
@@ -57,7 +60,6 @@ func main() {
 			WebviewGpuPolicy:    linux.WebviewGpuPolicyAlways,
 		},
 	})
-
 	if err != nil {
 		println("Error:", err.Error())
 	}
