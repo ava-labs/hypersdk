@@ -1149,6 +1149,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			parser,
 			nil,
 			&actions.CreateAsset{
+				Symbol:   asset2Symbol,
+				Decimals: asset2Decimals,
 				Metadata: asset2,
 			},
 			factory,
@@ -1192,6 +1194,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			parser,
 			nil,
 			&actions.CreateAsset{
+				Symbol:   asset3Symbol,
+				Decimals: asset3Decimals,
 				Metadata: asset3,
 			},
 			factory2,
@@ -1752,12 +1756,14 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			context.Background(),
 			p.Bytes(),
 		)
-		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("Uint64 field is not populated"))
+		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("field is not populated"))
 	})
 
 	ginkgo.It("import with wrong destination", func() {
 		wt := &actions.WarpTransfer{
 			To:                 rsender,
+			Symbol:             []byte("s"),
+			Decimals:           2,
 			Asset:              ids.GenerateTestID(),
 			Value:              100,
 			Return:             false,
@@ -1839,6 +1845,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(result.Success).Should(gomega.BeTrue())
 		wt := &actions.WarpTransfer{
 			To:                 rsender,
+			Symbol:             []byte(tconsts.Symbol),
+			Decimals:           tconsts.Decimals,
 			Asset:              ids.Empty,
 			Value:              100,
 			Return:             false,
