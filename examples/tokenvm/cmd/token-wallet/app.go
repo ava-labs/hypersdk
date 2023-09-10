@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
 	"sync"
 	"time"
 
@@ -370,7 +371,7 @@ func (a *App) defaultActor() (
 		), nil
 }
 
-func (a *App) CreateAsset(metadata string) error {
+func (a *App) CreateAsset(symbol string, decimals string, metadata string) error {
 	ctx := context.Background()
 	// TODO: share client
 	_, _, factory, cli, tcli, err := a.defaultActor()
@@ -383,11 +384,17 @@ func (a *App) CreateAsset(metadata string) error {
 	if err != nil {
 		return err
 	}
+	udecimals, err := strconv.ParseUint(decimals, 10, 8)
+	if err != nil {
+		return err
+	}
 	_, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CreateAsset{
+		Symbol:   []byte(symbol),
+		Decimals: uint8(udecimals),
 		Metadata: []byte(metadata),
 	}, factory)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: unable to generate transaction", err)
 	}
 	if err := a.scli.RegisterTx(tx); err != nil {
 		return err

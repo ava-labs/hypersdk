@@ -28,7 +28,7 @@ const Mint = () => {
       (async () => {
         try {
           const balance = await GetBalance("11111111111111111111111111111111LpoYY");
-          if (balance != 0) {
+          if (balance == 0) {
             throw new Error("Insufficient Balance");
           }
           const start = (new Date()).getTime();
@@ -90,10 +90,10 @@ const Mint = () => {
                 autoComplete="off"
               >
                 <Form.Item name="Symbol" rules={[{ required: true }]}>
-                  <Input  placeholder="Symbol"/>
+                  <Input placeholder="Symbol"/>
                 </Form.Item>
                 <Form.Item name="Decimals" rules={[{ required: true }]}>
-                  <Input  placeholder="Decimals"/>
+                  <Input placeholder="Decimals"/>
                 </Form.Item>
                 <Form.Item name="Metadata" rules={[{ required: true }]}>
                   <Input placeholder="Metadata"/>
