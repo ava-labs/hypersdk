@@ -30,6 +30,6 @@ const (
 	TransferComputeUnits    = 1
 
 	MaxMetadataSize = 256
-	MaxSymbolSize   = 16
+	MaxSymbolSize   = 8
 	MaxDecimals     = 9
 )
