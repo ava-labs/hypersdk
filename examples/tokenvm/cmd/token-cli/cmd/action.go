@@ -490,27 +490,30 @@ func performImport(
 		outputAssetID = actions.ImportedAssetID(wt.Asset, msg.SourceChainID)
 	}
 	hutils.Outf(
-		"%s {{yellow}}to:{{/}} %s {{yellow}}source assetID:{{/}} %s {{yellow}}output assetID:{{/}} %s {{yellow}}value:{{/}} %s {{yellow}}reward:{{/}} %s {{yellow}}return:{{/}} %t\n",
+		"%s {{yellow}}to:{{/}} %s {{yellow}}source assetID:{{/}} %s {{yellow}}source symbol:{{/}} %s {{yellow}}output assetID:{{/}} %s {{yellow}}value:{{/}} %s {{yellow}}reward:{{/}} %s {{yellow}}return:{{/}} %t\n",
 		hutils.ToID(
 			msg.UnsignedMessage.Payload,
 		),
 		utils.Address(wt.To),
-		handler.Root().AssetString(wt.Asset),
-		handler.Root().AssetString(outputAssetID),
-		handler.Root().ValueString(outputAssetID, wt.Value),
-		handler.Root().ValueString(outputAssetID, wt.Reward),
+		wt.Asset,
+		wt.Symbol,
+		outputAssetID,
+		hutils.FormatBalance(wt.Value, wt.Decimals),
+		hutils.FormatBalance(wt.Reward, wt.Decimals),
 		wt.Return,
 	)
 	if wt.SwapIn > 0 {
+		_, outSymbol, outDecimals, _, _, _, _, err := dtcli.Asset(ctx, wt.AssetOut)
+		if err != nil {
+			return err
+		}
 		hutils.Outf(
-			"{{yellow}}asset in:{{/}} %s {{yellow}}swap in:{{/}} %s {{yellow}}asset out:{{/}} %s {{yellow}}swap out:{{/}} %s {{yellow}}swap expiry:{{/}} %d\n",
-			handler.Root().AssetString(outputAssetID),
-			handler.Root().ValueString(
-				outputAssetID,
-				wt.SwapIn,
-			),
-			handler.Root().AssetString(wt.AssetOut),
-			handler.Root().ValueString(wt.AssetOut, wt.SwapOut),
+			"{{yellow}}asset in:{{/}} %s {{yellow}}swap in:{{/}} %s {{yellow}}asset out:{{/}} %s {{yellow}}symbol out:{{/}} %s {{yellow}}swap out:{{/}} %s {{yellow}}swap expiry:{{/}} %d\n",
+			outputAssetID,
+			hutils.FormatBalance(wt.SwapIn, wt.Decimals),
+			wt.AssetOut,
+			outSymbol,
+			hutils.FormatBalance(wt.SwapOut, outDecimals),
 			wt.SwapExpiry,
 		)
 	}
