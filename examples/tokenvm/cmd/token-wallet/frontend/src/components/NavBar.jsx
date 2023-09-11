@@ -13,8 +13,8 @@ const items = [
     icon: <DashboardOutlined />,
   },
   {
-    label: <RLink to={"faucet"}>Faucet</RLink>,
-    key: "faucet",
+    label: <RLink to={"mine"}>Mine</RLink>,
+    key: "mine",
     icon: <ThunderboltOutlined />,
   },
   {
