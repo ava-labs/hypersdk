@@ -2,6 +2,7 @@ import App from "./App";
 
 import Explorer from "./components/Explorer";
 import Mint from "./components/Mint";
+import Transfer from "./components/Transfer";
 
 const routes = [
   {
@@ -16,6 +17,10 @@ const routes = [
       {
         path: "mint",
         element: <Mint />,
+      },
+      {
+        path: "transfer",
+        element: <Transfer />,
       },
     ],
   },

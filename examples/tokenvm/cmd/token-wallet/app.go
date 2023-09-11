@@ -627,7 +627,14 @@ func (a *App) GetAddress() (string, error) {
 	return utils.Address(priv.PublicKey()), nil
 }
 
-func (a *App) GetBalance() ([]string, error) {
+type BalanceInfo struct {
+	ID string
+
+	Str string
+	Bal string
+}
+
+func (a *App) GetBalance() ([]*BalanceInfo, error) {
 	_, priv, _, _, tcli, err := a.defaultActor()
 	if err != nil {
 		return nil, err
@@ -640,7 +647,7 @@ func (a *App) GetBalance() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	balances := []string{fmt.Sprintf("%s %s", hutils.FormatBalance(bal, decimals), symbol)}
+	balances := []*BalanceInfo{{ID: ids.Empty.String(), Str: fmt.Sprintf("%s %s", hutils.FormatBalance(bal, decimals), symbol), Bal: fmt.Sprintf("%s (Balance: %s)", symbol, hutils.FormatBalance(bal, decimals))}}
 	for _, arr := range [][]ids.ID{a.ownedAssets, a.otherAssets} {
 		for _, asset := range arr {
 			_, symbol, decimals, _, _, _, _, err := tcli.Asset(context.Background(), asset, true)
@@ -651,7 +658,8 @@ func (a *App) GetBalance() ([]string, error) {
 			if err != nil {
 				return nil, err
 			}
-			balances = append(balances, fmt.Sprintf("%s %s (%s)", hutils.FormatBalance(bal, decimals), symbol, asset))
+			strAsset := asset.String()
+			balances = append(balances, &BalanceInfo{ID: asset.String(), Str: fmt.Sprintf("%s %s (%s)", hutils.FormatBalance(bal, decimals), symbol, asset), Bal: fmt.Sprintf("%s [%s..%s] (Balance: %s)", symbol, strAsset[:3], strAsset[len(strAsset)-3:], hutils.FormatBalance(bal, decimals))})
 		}
 	}
 	return balances, nil

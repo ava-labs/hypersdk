@@ -62,6 +62,10 @@ const Mint = () => {
       setOpenMint(false);
     };
 
+    const onFillAddress = () => {
+      mintForm.setFieldsValue({ Address: address });
+    };
+
     const onFinishMint = (values) => {
       console.log('Success:', values);
       mintForm.resetFields();
@@ -88,6 +92,12 @@ const Mint = () => {
     };
 
     useEffect(() => {
+        const getAddress = async () => {
+          const address = await GetAddress();
+          setAddress(address);
+        };
+        getAddress();
+
         const getMyAssets = async () => {
             const assets = await GetMyAssets();
             setAssets(assets);
@@ -172,6 +182,7 @@ const Mint = () => {
                   <Button type="primary" htmlType="submit">
                     Mint
                   </Button>
+                  <Button type="link" htmlType="button" onClick={onFillAddress}>Populate Your Address</Button>
                 </Form.Item>
               </Form>
             </Drawer>

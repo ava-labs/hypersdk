@@ -86,7 +86,7 @@ const NavBar = () => {
       </div>
       {balance.length > 0 &&
         <div style={{ float: "right" }}>
-          <Link strong onClick={showDrawer}>{balance[0]}</Link>
+          <Link strong onClick={showDrawer}>{balance[0].Str}</Link>
         </div>
       }
       <Menu
@@ -107,7 +107,7 @@ const NavBar = () => {
         dataSource={balance}
         renderItem={(item) => (
           <List.Item>
-            <Text>{item}</Text>
+            <Text>{item.Str}</Text>
           </List.Item>
         )}
       />
@@ -138,7 +138,7 @@ const NavBar = () => {
             <br />
             <Text strong>Fee:</Text> {item.Fee}
             <br />
-            <Text strong>Actor:</Text> {item.Actor}
+            <Text strong>Actor:</Text> <Text copyable>{item.Actor}</Text>
           </List.Item>
         )}
       />

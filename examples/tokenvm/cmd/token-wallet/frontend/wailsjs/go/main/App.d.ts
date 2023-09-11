@@ -8,7 +8,7 @@ export function GetAccountStats():Promise<Array<main.GenericInfo>>;
 
 export function GetAddress():Promise<string>;
 
-export function GetBalance():Promise<Array<string>>;
+export function GetBalance():Promise<Array<main.BalanceInfo>>;
 
 export function GetChainID():Promise<string>;
 
