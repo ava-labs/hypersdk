@@ -1,9 +1,10 @@
 import {useEffect, useState} from "react";
-import {GetMyAssets, CreateAsset, GetBalance, GetAddress} from "../../wailsjs/go/main/App";
+import { GetMyAssets, CreateAsset, GetBalance, GetAddress } from "../../wailsjs/go/main/App";
 import { PlusOutlined } from "@ant-design/icons";
-import { Input, Space, Typography, Divider, List, Card, Col, Row, Tooltip, Button, Drawer, FloatButton, Form, message } from "antd";
+import { Layout, Input, InputNumber, Space, Typography, Divider, List, Card, Col, Row, Tooltip, Button, Drawer, FloatButton, Form, message } from "antd";
 import { Area, Line } from '@ant-design/plots';
 const { Title, Text } = Typography;
+const { Sider, Content } = Layout;
 
 const Mint = () => {
     const [assets, setAssets] = useState([]);
@@ -48,14 +49,14 @@ const Mint = () => {
     };
 
     useEffect(() => {
-        const getAssets = async () => {
-            const assets = await GetAssets();
+        const getMyAssets = async () => {
+            const assets = await GetMyAssets();
             setAssets(assets);
         };
 
-        getAssets();
+        getMyAssets();
         const interval = setInterval(() => {
-          getAssets();
+          getMyAssets();
         }, 500);
 
         return () => clearInterval(interval);
@@ -72,7 +73,19 @@ const Mint = () => {
               dataSource={assets}
               renderItem={(item) => (
                 <List.Item>
-                  <Title level={3}>{item.ID}</Title>
+                  <Layout hasSider>
+                  <Content style={{ backgroundColor: "white"}} >
+                  <div>
+                    <Title level={3} style={{ display: "inline" }}>{item.Symbol}</Title> <Text type="secondary">{item.ID}</Text>
+                  </div>
+                  <Text strong>Metadata:</Text> {item.Metadata}
+                  <br />
+                  <Text strong>Decimals:</Text> {item.Decimals} <Text strong>Supply:</Text> {item.Supply}
+                  </Content>
+                  <Sider style={{ backgroundColor: "white"}} >
+                  <Button type="primary" style={{ width: "100%", height: "100%" }}>Mint</Button>
+                  </Sider>
+                  </Layout>
                 </List.Item>
               )}
             />
@@ -86,13 +99,13 @@ const Mint = () => {
                 autoComplete="off"
               >
                 <Form.Item name="Symbol" rules={[{ required: true }]}>
-                  <Input placeholder="Symbol"/>
+                  <Input placeholder="Symbol" maxLength="8"/>
                 </Form.Item>
                 <Form.Item name="Decimals" rules={[{ required: true }]}>
-                  <Input placeholder="Decimals"/>
+                  <InputNumber min={0} max={9} placeholder="Decimals" stringMode="true" style={{ width:"100%" }}/>
                 </Form.Item>
                 <Form.Item name="Metadata" rules={[{ required: true }]}>
-                  <Input placeholder="Metadata"/>
+                  <Input placeholder="Metadata" maxLength="256"/>
                 </Form.Item>
                 <Form.Item>
                   <Button type="primary" htmlType="submit">
