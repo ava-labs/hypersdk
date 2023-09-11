@@ -7,6 +7,7 @@ require (
 	github.com/ava-labs/hypersdk v0.0.12
 	github.com/ava-labs/hypersdk/examples/tokenvm v0.0.0-20230824015821-2ac391b5950b
 	github.com/wailsapp/wails/v2 v2.5.1
+	golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53
 )
 
 require (
@@ -144,7 +145,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/crypto v0.3.0 // indirect
-	golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/sync v0.2.0 // indirect

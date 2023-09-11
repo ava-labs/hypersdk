@@ -29,6 +29,7 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
+	"golang.org/x/exp/slices"
 
 	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -202,6 +203,17 @@ func (a *App) collectBlocks() {
 		}
 		consumed := chain.Dimensions{}
 		for i, result := range results {
+			nconsumed, err := chain.Add(consumed, result.Consumed)
+			if err != nil {
+				a.log.Error(err.Error())
+				runtime.Quit(ctx)
+				return
+			}
+			consumed = nconsumed
+
+			if !result.Success {
+				continue
+			}
 			tx := blk.Txs[i]
 			actor := auth.GetActor(tx.Auth)
 			switch action := tx.Action.(type) {
@@ -242,16 +254,42 @@ func (a *App) collectBlocks() {
 						Summary:   fmt.Sprintf("assetID: %s symbol: %s decimals: %d metadata: %s", tx.ID(), action.Symbol, action.Decimals, action.Metadata),
 					}}, a.transactions...)
 				} else {
-					a.otherAssets = append(a.ownedAssets, tx.ID())
+					a.otherAssets = append(a.otherAssets, tx.ID())
+				}
+			case *actions.MintAsset:
+				_, symbol, decimals, _, _, _, _, err := cli.Asset(context.Background(), action.Asset, true)
+				if err != nil {
+					a.log.Error(err.Error())
+					runtime.Quit(ctx)
+					return
+				}
+				if action.To == pk {
+					if actor != pk && !slices.Contains(a.otherAssets, action.Asset) {
+						a.otherAssets = append(a.otherAssets, action.Asset)
+					}
+					a.transactions = append([]*TransactionInfo{{
+						ID:        tx.ID().String(),
+						Timestamp: blk.Tmstmp,
+						Actor:     utils.Address(actor),
+						Created:   false, // prefer to show receive
+						Type:      "Mint",
+						Units:     hcli.ParseDimensions(result.Consumed),
+						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
+						Summary:   fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To)),
+					}}, a.transactions...)
+				} else if actor == pk {
+					a.transactions = append([]*TransactionInfo{{
+						ID:        tx.ID().String(),
+						Timestamp: blk.Tmstmp,
+						Actor:     utils.Address(actor),
+						Created:   true,
+						Type:      "Mint",
+						Units:     hcli.ParseDimensions(result.Consumed),
+						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
+						Summary:   fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To)),
+					}}, a.transactions...)
 				}
 			}
-			nconsumed, err := chain.Add(consumed, result.Consumed)
-			if err != nil {
-				a.log.Error(err.Error())
-				runtime.Quit(ctx)
-				return
-			}
-			consumed = nconsumed
 		}
 		now := time.Now()
 		if start.IsZero() {
@@ -291,6 +329,7 @@ func (a *App) collectBlocks() {
 		bi.StateRoot = blk.StateRoot.String()
 		for _, result := range results {
 			if !result.Success {
+				// TODO: just do one loop
 				bi.FailTxs++
 			}
 		}
