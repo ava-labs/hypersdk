@@ -11,7 +11,6 @@ import (
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
-	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 
@@ -86,10 +85,6 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 	if err != nil {
 		return fmt.Errorf("failed to create delegate host module: %w", err)
 	}
-
-	// TODO: remove/minimize preview1
-	// Instantiate WASI, which implements system I/O such as console output.
-	wasi_snapshot_preview1.MustInstantiate(ctx, r.engine)
 
 	compiledModule, err := r.engine.CompileModule(ctx, programBytes)
 	if err != nil {
