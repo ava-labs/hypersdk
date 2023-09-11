@@ -34,3 +34,6 @@ func BenchmarkTokenProgram(b *testing.B) {
 		}
 	})
 }
+
+// BenchmarkTokenProgram/benchmark_token_program-10                      46          22319237 ns/op         7989180 B/op     116432 allocs/op
+// BenchmarkTokenProgram/benchmark_token_program-10                     100          10157392 ns/op         4967247 B/op      46825 allocs/op
