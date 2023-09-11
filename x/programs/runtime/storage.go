@@ -35,6 +35,7 @@ func ProgramKey(asset uint64) (k []byte) {
 func StorageKey(programID uint64, key []byte) (k []byte) {
 	k = make([]byte, 1+consts.Int64Len+len(key))
 	k[0] = storagePrefix
+	// TODO: should we just hash this value?
 	binary.BigEndian.PutUint64(k[1:], programID)
 	copy(k[1+consts.Int64Len:], key)
 	return k
