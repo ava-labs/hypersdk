@@ -154,3 +154,47 @@ func (j *JSONRPCServer) Loan(req *http.Request, args *LoanArgs, reply *LoanReply
 	reply.Amount = amount
 	return nil
 }
+
+type GetChallengeReply struct {
+	Salt       []byte `json:"salt"`
+	Difficulty uint8  `json:"difficulty"`
+}
+
+func (j *JSONRPCServer) GetChallenge(req *http.Request, _ *struct{}, reply *GetChallengeReply) (err error) {
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.GetChallenge")
+	defer span.End()
+
+	salt, difficulty, err := j.c.GetChallenge(ctx)
+	if err != nil {
+		return err
+	}
+	reply.Salt = salt
+	reply.Difficulty = difficulty
+	return nil
+}
+
+type SolveChallengeArgs struct {
+	Address  string `json:"address"`
+	Salt     []byte `json:"salt"`
+	Solution []byte `json:"solution"`
+}
+
+type SolveChallengeReply struct {
+	TxID ids.ID `json:"txID"`
+}
+
+func (j *JSONRPCServer) SolveChallenge(req *http.Request, args *SolveChallengeArgs, reply *SolveChallengeReply) error {
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.SolveChallenge")
+	defer span.End()
+
+	addr, err := utils.ParseAddress(args.Address)
+	if err != nil {
+		return err
+	}
+	txID, err := j.c.SolveChallenge(ctx, addr, args.Salt, args.Solution)
+	if err != nil {
+		return err
+	}
+	reply.TxID = txID
+	return nil
+}
