@@ -403,7 +403,7 @@ type AssetInfo struct {
 	Symbol   string
 	Decimals int
 	Metadata string
-	Supply   uint64
+	Supply   string
 	Creator  string
 }
 
@@ -427,7 +427,7 @@ func (a *App) GetMyAssets() []*AssetInfo {
 			Symbol:   string(symbol),
 			Decimals: int(decimals),
 			Metadata: string(metadata),
-			Supply:   supply,
+			Supply:   hutils.FormatBalance(supply, decimals),
 			Creator:  owner,
 		})
 	}
@@ -489,6 +489,72 @@ func (a *App) CreateAsset(symbol string, decimals string, metadata string) error
 		Symbol:   []byte(symbol),
 		Decimals: uint8(udecimals),
 		Metadata: []byte(metadata),
+	}, factory)
+	if err != nil {
+		return fmt.Errorf("%w: unable to generate transaction", err)
+	}
+	if maxFee > bal {
+		return errors.New("insufficient balance")
+	}
+	if err := a.scli.RegisterTx(tx); err != nil {
+		return err
+	}
+
+	// Wait for transaction
+	_, dErr, result, err := a.scli.ListenTx(ctx)
+	if err != nil {
+		return err
+	}
+	if dErr != nil {
+		return err
+	}
+	if !result.Success {
+		return fmt.Errorf("transaction failed on-chain: %s", result.Output)
+	}
+	return nil
+}
+
+func (a *App) MintAsset(asset string, address string, amount string) error {
+	ctx := context.Background()
+	// TODO: share client
+	_, priv, factory, cli, tcli, err := a.defaultActor()
+	if err != nil {
+		return err
+	}
+
+	// Input validation
+	assetID, err := ids.FromString(asset)
+	if err != nil {
+		return err
+	}
+	_, _, decimals, _, _, _, _, err := tcli.Asset(context.Background(), assetID, true)
+	if err != nil {
+		return err
+	}
+	value, err := hutils.ParseBalance(amount, decimals)
+	if err != nil {
+		return err
+	}
+	to, err := utils.ParseAddress(address)
+	if err != nil {
+		return err
+	}
+
+	// Ensure have sufficient balance
+	bal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), ids.Empty)
+	if err != nil {
+		return err
+	}
+
+	// Generate transaction
+	parser, err := tcli.Parser(ctx)
+	if err != nil {
+		return err
+	}
+	_, tx, maxFee, err := cli.GenerateTransaction(ctx, parser, nil, &actions.MintAsset{
+		To:    to,
+		Asset: assetID,
+		Value: value,
 	}, factory)
 	if err != nil {
 		return fmt.Errorf("%w: unable to generate transaction", err)

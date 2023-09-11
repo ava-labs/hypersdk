@@ -21,3 +21,5 @@ export function GetTransactionStats():Promise<Array<main.GenericInfo>>;
 export function GetTransactions():Promise<Array<main.TransactionInfo>>;
 
 export function GetUnitPrices():Promise<Array<main.GenericInfo>>;
+
+export function MintAsset(arg1:string,arg2:string,arg3:string):Promise<void>;

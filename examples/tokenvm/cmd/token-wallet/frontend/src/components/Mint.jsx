@@ -1,5 +1,5 @@
 import {useEffect, useState} from "react";
-import { GetMyAssets, CreateAsset, GetBalance, GetAddress } from "../../wailsjs/go/main/App";
+import { GetMyAssets, CreateAsset, MintAsset, GetBalance, GetAddress } from "../../wailsjs/go/main/App";
 import { PlusOutlined } from "@ant-design/icons";
 import { Layout, Input, InputNumber, Space, Typography, Divider, List, Card, Col, Row, Tooltip, Button, Drawer, FloatButton, Form, message } from "antd";
 import { Area, Line } from '@ant-design/plots';
@@ -10,21 +10,25 @@ const Mint = () => {
     const [assets, setAssets] = useState([]);
     const [address, setAddress] = useState("");
     const [messageApi, contextHolder] = message.useMessage();
-    const [open, setOpen] = useState(false);
-    const [form] = Form.useForm();
+    const [openCreate, setOpenCreate] = useState(false);
+    const [openMint, setOpenMint] = useState(false);
+    const [mintFocus, setMintFocus] = useState({});
+    const [createForm] = Form.useForm();
+    const [mintForm] = Form.useForm();
 
-    const showDrawer = () => {
-      setOpen(true);
+    {/* Create Handlers */}
+    const showCreateDrawer = () => {
+      setOpenCreate(true);
     };
 
-    const onClose = () => {
-      form.resetFields();
-      setOpen(false);
+    const onCloseCreate = () => {
+      createForm.resetFields();
+      setOpenCreate(false);
     };
 
-    const onFinish = (values) => {
+    const onFinishCreate = (values) => {
       console.log('Success:', values);
-      setOpen(false);
+      setOpenCreate(false);
 
       (async () => {
         try {
@@ -35,7 +39,7 @@ const Mint = () => {
             type: "success", content: `Transaction Finalized (${finish-start} ms)`,
           });
 
-          form.resetFields();
+          createForm.resetFields();
         } catch (e) {
           messageApi.open({
             type: "error", content: e.toString(),
@@ -44,7 +48,44 @@ const Mint = () => {
       })();
     };
     
-    const onFinishFailed = (errorInfo) => {
+    const onFinishCreateFailed = (errorInfo) => {
+      console.log('Failed:', errorInfo);
+    };
+
+    {/* Mint Handlers */}
+    const showMintDrawer = (item) => {
+      setMintFocus(item);
+      setOpenMint(true);
+    };
+
+    const onCloseMint = () => {
+      mintForm.resetFields();
+      setOpenMint(false);
+    };
+
+    const onFinishMint = (values) => {
+      console.log('Success:', values);
+      setOpenMint(false);
+
+      (async () => {
+        try {
+          const start = (new Date()).getTime();
+          await MintAsset(mintFocus.ID, values.Address, values.Amount);
+          const finish = (new Date()).getTime();
+          messageApi.open({
+            type: "success", content: `Transaction Finalized (${finish-start} ms)`,
+          });
+
+          mintForm.resetFields();
+        } catch (e) {
+          messageApi.open({
+            type: "error", content: e.toString(),
+          });
+        }
+      })();
+    };
+    
+    const onFinishMintFailed = (errorInfo) => {
       console.log('Failed:', errorInfo);
     };
 
@@ -64,7 +105,7 @@ const Mint = () => {
 
     return (<>
             {contextHolder}
-            <FloatButton icon={<PlusOutlined />} type="primary" onClick={showDrawer} />
+            <FloatButton icon={<PlusOutlined />} type="primary" onClick={showCreateDrawer} />
             <Divider orientation="center">
               Tokens
             </Divider>
@@ -83,19 +124,19 @@ const Mint = () => {
                   <Text strong>Decimals:</Text> {item.Decimals} <Text strong>Supply:</Text> {item.Supply}
                   </Content>
                   <Sider style={{ backgroundColor: "white"}} >
-                  <Button type="primary" style={{ width: "100%", height: "100%" }}>Mint</Button>
+                    <Button type="primary" style={{ width: "100%", height: "100%" }} onClick={() => showMintDrawer(item)}>Mint</Button>
                   </Sider>
                   </Layout>
                 </List.Item>
               )}
             />
-            <Drawer title={"Create a Token"} placement={"right"} onClose={onClose} open={open}>
+            <Drawer title={"Create a Token"} placement={"right"} onClose={onCloseCreate} open={openCreate}>
               <Form
                 name="basic"
-                form={form}
+                form={createForm}
                 initialValues={{ remember: false }}
-                onFinish={onFinish}
-                onFinishFailed={onFinishFailed}
+                onFinish={onFinishCreate}
+                onFinishFailed={onFinishCreateFailed}
                 autoComplete="off"
               >
                 <Form.Item name="Symbol" rules={[{ required: true }]}>
@@ -110,6 +151,28 @@ const Mint = () => {
                 <Form.Item>
                   <Button type="primary" htmlType="submit">
                     Create
+                  </Button>
+                </Form.Item>
+              </Form>
+            </Drawer>
+            <Drawer title={`Mint ${mintFocus.Symbol}`} placement={"right"} onClose={onCloseMint} open={openMint}>
+              <Form
+                name="basic"
+                form={mintForm}
+                initialValues={{ remember: false }}
+                onFinish={onFinishMint}
+                onFinishFailed={onFinishMintFailed}
+                autoComplete="off"
+              >
+                <Form.Item name="Address" rules={[{ required: true }]}>
+                  <Input placeholder="Address" />
+                </Form.Item>
+                <Form.Item name="Amount" rules={[{ required: true }]}>
+                  <InputNumber placeholder="Amount" min={0} stringMode="true" style={{ width:"100%" }}/>
+                </Form.Item>
+                <Form.Item>
+                  <Button type="primary" htmlType="submit">
+                    Mint
                   </Button>
                 </Form.Item>
               </Form>

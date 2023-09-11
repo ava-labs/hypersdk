@@ -41,3 +41,7 @@ export function GetTransactions() {
 export function GetUnitPrices() {
   return window['go']['main']['App']['GetUnitPrices']();
 }
+
+export function MintAsset(arg1, arg2, arg3) {
+  return window['go']['main']['App']['MintAsset'](arg1, arg2, arg3);
+}
