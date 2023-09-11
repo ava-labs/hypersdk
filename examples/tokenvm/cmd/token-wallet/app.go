@@ -233,11 +233,11 @@ func (a *App) collectBlocks() {
 					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
 					Summary:   fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To)),
 				}
-				if actor == pk {
-					txInfo.Created = true
-					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
-				} else if action.To == pk {
+				if action.To == pk {
 					txInfo.Created = false
+					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
+				} else if actor == pk {
+					txInfo.Created = true
 					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
 				}
 			case *actions.CreateAsset:
@@ -600,6 +600,87 @@ func (a *App) MintAsset(asset string, address string, amount string) error {
 	}
 	if maxFee > bal {
 		return errors.New("insufficient balance")
+	}
+	if err := a.scli.RegisterTx(tx); err != nil {
+		return err
+	}
+
+	// Wait for transaction
+	_, dErr, result, err := a.scli.ListenTx(ctx)
+	if err != nil {
+		return err
+	}
+	if dErr != nil {
+		return err
+	}
+	if !result.Success {
+		return fmt.Errorf("transaction failed on-chain: %s", result.Output)
+	}
+	return nil
+}
+
+func (a *App) Transfer(asset string, address string, amount string) error {
+	ctx := context.Background()
+	// TODO: share client
+	_, priv, factory, cli, tcli, err := a.defaultActor()
+	if err != nil {
+		return err
+	}
+
+	// Input validation
+	assetID, err := ids.FromString(asset)
+	if err != nil {
+		return err
+	}
+	_, _, decimals, _, _, _, _, err := tcli.Asset(context.Background(), assetID, true)
+	if err != nil {
+		return err
+	}
+	value, err := hutils.ParseBalance(amount, decimals)
+	if err != nil {
+		return err
+	}
+	to, err := utils.ParseAddress(address)
+	if err != nil {
+		return err
+	}
+
+	// Ensure have sufficient balance for transfer
+	sendBal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), assetID)
+	if err != nil {
+		return err
+	}
+	if value > sendBal {
+		return errors.New("insufficient balance")
+	}
+
+	// Ensure have sufficient balance for fees
+	bal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), ids.Empty)
+	if err != nil {
+		return err
+	}
+
+	// Generate transaction
+	parser, err := tcli.Parser(ctx)
+	if err != nil {
+		return err
+	}
+	_, tx, maxFee, err := cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
+		To:    to,
+		Asset: assetID,
+		Value: value,
+	}, factory)
+	if err != nil {
+		return fmt.Errorf("%w: unable to generate transaction", err)
+	}
+	if assetID != ids.Empty {
+		if maxFee > bal {
+			return errors.New("insufficient balance")
+		}
+	} else {
+		if maxFee+value > bal {
+			return errors.New("insufficient balance")
+		}
 	}
 	if err := a.scli.RegisterTx(tx); err != nil {
 		return err

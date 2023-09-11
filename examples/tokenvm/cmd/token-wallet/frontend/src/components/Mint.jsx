@@ -31,15 +31,18 @@ const Mint = () => {
       createForm.resetFields();
       setOpenCreate(false);
 
+      messageApi.open({type: "loading", content: "Issuing Transaction...", duration:0});
       (async () => {
         try {
           const start = (new Date()).getTime();
           await CreateAsset(values.Symbol, values.Decimals, values.Metadata);
           const finish = (new Date()).getTime();
+          messageApi.destroy();
           messageApi.open({
             type: "success", content: `Transaction Finalized (${finish-start} ms)`,
           });
         } catch (e) {
+          messageApi.destroy();
           messageApi.open({
             type: "error", content: e.toString(),
           });
@@ -71,15 +74,18 @@ const Mint = () => {
       mintForm.resetFields();
       setOpenMint(false);
 
+      messageApi.open({type: "loading", content: "Issuing Transaction...", duration:0});
       (async () => {
         try {
           const start = (new Date()).getTime();
           await MintAsset(mintFocus.ID, values.Address, values.Amount);
           const finish = (new Date()).getTime();
+          messageApi.destroy();
           messageApi.open({
             type: "success", content: `Transaction Finalized (${finish-start} ms)`,
           });
         } catch (e) {
+          messageApi.destroy();
           messageApi.open({
             type: "error", content: e.toString(),
           });

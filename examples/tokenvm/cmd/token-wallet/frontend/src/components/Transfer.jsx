@@ -1,24 +1,40 @@
 import {useEffect, useState} from "react";
 import { Card, Form, Input, InputNumber, Button, Select, message } from "antd";
-import { GetBalance } from "../../wailsjs/go/main/App";
+import { GetBalance, Transfer as Send } from "../../wailsjs/go/main/App";
 
 const Transfer = () => {
     const [balance, setBalance] = useState([]);
     const [messageApi, contextHolder] = message.useMessage();
     const [transferForm] = Form.useForm();
 
+    const getBalance = async () => {
+        const bals = await GetBalance();
+        console.log(bals);
+        const parsedBalances = [];
+        for(let i=0; i<bals.length; i++){
+          parsedBalances.push({value: bals[i].ID, label:bals[i].Bal});
+        }
+        setBalance(parsedBalances);
+    };
+
+
     const onFinishTransfer = (values) => {
       console.log('Success:', values);
       transferForm.resetFields();
 
+      messageApi.open({type: "loading", content: "Issuing Transaction...", duration:0});
       (async () => {
         try {
           const start = (new Date()).getTime();
+          await Send(values.Asset, values.Address, values.Amount);
           const finish = (new Date()).getTime();
+          messageApi.destroy();
           messageApi.open({
             type: "success", content: `Transaction Finalized (${finish-start} ms)`,
           });
+          getBalance();
         } catch (e) {
+          messageApi.destroy();
           messageApi.open({
             type: "error", content: e.toString(),
           });
@@ -31,16 +47,6 @@ const Transfer = () => {
     };
 
     useEffect(() => {
-        const getBalance = async () => {
-            const bals = await GetBalance();
-            console.log(bals);
-            const parsedBalances = [];
-            for(let i=0; i<bals.length; i++){
-              parsedBalances.push({value: bals[i].ID, label:bals[i].Bal});
-            }
-            setBalance(parsedBalances);
-        };
-
         getBalance();
     }, []);
 
