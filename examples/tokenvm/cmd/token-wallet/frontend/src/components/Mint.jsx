@@ -28,6 +28,7 @@ const Mint = () => {
 
     const onFinishCreate = (values) => {
       console.log('Success:', values);
+      createForm.resetFields();
       setOpenCreate(false);
 
       (async () => {
@@ -38,8 +39,6 @@ const Mint = () => {
           messageApi.open({
             type: "success", content: `Transaction Finalized (${finish-start} ms)`,
           });
-
-          createForm.resetFields();
         } catch (e) {
           messageApi.open({
             type: "error", content: e.toString(),
@@ -65,6 +64,7 @@ const Mint = () => {
 
     const onFinishMint = (values) => {
       console.log('Success:', values);
+      mintForm.resetFields();
       setOpenMint(false);
 
       (async () => {
@@ -75,8 +75,6 @@ const Mint = () => {
           messageApi.open({
             type: "success", content: `Transaction Finalized (${finish-start} ms)`,
           });
-
-          mintForm.resetFields();
         } catch (e) {
           messageApi.open({
             type: "error", content: e.toString(),
