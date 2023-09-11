@@ -740,7 +740,7 @@ func (a *App) GetBalance() ([]*BalanceInfo, error) {
 				return nil, err
 			}
 			strAsset := asset.String()
-			balances = append(balances, &BalanceInfo{ID: asset.String(), Str: fmt.Sprintf("%s %s (%s)", hutils.FormatBalance(bal, decimals), symbol, asset), Bal: fmt.Sprintf("%s [%s..%s] (Balance: %s)", symbol, strAsset[:3], strAsset[len(strAsset)-3:], hutils.FormatBalance(bal, decimals))})
+			balances = append(balances, &BalanceInfo{ID: asset.String(), Str: fmt.Sprintf("%s %s [%s]", hutils.FormatBalance(bal, decimals), symbol, asset), Bal: fmt.Sprintf("%s [%s..%s] (Balance: %s)", symbol, strAsset[:3], strAsset[len(strAsset)-3:], hutils.FormatBalance(bal, decimals))})
 		}
 	}
 	return balances, nil
