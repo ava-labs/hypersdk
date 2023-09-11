@@ -155,13 +155,13 @@ func (j *JSONRPCServer) Loan(req *http.Request, args *LoanArgs, reply *LoanReply
 	return nil
 }
 
-type GetChallengeReply struct {
+type ChallengeReply struct {
 	Salt       []byte `json:"salt"`
 	Difficulty uint8  `json:"difficulty"`
 }
 
-func (j *JSONRPCServer) GetChallenge(req *http.Request, _ *struct{}, reply *GetChallengeReply) (err error) {
-	ctx, span := j.c.Tracer().Start(req.Context(), "Server.GetChallenge")
+func (j *JSONRPCServer) Challenge(req *http.Request, _ *struct{}, reply *ChallengeReply) (err error) {
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Challenge")
 	defer span.End()
 
 	salt, difficulty, err := j.c.GetChallenge(ctx)
