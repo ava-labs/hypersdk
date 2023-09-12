@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/server"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
@@ -128,8 +129,15 @@ func main() {
 	}
 
 	// Add faucet handler
+	faucetServer := frpc.NewJSONRPCServer(nil)
+	handler, err := server.NewHandler(faucetServer, "faucet")
+	if err != nil {
+		utils.Outf("{{red}}cannot create handler{{/}}: %v\n", err)
+		os.Exit(1)
+	}
 	if err := srv.AddRoute(&common.HTTPHandler{
 		LockOptions: common.NoLock,
+		Handler:     handler,
 	}, &sync.RWMutex{}, "faucet", ""); err != nil {
 		utils.Outf("{{red}}cannot add faucet route{{/}}: %v\n", err)
 		os.Exit(1)
