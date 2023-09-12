@@ -32,6 +32,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/version"
 )
 
@@ -140,6 +141,7 @@ func (c *Controller) Initialize(
 		if err != nil {
 			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
+		c.snowCtx.Log.Info("faucet initialized", zap.String("address", utils.Address(c.faucetKey.PublicKey())))
 	}
 	apis := map[string]*common.HTTPHandler{}
 	jsonRPCHandler, err := hrpc.NewJSONRPCHandler(
