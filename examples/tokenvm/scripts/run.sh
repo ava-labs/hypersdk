@@ -152,6 +152,7 @@ cat <<EOF > ${TMPDIR}/tokenvm.config
   "faucetAmount": 1000000000,
   "faucetDifficulty": 29,
   "faucetSolutionsPerSalt": 10,
+  "faucetTargetDurationPerSalt": 360,
   "streamingBacklogSize": 10000000,
   "trackedPairs":["*"],
   "logLevel": "${LOGLEVEL}",

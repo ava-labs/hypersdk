@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
@@ -52,10 +53,12 @@ type Controller struct {
 
 	orderBook *orderbook.OrderBook
 
-	saltLock  sync.RWMutex
-	salt      []byte
-	solutions set.Set[ids.ID]
-	faucetKey ed25519.PrivateKey
+	saltLock     sync.RWMutex
+	lastRotation int64
+	salt         []byte
+	difficulty   uint16
+	solutions    set.Set[ids.ID]
+	faucetKey    ed25519.PrivateKey
 }
 
 func New() *vm.VM {
@@ -135,13 +138,18 @@ func (c *Controller) Initialize(
 				return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 		}
+		c.lastRotation = time.Now().Unix()
+		c.difficulty = c.config.GetFaucetDifficulty()
 		c.faucetKey = priv
 		c.solutions = set.NewSet[ids.ID](c.config.GetFaucetSolutionsPerSalt())
 		c.salt, err = challenge.New()
 		if err != nil {
 			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
-		c.snowCtx.Log.Info("faucet initialized", zap.String("address", utils.Address(c.faucetKey.PublicKey())))
+		c.snowCtx.Log.Info("faucet initialized",
+			zap.String("address", utils.Address(c.faucetKey.PublicKey())),
+			zap.Uint16("difficulty", c.difficulty),
+		)
 	}
 	apis := map[string]*common.HTTPHandler{}
 	jsonRPCHandler, err := hrpc.NewJSONRPCHandler(

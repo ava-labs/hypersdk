@@ -92,11 +92,15 @@ var faucetKeyCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		faucet, err := tcli.FaucetAddress(ctx)
+		if err != nil {
+			return err
+		}
 		salt, difficulty, err := tcli.Challenge(ctx)
 		if err != nil {
 			return err
 		}
-		utils.Outf("{{yellow}}searching for faucet solutions (difficulty: %d):{{/}} %x\n", difficulty, salt)
+		utils.Outf("{{yellow}}searching for faucet solutions (difficulty=%d, faucet=%s):{{/}} %x\n", difficulty, faucet, salt)
 		start := time.Now()
 		solution, attempts := challenge.Search(salt, difficulty, numCores)
 		utils.Outf("{{cyan}}found solution (attempts=%d, t=%s):{{/}} %x\n", attempts, time.Since(start), solution)

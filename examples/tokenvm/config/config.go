@@ -70,9 +70,10 @@ type Config struct {
 	Parallelism       int           `json:"parallelism"`
 
 	// Faucet
-	FaucetAmount           uint64 `json:"faucetAmount"`
-	FaucetDifficulty       uint16 `json:"faucetDifficulty"`
-	FaucetSolutionsPerSalt int    `json:"faucetSolutionsPerSalt"`
+	FaucetAmount                uint64 `json:"faucetAmount"`
+	FaucetDifficulty            uint16 `json:"faucetDifficulty"`
+	FaucetSolutionsPerSalt      int    `json:"faucetSolutionsPerSalt"`
+	FaucetTargetDurationPerSalt int64  `json:"faucetTargetDurationPerSalt"` // seconds
 
 	// State Sync
 	StateSyncServerDelay time.Duration `json:"stateSyncServerDelay"` // for testing
@@ -154,9 +155,10 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 		MaxNumFiles: defaultContinuousProfilerMaxFiles,
 	}
 }
-func (c *Config) GetVerifySignatures() bool      { return c.VerifySignatures }
-func (c *Config) GetStoreTransactions() bool     { return c.StoreTransactions }
-func (c *Config) Loaded() bool                   { return c.loaded }
-func (c *Config) GetFaucetAmount() uint64        { return c.FaucetAmount }
-func (c *Config) GetFaucetDifficulty() uint16    { return c.FaucetDifficulty }
-func (c *Config) GetFaucetSolutionsPerSalt() int { return c.FaucetSolutionsPerSalt }
+func (c *Config) GetVerifySignatures() bool             { return c.VerifySignatures }
+func (c *Config) GetStoreTransactions() bool            { return c.StoreTransactions }
+func (c *Config) Loaded() bool                          { return c.loaded }
+func (c *Config) GetFaucetAmount() uint64               { return c.FaucetAmount }
+func (c *Config) GetFaucetDifficulty() uint16           { return c.FaucetDifficulty }
+func (c *Config) GetFaucetSolutionsPerSalt() int        { return c.FaucetSolutionsPerSalt }
+func (c *Config) GetFaucetTargetDurationPerSalt() int64 { return c.FaucetTargetDurationPerSalt }

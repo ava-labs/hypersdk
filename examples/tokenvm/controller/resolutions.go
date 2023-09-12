@@ -86,7 +86,7 @@ func (c *Controller) GetChallenge(_ context.Context) ([]byte, uint16, error) {
 
 	c.saltLock.RLock()
 	defer c.saltLock.RUnlock()
-	return c.salt, c.config.GetFaucetDifficulty(), nil
+	return c.salt, c.difficulty, nil
 }
 
 func (c *Controller) sendFunds(ctx context.Context, destination ed25519.PublicKey, amount uint64) (ids.ID, uint64, error) {
@@ -146,7 +146,7 @@ func (c *Controller) SolveChallenge(ctx context.Context, solver ed25519.PublicKe
 	if !bytes.Equal(c.salt, salt) {
 		return ids.Empty, errors.New("salt expired")
 	}
-	if !challenge.Verify(salt, solution, c.config.GetFaucetDifficulty()) {
+	if !challenge.Verify(salt, solution, c.difficulty) {
 		return ids.Empty, errors.New("invalid solution")
 	}
 	solutionID := utils.ToID(solution)
@@ -170,6 +170,15 @@ func (c *Controller) SolveChallenge(ctx context.Context, solver ed25519.PublicKe
 	// Roll salt if stale
 	if c.solutions.Len() < c.config.GetFaucetSolutionsPerSalt() {
 		return txID, nil
+	}
+	now := time.Now().Unix()
+	elapsed := now - c.lastRotation
+	if elapsed < int64(c.config.GetFaucetTargetDurationPerSalt()) {
+		c.difficulty++
+		c.snowCtx.Log.Info("increasing faucet difficulty", zap.Uint16("difficulty", c.difficulty))
+	} else if c.difficulty > c.config.GetFaucetDifficulty() {
+		c.difficulty--
+		c.snowCtx.Log.Info("decreasing faucet difficulty", zap.Uint16("difficulty", c.difficulty))
 	}
 	c.salt, err = challenge.New()
 	if err != nil {
