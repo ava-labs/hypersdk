@@ -5,7 +5,7 @@ package runtime
 
 import (
 	"context"
-	"encoding/binary"
+	// "encoding/binary"
 	"errors"
 	"fmt"
 
@@ -68,7 +68,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 	cfg.CacheConfigLoadDefault()
 	cfg.SetStrategy(wasmtime.StrategyCranelift)
 	r.store = wasmtime.NewStore(wasmtime.NewEngineWithConfig(cfg))
-	err := r.store.AddFuel(10000)
+	err := r.store.AddFuel(10000000000000) // testing only ;)
 	if err != nil {
 		return err
 	}
@@ -156,15 +156,19 @@ func (r *runtime) GetGuestBuffer(offset uint32, length uint32) ([]byte, bool) {
 // TODO: ensure deallocate on Stop.
 func (r *runtime) WriteGuestBuffer(ctx context.Context, buf []byte) (uint64, error) {
 	// allocate to guest and return offset
-	result, err := r.Call(ctx, allocFnName, uint64(len(buf)))
+	api := r.mod.GetFunc(r.store, allocFnName)
+	if api == nil {
+		return 0, ErrMissingExportedFunction
+	}
+	result, err := api.Call(r.store, len(buf))
 	if err != nil {
 		return 0, err
 	}
 
 	mem := r.mod.GetExport(r.store, "memory").Memory().UnsafeData(r.store)
-	addr := int32(result[0])
-	binary.BigEndian.PutUint32(mem[addr:], uint32(len(buf)))
-	copy(mem[addr+4:], buf)
+	addr := result.(int32)
+	// binary.BigEndian.PutUint32(mem[addr:], uint32(len(buf)))
+	copy(mem[addr:], buf)
 
 	return uint64(addr), nil
 }

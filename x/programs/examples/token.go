@@ -194,7 +194,7 @@ func (t *TokenWasmtime) Run(ctx context.Context) error {
 	}
 
 	// get programId
-	programID := runtime.InitProgramStorage()
+	programID := uint64(runtime.InitProgramStorage())
 
 	// call initialize if it exists
 	result, err := rt.Call(ctx, "init", uint64(programID))
@@ -219,97 +219,81 @@ func (t *TokenWasmtime) Run(ctx context.Context) error {
 		zap.Uint64("minted", result[0]),
 	)
 
-	// // generate alice keys
-	// alicePtr, _, err := newKeyPtr(ctx, runtime)
-	// if err != nil {
-	// 	return err
-	// }
+	// generate alice keys
+	alicePtr, _, err := newKeyPtr(ctx, rt)
+	if err != nil {
+		return err
+	}
 
-	// // generate bob keys
-	// bobPtr, _, err := newKeyPtr(ctx, runtime)
-	// if err != nil {
-	// 	return err
-	// }
+	// generate bob keys
+	bobPtr, _, err := newKeyPtr(ctx, rt)
+	if err != nil {
+		return err
+	}
 
-	// // check balance of alice
-	// result, err = runtime.Call(ctx, "get_balance", contractId, bobPtr)
-	// if err != nil {
-	// 	return err
-	// }
-	// t.log.Debug("balance",
-	// 	zap.Int64("bob", int64(result[0])),
-	// )
+	// check balance of alice
+	result, err = rt.Call(ctx, "get_balance", programID, bobPtr)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("balance",
+		zap.Int64("bob", int64(result[0])),
+	)
 
-	// // mint 100 tokens to alice
-	// mintAlice := uint64(100)
-	// _, err = runtime.Call(ctx, "mint_to", contractId, alicePtr, mintAlice)
-	// if err != nil {
-	// 	return err
-	// }
-	// t.log.Debug("minted",
-	// 	zap.Uint64("alice", mintAlice),
-	// )
+	// mint 100 tokens to alice
+	mintAlice := uint64(100)
+	_, err = rt.Call(ctx, "mint_to", programID, alicePtr, mintAlice)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("minted",
+		zap.Uint64("alice", mintAlice),
+	)
 
-	// // check balance of alice
-	// result, err = runtime.Call(ctx, "get_balance", contractId, alicePtr)
-	// if err != nil {
-	// 	return err
-	// }
-	// t.log.Debug("balance",
-	// 	zap.Int64("alice", int64(result[0])),
-	// )
+	// check balance of alice
+	result, err = rt.Call(ctx, "get_balance", programID, alicePtr)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("balance",
+		zap.Int64("alice", int64(result[0])),
+	)
 
-	// // deallocate bytes
-	// defer func() {
-	// 	_, err = runtime.Call(ctx, "dealloc", alicePtr, ed25519.PublicKeyLen)
-	// 	if err != nil {
-	// 		t.log.Error("failed to deallocate alice ptr",
-	// 			zap.Error(err),
-	// 		)
-	// 	}
-	// 	_, err = runtime.Call(ctx, "dealloc", bobPtr, ed25519.PublicKeyLen)
-	// 	if err != nil {
-	// 		t.log.Error("failed to deallocate bob ptr",
-	// 			zap.Error(err),
-	// 		)
-	// 	}
-	// }()
+	// check balance of bob
+	result, err = rt.Call(ctx, "get_balance", programID, bobPtr)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("balance",
+		zap.Int64("bob", int64(result[0])),
+	)
 
-	// // check balance of bob
-	// result, err = runtime.Call(ctx, "get_balance", contractId, bobPtr)
-	// if err != nil {
-	// 	return err
-	// }
-	// t.log.Debug("balance",
-	// 	zap.Int64("bob", int64(result[0])),
-	// )
+	// transfer 50 from alice to bob
+	transferToBob := uint64(50)
+	_, err = rt.Call(ctx, "transfer", programID, alicePtr, bobPtr, transferToBob)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("transferred",
+		zap.Uint64("alice", transferToBob),
+		zap.Uint64("to bob", transferToBob),
+	)
 
-	// // transfer 50 from alice to bob
-	// transferToBob := uint64(50)
-	// _, err = runtime.Call(ctx, "transfer", contractId, alicePtr, bobPtr, transferToBob)
-	// if err != nil {
-	// 	return err
-	// }
-	// t.log.Debug("transferred",
-	// 	zap.Uint64("alice", transferToBob),
-	// 	zap.Uint64("to bob", transferToBob),
-	// )
+	// get balance alice
+	result, err = rt.Call(ctx, "get_balance", programID, alicePtr)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("balance",
+		zap.Int64("alice", int64(result[0])),
+	)
 
-	// // get balance alice
-	// result, err = runtime.Call(ctx, "get_balance", contractId, alicePtr)
-	// if err != nil {
-	// 	return err
-	// }
-	// t.log.Debug("balance",
-	// 	zap.Int64("alice", int64(result[0])),
-	// )
-
-	// // get balance bob
-	// result, err = runtime.Call(ctx, "get_balance", contractId, bobPtr)
-	// if err != nil {
-	// 	return err
-	// }
-	// t.log.Debug("balance", zap.Int64("bob", int64(result[0])))
+	// get balance bob
+	result, err = rt.Call(ctx, "get_balance", programID, bobPtr)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("balance", zap.Int64("bob", int64(result[0])))
 
 	return nil
 }
