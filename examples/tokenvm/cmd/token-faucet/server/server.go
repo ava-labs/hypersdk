@@ -13,17 +13,12 @@ import (
 
 	"github.com/NYTimes/gziphandler"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/rs/cors"
 
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/avalanchego/api"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
@@ -61,10 +56,6 @@ type Server interface {
 	PathAdderWithReadLock
 	// Dispatch starts the API server
 	Dispatch() error
-	// RegisterChain registers the API endpoints associated with this chain.
-	// That is, add <route, handler> pairs to server so that API calls can be
-	// made to the VM.
-	RegisterChain(chainName string, ctx *snow.ConsensusContext, vm common.VM)
 	// Shutdown this server
 	Shutdown() error
 }
@@ -79,15 +70,8 @@ type HTTPConfig struct {
 type server struct {
 	// log this server writes to
 	log logging.Logger
-	// generates new logs for chains to write to
-	factory logging.Factory
 
 	shutdownTimeout time.Duration
-
-	tracingEnabled bool
-	tracer         trace.Tracer
-
-	metrics *metrics
 
 	// Maps endpoints to handlers
 	router *router
@@ -101,24 +85,13 @@ type server struct {
 // New returns an instance of a Server.
 func New(
 	log logging.Logger,
-	factory logging.Factory,
 	listener net.Listener,
 	allowedOrigins []string,
 	shutdownTimeout time.Duration,
-	nodeID ids.NodeID,
-	tracingEnabled bool,
-	tracer trace.Tracer,
-	namespace string,
-	registerer prometheus.Registerer,
 	httpConfig HTTPConfig,
 	allowedHosts []string,
 	wrappers ...Wrapper,
 ) (Server, error) {
-	m, err := newMetrics(namespace, registerer)
-	if err != nil {
-		return nil, err
-	}
-
 	router := newRouter()
 	allowedHostsHandler := filterInvalidHosts(router, allowedHosts)
 	corsHandler := cors.New(cors.Options{
@@ -128,8 +101,6 @@ func New(
 	gzipHandler := gziphandler.GzipHandler(corsHandler)
 	var handler http.Handler = http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			// Attach this node's ID as a header
-			w.Header().Set("node-id", nodeID.String())
 			gzipHandler.ServeHTTP(w, r)
 		},
 	)
@@ -144,11 +115,7 @@ func New(
 
 	return &server{
 		log:             log,
-		factory:         factory,
 		shutdownTimeout: shutdownTimeout,
-		tracingEnabled:  tracingEnabled,
-		tracer:          tracer,
-		metrics:         m,
 		router:          router,
 		srv: &http.Server{
 			Handler:           handler,
@@ -214,26 +181,15 @@ func (s *server) addChainRoute(chainName string, handler *common.HTTPHandler, ct
 		zap.String("url", url),
 		zap.String("endpoint", endpoint),
 	)
-	if s.tracingEnabled {
-		handler = &common.HTTPHandler{
-			LockOptions: handler.LockOptions,
-			Handler:     api.TraceHandler(handler.Handler, chainName, s.tracer),
-		}
-	}
 	// Apply middleware to grab/release chain's lock before/after calling API method
 	h, err := lockMiddleware(
 		handler.Handler,
 		handler.LockOptions,
-		s.tracingEnabled,
-		s.tracer,
 		&ctx.Lock,
 	)
 	if err != nil {
 		return err
 	}
-	// Apply middleware to reject calls to the handler before the chain finishes bootstrapping
-	h = rejectMiddleware(h, ctx)
-	h = s.metrics.wrapHandler(chainName, h)
 	return s.router.AddRouter(url, endpoint, h)
 }
 
@@ -254,25 +210,15 @@ func (s *server) addRoute(handler *common.HTTPHandler, lock *sync.RWMutex, base,
 		zap.String("endpoint", endpoint),
 	)
 
-	if s.tracingEnabled {
-		handler = &common.HTTPHandler{
-			LockOptions: handler.LockOptions,
-			Handler:     api.TraceHandler(handler.Handler, url, s.tracer),
-		}
-	}
-
 	// Apply middleware to grab/release chain's lock before/after calling API method
 	h, err := lockMiddleware(
 		handler.Handler,
 		handler.LockOptions,
-		s.tracingEnabled,
-		s.tracer,
 		lock,
 	)
 	if err != nil {
 		return err
 	}
-	h = s.metrics.wrapHandler(base, h)
 	return s.router.AddRouter(url, endpoint, h)
 }
 
@@ -280,52 +226,26 @@ func (s *server) addRoute(handler *common.HTTPHandler, lock *sync.RWMutex, base,
 func lockMiddleware(
 	handler http.Handler,
 	lockOption common.LockOption,
-	tracingEnabled bool,
-	tracer trace.Tracer,
 	lock *sync.RWMutex,
 ) (http.Handler, error) {
-	var (
-		name          string
-		lockedHandler http.Handler
-	)
 	switch lockOption {
 	case common.WriteLock:
-		name = "writeLock"
-		lockedHandler = middlewareHandler{
+		return middlewareHandler{
 			before:  lock.Lock,
 			after:   lock.Unlock,
 			handler: handler,
-		}
+		}, nil
 	case common.ReadLock:
-		name = "readLock"
-		lockedHandler = middlewareHandler{
+		return middlewareHandler{
 			before:  lock.RLock,
 			after:   lock.RUnlock,
 			handler: handler,
-		}
+		}, nil
 	case common.NoLock:
 		return handler, nil
 	default:
 		return nil, errUnknownLockOption
 	}
-
-	if !tracingEnabled {
-		return lockedHandler, nil
-	}
-
-	return api.TraceHandler(lockedHandler, name, tracer), nil
-}
-
-// Reject middleware wraps a handler. If the chain that the context describes is
-// not done state-syncing/bootstrapping, writes back an error.
-func rejectMiddleware(handler http.Handler, ctx *snow.ConsensusContext) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { // If chain isn't done bootstrapping, ignore API calls
-		if ctx.State.Get().State != snow.NormalOp {
-			http.Error(w, "API call rejected because chain is not done bootstrapping", http.StatusServiceUnavailable)
-		} else {
-			handler.ServeHTTP(w, r)
-		}
-	})
 }
 
 func (s *server) AddAliases(endpoint string, aliases ...string) error {
