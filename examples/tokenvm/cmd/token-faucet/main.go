@@ -16,11 +16,11 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/server"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/server"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
