@@ -27,24 +27,33 @@ var (
 	log           = logging.NewLogger(
 		"",
 		logging.NewWrappedCore(
-			logging.Debug,
+			logging.Info,
 			os.Stderr,
 			logging.Plain.ConsoleEncoder(),
 		))
 )
 
-// go test -v -timeout 30s -run ^TestTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples
-func TestTokenProgram(t *testing.T) {
+// go test -v -timeout 30s -run ^TestTokenWazeroProgram$ github.com/ava-labs/hypersdk/x/programs/examples
+func TestTokenWazeroProgram(t *testing.T) {
 	require := require.New(t)
-	program := NewToken(log, tokenProgramBytes, maxGas, costMap)
+	program := NewTokenWazero(log, tokenProgramBytes, maxGas, costMap)
 	err := program.Run(context.Background())
 	require.NoError(err)
 }
 
+// go test -v -timeout 30s -run ^TestTokenWazeroProgram$ github.com/ava-labs/hypersdk/x/programs/examples
+func TestTokenWasmtimeProgram(t *testing.T) {
+	require := require.New(t)
+	program := NewTokenWasmtime(log, tokenProgramBytes, maxGas, costMap)
+	err := program.Run(context.Background())
+	require.NoError(err)
+}
+
+
 // go test -v -benchmem -run=^$ -bench ^BenchmarkTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
-func BenchmarkTokenProgram(b *testing.B) {
+func BenchmarkTokenWazeroProgram(b *testing.B) {
 	require := require.New(b)
-	program := NewToken(log, tokenProgramBytes, maxGas, costMap)
+	program := NewTokenWazero(log, tokenProgramBytes, maxGas, costMap)
 	b.ResetTimer()
 	b.Run("benchmark_token_program", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
@@ -53,6 +62,3 @@ func BenchmarkTokenProgram(b *testing.B) {
 		}
 	})
 }
-
-// BenchmarkTokenProgram/benchmark_token_program-10                      46          22319237 ns/op         7989180 B/op     116432 allocs/op
-// BenchmarkTokenProgram/benchmark_token_program-10                     100          10157392 ns/op         4967247 B/op      46825 allocs/op

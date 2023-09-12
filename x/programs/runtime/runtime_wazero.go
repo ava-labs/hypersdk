@@ -19,20 +19,15 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
-const (
-	allocFnName   = "alloc"
-	deallocFnName = "dealloc"
-)
-
-func New(log logging.Logger, meter Meter, storage Storage) *runtime {
-	return &runtime{
+func NewWazero(log logging.Logger, meter Meter, storage Storage) *wazeroRuntime {
+	return &wazeroRuntime{
 		log:     log,
 		meter:   meter,
 		storage: storage,
 	}
 }
 
-type runtime struct {
+type wazeroRuntime struct {
 	cancelFn context.CancelFunc
 	engine   wazero.Runtime
 	mod      api.Module
@@ -45,13 +40,13 @@ type runtime struct {
 	log    logging.Logger
 }
 
-func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, error) {
+func (r *wazeroRuntime) Create(ctx context.Context, programBytes []byte) (uint64, error) {
 	err := r.Initialize(ctx, programBytes)
 	if err != nil {
 		return 0, err
 	}
 	// get programId
-	programID := initProgramStorage()
+	programID := InitProgramStorage()
 
 	// call initialize if it exists
 	result, err := r.Call(ctx, "init", uint64(programID))
@@ -68,7 +63,7 @@ func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, erro
 	return uint64(programID), nil
 }
 
-func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
+func (r *wazeroRuntime) Initialize(ctx context.Context, programBytes []byte) error {
 	ctx, r.cancelFn = context.WithCancel(ctx)
 
 	r.engine = wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigInterpreter())
@@ -112,7 +107,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 	return nil
 }
 
-func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]uint64, error) {
+func (r *wazeroRuntime) Call(ctx context.Context, name string, params ...uint64) ([]uint64, error) {
 	if r.closed {
 		return nil, fmt.Errorf("failed to call: %s: runtime closed", name)
 	}
@@ -137,7 +132,7 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 	return result, nil
 }
 
-func (r *runtime) GetGuestBuffer(offset uint32, length uint32) ([]byte, bool) {
+func (r *wazeroRuntime) GetGuestBuffer(offset uint32, length uint32) ([]byte, bool) {
 	// TODO: add fee
 	// r.meter.AddCost()
 
@@ -145,7 +140,7 @@ func (r *runtime) GetGuestBuffer(offset uint32, length uint32) ([]byte, bool) {
 }
 
 // TODO: ensure deallocate on Stop.
-func (r *runtime) WriteGuestBuffer(ctx context.Context, buf []byte) (uint64, error) {
+func (r *wazeroRuntime) WriteGuestBuffer(ctx context.Context, buf []byte) (uint64, error) {
 	// TODO: add fee
 	// r.meter.AddCost()
 
@@ -164,7 +159,7 @@ func (r *runtime) WriteGuestBuffer(ctx context.Context, buf []byte) (uint64, err
 	return offset, nil
 }
 
-func (r *runtime) Stop(ctx context.Context) error {
+func (r *wazeroRuntime) Stop(ctx context.Context) error {
 	defer r.cancelFn()
 	if r.closed {
 		return nil

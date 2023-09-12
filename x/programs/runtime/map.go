@@ -64,7 +64,7 @@ func (m *MapModule) Instantiate(ctx context.Context, r wazero.Runtime) error {
 	return err
 }
 
-func initProgramStorage() int64 {
+func InitProgramStorage() int64 {
 	GlobalStorage.counter++
 	GlobalStorage.state[GlobalStorage.counter] = make(map[string][]byte)
 	return GlobalStorage.counter
@@ -93,6 +93,15 @@ func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id int64, ke
 	GlobalStorage.state[id][string(keyBuf)] = copiedValue
 
 	return mapOk
+}
+
+func (m *MapModule) storeBytesWasmtime(id int64, keyPtr int32, keyLength int32, valuePtr int32, valueLength int32) int32 {
+	_, ok := GlobalStorage.state[int64(id)]
+	if !ok {
+		m.log.Error("failed to find program id in storage")
+		return mapErr
+	}
+	return 0
 }
 
 func (m *MapModule) getBytesLenFn(_ context.Context, mod api.Module, id int64, keyPtr uint32, keyLength uint32) int32 {

@@ -16,8 +16,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewToken(log logging.Logger, programBytes []byte, maxFee uint64, costMap map[string]uint64) *Token {
-	return &Token{
+func NewTokenWazero(log logging.Logger, programBytes []byte, maxFee uint64, costMap map[string]uint64) *TokenWazero {
+	return &TokenWazero{
 		log:          log,
 		programBytes: programBytes,
 		maxFee:       maxFee,
@@ -25,7 +25,7 @@ func NewToken(log logging.Logger, programBytes []byte, maxFee uint64, costMap ma
 	}
 }
 
-type Token struct {
+type TokenWazero struct {
 	log          logging.Logger
 	programBytes []byte
 
@@ -34,12 +34,12 @@ type Token struct {
 	costMap map[string]uint64
 }
 
-func (t *Token) Run(ctx context.Context) error {
+func (t *TokenWazero) Run(ctx context.Context) error {
 	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
 	db := utils.NewTestDB()
 	store := newProgramStorage(db)
 
-	runtime := runtime.New(t.log, meter, store)
+	runtime := runtime.NewWazero(t.log, meter, store)
 	contractId, err := runtime.Create(ctx, t.programBytes)
 	if err != nil {
 		return err
@@ -164,14 +164,153 @@ func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (uint64, ed25519.Pu
 	return ptr, pk, err
 }
 
-// writeString writes a string to guest memory and returns the pointer to the string.
-// The string is padded with 0s to fit 32 bytes.
-func writeString(ctx context.Context, runtime runtime.Runtime, str string) (uint64, error) {
-	if len(str) > 32 {
-		return 0, fmt.Errorf("length of string %s exceeds 32 bytes", str)
+
+func NewTokenWasmtime(log logging.Logger, programBytes []byte, maxFee uint64, costMap map[string]uint64) *TokenWasmtime {
+	return &TokenWasmtime{
+		log:          log,
+		programBytes: programBytes,
+		maxFee:       maxFee,
+		costMap:      costMap,
 	}
-	bytes := [32]byte{}
-	// push string to bytes
-	copy(bytes[:], str)
-	return runtime.WriteGuestBuffer(ctx, bytes[:])
+}
+
+type TokenWasmtime struct {
+	log          logging.Logger
+	programBytes []byte
+
+	// metering
+	maxFee  uint64
+	costMap map[string]uint64
+}
+
+func (t *TokenWasmtime) Run(ctx context.Context) error {
+	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
+	db := utils.NewTestDB()
+	store := newProgramStorage(db)
+
+	rt := runtime.NewWasmtime(t.log, meter, store)
+	err := rt.Initialize(ctx, t.programBytes)
+	if err != nil {
+		return err
+	}
+
+    // get programId
+	programID := runtime.InitProgramStorage()
+
+	// call initialize if it exists
+	result, err := rt.Call(ctx, "init", uint64(programID))
+	if err != nil {
+		return err
+	} else {
+		// check boolean result from init
+		if result[0] == 0 {
+			return fmt.Errorf("failed to initialize program")
+		}
+	}
+
+	t.log.Debug("initial cost",
+		zap.Int("gas", 0),
+	)
+
+	result, err = rt.Call(ctx, "get_total_supply", 1)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("total supply",
+		zap.Uint64("minted", result[0]),
+	)
+
+	// // generate alice keys
+	// alicePtr, _, err := newKeyPtr(ctx, runtime)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// // generate bob keys
+	// bobPtr, _, err := newKeyPtr(ctx, runtime)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// // check balance of alice
+	// result, err = runtime.Call(ctx, "get_balance", contractId, bobPtr)
+	// if err != nil {
+	// 	return err
+	// }
+	// t.log.Debug("balance",
+	// 	zap.Int64("bob", int64(result[0])),
+	// )
+
+	// // mint 100 tokens to alice
+	// mintAlice := uint64(100)
+	// _, err = runtime.Call(ctx, "mint_to", contractId, alicePtr, mintAlice)
+	// if err != nil {
+	// 	return err
+	// }
+	// t.log.Debug("minted",
+	// 	zap.Uint64("alice", mintAlice),
+	// )
+
+	// // check balance of alice
+	// result, err = runtime.Call(ctx, "get_balance", contractId, alicePtr)
+	// if err != nil {
+	// 	return err
+	// }
+	// t.log.Debug("balance",
+	// 	zap.Int64("alice", int64(result[0])),
+	// )
+
+	// // deallocate bytes
+	// defer func() {
+	// 	_, err = runtime.Call(ctx, "dealloc", alicePtr, ed25519.PublicKeyLen)
+	// 	if err != nil {
+	// 		t.log.Error("failed to deallocate alice ptr",
+	// 			zap.Error(err),
+	// 		)
+	// 	}
+	// 	_, err = runtime.Call(ctx, "dealloc", bobPtr, ed25519.PublicKeyLen)
+	// 	if err != nil {
+	// 		t.log.Error("failed to deallocate bob ptr",
+	// 			zap.Error(err),
+	// 		)
+	// 	}
+	// }()
+
+	// // check balance of bob
+	// result, err = runtime.Call(ctx, "get_balance", contractId, bobPtr)
+	// if err != nil {
+	// 	return err
+	// }
+	// t.log.Debug("balance",
+	// 	zap.Int64("bob", int64(result[0])),
+	// )
+
+	// // transfer 50 from alice to bob
+	// transferToBob := uint64(50)
+	// _, err = runtime.Call(ctx, "transfer", contractId, alicePtr, bobPtr, transferToBob)
+	// if err != nil {
+	// 	return err
+	// }
+	// t.log.Debug("transferred",
+	// 	zap.Uint64("alice", transferToBob),
+	// 	zap.Uint64("to bob", transferToBob),
+	// )
+
+	// // get balance alice
+	// result, err = runtime.Call(ctx, "get_balance", contractId, alicePtr)
+	// if err != nil {
+	// 	return err
+	// }
+	// t.log.Debug("balance",
+	// 	zap.Int64("alice", int64(result[0])),
+	// )
+
+	// // get balance bob
+	// result, err = runtime.Call(ctx, "get_balance", contractId, bobPtr)
+	// if err != nil {
+	// 	return err
+	// }
+	// t.log.Debug("balance", zap.Int64("bob", int64(result[0])))
+
+	return nil
 }

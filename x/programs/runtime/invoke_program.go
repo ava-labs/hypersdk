@@ -75,7 +75,7 @@ func (m *InvokeModule) invokeProgramFn(
 	}
 
 	// create new runtime for the program invoke call
-	runtime := New(m.log, m.meter, m.storage)
+	runtime := NewWazero(m.log, m.meter, m.storage)
 
 	err := runtime.Initialize(ctx, data)
 	if err != nil {

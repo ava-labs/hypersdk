@@ -15,8 +15,9 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewLottery(log logging.Logger, lotteryProgramBytes []byte, tokenProgramBytes []byte, maxFee uint64, costMap map[string]uint64) *Lottery {
-	return &Lottery{
+// NewWazeroLottery is an example of the lottery program unsing the wazero runtime.
+func NewWazeroLottery(log logging.Logger, lotteryProgramBytes []byte, tokenProgramBytes []byte, maxFee uint64, costMap map[string]uint64) *WazeroLottery {
+	return &WazeroLottery{
 		log:                 log,
 		lotteryProgramBytes: lotteryProgramBytes,
 		tokenProgramBytes:   tokenProgramBytes,
@@ -25,7 +26,7 @@ func NewLottery(log logging.Logger, lotteryProgramBytes []byte, tokenProgramByte
 	}
 }
 
-type Lottery struct {
+type WazeroLottery struct {
 	log                 logging.Logger
 	lotteryProgramBytes []byte
 	tokenProgramBytes   []byte
@@ -35,12 +36,12 @@ type Lottery struct {
 	costMap map[string]uint64
 }
 
-func (t *Lottery) Run(ctx context.Context) error {
+func (t *WazeroLottery) Run(ctx context.Context) error {
 	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
 	db := utils.NewTestDB()
 	store := newProgramStorage(db)
 
-	tokenRuntime := runtime.New(t.log, meter, store)
+	tokenRuntime := runtime.NewWazero(t.log, meter, store)
 	tokenProgramId, err := tokenRuntime.Create(ctx, t.tokenProgramBytes)
 	if err != nil {
 		return err
@@ -116,7 +117,7 @@ func (t *Lottery) Run(ctx context.Context) error {
 	)
 
 	// initialize lottery program
-	lotteryRuntime := runtime.New(t.log, meter, store)
+	lotteryRuntime := runtime.NewWazero(t.log, meter, store)
 	lotteryProgramId, err := lotteryRuntime.Create(ctx, t.lotteryProgramBytes)
 	if err != nil {
 		return err

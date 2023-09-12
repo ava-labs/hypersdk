@@ -38,7 +38,7 @@ func (t *Pokemon) Run(ctx context.Context) error {
 	db := utils.NewTestDB()
 	store := newProgramStorage(db)
 
-	runtime := runtime.New(t.log, meter, store)
+	runtime := runtime.NewWazero(t.log, meter, store)
 	contractId, err := runtime.Create(ctx, t.programBytes)
 	if err != nil {
 		return err
