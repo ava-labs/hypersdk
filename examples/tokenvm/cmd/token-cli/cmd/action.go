@@ -87,6 +87,7 @@ var fundFaucetsCmd = &cobra.Command{
 			}, cli, scli, tcli, factory, true); err != nil {
 				return err
 			}
+			hutils.Outf("{{green}}funded faucet (%s):{{/}} %s\n", uri, faucetAddress)
 		}
 		return nil
 	},

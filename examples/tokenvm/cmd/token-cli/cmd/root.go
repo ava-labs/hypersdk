@@ -149,12 +149,13 @@ func init() {
 
 	// actions
 	actionCmd.AddCommand(
+		fundFaucetsCmd,
+
 		transferCmd,
 
 		createAssetCmd,
 		mintAssetCmd,
 		// burnAssetCmd,
-		// modifyAssetCmd,
 
 		createOrderCmd,
 		fillOrderCmd,
