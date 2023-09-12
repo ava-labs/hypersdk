@@ -37,7 +37,7 @@ type MapModule struct {
 	log   logging.Logger
 
 	Mod   *wasmtime.Instance
-	Store  *wasmtime.Store
+	Store *wasmtime.Store
 }
 
 // NewMapModule returns a new map host module which can manage in memory state.
@@ -47,7 +47,6 @@ func NewMapModule(log logging.Logger, meter Meter) *MapModule {
 	return &MapModule{
 		meter: meter,
 		log:   log,
-		
 	}
 }
 
@@ -125,7 +124,6 @@ func (m *MapModule) storeBytesWasmtimeFn(id int64, keyPtr int32, keyLength int32
 	copy(copiedValue, valBuf)
 	GlobalStorage.state[id][string(keyBuf)] = copiedValue
 
-
 	// fmt.Printf("store bytes after: %v", GlobalStorage.state[id])
 	return 0
 }
@@ -153,7 +151,7 @@ func (m *MapModule) getBytesLenWasmtimeFn(id int64, keyPtr int32, keyLength int3
 		m.log.Error("failed to find program id in storage")
 		return mapErr
 	}
-	buf, ok := utils.GetBufferWasmtime(m.Mod,m.Store, uint32(keyPtr), uint32(keyLength))
+	buf, ok := utils.GetBufferWasmtime(m.Mod, m.Store, uint32(keyPtr), uint32(keyLength))
 	if !ok {
 		return mapErr
 	}
@@ -210,7 +208,7 @@ func (m *MapModule) getBytesWasmtimeFn(id int64, keyPtr int32, keyLength int32, 
 		m.log.Error("failed to find program id in storage")
 		return mapErr
 	}
-	buf, ok := utils.GetBufferWasmtime(m.Mod,m.Store, uint32(keyPtr), uint32(keyLength))
+	buf, ok := utils.GetBufferWasmtime(m.Mod, m.Store, uint32(keyPtr), uint32(keyLength))
 	if !ok {
 		return mapErr
 	}
@@ -220,12 +218,11 @@ func (m *MapModule) getBytesWasmtimeFn(id int64, keyPtr int32, keyLength int32, 
 	}
 
 	// write to memory
-	ptr, err:= utils.WriteBufferWasmtime(m.Mod, m.Store, val)
+	ptr, err := utils.WriteBufferWasmtime(m.Mod, m.Store, val)
 	if err != nil {
-       m.log.Error("failed to find program id in storage", zap.Error(err))
+		m.log.Error("failed to find program id in storage", zap.Error(err))
 		return mapErr
 	}
-	
 
 	return int32(ptr)
 }

@@ -164,7 +164,6 @@ func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (uint64, ed25519.Pu
 	return ptr, pk, err
 }
 
-
 func NewTokenWasmtime(log logging.Logger, programBytes []byte, maxFee uint64, costMap map[string]uint64) *TokenWasmtime {
 	return &TokenWasmtime{
 		log:          log,
@@ -194,7 +193,7 @@ func (t *TokenWasmtime) Run(ctx context.Context) error {
 		return err
 	}
 
-    // get programId
+	// get programId
 	programID := runtime.InitProgramStorage()
 
 	// call initialize if it exists

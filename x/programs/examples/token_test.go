@@ -49,7 +49,6 @@ func TestTokenWasmtimeProgram(t *testing.T) {
 	require.NoError(err)
 }
 
-
 // go test -v -benchmem -run=^$ -bench ^BenchmarkTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func BenchmarkTokenWazeroProgram(b *testing.B) {
 	require := require.New(b)
@@ -62,7 +61,6 @@ func BenchmarkTokenWazeroProgram(b *testing.B) {
 		}
 	})
 }
-
 
 func BenchmarkTokenWasmtimeProgram(b *testing.B) {
 	require := require.New(b)

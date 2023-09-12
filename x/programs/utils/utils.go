@@ -7,8 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-		"runtime"
-
+	"runtime"
 
 	"github.com/bytecodealliance/wasmtime-go/v12"
 
@@ -79,7 +78,7 @@ func WriteBufferWasmtime(mod *wasmtime.Instance, store *wasmtime.Store, buffer [
 
 	ptr := result.(int32)
 
-    memory := mod.GetExport(store, "memory").Memory()
+	memory := mod.GetExport(store, "memory").Memory()
 	size := memory.DataSize(store)
 
 	// verify available memory is large enough
@@ -93,7 +92,6 @@ func WriteBufferWasmtime(mod *wasmtime.Instance, store *wasmtime.Store, buffer [
 
 	return uint64(ptr), nil
 }
-
 
 // GetBuffer returns the buffer at [ptr] with length [length]. Returns
 // false if out of range.
@@ -113,7 +111,7 @@ func GetBufferWasmtime(mod *wasmtime.Instance, store *wasmtime.Store, offset uin
 	runtime.KeepAlive(memory)
 	buf := memory.UnsafeData(store)
 
-	return buf[offset:offset+length], true
+	return buf[offset : offset+length], true
 }
 
 func GetProgramBytes(filePath string) ([]byte, error) {

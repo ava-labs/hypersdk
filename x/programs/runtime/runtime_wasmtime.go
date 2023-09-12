@@ -63,8 +63,10 @@ func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, erro
 }
 
 func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
-    cfg := wasmtime.NewConfig()
+	cfg := wasmtime.NewConfig()
 	cfg.SetConsumeFuel(true)
+	cfg.CacheConfigLoadDefault()
+	cfg.SetStrategy(wasmtime.StrategyCranelift)
 	r.store = wasmtime.NewStore(wasmtime.NewEngineWithConfig(cfg))
 	err := r.store.AddFuel(10000)
 	if err != nil {
@@ -98,7 +100,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 
 	// the exported 'memory' function is injected into WASM during the compilation.
 
-	r.mod, err = linker.Instantiate(r.store,module)
+	r.mod, err = linker.Instantiate(r.store, module)
 	if err != nil {
 		return err
 	}
@@ -114,7 +116,6 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 		return nil, fmt.Errorf("failed to call: %s: runtime closed", name)
 	}
 
-
 	var api *wasmtime.Func
 
 	if name == allocFnName || name == deallocFnName {
@@ -123,7 +124,7 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 		api = r.mod.GetFunc(r.store, utils.GetGuestFnName(name))
 	}
 
-    if api == nil {
+	if api == nil {
 		return nil, ErrMissingExportedFunction
 	}
 
@@ -139,9 +140,9 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 	}
 
 	switch v := result.(type) {
-	case int32: 
+	case int32:
 		return []uint64{uint64(result.(int32))}, nil
-	case int64: 
+	case int64:
 		return []uint64{uint64(result.(int64))}, nil
 	default:
 		return nil, fmt.Errorf("invalid type %v", v)
