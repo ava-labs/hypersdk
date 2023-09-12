@@ -24,6 +24,18 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
+var (
+	allowedOrigins  = []string{"*"}
+	allowedHosts    = []string{"*"}
+	shutdownTimeout = 30 * time.Second
+	httpConfig      = server.HTTPConfig{
+		ReadTimeout:       30 * time.Second,
+		ReadHeaderTimeout: 30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+)
+
 type Config struct {
 	HTTPHost string `json:"host"`
 	HTTPPort int    `json:"port"`
@@ -117,12 +129,7 @@ func main() {
 		utils.Outf("{{red}}cannot create listener{{/}}: %v\n", err)
 		os.Exit(1)
 	}
-	srv, err := server.New("", log, listener, []string{"*"}, 30*time.Second, server.HTTPConfig{
-		ReadTimeout:       30 * time.Second,
-		ReadHeaderTimeout: 30 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       120 * time.Second,
-	}, []string{"*"})
+	srv, err := server.New("", log, listener, httpConfig, allowedOrigins, allowedHosts, shutdownTimeout)
 	if err != nil {
 		utils.Outf("{{red}}cannot create server{{/}}: %v\n", err)
 		os.Exit(1)

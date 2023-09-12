@@ -68,10 +68,10 @@ func New(
 	baseURL string,
 	log logging.Logger,
 	listener net.Listener,
-	allowedOrigins []string,
-	shutdownTimeout time.Duration,
 	httpConfig HTTPConfig,
+	allowedOrigins []string,
 	allowedHosts []string,
+	shutdownTimeout time.Duration,
 	wrappers ...Wrapper,
 ) (Server, error) {
 	router := newRouter()
