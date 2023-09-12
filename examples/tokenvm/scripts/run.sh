@@ -150,7 +150,7 @@ cat <<EOF > ${TMPDIR}/tokenvm.config
   "verifySignatures":true,
   "storeTransactions": ${STORE_TXS},
   "faucetAmount": 1000000000,
-  "faucetDifficulty": 28,
+  "faucetDifficulty": 29,
   "faucetSolutionsPerSalt": 10,
   "streamingBacklogSize": 10000000,
   "trackedPairs":["*"],

@@ -48,10 +48,13 @@ func Verify(salt []byte, solution []byte, difficulty uint16) bool {
 	return leadingZeros >= int(difficulty)
 }
 
-func Search(salt []byte, difficulty uint16, cores int) []byte {
+func Search(salt []byte, difficulty uint16, cores int) ([]byte, uint64) {
 	var (
 		solution []byte
 		wg       sync.WaitGroup
+
+		attempted  uint64
+		attemptedL sync.Mutex
 	)
 	for i := 0; i < cores; i++ {
 		wg.Add(1)
@@ -59,20 +62,29 @@ func Search(salt []byte, difficulty uint16, cores int) []byte {
 			defer wg.Done()
 
 			var (
-				start = make([]byte, maxSolutionSize/2) // give space to increment without surpassing max solution size
-				_, _  = rand.Read(start)
-				work  = new(big.Int).SetBytes(start)
+				start    = make([]byte, maxSolutionSize/2) // give space to increment without surpassing max solution size
+				_, _     = rand.Read(start)
+				work     = new(big.Int).SetBytes(start)
+				attempts = uint64(0)
 			)
 			for len(solution) == 0 {
+				attempts++
+
 				workBytes := work.Bytes()
 				if Verify(salt, workBytes, difficulty) {
 					solution = workBytes
+					attemptedL.Lock()
+					attempted += attempts
+					attemptedL.Unlock()
 					return
 				}
 				work.Add(work, big1)
 			}
+			attemptedL.Lock()
+			attempted += attempts
+			attemptedL.Unlock()
 		}()
 	}
 	wg.Wait()
-	return solution
+	return solution, attempted
 }
