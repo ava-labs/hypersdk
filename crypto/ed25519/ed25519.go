@@ -95,7 +95,6 @@ func ParseAddress(hrp, saddr string) (PublicKey, error) {
 }
 
 // GeneratePrivateKey returns a Ed25519 PrivateKey.
-// It uses the crypto/ed25519 go package to generate the key.
 func GeneratePrivateKey() (PrivateKey, error) {
 	_, k, err := ed25519.GenerateKey(nil)
 	if err != nil {

@@ -6,13 +6,17 @@ package controller
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/gossiper"
 	hrpc "github.com/ava-labs/hypersdk/rpc"
 	hstorage "github.com/ava-labs/hypersdk/storage"
@@ -21,6 +25,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/config"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
@@ -45,6 +50,11 @@ type Controller struct {
 	metaDB database.Database
 
 	orderBook *orderbook.OrderBook
+
+	saltLock  sync.RWMutex
+	salt      []byte
+	solutions set.Set[ids.ID]
+	faucetKey ed25519.PrivateKey
 }
 
 func New() *vm.VM {
@@ -110,6 +120,27 @@ func (c *Controller) Initialize(
 	//
 	// hypersdk handler are initiatlized automatically, you just need to
 	// initialize custom handlers here.
+	if c.config.GetFaucetAmount() > 0 {
+		addressExists, priv, err := storage.GetAddress(context.TODO(), c.metaDB)
+		if err != nil {
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		}
+		if !addressExists {
+			priv, err = ed25519.GeneratePrivateKey()
+			if err != nil {
+				return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+			}
+			if err := storage.StoreAddress(context.TODO(), c.metaDB, priv); err != nil {
+				return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+			}
+		}
+		c.faucetKey = priv
+		c.solutions = set.NewSet[ids.ID](c.config.GetFaucetSolutionsPerSalt())
+		c.salt, err = challenge.New()
+		if err != nil {
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		}
+	}
 	apis := map[string]*common.HTTPHandler{}
 	jsonRPCHandler, err := hrpc.NewJSONRPCHandler(
 		consts.Name,

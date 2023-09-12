@@ -4,16 +4,20 @@
 package controller
 
 import (
+	"bytes"
 	"context"
+	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 func (c *Controller) Genesis() *genesis.Genesis {
@@ -60,4 +64,62 @@ func (c *Controller) GetLoanFromState(
 	destination ids.ID,
 ) (uint64, error) {
 	return storage.GetLoanFromState(ctx, c.inner.ReadState, asset, destination)
+}
+
+func (c *Controller) GetChallenge(_ context.Context) ([]byte, uint16, error) {
+	if c.config.GetFaucetAmount() == 0 {
+		return nil, 0, errors.New("faucet disabled")
+	}
+
+	c.saltLock.RLock()
+	defer c.saltLock.RUnlock()
+
+	return c.salt, c.config.GetFaucetDifficulty(), nil
+}
+
+func (c *Controller) sendFunds(ctx context.Context, destination ed25519.PublicKey, amount uint64) (ids.ID, error) {
+	bal, err := c.GetBalanceFromState(ctx, c.faucetKey.PublicKey(), ids.Empty)
+	if err != nil {
+		return ids.Empty, err
+	}
+
+	if bal < maxFee+amount {
+		return ids.Empty, errors.New("insufficient balance")
+	}
+}
+
+// TODO: increase difficulty if solutions/minute greater than target
+func (c *Controller) SolveChallenge(ctx context.Context, solver ed25519.PublicKey, salt []byte, solution []byte) (ids.ID, error) {
+	if c.config.GetFaucetAmount() == 0 {
+		return ids.Empty, errors.New("faucet disabled")
+	}
+
+	c.saltLock.Lock()
+	defer c.saltLock.Unlock()
+
+	if !bytes.Equal(c.salt, salt) {
+		return ids.Empty, errors.New("salt expired")
+	}
+	if !challenge.Verify(salt, solution, c.config.GetFaucetDifficulty()) {
+		return ids.Empty, errors.New("invalid solution")
+	}
+	solutionID := utils.ToID(solution)
+	if c.solutions.Contains(solutionID) {
+		return ids.Empty, errors.New("duplicate solution")
+	}
+	txID, err := c.sendFunds(ctx, solver, c.config.GetFaucetAmount())
+	if err != nil {
+		return ids.Empty, err
+	}
+	c.solutions.Add(solutionID)
+	if c.solutions.Len() < c.config.GetFaucetSolutionsPerSalt() {
+		return txID, nil
+	}
+	c.salt, err = challenge.New()
+	if err != nil {
+		// Should never happen
+		return ids.Empty, err
+	}
+	c.solutions.Clear()
+	return txID, nil
 }

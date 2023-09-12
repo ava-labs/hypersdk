@@ -44,7 +44,8 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 
 const (
 	// metaDB
-	txPrefix = 0x0
+	txPrefix      = 0x0
+	addressPrefix = 0x1
 
 	// stateDB
 	balancePrefix      = 0x0
@@ -571,4 +572,23 @@ func OutgoingWarpKeyPrefix(txID ids.ID) (k []byte) {
 	k[0] = outgoingWarpPrefix
 	copy(k[1:], txID[:])
 	return k
+}
+
+func AddressKey() (k []byte) {
+	return []byte{addressPrefix}
+}
+
+func StoreAddress(_ context.Context, db database.KeyValueWriter, priv ed25519.PrivateKey) error {
+	return db.Put(AddressKey(), priv[:])
+}
+
+func GetAddress(_ context.Context, db database.KeyValueReader) (bool, ed25519.PrivateKey, error) {
+	v, err := db.Get(AddressKey())
+	if errors.Is(err, database.ErrNotFound) {
+		return false, ed25519.EmptyPrivateKey, nil
+	}
+	if err != nil {
+		return false, ed25519.EmptyPrivateKey, err
+	}
+	return true, ed25519.PrivateKey(v), nil
 }

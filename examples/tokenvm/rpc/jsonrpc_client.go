@@ -161,7 +161,7 @@ func (cli *JSONRPCClient) Loan(
 	return resp.Amount, err
 }
 
-func (cli *JSONRPCClient) Challenge(ctx context.Context) ([]byte, uint8, error) {
+func (cli *JSONRPCClient) Challenge(ctx context.Context) ([]byte, uint16, error) {
 	resp := new(ChallengeReply)
 	err := cli.requester.SendRequest(
 		ctx,

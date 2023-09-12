@@ -157,7 +157,7 @@ func (j *JSONRPCServer) Loan(req *http.Request, args *LoanArgs, reply *LoanReply
 
 type ChallengeReply struct {
 	Salt       []byte `json:"salt"`
-	Difficulty uint8  `json:"difficulty"`
+	Difficulty uint16 `json:"difficulty"`
 }
 
 func (j *JSONRPCServer) Challenge(req *http.Request, _ *struct{}, reply *ChallengeReply) (err error) {
