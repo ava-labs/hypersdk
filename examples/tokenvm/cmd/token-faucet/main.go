@@ -6,9 +6,16 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net"
 	"os"
+	"sync"
+	"time"
 
+	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/server"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/pubsub"
@@ -17,11 +24,12 @@ import (
 )
 
 type Config struct {
-	TokenRPC string `json:"tokenRPC"`
-	Port     int    `json:"port"`
+	HTTPHost string `json:"host"`
+	HTTPPort int    `json:"port"`
 
 	PrivateKey ed25519.PrivateKey `json:"privateKey"`
 
+	TokenRPC              string `json:"tokenRPC"`
 	Amount                uint64 `json:"amount"`
 	StartDifficulty       uint16 `json:"startDifficulty"`
 	SolutionsPerSalt      int    `json:"solutionsPerSalt"`
@@ -29,6 +37,16 @@ type Config struct {
 }
 
 func main() {
+	logFactory := logging.NewFactory(logging.Config{
+		DisplayLevel: logging.Info,
+	})
+	l, err := logFactory.Make("main")
+	if err != nil {
+		utils.Outf("{{red}}unable to initialize logger{{/}}: %v\n", err)
+		os.Exit(1)
+	}
+	log := l
+
 	// Load config
 	if len(os.Args) != 2 {
 		utils.Outf("{{red}}no config file specified{{/}}\n")
@@ -92,4 +110,32 @@ func main() {
 	tcli := trpc.NewJSONRPCClient(config.TokenRPC, networkID, chainID)
 
 	// Create server
+	listenAddress := net.JoinHostPort(config.HTTPHost, fmt.Sprintf("%d", config.HTTPPort))
+	listener, err := net.Listen("tcp", listenAddress)
+	if err != nil {
+		utils.Outf("{{red}}cannot create listener{{/}}: %v\n", err)
+		os.Exit(1)
+	}
+	srv, err := server.New("", log, listener, []string{"*"}, 30*time.Second, server.HTTPConfig{
+		ReadTimeout:       30 * time.Second,
+		ReadHeaderTimeout: 30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}, []string{"*"})
+	if err != nil {
+		utils.Outf("{{red}}cannot create server{{/}}: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Add faucet handler
+	if err := srv.AddRoute(&common.HTTPHandler{
+		LockOptions: common.NoLock,
+	}, &sync.RWMutex{}, "faucet", ""); err != nil {
+		utils.Outf("{{red}}cannot add faucet route{{/}}: %v\n", err)
+		os.Exit(1)
+	}
+	if err := srv.Dispatch(); err != nil {
+		utils.Outf("{{red}}server exited ungracefully{{/}}: %v\n", err)
+		os.Exit(1)
+	}
 }
