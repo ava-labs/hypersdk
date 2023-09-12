@@ -30,6 +30,68 @@ var actionCmd = &cobra.Command{
 	},
 }
 
+var fundFaucetsCmd = &cobra.Command{
+	Use: "fund-faucets",
+	RunE: func(*cobra.Command, []string) error {
+		ctx := context.Background()
+		chainID, priv, factory, cli, scli, tcli, err := handler.DefaultActor()
+		if err != nil {
+			return err
+		}
+
+		// Get all URIs
+		_, uris, err := handler.h.GetDefaultChain()
+		if err != nil {
+			return err
+		}
+
+		// Get balance
+		_, decimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), ids.Empty, true)
+		if balance == 0 || err != nil {
+			return err
+		}
+
+		// Select amount
+		amount, err := handler.Root().PromptAmount("amount", decimals, balance/uint64(len(uris)), nil)
+		if err != nil {
+			return err
+		}
+
+		// Confirm action
+		cont, err := handler.Root().PromptContinue()
+		if !cont || err != nil {
+			return err
+		}
+
+		// Generate transactions
+		networkID, _, _, err := cli.Network(context.TODO())
+		if err != nil {
+			return err
+		}
+		for _, uri := range uris {
+			fcli := trpc.NewJSONRPCClient(uri, networkID, chainID)
+			faucetAddress, err := fcli.FaucetAddress(ctx)
+			if err != nil {
+				hutils.Outf("{{orange}}skipping faucet (%v):{{/}} %s\n", err, uri)
+				continue
+			}
+			pk, err := utils.ParseAddress(faucetAddress)
+			if err != nil {
+				hutils.Outf("{{orange}}skipping faucet (%v):{{/}} %s\n", err, uri)
+				continue
+			}
+			if _, _, err = sendAndWait(ctx, nil, &actions.Transfer{
+				To:    pk,
+				Asset: ids.Empty,
+				Value: amount,
+			}, cli, scli, tcli, factory, true); err != nil {
+				return err
+			}
+		}
+		return nil
+	},
+}
+
 var transferCmd = &cobra.Command{
 	Use: "transfer",
 	RunE: func(*cobra.Command, []string) error {

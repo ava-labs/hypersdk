@@ -155,6 +155,22 @@ func (j *JSONRPCServer) Loan(req *http.Request, args *LoanArgs, reply *LoanReply
 	return nil
 }
 
+type FaucetAddressReply struct {
+	Address string `json:"address"`
+}
+
+func (j *JSONRPCServer) FaucetAddress(req *http.Request, _ *struct{}, reply *FaucetAddressReply) (err error) {
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.FaucetAddress")
+	defer span.End()
+
+	addr, err := j.c.GetFaucetAddress(ctx)
+	if err != nil {
+		return err
+	}
+	reply.Address = utils.Address(addr)
+	return nil
+}
+
 type ChallengeReply struct {
 	Salt       []byte `json:"salt"`
 	Difficulty uint16 `json:"difficulty"`

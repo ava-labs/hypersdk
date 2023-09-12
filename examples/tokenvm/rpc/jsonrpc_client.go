@@ -161,6 +161,17 @@ func (cli *JSONRPCClient) Loan(
 	return resp.Amount, err
 }
 
+func (cli *JSONRPCClient) FaucetAddress(ctx context.Context) (string, error) {
+	resp := new(FaucetAddressReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"faucetAddress",
+		nil,
+		resp,
+	)
+	return resp.Address, err
+}
+
 func (cli *JSONRPCClient) Challenge(ctx context.Context) ([]byte, uint16, error) {
 	resp := new(ChallengeReply)
 	err := cli.requester.SendRequest(

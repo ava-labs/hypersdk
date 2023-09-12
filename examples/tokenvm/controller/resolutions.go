@@ -72,6 +72,13 @@ func (c *Controller) GetLoanFromState(
 	return storage.GetLoanFromState(ctx, c.inner.ReadState, asset, destination)
 }
 
+func (c *Controller) GetFaucetAddress(_ context.Context) (ed25519.PublicKey, error) {
+	if c.config.GetFaucetAmount() == 0 {
+		return ed25519.EmptyPublicKey, errors.New("faucet disabled")
+	}
+	return c.faucetKey.PublicKey(), nil
+}
+
 func (c *Controller) GetChallenge(_ context.Context) ([]byte, uint16, error) {
 	if c.config.GetFaucetAmount() == 0 {
 		return nil, 0, errors.New("faucet disabled")
