@@ -78,14 +78,6 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 
 	linker := wasmtime.NewLinker(r.store.Engine)
 
-	f1 := func(id int64, keyPtr int32, keyLength int32) int32 {
-		return 0
-	}
-
-	f2 := func(id int64, keyPtr int32, keyLength int32, something int32) int32 {
-		return 0
-	}
-
 	// TODO: remove
 	// initialize wasi
 	wcfg := wasmtime.NewWasiConfig()
@@ -100,15 +92,19 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
 
 	mapMod := NewMapModule(r.log, nil)
 
-	linker.DefineFunc(r.store, "map", "store_bytes", mapMod.storeBytesWasmtime)
-	linker.DefineFunc(r.store, "map", "get_bytes_len", f1)
-	linker.DefineFunc(r.store, "map", "get_bytes", f2)
+	linker.DefineFunc(r.store, "map", "store_bytes", mapMod.storeBytesWasmtimeFn)
+	linker.DefineFunc(r.store, "map", "get_bytes_len", mapMod.getBytesLenWasmtimeFn)
+	linker.DefineFunc(r.store, "map", "get_bytes", mapMod.getBytesWasmtimeFn)
+
+	// the exported 'memory' function is injected into WASM during the compilation.
 
 	r.mod, err = linker.Instantiate(r.store,module)
 	if err != nil {
 		return err
 	}
 
+	mapMod.Mod = r.mod
+	mapMod.Store = r.store
 
 	return nil
 }
@@ -142,11 +138,18 @@ func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]ui
 		return nil, fmt.Errorf("failed to call %s: %w", name, err)
 	}
 
-	return []uint64{uint64(result.(int32))}, nil
+	switch v := result.(type) {
+	case int32: 
+		return []uint64{uint64(result.(int32))}, nil
+	case int64: 
+		return []uint64{uint64(result.(int64))}, nil
+	default:
+		return nil, fmt.Errorf("invalid type %v", v)
+	}
 }
 
 func (r *runtime) GetGuestBuffer(offset uint32, length uint32) ([]byte, bool) {
-	return []byte{}, false	
+	return utils.GetBufferWasmtime(r.mod, r.store, offset, length)
 }
 
 // TODO: ensure deallocate on Stop.

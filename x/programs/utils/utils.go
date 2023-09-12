@@ -7,6 +7,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+		"runtime"
+
+
+	"github.com/bytecodealliance/wasmtime-go/v12"
 
 	"github.com/tetratelabs/wazero/api"
 
@@ -63,10 +67,53 @@ func WriteBuffer(ctx context.Context, mod api.Module, buffer []byte) (uint64, er
 	return ptr, nil
 }
 
+func WriteBufferWasmtime(mod *wasmtime.Instance, store *wasmtime.Store, buffer []byte) (uint64, error) {
+	alloc := mod.GetExport(store, "alloc")
+	if alloc == nil {
+		return 0, fmt.Errorf("module doesn't have an exported function named 'alloc'")
+	}
+	result, err := alloc.Func().Call(store, int32(len(buffer)))
+	if err != nil {
+		return 0, err
+	}
+
+	ptr := result.(int32)
+
+    memory := mod.GetExport(store, "memory").Memory()
+	size := memory.DataSize(store)
+
+	// verify available memory is large enough
+	if uint64(ptr)+uint64(len(buffer)) > uint64(size) {
+		return 0, fmt.Errorf("memory not large enough")
+	}
+
+	buf := memory.UnsafeData(store)
+
+	copy(buf[ptr:], buffer)
+
+	return uint64(ptr), nil
+}
+
+
 // GetBuffer returns the buffer at [ptr] with length [length]. Returns
 // false if out of range.
 func GetBuffer(mod api.Module, ptr uint32, length uint32) ([]byte, bool) {
 	return mod.Memory().Read(ptr, length)
+}
+
+func GetBufferWasmtime(mod *wasmtime.Instance, store *wasmtime.Store, offset uint32, length uint32) ([]byte, bool) {
+	memory := mod.GetExport(store, "memory").Memory()
+	size := memory.DataSize(store)
+
+	// verify available memory is large enough
+	if uint64(offset)+uint64(length) > uint64(size) {
+		return nil, false
+	}
+
+	runtime.KeepAlive(memory)
+	buf := memory.UnsafeData(store)
+
+	return buf[offset:offset+length], true
 }
 
 func GetProgramBytes(filePath string) ([]byte, error) {

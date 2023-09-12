@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 wasmlanche_sdk = { version = "0.1.0", path = "../../wasmlanche_sdk" }
+getrandom = { version = "0.2", features = ["js"] }
 
 [lib]
 crate-type = ["cdylib"] # set the crate(needed for cargo build to work properly)

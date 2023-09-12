@@ -55,7 +55,20 @@ func BenchmarkTokenWazeroProgram(b *testing.B) {
 	require := require.New(b)
 	program := NewTokenWazero(log, tokenProgramBytes, maxGas, costMap)
 	b.ResetTimer()
-	b.Run("benchmark_token_program", func(b *testing.B) {
+	b.Run("benchmark_token_program_wazero", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			err := program.Run(context.Background())
+			require.NoError(err)
+		}
+	})
+}
+
+
+func BenchmarkTokenWasmtimeProgram(b *testing.B) {
+	require := require.New(b)
+	program := NewTokenWasmtime(log, tokenProgramBytes, maxGas, costMap)
+	b.ResetTimer()
+	b.Run("benchmark_token_program_wasmtime", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			err := program.Run(context.Background())
 			require.NoError(err)

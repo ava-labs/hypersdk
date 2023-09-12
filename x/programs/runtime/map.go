@@ -5,7 +5,9 @@ package runtime
 
 import (
 	"context"
+	// "fmt"
 
+	"github.com/bytecodealliance/wasmtime-go/v12"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"go.uber.org/zap"
@@ -33,6 +35,9 @@ type storage struct {
 type MapModule struct {
 	meter Meter
 	log   logging.Logger
+
+	Mod   *wasmtime.Instance
+	Store  *wasmtime.Store
 }
 
 // NewMapModule returns a new map host module which can manage in memory state.
@@ -42,6 +47,7 @@ func NewMapModule(log logging.Logger, meter Meter) *MapModule {
 	return &MapModule{
 		meter: meter,
 		log:   log,
+		
 	}
 }
 
@@ -95,12 +101,32 @@ func (m *MapModule) storeBytesFn(_ context.Context, mod api.Module, id int64, ke
 	return mapOk
 }
 
-func (m *MapModule) storeBytesWasmtime(id int64, keyPtr int32, keyLength int32, valuePtr int32, valueLength int32) int32 {
+func (m *MapModule) storeBytesWasmtimeFn(id int64, keyPtr int32, keyLength int32, valuePtr int32, valueLength int32) int32 {
 	_, ok := GlobalStorage.state[int64(id)]
 	if !ok {
 		m.log.Error("failed to find program id in storage")
 		return mapErr
 	}
+
+	// fmt.Printf("store bytes before: %v", st)
+
+	keyBuf, ok := utils.GetBufferWasmtime(m.Mod, m.Store, uint32(keyPtr), uint32(keyLength))
+	if !ok {
+		return mapErr
+	}
+
+	valBuf, ok := utils.GetBufferWasmtime(m.Mod, m.Store, uint32(valuePtr), uint32(valueLength))
+	if !ok {
+		return mapErr
+	}
+
+	// Need to copy the value because the GC can collect the value after this function returns
+	copiedValue := make([]byte, len(valBuf))
+	copy(copiedValue, valBuf)
+	GlobalStorage.state[id][string(keyBuf)] = copiedValue
+
+
+	// fmt.Printf("store bytes after: %v", GlobalStorage.state[id])
 	return 0
 }
 
@@ -111,6 +137,23 @@ func (m *MapModule) getBytesLenFn(_ context.Context, mod api.Module, id int64, k
 		return mapErr
 	}
 	buf, ok := utils.GetBuffer(mod, keyPtr, keyLength)
+	if !ok {
+		return mapErr
+	}
+	val, ok := GlobalStorage.state[id][string(buf)]
+	if !ok {
+		return mapErr
+	}
+	return int32(len(val))
+}
+
+func (m *MapModule) getBytesLenWasmtimeFn(id int64, keyPtr int32, keyLength int32) int32 {
+	_, ok := GlobalStorage.state[id]
+	if !ok {
+		m.log.Error("failed to find program id in storage")
+		return mapErr
+	}
+	buf, ok := utils.GetBufferWasmtime(m.Mod,m.Store, uint32(keyPtr), uint32(keyLength))
 	if !ok {
 		return mapErr
 	}
@@ -152,6 +195,37 @@ func (m *MapModule) getBytesFn(ctx context.Context, mod api.Module, id int64, ke
 		m.log.Error("failed to write value to memory")
 		return mapErr
 	}
+
+	return int32(ptr)
+}
+
+func (m *MapModule) getBytesWasmtimeFn(id int64, keyPtr int32, keyLength int32, valLength int32) int32 {
+	// Ensure the key and value lengths are positive
+	if valLength < 0 || keyLength < 0 {
+		m.log.Error("key or value length is negative")
+		return mapErr
+	}
+	_, ok := GlobalStorage.state[id]
+	if !ok {
+		m.log.Error("failed to find program id in storage")
+		return mapErr
+	}
+	buf, ok := utils.GetBufferWasmtime(m.Mod,m.Store, uint32(keyPtr), uint32(keyLength))
+	if !ok {
+		return mapErr
+	}
+	val, ok := GlobalStorage.state[id][string(buf)]
+	if !ok {
+		return mapErr
+	}
+
+	// write to memory
+	ptr, err:= utils.WriteBufferWasmtime(m.Mod, m.Store, val)
+	if err != nil {
+       m.log.Error("failed to find program id in storage", zap.Error(err))
+		return mapErr
+	}
+	
 
 	return int32(ptr)
 }
