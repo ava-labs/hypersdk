@@ -7,17 +7,22 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/utils"
+	"go.uber.org/zap"
 )
 
 func (c *Controller) Genesis() *genesis.Genesis {
@@ -83,9 +88,42 @@ func (c *Controller) sendFunds(ctx context.Context, destination ed25519.PublicKe
 		return ids.Empty, err
 	}
 
+	unitPrices, err := c.inner.UnitPrices(ctx)
+	if err != nil {
+		return ids.Empty, err
+	}
+
+	action := &actions.Transfer{
+		To:    destination,
+		Asset: ids.Empty,
+		Value: amount,
+	}
+	factory := auth.NewED25519Factory(c.faucetKey)
+	now := time.Now().UnixMilli()
+	rules := c.inner.Rules(now)
+	maxUnits, err := chain.EstimateMaxUnits(rules, action, factory, nil)
+	if err != nil {
+		return ids.Empty, err
+	}
+	maxFee, err := chain.MulSum(unitPrices, maxUnits)
+	if err != nil {
+		return ids.Empty, err
+	}
 	if bal < maxFee+amount {
 		return ids.Empty, errors.New("insufficient balance")
 	}
+	base := &chain.Base{
+		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
+		ChainID:   rules.ChainID(),
+		MaxFee:    maxFee,
+	}
+	tx := chain.NewTx(base, nil, action)
+	signedTx, err := tx.Sign(factory, consts.ActionRegistry, consts.AuthRegistry)
+	if err != nil {
+		return ids.Empty, err
+	}
+	errs := c.inner.Submit(ctx, false, []*chain.Transaction{signedTx})
+	return signedTx.ID(), errs[0]
 }
 
 // TODO: increase difficulty if solutions/minute greater than target
@@ -111,6 +149,7 @@ func (c *Controller) SolveChallenge(ctx context.Context, solver ed25519.PublicKe
 	if err != nil {
 		return ids.Empty, err
 	}
+	c.snowCtx.Log.Info("sent funds", zap.String("destination", ""), zap.String("amount", utils.FormatBalance(c.config.GetFaucetAmount(), consts.Decimals)))
 	c.solutions.Add(solutionID)
 	if c.solutions.Len() < c.config.GetFaucetSolutionsPerSalt() {
 		return txID, nil
