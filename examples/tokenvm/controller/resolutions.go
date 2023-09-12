@@ -162,7 +162,7 @@ func (c *Controller) SolveChallenge(ctx context.Context, solver ed25519.PublicKe
 	c.snowCtx.Log.Info("fauceted funds",
 		zap.Stringer("txID", txID),
 		zap.String("max fee", utils.FormatBalance(maxFee, consts.Decimals)),
-		zap.String("destination", tutils.Address(c.faucetKey.PublicKey())),
+		zap.String("destination", tutils.Address(solver)),
 		zap.String("amount", utils.FormatBalance(c.config.GetFaucetAmount(), consts.Decimals)),
 	)
 	c.solutions.Add(solutionID)
@@ -180,6 +180,7 @@ func (c *Controller) SolveChallenge(ctx context.Context, solver ed25519.PublicKe
 		c.difficulty--
 		c.snowCtx.Log.Info("decreasing faucet difficulty", zap.Uint16("difficulty", c.difficulty))
 	}
+	c.lastRotation = time.Now().Unix()
 	c.salt, err = challenge.New()
 	if err != nil {
 		// Should never happen
