@@ -5,14 +5,18 @@ package cmd
 
 import (
 	"context"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/utils"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 
+	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
+	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
 var keyCmd = &cobra.Command{
@@ -77,5 +81,30 @@ var balanceKeyCmd = &cobra.Command{
 	Use: "balance",
 	RunE: func(*cobra.Command, []string) error {
 		return handler.Root().Balance(checkAllChains, true, lookupKeyBalance)
+	},
+}
+
+var faucetKeyCmd = &cobra.Command{
+	Use: "faucet",
+	RunE: func(*cobra.Command, []string) error {
+		ctx := context.Background()
+		_, priv, _, _, _, tcli, err := handler.DefaultActor()
+		if err != nil {
+			return err
+		}
+		salt, difficulty, err := tcli.Challenge(ctx)
+		if err != nil {
+			return err
+		}
+		utils.Outf("{{yellow}}searching for faucet solutions (difficulty: %d)...{{/}}\n", difficulty)
+		start := time.Now()
+		solution := challenge.Search(salt, difficulty, numCores)
+		utils.Outf("{{cyan}}found solution after %s{{/}}\n", time.Since(start))
+		txID, err := tcli.SolveChallenge(ctx, tutils.Address(priv.PublicKey()), salt, solution)
+		if err != nil {
+			return err
+		}
+		utils.Outf("{{green}}fauceted funds incoming:{{/}} %s\n", txID)
+		return nil
 	},
 }
