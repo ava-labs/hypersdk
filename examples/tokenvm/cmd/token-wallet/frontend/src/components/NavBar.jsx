@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { GetBalance, GetTransactions, GetAddress } from "../../wailsjs/go/main/App";
-import { DashboardOutlined, BankOutlined, SendOutlined, SwapOutlined, GoldOutlined, UpCircleTwoTone, DownCircleTwoTone } from "@ant-design/icons";
-import { Layout, Menu, Typography, Drawer, List, Divider, message } from "antd";
+import { WalletTwoTone, DashboardOutlined, BankOutlined, SendOutlined, SwapOutlined, GoldOutlined, UpCircleTwoTone, DownCircleTwoTone } from "@ant-design/icons";
+import { App, Layout, Menu, Typography, Drawer, List, Divider } from "antd";
 const { Text, Title, Link } = Typography;
 import { Link as RLink } from "react-router-dom";
 import logo from "../assets/images/logo-universal.jpeg";
@@ -35,7 +35,7 @@ const items = [
 ];
 
 const NavBar = () => {
-  const [messageApi, contextHolder] = message.useMessage();
+  const { message } = App.useApp();
   const [balance, setBalance] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [address, setAddress] = useState("");
@@ -65,8 +65,8 @@ const NavBar = () => {
         const txs = await GetTransactions();
         if (txs.Alerts !== null) {
           for (var Alert of txs.Alerts) {
-            messageApi.open({
-              type: Alert.Type, content: Alert.Content,
+            message.open({
+              icon: <WalletTwoTone />, type: Alert.Type, content: Alert.Content,
             });
           }
         }
@@ -85,7 +85,6 @@ const NavBar = () => {
 
   return (
     <>
-    {contextHolder}
     <Layout.Header theme="light" style={{ background: "white" }}>
       <div
         className="logo"
@@ -131,10 +130,10 @@ const NavBar = () => {
             <div>
               <Text strong>{item.ID} </Text>
               {item.Created &&
-                <UpCircleTwoTone twoToneColor="red" />
+                <UpCircleTwoTone twoToneColor="#eb2f96" />
               }
               {!item.Created &&
-                <DownCircleTwoTone twoToneColor="green" />
+                <DownCircleTwoTone twoToneColor="#52c41a" />
               }
             </div>
             <Text strong>Type:</Text> {item.Type}

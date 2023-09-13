@@ -858,7 +858,7 @@ func (a *App) StartFaucetSearch() (*FaucetSearchInfo, error) {
 		if err == nil {
 			a.search.TxID = txID.String()
 			a.search.Amount = fmt.Sprintf("%s %s", hutils.FormatBalance(amount, tconsts.Decimals), tconsts.Symbol)
-			a.searchAlerts = append(a.searchAlerts, &Alert{"success", fmt.Sprintf("Search Successful [Attempts=%d]", attempts)})
+			a.searchAlerts = append(a.searchAlerts, &Alert{"success", fmt.Sprintf("Search Successful [Attempts: %d, Elapsed: %s]", attempts, a.search.Elapsed)})
 		} else {
 			a.search.Err = err.Error()
 			a.searchAlerts = append(a.searchAlerts, &Alert{"error", fmt.Sprintf("Search Failed: %v", err)})

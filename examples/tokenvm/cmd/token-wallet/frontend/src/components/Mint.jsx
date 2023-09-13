@@ -1,15 +1,15 @@
 import {useEffect, useState} from "react";
 import { GetMyAssets, CreateAsset, MintAsset, GetBalance, GetAddress } from "../../wailsjs/go/main/App";
 import { PlusOutlined } from "@ant-design/icons";
-import { Layout, Input, InputNumber, Space, Typography, Divider, List, Card, Col, Row, Tooltip, Button, Drawer, FloatButton, Form, message } from "antd";
+import { App, Layout, Input, InputNumber, Space, Typography, Divider, List, Card, Col, Row, Tooltip, Button, Drawer, FloatButton, Form } from "antd";
 import { Area, Line } from '@ant-design/plots';
 const { Title, Text } = Typography;
 const { Sider, Content } = Layout;
 
 const Mint = () => {
+    const { message } = App.useApp();
     const [assets, setAssets] = useState([]);
     const [address, setAddress] = useState("");
-    const [messageApi, contextHolder] = message.useMessage();
     const [openCreate, setOpenCreate] = useState(false);
     const [openMint, setOpenMint] = useState(false);
     const [mintFocus, setMintFocus] = useState({});
@@ -32,17 +32,17 @@ const Mint = () => {
       createForm.resetFields();
       setOpenCreate(false);
 
-      messageApi.open({key, type: "loading", content: "Issuing Transaction...", duration:0});
+      message.open({key, type: "loading", content: "Issuing Transaction...", duration:0});
       (async () => {
         try {
           const start = (new Date()).getTime();
           await CreateAsset(values.Symbol, values.Decimals, values.Metadata);
           const finish = (new Date()).getTime();
-          messageApi.open({
+          message.open({
             key, type: "success", content: `Transaction Finalized (${finish-start} ms)`,
           });
         } catch (e) {
-          messageApi.open({
+          message.open({
             key, type: "error", content: e.toString(),
           });
         }
@@ -73,20 +73,18 @@ const Mint = () => {
       mintForm.resetFields();
       setOpenMint(false);
 
-      messageApi.open({type: "loading", content: "Issuing Transaction...", duration:0});
+      message.open({key, type: "loading", content: "Issuing Transaction...", duration:0});
       (async () => {
         try {
           const start = (new Date()).getTime();
           await MintAsset(mintFocus.ID, values.Address, values.Amount);
           const finish = (new Date()).getTime();
-          messageApi.destroy();
-          messageApi.open({
-            type: "success", content: `Transaction Finalized (${finish-start} ms)`,
+          message.open({
+            key, type: "success", content: `Transaction Finalized (${finish-start} ms)`,
           });
         } catch (e) {
-          messageApi.destroy();
-          messageApi.open({
-            type: "error", content: e.toString(),
+          message.open({
+            key, type: "error", content: e.toString(),
           });
         }
       })();
@@ -117,7 +115,6 @@ const Mint = () => {
     }, []);
 
     return (<>
-            {contextHolder}
             <FloatButton icon={<PlusOutlined />} type="primary" onClick={showCreateDrawer} />
             <Divider orientation="center">
               Tokens

@@ -1,16 +1,16 @@
 import {useEffect, useState} from "react";
 import {GetLatestBlocks,GetTransactionStats,GetAccountStats,GetUnitPrices,GetChainID} from "../../wailsjs/go/main/App";
-import {Space, Typography, Divider, List, Card, Col, Row, Tooltip, message} from "antd";
+import { App, Space, Typography, Divider, List, Card, Col, Row, Tooltip } from "antd";
 import { Area, Line } from '@ant-design/plots';
 const { Title, Text } = Typography;
 
 const Explorer = () => {
+    const { message } = App.useApp();
     const [blocks, setBlocks] = useState([]);
     const [transactionStats, setTransactionStats] = useState([]);
     const [accountStats, setAccountStats] = useState([]);
     const [unitPrices, setUnitPrices] = useState([]);
     const [chainID, setChainID] = useState("");
-    const [messageApi, contextHolder] = message.useMessage();
 
     useEffect(() => {
         const getLatestBlocks = async () => {
@@ -19,7 +19,7 @@ const Explorer = () => {
                     setBlocks(blocks);
                 })
                 .catch((error) => {
-                    messageApi.open({
+                    message.open({
                         type: "error", content: error,
                     });
                 });
@@ -31,7 +31,7 @@ const Explorer = () => {
                     setChainID(chainID);
                 })
                 .catch((error) => {
-                    messageApi.open({
+                    message.open({
                         type: "error", content: error,
                     });
                 });
@@ -44,7 +44,7 @@ const Explorer = () => {
                     setTransactionStats(stats);
                 })
                 .catch((error) => {
-                    messageApi.open({
+                    message.open({
                         type: "error", content: error,
                     });
                 });
@@ -56,7 +56,7 @@ const Explorer = () => {
                     setAccountStats(stats);
                 })
                 .catch((error) => {
-                    messageApi.open({
+                    message.open({
                         type: "error", content: error,
                     });
                 });
@@ -68,7 +68,7 @@ const Explorer = () => {
                     setUnitPrices(prices);
                 })
                 .catch((error) => {
-                    messageApi.open({
+                    message.open({
                         type: "error", content: error,
                     });
                 });
@@ -89,7 +89,6 @@ const Explorer = () => {
     }, []);
 
     return (<>
-            {contextHolder}
             <Divider orientation="center">
               <Tooltip title="Last 2 Minutes">
                 Metrics

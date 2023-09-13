@@ -1,11 +1,11 @@
 import {useEffect, useState} from "react";
-import { Divider, List, Card, Typography, Form, Input, InputNumber, Button, Select, message } from "antd";
+import { App, Divider, List, Card, Typography, Form, Input, InputNumber, Button, Select, message } from "antd";
 import { CheckCircleTwoTone, CloseCircleTwoTone } from '@ant-design/icons';
 import { StartFaucetSearch, GetFaucetSolutions } from "../../wailsjs/go/main/App";
 const { Text, Title, Link } = Typography;
 
 const Faucet = () => {
-    const [messageApi, contextHolder] = message.useMessage();
+    const { message } = App.useApp();
     const [loaded, setLoaded] = useState(false);
     const [search, setSearch] = useState(null);
     const [solutions, setSolutions] = useState([]);
@@ -20,7 +20,7 @@ const Faucet = () => {
           const faucetSolutions = await GetFaucetSolutions();
           if (faucetSolutions.Alerts !== null) {
             for (var Alert of faucetSolutions.Alerts) {
-              messageApi.open({
+              message.open({
                 type: Alert.Type, content: Alert.Content,
               });
             }
@@ -39,7 +39,6 @@ const Faucet = () => {
     }, []);
 
     return (<>
-            {contextHolder}
             <Card bordered title={"Mine for Tokens"} style={{ margin: "auto" }}>
               {loaded && search === null &&
                 <div>
@@ -72,7 +71,7 @@ const Faucet = () => {
               <div>
                 <div>
                   <Text strong>{item.Solution} </Text>
-                  <CloseCircleTwoTone twoToneColor="red" />
+                  <CloseCircleTwoTone twoToneColor="#eb2f96" />
                 </div>
                 <Text strong>Salt:</Text> {item.Salt}
                 <br />
@@ -89,7 +88,7 @@ const Faucet = () => {
               <div>
                 <div>
                   <Text strong>{item.Solution} </Text>
-                  <CheckCircleTwoTone twoToneColor="green" />
+                  <CheckCircleTwoTone twoToneColor="#52c41a" />
                 </div>
                 <Text strong>Salt:</Text> {item.Salt}
                 <br />

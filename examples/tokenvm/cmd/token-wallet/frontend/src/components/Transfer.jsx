@@ -1,10 +1,10 @@
 import {useEffect, useState} from "react";
-import { Card, Form, Input, InputNumber, Button, Select, message } from "antd";
+import { App, Card, Form, Input, InputNumber, Button, Select } from "antd";
 import { GetBalance, Transfer as Send } from "../../wailsjs/go/main/App";
 
 const Transfer = () => {
+    const { message } = App.useApp();
     const [balance, setBalance] = useState([]);
-    const [messageApi, contextHolder] = message.useMessage();
     const [transferForm] = Form.useForm();
     const key = "updatable";
 
@@ -23,18 +23,18 @@ const Transfer = () => {
       console.log('Success:', values);
       transferForm.resetFields();
 
-      messageApi.open({key, type: "loading", content: "Issuing Transaction...", duration:0});
+      message.open({key, type: "loading", content: "Issuing Transaction...", duration:0});
       (async () => {
         try {
           const start = (new Date()).getTime();
           await Send(values.Asset, values.Address, values.Amount);
           const finish = (new Date()).getTime();
-          messageApi.open({
+          message.open({
             key, type: "success", content: `Transaction Finalized (${finish-start} ms)`,
           });
           getBalance();
         } catch (e) {
-          messageApi.open({
+          message.open({
             key, type: "error", content: e.toString(),
           });
         }
@@ -50,7 +50,6 @@ const Transfer = () => {
     }, []);
 
     return (<>
-            {contextHolder}
             <Card bordered title={"Send a Token"} style={{ width:"50%", margin: "auto" }}>
               <Form
                 name="basic"
