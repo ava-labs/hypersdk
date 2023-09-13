@@ -43,6 +43,11 @@ const (
 	searchCores  = 4 // TODO: expose to UI
 )
 
+type Alert struct {
+	Type    string
+	Content string
+}
+
 // App struct
 type App struct {
 	ctx context.Context
@@ -59,14 +64,16 @@ type App struct {
 	currentStat *TimeStat
 
 	// TODO: move this to DB
-	ownedAssets  []ids.ID
-	otherAssets  []ids.ID
-	transactions []*TransactionInfo
+	ownedAssets       []ids.ID
+	otherAssets       []ids.ID
+	transactions      []*TransactionInfo
+	transactionAlerts []*Alert
+	transactionLock   sync.Mutex
 
-	searchLock  sync.Mutex
-	search      *FaucetSearchInfo
-	solutions   []*FaucetSearchInfo
-	searchAlert bool
+	searchLock   sync.Mutex
+	search       *FaucetSearchInfo
+	solutions    []*FaucetSearchInfo
+	searchAlerts []*Alert
 }
 
 type TransactionInfo struct {
@@ -107,11 +114,13 @@ type BlockInfo struct {
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
-		log:          logger.NewDefaultLogger(),
-		blocks:       []*BlockInfo{},
-		stats:        []*TimeStat{},
-		transactions: []*TransactionInfo{},
-		solutions:    []*FaucetSearchInfo{},
+		log:               logger.NewDefaultLogger(),
+		blocks:            []*BlockInfo{},
+		stats:             []*TimeStat{},
+		transactions:      []*TransactionInfo{},
+		transactionAlerts: []*Alert{},
+		solutions:         []*FaucetSearchInfo{},
+		searchAlerts:      []*Alert{},
 	}
 }
 
@@ -252,6 +261,11 @@ func (a *App) collectBlocks() {
 				if action.To == pk {
 					txInfo.Created = false
 					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
+					if actor != pk {
+						a.transactionLock.Lock()
+						a.transactionAlerts = append(a.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s", hutils.FormatBalance(action.Value, decimals), symbol)})
+						a.transactionLock.Unlock()
+					}
 				} else if actor == pk {
 					txInfo.Created = true
 					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
@@ -293,6 +307,11 @@ func (a *App) collectBlocks() {
 						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
 						Summary:   fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To)),
 					}}, a.transactions...)
+					if actor != pk {
+						a.transactionLock.Lock()
+						a.transactionAlerts = append(a.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s", hutils.FormatBalance(action.Value, decimals), symbol)})
+						a.transactionLock.Unlock()
+					}
 				} else if actor == pk {
 					a.transactions = append([]*TransactionInfo{{
 						ID:        tx.ID().String(),
@@ -762,8 +781,21 @@ func (a *App) GetBalance() ([]*BalanceInfo, error) {
 	return balances, nil
 }
 
-func (a *App) GetTransactions() []*TransactionInfo {
-	return a.transactions
+type Transactions struct {
+	Alerts  []*Alert
+	TxInfos []*TransactionInfo
+}
+
+func (a *App) GetTransactions() *Transactions {
+	a.transactionLock.Lock()
+	defer a.transactionLock.Unlock()
+
+	var alerts []*Alert
+	if len(a.transactionAlerts) > 0 {
+		alerts = a.transactionAlerts
+		a.transactionAlerts = []*Alert{}
+	}
+	return &Transactions{alerts, a.transactions}
 }
 
 type FaucetSearchInfo struct {
@@ -819,18 +851,19 @@ func (a *App) StartFaucetSearch() (*FaucetSearchInfo, error) {
 		start := time.Now()
 		solution, attempts := challenge.Search(salt, difficulty, searchCores)
 		txID, amount, err := a.fcli.SolveChallenge(ctx, utils.Address(priv.PublicKey()), salt, solution)
+		a.searchLock.Lock()
 		a.search.Solution = hex.EncodeToString(solution)
 		a.search.Attempts = attempts
 		a.search.Elapsed = time.Since(start).String()
 		if err == nil {
 			a.search.TxID = txID.String()
 			a.search.Amount = fmt.Sprintf("%s %s", hutils.FormatBalance(amount, tconsts.Decimals), tconsts.Symbol)
+			a.searchAlerts = append(a.searchAlerts, &Alert{"success", fmt.Sprintf("Search Successful [Attempts=%d]", attempts)})
 		} else {
 			a.search.Err = err.Error()
+			a.searchAlerts = append(a.searchAlerts, &Alert{"error", fmt.Sprintf("Search Failed: %v", err)})
 		}
-		a.searchLock.Lock()
 		search := a.search
-		a.searchAlert = true
 		a.search = nil
 		a.solutions = append([]*FaucetSearchInfo{search}, a.solutions...)
 		a.searchLock.Unlock()
@@ -840,7 +873,7 @@ func (a *App) StartFaucetSearch() (*FaucetSearchInfo, error) {
 
 // Can only return a single object
 type FaucetSolutions struct {
-	Alert         bool
+	Alerts        []*Alert
 	CurrentSearch *FaucetSearchInfo
 	PastSearches  []*FaucetSearchInfo
 }
@@ -849,11 +882,11 @@ func (a *App) GetFaucetSolutions() *FaucetSolutions {
 	a.searchLock.Lock()
 	defer a.searchLock.Unlock()
 
-	var alert bool
-	if a.searchAlert {
-		alert = true
-		a.searchAlert = false
+	var alerts []*Alert
+	if len(a.searchAlerts) > 0 {
+		alerts = a.searchAlerts
+		a.searchAlerts = []*Alert{}
 	}
 
-	return &FaucetSolutions{alert, a.search, a.solutions}
+	return &FaucetSolutions{alerts, a.search, a.solutions}
 }

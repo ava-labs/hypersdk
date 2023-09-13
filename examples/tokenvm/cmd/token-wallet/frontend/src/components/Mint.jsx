@@ -15,6 +15,7 @@ const Mint = () => {
     const [mintFocus, setMintFocus] = useState({});
     const [createForm] = Form.useForm();
     const [mintForm] = Form.useForm();
+    const key = "updatable";
 
     {/* Create Handlers */}
     const showCreateDrawer = () => {
@@ -31,20 +32,18 @@ const Mint = () => {
       createForm.resetFields();
       setOpenCreate(false);
 
-      messageApi.open({type: "loading", content: "Issuing Transaction...", duration:0});
+      messageApi.open({key, type: "loading", content: "Issuing Transaction...", duration:0});
       (async () => {
         try {
           const start = (new Date()).getTime();
           await CreateAsset(values.Symbol, values.Decimals, values.Metadata);
           const finish = (new Date()).getTime();
-          messageApi.destroy();
           messageApi.open({
-            type: "success", content: `Transaction Finalized (${finish-start} ms)`,
+            key, type: "success", content: `Transaction Finalized (${finish-start} ms)`,
           });
         } catch (e) {
-          messageApi.destroy();
           messageApi.open({
-            type: "error", content: e.toString(),
+            key, type: "error", content: e.toString(),
           });
         }
       })();

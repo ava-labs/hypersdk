@@ -6,6 +6,7 @@ const Transfer = () => {
     const [balance, setBalance] = useState([]);
     const [messageApi, contextHolder] = message.useMessage();
     const [transferForm] = Form.useForm();
+    const key = "updatable";
 
     const getBalance = async () => {
         const bals = await GetBalance();
@@ -22,21 +23,19 @@ const Transfer = () => {
       console.log('Success:', values);
       transferForm.resetFields();
 
-      messageApi.open({type: "loading", content: "Issuing Transaction...", duration:0});
+      messageApi.open({key, type: "loading", content: "Issuing Transaction...", duration:0});
       (async () => {
         try {
           const start = (new Date()).getTime();
           await Send(values.Asset, values.Address, values.Amount);
           const finish = (new Date()).getTime();
-          messageApi.destroy();
           messageApi.open({
-            type: "success", content: `Transaction Finalized (${finish-start} ms)`,
+            key, type: "success", content: `Transaction Finalized (${finish-start} ms)`,
           });
           getBalance();
         } catch (e) {
-          messageApi.destroy();
           messageApi.open({
-            type: "error", content: e.toString(),
+            key, type: "error", content: e.toString(),
           });
         }
       })();

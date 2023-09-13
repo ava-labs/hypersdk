@@ -63,7 +63,14 @@ const NavBar = () => {
 
     const getTransactions = async () => {
         const txs = await GetTransactions();
-        setTransactions(txs);
+        if (txs.Alerts !== null) {
+          for (var Alert of txs.Alerts) {
+            messageApi.open({
+              type: Alert.Type, content: Alert.Content,
+            });
+          }
+        }
+        setTransactions(txs.TxInfos);
     };
 
     getBalance();
@@ -77,6 +84,8 @@ const NavBar = () => {
   }, []);
 
   return (
+    <>
+    {contextHolder}
     <Layout.Header theme="light" style={{ background: "white" }}>
       <div
         className="logo"
@@ -144,6 +153,7 @@ const NavBar = () => {
       />
     </Drawer>
     </Layout.Header>
+    </>
   );
 };
 

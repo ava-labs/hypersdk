@@ -20,7 +20,7 @@ export function GetMyAssets():Promise<Array<main.AssetInfo>>;
 
 export function GetTransactionStats():Promise<Array<main.GenericInfo>>;
 
-export function GetTransactions():Promise<Array<main.TransactionInfo>>;
+export function GetTransactions():Promise<main.Transactions>;
 
 export function GetUnitPrices():Promise<Array<main.GenericInfo>>;
 

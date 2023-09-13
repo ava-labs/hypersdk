@@ -18,15 +18,10 @@ const Faucet = () => {
     useEffect(() => {
       const getFaucetSolutions = async () => {
           const faucetSolutions = await GetFaucetSolutions();
-          if (faucetSolutions.Alert) {
-            const lastSolution = faucetSolutions.PastSearches[0];
-            if (lastSolution.Err.length == 0) {
+          if (faucetSolutions.Alerts !== null) {
+            for (var Alert of faucetSolutions.Alerts) {
               messageApi.open({
-                type: "success", content: `Search Successful (attempts: ${lastSolution.Attempts}, amount: ${lastSolution.Amount})`,
-              });
-            } else {
-              messageApi.open({
-                type: "error", content: `Search Unsucessful: ${lastSolution.Err}`,
+                type: Alert.Type, content: Alert.Content,
               });
             }
           }

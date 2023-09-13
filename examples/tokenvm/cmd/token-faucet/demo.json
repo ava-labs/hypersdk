@@ -4,7 +4,7 @@
   "privateKeyBytes": "933IN5CnG5Qls9+BtdOsfwWrSTSeKB3ephZ6EAWeLWwg/d/FFTpFKk8qrIvMghyxug45iZL76WowpCCOIVgNpw==",
   "tokenRPC": "http://127.0.0.1:53049/ext/bc/21fDkR1cKc4xfLivTWFdHBjYcyCpfTGLsvxSfh9tC1Mb73BeyM",
   "amount": 100000000,
-  "startDifficulty": 29,
+  "startDifficulty": 22,
   "solutionsPerSalt": 10,
   "targetDurationPerSalt": 360
 }
