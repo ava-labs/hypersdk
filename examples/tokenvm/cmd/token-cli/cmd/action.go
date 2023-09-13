@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
+	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/pubsub"
@@ -30,17 +31,24 @@ var actionCmd = &cobra.Command{
 	},
 }
 
-var fundFaucetsCmd = &cobra.Command{
-	Use: "fund-faucets",
+var fundFaucetCmd = &cobra.Command{
+	Use: "fund-faucet",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		chainID, priv, factory, cli, scli, tcli, err := handler.DefaultActor()
+
+		// Get faucet
+		faucetURI, err := handler.Root().PromptString("faucet URI", 0, consts.MaxInt)
+		if err != nil {
+			return err
+		}
+		fcli := frpc.NewJSONRPCClient(faucetURI)
+		faucetAddress, err := fcli.FaucetAddress(ctx)
 		if err != nil {
 			return err
 		}
 
-		// Get all URIs
-		_, uris, err := handler.h.GetDefaultChain()
+		// Get clients
+		_, priv, factory, cli, scli, tcli, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
@@ -52,7 +60,7 @@ var fundFaucetsCmd = &cobra.Command{
 		}
 
 		// Select amount
-		amount, err := handler.Root().PromptAmount("amount", decimals, balance/uint64(len(uris)), nil)
+		amount, err := handler.Root().PromptAmount("amount", decimals, balance, nil)
 		if err != nil {
 			return err
 		}
@@ -63,32 +71,19 @@ var fundFaucetsCmd = &cobra.Command{
 			return err
 		}
 
-		// Generate transactions
-		networkID, _, _, err := cli.Network(context.TODO())
+		// Generate transaction
+		pk, err := utils.ParseAddress(faucetAddress)
 		if err != nil {
 			return err
 		}
-		for _, uri := range uris {
-			fcli := trpc.NewJSONRPCClient(uri, networkID, chainID)
-			faucetAddress, err := fcli.FaucetAddress(ctx)
-			if err != nil {
-				hutils.Outf("{{orange}}skipping faucet (%v):{{/}} %s\n", err, uri)
-				continue
-			}
-			pk, err := utils.ParseAddress(faucetAddress)
-			if err != nil {
-				hutils.Outf("{{orange}}skipping faucet (%v):{{/}} %s\n", err, uri)
-				continue
-			}
-			if _, _, err = sendAndWait(ctx, nil, &actions.Transfer{
-				To:    pk,
-				Asset: ids.Empty,
-				Value: amount,
-			}, cli, scli, tcli, factory, true); err != nil {
-				return err
-			}
-			hutils.Outf("{{green}}funded faucet (%s):{{/}} %s\n", uri, faucetAddress)
+		if _, _, err = sendAndWait(ctx, nil, &actions.Transfer{
+			To:    pk,
+			Asset: ids.Empty,
+			Value: amount,
+		}, cli, scli, tcli, factory, true); err != nil {
+			return err
 		}
+		hutils.Outf("{{green}}funded faucet:{{/}} %s\n", faucetAddress)
 		return nil
 	},
 }

@@ -149,7 +149,7 @@ func init() {
 
 	// actions
 	actionCmd.AddCommand(
-		fundFaucetsCmd,
+		fundFaucetCmd,
 
 		transferCmd,
 

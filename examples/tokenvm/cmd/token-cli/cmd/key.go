@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/utils"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
+	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
@@ -88,15 +90,26 @@ var faucetKeyCmd = &cobra.Command{
 	Use: "faucet",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, _, _, _, tcli, err := handler.DefaultActor()
+
+		// Get private key
+		_, priv, _, _, _, _, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
-		faucet, err := tcli.FaucetAddress(ctx)
+
+		// Get faucet
+		faucetURI, err := handler.Root().PromptString("faucet URI", 0, consts.MaxInt)
 		if err != nil {
 			return err
 		}
-		salt, difficulty, err := tcli.Challenge(ctx)
+		fcli := frpc.NewJSONRPCClient(faucetURI)
+		faucet, err := fcli.FaucetAddress(ctx)
+		if err != nil {
+			return err
+		}
+
+		// Search for funds
+		salt, difficulty, err := fcli.Challenge(ctx)
 		if err != nil {
 			return err
 		}
@@ -104,7 +117,7 @@ var faucetKeyCmd = &cobra.Command{
 		start := time.Now()
 		solution, attempts := challenge.Search(salt, difficulty, numCores)
 		utils.Outf("{{cyan}}found solution (attempts=%d, t=%s):{{/}} %x\n", attempts, time.Since(start), solution)
-		txID, err := tcli.SolveChallenge(ctx, tutils.Address(priv.PublicKey()), salt, solution)
+		txID, err := fcli.SolveChallenge(ctx, tutils.Address(priv.PublicKey()), salt, solution)
 		if err != nil {
 			return err
 		}
