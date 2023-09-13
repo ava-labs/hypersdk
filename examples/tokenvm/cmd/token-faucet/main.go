@@ -4,29 +4,22 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/config"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/manager"
 	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/server"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
@@ -43,19 +36,6 @@ var (
 		IdleTimeout:       120 * time.Second,
 	}
 )
-
-type Config struct {
-	HTTPHost string `json:"host"`
-	HTTPPort int    `json:"port"`
-
-	PrivateKey ed25519.PrivateKey `json:"privateKey"`
-
-	TokenRPC              string `json:"tokenRPC"`
-	Amount                uint64 `json:"amount"`
-	StartDifficulty       uint16 `json:"startDifficulty"`
-	SolutionsPerSalt      int    `json:"solutionsPerSalt"`
-	TargetDurationPerSalt int64  `json:"targetDurationPerSalt"` // seconds
-}
 
 func fatal(l logging.Logger, msg string, fields ...zap.Field) {
 	l.Fatal(msg, fields...)
@@ -82,19 +62,19 @@ func main() {
 	if err != nil {
 		fatal(log, "cannot open config file", zap.String("path", configPath), zap.Error(err))
 	}
-	var config Config
-	if err := json.Unmarshal(rawConfig, &config); err != nil {
+	var c config.Config
+	if err := json.Unmarshal(rawConfig, &c); err != nil {
 		fatal(log, "cannot read config file", zap.Error(err))
 	}
 
 	// Create private key
-	if config.PrivateKey == ed25519.EmptyPrivateKey {
+	if c.PrivateKey == ed25519.EmptyPrivateKey {
 		priv, err := ed25519.GeneratePrivateKey()
 		if err != nil {
 			fatal(log, "cannot generate private key", zap.Error(err))
 		}
-		config.PrivateKey = priv
-		b, err := json.Marshal(&config)
+		c.PrivateKey = priv
+		b, err := json.Marshal(&c)
 		if err != nil {
 			fatal(log, "cannot marshal new config", zap.Error(err))
 		}
@@ -109,7 +89,7 @@ func main() {
 	}
 
 	// Create server
-	listenAddress := net.JoinHostPort(config.HTTPHost, fmt.Sprintf("%d", config.HTTPPort))
+	listenAddress := net.JoinHostPort(c.HTTPHost, fmt.Sprintf("%d", c.HTTPPort))
 	listener, err := net.Listen("tcp", listenAddress)
 	if err != nil {
 		fatal(log, "cannot create listener", zap.Error(err))
@@ -120,7 +100,7 @@ func main() {
 	}
 
 	// Add faucet handler
-	manager, err := NewManager(log, &config)
+	manager, err := manager.New(log, &c)
 	if err != nil {
 		fatal(log, "cannot create manager", zap.Error(err))
 	}
@@ -135,140 +115,14 @@ func main() {
 	}, &sync.RWMutex{}, "faucet", ""); err != nil {
 		fatal(log, "cannot add facuet route", zap.Error(err))
 	}
+
+	// Start server
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigs
+		log.Info("triggering server shutdown", zap.Any("signal", sig))
+		_ = srv.Shutdown()
+	}()
 	log.Info("server exited", zap.Error(srv.Dispatch()))
-}
-
-type Manager struct {
-	log    logging.Logger
-	config *Config
-
-	cli  *rpc.JSONRPCClient
-	tcli *trpc.JSONRPCClient
-
-	factory *auth.ED25519Factory
-
-	l            sync.RWMutex
-	lastRotation int64
-	salt         []byte
-	difficulty   uint16
-	solutions    set.Set[ids.ID]
-}
-
-func NewManager(logger logging.Logger, config *Config) (*Manager, error) {
-	ctx := context.TODO()
-	cli := rpc.NewJSONRPCClient(config.TokenRPC)
-	networkID, _, chainID, err := cli.Network(ctx)
-	if err != nil {
-		return nil, err
-	}
-	tcli := trpc.NewJSONRPCClient(config.TokenRPC, networkID, chainID)
-	m := &Manager{log: logger, config: config, cli: cli, tcli: tcli, factory: auth.NewED25519Factory(config.PrivateKey)}
-	m.lastRotation = time.Now().Unix()
-	m.difficulty = m.config.StartDifficulty
-	m.solutions = set.NewSet[ids.ID](m.config.SolutionsPerSalt)
-	m.salt, err = challenge.New()
-	if err != nil {
-		return nil, err
-	}
-	addr := tutils.Address(m.config.PrivateKey.PublicKey())
-	bal, err := tcli.Balance(ctx, addr, ids.Empty)
-	if err != nil {
-		return nil, err
-	}
-	m.log.Info("faucet initialized",
-		zap.String("address", addr),
-		zap.Uint16("difficulty", m.difficulty),
-		zap.String("balance", utils.FormatBalance(bal, consts.Decimals)),
-	)
-	return m, nil
-}
-
-func (m *Manager) GetFaucetAddress(_ context.Context) (ed25519.PublicKey, error) {
-	return m.config.PrivateKey.PublicKey(), nil
-}
-
-func (m *Manager) GetChallenge(_ context.Context) ([]byte, uint16, error) {
-	m.l.RLock()
-	defer m.l.RUnlock()
-
-	return m.salt, m.difficulty, nil
-}
-
-func (m *Manager) sendFunds(ctx context.Context, destination ed25519.PublicKey, amount uint64) (ids.ID, uint64, error) {
-	parser, err := m.tcli.Parser(ctx)
-	if err != nil {
-		return ids.Empty, 0, err
-	}
-	submit, tx, maxFee, err := m.cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
-		To:    destination,
-		Asset: ids.Empty,
-		Value: amount,
-	}, m.factory)
-	if err != nil {
-		return ids.Empty, 0, err
-	}
-	addr := tutils.Address(m.config.PrivateKey.PublicKey())
-	bal, err := m.tcli.Balance(ctx, addr, ids.Empty)
-	if err != nil {
-		return ids.Empty, 0, err
-	}
-	if bal < maxFee+amount {
-		// This is a "best guess" heuristic for balance as there may be txs in-flight.
-		m.log.Warn("faucet has insufficient funds", zap.String("balance", utils.FormatBalance(bal, consts.Decimals)))
-		return ids.Empty, 0, errors.New("insufficient balance")
-	}
-	return tx.ID(), maxFee, submit(ctx)
-}
-
-// TODO: increase difficulty if solutions/minute greater than target
-func (m *Manager) SolveChallenge(ctx context.Context, solver ed25519.PublicKey, salt []byte, solution []byte) (ids.ID, error) {
-	m.l.Lock()
-	defer m.l.Unlock()
-
-	// Ensure solution is valid
-	if !bytes.Equal(m.salt, salt) {
-		return ids.Empty, errors.New("salt expired")
-	}
-	if !challenge.Verify(salt, solution, m.difficulty) {
-		return ids.Empty, errors.New("invalid solution")
-	}
-	solutionID := utils.ToID(solution)
-	if m.solutions.Contains(solutionID) {
-		return ids.Empty, errors.New("duplicate solution")
-	}
-
-	// Issue transaction
-	txID, maxFee, err := m.sendFunds(ctx, solver, m.config.Amount)
-	if err != nil {
-		return ids.Empty, err
-	}
-	m.log.Info("fauceted funds",
-		zap.Stringer("txID", txID),
-		zap.String("max fee", utils.FormatBalance(maxFee, consts.Decimals)),
-		zap.String("destination", tutils.Address(solver)),
-		zap.String("amount", utils.FormatBalance(m.config.Amount, consts.Decimals)),
-	)
-	m.solutions.Add(solutionID)
-
-	// Roll salt if stale
-	if m.solutions.Len() < m.config.SolutionsPerSalt {
-		return txID, nil
-	}
-	now := time.Now().Unix()
-	elapsed := now - m.lastRotation
-	if elapsed < int64(m.config.TargetDurationPerSalt) {
-		m.difficulty++
-		m.log.Info("increasing faucet difficulty", zap.Uint16("difficulty", m.difficulty))
-	} else if m.difficulty > m.config.StartDifficulty {
-		m.difficulty--
-		m.log.Info("decreasing faucet difficulty", zap.Uint16("difficulty", m.difficulty))
-	}
-	m.lastRotation = time.Now().Unix()
-	m.salt, err = challenge.New()
-	if err != nil {
-		// Should never happen
-		return ids.Empty, err
-	}
-	m.solutions.Clear()
-	return txID, nil
 }
