@@ -57,6 +57,11 @@ type Config struct {
 	TargetDurationPerSalt int64  `json:"targetDurationPerSalt"` // seconds
 }
 
+func fatal(l logging.Logger, msg string, fields ...zap.Field) {
+	l.Fatal(msg, fields...)
+	os.Exit(1)
+}
+
 func main() {
 	logFactory := logging.NewFactory(logging.Config{
 		DisplayLevel: logging.Info,
@@ -70,82 +75,67 @@ func main() {
 
 	// Load config
 	if len(os.Args) != 2 {
-		utils.Outf("{{red}}no config file specified{{/}}\n")
-		os.Exit(1)
+		fatal(log, "no config file specified")
 	}
 	configPath := os.Args[1]
 	rawConfig, err := os.ReadFile(configPath)
 	if err != nil {
-		utils.Outf("{{red}}cannot open config file (%s){{/}}: %v\n", configPath, err)
-		os.Exit(1)
+		fatal(log, "cannot open config file", zap.String("path", configPath), zap.Error(err))
 	}
 	var config Config
 	if err := json.Unmarshal(rawConfig, &config); err != nil {
-		utils.Outf("{{red}}cannot read config file{{/}}: %v\n", err)
-		os.Exit(1)
+		fatal(log, "cannot read config file", zap.Error(err))
 	}
 
 	// Create private key
 	if config.PrivateKey == ed25519.EmptyPrivateKey {
 		priv, err := ed25519.GeneratePrivateKey()
 		if err != nil {
-			utils.Outf("{{red}}cannot generate private key{{/}}: %v\n", err)
-			os.Exit(1)
+			fatal(log, "cannot generate private key", zap.Error(err))
 		}
 		config.PrivateKey = priv
 		b, err := json.Marshal(&config)
 		if err != nil {
-			utils.Outf("{{red}}cannot marshal new config{{/}}: %v\n", err)
-			os.Exit(1)
+			fatal(log, "cannot marshal new config", zap.Error(err))
 		}
 		fi, err := os.Lstat(configPath)
 		if err != nil {
-			utils.Outf("{{red}}cannot get file stats for config{{/}}: %v\n", err)
-			os.Exit(1)
+			fatal(log, "cannot get file stats for config", zap.Error(err))
 		}
 		if err := os.WriteFile(configPath, b, fi.Mode().Perm()); err != nil {
-			utils.Outf("{{red}}cannot update config{{/}}: %v\n", err)
-			os.Exit(1)
+			fatal(log, "cannot write new config", zap.Error(err))
 		}
-		utils.Outf("{{yellow}}created new faucet address{{/}}: %s\n", tutils.Address(priv.PublicKey()))
+		log.Info("created new faucet address", zap.String("address", tutils.Address(priv.PublicKey())))
 	}
 
 	// Create server
 	listenAddress := net.JoinHostPort(config.HTTPHost, fmt.Sprintf("%d", config.HTTPPort))
 	listener, err := net.Listen("tcp", listenAddress)
 	if err != nil {
-		utils.Outf("{{red}}cannot create listener{{/}}: %v\n", err)
-		os.Exit(1)
+		fatal(log, "cannot create listener", zap.Error(err))
 	}
 	srv, err := server.New("", log, listener, httpConfig, allowedOrigins, allowedHosts, shutdownTimeout)
 	if err != nil {
-		utils.Outf("{{red}}cannot create server{{/}}: %v\n", err)
-		os.Exit(1)
+		fatal(log, "cannot create server", zap.Error(err))
 	}
 
 	// Add faucet handler
 	manager, err := NewManager(log, &config)
 	if err != nil {
-		utils.Outf("{{red}}cannot create manager{{/}}: %v\n", err)
-		os.Exit(1)
+		fatal(log, "cannot create manager", zap.Error(err))
 	}
 	faucetServer := frpc.NewJSONRPCServer(manager)
 	handler, err := server.NewHandler(faucetServer, "faucet")
 	if err != nil {
-		utils.Outf("{{red}}cannot create handler{{/}}: %v\n", err)
-		os.Exit(1)
+		fatal(log, "cannot create handler", zap.Error(err))
 	}
 	if err := srv.AddRoute(&common.HTTPHandler{
 		LockOptions: common.NoLock,
 		Handler:     handler,
 	}, &sync.RWMutex{}, "faucet", ""); err != nil {
-		utils.Outf("{{red}}cannot add faucet route{{/}}: %v\n", err)
-		os.Exit(1)
+		fatal(log, "cannot add facuet route", zap.Error(err))
 	}
-	if err := srv.Dispatch(); err != nil {
-		utils.Outf("{{red}}server exited ungracefully{{/}}: %v\n", err)
-		os.Exit(1)
-	}
+	log.Info("server exited", zap.Error(srv.Dispatch()))
 }
 
 type Manager struct {
