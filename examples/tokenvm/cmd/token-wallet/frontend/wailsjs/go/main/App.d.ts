@@ -12,6 +12,8 @@ export function GetAddress():Promise<string>;
 
 export function GetAddressBook():Promise<Array<main.AddressInfo>>;
 
+export function GetAllAssets():Promise<Array<main.AssetInfo>>;
+
 export function GetBalance():Promise<Array<main.BalanceInfo>>;
 
 export function GetChainID():Promise<string>;

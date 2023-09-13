@@ -1,7 +1,7 @@
 import {useEffect, useState} from "react";
-import { FloatButton, App, Drawer, Divider, List, Card, Typography, Form, Input, InputNumber, Button, Select, Spin } from "antd";
+import { Space, FloatButton, App, Drawer, Divider, List, Card, Typography, Form, Input, InputNumber, Button, Select, Spin } from "antd";
 import { CheckCircleTwoTone, CloseCircleTwoTone, LoadingOutlined, PlusOutlined, DoubleRightOutlined } from '@ant-design/icons';
-import { StartFaucetSearch, GetFaucetSolutions } from "../../wailsjs/go/main/App";
+import { GetBalance, GetAllAssets } from "../../wailsjs/go/main/App";
 const { Text, Title, Link } = Typography;
 
 const Trade = () => {
@@ -46,7 +46,59 @@ const Trade = () => {
       console.log('Failed:', errorInfo);
     };
 
+    
+    const [balance, setBalance] = useState([]);
+    const getBalance = async () => {
+        const bals = await GetBalance();
+        console.log(bals);
+        const parsedBalances = [];
+        for(let i=0; i<bals.length; i++){
+          parsedBalances.push({value: bals[i].ID, label:bals[i].Bal});
+        }
+        setBalance(parsedBalances);
+    };
+
+    {/* Symbol Add (only on out) */}
+    const [assets, setAssets] = useState([]);
+    const [newAsset, setNewAsset] = useState('');
+    const [addAllowed, setAddAllowed] = useState(false);
+    const [outAllowed, setOutAllowed] = useState(false);
+
+    const onAssetChange = (event) => {
+      setNewAsset(event.target.value);
+      if (event.target.value.length > 0) {
+        setAddAllowed(true);
+      } else {
+        setAddAllowed(false);
+      }
+    };
+
+    const getAllAssets = async () => {
+      const allAssets = await GetAllAssets();
+      setAssets(allAssets);
+    };
+
+    const addAsset = (e) => {
+      e.preventDefault();
+      (async () => {
+        try {
+          await AddAsset(newAsset);
+          setNewAsset('');
+          await getAllAssets();
+          message.open({
+            type: "success", content: `${newAsset} added`,
+          });
+        } catch (e) {
+          message.open({
+            type: "error", content: e.toString(),
+          });
+        }
+      })();
+    };
+
     useEffect(() => {
+      getBalance();
+      getAllAssets();
       const interval = setInterval(() => {
       }, 500);
 
@@ -83,9 +135,28 @@ const Trade = () => {
       <Divider orientation="center" >
         Order Book
       </Divider>
-      <Select placeholder="In" style={{ width:"150px", margin: "0 8px 8px 0" }}/>
+      <div style={{ "justify-content": "space-between", "align-items": "center", "display": "flex", "margin":"0 0 8px 0" }} >
+      <Select placeholder="In" style={{ width:"45%" }} options={balance}/>
       <DoubleRightOutlined style={{ fontSize: "15px" }}/>
-      <Select placeholder="Out" style={{ width:"150px", margin: "0 0 8px 8px" }}/>
+      <Select placeholder="Out" style={{ width:"45%", }} disabled={!outAllowed}
+        dropdownRender={(menu) => (
+          <>
+            {menu}
+            <Divider style={{ margin: '8px 0' }} />
+            <Space style={{ padding: '0 8px 4px' }}>
+              <Input
+                placeholder="Asset"
+                value={newAsset}
+                onChange={onAssetChange}
+                allowClear
+              />
+              <Button type="text" icon={<PlusOutlined />} onClick={addAsset} disabled={!addAllowed}></Button>
+            </Space>
+          </>
+        )}
+        options={assets.map((item) => ({ label: item.AddrStr, value: item.Address }))}
+      />
+      </div>
       <List
         bordered
         dataSource={[]}

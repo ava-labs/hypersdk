@@ -22,6 +22,10 @@ export function GetAddressBook() {
   return window['go']['main']['App']['GetAddressBook']();
 }
 
+export function GetAllAssets() {
+  return window['go']['main']['App']['GetAllAssets']();
+}
+
 export function GetBalance() {
   return window['go']['main']['App']['GetBalance']();
 }

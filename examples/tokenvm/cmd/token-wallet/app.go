@@ -277,6 +277,10 @@ func (a *App) collectBlocks() {
 					Summary:   fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To)),
 				}
 				if action.To == pk {
+					if !slices.Contains(a.ownedAssets, action.Asset) && !slices.Contains(a.otherAssets, action.Asset) {
+						a.otherAssets = append(a.otherAssets, action.Asset)
+					}
+
 					txInfo.Created = false
 					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
 					if actor != pk {
@@ -301,8 +305,6 @@ func (a *App) collectBlocks() {
 						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
 						Summary:   fmt.Sprintf("assetID: %s symbol: %s decimals: %d metadata: %s", tx.ID(), action.Symbol, action.Decimals, action.Metadata),
 					}}, a.transactions...)
-				} else {
-					a.otherAssets = append(a.otherAssets, tx.ID())
 				}
 			case *actions.MintAsset:
 				_, symbol, decimals, _, _, _, _, err := cli.Asset(context.Background(), action.Asset, true)
@@ -312,9 +314,10 @@ func (a *App) collectBlocks() {
 					return
 				}
 				if action.To == pk {
-					if actor != pk && !slices.Contains(a.otherAssets, action.Asset) {
+					if !slices.Contains(a.ownedAssets, action.Asset) && !slices.Contains(a.otherAssets, action.Asset) {
 						a.otherAssets = append(a.otherAssets, action.Asset)
 					}
+
 					a.transactions = append([]*TransactionInfo{{
 						ID:        tx.ID().String(),
 						Timestamp: blk.Tmstmp,
@@ -784,6 +787,10 @@ func (a *App) GetBalance() ([]*BalanceInfo, error) {
 	balances := []*BalanceInfo{{ID: ids.Empty.String(), Str: fmt.Sprintf("%s %s", hutils.FormatBalance(bal, decimals), symbol), Bal: fmt.Sprintf("%s (Balance: %s)", symbol, hutils.FormatBalance(bal, decimals))}}
 	for _, arr := range [][]ids.ID{a.ownedAssets, a.otherAssets} {
 		for _, asset := range arr {
+			if asset == ids.Empty {
+				continue
+			}
+
 			_, symbol, decimals, _, _, _, _, err := tcli.Asset(context.Background(), asset, true)
 			if err != nil {
 				return nil, err
@@ -932,4 +939,33 @@ func (a *App) AddAddressBook(name string, address string) error {
 
 	a.addressBook = append(a.addressBook, &AddressInfo{name, address, fmt.Sprintf("%s [%s..%s]", name, address[:len(tconsts.HRP)+3], address[len(address)-3:])})
 	return nil
+}
+
+func (a *App) GetAllAssets() []*AssetInfo {
+	_, _, _, _, tcli, err := a.defaultActor()
+	if err != nil {
+		a.log.Error(err.Error())
+		runtime.Quit(context.Background())
+		return nil
+	}
+	assets := []*AssetInfo{}
+	for _, arr := range [][]ids.ID{a.ownedAssets, a.otherAssets} {
+		for _, asset := range arr {
+			_, symbol, decimals, metadata, supply, owner, _, err := tcli.Asset(context.Background(), asset, false)
+			if err != nil {
+				a.log.Error(err.Error())
+				runtime.Quit(context.Background())
+				return nil
+			}
+			assets = append(assets, &AssetInfo{
+				ID:       asset.String(),
+				Symbol:   string(symbol),
+				Decimals: int(decimals),
+				Metadata: string(metadata),
+				Supply:   hutils.FormatBalance(supply, decimals),
+				Creator:  owner,
+			})
+		}
+	}
+	return assets
 }
