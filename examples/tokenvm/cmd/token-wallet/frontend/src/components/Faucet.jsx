@@ -119,5 +119,3 @@ const Faucet = () => {
     </>);
 }
 export default Faucet;
-
-{/* Previous faucet attempts as list, current faucet attempt, start new faucet attempt */}

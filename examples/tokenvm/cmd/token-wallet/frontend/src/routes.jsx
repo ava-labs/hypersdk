@@ -4,6 +4,7 @@ import Explorer from "./components/Explorer";
 import Faucet from "./components/Faucet";
 import Mint from "./components/Mint";
 import Transfer from "./components/Transfer";
+import Trade from "./components/Trade";
 
 const routes = [
   {
@@ -26,6 +27,10 @@ const routes = [
       {
         path: "transfer",
         element: <Transfer />,
+      },
+      {
+        path: "trade",
+        element: <Trade />,
       },
     ],
   },
