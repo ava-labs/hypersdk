@@ -10,7 +10,7 @@ const App = () => {
     <AApp>
       <Layout
         style={{
-          minHeight: "100vh",
+          minHeight: "95vh",
         }}
       >
         <NavBar />

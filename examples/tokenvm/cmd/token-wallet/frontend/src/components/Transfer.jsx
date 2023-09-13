@@ -1,6 +1,8 @@
-import {useEffect, useState} from "react";
-import { App, Card, Form, Input, InputNumber, Button, Select } from "antd";
-import { GetBalance, Transfer as Send } from "../../wailsjs/go/main/App";
+import React, {useEffect, useState, useRef } from "react";
+import { Layout,  Divider, Space, App, Card, Form, Input, InputNumber, Button, Select } from "antd";
+import { PlusOutlined } from '@ant-design/icons';
+import { GetBalance, Transfer as Send, AddAddressBook, GetAddressBook } from "../../wailsjs/go/main/App";
+const { Sider, Content } = Layout;
 
 const Transfer = () => {
     const { message } = App.useApp();
@@ -18,12 +20,55 @@ const Transfer = () => {
         setBalance(parsedBalances);
     };
 
+    const [addresses, setAddresses] = useState([]);
+    const [newNickname, setNewNickname] = useState('');
+    const [newAddress, setNewAddress] = useState('');
+    const [addAllowed, setAddAllowed] = useState(false);
+
+    const onNicknameChange = (event) => {
+      setNewNickname(event.target.value);
+      if (event.target.value.length > 0 && newAddress.length > 10) {
+        setAddAllowed(true);
+      } else {
+        setAddAllowed(false);
+      }
+    };
+    const onAddressChange = (event) => {
+      setNewAddress(event.target.value);
+      if (newNickname.length > 0 && event.target.value.length > 10) {
+        setAddAllowed(true);
+      } else {
+        setAddAllowed(false);
+      }
+    };
+
+    const getAddresses = async () => {
+      const caddresses = await GetAddressBook();
+      setAddresses(caddresses);
+    };
+
+    const addAddress = (e) => {
+      e.preventDefault();
+      (async () => {
+        try {
+          await AddAddressBook(newNickname, newAddress);
+          setNewNickname('');
+          setNewAddress('');
+          await getAddresses();
+        } catch (e) {
+          message.open({
+            key, type: "error", content: e.toString(),
+          });
+        }
+      })();
+    };
+
 
     const onFinishTransfer = (values) => {
       console.log('Success:', values);
       transferForm.resetFields();
 
-      message.open({key, type: "loading", content: "Issuing Transaction...", duration:0});
+      message.open({key, type: "loading", content: "Processing Transaction...", duration:0});
       (async () => {
         try {
           const start = (new Date()).getTime();
@@ -47,10 +92,12 @@ const Transfer = () => {
 
     useEffect(() => {
         getBalance();
+        getAddresses();
     }, []);
 
     return (<>
-            <Card bordered title={"Send a Token"} style={{ width:"50%", margin: "auto" }}>
+            <div style={{ width:"60%", margin: "auto" }}>
+            <Card bordered title={"Send a Token"}>
               <Form
                 name="basic"
                 form={transferForm}
@@ -60,7 +107,31 @@ const Transfer = () => {
                 autoComplete="off"
               >
                 <Form.Item name="Address" rules={[{ required: true }]}>
-                  <Input placeholder="Address" />
+                  <Select
+                    placeholder="Recipient"
+                    dropdownRender={(menu) => (
+                      <>
+                        {menu}
+                        <Divider style={{ margin: '8px 0' }} />
+                        <Space style={{ padding: '0 8px 4px' }}>
+                          <Input
+                            placeholder="Nickname"
+                            value={newNickname}
+                            onChange={onNicknameChange}
+                            allowClear
+                          />
+                          <Input
+                            placeholder="Address"
+                            value={newAddress}
+                            onChange={onAddressChange}
+                            allowClear
+                          />
+                          <Button type="text" icon={<PlusOutlined />} onClick={addAddress} disabled={!addAllowed}></Button>
+                        </Space>
+                      </>
+                    )}
+                    options={addresses.map((item) => ({ label: item.AddrStr, value: item.Address }))}
+                  />
                 </Form.Item>
                 <Form.Item name="Asset" rules={[{ required: true }]}>
                   <Select placeholder="Token" options={balance} />
@@ -75,6 +146,7 @@ const Transfer = () => {
                 </Form.Item>
               </Form>
             </Card>
+      </div>
     </>);
 }
 export default Transfer;

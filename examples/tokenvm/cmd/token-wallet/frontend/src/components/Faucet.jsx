@@ -41,11 +41,13 @@ const Faucet = () => {
     }, []);
 
     return (<>
-            <Card bordered title={"Mine for Tokens"} style={{ margin: "auto" }}>
+            <div style={{ width:"60%", margin: "auto" }}>
+            <Card bordered title={"Mine for Tokens"}>
               {loaded && search === null &&
                 <div>
                   <Text italic>To get TKN, you must complete a PoW.</Text>
-                  <Button type="primary" style={{ width:"100%" }} onClick={startSearch}>Start</Button>
+                  <br />
+                  <Button type="primary" style={{ margin:"8px 0%" }} onClick={startSearch}>Start</Button>
                 </div>
               }
               {loaded && search !== null &&
@@ -66,7 +68,7 @@ const Faucet = () => {
               }
             </Card>
 
-      <Divider orientation="center">
+      <Divider orientation="center" >
         Previous Solutions
       </Divider>
       <List
@@ -113,6 +115,7 @@ const Faucet = () => {
           </List.Item>
         )}
       />
+      </div>
     </>);
 }
 export default Faucet;

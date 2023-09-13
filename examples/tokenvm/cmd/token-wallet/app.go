@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,6 +49,12 @@ type Alert struct {
 	Content string
 }
 
+type AddressInfo struct {
+	Name    string
+	Address string
+	AddrStr string
+}
+
 // App struct
 type App struct {
 	ctx context.Context
@@ -74,6 +81,9 @@ type App struct {
 	search       *FaucetSearchInfo
 	solutions    []*FaucetSearchInfo
 	searchAlerts []*Alert
+
+	addressLock sync.Mutex
+	addressBook []*AddressInfo
 }
 
 type TransactionInfo struct {
@@ -121,6 +131,7 @@ func NewApp() *App {
 		transactionAlerts: []*Alert{},
 		solutions:         []*FaucetSearchInfo{},
 		searchAlerts:      []*Alert{},
+		addressBook:       []*AddressInfo{},
 	}
 }
 
@@ -150,6 +161,13 @@ func (a *App) startup(ctx context.Context) {
 			return
 		}
 	}
+	defaultKey, err := h.GetDefaultKey()
+	if err != nil {
+		a.log.Error(err.Error())
+		runtime.Quit(ctx)
+		return
+	}
+	a.AddAddressBook("Me", utils.Address(defaultKey.PublicKey()))
 
 	// Import ANR
 	//
@@ -889,4 +907,29 @@ func (a *App) GetFaucetSolutions() *FaucetSolutions {
 	}
 
 	return &FaucetSolutions{alerts, a.search, a.solutions}
+}
+
+func (a *App) GetAddressBook() []*AddressInfo {
+	a.addressLock.Lock()
+	defer a.addressLock.Unlock()
+
+	return a.addressBook
+}
+
+func (a *App) AddAddressBook(name string, address string) error {
+	a.addressLock.Lock()
+	defer a.addressLock.Unlock()
+
+	name = strings.TrimSpace(name)
+	address = strings.TrimSpace(address)
+
+	// Ensure no existing addresses that match
+	for _, addr := range a.addressBook {
+		if addr.Address == address {
+			return fmt.Errorf("duplicate address (already used for %s)", addr.Name)
+		}
+	}
+
+	a.addressBook = append(a.addressBook, &AddressInfo{name, address, fmt.Sprintf("%s [%s..%s]", name, address[:len(tconsts.HRP)+3], address[len(address)-3:])})
+	return nil
 }
