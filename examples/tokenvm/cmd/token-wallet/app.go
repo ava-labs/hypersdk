@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -21,7 +22,9 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-cli/cmd"
+	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
@@ -37,6 +40,7 @@ import (
 
 const (
 	databasePath = ".token-wallet"
+	searchCores  = 4 // TODO: expose to UI
 )
 
 // App struct
@@ -47,6 +51,7 @@ type App struct {
 	h   *hcli.Handler
 
 	scli *rpc.WebSocketClient
+	fcli *frpc.JSONRPCClient
 
 	workLock    sync.Mutex
 	blocks      []*BlockInfo
@@ -57,6 +62,11 @@ type App struct {
 	ownedAssets  []ids.ID
 	otherAssets  []ids.ID
 	transactions []*TransactionInfo
+
+	searchLock  sync.Mutex
+	search      *FaucetSearchInfo
+	solutions   []*FaucetSearchInfo
+	searchAlert bool
 }
 
 type TransactionInfo struct {
@@ -101,6 +111,7 @@ func NewApp() *App {
 		blocks:       []*BlockInfo{},
 		stats:        []*TimeStat{},
 		transactions: []*TransactionInfo{},
+		solutions:    []*FaucetSearchInfo{},
 	}
 }
 
@@ -139,6 +150,11 @@ func (a *App) startup(ctx context.Context) {
 		runtime.Quit(ctx)
 		return
 	}
+
+	// Connect to Faucet
+	//
+	// TODO: replace with long-lived
+	a.fcli = frpc.NewJSONRPCClient("http://localhost:9091")
 
 	// Start fetching blocks
 	go a.collectBlocks()
@@ -748,4 +764,96 @@ func (a *App) GetBalance() ([]*BalanceInfo, error) {
 
 func (a *App) GetTransactions() []*TransactionInfo {
 	return a.transactions
+}
+
+type FaucetSearchInfo struct {
+	FaucetAddress string
+	Salt          string
+	Difficulty    uint16
+
+	Solution string
+	Attempts uint64
+	Elapsed  string
+
+	Amount string
+	TxID   string
+
+	Err string
+}
+
+func (a *App) StartFaucetSearch() (*FaucetSearchInfo, error) {
+	priv, err := a.h.GetDefaultKey()
+	if err != nil {
+		return nil, err
+	}
+
+	a.searchLock.Lock()
+	if a.search != nil {
+		a.searchLock.Unlock()
+		return nil, errors.New("already searching")
+	}
+	a.search = &FaucetSearchInfo{}
+	a.searchLock.Unlock()
+
+	ctx := context.Background()
+	address, err := a.fcli.FaucetAddress(ctx)
+	if err != nil {
+		a.searchLock.Lock()
+		a.search = nil
+		a.searchLock.Unlock()
+		return nil, err
+	}
+	salt, difficulty, err := a.fcli.Challenge(ctx)
+	if err != nil {
+		a.searchLock.Lock()
+		a.search = nil
+		a.searchLock.Unlock()
+		return nil, err
+	}
+	a.search.FaucetAddress = address
+	a.search.Salt = hex.EncodeToString(salt)
+	a.search.Difficulty = difficulty
+
+	// Search in the background
+	go func() {
+		start := time.Now()
+		solution, attempts := challenge.Search(salt, difficulty, searchCores)
+		txID, amount, err := a.fcli.SolveChallenge(ctx, utils.Address(priv.PublicKey()), salt, solution)
+		a.search.Solution = hex.EncodeToString(solution)
+		a.search.Attempts = attempts
+		a.search.Elapsed = time.Since(start).String()
+		if err == nil {
+			a.search.TxID = txID.String()
+			a.search.Amount = fmt.Sprintf("%s %s", hutils.FormatBalance(amount, tconsts.Decimals), tconsts.Symbol)
+		} else {
+			a.search.Err = err.Error()
+		}
+		a.searchLock.Lock()
+		search := a.search
+		a.searchAlert = true
+		a.search = nil
+		a.solutions = append([]*FaucetSearchInfo{search}, a.solutions...)
+		a.searchLock.Unlock()
+	}()
+	return a.search, nil
+}
+
+// Can only return a single object
+type FaucetSolutions struct {
+	Alert         bool
+	CurrentSearch *FaucetSearchInfo
+	PastSearches  []*FaucetSearchInfo
+}
+
+func (a *App) GetFaucetSolutions() *FaucetSolutions {
+	a.searchLock.Lock()
+	defer a.searchLock.Unlock()
+
+	var alert bool
+	if a.searchAlert {
+		alert = true
+		a.searchAlert = false
+	}
+
+	return &FaucetSolutions{alert, a.search, a.solutions}
 }

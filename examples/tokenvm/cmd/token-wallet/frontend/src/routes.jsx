@@ -1,7 +1,7 @@
 import App from "./App";
 
 import Explorer from "./components/Explorer";
-import Mine from "./components/Mine";
+import Faucet from "./components/Faucet";
 import Mint from "./components/Mint";
 import Transfer from "./components/Transfer";
 
@@ -16,8 +16,8 @@ const routes = [
         element: <Explorer />,
       },
       {
-        path: "mine",
-        element: <Mine />,
+        path: "faucet",
+        element: <Faucet />,
       },
       {
         path: "mint",

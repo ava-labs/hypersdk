@@ -12,6 +12,8 @@ export function GetBalance():Promise<Array<main.BalanceInfo>>;
 
 export function GetChainID():Promise<string>;
 
+export function GetFaucetSolutions():Promise<main.FaucetSolutions>;
+
 export function GetLatestBlocks():Promise<Array<main.BlockInfo>>;
 
 export function GetMyAssets():Promise<Array<main.AssetInfo>>;
@@ -23,5 +25,7 @@ export function GetTransactions():Promise<Array<main.TransactionInfo>>;
 export function GetUnitPrices():Promise<Array<main.GenericInfo>>;
 
 export function MintAsset(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function StartFaucetSearch():Promise<main.FaucetSearchInfo>;
 
 export function Transfer(arg1:string,arg2:string,arg3:string):Promise<void>;

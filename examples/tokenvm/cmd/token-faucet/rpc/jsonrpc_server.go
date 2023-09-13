@@ -54,7 +54,8 @@ type SolveChallengeArgs struct {
 }
 
 type SolveChallengeReply struct {
-	TxID ids.ID `json:"txID"`
+	TxID   ids.ID `json:"txID"`
+	Amount uint64 `json:"amount"`
 }
 
 func (j *JSONRPCServer) SolveChallenge(req *http.Request, args *SolveChallengeArgs, reply *SolveChallengeReply) error {
@@ -62,10 +63,11 @@ func (j *JSONRPCServer) SolveChallenge(req *http.Request, args *SolveChallengeAr
 	if err != nil {
 		return err
 	}
-	txID, err := j.m.SolveChallenge(req.Context(), addr, args.Salt, args.Solution)
+	txID, amount, err := j.m.SolveChallenge(req.Context(), addr, args.Salt, args.Solution)
 	if err != nil {
 		return err
 	}
 	reply.TxID = txID
+	reply.Amount = amount
 	return nil
 }

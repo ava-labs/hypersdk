@@ -116,11 +116,11 @@ var faucetKeyCmd = &cobra.Command{
 		start := time.Now()
 		solution, attempts := challenge.Search(salt, difficulty, numCores)
 		utils.Outf("{{cyan}}found solution (attempts=%d, t=%s):{{/}} %x\n", attempts, time.Since(start), solution)
-		txID, err := fcli.SolveChallenge(ctx, tutils.Address(priv.PublicKey()), salt, solution)
+		txID, amount, err := fcli.SolveChallenge(ctx, tutils.Address(priv.PublicKey()), salt, solution)
 		if err != nil {
 			return err
 		}
-		utils.Outf("{{green}}fauceted funds incoming:{{/}} %s\n", txID)
+		utils.Outf("{{green}}faucet funds incoming (%s %s):{{/}} %s\n", utils.FormatBalance(amount, tconsts.Decimals), tconsts.Symbol, txID)
 		return nil
 	},
 }

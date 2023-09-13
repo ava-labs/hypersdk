@@ -52,7 +52,7 @@ func (cli *JSONRPCClient) Challenge(ctx context.Context) ([]byte, uint16, error)
 	return resp.Salt, resp.Difficulty, err
 }
 
-func (cli *JSONRPCClient) SolveChallenge(ctx context.Context, addr string, salt []byte, solution []byte) (ids.ID, error) {
+func (cli *JSONRPCClient) SolveChallenge(ctx context.Context, addr string, salt []byte, solution []byte) (ids.ID, uint64, error) {
 	resp := new(SolveChallengeReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -64,5 +64,5 @@ func (cli *JSONRPCClient) SolveChallenge(ctx context.Context, addr string, salt 
 		},
 		resp,
 	)
-	return resp.TxID, err
+	return resp.TxID, resp.Amount, err
 }

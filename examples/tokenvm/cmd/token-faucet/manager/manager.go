@@ -108,26 +108,26 @@ func (m *Manager) sendFunds(ctx context.Context, destination ed25519.PublicKey, 
 	return tx.ID(), maxFee, submit(ctx)
 }
 
-func (m *Manager) SolveChallenge(ctx context.Context, solver ed25519.PublicKey, salt []byte, solution []byte) (ids.ID, error) {
+func (m *Manager) SolveChallenge(ctx context.Context, solver ed25519.PublicKey, salt []byte, solution []byte) (ids.ID, uint64, error) {
 	m.l.Lock()
 	defer m.l.Unlock()
 
 	// Ensure solution is valid
 	if !bytes.Equal(m.salt, salt) {
-		return ids.Empty, errors.New("salt expired")
+		return ids.Empty, 0, errors.New("salt expired")
 	}
 	if !challenge.Verify(salt, solution, m.difficulty) {
-		return ids.Empty, errors.New("invalid solution")
+		return ids.Empty, 0, errors.New("invalid solution")
 	}
 	solutionID := utils.ToID(solution)
 	if m.solutions.Contains(solutionID) {
-		return ids.Empty, errors.New("duplicate solution")
+		return ids.Empty, 0, errors.New("duplicate solution")
 	}
 
 	// Issue transaction
 	txID, maxFee, err := m.sendFunds(ctx, solver, m.config.Amount)
 	if err != nil {
-		return ids.Empty, err
+		return ids.Empty, 0, err
 	}
 	m.log.Info("fauceted funds",
 		zap.Stringer("txID", txID),
@@ -139,7 +139,7 @@ func (m *Manager) SolveChallenge(ctx context.Context, solver ed25519.PublicKey, 
 
 	// Roll salt if stale
 	if m.solutions.Len() < m.config.SolutionsPerSalt {
-		return txID, nil
+		return txID, m.config.Amount, nil
 	}
 	now := time.Now().Unix()
 	elapsed := now - m.lastRotation
@@ -154,8 +154,8 @@ func (m *Manager) SolveChallenge(ctx context.Context, solver ed25519.PublicKey, 
 	m.salt, err = challenge.New()
 	if err != nil {
 		// Should never happen
-		return ids.Empty, err
+		return ids.Empty, 0, err
 	}
 	m.solutions.Clear()
-	return txID, nil
+	return txID, m.config.Amount, nil
 }

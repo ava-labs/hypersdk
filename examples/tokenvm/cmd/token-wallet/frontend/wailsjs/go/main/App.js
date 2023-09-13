@@ -22,6 +22,10 @@ export function GetChainID() {
   return window['go']['main']['App']['GetChainID']();
 }
 
+export function GetFaucetSolutions() {
+  return window['go']['main']['App']['GetFaucetSolutions']();
+}
+
 export function GetLatestBlocks() {
   return window['go']['main']['App']['GetLatestBlocks']();
 }
@@ -44,6 +48,10 @@ export function GetUnitPrices() {
 
 export function MintAsset(arg1, arg2, arg3) {
   return window['go']['main']['App']['MintAsset'](arg1, arg2, arg3);
+}
+
+export function StartFaucetSearch() {
+  return window['go']['main']['App']['StartFaucetSearch']();
 }
 
 export function Transfer(arg1, arg2, arg3) {

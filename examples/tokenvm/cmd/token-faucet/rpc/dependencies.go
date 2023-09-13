@@ -13,5 +13,5 @@ import (
 type Manager interface {
 	GetFaucetAddress(context.Context) (ed25519.PublicKey, error)
 	GetChallenge(context.Context) ([]byte, uint16, error)
-	SolveChallenge(context.Context, ed25519.PublicKey, []byte, []byte) (ids.ID, error)
+	SolveChallenge(context.Context, ed25519.PublicKey, []byte, []byte) (ids.ID, uint64, error)
 }
