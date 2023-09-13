@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"math/bits"
 	"sync"
+	"sync/atomic"
 )
 
 const (
@@ -51,8 +52,7 @@ func Search(salt []byte, difficulty uint16, cores int) ([]byte, uint64) {
 		solution []byte
 		wg       sync.WaitGroup
 
-		attempted  uint64
-		attemptedL sync.Mutex
+		attempted uint64
 	)
 	for i := 0; i < cores; i++ {
 		wg.Add(1)
@@ -71,16 +71,12 @@ func Search(salt []byte, difficulty uint16, cores int) ([]byte, uint64) {
 				workBytes := work.Bytes()
 				if Verify(salt, workBytes, difficulty) {
 					solution = workBytes
-					attemptedL.Lock()
-					attempted += attempts
-					attemptedL.Unlock()
+					atomic.AddUint64(&attempted, attempts)
 					return
 				}
 				work.Add(work, big1)
 			}
-			attemptedL.Lock()
-			attempted += attempts
-			attemptedL.Unlock()
+			atomic.AddUint64(&attempted, attempts)
 		}()
 	}
 	wg.Wait()
