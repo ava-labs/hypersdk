@@ -96,7 +96,8 @@ const Transfer = () => {
     }, []);
 
     return (<>
-            <Card bordered title={"Send a Token"} style={{ width:"50%", margin: "auto" }}>
+            <div style={{ width:"60%", margin: "auto" }}>
+            <Card bordered title={"Send a Token"}>
               <Form
                 name="basic"
                 form={transferForm}
@@ -145,6 +146,7 @@ const Transfer = () => {
                 </Form.Item>
               </Form>
             </Card>
+      </div>
     </>);
 }
 export default Transfer;

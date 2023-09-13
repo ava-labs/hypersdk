@@ -150,6 +150,7 @@ const Mint = () => {
 
     return (<>
             <FloatButton icon={<PlusOutlined />} type="primary" onClick={showCreateDrawer} />
+            <div style={{ width:"60%", margin: "auto" }}>
             <Divider orientation="center">
               Tokens
             </Divider>
@@ -165,11 +166,11 @@ const Mint = () => {
                   <br />
                   <Text strong>Supply:</Text> {item.Supply}
                   <br />
-                  <br />
-                  <Button type="primary" style={{ width: "100%" }} onClick={() => showMintDrawer(item)}>Mint</Button>
+                  <Button type="primary" style={{ margin: "8px 0" }} onClick={() => showMintDrawer(item)}>Mint</Button>
                 </List.Item>
               )}
             />
+            </div>
             <Drawer title={"Create a Token"} placement={"right"} onClose={onCloseCreate} open={openCreate}>
               <Form
                 name="basic"
