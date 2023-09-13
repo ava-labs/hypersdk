@@ -1,10 +1,8 @@
 import React, {useEffect, useState, useRef } from "react";
 import { Layout,  Divider, Space, App, Card, Form, Input, InputNumber, Button, Select } from "antd";
 import { PlusOutlined } from '@ant-design/icons';
-import { GetBalance, Transfer as Send } from "../../wailsjs/go/main/App";
+import { GetBalance, Transfer as Send, AddAddressBook, GetAddressBook } from "../../wailsjs/go/main/App";
 const { Sider, Content } = Layout;
-
-let index = 0;
 
 const Transfer = () => {
     const { message } = App.useApp();
@@ -22,17 +20,39 @@ const Transfer = () => {
         setBalance(parsedBalances);
     };
 
-    const [items, setItems] = useState([]);
-    const [name, setName] = useState('');
-    const onNameChange = (event) => {
-      setName(event.target.value);
+    const [addresses, setAddresses] = useState([]);
+    const [newNickname, setNewNickname] = useState('');
+    const [newAddress, setNewAddress] = useState('');
+    const [addAllowed, setAddAllowed] = useState(false);
+
+    const onNicknameChange = (event) => {
+      setNewNickname(event.target.value);
+      if (event.target.value.length > 0 && newAddress.length > 0) {
+        setAddAllowed(true);
+      } else {
+        setAddAllowed(false);
+      }
+    };
+    const onAddressChange = (event) => {
+      setNewAddress(event.target.value);
+      if (newNickname.length > 0 && event.target.value.length > 0) {
+        setAddAllowed(true);
+      } else {
+        setAddAllowed(false);
+      }
     };
 
-    const addItem = (e) => {
+    const getAddresses = async () => {
+      const caddresses = await GetAddressBook();
+      setAddresses(addresses);
+    };
+
+    const addAddress = (e) => {
       e.preventDefault();
-      setItems([...items, name || `New item ${index++}`]);
-      setName('');
-      {/* close: https://codesandbox.io/s/ji-ben-shi-yong-antd-4-21-7-forked-gnp4cy?file=/demo.js */}
+      AddAddressBook(newNickname, newAddress)
+      setAddresses([...addresses, {Name: newNickname, Address: newAddress}]);
+      setNewNickname('');
+      setNewAddress('');
     };
 
 
@@ -64,6 +84,7 @@ const Transfer = () => {
 
     useEffect(() => {
         getBalance();
+        getAddresses();
     }, []);
 
     return (<>
@@ -77,7 +98,6 @@ const Transfer = () => {
                 autoComplete="off"
               >
                 <Form.Item name="Address" rules={[{ required: true }]}>
-      {/* <Input placeholder="Address" /> */}
                   <Select
                     placeholder="Address"
                     dropdownRender={(menu) => (
@@ -87,19 +107,21 @@ const Transfer = () => {
                         <Space style={{ padding: '0 8px 4px' }}>
                           <Input
                             placeholder="Nickname"
-                            value={name}
-                            onChange={onNameChange}
+                            value={newNickname}
+                            onChange={onNicknameChange}
+                            allowClear
                           />
                           <Input
                             placeholder="Address"
-                            value={name}
-                            onChange={onNameChange}
+                            value={newAddress}
+                            onChange={onAddressChange}
+                            allowClear
                           />
-                          <Button type="text" icon={<PlusOutlined />} onClick={addItem} ></Button>
+                          <Button type="text" icon={<PlusOutlined />} onClick={addAddress} disabled={!addAllowed}></Button>
                         </Space>
                       </>
                     )}
-                    options={items.map((item) => ({ label: item, value: item }))}
+                    options={addresses.map((item) => ({ label: `${item.Name} [${item.Address.substring(0,5)}...${item.Address.substring(item.Address.length-5, item.Address.length-1)}]}`, value: item.Address }))}
                   />
                 </Form.Item>
                 <Form.Item name="Asset" rules={[{ required: true }]}>
