@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,6 +52,7 @@ type Alert struct {
 type AddressInfo struct {
 	Name    string
 	Address string
+	AddrStr string
 }
 
 // App struct
@@ -907,9 +909,20 @@ func (a *App) GetAddressBook() []*AddressInfo {
 	return a.addressBook
 }
 
-func (a *App) AddAddressBook(name string, address string) {
+func (a *App) AddAddressBook(name string, address string) error {
 	a.addressLock.Lock()
 	defer a.addressLock.Unlock()
 
-	a.addressBook = append(a.addressBook, &AddressInfo{name, address})
+	name = strings.TrimSpace(name)
+	address = strings.TrimSpace(address)
+
+	// Ensure no existing addresses that match
+	for _, addr := range a.addressBook {
+		if addr.Address == address {
+			return fmt.Errorf("duplicate address (already used for %s)", addr.Name)
+		}
+	}
+
+	a.addressBook = append(a.addressBook, &AddressInfo{name, address, fmt.Sprintf("%s [%s..%s]", name, address[:len(tconsts.HRP)+3], address[len(address)-3:])})
+	return nil
 }

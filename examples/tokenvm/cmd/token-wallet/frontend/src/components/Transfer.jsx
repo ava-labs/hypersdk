@@ -27,7 +27,7 @@ const Transfer = () => {
 
     const onNicknameChange = (event) => {
       setNewNickname(event.target.value);
-      if (event.target.value.length > 0 && newAddress.length > 0) {
+      if (event.target.value.length > 0 && newAddress.length > 10) {
         setAddAllowed(true);
       } else {
         setAddAllowed(false);
@@ -35,7 +35,7 @@ const Transfer = () => {
     };
     const onAddressChange = (event) => {
       setNewAddress(event.target.value);
-      if (newNickname.length > 0 && event.target.value.length > 0) {
+      if (newNickname.length > 0 && event.target.value.length > 10) {
         setAddAllowed(true);
       } else {
         setAddAllowed(false);
@@ -44,15 +44,23 @@ const Transfer = () => {
 
     const getAddresses = async () => {
       const caddresses = await GetAddressBook();
-      setAddresses(addresses);
+      setAddresses(caddresses);
     };
 
     const addAddress = (e) => {
       e.preventDefault();
-      AddAddressBook(newNickname, newAddress)
-      setAddresses([...addresses, {Name: newNickname, Address: newAddress}]);
-      setNewNickname('');
-      setNewAddress('');
+      (async () => {
+        try {
+          await AddAddressBook(newNickname, newAddress);
+          setNewNickname('');
+          setNewAddress('');
+          await getAddresses();
+        } catch (e) {
+          message.open({
+            key, type: "error", content: e.toString(),
+          });
+        }
+      })();
     };
 
 
@@ -121,7 +129,7 @@ const Transfer = () => {
                         </Space>
                       </>
                     )}
-                    options={addresses.map((item) => ({ label: `${item.Name} [${item.Address.substring(0,5)}...${item.Address.substring(item.Address.length-5, item.Address.length-1)}]}`, value: item.Address }))}
+                    options={addresses.map((item) => ({ label: item.AddrStr, value: item.Address }))}
                   />
                 </Form.Item>
                 <Form.Item name="Asset" rules={[{ required: true }]}>
