@@ -124,19 +124,15 @@ const Mint = () => {
               dataSource={assets}
               renderItem={(item) => (
                 <List.Item>
-                  <Layout hasSider>
-                  <Content style={{ backgroundColor: "white"}} >
                   <div>
                     <Title level={3} style={{ display: "inline" }}>{item.Symbol}</Title> <Text type="secondary">{item.ID}</Text>
                   </div>
-                  <Text strong>Metadata:</Text> {item.Metadata}
+                  <Text strong>Decimals:</Text> {item.Decimals} <Text strong>Metadata:</Text> {item.Metadata}
                   <br />
-                  <Text strong>Decimals:</Text> {item.Decimals} <Text strong>Supply:</Text> {item.Supply}
-                  </Content>
-                  <Sider style={{ backgroundColor: "white"}} >
-                    <Button type="primary" style={{ width: "100%", height: "100%" }} onClick={() => showMintDrawer(item)}>Mint</Button>
-                  </Sider>
-                  </Layout>
+                  <Text strong>Supply:</Text> {item.Supply}
+                  <br />
+                  <br />
+                  <Button type="primary" style={{ width: "100%" }} onClick={() => showMintDrawer(item)}>Mint</Button>
                 </List.Item>
               )}
             />
