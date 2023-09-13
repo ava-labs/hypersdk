@@ -28,3 +28,6 @@ go build -o ./build/$name ./cmd/tokenvm
 
 echo "Building token-cli in ./build/token-cli"
 go build -o ./build/token-cli ./cmd/token-cli
+
+echo "Building token-faucet in ./build/token-faucet"
+go build -o ./build/token-faucet ./cmd/token-faucet
