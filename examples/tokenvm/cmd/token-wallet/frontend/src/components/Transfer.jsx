@@ -84,29 +84,19 @@ const Transfer = () => {
                       <>
                         {menu}
                         <Divider style={{ margin: '8px 0' }} />
-                        <Layout hasSider>
-                          <Content style={{ backgroundColor: "white" }}>
+                        <Space style={{ padding: '0 8px 4px' }}>
                           <Input
                             placeholder="Nickname"
                             value={name}
                             onChange={onNameChange}
-                            style={{ margin: '0 0 8px 0' }}
                           />
-                          <br />
                           <Input
                             placeholder="Address"
                             value={name}
                             onChange={onNameChange}
                           />
-                          </Content>
-                          <Sider width="30%">
-                          <div style={{ height:"100%", "display":"flex", "justify-content":"center", "align-items":"center", "backgroundColor": "white"}}>
-                          <Button type="text" icon={<PlusOutlined />} onClick={addItem} >
-                            Add item
-                          </Button>
-                          </div>
-                          </Sider>
-                        </Layout>
+                          <Button type="text" icon={<PlusOutlined />} onClick={addItem} ></Button>
+                        </Space>
                       </>
                     )}
                     options={items.map((item) => ({ label: item, value: item }))}
