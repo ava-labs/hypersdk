@@ -1,7 +1,7 @@
 import {useEffect, useState} from "react";
 import { Space, FloatButton, App, Drawer, Divider, List, Card, Typography, Form, Input, InputNumber, Button, Select, Spin } from "antd";
 import { CheckCircleTwoTone, CloseCircleTwoTone, LoadingOutlined, PlusOutlined, DoubleRightOutlined } from '@ant-design/icons';
-import { GetBalance, GetAllAssets } from "../../wailsjs/go/main/App";
+import { GetBalance, GetAllAssets, AddAsset } from "../../wailsjs/go/main/App";
 const { Text, Title, Link } = Typography;
 
 const Trade = () => {
@@ -60,6 +60,7 @@ const Trade = () => {
 
     {/* Symbol Add (only on out) */}
     const [assets, setAssets] = useState([]);
+    const [inAsset, setInAsset] = useState('');
     const [outAssets, setOutAssets] = useState([]);
     const [newAsset, setNewAsset] = useState('');
     const [addAllowed, setAddAllowed] = useState(false);
@@ -67,6 +68,7 @@ const Trade = () => {
     const [outValue, setOutValue] = useState('');
     
     const inSelected = (event) => {
+      setInAsset(event);
       if (event.length > 0) {
         setOutValue('');
         const limitedAssets = [];
@@ -106,7 +108,16 @@ const Trade = () => {
         try {
           await AddAsset(newAsset);
           setNewAsset('');
-          await getAllAssets();
+          const allAssets = await GetAllAssets();
+          setAssets(allAssets);
+          const limitedAssets = [];
+          for (var asset of allAssets) {
+            if (asset.ID == inAsset) {
+              continue
+            }
+            limitedAssets.push(asset)
+          }
+          setOutAssets(limitedAssets);
           message.open({
             type: "success", content: `${newAsset} added`,
           });

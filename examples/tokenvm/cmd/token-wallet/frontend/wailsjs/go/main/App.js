@@ -6,6 +6,10 @@ export function AddAddressBook(arg1, arg2) {
   return window['go']['main']['App']['AddAddressBook'](arg1, arg2);
 }
 
+export function AddAsset(arg1) {
+  return window['go']['main']['App']['AddAsset'](arg1);
+}
+
 export function CreateAsset(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateAsset'](arg1, arg2, arg3);
 }

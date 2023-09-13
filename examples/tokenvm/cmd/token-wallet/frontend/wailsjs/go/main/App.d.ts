@@ -4,6 +4,8 @@ import {main} from '../models';
 
 export function AddAddressBook(arg1:string,arg2:string):Promise<void>;
 
+export function AddAsset(arg1:string):Promise<void>;
+
 export function CreateAsset(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function GetAccountStats():Promise<Array<main.GenericInfo>>;

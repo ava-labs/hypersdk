@@ -967,3 +967,27 @@ func (a *App) GetAllAssets() []*AssetInfo {
 	}
 	return assets
 }
+
+func (a *App) AddAsset(asset string) error {
+	assetID, err := ids.FromString(asset)
+	if err != nil {
+		return err
+	}
+	if slices.Contains(a.ownedAssets, assetID) || slices.Contains(a.otherAssets, assetID) {
+		return errors.New("asset already exists")
+	}
+	_, priv, _, _, tcli, err := a.defaultActor()
+	if err != nil {
+		return err
+	}
+	_, _, _, _, _, owner, _, err := tcli.Asset(context.Background(), assetID, false)
+	if err != nil {
+		return err
+	}
+	if owner == utils.Address(priv.PublicKey()) {
+		a.ownedAssets = append(a.ownedAssets, assetID)
+	} else {
+		a.otherAssets = append(a.otherAssets, assetID)
+	}
+	return nil
+}
