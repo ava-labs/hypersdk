@@ -1,6 +1,9 @@
-import {useEffect, useState} from "react";
-import { App, Card, Form, Input, InputNumber, Button, Select } from "antd";
+import React, {useEffect, useState, useRef } from "react";
+import { Divider, Space, App, Card, Form, Input, InputNumber, Button, Select } from "antd";
+import { PlusOutlined } from '@ant-design/icons';
 import { GetBalance, Transfer as Send } from "../../wailsjs/go/main/App";
+
+let index = 0;
 
 const Transfer = () => {
     const { message } = App.useApp();
@@ -16,6 +19,19 @@ const Transfer = () => {
           parsedBalances.push({value: bals[i].ID, label:bals[i].Bal});
         }
         setBalance(parsedBalances);
+    };
+
+    const [items, setItems] = useState(['jack', 'lucy']);
+    const [name, setName] = useState('');
+    const onNameChange = (event) => {
+      setName(event.target.value);
+    };
+
+    const addItem = (e) => {
+      e.preventDefault();
+      setItems([...items, name || `New item ${index++}`]);
+      setName('');
+      {/* close: https://codesandbox.io/s/ji-ben-shi-yong-antd-4-21-7-forked-gnp4cy?file=/demo.js */}
     };
 
 
@@ -60,7 +76,32 @@ const Transfer = () => {
                 autoComplete="off"
               >
                 <Form.Item name="Address" rules={[{ required: true }]}>
-                  <Input placeholder="Address" />
+      {/* <Input placeholder="Address" /> */}
+                  <Select
+                    placeholder="Address"
+                    dropdownRender={(menu) => (
+                      <>
+                        {menu}
+                        <Divider style={{ margin: '8px 0' }} />
+                        <Space style={{ padding: '0 8px 4px' }}>
+                          <Input
+                            placeholder="Please enter item"
+                            value={name}
+                            onChange={onNameChange}
+                          />
+                          <Input
+                            placeholder="Please enter item"
+                            value={name}
+                            onChange={onNameChange}
+                          />
+                          <Button type="text" icon={<PlusOutlined />} onClick={addItem}>
+                            Add item
+                          </Button>
+                        </Space>
+                      </>
+                    )}
+                    options={items.map((item) => ({ label: item, value: item }))}
+                  />
                 </Form.Item>
                 <Form.Item name="Asset" rules={[{ required: true }]}>
                   <Select placeholder="Token" options={balance} />

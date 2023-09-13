@@ -48,6 +48,11 @@ type Alert struct {
 	Content string
 }
 
+type AddressInfo struct {
+	Name    string
+	Address string
+}
+
 // App struct
 type App struct {
 	ctx context.Context
@@ -74,6 +79,9 @@ type App struct {
 	search       *FaucetSearchInfo
 	solutions    []*FaucetSearchInfo
 	searchAlerts []*Alert
+
+	addressLock sync.Mutex
+	addressBook []*AddressInfo
 }
 
 type TransactionInfo struct {
@@ -121,6 +129,7 @@ func NewApp() *App {
 		transactionAlerts: []*Alert{},
 		solutions:         []*FaucetSearchInfo{},
 		searchAlerts:      []*Alert{},
+		addressBook:       []*AddressInfo{},
 	}
 }
 
@@ -889,4 +898,18 @@ func (a *App) GetFaucetSolutions() *FaucetSolutions {
 	}
 
 	return &FaucetSolutions{alerts, a.search, a.solutions}
+}
+
+func (a *App) GetAddressBook() []*AddressInfo {
+	a.addressLock.Lock()
+	defer a.addressLock.Unlock()
+
+	return a.addressBook
+}
+
+func (a *App) AddAddressBook(name string, address string) {
+	a.addressLock.Lock()
+	defer a.addressLock.Unlock()
+
+	a.addressBook = append(a.addressBook, &AddressInfo{name, address})
 }
