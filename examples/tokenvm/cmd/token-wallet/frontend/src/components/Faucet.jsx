@@ -1,8 +1,10 @@
 import {useEffect, useState} from "react";
-import { App, Divider, List, Card, Typography, Form, Input, InputNumber, Button, Select, message } from "antd";
-import { CheckCircleTwoTone, CloseCircleTwoTone } from '@ant-design/icons';
+import { App, Divider, List, Card, Typography, Form, Input, InputNumber, Button, Select, Spin } from "antd";
+import { CheckCircleTwoTone, CloseCircleTwoTone, LoadingOutlined } from '@ant-design/icons';
 import { StartFaucetSearch, GetFaucetSolutions } from "../../wailsjs/go/main/App";
 const { Text, Title, Link } = Typography;
+
+const antIcon = <LoadingOutlined style={{ fontSize: 36 }} spin />;
 
 const Faucet = () => {
     const { message } = App.useApp();
@@ -48,7 +50,12 @@ const Faucet = () => {
               }
               {loaded && search !== null &&
                 <div>
-                  <Text italic>search running (you can leave this page and come back)</Text>
+                  <div style={{ width:"50%", margin: "auto" }}>
+                    <Spin indicator={antIcon} style={{ "display": "flex", "align-items": "center", "justify-content": "center" }}/>
+                    <br />
+                    <Text italic>search running (you can leave this page and come back)</Text>
+                  </div>
+                  <br />
                   <br />
                   <Text strong>Faucet Address:</Text>{search.FaucetAddress}
                   <br />
