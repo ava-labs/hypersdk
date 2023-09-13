@@ -35,9 +35,14 @@ func Verify(salt []byte, solution []byte, difficulty uint16) bool {
 	if lSolution > maxSolutionSize {
 		return false
 	}
+	// TODO: add more sophisticated algo/make configurable
 	h := sha512.New()
-	h.Write(salt)
-	h.Write(solution)
+	if _, err := h.Write(salt); err != nil {
+		return false
+	}
+	if _, err := h.Write(solution); err != nil {
+		return false
+	}
 	checksum := h.Sum(nil)
 	leadingZeros := 0
 	for i := 0; i < len(checksum); i++ {

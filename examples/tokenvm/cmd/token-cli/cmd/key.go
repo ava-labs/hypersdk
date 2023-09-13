@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/utils"
-	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
@@ -55,11 +54,11 @@ func lookupSetKeyBalance(choice int, address string, uri string, networkID uint3
 	if err != nil {
 		return err
 	}
-	hutils.Outf(
+	utils.Outf(
 		"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 		choice,
 		address,
-		hutils.FormatBalance(balance, tconsts.Decimals),
+		utils.FormatBalance(balance, tconsts.Decimals),
 		tconsts.Symbol,
 	)
 	return nil

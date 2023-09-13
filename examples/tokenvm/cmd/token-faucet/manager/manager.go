@@ -144,7 +144,7 @@ func (m *Manager) SolveChallenge(ctx context.Context, solver ed25519.PublicKey, 
 	}
 	now := time.Now().Unix()
 	elapsed := now - m.lastRotation
-	if elapsed < int64(m.config.TargetDurationPerSalt) {
+	if elapsed < m.config.TargetDurationPerSalt {
 		m.difficulty++
 		m.log.Info("increasing faucet difficulty", zap.Uint16("difficulty", m.difficulty))
 	} else if m.difficulty > m.config.StartDifficulty {
