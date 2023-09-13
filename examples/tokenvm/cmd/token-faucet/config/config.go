@@ -9,11 +9,15 @@ type Config struct {
 	HTTPHost string `json:"host"`
 	HTTPPort int    `json:"port"`
 
-	PrivateKey ed25519.PrivateKey `json:"privateKey"`
+	PrivateKeyBytes []byte `json:"privateKeyBytes"`
 
 	TokenRPC              string `json:"tokenRPC"`
 	Amount                uint64 `json:"amount"`
 	StartDifficulty       uint16 `json:"startDifficulty"`
 	SolutionsPerSalt      int    `json:"solutionsPerSalt"`
 	TargetDurationPerSalt int64  `json:"targetDurationPerSalt"` // seconds
+}
+
+func (c *Config) PrivateKey() ed25519.PrivateKey {
+	return ed25519.PrivateKey(c.PrivateKeyBytes)
 }

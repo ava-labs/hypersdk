@@ -50,7 +50,7 @@ func New(logger logging.Logger, config *config.Config) (*Manager, error) {
 		return nil, err
 	}
 	tcli := trpc.NewJSONRPCClient(config.TokenRPC, networkID, chainID)
-	m := &Manager{log: logger, config: config, cli: cli, tcli: tcli, factory: auth.NewED25519Factory(config.PrivateKey)}
+	m := &Manager{log: logger, config: config, cli: cli, tcli: tcli, factory: auth.NewED25519Factory(config.PrivateKey())}
 	m.lastRotation = time.Now().Unix()
 	m.difficulty = m.config.StartDifficulty
 	m.solutions = set.NewSet[ids.ID](m.config.SolutionsPerSalt)
@@ -58,7 +58,7 @@ func New(logger logging.Logger, config *config.Config) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	addr := tutils.Address(m.config.PrivateKey.PublicKey())
+	addr := tutils.Address(m.config.PrivateKey().PublicKey())
 	bal, err := tcli.Balance(ctx, addr, ids.Empty)
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func New(logger logging.Logger, config *config.Config) (*Manager, error) {
 }
 
 func (m *Manager) GetFaucetAddress(_ context.Context) (ed25519.PublicKey, error) {
-	return m.config.PrivateKey.PublicKey(), nil
+	return m.config.PrivateKey().PublicKey(), nil
 }
 
 func (m *Manager) GetChallenge(_ context.Context) ([]byte, uint16, error) {
@@ -95,7 +95,7 @@ func (m *Manager) sendFunds(ctx context.Context, destination ed25519.PublicKey, 
 	if err != nil {
 		return ids.Empty, 0, err
 	}
-	addr := tutils.Address(m.config.PrivateKey.PublicKey())
+	addr := tutils.Address(m.config.PrivateKey().PublicKey())
 	bal, err := m.tcli.Balance(ctx, addr, ids.Empty)
 	if err != nil {
 		return ids.Empty, 0, err

@@ -68,13 +68,13 @@ func main() {
 	}
 
 	// Create private key
-	if c.PrivateKey == ed25519.EmptyPrivateKey {
+	if len(c.PrivateKeyBytes) == 0 {
 		priv, err := ed25519.GeneratePrivateKey()
 		if err != nil {
 			fatal(log, "cannot generate private key", zap.Error(err))
 		}
-		c.PrivateKey = priv
-		b, err := json.Marshal(&c)
+		c.PrivateKeyBytes = priv[:]
+		b, err := json.MarshalIndent(&c, "", "  ")
 		if err != nil {
 			fatal(log, "cannot marshal new config", zap.Error(err))
 		}
@@ -86,6 +86,8 @@ func main() {
 			fatal(log, "cannot write new config", zap.Error(err))
 		}
 		log.Info("created new faucet address", zap.String("address", tutils.Address(priv.PublicKey())))
+	} else {
+		log.Info("loaded faucet address", zap.String("address", tutils.Address(c.PrivateKey().PublicKey())))
 	}
 
 	// Create server
