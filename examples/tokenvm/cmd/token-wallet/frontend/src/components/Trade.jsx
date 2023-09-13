@@ -60,10 +60,32 @@ const Trade = () => {
 
     {/* Symbol Add (only on out) */}
     const [assets, setAssets] = useState([]);
+    const [outAssets, setOutAssets] = useState([]);
     const [newAsset, setNewAsset] = useState('');
     const [addAllowed, setAddAllowed] = useState(false);
     const [outAllowed, setOutAllowed] = useState(false);
-
+    const [outValue, setOutValue] = useState('');
+    
+    const inSelected = (event) => {
+      if (event.length > 0) {
+        setOutValue('');
+        const limitedAssets = [];
+        for (var asset of assets) {
+          if (asset.ID == event) {
+            continue
+          }
+          limitedAssets.push(asset)
+        }
+        setOutAssets(limitedAssets);
+        setOutAllowed(true);
+      } else {
+        setOutAllowed(false);
+      }
+    }
+    const outSelected = (event) => {
+      setOutValue(event);
+    }
+    
     const onAssetChange = (event) => {
       setNewAsset(event.target.value);
       if (event.target.value.length > 0) {
@@ -136,9 +158,9 @@ const Trade = () => {
         Order Book
       </Divider>
       <div style={{ "justify-content": "space-between", "align-items": "center", "display": "flex", "margin":"0 0 8px 0" }} >
-      <Select placeholder="In" style={{ width:"45%" }} options={balance}/>
+      <Select placeholder="In" style={{ width:"45%" }} options={balance} onChange={inSelected}/>
       <DoubleRightOutlined style={{ fontSize: "15px" }}/>
-      <Select placeholder="Out" style={{ width:"45%", }} disabled={!outAllowed}
+      <Select placeholder="Out" style={{ width:"45%", }} disabled={!outAllowed} value={outValue} onChange={outSelected}
         dropdownRender={(menu) => (
           <>
             {menu}
@@ -154,7 +176,7 @@ const Trade = () => {
             </Space>
           </>
         )}
-        options={assets.map((item) => ({ label: item.AddrStr, value: item.Address }))}
+        options={outAssets.map((item) => ({ label: item.StrSymbol, value: item.ID}))}
       />
       </div>
       <List

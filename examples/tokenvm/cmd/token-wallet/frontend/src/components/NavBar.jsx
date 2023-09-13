@@ -37,6 +37,7 @@ const items = [
 const NavBar = () => {
   const { message } = App.useApp();
   const [balance, setBalance] = useState([]);
+  const [nativeBalance, setNativeBalance] = useState({});
   const [transactions, setTransactions] = useState([]);
   const [address, setAddress] = useState("");
   const [open, setOpen] = useState(false);
@@ -58,6 +59,12 @@ const NavBar = () => {
 
     const getBalance = async () => {
         const newBalance = await GetBalance();
+        for (var bal of newBalance) {
+          if (bal.ID == "11111111111111111111111111111111LpoYY") {
+            setNativeBalance(bal);
+            break
+          }
+        }
         setBalance(newBalance);
     };
 
@@ -94,7 +101,7 @@ const NavBar = () => {
       </div>
       {balance.length > 0 &&
         <div style={{ float: "right" }}>
-          <Link strong onClick={showDrawer}>{balance[0].Str}</Link>
+          <Link strong onClick={showDrawer}>{nativeBalance.Str}</Link>
         </div>
       }
       <Menu

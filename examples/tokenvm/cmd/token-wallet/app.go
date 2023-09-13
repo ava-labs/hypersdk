@@ -168,6 +168,7 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 	a.AddAddressBook("Me", utils.Address(defaultKey.PublicKey()))
+	a.otherAssets = append(a.otherAssets, ids.Empty)
 
 	// Import ANR
 	//
@@ -495,11 +496,12 @@ func (a *App) GetChainID() string {
 type AssetInfo struct {
 	ID string
 
-	Symbol   string
-	Decimals int
-	Metadata string
-	Supply   string
-	Creator  string
+	Symbol    string
+	Decimals  int
+	Metadata  string
+	Supply    string
+	Creator   string
+	StrSymbol string
 }
 
 func (a *App) GetMyAssets() []*AssetInfo {
@@ -517,13 +519,15 @@ func (a *App) GetMyAssets() []*AssetInfo {
 			runtime.Quit(context.Background())
 			return nil
 		}
+		strAsset := asset.String()
 		assets = append(assets, &AssetInfo{
-			ID:       asset.String(),
-			Symbol:   string(symbol),
-			Decimals: int(decimals),
-			Metadata: string(metadata),
-			Supply:   hutils.FormatBalance(supply, decimals),
-			Creator:  owner,
+			ID:        asset.String(),
+			Symbol:    string(symbol),
+			Decimals:  int(decimals),
+			Metadata:  string(metadata),
+			Supply:    hutils.FormatBalance(supply, decimals),
+			Creator:   owner,
+			StrSymbol: fmt.Sprintf("%s [%s..%s]", symbol, strAsset[:3], strAsset[len(strAsset)-3:]),
 		})
 	}
 	return assets
@@ -776,21 +780,9 @@ func (a *App) GetBalance() ([]*BalanceInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, symbol, decimals, _, _, _, _, err := tcli.Asset(context.Background(), ids.Empty, true)
-	if err != nil {
-		return nil, err
-	}
-	bal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), ids.Empty)
-	if err != nil {
-		return nil, err
-	}
-	balances := []*BalanceInfo{{ID: ids.Empty.String(), Str: fmt.Sprintf("%s %s", hutils.FormatBalance(bal, decimals), symbol), Bal: fmt.Sprintf("%s (Balance: %s)", symbol, hutils.FormatBalance(bal, decimals))}}
+	balances := []*BalanceInfo{}
 	for _, arr := range [][]ids.ID{a.ownedAssets, a.otherAssets} {
 		for _, asset := range arr {
-			if asset == ids.Empty {
-				continue
-			}
-
 			_, symbol, decimals, _, _, _, _, err := tcli.Asset(context.Background(), asset, true)
 			if err != nil {
 				return nil, err
@@ -800,7 +792,11 @@ func (a *App) GetBalance() ([]*BalanceInfo, error) {
 				return nil, err
 			}
 			strAsset := asset.String()
-			balances = append(balances, &BalanceInfo{ID: asset.String(), Str: fmt.Sprintf("%s %s [%s]", hutils.FormatBalance(bal, decimals), symbol, asset), Bal: fmt.Sprintf("%s [%s..%s] (Balance: %s)", symbol, strAsset[:3], strAsset[len(strAsset)-3:], hutils.FormatBalance(bal, decimals))})
+			if asset == ids.Empty {
+				balances = append(balances, &BalanceInfo{ID: asset.String(), Str: fmt.Sprintf("%s %s", hutils.FormatBalance(bal, decimals), symbol), Bal: fmt.Sprintf("%s (Balance: %s)", symbol, hutils.FormatBalance(bal, decimals))})
+			} else {
+				balances = append(balances, &BalanceInfo{ID: asset.String(), Str: fmt.Sprintf("%s %s [%s]", hutils.FormatBalance(bal, decimals), symbol, asset), Bal: fmt.Sprintf("%s [%s..%s] (Balance: %s)", symbol, strAsset[:3], strAsset[len(strAsset)-3:], hutils.FormatBalance(bal, decimals))})
+			}
 		}
 	}
 	return balances, nil
@@ -957,13 +953,15 @@ func (a *App) GetAllAssets() []*AssetInfo {
 				runtime.Quit(context.Background())
 				return nil
 			}
+			strAsset := asset.String()
 			assets = append(assets, &AssetInfo{
-				ID:       asset.String(),
-				Symbol:   string(symbol),
-				Decimals: int(decimals),
-				Metadata: string(metadata),
-				Supply:   hutils.FormatBalance(supply, decimals),
-				Creator:  owner,
+				ID:        asset.String(),
+				Symbol:    string(symbol),
+				Decimals:  int(decimals),
+				Metadata:  string(metadata),
+				Supply:    hutils.FormatBalance(supply, decimals),
+				Creator:   owner,
+				StrSymbol: fmt.Sprintf("%s [%s..%s]", symbol, strAsset[:3], strAsset[len(strAsset)-3:]),
 			})
 		}
 	}
