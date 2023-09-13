@@ -14,9 +14,7 @@ const (
 	maxSolutionSize = 128
 )
 
-var (
-	big1 = big.NewInt(1)
-)
+var big1 = big.NewInt(1)
 
 func New() ([]byte, error) {
 	b := make([]byte, saltLength)
