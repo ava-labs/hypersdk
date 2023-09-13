@@ -4,26 +4,16 @@
 package controller
 
 import (
-	"bytes"
 	"context"
-	"errors"
-	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
-	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
-	"github.com/ava-labs/hypersdk/utils"
-	"go.uber.org/zap"
 )
 
 func (c *Controller) Genesis() *genesis.Genesis {
@@ -70,122 +60,4 @@ func (c *Controller) GetLoanFromState(
 	destination ids.ID,
 ) (uint64, error) {
 	return storage.GetLoanFromState(ctx, c.inner.ReadState, asset, destination)
-}
-
-func (c *Controller) GetFaucetAddress(_ context.Context) (ed25519.PublicKey, error) {
-	if c.config.GetFaucetAmount() == 0 {
-		return ed25519.EmptyPublicKey, errors.New("faucet disabled")
-	}
-	return c.faucetKey.PublicKey(), nil
-}
-
-func (c *Controller) GetChallenge(_ context.Context) ([]byte, uint16, error) {
-	if c.config.GetFaucetAmount() == 0 {
-		return nil, 0, errors.New("faucet disabled")
-	}
-
-	c.saltLock.RLock()
-	defer c.saltLock.RUnlock()
-	return c.salt, c.difficulty, nil
-}
-
-func (c *Controller) sendFunds(ctx context.Context, destination ed25519.PublicKey, amount uint64) (ids.ID, uint64, error) {
-	bal, err := c.GetBalanceFromState(ctx, c.faucetKey.PublicKey(), ids.Empty)
-	if err != nil {
-		return ids.Empty, 0, err
-	}
-
-	unitPrices, err := c.inner.UnitPrices(ctx)
-	if err != nil {
-		return ids.Empty, 0, err
-	}
-
-	action := &actions.Transfer{
-		To:    destination,
-		Asset: ids.Empty,
-		Value: amount,
-	}
-	factory := auth.NewED25519Factory(c.faucetKey)
-	now := time.Now().UnixMilli()
-	rules := c.inner.Rules(now)
-	maxUnits, err := chain.EstimateMaxUnits(rules, action, factory, nil)
-	if err != nil {
-		return ids.Empty, 0, err
-	}
-	maxFee, err := chain.MulSum(unitPrices, maxUnits)
-	if err != nil {
-		return ids.Empty, 0, err
-	}
-	if bal < maxFee+amount {
-		c.snowCtx.Log.Warn("faucet has insufficient funds", zap.String("balance", utils.FormatBalance(bal, consts.Decimals)))
-		return ids.Empty, 0, errors.New("insufficient balance")
-	}
-	base := &chain.Base{
-		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
-		ChainID:   rules.ChainID(),
-		MaxFee:    maxFee,
-	}
-	tx := chain.NewTx(base, nil, action)
-	signedTx, err := tx.Sign(factory, consts.ActionRegistry, consts.AuthRegistry)
-	if err != nil {
-		return ids.Empty, 0, err
-	}
-	errs := c.inner.Submit(ctx, false, []*chain.Transaction{signedTx})
-	return signedTx.ID(), maxFee, errs[0]
-}
-
-// TODO: increase difficulty if solutions/minute greater than target
-func (c *Controller) SolveChallenge(ctx context.Context, solver ed25519.PublicKey, salt []byte, solution []byte) (ids.ID, error) {
-	if c.config.GetFaucetAmount() == 0 {
-		return ids.Empty, errors.New("faucet disabled")
-	}
-
-	// Ensure solution is valid
-	c.saltLock.Lock()
-	defer c.saltLock.Unlock()
-	if !bytes.Equal(c.salt, salt) {
-		return ids.Empty, errors.New("salt expired")
-	}
-	if !challenge.Verify(salt, solution, c.difficulty) {
-		return ids.Empty, errors.New("invalid solution")
-	}
-	solutionID := utils.ToID(solution)
-	if c.solutions.Contains(solutionID) {
-		return ids.Empty, errors.New("duplicate solution")
-	}
-
-	// Issue transaction
-	txID, maxFee, err := c.sendFunds(ctx, solver, c.config.GetFaucetAmount())
-	if err != nil {
-		return ids.Empty, err
-	}
-	c.snowCtx.Log.Info("fauceted funds",
-		zap.Stringer("txID", txID),
-		zap.String("max fee", utils.FormatBalance(maxFee, consts.Decimals)),
-		zap.String("destination", tutils.Address(solver)),
-		zap.String("amount", utils.FormatBalance(c.config.GetFaucetAmount(), consts.Decimals)),
-	)
-	c.solutions.Add(solutionID)
-
-	// Roll salt if stale
-	if c.solutions.Len() < c.config.GetFaucetSolutionsPerSalt() {
-		return txID, nil
-	}
-	now := time.Now().Unix()
-	elapsed := now - c.lastRotation
-	if elapsed < int64(c.config.GetFaucetTargetDurationPerSalt()) {
-		c.difficulty++
-		c.snowCtx.Log.Info("increasing faucet difficulty", zap.Uint16("difficulty", c.difficulty))
-	} else if c.difficulty > c.config.GetFaucetDifficulty() {
-		c.difficulty--
-		c.snowCtx.Log.Info("decreasing faucet difficulty", zap.Uint16("difficulty", c.difficulty))
-	}
-	c.lastRotation = time.Now().Unix()
-	c.salt, err = challenge.New()
-	if err != nil {
-		// Should never happen
-		return ids.Empty, err
-	}
-	c.solutions.Clear()
-	return txID, nil
 }

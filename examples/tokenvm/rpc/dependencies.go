@@ -22,7 +22,4 @@ type Controller interface {
 	GetBalanceFromState(context.Context, ed25519.PublicKey, ids.ID) (uint64, error)
 	Orders(pair string, limit int) []*orderbook.Order
 	GetLoanFromState(context.Context, ids.ID, ids.ID) (uint64, error)
-	GetFaucetAddress(context.Context) (ed25519.PublicKey, error)
-	GetChallenge(context.Context) ([]byte, uint16, error)
-	SolveChallenge(context.Context, ed25519.PublicKey, []byte, []byte) (ids.ID, error)
 }
