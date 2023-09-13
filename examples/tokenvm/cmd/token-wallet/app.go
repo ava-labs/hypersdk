@@ -161,6 +161,13 @@ func (a *App) startup(ctx context.Context) {
 			return
 		}
 	}
+	defaultKey, err := h.GetDefaultKey()
+	if err != nil {
+		a.log.Error(err.Error())
+		runtime.Quit(ctx)
+		return
+	}
+	a.AddAddressBook("Me", utils.Address(defaultKey.PublicKey()))
 
 	// Import ANR
 	//
