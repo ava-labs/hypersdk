@@ -1,7 +1,7 @@
 import {useEffect, useState} from "react";
-import { GetMyAssets, CreateAsset, MintAsset, GetBalance, GetAddress } from "../../wailsjs/go/main/App";
+import { GetMyAssets, CreateAsset, MintAsset, GetBalance, GetAddressBook, AddAddressBook } from "../../wailsjs/go/main/App";
 import { PlusOutlined } from "@ant-design/icons";
-import { App, Layout, Input, InputNumber, Space, Typography, Divider, List, Card, Col, Row, Tooltip, Button, Drawer, FloatButton, Form } from "antd";
+import { App, Select, Layout, Input, InputNumber, Space, Typography, Divider, List, Card, Col, Row, Tooltip, Button, Drawer, FloatButton, Form } from "antd";
 import { Area, Line } from '@ant-design/plots';
 const { Title, Text } = Typography;
 const { Sider, Content } = Layout;
@@ -9,7 +9,6 @@ const { Sider, Content } = Layout;
 const Mint = () => {
     const { message } = App.useApp();
     const [assets, setAssets] = useState([]);
-    const [address, setAddress] = useState("");
     const [openCreate, setOpenCreate] = useState(false);
     const [openMint, setOpenMint] = useState(false);
     const [mintFocus, setMintFocus] = useState({});
@@ -32,7 +31,7 @@ const Mint = () => {
       createForm.resetFields();
       setOpenCreate(false);
 
-      message.open({key, type: "loading", content: "Issuing Transaction...", duration:0});
+      message.open({key, type: "loading", content: "Processing Transaction...", duration:0});
       (async () => {
         try {
           const start = (new Date()).getTime();
@@ -53,6 +52,50 @@ const Mint = () => {
       console.log('Failed:', errorInfo);
     };
 
+    {/* Address Book */}
+    const [addresses, setAddresses] = useState([]);
+    const [newNickname, setNewNickname] = useState('');
+    const [newAddress, setNewAddress] = useState('');
+    const [addAllowed, setAddAllowed] = useState(false);
+
+    const onNicknameChange = (event) => {
+      setNewNickname(event.target.value);
+      if (event.target.value.length > 0 && newAddress.length > 10) {
+        setAddAllowed(true);
+      } else {
+        setAddAllowed(false);
+      }
+    };
+    const onAddressChange = (event) => {
+      setNewAddress(event.target.value);
+      if (newNickname.length > 0 && event.target.value.length > 10) {
+        setAddAllowed(true);
+      } else {
+        setAddAllowed(false);
+      }
+    };
+
+    const getAddresses = async () => {
+      const caddresses = await GetAddressBook();
+      setAddresses(caddresses);
+    };
+
+    const addAddress = (e) => {
+      e.preventDefault();
+      (async () => {
+        try {
+          await AddAddressBook(newNickname, newAddress);
+          setNewNickname('');
+          setNewAddress('');
+          await getAddresses();
+        } catch (e) {
+          message.open({
+            key, type: "error", content: e.toString(),
+          });
+        }
+      })();
+    };
+
     {/* Mint Handlers */}
     const showMintDrawer = (item) => {
       setMintFocus(item);
@@ -64,16 +107,12 @@ const Mint = () => {
       setOpenMint(false);
     };
 
-    const onFillAddress = () => {
-      mintForm.setFieldsValue({ Address: address });
-    };
-
     const onFinishMint = (values) => {
       console.log('Success:', values);
       mintForm.resetFields();
       setOpenMint(false);
 
-      message.open({key, type: "loading", content: "Issuing Transaction...", duration:0});
+      message.open({key, type: "loading", content: "Processing Transaction...", duration:0});
       (async () => {
         try {
           const start = (new Date()).getTime();
@@ -95,17 +134,12 @@ const Mint = () => {
     };
 
     useEffect(() => {
-        const getAddress = async () => {
-          const address = await GetAddress();
-          setAddress(address);
-        };
-        getAddress();
-
         const getMyAssets = async () => {
             const assets = await GetMyAssets();
             setAssets(assets);
         };
 
+        getAddresses();
         getMyAssets();
         const interval = setInterval(() => {
           getMyAssets();
@@ -171,7 +205,31 @@ const Mint = () => {
                 autoComplete="off"
               >
                 <Form.Item name="Address" rules={[{ required: true }]}>
-                  <Input placeholder="Address" />
+                  <Select
+                    placeholder="Recipient"
+                    dropdownRender={(menu) => (
+                      <>
+                        {menu}
+                        <Divider style={{ margin: '8px 0' }} />
+                        <Space style={{ padding: '0 8px 4px' }}>
+                          <Input
+                            placeholder="Nickname"
+                            value={newNickname}
+                            onChange={onNicknameChange}
+                            allowClear
+                          />
+                          <Input
+                            placeholder="Address"
+                            value={newAddress}
+                            onChange={onAddressChange}
+                            allowClear
+                          />
+                          <Button type="text" icon={<PlusOutlined />} onClick={addAddress} disabled={!addAllowed}></Button>
+                        </Space>
+                      </>
+                    )}
+                    options={addresses.map((item) => ({ label: item.AddrStr, value: item.Address }))}
+                  />
                 </Form.Item>
                 <Form.Item name="Amount" rules={[{ required: true }]}>
                   <InputNumber placeholder="Amount" min={0} stringMode="true" style={{ width:"100%" }}/>
@@ -180,7 +238,6 @@ const Mint = () => {
                   <Button type="primary" htmlType="submit">
                     Mint
                   </Button>
-                  <Button type="link" htmlType="button" onClick={onFillAddress}>Populate Your Address</Button>
                 </Form.Item>
               </Form>
             </Drawer>

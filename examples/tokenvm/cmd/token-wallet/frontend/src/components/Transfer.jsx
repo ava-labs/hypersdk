@@ -68,7 +68,7 @@ const Transfer = () => {
       console.log('Success:', values);
       transferForm.resetFields();
 
-      message.open({key, type: "loading", content: "Issuing Transaction...", duration:0});
+      message.open({key, type: "loading", content: "Processing Transaction...", duration:0});
       (async () => {
         try {
           const start = (new Date()).getTime();
@@ -107,7 +107,7 @@ const Transfer = () => {
               >
                 <Form.Item name="Address" rules={[{ required: true }]}>
                   <Select
-                    placeholder="Address"
+                    placeholder="Recipient"
                     dropdownRender={(menu) => (
                       <>
                         {menu}
