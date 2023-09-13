@@ -108,7 +108,6 @@ func (m *Manager) sendFunds(ctx context.Context, destination ed25519.PublicKey, 
 	return tx.ID(), maxFee, submit(ctx)
 }
 
-// TODO: increase difficulty if solutions/minute greater than target
 func (m *Manager) SolveChallenge(ctx context.Context, solver ed25519.PublicKey, salt []byte, solution []byte) (ids.ID, error) {
 	m.l.Lock()
 	defer m.l.Unlock()
