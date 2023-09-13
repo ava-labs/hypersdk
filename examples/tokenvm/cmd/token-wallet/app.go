@@ -980,9 +980,12 @@ func (a *App) AddAsset(asset string) error {
 	if err != nil {
 		return err
 	}
-	_, _, _, _, _, owner, _, err := tcli.Asset(context.Background(), assetID, false)
+	exists, _, _, _, _, owner, _, err := tcli.Asset(context.Background(), assetID, false)
 	if err != nil {
 		return err
+	}
+	if !exists {
+		return errors.New("asset does not exist")
 	}
 	if owner == utils.Address(priv.PublicKey()) {
 		a.ownedAssets = append(a.ownedAssets, assetID)
