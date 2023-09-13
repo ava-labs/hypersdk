@@ -1,7 +1,8 @@
 import React, {useEffect, useState, useRef } from "react";
-import { Divider, Space, App, Card, Form, Input, InputNumber, Button, Select } from "antd";
+import { Layout,  Divider, Space, App, Card, Form, Input, InputNumber, Button, Select } from "antd";
 import { PlusOutlined } from '@ant-design/icons';
 import { GetBalance, Transfer as Send } from "../../wailsjs/go/main/App";
+const { Sider, Content } = Layout;
 
 let index = 0;
 
@@ -21,7 +22,7 @@ const Transfer = () => {
         setBalance(parsedBalances);
     };
 
-    const [items, setItems] = useState(['jack', 'lucy']);
+    const [items, setItems] = useState([]);
     const [name, setName] = useState('');
     const onNameChange = (event) => {
       setName(event.target.value);
@@ -83,21 +84,29 @@ const Transfer = () => {
                       <>
                         {menu}
                         <Divider style={{ margin: '8px 0' }} />
-                        <Space style={{ padding: '0 8px 4px' }}>
+                        <Layout hasSider>
+                          <Content style={{ backgroundColor: "white" }}>
                           <Input
-                            placeholder="Please enter item"
+                            placeholder="Nickname"
+                            value={name}
+                            onChange={onNameChange}
+                            style={{ margin: '0 0 8px 0' }}
+                          />
+                          <br />
+                          <Input
+                            placeholder="Address"
                             value={name}
                             onChange={onNameChange}
                           />
-                          <Input
-                            placeholder="Please enter item"
-                            value={name}
-                            onChange={onNameChange}
-                          />
-                          <Button type="text" icon={<PlusOutlined />} onClick={addItem}>
+                          </Content>
+                          <Sider width="30%">
+                          <div style={{ height:"100%", "display":"flex", "justify-content":"center", "align-items":"center", "backgroundColor": "white"}}>
+                          <Button type="text" icon={<PlusOutlined />} onClick={addItem} >
                             Add item
                           </Button>
-                        </Space>
+                          </div>
+                          </Sider>
+                        </Layout>
                       </>
                     )}
                     options={items.map((item) => ({ label: item, value: item }))}
