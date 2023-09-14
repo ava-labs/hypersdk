@@ -1,7 +1,7 @@
-import {useEffect, useState} from "react";
+import {useEffect, useState, useRef} from "react";
 import { Space, FloatButton, App, Drawer, Divider, List, Card, Typography, Form, Input, InputNumber, Button, Select, Spin } from "antd";
 import { CheckCircleTwoTone, CloseCircleTwoTone, LoadingOutlined, PlusOutlined, DoubleRightOutlined } from '@ant-design/icons';
-import { GetBalance, GetAllAssets, AddAsset } from "../../wailsjs/go/main/App";
+import { GetBalance, GetAllAssets, AddAsset, GetOrders } from "../../wailsjs/go/main/App";
 const { Text, Title, Link } = Typography;
 
 const Trade = () => {
@@ -60,17 +60,19 @@ const Trade = () => {
 
     {/* Symbol Add (only on out) */}
     const [assets, setAssets] = useState([]);
-    const [inAsset, setInAsset] = useState('');
     const [outAssets, setOutAssets] = useState([]);
     const [newAsset, setNewAsset] = useState('');
     const [addAllowed, setAddAllowed] = useState(false);
     const [outAllowed, setOutAllowed] = useState(false);
-    const [outValue, setOutValue] = useState('');
+
+    {/* Must use references because we want latest value after construction */}
+    const inAsset = useRef('');
+    const outAsset = useRef('');
     
     const inSelected = (event) => {
-      setInAsset(event);
+      inAsset.current = event;
       if (event.length > 0) {
-        setOutValue('');
+        outAsset.current = '';
         const limitedAssets = [];
         for (var asset of assets) {
           if (asset.ID == event) {
@@ -82,10 +84,13 @@ const Trade = () => {
         setOutAllowed(true);
       } else {
         setOutAllowed(false);
+        outAsset.current = '';
+        setOrders([]);
       }
     }
     const outSelected = (event) => {
-      setOutValue(event);
+      outAsset.current = event;
+      getOrders();
     }
     
     const onAssetChange = (event) => {
@@ -112,7 +117,7 @@ const Trade = () => {
           setAssets(allAssets);
           const limitedAssets = [];
           for (var asset of allAssets) {
-            if (asset.ID == inAsset) {
+            if (asset.ID == inAsset.current) {
               continue
             }
             limitedAssets.push(asset)
@@ -129,10 +134,24 @@ const Trade = () => {
       })();
     };
 
+    const [orders, setOrders] = useState([]);
+    const getOrders = async () => {
+        if (inAsset.current.length == 0 || outAsset.current.length == 0) {
+          console.log(inAsset.current, outAsset.current);
+          setOrders([]);
+          return
+        }
+        const newOrders = await GetOrders(`${inAsset.current}-${outAsset.current}`);
+        console.log(newOrders);
+        setOrders(newOrders);
+    };
+
     useEffect(() => {
+      getOrders();
       getBalance();
       getAllAssets();
       const interval = setInterval(() => {
+        getOrders();
       }, 500);
 
       return () => clearInterval(interval);
@@ -168,10 +187,10 @@ const Trade = () => {
       <Divider orientation="center" >
         Order Book
       </Divider>
-      <div style={{ "justify-content": "space-between", "align-items": "center", "display": "flex", "margin":"0 0 8px 0" }} >
+      <div style={{ "justifyContent": "space-between", "alignItems": "center", "display": "flex", "margin":"0 0 8px 0" }} >
       <Select placeholder="In" style={{ width:"45%" }} options={balance} onChange={inSelected}/>
       <DoubleRightOutlined style={{ fontSize: "15px" }}/>
-      <Select placeholder="Out" style={{ width:"45%", }} disabled={!outAllowed} value={outValue} onChange={outSelected}
+      <Select placeholder="Out" style={{ width:"45%", }} disabled={!outAllowed} value={outAsset.current} onChange={outSelected}
         dropdownRender={(menu) => (
           <>
             {menu}
@@ -192,27 +211,21 @@ const Trade = () => {
       </div>
       <List
         bordered
-        dataSource={[]}
+        dataSource={orders}
         renderItem={(item) => (
           <List.Item>
-            <div>
-              <Text strong>{item.Solution} </Text>
-              <CloseCircleTwoTone twoToneColor="#eb2f96" />
-            </div>
-            <Text strong>Salt:</Text> {item.Salt}
+            <Text strong>{item.ID}</Text>
             <br />
-            <Text strong>Difficulty:</Text> {item.Difficulty}
+            <Text strong>Price:</Text> {item.Price}
             <br />
-            <Text strong>Attempts:</Text> {item.Attempts}
+            <Text strong>Remaining:</Text> {item.Remaining} (Max Trade: {item.MaxInput})
             <br />
-            <Text strong>Elapsed:</Text> {item.Elapsed}
-            <br />
-            <Text strong>Error:</Text> {item.Err}
+            <Text strong>Owner:</Text> {item.Owner}
           </List.Item>
         )}
       />
       </div>
-      <Drawer title={"Create an Order"} placement={"right"} onClose={onCloseCreate} open={openCreate}>
+      <Drawer title={"Fill an Order"} placement={"right"} onClose={onCloseCreate} open={openCreate}>
         <Form
           name="basic"
           form={createForm}

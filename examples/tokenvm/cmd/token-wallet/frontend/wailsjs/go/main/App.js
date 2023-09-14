@@ -50,6 +50,10 @@ export function GetMyAssets() {
   return window['go']['main']['App']['GetMyAssets']();
 }
 
+export function GetOrders(arg1) {
+  return window['go']['main']['App']['GetOrders'](arg1);
+}
+
 export function GetTransactionStats() {
   return window['go']['main']['App']['GetTransactionStats']();
 }

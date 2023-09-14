@@ -994,3 +994,61 @@ func (a *App) AddAsset(asset string) error {
 	}
 	return nil
 }
+
+type Order struct {
+	ID string
+	// Set step value
+	Price     string
+	Remaining string
+	Owner     string
+
+	MaxInput  string
+	InputStep string
+}
+
+func (a *App) GetOrders(pair string) ([]*Order, error) {
+	_, _, _, _, tcli, err := a.defaultActor()
+	if err != nil {
+		return nil, err
+	}
+	rawOrders, err := tcli.Orders(context.Background(), pair)
+	if err != nil {
+		return nil, err
+	}
+	if len(rawOrders) == 0 {
+		return []*Order{}, nil
+	}
+	assetIDs := strings.Split(pair, "-")
+	in := assetIDs[0]
+	inID, err := ids.FromString(in)
+	if err != nil {
+		return nil, err
+	}
+	_, inSymbol, inDecimals, _, _, _, _, err := tcli.Asset(context.Background(), inID, true)
+	if err != nil {
+		return nil, err
+	}
+	out := assetIDs[1]
+	outID, err := ids.FromString(out)
+	if err != nil {
+		return nil, err
+	}
+	_, outSymbol, outDecimals, _, _, _, _, err := tcli.Asset(context.Background(), outID, true)
+	if err != nil {
+		return nil, err
+	}
+
+	orders := make([]*Order, len(rawOrders))
+	for i := 0; i < len(rawOrders); i++ {
+		order := rawOrders[i]
+		orders[i] = &Order{
+			ID:        order.ID.String(),
+			Price:     fmt.Sprintf("%s %s / %s %s", hutils.FormatBalance(order.InTick, inDecimals), inSymbol, hutils.FormatBalance(order.OutTick, outDecimals), outSymbol),
+			Remaining: fmt.Sprintf("%s %s", hutils.FormatBalance(order.Remaining, outDecimals), outSymbol),
+			Owner:     order.Owner,
+			MaxInput:  fmt.Sprintf("%s %s", hutils.FormatBalance((order.InTick*order.Remaining)/order.OutTick, inDecimals), inSymbol),
+			InputStep: hutils.FormatBalance(order.InTick, inDecimals),
+		}
+	}
+	return orders, nil
+}

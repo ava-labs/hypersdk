@@ -150,7 +150,8 @@ func (o *OrderBook) Orders(pair string, limit int) []*Order {
 
 	h, ok := o.orders[pair]
 	if !ok {
-		return nil
+		// Clients often prefer an empty slice instead of null
+		return []*Order{}
 	}
 	items := h.Items()
 	arrLen := len(items)

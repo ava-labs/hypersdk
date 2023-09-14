@@ -26,6 +26,8 @@ export function GetLatestBlocks():Promise<Array<main.BlockInfo>>;
 
 export function GetMyAssets():Promise<Array<main.AssetInfo>>;
 
+export function GetOrders(arg1:string):Promise<Array<main.Order>>;
+
 export function GetTransactionStats():Promise<Array<main.GenericInfo>>;
 
 export function GetTransactions():Promise<main.Transactions>;
