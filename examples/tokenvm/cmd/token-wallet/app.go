@@ -251,6 +251,7 @@ func (a *App) collectBlocks() {
 			return
 		}
 		consumed := chain.Dimensions{}
+		failTxs := 0
 		for i, result := range results {
 			nconsumed, err := chain.Add(consumed, result.Consumed)
 			if err != nil {
@@ -262,11 +263,17 @@ func (a *App) collectBlocks() {
 
 			tx := blk.Txs[i]
 			actor := auth.GetActor(tx.Auth)
+			if !result.Success {
+				failTxs++
+			}
 
-			// TODO: check related to us before parsing anything
-			// TODO: put output as summary if not success
+			// We should exit action parsing as soon as possible
 			switch action := tx.Action.(type) {
 			case *actions.Transfer:
+				if actor != pk && action.To != pk {
+					continue
+				}
+
 				_, symbol, decimals, _, _, _, _, err := cli.Asset(context.Background(), action.Asset, true)
 				if err != nil {
 					a.log.Error(err.Error())
@@ -282,7 +289,11 @@ func (a *App) collectBlocks() {
 					Type:      "Transfer",
 					Units:     hcli.ParseDimensions(result.Consumed),
 					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
-					Summary:   fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To)),
+				}
+				if result.Success {
+					txInfo.Summary = fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To))
+				} else {
+					txInfo.Summary = string(result.Output)
 				}
 				if action.To == pk {
 					if !slices.Contains(a.ownedAssets, action.Asset) && !slices.Contains(a.otherAssets, action.Asset) {
@@ -299,20 +310,32 @@ func (a *App) collectBlocks() {
 					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
 				}
 			case *actions.CreateAsset:
-				if actor == pk {
-					a.ownedAssets = append(a.ownedAssets, tx.ID())
-					a.transactions = append([]*TransactionInfo{{
-						ID:        tx.ID().String(),
-						Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
-						Success:   result.Success,
-						Timestamp: blk.Tmstmp,
-						Actor:     utils.Address(actor),
-						Type:      "Create",
-						Units:     hcli.ParseDimensions(result.Consumed),
-						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
-					}}, a.transactions...)
+				if actor != pk {
+					continue
 				}
+
+				a.ownedAssets = append(a.ownedAssets, tx.ID())
+				txInfo := &TransactionInfo{
+					ID:        tx.ID().String(),
+					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
+					Success:   result.Success,
+					Timestamp: blk.Tmstmp,
+					Actor:     utils.Address(actor),
+					Type:      "Create",
+					Units:     hcli.ParseDimensions(result.Consumed),
+					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
+				}
+				if result.Success {
+					txInfo.Summary = fmt.Sprintf("assetID: %s symbol: %s decimals: %d metadata: %s", tx.ID(), action.Symbol, action.Decimals, action.Metadata)
+				} else {
+					txInfo.Summary = string(result.Output)
+				}
+				a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
 			case *actions.MintAsset:
+				if actor != pk && action.To != pk {
+					continue
+				}
+
 				_, symbol, decimals, _, _, _, _, err := cli.Asset(context.Background(), action.Asset, true)
 				if err != nil {
 					a.log.Error(err.Error())
@@ -328,7 +351,11 @@ func (a *App) collectBlocks() {
 					Type:      "Mint",
 					Units:     hcli.ParseDimensions(result.Consumed),
 					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
-					Summary:   fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To)),
+				}
+				if result.Success {
+					txInfo.Summary = fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To))
+				} else {
+					txInfo.Summary = string(result.Output)
 				}
 				if action.To == pk {
 					if !slices.Contains(a.ownedAssets, action.Asset) && !slices.Contains(a.otherAssets, action.Asset) {
@@ -345,6 +372,10 @@ func (a *App) collectBlocks() {
 					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
 				}
 			case *actions.CreateOrder:
+				if actor != pk {
+					continue
+				}
+
 				_, inSymbol, inDecimals, _, _, _, _, err := cli.Asset(context.Background(), action.In, true)
 				if err != nil {
 					a.log.Error(err.Error())
@@ -366,19 +397,25 @@ func (a *App) collectBlocks() {
 					Type:      "CreateOrder",
 					Units:     hcli.ParseDimensions(result.Consumed),
 					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
-					Summary: fmt.Sprintf("%s %s -> %s %s (supply: %s %s)",
+				}
+				if result.Success {
+					txInfo.Summary = fmt.Sprintf("%s %s -> %s %s (supply: %s %s)",
 						hutils.FormatBalance(action.InTick, inDecimals),
 						inSymbol,
 						hutils.FormatBalance(action.OutTick, outDecimals),
 						outSymbol,
 						hutils.FormatBalance(action.Supply, outDecimals),
 						outSymbol,
-					),
+					)
+				} else {
+					txInfo.Summary = string(result.Output)
 				}
-				if actor == pk {
-					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
-				}
+				a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
 			case *actions.FillOrder:
+				if actor != pk && action.Owner != pk {
+					continue
+				}
+
 				_, inSymbol, inDecimals, _, _, _, _, err := cli.Asset(context.Background(), action.In, true)
 				if err != nil {
 					a.log.Error(err.Error())
@@ -424,6 +461,10 @@ func (a *App) collectBlocks() {
 					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
 				}
 			case *actions.CloseOrder:
+				if actor != pk {
+					continue
+				}
+
 				txInfo := &TransactionInfo{
 					ID:        tx.ID().String(),
 					Timestamp: blk.Tmstmp,
@@ -439,9 +480,7 @@ func (a *App) collectBlocks() {
 				} else {
 					txInfo.Summary = string(result.Output)
 				}
-				if actor == pk {
-					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
-				}
+				a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
 			}
 		}
 		now := time.Now()
@@ -480,12 +519,7 @@ func (a *App) collectBlocks() {
 		bi.Consumed = hcli.ParseDimensions(consumed)
 		bi.Prices = hcli.ParseDimensions(prices)
 		bi.StateRoot = blk.StateRoot.String()
-		for _, result := range results {
-			if !result.Success {
-				// TODO: just do one loop
-				bi.FailTxs++
-			}
-		}
+		bi.FailTxs = failTxs
 		bi.Txs = len(blk.Txs)
 
 		// TODO: find a more efficient way to support this
