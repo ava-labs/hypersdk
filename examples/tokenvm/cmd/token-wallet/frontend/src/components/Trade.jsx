@@ -1,7 +1,7 @@
 import {useEffect, useState, useRef} from "react";
 import { Space, FloatButton, App, Drawer, Divider, List, Card, Typography, Form, Input, InputNumber, Button, Select, Spin } from "antd";
 import { CheckCircleTwoTone, CloseCircleTwoTone, LoadingOutlined, PlusOutlined, DoubleRightOutlined } from '@ant-design/icons';
-import { GetBalance, GetAllAssets, AddAsset, GetOrders, CreateOrder } from "../../wailsjs/go/main/App";
+import { GetBalance, GetAllAssets, AddAsset, GetMyOrders, GetOrders, CreateOrder, CloseOrder } from "../../wailsjs/go/main/App";
 const { Text, Title, Link } = Typography;
 import FillOrder from "./FillOrder";
 
@@ -134,6 +134,12 @@ const Trade = () => {
       })();
     };
 
+    const [myOrders, setMyOrders] = useState([]);
+    const getMyOrders = async () => {
+        const newMyOrders = await GetMyOrders();
+        setMyOrders(newMyOrders);
+    };
+
     const [orders, setOrders] = useState([]);
     const getOrders = async () => {
         if (inAsset.current.length == 0 || outAsset.current.length == 0) {
@@ -146,11 +152,34 @@ const Trade = () => {
         setOrders(newOrders);
     };
 
+    const closeOrder = (values) => {
+      console.log('Success:', values);
+
+      message.open({key, type: "loading", content: "Processing Transaction...", duration:0});
+      (async () => {
+        try {
+          const start = (new Date()).getTime();
+          await CloseOrder(values.ID, values.OutID);
+          const finish = (new Date()).getTime();
+          await getMyOrders();
+          message.open({
+            key, type: "success", content: `Transaction Finalized (${finish-start} ms)`,
+          });
+        } catch (e) {
+          message.open({
+            key, type: "error", content: e.toString(),
+          });
+        }
+      })();
+    };
+
     useEffect(() => {
+      getMyOrders();
       getOrders();
       getBalance();
       getAllAssets();
       const interval = setInterval(() => {
+        getMyOrders();
         getOrders();
       }, 500);
 
@@ -165,22 +194,16 @@ const Trade = () => {
       </Divider>
       <List
         bordered
-        dataSource={[]}
+        dataSource={myOrders}
         renderItem={(item) => (
           <List.Item>
-            <div>
-              <Text strong>{item.Solution} </Text>
-              <CloseCircleTwoTone twoToneColor="#eb2f96" />
-            </div>
-            <Text strong>Salt:</Text> {item.Salt}
+            <Text strong style={{ color: "red" }}>{item.InTick}</Text> / <Text strong style={{ color:"green" }}>{item.OutTick}</Text> <Text type="secondary">[Rate: {item.Rate}]</Text>
             <br />
-            <Text strong>Difficulty:</Text> {item.Difficulty}
+            <Text strong>Remaining:</Text> {item.Remaining} (Max Trade: {item.MaxInput})
             <br />
-            <Text strong>Attempts:</Text> {item.Attempts}
+            <Text strong>ID:</Text> {item.ID}
             <br />
-            <Text strong>Elapsed:</Text> {item.Elapsed}
-            <br />
-            <Text strong>Error:</Text> {item.Err}
+            <Button type="primary" danger onClick={() => closeOrder(item)} style={{ margin: "8px 0 0 0" }}>Close</Button>
           </List.Item>
         )}
       />
@@ -214,7 +237,7 @@ const Trade = () => {
         dataSource={orders}
         renderItem={(item) => (
           <List.Item>
-            <Text strong style={{ color: "red" }}>{item.InTick}</Text> / <Text strong style={{ color:"green" }}>{item.OutTick}</Text>
+            <Text strong style={{ color: "red" }}>{item.InTick}</Text> / <Text strong style={{ color:"green" }}>{item.OutTick}</Text> <Text type="secondary">[Rate: {item.Rate}]</Text>
             <br />
             <Text strong>Remaining:</Text> {item.Remaining} (Max Trade: {item.MaxInput})
             <br />

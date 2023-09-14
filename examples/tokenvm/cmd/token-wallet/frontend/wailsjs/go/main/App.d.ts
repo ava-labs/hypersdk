@@ -6,6 +6,8 @@ export function AddAddressBook(arg1:string,arg2:string):Promise<void>;
 
 export function AddAsset(arg1:string):Promise<void>;
 
+export function CloseOrder(arg1:string,arg2:string):Promise<void>;
+
 export function CreateAsset(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function CreateOrder(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<void>;
@@ -29,6 +31,8 @@ export function GetFaucetSolutions():Promise<main.FaucetSolutions>;
 export function GetLatestBlocks():Promise<Array<main.BlockInfo>>;
 
 export function GetMyAssets():Promise<Array<main.AssetInfo>>;
+
+export function GetMyOrders():Promise<Array<main.Order>>;
 
 export function GetOrders(arg1:string):Promise<Array<main.Order>>;
 

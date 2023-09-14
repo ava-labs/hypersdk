@@ -166,7 +166,7 @@ const Mint = () => {
                   <br />
                   <Text strong>Supply:</Text> {item.Supply}
                   <br />
-                  <Button type="primary" style={{ margin: "8px 0" }} onClick={() => showMintDrawer(item)}>Mint</Button>
+                  <Button type="primary" style={{ margin: "8px 0 0 0" }} onClick={() => showMintDrawer(item)}>Mint</Button>
                 </List.Item>
               )}
             />

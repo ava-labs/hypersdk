@@ -10,6 +10,10 @@ export function AddAsset(arg1) {
   return window['go']['main']['App']['AddAsset'](arg1);
 }
 
+export function CloseOrder(arg1, arg2) {
+  return window['go']['main']['App']['CloseOrder'](arg1, arg2);
+}
+
 export function CreateAsset(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateAsset'](arg1, arg2, arg3);
 }
@@ -56,6 +60,10 @@ export function GetLatestBlocks() {
 
 export function GetMyAssets() {
   return window['go']['main']['App']['GetMyAssets']();
+}
+
+export function GetMyOrders() {
+  return window['go']['main']['App']['GetMyOrders']();
 }
 
 export function GetOrders(arg1) {
