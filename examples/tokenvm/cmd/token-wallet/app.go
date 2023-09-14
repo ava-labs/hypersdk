@@ -166,7 +166,7 @@ func (a *App) startup(ctx context.Context) {
 			return
 		}
 	}
-	defaultKey, err := h.GetDefaultKey()
+	defaultKey, err := h.GetDefaultKey(false)
 	if err != nil {
 		a.log.Error(err.Error())
 		runtime.Quit(ctx)
@@ -195,14 +195,14 @@ func (a *App) startup(ctx context.Context) {
 
 func (a *App) collectBlocks() {
 	ctx := context.Background()
-	priv, err := a.h.GetDefaultKey()
+	priv, err := a.h.GetDefaultKey(true)
 	if err != nil {
 		a.log.Error(err.Error())
 		runtime.Quit(ctx)
 		return
 	}
 	pk := priv.PublicKey()
-	chainID, uris, err := a.h.GetDefaultChain()
+	chainID, uris, err := a.h.GetDefaultChain(true)
 	if err != nil {
 		a.log.Error(err.Error())
 		runtime.Quit(ctx)
@@ -614,7 +614,7 @@ func (a *App) GetUnitPrices() []*GenericInfo {
 }
 
 func (a *App) GetChainID() string {
-	chainID, _, err := a.h.GetDefaultChain()
+	chainID, _, err := a.h.GetDefaultChain(false)
 	if err != nil {
 		a.log.Error(err.Error())
 		runtime.Quit(context.Background())
@@ -663,15 +663,16 @@ func (a *App) GetMyAssets() []*AssetInfo {
 	return assets
 }
 
+// TODO: share client across calls
 func (a *App) defaultActor() (
 	ids.ID, ed25519.PrivateKey, *auth.ED25519Factory,
 	*rpc.JSONRPCClient, *trpc.JSONRPCClient, error,
 ) {
-	priv, err := a.h.GetDefaultKey()
+	priv, err := a.h.GetDefaultKey(false)
 	if err != nil {
 		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
 	}
-	chainID, uris, err := a.h.GetDefaultChain()
+	chainID, uris, err := a.h.GetDefaultChain(false)
 	if err != nil {
 		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
 	}
@@ -965,7 +966,7 @@ type FaucetSearchInfo struct {
 }
 
 func (a *App) StartFaucetSearch() (*FaucetSearchInfo, error) {
-	priv, err := a.h.GetDefaultKey()
+	priv, err := a.h.GetDefaultKey(false)
 	if err != nil {
 		return nil, err
 	}
