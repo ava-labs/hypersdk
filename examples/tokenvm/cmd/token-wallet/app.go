@@ -1067,6 +1067,97 @@ func (a *App) GetOrders(pair string) ([]*Order, error) {
 	return orders, nil
 }
 
+func (a *App) CreateOrder(assetIn string, inTick string, assetOut string, outTick string, supply string) error {
+	ctx := context.Background()
+	// TODO: share client
+	_, priv, factory, cli, tcli, err := a.defaultActor()
+	if err != nil {
+		return err
+	}
+	inID, err := ids.FromString(assetIn)
+	if err != nil {
+		return err
+	}
+	outID, err := ids.FromString(assetOut)
+	if err != nil {
+		return err
+	}
+	_, _, inDecimals, _, _, _, _, err := tcli.Asset(context.Background(), inID, true)
+	if err != nil {
+		return err
+	}
+	_, outSymbol, outDecimals, _, _, _, _, err := tcli.Asset(context.Background(), outID, true)
+	if err != nil {
+		return err
+	}
+
+	// Ensure have sufficient balance
+	bal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), ids.Empty)
+	if err != nil {
+		return err
+	}
+	outBal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), outID)
+	if err != nil {
+		return err
+	}
+	iTick, err := hutils.ParseBalance(inTick, inDecimals)
+	if err != nil {
+		return err
+	}
+	oTick, err := hutils.ParseBalance(outTick, outDecimals)
+	if err != nil {
+		return err
+	}
+	oSupply, err := hutils.ParseBalance(supply, outDecimals)
+	if err != nil {
+		return err
+	}
+
+	// Generate transaction
+	parser, err := tcli.Parser(ctx)
+	if err != nil {
+		return err
+	}
+	_, tx, maxFee, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CreateOrder{
+		In:      inID,
+		InTick:  iTick,
+		Out:     outID,
+		OutTick: oTick,
+		Supply:  oSupply,
+	}, factory)
+	if err != nil {
+		return fmt.Errorf("%w: unable to generate transaction", err)
+	}
+	if inID == ids.Empty {
+		if maxFee+oSupply > bal {
+			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee+oSupply, tconsts.Decimals), tconsts.Symbol)
+		}
+	} else {
+		if maxFee > bal {
+			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee, tconsts.Decimals), tconsts.Symbol)
+		}
+		if oSupply > outBal {
+			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(outBal, outDecimals), outSymbol, hutils.FormatBalance(oSupply, outDecimals), outSymbol)
+		}
+	}
+	if err := a.scli.RegisterTx(tx); err != nil {
+		return err
+	}
+
+	// Wait for transaction
+	_, dErr, result, err := a.scli.ListenTx(ctx)
+	if err != nil {
+		return err
+	}
+	if dErr != nil {
+		return err
+	}
+	if !result.Success {
+		return fmt.Errorf("transaction failed on-chain: %s", result.Output)
+	}
+	return nil
+}
+
 func (a *App) FillOrder(orderID string, orderOwner string, assetIn string, inTick string, assetOut string, amount string) error {
 	ctx := context.Background()
 	// TODO: share client
@@ -1096,7 +1187,6 @@ func (a *App) FillOrder(orderID string, orderOwner string, assetIn string, inTic
 	}
 
 	// Ensure have sufficient balance
-	// TODO: do tat the end
 	bal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), ids.Empty)
 	if err != nil {
 		return err
