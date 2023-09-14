@@ -3,6 +3,7 @@ import { Space, FloatButton, App, Drawer, Divider, List, Card, Typography, Form,
 import { CheckCircleTwoTone, CloseCircleTwoTone, LoadingOutlined, PlusOutlined, DoubleRightOutlined } from '@ant-design/icons';
 import { GetBalance, GetAllAssets, AddAsset, GetOrders } from "../../wailsjs/go/main/App";
 const { Text, Title, Link } = Typography;
+import FillOrder from "./FillOrder";
 
 const Trade = () => {
     const { message } = App.useApp();
@@ -43,6 +44,46 @@ const Trade = () => {
     };
     
     const onFinishCreateFailed = (errorInfo) => {
+      console.log('Failed:', errorInfo);
+    };
+
+    {/* Fill Handlers */}
+    const [fillFocus, setFillFocus] = useState({});
+    const [openFill, setOpenFill] = useState(false);
+    const [fillForm] = Form.useForm();
+    const showFillDrawer = (item) => {
+      setFillFocus(item);
+      setOpenFill(true);
+    };
+
+    const onCloseFill = () => {
+      fillForm.resetFields();
+      setOpenFill(false);
+    };
+
+    const onFinishFill = (values) => {
+      console.log('Success:', values);
+      fillForm.resetFields();
+      setOpenFill(false);
+
+      message.open({key, type: "loading", content: "Processing Transaction...", duration:0});
+      (async () => {
+        try {
+          const start = (new Date()).getTime();
+          await FillOrder(values.ID, values.Owner, values.In, values.Out, values.Value);
+          const finish = (new Date()).getTime();
+          message.open({
+            key, type: "success", content: `Transaction Finalized (${finish-start} ms)`,
+          });
+        } catch (e) {
+          message.open({
+            key, type: "error", content: e.toString(),
+          });
+        }
+      })();
+    };
+    
+    const onFinishFillFailed = (errorInfo) => {
       console.log('Failed:', errorInfo);
     };
 
@@ -214,24 +255,51 @@ const Trade = () => {
         dataSource={orders}
         renderItem={(item) => (
           <List.Item>
-            <Text strong>{item.ID}</Text>
-            <br />
-            <Text strong>Price:</Text> {item.Price}
+            <Text strong style={{ color: "red" }}>{item.InTick}</Text> / <Text strong style={{ color:"green" }}>{item.OutTick}</Text>
             <br />
             <Text strong>Remaining:</Text> {item.Remaining} (Max Trade: {item.MaxInput})
             <br />
+            <Text strong>ID:</Text> {item.ID}
+            <br />
             <Text strong>Owner:</Text> {item.Owner}
+            <FillOrder order={item}/>
           </List.Item>
         )}
       />
       </div>
-      <Drawer title={"Fill an Order"} placement={"right"} onClose={onCloseCreate} open={openCreate}>
+      <Drawer title={"Create an Order"} placement={"right"} onClose={onCloseCreate} open={openCreate}>
         <Form
           name="basic"
           form={createForm}
           initialValues={{ remember: false }}
           onFinish={onFinishCreate}
           onFinishFailed={onFinishCreateFailed}
+          autoComplete="off"
+        >
+          {/* inSymbol, inTick, outSymbol, outTick, supply (multiple of out tick) */}
+          <Form.Item name="Symbol" rules={[{ required: true }]}>
+            <Input placeholder="Symbol" maxLength="8"/>
+          </Form.Item>
+          <Form.Item name="Decimals" rules={[{ required: true }]}>
+            <InputNumber min={0} max={9} placeholder="Decimals" stringMode="true" style={{ width:"100%" }}/>
+          </Form.Item>
+          <Form.Item name="Metadata" rules={[{ required: true }]}>
+            <Input placeholder="Metadata" maxLength="256"/>
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit">
+              Create
+            </Button>
+          </Form.Item>
+        </Form>
+      </Drawer>
+      <Drawer title={`Fill order`} placement={"right"} onClose={onCloseFill} open={openFill}>
+        <Form
+          name="basic"
+          form={fillForm}
+          initialValues={{ remember: false }}
+          onFinish={onFinishFill}
+          onFinishFailed={onFinishFillFailed}
           autoComplete="off"
         >
           {/* inSymbol, inTick, outSymbol, outTick, supply (multiple of out tick) */}

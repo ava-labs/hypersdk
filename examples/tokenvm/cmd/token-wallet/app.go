@@ -996,9 +996,17 @@ func (a *App) AddAsset(asset string) error {
 }
 
 type Order struct {
-	ID string
+	ID        string
+	InID      string
+	InSymbol  string
+	OutID     string
+	OutSymbol string
+
 	// Set step value
-	Price     string
+	Price   string
+	InTick  string
+	OutTick string
+
 	Remaining string
 	Owner     string
 
@@ -1043,7 +1051,13 @@ func (a *App) GetOrders(pair string) ([]*Order, error) {
 		order := rawOrders[i]
 		orders[i] = &Order{
 			ID:        order.ID.String(),
+			InID:      in,
+			InSymbol:  string(inSymbol),
+			OutID:     out,
+			OutSymbol: string(outSymbol),
 			Price:     fmt.Sprintf("%s %s / %s %s", hutils.FormatBalance(order.InTick, inDecimals), inSymbol, hutils.FormatBalance(order.OutTick, outDecimals), outSymbol),
+			InTick:    fmt.Sprintf("%s %s", hutils.FormatBalance(order.InTick, inDecimals), inSymbol),
+			OutTick:   fmt.Sprintf("%s %s", hutils.FormatBalance(order.OutTick, outDecimals), outSymbol),
 			Remaining: fmt.Sprintf("%s %s", hutils.FormatBalance(order.Remaining, outDecimals), outSymbol),
 			Owner:     order.Owner,
 			MaxInput:  fmt.Sprintf("%s %s", hutils.FormatBalance((order.InTick*order.Remaining)/order.OutTick, inDecimals), inSymbol),
@@ -1051,4 +1065,99 @@ func (a *App) GetOrders(pair string) ([]*Order, error) {
 		}
 	}
 	return orders, nil
+}
+
+func (a *App) FillOrder(orderID string, orderOwner string, assetIn string, inTick string, assetOut string, amount string) error {
+	ctx := context.Background()
+	// TODO: share client
+	_, priv, factory, cli, tcli, err := a.defaultActor()
+	if err != nil {
+		return err
+	}
+	oID, err := ids.FromString(orderID)
+	if err != nil {
+		return err
+	}
+	owner, err := utils.ParseAddress(orderOwner)
+	if err != nil {
+		return err
+	}
+	inID, err := ids.FromString(assetIn)
+	if err != nil {
+		return err
+	}
+	outID, err := ids.FromString(assetOut)
+	if err != nil {
+		return err
+	}
+	_, inSymbol, inDecimals, _, _, _, _, err := tcli.Asset(context.Background(), inID, true)
+	if err != nil {
+		return err
+	}
+
+	// Ensure have sufficient balance
+	// TODO: do tat the end
+	bal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), ids.Empty)
+	if err != nil {
+		return err
+	}
+	inBal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), inID)
+	if err != nil {
+		return err
+	}
+	iTick, err := hutils.ParseBalance(inTick, inDecimals)
+	if err != nil {
+		return err
+	}
+	inAmount, err := hutils.ParseBalance(amount, inDecimals)
+	if err != nil {
+		return err
+	}
+	if inAmount%iTick != 0 {
+		return fmt.Errorf("fill amount is not aligned (must be multiple of %s %s)", inTick, inSymbol)
+	}
+
+	// Generate transaction
+	parser, err := tcli.Parser(ctx)
+	if err != nil {
+		return err
+	}
+	_, tx, maxFee, err := cli.GenerateTransaction(ctx, parser, nil, &actions.FillOrder{
+		Order: oID,
+		Owner: owner,
+		In:    inID,
+		Out:   outID,
+		Value: inAmount,
+	}, factory)
+	if err != nil {
+		return fmt.Errorf("%w: unable to generate transaction", err)
+	}
+	if inID == ids.Empty {
+		if maxFee+inAmount > bal {
+			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee+inAmount, tconsts.Decimals), tconsts.Symbol)
+		}
+	} else {
+		if maxFee > bal {
+			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee, tconsts.Decimals), tconsts.Symbol)
+		}
+		if inAmount > inBal {
+			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(inBal, inDecimals), inSymbol, hutils.FormatBalance(inAmount, inDecimals), inSymbol)
+		}
+	}
+	if err := a.scli.RegisterTx(tx); err != nil {
+		return err
+	}
+
+	// Wait for transaction
+	_, dErr, result, err := a.scli.ListenTx(ctx)
+	if err != nil {
+		return err
+	}
+	if dErr != nil {
+		return err
+	}
+	if !result.Success {
+		return fmt.Errorf("transaction failed on-chain: %s", result.Output)
+	}
+	return nil
 }
