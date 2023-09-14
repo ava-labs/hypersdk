@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { GetBalance, GetTransactions, GetAddress } from "../../wailsjs/go/main/App";
-import { WalletTwoTone, DashboardOutlined, BankOutlined, SendOutlined, SwapOutlined, GoldOutlined, UpCircleTwoTone, DownCircleTwoTone } from "@ant-design/icons";
+import { WalletTwoTone, DashboardOutlined, BankOutlined, SendOutlined, SwapOutlined, GoldOutlined, CheckCircleTwoTone, CloseCircleTwoTone } from "@ant-design/icons";
 import { App, Layout, Menu, Typography, Drawer, List, Divider } from "antd";
 const { Text, Title, Link } = Typography;
 import { Link as RLink } from "react-router-dom";
@@ -37,6 +37,7 @@ const items = [
 const NavBar = () => {
   const { message } = App.useApp();
   const [balance, setBalance] = useState([]);
+  const [nativeBalance, setNativeBalance] = useState({});
   const [transactions, setTransactions] = useState([]);
   const [address, setAddress] = useState("");
   const [open, setOpen] = useState(false);
@@ -58,6 +59,12 @@ const NavBar = () => {
 
     const getBalance = async () => {
         const newBalance = await GetBalance();
+        for (var bal of newBalance) {
+          if (bal.ID == "11111111111111111111111111111111LpoYY") {
+            setNativeBalance(bal);
+            break
+          }
+        }
         setBalance(newBalance);
     };
 
@@ -94,7 +101,7 @@ const NavBar = () => {
       </div>
       {balance.length > 0 &&
         <div style={{ float: "right" }}>
-          <Link strong onClick={showDrawer}>{balance[0].Str}</Link>
+          <Link strong onClick={showDrawer}>{nativeBalance.Str}</Link>
         </div>
       }
       <Menu
@@ -129,11 +136,11 @@ const NavBar = () => {
           <List.Item>
             <div>
               <Text strong>{item.ID} </Text>
-              {item.Created &&
-                <UpCircleTwoTone twoToneColor="#eb2f96" />
+              {!item.Success &&
+                <CloseCircleTwoTone twoToneColor="#eb2f96" />
               }
-              {!item.Created &&
-                <DownCircleTwoTone twoToneColor="#52c41a" />
+              {item.Success &&
+                <CheckCircleTwoTone twoToneColor="#52c41a" />
               }
             </div>
             <Text strong>Type:</Text> {item.Type}
@@ -141,6 +148,8 @@ const NavBar = () => {
             <Text strong>Timestamp:</Text> {item.Timestamp}
             <br />
             <Text strong>Units:</Text> {item.Units}
+            <br />
+            <Text strong>Size:</Text> {item.Size}
             <br />
             <Text strong>Summary:</Text> {item.Summary}
             <br />

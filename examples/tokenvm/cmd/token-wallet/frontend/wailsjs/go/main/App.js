@@ -6,8 +6,24 @@ export function AddAddressBook(arg1, arg2) {
   return window['go']['main']['App']['AddAddressBook'](arg1, arg2);
 }
 
+export function AddAsset(arg1) {
+  return window['go']['main']['App']['AddAsset'](arg1);
+}
+
+export function CloseOrder(arg1, arg2) {
+  return window['go']['main']['App']['CloseOrder'](arg1, arg2);
+}
+
 export function CreateAsset(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateAsset'](arg1, arg2, arg3);
+}
+
+export function CreateOrder(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['CreateOrder'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function FillOrder(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['FillOrder'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function GetAccountStats() {
@@ -20,6 +36,10 @@ export function GetAddress() {
 
 export function GetAddressBook() {
   return window['go']['main']['App']['GetAddressBook']();
+}
+
+export function GetAllAssets() {
+  return window['go']['main']['App']['GetAllAssets']();
 }
 
 export function GetBalance() {
@@ -40,6 +60,14 @@ export function GetLatestBlocks() {
 
 export function GetMyAssets() {
   return window['go']['main']['App']['GetMyAssets']();
+}
+
+export function GetMyOrders() {
+  return window['go']['main']['App']['GetMyOrders']();
+}
+
+export function GetOrders(arg1) {
+  return window['go']['main']['App']['GetOrders'](arg1);
 }
 
 export function GetTransactionStats() {

@@ -54,6 +54,22 @@ func (c *Controller) Orders(pair string, limit int) []*orderbook.Order {
 	return c.orderBook.Orders(pair, limit)
 }
 
+func (c *Controller) GetOrderFromState(
+	ctx context.Context,
+	orderID ids.ID,
+) (
+	bool, // exists
+	ids.ID, // in
+	uint64, // inTick
+	ids.ID, // out
+	uint64, // outTick
+	uint64, // remaining
+	ed25519.PublicKey, // owner
+	error,
+) {
+	return storage.GetOrderFromState(ctx, c.inner.ReadState, orderID)
+}
+
 func (c *Controller) GetLoanFromState(
 	ctx context.Context,
 	asset ids.ID,

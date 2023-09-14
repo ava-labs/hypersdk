@@ -42,11 +42,9 @@ const Faucet = () => {
 
     return (<>
             <div style={{ width:"60%", margin: "auto" }}>
-            <Card bordered title={"Mine for Tokens"}>
+            <Card bordered title={"Search for Tokens"}>
               {loaded && search === null &&
                 <div>
-                  <Text italic>To get TKN, you must complete a PoW.</Text>
-                  <br />
                   <Button type="primary" style={{ margin:"8px 0%" }} onClick={startSearch}>Start</Button>
                 </div>
               }
@@ -115,9 +113,10 @@ const Faucet = () => {
           </List.Item>
         )}
       />
+      <Divider orientation="center">
+        Explanation
+      </Divider>
       </div>
     </>);
 }
 export default Faucet;
-
-{/* Previous faucet attempts as list, current faucet attempt, start new faucet attempt */}

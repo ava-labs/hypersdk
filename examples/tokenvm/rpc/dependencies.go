@@ -21,5 +21,15 @@ type Controller interface {
 	GetAssetFromState(context.Context, ids.ID) (bool, []byte, uint8, []byte, uint64, ed25519.PublicKey, bool, error)
 	GetBalanceFromState(context.Context, ed25519.PublicKey, ids.ID) (uint64, error)
 	Orders(pair string, limit int) []*orderbook.Order
+	GetOrderFromState(context.Context, ids.ID) (
+		bool, // exists
+		ids.ID, // in
+		uint64, // inTick
+		ids.ID, // out
+		uint64, // outTick
+		uint64, // remaining
+		ed25519.PublicKey, // owner
+		error,
+	)
 	GetLoanFromState(context.Context, ids.ID, ids.ID) (uint64, error)
 }

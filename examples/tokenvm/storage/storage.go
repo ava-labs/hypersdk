@@ -417,6 +417,38 @@ func GetOrder(
 ) {
 	k := OrderKey(order)
 	v, err := im.GetValue(ctx, k)
+	return innerGetOrder(v, err)
+}
+
+// Used to serve RPC queries
+func GetOrderFromState(
+	ctx context.Context,
+	f ReadState,
+	order ids.ID,
+) (
+	bool, // exists
+	ids.ID, // in
+	uint64, // inTick
+	ids.ID, // out
+	uint64, // outTick
+	uint64, // remaining
+	ed25519.PublicKey, // owner
+	error,
+) {
+	values, errs := f(ctx, [][]byte{OrderKey(order)})
+	return innerGetOrder(values[0], errs[0])
+}
+
+func innerGetOrder(v []byte, err error) (
+	bool, // exists
+	ids.ID, // in
+	uint64, // inTick
+	ids.ID, // out
+	uint64, // outTick
+	uint64, // remaining
+	ed25519.PublicKey, // owner
+	error,
+) {
 	if errors.Is(err, database.ErrNotFound) {
 		return false, ids.Empty, 0, ids.Empty, 0, 0, ed25519.EmptyPublicKey, nil
 	}

@@ -134,6 +134,37 @@ func (j *JSONRPCServer) Orders(req *http.Request, args *OrdersArgs, reply *Order
 	return nil
 }
 
+type GetOrderArgs struct {
+	OrderID ids.ID `json:"orderID"`
+}
+
+type GetOrderReply struct {
+	Order *orderbook.Order `json:"order"`
+}
+
+func (j *JSONRPCServer) GetOrder(req *http.Request, args *GetOrderArgs, reply *GetOrderReply) error {
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.GetOrder")
+	defer span.End()
+
+	exists, in, inTick, out, outTick, remaining, owner, err := j.c.GetOrderFromState(ctx, args.OrderID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrOrderNotFound
+	}
+	reply.Order = &orderbook.Order{
+		ID:        args.OrderID,
+		Owner:     utils.Address(owner),
+		InAsset:   in,
+		InTick:    inTick,
+		OutAsset:  out,
+		OutTick:   outTick,
+		Remaining: remaining,
+	}
+	return nil
+}
+
 type LoanArgs struct {
 	Destination ids.ID `json:"destination"`
 	Asset       ids.ID `json:"asset"`

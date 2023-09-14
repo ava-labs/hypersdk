@@ -143,6 +143,19 @@ func (cli *JSONRPCClient) Orders(ctx context.Context, pair string) ([]*orderbook
 	return resp.Orders, err
 }
 
+func (cli *JSONRPCClient) GetOrder(ctx context.Context, orderID ids.ID) (*orderbook.Order, error) {
+	resp := new(GetOrderReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getOrder",
+		&GetOrderArgs{
+			OrderID: orderID,
+		},
+		resp,
+	)
+	return resp.Order, err
+}
+
 func (cli *JSONRPCClient) Loan(
 	ctx context.Context,
 	asset ids.ID,

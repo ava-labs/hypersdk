@@ -84,14 +84,18 @@ type App struct {
 
 	addressLock sync.Mutex
 	addressBook []*AddressInfo
+
+	orderLock sync.Mutex
+	myOrders  []ids.ID
 }
 
 type TransactionInfo struct {
 	ID        string
+	Size      string
 	Timestamp int64
 	Actor     string
-	Created   bool
 
+	Success bool
 	Type    string
 	Units   string
 	Fee     string
@@ -132,6 +136,7 @@ func NewApp() *App {
 		solutions:         []*FaucetSearchInfo{},
 		searchAlerts:      []*Alert{},
 		addressBook:       []*AddressInfo{},
+		myOrders:          []ids.ID{},
 	}
 }
 
@@ -161,13 +166,14 @@ func (a *App) startup(ctx context.Context) {
 			return
 		}
 	}
-	defaultKey, err := h.GetDefaultKey()
+	defaultKey, err := h.GetDefaultKey(false)
 	if err != nil {
 		a.log.Error(err.Error())
 		runtime.Quit(ctx)
 		return
 	}
 	a.AddAddressBook("Me", utils.Address(defaultKey.PublicKey()))
+	a.otherAssets = append(a.otherAssets, ids.Empty)
 
 	// Import ANR
 	//
@@ -189,14 +195,14 @@ func (a *App) startup(ctx context.Context) {
 
 func (a *App) collectBlocks() {
 	ctx := context.Background()
-	priv, err := a.h.GetDefaultKey()
+	priv, err := a.h.GetDefaultKey(true)
 	if err != nil {
 		a.log.Error(err.Error())
 		runtime.Quit(ctx)
 		return
 	}
 	pk := priv.PublicKey()
-	chainID, uris, err := a.h.GetDefaultChain()
+	chainID, uris, err := a.h.GetDefaultChain(true)
 	if err != nil {
 		a.log.Error(err.Error())
 		runtime.Quit(ctx)
@@ -245,6 +251,7 @@ func (a *App) collectBlocks() {
 			return
 		}
 		consumed := chain.Dimensions{}
+		failTxs := 0
 		for i, result := range results {
 			nconsumed, err := chain.Add(consumed, result.Consumed)
 			if err != nil {
@@ -254,13 +261,81 @@ func (a *App) collectBlocks() {
 			}
 			consumed = nconsumed
 
-			if !result.Success {
-				continue
-			}
 			tx := blk.Txs[i]
 			actor := auth.GetActor(tx.Auth)
+			if !result.Success {
+				failTxs++
+			}
+
+			// We should exit action parsing as soon as possible
 			switch action := tx.Action.(type) {
 			case *actions.Transfer:
+				if actor != pk && action.To != pk {
+					continue
+				}
+
+				_, symbol, decimals, _, _, _, _, err := cli.Asset(context.Background(), action.Asset, true)
+				if err != nil {
+					a.log.Error(err.Error())
+					runtime.Quit(ctx)
+					return
+				}
+				txInfo := &TransactionInfo{
+					ID:        tx.ID().String(),
+					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
+					Success:   result.Success,
+					Timestamp: blk.Tmstmp,
+					Actor:     utils.Address(actor),
+					Type:      "Transfer",
+					Units:     hcli.ParseDimensions(result.Consumed),
+					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
+				}
+				if result.Success {
+					txInfo.Summary = fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To))
+				} else {
+					txInfo.Summary = string(result.Output)
+				}
+				if action.To == pk {
+					if !slices.Contains(a.ownedAssets, action.Asset) && !slices.Contains(a.otherAssets, action.Asset) {
+						a.otherAssets = append(a.otherAssets, action.Asset)
+					}
+
+					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
+					if actor != pk && result.Success {
+						a.transactionLock.Lock()
+						a.transactionAlerts = append(a.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from Transfer Action", hutils.FormatBalance(action.Value, decimals), symbol)})
+						a.transactionLock.Unlock()
+					}
+				} else if actor == pk {
+					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
+				}
+			case *actions.CreateAsset:
+				if actor != pk {
+					continue
+				}
+
+				a.ownedAssets = append(a.ownedAssets, tx.ID())
+				txInfo := &TransactionInfo{
+					ID:        tx.ID().String(),
+					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
+					Success:   result.Success,
+					Timestamp: blk.Tmstmp,
+					Actor:     utils.Address(actor),
+					Type:      "CreateAsset",
+					Units:     hcli.ParseDimensions(result.Consumed),
+					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
+				}
+				if result.Success {
+					txInfo.Summary = fmt.Sprintf("assetID: %s symbol: %s decimals: %d metadata: %s", tx.ID(), action.Symbol, action.Decimals, action.Metadata)
+				} else {
+					txInfo.Summary = string(result.Output)
+				}
+				a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
+			case *actions.MintAsset:
+				if actor != pk && action.To != pk {
+					continue
+				}
+
 				_, symbol, decimals, _, _, _, _, err := cli.Asset(context.Background(), action.Asset, true)
 				if err != nil {
 					a.log.Error(err.Error())
@@ -270,78 +345,142 @@ func (a *App) collectBlocks() {
 				txInfo := &TransactionInfo{
 					ID:        tx.ID().String(),
 					Timestamp: blk.Tmstmp,
+					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
+					Success:   result.Success,
 					Actor:     utils.Address(actor),
-					Type:      "Transfer",
+					Type:      "Mint",
 					Units:     hcli.ParseDimensions(result.Consumed),
 					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
-					Summary:   fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To)),
+				}
+				if result.Success {
+					txInfo.Summary = fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To))
+				} else {
+					txInfo.Summary = string(result.Output)
 				}
 				if action.To == pk {
-					txInfo.Created = false
+					if !slices.Contains(a.ownedAssets, action.Asset) && !slices.Contains(a.otherAssets, action.Asset) {
+						a.otherAssets = append(a.otherAssets, action.Asset)
+					}
+
 					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
-					if actor != pk {
+					if actor != pk && result.Success {
 						a.transactionLock.Lock()
-						a.transactionAlerts = append(a.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s", hutils.FormatBalance(action.Value, decimals), symbol)})
+						a.transactionAlerts = append(a.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from Mint Action", hutils.FormatBalance(action.Value, decimals), symbol)})
 						a.transactionLock.Unlock()
 					}
 				} else if actor == pk {
-					txInfo.Created = true
 					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
 				}
-			case *actions.CreateAsset:
-				if actor == pk {
-					a.ownedAssets = append(a.ownedAssets, tx.ID())
-					a.transactions = append([]*TransactionInfo{{
-						ID:        tx.ID().String(),
-						Timestamp: blk.Tmstmp,
-						Actor:     utils.Address(actor),
-						Created:   true,
-						Type:      "Create",
-						Units:     hcli.ParseDimensions(result.Consumed),
-						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
-						Summary:   fmt.Sprintf("assetID: %s symbol: %s decimals: %d metadata: %s", tx.ID(), action.Symbol, action.Decimals, action.Metadata),
-					}}, a.transactions...)
-				} else {
-					a.otherAssets = append(a.otherAssets, tx.ID())
+			case *actions.CreateOrder:
+				if actor != pk {
+					continue
 				}
-			case *actions.MintAsset:
-				_, symbol, decimals, _, _, _, _, err := cli.Asset(context.Background(), action.Asset, true)
+
+				_, inSymbol, inDecimals, _, _, _, _, err := cli.Asset(context.Background(), action.In, true)
 				if err != nil {
 					a.log.Error(err.Error())
 					runtime.Quit(ctx)
 					return
 				}
-				if action.To == pk {
-					if actor != pk && !slices.Contains(a.otherAssets, action.Asset) {
-						a.otherAssets = append(a.otherAssets, action.Asset)
-					}
-					a.transactions = append([]*TransactionInfo{{
-						ID:        tx.ID().String(),
-						Timestamp: blk.Tmstmp,
-						Actor:     utils.Address(actor),
-						Created:   false, // prefer to show receive
-						Type:      "Mint",
-						Units:     hcli.ParseDimensions(result.Consumed),
-						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
-						Summary:   fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To)),
-					}}, a.transactions...)
-					if actor != pk {
+				_, outSymbol, outDecimals, _, _, _, _, err := cli.Asset(context.Background(), action.Out, true)
+				if err != nil {
+					a.log.Error(err.Error())
+					runtime.Quit(ctx)
+					return
+				}
+				txInfo := &TransactionInfo{
+					ID:        tx.ID().String(),
+					Timestamp: blk.Tmstmp,
+					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
+					Success:   result.Success,
+					Actor:     utils.Address(actor),
+					Type:      "CreateOrder",
+					Units:     hcli.ParseDimensions(result.Consumed),
+					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
+				}
+				if result.Success {
+					txInfo.Summary = fmt.Sprintf("%s %s -> %s %s (supply: %s %s)",
+						hutils.FormatBalance(action.InTick, inDecimals),
+						inSymbol,
+						hutils.FormatBalance(action.OutTick, outDecimals),
+						outSymbol,
+						hutils.FormatBalance(action.Supply, outDecimals),
+						outSymbol,
+					)
+				} else {
+					txInfo.Summary = string(result.Output)
+				}
+				a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
+			case *actions.FillOrder:
+				if actor != pk && action.Owner != pk {
+					continue
+				}
+
+				_, inSymbol, inDecimals, _, _, _, _, err := cli.Asset(context.Background(), action.In, true)
+				if err != nil {
+					a.log.Error(err.Error())
+					runtime.Quit(ctx)
+					return
+				}
+				_, outSymbol, outDecimals, _, _, _, _, err := cli.Asset(context.Background(), action.Out, true)
+				if err != nil {
+					a.log.Error(err.Error())
+					runtime.Quit(ctx)
+					return
+				}
+				txInfo := &TransactionInfo{
+					ID:        tx.ID().String(),
+					Timestamp: blk.Tmstmp,
+					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
+					Success:   result.Success,
+					Actor:     utils.Address(actor),
+					Type:      "FillOrder",
+					Units:     hcli.ParseDimensions(result.Consumed),
+					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
+				}
+				if result.Success {
+					or, _ := actions.UnmarshalOrderResult(result.Output)
+					txInfo.Summary = fmt.Sprintf("%s %s -> %s %s (remaining: %s %s)",
+						hutils.FormatBalance(or.In, inDecimals),
+						inSymbol,
+						hutils.FormatBalance(or.Out, outDecimals),
+						outSymbol,
+						hutils.FormatBalance(or.Remaining, outDecimals),
+						outSymbol,
+					)
+
+					if action.Owner == pk && actor != pk {
 						a.transactionLock.Lock()
-						a.transactionAlerts = append(a.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s", hutils.FormatBalance(action.Value, decimals), symbol)})
+						a.transactionAlerts = append(a.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from FillOrder Action", hutils.FormatBalance(or.In, inDecimals), inSymbol)})
 						a.transactionLock.Unlock()
 					}
-				} else if actor == pk {
-					a.transactions = append([]*TransactionInfo{{
-						ID:        tx.ID().String(),
-						Timestamp: blk.Tmstmp,
-						Actor:     utils.Address(actor),
-						Created:   true,
-						Type:      "Mint",
-						Units:     hcli.ParseDimensions(result.Consumed),
-						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
-						Summary:   fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To)),
-					}}, a.transactions...)
+				} else {
+					txInfo.Summary = string(result.Output)
 				}
+				if actor == pk {
+					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
+				}
+			case *actions.CloseOrder:
+				if actor != pk {
+					continue
+				}
+
+				txInfo := &TransactionInfo{
+					ID:        tx.ID().String(),
+					Timestamp: blk.Tmstmp,
+					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
+					Success:   result.Success,
+					Actor:     utils.Address(actor),
+					Type:      "CloseOrder",
+					Units:     hcli.ParseDimensions(result.Consumed),
+					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
+				}
+				if result.Success {
+					txInfo.Summary = fmt.Sprintf("OrderID: %s", action.Order)
+				} else {
+					txInfo.Summary = string(result.Output)
+				}
+				a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
 			}
 		}
 		now := time.Now()
@@ -380,12 +519,7 @@ func (a *App) collectBlocks() {
 		bi.Consumed = hcli.ParseDimensions(consumed)
 		bi.Prices = hcli.ParseDimensions(prices)
 		bi.StateRoot = blk.StateRoot.String()
-		for _, result := range results {
-			if !result.Success {
-				// TODO: just do one loop
-				bi.FailTxs++
-			}
-		}
+		bi.FailTxs = failTxs
 		bi.Txs = len(blk.Txs)
 
 		// TODO: find a more efficient way to support this
@@ -480,7 +614,7 @@ func (a *App) GetUnitPrices() []*GenericInfo {
 }
 
 func (a *App) GetChainID() string {
-	chainID, _, err := a.h.GetDefaultChain()
+	chainID, _, err := a.h.GetDefaultChain(false)
 	if err != nil {
 		a.log.Error(err.Error())
 		runtime.Quit(context.Background())
@@ -492,11 +626,12 @@ func (a *App) GetChainID() string {
 type AssetInfo struct {
 	ID string
 
-	Symbol   string
-	Decimals int
-	Metadata string
-	Supply   string
-	Creator  string
+	Symbol    string
+	Decimals  int
+	Metadata  string
+	Supply    string
+	Creator   string
+	StrSymbol string
 }
 
 func (a *App) GetMyAssets() []*AssetInfo {
@@ -514,27 +649,30 @@ func (a *App) GetMyAssets() []*AssetInfo {
 			runtime.Quit(context.Background())
 			return nil
 		}
+		strAsset := asset.String()
 		assets = append(assets, &AssetInfo{
-			ID:       asset.String(),
-			Symbol:   string(symbol),
-			Decimals: int(decimals),
-			Metadata: string(metadata),
-			Supply:   hutils.FormatBalance(supply, decimals),
-			Creator:  owner,
+			ID:        asset.String(),
+			Symbol:    string(symbol),
+			Decimals:  int(decimals),
+			Metadata:  string(metadata),
+			Supply:    hutils.FormatBalance(supply, decimals),
+			Creator:   owner,
+			StrSymbol: fmt.Sprintf("%s [%s..%s]", symbol, strAsset[:3], strAsset[len(strAsset)-3:]),
 		})
 	}
 	return assets
 }
 
+// TODO: share client across calls
 func (a *App) defaultActor() (
 	ids.ID, ed25519.PrivateKey, *auth.ED25519Factory,
 	*rpc.JSONRPCClient, *trpc.JSONRPCClient, error,
 ) {
-	priv, err := a.h.GetDefaultKey()
+	priv, err := a.h.GetDefaultKey(false)
 	if err != nil {
 		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
 	}
-	chainID, uris, err := a.h.GetDefaultChain()
+	chainID, uris, err := a.h.GetDefaultChain(false)
 	if err != nil {
 		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
 	}
@@ -773,15 +911,7 @@ func (a *App) GetBalance() ([]*BalanceInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, symbol, decimals, _, _, _, _, err := tcli.Asset(context.Background(), ids.Empty, true)
-	if err != nil {
-		return nil, err
-	}
-	bal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), ids.Empty)
-	if err != nil {
-		return nil, err
-	}
-	balances := []*BalanceInfo{{ID: ids.Empty.String(), Str: fmt.Sprintf("%s %s", hutils.FormatBalance(bal, decimals), symbol), Bal: fmt.Sprintf("%s (Balance: %s)", symbol, hutils.FormatBalance(bal, decimals))}}
+	balances := []*BalanceInfo{}
 	for _, arr := range [][]ids.ID{a.ownedAssets, a.otherAssets} {
 		for _, asset := range arr {
 			_, symbol, decimals, _, _, _, _, err := tcli.Asset(context.Background(), asset, true)
@@ -793,7 +923,11 @@ func (a *App) GetBalance() ([]*BalanceInfo, error) {
 				return nil, err
 			}
 			strAsset := asset.String()
-			balances = append(balances, &BalanceInfo{ID: asset.String(), Str: fmt.Sprintf("%s %s [%s]", hutils.FormatBalance(bal, decimals), symbol, asset), Bal: fmt.Sprintf("%s [%s..%s] (Balance: %s)", symbol, strAsset[:3], strAsset[len(strAsset)-3:], hutils.FormatBalance(bal, decimals))})
+			if asset == ids.Empty {
+				balances = append(balances, &BalanceInfo{ID: asset.String(), Str: fmt.Sprintf("%s %s", hutils.FormatBalance(bal, decimals), symbol), Bal: fmt.Sprintf("%s (Balance: %s)", symbol, hutils.FormatBalance(bal, decimals))})
+			} else {
+				balances = append(balances, &BalanceInfo{ID: asset.String(), Str: fmt.Sprintf("%s %s [%s]", hutils.FormatBalance(bal, decimals), symbol, asset), Bal: fmt.Sprintf("%s [%s..%s] (Balance: %s)", symbol, strAsset[:3], strAsset[len(strAsset)-3:], hutils.FormatBalance(bal, decimals))})
+			}
 		}
 	}
 	return balances, nil
@@ -832,7 +966,7 @@ type FaucetSearchInfo struct {
 }
 
 func (a *App) StartFaucetSearch() (*FaucetSearchInfo, error) {
-	priv, err := a.h.GetDefaultKey()
+	priv, err := a.h.GetDefaultKey(false)
 	if err != nil {
 		return nil, err
 	}
@@ -931,5 +1065,429 @@ func (a *App) AddAddressBook(name string, address string) error {
 	}
 
 	a.addressBook = append(a.addressBook, &AddressInfo{name, address, fmt.Sprintf("%s [%s..%s]", name, address[:len(tconsts.HRP)+3], address[len(address)-3:])})
+	return nil
+}
+
+func (a *App) GetAllAssets() []*AssetInfo {
+	_, _, _, _, tcli, err := a.defaultActor()
+	if err != nil {
+		a.log.Error(err.Error())
+		runtime.Quit(context.Background())
+		return nil
+	}
+	assets := []*AssetInfo{}
+	for _, arr := range [][]ids.ID{a.ownedAssets, a.otherAssets} {
+		for _, asset := range arr {
+			_, symbol, decimals, metadata, supply, owner, _, err := tcli.Asset(context.Background(), asset, false)
+			if err != nil {
+				a.log.Error(err.Error())
+				runtime.Quit(context.Background())
+				return nil
+			}
+			strAsset := asset.String()
+			assets = append(assets, &AssetInfo{
+				ID:        asset.String(),
+				Symbol:    string(symbol),
+				Decimals:  int(decimals),
+				Metadata:  string(metadata),
+				Supply:    hutils.FormatBalance(supply, decimals),
+				Creator:   owner,
+				StrSymbol: fmt.Sprintf("%s [%s..%s]", symbol, strAsset[:3], strAsset[len(strAsset)-3:]),
+			})
+		}
+	}
+	return assets
+}
+
+func (a *App) AddAsset(asset string) error {
+	assetID, err := ids.FromString(asset)
+	if err != nil {
+		return err
+	}
+	if slices.Contains(a.ownedAssets, assetID) || slices.Contains(a.otherAssets, assetID) {
+		return errors.New("asset already exists")
+	}
+	_, priv, _, _, tcli, err := a.defaultActor()
+	if err != nil {
+		return err
+	}
+	exists, _, _, _, _, owner, _, err := tcli.Asset(context.Background(), assetID, false)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errors.New("asset does not exist")
+	}
+	if owner == utils.Address(priv.PublicKey()) {
+		a.ownedAssets = append(a.ownedAssets, assetID)
+	} else {
+		a.otherAssets = append(a.otherAssets, assetID)
+	}
+	return nil
+}
+
+type Order struct {
+	ID        string
+	InID      string
+	InSymbol  string
+	OutID     string
+	OutSymbol string
+
+	// Set step value
+	Price   string
+	InTick  string
+	OutTick string
+	Rate    float64
+
+	Remaining string
+	Owner     string
+
+	MaxInput  string
+	InputStep string
+}
+
+func (a *App) GetMyOrders() ([]*Order, error) {
+	// TODO: make locking more granular
+	a.orderLock.Lock()
+	defer a.orderLock.Unlock()
+
+	_, _, _, _, tcli, err := a.defaultActor()
+	if err != nil {
+		return nil, err
+	}
+	newMyOrders := make([]ids.ID, 0, len(a.myOrders))
+	orders := make([]*Order, 0, len(a.myOrders))
+	for _, orderID := range a.myOrders {
+		order, err := tcli.GetOrder(context.Background(), orderID)
+		if err != nil {
+			continue
+		}
+		newMyOrders = append(newMyOrders, orderID)
+		inID := order.InAsset
+		_, inSymbol, inDecimals, _, _, _, _, err := tcli.Asset(context.Background(), inID, true)
+		if err != nil {
+			return nil, err
+		}
+		outID := order.OutAsset
+		_, outSymbol, outDecimals, _, _, _, _, err := tcli.Asset(context.Background(), outID, true)
+		if err != nil {
+			return nil, err
+		}
+		orders = append(orders, &Order{
+			ID:        orderID.String(),
+			InID:      inID.String(),
+			InSymbol:  string(inSymbol),
+			OutID:     outID.String(),
+			OutSymbol: string(outSymbol),
+			Price:     fmt.Sprintf("%s %s / %s %s", hutils.FormatBalance(order.InTick, inDecimals), inSymbol, hutils.FormatBalance(order.OutTick, outDecimals), outSymbol),
+			InTick:    fmt.Sprintf("%s %s", hutils.FormatBalance(order.InTick, inDecimals), inSymbol),
+			OutTick:   fmt.Sprintf("%s %s", hutils.FormatBalance(order.OutTick, outDecimals), outSymbol),
+			Rate:      float64(order.OutTick) / float64(order.InTick),
+			Remaining: fmt.Sprintf("%s %s", hutils.FormatBalance(order.Remaining, outDecimals), outSymbol),
+			Owner:     order.Owner,
+			MaxInput:  fmt.Sprintf("%s %s", hutils.FormatBalance((order.InTick*order.Remaining)/order.OutTick, inDecimals), inSymbol),
+			InputStep: hutils.FormatBalance(order.InTick, inDecimals),
+		})
+	}
+	a.myOrders = newMyOrders
+	return orders, nil
+}
+
+func (a *App) GetOrders(pair string) ([]*Order, error) {
+	_, _, _, _, tcli, err := a.defaultActor()
+	if err != nil {
+		return nil, err
+	}
+	rawOrders, err := tcli.Orders(context.Background(), pair)
+	if err != nil {
+		return nil, err
+	}
+	if len(rawOrders) == 0 {
+		return []*Order{}, nil
+	}
+	assetIDs := strings.Split(pair, "-")
+	in := assetIDs[0]
+	inID, err := ids.FromString(in)
+	if err != nil {
+		return nil, err
+	}
+	_, inSymbol, inDecimals, _, _, _, _, err := tcli.Asset(context.Background(), inID, true)
+	if err != nil {
+		return nil, err
+	}
+	out := assetIDs[1]
+	outID, err := ids.FromString(out)
+	if err != nil {
+		return nil, err
+	}
+	_, outSymbol, outDecimals, _, _, _, _, err := tcli.Asset(context.Background(), outID, true)
+	if err != nil {
+		return nil, err
+	}
+
+	orders := make([]*Order, len(rawOrders))
+	for i := 0; i < len(rawOrders); i++ {
+		order := rawOrders[i]
+		orders[i] = &Order{
+			ID:        order.ID.String(),
+			InID:      in,
+			InSymbol:  string(inSymbol),
+			OutID:     out,
+			OutSymbol: string(outSymbol),
+			Price:     fmt.Sprintf("%s %s / %s %s", hutils.FormatBalance(order.InTick, inDecimals), inSymbol, hutils.FormatBalance(order.OutTick, outDecimals), outSymbol),
+			InTick:    fmt.Sprintf("%s %s", hutils.FormatBalance(order.InTick, inDecimals), inSymbol),
+			OutTick:   fmt.Sprintf("%s %s", hutils.FormatBalance(order.OutTick, outDecimals), outSymbol),
+			Rate:      float64(order.OutTick) / float64(order.InTick),
+			Remaining: fmt.Sprintf("%s %s", hutils.FormatBalance(order.Remaining, outDecimals), outSymbol),
+			Owner:     order.Owner,
+			MaxInput:  fmt.Sprintf("%s %s", hutils.FormatBalance((order.InTick*order.Remaining)/order.OutTick, inDecimals), inSymbol),
+			InputStep: hutils.FormatBalance(order.InTick, inDecimals),
+		}
+	}
+	return orders, nil
+}
+
+func (a *App) CreateOrder(assetIn string, inTick string, assetOut string, outTick string, supply string) error {
+	ctx := context.Background()
+	// TODO: share client
+	_, priv, factory, cli, tcli, err := a.defaultActor()
+	if err != nil {
+		return err
+	}
+	inID, err := ids.FromString(assetIn)
+	if err != nil {
+		return err
+	}
+	outID, err := ids.FromString(assetOut)
+	if err != nil {
+		return err
+	}
+	_, _, inDecimals, _, _, _, _, err := tcli.Asset(context.Background(), inID, true)
+	if err != nil {
+		return err
+	}
+	_, outSymbol, outDecimals, _, _, _, _, err := tcli.Asset(context.Background(), outID, true)
+	if err != nil {
+		return err
+	}
+
+	// Ensure have sufficient balance
+	bal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), ids.Empty)
+	if err != nil {
+		return err
+	}
+	outBal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), outID)
+	if err != nil {
+		return err
+	}
+	iTick, err := hutils.ParseBalance(inTick, inDecimals)
+	if err != nil {
+		return err
+	}
+	oTick, err := hutils.ParseBalance(outTick, outDecimals)
+	if err != nil {
+		return err
+	}
+	oSupply, err := hutils.ParseBalance(supply, outDecimals)
+	if err != nil {
+		return err
+	}
+
+	// Generate transaction
+	parser, err := tcli.Parser(ctx)
+	if err != nil {
+		return err
+	}
+	_, tx, maxFee, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CreateOrder{
+		In:      inID,
+		InTick:  iTick,
+		Out:     outID,
+		OutTick: oTick,
+		Supply:  oSupply,
+	}, factory)
+	if err != nil {
+		return fmt.Errorf("%w: unable to generate transaction", err)
+	}
+	if inID == ids.Empty {
+		if maxFee+oSupply > bal {
+			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee+oSupply, tconsts.Decimals), tconsts.Symbol)
+		}
+	} else {
+		if maxFee > bal {
+			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee, tconsts.Decimals), tconsts.Symbol)
+		}
+		if oSupply > outBal {
+			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(outBal, outDecimals), outSymbol, hutils.FormatBalance(oSupply, outDecimals), outSymbol)
+		}
+	}
+	if err := a.scli.RegisterTx(tx); err != nil {
+		return err
+	}
+
+	// Wait for transaction
+	_, dErr, result, err := a.scli.ListenTx(ctx)
+	if err != nil {
+		return err
+	}
+	if dErr != nil {
+		return err
+	}
+	if !result.Success {
+		return fmt.Errorf("transaction failed on-chain: %s", result.Output)
+	}
+
+	// We rely on order checking to clear backlog
+	a.orderLock.Lock()
+	a.myOrders = append(a.myOrders, tx.ID())
+	a.orderLock.Unlock()
+	return nil
+}
+
+func (a *App) FillOrder(orderID string, orderOwner string, assetIn string, inTick string, assetOut string, amount string) error {
+	ctx := context.Background()
+	// TODO: share client
+	_, priv, factory, cli, tcli, err := a.defaultActor()
+	if err != nil {
+		return err
+	}
+	oID, err := ids.FromString(orderID)
+	if err != nil {
+		return err
+	}
+	owner, err := utils.ParseAddress(orderOwner)
+	if err != nil {
+		return err
+	}
+	inID, err := ids.FromString(assetIn)
+	if err != nil {
+		return err
+	}
+	outID, err := ids.FromString(assetOut)
+	if err != nil {
+		return err
+	}
+	_, inSymbol, inDecimals, _, _, _, _, err := tcli.Asset(context.Background(), inID, true)
+	if err != nil {
+		return err
+	}
+
+	// Ensure have sufficient balance
+	bal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), ids.Empty)
+	if err != nil {
+		return err
+	}
+	inBal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), inID)
+	if err != nil {
+		return err
+	}
+	iTick, err := hutils.ParseBalance(inTick, inDecimals)
+	if err != nil {
+		return err
+	}
+	inAmount, err := hutils.ParseBalance(amount, inDecimals)
+	if err != nil {
+		return err
+	}
+	if inAmount%iTick != 0 {
+		return fmt.Errorf("fill amount is not aligned (must be multiple of %s %s)", inTick, inSymbol)
+	}
+
+	// Generate transaction
+	parser, err := tcli.Parser(ctx)
+	if err != nil {
+		return err
+	}
+	_, tx, maxFee, err := cli.GenerateTransaction(ctx, parser, nil, &actions.FillOrder{
+		Order: oID,
+		Owner: owner,
+		In:    inID,
+		Out:   outID,
+		Value: inAmount,
+	}, factory)
+	if err != nil {
+		return fmt.Errorf("%w: unable to generate transaction", err)
+	}
+	if inID == ids.Empty {
+		if maxFee+inAmount > bal {
+			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee+inAmount, tconsts.Decimals), tconsts.Symbol)
+		}
+	} else {
+		if maxFee > bal {
+			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee, tconsts.Decimals), tconsts.Symbol)
+		}
+		if inAmount > inBal {
+			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(inBal, inDecimals), inSymbol, hutils.FormatBalance(inAmount, inDecimals), inSymbol)
+		}
+	}
+	if err := a.scli.RegisterTx(tx); err != nil {
+		return err
+	}
+
+	// Wait for transaction
+	_, dErr, result, err := a.scli.ListenTx(ctx)
+	if err != nil {
+		return err
+	}
+	if dErr != nil {
+		return err
+	}
+	if !result.Success {
+		return fmt.Errorf("transaction failed on-chain: %s", result.Output)
+	}
+	return nil
+}
+
+func (a *App) CloseOrder(orderID string, assetOut string) error {
+	ctx := context.Background()
+	// TODO: share client
+	_, priv, factory, cli, tcli, err := a.defaultActor()
+	if err != nil {
+		return err
+	}
+	oID, err := ids.FromString(orderID)
+	if err != nil {
+		return err
+	}
+	outID, err := ids.FromString(assetOut)
+	if err != nil {
+		return err
+	}
+
+	// Ensure have sufficient balance
+	bal, err := tcli.Balance(context.Background(), utils.Address(priv.PublicKey()), ids.Empty)
+	if err != nil {
+		return err
+	}
+
+	// Generate transaction
+	parser, err := tcli.Parser(ctx)
+	if err != nil {
+		return err
+	}
+	_, tx, maxFee, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CloseOrder{
+		Order: oID,
+		Out:   outID,
+	}, factory)
+	if err != nil {
+		return fmt.Errorf("%w: unable to generate transaction", err)
+	}
+	if maxFee > bal {
+		return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee, tconsts.Decimals), tconsts.Symbol)
+	}
+	if err := a.scli.RegisterTx(tx); err != nil {
+		return err
+	}
+
+	// Wait for transaction
+	_, dErr, result, err := a.scli.ListenTx(ctx)
+	if err != nil {
+		return err
+	}
+	if dErr != nil {
+		return err
+	}
+	if !result.Success {
+		return fmt.Errorf("transaction failed on-chain: %s", result.Output)
+	}
 	return nil
 }
