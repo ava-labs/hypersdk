@@ -1,7 +1,7 @@
 import {useEffect, useState, useRef} from "react";
 import { Space, FloatButton, App, Drawer, Divider, List, Card, Typography, Form, Input, InputNumber, Button, Select, Spin } from "antd";
 import { CheckCircleTwoTone, CloseCircleTwoTone, LoadingOutlined, PlusOutlined, DoubleRightOutlined } from '@ant-design/icons';
-import { GetBalance, GetAllAssets, AddAsset, GetOrders } from "../../wailsjs/go/main/App";
+import { GetBalance, GetAllAssets, AddAsset, GetOrders, CreateOrder } from "../../wailsjs/go/main/App";
 const { Text, Title, Link } = Typography;
 import FillOrder from "./FillOrder";
 
@@ -30,7 +30,7 @@ const Trade = () => {
       (async () => {
         try {
           const start = (new Date()).getTime();
-          await CreateAsset(values.Symbol, values.Decimals, values.Metadata);
+          await CreateOrder(values.InSymbol, values.InTick, values.OutSymbol, values.OutTick, values.Supply);
           const finish = (new Date()).getTime();
           message.open({
             key, type: "success", content: `Transaction Finalized (${finish-start} ms)`,
