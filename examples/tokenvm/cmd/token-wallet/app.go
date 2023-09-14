@@ -91,10 +91,11 @@ type App struct {
 
 type TransactionInfo struct {
 	ID        string
+	Size      string
 	Timestamp int64
 	Actor     string
-	Created   bool
 
+	Success bool
 	Type    string
 	Units   string
 	Fee     string
@@ -259,11 +260,11 @@ func (a *App) collectBlocks() {
 			}
 			consumed = nconsumed
 
-			if !result.Success {
-				continue
-			}
 			tx := blk.Txs[i]
 			actor := auth.GetActor(tx.Auth)
+
+			// TODO: check related to us before parsing anything
+			// TODO: put output as summary if not success
 			switch action := tx.Action.(type) {
 			case *actions.Transfer:
 				_, symbol, decimals, _, _, _, _, err := cli.Asset(context.Background(), action.Asset, true)
@@ -274,6 +275,8 @@ func (a *App) collectBlocks() {
 				}
 				txInfo := &TransactionInfo{
 					ID:        tx.ID().String(),
+					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
+					Success:   result.Success,
 					Timestamp: blk.Tmstmp,
 					Actor:     utils.Address(actor),
 					Type:      "Transfer",
@@ -286,15 +289,13 @@ func (a *App) collectBlocks() {
 						a.otherAssets = append(a.otherAssets, action.Asset)
 					}
 
-					txInfo.Created = false
 					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
-					if actor != pk {
+					if actor != pk && result.Success {
 						a.transactionLock.Lock()
-						a.transactionAlerts = append(a.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s", hutils.FormatBalance(action.Value, decimals), symbol)})
+						a.transactionAlerts = append(a.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from Transfer Action", hutils.FormatBalance(action.Value, decimals), symbol)})
 						a.transactionLock.Unlock()
 					}
 				} else if actor == pk {
-					txInfo.Created = true
 					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
 				}
 			case *actions.CreateAsset:
@@ -302,13 +303,13 @@ func (a *App) collectBlocks() {
 					a.ownedAssets = append(a.ownedAssets, tx.ID())
 					a.transactions = append([]*TransactionInfo{{
 						ID:        tx.ID().String(),
+						Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
+						Success:   result.Success,
 						Timestamp: blk.Tmstmp,
 						Actor:     utils.Address(actor),
-						Created:   true,
 						Type:      "Create",
 						Units:     hcli.ParseDimensions(result.Consumed),
 						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
-						Summary:   fmt.Sprintf("assetID: %s symbol: %s decimals: %d metadata: %s", tx.ID(), action.Symbol, action.Decimals, action.Metadata),
 					}}, a.transactions...)
 				}
 			case *actions.MintAsset:
@@ -318,37 +319,128 @@ func (a *App) collectBlocks() {
 					runtime.Quit(ctx)
 					return
 				}
+				txInfo := &TransactionInfo{
+					ID:        tx.ID().String(),
+					Timestamp: blk.Tmstmp,
+					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
+					Success:   result.Success,
+					Actor:     utils.Address(actor),
+					Type:      "Mint",
+					Units:     hcli.ParseDimensions(result.Consumed),
+					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
+					Summary:   fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To)),
+				}
 				if action.To == pk {
 					if !slices.Contains(a.ownedAssets, action.Asset) && !slices.Contains(a.otherAssets, action.Asset) {
 						a.otherAssets = append(a.otherAssets, action.Asset)
 					}
 
-					a.transactions = append([]*TransactionInfo{{
-						ID:        tx.ID().String(),
-						Timestamp: blk.Tmstmp,
-						Actor:     utils.Address(actor),
-						Created:   false, // prefer to show receive
-						Type:      "Mint",
-						Units:     hcli.ParseDimensions(result.Consumed),
-						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
-						Summary:   fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To)),
-					}}, a.transactions...)
-					if actor != pk {
+					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
+					if actor != pk && result.Success {
 						a.transactionLock.Lock()
-						a.transactionAlerts = append(a.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s", hutils.FormatBalance(action.Value, decimals), symbol)})
+						a.transactionAlerts = append(a.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from Mint Action", hutils.FormatBalance(action.Value, decimals), symbol)})
 						a.transactionLock.Unlock()
 					}
 				} else if actor == pk {
-					a.transactions = append([]*TransactionInfo{{
-						ID:        tx.ID().String(),
-						Timestamp: blk.Tmstmp,
-						Actor:     utils.Address(actor),
-						Created:   true,
-						Type:      "Mint",
-						Units:     hcli.ParseDimensions(result.Consumed),
-						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
-						Summary:   fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To)),
-					}}, a.transactions...)
+					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
+				}
+			case *actions.CreateOrder:
+				_, inSymbol, inDecimals, _, _, _, _, err := cli.Asset(context.Background(), action.In, true)
+				if err != nil {
+					a.log.Error(err.Error())
+					runtime.Quit(ctx)
+					return
+				}
+				_, outSymbol, outDecimals, _, _, _, _, err := cli.Asset(context.Background(), action.Out, true)
+				if err != nil {
+					a.log.Error(err.Error())
+					runtime.Quit(ctx)
+					return
+				}
+				txInfo := &TransactionInfo{
+					ID:        tx.ID().String(),
+					Timestamp: blk.Tmstmp,
+					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
+					Success:   result.Success,
+					Actor:     utils.Address(actor),
+					Type:      "CreateOrder",
+					Units:     hcli.ParseDimensions(result.Consumed),
+					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
+					Summary: fmt.Sprintf("%s %s -> %s %s (supply: %s %s)",
+						hutils.FormatBalance(action.InTick, inDecimals),
+						inSymbol,
+						hutils.FormatBalance(action.OutTick, outDecimals),
+						outSymbol,
+						hutils.FormatBalance(action.Supply, outDecimals),
+						outSymbol,
+					),
+				}
+				if actor == pk {
+					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
+				}
+			case *actions.FillOrder:
+				_, inSymbol, inDecimals, _, _, _, _, err := cli.Asset(context.Background(), action.In, true)
+				if err != nil {
+					a.log.Error(err.Error())
+					runtime.Quit(ctx)
+					return
+				}
+				_, outSymbol, outDecimals, _, _, _, _, err := cli.Asset(context.Background(), action.Out, true)
+				if err != nil {
+					a.log.Error(err.Error())
+					runtime.Quit(ctx)
+					return
+				}
+				txInfo := &TransactionInfo{
+					ID:        tx.ID().String(),
+					Timestamp: blk.Tmstmp,
+					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
+					Success:   result.Success,
+					Actor:     utils.Address(actor),
+					Type:      "FillOrder",
+					Units:     hcli.ParseDimensions(result.Consumed),
+					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
+				}
+				if result.Success {
+					or, _ := actions.UnmarshalOrderResult(result.Output)
+					txInfo.Summary = fmt.Sprintf("%s %s -> %s %s (remaining: %s %s)",
+						hutils.FormatBalance(or.In, inDecimals),
+						inSymbol,
+						hutils.FormatBalance(or.Out, outDecimals),
+						outSymbol,
+						hutils.FormatBalance(or.Remaining, outDecimals),
+						outSymbol,
+					)
+
+					if action.Owner == pk && actor != pk {
+						a.transactionLock.Lock()
+						a.transactionAlerts = append(a.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from FillOrder Action", hutils.FormatBalance(or.In, inDecimals), inSymbol)})
+						a.transactionLock.Unlock()
+					}
+				} else {
+					txInfo.Summary = string(result.Output)
+				}
+				if actor == pk {
+					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
+				}
+			case *actions.CloseOrder:
+				txInfo := &TransactionInfo{
+					ID:        tx.ID().String(),
+					Timestamp: blk.Tmstmp,
+					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
+					Success:   result.Success,
+					Actor:     utils.Address(actor),
+					Type:      "CloseOrder",
+					Units:     hcli.ParseDimensions(result.Consumed),
+					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
+				}
+				if result.Success {
+					txInfo.Summary = fmt.Sprintf("OrderID: %s", action.Order)
+				} else {
+					txInfo.Summary = string(result.Output)
+				}
+				if actor == pk {
+					a.transactions = append([]*TransactionInfo{txInfo}, a.transactions...)
 				}
 			}
 		}
