@@ -170,6 +170,9 @@ const Mint = () => {
                 </List.Item>
               )}
             />
+      <Divider orientation="center">
+        Explanation
+      </Divider>
             </div>
             <Drawer title={"Create a Token"} placement={"right"} onClose={onCloseCreate} open={openCreate}>
               <Form
@@ -195,6 +198,9 @@ const Mint = () => {
                   </Button>
                 </Form.Item>
               </Form>
+      <Divider orientation="center">
+        Explanation
+      </Divider>
             </Drawer>
             <Drawer title={`Mint ${mintFocus.Symbol}`} placement={"right"} onClose={onCloseMint} open={openMint}>
               <Form
@@ -241,6 +247,9 @@ const Mint = () => {
                   </Button>
                 </Form.Item>
               </Form>
+      <Divider orientation="center">
+        Explanation
+      </Divider>
             </Drawer>
         </>);
 };

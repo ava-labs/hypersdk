@@ -47,47 +47,6 @@ const Trade = () => {
       console.log('Failed:', errorInfo);
     };
 
-    {/* Fill Handlers */}
-    const [fillFocus, setFillFocus] = useState({});
-    const [openFill, setOpenFill] = useState(false);
-    const [fillForm] = Form.useForm();
-    const showFillDrawer = (item) => {
-      setFillFocus(item);
-      setOpenFill(true);
-    };
-
-    const onCloseFill = () => {
-      fillForm.resetFields();
-      setOpenFill(false);
-    };
-
-    const onFinishFill = (values) => {
-      console.log('Success:', values);
-      fillForm.resetFields();
-      setOpenFill(false);
-
-      message.open({key, type: "loading", content: "Processing Transaction...", duration:0});
-      (async () => {
-        try {
-          const start = (new Date()).getTime();
-          await FillOrder(values.ID, values.Owner, values.In, values.Out, values.Value);
-          const finish = (new Date()).getTime();
-          message.open({
-            key, type: "success", content: `Transaction Finalized (${finish-start} ms)`,
-          });
-        } catch (e) {
-          message.open({
-            key, type: "error", content: e.toString(),
-          });
-        }
-      })();
-    };
-    
-    const onFinishFillFailed = (errorInfo) => {
-      console.log('Failed:', errorInfo);
-    };
-
-    
     const [balance, setBalance] = useState([]);
     const getBalance = async () => {
         const bals = await GetBalance();
@@ -266,6 +225,9 @@ const Trade = () => {
           </List.Item>
         )}
       />
+      <Divider orientation="center">
+        Explanation
+      </Divider>
       </div>
       <Drawer title={"Create an Order"} placement={"right"} onClose={onCloseCreate} open={openCreate}>
         <Form
@@ -277,40 +239,37 @@ const Trade = () => {
           autoComplete="off"
         >
           {/* inSymbol, inTick, outSymbol, outTick, supply (multiple of out tick) */}
-          <Form.Item name="Symbol" rules={[{ required: true }]}>
-            <Input placeholder="Symbol" maxLength="8"/>
+          <Form.Item name="InSymbol" rules={[{ required: true }]}>
+            <Select placeholder="Token You Buy"
+              dropdownRender={(menu) => (
+                <>
+                  {menu}
+                  <Divider style={{ margin: '8px 0' }} />
+                  <Space style={{ padding: '0 8px 4px' }}>
+                    <Input
+                      placeholder="Asset"
+                      value={newAsset}
+                      onChange={onAssetChange}
+                      allowClear
+                    />
+                    <Button type="text" icon={<PlusOutlined />} onClick={addAsset} disabled={!addAllowed}></Button>
+                  </Space>
+                </>
+              )}
+              options={assets.map((item) => ({ label: item.StrSymbol, value: item.ID}))}
+            />
           </Form.Item>
-          <Form.Item name="Decimals" rules={[{ required: true }]}>
-            <InputNumber min={0} max={9} placeholder="Decimals" stringMode="true" style={{ width:"100%" }}/>
+          <Form.Item name="InTick" rules={[{ required: true }]}>
+            <InputNumber placeholder="Batch Amount You Buy" stringMode="true" style={{ width:"100%" }}/>
           </Form.Item>
-          <Form.Item name="Metadata" rules={[{ required: true }]}>
-            <Input placeholder="Metadata" maxLength="256"/>
+          <Form.Item name="OutSymbol" rules={[{ required: true }]}>
+            <Select placeholder="Token You Sell" options={balance} />
           </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit">
-              Create
-            </Button>
+          <Form.Item name="OutTick" rules={[{ required: true }]}>
+            <InputNumber placeholder="Batch Amount You Sell" stringMode="true" style={{ width:"100%" }}/>
           </Form.Item>
-        </Form>
-      </Drawer>
-      <Drawer title={`Fill order`} placement={"right"} onClose={onCloseFill} open={openFill}>
-        <Form
-          name="basic"
-          form={fillForm}
-          initialValues={{ remember: false }}
-          onFinish={onFinishFill}
-          onFinishFailed={onFinishFillFailed}
-          autoComplete="off"
-        >
-          {/* inSymbol, inTick, outSymbol, outTick, supply (multiple of out tick) */}
-          <Form.Item name="Symbol" rules={[{ required: true }]}>
-            <Input placeholder="Symbol" maxLength="8"/>
-          </Form.Item>
-          <Form.Item name="Decimals" rules={[{ required: true }]}>
-            <InputNumber min={0} max={9} placeholder="Decimals" stringMode="true" style={{ width:"100%" }}/>
-          </Form.Item>
-          <Form.Item name="Metadata" rules={[{ required: true }]}>
-            <Input placeholder="Metadata" maxLength="256"/>
+          <Form.Item name="Supply" rules={[{ required: true }]}>
+            <InputNumber placeholder="Order Size of Token You Sell" stringMode="true" style={{ width:"100%" }}/>
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit">
@@ -318,6 +277,10 @@ const Trade = () => {
             </Button>
           </Form.Item>
         </Form>
+      <Divider orientation="center">
+        Explanation
+      </Divider>
+        <Text italic>Trades</Text>
       </Drawer>
     </>);
 }

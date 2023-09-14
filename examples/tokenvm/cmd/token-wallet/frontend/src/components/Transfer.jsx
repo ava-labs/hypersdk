@@ -146,6 +146,9 @@ const Transfer = () => {
                 </Form.Item>
               </Form>
             </Card>
+      <Divider orientation="center">
+        Explanation
+      </Divider>
       </div>
     </>);
 }
