@@ -321,7 +321,7 @@ func (a *App) collectBlocks() {
 					Success:   result.Success,
 					Timestamp: blk.Tmstmp,
 					Actor:     utils.Address(actor),
-					Type:      "Create",
+					Type:      "CreateAsset",
 					Units:     hcli.ParseDimensions(result.Consumed),
 					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
 				}
