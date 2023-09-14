@@ -95,6 +95,10 @@ func (m *Manager) sendFunds(ctx context.Context, destination ed25519.PublicKey, 
 	if err != nil {
 		return ids.Empty, 0, err
 	}
+	if amount < maxFee {
+		m.log.Warn("abandoning airdrop because network fee is greater than amount", zap.String("maxFee", utils.FormatBalance(maxFee, consts.Decimals)))
+		return ids.Empty, 0, errors.New("network fee too high")
+	}
 	addr := tutils.Address(m.config.PrivateKey().PublicKey())
 	bal, err := m.tcli.Balance(ctx, addr, ids.Empty)
 	if err != nil {
