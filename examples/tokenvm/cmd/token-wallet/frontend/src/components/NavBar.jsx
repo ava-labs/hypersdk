@@ -159,6 +159,8 @@ const NavBar = () => {
           </List.Item>
         )}
       />
+      <br />
+      <Text type="secondary">Version: v0.0.1</Text>
     </Drawer>
     </Layout.Header>
     </>
