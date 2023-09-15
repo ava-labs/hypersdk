@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -23,7 +24,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-cli/cmd"
 	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
@@ -32,24 +32,31 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
-	"golang.org/x/exp/slices"
 )
 
 const (
-	// TODO: load config for network and faucet
-	databaseFolder = ".token-wallet"
-	searchCores    = 4 // TODO: expose to UI
+	databaseFolder = ".token-wallet/db"
+	configFile     = ".token-wallet/config.json"
 )
 
 type Backend struct {
 	ctx   context.Context
 	fatal func(error)
 
-	// TODO: remove this
-	h *hcli.Handler
+	s *Storage
+	c *Config
 
-	scli *rpc.WebSocketClient
-	fcli *frpc.JSONRPCClient
+	priv    ed25519.PrivateKey
+	factory *auth.ED25519Factory
+	pk      ed25519.PublicKey
+	addr    string
+
+	cli     *rpc.JSONRPCClient
+	chainID ids.ID
+	scli    *rpc.WebSocketClient
+	tcli    *trpc.JSONRPCClient
+	parser  chain.Parser
+	fcli    *frpc.JSONRPCClient
 
 	workLock    sync.Mutex
 	blocks      []*BlockInfo
@@ -57,11 +64,8 @@ type Backend struct {
 	currentStat *TimeStat
 
 	// TODO: move this to DB
-	ownedAssets       []ids.ID
-	otherAssets       []ids.ID
-	transactions      []*TransactionInfo
-	transactionAlerts []*Alert
 	transactionLock   sync.Mutex
+	transactionAlerts []*Alert
 
 	searchLock   sync.Mutex
 	search       *FaucetSearchInfo
@@ -82,7 +86,6 @@ func New(fatal func(error)) *Backend {
 
 		blocks:            []*BlockInfo{},
 		stats:             []*TimeStat{},
-		transactions:      []*TransactionInfo{},
 		transactionAlerts: []*Alert{},
 		solutions:         []*FaucetSearchInfo{},
 		searchAlerts:      []*Alert{},
@@ -97,41 +100,72 @@ func (b *Backend) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	// Open storage
 	databasePath := path.Join(homeDir, databaseFolder)
-	h, err := hcli.New(cmd.NewController(databasePath))
+	s, err := OpenStorage(databasePath)
 	if err != nil {
 		return err
 	}
-	b.h = h
+	b.s = s
 
 	// Generate key
-	keys, err := h.GetKeys()
+	key, err := s.GetKey()
 	if err != nil {
 		return err
 	}
-	if len(keys) == 0 {
-		if err := h.GenerateKey(); err != nil {
+	if key == ed25519.EmptyPrivateKey {
+		// TODO: encrypt key
+		priv, err := ed25519.GeneratePrivateKey()
+		if err != nil {
 			return err
 		}
+		if err := s.StoreKey(priv); err != nil {
+			return err
+		}
+		key = priv
 	}
-	defaultKey, err := h.GetDefaultKey(false)
+	b.priv = key
+	b.factory = auth.NewED25519Factory(b.priv)
+	b.pk = b.priv.PublicKey()
+	b.addr = utils.Address(b.pk)
+	b.AddAddressBook("Me", b.addr)
+	if err := b.s.StoreAsset(ids.Empty, false); err != nil {
+		return err
+	}
+
+	// Open config
+	configPath := path.Join(homeDir, configFile)
+	rawConifg, err := os.ReadFile(configPath)
+	if err != nil {
+		// TODO: auto-connect to DEVNET
+		return err
+	}
+	var config Config
+	if err := json.Unmarshal(rawConifg, &config); err != nil {
+		return err
+	}
+	b.c = &config
+
+	// Create clients
+	b.cli = rpc.NewJSONRPCClient(b.c.TokenRPC)
+	networkID, _, chainID, err := b.cli.Network(b.ctx)
 	if err != nil {
 		return err
 	}
-	b.AddAddressBook("Me", utils.Address(defaultKey.PublicKey()))
-	b.otherAssets = append(b.otherAssets, ids.Empty)
-
-	// Import ANR
-	//
-	// TODO: replace with DEVENT URL
-	if err := h.ImportANR(); err != nil {
+	b.chainID = chainID
+	scli, err := rpc.NewWebSocketClient(b.c.TokenRPC, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+	if err != nil {
 		return err
 	}
-
-	// Connect to Faucet
-	//
-	// TODO: replace with long-lived
-	b.fcli = frpc.NewJSONRPCClient("http://localhost:9091")
+	b.scli = scli
+	b.tcli = trpc.NewJSONRPCClient(b.c.TokenRPC, networkID, chainID)
+	parser, err := b.tcli.Parser(b.ctx)
+	if err != nil {
+		return err
+	}
+	b.parser = parser
+	b.fcli = frpc.NewJSONRPCClient(b.c.FaucetRPC)
 
 	// Start fetching blocks
 	go b.collectBlocks()
@@ -139,50 +173,18 @@ func (b *Backend) Start(ctx context.Context) error {
 }
 
 func (b *Backend) collectBlocks() {
-	priv, err := b.h.GetDefaultKey(true)
-	if err != nil {
-		b.fatal(err)
-		return
-	}
-	pk := priv.PublicKey()
-	chainID, uris, err := b.h.GetDefaultChain(true)
-	if err != nil {
+	if err := b.scli.RegisterBlocks(); err != nil {
 		b.fatal(err)
 		return
 	}
 
-	uri := uris[0]
-	rcli := rpc.NewJSONRPCClient(uri)
-	networkID, _, _, err := rcli.Network(b.ctx)
-	if err != nil {
-		b.fatal(err)
-		return
-	}
-	cli := trpc.NewJSONRPCClient(uri, networkID, chainID)
-	parser, err := cli.Parser(b.ctx)
-	if err != nil {
-		b.fatal(err)
-		return
-	}
-	scli, err := rpc.NewWebSocketClient(uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
-	if err != nil {
-		b.fatal(err)
-		return
-	}
-	defer scli.Close()
-	b.scli = scli
-	if err := scli.RegisterBlocks(); err != nil {
-		b.fatal(err)
-		return
-	}
 	var (
 		start     time.Time
 		lastBlock int64
 		tpsWindow = window.Window{}
 	)
-
 	for b.ctx.Err() == nil {
-		blk, results, prices, err := scli.ListenBlock(b.ctx, parser)
+		blk, results, prices, err := b.scli.ListenBlock(b.ctx, b.parser)
 		if err != nil {
 			b.fatal(err)
 			return
@@ -206,11 +208,11 @@ func (b *Backend) collectBlocks() {
 			// We should exit action parsing as soon as possible
 			switch action := tx.Action.(type) {
 			case *actions.Transfer:
-				if actor != pk && action.To != pk {
+				if actor != b.pk && action.To != b.pk {
 					continue
 				}
 
-				_, symbol, decimals, _, _, _, _, err := cli.Asset(b.ctx, action.Asset, true)
+				_, symbol, decimals, _, _, _, _, err := b.tcli.Asset(b.ctx, action.Asset, true)
 				if err != nil {
 					b.fatal(err)
 					return
@@ -230,26 +232,35 @@ func (b *Backend) collectBlocks() {
 				} else {
 					txInfo.Summary = string(result.Output)
 				}
-				if action.To == pk {
-					if !slices.Contains(b.ownedAssets, action.Asset) && !slices.Contains(b.otherAssets, action.Asset) {
-						b.otherAssets = append(b.otherAssets, action.Asset)
-					}
-
-					b.transactions = append([]*TransactionInfo{txInfo}, b.transactions...)
-					if actor != pk && result.Success {
+				if action.To == b.pk {
+					if actor != b.pk && result.Success {
 						b.transactionLock.Lock()
 						b.transactionAlerts = append(b.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from Transfer Action", hutils.FormatBalance(action.Value, decimals), symbol)})
 						b.transactionLock.Unlock()
 					}
-				} else if actor == pk {
-					b.transactions = append([]*TransactionInfo{txInfo}, b.transactions...)
+					if err := b.s.StoreAsset(action.Asset, false); err != nil {
+						b.fatal(err)
+						return
+					}
+					if err := b.s.StoreTransaction(txInfo); err != nil {
+						b.fatal(err)
+						return
+					}
+				} else if actor == b.pk {
+					if err := b.s.StoreTransaction(txInfo); err != nil {
+						b.fatal(err)
+						return
+					}
 				}
 			case *actions.CreateAsset:
-				if actor != pk {
+				if actor != b.pk {
 					continue
 				}
 
-				b.ownedAssets = append(b.ownedAssets, tx.ID())
+				if err := b.s.StoreAsset(tx.ID(), true); err != nil {
+					b.fatal(err)
+					return
+				}
 				txInfo := &TransactionInfo{
 					ID:        tx.ID().String(),
 					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
@@ -265,13 +276,16 @@ func (b *Backend) collectBlocks() {
 				} else {
 					txInfo.Summary = string(result.Output)
 				}
-				b.transactions = append([]*TransactionInfo{txInfo}, b.transactions...)
+				if err := b.s.StoreTransaction(txInfo); err != nil {
+					b.fatal(err)
+					return
+				}
 			case *actions.MintAsset:
-				if actor != pk && action.To != pk {
+				if actor != b.pk && action.To != b.pk {
 					continue
 				}
 
-				_, symbol, decimals, _, _, _, _, err := cli.Asset(b.ctx, action.Asset, true)
+				_, symbol, decimals, _, _, _, _, err := b.tcli.Asset(b.ctx, action.Asset, true)
 				if err != nil {
 					b.fatal(err)
 					return
@@ -291,31 +305,37 @@ func (b *Backend) collectBlocks() {
 				} else {
 					txInfo.Summary = string(result.Output)
 				}
-				if action.To == pk {
-					if !slices.Contains(b.ownedAssets, action.Asset) && !slices.Contains(b.otherAssets, action.Asset) {
-						b.otherAssets = append(b.otherAssets, action.Asset)
-					}
-
-					b.transactions = append([]*TransactionInfo{txInfo}, b.transactions...)
-					if actor != pk && result.Success {
+				if action.To == b.pk {
+					if actor != b.pk && result.Success {
 						b.transactionLock.Lock()
 						b.transactionAlerts = append(b.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from Mint Action", hutils.FormatBalance(action.Value, decimals), symbol)})
 						b.transactionLock.Unlock()
 					}
-				} else if actor == pk {
-					b.transactions = append([]*TransactionInfo{txInfo}, b.transactions...)
+					if err := b.s.StoreAsset(action.Asset, false); err != nil {
+						b.fatal(err)
+						return
+					}
+					if err := b.s.StoreTransaction(txInfo); err != nil {
+						b.fatal(err)
+						return
+					}
+				} else if actor == b.pk {
+					if err := b.s.StoreTransaction(txInfo); err != nil {
+						b.fatal(err)
+						return
+					}
 				}
 			case *actions.CreateOrder:
-				if actor != pk {
+				if actor != b.pk {
 					continue
 				}
 
-				_, inSymbol, inDecimals, _, _, _, _, err := cli.Asset(b.ctx, action.In, true)
+				_, inSymbol, inDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, action.In, true)
 				if err != nil {
 					b.fatal(err)
 					return
 				}
-				_, outSymbol, outDecimals, _, _, _, _, err := cli.Asset(b.ctx, action.Out, true)
+				_, outSymbol, outDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, action.Out, true)
 				if err != nil {
 					b.fatal(err)
 					return
@@ -342,18 +362,21 @@ func (b *Backend) collectBlocks() {
 				} else {
 					txInfo.Summary = string(result.Output)
 				}
-				b.transactions = append([]*TransactionInfo{txInfo}, b.transactions...)
+				if err := b.s.StoreTransaction(txInfo); err != nil {
+					b.fatal(err)
+					return
+				}
 			case *actions.FillOrder:
-				if actor != pk && action.Owner != pk {
+				if actor != b.pk && action.Owner != b.pk {
 					continue
 				}
 
-				_, inSymbol, inDecimals, _, _, _, _, err := cli.Asset(b.ctx, action.In, true)
+				_, inSymbol, inDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, action.In, true)
 				if err != nil {
 					b.fatal(err)
 					return
 				}
-				_, outSymbol, outDecimals, _, _, _, _, err := cli.Asset(b.ctx, action.Out, true)
+				_, outSymbol, outDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, action.Out, true)
 				if err != nil {
 					b.fatal(err)
 					return
@@ -379,7 +402,7 @@ func (b *Backend) collectBlocks() {
 						outSymbol,
 					)
 
-					if action.Owner == pk && actor != pk {
+					if action.Owner == b.pk && actor != b.pk {
 						b.transactionLock.Lock()
 						b.transactionAlerts = append(b.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from FillOrder Action", hutils.FormatBalance(or.In, inDecimals), inSymbol)})
 						b.transactionLock.Unlock()
@@ -387,11 +410,14 @@ func (b *Backend) collectBlocks() {
 				} else {
 					txInfo.Summary = string(result.Output)
 				}
-				if actor == pk {
-					b.transactions = append([]*TransactionInfo{txInfo}, b.transactions...)
+				if actor == b.pk {
+					if err := b.s.StoreTransaction(txInfo); err != nil {
+						b.fatal(err)
+						return
+					}
 				}
 			case *actions.CloseOrder:
-				if actor != pk {
+				if actor != b.pk {
 					continue
 				}
 
@@ -410,7 +436,10 @@ func (b *Backend) collectBlocks() {
 				} else {
 					txInfo.Summary = string(result.Output)
 				}
-				b.transactions = append([]*TransactionInfo{txInfo}, b.transactions...)
+				if err := b.s.StoreTransaction(txInfo); err != nil {
+					b.fatal(err)
+					return
+				}
 			}
 		}
 		now := time.Now()
@@ -485,7 +514,8 @@ func (b *Backend) collectBlocks() {
 }
 
 func (b *Backend) Shutdown(ctx context.Context) error {
-	return b.h.CloseDatabase()
+	_ = b.scli.Close()
+	return b.s.Close()
 }
 
 func (b *Backend) GetLatestBlocks() []*BlockInfo {
@@ -533,23 +563,21 @@ func (b *Backend) GetUnitPrices() []*GenericInfo {
 }
 
 func (b *Backend) GetChainID() string {
-	chainID, _, err := b.h.GetDefaultChain(false)
-	if err != nil {
-		b.fatal(err)
-		return ""
-	}
-	return chainID.String()
+	return b.chainID.String()
 }
 
 func (b *Backend) GetMyAssets() []*AssetInfo {
-	_, _, _, _, tcli, err := b.defaultActor()
+	assets := []*AssetInfo{}
+	assetIDs, owned, err := b.s.GetAssets()
 	if err != nil {
 		b.fatal(err)
 		return nil
 	}
-	assets := []*AssetInfo{}
-	for _, asset := range b.ownedAssets {
-		_, symbol, decimals, metadata, supply, owner, _, err := tcli.Asset(b.ctx, asset, false)
+	for i, asset := range assetIDs {
+		if !owned[i] {
+			continue
+		}
+		_, symbol, decimals, metadata, supply, owner, _, err := b.tcli.Asset(b.ctx, asset, false)
 		if err != nil {
 			b.fatal(err)
 			return nil
@@ -568,67 +596,28 @@ func (b *Backend) GetMyAssets() []*AssetInfo {
 	return assets
 }
 
-// TODO: share client across calls
-func (b *Backend) defaultActor() (
-	ids.ID, ed25519.PrivateKey, *auth.ED25519Factory,
-	*rpc.JSONRPCClient, *trpc.JSONRPCClient, error,
-) {
-	priv, err := b.h.GetDefaultKey(false)
-	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
-	}
-	chainID, uris, err := b.h.GetDefaultChain(false)
-	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
-	}
-	cli := rpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := cli.Network(b.ctx)
-	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
-	}
-	// For [defaultActor], we always send requests to the first returned URI.
-	return chainID, priv, auth.NewED25519Factory(
-			priv,
-		), cli,
-		trpc.NewJSONRPCClient(
-			uris[0],
-			networkID,
-			chainID,
-		), nil
-}
-
 func (b *Backend) CreateAsset(symbol string, decimals string, metadata string) error {
-	// TODO: share client
-	_, priv, factory, cli, tcli, err := b.defaultActor()
-	if err != nil {
-		return err
-	}
-
 	// Ensure have sufficient balance
-	bal, err := tcli.Balance(b.ctx, utils.Address(priv.PublicKey()), ids.Empty)
+	bal, err := b.tcli.Balance(b.ctx, b.addr, ids.Empty)
 	if err != nil {
 		return err
 	}
 
 	// Generate transaction
-	parser, err := tcli.Parser(b.ctx)
-	if err != nil {
-		return err
-	}
 	udecimals, err := strconv.ParseUint(decimals, 10, 8)
 	if err != nil {
 		return err
 	}
-	_, tx, maxFee, err := cli.GenerateTransaction(b.ctx, parser, nil, &actions.CreateAsset{
+	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, nil, &actions.CreateAsset{
 		Symbol:   []byte(symbol),
 		Decimals: uint8(udecimals),
 		Metadata: []byte(metadata),
-	}, factory)
+	}, b.factory)
 	if err != nil {
 		return fmt.Errorf("%w: unable to generate transaction", err)
 	}
 	if maxFee > bal {
-		return errors.New("insufficient balance")
+		return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee, tconsts.Decimals), tconsts.Symbol)
 	}
 	if err := b.scli.RegisterTx(tx); err != nil {
 		return err
@@ -649,18 +638,12 @@ func (b *Backend) CreateAsset(symbol string, decimals string, metadata string) e
 }
 
 func (b *Backend) MintAsset(asset string, address string, amount string) error {
-	// TODO: share client
-	_, priv, factory, cli, tcli, err := b.defaultActor()
-	if err != nil {
-		return err
-	}
-
 	// Input validation
 	assetID, err := ids.FromString(asset)
 	if err != nil {
 		return err
 	}
-	_, _, decimals, _, _, _, _, err := tcli.Asset(b.ctx, assetID, true)
+	_, _, decimals, _, _, _, _, err := b.tcli.Asset(b.ctx, assetID, true)
 	if err != nil {
 		return err
 	}
@@ -674,26 +657,22 @@ func (b *Backend) MintAsset(asset string, address string, amount string) error {
 	}
 
 	// Ensure have sufficient balance
-	bal, err := tcli.Balance(b.ctx, utils.Address(priv.PublicKey()), ids.Empty)
+	bal, err := b.tcli.Balance(b.ctx, b.addr, ids.Empty)
 	if err != nil {
 		return err
 	}
 
 	// Generate transaction
-	parser, err := tcli.Parser(b.ctx)
-	if err != nil {
-		return err
-	}
-	_, tx, maxFee, err := cli.GenerateTransaction(b.ctx, parser, nil, &actions.MintAsset{
+	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, nil, &actions.MintAsset{
 		To:    to,
 		Asset: assetID,
 		Value: value,
-	}, factory)
+	}, b.factory)
 	if err != nil {
 		return fmt.Errorf("%w: unable to generate transaction", err)
 	}
 	if maxFee > bal {
-		return errors.New("insufficient balance")
+		return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee, tconsts.Decimals), tconsts.Symbol)
 	}
 	if err := b.scli.RegisterTx(tx); err != nil {
 		return err
@@ -714,18 +693,12 @@ func (b *Backend) MintAsset(asset string, address string, amount string) error {
 }
 
 func (b *Backend) Transfer(asset string, address string, amount string) error {
-	// TODO: share client
-	_, priv, factory, cli, tcli, err := b.defaultActor()
-	if err != nil {
-		return err
-	}
-
 	// Input validation
 	assetID, err := ids.FromString(asset)
 	if err != nil {
 		return err
 	}
-	_, _, decimals, _, _, _, _, err := tcli.Asset(b.ctx, assetID, true)
+	_, symbol, decimals, _, _, _, _, err := b.tcli.Asset(b.ctx, assetID, true)
 	if err != nil {
 		return err
 	}
@@ -739,40 +712,36 @@ func (b *Backend) Transfer(asset string, address string, amount string) error {
 	}
 
 	// Ensure have sufficient balance for transfer
-	sendBal, err := tcli.Balance(b.ctx, utils.Address(priv.PublicKey()), assetID)
+	sendBal, err := b.tcli.Balance(b.ctx, b.addr, assetID)
 	if err != nil {
 		return err
 	}
 	if value > sendBal {
-		return errors.New("insufficient balance")
+		return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(sendBal, decimals), symbol, hutils.FormatBalance(value, decimals), symbol)
 	}
 
 	// Ensure have sufficient balance for fees
-	bal, err := tcli.Balance(b.ctx, utils.Address(priv.PublicKey()), ids.Empty)
+	bal, err := b.tcli.Balance(b.ctx, b.addr, ids.Empty)
 	if err != nil {
 		return err
 	}
 
 	// Generate transaction
-	parser, err := tcli.Parser(b.ctx)
-	if err != nil {
-		return err
-	}
-	_, tx, maxFee, err := cli.GenerateTransaction(b.ctx, parser, nil, &actions.Transfer{
+	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, nil, &actions.Transfer{
 		To:    to,
 		Asset: assetID,
 		Value: value,
-	}, factory)
+	}, b.factory)
 	if err != nil {
 		return fmt.Errorf("%w: unable to generate transaction", err)
 	}
 	if assetID != ids.Empty {
 		if maxFee > bal {
-			return errors.New("insufficient balance")
+			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee, tconsts.Decimals), tconsts.Symbol)
 		}
 	} else {
 		if maxFee+value > bal {
-			return errors.New("insufficient balance")
+			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee+value, tconsts.Decimals), tconsts.Symbol)
 		}
 	}
 	if err := b.scli.RegisterTx(tx); err != nil {
@@ -793,36 +762,30 @@ func (b *Backend) Transfer(asset string, address string, amount string) error {
 	return nil
 }
 
-func (b *Backend) GetAddress() (string, error) {
-	_, priv, _, _, _, err := b.defaultActor()
-	if err != nil {
-		return "", err
-	}
-	return utils.Address(priv.PublicKey()), nil
+func (b *Backend) GetAddress() string {
+	return b.addr
 }
 
 func (b *Backend) GetBalance() ([]*BalanceInfo, error) {
-	_, priv, _, _, tcli, err := b.defaultActor()
+	assets, _, err := b.s.GetAssets()
 	if err != nil {
 		return nil, err
 	}
 	balances := []*BalanceInfo{}
-	for _, arr := range [][]ids.ID{b.ownedAssets, b.otherAssets} {
-		for _, asset := range arr {
-			_, symbol, decimals, _, _, _, _, err := tcli.Asset(b.ctx, asset, true)
-			if err != nil {
-				return nil, err
-			}
-			bal, err := tcli.Balance(b.ctx, utils.Address(priv.PublicKey()), asset)
-			if err != nil {
-				return nil, err
-			}
-			strAsset := asset.String()
-			if asset == ids.Empty {
-				balances = append(balances, &BalanceInfo{ID: asset.String(), Str: fmt.Sprintf("%s %s", hutils.FormatBalance(bal, decimals), symbol), Bal: fmt.Sprintf("%s (Balance: %s)", symbol, hutils.FormatBalance(bal, decimals))})
-			} else {
-				balances = append(balances, &BalanceInfo{ID: asset.String(), Str: fmt.Sprintf("%s %s [%s]", hutils.FormatBalance(bal, decimals), symbol, asset), Bal: fmt.Sprintf("%s [%s..%s] (Balance: %s)", symbol, strAsset[:3], strAsset[len(strAsset)-3:], hutils.FormatBalance(bal, decimals))})
-			}
+	for _, asset := range assets {
+		_, symbol, decimals, _, _, _, _, err := b.tcli.Asset(b.ctx, asset, true)
+		if err != nil {
+			return nil, err
+		}
+		bal, err := b.tcli.Balance(b.ctx, b.addr, asset)
+		if err != nil {
+			return nil, err
+		}
+		strAsset := asset.String()
+		if asset == ids.Empty {
+			balances = append(balances, &BalanceInfo{ID: asset.String(), Str: fmt.Sprintf("%s %s", hutils.FormatBalance(bal, decimals), symbol), Bal: fmt.Sprintf("%s (Balance: %s)", symbol, hutils.FormatBalance(bal, decimals))})
+		} else {
+			balances = append(balances, &BalanceInfo{ID: asset.String(), Str: fmt.Sprintf("%s %s [%s]", hutils.FormatBalance(bal, decimals), symbol, asset), Bal: fmt.Sprintf("%s [%s..%s] (Balance: %s)", symbol, strAsset[:3], strAsset[len(strAsset)-3:], hutils.FormatBalance(bal, decimals))})
 		}
 	}
 	return balances, nil
@@ -837,15 +800,15 @@ func (b *Backend) GetTransactions() *Transactions {
 		alerts = b.transactionAlerts
 		b.transactionAlerts = []*Alert{}
 	}
-	return &Transactions{alerts, b.transactions}
+	txs, err := b.s.GetTransactions()
+	if err != nil {
+		b.fatal(err)
+		return nil
+	}
+	return &Transactions{alerts, txs}
 }
 
 func (b *Backend) StartFaucetSearch() (*FaucetSearchInfo, error) {
-	priv, err := b.h.GetDefaultKey(false)
-	if err != nil {
-		return nil, err
-	}
-
 	b.searchLock.Lock()
 	if b.search != nil {
 		b.searchLock.Unlock()
@@ -875,8 +838,8 @@ func (b *Backend) StartFaucetSearch() (*FaucetSearchInfo, error) {
 	// Search in the background
 	go func() {
 		start := time.Now()
-		solution, attempts := challenge.Search(salt, difficulty, searchCores)
-		txID, amount, err := b.fcli.SolveChallenge(b.ctx, utils.Address(priv.PublicKey()), salt, solution)
+		solution, attempts := challenge.Search(salt, difficulty, b.c.SearchCores)
+		txID, amount, err := b.fcli.SolveChallenge(b.ctx, b.addr, salt, solution)
 		b.searchLock.Lock()
 		b.search.Solution = hex.EncodeToString(solution)
 		b.search.Attempts = attempts
@@ -936,30 +899,28 @@ func (b *Backend) AddAddressBook(name string, address string) error {
 }
 
 func (b *Backend) GetAllAssets() []*AssetInfo {
-	_, _, _, _, tcli, err := b.defaultActor()
+	arr, _, err := b.s.GetAssets()
 	if err != nil {
 		b.fatal(err)
 		return nil
 	}
 	assets := []*AssetInfo{}
-	for _, arr := range [][]ids.ID{b.ownedAssets, b.otherAssets} {
-		for _, asset := range arr {
-			_, symbol, decimals, metadata, supply, owner, _, err := tcli.Asset(b.ctx, asset, false)
-			if err != nil {
-				b.fatal(err)
-				return nil
-			}
-			strAsset := asset.String()
-			assets = append(assets, &AssetInfo{
-				ID:        asset.String(),
-				Symbol:    string(symbol),
-				Decimals:  int(decimals),
-				Metadata:  string(metadata),
-				Supply:    hutils.FormatBalance(supply, decimals),
-				Creator:   owner,
-				StrSymbol: fmt.Sprintf("%s [%s..%s]", symbol, strAsset[:3], strAsset[len(strAsset)-3:]),
-			})
+	for _, asset := range arr {
+		_, symbol, decimals, metadata, supply, owner, _, err := b.tcli.Asset(b.ctx, asset, false)
+		if err != nil {
+			b.fatal(err)
+			return nil
 		}
+		strAsset := asset.String()
+		assets = append(assets, &AssetInfo{
+			ID:        asset.String(),
+			Symbol:    string(symbol),
+			Decimals:  int(decimals),
+			Metadata:  string(metadata),
+			Supply:    hutils.FormatBalance(supply, decimals),
+			Creator:   owner,
+			StrSymbol: fmt.Sprintf("%s [%s..%s]", symbol, strAsset[:3], strAsset[len(strAsset)-3:]),
+		})
 	}
 	return assets
 }
@@ -969,26 +930,14 @@ func (b *Backend) AddAsset(asset string) error {
 	if err != nil {
 		return err
 	}
-	if slices.Contains(b.ownedAssets, assetID) || slices.Contains(b.otherAssets, assetID) {
-		return errors.New("asset already exists")
-	}
-	_, priv, _, _, tcli, err := b.defaultActor()
-	if err != nil {
-		return err
-	}
-	exists, _, _, _, _, owner, _, err := tcli.Asset(b.ctx, assetID, false)
+	exists, _, _, _, _, owner, _, err := b.tcli.Asset(b.ctx, assetID, true)
 	if err != nil {
 		return err
 	}
 	if !exists {
-		return errors.New("asset does not exist")
+		return ErrAssetMissing
 	}
-	if owner == utils.Address(priv.PublicKey()) {
-		b.ownedAssets = append(b.ownedAssets, assetID)
-	} else {
-		b.otherAssets = append(b.otherAssets, assetID)
-	}
-	return nil
+	return b.s.StoreAsset(assetID, owner == b.addr)
 }
 
 func (b *Backend) GetMyOrders() ([]*Order, error) {
@@ -996,25 +945,21 @@ func (b *Backend) GetMyOrders() ([]*Order, error) {
 	b.orderLock.Lock()
 	defer b.orderLock.Unlock()
 
-	_, _, _, _, tcli, err := b.defaultActor()
-	if err != nil {
-		return nil, err
-	}
 	newMyOrders := make([]ids.ID, 0, len(b.myOrders))
 	orders := make([]*Order, 0, len(b.myOrders))
 	for _, orderID := range b.myOrders {
-		order, err := tcli.GetOrder(b.ctx, orderID)
+		order, err := b.tcli.GetOrder(b.ctx, orderID)
 		if err != nil {
 			continue
 		}
 		newMyOrders = append(newMyOrders, orderID)
 		inID := order.InAsset
-		_, inSymbol, inDecimals, _, _, _, _, err := tcli.Asset(b.ctx, inID, true)
+		_, inSymbol, inDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 		if err != nil {
 			return nil, err
 		}
 		outID := order.OutAsset
-		_, outSymbol, outDecimals, _, _, _, _, err := tcli.Asset(b.ctx, outID, true)
+		_, outSymbol, outDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, outID, true)
 		if err != nil {
 			return nil, err
 		}
@@ -1039,11 +984,7 @@ func (b *Backend) GetMyOrders() ([]*Order, error) {
 }
 
 func (b *Backend) GetOrders(pair string) ([]*Order, error) {
-	_, _, _, _, tcli, err := b.defaultActor()
-	if err != nil {
-		return nil, err
-	}
-	rawOrders, err := tcli.Orders(b.ctx, pair)
+	rawOrders, err := b.tcli.Orders(b.ctx, pair)
 	if err != nil {
 		return nil, err
 	}
@@ -1056,7 +997,7 @@ func (b *Backend) GetOrders(pair string) ([]*Order, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, inSymbol, inDecimals, _, _, _, _, err := tcli.Asset(b.ctx, inID, true)
+	_, inSymbol, inDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 	if err != nil {
 		return nil, err
 	}
@@ -1065,7 +1006,7 @@ func (b *Backend) GetOrders(pair string) ([]*Order, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, outSymbol, outDecimals, _, _, _, _, err := tcli.Asset(b.ctx, outID, true)
+	_, outSymbol, outDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, outID, true)
 	if err != nil {
 		return nil, err
 	}
@@ -1093,11 +1034,6 @@ func (b *Backend) GetOrders(pair string) ([]*Order, error) {
 }
 
 func (b *Backend) CreateOrder(assetIn string, inTick string, assetOut string, outTick string, supply string) error {
-	// TODO: share client
-	_, priv, factory, cli, tcli, err := b.defaultActor()
-	if err != nil {
-		return err
-	}
 	inID, err := ids.FromString(assetIn)
 	if err != nil {
 		return err
@@ -1106,21 +1042,21 @@ func (b *Backend) CreateOrder(assetIn string, inTick string, assetOut string, ou
 	if err != nil {
 		return err
 	}
-	_, _, inDecimals, _, _, _, _, err := tcli.Asset(b.ctx, inID, true)
+	_, _, inDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 	if err != nil {
 		return err
 	}
-	_, outSymbol, outDecimals, _, _, _, _, err := tcli.Asset(b.ctx, outID, true)
+	_, outSymbol, outDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, outID, true)
 	if err != nil {
 		return err
 	}
 
 	// Ensure have sufficient balance
-	bal, err := tcli.Balance(b.ctx, utils.Address(priv.PublicKey()), ids.Empty)
+	bal, err := b.tcli.Balance(b.ctx, b.addr, ids.Empty)
 	if err != nil {
 		return err
 	}
-	outBal, err := tcli.Balance(b.ctx, utils.Address(priv.PublicKey()), outID)
+	outBal, err := b.tcli.Balance(b.ctx, b.addr, outID)
 	if err != nil {
 		return err
 	}
@@ -1138,17 +1074,13 @@ func (b *Backend) CreateOrder(assetIn string, inTick string, assetOut string, ou
 	}
 
 	// Generate transaction
-	parser, err := tcli.Parser(b.ctx)
-	if err != nil {
-		return err
-	}
-	_, tx, maxFee, err := cli.GenerateTransaction(b.ctx, parser, nil, &actions.CreateOrder{
+	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, nil, &actions.CreateOrder{
 		In:      inID,
 		InTick:  iTick,
 		Out:     outID,
 		OutTick: oTick,
 		Supply:  oSupply,
-	}, factory)
+	}, b.factory)
 	if err != nil {
 		return fmt.Errorf("%w: unable to generate transaction", err)
 	}
@@ -1188,11 +1120,6 @@ func (b *Backend) CreateOrder(assetIn string, inTick string, assetOut string, ou
 }
 
 func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, inTick string, assetOut string, amount string) error {
-	// TODO: share client
-	_, priv, factory, cli, tcli, err := b.defaultActor()
-	if err != nil {
-		return err
-	}
 	oID, err := ids.FromString(orderID)
 	if err != nil {
 		return err
@@ -1209,17 +1136,17 @@ func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, i
 	if err != nil {
 		return err
 	}
-	_, inSymbol, inDecimals, _, _, _, _, err := tcli.Asset(b.ctx, inID, true)
+	_, inSymbol, inDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 	if err != nil {
 		return err
 	}
 
 	// Ensure have sufficient balance
-	bal, err := tcli.Balance(b.ctx, utils.Address(priv.PublicKey()), ids.Empty)
+	bal, err := b.tcli.Balance(b.ctx, b.addr, ids.Empty)
 	if err != nil {
 		return err
 	}
-	inBal, err := tcli.Balance(b.ctx, utils.Address(priv.PublicKey()), inID)
+	inBal, err := b.tcli.Balance(b.ctx, b.addr, inID)
 	if err != nil {
 		return err
 	}
@@ -1236,17 +1163,13 @@ func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, i
 	}
 
 	// Generate transaction
-	parser, err := tcli.Parser(b.ctx)
-	if err != nil {
-		return err
-	}
-	_, tx, maxFee, err := cli.GenerateTransaction(b.ctx, parser, nil, &actions.FillOrder{
+	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, nil, &actions.FillOrder{
 		Order: oID,
 		Owner: owner,
 		In:    inID,
 		Out:   outID,
 		Value: inAmount,
-	}, factory)
+	}, b.factory)
 	if err != nil {
 		return fmt.Errorf("%w: unable to generate transaction", err)
 	}
@@ -1281,11 +1204,6 @@ func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, i
 }
 
 func (b *Backend) CloseOrder(orderID string, assetOut string) error {
-	// TODO: share client
-	_, priv, factory, cli, tcli, err := b.defaultActor()
-	if err != nil {
-		return err
-	}
 	oID, err := ids.FromString(orderID)
 	if err != nil {
 		return err
@@ -1296,20 +1214,16 @@ func (b *Backend) CloseOrder(orderID string, assetOut string) error {
 	}
 
 	// Ensure have sufficient balance
-	bal, err := tcli.Balance(b.ctx, utils.Address(priv.PublicKey()), ids.Empty)
+	bal, err := b.tcli.Balance(b.ctx, b.addr, ids.Empty)
 	if err != nil {
 		return err
 	}
 
 	// Generate transaction
-	parser, err := tcli.Parser(b.ctx)
-	if err != nil {
-		return err
-	}
-	_, tx, maxFee, err := cli.GenerateTransaction(b.ctx, parser, nil, &actions.CloseOrder{
+	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, nil, &actions.CloseOrder{
 		Order: oID,
 		Out:   outID,
-	}, factory)
+	}, b.factory)
 	if err != nil {
 		return fmt.Errorf("%w: unable to generate transaction", err)
 	}
