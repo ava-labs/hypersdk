@@ -70,6 +70,10 @@ func (a *App) GetMyAssets() []*backend.AssetInfo {
 	return a.b.GetMyAssets()
 }
 
+func (a *App) GetBalance() ([]*backend.BalanceInfo, error) {
+	return a.b.GetBalance()
+}
+
 func (a *App) CreateAsset(symbol string, decimals string, metadata string) error {
 	return a.b.CreateAsset(symbol, decimals, metadata)
 }
@@ -82,7 +86,7 @@ func (a *App) Transfer(asset string, address string, amount string) error {
 	return a.b.Transfer(asset, address, amount)
 }
 
-func (a *App) GetAddress() (string, error) {
+func (a *App) GetAddress() string {
 	return a.b.GetAddress()
 }
 
