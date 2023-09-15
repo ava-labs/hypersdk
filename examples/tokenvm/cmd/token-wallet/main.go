@@ -16,7 +16,7 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-//go:embed frontend/src/assets/images/logo-universal.png
+//go:embed build/appicon.png
 var icon []byte
 
 func main() {
@@ -25,9 +25,10 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:  "Token Wallet",
-		Width:  1280,
-		Height: 768,
+		Title:    "Token Wallet",
+		Width:    1280,
+		MinWidth: 1280,
+		Height:   768,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
