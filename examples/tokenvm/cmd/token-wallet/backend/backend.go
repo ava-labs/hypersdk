@@ -72,9 +72,6 @@ type Backend struct {
 	solutions    []*FaucetSearchInfo
 	searchAlerts []*Alert
 
-	addressLock sync.Mutex
-	addressBook []*AddressInfo
-
 	orderLock sync.Mutex
 	myOrders  []ids.ID
 }
@@ -89,7 +86,6 @@ func New(fatal func(error)) *Backend {
 		transactionAlerts: []*Alert{},
 		solutions:         []*FaucetSearchInfo{},
 		searchAlerts:      []*Alert{},
-		addressBook:       []*AddressInfo{},
 		myOrders:          []ids.ID{},
 	}
 }
@@ -888,28 +884,19 @@ func (b *Backend) GetFaucetSolutions() *FaucetSolutions {
 }
 
 func (b *Backend) GetAddressBook() []*AddressInfo {
-	b.addressLock.Lock()
-	defer b.addressLock.Unlock()
-
-	return b.addressBook
+	addresses, err := b.s.GetAddresses()
+	if err != nil {
+		b.fatal(err)
+		return nil
+	}
+	return addresses
 }
 
+// Any existing address will be overwritten with a new name
 func (b *Backend) AddAddressBook(name string, address string) error {
-	b.addressLock.Lock()
-	defer b.addressLock.Unlock()
-
 	name = strings.TrimSpace(name)
 	address = strings.TrimSpace(address)
-
-	// Ensure no existing addresses that match
-	for _, addr := range b.addressBook {
-		if addr.Address == address {
-			return fmt.Errorf("duplicate address (already used for %s)", addr.Name)
-		}
-	}
-
-	b.addressBook = append(b.addressBook, &AddressInfo{name, address, fmt.Sprintf("%s [%s..%s]", name, address[:len(tconsts.HRP)+3], address[len(address)-3:])})
-	return nil
+	return b.s.StoreAddress(address, name)
 }
 
 func (b *Backend) GetAllAssets() []*AssetInfo {

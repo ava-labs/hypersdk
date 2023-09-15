@@ -11,6 +11,8 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/pebble"
 )
 
@@ -58,7 +60,6 @@ func (s *Storage) GetKey() (ed25519.PrivateKey, error) {
 }
 
 func (s *Storage) StoreAsset(assetID ids.ID, owned bool) error {
-	// inverseTime := consts.MaxUint64 - uint64(time.Now().UnixMilli())
 	k := make([]byte, 1+ids.IDLen)
 	k[0] = assetsPrefix
 	copy(k[1:], assetID[:])
@@ -70,7 +71,6 @@ func (s *Storage) StoreAsset(assetID ids.ID, owned bool) error {
 }
 
 func (s *Storage) HasAsset(assetID ids.ID) (bool, error) {
-	// inverseTime := consts.MaxUint64 - uint64(time.Now().UnixMilli())
 	k := make([]byte, 1+ids.IDLen)
 	k[0] = assetsPrefix
 	copy(k[1:], assetID[:])
@@ -120,6 +120,31 @@ func (s *Storage) GetTransactions() ([]*TransactionInfo, error) {
 		txs = append(txs, &tx)
 	}
 	return txs, iter.Error()
+}
+
+func (s *Storage) StoreAddress(address string, nickname string) error {
+	pk, err := utils.ParseAddress(address)
+	if err != nil {
+		return err
+	}
+	k := make([]byte, 1+ed25519.PublicKeyLen)
+	k[0] = addressPrefix
+	copy(k[1:], pk[:])
+	return s.db.Put(k, []byte(nickname))
+}
+
+func (s *Storage) GetAddresses() ([]*AddressInfo, error) {
+	iter := s.db.NewIteratorWithPrefix([]byte{addressPrefix})
+	defer iter.Release()
+
+	addresses := []*AddressInfo{}
+	for iter.Next() {
+		pk := ed25519.PublicKey(iter.Key())
+		address := utils.Address(pk)
+		nickname := string(iter.Value())
+		addresses = append(addresses, &AddressInfo{nickname, address, fmt.Sprintf("%s [%s..%s]", nickname, address[:len(tconsts.HRP)+3], address[len(address)-3:])})
+	}
+	return addresses, iter.Error()
 }
 
 func (s *Storage) Close() error {
