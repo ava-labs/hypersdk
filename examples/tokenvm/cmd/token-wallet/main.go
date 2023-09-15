@@ -16,7 +16,7 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-//go:embed frontend/src/assets/images/logo-universal.jpeg
+//go:embed frontend/src/assets/images/logo-universal.png
 var icon []byte
 
 func main() {

@@ -4,7 +4,7 @@ import { WalletTwoTone, DashboardOutlined, BankOutlined, SendOutlined, SwapOutli
 import { App, Layout, Menu, Typography, Drawer, List, Divider } from "antd";
 const { Text, Title, Link } = Typography;
 import { Link as RLink } from "react-router-dom";
-import logo from "../assets/images/logo-universal.jpeg";
+import logo from "../assets/images/logo-universal.png";
 
 const items = [
   {
