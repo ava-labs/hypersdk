@@ -230,6 +230,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				"consensus-app-concurrency":"512",
 				"profile-continuous-enabled":false,
 				"profile-continuous-freq":"1m",
+				"http-host":"",
 				"http-allowed-origins": "*",
 				"http-allowed-hosts": "*"
 			}`),
