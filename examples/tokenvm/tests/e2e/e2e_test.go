@@ -231,7 +231,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				"profile-continuous-enabled":false,
 				"profile-continuous-freq":"1m",
 				"http-allowed-origins": "*",
-				"http-allowed-hosts": "*",
+				"http-allowed-hosts": "*"
 			}`),
 	)
 	cancel()
