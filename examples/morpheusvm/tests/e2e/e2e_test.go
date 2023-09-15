@@ -236,7 +236,10 @@ var _ = ginkgo.BeforeSuite(func() {
 				"network-compression-type":"zstd",
 				"consensus-app-concurrency":"512",
 				"profile-continuous-enabled":false,
-				"profile-continuous-freq":"1m"
+				"profile-continuous-freq":"1m",
+				"http-host":"",
+				"http-allowed-origins": "*",
+				"http-allowed-hosts": "*"
 			}`),
 	)
 	cancel()

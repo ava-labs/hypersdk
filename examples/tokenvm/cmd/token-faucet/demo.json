@@ -1,5 +1,5 @@
 {
-  "host": "localhost",
+  "host": "",
   "port": 9091,
   "privateKeyBytes": "933IN5CnG5Qls9+BtdOsfwWrSTSeKB3ephZ6EAWeLWwg/d/FFTpFKk8qrIvMghyxug45iZL76WowpCCOIVgNpw==",
   "tokenRPC": "http://127.0.0.1:54839/ext/bc/REJcnXaWrFhdZaBKtVXVkbrfiaZzQtkZENZQAwAeuy1JKQumb",

@@ -134,7 +134,7 @@ func (b *Backend) Start(ctx context.Context) error {
 	if err != nil {
 		// TODO: replace with DEVNET
 		b.c = &Config{
-			TokenRPC:    "http://54.190.240.186:43361/ext/bc/sJxgV2EAnEZ8a1nsWmzBxKPYKytrtSPa5AnBgzWD7tzjTzM7E",
+			TokenRPC:    "http://54.190.240.186:44939/ext/bc/T9VinqGh9ymBkVaKNjbs9fyBYNHm7EBv8ceauJ8awJR9RMMTt",
 			FaucetRPC:   "http://54.190.240.186:9091",
 			SearchCores: 4,
 		}
