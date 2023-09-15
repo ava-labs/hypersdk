@@ -132,14 +132,19 @@ func (b *Backend) Start(ctx context.Context) error {
 	configPath := path.Join(homeDir, configFile)
 	rawConifg, err := os.ReadFile(configPath)
 	if err != nil {
-		// TODO: auto-connect to DEVNET
-		return err
+		// TODO: replace with DEVNET
+		b.c = &Config{
+			TokenRPC:    "http://54.190.240.186:44403/ext/bc/2FyQHiwNCRDgEjxS8AbmCVDDoEtXGwHjwh5UNRPoz9VddnhSEf",
+			FaucetRPC:   "http://54.190.240.186:9091",
+			SearchCores: 4,
+		}
+	} else {
+		var config Config
+		if err := json.Unmarshal(rawConifg, &config); err != nil {
+			return err
+		}
+		b.c = &config
 	}
-	var config Config
-	if err := json.Unmarshal(rawConifg, &config); err != nil {
-		return err
-	}
-	b.c = &config
 
 	// Create clients
 	b.cli = rpc.NewJSONRPCClient(b.c.TokenRPC)
