@@ -177,6 +177,33 @@ func (s *Storage) GetSolutions() ([]*FaucetSearchInfo, error) {
 	return fs, iter.Error()
 }
 
+func (s *Storage) StoreOrder(orderID ids.ID) error {
+	inverseTime := consts.MaxUint64 - uint64(time.Now().UnixMilli())
+	k := make([]byte, 1+consts.Uint64Len+ids.IDLen)
+	k[0] = orderPrefix
+	binary.BigEndian.PutUint64(k[1:], inverseTime)
+	copy(k[1+consts.Uint64Len:], orderID[:])
+	return s.db.Put(k, nil)
+}
+
+func (s *Storage) GetOrders() ([]ids.ID, [][]byte, error) {
+	iter := s.db.NewIteratorWithPrefix([]byte{orderPrefix})
+	defer iter.Release()
+
+	orders := []ids.ID{}
+	keys := [][]byte{}
+	for iter.Next() {
+		k := iter.Key()
+		orders = append(orders, ids.ID(k[1+consts.Uint64Len:]))
+		keys = append(keys, k)
+	}
+	return orders, keys, iter.Error()
+}
+
+func (s *Storage) DeleteDBKey(k []byte) error {
+	return s.db.Delete(k)
+}
+
 func (s *Storage) Close() error {
 	if err := s.db.Close(); err != nil {
 		return fmt.Errorf("unable to close database: %w", err)

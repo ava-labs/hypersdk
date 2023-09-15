@@ -63,16 +63,12 @@ type Backend struct {
 	stats       []*TimeStat
 	currentStat *TimeStat
 
-	// TODO: move this to DB
 	txAlertLock       sync.Mutex
 	transactionAlerts []*Alert
 
 	searchLock   sync.Mutex
 	search       *FaucetSearchInfo
 	searchAlerts []*Alert
-
-	orderLock sync.Mutex
-	myOrders  []ids.ID
 }
 
 // NewApp creates a new App application struct
@@ -84,7 +80,6 @@ func New(fatal func(error)) *Backend {
 		stats:             []*TimeStat{},
 		transactionAlerts: []*Alert{},
 		searchAlerts:      []*Alert{},
-		myOrders:          []ids.ID{},
 	}
 }
 
@@ -955,18 +950,19 @@ func (b *Backend) AddAsset(asset string) error {
 }
 
 func (b *Backend) GetMyOrders() ([]*Order, error) {
-	// TODO: make locking more granular
-	b.orderLock.Lock()
-	defer b.orderLock.Unlock()
-
-	newMyOrders := make([]ids.ID, 0, len(b.myOrders))
-	orders := make([]*Order, 0, len(b.myOrders))
-	for _, orderID := range b.myOrders {
+	orderIDs, orderKeys, err := b.s.GetOrders()
+	if err != nil {
+		return nil, err
+	}
+	orders := make([]*Order, 0, len(orderIDs))
+	for i, orderID := range orderIDs {
 		order, err := b.tcli.GetOrder(b.ctx, orderID)
 		if err != nil {
+			if err := b.s.DeleteDBKey(orderKeys[i]); err != nil {
+				return nil, err
+			}
 			continue
 		}
-		newMyOrders = append(newMyOrders, orderID)
 		inID := order.InAsset
 		_, inSymbol, inDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 		if err != nil {
@@ -993,7 +989,6 @@ func (b *Backend) GetMyOrders() ([]*Order, error) {
 			InputStep: hutils.FormatBalance(order.InTick, inDecimals),
 		})
 	}
-	b.myOrders = newMyOrders
 	return orders, nil
 }
 
@@ -1127,10 +1122,7 @@ func (b *Backend) CreateOrder(assetIn string, inTick string, assetOut string, ou
 	}
 
 	// We rely on order checking to clear backlog
-	b.orderLock.Lock()
-	b.myOrders = append(b.myOrders, tx.ID())
-	b.orderLock.Unlock()
-	return nil
+	return b.s.StoreOrder(tx.ID())
 }
 
 func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, inTick string, assetOut string, amount string) error {
