@@ -95,7 +95,7 @@ const NavBar = () => {
     <Layout.Header theme="light" style={{ background: "white" }}>
       <div
         className="logo"
-        style={{ float: "left", padding: "1%" }}
+        style={{ float: "left", margin: "8px" }}
       >
         <img src={logo} style={{ width: "50px" }} />
       </div>
