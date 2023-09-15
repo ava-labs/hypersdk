@@ -944,6 +944,13 @@ func (b *Backend) AddAsset(asset string) error {
 	if err != nil {
 		return err
 	}
+	hasAsset, err := b.s.HasAsset(assetID)
+	if err != nil {
+		return err
+	}
+	if hasAsset {
+		return nil
+	}
 	exists, _, _, _, _, owner, _, err := b.tcli.Asset(b.ctx, assetID, true)
 	if err != nil {
 		return err
