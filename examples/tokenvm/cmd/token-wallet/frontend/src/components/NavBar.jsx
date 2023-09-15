@@ -1,6 +1,19 @@
 import { useEffect, useState } from "react";
-import { GetBalance, GetTransactions, GetAddress } from "../../wailsjs/go/main/App";
-import { WalletTwoTone, DashboardOutlined, BankOutlined, SendOutlined, SwapOutlined, GoldOutlined, CheckCircleTwoTone, CloseCircleTwoTone } from "@ant-design/icons";
+import {
+  GetBalance,
+  GetTransactions,
+  GetAddress,
+} from "../../wailsjs/go/main/App";
+import {
+  WalletTwoTone,
+  DashboardOutlined,
+  BankOutlined,
+  SendOutlined,
+  SwapOutlined,
+  GoldOutlined,
+  CheckCircleTwoTone,
+  CloseCircleTwoTone,
+} from "@ant-design/icons";
 import { App, Layout, Menu, Typography, Drawer, List, Divider } from "antd";
 const { Text, Title, Link } = Typography;
 import { Link as RLink } from "react-router-dom";
@@ -58,26 +71,28 @@ const NavBar = () => {
     getAddress();
 
     const getBalance = async () => {
-        const newBalance = await GetBalance();
-        for (var bal of newBalance) {
-          if (bal.ID == "11111111111111111111111111111111LpoYY") {
-            setNativeBalance(bal);
-            break
-          }
+      const newBalance = await GetBalance();
+      for (var bal of newBalance) {
+        if (bal.ID == "11111111111111111111111111111111LpoYY") {
+          setNativeBalance(bal);
+          break;
         }
-        setBalance(newBalance);
+      }
+      setBalance(newBalance);
     };
 
     const getTransactions = async () => {
-        const txs = await GetTransactions();
-        if (txs.Alerts !== null) {
-          for (var Alert of txs.Alerts) {
-            message.open({
-              icon: <WalletTwoTone />, type: Alert.Type, content: Alert.Content,
-            });
-          }
+      const txs = await GetTransactions();
+      if (txs.Alerts !== null) {
+        for (var Alert of txs.Alerts) {
+          message.open({
+            icon: <WalletTwoTone />,
+            type: Alert.Type,
+            content: Alert.Content,
+          });
         }
-        setTransactions(txs.TxInfos);
+      }
+      setTransactions(txs.TxInfos);
     };
 
     getBalance();
@@ -92,75 +107,75 @@ const NavBar = () => {
 
   return (
     <>
-    <Layout.Header theme="light" style={{ background: "white" }}>
-      <div
-        className="logo"
-        style={{ float: "left", margin: "8px" }}
-      >
-        <img src={logo} style={{ width: "50px" }} />
-      </div>
-      {balance.length > 0 &&
-        <div style={{ float: "right" }}>
-          <Link strong onClick={showDrawer}>{nativeBalance.Str}</Link>
+      <Layout.Header theme="light" style={{ background: "white" }}>
+        <div className="logo" style={{ float: "left", margin: "8px" }}>
+          <img src={logo} style={{ width: "50px" }} />
         </div>
-      }
-      <Menu
-        defaultSelectedKeys={["explorer"]}
-        mode="horizontal"
-        items={items}
-        style={{
-          position: "relative",
-        }}
-      />
-    <Drawer title={<Text copyable>{address}</Text>} size={"large"} placement="right" onClose={onClose} open={open}>
-      {/* use a real data source */}
-      <Divider orientation="center">
-        Tokens
-      </Divider>
-      <List
-        bordered
-        dataSource={balance}
-        renderItem={(item) => (
-          <List.Item>
-            <Text>{item.Str}</Text>
-          </List.Item>
+        {balance.length > 0 && (
+          <div style={{ float: "right" }}>
+            <Link strong onClick={showDrawer}>
+              {nativeBalance.Str}
+            </Link>
+          </div>
         )}
-      />
-      <Divider orientation="center">
-        Transactions
-      </Divider>
-      <List
-        bordered
-        dataSource={transactions}
-        renderItem={(item) => (
-          <List.Item>
-            <div>
-              <Text strong>{item.ID} </Text>
-              {!item.Success &&
-                <CloseCircleTwoTone twoToneColor="#eb2f96" />
-              }
-              {item.Success &&
-                <CheckCircleTwoTone twoToneColor="#52c41a" />
-              }
-            </div>
-            <Text strong>Type:</Text> {item.Type}
-            <br />
-            <Text strong>Timestamp:</Text> {item.Timestamp}
-            <br />
-            <Text strong>Units:</Text> {item.Units}
-            <br />
-            <Text strong>Size:</Text> {item.Size}
-            <br />
-            <Text strong>Summary:</Text> {item.Summary}
-            <br />
-            <Text strong>Fee:</Text> {item.Fee}
-            <br />
-            <Text strong>Actor:</Text> <Text copyable>{item.Actor}</Text>
-          </List.Item>
-        )}
-      />
-    </Drawer>
-    </Layout.Header>
+        <Menu
+          defaultSelectedKeys={["explorer"]}
+          mode="horizontal"
+          items={items}
+          style={{
+            position: "relative",
+          }}
+        />
+        <Drawer
+          title={<Text copyable>{address}</Text>}
+          size={"large"}
+          placement="right"
+          onClose={onClose}
+          open={open}>
+          {/* use a real data source */}
+          <Divider orientation="center">Tokens</Divider>
+          <List
+            bordered
+            dataSource={balance}
+            renderItem={(item) => (
+              <List.Item>
+                <Text>{item.Str}</Text>
+              </List.Item>
+            )}
+          />
+          <Divider orientation="center">Transactions</Divider>
+          <List
+            bordered
+            dataSource={transactions}
+            renderItem={(item) => (
+              <List.Item>
+                <div>
+                  <Text strong>{item.ID} </Text>
+                  {!item.Success && (
+                    <CloseCircleTwoTone twoToneColor="#eb2f96" />
+                  )}
+                  {item.Success && (
+                    <CheckCircleTwoTone twoToneColor="#52c41a" />
+                  )}
+                </div>
+                <Text strong>Type:</Text> {item.Type}
+                <br />
+                <Text strong>Timestamp:</Text> {item.Timestamp}
+                <br />
+                <Text strong>Units:</Text> {item.Units}
+                <br />
+                <Text strong>Size:</Text> {item.Size}
+                <br />
+                <Text strong>Summary:</Text> {item.Summary}
+                <br />
+                <Text strong>Fee:</Text> {item.Fee}
+                <br />
+                <Text strong>Actor:</Text> <Text copyable>{item.Actor}</Text>
+              </List.Item>
+            )}
+          />
+        </Drawer>
+      </Layout.Header>
     </>
   );
 };
