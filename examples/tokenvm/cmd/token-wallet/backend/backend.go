@@ -212,7 +212,7 @@ func (b *Backend) collectBlocks() {
 					continue
 				}
 
-				_, symbol, decimals, _, _, _, _, err := b.tcli.Asset(b.ctx, action.Asset, true)
+				_, symbol, decimals, _, _, owner, _, err := b.tcli.Asset(b.ctx, action.Asset, true)
 				if err != nil {
 					b.fatal(err)
 					return
@@ -238,9 +238,16 @@ func (b *Backend) collectBlocks() {
 						b.transactionAlerts = append(b.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from Transfer Action", hutils.FormatBalance(action.Value, decimals), symbol)})
 						b.transactionLock.Unlock()
 					}
-					if err := b.s.StoreAsset(action.Asset, false); err != nil {
+					hasAsset, err := b.s.HasAsset(action.Asset)
+					if err != nil {
 						b.fatal(err)
 						return
+					}
+					if !hasAsset {
+						if err := b.s.StoreAsset(action.Asset, b.addr == owner); err != nil {
+							b.fatal(err)
+							return
+						}
 					}
 					if err := b.s.StoreTransaction(txInfo); err != nil {
 						b.fatal(err)
@@ -285,7 +292,7 @@ func (b *Backend) collectBlocks() {
 					continue
 				}
 
-				_, symbol, decimals, _, _, _, _, err := b.tcli.Asset(b.ctx, action.Asset, true)
+				_, symbol, decimals, _, _, owner, _, err := b.tcli.Asset(b.ctx, action.Asset, true)
 				if err != nil {
 					b.fatal(err)
 					return
@@ -311,9 +318,16 @@ func (b *Backend) collectBlocks() {
 						b.transactionAlerts = append(b.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from Mint Action", hutils.FormatBalance(action.Value, decimals), symbol)})
 						b.transactionLock.Unlock()
 					}
-					if err := b.s.StoreAsset(action.Asset, false); err != nil {
+					hasAsset, err := b.s.HasAsset(action.Asset)
+					if err != nil {
 						b.fatal(err)
 						return
+					}
+					if !hasAsset {
+						if err := b.s.StoreAsset(action.Asset, b.addr == owner); err != nil {
+							b.fatal(err)
+							return
+						}
 					}
 					if err := b.s.StoreTransaction(txInfo); err != nil {
 						b.fatal(err)

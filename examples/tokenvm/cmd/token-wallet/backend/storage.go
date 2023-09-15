@@ -69,6 +69,14 @@ func (s *Storage) StoreAsset(assetID ids.ID, owned bool) error {
 	return s.db.Put(k, v)
 }
 
+func (s *Storage) HasAsset(assetID ids.ID) (bool, error) {
+	// inverseTime := consts.MaxUint64 - uint64(time.Now().UnixMilli())
+	k := make([]byte, 1+ids.IDLen)
+	k[0] = assetsPrefix
+	copy(k[1:], assetID[:])
+	return s.db.Has(k)
+}
+
 func (s *Storage) GetAssets() ([]ids.ID, []bool, error) {
 	iter := s.db.NewIteratorWithPrefix([]byte{assetsPrefix})
 	defer iter.Release()
