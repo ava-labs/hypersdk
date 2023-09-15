@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package backend
 
 import (
@@ -118,7 +121,9 @@ func (b *Backend) Start(ctx context.Context) error {
 	b.factory = auth.NewED25519Factory(b.priv)
 	b.pk = b.priv.PublicKey()
 	b.addr = utils.Address(b.pk)
-	b.AddAddressBook("Me", b.addr)
+	if err := b.AddAddressBook("Me", b.addr); err != nil {
+		return err
+	}
 	if err := b.s.StoreAsset(ids.Empty, false); err != nil {
 		return err
 	}
@@ -516,7 +521,7 @@ func (b *Backend) collectBlocks() {
 	}
 }
 
-func (b *Backend) Shutdown(ctx context.Context) error {
+func (b *Backend) Shutdown(context.Context) error {
 	_ = b.scli.Close()
 	return b.s.Close()
 }
