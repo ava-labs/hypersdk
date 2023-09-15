@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,8 +42,8 @@ import (
 )
 
 const (
-	databasePath = ".token-wallet"
-	searchCores  = 4 // TODO: expose to UI
+	databaseFolder = ".token-wallet"
+	searchCores    = 4 // TODO: expose to UI
 )
 
 type Alert struct {
@@ -144,6 +146,13 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		a.log.Error(err.Error())
+		runtime.Quit(ctx)
+		return
+	}
+	databasePath := path.Join(homeDir, databaseFolder)
 	h, err := hcli.New(cmd.NewController(databasePath))
 	if err != nil {
 		a.log.Error(err.Error())
