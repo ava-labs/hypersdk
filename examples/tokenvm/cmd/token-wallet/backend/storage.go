@@ -140,7 +140,7 @@ func (s *Storage) GetAddresses() ([]*AddressInfo, error) {
 
 	addresses := []*AddressInfo{}
 	for iter.Next() {
-		pk := ed25519.PublicKey(iter.Key())
+		pk := ed25519.PublicKey(iter.Key()[1:])
 		address := utils.Address(pk)
 		nickname := string(iter.Value())
 		addresses = append(addresses, &AddressInfo{nickname, address, fmt.Sprintf("%s [%s..%s]", nickname, address[:len(tconsts.HRP)+3], address[len(address)-3:])})
