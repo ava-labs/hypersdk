@@ -14,6 +14,7 @@ import (
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/pebble"
+	hutils "github.com/ava-labs/hypersdk/utils"
 )
 
 const (
@@ -145,6 +146,35 @@ func (s *Storage) GetAddresses() ([]*AddressInfo, error) {
 		addresses = append(addresses, &AddressInfo{nickname, address, fmt.Sprintf("%s [%s..%s]", nickname, address[:len(tconsts.HRP)+3], address[len(address)-3:])})
 	}
 	return addresses, iter.Error()
+}
+
+func (s *Storage) StoreSolution(solution *FaucetSearchInfo) error {
+	solutionID := hutils.ToID([]byte(solution.Solution))
+	inverseTime := consts.MaxUint64 - uint64(time.Now().UnixMilli())
+	k := make([]byte, 1+consts.Uint64Len+ids.IDLen)
+	k[0] = searchPrefix
+	binary.BigEndian.PutUint64(k[1:], inverseTime)
+	copy(k[1+consts.Uint64Len:], solutionID[:])
+	b, err := json.Marshal(solution)
+	if err != nil {
+		return err
+	}
+	return s.db.Put(k, b)
+}
+
+func (s *Storage) GetSolutions() ([]*FaucetSearchInfo, error) {
+	iter := s.db.NewIteratorWithPrefix([]byte{searchPrefix})
+	defer iter.Release()
+
+	fs := []*FaucetSearchInfo{}
+	for iter.Next() {
+		var f FaucetSearchInfo
+		if err := json.Unmarshal(iter.Value(), &f); err != nil {
+			return nil, err
+		}
+		fs = append(fs, &f)
+	}
+	return fs, iter.Error()
 }
 
 func (s *Storage) Close() error {

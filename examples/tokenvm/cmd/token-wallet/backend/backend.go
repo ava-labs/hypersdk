@@ -58,18 +58,17 @@ type Backend struct {
 	parser  chain.Parser
 	fcli    *frpc.JSONRPCClient
 
-	workLock    sync.Mutex
+	blockLock   sync.Mutex
 	blocks      []*BlockInfo
 	stats       []*TimeStat
 	currentStat *TimeStat
 
 	// TODO: move this to DB
-	transactionLock   sync.Mutex
+	txAlertLock       sync.Mutex
 	transactionAlerts []*Alert
 
 	searchLock   sync.Mutex
 	search       *FaucetSearchInfo
-	solutions    []*FaucetSearchInfo
 	searchAlerts []*Alert
 
 	orderLock sync.Mutex
@@ -84,7 +83,6 @@ func New(fatal func(error)) *Backend {
 		blocks:            []*BlockInfo{},
 		stats:             []*TimeStat{},
 		transactionAlerts: []*Alert{},
-		solutions:         []*FaucetSearchInfo{},
 		searchAlerts:      []*Alert{},
 		myOrders:          []ids.ID{},
 	}
@@ -230,9 +228,9 @@ func (b *Backend) collectBlocks() {
 				}
 				if action.To == b.pk {
 					if actor != b.pk && result.Success {
-						b.transactionLock.Lock()
-						b.transactionAlerts = append(b.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from Transfer Action", hutils.FormatBalance(action.Value, decimals), symbol)})
-						b.transactionLock.Unlock()
+						b.txAlertLock.Lock()
+						b.transactionAlerts = append(b.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from Transfer", hutils.FormatBalance(action.Value, decimals), symbol)})
+						b.txAlertLock.Unlock()
 					}
 					hasAsset, err := b.s.HasAsset(action.Asset)
 					if err != nil {
@@ -310,9 +308,9 @@ func (b *Backend) collectBlocks() {
 				}
 				if action.To == b.pk {
 					if actor != b.pk && result.Success {
-						b.transactionLock.Lock()
-						b.transactionAlerts = append(b.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from Mint Action", hutils.FormatBalance(action.Value, decimals), symbol)})
-						b.transactionLock.Unlock()
+						b.txAlertLock.Lock()
+						b.transactionAlerts = append(b.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from Mint", hutils.FormatBalance(action.Value, decimals), symbol)})
+						b.txAlertLock.Unlock()
 					}
 					hasAsset, err := b.s.HasAsset(action.Asset)
 					if err != nil {
@@ -413,9 +411,9 @@ func (b *Backend) collectBlocks() {
 					)
 
 					if action.Owner == b.pk && actor != b.pk {
-						b.transactionLock.Lock()
-						b.transactionAlerts = append(b.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from FillOrder Action", hutils.FormatBalance(or.In, inDecimals), inSymbol)})
-						b.transactionLock.Unlock()
+						b.txAlertLock.Lock()
+						b.transactionAlerts = append(b.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from FillOrder", hutils.FormatBalance(or.In, inDecimals), inSymbol)})
+						b.txAlertLock.Unlock()
 					}
 				} else {
 					txInfo.Summary = string(result.Output)
@@ -490,7 +488,7 @@ func (b *Backend) collectBlocks() {
 		bi.Txs = len(blk.Txs)
 
 		// TODO: find a more efficient way to support this
-		b.workLock.Lock()
+		b.blockLock.Lock()
 		b.blocks = append([]*BlockInfo{bi}, b.blocks...)
 		if len(b.blocks) > 100 {
 			b.blocks = b.blocks[:100]
@@ -517,7 +515,7 @@ func (b *Backend) collectBlocks() {
 			}
 		}
 		b.stats = b.stats[newStart:]
-		b.workLock.Unlock()
+		b.blockLock.Unlock()
 
 		lastBlock = now.Unix()
 	}
@@ -529,15 +527,15 @@ func (b *Backend) Shutdown(ctx context.Context) error {
 }
 
 func (b *Backend) GetLatestBlocks() []*BlockInfo {
-	b.workLock.Lock()
-	defer b.workLock.Unlock()
+	b.blockLock.Lock()
+	defer b.blockLock.Unlock()
 
 	return b.blocks
 }
 
 func (b *Backend) GetTransactionStats() []*GenericInfo {
-	b.workLock.Lock()
-	defer b.workLock.Unlock()
+	b.blockLock.Lock()
+	defer b.blockLock.Unlock()
 
 	info := make([]*GenericInfo, len(b.stats))
 	for i := 0; i < len(b.stats); i++ {
@@ -547,8 +545,8 @@ func (b *Backend) GetTransactionStats() []*GenericInfo {
 }
 
 func (b *Backend) GetAccountStats() []*GenericInfo {
-	b.workLock.Lock()
-	defer b.workLock.Unlock()
+	b.blockLock.Lock()
+	defer b.blockLock.Unlock()
 
 	info := make([]*GenericInfo, len(b.stats))
 	for i := 0; i < len(b.stats); i++ {
@@ -558,8 +556,8 @@ func (b *Backend) GetAccountStats() []*GenericInfo {
 }
 
 func (b *Backend) GetUnitPrices() []*GenericInfo {
-	b.workLock.Lock()
-	defer b.workLock.Unlock()
+	b.blockLock.Lock()
+	defer b.blockLock.Unlock()
 
 	info := make([]*GenericInfo, 0, len(b.stats)*chain.FeeDimensions)
 	for i := 0; i < len(b.stats); i++ {
@@ -802,8 +800,8 @@ func (b *Backend) GetBalance() ([]*BalanceInfo, error) {
 }
 
 func (b *Backend) GetTransactions() *Transactions {
-	b.transactionLock.Lock()
-	defer b.transactionLock.Unlock()
+	b.txAlertLock.Lock()
+	defer b.txAlertLock.Unlock()
 
 	var alerts []*Alert
 	if len(b.transactionAlerts) > 0 {
@@ -864,13 +862,21 @@ func (b *Backend) StartFaucetSearch() (*FaucetSearchInfo, error) {
 		}
 		search := b.search
 		b.search = nil
-		b.solutions = append([]*FaucetSearchInfo{search}, b.solutions...)
 		b.searchLock.Unlock()
+		if err := b.s.StoreSolution(search); err != nil {
+			b.fatal(err)
+		}
 	}()
 	return b.search, nil
 }
 
 func (b *Backend) GetFaucetSolutions() *FaucetSolutions {
+	solutions, err := b.s.GetSolutions()
+	if err != nil {
+		b.fatal(err)
+		return nil
+	}
+
 	b.searchLock.Lock()
 	defer b.searchLock.Unlock()
 
@@ -880,7 +886,7 @@ func (b *Backend) GetFaucetSolutions() *FaucetSolutions {
 		b.searchAlerts = []*Alert{}
 	}
 
-	return &FaucetSolutions{alerts, b.search, b.solutions}
+	return &FaucetSolutions{alerts, b.search, solutions}
 }
 
 func (b *Backend) GetAddressBook() []*AddressInfo {
