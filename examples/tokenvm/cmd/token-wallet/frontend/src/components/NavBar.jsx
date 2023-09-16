@@ -19,34 +19,6 @@ const { Text, Title, Link } = Typography;
 import { Link as RLink } from "react-router-dom";
 import logo from "../assets/images/logo-universal.png";
 
-const items = [
-  {
-    label: <RLink to={"explorer"}>Explorer</RLink>,
-    key: "explorer",
-    icon: <DashboardOutlined />,
-  },
-  {
-    label: <RLink to={"faucet"}>Faucet</RLink>,
-    key: "faucet",
-    icon: <GoldOutlined />,
-  },
-  {
-    label: <RLink to={"mint"}>Mint</RLink>,
-    key: "mint",
-    icon: <BankOutlined />,
-  },
-  {
-    label: <RLink to={"transfer"}>Transfer</RLink>,
-    key: "transfer",
-    icon: <SendOutlined />,
-  },
-  {
-    label: <RLink to={"trade"}>Trade</RLink>,
-    key: "trade",
-    icon: <SwapOutlined />,
-  },
-];
-
 const NavBar = () => {
   const { message } = App.useApp();
   const [balance, setBalance] = useState([]);
@@ -54,6 +26,38 @@ const NavBar = () => {
   const [transactions, setTransactions] = useState([]);
   const [address, setAddress] = useState("");
   const [open, setOpen] = useState(false);
+  const [actionsEnabled, setActionsEnabled] = useState(false);
+
+  const items = [
+    {
+      label: <RLink to={"explorer"}>Explorer</RLink>,
+      key: "explorer",
+      icon: <DashboardOutlined />,
+    },
+    {
+      label: <RLink to={"faucet"}>Faucet</RLink>,
+      key: "faucet",
+      icon: <GoldOutlined />,
+    },
+    {
+      label: <RLink to={"mint"}>Mint</RLink>,
+      key: "mint",
+      icon: <BankOutlined />,
+      disabled: {actionsEnabled},
+    },
+    {
+      label: <RLink to={"transfer"}>Transfer</RLink>,
+      key: "transfer",
+      icon: <SendOutlined />,
+      disabled: {actionsEnabled},
+    },
+    {
+      label: <RLink to={"trade"}>Trade</RLink>,
+      key: "trade",
+      icon: <SwapOutlined />,
+      disabled: {actionsEnabled},
+    },
+  ];
 
   const showDrawer = () => {
     setOpen(true);
@@ -118,6 +122,7 @@ const NavBar = () => {
             </Link>
           </div>
         )}
+        {/* Lock until initial balance */}
         <Menu
           defaultSelectedKeys={["explorer"]}
           mode="horizontal"
