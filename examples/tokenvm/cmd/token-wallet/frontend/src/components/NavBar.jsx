@@ -26,7 +26,6 @@ const NavBar = () => {
   const [transactions, setTransactions] = useState([]);
   const [address, setAddress] = useState("");
   const [open, setOpen] = useState(false);
-  const [actionsEnabled, setActionsEnabled] = useState(false);
 
   const items = [
     {
@@ -43,19 +42,16 @@ const NavBar = () => {
       label: <RLink to={"mint"}>Mint</RLink>,
       key: "mint",
       icon: <BankOutlined />,
-      disabled: {actionsEnabled},
     },
     {
       label: <RLink to={"transfer"}>Transfer</RLink>,
       key: "transfer",
       icon: <SendOutlined />,
-      disabled: {actionsEnabled},
     },
     {
       label: <RLink to={"trade"}>Trade</RLink>,
       key: "trade",
       icon: <SwapOutlined />,
-      disabled: {actionsEnabled},
     },
   ];
 
