@@ -10,5 +10,5 @@ echo "installing proxy"
 go install -v github.com/sensiblecodeio/tiny-ssl-reverse-proxy
 
 # TODO: add ability to provide a cert
-echo "starting proxy for ${VM_API}"
+echo "starting proxy for ${VM_API} on :9090"
 tiny-ssl-reverse-proxy -listen=":9090" -tls=false -where="${VM_API}"
