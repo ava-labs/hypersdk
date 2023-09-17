@@ -26,6 +26,7 @@ import {
   CreateOrder,
   CloseOrder,
 } from "../../wailsjs/go/main/App";
+import FundsCheck from "./FundsCheck";
 const { Text, Title, Link } = Typography;
 import FillOrder from "./FillOrder";
 
@@ -250,6 +251,7 @@ const Trade = () => {
         onClick={showCreateDrawer}
       />
       <div style={{ width: "60%", margin: "auto" }}>
+        <FundsCheck />
         <Divider orientation="center">Open Orders</Divider>
         <List
           bordered
