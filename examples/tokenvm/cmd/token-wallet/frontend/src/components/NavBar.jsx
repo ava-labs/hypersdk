@@ -16,10 +16,11 @@ import {
 } from "@ant-design/icons";
 import { App, Layout, Menu, Typography, Drawer, List, Divider } from "antd";
 const { Text, Title, Link } = Typography;
-import { Link as RLink } from "react-router-dom";
+import { useLocation, Link as RLink } from "react-router-dom";
 import logo from "../assets/images/logo-universal.png";
 
 const NavBar = () => {
+  const location = useLocation(); 
   const { message } = App.useApp();
   const [balance, setBalance] = useState([]);
   const [nativeBalance, setNativeBalance] = useState({});
@@ -118,7 +119,6 @@ const NavBar = () => {
             </Link>
           </div>
         )}
-        {/* Lock until initial balance */}
         <Menu
           defaultSelectedKeys={["explorer"]}
           mode="horizontal"
@@ -126,6 +126,7 @@ const NavBar = () => {
           style={{
             position: "relative",
           }}
+          selectedKeys={[location.pathname.slice(1)]}
         />
         <Drawer
           title={<Text copyable>{address}</Text>}

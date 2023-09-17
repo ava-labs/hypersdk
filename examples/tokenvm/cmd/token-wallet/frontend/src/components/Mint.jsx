@@ -6,6 +6,7 @@ import {
   GetAddressBook,
   AddAddressBook,
 } from "../../wailsjs/go/main/App";
+import FundsCheck from "./FundsCheck";
 import { PlusOutlined } from "@ant-design/icons";
 import {
   App,
@@ -202,6 +203,7 @@ const Mint = () => {
         onClick={showCreateDrawer}
       />
       <div style={{ width: "60%", margin: "auto" }}>
+        <FundsCheck />
         <Divider orientation="center">Tokens</Divider>
         <List
           bordered
