@@ -6,16 +6,7 @@ import {
   GetUnitPrices,
   GetChainID,
 } from "../../wailsjs/go/main/App";
-import {
-  App,
-  Typography,
-  Divider,
-  List,
-  Card,
-  Col,
-  Row,
-  Tooltip,
-} from "antd";
+import { App, Typography, Divider, List, Card, Col, Row, Tooltip } from "antd";
 import { Area, Line } from "@ant-design/plots";
 const { Title, Text } = Typography;
 

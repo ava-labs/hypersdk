@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Divider,
   Space,
@@ -178,7 +178,10 @@ const Transfer = () => {
               />
             </Form.Item>
             <Form.Item>
-              <Button type="primary" htmlType="submit" disabled={!window.HasBalance}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                disabled={!window.HasBalance}>
                 Send
               </Button>
             </Form.Item>

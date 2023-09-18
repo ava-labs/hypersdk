@@ -11,7 +11,6 @@ import { PlusOutlined } from "@ant-design/icons";
 import {
   App,
   Select,
-  Layout,
   Input,
   InputNumber,
   Space,
@@ -22,9 +21,7 @@ import {
   Drawer,
   Form,
 } from "antd";
-import { Area, Line } from "@ant-design/plots";
 const { Title, Text } = Typography;
-const { Sider, Content } = Layout;
 
 const Mint = () => {
   const { message } = App.useApp();
@@ -225,7 +222,13 @@ const Mint = () => {
             </List.Item>
           )}
         />
-        <Button type="primary" onClick={showCreateDrawer} style={{margin: "8px 0 0 0"}} disabled={!window.HasBalance}>Create a Token</Button>
+        <Button
+          type="primary"
+          onClick={showCreateDrawer}
+          style={{ margin: "8px 0 0 0" }}
+          disabled={!window.HasBalance}>
+          Create a Token
+        </Button>
         <Divider orientation="center">Explanation</Divider>
       </div>
       <Drawer

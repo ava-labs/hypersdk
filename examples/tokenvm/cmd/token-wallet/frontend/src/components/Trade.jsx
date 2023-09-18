@@ -12,10 +12,7 @@ import {
   Button,
   Select,
 } from "antd";
-import {
-  PlusOutlined,
-  DoubleRightOutlined,
-} from "@ant-design/icons";
+import { PlusOutlined, DoubleRightOutlined } from "@ant-design/icons";
 import {
   GetBalance,
   GetAllAssets,
@@ -26,7 +23,7 @@ import {
   CloseOrder,
 } from "../../wailsjs/go/main/App";
 import FundsCheck from "./FundsCheck";
-const { Text, Title, Link } = Typography;
+const { Text } = Typography;
 import FillOrder from "./FillOrder";
 
 const Trade = () => {
@@ -277,7 +274,13 @@ const Trade = () => {
             </List.Item>
           )}
         />
-        <Button type="primary" onClick={showCreateDrawer} style={{margin: "8px 0 0 0"}} disabled={!window.HasBalance}>Create an Order</Button>
+        <Button
+          type="primary"
+          onClick={showCreateDrawer}
+          style={{ margin: "8px 0 0 0" }}
+          disabled={!window.HasBalance}>
+          Create an Order
+        </Button>
         <Divider orientation="center">Order Book</Divider>
         <div
           style={{

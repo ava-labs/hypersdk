@@ -15,7 +15,7 @@ import {
   CloseCircleTwoTone,
 } from "@ant-design/icons";
 import { App, Layout, Menu, Typography, Drawer, List, Divider } from "antd";
-const { Text, Title, Link } = Typography;
+const { Text, Link } = Typography;
 import { useLocation, Link as RLink } from "react-router-dom";
 import logo from "../assets/images/logo-universal.png";
 
@@ -76,7 +76,9 @@ const NavBar = () => {
       for (var bal of newBalance) {
         if (bal.ID == "11111111111111111111111111111111LpoYY") {
           setNativeBalance(bal);
-          {/* TODO: switch to using context */}
+          {
+            /* TODO: switch to using context */
+          }
           window.HasBalance = bal.Has;
           break;
         }
@@ -127,7 +129,11 @@ const NavBar = () => {
           style={{
             position: "relative",
           }}
-          selectedKeys={((location.pathname.length > 1) ? [location.pathname.slice(1)] : ["explorer"])}
+          selectedKeys={
+            location.pathname.length > 1
+              ? [location.pathname.slice(1)]
+              : ["explorer"]
+          }
         />
         <Drawer
           title={<Text copyable>{address}</Text>}
