@@ -25,10 +25,13 @@ type Transfer struct {
 	To ed25519.PublicKey `json:"to"`
 
 	// Asset to transfer to [To].
-	Asset ids.ID
+	Asset ids.ID `json:"asset"`
 
 	// Amount are transferred to [To].
 	Value uint64 `json:"value"`
+
+	// Optional message to accompany transaction.
+	Memo []byte `json:"memo"`
 }
 
 func (*Transfer) GetTypeID() uint8 {
@@ -63,6 +66,9 @@ func (t *Transfer) Execute(
 	if t.Value == 0 {
 		return false, TransferComputeUnits, OutputValueZero, nil, nil
 	}
+	if len(t.Memo) > MaxMemoSize {
+		return false, CreateAssetComputeUnits, OutputMemoTooLarge, nil, nil
+	}
 	if err := storage.SubBalance(ctx, mu, actor, t.Asset, t.Value); err != nil {
 		return false, TransferComputeUnits, utils.ErrBytes(err), nil, nil
 	}
@@ -77,14 +83,15 @@ func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
 	return TransferComputeUnits
 }
 
-func (*Transfer) Size() int {
-	return ed25519.PublicKeyLen + consts.IDLen + consts.Uint64Len
+func (t *Transfer) Size() int {
+	return ed25519.PublicKeyLen + consts.IDLen + consts.Uint64Len + codec.BytesLen(t.Memo)
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {
 	p.PackPublicKey(t.To)
 	p.PackID(t.Asset)
 	p.PackUint64(t.Value)
+	p.PackBytes(t.Memo)
 }
 
 func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
@@ -92,6 +99,7 @@ func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	p.UnpackPublicKey(false, &transfer.To) // can transfer to blackhole
 	p.UnpackID(false, &transfer.Asset)     // empty ID is the native asset
 	transfer.Value = p.UnpackUint64(true)
+	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
 	return &transfer, p.Err()
 }
 

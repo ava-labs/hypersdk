@@ -437,19 +437,19 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// read: 2 keys reads, 1 had 0 chunks
 			// create: 1 key created
 			// modify: 1 cold key modified
-			transferTxConsumed := chain.Dimensions{222, 7, 12, 25, 13}
+			transferTxConsumed := chain.Dimensions{226, 7, 12, 25, 13}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(279)))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(283)))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].tcli.Balance(context.Background(), sender, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899721)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899717)))
 			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
@@ -723,6 +723,64 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 		// Close connection when done
 		gomega.Ω(cli.Close()).Should(gomega.BeNil())
+	})
+
+	ginkgo.It("transfer an asset with a memo", func() {
+		other, err := ed25519.GeneratePrivateKey()
+		gomega.Ω(err).Should(gomega.BeNil())
+		parser, err := instances[0].tcli.Parser(context.Background())
+		gomega.Ω(err).Should(gomega.BeNil())
+		submit, _, _, err := instances[0].cli.GenerateTransaction(
+			context.Background(),
+			parser,
+			nil,
+			&actions.Transfer{
+				To:    other.PublicKey(),
+				Value: 10,
+				Memo:  []byte("hello"),
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[0])
+		results := accept(false)
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		result := results[0]
+		gomega.Ω(result.Success).Should(gomega.BeTrue())
+	})
+
+	ginkgo.It("transfer an asset with large memo", func() {
+		other, err := ed25519.GeneratePrivateKey()
+		gomega.Ω(err).Should(gomega.BeNil())
+		tx := chain.NewTx(
+			&chain.Base{
+				ChainID:   instances[0].chainID,
+				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
+				MaxFee:    1001,
+			},
+			nil,
+			&actions.Transfer{
+				To:    other.PublicKey(),
+				Value: 10,
+				Memo:  make([]byte, 1000),
+			},
+		)
+		// Must do manual construction to avoid `tx.Sign` error (would fail with
+		// too large)
+		msg, err := tx.Digest()
+		gomega.Ω(err).To(gomega.BeNil())
+		auth, err := factory.Sign(msg, tx.Action)
+		gomega.Ω(err).To(gomega.BeNil())
+		tx.Auth = auth
+		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
+		gomega.Ω(tx.Marshal(p)).To(gomega.BeNil())
+		gomega.Ω(p.Err()).To(gomega.BeNil())
+		_, err = instances[0].cli.SubmitTx(
+			context.Background(),
+			p.Bytes(),
+		)
+		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("size is larger than limit"))
 	})
 
 	ginkgo.It("mint an asset that doesn't exist", func() {

@@ -29,7 +29,8 @@ const (
 	MintAssetComputeUnits   = 2
 	TransferComputeUnits    = 1
 
-	MaxMetadataSize = 256
 	MaxSymbolSize   = 8
+	MaxMemoSize     = 256
+	MaxMetadataSize = 256
 	MaxDecimals     = 9
 )
