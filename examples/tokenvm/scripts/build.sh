@@ -31,3 +31,6 @@ go build -o ./build/token-cli ./cmd/token-cli
 
 echo "Building token-faucet in ./build/token-faucet"
 go build -o ./build/token-faucet ./cmd/token-faucet
+
+echo "Building token-feed in ./build/token-feed"
+go build -o ./build/token-feed ./cmd/token-feed
