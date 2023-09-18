@@ -7,10 +7,10 @@ const FundsCheck = () => {
       {!window.HasBalance &&
         <div style={{margin: "0 0 8px 0"}}>
           <Alert
-            message="Warning Text"
+            message="No Funds"
             description={
               <div>
-                Warning Description Warning Description Warning Description <Link to="/faucet">Warning</Link> Description
+                TODO....go to <Link to="/faucet">Faucet</Link>
               </div>
             }
             type="warning"
