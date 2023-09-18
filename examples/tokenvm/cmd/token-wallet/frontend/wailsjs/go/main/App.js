@@ -90,6 +90,6 @@ export function StartFaucetSearch() {
   return window['go']['main']['App']['StartFaucetSearch']();
 }
 
-export function Transfer(arg1, arg2, arg3) {
-  return window['go']['main']['App']['Transfer'](arg1, arg2, arg3);
+export function Transfer(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['Transfer'](arg1, arg2, arg3, arg4);
 }
