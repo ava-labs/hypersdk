@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Divider,
   Space,
@@ -17,6 +17,7 @@ import {
   AddAddressBook,
   GetAddressBook,
 } from "../../wailsjs/go/main/App";
+import FundsCheck from "./FundsCheck";
 
 const Transfer = () => {
   const { message } = App.useApp();
@@ -122,6 +123,7 @@ const Transfer = () => {
   return (
     <>
       <div style={{ width: "60%", margin: "auto" }}>
+        <FundsCheck />
         <Card bordered title={"Send a Token"}>
           <Form
             name="basic"
@@ -176,7 +178,10 @@ const Transfer = () => {
               />
             </Form.Item>
             <Form.Item>
-              <Button type="primary" htmlType="submit">
+              <Button
+                type="primary"
+                htmlType="submit"
+                disabled={!window.HasBalance}>
                 Send
               </Button>
             </Form.Item>

@@ -56,7 +56,7 @@ const FillOrder = ({ order }) => {
         onChange={valueUpdate}
         value={amount.current}
       />
-      <Button type="primary" onClick={fillOrder}>
+      <Button type="primary" onClick={fillOrder} disabled={!window.HasBalance}>
         Fill
       </Button>
     </>

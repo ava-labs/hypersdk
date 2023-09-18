@@ -15,11 +15,12 @@ import {
   CloseCircleTwoTone,
 } from "@ant-design/icons";
 import { App, Layout, Menu, Typography, Drawer, List, Divider } from "antd";
-const { Text, Title, Link } = Typography;
-import { Link as RLink } from "react-router-dom";
+const { Text, Link } = Typography;
+import { useLocation, Link as RLink } from "react-router-dom";
 import logo from "../assets/images/logo-universal.png";
 
 const NavBar = () => {
+  const location = useLocation();
   const { message } = App.useApp();
   const [balance, setBalance] = useState([]);
   const [nativeBalance, setNativeBalance] = useState({});
@@ -75,6 +76,10 @@ const NavBar = () => {
       for (var bal of newBalance) {
         if (bal.ID == "11111111111111111111111111111111LpoYY") {
           setNativeBalance(bal);
+          {
+            /* TODO: switch to using context */
+          }
+          window.HasBalance = bal.Has;
           break;
         }
       }
@@ -118,14 +123,17 @@ const NavBar = () => {
             </Link>
           </div>
         )}
-        {/* Lock until initial balance */}
         <Menu
-          defaultSelectedKeys={["explorer"]}
           mode="horizontal"
           items={items}
           style={{
             position: "relative",
           }}
+          selectedKeys={
+            location.pathname.length > 1
+              ? [location.pathname.slice(1)]
+              : ["explorer"]
+          }
         />
         <Drawer
           title={<Text copyable>{address}</Text>}

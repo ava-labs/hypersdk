@@ -77,6 +77,7 @@ type BalanceInfo struct {
 
 	Str string
 	Bal string
+	Has bool
 }
 
 type Transactions struct {

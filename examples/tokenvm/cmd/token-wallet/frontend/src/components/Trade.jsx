@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import {
   Space,
-  FloatButton,
   App,
   Drawer,
   Divider,
@@ -13,10 +12,7 @@ import {
   Button,
   Select,
 } from "antd";
-import {
-  PlusOutlined,
-  DoubleRightOutlined,
-} from "@ant-design/icons";
+import { PlusOutlined, DoubleRightOutlined } from "@ant-design/icons";
 import {
   GetBalance,
   GetAllAssets,
@@ -26,7 +22,8 @@ import {
   CreateOrder,
   CloseOrder,
 } from "../../wailsjs/go/main/App";
-const { Text, Title, Link } = Typography;
+import FundsCheck from "./FundsCheck";
+const { Text } = Typography;
 import FillOrder from "./FillOrder";
 
 const Trade = () => {
@@ -244,12 +241,8 @@ const Trade = () => {
 
   return (
     <>
-      <FloatButton
-        icon={<PlusOutlined />}
-        type="primary"
-        onClick={showCreateDrawer}
-      />
       <div style={{ width: "60%", margin: "auto" }}>
+        <FundsCheck />
         <Divider orientation="center">Open Orders</Divider>
         <List
           bordered
@@ -274,12 +267,20 @@ const Trade = () => {
                 type="primary"
                 danger
                 onClick={() => closeOrder(item)}
+                disabled={!window.HasBalance}
                 style={{ margin: "8px 0 0 0" }}>
                 Close
               </Button>
             </List.Item>
           )}
         />
+        <Button
+          type="primary"
+          onClick={showCreateDrawer}
+          style={{ margin: "8px 0 0 0" }}
+          disabled={!window.HasBalance}>
+          Create an Order
+        </Button>
         <Divider orientation="center">Order Book</Divider>
         <div
           style={{
