@@ -122,13 +122,12 @@ const NavBar = () => {
           </div>
         )}
         <Menu
-          defaultSelectedKeys={["explorer"]}
           mode="horizontal"
           items={items}
           style={{
             position: "relative",
           }}
-          selectedKeys={[location.pathname.slice(1)]}
+          selectedKeys={((location.pathname.length > 1) ? [location.pathname.slice(1)] : ["explorer"])}
         />
         <Drawer
           title={<Text copyable>{address}</Text>}
