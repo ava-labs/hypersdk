@@ -20,7 +20,6 @@ import {
   List,
   Button,
   Drawer,
-  FloatButton,
   Form,
 } from "antd";
 import { Area, Line } from "@ant-design/plots";
@@ -197,11 +196,6 @@ const Mint = () => {
 
   return (
     <>
-      <FloatButton
-        icon={<PlusOutlined />}
-        type="primary"
-        onClick={showCreateDrawer}
-      />
       <div style={{ width: "60%", margin: "auto" }}>
         <FundsCheck />
         <Divider orientation="center">Tokens</Divider>
@@ -224,12 +218,14 @@ const Mint = () => {
               <Button
                 type="primary"
                 style={{ margin: "8px 0 0 0" }}
+                disabled={!window.HasBalance}
                 onClick={() => showMintDrawer(item)}>
                 Mint
               </Button>
             </List.Item>
           )}
         />
+        <Button type="primary" onClick={showCreateDrawer} style={{margin: "8px 0 0 0"}} disabled={!window.HasBalance}>Create a Token</Button>
         <Divider orientation="center">Explanation</Divider>
       </div>
       <Drawer
