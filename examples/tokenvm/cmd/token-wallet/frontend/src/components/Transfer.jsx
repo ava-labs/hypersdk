@@ -93,7 +93,7 @@ const Transfer = () => {
     (async () => {
       try {
         const start = new Date().getTime();
-        await Send(values.Asset, values.Address, values.Amount);
+        await Send(values.Asset, values.Address, values.Amount, values.Memo);
         const finish = new Date().getTime();
         message.open({
           key,
@@ -176,6 +176,9 @@ const Transfer = () => {
                 stringMode="true"
                 style={{ width: "100%" }}
               />
+            </Form.Item>
+            <Form.Item name="Memo" rules={[{ required: false }]}>
+              <Input placeholder="Memo" maxLength="256" />
             </Form.Item>
             <Form.Item>
               <Button

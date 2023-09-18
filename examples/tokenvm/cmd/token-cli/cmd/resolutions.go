@@ -87,6 +87,9 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 			}
 			amountStr := utils.FormatBalance(action.Value, decimals)
 			summaryStr = fmt.Sprintf("%s %s -> %s", amountStr, symbol, tutils.Address(action.To))
+			if len(action.Memo) > 0 {
+				summaryStr += fmt.Sprintf(" (memo: %s)", action.Memo)
+			}
 
 		case *actions.CreateOrder:
 			_, inSymbol, inDecimals, _, _, _, _, err := c.Asset(context.TODO(), action.In, true)

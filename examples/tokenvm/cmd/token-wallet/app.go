@@ -82,8 +82,8 @@ func (a *App) MintAsset(asset string, address string, amount string) error {
 	return a.b.MintAsset(asset, address, amount)
 }
 
-func (a *App) Transfer(asset string, address string, amount string) error {
-	return a.b.Transfer(asset, address, amount)
+func (a *App) Transfer(asset string, address string, amount string, memo string) error {
+	return a.b.Transfer(asset, address, amount, memo)
 }
 
 func (a *App) GetAddress() string {
