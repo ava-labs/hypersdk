@@ -228,6 +228,9 @@ func (b *Backend) collectBlocks() {
 				}
 				if result.Success {
 					txInfo.Summary = fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To))
+					if len(action.Memo) > 0 {
+						txInfo.Summary += fmt.Sprintf(" (memo: %s)", action.Memo)
+					}
 				} else {
 					txInfo.Summary = string(result.Output)
 				}
@@ -705,7 +708,7 @@ func (b *Backend) MintAsset(asset string, address string, amount string) error {
 	return nil
 }
 
-func (b *Backend) Transfer(asset string, address string, amount string) error {
+func (b *Backend) Transfer(asset string, address string, amount string, memo string) error {
 	// Input validation
 	assetID, err := ids.FromString(asset)
 	if err != nil {
@@ -744,6 +747,7 @@ func (b *Backend) Transfer(asset string, address string, amount string) error {
 		To:    to,
 		Asset: assetID,
 		Value: value,
+		Memo:  []byte(memo),
 	}, b.factory)
 	if err != nil {
 		return fmt.Errorf("%w: unable to generate transaction", err)
