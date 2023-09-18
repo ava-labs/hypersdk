@@ -20,7 +20,7 @@ import { useLocation, Link as RLink } from "react-router-dom";
 import logo from "../assets/images/logo-universal.png";
 
 const NavBar = () => {
-  const location = useLocation(); 
+  const location = useLocation();
   const { message } = App.useApp();
   const [balance, setBalance] = useState([]);
   const [nativeBalance, setNativeBalance] = useState({});
@@ -76,6 +76,8 @@ const NavBar = () => {
       for (var bal of newBalance) {
         if (bal.ID == "11111111111111111111111111111111LpoYY") {
           setNativeBalance(bal);
+          {/* TODO: switch to using context */}
+          window.HasBalance = bal.Has;
           break;
         }
       }
