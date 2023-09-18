@@ -4,42 +4,45 @@
 package manager
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"sync"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/config"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/config"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
+	"golang.org/x/exp/slices"
 )
+
+type FeedObject struct {
+	Address   string `json:"address"`
+	Timestamp int64  `json:"timestamp"`
+	Fee       uint64 `json:"fee"`
+	Memo      []byte `json:"memo"`
+}
 
 type Manager struct {
 	log    logging.Logger
 	config *config.Config
 
-	cli  *rpc.JSONRPCClient
 	tcli *trpc.JSONRPCClient
 
-	factory *auth.ED25519Factory
+	l              sync.RWMutex
+	epochStart     int64
+	epochSolutions int
+	feeAmount      uint64
 
-	l            sync.RWMutex
-	lastRotation int64
-	salt         []byte
-	difficulty   uint16
-	solutions    set.Set[ids.ID]
+	f    sync.RWMutex
+	feed []*FeedObject
 }
 
 func New(logger logging.Logger, config *config.Config) (*Manager, error) {
@@ -50,116 +53,120 @@ func New(logger logging.Logger, config *config.Config) (*Manager, error) {
 		return nil, err
 	}
 	tcli := trpc.NewJSONRPCClient(config.TokenRPC, networkID, chainID)
-	m := &Manager{log: logger, config: config, cli: cli, tcli: tcli, factory: auth.NewED25519Factory(config.PrivateKey())}
-	m.lastRotation = time.Now().Unix()
-	m.difficulty = m.config.StartDifficulty
-	m.solutions = set.NewSet[ids.ID](m.config.SolutionsPerSalt)
-	m.salt, err = challenge.New()
-	if err != nil {
-		return nil, err
-	}
-	addr := tutils.Address(m.config.PrivateKey().PublicKey())
-	bal, err := tcli.Balance(ctx, addr, ids.Empty)
-	if err != nil {
-		return nil, err
-	}
-	m.log.Info("faucet initialized",
-		zap.String("address", addr),
-		zap.Uint16("difficulty", m.difficulty),
-		zap.String("balance", utils.FormatBalance(bal, consts.Decimals)),
+	m := &Manager{log: logger, config: config, tcli: tcli, feed: []*FeedObject{}}
+	m.epochStart = time.Now().Unix()
+	m.feeAmount = m.config.MinFee
+	m.log.Info("feed initialized",
+		zap.String("address", m.config.Recipient),
+		zap.String("fee", utils.FormatBalance(m.feeAmount, consts.Decimals)),
 	)
 	return m, nil
 }
 
-func (m *Manager) GetFaucetAddress(_ context.Context) (ed25519.PublicKey, error) {
-	return m.config.PrivateKey().PublicKey(), nil
+func (m *Manager) Run(ctx context.Context) error {
+	parser, err := m.tcli.Parser(ctx)
+	if err != nil {
+		return err
+	}
+	recipientPubKey, err := m.config.RecipientPublicKey()
+	if err != nil {
+		return err
+	}
+	for ctx.Err() == nil { // handle WS client failure
+		scli, err := rpc.NewWebSocketClient(m.config.TokenRPC, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+		if err != nil {
+			m.log.Warn("unable to connect to RPC", zap.String("uri", m.config.TokenRPC), zap.Error(err))
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		if err := scli.RegisterBlocks(); err != nil {
+			m.log.Warn("unable to connect to register for blocks", zap.String("uri", m.config.TokenRPC), zap.Error(err))
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		for ctx.Err() == nil {
+			// Listen for blocks
+			blk, results, _, err := scli.ListenBlock(ctx, parser)
+			if err != nil {
+				m.log.Warn("unable to listen for blocks", zap.Error(err))
+				break
+			}
+
+			// Look for transactions to recipient
+			for i, tx := range blk.Txs {
+				action, ok := tx.Action.(*actions.Transfer)
+				if !ok {
+					continue
+				}
+				if action.To != recipientPubKey {
+					continue
+				}
+				if len(action.Memo) == 0 {
+					continue
+				}
+				result := results[i]
+				from := auth.GetActor(tx.Auth)
+				if !result.Success {
+					m.log.Info("incoming message failed on-chain", zap.String("from", tutils.Address(from)), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("required", m.feeAmount))
+					continue
+				}
+				if action.Value < m.feeAmount {
+					m.log.Info("incoming message did not pay enough", zap.String("from", tutils.Address(from)), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("required", m.feeAmount))
+					continue
+				}
+				addr := tutils.Address(from)
+				m.l.Lock()
+				m.f.Lock()
+				m.feed = append([]*FeedObject{{
+					Address:   addr,
+					Timestamp: blk.Tmstmp,
+					Fee:       action.Value,
+					Memo:      action.Memo,
+				}}, m.feed...)
+				if len(m.feed) > m.config.FeedSize {
+					// TODO: do this more efficiently using a rolling window
+					m.feed[m.config.FeedSize] = nil // prevent memory leak
+					m.feed = m.feed[:m.config.FeedSize]
+				}
+				m.epochSolutions++
+				if m.epochSolutions >= m.config.MessagesPerEpoch {
+					now := time.Now().Unix()
+					elapsed := now - m.epochStart
+					if elapsed < m.config.TargetDurationPerEpoch {
+						m.feeAmount += m.config.FeeDelta
+						m.log.Info("increasing message fee", zap.Uint64("fee", m.feeAmount))
+					} else if m.feeAmount > m.config.MinFee {
+						m.feeAmount += m.config.FeeDelta
+						m.log.Info("decreasing message fee", zap.Uint64("fee", m.feeAmount))
+					}
+					m.epochSolutions = 0
+					m.epochStart = now
+				}
+				m.f.Unlock()
+				m.l.Unlock()
+			}
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		// Sleep before trying again
+		time.Sleep(10 * time.Second)
+	}
+	return ctx.Err()
 }
 
-func (m *Manager) GetChallenge(_ context.Context) ([]byte, uint16, error) {
+func (m *Manager) GetFeedInfo(_ context.Context) (ed25519.PublicKey, uint64, error) {
 	m.l.RLock()
 	defer m.l.RUnlock()
 
-	return m.salt, m.difficulty, nil
+	pk, err := m.config.RecipientPublicKey()
+	return pk, m.feeAmount, err
 }
 
-func (m *Manager) sendFunds(ctx context.Context, destination ed25519.PublicKey, amount uint64) (ids.ID, uint64, error) {
-	parser, err := m.tcli.Parser(ctx)
-	if err != nil {
-		return ids.Empty, 0, err
-	}
-	submit, tx, maxFee, err := m.cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
-		To:    destination,
-		Asset: ids.Empty,
-		Value: amount,
-	}, m.factory)
-	if err != nil {
-		return ids.Empty, 0, err
-	}
-	if amount < maxFee {
-		m.log.Warn("abandoning airdrop because network fee is greater than amount", zap.String("maxFee", utils.FormatBalance(maxFee, consts.Decimals)))
-		return ids.Empty, 0, errors.New("network fee too high")
-	}
-	addr := tutils.Address(m.config.PrivateKey().PublicKey())
-	bal, err := m.tcli.Balance(ctx, addr, ids.Empty)
-	if err != nil {
-		return ids.Empty, 0, err
-	}
-	if bal < maxFee+amount {
-		// This is a "best guess" heuristic for balance as there may be txs in-flight.
-		m.log.Warn("faucet has insufficient funds", zap.String("balance", utils.FormatBalance(bal, consts.Decimals)))
-		return ids.Empty, 0, errors.New("insufficient balance")
-	}
-	return tx.ID(), maxFee, submit(ctx)
-}
+func (m *Manager) GetFeed(ctx context.Context) ([]*FeedObject, error) {
+	m.f.Lock()
+	defer m.f.Unlock()
 
-func (m *Manager) SolveChallenge(ctx context.Context, solver ed25519.PublicKey, salt []byte, solution []byte) (ids.ID, uint64, error) {
-	m.l.Lock()
-	defer m.l.Unlock()
-
-	// Ensure solution is valid
-	if !bytes.Equal(m.salt, salt) {
-		return ids.Empty, 0, errors.New("salt expired")
-	}
-	if !challenge.Verify(salt, solution, m.difficulty) {
-		return ids.Empty, 0, errors.New("invalid solution")
-	}
-	solutionID := utils.ToID(solution)
-	if m.solutions.Contains(solutionID) {
-		return ids.Empty, 0, errors.New("duplicate solution")
-	}
-
-	// Issue transaction
-	txID, maxFee, err := m.sendFunds(ctx, solver, m.config.Amount)
-	if err != nil {
-		return ids.Empty, 0, err
-	}
-	m.log.Info("fauceted funds",
-		zap.Stringer("txID", txID),
-		zap.String("max fee", utils.FormatBalance(maxFee, consts.Decimals)),
-		zap.String("destination", tutils.Address(solver)),
-		zap.String("amount", utils.FormatBalance(m.config.Amount, consts.Decimals)),
-	)
-	m.solutions.Add(solutionID)
-
-	// Roll salt if stale
-	if m.solutions.Len() < m.config.SolutionsPerSalt {
-		return txID, m.config.Amount, nil
-	}
-	now := time.Now().Unix()
-	elapsed := now - m.lastRotation
-	if elapsed < m.config.TargetDurationPerSalt {
-		m.difficulty++
-		m.log.Info("increasing faucet difficulty", zap.Uint16("difficulty", m.difficulty))
-	} else if m.difficulty > m.config.StartDifficulty {
-		m.difficulty--
-		m.log.Info("decreasing faucet difficulty", zap.Uint16("difficulty", m.difficulty))
-	}
-	m.lastRotation = time.Now().Unix()
-	m.salt, err = challenge.New()
-	if err != nil {
-		// Should never happen
-		return ids.Empty, 0, err
-	}
-	m.solutions.Clear()
-	return txID, m.config.Amount, nil
+	return slices.Clone(m.feed), nil
 }

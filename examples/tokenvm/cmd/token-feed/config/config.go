@@ -17,6 +17,7 @@ type Config struct {
 	Recipient          string            `json:"recipient"`
 	recipientPublicKey ed25519.PublicKey `json:"-"`
 
+	FeedSize               int    `json:"feedSize"`
 	MinFee                 uint64 `json:"minFee"`
 	FeeDelta               uint64 `json:"feeDelta"`
 	MessagesPerEpoch       int    `json:"messagesPerEpoch"`

@@ -154,7 +154,7 @@ func (m *Manager) SolveChallenge(ctx context.Context, solver ed25519.PublicKey, 
 		m.difficulty--
 		m.log.Info("decreasing faucet difficulty", zap.Uint16("difficulty", m.difficulty))
 	}
-	m.lastRotation = time.Now().Unix()
+	m.lastRotation = now
 	m.salt, err = challenge.New()
 	if err != nil {
 		// Should never happen
