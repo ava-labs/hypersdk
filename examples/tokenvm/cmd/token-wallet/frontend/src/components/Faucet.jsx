@@ -61,7 +61,18 @@ const Faucet = () => {
   return (
     <>
       <div style={{ width: "60%", margin: "auto" }}>
-        <Card bordered title={"Search for Tokens"}>
+        <Card
+          bordered
+          title={
+            <>
+              Search for Tokens
+              <Popover content={"TODO: explanation"}>
+                {" "}
+                <InfoCircleOutlined />
+              </Popover>
+            </>
+          }
+          >
           {loaded && search === null && (
             <div>
               <Text italic>TODO: populate this</Text>
