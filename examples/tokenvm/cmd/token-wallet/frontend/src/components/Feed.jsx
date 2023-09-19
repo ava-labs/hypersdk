@@ -5,7 +5,7 @@ import {
   Message,
 } from "../../wailsjs/go/main/App";
 import FundsCheck from "./FundsCheck";
-import { PlusOutlined } from "@ant-design/icons";
+import { PlusOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import {
   App,
   Select,
@@ -19,6 +19,7 @@ import {
   FloatButton,
   Drawer,
   Form,
+  Popover,
 } from "antd";
 const { Title, Text } = Typography;
 
@@ -101,7 +102,12 @@ const Feed = () => {
     <>
       <div style={{ width: "60%", margin: "auto" }}>
         <FundsCheck />
-        <Divider orientation="center">Messages</Divider>
+        <Divider orientation="center">
+          Messages
+          <Popover content={"TODO: explanation"}>
+            {" "}<InfoCircleOutlined />
+          </Popover>
+        </Divider>
         <div style={{ display: "flex", width: "100%" }}>
           <Button
             type="primary"
@@ -129,10 +135,16 @@ const Feed = () => {
             </List.Item>
           )}
         />
-        <Divider orientation="center">Explanation</Divider>
       </div>
       <Drawer
-        title={"Send Message"}
+        title={
+          <>
+          Send Message
+          <Popover content={"TODO: explanation"}>
+            {" "}<InfoCircleOutlined />
+          </Popover>
+          </>
+        }
         placement={"right"}
         onClose={onCloseCreate}
         open={openCreate}>
@@ -154,7 +166,6 @@ const Feed = () => {
             </Button>
           </Form.Item>
         </Form>
-        <Divider orientation="center">Explanation</Divider>
       </Drawer>
     </>
   );
