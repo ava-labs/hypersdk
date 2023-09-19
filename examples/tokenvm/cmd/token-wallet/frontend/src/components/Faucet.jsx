@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { App, Divider, List, Card, Typography, Button, Spin } from "antd";
+import { App, Divider, List, Card, Typography, Button, Spin, Popover } from "antd";
 import {
   CheckCircleTwoTone,
   CloseCircleTwoTone,
   LoadingOutlined,
+  InfoCircleOutlined,
 } from "@ant-design/icons";
 import {
   StartFaucetSearch,
@@ -54,6 +55,8 @@ const Faucet = () => {
         <Card bordered title={"Search for Tokens"}>
           {loaded && search === null && (
             <div>
+              <Text italic>TODO: populate this</Text>
+              <br />
               <Button
                 type="primary"
                 style={{ margin: "8px 0%" }}
@@ -92,7 +95,12 @@ const Faucet = () => {
           )}
         </Card>
 
-        <Divider orientation="center">Previous Solutions</Divider>
+        <Divider orientation="center">
+          Previous Solutions
+          <Popover content={"TODO: explanation"}>
+            {" "}<InfoCircleOutlined />
+          </Popover>
+        </Divider>
         <List
           bordered
           dataSource={solutions}
@@ -137,7 +145,6 @@ const Faucet = () => {
             </List.Item>
           )}
         />
-        <Divider orientation="center">Explanation</Divider>
       </div>
     </>
   );

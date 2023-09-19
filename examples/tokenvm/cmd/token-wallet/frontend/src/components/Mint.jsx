@@ -7,7 +7,7 @@ import {
   AddAddressBook,
 } from "../../wailsjs/go/main/App";
 import FundsCheck from "./FundsCheck";
-import { PlusOutlined } from "@ant-design/icons";
+import { PlusOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import {
   App,
   Select,
@@ -20,6 +20,7 @@ import {
   Button,
   Drawer,
   Form,
+  Popover,
 } from "antd";
 const { Title, Text } = Typography;
 
@@ -195,7 +196,12 @@ const Mint = () => {
     <>
       <div style={{ width: "60%", margin: "auto" }}>
         <FundsCheck />
-        <Divider orientation="center">Tokens</Divider>
+        <Divider orientation="center">
+          Tokens
+          <Popover content={"TODO: explanation"}>
+            {" "}<InfoCircleOutlined />
+          </Popover>
+        </Divider>
         <div style={{ display: "flex", width: "100%" }}>
           <Button
             type="primary"
@@ -232,10 +238,16 @@ const Mint = () => {
             </List.Item>
           )}
         />
-        <Divider orientation="center">Explanation</Divider>
       </div>
       <Drawer
-        title={"Create Token"}
+        title={
+          <>
+          Create Token
+          <Popover content={"TODO: explanation"}>
+            {" "}<InfoCircleOutlined />
+          </Popover>
+          </>
+        }
         placement={"right"}
         onClose={onCloseCreate}
         open={openCreate}>
@@ -267,10 +279,16 @@ const Mint = () => {
             </Button>
           </Form.Item>
         </Form>
-        <Divider orientation="center">Explanation</Divider>
       </Drawer>
       <Drawer
-        title={`Mint ${mintFocus.Symbol}`}
+        title={
+          <>
+          Mint ${mintFocus.Symbol}
+          <Popover content={"TODO: explanation"}>
+            {" "}<InfoCircleOutlined />
+          </Popover>
+          </>
+        }
         placement={"right"}
         onClose={onCloseMint}
         open={openMint}>
@@ -329,7 +347,6 @@ const Mint = () => {
             </Button>
           </Form.Item>
         </Form>
-        <Divider orientation="center">Explanation</Divider>
       </Drawer>
     </>
   );

@@ -11,8 +11,9 @@ import {
   InputNumber,
   Button,
   Select,
+  Popover,
 } from "antd";
-import { PlusOutlined, DoubleRightOutlined } from "@ant-design/icons";
+import { PlusOutlined, DoubleRightOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import {
   GetBalance,
   GetAllAssets,
@@ -243,7 +244,12 @@ const Trade = () => {
     <>
       <div style={{ width: "60%", margin: "auto" }}>
         <FundsCheck />
-        <Divider orientation="center">Open Orders</Divider>
+        <Divider orientation="center">
+          Open Orders
+          <Popover content={"TODO: explanation"}>
+            {" "}<InfoCircleOutlined />
+          </Popover>
+        </Divider>
         <div style={{ display: "flex", width: "100%" }}>
           <Button
             type="primary"
@@ -284,7 +290,12 @@ const Trade = () => {
             </List.Item>
           )}
         />
-        <Divider orientation="center">Order Book</Divider>
+        <Divider orientation="center">
+          Order Book
+          <Popover content={"TODO: explanation"}>
+            {" "}<InfoCircleOutlined />
+          </Popover>
+        </Divider>
         <div
           style={{
             justifyContent: "space-between",
@@ -354,10 +365,16 @@ const Trade = () => {
             </List.Item>
           )}
         />
-        <Divider orientation="center">Explanation</Divider>
       </div>
       <Drawer
-        title={"Create Order"}
+        title={
+          <>
+          Create Order
+          <Popover content={"TODO: explanation"}>
+            {" "}<InfoCircleOutlined />
+          </Popover>
+          </>
+        }
         placement={"right"}
         onClose={onCloseCreate}
         open={openCreate}>
@@ -427,8 +444,6 @@ const Trade = () => {
             </Button>
           </Form.Item>
         </Form>
-        <Divider orientation="center">Explanation</Divider>
-        <Text italic>Trades</Text>
       </Drawer>
     </>
   );
