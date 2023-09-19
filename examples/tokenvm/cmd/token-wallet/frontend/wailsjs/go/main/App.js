@@ -50,6 +50,10 @@ export function GetChainID() {
   return window['go']['main']['App']['GetChainID']();
 }
 
+export function GetCommitHash() {
+  return window['go']['main']['App']['GetCommitHash']();
+}
+
 export function GetFaucetSolutions() {
   return window['go']['main']['App']['GetFaucetSolutions']();
 }

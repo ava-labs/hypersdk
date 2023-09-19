@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"runtime/debug"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-wallet/backend"
 
@@ -152,4 +153,16 @@ func (a *App) Message(message string, url string) error {
 
 func (a *App) OpenLink(url string) {
 	runtime.BrowserOpenURL(a.ctx, url)
+}
+
+func (a *App) GetCommitHash() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" {
+				return setting.Value
+			}
+		}
+	}
+
+	return ""
 }

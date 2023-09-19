@@ -26,6 +26,8 @@ export function GetBalance():Promise<Array<backend.BalanceInfo>>;
 
 export function GetChainID():Promise<string>;
 
+export function GetCommitHash():Promise<string>;
+
 export function GetFaucetSolutions():Promise<backend.FaucetSolutions>;
 
 export function GetFeed():Promise<Array<backend.FeedObject>>;
