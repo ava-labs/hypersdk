@@ -99,16 +99,19 @@ const Feed = () => {
 
   return (
     <>
-      <FloatButton
-        type="primary"
-        icon={<PlusOutlined />}
-        onClick={showCreateDrawer}
-        disabled={!window.HasBalance}>
-        Send Message
-      </FloatButton>
       <div style={{ width: "60%", margin: "auto" }}>
         <FundsCheck />
         <Divider orientation="center">Messages</Divider>
+        <div style={{ display: "flex", width: "100%" }}>
+          <Button
+            type="primary"
+            onClick={showCreateDrawer}
+            placement={"right"}
+            style={{ margin: "0 0 8px 0", "margin-left": "auto" }}
+            disabled={!window.HasBalance}>
+            Send Message
+          </Button>
+        </div>
         <List
           bordered
           dataSource={feed}
@@ -129,7 +132,7 @@ const Feed = () => {
         <Divider orientation="center">Explanation</Divider>
       </div>
       <Drawer
-        title={"Send a Message"}
+        title={"Send Message"}
         placement={"right"}
         onClose={onCloseCreate}
         open={openCreate}>
@@ -142,6 +145,7 @@ const Feed = () => {
           initialValues={{ remember: false }}
           onFinish={onFinishCreate}
           onFinishFailed={onFinishCreateFailed}
+          style={{ margin: "8px 0 0 0" }}
           autoComplete="off">
           <Form.Item name="Message" rules={[{ required: true }]}>
             <Input placeholder="Message" maxLength="256" />

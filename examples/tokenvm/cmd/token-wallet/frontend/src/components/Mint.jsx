@@ -196,6 +196,16 @@ const Mint = () => {
       <div style={{ width: "60%", margin: "auto" }}>
         <FundsCheck />
         <Divider orientation="center">Tokens</Divider>
+        <div style={{ display: "flex", width: "100%" }}>
+          <Button
+            type="primary"
+            onClick={showCreateDrawer}
+            placement={"right"}
+            style={{ margin: "0 0 8px 0", "margin-left": "auto" }}
+            disabled={!window.HasBalance}>
+            Create Token
+          </Button>
+        </div>
         <List
           bordered
           dataSource={assets}
@@ -222,17 +232,10 @@ const Mint = () => {
             </List.Item>
           )}
         />
-        <Button
-          type="primary"
-          onClick={showCreateDrawer}
-          style={{ margin: "8px 0 0 0" }}
-          disabled={!window.HasBalance}>
-          Create a Token
-        </Button>
         <Divider orientation="center">Explanation</Divider>
       </div>
       <Drawer
-        title={"Create a Token"}
+        title={"Create Token"}
         placement={"right"}
         onClose={onCloseCreate}
         open={openCreate}>

@@ -244,6 +244,16 @@ const Trade = () => {
       <div style={{ width: "60%", margin: "auto" }}>
         <FundsCheck />
         <Divider orientation="center">Open Orders</Divider>
+        <div style={{ display: "flex", width: "100%" }}>
+          <Button
+            type="primary"
+            onClick={showCreateDrawer}
+            placement={"right"}
+            style={{ margin: "0 0 8px 0", "margin-left": "auto" }}
+            disabled={!window.HasBalance}>
+            Create Order
+          </Button>
+        </div>
         <List
           bordered
           dataSource={myOrders}
@@ -274,13 +284,6 @@ const Trade = () => {
             </List.Item>
           )}
         />
-        <Button
-          type="primary"
-          onClick={showCreateDrawer}
-          style={{ margin: "8px 0 0 0" }}
-          disabled={!window.HasBalance}>
-          Create an Order
-        </Button>
         <Divider orientation="center">Order Book</Divider>
         <div
           style={{
@@ -354,7 +357,7 @@ const Trade = () => {
         <Divider orientation="center">Explanation</Divider>
       </div>
       <Drawer
-        title={"Create an Order"}
+        title={"Create Order"}
         placement={"right"}
         onClose={onCloseCreate}
         open={openCreate}>
