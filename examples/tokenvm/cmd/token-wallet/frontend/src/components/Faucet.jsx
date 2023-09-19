@@ -71,8 +71,7 @@ const Faucet = () => {
                 <InfoCircleOutlined />
               </Popover>
             </>
-          }
-          >
+          }>
           {loaded && search === null && (
             <div>
               <Text italic>TODO: populate this</Text>

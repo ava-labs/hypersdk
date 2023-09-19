@@ -136,5 +136,9 @@ type FeedObject struct {
 	ID        string
 	Timestamp int64
 	Fee       string
-	Memo      string
+
+	Message string
+	URL     string
+
+	URLMeta *HTMLMeta
 }

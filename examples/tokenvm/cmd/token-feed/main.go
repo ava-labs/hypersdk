@@ -88,7 +88,11 @@ func main() {
 	if err != nil {
 		fatal(log, "cannot create manager", zap.Error(err))
 	}
-	go manager.Run(context.Background())
+	go func() {
+		if err := manager.Run(context.Background()); err != nil {
+			log.Error("manager error", zap.Error(err))
+		}
+	}()
 
 	// Add feed handler
 	feedServer := frpc.NewJSONRPCServer(manager)

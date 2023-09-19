@@ -5,6 +5,7 @@ package manager
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -25,12 +26,18 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+type FeedContent struct {
+	Message string `json:"message"`
+	URL     string `json:"url"`
+}
+
 type FeedObject struct {
 	Address   string `json:"address"`
 	TxID      ids.ID `json:"txID"`
 	Timestamp int64  `json:"timestamp"`
 	Fee       uint64 `json:"fee"`
-	Memo      []byte `json:"memo"`
+
+	Content *FeedContent `json:"content"`
 }
 
 type Manager struct {
@@ -146,6 +153,17 @@ func (m *Manager) Run(ctx context.Context) error {
 					m.log.Info("incoming message did not pay enough", zap.String("from", tutils.Address(from)), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("required", m.feeAmount))
 					continue
 				}
+
+				var c FeedContent
+				if err := json.Unmarshal(action.Memo, &c); err != nil {
+					m.log.Info("incoming message could not be parsed", zap.String("from", tutils.Address(from)), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Error(err))
+					continue
+				}
+				if len(c.Message) == 0 {
+					m.log.Info("incoming message was empty", zap.String("from", tutils.Address(from)), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value))
+					continue
+				}
+				// TODO: pre-verify URLs
 				addr := tutils.Address(from)
 				m.l.Lock()
 				m.f.Lock()
@@ -154,7 +172,7 @@ func (m *Manager) Run(ctx context.Context) error {
 					TxID:      tx.ID(),
 					Timestamp: blk.Tmstmp,
 					Fee:       action.Value,
-					Memo:      action.Memo,
+					Content:   &c,
 				}}, m.feed...)
 				if len(m.feed) > m.config.FeedSize {
 					// TODO: do this more efficiently using a rolling window
@@ -194,7 +212,7 @@ func (m *Manager) GetFeedInfo(_ context.Context) (ed25519.PublicKey, uint64, err
 }
 
 // TODO: allow for multiple feeds
-func (m *Manager) GetFeed(ctx context.Context) ([]*FeedObject, error) {
+func (m *Manager) GetFeed(context.Context) ([]*FeedObject, error) {
 	m.f.RLock()
 	defer m.f.RUnlock()
 
