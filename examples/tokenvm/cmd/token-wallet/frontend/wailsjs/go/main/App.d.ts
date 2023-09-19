@@ -46,7 +46,7 @@ export function GetTransactions():Promise<backend.Transactions>;
 
 export function GetUnitPrices():Promise<Array<backend.GenericInfo>>;
 
-export function Message(arg1:string):Promise<void>;
+export function Message(arg1:string,arg2:string):Promise<void>;
 
 export function MintAsset(arg1:string,arg2:string,arg3:string):Promise<void>;
 

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"os"
 	"path"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/units"
@@ -28,6 +30,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
 	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/manager"
 	ferpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/rpc"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
@@ -74,6 +77,9 @@ type Backend struct {
 	searchLock   sync.Mutex
 	search       *FaucetSearchInfo
 	searchAlerts []*Alert
+
+	htmlCache *cache.LRU[string, *HTMLMeta]
+	urlQueue  chan string
 }
 
 // NewApp creates a new App application struct
@@ -85,6 +91,8 @@ func New(fatal func(error)) *Backend {
 		stats:             []*TimeStat{},
 		transactionAlerts: []*Alert{},
 		searchAlerts:      []*Alert{},
+		htmlCache:         &cache.LRU[string, *HTMLMeta]{Size: 128},
+		urlQueue:          make(chan string, 128),
 	}
 }
 
@@ -172,6 +180,7 @@ func (b *Backend) Start(ctx context.Context) error {
 
 	// Start fetching blocks
 	go b.collectBlocks()
+	go b.parseURLs()
 	return nil
 }
 
@@ -1283,31 +1292,70 @@ func (b *Backend) GetFeedInfo() (*FeedInfo, error) {
 	}, nil
 }
 
+func (b *Backend) parseURLs() {
+	for {
+		select {
+		case u := <-b.urlQueue:
+			resp, err := http.Get(u)
+			if err != nil {
+				// We already put the URL in as nil in
+				// our cache, so we won't refetch it.
+				continue
+			}
+			b.htmlCache.Put(u, ParseHTML(resp.Body))
+			resp.Body.Close()
+		case <-b.ctx.Done():
+			return
+		}
+	}
+}
+
 func (b *Backend) GetFeed() ([]*FeedObject, error) {
 	feed, err := b.fecli.Feed(context.TODO())
 	if err != nil {
 		return nil, err
 	}
-	nfeed := make([]*FeedObject, len(feed))
-	for i, fo := range feed {
-		nfeed[i] = &FeedObject{
+	nfeed := make([]*FeedObject, 0, len(feed))
+	for _, fo := range feed {
+		tfo := &FeedObject{
 			Address:   fo.Address,
 			ID:        fo.TxID.String(),
 			Timestamp: fo.Timestamp,
 			Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(fo.Fee, tconsts.Decimals), tconsts.Symbol),
-			Memo:      string(fo.Memo),
+
+			Message: fo.Content.Message,
+			URL:     fo.Content.URL,
 		}
+		if len(fo.Content.URL) > 0 {
+			if m, ok := b.htmlCache.Get(fo.Content.URL); ok {
+				tfo.URLMeta = m
+			} else {
+				b.htmlCache.Put(fo.Content.URL, nil) // ensure we don't refetch
+				b.urlQueue <- fo.Content.URL
+			}
+		}
+		nfeed = append(nfeed, tfo)
 	}
 	return nfeed, nil
 }
 
-func (b *Backend) Message(memo string) error {
+func (b *Backend) Message(message string, url string) error {
 	// Get latest feed info
 	recipient, fee, err := b.fecli.FeedInfo(context.TODO())
 	if err != nil {
 		return err
 	}
 	recipientAddr, err := utils.ParseAddress(recipient)
+	if err != nil {
+		return err
+	}
+
+	// Encode data
+	fc := &manager.FeedContent{
+		Message: message,
+		URL:     url,
+	}
+	data, err := json.Marshal(fc)
 	if err != nil {
 		return err
 	}
@@ -1323,7 +1371,7 @@ func (b *Backend) Message(memo string) error {
 		To:    recipientAddr,
 		Asset: ids.Empty,
 		Value: fee,
-		Memo:  []byte(memo),
+		Memo:  data,
 	}, b.factory)
 	if err != nil {
 		return fmt.Errorf("%w: unable to generate transaction", err)

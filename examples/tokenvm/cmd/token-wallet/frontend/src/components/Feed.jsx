@@ -49,7 +49,7 @@ const Feed = () => {
     (async () => {
       try {
         const start = new Date().getTime();
-        await Message(values.Message);
+        await Message(values.Message, values.URL);
         const finish = new Date().getTime();
         message.open({
           key,
@@ -73,6 +73,7 @@ const Feed = () => {
   useEffect(() => {
     const getFeed = async () => {
       const feed = await GetFeed();
+      console.log(feed);
       setFeed(feed);
     };
     const getFeedInfo = async () => {
@@ -116,10 +117,36 @@ const Feed = () => {
           dataSource={feed}
           renderItem={(item) => (
             <List.Item>
-              <Title level={3} style={{ display: "inline" }}>
-                {item.Memo}
-              </Title>
-              <br />
+              {item.URL.length == 0 &&
+                <div>
+                <Title level={3} style={{ display: "inline" }}>
+                  {item.Message}
+                </Title>
+                <br />
+                </div>
+              }
+              {item.URL.length > 0 &&
+                <div>
+                {item.URLMeta != null &&
+                  <div>
+                    <Title level={3} style={{ display: "inline" }}>
+                      {item.URLMeta.title}
+                    </Title>
+                    <Button>{item.URLMeta.siteName}</Button>
+                    <br />
+                  </div>
+                }
+                {item.URLMeta == null &&
+                  <div>
+                    <Title level={3} style={{ display: "inline" }}>
+                      {item.URL}
+                    </Title>
+                    <br />
+                    <Text strong>Message:</Text> {item.Message}
+                  </div>
+                }
+                </div>
+              }
               <Text strong>TxID:</Text> {item.ID}
               <br />
               <Text strong>Timestamp:</Text> {item.Timestamp}
@@ -158,6 +185,11 @@ const Feed = () => {
             style={{ margin: "0 0 8px 0" }}
             rules={[{ required: true }]}>
             <Input placeholder="Message" maxLength="256" />
+          </Form.Item>
+          <Form.Item
+            name="URL"
+            style={{ margin: "0 0 8px 0" }}>
+            <Input placeholder="URL" maxLength="256" />
           </Form.Item>
           <Form.Item>
             <Button

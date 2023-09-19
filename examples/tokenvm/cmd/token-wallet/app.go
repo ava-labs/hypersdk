@@ -146,6 +146,6 @@ func (a *App) GetFeed() ([]*backend.FeedObject, error) {
 	return a.b.GetFeed()
 }
 
-func (a *App) Message(memo string) error {
-	return a.b.Message(memo)
+func (a *App) Message(message string, url string) error {
+	return a.b.Message(message, url)
 }
