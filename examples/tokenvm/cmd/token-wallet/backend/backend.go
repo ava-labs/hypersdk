@@ -1273,12 +1273,12 @@ func (b *Backend) CloseOrder(orderID string, assetOut string) error {
 	return nil
 }
 
-func (b *Backend) GetFeedInfo() (string, string, error) {
+func (b *Backend) GetFeedInfo() (*FeedInfo, error) {
 	addr, fee, err := b.fecli.FeedInfo(context.TODO())
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
-	return addr, hutils.FormatBalance(fee, tconsts.Decimals), nil
+	return &FeedInfo{addr, hutils.FormatBalance(fee, tconsts.Decimals)}, nil
 }
 
 func (b *Backend) GetFeed() ([]*manager.FeedObject, error) {

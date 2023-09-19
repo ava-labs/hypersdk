@@ -1,5 +1,6 @@
 {
-  "tokenRPC":"http://127.0.0.1:54839/ext/bc/REJcnXaWrFhdZaBKtVXVkbrfiaZzQtkZENZQAwAeuy1JKQumb",
-  "faucetRPC":"http://localhost:9091",
+  "tokenRPC": "http://127.0.0.1:61864/ext/bc/6b9KHzZycjMcrn7cR2gM9Ybm9sdXjCgkgF19jcWsrbKswwSy9",
+  "faucetRPC": "http://127.0.0.1:9091",
   "searchCores": 4
+  "feedRPC": "http://127.0.0.1:9092"
 }

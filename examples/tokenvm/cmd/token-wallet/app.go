@@ -139,7 +139,7 @@ func (a *App) CloseOrder(orderID string, assetOut string) error {
 	return a.b.CloseOrder(orderID, assetOut)
 }
 
-func (a *App) GetFeedInfo() (string, string, error) {
+func (a *App) GetFeedInfo() (*backend.FeedInfo, error) {
 	return a.b.GetFeedInfo()
 }
 

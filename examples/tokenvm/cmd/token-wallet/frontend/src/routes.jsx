@@ -5,6 +5,7 @@ import Faucet from "./components/Faucet";
 import Mint from "./components/Mint";
 import Transfer from "./components/Transfer";
 import Trade from "./components/Trade";
+import Feed from "./components/Feed";
 
 const routes = [
   {
@@ -31,6 +32,10 @@ const routes = [
       {
         path: "trade",
         element: <Trade />,
+      },
+      {
+        path: "feed",
+        element: <Feed />,
       },
     ],
   },

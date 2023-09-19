@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
@@ -25,6 +26,7 @@ import (
 
 type FeedObject struct {
 	Address   string `json:"address"`
+	TxID      ids.ID `json:"txID"`
 	Timestamp int64  `json:"timestamp"`
 	Fee       uint64 `json:"fee"`
 	Memo      []byte `json:"memo"`
@@ -120,6 +122,7 @@ func (m *Manager) Run(ctx context.Context) error {
 				m.f.Lock()
 				m.feed = append([]*FeedObject{{
 					Address:   addr,
+					TxID:      tx.ID(),
 					Timestamp: blk.Tmstmp,
 					Fee:       action.Value,
 					Memo:      action.Memo,
