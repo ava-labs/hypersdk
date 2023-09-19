@@ -6,8 +6,7 @@ package rpc
 import (
 	"net/http"
 
-	"github.com/ava-labs/avalanchego/ids"
-
+	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/manager"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
@@ -19,55 +18,30 @@ func NewJSONRPCServer(m Manager) *JSONRPCServer {
 	return &JSONRPCServer{m}
 }
 
-type FaucetAddressReply struct {
+type FeedInfoReply struct {
 	Address string `json:"address"`
+	Fee     uint64 `json:"fee"`
 }
 
-func (j *JSONRPCServer) FaucetAddress(req *http.Request, _ *struct{}, reply *FaucetAddressReply) (err error) {
-	addr, err := j.m.GetFaucetAddress(req.Context())
+func (j *JSONRPCServer) FeedInfo(req *http.Request, _ *struct{}, reply *FeedInfoReply) (err error) {
+	addr, fee, err := j.m.GetFeedInfo(req.Context())
 	if err != nil {
 		return err
 	}
 	reply.Address = utils.Address(addr)
+	reply.Fee = fee
 	return nil
 }
 
-type ChallengeReply struct {
-	Salt       []byte `json:"salt"`
-	Difficulty uint16 `json:"difficulty"`
+type FeedReply struct {
+	Feed []*manager.FeedObject `json:"feed"`
 }
 
-func (j *JSONRPCServer) Challenge(req *http.Request, _ *struct{}, reply *ChallengeReply) (err error) {
-	salt, difficulty, err := j.m.GetChallenge(req.Context())
+func (j *JSONRPCServer) GetFeed(req *http.Request, _ *struct{}, reply *FeedReply) (err error) {
+	feed, err := j.m.GetFeed(req.Context())
 	if err != nil {
 		return err
 	}
-	reply.Salt = salt
-	reply.Difficulty = difficulty
-	return nil
-}
-
-type SolveChallengeArgs struct {
-	Address  string `json:"address"`
-	Salt     []byte `json:"salt"`
-	Solution []byte `json:"solution"`
-}
-
-type SolveChallengeReply struct {
-	TxID   ids.ID `json:"txID"`
-	Amount uint64 `json:"amount"`
-}
-
-func (j *JSONRPCServer) SolveChallenge(req *http.Request, args *SolveChallengeArgs, reply *SolveChallengeReply) error {
-	addr, err := utils.ParseAddress(args.Address)
-	if err != nil {
-		return err
-	}
-	txID, amount, err := j.m.SolveChallenge(req.Context(), addr, args.Salt, args.Solution)
-	if err != nil {
-		return err
-	}
-	reply.TxID = txID
-	reply.Amount = amount
+	reply.Feed = feed
 	return nil
 }

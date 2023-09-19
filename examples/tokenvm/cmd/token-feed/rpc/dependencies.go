@@ -6,12 +6,11 @@ package rpc
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/manager"
 )
 
 type Manager interface {
-	GetFaucetAddress(context.Context) (ed25519.PublicKey, error)
-	GetChallenge(context.Context) ([]byte, uint16, error)
-	SolveChallenge(context.Context, ed25519.PublicKey, []byte, []byte) (ids.ID, uint64, error)
+	GetFeedInfo(context.Context) (ed25519.PublicKey, uint64, error)
+	GetFeed(context.Context) ([]*manager.FeedObject, error)
 }

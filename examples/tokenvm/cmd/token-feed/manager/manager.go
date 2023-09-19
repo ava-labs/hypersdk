@@ -164,6 +164,7 @@ func (m *Manager) GetFeedInfo(_ context.Context) (ed25519.PublicKey, uint64, err
 	return pk, m.feeAmount, err
 }
 
+// TODO: allow for multiple feeds
 func (m *Manager) GetFeed(ctx context.Context) ([]*FeedObject, error) {
 	m.f.Lock()
 	defer m.f.Unlock()
