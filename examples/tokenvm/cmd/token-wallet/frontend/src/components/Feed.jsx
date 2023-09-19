@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { GetFeedInfo, GetFeed, Message } from "../../wailsjs/go/main/App";
 import FundsCheck from "./FundsCheck";
-import { InfoCircleOutlined } from "@ant-design/icons";
+import { LinkOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import {
   App,
   Input,
@@ -119,10 +119,10 @@ const Feed = () => {
             <List.Item>
               {item.URL.length == 0 &&
                 <div>
-                <Title level={3} style={{ display: "inline" }}>
-                  {item.Message}
-                </Title>
-                <br />
+                  <Title level={3} style={{ display: "inline" }}>
+                    {item.Message}
+                  </Title>
+                  <br />
                 </div>
               }
               {item.URL.length > 0 &&
@@ -132,17 +132,23 @@ const Feed = () => {
                     <Title level={3} style={{ display: "inline" }}>
                       {item.URLMeta.title}
                     </Title>
-                    <Button>{item.URLMeta.siteName}</Button>
+                    <Button><LinkOutlined /> {item.URLMeta.siteName}</Button>
+                    <br />
+                    <Text italic>{item.URLMeta.description}</Text>
+                    <br />
+                    <br />
+                    <Text strong>Message:</Text> {item.Message}
                     <br />
                   </div>
                 }
                 {item.URLMeta == null &&
                   <div>
                     <Title level={3} style={{ display: "inline" }}>
-                      {item.URL}
+                      {item.Message}
                     </Title>
                     <br />
-                    <Text strong>Message:</Text> {item.Message}
+                    <Text strong>URL:</Text> {item.URL} (<Text italic>not reachable</Text>)
+                    <br />
                   </div>
                 }
                 </div>

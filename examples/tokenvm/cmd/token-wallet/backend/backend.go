@@ -10,7 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strconv"
@@ -1296,6 +1298,22 @@ func (b *Backend) parseURLs() {
 	for {
 		select {
 		case u := <-b.urlQueue:
+			// Protect against maliciously crafted URLs
+			parsedURL, err := url.Parse(u)
+			if err != nil {
+				continue
+			}
+			if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+				continue
+			}
+			ip := net.ParseIP(parsedURL.Host)
+			if ip != nil {
+				if ip.IsPrivate() || ip.IsLoopback() {
+					continue
+				}
+			}
+
+			// Attempt to fetch URL contents
 			resp, err := http.Get(u)
 			if err != nil {
 				// We already put the URL in as nil in
