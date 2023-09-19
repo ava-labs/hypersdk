@@ -132,7 +132,10 @@ const Transfer = () => {
             onFinish={onFinishTransfer}
             onFinishFailed={onFinishTransferFailed}
             autoComplete="off">
-            <Form.Item name="Address" rules={[{ required: true }]} style={{ margin: "0 0 8px 0" }}>
+            <Form.Item
+              name="Address"
+              rules={[{ required: true }]}
+              style={{ margin: "0 0 8px 0" }}>
               <Select
                 placeholder="Recipient"
                 dropdownRender={(menu) => (
@@ -166,10 +169,16 @@ const Transfer = () => {
                 }))}
               />
             </Form.Item>
-            <Form.Item name="Asset" rules={[{ required: true }]} style={{ margin: "0 0 8px 0" }}>
+            <Form.Item
+              name="Asset"
+              rules={[{ required: true }]}
+              style={{ margin: "0 0 8px 0" }}>
               <Select placeholder="Token" options={balance} />
             </Form.Item>
-            <Form.Item name="Amount" rules={[{ required: true }]} style={{ margin: "0 0 8px 0" }}>
+            <Form.Item
+              name="Amount"
+              rules={[{ required: true }]}
+              style={{ margin: "0 0 8px 0" }}>
               <InputNumber
                 placeholder="Amount"
                 min={0}
@@ -177,7 +186,10 @@ const Transfer = () => {
                 style={{ width: "100%" }}
               />
             </Form.Item>
-            <Form.Item name="Memo" rules={[{ required: false }]} style={{ margin: "0 0 8px 0" }}>
+            <Form.Item
+              name="Memo"
+              rules={[{ required: false }]}
+              style={{ margin: "0 0 8px 0" }}>
               <Input placeholder="Memo" maxLength="256" />
             </Form.Item>
             <Form.Item>

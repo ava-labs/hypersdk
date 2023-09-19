@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { App, Divider, List, Card, Typography, Button, Spin, Popover } from "antd";
+import {
+  App,
+  Divider,
+  List,
+  Card,
+  Typography,
+  Button,
+  Spin,
+  Popover,
+} from "antd";
 import {
   CheckCircleTwoTone,
   CloseCircleTwoTone,
@@ -98,7 +107,8 @@ const Faucet = () => {
         <Divider orientation="center">
           Previous Solutions
           <Popover content={"TODO: explanation"}>
-            {" "}<InfoCircleOutlined />
+            {" "}
+            <InfoCircleOutlined />
           </Popover>
         </Divider>
         <List

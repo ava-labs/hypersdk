@@ -199,7 +199,8 @@ const Mint = () => {
         <Divider orientation="center">
           Tokens
           <Popover content={"TODO: explanation"}>
-            {" "}<InfoCircleOutlined />
+            {" "}
+            <InfoCircleOutlined />
           </Popover>
         </Divider>
         <div style={{ display: "flex", width: "100%" }}>
@@ -242,10 +243,11 @@ const Mint = () => {
       <Drawer
         title={
           <>
-          Create Token
-          <Popover content={"TODO: explanation"}>
-            {" "}<InfoCircleOutlined />
-          </Popover>
+            Create Token
+            <Popover content={"TODO: explanation"}>
+              {" "}
+              <InfoCircleOutlined />
+            </Popover>
           </>
         }
         placement={"right"}
@@ -258,10 +260,16 @@ const Mint = () => {
           onFinish={onFinishCreate}
           onFinishFailed={onFinishCreateFailed}
           autoComplete="off">
-          <Form.Item name="Symbol" rules={[{ required: true }]} style={{ margin: "0 0 8px 0" }}>
+          <Form.Item
+            name="Symbol"
+            rules={[{ required: true }]}
+            style={{ margin: "0 0 8px 0" }}>
             <Input placeholder="Symbol" maxLength="8" />
           </Form.Item>
-          <Form.Item name="Decimals" rules={[{ required: true }]} style={{ margin: "0 0 8px 0" }}>
+          <Form.Item
+            name="Decimals"
+            rules={[{ required: true }]}
+            style={{ margin: "0 0 8px 0" }}>
             <InputNumber
               min={0}
               max={9}
@@ -270,11 +278,17 @@ const Mint = () => {
               style={{ width: "100%" }}
             />
           </Form.Item>
-          <Form.Item name="Metadata" rules={[{ required: true }]} style={{ margin: "0 0 8px 0" }}>
+          <Form.Item
+            name="Metadata"
+            rules={[{ required: true }]}
+            style={{ margin: "0 0 8px 0" }}>
             <Input placeholder="Metadata" maxLength="256" />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit" style={{ margin: "0 0 8px 0" }}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              style={{ margin: "0 0 8px 0" }}>
               Create
             </Button>
           </Form.Item>
@@ -283,10 +297,11 @@ const Mint = () => {
       <Drawer
         title={
           <>
-          Mint ${mintFocus.Symbol}
-          <Popover content={"TODO: explanation"}>
-            {" "}<InfoCircleOutlined />
-          </Popover>
+            Mint ${mintFocus.Symbol}
+            <Popover content={"TODO: explanation"}>
+              {" "}
+              <InfoCircleOutlined />
+            </Popover>
           </>
         }
         placement={"right"}
@@ -299,7 +314,10 @@ const Mint = () => {
           onFinish={onFinishMint}
           onFinishFailed={onFinishMintFailed}
           autoComplete="off">
-          <Form.Item name="Address" rules={[{ required: true }]} style={{ margin: "0 0 8px 0" }}>
+          <Form.Item
+            name="Address"
+            rules={[{ required: true }]}
+            style={{ margin: "0 0 8px 0" }}>
             <Select
               placeholder="Recipient"
               dropdownRender={(menu) => (
@@ -333,7 +351,10 @@ const Mint = () => {
               }))}
             />
           </Form.Item>
-          <Form.Item name="Amount" rules={[{ required: true }]} style={{ margin: "0 0 8px 0" }}>
+          <Form.Item
+            name="Amount"
+            rules={[{ required: true }]}
+            style={{ margin: "0 0 8px 0" }}>
             <InputNumber
               placeholder="Amount"
               min={0}
@@ -342,7 +363,10 @@ const Mint = () => {
             />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit" style={{ margin: "0 0 8px 0" }}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              style={{ margin: "0 0 8px 0" }}>
               Mint
             </Button>
           </Form.Item>

@@ -1,22 +1,14 @@
 import { useEffect, useState } from "react";
-import {
-  GetFeedInfo,
-  GetFeed,
-  Message,
-} from "../../wailsjs/go/main/App";
+import { GetFeedInfo, GetFeed, Message } from "../../wailsjs/go/main/App";
 import FundsCheck from "./FundsCheck";
-import { PlusOutlined, InfoCircleOutlined } from "@ant-design/icons";
+import { InfoCircleOutlined } from "@ant-design/icons";
 import {
   App,
-  Select,
   Input,
-  InputNumber,
-  Space,
   Typography,
   Divider,
   List,
   Button,
-  FloatButton,
   Drawer,
   Form,
   Popover,
@@ -105,7 +97,8 @@ const Feed = () => {
         <Divider orientation="center">
           Messages
           <Popover content={"TODO: explanation"}>
-            {" "}<InfoCircleOutlined />
+            {" "}
+            <InfoCircleOutlined />
           </Popover>
         </Divider>
         <div style={{ display: "flex", width: "100%" }}>
@@ -123,7 +116,9 @@ const Feed = () => {
           dataSource={feed}
           renderItem={(item) => (
             <List.Item>
-              <Title level={3} style={{ display: "inline" }}>{item.Memo}</Title>
+              <Title level={3} style={{ display: "inline" }}>
+                {item.Memo}
+              </Title>
               <br />
               <Text strong>TxID:</Text> {item.ID}
               <br />
@@ -139,10 +134,11 @@ const Feed = () => {
       <Drawer
         title={
           <>
-          Send Message
-          <Popover content={"TODO: explanation"}>
-            {" "}<InfoCircleOutlined />
-          </Popover>
+            Send Message
+            <Popover content={"TODO: explanation"}>
+              {" "}
+              <InfoCircleOutlined />
+            </Popover>
           </>
         }
         placement={"right"}
@@ -157,11 +153,17 @@ const Feed = () => {
           onFinishFailed={onFinishCreateFailed}
           style={{ margin: "8px 0 0 0" }}
           autoComplete="off">
-          <Form.Item name="Message" style={{ margin: "0 0 8px 0" }} rules={[{ required: true }]}>
+          <Form.Item
+            name="Message"
+            style={{ margin: "0 0 8px 0" }}
+            rules={[{ required: true }]}>
             <Input placeholder="Message" maxLength="256" />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit" style={{ margin: "0 0 8px 0" }}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              style={{ margin: "0 0 8px 0" }}>
               Send
             </Button>
           </Form.Item>
