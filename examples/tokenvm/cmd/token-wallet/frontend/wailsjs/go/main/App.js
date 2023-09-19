@@ -98,6 +98,10 @@ export function MintAsset(arg1, arg2, arg3) {
   return window['go']['main']['App']['MintAsset'](arg1, arg2, arg3);
 }
 
+export function OpenLink(arg1) {
+  return window['go']['main']['App']['OpenLink'](arg1);
+}
+
 export function StartFaucetSearch() {
   return window['go']['main']['App']['StartFaucetSearch']();
 }

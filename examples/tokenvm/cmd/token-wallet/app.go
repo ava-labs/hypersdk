@@ -149,3 +149,7 @@ func (a *App) GetFeed() ([]*backend.FeedObject, error) {
 func (a *App) Message(message string, url string) error {
 	return a.b.Message(message, url)
 }
+
+func (a *App) OpenLink(url string) {
+	runtime.BrowserOpenURL(a.ctx, url)
+}

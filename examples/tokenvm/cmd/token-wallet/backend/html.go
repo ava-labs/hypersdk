@@ -8,18 +8,23 @@ import (
 
 // Inspiration: https://gist.github.com/inotnako/c4a82f6723f6ccea5d83c5d3689373dd
 type HTMLMeta struct {
-	SiteName    string `json:"siteName"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Image       string `json:"image"`
+	URL  string
+	Host string
+
+	SiteName    string
+	Title       string
+	Description string
+	Image       string
 }
 
-func ParseHTML(resp io.Reader) *HTMLMeta {
+func ParseHTML(url string, host string, resp io.Reader) *HTMLMeta {
 	z := html.NewTokenizer(resp)
 
 	titleFound := false
 
 	hm := new(HTMLMeta)
+	hm.URL = url
+	hm.Host = host
 
 	for {
 		tt := z.Next()

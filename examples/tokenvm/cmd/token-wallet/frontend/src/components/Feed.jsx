@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { GetFeedInfo, GetFeed, Message } from "../../wailsjs/go/main/App";
+import { GetFeedInfo, GetFeed, Message, OpenLink } from "../../wailsjs/go/main/App";
 import FundsCheck from "./FundsCheck";
 import { LinkOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import {
@@ -70,6 +70,10 @@ const Feed = () => {
     console.log("Failed:", errorInfo);
   };
 
+  const openLink = (url) => {
+    OpenLink(url);
+  }
+
   useEffect(() => {
     const getFeed = async () => {
       const feed = await GetFeed();
@@ -130,11 +134,11 @@ const Feed = () => {
                 {item.URLMeta != null &&
                   <div>
                     <Title level={3} style={{ display: "inline" }}>
-                      {item.URLMeta.title}
+                      {item.URLMeta.Title}
                     </Title>
-                    <Button><LinkOutlined /> {item.URLMeta.siteName}</Button>
+                    <Button onClick={() =>{openLink(item.URLMeta.URL)}}><LinkOutlined /> {item.URLMeta.Host}</Button>
                     <br />
-                    <Text italic>{item.URLMeta.description}</Text>
+                    <Text italic>{item.URLMeta.Description}</Text>
                     <br />
                     <br />
                     <Text strong>Message:</Text> {item.Message}

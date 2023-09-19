@@ -1320,7 +1320,7 @@ func (b *Backend) parseURLs() {
 				// our cache, so we won't refetch it.
 				continue
 			}
-			b.htmlCache.Put(u, ParseHTML(resp.Body))
+			b.htmlCache.Put(u, ParseHTML(u, parsedURL.Host, resp.Body))
 			resp.Body.Close()
 		case <-b.ctx.Done():
 			return

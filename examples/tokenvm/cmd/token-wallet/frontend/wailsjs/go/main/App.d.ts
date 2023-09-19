@@ -50,6 +50,8 @@ export function Message(arg1:string,arg2:string):Promise<void>;
 
 export function MintAsset(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function OpenLink(arg1:string):Promise<void>;
+
 export function StartFaucetSearch():Promise<backend.FaucetSearchInfo>;
 
 export function Transfer(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
