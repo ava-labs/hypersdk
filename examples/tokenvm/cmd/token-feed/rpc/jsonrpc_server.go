@@ -37,7 +37,7 @@ type FeedReply struct {
 	Feed []*manager.FeedObject `json:"feed"`
 }
 
-func (j *JSONRPCServer) GetFeed(req *http.Request, _ *struct{}, reply *FeedReply) (err error) {
+func (j *JSONRPCServer) Feed(req *http.Request, _ *struct{}, reply *FeedReply) (err error) {
 	feed, err := j.m.GetFeed(req.Context())
 	if err != nil {
 		return err

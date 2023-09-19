@@ -114,12 +114,10 @@ const Feed = () => {
           dataSource={feed}
           renderItem={(item) => (
             <List.Item>
-              <div>
-                <Title level={3} style={{ display: "inline" }}>
-                  {item.Memo}
-                </Title>{" "}
-                <Text type="secondary">{item.TxID}</Text>
-              </div>
+              <Title level={3} style={{ display: "inline" }}>{item.Memo}</Title>
+              <br />
+              <Text strong>TxID:</Text> {item.ID}
+              <br />
               <Text strong>Author:</Text> {item.Address}
               <br />
               <Text strong>Timestamp:</Text> {item.Timestamp}

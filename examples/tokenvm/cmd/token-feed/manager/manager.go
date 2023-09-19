@@ -146,6 +146,7 @@ func (m *Manager) Run(ctx context.Context) error {
 					m.epochSolutions = 0
 					m.epochStart = now
 				}
+				m.log.Info("received incoming message", zap.String("from", tutils.Address(from)), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("new required", m.feeAmount))
 				m.f.Unlock()
 				m.l.Unlock()
 			}
@@ -170,8 +171,8 @@ func (m *Manager) GetFeedInfo(_ context.Context) (ed25519.PublicKey, uint64, err
 
 // TODO: allow for multiple feeds
 func (m *Manager) GetFeed(ctx context.Context) ([]*FeedObject, error) {
-	m.f.Lock()
-	defer m.f.Unlock()
+	m.f.RLock()
+	defer m.f.RUnlock()
 
 	return slices.Clone(m.feed), nil
 }
