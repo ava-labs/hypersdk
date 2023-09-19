@@ -108,7 +108,7 @@ const Feed = () => {
       </FloatButton>
       <div style={{ width: "60%", margin: "auto" }}>
         <FundsCheck />
-        <Divider orientation="center">Feed</Divider>
+        <Divider orientation="center">Messages</Divider>
         <List
           bordered
           dataSource={feed}
@@ -118,18 +118,18 @@ const Feed = () => {
               <br />
               <Text strong>TxID:</Text> {item.ID}
               <br />
-              <Text strong>Author:</Text> {item.Address}
-              <br />
               <Text strong>Timestamp:</Text> {item.Timestamp}
               <br />
               <Text strong>Fee:</Text> {item.Fee}
+              <br />
+              <Text strong>Actor:</Text> {item.Address}
             </List.Item>
           )}
         />
         <Divider orientation="center">Explanation</Divider>
       </div>
       <Drawer
-        title={"Send Message"}
+        title={"Send a Message"}
         placement={"right"}
         onClose={onCloseCreate}
         open={openCreate}>
