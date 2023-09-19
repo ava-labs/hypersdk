@@ -20,7 +20,7 @@ type Config struct {
 	FeedSize               int    `json:"feedSize"`
 	MinFee                 uint64 `json:"minFee"`
 	FeeDelta               uint64 `json:"feeDelta"`
-	MessagesPerEpoch       int    `json:"messagesPerEpoch"`
+	MaxMessagesPerEpoch    int    `json:"maxMessagesPerEpoch"`
 	TargetDurationPerEpoch int64  `json:"targetDurationPerEpoch"` // seconds
 }
 

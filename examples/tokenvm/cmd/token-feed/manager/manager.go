@@ -161,7 +161,7 @@ func (m *Manager) Run(ctx context.Context) error {
 					m.feed = m.feed[:m.config.FeedSize]
 				}
 				m.epochSolutions++
-				if m.epochSolutions >= m.config.MessagesPerEpoch {
+				if m.epochSolutions >= m.config.MaxMessagesPerEpoch {
 					m.feeAmount += m.config.FeeDelta
 					m.log.Info("increasing message fee", zap.Uint64("fee", m.feeAmount))
 					m.epochSolutions = 0
