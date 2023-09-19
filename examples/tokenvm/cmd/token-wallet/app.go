@@ -137,3 +137,19 @@ func (a *App) FillOrder(orderID string, orderOwner string, assetIn string, inTic
 func (a *App) CloseOrder(orderID string, assetOut string) error {
 	return a.b.CloseOrder(orderID, assetOut)
 }
+
+func (a *App) GetFeedInfo() (*backend.FeedInfo, error) {
+	return a.b.GetFeedInfo()
+}
+
+func (a *App) GetFeed() ([]*backend.FeedObject, error) {
+	return a.b.GetFeed()
+}
+
+func (a *App) Message(message string, url string) error {
+	return a.b.Message(message, url)
+}
+
+func (a *App) OpenLink(url string) {
+	runtime.BrowserOpenURL(a.ctx, url)
+}

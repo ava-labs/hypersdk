@@ -7,7 +7,7 @@ import {
   AddAddressBook,
 } from "../../wailsjs/go/main/App";
 import FundsCheck from "./FundsCheck";
-import { PlusOutlined } from "@ant-design/icons";
+import { PlusOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import {
   App,
   Select,
@@ -20,6 +20,7 @@ import {
   Button,
   Drawer,
   Form,
+  Popover,
 } from "antd";
 const { Title, Text } = Typography;
 
@@ -195,7 +196,23 @@ const Mint = () => {
     <>
       <div style={{ width: "60%", margin: "auto" }}>
         <FundsCheck />
-        <Divider orientation="center">Tokens</Divider>
+        <Divider orientation="center">
+          Tokens
+          <Popover content={"TODO: explanation"}>
+            {" "}
+            <InfoCircleOutlined />
+          </Popover>
+        </Divider>
+        <div style={{ display: "flex", width: "100%" }}>
+          <Button
+            type="primary"
+            onClick={showCreateDrawer}
+            placement={"right"}
+            style={{ margin: "0 0 8px 0", "margin-left": "auto" }}
+            disabled={!window.HasBalance}>
+            Create Token
+          </Button>
+        </div>
         <List
           bordered
           dataSource={assets}
@@ -222,17 +239,17 @@ const Mint = () => {
             </List.Item>
           )}
         />
-        <Button
-          type="primary"
-          onClick={showCreateDrawer}
-          style={{ margin: "8px 0 0 0" }}
-          disabled={!window.HasBalance}>
-          Create a Token
-        </Button>
-        <Divider orientation="center">Explanation</Divider>
       </div>
       <Drawer
-        title={"Create a Token"}
+        title={
+          <>
+            Create Token
+            <Popover content={"TODO: explanation"}>
+              {" "}
+              <InfoCircleOutlined />
+            </Popover>
+          </>
+        }
         placement={"right"}
         onClose={onCloseCreate}
         open={openCreate}>
@@ -243,10 +260,16 @@ const Mint = () => {
           onFinish={onFinishCreate}
           onFinishFailed={onFinishCreateFailed}
           autoComplete="off">
-          <Form.Item name="Symbol" rules={[{ required: true }]}>
+          <Form.Item
+            name="Symbol"
+            rules={[{ required: true }]}
+            style={{ margin: "0 0 8px 0" }}>
             <Input placeholder="Symbol" maxLength="8" />
           </Form.Item>
-          <Form.Item name="Decimals" rules={[{ required: true }]}>
+          <Form.Item
+            name="Decimals"
+            rules={[{ required: true }]}
+            style={{ margin: "0 0 8px 0" }}>
             <InputNumber
               min={0}
               max={9}
@@ -255,19 +278,32 @@ const Mint = () => {
               style={{ width: "100%" }}
             />
           </Form.Item>
-          <Form.Item name="Metadata" rules={[{ required: true }]}>
+          <Form.Item
+            name="Metadata"
+            rules={[{ required: true }]}
+            style={{ margin: "0 0 8px 0" }}>
             <Input placeholder="Metadata" maxLength="256" />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit">
+            <Button
+              type="primary"
+              htmlType="submit"
+              style={{ margin: "0 0 8px 0" }}>
               Create
             </Button>
           </Form.Item>
         </Form>
-        <Divider orientation="center">Explanation</Divider>
       </Drawer>
       <Drawer
-        title={`Mint ${mintFocus.Symbol}`}
+        title={
+          <>
+            Mint ${mintFocus.Symbol}
+            <Popover content={"TODO: explanation"}>
+              {" "}
+              <InfoCircleOutlined />
+            </Popover>
+          </>
+        }
         placement={"right"}
         onClose={onCloseMint}
         open={openMint}>
@@ -278,7 +314,10 @@ const Mint = () => {
           onFinish={onFinishMint}
           onFinishFailed={onFinishMintFailed}
           autoComplete="off">
-          <Form.Item name="Address" rules={[{ required: true }]}>
+          <Form.Item
+            name="Address"
+            rules={[{ required: true }]}
+            style={{ margin: "0 0 8px 0" }}>
             <Select
               placeholder="Recipient"
               dropdownRender={(menu) => (
@@ -312,7 +351,10 @@ const Mint = () => {
               }))}
             />
           </Form.Item>
-          <Form.Item name="Amount" rules={[{ required: true }]}>
+          <Form.Item
+            name="Amount"
+            rules={[{ required: true }]}
+            style={{ margin: "0 0 8px 0" }}>
             <InputNumber
               placeholder="Amount"
               min={0}
@@ -321,12 +363,14 @@ const Mint = () => {
             />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit">
+            <Button
+              type="primary"
+              htmlType="submit"
+              style={{ margin: "0 0 8px 0" }}>
               Mint
             </Button>
           </Form.Item>
         </Form>
-        <Divider orientation="center">Explanation</Divider>
       </Drawer>
     </>
   );

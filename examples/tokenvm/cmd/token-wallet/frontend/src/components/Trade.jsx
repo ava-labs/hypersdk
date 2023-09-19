@@ -11,8 +11,13 @@ import {
   InputNumber,
   Button,
   Select,
+  Popover,
 } from "antd";
-import { PlusOutlined, DoubleRightOutlined } from "@ant-design/icons";
+import {
+  PlusOutlined,
+  DoubleRightOutlined,
+  InfoCircleOutlined,
+} from "@ant-design/icons";
 import {
   GetBalance,
   GetAllAssets,
@@ -243,7 +248,23 @@ const Trade = () => {
     <>
       <div style={{ width: "60%", margin: "auto" }}>
         <FundsCheck />
-        <Divider orientation="center">Open Orders</Divider>
+        <Divider orientation="center">
+          Open Orders
+          <Popover content={"TODO: explanation"}>
+            {" "}
+            <InfoCircleOutlined />
+          </Popover>
+        </Divider>
+        <div style={{ display: "flex", width: "100%" }}>
+          <Button
+            type="primary"
+            onClick={showCreateDrawer}
+            placement={"right"}
+            style={{ margin: "0 0 8px 0", "margin-left": "auto" }}
+            disabled={!window.HasBalance}>
+            Create Order
+          </Button>
+        </div>
         <List
           bordered
           dataSource={myOrders}
@@ -274,14 +295,13 @@ const Trade = () => {
             </List.Item>
           )}
         />
-        <Button
-          type="primary"
-          onClick={showCreateDrawer}
-          style={{ margin: "8px 0 0 0" }}
-          disabled={!window.HasBalance}>
-          Create an Order
-        </Button>
-        <Divider orientation="center">Order Book</Divider>
+        <Divider orientation="center">
+          Order Book
+          <Popover content={"TODO: explanation"}>
+            {" "}
+            <InfoCircleOutlined />
+          </Popover>
+        </Divider>
         <div
           style={{
             justifyContent: "space-between",
@@ -351,10 +371,17 @@ const Trade = () => {
             </List.Item>
           )}
         />
-        <Divider orientation="center">Explanation</Divider>
       </div>
       <Drawer
-        title={"Create an Order"}
+        title={
+          <>
+            Create Order
+            <Popover content={"TODO: explanation"}>
+              {" "}
+              <InfoCircleOutlined />
+            </Popover>
+          </>
+        }
         placement={"right"}
         onClose={onCloseCreate}
         open={openCreate}>
@@ -366,7 +393,10 @@ const Trade = () => {
           onFinishFailed={onFinishCreateFailed}
           autoComplete="off">
           {/* inSymbol, inTick, outSymbol, outTick, supply (multiple of out tick) */}
-          <Form.Item name="InSymbol" rules={[{ required: true }]}>
+          <Form.Item
+            name="InSymbol"
+            rules={[{ required: true }]}
+            style={{ margin: "0 0 8px 0" }}>
             <Select
               placeholder="Token You Buy"
               dropdownRender={(menu) => (
@@ -394,24 +424,36 @@ const Trade = () => {
               }))}
             />
           </Form.Item>
-          <Form.Item name="InTick" rules={[{ required: true }]}>
+          <Form.Item
+            name="InTick"
+            rules={[{ required: true }]}
+            style={{ margin: "0 0 8px 0" }}>
             <InputNumber
               placeholder="Batch Amount You Buy"
               stringMode="true"
               style={{ width: "100%" }}
             />
           </Form.Item>
-          <Form.Item name="OutSymbol" rules={[{ required: true }]}>
+          <Form.Item
+            name="OutSymbol"
+            rules={[{ required: true }]}
+            style={{ margin: "0 0 8px 0" }}>
             <Select placeholder="Token You Sell" options={balance} />
           </Form.Item>
-          <Form.Item name="OutTick" rules={[{ required: true }]}>
+          <Form.Item
+            name="OutTick"
+            rules={[{ required: true }]}
+            style={{ margin: "0 0 8px 0" }}>
             <InputNumber
               placeholder="Batch Amount You Sell"
               stringMode="true"
               style={{ width: "100%" }}
             />
           </Form.Item>
-          <Form.Item name="Supply" rules={[{ required: true }]}>
+          <Form.Item
+            name="Supply"
+            rules={[{ required: true }]}
+            style={{ margin: "0 0 8px 0" }}>
             <InputNumber
               placeholder="Order Size of Token You Sell"
               stringMode="true"
@@ -419,13 +461,14 @@ const Trade = () => {
             />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit">
+            <Button
+              type="primary"
+              htmlType="submit"
+              style={{ margin: "0 0 8px 0" }}>
               Create
             </Button>
           </Form.Item>
         </Form>
-        <Divider orientation="center">Explanation</Divider>
-        <Text italic>Trades</Text>
       </Drawer>
     </>
   );

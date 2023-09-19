@@ -54,6 +54,14 @@ export function GetFaucetSolutions() {
   return window['go']['main']['App']['GetFaucetSolutions']();
 }
 
+export function GetFeed() {
+  return window['go']['main']['App']['GetFeed']();
+}
+
+export function GetFeedInfo() {
+  return window['go']['main']['App']['GetFeedInfo']();
+}
+
 export function GetLatestBlocks() {
   return window['go']['main']['App']['GetLatestBlocks']();
 }
@@ -82,8 +90,16 @@ export function GetUnitPrices() {
   return window['go']['main']['App']['GetUnitPrices']();
 }
 
+export function Message(arg1, arg2) {
+  return window['go']['main']['App']['Message'](arg1, arg2);
+}
+
 export function MintAsset(arg1, arg2, arg3) {
   return window['go']['main']['App']['MintAsset'](arg1, arg2, arg3);
+}
+
+export function OpenLink(arg1) {
+  return window['go']['main']['App']['OpenLink'](arg1);
 }
 
 export function StartFaucetSearch() {

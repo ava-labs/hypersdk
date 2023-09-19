@@ -13,6 +13,7 @@ import {
   GoldOutlined,
   CheckCircleTwoTone,
   CloseCircleTwoTone,
+  ContainerOutlined,
 } from "@ant-design/icons";
 import { App, Layout, Menu, Typography, Drawer, List, Divider } from "antd";
 const { Text, Link } = Typography;
@@ -53,6 +54,11 @@ const NavBar = () => {
       label: <RLink to={"trade"}>Trade</RLink>,
       key: "trade",
       icon: <SwapOutlined />,
+    },
+    {
+      label: <RLink to={"feed"}>Feed</RLink>,
+      key: "feed",
+      icon: <ContainerOutlined />,
     },
   ];
 

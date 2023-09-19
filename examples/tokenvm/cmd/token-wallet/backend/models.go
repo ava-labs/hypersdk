@@ -125,3 +125,20 @@ type Order struct {
 	MaxInput  string
 	InputStep string
 }
+
+type FeedInfo struct {
+	Address string
+	Fee     string
+}
+
+type FeedObject struct {
+	Address   string
+	ID        string
+	Timestamp int64
+	Fee       string
+
+	Message string
+	URL     string
+
+	URLMeta *HTMLMeta
+}

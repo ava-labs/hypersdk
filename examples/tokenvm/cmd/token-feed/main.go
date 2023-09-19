@@ -16,11 +16,9 @@ import (
 
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/config"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/manager"
-	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
-	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/config"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/manager"
+	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/rpc"
 	"github.com/ava-labs/hypersdk/server"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
@@ -68,28 +66,11 @@ func main() {
 		fatal(log, "cannot read config file", zap.Error(err))
 	}
 
-	// Create private key
-	if len(c.PrivateKeyBytes) == 0 {
-		priv, err := ed25519.GeneratePrivateKey()
-		if err != nil {
-			fatal(log, "cannot generate private key", zap.Error(err))
-		}
-		c.PrivateKeyBytes = priv[:]
-		b, err := json.MarshalIndent(&c, "", "  ")
-		if err != nil {
-			fatal(log, "cannot marshal new config", zap.Error(err))
-		}
-		fi, err := os.Lstat(configPath)
-		if err != nil {
-			fatal(log, "cannot get file stats for config", zap.Error(err))
-		}
-		if err := os.WriteFile(configPath, b, fi.Mode().Perm()); err != nil {
-			fatal(log, "cannot write new config", zap.Error(err))
-		}
-		log.Info("created new faucet address", zap.String("address", tutils.Address(priv.PublicKey())))
-	} else {
-		log.Info("loaded faucet address", zap.String("address", tutils.Address(c.PrivateKey().PublicKey())))
+	// Load recipient
+	if _, err := c.RecipientPublicKey(); err != nil {
+		fatal(log, "cannot parse recipient address", zap.Error(err))
 	}
+	log.Info("loaded feed recipient", zap.String("address", c.Recipient))
 
 	// Create server
 	listenAddress := net.JoinHostPort(c.HTTPHost, fmt.Sprintf("%d", c.HTTPPort))
@@ -113,16 +94,16 @@ func main() {
 		}
 	}()
 
-	// Add faucet handler
-	faucetServer := frpc.NewJSONRPCServer(manager)
-	handler, err := server.NewHandler(faucetServer, "faucet")
+	// Add feed handler
+	feedServer := frpc.NewJSONRPCServer(manager)
+	handler, err := server.NewHandler(feedServer, "feed")
 	if err != nil {
 		fatal(log, "cannot create handler", zap.Error(err))
 	}
 	if err := srv.AddRoute(&common.HTTPHandler{
 		LockOptions: common.NoLock,
 		Handler:     handler,
-	}, &sync.RWMutex{}, "faucet", ""); err != nil {
+	}, &sync.RWMutex{}, "feed", ""); err != nil {
 		fatal(log, "cannot add facuet route", zap.Error(err))
 	}
 

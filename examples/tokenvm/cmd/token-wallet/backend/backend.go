@@ -10,6 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strconv"
@@ -17,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/units"
@@ -28,6 +32,8 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
 	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/manager"
+	ferpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/rpc"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
@@ -60,6 +66,7 @@ type Backend struct {
 	tcli    *trpc.JSONRPCClient
 	parser  chain.Parser
 	fcli    *frpc.JSONRPCClient
+	fecli   *ferpc.JSONRPCClient
 
 	blockLock   sync.Mutex
 	blocks      []*BlockInfo
@@ -72,6 +79,9 @@ type Backend struct {
 	searchLock   sync.Mutex
 	search       *FaucetSearchInfo
 	searchAlerts []*Alert
+
+	htmlCache *cache.LRU[string, *HTMLMeta]
+	urlQueue  chan string
 }
 
 // NewApp creates a new App application struct
@@ -83,6 +93,8 @@ func New(fatal func(error)) *Backend {
 		stats:             []*TimeStat{},
 		transactionAlerts: []*Alert{},
 		searchAlerts:      []*Alert{},
+		htmlCache:         &cache.LRU[string, *HTMLMeta]{Size: 128},
+		urlQueue:          make(chan string, 128),
 	}
 }
 
@@ -137,6 +149,7 @@ func (b *Backend) Start(ctx context.Context) error {
 			TokenRPC:    "http://54.190.240.186:9090",
 			FaucetRPC:   "http://54.190.240.186:9091",
 			SearchCores: 4,
+			FeedRPC:     "http://54.190.240.186:9092",
 		}
 	} else {
 		var config Config
@@ -165,9 +178,11 @@ func (b *Backend) Start(ctx context.Context) error {
 	}
 	b.parser = parser
 	b.fcli = frpc.NewJSONRPCClient(b.c.FaucetRPC)
+	b.fecli = ferpc.NewJSONRPCClient(b.c.FeedRPC)
 
 	// Start fetching blocks
 	go b.collectBlocks()
+	go b.parseURLs()
 	return nil
 }
 
@@ -1249,6 +1264,148 @@ func (b *Backend) CloseOrder(orderID string, assetOut string) error {
 	}
 	if maxFee > bal {
 		return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee, tconsts.Decimals), tconsts.Symbol)
+	}
+	if err := b.scli.RegisterTx(tx); err != nil {
+		return err
+	}
+
+	// Wait for transaction
+	_, dErr, result, err := b.scli.ListenTx(b.ctx)
+	if err != nil {
+		return err
+	}
+	if dErr != nil {
+		return err
+	}
+	if !result.Success {
+		return fmt.Errorf("transaction failed on-chain: %s", result.Output)
+	}
+	return nil
+}
+
+func (b *Backend) GetFeedInfo() (*FeedInfo, error) {
+	addr, fee, err := b.fecli.FeedInfo(context.TODO())
+	if err != nil {
+		return nil, err
+	}
+	return &FeedInfo{
+		addr,
+		fmt.Sprintf("%s %s", hutils.FormatBalance(fee, tconsts.Decimals), tconsts.Symbol),
+	}, nil
+}
+
+func (b *Backend) parseURLs() {
+	client := http.DefaultClient
+	for {
+		select {
+		case u := <-b.urlQueue:
+			// Protect against maliciously crafted URLs
+			parsedURL, err := url.Parse(u)
+			if err != nil {
+				continue
+			}
+			if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+				continue
+			}
+			ip := net.ParseIP(parsedURL.Host)
+			if ip != nil {
+				if ip.IsPrivate() || ip.IsLoopback() {
+					continue
+				}
+			}
+
+			// Attempt to fetch URL contents
+			ctx, cancel := context.WithTimeout(b.ctx, 30*time.Second)
+			req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+			if err != nil {
+				cancel()
+				continue
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				fmt.Println("unable to fetch URL", err)
+				// We already put the URL in as nil in
+				// our cache, so we won't refetch it.
+				cancel()
+				continue
+			}
+			b.htmlCache.Put(u, ParseHTML(u, parsedURL.Host, resp.Body))
+			_ = resp.Body.Close()
+			cancel()
+		case <-b.ctx.Done():
+			return
+		}
+	}
+}
+
+func (b *Backend) GetFeed() ([]*FeedObject, error) {
+	feed, err := b.fecli.Feed(context.TODO())
+	if err != nil {
+		return nil, err
+	}
+	nfeed := make([]*FeedObject, 0, len(feed))
+	for _, fo := range feed {
+		tfo := &FeedObject{
+			Address:   fo.Address,
+			ID:        fo.TxID.String(),
+			Timestamp: fo.Timestamp,
+			Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(fo.Fee, tconsts.Decimals), tconsts.Symbol),
+
+			Message: fo.Content.Message,
+			URL:     fo.Content.URL,
+		}
+		if len(fo.Content.URL) > 0 {
+			if m, ok := b.htmlCache.Get(fo.Content.URL); ok {
+				tfo.URLMeta = m
+			} else {
+				b.htmlCache.Put(fo.Content.URL, nil) // ensure we don't refetch
+				b.urlQueue <- fo.Content.URL
+			}
+		}
+		nfeed = append(nfeed, tfo)
+	}
+	return nfeed, nil
+}
+
+func (b *Backend) Message(message string, url string) error {
+	// Get latest feed info
+	recipient, fee, err := b.fecli.FeedInfo(context.TODO())
+	if err != nil {
+		return err
+	}
+	recipientAddr, err := utils.ParseAddress(recipient)
+	if err != nil {
+		return err
+	}
+
+	// Encode data
+	fc := &manager.FeedContent{
+		Message: message,
+		URL:     url,
+	}
+	data, err := json.Marshal(fc)
+	if err != nil {
+		return err
+	}
+
+	// Ensure have sufficient balance
+	bal, err := b.tcli.Balance(b.ctx, b.addr, ids.Empty)
+	if err != nil {
+		return err
+	}
+
+	// Generate transaction
+	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, nil, &actions.Transfer{
+		To:    recipientAddr,
+		Asset: ids.Empty,
+		Value: fee,
+		Memo:  data,
+	}, b.factory)
+	if err != nil {
+		return fmt.Errorf("%w: unable to generate transaction", err)
+	}
+	if maxFee+fee > bal {
+		return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee+fee, tconsts.Decimals), tconsts.Symbol)
 	}
 	if err := b.scli.RegisterTx(tx); err != nil {
 		return err

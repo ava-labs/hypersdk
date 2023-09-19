@@ -28,6 +28,10 @@ export function GetChainID():Promise<string>;
 
 export function GetFaucetSolutions():Promise<backend.FaucetSolutions>;
 
+export function GetFeed():Promise<Array<backend.FeedObject>>;
+
+export function GetFeedInfo():Promise<backend.FeedInfo>;
+
 export function GetLatestBlocks():Promise<Array<backend.BlockInfo>>;
 
 export function GetMyAssets():Promise<Array<backend.AssetInfo>>;
@@ -42,7 +46,11 @@ export function GetTransactions():Promise<backend.Transactions>;
 
 export function GetUnitPrices():Promise<Array<backend.GenericInfo>>;
 
+export function Message(arg1:string,arg2:string):Promise<void>;
+
 export function MintAsset(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function OpenLink(arg1:string):Promise<void>;
 
 export function StartFaucetSearch():Promise<backend.FaucetSearchInfo>;
 
