@@ -90,7 +90,7 @@ would grow at an alarming rate each day (making running any `hypervm` impractica
 Consider the simple example where we process 25k transactions per second (assume each
 transaction is ~400 bytes). This would would require the `hypersdk` to store 10MB per
 second (not including any overhead in the database for doing so). **This works out to
-864GB per day or 20.7TB per year.**
+864GB per day or 315.4TB per year.**
 
 In practice, this means the `hypersdk` only stores the last 768 accepted blocks the genesis block,
 and the last 256 revisions of state (the [ProposerVM](https://github.com/ava-labs/avalanchego/blob/master/vms/proposervm/README.md)
