@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { GetFeedInfo, GetFeed, Message, OpenLink, GetBalance, Transfer as Send} from "../../wailsjs/go/main/App";
+import {
+  GetFeedInfo,
+  GetFeed,
+  Message,
+  OpenLink,
+  GetBalance,
+  Transfer as Send,
+} from "../../wailsjs/go/main/App";
 import FundsCheck from "./FundsCheck";
 import { LinkOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import {
@@ -111,7 +118,12 @@ const Feed = () => {
     (async () => {
       try {
         const start = new Date().getTime();
-        await Send(values.Asset, tipFocus.Address, values.Amount, `[${tipFocus.ID}]: ${values.Memo}`);
+        await Send(
+          values.Asset,
+          tipFocus.Address,
+          values.Amount,
+          `[${tipFocus.ID}]: ${values.Memo}`
+        );
         const finish = new Date().getTime();
         message.open({
           key,
@@ -135,7 +147,7 @@ const Feed = () => {
 
   const openLink = (url) => {
     OpenLink(url);
-  }
+  };
 
   useEffect(() => {
     getBalance();
@@ -186,51 +198,65 @@ const Feed = () => {
           dataSource={feed}
           renderItem={(item) => (
             <List.Item>
-              {item.URL.length == 0 &&
+              {item.URL.length == 0 && (
                 <div>
                   <Title level={3} style={{ display: "inline" }}>
                     {item.Message}
                   </Title>
                   <br />
                 </div>
-              }
-              {item.URL.length > 0 &&
+              )}
+              {item.URL.length > 0 && (
                 <div>
-                {item.URLMeta != null &&
-                  <div>
-                    {item.URLMeta.Image.length > 0 &&
-                      <img src={item.URLMeta.Image} style={{width:"100%", height: "200px", "object-fit":"cover"}}/>
-                    }
-                    <Title level={3} style={{ display: "inline" }}>
-                      {item.URLMeta.Title}
-                    </Title>
-                    {" "}<Button onClick={() =>{openLink(item.URLMeta.URL)}} style={{margin: "0"}}><LinkOutlined /> {item.URLMeta.Host}</Button>
-                    <br />
-                    {item.URLMeta.Description.length > 0 &&
-                      <div>
-                        <Text italic>{item.URLMeta.Description}</Text>
-                        <br />
-                        <br />
-                      </div>
-                    }
-                    <Text strong>URL:</Text> {item.URL}
-                    <br />
-                    <Text strong>Message:</Text> {item.Message}
-                    <br />
-                  </div>
-                }
-                {item.URLMeta == null &&
-                  <div>
-                    <Title level={3} style={{ display: "inline" }}>
-                      {item.Message}
-                    </Title>
-                    <br />
-                    <Text strong>URL:</Text> {item.URL} (<Text italic>not reachable</Text>)
-                    <br />
-                  </div>
-                }
+                  {item.URLMeta != null && (
+                    <div>
+                      {item.URLMeta.Image.length > 0 && (
+                        <img
+                          src={item.URLMeta.Image}
+                          style={{
+                            width: "100%",
+                            height: "200px",
+                            "object-fit": "cover",
+                          }}
+                        />
+                      )}
+                      <Title level={3} style={{ display: "inline" }}>
+                        {item.URLMeta.Title}
+                      </Title>{" "}
+                      <Button
+                        onClick={() => {
+                          openLink(item.URLMeta.URL);
+                        }}
+                        style={{ margin: "0" }}>
+                        <LinkOutlined /> {item.URLMeta.Host}
+                      </Button>
+                      <br />
+                      {item.URLMeta.Description.length > 0 && (
+                        <div>
+                          <Text italic>{item.URLMeta.Description}</Text>
+                          <br />
+                          <br />
+                        </div>
+                      )}
+                      <Text strong>URL:</Text> {item.URL}
+                      <br />
+                      <Text strong>Message:</Text> {item.Message}
+                      <br />
+                    </div>
+                  )}
+                  {item.URLMeta == null && (
+                    <div>
+                      <Title level={3} style={{ display: "inline" }}>
+                        {item.Message}
+                      </Title>
+                      <br />
+                      <Text strong>URL:</Text> {item.URL} (
+                      <Text italic>not reachable</Text>)
+                      <br />
+                    </div>
+                  )}
                 </div>
-              }
+              )}
               <Text strong>TxID:</Text> {item.ID}
               <br />
               <Text strong>Timestamp:</Text> {item.Timestamp}
@@ -278,9 +304,7 @@ const Feed = () => {
             rules={[{ required: true }]}>
             <Input placeholder="Message" maxLength="256" />
           </Form.Item>
-          <Form.Item
-            name="URL"
-            style={{ margin: "0 0 8px 0" }}>
+          <Form.Item name="URL" style={{ margin: "0 0 8px 0" }}>
             <Input placeholder="URL" maxLength="256" />
           </Form.Item>
           <Form.Item>
