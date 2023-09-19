@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -82,11 +83,14 @@ func main() {
 		fatal(log, "cannot create server", zap.Error(err))
 	}
 
-	// Add feed handler
+	// Start manager
 	manager, err := manager.New(log, &c)
 	if err != nil {
 		fatal(log, "cannot create manager", zap.Error(err))
 	}
+	go manager.Run(context.Background())
+
+	// Add feed handler
 	feedServer := frpc.NewJSONRPCServer(manager)
 	handler, err := server.NewHandler(feedServer, "feed")
 	if err != nil {
