@@ -29,7 +29,7 @@ elif [[ $# -eq 0 ]]; then
     name="tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8"
     BINARY_PATH=$TOKENVM_PATH/build/$name
 else
-    echo "Invalid arguments to build morpheusvm. Requires zero (default location) or one argument to specify binary location."
+    echo "Invalid arguments to build tokenvm. Requires zero (default location) or one argument to specify binary location."
     exit 1
 fi
 
