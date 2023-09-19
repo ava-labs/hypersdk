@@ -136,7 +136,6 @@ const Feed = () => {
         placement={"right"}
         onClose={onCloseCreate}
         open={openCreate}>
-        <Text strong>Operator:</Text> {feedInfo.Address}
         <Text strong>Feed Fee:</Text> ~{feedInfo.Fee}
         <Form
           name="basic"
