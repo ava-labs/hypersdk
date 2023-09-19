@@ -12,19 +12,34 @@ set -o pipefail
 # to pass this flag to all child processes spawned by the shell.
 export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 
-if ! [[ "$0" =~ scripts/build.sh ]]; then
-  echo "must be run from repository root"
-  exit 255
+# Root directory
+MORPHEUSVM_PATH=$(
+    cd "$(dirname "${BASH_SOURCE[0]}")"
+    cd .. && pwd
+)
+
+realpath() {
+    [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+}
+
+if [[ $# -eq 1 ]]; then
+    BINARY_PATH=$(realpath $1)
+elif [[ $# -eq 0 ]]; then
+    # Set default binary directory location
+    name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
+    BINARY_PATH=$MORPHEUSVM_PATH/build/$name
+else
+    echo "Invalid arguments to build morpheusvm. Requires zero (default location) or one argument to specify binary location."
+    exit 1
 fi
 
-# Set default binary directory location
-name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
+cd $MORPHEUSVM_PATH
 
-# Build morpheusvm, which is run as a subprocess
-mkdir -p ./build
+echo "Building morpheusvm in $BINARY_PATH"
+mkdir -p $(dirname $BINARY_PATH)
+go build -o $BINARY_PATH ./cmd/morpheusvm
 
-echo "Building morpheusvm in ./build/$name"
-go build -o ./build/$name ./cmd/morpheusvm
-
-echo "Building morpheus-cli in ./build/morpheus-cli"
-go build -o ./build/morpheus-cli ./cmd/morpheus-cli
+CLI_PATH=$MORPHEUSVM_PATH/build/morpheus-cli
+echo "Building morpheus-cli in $CLI_PATH"
+mkdir -p $(dirname $CLI_PATH)
+go build -o $CLI_PATH ./cmd/morpheus-cli
