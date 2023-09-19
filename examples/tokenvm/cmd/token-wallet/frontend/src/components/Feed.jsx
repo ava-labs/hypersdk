@@ -198,14 +198,22 @@ const Feed = () => {
                 <div>
                 {item.URLMeta != null &&
                   <div>
-                    <img src={item.URLMeta.Image} style={{width:"100%", height: "200px", "object-fit":"cover"}}/>
+                    {item.URLMeta.Image.length > 0 &&
+                      <img src={item.URLMeta.Image} style={{width:"100%", height: "200px", "object-fit":"cover"}}/>
+                    }
                     <Title level={3} style={{ display: "inline" }}>
                       {item.URLMeta.Title}
                     </Title>
                     {" "}<Button onClick={() =>{openLink(item.URLMeta.URL)}} style={{margin: "0"}}><LinkOutlined /> {item.URLMeta.Host}</Button>
                     <br />
-                    <Text italic>{item.URLMeta.Description}</Text>
-                    <br />
+                    {item.URLMeta.Description.length > 0 &&
+                      <div>
+                        <Text italic>{item.URLMeta.Description}</Text>
+                        <br />
+                        <br />
+                      </div>
+                    }
+                    <Text strong>URL:</Text> {item.URL}
                     <br />
                     <Text strong>Message:</Text> {item.Message}
                     <br />

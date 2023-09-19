@@ -14,8 +14,8 @@ type Config struct {
 
 	TokenRPC string `json:"tokenRPC"`
 
-	Recipient          string            `json:"recipient"`
-	recipientPublicKey ed25519.PublicKey `json:"-"`
+	Recipient          string `json:"recipient"`
+	recipientPublicKey ed25519.PublicKey
 
 	FeedSize               int    `json:"feedSize"`
 	MinFee                 uint64 `json:"minFee"`

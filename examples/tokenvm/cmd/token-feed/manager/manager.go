@@ -212,7 +212,7 @@ func (m *Manager) GetFeedInfo(_ context.Context) (ed25519.PublicKey, uint64, err
 }
 
 // TODO: allow for multiple feeds
-func (m *Manager) GetFeed(ctx context.Context) ([]*FeedObject, error) {
+func (m *Manager) GetFeed(context.Context) ([]*FeedObject, error) {
 	m.f.RLock()
 	defer m.f.RUnlock()
 

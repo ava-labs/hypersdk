@@ -1295,6 +1295,7 @@ func (b *Backend) GetFeedInfo() (*FeedInfo, error) {
 }
 
 func (b *Backend) parseURLs() {
+	client := http.DefaultClient
 	for {
 		select {
 		case u := <-b.urlQueue:
@@ -1314,14 +1315,21 @@ func (b *Backend) parseURLs() {
 			}
 
 			// Attempt to fetch URL contents
-			resp, err := http.Get(u)
+			ctx, cancel := context.WithTimeout(b.ctx, 10*time.Second)
+			req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+			if err != nil {
+				cancel()
+				continue
+			}
+			resp, err := client.Do(req)
+			cancel()
 			if err != nil {
 				// We already put the URL in as nil in
 				// our cache, so we won't refetch it.
 				continue
 			}
 			b.htmlCache.Put(u, ParseHTML(u, parsedURL.Host, resp.Body))
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		case <-b.ctx.Done():
 			return
 		}
