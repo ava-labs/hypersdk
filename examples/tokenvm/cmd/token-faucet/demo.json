@@ -6,5 +6,5 @@
   "amount": 100000000,
   "startDifficulty": 25,
   "solutionsPerSalt": 10,
-  "targetDurationPerSalt": 360
+  "targetDurationPerSalt": 300
 }

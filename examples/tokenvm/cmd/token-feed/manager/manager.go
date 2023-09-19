@@ -39,11 +39,11 @@ type Manager struct {
 
 	tcli *trpc.JSONRPCClient
 
-	l              sync.RWMutex
-	t              *timer.Timer
-	epochStart     int64
-	epochSolutions int
-	feeAmount      uint64
+	l             sync.RWMutex
+	t             *timer.Timer
+	epochStart    int64
+	epochMessages int
+	feeAmount     uint64
 
 	f sync.RWMutex
 	// TODO: persist this
@@ -80,18 +80,19 @@ func (m *Manager) updateFee() {
 		return
 	}
 
-	if m.feeAmount > m.config.MinFee {
+	// Decrease fee if there are no messages in this epoch
+	if m.feeAmount > m.config.MinFee && m.epochMessages == 0 {
 		m.feeAmount -= m.config.FeeDelta
 		m.log.Info("decreasing message fee", zap.Uint64("fee", m.feeAmount))
 	}
-	m.epochSolutions = 0
+	m.epochMessages = 0
 	m.epochStart = time.Now().Unix()
-	m.t.SetTimeoutIn(time.Duration(m.config.TargetDurationPerEpoch * int64(time.Second)))
+	m.t.SetTimeoutIn(time.Duration(m.config.TargetDurationPerEpoch) * time.Second)
 }
 
 func (m *Manager) Run(ctx context.Context) error {
 	// Start update timer
-	m.t.SetTimeoutIn(time.Duration(m.config.TargetDurationPerEpoch * int64(time.Second)))
+	m.t.SetTimeoutIn(time.Duration(m.config.TargetDurationPerEpoch) * time.Second)
 	go m.t.Dispatch()
 	defer m.t.Stop()
 
@@ -160,14 +161,14 @@ func (m *Manager) Run(ctx context.Context) error {
 					m.feed[m.config.FeedSize] = nil // prevent memory leak
 					m.feed = m.feed[:m.config.FeedSize]
 				}
-				m.epochSolutions++
-				if m.epochSolutions >= m.config.MaxMessagesPerEpoch {
+				m.epochMessages++
+				if m.epochMessages >= m.config.MessagesPerEpoch {
 					m.feeAmount += m.config.FeeDelta
 					m.log.Info("increasing message fee", zap.Uint64("fee", m.feeAmount))
-					m.epochSolutions = 0
+					m.epochMessages = 0
 					m.epochStart = time.Now().Unix()
 					m.t.Cancel()
-					m.t.SetTimeoutIn(time.Duration(m.config.TargetDurationPerEpoch * int64(time.Second)))
+					m.t.SetTimeoutIn(time.Duration(m.config.TargetDurationPerEpoch) * time.Second)
 				}
 				m.log.Info("received incoming message", zap.String("from", tutils.Address(from)), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("new required", m.feeAmount))
 				m.f.Unlock()

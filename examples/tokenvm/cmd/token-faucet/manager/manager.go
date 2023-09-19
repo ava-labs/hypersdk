@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/timer"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
@@ -36,6 +37,7 @@ type Manager struct {
 	factory *auth.ED25519Factory
 
 	l            sync.RWMutex
+	t            *timer.Timer
 	lastRotation int64
 	salt         []byte
 	difficulty   uint16
@@ -68,7 +70,42 @@ func New(logger logging.Logger, config *config.Config) (*Manager, error) {
 		zap.Uint16("difficulty", m.difficulty),
 		zap.String("balance", utils.FormatBalance(bal, consts.Decimals)),
 	)
+	m.t = timer.NewTimer(m.updateDifficulty)
 	return m, nil
+}
+
+func (m *Manager) Run(ctx context.Context) error {
+	m.t.SetTimeoutIn(time.Duration(m.config.TargetDurationPerSalt) * time.Second)
+	go m.t.Dispatch()
+	<-ctx.Done()
+	m.t.Stop()
+	return ctx.Err()
+}
+
+func (m *Manager) updateDifficulty() {
+	m.l.Lock()
+	defer m.l.Unlock()
+
+	// If time since [lastRotation] is within half of the target duration,
+	// we attempted to update difficulty when we just reset during block processing.
+	now := time.Now().Unix()
+	if now-m.lastRotation < m.config.TargetDurationPerSalt/2 {
+		return
+	}
+
+	// Decrease difficulty if there are no solutions in this period
+	if m.difficulty > m.config.StartDifficulty && m.solutions.Len() == 0 {
+		m.difficulty--
+		m.log.Info("decreasing faucet difficulty", zap.Uint16("new difficulty", m.difficulty))
+	}
+	m.lastRotation = time.Now().Unix()
+	salt, err := challenge.New()
+	if err != nil {
+		panic(err)
+	}
+	m.salt = salt
+	m.solutions.Clear()
+	m.t.SetTimeoutIn(time.Duration(m.config.TargetDurationPerSalt) * time.Second)
 }
 
 func (m *Manager) GetFaucetAddress(_ context.Context) (ed25519.PublicKey, error) {
@@ -141,25 +178,19 @@ func (m *Manager) SolveChallenge(ctx context.Context, solver ed25519.PublicKey, 
 	)
 	m.solutions.Add(solutionID)
 
-	// Roll salt if stale
-	if m.solutions.Len() < m.config.SolutionsPerSalt {
-		return txID, m.config.Amount, nil
-	}
-	now := time.Now().Unix()
-	elapsed := now - m.lastRotation
-	if elapsed < m.config.TargetDurationPerSalt {
+	// Roll salt if hit expected solutions
+	if m.solutions.Len() >= m.config.SolutionsPerSalt {
 		m.difficulty++
-		m.log.Info("increasing faucet difficulty", zap.Uint16("difficulty", m.difficulty))
-	} else if m.difficulty > m.config.StartDifficulty {
-		m.difficulty--
-		m.log.Info("decreasing faucet difficulty", zap.Uint16("difficulty", m.difficulty))
+		m.log.Info("increasing faucet difficulty", zap.Uint16("new difficulty", m.difficulty))
+		m.lastRotation = time.Now().Unix()
+		m.salt, err = challenge.New()
+		if err != nil {
+			// Should never happen
+			return ids.Empty, 0, err
+		}
+		m.solutions.Clear()
+		m.t.Cancel()
+		m.t.SetTimeoutIn(time.Duration(m.config.TargetDurationPerSalt) * time.Second)
 	}
-	m.lastRotation = now
-	m.salt, err = challenge.New()
-	if err != nil {
-		// Should never happen
-		return ids.Empty, 0, err
-	}
-	m.solutions.Clear()
 	return txID, m.config.Amount, nil
 }

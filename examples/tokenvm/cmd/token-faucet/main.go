@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -101,11 +102,14 @@ func main() {
 		fatal(log, "cannot create server", zap.Error(err))
 	}
 
-	// Add faucet handler
+	// Start manager
 	manager, err := manager.New(log, &c)
 	if err != nil {
 		fatal(log, "cannot create manager", zap.Error(err))
 	}
+	go manager.Run(context.Background())
+
+	// Add faucet handler
 	faucetServer := frpc.NewJSONRPCServer(manager)
 	handler, err := server.NewHandler(faucetServer, "faucet")
 	if err != nil {
