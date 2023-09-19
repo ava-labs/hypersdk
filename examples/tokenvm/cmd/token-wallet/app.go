@@ -163,6 +163,5 @@ func (a *App) GetCommitHash() string {
 			}
 		}
 	}
-
 	return ""
 }
