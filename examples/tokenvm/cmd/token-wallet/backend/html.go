@@ -32,6 +32,8 @@ func ParseHTML(url string, host string, resp io.Reader) *HTMLMeta {
 		case html.ErrorToken:
 			return hm
 		case html.StartTagToken, html.SelfClosingTagToken:
+			// TODO: to handle reddit, we need to wait for page to load before parsing
+			// TODO: to handle twitter, need to fix many redirect issue
 			t := z.Token()
 			if t.Data == `body` {
 				return hm
@@ -66,9 +68,11 @@ func ParseHTML(url string, host string, resp io.Reader) *HTMLMeta {
 				}
 			}
 		case html.TextToken:
+			t := z.Token()
 			if titleFound {
-				t := z.Token()
-				hm.Title = t.Data
+				if len(hm.Title) == 0 {
+					hm.Title = t.Data
+				}
 				titleFound = false
 			}
 		}
