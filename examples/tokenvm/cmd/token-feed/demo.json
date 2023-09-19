@@ -7,5 +7,5 @@
   "minFee": 10000000,
   "feeDelta": 10000000,
   "messagesPerEpoch": 10,
-  "targetDurationPerEpoch": 360
+  "targetDurationPerEpoch": 300
 }

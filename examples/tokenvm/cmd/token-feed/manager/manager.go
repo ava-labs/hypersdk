@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/timer"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
@@ -39,6 +40,7 @@ type Manager struct {
 	tcli *trpc.JSONRPCClient
 
 	l              sync.RWMutex
+	t              *timer.Timer
 	epochStart     int64
 	epochSolutions int
 	feeAmount      uint64
@@ -63,10 +65,36 @@ func New(logger logging.Logger, config *config.Config) (*Manager, error) {
 		zap.String("address", m.config.Recipient),
 		zap.String("fee", utils.FormatBalance(m.feeAmount, consts.Decimals)),
 	)
+	m.t = timer.NewTimer(m.updateFee)
 	return m, nil
 }
 
+func (m *Manager) updateFee() {
+	m.l.Lock()
+	defer m.l.Unlock()
+
+	// If time since [epochStart] is within half of the target duration,
+	// we attempted to update fee when we just reset during block processing.
+	now := time.Now().Unix()
+	if now-m.epochStart < m.config.TargetDurationPerEpoch/2 {
+		return
+	}
+
+	if m.feeAmount > m.config.MinFee {
+		m.feeAmount -= m.config.FeeDelta
+		m.log.Info("decreasing message fee", zap.Uint64("fee", m.feeAmount))
+	}
+	m.epochSolutions = 0
+	m.epochStart = time.Now().Unix()
+	m.t.SetTimeoutIn(time.Duration(m.config.TargetDurationPerEpoch * int64(time.Second)))
+}
+
 func (m *Manager) Run(ctx context.Context) error {
+	// Start update timer
+	m.t.SetTimeoutIn(time.Duration(m.config.TargetDurationPerEpoch * int64(time.Second)))
+	go m.t.Dispatch()
+	defer m.t.Stop()
+
 	parser, err := m.tcli.Parser(ctx)
 	if err != nil {
 		return err
@@ -134,17 +162,12 @@ func (m *Manager) Run(ctx context.Context) error {
 				}
 				m.epochSolutions++
 				if m.epochSolutions >= m.config.MessagesPerEpoch {
-					now := time.Now().Unix()
-					elapsed := now - m.epochStart
-					if elapsed < m.config.TargetDurationPerEpoch {
-						m.feeAmount += m.config.FeeDelta
-						m.log.Info("increasing message fee", zap.Uint64("fee", m.feeAmount))
-					} else if m.feeAmount > m.config.MinFee {
-						m.feeAmount += m.config.FeeDelta
-						m.log.Info("decreasing message fee", zap.Uint64("fee", m.feeAmount))
-					}
+					m.feeAmount += m.config.FeeDelta
+					m.log.Info("increasing message fee", zap.Uint64("fee", m.feeAmount))
 					m.epochSolutions = 0
-					m.epochStart = now
+					m.epochStart = time.Now().Unix()
+					m.t.Cancel()
+					m.t.SetTimeoutIn(time.Duration(m.config.TargetDurationPerEpoch * int64(time.Second)))
 				}
 				m.log.Info("received incoming message", zap.String("from", tutils.Address(from)), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("new required", m.feeAmount))
 				m.f.Unlock()
