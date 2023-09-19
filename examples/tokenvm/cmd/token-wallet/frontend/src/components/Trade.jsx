@@ -369,7 +369,7 @@ const Trade = () => {
           onFinishFailed={onFinishCreateFailed}
           autoComplete="off">
           {/* inSymbol, inTick, outSymbol, outTick, supply (multiple of out tick) */}
-          <Form.Item name="InSymbol" rules={[{ required: true }]}>
+          <Form.Item name="InSymbol" rules={[{ required: true }]} style={{ margin: "0 0 8px 0" }}>
             <Select
               placeholder="Token You Buy"
               dropdownRender={(menu) => (
@@ -397,24 +397,24 @@ const Trade = () => {
               }))}
             />
           </Form.Item>
-          <Form.Item name="InTick" rules={[{ required: true }]}>
+          <Form.Item name="InTick" rules={[{ required: true }]} style={{ margin: "0 0 8px 0" }}>
             <InputNumber
               placeholder="Batch Amount You Buy"
               stringMode="true"
               style={{ width: "100%" }}
             />
           </Form.Item>
-          <Form.Item name="OutSymbol" rules={[{ required: true }]}>
+          <Form.Item name="OutSymbol" rules={[{ required: true }]} style={{ margin: "0 0 8px 0" }}>
             <Select placeholder="Token You Sell" options={balance} />
           </Form.Item>
-          <Form.Item name="OutTick" rules={[{ required: true }]}>
+          <Form.Item name="OutTick" rules={[{ required: true }]} style={{ margin: "0 0 8px 0" }}>
             <InputNumber
               placeholder="Batch Amount You Sell"
               stringMode="true"
               style={{ width: "100%" }}
             />
           </Form.Item>
-          <Form.Item name="Supply" rules={[{ required: true }]}>
+          <Form.Item name="Supply" rules={[{ required: true }]} style={{ margin: "0 0 8px 0" }}>
             <InputNumber
               placeholder="Order Size of Token You Sell"
               stringMode="true"
@@ -422,7 +422,7 @@ const Trade = () => {
             />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit">
+            <Button type="primary" htmlType="submit" style={{ margin: "0 0 8px 0" }}>
               Create
             </Button>
           </Form.Item>

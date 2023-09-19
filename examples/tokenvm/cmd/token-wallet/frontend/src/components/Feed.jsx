@@ -137,7 +137,6 @@ const Feed = () => {
         onClose={onCloseCreate}
         open={openCreate}>
         <Text strong>Operator:</Text> {feedInfo.Address}
-        <br />
         <Text strong>Feed Fee:</Text> ~{feedInfo.Fee}
         <Form
           name="basic"
@@ -147,11 +146,11 @@ const Feed = () => {
           onFinishFailed={onFinishCreateFailed}
           style={{ margin: "8px 0 0 0" }}
           autoComplete="off">
-          <Form.Item name="Message" rules={[{ required: true }]}>
+          <Form.Item name="Message" style={{ margin: "0 0 8px 0" }} rules={[{ required: true }]}>
             <Input placeholder="Message" maxLength="256" />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit">
+            <Button type="primary" htmlType="submit" style={{ margin: "0 0 8px 0" }}>
               Send
             </Button>
           </Form.Item>

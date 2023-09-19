@@ -1277,7 +1277,10 @@ func (b *Backend) GetFeedInfo() (*FeedInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &FeedInfo{addr, hutils.FormatBalance(fee, tconsts.Decimals)}, nil
+	return &FeedInfo{
+		addr,
+		fmt.Sprintf("%s %s", hutils.FormatBalance(fee, tconsts.Decimals), tconsts.Symbol),
+	}, nil
 }
 
 func (b *Backend) GetFeed() ([]*FeedObject, error) {
