@@ -29,7 +29,7 @@ func NewJSONRPCClient(uri string) *JSONRPCClient {
 	}
 }
 
-func (cli *JSONRPCClient) FaucetInfo(ctx context.Context) (string, uint64, error) {
+func (cli *JSONRPCClient) FeedInfo(ctx context.Context) (string, uint64, error) {
 	resp := new(FeedInfoReply)
 	err := cli.requester.SendRequest(
 		ctx,

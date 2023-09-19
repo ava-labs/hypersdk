@@ -41,7 +41,8 @@ type Manager struct {
 	epochSolutions int
 	feeAmount      uint64
 
-	f    sync.RWMutex
+	f sync.RWMutex
+	// TODO: persist this
 	feed []*FeedObject
 }
 

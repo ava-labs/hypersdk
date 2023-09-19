@@ -28,6 +28,8 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
 	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/manager"
+	ferpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/rpc"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
@@ -60,6 +62,7 @@ type Backend struct {
 	tcli    *trpc.JSONRPCClient
 	parser  chain.Parser
 	fcli    *frpc.JSONRPCClient
+	fecli   *ferpc.JSONRPCClient
 
 	blockLock   sync.Mutex
 	blocks      []*BlockInfo
@@ -137,6 +140,7 @@ func (b *Backend) Start(ctx context.Context) error {
 			TokenRPC:    "http://54.190.240.186:9090",
 			FaucetRPC:   "http://54.190.240.186:9091",
 			SearchCores: 4,
+			FeedRPC:     "http://54.190.240.186:9092",
 		}
 	} else {
 		var config Config
@@ -165,6 +169,7 @@ func (b *Backend) Start(ctx context.Context) error {
 	}
 	b.parser = parser
 	b.fcli = frpc.NewJSONRPCClient(b.c.FaucetRPC)
+	b.fecli = ferpc.NewJSONRPCClient(b.c.FeedRPC)
 
 	// Start fetching blocks
 	go b.collectBlocks()
@@ -1249,6 +1254,66 @@ func (b *Backend) CloseOrder(orderID string, assetOut string) error {
 	}
 	if maxFee > bal {
 		return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee, tconsts.Decimals), tconsts.Symbol)
+	}
+	if err := b.scli.RegisterTx(tx); err != nil {
+		return err
+	}
+
+	// Wait for transaction
+	_, dErr, result, err := b.scli.ListenTx(b.ctx)
+	if err != nil {
+		return err
+	}
+	if dErr != nil {
+		return err
+	}
+	if !result.Success {
+		return fmt.Errorf("transaction failed on-chain: %s", result.Output)
+	}
+	return nil
+}
+
+func (b *Backend) GetFeedInfo() (string, string, error) {
+	addr, fee, err := b.fecli.FeedInfo(context.TODO())
+	if err != nil {
+		return "", "", err
+	}
+	return addr, hutils.FormatBalance(fee, tconsts.Decimals), nil
+}
+
+func (b *Backend) GetFeed() ([]*manager.FeedObject, error) {
+	return b.fecli.Feed(context.TODO())
+}
+
+func (b *Backend) Message(memo string) error {
+	// Get latest feed info
+	recipient, fee, err := b.fecli.FeedInfo(context.TODO())
+	if err != nil {
+		return err
+	}
+	recipientAddr, err := utils.ParseAddress(recipient)
+	if err != nil {
+		return err
+	}
+
+	// Ensure have sufficient balance
+	bal, err := b.tcli.Balance(b.ctx, b.addr, ids.Empty)
+	if err != nil {
+		return err
+	}
+
+	// Generate transaction
+	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, nil, &actions.Transfer{
+		To:    recipientAddr,
+		Asset: ids.Empty,
+		Value: fee,
+		Memo:  []byte(memo),
+	}, b.factory)
+	if err != nil {
+		return fmt.Errorf("%w: unable to generate transaction", err)
+	}
+	if maxFee+fee > bal {
+		return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee+fee, tconsts.Decimals), tconsts.Symbol)
 	}
 	if err := b.scli.RegisterTx(tx); err != nil {
 		return err

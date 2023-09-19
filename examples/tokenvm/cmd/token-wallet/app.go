@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 
+	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/manager"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-wallet/backend"
 
 	"github.com/wailsapp/wails/v2/pkg/logger"
@@ -136,4 +137,16 @@ func (a *App) FillOrder(orderID string, orderOwner string, assetIn string, inTic
 
 func (a *App) CloseOrder(orderID string, assetOut string) error {
 	return a.b.CloseOrder(orderID, assetOut)
+}
+
+func (a *App) GetFeedInfo() (string, string, error) {
+	return a.b.GetFeedInfo()
+}
+
+func (a *App) GetFeed() ([]*manager.FeedObject, error) {
+	return a.b.GetFeed()
+}
+
+func (a *App) Message(memo string) error {
+	return a.b.Message(memo)
 }
