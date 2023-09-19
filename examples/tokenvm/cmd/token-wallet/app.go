@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 
-	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/manager"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-wallet/backend"
 
 	"github.com/wailsapp/wails/v2/pkg/logger"
@@ -143,7 +142,7 @@ func (a *App) GetFeedInfo() (*backend.FeedInfo, error) {
 	return a.b.GetFeedInfo()
 }
 
-func (a *App) GetFeed() ([]*manager.FeedObject, error) {
+func (a *App) GetFeed() ([]*backend.FeedObject, error) {
 	return a.b.GetFeed()
 }
 

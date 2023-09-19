@@ -130,3 +130,11 @@ type FeedInfo struct {
 	Address string
 	Fee     string
 }
+
+type FeedObject struct {
+	Address   string
+	ID        string
+	Timestamp int64
+	Fee       string
+	Memo      string
+}

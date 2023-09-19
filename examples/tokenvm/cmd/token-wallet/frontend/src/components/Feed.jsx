@@ -16,6 +16,7 @@ import {
   Divider,
   List,
   Button,
+  FloatButton,
   Drawer,
   Form,
 } from "antd";
@@ -98,6 +99,13 @@ const Feed = () => {
 
   return (
     <>
+      <FloatButton
+        type="primary"
+        icon={<PlusOutlined />}
+        onClick={showCreateDrawer}
+        disabled={!window.HasBalance}>
+        Send Message
+      </FloatButton>
       <div style={{ width: "60%", margin: "auto" }}>
         <FundsCheck />
         <Divider orientation="center">Feed</Divider>
@@ -120,13 +128,6 @@ const Feed = () => {
             </List.Item>
           )}
         />
-        <Button
-          type="primary"
-          onClick={showCreateDrawer}
-          style={{ margin: "8px 0 0 0" }}
-          disabled={!window.HasBalance}>
-          Send Message
-        </Button>
         <Divider orientation="center">Explanation</Divider>
       </div>
       <Drawer

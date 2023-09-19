@@ -28,7 +28,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
 	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/manager"
 	ferpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/rpc"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
@@ -1276,13 +1275,27 @@ func (b *Backend) CloseOrder(orderID string, assetOut string) error {
 func (b *Backend) GetFeedInfo() (*FeedInfo, error) {
 	addr, fee, err := b.fecli.FeedInfo(context.TODO())
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	return &FeedInfo{addr, hutils.FormatBalance(fee, tconsts.Decimals)}, nil
 }
 
-func (b *Backend) GetFeed() ([]*manager.FeedObject, error) {
-	return b.fecli.Feed(context.TODO())
+func (b *Backend) GetFeed() ([]*FeedObject, error) {
+	feed, err := b.fecli.Feed(context.TODO())
+	if err != nil {
+		return nil, err
+	}
+	nfeed := make([]*FeedObject, len(feed))
+	for i, fo := range feed {
+		nfeed[i] = &FeedObject{
+			Address:   fo.Address,
+			ID:        fo.TxID.String(),
+			Timestamp: fo.Timestamp,
+			Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(fo.Fee, tconsts.Decimals), tconsts.Symbol),
+			Memo:      string(fo.Memo),
+		}
+	}
+	return nfeed, nil
 }
 
 func (b *Backend) Message(memo string) error {
