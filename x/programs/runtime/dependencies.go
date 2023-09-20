@@ -20,6 +20,8 @@ const (
 	PrecompiledWasm
 )
 
+var NoImports = make(Imports)
+
 type Link struct {
 	*wasmtime.Linker
 }
@@ -36,7 +38,7 @@ type Runtime interface {
 	// Meter returns the runtime meter.
 	Meter() Meter
 	// Stop stops the runtime.
-	Stop(context.Context) error
+	Stop()
 }
 
 // TODO: abstract client interface so that the client doesn't need to be runtime specific/dependent.

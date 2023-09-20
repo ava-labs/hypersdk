@@ -33,5 +33,11 @@ func (m *meter) Spend(units uint64) (uint64, error) {
 }
 
 func (m *meter) AddUnits(units uint64) error {
-	return m.store.AddFuel(units)
+	err := m.store.AddFuel(units)
+	if err != nil {
+		return err
+	}
+	m.maxUnits += units
+
+	return nil
 }

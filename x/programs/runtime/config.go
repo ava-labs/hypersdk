@@ -170,5 +170,6 @@ func defaultWasmtimeConfig() *wasmtime.Config {
 	cfg.SetWasmMultiMemory(defaultWasmMultiMemory)
 	cfg.SetWasmMemory64(defaultWasmMemory64)
 	cfg.SetStrategy(wasmtime.StrategyCranelift)
+	cfg.SetEpochInterruption(true)
 	return cfg
 }

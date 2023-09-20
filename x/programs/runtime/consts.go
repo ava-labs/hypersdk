@@ -3,10 +3,13 @@
 
 package runtime
 
+import "github.com/ava-labs/avalanchego/utils/units"
+
 const (
 	AllocFnName         = "alloc"
 	DeallocFnName       = "dealloc"
 	MemoryFnName        = "memory"
 	guestSuffix         = "_guest"
 	wasiPreview1ModName = "wasi_snapshot_preview1"
+	MemoryPageSize      = 64 * units.KiB
 )

@@ -6,6 +6,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/bytecodealliance/wasmtime-go/v12"
 	"go.uber.org/zap"
@@ -32,15 +33,26 @@ type runtime struct {
 	inst  *wasmtime.Instance
 	store *wasmtime.Store
 	mod   *wasmtime.Module
+	exp   WasmtimeExportClient
 	meter Meter
 
-	// imports available to the guest
+	once     sync.Once
+	cancelFn context.CancelFunc
+
 	imports Imports
 
 	log logging.Logger
 }
 
-func (r *runtime) Initialize(_ context.Context, programBytes ProgramBytes) (err error) {
+func (r *runtime) Initialize(ctx context.Context, programBytes ProgramBytes) (err error) {
+	ctx, r.cancelFn = context.WithCancel(ctx)
+	go func(ctx context.Context) {
+		<-ctx.Done()
+		r.log.Debug("runtime context done, stopping...")
+		// send immediate interrupt to engine
+		r.Stop()
+	}(ctx)
+
 	r.store = wasmtime.NewStore(wasmtime.NewEngineWithConfig(r.cfg.engine))
 	r.store.Limiter(
 		r.cfg.limitMaxMemory,
@@ -49,6 +61,9 @@ func (r *runtime) Initialize(_ context.Context, programBytes ProgramBytes) (err 
 		r.cfg.limitMaxTables,
 		r.cfg.limitMaxMemories,
 	)
+
+	// set initial epoch deadline
+	r.store.SetEpochDeadline(1)
 
 	switch r.cfg.compileStrategy {
 	case PrecompiledWasm:
@@ -84,11 +99,15 @@ func (r *runtime) Initialize(_ context.Context, programBytes ProgramBytes) (err 
 		return err
 	}
 
+	// setup metering
 	r.meter = NewMeter(r.store)
 	err = r.meter.AddUnits(r.cfg.meterMaxUnits)
 	if err != nil {
 		return err
 	}
+
+	// setup client capable of calling exported functions
+	r.exp = newExportClient(r.inst, r.store)
 
 	imports := getRegisteredImportModules(r.mod.Imports())
 	// register host functions exposed to the guest (imports)
@@ -136,6 +155,7 @@ func getRegisteredImportModules(importTypes []*wasmtime.ImportType) []string {
 }
 
 func (r *runtime) Call(_ context.Context, name string, params ...interface{}) ([]uint64, error) {
+	// r.store.SetEpochDeadline(1)
 	var api *wasmtime.Func
 
 	switch name {
@@ -173,8 +193,10 @@ func (r *runtime) Meter() Meter {
 	return r.meter
 }
 
-func (r *runtime) Stop(_ context.Context) error {
-	// TODO: add test
-	r.store.SetEpochDeadline(0)
-	return nil
+func (r *runtime) Stop() {
+	r.once.Do(func() {
+		// send immediate interrupt to engine
+		r.store.Engine.IncrementEpoch()
+		r.cancelFn()
+	})
 }
