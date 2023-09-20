@@ -103,18 +103,27 @@ const Explorer = () => {
   return (
     <>
       <Divider orientation="center">
-        <Popover content={
-          <div>
-            <Text italic>Collection of TokenNet Telemetry Over the Last 2 Minutes</Text>
-            <br />
-            <br />
-            <Text strong>Transactions Per Second:</Text> # of transactions accepted per second
-            <br />
-            <Text strong>Active Accounts:</Text> # of accounts issusing transactions
-            <br />
-            <Text strong>Unit Prices:</Text> Price of each HyperSDK fee dimension (Bandwidth, Compute, Storage[Read], Storage[Create], Storage[Modify])
-          </div>
-        }>Metrics <InfoCircleOutlined /></Popover>
+        <Popover
+          content={
+            <div>
+              <Text italic>
+                Collection of TokenNet Telemetry Over the Last 2 Minutes
+              </Text>
+              <br />
+              <br />
+              <Text strong>Transactions Per Second:</Text> # of transactions
+              accepted per second
+              <br />
+              <Text strong>Active Accounts:</Text> # of accounts issusing
+              transactions
+              <br />
+              <Text strong>Unit Prices:</Text> Price of each HyperSDK fee
+              dimension (Bandwidth, Compute, Storage[Read], Storage[Create],
+              Storage[Modify])
+            </div>
+          }>
+          Metrics <InfoCircleOutlined />
+        </Popover>
       </Divider>
       <Row gutter={16}>
         <Col span={8}>
@@ -160,24 +169,33 @@ const Explorer = () => {
         </Col>
       </Row>
       <Divider orientation="center">
-        <Popover content={
-          <div>
-            <Text italic>Recent activity for TokenNet (ChainID: {chainID})</Text>
-            <br />
-            <br />
-            <Text strong>Timestamp:</Text> Time that block was created
-            <br />
-            <Text strong>Transactions:</Text> # of successful transactions in block
-            <br />
-            <Text strong>Units Consumed:</Text> # of HyperSDK fee units consumed
-            <br />
-            <Text strong>State Root:</Text> Merkle root of State at start of block execution
-            <br />
-            <Text strong>Block Size:</Text> Size of block in bytes
-            <br />
-            <Text strong>Accept Latency:</Text> Difference between block creation and block acceptance
-          </div>
-        }>Blocks <InfoCircleOutlined /></Popover>
+        <Popover
+          content={
+            <div>
+              <Text italic>
+                Recent activity for TokenNet (ChainID: {chainID})
+              </Text>
+              <br />
+              <br />
+              <Text strong>Timestamp:</Text> Time that block was created
+              <br />
+              <Text strong>Transactions:</Text> # of successful transactions in
+              block
+              <br />
+              <Text strong>Units Consumed:</Text> # of HyperSDK fee units
+              consumed
+              <br />
+              <Text strong>State Root:</Text> Merkle root of State at start of
+              block execution
+              <br />
+              <Text strong>Block Size:</Text> Size of block in bytes
+              <br />
+              <Text strong>Accept Latency:</Text> Difference between block
+              creation and block acceptance
+            </div>
+          }>
+          Blocks <InfoCircleOutlined />
+        </Popover>
       </Divider>
       <List
         bordered

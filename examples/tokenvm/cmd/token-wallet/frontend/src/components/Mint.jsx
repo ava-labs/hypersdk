@@ -198,14 +198,15 @@ const Mint = () => {
         <FundsCheck />
         <Divider orientation="center">
           Tokens
-          <Popover content={
-            <div>
-              On TokenNet, anyone can mint their own token.
-              <br />
-              <br />
-              Once you create your own token, it will show up below!
-            </div>
-          }>
+          <Popover
+            content={
+              <div>
+                On TokenNet, anyone can mint their own token.
+                <br />
+                <br />
+                Once you create your own token, it will show up below!
+              </div>
+            }>
             {" "}
             <InfoCircleOutlined />
           </Popover>
@@ -251,17 +252,20 @@ const Mint = () => {
         title={
           <>
             Create Token
-            <Popover content={
-              <div>
-                When creating your own token, you get to set the symbol, decimals, and metadata.
-                <br />
-                <br />
-                Once your token is created, you can mint it to anyone you want (including yourself).
-                <br />
-                <br />
-                Be careful! Once you set these values, they cannot be changed.
-              </div>
-            }>
+            <Popover
+              content={
+                <div>
+                  When creating your own token, you get to set the symbol,
+                  decimals, and metadata.
+                  <br />
+                  <br />
+                  Once your token is created, you can mint it to anyone you want
+                  (including yourself).
+                  <br />
+                  <br />
+                  Be careful! Once you set these values, they cannot be changed.
+                </div>
+              }>
               {" "}
               <InfoCircleOutlined />
             </Popover>
@@ -315,14 +319,17 @@ const Mint = () => {
         title={
           <>
             Mint ${mintFocus.Symbol}
-            <Popover content={
-              <div>
-                You can mint ${mintFocus.Symbol} to anyone on the TokenNet and it will show up in their account.
-                <br />
-                <br />
-                You can send parts of a ${mintFocus.Symbol} by using decimals in the "Amount" field below.
-              </div>
-            }>
+            <Popover
+              content={
+                <div>
+                  You can mint ${mintFocus.Symbol} to anyone on the TokenNet and
+                  it will show up in their account.
+                  <br />
+                  <br />
+                  You can send parts of a ${mintFocus.Symbol} by using decimals
+                  in the "Amount" field below.
+                </div>
+              }>
               {" "}
               <InfoCircleOutlined />
             </Popover>

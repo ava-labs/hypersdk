@@ -7,13 +7,11 @@ import {
   Typography,
   Button,
   Spin,
-  Popover,
 } from "antd";
 import {
   CheckCircleTwoTone,
   CloseCircleTwoTone,
   LoadingOutlined,
-  InfoCircleOutlined,
 } from "@ant-design/icons";
 import {
   StartFaucetSearch,
@@ -61,22 +59,20 @@ const Faucet = () => {
   return (
     <>
       <div style={{ width: "60%", margin: "auto" }}>
-        <Card
-          bordered
-          title={"Request Tokens"}>
+        <Card bordered title={"Request Tokens"}>
           {loaded && search === null && (
             <div>
               <Text>
-                To protect against bots, TokenNet requires anyone requesting funds
-                to solve a Proof-of-Work puzzle. This takes most modern computers 30-60
-                seconds.
+                To protect against bots, TokenNet requires anyone requesting
+                funds to solve a Proof-of-Work puzzle. This takes most modern
+                computers 30-60 seconds.
               </Text>
               <br />
               <br />
               <Text>
-                While your computer is working on this puzzle, you can browse other parts
-                of Token Wallet. You will receive a notifcation when your computer solved
-                a puzzle and received funds.
+                While your computer is working on this puzzle, you can browse
+                other parts of Token Wallet. You will receive a notifcation when
+                your computer solved a puzzle and received funds.
               </Text>
               <br />
               <Button
@@ -100,14 +96,10 @@ const Faucet = () => {
                 />
                 <br />
                 <Text>
-                  <center>
-                    Search Running...
-                  </center>
+                  <center>Search Running...</center>
                 </Text>
                 <Text italic>
-                  <center>
-                    (You can leave this page and come back!)
-                  </center>
+                  <center>(You can leave this page and come back!)</center>
                 </Text>
               </div>
               <br />
@@ -124,9 +116,7 @@ const Faucet = () => {
           )}
         </Card>
 
-        <Divider orientation="center">
-          Previous Requests
-        </Divider>
+        <Divider orientation="center">Previous Requests</Divider>
         <List
           bordered
           dataSource={solutions}
