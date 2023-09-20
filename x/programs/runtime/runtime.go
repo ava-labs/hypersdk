@@ -93,6 +93,7 @@ func (r *runtime) Initialize(_ context.Context, programBytes ProgramBytes) (err 
 	imports := getRegisteredImportModules(r.mod.Imports())
 	// register host functions exposed to the guest (imports)
 	for _, imp := range imports {
+		// registered separately by linker
 		if imp == wasiPreview1ModName {
 			continue
 		}
@@ -100,7 +101,7 @@ func (r *runtime) Initialize(_ context.Context, programBytes ProgramBytes) (err 
 		if !ok {
 			return fmt.Errorf("%w: %s", ErrMissingImportModule, imp)
 		}
-		r.log.Debug("registering host functions",
+		r.log.Debug("registering host functions for module",
 			zap.String("name", imp),
 		)
 		err = mod.Register(link, r.meter)
@@ -118,15 +119,17 @@ func (r *runtime) Initialize(_ context.Context, programBytes ProgramBytes) (err 
 	return nil
 }
 
+// getRegisteredImportModules returns the unique names of all import modules registered
+// by the wasm module.
 func getRegisteredImportModules(importTypes []*wasmtime.ImportType) []string {
-	u := map[string]bool{}
+	u := make(map[string]struct{}, len(importTypes))
 	imports := make([]string, len(importTypes))
 	for _, t := range importTypes {
 		mod := t.Module()
-		if u[mod] {
+		if _, ok := u[mod]; ok {
 			continue
 		}
-		u[mod] = true
+		u[mod] = struct{}{}
 		imports = append(imports, mod)
 	}
 	return imports
@@ -171,6 +174,7 @@ func (r *runtime) Meter() Meter {
 }
 
 func (r *runtime) Stop(_ context.Context) error {
+	// TODO: add test
 	r.store.SetEpochDeadline(0)
 	return nil
 }
