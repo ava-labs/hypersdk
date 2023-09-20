@@ -11,7 +11,8 @@ on:
 
 jobs:
   tokenvm-lint:
-    runs-on: ubuntu-latest
+    runs-on:
+      labels: ubuntu-20.04-32
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -29,6 +30,10 @@ jobs:
         working-directory: ./examples/tokenvm
         shell: bash
         run: scripts/tests.lint.sh
+      - name: Build vm, cli, faucet, feed
+        working-directory: ./examples/tokenvm
+        shell: bash
+        run: scripts/build.sh
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
