@@ -59,7 +59,7 @@ dist/
 tmp-storage-testing
 .token-cli*
 .morpheus-cli*
-*.html
+*.coverage.html
 data/
 osxcross/
 

@@ -68,7 +68,7 @@ func (m *MintAsset) Execute(
 	if m.Value == 0 {
 		return false, MintAssetComputeUnits, OutputValueZero, nil, nil
 	}
-	exists, metadata, supply, owner, isWarp, err := storage.GetAsset(ctx, mu, m.Asset)
+	exists, symbol, decimals, metadata, supply, owner, isWarp, err := storage.GetAsset(ctx, mu, m.Asset)
 	if err != nil {
 		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
@@ -85,7 +85,7 @@ func (m *MintAsset) Execute(
 	if err != nil {
 		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.SetAsset(ctx, mu, m.Asset, metadata, newSupply, actor, isWarp); err != nil {
+	if err := storage.SetAsset(ctx, mu, m.Asset, symbol, decimals, metadata, newSupply, actor, isWarp); err != nil {
 		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, mu, m.To, m.Asset, m.Value, true); err != nil {

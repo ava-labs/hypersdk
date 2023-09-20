@@ -94,7 +94,7 @@ func (h *Handler) PromptAsset(label string, allowNative bool) (ids.ID, error) {
 
 func (*Handler) PromptAmount(
 	label string,
-	assetID ids.ID,
+	decimals uint8,
 	balance uint64,
 	f func(input uint64) error,
 ) (uint64, error) {
@@ -104,13 +104,7 @@ func (*Handler) PromptAmount(
 			if len(input) == 0 {
 				return ErrInputEmpty
 			}
-			var amount uint64
-			var err error
-			if assetID == ids.Empty {
-				amount, err = utils.ParseBalance(input)
-			} else {
-				amount, err = strconv.ParseUint(input, 10, 64)
-			}
+			amount, err := utils.ParseBalance(input, decimals)
 			if err != nil {
 				return err
 			}
@@ -128,17 +122,12 @@ func (*Handler) PromptAmount(
 		return 0, err
 	}
 	rawAmount = strings.TrimSpace(rawAmount)
-	var amount uint64
-	if assetID == ids.Empty {
-		amount, err = utils.ParseBalance(rawAmount)
-	} else {
-		amount, err = strconv.ParseUint(rawAmount, 10, 64)
-	}
-	return amount, err
+	return utils.ParseBalance(rawAmount, decimals)
 }
 
 func (*Handler) PromptInt(
 	label string,
+	max int,
 ) (int, error) {
 	promptText := promptui.Prompt{
 		Label: label,
@@ -152,6 +141,9 @@ func (*Handler) PromptInt(
 			}
 			if amount <= 0 {
 				return fmt.Errorf("%d must be > 0", amount)
+			}
+			if amount > max {
+				return fmt.Errorf("%d must be <= %d", amount, max)
 			}
 			return nil
 		},
@@ -324,21 +316,6 @@ func (h *Handler) PromptChain(label string, excluded set.Set[ids.ID]) (ids.ID, [
 	}
 	chainID := keys[chainIndex]
 	return chainID, chains[chainID], nil
-}
-
-func (*Handler) ValueString(assetID ids.ID, value uint64) string {
-	if assetID == ids.Empty {
-		return utils.FormatBalance(value)
-	}
-	// Custom assets are denoted in raw units
-	return strconv.FormatUint(value, 10)
-}
-
-func (h *Handler) AssetString(assetID ids.ID) string {
-	if assetID == ids.Empty {
-		return h.c.Symbol()
-	}
-	return assetID.String()
 }
 
 func (*Handler) PrintStatus(txID ids.ID, success bool) {

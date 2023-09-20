@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 )
@@ -32,23 +33,23 @@ func (h *Handler) Root() *cli.Handler {
 	return h.h
 }
 
-func (h *Handler) GetAssetInfo(
+func (*Handler) GetAssetInfo(
 	ctx context.Context,
 	cli *trpc.JSONRPCClient,
 	publicKey ed25519.PublicKey,
 	assetID ids.ID,
 	checkBalance bool,
-) (uint64, ids.ID, error) {
+) ([]byte, uint8, uint64, ids.ID, error) {
 	var sourceChainID ids.ID
+	exists, symbol, decimals, metadata, supply, _, warp, err := cli.Asset(ctx, assetID, false)
+	if err != nil {
+		return nil, 0, 0, ids.Empty, err
+	}
 	if assetID != ids.Empty {
-		exists, metadata, supply, _, warp, err := cli.Asset(ctx, assetID)
-		if err != nil {
-			return 0, ids.Empty, err
-		}
 		if !exists {
 			hutils.Outf("{{red}}%s does not exist{{/}}\n", assetID)
 			hutils.Outf("{{red}}exiting...{{/}}\n")
-			return 0, ids.Empty, nil
+			return nil, 0, 0, ids.Empty, nil
 		}
 		if warp {
 			sourceChainID = ids.ID(metadata[hconsts.IDLen:])
@@ -61,56 +62,65 @@ func (h *Handler) GetAssetInfo(
 			)
 		} else {
 			hutils.Outf(
-				"{{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
-				string(metadata),
+				"{{yellow}}symbol:{{/}} %s {{yellow}}decimals:{{/}} %d {{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
+				symbol,
+				decimals,
+				metadata,
 				supply,
 				warp,
 			)
 		}
 	}
 	if !checkBalance {
-		return 0, sourceChainID, nil
+		return symbol, decimals, 0, sourceChainID, nil
 	}
 	addr := utils.Address(publicKey)
 	balance, err := cli.Balance(ctx, addr, assetID)
 	if err != nil {
-		return 0, ids.Empty, err
+		return nil, 0, 0, ids.Empty, err
 	}
 	if balance == 0 {
 		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", assetID)
 		hutils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
 		hutils.Outf("{{red}}exiting...{{/}}\n")
-		return 0, sourceChainID, nil
+	} else {
+		hutils.Outf(
+			"{{yellow}}balance:{{/}} %s %s\n",
+			hutils.FormatBalance(balance, decimals),
+			symbol,
+		)
 	}
-	hutils.Outf(
-		"{{yellow}}balance:{{/}} %s %s\n",
-		h.h.ValueString(assetID, balance),
-		h.h.AssetString(assetID),
-	)
-	return balance, sourceChainID, nil
+	return symbol, decimals, balance, sourceChainID, nil
 }
 
 func (h *Handler) DefaultActor() (
 	ids.ID, ed25519.PrivateKey, *auth.ED25519Factory,
-	*rpc.JSONRPCClient, *trpc.JSONRPCClient, error,
+	*rpc.JSONRPCClient, *rpc.WebSocketClient, *trpc.JSONRPCClient, error,
 ) {
-	priv, err := h.h.GetDefaultKey()
+	priv, err := h.h.GetDefaultKey(true)
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
+		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, nil, err
 	}
-	chainID, uris, err := h.h.GetDefaultChain()
+	chainID, uris, err := h.h.GetDefaultChain(true)
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
+		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, nil, err
 	}
+	// For [defaultActor], we always send requests to the first returned URI.
 	cli := rpc.NewJSONRPCClient(uris[0])
 	networkID, _, _, err := cli.Network(context.TODO())
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
+		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, nil, err
 	}
-	// For [defaultActor], we always send requests to the first returned URI.
-	return chainID, priv, auth.NewED25519Factory(
-			priv,
-		), cli,
+	scli, err := rpc.NewWebSocketClient(
+		uris[0],
+		rpc.DefaultHandshakeTimeout,
+		pubsub.MaxPendingMessages,
+		pubsub.MaxReadMessageSize,
+	)
+	if err != nil {
+		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, nil, err
+	}
+	return chainID, priv, auth.NewED25519Factory(priv), cli, scli,
 		trpc.NewJSONRPCClient(
 			uris[0],
 			networkID,
@@ -132,6 +142,10 @@ func (c *Controller) DatabasePath() string {
 
 func (*Controller) Symbol() string {
 	return consts.Symbol
+}
+
+func (*Controller) Decimals() uint8 {
+	return consts.Decimals
 }
 
 func (*Controller) Address(pk ed25519.PublicKey) string {

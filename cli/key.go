@@ -60,7 +60,7 @@ func (h *Handler) SetKey(lookupBalance func(int, string, string, uint32, ids.ID)
 		utils.Outf("{{red}}no stored keys{{/}}\n")
 		return nil
 	}
-	chainID, uris, err := h.GetDefaultChain()
+	chainID, uris, err := h.GetDefaultChain(true)
 	if err != nil {
 		return err
 	}
@@ -90,11 +90,11 @@ func (h *Handler) SetKey(lookupBalance func(int, string, string, uint32, ids.ID)
 }
 
 func (h *Handler) Balance(checkAllChains bool, promptAsset bool, printBalance func(ed25519.PublicKey, string, uint32, ids.ID, ids.ID) error) error {
-	priv, err := h.GetDefaultKey()
+	priv, err := h.GetDefaultKey(true)
 	if err != nil {
 		return err
 	}
-	chainID, uris, err := h.GetDefaultChain()
+	chainID, uris, err := h.GetDefaultChain(true)
 	if err != nil {
 		return err
 	}

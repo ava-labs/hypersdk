@@ -65,7 +65,7 @@ func (b *BurnAsset) Execute(
 	if err := storage.SubBalance(ctx, mu, actor, b.Asset, b.Value); err != nil {
 		return false, BurnComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	exists, metadata, supply, owner, warp, err := storage.GetAsset(ctx, mu, b.Asset)
+	exists, symbol, decimals, metadata, supply, owner, warp, err := storage.GetAsset(ctx, mu, b.Asset)
 	if err != nil {
 		return false, BurnComputeUnits, utils.ErrBytes(err), nil, nil
 	}
@@ -76,7 +76,7 @@ func (b *BurnAsset) Execute(
 	if err != nil {
 		return false, BurnComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.SetAsset(ctx, mu, b.Asset, metadata, newSupply, owner, warp); err != nil {
+	if err := storage.SetAsset(ctx, mu, b.Asset, symbol, decimals, metadata, newSupply, owner, warp); err != nil {
 		return false, BurnComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, BurnComputeUnits, nil, nil, nil

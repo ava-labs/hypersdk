@@ -4,6 +4,7 @@
 package actions
 
 import (
+	"bytes"
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -48,6 +49,7 @@ func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) []string {
 	if i.warpTransfer.Return {
 		assetID = i.warpTransfer.Asset
 		keys = []string{
+			string(storage.AssetKey(i.warpTransfer.Asset)),
 			string(storage.LoanKey(i.warpTransfer.Asset, i.warpMessage.SourceChainID)),
 			string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.Asset)),
 		}
@@ -106,7 +108,7 @@ func (i *ImportAsset) executeMint(
 	actor ed25519.PublicKey,
 ) []byte {
 	asset := ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
-	exists, metadata, supply, _, warp, err := storage.GetAsset(ctx, mu, asset)
+	exists, symbol, decimals, metadata, supply, _, warp, err := storage.GetAsset(ctx, mu, asset)
 	if err != nil {
 		return utils.ErrBytes(err)
 	}
@@ -115,6 +117,8 @@ func (i *ImportAsset) executeMint(
 		return OutputConflictingAsset
 	}
 	if !exists {
+		symbol = i.warpTransfer.Symbol
+		decimals = i.warpTransfer.Decimals
 		metadata = ImportedAssetMetadata(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
 	}
 	newSupply, err := smath.Add64(supply, i.warpTransfer.Value)
@@ -125,7 +129,7 @@ func (i *ImportAsset) executeMint(
 	if err != nil {
 		return utils.ErrBytes(err)
 	}
-	if err := storage.SetAsset(ctx, mu, asset, metadata, newSupply, ed25519.EmptyPublicKey, true); err != nil {
+	if err := storage.SetAsset(ctx, mu, asset, symbol, decimals, metadata, newSupply, ed25519.EmptyPublicKey, true); err != nil {
 		return utils.ErrBytes(err)
 	}
 	if err := storage.AddBalance(ctx, mu, i.warpTransfer.To, asset, i.warpTransfer.Value, true); err != nil {
@@ -144,6 +148,22 @@ func (i *ImportAsset) executeReturn(
 	mu state.Mutable,
 	actor ed25519.PublicKey,
 ) []byte {
+	exists, symbol, decimals, _, _, _, warp, err := storage.GetAsset(ctx, mu, i.warpTransfer.Asset)
+	if err != nil {
+		return utils.ErrBytes(err)
+	}
+	if !exists {
+		return OutputAssetMissing
+	}
+	if !bytes.Equal(i.warpTransfer.Symbol, symbol) {
+		return OutputSymbolIncorrect
+	}
+	if i.warpTransfer.Decimals != decimals {
+		return OutputDecimalsIncorrect
+	}
+	if warp {
+		return OutputWarpAsset
+	}
 	if err := storage.SubLoan(
 		ctx, mu, i.warpTransfer.Asset,
 		i.warpMessage.SourceChainID, i.warpTransfer.Value,

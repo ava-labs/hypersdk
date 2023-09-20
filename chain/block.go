@@ -64,6 +64,14 @@ func (b *StatefulBlock) Size() int {
 	return b.size
 }
 
+func (b *StatefulBlock) ID() (ids.ID, error) {
+	blk, err := b.Marshal()
+	if err != nil {
+		return ids.ID{}, err
+	}
+	return utils.ToID(blk), nil
+}
+
 // warpJob is used to signal to a listner that a *warp.Message has been
 // verified.
 type warpJob struct {

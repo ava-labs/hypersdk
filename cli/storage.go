@@ -48,7 +48,7 @@ func (h *Handler) StoreDefaultChain(chainID ids.ID) error {
 	return h.StoreDefault(defaultChainKey, chainID[:])
 }
 
-func (h *Handler) GetDefaultChain() (ids.ID, []string, error) {
+func (h *Handler) GetDefaultChain(log bool) (ids.ID, []string, error) {
 	v, err := h.GetDefault(defaultChainKey)
 	if err != nil {
 		return ids.Empty, nil, err
@@ -61,7 +61,9 @@ func (h *Handler) GetDefaultChain() (ids.ID, []string, error) {
 	if err != nil {
 		return ids.Empty, nil, err
 	}
-	utils.Outf("{{yellow}}chainID:{{/}} %s\n", chainID)
+	if log {
+		utils.Outf("{{yellow}}chainID:{{/}} %s\n", chainID)
+	}
 	return chainID, uris, nil
 }
 
@@ -111,7 +113,7 @@ func (h *Handler) StoreDefaultKey(pk ed25519.PublicKey) error {
 	return h.StoreDefault(defaultKeyKey, pk[:])
 }
 
-func (h *Handler) GetDefaultKey() (ed25519.PrivateKey, error) {
+func (h *Handler) GetDefaultKey(log bool) (ed25519.PrivateKey, error) {
 	v, err := h.GetDefault(defaultKeyKey)
 	if err != nil {
 		return ed25519.EmptyPrivateKey, err
@@ -124,7 +126,9 @@ func (h *Handler) GetDefaultKey() (ed25519.PrivateKey, error) {
 	if err != nil {
 		return ed25519.EmptyPrivateKey, err
 	}
-	utils.Outf("{{yellow}}address:{{/}} %s\n", h.c.Address(publicKey))
+	if log {
+		utils.Outf("{{yellow}}address:{{/}} %s\n", h.c.Address(publicKey))
+	}
 	return priv, nil
 }
 

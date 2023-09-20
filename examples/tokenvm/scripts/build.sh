@@ -43,3 +43,13 @@ CLI_PATH=$TOKENVM_PATH/build/token-cli
 echo "Building token-cli in $CLI_PATH"
 mkdir -p $(dirname $CLI_PATH)
 go build -o $CLI_PATH ./cmd/token-cli
+
+FAUCET_PATH=$TOKENVM_PATH/build/token-faucet
+echo "Building token-faucet in $FAUCET_PATH"
+mkdir -p $(dirname $FAUCET_PATH)
+go build -o $FAUCET_PATH ./cmd/token-faucet
+
+FEED_PATH=$TOKENVM_PATH/build/token-feed
+echo "Building token-feed in $FEED_PATH"
+mkdir -p $(dirname $FEED_PATH)
+go build -o $FEED_PATH ./cmd/token-feed

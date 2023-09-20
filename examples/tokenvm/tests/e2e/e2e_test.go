@@ -229,7 +229,10 @@ var _ = ginkgo.BeforeSuite(func() {
 				"network-compression-type":"zstd",
 				"consensus-app-concurrency":"512",
 				"profile-continuous-enabled":false,
-				"profile-continuous-freq":"1m"
+				"profile-continuous-freq":"1m",
+				"http-host":"",
+				"http-allowed-origins": "*",
+				"http-allowed-hosts": "*"
 			}`),
 	)
 	cancel()
@@ -774,12 +777,11 @@ var _ = ginkgo.Describe("[Test]", func() {
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(aNewSenderBalance).Should(gomega.Equal(uint64(0)))
-			exists, metadata, supply, owner, warp, err := instancesB[0].tcli.Asset(
-				context.Background(),
-				newAsset,
-			)
+			exists, symbol, decimals, metadata, supply, owner, warp, err := instancesB[0].tcli.Asset(context.Background(), newAsset, false)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(exists).Should(gomega.BeTrue())
+			gomega.Ω(string(symbol)).Should(gomega.Equal(consts.Symbol))
+			gomega.Ω(decimals).Should(gomega.Equal(uint8(consts.Decimals)))
 			gomega.Ω(metadata).Should(gomega.Equal(actions.ImportedAssetMetadata(ids.Empty, bIDA)))
 			gomega.Ω(supply).Should(gomega.Equal(sendAmount))
 			gomega.Ω(owner).Should(gomega.Equal(utils.Address(ed25519.EmptyPublicKey)))
@@ -868,12 +870,11 @@ var _ = ginkgo.Describe("[Test]", func() {
 			otherBalance, err := instancesB[0].tcli.Balance(context.Background(), aother, newAsset)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(otherBalance).Should(gomega.Equal(uint64(2900)))
-			exists, metadata, supply, owner, warp, err := instancesB[0].tcli.Asset(
-				context.Background(),
-				newAsset,
-			)
+			exists, symbol, decimals, metadata, supply, owner, warp, err := instancesB[0].tcli.Asset(context.Background(), newAsset, false)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(exists).Should(gomega.BeTrue())
+			gomega.Ω(string(symbol)).Should(gomega.Equal(consts.Symbol))
+			gomega.Ω(decimals).Should(gomega.Equal(uint8(consts.Decimals)))
 			gomega.Ω(metadata).Should(gomega.Equal(actions.ImportedAssetMetadata(ids.Empty, bIDA)))
 			gomega.Ω(supply).Should(gomega.Equal(uint64(2900)))
 			gomega.Ω(owner).Should(gomega.Equal(utils.Address(ed25519.EmptyPublicKey)))
@@ -1037,7 +1038,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			otherBalance, err := instancesB[0].tcli.Balance(context.Background(), aother, newAsset)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(otherBalance).Should(gomega.Equal(uint64(0)))
-			exists, _, _, _, _, err := instancesB[0].tcli.Asset(context.Background(), newAsset)
+			exists, _, _, _, _, _, _, err := instancesB[0].tcli.Asset(context.Background(), newAsset, false)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(exists).Should(gomega.BeFalse())
 		})

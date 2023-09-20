@@ -35,11 +35,11 @@ func (h *Handler) DefaultActor() (
 	ids.ID, ed25519.PrivateKey, *auth.ED25519Factory,
 	*rpc.JSONRPCClient, *brpc.JSONRPCClient, error,
 ) {
-	priv, err := h.h.GetDefaultKey()
+	priv, err := h.h.GetDefaultKey(true)
 	if err != nil {
 		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
 	}
-	chainID, uris, err := h.h.GetDefaultChain()
+	chainID, uris, err := h.h.GetDefaultChain(true)
 	if err != nil {
 		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
 	}
@@ -77,7 +77,7 @@ func (*Handler) GetBalance(
 	}
 	hutils.Outf(
 		"{{yellow}}balance:{{/}} %s %s\n",
-		hutils.FormatBalance(balance),
+		hutils.FormatBalance(balance, consts.Decimals),
 		consts.Symbol,
 	)
 	return balance, nil
@@ -97,6 +97,10 @@ func (c *Controller) DatabasePath() string {
 
 func (*Controller) Symbol() string {
 	return consts.Symbol
+}
+
+func (*Controller) Decimals() uint8 {
+	return consts.Decimals
 }
 
 func (*Controller) Address(pk ed25519.PublicKey) string {

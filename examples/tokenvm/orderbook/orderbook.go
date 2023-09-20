@@ -19,7 +19,9 @@ const allPairs = "*"
 type Order struct {
 	ID        ids.ID `json:"id"`
 	Owner     string `json:"owner"` // we always send address over RPC
+	InAsset   ids.ID `json:"inAsset"`
 	InTick    uint64 `json:"inTick"`
+	OutAsset  ids.ID `json:"outAsset"`
 	OutTick   uint64 `json:"outTick"`
 	Remaining uint64 `json:"remaining"`
 
@@ -68,7 +70,9 @@ func (o *OrderBook) Add(txID ids.ID, actor ed25519.PublicKey, action *actions.Cr
 	order := &Order{
 		txID,
 		utils.Address(actor),
+		action.In,
 		action.InTick,
+		action.Out,
 		action.OutTick,
 		action.Supply,
 		actor,
@@ -150,7 +154,8 @@ func (o *OrderBook) Orders(pair string, limit int) []*Order {
 
 	h, ok := o.orders[pair]
 	if !ok {
-		return nil
+		// Clients often prefer an empty slice instead of null
+		return []*Order{}
 	}
 	items := h.Items()
 	arrLen := len(items)

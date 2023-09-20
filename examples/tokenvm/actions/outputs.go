@@ -5,6 +5,7 @@ package actions
 
 var (
 	OutputValueZero              = []byte("value is zero")
+	OutputMemoTooLarge           = []byte("memo is too large")
 	OutputAssetIsNative          = []byte("cannot mint native asset")
 	OutputAssetAlreadyExists     = []byte("asset already exists")
 	OutputAssetMissing           = []byte("asset missing")
@@ -20,6 +21,12 @@ var (
 	OutputInsufficientInput      = []byte("insufficient input")
 	OutputInsufficientOutput     = []byte("insufficient output")
 	OutputValueMisaligned        = []byte("value is misaligned")
+	OutputSymbolEmpty            = []byte("symbol is empty")
+	OutputSymbolIncorrect        = []byte("symbol is incorrect")
+	OutputSymbolTooLarge         = []byte("symbol is too large")
+	OutputDecimalsIncorrect      = []byte("decimal is incorrect")
+	OutputDecimalsTooLarge       = []byte("decimal is too large")
+	OutputMetadataEmpty          = []byte("metadata is empty")
 	OutputMetadataTooLarge       = []byte("metadata is too large")
 	OutputSameInOut              = []byte("same asset used for in and out")
 	OutputConflictingAsset       = []byte("warp has same asset as another")
