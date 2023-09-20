@@ -9,50 +9,70 @@ import (
 	"os"
 	"testing"
 
+	// "github.com/bytecodealliance/wasmtime-go/v12"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/x/programs/examples/imports/hashmap"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
 var (
 	//go:embed testdata/token.wasm
 	tokenProgramBytes []byte
 
-	// example cost map
-	costMap = map[string]uint64{
-		"ConstI32 0x0": 1,
-		"ConstI64 0x0": 2,
-	}
-	maxGas uint64 = 13000
-	log           = logging.NewLogger(
+	log = logging.NewLogger(
 		"",
 		logging.NewWrappedCore(
-			logging.Debug,
+			logging.Info,
 			os.Stderr,
 			logging.Plain.ConsoleEncoder(),
 		))
 )
 
-// go test -v -timeout 30s -run ^TestTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples
+// go test -v -timeout 30s -run ^TestTokenWazeroProgram$ github.com/ava-labs/hypersdk/x/programs/examples
 func TestTokenProgram(t *testing.T) {
 	require := require.New(t)
-	program := NewToken(log, tokenProgramBytes, maxGas, costMap)
+	maxUnits := uint64(40000)
+	db := utils.NewTestDB()
+
+	// define imports
+	imports := make(runtime.Imports)
+	imports["map"] = hashmap.New(log, db)
+
+	cfg := runtime.NewConfigBuilder(maxUnits).
+		WithBulkMemory(true).
+		WithLimitMaxMemory(17 * 64 * 1024). // 17 pages
+		Build()
+	program := NewToken(log, tokenProgramBytes, cfg, imports)
 	err := program.Run(context.Background())
 	require.NoError(err)
 }
 
 // go test -v -benchmem -run=^$ -bench ^BenchmarkTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
-func BenchmarkTokenProgram(b *testing.B) {
+func BenchmarkTokenWazeroProgram(b *testing.B) {
 	require := require.New(b)
-	program := NewToken(log, tokenProgramBytes, maxGas, costMap)
-	b.ResetTimer()
+	maxUnits := uint64(40000)
+	db := utils.NewTestDB()
+
+	// define imports
+	imports := make(runtime.Imports)
+	imports["map"] = hashmap.New(log, db)
+
 	b.Run("benchmark_token_program", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			cfg := runtime.NewConfigBuilder(maxUnits).
+				WithBulkMemory(true).
+				WithLimitMaxMemory(17 * 64 * 1024). // 17 pages
+				WithDefaultCache(true).
+				Build()
+
+			program := NewToken(log, tokenProgramBytes, cfg, imports)
+			b.StartTimer()
 			err := program.Run(context.Background())
 			require.NoError(err)
 		}
 	})
 }
-
-// BenchmarkTokenProgram/benchmark_token_program-10                      46          22319237 ns/op         7989180 B/op     116432 allocs/op
-// BenchmarkTokenProgram/benchmark_token_program-10                     100          10157392 ns/op         4967247 B/op      46825 allocs/op

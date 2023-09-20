@@ -5,52 +5,79 @@ package examples
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/x/programs/examples/imports/hashmap"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
-	"github.com/ava-labs/hypersdk/x/programs/utils"
 
 	"go.uber.org/zap"
 )
 
-func NewToken(log logging.Logger, programBytes []byte, maxFee uint64, costMap map[string]uint64) *Token {
-	return &Token{
+func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (int64, ed25519.PublicKey, error) {
+	priv, err := ed25519.GeneratePrivateKey()
+	if err != nil {
+		return 0, ed25519.EmptyPublicKey, err
+	}
+
+	pk := priv.PublicKey()
+	ptr, err := runtime.Memory().Alloc(ed25519.PublicKeyLen)
+	if err != nil {
+		return 0, ed25519.EmptyPublicKey, err
+	}
+
+	// write programID to memory which we will later pass to the program.
+	err = runtime.Memory().Write(ptr, pk[:])
+	if err != nil {
+		return 0, ed25519.EmptyPublicKey, err
+	}
+
+	return int64(ptr), pk, err
+}
+
+func NewToken(log logging.Logger, programBytes []byte, cfg *runtime.Config, imports runtime.Imports) *TokenWasmtime {
+	return &TokenWasmtime{
 		log:          log,
 		programBytes: programBytes,
-		maxFee:       maxFee,
-		costMap:      costMap,
+		cfg:          cfg,
+		imports:      imports,
 	}
 }
 
-type Token struct {
+type TokenWasmtime struct {
 	log          logging.Logger
 	programBytes []byte
-
-	// metering
-	maxFee  uint64
-	costMap map[string]uint64
+	cfg          *runtime.Config
+	imports      runtime.Imports
 }
 
-func (t *Token) Run(ctx context.Context) error {
-	meter := runtime.NewMeter(t.log, t.maxFee, t.costMap)
-	db := utils.NewTestDB()
-	store := newProgramStorage(db)
-
-	runtime := runtime.New(t.log, meter, store)
-	contractId, err := runtime.Create(ctx, t.programBytes)
+func (t *TokenWasmtime) Run(ctx context.Context) error {
+	rt := runtime.New(t.log, t.cfg, t.imports)
+	err := rt.Initialize(ctx, t.programBytes)
 	if err != nil {
 		return err
 	}
 
-	t.log.Debug("initial cost",
-		zap.Int("gas", 0),
+	t.log.Debug("unit",
+		zap.Uint64("balance", rt.Meter().GetBalance()),
 	)
 
-	// contract_id := result[0]
-	result, err := runtime.Call(ctx, "get_total_supply", contractId)
+	// simulate create program transaction
+	txID := ids.GenerateTestID()
+	programID := int64(binary.BigEndian.Uint64(txID[:]))
+	hashmap.AddProgramID(programID)
+
+	// initialize program
+	_, err = rt.Call(ctx, "init", programID)
+	if err != nil {
+		return fmt.Errorf("failed to initialize program: %w", err)
+	}
+
+	result, err := rt.Call(ctx, "get_total_supply", programID)
 	if err != nil {
 		return err
 	}
@@ -59,19 +86,19 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// generate alice keys
-	alicePtr, _, err := newKeyPtr(ctx, runtime)
+	alicePtr, _, err := newKeyPtr(ctx, rt)
 	if err != nil {
 		return err
 	}
 
 	// generate bob keys
-	bobPtr, _, err := newKeyPtr(ctx, runtime)
+	bobPtr, _, err := newKeyPtr(ctx, rt)
 	if err != nil {
 		return err
 	}
 
 	// check balance of alice
-	result, err = runtime.Call(ctx, "get_balance", contractId, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programID, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -80,17 +107,17 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// mint 100 tokens to alice
-	mintAlice := uint64(100)
-	_, err = runtime.Call(ctx, "mint_to", contractId, alicePtr, mintAlice)
+	mintAlice := int64(100)
+	_, err = rt.Call(ctx, "mint_to", programID, alicePtr, mintAlice)
 	if err != nil {
 		return err
 	}
 	t.log.Debug("minted",
-		zap.Uint64("alice", mintAlice),
+		zap.Int64("alice", mintAlice),
 	)
 
 	// check balance of alice
-	result, err = runtime.Call(ctx, "get_balance", contractId, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", programID, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -98,24 +125,8 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("alice", int64(result[0])),
 	)
 
-	// deallocate bytes
-	defer func() {
-		_, err = runtime.Call(ctx, "dealloc", alicePtr, ed25519.PublicKeyLen)
-		if err != nil {
-			t.log.Error("failed to deallocate alice ptr",
-				zap.Error(err),
-			)
-		}
-		_, err = runtime.Call(ctx, "dealloc", bobPtr, ed25519.PublicKeyLen)
-		if err != nil {
-			t.log.Error("failed to deallocate bob ptr",
-				zap.Error(err),
-			)
-		}
-	}()
-
 	// check balance of bob
-	result, err = runtime.Call(ctx, "get_balance", contractId, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programID, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -124,18 +135,18 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// transfer 50 from alice to bob
-	transferToBob := uint64(50)
-	_, err = runtime.Call(ctx, "transfer", contractId, alicePtr, bobPtr, transferToBob)
+	transferToBob := int64(50)
+	_, err = rt.Call(ctx, "transfer", programID, alicePtr, bobPtr, transferToBob)
 	if err != nil {
 		return err
 	}
 	t.log.Debug("transferred",
-		zap.Uint64("alice", transferToBob),
-		zap.Uint64("to bob", transferToBob),
+		zap.Int64("alice", transferToBob),
+		zap.Int64("to bob", transferToBob),
 	)
 
 	// get balance alice
-	result, err = runtime.Call(ctx, "get_balance", contractId, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", programID, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -144,34 +155,15 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance bob
-	result, err = runtime.Call(ctx, "get_balance", contractId, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programID, bobPtr)
 	if err != nil {
 		return err
 	}
 	t.log.Debug("balance", zap.Int64("bob", int64(result[0])))
 
+	t.log.Debug("remaining balance",
+		zap.Uint64("unit", rt.Meter().GetBalance()),
+	)
+
 	return nil
-}
-
-func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (uint64, ed25519.PublicKey, error) {
-	priv, err := ed25519.GeneratePrivateKey()
-	if err != nil {
-		return 0, ed25519.EmptyPublicKey, err
-	}
-
-	pk := priv.PublicKey()
-	ptr, err := runtime.WriteGuestBuffer(ctx, pk[:])
-	return ptr, pk, err
-}
-
-// writeString writes a string to guest memory and returns the pointer to the string.
-// The string is padded with 0s to fit 32 bytes.
-func writeString(ctx context.Context, runtime runtime.Runtime, str string) (uint64, error) {
-	if len(str) > 32 {
-		return 0, fmt.Errorf("length of string %s exceeds 32 bytes", str)
-	}
-	bytes := [32]byte{}
-	// push string to bytes
-	copy(bytes[:], str)
-	return runtime.WriteGuestBuffer(ctx, bytes[:])
 }
