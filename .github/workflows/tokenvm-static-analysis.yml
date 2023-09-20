@@ -34,6 +34,21 @@ jobs:
         working-directory: ./examples/tokenvm
         shell: bash
         run: scripts/build.sh
+  tokenvm-lint-macos:
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.20"
+          check-latest: true
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            examples/tokenvm/go.sum
       - name: Build wallet
         working-directory: ./examples/tokenvm/cmd/token-wallet
         shell: bash
