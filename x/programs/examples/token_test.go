@@ -86,7 +86,8 @@ func BenchmarkTokenWazeroProgram(b *testing.B) {
 	preCompiledTokenProgramBytes, err := runtime.PreCompileWasm(tokenProgramBytes, cfg)
 	require.NoError(err)
 
-	b.Run("benchmark_token_program_program_precompile", func(b *testing.B) {
+	b.ResetTimer()
+	b.Run("benchmark_token_program_precompile", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			cfg, err := runtime.NewConfigBuilder(maxUnits).
