@@ -213,6 +213,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		//
 		// TODO: re-enable profiling
 		runner_sdk.WithGlobalNodeConfig(`{
+				"log-level":"info",
 				"log-display-level":"info",
 				"proposervm-use-current-height":true,
 				"throttler-inbound-validator-alloc-size":"10737418240",

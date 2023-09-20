@@ -42,6 +42,7 @@ if ${UNLIMITED_USAGE}; then
 fi
 
 echo "Running with:"
+echo LOGLEVEL: ${LOGLEVEL}
 echo VERSION: ${VERSION}
 echo MODE: ${MODE}
 echo STATESYNC_DELAY \(ns\): ${STATESYNC_DELAY}
@@ -198,7 +199,7 @@ ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 # download avalanche-network-runner
 # https://github.com/ava-labs/avalanche-network-runner
 ANR_REPO_PATH=github.com/ava-labs/avalanche-network-runner
-ANR_VERSION=fbe081616f02dd0142cc5923168c43ed5991d947
+ANR_VERSION=v1.7.2
 # version set
 go install -v ${ANR_REPO_PATH}@${ANR_VERSION}
 
