@@ -67,7 +67,7 @@ const Faucet = () => {
           {loaded && search === null && (
             <div>
               <Text>
-                To protect against bots, the TokenVM requires anyone requesting funds
+                To protect against bots, TokenNet requires anyone requesting funds
                 to solve a Proof-of-Work puzzle. This takes most modern computers 30-60
                 seconds.
               </Text>

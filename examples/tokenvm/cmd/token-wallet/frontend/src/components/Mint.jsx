@@ -200,7 +200,7 @@ const Mint = () => {
           Tokens
           <Popover content={
             <div>
-              In the TokenVM, anyone can mint their own token.
+              On the TokenNet, anyone can mint their own token.
               <br />
               <br />
               Once you create your own token, it will show up below!
@@ -317,7 +317,7 @@ const Mint = () => {
             Mint ${mintFocus.Symbol}
             <Popover content={
               <div>
-                You can mint ${mintFocus.Symbol} to anyone on the TokenVM and it will show up in their account.
+                You can mint ${mintFocus.Symbol} to anyone on the TokenNet and it will show up in their account.
                 <br />
                 <br />
                 You can send parts of a ${mintFocus.Symbol} by using decimals in the "Amount" field below.

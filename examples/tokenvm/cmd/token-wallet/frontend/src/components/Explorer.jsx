@@ -6,7 +6,8 @@ import {
   GetUnitPrices,
   GetChainID,
 } from "../../wailsjs/go/main/App";
-import { App, Typography, Divider, List, Card, Col, Row, Tooltip } from "antd";
+import { App, Typography, Divider, List, Card, Col, Row, Popover } from "antd";
+import { InfoCircleOutlined } from "@ant-design/icons";
 import { Area, Line } from "@ant-design/plots";
 const { Title, Text } = Typography;
 
@@ -102,7 +103,18 @@ const Explorer = () => {
   return (
     <>
       <Divider orientation="center">
-        <Tooltip title="Last 2 Minutes">Metrics</Tooltip>
+        <Popover content={
+          <div>
+            <Text italic>Collection of TokenNet Telemetry Over the Last 2 Minutes</Text>
+            <br />
+            <br />
+            <Text strong>Transactions Per Second:</Text> # of transactions accepted per second
+            <br />
+            <Text strong>Active Accounts:</Text> # of accounts issusing transactions
+            <br />
+            <Text strong>Unit Prices:</Text> Price of each HyperSDK fee dimension (Bandwidth, Compute, Storage[Read], Storage[Create], Storage[Modify])
+          </div>
+        }>Metrics <InfoCircleOutlined /></Popover>
       </Divider>
       <Row gutter={16}>
         <Col span={8}>
@@ -148,7 +160,24 @@ const Explorer = () => {
         </Col>
       </Row>
       <Divider orientation="center">
-        <Tooltip title={`ChainID: ${chainID}`}>Recent Blocks</Tooltip>
+        <Popover content={
+          <div>
+            <Text italic>Recent activity for TokenNet (ChainID: {chainID})</Text>
+            <br />
+            <br />
+            <Text strong>Timestamp:</Text> Time that block was created
+            <br />
+            <Text strong>Transactions:</Text> # of successful transactions in block
+            <br />
+            <Text strong>Units Consumed:</Text> # of HyperSDK fee units consumed
+            <br />
+            <Text strong>State Root:</Text> Merkle root of State at start of block execution
+            <br />
+            <Text strong>Block Size:</Text> Size of block in bytes
+            <br />
+            <Text strong>Accept Latency:</Text> Difference between block creation and block acceptance
+          </div>
+        }>Blocks <InfoCircleOutlined /></Popover>
       </Divider>
       <List
         bordered
