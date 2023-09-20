@@ -27,15 +27,16 @@ if [ ! -d "$OUTPUT" ]; then
   exit 1
 fi
 
+# Remove any previous build artifacts
+rm -rf token-wallet.zip
+
 # Exit early if not publishing
 if [ ${PUBLISH} == false ]; then
   echo "not publishing app"
+  ditto -c -k --keepParent build/bin/Token\ Wallet.app token-wallet.zip
   exit 0
 fi
 echo "publishing app"
-
-# Remove any previous build artifacts
-rm -rf token-wallet.zip
 
 # Sign code
 codesign -s ${APP_SIGNING_KEY_ID} --deep  --timestamp -o runtime -v build/bin/Token\ Wallet.app
