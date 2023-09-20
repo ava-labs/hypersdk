@@ -93,7 +93,7 @@ func (r *runtime) Initialize(_ context.Context, programBytes ProgramBytes) (err 
 	imports := getRegisteredImportModules(r.mod.Imports())
 	// register host functions exposed to the guest (imports)
 	for _, imp := range imports {
-		if imp == "wasi_snapshot_preview1" {
+		if imp == wasiPreview1ModName {
 			continue
 		}
 		mod, ok := r.imports[imp]

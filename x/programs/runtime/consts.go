@@ -4,8 +4,9 @@
 package runtime
 
 const (
-	AllocFnName   = "alloc"
-	DeallocFnName = "dealloc"
-	MemoryFnName  = "memory"
-	guestSuffix   = "_guest"
+	AllocFnName         = "alloc"
+	DeallocFnName       = "dealloc"
+	MemoryFnName        = "memory"
+	guestSuffix         = "_guest"
+	wasiPreview1ModName = "wasi_snapshot_preview1"
 )
