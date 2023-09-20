@@ -13,15 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	log = logging.NewLogger(
-		"",
-		logging.NewWrappedCore(
-			logging.Info,
-			os.Stderr,
-			logging.Plain.ConsoleEncoder(),
-		))
-)
+var log = logging.NewLogger(
+	"",
+	logging.NewWrappedCore(
+		logging.Info,
+		os.Stderr,
+		logging.Plain.ConsoleEncoder(),
+	))
 
 func TestLimitMaxMemory(t *testing.T) {
 	require := require.New(t)
@@ -38,9 +36,10 @@ func TestLimitMaxMemory(t *testing.T) {
 
 	// wasm defines 2 pages of memory but runtime set max 1 page
 	maxFee := uint64(1)
-	cfg := NewConfigBuilder(maxFee).
+	cfg, err := NewConfigBuilder(maxFee).
 		WithLimitMaxMemory(1 * 64 * units.KiB). // 1 pages
 		Build()
+	require.NoError(err)
 	runtime := New(log, cfg, nil)
 	err = runtime.Initialize(context.Background(), wasm)
 	require.ErrorContains(err, "memory minimum size of 2 pages exceeds memory limits")
@@ -59,11 +58,12 @@ func TestLimitMaxMemoryGrow(t *testing.T) {
 	require.NoError(err)
 
 	maxFee := uint64(1)
-	cfg := NewConfigBuilder(maxFee).
+	cfg, err := NewConfigBuilder(maxFee).
 		WithLimitMaxMemory(1 * 64 * units.KiB). // 2 pages
 		Build()
+	require.NoError(err)
 	runtime := New(logging.NoLog{}, cfg, nil)
-	err = runtime.Initialize(context.Background(), []byte(wasm))
+	err = runtime.Initialize(context.Background(), wasm)
 	require.NoError(err)
 
 	length, err := runtime.Memory().Len()
@@ -88,11 +88,12 @@ func TestWriteExceedsLimitMaxMemory(t *testing.T) {
 	require.NoError(err)
 
 	maxFee := uint64(1)
-	cfg := NewConfigBuilder(maxFee).
+	cfg, err := NewConfigBuilder(maxFee).
 		WithLimitMaxMemory(1 * 64 * units.KiB). // 2 pages
 		Build()
+	require.NoError(err)
 	runtime := New(logging.NoLog{}, cfg, nil)
-	err = runtime.Initialize(context.Background(), []byte(wasm))
+	err = runtime.Initialize(context.Background(), wasm)
 	require.NoError(err)
 	maxMemory, err := runtime.Memory().Len()
 	require.NoError(err)
@@ -100,8 +101,4 @@ func TestWriteExceedsLimitMaxMemory(t *testing.T) {
 	bytes := utils.RandomBytes(int(maxMemory) + 1)
 	err = runtime.Memory().Write(0, bytes)
 	require.Error(err, "write memory failed: invalid memory size")
-}
-
-func BenchmarkXxx(b *testing.B) {
-
 }

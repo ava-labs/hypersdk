@@ -6,7 +6,6 @@ package runtime
 import (
 	"context"
 	"fmt"
-	// "time"
 
 	"github.com/bytecodealliance/wasmtime-go/v12"
 	"go.uber.org/zap"
@@ -42,7 +41,6 @@ type runtime struct {
 }
 
 func (r *runtime) Initialize(_ context.Context, programBytes ProgramBytes) (err error) {
-
 	r.store = wasmtime.NewStore(wasmtime.NewEngineWithConfig(r.cfg.engine))
 	r.store.Limiter(
 		r.cfg.limitMaxMemory,
@@ -86,9 +84,11 @@ func (r *runtime) Initialize(_ context.Context, programBytes ProgramBytes) (err 
 		return err
 	}
 
-	r.meter = NewMeter(r.store, r.cfg.meterMaxUnits)
-
-	// start := time.Now()
+	r.meter = NewMeter(r.store)
+	err = r.meter.AddUnits(r.cfg.meterMaxUnits)
+	if err != nil {
+		return err
+	}
 
 	imports := getRegisteredImportModules(r.mod.Imports())
 	// register host functions exposed to the guest (imports)
@@ -109,8 +109,6 @@ func (r *runtime) Initialize(_ context.Context, programBytes ProgramBytes) (err 
 		}
 	}
 
-	// r.log.Info("time taken to register host functions", zap.Int("ms", int(time.Since(start).Milliseconds())))
-
 	// instantiate the module with all of the imports defined by the linker
 	r.inst, err = link.Instantiate(r.store, r.mod)
 	if err != nil {
@@ -122,7 +120,7 @@ func (r *runtime) Initialize(_ context.Context, programBytes ProgramBytes) (err 
 
 func getRegisteredImportModules(importTypes []*wasmtime.ImportType) []string {
 	u := map[string]bool{}
-	var imports []string
+	imports := make([]string, len(importTypes))
 	for _, t := range importTypes {
 		mod := t.Module()
 		if u[mod] {
@@ -134,7 +132,7 @@ func getRegisteredImportModules(importTypes []*wasmtime.ImportType) []string {
 	return imports
 }
 
-func (r *runtime) Call(ctx context.Context, name string, params ...interface{}) ([]uint64, error) {
+func (r *runtime) Call(_ context.Context, name string, params ...interface{}) ([]uint64, error) {
 	var api *wasmtime.Func
 
 	switch name {
@@ -172,7 +170,7 @@ func (r *runtime) Meter() Meter {
 	return r.meter
 }
 
-func (r *runtime) Stop(ctx context.Context) error {
+func (r *runtime) Stop(_ context.Context) error {
 	r.store.SetEpochDeadline(0)
 	return nil
 }

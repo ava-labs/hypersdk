@@ -5,11 +5,9 @@ import "github.com/bytecodealliance/wasmtime-go/v12"
 var _ Meter = (*meter)(nil)
 
 // NewMeter returns a new meter.
-func NewMeter(store *wasmtime.Store, maxUnits uint64) Meter {
-	store.AddFuel(maxUnits)
+func NewMeter(store *wasmtime.Store) Meter {
 	return &meter{
-		maxUnits: maxUnits,
-		store:    store,
+		store: store,
 	}
 }
 

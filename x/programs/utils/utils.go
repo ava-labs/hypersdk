@@ -11,8 +11,10 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ state.Mutable = &testDB{}
-var _ state.Immutable = &testDB{}
+var (
+	_ state.Mutable   = &testDB{}
+	_ state.Immutable = &testDB{}
+)
 
 type testDB struct {
 	db *memdb.Database

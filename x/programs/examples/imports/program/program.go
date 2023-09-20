@@ -104,8 +104,16 @@ func (i *Import) invokeProgramFn(
 	// spend the maximum number of units allowed for this call
 	i.meter.Spend(maxUnits)
 
+	cfg, err := runtime.NewConfigBuilder(maxUnits).Build()
+	if err != nil {
+		i.log.Error("failed to create runtime config",
+			zap.Error(err),
+		)
+		return -1
+	}
+
 	// create a new runtime for the program to be invoked
-	rt := runtime.New(i.log, runtime.NewConfigBuilder(maxUnits).Build(), i.imports)
+	rt := runtime.New(i.log, cfg, i.imports)
 	err = rt.Initialize(context.Background(), programWasmBytes)
 	if err != nil {
 		i.log.Error("failed to initialize runtime",

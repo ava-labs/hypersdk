@@ -125,7 +125,7 @@ func (b *builder) WithDefaultCache(enabled bool) *builder {
 	return b
 }
 
-func (b *builder) Build() *Config {
+func (b *builder) Build() (*Config, error) {
 	cfg := defaultWasmtimeConfig()
 	if b.maxWasmStack == 0 {
 		b.maxWasmStack = defaultMaxWasmStack
@@ -137,7 +137,10 @@ func (b *builder) Build() *Config {
 	cfg.SetWasmSIMD(b.simd)
 	cfg.SetProfiler(b.profilingStrategy)
 	if b.defaultCache {
-		cfg.CacheConfigLoadDefault()
+		err := cfg.CacheConfigLoadDefault()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if b.limitMaxMemory == 0 {
@@ -154,7 +157,7 @@ func (b *builder) Build() *Config {
 		limitMaxMemories:      1,
 		compileStrategy:       b.compileStrategy,
 		meterMaxUnits:         b.meterMaxUnits,
-	}
+	}, nil
 }
 
 // non-configurable defaults
