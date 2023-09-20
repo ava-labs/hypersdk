@@ -6,13 +6,27 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-# Remove any previous build artifacts
-rm -rf token-wallet.zip
+PUBLISH=${PUBLISH:-true}
+
+# Install wails
+go install -v github.com/wailsapp/wails/v2/cmd/wails@v2.5.1
 
 # Build file for local arch
 #
 # Don't use upx: https://github.com/upx/upx/issues/446
 wails build -clean -platform darwin/universal
+
+# Exit early if not publishing
+if [ ${PUBLISH} == false ]; then
+  echo "not publishing app"
+  exit 0
+fi
+echo "publishing app"
+
+# Remove any previous build artifacts
+rm -rf token-wallet.zip
+
+# Sign code
 codesign -s ${APP_SIGNING_KEY_ID} --deep  --timestamp -o runtime -v build/bin/Token\ Wallet.app
 ditto -c -k --keepParent build/bin/Token\ Wallet.app token-wallet.zip
 
