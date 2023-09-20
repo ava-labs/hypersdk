@@ -61,7 +61,7 @@ func BenchmarkTokenWazeroProgram(b *testing.B) {
 	imports := make(runtime.Imports)
 	imports["map"] = hashmap.New(log, db)
 
-	b.Run("benchmark_token_program_compile", func(b *testing.B) {
+	b.Run("benchmark_token_program_compile_and_cache", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			// configs can only be used once
@@ -81,7 +81,6 @@ func BenchmarkTokenWazeroProgram(b *testing.B) {
 	cfg, err := runtime.NewConfigBuilder(maxUnits).
 		WithBulkMemory(true).
 		WithLimitMaxMemory(17 * 64 * units.KiB). // 17 pages
-		WithDefaultCache(true).
 		Build()
 	require.NoError(err)
 	preCompiledTokenProgramBytes, err := runtime.PreCompileWasm(tokenProgramBytes, cfg)
@@ -93,7 +92,6 @@ func BenchmarkTokenWazeroProgram(b *testing.B) {
 			cfg, err := runtime.NewConfigBuilder(maxUnits).
 				WithBulkMemory(true).
 				WithLimitMaxMemory(17 * 64 * units.KiB). // 17 pages
-				WithDefaultCache(true).
 				WithCompileStrategy(runtime.PrecompiledWasm).
 				Build()
 			require.NoError(err)
