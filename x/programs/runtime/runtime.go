@@ -142,7 +142,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) (err erro
 // by the wasm module.
 func getRegisteredImportModules(importTypes []*wasmtime.ImportType) []string {
 	u := make(map[string]struct{}, len(importTypes))
-	imports := make([]string, len(importTypes))
+	imports := []string{}
 	for _, t := range importTypes {
 		mod := t.Module()
 		if _, ok := u[mod]; ok {
@@ -205,9 +205,17 @@ func (r *runtime) Stop() {
 //
 // Note: these bytes can be deserialized by an `Engine` that has the same version.
 // For that reason precompiled wasm modules should not be stored on chain.
-func PreCompileWasm(programBytes []byte) ([]byte, error) {
-	engine := wasmtime.NewEngine()
-	module, err := wasmtime.NewModule(engine, programBytes)
+func PreCompileWasm(programBytes []byte, cfg *Config) ([]byte, error) {
+	store := wasmtime.NewStore(wasmtime.NewEngineWithConfig(cfg.engine))
+	store.Limiter(
+		cfg.limitMaxMemory,
+		cfg.limitMaxTableElements,
+		cfg.limitMaxInstances,
+		cfg.limitMaxTables,
+		cfg.limitMaxMemories,
+	)
+
+	module, err := wasmtime.NewModule(store.Engine, programBytes)
 	if err != nil {
 		return nil, err
 	}

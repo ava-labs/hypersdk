@@ -9,7 +9,6 @@ import (
 	"os"
 	"testing"
 
-	// "github.com/bytecodealliance/wasmtime-go/v12"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -62,9 +61,10 @@ func BenchmarkTokenWazeroProgram(b *testing.B) {
 	imports := make(runtime.Imports)
 	imports["map"] = hashmap.New(log, db)
 
-	b.Run("benchmark_token_program", func(b *testing.B) {
+	b.Run("benchmark_token_program_compile", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
+			// configs can only be used once
 			cfg, err := runtime.NewConfigBuilder(maxUnits).
 				WithBulkMemory(true).
 				WithLimitMaxMemory(17 * 64 * units.KiB). // 17 pages
@@ -72,6 +72,32 @@ func BenchmarkTokenWazeroProgram(b *testing.B) {
 				Build()
 			require.NoError(err)
 			program := NewToken(log, tokenProgramBytes, cfg, imports)
+			b.StartTimer()
+			err = program.Run(context.Background())
+			require.NoError(err)
+		}
+	})
+
+	cfg, err := runtime.NewConfigBuilder(maxUnits).
+		WithBulkMemory(true).
+		WithLimitMaxMemory(17 * 64 * units.KiB). // 17 pages
+		WithDefaultCache(true).
+		Build()
+	require.NoError(err)
+	preCompiledTokenProgramBytes, err := runtime.PreCompileWasm(tokenProgramBytes, cfg)
+	require.NoError(err)
+
+	b.Run("benchmark_token_program_program_precompile", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			cfg, err := runtime.NewConfigBuilder(maxUnits).
+				WithBulkMemory(true).
+				WithLimitMaxMemory(17 * 64 * units.KiB). // 17 pages
+				WithDefaultCache(true).
+				WithCompileStrategy(runtime.PrecompiledWasm).
+				Build()
+			require.NoError(err)
+			program := NewToken(log, preCompiledTokenProgramBytes, cfg, imports)
 			b.StartTimer()
 			err = program.Run(context.Background())
 			require.NoError(err)
