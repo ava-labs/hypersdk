@@ -200,7 +200,7 @@ const Mint = () => {
           Tokens
           <Popover content={
             <div>
-              On the TokenNet, anyone can mint their own token.
+              On TokenNet, anyone can mint their own token.
               <br />
               <br />
               Once you create your own token, it will show up below!

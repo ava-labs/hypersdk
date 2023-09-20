@@ -250,7 +250,17 @@ const Trade = () => {
         <FundsCheck />
         <Divider orientation="center">
           Open Orders
-          <Popover content={"TODO: explanation"}>
+          <Popover content={
+            <div>
+              On TokenNet, anyone can trade the tokens they own.
+              <br />
+              <br />
+              Once you create an order (i.e. offer to buy/sell some token), it will show up below!
+              <br />
+              <br />
+              When closing an order, all unsold funds will return to you.
+            </div>
+          }>
             {" "}
             <InfoCircleOutlined />
           </Popover>
@@ -297,7 +307,20 @@ const Trade = () => {
         />
         <Divider orientation="center">
           Order Book
-          <Popover content={"TODO: explanation"}>
+          <Popover content={
+            <div>
+              The "Order Book" contains all orders for a given pair of tokens sorted by rate (best to worst).
+              <br />
+              <br />
+              You can fill an order for any pair where you hold the "in" token.
+              <br />
+              <br />
+              Orders on TokenNet are executed as a batch. For each "tick" of the input amount, you receive a "tick" of the output amount.
+              <br />
+              <br />
+              <Text italic>Example: If you created an order of "2 TKN / 5 YOU" (where "YOU" is your token), anyone could pay "2 TKN" to get "5 YOU".</Text>
+            </div>
+          }>
             {" "}
             <InfoCircleOutlined />
           </Popover>
@@ -376,7 +399,20 @@ const Trade = () => {
         title={
           <>
             Create Order
-            <Popover content={"TODO: explanation"}>
+            <Popover content={
+              <div>
+                Orders on TokenNet are executed as a batch. For each "tick" of the input amount, you receive a "tick" of the output amount.
+                <br />
+                <br />
+                When creating an order, the "supply" of tokens you will trade for the "token you buy" is locked.
+                <br />
+                <br />
+                When the order is filled, you will receive the "token you buy" and the counterparty will receive "the token you sell" (what you have).
+                <br />
+                <br />
+                <Text italic>Example: If you created an order of "2 TKN / 5 YOU" (where "YOU" is your token), anyone could pay "2 TKN" to get "5 YOU".</Text>
+              </div>
+            }>
               {" "}
               <InfoCircleOutlined />
             </Popover>
