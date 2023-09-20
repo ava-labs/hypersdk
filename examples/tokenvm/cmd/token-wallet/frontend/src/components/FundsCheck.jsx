@@ -10,7 +10,7 @@ const FundsCheck = () => {
             message="No Funds Available"
             description={
               <div>
-                To interact with the TokenVM, you need some funds in your account.
+                To interact with TokenNet, you need some funds in your account.
                 You can request funds from the <Link to="/faucet">Faucet</Link>.
               </div>
             }

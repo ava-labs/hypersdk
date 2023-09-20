@@ -178,7 +178,20 @@ const Feed = () => {
         <FundsCheck />
         <Divider orientation="center">
           Posts
-          <Popover content={"TODO: explanation"}>
+          <Popover content={
+            <div>
+              Because the fees are slow on TokenNet, it is great for micropayments.
+              <br />
+              <br />
+              This example allows anyone to pay the feed operator to post content for everyone else to see.
+              <br />
+              <br />
+              If the amount of posts goes above the target/5 minutes, the fee to post will increase.
+              <br />
+              <br />
+              You can tip posters with any token you own!
+            </div>
+          }>
             {" "}
             <InfoCircleOutlined />
           </Popover>
@@ -280,7 +293,20 @@ const Feed = () => {
         title={
           <>
             Create Post
-            <Popover content={"TODO: explanation"}>
+            <Popover content={
+              <div>
+                Posts can include both a "message" and a "URL".
+                <br />
+                <br />
+                When posting content, you must pay the "feed fee" to the operator that hosts the feed (will be a HyperSDK Program in the future).
+                <br />
+                <br />
+                The Token Wallet will attempt to preview posted URLs on the feed.
+                <br />
+                <br />
+                The Token Wallet is not able to parse X or Reddit links yet. If you'd like to implement that, please reach out!
+              </div>
+            }>
               {" "}
               <InfoCircleOutlined />
             </Popover>
