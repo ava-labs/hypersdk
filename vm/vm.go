@@ -207,15 +207,13 @@ func (vm *VM) Initialize(
 	rootGenParallelism := math.Max(parallelism/2, 1)
 	merkleRegistry := prometheus.NewRegistry()
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
-		// RootGenConcurrency only limits the number of goroutines
-		// that a single root generation will use, not the number
-		// of goroutines that all root generations will use if called
-		// concurrently.
-		RootGenConcurrency:        rootGenParallelism,
-		EvictionBatchSize:         vm.config.GetStateEvictionBatchSize(),
-		HistoryLength:             vm.config.GetStateHistoryLength(),
-		IntermediateNodeCacheSize: vm.config.GetIntermediateNodeCacheSize(),
-		ValueNodeCacheSize:        vm.config.GetValueNodeCacheSize(),
+		// RootGenConcurrency limits the number of goroutines
+		// that will be used across all concurrent root generations.
+		RootGenConcurrency:        uint(rootGenParallelism),
+		EvictionBatchSize:         uint(vm.config.GetStateEvictionBatchSize()),
+		HistoryLength:             uint(vm.config.GetStateHistoryLength()),
+		IntermediateNodeCacheSize: uint(vm.config.GetIntermediateNodeCacheSize()),
+		ValueNodeCacheSize:        uint(vm.config.GetValueNodeCacheSize()),
 		Reg:                       merkleRegistry,
 		Tracer:                    vm.tracer,
 	})
