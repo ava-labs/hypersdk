@@ -210,8 +210,6 @@ var _ = ginkgo.BeforeSuite(func() {
 		runner_sdk.WithPluginDir(pluginDir),
 		// We don't disable PUT gossip here because the E2E test adds multiple
 		// non-validating nodes (which will fall behind).
-		//
-		// TODO: re-enable profiling
 		runner_sdk.WithGlobalNodeConfig(`{
 				"log-level":"info",
 				"log-display-level":"info",
@@ -229,7 +227,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				"consensus-on-accept-gossip-peer-size":"10",
 				"network-compression-type":"zstd",
 				"consensus-app-concurrency":"512",
-				"profile-continuous-enabled":false,
+				"profile-continuous-enabled":true,
 				"profile-continuous-freq":"1m",
 				"http-host":"",
 				"http-allowed-origins": "*",

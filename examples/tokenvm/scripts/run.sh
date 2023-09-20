@@ -157,12 +157,11 @@ cat <<EOF > ${TMPDIR}/tokenvm.config
   "streamingBacklogSize": 10000000,
   "trackedPairs":["*"],
   "logLevel": "${LOGLEVEL}",
+  "continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
 mkdir -p ${TMPDIR}/tokenvm-e2e-profiles
-
-# Profiling config: {"continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*"}
 
 ############################
 

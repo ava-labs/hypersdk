@@ -150,12 +150,11 @@ cat <<EOF > ${TMPDIR}/morpheusvm.config
   "storeTransactions": ${STORE_TXS},
   "streamingBacklogSize": 10000000,
   "logLevel": "${LOGLEVEL}",
+  "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
 mkdir -p ${TMPDIR}/morpheusvm-e2e-profiles
-
-# Profiling config:  {"continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*"}
 
 ############################
 
