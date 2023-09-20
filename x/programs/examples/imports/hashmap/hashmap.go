@@ -46,7 +46,7 @@ func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link runtime.Link, meter runtime.Meter) error {
+func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Imports) error {
 	if err := link.FuncWrap(Name, "store_bytes", i.storeBytesFn); err != nil {
 		return err
 	}

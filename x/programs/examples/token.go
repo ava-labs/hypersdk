@@ -18,29 +18,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (int64, ed25519.PublicKey, error) {
-	priv, err := ed25519.GeneratePrivateKey()
-	if err != nil {
-		return 0, ed25519.EmptyPublicKey, err
-	}
-
-	pk := priv.PublicKey()
-	ptr, err := runtime.Memory().Alloc(ed25519.PublicKeyLen)
-	if err != nil {
-		return 0, ed25519.EmptyPublicKey, err
-	}
-
-	// write programID to memory which we will later pass to the program.
-	err = runtime.Memory().Write(ptr, pk[:])
-	if err != nil {
-		return 0, ed25519.EmptyPublicKey, err
-	}
-
-	return int64(ptr), pk, err
-}
-
-func NewToken(log logging.Logger, programBytes []byte, cfg *runtime.Config, imports runtime.Imports) *TokenWasmtime {
-	return &TokenWasmtime{
+func NewToken(log logging.Logger, programBytes []byte, cfg *runtime.Config, imports runtime.Imports) *Token {
+	return &Token{
 		log:          log,
 		programBytes: programBytes,
 		cfg:          cfg,
@@ -48,14 +27,14 @@ func NewToken(log logging.Logger, programBytes []byte, cfg *runtime.Config, impo
 	}
 }
 
-type TokenWasmtime struct {
+type Token struct {
 	log          logging.Logger
 	programBytes []byte
 	cfg          *runtime.Config
 	imports      runtime.Imports
 }
 
-func (t *TokenWasmtime) Run(ctx context.Context) error {
+func (t *Token) Run(ctx context.Context) error {
 	rt := runtime.New(t.log, t.cfg, t.imports)
 	err := rt.Initialize(ctx, t.programBytes)
 	if err != nil {
@@ -166,4 +145,25 @@ func (t *TokenWasmtime) Run(ctx context.Context) error {
 	)
 
 	return nil
+}
+
+func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (int64, ed25519.PublicKey, error) {
+	priv, err := ed25519.GeneratePrivateKey()
+	if err != nil {
+		return 0, ed25519.EmptyPublicKey, err
+	}
+
+	pk := priv.PublicKey()
+	ptr, err := runtime.Memory().Alloc(ed25519.PublicKeyLen)
+	if err != nil {
+		return 0, ed25519.EmptyPublicKey, err
+	}
+
+	// write programID to memory which we will later pass to the program.
+	err = runtime.Memory().Write(ptr, pk[:])
+	if err != nil {
+		return 0, ed25519.EmptyPublicKey, err
+	}
+
+	return int64(ptr), pk, err
 }

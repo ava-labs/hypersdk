@@ -1,10 +1,11 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package imports
+package program
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 
 	"go.uber.org/zap"
@@ -37,11 +38,15 @@ func New(log logging.Logger, db state.Immutable) *Import {
 	}
 }
 
-func (i *Import) Register(linker runtime.Link, meter runtime.Meter, imports runtime.Imports) error {
+func (i *Import) Name() string {
+	return Name
+}
+
+func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtime.Imports) error {
 	if i.registered {
 		return fmt.Errorf("import module already registered")
 	}
-	if err := linker.FuncWrap(Name, "invoke_program", i.invokeProgramFn); err != nil {
+	if err := link.FuncWrap(Name, "invoke_program", i.invokeProgramFn); err != nil {
 		return err
 	}
 	i.registered = true
@@ -54,32 +59,16 @@ func (i *Import) Register(linker runtime.Link, meter runtime.Meter, imports runt
 // invokeProgramFn makes a call to an entry function of a program in the context of another program's ID.
 func (i *Import) invokeProgramFn(
 	caller *wasmtime.Caller,
-	programIDPtr,
+	programID int64,
 	functionPtr,
 	functionLen,
 	argsPtr,
-	argsLen uint32,
-	maxUnits uint64,
+	argsLen int32,
+	maxUnits int64,
 ) int64 {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
-
-	programIDBytes, err := memory.Range(uint32(programIDPtr), uint32(ids.IDLen))
-	if err != nil {
-		i.log.Error("failed to read function name from memory",
-			zap.Error(err),
-		)
-		return -1
-	}
-
-	programID, err := ids.ToID(programIDBytes)
-	if err != nil {
-		i.log.Error("failed to create programID",
-			zap.Error(err),
-		)
-		return -1
-	}
 
 	// get the entry function for invoke to call.
 	functionBytes, err := memory.Range(uint32(functionPtr), uint32(functionLen))
@@ -90,7 +79,11 @@ func (i *Import) invokeProgramFn(
 		return -1
 	}
 
-	programWasmBytes, exists, err := storage.GetProgram(i.db, programID)
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, uint64(programID))
+
+	id := ids.ID(buf)
+	programWasmBytes, exists, err := storage.GetProgram(i.db, id)
 	if !exists {
 		i.log.Error("program does not exist")
 	}
@@ -101,10 +94,11 @@ func (i *Import) invokeProgramFn(
 		return -1
 	}
 
+	
 	// spend the maximum number of units allowed for this call
-	i.meter.Spend(maxUnits)
+	i.meter.Spend(uint64(maxUnits))
 
-	cfg, err := runtime.NewConfigBuilder(maxUnits).Build()
+	cfg, err := runtime.NewConfigBuilder(uint64(maxUnits)).Build()
 	if err != nil {
 		i.log.Error("failed to create runtime config",
 			zap.Error(err),
@@ -131,7 +125,7 @@ func (i *Import) invokeProgramFn(
 	}
 
 	// sync args to new runtime and return arguments to the invoke call
-	params, err := getCallArgs(ctx, rt, argsBytes, programIDPtr)
+	params, err := getCallArgs(ctx, rt, argsBytes, programID)
 	if err != nil {
 		i.log.Error("failed to unmarshal call arguments",
 			zap.Error(err),
@@ -164,7 +158,7 @@ func (i *Import) invokeProgramFn(
 	return int64(res[0])
 }
 
-func getCallArgs(ctx context.Context, rt runtime.Runtime, buffer []byte, invokeProgramID uint32) ([]interface{}, error) {
+func getCallArgs(ctx context.Context, rt runtime.Runtime, buffer []byte, invokeProgramID int64) ([]interface{}, error) {
 	// first arg contains id of program to call
 	args := []interface{}{invokeProgramID}
 	p := codec.NewReader(buffer, len(buffer))

@@ -123,7 +123,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) (err erro
 		r.log.Debug("registering host functions for module",
 			zap.String("name", imp),
 		)
-		err = mod.Register(link, r.meter)
+		err = mod.Register(link, r.meter, r.imports)
 		if err != nil {
 			return err
 		}
