@@ -5,4 +5,10 @@ package runtime
 
 import "errors"
 
-var ErrMissingExportedFunction = errors.New("failed to find exported function")
+var (
+	ErrMissingExportedFunction      = errors.New("failed to find exported function")
+	ErrMissingImportModule          = errors.New("failed to find import module")
+	ErrMissingInvalidMemoryFunction = errors.New("memory function is invalid")
+	ErrInvalidMemorySize            = errors.New("invalid memory size")
+	ErrInvalidMemoryAddress         = errors.New("invalid memory address: must be positive")
+)
