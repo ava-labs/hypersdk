@@ -7,10 +7,11 @@ const FundsCheck = () => {
       {!window.HasBalance && (
         <div style={{ margin: "0 0 8px 0" }}>
           <Alert
-            message="No Funds"
+            message="No Funds Available"
             description={
               <div>
-                TODO....go to <Link to="/faucet">Faucet</Link>
+                To interact with the TokenVM, you need some funds in your account.
+                You can request funds from the <Link to="/faucet">Faucet</Link>.
               </div>
             }
             type="warning"

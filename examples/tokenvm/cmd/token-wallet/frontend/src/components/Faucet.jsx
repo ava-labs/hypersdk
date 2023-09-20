@@ -63,24 +63,27 @@ const Faucet = () => {
       <div style={{ width: "60%", margin: "auto" }}>
         <Card
           bordered
-          title={
-            <>
-              Search for Tokens
-              <Popover content={"TODO: explanation"}>
-                {" "}
-                <InfoCircleOutlined />
-              </Popover>
-            </>
-          }>
+          title={"Request Tokens"}>
           {loaded && search === null && (
             <div>
-              <Text italic>TODO: populate this</Text>
+              <Text>
+                To protect against bots, the TokenVM requires anyone requesting funds
+                to solve a Proof-of-Work puzzle. This takes most modern computers 30-60
+                seconds.
+              </Text>
+              <br />
+              <br />
+              <Text>
+                While your computer is working on this puzzle, you can browse other parts
+                of Token Wallet. You will receive a notifcation when your computer solved
+                a puzzle and received funds.
+              </Text>
               <br />
               <Button
                 type="primary"
                 style={{ margin: "8px 0%" }}
                 onClick={startSearch}>
-                Start
+                Request
               </Button>
             </div>
           )}
@@ -96,8 +99,15 @@ const Faucet = () => {
                   }}
                 />
                 <br />
+                <Text>
+                  <center>
+                    Search Running...
+                  </center>
+                </Text>
                 <Text italic>
-                  search running (you can leave this page and come back)
+                  <center>
+                    (You can leave this page and come back!)
+                  </center>
                 </Text>
               </div>
               <br />
@@ -115,11 +125,7 @@ const Faucet = () => {
         </Card>
 
         <Divider orientation="center">
-          Previous Solutions
-          <Popover content={"TODO: explanation"}>
-            {" "}
-            <InfoCircleOutlined />
-          </Popover>
+          Previous Requests
         </Divider>
         <List
           bordered
