@@ -44,7 +44,7 @@ type runtime struct {
 	log logging.Logger
 }
 
-func (r *runtime) Initialize(ctx context.Context, programBytes ProgramBytes) (err error) {
+func (r *runtime) Initialize(ctx context.Context, programBytes []byte) (err error) {
 	ctx, r.cancelFn = context.WithCancel(ctx)
 	go func(ctx context.Context) {
 		<-ctx.Done()
@@ -199,4 +199,18 @@ func (r *runtime) Stop() {
 		r.store.Engine.IncrementEpoch()
 		r.cancelFn()
 	})
+}
+
+// PreCompileWasm returns a precompiled wasm module.
+//
+// Note: these bytes can be deserialized by an `Engine` that has the same version.
+// For that reason precompiled wasm modules should not be stored on chain.
+func PreCompileWasm(programBytes []byte) ([]byte, error) {
+	engine := wasmtime.NewEngine()
+	module, err := wasmtime.NewModule(engine, programBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return module.Serialize()
 }

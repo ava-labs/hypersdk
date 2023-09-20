@@ -9,8 +9,6 @@ import (
 	"github.com/bytecodealliance/wasmtime-go/v12"
 )
 
-type ProgramBytes []byte
-
 type EngineCompileStrategy uint8
 
 const (
@@ -30,7 +28,7 @@ type Runtime interface {
 	// Initialize initializes the runtime with the given program bytes. The engine will
 	// handle the compile strategy and instantiate the module with the given imports.
 	// Initialize should only be called once.
-	Initialize(context.Context, ProgramBytes) error
+	Initialize(context.Context, []byte) error
 	// Call invokes the an exported guest function with the given parameters.
 	Call(context.Context, string, ...interface{}) ([]uint64, error)
 	// Memory returns the runtime memory.
