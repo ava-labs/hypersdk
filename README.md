@@ -991,7 +991,7 @@ _This is a collection of posts from the community about the `hypersdk` and how t
 ## HyperSDK Projects 👀
 This is a gallery of community projects currently building on top of the HyperSDK
 
-* [NodeKit: Decentralizing The L2 Sequunecer on a Subnet](https://nodekit.gitbook.io/nodekit-documentation/)
+* [NodeKit: Decentralizing The L2 Sequencer on a Subnet](https://nodekit.gitbook.io/nodekit-documentation/)
 * [OracleVM: Providing OffChain Data to the Avalanche Ecosystem](https://github.com/bianyuanop/oraclevm)
 * [ShuttleVM: Trusted Execution Environment for Wasm Programs to run distributed workloads on a subnet]
 
