@@ -989,7 +989,7 @@ _This is a collection of posts from the community about the `hypersdk` and how t
 * [Avalanche VMs deep-dive #1: HyperSDK/tokenvm](https://ashavax.hashnode.dev/avalanche-vms-deep-dive-1-hypersdktokenvm)
 
 ## HyperSDK Projects 👀
-_This is a gallery of projects currently building on top of the HyperSDK
+This is a gallery of community projects currently building on top of the HyperSDK
 
 * [NodeKit: Decentralizing The L2 Sequunecer on a Subnet](https://nodekit.gitbook.io/nodekit-documentation/)
 * [OracleVM: Providing OffChain Data to the Avalanche Ecosystem](https://github.com/bianyuanop/oraclevm)
