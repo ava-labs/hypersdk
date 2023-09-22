@@ -993,7 +993,7 @@ This is a gallery of community projects currently building on top of the HyperSD
 
 * [NodeKit: Decentralizing The L2 Sequencer on a Subnet]()
 * [OracleVM: Providing OffChain Data to the Avalanche Ecosystem]()
-* [ShuttleVM: Trusted Execution Environment for Wasm Programs to run distributed workloads on a subnet]
+* [ShuttleVM: Trusted Execution Environment for Wasm Programs to run distributed workloads on a subnet]()
 
 
 
