@@ -30,7 +30,7 @@ type Runtime interface {
 	// Initialize should only be called once.
 	Initialize(context.Context, []byte) error
 	// Call invokes the an exported guest function with the given parameters.
-	Call(context.Context, string, ...interface{}) ([]uint64, error)
+	Call(context.Context, string, ...uint64) ([]uint64, error)
 	// Memory returns the runtime memory.
 	Memory() Memory
 	// Meter returns the runtime meter.
@@ -62,13 +62,13 @@ type Import interface {
 
 // Memory defines the interface for interacting with memory.
 type Memory interface {
-	// Range returns a slice of data from a specified offset.
-	Range(uint32, uint32) ([]byte, error)
+	// Range returns an owned slice of data from a specified offset.
+	Range(uint64, uint64) ([]byte, error)
 	// Alloc allocates a block of memory and returns a pointer
 	// (offset) to its location on the stack.
-	Alloc(uint32) (uint32, error)
+	Alloc(uint64) (uint64, error)
 	// Write writes the given data to the memory at the given offset.
-	Write(uint32, []byte) error
+	Write(uint64, []byte) error
 	// Len returns the length of this memory in bytes.
 	Len() (uint64, error)
 	// Grow increases the size of the memory pages by delta.
@@ -76,10 +76,13 @@ type Memory interface {
 }
 
 type Meter interface {
-	// GetBalance returns the balance of the meters units remaining.
+	// GetBalance returns the balance of the meter's units remaining.
 	GetBalance() uint64
 	// Spend attempts to spend the given amount of units. If the meter has
 	Spend(uint64) (uint64, error)
-	// AddUnits add units back to the meters balance.
-	AddUnits(uint64) error
+	// AddUnits add units back to the meters and returns the new balance.
+	AddUnits(uint64) (uint64, error)
+	// TransferUnits transfers units from this meter to the given meter, returns
+	// the new balance of this meter.
+	TransferUnits(to Meter, units uint64) (uint64, error)
 }

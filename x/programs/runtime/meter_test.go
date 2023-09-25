@@ -55,11 +55,8 @@ func TestMetering(t *testing.T) {
 	(type (;0;) (func (result i32)))
 	(export "get_guest" (func 0))
 	(func (;0;) (type 0) (result i32)
-		;; initialize a local i32 variable
 		(local i32)
-		;; define as 1
 		i32.const 1
-		;; return result
 	  )
 	)
 	`)
@@ -79,4 +76,44 @@ func TestMetering(t *testing.T) {
 		require.NoError(err)
 	}
 	require.Equal(runtime.Meter().GetBalance(), uint64(0))
+}
+
+func TestMeterAfterStop(t *testing.T) {
+	require := require.New(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	//example has 2 ops codes and should cost 2 units
+	wasm, err := wasmtime.Wat2Wasm(`
+	(module $test
+	(type (;0;) (func (result i32)))
+	(export "get_guest" (func 0))
+	(func (;0;) (type 0) (result i32)
+		(local i32)
+		i32.const 1
+	  )
+	) 
+	`)
+	require.NoError(err)
+	maxUnits := uint64(20)
+	cfg, err := NewConfigBuilder(maxUnits).
+		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
+		Build()
+	require.NoError(err)
+	runtime := New(logging.NoLog{}, cfg, NoImports)
+	err = runtime.Initialize(ctx, wasm)
+	require.NoError(err)
+
+	// spend 2 units
+	_, err = runtime.Call(ctx, "get")
+	require.NoError(err)
+	// stop engine
+	runtime.Stop()
+	_, err = runtime.Call(ctx, "get")
+	var trap *wasmtime.Trap
+	require.ErrorAs(err, &trap)
+	// ensure meter is still operational
+	require.Equal(runtime.Meter().GetBalance(), maxUnits-2)
+	runtime.Meter().AddUnits(2)
+	require.Equal(runtime.Meter().GetBalance(), maxUnits)
 }

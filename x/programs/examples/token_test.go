@@ -13,7 +13,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/ava-labs/hypersdk/x/programs/examples/imports/hashmap"
+	"github.com/ava-labs/hypersdk/x/programs/examples/imports/store"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
@@ -31,35 +31,29 @@ var (
 		))
 )
 
-// go test -v -timeout 30s -run ^TestTokenWazeroProgram$ github.com/ava-labs/hypersdk/x/programs/examples
+// go test -v -timeout 30s -run ^TestTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples
 func TestTokenProgram(t *testing.T) {
 	require := require.New(t)
-	maxUnits := uint64(40000)
 	db := utils.NewTestDB()
-
+	maxUnits := uint64(50000)
 	// define imports
 	imports := make(runtime.Imports)
-	imports["map"] = hashmap.New(log, db)
+	imports["store"] = store.New(log, db)
 
 	cfg, err := runtime.NewConfigBuilder(maxUnits).
 		WithBulkMemory(true).
 		WithLimitMaxMemory(17 * 64 * units.KiB). // 17 pages
 		Build()
 	require.NoError(err)
-	program := NewToken(log, tokenProgramBytes, cfg, imports)
+	program := NewToken(log, tokenProgramBytes, db, cfg, imports)
 	err = program.Run(context.Background())
 	require.NoError(err)
 }
 
 // go test -v -benchmem -run=^$ -bench ^BenchmarkTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
-func BenchmarkTokenWazeroProgram(b *testing.B) {
+func BenchmarkTokenProgram(b *testing.B) {
 	require := require.New(b)
 	maxUnits := uint64(40000)
-	db := utils.NewTestDB()
-
-	// define imports
-	imports := make(runtime.Imports)
-	imports["map"] = hashmap.New(log, db)
 
 	b.Run("benchmark_token_program_compile_and_cache", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
@@ -71,8 +65,14 @@ func BenchmarkTokenWazeroProgram(b *testing.B) {
 				WithDefaultCache(true).
 				Build()
 			require.NoError(err)
-			program := NewToken(log, tokenProgramBytes, cfg, imports)
+			db := utils.NewTestDB()
+
+			// define imports
+			imports := make(runtime.Imports)
+			imports["store"] = store.New(log, db)
+			program := NewToken(log, tokenProgramBytes, db, cfg, imports)
 			b.StartTimer()
+
 			err = program.Run(context.Background())
 			require.NoError(err)
 		}
@@ -83,7 +83,7 @@ func BenchmarkTokenWazeroProgram(b *testing.B) {
 		WithLimitMaxMemory(17 * 64 * units.KiB). // 17 pages
 		Build()
 	require.NoError(err)
-	preCompiledTokenProgramBytes, err := runtime.PreCompileWasm(tokenProgramBytes, cfg)
+	preCompiledTokenProgramBytes, err := runtime.PreCompileWasmBytes(tokenProgramBytes, cfg)
 	require.NoError(err)
 
 	b.ResetTimer()
@@ -96,8 +96,16 @@ func BenchmarkTokenWazeroProgram(b *testing.B) {
 				WithCompileStrategy(runtime.PrecompiledWasm).
 				Build()
 			require.NoError(err)
-			program := NewToken(log, preCompiledTokenProgramBytes, cfg, imports)
+
+			// setup db
+			db := utils.NewTestDB()
+
+			// define imports
+			imports := make(runtime.Imports)
+			imports["store"] = store.New(log, db)
+			program := NewToken(log, preCompiledTokenProgramBytes, db, cfg, imports)
 			b.StartTimer()
+
 			err = program.Run(context.Background())
 			require.NoError(err)
 		}

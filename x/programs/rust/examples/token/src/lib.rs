@@ -13,6 +13,27 @@ enum StateKey {
     Balance(Address),
 }
 
+#[derive(Debug, Clone)]
+#[repr(u8)]
+pub enum Storage {
+    Balance(Address),
+    TotalSupply,
+}
+
+impl Storage {
+    pub fn to_vec(self) -> Vec<u8> {
+        match self {
+            Storage::Balance(a) => {
+                let mut bytes = Vec::with_capacity(1 + 32);
+                bytes.push(0u8);
+                bytes.extend_from_slice(a.as_bytes());
+                bytes
+            },
+            Storage::TotalSupply => vec![1u8],
+        }
+    }
+}
+
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
 pub fn init(program: Program) -> bool {

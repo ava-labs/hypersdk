@@ -35,20 +35,27 @@ var (
 	}
 )
 
+func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
+	k = make([]byte, consts.IDLen+1+len(key))
+	k[0] = programPrefix
+	copy(k, id[:])
+	copy(k[consts.IDLen:], (key[:]))
+	return
+}
+
 //
 // Program
 //
 
 func ProgramKey(id ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen)
-	// convert uint64 to bytes
-	k[0] = programPrefix
 	copy(k[1:], id[:])
 	return
 }
 
 // [programID] -> [programBytes]
 func GetProgram(
+	ctx context.Context,
 	db state.Immutable,
 	programID ids.ID,
 ) (
@@ -57,8 +64,6 @@ func GetProgram(
 	error,
 ) {
 	k := ProgramKey(programID)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	v, err := db.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, false, nil
@@ -71,27 +76,25 @@ func GetProgram(
 
 // SetProgram stores [program] at [programID]
 func SetProgram(
-	db database.KeyValueWriter,
+	ctx context.Context,
+	mu state.Mutable,
 	programID ids.ID,
 	program []byte,
 ) error {
 	k := ProgramKey(programID)
-	v := make([]byte, len(program))
-	copy(v, program)
-	return db.Put(k, v)
+	return mu.Insert(ctx, k, program)
 }
 
 //
 // Balance
 //
 
-// [accountPrefix] + [address] + [asset]
-func BalanceKey(pk ed25519.PublicKey, asset ids.ID) (k []byte) {
+// [balancePrefix] + [address]
+func BalanceKey(pk ed25519.PublicKey) (k []byte) {
 	k = balanceKeyPool.Get().([]byte)
 	k[0] = balancePrefix
 	copy(k[1:], pk[:])
-	copy(k[1+ed25519.PublicKeyLen:], asset[:])
-	binary.BigEndian.PutUint16(k[1+ed25519.PublicKeyLen+consts.IDLen:], BalanceChunks)
+	binary.BigEndian.PutUint16(k[1+ed25519.PublicKeyLen:], BalanceChunks)
 	return
 }
 
@@ -100,9 +103,8 @@ func GetBalance(
 	ctx context.Context,
 	im state.Immutable,
 	pk ed25519.PublicKey,
-	asset ids.ID,
 ) (uint64, error) {
-	key, bal, _, err := getBalance(ctx, im, pk, asset)
+	key, bal, _, err := getBalance(ctx, im, pk)
 	balanceKeyPool.Put(key)
 	return bal, err
 }
@@ -111,9 +113,8 @@ func getBalance(
 	ctx context.Context,
 	im state.Immutable,
 	pk ed25519.PublicKey,
-	asset ids.ID,
 ) ([]byte, uint64, bool, error) {
-	k := BalanceKey(pk, asset)
+	k := BalanceKey(pk)
 	bal, exists, err := innerGetBalance(im.GetValue(ctx, k))
 	return k, bal, exists, err
 }
@@ -135,10 +136,9 @@ func SetBalance(
 	ctx context.Context,
 	mu state.Mutable,
 	pk ed25519.PublicKey,
-	asset ids.ID,
 	balance uint64,
 ) error {
-	k := BalanceKey(pk, asset)
+	k := BalanceKey(pk)
 	return setBalance(ctx, mu, k, balance)
 }
 
@@ -151,24 +151,14 @@ func setBalance(
 	return mu.Insert(ctx, key, binary.BigEndian.AppendUint64(nil, balance))
 }
 
-func DeleteBalance(
-	ctx context.Context,
-	mu state.Mutable,
-	pk ed25519.PublicKey,
-	asset ids.ID,
-) error {
-	return mu.Remove(ctx, BalanceKey(pk, asset))
-}
-
 func AddBalance(
 	ctx context.Context,
 	mu state.Mutable,
 	pk ed25519.PublicKey,
-	asset ids.ID,
 	amount uint64,
 	create bool,
 ) error {
-	key, bal, exists, err := getBalance(ctx, mu, pk, asset)
+	key, bal, exists, err := getBalance(ctx, mu, pk)
 	if err != nil {
 		return err
 	}
@@ -180,9 +170,8 @@ func AddBalance(
 	nbal, err := smath.Add64(bal, amount)
 	if err != nil {
 		return fmt.Errorf(
-			"%w: could not add balance (asset=%s, bal=%d, addr=%s, amount=%d)",
+			"%w: could not add balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
-			asset,
 			bal,
 			ed25519.Address(HRP, pk),
 			amount,
@@ -195,19 +184,17 @@ func SubBalance(
 	ctx context.Context,
 	mu state.Mutable,
 	pk ed25519.PublicKey,
-	asset ids.ID,
 	amount uint64,
 ) error {
-	key, bal, _, err := getBalance(ctx, mu, pk, asset)
+	key, bal, _, err := getBalance(ctx, mu, pk)
 	if err != nil {
 		return err
 	}
 	nbal, err := smath.Sub(bal, amount)
 	if err != nil {
 		return fmt.Errorf(
-			"%w: could not subtract balance (asset=%s, bal=%d, addr=%v, amount=%d)",
+			"%w: could not subtract balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
-			asset,
 			bal,
 			ed25519.Address(HRP, pk),
 			amount,

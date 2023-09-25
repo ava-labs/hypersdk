@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/examples/auth"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
@@ -42,7 +43,7 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Impo
 	if err := link.FuncWrap(Name, "add", i.addFn); err != nil {
 		return err
 	}
-	if err := link.FuncWrap(Name, "subtract", i.subFn); err != nil {
+	if err := link.FuncWrap(Name, "subtract", i.subtractFn); err != nil {
 		return err
 	}
 	if err := link.FuncWrap(Name, "delete", i.delFn); err != nil {
@@ -54,7 +55,7 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Impo
 	return nil
 }
 
-func (i *Import) getFn(caller *wasmtime.Caller, assetPtr, keyPtr int32) int32 {
+func (i *Import) getFn(caller *wasmtime.Caller, assetPtr int64, keyPtr int32) int32 {
 	pk, err := runtime.PublicKeyFromOffset(caller, storage.HRP, keyPtr)
 	if err != nil {
 		i.log.Error("failed to read key from memory",
@@ -62,6 +63,7 @@ func (i *Import) getFn(caller *wasmtime.Caller, assetPtr, keyPtr int32) int32 {
 		)
 		return -1
 	}
+
 	assetID, err := runtime.IDFromOffset(caller, assetPtr)
 	if err != nil {
 		i.log.Error("failed to read assetID from memory",
@@ -73,7 +75,7 @@ func (i *Import) getFn(caller *wasmtime.Caller, assetPtr, keyPtr int32) int32 {
 	// TODO: add cost for state access?
 	// i.meter.Spend(BalanceCost)
 
-	balance, err := storage.GetBalance(context.Background(), i.mu, pk, assetID)
+	balance, err := storage.GetBalance(context.Background(), i.mu, pk)
 	if err != nil {
 		i.log.Error("failed to get balance",
 			zap.Error(err),
@@ -84,7 +86,7 @@ func (i *Import) getFn(caller *wasmtime.Caller, assetPtr, keyPtr int32) int32 {
 	return int32(balance)
 }
 
-func (i *Import) setFn(caller *wasmtime.Caller, assetPtr, keyPtr, balance int32) int32 {
+func (i *Import) setFn(caller *wasmtime.Caller, assetPtr int64, keyPtr, balance int32) int32 {
 	pk, err := runtime.PublicKeyFromOffset(caller, storage.HRP, keyPtr)
 	if err != nil {
 		i.log.Error("failed to read key from memory",
@@ -114,7 +116,7 @@ func (i *Import) setFn(caller *wasmtime.Caller, assetPtr, keyPtr, balance int32)
 	return 0
 }
 
-func (i *Import) addFn(caller *wasmtime.Caller, assetPtr, keyPtr, amount int32) int32 {
+func (i *Import) addFn(caller *wasmtime.Caller, assetPtr int64, keyPtr, amount int32) int32 {
 	pk, err := runtime.PublicKeyFromOffset(caller, storage.HRP, keyPtr)
 	if err != nil {
 		i.log.Error("failed to read key from memory",
@@ -144,7 +146,7 @@ func (i *Import) addFn(caller *wasmtime.Caller, assetPtr, keyPtr, amount int32) 
 	return 0
 }
 
-func (i *Import) subFn(caller *wasmtime.Caller, assetPtr, keyPtr, amount int32) int32 {
+func (i *Import) subtractFn(caller *wasmtime.Caller, assetPtr int64, keyPtr, amount int32) int32 {
 	pk, err := runtime.PublicKeyFromOffset(caller, storage.HRP, keyPtr)
 	if err != nil {
 		i.log.Error("failed to read key from memory",
@@ -174,7 +176,7 @@ func (i *Import) subFn(caller *wasmtime.Caller, assetPtr, keyPtr, amount int32) 
 	return 0
 }
 
-func (i *Import) delFn(caller *wasmtime.Caller, assetPtr, keyPtr int32) int32 {
+func (i *Import) delFn(caller *wasmtime.Caller, assetPtr int64, keyPtr int32) int32 {
 	pk, err := runtime.PublicKeyFromOffset(caller, storage.HRP, keyPtr)
 	if err != nil {
 		i.log.Error("failed to read key from memory",

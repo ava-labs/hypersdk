@@ -18,7 +18,11 @@ cargo build --target wasm32-unknown-unknown --target-dir $CARGO_TARGET_DIR --rel
 ./scripts/build.sh
 ```
 
-## Serialization Between Host and Program
+## Storage
+
+Memory in WebAssembly is a linear buffer of unsigned bytes that can read and written to by the guest or host. 
+
+## Serialization Between Host(Go) & Guest(Rust)
 
 Just a couple things to note. Serialization is minimal, yet there are certain
 aspects in the code that need to follow a specific format. Specifically, there

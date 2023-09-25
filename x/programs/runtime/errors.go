@@ -11,4 +11,7 @@ var (
 	ErrMissingInvalidMemoryFunction = errors.New("memory function is invalid")
 	ErrInvalidMemorySize            = errors.New("invalid memory size")
 	ErrInvalidMemoryAddress         = errors.New("invalid memory address: must be positive")
+	ErrInvalidParamCount            = errors.New("invalid parameter count")
+	ErrInvalidParamType             = errors.New("invalid parameter type")
+	ErrInsufficientUnits            = errors.New("insufficient units")
 )

@@ -5,25 +5,26 @@ package examples
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
+
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/x/programs/examples/imports/hashmap"
+	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
-
-	"go.uber.org/zap"
 )
 
-func NewToken(log logging.Logger, programBytes []byte, cfg *runtime.Config, imports runtime.Imports) *Token {
+func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports runtime.Imports) *Token {
 	return &Token{
 		log:          log,
 		programBytes: programBytes,
 		cfg:          cfg,
 		imports:      imports,
+		db:           db,
 	}
 }
 
@@ -32,6 +33,7 @@ type Token struct {
 	programBytes []byte
 	cfg          *runtime.Config
 	imports      runtime.Imports
+	db           state.Mutable
 }
 
 func (t *Token) Run(ctx context.Context) error {
@@ -41,22 +43,33 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	t.log.Debug("unit",
+	t.log.Debug("initial meter",
 		zap.Uint64("balance", rt.Meter().GetBalance()),
 	)
 
 	// simulate create program transaction
-	txID := ids.GenerateTestID()
-	programID := int64(binary.BigEndian.Uint64(txID[:]))
-	hashmap.AddProgramID(programID)
+	programID := ids.GenerateTestID()
+	err = storage.SetProgram(ctx, t.db, programID, t.programBytes)
+	if err != nil {
+		return err
+	}
+
+	programIDPtr, err := runtime.WriteBytes(rt.Memory(), programID[:])
+	if err != nil {
+		return err
+	}
+
+	t.log.Debug("new token program created",
+		zap.String("id", programID.String()),
+	)
 
 	// initialize program
-	_, err = rt.Call(ctx, "init", programID)
+	_, err = rt.Call(ctx, "init", programIDPtr)
 	if err != nil {
 		return fmt.Errorf("failed to initialize program: %w", err)
 	}
 
-	result, err := rt.Call(ctx, "get_total_supply", programID)
+	result, err := rt.Call(ctx, "get_total_supply", programIDPtr)
 	if err != nil {
 		return err
 	}
@@ -77,7 +90,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// check balance of alice
-	result, err = rt.Call(ctx, "get_balance", programID, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -86,59 +99,68 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// mint 100 tokens to alice
-	mintAlice := int64(100)
-	_, err = rt.Call(ctx, "mint_to", programID, alicePtr, mintAlice)
+	mintAlice := uint64(1000)
+	_, err = rt.Call(ctx, "mint_to", programIDPtr, alicePtr, mintAlice)
 	if err != nil {
 		return err
 	}
 	t.log.Debug("minted",
-		zap.Int64("alice", mintAlice),
+		zap.Uint64("alice", mintAlice),
 	)
 
 	// check balance of alice
-	result, err = rt.Call(ctx, "get_balance", programID, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
 	if err != nil {
 		return err
 	}
 	t.log.Debug("balance",
-		zap.Int64("alice", int64(result[0])),
+		zap.Uint64("alice", result[0]),
 	)
 
 	// check balance of bob
-	result, err = rt.Call(ctx, "get_balance", programID, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
 	if err != nil {
 		return err
 	}
 	t.log.Debug("balance",
-		zap.Int64("bob", int64(result[0])),
+		zap.Uint64("bob", result[0]),
 	)
 
 	// transfer 50 from alice to bob
-	transferToBob := int64(50)
-	_, err = rt.Call(ctx, "transfer", programID, alicePtr, bobPtr, transferToBob)
+	transferToBob := uint64(50)
+	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, transferToBob)
 	if err != nil {
 		return err
 	}
 	t.log.Debug("transferred",
-		zap.Int64("alice", transferToBob),
-		zap.Int64("to bob", transferToBob),
+		zap.Uint64("alice", transferToBob),
+		zap.Uint64("to bob", transferToBob),
+	)
+
+	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, 1)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("transferred",
+		zap.Uint64("alice", transferToBob),
+		zap.Uint64("to bob", transferToBob),
 	)
 
 	// get balance alice
-	result, err = rt.Call(ctx, "get_balance", programID, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
 	if err != nil {
 		return err
 	}
 	t.log.Debug("balance",
-		zap.Int64("alice", int64(result[0])),
+		zap.Uint64("alice", result[0]),
 	)
 
 	// get balance bob
-	result, err = rt.Call(ctx, "get_balance", programID, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance", zap.Int64("bob", int64(result[0])))
+	t.log.Debug("balance", zap.Uint64("bob", result[0]))
 
 	t.log.Debug("remaining balance",
 		zap.Uint64("unit", rt.Meter().GetBalance()),
@@ -147,7 +169,7 @@ func (t *Token) Run(ctx context.Context) error {
 	return nil
 }
 
-func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (int64, ed25519.PublicKey, error) {
+func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (uint64, ed25519.PublicKey, error) {
 	priv, err := ed25519.GeneratePrivateKey()
 	if err != nil {
 		return 0, ed25519.EmptyPublicKey, err
@@ -159,11 +181,11 @@ func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (int64, ed25519.Pub
 		return 0, ed25519.EmptyPublicKey, err
 	}
 
-	// write programID to memory which we will later pass to the program.
+	// write programID to memory which we will later pass to the program
 	err = runtime.Memory().Write(ptr, pk[:])
 	if err != nil {
 		return 0, ed25519.EmptyPublicKey, err
 	}
 
-	return int64(ptr), pk, err
+	return ptr, pk, err
 }

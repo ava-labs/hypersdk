@@ -5,7 +5,6 @@ package program
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 
 	"go.uber.org/zap"
@@ -59,19 +58,20 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtim
 // invokeProgramFn makes a call to an entry function of a program in the context of another program's ID.
 func (i *Import) invokeProgramFn(
 	caller *wasmtime.Caller,
-	programID int64,
+	callerIDPtr int64,
+	programIDPtr int64,
+	maxUnits int64,
 	functionPtr,
 	functionLen,
 	argsPtr,
 	argsLen int32,
-	maxUnits int64,
 ) int64 {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 
 	// get the entry function for invoke to call.
-	functionBytes, err := memory.Range(uint32(functionPtr), uint32(functionLen))
+	functionBytes, err := memory.Range(uint64(functionPtr), uint64(functionLen))
 	if err != nil {
 		i.log.Error("failed to read function name from memory",
 			zap.Error(err),
@@ -79,26 +79,28 @@ func (i *Import) invokeProgramFn(
 		return -1
 	}
 
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, uint64(programID))
-
-	id := ids.ID(buf)
-	programWasmBytes, exists, err := storage.GetProgram(i.db, id)
-	if !exists {
-		i.log.Error("program does not exist")
-	}
+	programIDBytes, err := memory.Range(uint64(programIDPtr), uint64(ids.IDLen))
 	if err != nil {
-		i.log.Error("failed to get program from storage",
+		i.log.Error("failed to read id from memory",
 			zap.Error(err),
 		)
 		return -1
 	}
 
-	
-	// spend the maximum number of units allowed for this call
-	i.meter.Spend(uint64(maxUnits))
+	// get the program bytes from storage
+	programWasmBytes, err := getProgramWasmBytes(i.log, i.db, programIDBytes)
+	if err != nil {
+		i.log.Error("failed to get program bytes from storage",
+			zap.Error(err),
+		)
+		return -1
+	}
 
-	cfg, err := runtime.NewConfigBuilder(uint64(maxUnits)).Build()
+	// initialize a new runtime config with zero balance
+	cfg, err := runtime.NewConfigBuilder(runtime.NoUnits).
+		WithBulkMemory(true).
+		WithLimitMaxMemory(17 * runtime.MemoryPageSize). // 17 pages
+		Build()
 	if err != nil {
 		i.log.Error("failed to create runtime config",
 			zap.Error(err),
@@ -116,7 +118,27 @@ func (i *Import) invokeProgramFn(
 		return -1
 	}
 
-	argsBytes, err := memory.Range(uint32(argsPtr), uint32(argsLen))
+	// transfer the units from the caller to the new runtime before any calls are made.
+	_, err = i.meter.TransferUnits(rt.Meter(), uint64(maxUnits))
+	if err != nil {
+		i.log.Error("failed to transfer units",
+			zap.Uint64("balance", i.meter.GetBalance()),
+			zap.Int64("required", maxUnits),
+			zap.Error(err),
+		)
+		return -1
+	}
+
+	// write the program id to the new runtime memory
+	ptr, err := runtime.WriteBytes(rt.Memory(), programIDBytes)
+	if err != nil {
+		i.log.Error("failed to write program id to memory",
+			zap.Error(err),
+		)
+		return -1
+	}
+
+	argsBytes, err := memory.Range(uint64(argsPtr), uint64(argsLen))
 	if err != nil {
 		i.log.Error("failed to read program args name from memory",
 			zap.Error(err),
@@ -125,12 +147,16 @@ func (i *Import) invokeProgramFn(
 	}
 
 	// sync args to new runtime and return arguments to the invoke call
-	params, err := getCallArgs(ctx, rt, argsBytes, programID)
+	params, err := getCallArgs(ctx, rt, argsBytes, ptr)
 	if err != nil {
 		i.log.Error("failed to unmarshal call arguments",
 			zap.Error(err),
 		)
 		return -1
+	}
+
+	for _, param := range params {
+		i.log.Debug("param", zap.Uint64("param", param))
 	}
 
 	function := string(functionBytes)
@@ -142,44 +168,64 @@ func (i *Import) invokeProgramFn(
 		return -1
 	}
 
-	// spend the remaining balance
-	balance := rt.Meter().GetBalance()
-	_, err = rt.Meter().Spend(balance)
+	// stop the runtime to prevent further execution
+	rt.Stop()
+
+	_, err = rt.Meter().TransferUnits(i.meter, rt.Meter().GetBalance())
 	if err != nil {
-		i.log.Error("failed to spend balance",
+		i.log.Error("failed to transfer remaining balance to caller",
 			zap.Error(err),
 		)
 		return -1
 	}
 
-	// return balance to parent runtime
-	i.meter.AddUnits(balance)
-
 	return int64(res[0])
 }
 
-func getCallArgs(ctx context.Context, rt runtime.Runtime, buffer []byte, invokeProgramID int64) ([]interface{}, error) {
+func getCallArgs(ctx context.Context, rt runtime.Runtime, buffer []byte, invokeProgramID uint64) ([]uint64, error) {
 	// first arg contains id of program to call
-	args := []interface{}{invokeProgramID}
+	args := []uint64{invokeProgramID}
 	p := codec.NewReader(buffer, len(buffer))
+	i := 0
 	for !p.Empty() {
 		size := p.UnpackInt64(true)
 		isInt := p.UnpackBool()
 		if isInt {
 			valueInt := p.UnpackUint64(true)
 			args = append(args, valueInt)
+			fmt.Printf("valueBytes: %d: %v\n", i, valueInt)
 		} else {
 			valueBytes := make([]byte, size)
 			p.UnpackFixedBytes(int(size), &valueBytes)
+			fmt.Printf("valueBytes: %d: %v\n", i, valueBytes)
 			ptr, err := runtime.WriteBytes(rt.Memory(), valueBytes)
 			if err != nil {
 				return nil, err
 			}
 			args = append(args, ptr)
 		}
+		i++
 	}
 	if p.Err() != nil {
 		return nil, fmt.Errorf("failed to unpack arguments: %w", p.Err())
 	}
 	return args, nil
+}
+
+func getProgramWasmBytes(log logging.Logger, db state.Immutable, idBytes []byte) ([]byte, error) {
+	id, err := ids.ToID(idBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	// get the program bytes from storage
+	bytes, exists, err := storage.GetProgram(context.Background(), db, id)
+	if !exists {
+		log.Debug("key does not exist", zap.String("id", id.String()))
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes, nil
 }

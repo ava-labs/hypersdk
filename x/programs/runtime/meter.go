@@ -3,7 +3,11 @@
 
 package runtime
 
-import "github.com/bytecodealliance/wasmtime-go/v12"
+import (
+	"github.com/bytecodealliance/wasmtime-go/v12"
+)
+
+const NoUnits = 0
 
 var _ Meter = (*meter)(nil)
 
@@ -17,6 +21,7 @@ func NewMeter(store *wasmtime.Store) Meter {
 type meter struct {
 	maxUnits uint64
 	store    *wasmtime.Store
+	closed   bool
 }
 
 func (m *meter) GetBalance() uint64 {
@@ -32,15 +37,30 @@ func (m *meter) GetBalance() uint64 {
 }
 
 func (m *meter) Spend(units uint64) (uint64, error) {
+	if m.GetBalance() < units {
+		return 0, ErrInsufficientUnits
+	}
 	return m.store.ConsumeFuel(units)
 }
 
-func (m *meter) AddUnits(units uint64) error {
+func (m *meter) AddUnits(units uint64) (uint64, error) {
 	err := m.store.AddFuel(units)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	m.maxUnits += units
 
-	return nil
+	return m.GetBalance(), nil
+}
+
+func (m *meter) TransferUnits(to Meter, units uint64) (uint64, error) {
+	// TODO: add rollback support
+
+	// spend units from this meter
+	_, err := m.Spend(units)
+	if err != nil {
+		return 0, err
+	}
+	// add units to the other meter
+	return to.AddUnits(units)
 }

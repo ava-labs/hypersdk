@@ -28,12 +28,9 @@ func NewExportClient(mod *wasmtime.Caller) WasmtimeExportClient {
 
 func (c *callerClient) ExportedFunction(name string) (*wasmtime.Func, error) {
 	ext := c.mod.GetExport(name)
-	if ext == nil {
-		return nil, ErrMissingExportedFunction
-	}
 	fn := ext.Func()
-	if fn == nil {
-		return nil, ErrMissingExportedFunction
+	if ext == nil || fn == nil {
+		return nil, fmt.Errorf("%w: %s", ErrMissingExportedFunction, name)
 	}
 	return fn, nil
 }
@@ -61,12 +58,9 @@ type exportClient struct {
 
 func (c *exportClient) ExportedFunction(name string) (*wasmtime.Func, error) {
 	ext := c.inst.GetExport(c.store, name)
-	if ext == nil {
-		return nil, ErrMissingExportedFunction
-	}
 	fn := ext.Func()
-	if fn == nil {
-		return nil, ErrMissingExportedFunction
+	if ext == nil || fn == nil {
+		return nil, fmt.Errorf("%w: %s", ErrMissingExportedFunction, name)
 	}
 	return fn, nil
 }

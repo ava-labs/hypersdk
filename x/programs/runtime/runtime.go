@@ -14,21 +14,21 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
-var _ Runtime = &runtime{}
+var _ Runtime = &WasmRuntime{}
 
 // New returns a new wasm runtime.
-func New(log logging.Logger, cfg *Config, imports Imports) *runtime {
+func New(log logging.Logger, cfg *Config, imports Imports) Runtime {
 	if imports == nil {
 		imports = make(Imports)
 	}
-	return &runtime{
+	return &WasmRuntime{
 		imports: imports,
 		log:     log,
 		cfg:     cfg,
 	}
 }
 
-type runtime struct {
+type WasmRuntime struct {
 	cfg   *Config
 	inst  *wasmtime.Instance
 	store *wasmtime.Store
@@ -44,11 +44,10 @@ type runtime struct {
 	log logging.Logger
 }
 
-func (r *runtime) Initialize(ctx context.Context, programBytes []byte) (err error) {
+func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte) (err error) {
 	ctx, r.cancelFn = context.WithCancel(ctx)
 	go func(ctx context.Context) {
 		<-ctx.Done()
-		r.log.Debug("runtime context done, stopping...")
 		// send immediate interrupt to engine
 		r.Stop()
 	}(ctx)
@@ -101,7 +100,7 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) (err erro
 
 	// setup metering
 	r.meter = NewMeter(r.store)
-	err = r.meter.AddUnits(r.cfg.meterMaxUnits)
+	_, err = r.meter.AddUnits(r.cfg.meterMaxUnits)
 	if err != nil {
 		return err
 	}
@@ -113,9 +112,6 @@ func (r *runtime) Initialize(ctx context.Context, programBytes []byte) (err erro
 	// register host functions exposed to the guest (imports)
 	for _, imp := range imports {
 		// registered separately by linker
-		if imp == wasiPreview1ModName {
-			continue
-		}
 		mod, ok := r.imports[imp]
 		if !ok {
 			return fmt.Errorf("%w: %s", ErrMissingImportModule, imp)
@@ -145,6 +141,9 @@ func getRegisteredImportModules(importTypes []*wasmtime.ImportType) []string {
 	imports := []string{}
 	for _, t := range importTypes {
 		mod := t.Module()
+		if mod == wasiPreview1ModName {
+			continue
+		}
 		if _, ok := u[mod]; ok {
 			continue
 		}
@@ -154,21 +153,32 @@ func getRegisteredImportModules(importTypes []*wasmtime.ImportType) []string {
 	return imports
 }
 
-func (r *runtime) Call(_ context.Context, name string, params ...interface{}) ([]uint64, error) {
-	// r.store.SetEpochDeadline(1)
-	var api *wasmtime.Func
-
+func (r *WasmRuntime) Call(_ context.Context, name string, params ...uint64) ([]uint64, error) {
+	var fnName string
 	switch name {
 	case AllocFnName, DeallocFnName, MemoryFnName:
-		api = r.inst.GetFunc(r.store, name)
+		fnName = name
 	default:
-		api = r.inst.GetFunc(r.store, name+guestSuffix)
-	}
-	if api == nil {
-		return nil, ErrMissingExportedFunction
+		// the SDK will append the guest suffix to the function name
+		fnName = name + guestSuffix
 	}
 
-	result, err := api.Call(r.store, params...)
+	fn := r.inst.GetFunc(r.store, fnName)
+	if fn == nil {
+		return nil, fmt.Errorf("%w: %s", ErrMissingExportedFunction, name)
+	}
+
+	fnParams := fn.Type(r.store).Params()
+	if len(params) != len(fnParams) {
+		return nil, fmt.Errorf("%w: %d expected: %d", ErrInvalidParamCount, len(params), len(fnParams))
+	}
+
+	callParams, err := mapFunctionParams(params, fnParams)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := fn.Call(r.store, callParams...)
 	if err != nil {
 		return nil, fmt.Errorf("export function call failed %s: %w", name, err)
 	}
@@ -185,16 +195,17 @@ func (r *runtime) Call(_ context.Context, name string, params ...interface{}) ([
 	}
 }
 
-func (r *runtime) Memory() Memory {
+func (r *WasmRuntime) Memory() Memory {
 	return NewMemory(newExportClient(r.inst, r.store))
 }
 
-func (r *runtime) Meter() Meter {
+func (r *WasmRuntime) Meter() Meter {
 	return r.meter
 }
 
-func (r *runtime) Stop() {
+func (r *WasmRuntime) Stop() {
 	r.once.Do(func() {
+		r.log.Debug("shutting down runtime engine...")
 		// send immediate interrupt to engine
 		r.store.Engine.IncrementEpoch()
 		r.cancelFn()
@@ -205,7 +216,7 @@ func (r *runtime) Stop() {
 //
 // Note: these bytes can be deserialized by an `Engine` that has the same version.
 // For that reason precompiled wasm modules should not be stored on chain.
-func PreCompileWasm(programBytes []byte, cfg *Config) ([]byte, error) {
+func PreCompileWasmBytes(programBytes []byte, cfg *Config) ([]byte, error) {
 	store := wasmtime.NewStore(wasmtime.NewEngineWithConfig(cfg.engine))
 	store.Limiter(
 		cfg.limitMaxMemory,
@@ -221,4 +232,21 @@ func PreCompileWasm(programBytes []byte, cfg *Config) ([]byte, error) {
 	}
 
 	return module.Serialize()
+}
+
+// mapFunctionParams maps call input to the expected wasm function params.
+func mapFunctionParams(input []uint64, values []*wasmtime.ValType) ([]interface{}, error) {
+	params := make([]interface{}, len(values))
+	for i, v := range values {
+		switch v.Kind() {
+		case wasmtime.KindI32:
+			params[i] = int32(input[i])
+		case wasmtime.KindI64:
+			params[i] = int64(input[i])
+		default:
+			return nil, fmt.Errorf("%w: %v", ErrInvalidParamType, v.Kind())
+		}
+	}
+
+	return params, nil
 }

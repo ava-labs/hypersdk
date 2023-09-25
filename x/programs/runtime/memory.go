@@ -5,7 +5,7 @@ package runtime
 
 import (
 	"fmt"
-	rt "runtime"
+	"runtime"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
@@ -24,7 +24,10 @@ func NewMemory(client WasmtimeExportClient) *memory {
 	}
 }
 
-func (m *memory) Range(offset uint32, length uint32) ([]byte, error) {
+func (m *memory) Range(offset uint64, length uint64) ([]byte, error) {
+	// memory is in local scope so we do not make assumptions on the
+	// lifetime of *wasmtime.Memory. The garbage collector may collect
+	// the memory if it is not referenced which could result in bugs.
 	mem, err := m.client.GetMemory()
 	if err != nil {
 		return nil, err
@@ -39,14 +42,19 @@ func (m *memory) Range(offset uint32, length uint32) ([]byte, error) {
 		return nil, fmt.Errorf("read memory failed: %w", ErrInvalidMemorySize)
 	}
 
-	// ensure memory is not GCed
-	rt.KeepAlive(mem)
-	buf := mem.UnsafeData(m.client.Store())
+	// ensure memory is not GCed during the life of this method
+	runtime.KeepAlive(mem)
 
-	return buf[offset : offset+length], nil
+	data := mem.UnsafeData(m.client.Store())
+	buf := make([]byte, length)
+
+	// copy data from memory to buf to ensure it is not GCed.
+	copy(buf, data[offset:offset+length])
+
+	return buf, nil
 }
 
-func (m *memory) Write(offset uint32, buf []byte) error {
+func (m *memory) Write(offset uint64, buf []byte) error {
 	mem, err := m.client.GetMemory()
 	if err != nil {
 		return err
@@ -59,7 +67,7 @@ func (m *memory) Write(offset uint32, buf []byte) error {
 
 	lenBuf := len(buf)
 
-	if max < uint64(offset)+uint64(lenBuf) {
+	if max < offset+uint64(lenBuf) {
 		return fmt.Errorf("write memory failed: %w: max: %d", ErrInvalidMemorySize, max)
 	}
 
@@ -69,7 +77,7 @@ func (m *memory) Write(offset uint32, buf []byte) error {
 	return nil
 }
 
-func (m *memory) Alloc(length uint32) (uint32, error) {
+func (m *memory) Alloc(length uint64) (uint64, error) {
 	fn, err := m.client.ExportedFunction(AllocFnName)
 	if err != nil {
 		return 0, err
@@ -84,7 +92,7 @@ func (m *memory) Alloc(length uint32) (uint32, error) {
 		return 0, ErrInvalidMemoryAddress
 	}
 
-	return uint32(addr), nil
+	return uint64(addr), nil
 }
 
 func (m *memory) Grow(delta uint64) (uint64, error) {
@@ -107,8 +115,8 @@ func (m *memory) Len() (uint64, error) {
 
 // WriteBytes is a helper function that allocates memory and writes the given
 // bytes to the memory returning the offset.
-func WriteBytes(m Memory, buf []byte) (uint32, error) {
-	offset, err := m.Alloc(uint32(len(buf)))
+func WriteBytes(m Memory, buf []byte) (uint64, error) {
+	offset, err := m.Alloc(uint64(len(buf)))
 	if err != nil {
 		return 0, err
 	}
@@ -121,9 +129,9 @@ func WriteBytes(m Memory, buf []byte) (uint32, error) {
 }
 
 // IDFromMemory reads memory from the given offset and returns an ID.
-func IDFromOffset(caller *wasmtime.Caller, offset int32) (ids.ID, error) {
+func IDFromOffset(caller *wasmtime.Caller, offset int64) (ids.ID, error) {
 	memory := NewMemory(NewExportClient(caller))
-	assetBytes, err := memory.Range(uint32(offset), ids.IDLen)
+	assetBytes, err := memory.Range(uint64(offset), ids.IDLen)
 	if err != nil {
 		return ids.Empty, err
 	}
@@ -134,7 +142,7 @@ func IDFromOffset(caller *wasmtime.Caller, offset int32) (ids.ID, error) {
 // PublicKeyFromOffset reads memory from the given offset and returns an ed25519.PublicKey.
 func PublicKeyFromOffset(caller *wasmtime.Caller, hrp string, offset int32) (ed25519.PublicKey, error) {
 	memory := NewMemory(NewExportClient(caller))
-	keyBytes, err := memory.Range(uint32(offset), ed25519.PublicKeyLen)
+	keyBytes, err := memory.Range(uint64(offset), ed25519.PublicKeyLen)
 	if err != nil {
 		return ed25519.EmptyPublicKey, err
 	}
