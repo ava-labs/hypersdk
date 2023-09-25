@@ -25,6 +25,100 @@ Just a couple things to note. Serialization is minimal, yet there are certain as
 
 On the Go side, we unmarshal in the same order.
 
+## Storage
+
+A Program has 2 storage types.
+
+- `Memory` in WebAssembly is a linear buffer of unsigned bytes that can read and
+written to by both the guest or host. Because of the very minimal types
+supported by WebAssembly Memory is critical for communication between `Program`
+and host.
+
+- `State` is a host module which is imported into the `Program` instance, which
+exposes access to a database store. Unlike `Memory` state can be durable.
+
+### Memory
+
+In this example we share a byte slice between our host and a `Program`. To
+achieve this we can write our byte slice to the shared memory from he host using
+an exported functions called `alloc` and `memory` To do this we would first
+allocate  a chunk of continuous memory of the length desired.  `Alloc` will
+return the `offset` of that slice.
+
+
+```go
+runtime := // create new runtime and initialize
+memory := runtime.Memory()
+
+bytes := []byte("hello world")
+bytesLen := uint64(len(bytes))
+
+// create a memory allocation 
+offset, _ := memory.Alloc(bytesLen)
+
+// copy bytes into memory allocation
+offset, _ = memory.Write(offset, bytes)
+
+// pass the offset and lenth as params to a function
+// exported by the Program
+resp, _ := runtime.Call("some_function", offset, bytesLen )
+```
+
+`hello world` converted to a byte slice will represent our Program's memory for
+the example
+```sh
+[offset=6              ][length=3   ]
+[104 101 108 108 111 32 119 111 114 108 100]
+[119 111 114] // wor
+```
+The below shows an exported `Program` function `some_function` which accepts a
+message of arbitrary length. Unlike fixed size length objects such as `Address`
+the length can be variable. So the `length` of the memory along with the
+`offset` are both required.
+
+```rust
+#[public]
+pub fn some_function(program: Program, message: i64, message_length: i64) -> i64 {
+  // read message bytes from memory
+  let msg := program.memory().read(message, message_length)?;
+  // msg = [119 111 114]
+}
+```
+          
+Each  Memory is tightly bound to the lifecycle of the module. For this reason
+`Memory` is non durable and can not be relied upon. 
+
+### State
+
+- `Storage` is the definition of the schema used to persist Program data.
+
+```rust
+#[reps(u8)]
+#[storage]
+enum Storage {
+  /// [program_prefix_byte][program_id_bytes][0x0][address_bytes] = amount
+  Balance(Address) // 0x0
+}
+
+#[public]
+pub fn transfer(program: Program, from: Address, to: Address, amount: i64) -> i64 {
+  // check balances from state
+  let to_balance := program.state().get(Storage::Balance(to).into().as_ref())?;
+  let from_balance :=  program.state().get(Storage::Balance(from).into().as_ref())?;
+
+  if from_balance.lt(amount) {
+    return -1
+  }
+
+  // update balances to state
+  program.state().
+    put(Storage::Balance(to).into().as_ref(), &(to_balance + amount )).
+    put(Storage::Balance(from).into().as_ref(), &(from_balance - amount ))?
+  [...]
+}
+
+```
+
 ### Rust Program SDK
 
 This folder provides the necessary tools to build WASM programs using rust.
@@ -34,9 +128,30 @@ This folder provides the necessary tools to build WASM programs using rust.
 - `/host` : Imports necessary functions from the host.
 - `/Program`: Defines the `ProgramValue` and `Progam` types.
 
-### Expose Macro
+### Exporting Program Functions
 
-A rust crate that contains an attribute procedural macro `expose` allowing program functions to be exposed to the host.
+A program exposes functions that can be called by the host called exports. To
+export a function using the Rust SDK we use the `#[public]` attribute above the signature
+of the function we want to export.
+
+The example below shows a basic function `add` which is accessible by the host
+using the `Call` method of the `Runtime` interface.
+
+```rust
+#[public]
+pub fn add(_: State, a: i64, b: i64) -> i64 {
+  a + b
+}
+```
+Example of golang host calling a Program's `add` funciton.
+
+```go
+a := uint64(1)
+b := uint64(2)
+resp, _ := runtime.Call("add", a, b )
+fmt.Printf("1 + 2 = %d", resp[0])
+// 1 + 2 = 3
+```
 
 # Examples
 
