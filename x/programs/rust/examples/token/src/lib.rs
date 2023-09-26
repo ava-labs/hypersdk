@@ -1,12 +1,12 @@
 use wasmlanche_sdk::{public, store::State, types::Address};
 
-/// @title A basic ERC-20 contract 
-/// @author Ava Labs 
+/// @title A basic ERC-20 compatible contract
+/// @author Ava Labs
 /// @notice Serves as a fungible token
-/// @dev Limits the token functionality to the bare minimum
+/// @dev Limits the token functionality to the bare minimum required
 
 /// @notice Initializes the program with a name, symbol, and total supply
-/// @param state The initial program state 
+/// @param state The initial program state
 /// @return Whether the initialization succeeded
 #[public]
 pub fn init(state: State) -> bool {
@@ -54,9 +54,14 @@ pub fn transfer(state: State, sender: Address, recipient: Address, amount: i64) 
     assert!(amount >= 0 && sender_balance >= amount);
 
     let recipient_balance: i64 = state.get_map_value("balances", &recipient).unwrap_or(0);
+
+    let sender_delta = sender_balance.checked_sub(amount);
+    let recipient_delta = recipient_balance.checked_add(amount);
+    assert!(sender_delta.is_some() && recipient_delta.is_some());
+
     state
-        .store_map_value("balances", &sender, &(sender_balance - amount))
-        .store_map_value("balances", &recipient, &(recipient_balance + amount))
+        .store_map_value("balances", &sender, &sender_delta.unwrap())
+        .store_map_value("balances", &recipient, &recipient_delta.unwrap())
         .is_ok()
 }
 
