@@ -1,3 +1,4 @@
+use sdk_dec_macros::{assert_eq, assert_gt, require};
 use wasmlanche_sdk::{public, store::State, types::Address};
 
 /// @title A basic ERC-20 compatible contract
@@ -9,6 +10,7 @@ use wasmlanche_sdk::{public, store::State, types::Address};
 /// @param state The initial program state
 /// @return Whether the initialization succeeded
 #[public]
+// TODO: parameterize initial fn arguments
 pub fn init(state: State) -> bool {
     state
         .store_value("total_supply", &123456789_i64)
@@ -46,18 +48,31 @@ pub fn mint_to(state: State, recipient: Address, amount: i64) -> bool {
 /// @return Whether the transfer succeeded
 #[public]
 pub fn transfer(state: State, sender: Address, recipient: Address, amount: i64) -> bool {
-    // require sender != recipient
-    assert_ne!(sender, recipient);
+    // Require sender != recipient.
+    if !assert_eq!(sender, recipient) {
+        return false;
+    }
 
-    // ensure the sender has adequate balance
+    // Ensure amount sent is greater than 0.
+    if !assert_gt!(amount, 0) {
+        return false;
+    }
+
+    // Ensure the sender has adequate balance.
     let sender_balance: i64 = state.get_map_value("balances", &sender).unwrap_or(0);
-    assert!(amount >= 0 && sender_balance >= amount);
+    if !assert_gt!(sender_balance, amount) {
+        return false;
+    }
 
     let recipient_balance: i64 = state.get_map_value("balances", &recipient).unwrap_or(0);
-
     let sender_delta = sender_balance.checked_sub(amount);
     let recipient_delta = recipient_balance.checked_add(amount);
-    assert!(sender_delta.is_some() && recipient_delta.is_some());
+    if !assert_eq!(
+        require!(sender_delta.is_some()),
+        require!(recipient_delta.is_some())
+    ) {
+        return false;
+    }
 
     state
         .store_map_value("balances", &sender, &sender_delta.unwrap())

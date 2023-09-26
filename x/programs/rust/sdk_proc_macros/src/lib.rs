@@ -6,6 +6,7 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{quote, ToTokens};
 use syn::{parse_macro_input, parse_str, FnArg, Ident, ItemFn, Pat, PatType, Type};
+
 /// An attribute procedural macro that makes a function visable to the VM host.
 /// It does so by wrapping the `item` tokenstream in a new function that can be called by the host.
 /// The wrapper function will have the same name as the original function, but with "_guest" appended to it.
