@@ -74,10 +74,14 @@ pub fn transfer(state: State, sender: Address, recipient: Address, amount: i64) 
         return false;
     }
 
-    state
-        .store_map_value("balances", &sender, &sender_delta.unwrap())
-        .store_map_value("balances", &recipient, &recipient_delta.unwrap())
-        .is_ok()
+    if let (Some(sender_delta), Some(recipient_delta)) = (sender_delta, recipient_delta) {
+        state
+            .store_map_value("balances", &sender, &sender_delta)
+            .store_map_value("balances", &recipient, &recipient_delta)
+            .is_ok()
+    } else {
+        false
+    }
 }
 
 /// @notice Gets the balance of the recipient
