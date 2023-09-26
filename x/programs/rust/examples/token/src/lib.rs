@@ -47,14 +47,12 @@ pub fn mint_to(state: State, recipient: Address, amount: i64) -> bool {
 #[public]
 pub fn transfer(state: State, sender: Address, recipient: Address, amount: i64) -> bool {
     // require sender != recipient
-    if sender == recipient {
-        return false;
-    }
+    assert_ne!(sender, recipient);
+
     // ensure the sender has adequate balance
     let sender_balance: i64 = state.get_map_value("balances", &sender).unwrap_or(0);
-    if amount < 0 || sender_balance < amount {
-        return false;
-    }
+    assert!(amount >= 0 && sender_balance >= amount);
+
     let recipient_balance: i64 = state.get_map_value("balances", &recipient).unwrap_or(0);
     state
         .store_map_value("balances", &sender, &(sender_balance - amount))
@@ -64,9 +62,9 @@ pub fn transfer(state: State, sender: Address, recipient: Address, amount: i64) 
 
 /// @notice Gets the balance of the recipient
 /// @param state The current program state
-/// @param recipient The address whose balance will be returned
+/// @param address The address whose balance will be returned
 /// @return The balance of the recipient
 #[public]
-pub fn get_balance(state: State, recipient: Address) -> i64 {
-    state.get_map_value("balances", &recipient).unwrap_or(0)
+pub fn get_balance(state: State, address: Address) -> i64 {
+    state.get_map_value("balances", &address).unwrap_or(0)
 }
