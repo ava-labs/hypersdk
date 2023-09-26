@@ -1,6 +1,13 @@
 use wasmlanche_sdk::{public, store::State, types::Address};
 
-/// Initializes the program with a name, symbol, and total supply.
+/// @title A basic ERC-20 contract 
+/// @author Ava Labs 
+/// @notice Serves as a fungible token
+/// @dev Limits the token functionality to the bare minimum
+
+/// @notice Initializes the program with a name, symbol, and total supply
+/// @param state The initial program state 
+/// @return Whether the initialization succeeded
 #[public]
 pub fn init(state: State) -> bool {
     state
@@ -10,13 +17,19 @@ pub fn init(state: State) -> bool {
         .is_ok()
 }
 
-/// Gets total supply or -1 on error.
+/// @notice Gets total token supply or -1 on error
+/// @param state The current program state
+/// @return The total supply of the token
 #[public]
 pub fn get_total_supply(state: State) -> i64 {
     state.get_value("total_supply").unwrap()
 }
 
-/// Adds amount coins to the recipients balance.
+/// @notice Mints coins to the recipients balance.
+/// @param state The current program state
+/// @param recipient The address whose balance will be increased
+/// @param amount The amount of tokens to add to the recipient's balance
+/// @return Whether the minting succeeded
 #[public]
 pub fn mint_to(state: State, recipient: Address, amount: i64) -> bool {
     let amount = amount + state.get_map_value("balances", &recipient).unwrap_or(0);
@@ -25,7 +38,12 @@ pub fn mint_to(state: State, recipient: Address, amount: i64) -> bool {
         .is_ok()
 }
 
-/// Transfers amount coins from the sender to the recipient. Returns whether successful.
+/// @notice Transfers coins from the sender to the recipient
+/// @param state The current program state
+/// @param sender The address sending tokens
+/// @param recipient The address receiving tokens
+/// @param amount The amount of tokens to transfer
+/// @return Whether the transfer succeeded
 #[public]
 pub fn transfer(state: State, sender: Address, recipient: Address, amount: i64) -> bool {
     // require sender != recipient
@@ -44,7 +62,10 @@ pub fn transfer(state: State, sender: Address, recipient: Address, amount: i64) 
         .is_ok()
 }
 
-/// Gets the balance of the recipient.
+/// @notice Gets the balance of the recipient
+/// @param state The current program state
+/// @param recipient The address whose balance will be returned
+/// @return The balance of the recipient
 #[public]
 pub fn get_balance(state: State, recipient: Address) -> i64 {
     state.get_map_value("balances", &recipient).unwrap_or(0)
