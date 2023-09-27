@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
-use crate::store::State;
+use crate::program::Program;
+
 /// A struct that enforces a fixed length of 32 bytes which represents an address.
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub struct Address(Bytes32);
@@ -105,9 +106,9 @@ impl Argument for i64 {
     }
 }
 
-impl Argument for State {
+impl Argument for Program {
     fn as_bytes(&self) -> Cow<'_, [u8]> {
-        self.program_id.as_bytes()
+        Cow::Owned(self.id().to_be_bytes().to_vec())
     }
     fn is_primitive(&self) -> bool {
         true
