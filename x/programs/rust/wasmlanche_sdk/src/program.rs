@@ -1,8 +1,5 @@
+use crate::{host::call_program, state::State, types::Argument};
 use serde::{Deserialize, Serialize};
-use crate::{
-    host::program::call_program,
-    types::Argument, state::State,
-};
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
@@ -11,23 +8,23 @@ pub struct Program {
     id: i64,
 }
 
-impl<'a> Program {
-    pub fn new(id: i64) -> Self {
-        Self { id }
-    }
-
+impl Program {
     /// Returns the id of the program.
+    #[must_use]
     pub fn id(self) -> i64 {
         self.id
     }
 
     /// Returns a State object that can be used to interact with persistent
     /// storage exposed by the host.
+    #[must_use]
     pub fn state(&self) -> State {
         State::new(self.id.into())
-    } 
+    }
 
     /// Attempts to call another program `target` from this program `caller`.
+    /// # Safety
+    /// The caller must ensure that `function_name` + `args` point to valid memory locations.
     #[must_use]
     pub fn call_program(
         &self,

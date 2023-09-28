@@ -20,6 +20,6 @@ pub enum StateError {
     #[error("failed to read from host storage")]
     Read,
 
-    #[error("Error Serializing the Bytes")]
+    #[error("failed to serialize bytes")]
     Serialization,
 }

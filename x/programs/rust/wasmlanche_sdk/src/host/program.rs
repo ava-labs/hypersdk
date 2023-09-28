@@ -15,9 +15,9 @@ extern "C" {
     ) -> i64;
 }
 
-/// Invokes another program and returns the result.
+/// Calls another program `target` and returns the result.
 #[must_use]
-pub fn call_program(
+pub(crate) fn call(
     caller: &Program,
     target: &Program,
     max_units: i64,

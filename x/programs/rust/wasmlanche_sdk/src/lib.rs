@@ -6,4 +6,4 @@ pub mod memory;
 pub mod program;
 pub mod state;
 pub mod types;
-pub use sdk_macros::public;
+pub use sdk_macros::{public, state};

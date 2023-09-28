@@ -1,10 +1,27 @@
 //! Temporary storage allocated during the Program runtime.
+
+/// Represents a pointer to a block of memory allocated by the global allocator.
+pub struct Pointer {
+    raw: *mut u8,
+}
+
+impl Pointer {
+    #[must_use]
+    pub fn new(ptr: i64) -> Self {
+        Self {
+            raw: ptr as *mut u8,
+        }
+    }
+}
+
+/// Represents a block of memory allocated by the global allocator.
 pub struct Memory {
-    ptr: *mut u8,
+    ptr: Pointer,
 }
 
 impl Memory {
-    pub fn new(ptr: *mut u8) -> Self {
+    #[must_use]
+    pub fn new(ptr: Pointer) -> Self {
         Self { ptr }
     }
     /// Attempts return owned bytes from a pointer created by the global allocator.
@@ -12,8 +29,9 @@ impl Memory {
     /// # Safety
     /// `ptr` must be a pointer to a block of memory created using alloc.
     /// `length` must be the length of the block of memory.
-    pub fn range(&self, length: usize) -> Vec<u8> {
-        unsafe { Vec::from_raw_parts(self.ptr, length, length) }
+    #[must_use]
+    pub unsafe fn range(&self, length: usize) -> Vec<u8> {
+        unsafe { Vec::from_raw_parts(self.ptr.raw, length, length) }
     }
 
     /// Attempts to write the bytes to the programs shared memory.
@@ -21,22 +39,25 @@ impl Memory {
     /// # Safety
     /// `ptr` must be a pointer to a block of memory created using alloc.
     /// `bytes` must be a slice of bytes with length <= `capacity`.
-    pub fn write(&self, bytes: &[u8]) {
-        unsafe { self.ptr.copy_from(bytes.as_ptr(), bytes.len()) }
+    pub unsafe fn write(&self, bytes: &[u8]) {
+        unsafe { self.ptr.raw.copy_from(bytes.as_ptr(), bytes.len()) }
     }
 }
 
 /// Attempts to allocate a block of memory of size `len` and returns a pointer
 /// to the start of the block.
+#[must_use]
 pub fn allocate(len: usize) -> *mut u8 {
     alloc(len)
 }
 
 /// Attempts to deallocates the memory block at `ptr` with a given `capacity`.
-pub fn deallocate(ptr: *mut u8, capacity: usize) {
+///
+/// # Safety
+/// `ptr` must be a valid pointer to a block of memory created using alloc.
+pub unsafe fn deallocate(ptr: *mut u8, capacity: usize) {
     unsafe { dealloc(ptr, capacity) }
 }
-
 
 /* memory functions ------------------------------------------- */
 // https://radu-matei.com/blog/practical-guide-to-wasm-memory/
