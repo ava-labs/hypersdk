@@ -11,3 +11,12 @@ wasmlanche_sdk = { version = "0.1.0", path = "../../wasmlanche_sdk" }
 
 [lib]
 crate-type = ["cdylib"] # set the crate(needed for cargo build to work properly)
+
+# when creating a new project, you can uncomment the following lines to enable optimizations
+# [profile.release]
+# opt-level = 3
+# lto = true
+# codegen-units = 1
+# overflow-checks = true
+# # https://doc.rust-lang.org/book/ch09-01-unrecoverable-errors-with-panic.html#unwinding-the-stack-or-aborting-in-response-to-a-panic
+# panic = 'abort'

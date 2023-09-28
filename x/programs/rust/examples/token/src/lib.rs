@@ -1,113 +1,113 @@
-use wasmlanche_sdk::{program::Program, public, types::Address};
+use wasmlanche_sdk::{program::Program, public, state, types::Address};
 
-
-/// The internal state keys used by the program.
-#[repr(u8)]
+/// The program state keys.
+#[state]
 enum StateKey {
+    /// The total supply of the token. Key prefix 0x0.
     TotalSupply,
+    /// The name of the token. Key prefix 0x1.
     Name,
+    /// The symbol of the token. Key prefix 0x2.
     Symbol,
-    Balances(Address),
-}
-
-impl StateKey {
-    pub fn to_vec(self) -> Vec<u8> {
-        match self {
-            StateKey::TotalSupply => vec![self.into()],
-            StateKey::Name => vec![self.into()],
-            StateKey::Symbol => vec![self.into()],
-            StateKey::Balances(a) => {
-                let mut bytes = Vec::with_capacity(1 + 32);
-                bytes.push(self.into());
-                bytes.extend_from_slice(a.as_bytes());
-                bytes
-            }
-        }
-    }
-}
-
-impl Into<Vec<u8>> for StateKey {
-    fn into(self) -> Vec<u8> {
-        self.to_vec()
-    }
-}
-
-impl Into<u8> for StateKey {
-    fn into(self) -> u8 {
-        match self {
-            StateKey::TotalSupply => 0,
-            StateKey::Name => 1,
-            StateKey::Symbol => 2,
-            StateKey::Balances(_) => 3,
-        }
-    }
+    /// The balance of the token by address. Key prefix 0x3 + address.
+    Balance(Address),
 }
 
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
 pub fn init(program: Program) -> bool {
+    // set total supply
     program
         .state()
-        .insert(&StateKey::TotalSupply.to_vec(), &123456789_i64)
-        .expect("failed to insert total supply");
+        .store(StateKey::TotalSupply.to_vec(), &123456789)
+        .expect("failed to store total supply");
 
+    // set token name
     program
         .state()
-        .insert(&StateKey::Name.to_vec(), b"WasmCoin")
-        .expect("failed to insert total supply");
+        .store(StateKey::Name.to_vec(), b"WasmCoin")
+        .expect("failed to store coin name");
 
+    // set token symbol
     program
         .state()
-        .insert(&StateKey::Symbol.to_vec(), b"WACK")
-        .expect("failed to insert symbol");
+        .store(StateKey::Symbol.to_vec(), b"WACK")
+        .expect("failed to store symbol");
 
     true
 }
 
-/// Gets total supply or -1 on error.
+/// Returns the total supply of the token.
 #[public]
 pub fn get_total_supply(program: Program) -> i64 {
     program
         .state()
-        .get_value(&StateKey::TotalSupply.to_vec())
+        .get_value(StateKey::TotalSupply.to_vec())
         .expect("failed to get total supply")
 }
 
-/// Adds amount coins to the recipients balance.
+/// Transfers balance from the token owner to the recipient.
 #[public]
 pub fn mint_to(program: Program, recipient: Address, amount: i64) -> bool {
     let balance = program
         .state()
-        .get_value(&StateKey::Balances(recipient).to_vec())
-        .unwrap_or(0);
+        .get_value::<i64, _>(StateKey::Balance(recipient).to_vec())
+        .expect("failed to get balance");
 
     program
         .state()
-        .insert(&StateKey::Balances(recipient).to_vec(), &(balance + amount))
-        .is_ok()
+        .store(StateKey::Balance(recipient).to_vec(), &(balance + amount))
+        .expect("failed to store balance");
+
+    true
 }
 
-/// Transfers amount coins from the sender to the recipient. Returns whether successful.
+/// Transfers balance from the sender to the the recipient.
 #[public]
-pub fn transfer(state: State, sender: Address, recipient: Address, amount: i64) -> bool {
-    // require sender != recipient
+pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i64) -> bool {
     if sender == recipient {
-        return false;
+        panic!("sender and recipient must be different");
     }
+
     // ensure the sender has adequate balance
-    let sender_balance: i64 = state.get_map_value("balances", &sender).unwrap_or(0);
+    let sender_balance = program
+        .state()
+        .get_value::<i64, _>(StateKey::Balance(sender).to_vec())
+        .expect("failed to update balance");
     if amount < 0 || sender_balance < amount {
-        return false;
+        panic!("insufficient balance");
     }
-    let recipient_balance: i64 = state.get_map_value("balances", &recipient).unwrap_or(0);
-    state
-        .store_map_value("balances", &sender, &(sender_balance - amount))
-        .store_map_value("balances", &recipient, &(recipient_balance + amount))
-        .is_ok()
+
+    let recipient_balance = program
+        .state()
+        .get_value::<i64, _>(StateKey::Balance(recipient).to_vec())
+        .expect("failed to store balance");
+
+    // update balances
+    program
+        .state()
+        .store(
+            StateKey::Balance(sender).to_vec(),
+            &(sender_balance - amount),
+        )
+        .expect("failed to store balance");
+
+    program
+        .state()
+        .store(
+            StateKey::Balance(recipient).to_vec(),
+            &(recipient_balance + amount),
+        )
+        .expect("failed to store balance");
+
+    true
 }
 
 /// Gets the balance of the recipient.
 #[public]
-pub fn get_balance(state: State, recipient: Address) -> i64 {
-    state.get_map_value("balances", &recipient).unwrap_or(0)
+pub fn get_balance(program: Program, recipient: Address) -> i64 {
+    program
+        .state()
+        .get_value(StateKey::Balance(recipient).to_vec())
+        .expect("failed to get balance")
 }
