@@ -1,4 +1,8 @@
 //! Temporary storage allocated during the Program runtime.
+//! The general pattern for handling memory is to have the
+//! host allocate a block of memory and return a pointer to
+//! the program. These methods are unsafe as should be used
+//! with caution.
 
 /// Represents a pointer to a block of memory allocated by the global allocator.
 #[derive(Clone, Copy)]
@@ -49,7 +53,7 @@ impl Memory {
     /// `ptr` must be a pointer to a block of memory created using alloc.
     /// `length` must be the length of the block of memory.
     #[must_use]
-    pub unsafe fn range_owned(&self, length: usize) -> Vec<u8> {
+    pub unsafe fn range_mut(&self, length: usize) -> Vec<u8> {
         unsafe { Vec::from_raw_parts(self.ptr.into(), length, length) }
     }
 

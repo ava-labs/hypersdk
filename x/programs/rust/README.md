@@ -125,7 +125,8 @@ pub fn vote(program: Program, proposal: i64, weight: i64) -> i64 {
         .state()
         .store(StateKey::Proposal(proposal.to_be_bytes()).to_vec(), &(votes+weight))
         .expect("failed to store total supply");
-...
+   ...
+}
 
 ```
 
