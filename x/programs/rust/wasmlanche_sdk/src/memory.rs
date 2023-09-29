@@ -155,7 +155,7 @@ mod tests {
         let data = vec![1, 2, 3, 4, 5];
 
         unsafe {
-            let mut result = memory.range_owned(data.len());
+            let mut result = memory.range_mut(data.len());
             assert_eq!(result, vec![0; 5]);
             // mutate directly
             result[0] = 1;
