@@ -42,7 +42,7 @@ pub fn init(program: Program) -> bool {
 pub fn get_total_supply(program: Program) -> i64 {
     program
         .state()
-        .get_value(StateKey::TotalSupply.to_vec())
+        .get(StateKey::TotalSupply.to_vec())
         .expect("failed to get total supply")
 }
 
@@ -51,7 +51,7 @@ pub fn get_total_supply(program: Program) -> i64 {
 pub fn mint_to(program: Program, recipient: Address, amount: i64) -> bool {
     let balance = program
         .state()
-        .get_value::<i64, _>(StateKey::Balance(recipient).to_vec())
+        .get::<i64, _>(StateKey::Balance(recipient).to_vec())
         .expect("failed to get balance");
 
     program
@@ -72,7 +72,7 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
     // ensure the sender has adequate balance
     let sender_balance = program
         .state()
-        .get_value::<i64, _>(StateKey::Balance(sender).to_vec())
+        .get::<i64, _>(StateKey::Balance(sender).to_vec())
         .expect("failed to update balance");
     if amount < 0 || sender_balance < amount {
         panic!("insufficient balance");
@@ -80,7 +80,7 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
 
     let recipient_balance = program
         .state()
-        .get_value::<i64, _>(StateKey::Balance(recipient).to_vec())
+        .get::<i64, _>(StateKey::Balance(recipient).to_vec())
         .expect("failed to store balance");
 
     // update balances
@@ -108,6 +108,6 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
 pub fn get_balance(program: Program, recipient: Address) -> i64 {
     program
         .state()
-        .get_value(StateKey::Balance(recipient).to_vec())
+        .get(StateKey::Balance(recipient).to_vec())
         .expect("failed to get balance")
 }

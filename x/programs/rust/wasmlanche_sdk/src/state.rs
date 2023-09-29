@@ -42,13 +42,17 @@ impl State {
         }
     }
 
-    /// Get a value from the host storage.
+    /// Get a value from the host's storage.
+    ///
+    /// Note: The pointer passed to the host are only valid for the duration of this
+    /// function call. This function will take ownership of the pointer and free it.
+    ///
     /// # Errors
     /// Returns an `StateError` if the key cannot be serialized or if
     /// the host fails to read the key and value.
     /// # Panics
     /// Panics if the value cannot be converted from i32 to usize.
-    pub fn get_value<T, K>(&self, key: K) -> Result<T, StateError>
+    pub fn get<T, K>(&self, key: K) -> Result<T, StateError>
     where
         K: AsRef<[u8]>,
         T: DeserializeOwned,
@@ -62,6 +66,7 @@ impl State {
             return Err(StateError::Read);
         }
 
+        // Rust takes ownership here so all of the above pointers will be freed on return (drop).
         let val = unsafe {
             Vec::from_raw_parts(
                 val_ptr as *mut u8,

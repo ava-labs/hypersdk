@@ -11,7 +11,7 @@ enum StateKeys {
 fn initialize_address(program: Program, address: Address) -> bool {
     if program
         .state()
-        .get_value::<i64, _>(StateKeys::Counter(address).to_vec())
+        .get::<i64, _>(StateKeys::Counter(address).to_vec())
         .is_ok()
     {
         panic!("counter already initialized for address")
@@ -43,6 +43,6 @@ fn inc(program: Program, to: Address, amount: i64) -> bool {
 fn value(program: Program, of: Address) -> i64 {
     program
         .state()
-        .get_value(StateKeys::Counter(of).to_vec())
+        .get(StateKeys::Counter(of).to_vec())
         .expect("failed to get counter")
 }
