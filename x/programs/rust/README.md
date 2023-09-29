@@ -21,15 +21,15 @@ cargo build --target wasm32-unknown-unknown --target-dir $CARGO_TARGET_DIR --rel
 ## Serialization Between Host and Program
 
 Just a couple things to note. Serialization is minimal, yet there are certain
-aspects in the code that need to follow a specific format. Specifically there
+aspects in the code that need to follow a specific format. Specifically, there
 are currently only two places we modify the bytes coming in/out of rust.
 
-- The first is quite minimal. When storing a value in the host, the
+1. The first is quite minimal. When storing a value in the host, the
 SDK prepends a single byte representing the type of `ProgramValue`
 being stored. This single byte is necessary to inform Rust about the variable
 type when retrieving from the `host`.
-- The second area is a bit more complex and happens during a call to invoke
-another program. In this case we pass a byte array which contains the parameters
+2. The second area is a bit more complex and happens during a call to invoke
+another program. In this case, we pass a byte array which contains the parameters
 for the external function call. To construct this we marshal all the params with
 their metadata into one final byte array. Each parameter is added in this order
   - length of the parameter in bytes(stored as a i64)
@@ -97,16 +97,16 @@ pub fn some_function(program: Program, message: i64, message_length: i64) -> i64
 ```
           
 Each `Memory` is tightly bound to the lifecycle of the module. For this reason,
-`Memory` is non durable and can not be relied upon.
+`Memory` is non durable and can not be relied upon outside the scope of a `#[public]` function.
 
 ### State
 
-- `state` is the definition of the schema used to persist `Program` data.
+- `state_keys` is the definition of the schema used to persist `Program` data.
 
 ```rust
 type ProposalId = [u8; 8];
 
-#[state]
+#[state_keys]
 enum StateKeys {
     Proposal(ProposalId) // 0x0 + [u8; 8]
 }
@@ -132,12 +132,11 @@ pub fn vote(program: Program, proposal: i64, weight: i64) -> i64 {
 
 ### Rust Program SDK
 
-This folder provides the necessary tools to build WASM programs using rust.
+These modules provides the necessary tools to build WASM programs using rust.
 
-- `/store` : Exposes methods with interacting with the host environment
-- `/types` : Defines types(currently just `Address`)
-- `/host` : Imports necessary functions from the host.
-- `/Program`: Defines the `ProgramValue` and `Progam` types.
+- `state` : Exposes methods with interacting with the host state.
+- `types` : Defines types(currently just `Address`).
+- `host` : Imports necessary functions from the host.
 
 ### Exporting Program Functions
 
@@ -150,7 +149,7 @@ using the `Call` method of the `Runtime` interface.
 
 ```rust
 #[public]
-pub fn add(_: State, a: i64, b: i64) -> i64 {
+pub fn add(_: Program, a: i64, b: i64) -> i64 {
   a + b
 }
 ```

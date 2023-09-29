@@ -1,6 +1,6 @@
-use wasmlanche_sdk::{program::Program, public, state, types::Address};
+use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
 
-#[state]
+#[state_keys]
 enum StateKeys {
     /// The count of this program. Key prefix 0x0 + address
     Counter(Address),
@@ -28,7 +28,7 @@ fn initialize_address(program: Program, address: Address) -> bool {
 /// Increments the count at the address by the amount.
 #[public]
 fn inc(program: Program, to: Address, amount: i64) -> bool {
-    let counter = amount + value(program, to);
+    let counter = amount + get_value(program, to);
 
     program
         .state()
@@ -40,7 +40,7 @@ fn inc(program: Program, to: Address, amount: i64) -> bool {
 
 /// Gets the count at the address.
 #[public]
-fn value(program: Program, of: Address) -> i64 {
+fn get_value(program: Program, of: Address) -> i64 {
     program
         .state()
         .get(StateKeys::Counter(of).to_vec())

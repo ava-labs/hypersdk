@@ -1,7 +1,7 @@
-use wasmlanche_sdk::{program::Program, public, state, types::Address};
+use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
 
 /// The program state keys.
-#[state]
+#[state_keys]
 enum StateKey {
     /// The total supply of the token. Key prefix 0x0.
     TotalSupply,
@@ -65,18 +65,20 @@ pub fn mint_to(program: Program, recipient: Address, amount: i64) -> bool {
 /// Transfers balance from the sender to the the recipient.
 #[public]
 pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i64) -> bool {
-    if sender == recipient {
-        panic!("sender and recipient must be different");
-    }
+    assert_eq!(sender, recipient, "sender and recipient must be different");
 
     // ensure the sender has adequate balance
     let sender_balance = program
         .state()
         .get::<i64, _>(StateKey::Balance(sender).to_vec())
         .expect("failed to update balance");
-    if amount < 0 || sender_balance < amount {
-        panic!("insufficient balance");
-    }
+
+    assert!(
+        amount >= 0 && sender_balance >= amount,
+        "sender and recipient must be different"
+    );
+
+    assert_eq!(sender, recipient, "sender and recipient must be different");
 
     let recipient_balance = program
         .state()
