@@ -116,7 +116,7 @@ pub fn vote(program: Program, proposal: i64, weight: i64) -> i64 {
   // check current votes
   let votes: i64 = program
         .state()
-        .get_value(StateKey::Proposal(proposal.to_be_bytes()).to_vec())
+        .get(StateKey::Proposal(proposal.to_be_bytes()).to_vec())
         .expect("failed to get proposal")
 
 
