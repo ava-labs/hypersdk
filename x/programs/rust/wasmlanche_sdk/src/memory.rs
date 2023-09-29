@@ -1,16 +1,25 @@
 //! Temporary storage allocated during the Program runtime.
 
 /// Represents a pointer to a block of memory allocated by the global allocator.
-pub struct Pointer {
-    raw: *mut u8,
+#[derive(Clone, Copy)]
+pub struct Pointer(*mut u8);
+
+impl From<i64> for Pointer {
+    fn from(v: i64) -> Self {
+        let ptr: *mut u8 = v as *mut u8;
+        Pointer(ptr)
+    }
 }
 
-impl Pointer {
-    #[must_use]
-    pub fn new(ptr: i64) -> Self {
-        Self {
-            raw: ptr as *mut u8,
-        }
+impl From<Pointer> for *const u8 {
+    fn from(pointer: Pointer) -> Self {
+        pointer.0.cast_const()
+    }
+}
+
+impl From<Pointer> for *mut u8 {
+    fn from(pointer: Pointer) -> Self {
+        pointer.0
     }
 }
 
@@ -24,23 +33,34 @@ impl Memory {
     pub fn new(ptr: Pointer) -> Self {
         Self { ptr }
     }
-    /// Attempts return owned bytes from a pointer created by the global allocator.
-    ///
+
+    /// Attempts return a opy of the bytes from a pointer created by the global allocator.
     /// # Safety
     /// `ptr` must be a pointer to a block of memory created using alloc.
     /// `length` must be the length of the block of memory.
     #[must_use]
     pub unsafe fn range(&self, length: usize) -> Vec<u8> {
-        unsafe { Vec::from_raw_parts(self.ptr.raw, length, length) }
+        unsafe { std::slice::from_raw_parts(self.ptr.into(), length).to_vec() }
+    }
+
+    /// Returns ownership of the bytes and frees the memory block created by the
+    /// global allocator once it goes out of scope. Can only be called once.
+    /// # Safety
+    /// `ptr` must be a pointer to a block of memory created using alloc.
+    /// `length` must be the length of the block of memory.
+    #[must_use]
+    pub unsafe fn range_owned(&self, length: usize) -> Vec<u8> {
+        unsafe { Vec::from_raw_parts(self.ptr.into(), length, length) }
     }
 
     /// Attempts to write the bytes to the programs shared memory.
-    ///
     /// # Safety
     /// `ptr` must be a pointer to a block of memory created using alloc.
     /// `bytes` must be a slice of bytes with length <= `capacity`.
-    pub unsafe fn write(&self, bytes: &[u8]) {
-        unsafe { self.ptr.raw.copy_from(bytes.as_ptr(), bytes.len()) }
+    pub unsafe fn write<T: AsRef<[u8]>>(&self, bytes: T) {
+        self.ptr
+            .0
+            .copy_from(bytes.as_ref().as_ptr(), bytes.as_ref().len());
     }
 }
 
@@ -89,4 +109,67 @@ pub unsafe extern "C" fn dealloc(ptr: *mut u8, capacity: usize) {
     // always deallocate the full capacity, initialize vs uninitialized memory is irrelevant here
     let data = Vec::from_raw_parts(ptr, capacity, capacity);
     std::mem::drop(data);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_memory() {
+        let ptr_len = 5;
+        let ptr = allocate(ptr_len);
+        let memory = Memory { ptr: Pointer(ptr) };
+        let data = vec![1, 2, 3, 4, 5];
+
+        unsafe {
+            memory.write(&data);
+            let result = memory.range(data.len());
+            assert_eq!(result, data);
+            let data = vec![5, 1, 2, 4, 5];
+            memory.write(&data);
+            let result = memory.range(data.len());
+            assert_eq!(result, data);
+            let data = vec![9, 9, 2];
+            memory.write(&data);
+            let result = memory.range(ptr_len);
+            assert_eq!(result, vec![9, 9, 2, 4, 5]);
+        };
+
+        // now out of scope of original range but pointer still valid
+        unsafe {
+            let result = memory.range(data.len());
+            assert_eq!(result, vec![9, 9, 2, 4, 5]);
+        }
+    }
+
+    #[test]
+    fn test_range_owned() {
+        let ptr_len = 5;
+        let ptr = allocate(ptr_len);
+        let memory = Memory { ptr: Pointer(ptr) };
+        let data = vec![1, 2, 3, 4, 5];
+
+        unsafe {
+            let mut result = memory.range_owned(data.len());
+            assert_eq!(result, vec![0; 5]);
+            // mutate directly
+            result[0] = 1;
+            // read from original pointer works in this scope
+            let result2 = memory.range(data.len());
+            assert_eq!(result2, [1, 0, 0, 0, 0]);
+            // write works as expected
+            memory.write(&data);
+            assert_eq!(result, data);
+            // this would panic as the memory is already freed
+            // let mut result = memory.range_owned(data.len());
+
+            // ptr allocation dropped here
+        };
+        // now that we are out of scope ptr is invalid and ub
+        unsafe {
+            let result = memory.range(data.len());
+            assert_ne!(result, data);
+        }
+    }
 }
