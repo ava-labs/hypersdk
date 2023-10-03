@@ -25,7 +25,7 @@ var (
 	log = logging.NewLogger(
 		"",
 		logging.NewWrappedCore(
-			logging.Info,
+			logging.Debug,
 			os.Stderr,
 			logging.Plain.ConsoleEncoder(),
 		))
@@ -41,8 +41,7 @@ func TestTokenProgram(t *testing.T) {
 	imports["state"] = state.New(log, db)
 
 	cfg, err := runtime.NewConfigBuilder(maxUnits).
-		WithBulkMemory(true).
-		WithLimitMaxMemory(17 * 64 * units.KiB). // 17 pages
+		WithLimitMaxMemory(60 * 64 * units.KiB). // 17 pages
 		Build()
 	require.NoError(err)
 	program := NewToken(log, tokenProgramBytes, db, cfg, imports)

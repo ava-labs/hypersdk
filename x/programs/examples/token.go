@@ -64,10 +64,14 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// initialize program
-	_, err = rt.Call(ctx, "init", programIDPtr)
+	resp, err := rt.Call(ctx, "init", programIDPtr)
 	if err != nil {
 		return fmt.Errorf("failed to initialize program: %w", err)
 	}
+
+	t.log.Debug("init response",
+		zap.Uint64("init", resp[0]),
+	)
 
 	result, err := rt.Call(ctx, "get_total_supply", programIDPtr)
 	if err != nil {
@@ -89,7 +93,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	// check balance of alice
+	// check balance of bob
 	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
 	if err != nil {
 		return err
