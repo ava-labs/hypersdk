@@ -6,7 +6,7 @@ package runtime
 import (
 	"context"
 
-	"github.com/bytecodealliance/wasmtime-go/v12"
+	"github.com/bytecodealliance/wasmtime-go/v13"
 )
 
 type EngineCompileStrategy uint8

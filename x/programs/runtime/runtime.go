@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/bytecodealliance/wasmtime-go/v12"
+	"github.com/bytecodealliance/wasmtime-go/v13"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"

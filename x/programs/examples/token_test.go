@@ -13,7 +13,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/ava-labs/hypersdk/x/programs/examples/imports/store"
+	"github.com/ava-labs/hypersdk/x/programs/examples/imports/state"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
@@ -38,7 +38,7 @@ func TestTokenProgram(t *testing.T) {
 	maxUnits := uint64(50000)
 	// define imports
 	imports := make(runtime.Imports)
-	imports["store"] = store.New(log, db)
+	imports["state"] = state.New(log, db)
 
 	cfg, err := runtime.NewConfigBuilder(maxUnits).
 		WithBulkMemory(true).
@@ -69,7 +69,7 @@ func BenchmarkTokenProgram(b *testing.B) {
 
 			// define imports
 			imports := make(runtime.Imports)
-			imports["store"] = store.New(log, db)
+			imports["state"] = state.New(log, db)
 			program := NewToken(log, tokenProgramBytes, db, cfg, imports)
 			b.StartTimer()
 
@@ -102,7 +102,7 @@ func BenchmarkTokenProgram(b *testing.B) {
 
 			// define imports
 			imports := make(runtime.Imports)
-			imports["store"] = store.New(log, db)
+			imports["state"] = state.New(log, db)
 			program := NewToken(log, preCompiledTokenProgramBytes, db, cfg, imports)
 			b.StartTimer()
 

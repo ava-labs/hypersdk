@@ -3,7 +3,7 @@
 
 package runtime
 
-import "github.com/bytecodealliance/wasmtime-go/v12"
+import "github.com/bytecodealliance/wasmtime-go/v13"
 
 const (
 	defaultMaxWasmStack    = 256 * 1024 * 1024 // 256 MiB
