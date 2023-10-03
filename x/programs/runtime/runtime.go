@@ -85,19 +85,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte) (err 
 		return fmt.Errorf("unsupported compile strategy: %v", r.cfg.compileStrategy)
 	}
 
-	// TODO: remove wasi host functions.
-	// initialize wasi
-	wcfg := wasmtime.NewWasiConfig()
-	wcfg.InheritStderr()
-	wcfg.InheritStdout()
-	r.store.SetWasi(wcfg)
-
 	link := Link{wasmtime.NewLinker(r.store.Engine)}
-	err = link.DefineWasi()
-	if err != nil {
-		return err
-	}
-
 	// setup metering
 	r.meter = NewMeter(r.store)
 	_, err = r.meter.AddUnits(r.cfg.meterMaxUnits)

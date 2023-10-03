@@ -24,7 +24,7 @@ import (
 const Name = "store"
 
 // New returns a program storage module capable of storing arbitrary bytes
-// in the program's namespace. 
+// in the program's namespace.
 func New(log logging.Logger, mu state.Mutable) *Import {
 	return &Import{mu: mu, log: log}
 }
