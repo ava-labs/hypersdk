@@ -1,18 +1,95 @@
 //! NFT schema
+//! See https://nftschool.dev/reference/metadata-schemas/#ethereum-and-evm-compatible-chains for more information
+//! on the ERC-721 NFT metadata schema.
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-pub struct Metadata {
+pub struct NFT {
     pub title: String,
     pub r#type: String,
-    pub properties: AssetMetadata,
+    pub properties: Properties,
+}
+
+impl Default for NFT {
+    fn default() -> Self {
+        Self {
+            title: "".to_string(),
+            r#type: "".to_string(),
+            properties: Properties {
+                name: TypeDescription {
+                    r#type: "".to_string(),
+                    description: "".to_string(),
+                },
+                description: TypeDescription {
+                    r#type: "".to_string(),
+                    description: "".to_string(),
+                },
+                image: TypeDescription {
+                    r#type: "".to_string(),
+                    description: "".to_string(),
+                },
+            },
+        }
+    }
+}
+
+impl NFT {
+    pub fn with_title(mut self, title: String) -> Self {
+        self.title = title;
+        self
+    }
+
+    pub fn with_type(mut self, r#type: String) -> Self {
+        self.r#type = r#type;
+        self
+    }
+
+    pub fn with_properties(mut self, properties: Properties) -> Self {
+        self.properties = properties;
+        self
+    }
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct AssetMetadata {
+pub struct Properties {
     pub name: TypeDescription,
     pub description: TypeDescription,
     pub image: TypeDescription,
+}
+
+impl Default for Properties {
+    fn default() -> Self {
+        Self {
+            name: TypeDescription {
+                r#type: "".to_string(),
+                description: "".to_string(),
+            },
+            description: TypeDescription {
+                r#type: "".to_string(),
+                description: "".to_string(),
+            },
+            image: TypeDescription {
+                r#type: "".to_string(),
+                description: "".to_string(),
+            },
+        }
+    }
+}
+impl Properties {
+    pub fn with_name(mut self, name: TypeDescription) -> Self {
+        self.name = name;
+        self
+    }
+
+    pub fn with_description(mut self, description: TypeDescription) -> Self {
+        self.description = description;
+        self
+    }
+
+    pub fn with_image(mut self, image: TypeDescription) -> Self {
+        self.image = image;
+        self
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -21,12 +98,33 @@ pub struct TypeDescription {
     pub description: String,
 }
 
+impl Default for TypeDescription {
+    fn default() -> Self {
+        Self {
+            r#type: "".to_string(),
+            description: "".to_string(),
+        }
+    }
+}
+
+impl TypeDescription {
+    pub fn with_type(mut self, r#type: String) -> Self {
+        self.r#type = r#type;
+        self
+    }
+
+    pub fn with_description(mut self, description: String) -> Self {
+        self.description = description;
+        self
+    }
+}
+
 #[test]
 fn test_schema() {
-    let metadata = Metadata {
+    let metadata = NFT {
         title: "My NFT Metadata".to_string(),
         r#type: "object".to_string(),
-        properties: AssetMetadata {
+        properties: Properties {
             name: TypeDescription {
                 r#type: "MNFT".to_string(),
                 description: "Identifies the asset to which this NFT represents".to_string(),
