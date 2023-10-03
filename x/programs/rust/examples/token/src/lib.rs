@@ -13,34 +13,13 @@ enum StateKey {
     Balance(Address),
 }
 
-#[derive(Debug, Clone)]
-#[repr(u8)]
-pub enum Storage {
-    Balance(Address),
-    TotalSupply,
-}
-
-impl Storage {
-    pub fn to_vec(self) -> Vec<u8> {
-        match self {
-            Storage::Balance(a) => {
-                let mut bytes = Vec::with_capacity(1 + 32);
-                bytes.push(0u8);
-                bytes.extend_from_slice(a.as_bytes());
-                bytes
-            },
-            Storage::TotalSupply => vec![1u8],
-        }
-    }
-}
-
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
 pub fn init(program: Program) -> bool {
     // set total supply
     program
         .state()
-        .store(StateKey::TotalSupply.to_vec(), &123456789)
+        .store(StateKey::TotalSupply.to_vec(), &123456789_i64)
         .expect("failed to store total supply");
 
     // set token name
@@ -73,7 +52,7 @@ pub fn mint_to(program: Program, recipient: Address, amount: i64) -> bool {
     let balance = program
         .state()
         .get::<i64, _>(StateKey::Balance(recipient).to_vec())
-        .expect("failed to get balance");
+        .unwrap_or_default();
 
     program
         .state()
@@ -86,7 +65,7 @@ pub fn mint_to(program: Program, recipient: Address, amount: i64) -> bool {
 /// Transfers balance from the sender to the the recipient.
 #[public]
 pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i64) -> bool {
-    assert_eq!(sender, recipient, "sender and recipient must be different");
+    assert_ne!(sender, recipient, "sender and recipient must be different");
 
     // ensure the sender has adequate balance
     let sender_balance = program
@@ -96,15 +75,13 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
 
     assert!(
         amount >= 0 && sender_balance >= amount,
-        "sender and recipient must be different"
+        "invalid input"
     );
-
-    assert_eq!(sender, recipient, "sender and recipient must be different");
 
     let recipient_balance = program
         .state()
         .get::<i64, _>(StateKey::Balance(recipient).to_vec())
-        .expect("failed to store balance");
+        .unwrap_or_default();
 
     // update balances
     program
@@ -132,5 +109,5 @@ pub fn get_balance(program: Program, recipient: Address) -> i64 {
     program
         .state()
         .get(StateKey::Balance(recipient).to_vec())
-        .expect("failed to get balance")
+        .unwrap_or_default()
 }
