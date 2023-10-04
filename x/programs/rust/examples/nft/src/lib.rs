@@ -4,8 +4,8 @@
 //!
 //! NOTE: The NFT must support the common NFT metadata format.
 //! This JSON encoded file provides all the necessary metadata about the NFT.
-use metadata::{Properties, TypeDescription, NFT};
-use wasmlanche_sdk::{program::Program, public, state_keys};
+use metadata::NFT;
+use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
 pub mod metadata;
 
 const NFT_NAME: &str = "My NFT";
@@ -27,34 +27,29 @@ pub fn init(program: Program) -> bool {
         .store(StateKey::Symbol.to_vec(), &NFT_SYMBOL.as_bytes())
         .expect("failed to store symbol");
 
-    let nft_metadata = NFT::default()
-        .with_title("My NFT".to_string())
-        .with_type("object".to_string())
-        .with_properties(Properties::default()
-            .with_name(TypeDescription::default()
-                .with_type(NFT_SYMBOL.to_string())
-                .with_description("Identifies the asset to which this NFT represents".to_string())
-            )
-            .with_description(TypeDescription::default()
-                .with_type(NFT_NAME.to_string())
-                .with_description("Describes the asset to which this NFT represents".to_string())
-        )
-            .with_image(TypeDescription::default()
-                .with_type("ipfs://bafybeidlkqhddsjrdue7y3dy27pu5d7ydyemcls4z24szlyik3we7vqvam/nft-image.png".to_string())
-                .with_description("A URI pointing to a resource with mime type image".to_string())
-        ));
-
     // set total supply
     program
         .state()
         .store(StateKey::TotalSupply.to_vec(), &20)
         .expect("failed to store total supply");
 
-    // TODO: convert nft_metadata struct into bytes to persist to storage.
-    // program
-    //     .state()
-    //     .store(StateKey::Metadata.to_vec(), nft_metadata)
-    //     .expect("failed to store total supply");
+    // Generate NFT metadata and persist to storage
+    let nft_metadata = NFT::default()
+        .with_symbol(NFT_SYMBOL.to_string())
+        .with_name(NFT_NAME.to_string())
+        .with_uri("ipfs://my-nft.jpg".to_string());
+
+    program
+        .state()
+        .store(StateKey::Metadata.to_vec(), &nft_metadata)
+        .expect("failed to store nft metadata");
+
+    // Store the original owner of the NFT (the contract creator)
+    // TODO: get the program owner from the transaction context
+    program
+        .state()
+        .store(StateKey::Owner.to_vec(), &Address::new([0; 32]).as_bytes())
+        .expect("failed to store program owner");
 
     true
 }
@@ -72,6 +67,4 @@ enum StateKey {
     Metadata,
     /// Owner address
     Owner,
-    /// Edition (for example, edition 1 of 10)
-    Edition,
 }
