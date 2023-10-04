@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package state
+package pstate
 
 import (
 	"context"
@@ -23,23 +23,31 @@ import (
 
 const Name = "state"
 
+var _ runtime.Import = &Import{}
+
 // New returns a program storage module capable of storing arbitrary bytes
 // in the program's namespace.
-func New(log logging.Logger, mu state.Mutable) *Import {
+func New(log logging.Logger, mu state.Mutable) runtime.Import {
 	return &Import{mu: mu, log: log}
 }
 
 type Import struct {
-	mu    state.Mutable
-	log   logging.Logger
-	meter runtime.Meter
+	mu         state.Mutable
+	log        logging.Logger
+	meter      runtime.Meter
+	registered bool
 }
 
 func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Imports) error {
+func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.SupportedImports) error {
+	if i.registered {
+		return fmt.Errorf("import module already registered: %q", Name)
+	}
+	i.meter = meter
+
 	if err := link.FuncWrap(Name, "put", i.putFn); err != nil {
 		return err
 	}
@@ -49,8 +57,7 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Impo
 	if err := link.FuncWrap(Name, "len", i.getLenFn); err != nil {
 		return err
 	}
-
-	i.meter = meter
+	// i.registered = true
 
 	return nil
 }
