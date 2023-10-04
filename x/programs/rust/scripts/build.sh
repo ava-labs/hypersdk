@@ -13,3 +13,12 @@ cargo build \
   --target wasm32-unknown-unknown \
   --target-dir "$CARGO_TARGET_DIR" \
   --release
+
+cp "$CARGO_TARGET_DIR"/wasm32-unknown-unknown/release/*.wasm ../examples/testdata/
+
+# cargo build \
+#    --target wasm32-wasi \
+#    --target-dir "$CARGO_TARGET_DIR" \
+#    --release
+
+# cp "$CARGO_TARGET_DIR"/wasm32-wasi/release/*.wasm ../examples/testdata/

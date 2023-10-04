@@ -73,10 +73,7 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
         .get::<i64, _>(StateKey::Balance(sender).to_vec())
         .expect("failed to update balance");
 
-    assert!(
-        amount >= 0 && sender_balance >= amount,
-        "invalid input"
-    );
+    assert!(amount >= 0 && sender_balance >= amount, "invalid input");
 
     let recipient_balance = program
         .state()
