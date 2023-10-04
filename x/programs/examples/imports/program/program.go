@@ -22,15 +22,15 @@ import (
 const Name = "program"
 
 type Import struct {
-	db         state.Immutable
+	db         state.Mutable
 	log        logging.Logger
-	imports    runtime.Imports
+	imports    runtime.SupportedImports
 	meter      runtime.Meter
 	registered bool
 }
 
 // New returns a new program invoke host module which can perform program to program calls.
-func New(log logging.Logger, db state.Immutable) *Import {
+func New(log logging.Logger, db state.Mutable) *Import {
 	return &Import{
 		db:  db,
 		log: log,
@@ -41,22 +41,22 @@ func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtime.Imports) error {
+func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtime.SupportedImports) error {
 	if i.registered {
-		return fmt.Errorf("import module already registered")
+		return fmt.Errorf("import module already registered: %q", Name)
 	}
-	if err := link.FuncWrap(Name, "invoke_program", i.invokeProgramFn); err != nil {
-		return err
-	}
-	i.registered = true
 	i.imports = imports
 	i.meter = meter
+
+	if err := link.FuncWrap(Name, "call_program", i.callProgramFn); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 // invokeProgramFn makes a call to an entry function of a program in the context of another program's ID.
-func (i *Import) invokeProgramFn(
+func (i *Import) callProgramFn(
 	caller *wasmtime.Caller,
 	callerIDPtr int64,
 	programIDPtr int64,
@@ -98,8 +98,7 @@ func (i *Import) invokeProgramFn(
 
 	// initialize a new runtime config with zero balance
 	cfg, err := runtime.NewConfigBuilder(runtime.NoUnits).
-		WithBulkMemory(true).
-		WithLimitMaxMemory(17 * runtime.MemoryPageSize). // 17 pages
+		WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
 		Build()
 	if err != nil {
 		i.log.Error("failed to create runtime config",
@@ -155,10 +154,6 @@ func (i *Import) invokeProgramFn(
 		return -1
 	}
 
-	for _, param := range params {
-		i.log.Debug("param", zap.Uint64("param", param))
-	}
-
 	function := string(functionBytes)
 	res, err := rt.Call(ctx, function, params...)
 	if err != nil {
@@ -193,11 +188,9 @@ func getCallArgs(ctx context.Context, rt runtime.Runtime, buffer []byte, invokeP
 		if isInt {
 			valueInt := p.UnpackUint64(true)
 			args = append(args, valueInt)
-			fmt.Printf("valueBytes: %d: %v\n", i, valueInt)
 		} else {
 			valueBytes := make([]byte, size)
 			p.UnpackFixedBytes(int(size), &valueBytes)
-			fmt.Printf("valueBytes: %d: %v\n", i, valueBytes)
 			ptr, err := runtime.WriteBytes(rt.Memory(), valueBytes)
 			if err != nil {
 				return nil, err

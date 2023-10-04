@@ -47,7 +47,6 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Supp
 		return fmt.Errorf("import module already registered: %q", Name)
 	}
 	i.meter = meter
-	i.registered = true
 
 	if err := link.FuncWrap(Name, "put", i.putFn); err != nil {
 		return err
@@ -58,11 +57,13 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Supp
 	if err := link.FuncWrap(Name, "len", i.getLenFn); err != nil {
 		return err
 	}
+	// i.registered = true
 
 	return nil
 }
 
 func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLength int32, valuePtr int32, valueLength int32) int32 {
+	i.log.Debug("putFn called")
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
 	if err != nil {
@@ -88,7 +89,10 @@ func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLe
 		return -1
 	}
 
+	id, _ := ids.ToID(programIDBytes)
+
 	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
+
 	err = i.mu.Insert(context.Background(), k, valueBytes)
 	if err != nil {
 		i.log.Error("failed to insert into storage",
@@ -97,10 +101,18 @@ func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLe
 		return -1
 	}
 
+	i.log.Debug("stored bytes",
+		zap.String("programID", id.String()),
+		zap.String("key", fmt.Sprintf("%v", keyBytes)),
+		zap.String("value", fmt.Sprintf("%v", valueBytes)),
+		zap.String("k", fmt.Sprintf("%v", k)),
+	)
+
 	return 0
 }
 
 func (i *Import) getLenFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLength int32) int32 {
+	i.log.Debug("getLenFn called")
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
 	if err != nil {
@@ -128,11 +140,18 @@ func (i *Import) getLenFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, ke
 		}
 		return -1
 	}
+
+	i.log.Debug("checking len",
+		zap.String("key", fmt.Sprintf("%v", keyBytes)),
+		zap.String("k", fmt.Sprintf("%v", k)),
+		zap.String("val", fmt.Sprintf("%v", val)),
+	)
 
 	return int32(len(val))
 }
 
 func (i *Import) getFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLength int32, valLength int32) int32 {
+	i.log.Debug("getFn called")
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
 	if err != nil {
@@ -151,6 +170,10 @@ func (i *Import) getFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLe
 	}
 
 	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
+	i.log.Debug("getting bytes",
+		zap.String("key", fmt.Sprintf("%v", keyBytes)),
+		zap.String("k", fmt.Sprintf("%v", k)),
+	)
 	val, err := i.mu.GetValue(context.Background(), k)
 	if err != nil {
 		if !errors.Is(err, database.ErrNotFound) {
@@ -161,12 +184,19 @@ func (i *Import) getFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLe
 		return -1
 	}
 
+	id, err := ids.ToID(programIDBytes)
 	if err != nil {
 		i.log.Error("failed to convert program id to id",
 			zap.Error(err),
 		)
 		return -1
 	}
+
+	i.log.Debug("read bytes",
+		zap.String("programID", id.String()),
+		zap.String("key", fmt.Sprintf("%v", keyBytes)),
+		zap.String("val", fmt.Sprintf("%v", val)),
+	)
 
 	ptr, err := runtime.WriteBytes(memory, val)
 	if err != nil {
