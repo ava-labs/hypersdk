@@ -11,7 +11,6 @@ const (
 	defaultFuelMetering    = true
 	defaultWasmMultiMemory = false
 	defaultWasmMemory64    = false
-
 	defaultLimitMaxMemory = 16 * 64 * 1024 // 16 pages
 )
 
@@ -167,12 +166,13 @@ func (b *builder) Build() (*Config, error) {
 func defaultWasmtimeConfig() *wasmtime.Config {
 	cfg := wasmtime.NewConfig()
 	// defaults
-	cfg.SetCraneliftOptLevel(wasmtime.OptLevelSpeedAndSize)
+	cfg.SetCraneliftOptLevel(wasmtime.OptLevelSpeed)
 	cfg.SetConsumeFuel(defaultFuelMetering)
 	cfg.SetWasmThreads(defaultWasmThreads)
 	cfg.SetWasmMultiMemory(defaultWasmMultiMemory)
 	cfg.SetWasmMemory64(defaultWasmMemory64)
 	cfg.SetStrategy(wasmtime.StrategyCranelift)
 	cfg.SetEpochInterruption(true)
+	cfg.SetCraneliftFlag("enable_nan_canonicalization", "true")
 	return cfg
 }

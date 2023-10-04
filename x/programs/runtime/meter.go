@@ -21,7 +21,6 @@ func NewMeter(store *wasmtime.Store) Meter {
 type meter struct {
 	maxUnits uint64
 	store    *wasmtime.Store
-	closed   bool
 }
 
 func (m *meter) GetBalance() uint64 {

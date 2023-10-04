@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
@@ -24,7 +23,7 @@ var counterProgramBytes []byte
 func TestCounterProgram(t *testing.T) {
 	require := require.New(t)
 	db := utils.NewTestDB()
-	maxUnits := uint64(5000000)
+	maxUnits := uint64(50000)
 
 	// define supported imports
 	imports := runtime.NewSupportedImports()
@@ -36,14 +35,12 @@ func TestCounterProgram(t *testing.T) {
 	}
 
 	cfg, err := runtime.NewConfigBuilder(maxUnits).
-		WithLimitMaxMemory(18 * 64 * units.KiB). // 17 pages
-		WithBulkMemory(true).
+		WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
 		Build()
 	require.NoError(err)
 
 	cfg2, err := runtime.NewConfigBuilder(maxUnits).
-		WithLimitMaxMemory(18 * 64 * units.KiB). // 17 pages
-		WithBulkMemory(true).
+		WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
 		Build()
 	require.NoError(err)
 

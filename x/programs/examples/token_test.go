@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/units"
+
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
@@ -43,8 +43,7 @@ func TestTokenProgram(t *testing.T) {
 	}
 
 	cfg, err := runtime.NewConfigBuilder(maxUnits).
-		WithBulkMemory(true).
-		WithLimitMaxMemory(18 * 64 * units.KiB). // 17 pages
+		WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
 		Build()
 	require.NoError(err)
 	program := NewToken(log, tokenProgramBytes, db, cfg, imports)
@@ -62,8 +61,7 @@ func BenchmarkTokenProgram(b *testing.B) {
 			b.StopTimer()
 			// configs can only be used once
 			cfg, err := runtime.NewConfigBuilder(maxUnits).
-				WithLimitMaxMemory(18 * 64 * units.KiB). // 18 pages
-				WithDefaultCache(true).
+				WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
 				Build()
 			require.NoError(err)
 			db := utils.NewTestDB()
@@ -82,7 +80,7 @@ func BenchmarkTokenProgram(b *testing.B) {
 	})
 
 	cfg, err := runtime.NewConfigBuilder(maxUnits).
-		WithLimitMaxMemory(18 * 64 * units.KiB). // 18 pages
+		WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
 		Build()
 	require.NoError(err)
 	preCompiledTokenProgramBytes, err := runtime.PreCompileWasmBytes(tokenProgramBytes, cfg)
@@ -93,7 +91,7 @@ func BenchmarkTokenProgram(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			cfg, err := runtime.NewConfigBuilder(maxUnits).
-				WithLimitMaxMemory(18 * 64 * units.KiB). // 18 pages
+				WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
 				WithCompileStrategy(runtime.PrecompiledWasm).
 				Build()
 			require.NoError(err)

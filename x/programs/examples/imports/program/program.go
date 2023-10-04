@@ -55,7 +55,7 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtim
 	return nil
 }
 
-// invokeProgramFn makes a call to an entry function of a program in the context of another program's ID.
+// callProgramFn makes a call to an entry function of a program in the context of another program's ID.
 func (i *Import) callProgramFn(
 	caller *wasmtime.Caller,
 	callerIDPtr int64,
@@ -166,6 +166,8 @@ func (i *Import) callProgramFn(
 	// stop the runtime to prevent further execution
 	rt.Stop()
 
+
+	// transfer remaining balance back to parent runtime
 	_, err = rt.Meter().TransferUnits(i.meter, rt.Meter().GetBalance())
 	if err != nil {
 		i.log.Error("failed to transfer remaining balance to caller",
