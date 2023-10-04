@@ -17,10 +17,7 @@ import (
 var _ Runtime = &WasmRuntime{}
 
 // New returns a new wasm runtime.
-func New(log logging.Logger, cfg *Config, imports Imports) Runtime {
-	if imports == nil {
-		imports = make(Imports)
-	}
+func New(log logging.Logger, cfg *Config, imports SupportedImports) Runtime {
 	return &WasmRuntime{
 		imports: imports,
 		log:     log,
@@ -39,7 +36,7 @@ type WasmRuntime struct {
 	once     sync.Once
 	cancelFn context.CancelFunc
 
-	imports Imports
+	imports SupportedImports
 
 	log logging.Logger
 }
@@ -107,7 +104,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte) (err 
 		r.log.Debug("registering host functions for module",
 			zap.String("name", imp),
 		)
-		err = mod.Register(link, r.meter, r.imports)
+		err = mod().Register(link, r.meter, r.imports)
 		if err != nil {
 			return err
 		}
@@ -158,7 +155,7 @@ func (r *WasmRuntime) Call(_ context.Context, name string, params ...uint64) ([]
 
 	fnParams := fn.Type(r.store).Params()
 	if len(params) != len(fnParams) {
-		return nil, fmt.Errorf("%w: %d expected: %d", ErrInvalidParamCount, len(params), len(fnParams))
+		return nil, fmt.Errorf("%w for function %s: %d expected: %d", ErrInvalidParamCount, name, len(params), len(fnParams))
 	}
 
 	callParams, err := mapFunctionParams(params, fnParams)

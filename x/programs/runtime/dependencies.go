@@ -18,7 +18,7 @@ const (
 	PrecompiledWasm
 )
 
-var NoImports = make(Imports)
+var NoSupportedImports = make(SupportedImports)
 
 type Link struct {
 	*wasmtime.Linker
@@ -57,7 +57,7 @@ type Import interface {
 	// Name returns the name of this import module.
 	Name() string
 	// Instantiate instantiates an all of the functions exposed by this import module.
-	Register(Link, Meter, Imports) error
+	Register(Link, Meter, SupportedImports) error
 }
 
 // Memory defines the interface for interacting with memory.

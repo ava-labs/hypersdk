@@ -32,7 +32,7 @@ func TestStop(t *testing.T) {
 		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
 		Build()
 	require.NoError(err)
-	runtime := New(logging.NoLog{}, cfg, NoImports)
+	runtime := New(logging.NoLog{}, cfg, NoSupportedImports)
 	err = runtime.Initialize(ctx, wasm)
 	require.NoError(err)
 	// stop the runtime
@@ -66,7 +66,7 @@ func TestCallParams(t *testing.T) {
 		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
 		Build()
 	require.NoError(err)
-	runtime := New(logging.NoLog{}, cfg, NoImports)
+	runtime := New(logging.NoLog{}, cfg, NoSupportedImports)
 	err = runtime.Initialize(ctx, wasm)
 	require.NoError(err)
 
