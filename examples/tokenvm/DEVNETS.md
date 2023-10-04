@@ -31,7 +31,9 @@ chmod +x /tmp/avalancheup-aws
 Next, install the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html). This is used to
 authenticate to AWS and manipulate CloudFormation.
 
-Once you've installed the AWS CLI, run `aws configure sso` to login to AWS locally. See [the avalanche-ops documentation](https://github.com/ava-labs/avalanche-ops#permissions) for additional details. Set a `profile_name` when logging in, as it will be referenced directly by avalanche-ops commands.
+Once you've installed the AWS CLI, run `aws configure sso` to login to AWS locally. See
+[the avalanche-ops documentation](https://github.com/ava-labs/avalanche-ops#permissions) for additional details. Set a
+`profile_name` when logging in, as it will be referenced directly by avalanche-ops commands.
 
 ### Step 3: Install `token-cli`
 ```bash
@@ -40,7 +42,7 @@ export ARCH_TYPE=$(uname -m)
 echo ${ARCH_TYPE}
 export OS_TYPE=$(uname | tr '[:upper:]' '[:lower:]')
 echo ${OS_TYPE}
-export HYPERSDK_VERSION="0.0.13"
+export HYPERSDK_VERSION="0.0.14"
 rm -f /tmp/avalanche-ops/token-cli
 mkdir -p /tmp/avalanche-ops
 wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz"
@@ -52,12 +54,11 @@ rm -rf tmp-hypersdk
 ```
 
 ### Step 4: Download `tokenvm`
-`tokenvm` is currently compiled with `GOAMD=v1`. If you want to significantly
-improve the performance of cryptographic operations, you should consider
-building with [`v3+`](https://github.com/golang/go/wiki/MinimumRequirements#amd64).
+`tokenvm` is currently compiled with `GOAMD=v1`. If you want to improve the performance of cryptographic
+operations, you should consider building with [`v3+`](https://github.com/golang/go/wiki/MinimumRequirements#amd64).
 
 ```bash
-export HYPERSDK_VERSION="0.0.13"
+export HYPERSDK_VERSION="0.0.14"
 rm -f /tmp/avalanche-ops/tokenvm
 wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz"
 mkdir tmp-hypersdk
@@ -85,7 +86,7 @@ WIP
 --ip-mode=ephemeral \
 --metrics-fetch-interval-seconds 60 \
 --network-name custom \
---avalanchego-release-tag v1.10.3 \
+--avalanchego-release-tag v1.10.11 \
 --create-dev-machine \
 --keys-to-generate 5 \
 --subnet-config-file /tmp/avalanche-ops/tokenvm-subnet-config.json \
@@ -94,7 +95,7 @@ WIP
 --chain-genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
 --chain-config-file /tmp/avalanche-ops/tokenvm-chain-config.json \
 --spec-file-path spec.yml \
---profile-name <AWS_PROFILE_NAME> 
+--profile-name <AWS_PROFILE_NAME>
 ```
 
 Now we can spin up a new network of 6 nodes with some defaults:
