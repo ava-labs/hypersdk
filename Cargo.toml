@@ -1,12 +1,10 @@
 # extend if new rust crates are added so rust analyzer isnt confused
 [workspace]
 members = [
-    "x/programs/rust/expose_macro",
+    "x/programs/rust/sdk_macros",
     "x/programs/rust/wasmlanche_sdk",
     "x/programs/rust/examples/token",
     "x/programs/rust/examples/counter",
-    "x/programs/rust/examples/lottery",
-    "x/programs/rust/examples/pokemon",
 ]
 resolver = "2"
 
@@ -15,3 +13,5 @@ opt-level = 3
 lto = true
 codegen-units = 1
 overflow-checks = true
+# https://doc.rust-lang.org/book/ch09-01-unrecoverable-errors-with-panic.html#unwinding-the-stack-or-aborting-in-response-to-a-panic
+panic = 'abort'

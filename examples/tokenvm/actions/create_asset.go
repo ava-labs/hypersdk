@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
@@ -19,8 +20,8 @@ import (
 var _ chain.Action = (*CreateAsset)(nil)
 
 type CreateAsset struct {
-	// Metadata is creator-specified information about the asset. This can be
-	// modified using the [ModifyAsset] action.
+	Symbol   []byte `json:"symbol"`
+	Decimals uint8  `json:"decimals"`
 	Metadata []byte `json:"metadata"`
 }
 
@@ -52,12 +53,24 @@ func (c *CreateAsset) Execute(
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	actor := auth.GetActor(rauth)
+	if len(c.Symbol) == 0 {
+		return false, CreateAssetComputeUnits, OutputSymbolEmpty, nil, nil
+	}
+	if len(c.Symbol) > MaxSymbolSize {
+		return false, CreateAssetComputeUnits, OutputSymbolTooLarge, nil, nil
+	}
+	if c.Decimals > MaxDecimals {
+		return false, CreateAssetComputeUnits, OutputDecimalsTooLarge, nil, nil
+	}
+	if len(c.Metadata) == 0 {
+		return false, CreateAssetComputeUnits, OutputMetadataEmpty, nil, nil
+	}
 	if len(c.Metadata) > MaxMetadataSize {
 		return false, CreateAssetComputeUnits, OutputMetadataTooLarge, nil, nil
 	}
 	// It should only be possible to overwrite an existing asset if there is
 	// a hash collision.
-	if err := storage.SetAsset(ctx, mu, txID, c.Metadata, 0, actor, false); err != nil {
+	if err := storage.SetAsset(ctx, mu, txID, c.Symbol, c.Decimals, c.Metadata, 0, actor, false); err != nil {
 		return false, CreateAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, CreateAssetComputeUnits, nil, nil, nil
@@ -68,16 +81,21 @@ func (*CreateAsset) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (c *CreateAsset) Size() int {
-	return codec.BytesLen(c.Metadata)
+	// TODO: add small bytes (smaller int prefix)
+	return codec.BytesLen(c.Symbol) + consts.Uint8Len + codec.BytesLen(c.Metadata)
 }
 
 func (c *CreateAsset) Marshal(p *codec.Packer) {
+	p.PackBytes(c.Symbol)
+	p.PackByte(c.Decimals)
 	p.PackBytes(c.Metadata)
 }
 
 func UnmarshalCreateAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var create CreateAsset
-	p.UnpackBytes(MaxMetadataSize, false, &create.Metadata)
+	p.UnpackBytes(MaxSymbolSize, true, &create.Symbol)
+	create.Decimals = p.UnpackByte()
+	p.UnpackBytes(MaxMetadataSize, true, &create.Metadata)
 	return &create, p.Err()
 }
 

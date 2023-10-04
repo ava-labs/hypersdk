@@ -12,16 +12,12 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-const WarpTransferSize = ed25519.PublicKeyLen + consts.IDLen +
-	consts.Uint64Len + consts.BoolLen +
-	consts.Uint64Len + /* op bits */
-	consts.Uint64Len + consts.Uint64Len + consts.IDLen + consts.Uint64Len + consts.Int64Len +
-	consts.IDLen + consts.IDLen
-
 type WarpTransfer struct {
-	To    ed25519.PublicKey `json:"to"`
-	Asset ids.ID            `json:"asset"`
-	Value uint64            `json:"value"`
+	To       ed25519.PublicKey `json:"to"`
+	Symbol   []byte            `json:"symbol"`
+	Decimals uint8             `json:"decimals"`
+	Asset    ids.ID            `json:"asset"`
+	Value    uint64            `json:"value"`
 
 	// Return is set to true when a warp message is sending funds back to the
 	// chain where they were created.
@@ -50,9 +46,19 @@ type WarpTransfer struct {
 	DestinationChainID ids.ID `json:"destinationChainID"`
 }
 
+func (w *WarpTransfer) size() int {
+	return ed25519.PublicKeyLen + codec.BytesLen(w.Symbol) + consts.Uint8Len + consts.IDLen +
+		consts.Uint64Len + consts.BoolLen +
+		consts.Uint64Len + /* op bits */
+		consts.Uint64Len + consts.Uint64Len + consts.IDLen + consts.Uint64Len + consts.Int64Len +
+		consts.IDLen + consts.IDLen
+}
+
 func (w *WarpTransfer) Marshal() ([]byte, error) {
-	p := codec.NewWriter(WarpTransferSize, WarpTransferSize)
+	p := codec.NewWriter(w.size(), w.size())
 	p.PackPublicKey(w.To)
+	p.PackBytes(w.Symbol)
+	p.PackByte(w.Decimals)
 	p.PackID(w.Asset)
 	p.PackUint64(w.Value)
 	p.PackBool(w.Return)
@@ -80,9 +86,17 @@ func ImportedAssetMetadata(assetID ids.ID, sourceChainID ids.ID) []byte {
 }
 
 func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
+	maxWarpTransferSize := ed25519.PublicKeyLen + codec.BytesLenSize(MaxSymbolSize) + consts.Uint8Len + consts.IDLen +
+		consts.Uint64Len + consts.BoolLen +
+		consts.Uint64Len + /* op bits */
+		consts.Uint64Len + consts.Uint64Len + consts.IDLen + consts.Uint64Len + consts.Int64Len +
+		consts.IDLen + consts.IDLen
+
 	var transfer WarpTransfer
-	p := codec.NewReader(b, WarpTransferSize)
+	p := codec.NewReader(b, maxWarpTransferSize)
 	p.UnpackPublicKey(false, &transfer.To)
+	p.UnpackBytes(MaxSymbolSize, true, &transfer.Symbol)
+	transfer.Decimals = p.UnpackByte()
 	p.UnpackID(false, &transfer.Asset)
 	transfer.Value = p.UnpackUint64(true)
 	transfer.Return = p.UnpackBool()

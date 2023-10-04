@@ -35,6 +35,7 @@ var (
 	prometheusData    string
 	runPrometheus     bool
 	maxFee            int64
+	numCores          int
 
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
@@ -116,11 +117,18 @@ func init() {
 		false,
 		"check all chains",
 	)
+	balanceKeyCmd.PersistentFlags().IntVar(
+		&numCores,
+		"num-cores",
+		4,
+		"number of cores to use when searching for faucet solutions",
+	)
 	keyCmd.AddCommand(
 		genKeyCmd,
 		importKeyCmd,
 		setKeyCmd,
 		balanceKeyCmd,
+		faucetKeyCmd,
 	)
 
 	// chain
@@ -141,12 +149,13 @@ func init() {
 
 	// actions
 	actionCmd.AddCommand(
+		fundFaucetCmd,
+
 		transferCmd,
 
 		createAssetCmd,
 		mintAssetCmd,
 		// burnAssetCmd,
-		// modifyAssetCmd,
 
 		createOrderCmd,
 		fillOrderCmd,

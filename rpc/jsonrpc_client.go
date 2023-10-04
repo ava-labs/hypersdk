@@ -203,7 +203,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	base := &chain.Base{
 		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
 		ChainID:   rules.ChainID(),
-		MaxFee:    maxFee, // never pay blockCost
+		MaxFee:    maxFee,
 	}
 
 	// Modify gathered data

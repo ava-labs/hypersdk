@@ -65,6 +65,8 @@ type AssetArgs struct {
 }
 
 type AssetReply struct {
+	Symbol   []byte `json:"symbol"`
+	Decimals uint8  `json:"decimals"`
 	Metadata []byte `json:"metadata"`
 	Supply   uint64 `json:"supply"`
 	Owner    string `json:"owner"`
@@ -75,13 +77,15 @@ func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetRe
 	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Asset")
 	defer span.End()
 
-	exists, metadata, supply, owner, warp, err := j.c.GetAssetFromState(ctx, args.Asset)
+	exists, symbol, decimals, metadata, supply, owner, warp, err := j.c.GetAssetFromState(ctx, args.Asset)
 	if err != nil {
 		return err
 	}
 	if !exists {
 		return ErrAssetNotFound
 	}
+	reply.Symbol = symbol
+	reply.Decimals = decimals
 	reply.Metadata = metadata
 	reply.Supply = supply
 	reply.Owner = utils.Address(owner)
@@ -127,6 +131,37 @@ func (j *JSONRPCServer) Orders(req *http.Request, args *OrdersArgs, reply *Order
 	defer span.End()
 
 	reply.Orders = j.c.Orders(args.Pair, ordersToSend)
+	return nil
+}
+
+type GetOrderArgs struct {
+	OrderID ids.ID `json:"orderID"`
+}
+
+type GetOrderReply struct {
+	Order *orderbook.Order `json:"order"`
+}
+
+func (j *JSONRPCServer) GetOrder(req *http.Request, args *GetOrderArgs, reply *GetOrderReply) error {
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.GetOrder")
+	defer span.End()
+
+	exists, in, inTick, out, outTick, remaining, owner, err := j.c.GetOrderFromState(ctx, args.OrderID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrOrderNotFound
+	}
+	reply.Order = &orderbook.Order{
+		ID:        args.OrderID,
+		Owner:     utils.Address(owner),
+		InAsset:   in,
+		InTick:    inTick,
+		OutAsset:  out,
+		OutTick:   outTick,
+		Remaining: remaining,
+	}
 	return nil
 }
 

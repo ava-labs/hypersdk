@@ -1,0 +1,10 @@
+{
+  "host": "",
+  "port": 9091,
+  "privateKeyBytes": "933IN5CnG5Qls9+BtdOsfwWrSTSeKB3ephZ6EAWeLWwg/d/FFTpFKk8qrIvMghyxug45iZL76WowpCCOIVgNpw==",
+  "tokenRPC": "http://127.0.0.1:62451/ext/bc/2mzRiBeC83RzGcanb5B35BXNSDMc59RxGoxF4g5REGAB5m5sPP",
+  "amount": 100000000,
+  "startDifficulty": 25,
+  "solutionsPerSalt": 10,
+  "targetDurationPerSalt": 300
+}

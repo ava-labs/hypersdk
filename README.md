@@ -90,7 +90,7 @@ would grow at an alarming rate each day (making running any `hypervm` impractica
 Consider the simple example where we process 25k transactions per second (assume each
 transaction is ~400 bytes). This would would require the `hypersdk` to store 10MB per
 second (not including any overhead in the database for doing so). **This works out to
-864GB per day or 20.7TB per year.**
+864GB per day or 315.4TB per year.**
 
 In practice, this means the `hypersdk` only stores the last 768 accepted blocks the genesis block,
 and the last 256 revisions of state (the [ProposerVM](https://github.com/ava-labs/avalanchego/blob/master/vms/proposervm/README.md)
@@ -987,6 +987,15 @@ _This is a collection of posts from the community about the `hypersdk` and how t
 * [An Analysis of the Developing State of Avalanche’s Technology](https://www.thetie.io/insights/research/an-analysis-of-the-developing-state-of-avalanches-technology/)
 * [Launching Custom Tokens With HyperSDK By Avalanche](https://pythontony.hashnode.dev/launching-custom-tokens-with-hypersdk-by-avalanche)
 * [Avalanche VMs deep-dive #1: HyperSDK/tokenvm](https://ashavax.hashnode.dev/avalanche-vms-deep-dive-1-hypersdktokenvm)
+
+## HyperSDK Projects 👀
+_This is a gallery of community projects currently building on top of the HyperSDK._
+
+* [NodeKit: Decentralizing The L2 Sequencer on a Subnet]()
+* [OracleVM: Providing OffChain Data to the Avalanche Ecosystem]()
+* [ShuttleVM: Trusted Execution Environment for Wasm Programs to run distributed workloads on a subnet]()
+
+
 
 ## Future Work
 _If you want to take the lead on any of these items, please

@@ -66,9 +66,16 @@ var chainInfoCmd = &cobra.Command{
 var watchChainCmd = &cobra.Command{
 	Use: "watch",
 	RunE: func(_ *cobra.Command, args []string) error {
+		var cli *trpc.JSONRPCClient
 		return handler.Root().WatchChain(hideTxs, func(uri string, networkID uint32, chainID ids.ID) (chain.Parser, error) {
-			cli := trpc.NewJSONRPCClient(uri, networkID, chainID)
+			cli = trpc.NewJSONRPCClient(uri, networkID, chainID)
 			return cli.Parser(context.TODO())
-		}, handleTx)
+		}, func(tx *chain.Transaction, result *chain.Result) {
+			if cli == nil {
+				// Should never happen
+				return
+			}
+			handleTx(cli, tx, result)
+		})
 	},
 }

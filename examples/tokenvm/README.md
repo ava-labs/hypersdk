@@ -440,6 +440,7 @@ _If you want to take the lead on any of these items, please
 [start a discussion](https://github.com/ava-labs/hypersdk/discussions) or reach
 out on the Avalanche Discord._
 
+* Document GUI/Faucet/Feed
 * Add more config options for determining which order books to store in-memory
 * Add option to CLI to fill up to some amount of an asset as long as it is
   under some exchange rate (trading agent command to provide better UX)

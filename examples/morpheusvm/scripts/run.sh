@@ -17,7 +17,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=2eabd228952b6b7c9075bc45653f70643d9a5a7c
+VERSION=v1.10.10
 MAX_UINT64=18446744073709551615
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
@@ -42,6 +42,7 @@ if ${UNLIMITED_USAGE}; then
 fi
 
 echo "Running with:"
+echo LOGLEVEL: ${LOGLEVEL}
 echo VERSION: ${VERSION}
 echo MODE: ${MODE}
 echo LOG LEVEL: ${LOGLEVEL}
@@ -149,12 +150,11 @@ cat <<EOF > ${TMPDIR}/morpheusvm.config
   "storeTransactions": ${STORE_TXS},
   "streamingBacklogSize": 10000000,
   "logLevel": "${LOGLEVEL}",
+  "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
 mkdir -p ${TMPDIR}/morpheusvm-e2e-profiles
-
-# Profiling config:  {"continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*"}
 
 ############################
 
@@ -191,7 +191,7 @@ ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 # download avalanche-network-runner
 # https://github.com/ava-labs/avalanche-network-runner
 ANR_REPO_PATH=github.com/ava-labs/avalanche-network-runner
-ANR_VERSION=fbe081616f02dd0142cc5923168c43ed5991d947
+ANR_VERSION=v1.7.2
 # version set
 go install -v ${ANR_REPO_PATH}@${ANR_VERSION}
 

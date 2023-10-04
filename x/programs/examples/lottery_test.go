@@ -11,10 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	//go:embed testdata/lottery.wasm
-	lotteryProgramBytes []byte
-)
+//go:embed testdata/lottery.wasm
+var lotteryProgramBytes []byte
 
 // go test -v -timeout 30s -run ^TestLotteryProgram$ github.com/ava-labs/hypersdk/x/programs/examples
 func TestLotteryProgram(t *testing.T) {

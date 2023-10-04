@@ -10,6 +10,7 @@ const (
 	IDLen     = 32
 	NodeIDLen = 20
 	IntLen    = 4
+	Uint8Len  = 1
 	Uint16Len = 2
 	Uint32Len = 4
 	Uint64Len = 8

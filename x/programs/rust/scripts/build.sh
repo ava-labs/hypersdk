@@ -2,8 +2,14 @@
 
 set -x
 
-CARGO_TARGET_DIR=../examples/testdata/target
+# Set a default value for CARGO_TARGET_DIR if it's not provided as an argument
+CARGO_TARGET_DIR="${1:-../examples/testdata/target}"
 
-rm -r $CARGO_TARGET_DIR
+# Clean the cargo project
+cargo clean
 
-cargo build --target wasm32-wasi --target-dir $CARGO_TARGET_DIR --release
+# Compile the Program into the target directory 
+cargo build \
+  --target wasm32-unknown-unknown \
+  --target-dir "$CARGO_TARGET_DIR" \
+  --release
