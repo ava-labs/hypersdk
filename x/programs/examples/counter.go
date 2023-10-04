@@ -182,8 +182,12 @@ func (c *Counter) Run(ctx context.Context) error {
 		return err
 	}
 
-	c.log.Debug("count program 2 from program 1",
+	c.log.Debug("count from program 2",
 		zap.Uint64("alice", result[0]),
+	)
+
+	c.log.Debug("remaining balance",
+		zap.Uint64("unit", rt.Meter().GetBalance()),
 	)
 
 	return nil

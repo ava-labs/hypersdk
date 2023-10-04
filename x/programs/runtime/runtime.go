@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/bytecodealliance/wasmtime-go/v13"
-	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
@@ -101,9 +100,6 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte) (err 
 		if !ok {
 			return fmt.Errorf("%w: %s", ErrMissingImportModule, imp)
 		}
-		r.log.Debug("registering host functions for module",
-			zap.String("name", imp),
-		)
 		err = mod().Register(link, r.meter, r.imports)
 		if err != nil {
 			return err
