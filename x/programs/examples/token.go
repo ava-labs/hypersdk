@@ -12,13 +12,12 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports runtime.Imports) *Token {
+func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports runtime.SupportedImports) *Token {
 	return &Token{
 		log:          log,
 		programBytes: programBytes,
@@ -32,7 +31,7 @@ type Token struct {
 	log          logging.Logger
 	programBytes []byte
 	cfg          *runtime.Config
-	imports      runtime.Imports
+	imports      runtime.SupportedImports
 	db           state.Mutable
 }
 
@@ -82,13 +81,25 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// generate alice keys
-	alicePtr, _, err := newKeyPtr(ctx, rt)
+	_, aliceKey, err := newKey()
+	if err != nil {
+		return err
+	}
+
+	// write alice's key to stack and get pointer
+	alicePtr, err := newKeyPtr(ctx, aliceKey, rt)
 	if err != nil {
 		return err
 	}
 
 	// generate bob keys
-	bobPtr, _, err := newKeyPtr(ctx, rt)
+	_, bobKey, err := newKey()
+	if err != nil {
+		return err
+	}
+
+	// write bob's key to stack and get pointer
+	bobPtr, err := newKeyPtr(ctx, bobKey, rt)
 	if err != nil {
 		return err
 	}
@@ -171,25 +182,4 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	return nil
-}
-
-func newKeyPtr(ctx context.Context, runtime runtime.Runtime) (uint64, ed25519.PublicKey, error) {
-	priv, err := ed25519.GeneratePrivateKey()
-	if err != nil {
-		return 0, ed25519.EmptyPublicKey, err
-	}
-
-	pk := priv.PublicKey()
-	ptr, err := runtime.Memory().Alloc(ed25519.PublicKeyLen)
-	if err != nil {
-		return 0, ed25519.EmptyPublicKey, err
-	}
-
-	// write programID to memory which we will later pass to the program
-	err = runtime.Memory().Write(ptr, pk[:])
-	if err != nil {
-		return 0, ed25519.EmptyPublicKey, err
-	}
-
-	return ptr, pk, err
 }

@@ -13,7 +13,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/ava-labs/hypersdk/x/programs/examples/imports/state"
+	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
@@ -25,7 +25,7 @@ var (
 	log = logging.NewLogger(
 		"",
 		logging.NewWrappedCore(
-			logging.Info,
+			logging.Debug,
 			os.Stderr,
 			logging.Plain.ConsoleEncoder(),
 		))
@@ -37,10 +37,13 @@ func TestTokenProgram(t *testing.T) {
 	db := utils.NewTestDB()
 	maxUnits := uint64(50000)
 	// define imports
-	imports := make(runtime.Imports)
-	imports["state"] = state.New(log, db)
+	imports := runtime.NewSupportedImports()
+	imports["state"] = func() runtime.Import {
+		return pstate.New(log, db)
+	}
 
 	cfg, err := runtime.NewConfigBuilder(maxUnits).
+		WithBulkMemory(true).
 		WithLimitMaxMemory(18 * 64 * units.KiB). // 17 pages
 		Build()
 	require.NoError(err)
@@ -66,8 +69,10 @@ func BenchmarkTokenProgram(b *testing.B) {
 			db := utils.NewTestDB()
 
 			// define imports
-			imports := make(runtime.Imports)
-			imports["state"] = state.New(log, db)
+			imports := runtime.NewSupportedImports()
+			imports["state"] = func() runtime.Import {
+				return pstate.New(log, db)
+			}
 			program := NewToken(log, tokenProgramBytes, db, cfg, imports)
 			b.StartTimer()
 
@@ -97,8 +102,10 @@ func BenchmarkTokenProgram(b *testing.B) {
 			db := utils.NewTestDB()
 
 			// define imports
-			imports := make(runtime.Imports)
-			imports["state"] = state.New(log, db)
+			imports := runtime.NewSupportedImports()
+			imports["state"] = func() runtime.Import {
+				return pstate.New(log, db)
+			}
 			program := NewToken(log, preCompiledTokenProgramBytes, db, cfg, imports)
 			b.StartTimer()
 
