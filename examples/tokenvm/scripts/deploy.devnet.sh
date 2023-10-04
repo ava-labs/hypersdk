@@ -61,6 +61,7 @@ rm -rf tmp-hypersdk
 
 # Setup genesis and configuration files
 
+
 # Plan network deploy
 echo 'what is your <AWS_PROFILE_NAME>?'
 read AWS_PROFILE_NAME
@@ -87,3 +88,13 @@ echo 'planning DEVNET deploy...'
 --chain-config-file /tmp/avalanche-ops/tokenvm-chain-config.json \
 --spec-file-path /tmp/avalanche-ops/spec.yml \
 --profile-name ${AWS_PROFILE_NAME}
+
+# Update YAML Spec File
+
+# Deploy DEVNET
+
+# Configure token-cli
+
+# Sign into dev machine, download token-cli, start Prometheus
+
+# Print command for running spam script inside of this machine
