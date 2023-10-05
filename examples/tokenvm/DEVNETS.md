@@ -35,6 +35,8 @@ Once you've installed the AWS CLI, run `aws configure sso` to login to AWS local
 [the avalanche-ops documentation](https://github.com/ava-labs/avalanche-ops#permissions) for additional details. Set a
 `profile_name` when logging in, as it will be referenced directly by avalanche-ops commands.
 
+**DO NOT SET AN SSO SESSION NAME**
+
 ### Step 3: Install `token-cli`
 ```bash
 export ARCH_TYPE=$(uname -m)
