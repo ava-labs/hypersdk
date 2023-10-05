@@ -152,7 +152,21 @@ echo 'planning DEVNET deploy...'
 --spec-file-path /tmp/avalanche-ops/spec.yml \
 --profile-name ${AWS_PROFILE_NAME}
 
-# Update YAML Spec File
+# Disable rate limits in config
+yq -i '.avalanchego_config.throttler-inbound-validator-alloc-size = 10737418240' /tmp/avalanche-ops/spec.yml
+yq -i '.avalanchego_config.throttler-inbound-at-large-alloc-size = 10737418240' /tmp/avalanche-ops/spec.yml
+yq -i '.avalanchego_config.throttler-inbound-node-max-processing-msgs = 100000' /tmp/avalanche-ops/spec.yml
+yq -i '.avalanchego_config.throttler-inbound-bandwidth-refill-rate = 1073741824' /tmp/avalanche-ops/spec.yml
+yq -i '.avalanchego_config.throttler-inbound-bandwidth-max-burst-size = 1073741824' /tmp/avalanche-ops/spec.yml
+yq -i '.avalanchego_config.throttler-inbound-cpu-validator-alloc = 100000' /tmp/avalanche-ops/spec.yml
+yq -i '.avalanchego_config.throttler-inbound-disk-validator-alloc = 10737418240000' /tmp/avalanche-ops/spec.yml
+yq -i '.avalanchego_config.throttler-outbound-validator-alloc-size = 10737418240' /tmp/avalanche-ops/spec.yml
+yq -i '.avalanchego_config.throttler-outbound-at-large-alloc-size = 10737418240' /tmp/avalanche-ops/spec.yml
+yq -i '.avalanchego_config.consensus-on-accept-gossip-validator-size = 10' /tmp/avalanche-ops/spec.yml
+yq -i '.avalanchego_config.consensus-on-accept-gossip-non-validator-size = 0' /tmp/avalanche-ops/spec.yml
+yq -i '.avalanchego_config.consensus-on-accept-gossip-peer-size = 10' /tmp/avalanche-ops/spec.yml
+yq -i '.avalanchego_config.consensus-accepted-frontier-gossip-peer-size = 10' /tmp/avalanche-ops/spec.yml
+yq -i '.avalanchego_config.consensus-app-concurrency = 8' /tmp/avalanche-ops/spec.yml
 yq -i '.avalanchego_config.network-compression-type = "zstd"'  /tmp/avalanche-ops/spec.yml
 
 # Deploy DEVNET
