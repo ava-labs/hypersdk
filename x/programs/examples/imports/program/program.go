@@ -166,7 +166,6 @@ func (i *Import) callProgramFn(
 	// stop the runtime to prevent further execution
 	rt.Stop()
 
-
 	// transfer remaining balance back to parent runtime
 	_, err = rt.Meter().TransferUnits(i.meter, rt.Meter().GetBalance())
 	if err != nil {

@@ -183,3 +183,43 @@ func (t *Token) Run(ctx context.Context) error {
 
 	return nil
 }
+
+// RunShort performs the steps of initialization only, used for benchmarking.
+func (t *Token) RunShort(ctx context.Context) error {
+	rt := runtime.New(t.log, t.cfg, t.imports)
+	err := rt.Initialize(ctx, t.programBytes)
+	if err != nil {
+		return err
+	}
+
+	t.log.Debug("initial meter",
+		zap.Uint64("balance", rt.Meter().GetBalance()),
+	)
+
+	// simulate create program transaction
+	programID := ids.GenerateTestID()
+	err = storage.SetProgram(ctx, t.db, programID, t.programBytes)
+	if err != nil {
+		return err
+	}
+
+	programIDPtr, err := runtime.WriteBytes(rt.Memory(), programID[:])
+	if err != nil {
+		return err
+	}
+
+	t.log.Debug("new token program created",
+		zap.String("id", programID.String()),
+	)
+
+	// initialize program
+	resp, err := rt.Call(ctx, "init", programIDPtr)
+	if err != nil {
+		return fmt.Errorf("failed to initialize program: %w", err)
+	}
+
+	t.log.Debug("init response",
+		zap.Uint64("init", resp[0]),
+	)
+	return nil
+}

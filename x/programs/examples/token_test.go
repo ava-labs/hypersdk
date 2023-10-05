@@ -31,22 +31,12 @@ var (
 		))
 )
 
-// go test -v -timeout 30s -run ^TestTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples
+// go test -v -timeout 30s -run ^TestTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func TestTokenProgram(t *testing.T) {
 	require := require.New(t)
-	db := utils.NewTestDB()
-	maxUnits := uint64(50000)
-	// define imports
-	imports := runtime.NewSupportedImports()
-	imports["state"] = func() runtime.Import {
-		return pstate.New(log, db)
-	}
-
-	cfg, err := runtime.NewConfigBuilder(maxUnits).
-		WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
-		Build()
+	maxUnits := uint64(40000)
+	program, err := newTokenProgram(maxUnits, runtime.CompileWasm, tokenProgramBytes)
 	require.NoError(err)
-	program := NewToken(log, tokenProgramBytes, db, cfg, imports)
 	err = program.Run(context.Background())
 	require.NoError(err)
 }
@@ -59,22 +49,21 @@ func BenchmarkTokenProgram(b *testing.B) {
 	b.Run("benchmark_token_program_compile_and_cache", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
-			// configs can only be used once
-			cfg, err := runtime.NewConfigBuilder(maxUnits).
-				WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
-				Build()
+			program, err := newTokenProgram(maxUnits, runtime.CompileWasm, tokenProgramBytes)
 			require.NoError(err)
-			db := utils.NewTestDB()
-
-			// define imports
-			imports := runtime.NewSupportedImports()
-			imports["state"] = func() runtime.Import {
-				return pstate.New(log, db)
-			}
-			program := NewToken(log, tokenProgramBytes, db, cfg, imports)
 			b.StartTimer()
-
 			err = program.Run(context.Background())
+			require.NoError(err)
+		}
+	})
+
+	b.Run("benchmark_token_program_compile_and_cache_short", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			program, err := newTokenProgram(maxUnits, runtime.CompileWasm, tokenProgramBytes)
+			require.NoError(err)
+			b.StartTimer()
+			err = program.RunShort(context.Background())
 			require.NoError(err)
 		}
 	})
@@ -90,25 +79,42 @@ func BenchmarkTokenProgram(b *testing.B) {
 	b.Run("benchmark_token_program_precompile", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
-			cfg, err := runtime.NewConfigBuilder(maxUnits).
-				WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
-				WithCompileStrategy(runtime.PrecompiledWasm).
-				Build()
+			program, err := newTokenProgram(maxUnits, runtime.PrecompiledWasm, preCompiledTokenProgramBytes)
 			require.NoError(err)
-
-			// setup db
-			db := utils.NewTestDB()
-
-			// define imports
-			imports := runtime.NewSupportedImports()
-			imports["state"] = func() runtime.Import {
-				return pstate.New(log, db)
-			}
-			program := NewToken(log, preCompiledTokenProgramBytes, db, cfg, imports)
 			b.StartTimer()
-
 			err = program.Run(context.Background())
 			require.NoError(err)
 		}
 	})
+
+	b.Run("benchmark_token_program_precompile_short", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			program, err := newTokenProgram(maxUnits, runtime.PrecompiledWasm, preCompiledTokenProgramBytes)
+			require.NoError(err)
+			b.StartTimer()
+			err = program.RunShort(context.Background())
+			require.NoError(err)
+		}
+	})
+}
+
+func newTokenProgram(maxUnits uint64, strategy runtime.EngineCompileStrategy, programBytes []byte) (*Token, error) {
+	// configs can only be used once
+	cfg, err := runtime.NewConfigBuilder(maxUnits).
+		WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
+		WithCompileStrategy(strategy).
+		WithDefaultCache(true).
+		Build()
+	if err != nil {
+		return nil, err
+	}
+	db := utils.NewTestDB()
+
+	// define imports
+	imports := runtime.NewSupportedImports()
+	imports["state"] = func() runtime.Import {
+		return pstate.New(log, db)
+	}
+	return NewToken(log, programBytes, db, cfg, imports), nil
 }
