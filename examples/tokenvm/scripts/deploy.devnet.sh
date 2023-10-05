@@ -4,10 +4,16 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+# Setup cache
+BUST_CACHE=${BUST_CACHE:-false}
+if ${BUST_CACHE}; then
+  rm -rf /tmp/avalanche-ops-cache
+fi
+mkdir -p /tmp/avalanche-ops-cache
+
 # Cleanup from previous runs
 rm -rf /tmp/avalanche-ops
 mkdir /tmp/avalanche-ops
-
 
 # Set constants
 export ARCH_TYPE=$(uname -m)
@@ -42,31 +48,46 @@ fi
 # Install avalanche-ops
 echo 'installing avalanche-ops...'
 rm -f /tmp/avalancheup-aws
-wget https://github.com/ava-labs/avalanche-ops/releases/download/latest/avalancheup-aws.aarch64-apple-darwin
-mv ./avalancheup-aws.aarch64-apple-darwin /tmp/avalancheup-aws
-chmod +x /tmp/avalancheup-aws
+if [ -f /tmp/avalanche-ops-cache/avalancheup-aws ]; then
+  cp /tmp/avalanche-ops-cache/avalancheup-aws /tmp/avalancheup-aws
+  echo 'found avalanche-ops in cache'
+else
+  wget https://github.com/ava-labs/avalanche-ops/releases/download/latest/avalancheup-aws.aarch64-apple-darwin
+  mv ./avalancheup-aws.aarch64-apple-darwin /tmp/avalancheup-aws
+  chmod +x /tmp/avalancheup-aws
+  cp /tmp/avalancheup-aws /tmp/avalanche-ops-cache/avalancheup-aws
+fi
 /tmp/avalancheup-aws --help
 
 # Install token-cli
 echo 'installing token-cli...'
-rm -f /tmp/avalanche-ops/token-cli
-mkdir -p /tmp/avalanche-ops
-wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz"
-mkdir tmp-hypersdk
-tar -xvf tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz -C tmp-hypersdk
-rm -rf tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz
-mv tmp-hypersdk/token-cli /tmp/avalanche-ops/token-cli
-rm -rf tmp-hypersdk
+if [ -f /tmp/avalanche-ops-cache/token-cli ]; then
+  cp /tmp/avalanche-ops-cache/token-cli /tmp/avalanche-ops/token-cli
+  echo 'found token-cli in cache'
+else
+  wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz"
+  mkdir tmp-hypersdk
+  tar -xvf tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz -C tmp-hypersdk
+  rm -rf tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz
+  mv tmp-hypersdk/token-cli /tmp/avalanche-ops/token-cli
+  rm -rf tmp-hypersdk
+  cp /tmp/avalanche-ops/token-cli /tmp/avalanche-ops-cache/token-cli
+fi
 
 # Download tokenvm
 echo 'downloading tokenvm...'
-rm -f /tmp/avalanche-ops/tokenvm
-wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz"
-mkdir tmp-hypersdk
-tar -xvf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz -C tmp-hypersdk
-rm -rf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz
-mv tmp-hypersdk/tokenvm /tmp/avalanche-ops/tokenvm
-rm -rf tmp-hypersdk
+if [ -f /tmp/avalanche-ops-cache/tokenvm ]; then
+  cp /tmp/avalanche-ops-cache/tokenvm /tmp/avalanche-ops/tokenvm
+  echo 'found tokenvm in cache'
+else
+  wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz"
+  mkdir tmp-hypersdk
+  tar -xvf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz -C tmp-hypersdk
+  rm -rf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz
+  mv tmp-hypersdk/tokenvm /tmp/avalanche-ops/tokenvm
+  rm -rf tmp-hypersdk
+  cp /tmp/avalanche-ops/tokenvm /tmp/avalanche-ops-cache/tokenvm
+fi
 
 # Setup genesis and configuration files
 cat <<EOF > /tmp/avalanche-ops/tokenvm-subnet-config.json
