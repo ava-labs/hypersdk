@@ -126,8 +126,12 @@ EOF
 cat /tmp/avalanche-ops/tokenvm-chain-config.json
 
 # Plan network deploy
-echo 'what is your <AWS_PROFILE_NAME>?'
-read AWS_PROFILE_NAME
+if [ ! -f /tmp/avalanche-ops-cache/aws-profile ]; then
+  echo 'what is your AWS profile name?'
+  read prof_name
+  echo ${prof_name} > /tmp/avalanche-ops-cache/aws-profile
+fi
+AWS_PROFILE_NAME=$(cat "/tmp/avalanche-ops-cache/aws-profile")
 
 echo 'planning DEVNET deploy...'
 /tmp/avalancheup-aws default-spec \
