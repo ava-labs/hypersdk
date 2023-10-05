@@ -133,17 +133,31 @@ if [ ! -f /tmp/avalanche-ops-cache/aws-profile ]; then
 fi
 AWS_PROFILE_NAME=$(cat "/tmp/avalanche-ops-cache/aws-profile")
 
+# Create spec file
+SPEC_FILE=./aops-$(date +%s)-spec.yml
+echo created avalanche-ops spec file: ${SPEC_FILE}
+
+# Create dummy metrics file (can't not upload)
+# TODO: fix this
+cat <<EOF > /tmp/avalanche-ops/metrics.yml
+filters:
+  - regex: ^*$
+EOF
+cat /tmp/avalanche-ops/metrics.yml
+
 echo 'planning DEVNET deploy...'
+# TODO: increase size once dev machine is working
 /tmp/avalancheup-aws default-spec \
 --arch-type amd64 \
 --os-type ubuntu20.04 \
---anchor-nodes 3 \
---non-anchor-nodes 7 \
+--anchor-nodes 2 \
+--non-anchor-nodes 1 \
 --regions us-west-2 \
 --instance-mode=on-demand \
 --instance-types='{"us-west-2":["c5.4xlarge"]}' \
 --ip-mode=ephemeral \
---metrics-fetch-interval-seconds 60 \
+--metrics-fetch-interval-seconds 0 \
+--upload-artifacts-prometheus-metrics-rules-file-path '/tmp/avalanche-ops/metrics.yml' \
 --network-name custom \
 --avalanchego-release-tag v${AVALANCHEGO_VERSION} \
 --create-dev-machine \
@@ -153,40 +167,45 @@ echo 'planning DEVNET deploy...'
 --chain-name tokenvm \
 --chain-genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
 --chain-config-file /tmp/avalanche-ops/tokenvm-chain-config.json \
---spec-file-path /tmp/avalanche-ops/spec.yml \
+--spec-file-path ${SPEC_FILE} \
 --profile-name ${AWS_PROFILE_NAME}
 
 # Disable rate limits in config
 echo 'updating YAML with new rate limits...'
-yq -i '.avalanchego_config.throttler-inbound-validator-alloc-size = 10737418240' /tmp/avalanche-ops/spec.yml
-yq -i '.avalanchego_config.throttler-inbound-at-large-alloc-size = 10737418240' /tmp/avalanche-ops/spec.yml
-yq -i '.avalanchego_config.throttler-inbound-node-max-processing-msgs = 100000' /tmp/avalanche-ops/spec.yml
-yq -i '.avalanchego_config.throttler-inbound-bandwidth-refill-rate = 1073741824' /tmp/avalanche-ops/spec.yml
-yq -i '.avalanchego_config.throttler-inbound-bandwidth-max-burst-size = 1073741824' /tmp/avalanche-ops/spec.yml
-yq -i '.avalanchego_config.throttler-inbound-cpu-validator-alloc = 100000' /tmp/avalanche-ops/spec.yml
-yq -i '.avalanchego_config.throttler-inbound-disk-validator-alloc = 10737418240000' /tmp/avalanche-ops/spec.yml
-yq -i '.avalanchego_config.throttler-outbound-validator-alloc-size = 10737418240' /tmp/avalanche-ops/spec.yml
-yq -i '.avalanchego_config.throttler-outbound-at-large-alloc-size = 10737418240' /tmp/avalanche-ops/spec.yml
-yq -i '.avalanchego_config.consensus-on-accept-gossip-validator-size = 10' /tmp/avalanche-ops/spec.yml
-yq -i '.avalanchego_config.consensus-on-accept-gossip-non-validator-size = 0' /tmp/avalanche-ops/spec.yml
-yq -i '.avalanchego_config.consensus-on-accept-gossip-peer-size = 10' /tmp/avalanche-ops/spec.yml
-yq -i '.avalanchego_config.consensus-accepted-frontier-gossip-peer-size = 10' /tmp/avalanche-ops/spec.yml
-yq -i '.avalanchego_config.consensus-app-concurrency = 8' /tmp/avalanche-ops/spec.yml
-yq -i '.avalanchego_config.network-compression-type = "zstd"'  /tmp/avalanche-ops/spec.yml
+yq -i '.avalanchego_config.throttler-inbound-validator-alloc-size = 10737418240' ${SPEC_FILE}
+yq -i '.avalanchego_config.throttler-inbound-at-large-alloc-size = 10737418240' ${SPEC_FILE}
+yq -i '.avalanchego_config.throttler-inbound-node-max-processing-msgs = 100000' ${SPEC_FILE}
+yq -i '.avalanchego_config.throttler-inbound-bandwidth-refill-rate = 1073741824' ${SPEC_FILE}
+yq -i '.avalanchego_config.throttler-inbound-bandwidth-max-burst-size = 1073741824' ${SPEC_FILE}
+yq -i '.avalanchego_config.throttler-inbound-cpu-validator-alloc = 100000' ${SPEC_FILE}
+yq -i '.avalanchego_config.throttler-inbound-disk-validator-alloc = 10737418240000' ${SPEC_FILE}
+yq -i '.avalanchego_config.throttler-outbound-validator-alloc-size = 10737418240' ${SPEC_FILE}
+yq -i '.avalanchego_config.throttler-outbound-at-large-alloc-size = 10737418240' ${SPEC_FILE}
+yq -i '.avalanchego_config.consensus-on-accept-gossip-validator-size = 10' ${SPEC_FILE}
+yq -i '.avalanchego_config.consensus-on-accept-gossip-non-validator-size = 0' ${SPEC_FILE}
+yq -i '.avalanchego_config.consensus-on-accept-gossip-peer-size = 10' ${SPEC_FILE}
+yq -i '.avalanchego_config.consensus-accepted-frontier-gossip-peer-size = 10' ${SPEC_FILE}
+yq -i '.avalanchego_config.consensus-app-concurrency = 8' ${SPEC_FILE}
+yq -i '.avalanchego_config.network-compression-type = "zstd"'  ${SPEC_FILE}
 
 # Deploy DEVNET
 echo 'deploying DEVNET...'
 /tmp/avalancheup-aws apply \
---spec-file-path /tmp/avalanche-ops/spec.yml
+--spec-file-path ${SPEC_FILE}
 
-# Configure token-cli
-
-# Sign into dev machine, download token-cli, start Prometheus
-
-# Print command for running spam script inside of this machine
+# Prepare dev-machine and start prometheus server
+# Copy avalanche-ops spec, sign into dev machine, download token-cli, configure token-cli, start prometheus in background
 
 # Print final logs
 cat << EOF
+to view prometheus metrics, visit the following URL:
+
+TODO: just generate URL
+
+to run spam script on dev machine, run the following command:
+
+TODO
+
 to delete all resources (but keep asg/ssm), run the following command:
 
 /tmp/avalancheup-aws delete \
@@ -194,7 +213,7 @@ to delete all resources (but keep asg/ssm), run the following command:
 --delete-s3-objects \
 --delete-ebs-volumes \
 --delete-elastic-ips \
---spec-file-path /tmp/avalanche-ops/spec.yml
+--spec-file-path ${SPEC_FILE}
 
 to delete all resources, run the following command:
 
@@ -204,6 +223,6 @@ to delete all resources, run the following command:
 --delete-s3-objects \
 --delete-ebs-volumes \
 --delete-elastic-ips \
---spec-file-path /tmp/avalanche-ops/spec.yml
+--spec-file-path ${SPEC_FILE}
 EOF
 
