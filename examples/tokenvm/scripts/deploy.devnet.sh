@@ -4,6 +4,13 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+# Ensure we return back to current directory
+pw=$(pwd)
+function cleanup() {
+  cd $pw
+}
+trap cleanup EXIT
+
 # Setup cache
 BUST_CACHE=${BUST_CACHE:-false}
 if ${BUST_CACHE}; then
@@ -11,9 +18,13 @@ if ${BUST_CACHE}; then
 fi
 mkdir -p /tmp/avalanche-ops-cache
 
-# Cleanup from previous runs
-rm -rf /tmp/avalanche-ops
-mkdir /tmp/avalanche-ops
+# Create deployment directory (avalanche-ops creates metadata in cwd)
+DEPLOY_PREFIX=~/avalanche-ops/deploys/$(date '+%d_%m_%Y-%H:%M:%S')
+mkdir -p ${DEPLOY_PREFIX}
+DEPLOY_ARTIFACT_PREFIX=${DEPLOY_PREFIX}/artifacts
+mkdir -p ${DEPLOY_ARTIFACT_PREFIX}
+echo create deployment folder: ${DEPLOY_PREFIX}
+cd ${DEPLOY_PREFIX}
 
 # Set constants
 export ARCH_TYPE=$(uname -m)
@@ -47,71 +58,70 @@ fi
 
 # Install avalanche-ops
 echo 'installing avalanche-ops...'
-rm -f /tmp/avalancheup-aws
 if [ -f /tmp/avalanche-ops-cache/avalancheup-aws ]; then
-  cp /tmp/avalanche-ops-cache/avalancheup-aws /tmp/avalancheup-aws
+  cp /tmp/avalanche-ops-cache/avalancheup-aws ${DEPLOY_ARTIFACT_PREFIX}/avalancheup-aws
   echo 'found avalanche-ops in cache'
 else
   wget https://github.com/ava-labs/avalanche-ops/releases/download/latest/avalancheup-aws.aarch64-apple-darwin
-  mv ./avalancheup-aws.aarch64-apple-darwin /tmp/avalancheup-aws
-  chmod +x /tmp/avalancheup-aws
-  cp /tmp/avalancheup-aws /tmp/avalanche-ops-cache/avalancheup-aws
+  mv ./avalancheup-aws.aarch64-apple-darwin ${DEPLOY_ARTIFACT_PREFIX}/avalancheup-aws
+  chmod +x ${DEPLOY_ARTIFACT_PREFIX}/avalancheup-aws
+  cp ${DEPLOY_ARTIFACT_PREFIX}/avalancheup-aws /tmp/avalanche-ops-cache/avalancheup-aws
 fi
-/tmp/avalancheup-aws --help
+${DEPLOY_ARTIFACT_PREFIX}/avalancheup-aws --help
 
 # Install token-cli
 echo 'installing token-cli...'
 if [ -f /tmp/avalanche-ops-cache/token-cli ]; then
-  cp /tmp/avalanche-ops-cache/token-cli /tmp/avalanche-ops/token-cli
+  cp /tmp/avalanche-ops-cache/token-cli ${DEPLOY_ARTIFACT_PREFIX}/token-cli
   echo 'found token-cli in cache'
 else
   wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz"
-  mkdir tmp-hypersdk
-  tar -xvf tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz -C tmp-hypersdk
+  mkdir -p /tmp/token-installs
+  tar -xvf tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz -C /tmp/token-installs
   rm -rf tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz
-  mv tmp-hypersdk/token-cli /tmp/avalanche-ops/token-cli
-  rm -rf tmp-hypersdk
-  cp /tmp/avalanche-ops/token-cli /tmp/avalanche-ops-cache/token-cli
+  mv /tmp/token-installs/token-cli ${DEPLOY_ARTIFACT_PREFIX}/token-cli
+  rm -rf /tmp/token-installs
+  cp ${DEPLOY_ARTIFACT_PREFIX}/token-cli /tmp/avalanche-ops-cache/token-cli
 fi
 
 # Download tokenvm
 echo 'downloading tokenvm...'
 if [ -f /tmp/avalanche-ops-cache/tokenvm ]; then
-  cp /tmp/avalanche-ops-cache/tokenvm /tmp/avalanche-ops/tokenvm
+  cp /tmp/avalanche-ops-cache/tokenvm ${DEPLOY_ARTIFACT_PREFIX}/tokenvm
   echo 'found tokenvm in cache'
 else
   wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz"
-  mkdir tmp-hypersdk
-  tar -xvf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz -C tmp-hypersdk
+  mkdir -p /tmp/token-installs
+  tar -xvf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz -C /tmp/token-installs
   rm -rf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz
-  mv tmp-hypersdk/tokenvm /tmp/avalanche-ops/tokenvm
-  rm -rf tmp-hypersdk
-  cp /tmp/avalanche-ops/tokenvm /tmp/avalanche-ops-cache/tokenvm
+  mv /tmp/token-installs/tokenvm ${DEPLOY_ARTIFACT_PREFIX}/tokenvm
+  rm -rf /tmp/token-installs
+  cp ${DEPLOY_ARTIFACT_PREFIX}/tokenvm /tmp/avalanche-ops-cache/tokenvm
 fi
 
 # Setup genesis and configuration files
-cat <<EOF > /tmp/avalanche-ops/tokenvm-subnet-config.json
+cat <<EOF > ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-subnet-config.json
 {
   "proposerMinBlockDelay": 0,
   "proposerNumHistoricalBlocks": 768
 }
 EOF
-cat /tmp/avalanche-ops/tokenvm-subnet-config.json
+cat ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-subnet-config.json
 
 # TODO: make address configurable via ENV
-cat <<EOF > /tmp/avalanche-ops/allocations.json
+cat <<EOF > ${DEPLOY_ARTIFACT_PREFIX}/allocations.json
 [{"address":"token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":1000000000000000}]
 EOF
 
 # TODO: make fee params configurable via ENV
-/tmp/avalanche-ops/token-cli genesis generate /tmp/avalanche-ops/allocations.json \
---genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
+${DEPLOY_ARTIFACT_PREFIX}/token-cli genesis generate ${DEPLOY_ARTIFACT_PREFIX}/allocations.json \
+--genesis-file ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-genesis.json \
 --max-block-units 18446744073709551615,18446744073709551615,18446744073709551615,18446744073709551615,18446744073709551615 \
 --window-target-units 1800000,18446744073709551615,18446744073709551615,18446744073709551615,18446744073709551615 \
 --min-block-gap 250
-cat /tmp/avalanche-ops/tokenvm-genesis.json
+cat ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-genesis.json
 
-cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
+cat <<EOF > ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-chain-config.json
 {
   "mempoolSize": 10000000,
   "mempoolPayerSize": 10000000,
@@ -123,7 +133,7 @@ cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
   "logLevel": "info",
 }
 EOF
-cat /tmp/avalanche-ops/tokenvm-chain-config.json
+cat ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-chain-config.json
 
 # Plan network deploy
 if [ ! -f /tmp/avalanche-ops-cache/aws-profile ]; then
@@ -134,20 +144,24 @@ fi
 AWS_PROFILE_NAME=$(cat "/tmp/avalanche-ops-cache/aws-profile")
 
 # Create spec file
-SPEC_FILE=./aops-$(date +%s)-spec.yml
+SPEC_FILE=./spec.yml
 echo created avalanche-ops spec file: ${SPEC_FILE}
+
+# Create key file dir
+KEY_FILES_DIR=keys
+mkdir -p ${KEY_FILES_DIR}
 
 # Create dummy metrics file (can't not upload)
 # TODO: fix this
-cat <<EOF > /tmp/avalanche-ops/metrics.yml
+cat <<EOF > "${DEPLOY_ARTIFACT_PREFIX}/metrics.yml"
 filters:
   - regex: ^*$
 EOF
-cat /tmp/avalanche-ops/metrics.yml
+cat ${DEPLOY_ARTIFACT_PREFIX}/metrics.yml
 
 echo 'planning DEVNET deploy...'
 # TODO: increase size once dev machine is working
-/tmp/avalancheup-aws default-spec \
+${DEPLOY_ARTIFACT_PREFIX}/avalancheup-aws default-spec \
 --arch-type amd64 \
 --os-type ubuntu20.04 \
 --anchor-nodes 2 \
@@ -157,17 +171,19 @@ echo 'planning DEVNET deploy...'
 --instance-types='{"us-west-2":["c5.4xlarge"]}' \
 --ip-mode=ephemeral \
 --metrics-fetch-interval-seconds 0 \
---upload-artifacts-prometheus-metrics-rules-file-path '/tmp/avalanche-ops/metrics.yml' \
+--upload-artifacts-prometheus-metrics-rules-file-path ${DEPLOY_ARTIFACT_PREFIX}/metrics.yml \
 --network-name custom \
 --avalanchego-release-tag v${AVALANCHEGO_VERSION} \
 --create-dev-machine \
 --keys-to-generate 5 \
---subnet-config-file /tmp/avalanche-ops/tokenvm-subnet-config.json \
---vm-binary-file /tmp/avalanche-ops/tokenvm \
+--subnet-config-file ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-subnet-config.json \
+--vm-binary-file ${DEPLOY_ARTIFACT_PREFIX}/tokenvm \
 --chain-name tokenvm \
---chain-genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
---chain-config-file /tmp/avalanche-ops/tokenvm-chain-config.json \
+--chain-genesis-file ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-genesis.json \
+--chain-config-file ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-chain-config.json \
+--enable-ssh \
 --spec-file-path ${SPEC_FILE} \
+--key-files-dir ${KEY_FILES_DIR} \
 --profile-name ${AWS_PROFILE_NAME}
 
 # Disable rate limits in config
@@ -190,11 +206,11 @@ yq -i '.avalanchego_config.network-compression-type = "zstd"'  ${SPEC_FILE}
 
 # Deploy DEVNET
 echo 'deploying DEVNET...'
-/tmp/avalancheup-aws apply \
+${DEPLOY_ARTIFACT_PREFIX}/avalancheup-aws apply \
 --spec-file-path ${SPEC_FILE}
 
 # Prepare dev-machine and start prometheus server
-# Copy avalanche-ops spec, sign into dev machine, download token-cli, configure token-cli, start prometheus in background
+# Copy avalanche-ops spec, demo.pk, sign into dev machine, download token-cli, configure token-cli, start prometheus in background
 
 # Print final logs
 cat << EOF
