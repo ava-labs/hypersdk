@@ -153,6 +153,7 @@ echo 'planning DEVNET deploy...'
 --profile-name ${AWS_PROFILE_NAME}
 
 # Disable rate limits in config
+echo 'updating YAML with new rate limits...'
 yq -i '.avalanchego_config.throttler-inbound-validator-alloc-size = 10737418240' /tmp/avalanche-ops/spec.yml
 yq -i '.avalanchego_config.throttler-inbound-at-large-alloc-size = 10737418240' /tmp/avalanche-ops/spec.yml
 yq -i '.avalanchego_config.throttler-inbound-node-max-processing-msgs = 100000' /tmp/avalanche-ops/spec.yml
@@ -170,9 +171,35 @@ yq -i '.avalanchego_config.consensus-app-concurrency = 8' /tmp/avalanche-ops/spe
 yq -i '.avalanchego_config.network-compression-type = "zstd"'  /tmp/avalanche-ops/spec.yml
 
 # Deploy DEVNET
+echo 'deploying DEVNET...'
+/tmp/avalancheup-aws apply \
+--spec-file-path /tmp/avalanche-ops/spec.yml
 
 # Configure token-cli
 
 # Sign into dev machine, download token-cli, start Prometheus
 
 # Print command for running spam script inside of this machine
+
+# Print final logs
+cat << EOF
+to delete all resources (but keep asg/ssm), run the following command:
+
+/tmp/avalancheup-aws delete \
+--delete-cloudwatch-log-group \
+--delete-s3-objects \
+--delete-ebs-volumes \
+--delete-elastic-ips \
+--spec-file-path /tmp/avalanche-ops/spec.yml
+
+to delete all resources, run the following command:
+
+/tmp/avalancheup-aws delete \
+--override-keep-resources-except-asg-ssm \
+--delete-cloudwatch-log-group \
+--delete-s3-objects \
+--delete-ebs-volumes \
+--delete-elastic-ips \
+--spec-file-path /tmp/avalanche-ops/spec.yml
+EOF
+
