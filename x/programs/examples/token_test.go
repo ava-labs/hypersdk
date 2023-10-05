@@ -112,9 +112,9 @@ func newTokenProgram(maxUnits uint64, strategy runtime.EngineCompileStrategy, pr
 	db := utils.NewTestDB()
 
 	// define imports
-	imports := runtime.NewSupportedImports()
-	imports["state"] = func() runtime.Import {
+	supported := runtime.NewSupportedImports()
+	supported.Register("state", func() runtime.Import {
 		return pstate.New(log, db)
-	}
-	return NewToken(log, programBytes, db, cfg, imports), nil
+	})
+	return NewToken(log, programBytes, db, cfg, supported.Imports()), nil
 }

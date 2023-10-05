@@ -6,10 +6,6 @@ package runtime
 import (
 	"fmt"
 	"runtime"
-
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/bytecodealliance/wasmtime-go/v13"
 )
 
 var _ Memory = (*memory)(nil)
@@ -38,7 +34,7 @@ func (m *memory) Range(offset uint64, length uint64) ([]byte, error) {
 	}
 
 	// verify available memory is large enough
-	if uint64(offset)+uint64(length) > size {
+	if offset+length > size {
 		return nil, fmt.Errorf("read memory failed: %w", ErrInvalidMemorySize)
 	}
 
@@ -126,26 +122,4 @@ func WriteBytes(m Memory, buf []byte) (uint64, error) {
 	}
 
 	return offset, nil
-}
-
-// IDFromMemory reads memory from the given offset and returns an ID.
-func IDFromOffset(caller *wasmtime.Caller, offset int64) (ids.ID, error) {
-	memory := NewMemory(NewExportClient(caller))
-	assetBytes, err := memory.Range(uint64(offset), ids.IDLen)
-	if err != nil {
-		return ids.Empty, err
-	}
-
-	return ids.ToID(assetBytes)
-}
-
-// PublicKeyFromOffset reads memory from the given offset and returns an ed25519.PublicKey.
-func PublicKeyFromOffset(caller *wasmtime.Caller, hrp string, offset int32) (ed25519.PublicKey, error) {
-	memory := NewMemory(NewExportClient(caller))
-	keyBytes, err := memory.Range(uint64(offset), ed25519.PublicKeyLen)
-	if err != nil {
-		return ed25519.EmptyPublicKey, err
-	}
-
-	return ed25519.ParseAddress(hrp, string(keyBytes))
 }

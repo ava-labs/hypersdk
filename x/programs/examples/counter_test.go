@@ -26,13 +26,13 @@ func TestCounterProgram(t *testing.T) {
 	maxUnits := uint64(50000)
 
 	// define supported imports
-	imports := runtime.NewSupportedImports()
-	imports["state"] = func() runtime.Import {
+	supported := runtime.NewSupportedImports()
+	supported.Register("state", func() runtime.Import {
 		return pstate.New(log, db)
-	}
-	imports["program"] = func() runtime.Import {
+	})
+	supported.Register("program", func() runtime.Import {
 		return program.New(log, db)
-	}
+	})
 
 	cfg, err := runtime.NewConfigBuilder(maxUnits).
 		WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
@@ -44,7 +44,7 @@ func TestCounterProgram(t *testing.T) {
 		Build()
 	require.NoError(err)
 
-	program := NewCounter(log, counterProgramBytes, db, cfg, cfg2, imports)
+	program := NewCounter(log, counterProgramBytes, db, cfg, cfg2, supported.Imports())
 	err = program.Run(context.Background())
 	require.NoError(err)
 }

@@ -145,5 +145,4 @@ func TestWithMaxWasmStack(t *testing.T) {
 	trap := err.(*wasmtime.Trap)
 	code := trap.Code()
 	require.Equal(*code, wasmtime.StackOverflow)
- }
-
+}

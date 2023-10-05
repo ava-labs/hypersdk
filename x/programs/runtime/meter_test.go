@@ -49,7 +49,7 @@ func TestMetering(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	//example has 2 ops codes and should cost 2 units
+	// example has 2 ops codes and should cost 2 units
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module $test
 	(type (;0;) (func (result i32)))
@@ -83,7 +83,7 @@ func TestMeterAfterStop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	//example has 2 ops codes and should cost 2 units
+	// example has 2 ops codes and should cost 2 units
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module $test
 	(type (;0;) (func (result i32)))
@@ -114,6 +114,7 @@ func TestMeterAfterStop(t *testing.T) {
 	require.ErrorAs(err, &trap)
 	// ensure meter is still operational
 	require.Equal(runtime.Meter().GetBalance(), maxUnits-2)
-	runtime.Meter().AddUnits(2)
+	_, err = runtime.Meter().AddUnits(2)
+	require.NoError(err)
 	require.Equal(runtime.Meter().GetBalance(), maxUnits)
 }

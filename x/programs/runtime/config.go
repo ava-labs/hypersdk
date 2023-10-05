@@ -11,7 +11,7 @@ const (
 	defaultFuelMetering    = true
 	defaultWasmMultiMemory = false
 	defaultWasmMemory64    = false
-	defaultLimitMaxMemory = 16 * 64 * 1024 // 16 pages
+	defaultLimitMaxMemory  = 16 * 64 * 1024 // 16 pages
 )
 
 // TODO: review Cranelift fine tune knobs when exposed
@@ -32,8 +32,9 @@ type builder struct {
 	defaultCache      bool
 
 	// engine
-	compileStrategy EngineCompileStrategy
-	meterMaxUnits   uint64
+	compileStrategy   EngineCompileStrategy
+	meterMaxUnits     uint64
+	contextSwitchCost uint64
 
 	// limit
 	limitMaxMemory int64
@@ -50,12 +51,13 @@ type Config struct {
 	limitMaxInstances int64
 	limitMaxMemories  int64
 
-	compileStrategy EngineCompileStrategy
-	meterMaxUnits   uint64
+	compileStrategy   EngineCompileStrategy
+	meterMaxUnits     uint64
+	contextSwitchCost uint64
 }
 
 // WithCompileStrategy defines the EngineCompileStrategy.
-// Default is “.
+// Default is CompileWasm“.
 func (b *builder) WithCompileStrategy(strategy EngineCompileStrategy) *builder {
 	b.compileStrategy = strategy
 	return b
@@ -127,6 +129,12 @@ func (b *builder) WithDefaultCache(enabled bool) *builder {
 	return b
 }
 
+// WithContextSwitchCost defines the cost of a context switch in units.
+func (b *builder) WithContextSwitchCost(units uint64) *builder {
+	b.contextSwitchCost = units
+	return b
+}
+
 func (b *builder) Build() (*Config, error) {
 	cfg := defaultWasmtimeConfig()
 	if b.maxWasmStack == 0 {
@@ -159,6 +167,7 @@ func (b *builder) Build() (*Config, error) {
 		limitMaxMemories:      1,
 		compileStrategy:       b.compileStrategy,
 		meterMaxUnits:         b.meterMaxUnits,
+		contextSwitchCost:     b.contextSwitchCost,
 	}, nil
 }
 
@@ -166,7 +175,7 @@ func (b *builder) Build() (*Config, error) {
 func defaultWasmtimeConfig() *wasmtime.Config {
 	cfg := wasmtime.NewConfig()
 	// defaults
-	cfg.SetCraneliftOptLevel(wasmtime.OptLevelSpeed)
+	cfg.SetCraneliftOptLevel(wasmtime.OptLevelSpeedAndSize)
 	cfg.SetConsumeFuel(defaultFuelMetering)
 	cfg.SetWasmThreads(defaultWasmThreads)
 	cfg.SetWasmMultiMemory(defaultWasmMultiMemory)
