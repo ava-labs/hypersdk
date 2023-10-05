@@ -15,4 +15,4 @@ HYPERSDK_PATH=$(
 )
 source "$HYPERSDK_PATH"/scripts/constants.sh
 
-go test -race -timeout="3m" -coverprofile="coverage.out" -covermode="atomic" $(go list ./... | grep -v tests)
+go test -race -timeout="3m" -coverprofile="coverage.out" -covermode="atomic" "$(go list ./... | grep -v tests)"
