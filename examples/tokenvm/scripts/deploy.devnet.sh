@@ -4,6 +4,11 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+# Cleanup from previous runs
+rm -rf /tmp/avalanche-ops
+mkdir /tmp/avalanche-ops
+
+
 # Set constants
 export ARCH_TYPE=$(uname -m)
 [ $ARCH_TYPE = x86_64 ] && ARCH_TYPE=amd64
@@ -27,6 +32,10 @@ if [ ${ARCH_TYPE} != 'arm64' ]; then
 fi
 if ! [ -x "$(command -v aws)" ]; then
   echo 'aws-cli is not installed' >&2
+  exit 1
+fi
+if ! [ -x "$(command -v yq)" ]; then
+  echo 'yq is not installed' >&2
   exit 1
 fi
 
@@ -60,7 +69,40 @@ mv tmp-hypersdk/tokenvm /tmp/avalanche-ops/tokenvm
 rm -rf tmp-hypersdk
 
 # Setup genesis and configuration files
+cat <<EOF > /tmp/avalanche-ops/tokenvm-subnet-config.json
+{
+  "proposerMinBlockDelay": 0,
+  "proposerNumHistoricalBlocks": 768
+}
+EOF
+cat /tmp/avalanche-ops/tokenvm-subnet-config.json
 
+# TODO: make address configurable via ENV
+cat <<EOF > /tmp/avalanche-ops/allocations.json
+[{"address":"token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":1000000000000000}]
+EOF
+
+# TODO: make fee params configurable via ENV
+/tmp/avalanche-ops/token-cli genesis generate /tmp/avalanche-ops/allocations.json \
+--genesis-file /tmp/avalanche-ops/tokenvm-genesis.json \
+--max-block-units 18446744073709551615,18446744073709551615,18446744073709551615,18446744073709551615,18446744073709551615 \
+--window-target-units 1800000,18446744073709551615,18446744073709551615,18446744073709551615,18446744073709551615 \
+--min-block-gap 250
+cat /tmp/avalanche-ops/tokenvm-genesis.json
+
+cat <<EOF > /tmp/avalanche-ops/tokenvm-chain-config.json
+{
+  "mempoolSize": 10000000,
+  "mempoolPayerSize": 10000000,
+  "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
+  "streamingBacklogSize": 10000000,
+  "storeTransactions": false,
+  "verifySignatures": true,
+  "trackedPairs":["*"],
+  "logLevel": "info",
+}
+EOF
+cat /tmp/avalanche-ops/tokenvm-chain-config.json
 
 # Plan network deploy
 echo 'what is your <AWS_PROFILE_NAME>?'
@@ -71,7 +113,7 @@ echo 'planning DEVNET deploy...'
 --arch-type amd64 \
 --os-type ubuntu20.04 \
 --anchor-nodes 3 \
---non-anchor-nodes 3 \
+--non-anchor-nodes 7 \
 --regions us-west-2 \
 --instance-mode=on-demand \
 --instance-types='{"us-west-2":["c5.4xlarge"]}' \
@@ -90,6 +132,7 @@ echo 'planning DEVNET deploy...'
 --profile-name ${AWS_PROFILE_NAME}
 
 # Update YAML Spec File
+yq -i '.avalanchego_config.network-compression-type = "zstd"'  /tmp/avalanche-ops/spec.yml
 
 # Deploy DEVNET
 
