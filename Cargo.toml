@@ -9,6 +9,7 @@ members = [
 resolver = "2"
 
 [profile.release]
+# https://rustwasm.github.io/docs/book/reference/code-size.html#tell-llvm-to-optimize-for-size-instead-of-speed
 opt-level = "s"
 lto = true
 codegen-units = 1
