@@ -30,9 +30,6 @@ const (
 	defaultLimitMaxMemories      = 1
 )
 
-// TODO: review Cranelift fine tune knobs when exposed
-// https://github.com/bytecodealliance/wasmtime-go/pull/188
-
 func NewConfigBuilder(meterMaxUnits uint64) *builder {
 	cfg := defaultWasmtimeConfig()
 	return &builder{
