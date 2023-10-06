@@ -19,7 +19,8 @@ fi
 mkdir -p /tmp/avalanche-ops-cache
 
 # Create deployment directory (avalanche-ops creates metadata in cwd)
-DEPLOY_PREFIX=~/avalanche-ops/deploys/$(date '+%m_%d_%Y-%H:%M:%S')
+DATE=$(date '+%m_%d_%Y-%H:%M:%S')
+DEPLOY_PREFIX=~/avalanche-ops/deploys/${DATE}
 mkdir -p ${DEPLOY_PREFIX}
 DEPLOY_ARTIFACT_PREFIX=${DEPLOY_PREFIX}/artifacts
 mkdir -p ${DEPLOY_ARTIFACT_PREFIX}
@@ -144,7 +145,7 @@ fi
 AWS_PROFILE_NAME=$(cat "/tmp/avalanche-ops-cache/aws-profile")
 
 # Create spec file
-SPEC_FILE=./spec-$(date '+%m-%d-%Y').yml
+SPEC_FILE=./aops-${DATE}.yml
 echo created avalanche-ops spec file: ${SPEC_FILE}
 
 # Create key file dir
