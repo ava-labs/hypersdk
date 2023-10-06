@@ -293,6 +293,8 @@ func (vm *VM) Initialize(
 			return err
 		}
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
+
+		// TODO: need to mark "Processed" and loaded blocks
 	} else {
 		// Set balances and compute genesis root
 		sps := state.NewSimpleMutable(vm.stateDB)
