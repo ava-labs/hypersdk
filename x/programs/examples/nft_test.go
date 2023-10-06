@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	//go:embed testdata/token.wasm
+	//go:embed testdata/nft.wasm
 	nftProgramBytes []byte
 
 	// example cost map

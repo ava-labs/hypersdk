@@ -5,8 +5,6 @@ package examples
 
 import (
 	"context"
-	"fmt"
-
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
@@ -57,44 +55,23 @@ func (t *NFT) Run(ctx context.Context) error {
 	)
 
 	// Generate keys for Alice
-	// She deploys the NFT contract and is the original owner
 	alicePtr, _, err := nftKeyPtr(ctx, runtime)
 	if err != nil {
 		return err
 	}
 
-	_, err = runtime.Call(ctx, "init", contractId, alicePtr)
+	_, err = runtime.Call(ctx, "init", contractId)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("init called",
-		zap.String("alicePtr", fmt.Sprint(alicePtr)),
-	)
+	t.log.Debug("init called")
 
 	// mint 1 token, send to alice
-	mintAlice := uint64(1)
-	_, err = runtime.Call(ctx, "mint", contractId, alicePtr, mintAlice)
+	_, err = runtime.Call(ctx, "mint", contractId, alicePtr)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("minted",
-		zap.Uint64("alice", mintAlice),
-	)
-
-	// Generate keys for Bob
-	bobPtr, _, err := nftKeyPtr(ctx, runtime)
-	if err != nil {
-		return err
-	}
-
-	// transfer NFT from Alice to Bob
-	_, err = runtime.Call(ctx, "transfer", contractId, alicePtr, bobPtr)
-	if err != nil {
-		return err
-	}
-	t.log.Debug("transfer",
-		zap.Uint64("alice", mintAlice),
-	)
+	t.log.Debug("minted")
 
 	return nil
 }

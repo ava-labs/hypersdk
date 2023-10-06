@@ -1,9 +1,9 @@
 //! A basic ERC-721 compatible contract.
-//! The program serves as a non-fungible token with the ability to mint, burn, and transfer.
+//! The program serves as a non-fungible token with the ability to mint and burn.
 //! Only supports whole units with no decimal places.
 //!
 //! The NFT must support the common NFT metadata format.
-//! This implementation is for a 1 of 1 singleton NFT. The total supply should be 1.
+//! This includes the name, symbol, and URI of the NFT.
 use metadata::Nft;
 use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
 
@@ -11,7 +11,7 @@ pub mod metadata;
 
 const NAME: &str = "My NFT";
 const SYMBOL: &str = "MNFT";
-const TOTAL_SUPPLY: u64 = 1;
+const TOTAL_SUPPLY: u64 = 20;
 
 /// The program storage keys.
 #[state_keys]
@@ -24,17 +24,17 @@ enum StateKey {
     Symbol,
     /// Metadata of the token. Key prefix 0x3.
     Metadata,
-    /// Owner address. Key prefix 0x4(address).
-    Owner(Address),
     /// Balance of the NFT token by address. Key prefix 0x5(address).
     Balance(Address),
+    /// Counter -- used to keep track of total NFTs minted.
+    Counter,
 }
 
 /// Initializes the NFT with all required metadata.
 /// This includes the name, symbol, image URI, owner, and total supply.
 /// Returns true if the initialization was successful.
 #[public]
-pub fn init(program: Program, owner: Address) -> bool {
+pub fn init(program: Program) -> bool {
     // Set token name
     program
         .state()
@@ -58,15 +58,6 @@ pub fn init(program: Program, owner: Address) -> bool {
         .store(StateKey::Metadata.to_vec(), &nft_metadata)
         .expect("failed to store nft metadata");
 
-    // Store the original owner of the NFT (the contract creator)
-    program
-        .state()
-        .store(
-            StateKey::Owner(owner).to_vec(),
-            &Address::new([0; 32]).as_bytes(),
-        )
-        .expect("failed to store program owner");
-
     // Set total supply
     program
         .state()
@@ -78,12 +69,15 @@ pub fn init(program: Program, owner: Address) -> bool {
 
 /// Mints NFT tokens and sends them to the recipient.
 #[public]
-pub fn mint(program: Program, recipient: Address, quantity: i64) -> bool {
-    assert!(quantity > 0, "quantity must be greater than zero");
-    assert!(
-        quantity <= TOTAL_SUPPLY as i64,
-        "quantity must be less than or equal to total supply"
-    );
+pub fn mint(program: Program, recipient: Address) -> bool {
+    let mint_amount: i64 = 1;
+
+    let counter = program
+        .state()
+        .get::<i64, _>(StateKey::Counter.to_vec())
+        .expect("failed to store balance");
+
+    assert!(counter < TOTAL_SUPPLY as i64, "max supply for nft exceeded");
 
     let balance = program
         .state()
@@ -92,57 +86,21 @@ pub fn mint(program: Program, recipient: Address, quantity: i64) -> bool {
 
     program
         .state()
-        .store(StateKey::Balance(recipient).to_vec(), &(balance + quantity))
-        .expect("failed to store balance");
-
-    true
-}
-
-/// Transfers balance from the sender to the the recipient.
-#[public]
-pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i64) -> bool {
-    assert_ne!(sender, recipient, "sender and recipient must be different");
-
-    // ensure the sender has adequate balance
-    let sender_balance = program
-        .state()
-        .get::<i64, _>(StateKey::Balance(sender).to_vec())
-        .expect("failed to update balance");
-
-    assert!(amount > 0, "quantity must be greater than zero");
-    assert!(sender_balance >= amount, "insufficient balance");
-
-    let recipient_balance = program
-        .state()
-        .get::<i64, _>(StateKey::Balance(recipient).to_vec())
-        .expect("failed to store balance");
-
-    // update balances
-    program
-        .state()
-        .store(
-            StateKey::Balance(sender).to_vec(),
-            &(sender_balance - amount),
-        )
-        .expect("failed to store transfer amount");
-
-    program
-        .state()
         .store(
             StateKey::Balance(recipient).to_vec(),
-            &(recipient_balance + amount),
+            &(balance + mint_amount),
         )
         .expect("failed to store balance");
 
-    true
+    program
+        .state()
+        .store(StateKey::Counter.to_vec(), &(counter + mint_amount))
+        .is_ok()
 }
 
 #[public]
-pub fn burn(program: Program, from: Address, amount_burned: i64) -> bool {
-    assert!(
-        amount_burned > 0,
-        "quantity burned must be greater than zero"
-    );
+pub fn burn(program: Program, from: Address) -> bool {
+    let burn_amount: i64 = 1;
 
     let total_supply: i64 = program
         .state()
@@ -150,7 +108,7 @@ pub fn burn(program: Program, from: Address, amount_burned: i64) -> bool {
         .expect("failed to get total supply");
 
     assert!(
-        total_supply >= amount_burned,
+        burn_amount <= total_supply,
         "amount burned must be less than or equal to total supply"
     );
 
@@ -160,22 +118,23 @@ pub fn burn(program: Program, from: Address, amount_burned: i64) -> bool {
         .expect("failed to get balance");
 
     assert!(
-        amount_burned <= balance,
-        "amount burned must be less than or equal to balance"
+        burn_amount <= balance,
+        "amount burned must be less than or equal to the account balance"
     );
 
     program
         .state()
-        .store(StateKey::Balance(from).to_vec(), &(balance - amount_burned))
+        .store(StateKey::Balance(from).to_vec(), &(balance - burn_amount))
         .expect("failed to store new balance");
+
+    // Decrement the counter variable
+    let counter = program
+        .state()
+        .get::<i64, _>(StateKey::Counter.to_vec())
+        .expect("failed to get counter");
 
     program
         .state()
-        .store(
-            StateKey::TotalSupply.to_vec(),
-            &(TOTAL_SUPPLY - amount_burned as u64),
-        )
-        .expect("failed to store new balance");
-
-    true
+        .store(StateKey::Counter.to_vec(), &(counter - burn_amount))
+        .is_ok()
 }
