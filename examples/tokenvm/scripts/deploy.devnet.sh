@@ -144,7 +144,7 @@ fi
 AWS_PROFILE_NAME=$(cat "/tmp/avalanche-ops-cache/aws-profile")
 
 # Create spec file
-SPEC_FILE=./spec.yml
+SPEC_FILE=./spec-$(date '+%m-%d-%Y').yml
 echo created avalanche-ops spec file: ${SPEC_FILE}
 
 # Create key file dir
@@ -241,4 +241,3 @@ to delete all resources, run the following command:
 --delete-elastic-ips \
 --spec-file-path ${SPEC_FILE}
 EOF
-
