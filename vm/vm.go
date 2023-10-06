@@ -802,7 +802,7 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	view, err := blk.View(ctx, nil, false)
+	view, err := blk.View(ctx, false)
 	if err != nil {
 		// This will error if a block does not yet have processed state.
 		return []error{err}
