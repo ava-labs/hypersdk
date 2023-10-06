@@ -36,7 +36,6 @@ var (
 	prometheusFile        string
 	prometheusData        string
 	startPrometheus       bool
-	runPrometheus         bool
 	maxFee                int64
 
 	rootCmd = &cobra.Command{
