@@ -24,9 +24,9 @@ rm prometheus-2.43.0.linux-amd64.tar.gz
 mv prometheus-2.43.0.linux-amd64/prometheus /tmp/prometheus
 rm -rf prometheus-2.43.0.linux-amd64
 
-# Import demo.pk and avalanche-ops spec
+# Import chains and demo.pk key
+/tmp/token-cli chain imports-ops aops.yml
 /tmp/token-cli key import demo.pk
-# TODO: need subnet chainID
-/tmp/token-cli chain imports-ops <subnet-chain-id> aops.yml
 
 # Start prometheus server
+nohup /tmp/token-cli prometheus generate --run-prometheus=true &

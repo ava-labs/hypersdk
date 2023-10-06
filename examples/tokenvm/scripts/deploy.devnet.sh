@@ -216,7 +216,7 @@ ${DEPLOY_ARTIFACT_PREFIX}/avalancheup-aws apply \
 ACCESS_KEY=./aops-${DATE}-ec2-access.us-west-2.key
 chmod 400 ${ACCESS_KEY}
 DEV_MACHINE_IP=$(yq '.dev_machine_ips[0]' ${SPEC_FILE})
-scp -i ${ACCESS_KEY} ${SPEC_FILE} ubuntu@${DEV_MACHINE_IP}:/home/ubuntu/${SPEC_FILE}
+scp -i ${ACCESS_KEY} ${SPEC_FILE} ubuntu@${DEV_MACHINE_IP}:/home/ubuntu/aops.yml
 cd $pw 
 scp -i ${DEPLOY_PREFIX}/${ACCESS_KEY} demo.pk ubuntu@${DEV_MACHINE_IP}:/home/ubuntu/demo.pk
 ssh -o "StrictHostKeyChecking no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} ubuntu@${DEV_MACHINE_IP} ./scripts/setup.dev-machine.sh 
