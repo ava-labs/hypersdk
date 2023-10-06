@@ -111,7 +111,9 @@ cat ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-subnet-config.json
 
 # TODO: make address configurable via ENV
 cat <<EOF > ${DEPLOY_ARTIFACT_PREFIX}/allocations.json
-[{"address":"token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":1000000000000000}]
+[
+  {"address":"token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":1000000000000000}
+]
 EOF
 
 # TODO: make fee params configurable via ENV
@@ -131,7 +133,7 @@ cat <<EOF > ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-chain-config.json
   "storeTransactions": false,
   "verifySignatures": true,
   "trackedPairs":["*"],
-  "logLevel": "info",
+  "logLevel": "info"
 }
 EOF
 cat ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-chain-config.json
