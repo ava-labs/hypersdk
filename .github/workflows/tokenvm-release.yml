@@ -86,11 +86,7 @@ jobs:
         env:
           # https://docs.github.com/en/actions/security-guides/automatic-token-authentication#about-the-github_token-secret
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Archive Builds
-        uses: actions/upload-artifact@v3
-        with:
-          name: dist
-          path: ./examples/tokenvm/dist
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true

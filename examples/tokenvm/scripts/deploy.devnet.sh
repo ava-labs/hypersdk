@@ -35,7 +35,7 @@ export OS_TYPE=$(uname | tr '[:upper:]' '[:lower:]')
 echo OS_TYPE: ${OS_TYPE}
 export AVALANCHEGO_VERSION="1.10.11"
 echo AVALANCHEGO_VERSION: ${AVALANCHEGO_VERSION}
-export HYPERSDK_VERSION="0.0.14"
+export HYPERSDK_VERSION="0.0.15-rc.0"
 echo HYPERSDK_VERSION: ${HYPERSDK_VERSION}
 # TODO: set deploy os/arch
 
@@ -217,23 +217,19 @@ ACCESS_KEY=./aops-${DATE}-ec2-access.us-west-2.key
 chmod 400 ${ACCESS_KEY}
 DEV_MACHINE_IP=$(yq '.dev_machine_ips[0]' ${SPEC_FILE})
 scp -i ${ACCESS_KEY} ${SPEC_FILE} ubuntu@${DEV_MACHINE_IP}:/home/ubuntu/aops.yml
-cd $pw 
+cd $pw
 scp -i ${DEPLOY_PREFIX}/${ACCESS_KEY} demo.pk ubuntu@${DEV_MACHINE_IP}:/home/ubuntu/demo.pk
-ssh -o "StrictHostKeyChecking no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} ubuntu@${DEV_MACHINE_IP} ./scripts/setup.dev-machine.sh 
+ssh -o "StrictHostKeyChecking no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} ubuntu@${DEV_MACHINE_IP} ./scripts/setup.dev-machine.sh
 
 # Generate prometheus link
 ${DEPLOY_ARTIFACT_PREFIX}/token-cli chain import-ops ${DEPLOY_PREFIX}/${SPEC_FILE}
-${DEPLOY_ARTIFACT_PREFIX}/token-cli prometheus generate --prometheus-start=false --prometheus-base-uri=http://${DEV_MACHINE_IP}:9090 
+${DEPLOY_ARTIFACT_PREFIX}/token-cli prometheus generate --prometheus-start=false --prometheus-base-uri=http://${DEV_MACHINE_IP}:9090
 
 # Print final logs
 cat << EOF
-to view prometheus metrics, visit the following URL:
+to login to the dev machine, run the following command:
 
-TODO: just generate URL
-
-to run spam script on dev machine, run the following command:
-
-TODO
+ssh -o "StrictHostKeyChecking no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} ubuntu@${DEV_MACHINE_IP}
 
 to delete all resources (but keep asg/ssm), run the following command:
 

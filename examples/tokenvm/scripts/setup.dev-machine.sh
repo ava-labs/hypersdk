@@ -5,7 +5,7 @@ set -o nounset
 set -o pipefail
 
 # Set constants
-export HYPERSDK_VERSION="0.0.14"
+export HYPERSDK_VERSION="0.0.15-rc.0"
 echo HYPERSDK_VERSION: ${HYPERSDK_VERSION}
 
 # Download token-cli
