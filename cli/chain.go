@@ -116,7 +116,7 @@ type AvalancheOpsConfig struct {
 		CreatedNodes []struct {
 			HTTPEndpoint string `yaml:"httpEndpoint"`
 		} `yaml:"created_nodes"`
-	} `yaml:"resources"`
+	} `yaml:"resource"`
 }
 
 func (h *Handler) ImportOps(schainID string, opsPath string) error {

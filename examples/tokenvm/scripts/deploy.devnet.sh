@@ -212,8 +212,16 @@ echo 'deploying DEVNET...'
 ${DEPLOY_ARTIFACT_PREFIX}/avalancheup-aws apply \
 --spec-file-path ${SPEC_FILE}
 
-# Prepare dev-machine and start prometheus server
-# Copy avalanche-ops spec, demo.pk, sign into dev machine, download token-cli, configure token-cli, start prometheus in background
+# Prepare dev machine
+ACCESS_KEY=./aops-${DATE}-ec2-access.us-west-2.key
+chmod 400 ${ACCESS_KEY}
+DEV_MACHINE_IP=$(yq '.dev_machine_ips[0]' ${SPEC_FILE})
+scp -i ${ACCESS_KEY} ${SPEC_FILE} ubuntu@${DEV_MACHINE_IP}:/home/ubuntu/${SPEC_FILE}
+cd $pw 
+scp -i ${DEPLOY_PREFIX}/${ACCESS_KEY} demo.pk ubuntu@${DEV_MACHINE_IP}:/home/ubuntu/demo.pk
+ssh -o "StrictHostKeyChecking no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} ubuntu@${DEV_MACHINE_IP} ./scripts/setup.dev-machine.sh 
+
+# Generate prometheus link (dev machine ip:9090)
 
 # Print final logs
 cat << EOF
@@ -232,7 +240,7 @@ to delete all resources (but keep asg/ssm), run the following command:
 --delete-s3-objects \
 --delete-ebs-volumes \
 --delete-elastic-ips \
---spec-file-path ${SPEC_FILE}
+--spec-file-path ${DEPLOY_PREFIX}/${SPEC_FILE}
 
 to delete all resources, run the following command:
 
@@ -242,5 +250,5 @@ to delete all resources, run the following command:
 --delete-s3-objects \
 --delete-ebs-volumes \
 --delete-elastic-ips \
---spec-file-path ${SPEC_FILE}
+--spec-file-path ${DEPLOY_PREFIX}/${SPEC_FILE}
 EOF

@@ -10,11 +10,11 @@ echo HYPERSDK_VERSION: ${HYPERSDK_VERSION}
 
 # Download token-cli
 wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz"
-mkdir tmp-hypersdk
-tar -xvf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz -C tmp-hypersdk
+mkdir -p /tmp/cli-install
+tar -xvf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz -C /tmp/cli-install
 rm -rf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz
-mv tmp-hypersdk/token-cli /tmp/token-cli
-rm -rf tmp-hypersdk
+mv /tmp/cli-install/token-cli /tmp/token-cli
+rm -rf /tmp/cli-install
 
 # Download prometheus
 rm -f /tmp/prometheus
@@ -25,5 +25,8 @@ mv prometheus-2.43.0.linux-amd64/prometheus /tmp/prometheus
 rm -rf prometheus-2.43.0.linux-amd64
 
 # Import demo.pk and avalanche-ops spec
+/tmp/token-cli key import demo.pk
+# TODO: need subnet chainID
+/tmp/token-cli chain imports-ops <subnet-chain-id> aops.yml
 
 # Start prometheus server
