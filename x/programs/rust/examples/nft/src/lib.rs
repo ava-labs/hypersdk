@@ -2,8 +2,8 @@
 //! The program serves as a non-fungible token with the ability to mint, burn, and transfer.
 //! Only supports whole units with no decimal places.
 //!
-//! NOTE: The NFT must support the common NFT metadata format.
-//! This JSON encoded file provides all the necessary metadata about the NFT.
+//! The NFT must support the common NFT metadata format.
+//! This implementation is for a 1 of 1 singleton NFT. The total supply should be 1.
 use metadata::Nft;
 use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
 
