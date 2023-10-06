@@ -20,7 +20,7 @@ mkdir -p /tmp/avalanche-ops-cache
 
 # Create deployment directory (avalanche-ops creates metadata in cwd)
 DATE=$(date '+%m%d%Y-%H%M%S')
-DEPLOY_PREFIX=~/avalanche-ops/deploys/${DATE}
+DEPLOY_PREFIX=~/avalanche-ops-deploys/${DATE}
 mkdir -p ${DEPLOY_PREFIX}
 DEPLOY_ARTIFACT_PREFIX=${DEPLOY_PREFIX}/artifacts
 mkdir -p ${DEPLOY_ARTIFACT_PREFIX}
