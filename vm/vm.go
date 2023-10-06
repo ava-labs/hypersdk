@@ -346,7 +346,8 @@ func (vm *VM) Initialize(
 		if err := sps.Commit(ctx); err != nil {
 			return err
 		}
-		if _, err := vm.stateDB.GetMerkleRoot(ctx); err != nil {
+		genesisRoot, err := vm.stateDB.GetMerkleRoot(ctx)
+		if err != nil {
 			snowCtx.Log.Error("could not get merkle root", zap.Error(err))
 			return err
 		}
@@ -359,7 +360,11 @@ func (vm *VM) Initialize(
 		}
 		gBlkID := genesisBlk.ID()
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
-		snowCtx.Log.Info("initialized vm from genesis", zap.Stringer("block", gBlkID))
+		snowCtx.Log.Info("initialized vm from genesis",
+			zap.Stringer("block", gBlkID),
+			zap.Stringer("pre-execution root", genesisBlk.StateRoot),
+			zap.Stringer("post-execution root", genesisRoot),
+		)
 	}
 	go vm.processAcceptedBlocks()
 

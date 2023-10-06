@@ -6,6 +6,7 @@ package vm
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -86,7 +87,7 @@ func (a *AcceptedVerifyContext) View(ctx context.Context, blockRoot *ids.ID, _ b
 			// This should never happen but we check
 			// this to check subtle state handling bugs
 			// in the [chain] package.
-			return nil, ErrUnexpectedStateRoot
+			return nil, fmt.Errorf("%w: state=%s wanted=%s", ErrUnexpectedStateRoot, root, *blockRoot)
 		}
 	}
 	return state, nil
