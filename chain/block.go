@@ -825,27 +825,26 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 		}
 		return b.view, nil
 	}
-
-	// Handle case where we need to process block.
 	b.vm.Logger().Info("block not processed",
 		zap.Uint64("height", b.Hght),
 		zap.Stringer("blkID", b.ID()),
 		zap.Bool("verify", verify),
 	)
 
-	// If the block is accepted but not processed, we can check [acceptedState]
-	// to see if we can use that as the [View].
+	// If the block is not processed but [acceptedState] equals the height
+	// of the block, we should return the accepted state.
+	//
+	// This can happen when we are building a child block immediately after
+	// restart (latest block will not be considered [Processed] because there
+	// will be no attached view from execution).
+	//
+	// We cannot use the merkle root to check against the accepted state
+	// because the block only contains the root of the parent block's post-execution.
 	if b.st == choices.Accepted {
 		acceptedState, err := b.vm.State()
 		if err != nil {
 			return nil, err
 		}
-		// If the block is not processed but [acceptedState] equals the height
-		// of the block, we should return the accepted state.
-		//
-		// This can happen when we are building a child block immediately after
-		// restart (latest block will not be considered [Processed] because there
-		// will be no attached view from execution).
 		acceptedHeightRaw, err := acceptedState.Get(HeightKey(b.vm.StateManager().HeightKey()))
 		if err != nil {
 			return nil, err
@@ -854,16 +853,7 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 		if acceptedHeight == b.Hght {
 			return acceptedState, nil
 		}
-
-		// If we don't know the [blockRoot] but we want to [verify],
-		// we pessimistically execute the block.
-		//
-		// This could happen when building a block immediately after
-		// state sync finishes with no processing blocks.
-		//
-		// This may result in some parent being executed that will
-		// allow this block to be executed.
-		b.vm.Logger().Info("block root does not match accepted state",
+		b.vm.Logger().Info("block height does not match accepted state",
 			zap.Uint64("height", b.Hght),
 			zap.Stringer("blkID", b.ID()),
 			zap.Bool("verify", verify),
