@@ -23,7 +23,7 @@ var prometheusCmd = &cobra.Command{
 var generatePrometheusCmd = &cobra.Command{
 	Use: "generate",
 	RunE: func(_ *cobra.Command, args []string) error {
-		return handler.Root().GeneratePrometheus(runPrometheus, prometheusFile, prometheusData, func(chainID ids.ID) []string {
+		return handler.Root().GeneratePrometheus(prometheusBaseURI, prometheusOpenBrowser, startPrometheus, prometheusFile, prometheusData, func(chainID ids.ID) []string {
 			panels := []string{}
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_empty_block_built[5s])", chainID))
 			utils.Outf("{{yellow}}empty blocks built (5s):{{/}} %s\n", panels[len(panels)-1])

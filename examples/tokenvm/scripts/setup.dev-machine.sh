@@ -29,4 +29,4 @@ rm -rf prometheus-2.43.0.linux-amd64
 /tmp/token-cli key import demo.pk
 
 # Start prometheus server
-nohup /tmp/token-cli prometheus generate --run-prometheus=true &
+nohup /tmp/token-cli prometheus generate --prometheus-open-browser=false --prometheus-start=true &

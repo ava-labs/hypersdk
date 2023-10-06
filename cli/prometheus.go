@@ -53,7 +53,7 @@ type PrometheusConfig struct {
 	ScrapeConfigs []*PrometheusScrapeConfig `yaml:"scrape_configs"`
 }
 
-func (h *Handler) GeneratePrometheus(open bool, prometheusFile string, prometheusData string, getPanels func(ids.ID) []string) error {
+func (h *Handler) GeneratePrometheus(baseURI string, openBrowser bool, startPrometheus bool, prometheusFile string, prometheusData string, getPanels func(ids.ID) []string) error {
 	chainID, uris, err := h.PromptChain("select chainID", nil)
 	if err != nil {
 		return err
@@ -102,7 +102,7 @@ func (h *Handler) GeneratePrometheus(open bool, prometheusFile string, prometheu
 	// We must manually encode the params because prometheus skips any panels
 	// that are not numerically sorted and `url.params` only sorts
 	// lexicographically.
-	dashboard := "http://localhost:9090/graph"
+	dashboard := fmt.Sprintf("%s/graph", baseURI)
 	for i, panel := range getPanels(chainID) {
 		appendChar := "&"
 		if i == 0 {
@@ -111,12 +111,15 @@ func (h *Handler) GeneratePrometheus(open bool, prometheusFile string, prometheu
 		dashboard = fmt.Sprintf("%s%sg%d.expr=%s&g%d.tab=0&g%d.step_input=1&g%d.range_input=5m", dashboard, appendChar, i, url.QueryEscape(panel), i, i, i)
 	}
 
-	if !open {
-		utils.Outf("{{orange}}pre-built dashboard:{{/}} %s\n", dashboard)
+	if !startPrometheus {
+		if !openBrowser {
+			utils.Outf("{{orange}}pre-built dashboard:{{/}} %s\n", dashboard)
 
-		// Emit command to run prometheus
-		utils.Outf("{{green}}prometheus cmd:{{/}} /tmp/prometheus --config.file=%s --storage.tsdb.path=%s\n", prometheusFile, prometheusData)
-		return nil
+			// Emit command to run prometheus
+			utils.Outf("{{green}}prometheus cmd:{{/}} /tmp/prometheus --config.file=%s --storage.tsdb.path=%s\n", prometheusFile, prometheusData)
+			return nil
+		}
+		return browser.OpenURL(dashboard)
 	}
 
 	// Start prometheus and open browser
@@ -132,6 +135,10 @@ func (h *Handler) GeneratePrometheus(open bool, prometheusFile string, prometheu
 		case <-errChan:
 			return
 		case <-time.After(5 * time.Second):
+			if !openBrowser {
+				utils.Outf("{{orange}}pre-built dashboard:{{/}} %s\n", dashboard)
+				return
+			}
 			utils.Outf("{{cyan}}opening dashboard{{/}}\n")
 			if err := browser.OpenURL(dashboard); err != nil {
 				utils.Outf("{{red}}unable to open dashboard:{{/}} %s\n", err.Error())

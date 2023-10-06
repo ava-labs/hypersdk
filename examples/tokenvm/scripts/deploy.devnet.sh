@@ -221,7 +221,9 @@ cd $pw
 scp -i ${DEPLOY_PREFIX}/${ACCESS_KEY} demo.pk ubuntu@${DEV_MACHINE_IP}:/home/ubuntu/demo.pk
 ssh -o "StrictHostKeyChecking no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} ubuntu@${DEV_MACHINE_IP} ./scripts/setup.dev-machine.sh 
 
-# Generate prometheus link (dev machine ip:9090)
+# Generate prometheus link
+${DEPLOY_ARTIFACT_PREFIX}/token-cli chain import-ops ${DEPLOY_PREFIX}/${SPEC_FILE}
+${DEPLOY_ARTIFACT_PREFIX}/token-cli prometheus generate --prometheus-start=false --prometheus-base-uri=http://${DEV_MACHINE_IP}:9090 
 
 # Print final logs
 cat << EOF
