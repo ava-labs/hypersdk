@@ -6,35 +6,48 @@ package runtime
 import "github.com/bytecodealliance/wasmtime-go/v13"
 
 const (
-	defaultMaxWasmStack    = 256 * 1024 * 1024 // 256 MiB
-	defaultWasmThreads     = false
-	defaultFuelMetering    = true
-	defaultWasmMultiMemory = false
-	defaultWasmMemory64    = false
-	defaultLimitMaxMemory  = 16 * 64 * 1024 // 16 pages
+	defaultMaxWasmStack                 = 256 * 1024 * 1024 // 256 MiB
+	defaultWasmThreads                  = false
+	defaultFuelMetering                 = true
+	defaultWasmMultiMemory              = false
+	defaultWasmMemory64                 = false
+	defaultLimitMaxMemory               = 16 * 64 * 1024 // 16 pages
+	defaultSIMD                         = false
+	defaultCompilerStrategy             = wasmtime.StrategyCranelift
+	defaultEpochInterruption            = true
+	defaultNaNCanonicalization          = "true"
+	defaultCraneliftOptLevel            = wasmtime.OptLevelSpeed
+	defaultEnableReferenceTypes         = false
+	defaultEnableBulkMemory             = false
+	defaultProfiler                     = wasmtime.ProfilingStrategyNone
+	defaultMultiValue                   = false
+	defaultEnableCraneliftDebugVerifier = false
+	defaultEnableDebugInfo              = false
+
+	defaultLimitMaxTableElements = 4096
+	defaultLimitMaxTables        = 1
+	defaultLimitMaxInstances     = 32
+	defaultLimitMaxMemories      = 1
 )
 
 // TODO: review Cranelift fine tune knobs when exposed
 // https://github.com/bytecodealliance/wasmtime-go/pull/188
 
 func NewConfigBuilder(meterMaxUnits uint64) *builder {
-	return &builder{meterMaxUnits: meterMaxUnits}
+	cfg := defaultWasmtimeConfig()
+	return &builder{
+		cfg:           cfg,
+		meterMaxUnits: meterMaxUnits,
+	}
 }
 
 type builder struct {
-	// config
-	maxWasmStack      int
-	bulkMemory        bool
-	multiValue        bool
-	referenceTypes    bool
-	simd              bool
-	profilingStrategy wasmtime.ProfilingStrategy
-	defaultCache      bool
+	cfg *wasmtime.Config
 
 	// engine
-	compileStrategy   EngineCompileStrategy
-	meterMaxUnits     uint64
-	contextSwitchCost uint64
+	compileStrategy EngineCompileStrategy
+	defaultCache    bool
+	meterMaxUnits   uint64
 
 	// limit
 	limitMaxMemory int64
@@ -51,13 +64,12 @@ type Config struct {
 	limitMaxInstances int64
 	limitMaxMemories  int64
 
-	compileStrategy   EngineCompileStrategy
-	meterMaxUnits     uint64
-	contextSwitchCost uint64
+	compileStrategy EngineCompileStrategy
+	meterMaxUnits   uint64
 }
 
 // WithCompileStrategy defines the EngineCompileStrategy.
-// Default is CompileWasm“.
+// Default is “.
 func (b *builder) WithCompileStrategy(strategy EngineCompileStrategy) *builder {
 	b.compileStrategy = strategy
 	return b
@@ -68,23 +80,25 @@ func (b *builder) WithCompileStrategy(strategy EngineCompileStrategy) *builder {
 //
 // Default is 256 MiB.
 func (b *builder) WithMaxWasmStack(max int) *builder {
-	b.maxWasmStack = max
+	b.cfg.SetMaxWasmStack(max)
 	return b
 }
 
 // WithMultiValue enables modules that can return multiple values.
 //
 // ref. https://github.com/webassembly/multi-value
+// Default is false.
 func (b *builder) WithMultiValue(enable bool) *builder {
-	b.multiValue = enable
+	b.cfg.SetWasmMultiValue(enable)
 	return b
 }
 
 // WithBulkMemory enables`memory.copy` instruction, tables and passive data.
 //
 // ref. https://github.com/WebAssembly/bulk-memory-operations
+// Default is false.
 func (b *builder) WithBulkMemory(enable bool) *builder {
-	b.bulkMemory = enable
+	b.cfg.SetWasmBulkMemory(enable)
 	return b
 }
 
@@ -94,16 +108,18 @@ func (b *builder) WithBulkMemory(enable bool) *builder {
 // ref. https://github.com/webassembly/reference-types
 //
 // Note: depends on bulk memory being enabled.
+// Default is false.
 func (b *builder) WithReferenceTypes(enable bool) *builder {
-	b.referenceTypes = enable
+	b.cfg.SetWasmReferenceTypes(enable)
 	return b
 }
 
 // WithSIMD enables SIMD instructions including v128.
 //
 // ref. https://github.com/webassembly/simd
+// Default is false.
 func (b *builder) WithSIMD(enable bool) *builder {
-	b.simd = enable
+	b.cfg.SetWasmSIMD(enable)
 	return b
 }
 
@@ -112,42 +128,30 @@ func (b *builder) WithSIMD(enable bool) *builder {
 //
 // Default is `wasmtime.ProfilingStrategyNone`.
 func (b *builder) WithProfilingStrategy(strategy wasmtime.ProfilingStrategy) *builder {
-	b.profilingStrategy = strategy
+	b.cfg.SetProfiler(strategy)
 	return b
 }
 
 // WithLimitMaxMemory defines the maximum number of pages of memory that can be used.
 // Each page represents 64KiB of memory.
+//
+// Default is 16 pages.
 func (b *builder) WithLimitMaxMemory(max int64) *builder {
 	b.limitMaxMemory = max
 	return b
 }
 
 // WithDefaultCache enables the default caching strategy.
+//
+// Default is false.
 func (b *builder) WithDefaultCache(enabled bool) *builder {
 	b.defaultCache = enabled
 	return b
 }
 
-// WithContextSwitchCost defines the cost of a context switch in units.
-func (b *builder) WithContextSwitchCost(units uint64) *builder {
-	b.contextSwitchCost = units
-	return b
-}
-
 func (b *builder) Build() (*Config, error) {
-	cfg := defaultWasmtimeConfig()
-	if b.maxWasmStack == 0 {
-		b.maxWasmStack = defaultMaxWasmStack
-	}
-	cfg.SetMaxWasmStack(b.maxWasmStack)
-	cfg.SetWasmBulkMemory(b.bulkMemory)
-	cfg.SetWasmMultiValue(b.multiValue)
-	cfg.SetWasmReferenceTypes(b.referenceTypes)
-	cfg.SetWasmSIMD(b.simd)
-	cfg.SetProfiler(b.profilingStrategy)
 	if b.defaultCache {
-		err := cfg.CacheConfigLoadDefault()
+		err := b.cfg.CacheConfigLoadDefault()
 		if err != nil {
 			return nil, err
 		}
@@ -158,30 +162,45 @@ func (b *builder) Build() (*Config, error) {
 	}
 
 	return &Config{
-		engine: cfg,
+		// engine config
+		engine: b.cfg,
 
-		limitMaxTableElements: 8192,
+		// limits
+		limitMaxTableElements: defaultLimitMaxTableElements,
 		limitMaxMemory:        b.limitMaxMemory,
-		limitMaxTables:        1,
-		limitMaxInstances:     32,
-		limitMaxMemories:      1,
-		compileStrategy:       b.compileStrategy,
-		meterMaxUnits:         b.meterMaxUnits,
-		contextSwitchCost:     b.contextSwitchCost,
+		limitMaxTables:        defaultLimitMaxTables,
+		limitMaxInstances:     defaultLimitMaxInstances,
+		limitMaxMemories:      defaultLimitMaxMemories,
+
+		// runtime config
+		compileStrategy: b.compileStrategy,
+		meterMaxUnits:   b.meterMaxUnits,
 	}, nil
 }
 
 // non-configurable defaults
 func defaultWasmtimeConfig() *wasmtime.Config {
 	cfg := wasmtime.NewConfig()
-	// defaults
-	cfg.SetCraneliftOptLevel(wasmtime.OptLevelSpeedAndSize)
+	// non configurable defaults
+	cfg.SetCraneliftOptLevel(defaultCraneliftOptLevel)
 	cfg.SetConsumeFuel(defaultFuelMetering)
 	cfg.SetWasmThreads(defaultWasmThreads)
 	cfg.SetWasmMultiMemory(defaultWasmMultiMemory)
 	cfg.SetWasmMemory64(defaultWasmMemory64)
-	cfg.SetStrategy(wasmtime.StrategyCranelift)
-	cfg.SetEpochInterruption(true)
-	cfg.SetCraneliftFlag("enable_nan_canonicalization", "true")
+	cfg.SetStrategy(defaultCompilerStrategy)
+	cfg.SetEpochInterruption(defaultEpochInterruption)
+	cfg.SetCraneliftFlag("enable_nan_canonicalization", defaultNaNCanonicalization)
+
+	// TODO: expose these knobs for developers
+	cfg.SetCraneliftDebugVerifier(defaultEnableCraneliftDebugVerifier)
+	cfg.SetDebugInfo(defaultEnableDebugInfo)
+
+	// configurable defaults
+	cfg.SetWasmSIMD(defaultSIMD)
+	cfg.SetMaxWasmStack(defaultMaxWasmStack)
+	cfg.SetWasmBulkMemory(defaultEnableBulkMemory)
+	cfg.SetWasmReferenceTypes(defaultEnableReferenceTypes)
+	cfg.SetWasmMultiValue(defaultMultiValue)
+	cfg.SetProfiler(defaultProfiler)
 	return cfg
 }
