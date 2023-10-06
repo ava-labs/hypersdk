@@ -803,7 +803,8 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID, verify boo
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.View",
 		oteltrace.WithAttributes(
 			attribute.Bool("processed", b.Processed()),
-			attribute.Bool("attemptVerify", blockRoot != nil),
+			attribute.Stringer("blockRoot", blockRoot),
+			attribute.Bool("verify", verify),
 		),
 	)
 	defer span.End()
@@ -813,6 +814,8 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID, verify boo
 		return b.vm.State()
 	}
 
+	// If block is processed, we can return either the accepted state
+	// or its pending view.
 	if b.Processed() {
 		if b.st == choices.Accepted {
 			// We assume that base state was properly updated if this
@@ -823,12 +826,41 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID, verify boo
 		}
 		return b.view, nil
 	}
+
+	// Handle case where we need to process block.
 	b.vm.Logger().Info("block not processed",
 		zap.Uint64("height", b.Hght),
 		zap.Stringer("blkID", b.ID()),
-		zap.Bool("attemptVerify", blockRoot != nil),
+		zap.Stringer("blockRoot", blockRoot),
+		zap.Bool("verify", verify),
 	)
+	acceptedState, err := b.vm.State()
+	if err != nil {
+		return nil, err
+	}
+	acceptedRoot, err := acceptedState.GetMerkleRoot(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if blockRoot == nil {
+		// If the block is not processed but [acceptedState]
+		// contains the height of the block, we should return the accepted
+		// state.
+		//
+		// This can happen when we are building/verifying a child block
+		// immediately after restart (will not have in-memory view to indicate
+		// it is processed).
+		acceptedHeightRaw, err := acceptedState.Get(HeightKey(b.vm.StateManager().HeightKey()))
+		if err != nil {
+			return nil, err
+		}
+		acceptedHeight := binary.BigEndian.Uint64(acceptedHeightRaw)
+		if acceptedHeight == b.Hght {
+			return acceptedState, nil
+		}
+
+		// If [acceptedState] does not reflect the execution of this block
+		// and we are not prohibited to verify, we should return an error.
 		if !verify {
 			return nil, ErrBlockNotProcessed
 		}
@@ -838,6 +870,9 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID, verify boo
 		//
 		// This could happen when building a block immediately after
 		// state sync finishes with no processing blocks.
+		//
+		// This may result in some parent being executed that will
+		// allow this block to be executed.
 	} else {
 		// If the block is not processed but the caller only needs
 		// a reference to [acceptedState], we should just return it
@@ -848,18 +883,10 @@ func (b *StatelessBlock) View(ctx context.Context, blockRoot *ids.ID, verify boo
 		// during accept and it will attempt to read the state associated
 		// with the root specified in [StateRoot] (which was the sync
 		// target).
-		acceptedState, err := b.vm.State()
-		if err != nil {
-			return nil, err
-		}
-		acceptedRoot, err := acceptedState.GetMerkleRoot(ctx)
-		if err != nil {
-			return nil, err
-		}
 		if acceptedRoot == *blockRoot {
 			return acceptedState, nil
 		}
-		b.vm.Logger().Info("block root does not match accepted state",
+		b.vm.Logger().Info("block root does not match accepted state...verifying",
 			zap.Uint64("height", b.Hght),
 			zap.Stringer("blkID", b.ID()),
 			zap.Stringer("accepted root", acceptedRoot),

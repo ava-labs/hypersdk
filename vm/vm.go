@@ -292,9 +292,9 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("could not load accepted blocks from disk", zap.Error(err))
 			return err
 		}
+		// It is not guaranteed that the last accepted state on-disk matches the post-execution
+		// result of the last accepted block.
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
-
-		// TODO: need to mark "Processed" and loaded blocks
 	} else {
 		// Set balances and compute genesis root
 		sps := state.NewSimpleMutable(vm.stateDB)
@@ -330,7 +330,7 @@ func (vm *VM) Initialize(
 		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
 		genesisRules := vm.c.Rules(0)
