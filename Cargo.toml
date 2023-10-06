@@ -9,9 +9,11 @@ members = [
 resolver = "2"
 
 [profile.release]
-opt-level = 3
+# https://rustwasm.github.io/docs/book/reference/code-size.html#tell-llvm-to-optimize-for-size-instead-of-speed
+opt-level = "s"
 lto = true
 codegen-units = 1
 overflow-checks = true
 # https://doc.rust-lang.org/book/ch09-01-unrecoverable-errors-with-panic.html#unwinding-the-stack-or-aborting-in-response-to-a-panic
 panic = 'abort'
+strip = true
