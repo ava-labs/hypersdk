@@ -534,6 +534,11 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 
+			// Ensure we can handle case where accepted block is not processed
+			latestBlock := blocks[len(blocks)-1]
+			latestBlock.(*chain.StatelessBlock).MarkUnprocessed()
+
+			// Accept new block (should use accepted state)
 			accept := expectBlk(instances[1])
 			results := accept(true)
 

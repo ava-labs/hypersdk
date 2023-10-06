@@ -825,11 +825,6 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 		}
 		return b.view, nil
 	}
-	b.vm.Logger().Info("block not processed",
-		zap.Uint64("height", b.Hght),
-		zap.Stringer("blkID", b.ID()),
-		zap.Bool("verify", verify),
-	)
 
 	// If the block is not processed but [acceptedState] equals the height
 	// of the block, we should return the accepted state.
@@ -851,9 +846,20 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 		}
 		acceptedHeight := binary.BigEndian.Uint64(acceptedHeightRaw)
 		if acceptedHeight == b.Hght {
+			b.vm.Logger().Info("accepted block not processed but found post-execution state on-disk",
+				zap.Uint64("height", b.Hght),
+				zap.Stringer("blkID", b.ID()),
+				zap.Bool("verify", verify),
+			)
 			return acceptedState, nil
 		}
-		b.vm.Logger().Info("block height does not match accepted state",
+		b.vm.Logger().Info("accepted block not processed and does not match state on-disk",
+			zap.Uint64("height", b.Hght),
+			zap.Stringer("blkID", b.ID()),
+			zap.Bool("verify", verify),
+		)
+	} else {
+		b.vm.Logger().Info("block not processed",
 			zap.Uint64("height", b.Hght),
 			zap.Stringer("blkID", b.ID()),
 			zap.Bool("verify", verify),
@@ -1048,4 +1054,9 @@ func NewSyncableBlock(sb *StatelessBlock) *SyncableBlock {
 
 func (sb *SyncableBlock) String() string {
 	return fmt.Sprintf("%d:%s root=%s", sb.Height(), sb.ID(), sb.StateRoot)
+}
+
+// Testing
+func (b *StatelessBlock) MarkUnprocessed() {
+	b.view = nil
 }
