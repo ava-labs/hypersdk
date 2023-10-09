@@ -120,7 +120,7 @@ cat <<EOF > ${DEPLOY_ARTIFACT_PREFIX}/allocations.json
 EOF
 
 # TODO: make fee params configurable via ENV
-# TODO: increase block rate
+# TODO: increase block rate (the max block bandwidth per second is ~1.8KB * 1s/block-gap)
 ${DEPLOY_ARTIFACT_PREFIX}/token-cli genesis generate ${DEPLOY_ARTIFACT_PREFIX}/allocations.json \
 --genesis-file ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-genesis.json \
 --max-block-units 1800000,18446744073709551615,18446744073709551615,18446744073709551615,18446744073709551615 \
