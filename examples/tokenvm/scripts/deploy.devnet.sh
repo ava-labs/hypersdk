@@ -120,6 +120,7 @@ cat <<EOF > ${DEPLOY_ARTIFACT_PREFIX}/allocations.json
 EOF
 
 # TODO: make fee params configurable via ENV
+# TODO: increase block rate
 ${DEPLOY_ARTIFACT_PREFIX}/token-cli genesis generate ${DEPLOY_ARTIFACT_PREFIX}/allocations.json \
 --genesis-file ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-genesis.json \
 --max-block-units 1800000,18446744073709551615,18446744073709551615,18446744073709551615,18446744073709551615 \
@@ -170,11 +171,11 @@ echo 'planning DEVNET deploy...'
 ${DEPLOY_ARTIFACT_PREFIX}/avalancheup-aws default-spec \
 --arch-type amd64 \
 --os-type ubuntu20.04 \
---anchor-nodes 2 \
---non-anchor-nodes 1 \
---regions us-west-2 \
+--anchor-nodes 3 \
+--non-anchor-nodes 3 \
+--regions us-west-2,us-east-2,eu-west-1 \
 --instance-mode=on-demand \
---instance-types='{"us-west-2":["c5.4xlarge"]}' \
+--instance-types='{"us-west-2":["c5.4xlarge"],"us-east-2":["c5.4xlarge"],"eu-west-1":["c5.4xlarge"]}' \
 --ip-mode=ephemeral \
 --metrics-fetch-interval-seconds 0 \
 --upload-artifacts-prometheus-metrics-rules-file-path ${DEPLOY_ARTIFACT_PREFIX}/metrics.yml \
@@ -217,6 +218,8 @@ ${DEPLOY_ARTIFACT_PREFIX}/avalancheup-aws apply \
 echo 'DEVNET deployed'
 
 # Prepare dev machine
+#
+# TODO: prepare 1 dev machine per region
 echo 'setting up dev machine...'
 ACCESS_KEY=./aops-${DATE}-ec2-access.us-west-2.key
 chmod 400 ${ACCESS_KEY}
