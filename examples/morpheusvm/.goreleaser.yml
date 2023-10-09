@@ -68,6 +68,8 @@ archives:
     name_template: 'morpheusvm_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
 
 release:
+  make_latest: false # Should be done manually
+  mode: 'keep-existing' # Should not override releases
   github:
     owner: ava-labs
     name: hypersdk
