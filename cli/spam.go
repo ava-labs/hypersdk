@@ -136,6 +136,9 @@ func (h *Handler) Spam(
 		utils.Outf("{{cyan}}overriding max fee:{{/}} %d\n", feePerTx)
 	}
 	witholding := feePerTx * uint64(numAccounts)
+	if balance < witholding {
+		return fmt.Errorf("insufficient funds (have=%d need=%d)", balance, witholding)
+	}
 	distAmount := (balance - witholding) / uint64(numAccounts)
 	utils.Outf(
 		"{{yellow}}distributing funds to each account:{{/}} %s %s\n",
