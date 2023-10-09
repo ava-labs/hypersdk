@@ -119,17 +119,20 @@ cat <<EOF > ${DEPLOY_ARTIFACT_PREFIX}/allocations.json
 ]
 EOF
 
+# Block bandwidth per second is a function of ~1.8MB * 1/blockGap
+#
 # TODO: make fee params configurable via ENV
-# TODO: increase block rate (the max block bandwidth per second is ~1.8KB * 1s/block-gap)
+MAX_UINT64=18446744073709551615
 ${DEPLOY_ARTIFACT_PREFIX}/token-cli genesis generate ${DEPLOY_ARTIFACT_PREFIX}/allocations.json \
 --genesis-file ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-genesis.json \
---max-block-units 1800000,18446744073709551615,18446744073709551615,18446744073709551615,18446744073709551615 \
---window-target-units 18446744073709551615,18446744073709551615,18446744073709551615,18446744073709551615,18446744073709551615 \
+--max-block-units 1800000,${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64} \
+--window-target-units ${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64} \
 --min-block-gap 250
 cat ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-genesis.json
 
 cat <<EOF > ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-chain-config.json
 {
+  "logLevel": "info",
   "mempoolSize": 10000000,
   "mempoolPayerSize": 10000000,
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
@@ -137,7 +140,7 @@ cat <<EOF > ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-chain-config.json
   "storeTransactions": false,
   "verifySignatures": true,
   "trackedPairs":["*"],
-  "logLevel": "info"
+  "continuousProfilerDir":"/data/tokenvm-profiles"
 }
 EOF
 cat ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-chain-config.json
@@ -172,7 +175,7 @@ ${DEPLOY_ARTIFACT_PREFIX}/avalancheup-aws default-spec \
 --arch-type amd64 \
 --os-type ubuntu20.04 \
 --anchor-nodes 3 \
---non-anchor-nodes 3 \
+--non-anchor-nodes 7 \
 --regions us-west-2,us-east-2,eu-west-1 \
 --instance-mode=on-demand \
 --instance-types='{"us-west-2":["c5.4xlarge"],"us-east-2":["c5.4xlarge"],"eu-west-1":["c5.4xlarge"]}' \
