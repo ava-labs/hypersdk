@@ -89,6 +89,7 @@ fi
 echo 'downloading tokenvm...'
 if [ -f /tmp/avalanche-ops-cache/tokenvm ]; then
   cp /tmp/avalanche-ops-cache/tokenvm ${DEPLOY_ARTIFACT_PREFIX}/tokenvm
+  cp /tmp/avalanche-ops-cache/token-cli-dev ${DEPLOY_ARTIFACT_PREFIX}/token-cli-dev
   echo 'found tokenvm in cache'
 else
   wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz"
@@ -96,8 +97,10 @@ else
   tar -xvf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz -C /tmp/token-installs
   rm -rf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz
   mv /tmp/token-installs/tokenvm ${DEPLOY_ARTIFACT_PREFIX}/tokenvm
+  mv /tmp/token-installs/token-cli ${DEPLOY_ARTIFACT_PREFIX}/token-cli-dev
   rm -rf /tmp/token-installs
   cp ${DEPLOY_ARTIFACT_PREFIX}/tokenvm /tmp/avalanche-ops-cache/tokenvm
+  cp ${DEPLOY_ARTIFACT_PREFIX}/token-cli-dev /tmp/avalanche-ops-cache/token-cli-dev
 fi
 
 # Setup genesis and configuration files
@@ -225,6 +228,7 @@ do
   sleep 5
 done
 cd $pw
+scp -o "StrictHostKeyChecking=no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} ${DEPLOY_ARTIFACT_PREFIX}/token-cli-dev ubuntu@${DEV_MACHINE_IP}:/tmp/token-cli
 scp -o "StrictHostKeyChecking=no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} demo.pk ubuntu@${DEV_MACHINE_IP}:/home/ubuntu/demo.pk
 scp -o "StrictHostKeyChecking=no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} scripts/setup.dev-machine.sh ubuntu@${DEV_MACHINE_IP}:/home/ubuntu/setup.sh
 ssh -o "StrictHostKeyChecking=no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} ubuntu@${DEV_MACHINE_IP} /home/ubuntu/setup.sh
