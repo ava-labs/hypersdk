@@ -250,6 +250,10 @@ to login to the dev machine, run the following command:
 
 ssh -o "StrictHostKeyChecking no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} ubuntu@${DEV_MACHINE_IP}
 
+to view activity on the dev machine, run the following command:
+
+/tmp/token-cli chain watch --hide-txs
+
 to run a spam script on the dev machine, run the following command:
 
 /tmp/token-cli spam run

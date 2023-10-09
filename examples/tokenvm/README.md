@@ -432,8 +432,29 @@ docker-compose -f trace/zipkin.yml down
 ## Deploying to a Devnet
 _In the world of Avalanche, we refer to short-lived, test Subnets as Devnets._
 
-To programmatically deploy `tokenvm` to a distributed cluster of nodes running on
-your own custom network or on Fuji, check out this [doc](DEVNETS.md).
+Using avalanche-ops, create a private Devnet that we can spin up within 30 minutes across any number of regions.
+
+### Step 1: Install Dependencies
+#### Install and Configure `aws-cli`
+Next, install the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html). This is used to
+authenticate to AWS and manipulate CloudFormation.
+
+Once you've installed the AWS CLI, run `aws configure sso` to login to AWS locally. See
+[the avalanche-ops documentation](https://github.com/ava-labs/avalanche-ops#permissions) for additional details. Set a
+`profile_name` when logging in, as it will be referenced directly by avalanche-ops commands.
+
+**DO NOT SET AN SSO SESSION NAME**
+
+### Step 2: Deploy Devnet on AWS
+By default, this script deploys 10 validators (equally split between us-west-2, us-east-2, and eu-west-1)
+```bash
+./scripts/deploy.devnet.sh
+```
+
+_When complete, this script will emit commands that can be used to interact with the Devnet and to tear it down._
+
+
+*SECURITY*: By default, inbound traffic is only permitted from your current IP address. SSH access is now disabled by default (it can be manually enabled via the `--enable-ssh` flag). To access the node network, use the dev machine, which is automatically added to the network security group.
 
 ## Future Work
 _If you want to take the lead on any of these items, please
