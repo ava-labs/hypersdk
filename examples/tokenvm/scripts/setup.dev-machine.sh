@@ -5,7 +5,7 @@ set -o nounset
 set -o pipefail
 
 # Set constants
-export HYPERSDK_VERSION="0.0.15-rc.0"
+export HYPERSDK_VERSION="0.0.15-rc.1"
 echo HYPERSDK_VERSION: ${HYPERSDK_VERSION}
 
 # Download token-cli
@@ -25,8 +25,8 @@ mv prometheus-2.43.0.linux-amd64/prometheus /tmp/prometheus
 rm -rf prometheus-2.43.0.linux-amd64
 
 # Import chains and demo.pk key
-/tmp/token-cli chain imports-ops aops.yml
+/tmp/token-cli chain import-ops aops.yml
 /tmp/token-cli key import demo.pk
 
 # Start prometheus server
-nohup /tmp/token-cli prometheus generate --prometheus-open-browser=false --prometheus-start=true &
+tmux new-session -d -s prometheus '/tmp/token-cli prometheus generate --prometheus-open-browser=false --prometheus-start=true'

@@ -35,7 +35,7 @@ export OS_TYPE=$(uname | tr '[:upper:]' '[:lower:]')
 echo OS_TYPE: ${OS_TYPE}
 export AVALANCHEGO_VERSION="1.10.11"
 echo AVALANCHEGO_VERSION: ${AVALANCHEGO_VERSION}
-export HYPERSDK_VERSION="0.0.15-rc.0"
+export HYPERSDK_VERSION="0.0.15-rc.1"
 echo HYPERSDK_VERSION: ${HYPERSDK_VERSION}
 # TODO: set deploy os/arch
 
@@ -211,18 +211,24 @@ yq -i '.avalanchego_config.network-compression-type = "zstd"'  ${SPEC_FILE}
 echo 'deploying DEVNET...'
 ${DEPLOY_ARTIFACT_PREFIX}/avalancheup-aws apply \
 --spec-file-path ${SPEC_FILE}
+echo 'DEVNET deployed'
 
 # Prepare dev machine
+echo 'setting up dev machine...'
 ACCESS_KEY=./aops-${DATE}-ec2-access.us-west-2.key
 chmod 400 ${ACCESS_KEY}
 DEV_MACHINE_IP=$(yq '.dev_machine_ips[0]' ${SPEC_FILE})
-scp -o "StrictHostKeyChecking=no" -i ${ACCESS_KEY} ${SPEC_FILE} ubuntu@${DEV_MACHINE_IP}:/home/ubuntu/aops.yml
+until (scp -o "StrictHostKeyChecking=no" -i ${ACCESS_KEY} ${SPEC_FILE} ubuntu@${DEV_MACHINE_IP}:/home/ubuntu/aops.yml)
+do
+  # During initial setup, ssh access may fail
+  echo 'scp failed...trying again'
+  sleep 5
+done
 cd $pw
 scp -o "StrictHostKeyChecking=no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} demo.pk ubuntu@${DEV_MACHINE_IP}:/home/ubuntu/demo.pk
 scp -o "StrictHostKeyChecking=no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} scripts/setup.dev-machine.sh ubuntu@${DEV_MACHINE_IP}:/home/ubuntu/setup.sh
-
-# Configure token-cli and start prometheus
 ssh -o "StrictHostKeyChecking=no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} ubuntu@${DEV_MACHINE_IP} /home/ubuntu/setup.sh
+echo 'setup dev machine'
 
 # Generate prometheus link
 ${DEPLOY_ARTIFACT_PREFIX}/token-cli chain import-ops ${DEPLOY_PREFIX}/${SPEC_FILE}
@@ -233,6 +239,10 @@ cat << EOF
 to login to the dev machine, run the following command:
 
 ssh -o "StrictHostKeyChecking no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} ubuntu@${DEV_MACHINE_IP}
+
+to run a spam script on the dev machine, run the following command:
+
+/tmp/token-cli spam run
 
 to delete all resources (but keep asg/ssm), run the following command:
 
