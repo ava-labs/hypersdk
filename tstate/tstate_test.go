@@ -290,6 +290,7 @@ func TestCreateView(t *testing.T) {
 	m := manager.NewMemDB(version.Semantic1_0_0)
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	db, err := merkledb.New(ctx, m.Current().Database, merkledb.Config{
+		BranchFactor:              merkledb.BranchFactor16,
 		HistoryLength:             100,
 		EvictionBatchSize:         units.MiB,
 		IntermediateNodeCacheSize: units.MiB,
