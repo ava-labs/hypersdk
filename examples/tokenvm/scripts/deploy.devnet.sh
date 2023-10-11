@@ -28,11 +28,11 @@ echo create deployment folder: ${DEPLOY_PREFIX}
 cd ${DEPLOY_PREFIX}
 
 # Set constants
-export ARCH_TYPE=$(uname -m)
-[ $ARCH_TYPE = x86_64 ] && ARCH_TYPE=amd64
-echo ARCH_TYPE: ${ARCH_TYPE}
-export OS_TYPE=$(uname | tr '[:upper:]' '[:lower:]')
-echo OS_TYPE: ${OS_TYPE}
+export DEPLOYER_ARCH_TYPE=$(uname -m)
+[ $DEPLOYER_ARCH_TYPE = x86_64 ] && DEPLOYER_ARCH_TYPE=amd64
+echo DEPLOYER_ARCH_TYPE: ${DEPLOYER_ARCH_TYPE}
+export DEPLOYER_OS_TYPE=$(uname | tr '[:upper:]' '[:lower:]')
+echo DEPLOYER_OS_TYPE: ${DEPLOYER_OS_TYPE}
 export AVALANCHEGO_VERSION="1.10.11"
 echo AVALANCHEGO_VERSION: ${AVALANCHEGO_VERSION}
 export HYPERSDK_VERSION="0.0.15-rc.1"
@@ -40,11 +40,11 @@ echo HYPERSDK_VERSION: ${HYPERSDK_VERSION}
 # TODO: set deploy os/arch
 
 # Check valid setup
-if [ ${OS_TYPE} != 'darwin' ]; then
+if [ ${DEPLOYER_OS_TYPE} != 'darwin' ]; then
   echo 'os is not supported' >&2
   exit 1
 fi
-if [ ${ARCH_TYPE} != 'arm64' ]; then
+if [ ${DEPLOYER_ARCH_TYPE} != 'arm64' ]; then
   echo 'arch is not supported' >&2
   exit 1
 fi
@@ -76,10 +76,10 @@ if [ -f /tmp/avalanche-ops-cache/token-cli ]; then
   cp /tmp/avalanche-ops-cache/token-cli ${DEPLOY_ARTIFACT_PREFIX}/token-cli
   echo 'found token-cli in cache'
 else
-  wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz"
+  wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/tokenvm_${HYPERSDK_VERSION}_${DEPLOYER_OS_TYPE}_${DEPLOYER_ARCH_TYPE}.tar.gz"
   mkdir -p /tmp/token-installs
-  tar -xvf tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz -C /tmp/token-installs
-  rm -rf tokenvm_${HYPERSDK_VERSION}_${OS_TYPE}_${ARCH_TYPE}.tar.gz
+  tar -xvf tokenvm_${HYPERSDK_VERSION}_${DEPLOYER_OS_TYPE}_${DEPLOYER_ARCH_TYPE}.tar.gz -C /tmp/token-installs
+  rm -rf tokenvm_${HYPERSDK_VERSION}_${DEPLOYER_OS_TYPE}_${DEPLOYER_ARCH_TYPE}.tar.gz
   mv /tmp/token-installs/token-cli ${DEPLOY_ARTIFACT_PREFIX}/token-cli
   rm -rf /tmp/token-installs
   cp ${DEPLOY_ARTIFACT_PREFIX}/token-cli /tmp/avalanche-ops-cache/token-cli
