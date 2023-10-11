@@ -4,8 +4,9 @@ go 1.20
 
 require (
 	github.com/NYTimes/gziphandler v1.1.1
-	github.com/ava-labs/avalanche-network-runner v1.7.2
+	github.com/ava-labs/avalanche-network-runner v1.7.2-0.20230825184751-fbe081616f02
 	github.com/ava-labs/avalanchego v1.10.10
+	github.com/bytecodealliance/wasmtime-go/v13 v13.0.0
 	github.com/cockroachdb/pebble v0.0.0-20230224221607-fccb83b60d5c
 	github.com/golang/mock v1.6.0
 	github.com/gorilla/mux v1.8.0
@@ -19,7 +20,6 @@ require (
 	github.com/prometheus/client_golang v1.16.0
 	github.com/rs/cors v1.7.0
 	github.com/stretchr/testify v1.8.3
-	github.com/tetratelabs/wazero v1.3.0
 	go.opentelemetry.io/otel v1.11.2
 	go.opentelemetry.io/otel/exporters/zipkin v1.11.2
 	go.opentelemetry.io/otel/sdk v1.11.2

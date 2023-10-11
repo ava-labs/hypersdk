@@ -38,6 +38,18 @@ fn inc(program: Program, to: Address, amount: i64) -> bool {
     true
 }
 
+/// Increments the count at the address by the amount for an external program.
+#[public]
+fn inc_external(
+    program: Program,
+    target: Program,
+    max_units: i64,
+    of: Address,
+    amount: i64,
+) -> i64 {
+    program.call_program(&target, max_units, "inc", &[Box::new(of), Box::new(amount)])
+}
+
 /// Gets the count at the address.
 #[public]
 fn get_value(program: Program, of: Address) -> i64 {
@@ -45,4 +57,10 @@ fn get_value(program: Program, of: Address) -> i64 {
         .state()
         .get(StateKeys::Counter(of).to_vec())
         .expect("failed to get counter")
+}
+
+/// Gets the count at the address for an external program.
+#[public]
+fn get_value_external(program: Program, target: Program, max_units: i64, of: Address) -> i64 {
+    program.call_program(&target, max_units, "get_value", &[Box::new(of)])
 }

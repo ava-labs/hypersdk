@@ -5,178 +5,229 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
+	"sync"
 
-	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/api"
-	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
+	"github.com/bytecodealliance/wasmtime-go/v13"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
-
-	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
-const (
-	allocFnName   = "alloc"
-	deallocFnName = "dealloc"
-)
+var _ Runtime = &WasmRuntime{}
 
-func New(log logging.Logger, meter Meter, storage Storage) *runtime {
-	return &runtime{
+// New returns a new wasm runtime.
+func New(log logging.Logger, cfg *Config, imports SupportedImports) Runtime {
+	return &WasmRuntime{
+		imports: imports,
 		log:     log,
-		meter:   meter,
-		storage: storage,
+		cfg:     cfg,
 	}
 }
 
-type runtime struct {
+type WasmRuntime struct {
+	cfg   *Config
+	inst  *wasmtime.Instance
+	store *wasmtime.Store
+	mod   *wasmtime.Module
+	exp   WasmtimeExportClient
+	meter Meter
+
+	once     sync.Once
 	cancelFn context.CancelFunc
-	engine   wazero.Runtime
-	mod      api.Module
-	meter    Meter
-	storage  Storage
-	// functions exported by this runtime
-	mu state.Mutable
 
-	closed bool
-	log    logging.Logger
+	imports SupportedImports
+
+	log logging.Logger
 }
 
-func (r *runtime) Create(ctx context.Context, programBytes []byte) (uint64, error) {
-	err := r.Initialize(ctx, programBytes)
-	if err != nil {
-		return 0, err
-	}
-	// get programId
-	programID := initProgramStorage()
-
-	// call initialize if it exists
-	result, err := r.Call(ctx, "init", uint64(programID))
-	if err != nil {
-		if !errors.Is(err, ErrMissingExportedFunction) {
-			return 0, err
-		}
-	} else {
-		// check boolean result from init
-		if result[0] == 0 {
-			return 0, fmt.Errorf("failed to initialize program")
-		}
-	}
-	return uint64(programID), nil
-}
-
-func (r *runtime) Initialize(ctx context.Context, programBytes []byte) error {
+func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte) (err error) {
 	ctx, r.cancelFn = context.WithCancel(ctx)
+	go func(ctx context.Context) {
+		<-ctx.Done()
+		// send immediate interrupt to engine
+		r.Stop()
+	}(ctx)
 
-	r.engine = wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigInterpreter())
+	r.store = wasmtime.NewStore(wasmtime.NewEngineWithConfig(r.cfg.engine))
+	r.store.Limiter(
+		r.cfg.limitMaxMemory,
+		r.cfg.limitMaxTableElements,
+		r.cfg.limitMaxInstances,
+		r.cfg.limitMaxTables,
+		r.cfg.limitMaxMemories,
+	)
 
-	// register host modules
-	mapMod := NewMapModule(r.log, r.meter)
-	err := mapMod.Instantiate(ctx, r.engine)
-	if err != nil {
-		return fmt.Errorf("failed to create map host module: %w", err)
+	// set initial epoch deadline
+	r.store.SetEpochDeadline(1)
+
+	switch r.cfg.compileStrategy {
+	case PrecompiledWasm:
+		// Note: that to deserialize successfully the bytes provided must have been
+		// produced with an `Engine` that has the same compilation options as the
+		// provided engine, and from the same version of this library.
+		//
+		// A precompile is not something we would store on chain.
+		// Instead we would prefetch programs and precompile them.
+		r.mod, err = wasmtime.NewModuleDeserialize(r.store.Engine, programBytes)
+		if err != nil {
+			return err
+		}
+	case CompileWasm:
+		r.mod, err = wasmtime.NewModule(r.store.Engine, programBytes)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported compile strategy: %v", r.cfg.compileStrategy)
 	}
 
-	// enable program to program calls
-	invokeMod := NewInvokeModule(r.log, r.mu, r.meter, r.storage)
-	err = invokeMod.Instantiate(ctx, r.engine)
+	link := Link{wasmtime.NewLinker(r.store.Engine)}
+	// setup metering
+	r.meter = NewMeter(r.store)
+	_, err = r.meter.AddUnits(r.cfg.meterMaxUnits)
 	if err != nil {
-		return fmt.Errorf("failed to create delegate host module: %w", err)
+		return err
 	}
 
-	// TODO: remove/minimize preview1
-	// Instantiate WASI, which implements system I/O such as console output.
-	wasi_snapshot_preview1.MustInstantiate(ctx, r.engine)
+	// setup client capable of calling exported functions
+	r.exp = newExportClient(r.inst, r.store)
 
-	compiledModule, err := r.engine.CompileModule(ctx, programBytes)
-	if err != nil {
-		return fmt.Errorf("failed to compile wasm module: %w", err)
+	imports := getRegisteredImportModules(r.mod.Imports())
+	// register host functions exposed to the guest (imports)
+	for _, imp := range imports {
+		// registered separately by linker
+		mod, ok := r.imports[imp]
+		if !ok {
+			return fmt.Errorf("%w: %s", ErrMissingImportModule, imp)
+		}
+		err = mod().Register(link, r.meter, r.imports)
+		if err != nil {
+			return err
+		}
 	}
 
-	// TODO: breakout config?
-	config := wazero.NewModuleConfig().
-		WithStdout(os.Stdout).
-		WithStderr(os.Stderr).
-		WithMeter(r.meter)
-
-	r.mod, err = r.engine.InstantiateModule(ctx, compiledModule, config)
+	// instantiate the module with all of the imports defined by the linker
+	r.inst, err = link.Instantiate(r.store, r.mod)
 	if err != nil {
-		return fmt.Errorf("failed to instantiate wasm module: %w", err)
+		return err
 	}
-
-	r.log.Debug("Instantiated module")
 
 	return nil
 }
 
-func (r *runtime) Call(ctx context.Context, name string, params ...uint64) ([]uint64, error) {
-	if r.closed {
-		return nil, fmt.Errorf("failed to call: %s: runtime closed", name)
+// getRegisteredImportModules returns the unique names of all import modules registered
+// by the wasm module.
+func getRegisteredImportModules(importTypes []*wasmtime.ImportType) []string {
+	u := make(map[string]struct{}, len(importTypes))
+	imports := []string{}
+	for _, t := range importTypes {
+		mod := t.Module()
+		if mod == wasiPreview1ModName {
+			continue
+		}
+		if _, ok := u[mod]; ok {
+			continue
+		}
+		u[mod] = struct{}{}
+		imports = append(imports, mod)
+	}
+	return imports
+}
+
+func (r *WasmRuntime) Call(_ context.Context, name string, params ...uint64) ([]uint64, error) {
+	var fnName string
+	switch name {
+	case AllocFnName, DeallocFnName, MemoryFnName:
+		fnName = name
+	default:
+		// the SDK will append the guest suffix to the function name
+		fnName = name + guestSuffix
 	}
 
-	var api api.Function
-
-	if name == allocFnName || name == deallocFnName {
-		api = r.mod.ExportedFunction(name)
-	} else {
-		api = r.mod.ExportedFunction(utils.GetGuestFnName(name))
-	}
-
-	if api == nil {
+	fn := r.inst.GetFunc(r.store, fnName)
+	if fn == nil {
 		return nil, fmt.Errorf("%w: %s", ErrMissingExportedFunction, name)
 	}
 
-	result, err := api.Call(ctx, params...)
+	fnParams := fn.Type(r.store).Params()
+	if len(params) != len(fnParams) {
+		return nil, fmt.Errorf("%w for function %s: %d expected: %d", ErrInvalidParamCount, name, len(params), len(fnParams))
+	}
+
+	callParams, err := mapFunctionParams(params, fnParams)
 	if err != nil {
-		return nil, fmt.Errorf("failed to call %s: %w", name, err)
+		return nil, err
 	}
 
-	return result, nil
-}
-
-func (r *runtime) GetGuestBuffer(offset uint32, length uint32) ([]byte, bool) {
-	// TODO: add fee
-	// r.meter.AddCost()
-
-	return r.mod.Memory().Read(offset, length)
-}
-
-// TODO: ensure deallocate on Stop.
-func (r *runtime) WriteGuestBuffer(ctx context.Context, buf []byte) (uint64, error) {
-	// TODO: add fee
-	// r.meter.AddCost()
-
-	// allocate to guest and return offset
-	result, err := r.Call(ctx, allocFnName, uint64(len(buf)))
+	result, err := fn.Call(r.store, callParams...)
 	if err != nil {
-		return 0, err
+		return nil, fmt.Errorf("export function call failed %s: %w", name, err)
 	}
 
-	offset := result[0]
-	ok := r.mod.Memory().Write(uint32(offset), buf)
-	if !ok {
-		return 0, fmt.Errorf("failed to write at offset: %d size: %d", offset, r.mod.Memory().Size())
+	switch v := result.(type) {
+	case int32:
+		value := uint64(result.(int32))
+		return []uint64{value}, nil
+	case int64:
+		value := uint64(result.(int64))
+		return []uint64{value}, nil
+	default:
+		return nil, fmt.Errorf("invalid result type: %v", v)
 	}
-
-	return offset, nil
 }
 
-func (r *runtime) Stop(ctx context.Context) error {
-	defer r.cancelFn()
-	if r.closed {
-		return nil
-	}
-	r.closed = true
+func (r *WasmRuntime) Memory() Memory {
+	return NewMemory(newExportClient(r.inst, r.store))
+}
 
-	if err := r.engine.Close(ctx); err != nil {
-		return fmt.Errorf("failed to close wasm runtime: %w", err)
-	}
-	if err := r.mod.Close(ctx); err != nil {
-		return fmt.Errorf("failed to close wasm api module: %w", err)
+func (r *WasmRuntime) Meter() Meter {
+	return r.meter
+}
+
+func (r *WasmRuntime) Stop() {
+	r.once.Do(func() {
+		r.log.Debug("shutting down runtime engine...")
+		// send immediate interrupt to engine
+		r.store.Engine.IncrementEpoch()
+		r.cancelFn()
+	})
+}
+
+// PreCompileWasm returns a precompiled wasm module.
+//
+// Note: these bytes can be deserialized by an `Engine` that has the same version.
+// For that reason precompiled wasm modules should not be stored on chain.
+func PreCompileWasmBytes(programBytes []byte, cfg *Config) ([]byte, error) {
+	store := wasmtime.NewStore(wasmtime.NewEngineWithConfig(cfg.engine))
+	store.Limiter(
+		cfg.limitMaxMemory,
+		cfg.limitMaxTableElements,
+		cfg.limitMaxInstances,
+		cfg.limitMaxTables,
+		cfg.limitMaxMemories,
+	)
+
+	module, err := wasmtime.NewModule(store.Engine, programBytes)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
+	return module.Serialize()
+}
+
+// mapFunctionParams maps call input to the expected wasm function params.
+func mapFunctionParams(input []uint64, values []*wasmtime.ValType) ([]interface{}, error) {
+	params := make([]interface{}, len(values))
+	for i, v := range values {
+		switch v.Kind() {
+		case wasmtime.KindI32:
+			params[i] = int32(input[i])
+		case wasmtime.KindI64:
+			params[i] = int64(input[i])
+		default:
+			return nil, fmt.Errorf("%w: %v", ErrInvalidParamType, v.Kind())
+		}
+	}
+
+	return params, nil
 }

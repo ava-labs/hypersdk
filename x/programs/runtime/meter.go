@@ -4,72 +4,62 @@
 package runtime
 
 import (
-	"context"
-	"errors"
-	"sync"
-
-	"go.uber.org/zap"
-
-	"github.com/tetratelabs/wazero/api"
-
-	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/bytecodealliance/wasmtime-go/v13"
 )
 
-var (
-	ErrMeterInsufficientBalance       = errors.New("operation failed insufficient balance")
-	_                           Meter = (*meter)(nil)
-)
+const NoUnits = 0
 
-type Meter interface {
-	api.Meter
-	GetBalance(context.Context) uint64
-}
+var _ Meter = (*meter)(nil)
 
-// NewMeter returns a meter capable of tracking the cost of operations.
-func NewMeter(log logging.Logger, maxFee uint64, costMap map[string]uint64) *meter {
+// NewMeter returns a new meter.
+func NewMeter(store *wasmtime.Store) Meter {
 	return &meter{
-		log:     log,
-		costMap: costMap,
-		balance: maxFee,
+		store: store,
 	}
 }
 
 type meter struct {
-	lock         sync.RWMutex
-	costMap      map[string]uint64
-	balance      uint64
-	initialError error
-
-	log logging.Logger
+	maxUnits uint64
+	store    *wasmtime.Store
 }
 
-func (m *meter) AddCost(_ context.Context, op string) error {
-	if err := m.closed(); err != nil {
-		return err
+func (m *meter) GetBalance() uint64 {
+	consumed, ok := m.store.FuelConsumed()
+	if !ok {
+		return 0
 	}
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
-	fee := m.costMap[op]
-	if fee > m.balance {
-		m.log.Debug("insufficient balance", zap.Uint64("fee", fee), zap.Uint64("balance", m.balance))
-		m.initialError = ErrMeterInsufficientBalance
-		return m.initialError
+	if m.maxUnits < consumed {
+		panic("meter balance should never be negative")
 	}
 
-	m.balance -= fee
-
-	return nil
+	return m.maxUnits - consumed
 }
 
-func (m *meter) GetBalance(_ context.Context) uint64 {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
-	return m.balance
+func (m *meter) Spend(units uint64) (uint64, error) {
+	if m.GetBalance() < units {
+		return 0, ErrInsufficientUnits
+	}
+	return m.store.ConsumeFuel(units)
 }
 
-func (m *meter) closed() error {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
-	return m.initialError
+func (m *meter) AddUnits(units uint64) (uint64, error) {
+	err := m.store.AddFuel(units)
+	if err != nil {
+		return 0, err
+	}
+	m.maxUnits += units
+
+	return m.GetBalance(), nil
+}
+
+func (m *meter) TransferUnits(to Meter, units uint64) (uint64, error) {
+	// TODO: add rollback support
+
+	// spend units from this meter
+	_, err := m.Spend(units)
+	if err != nil {
+		return 0, err
+	}
+	// add units to the other meter
+	return to.AddUnits(units)
 }

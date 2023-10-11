@@ -5,76 +5,116 @@ package runtime
 
 import (
 	"context"
-	_ "embed"
-	"os"
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	"github.com/bytecodealliance/wasmtime-go/v13"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
-var (
-	//go:embed testdata/get_guest.wasm
-	tokenProgramBytes []byte
-
-	// example cost map
-	costMap = map[string]uint64{
-		"ConstI32 0x0": 1, // initialize i32
-		"ConstI32 0x1": 1, // set i32 to value 1
-	}
-	maxFee uint64 = 3
-	log           = logging.NewLogger(
-		"",
-		logging.NewWrappedCore(
-			logging.Debug,
-			os.Stderr,
-			logging.Plain.ConsoleEncoder(),
-		))
-)
-
-// go test -v -run ^TestMeterInsufficientBalance$ github.com/ava-labs/hypersdk/x/programs/runtime
-func TestMeterInsufficientBalance(t *testing.T) {
+func TestInfiniteLoop(t *testing.T) {
 	require := require.New(t)
-	ctrl := gomock.NewController(t)
-	storage := NewMockStorage(ctrl)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	meter := NewMeter(log, maxFee, costMap)
-	runtime := New(log, meter, storage)
-	err := runtime.Initialize(ctx, tokenProgramBytes)
+	// infinite loop
+	wasm, err := wasmtime.Wat2Wasm(`
+	(module
+	  (func (export "get_guest")
+	    (loop
+	      br 0)
+	  )
+	)
+	`)
+	require.NoError(err)
+	maxUnits := uint64(10000)
+	cfg, err := NewConfigBuilder(maxUnits).
+		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
+		Build()
+	require.NoError(err)
+	runtime := New(logging.NoLog{}, cfg, NoSupportedImports)
+	err = runtime.Initialize(ctx, wasm)
 	require.NoError(err)
 
-	// first call should pass
-	resp, err := runtime.Call(ctx, "get")
-	require.NoError(err)
-	require.Equal(uint64(1), resp[0])
-
-	// second call should fail due to insufficient balance
 	_, err = runtime.Call(ctx, "get")
-	require.ErrorIs(err, ErrMeterInsufficientBalance)
+	var trap *wasmtime.Trap
+	require.ErrorAs(err, &trap)
+	require.ErrorContains(trap, "wasm trap: all fuel consumed")
 }
 
-func TestMeterRuntimeStop(t *testing.T) {
+func TestMetering(t *testing.T) {
 	require := require.New(t)
-	ctrl := gomock.NewController(t)
-	storage := NewMockStorage(ctrl)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	meter := NewMeter(log, maxFee, costMap)
-	runtime := New(log, meter, storage)
-	err := runtime.Initialize(ctx, tokenProgramBytes)
+	// example has 2 ops codes and should cost 2 units
+	wasm, err := wasmtime.Wat2Wasm(`
+	(module $test
+	(type (;0;) (func (result i32)))
+	(export "get_guest" (func 0))
+	(func (;0;) (type 0) (result i32)
+		(local i32)
+		i32.const 1
+	  )
+	)
+	`)
+	require.NoError(err)
+	maxUnits := uint64(20)
+	cfg, err := NewConfigBuilder(maxUnits).
+		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
+		Build()
+	require.NoError(err)
+	runtime := New(logging.NoLog{}, cfg, NoSupportedImports)
+	err = runtime.Initialize(ctx, wasm)
 	require.NoError(err)
 
-	// shutdown runtime
-	err = runtime.Stop(ctx)
+	require.Equal(runtime.Meter().GetBalance(), maxUnits)
+	for i := 0; i < 10; i++ {
+		_, err = runtime.Call(ctx, "get")
+		require.NoError(err)
+	}
+	require.Equal(runtime.Meter().GetBalance(), uint64(0))
+}
+
+func TestMeterAfterStop(t *testing.T) {
+	require := require.New(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// example has 2 ops codes and should cost 2 units
+	wasm, err := wasmtime.Wat2Wasm(`
+	(module $test
+	(type (;0;) (func (result i32)))
+	(export "get_guest" (func 0))
+	(func (;0;) (type 0) (result i32)
+		(local i32)
+		i32.const 1
+	  )
+	) 
+	`)
+	require.NoError(err)
+	maxUnits := uint64(20)
+	cfg, err := NewConfigBuilder(maxUnits).
+		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
+		Build()
+	require.NoError(err)
+	runtime := New(logging.NoLog{}, cfg, NoSupportedImports)
+	err = runtime.Initialize(ctx, wasm)
 	require.NoError(err)
 
-	// meter should be independent to runtime
-	err = meter.AddCost(ctx, "ConstI32 0x0")
+	// spend 2 units
+	_, err = runtime.Call(ctx, "get")
 	require.NoError(err)
+	// stop engine
+	runtime.Stop()
+	_, err = runtime.Call(ctx, "get")
+	var trap *wasmtime.Trap
+	require.ErrorAs(err, &trap)
+	// ensure meter is still operational
+	require.Equal(runtime.Meter().GetBalance(), maxUnits-2)
+	_, err = runtime.Meter().AddUnits(2)
+	require.NoError(err)
+	require.Equal(runtime.Meter().GetBalance(), maxUnits)
 }
