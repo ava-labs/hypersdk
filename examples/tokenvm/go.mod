@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/ava-labs/avalanche-network-runner v1.7.2
-	github.com/ava-labs/avalanchego v1.10.10
+	github.com/ava-labs/avalanchego v1.10.12
 	github.com/ava-labs/hypersdk v0.0.1
 	github.com/fatih/color v1.13.0
 	github.com/onsi/ginkgo/v2 v2.8.1
@@ -14,7 +14,7 @@ require (
 	github.com/wailsapp/wails/v2 v2.5.1
 	go.uber.org/zap v1.24.0
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
-	golang.org/x/net v0.10.0
+	golang.org/x/net v0.17.0
 )
 
 require (
@@ -58,6 +58,7 @@ require (
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/pprof v0.0.0-20230406165453-00490a63f317 // indirect
+	github.com/google/renameio/v2 v2.0.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gorilla/rpc v1.2.0 // indirect
@@ -145,12 +146,12 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/mock v0.2.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.9.0 // indirect
+	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/sync v0.2.0 // indirect
-	golang.org/x/sys v0.8.0 // indirect
-	golang.org/x/term v0.8.0 // indirect
-	golang.org/x/text v0.9.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/term v0.13.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	gonum.org/v1/gonum v0.11.0 // indirect
 	google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4 // indirect
