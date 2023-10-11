@@ -183,6 +183,7 @@ ${DEPLOY_ARTIFACT_PREFIX}/avalancheup-aws default-spec \
 --metrics-fetch-interval-seconds 0 \
 --upload-artifacts-prometheus-metrics-rules-file-path ${DEPLOY_ARTIFACT_PREFIX}/metrics.yml \
 --network-name custom \
+--staking-amount-in-avax 2000 \
 --avalanchego-release-tag v${AVALANCHEGO_VERSION} \
 --create-dev-machine \
 --keys-to-generate 5 \
@@ -250,15 +251,15 @@ to login to the dev machine, run the following command:
 
 ssh -o "StrictHostKeyChecking no" -i ${DEPLOY_PREFIX}/${ACCESS_KEY} ubuntu@${DEV_MACHINE_IP}
 
-to view activity on the dev machine, run the following command:
+to view activity (on the dev machine), run the following command:
 
 /tmp/token-cli chain watch --hide-txs
 
-to run a spam script on the dev machine, run the following command:
+to run a spam script (on the dev machine), run the following command:
 
 /tmp/token-cli spam run
 
-to delete all resources (but keep asg/ssm), run the following command:
+to delete all resources (excluding asg/ssm), run the following command:
 
 /tmp/avalancheup-aws delete \
 --delete-cloudwatch-log-group \
