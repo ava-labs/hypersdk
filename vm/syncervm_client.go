@@ -127,14 +127,18 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 	if err := s.gatherer.Register("syncer", r); err != nil {
 		return block.StateSyncSkipped, err
 	}
+	syncClient, err := syncEng.NewClient(&syncEng.ClientConfig{
+		NetworkClient:    s.vm.stateSyncNetworkClient,
+		Log:              s.vm.snowCtx.Log,
+		Metrics:          metrics,
+		StateSyncNodeIDs: nil, // pull from all
+	})
+	if err != nil {
+		return block.StateSyncSkipped, err
+	}
 	s.syncManager, err = syncEng.NewManager(syncEng.ManagerConfig{
-		DB: s.vm.stateDB,
-		Client: syncEng.NewClient(&syncEng.ClientConfig{
-			NetworkClient:    s.vm.stateSyncNetworkClient,
-			Log:              s.vm.snowCtx.Log,
-			Metrics:          metrics,
-			StateSyncNodeIDs: nil, // pull from all
-		}),
+		DB:                    s.vm.stateDB,
+		Client:                syncClient,
 		SimultaneousWorkLimit: s.vm.config.GetStateSyncParallelism(),
 		Log:                   s.vm.snowCtx.Log,
 		TargetRoot:            sb.StateRoot,
