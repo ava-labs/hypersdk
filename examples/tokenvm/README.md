@@ -462,8 +462,8 @@ Once all dependencies are installed, we can create our devnet using a single scr
 ./scripts/deploy.devnet.sh
 ```
 
-_When devnet creation is complete, this script will emit commands that can be used to interact with the devnet (i.e. tx load test)
-and to tear it down._
+_When devnet creation is complete, this script will emit commands that can be used to interact
+with the devnet (i.e. tx load test) and to tear it down._
 
 #### Configuration Options
 * `--arch-type`: `avalanche-ops` supports deployment to both `amd64` and `arm64` architectures
