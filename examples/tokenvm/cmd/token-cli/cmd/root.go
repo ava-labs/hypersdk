@@ -21,21 +21,23 @@ const (
 var (
 	handler *Handler
 
-	dbPath            string
-	genesisFile       string
-	minBlockGap       int64
-	minUnitPrice      []string
-	maxBlockUnits     []string
-	windowTargetUnits []string
-	hideTxs           bool
-	randomRecipient   bool
-	maxTxBacklog      int
-	checkAllChains    bool
-	prometheusFile    string
-	prometheusData    string
-	runPrometheus     bool
-	maxFee            int64
-	numCores          int
+	dbPath                string
+	genesisFile           string
+	minBlockGap           int64
+	minUnitPrice          []string
+	maxBlockUnits         []string
+	windowTargetUnits     []string
+	hideTxs               bool
+	randomRecipient       bool
+	maxTxBacklog          int
+	checkAllChains        bool
+	prometheusBaseURI     string
+	prometheusOpenBrowser bool
+	prometheusFile        string
+	prometheusData        string
+	startPrometheus       bool
+	maxFee                int64
+	numCores              int
 
 	rootCmd = &cobra.Command{
 		Use:        "token-cli",
@@ -190,6 +192,18 @@ func init() {
 
 	// prometheus
 	generatePrometheusCmd.PersistentFlags().StringVar(
+		&prometheusBaseURI,
+		"prometheus-base-uri",
+		"http://localhost:9090",
+		"prometheus server location",
+	)
+	generatePrometheusCmd.PersistentFlags().BoolVar(
+		&prometheusOpenBrowser,
+		"prometheus-open-browser",
+		true,
+		"open browser to prometheus dashboard",
+	)
+	generatePrometheusCmd.PersistentFlags().StringVar(
 		&prometheusFile,
 		"prometheus-file",
 		"/tmp/prometheus.yaml",
@@ -202,10 +216,10 @@ func init() {
 		"prometheus data location",
 	)
 	generatePrometheusCmd.PersistentFlags().BoolVar(
-		&runPrometheus,
-		"run-prometheus",
+		&startPrometheus,
+		"prometheus-start",
 		true,
-		"start prometheus",
+		"start local prometheus server",
 	)
 	prometheusCmd.AddCommand(
 		generatePrometheusCmd,

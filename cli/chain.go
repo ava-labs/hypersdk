@@ -116,22 +116,19 @@ type AvalancheOpsConfig struct {
 		CreatedNodes []struct {
 			HTTPEndpoint string `yaml:"httpEndpoint"`
 		} `yaml:"created_nodes"`
-	} `yaml:"resources"`
+	} `yaml:"resource"`
+	VMInstall struct {
+		ChainID string `yaml:"chain_id"`
+	} `yaml:"vm_install"`
 }
 
-func (h *Handler) ImportOps(schainID string, opsPath string) error {
+func (h *Handler) ImportOps(opsPath string) error {
 	oldChains, err := h.DeleteChains()
 	if err != nil {
 		return err
 	}
 	if len(oldChains) > 0 {
 		utils.Outf("{{yellow}}deleted old chains:{{/}} %+v\n", oldChains)
-	}
-
-	// Load chainID
-	chainID, err := ids.FromString(schainID)
-	if err != nil {
-		return err
 	}
 
 	// Load yaml file
@@ -141,6 +138,12 @@ func (h *Handler) ImportOps(schainID string, opsPath string) error {
 		return err
 	}
 	err = yaml.Unmarshal(yamlFile, &opsConfig)
+	if err != nil {
+		return err
+	}
+
+	// Load chainID
+	chainID, err := ids.FromString(opsConfig.VMInstall.ChainID)
 	if err != nil {
 		return err
 	}

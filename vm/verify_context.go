@@ -24,6 +24,16 @@ func (vm *VM) GetVerifyContext(ctx context.Context, blockHeight uint64, parent i
 		return nil, errors.New("cannot get context of genesis block")
 	}
 
+	// If the parent block is not yet accepted, we should return the block's processing parent (it may
+	// or may not be verified yet).
+	if blockHeight-1 > vm.lastAccepted.Hght {
+		blk, err := vm.GetStatelessBlock(ctx, parent)
+		if err != nil {
+			return nil, err
+		}
+		return &PendingVerifyContext{blk}, nil
+	}
+
 	// If the last accepted block is not yet processed, we can't use the accepted state for the
 	// verification context. This could happen if state sync finishes with no processing blocks (we
 	// sync to the post-execution state of the parent of the last accepted block, not the post-execution
@@ -35,16 +45,6 @@ func (vm *VM) GetVerifyContext(ctx context.Context, blockHeight uint64, parent i
 		return &PendingVerifyContext{vm.lastAccepted}, nil
 	}
 
-	// If the parent block is not yet accepted, we should return the block's processing parent (it may
-	// or may not be verified yet).
-	if blockHeight-1 > vm.lastAccepted.Hght {
-		blk, err := vm.GetStatelessBlock(ctx, parent)
-		if err != nil {
-			return nil, err
-		}
-		return &PendingVerifyContext{blk}, nil
-	}
-
 	// If the parent block is accepted and processed, we should
 	// just use the accepted state as the verification context.
 	return &AcceptedVerifyContext{vm}, nil
@@ -54,8 +54,8 @@ type PendingVerifyContext struct {
 	blk *chain.StatelessBlock
 }
 
-func (p *PendingVerifyContext) View(ctx context.Context, blockRoot *ids.ID, verify bool) (state.View, error) {
-	return p.blk.View(ctx, blockRoot, verify)
+func (p *PendingVerifyContext) View(ctx context.Context, verify bool) (state.View, error) {
+	return p.blk.View(ctx, verify)
 }
 
 func (p *PendingVerifyContext) IsRepeat(ctx context.Context, oldestAllowed int64, txs []*chain.Transaction, marker set.Bits, stop bool) (set.Bits, error) {
@@ -68,28 +68,8 @@ type AcceptedVerifyContext struct {
 
 // We disregard [verify] because [GetVerifyContext] ensures
 // we will never need to verify a block if [AcceptedVerifyContext] is returned.
-func (a *AcceptedVerifyContext) View(ctx context.Context, blockRoot *ids.ID, _ bool) (state.View, error) {
-	state, err := a.vm.State()
-	if err != nil {
-		return nil, err
-	}
-	if blockRoot != nil {
-		// This does not make deferred root generation less
-		// efficient because the root must have already
-		// been calculated before the latest state was written
-		// to disk.
-		root, err := state.GetMerkleRoot(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if root != *blockRoot {
-			// This should never happen but we check
-			// this to check subtle state handling bugs
-			// in the [chain] package.
-			return nil, ErrUnexpectedStateRoot
-		}
-	}
-	return state, nil
+func (a *AcceptedVerifyContext) View(context.Context, bool) (state.View, error) {
+	return a.vm.State()
 }
 
 func (a *AcceptedVerifyContext) IsRepeat(ctx context.Context, _ int64, txs []*chain.Transaction, marker set.Bits, stop bool) (set.Bits, error) {

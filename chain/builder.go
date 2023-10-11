@@ -85,7 +85,7 @@ func BuildBlock(
 	// execute it.
 	mempoolSize := vm.Mempool().Len(ctx)
 	changesEstimate := math.Min(mempoolSize, maxViewPreallocation)
-	parentView, err := parent.View(ctx, nil, true)
+	parentView, err := parent.View(ctx, true)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
 		return nil, err

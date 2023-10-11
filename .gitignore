@@ -58,6 +58,7 @@ dist/
 *.pk
 tmp-storage-testing
 .token-cli*
+deploys/
 .morpheus-cli*
 *.coverage.html
 data/
