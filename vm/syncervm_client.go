@@ -11,6 +11,7 @@ import (
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -137,6 +138,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 		return block.StateSyncSkipped, err
 	}
 	s.syncManager, err = syncEng.NewManager(syncEng.ManagerConfig{
+		BranchFactor:          merkledb.BranchFactor16,
 		DB:                    s.vm.stateDB,
 		Client:                syncClient,
 		SimultaneousWorkLimit: s.vm.config.GetStateSyncParallelism(),
