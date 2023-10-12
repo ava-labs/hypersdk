@@ -207,6 +207,7 @@ func (vm *VM) Initialize(
 	rootGenParallelism := math.Max(parallelism/2, 1)
 	merkleRegistry := prometheus.NewRegistry()
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
+		BranchFactor: vm.genesis.GetStateBranchFactor(),
 		// RootGenConcurrency limits the number of goroutines
 		// that will be used across all concurrent root generations.
 		RootGenConcurrency:        uint(rootGenParallelism),

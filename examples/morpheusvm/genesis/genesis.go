@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/trace"
 	smath "github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/chain"
 	hconsts "github.com/ava-labs/hypersdk/consts"
@@ -28,8 +29,10 @@ type CustomAllocation struct {
 }
 
 type Genesis struct {
-	// Address prefix
 	HRP string `json:"hrp"`
+
+	// State Parameters
+	StateBranchFactor merkledb.BranchFactor `json:"stateBranchFactor"`
 
 	// Chain Parameters
 	MinBlockGap      int64 `json:"minBlockGap"`      // ms
@@ -67,6 +70,9 @@ type Genesis struct {
 func Default() *Genesis {
 	return &Genesis{
 		HRP: consts.HRP,
+
+		// State Parameters
+		StateBranchFactor: merkledb.BranchFactor16,
 
 		// Chain Parameters
 		MinBlockGap:      100,
@@ -120,6 +126,9 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 	if consts.HRP != g.HRP {
 		return ErrInvalidHRP
 	}
+	if err := g.StateBranchFactor.Valid(); err != nil {
+		return err
+	}
 
 	supply := uint64(0)
 	for _, alloc := range g.CustomAllocation {
@@ -136,4 +145,8 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 		}
 	}
 	return nil
+}
+
+func (g *Genesis) GetStateBranchFactor() merkledb.BranchFactor {
+	return g.StateBranchFactor
 }
