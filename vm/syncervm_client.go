@@ -129,6 +129,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 		return block.StateSyncSkipped, err
 	}
 	syncClient, err := syncEng.NewClient(&syncEng.ClientConfig{
+		BranchFactor:     merkledb.BranchFactor16,
 		NetworkClient:    s.vm.stateSyncNetworkClient,
 		Log:              s.vm.snowCtx.Log,
 		Metrics:          metrics,
