@@ -170,8 +170,9 @@ func (p *Processor) Execute(
 		if err := feeManager.Consume(result.Consumed); err != nil {
 			return nil, nil, err
 		}
+
+		// Wait until end to write changes to avoid conflicting with pre-fetching
 	}
-	// Wait until end to write changes to avoid conflicting with pre-fetching
 	if p.err != nil {
 		return nil, nil, p.err
 	}
