@@ -45,6 +45,7 @@ var (
 	requestTimeout time.Duration
 
 	networkRunnerLogLevel string
+	avalanchegoLogLevel   string
 	gRPCEp                string
 	gRPCGatewayEp         string
 
@@ -81,6 +82,13 @@ func init() {
 		"network-runner-log-level",
 		"info",
 		"gRPC server endpoint",
+	)
+
+	flag.StringVar(
+		&avalanchegoLogLevel,
+		"avalanchego-log-level",
+		"info",
+		"log level for avalanchego",
 	)
 
 	flag.StringVar(
@@ -216,9 +224,9 @@ var _ = ginkgo.BeforeSuite(func() {
 		runner_sdk.WithPluginDir(pluginDir),
 		// We don't disable PUT gossip here because the E2E test adds multiple
 		// non-validating nodes (which will fall behind).
-		runner_sdk.WithGlobalNodeConfig(`{
-				"log-level":"info",
-				"log-display-level":"info",
+		runner_sdk.WithGlobalNodeConfig(fmt.Sprintf(`{
+				"log-level":"%s",
+				"log-display-level":"%s",
 				"proposervm-use-current-height":true,
 				"throttler-inbound-validator-alloc-size":"10737418240",
 				"throttler-inbound-at-large-alloc-size":"10737418240",
@@ -238,7 +246,10 @@ var _ = ginkgo.BeforeSuite(func() {
 				"http-host":"",
 				"http-allowed-origins": "*",
 				"http-allowed-hosts": "*"
-			}`),
+			}`,
+			avalanchegoLogLevel,
+			avalanchegoLogLevel,
+		)),
 	)
 	cancel()
 	gomega.Expect(err).Should(gomega.BeNil())

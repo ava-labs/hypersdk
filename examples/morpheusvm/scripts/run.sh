@@ -241,6 +241,7 @@ echo "running e2e tests"
 ./tests/e2e/e2e.test \
 --ginkgo.v \
 --network-runner-log-level verbo \
+--avalanchego-log-level ${LOGLEVEL} \
 --network-runner-grpc-endpoint="0.0.0.0:12352" \
 --network-runner-grpc-gateway-endpoint="0.0.0.0:12353" \
 --avalanchego-path=${AVALANCHEGO_PATH} \
