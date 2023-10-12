@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	atrace "github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/profiler"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
@@ -57,6 +58,8 @@ type Config interface {
 
 type Genesis interface {
 	Load(context.Context, atrace.Tracer, state.Mutable) error
+
+	GetStateBranchFactor() merkledb.BranchFactor
 }
 
 type AuthEngine interface {
