@@ -38,8 +38,8 @@ type TState struct {
 
 	// Track when keys are modified for the first time so that we can flush
 	// them to the prefetcher.
-	modifiedKeys      []string
-	modifiedFlushSize int
+	modifiedKeys      [][]byte
+	prefetchPathBatch int
 
 	// We don't differentiate between read and write scope.
 	scope        set.Set[string] // stores a list of managed keys in the TState struct
@@ -59,15 +59,15 @@ type TState struct {
 
 // New returns a new instance of TState. Initializes the storage and changedKeys
 // maps to have an initial size of [storageSize] and [changedSize] respectively.
-func New(changedSize, modifiedFlushSize int) *TState {
+func New(expectedChanges, prefetchPathBatch int) *TState {
 	return &TState{
-		changedKeys: make(map[string]maybe.Maybe[[]byte], changedSize),
+		changedKeys: make(map[string]maybe.Maybe[[]byte], expectedChanges),
 		fetchCache:  map[string]*cacheItem{},
 
-		modifiedFlushSize: modifiedFlushSize,
-		modifiedKeys:      make([]string, modifiedFlushSize),
+		prefetchPathBatch: prefetchPathBatch,
+		modifiedKeys:      make([][]byte, 0, prefetchPathBatch),
 
-		ops: make([]*op, 0, changedSize),
+		ops: make([]*op, 0, expectedChanges),
 
 		canCreate: true,
 	}
@@ -222,7 +222,7 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 	})
 	ts.changedKeys[k] = maybe.Some(value)
 	if !changed {
-		ts.modifiedKeys = append(ts.modifiedKeys, k)
+		ts.modifiedKeys = append(ts.modifiedKeys, key)
 	}
 	return nil
 }
@@ -263,7 +263,7 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 	})
 	ts.changedKeys[k] = maybe.Nothing[[]byte]()
 	if !changed {
-		ts.modifiedKeys = append(ts.modifiedKeys, k)
+		ts.modifiedKeys = append(ts.modifiedKeys, key)
 	}
 	return nil
 }
@@ -277,10 +277,10 @@ func (ts *TState) PendingChanges() int {
 	return len(ts.changedKeys)
 }
 
-func (ts *TState) FlushModifiedKeys(force bool) []string {
-	if len(ts.modifiedKeys) >= ts.modifiedFlushSize || force {
+func (ts *TState) FlushModifiedKeys(force bool) [][]byte {
+	if len(ts.modifiedKeys) >= ts.prefetchPathBatch || force {
 		k := ts.modifiedKeys
-		ts.modifiedKeys = make([]string, ts.modifiedFlushSize)
+		ts.modifiedKeys = make([][]byte, 0, ts.prefetchPathBatch)
 		return k
 	}
 	return nil

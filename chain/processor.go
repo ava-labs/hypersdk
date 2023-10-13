@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
@@ -31,8 +32,14 @@ type txData struct {
 	warmReads map[string]uint16
 }
 
+type ProcessorConfig struct {
+	Tracer            trace.Tracer
+	ExpectedChanges   int
+	PrefetchPathBatch int
+}
+
 type Processor struct {
-	tracer trace.Tracer
+	cfg *ProcessorConfig
 
 	err      error
 	blk      *StatelessBlock
@@ -41,9 +48,9 @@ type Processor struct {
 }
 
 // Only prepare for population if above last accepted height
-func NewProcessor(tracer trace.Tracer, b *StatelessBlock) *Processor {
+func NewProcessor(cfg *ProcessorConfig, b *StatelessBlock) *Processor {
 	return &Processor{
-		tracer: tracer,
+		cfg: cfg,
 
 		blk:      b,
 		readyTxs: make(chan *txData, len(b.GetTxs())),
@@ -51,7 +58,7 @@ func NewProcessor(tracer trace.Tracer, b *StatelessBlock) *Processor {
 }
 
 func (p *Processor) Prefetch(ctx context.Context, im state.Immutable) {
-	ctx, span := p.tracer.Start(ctx, "Processor.Prefetch")
+	ctx, span := p.cfg.Tracer.Start(ctx, "Processor.Prefetch")
 	p.im = im
 	sm := p.blk.vm.StateManager()
 	go func() {
@@ -106,14 +113,15 @@ func (p *Processor) Prefetch(ctx context.Context, im state.Immutable) {
 
 func (p *Processor) Execute(
 	ctx context.Context,
+	base state.Base,
 	feeManager *FeeManager,
 	r Rules,
 ) ([]*Result, *tstate.TState, error) {
-	ctx, span := p.tracer.Start(ctx, "Processor.Execute")
+	ctx, span := p.cfg.Tracer.Start(ctx, "Processor.Execute")
 	defer span.End()
 
 	var (
-		ts      = tstate.New(len(p.blk.Txs) * 2) // TODO: tune this heuristic
+		ts      = tstate.New(p.cfg.ExpectedChanges, p.cfg.PrefetchPathBatch)
 		t       = p.blk.GetTimestamp()
 		results = []*Result{}
 		sm      = p.blk.vm.StateManager()
@@ -169,6 +177,16 @@ func (p *Processor) Execute(
 		// Update block metadata with units actually consumed
 		if err := feeManager.Consume(result.Consumed); err != nil {
 			return nil, nil, err
+		}
+
+		// Prefetch path of modified keys
+		if modifiedKeys := ts.FlushModifiedKeys(len(results) == len(p.blk.Txs)); len(modifiedKeys) > 0 {
+			go func() {
+				// It is ok if these do not finish by the time root generation begins...
+				if err := base.PrefetchPaths(modifiedKeys); err != nil {
+					p.blk.vm.Logger().Warn("unable to prefetch paths", zap.Error(err))
+				}
+			}()
 		}
 
 		// Wait until end to write changes to avoid conflicting with pre-fetching
