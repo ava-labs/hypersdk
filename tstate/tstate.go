@@ -38,8 +38,9 @@ type TState struct {
 
 	// Track when keys are modified for the first time so that we can flush
 	// them to the prefetcher.
-	modifiedKeys      [][]byte
-	prefetchPathBatch int
+	nextOpToCheckModified int
+	modifiedKeys          [][]byte
+	prefetchPathBatch     int
 
 	// We don't differentiate between read and write scope.
 	scope        set.Set[string] // stores a list of managed keys in the TState struct
@@ -221,9 +222,6 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 		pastChanged: changed,
 	})
 	ts.changedKeys[k] = maybe.Some(value)
-	if !changed {
-		ts.modifiedKeys = append(ts.modifiedKeys, key)
-	}
 	return nil
 }
 
@@ -262,9 +260,6 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 		pastChanged: changed,
 	})
 	ts.changedKeys[k] = maybe.Nothing[[]byte]()
-	if !changed {
-		ts.modifiedKeys = append(ts.modifiedKeys, key)
-	}
 	return nil
 }
 
@@ -277,7 +272,21 @@ func (ts *TState) PendingChanges() int {
 	return len(ts.changedKeys)
 }
 
+// FlushModifiedKeys should only be called when the tip
+// of tstate is considered stable (i.e. won't be rolled back).
 func (ts *TState) FlushModifiedKeys(final bool) [][]byte {
+	// Gather latest first-time modifications
+	for i := ts.nextOpToCheckModified; i < len(ts.ops); i++ {
+		op := ts.ops[i]
+		if op.pastChanged {
+			continue
+		}
+		ts.modifiedKeys = append(ts.modifiedKeys, []byte(op.k))
+	}
+	ts.nextOpToCheckModified = len(ts.ops)
+
+	// Return modifications if >= batch size and replace
+	// if not [final]
 	if len(ts.modifiedKeys) >= ts.prefetchPathBatch || final {
 		k := ts.modifiedKeys
 		if !final {
