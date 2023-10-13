@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/keys"
@@ -58,7 +59,7 @@ func NewProcessor(cfg *ProcessorConfig, b *StatelessBlock) *Processor {
 }
 
 func (p *Processor) Prefetch(ctx context.Context, im state.Immutable) {
-	ctx, span := p.cfg.Tracer.Start(ctx, "Processor.Prefetch")
+	ctx, span := p.cfg.Tracer.Start(ctx, "Processor.PrefetchKeys")
 	p.im = im
 	sm := p.blk.vm.StateManager()
 	go func() {
@@ -180,8 +181,16 @@ func (p *Processor) Execute(
 		}
 
 		// Prefetch path of modified keys
-		if modifiedKeys := ts.FlushModifiedKeys(len(results) == len(p.blk.Txs)); len(modifiedKeys) > 0 {
+		forceFlush := len(results) == len(p.blk.Txs)
+		if modifiedKeys := ts.FlushModifiedKeys(forceFlush); len(modifiedKeys) > 0 {
+			_, prefetchPathsSpan := p.cfg.Tracer.Start(ctx, "Processor.PrefetchPaths")
+			prefetchPathsSpan.SetAttributes(
+				attribute.Int("keys", len(modifiedKeys)),
+				attribute.Bool("force", forceFlush),
+			)
 			go func() {
+				defer prefetchPathsSpan.End()
+
 				// It is ok if these do not finish by the time root generation begins...
 				if err := base.PrefetchPaths(modifiedKeys); err != nil {
 					p.blk.vm.Logger().Warn("unable to prefetch paths", zap.Error(err))

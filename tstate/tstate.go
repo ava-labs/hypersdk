@@ -277,10 +277,14 @@ func (ts *TState) PendingChanges() int {
 	return len(ts.changedKeys)
 }
 
-func (ts *TState) FlushModifiedKeys(force bool) [][]byte {
-	if len(ts.modifiedKeys) >= ts.prefetchPathBatch || force {
+func (ts *TState) FlushModifiedKeys(final bool) [][]byte {
+	if len(ts.modifiedKeys) >= ts.prefetchPathBatch || final {
 		k := ts.modifiedKeys
-		ts.modifiedKeys = make([][]byte, 0, ts.prefetchPathBatch)
+		if !final {
+			ts.modifiedKeys = make([][]byte, 0, ts.prefetchPathBatch)
+		} else {
+			ts.modifiedKeys = nil
+		}
 		return k
 	}
 	return nil
