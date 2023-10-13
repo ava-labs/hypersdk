@@ -126,7 +126,29 @@ func (p *Processor) Execute(
 		t       = p.blk.GetTimestamp()
 		results = []*Result{}
 		sm      = p.blk.vm.StateManager()
+		mks     = make(chan [][]byte, 16)
+		done    bool
 	)
+	go func() {
+		for mk := range mks {
+			if done {
+				fmt.Println("abandoning prefetch")
+				break
+			}
+			_, prefetchPathsSpan := p.cfg.Tracer.Start(ctx, "Processor.PrefetchPaths")
+			prefetchPathsSpan.SetAttributes(
+				attribute.Int("keys", len(mk)),
+			)
+
+			// It is ok if these do not finish by the time root generation begins...
+			//
+			// If the paths of all keys are already in memory, this is a no-op.
+			if err := base.PrefetchPaths(mk); err != nil {
+				p.blk.vm.Logger().Warn("unable to prefetch paths", zap.Error(err))
+			}
+			prefetchPathsSpan.End()
+		}
+	}()
 	for txData := range p.readyTxs {
 		if p.err != nil {
 			return nil, nil, p.err
@@ -183,21 +205,11 @@ func (p *Processor) Execute(
 		// Prefetch path of modified keys
 		forceFlush := len(results) == len(p.blk.Txs)
 		if modifiedKeys := ts.FlushModifiedKeys(forceFlush); len(modifiedKeys) > 0 {
-			_, prefetchPathsSpan := p.cfg.Tracer.Start(ctx, "Processor.PrefetchPaths")
-			prefetchPathsSpan.SetAttributes(
-				attribute.Int("keys", len(modifiedKeys)),
-				attribute.Bool("force", forceFlush),
-			)
-			go func() {
-				defer prefetchPathsSpan.End()
-
-				// It is ok if these do not finish by the time root generation begins...
-				//
-				// If the paths of all keys are already in memory, this is a no-op.
-				if err := base.PrefetchPaths(modifiedKeys); err != nil {
-					p.blk.vm.Logger().Warn("unable to prefetch paths", zap.Error(err))
-				}
-			}()
+			mks <- modifiedKeys
+			if forceFlush {
+				close(mks)
+				done = true
+			}
 		}
 
 		// Wait until end to write changes to avoid conflicting with pre-fetching

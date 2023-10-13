@@ -164,3 +164,5 @@ require (
 )
 
 replace github.com/ava-labs/hypersdk => ../../
+
+replace github.com/ava-labs/avalanchego => ../../../avalanchego
