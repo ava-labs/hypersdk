@@ -5,12 +5,12 @@ package vm
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	atrace "github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/x/merkledb"
@@ -22,7 +22,7 @@ import (
 	trace "github.com/ava-labs/hypersdk/trace"
 )
 
-type Handlers map[string]*common.HTTPHandler
+type Handlers map[string]http.Handler
 
 type Config interface {
 	GetTraceConfig() *trace.Config
@@ -54,6 +54,7 @@ type Config interface {
 	GetProcessingBuildSkip() int
 	GetTargetGossipDuration() time.Duration
 	GetBlockCompactionFrequency() int
+	GetPrefetchPathBatch() int
 }
 
 type Genesis interface {

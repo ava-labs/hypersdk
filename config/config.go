@@ -14,15 +14,15 @@ import (
 	"github.com/ava-labs/hypersdk/trace"
 )
 
-const avalancheGoMinCPU = 4
+const avalanchegoMinCPU = 4
 
 type Config struct{}
 
 func (c *Config) GetLogLevel() logging.Level { return logging.Info }
 func (c *Config) GetParallelism() int {
 	numCPUs := runtime.NumCPU()
-	if numCPUs > avalancheGoMinCPU {
-		return numCPUs - avalancheGoMinCPU
+	if numCPUs > avalanchegoMinCPU {
+		return numCPUs - avalanchegoMinCPU
 	}
 	return 1
 }
@@ -51,3 +51,4 @@ func (c *Config) GetTargetBuildDuration() time.Duration  { return 100 * time.Mil
 func (c *Config) GetProcessingBuildSkip() int            { return 16 }
 func (c *Config) GetTargetGossipDuration() time.Duration { return 20 * time.Millisecond }
 func (c *Config) GetBlockCompactionFrequency() int       { return 32 } // 64 MB of deletion if 2 MB blocks
+func (c *Config) GetPrefetchPathBatch() int              { return 64 }
