@@ -580,11 +580,19 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	}
 
 	// Optimisticaly fetch view
-	processor := NewProcessor(b.vm.Tracer(), b)
+	processor := NewProcessor(&ProcessorConfig{
+		Tracer:            b.vm.Tracer(),
+		ExpectedChanges:   len(b.Txs), // TODO: tune this
+		PrefetchPathBatch: b.vm.GetPrefetchPathBatch(),
+	}, b)
 	processor.Prefetch(ctx, parentView)
 
 	// Process new transactions
-	results, ts, err := processor.Execute(ctx, feeManager, r)
+	state, err := b.vm.State()
+	if err != nil {
+		return err
+	}
+	results, ts, err := processor.Execute(ctx, state, feeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return err

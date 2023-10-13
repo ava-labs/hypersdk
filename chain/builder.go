@@ -105,8 +105,11 @@ func BuildBlock(
 	maxUnits := r.GetMaxBlockUnits()
 	targetUnits := r.GetWindowTargetUnits()
 
-	ts := tstate.New(changesEstimate)
-
+	ts := tstate.New(changesEstimate, vm.GetPrefetchPathBatch())
+	state, err := vm.State()
+	if err != nil {
+		return nil, err
+	}
 	var (
 		oldestAllowed = nextTime - r.GetValidityWindow()
 
@@ -405,6 +408,16 @@ func BuildBlock(
 				}
 				warpCount++
 			}
+
+			// Prefetch path of modified keys
+			if modifiedKeys := ts.FlushModifiedKeys(false); len(modifiedKeys) > 0 {
+				go func() {
+					// It is ok if these do not finish by the time root generation begins...
+					if err := state.PrefetchPaths(modifiedKeys); err != nil {
+						vm.Logger().Warn("unable to prefetch paths", zap.Error(err))
+					}
+				}()
+			}
 		}
 		executeSpan.End()
 
@@ -424,6 +437,16 @@ func BuildBlock(
 				}()
 				b.vm.Logger().Warn("build failed", zap.Error(execErr))
 				return nil, execErr
+			}
+
+			// Prefetch path of modified keys
+			if modifiedKeys := ts.FlushModifiedKeys(true); len(modifiedKeys) > 0 {
+				go func() {
+					// It is ok if these do not finish by the time root generation begins...
+					if err := state.PrefetchPaths(modifiedKeys); err != nil {
+						vm.Logger().Warn("unable to prefetch paths", zap.Error(err))
+					}
+				}()
 			}
 			break
 		}
