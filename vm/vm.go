@@ -404,7 +404,7 @@ func (vm *VM) Initialize(
 	go vm.markReady()
 
 	// Setup handlers
-	jsonRPCHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCServer(vm), common.NoLock)
+	jsonRPCHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCServer(vm))
 	if err != nil {
 		return fmt.Errorf("unable to create handler: %w", err)
 	}
@@ -417,7 +417,7 @@ func (vm *VM) Initialize(
 	}
 	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.GetStreamingBacklogSize())
 	vm.webSocketServer = webSocketServer
-	vm.handlers[rpc.WebSocketEndpoint] = rpc.NewWebSocketHandler(pubsubServer)
+	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
 	return nil
 }
 
@@ -605,13 +605,13 @@ func (vm *VM) Version(_ context.Context) (string, error) { return vm.v.String(),
 
 // implements "block.ChainVM.common.VM"
 // for "ext/vm/[chainID]"
-func (vm *VM) CreateHandlers(_ context.Context) (map[string]*common.HTTPHandler, error) {
+func (vm *VM) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
 	return vm.handlers, nil
 }
 
 // implements "block.ChainVM.common.VM"
 // for "ext/vm/[vmID]"
-func (*VM) CreateStaticHandlers(_ context.Context) (map[string]*common.HTTPHandler, error) {
+func (*VM) CreateStaticHandlers(_ context.Context) (map[string]http.Handler, error) {
 	return nil, nil
 }
 
