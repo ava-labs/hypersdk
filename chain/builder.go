@@ -420,6 +420,8 @@ func BuildBlock(
 					defer prefetchPathsSpan.End()
 
 					// It is ok if these do not finish by the time root generation begins...
+					//
+					// If the paths of all keys are already in memory, this is a no-op.
 					if err := state.PrefetchPaths(modifiedKeys); err != nil {
 						vm.Logger().Warn("unable to prefetch paths", zap.Error(err))
 					}
@@ -457,6 +459,8 @@ func BuildBlock(
 					defer prefetchPathsSpan.End()
 
 					// It is ok if these do not finish by the time root generation begins...
+					//
+					// If the paths of all keys are already in memory, this is a no-op.
 					if err := state.PrefetchPaths(modifiedKeys); err != nil {
 						vm.Logger().Warn("unable to prefetch paths", zap.Error(err))
 					}

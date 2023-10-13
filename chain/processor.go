@@ -192,6 +192,8 @@ func (p *Processor) Execute(
 				defer prefetchPathsSpan.End()
 
 				// It is ok if these do not finish by the time root generation begins...
+				//
+				// If the paths of all keys are already in memory, this is a no-op.
 				if err := base.PrefetchPaths(modifiedKeys); err != nil {
 					p.blk.vm.Logger().Warn("unable to prefetch paths", zap.Error(err))
 				}
