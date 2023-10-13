@@ -36,6 +36,11 @@ type TState struct {
 	changedKeys map[string]maybe.Maybe[[]byte]
 	fetchCache  map[string]*cacheItem // in case we evict and want to re-fetch
 
+	// Track when keys are modified for the first time so that we can flush
+	// them to the prefetcher.
+	modifiedKeys      []string
+	modifiedFlushSize int
+
 	// We don't differentiate between read and write scope.
 	scope        set.Set[string] // stores a list of managed keys in the TState struct
 	scopeStorage map[string][]byte
@@ -54,11 +59,13 @@ type TState struct {
 
 // New returns a new instance of TState. Initializes the storage and changedKeys
 // maps to have an initial size of [storageSize] and [changedSize] respectively.
-func New(changedSize int) *TState {
+func New(changedSize, modifiedFlushSize int) *TState {
 	return &TState{
 		changedKeys: make(map[string]maybe.Maybe[[]byte], changedSize),
+		fetchCache:  map[string]*cacheItem{},
 
-		fetchCache: map[string]*cacheItem{},
+		modifiedFlushSize: modifiedFlushSize,
+		modifiedKeys:      make([]string, modifiedFlushSize),
 
 		ops: make([]*op, 0, changedSize),
 
@@ -214,6 +221,9 @@ func (ts *TState) Insert(ctx context.Context, key []byte, value []byte) error {
 		pastChanged: changed,
 	})
 	ts.changedKeys[k] = maybe.Some(value)
+	if !changed {
+		ts.modifiedKeys = append(ts.modifiedKeys, k)
+	}
 	return nil
 }
 
@@ -252,6 +262,9 @@ func (ts *TState) Remove(ctx context.Context, key []byte) error {
 		pastChanged: changed,
 	})
 	ts.changedKeys[k] = maybe.Nothing[[]byte]()
+	if !changed {
+		ts.modifiedKeys = append(ts.modifiedKeys, k)
+	}
 	return nil
 }
 
@@ -262,6 +275,15 @@ func (ts *TState) OpIndex() int {
 
 func (ts *TState) PendingChanges() int {
 	return len(ts.changedKeys)
+}
+
+func (ts *TState) FlushModifiedKeys(force bool) []string {
+	if len(ts.modifiedKeys) >= ts.modifiedFlushSize || force {
+		k := ts.modifiedKeys
+		ts.modifiedKeys = make([]string, ts.modifiedFlushSize)
+		return k
+	}
+	return nil
 }
 
 // Rollback restores the TState to before the ts.op[restorePoint] operation.
