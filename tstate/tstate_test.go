@@ -54,7 +54,7 @@ func (db *TestDB) Remove(_ context.Context, key []byte) error {
 func TestGetValue(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
-	ts := New(10, 10)
+	ts := New(10)
 	// GetValue without Scope perm
 	_, err := ts.GetValue(ctx, TestKey)
 	require.ErrorIs(err, ErrKeyNotSpecified, "No error thrown.")
@@ -68,7 +68,7 @@ func TestGetValue(t *testing.T) {
 func TestGetValueNoStorage(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
-	ts := New(10, 10)
+	ts := New(10)
 	// SetScope but dont add to storage
 	ts.SetScope(ctx, set.Of(string(TestKey)), map[string][]byte{})
 	_, err := ts.GetValue(ctx, TestKey)
@@ -78,7 +78,7 @@ func TestGetValueNoStorage(t *testing.T) {
 func TestInsertNew(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
-	ts := New(10, 10)
+	ts := New(10)
 	// Insert before SetScope
 	err := ts.Insert(ctx, TestKey, TestVal)
 	require.ErrorIs(ErrKeyNotSpecified, err, "No error thrown.")
@@ -96,7 +96,7 @@ func TestInsertNew(t *testing.T) {
 func TestInsertUpdate(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
-	ts := New(10, 10)
+	ts := New(10)
 	// SetScope and add
 	ts.SetScope(ctx, set.Of(string(TestKey)), map[string][]byte{string(TestKey): TestVal})
 	require.Equal(0, ts.OpIndex(), "SetStorage operation was not added.")
@@ -115,7 +115,7 @@ func TestInsertUpdate(t *testing.T) {
 
 func TestFetchAndSetScope(t *testing.T) {
 	require := require.New(t)
-	ts := New(10, 10)
+	ts := New(10)
 	db := NewTestDB()
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
@@ -140,7 +140,7 @@ func TestFetchAndSetScope(t *testing.T) {
 
 func TestFetchAndSetScopeMissingKey(t *testing.T) {
 	require := require.New(t)
-	ts := New(10, 10)
+	ts := New(10)
 	db := NewTestDB()
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
@@ -169,7 +169,7 @@ func TestFetchAndSetScopeMissingKey(t *testing.T) {
 
 func TestRemoveInsertRollback(t *testing.T) {
 	require := require.New(t)
-	ts := New(10, 10)
+	ts := New(10)
 	ctx := context.TODO()
 	ts.SetScope(ctx, set.Of(string(TestKey)), map[string][]byte{})
 	// Insert
@@ -206,7 +206,7 @@ func TestRemoveInsertRollback(t *testing.T) {
 
 func TestRemoveNotInScope(t *testing.T) {
 	require := require.New(t)
-	ts := New(10, 10)
+	ts := New(10)
 	ctx := context.TODO()
 	// Remove
 	err := ts.Remove(ctx, TestKey)
@@ -215,7 +215,7 @@ func TestRemoveNotInScope(t *testing.T) {
 
 func TestRestoreInsert(t *testing.T) {
 	require := require.New(t)
-	ts := New(10, 10)
+	ts := New(10)
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	keySet := set.Of("key1", "key2", "key3")
@@ -242,14 +242,11 @@ func TestRestoreInsert(t *testing.T) {
 	val, err = ts.GetValue(ctx, keys[0])
 	require.NoError(err, "Error getting value.")
 	require.Equal(vals[0], val, "Value not rolled back properly.")
-	// Ensure flush works
-	require.Empty(ts.FlushModifiedKeys(false), "not enough keys to flush")
-	require.Equal([][]byte{[]byte("key1"), []byte("key2")}, ts.FlushModifiedKeys(true), "unexpected modified keys")
 }
 
 func TestRestoreDelete(t *testing.T) {
 	require := require.New(t)
-	ts := New(10, 10)
+	ts := New(10)
 	ctx := context.TODO()
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	keySet := set.Of("key1", "key2", "key3")
@@ -289,7 +286,7 @@ func TestCreateView(t *testing.T) {
 	require := require.New(t)
 
 	ctx := context.TODO()
-	ts := New(10, 10)
+	ts := New(10)
 	m := manager.NewMemDB(version.Semantic1_0_0)
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	db, err := merkledb.New(ctx, m.Current().Database, merkledb.Config{
@@ -324,7 +321,7 @@ func TestCreateView(t *testing.T) {
 		require.Equal(vals[i], val, "Value not updated in db.")
 	}
 	// Remove
-	ts = New(10, 10)
+	ts = New(10)
 	ts.SetScope(ctx, keySet, map[string][]byte{
 		string(keys[0]): vals[0],
 		string(keys[1]): vals[1],
