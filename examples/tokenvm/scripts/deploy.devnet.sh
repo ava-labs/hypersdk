@@ -107,7 +107,7 @@ fi
 cat <<EOF > ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-subnet-config.json
 {
   "proposerMinBlockDelay": 0,
-  "proposerNumHistoricalBlocks": 768
+  "proposerNumHistoricalBlocks": 50000
 }
 EOF
 cat ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-subnet-config.json
