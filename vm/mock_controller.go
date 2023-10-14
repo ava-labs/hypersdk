@@ -17,7 +17,7 @@ import (
 	builder "github.com/ava-labs/hypersdk/builder"
 	chain "github.com/ava-labs/hypersdk/chain"
 	gossiper "github.com/ava-labs/hypersdk/gossiper"
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockController is a mock of Controller interface.

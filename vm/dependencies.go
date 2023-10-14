@@ -54,7 +54,6 @@ type Config interface {
 	GetProcessingBuildSkip() int
 	GetTargetGossipDuration() time.Duration
 	GetBlockCompactionFrequency() int
-	GetPrefetchPathBatch() int
 }
 
 type Genesis interface {

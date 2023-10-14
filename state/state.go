@@ -10,10 +10,6 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 )
 
-type Base interface {
-	PrefetchPaths(keys [][]byte) error
-}
-
 type Immutable interface {
 	GetValue(ctx context.Context, key []byte) (value []byte, err error)
 }

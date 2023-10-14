@@ -111,7 +111,6 @@ func (p *Processor) Prefetch(ctx context.Context, im state.Immutable) {
 
 func (p *Processor) Execute(
 	ctx context.Context,
-	base state.Base,
 	feeManager *FeeManager,
 	r Rules,
 ) ([]*Result, *tstate.TState, error) {
