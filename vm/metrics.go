@@ -10,32 +10,34 @@ import (
 )
 
 type Metrics struct {
-	txsSubmitted       prometheus.Counter // includes gossip
-	txsReceived        prometheus.Counter
-	seenTxsReceived    prometheus.Counter
-	txsGossiped        prometheus.Counter
-	txsVerified        prometheus.Counter
-	txsAccepted        prometheus.Counter
-	stateChanges       prometheus.Counter
-	stateOperations    prometheus.Counter
-	buildCapped        prometheus.Counter
-	emptyBlockBuilt    prometheus.Counter
-	clearedMempool     prometheus.Counter
-	deletedBlocks      prometheus.Counter
-	mempoolSize        prometheus.Gauge
-	bandwidthPrice     prometheus.Gauge
-	computePrice       prometheus.Gauge
-	storageReadPrice   prometheus.Gauge
-	storageCreatePrice prometheus.Gauge
-	storageModifyPrice prometheus.Gauge
-	rootCalculated     metric.Averager
-	waitRoot           metric.Averager
-	waitSignatures     metric.Averager
-	blockBuild         metric.Averager
-	blockParse         metric.Averager
-	blockVerify        metric.Averager
-	blockAccept        metric.Averager
-	blockProcess       metric.Averager
+	txsSubmitted          prometheus.Counter // includes gossip
+	txsReceived           prometheus.Counter
+	seenTxsReceived       prometheus.Counter
+	txsGossiped           prometheus.Counter
+	txsVerified           prometheus.Counter
+	txsAccepted           prometheus.Counter
+	stateChanges          prometheus.Counter
+	stateOperations       prometheus.Counter
+	buildCapped           prometheus.Counter
+	emptyBlockBuilt       prometheus.Counter
+	clearedMempool        prometheus.Counter
+	deletedBlocks         prometheus.Counter
+	blocksFromDisk        prometheus.Counter
+	blocksHeightsFromDisk prometheus.Counter
+	mempoolSize           prometheus.Gauge
+	bandwidthPrice        prometheus.Gauge
+	computePrice          prometheus.Gauge
+	storageReadPrice      prometheus.Gauge
+	storageCreatePrice    prometheus.Gauge
+	storageModifyPrice    prometheus.Gauge
+	rootCalculated        metric.Averager
+	waitRoot              metric.Averager
+	waitSignatures        metric.Averager
+	blockBuild            metric.Averager
+	blockParse            metric.Averager
+	blockVerify           metric.Averager
+	blockAccept           metric.Averager
+	blockProcess          metric.Averager
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -175,6 +177,16 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "deleted_blocks",
 			Help:      "number of blocks deleted",
 		}),
+		blocksFromDisk: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "vm",
+			Name:      "blocks_from_disk",
+			Help:      "number of blocks attempted to load from disk",
+		}),
+		blocksHeightsFromDisk: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "vm",
+			Name:      "block_heights_from_disk",
+			Help:      "number of block heights attempted to load from disk",
+		}),
 		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "mempool_size",
@@ -229,6 +241,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.emptyBlockBuilt),
 		r.Register(m.clearedMempool),
 		r.Register(m.deletedBlocks),
+		r.Register(m.blocksFromDisk),
+		r.Register(m.blocksHeightsFromDisk),
 		r.Register(m.bandwidthPrice),
 		r.Register(m.computePrice),
 		r.Register(m.storageReadPrice),

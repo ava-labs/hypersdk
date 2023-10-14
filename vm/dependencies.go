@@ -49,6 +49,7 @@ type Config interface {
 	GetStateSyncServerDelay() time.Duration
 	GetParsedBlockCacheSize() int
 	GetAcceptedBlockWindow() int
+	GetAcceptedBlockWindowCache() int
 	GetContinuousProfilerConfig() *profiler.Config
 	GetTargetBuildDuration() time.Duration
 	GetProcessingBuildSkip() int
