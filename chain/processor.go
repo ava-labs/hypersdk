@@ -10,8 +10,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
-	"go.opentelemetry.io/otel/attribute"
-	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
@@ -34,9 +32,8 @@ type txData struct {
 }
 
 type ProcessorConfig struct {
-	Tracer            trace.Tracer
-	ExpectedChanges   int
-	PrefetchPathBatch int
+	Tracer          trace.Tracer
+	ExpectedChanges int
 }
 
 type Processor struct {
@@ -122,7 +119,7 @@ func (p *Processor) Execute(
 	defer span.End()
 
 	var (
-		ts      = tstate.New(p.cfg.ExpectedChanges, p.cfg.PrefetchPathBatch)
+		ts      = tstate.New(p.cfg.ExpectedChanges)
 		t       = p.blk.GetTimestamp()
 		results = []*Result{}
 		sm      = p.blk.vm.StateManager()
@@ -178,26 +175,6 @@ func (p *Processor) Execute(
 		// Update block metadata with units actually consumed
 		if err := feeManager.Consume(result.Consumed); err != nil {
 			return nil, nil, err
-		}
-
-		// Prefetch path of modified keys
-		forceFlush := len(results) == len(p.blk.Txs)
-		if modifiedKeys := ts.FlushModifiedKeys(forceFlush); len(modifiedKeys) > 0 {
-			_, prefetchPathsSpan := p.cfg.Tracer.Start(ctx, "Processor.PrefetchPaths")
-			prefetchPathsSpan.SetAttributes(
-				attribute.Int("keys", len(modifiedKeys)),
-				attribute.Bool("force", forceFlush),
-			)
-			go func() {
-				defer prefetchPathsSpan.End()
-
-				// It is ok if these do not finish by the time root generation begins...
-				//
-				// If the paths of all keys are already in memory, this is a no-op.
-				if err := base.PrefetchPaths(modifiedKeys); err != nil {
-					p.blk.vm.Logger().Warn("unable to prefetch paths", zap.Error(err))
-				}
-			}()
 		}
 
 		// Wait until end to write changes to avoid conflicting with pre-fetching

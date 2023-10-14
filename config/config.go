@@ -51,4 +51,3 @@ func (c *Config) GetTargetBuildDuration() time.Duration  { return 100 * time.Mil
 func (c *Config) GetProcessingBuildSkip() int            { return 16 }
 func (c *Config) GetTargetGossipDuration() time.Duration { return 20 * time.Millisecond }
 func (c *Config) GetBlockCompactionFrequency() int       { return 32 } // 64 MB of deletion if 2 MB blocks
-func (c *Config) GetPrefetchPathBatch() int              { return 64 }

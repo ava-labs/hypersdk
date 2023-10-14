@@ -36,12 +36,6 @@ type TState struct {
 	changedKeys map[string]maybe.Maybe[[]byte]
 	fetchCache  map[string]*cacheItem // in case we evict and want to re-fetch
 
-	// Track when keys are modified for the first time so that we can flush
-	// them to the prefetcher.
-	nextOpToCheckModified int
-	modifiedKeys          [][]byte
-	prefetchPathBatch     int
-
 	// We don't differentiate between read and write scope.
 	scope        set.Set[string] // stores a list of managed keys in the TState struct
 	scopeStorage map[string][]byte
@@ -60,13 +54,10 @@ type TState struct {
 
 // New returns a new instance of TState. Initializes the storage and changedKeys
 // maps to have an initial size of [storageSize] and [changedSize] respectively.
-func New(expectedChanges, prefetchPathBatch int) *TState {
+func New(expectedChanges int) *TState {
 	return &TState{
 		changedKeys: make(map[string]maybe.Maybe[[]byte], expectedChanges),
 		fetchCache:  map[string]*cacheItem{},
-
-		prefetchPathBatch: prefetchPathBatch,
-		modifiedKeys:      make([][]byte, 0, prefetchPathBatch),
 
 		ops: make([]*op, 0, expectedChanges),
 
@@ -270,33 +261,6 @@ func (ts *TState) OpIndex() int {
 
 func (ts *TState) PendingChanges() int {
 	return len(ts.changedKeys)
-}
-
-// FlushModifiedKeys should only be called when the tip
-// of tstate is considered stable (i.e. won't be rolled back).
-func (ts *TState) FlushModifiedKeys(final bool) [][]byte {
-	// Gather latest first-time modifications
-	for i := ts.nextOpToCheckModified; i < len(ts.ops); i++ {
-		op := ts.ops[i]
-		if op.pastChanged {
-			continue
-		}
-		ts.modifiedKeys = append(ts.modifiedKeys, []byte(op.k))
-	}
-	ts.nextOpToCheckModified = len(ts.ops)
-
-	// Return modifications if >= batch size and replace
-	// if not [final]
-	if len(ts.modifiedKeys) >= ts.prefetchPathBatch || final {
-		k := ts.modifiedKeys
-		if !final {
-			ts.modifiedKeys = make([][]byte, 0, ts.prefetchPathBatch)
-		} else {
-			ts.modifiedKeys = nil
-		}
-		return k
-	}
-	return nil
 }
 
 // Rollback restores the TState to before the ts.op[restorePoint] operation.
