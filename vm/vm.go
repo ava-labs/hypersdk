@@ -270,10 +270,14 @@ func (vm *VM) Initialize(
 		vm.genesisBlk = genesisBlk
 		lastAcceptedHeight, err := vm.GetLastAcceptedHeight()
 		if err != nil {
-			snowCtx.Log.Error("could not get last accepted", zap.Error(err))
+			snowCtx.Log.Error("could not get last accepted height", zap.Error(err))
 			return err
 		}
 		blk, err := vm.GetDiskBlock(ctx, lastAcceptedHeight)
+		if err != nil {
+			snowCtx.Log.Error("could not get last accepted block", zap.Error(err))
+			return err
+		}
 		vm.preferred, vm.lastAccepted = blk.ID(), blk
 		if err := vm.loadAcceptedBlocks(ctx); err != nil {
 			snowCtx.Log.Error("could not load accepted blocks from disk", zap.Error(err))
