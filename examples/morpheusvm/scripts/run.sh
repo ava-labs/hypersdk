@@ -17,7 +17,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=v1.10.12
+VERSION=50f131e8fe44926afe8adbb97eefe9b1c74536bd
 MAX_UINT64=18446744073709551615
 MODE=${MODE:-run}
 LOGLEVEL=${LOGLEVEL:-info}
