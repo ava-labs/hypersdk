@@ -7,9 +7,15 @@ import (
 )
 
 type Executor struct {
-	wg      sync.WaitGroup
-	counts  map[string]*keyAssignment
+	wg     sync.WaitGroup
+	counts map[string]*keyAssignment
+
+	// TODO: should pull any executable jobs from queue (i.e. no dependencies)
 	workers []chan func()
+}
+
+type job struct {
+	subscribers []*job // when job is finished, we go clear?
 }
 
 type keyAssignment struct {
@@ -37,6 +43,7 @@ func New(concurrency int) *Executor {
 	return e
 }
 
+// Run ensures that any [f] with dependencies is executed in order.
 func (e *Executor) Run(keys set.Set[string], f func()) {
 	// Find all conflicting jobs
 	matches := []int{}
@@ -48,14 +55,16 @@ func (e *Executor) Run(keys set.Set[string], f func()) {
 		matches = append(matches, assignment.worker)
 	}
 
+	// Schedule function on some worker
 	switch len(matches) {
 	case 0:
 		// We can add to any worker (prefer immediately executable)
 	case 1:
 		// We can enqueue behind a worker already bottlenecked
+		e.workers[matches[0]] <- f
 	default:
 		// Required keys are being processed on different workers, we need to
-		// merge execution
+		// merge execution after waiting for dependencies to finish
 	}
 }
 
