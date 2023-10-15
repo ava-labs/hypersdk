@@ -31,9 +31,9 @@ type Executor struct {
 // New creates a new [Executor].
 func New(items, concurrency int) *Executor {
 	e := &Executor{
-		tasks:      map[int]*task{},
-		edges:      map[string]int{},
-		executable: make(chan *task, items), // ensure we don't block while holding lock
+		tasks:      make(map[int]*task, items),
+		edges:      make(map[string]int, items*2), // TODO: tune this
+		executable: make(chan *task, items),       // ensure we don't block while holding lock
 	}
 	for i := 0; i < concurrency; i++ {
 		e.createWorker()

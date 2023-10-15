@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
 
+	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
@@ -124,11 +125,32 @@ func (p *Processor) Execute(
 	defer span.End()
 
 	var (
-		ts      = tstate.New(len(p.blk.Txs) * 2) // TODO: tune this heuristic
+		e       = executor.New(len(p.blk.Txs), 8) // TODO: make concurrency configurable
+		ts      = tstate.New(len(p.blk.Txs) * 2)  // TODO: tune this heuristic
 		t       = p.blk.GetTimestamp()
 		results = []*Result{}
 		sm      = p.blk.vm.StateManager()
 	)
+
+	// Fetch required keys and execute transactions
+	for _, tx := range p.blk.Txs {
+		stateKeys, err := tx.StateKeys(sm)
+		if err != nil {
+			// TODO: stop executor
+			return nil, nil, err
+		}
+		e.Run(stateKeys, func() {
+			// Fetch keys
+
+			// Update changedKeys
+
+			// Update key cache
+		})
+	}
+	e.Wait()
+
+	// Create view from execution
+
 	for txData := range p.readyTxs {
 		if p.err != nil {
 			return nil, nil, p.err
