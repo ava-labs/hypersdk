@@ -105,8 +105,11 @@ func BuildBlock(
 	maxUnits := r.GetMaxBlockUnits()
 	targetUnits := r.GetWindowTargetUnits()
 
-	ts := tstate.New(changesEstimate)
-
+	ts := tstate.New(changesEstimate, vm.GetPrefetchPathBatch())
+	state, err := vm.State()
+	if err != nil {
+		return nil, err
+	}
 	var (
 		oldestAllowed = nextTime - r.GetValidityWindow()
 
@@ -155,8 +158,8 @@ func BuildBlock(
 			execErr   error
 		)
 		go func() {
-			ctx, prefetchSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Prefetch")
-			defer prefetchSpan.End()
+			ctx, prefetchKeysSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.PrefetchKeys")
+			defer prefetchKeysSpan.End()
 			defer close(readyTxs)
 
 			for i, tx := range txs {
@@ -405,6 +408,25 @@ func BuildBlock(
 				}
 				warpCount++
 			}
+
+			// Prefetch path of modified keys
+			if modifiedKeys := ts.FlushModifiedKeys(false); len(modifiedKeys) > 0 {
+				_, prefetchPathsSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.PrefetchPaths")
+				prefetchPathsSpan.SetAttributes(
+					attribute.Int("keys", len(modifiedKeys)),
+					attribute.Bool("force", false),
+				)
+				go func() {
+					defer prefetchPathsSpan.End()
+
+					// It is ok if these do not finish by the time root generation begins...
+					//
+					// If the paths of all keys are already in memory, this is a no-op.
+					if err := state.PrefetchPaths(modifiedKeys); err != nil {
+						vm.Logger().Warn("unable to prefetch paths", zap.Error(err))
+					}
+				}()
+			}
 		}
 		executeSpan.End()
 
@@ -424,6 +446,25 @@ func BuildBlock(
 				}()
 				b.vm.Logger().Warn("build failed", zap.Error(execErr))
 				return nil, execErr
+			}
+
+			// Prefetch path of modified keys
+			if modifiedKeys := ts.FlushModifiedKeys(true); len(modifiedKeys) > 0 {
+				_, prefetchPathsSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.PrefetchPaths")
+				prefetchPathsSpan.SetAttributes(
+					attribute.Int("keys", len(modifiedKeys)),
+					attribute.Bool("force", true),
+				)
+				go func() {
+					defer prefetchPathsSpan.End()
+
+					// It is ok if these do not finish by the time root generation begins...
+					//
+					// If the paths of all keys are already in memory, this is a no-op.
+					if err := state.PrefetchPaths(modifiedKeys); err != nil {
+						vm.Logger().Warn("unable to prefetch paths", zap.Error(err))
+					}
+				}()
 			}
 			break
 		}

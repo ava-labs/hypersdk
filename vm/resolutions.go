@@ -479,3 +479,7 @@ func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
 	}
 	return chain.NewFeeManager(v).UnitPrices(), nil
 }
+
+func (vm *VM) GetPrefetchPathBatch() int {
+	return vm.config.GetPrefetchPathBatch()
+}
