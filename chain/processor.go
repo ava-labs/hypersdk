@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
@@ -118,6 +119,7 @@ func (p *Processor) Prefetch(ctx context.Context, im state.Immutable) {
 
 func (p *Processor) Execute(
 	ctx context.Context,
+	im state.Immutable,
 	feeManager *FeeManager,
 	r Rules,
 ) ([]*Result, *tstate.TState, error) {
@@ -125,11 +127,13 @@ func (p *Processor) Execute(
 	defer span.End()
 
 	var (
-		e       = executor.New(len(p.blk.Txs), 8) // TODO: make concurrency configurable
-		ts      = tstate.New(len(p.blk.Txs) * 2)  // TODO: tune this heuristic
-		t       = p.blk.GetTimestamp()
-		results = []*Result{}
-		sm      = p.blk.vm.StateManager()
+		e         = executor.New(len(p.blk.Txs), 8) // TODO: make concurrency configurable
+		cacheLock sync.RWMutex
+		cache     = make(map[string]*fetchData, len(p.blk.GetTxs()))
+		ts        = tstate.New(len(p.blk.Txs) * 2) // TODO: tune this heuristic
+		t         = p.blk.GetTimestamp()
+		results   = []*Result{}
+		sm        = p.blk.vm.StateManager()
 	)
 
 	// Fetch required keys and execute transactions
@@ -140,11 +144,63 @@ func (p *Processor) Execute(
 			return nil, nil, err
 		}
 		e.Run(stateKeys, func() {
-			// Fetch keys
+			// Fetch keys from cache
+			cacheLock.RLock()
+			var (
+				coldReads = map[string]uint16{}
+				warmReads = map[string]uint16{}
+				storage   = map[string][]byte{}
+				toLookup  = make([]string, 0, len(stateKeys))
+			)
+			for k := range stateKeys {
+				if v, ok := cache[k]; ok {
+					warmReads[k] = v.chunks
+					if v.exists {
+						storage[k] = v.v
+					}
+					continue
+				}
+				toLookup = append(toLookup, k)
+			}
+			cacheLock.RUnlock()
 
-			// Update changedKeys
+			// Fetch keys from disk
+			var toCache map[string]*fetchData
+			if len(toLookup) > 0 {
+				toCache := make(map[string]*fetchData, len(toLookup))
+				for _, k := range toLookup {
+					v, err := im.GetValue(ctx, []byte(k))
+					if errors.Is(err, database.ErrNotFound) {
+						coldReads[k] = 0
+						toCache[k] = &fetchData{nil, false, 0}
+						continue
+					} else if err != nil {
+						p.err = err
+						return
+					}
+					// We verify that the [NumChunks] is already less than the number
+					// added on the write path, so we don't need to do so again here.
+					numChunks, ok := keys.NumChunks(v)
+					if !ok {
+						p.err = ErrInvalidKeyValue
+						return
+					}
+					coldReads[k] = numChunks
+					toCache[k] = &fetchData{v, true, numChunks}
+					storage[k] = v
+				}
+			}
+
+			// Execute transaction
 
 			// Update key cache
+			if len(toCache) > 0 {
+				cacheLock.Lock()
+				for k := range toCache {
+					cache[k] = toCache[k]
+				}
+				cacheLock.Unlock()
+			}
 		})
 	}
 	e.Wait()
