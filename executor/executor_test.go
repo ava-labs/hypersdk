@@ -1,9 +1,9 @@
 package executor
 
 import (
-	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -11,13 +11,64 @@ import (
 )
 
 func TestExecutorNoConflicts(t *testing.T) {
-	require := require.New(t)
-	expected := make([]int, 0, 100)
-	var l sync.Mutex
-	completed := make([]int, 0, 100)
-	e := New(100, 4)
+	var (
+		require   = require.New(t)
+		l         sync.Mutex
+		completed = make([]int, 0, 100)
+		e         = New(100, 4)
+	)
 	for i := 0; i < 100; i++ {
-		expected = append(expected, i)
+		s := set.NewSet[string](i + 1)
+		for k := 0; k < i+1; k++ {
+			s.Add(ids.GenerateTestID().String())
+		}
+		ti := i
+		e.Run(s, func() {
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+		})
+	}
+	e.Wait()
+	require.Len(completed, 100)
+}
+
+func TestExecutorNoConflictsSlow(t *testing.T) {
+	var (
+		require   = require.New(t)
+		l         sync.Mutex
+		completed = make([]int, 0, 100)
+		e         = New(100, 4)
+	)
+	for i := 0; i < 100; i++ {
+		s := set.NewSet[string](i + 1)
+		for k := 0; k < i+1; k++ {
+			s.Add(ids.GenerateTestID().String())
+		}
+		ti := i
+		e.Run(s, func() {
+			if ti == 0 {
+				time.Sleep(1 * time.Second)
+			}
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+		})
+	}
+	e.Wait()
+	require.Len(completed, 100)
+	require.Equal(0, completed[99])
+}
+
+func TestExecutorConflicts(t *testing.T) {
+	var (
+		require   = require.New(t)
+		expected  = make([]int, 0, 100)
+		l         sync.Mutex
+		completed = make([]int, 0, 100)
+		e         = New(100, 4)
+	)
+	for i := 0; i < 100; i++ {
 		s := set.NewSet[string](i + 1)
 		for k := 0; k < i+1; k++ {
 			s.Add(ids.GenerateTestID().String())
@@ -31,19 +82,4 @@ func TestExecutorNoConflicts(t *testing.T) {
 	}
 	e.Wait()
 	require.Equal(expected, completed)
-}
-
-func TestExecutorConflicts(t *testing.T) {
-	e := New(100, 4)
-	for i := 0; i < 100; i++ {
-		s := set.NewSet[string](i + 1)
-		for k := 0; k < i+1; k++ {
-			s.Add(ids.GenerateTestID().String())
-		}
-		ti := i
-		e.Run(s, func() {
-			fmt.Println("executing:", ti)
-		})
-	}
-	e.Wait()
 }
