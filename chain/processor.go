@@ -68,6 +68,10 @@ func (p *Processor) Prefetch(ctx context.Context, im state.Immutable) {
 		// TODO: we use a cache on top of [im] here because
 		// its cache is only updated when a block is accepted (not when
 		// values are read)
+		//
+		// TODO: use one lock for updating cache + changed keys (instead
+		// of attempting to update right away -> no other txs can use
+		// because of dependencies anyways)
 		alreadyFetched := make(map[string]*fetchData, len(p.blk.GetTxs()))
 		for _, tx := range p.blk.GetTxs() {
 			coldReads := map[string]uint16{}
