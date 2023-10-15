@@ -7,44 +7,65 @@ import (
 )
 
 type Executor struct {
-	wg     sync.WaitGroup
-	counts map[string]*keyAssignment
+	wg sync.WaitGroup
 
-	// TODO: should pull any executable jobs from queue (i.e. no dependencies)
-	workers []chan func()
+	l          sync.Mutex
+	tasks      map[int]*task
+	edges      map[string]int
+	executable chan *task
 }
 
-type job struct {
-	subscribers []*job // when job is finished, we go clear?
+type task struct {
+	id int
+	f  func()
+
+	dependencies set.Set[int]
+	blocked      set.Set[int]
+
+	executed bool
 }
 
-type keyAssignment struct {
-	worker int
-	count  int
+func (e *Executor) createWorker() {
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+
+		for t := range e.executable {
+			t.f()
+
+			e.l.Lock()
+			for b := range t.blocked {
+				bt := e.tasks[b]
+				bt.dependencies.Remove(t.id)
+				if bt.dependencies.Len() == 0 {
+					bt.dependencies = nil // free memory
+					e.executable <- bt
+				}
+			}
+			t.blocked = nil // free memory
+			t.executed = true
+			e.l.Unlock()
+		}
+	}()
 }
 
-func New(concurrency int) *Executor {
+func New(items, concurrency int) *Executor {
 	e := &Executor{
-		counts:  map[string]*keyAssignment{},
-		workers: make([]chan func(), concurrency),
+		tasks:      map[int]*task{},
+		edges:      map[string]int{},
+		executable: make(chan *task, items), // ensure we don't block while holding lock
 	}
 	for i := 0; i < concurrency; i++ {
-		e.wg.Add(1)
-		ch := make(chan func())
-		go func() {
-			defer e.wg.Done()
-
-			for f := range ch {
-				f()
-			}
-		}()
-		e.workers[i] = ch
+		e.createWorker()
 	}
 	return e
 }
 
 // Run ensures that any [f] with dependencies is executed in order.
 func (e *Executor) Run(keys set.Set[string], f func()) {
+	e.l.Lock()
+	defer e.l.Unlock()
+
 	// Find all conflicting jobs
 	matches := []int{}
 	for k := range keys {
