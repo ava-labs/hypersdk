@@ -9,12 +9,14 @@ import (
 const defaultSetSize = 8
 
 type Executor struct {
-	wg sync.WaitGroup
-
-	l          sync.Mutex
-	tasks      map[int]*task
-	edges      map[string]int
+	wg         sync.WaitGroup
 	executable chan *task
+
+	l         sync.Mutex
+	done      bool
+	completed int
+	tasks     map[int]*task
+	edges     map[string]int
 }
 
 type task struct {
@@ -47,6 +49,12 @@ func (e *Executor) createWorker() {
 			}
 			t.blocked = nil // free memory
 			t.executed = true
+			e.completed++
+			if e.done && e.completed == len(e.tasks) {
+				// We will close here if there are unexecuted tasks
+				// when we call [Wait].
+				close(e.executable)
+			}
 			e.l.Unlock()
 		}
 	}()
@@ -103,7 +111,14 @@ func (e *Executor) Run(keys set.Set[string], f func()) {
 	}
 }
 
-func (e *Executor) Done() {
-	// close(e.executable) -> may not yet have everything sequenced
+func (e *Executor) Wait() {
+	e.l.Lock()
+	e.done = true
+	if e.completed == len(e.tasks) {
+		// We will close here if all tasks
+		// are executed by the time we call [Wait].
+		close(e.executable)
+	}
+	e.l.Unlock()
 	e.wg.Wait()
 }
