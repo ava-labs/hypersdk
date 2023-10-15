@@ -152,7 +152,7 @@ cat <<EOF > ${TMPDIR}/tokenvm.config
   "mempoolPayerSize": 10000000,
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "parallelism": 5,
-  "verifySignatures":true,
+  "verifySignatures": true,
   "storeTransactions": ${STORE_TXS},
   "streamingBacklogSize": 10000000,
   "trackedPairs":["*"],

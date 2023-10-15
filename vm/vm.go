@@ -658,11 +658,15 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 	}
 
 	// Check to see if the block is on disk
-	vm.metrics.blocksFromDisk.Inc()
 	blkHeight, err := vm.GetBlockIDHeight(blkID)
 	if err != nil {
 		return nil, err
 	}
+	// We wait to count this metric until we know we have
+	// the index on-disk because peers may query us for
+	// blocks we don't have yet at tip and we don't want
+	// to count that as a historical read.
+	vm.metrics.blocksFromDisk.Inc()
 	return vm.GetDiskBlock(ctx, blkHeight)
 }
 
