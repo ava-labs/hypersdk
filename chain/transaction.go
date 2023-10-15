@@ -346,7 +346,7 @@ func (t *Transaction) Execute(
 	warmStorageReads map[string]uint16,
 	s StateManager,
 	r Rules,
-	ts *tstate.TState,
+	ts *tstate.TStateView,
 	timestamp int64,
 	warpVerified bool,
 ) (*Result, error) {

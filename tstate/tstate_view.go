@@ -138,7 +138,7 @@ func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, bool, b
 		return v.Value(), true, true
 	}
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
-		return v, changed, exists
+		return v, true, exists
 	}
 	if v, ok := ts.scopeStorage[key]; ok {
 		return v, false, true

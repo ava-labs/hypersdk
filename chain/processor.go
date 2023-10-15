@@ -35,18 +35,20 @@ func (b *StatelessBlock) Execute(
 	defer span.End()
 
 	var (
+		sm        = b.vm.StateManager()
 		numTxs    = len(b.Txs)
-		e         = executor.New(numTxs, 8) // TODO: make concurrency configurable
+		t         = b.GetTimestamp()
 		cacheLock sync.RWMutex
 		cache     = make(map[string]*fetchData, numTxs)
-		ts        = tstate.New(numTxs * 2) // TODO: tune this heuristic
-		t         = b.GetTimestamp()
-		results   = make([]*Result, numTxs)
-		sm        = b.vm.StateManager()
+
+		e       = executor.New(numTxs, 8) // TODO: make concurrency configurable
+		ts      = tstate.New(numTxs * 2)  // TODO: tune this heuristic
+		results = make([]*Result, numTxs)
 	)
 
 	// Fetch required keys and execute transactions
-	for _, tx := range b.Txs {
+	for i, tx := range b.Txs {
+		txi := i
 		stateKeys, err := tx.StateKeys(sm)
 		if err != nil {
 			e.Stop()
@@ -102,12 +104,11 @@ func (b *StatelessBlock) Execute(
 			//
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
-			ts.SetScope(ctx, stateKeys, storage)
+			tsv := ts.NewView(stateKeys, storage)
 
 			// Ensure we have enough funds to pay fees
-			authCUs, err := tx.PreExecute(ctx, feeManager, sm, r, ts, t)
+			authCUs, err := tx.PreExecute(ctx, feeManager, sm, r, tsv, t)
 			if err != nil {
-				// TODO: return error
 				return err
 			}
 
@@ -121,14 +122,17 @@ func (b *StatelessBlock) Execute(
 					return ctx.Err()
 				}
 			}
-			result, err := tx.Execute(ctx, feeManager, authCUs, coldReads, warmReads, sm, r, ts, t, ok && warpVerified)
+			result, err := tx.Execute(ctx, feeManager, authCUs, coldReads, warmReads, sm, r, tsv, t, ok && warpVerified)
 			if err != nil {
 				return err
 			}
-			// TODO: ensure this is ordered by tx
-			results = append(results, result)
+			results[txi] = result
 
-			// Update block metadata with units actually consumed
+			// Commit results to parent [TState]
+			tsv.Commit()
+
+			// Update block metadata with units actually consumed (if more is consumed than block allows, we will non-deterministically
+			// exit with an error based on which tx over the limit is processed first)
 			if err := feeManager.Consume(result.Consumed); err != nil {
 				return err
 			}
