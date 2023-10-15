@@ -34,14 +34,14 @@ type TStateView struct {
 func (ts *TState) NewView(scope set.Set[string], storage map[string][]byte) *TStateView {
 	return &TStateView{
 		ts:                 ts,
-		ops:                make([]*op, 0, defaultOps),
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], defaultOps),
+		ops:                make([]*op, 0, defaultOps),
 		scope:              scope,
 		scopeStorage:       storage,
 		canCreate:          true, // default to allowing creation
-		creations:          map[string]uint16{},
-		coldModifications:  map[string]uint16{},
-		warmModifications:  map[string]uint16{},
+		creations:          make(map[string]uint16, defaultOps),
+		coldModifications:  make(map[string]uint16, defaultOps),
+		warmModifications:  make(map[string]uint16, defaultOps),
 	}
 }
 
