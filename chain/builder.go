@@ -57,6 +57,15 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 	}
 }
 
+// TODO: remove when builder is parallelized
+type txData struct {
+	tx      *Transaction
+	storage map[string][]byte
+
+	coldReads map[string]uint16
+	warmReads map[string]uint16
+}
+
 func BuildBlock(
 	ctx context.Context,
 	vm VM,
@@ -291,7 +300,6 @@ func BuildBlock(
 			}
 
 			// Populate required transaction state and restrict which keys can be used
-			txStart := ts.OpIndex()
 			stateKeys, err := next.StateKeys(sm)
 			if err != nil {
 				// This should not happen because we check this before
@@ -302,12 +310,13 @@ func BuildBlock(
 				)
 				continue
 			}
-			ts.SetScope(ctx, stateKeys, nextTxData.storage)
+			tsv := ts.NewView(stateKeys, nextTxData.storage)
 
 			// PreExecute next to see if it is fit
-			authCUs, err := next.PreExecute(ctx, feeManager, sm, r, ts, nextTime)
+			authCUs, err := next.PreExecute(ctx, feeManager, sm, r, tsv, nextTime)
 			if err != nil {
-				ts.Rollback(ctx, txStart)
+				// We don't need to rollback [tsv] here because it will never
+				// be committed.
 				if HandlePreExecute(log, err) {
 					restorable = append(restorable, next)
 				}
@@ -377,7 +386,7 @@ func BuildBlock(
 				warmReads,
 				sm,
 				r,
-				ts,
+				tsv,
 				nextTime,
 				next.WarpMessage != nil && warpErr == nil,
 			)
@@ -389,6 +398,7 @@ func BuildBlock(
 				execErr = err
 				continue
 			}
+			tsv.Commit()
 
 			// Update block with new transaction
 			b.Txs = append(b.Txs, next)
@@ -460,20 +470,21 @@ func BuildBlock(
 	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
-	ts.SetScope(ctx, set.Of(heightKeyStr, timestampKeyStr, feeKeyStr), map[string][]byte{
+	tsv := ts.NewView(set.Of(heightKeyStr, timestampKeyStr, feeKeyStr), map[string][]byte{
 		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 		feeKeyStr:       parentFeeManager.Bytes(),
 	})
-	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert height", err)
 	}
-	if err := ts.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
+	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert timestamp", err)
 	}
-	if err := ts.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
+	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert fees", err)
 	}
+	tsv.Commit()
 
 	// Fetch [parentView] root as late as possible to allow
 	// for async processing to complete
@@ -484,7 +495,7 @@ func BuildBlock(
 	b.StateRoot = root
 
 	// Get view from [tstate] after writing all changed keys
-	view, err := ts.CreateView(ctx, parentView, vm.Tracer())
+	view, err := ts.CreateMerkleView(ctx, vm.Tracer(), parentView)
 	if err != nil {
 		return nil, err
 	}
