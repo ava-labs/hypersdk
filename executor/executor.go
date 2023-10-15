@@ -58,10 +58,10 @@ func (e *Executor) createWorker() {
 			t.f()
 
 			e.l.Lock()
-			for b := range t.blocking {
+			for b := range t.blocking { // works fine on non-initialized map
 				bt := e.tasks[b]
 				bt.dependencies.Remove(t.id)
-				if bt.dependencies.Len() == 0 {
+				if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
 					bt.dependencies = nil // free memory
 					e.executable <- bt
 				}
@@ -112,7 +112,7 @@ func (e *Executor) Run(conflicts set.Set[string], f func()) {
 		e.edges[k] = id
 	}
 
-	// Start execution if there are no blockers
+	// Start execution if there are no blocking dependencies
 	if t.dependencies == nil || t.dependencies.Len() == 0 {
 		t.dependencies = nil // free memory
 		e.executable <- t
