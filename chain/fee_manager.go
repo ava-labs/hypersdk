@@ -49,6 +49,10 @@ func (f *FeeManager) UnitPrice(d Dimension) uint64 {
 	f.l.RLock()
 	defer f.l.RUnlock()
 
+	return f.unitPrice(d)
+}
+
+func (f *FeeManager) unitPrice(d Dimension) uint64 {
 	start := dimensionStateLen * d
 	return binary.BigEndian.Uint64(f.raw[start : start+consts.Uint64Len])
 }
@@ -57,6 +61,10 @@ func (f *FeeManager) Window(d Dimension) window.Window {
 	f.l.RLock()
 	defer f.l.RUnlock()
 
+	return f.window(d)
+}
+
+func (f *FeeManager) window(d Dimension) window.Window {
 	start := dimensionStateLen*d + consts.Uint64Len
 	return window.Window(f.raw[start : start+window.WindowSliceSize])
 }
@@ -65,6 +73,10 @@ func (f *FeeManager) LastConsumed(d Dimension) uint64 {
 	f.l.RLock()
 	defer f.l.RUnlock()
 
+	return f.lastConsumed(d)
+}
+
+func (f *FeeManager) lastConsumed(d Dimension) uint64 {
 	start := dimensionStateLen*d + consts.Uint64Len + window.WindowSliceSize
 	return binary.BigEndian.Uint64(f.raw[start : start+consts.Uint64Len])
 }
@@ -103,6 +115,10 @@ func (f *FeeManager) SetUnitPrice(d Dimension, price uint64) {
 	f.l.Lock()
 	defer f.l.Unlock()
 
+	f.setUnitPrice(d, price)
+}
+
+func (f *FeeManager) setUnitPrice(d Dimension, price uint64) {
 	start := dimensionStateLen * d
 	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], price)
 }
@@ -111,6 +127,10 @@ func (f *FeeManager) SetLastConsumed(d Dimension, consumed uint64) {
 	f.l.Lock()
 	defer f.l.Unlock()
 
+	f.setLastConsumed(d, consumed)
+}
+
+func (f *FeeManager) setLastConsumed(d Dimension, consumed uint64) {
 	start := dimensionStateLen*d + consts.Uint64Len + window.WindowSliceSize
 	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], consumed)
 }
@@ -120,7 +140,7 @@ func (f *FeeManager) CanConsume(d Dimensions, l Dimensions) (bool, Dimension) {
 	defer f.l.RUnlock()
 
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		consumed, err := math.Add64(f.LastConsumed(i), d[i])
+		consumed, err := math.Add64(f.lastConsumed(i), d[i])
 		if err != nil {
 			return false, i
 		}
@@ -136,11 +156,11 @@ func (f *FeeManager) Consume(d Dimensions) error {
 	defer f.l.Unlock()
 
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		consumed, err := math.Add64(f.LastConsumed(i), d[i])
+		consumed, err := math.Add64(f.lastConsumed(i), d[i])
 		if err != nil {
 			return err
 		}
-		f.SetLastConsumed(i, consumed)
+		f.setLastConsumed(i, consumed)
 	}
 	return nil
 }
@@ -158,7 +178,7 @@ func (f *FeeManager) MaxFee(d Dimensions) (uint64, error) {
 
 	fee := uint64(0)
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		contribution, err := math.Mul64(f.UnitPrice(i), d[i])
+		contribution, err := math.Mul64(f.unitPrice(i), d[i])
 		if err != nil {
 			return 0, err
 		}
@@ -177,7 +197,7 @@ func (f *FeeManager) UnitPrices() Dimensions {
 
 	var d Dimensions
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		d[i] = f.UnitPrice(i)
+		d[i] = f.unitPrice(i)
 	}
 	return d
 }
@@ -188,7 +208,7 @@ func (f *FeeManager) UnitsConsumed() Dimensions {
 
 	var d Dimensions
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		d[i] = f.LastConsumed(i)
+		d[i] = f.lastConsumed(i)
 	}
 	return d
 }
