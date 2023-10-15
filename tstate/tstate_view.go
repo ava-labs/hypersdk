@@ -38,6 +38,7 @@ func (ts *TState) NewView(scope set.Set[string], storage map[string][]byte) *TSt
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], defaultOps),
 		scope:              scope,
 		scopeStorage:       storage,
+		canCreate:          true, // default to allowing creation
 		creations:          map[string]uint16{},
 		coldModifications:  map[string]uint16{},
 		warmModifications:  map[string]uint16{},
