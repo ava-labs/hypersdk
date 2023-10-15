@@ -49,7 +49,8 @@ func (b *StatelessBlock) Execute(
 	)
 
 	// Fetch required keys and execute transactions
-	for i, tx := range b.Txs {
+	for i, ltx := range b.Txs {
+		tx := ltx
 		txi := i
 		stateKeys, err := tx.StateKeys(sm)
 		if err != nil {
