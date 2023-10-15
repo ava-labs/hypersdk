@@ -6,7 +6,6 @@ package chain
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -48,16 +47,6 @@ func (b *StatelessBlock) Execute(
 
 	// Fetch required keys and execute transactions
 	for _, tx := range b.Txs {
-		nextUnits, err := tx.MaxUnits(sm, r)
-		if err != nil {
-			e.Stop()
-			return nil, nil, err
-		}
-		// TODO: better counting here (doesn't work for async)
-		if ok, dimension := feeManager.CanConsume(nextUnits, r.GetMaxBlockUnits()); !ok {
-			e.Stop()
-			return nil, nil, fmt.Errorf("dimension %d exceeds limit", dimension)
-		}
 		stateKeys, err := tx.StateKeys(sm)
 		if err != nil {
 			e.Stop()
