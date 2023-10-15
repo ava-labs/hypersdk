@@ -31,17 +31,18 @@ func (c *Config) GetMempoolPayerSize() int               { return 32 }
 func (c *Config) GetMempoolExemptPayers() [][]byte       { return nil }
 func (c *Config) GetStreamingBacklogSize() int           { return 1024 }
 func (c *Config) GetStateEvictionBatchSize() int         { return 4 * units.MiB }
-func (c *Config) GetIntermediateNodeCacheSize() int      { return 2 * units.GiB }
+func (c *Config) GetIntermediateNodeCacheSize() int      { return 4 * units.GiB }
 func (c *Config) GetValueNodeCacheSize() int             { return 2 * units.GiB }
 func (c *Config) GetTraceConfig() *trace.Config          { return &trace.Config{Enabled: false} }
 func (c *Config) GetStateSyncParallelism() int           { return 4 }
 func (c *Config) GetStateSyncServerDelay() time.Duration { return 0 } // used for testing
 
-func (c *Config) GetParsedBlockCacheSize() int  { return 128 }
-func (c *Config) GetStateHistoryLength() int    { return 256 }
-func (c *Config) GetAcceptedBlockWindow() int   { return 768 }
-func (c *Config) GetStateSyncMinBlocks() uint64 { return 768 }
-func (c *Config) GetAcceptorSize() int          { return 1024 }
+func (c *Config) GetParsedBlockCacheSize() int     { return 128 }
+func (c *Config) GetStateHistoryLength() int       { return 256 }
+func (c *Config) GetAcceptedBlockWindowCache() int { return 128 }    // 256MB at 2MB blocks
+func (c *Config) GetAcceptedBlockWindow() int      { return 50_000 } // ~3.5hr with 250ms block time (100GB at 2MB)
+func (c *Config) GetStateSyncMinBlocks() uint64    { return 768 }    // set to max int for archive nodes to ensure no skips
+func (c *Config) GetAcceptorSize() int             { return 64 }
 
 func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	return &profiler.Config{Enabled: false}

@@ -150,6 +150,16 @@ func (h *Handler) GeneratePrometheus(baseURI string, openBrowser bool, startProm
 	if err := cmd.Run(); err != nil {
 		errChan <- err
 		utils.Outf("{{orange}}prometheus exited with error:{{/}} %v\n", err)
+		utils.Outf(`install prometheus using the following commands:
+
+rm -f /tmp/prometheus
+wget https://github.com/prometheus/prometheus/releases/download/v2.43.0/prometheus-2.43.0.darwin-amd64.tar.gz
+tar -xvf prometheus-2.43.0.darwin-amd64.tar.gz
+rm prometheus-2.43.0.darwin-amd64.tar.gz
+mv prometheus-2.43.0.darwin-amd64/prometheus /tmp/prometheus
+rm -rf prometheus-2.43.0.darwin-amd64
+
+`)
 		return err
 	}
 	utils.Outf("{{cyan}}prometheus exited{{/}}\n")

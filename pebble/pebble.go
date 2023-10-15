@@ -49,7 +49,7 @@ type Config struct {
 func NewDefaultConfig() Config {
 	return Config{
 		CacheSize:                   1024 * 1024 * 1024,
-		BytesPerSync:                1024 * 1024,
+		BytesPerSync:                4 * 1024 * 1024, // block size is usually at least 2MB
 		MemTableStopWritesThreshold: 8,
 		MemTableSize:                16 * 1024 * 1024,
 		MaxOpenFiles:                4_096,

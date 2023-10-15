@@ -86,7 +86,7 @@ type VM struct {
 	verifiedL      sync.RWMutex
 	verifiedBlocks map[ids.ID]*chain.StatelessBlock
 
-	// We store the last [AcceptedBlockWindow] blocks in memory
+	// We store the last [AcceptedBlockWindowCache] blocks in memory
 	// to avoid reading blocks from disk.
 	acceptedBlocksByID     *hcache.FIFO[ids.ID, *chain.StatelessBlock]
 	acceptedBlocksByHeight *hcache.FIFO[uint64, ids.ID]
@@ -237,11 +237,11 @@ func (vm *VM) Initialize(
 
 	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetParsedBlockCacheSize()}
 	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
-	vm.acceptedBlocksByID, err = hcache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.GetAcceptedBlockWindow())
+	vm.acceptedBlocksByID, err = hcache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.GetAcceptedBlockWindowCache())
 	if err != nil {
 		return err
 	}
-	vm.acceptedBlocksByHeight, err = hcache.NewFIFO[uint64, ids.ID](vm.config.GetAcceptedBlockWindow())
+	vm.acceptedBlocksByHeight, err = hcache.NewFIFO[uint64, ids.ID](vm.config.GetAcceptedBlockWindowCache())
 	if err != nil {
 		return err
 	}
@@ -262,30 +262,20 @@ func (vm *VM) Initialize(
 		return err
 	}
 	if has { //nolint:nestif
-		statefulGenesis, err := vm.GetGenesis()
+		genesisBlk, err := vm.GetGenesis(ctx)
 		if err != nil {
 			snowCtx.Log.Error("could not get genesis", zap.Error(err))
-			return err
-		}
-		genesisBlk, err := chain.ParseStatefulBlock(ctx, statefulGenesis, nil, choices.Accepted, vm)
-		if err != nil {
-			snowCtx.Log.Error("could not parse genesis", zap.Error(err))
 			return err
 		}
 		vm.genesisBlk = genesisBlk
 		lastAcceptedHeight, err := vm.GetLastAcceptedHeight()
 		if err != nil {
-			snowCtx.Log.Error("could not get last accepted", zap.Error(err))
+			snowCtx.Log.Error("could not get last accepted height", zap.Error(err))
 			return err
 		}
-		statefulBlock, err := vm.GetDiskBlock(lastAcceptedHeight)
+		blk, err := vm.GetDiskBlock(ctx, lastAcceptedHeight)
 		if err != nil {
 			snowCtx.Log.Error("could not get last accepted block", zap.Error(err))
-			return err
-		}
-		blk, err := chain.ParseStatefulBlock(ctx, statefulBlock, nil, choices.Accepted, vm)
-		if err != nil {
-			snowCtx.Log.Error("could not parse last accepted", zap.Error(err))
 			return err
 		}
 		vm.preferred, vm.lastAccepted = blk.ID(), blk
@@ -667,9 +657,17 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 		return blk, nil
 	}
 
-	// If we don't know about the block or the block is past the
-	// [AcceptedBlockWindow], we return a not found error.
-	return nil, database.ErrNotFound
+	// Check to see if the block is on disk
+	blkHeight, err := vm.GetBlockIDHeight(blkID)
+	if err != nil {
+		return nil, err
+	}
+	// We wait to count this metric until we know we have
+	// the index on-disk because peers may query us for
+	// blocks we don't have yet at tip and we don't want
+	// to count that as a historical read.
+	vm.metrics.blocksFromDisk.Inc()
+	return vm.GetDiskBlock(ctx, blkHeight)
 }
 
 // implements "block.ChainVM.commom.VM.Parser"
@@ -1022,7 +1020,8 @@ func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, erro
 	if blkID, ok := vm.acceptedBlocksByHeight.Get(height); ok {
 		return blkID, nil
 	}
-	return ids.ID{}, database.ErrNotFound
+	vm.metrics.blocksHeightsFromDisk.Inc()
+	return vm.GetBlockHeightID(height)
 }
 
 // backfillSeenTransactions makes a best effort to populate [vm.seen]
@@ -1093,19 +1092,15 @@ func (vm *VM) backfillSeenTransactions() {
 
 func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 	start := uint64(0)
-	lookback := uint64(vm.config.GetAcceptedBlockWindow()) - 1 // include latest
+	lookback := uint64(vm.config.GetAcceptedBlockWindowCache()) - 1 // include latest
 	if vm.lastAccepted.Hght > lookback {
 		start = vm.lastAccepted.Hght - lookback
 	}
 	for i := start; i <= vm.lastAccepted.Hght; i++ {
-		stBlk, err := vm.GetDiskBlock(i)
+		blk, err := vm.GetDiskBlock(ctx, i)
 		if err != nil {
 			vm.snowCtx.Log.Info("could not find block on-disk", zap.Uint64("height", i))
 			continue
-		}
-		blk, err := chain.ParseStatefulBlock(ctx, stBlk, nil, choices.Accepted, vm)
-		if err != nil {
-			return fmt.Errorf("%w: unable to parse block from disk", err)
 		}
 		vm.acceptedBlocksByID.Put(blk.ID(), blk)
 		vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())

@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"go.uber.org/zap"
@@ -34,9 +35,11 @@ func init() {
 }
 
 const (
-	blockPrefix         = 0x0
-	warpSignaturePrefix = 0x1
-	warpFetchPrefix     = 0x2
+	blockPrefix         = 0x0 // TODO: move to flat files (https://github.com/ava-labs/hypersdk/issues/553)
+	blockIDHeightPrefix = 0x1 // ID -> Height
+	blockHeightIDPrefix = 0x2 // Height -> ID (don't always need full block from disk)
+	warpSignaturePrefix = 0x3
+	warpFetchPrefix     = 0x4
 )
 
 var (
@@ -46,9 +49,23 @@ var (
 	signatureLRU = &cache.LRU[string, *chain.WarpSignature]{Size: 1024}
 )
 
-func PrefixBlockHeightKey(height uint64) []byte {
+func PrefixBlockKey(height uint64) []byte {
 	k := make([]byte, 1+consts.Uint64Len)
 	k[0] = blockPrefix
+	binary.BigEndian.PutUint64(k[1:], height)
+	return k
+}
+
+func PrefixBlockIDHeightKey(id ids.ID) []byte {
+	k := make([]byte, 1+consts.IDLen)
+	k[0] = blockIDHeightPrefix
+	copy(k[1:], id[:])
+	return k
+}
+
+func PrefixBlockHeightIDKey(height uint64) []byte {
+	k := make([]byte, 1+consts.Uint64Len)
+	k[0] = blockHeightIDPrefix
 	binary.BigEndian.PutUint64(k[1:], height)
 	return k
 }
@@ -57,8 +74,8 @@ func (vm *VM) HasGenesis() (bool, error) {
 	return vm.HasDiskBlock(0)
 }
 
-func (vm *VM) GetGenesis() (*chain.StatefulBlock, error) {
-	return vm.GetDiskBlock(0)
+func (vm *VM) GetGenesis(ctx context.Context) (*chain.StatelessBlock, error) {
+	return vm.GetDiskBlock(ctx, 0)
 }
 
 func (vm *VM) SetLastAcceptedHeight(height uint64) error {
@@ -96,20 +113,40 @@ func (vm *VM) shouldComapct(expiryHeight uint64) bool {
 // compaction as storing blocks randomly on-disk (when using [block.ID]).
 func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	batch := vm.vmDB.NewBatch()
-	if err := batch.Put(lastAccepted, binary.BigEndian.AppendUint64(nil, blk.Height())); err != nil {
+	bigEndianHeight := binary.BigEndian.AppendUint64(nil, blk.Height())
+	if err := batch.Put(lastAccepted, bigEndianHeight); err != nil {
 		return err
 	}
-	if err := batch.Put(PrefixBlockHeightKey(blk.Height()), blk.Bytes()); err != nil {
+	if err := batch.Put(PrefixBlockKey(blk.Height()), blk.Bytes()); err != nil {
+		return err
+	}
+	if err := batch.Put(PrefixBlockIDHeightKey(blk.ID()), bigEndianHeight); err != nil {
+		return err
+	}
+	blkID := blk.ID()
+	if err := batch.Put(PrefixBlockHeightIDKey(blk.Height()), blkID[:]); err != nil {
 		return err
 	}
 	expiryHeight := blk.Height() - uint64(vm.config.GetAcceptedBlockWindow())
 	var expired bool
 	if expiryHeight > 0 && expiryHeight < blk.Height() { // ensure we don't free genesis
-		if err := batch.Delete(PrefixBlockHeightKey(expiryHeight)); err != nil {
+		if err := batch.Delete(PrefixBlockKey(expiryHeight)); err != nil {
+			return err
+		}
+		blkID, err := vm.vmDB.Get(PrefixBlockHeightIDKey(expiryHeight))
+		if err == nil {
+			if err := batch.Delete(PrefixBlockIDHeightKey(ids.ID(blkID))); err != nil {
+				return err
+			}
+		} else {
+			vm.Logger().Warn("unable to delete blkID", zap.Uint64("height", expiryHeight), zap.Error(err))
+		}
+		if err := batch.Delete(PrefixBlockHeightIDKey(expiryHeight)); err != nil {
 			return err
 		}
 		expired = true
 		vm.metrics.deletedBlocks.Inc()
+		vm.Logger().Info("deleted block", zap.Uint64("height", expiryHeight))
 	}
 	if err := batch.Write(); err != nil {
 		return fmt.Errorf("%w: unable to update last accepted", err)
@@ -130,16 +167,32 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	return nil
 }
 
-func (vm *VM) GetDiskBlock(height uint64) (*chain.StatefulBlock, error) {
-	b, err := vm.vmDB.Get(PrefixBlockHeightKey(height))
+func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.StatelessBlock, error) {
+	b, err := vm.vmDB.Get(PrefixBlockKey(height))
 	if err != nil {
 		return nil, err
 	}
-	return chain.UnmarshalBlock(b, vm)
+	return chain.ParseBlock(ctx, b, choices.Accepted, vm)
 }
 
 func (vm *VM) HasDiskBlock(height uint64) (bool, error) {
-	return vm.vmDB.Has(PrefixBlockHeightKey(height))
+	return vm.vmDB.Has(PrefixBlockKey(height))
+}
+
+func (vm *VM) GetBlockHeightID(height uint64) (ids.ID, error) {
+	b, err := vm.vmDB.Get(PrefixBlockHeightIDKey(height))
+	if err != nil {
+		return ids.Empty, err
+	}
+	return ids.ID(b), nil
+}
+
+func (vm *VM) GetBlockIDHeight(blkID ids.ID) (uint64, error) {
+	b, err := vm.vmDB.Get(PrefixBlockIDHeightKey(blkID))
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint64(b), nil
 }
 
 // CompactDiskBlocks forces compaction on the entire range of blocks up to [lastExpired].
@@ -147,7 +200,7 @@ func (vm *VM) HasDiskBlock(height uint64) (bool, error) {
 // This can be used to ensure we clean up all large tombstoned keys on a regular basis instead
 // of waiting for the database to run a compaction (and potentially delete GBs of data at once).
 func (vm *VM) CompactDiskBlocks(lastExpired uint64) error {
-	return vm.vmDB.Compact([]byte{blockPrefix}, PrefixBlockHeightKey(lastExpired))
+	return vm.vmDB.Compact([]byte{blockPrefix}, PrefixBlockKey(lastExpired))
 }
 
 func (vm *VM) GetDiskIsSyncing() (bool, error) {
