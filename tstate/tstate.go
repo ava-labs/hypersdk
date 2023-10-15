@@ -26,6 +26,7 @@ type op struct {
 // TState defines a struct for storing temporary state.
 type TState struct {
 	l           sync.RWMutex
+	ops         int
 	changedKeys map[string]maybe.Maybe[[]byte]
 }
 
@@ -57,18 +58,26 @@ func (ts *TState) PendingChanges() int {
 	return len(ts.changedKeys)
 }
 
+// OpIndex returns the number of operations done on ts.
+func (ts *TState) OpIndex() int {
+	ts.l.RLock()
+	defer ts.l.RUnlock()
+
+	return ts.ops
+}
+
 // CreateMerkleView creates a slice of [database.BatchOp] of all
 // changes in [TState] that can be used to commit to [merkledb].
 func (ts *TState) CreateMerkleView(
 	ctx context.Context,
-	view state.View,
 	t trace.Tracer, //nolint:interfacer
+	view state.View,
 ) (merkledb.TrieView, error) {
 	ts.l.RLock()
 	defer ts.l.RUnlock()
 
 	ctx, span := t.Start(
-		ctx, "TState.CreateView",
+		ctx, "TState.CreateMerkleView",
 		oteltrace.WithAttributes(
 			attribute.Int("items", len(ts.changedKeys)),
 		),

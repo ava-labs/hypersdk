@@ -243,6 +243,7 @@ func (ts *TStateView) Commit() {
 	for k, v := range ts.pendingChangedKeys {
 		ts.ts.changedKeys[k] = v
 	}
+	ts.ts.ops += len(ts.ops)
 }
 
 // updateChunks sets the number of chunks associated with a key that will
