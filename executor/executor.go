@@ -4,6 +4,8 @@
 package executor
 
 import (
+	"encoding/hex"
+	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -82,6 +84,7 @@ func (e *Executor) createWorker() {
 					bt.dependencies.Remove(t.id)
 					if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
 						bt.dependencies = nil // free memory
+						fmt.Println("starting blocked tx", bt.id)
 						e.executable <- bt
 					}
 				}
@@ -138,6 +141,11 @@ func (e *Executor) Run(conflicts set.Set[string], f func() error) {
 	if t.dependencies == nil || t.dependencies.Len() == 0 {
 		t.dependencies = nil // free memory
 		e.executable <- t
+	} else {
+		fmt.Println("tx (", t.id, ") is blocked on set:")
+		for k := range conflicts {
+			fmt.Println(hex.EncodeToString([]byte(k)))
+		}
 	}
 }
 

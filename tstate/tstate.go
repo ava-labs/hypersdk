@@ -5,6 +5,8 @@ package tstate
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/trace"
@@ -83,6 +85,11 @@ func (ts *TState) CreateMerkleView(
 		),
 	)
 	defer span.End()
+
+	fmt.Println("creating view with changed keys:")
+	for k, v := range ts.changedKeys {
+		fmt.Println(hex.EncodeToString([]byte(k)), v)
+	}
 
 	return view.NewView(ctx, merkledb.ViewChanges{MapOps: ts.changedKeys, ConsumeBytes: true})
 }

@@ -5,7 +5,9 @@ package chain
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -78,7 +80,7 @@ func (b *StatelessBlock) Execute(
 			// Fetch keys from disk
 			var toCache map[string]*fetchData
 			if len(toLookup) > 0 {
-				toCache := make(map[string]*fetchData, len(toLookup))
+				toCache = make(map[string]*fetchData, len(toLookup))
 				for _, k := range toLookup {
 					v, err := im.GetValue(ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
@@ -141,6 +143,7 @@ func (b *StatelessBlock) Execute(
 			if len(toCache) > 0 {
 				cacheLock.Lock()
 				for k := range toCache {
+					fmt.Println("adding key to cache", hex.EncodeToString([]byte(k)))
 					cache[k] = toCache[k]
 				}
 				cacheLock.Unlock()
