@@ -462,7 +462,6 @@ func (t *Transaction) Execute(
 	// all storage use in the background. KeyOperations is reset whenever
 	// we set scope on [ts].
 	creations, coldModifications, warmModifications := ts.KeyOperations()
-	fmt.Println(t.ID(), "cold modifications:", coldModifications, "warm modifications:", warmModifications)
 
 	// Because we compute the fee before [Auth.Refund] is called, we need
 	// to pessimistically precompute the storage it will change.

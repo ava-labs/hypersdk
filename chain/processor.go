@@ -5,9 +5,7 @@ package chain
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -145,7 +143,6 @@ func (b *StatelessBlock) Execute(
 			if len(toCache) > 0 {
 				cacheLock.Lock()
 				for k := range toCache {
-					fmt.Println("adding key to cache", hex.EncodeToString([]byte(k)))
 					cache[k] = toCache[k]
 				}
 				cacheLock.Unlock()
