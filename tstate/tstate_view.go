@@ -9,7 +9,7 @@ import (
 	"github.com/ava-labs/hypersdk/keys"
 )
 
-const defaultOps = 8
+const defaultOps = 4
 
 type TStateView struct {
 	ts                 *TState
@@ -34,14 +34,14 @@ type TStateView struct {
 func (ts *TState) NewView(scope set.Set[string], storage map[string][]byte) *TStateView {
 	return &TStateView{
 		ts:                 ts,
-		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], defaultOps),
+		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
 		ops:                make([]*op, 0, defaultOps),
 		scope:              scope,
 		scopeStorage:       storage,
 		canCreate:          true, // default to allowing creation
-		creations:          make(map[string]uint16, defaultOps),
-		coldModifications:  make(map[string]uint16, defaultOps),
-		warmModifications:  make(map[string]uint16, defaultOps),
+		creations:          make(map[string]uint16, len(scope)),
+		coldModifications:  make(map[string]uint16, len(scope)),
+		warmModifications:  make(map[string]uint16, len(scope)),
 	}
 }
 
