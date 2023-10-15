@@ -16,6 +16,7 @@ func TestExecutorNoConflicts(t *testing.T) {
 		l         sync.Mutex
 		completed = make([]int, 0, 100)
 		e         = New(100, 4)
+		canWait   = make(chan struct{})
 	)
 	for i := 0; i < 100; i++ {
 		s := set.NewSet[string](i + 1)
@@ -26,10 +27,14 @@ func TestExecutorNoConflicts(t *testing.T) {
 		e.Run(s, func() {
 			l.Lock()
 			completed = append(completed, ti)
+			if len(completed) == 100 {
+				close(canWait)
+			}
 			l.Unlock()
 		})
 	}
-	e.Wait()
+	<-canWait
+	e.Wait() // no task running
 	require.Len(completed, 100)
 }
 
@@ -48,14 +53,14 @@ func TestExecutorNoConflictsSlow(t *testing.T) {
 		ti := i
 		e.Run(s, func() {
 			if ti == 0 {
-				time.Sleep(1 * time.Second)
+				time.Sleep(3 * time.Second)
 			}
 			l.Lock()
 			completed = append(completed, ti)
 			l.Unlock()
 		})
 	}
-	e.Wait()
+	e.Wait() // existing task is running
 	require.Len(completed, 100)
 	require.Equal(0, completed[99])
 }
