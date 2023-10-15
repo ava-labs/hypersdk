@@ -8,17 +8,19 @@ import (
 
 type Executor struct {
 	wg      sync.WaitGroup
-	workers []*worker
+	counts  map[string]*keyAssignment
+	workers []chan func()
 }
 
-type worker struct {
-	keys  map[string]int
-	queue chan func()
+type keyAssignment struct {
+	worker int
+	count  int
 }
 
 func New(concurrency int) *Executor {
 	e := &Executor{
-		workers: make([]*worker, concurrency),
+		counts:  map[string]*keyAssignment{},
+		workers: make([]chan func(), concurrency),
 	}
 	for i := 0; i < concurrency; i++ {
 		e.wg.Add(1)
@@ -30,20 +32,36 @@ func New(concurrency int) *Executor {
 				f()
 			}
 		}()
-		e.workers[i] = &worker{
-			keys:  map[string]int{},
-			queue: ch,
-		}
+		e.workers[i] = ch
 	}
 	return e
 }
 
 func (e *Executor) Run(keys set.Set[string], f func()) {
+	// Find all conflicting jobs
+	matches := []int{}
+	for k := range keys {
+		assignment, ok := e.counts[k]
+		if !ok {
+			continue
+		}
+		matches = append(matches, assignment.worker)
+	}
+
+	switch len(matches) {
+	case 0:
+		// We can add to any worker (prefer immediately executable)
+	case 1:
+		// We can enqueue behind a worker already bottlenecked
+	default:
+		// Required keys are being processed on different workers, we need to
+		// merge execution
+	}
 }
 
 func (e *Executor) Done() {
-	for _, w := range e.workers {
-		close(w.queue)
+	for _, ch := range e.workers {
+		close(ch)
 	}
 	e.wg.Wait()
 }
