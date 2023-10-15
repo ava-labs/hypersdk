@@ -47,6 +47,9 @@ func NewProcessor(tracer trace.Tracer, b *StatelessBlock) *Processor {
 
 		blk:      b,
 		readyTxs: make(chan *txData, len(b.GetTxs())),
+
+		// TODO: really just need tstate for transactions we are processing,
+		// but once processing is finished we just need "changedKeys"
 	}
 }
 
@@ -61,6 +64,10 @@ func (p *Processor) Prefetch(ctx context.Context, im state.Immutable) {
 		}()
 
 		// Store required keys for each set
+		//
+		// TODO: we use a cache on top of [im] here because
+		// its cache is only updated when a block is accepted (not when
+		// values are read)
 		alreadyFetched := make(map[string]*fetchData, len(p.blk.GetTxs()))
 		for _, tx := range p.blk.GetTxs() {
 			coldReads := map[string]uint16{}
