@@ -151,18 +151,18 @@ func (f *FeeManager) CanConsume(d Dimensions, l Dimensions) (bool, Dimension) {
 	return true, -1
 }
 
-func (f *FeeManager) Consume(d Dimensions) error {
+func (f *FeeManager) Consume(d Dimensions) (bool, Dimension) {
 	f.l.Lock()
 	defer f.l.Unlock()
 
 	for i := Dimension(0); i < FeeDimensions; i++ {
 		consumed, err := math.Add64(f.lastConsumed(i), d[i])
 		if err != nil {
-			return err
+			return false, i
 		}
 		f.setLastConsumed(i, consumed)
 	}
-	return nil
+	return true, 0
 }
 
 func (f *FeeManager) Bytes() []byte {

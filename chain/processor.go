@@ -6,6 +6,7 @@ package chain
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -58,13 +59,13 @@ func (b *StatelessBlock) Execute(
 		}
 		e.Run(stateKeys, func() error {
 			// Fetch keys from cache
-			cacheLock.RLock()
 			var (
-				coldReads = map[string]uint16{}
-				warmReads = map[string]uint16{}
-				storage   = map[string][]byte{}
+				coldReads = make(map[string]uint16, len(stateKeys))
+				warmReads = make(map[string]uint16, len(stateKeys))
+				storage   = make(map[string][]byte, len(stateKeys))
 				toLookup  = make([]string, 0, len(stateKeys))
 			)
+			cacheLock.RLock()
 			for k := range stateKeys {
 				if v, ok := cache[k]; ok {
 					warmReads[k] = v.chunks
@@ -135,8 +136,8 @@ func (b *StatelessBlock) Execute(
 
 			// Update block metadata with units actually consumed (if more is consumed than block allows, we will non-deterministically
 			// exit with an error based on which tx over the limit is processed first)
-			if err := feeManager.Consume(result.Consumed); err != nil {
-				return err
+			if ok, d := feeManager.Consume(result.Consumed); !ok {
+				return fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
 			}
 
 			// Update key cache
