@@ -8,6 +8,12 @@ import (
 
 const defaultSetSize = 8
 
+// Executor sequences the concurrent execution of
+// tasks with arbitrary conflicts on-the-fly.
+//
+// Executor ensures that conflicting tasks
+// are executed in the order they were queued.
+// Tasks with no conflicts are executed immediately.
 type Executor struct {
 	wg         sync.WaitGroup
 	executable chan *task
@@ -17,6 +23,19 @@ type Executor struct {
 	completed int
 	tasks     map[int]*task
 	edges     map[string]int
+}
+
+// New creates a new [Executor].
+func New(items, concurrency int) *Executor {
+	e := &Executor{
+		tasks:      map[int]*task{},
+		edges:      map[string]int{},
+		executable: make(chan *task, items), // ensure we don't block while holding lock
+	}
+	for i := 0; i < concurrency; i++ {
+		e.createWorker()
+	}
+	return e
 }
 
 type task struct {
@@ -60,20 +79,9 @@ func (e *Executor) createWorker() {
 	}()
 }
 
-func New(items, concurrency int) *Executor {
-	e := &Executor{
-		tasks:      map[int]*task{},
-		edges:      map[string]int{},
-		executable: make(chan *task, items), // ensure we don't block while holding lock
-	}
-	for i := 0; i < concurrency; i++ {
-		e.createWorker()
-	}
-	return e
-}
-
-// Run ensures that any [f] with dependencies is executed in order.
-func (e *Executor) Run(keys set.Set[string], f func()) {
+// Run executes [f] after all previously enqueued [f] with
+// overlapping [conflicts] are executed.
+func (e *Executor) Run(conflicts set.Set[string], f func()) {
 	e.l.Lock()
 	defer e.l.Unlock()
 
@@ -86,7 +94,7 @@ func (e *Executor) Run(keys set.Set[string], f func()) {
 	e.tasks[id] = t
 
 	// Record dependencies
-	for k := range keys {
+	for k := range conflicts {
 		latest, ok := e.edges[k]
 		if ok {
 			lt := e.tasks[latest]
@@ -111,6 +119,9 @@ func (e *Executor) Run(keys set.Set[string], f func()) {
 	}
 }
 
+// Wait returns as soon as all enqueued [f] are executed.
+//
+// You should not call [Run] after [Wait] is called.
 func (e *Executor) Wait() {
 	e.l.Lock()
 	e.done = true
