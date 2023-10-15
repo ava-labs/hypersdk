@@ -43,7 +43,7 @@ type task struct {
 	f  func()
 
 	dependencies set.Set[int]
-	blocked      set.Set[int]
+	blocking     set.Set[int]
 
 	executed bool
 }
@@ -58,7 +58,7 @@ func (e *Executor) createWorker() {
 			t.f()
 
 			e.l.Lock()
-			for b := range t.blocked {
+			for b := range t.blocking {
 				bt := e.tasks[b]
 				bt.dependencies.Remove(t.id)
 				if bt.dependencies.Len() == 0 {
@@ -66,7 +66,7 @@ func (e *Executor) createWorker() {
 					e.executable <- bt
 				}
 			}
-			t.blocked = nil // free memory
+			t.blocking = nil // free memory
 			t.executed = true
 			e.completed++
 			if e.done && e.completed == len(e.tasks) {
@@ -103,10 +103,10 @@ func (e *Executor) Run(conflicts set.Set[string], f func()) {
 					t.dependencies = set.NewSet[int](defaultSetSize)
 				}
 				t.dependencies.Add(lt.id)
-				if lt.blocked == nil {
-					lt.blocked = set.NewSet[int](defaultSetSize)
+				if lt.blocking == nil {
+					lt.blocking = set.NewSet[int](defaultSetSize)
 				}
-				lt.blocked.Add(id)
+				lt.blocking.Add(id)
 			}
 		}
 		e.edges[k] = id
