@@ -6,6 +6,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 )
 
+const defaultSetSize = 8
+
 type Executor struct {
 	wg sync.WaitGroup
 
@@ -27,6 +29,7 @@ type task struct {
 
 func (e *Executor) createWorker() {
 	e.wg.Add(1)
+
 	go func() {
 		defer e.wg.Done()
 
@@ -66,32 +69,41 @@ func (e *Executor) Run(keys set.Set[string], f func()) {
 	e.l.Lock()
 	defer e.l.Unlock()
 
-	// Find all conflicting jobs
-	matches := []int{}
+	// Add task to map
+	id := len(e.tasks)
+	t := &task{
+		id: id,
+		f:  f,
+	}
+	e.tasks[id] = t
+
+	// Record dependencies
 	for k := range keys {
-		assignment, ok := e.counts[k]
-		if !ok {
-			continue
+		latest, ok := e.edges[k]
+		if ok {
+			lt := e.tasks[latest]
+			if !lt.executed {
+				if t.dependencies == nil {
+					t.dependencies = set.NewSet[int](defaultSetSize)
+				}
+				t.dependencies.Add(lt.id)
+				if lt.blocked == nil {
+					lt.blocked = set.NewSet[int](defaultSetSize)
+				}
+				lt.blocked.Add(id)
+			}
 		}
-		matches = append(matches, assignment.worker)
+		e.edges[k] = id
 	}
 
-	// Schedule function on some worker
-	switch len(matches) {
-	case 0:
-		// We can add to any worker (prefer immediately executable)
-	case 1:
-		// We can enqueue behind a worker already bottlenecked
-		e.workers[matches[0]] <- f
-	default:
-		// Required keys are being processed on different workers, we need to
-		// merge execution after waiting for dependencies to finish
+	// Start execution if there are no blockers
+	if t.dependencies == nil || t.dependencies.Len() == 0 {
+		t.dependencies = nil // free memory
+		e.executable <- t
 	}
 }
 
 func (e *Executor) Done() {
-	for _, ch := range e.workers {
-		close(ch)
-	}
+	// close(e.executable) -> may not yet have everything sequenced
 	e.wg.Wait()
 }
