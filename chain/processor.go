@@ -49,9 +49,10 @@ func (b *StatelessBlock) Execute(
 	)
 
 	// Fetch required keys and execute transactions
-	for i, ltx := range b.Txs {
+	for li, ltx := range b.Txs {
+		i := li
 		tx := ltx
-		txi := i
+
 		stateKeys, err := tx.StateKeys(sm)
 		if err != nil {
 			e.Stop()
@@ -129,7 +130,7 @@ func (b *StatelessBlock) Execute(
 			if err != nil {
 				return err
 			}
-			results[txi] = result
+			results[i] = result
 
 			// Commit results to parent [TState]
 			tsv.Commit()
