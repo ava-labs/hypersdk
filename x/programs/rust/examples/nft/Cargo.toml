@@ -9,3 +9,6 @@ edition = "2021"
 wasmlanche_sdk = { version = "0.1.0", path = "../../wasmlanche_sdk" }
 serde_derive = "1.0.188"
 serde = "1.0.188"
+
+[lib]
+crate-type = ["cdylib"] # set the crate(needed for cargo build to work properly)
