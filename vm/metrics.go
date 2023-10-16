@@ -6,38 +6,59 @@ package vm
 import (
 	"github.com/ava-labs/avalanchego/utils/metric"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/hypersdk/executor"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+type executorMetrics struct {
+	blocked    prometheus.Counter
+	executable prometheus.Counter
+}
+
+func (em *executorMetrics) RecordBlocked() {
+	em.blocked.Inc()
+}
+
+func (em *executorMetrics) RecordExecutable() {
+	em.executable.Inc()
+}
+
 type Metrics struct {
-	txsSubmitted          prometheus.Counter // includes gossip
-	txsReceived           prometheus.Counter
-	seenTxsReceived       prometheus.Counter
-	txsGossiped           prometheus.Counter
-	txsVerified           prometheus.Counter
-	txsAccepted           prometheus.Counter
-	stateChanges          prometheus.Counter
-	stateOperations       prometheus.Counter
-	buildCapped           prometheus.Counter
-	emptyBlockBuilt       prometheus.Counter
-	clearedMempool        prometheus.Counter
-	deletedBlocks         prometheus.Counter
-	blocksFromDisk        prometheus.Counter
-	blocksHeightsFromDisk prometheus.Counter
-	mempoolSize           prometheus.Gauge
-	bandwidthPrice        prometheus.Gauge
-	computePrice          prometheus.Gauge
-	storageReadPrice      prometheus.Gauge
-	storageCreatePrice    prometheus.Gauge
-	storageModifyPrice    prometheus.Gauge
-	rootCalculated        metric.Averager
-	waitRoot              metric.Averager
-	waitSignatures        metric.Averager
-	blockBuild            metric.Averager
-	blockParse            metric.Averager
-	blockVerify           metric.Averager
-	blockAccept           metric.Averager
-	blockProcess          metric.Averager
+	txsSubmitted             prometheus.Counter // includes gossip
+	txsReceived              prometheus.Counter
+	seenTxsReceived          prometheus.Counter
+	txsGossiped              prometheus.Counter
+	txsVerified              prometheus.Counter
+	txsAccepted              prometheus.Counter
+	stateChanges             prometheus.Counter
+	stateOperations          prometheus.Counter
+	buildCapped              prometheus.Counter
+	emptyBlockBuilt          prometheus.Counter
+	clearedMempool           prometheus.Counter
+	deletedBlocks            prometheus.Counter
+	blocksFromDisk           prometheus.Counter
+	blocksHeightsFromDisk    prometheus.Counter
+	executorBuildBlocked     prometheus.Counter
+	executorBuildExecutable  prometheus.Counter
+	executorVerifyBlocked    prometheus.Counter
+	executorVerifyExecutable prometheus.Counter
+	mempoolSize              prometheus.Gauge
+	bandwidthPrice           prometheus.Gauge
+	computePrice             prometheus.Gauge
+	storageReadPrice         prometheus.Gauge
+	storageCreatePrice       prometheus.Gauge
+	storageModifyPrice       prometheus.Gauge
+	rootCalculated           metric.Averager
+	waitRoot                 metric.Averager
+	waitSignatures           metric.Averager
+	blockBuild               metric.Averager
+	blockParse               metric.Averager
+	blockVerify              metric.Averager
+	blockAccept              metric.Averager
+	blockProcess             metric.Averager
+
+	executorBuildRecorder  executor.Metrics
+	executorVerifyRecorder executor.Metrics
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -187,6 +208,26 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "block_heights_from_disk",
 			Help:      "number of block heights attempted to load from disk",
 		}),
+		executorBuildBlocked: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "executor_build_blocked",
+			Help:      "executor tasks blocked during build",
+		}),
+		executorBuildExecutable: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "executor_build_executable",
+			Help:      "executor tasks executable during build",
+		}),
+		executorVerifyBlocked: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "executor_verify_blocked",
+			Help:      "executor tasks blocked during verify",
+		}),
+		executorVerifyExecutable: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "executor_verify_executable",
+			Help:      "executor tasks executable during verify",
+		}),
 		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "mempool_size",
@@ -226,6 +267,9 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		blockAccept:    blockAccept,
 		blockProcess:   blockProcess,
 	}
+	m.executorBuildRecorder = &executorMetrics{blocked: m.executorBuildBlocked, executable: m.executorBuildExecutable}
+	m.executorVerifyRecorder = &executorMetrics{blocked: m.executorVerifyBlocked, executable: m.executorVerifyExecutable}
+
 	errs := wrappers.Errs{}
 	errs.Add(
 		r.Register(m.txsSubmitted),
@@ -243,6 +287,10 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.deletedBlocks),
 		r.Register(m.blocksFromDisk),
 		r.Register(m.blocksHeightsFromDisk),
+		r.Register(m.executorBuildBlocked),
+		r.Register(m.executorBuildExecutable),
+		r.Register(m.executorVerifyBlocked),
+		r.Register(m.executorVerifyExecutable),
 		r.Register(m.bandwidthPrice),
 		r.Register(m.computePrice),
 		r.Register(m.storageReadPrice),

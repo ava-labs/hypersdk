@@ -55,162 +55,110 @@ func TestGetValue(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
-	// GetValue without Scope perm
-	_, err := ts.GetValue(ctx, TestKey)
-	require.ErrorIs(err, ErrKeyNotSpecified, "No error thrown.")
+
 	// SetScope
-	ts.SetScope(ctx, set.Of(string(TestKey)), map[string][]byte{string(TestKey): TestVal})
-	val, err := ts.GetValue(ctx, TestKey)
-	require.NoError(err, "Error getting value.")
-	require.Equal(TestVal, val, "Value was not saved correctly.")
+	tsv := ts.NewView(set.Of(string(TestKey)), map[string][]byte{string(TestKey): TestVal})
+	val, err := tsv.GetValue(ctx, TestKey)
+	require.NoError(err, "unable to get value")
+	require.Equal(TestVal, val, "value was not saved correctly")
 }
 
 func TestGetValueNoStorage(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
+
 	// SetScope but dont add to storage
-	ts.SetScope(ctx, set.Of(string(TestKey)), map[string][]byte{})
-	_, err := ts.GetValue(ctx, TestKey)
-	require.ErrorIs(database.ErrNotFound, err, "No error thrown.")
+	tsv := ts.NewView(set.Of(string(TestKey)), map[string][]byte{})
+	_, err := tsv.GetValue(ctx, TestKey)
+	require.ErrorIs(database.ErrNotFound, err, "data should not exist")
 }
 
 func TestInsertNew(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
-	// Insert before SetScope
-	err := ts.Insert(ctx, TestKey, TestVal)
-	require.ErrorIs(ErrKeyNotSpecified, err, "No error thrown.")
+
 	// SetScope
-	ts.SetScope(ctx, set.Of(string(TestKey)), map[string][]byte{})
+	tsv := ts.NewView(set.Of(string(TestKey)), map[string][]byte{})
+
 	// Insert key
-	err = ts.Insert(ctx, TestKey, TestVal)
-	require.NoError(err, "Error thrown.")
-	val, err := ts.GetValue(ctx, TestKey)
-	require.NoError(err, "Error thrown.")
-	require.Equal(1, ts.OpIndex(), "Insert operation was not added.")
-	require.Equal(TestVal, val, "Value was not set correctly.")
+	require.NoError(tsv.Insert(ctx, TestKey, TestVal))
+	val, err := tsv.GetValue(ctx, TestKey)
+	require.NoError(err)
+	require.Equal(1, tsv.OpIndex(), "insert was not added as an operation")
+	require.Equal(TestVal, val, "value was not set correctly")
+
+	// Check commit
+	tsv.Commit()
+	require.Equal(1, ts.OpIndex(), "insert was not added as an operation")
 }
 
 func TestInsertUpdate(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
+
 	// SetScope and add
-	ts.SetScope(ctx, set.Of(string(TestKey)), map[string][]byte{string(TestKey): TestVal})
-	require.Equal(0, ts.OpIndex(), "SetStorage operation was not added.")
+	tsv := ts.NewView(set.Of(string(TestKey)), map[string][]byte{string(TestKey): TestVal})
+	require.Equal(0, ts.OpIndex())
+
 	// Insert key
 	newVal := []byte("newVal")
-	err := ts.Insert(ctx, TestKey, newVal)
-	require.NoError(err, "Error thrown.")
-	val, err := ts.GetValue(ctx, TestKey)
-	require.NoError(err, "Error thrown.")
-	require.Equal(1, ts.OpIndex(), "Insert operation was not added.")
-	require.Equal(newVal, val, "Value was not set correctly.")
-	require.Equal(TestVal, ts.ops[0].pastV, "PastVal was not set correctly.")
-	require.False(ts.ops[0].pastChanged, "PastVal was not set correctly.")
-	require.True(ts.ops[0].pastExists, "PastVal was not set correctly.")
-}
+	require.NoError(tsv.Insert(ctx, TestKey, newVal))
+	val, err := tsv.GetValue(ctx, TestKey)
+	require.NoError(err)
+	require.Equal(1, tsv.OpIndex(), "insert operation was not added")
+	require.Equal(newVal, val, "value was not set correctly")
+	require.Equal(TestVal, tsv.ops[0].pastV, "PastVal was not set correctly")
+	require.False(tsv.ops[0].pastChanged, "PastVal was not set correctly")
+	require.True(tsv.ops[0].pastExists, "PastVal was not set correctly")
 
-func TestFetchAndSetScope(t *testing.T) {
-	require := require.New(t)
-	ts := New(10)
-	db := NewTestDB()
-	ctx := context.TODO()
-	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
-	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
-	keySet := set.NewSet[string](3)
-	for i, key := range keys {
-		err := db.Insert(ctx, key, vals[i])
-		require.NoError(err, "Error during insert.")
-		keySet.Add(string(key))
-	}
-	err := ts.FetchAndSetScope(ctx, keySet, db)
-	require.NoError(err, "Error thrown.")
-	require.Equal(0, ts.OpIndex(), "Opertions not updated correctly.")
-	require.Equal(keySet, ts.scope, "Scope not updated correctly.")
-	// Check values
-	for i, key := range keys {
-		val, err := ts.GetValue(ctx, key)
-		require.NoError(err, "Error getting value.")
-		require.Equal(vals[i], val, "Value not set correctly.")
-	}
-}
-
-func TestFetchAndSetScopeMissingKey(t *testing.T) {
-	require := require.New(t)
-	ts := New(10)
-	db := NewTestDB()
-	ctx := context.TODO()
-	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
-	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
-	keySet := set.NewSet[string](3)
-	// Keys[3] not in db
-	for i, key := range keys[:len(keys)-1] {
-		keySet.Add(string(key))
-		err := db.Insert(ctx, key, vals[i])
-		require.NoError(err, "Error during insert.")
-	}
-	keySet.Add("key3")
-	err := ts.FetchAndSetScope(ctx, keySet, db)
-	require.NoError(err, "Error thrown.")
-	require.Equal(0, ts.OpIndex(), "Opertions not updated correctly.")
-	require.Equal(keySet, ts.scope, "Scope not updated correctly.")
-	// Check values
-	for i, key := range keys[:len(keys)-1] {
-		val, err := ts.GetValue(ctx, key)
-		require.NoError(err, "Error getting value.")
-		require.Equal(vals[i], val, "Value not set correctly.")
-	}
-	_, err = ts.GetValue(ctx, keys[2])
-	require.ErrorIs(err, database.ErrNotFound, "Didn't throw correct erro.")
+	// Check value after commit
+	tsv.Commit()
+	tsv = ts.NewView(set.Of(string(TestKey)), map[string][]byte{string(TestKey): TestVal})
+	val, err = tsv.GetValue(ctx, TestKey)
+	require.NoError(err)
+	require.Equal(newVal, val, "value was not committed correctly")
 }
 
 func TestRemoveInsertRollback(t *testing.T) {
 	require := require.New(t)
 	ts := New(10)
 	ctx := context.TODO()
-	ts.SetScope(ctx, set.Of(string(TestKey)), map[string][]byte{})
-	// Insert
-	err := ts.Insert(ctx, TestKey, TestVal)
-	require.NoError(err, "Error from insert.")
-	v, err := ts.GetValue(ctx, TestKey)
-	require.NoError(err)
-	require.Equal(TestVal, v)
-	require.Equal(1, ts.OpIndex(), "Opertions not updated correctly.")
-	// Remove
-	err = ts.Remove(ctx, TestKey)
-	require.NoError(err, "Error from remove.")
-	_, err = ts.GetValue(ctx, TestKey)
-	require.ErrorIs(err, database.ErrNotFound, "Key not deleted from storage.")
-	require.Equal(2, ts.OpIndex(), "Opertions not updated correctly.")
-	// Insert
-	err = ts.Insert(ctx, TestKey, TestVal)
-	require.NoError(err, "Error from insert.")
-	v, err = ts.GetValue(ctx, TestKey)
-	require.NoError(err)
-	require.Equal(TestVal, v)
-	require.Equal(3, ts.OpIndex(), "Opertions not updated correctly.")
-	require.Equal(1, ts.PendingChanges())
-	// Rollback
-	ts.Rollback(ctx, 2)
-	_, err = ts.GetValue(ctx, TestKey)
-	require.ErrorIs(err, database.ErrNotFound, "Key not deleted from storage.")
-	// Rollback
-	ts.Rollback(ctx, 1)
-	v, err = ts.GetValue(ctx, TestKey)
-	require.NoError(err)
-	require.Equal(TestVal, v)
-}
 
-func TestRemoveNotInScope(t *testing.T) {
-	require := require.New(t)
-	ts := New(10)
-	ctx := context.TODO()
+	// Insert
+	tsv := ts.NewView(set.Of(string(TestKey)), map[string][]byte{})
+	require.NoError(tsv.Insert(ctx, TestKey, TestVal))
+	v, err := tsv.GetValue(ctx, TestKey)
+	require.NoError(err)
+	require.Equal(TestVal, v)
+	require.Equal(1, tsv.OpIndex(), "opertions not updated correctly")
+
 	// Remove
-	err := ts.Remove(ctx, TestKey)
-	require.ErrorIs(err, ErrKeyNotSpecified, "ErrKeyNotSpecified should be thrown.")
+	require.NoError(tsv.Remove(ctx, TestKey), "unable to remove TestKey")
+	_, err = tsv.GetValue(ctx, TestKey)
+	require.ErrorIs(err, database.ErrNotFound, "Key not deleted from storage")
+	require.Equal(2, tsv.OpIndex(), "Opertions not updated correctly")
+
+	// Insert
+	require.NoError(tsv.Insert(ctx, TestKey, TestVal))
+	v, err = tsv.GetValue(ctx, TestKey)
+	require.NoError(err)
+	require.Equal(TestVal, v)
+	require.Equal(3, tsv.OpIndex(), "Opertions not updated correctly")
+	require.Equal(1, tsv.PendingChanges())
+
+	// Rollback
+	tsv.Rollback(ctx, 2)
+	_, err = tsv.GetValue(ctx, TestKey)
+	require.ErrorIs(err, database.ErrNotFound, "Key not deleted from storage")
+
+	// Rollback
+	tsv.Rollback(ctx, 1)
+	v, err = tsv.GetValue(ctx, TestKey)
+	require.NoError(err)
+	require.Equal(TestVal, v)
 }
 
 func TestRestoreInsert(t *testing.T) {
@@ -220,28 +168,29 @@ func TestRestoreInsert(t *testing.T) {
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	keySet := set.Of("key1", "key2", "key3")
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
-	ts.SetScope(ctx, keySet, map[string][]byte{})
+	tsv := ts.NewView(keySet, map[string][]byte{})
 	for i, key := range keys {
-		err := ts.Insert(ctx, key, vals[i])
-		require.NoError(err, "Error inserting.")
+		require.NoError(tsv.Insert(ctx, key, vals[i]))
 	}
 	updatedVal := []byte("newVal")
-	err := ts.Insert(ctx, keys[0], updatedVal)
-	require.NoError(err, "Error inserting.")
-	require.Equal(len(keys)+1, ts.OpIndex(), "Operations not added properly.")
-	val, err := ts.GetValue(ctx, keys[0])
-	require.NoError(err, "Error getting value.")
-	require.Equal(updatedVal, val, "Value not updated correctly.")
+	require.NoError(tsv.Insert(ctx, keys[0], updatedVal))
+	require.Equal(len(keys)+1, tsv.OpIndex(), "operations not added properly")
+	val, err := tsv.GetValue(ctx, keys[0])
+	require.NoError(err, "error getting value")
+	require.Equal(updatedVal, val, "value not updated correctly")
+
 	// Rollback inserting updatedVal and key[2]
-	ts.Rollback(ctx, 2)
-	require.Equal(2, ts.OpIndex(), "Operations not rolled back properly.")
+	tsv.Rollback(ctx, 2)
+	require.Equal(2, tsv.OpIndex(), "operations not rolled back properly")
+
 	// Keys[2] was removed
-	_, err = ts.GetValue(ctx, keys[2])
-	require.ErrorIs(err, database.ErrNotFound, "TState read op not rolled back properly.")
+	_, err = tsv.GetValue(ctx, keys[2])
+	require.ErrorIs(err, database.ErrNotFound, "TState read op not rolled back properly")
+
 	// Keys[0] was set to past value
-	val, err = ts.GetValue(ctx, keys[0])
-	require.NoError(err, "Error getting value.")
-	require.Equal(vals[0], val, "Value not rolled back properly.")
+	val, err = tsv.GetValue(ctx, keys[0])
+	require.NoError(err, "error getting value")
+	require.Equal(vals[0], val, "value not rolled back properly")
 }
 
 func TestRestoreDelete(t *testing.T) {
@@ -251,34 +200,36 @@ func TestRestoreDelete(t *testing.T) {
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	keySet := set.Of("key1", "key2", "key3")
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
-	ts.SetScope(ctx, keySet, map[string][]byte{
+	tsv := ts.NewView(keySet, map[string][]byte{
 		string(keys[0]): vals[0],
 		string(keys[1]): vals[1],
 		string(keys[2]): vals[2],
 	})
+
 	// Check scope
 	for i, key := range keys {
-		val, err := ts.GetValue(ctx, key)
-		require.NoError(err, "Error getting value.")
-		require.Equal(vals[i], val, "Value not set correctly.")
+		val, err := tsv.GetValue(ctx, key)
+		require.NoError(err, "error getting value")
+		require.Equal(vals[i], val, "value not set correctly")
 	}
+
 	// Remove all
 	for _, key := range keys {
-		err := ts.Remove(ctx, key)
-		require.NoError(err, "Error removing from ts.")
-		_, err = ts.GetValue(ctx, key)
-		require.ErrorIs(err, database.ErrNotFound, "Value not removed.")
+		require.NoError(tsv.Remove(ctx, key), "error removing from ts")
+		_, err := tsv.GetValue(ctx, key)
+		require.ErrorIs(err, database.ErrNotFound, "value not removed")
 	}
-	require.Equal(len(keys), ts.OpIndex(), "Operations not added properly.")
-	require.Equal(3, ts.PendingChanges())
+	require.Equal(len(keys), tsv.OpIndex(), "operations not added properly")
+	require.Equal(3, tsv.PendingChanges())
+
 	// Roll back all removes
-	ts.Rollback(ctx, 0)
-	require.Equal(0, ts.OpIndex(), "Operations not rolled back properly.")
+	tsv.Rollback(ctx, 0)
+	require.Equal(0, ts.OpIndex(), "operations not rolled back properly")
 	require.Equal(0, ts.PendingChanges())
 	for i, key := range keys {
-		val, err := ts.GetValue(ctx, key)
-		require.NoError(err, "Error getting value.")
-		require.Equal(vals[i], val, "Value not reset correctly.")
+		val, err := tsv.GetValue(ctx, key)
+		require.NoError(err, "error getting value")
+		require.Equal(vals[i], val, "value not reset correctly")
 	}
 }
 
@@ -303,42 +254,51 @@ func TestCreateView(t *testing.T) {
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	keySet := set.Of("key1", "key2", "key3")
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
-	ts.SetScope(ctx, keySet, map[string][]byte{})
+
 	// Add
+	tsv := ts.NewView(keySet, map[string][]byte{})
 	for i, key := range keys {
-		err := ts.Insert(ctx, key, vals[i])
-		require.NoError(err, "Error inserting value.")
-		val, err := ts.GetValue(ctx, key)
-		require.NoError(err, "Error getting value.")
-		require.Equal(vals[i], val, "Value not set correctly.")
+		require.NoError(tsv.Insert(ctx, key, vals[i]), "error inserting value")
+		val, err := tsv.GetValue(ctx, key)
+		require.NoError(err, "error getting value")
+		require.Equal(vals[i], val, "value not set correctly")
 	}
-	view, err := ts.CreateView(ctx, db, tracer)
-	require.NoError(err, "Error writing changes.")
+	tsv.Commit()
+
+	// Create merkle view
+	view, err := ts.ExportMerkleDBView(ctx, tracer, db)
+	require.NoError(err, "error writing changes")
 	require.NoError(view.CommitToDB(ctx))
+
 	// Check if db was updated correctly
 	for i, key := range keys {
 		val, _ := db.GetValue(ctx, key)
-		require.Equal(vals[i], val, "Value not updated in db.")
+		require.Equal(vals[i], val, "value not updated in db")
 	}
+
 	// Remove
 	ts = New(10)
-	ts.SetScope(ctx, keySet, map[string][]byte{
+	tsv = ts.NewView(keySet, map[string][]byte{
 		string(keys[0]): vals[0],
 		string(keys[1]): vals[1],
 		string(keys[2]): vals[2],
 	})
 	for _, key := range keys {
-		err := ts.Remove(ctx, key)
-		require.NoError(err, "Error removing from ts.")
-		_, err = ts.GetValue(ctx, key)
-		require.ErrorIs(err, database.ErrNotFound, "Key not removed.")
+		err := tsv.Remove(ctx, key)
+		require.NoError(err, "error removing from ts")
+		_, err = tsv.GetValue(ctx, key)
+		require.ErrorIs(err, database.ErrNotFound, "key not removed")
 	}
-	view, err = ts.CreateView(ctx, db, tracer)
-	require.NoError(err, "Error writing changes.")
+	tsv.Commit()
+
+	// Create merkle view
+	view, err = tsv.ts.ExportMerkleDBView(ctx, tracer, db)
+	require.NoError(err, "error writing changes")
 	require.NoError(view.CommitToDB(ctx))
+
 	// Check if db was updated correctly
 	for _, key := range keys {
 		_, err := db.GetValue(ctx, key)
-		require.ErrorIs(err, database.ErrNotFound, "Value not removed from db.")
+		require.ErrorIs(err, database.ErrNotFound, "value not removed from db")
 	}
 }

@@ -34,6 +34,11 @@ const (
 type Config struct {
 	*config.Config
 
+	// Concurrency
+	SignatureVerificationCores int `json:"signatureVerificationCores"`
+	RootGenerationCores        int `json:"rootGenerationCores"`
+	TransactionExecutionCores  int `json:"transactionExecutionCores"`
+
 	// Gossip
 	GossipMaxSize       int   `json:"gossipMaxSize"`
 	GossipProposerDiff  int   `json:"gossipProposerDiff"`
@@ -67,7 +72,6 @@ type Config struct {
 	StoreTransactions bool          `json:"storeTransactions"`
 	TestMode          bool          `json:"testMode"` // makes gossip/building manual
 	LogLevel          logging.Level `json:"logLevel"`
-	Parallelism       int           `json:"parallelism"`
 
 	// State Sync
 	StateSyncServerDelay time.Duration `json:"stateSyncServerDelay"` // for testing
@@ -108,7 +112,9 @@ func (c *Config) setDefault() {
 	c.GossipProposerDepth = gcfg.GossipProposerDepth
 	c.NoGossipBuilderDiff = gcfg.NoGossipBuilderDiff
 	c.VerifyTimeout = gcfg.VerifyTimeout
-	c.Parallelism = c.Config.GetParallelism()
+	c.SignatureVerificationCores = c.Config.GetSignatureVerificationCores()
+	c.RootGenerationCores = c.Config.GetRootGenerationCores()
+	c.TransactionExecutionCores = c.Config.GetTransactionExecutionCores()
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
@@ -118,12 +124,14 @@ func (c *Config) setDefault() {
 	c.MaxOrdersPerPair = defaultMaxOrdersPerPair
 }
 
-func (c *Config) GetLogLevel() logging.Level       { return c.LogLevel }
-func (c *Config) GetTestMode() bool                { return c.TestMode }
-func (c *Config) GetParallelism() int              { return c.Parallelism }
-func (c *Config) GetMempoolSize() int              { return c.MempoolSize }
-func (c *Config) GetMempoolPayerSize() int         { return c.MempoolPayerSize }
-func (c *Config) GetMempoolExemptPayers() [][]byte { return c.parsedExemptPayers }
+func (c *Config) GetLogLevel() logging.Level         { return c.LogLevel }
+func (c *Config) GetTestMode() bool                  { return c.TestMode }
+func (c *Config) GetSignatureVerificationCores() int { return c.SignatureVerificationCores }
+func (c *Config) GetRootGenerationCores() int        { return c.RootGenerationCores }
+func (c *Config) GetTransactionExecutionCores() int  { return c.TransactionExecutionCores }
+func (c *Config) GetMempoolSize() int                { return c.MempoolSize }
+func (c *Config) GetMempoolPayerSize() int           { return c.MempoolPayerSize }
+func (c *Config) GetMempoolExemptPayers() [][]byte   { return c.parsedExemptPayers }
 func (c *Config) GetTraceConfig() *trace.Config {
 	return &trace.Config{
 		Enabled:         c.TraceEnabled,

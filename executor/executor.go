@@ -18,8 +18,13 @@ const defaultSetSize = 8
 // are executed in the order they were queued.
 // Tasks with no conflicts are executed immediately.
 type Executor struct {
+	metrics    Metrics
 	wg         sync.WaitGroup
 	executable chan *task
+
+	stop     chan struct{}
+	err      error
+	stopOnce sync.Once
 
 	l         sync.Mutex
 	done      bool
@@ -29,11 +34,13 @@ type Executor struct {
 }
 
 // New creates a new [Executor].
-func New(items, concurrency int) *Executor {
+func New(items, concurrency int, metrics Metrics) *Executor {
 	e := &Executor{
-		tasks:      map[int]*task{},
-		edges:      map[string]int{},
-		executable: make(chan *task, items), // ensure we don't block while holding lock
+		metrics:    metrics,
+		stop:       make(chan struct{}),
+		tasks:      make(map[int]*task, items),
+		edges:      make(map[string]int, items*2), // TODO: tune this
+		executable: make(chan *task, items),       // ensure we don't block while holding lock
 	}
 	for i := 0; i < concurrency; i++ {
 		e.createWorker()
@@ -43,7 +50,7 @@ func New(items, concurrency int) *Executor {
 
 type task struct {
 	id int
-	f  func()
+	f  func() error
 
 	dependencies set.Set[int]
 	blocking     set.Set[int]
@@ -57,34 +64,48 @@ func (e *Executor) createWorker() {
 	go func() {
 		defer e.wg.Done()
 
-		for t := range e.executable {
-			t.f()
-
-			e.l.Lock()
-			for b := range t.blocking { // works fine on non-initialized map
-				bt := e.tasks[b]
-				bt.dependencies.Remove(t.id)
-				if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
-					bt.dependencies = nil // free memory
-					e.executable <- bt
+		for {
+			select {
+			case t, ok := <-e.executable:
+				if !ok {
+					return
 				}
+				if err := t.f(); err != nil {
+					e.stopOnce.Do(func() {
+						e.err = err
+						close(e.stop)
+					})
+					return
+				}
+
+				e.l.Lock()
+				for b := range t.blocking { // works fine on non-initialized map
+					bt := e.tasks[b]
+					bt.dependencies.Remove(t.id)
+					if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
+						bt.dependencies = nil // free memory
+						e.executable <- bt
+					}
+				}
+				t.blocking = nil // free memory
+				t.executed = true
+				e.completed++
+				if e.done && e.completed == len(e.tasks) {
+					// We will close here if there are unexecuted tasks
+					// when we call [Wait].
+					close(e.executable)
+				}
+				e.l.Unlock()
+			case <-e.stop:
+				return
 			}
-			t.blocking = nil // free memory
-			t.executed = true
-			e.completed++
-			if e.done && e.completed == len(e.tasks) {
-				// We will close here if there are unexecuted tasks
-				// when we call [Wait].
-				close(e.executable)
-			}
-			e.l.Unlock()
 		}
 	}()
 }
 
 // Run executes [f] after all previously enqueued [f] with
 // overlapping [conflicts] are executed.
-func (e *Executor) Run(conflicts set.Set[string], f func()) {
+func (e *Executor) Run(conflicts set.Set[string], f func() error) {
 	e.l.Lock()
 	defer e.l.Unlock()
 
@@ -119,13 +140,27 @@ func (e *Executor) Run(conflicts set.Set[string], f func()) {
 	if t.dependencies == nil || t.dependencies.Len() == 0 {
 		t.dependencies = nil // free memory
 		e.executable <- t
+		if e.metrics != nil {
+			e.metrics.RecordExecutable()
+		}
+		return
 	}
+	if e.metrics != nil {
+		e.metrics.RecordBlocked()
+	}
+}
+
+func (e *Executor) Stop() {
+	e.stopOnce.Do(func() {
+		e.err = ErrStopped
+		close(e.stop)
+	})
 }
 
 // Wait returns as soon as all enqueued [f] are executed.
 //
 // You should not call [Run] after [Wait] is called.
-func (e *Executor) Wait() {
+func (e *Executor) Wait() error {
 	e.l.Lock()
 	e.done = true
 	if e.completed == len(e.tasks) {
@@ -135,4 +170,5 @@ func (e *Executor) Wait() {
 	}
 	e.l.Unlock()
 	e.wg.Wait()
+	return e.err
 }

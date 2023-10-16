@@ -579,12 +579,8 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 		return err
 	}
 
-	// Optimisticaly fetch view
-	processor := NewProcessor(b.vm.Tracer(), b)
-	processor.Prefetch(ctx, parentView)
-
-	// Process new transactions
-	results, ts, err := processor.Execute(ctx, feeManager, r)
+	// Process transactions
+	results, ts, err := b.Execute(ctx, b.vm.Tracer(), parentView, feeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return err
@@ -613,20 +609,21 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	heightKeyStr := string(heightKey)
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
-	ts.SetScope(ctx, set.Of(heightKeyStr, timestampKeyStr, feeKeyStr), map[string][]byte{
+	tsv := ts.NewView(set.Of(heightKeyStr, timestampKeyStr, feeKeyStr), map[string][]byte{
 		heightKeyStr:    parentHeightRaw,
 		timestampKeyStr: parentTimestampRaw,
 		feeKeyStr:       parentFeeManager.Bytes(),
 	})
-	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return err
 	}
-	if err := ts.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
+	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
 		return err
 	}
-	if err := ts.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
+	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
 		return err
 	}
+	tsv.Commit()
 
 	// Compare state root
 	//
@@ -662,7 +659,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	// Get view from [tstate] after processing all state transitions
 	b.vm.RecordStateChanges(ts.PendingChanges())
 	b.vm.RecordStateOperations(ts.OpIndex())
-	view, err := ts.CreateView(ctx, parentView, b.vm.Tracer())
+	view, err := ts.ExportMerkleDBView(ctx, b.vm.Tracer(), parentView)
 	if err != nil {
 		return err
 	}

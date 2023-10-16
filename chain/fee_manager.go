@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"strconv"
+	"sync"
 
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/hypersdk/consts"
@@ -31,7 +32,9 @@ type (
 	Dimensions [FeeDimensions]uint64
 )
 
+// FeeManager is safe for concurrent use
 type FeeManager struct {
+	l   sync.RWMutex
 	raw []byte
 }
 
@@ -39,25 +42,49 @@ func NewFeeManager(raw []byte) *FeeManager {
 	if len(raw) == 0 {
 		raw = make([]byte, FeeDimensions*dimensionStateLen)
 	}
-	return &FeeManager{raw}
+	return &FeeManager{raw: raw}
 }
 
 func (f *FeeManager) UnitPrice(d Dimension) uint64 {
+	f.l.RLock()
+	defer f.l.RUnlock()
+
+	return f.unitPrice(d)
+}
+
+func (f *FeeManager) unitPrice(d Dimension) uint64 {
 	start := dimensionStateLen * d
 	return binary.BigEndian.Uint64(f.raw[start : start+consts.Uint64Len])
 }
 
 func (f *FeeManager) Window(d Dimension) window.Window {
+	f.l.RLock()
+	defer f.l.RUnlock()
+
+	return f.window(d)
+}
+
+func (f *FeeManager) window(d Dimension) window.Window {
 	start := dimensionStateLen*d + consts.Uint64Len
 	return window.Window(f.raw[start : start+window.WindowSliceSize])
 }
 
 func (f *FeeManager) LastConsumed(d Dimension) uint64 {
+	f.l.RLock()
+	defer f.l.RUnlock()
+
+	return f.lastConsumed(d)
+}
+
+func (f *FeeManager) lastConsumed(d Dimension) uint64 {
 	start := dimensionStateLen*d + consts.Uint64Len + window.WindowSliceSize
 	return binary.BigEndian.Uint64(f.raw[start : start+consts.Uint64Len])
 }
 
 func (f *FeeManager) ComputeNext(lastTime int64, currTime int64, r Rules) (*FeeManager, error) {
+	f.l.RLock()
+	defer f.l.RUnlock()
+
 	targetUnits := r.GetWindowTargetUnits()
 	unitPriceChangeDenom := r.GetUnitPriceChangeDenominator()
 	minUnitPrice := r.GetMinUnitPrice()
@@ -85,18 +112,36 @@ func (f *FeeManager) ComputeNext(lastTime int64, currTime int64, r Rules) (*FeeM
 }
 
 func (f *FeeManager) SetUnitPrice(d Dimension, price uint64) {
+	f.l.Lock()
+	defer f.l.Unlock()
+
+	f.setUnitPrice(d, price)
+}
+
+func (f *FeeManager) setUnitPrice(d Dimension, price uint64) {
 	start := dimensionStateLen * d
 	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], price)
 }
 
 func (f *FeeManager) SetLastConsumed(d Dimension, consumed uint64) {
+	f.l.Lock()
+	defer f.l.Unlock()
+
+	f.setLastConsumed(d, consumed)
+}
+
+func (f *FeeManager) setLastConsumed(d Dimension, consumed uint64) {
 	start := dimensionStateLen*d + consts.Uint64Len + window.WindowSliceSize
 	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], consumed)
 }
 
-func (f *FeeManager) CanConsume(d Dimensions, l Dimensions) (bool, Dimension) {
+func (f *FeeManager) Consume(d Dimensions, l Dimensions) (bool, Dimension) {
+	f.l.Lock()
+	defer f.l.Unlock()
+
+	// Ensure we can consume (don't want partial update of values)
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		consumed, err := math.Add64(f.LastConsumed(i), d[i])
+		consumed, err := math.Add64(f.lastConsumed(i), d[i])
 		if err != nil {
 			return false, i
 		}
@@ -104,28 +149,32 @@ func (f *FeeManager) CanConsume(d Dimensions, l Dimensions) (bool, Dimension) {
 			return false, i
 		}
 	}
-	return true, -1
-}
 
-func (f *FeeManager) Consume(d Dimensions) error {
+	// Commit to consumption
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		consumed, err := math.Add64(f.LastConsumed(i), d[i])
+		consumed, err := math.Add64(f.lastConsumed(i), d[i])
 		if err != nil {
-			return err
+			return false, i
 		}
-		f.SetLastConsumed(i, consumed)
+		f.setLastConsumed(i, consumed)
 	}
-	return nil
+	return true, 0
 }
 
 func (f *FeeManager) Bytes() []byte {
+	f.l.RLock()
+	defer f.l.RUnlock()
+
 	return f.raw
 }
 
 func (f *FeeManager) MaxFee(d Dimensions) (uint64, error) {
+	f.l.RLock()
+	defer f.l.RUnlock()
+
 	fee := uint64(0)
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		contribution, err := math.Mul64(f.UnitPrice(i), d[i])
+		contribution, err := math.Mul64(f.unitPrice(i), d[i])
 		if err != nil {
 			return 0, err
 		}
@@ -139,17 +188,23 @@ func (f *FeeManager) MaxFee(d Dimensions) (uint64, error) {
 }
 
 func (f *FeeManager) UnitPrices() Dimensions {
+	f.l.RLock()
+	defer f.l.RUnlock()
+
 	var d Dimensions
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		d[i] = f.UnitPrice(i)
+		d[i] = f.unitPrice(i)
 	}
 	return d
 }
 
 func (f *FeeManager) UnitsConsumed() Dimensions {
+	f.l.RLock()
+	defer f.l.RUnlock()
+
 	var d Dimensions
 	for i := Dimension(0); i < FeeDimensions; i++ {
-		d[i] = f.LastConsumed(i)
+		d[i] = f.lastConsumed(i)
 	}
 	return d
 }

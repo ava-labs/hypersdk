@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/math"
@@ -19,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/tstate"
 )
@@ -105,28 +107,29 @@ func BuildBlock(
 	maxUnits := r.GetMaxBlockUnits()
 	targetUnits := r.GetWindowTargetUnits()
 
-	ts := tstate.New(changesEstimate)
-
 	var (
+		ts            = tstate.New(changesEstimate)
 		oldestAllowed = nextTime - r.GetValidityWindow()
 
 		mempool = vm.Mempool()
 
+		// restorable txs after block attempt finishes
+		restorableLock sync.Mutex
+		restorable     = []*Transaction{}
+
+		// cache contains keys already fetched from state that can be
+		// used during prefetching.
+		cacheLock sync.RWMutex
+		cache     = map[string]*fetchData{}
+
+		blockLock    sync.RWMutex
+		warpAdded    = uint(0)
+		start        = time.Now()
 		txsAttempted = 0
 		results      = []*Result{}
-		warpCount    = 0
 
 		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
-
-		start = time.Now()
-
-		// restorable txs after block attempt finishes
-		restorable = []*Transaction{}
-
-		// alreadyFetched contains keys already fetched from state that can be
-		// used during prefetching.
-		alreadyFetched = map[string]*fetchData{}
 
 		// prepareStreamLock ensures we don't overwrite stream prefetching spawned
 		// asynchronously.
@@ -145,274 +148,265 @@ func BuildBlock(
 			b.vm.RecordClearedMempool()
 			break
 		}
+		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Execute")
 
-		// Prefetch all transactions
-		//
-		// TODO: unify logic with https://github.com/ava-labs/hypersdk/blob/4e10b911c3cd88e0ccd8d9de5210515b1d3a3ac4/chain/processor.go#L44-L79
-		var (
-			readyTxs  = make(chan *txData, len(txs))
-			stopIndex = -1
-			execErr   error
-		)
-		go func() {
-			ctx, prefetchSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Prefetch")
-			defer prefetchSpan.End()
-			defer close(readyTxs)
+		// Perform a batch repeat check
+		dup, err := parent.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), false)
+		if err != nil {
+			restorable = append(restorable, txs...)
+			break
+		}
 
-			for i, tx := range txs {
-				if execErr != nil {
-					stopIndex = i
-					return
-				}
+		e := executor.New(streamBatch, vm.GetTransactionExecutionCores(), vm.GetExecutorBuildRecorder())
+		pending := make(map[ids.ID]*Transaction, streamBatch)
+		var pendingLock sync.Mutex
+		for li, ltx := range txs {
+			txsAttempted++
+			i := li
+			tx := ltx
 
-				// Once we get part way through a prefetching job, we start
-				// to prepare for the next stream.
-				if i == streamPrefetchThreshold {
-					prepareStreamLock.Lock()
-					go func() {
-						mempool.PrepareStream(ctx, streamBatch)
-						prepareStreamLock.Unlock()
-					}()
-				}
+			// Skip any duplicates before going async
+			if dup.Contains(i) {
+				continue
+			}
 
-				// Prefetch all values from state
-				storage := map[string][]byte{}
-				stateKeys, err := tx.StateKeys(sm)
-				if err != nil {
-					// Drop bad transaction and continue
-					//
-					// This should not happen because we check this before
-					// adding a transaction to the mempool.
-					continue
-				}
+			// Ensure we can process if transaction includes a warp message
+			if tx.WarpMessage != nil && blockContext == nil {
+				log.Info(
+					"dropping pending warp message because no context provided",
+					zap.Stringer("txID", tx.ID()),
+				)
+				restorableLock.Lock()
+				restorable = append(restorable, tx)
+				restorableLock.Unlock()
+				continue
+			}
+
+			stateKeys, err := tx.StateKeys(sm)
+			if err != nil {
+				// Drop bad transaction and continue
+				//
+				// This should not happen because we check this before
+				// adding a transaction to the mempool.
+				continue
+			}
+
+			// Once we get part way through a prefetching job, we start
+			// to prepare for the next stream.
+			if i == streamPrefetchThreshold {
+				prepareStreamLock.Lock()
+				go func() {
+					mempool.PrepareStream(ctx, streamBatch)
+					prepareStreamLock.Unlock()
+				}()
+			}
+
+			// We track pending transactions because an error may cause us
+			// not to execute restorable transactions.
+			pendingLock.Lock()
+			pending[tx.ID()] = tx
+			pendingLock.Unlock()
+			e.Run(stateKeys, func() error {
+				// We use defer here instead of covering all returns because it is
+				// much easier to manage.
+				var restore bool
+				defer func() {
+					pendingLock.Lock()
+					delete(pending, tx.ID())
+					pendingLock.Unlock()
+
+					if !restore {
+						return
+					}
+					restorableLock.Lock()
+					restorable = append(restorable, tx)
+					restorableLock.Unlock()
+				}()
+
+				// Fetch keys from cache
+				var (
+					storage  = make(map[string][]byte, len(stateKeys))
+					toLookup = make([]string, 0, len(stateKeys))
+				)
+				cacheLock.RLock()
 				for k := range stateKeys {
-					if v, ok := alreadyFetched[k]; ok {
+					if v, ok := cache[k]; ok {
 						if v.exists {
 							storage[k] = v.v
 						}
 						continue
 					}
-					v, err := parentView.GetValue(ctx, []byte(k))
-					if errors.Is(err, database.ErrNotFound) {
-						alreadyFetched[k] = &fetchData{nil, false, 0}
-						continue
-					} else if err != nil {
-						// This can happen if the underlying view changes (if we are
-						// verifying a block that can never be accepted).
-						execErr = err
-						stopIndex = i
-						return
+					toLookup = append(toLookup, k)
+				}
+				cacheLock.RUnlock()
+
+				// Fetch keys from disk
+				var toCache map[string]*fetchData
+				if len(toLookup) > 0 {
+					toCache = make(map[string]*fetchData, len(toLookup))
+					for _, k := range toLookup {
+						v, err := parentView.GetValue(ctx, []byte(k))
+						if errors.Is(err, database.ErrNotFound) {
+							toCache[k] = &fetchData{nil, false, 0}
+							continue
+						} else if err != nil {
+							return err
+						}
+						// We verify that the [NumChunks] is already less than the number
+						// added on the write path, so we don't need to do so again here.
+						numChunks, ok := keys.NumChunks(v)
+						if !ok {
+							return ErrInvalidKeyValue
+						}
+						toCache[k] = &fetchData{v, true, numChunks}
+						storage[k] = v
 					}
+
+					// Update key cache regardless of whether exit is graceful
+					defer func() {
+						cacheLock.Lock()
+						for k := range toCache {
+							cache[k] = toCache[k]
+						}
+						cacheLock.Unlock()
+					}()
+				}
+
+				// Execute block
+				tsv := ts.NewView(stateKeys, storage)
+				authCUs, err := tx.PreExecute(ctx, feeManager, sm, r, tsv, nextTime)
+				if err != nil {
+					// We don't need to rollback [tsv] here because it will never
+					// be committed.
+					if HandlePreExecute(log, err) {
+						restore = true
+					}
+					return nil
+				}
+
+				// Verify warp message, if it exists
+				//
+				// We don't drop invalid warp messages because we must collect fees for
+				// the work the sender made us do (otherwise this would be a DoS).
+				//
+				// We wait as long as possible to verify the signature to ensure we don't
+				// spend unnecessary time on an invalid tx.
+				var warpErr error
+				if tx.WarpMessage != nil {
+					// We do not check the validity of [SourceChainID] because a VM could send
+					// itself a message to trigger a chain upgrade.
+					allowed, num, denom := r.GetWarpConfig(tx.WarpMessage.SourceChainID)
+					if allowed {
+						warpErr = tx.WarpMessage.Signature.Verify(
+							ctx, &tx.WarpMessage.UnsignedMessage, r.NetworkID(),
+							vdrState, blockContext.PChainHeight, num, denom,
+						)
+					} else {
+						warpErr = ErrDisabledChainID
+					}
+					if warpErr != nil {
+						log.Warn(
+							"warp verification failed",
+							zap.Stringer("txID", tx.ID()),
+							zap.Error(warpErr),
+						)
+					}
+				}
+
+				// If execution works, keep moving forward with new state
+				//
+				// Note, these calculations must match block verification exactly
+				// otherwise they will produce a different state root.
+				blockLock.RLock()
+				coldReads := make(map[string]uint16, len(stateKeys))
+				warmReads := make(map[string]uint16, len(stateKeys))
+				var invalidStateKeys bool
+				for k := range stateKeys {
+					v := storage[k]
 					numChunks, ok := keys.NumChunks(v)
 					if !ok {
-						// Drop bad transaction and continue
-						//
-						// This should not happen because we check this before
-						// adding a transaction to the mempool.
+						invalidStateKeys = true
+						break
+					}
+					if usedKeys.Contains(k) {
+						warmReads[k] = numChunks
 						continue
 					}
-					alreadyFetched[k] = &fetchData{v, true, numChunks}
-					storage[k] = v
+					coldReads[k] = numChunks
 				}
-				readyTxs <- &txData{tx, storage, nil, nil}
-			}
-		}()
-
-		// Perform a batch repeat check while we are waiting for state prefetching
-		dup, err := parent.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), false)
-		if err != nil {
-			execErr = err
-		}
-
-		// Execute transactions as they become ready
-		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Execute")
-		txIndex := 0
-		for nextTxData := range readyTxs {
-			txsAttempted++
-			next := nextTxData.tx
-			if execErr != nil {
-				restorable = append(restorable, next)
-				continue
-			}
-
-			// Skip if tx is a duplicate
-			if dup.Contains(txIndex) {
-				continue
-			}
-			txIndex++
-
-			// Ensure we can process if transaction includes a warp message
-			if next.WarpMessage != nil && blockContext == nil {
-				log.Info(
-					"dropping pending warp message because no context provided",
-					zap.Stringer("txID", next.ID()),
-				)
-				restorable = append(restorable, next)
-				continue
-			}
-
-			// Skip warp message if at max
-			if next.WarpMessage != nil && warpCount == MaxWarpMessages {
-				log.Info(
-					"dropping pending warp message because already have MaxWarpMessages",
-					zap.Stringer("txID", next.ID()),
-				)
-				restorable = append(restorable, next)
-				continue
-			}
-
-			// Ensure we have room
-			nextUnits, err := next.MaxUnits(sm, r)
-			if err != nil {
-				// Should never happen
-				log.Warn(
-					"skipping tx: invalid max units",
-					zap.Error(err),
-				)
-				continue
-			}
-			if ok, dimension := feeManager.CanConsume(nextUnits, maxUnits); !ok {
-				log.Debug(
-					"skipping tx: too many units",
-					zap.Int("dimension", int(dimension)),
-					zap.Uint64("tx", nextUnits[dimension]),
-					zap.Uint64("block units", feeManager.LastConsumed(dimension)),
-					zap.Uint64("max block units", maxUnits[dimension]),
-				)
-				restorable = append(restorable, next)
-
-				// If we are above the target for the dimension we can't consume, we will
-				// stop building. This prevents a full mempool iteration looking for the
-				// "perfect fit".
-				if feeManager.LastConsumed(dimension) >= targetUnits[dimension] {
-					execErr = errBlockFull
+				blockLock.RUnlock()
+				if invalidStateKeys {
+					// This should not happen because we check this before
+					// adding a transaction to the mempool.
+					log.Warn("invalid tx: invalid state keys")
+					return nil
 				}
-				continue
-			}
-
-			// Populate required transaction state and restrict which keys can be used
-			txStart := ts.OpIndex()
-			stateKeys, err := next.StateKeys(sm)
-			if err != nil {
-				// This should not happen because we check this before
-				// adding a transaction to the mempool.
-				log.Warn(
-					"skipping tx: invalid stateKeys",
-					zap.Error(err),
+				result, err := tx.Execute(
+					ctx,
+					feeManager,
+					authCUs,
+					coldReads,
+					warmReads,
+					sm,
+					r,
+					tsv,
+					nextTime,
+					tx.WarpMessage != nil && warpErr == nil,
 				)
-				continue
-			}
-			ts.SetScope(ctx, stateKeys, nextTxData.storage)
-
-			// PreExecute next to see if it is fit
-			authCUs, err := next.PreExecute(ctx, feeManager, sm, r, ts, nextTime)
-			if err != nil {
-				ts.Rollback(ctx, txStart)
-				if HandlePreExecute(log, err) {
-					restorable = append(restorable, next)
+				if err != nil {
+					// Returning an error here should be avoided at all costs (can be a DoS). Rather,
+					// all units for the transaction should be consumed and a fee should be charged.
+					log.Warn("unexpected post-execution error", zap.Error(err))
+					restore = true
+					return err
 				}
-				continue
-			}
 
-			// Verify warp message, if it exists
-			//
-			// We don't drop invalid warp messages because we must collect fees for
-			// the work the sender made us do (otherwise this would be a DoS).
-			//
-			// We wait as long as possible to verify the signature to ensure we don't
-			// spend unnecessary time on an invalid tx.
-			var warpErr error
-			if next.WarpMessage != nil {
-				// We do not check the validity of [SourceChainID] because a VM could send
-				// itself a message to trigger a chain upgrade.
-				allowed, num, denom := r.GetWarpConfig(next.WarpMessage.SourceChainID)
-				if allowed {
-					warpErr = next.WarpMessage.Signature.Verify(
-						ctx, &next.WarpMessage.UnsignedMessage, r.NetworkID(),
-						vdrState, blockContext.PChainHeight, num, denom,
+				// Need to atomically check there aren't too many warp messages and add to block
+				blockLock.Lock()
+				defer blockLock.Unlock()
+
+				// Ensure block isn't too big
+				if ok, dimension := feeManager.Consume(result.Consumed, maxUnits); !ok {
+					log.Debug(
+						"skipping tx: too many units",
+						zap.Int("dimension", int(dimension)),
+						zap.Uint64("tx", result.Consumed[dimension]),
+						zap.Uint64("block units", feeManager.LastConsumed(dimension)),
+						zap.Uint64("max block units", maxUnits[dimension]),
 					)
-				} else {
-					warpErr = ErrDisabledChainID
-				}
-				if warpErr != nil {
-					log.Warn(
-						"warp verification failed",
-						zap.Stringer("txID", next.ID()),
-						zap.Error(warpErr),
-					)
-				}
-			}
+					restore = true
 
-			// If execution works, keep moving forward with new state
-			//
-			// Note, these calculations must match block verification exactly
-			// otherwise they will produce a different state root.
-			coldReads := map[string]uint16{}
-			warmReads := map[string]uint16{}
-			var invalidStateKeys bool
-			for k := range stateKeys {
-				v := nextTxData.storage[k]
-				numChunks, ok := keys.NumChunks(v)
-				if !ok {
-					invalidStateKeys = true
-					break
+					// If we are above the target for the dimension we can't consume, we will
+					// stop building. This prevents a full mempool iteration looking for the
+					// "perfect fit".
+					if feeManager.LastConsumed(dimension) >= targetUnits[dimension] {
+						return errBlockFull
+					}
 				}
-				if usedKeys.Contains(k) {
-					warmReads[k] = numChunks
-					continue
-				}
-				coldReads[k] = numChunks
-			}
-			if invalidStateKeys {
-				// This should not happen because we check this before
-				// adding a transaction to the mempool.
-				log.Warn("invalid tx: invalid state keys")
-				continue
-			}
-			result, err := next.Execute(
-				ctx,
-				feeManager,
-				authCUs,
-				coldReads,
-				warmReads,
-				sm,
-				r,
-				ts,
-				nextTime,
-				next.WarpMessage != nil && warpErr == nil,
-			)
-			if err != nil {
-				// Returning an error here should be avoided at all costs (can be a DoS). Rather,
-				// all units for the transaction should be consumed and a fee should be charged.
-				log.Warn("unexpected post-execution error", zap.Error(err))
-				restorable = append(restorable, next)
-				execErr = err
-				continue
-			}
 
-			// Update block with new transaction
-			b.Txs = append(b.Txs, next)
-			usedKeys.Add(stateKeys.List()...)
-			if err := feeManager.Consume(result.Consumed); err != nil {
-				execErr = err
-				continue
-			}
-			results = append(results, result)
-			if next.WarpMessage != nil {
-				if warpErr == nil {
-					// Add a bit if the warp message was verified
-					b.WarpResults.Add(uint(warpCount))
+				// Update block with new transaction
+				tsv.Commit()
+				b.Txs = append(b.Txs, tx)
+				results = append(results, result)
+				usedKeys.Add(stateKeys.List()...)
+				if tx.WarpMessage != nil {
+					if warpErr == nil {
+						// Add a bit if the warp message was verified
+						b.WarpResults.Add(warpAdded)
+					}
+					warpAdded++
 				}
-				warpCount++
-			}
+				return nil
+			})
 		}
+		execErr := e.Wait()
 		executeSpan.End()
 
 		// Handle execution result
 		if execErr != nil {
-			if stopIndex >= 0 {
-				// If we stopped prefetching, make sure to add those txs back
-				restorable = append(restorable, txs[stopIndex:]...)
+			for _, tx := range pending {
+				// If we stopped executing, make sure to add those txs back
+				restorable = append(restorable, tx)
 			}
 			if !errors.Is(execErr, errBlockFull) {
 				// Wait for stream preparation to finish to make
@@ -460,20 +454,21 @@ func BuildBlock(
 	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
-	ts.SetScope(ctx, set.Of(heightKeyStr, timestampKeyStr, feeKeyStr), map[string][]byte{
+	tsv := ts.NewView(set.Of(heightKeyStr, timestampKeyStr, feeKeyStr), map[string][]byte{
 		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 		feeKeyStr:       parentFeeManager.Bytes(),
 	})
-	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
+	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert height", err)
 	}
-	if err := ts.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
+	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert timestamp", err)
 	}
-	if err := ts.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
+	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert fees", err)
 	}
+	tsv.Commit()
 
 	// Fetch [parentView] root as late as possible to allow
 	// for async processing to complete
@@ -484,13 +479,14 @@ func BuildBlock(
 	b.StateRoot = root
 
 	// Get view from [tstate] after writing all changed keys
-	view, err := ts.CreateView(ctx, parentView, vm.Tracer())
+	view, err := ts.ExportMerkleDBView(ctx, vm.Tracer(), parentView)
 	if err != nil {
 		return nil, err
 	}
 
 	// Compute block hash and marshaled representation
 	if err := b.initializeBuilt(ctx, view, results, feeManager); err != nil {
+		log.Warn("block failed", zap.Int("txs", len(b.Txs)), zap.Any("consumed", feeManager.UnitsConsumed()))
 		return nil, err
 	}
 

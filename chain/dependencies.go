@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/workers"
 )
@@ -56,6 +57,7 @@ type VM interface {
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
 	GetTargetBuildDuration() time.Duration
+	GetTransactionExecutionCores() int
 
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
@@ -81,6 +83,8 @@ type VM interface {
 	RecordBuildCapped()
 	RecordEmptyBlockBuilt()
 	RecordClearedMempool()
+	GetExecutorBuildRecorder() executor.Metrics
+	GetExecutorVerifyRecorder() executor.Metrics
 }
 
 type VerifyContext interface {
