@@ -143,10 +143,10 @@ func (e *Executor) Run(conflicts set.Set[string], f func() error) {
 		if e.metrics != nil {
 			e.metrics.RecordExecutable()
 		}
-	} else {
-		if e.metrics != nil {
-			e.metrics.RecordBlocked()
-		}
+		return
+	}
+	if e.metrics != nil {
+		e.metrics.RecordBlocked()
 	}
 }
 
