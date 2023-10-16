@@ -27,17 +27,18 @@ func TestExecutorNoConflicts(t *testing.T) {
 			s.Add(ids.GenerateTestID().String())
 		}
 		ti := i
-		e.Run(s, func() {
+		e.Run(s, func() error {
 			l.Lock()
 			completed = append(completed, ti)
 			if len(completed) == 100 {
 				close(canWait)
 			}
 			l.Unlock()
+			return nil
 		})
 	}
 	<-canWait
-	e.Wait() // no task running
+	require.NoError(e.Wait()) // no task running
 	require.Len(completed, 100)
 }
 
@@ -54,16 +55,17 @@ func TestExecutorNoConflictsSlow(t *testing.T) {
 			s.Add(ids.GenerateTestID().String())
 		}
 		ti := i
-		e.Run(s, func() {
+		e.Run(s, func() error {
 			if ti == 0 {
 				time.Sleep(3 * time.Second)
 			}
 			l.Lock()
 			completed = append(completed, ti)
 			l.Unlock()
+			return nil
 		})
 	}
-	e.Wait() // existing task is running
+	require.NoError(e.Wait()) // existing task is running
 	require.Len(completed, 100)
 	require.Equal(0, completed[99])
 }
@@ -85,7 +87,7 @@ func TestExecutorSimpleConflict(t *testing.T) {
 			s.Add(conflictKey)
 		}
 		ti := i
-		e.Run(s, func() {
+		e.Run(s, func() error {
 			if ti == 0 {
 				time.Sleep(3 * time.Second)
 			}
@@ -93,9 +95,10 @@ func TestExecutorSimpleConflict(t *testing.T) {
 			l.Lock()
 			completed = append(completed, ti)
 			l.Unlock()
+			return nil
 		})
 	}
-	e.Wait()
+	require.NoError(e.Wait())
 	require.Equal([]int{0, 10, 20, 30, 40, 50, 60, 70, 80, 90}, completed[90:])
 }
 
@@ -120,7 +123,7 @@ func TestExecutorMultiConflict(t *testing.T) {
 			s.Add(conflictKey2)
 		}
 		ti := i
-		e.Run(s, func() {
+		e.Run(s, func() error {
 			if ti == 0 {
 				time.Sleep(3 * time.Second)
 			}
@@ -131,8 +134,9 @@ func TestExecutorMultiConflict(t *testing.T) {
 			l.Lock()
 			completed = append(completed, ti)
 			l.Unlock()
+			return nil
 		})
 	}
-	e.Wait()
+	require.NoError(e.Wait())
 	require.Equal([]int{0, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90}, completed[89:])
 }
