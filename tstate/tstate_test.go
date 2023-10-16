@@ -266,7 +266,7 @@ func TestCreateView(t *testing.T) {
 	tsv.Commit()
 
 	// Create merkle view
-	view, err := ts.ExportMerkleView(ctx, tracer, db)
+	view, err := ts.ExportMerkleDBView(ctx, tracer, db)
 	require.NoError(err, "error writing changes")
 	require.NoError(view.CommitToDB(ctx))
 
@@ -292,7 +292,7 @@ func TestCreateView(t *testing.T) {
 	tsv.Commit()
 
 	// Create merkle view
-	view, err = tsv.ts.ExportMerkleView(ctx, tracer, db)
+	view, err = tsv.ts.ExportMerkleDBView(ctx, tracer, db)
 	require.NoError(err, "error writing changes")
 	require.NoError(view.CommitToDB(ctx))
 

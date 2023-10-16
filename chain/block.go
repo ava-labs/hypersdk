@@ -659,7 +659,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	// Get view from [tstate] after processing all state transitions
 	b.vm.RecordStateChanges(ts.PendingChanges())
 	b.vm.RecordStateOperations(ts.OpIndex())
-	view, err := ts.ExportMerkleView(ctx, b.vm.Tracer(), parentView)
+	view, err := ts.ExportMerkleDBView(ctx, b.vm.Tracer(), parentView)
 	if err != nil {
 		return err
 	}

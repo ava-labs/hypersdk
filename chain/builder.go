@@ -479,7 +479,7 @@ func BuildBlock(
 	b.StateRoot = root
 
 	// Get view from [tstate] after writing all changed keys
-	view, err := ts.ExportMerkleView(ctx, vm.Tracer(), parentView)
+	view, err := ts.ExportMerkleDBView(ctx, vm.Tracer(), parentView)
 	if err != nil {
 		return nil, err
 	}
