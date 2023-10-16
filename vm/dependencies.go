@@ -26,15 +26,10 @@ type Handlers map[string]*common.HTTPHandler
 
 type Config interface {
 	GetTraceConfig() *trace.Config
-	// Parallelism is split between signature verification
-	// and root generation (50/50), where any odd cores
-	// are added to signature verification.
-	//
-	// These operations are typically both done at the same time
-	// and will cause CPU thrashing if both given full access to all
-	// cores.
-	GetParallelism() int
 	GetMempoolSize() int
+	GetSignatureVerificationCores() int
+	GetRootGenerationCores() int
+	GetTransactionExecutionCores() int
 	GetMempoolPayerSize() int
 	GetMempoolExemptPayers() [][]byte
 	GetVerifySignatures() bool

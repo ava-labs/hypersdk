@@ -5,7 +5,6 @@
 package config
 
 import (
-	"runtime"
 	"time"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -14,18 +13,12 @@ import (
 	"github.com/ava-labs/hypersdk/trace"
 )
 
-const avalancheGoMinCPU = 4
-
 type Config struct{}
 
-func (c *Config) GetLogLevel() logging.Level { return logging.Info }
-func (c *Config) GetParallelism() int {
-	numCPUs := runtime.NumCPU()
-	if numCPUs > avalancheGoMinCPU {
-		return numCPUs - avalancheGoMinCPU
-	}
-	return 1
-}
+func (c *Config) GetLogLevel() logging.Level             { return logging.Info }
+func (c *Config) GetSignatureVerificationCores() int     { return 1 }
+func (c *Config) GetRootGenerationCores() int            { return 1 }
+func (c *Config) GetTransactionExecutionCores() int      { return 1 }
 func (c *Config) GetMempoolSize() int                    { return 2_048 }
 func (c *Config) GetMempoolPayerSize() int               { return 32 }
 func (c *Config) GetMempoolExemptPayers() [][]byte       { return nil }

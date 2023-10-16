@@ -166,7 +166,7 @@ func BuildBlock(
 			break
 		}
 
-		e := executor.New(streamBatch, 8) // TODO: make concurrency tunable
+		e := executor.New(streamBatch, vm.GetTransactionExecutionCores())
 		pending := make(map[ids.ID]*Transaction, streamBatch)
 		var pendingLock sync.Mutex
 		for li, ltx := range txs {

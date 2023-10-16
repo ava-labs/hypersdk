@@ -24,7 +24,6 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
@@ -203,14 +202,12 @@ func (vm *VM) Initialize(
 	}
 
 	// Instantiate DBs
-	parallelism := vm.config.GetParallelism()
-	rootGenParallelism := math.Max(parallelism/2, 1)
 	merkleRegistry := prometheus.NewRegistry()
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
 		BranchFactor: vm.genesis.GetStateBranchFactor(),
 		// RootGenConcurrency limits the number of goroutines
 		// that will be used across all concurrent root generations.
-		RootGenConcurrency:        uint(rootGenParallelism),
+		RootGenConcurrency:        uint(vm.config.GetRootGenerationCores()),
 		EvictionBatchSize:         uint(vm.config.GetStateEvictionBatchSize()),
 		HistoryLength:             uint(vm.config.GetStateHistoryLength()),
 		IntermediateNodeCacheSize: uint(vm.config.GetIntermediateNodeCacheSize()),
@@ -229,8 +226,7 @@ func (vm *VM) Initialize(
 	//
 	// If [parallelism] is odd, we assign the extra
 	// core to signature verification.
-	sigParallelism := math.Max(parallelism-rootGenParallelism, 1)
-	vm.sigWorkers = workers.NewParallel(sigParallelism, 100) // TODO: make job backlog a const
+	vm.sigWorkers = workers.NewParallel(vm.config.GetSignatureVerificationCores(), 100) // TODO: make job backlog a const
 
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
