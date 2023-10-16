@@ -4,6 +4,7 @@
 package executor
 
 import (
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -139,4 +140,59 @@ func TestExecutorMultiConflict(t *testing.T) {
 	}
 	require.NoError(e.Wait())
 	require.Equal([]int{0, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90}, completed[89:])
+}
+
+func TestEarlyExit(t *testing.T) {
+	var (
+		require   = require.New(t)
+		l         sync.Mutex
+		completed = make([]int, 0, 500)
+		e         = New(500, 4)
+		terr      = errors.New("uh oh")
+	)
+	for i := 0; i < 500; i++ {
+		s := set.NewSet[string](i + 1)
+		for k := 0; k < i+1; k++ {
+			s.Add(ids.GenerateTestID().String())
+		}
+		ti := i
+		e.Run(s, func() error {
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			if ti == 200 {
+				return terr
+			}
+			return nil
+		})
+	}
+	require.True(len(completed) < 500)
+	require.ErrorIs(e.Wait(), terr) // no task running
+}
+
+func TestStop(t *testing.T) {
+	var (
+		require   = require.New(t)
+		l         sync.Mutex
+		completed = make([]int, 0, 500)
+		e         = New(500, 4)
+	)
+	for i := 0; i < 500; i++ {
+		s := set.NewSet[string](i + 1)
+		for k := 0; k < i+1; k++ {
+			s.Add(ids.GenerateTestID().String())
+		}
+		ti := i
+		e.Run(s, func() error {
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			if ti == 200 {
+				e.Stop()
+			}
+			return nil
+		})
+	}
+	require.True(len(completed) < 500)
+	require.ErrorIs(e.Wait(), ErrStopped) // no task running
 }
