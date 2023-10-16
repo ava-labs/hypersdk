@@ -271,7 +271,7 @@ func BuildBlock(
 						storage[k] = v
 					}
 
-					// Update key cache
+					// Update key cache regardless of whether exit is graceful
 					defer func() {
 						cacheLock.Lock()
 						for k := range toCache {
@@ -372,11 +372,10 @@ func BuildBlock(
 
 				// Need to atomically check there aren't too many warp messages and add to block
 				blockLock.Lock()
+				defer blockLock.Unlock()
 
 				// Ensure block isn't too big
-				if ok, dimension := feeManager.Consume(result.Consumed); !ok {
-					blockLock.Unlock()
-
+				if ok, dimension := feeManager.Consume(result.Consumed, maxUnits); !ok {
 					log.Debug(
 						"skipping tx: too many units",
 						zap.Int("dimension", int(dimension)),
@@ -396,8 +395,8 @@ func BuildBlock(
 
 				// Update block with new transaction
 				tsv.Commit()
-				results = append(results, result)
 				b.Txs = append(b.Txs, tx)
+				results = append(results, result)
 				usedKeys.Add(stateKeys.List()...)
 				if tx.WarpMessage != nil {
 					if warpErr == nil {
@@ -406,7 +405,6 @@ func BuildBlock(
 					}
 					warpAdded++
 				}
-				blockLock.Unlock()
 				return nil
 			})
 		}
@@ -497,6 +495,7 @@ func BuildBlock(
 
 	// Compute block hash and marshaled representation
 	if err := b.initializeBuilt(ctx, view, results, feeManager); err != nil {
+		log.Warn("block failed", zap.Int("txs", len(b.Txs)), zap.Any("consumed", feeManager.UnitsConsumed()))
 		return nil, err
 	}
 

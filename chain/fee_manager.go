@@ -135,10 +135,11 @@ func (f *FeeManager) setLastConsumed(d Dimension, consumed uint64) {
 	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], consumed)
 }
 
-func (f *FeeManager) CanConsume(d Dimensions, l Dimensions) (bool, Dimension) {
-	f.l.RLock()
-	defer f.l.RUnlock()
+func (f *FeeManager) Consume(d Dimensions, l Dimensions) (bool, Dimension) {
+	f.l.Lock()
+	defer f.l.Unlock()
 
+	// Ensure we can consume (don't want partial update of values)
 	for i := Dimension(0); i < FeeDimensions; i++ {
 		consumed, err := math.Add64(f.lastConsumed(i), d[i])
 		if err != nil {
@@ -148,13 +149,8 @@ func (f *FeeManager) CanConsume(d Dimensions, l Dimensions) (bool, Dimension) {
 			return false, i
 		}
 	}
-	return true, -1
-}
 
-func (f *FeeManager) Consume(d Dimensions) (bool, Dimension) {
-	f.l.Lock()
-	defer f.l.Unlock()
-
+	// Commit to consumption
 	for i := Dimension(0); i < FeeDimensions; i++ {
 		consumed, err := math.Add64(f.lastConsumed(i), d[i])
 		if err != nil {

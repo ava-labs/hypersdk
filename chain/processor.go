@@ -131,14 +131,14 @@ func (b *StatelessBlock) Execute(
 			}
 			results[i] = result
 
-			// Commit results to parent [TState]
-			tsv.Commit()
-
 			// Update block metadata with units actually consumed (if more is consumed than block allows, we will non-deterministically
 			// exit with an error based on which tx over the limit is processed first)
-			if ok, d := feeManager.Consume(result.Consumed); !ok {
+			if ok, d := feeManager.Consume(result.Consumed, r.GetMaxBlockUnits()); !ok {
 				return fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
 			}
+
+			// Commit results to parent [TState]
+			tsv.Commit()
 
 			// Update key cache
 			if len(toCache) > 0 {
