@@ -66,9 +66,9 @@ func (ts *TState) OpIndex() int {
 	return ts.ops
 }
 
-// CreateMerkleView creates a slice of [database.BatchOp] of all
+// ExportMerkleView creates a slice of [database.BatchOp] of all
 // changes in [TState] that can be used to commit to [merkledb].
-func (ts *TState) CreateMerkleView(
+func (ts *TState) ExportMerkleView(
 	ctx context.Context,
 	t trace.Tracer, //nolint:interfacer
 	view state.View,
@@ -77,7 +77,7 @@ func (ts *TState) CreateMerkleView(
 	defer ts.l.RUnlock()
 
 	ctx, span := t.Start(
-		ctx, "TState.CreateMerkleView",
+		ctx, "TState.ExportMerkleView",
 		oteltrace.WithAttributes(
 			attribute.Int("items", len(ts.changedKeys)),
 		),
