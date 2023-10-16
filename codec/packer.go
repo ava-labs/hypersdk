@@ -72,8 +72,27 @@ func (p *Packer) PackFixedBytes(b []byte) {
 	p.p.PackFixedBytes(b)
 }
 
+func (p *Packer) PackShortBytes(b ShortBytes) {
+	l := len(b)
+	if l > ShortBytesMaxSize {
+		p.addErr(fmt.Errorf("%w: ShortBytes is too large (found=%d)", ErrTooLarge, len(b)))
+		return
+	}
+	p.PackByte(uint8(l))
+	p.PackFixedBytes(b)
+}
+
 func (p *Packer) PackBytes(b []byte) {
 	p.p.PackBytes(b)
+}
+
+func (p *Packer) UnpackFixedBytes(size int, dest *[]byte) {
+	copy((*dest), p.p.UnpackFixedBytes(size))
+}
+
+func (p *Packer) UnpackShortBytes(dest *ShortBytes) {
+	l := int(p.p.UnpackByte())
+	*dest = p.p.UnpackFixedBytes(l)
 }
 
 // UnpackBytes unpacks [limit] bytes into [dest]. Otherwise
@@ -89,10 +108,6 @@ func (p *Packer) UnpackBytes(limit int, required bool, dest *[]byte) {
 	if required && len(*dest) == 0 {
 		p.addErr(fmt.Errorf("%w: Bytes field is not populated", ErrFieldNotPopulated))
 	}
-}
-
-func (p *Packer) UnpackFixedBytes(size int, dest *[]byte) {
-	copy((*dest), p.p.UnpackFixedBytes(size))
 }
 
 func (p *Packer) PackUint64(v uint64) {
