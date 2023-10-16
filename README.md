@@ -192,6 +192,18 @@ capability for any `Auth` module that implements the `AuthBatchVerifier` interfa
 even parallelizing batch computation for systems that only use a single-thread to
 verify a batch.
 
+### WASM-Based Programs
+In the `hypersdk`, [smart contracts](https://ethereum.org/en/developers/docs/smart-contracts/)
+(e.g. programs that run on blockchains) are referred to simply as `programs`. `Programs`
+are [WASM-based](https://webassembly.org/) binaries that can be invoked during block
+execution to perform arbitrary state transitions. This is a more flexible, yet less performant,
+alternative to defining all `Auth` and/or `Actions` that can be invoked in the `hypervm` in the
+`hypervm's` code (like the `tokenvm`).
+
+Because the `hypersdk` can execute arbitrary WASM, any language (Rust, C, C++, Zig, etc.) that can
+be compiled to WASM can be used to write `programs`. You can view a collection of
+Rust-based `programs` [here](https://github.com/ava-labs/hypersdk/tree/main/x/programs/rust/examples).
+
 ### Multidimensional Fee Pricing
 Instead of mapping transaction resource usage to a one-dimensional unit (i.e. "gas"
 or "fuel"), the `hypersdk` utilizes five independently parameterized unit dimensions
@@ -358,9 +370,6 @@ For example, if a transaction modifies a key and then another transaction
 is executed which modifies the same value, the net cost for modifying the key
 to the `hypervm` (and to the entire network) is much cheaper than modifying a
 new key.
-
-### Program Support
-In the `hypersdk`, smart contracts...
 
 ### Account Abstraction
 The `hypersdk` makes no assumptions about how `Actions` (the primitive for
