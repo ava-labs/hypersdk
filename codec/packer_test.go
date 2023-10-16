@@ -53,6 +53,7 @@ func TestPackerPublicKey(t *testing.T) {
 	copy(pubKey[:], TestPublicKey)
 	t.Run("Pack", func(t *testing.T) {
 		// Pack
+		require.Len(pubKey, ed25519.PublicKeyLen)
 		wp.PackPublicKey(pubKey)
 		require.Equal(TestPublicKey, wp.Bytes(), "PublicKey not packed correctly.")
 		require.NoError(wp.Err(), "Error packing PublicKey.")
@@ -155,12 +156,16 @@ func TestPackerWindow(t *testing.T) {
 
 func TestPackerShortBytes(t *testing.T) {
 	require := require.New(t)
+	t.Run("Pack Too Large", func(t *testing.T) {
+		wp := NewWriter(1024, 1024)
+		wp.PackShortBytes(make([]byte, 1024))
+		require.ErrorIs(wp.Err(), ErrTooLarge)
+	})
 	wp := NewWriter(ed25519.PublicKeyLen+1, ed25519.PublicKeyLen+1)
-	var pubKey ShortBytes
+	pubKey := make(ShortBytes, ed25519.PublicKeyLen)
 	copy(pubKey[:], TestPublicKey)
 	t.Run("Pack", func(t *testing.T) {
 		// Pack
-		require.Len(pubKey, 32)
 		wp.PackShortBytes(pubKey)
 		b := wp.Bytes()
 		require.NoError(wp.Err(), "Error packing PublicKey.")

@@ -92,7 +92,7 @@ func (p *Packer) UnpackFixedBytes(size int, dest *[]byte) {
 
 func (p *Packer) UnpackShortBytes(dest *ShortBytes) {
 	l := int(p.p.UnpackByte())
-	copy((*dest), p.p.UnpackFixedBytes(l))
+	*dest = p.p.UnpackFixedBytes(l)
 }
 
 // UnpackBytes unpacks [limit] bytes into [dest]. Otherwise
