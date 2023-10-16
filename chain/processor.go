@@ -42,7 +42,7 @@ func (b *StatelessBlock) Execute(
 		cacheLock sync.RWMutex
 		cache     = make(map[string]*fetchData, numTxs)
 
-		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), b.vm.GetVerifyMetrics())
+		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), b.vm.GetExecutorVerifyRecorder())
 		ts      = tstate.New(numTxs * 2) // TODO: tune this heuristic
 		results = make([]*Result, numTxs)
 	)

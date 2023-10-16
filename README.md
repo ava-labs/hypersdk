@@ -83,25 +83,27 @@ a bandwidth-aware dynamic sync implementation provided by `avalanchego`, to
 sync to the tip of any `hyperchain`.
 
 #### Block Pruning
-By default, the `hypersdk` only stores what is necessary to build/verfiy the next block
+TODO
+
+By default, the `hypersdk` only stores what is necessary to build/verify the next block
 and to help new nodes sync the current state (not execute all historical state transitions).
-If the `hypersdk` did not limit block storage grwoth, the storage requirements for validators
+If the `hypersdk` did not limit block storage growth, the storage requirements for validators
 would grow at an alarming rate each day (making running any `hypervm` impractical).
 Consider the simple example where we process 25k transactions per second (assume each
 transaction is ~400 bytes). This would would require the `hypersdk` to store 10MB per
 second (not including any overhead in the database for doing so). **This works out to
 864GB per day or 315.4TB per year.**
 
-In practice, this means the `hypersdk` only stores the last 768 accepted blocks the genesis block,
+In practice, this means the `hypersdk` only stores the last 768 accepted blocks, the genesis block,
 and the last 256 revisions of state (the [ProposerVM](https://github.com/ava-labs/avalanchego/blob/master/vms/proposervm/README.md)
 also stores the last 768 blocks). With a 100ms `MinimumBlockGap`, the `hypersdk` must
 store at least ~600 blocks to allow for the entire `ValidityWindow` to be backfilled (otherwise
 a fully-synced, restarting `hypervm` will not become "ready" until it accepts a block at
 least `ValidityWindow` after the last accepted block).
 
-_The number of blocks and/or state revisions that the `hypersdk` stores, the `AcceptedBlockWindow`, can
-be tuned by any `hypervm`. It is not possible, however, to configure the `hypersdk` to store
-all historical blocks (the `AcceptedBlockWindow` is pinned to memory)._
+_The number of blocks that the `hypersdk` stores on-disk, the `AcceptedBlockWindow`, can be tuned by any `hypervm`
+to an arbitrary depth (usually left at ~50,000 for disaster recovery). To limit disk IO used to serve blocks over
+the P2P network, `hypervms` can configure `AcceptedBlockWindowCache` to store recent blocks in memory._
 
 #### PebbleDB
 Instead of employing [`goleveldb`](https://github.com/syndtr/goleveldb), the
@@ -126,24 +128,20 @@ thus far has been dedicated to making block verification and state management
 as fast and efficient as possible, which both play a large role in making this
 happen.
 
-#### State Pre-Fetching
-`hypersdk` transactions must specify the keys they will touch in state (read
-or write) during execution and authentication so that all relevant data can be
-pre-fetched before block execution starts, which ensures all data accessed during
-verification of a block is done so in memory). Notably, the keys specified here
-are not keys in a merkle trie (which may be quite volatile) but are instead the
-actual keys used to access data by the storage engine (like your address, which
-is much less volatile and not as cumbersome of a UX barrier).
+#### Parallel Transaction Execution
+`hypersdk` transactions must specify the keys they will access in state (read
+and/or write) during authentication and execution so that non-conflicting transactions
+can be processed in parallel. To do this efficiently, the `hypersdk` uses
+the [`executor`](https://github.com/ava-labs/hypersdk/tree/main/executor) package, which
+can generate an execution plan for a block on-the-fly (no preprocessing required). `executor`
+is used to parallelize execution in both block building and in block verification.
 
-This restriction also enables transactions to be processed in parallel as distinct,
-ordered transaction sets can be trivially formed by looking at the overlap of keys
-that transactions will touch.
+When a `hypervm's` `Auth` and `Actions` are simple (like in the `morpheusvm`), the primary
+benefit of parallel execution is concurrent fetching of state (actual execution is very
+fast). However, parallel execution massively speeds up the execution of `programs`
 
-_Parallel transaction execution was originally included in `hypersdk` but
-removed because the overhead of the naïve mechanism used to group transactions
-into execution sets prior to execution was slower than just executing transactions
-serially with state pre-fetching. Rewriting this mechanism has been moved to the
-`Future Work` section and we expect to re-enable this functionality soon._
+_The number of cores that the `hypersdk` allocates to execution can be tuned by
+any `hypervm` using the `TransactionExecutionCores` configuration._
 
 #### Deferred Root Generation
 All `hypersdk` blocks include a state root to support dynamic state sync. In dynamic
@@ -367,6 +365,9 @@ For example, if a transaction modifies a key and then another transaction
 is executed which modifies the same value, the net cost for modifying the key
 to the `hypervm` (and to the entire network) is much cheaper than modifying a
 new key.
+
+### Program Support
+In the `hypersdk`, smart contracts...
 
 ### Account Abstraction
 The `hypersdk` makes no assumptions about how `Actions` (the primitive for
@@ -1003,9 +1004,6 @@ _If you want to take the lead on any of these items, please
 [start a discussion](https://github.com/ava-labs/hypersdk/discussions) or reach
 out on the Avalanche Discord._
 
-* Use pre-specified state keys to process transactions in parallel (txs with no
-  overlap can be processed at the same time, create conflict sets on-the-fly
-  instead of before execution)
 * Add support for Fixed-Fee Accounts (pay set unit price no matter what)
 * Use a memory arena (pre-allocated memory) to avoid needing to dynamically
   allocate memory during block  and transaction parsing

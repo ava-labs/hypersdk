@@ -83,8 +83,8 @@ type VM interface {
 	RecordBuildCapped()
 	RecordEmptyBlockBuilt()
 	RecordClearedMempool()
-	GetBuildMetrics() executor.Metrics
-	GetVerifyMetrics() executor.Metrics
+	GetExecutorBuildRecorder() executor.Metrics
+	GetExecutorVerifyRecorder() executor.Metrics
 }
 
 type VerifyContext interface {

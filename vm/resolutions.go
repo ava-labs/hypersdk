@@ -485,10 +485,10 @@ func (vm *VM) GetTransactionExecutionCores() int {
 	return vm.config.GetTransactionExecutionCores()
 }
 
-func (vm *VM) GetBuildMetrics() executor.Metrics {
-	return vm.metrics.buildMetrics
+func (vm *VM) GetExecutorBuildRecorder() executor.Metrics {
+	return vm.metrics.executorBuildRecorder
 }
 
-func (vm *VM) GetVerifyMetrics() executor.Metrics {
-	return vm.metrics.verifyMetrics
+func (vm *VM) GetExecutorVerifyRecorder() executor.Metrics {
+	return vm.metrics.executorVerifyRecorder
 }

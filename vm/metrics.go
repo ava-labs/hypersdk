@@ -57,8 +57,8 @@ type Metrics struct {
 	blockAccept              metric.Averager
 	blockProcess             metric.Averager
 
-	buildMetrics  executor.Metrics
-	verifyMetrics executor.Metrics
+	executorBuildRecorder  executor.Metrics
+	executorVerifyRecorder executor.Metrics
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -267,8 +267,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		blockAccept:    blockAccept,
 		blockProcess:   blockProcess,
 	}
-	m.buildMetrics = &executorMetrics{blocked: m.executorBuildBlocked, executable: m.executorBuildExecutable}
-	m.verifyMetrics = &executorMetrics{blocked: m.executorVerifyBlocked, executable: m.executorVerifyExecutable}
+	m.executorBuildRecorder = &executorMetrics{blocked: m.executorBuildBlocked, executable: m.executorBuildExecutable}
+	m.executorVerifyRecorder = &executorMetrics{blocked: m.executorVerifyBlocked, executable: m.executorVerifyExecutable}
 
 	errs := wrappers.Errs{}
 	errs.Add(
