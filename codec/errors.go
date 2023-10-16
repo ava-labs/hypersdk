@@ -10,4 +10,5 @@ var (
 	ErrDuplicateItem     = errors.New("duplicate item")
 	ErrFieldNotPopulated = errors.New("field is not populated")
 	ErrInvalidBitset     = errors.New("invalid bitset")
+	ErrTooLarge          = errors.New("too large")
 )
