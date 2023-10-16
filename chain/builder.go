@@ -157,7 +157,7 @@ func BuildBlock(
 			break
 		}
 
-		e := executor.New(streamBatch, vm.GetTransactionExecutionCores())
+		e := executor.New(streamBatch, vm.GetTransactionExecutionCores(), vm.GetBuildMetrics())
 		pending := make(map[ids.ID]*Transaction, streamBatch)
 		var pendingLock sync.Mutex
 		for li, ltx := range txs {

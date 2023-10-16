@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/workers"
 )
@@ -82,6 +83,8 @@ type VM interface {
 	RecordBuildCapped()
 	RecordEmptyBlockBuilt()
 	RecordClearedMempool()
+	GetBuildMetrics() executor.Metrics
+	GetVerifyMetrics() executor.Metrics
 }
 
 type VerifyContext interface {

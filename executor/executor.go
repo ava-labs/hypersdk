@@ -18,6 +18,7 @@ const defaultSetSize = 8
 // are executed in the order they were queued.
 // Tasks with no conflicts are executed immediately.
 type Executor struct {
+	metrics    Metrics
 	wg         sync.WaitGroup
 	executable chan *task
 
@@ -33,8 +34,9 @@ type Executor struct {
 }
 
 // New creates a new [Executor].
-func New(items, concurrency int) *Executor {
+func New(items, concurrency int, metrics Metrics) *Executor {
 	e := &Executor{
+		metrics:    metrics,
 		stop:       make(chan struct{}),
 		tasks:      make(map[int]*task, items),
 		edges:      make(map[string]int, items*2), // TODO: tune this
@@ -138,6 +140,13 @@ func (e *Executor) Run(conflicts set.Set[string], f func() error) {
 	if t.dependencies == nil || t.dependencies.Len() == 0 {
 		t.dependencies = nil // free memory
 		e.executable <- t
+		if e.metrics != nil {
+			e.metrics.RecordExecutable()
+		}
+	} else {
+		if e.metrics != nil {
+			e.metrics.RecordBlocked()
+		}
 	}
 }
 

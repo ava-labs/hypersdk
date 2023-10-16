@@ -20,6 +20,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/workers"
 )
@@ -482,4 +483,12 @@ func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
 
 func (vm *VM) GetTransactionExecutionCores() int {
 	return vm.config.GetTransactionExecutionCores()
+}
+
+func (vm *VM) GetBuildMetrics() executor.Metrics {
+	return vm.metrics.buildMetrics
+}
+
+func (vm *VM) GetVerifyMetrics() executor.Metrics {
+	return vm.metrics.verifyMetrics
 }

@@ -19,7 +19,7 @@ func TestExecutorNoConflicts(t *testing.T) {
 		require   = require.New(t)
 		l         sync.Mutex
 		completed = make([]int, 0, 100)
-		e         = New(100, 4)
+		e         = New(100, 4, nil)
 		canWait   = make(chan struct{})
 	)
 	for i := 0; i < 100; i++ {
@@ -48,7 +48,7 @@ func TestExecutorNoConflictsSlow(t *testing.T) {
 		require   = require.New(t)
 		l         sync.Mutex
 		completed = make([]int, 0, 100)
-		e         = New(100, 4)
+		e         = New(100, 4, nil)
 	)
 	for i := 0; i < 100; i++ {
 		s := set.NewSet[string](i + 1)
@@ -77,7 +77,7 @@ func TestExecutorSimpleConflict(t *testing.T) {
 		conflictKey = ids.GenerateTestID().String()
 		l           sync.Mutex
 		completed   = make([]int, 0, 100)
-		e           = New(100, 4)
+		e           = New(100, 4, nil)
 	)
 	for i := 0; i < 100; i++ {
 		s := set.NewSet[string](i + 1)
@@ -110,7 +110,7 @@ func TestExecutorMultiConflict(t *testing.T) {
 		conflictKey2 = ids.GenerateTestID().String()
 		l            sync.Mutex
 		completed    = make([]int, 0, 100)
-		e            = New(100, 4)
+		e            = New(100, 4, nil)
 	)
 	for i := 0; i < 100; i++ {
 		s := set.NewSet[string](i + 1)
@@ -147,7 +147,7 @@ func TestEarlyExit(t *testing.T) {
 		require   = require.New(t)
 		l         sync.Mutex
 		completed = make([]int, 0, 500)
-		e         = New(500, 4)
+		e         = New(500, 4, nil)
 		terr      = errors.New("uh oh")
 	)
 	for i := 0; i < 500; i++ {
@@ -175,7 +175,7 @@ func TestStop(t *testing.T) {
 		require   = require.New(t)
 		l         sync.Mutex
 		completed = make([]int, 0, 500)
-		e         = New(500, 4)
+		e         = New(500, 4, nil)
 	)
 	for i := 0; i < 500; i++ {
 		s := set.NewSet[string](i + 1)

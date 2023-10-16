@@ -27,7 +27,7 @@ type fetchData struct {
 
 func (b *StatelessBlock) Execute(
 	ctx context.Context,
-	tracer trace.Tracer,
+	tracer trace.Tracer, //nolint:interfacer
 	im state.Immutable,
 	feeManager *FeeManager,
 	r Rules,
@@ -42,7 +42,7 @@ func (b *StatelessBlock) Execute(
 		cacheLock sync.RWMutex
 		cache     = make(map[string]*fetchData, numTxs)
 
-		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores())
+		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), b.vm.GetVerifyMetrics())
 		ts      = tstate.New(numTxs * 2) // TODO: tune this heuristic
 		results = make([]*Result, numTxs)
 	)
