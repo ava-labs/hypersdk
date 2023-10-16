@@ -59,15 +59,6 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 	}
 }
 
-// TODO: remove when builder is parallelized
-type txData struct {
-	tx      *Transaction
-	storage map[string][]byte
-
-	coldReads map[string]uint16
-	warmReads map[string]uint16
-}
-
 func BuildBlock(
 	ctx context.Context,
 	vm VM,
