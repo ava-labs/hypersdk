@@ -20,7 +20,7 @@ import (
 const (
 	PublicKeyLen  = 33 // compressed form (SEC 1, Version 2.0, Section 2.3.3)
 	PrivateKeyLen = 32
-	SignatureLen  = 64 // r || s
+	SignatureLen  = 64 // R || S
 
 	rsLen = 32
 )
