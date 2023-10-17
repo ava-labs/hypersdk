@@ -28,6 +28,7 @@ func TestSignVerify(t *testing.T) {
 	require.NoError(err)
 
 	// Verify signature
+	require.True(IsNormalized(new(big.Int).SetBytes(sig[rsLen:])))
 	require.True(Verify(msg, priv.PublicKey(), sig))
 }
 

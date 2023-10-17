@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"math/big"
 	"os"
 
@@ -120,7 +121,12 @@ func GeneratePrivateKey() (PrivateKey, error) {
 	if err != nil {
 		return EmptyPrivateKey, err
 	}
-	return PrivateKey(k.D.Bytes()), nil
+
+	// We aren't always guranteed that this will be 32 bytes,
+	// so we use fill.
+	b := make([]byte, PrivateKeyLen)
+	k.D.FillBytes(b)
+	return PrivateKey(b), nil
 }
 
 // generateCoordintes recovers the public key coordinates
@@ -201,9 +207,11 @@ func Sign(msg []byte, pk PrivateKey) (Signature, error) {
 func Verify(msg []byte, p PublicKey, sig Signature) bool {
 	// Perform sanity checks
 	if len(p) != PublicKeyLen {
+		fmt.Println("invalid pk len")
 		return false
 	}
 	if len(sig) != SignatureLen {
+		fmt.Println("invalid sig len")
 		return false
 	}
 
