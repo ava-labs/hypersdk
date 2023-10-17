@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
@@ -47,7 +48,7 @@ func (d *ED25519) StateKeys() []string {
 
 func (d *ED25519) AsyncVerify(msg []byte) error {
 	if !ed25519.Verify(msg, d.Signer, d.Signature) {
-		return ed25519.ErrInvalidSignature
+		return crypto.ErrInvalidSignature
 	}
 	return nil
 }
