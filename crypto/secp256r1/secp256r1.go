@@ -1,13 +1,18 @@
-package P256
+package secp256r1
 
 import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"encoding/hex"
+	"errors"
+	"math/big"
 	"os"
 
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/hypersdk/crypto"
+	"golang.org/x/crypto/cryptobyte"
+	"golang.org/x/crypto/cryptobyte/asn1"
 )
 
 // TODO: ensure signature is not malleable (txID is just tx bytes): https://github.com/cosmos/cosmos-sdk/issues/9723
@@ -16,6 +21,54 @@ import (
 // -> https://github.com/ethereum/go-ethereum/pull/27540
 // -> https://github.com/ethereum/EIPs/pull/7676 (malleability check removed)
 // ->-> https://github.com/ethereum/go-ethereum/pull/27540/files/7e0bc9271bc8ede1ca96c199d506368b7552ea51..cec0b058115282168c5afc5197de3f6b5479dc4a#diff-42aa89445835b22ad5e89bbea13ecfe2fa10b69084397e2dca6a826194f542e0
+
+// secp256r1Order returns the curve order for the secp256r1 (P-256) curve.
+//
+// source: https://github.com/cosmos/cosmos-sdk/blob/b71ec62807628b9a94bef32071e1c8686fcd9d36/crypto/keys/internal/ecdsa/privkey.go#L12-L37
+// source: https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#low-s-values-in-signatures
+var secp256r1Order = elliptic.P256().Params().N
+
+// secp256r1HalfOrder returns half the curve order of the secp256r1 (P-256) curve.
+//
+// source: https://github.com/cosmos/cosmos-sdk/blob/b71ec62807628b9a94bef32071e1c8686fcd9d36/crypto/keys/internal/ecdsa/privkey.go#L12-L37
+// source: https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#low-s-values-in-signatures
+var secp256r1HalfOrder = new(big.Int).Div(secp256r1Order, big.NewInt(2))
+
+// IsNormalized returns true if [s] falls in the lower half of the curve order (inclusive).
+//
+// source: https://github.com/cosmos/cosmos-sdk/blob/b71ec62807628b9a94bef32071e1c8686fcd9d36/crypto/keys/internal/ecdsa/privkey.go#L12-L37
+// source: https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#low-s-values-in-signatures
+func IsNormalized(s *big.Int) bool {
+	return s.Cmp(secp256r1HalfOrder) != 1
+}
+
+// NormalizeSignature inverts [s] if it is not in the lower half of the curve order.
+//
+// source: https://github.com/cosmos/cosmos-sdk/blob/b71ec62807628b9a94bef32071e1c8686fcd9d36/crypto/keys/internal/ecdsa/privkey.go#L12-L37
+// source: https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#low-s-values-in-signatures
+func NormalizeSignature(s *big.Int) *big.Int {
+	if IsNormalized(s) {
+		return s
+	}
+	return new(big.Int).Sub(secp256r1Order, s)
+}
+
+// ParseASN1Signature parses an ASN.1 encoded (using DER serialization) secp256r1 signature.
+// This function does not normalize the extracted signature.
+//
+// source: https://cs.opensource.google/go/go/+/refs/tags/go1.21.3:src/crypto/ecdsa/ecdsa.go;l=549
+func ParseASN1Signature(sig []byte) (r, s []byte, err error) {
+	var inner cryptobyte.String
+	input := cryptobyte.String(sig)
+	if !input.ReadASN1(&inner, asn1.SEQUENCE) ||
+		!input.Empty() ||
+		!inner.ReadASN1Integer(&r) ||
+		!inner.ReadASN1Integer(&s) ||
+		!inner.Empty() {
+		return nil, nil, errors.New("invalid ASN.1")
+	}
+	return r, s, nil
+}
 
 type (
 	PublicKey  [ed25519.PublicKeySize]byte
@@ -137,5 +190,3 @@ func HexToKey(key string) (PrivateKey, error) {
 	}
 	return PrivateKey(bytes), nil
 }
-
-// TODO: offer DER to fixed conversion as utility
