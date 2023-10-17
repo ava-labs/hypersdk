@@ -1,4 +1,7 @@
-//! A client and types for the VM simulator.
+//! A client and types for the VM simulator. This feature allows for Rust
+//! developers to construct tests for their programs completely in Rust.
+//! Alternatively the `Plan` can be written in YAML/JSON and passed to the
+//! Simulator binary directly.
 
 use std::{
     error::Error,
@@ -6,7 +9,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -14,9 +17,9 @@ pub enum Endpoint {
     /// Perform an operation against the key api.
     Key,
     /// Make a read-only call to a program function and return the result.
-    View,
-    /// Create a transaction from a possible state changing program function
-    /// call. A program's function can internally optionally call other
+    ReadOnly,
+    /// Create a transaction on-chain from a possible state changing program
+    /// function call. A program's function can internally optionally call other
     /// functions including program to program.
     Execute,
 }
@@ -31,16 +34,18 @@ pub struct Step<'a> {
     method: &'a str,
     /// The parameters to pass to the method.
     params: Vec<Param<'a>>,
-    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     require: Option<Require>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ParamType {
     U64,
     String,
+    Id,
+    #[serde(untagged)]
     Key(Key),
-    ID,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -52,7 +57,7 @@ pub enum Key {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Param<'a> {
-    /// The optional name of the parameter. This is used for readability.
+    /// The optional name of the parameter. This is only used for readability.
     name: &'a str,
     #[serde(rename = "type")]
     /// The type of the parameter.
@@ -61,42 +66,10 @@ pub struct Param<'a> {
     value: &'a str,
 }
 
-impl Serialize for ParamType {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            ParamType::U64 => serializer.serialize_str("u64"),
-            ParamType::String => serializer.serialize_str("string"),
-            ParamType::Key(Key::Ed25519) => serializer.serialize_str("ed25519"),
-            ParamType::Key(Key::Secp256r1) => serializer.serialize_str("secp256r1"),
-            ParamType::ID => serializer.serialize_str("id"),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for ParamType {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        use serde::de::Error;
-        let s = String::deserialize(deserializer)?;
-        match s.as_str() {
-            "u64" => Ok(ParamType::U64),
-            "string" => Ok(ParamType::String),
-            "ed25519" => Ok(ParamType::Key(Key::Ed25519)),
-            "secp256r1" => Ok(ParamType::Key(Key::Secp256r1)),
-            "id" => Ok(ParamType::ID),
-            _ => Err(D::Error::custom(format!("unknown param type: {s}"))),
-        }
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Require {
-    result: ResultCondition,
+    /// If defined the result of the step must match this assertion.
+    result: ResultAssertion,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -116,16 +89,22 @@ pub enum Operator {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct ResultCondition {
+pub struct ResultAssertion {
+    /// The operator to use for the assertion.
     operator: Operator,
-    operand: String,
+    /// The value to compare against.
+    value: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Simulation<'a> {
+pub struct Plan<'a> {
+    /// The name of the plan.
     name: &'a str,
+    /// A description of the plan.
     description: &'a str,
+    /// The key of the caller used in each step of the plan.
     caller_key: &'a str,
+    /// The steps to perform in the plan.
     steps: Vec<Step<'a>>,
 }
 
@@ -140,55 +119,55 @@ impl Client {
         Self { path }
     }
 
-    /// Runs a simulation against the simulator and returns the result.
+    /// Runs a `Plan` against the simulator and returns the result.
     /// # Errors
     ///
-    /// Returns an error if the if serialization or simulation fails.
-    pub fn run<T>(&self, simulation: &Simulation) -> Result<T, Box<dyn Error>>
+    /// Returns an error if the if serialization or plan fails.
+    pub fn run<T>(&self, plan: &Plan) -> Result<T, Box<dyn Error>>
     where
         T: serde::de::DeserializeOwned + serde::Serialize,
     {
-        call_run_stdin(&self.path, simulation)
+        call_run_stdin(&self.path, plan)
     }
 
-    /// Performs a view step against the simulator and returns the result.
+    /// Performs a `ReadOnly` step against the simulator and returns the result.
     /// # Errors
     ///
-    /// Returns an error if the if serialization or simulation fails.
-    pub fn view<T>(&self, data: Step, key: &str) -> Result<T, Box<dyn Error>>
+    /// Returns an error if the if serialization or plan fails.
+    pub fn read_only<T>(&self, data: Step, key: &str) -> Result<T, Box<dyn Error>>
     where
         T: serde::de::DeserializeOwned + serde::Serialize,
     {
-        let simulation = &Simulation {
+        let plan = &Plan {
             name: "view",
             description: "single view request",
             caller_key: key,
             steps: vec![data],
         };
 
-        call_run_stdin(&self.path, simulation)
+        call_run_stdin(&self.path, plan)
     }
 
-    /// Performs a single execution step against the simulator and returns the result.
+    /// Performs a single `Execute` step against the simulator and returns the result.
     /// # Errors
     ///
-    /// Returns an error if the if serialization or simulation fails.
+    /// Returns an error if the if serialization or plan fails.
     pub fn execute<T>(&self, data: Step, key: &str) -> Result<T, Box<dyn Error>>
     where
         T: serde::de::DeserializeOwned + serde::Serialize,
     {
-        let simulation = &Simulation {
+        let plan = &Plan {
             name: "execute",
             description: "single execution request",
             caller_key: key,
             steps: vec![data],
         };
 
-        call_run_stdin(&self.path, simulation)
+        call_run_stdin(&self.path, plan)
     }
 }
 
-fn call_run_stdin<T>(path: &str, simulation: &Simulation) -> Result<T, Box<dyn Error>>
+fn call_run_stdin<T>(path: &str, plan: &Plan) -> Result<T, Box<dyn Error>>
 where
     T: serde::de::DeserializeOwned + serde::Serialize,
 {
@@ -199,7 +178,7 @@ where
 
     // write json to stdin
     let input =
-        serde_json::to_string(simulation).map_err(|e| format!("failed to serialize json: {e}"))?;
+        serde_json::to_string(plan).map_err(|e| format!("failed to serialize json: {e}"))?;
     if let Some(ref mut stdin) = child.stdin {
         stdin
             .write_all(input.as_bytes())
@@ -215,29 +194,23 @@ where
     Ok(resp)
 }
 
+// TODO: make this test simpler
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn parse_yaml<'a>(yaml_content: &'a str) -> Result<Simulation<'a>, Box<dyn std::error::Error>> {
-        let sim: Simulation<'a> = serde_yaml::from_str(yaml_content)?;
-        Ok(sim)
+    fn parse_yaml<'a>(yaml_content: &'a str) -> Result<Plan<'a>, Box<dyn std::error::Error>> {
+        let plan: Plan<'a> = serde_yaml::from_str(yaml_content)?;
+        Ok(plan)
     }
 
     #[test]
-    fn test_parse_key_yaml() {
+    fn test_parse_plan_yaml() {
         let yaml_content = "
 name: token program
 description: Deploy and execute token program
 caller_key: alice_key
 steps:
-  - description: create alice key
-    endpoint: key
-    method: create
-    params:
-      - name: key name
-        type: ed25519
-        value: alice_key
   - description: create bob key
     endpoint: key
     method: create
@@ -277,22 +250,11 @@ steps:
             operand: 1000
 ";
 
-        let expected = Simulation {
+        let expected = Plan {
             name: "token program",
             description: "Deploy and execute token program",
             caller_key: "alice_key",
             steps: vec![
-                Step {
-                    description: "create alice key",
-                    endpoint: Endpoint::Key,
-                    method: "create",
-                    params: vec![Param {
-                        name: "key name",
-                        param_type: ParamType::Key(Key::Ed25519),
-                        value: "alice_key",
-                    }],
-                    require: None,
-                },
                 Step {
                     description: "create bob key",
                     endpoint: Endpoint::Key,
@@ -311,7 +273,7 @@ steps:
                     params: vec![
                         Param {
                             name: "program_id",
-                            param_type: ParamType::ID,
+                            param_type: ParamType::Id,
                             value: "2Ej3Qp6aUZ7yBnqZxBmvvvekUiriCn4ftcqY8VKGwMu5CmZiz",
                         },
                         Param {
@@ -334,12 +296,12 @@ steps:
                 },
                 Step {
                     description: "get balance for alice",
-                    endpoint: Endpoint::View,
+                    endpoint: Endpoint::ReadOnly,
                     method: "get_balance",
                     params: vec![
                         Param {
                             name: "program_id",
-                            param_type: ParamType::ID,
+                            param_type: ParamType::Id,
                             value: "2Ej3Qp6aUZ7yBnqZxBmvvvekUiriCn4ftcqY8VKGwMu5CmZiz",
                         },
                         Param {
@@ -349,9 +311,9 @@ steps:
                         },
                     ],
                     require: Some(Require {
-                        result: ResultCondition {
+                        result: ResultAssertion {
                             operator: Operator::NumericEq,
-                            operand: "1000".into(),
+                            value: "1000".into(),
                         },
                     }),
                 },
