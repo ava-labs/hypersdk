@@ -1,19 +1,20 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
-// See the file LICENSE for licensing terms.
-
-package ed25519
+package P256
 
 import (
-	"crypto/rand"
+	"crypto/ecdsa"
+	"crypto/ed25519"
 	"encoding/hex"
 	"os"
-
-	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
-	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519/extra/cache"
 
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/hypersdk/crypto"
 )
+
+// TODO: ensure signature is not malleable (txID is just tx bytes): https://github.com/cosmos/cosmos-sdk/issues/9723
+// -> https://github.com/golang/go/issues/35680
+// -> https://eips.ethereum.org/EIPS/eip-7212#elliptic-curve-signature-verification-steps
+// -> https://github.com/ethereum/go-ethereum/pull/27540
+// -> https://github.com/ethereum/EIPs/pull/7676 (malleability check removed)
 
 type (
 	PublicKey  [ed25519.PublicKeySize]byte
@@ -41,30 +42,7 @@ var (
 	EmptyPublicKey  = [ed25519.PublicKeySize]byte{}
 	EmptyPrivateKey = [ed25519.PrivateKeySize]byte{}
 	EmptySignature  = [ed25519.SignatureSize]byte{}
-
-	verifyOptions ed25519.Options
-	cacheVerifier *Verifier
 )
-
-func init() {
-	// We use the ZIP-215 specification for ed25519 signature
-	// verification (https://zips.z.cash/zip-0215) because it provides
-	// an explicit validity criteria for signatures, supports batch
-	// verification, and is broadly compatible with signatures produced
-	// by almost all ed25519 implementations (which don't require
-	// canonically-encoded points).
-	//
-	// You can read more about the rationale for ZIP-215 here:
-	// https://hdevalence.ca/blog/2020-10-04-its-25519am
-	//
-	// You can read more about the challenge of ed25519 verification here:
-	// https://eprint.iacr.org/2020/1244.pdf
-	verifyOptions.Verify = ed25519.VerifyOptionsZIP_215
-
-	// cacheVerifier stores expanded ed25519 Public Keys (each is ~1.4KB). Using
-	// a cached expanded key reduces verification latency by ~25%.
-	cacheVerifier = NewVerifier(cache.NewLRUCache(cacheSize))
-}
 
 // Address returns a Bech32 address from hrp and p.
 // This function uses avalanchego's FormatBech32 function.
@@ -143,7 +121,7 @@ func Sign(msg []byte, pk PrivateKey) Signature {
 
 // Verify returns whether s is a valid signature of msg by p.
 func Verify(msg []byte, p PublicKey, s Signature) bool {
-	return cacheVerifier.VerifyWithOptions(p[:], msg, s[:], &verifyOptions)
+	return ecdsa.VerifyASN1(nil, nil, nil)
 }
 
 // HexToKey Converts a hexadecimal encoded key into a PrivateKey. Returns
@@ -157,36 +135,4 @@ func HexToKey(key string) (PrivateKey, error) {
 		return EmptyPrivateKey, crypto.ErrInvalidPrivateKey
 	}
 	return PrivateKey(bytes), nil
-}
-
-func CachePublicKey(p PublicKey) {
-	cacheVerifier.AddPublicKey(p[:])
-}
-
-type Batch struct {
-	bv *ed25519.BatchVerifier
-}
-
-func NewBatch(numItems int) *Batch {
-	if numItems <= 0 {
-		return &Batch{ed25519.NewBatchVerifier()}
-	}
-	return &Batch{ed25519.NewBatchVerifierWithCapacity(numItems)}
-}
-
-func (b *Batch) Add(msg []byte, p PublicKey, s Signature) {
-	cacheVerifier.AddWithOptions(b.bv, p[:], msg, s[:], &verifyOptions)
-}
-
-func (b *Batch) Verify() bool {
-	return b.bv.VerifyBatchOnly(rand.Reader)
-}
-
-func (b *Batch) VerifyAsync() func() error {
-	return func() error {
-		if !b.Verify() {
-			return crypto.ErrInvalidSignature
-		}
-		return nil
-	}
 }
