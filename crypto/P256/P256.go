@@ -137,3 +137,5 @@ func HexToKey(key string) (PrivateKey, error) {
 	}
 	return PrivateKey(bytes), nil
 }
+
+// TODO: offer DER to fixed conversion as utility
