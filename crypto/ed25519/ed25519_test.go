@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/ava-labs/hypersdk/crypto"
 	oed25519 "github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
 	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519/extra/cache"
 
@@ -98,7 +99,7 @@ func TestAddress(t *testing.T) {
 func TestParseAddressIncorrectHrt(t *testing.T) {
 	require := require.New(t)
 	pubkey, err := ParseAddress("wronghrt", TestAddressString)
-	require.ErrorIs(err, ErrIncorrectHrp, "ErrIncorrectHrp not returned")
+	require.ErrorIs(err, crypto.ErrIncorrectHrp, "ErrIncorrectHrp not returned")
 	require.Equal(
 		pubkey,
 		PublicKey(EmptyPublicKey),
@@ -166,7 +167,7 @@ func TestLoadKeyIncorrectKey(t *testing.T) {
 	privKey, err := LoadKey(fileName)
 
 	// Validate
-	require.ErrorIs(err, ErrInvalidPrivateKey,
+	require.ErrorIs(err, crypto.ErrInvalidPrivateKey,
 		"ErrInvalidPrivateKey was not returned")
 	require.Equal(privKey, PrivateKey(EmptyPrivateKey))
 
@@ -241,7 +242,7 @@ func TestHexToKeyInvalidKey(t *testing.T) {
 	require := require.New(t)
 	invalidHex := "1234"
 	hex, err := HexToKey(invalidHex)
-	require.ErrorIs(err, ErrInvalidPrivateKey, "Incorrect error returned")
+	require.ErrorIs(err, crypto.ErrInvalidPrivateKey, "Incorrect error returned")
 	require.Equal(PrivateKey(EmptyPrivateKey), hex)
 }
 

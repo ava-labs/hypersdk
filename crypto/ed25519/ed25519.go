@@ -12,6 +12,7 @@ import (
 	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519/extra/cache"
 
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
+	"github.com/ava-labs/hypersdk/crypto"
 )
 
 type (
@@ -82,14 +83,14 @@ func ParseAddress(hrp, saddr string) (PublicKey, error) {
 		return EmptyPublicKey, err
 	}
 	if phrp != hrp {
-		return EmptyPublicKey, ErrIncorrectHrp
+		return EmptyPublicKey, crypto.ErrIncorrectHrp
 	}
 	// The parsed public key may be greater than [PublicKeyLen] because the
 	// underlying Bech32 implementation requires bytes to each encode 5 bits
 	// instead of 8 (and we must pad the input to ensure we fill all bytes):
 	// https://github.com/btcsuite/btcd/blob/902f797b0c4b3af3f7196d2f5d2343931d1b2bdf/btcutil/bech32/bech32.go#L325-L331
 	if len(pk) < PublicKeyLen {
-		return EmptyPublicKey, ErrInvalidPublicKey
+		return EmptyPublicKey, crypto.ErrInvalidPublicKey
 	}
 	return PublicKey(pk[:PublicKeyLen]), nil
 }
@@ -129,7 +130,7 @@ func LoadKey(filename string) (PrivateKey, error) {
 		return EmptyPrivateKey, err
 	}
 	if len(bytes) != ed25519.PrivateKeySize {
-		return EmptyPrivateKey, ErrInvalidPrivateKey
+		return EmptyPrivateKey, crypto.ErrInvalidPrivateKey
 	}
 	return PrivateKey(bytes), nil
 }
@@ -153,7 +154,7 @@ func HexToKey(key string) (PrivateKey, error) {
 		return EmptyPrivateKey, err
 	}
 	if len(bytes) != ed25519.PrivateKeySize {
-		return EmptyPrivateKey, ErrInvalidPrivateKey
+		return EmptyPrivateKey, crypto.ErrInvalidPrivateKey
 	}
 	return PrivateKey(bytes), nil
 }
@@ -184,7 +185,7 @@ func (b *Batch) Verify() bool {
 func (b *Batch) VerifyAsync() func() error {
 	return func() error {
 		if !b.Verify() {
-			return ErrInvalidSignature
+			return crypto.ErrInvalidSignature
 		}
 		return nil
 	}

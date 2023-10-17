@@ -397,6 +397,12 @@ for a single account and ensure they are ordered) and makes the network layer
 more efficient (we can gossip any valid transaction to any node instead of just
 the transactions for each account that can be executed at the moment).
 
+_Because transaction IDs are used to prevent replay, it is critical that any signatures used
+in `Auth` are [not malleable](https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki).
+If malleable signatures are used, it would be trivial for an attacker to generate additional, valid
+transactions from an existing transaction and submit it to the network (duplicating whatever `Action` was
+specified by the sender)._
+
 ### Avalanche Warp Messaging Support
 `hypersdk` provides support for Avalanche Warp Messaging (AWM) out-of-the-box. AWM enables any
 Avalanche Subnet to send arbitrary messages to any other Avalanche Subnet in just a few

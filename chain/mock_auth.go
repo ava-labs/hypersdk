@@ -13,7 +13,7 @@ import (
 
 	codec "github.com/ava-labs/hypersdk/codec"
 	state "github.com/ava-labs/hypersdk/state"
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockAuth is a mock of Auth interface.
