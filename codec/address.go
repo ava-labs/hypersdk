@@ -1,7 +1,17 @@
 package codec
 
 import (
+	"fmt"
+
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
+)
+
+const (
+	fromBits      = 8
+	toBits        = 5
+	separatorLen  = 1
+	checksumlen   = 6
+	maxBech32Size = 90
 )
 
 // Address returns a Bech32 address from hrp and p.
@@ -9,6 +19,15 @@ import (
 func Address(hrp string, p ShortBytes) (string, error) {
 	if !p.Valid() {
 		return "", ErrInvalidShortBytes
+	}
+	expanedNum := p.Len() * fromBits
+	expandedLen := expanedNum / toBits
+	if expanedNum%toBits != 0 {
+		expandedLen++
+	}
+	addrLen := len(hrp) + separatorLen + expandedLen + checksumlen
+	if addrLen > maxBech32Size {
+		return "", fmt.Errorf("%w: max=%d, requested=%d", ErrInvalidSize, maxBech32Size, addrLen)
 	}
 	return address.FormatBech32(hrp, p[:])
 }
