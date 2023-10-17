@@ -2,8 +2,9 @@ package secp256r1
 
 import (
 	"crypto/ecdsa"
-	"crypto/ed25519"
 	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"math/big"
@@ -14,13 +15,6 @@ import (
 	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/crypto/cryptobyte/asn1"
 )
-
-// TODO: ensure signature is not malleable (txID is just tx bytes): https://github.com/cosmos/cosmos-sdk/issues/9723
-// -> https://github.com/golang/go/issues/35680
-// -> https://eips.ethereum.org/EIPS/eip-7212#elliptic-curve-signature-verification-steps
-// -> https://github.com/ethereum/go-ethereum/pull/27540
-// -> https://github.com/ethereum/EIPs/pull/7676 (malleability check removed)
-// ->-> https://github.com/ethereum/go-ethereum/pull/27540/files/7e0bc9271bc8ede1ca96c199d506368b7552ea51..cec0b058115282168c5afc5197de3f6b5479dc4a#diff-42aa89445835b22ad5e89bbea13ecfe2fa10b69084397e2dca6a826194f542e0
 
 // secp256r1Order returns the curve order for the secp256r1 (P-256) curve.
 //
@@ -35,6 +29,7 @@ var secp256r1Order = elliptic.P256().Params().N
 var secp256r1HalfOrder = new(big.Int).Div(secp256r1Order, big.NewInt(2))
 
 // IsNormalized returns true if [s] falls in the lower half of the curve order (inclusive).
+// This should be used when verifying signatures to ensure they are not malleable.
 //
 // source: https://github.com/cosmos/cosmos-sdk/blob/b71ec62807628b9a94bef32071e1c8686fcd9d36/crypto/keys/internal/ecdsa/privkey.go#L12-L37
 // source: https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#low-s-values-in-signatures
@@ -70,32 +65,25 @@ func ParseASN1Signature(sig []byte) (r, s []byte, err error) {
 	return r, s, nil
 }
 
-type (
-	PublicKey  [ed25519.PublicKeySize]byte
-	PrivateKey [ed25519.PrivateKeySize]byte
-	Signature  [ed25519.SignatureSize]byte
+const (
+	PublicKeyLen  = 64 // x || y
+	PrivateKeyLen = 32
+	SignatureLen  = 64 // r || s
+
+	coordinateLen = 32
+	rsLen         = 32
 )
 
-const (
-	PublicKeyLen  = ed25519.PublicKeySize
-	PrivateKeyLen = ed25519.PrivateKeySize
-	// PrivateKeySeedLen is defined because ed25519.PrivateKey
-	// is formatted as privateKey = seed|publicKey. We use this const
-	// to extract the publicKey below.
-	PrivateKeySeedLen = ed25519.SeedSize
-	SignatureLen      = ed25519.SignatureSize
-
-	// TODO: make this tunable
-	MinBatchSize = 16
-
-	// TODO: make this tunable
-	cacheSize = 128_000 // ~179MB (keys are ~1.4KB each)
+type (
+	PublicKey  [PublicKeyLen]byte
+	PrivateKey [PrivateKeyLen]byte
+	Signature  [SignatureLen]byte
 )
 
 var (
-	EmptyPublicKey  = [ed25519.PublicKeySize]byte{}
-	EmptyPrivateKey = [ed25519.PrivateKeySize]byte{}
-	EmptySignature  = [ed25519.SignatureSize]byte{}
+	EmptyPublicKey  = [PublicKeyLen]byte{}
+	EmptyPrivateKey = [PrivateKeyLen]byte{}
+	EmptySignature  = [SignatureLen]byte{}
 )
 
 // Address returns a Bech32 address from hrp and p.
@@ -127,19 +115,24 @@ func ParseAddress(hrp, saddr string) (PublicKey, error) {
 	return PublicKey(pk[:PublicKeyLen]), nil
 }
 
-// GeneratePrivateKey returns a Ed25519 PrivateKey.
+// GeneratePrivateKey returns a secp256r1 PrivateKey.
 func GeneratePrivateKey() (PrivateKey, error) {
-	_, k, err := ed25519.GenerateKey(nil)
+	k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return EmptyPrivateKey, err
 	}
-	return PrivateKey(k), nil
+	return PrivateKey(k.D.Bytes()), nil
 }
 
-// PublicKey returns a PublicKey associated with the Ed25519 PrivateKey p.
-// The PublicKey is the last 32 bytes of p.
+// PublicKey returns a PublicKey associated with the secp256r1 PrivateKey p.
+//
+// source: https://github.com/cosmos/cosmos-sdk/blob/b71ec62807628b9a94bef32071e1c8686fcd9d36/crypto/keys/internal/ecdsa/privkey.go#L120-L121
 func (p PrivateKey) PublicKey() PublicKey {
-	return PublicKey(p[PrivateKeySeedLen:])
+	x, y := elliptic.P256().ScalarBaseMult(p[:])
+	pk := make([]byte, PublicKeyLen)
+	copy(pk[:coordinateLen], x.Bytes())
+	copy(pk[coordinateLen:], y.Bytes())
+	return PublicKey(pk)
 }
 
 // ToHex converts a PrivateKey to a hex string.
@@ -161,21 +154,93 @@ func LoadKey(filename string) (PrivateKey, error) {
 	if err != nil {
 		return EmptyPrivateKey, err
 	}
-	if len(bytes) != ed25519.PrivateKeySize {
+	if len(bytes) != PrivateKeyLen {
 		return EmptyPrivateKey, crypto.ErrInvalidPrivateKey
 	}
 	return PrivateKey(bytes), nil
 }
 
 // Sign returns a valid signature for msg using pk.
-func Sign(msg []byte, pk PrivateKey) Signature {
-	sig := ed25519.Sign(pk[:], msg)
-	return Signature(sig)
+//
+// This function also adjusts [s] to be in the lower
+// half of the curve order.
+func Sign(msg []byte, pk PrivateKey) (Signature, error) {
+	// Parse PrivateKey
+	pub := pk.PublicKey()
+	x := new(big.Int).SetBytes(pub[:coordinateLen])
+	y := new(big.Int).SetBytes(pub[coordinateLen:])
+	priv := &ecdsa.PrivateKey{
+		PublicKey: ecdsa.PublicKey{
+			Curve: elliptic.P256(),
+			X:     x,
+			Y:     y,
+		},
+		D: new(big.Int).SetBytes(pk[:]),
+	}
+
+	// Sign message
+	digest := sha256.Sum256(msg)
+	r, s, err := ecdsa.Sign(rand.Reader, priv, digest[:])
+	if err != nil {
+		return EmptySignature, err
+	}
+
+	// Construct signature
+	ns := NormalizeSignature(s)
+	sig := make([]byte, SignatureLen)
+	copy(sig[:rsLen], r.Bytes())
+	copy(sig[rsLen:], ns.Bytes())
+	return Signature(sig), nil
 }
 
-// Verify returns whether s is a valid signature of msg by p.
-func Verify(msg []byte, p PublicKey, s Signature) bool {
-	return ecdsa.VerifyASN1(nil, nil, nil)
+// Verify returns whether sig is a valid signature of msg by p.
+//
+// The value of [s] in [sig] must be in the lower half of the curve
+// order for the signature to be considered valid.
+func Verify(msg []byte, p PublicKey, sig Signature) bool {
+	// Perform sanity checks
+	if len(p) != PublicKeyLen {
+		return false
+	}
+	if len(sig) != SignatureLen {
+		return false
+	}
+
+	// Parse PublicKey
+	x := new(big.Int).SetBytes(p[:coordinateLen])
+	y := new(big.Int).SetBytes(p[coordinateLen:])
+	pk := &ecdsa.PublicKey{
+		Curve: elliptic.P256(),
+		X:     x,
+		Y:     y,
+	}
+
+	// Check if the public key coordinates are on the curve
+	//
+	// source: https://github.com/decred/dcrd/blob/672c3458fb0ab4761661adafbc034922a12d68d7/dcrec/secp256k1/ecdsa/signature.go#L944-L949
+	if x == nil || y == nil || !elliptic.P256().IsOnCurve(x, y) {
+		return false
+	}
+
+	// Check if the public key coordinates are infinity
+	//
+	// source: https://github.com/decred/dcrd/blob/672c3458fb0ab4761661adafbc034922a12d68d7/dcrec/secp256k1/ecdsa/signature.go#L985-L994
+	if x.Sign() == 0 && y.Sign() == 0 {
+		return false
+	}
+
+	// Parse Signature
+	r := new(big.Int).SetBytes(sig[:rsLen])
+	s := new(big.Int).SetBytes(sig[rsLen:])
+
+	// Check if s is normalized
+	if !IsNormalized(s) {
+		return false
+	}
+
+	// Check if signature is valid
+	digest := sha256.Sum256(msg)
+	return ecdsa.Verify(pk, digest[:], r, s)
 }
 
 // HexToKey Converts a hexadecimal encoded key into a PrivateKey. Returns
@@ -185,7 +250,7 @@ func HexToKey(key string) (PrivateKey, error) {
 	if err != nil {
 		return EmptyPrivateKey, err
 	}
-	if len(bytes) != ed25519.PrivateKeySize {
+	if len(bytes) != PrivateKeyLen {
 		return EmptyPrivateKey, crypto.ErrInvalidPrivateKey
 	}
 	return PrivateKey(bytes), nil
