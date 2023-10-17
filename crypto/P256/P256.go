@@ -15,6 +15,7 @@ import (
 // -> https://eips.ethereum.org/EIPS/eip-7212#elliptic-curve-signature-verification-steps
 // -> https://github.com/ethereum/go-ethereum/pull/27540
 // -> https://github.com/ethereum/EIPs/pull/7676 (malleability check removed)
+// ->-> https://github.com/ethereum/go-ethereum/pull/27540/files/7e0bc9271bc8ede1ca96c199d506368b7552ea51..cec0b058115282168c5afc5197de3f6b5479dc4a#diff-42aa89445835b22ad5e89bbea13ecfe2fa10b69084397e2dca6a826194f542e0
 
 type (
 	PublicKey  [ed25519.PublicKeySize]byte
