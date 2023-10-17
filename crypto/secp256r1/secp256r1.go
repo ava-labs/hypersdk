@@ -49,21 +49,21 @@ var secp256r1Order = elliptic.P256().Params().N
 // source: https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#low-s-values-in-signatures
 var secp256r1HalfOrder = new(big.Int).Div(secp256r1Order, big.NewInt(2))
 
-// IsNormalized returns true if [s] falls in the lower half of the curve order (inclusive).
+// normalized returns true if [s] falls in the lower half of the curve order (inclusive).
 // This should be used when verifying signatures to ensure they are not malleable.
 //
 // source: https://github.com/cosmos/cosmos-sdk/blob/b71ec62807628b9a94bef32071e1c8686fcd9d36/crypto/keys/internal/ecdsa/privkey.go#L12-L37
 // source: https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#low-s-values-in-signatures
-func IsNormalized(s *big.Int) bool {
+func normalizedS(s *big.Int) bool {
 	return s.Cmp(secp256r1HalfOrder) != 1
 }
 
-// NormalizeSignature inverts [s] if it is not in the lower half of the curve order.
+// normalizeS inverts [s] if it is not in the lower half of the curve order.
 //
 // source: https://github.com/cosmos/cosmos-sdk/blob/b71ec62807628b9a94bef32071e1c8686fcd9d36/crypto/keys/internal/ecdsa/privkey.go#L12-L37
 // source: https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#low-s-values-in-signatures
-func NormalizeSignature(s *big.Int) *big.Int {
-	if IsNormalized(s) {
+func normalizeS(s *big.Int) *big.Int {
+	if normalizedS(s) {
 		return s
 	}
 	return new(big.Int).Sub(secp256r1Order, s)
@@ -169,18 +169,18 @@ func LoadKey(filename string) (PrivateKey, error) {
 	return PrivateKey(bytes), nil
 }
 
-// signatureRaw creates a valid signature, potentially padding
+// generateSignature creates a valid signature, potentially padding
 // r and/or s with zeros.
 //
 // source: https://github.com/cosmos/cosmos-sdk/blob/b71ec62807628b9a94bef32071e1c8686fcd9d36/crypto/keys/internal/ecdsa/privkey.go#L39-L50
-func signatureRaw(r, s *big.Int) []byte {
+func generateSignature(r, s *big.Int) Signature {
 	rBytes := r.Bytes()
 	sBytes := s.Bytes()
 	sigBytes := make([]byte, SignatureLen)
 	// 0 pad the byte arrays from the left if they aren't big enough
 	copy(sigBytes[rsLen-len(rBytes):rsLen], rBytes)
 	copy(sigBytes[SignatureLen-len(sBytes):SignatureLen], sBytes)
-	return sigBytes
+	return Signature(sigBytes)
 }
 
 // Sign returns a valid signature for msg using pk.
@@ -207,8 +207,8 @@ func Sign(msg []byte, pk PrivateKey) (Signature, error) {
 	}
 
 	// Construct signature
-	ns := NormalizeSignature(s)
-	return Signature(signatureRaw(r, ns)), nil
+	ns := normalizeS(s)
+	return generateSignature(r, ns), nil
 }
 
 // Verify returns whether sig is a valid signature of msg by p.
@@ -246,7 +246,7 @@ func Verify(msg []byte, p PublicKey, sig Signature) bool {
 	s := new(big.Int).SetBytes(sig[rsLen:])
 
 	// Check if s is normalized
-	if !IsNormalized(s) {
+	if !normalizedS(s) {
 		return false
 	}
 
@@ -325,8 +325,8 @@ func denormalizedSign(msg []byte, pk PrivateKey) (Signature, error) {
 		}
 
 		// Construct signature
-		if !IsNormalized(s) {
-			return Signature(signatureRaw(r, s)), nil
+		if !normalizedS(s) {
+			return generateSignature(r, s), nil
 		}
 	}
 }

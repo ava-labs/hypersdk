@@ -18,7 +18,7 @@ func TestGeneratePrivateKey(t *testing.T) {
 
 func TestSignVerify(t *testing.T) {
 	require := require.New(t)
-	for i := 0; i < 500; i++ {
+	for i := 0; i < 1000; i++ {
 		// Generate private key
 		priv, err := GeneratePrivateKey()
 		require.NoError(err)
@@ -29,15 +29,13 @@ func TestSignVerify(t *testing.T) {
 		require.NoError(err)
 
 		// Verify signature
-		require.True(IsNormalized(new(big.Int).SetBytes(sig[rsLen:])))
 		require.True(Verify(msg, priv.PublicKey(), sig))
 	}
 }
 
 func TestNormalization(t *testing.T) {
 	require := require.New(t)
-
-	for i := 0; i < 500; i++ {
+	for i := 0; i < 1000; i++ {
 		// Generate private key
 		priv, err := GeneratePrivateKey()
 		require.NoError(err)
@@ -50,16 +48,15 @@ func TestNormalization(t *testing.T) {
 		// Verify signature
 		r := new(big.Int).SetBytes(sig[:rsLen])
 		s := new(big.Int).SetBytes(sig[rsLen:])
-		require.False(IsNormalized(s))
+		require.False(normalizedS(s))
 		require.False(Verify(msg, priv.PublicKey(), sig))
 
 		// Normalize signature
-		ns := NormalizeSignature(s)
-		nsig := signatureRaw(r, ns)
+		ns := normalizeS(s)
 
 		// Verify fixed signature
-		require.True(IsNormalized(ns))
-		require.True(Verify(msg, priv.PublicKey(), Signature(nsig)))
+		require.True(normalizedS(ns))
+		require.True(Verify(msg, priv.PublicKey(), generateSignature(r, ns)))
 	}
 }
 
@@ -86,6 +83,5 @@ func TestASN1Parsing(t *testing.T) {
 
 	// Verify signature
 	msg := []byte("aaa")
-	require.True(IsNormalized(new(big.Int).SetBytes(s)))
 	require.True(Verify(msg, PublicKey(cpk), Signature(append(r, s...))))
 }
