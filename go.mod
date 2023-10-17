@@ -7,7 +7,7 @@ require (
 	github.com/ava-labs/avalanche-network-runner v1.7.2-0.20230825184751-fbe081616f02
 	github.com/ava-labs/avalanchego v1.10.12
 	github.com/bytecodealliance/wasmtime-go/v13 v13.0.0
-	github.com/cockroachdb/pebble v0.0.0-20230224221607-fccb83b60d5c
+	github.com/cockroachdb/pebble v0.0.0-20231011191824-ede31f1a8e4b
 	github.com/golang/mock v1.6.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/rpc v1.2.0
@@ -25,7 +25,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.11.2
 	go.opentelemetry.io/otel/trace v1.11.2
 	go.uber.org/zap v1.24.0
-	golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53
+	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df
 	golang.org/x/sync v0.2.0
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -41,9 +41,10 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chzyer/readline v1.5.1 // indirect
-	github.com/cockroachdb/errors v1.9.1 // indirect
+	github.com/cockroachdb/errors v1.11.1 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
-	github.com/cockroachdb/redact v1.1.3 // indirect
+	github.com/cockroachdb/redact v1.1.5 // indirect
+	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/deckarep/golang-set/v2 v2.1.0 // indirect
@@ -130,7 +131,7 @@ require (
 	go.uber.org/mock v0.2.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.14.0 // indirect
-	golang.org/x/mod v0.10.0 // indirect
+	golang.org/x/mod v0.11.0 // indirect
 	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/term v0.13.0 // indirect

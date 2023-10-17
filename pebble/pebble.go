@@ -38,10 +38,10 @@ type Database struct {
 }
 
 type Config struct {
-	CacheSize                   int // B
-	BytesPerSync                int // B
-	MemTableStopWritesThreshold int // num tables
-	MemTableSize                int // B
+	CacheSize                   int    // B
+	BytesPerSync                int    // B
+	MemTableStopWritesThreshold int    // num tables
+	MemTableSize                uint64 // B
 	MaxOpenFiles                int
 	ConcurrentCompactions       func() int
 }
@@ -66,7 +66,7 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 		MemTableStopWritesThreshold: cfg.MemTableStopWritesThreshold,
 		MemTableSize:                cfg.MemTableSize,
 		MaxOpenFiles:                cfg.MaxOpenFiles,
-		MaxConcurrentCompactions:    cfg.ConcurrentCompactions, // TODO: may want to tweak this?
+		MaxConcurrentCompactions:    cfg.ConcurrentCompactions,
 		Levels:                      make([]pebble.LevelOptions, 7),
 		// TODO: add support for adding a custom logger
 
@@ -229,18 +229,22 @@ type iter struct {
 
 // NewIterator creates a lexicographically ordered iterator over the database
 func (db *Database) NewIterator() database.Iterator {
+	it, err := db.db.NewIter(&pebble.IterOptions{})
 	return &iter{
 		db:   db,
-		iter: db.db.NewIter(&pebble.IterOptions{}),
+		iter: it,
+		err:  err,
 	}
 }
 
 // NewIteratorWithStart creates a lexicographically ordered iterator over the
 // database starting at the provided key
 func (db *Database) NewIteratorWithStart(start []byte) database.Iterator {
+	it, err := db.db.NewIter(&pebble.IterOptions{LowerBound: start})
 	return &iter{
 		db:   db,
-		iter: db.db.NewIter(&pebble.IterOptions{LowerBound: start}),
+		iter: it,
+		err:  err,
 	}
 }
 
@@ -263,9 +267,11 @@ func bytesPrefix(prefix []byte) *pebble.IterOptions {
 // NewIteratorWithPrefix creates a lexicographically ordered iterator over the
 // database ignoring keys that do not start with the provided prefix
 func (db *Database) NewIteratorWithPrefix(prefix []byte) database.Iterator {
+	it, err := db.db.NewIter(bytesPrefix(prefix))
 	return &iter{
 		db:   db,
-		iter: db.db.NewIter(bytesPrefix(prefix)),
+		iter: it,
+		err:  err,
 	}
 }
 
@@ -280,13 +286,20 @@ func (db *Database) NewIteratorWithStartAndPrefix(start, prefix []byte) database
 	if bytes.Compare(start, prefix) == 1 {
 		iterRange.LowerBound = start
 	}
+	it, err := db.db.NewIter(iterRange)
 	return &iter{
 		db:   db,
-		iter: db.db.NewIter(iterRange),
+		iter: it,
+		err:  err,
 	}
 }
 
 func (it *iter) Next() bool {
+	// Short-circuit if the iterator has already errored
+	if it.err != nil {
+		return false
+	}
+
 	// Short-circuit and set an error if the underlying database has been closed.
 	if it.db.closed.Get() {
 		it.valid = false
