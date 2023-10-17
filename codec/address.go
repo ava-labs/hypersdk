@@ -6,16 +6,20 @@ import (
 
 // Address returns a Bech32 address from hrp and p.
 // This function uses avalanchego's FormatBech32 function.
-func Address(hrp string, p ShortBytes) string {
-	// TODO: handle error
-	addrString, _ := address.FormatBech32(hrp, p[:])
-	return addrString
+func Address(hrp string, p ShortBytes) (string, error) {
+	if !p.Valid() {
+		return "", ErrInvalidShortBytes
+	}
+	return address.FormatBech32(hrp, p[:])
 }
 
 // ParseAddress parses a Bech32 encoded address string and extracts
 // its bytes. If there is an error reading the address or the hrp
 // value is not valid, ParseAddress returns an error.
 func ParseAddress(hrp, saddr string, length int) (ShortBytes, error) {
+	if length > ShortBytesMaxSize {
+		return nil, ErrInvalidShortBytes
+	}
 	phrp, p, err := address.ParseBech32(saddr)
 	if err != nil {
 		return nil, err

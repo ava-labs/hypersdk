@@ -159,7 +159,7 @@ func TestPackerShortBytes(t *testing.T) {
 	t.Run("Pack Too Large", func(t *testing.T) {
 		wp := NewWriter(1024, 1024)
 		wp.PackShortBytes(make([]byte, 1024))
-		require.ErrorIs(wp.Err(), ErrTooLarge)
+		require.ErrorIs(wp.Err(), ErrInvalidShortBytes)
 	})
 	wp := NewWriter(ed25519.PublicKeyLen+1, ed25519.PublicKeyLen+1)
 	pubKey := make(ShortBytes, ed25519.PublicKeyLen)
