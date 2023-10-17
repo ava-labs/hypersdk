@@ -69,52 +69,6 @@ func normalizeS(s *big.Int) *big.Int {
 	return new(big.Int).Sub(secp256r1Order, s)
 }
 
-// ParseASN1Signature parses an ASN.1 encoded (using DER serialization) secp256r1 signature.
-// This function does not normalize the extracted signature.
-//
-// source: https://cs.opensource.google/go/go/+/refs/tags/go1.21.3:src/crypto/ecdsa/ecdsa.go;l=549
-func ParseASN1Signature(sig []byte) (r, s []byte, err error) {
-	var inner cryptobyte.String
-	input := cryptobyte.String(sig)
-	if !input.ReadASN1(&inner, asn1.SEQUENCE) ||
-		!input.Empty() ||
-		!inner.ReadASN1Integer(&r) ||
-		!inner.ReadASN1Integer(&s) ||
-		!inner.Empty() {
-		return nil, nil, errors.New("invalid ASN.1")
-	}
-	return r, s, nil
-}
-
-// Address returns a Bech32 address from hrp and p.
-// This function uses avalanchego's FormatBech32 function.
-func Address(hrp string, p PublicKey) string {
-	// TODO: handle error
-	addrString, _ := address.FormatBech32(hrp, p[:])
-	return addrString
-}
-
-// ParseAddress parses a Bech32 encoded address string and extracts
-// its public key. If there is an error reading the address or the hrp
-// value is not valid, ParseAddress returns an EmptyPublicKey and error.
-func ParseAddress(hrp, saddr string) (PublicKey, error) {
-	phrp, pk, err := address.ParseBech32(saddr)
-	if err != nil {
-		return EmptyPublicKey, err
-	}
-	if phrp != hrp {
-		return EmptyPublicKey, crypto.ErrIncorrectHrp
-	}
-	// The parsed public key may be greater than [PublicKeyLen] because the
-	// underlying Bech32 implementation requires bytes to each encode 5 bits
-	// instead of 8 (and we must pad the input to ensure we fill all bytes):
-	// https://github.com/btcsuite/btcd/blob/902f797b0c4b3af3f7196d2f5d2343931d1b2bdf/btcutil/bech32/bech32.go#L325-L331
-	if len(pk) < PublicKeyLen {
-		return EmptyPublicKey, crypto.ErrInvalidPublicKey
-	}
-	return PublicKey(pk[:PublicKeyLen]), nil
-}
-
 // GeneratePrivateKey returns a secp256r1 PrivateKey.
 func GeneratePrivateKey() (PrivateKey, error) {
 	k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -187,6 +141,12 @@ func generateSignature(r, s *big.Int) Signature {
 //
 // This function also adjusts [s] to be in the lower
 // half of the curve order.
+//
+// This function produces signatures of equivalent
+// security as RFC6979 deterministic nonce generation
+// without giving up signature randomness.
+//
+// source: https://cs.opensource.google/go/go/+/refs/tags/go1.21.3:src/crypto/ecdsa/ecdsa.go;l=409-452
 func Sign(msg []byte, pk PrivateKey) (Signature, error) {
 	// Parse PrivateKey
 	x, y := pk.generateCoordinates()
@@ -255,41 +215,6 @@ func Verify(msg []byte, p PublicKey, sig Signature) bool {
 	return ecdsa.Verify(pk, digest[:], r, s)
 }
 
-func VerifyAll(msg []byte, p PublicKey, sig Signature) bool {
-	// Perform sanity checks
-	if len(p) != PublicKeyLen {
-		fmt.Println("invalid pk len")
-		return false
-	}
-	if len(sig) != SignatureLen {
-		fmt.Println("invalid sig len")
-		return false
-	}
-
-	// Parse PublicKey
-	x, y := elliptic.UnmarshalCompressed(elliptic.P256(), p[:])
-	if x == nil || y == nil {
-		// This can happen if the point is not in compressed form, not
-		// on the curve, or is at infinity.
-		//
-		// source: https://cs.opensource.google/go/go/+/refs/tags/go1.21.3:src/crypto/elliptic/elliptic.go;l=147-149
-		return false
-	}
-	pk := &ecdsa.PublicKey{
-		Curve: elliptic.P256(),
-		X:     x,
-		Y:     y,
-	}
-
-	// Parse Signature
-	r := new(big.Int).SetBytes(sig[:rsLen])
-	s := new(big.Int).SetBytes(sig[rsLen:])
-
-	// Check if signature is valid
-	digest := sha256.Sum256(msg)
-	return ecdsa.Verify(pk, digest[:], r, s)
-}
-
 // HexToKey Converts a hexadecimal encoded key into a PrivateKey. Returns
 // an EmptyPrivateKey and error if key is invalid.
 func HexToKey(key string) (PrivateKey, error) {
@@ -301,6 +226,52 @@ func HexToKey(key string) (PrivateKey, error) {
 		return EmptyPrivateKey, crypto.ErrInvalidPrivateKey
 	}
 	return PrivateKey(bytes), nil
+}
+
+// ParseASN1Signature parses an ASN.1 encoded (using DER serialization) secp256r1 signature.
+// This function does not normalize the extracted signature.
+//
+// source: https://cs.opensource.google/go/go/+/refs/tags/go1.21.3:src/crypto/ecdsa/ecdsa.go;l=549
+func ParseASN1Signature(sig []byte) (r, s []byte, err error) {
+	var inner cryptobyte.String
+	input := cryptobyte.String(sig)
+	if !input.ReadASN1(&inner, asn1.SEQUENCE) ||
+		!input.Empty() ||
+		!inner.ReadASN1Integer(&r) ||
+		!inner.ReadASN1Integer(&s) ||
+		!inner.Empty() {
+		return nil, nil, errors.New("invalid ASN.1")
+	}
+	return r, s, nil
+}
+
+// Address returns a Bech32 address from hrp and p.
+// This function uses avalanchego's FormatBech32 function.
+func Address(hrp string, p PublicKey) string {
+	// TODO: handle error
+	addrString, _ := address.FormatBech32(hrp, p[:])
+	return addrString
+}
+
+// ParseAddress parses a Bech32 encoded address string and extracts
+// its public key. If there is an error reading the address or the hrp
+// value is not valid, ParseAddress returns an EmptyPublicKey and error.
+func ParseAddress(hrp, saddr string) (PublicKey, error) {
+	phrp, pk, err := address.ParseBech32(saddr)
+	if err != nil {
+		return EmptyPublicKey, err
+	}
+	if phrp != hrp {
+		return EmptyPublicKey, crypto.ErrIncorrectHrp
+	}
+	// The parsed public key may be greater than [PublicKeyLen] because the
+	// underlying Bech32 implementation requires bytes to each encode 5 bits
+	// instead of 8 (and we must pad the input to ensure we fill all bytes):
+	// https://github.com/btcsuite/btcd/blob/902f797b0c4b3af3f7196d2f5d2343931d1b2bdf/btcutil/bech32/bech32.go#L325-L331
+	if len(pk) < PublicKeyLen {
+		return EmptyPublicKey, crypto.ErrInvalidPublicKey
+	}
+	return PublicKey(pk[:PublicKeyLen]), nil
 }
 
 // used for testing
