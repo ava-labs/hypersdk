@@ -169,6 +169,20 @@ func LoadKey(filename string) (PrivateKey, error) {
 	return PrivateKey(bytes), nil
 }
 
+// signatureRaw creates a valid signature, potentially padding
+// r and/or s with zeros.
+//
+// source: https://github.com/cosmos/cosmos-sdk/blob/b71ec62807628b9a94bef32071e1c8686fcd9d36/crypto/keys/internal/ecdsa/privkey.go#L39-L50
+func signatureRaw(r, s *big.Int) []byte {
+	rBytes := r.Bytes()
+	sBytes := s.Bytes()
+	sigBytes := make([]byte, SignatureLen)
+	// 0 pad the byte arrays from the left if they aren't big enough
+	copy(sigBytes[rsLen-len(rBytes):rsLen], rBytes)
+	copy(sigBytes[SignatureLen-len(sBytes):SignatureLen], sBytes)
+	return sigBytes
+}
+
 // Sign returns a valid signature for msg using pk.
 //
 // This function also adjusts [s] to be in the lower
@@ -194,10 +208,7 @@ func Sign(msg []byte, pk PrivateKey) (Signature, error) {
 
 	// Construct signature
 	ns := NormalizeSignature(s)
-	sig := make([]byte, SignatureLen)
-	copy(sig[:rsLen], r.Bytes())
-	copy(sig[rsLen:], ns.Bytes())
-	return Signature(sig), nil
+	return Signature(signatureRaw(r, ns)), nil
 }
 
 // Verify returns whether sig is a valid signature of msg by p.
