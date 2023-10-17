@@ -16,6 +16,27 @@ import (
 	"golang.org/x/crypto/cryptobyte/asn1"
 )
 
+const (
+	PublicKeyLen  = 64 // x || y
+	PrivateKeyLen = 32
+	SignatureLen  = 64 // r || s
+
+	coordinateLen = 32
+	rsLen         = 32
+)
+
+type (
+	PublicKey  [PublicKeyLen]byte
+	PrivateKey [PrivateKeyLen]byte
+	Signature  [SignatureLen]byte
+)
+
+var (
+	EmptyPublicKey  = [PublicKeyLen]byte{}
+	EmptyPrivateKey = [PrivateKeyLen]byte{}
+	EmptySignature  = [SignatureLen]byte{}
+)
+
 // secp256r1Order returns the curve order for the secp256r1 (P-256) curve.
 //
 // source: https://github.com/cosmos/cosmos-sdk/blob/b71ec62807628b9a94bef32071e1c8686fcd9d36/crypto/keys/internal/ecdsa/privkey.go#L12-L37
@@ -64,27 +85,6 @@ func ParseASN1Signature(sig []byte) (r, s []byte, err error) {
 	}
 	return r, s, nil
 }
-
-const (
-	PublicKeyLen  = 64 // x || y
-	PrivateKeyLen = 32
-	SignatureLen  = 64 // r || s
-
-	coordinateLen = 32
-	rsLen         = 32
-)
-
-type (
-	PublicKey  [PublicKeyLen]byte
-	PrivateKey [PrivateKeyLen]byte
-	Signature  [SignatureLen]byte
-)
-
-var (
-	EmptyPublicKey  = [PublicKeyLen]byte{}
-	EmptyPrivateKey = [PrivateKeyLen]byte{}
-	EmptySignature  = [SignatureLen]byte{}
-)
 
 // Address returns a Bech32 address from hrp and p.
 // This function uses avalanchego's FormatBech32 function.
