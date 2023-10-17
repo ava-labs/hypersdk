@@ -15,7 +15,7 @@ import (
 	warp "github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	codec "github.com/ava-labs/hypersdk/codec"
 	state "github.com/ava-labs/hypersdk/state"
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockAction is a mock of Action interface.

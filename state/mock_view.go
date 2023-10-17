@@ -13,7 +13,7 @@ import (
 
 	ids "github.com/ava-labs/avalanchego/ids"
 	merkledb "github.com/ava-labs/avalanchego/x/merkledb"
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockView is a mock of View interface.
