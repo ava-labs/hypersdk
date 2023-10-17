@@ -76,6 +76,39 @@ func TestInvalidSignature(t *testing.T) {
 	require.False(Verify(msg, PublicKey(pk), Signature(sig)))
 }
 
+func TestEmptySignature(t *testing.T) {
+	msg := []byte("hello")
+	publicKey := "03831f7d72b912e589ec5dec0321342f21d036a1983601926654e4d1c2278ab278"
+
+	require := require.New(t)
+	pk, err := hex.DecodeString(publicKey)
+	require.NoError(err)
+	require.False(Verify(msg, PublicKey(pk), EmptySignature))
+}
+
+func TestBadPublicKey(t *testing.T) {
+	msg := []byte("hello")
+	publicKey := "03831f7d72b912e589ec5dec0321342f21d036a1983601926654e4d1c2278ab288"
+	badSignature := "96f96b7eb69615acd55c4b9fede157ce054c1520789cbc519c67c8b43893337c37202734c76c8beb8b200103860dd5edede4cc98f4b47ba81e92e151e516573f"
+
+	require := require.New(t)
+	pk, err := hex.DecodeString(publicKey)
+	require.NoError(err)
+	sig, err := hex.DecodeString(badSignature)
+	require.NoError(err)
+	require.False(Verify(msg, PublicKey(pk), Signature(sig)))
+}
+
+func TestEmptyPublicKey(t *testing.T) {
+	msg := []byte("hello")
+	badSignature := "96f96b7eb69615acd55c4b9fede157ce054c1520789cbc519c67c8b43893337c37202734c76c8beb8b200103860dd5edede4cc98f4b47ba81e92e151e516573f"
+
+	require := require.New(t)
+	sig, err := hex.DecodeString(badSignature)
+	require.NoError(err)
+	require.False(Verify(msg, EmptyPublicKey, Signature(sig)))
+}
+
 func TestSignatureLargeS(t *testing.T) {
 	msg := []byte("hello")
 	publicKey := "03ca7eedb087dd30ba97c468f1c3ac06e0571dd055d0cdaf4147d11df0337c11f9"
