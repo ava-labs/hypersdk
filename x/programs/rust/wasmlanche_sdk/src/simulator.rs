@@ -89,7 +89,7 @@ impl<'de> Deserialize<'de> for ParamType {
             "ed25519" => Ok(ParamType::Key(Key::Ed25519)),
             "secp256r1" => Ok(ParamType::Key(Key::Secp256r1)),
             "id" => Ok(ParamType::ID),
-            _ => Err(D::Error::custom(format!("unknown param type: {}", s))),
+            _ => Err(D::Error::custom(format!("unknown param type: {s}"))),
         }
     }
 }
@@ -135,11 +135,15 @@ pub struct Client {
 }
 
 impl Client {
+    #[must_use]
     pub fn new(path: String) -> Self {
         Self { path }
     }
 
     /// Runs a simulation against the simulator and returns the result.
+    /// # Errors
+    ///
+    /// Returns an error if the if serialization or simulation fails.
     pub fn run<T>(&self, simulation: &Simulation) -> Result<T, Box<dyn Error>>
     where
         T: serde::de::DeserializeOwned + serde::Serialize,
@@ -148,6 +152,9 @@ impl Client {
     }
 
     /// Performs a view step against the simulator and returns the result.
+    /// # Errors
+    ///
+    /// Returns an error if the if serialization or simulation fails.
     pub fn view<T>(&self, data: Step, key: &str) -> Result<T, Box<dyn Error>>
     where
         T: serde::de::DeserializeOwned + serde::Serialize,
@@ -163,6 +170,9 @@ impl Client {
     }
 
     /// Performs a single execution step against the simulator and returns the result.
+    /// # Errors
+    ///
+    /// Returns an error if the if serialization or simulation fails.
     pub fn execute<T>(&self, data: Step, key: &str) -> Result<T, Box<dyn Error>>
     where
         T: serde::de::DeserializeOwned + serde::Serialize,
