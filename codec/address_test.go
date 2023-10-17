@@ -22,12 +22,20 @@ func TestIDAddress(t *testing.T) {
 	require.True(bytes.Equal(id[:], sb[:]))
 }
 
+func TestInvalidAddressHRP(t *testing.T) {
+	require := require.New(t)
+	addr := "blah1859dz2uwazfgahey3j53ef2kqrans0c8cv4l78tda3rjkfw0txns8u2e8k"
+
+	_, err := ParseAddress("test", addr, ids.IDLen)
+	require.ErrorIs(err, ErrIncorrectHRP)
+}
+
 func TestInvalidAddressChecksum(t *testing.T) {
 	require := require.New(t)
 	addr := "blah1859dz2uwazfgahey3j53ef2kqrans0c8cv4l78tda3rjkfw0txns8u2e7k"
 
 	_, err := ParseAddress(hrp, addr, ids.IDLen)
-	require.Error(err)
+	require.ErrorContains(err, "invalid checksum")
 }
 
 func TestMaxAddress(t *testing.T) {
