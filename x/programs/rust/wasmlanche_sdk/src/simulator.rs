@@ -191,6 +191,7 @@ where
 
     let resp: T = serde_json::from_str(String::from_utf8(output.stdout)?.as_ref())
         .map_err(|e| format!("failed to parse output to json: {e}"))?;
+
     Ok(resp)
 }
 
@@ -206,7 +207,7 @@ mod tests {
 
     #[test]
     fn test_parse_plan_yaml() {
-        let yaml_content = "
+        let yaml_content = r#"
 name: token program
 description: Deploy and execute token program
 caller_key: alice_key
@@ -235,7 +236,7 @@ steps:
         type: u64
         value: 1000
   - description: get balance for alice
-    endpoint: view
+    endpoint: readonly
     method: get_balance
     params:
       - name: program_id
@@ -247,8 +248,8 @@ steps:
     require:
         result:
             operator: ==
-            operand: 1000
-";
+            value: 1000
+"#;
 
         let expected = Plan {
             name: "token program",
