@@ -17,12 +17,11 @@ import (
 )
 
 const (
-	PublicKeyLen  = 64 // x || y
+	PublicKeyLen  = 33 // compressed form (SEC 1, Version 2.0, Section 2.3.3)
 	PrivateKeyLen = 32
 	SignatureLen  = 64 // r || s
 
-	coordinateLen = 32
-	rsLen         = 32
+	rsLen = 32
 )
 
 type (
@@ -124,15 +123,19 @@ func GeneratePrivateKey() (PrivateKey, error) {
 	return PrivateKey(k.D.Bytes()), nil
 }
 
-// PublicKey returns a PublicKey associated with the secp256r1 PrivateKey p.
+// generateCoordintes recovers the public key coordinates
 //
 // source: https://github.com/cosmos/cosmos-sdk/blob/b71ec62807628b9a94bef32071e1c8686fcd9d36/crypto/keys/internal/ecdsa/privkey.go#L120-L121
+func (p PrivateKey) generateCoordinates() (*big.Int, *big.Int) {
+	return elliptic.P256().ScalarBaseMult(p[:])
+}
+
+// PublicKey returns a PublicKey associated with the secp256r1 PrivateKey p.
 func (p PrivateKey) PublicKey() PublicKey {
-	x, y := elliptic.P256().ScalarBaseMult(p[:])
-	pk := make([]byte, PublicKeyLen)
-	copy(pk[:coordinateLen], x.Bytes())
-	copy(pk[coordinateLen:], y.Bytes())
-	return PublicKey(pk)
+	x, y := p.generateCoordinates()
+
+	// Output the compressed form of the PublicKey
+	return PublicKey(elliptic.MarshalCompressed(elliptic.P256(), x, y))
 }
 
 // ToHex converts a PrivateKey to a hex string.
@@ -166,9 +169,7 @@ func LoadKey(filename string) (PrivateKey, error) {
 // half of the curve order.
 func Sign(msg []byte, pk PrivateKey) (Signature, error) {
 	// Parse PrivateKey
-	pub := pk.PublicKey()
-	x := new(big.Int).SetBytes(pub[:coordinateLen])
-	y := new(big.Int).SetBytes(pub[coordinateLen:])
+	x, y := pk.generateCoordinates()
 	priv := &ecdsa.PrivateKey{
 		PublicKey: ecdsa.PublicKey{
 			Curve: elliptic.P256(),
@@ -207,26 +208,18 @@ func Verify(msg []byte, p PublicKey, sig Signature) bool {
 	}
 
 	// Parse PublicKey
-	x := new(big.Int).SetBytes(p[:coordinateLen])
-	y := new(big.Int).SetBytes(p[coordinateLen:])
+	x, y := elliptic.UnmarshalCompressed(elliptic.P256(), p[:])
+	if x == nil || y == nil {
+		// This can happen if the point is not in compressed form, not
+		// on the curve, or is at infinity.
+		//
+		// source: https://cs.opensource.google/go/go/+/refs/tags/go1.21.3:src/crypto/elliptic/elliptic.go;l=147-149
+		return false
+	}
 	pk := &ecdsa.PublicKey{
 		Curve: elliptic.P256(),
 		X:     x,
 		Y:     y,
-	}
-
-	// Check if the public key coordinates are on the curve
-	//
-	// source: https://github.com/decred/dcrd/blob/672c3458fb0ab4761661adafbc034922a12d68d7/dcrec/secp256k1/ecdsa/signature.go#L944-L949
-	if x == nil || y == nil || !elliptic.P256().IsOnCurve(x, y) {
-		return false
-	}
-
-	// Check if the public key coordinates are infinity
-	//
-	// source: https://github.com/decred/dcrd/blob/672c3458fb0ab4761661adafbc034922a12d68d7/dcrec/secp256k1/ecdsa/signature.go#L985-L994
-	if x.Sign() == 0 && y.Sign() == 0 {
-		return false
 	}
 
 	// Parse Signature
