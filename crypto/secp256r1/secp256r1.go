@@ -255,6 +255,41 @@ func Verify(msg []byte, p PublicKey, sig Signature) bool {
 	return ecdsa.Verify(pk, digest[:], r, s)
 }
 
+func VerifyAll(msg []byte, p PublicKey, sig Signature) bool {
+	// Perform sanity checks
+	if len(p) != PublicKeyLen {
+		fmt.Println("invalid pk len")
+		return false
+	}
+	if len(sig) != SignatureLen {
+		fmt.Println("invalid sig len")
+		return false
+	}
+
+	// Parse PublicKey
+	x, y := elliptic.UnmarshalCompressed(elliptic.P256(), p[:])
+	if x == nil || y == nil {
+		// This can happen if the point is not in compressed form, not
+		// on the curve, or is at infinity.
+		//
+		// source: https://cs.opensource.google/go/go/+/refs/tags/go1.21.3:src/crypto/elliptic/elliptic.go;l=147-149
+		return false
+	}
+	pk := &ecdsa.PublicKey{
+		Curve: elliptic.P256(),
+		X:     x,
+		Y:     y,
+	}
+
+	// Parse Signature
+	r := new(big.Int).SetBytes(sig[:rsLen])
+	s := new(big.Int).SetBytes(sig[rsLen:])
+
+	// Check if signature is valid
+	digest := sha256.Sum256(msg)
+	return ecdsa.Verify(pk, digest[:], r, s)
+}
+
 // HexToKey Converts a hexadecimal encoded key into a PrivateKey. Returns
 // an EmptyPrivateKey and error if key is invalid.
 func HexToKey(key string) (PrivateKey, error) {
@@ -266,4 +301,32 @@ func HexToKey(key string) (PrivateKey, error) {
 		return EmptyPrivateKey, crypto.ErrInvalidPrivateKey
 	}
 	return PrivateKey(bytes), nil
+}
+
+// used for testing
+func denormalizedSign(msg []byte, pk PrivateKey) (Signature, error) {
+	for {
+		// Parse PrivateKey
+		x, y := pk.generateCoordinates()
+		priv := &ecdsa.PrivateKey{
+			PublicKey: ecdsa.PublicKey{
+				Curve: elliptic.P256(),
+				X:     x,
+				Y:     y,
+			},
+			D: new(big.Int).SetBytes(pk[:]),
+		}
+
+		// Sign message
+		digest := sha256.Sum256(msg)
+		r, s, err := ecdsa.Sign(rand.Reader, priv, digest[:])
+		if err != nil {
+			return EmptySignature, err
+		}
+
+		// Construct signature
+		if !IsNormalized(s) {
+			return Signature(signatureRaw(r, s)), nil
+		}
+	}
 }

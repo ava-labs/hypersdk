@@ -17,19 +17,50 @@ func TestGeneratePrivateKey(t *testing.T) {
 }
 
 func TestSignVerify(t *testing.T) {
-	// Generate private key
 	require := require.New(t)
-	priv, err := GeneratePrivateKey()
-	require.NoError(err)
+	for i := 0; i < 500; i++ {
+		// Generate private key
+		priv, err := GeneratePrivateKey()
+		require.NoError(err)
 
-	// Sign message
-	msg := []byte("hello")
-	sig, err := Sign(msg, priv)
-	require.NoError(err)
+		// Sign message
+		msg := []byte("hello")
+		sig, err := Sign(msg, priv)
+		require.NoError(err)
 
-	// Verify signature
-	require.True(IsNormalized(new(big.Int).SetBytes(sig[rsLen:])))
-	require.True(Verify(msg, priv.PublicKey(), sig))
+		// Verify signature
+		require.True(IsNormalized(new(big.Int).SetBytes(sig[rsLen:])))
+		require.True(Verify(msg, priv.PublicKey(), sig))
+	}
+}
+
+func TestNormalization(t *testing.T) {
+	require := require.New(t)
+
+	for i := 0; i < 500; i++ {
+		// Generate private key
+		priv, err := GeneratePrivateKey()
+		require.NoError(err)
+
+		// Sign message
+		msg := []byte("hello")
+		sig, err := denormalizedSign(msg, priv)
+		require.NoError(err)
+
+		// Verify signature
+		r := new(big.Int).SetBytes(sig[:rsLen])
+		s := new(big.Int).SetBytes(sig[rsLen:])
+		require.False(IsNormalized(s))
+		require.False(Verify(msg, priv.PublicKey(), sig))
+
+		// Normalize signature
+		ns := NormalizeSignature(s)
+		nsig := signatureRaw(r, ns)
+
+		// Verify fixed signature
+		require.True(IsNormalized(ns))
+		require.True(Verify(msg, priv.PublicKey(), Signature(nsig)))
+	}
 }
 
 func TestASN1Parsing(t *testing.T) {
@@ -57,64 +88,4 @@ func TestASN1Parsing(t *testing.T) {
 	msg := []byte("aaa")
 	require.True(IsNormalized(new(big.Int).SetBytes(s)))
 	require.True(Verify(msg, PublicKey(cpk), Signature(append(r, s...))))
-}
-
-func TestASN1ParsingUpperOrder(t *testing.T) {
-	// PublicKey/Signature source: https://kjur.github.io/jsrsasign/sample/sample-ecdsa.html
-	ssig := "3046022100c8e58be6d0f1a14543441f13e091befe44d6f50ae3674e52ea4a83878f52a0a60221009b4d1aeb55aec89ae2caa868c0326df2e35546d163c1ddf0e9afd65d8b3c8388"
-	hpk := "04306b5d823340e69712cd1feff3b31ae48f60e6f8d62d9e4248d630969b1e7c85c7425fed4efd200c102ac1d93e5bbe37b8c027fa63bd58be298734d33bda53c3"
-
-	// Parse uncompressed public key
-	require := require.New(t)
-	rpk, err := hex.DecodeString(hpk)
-	require.NoError(err)
-	x, y := elliptic.Unmarshal(elliptic.P256(), rpk)
-	cpk := elliptic.MarshalCompressed(elliptic.P256(), x, y)
-	require.Len(cpk, PublicKeyLen)
-
-	// Parse signature
-	sig, err := hex.DecodeString(ssig)
-	require.NoError(err)
-	r, s, err := ParseASN1Signature(sig)
-	require.NoError(err)
-	require.Len(r, rsLen)
-	require.Len(s, rsLen)
-
-	// Verify signature
-	msg := []byte("aaa")
-	require.False(IsNormalized(new(big.Int).SetBytes(s)))
-	require.False(Verify(msg, PublicKey(cpk), Signature(append(r, s...))))
-}
-
-func TestNormalization(t *testing.T) {
-	// Parse uncompressed public key
-	require := require.New(t)
-	hpk := "04306b5d823340e69712cd1feff3b31ae48f60e6f8d62d9e4248d630969b1e7c85c7425fed4efd200c102ac1d93e5bbe37b8c027fa63bd58be298734d33bda53c3"
-	rpk, err := hex.DecodeString(hpk)
-	require.NoError(err)
-	x, y := elliptic.Unmarshal(elliptic.P256(), rpk)
-	cpk := elliptic.MarshalCompressed(elliptic.P256(), x, y)
-	require.Len(cpk, PublicKeyLen)
-
-	// Parse upper half signature
-	upperHalfSig := "c8e58be6d0f1a14543441f13e091befe44d6f50ae3674e52ea4a83878f52a0a6eb55aec89ae2caa868c0326df2e35546d163c1ddf0e9afd65d8b3c83883c8388"
-	rsig, err := hex.DecodeString(upperHalfSig)
-	require.NoError(err)
-	sig := Signature(rsig)
-	s := new(big.Int).SetBytes(sig[rsLen:])
-
-	// Ensure not normalized
-	require.False(IsNormalized(s))
-
-	// Normalize s and construct new signature
-	ns := NormalizeSignature(s)
-	require.True(IsNormalized(ns))
-	require.Zero(ns.Cmp(NormalizeSignature(ns)))
-	nsig := make([]byte, SignatureLen)
-	copy(nsig[:rsLen], sig[:rsLen])
-	copy(nsig[rsLen:], ns.Bytes())
-
-	// Verify signature passes
-	msg := []byte("aaa")
-	require.True(Verify(msg, PublicKey(cpk), Signature(nsig)))
 }
