@@ -79,7 +79,7 @@ func GeneratePrivateKey() (PrivateKey, error) {
 		return EmptyPrivateKey, err
 	}
 
-	// We aren't always guranteed that this will be 32 bytes,
+	// We aren't always guaranteed that this will be 32 bytes,
 	// so we use fill.
 	b := make([]byte, PrivateKeyLen)
 	k.D.FillBytes(b)
