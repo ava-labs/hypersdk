@@ -8,3 +8,11 @@ import "github.com/ava-labs/hypersdk/consts"
 const ShortBytesMaxSize = int(consts.MaxUint8)
 
 type ShortBytes []byte
+
+func (s ShortBytes) Len() int {
+	return len(s)
+}
+
+func (s ShortBytes) Valid() bool {
+	return len(s) <= ShortBytesMaxSize
+}

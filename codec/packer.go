@@ -73,8 +73,8 @@ func (p *Packer) PackFixedBytes(b []byte) {
 }
 
 func (p *Packer) PackShortBytes(b ShortBytes) {
-	l := len(b)
-	if l > ShortBytesMaxSize {
+	l := b.Len()
+	if !b.Valid() {
 		p.addErr(fmt.Errorf("%w: ShortBytes is too large (found=%d)", ErrTooLarge, len(b)))
 		return
 	}

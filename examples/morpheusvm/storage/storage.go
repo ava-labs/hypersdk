@@ -8,12 +8,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
@@ -59,12 +59,6 @@ var (
 	heightKey    = []byte{heightPrefix}
 	timestampKey = []byte{timestampPrefix}
 	feeKey       = []byte{feePrefix}
-
-	balanceKeyPool = sync.Pool{
-		New: func() any {
-			return make([]byte, 1+ed25519.PublicKeyLen+consts.Uint16Len)
-		},
-	}
 )
 
 // [txPrefix] + [txID]
@@ -123,12 +117,13 @@ func GetTransaction(
 	return true, t, success, d, fee, nil
 }
 
-// [balancePrefix] + [address]
-func BalanceKey(pk ed25519.PublicKey) (k []byte) {
-	k = balanceKeyPool.Get().([]byte)
+// [balancePrefix] + [account]
+func BalanceKey(acct codec.ShortBytes) (k []byte) {
+	l := acct.Len()
+	k = make([]byte, 1+l+consts.Uint16Len)
 	k[0] = balancePrefix
-	copy(k[1:], pk[:])
-	binary.BigEndian.PutUint16(k[1+ed25519.PublicKeyLen:], BalanceChunks)
+	copy(k[1:], acct[:])
+	binary.BigEndian.PutUint16(k[1+l:], BalanceChunks)
 	return
 }
 
@@ -136,19 +131,18 @@ func BalanceKey(pk ed25519.PublicKey) (k []byte) {
 func GetBalance(
 	ctx context.Context,
 	im state.Immutable,
-	pk ed25519.PublicKey,
+	acct codec.ShortBytes,
 ) (uint64, error) {
-	key, bal, _, err := getBalance(ctx, im, pk)
-	balanceKeyPool.Put(key)
+	_, bal, _, err := getBalance(ctx, im, acct)
 	return bal, err
 }
 
 func getBalance(
 	ctx context.Context,
 	im state.Immutable,
-	pk ed25519.PublicKey,
+	acct codec.ShortBytes,
 ) ([]byte, uint64, bool, error) {
-	k := BalanceKey(pk)
+	k := BalanceKey(acct)
 	bal, exists, err := innerGetBalance(im.GetValue(ctx, k))
 	return k, bal, exists, err
 }
@@ -157,12 +151,11 @@ func getBalance(
 func GetBalanceFromState(
 	ctx context.Context,
 	f ReadState,
-	pk ed25519.PublicKey,
+	acct codec.ShortBytes,
 ) (uint64, error) {
-	k := BalanceKey(pk)
+	k := BalanceKey(acct)
 	values, errs := f(ctx, [][]byte{k})
 	bal, _, err := innerGetBalance(values[0], errs[0])
-	balanceKeyPool.Put(k)
 	return bal, err
 }
 
@@ -182,10 +175,10 @@ func innerGetBalance(
 func SetBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	pk ed25519.PublicKey,
+	acct codec.ShortBytes,
 	balance uint64,
 ) error {
-	k := BalanceKey(pk)
+	k := BalanceKey(acct)
 	return setBalance(ctx, mu, k, balance)
 }
 
@@ -201,11 +194,11 @@ func setBalance(
 func AddBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	pk ed25519.PublicKey,
+	acct codec.ShortBytes,
 	amount uint64,
 	create bool,
 ) error {
-	key, bal, exists, err := getBalance(ctx, mu, pk)
+	key, bal, exists, err := getBalance(ctx, mu, acct)
 	if err != nil {
 		return err
 	}
