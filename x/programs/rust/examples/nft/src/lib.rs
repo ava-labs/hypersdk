@@ -7,6 +7,7 @@
 use metadata::Nft;
 use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
 
+pub mod example;
 pub mod metadata;
 
 const NAME: &str = "My NFT";
