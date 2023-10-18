@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
@@ -209,11 +208,12 @@ func AddBalance(
 	}
 	nbal, err := smath.Add64(bal, amount)
 	if err != nil {
+		addr, _ := utils.Address(acct)
 		return fmt.Errorf(
 			"%w: could not add balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
-			utils.Address(acct),
+			addr,
 			amount,
 		)
 	}
@@ -223,20 +223,21 @@ func AddBalance(
 func SubBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	pk ed25519.PublicKey,
+	acct codec.ShortBytes,
 	amount uint64,
 ) error {
-	key, bal, _, err := getBalance(ctx, mu, pk)
+	key, bal, _, err := getBalance(ctx, mu, acct)
 	if err != nil {
 		return err
 	}
 	nbal, err := smath.Sub(bal, amount)
 	if err != nil {
+		addr, _ := utils.Address(acct)
 		return fmt.Errorf(
 			"%w: could not subtract balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
-			utils.Address(pk),
+			addr,
 			amount,
 		)
 	}

@@ -6,7 +6,6 @@ package auth
 import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
 func GetSigner(auth chain.Auth) (codec.ShortBytes, bool) {
@@ -18,12 +17,4 @@ func GetSigner(auth chain.Auth) (codec.ShortBytes, bool) {
 	default:
 		return nil, false
 	}
-}
-
-func Address(acct codec.ShortBytes) (string, error) {
-	return codec.Address(consts.HRP, acct)
-}
-
-func ParseAddress(s string) (codec.ShortBytes, error) {
-	return codec.ParseAnyAddress(consts.HRP, s)
 }
