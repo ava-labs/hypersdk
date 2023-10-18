@@ -1,57 +1,78 @@
-use wasmlanche_sdk::simulator::{Client, Endpoint, Key, Param, ParamType, Plan, Step};
+use wasmlanche_sdk::simulator::{
+    Client, Endpoint, ExecuteResponse, Key, Param, ParamType, Plan, Step,
+};
 
+// TODO: remove when the simulator merges
+#[allow(dead_code)]
+const PROGRAM_ID: &str = "0000000000000000000000000000000000000000000000001";
+
+// TODO: remove when the simulator merges
+#[allow(dead_code)]
 fn initialize_plan() -> Plan<'static> {
     let steps: Vec<Step> = vec![
         Step {
             description: "init",
             endpoint: Endpoint::Execute,
             method: "init",
-            params: vec![],
+            params: vec![Param {
+                name: "program_id",
+                param_type: ParamType::Id,
+                value: PROGRAM_ID,
+            }],
             require: None,
         },
         Step {
             description: "create alice key",
             endpoint: Endpoint::Key,
             method: "create",
-            params: vec![Param {
-                name: "key name",
-                param_type: ParamType::Key(Key::Ed25519),
-                value: "alice key",
-            }],
+            params: vec![
+                Param {
+                    name: "program_id",
+                    param_type: ParamType::Id,
+                    value: PROGRAM_ID,
+                },
+                Param {
+                    name: "key name",
+                    param_type: ParamType::Key(Key::Ed25519),
+                    value: "alice key",
+                },
+            ],
             require: None,
         },
         Step {
             description: "mint NFT for alice",
             endpoint: Endpoint::Execute,
             method: "mint_to",
-            params: vec![Param {
-                name: "recipient",
-                param_type: ParamType::Key(Key::Ed25519),
-                value: "alice_key",
-            }],
+            params: vec![
+                Param {
+                    name: "program_id",
+                    param_type: ParamType::Id,
+                    value: "2Ej3Qp6aUZ7yBnqZxBmvvvekUiriCn4ftcqY8VKGwMu5CmZiz",
+                },
+                Param {
+                    name: "recipient",
+                    param_type: ParamType::Key(Key::Ed25519),
+                    value: "alice_key",
+                },
+            ],
             require: None,
         },
     ];
 
-    let plan = Plan {
+    Plan {
         name: "nft program",
-        description: "initialize nft program",
+        description: "run the nft program",
         caller_key: "alice key",
         steps,
-    };
-
-    plan
+    }
 }
 
-fn run() {
+// TODO: remove when the simulator merges
+#[allow(dead_code)]
+fn run() -> Result<ExecuteResponse, Box<dyn std::error::Error>> {
     let plan = initialize_plan();
     let client = Client::new("path to simulator".to_owned());
 
-    let _ = client.run(&plan);
+    let tx = client.run::<ExecuteResponse>(&plan)?;
+    Ok(tx)
 }
-
-/*
-TODO:
-Add generic parameter to client.run
-Determine whether to pass the program id to the plan -- how to get program id beforehand?
-*/
