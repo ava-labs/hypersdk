@@ -22,6 +22,8 @@ func GetSigner(auth chain.Auth) codec.ShortBytes {
 	case *SECP256R1:
 		return a.Signer.ShortBytes()
 	default:
+		// We should never reach this point during block
+		// execution because types should be asserted during parse.
 		return nil
 	}
 }

@@ -148,12 +148,8 @@ func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatch
 }
 
 func (*ED25519AuthEngine) Cache(auth chain.Auth) {
-	pk, ok := GetSigner(auth)
-	if !ok {
-		// We should exit immediately if this ever happens
-		panic("unexpected auth")
-	}
-	ed25519.CachePublicKey(ed25519.PublicKey(pk))
+	pk := ed25519.PublicKey(GetSigner(auth))
+	ed25519.CachePublicKey(pk)
 }
 
 type ED25519Batch struct {
