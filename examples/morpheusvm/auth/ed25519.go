@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -198,4 +199,13 @@ func (b *ED25519Batch) Done() []func() error {
 		return nil
 	}
 	return []func() error{b.batch.VerifyAsync()}
+}
+
+func CreateED25519Address(pk ed25519.PublicKey) codec.ShortBytes {
+	return pk.ShortBytes(consts.ED25519ID)
+}
+
+func CreateED25519AddressStr(pk ed25519.PublicKey) string {
+	str, _ := utils.Address(CreateED25519Address(pk))
+	return str
 }

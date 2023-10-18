@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -146,4 +147,13 @@ func (d *SECP256R1Factory) Sign(msg []byte, _ chain.Action) (chain.Auth, error) 
 
 func (*SECP256R1Factory) MaxUnits() (uint64, uint64, []uint16) {
 	return SECP256R1Size, SECP256R1ComputeUnits, []uint16{storage.BalanceChunks}
+}
+
+func CreateSECP256R1Address(pk secp256r1.PublicKey) codec.ShortBytes {
+	return pk.ShortBytes(consts.SECP256R1ID)
+}
+
+func CreateSECP256R1AddressStr(pk secp256r1.PublicKey) string {
+	str, _ := utils.Address(CreateSECP256R1Address(pk))
+	return str
 }
