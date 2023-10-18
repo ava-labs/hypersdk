@@ -36,6 +36,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -841,6 +842,59 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 		// Close connection when done
 		gomega.Ω(cli.Close()).Should(gomega.BeNil())
+	})
+
+	ginkgo.It("sends tokens between ed25519 and secp256r1 addresses", func() {
+		r1priv, err := secp256r1.GeneratePrivateKey()
+		gomega.Ω(err).Should(gomega.BeNil())
+		r1pk := r1priv.PublicKey()
+		r1factory := auth.NewSECP256R1Factory(r1priv)
+
+		ginkgo.By("send to secp256r1", func() {
+			parser, err := instances[0].lcli.Parser(context.Background())
+			gomega.Ω(err).Should(gomega.BeNil())
+			submit, _, _, err := instances[0].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				nil,
+				&actions.Transfer{
+					To:    auth.CreateSECP256R1Address(r1pk),
+					Value: 2000,
+				},
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			accept := expectBlk(instances[0])
+			results := accept(false)
+			gomega.Ω(results).Should(gomega.HaveLen(1))
+			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+
+			balance, err := instances[0].lcli.Balance(context.TODO(), auth.CreateSECP256R1AddressStr(r1pk))
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(balance).Should(gomega.Equal(uint64(2000)))
+		})
+
+		ginkgo.By("send back to ed25519", func() {
+			parser, err := instances[0].lcli.Parser(context.Background())
+			gomega.Ω(err).Should(gomega.BeNil())
+			submit, _, _, err := instances[0].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				nil,
+				&actions.Transfer{
+					To:    auth.CreateED25519Address(rsender),
+					Value: 100,
+				},
+				r1factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			accept := expectBlk(instances[0])
+			results := accept(false)
+			gomega.Ω(results).Should(gomega.HaveLen(1))
+			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+		})
 	})
 })
 
