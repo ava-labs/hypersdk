@@ -262,6 +262,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			balance, err := cli.Balance(context.Background(), alloc.Address)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(balance).Should(gomega.Equal(alloc.Balance))
+			log.Warn("balances", zap.String("addr", alloc.Address), zap.Uint64("bal", balance))
 			csupply += alloc.Balance
 		}
 	}

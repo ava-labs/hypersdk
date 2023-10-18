@@ -5,6 +5,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -13,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -96,7 +98,8 @@ func (d *ED25519) CanDeduct(
 		return err
 	}
 	if bal < amount {
-		return storage.ErrInvalidBalance
+		addr, _ := utils.Address(d.Signer.ShortBytes())
+		return fmt.Errorf("%w: addr=%s, bal=%d, need=%d", storage.ErrInvalidBalance, addr, bal, amount)
 	}
 	return nil
 }

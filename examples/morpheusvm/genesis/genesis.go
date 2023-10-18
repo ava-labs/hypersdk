@@ -136,6 +136,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 		if err != nil {
 			return err
 		}
+		// TODO: need to scope bytes to right size from bech32
 		supply, err = smath.Add64(supply, alloc.Balance)
 		if err != nil {
 			return err
