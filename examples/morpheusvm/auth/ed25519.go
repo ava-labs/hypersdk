@@ -79,8 +79,10 @@ func (d *ED25519) Marshal(p *codec.Packer) {
 
 func UnmarshalED25519(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 	var d ED25519
-	p.UnpackFixedBytes(ed25519.PublicKeyLen, &d.Signer)
-	p.UnpackFixedBytes(ed25519.SignatureLen, &d.Signature)
+	signer := []byte(d.Signer[:]) // avoid allocating additional memory
+	p.UnpackFixedBytes(ed25519.PublicKeyLen, &signer)
+	signature := []byte(d.Signature[:]) // avoid allocating additional memory
+	p.UnpackFixedBytes(ed25519.SignatureLen, &signature)
 	return &d, p.Err()
 }
 

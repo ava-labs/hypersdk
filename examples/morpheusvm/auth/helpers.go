@@ -8,6 +8,9 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 )
 
+// TODO: consider prefixing signers with a type byte
+// to ensure we never try to verify signatures across
+// schemes.
 func GetSigner(auth chain.Auth) (codec.ShortBytes, bool) {
 	switch a := auth.(type) {
 	case *ED25519:
