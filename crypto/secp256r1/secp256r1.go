@@ -8,12 +8,11 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
 
-	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/codec"
 	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/crypto/cryptobyte/asn1"
 )
@@ -97,6 +96,10 @@ func (p PrivateKey) PublicKey() PublicKey {
 
 	// Output the compressed form of the PublicKey
 	return PublicKey(elliptic.MarshalCompressed(elliptic.P256(), x, y))
+}
+
+func (p PublicKey) ShortBytes() codec.ShortBytes {
+	return codec.ShortBytes(p[:])
 }
 
 // generateSignature creates a valid signature, potentially padding
@@ -189,19 +192,6 @@ func Verify(msg []byte, p PublicKey, sig Signature) bool {
 	// Check if signature is valid
 	digest := sha256.Sum256(msg)
 	return ecdsa.Verify(pk, digest[:], r, s)
-}
-
-// HexToKey Converts a hexadecimal encoded key into a PrivateKey. Returns
-// an EmptyPrivateKey and error if key is invalid.
-func HexToKey(key string) (PrivateKey, error) {
-	bytes, err := hex.DecodeString(key)
-	if err != nil {
-		return EmptyPrivateKey, err
-	}
-	if len(bytes) != PrivateKeyLen {
-		return EmptyPrivateKey, crypto.ErrInvalidPrivateKey
-	}
-	return PrivateKey(bytes), nil
 }
 
 // ParseASN1Signature parses an ASN.1 encoded (using DER serialization) secp256r1 signature.

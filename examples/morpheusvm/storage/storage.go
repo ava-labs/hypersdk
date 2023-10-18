@@ -213,7 +213,7 @@ func AddBalance(
 			"%w: could not add balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
-			utils.Address(pk),
+			utils.Address(acct),
 			amount,
 		)
 	}

@@ -7,7 +7,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 )
 
 // OptionalPacker defines a struct that includes a Packer [ip], a bitset
@@ -91,27 +90,6 @@ func (o *OptionalPacker) UnpackID(dest *ids.ID) {
 		o.ip.UnpackID(true, dest)
 	} else {
 		*dest = ids.Empty
-	}
-}
-
-// PackPublicKey packs [pk] into OptionalPacker if [pk] is not an empty PublicKey.
-// Updates the bitset and offset accordingly.
-func (o *OptionalPacker) PackPublicKey(pk ed25519.PublicKey) {
-	if pk == ed25519.EmptyPublicKey {
-		o.skipBit()
-		return
-	}
-	o.ip.PackPublicKey(pk)
-	o.setBit()
-}
-
-// UnpackPublicKey unpacks a PublicKey into [dest] if the bitset is set at
-// the current offset. Increments offset regardless.
-func (o *OptionalPacker) UnpackPublicKey(dest *ed25519.PublicKey) {
-	if o.checkBit() {
-		o.ip.UnpackPublicKey(true, dest)
-	} else {
-		*dest = ed25519.EmptyPublicKey
 	}
 }
 

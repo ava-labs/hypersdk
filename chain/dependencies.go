@@ -288,7 +288,7 @@ type Auth interface {
 
 	// Payer is the owner of [Auth]. It is used by the mempool to ensure that there aren't too many transactions
 	// from a single Payer.
-	Payer() []byte
+	Payer() codec.ShortBytes
 
 	// CanDeduct returns an error if [amount] cannot be paid by [Auth].
 	CanDeduct(ctx context.Context, im state.Immutable, amount uint64) error

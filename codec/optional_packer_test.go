@@ -9,7 +9,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,56 +22,6 @@ func (o *OptionalPacker) toReader() *OptionalPacker {
 	p.PackOptional(o)
 	pr := NewReader(p.Bytes(), size)
 	return pr.NewOptionalReader()
-}
-
-func TestOptionalPackerWriter(t *testing.T) {
-	// Initializes empty writer with a limit two byte limit
-	require := require.New(t)
-	opw := NewOptionalWriter(10_000)
-	require.Empty(opw.ip.Bytes())
-	var pubKey ed25519.PublicKey
-	copy(pubKey[:], TestPublicKey)
-	// Fill OptionalPacker
-	i := 0
-	for i <= consts.MaxUint64Offset {
-		opw.PackPublicKey(pubKey)
-		i += 1
-	}
-	require.Equal(
-		(consts.MaxUint64Offset+1)*ed25519.PublicKeyLen,
-		len(opw.ip.Bytes()),
-		"Bytes not added correctly.",
-	)
-	require.NoError(opw.Err(), "Error packing bytes.")
-	opw.PackPublicKey(pubKey)
-	require.ErrorIs(opw.Err(), ErrTooManyItems, "Error not thrown after over packing.")
-}
-
-func TestOptionalPackerPublicKey(t *testing.T) {
-	require := require.New(t)
-	opw := NewOptionalWriter(10_000)
-	var pubKey ed25519.PublicKey
-	copy(pubKey[:], TestPublicKey)
-	t.Run("Pack", func(t *testing.T) {
-		// Pack empty
-		opw.PackPublicKey(ed25519.EmptyPublicKey)
-		require.Empty(opw.ip.Bytes(), "PackPublickey packed an empty ID.")
-		// Pack ID
-		opw.PackPublicKey(pubKey)
-		require.Equal(TestPublicKey, opw.ip.Bytes(), "PackPublickey did not set bytes correctly.")
-	})
-	t.Run("Unpack", func(t *testing.T) {
-		// Setup optional reader
-		opr := opw.toReader()
-		var unpackedPubkey ed25519.PublicKey
-		// Unpack
-		opr.UnpackPublicKey(&unpackedPubkey)
-		require.Equal(ed25519.EmptyPublicKey[:], unpackedPubkey[:], "PublicKey unpacked correctly")
-		opr.UnpackPublicKey(&unpackedPubkey)
-		require.Equal(pubKey, unpackedPubkey, "PublicKey unpacked correctly")
-		opr.Done()
-		require.NoError(opr.Err())
-	})
 }
 
 func TestOptionalPackerID(t *testing.T) {
