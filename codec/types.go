@@ -16,3 +16,10 @@ func (s ShortBytes) Len() int {
 func (s ShortBytes) Valid() bool {
 	return len(s) <= ShortBytesMaxSize
 }
+
+func PrefixShortBytes(prefix byte, sb []byte) ShortBytes {
+	b := make([]byte, 1+len(sb))
+	b[0] = prefix
+	copy(b[1:], sb)
+	return ShortBytes(b)
+}

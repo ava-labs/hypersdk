@@ -79,8 +79,8 @@ func (p PrivateKey) PublicKey() PublicKey {
 	return PublicKey(p[PrivateKeySeedLen:])
 }
 
-func (p PublicKey) ShortBytes() codec.ShortBytes {
-	return codec.ShortBytes(p[:])
+func (p PublicKey) ShortBytes(prefix byte) codec.ShortBytes {
+	return codec.PrefixShortBytes(prefix, p[:])
 }
 
 // Sign returns a valid signature for msg using pk.

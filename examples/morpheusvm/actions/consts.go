@@ -3,11 +3,4 @@
 
 package actions
 
-// Note: Registry will error during initialization if a duplicate ID is assigned. We explicitly assign IDs to avoid accidental remapping.
-const (
-	transferID uint8 = 0
-)
-
-const (
-	TransferComputeUnits = 1
-)
+const TransferComputeUnits = 1

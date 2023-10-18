@@ -8,6 +8,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -22,10 +23,21 @@ const (
 type SECP256R1 struct {
 	Signer    secp256r1.PublicKey `json:"signer"`
 	Signature secp256r1.Signature `json:"signature"`
+
+	sa codec.ShortBytes
+}
+
+func (d *SECP256R1) signerAddress() codec.ShortBytes {
+	if len(d.sa) > 0 {
+		return d.sa
+	}
+	sa := d.Signer.ShortBytes(d.GetTypeID())
+	d.sa = sa
+	return sa
 }
 
 func (*SECP256R1) GetTypeID() uint8 {
-	return secp256r1ID
+	return consts.SECP256R1ID
 }
 
 func (*SECP256R1) MaxComputeUnits(chain.Rules) uint64 {
@@ -38,7 +50,7 @@ func (*SECP256R1) ValidRange(chain.Rules) (int64, int64) {
 
 func (d *SECP256R1) StateKeys() []string {
 	return []string{
-		string(storage.BalanceKey(d.Signer.ShortBytes())),
+		string(storage.BalanceKey(d.signerAddress())),
 	}
 }
 
@@ -87,7 +99,7 @@ func (d *SECP256R1) CanDeduct(
 	im state.Immutable,
 	amount uint64,
 ) error {
-	bal, err := storage.GetBalance(ctx, im, d.Signer.ShortBytes())
+	bal, err := storage.GetBalance(ctx, im, d.signerAddress())
 	if err != nil {
 		return err
 	}
@@ -102,7 +114,7 @@ func (d *SECP256R1) Deduct(
 	mu state.Mutable,
 	amount uint64,
 ) error {
-	return storage.SubBalance(ctx, mu, d.Signer.ShortBytes(), amount)
+	return storage.SubBalance(ctx, mu, d.signerAddress(), amount)
 }
 
 func (d *SECP256R1) Refund(
@@ -111,7 +123,7 @@ func (d *SECP256R1) Refund(
 	amount uint64,
 ) error {
 	// Don't create account if it doesn't exist (may have sent all funds).
-	return storage.AddBalance(ctx, mu, d.Signer.ShortBytes(), amount, false)
+	return storage.AddBalance(ctx, mu, d.signerAddress(), amount, false)
 }
 
 var _ chain.AuthFactory = (*SECP256R1Factory)(nil)
@@ -129,7 +141,7 @@ func (d *SECP256R1Factory) Sign(msg []byte, _ chain.Action) (chain.Auth, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &SECP256R1{d.priv.PublicKey(), sig}, nil
+	return &SECP256R1{Signer: d.priv.PublicKey(), Signature: sig}, nil
 }
 
 func (*SECP256R1Factory) MaxUnits() (uint64, uint64, []uint16) {

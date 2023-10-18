@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
@@ -73,8 +72,8 @@ func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
 	return TransferComputeUnits
 }
 
-func (*Transfer) Size() int {
-	return ed25519.PublicKeyLen + consts.Uint64Len
+func (t *Transfer) Size() int {
+	return codec.ShortBytesLen(t.To) + consts.Uint64Len
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {
@@ -83,12 +82,19 @@ func (t *Transfer) Marshal(p *codec.Packer) {
 }
 
 func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
+	// Unpack bytes
 	var transfer Transfer
-	// TODO: this address flexibility allows for length extension attacks on the trie,
-	// this should not be used as is in production
-	p.UnpackShortBytes(&transfer.To) // can send to arbitrary bytes
+	p.UnpackShortBytes(&transfer.To)
 	transfer.Value = p.UnpackUint64(true)
-	return &transfer, p.Err()
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
+
+	// Ensure address is well-formatted
+	if !auth.VerifyAccountFormat(transfer.To) {
+		return nil, auth.ErrMalformedAccount
+	}
+	return &transfer, nil
 }
 
 func (*Transfer) ValidRange(chain.Rules) (int64, int64) {

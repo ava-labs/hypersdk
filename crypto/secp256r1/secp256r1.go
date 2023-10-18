@@ -98,8 +98,8 @@ func (p PrivateKey) PublicKey() PublicKey {
 	return PublicKey(elliptic.MarshalCompressed(elliptic.P256(), x, y))
 }
 
-func (p PublicKey) ShortBytes() codec.ShortBytes {
-	return codec.ShortBytes(p[:])
+func (p PublicKey) ShortBytes(prefix byte) codec.ShortBytes {
+	return codec.PrefixShortBytes(prefix, p[:])
 }
 
 // generateSignature creates a valid signature, potentially padding

@@ -18,9 +18,9 @@ import (
 func GetSigner(auth chain.Auth) codec.ShortBytes {
 	switch a := auth.(type) {
 	case *ED25519:
-		return a.Signer.ShortBytes()
+		return a.Signer.ShortBytes(a.GetTypeID())
 	case *SECP256R1:
-		return a.Signer.ShortBytes()
+		return a.Signer.ShortBytes(a.GetTypeID())
 	default:
 		// We should never reach this point during block
 		// execution because types should be asserted during parse.
