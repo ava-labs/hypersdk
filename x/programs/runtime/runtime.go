@@ -48,7 +48,12 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte) (err 
 		r.Stop()
 	}(ctx)
 
-	r.store = wasmtime.NewStore(wasmtime.NewEngineWithConfig(r.cfg.engine))
+	engineConfig, err := r.cfg.Engine()
+	if err != nil {
+		return err
+	}
+
+	r.store = wasmtime.NewStore(wasmtime.NewEngineWithConfig(engineConfig))
 	r.store.Limiter(
 		r.cfg.limitMaxMemory,
 		r.cfg.limitMaxTableElements,
@@ -88,6 +93,9 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte) (err 
 	if err != nil {
 		return err
 	}
+
+	// reset units to 0
+	r.cfg.meterMaxUnits = 0
 
 	// setup client capable of calling exported functions
 	r.exp = newExportClient(r.inst, r.store)
@@ -198,7 +206,12 @@ func (r *WasmRuntime) Stop() {
 // Note: these bytes can be deserialized by an `Engine` that has the same version.
 // For that reason precompiled wasm modules should not be stored on chain.
 func PreCompileWasmBytes(programBytes []byte, cfg *Config) ([]byte, error) {
-	store := wasmtime.NewStore(wasmtime.NewEngineWithConfig(cfg.engine))
+	engineConfig, err := cfg.Engine()
+	if err != nil {
+		return nil, err
+	}
+
+	store := wasmtime.NewStore(wasmtime.NewEngineWithConfig(engineConfig))
 	store.Limiter(
 		cfg.limitMaxMemory,
 		cfg.limitMaxTableElements,
