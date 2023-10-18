@@ -22,6 +22,7 @@ import (
 const Name = "program"
 
 type Import struct {
+	cfg        *runtime.Config
 	db         state.Mutable
 	log        logging.Logger
 	imports    runtime.SupportedImports
@@ -30,8 +31,9 @@ type Import struct {
 }
 
 // New returns a new program invoke host module which can perform program to program calls.
-func New(log logging.Logger, db state.Mutable) *Import {
+func New(log logging.Logger, db state.Mutable, cfg *runtime.Config) *Import {
 	return &Import{
+		cfg: cfg,
 		db:  db,
 		log: log,
 	}
@@ -96,19 +98,10 @@ func (i *Import) callProgramFn(
 		return -1
 	}
 
-	// initialize a new runtime config with zero balance
-	cfg, err := runtime.NewConfigBuilder(runtime.NoUnits).
-		WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
-		Build()
-	if err != nil {
-		i.log.Error("failed to create runtime config",
-			zap.Error(err),
-		)
-		return -1
-	}
-
-	// create a new runtime for the program to be invoked
-	rt := runtime.New(i.log, cfg, i.imports)
+	// create a new runtime for the program to be invoked with a zero balance.
+	// the runtime reset the meter units to 0 when the parent runtime was
+	// initialized.
+	rt := runtime.New(i.log, i.cfg, i.imports)
 	err = rt.Initialize(context.Background(), programWasmBytes)
 	if err != nil {
 		i.log.Error("failed to initialize runtime",
