@@ -5,13 +5,10 @@ package ed25519
 
 import (
 	"crypto/rand"
-	"encoding/hex"
-	"os"
 
 	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
 	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519/extra/cache"
 
-	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/hypersdk/crypto"
 )
 
@@ -66,35 +63,6 @@ func init() {
 	cacheVerifier = NewVerifier(cache.NewLRUCache(cacheSize))
 }
 
-// Address returns a Bech32 address from hrp and p.
-// This function uses avalanchego's FormatBech32 function.
-func Address(hrp string, p PublicKey) string {
-	// TODO: handle error
-	addrString, _ := address.FormatBech32(hrp, p[:])
-	return addrString
-}
-
-// ParseAddress parses a Bech32 encoded address string and extracts
-// its public key. If there is an error reading the address or the hrp
-// value is not valid, ParseAddress returns an EmptyPublicKey and error.
-func ParseAddress(hrp, saddr string) (PublicKey, error) {
-	phrp, pk, err := address.ParseBech32(saddr)
-	if err != nil {
-		return EmptyPublicKey, err
-	}
-	if phrp != hrp {
-		return EmptyPublicKey, crypto.ErrIncorrectHrp
-	}
-	// The parsed public key may be greater than [PublicKeyLen] because the
-	// underlying Bech32 implementation requires bytes to each encode 5 bits
-	// instead of 8 (and we must pad the input to ensure we fill all bytes):
-	// https://github.com/btcsuite/btcd/blob/902f797b0c4b3af3f7196d2f5d2343931d1b2bdf/btcutil/bech32/bech32.go#L325-L331
-	if len(pk) < PublicKeyLen {
-		return EmptyPublicKey, crypto.ErrInvalidPublicKey
-	}
-	return PublicKey(pk[:PublicKeyLen]), nil
-}
-
 // GeneratePrivateKey returns a Ed25519 PrivateKey.
 func GeneratePrivateKey() (PrivateKey, error) {
 	_, k, err := ed25519.GenerateKey(nil)
@@ -110,31 +78,6 @@ func (p PrivateKey) PublicKey() PublicKey {
 	return PublicKey(p[PrivateKeySeedLen:])
 }
 
-// ToHex converts a PrivateKey to a hex string.
-func (p PrivateKey) ToHex() string {
-	return hex.EncodeToString(p[:])
-}
-
-// Save writes [PrivateKey] to a file [filename]. If filename does
-// not exist, it creates a new file with read/write permissions (0o600).
-func (p PrivateKey) Save(filename string) error {
-	return os.WriteFile(filename, p[:], 0o600)
-}
-
-// LoadKey returns a PrivateKey from a file filename.
-// If there is an error reading the file, or the file contains an
-// invalid PrivateKey, LoadKey returns an EmptyPrivateKey and an error.
-func LoadKey(filename string) (PrivateKey, error) {
-	bytes, err := os.ReadFile(filename)
-	if err != nil {
-		return EmptyPrivateKey, err
-	}
-	if len(bytes) != ed25519.PrivateKeySize {
-		return EmptyPrivateKey, crypto.ErrInvalidPrivateKey
-	}
-	return PrivateKey(bytes), nil
-}
-
 // Sign returns a valid signature for msg using pk.
 func Sign(msg []byte, pk PrivateKey) Signature {
 	sig := ed25519.Sign(pk[:], msg)
@@ -144,19 +87,6 @@ func Sign(msg []byte, pk PrivateKey) Signature {
 // Verify returns whether s is a valid signature of msg by p.
 func Verify(msg []byte, p PublicKey, s Signature) bool {
 	return cacheVerifier.VerifyWithOptions(p[:], msg, s[:], &verifyOptions)
-}
-
-// HexToKey Converts a hexadecimal encoded key into a PrivateKey. Returns
-// an EmptyPrivateKey and error if key is invalid.
-func HexToKey(key string) (PrivateKey, error) {
-	bytes, err := hex.DecodeString(key)
-	if err != nil {
-		return EmptyPrivateKey, err
-	}
-	if len(bytes) != ed25519.PrivateKeySize {
-		return EmptyPrivateKey, crypto.ErrInvalidPrivateKey
-	}
-	return PrivateKey(bytes), nil
 }
 
 func CachePublicKey(p PublicKey) {
