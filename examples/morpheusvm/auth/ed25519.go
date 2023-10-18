@@ -89,7 +89,7 @@ func (d *ED25519) CanDeduct(
 	im state.Immutable,
 	amount uint64,
 ) error {
-	bal, err := storage.GetBalance(ctx, im, d.Signer)
+	bal, err := storage.GetBalance(ctx, im, d.Signer.ShortBytes())
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func (d *ED25519) Deduct(
 	mu state.Mutable,
 	amount uint64,
 ) error {
-	return storage.SubBalance(ctx, mu, d.Signer, amount)
+	return storage.SubBalance(ctx, mu, d.Signer.ShortBytes(), amount)
 }
 
 func (d *ED25519) Refund(
@@ -113,7 +113,7 @@ func (d *ED25519) Refund(
 	amount uint64,
 ) error {
 	// Don't create account if it doesn't exist (may have sent all funds).
-	return storage.AddBalance(ctx, mu, d.Signer, amount, false)
+	return storage.AddBalance(ctx, mu, d.Signer.ShortBytes(), amount, false)
 }
 
 var _ chain.AuthFactory = (*ED25519Factory)(nil)
@@ -146,8 +146,12 @@ func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatch
 }
 
 func (*ED25519AuthEngine) Cache(auth chain.Auth) {
-	pk := GetSigner(auth)
-	ed25519.CachePublicKey(pk)
+	pk, ok := GetSigner(auth)
+	if !ok {
+		// We should exit immediately if this ever happens
+		panic("unexpected auth")
+	}
+	ed25519.CachePublicKey(ed25519.PublicKey(pk))
 }
 
 type ED25519Batch struct {
