@@ -88,47 +88,6 @@ func TestPublicKeyFormat(t *testing.T) {
 	require.Len(pubKey, PublicKeyLen, "PublicKey has incorrect length")
 }
 
-func TestAddress(t *testing.T) {
-	require := require.New(t)
-	var pubKey PublicKey
-	copy(pubKey[:], TestPublicKey)
-	addr := Address(TestHRP, pubKey)
-	require.Equal(addr, TestAddressString, "Unexpected Address")
-}
-
-func TestParseAddressIncorrectHrt(t *testing.T) {
-	require := require.New(t)
-	pubkey, err := ParseAddress("wronghrt", TestAddressString)
-	require.ErrorIs(err, crypto.ErrIncorrectHrp, "ErrIncorrectHrp not returned")
-	require.Equal(
-		pubkey,
-		PublicKey(EmptyPublicKey),
-		"Unexpected PublicKey from ParseAddress",
-	)
-}
-
-func TestParseAddressIncorrectSaddr(t *testing.T) {
-	require := require.New(t)
-
-	pubkey, err := ParseAddress(TestHRP, "incorrecttestaddressstring")
-	require.Error(err, "Error was not thrown after call with incorrect parameters")
-	require.Equal(
-		pubkey,
-		PublicKey(EmptyPublicKey),
-		"Unexpected PublicKey from ParseAddress",
-	)
-}
-
-func TestParseAddress(t *testing.T) {
-	require := require.New(t)
-
-	var expectedPubkey PublicKey
-	copy(expectedPubkey[:], TestPublicKey)
-	pubkey, err := ParseAddress(TestHRP, TestAddressString)
-	require.NoError(err, "Error returned by ParseAddress")
-	require.Equal(pubkey, expectedPubkey, "Unexpected PublicKey from ParseAddress")
-}
-
 func TestSaveKey(t *testing.T) {
 	require := require.New(t)
 
