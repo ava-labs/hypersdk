@@ -18,6 +18,17 @@ cargo build --target wasm32-unknown-unknown --target-dir $CARGO_TARGET_DIR --rel
 ./scripts/build.sh
 ```
 
+## Debugging
+
+While developing programs you can optionally compile the program with wasi
+support. This provides for example logging from your program. The compile Wasm
+will be automatically supported by the VM simulator or if you explicitly set
+WithEnableTestingOnlyMode(true) for the runtime `Config`.
+
+```sh
+TESTING_ONLY=1 ./scripts/build.sh
+```
+
 ## Storage
 
 Memory in WebAssembly is a linear buffer of unsigned bytes that can read and written to by the guest or host. 
