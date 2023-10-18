@@ -69,14 +69,14 @@ func (*SECP256R1) Size() int {
 }
 
 func (d *SECP256R1) Marshal(p *codec.Packer) {
-	p.PackPublicKey(d.Signer)
-	p.PackSignature(d.Signature)
+	p.PackFixedBytes(d.Signer[:])
+	p.PackFixedBytes(d.Signature[:])
 }
 
 func UnmarshalSECP256R1(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 	var d SECP256R1
-	p.UnpackPublicKey(true, &d.Signer)
-	p.UnpackSignature(&d.Signature)
+	p.UnpackFixedBytes(secp256r1.PublicKeyLen, &d.Signer)
+	p.UnpackFixedBytes(secp256r1.SignatureLen, &d.Signature)
 	return &d, p.Err()
 }
 

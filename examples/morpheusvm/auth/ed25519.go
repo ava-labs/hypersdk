@@ -42,7 +42,7 @@ func (*ED25519) ValidRange(chain.Rules) (int64, int64) {
 
 func (d *ED25519) StateKeys() []string {
 	return []string{
-		string(storage.BalanceKey(d.Signer)),
+		string(storage.BalanceKey(d.Signer.ShortBytes())),
 	}
 }
 
@@ -73,14 +73,14 @@ func (*ED25519) Size() int {
 }
 
 func (d *ED25519) Marshal(p *codec.Packer) {
-	p.PackPublicKey(d.Signer)
-	p.PackSignature(d.Signature)
+	p.PackFixedBytes(d.Signer[:])
+	p.PackFixedBytes(d.Signature[:])
 }
 
 func UnmarshalED25519(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 	var d ED25519
-	p.UnpackPublicKey(true, &d.Signer)
-	p.UnpackSignature(&d.Signature)
+	p.UnpackFixedBytes(ed25519.PublicKeyLen, &d.Signer)
+	p.UnpackFixedBytes(ed25519.SignatureLen, &d.Signature)
 	return &d, p.Err()
 }
 
