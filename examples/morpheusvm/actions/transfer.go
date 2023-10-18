@@ -12,7 +12,9 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
+	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	mutils "github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -28,7 +30,7 @@ type Transfer struct {
 }
 
 func (*Transfer) GetTypeID() uint8 {
-	return transferID
+	return mconsts.TransferID
 }
 
 func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) []string {
@@ -91,8 +93,8 @@ func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	}
 
 	// Ensure address is well-formatted
-	if !auth.VerifyAccountFormat(transfer.To) {
-		return nil, auth.ErrMalformedAccount
+	if !mutils.VerifyAccountFormat(transfer.To) {
+		return nil, mutils.ErrMalformedAccount
 	}
 	return &transfer, nil
 }
