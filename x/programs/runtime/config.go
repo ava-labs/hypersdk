@@ -39,6 +39,7 @@ const (
 )
 
 // NewConfig returns a new runtime configuration builder with default settings.
+// All instances of ConfigBuilder should be created with this constructor.
 func NewConfigBuilder(meterMaxUnits uint64) *ConfigBuilder {
 	return &ConfigBuilder{
 		EnableBulkMemory:         defaultEnableBulkMemory,
@@ -55,51 +56,52 @@ func NewConfigBuilder(meterMaxUnits uint64) *ConfigBuilder {
 	}
 }
 
+// ConfigBuilder is a builder for a runtime configuration.
 type ConfigBuilder struct {
 	// Configures whether the WebAssembly bulk memory operations proposal will
 	// be enabled for compilation.  This feature gates items such as the
 	// memory.copy instruction, passive data/table segments, etc, being in a
 	// module.
 	// This is false by default.
-	EnableBulkMemory bool `yaml:"enable_bulk_memory" json:"enableBulkMemory"`
+	EnableBulkMemory bool `yaml:"enable_bulk_memory,omitempty" json:"enableBulkMemory,omitempty"`
 	// Configures whether the WebAssembly multi-value proposal will be enabled for compilation.
 	// This feature gates functions and blocks returning multiple values in a module, for example.
 	// This is false by default.
-	EnableWasmMultiValue bool `yaml:"enable_wasm_multi_value" json:"enableWasmMultiValue"`
+	EnableWasmMultiValue bool `yaml:"enable_wasm_multi_value,omitempty" json:"enableWasmMultiValue,omitempty"`
 	// Configures whether the WebAssembly reference types proposal will be
 	// enabled for compilation.  This feature gates items such as the externref
 	// and funcref types as well as allowing a module to define multiple tables.
 	// Note that the reference types proposal depends on the bulk memory
 	// proposal.
 	// This is false by default.
-	EnableWasmReferenceTypes bool `yaml:"enable_wasm_reference_types" json:"enableWasmReferenceTypes"`
+	EnableWasmReferenceTypes bool `yaml:"enable_wasm_reference_types,omitempty" json:"enableWasmReferenceTypes,omitempty"`
 	// Configures whether the WebAssembly SIMD proposal will be enabled for
 	// compilation.  The WebAssembly SIMD proposal. This feature gates items
 	// such as the v128 type and all of its operators being in a module. Note
 	// that this does not enable the relaxed simd proposal.
 	// This is false by default.
-	EnableWasmSIMD bool `yaml:"enable_wasm_simd" json:"enableWasmSIMD"`
+	EnableWasmSIMD bool `yaml:"enable_wasm_simd,omitempty" json:"enableWasmSIMD,omitempty"`
 	// EnableDefaultCache enables compiled code caching for this `Config` using the default settings
 	// configuration can be found.
 	//
 	// For more information about caching see
 	// https://bytecodealliance.github.io/wasmtime/cli-cache.html
 	// This is false by default.
-	EnableDefaultCache bool `yaml:"enable_default_cache" json:"enableDefaultCache"`
+	EnableDefaultCache bool `yaml:"enable_default_cache,omitempty" json:"enableDefaultCache,omitempty"`
 	// EnableTestingOnlyMode enables test mode which provides access to non production debugging features.
 	// This should not be set for a live system as it has both performance and security considerations.
 	// This is false by default.
-	EnableTestingOnlyMode bool `yaml:"enable_testing_only_mode" json:"enableTestingOnlyMode"`
+	EnableTestingOnlyMode bool `yaml:"enable_testing_only_mode,omitempty" json:"enableTestingOnlyMode,omitempty"`
 	// SetMaxWasmStack configures the maximum stack size, in bytes, that JIT code can use.
 	// The amount of stack space that wasm takes is always relative to the first invocation of wasm on the stack.
 	// Recursive calls with host frames in the middle will all need to fit within this setting.
 	// Note that this setting is not interpreted with 100% precision.
 	// This is 256 MiB by default.
-	MaxWasmStack int `yaml:"max_wasm_stack" json:"maxWasmStack"`
+	MaxWasmStack int `yaml:"max_wasm_stack,omitempty" json:"maxWasmStack,omitempty"`
 	// LimitMaxMemory defines the maximum number of pages of memory that can be used.
 	// Each page represents 64KiB of memory.
 	// This is 18 pages by default.
-	LimitMaxMemory int64 `yaml:"limit_max_memory" json:"limitMaxMemory"`
+	LimitMaxMemory int64 `yaml:"limit_max_memory,omitempty" json:"limitMaxMemory,omitempty"`
 	// ProfilingStrategy decides what sort of profiling to enable, if any.
 	// Default is `wasmtime.ProfilingStrategyNone`.
 	ProfilingStrategy wasmtime.ProfilingStrategy

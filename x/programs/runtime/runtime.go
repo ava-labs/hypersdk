@@ -94,7 +94,8 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte) (err 
 		return err
 	}
 
-	// reset units to 0
+	// reset the config max units to 0 this ensures that any subsequent usage of
+	// this config will not inherit the meter units. ex (program -> program)
 	r.cfg.meterMaxUnits = 0
 
 	// setup client capable of calling exported functions

@@ -133,7 +133,7 @@ func TestWithMaxWasmStack(t *testing.T) {
 
 	// stack is ok for 1 call.
 	cfg, err = NewConfigBuilder(maxFee).
-		WithMaxWasmStack(660).
+		WithMaxWasmStack(500).
 		Build()
 	require.NoError(err)
 	runtime = New(logging.NoLog{}, cfg, nil)
