@@ -67,6 +67,7 @@ func (d *ED25519) Verify(
 }
 
 func (d *ED25519) Payer() codec.ShortBytes {
+	// TODO: prepend all pks with codecID to ensure uniqueness
 	return d.Signer[:]
 }
 
