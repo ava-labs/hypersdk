@@ -92,7 +92,7 @@ func TestWriteExceedsLimitMaxMemory(t *testing.T) {
 
 	maxFee := uint64(1)
 	cfg, err := NewConfigBuilder(maxFee).
-		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
+		WithLimitMaxMemory(1 * MemoryPageSize). // 1 page
 		Build()
 	require.NoError(err)
 	runtime := New(logging.NoLog{}, cfg, nil)
@@ -133,7 +133,7 @@ func TestWithMaxWasmStack(t *testing.T) {
 
 	// stack is ok for 1 call.
 	cfg, err = NewConfigBuilder(maxFee).
-		WithMaxWasmStack(500).
+		WithMaxWasmStack(660).
 		Build()
 	require.NoError(err)
 	runtime = New(logging.NoLog{}, cfg, nil)

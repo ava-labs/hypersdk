@@ -21,14 +21,12 @@ func NewCounter(
 	programBytes []byte,
 	db state.Mutable,
 	cfg *runtime.Config,
-	cfg2 *runtime.Config,
 	imports runtime.SupportedImports,
 ) *Counter {
 	return &Counter{
 		log:          log,
 		programBytes: programBytes,
 		cfg:          cfg,
-		cfg2:         cfg2,
 		imports:      imports,
 		db:           db,
 	}
@@ -38,7 +36,6 @@ type Counter struct {
 	log          logging.Logger
 	programBytes []byte
 	cfg          *runtime.Config
-	cfg2         *runtime.Config
 	imports      runtime.SupportedImports
 	db           state.Mutable
 }
@@ -97,7 +94,7 @@ func (c *Counter) Run(ctx context.Context) error {
 	)
 
 	// initialize second runtime to create second counter program
-	rt2 := runtime.New(c.log, c.cfg2, c.imports)
+	rt2 := runtime.New(c.log, c.cfg, c.imports)
 	err = rt2.Initialize(ctx, c.programBytes)
 	if err != nil {
 		return err

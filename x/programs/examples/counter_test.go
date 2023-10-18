@@ -24,6 +24,8 @@ func TestCounterProgram(t *testing.T) {
 	require := require.New(t)
 	db := utils.NewTestDB()
 	maxUnits := uint64(50000)
+	cfg, err := runtime.NewConfigBuilder(maxUnits).Build()
+	require.NoError(err)
 
 	// define supported imports
 	supported := runtime.NewSupportedImports()
@@ -31,20 +33,10 @@ func TestCounterProgram(t *testing.T) {
 		return pstate.New(log, db)
 	})
 	supported.Register("program", func() runtime.Import {
-		return program.New(log, db)
+		return program.New(log, db, cfg)
 	})
 
-	cfg, err := runtime.NewConfigBuilder(maxUnits).
-		WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
-		Build()
-	require.NoError(err)
-
-	cfg2, err := runtime.NewConfigBuilder(maxUnits).
-		WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
-		Build()
-	require.NoError(err)
-
-	program := NewCounter(log, counterProgramBytes, db, cfg, cfg2, supported.Imports())
+	program := NewCounter(log, counterProgramBytes, db, cfg, supported.Imports())
 	err = program.Run(context.Background())
 	require.NoError(err)
 }
