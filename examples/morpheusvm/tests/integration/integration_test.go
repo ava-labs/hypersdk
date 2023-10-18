@@ -137,7 +137,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Ω(err).Should(gomega.BeNil())
 	factory = auth.NewED25519Factory(priv)
 	rsender = priv.PublicKey()
-	sender = utils.Address(rsender)
+	sender, _ = utils.Address(rsender.ShortBytes())
+	gomega.Ω(err).Should(gomega.BeNil())
 	log.Debug(
 		"generated key",
 		zap.String("addr", sender),
@@ -148,7 +149,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Ω(err).Should(gomega.BeNil())
 	factory2 = auth.NewED25519Factory(priv2)
 	rsender2 = priv2.PublicKey()
-	sender2 = utils.Address(rsender2)
+	sender2, _ = utils.Address(rsender2.ShortBytes())
 	log.Debug(
 		"generated key",
 		zap.String("addr", sender2),
@@ -159,7 +160,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Ω(err).Should(gomega.BeNil())
 	factory3 = auth.NewED25519Factory(priv3)
 	rsender3 = priv3.PublicKey()
-	sender3 = utils.Address(rsender3)
+	sender3, _ = utils.Address(rsender3.ShortBytes())
 	log.Debug(
 		"generated key",
 		zap.String("addr", sender3),
@@ -323,7 +324,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    rsender2,
+					To:    rsender2.ShortBytes(),
 					Value: 100_000, // must be more than StateLockup
 				},
 				factory,
@@ -356,7 +357,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				},
 				nil,
 				&actions.Transfer{
-					To:    rsender2,
+					To:    rsender2.ShortBytes(),
 					Value: 110,
 				},
 			)
@@ -449,7 +450,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    rsender2,
+					To:    rsender2.ShortBytes(),
 					Value: 101,
 				},
 				factory,
@@ -490,7 +491,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    rsender2,
+					To:    rsender2.ShortBytes(),
 					Value: 102,
 				},
 				factory,
@@ -502,7 +503,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    rsender2,
+					To:    rsender2.ShortBytes(),
 					Value: 103,
 				},
 				factory,
@@ -514,7 +515,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    rsender3,
+					To:    rsender3.ShortBytes(),
 					Value: 104,
 				},
 				factory,
@@ -526,7 +527,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    rsender3,
+					To:    rsender3.ShortBytes(),
 					Value: 105,
 				},
 				factory,
@@ -626,7 +627,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    rsender2,
+					To:    rsender2.ShortBytes(),
 					Value: 200,
 				},
 				factory,
@@ -640,7 +641,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    rsender2,
+					To:    rsender2.ShortBytes(),
 					Value: 201,
 				},
 				factory,
@@ -669,7 +670,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    rsender2,
+					To:    rsender2.ShortBytes(),
 					Value: 203,
 				},
 				factory,
@@ -749,7 +750,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		transfer := &actions.Transfer{
-			To:    other.PublicKey(),
+			To:    other.PublicKey().ShortBytes(),
 			Value: 1,
 		}
 
@@ -798,7 +799,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		transfer := &actions.Transfer{
-			To:    other.PublicKey(),
+			To:    other.PublicKey().ShortBytes(),
 			Value: 1,
 		}
 		parser, err := instances[0].lcli.Parser(context.Background())

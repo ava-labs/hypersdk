@@ -33,7 +33,7 @@ func (h *Handler) GenerateKey() error {
 }
 
 func (h *Handler) ImportKey(keyPath string) error {
-	priv, err := ed25519.LoadKey(keyPath)
+	priv, err := utils.LoadKey(keyPath)
 	if err != nil {
 		return err
 	}

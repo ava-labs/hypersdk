@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
@@ -192,13 +193,15 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Expect(err).Should(gomega.BeNil())
 
 	// Load default pk
-	priv, err = ed25519.HexToKey(
+	privBytes, err := codec.LoadHex(
 		"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
+		ed25519.PrivateKeyLen,
 	)
 	gomega.Ω(err).Should(gomega.BeNil())
-	factory = auth.NewED25519Factory(priv)
+	factory = auth.NewED25519Factory(ed25519.PrivateKey(privBytes))
 	rsender = priv.PublicKey()
-	sender = utils.Address(rsender)
+	sender, err = utils.Address(rsender.ShortBytes())
+	gomega.Ω(err).Should(gomega.BeNil())
 	hutils.Outf("\n{{yellow}}$ loaded address:{{/}} %s\n\n", sender)
 
 	hutils.Outf(
@@ -413,7 +416,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		aother := utils.Address(other.PublicKey())
+		aother, err := utils.Address(other.PublicKey().ShortBytes())
 
 		ginkgo.By("issue Transfer to the first node", func() {
 			// Generate transaction
@@ -424,7 +427,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    other.PublicKey(),
+					To:    other.PublicKey().ShortBytes(),
 					Value: sendAmount,
 				},
 				factory,
@@ -716,7 +719,7 @@ func generateBlocks(
 			parser,
 			nil,
 			&actions.Transfer{
-				To:    other.PublicKey(),
+				To:    other.PublicKey().ShortBytes(),
 				Value: 1,
 			},
 			factory,
@@ -784,7 +787,7 @@ func acceptTransaction(cli *rpc.JSONRPCClient, lcli *lrpc.JSONRPCClient) {
 			parser,
 			nil,
 			&actions.Transfer{
-				To:    other.PublicKey(),
+				To:    other.PublicKey().ShortBytes(),
 				Value: 1,
 			},
 			factory,
