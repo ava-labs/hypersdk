@@ -34,7 +34,7 @@ func (*Transfer) GetTypeID() uint8 {
 
 func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) []string {
 	return []string{
-		string(storage.BalanceKey(auth.GetActor(rauth))),
+		string(storage.BalanceKey(auth.GetSigner(rauth))),
 		string(storage.BalanceKey(t.To)),
 	}
 }
@@ -56,11 +56,11 @@ func (t *Transfer) Execute(
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	actor := auth.GetActor(rauth)
+	signer := auth.GetSigner(rauth)
 	if t.Value == 0 {
 		return false, 1, OutputValueZero, nil, nil
 	}
-	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, signer, t.Value); err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
@@ -78,13 +78,15 @@ func (*Transfer) Size() int {
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {
-	p.PackPublicKey(t.To)
+	p.PackShortBytes(t.To)
 	p.PackUint64(t.Value)
 }
 
 func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var transfer Transfer
-	p.UnpackPublicKey(false, &transfer.To) // can transfer to blackhole
+	// TODO: this address flexibility allows for length extension attacks on the trie,
+	// this should not be used as is in production
+	p.UnpackShortBytes(&transfer.To) // can send to arbitrary bytes
 	transfer.Value = p.UnpackUint64(true)
 	return &transfer, p.Err()
 }

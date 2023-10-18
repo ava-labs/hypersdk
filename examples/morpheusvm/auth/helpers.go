@@ -8,16 +8,20 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 )
 
+// GetSigner extracts the signer that authorized
+// the transaction. If the auth type is not supported,
+// it will return nil.
+//
 // TODO: consider prefixing signers with a type byte
 // to ensure we never try to verify signatures across
 // schemes.
-func GetSigner(auth chain.Auth) (codec.ShortBytes, bool) {
+func GetSigner(auth chain.Auth) codec.ShortBytes {
 	switch a := auth.(type) {
 	case *ED25519:
-		return a.Signer.ShortBytes(), true
+		return a.Signer.ShortBytes()
 	case *SECP256R1:
-		return a.Signer.ShortBytes(), true
+		return a.Signer.ShortBytes()
 	default:
-		return nil, false
+		return nil
 	}
 }
