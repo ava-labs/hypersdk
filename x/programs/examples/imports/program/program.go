@@ -102,7 +102,7 @@ func (i *Import) callProgramFn(
 	// the runtime reset the meter units to 0 when the parent runtime was
 	// initialized.
 	rt := runtime.New(i.log, i.cfg, i.imports)
-	err = rt.Initialize(context.Background(), programWasmBytes)
+	err = rt.Initialize(context.Background(), programWasmBytes, runtime.NoUnits)
 	if err != nil {
 		i.log.Error("failed to initialize runtime",
 			zap.Error(err),
@@ -111,7 +111,7 @@ func (i *Import) callProgramFn(
 	}
 
 	// transfer the units from the caller to the new runtime before any calls are made.
-	_, err = i.meter.TransferUnits(rt.Meter(), uint64(maxUnits))
+	_, err = i.meter.TransferUnitsTo(rt.Meter(), uint64(maxUnits))
 	if err != nil {
 		i.log.Error("failed to transfer units",
 			zap.Uint64("balance", i.meter.GetBalance()),
@@ -120,6 +120,19 @@ func (i *Import) callProgramFn(
 		)
 		return -1
 	}
+
+	// transfer remaining balance back to parent runtime
+	defer func() {
+		// stop the runtime to prevent further execution
+		rt.Stop()
+
+		_, err = rt.Meter().TransferUnitsTo(i.meter, rt.Meter().GetBalance())
+		if err != nil {
+			i.log.Error("failed to transfer remaining balance to caller",
+				zap.Error(err),
+			)
+		}
+	}()
 
 	// write the program id to the new runtime memory
 	ptr, err := runtime.WriteBytes(rt.Memory(), programIDBytes)
@@ -151,18 +164,6 @@ func (i *Import) callProgramFn(
 	res, err := rt.Call(ctx, function, params...)
 	if err != nil {
 		i.log.Error("failed to call entry function",
-			zap.Error(err),
-		)
-		return -1
-	}
-
-	// stop the runtime to prevent further execution
-	rt.Stop()
-
-	// transfer remaining balance back to parent runtime
-	_, err = rt.Meter().TransferUnits(i.meter, rt.Meter().GetBalance())
-	if err != nil {
-		i.log.Error("failed to transfer remaining balance to caller",
 			zap.Error(err),
 		)
 		return -1

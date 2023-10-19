@@ -107,7 +107,7 @@ type ConfigBuilder struct {
 	// CompileStrategy helps the engine to understand if the files has been precompiled.
 	CompileStrategy EngineCompileStrategy
 
-	err           wrappers.Errs
+	err wrappers.Errs
 }
 
 // WithCompileStrategy defines the EngineCompileStrategy.

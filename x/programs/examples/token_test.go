@@ -35,7 +35,7 @@ var (
 func TestTokenProgram(t *testing.T) {
 	require := require.New(t)
 	maxUnits := uint64(40000)
-	cfg, err := runtime.NewConfigBuilder(maxUnits).Build()
+	cfg, err := runtime.NewConfigBuilder().Build()
 	require.NoError(err)
 	program, err := newTokenProgram(maxUnits, cfg, tokenProgramBytes)
 	require.NoError(err)
@@ -48,7 +48,7 @@ func BenchmarkTokenProgram(b *testing.B) {
 	require := require.New(b)
 	maxUnits := uint64(40000)
 
-	cfg, err := runtime.NewConfigBuilder(maxUnits).
+	cfg, err := runtime.NewConfigBuilder().
 		WithCompileStrategy(runtime.CompileWasm).
 		WithDefaultCache(true).
 		Build()
@@ -76,7 +76,7 @@ func BenchmarkTokenProgram(b *testing.B) {
 		}
 	})
 
-	cfg, err = runtime.NewConfigBuilder(maxUnits).
+	cfg, err = runtime.NewConfigBuilder().
 		WithCompileStrategy(runtime.PrecompiledWasm).
 		WithDefaultCache(false).
 		Build()
@@ -116,5 +116,5 @@ func newTokenProgram(maxUnits uint64, cfg *runtime.Config, programBytes []byte) 
 	supported.Register("state", func() runtime.Import {
 		return pstate.New(log, db)
 	})
-	return NewToken(log, programBytes, db, cfg, supported.Imports()), nil
+	return NewToken(log, programBytes, db, cfg, supported.Imports(), maxUnits), nil
 }

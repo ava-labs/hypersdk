@@ -40,7 +40,7 @@ type WasmRuntime struct {
 	log logging.Logger
 }
 
-func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte) (err error) {
+func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUnits uint64) (err error) {
 	ctx, r.cancelFn = context.WithCancel(ctx)
 	go func(ctx context.Context) {
 		<-ctx.Done()
@@ -102,14 +102,10 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte) (err 
 
 	// setup metering
 	r.meter = NewMeter(r.store)
-	_, err = r.meter.AddUnits(r.cfg.meterMaxUnits)
+	_, err = r.meter.AddUnits(maxUnits)
 	if err != nil {
 		return err
 	}
-
-	// reset the config max units to 0 this ensures that any subsequent usage of
-	// this config will not inherit the meter units. ex (program -> program)
-	r.cfg.meterMaxUnits = 0
 
 	// setup client capable of calling exported functions
 	r.exp = newExportClient(r.inst, r.store)
