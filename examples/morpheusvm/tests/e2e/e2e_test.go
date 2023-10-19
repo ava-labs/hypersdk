@@ -197,7 +197,8 @@ var _ = ginkgo.BeforeSuite(func() {
 		ed25519.PrivateKeyLen,
 	)
 	gomega.Ω(err).Should(gomega.BeNil())
-	factory = auth.NewED25519Factory(ed25519.PrivateKey(privBytes))
+	priv = ed25519.PrivateKey(privBytes)
+	factory = auth.NewED25519Factory(priv)
 	rsender = priv.PublicKey()
 	sender = auth.NewED25519AddressBech32(rsender)
 	utils.Outf("\n{{yellow}}$ loaded address:{{/}} %s\n\n", sender)

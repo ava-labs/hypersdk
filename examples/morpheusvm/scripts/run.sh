@@ -148,7 +148,7 @@ cat <<EOF > ${TMPDIR}/morpheusvm.config
 {
   "mempoolSize": 10000000,
   "mempoolPayerSize": 10000000,
-  "mempoolExemptPayers":["morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp"],
+  "mempoolExemptPayers":["morpheus1qqds2l0ryq5hc2ddps04384zz6rfeuvn3kyvn77hp4n5sv3ahuh6wgkt57y"],
   "signatureVerificationCores": 2,
   "rootGenerationCores": 2,
   "transactionExecutionCores": 2,
@@ -197,7 +197,7 @@ ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 # download avalanche-network-runner
 # https://github.com/ava-labs/avalanche-network-runner
 ANR_REPO_PATH=github.com/ava-labs/avalanche-network-runner
-ANR_VERSION=v1.7.2
+ANR_VERSION=a641238e9a15a2ce4d9903c266307b93926d3733
 # version set
 go install -v ${ANR_REPO_PATH}@${ANR_VERSION}
 
@@ -216,7 +216,7 @@ killall avalanche-network-runner || true
 
 echo "launch avalanche-network-runner in the background"
 $BIN server \
---log-level verbo \
+--log-level=verbo \
 --port=":12352" \
 --grpc-gateway-port=":12353" &
 PID=${!}
