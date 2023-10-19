@@ -20,10 +20,14 @@ cargo build --target wasm32-unknown-unknown --target-dir $CARGO_TARGET_DIR --rel
 
 ## Debugging
 
-While developing programs you can optionally compile the program with wasi
-support. This provides for example logging from your program. The compile Wasm
-will be automatically supported by the VM simulator or if you explicitly set
-WithEnableTestingOnlyMode(true) for the runtime `Config`.
+While developing programs you can optionally compile the program with `Wasi`
+support. This allows, for example, logging from your program. The compiled
+`Wasm` will be automatically supported by the VM simulator, or if you explicitly
+set `WithEnableTestingOnlyMode` for the runtime `Config`. 
+
+**NOTE**: Once testing is complete, remove all print statements from your
+*program. Failing to do so will lead to larger file sizes, slower execution, and
+*higher meter fees.
 
 ```sh
 TESTING_ONLY=1 ./scripts/build.sh
