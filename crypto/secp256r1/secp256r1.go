@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/crypto/cryptobyte/asn1"
 )
@@ -96,11 +95,6 @@ func (p PrivateKey) PublicKey() PublicKey {
 
 	// Output the compressed form of the PublicKey
 	return PublicKey(elliptic.MarshalCompressed(elliptic.P256(), x, y))
-}
-
-// ShortBytes returns [PublicKey] prefixed with [prefix].
-func (p PublicKey) ShortBytes(prefix byte) codec.ShortBytes {
-	return codec.PrefixShortBytes(prefix, p[:])
 }
 
 // generateSignature creates a valid signature, potentially padding

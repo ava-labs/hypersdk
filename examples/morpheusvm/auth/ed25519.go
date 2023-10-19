@@ -34,7 +34,7 @@ type ED25519 struct {
 
 func (d *ED25519) address() codec.ShortBytes {
 	if len(d.addr) == 0 {
-		d.addr = d.Signer.ShortBytes(d.GetTypeID())
+		d.addr = codec.PrefixShortBytes(d.GetTypeID(), d.Signer[:])
 	}
 	return d.addr
 }
@@ -204,7 +204,7 @@ func (b *ED25519Batch) Done() []func() error {
 }
 
 func NewED25519Address(pk ed25519.PublicKey) codec.ShortBytes {
-	return pk.ShortBytes(consts.ED25519ID)
+	return codec.PrefixShortBytes(consts.ED25519ID, pk[:])
 }
 
 func NewED25519AddressBech32(pk ed25519.PublicKey) string {

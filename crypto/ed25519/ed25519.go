@@ -9,7 +9,6 @@ import (
 	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
 	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519/extra/cache"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 )
 
@@ -77,11 +76,6 @@ func GeneratePrivateKey() (PrivateKey, error) {
 // The PublicKey is the last 32 bytes of p.
 func (p PrivateKey) PublicKey() PublicKey {
 	return PublicKey(p[PrivateKeySeedLen:])
-}
-
-// ShortBytes returns [PublicKey] prefixed with [prefix].
-func (p PublicKey) ShortBytes(prefix byte) codec.ShortBytes {
-	return codec.PrefixShortBytes(prefix, p[:])
 }
 
 // Sign returns a valid signature for msg using pk.

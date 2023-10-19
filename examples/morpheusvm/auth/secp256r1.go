@@ -30,7 +30,7 @@ type SECP256R1 struct {
 
 func (d *SECP256R1) address() codec.ShortBytes {
 	if len(d.addr) == 0 {
-		d.addr = d.Signer.ShortBytes(d.GetTypeID())
+		d.addr = codec.PrefixShortBytes(d.GetTypeID(), d.Signer[:])
 	}
 	return d.addr
 }
@@ -148,7 +148,7 @@ func (*SECP256R1Factory) MaxUnits() (uint64, uint64, []uint16) {
 }
 
 func NewSECP256R1Address(pk secp256r1.PublicKey) codec.ShortBytes {
-	return pk.ShortBytes(consts.SECP256R1ID)
+	return codec.PrefixShortBytes(consts.SECP256R1ID, pk[:])
 }
 
 func NewSECP256R1AddressBech32(pk secp256r1.PublicKey) string {
