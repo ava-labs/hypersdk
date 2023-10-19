@@ -210,7 +210,6 @@ func AddBalance(
 	}
 	nbal, err := smath.Add64(bal, amount)
 	if err != nil {
-		// TODO: use utils because auth relies on storage
 		addr, _ := utils.Address(acct)
 		return fmt.Errorf(
 			"%w: could not add balance (bal=%d, addr=%v, amount=%d)",
