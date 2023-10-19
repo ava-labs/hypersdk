@@ -9,7 +9,7 @@ const PROGRAM_ID: &str = "0000000000000000000000000000000000000000000000001";
 // TODO: remove when the simulator merges
 #[allow(dead_code)]
 fn initialize_plan() -> Plan<'static> {
-    let steps: Vec<Step> = vec![
+    let steps = vec![
         Step {
             description: "init",
             endpoint: Endpoint::Execute,
@@ -47,7 +47,7 @@ fn initialize_plan() -> Plan<'static> {
                 Param {
                     name: "program_id",
                     param_type: ParamType::Id,
-                    value: "2Ej3Qp6aUZ7yBnqZxBmvvvekUiriCn4ftcqY8VKGwMu5CmZiz",
+                    value: PROGRAM_ID,
                 },
                 Param {
                     name: "recipient",

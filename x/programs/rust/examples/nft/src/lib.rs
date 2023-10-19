@@ -25,9 +25,9 @@ enum StateKey {
     Symbol,
     /// Metadata of the token. Key prefix 0x3.
     Metadata,
-    /// Balance of the NFT token by address. Key prefix 0x5(address).
+    /// Balance of the NFT token by address. Key prefix 0x4(address).
     Balance(Address),
-    /// Counter -- used to keep track of total NFTs minted.
+    /// Counter -- used to keep track of total NFTs minted. Key prefix 0x5.
     Counter,
 }
 
@@ -71,7 +71,7 @@ pub fn init(program: Program) -> bool {
 /// Mints NFT tokens and sends them to the recipient.
 #[public]
 pub fn mint(program: Program, recipient: Address) -> bool {
-    let mint_amount: i64 = 1;
+    const MINT_AMOUNT: i64 = 1;
 
     let counter = program
         .state()
@@ -89,27 +89,27 @@ pub fn mint(program: Program, recipient: Address) -> bool {
         .state()
         .store(
             StateKey::Balance(recipient).to_vec(),
-            &(balance + mint_amount),
+            &(balance + MINT_AMOUNT),
         )
         .expect("failed to store balance");
 
     program
         .state()
-        .store(StateKey::Counter.to_vec(), &(counter + mint_amount))
+        .store(StateKey::Counter.to_vec(), &(counter + MINT_AMOUNT))
         .is_ok()
 }
 
 #[public]
 pub fn burn(program: Program, from: Address) -> bool {
-    let burn_amount: i64 = 1;
+    const BURN_AMOUNT: i64 = 1;
 
     let total_supply: i64 = program
         .state()
-        .get(StateKey::TotalSupply.to_vec())
+        .get::<i64, _>(StateKey::TotalSupply.to_vec())
         .expect("failed to get total supply");
 
     assert!(
-        burn_amount <= total_supply,
+        BURN_AMOUNT <= total_supply,
         "amount burned must be less than or equal to total supply"
     );
 
@@ -119,13 +119,13 @@ pub fn burn(program: Program, from: Address) -> bool {
         .expect("failed to get balance");
 
     assert!(
-        burn_amount <= balance,
+        BURN_AMOUNT <= balance,
         "amount burned must be less than or equal to the account balance"
     );
 
     program
         .state()
-        .store(StateKey::Balance(from).to_vec(), &(balance - burn_amount))
+        .store(StateKey::Balance(from).to_vec(), &(balance - BURN_AMOUNT))
         .expect("failed to store new balance");
 
     // Decrement the counter variable
@@ -136,6 +136,6 @@ pub fn burn(program: Program, from: Address) -> bool {
 
     program
         .state()
-        .store(StateKey::Counter.to_vec(), &(counter - burn_amount))
+        .store(StateKey::Counter.to_vec(), &(counter - BURN_AMOUNT))
         .is_ok()
 }
