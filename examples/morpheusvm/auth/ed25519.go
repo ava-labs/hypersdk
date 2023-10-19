@@ -221,5 +221,4 @@ func ParseED25519AddressBech32(bech32 string) (ed25519.PublicKey, error) {
 		return ed25519.EmptyPublicKey, address.ErrMalformed
 	}
 	return ed25519.PublicKey(pk), nil
-
 }

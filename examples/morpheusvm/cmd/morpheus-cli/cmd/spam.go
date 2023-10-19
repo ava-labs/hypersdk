@@ -60,14 +60,14 @@ var runSpamCmd = &cobra.Command{
 			},
 			func(pk ed25519.PublicKey, amount uint64) chain.Action {
 				return &actions.Transfer{
-					To:    pk,
+					To:    auth.NewED25519Address(pk),
 					Value: amount,
 				}
 			},
 			func(cli *rpc.JSONRPCClient, pk ed25519.PrivateKey) func(context.Context, uint64) error {
 				return func(ictx context.Context, count uint64) error {
 					_, _, err := sendAndWait(ictx, nil, &actions.Transfer{
-						To:    pk.PublicKey(),
+						To:    auth.NewED25519Address(pk.PublicKey()),
 						Value: count, // prevent duplicate txs
 					}, cli, bclient, auth.NewED25519Factory(pk), false)
 					return err

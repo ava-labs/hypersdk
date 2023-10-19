@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/spf13/cobra"
 )
@@ -53,7 +54,7 @@ var transferCmd = &cobra.Command{
 
 		// Generate transaction
 		_, _, err = sendAndWait(ctx, nil, &actions.Transfer{
-			To:    recipient,
+			To:    auth.NewED25519Address(recipient),
 			Value: amount,
 		}, cli, bcli, factory, true)
 		return err
