@@ -38,7 +38,7 @@ const (
 	defaultLimitMaxMemories      = 1
 )
 
-// NewConfig returns a new runtime configuration builder with default settings.
+// NewConfigBuilder returns a new runtime configuration builder with default settings.
 // All instances of ConfigBuilder should be created with this constructor.
 func NewConfigBuilder() *ConfigBuilder {
 	return &ConfigBuilder{
@@ -55,7 +55,6 @@ func NewConfigBuilder() *ConfigBuilder {
 	}
 }
 
-// ConfigBuilder is a builder for a runtime configuration.
 type ConfigBuilder struct {
 	// Configures whether the WebAssembly bulk memory operations proposal will
 	// be enabled for compilation.  This feature gates items such as the
