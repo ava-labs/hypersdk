@@ -26,8 +26,8 @@ support. This allows, for example, logging from your program. The compiled
 set `WithEnableTestingOnlyMode` for the runtime `Config`. 
 
 **NOTE**: Once testing is complete, remove all print statements from your
-*program. Failing to do so will lead to larger file sizes, slower execution, and
-*higher meter fees.
+program. Failing to do so will lead to larger file sizes, slower execution, and
+higher meter fees.
 
 ```sh
 TESTING_ONLY=1 ./scripts/build.sh
