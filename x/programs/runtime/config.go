@@ -40,7 +40,7 @@ const (
 
 // NewConfig returns a new runtime configuration builder with default settings.
 // All instances of ConfigBuilder should be created with this constructor.
-func NewConfigBuilder(meterMaxUnits uint64) *ConfigBuilder {
+func NewConfigBuilder() *ConfigBuilder {
 	return &ConfigBuilder{
 		EnableBulkMemory:         defaultEnableBulkMemory,
 		EnableWasmMultiValue:     defaultMultiValue,
@@ -52,7 +52,6 @@ func NewConfigBuilder(meterMaxUnits uint64) *ConfigBuilder {
 		CompileStrategy:          defaultCompileStrategy,
 		EnableDefaultCache:       false,
 		EnableTestingOnlyMode:    false,
-		meterMaxUnits:            meterMaxUnits,
 	}
 }
 
@@ -109,14 +108,6 @@ type ConfigBuilder struct {
 	CompileStrategy EngineCompileStrategy
 
 	err           wrappers.Errs
-	meterMaxUnits uint64
-}
-
-// ResetUnits resets the meters max units to 0. This is useful for initializing
-// a secondary runtime.
-func (c *ConfigBuilder) ResetUnits() *ConfigBuilder {
-	c.meterMaxUnits = NoUnits
-	return c
 }
 
 // WithCompileStrategy defines the EngineCompileStrategy.
@@ -244,7 +235,6 @@ func (c *ConfigBuilder) Build() (*Config, error) {
 
 		// runtime config
 		compileStrategy: c.CompileStrategy,
-		meterMaxUnits:   c.meterMaxUnits,
 		testingOnlyMode: c.EnableTestingOnlyMode,
 	}, nil
 }
@@ -288,7 +278,6 @@ type Config struct {
 
 	testingOnlyMode bool
 
-	meterMaxUnits   uint64
 	compileStrategy EngineCompileStrategy
 }
 
