@@ -99,8 +99,6 @@ func (i *Import) callProgramFn(
 	}
 
 	// create a new runtime for the program to be invoked with a zero balance.
-	// the runtime reset the meter units to 0 when the parent runtime was
-	// initialized.
 	rt := runtime.New(i.log, i.cfg, i.imports)
 	err = rt.Initialize(context.Background(), programWasmBytes, runtime.NoUnits)
 	if err != nil {
