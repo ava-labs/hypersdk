@@ -115,7 +115,9 @@ find ${TMPDIR}/avalanchego-${VERSION}
 # Always create allocations (linter doesn't like tab)
 echo "creating allocations file"
 cat <<EOF > ${TMPDIR}/allocations.json
-[{"address":"morpheus1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsp30ucp", "balance":10000000000000000000}]
+[
+  {"address":"morpheus1qqds2l0ryq5hc2ddps04384zz6rfeuvn3kyvn77hp4n5sv3ahuh6wgkt57y", "balance":10000000000000000000}
+]
 EOF
 
 GENESIS_PATH=$2
