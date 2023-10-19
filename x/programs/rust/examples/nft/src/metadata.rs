@@ -9,6 +9,7 @@ pub struct Nft {
     pub symbol: String,
     pub name: String,
     pub uri: String,
+    pub edition: i64,
 }
 
 impl Nft {
@@ -24,6 +25,11 @@ impl Nft {
 
     pub fn with_uri(mut self, uri: String) -> Self {
         self.uri = uri;
+        self
+    }
+
+    pub fn with_edition(mut self, edition: i64) -> Self {
+        self.edition = edition;
         self
     }
 }

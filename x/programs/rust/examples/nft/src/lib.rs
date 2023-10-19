@@ -4,6 +4,8 @@
 //!
 //! The NFT must support the common NFT metadata format.
 //! This includes the name, symbol, and URI of the NFT.
+use std::collections::HashMap;
+
 use metadata::Nft;
 use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
 
@@ -29,6 +31,8 @@ enum StateKey {
     Balance(Address),
     /// Counter -- used to keep track of total NFTs minted. Key prefix 0x5.
     Counter,
+    /// Edition -- used to uniquely identify each NFT. Key prefix 0x6.
+    Edition,
 }
 
 /// Initializes the NFT with all required metadata.
@@ -48,17 +52,6 @@ pub fn init(program: Program) -> bool {
         .store(StateKey::Symbol.to_vec(), &SYMBOL.as_bytes())
         .expect("failed to store nft symbol");
 
-    // Generate NFT metadata and persist to storage
-    let nft_metadata = Nft::default()
-        .with_symbol(SYMBOL.to_string())
-        .with_name(NAME.to_string())
-        .with_uri("ipfs://my-nft.jpg".to_string());
-
-    program
-        .state()
-        .store(StateKey::Metadata.to_vec(), &nft_metadata)
-        .expect("failed to store nft metadata");
-
     // Set total supply
     program
         .state()
@@ -73,12 +66,31 @@ pub fn init(program: Program) -> bool {
 pub fn mint(program: Program, recipient: Address) -> bool {
     const MINT_AMOUNT: i64 = 1;
 
-    let counter = program
+    let mut counter = program
         .state()
         .get::<i64, _>(StateKey::Counter.to_vec())
         .expect("failed to store balance");
 
-    assert!(counter < TOTAL_SUPPLY as i64, "max supply for nft exceeded");
+    // Offset by 1 to set initial edition to 1
+    counter += 1;
+
+    assert!(
+        counter <= TOTAL_SUPPLY as i64,
+        "max supply for nft exceeded"
+    );
+
+    // Generate NFT metadata and persist to storage
+    // Give each NFT a unique version
+    let nft_metadata = Nft::default()
+        .with_symbol(SYMBOL.to_string())
+        .with_name(NAME.to_string())
+        .with_uri("ipfs://my-nft.jpg".to_string())
+        .with_edition(counter);
+
+    program
+        .state()
+        .store(StateKey::Metadata.to_vec(), &nft_metadata)
+        .expect("failed to store nft metadata");
 
     let balance = program
         .state()
@@ -113,6 +125,13 @@ pub fn burn(program: Program, from: Address) -> bool {
         "amount burned must be less than or equal to total supply"
     );
 
+    let counter = program
+        .state()
+        .get::<i64, _>(StateKey::Counter.to_vec())
+        .expect("failed to get counter");
+
+    assert!(counter > 0, "cannot burn more tokens");
+
     let balance = program
         .state()
         .get::<i64, _>(StateKey::Balance(from).to_vec())
@@ -129,11 +148,6 @@ pub fn burn(program: Program, from: Address) -> bool {
         .expect("failed to store new balance");
 
     // Decrement the counter variable
-    let counter = program
-        .state()
-        .get::<i64, _>(StateKey::Counter.to_vec())
-        .expect("failed to get counter");
-
     program
         .state()
         .store(StateKey::Counter.to_vec(), &(counter - BURN_AMOUNT))
