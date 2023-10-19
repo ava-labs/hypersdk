@@ -33,6 +33,8 @@ enum StateKey {
     Counter,
     /// Edition -- used to uniquely identify each NFT. Key prefix 0x6.
     Edition,
+    /// Owner -- used to keep track of the owner of each NFT. Key prefix 0x7.
+    Owner,
 }
 
 /// Initializes the NFT with all required metadata.
@@ -107,7 +109,15 @@ pub fn mint(program: Program, recipient: Address) -> bool {
 
     program
         .state()
-        .store(StateKey::Counter.to_vec(), &(counter + MINT_AMOUNT))
+        .store(
+            StateKey::Balance(recipient).to_vec(),
+            &(balance + MINT_AMOUNT),
+        )
+        .expect("failed to store balance");
+
+    program
+        .state()
+        .store(StateKey::Owner.to_vec(), &recipient)
         .is_ok()
 }
 
@@ -115,22 +125,13 @@ pub fn mint(program: Program, recipient: Address) -> bool {
 pub fn burn(program: Program, from: Address) -> bool {
     const BURN_AMOUNT: i64 = 1;
 
-    let total_supply: i64 = program
+    // Only the owner of the NFT can burn it
+    let owner = program
         .state()
-        .get::<i64, _>(StateKey::TotalSupply.to_vec())
-        .expect("failed to get total supply");
+        .get::<Address, _>(StateKey::Owner.to_vec())
+        .expect("failed to get owner");
 
-    assert!(
-        BURN_AMOUNT <= total_supply,
-        "amount burned must be less than or equal to total supply"
-    );
-
-    let counter = program
-        .state()
-        .get::<i64, _>(StateKey::Counter.to_vec())
-        .expect("failed to get counter");
-
-    assert!(counter > 0, "cannot burn more tokens");
+    assert_eq!(owner, from, "only the owner can burn the nft");
 
     let balance = program
         .state()
@@ -139,17 +140,26 @@ pub fn burn(program: Program, from: Address) -> bool {
 
     assert!(
         BURN_AMOUNT <= balance,
-        "amount burned must be less than or equal to the account balance"
+        "amount burned must be less than or equal to the user balance"
     );
 
+    let counter = program
+        .state()
+        .get::<i64, _>(StateKey::Counter.to_vec())
+        .expect("failed to get counter");
+
+    assert!(counter > 0, "cannot burn more nfts");
+
+    // Burn the NFT by transferring it to the zero address
     program
         .state()
         .store(StateKey::Balance(from).to_vec(), &(balance - BURN_AMOUNT))
         .expect("failed to store new balance");
 
-    // Decrement the counter variable
+    // TODO move to a lazy static? Or move to the VM layer entirely
+    let null_address = Address::new([0; 32]);
     program
         .state()
-        .store(StateKey::Counter.to_vec(), &(counter - BURN_AMOUNT))
+        .store(StateKey::Owner.to_vec(), &null_address)
         .is_ok()
 }
