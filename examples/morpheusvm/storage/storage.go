@@ -6,7 +6,6 @@ package storage
 import (
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -124,7 +123,6 @@ func BalanceKey(addr codec.ShortBytes) (k []byte) {
 	k[0] = balancePrefix
 	copy(k[1:], addr[:])
 	binary.BigEndian.PutUint16(k[1+l:], BalanceChunks)
-	fmt.Println("balance key", hex.EncodeToString(k))
 	return
 }
 
