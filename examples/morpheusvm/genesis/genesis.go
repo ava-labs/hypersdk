@@ -134,7 +134,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 	for _, alloc := range g.CustomAllocation {
 		pk, err := address.ParseBech32(alloc.Address)
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: %s", err, alloc.Address)
 		}
 		supply, err = smath.Add64(supply, alloc.Balance)
 		if err != nil {

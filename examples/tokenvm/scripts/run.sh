@@ -20,6 +20,7 @@ fi
 VERSION=v1.10.12
 MAX_UINT64=18446744073709551615
 MODE=${MODE:-run}
+AGO_LOGLEVEL=${AGO_LOGLEVEL:-info}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
@@ -42,6 +43,7 @@ if ${UNLIMITED_USAGE}; then
 fi
 
 echo "Running with:"
+echo AGO_LOGLEVEL: ${AGO_LOGLEVEL}
 echo LOGLEVEL: ${LOGLEVEL}
 echo VERSION: ${VERSION}
 echo MODE: ${MODE}
@@ -250,7 +252,7 @@ echo "running e2e tests"
 ./tests/e2e/e2e.test \
 --ginkgo.v \
 --network-runner-log-level verbo \
---avalanchego-log-level ${LOGLEVEL} \
+--avalanchego-log-level ${AGO_LOGLEVEL} \
 --network-runner-grpc-endpoint="0.0.0.0:12352" \
 --network-runner-grpc-gateway-endpoint="0.0.0.0:12353" \
 --avalanchego-path=${AVALANCHEGO_PATH} \
