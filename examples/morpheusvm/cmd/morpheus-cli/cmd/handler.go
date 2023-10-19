@@ -107,5 +107,5 @@ func (*Controller) Address(pk ed25519.PublicKey) string {
 }
 
 func (*Controller) ParseAddress(address string) (ed25519.PublicKey, error) {
-	sb, err := address.ParseBech32(address)
+	return auth.ParseED25519AddressBech32(address)
 }
