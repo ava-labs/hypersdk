@@ -16,6 +16,15 @@ func Bech32(address codec.ShortBytes) (string, error) {
 	return codec.Address(consts.HRP, address)
 }
 
+// MustBech32 returns a bech32-encoded string or panics.
+func MustBech32(address codec.ShortBytes) string {
+	addr, err := Bech32(address)
+	if err != nil {
+		panic(err)
+	}
+	return addr
+}
+
 // ParseBech32 converts a bech32-encoded address into
 // bytes (includes [authTypeID] prefix).
 func ParseBech32(s string) (codec.ShortBytes, error) {
