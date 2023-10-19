@@ -8,9 +8,9 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/address"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -25,16 +25,14 @@ type SECP256R1 struct {
 	Signer    secp256r1.PublicKey `json:"signer"`
 	Signature secp256r1.Signature `json:"signature"`
 
-	sa codec.ShortBytes
+	addr codec.ShortBytes
 }
 
-func (d *SECP256R1) signerAddress() codec.ShortBytes {
-	if len(d.sa) > 0 {
-		return d.sa
+func (d *SECP256R1) address() codec.ShortBytes {
+	if len(d.addr) == 0 {
+		d.addr = d.Signer.ShortBytes(d.GetTypeID())
 	}
-	sa := d.Signer.ShortBytes(d.GetTypeID())
-	d.sa = sa
-	return sa
+	return d.addr
 }
 
 func (*SECP256R1) GetTypeID() uint8 {
@@ -51,7 +49,7 @@ func (*SECP256R1) ValidRange(chain.Rules) (int64, int64) {
 
 func (d *SECP256R1) StateKeys() []string {
 	return []string{
-		string(storage.BalanceKey(d.signerAddress())),
+		string(storage.BalanceKey(d.address())),
 	}
 }
 
@@ -74,7 +72,7 @@ func (d *SECP256R1) Verify(
 }
 
 func (d *SECP256R1) Payer() codec.ShortBytes {
-	return d.Signer[:]
+	return d.address()
 }
 
 func (*SECP256R1) Size() int {
@@ -100,7 +98,7 @@ func (d *SECP256R1) CanDeduct(
 	im state.Immutable,
 	amount uint64,
 ) error {
-	bal, err := storage.GetBalance(ctx, im, d.signerAddress())
+	bal, err := storage.GetBalance(ctx, im, d.address())
 	if err != nil {
 		return err
 	}
@@ -115,7 +113,7 @@ func (d *SECP256R1) Deduct(
 	mu state.Mutable,
 	amount uint64,
 ) error {
-	return storage.SubBalance(ctx, mu, d.signerAddress(), amount)
+	return storage.SubBalance(ctx, mu, d.address(), amount)
 }
 
 func (d *SECP256R1) Refund(
@@ -124,7 +122,7 @@ func (d *SECP256R1) Refund(
 	amount uint64,
 ) error {
 	// Don't create account if it doesn't exist (may have sent all funds).
-	return storage.AddBalance(ctx, mu, d.signerAddress(), amount, false)
+	return storage.AddBalance(ctx, mu, d.address(), amount, false)
 }
 
 var _ chain.AuthFactory = (*SECP256R1Factory)(nil)
@@ -149,11 +147,11 @@ func (*SECP256R1Factory) MaxUnits() (uint64, uint64, []uint16) {
 	return SECP256R1Size, SECP256R1ComputeUnits, []uint16{storage.BalanceChunks}
 }
 
-func CreateSECP256R1Address(pk secp256r1.PublicKey) codec.ShortBytes {
+func NewSECP256R1Address(pk secp256r1.PublicKey) codec.ShortBytes {
 	return pk.ShortBytes(consts.SECP256R1ID)
 }
 
-func CreateSECP256R1AddressStr(pk secp256r1.PublicKey) string {
-	str, _ := utils.Address(CreateSECP256R1Address(pk))
+func NewSECP256R1AddressBech32(pk secp256r1.PublicKey) string {
+	str, _ := address.Address(NewSECP256R1Address(pk))
 	return str
 }

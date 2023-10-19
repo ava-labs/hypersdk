@@ -12,9 +12,9 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/address"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -29,16 +29,14 @@ type ED25519 struct {
 	Signer    ed25519.PublicKey `json:"signer"`
 	Signature ed25519.Signature `json:"signature"`
 
-	sa codec.ShortBytes
+	addr codec.ShortBytes
 }
 
-func (d *ED25519) signerAddress() codec.ShortBytes {
-	if len(d.sa) > 0 {
-		return d.sa
+func (d *ED25519) address() codec.ShortBytes {
+	if len(d.addr) == 0 {
+		d.addr = d.Signer.ShortBytes(d.GetTypeID())
 	}
-	sa := d.Signer.ShortBytes(d.GetTypeID())
-	d.sa = sa
-	return sa
+	return d.addr
 }
 
 func (*ED25519) GetTypeID() uint8 {
@@ -55,7 +53,7 @@ func (*ED25519) ValidRange(chain.Rules) (int64, int64) {
 
 func (d *ED25519) StateKeys() []string {
 	return []string{
-		string(storage.BalanceKey(d.signerAddress())),
+		string(storage.BalanceKey(d.address())),
 	}
 }
 
@@ -78,7 +76,7 @@ func (d *ED25519) Verify(
 }
 
 func (d *ED25519) Payer() codec.ShortBytes {
-	return d.signerAddress()
+	return d.address()
 }
 
 func (*ED25519) Size() int {
@@ -104,7 +102,7 @@ func (d *ED25519) CanDeduct(
 	im state.Immutable,
 	amount uint64,
 ) error {
-	bal, err := storage.GetBalance(ctx, im, d.signerAddress())
+	bal, err := storage.GetBalance(ctx, im, d.address())
 	if err != nil {
 		return err
 	}
@@ -119,7 +117,7 @@ func (d *ED25519) Deduct(
 	mu state.Mutable,
 	amount uint64,
 ) error {
-	return storage.SubBalance(ctx, mu, d.signerAddress(), amount)
+	return storage.SubBalance(ctx, mu, d.address(), amount)
 }
 
 func (d *ED25519) Refund(
@@ -128,7 +126,7 @@ func (d *ED25519) Refund(
 	amount uint64,
 ) error {
 	// Don't create account if it doesn't exist (may have sent all funds).
-	return storage.AddBalance(ctx, mu, d.signerAddress(), amount, false)
+	return storage.AddBalance(ctx, mu, d.address(), amount, false)
 }
 
 var _ chain.AuthFactory = (*ED25519Factory)(nil)
@@ -161,8 +159,12 @@ func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatch
 }
 
 func (*ED25519AuthEngine) Cache(auth chain.Auth) {
-	pk := ed25519.PublicKey(GetSigner(auth))
-	ed25519.CachePublicKey(pk)
+	addr := auth.Payer()
+	pk := codec.TrimShortBytesPrefix(addr)
+	if pk == nil {
+		return
+	}
+	ed25519.CachePublicKey(ed25519.PublicKey(pk))
 }
 
 type ED25519Batch struct {
@@ -201,11 +203,11 @@ func (b *ED25519Batch) Done() []func() error {
 	return []func() error{b.batch.VerifyAsync()}
 }
 
-func CreateED25519Address(pk ed25519.PublicKey) codec.ShortBytes {
+func NewED25519Address(pk ed25519.PublicKey) codec.ShortBytes {
 	return pk.ShortBytes(consts.ED25519ID)
 }
 
-func CreateED25519AddressStr(pk ed25519.PublicKey) string {
-	str, _ := utils.Address(CreateED25519Address(pk))
+func NewED25519AddressBech32(pk ed25519.PublicKey) string {
+	str, _ := address.Address(NewED25519Address(pk))
 	return str
 }

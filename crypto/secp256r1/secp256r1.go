@@ -98,6 +98,7 @@ func (p PrivateKey) PublicKey() PublicKey {
 	return PublicKey(elliptic.MarshalCompressed(elliptic.P256(), x, y))
 }
 
+// ShortBytes returns [PublicKey] prefixed with [prefix].
 func (p PublicKey) ShortBytes(prefix byte) codec.ShortBytes {
 	return codec.PrefixShortBytes(prefix, p[:])
 }

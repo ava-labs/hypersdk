@@ -79,6 +79,7 @@ func (p PrivateKey) PublicKey() PublicKey {
 	return PublicKey(p[PrivateKeySeedLen:])
 }
 
+// ShortBytes returns [PublicKey] prefixed with [prefix].
 func (p PublicKey) ShortBytes(prefix byte) codec.ShortBytes {
 	return codec.PrefixShortBytes(prefix, p[:])
 }

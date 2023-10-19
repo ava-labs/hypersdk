@@ -23,3 +23,10 @@ func PrefixShortBytes(prefix byte, sb []byte) ShortBytes {
 	copy(b[1:], sb)
 	return ShortBytes(b)
 }
+
+func TrimShortBytesPrefix(sb ShortBytes) ShortBytes {
+	if sb.Len() > 0 {
+		return sb[1:]
+	}
+	return nil
+}
