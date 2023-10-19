@@ -12,9 +12,8 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/rpc"
-	hutils "github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ cli.Controller = (*Controller)(nil)
@@ -64,20 +63,20 @@ func (*Handler) GetBalance(
 	cli *brpc.JSONRPCClient,
 	publicKey ed25519.PublicKey,
 ) (uint64, error) {
-	addr := utils.Address(publicKey)
+	addr := auth.NewED25519AddressBech32(publicKey)
 	balance, err := cli.Balance(ctx, addr)
 	if err != nil {
 		return 0, err
 	}
 	if balance == 0 {
-		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", consts.Symbol)
-		hutils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
-		hutils.Outf("{{red}}exiting...{{/}}\n")
+		utils.Outf("{{red}}balance:{{/}} 0 %s\n", consts.Symbol)
+		utils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
+		utils.Outf("{{red}}exiting...{{/}}\n")
 		return 0, nil
 	}
-	hutils.Outf(
+	utils.Outf(
 		"{{yellow}}balance:{{/}} %s %s\n",
-		hutils.FormatBalance(balance, consts.Decimals),
+		utils.FormatBalance(balance, consts.Decimals),
 		consts.Symbol,
 	)
 	return balance, nil
@@ -104,9 +103,9 @@ func (*Controller) Decimals() uint8 {
 }
 
 func (*Controller) Address(pk ed25519.PublicKey) string {
-	return utils.Address(pk)
+	return auth.NewED25519AddressBech32(pk)
 }
 
 func (*Controller) ParseAddress(address string) (ed25519.PublicKey, error) {
-	return utils.ParseAddress(address)
+	sb, err := address.ParseBech32(address)
 }

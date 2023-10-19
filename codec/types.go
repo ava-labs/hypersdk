@@ -24,9 +24,12 @@ func PrefixShortBytes(prefix byte, sb []byte) ShortBytes {
 	return ShortBytes(b)
 }
 
-func TrimShortBytesPrefix(sb ShortBytes) ShortBytes {
-	if sb.Len() > 0 {
-		return sb[1:]
+func TrimShortBytesPrefix(prefix byte, sb ShortBytes) ([]byte, bool) {
+	if sb.Len() == 0 {
+		return nil, false
 	}
-	return nil
+	if sb[0] != prefix {
+		return nil, false
+	}
+	return sb[1:], true
 }

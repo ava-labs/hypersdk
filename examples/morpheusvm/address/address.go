@@ -17,7 +17,7 @@ func Bech32(address codec.ShortBytes) (string, error) {
 }
 
 // ParseBech32 converts a bech32-encoded address into
-// bytes (includes [authTypeID] prefix.
+// bytes (includes [authTypeID] prefix).
 func ParseBech32(s string) (codec.ShortBytes, error) {
 	laddr, err := codec.ParseAnyAddress(consts.HRP, s)
 	if err != nil {

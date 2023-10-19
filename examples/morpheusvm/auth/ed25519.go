@@ -160,11 +160,10 @@ func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatch
 
 func (*ED25519AuthEngine) Cache(auth chain.Auth) {
 	addr := auth.Payer()
-	pk := codec.TrimShortBytesPrefix(addr)
-	if pk == nil {
-		return
+	pk, ok := codec.TrimShortBytesPrefix(consts.ED25519ID, addr)
+	if ok {
+		ed25519.CachePublicKey(ed25519.PublicKey(pk))
 	}
-	ed25519.CachePublicKey(ed25519.PublicKey(pk))
 }
 
 type ED25519Batch struct {
@@ -210,4 +209,17 @@ func NewED25519Address(pk ed25519.PublicKey) codec.ShortBytes {
 func NewED25519AddressBech32(pk ed25519.PublicKey) string {
 	str, _ := address.Bech32(NewED25519Address(pk))
 	return str
+}
+
+func ParseED25519AddressBech32(bech32 string) (ed25519.PublicKey, error) {
+	addr, err := address.ParseBech32(bech32)
+	if err != nil {
+		return ed25519.EmptyPublicKey, err
+	}
+	pk, ok := codec.TrimShortBytesPrefix(consts.ED25519ID, addr)
+	if !ok {
+		return ed25519.EmptyPublicKey, address.ErrMalformed
+	}
+	return ed25519.PublicKey(pk), nil
+
 }
