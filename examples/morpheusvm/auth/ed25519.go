@@ -208,6 +208,6 @@ func NewED25519Address(pk ed25519.PublicKey) codec.ShortBytes {
 }
 
 func NewED25519AddressBech32(pk ed25519.PublicKey) string {
-	str, _ := address.Address(NewED25519Address(pk))
+	str, _ := address.Bech32(NewED25519Address(pk))
 	return str
 }

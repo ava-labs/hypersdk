@@ -93,20 +93,22 @@ func init() {
 
 var (
 	priv    ed25519.PrivateKey
+	pk      ed25519.PublicKey
 	factory *auth.ED25519Factory
-	rsender ed25519.PublicKey
-	sender  string
+	addr    codec.ShortBytes
+	addrStr string
 
 	priv2    ed25519.PrivateKey
+	pk2      ed25519.PublicKey
 	factory2 *auth.ED25519Factory
-	rsender2 ed25519.PublicKey
-	sender2  string
-	// TODO: create an address form
+	addr2    codec.ShortBytes
+	addrStr2 string
 
 	priv3    ed25519.PrivateKey
+	pk3      ed25519.PublicKey
 	factory3 *auth.ED25519Factory
-	rsender3 ed25519.PublicKey
-	sender3  string
+	addr3    codec.ShortBytes
+	addrStr3 string
 
 	// when used with embedded VMs
 	genesisBytes []byte
@@ -136,34 +138,37 @@ var _ = ginkgo.BeforeSuite(func() {
 	var err error
 	priv, err = ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
+	pk = priv.PublicKey()
 	factory = auth.NewED25519Factory(priv)
-	rsender = priv.PublicKey()
-	sender = auth.CreateED25519AddressStr(rsender)
+	addr = auth.NewED25519Address(pk)
+	addrStr = auth.NewED25519AddressBech32(pk)
 	log.Debug(
 		"generated key",
-		zap.String("addr", sender),
+		zap.String("addr", addrStr),
 		zap.String("pk", hex.EncodeToString(priv[:])),
 	)
 
 	priv2, err = ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
+	pk2 = priv2.PublicKey()
 	factory2 = auth.NewED25519Factory(priv2)
-	rsender2 = priv2.PublicKey()
-	sender2 = auth.CreateED25519AddressStr(rsender2)
+	addr2 = auth.NewED25519Address(pk2)
+	addrStr2 = auth.NewED25519AddressBech32(pk2)
 	log.Debug(
 		"generated key",
-		zap.String("addr", sender2),
+		zap.String("addr", addrStr2),
 		zap.String("pk", hex.EncodeToString(priv2[:])),
 	)
 
 	priv3, err = ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
+	pk3 = priv3.PublicKey()
 	factory3 = auth.NewED25519Factory(priv3)
-	rsender3 = priv3.PublicKey()
-	sender3 = auth.CreateED25519AddressStr(rsender3)
+	addr3 = auth.NewED25519Address(pk3)
+	addrStr3 = auth.NewED25519AddressBech32(pk3)
 	log.Debug(
 		"generated key",
-		zap.String("addr", sender3),
+		zap.String("addr", addrStr3),
 		zap.String("pk", hex.EncodeToString(priv3[:])),
 	)
 
@@ -175,7 +180,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gen.MinBlockGap = 0
 	gen.CustomAllocation = []*genesis.CustomAllocation{
 		{
-			Address: sender,
+			Address: addrStr,
 			Balance: 10_000_000,
 		},
 	}
@@ -325,7 +330,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    auth.CreateED25519Address(rsender2),
+					To:    addr2,
 					Value: 100_000, // must be more than StateLockup
 				},
 				factory,
@@ -358,7 +363,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				},
 				nil,
 				&actions.Transfer{
-					To:    auth.CreateED25519Address(rsender2),
+					To:    addr2,
 					Value: 110,
 				},
 			)
@@ -433,10 +438,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
-			balance, err := instances[1].lcli.Balance(context.Background(), sender)
+			balance, err := instances[1].lcli.Balance(context.Background(), addrStr)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance).To(gomega.Equal(uint64(9899751)))
-			balance2, err := instances[1].lcli.Balance(context.Background(), sender2)
+			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
 		})
@@ -451,7 +456,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    auth.CreateED25519Address(rsender2),
+					To:    addr2,
 					Value: 101,
 				},
 				factory,
@@ -478,7 +483,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// Multiply all unit consumption by 1 and sum
 			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(239)))
 
-			balance2, err := instances[1].lcli.Balance(context.Background(), sender2)
+			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100101)))
 		})
@@ -492,7 +497,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    auth.CreateED25519Address(rsender2),
+					To:    addr2,
 					Value: 102,
 				},
 				factory,
@@ -504,7 +509,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    auth.CreateED25519Address(rsender2),
+					To:    addr2,
 					Value: 103,
 				},
 				factory,
@@ -516,7 +521,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    auth.CreateED25519Address(rsender3),
+					To:    addr3,
 					Value: 104,
 				},
 				factory,
@@ -528,7 +533,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    auth.CreateED25519Address(rsender3),
+					To:    addr3,
 					Value: 105,
 				},
 				factory,
@@ -608,10 +613,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(results[3].Fee).Should(gomega.Equal(uint64(218)))
 
 			// Check end balance
-			balance2, err := instances[1].lcli.Balance(context.Background(), sender2)
+			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100306)))
-			balance3, err := instances[1].lcli.Balance(context.Background(), sender3)
+			balance3, err := instances[1].lcli.Balance(context.Background(), addrStr3)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance3).To(gomega.Equal(uint64(209)))
 		})
@@ -628,7 +633,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    auth.CreateED25519Address(rsender2),
+					To:    addr2,
 					Value: 200,
 				},
 				factory,
@@ -642,7 +647,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    auth.CreateED25519Address(rsender2),
+					To:    addr2,
 					Value: 201,
 				},
 				factory,
@@ -671,7 +676,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    auth.CreateED25519Address(rsender2),
+					To:    addr2,
 					Value: 203,
 				},
 				factory,
@@ -744,14 +749,14 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		time.Sleep(2 * pubsub.MaxMessageWait)
 
 		// Fetch balances
-		balance, err := instances[0].lcli.Balance(context.TODO(), sender)
+		balance, err := instances[0].lcli.Balance(context.TODO(), addrStr)
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Send tx
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		transfer := &actions.Transfer{
-			To:    auth.CreateED25519Address(other.PublicKey()),
+			To:    auth.NewED25519Address(other.PublicKey()),
 			Value: 1,
 		}
 
@@ -783,7 +788,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(prices).Should(gomega.Equal(chain.Dimensions{1, 1, 1, 1, 1}))
 
 		// Check balance modifications are correct
-		balancea, err := instances[0].lcli.Balance(context.TODO(), sender)
+		balancea, err := instances[0].lcli.Balance(context.TODO(), addrStr)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(balancea + lresults[0].Fee + 1))
 
@@ -800,7 +805,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		transfer := &actions.Transfer{
-			To:    auth.CreateED25519Address(other.PublicKey()),
+			To:    auth.NewED25519Address(other.PublicKey()),
 			Value: 1,
 		}
 		parser, err := instances[0].lcli.Parser(context.Background())
@@ -858,7 +863,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    auth.CreateSECP256R1Address(r1pk),
+					To:    auth.NewSECP256R1Address(r1pk),
 					Value: 2000,
 				},
 				factory,
@@ -870,7 +875,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-			balance, err := instances[0].lcli.Balance(context.TODO(), auth.CreateSECP256R1AddressStr(r1pk))
+			balance, err := instances[0].lcli.Balance(context.TODO(), auth.NewSECP256R1AddressBech32(r1pk))
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(balance).Should(gomega.Equal(uint64(2000)))
 		})
@@ -883,7 +888,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    auth.CreateED25519Address(rsender),
+					To:    addr,
 					Value: 100,
 				},
 				r1factory,

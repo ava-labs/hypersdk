@@ -152,6 +152,6 @@ func NewSECP256R1Address(pk secp256r1.PublicKey) codec.ShortBytes {
 }
 
 func NewSECP256R1AddressBech32(pk secp256r1.PublicKey) string {
-	str, _ := address.Address(NewSECP256R1Address(pk))
+	str, _ := address.Bech32(NewSECP256R1Address(pk))
 	return str
 }

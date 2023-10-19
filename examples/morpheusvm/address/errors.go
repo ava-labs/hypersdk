@@ -2,4 +2,4 @@ package address
 
 import "errors"
 
-var ErrMalformedAccount = errors.New("malformed account")
+var ErrMalformed = errors.New("malformed address")

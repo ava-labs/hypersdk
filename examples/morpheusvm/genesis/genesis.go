@@ -14,9 +14,9 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	hconsts "github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/address"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
 )
@@ -132,7 +132,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 
 	supply := uint64(0)
 	for _, alloc := range g.CustomAllocation {
-		pk, err := utils.ParseAddress(alloc.Address)
+		pk, err := address.ParseBech32(alloc.Address)
 		if err != nil {
 			return err
 		}

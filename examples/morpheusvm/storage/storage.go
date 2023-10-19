@@ -208,7 +208,7 @@ func AddBalance(
 	}
 	nbal, err := smath.Add64(bal, amount)
 	if err != nil {
-		saddr, _ := address.Address(addr)
+		saddr, _ := address.Bech32(addr)
 		return fmt.Errorf(
 			"%w: could not add balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
@@ -232,7 +232,7 @@ func SubBalance(
 	}
 	nbal, err := smath.Sub(bal, amount)
 	if err != nil {
-		saddr, _ := address.Address(addr)
+		saddr, _ := address.Bech32(addr)
 		return fmt.Errorf(
 			"%w: could not subtract balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,

@@ -11,10 +11,9 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/address"
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	mutils "github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -35,7 +34,9 @@ func (*Transfer) GetTypeID() uint8 {
 
 func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) []string {
 	return []string{
-		string(storage.BalanceKey(auth.GetSigner(rauth))),
+		// In the morepheusvm, the [rauth] is the source of transfer funds and
+		// the fee payer. The fee payer does not need to be the "actor".
+		string(storage.BalanceKey(rauth.Payer())),
 		string(storage.BalanceKey(t.To)),
 	}
 }
@@ -57,11 +58,10 @@ func (t *Transfer) Execute(
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	signer := auth.GetSigner(rauth)
 	if t.Value == 0 {
 		return false, 1, OutputValueZero, nil, nil
 	}
-	if err := storage.SubBalance(ctx, mu, signer, t.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, rauth.Payer(), t.Value); err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
@@ -93,8 +93,8 @@ func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	}
 
 	// Ensure address is well-formatted
-	if !mutils.VerifyAccountFormat(transfer.To) {
-		return nil, mutils.ErrMalformedAccount
+	if !address.VerifyFormat(transfer.To) {
+		return nil, address.ErrMalformed
 	}
 	return &transfer, nil
 }

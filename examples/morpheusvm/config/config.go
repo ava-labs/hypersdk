@@ -16,8 +16,8 @@ import (
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
 
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/address"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
 )
 
@@ -80,7 +80,7 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 	// broadcasting many txs at once)
 	c.parsedExemptPayers = make([][]byte, len(c.MempoolExemptPayers))
 	for i, payer := range c.MempoolExemptPayers {
-		p, err := utils.ParseAddress(payer)
+		p, err := address.ParseBech32(payer)
 		if err != nil {
 			return nil, err
 		}

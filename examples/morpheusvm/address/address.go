@@ -7,32 +7,32 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
-// Address returns a bech32-encoded string of the provided
+// Bech32 returns a bech32-encoded string of the provided
 // [address].
-func Address(address codec.ShortBytes) (string, error) {
-	if !VerifyAccountFormat(address) {
-		return "", ErrMalformedAccount
+func Bech32(address codec.ShortBytes) (string, error) {
+	if !VerifyFormat(address) {
+		return "", ErrMalformed
 	}
 	return codec.Address(consts.HRP, address)
 }
 
-// ParseAddress converts a bech32-encoded address into
+// ParseBech32 converts a bech32-encoded address into
 // bytes (includes [authTypeID] prefix.
-func ParseAddress(s string) (codec.ShortBytes, error) {
+func ParseBech32(s string) (codec.ShortBytes, error) {
 	laddr, err := codec.ParseAnyAddress(consts.HRP, s)
 	if err != nil {
 		return nil, err
 	}
-	addr, ok := TrimShortBytes(laddr)
+	addr, ok := TrimBech32Bytes(laddr)
 	if !ok {
-		return nil, ErrMalformedAccount
+		return nil, ErrMalformed
 	}
 	return addr, nil
 }
 
-// VerifyAccountFormat ensures that any [codec.ShortBytes] being
+// VerifyFormat ensures that any [codec.ShortBytes] being
 // used as an address start with a valid [authTypeID].
-func VerifyAccountFormat(sb codec.ShortBytes) bool {
+func VerifyFormat(sb codec.ShortBytes) bool {
 	l := sb.Len()
 	if l < 1 {
 		return false
@@ -49,9 +49,9 @@ func VerifyAccountFormat(sb codec.ShortBytes) bool {
 	}
 }
 
-// TrimShortBytes can be used to shrink [codec.ShortBytes] to the right
+// TrimBech32Bytes can be used to shrink [codec.ShortBytes] to the right
 // size after bech32 decoding.
-func TrimShortBytes(sb codec.ShortBytes) (codec.ShortBytes, bool) {
+func TrimBech32Bytes(sb codec.ShortBytes) (codec.ShortBytes, bool) {
 	l := sb.Len()
 	if l < 1 {
 		return nil, false
