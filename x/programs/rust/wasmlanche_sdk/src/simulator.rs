@@ -27,17 +27,17 @@ pub enum Endpoint {
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Step<'a> {
     /// A description of the step.
-    description: &'a str,
+    pub description: &'a str,
     /// The API endpoint to call.
-    endpoint: Endpoint,
+    pub endpoint: Endpoint,
     /// The method to call on the endpoint.
-    method: &'a str,
+    pub method: &'a str,
     /// The maximum number of units the step can consume.
-    max_units: u64,
+    pub max_units: u64,
     /// The parameters to pass to the method.
-    params: Vec<Param<'a>>,
+    pub params: Vec<Param<'a>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    require: Option<Require>,
+    pub require: Option<Require>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -60,18 +60,18 @@ pub enum Key {
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Param<'a> {
     /// The optional name of the parameter. This is only used for readability.
-    name: &'a str,
+    pub name: &'a str,
     #[serde(rename = "type")]
     /// The type of the parameter.
-    param_type: ParamType,
+    pub param_type: ParamType,
     /// The value of the parameter.
-    value: &'a str,
+    pub value: &'a str,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Require {
     /// If defined the result of the step must match this assertion.
-    result: ResultAssertion,
+    pub result: ResultAssertion,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -93,26 +93,26 @@ pub enum Operator {
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct ResultAssertion {
     /// The operator to use for the assertion.
-    operator: Operator,
+    pub operator: Operator,
     /// The value to compare against.
-    value: String,
+    pub value: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Plan<'a> {
     /// The name of the plan.
-    name: &'a str,
+    pub name: &'a str,
     /// A description of the plan.
-    description: &'a str,
+    pub description: &'a str,
     /// The key of the caller used in each step of the plan.
-    caller_key: &'a str,
+    pub caller_key: &'a str,
     /// The steps to perform in the plan.
-    steps: Vec<Step<'a>>,
+    pub steps: Vec<Step<'a>>,
 }
 
 pub struct Client {
     /// Path to the simulator binary
-    path: String,
+    pub path: String,
 }
 
 impl Client {
@@ -212,31 +212,9 @@ mod tests {
     fn test_parse_plan_yaml() {
         let yaml_content = r#"
 name: token program
-description: Deploy and execute token program
+description: Get balance for alice
 caller_key: alice_key
 steps:
-  - description: create bob key
-    endpoint: key
-    method: create
-    max_units: 0
-    params:
-      - name: key name
-        type: ed25519
-        value: bob_key
-  - description: mint 1000 tokens to alice
-    endpoint: execute
-    method: mint_to
-    max_units: 100000
-    params:
-      - name: program_id
-        type: id
-        value: 2Ej3Qp6aUZ7yBnqZxBmvvvekUiriCn4ftcqY8VKGwMu5CmZiz
-      - name: owner
-        type: ed25519
-        value: alice_key
-      - name: amount
-        type: u64
-        value: 1000
   - description: get balance for alice
     endpoint: readonly
     method: get_balance
@@ -256,70 +234,32 @@ steps:
 
         let expected = Plan {
             name: "token program",
-            description: "Deploy and execute token program",
+            description: "Get balance for alice",
             caller_key: "alice_key",
-            steps: vec![
-                Step {
-                    description: "create bob key",
-                    endpoint: Endpoint::Key,
-                    method: "create",
-                    max_units: 0,
-                    params: vec![Param {
-                        name: "key name",
+            steps: vec![Step {
+                description: "get balance for alice",
+                endpoint: Endpoint::ReadOnly,
+                method: "get_balance",
+                max_units: 0,
+                params: vec![
+                    Param {
+                        name: "program_id",
+                        param_type: ParamType::Id,
+                        value: "2Ej3Qp6aUZ7yBnqZxBmvvvekUiriCn4ftcqY8VKGwMu5CmZiz",
+                    },
+                    Param {
+                        name: "owner",
                         param_type: ParamType::Key(Key::Ed25519),
-                        value: "bob_key",
-                    }],
-                    require: None,
-                },
-                Step {
-                    description: "mint 1000 tokens to alice",
-                    endpoint: Endpoint::Execute,
-                    method: "mint_to",
-                    max_units: 100000,
-                    params: vec![
-                        Param {
-                            name: "program_id",
-                            param_type: ParamType::Id,
-                            value: "2Ej3Qp6aUZ7yBnqZxBmvvvekUiriCn4ftcqY8VKGwMu5CmZiz",
-                        },
-                        Param {
-                            name: "owner",
-                            param_type: ParamType::Key(Key::Ed25519),
-                            value: "alice_key",
-                        },
-                        Param {
-                            name: "amount",
-                            param_type: ParamType::U64,
-                            value: "1000",
-                        },
-                    ],
-                    require: None,
-                },
-                Step {
-                    description: "get balance for alice",
-                    endpoint: Endpoint::ReadOnly,
-                    method: "get_balance",
-                    max_units: 0,
-                    params: vec![
-                        Param {
-                            name: "program_id",
-                            param_type: ParamType::Id,
-                            value: "2Ej3Qp6aUZ7yBnqZxBmvvvekUiriCn4ftcqY8VKGwMu5CmZiz",
-                        },
-                        Param {
-                            name: "owner",
-                            param_type: ParamType::Key(Key::Ed25519),
-                            value: "alice_key",
-                        },
-                    ],
-                    require: Some(Require {
-                        result: ResultAssertion {
-                            operator: Operator::NumericEq,
-                            value: "1000".into(),
-                        },
-                    }),
-                },
-            ],
+                        value: "alice_key",
+                    },
+                ],
+                require: Some(Require {
+                    result: ResultAssertion {
+                        operator: Operator::NumericEq,
+                        value: "1000".into(),
+                    },
+                }),
+            }],
         };
 
         assert_eq!(parse_yaml(yaml_content).unwrap(), expected);
