@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -27,15 +28,15 @@ type runCmd struct {
 	db   *state.SimpleMutable
 
 	// tracks program IDs created during this simulation
-	programMap  map[string]ids.ID
-	stdinReader io.Reader
+	programIDStrMap map[string]string
+	stdinReader     io.Reader
 }
 
 func newRunCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
 	r := &runCmd{
-		log:        log,
-		db:         db,
-		programMap: make(map[string]ids.ID),
+		log:             log,
+		db:              db,
+		programIDStrMap: make(map[string]string),
 	}
 	cmd := &cobra.Command{
 		Use:   "run [path]",
@@ -60,6 +61,7 @@ func newRunCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
 }
 
 func (c *runCmd) Init(args []string) (err error) {
+	c.log.Debug("simulation")
 	var planBytes []byte
 	if args[0] == "-" {
 		// read simulation plan from stdin
@@ -108,6 +110,7 @@ func (c *runCmd) Run(ctx context.Context) error {
 			zap.String("description", step.Description),
 			zap.String("endpoint", string(step.Endpoint)),
 			zap.String("method", step.Method),
+			zap.Uint64("maxUnits", step.MaxUnits),
 			zap.Any("params", step.Params),
 		)
 
@@ -125,8 +128,11 @@ func (c *runCmd) Run(ctx context.Context) error {
 			} else if err != nil {
 				return r.Err(err)
 			}
+
+			now := time.Now().Unix()
 			r.Result = Result{
-				Msg: fmt.Sprintf("created key %s", keyName),
+				Msg:       fmt.Sprintf("created key %s", keyName),
+				Timestamp: uint64(now),
 			}
 			r.Print()
 		case ExecuteEndpoint, ReadOnlyEndpoint: // for now the logic is the same for both
@@ -144,52 +150,52 @@ func (c *runCmd) Run(ctx context.Context) error {
 				}
 				// create a mapping from the step id to the program id for use
 				// during inline program executions.
-				c.programMap[fmt.Sprintf("step_%d", i)] = id
+				c.programIDStrMap[fmt.Sprintf("step_%d", i)] = id.String()
+				now := time.Now().Unix()
 				r.Result = Result{
-					ID: id.String(),
+					ID:        id.String(),
+					Timestamp: uint64(now),
 				}
 				r.Print()
 			default:
 				r := NewResponse(i)
-				if len(step.Params) < 2 {
-					return r.Err(fmt.Errorf("%s: %s", ErrInvalidStep.Error(), "execute requires at least 2 params"))
+				if len(step.Params) == 0 {
+					return r.Err(fmt.Errorf("%s: %s", ErrInvalidStep.Error(), "execute requires at least 1 param"))
 				}
 
 				// get program ID from params
 				if step.Params[0].Type != ID {
 					return r.Err(fmt.Errorf("%s: %s", ErrInvalidParamType.Error(), step.Params[0].Type))
 				}
+
 				idStr, ok := step.Params[0].Value.(string)
 				if !ok {
 					return r.Err(fmt.Errorf("%s: %s", ErrFailedParamTypeCast.Error(), step.Params[0].Type))
 				}
-				programID, err := c.getProgramID(idStr)
+
+				programIDStr, err := c.verifyProgramIDStr(idStr)
+				if err != nil {
+					return r.Err(err)
+				}
+				if idStr != programIDStr {
+					step.Params[0].Value = programIDStr
+				}
+
+				id, result, err := programExecuteFunc(ctx, c.log, c.db, step.Params, step.Method, step.MaxUnits)
 				if err != nil {
 					return r.Err(err)
 				}
 
-				// maxUnits from params
-				if step.Params[1].Type != Uint64 {
-					return r.Err(fmt.Errorf("%s: %s", ErrInvalidParamType.Error(), step.Params[1].Type))
-				}
-				maxUnits, err := intToUint64(step.Params[1].Value)
-				if err != nil {
-					return r.Err(err)
-				}
-
-				id, result, err := programExecuteFunc(ctx, c.db, programID, step.Params, step.Method, maxUnits)
-				if err != nil {
-					return r.Err(err)
-				}
-
-				if step.Method == ProgramExecute {
+				now := time.Now().Unix()
+				if step.Endpoint == ExecuteEndpoint {
 					r.Result = Result{
-						ID:      id.String(),
-						Balance: result[0],
+						ID:        id.String(),
+						Timestamp: uint64(now),
 					}
 				} else {
 					r.Result = Result{
-						Response: result,
+						Response:  result,
+						Timestamp: uint64(now),
 					}
 				}
 				r.Print()
@@ -202,17 +208,22 @@ func (c *runCmd) Run(ctx context.Context) error {
 	return nil
 }
 
-// getProgramID checks the program map for the synthetic identifier `step_N`
-// where N is the step the id was created from execution.
-func (r *runCmd) getProgramID(idStr string) (ids.ID, error) {
-	if r.programMap[idStr] != ids.Empty {
-		programID, ok := r.programMap[idStr]
-		if ok {
-			return programID, nil
-		}
+// verifyProgramIDStr verifies a string is a valid ID and checks the programIDStrMap for
+// the synthetic identifier `step_N` where N is the step the id was created from
+// execution.
+func (r *runCmd) verifyProgramIDStr(idStr string) (string, error) {
+	// if the id is valid
+	_, err := ids.FromString(idStr)
+	if err == nil {
+		return idStr, nil
 	}
 
-	return ids.FromString(idStr)
+	programIDStr, ok := r.programIDStrMap[idStr]
+	if !ok {
+		return "", fmt.Errorf("failed to map id: %s", idStr)
+	}
+
+	return programIDStr, nil
 }
 
 // generateRandomID creates a unique ID.

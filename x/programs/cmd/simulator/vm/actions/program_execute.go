@@ -29,6 +29,8 @@ type ProgramExecute struct {
 	Function string              `json:"programFunction"`
 	MaxUnits uint64              `json:"maxUnits"`
 	Params   []runtime.CallParam `json:"params"`
+
+	Log logging.Logger
 }
 
 func (*ProgramExecute) GetTypeID() uint8 {
@@ -115,8 +117,8 @@ func (t *ProgramExecute) Execute(
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 
-	// TODO: remove this is to support readonly response fro now.
-	p := codec.NewWriter(len(resp), len(resp))
+	// TODO: remove this is to support readonly response for now.
+	p := codec.NewWriter(len(resp), consts.MaxInt)
 	for _, r := range resp {
 		p.PackUint64(r)
 	}
@@ -133,42 +135,12 @@ func (*ProgramExecute) Size() int {
 }
 
 func (t *ProgramExecute) Marshal(p *codec.Packer) {
-	p.PackString(t.Function)
-	p.PackUint64(t.MaxUnits)
-	p.PackInt(len(t.Params))
-	p.PackUint64(uint64(len(t.Params)))
-	for _, param := range t.Params {
-		switch v := param.Value.(type) {
-		case string:
-			p.PackByte(0x0)
-			p.PackString(v)
-		case uint64:
-			p.PackByte(0x1)
-			p.PackUint64(v)
-		case int:
-			p.PackByte(0x2)
-			p.PackInt(v)
-		}
-	}
+	//TODO
 }
 
 func UnmarshalProgramExecute(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
-	var pe ProgramExecute
-	pe.Function = p.UnpackString(true)
-	pe.MaxUnits = p.UnpackUint64(true)
-	paramLen := p.UnpackInt(true)
-	pe.Params = make([]runtime.CallParam, paramLen)
-	for i := 0; i < paramLen; i++ {
-		switch p.UnpackByte() {
-		case 0x0:
-			pe.Params[i] = runtime.CallParam{Value: p.UnpackString(true)}
-		case 0x1:
-			pe.Params[i] = runtime.CallParam{Value: p.UnpackUint64(true)}
-		case 0x2:
-			pe.Params[i] = runtime.CallParam{Value: p.UnpackInt(true)}
-		}
-	}
-	return &pe, p.Err()
+	//TODO
+	return nil, nil
 }
 
 func (*ProgramExecute) ValidRange(chain.Rules) (int64, int64) {

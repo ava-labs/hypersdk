@@ -52,7 +52,6 @@ type Config struct {
 	StoreTransactions bool          `json:"storeTransactions"`
 	TestMode          bool          `json:"testMode"` // makes gossip/building manual
 	LogLevel          logging.Level `json:"logLevel"`
-	Parallelism       int           `json:"parallelism"`
 
 	// State Sync
 	StateSyncServerDelay time.Duration `json:"stateSyncServerDelay"` // for testing
@@ -87,7 +86,6 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
-	c.Parallelism = c.Config.GetParallelism()
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
@@ -98,7 +96,6 @@ func (c *Config) setDefault() {
 
 func (c *Config) GetLogLevel() logging.Level       { return c.LogLevel }
 func (c *Config) GetTestMode() bool                { return c.TestMode }
-func (c *Config) GetParallelism() int              { return c.Parallelism }
 func (c *Config) GetMempoolSize() int              { return c.MempoolSize }
 func (c *Config) GetMempoolPayerSize() int         { return c.MempoolPayerSize }
 func (c *Config) GetMempoolExemptPayers() [][]byte { return c.parsedExemptPayers }

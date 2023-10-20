@@ -139,8 +139,8 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 
 func programExecuteFunc(
 	ctx context.Context,
+	log logging.Logger,
 	db *state.SimpleMutable,
-	programID ids.ID,
 	stepParams []Parameter,
 	function string,
 	maxUnits uint64,
@@ -161,6 +161,7 @@ func programExecuteFunc(
 		Function: function,
 		Params:   params,
 		MaxUnits: maxUnits,
+		Log:      log,
 	}
 
 	// execute the action
@@ -174,8 +175,9 @@ func programExecuteFunc(
 
 	p := codec.NewReader(resp, len(resp))
 	var result []uint64
-	for range resp {
-		result = append(result, p.UnpackUint64(true))
+	for !p.Empty() {
+		v := p.UnpackUint64(true)
+		result = append(result, v)
 	}
 
 	// store program to disk only on success
