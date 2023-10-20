@@ -52,8 +52,9 @@ func (m *meter) AddUnits(units uint64) (uint64, error) {
 	return m.GetBalance(), nil
 }
 
-func (m *meter) TransferUnits(to Meter, units uint64) (uint64, error) {
-	// TODO: add rollback support
+// TransferUnitsTo moves units from this meter to another meter.
+func (m *meter) TransferUnitsTo(to Meter, units uint64) (uint64, error) {
+	// TODO: add rollback support?
 
 	// spend units from this meter
 	_, err := m.Spend(units)

@@ -30,12 +30,12 @@ func TestInfiniteLoop(t *testing.T) {
 	`)
 	require.NoError(err)
 	maxUnits := uint64(10000)
-	cfg, err := NewConfigBuilder(maxUnits).
+	cfg, err := NewConfigBuilder().
 		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
 		Build()
 	require.NoError(err)
 	runtime := New(logging.NoLog{}, cfg, NoSupportedImports)
-	err = runtime.Initialize(ctx, wasm)
+	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 
 	_, err = runtime.Call(ctx, "get")
@@ -62,12 +62,12 @@ func TestMetering(t *testing.T) {
 	`)
 	require.NoError(err)
 	maxUnits := uint64(20)
-	cfg, err := NewConfigBuilder(maxUnits).
+	cfg, err := NewConfigBuilder().
 		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
 		Build()
 	require.NoError(err)
 	runtime := New(logging.NoLog{}, cfg, NoSupportedImports)
-	err = runtime.Initialize(ctx, wasm)
+	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 
 	require.Equal(runtime.Meter().GetBalance(), maxUnits)
@@ -96,12 +96,12 @@ func TestMeterAfterStop(t *testing.T) {
 	`)
 	require.NoError(err)
 	maxUnits := uint64(20)
-	cfg, err := NewConfigBuilder(maxUnits).
+	cfg, err := NewConfigBuilder().
 		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
 		Build()
 	require.NoError(err)
 	runtime := New(logging.NoLog{}, cfg, NoSupportedImports)
-	err = runtime.Initialize(ctx, wasm)
+	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 
 	// spend 2 units

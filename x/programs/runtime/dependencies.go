@@ -25,10 +25,10 @@ type Link struct {
 }
 
 type Runtime interface {
-	// Initialize initializes the runtime with the given program bytes. The engine will
-	// handle the compile strategy and instantiate the module with the given imports.
-	// Initialize should only be called once.
-	Initialize(context.Context, []byte) error
+	// Initialize initializes the runtime with the given program bytes and max
+	// units. The engine will handle the compile strategy and instantiate the
+	// module with the given imports.  Initialize should only be called once.
+	Initialize(context.Context, []byte, uint64) error
 	// Call invokes the an exported guest function with the given parameters.
 	Call(context.Context, string, ...uint64) ([]uint64, error)
 	// Memory returns the runtime memory.
@@ -82,7 +82,7 @@ type Meter interface {
 	Spend(uint64) (uint64, error)
 	// AddUnits add units back to the meters and returns the new balance.
 	AddUnits(uint64) (uint64, error)
-	// TransferUnits transfers units from this meter to the given meter, returns
+	// TransferUnitsTo transfers units from this meter to the given meter, returns
 	// the new balance of this meter.
-	TransferUnits(to Meter, units uint64) (uint64, error)
+	TransferUnitsTo(to Meter, units uint64) (uint64, error)
 }

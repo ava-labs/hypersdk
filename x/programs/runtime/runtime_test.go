@@ -30,12 +30,12 @@ func TestStop(t *testing.T) {
 	`)
 	require.NoError(err)
 	maxUnits := uint64(10000)
-	cfg, err := NewConfigBuilder(maxUnits).
+	cfg, err := NewConfigBuilder().
 		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
 		Build()
 	require.NoError(err)
 	runtime := New(logging.NoLog{}, cfg, NoSupportedImports)
-	err = runtime.Initialize(ctx, wasm)
+	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 	// stop the runtime
 	runtime.Stop()
@@ -64,12 +64,12 @@ func TestCallParams(t *testing.T) {
 	`)
 	require.NoError(err)
 	maxUnits := uint64(10000)
-	cfg, err := NewConfigBuilder(maxUnits).
+	cfg, err := NewConfigBuilder().
 		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
 		Build()
 	require.NoError(err)
 	runtime := New(logging.NoLog{}, cfg, NoSupportedImports)
-	err = runtime.Initialize(ctx, wasm)
+	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 
 	resp, err := runtime.Call(ctx, "add", uint64(10), uint64(10))
