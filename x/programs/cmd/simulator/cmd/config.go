@@ -29,15 +29,17 @@ type Plan struct {
 
 type Step struct {
 	// Description of the step. (required)
-	Description string `json,yaml:"description"`
+	Description string `json:"description" yaml:"description"`
 	// The API endpoint to call. (required)
-	Endpoint Endpoint `json,yaml:"endpoint"`
+	Endpoint Endpoint `json:"endpoint" yaml:"endpoint"`
 	// The method to call on the endpoint.
-	Method string `json,yaml:"method"`
+	Method string `json:"method" yaml:"method"`
+	// The maximum number of units to consume for this step.
+	MaxUnits uint64 `json:"maxUnits" yaml:"max_units"`
 	// The parameters to pass to the method.
-	Params []Parameter `json,yaml:"params"`
+	Params []Parameter `json:"params" yaml:"params"`
 	// Define required assertions against this step.
-	Require Require `json,yaml:"require,omitempty"`
+	Require Require `json:"require,omitempty" yaml:"require,omitempty"`
 }
 
 type Endpoint string
@@ -61,11 +63,11 @@ func NewResponse(id int) *Response {
 
 type Response struct {
 	// The index of the step that generated this response.
-	ID int `json,yaml:"id"`
+	ID int `json:"id" yaml:"id"`
 	// The result of the step.
-	Result Result `json,yaml:"result,omitempty"`
+	Result Result `json:"result,omitempty" yaml:"result,omitempty"`
 	// The error message if available.
-	Error string `json,yaml:"error,omitempty"`
+	Error string `json:"error,omitempty" yaml:"error,omitempty"`
 }
 
 func (r *Response) Print() {
@@ -86,13 +88,15 @@ func (r *Response) Err(err error) error {
 
 type Result struct {
 	// The tx id of the transaction that was created.
-	ID string `json,yaml:"id,omitempty"`
+	ID string `json:"id,omitempty" yaml:"id,omitempty"`
 	// The balance after the step has completed.
-	Balance uint64 `json,yaml:"balance,omitempty"`
+	Balance uint64 `json:"balance,omitempty" yaml:"balance,omitempty"`
 	// The result of the call.
-	Response []uint64 `json,yaml:"response,omitempty"`
+	Response []uint64 `json:"response,omitempty" yaml:"response,omitempty"`
 	// An optional message.
-	Msg string `json,yaml:"msg,omitempty"`
+	Msg string `json:"msg,omitempty" yaml:"msg,omitempty"`
+	// Timestamp of the response.
+	Timestamp uint64 `json:"timestamp,omitempty" yaml:"timestamp,omitempty"`
 }
 
 type Require struct {
@@ -200,17 +204,6 @@ func boolToUint64(b bool) uint64 {
 		return 1
 	}
 	return 0
-}
-
-func intToUint64(i interface{}) (uint64, error) {
-	int, ok := i.(int)
-	if !ok {
-		return 0, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, Uint64)
-	}
-	if int < 0 {
-		return 0, fmt.Errorf("failed to convert negative integer to uint64")
-	}
-	return uint64(int), nil
 }
 
 func isJSON(s string) bool {

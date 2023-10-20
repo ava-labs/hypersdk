@@ -32,6 +32,8 @@ pub struct Step<'a> {
     endpoint: Endpoint,
     /// The method to call on the endpoint.
     method: &'a str,
+    /// The maximum number of units the step can consume.
+    max_units: u64,
     /// The parameters to pass to the method.
     params: Vec<Param<'a>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -215,6 +217,7 @@ steps:
   - description: create bob key
     endpoint: key
     method: create
+    max_units: 0
     params:
       - name: key name
         type: ed25519
@@ -222,13 +225,11 @@ steps:
   - description: mint 1000 tokens to alice
     endpoint: execute
     method: mint_to
+    max_units: 100000
     params:
       - name: program_id
         type: id
         value: 2Ej3Qp6aUZ7yBnqZxBmvvvekUiriCn4ftcqY8VKGwMu5CmZiz
-      - name: max_fee
-        type: u64
-        value: 100000
       - name: owner
         type: ed25519
         value: alice_key
@@ -238,6 +239,7 @@ steps:
   - description: get balance for alice
     endpoint: readonly
     method: get_balance
+    max_units: 0
     params:
       - name: program_id
         type: id
