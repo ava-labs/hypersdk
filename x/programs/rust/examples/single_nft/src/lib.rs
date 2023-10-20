@@ -12,7 +12,7 @@ pub mod metadata;
 
 const NAME: &str = "My NFT";
 const SYMBOL: &str = "MNFT";
-const TOTAL_SUPPLY: u64 = 20;
+const TOTAL_SUPPLY: u64 = 1;
 
 /// The program storage keys.
 #[state_keys]
