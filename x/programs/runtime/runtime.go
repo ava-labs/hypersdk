@@ -99,7 +99,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 			return err
 		}
 	}
-
+	
 	// setup metering
 	r.meter = NewMeter(r.store)
 	_, err = r.meter.AddUnits(maxUnits)

@@ -15,7 +15,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
-	"github.com/ava-labs/hypersdk/x/programs/utils"
 )
 
 var (
@@ -109,7 +108,7 @@ func BenchmarkTokenProgram(b *testing.B) {
 }
 
 func newTokenProgram(maxUnits uint64, cfg *runtime.Config, programBytes []byte) (*Token, error) {
-	db := utils.NewTestDB()
+	db := newTestDB()
 
 	// define imports
 	supported := runtime.NewSupportedImports()
