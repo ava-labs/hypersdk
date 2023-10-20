@@ -4,8 +4,6 @@
 //!
 //! The NFT must support the common NFT metadata format.
 //! This includes the name, symbol, and URI of the NFT.
-use std::collections::HashMap;
-
 use metadata::Nft;
 use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
 
@@ -31,9 +29,7 @@ enum StateKey {
     Balance(Address),
     /// Counter -- used to keep track of total NFTs minted. Key prefix 0x5.
     Counter,
-    /// Edition -- used to uniquely identify each NFT. Key prefix 0x6.
-    Edition,
-    /// Owner -- used to keep track of the owner of each NFT. Key prefix 0x7.
+    /// Owner -- used to keep track of the owner of each NFT. Key prefix 0x6.
     Owner,
 }
 
@@ -86,8 +82,7 @@ pub fn mint(program: Program, recipient: Address) -> bool {
     let nft_metadata = Nft::default()
         .with_symbol(SYMBOL.to_string())
         .with_name(NAME.to_string())
-        .with_uri("ipfs://my-nft.jpg".to_string())
-        .with_edition(counter);
+        .with_uri("ipfs://my-nft.jpg".to_string());
 
     program
         .state()
