@@ -26,10 +26,10 @@ support. This allows, for example, logging from your program. The compiled
 set `WithEnableTestingOnlyMode` for the runtime `Config`. 
 
 **NOTE**: Once testing is complete, don't forget to remove all print statements
-from your program and recompile without `TESTING_ONLY`.
+from your program and recompile without `DEBUG`.
 
 ```sh
-TESTING_ONLY=1 ./scripts/build.sh
+DEBUG=1 ./scripts/build.sh
 ```
 
 ## Storage

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# $ TESTING_ONLY=1 ./scripts/build.sh .
+# $ DEBUG=1 ./scripts/build.sh .
 #
-# If TESTING_ONLY=1 is passed we compile the program with wasi support for
+# If DEBUG=1 is passed we compile the program with wasi support for
 # easier debugging.
 set -x
 
 target="wasm32-unknown-unknown"
-if [ -n "${TESTING_ONLY:-}" ]; then
+if [ -n "${DEBUG:-}" ]; then
   target="wasm32-wasi"
 fi
 
