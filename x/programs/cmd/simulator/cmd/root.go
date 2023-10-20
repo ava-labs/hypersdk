@@ -11,6 +11,7 @@ import (
 	"path"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database/manager"
@@ -23,7 +24,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/controller"
@@ -31,14 +31,14 @@ import (
 )
 
 const (
-	dbFolder = ".simulator/db"
+	simulatorFolder = ".simulator"
 )
 
 type simulator struct {
 	log      logging.Logger
 	logLevel string
 
-	vm *vm.VM
+	vm      *vm.VM
 	db      *state.SimpleMutable
 	genesis *genesis.Genesis
 }
@@ -57,6 +57,7 @@ func NewRootCmd() *cobra.Command {
 	cmd.SetHelpCommand(&cobra.Command{Hidden: true})
 	cmd.PersistentFlags().StringVar(&s.logLevel, "log-level", "info", "log level")
 
+	// initialize simulator vm
 	err := s.Init()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -75,7 +76,9 @@ func NewRootCmd() *cobra.Command {
 		if s.vm != nil {
 			err := s.vm.Shutdown(cmd.Context())
 			if err != nil {
-				utils.Outf("{{red}}simulator vm closed with error:{{/}} %s\n", err)
+				s.log.Error("simulator vm closed with error",
+					zap.Error(err),
+				)
 			}
 		}
 	})
@@ -88,7 +91,8 @@ func (s *simulator) Init() error {
 	if err != nil {
 		return nil
 	}
-	dbPath := path.Join(homeDir, dbFolder)
+	basePath := path.Join(homeDir, simulatorFolder)
+	dbPath := path.Join(basePath, "db")
 
 	// TODO: allow for user defined ids.
 	nodeID := ids.GenerateTestNodeID()
@@ -96,14 +100,18 @@ func (s *simulator) Init() error {
 	subnetID := ids.GenerateTestID()
 	chainID := ids.GenerateTestID()
 
-	// setup logger
 	loggingConfig := logging.Config{}
 	loggingConfig.LogLevel, err = logging.ToLevel(s.logLevel)
 	if err != nil {
 		return err
 	}
-	logFactory := logging.NewFactory(loggingConfig)
-	s.log, err = logFactory.Make(nodeID.String())
+	loggingConfig.Directory = path.Join(basePath, "logs")
+	loggingConfig.LogFormat = logging.JSON
+	loggingConfig.DisableWriterDisplaying = true
+
+	// setup simulator logger
+	logFactory := newLogFactory(loggingConfig)
+	s.log, err = logFactory.Make("simulator")
 	if err != nil {
 		logFactory.Close()
 		return nil
@@ -139,7 +147,7 @@ func (s *simulator) Init() error {
 		SubnetID:     subnetID,
 		ChainID:      chainID,
 		NodeID:       nodeID,
-		Log:          s.log,
+		Log:          logging.NoLog{}, // TODO: use real logger
 		ChainDataDir: dbPath,
 		Metrics:      metrics.NewOptionalGatherer(),
 		PublicKey:    bls.PublicFromSecretKey(sk),
@@ -173,6 +181,10 @@ func (s *simulator) Init() error {
 	}
 	s.db = state.NewSimpleMutable(stateDB)
 	s.genesis = genesis.Default()
+
+	s.log.Info("simulator initialized",
+		zap.String("log-level", s.logLevel),
+	)
 
 	return nil
 }
