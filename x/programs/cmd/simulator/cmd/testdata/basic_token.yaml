@@ -1,0 +1,54 @@
+steps:
+  - description: create bob key
+    endpoint: key
+    method: create
+    params:
+      - name: key name
+        type: ed25519
+        value: bob_key
+  - description: create alice key
+    endpoint: key
+    method: create
+    params:
+      - name: key name
+        type: ed25519
+        value: alice_key
+  - description: create token program
+    endpoint: execute
+    method: program_create
+    max_units: 100000
+    params:
+      - name: program_path
+        type: string
+        value: ../../examples/testdata/token.wasm
+  - description: initialize token program
+    endpoint: execute
+    method: init
+    max_units: 10000
+    params:
+      - name: program_id
+        type: id
+        value: step_2
+  - description: mint 10000 tokens to bob
+    endpoint: execute
+    method: mint_to
+    max_units: 10000
+    params:
+      - name: program_id
+        type: id
+        value: step_2
+      - type: ed25519
+        value: bob_key
+      - name: amount
+        type: u64
+        value: 10000
+  - description: get bob's token balance
+    endpoint: readonly
+    method: get_balance
+    max_units: 10000
+    params:
+      - name: program_id
+        type: id
+        value: step_2
+      - type: ed25519
+        value: bob_key
