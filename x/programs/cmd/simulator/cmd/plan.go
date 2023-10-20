@@ -4,7 +4,6 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"crypto/rand"
 	"errors"
@@ -65,12 +64,10 @@ func (c *runCmd) Init(args []string) (err error) {
 	var planBytes []byte
 	if args[0] == "-" {
 		// read simulation plan from stdin
-		reader := bufio.NewReader(os.Stdin)
-		planStr, err := reader.ReadString('\n')
+		planBytes, err = io.ReadAll(os.Stdin)
 		if err != nil {
 			return err
 		}
-		planBytes = []byte(planStr)
 	} else {
 		// read simulation plan from arg[0]
 		planBytes, err = os.ReadFile(args[0])
@@ -78,6 +75,8 @@ func (c *runCmd) Init(args []string) (err error) {
 			return err
 		}
 	}
+
+	c.log.Info("####### input", zap.String("plan", string(planBytes)))
 
 	c.plan, err = unmarshalPlan(planBytes)
 	if err != nil {

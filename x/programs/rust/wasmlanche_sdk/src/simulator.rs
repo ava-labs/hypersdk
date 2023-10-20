@@ -175,6 +175,7 @@ where
 {
     let mut child = Command::new(path)
         .arg("run")
+        .arg("-")
         .stdin(Stdio::piped())
         .spawn()?;
 
@@ -262,6 +263,7 @@ steps:
                     description: "create bob key",
                     endpoint: Endpoint::Key,
                     method: "create",
+                    max_units: 0,
                     params: vec![Param {
                         name: "key name",
                         param_type: ParamType::Key(Key::Ed25519),
@@ -273,16 +275,12 @@ steps:
                     description: "mint 1000 tokens to alice",
                     endpoint: Endpoint::Execute,
                     method: "mint_to",
+                    max_units: 100000,
                     params: vec![
                         Param {
                             name: "program_id",
                             param_type: ParamType::Id,
                             value: "2Ej3Qp6aUZ7yBnqZxBmvvvekUiriCn4ftcqY8VKGwMu5CmZiz",
-                        },
-                        Param {
-                            name: "max_fee",
-                            param_type: ParamType::U64,
-                            value: "100000",
                         },
                         Param {
                             name: "owner",
@@ -301,6 +299,7 @@ steps:
                     description: "get balance for alice",
                     endpoint: Endpoint::ReadOnly,
                     method: "get_balance",
+                    max_units: 0,
                     params: vec![
                         Param {
                             name: "program_id",
