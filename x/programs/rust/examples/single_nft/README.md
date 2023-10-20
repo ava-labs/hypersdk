@@ -8,7 +8,7 @@ This program specifically is an example of a single 1/1 NFT. It could represent 
 
 ## Usage
 
-The program exposes `mint_to` and `burn` methods which are publicly accessible. Building a `Plan` with `Steps` to invoke these methods is the standard way to interact with `single_nft`. See [the example](./src/example.rs) for a simple invocation of `single_nft` via the WASM runtime. 
+The program exposes `mint` and `burn` methods which are publicly accessible. Building a `Plan` with `Steps` to invoke these methods is the standard way to interact with `single_nft`. See [the example](./src/example.rs) for a simple invocation of `single_nft` via the WASM runtime. 
 
 ## Testing
 
