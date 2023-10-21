@@ -18,8 +18,6 @@ import (
 	hutils "github.com/ava-labs/hypersdk/utils"
 
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -141,25 +139,19 @@ func programExecuteFunc(
 	ctx context.Context,
 	log logging.Logger,
 	db *state.SimpleMutable,
-	stepParams []Parameter,
+	callParams []runtime.CallParam,
 	function string,
 	maxUnits uint64,
-) (ids.ID, []uint64, error) {
-	// create call params from simulation data
-	params, err := createCallParams(ctx, db, stepParams)
-	if err != nil {
-		return ids.Empty, nil, err
-	}
-
+) (ids.ID, []uint64, uint64, error) {
 	// simulate create program transaction
 	programTxID, err := generateRandomID()
 	if err != nil {
-		return ids.Empty, nil, err
+		return ids.Empty, nil, 0, err
 	}
 
 	programExecuteAction := actions.ProgramExecute{
 		Function: function,
-		Params:   params,
+		Params:   callParams,
 		MaxUnits: maxUnits,
 		Log:      log,
 	}
@@ -167,10 +159,10 @@ func programExecuteFunc(
 	// execute the action
 	success, _, resp, _, err := programExecuteAction.Execute(ctx, nil, db, 0, nil, programTxID, false)
 	if !success {
-		return ids.Empty, nil, fmt.Errorf("program execution failed: %s", err)
+		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s", err)
 	}
 	if err != nil {
-		return ids.Empty, nil, err
+		return ids.Empty, nil, 0, err
 	}
 
 	p := codec.NewReader(resp, len(resp))
@@ -183,59 +175,11 @@ func programExecuteFunc(
 	// store program to disk only on success
 	err = db.Commit(ctx)
 	if err != nil {
-		return ids.Empty, nil, err
+		return ids.Empty, nil, 0, err
 	}
 
-	return programTxID, result, nil
-}
+	// get balance
+	balance := programExecuteAction.GetBalance()
 
-func createCallParams(ctx context.Context, db state.Immutable, params []Parameter) ([]runtime.CallParam, error) {
-	cp := make([]runtime.CallParam, 0, len(params))
-	for _, param := range params {
-		switch param.Type {
-		case String, ID:
-			val, ok := param.Value.(string)
-			if !ok {
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-			}
-			cp = append(cp, runtime.CallParam{Value: val})
-		case Bool:
-			val, ok := param.Value.(bool)
-			if !ok {
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-			}
-			cp = append(cp, runtime.CallParam{Value: boolToUint64(val)})
-		case KeyEd25519:
-			val, ok := param.Value.(string)
-			if !ok {
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-			}
-			// get named public key from db
-			key, ok, err := storage.GetPublicKey(ctx, db, val)
-			if !ok {
-				return nil, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, val)
-			}
-			if err != nil {
-				return nil, err
-			}
-			cp = append(cp, runtime.CallParam{Value: utils.Address(key)})
-		case Uint64:
-			switch v := param.Value.(type) {
-			case float64:
-				// json unmarshal converts to float64
-				cp = append(cp, runtime.CallParam{Value: uint64(v)})
-			case int:
-				if v < 0 {
-					return nil, fmt.Errorf("%w: %s", runtime.ErrNegativeValue, param.Type)
-				}
-				cp = append(cp, runtime.CallParam{Value: uint64(v)})
-			default:
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-			}
-		default:
-			return nil, fmt.Errorf("%w: %s", ErrInvalidParamType, param.Type)
-		}
-	}
-
-	return cp, nil
+	return programTxID, result, balance, nil
 }

@@ -31,6 +31,8 @@ type ProgramExecute struct {
 	Params   []runtime.CallParam `json:"params"`
 
 	Log logging.Logger
+
+	rt runtime.Runtime
 }
 
 func (*ProgramExecute) GetTypeID() uint8 {
@@ -100,19 +102,19 @@ func (t *ProgramExecute) Execute(
 		return program.New(logging.NoLog{}, mu, cfg)
 	})
 
-	rt := runtime.New(logging.NoLog{}, cfg, supported.Imports())
-	err = rt.Initialize(ctx, programBytes, t.MaxUnits)
+	t.rt = runtime.New(logging.NoLog{}, cfg, supported.Imports())
+	err = t.rt.Initialize(ctx, programBytes, t.MaxUnits)
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
-	defer rt.Stop()
+	defer t.rt.Stop()
 
-	params, err := runtime.WriteParams(rt.Memory(), t.Params)
+	params, err := runtime.WriteParams(t.rt.Memory(), t.Params)
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 
-	resp, err := rt.Call(ctx, t.Function, params...)
+	resp, err := t.rt.Call(ctx, t.Function, params...)
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
@@ -136,6 +138,10 @@ func (*ProgramExecute) Size() int {
 
 func (t *ProgramExecute) Marshal(p *codec.Packer) {
 	//TODO
+}
+
+func (t *ProgramExecute) GetBalance() uint64 {
+	return t.rt.Meter().GetBalance()
 }
 
 func UnmarshalProgramExecute(p *codec.Packer, _ *warp.Message) (chain.Action, error) {

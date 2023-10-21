@@ -46,18 +46,19 @@ type Endpoint string
 
 const (
 	/// Perform an operation against the key api.
-	KeyEndpoint Endpoint = "key"
+	EndpointKey Endpoint = "key"
 	/// Make a read-only call to a program function and return the result.
-	ReadOnlyEndpoint Endpoint = "readonly"
+	EndpointReadOnly Endpoint = "readonly"
 	/// Create a transaction on-chain from a possible state changing program
 	/// function call. A program's function can internally optionally call other
 	/// functions including program to program.
-	ExecuteEndpoint Endpoint = "execute"
+	EndpointExecute Endpoint = "execute"
 )
 
-func NewResponse(id int) *Response {
+func newResponse(id int) *Response {
 	return &Response{
-		ID: id,
+		ID:     id,
+		Result: &Result{},
 	}
 }
 
@@ -65,25 +66,50 @@ type Response struct {
 	// The index of the step that generated this response.
 	ID int `json:"id" yaml:"id"`
 	// The result of the step.
-	Result Result `json:"result,omitempty" yaml:"result,omitempty"`
+	Result *Result `json:"result,omitempty" yaml:"result,omitempty"`
 	// The error message if available.
 	Error string `json:"error,omitempty" yaml:"error,omitempty"`
 }
 
-func (r *Response) Print() {
+func (r *Response) Print() error {
 	jsonBytes, err := json.Marshal(r)
 	if err != nil {
-		fmt.Printf(`{"error": "failed to marshal response"}`)
+		return fmt.Errorf("failed to marshal response: %s", err)
 	}
 
-	// print response
 	fmt.Println(string(jsonBytes))
+	return nil
 }
 
-func (r *Response) Err(err error) error {
+func (r *Response) setError(err error) {
 	r.Error = err.Error()
-	r.Print()
-	return nil
+}
+
+func (r *Response) setTxID(id string) {
+	r.Result.ID = id
+}
+
+func (r *Response) getTxID() (string, bool) {
+	if r.Result.ID == "" {
+		return "", false
+	}
+	return r.Result.ID, true
+}
+
+func (r *Response) setBalance(balance uint64) {
+	r.Result.Balance = balance
+}
+
+func (r *Response) setResponse(response []uint64) {
+	r.Result.Response = response
+}
+
+func (r *Response) setMsg(msg string) {
+	r.Result.Msg = msg
+}
+
+func (r *Response) setTimestamp(timestamp int64) {
+	r.Result.Timestamp = uint64(timestamp)
 }
 
 type Result struct {
@@ -91,7 +117,7 @@ type Result struct {
 	ID string `json:"id,omitempty" yaml:"id,omitempty"`
 	// The balance after the step has completed.
 	Balance uint64 `json:"balance,omitempty" yaml:"balance,omitempty"`
-	// The result of the call.
+	// The response from the call.
 	Response []uint64 `json:"response,omitempty" yaml:"response,omitempty"`
 	// An optional message.
 	Msg string `json:"msg,omitempty" yaml:"msg,omitempty"`
@@ -101,7 +127,7 @@ type Result struct {
 
 type Require struct {
 	// Assertions against the result of the step.
-	Result ResultAssertion `json,yaml:"result,omitempty"`
+	Result *ResultAssertion `json,yaml:"result,omitempty"`
 }
 
 type ResultAssertion struct {

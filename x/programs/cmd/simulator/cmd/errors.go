@@ -19,8 +19,10 @@ var (
 	ErrKeyNameRequired        = errors.New("key name required for this step")
 
 	// Steps
-	ErrInvalidStep           = errors.New("invalid step")
-	ErrInvalidEndpoint       = errors.New("invalid endpoint")
-	ErrInvalidPlan           = errors.New("invalid plan")
-	ErrConfigMissingRequired = errors.New("missing required field")
+	ErrInvalidStep              = errors.New("invalid step")
+	ErrInvalidEndpoint          = errors.New("invalid endpoint")
+	ErrInvalidPlan              = errors.New("invalid plan")
+	ErrConfigMissingRequired    = errors.New("missing required field")
+	ErrFirstParamRequiredString = errors.New("first param must be a string")
+	ErrFirstParamRequiredID     = errors.New("first param must be an ID")
 )
