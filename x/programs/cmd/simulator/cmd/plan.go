@@ -67,7 +67,6 @@ func newRunCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
 }
 
 func (c *runCmd) Init(args []string) (err error) {
-	c.log.Debug("simulation")
 	var planBytes []byte
 	if args[0] == "-" {
 		// read simulation plan from stdin
