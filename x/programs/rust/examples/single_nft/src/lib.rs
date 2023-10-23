@@ -1,17 +1,21 @@
-//! A basic ERC-721 compatible contract.
+//! A basic NFT contract.
 //! The program serves as a non-fungible token with the ability to mint and burn.
 //! Only supports whole units with no decimal places.
 //!
 //! The NFT must support the common NFT metadata format.
 //! This includes the name, symbol, and URI of the NFT.
-use metadata::Nft;
-use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
+use wasmlanche_sdk::{
+    memory::{Memory, Pointer},
+    program::Program,
+    public, state_keys,
+    types::Address,
+};
 
 pub mod example;
-pub mod metadata;
 
-const NAME: &str = "My NFT";
-const SYMBOL: &str = "MNFT";
+/// The total supply of the NFT.
+/// # Safety
+/// In this program only one NFT of each type is intended to be minted.
 const TOTAL_SUPPLY: u64 = 1;
 
 /// The program storage keys.
@@ -24,12 +28,12 @@ enum StateKey {
     /// The symbol of the token. Key prefix 0x2.
     Symbol,
     /// Metadata of the token. Key prefix 0x3.
-    Metadata,
+    Uri,
     /// Balance of the NFT token by address. Key prefix 0x4(address).
     Balance(Address),
     /// Counter -- used to keep track of total NFTs minted. Key prefix 0x5.
     Counter,
-    /// Owner -- used to keep track of the owner of each NFT. Key prefix 0x6.
+    /// Owner -- used to keep track of the owner. Key prefix 0x6.
     Owner,
 }
 
@@ -37,24 +41,53 @@ enum StateKey {
 /// This includes the name, symbol, image URI, owner, and total supply.
 /// Returns true if the initialization was successful.
 #[public]
-pub fn init(program: Program) -> bool {
+pub fn init(
+    program: Program,
+    nft_name_ptr: i64,
+    nft_name_length: i64,
+    nft_symbol_ptr: i64,
+    nft_symbol_length: i64,
+    nft_uri_ptr: i64,
+    nft_uri_length: i64,
+) -> bool {
+    let nft_name_ptr = Memory::new(Pointer::from(nft_name_ptr));
+    let nft_name = unsafe { nft_name_ptr.range(nft_name_length as usize) };
+
+    let nft_symbol_ptr = Memory::new(Pointer::from(nft_symbol_ptr));
+    let nft_symbol = unsafe { nft_symbol_ptr.range(nft_symbol_length as usize) };
+
+    let nft_uri_ptr = Memory::new(Pointer::from(nft_uri_ptr));
+    let nft_uri = unsafe { nft_uri_ptr.range(nft_uri_length as usize) };
+
     // Set token name
     program
         .state()
-        .store(StateKey::Name.to_vec(), &NAME.as_bytes())
+        .store(StateKey::Name.to_vec(), &nft_name)
         .expect("failed to store nft name");
 
     // Set token symbol
     program
         .state()
-        .store(StateKey::Symbol.to_vec(), &SYMBOL.as_bytes())
+        .store(StateKey::Symbol.to_vec(), &nft_symbol)
         .expect("failed to store nft symbol");
+
+    // Set token URI
+    program
+        .state()
+        .store(StateKey::Uri.to_vec(), &nft_uri)
+        .expect("failed to store nft uri");
 
     // Set total supply
     program
         .state()
         .store(StateKey::TotalSupply.to_vec(), &TOTAL_SUPPLY)
         .expect("failed to store total supply");
+
+    // Initialize counter
+    program
+        .state()
+        .store(StateKey::Counter.to_vec(), &0)
+        .expect("failed to store counter");
 
     true
 }
@@ -64,30 +97,15 @@ pub fn init(program: Program) -> bool {
 pub fn mint(program: Program, recipient: Address) -> bool {
     const MINT_AMOUNT: i64 = 1;
 
-    let mut counter = program
+    let counter = program
         .state()
         .get::<i64, _>(StateKey::Counter.to_vec())
-        .expect("failed to store balance");
-
-    // Offset by 1 to set initial edition to 1
-    counter += 1;
+        .expect("failed to store ");
 
     assert!(
         counter <= TOTAL_SUPPLY as i64,
         "max supply for nft exceeded"
     );
-
-    // Generate NFT metadata and persist to storage
-    // Give each NFT a unique version
-    let nft_metadata = Nft::default()
-        .with_symbol(SYMBOL.to_string())
-        .with_name(NAME.to_string())
-        .with_uri("ipfs://my-nft.jpg".to_string());
-
-    program
-        .state()
-        .store(StateKey::Metadata.to_vec(), &nft_metadata)
-        .expect("failed to store nft metadata");
 
     let balance = program
         .state()
@@ -104,15 +122,12 @@ pub fn mint(program: Program, recipient: Address) -> bool {
 
     program
         .state()
-        .store(
-            StateKey::Balance(recipient).to_vec(),
-            &(balance + MINT_AMOUNT),
-        )
-        .expect("failed to store balance");
+        .store(StateKey::Owner.to_vec(), &recipient)
+        .expect("failed to store owner");
 
     program
         .state()
-        .store(StateKey::Owner.to_vec(), &recipient)
+        .store(StateKey::Counter.to_vec(), &(counter + 1))
         .is_ok()
 }
 

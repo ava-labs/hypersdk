@@ -38,7 +38,7 @@ impl Memory {
         Self { ptr }
     }
 
-    /// Attempts return a opy of the bytes from a pointer created by the global allocator.
+    /// Attempts return a copy of the bytes from a pointer created by the global allocator.
     /// # Safety
     /// `ptr` must be a pointer to a block of memory created using alloc.
     /// `length` must be the length of the block of memory.
