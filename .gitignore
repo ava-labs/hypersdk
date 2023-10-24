@@ -71,3 +71,4 @@ Cargo.lock
 
 # simulator
 x/programs/cmd/simulator/bin/simulator
+x/programs/cmd/simulator/simulator
