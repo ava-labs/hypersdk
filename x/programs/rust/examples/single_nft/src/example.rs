@@ -3,12 +3,9 @@ use wasmlanche_sdk::simulator::{
 };
 
 // TODO: remove when the simulator merges
-#[allow(dead_code)]
 const PROGRAM_ID: &str = "0000000000000000000000000000000000000000000000001";
 
-// TODO: remove when the simulator merges
-#[allow(dead_code)]
-fn initialize_plan<'a>(
+pub fn initialize_plan<'a>(
     nft_name: &'a str,
     nft_name_length: &'a str,
     nft_symbol: &'a str,
@@ -67,16 +64,10 @@ fn initialize_plan<'a>(
             endpoint: Endpoint::Key,
             method: "create".to_string(),
             max_units: 1000,
-            params: vec![
-                Param {
-                    param_type: ParamType::Id,
-                    value: PROGRAM_ID.to_string(),
-                },
-                Param {
-                    param_type: ParamType::Key(Key::Ed25519),
-                    value: "alice key".to_string(),
-                },
-            ],
+            params: vec![Param {
+                param_type: ParamType::Key(Key::Ed25519),
+                value: "alice_key".to_string(),
+            }],
             require: None,
         },
         Step {
@@ -98,7 +89,7 @@ fn initialize_plan<'a>(
     ];
 
     Plan {
-        caller_key: "alice key".to_string(),
+        caller_key: "alice_key".to_string(),
         steps,
     }
 }

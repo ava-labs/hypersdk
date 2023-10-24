@@ -173,3 +173,93 @@ pub fn burn(program: Program, from: Address) -> bool {
         .store(StateKey::Owner.to_vec(), &null_address)
         .is_ok()
 }
+
+#[cfg(test)]
+mod tests {
+    use serial_test::serial;
+    use std::env;
+    use wasmlanche_sdk::simulator::{
+        self, id_from_step, Key, Operator, PlanResponse, Require, ResultAssertion,
+    };
+
+    use crate::example;
+
+    // export SIMULATOR_PATH=/path/to/simulator
+    // export PROGRAM_PATH=/path/to/program.wasm
+    // cargo cargo test --package token --lib nocapture -- tests::test_token_plan --exact --nocapture --ignored
+    #[test]
+    #[serial]
+    #[ignore = "requires SIMULATOR_PATH and PROGRAM_PATH to be set"]
+    fn test_single_nft_plan() {
+        use wasmlanche_sdk::simulator::{self, Key};
+        let s_path = env::var(simulator::PATH_KEY).expect("SIMULATOR_PATH not set");
+        let simulator = simulator::Client::new(s_path);
+
+        let alice_key = "alice_key";
+        // create owner key in single step
+        let resp = simulator
+            .key_create::<PlanResponse>(alice_key, Key::Ed25519)
+            .unwrap();
+        assert_eq!(resp.error, None);
+
+        // create multiple step test plan
+        let nft_name = "MyNFT";
+        let binding = nft_name.len().to_string();
+        let nft_name_length: &str = binding.as_ref();
+
+        let nft_symbol = "MNFT";
+        let binding = nft_symbol.len().to_string();
+        let nft_symbol_length: &str = binding.as_ref();
+
+        let nft_uri = "ipfs://my-nft.jpg";
+        let binding = nft_uri.len().to_string();
+        let nft_uri_length: &str = binding.as_ref();
+
+        let plan = example::initialize_plan(
+            nft_name,
+            nft_name_length,
+            nft_symbol,
+            nft_symbol_length,
+            nft_uri,
+            nft_uri_length,
+        );
+
+        // run plan
+        let plan_responses = simulator.run::<PlanResponse>(&plan).unwrap();
+
+        // collect actual id of program from step 0
+        let mut program_id = String::new();
+        if let Some(step_0) = plan_responses.first() {
+            program_id = step_0.result.id.clone().unwrap_or_default();
+        }
+
+        // ensure no errors
+        assert!(plan_responses.iter().all(|resp| resp.error.is_none()));
+
+        // make assertions about NFT balances
+        println!("{program_id}");
+    }
+
+    #[test]
+    #[serial]
+    #[ignore = "requires SIMULATOR_PATH and PROGRAM_PATH to be set"]
+    fn test_create_program() {
+        let s_path = env::var(simulator::PATH_KEY).expect("SIMULATOR_PATH not set");
+        let simulator = simulator::Client::new(s_path);
+
+        let alice_key = "alice_key";
+        // create owner key in single step
+        let resp = simulator
+            .key_create::<PlanResponse>(alice_key, Key::Ed25519)
+            .unwrap();
+        assert_eq!(resp.error, None);
+
+        let p_path = env::var("PROGRAM_PATH").expect("PROGRAM_PATH not set");
+        // create a new program on chain.
+        let resp = simulator
+            .program_create::<PlanResponse>("owner", p_path.as_ref())
+            .unwrap();
+        assert_eq!(resp.error, None);
+        assert!(resp.result.id.is_some());
+    }
+}
