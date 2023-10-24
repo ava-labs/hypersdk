@@ -88,8 +88,8 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 
 	link := Link{wasmtime.NewLinker(r.store.Engine)}
 
-	// enable wasi logging support only in testing mode
-	if r.cfg.testingOnlyMode {
+	// enable wasi logging support only in testing/debug mode
+	if r.cfg.debugMode {
 		wasiConfig := wasmtime.NewWasiConfig()
 		wasiConfig.InheritStderr()
 		wasiConfig.InheritStdout()

@@ -23,20 +23,19 @@ var (
 	ErrNegativeValue                = errors.New("negative value")
 
 	// Trap errors
-	ErrTrapStackOverflow = errors.New("the current stack space was exhausted")
-	ErrTrapMemoryOutOfBounds = errors.New("out-of-bounds memory access")
-	ErrTrapHeapMisaligned = errors.New("a wasm atomic operation was presented with a not-naturally-aligned linear-memory address")
-	ErrTrapTableOutOfBounds = errors.New("out-of-bounds table access")
-	ErrTrapIndirectCallToNull = errors.New("an indirect call to a null table entry was executed")
-	ErrTrapIndirectCallBadSig = errors.New("an indirect call signature mismatch was detected")
-	ErrTrapBadSignature = errors.New("signature mismatch on indirect call")
-	ErrTrapIntegerOverflow = errors.New("an integer arithmetic operation caused an overflow")
-	ErrTrapIntegerDivisionByZero = errors.New("an integer divide-by-zero was executed")
+	ErrTrapStackOverflow          = errors.New("the current stack space was exhausted")
+	ErrTrapMemoryOutOfBounds      = errors.New("out-of-bounds memory access")
+	ErrTrapHeapMisaligned         = errors.New("a wasm atomic operation was presented with a not-naturally-aligned linear-memory address")
+	ErrTrapTableOutOfBounds       = errors.New("out-of-bounds table access")
+	ErrTrapIndirectCallToNull     = errors.New("an indirect call to a null table entry was executed")
+	ErrTrapIndirectCallBadSig     = errors.New("an indirect call signature mismatch was detected")
+	ErrTrapBadSignature           = errors.New("signature mismatch on indirect call")
+	ErrTrapIntegerOverflow        = errors.New("an integer arithmetic operation caused an overflow")
+	ErrTrapIntegerDivisionByZero  = errors.New("an integer divide-by-zero was executed")
 	ErrTrapBadConversionToInteger = errors.New("failed float-to-int conversion")
 	ErrTrapUnreachableCodeReached = errors.New("code that was supposed to have been unreachable was reached")
-	ErrTrapInterrupt = errors.New("an interrupt was received")
-	ErrTrapOutOfFuel = errors.New("the program ran out of units")
-
+	ErrTrapInterrupt              = errors.New("an interrupt was received")
+	ErrTrapOutOfFuel              = errors.New("the program ran out of units")
 )
 
 // handleTrapError returns the error message from a wasmtime Trap
