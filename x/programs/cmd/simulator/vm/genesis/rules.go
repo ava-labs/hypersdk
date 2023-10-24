@@ -118,8 +118,8 @@ func (r *Rules) GetWindowTargetUnits() chain.Dimensions {
 	return r.g.WindowTargetUnits
 }
 
-func (r *Rules) GetEnableTestingOnlyMode() bool {
-	return r.g.EnableTestingOnlyMode
+func (r *Rules) GetWasmRuntimeDebugMode() bool {
+	return r.g.EnableDebugMode
 }
 
 func (r *Rules) GetEnableBulkMemory() bool {

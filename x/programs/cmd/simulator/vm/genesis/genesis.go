@@ -62,7 +62,7 @@ type Genesis struct {
 	WarmStorageValueModificationUnits uint64 `json:"warmStorageValueModificationUnits"` // per chunk
 
 	// program Runtime Parameters
-	EnableTestingOnlyMode bool `json:"enableTestingOnlyMode"`
+	EnableDebugMode 	bool `json:"enableDebugMode"`
 	EnableBulkMemory      bool `json:"enableBulkMemory"`
 
 	// Allocations
@@ -110,7 +110,7 @@ func Default() *Genesis {
 		WarmStorageValueModificationUnits: 3,
 
 		// program Runtime Parameters
-		EnableTestingOnlyMode: true,
+		EnableDebugMode: true,
 		// Enabled to only enable Wasi for testing mode
 		EnableBulkMemory: true,
 	}
