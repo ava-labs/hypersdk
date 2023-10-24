@@ -2,8 +2,17 @@
 
 set -euo pipefail
 
-simulator_path="../../../cmd/simulator"
+if ! [[ "$0" =~ scripts/tests.simulator.sh ]]; then
+  echo "must be run from token crate root"
+  exit 255
+fi
+
+simulator_path="${PWD}"/../../../cmd/simulator
 simulator_bin="${simulator_path}"/bin/simulator
+
+echo "Downloading dependencies..."
+cd "${simulator_path}"
+go mod download
 
 echo "Building Simulator..."
 go build -o "${simulator_bin}" "${simulator_path}"/simulator.go
@@ -18,4 +27,4 @@ export PROGRAM_PATH="../../../examples/testdata/token.wasm"
 
 echo "Running Simulator Tests..."
 
-cargo test -- --include-ignored
+cargo test --lib -- --include-ignored

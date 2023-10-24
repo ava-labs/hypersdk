@@ -16,7 +16,7 @@ golang. Review the source code of the `test_token_plan` located in `lib.rs` and
 use it as a template to build your own tests.
 
 ```sh
-./scripts/build_simulator_and_test.sh
+./scripts/tests.simulator.sh
 Building Simulator...
 Running Simulator Tests...
     Finished test [unoptimized + debuginfo] target(s) in 0.01s
