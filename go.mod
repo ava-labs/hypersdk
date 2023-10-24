@@ -6,7 +6,7 @@ require (
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/ava-labs/avalanche-network-runner v1.7.2-0.20230825184751-fbe081616f02
 	github.com/ava-labs/avalanchego v1.10.12
-	github.com/bytecodealliance/wasmtime-go/v13 v13.0.0
+	github.com/bytecodealliance/wasmtime-go/v14 v14.0.0
 	github.com/cockroachdb/pebble v0.0.0-20230224221607-fccb83b60d5c
 	github.com/golang/mock v1.6.0
 	github.com/gorilla/mux v1.8.0
