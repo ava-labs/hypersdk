@@ -4,14 +4,14 @@ This repository contains a simple example of a HyperSDK token program written in
 ## Overview
 The token program provides the following features:
 
-- Initialization of a token with a fixed supply.
-- Ability to transfer tokens between accounts.
-- Query balance of an account.
-- Mint coins to an address.
+- Initialization of a token with a fixed supply
+- Ability to transfer tokens between accounts
+- Query balance of an account
+- Mint coins to an address
 
 ## Testing
 HyperSDK programs can be tested with the VM simulator. To run our simulation
-tests first compile the simulator binary which requires the latest version of
+tests, first compile the simulator binary which requires the latest version of
 golang. Review the source code of the `test_token_plan` located in `lib.rs` and
 use it as a template to build your own tests.
 
@@ -19,7 +19,6 @@ use it as a template to build your own tests.
 ./scripts/build_simulator_and_test.sh
 Building Simulator...
 Running Simulator Tests...
-warning: /home/sam.batschelet/projects/ava-labs/hypersdk/hypersdk/x/programs/rust/examples/token/Cargo.toml: unused manifest key: dependencies.wasmlanche_sdk.feature
     Finished test [unoptimized + debuginfo] target(s) in 0.01s
      Running unittests src/lib.rs ()
 

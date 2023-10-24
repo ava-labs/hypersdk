@@ -14,6 +14,12 @@ pub const PATH_KEY: &str = "SIMULATOR_PATH";
 
 use serde::{Deserialize, Serialize};
 
+/// Converts the step index to a string identifier. This is used to populate Ids
+/// created in previous plan steps.
+pub fn id_from_step(i: usize) -> String {
+    format!("step_{}", i)
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Endpoint {
@@ -128,6 +134,28 @@ impl Plan {
     pub fn add_step(&mut self, step: Step) {
         self.steps.push(step);
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PlanResponse {
+    /// The numeric id of the step.
+    pub id: u32,
+    /// The result of the plan.
+    pub result: PlanResult,
+    /// An optional error message.
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PlanResult {
+    /// The ID created from the program execution.
+    pub id: Option<String>,
+    /// An optional message.
+    pub msg: Option<String>,
+    /// The timestamp of the function call response.
+    pub timestamp: u64,
+    /// The result of the function call.
+    pub response: Option<Vec<u64>>,
 }
 
 pub struct Client<P> {

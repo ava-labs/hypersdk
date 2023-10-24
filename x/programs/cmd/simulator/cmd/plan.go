@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,8 +24,8 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 )
 
 type runCmd struct {
@@ -103,8 +105,29 @@ func (c *runCmd) Verify() error {
 		if err != nil {
 			return err
 		}
+
+		// verify assertions
+		if step.Require != nil {
+			err = verifyAssertion(i, step.Require)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
+	return nil
+}
+
+func verifyAssertion(i int, require *Require) error {
+	if require == nil {
+		return nil
+	}
+	if require.Result.Operator == "" {
+		return fmt.Errorf("%w %d: missing assertion operator", ErrInvalidStep, i)
+	}
+	if require.Result.Value == "" {
+		return fmt.Errorf("%w %d: missing assertion value", ErrInvalidStep, i)
+	}
 	return nil
 }
 
@@ -118,7 +141,7 @@ func verifyEndpoint(i int, step *Step) error {
 			return fmt.Errorf("%w %d %w: expected ed25519 or secp256k1", ErrInvalidStep, i, ErrInvalidParamType)
 		}
 	case EndpointReadOnly:
-		// verify the first param is an program id
+		// verify the first param is a program ID
 		if firstParamType != ID {
 			return fmt.Errorf("%w %d %w: %s", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredID)
 		}
@@ -141,14 +164,9 @@ func verifyEndpoint(i int, step *Step) error {
 }
 
 func (c *runCmd) Run(ctx context.Context) error {
-	c.log.Info("simulation",
-		zap.String("plan", c.plan.Description),
-	)
-
 	for i, step := range c.plan.Steps {
 		c.log.Info("simulation",
 			zap.Int("step", i),
-			zap.String("description", step.Description),
 			zap.String("endpoint", string(step.Endpoint)),
 			zap.String("method", step.Method),
 			zap.Uint64("maxUnits", step.MaxUnits),
@@ -161,9 +179,10 @@ func (c *runCmd) Run(ctx context.Context) error {
 		}
 
 		resp := newResponse(i)
-		err = runStepFunc(ctx, c.log, c.db, step.Endpoint, step.MaxUnits, step.Method, params, resp)
+		err = runStepFunc(ctx, c.log, c.db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
 		if err != nil {
 			resp.setError(err)
+			c.log.Error("simulation", zap.Error(err))
 		}
 
 		// map all transactions to their step_N identifier
@@ -190,53 +209,63 @@ func runStepFunc(
 	maxUnits uint64,
 	method string,
 	params []runtime.CallParam,
+	require *Require,
 	resp *Response,
 ) error {
+	defer resp.setTimestamp(time.Now().Unix())
+
 	switch endpoint {
 	case EndpointKey:
 		keyName := params[0].Value.(string)
-		err := keyCreateFunc(ctx, db, keyName)
+		key, err := keyCreateFunc(ctx, db, keyName)
 		if errors.Is(err, ErrDuplicateKeyName) {
 			log.Debug("key already exists")
 		} else if err != nil {
 			return err
 		}
-
-		resp.setMsg(fmt.Sprintf("created named key with address %s", keyName))
-		resp.setTimestamp(time.Now().Unix())
+		resp.setMsg(fmt.Sprintf("created named key with address %s", utils.Address(key)))
 
 		return nil
-	case EndpointExecute, EndpointReadOnly: // for now the logic is the same for both TODO: breakout readonly
-		switch method {
-		case ProgramCreate:
+	case EndpointExecute: // for now the logic is the same for both TODO: breakout readonly
+		if method == ProgramCreate {
 			// get program path from params
 			programPath := params[0].Value.(string)
 			id, err := programCreateFunc(ctx, db, programPath)
 			if err != nil {
 				return err
 			}
-
 			resp.setTxID(id.String())
 			resp.setTimestamp(time.Now().Unix())
 
 			return nil
-		default:
-			id, response, balance, err := programExecuteFunc(ctx, log, db, params, method, maxUnits)
-			if err != nil {
-				return err
-			}
-
-			resp.setTimestamp(time.Now().Unix())
-			if endpoint == EndpointExecute {
-				resp.setTxID(id.String())
-				resp.setBalance(balance)
-			} else {
-				resp.setResponse(response)
-			}
-			return nil
 		}
+		id, _, balance, err := programExecuteFunc(ctx, log, db, params, method, maxUnits)
+		if err != nil {
+			return err
+		}
+		resp.setTxID(id.String())
+		resp.setBalance(balance)
+
+		return nil
+	case EndpointReadOnly:
+		// TODO: implement readonly for now just don't charge for gas
+		_, response, _, err := programExecuteFunc(ctx, log, db, params, method, math.MaxUint64)
+		if err != nil {
+			return err
+		}
+		resp.setResponse(response)
+		ok, err := validateAssertion(response[0], require)
+		if !ok {
+			return fmt.Errorf("%w", ErrResultAssertionFailed)
+		}
+		if err != nil {
+			return err
+		}
+
+		return nil
+	default:
+		return fmt.Errorf("%w: %s", ErrInvalidEndpoint, endpoint)
 	}
-	return nil
 }
 
 // createCallParams converts a slice of Parameters to a slice of runtime.CallParams.
@@ -265,15 +294,21 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 			if !ok {
 				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
 			}
+
+			var key string
 			// get named public key from db
-			key, ok, err := storage.GetPublicKey(ctx, db, val)
+			pk, ok, err := storage.GetPublicKey(ctx, db, val)
 			if !ok {
-				return nil, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, val)
+				// if not found assume its being created
+				key = val
+			} else {
+				// otherwise use the public key address
+				key = utils.Address(pk)
 			}
 			if err != nil {
 				return nil, err
 			}
-			cp = append(cp, runtime.CallParam{Value: utils.Address(key)})
+			cp = append(cp, runtime.CallParam{Value: key})
 		case Uint64:
 			switch v := param.Value.(type) {
 			case float64:
@@ -284,6 +319,12 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 					return nil, fmt.Errorf("%w: %s", runtime.ErrNegativeValue, param.Type)
 				}
 				cp = append(cp, runtime.CallParam{Value: uint64(v)})
+			case string:
+				number, err := strconv.ParseUint(v, 10, 64)
+				if err != nil {
+					return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
+				}
+				cp = append(cp, runtime.CallParam{Value: number})
 			default:
 				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
 			}

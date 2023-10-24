@@ -178,7 +178,7 @@ func programExecuteFunc(
 		return ids.Empty, nil, 0, err
 	}
 
-	// get balance
+	// get remaining balance from runtime meter
 	balance := programExecuteAction.GetBalance()
 
 	return programTxID, result, balance, nil

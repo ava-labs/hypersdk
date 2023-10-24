@@ -3,28 +3,38 @@
 
 package cmd
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestValidateAssertion(t *testing.T) {
+	require := require.New(t)
 	tests := []struct {
 		actual    uint64
-		assertion ResultAssertion
+		assertion Require
 		expected  bool
+		wantErr   bool
 	}{
-		{5, ResultAssertion{Operator: string(NumericGt), Value: "3"}, true},
-		{5, ResultAssertion{Operator: string(NumericLt), Value: "10"}, true},
-		{5, ResultAssertion{Operator: string(NumericEq), Value: "5"}, true},
-		{5, ResultAssertion{Operator: string(NumericNe), Value: "3"}, true},
-		{5, ResultAssertion{Operator: string(NumericGt), Value: "10"}, false},
-		{5, ResultAssertion{Operator: string(NumericLt), Value: "2"}, false},
-		{5, ResultAssertion{Operator: string(NumericGe), Value: "5"}, true},
-		{5, ResultAssertion{Operator: string(NumericGe), Value: "1"}, true},
+		{5, Require{ResultAssertion{Operator: string(NumericGt), Value: "3"}}, true, false},
+		{5, Require{ResultAssertion{Operator: string(NumericLt), Value: "10"}}, true, false},
+		{5, Require{ResultAssertion{Operator: string(NumericEq), Value: "5"}}, true, false},
+		{5, Require{ResultAssertion{Operator: string(NumericNe), Value: "3"}}, true, false},
+		{5, Require{ResultAssertion{Operator: string(NumericGt), Value: "10"}}, false, false},
+		{5, Require{ResultAssertion{Operator: string(NumericLt), Value: "2"}}, false, false},
+		{5, Require{ResultAssertion{Operator: string(NumericGe), Value: "5"}}, true, false},
+		{5, Require{ResultAssertion{Operator: string(NumericGe), Value: "1"}}, true, false},
+		{5, Require{}, false, true},
 	}
 
 	for _, tt := range tests {
-		result := validateAssertion(tt.actual, &tt.assertion)
-		if result != tt.expected {
-			t.Errorf("validateAssertion(%d, %+v) = %v; want %v", tt.actual, tt.assertion, result, tt.expected)
+		result, err := validateAssertion(tt.actual, &tt.assertion)
+		if tt.wantErr {
+			require.Error(err)
+		} else {
+			require.NoError(err)
 		}
+		require.Equal(tt.expected, result)
 	}
 }

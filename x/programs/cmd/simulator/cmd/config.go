@@ -17,10 +17,6 @@ const (
 )
 
 type Plan struct {
-	// The name of the plan.
-	Name string `json,yaml:"name"`
-	// A description of the plan.
-	Description string `json,yaml:"description"`
 	// The key of the caller used in each step of the plan.
 	CallerKey string `yaml:"caller_key" json:"callerKey"`
 	// Steps to performed during simulation.
@@ -125,7 +121,7 @@ type Result struct {
 
 type Require struct {
 	// Assertions against the result of the step.
-	Result *ResultAssertion `json,yaml:"result,omitempty"`
+	Result ResultAssertion `json,yaml:"result,omitempty"`
 }
 
 type ResultAssertion struct {
@@ -166,44 +162,48 @@ const (
 )
 
 // validateAssertion validates the assertion against the actual value.
-func validateAssertion(actual uint64, assertion *ResultAssertion) bool {
-	if assertion == nil {
-		return true
+func validateAssertion(actual uint64, require *Require) (bool, error) {
+	if require == nil {
+		return true, nil
 	}
+
+	assertion := require.Result
 	// convert the assertion value(string) to uint64
 	value, err := strconv.ParseUint(assertion.Value, 10, 64)
 	if err != nil {
-		panic(err)
+		return false, err
 	}
 
 	switch Operator(assertion.Operator) {
 	case NumericGt:
 		if actual > value {
-			return true
+			return true, nil
 		}
 	case NumericLt:
 		if actual < value {
-			return true
+			return true, nil
 		}
 	case NumericGe:
 		if actual >= value {
-			return true
+			return true, nil
 		}
 	case NumericLe:
 		if actual <= value {
-			return true
+			return true, nil
 		}
 	case NumericEq:
 		if actual == value {
-			return true
+			return true, nil
 		}
 	case NumericNe:
 		if actual != value {
-			return true
+			return true, nil
 		}
+	default:
+		return false, fmt.Errorf("invalid assertion operator: %s", assertion.Operator)
 	}
 
-	return false
+	return false, nil
 }
 
 func unmarshalPlan(bytes []byte) (*Plan, error) {

@@ -113,22 +113,9 @@ pub fn get_balance(program: Program, recipient: Address) -> i64 {
 mod tests {
     use std::env;
 
-    use serde::{Deserialize, Serialize};
-    use wasmlanche_sdk::simulator::{Operator, Require, ResultAssertion};
-    #[derive(Debug, Serialize, Deserialize)]
-    struct PlanResponse {
-        id: u32,
-        result: PlanResult,
-        error: Option<String>,
-    }
-
-    #[derive(Debug, Serialize, Deserialize)]
-    struct PlanResult {
-        id: Option<String>,
-        msg: Option<String>,
-        timestamp: u64,
-        response: Option<Vec<u64>>,
-    }
+    use wasmlanche_sdk::simulator::{
+        id_from_step, Operator, PlanResponse, Require, ResultAssertion,
+    };
 
     // export SIMULATOR_PATH=/path/to/simulator
     // export PROGRAM_PATH=/path/to/program.wasm
@@ -183,7 +170,7 @@ mod tests {
             endpoint: Endpoint::Execute,
             method: "init".into(),
             // program was created in step 0 so we can reference its id using the step_N identifier
-            params: vec![Param::new(ParamType::Id, "step_0")],
+            params: vec![Param::new(ParamType::Id, id_from_step(0).as_ref())],
             max_units: 10000,
             require: None,
         });
@@ -193,7 +180,7 @@ mod tests {
             endpoint: Endpoint::Execute,
             method: "mint_to".into(),
             params: vec![
-                Param::new(ParamType::Id, "step_0"),
+                Param::new(ParamType::Id, id_from_step(0).as_ref()),
                 Param::new(ParamType::Key(Key::Ed25519), "alice_key"),
                 Param::new(ParamType::U64, "1000"),
             ],
@@ -206,7 +193,7 @@ mod tests {
             endpoint: Endpoint::Execute,
             method: "transfer".into(),
             params: vec![
-                Param::new(ParamType::Id, "step_0"),
+                Param::new(ParamType::Id, id_from_step(0).as_ref()),
                 Param::new(ParamType::Key(Key::Ed25519), "alice_key"),
                 Param::new(ParamType::Key(Key::Ed25519), "bob_key"),
                 Param::new(ParamType::U64, "100"),

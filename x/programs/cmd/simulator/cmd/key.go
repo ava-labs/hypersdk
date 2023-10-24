@@ -67,27 +67,36 @@ func (c *keyCreateCmd) Verify() error {
 }
 
 func (c *keyCreateCmd) Run(ctx context.Context) error {
-	return keyCreateFunc(ctx, c.db, c.name)
-}
-
-func keyCreateFunc(ctx context.Context, db *state.SimpleMutable, name string) error {
-	priv, err := ed25519.GeneratePrivateKey()
+	_, err := keyCreateFunc(ctx, c.db, c.name)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func keyCreateFunc(ctx context.Context, db *state.SimpleMutable, name string) (ed25519.PublicKey, error) {
+	priv, err := ed25519.GeneratePrivateKey()
+	if err != nil {
+		return ed25519.EmptyPublicKey, err
 	}
 	ok, err := hasKey(ctx, db, name)
 	if ok {
-		return fmt.Errorf("%w: %s", ErrDuplicateKeyName, name)
+		return ed25519.EmptyPublicKey, fmt.Errorf("%w: %s", ErrDuplicateKeyName, name)
 	}
 	if err != nil {
-		return err
+		return ed25519.EmptyPublicKey, err
 	}
 	err = storage.SetKey(ctx, db, priv, name)
 	if err != nil {
-		return err
+		return ed25519.EmptyPublicKey, err
 	}
 
-	return db.Commit(ctx)
+	err = db.Commit(ctx)
+	if err != nil {
+		return ed25519.EmptyPublicKey, err
+	}
+
+	return priv.PublicKey(), nil
 }
 
 func hasKey(ctx context.Context, db state.Immutable, name string) (bool, error) {
