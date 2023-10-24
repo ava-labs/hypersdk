@@ -10,20 +10,20 @@ fi
 simulator_path="${PWD}"/../../../cmd/simulator
 simulator_bin="${simulator_path}"/bin/simulator
 
-echo "Downloading dependencies..."
-cd "${simulator_path}"
-go mod download
-
-echo "Building Simulator..."
-go build -o "${simulator_bin}" "${simulator_path}"/simulator.go
-
 # Set environment variables for the test
 
 # The path to the simulator binary
 export SIMULATOR_PATH="${simulator_bin}"
 
 # The path to the compiled Wasm program to be tested
-export PROGRAM_PATH="../../../examples/testdata/token.wasm"
+export PROGRAM_PATH="${PWD}"/../../../examples/testdata/token.wasm
+
+echo "Downloading dependencies..."
+cd "${simulator_path}"
+go mod download
+
+echo "Building Simulator..."
+go build -o "${simulator_bin}" "${simulator_path}"/simulator.go
 
 echo "Running Simulator Tests..."
 
