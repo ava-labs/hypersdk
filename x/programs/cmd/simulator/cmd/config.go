@@ -28,8 +28,6 @@ type Plan struct {
 }
 
 type Step struct {
-	// Description of the step. (required)
-	Description string `json:"description" yaml:"description"`
 	// The API endpoint to call. (required)
 	Endpoint Endpoint `json:"endpoint" yaml:"endpoint"`
 	// The method to call on the endpoint.
@@ -39,7 +37,7 @@ type Step struct {
 	// The parameters to pass to the method.
 	Params []Parameter `json:"params" yaml:"params"`
 	// Define required assertions against this step.
-	Require Require `json:"require,omitempty" yaml:"require,omitempty"`
+	Require *Require `json:"require,omitempty" yaml:"require,omitempty"`
 }
 
 type Endpoint string
@@ -150,8 +148,6 @@ const (
 )
 
 type Parameter struct {
-	// The optional name of the parameter. This is only used for readability.
-	Name string `json,yaml:"name,omitempty"`
 	// The type of the parameter. (required)
 	Type Type `json,yaml:"type"`
 	// The value of the parameter. (required)
@@ -171,6 +167,9 @@ const (
 
 // validateAssertion validates the assertion against the actual value.
 func validateAssertion(actual uint64, assertion *ResultAssertion) bool {
+	if assertion == nil {
+		return true
+	}
 	// convert the assertion value(string) to uint64
 	value, err := strconv.ParseUint(assertion.Value, 10, 64)
 	if err != nil {
