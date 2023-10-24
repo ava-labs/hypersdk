@@ -159,7 +159,7 @@ func programExecuteFunc(
 	// execute the action
 	success, _, resp, _, err := programExecuteAction.Execute(ctx, nil, db, 0, nil, programTxID, false)
 	if !success {
-		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s", err)
+		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s", string(resp))
 	}
 	if err != nil {
 		return ids.Empty, nil, 0, err
