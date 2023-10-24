@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/bytecodealliance/wasmtime-go/v13"
+	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"go.uber.org/zap"
 

@@ -80,7 +80,7 @@ func (m *memory) Alloc(length uint64) (uint64, error) {
 	}
 	result, err := fn.Call(m.client.Store(), int32(length))
 	if err != nil {
-		return 0, err
+		return 0, handleTrapError(err)
 	}
 
 	addr := result.(int32)

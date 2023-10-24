@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/bytecodealliance/wasmtime-go/v13"
+	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/stretchr/testify/require"
 

@@ -9,7 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
-	"github.com/bytecodealliance/wasmtime-go/v13"
+	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
 const (
@@ -195,7 +195,7 @@ func (c *ConfigBuilder) WithDefaultCache(enabled bool) *ConfigBuilder {
 	return c
 }
 
-// WithEnableTestingOnlyMode enables test mode which provides access to
+// WithDebugMode enables debug mode which provides access to
 // useful debugging information. This should not be set for a live
 // system as it has both performance and security considerations.
 //
@@ -203,7 +203,7 @@ func (c *ConfigBuilder) WithDefaultCache(enabled bool) *ConfigBuilder {
 // compiled with the wasm32-wasi target.
 //
 // Default is false.
-func (c *ConfigBuilder) WithEnableTestingOnlyMode(enabled bool) *ConfigBuilder {
+func (c *ConfigBuilder) WithDebugMode(enabled bool) *ConfigBuilder {
 	c.EnableTestingOnlyMode = enabled
 	return c
 }

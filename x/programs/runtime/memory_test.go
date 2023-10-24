@@ -12,7 +12,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/bytecodealliance/wasmtime-go/v13"
+	"github.com/bytecodealliance/wasmtime-go/v14"
 	"github.com/stretchr/testify/require"
 )
 

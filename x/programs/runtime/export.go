@@ -6,7 +6,7 @@ package runtime
 import (
 	"fmt"
 
-	"github.com/bytecodealliance/wasmtime-go/v13"
+	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
 var _ WasmtimeExportClient = (*callerClient)(nil)
