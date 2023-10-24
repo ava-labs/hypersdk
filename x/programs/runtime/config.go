@@ -9,7 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
-	"github.com/bytecodealliance/wasmtime-go/v13"
+	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
 const (
@@ -51,7 +51,7 @@ func NewConfigBuilder() *ConfigBuilder {
 		ProfilingStrategy:        defaultProfilingStrategy,
 		CompileStrategy:          defaultCompileStrategy,
 		EnableDefaultCache:       false,
-		EnableTestingOnlyMode:    false,
+		EnableDebugMode:          false,
 	}
 }
 
@@ -86,10 +86,10 @@ type ConfigBuilder struct {
 	// https://bytecodealliance.github.io/wasmtime/cli-cache.html
 	// This is false by default.
 	EnableDefaultCache bool `yaml:"enable_default_cache,omitempty" json:"enableDefaultCache,omitempty"`
-	// EnableTestingOnlyMode enables test mode which provides access to non production debugging features.
+	// EnableDebugMode is a test mode which provides access to non production debugging features.
 	// This should not be set for a live system as it has both performance and security considerations.
 	// This is false by default.
-	EnableTestingOnlyMode bool `yaml:"enable_testing_only_mode,omitempty" json:"enableTestingOnlyMode,omitempty"`
+	EnableDebugMode bool `yaml:"enable_testing_only_mode,omitempty" json:"enableTestingOnlyMode,omitempty"`
 	// SetMaxWasmStack configures the maximum stack size, in bytes, that JIT code can use.
 	// The amount of stack space that wasm takes is always relative to the first invocation of wasm on the stack.
 	// Recursive calls with host frames in the middle will all need to fit within this setting.
@@ -195,7 +195,7 @@ func (c *ConfigBuilder) WithDefaultCache(enabled bool) *ConfigBuilder {
 	return c
 }
 
-// WithEnableTestingOnlyMode enables test mode which provides access to
+// WithDebugMode enables debug mode which provides access to
 // useful debugging information. This should not be set for a live
 // system as it has both performance and security considerations.
 //
@@ -203,8 +203,8 @@ func (c *ConfigBuilder) WithDefaultCache(enabled bool) *ConfigBuilder {
 // compiled with the wasm32-wasi target.
 //
 // Default is false.
-func (c *ConfigBuilder) WithEnableTestingOnlyMode(enabled bool) *ConfigBuilder {
-	c.EnableTestingOnlyMode = enabled
+func (c *ConfigBuilder) WithDebugMode(enabled bool) *ConfigBuilder {
+	c.EnableDebugMode = enabled
 	return c
 }
 
@@ -234,7 +234,7 @@ func (c *ConfigBuilder) Build() (*Config, error) {
 
 		// runtime config
 		compileStrategy: c.CompileStrategy,
-		testingOnlyMode: c.EnableTestingOnlyMode,
+		debugMode:       c.EnableDebugMode,
 	}, nil
 }
 
@@ -275,7 +275,7 @@ type Config struct {
 	limitMaxInstances int64
 	limitMaxMemories  int64
 
-	testingOnlyMode bool
+	debugMode bool
 
 	compileStrategy EngineCompileStrategy
 }

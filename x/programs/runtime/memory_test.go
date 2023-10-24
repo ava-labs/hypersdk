@@ -6,13 +6,12 @@ package runtime
 import (
 	"context"
 	_ "embed"
-	"errors"
 	"os"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/bytecodealliance/wasmtime-go/v13"
+	"github.com/bytecodealliance/wasmtime-go/v14"
 	"github.com/stretchr/testify/require"
 )
 
@@ -122,7 +121,7 @@ func TestWithMaxWasmStack(t *testing.T) {
 
 	maxUnits := uint64(4)
 	cfg, err := NewConfigBuilder().
-		WithMaxWasmStack(660).
+		WithMaxWasmStack(720).
 		Build()
 	require.NoError(err)
 	runtime := New(logging.NoLog{}, cfg, nil)
@@ -141,8 +140,5 @@ func TestWithMaxWasmStack(t *testing.T) {
 	require.NoError(err)
 	// exceed the stack limit
 	_, err = runtime.Call(context.Background(), "get")
-	err = errors.Unwrap(err)
-	trap := err.(*wasmtime.Trap)
-	code := trap.Code()
-	require.Equal(*code, wasmtime.StackOverflow)
+	require.ErrorIs(err, ErrTrapStackOverflow)
 }

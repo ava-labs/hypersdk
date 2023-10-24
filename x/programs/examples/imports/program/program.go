@@ -11,7 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/bytecodealliance/wasmtime-go/v13"
+	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
@@ -150,7 +150,7 @@ func (i *Import) callProgramFn(
 	}
 
 	// sync args to new runtime and return arguments to the invoke call
-	params, err := getCallArgs(ctx, rt, argsBytes, ptr)
+	params, err := getCallArgs(ctx, rt.Memory(), argsBytes, ptr)
 	if err != nil {
 		i.log.Error("failed to unmarshal call arguments",
 			zap.Error(err),
@@ -170,7 +170,7 @@ func (i *Import) callProgramFn(
 	return int64(res[0])
 }
 
-func getCallArgs(ctx context.Context, rt runtime.Runtime, buffer []byte, invokeProgramID uint64) ([]uint64, error) {
+func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, invokeProgramID uint64) ([]uint64, error) {
 	// first arg contains id of program to call
 	args := []uint64{invokeProgramID}
 	p := codec.NewReader(buffer, len(buffer))
@@ -184,7 +184,7 @@ func getCallArgs(ctx context.Context, rt runtime.Runtime, buffer []byte, invokeP
 		} else {
 			valueBytes := make([]byte, size)
 			p.UnpackFixedBytes(int(size), &valueBytes)
-			ptr, err := runtime.WriteBytes(rt.Memory(), valueBytes)
+			ptr, err := runtime.WriteBytes(memory, valueBytes)
 			if err != nil {
 				return nil, err
 			}

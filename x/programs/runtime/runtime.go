@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/bytecodealliance/wasmtime-go/v13"
+	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
@@ -88,8 +88,8 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 
 	link := Link{wasmtime.NewLinker(r.store.Engine)}
 
-	// enable wasi logging support only in testing mode
-	if r.cfg.testingOnlyMode {
+	// enable wasi logging support only in testing/debug mode
+	if r.cfg.debugMode {
 		wasiConfig := wasmtime.NewWasiConfig()
 		wasiConfig.InheritStderr()
 		wasiConfig.InheritStdout()
@@ -179,7 +179,7 @@ func (r *WasmRuntime) Call(_ context.Context, name string, params ...uint64) ([]
 
 	result, err := fn.Call(r.store, callParams...)
 	if err != nil {
-		return nil, fmt.Errorf("export function call failed %s: %w", name, err)
+		return nil, fmt.Errorf("export function call failed %s: %w", name, handleTrapError(err))
 	}
 
 	switch v := result.(type) {

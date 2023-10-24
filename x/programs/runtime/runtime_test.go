@@ -9,7 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 
-	"github.com/bytecodealliance/wasmtime-go/v13"
+	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/stretchr/testify/require"
 )
@@ -41,9 +41,7 @@ func TestStop(t *testing.T) {
 	runtime.Stop()
 
 	_, err = runtime.Call(ctx, "run")
-	var trap *wasmtime.Trap
-	require.ErrorAs(err, &trap)
-	require.ErrorContains(trap, "wasm trap: interrupt")
+	require.ErrorIs(err, ErrTrapUnreachableCodeReached)
 	// ensure no fees were consumed
 	require.Equal(runtime.Meter().GetBalance(), maxUnits)
 }
