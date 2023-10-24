@@ -116,6 +116,11 @@ pub struct ResultAssertion {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct ExecuteResponse {
+    id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Plan {
     /// The key of the caller used in each step of the plan.
     pub caller_key: String,

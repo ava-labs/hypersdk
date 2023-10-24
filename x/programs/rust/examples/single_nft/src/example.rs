@@ -15,94 +15,82 @@ fn initialize_plan<'a>(
     nft_symbol_length: &'a str,
     nft_uri: &'a str,
     nft_uri_length: &'a str,
-) -> Plan<'a> {
+) -> Plan {
     let steps = vec![
         Step {
-            description: "create program",
             endpoint: Endpoint::Execute,
-            method: "program_create",
+            method: "program_create".to_string(),
+            max_units: 1000,
             params: vec![Param {
-                name: "program_path",
                 param_type: ParamType::String,
-                value: "../../examples/testdata/single_nft.wasm",
+                value: "../../examples/testdata/single_nft.wasm".to_string(),
             }],
             require: None,
         },
         Step {
-            description: "init",
             endpoint: Endpoint::Execute,
-            method: "init",
+            method: "init".to_string(),
+            max_units: 1000,
             params: vec![
                 Param {
-                    name: "program_id",
                     param_type: ParamType::Id,
-                    value: PROGRAM_ID,
+                    value: PROGRAM_ID.to_string(),
                 },
                 Param {
-                    name: "nft_name",
                     param_type: ParamType::String,
-                    value: nft_name,
+                    value: nft_name.to_string(),
                 },
                 Param {
-                    name: "nft_name_length",
                     param_type: ParamType::U64,
-                    value: nft_name_length,
+                    value: nft_name_length.to_string(),
                 },
                 Param {
-                    name: "nft_symbol",
                     param_type: ParamType::String,
-                    value: nft_symbol,
+                    value: nft_symbol.to_string(),
                 },
                 Param {
-                    name: "nft_symbol_length",
                     param_type: ParamType::U64,
-                    value: nft_symbol_length,
+                    value: nft_symbol_length.to_string(),
                 },
                 Param {
-                    name: "nft_uri",
                     param_type: ParamType::String,
-                    value: nft_uri,
+                    value: nft_uri.to_string(),
                 },
                 Param {
-                    name: "nft_uri_length",
                     param_type: ParamType::U64,
-                    value: nft_uri_length,
+                    value: nft_uri_length.to_string(),
                 },
             ],
             require: None,
         },
         Step {
-            description: "create alice key",
             endpoint: Endpoint::Key,
-            method: "create",
+            method: "create".to_string(),
+            max_units: 1000,
             params: vec![
                 Param {
-                    name: "program_id",
                     param_type: ParamType::Id,
-                    value: PROGRAM_ID,
+                    value: PROGRAM_ID.to_string(),
                 },
                 Param {
-                    name: "key name",
                     param_type: ParamType::Key(Key::Ed25519),
-                    value: "alice key",
+                    value: "alice key".to_string(),
                 },
             ],
             require: None,
         },
         Step {
-            description: "mint NFT for alice",
             endpoint: Endpoint::Execute,
-            method: "mint_to",
+            method: "mint_to".to_string(),
+            max_units: 1000,
             params: vec![
                 Param {
-                    name: "program_id",
                     param_type: ParamType::Id,
-                    value: PROGRAM_ID,
+                    value: PROGRAM_ID.to_string(),
                 },
                 Param {
-                    name: "recipient",
                     param_type: ParamType::Key(Key::Ed25519),
-                    value: "alice_key",
+                    value: "alice_key".to_string(),
                 },
             ],
             require: None,
@@ -110,16 +98,14 @@ fn initialize_plan<'a>(
     ];
 
     Plan {
-        name: "nft program",
-        description: "run the nft program",
-        caller_key: "alice key",
+        caller_key: "alice key".to_string(),
         steps,
     }
 }
 
 // TODO: remove when the simulator merges
 #[allow(dead_code)]
-fn run() -> Result<ExecuteResponse, Box<dyn std::error::Error>> {
+fn run() -> Result<Vec<ExecuteResponse>, Box<dyn std::error::Error>> {
     let nft_name = "MyNFT";
     let binding = nft_name.len().to_string();
     let nft_name_length: &str = binding.as_ref();
