@@ -48,6 +48,9 @@ func NewRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "simulator",
 		Short: "HyperSDK program VM simulator",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Help()
+		},
 	}
 
 	cobra.EnablePrefixMatching = true

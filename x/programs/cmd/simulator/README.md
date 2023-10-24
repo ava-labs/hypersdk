@@ -114,13 +114,3 @@ separate `Plan`  files but we can also perform all of this in a single run. To r
 
 Currently the simulator supports the `program` and `pstate` modules found in the
 examples/imports directory.
-
-## Known Bugs
-
-In some circumstances the database may not closer properly. When you run the
-simulator you might see the following error message.
-
-`Compact start  is not less than end`
-
-If this happens delete the simulator database directory located
-`$HOME/.simlator/db`
