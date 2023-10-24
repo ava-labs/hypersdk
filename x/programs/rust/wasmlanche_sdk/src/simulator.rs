@@ -15,9 +15,10 @@ pub const PATH_KEY: &str = "SIMULATOR_PATH";
 use serde::{Deserialize, Serialize};
 
 /// Converts the step index to a string identifier. This is used to populate Ids
-/// created in previous plan steps.
+/// created in previous inline plan steps.
+#[must_use]
 pub fn id_from_step(i: usize) -> String {
-    format!("step_{}", i)
+    format!("step_{i}")
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
