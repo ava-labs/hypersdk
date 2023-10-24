@@ -114,7 +114,7 @@ mod tests {
     use std::env;
 
     use wasmlanche_sdk::simulator::{
-        id_from_step, Operator, PlanResponse, Require, ResultAssertion,
+        id_from_step, Operator, PlanResponse, Require, ResultAssertion, self, Key,
     };
 
     // export SIMULATOR_PATH=/path/to/simulator
@@ -273,5 +273,27 @@ mod tests {
             )
             .expect("failed to get bob balance");
         assert_eq!(resp.error, None);
+    }
+
+    #[test]
+    #[ignore = "requires SIMULATOR_PATH and PROGRAM_PATH to be set"]
+    fn test_create_program() {
+        let s_path = env::var(simulator::PATH_KEY).expect("SIMULATOR_PATH not set");
+        let simulator = simulator::Client::new(s_path);
+
+        let owner_key = "owner";
+        // create owner key in single step
+        let resp = simulator
+            .key_create::<PlanResponse>(owner_key, Key::Ed25519)
+            .unwrap();
+        assert_eq!(resp.error, None);
+
+        let p_path = env::var("PROGRAM_PATH").expect("PROGRAM_PATH not set");
+        // create a new program on chain.
+        let resp = simulator
+            .program_create::<PlanResponse>("owner", p_path.as_ref())
+            .unwrap();
+        assert_eq!(resp.error, None);
+        assert_eq!(resp.result.id.is_some(), true);
     }
 }

@@ -1,6 +1,6 @@
 //! A client and types for the VM simulator. This feature allows for Rust
 //! developers to construct tests for their programs completely in Rust.
-//! Alternatively the `Plan` can be written in YAML/JSON and passed to the
+//! Alternatively the `Plan` can be written in JSON and passed to the
 //! Simulator binary directly.
 
 use std::{
@@ -35,7 +35,7 @@ pub enum Endpoint {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(feature = "json_serialization", serde(rename_all = "camelCase"))]
+#[serde(rename_all = "camelCase")]
 pub struct Step {
     /// The API endpoint to call.
     pub endpoint: Endpoint,
@@ -253,6 +253,34 @@ where
 
         run_step(&self.path, plan)
     }
+
+    /// Creates a program in a single step.
+    /// # Errors
+    /// 
+    /// Returns an error if the if serialization or plan fails.
+    pub fn program_create<T>(
+        &self,
+        key: &str,
+        path: &str,
+    ) -> Result<T, Box<dyn Error>>
+    where
+        T: serde::de::DeserializeOwned + serde::Serialize,
+    {
+        let plan = &Plan {
+            caller_key: key.into(),
+            steps: vec![Step {
+                endpoint: Endpoint::Key,
+                method: "create_program".into(),
+                max_units: 0,
+                params: vec![
+                    Param::new(ParamType::String, path),
+                ],
+                require: None,
+            }],
+        };
+
+        run_step(&self.path, plan)
+    }
 }
 
 fn cmd_output<P>(path: P, plan: &Plan) -> Result<Output, Box<dyn Error>>
@@ -319,62 +347,4 @@ where
         .map_err(|e| format!("failed to parse output to json: {e}"))?;
 
     Ok(resp)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn parse_yaml<'a>(yaml_content: &'a str) -> Result<Plan, Box<dyn std::error::Error>> {
-        let plan = serde_yaml::from_str(yaml_content)?;
-        Ok(plan)
-    }
-
-    #[test]
-    fn test_parse_plan_yaml() {
-        let yaml_content = r#"
-caller_key: alice_key
-steps:
-  - endpoint: readonly
-    method: get_balance
-    max_units: 0
-    params:
-      - name: program_id
-        type: id
-        value: 2Ej3Qp6aUZ7yBnqZxBmvvvekUiriCn4ftcqY8VKGwMu5CmZiz
-      - type: ed25519 # owner
-        value: alice_key
-    require:
-        result:
-            operator: ==
-            value: 1000
-"#;
-
-        let expected = Plan {
-            caller_key: "alice_key".to_owned(),
-            steps: vec![Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "get_balance".into(),
-                max_units: 0,
-                params: vec![
-                    Param {
-                        param_type: ParamType::Id,
-                        value: "2Ej3Qp6aUZ7yBnqZxBmvvvekUiriCn4ftcqY8VKGwMu5CmZiz".into(),
-                    },
-                    Param {
-                        param_type: ParamType::Key(Key::Ed25519),
-                        value: "alice_key".into(),
-                    },
-                ],
-                require: Some(Require {
-                    result: ResultAssertion {
-                        operator: Operator::NumericEq,
-                        value: "1000".into(),
-                    },
-                }),
-            }],
-        };
-
-        assert_eq!(parse_yaml(yaml_content).unwrap(), expected);
-    }
 }
