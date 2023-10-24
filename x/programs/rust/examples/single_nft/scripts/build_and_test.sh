@@ -7,6 +7,7 @@ if ! [[ "$0" =~ scripts/build_and_test.sh ]]; then
   exit 255
 fi
 
+root="$(pwd)"
 
 simulator_path="${PWD}"/../../../cmd/simulator
 simulator_bin="${simulator_path}"/bin/simulator
@@ -24,7 +25,7 @@ go build -o "${simulator_bin}" "${simulator_path}"/simulator.go
 export SIMULATOR_PATH="${simulator_bin}"
 
 # The path to the compiled Wasm program to be tested
-export PROGRAM_PATH="../../../examples/testdata/single_nft.wasm"
+export PROGRAM_PATH="${root}"/../../../examples/testdata/single_nft.wasm
 
 echo "Running Simulator Tests..."
 

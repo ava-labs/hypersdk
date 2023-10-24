@@ -1,9 +1,8 @@
-use wasmlanche_sdk::simulator::{
-    Client, Endpoint, ExecuteResponse, Key, Param, ParamType, Plan, Step,
-};
+use std::env;
 
-// TODO: remove when the simulator merges
-const PROGRAM_ID: &str = "0000000000000000000000000000000000000000000000001";
+use wasmlanche_sdk::simulator::{
+    Client, Endpoint, ExecuteResponse, Key, Param, ParamType, Plan, Step, id_from_step,
+};
 
 pub fn initialize_plan<'a>(
     nft_name: &'a str,
@@ -13,6 +12,7 @@ pub fn initialize_plan<'a>(
     nft_uri: &'a str,
     nft_uri_length: &'a str,
 ) -> Plan {
+    let p_path = env::var("PROGRAM_PATH").expect("PROGRAM_PATH not set");
     let steps = vec![
         Step {
             endpoint: Endpoint::Execute,
@@ -20,7 +20,7 @@ pub fn initialize_plan<'a>(
             max_units: 1000,
             params: vec![Param {
                 param_type: ParamType::String,
-                value: "../../examples/testdata/single_nft.wasm".to_string(),
+                value: p_path,
             }],
             require: None,
         },
@@ -31,7 +31,7 @@ pub fn initialize_plan<'a>(
             params: vec![
                 Param {
                     param_type: ParamType::Id,
-                    value: PROGRAM_ID.to_string(),
+                    value: id_from_step(0),
                 },
                 Param {
                     param_type: ParamType::String,
@@ -77,7 +77,7 @@ pub fn initialize_plan<'a>(
             params: vec![
                 Param {
                     param_type: ParamType::Id,
-                    value: PROGRAM_ID.to_string(),
+                    value: id_from_step(0),
                 },
                 Param {
                     param_type: ParamType::Key(Key::Ed25519),

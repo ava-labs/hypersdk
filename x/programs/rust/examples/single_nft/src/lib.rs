@@ -234,7 +234,14 @@ mod tests {
         }
 
         // ensure no errors
-        assert!(plan_responses.iter().all(|resp| resp.error.is_none()));
+        assert!(
+            plan_responses.iter().all(|resp| resp.error.is_none()),
+            "error: {:?}",
+            plan_responses
+                .iter()
+                .filter_map(|resp| resp.error.as_ref())
+                .next()
+        );
 
         // make assertions about NFT balances
         println!("{program_id}");
