@@ -256,25 +256,19 @@ where
 
     /// Creates a program in a single step.
     /// # Errors
-    /// 
+    ///
     /// Returns an error if the if serialization or plan fails.
-    pub fn program_create<T>(
-        &self,
-        key: &str,
-        path: &str,
-    ) -> Result<T, Box<dyn Error>>
+    pub fn program_create<T>(&self, key: &str, path: &str) -> Result<T, Box<dyn Error>>
     where
         T: serde::de::DeserializeOwned + serde::Serialize,
     {
         let plan = &Plan {
             caller_key: key.into(),
             steps: vec![Step {
-                endpoint: Endpoint::Key,
-                method: "create_program".into(),
+                endpoint: Endpoint::Execute,
+                method: "program_create".into(),
                 max_units: 0,
-                params: vec![
-                    Param::new(ParamType::String, path),
-                ],
+                params: vec![Param::new(ParamType::String, path)],
                 require: None,
             }],
         };

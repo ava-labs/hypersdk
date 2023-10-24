@@ -18,4 +18,4 @@ export PROGRAM_PATH="../../../examples/testdata/token.wasm"
 
 echo "Running Simulator Tests..."
 
-cargo test --package token --lib nocapture -- tests::test_token_plan --exact --nocapture --ignored
+cargo test -- --include-ignored

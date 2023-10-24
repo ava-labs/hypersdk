@@ -111,16 +111,17 @@ pub fn get_balance(program: Program, recipient: Address) -> i64 {
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
     use std::env;
-
     use wasmlanche_sdk::simulator::{
-        id_from_step, Operator, PlanResponse, Require, ResultAssertion, self, Key,
+        self, id_from_step, Key, Operator, PlanResponse, Require, ResultAssertion,
     };
 
     // export SIMULATOR_PATH=/path/to/simulator
     // export PROGRAM_PATH=/path/to/program.wasm
     // cargo cargo test --package token --lib nocapture -- tests::test_token_plan --exact --nocapture --ignored
     #[test]
+    #[serial]
     #[ignore = "requires SIMULATOR_PATH and PROGRAM_PATH to be set"]
     fn test_token_plan() {
         use wasmlanche_sdk::simulator::{self, Endpoint, Key, Param, ParamType, Plan, Step};
@@ -276,6 +277,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     #[ignore = "requires SIMULATOR_PATH and PROGRAM_PATH to be set"]
     fn test_create_program() {
         let s_path = env::var(simulator::PATH_KEY).expect("SIMULATOR_PATH not set");
