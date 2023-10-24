@@ -121,7 +121,7 @@ type Result struct {
 
 type Require struct {
 	// Assertions against the result of the step.
-	Result *ResultAssertion `json,yaml:"result,omitempty"`
+	Result ResultAssertion `json,yaml:"result,omitempty"`
 }
 
 type ResultAssertion struct {
