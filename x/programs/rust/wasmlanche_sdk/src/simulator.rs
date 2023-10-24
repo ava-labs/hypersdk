@@ -5,9 +5,12 @@
 
 use std::{
     error::Error,
+    ffi::OsStr,
     io::Write,
-    process::{Command, Stdio},
+    process::{Command, Output, Stdio},
 };
+
+pub const PATH_KEY: &str = "SIMULATOR_PATH";
 
 use serde::{Deserialize, Serialize};
 
@@ -25,17 +28,16 @@ pub enum Endpoint {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Step<'a> {
-    /// A description of the step.
-    pub description: &'a str,
+#[cfg_attr(feature = "json_serialization", serde(rename_all = "camelCase"))]
+pub struct Step {
     /// The API endpoint to call.
     pub endpoint: Endpoint,
     /// The method to call on the endpoint.
-    pub method: &'a str,
+    pub method: String,
     /// The maximum number of units the step can consume.
     pub max_units: u64,
     /// The parameters to pass to the method.
-    pub params: Vec<Param<'a>>,
+    pub params: Vec<Param>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub require: Option<Require>,
 }
@@ -58,14 +60,22 @@ pub enum Key {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Param<'a> {
-    /// The optional name of the parameter. This is only used for readability.
-    pub name: &'a str,
+pub struct Param {
     #[serde(rename = "type")]
     /// The type of the parameter.
     pub param_type: ParamType,
     /// The value of the parameter.
-    pub value: &'a str,
+    pub value: String,
+}
+
+impl Param {
+    #[must_use]
+    pub fn new(param_type: ParamType, value: &str) -> Self {
+        Self {
+            param_type,
+            value: value.into(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -99,84 +109,132 @@ pub struct ResultAssertion {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Plan<'a> {
-    /// The name of the plan.
-    pub name: &'a str,
-    /// A description of the plan.
-    pub description: &'a str,
+pub struct Plan {
     /// The key of the caller used in each step of the plan.
-    pub caller_key: &'a str,
+    pub caller_key: String,
     /// The steps to perform in the plan.
-    pub steps: Vec<Step<'a>>,
+    pub steps: Vec<Step>,
 }
 
-pub struct Client {
-    /// Path to the simulator binary
-    pub path: String,
-}
-
-impl Client {
+impl Plan {
     #[must_use]
-    pub fn new(path: String) -> Self {
+    pub fn new(caller_key: &str) -> Self {
+        Self {
+            caller_key: caller_key.into(),
+            steps: vec![],
+        }
+    }
+
+    pub fn add_step(&mut self, step: Step) {
+        self.steps.push(step);
+    }
+}
+
+pub struct Client<P> {
+    /// Path to the simulator binary
+    path: P,
+}
+
+impl<P> Client<P>
+where
+    P: AsRef<OsStr>,
+{
+    #[must_use]
+    pub fn new(path: P) -> Self {
         Self { path }
     }
 
-    /// Runs a `Plan` against the simulator and returns the result.
+    /// Runs a `Plan` against the simulator and returns vec of result.
     /// # Errors
     ///
     /// Returns an error if the if serialization or plan fails.
-    pub fn run<T>(&self, plan: &Plan) -> Result<T, Box<dyn Error>>
+    pub fn run<T>(&self, plan: &Plan) -> Result<Vec<T>, Box<dyn Error>>
     where
         T: serde::de::DeserializeOwned + serde::Serialize,
     {
-        call_run_stdin(&self.path, plan)
+        run_steps(&self.path, plan)
     }
 
     /// Performs a `ReadOnly` step against the simulator and returns the result.
     /// # Errors
     ///
     /// Returns an error if the if serialization or plan fails.
-    pub fn read_only<T>(&self, data: Step, key: &str) -> Result<T, Box<dyn Error>>
+    pub fn read_only<T>(
+        &self,
+        key: &str,
+        method: &str,
+        params: Vec<Param>,
+        require: Option<Require>,
+    ) -> Result<T, Box<dyn Error>>
     where
         T: serde::de::DeserializeOwned + serde::Serialize,
     {
+        let step = Step {
+            endpoint: Endpoint::ReadOnly,
+            method: method.into(),
+            max_units: 0,
+            params,
+            require,
+        };
         let plan = &Plan {
-            name: "view",
-            description: "single view request",
-            caller_key: key,
-            steps: vec![data],
+            caller_key: key.into(),
+            steps: vec![step],
         };
 
-        call_run_stdin(&self.path, plan)
+        run_step(&self.path, plan)
     }
 
     /// Performs a single `Execute` step against the simulator and returns the result.
     /// # Errors
     ///
     /// Returns an error if the if serialization or plan fails.
-    pub fn execute<T>(&self, data: Step, key: &str) -> Result<T, Box<dyn Error>>
+    pub fn execute<T>(&self, step: Step, key: &str) -> Result<T, Box<dyn Error>>
     where
         T: serde::de::DeserializeOwned + serde::Serialize,
     {
         let plan = &Plan {
-            name: "execute",
-            description: "single execution request",
-            caller_key: key,
-            steps: vec![data],
+            caller_key: key.into(),
+            steps: vec![step],
         };
 
-        call_run_stdin(&self.path, plan)
+        run_step(&self.path, plan)
+    }
+
+    /// Creates a key in a single step.
+    /// # Errors
+    ///
+    /// Returns an error if the if serialization or plan fails.
+    pub fn key_create<T>(&self, name: &str, key_type: Key) -> Result<T, Box<dyn Error>>
+    where
+        T: serde::de::DeserializeOwned + serde::Serialize,
+    {
+        let plan = &Plan {
+            caller_key: name.into(),
+            steps: vec![Step {
+                endpoint: Endpoint::Key,
+                method: "create_key".into(),
+                max_units: 0,
+                params: vec![Param {
+                    value: name.into(),
+                    param_type: ParamType::Key(key_type),
+                }],
+                require: None,
+            }],
+        };
+
+        run_step(&self.path, plan)
     }
 }
 
-fn call_run_stdin<T>(path: &str, plan: &Plan) -> Result<T, Box<dyn Error>>
+fn cmd_output<P>(path: P, plan: &Plan) -> Result<Output, Box<dyn Error>>
 where
-    T: serde::de::DeserializeOwned + serde::Serialize,
+    P: AsRef<OsStr>,
 {
     let mut child = Command::new(path)
         .arg("run")
         .arg("-")
         .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
         .spawn()?;
 
     // write json to stdin
@@ -188,9 +246,45 @@ where
             .map_err(|e| format!("failed to write to stdin: {e}"))?;
     }
 
-    let output = child
+    child
         .wait_with_output()
-        .map_err(|e| format!("failed to wait for command to finish: {e}"))?;
+        .map_err(|e| format!("failed to wait for child: {e}").into())
+}
+
+fn run_steps<P, T>(path: P, plan: &Plan) -> Result<Vec<T>, Box<dyn Error>>
+where
+    T: serde::de::DeserializeOwned + serde::Serialize,
+    P: AsRef<OsStr>,
+{
+    let output = cmd_output(path, plan)?;
+    let mut items: Vec<T> = Vec::new();
+
+    if !output.status.success() {
+        return Err(String::from_utf8(output.stdout)?.into());
+    }
+
+    for line in String::from_utf8(output.stdout)?
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+    {
+        let item = serde_json::from_str(line)
+            .map_err(|e| format!("failed to parse output to json: {e}"))?;
+        items.push(item);
+    }
+
+    Ok(items)
+}
+
+fn run_step<P, T>(path: P, plan: &Plan) -> Result<T, Box<dyn Error>>
+where
+    T: serde::de::DeserializeOwned + serde::Serialize,
+    P: AsRef<OsStr>,
+{
+    let output = cmd_output(path, plan)?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8(output.stdout)?.into());
+    }
 
     let resp: T = serde_json::from_str(String::from_utf8(output.stdout)?.as_ref())
         .map_err(|e| format!("failed to parse output to json: {e}"))?;
@@ -198,33 +292,28 @@ where
     Ok(resp)
 }
 
-// TODO: make this test simpler
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn parse_yaml<'a>(yaml_content: &'a str) -> Result<Plan<'a>, Box<dyn std::error::Error>> {
-        let plan: Plan<'a> = serde_yaml::from_str(yaml_content)?;
+    fn parse_yaml<'a>(yaml_content: &'a str) -> Result<Plan, Box<dyn std::error::Error>> {
+        let plan = serde_yaml::from_str(yaml_content)?;
         Ok(plan)
     }
 
     #[test]
     fn test_parse_plan_yaml() {
         let yaml_content = r#"
-name: token program
-description: Get balance for alice
 caller_key: alice_key
 steps:
-  - description: get balance for alice
-    endpoint: readonly
+  - endpoint: readonly
     method: get_balance
     max_units: 0
     params:
       - name: program_id
         type: id
         value: 2Ej3Qp6aUZ7yBnqZxBmvvvekUiriCn4ftcqY8VKGwMu5CmZiz
-      - name: owner
-        type: ed25519
+      - type: ed25519 # owner
         value: alice_key
     require:
         result:
@@ -233,24 +322,19 @@ steps:
 "#;
 
         let expected = Plan {
-            name: "token program",
-            description: "Get balance for alice",
-            caller_key: "alice_key",
+            caller_key: "alice_key".to_owned(),
             steps: vec![Step {
-                description: "get balance for alice",
                 endpoint: Endpoint::ReadOnly,
-                method: "get_balance",
+                method: "get_balance".into(),
                 max_units: 0,
                 params: vec![
                     Param {
-                        name: "program_id",
                         param_type: ParamType::Id,
-                        value: "2Ej3Qp6aUZ7yBnqZxBmvvvekUiriCn4ftcqY8VKGwMu5CmZiz",
+                        value: "2Ej3Qp6aUZ7yBnqZxBmvvvekUiriCn4ftcqY8VKGwMu5CmZiz".into(),
                     },
                     Param {
-                        name: "owner",
                         param_type: ParamType::Key(Key::Ed25519),
-                        value: "alice_key",
+                        value: "alice_key".into(),
                     },
                 ],
                 require: Some(Require {
