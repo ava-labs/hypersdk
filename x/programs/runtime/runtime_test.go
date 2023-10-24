@@ -41,9 +41,7 @@ func TestStop(t *testing.T) {
 	runtime.Stop()
 
 	_, err = runtime.Call(ctx, "run")
-	var trap *wasmtime.Trap
-	require.ErrorAs(err, &trap)
-	require.ErrorContains(trap, "wasm trap: interrupt")
+	require.ErrorIs(err, ErrTrapUnreachableCodeReached)
 	// ensure no fees were consumed
 	require.Equal(runtime.Meter().GetBalance(), maxUnits)
 }

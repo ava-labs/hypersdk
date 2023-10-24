@@ -39,9 +39,7 @@ func TestInfiniteLoop(t *testing.T) {
 	require.NoError(err)
 
 	_, err = runtime.Call(ctx, "get")
-	var trap *wasmtime.Trap
-	require.ErrorAs(err, &trap)
-	require.ErrorContains(trap, "wasm trap: all fuel consumed")
+	require.ErrorIs(err, ErrTrapInterrupt)
 }
 
 func TestMetering(t *testing.T) {
@@ -110,8 +108,7 @@ func TestMeterAfterStop(t *testing.T) {
 	// stop engine
 	runtime.Stop()
 	_, err = runtime.Call(ctx, "get")
-	var trap *wasmtime.Trap
-	require.ErrorAs(err, &trap)
+	require.ErrorIs(err, ErrTrapUnreachableCodeReached)
 	// ensure meter is still operational
 	require.Equal(runtime.Meter().GetBalance(), maxUnits-2)
 	_, err = runtime.Meter().AddUnits(2)
