@@ -16,7 +16,7 @@ pub mod example;
 /// The total supply of the NFT.
 /// # Safety
 /// In this program only one NFT of each type is intended to be minted.
-const TOTAL_SUPPLY: u64 = 1;
+const TOTAL_SUPPLY: i64 = 1;
 
 /// The program storage keys.
 #[state_keys]
@@ -86,7 +86,7 @@ pub fn init(
     // Initialize counter
     program
         .state()
-        .store(StateKey::Counter.to_vec(), &0)
+        .store(StateKey::Counter.to_vec(), &0_i64)
         .expect("failed to store counter");
 
     true
@@ -102,15 +102,12 @@ pub fn mint(program: Program, recipient: Address) -> bool {
         .get::<i64, _>(StateKey::Counter.to_vec())
         .expect("failed to store ");
 
-    assert!(
-        counter <= TOTAL_SUPPLY as i64,
-        "max supply for nft exceeded"
-    );
+    assert!(counter <= TOTAL_SUPPLY, "max supply for nft exceeded");
 
     let balance = program
         .state()
         .get::<i64, _>(StateKey::Balance(recipient).to_vec())
-        .expect("failed to get balance");
+        .unwrap_or_default();
 
     program
         .state()
@@ -122,12 +119,12 @@ pub fn mint(program: Program, recipient: Address) -> bool {
 
     program
         .state()
-        .store(StateKey::Owner.to_vec(), &recipient)
+        .store(StateKey::Owner.to_vec(), &recipient.as_bytes())
         .expect("failed to store owner");
 
     program
         .state()
-        .store(StateKey::Counter.to_vec(), &(counter + 1))
+        .store(StateKey::Counter.to_vec(), &(counter + 1_i64))
         .is_ok()
 }
 
@@ -178,9 +175,7 @@ pub fn burn(program: Program, from: Address) -> bool {
 mod tests {
     use serial_test::serial;
     use std::env;
-    use wasmlanche_sdk::simulator::{
-        self, id_from_step, Key, Operator, PlanResponse, Require, ResultAssertion,
-    };
+    use wasmlanche_sdk::simulator::{self, Key, PlanResponse};
 
     use crate::example;
 
@@ -243,14 +238,14 @@ mod tests {
                 .next()
         );
 
-        // make assertions about NFT balances
+        // TODO: make assertions about NFT balances?
         println!("{program_id}");
     }
 
     #[test]
     #[serial]
     #[ignore = "requires SIMULATOR_PATH and PROGRAM_PATH to be set"]
-    fn test_create_program() {
+    fn test_create_nft_program() {
         let s_path = env::var(simulator::PATH_KEY).expect("SIMULATOR_PATH not set");
         let simulator = simulator::Client::new(s_path);
 

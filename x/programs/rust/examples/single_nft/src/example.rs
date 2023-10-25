@@ -1,7 +1,7 @@
 use std::env;
 
 use wasmlanche_sdk::simulator::{
-    Client, Endpoint, ExecuteResponse, Key, Param, ParamType, Plan, Step, id_from_step,
+    id_from_step, Client, Endpoint, ExecuteResponse, Key, Param, ParamType, Plan, Step,
 };
 
 pub fn initialize_plan<'a>(
@@ -17,7 +17,7 @@ pub fn initialize_plan<'a>(
         Step {
             endpoint: Endpoint::Execute,
             method: "program_create".to_string(),
-            max_units: 1000,
+            max_units: 0,
             params: vec![Param {
                 param_type: ParamType::String,
                 value: p_path,
@@ -27,7 +27,7 @@ pub fn initialize_plan<'a>(
         Step {
             endpoint: Endpoint::Execute,
             method: "init".to_string(),
-            max_units: 1000,
+            max_units: 100000,
             params: vec![
                 Param {
                     param_type: ParamType::Id,
@@ -62,8 +62,8 @@ pub fn initialize_plan<'a>(
         },
         Step {
             endpoint: Endpoint::Key,
-            method: "create".to_string(),
-            max_units: 1000,
+            method: "key_create".to_string(),
+            max_units: 0,
             params: vec![Param {
                 param_type: ParamType::Key(Key::Ed25519),
                 value: "alice_key".to_string(),
@@ -72,8 +72,8 @@ pub fn initialize_plan<'a>(
         },
         Step {
             endpoint: Endpoint::Execute,
-            method: "mint_to".to_string(),
-            max_units: 1000,
+            method: "mint".to_string(),
+            max_units: 100000,
             params: vec![
                 Param {
                     param_type: ParamType::Id,
@@ -94,7 +94,6 @@ pub fn initialize_plan<'a>(
     }
 }
 
-// TODO: remove when the simulator merges
 #[allow(dead_code)]
 fn run() -> Result<Vec<ExecuteResponse>, Box<dyn std::error::Error>> {
     let nft_name = "MyNFT";
