@@ -119,7 +119,7 @@ pub fn mint(program: Program, recipient: Address) -> bool {
 
     program
         .state()
-        .store(StateKey::Owner.to_vec(), &recipient.as_bytes())
+        .store(StateKey::Owner.to_vec(), &recipient)
         .expect("failed to store owner");
 
     program
@@ -131,19 +131,20 @@ pub fn mint(program: Program, recipient: Address) -> bool {
 #[public]
 pub fn burn(program: Program, from: Address) -> bool {
     const BURN_AMOUNT: i64 = 1;
+    let null_address = Address::new([0; 32]);
 
     // Only the owner of the NFT can burn it
     let owner = program
         .state()
         .get::<Address, _>(StateKey::Owner.to_vec())
-        .expect("failed to get owner");
+        .unwrap_or(null_address);
 
     assert_eq!(owner, from, "only the owner can burn the nft");
 
     let balance = program
         .state()
         .get::<i64, _>(StateKey::Balance(from).to_vec())
-        .expect("failed to get balance");
+        .unwrap_or_default();
 
     assert!(
         BURN_AMOUNT <= balance,
@@ -153,7 +154,7 @@ pub fn burn(program: Program, from: Address) -> bool {
     let counter = program
         .state()
         .get::<i64, _>(StateKey::Counter.to_vec())
-        .expect("failed to get counter");
+        .unwrap_or_default();
 
     assert!(counter > 0, "cannot burn more nfts");
 
@@ -164,7 +165,6 @@ pub fn burn(program: Program, from: Address) -> bool {
         .expect("failed to store new balance");
 
     // TODO move to a lazy static? Or move to the VM layer entirely
-    let null_address = Address::new([0; 32]);
     program
         .state()
         .store(StateKey::Owner.to_vec(), &null_address)

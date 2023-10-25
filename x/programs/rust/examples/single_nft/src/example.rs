@@ -86,6 +86,22 @@ pub fn initialize_plan<'a>(
             ],
             require: None,
         },
+        Step {
+            endpoint: Endpoint::Execute,
+            method: "burn".to_string(),
+            max_units: 100000,
+            params: vec![
+                Param {
+                    param_type: ParamType::Id,
+                    value: id_from_step(0),
+                },
+                Param {
+                    param_type: ParamType::Key(Key::Ed25519),
+                    value: "alice_key".to_string(),
+                },
+            ],
+            require: None,
+        },
     ];
 
     Plan {
