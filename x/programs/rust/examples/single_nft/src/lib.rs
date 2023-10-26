@@ -198,17 +198,17 @@ mod tests {
         assert_eq!(resp.error, None);
 
         // create multiple step test plan
-        let nft_name = "MyNFT";
+        let nft_name = "MyNFT".to_string();
         let binding = nft_name.len().to_string();
-        let nft_name_length: &str = binding.as_ref();
+        let nft_name_length = binding.to_string();
 
-        let nft_symbol = "MNFT";
+        let nft_symbol = "MNFT".to_string();
         let binding = nft_symbol.len().to_string();
-        let nft_symbol_length: &str = binding.as_ref();
+        let nft_symbol_length = binding.to_string();
 
-        let nft_uri = "ipfs://my-nft.jpg";
+        let nft_uri = "ipfs://my-nft.jpg".to_string();
         let binding = nft_uri.len().to_string();
-        let nft_uri_length: &str = binding.as_ref();
+        let nft_uri_length = binding.to_string();
 
         let plan = example::initialize_plan(
             nft_name,
