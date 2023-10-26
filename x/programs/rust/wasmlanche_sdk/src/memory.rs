@@ -4,28 +4,7 @@
 //! the program. These methods are unsafe as should be used
 //! with caution.
 
-/// Represents a pointer to a block of memory allocated by the global allocator.
-#[derive(Clone, Copy)]
-pub struct Pointer(*mut u8);
-
-impl From<i64> for Pointer {
-    fn from(v: i64) -> Self {
-        let ptr: *mut u8 = v as *mut u8;
-        Pointer(ptr)
-    }
-}
-
-impl From<Pointer> for *const u8 {
-    fn from(pointer: Pointer) -> Self {
-        pointer.0.cast_const()
-    }
-}
-
-impl From<Pointer> for *mut u8 {
-    fn from(pointer: Pointer) -> Self {
-        pointer.0
-    }
-}
+use crate::types::Pointer;
 
 /// Represents a block of memory allocated by the global allocator.
 pub struct Memory {
@@ -63,7 +42,7 @@ impl Memory {
     /// `bytes` must be a slice of bytes with length <= `capacity`.
     pub unsafe fn write<T: AsRef<[u8]>>(&self, bytes: T) {
         self.ptr
-            .0
+            .inner()
             .copy_from(bytes.as_ref().as_ptr(), bytes.as_ref().len());
     }
 }
@@ -123,7 +102,9 @@ mod tests {
     fn test_memory() {
         let ptr_len = 5;
         let ptr = allocate(ptr_len);
-        let memory = Memory { ptr: Pointer(ptr) };
+        let memory = Memory {
+            ptr: Pointer::new(ptr),
+        };
         let data = vec![1, 2, 3, 4, 5];
 
         unsafe {
@@ -151,7 +132,9 @@ mod tests {
     fn test_range_owned() {
         let ptr_len = 5;
         let ptr = allocate(ptr_len);
-        let memory = Memory { ptr: Pointer(ptr) };
+        let memory = Memory {
+            ptr: Pointer::new(ptr),
+        };
         let data = vec![1, 2, 3, 4, 5];
 
         unsafe {
