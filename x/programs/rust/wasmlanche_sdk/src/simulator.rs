@@ -302,43 +302,55 @@ where
         .map_err(|e| format!("failed to wait for child: {e}").into())
 }
 
+/// Runs a `Plan` against the simulator with one or more steps and returns vec of result.
 fn run_steps<P, T>(path: P, plan: &Plan) -> Result<Vec<T>, Box<dyn Error>>
 where
     T: serde::de::DeserializeOwned + serde::Serialize,
     P: AsRef<OsStr>,
 {
-    let output = cmd_output(path, plan)?;
-    let mut items: Vec<T> = Vec::new();
-
-    if !output.status.success() {
-        return Err(String::from_utf8(output.stdout)?.into());
-    }
-
-    for line in String::from_utf8(output.stdout)?
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-    {
-        let item = serde_json::from_str(line)
-            .map_err(|e| format!("failed to parse output to json: {e}"))?;
-        items.push(item);
-    }
-
-    Ok(items)
+    parse_output(cmd_output(path, plan)?)
 }
 
+/// Runs a `Plan` with at most a single step against the simulator and returns the result.
 fn run_step<P, T>(path: P, plan: &Plan) -> Result<T, Box<dyn Error>>
 where
     T: serde::de::DeserializeOwned + serde::Serialize,
     P: AsRef<OsStr>,
 {
-    let output = cmd_output(path, plan)?;
+    if plan.steps.len() != 1 {
+        return Err("expected plan with single step".into());
+    }
+    let mut step_responses = parse_output::<T>(cmd_output(path, plan)?)?;
+    match step_responses.len() {
+        1 => Ok(step_responses.pop().expect("step response")),
+        _ => Err("expected single step response".into()),
+    }
+}
 
+fn parse_output<T>(output: Output) -> Result<Vec<T>, Box<dyn Error>>
+where
+    T: serde::de::DeserializeOwned + serde::Serialize,
+{
     if !output.status.success() {
         return Err(String::from_utf8(output.stdout)?.into());
     }
 
-    let resp: T = serde_json::from_str(String::from_utf8(output.stdout)?.as_ref())
-        .map_err(|e| format!("failed to parse output to json: {e}"))?;
+    let mut items = Vec::new();
+    for line in String::from_utf8(output.stdout)?
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+    {
+        match serde_json::from_str(line) {
+            Ok(item) => {
+                items.push(item);
+                continue;
+            }
+            Err(_) => {
+                // we assume this is a debug statement from the program
+                println!("debug log: {line}");
+            }
+        }
+    }
 
-    Ok(resp)
+    Ok(items)
 }
