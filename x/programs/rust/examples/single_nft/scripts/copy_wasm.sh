@@ -14,7 +14,7 @@ build_script_path="${root}"/../../scripts/build.sh
 sh "${build_script_path}" out
 
 # Copy wasm file over
-cp out/single_nft.wasm ../../../examples/testdata/single_nft.wasm
+cp out/single_nft.wasm "${root}"/../examples/testdata/single_nft.wasm
 
 # Delete build artifacts
 rm -rf "${root}"/out

@@ -1,7 +1,7 @@
 use std::env;
 
 use wasmlanche_sdk::simulator::{
-    id_from_step, Client, Endpoint, ExecuteResponse, Key, Param, ParamType, Plan, Step,
+    id_from_step, Client, Endpoint, Key, Param, ParamType, Plan, PlanResponse, Step,
 };
 
 pub fn initialize_plan<'a>(
@@ -111,7 +111,7 @@ pub fn initialize_plan<'a>(
 }
 
 #[allow(dead_code)]
-fn run() -> Result<Vec<ExecuteResponse>, Box<dyn std::error::Error>> {
+fn run() -> Result<Vec<PlanResponse>, Box<dyn std::error::Error>> {
     let nft_name = "MyNFT";
     let binding = nft_name.len().to_string();
     let nft_name_length: &str = binding.as_ref();
@@ -134,6 +134,6 @@ fn run() -> Result<Vec<ExecuteResponse>, Box<dyn std::error::Error>> {
     );
     let client = Client::new("path to simulator".to_owned());
 
-    let tx = client.run::<ExecuteResponse>(&plan)?;
+    let tx = client.run::<PlanResponse>(&plan)?;
     Ok(tx)
 }

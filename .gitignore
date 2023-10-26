@@ -70,5 +70,5 @@ Cargo.lock
 **/*.rs.bk
 
 # simulator
-x/programs/cmd/simulator/bin/simulator
-x/programs/cmd/simulator/simulator
+simulator
+!simulator/

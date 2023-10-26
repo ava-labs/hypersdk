@@ -50,8 +50,8 @@ pub fn init(
     nft_uri_ptr: i64,
     nft_uri_length: i64,
 ) -> bool {
-    let nft_name_ptr = Memory::new(Pointer::from(nft_name_ptr));
-    let nft_name = unsafe { nft_name_ptr.range(nft_name_length as usize) };
+    let name_ptr = Memory::new(Pointer::from(nft_name_ptr));
+    let nft_name = unsafe { name_ptr.range(nft_name_length as usize) };
 
     let nft_symbol_ptr = Memory::new(Pointer::from(nft_symbol_ptr));
     let nft_symbol = unsafe { nft_symbol_ptr.range(nft_symbol_length as usize) };
@@ -222,13 +222,6 @@ mod tests {
         // run plan
         let plan_responses = simulator.run::<PlanResponse>(&plan).unwrap();
 
-        // collect actual id of program from step 0
-        let mut program_id = String::new();
-        if let Some(step_0) = plan_responses.first() {
-            program_id = step_0.result.id.clone().unwrap_or_default();
-        }
-
-        // ensure no errors
         assert!(
             plan_responses.iter().all(|resp| resp.error.is_none()),
             "error: {:?}",
@@ -237,9 +230,6 @@ mod tests {
                 .filter_map(|resp| resp.error.as_ref())
                 .next()
         );
-
-        // TODO: make assertions about NFT balances?
-        println!("{program_id}");
     }
 
     #[test]
@@ -250,7 +240,7 @@ mod tests {
         let simulator = simulator::Client::new(s_path);
 
         let alice_key = "alice_key";
-        // create owner key in single step
+        // create alice key in single step
         let resp = simulator
             .key_create::<PlanResponse>(alice_key, Key::Ed25519)
             .unwrap();
