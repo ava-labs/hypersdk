@@ -43,14 +43,14 @@ enum StateKey {
 #[public]
 pub fn init(
     program: Program,
-    nft_name_ptr: i64,
+    name_ptr: i64,
     nft_name_length: i64,
     nft_symbol_ptr: i64,
     nft_symbol_length: i64,
     nft_uri_ptr: i64,
     nft_uri_length: i64,
 ) -> bool {
-    let name_ptr = Memory::new(Pointer::from(nft_name_ptr));
+    let name_ptr = Memory::new(Pointer::from(name_ptr));
     let nft_name = unsafe { name_ptr.range(nft_name_length as usize) };
 
     let nft_symbol_ptr = Memory::new(Pointer::from(nft_symbol_ptr));
@@ -181,7 +181,6 @@ mod tests {
 
     // export SIMULATOR_PATH=/path/to/simulator
     // export PROGRAM_PATH=/path/to/program.wasm
-    // cargo cargo test --package token --lib nocapture -- tests::test_token_plan --exact --nocapture --ignored
     #[test]
     #[serial]
     #[ignore = "requires SIMULATOR_PATH and PROGRAM_PATH to be set"]
