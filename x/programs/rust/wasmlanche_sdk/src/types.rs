@@ -132,7 +132,7 @@ impl Argument for Program {
 /// use wasmlanche_sdk::types::Pointer;
 /// #[public]
 /// pub fn init( program: Program, name_ptr: Pointer, name_length: i64) -> bool {
-/// let nft_name = name_ptr.read(name_length as usize);
+///     let name = unsafe { name_ptr.read(name_length as usize) };
 /// ```
 ///
 #[derive(Clone, Copy)]
