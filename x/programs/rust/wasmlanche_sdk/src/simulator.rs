@@ -339,7 +339,7 @@ fn parse_output(output: Output) -> Result<Vec<PlanResponse>, Box<dyn Error>> {
 }
 
 /// Builds the simulator binary at the given output path from source.
-pub fn build_simulator(source: &str, output_path: &str) -> Result<(), Box<dyn Error>> {
+pub fn build(source: &str, output_path: &str) -> Result<(), Box<dyn Error>> {
     let output = Command::new("go")
         .arg("build")
         .arg("-o")

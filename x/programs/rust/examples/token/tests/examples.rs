@@ -1,6 +1,6 @@
 use serial_test::serial;
 use wasmlanche_sdk::simulator::{
-    self, build_simulator, id_from_step, Endpoint, Key, Operator, Param, ParamType, Plan, Require,
+    self, build, id_from_step, Endpoint, Key, Operator, Param, ParamType, Plan, Require,
     ResultAssertion, Step,
 };
 
@@ -10,7 +10,7 @@ const SIMULATOR_GO_PATH: &str = "../../../cmd/simulator/simulator.go";
 #[test]
 #[serial]
 fn test_token_plan() {
-    build_simulator(SIMULATOR_GO_PATH, SIMULATOR_BUILD_PATH).expect("build simulator");
+    build(SIMULATOR_GO_PATH, SIMULATOR_BUILD_PATH).expect("build simulator");
     let simulator = simulator::Client::new(SIMULATOR_BUILD_PATH);
 
     let owner_key = "owner";
@@ -168,7 +168,7 @@ fn test_token_plan() {
 #[test]
 #[serial]
 fn test_create_program() {
-    build_simulator(SIMULATOR_GO_PATH, SIMULATOR_BUILD_PATH).expect("build simulator");
+    build(SIMULATOR_GO_PATH, SIMULATOR_BUILD_PATH).expect("build simulator");
     let simulator = simulator::Client::new(SIMULATOR_BUILD_PATH);
 
     let owner_key = "owner";
