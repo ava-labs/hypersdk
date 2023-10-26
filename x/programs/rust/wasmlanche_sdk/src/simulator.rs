@@ -10,7 +10,7 @@ use std::{
     process::{Command, Output, Stdio},
 };
 
-pub const PATH_KEY: &str = "SIMULATOR_PATH";
+pub const SIMULATOR_PATH: &str = env!("SIMULATOR_PATH");
 
 use serde::{Deserialize, Serialize};
 

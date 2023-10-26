@@ -114,7 +114,7 @@ mod tests {
     use serial_test::serial;
     use std::env;
     use wasmlanche_sdk::simulator::{
-        self, id_from_step, Key, Operator, PlanResponse, Require, ResultAssertion,
+        self, id_from_step, Key, Operator, PlanResponse, Require, ResultAssertion, SIMULATOR_PATH,
     };
 
     // export SIMULATOR_PATH=/path/to/simulator
@@ -125,8 +125,7 @@ mod tests {
     #[ignore = "requires SIMULATOR_PATH and PROGRAM_PATH to be set"]
     fn test_token_plan() {
         use wasmlanche_sdk::simulator::{self, Endpoint, Key, Param, ParamType, Plan, Step};
-        let s_path = env::var(simulator::PATH_KEY).expect("SIMULATOR_PATH not set");
-        let simulator = simulator::Client::new(s_path);
+        let simulator = simulator::Client::new(SIMULATOR_PATH);
 
         let owner_key = "owner";
         // create owner key in single step
@@ -287,8 +286,7 @@ mod tests {
     #[serial]
     #[ignore = "requires SIMULATOR_PATH and PROGRAM_PATH to be set"]
     fn test_create_program() {
-        let s_path = env::var(simulator::PATH_KEY).expect("SIMULATOR_PATH not set");
-        let simulator = simulator::Client::new(s_path);
+        let simulator = simulator::Client::new(SIMULATOR_PATH);
 
         let owner_key = "owner";
         // create owner key in single step
