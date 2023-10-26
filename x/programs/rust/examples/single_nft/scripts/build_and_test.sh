@@ -29,4 +29,4 @@ export PROGRAM_PATH="${root}"/../examples/testdata/single_nft.wasm
 
 echo "Running Simulator Tests..."
 
-cargo test -- --include-ignored
+cargo test -p single_nft -- --include-ignored

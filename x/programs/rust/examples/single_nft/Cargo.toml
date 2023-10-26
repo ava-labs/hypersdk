@@ -15,3 +15,7 @@ serial_test = "2.0.0"
 
 [lib]
 crate-type = ["cdylib"] # set the crate(needed for cargo build to work properly)
+
+[[example]]
+name = "single-nft-example"
+path = "examples/single_nft.rs"

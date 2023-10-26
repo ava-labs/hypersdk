@@ -11,8 +11,6 @@ use wasmlanche_sdk::{
     types::Address,
 };
 
-pub mod example;
-
 /// The total supply of the NFT.
 /// # Safety
 /// In this program only one NFT of each type is intended to be minted.
@@ -175,9 +173,9 @@ pub fn burn(program: Program, from: Address) -> bool {
 mod tests {
     use serial_test::serial;
     use std::env;
-    use wasmlanche_sdk::simulator::{self, Key, PlanResponse};
-
-    use crate::example;
+    use wasmlanche_sdk::simulator::{
+        self, id_from_step, Endpoint, Key, Param, ParamType, Plan, PlanResponse, Step,
+    };
 
     // export SIMULATOR_PATH=/path/to/simulator
     // export PROGRAM_PATH=/path/to/program.wasm
@@ -209,14 +207,102 @@ mod tests {
         let binding = nft_uri.len().to_string();
         let nft_uri_length = binding.to_string();
 
-        let plan = example::initialize_plan(
-            nft_name,
-            nft_name_length,
-            nft_symbol,
-            nft_symbol_length,
-            nft_uri,
-            nft_uri_length,
-        );
+        //create plan
+        let steps = vec![
+            Step {
+                endpoint: Endpoint::Execute,
+                method: "program_create".to_string(),
+                max_units: 0,
+                params: vec![Param {
+                    param_type: ParamType::String,
+                    value: env::var("PROGRAM_PATH").unwrap(),
+                }],
+                require: None,
+            },
+            Step {
+                endpoint: Endpoint::Execute,
+                method: "init".to_string(),
+                max_units: 100000,
+                params: vec![
+                    Param {
+                        param_type: ParamType::Id,
+                        value: id_from_step(0),
+                    },
+                    Param {
+                        param_type: ParamType::String,
+                        value: nft_name,
+                    },
+                    Param {
+                        param_type: ParamType::U64,
+                        value: nft_name_length,
+                    },
+                    Param {
+                        param_type: ParamType::String,
+                        value: nft_symbol,
+                    },
+                    Param {
+                        param_type: ParamType::U64,
+                        value: nft_symbol_length,
+                    },
+                    Param {
+                        param_type: ParamType::String,
+                        value: nft_uri,
+                    },
+                    Param {
+                        param_type: ParamType::U64,
+                        value: nft_uri_length,
+                    },
+                ],
+                require: None,
+            },
+            Step {
+                endpoint: Endpoint::Key,
+                method: "key_create".to_string(),
+                max_units: 0,
+                params: vec![Param {
+                    param_type: ParamType::Key(Key::Ed25519),
+                    value: "alice_key".to_string(),
+                }],
+                require: None,
+            },
+            Step {
+                endpoint: Endpoint::Execute,
+                method: "mint".to_string(),
+                max_units: 100000,
+                params: vec![
+                    Param {
+                        param_type: ParamType::Id,
+                        value: id_from_step(0),
+                    },
+                    Param {
+                        param_type: ParamType::Key(Key::Ed25519),
+                        value: "alice_key".to_string(),
+                    },
+                ],
+                require: None,
+            },
+            Step {
+                endpoint: Endpoint::Execute,
+                method: "burn".to_string(),
+                max_units: 100000,
+                params: vec![
+                    Param {
+                        param_type: ParamType::Id,
+                        value: id_from_step(0),
+                    },
+                    Param {
+                        param_type: ParamType::Key(Key::Ed25519),
+                        value: "alice_key".to_string(),
+                    },
+                ],
+                require: None,
+            },
+        ];
+
+        let plan = Plan {
+            caller_key: "alice_key".to_string(),
+            steps,
+        };
 
         // run plan
         let plan_responses = simulator.run::<PlanResponse>(&plan).unwrap();
