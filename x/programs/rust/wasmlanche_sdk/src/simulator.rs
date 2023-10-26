@@ -177,10 +177,7 @@ where
     /// # Errors
     ///
     /// Returns an error if the if serialization or plan fails.
-    pub fn run<T>(&self, plan: &Plan) -> Result<Vec<T>, Box<dyn Error>>
-    where
-        T: serde::de::DeserializeOwned + serde::Serialize,
-    {
+    pub fn run(&self, plan: &Plan) -> Result<Vec<PlanResponse>, Box<dyn Error>> {
         run_steps(&self.path, plan)
     }
 
@@ -188,16 +185,13 @@ where
     /// # Errors
     ///
     /// Returns an error if the if serialization or plan fails.
-    pub fn read_only<T>(
+    pub fn read_only(
         &self,
         key: &str,
         method: &str,
         params: Vec<Param>,
         require: Option<Require>,
-    ) -> Result<T, Box<dyn Error>>
-    where
-        T: serde::de::DeserializeOwned + serde::Serialize,
-    {
+    ) -> Result<PlanResponse, Box<dyn Error>> {
         let step = Step {
             endpoint: Endpoint::ReadOnly,
             method: method.into(),
@@ -217,10 +211,7 @@ where
     /// # Errors
     ///
     /// Returns an error if the if serialization or plan fails.
-    pub fn execute<T>(&self, step: Step, key: &str) -> Result<T, Box<dyn Error>>
-    where
-        T: serde::de::DeserializeOwned + serde::Serialize,
-    {
+    pub fn execute(&self, step: Step, key: &str) -> Result<PlanResponse, Box<dyn Error>> {
         let plan = &Plan {
             caller_key: key.into(),
             steps: vec![step],
@@ -233,10 +224,7 @@ where
     /// # Errors
     ///
     /// Returns an error if the if serialization or plan fails.
-    pub fn key_create<T>(&self, name: &str, key_type: Key) -> Result<T, Box<dyn Error>>
-    where
-        T: serde::de::DeserializeOwned + serde::Serialize,
-    {
+    pub fn key_create(&self, name: &str, key_type: Key) -> Result<PlanResponse, Box<dyn Error>> {
         let plan = &Plan {
             caller_key: name.into(),
             steps: vec![Step {
@@ -258,9 +246,9 @@ where
     /// # Errors
     ///
     /// Returns an error if the if serialization or plan fails.
-    pub fn program_create<T>(&self, key: &str, path: &str) -> Result<T, Box<dyn Error>>
+    pub fn program_create(&self, key: &str, path: &str) -> Result<PlanResponse, Box<dyn Error>>
     where
-        T: serde::de::DeserializeOwned + serde::Serialize,
+        P: AsRef<OsStr>,
     {
         let plan = &Plan {
             caller_key: key.into(),
@@ -302,43 +290,66 @@ where
         .map_err(|e| format!("failed to wait for child: {e}").into())
 }
 
-fn run_steps<P, T>(path: P, plan: &Plan) -> Result<Vec<T>, Box<dyn Error>>
+/// Runs a `Plan` against the simulator with one or more steps and returns vec of result.
+fn run_steps<P>(path: P, plan: &Plan) -> Result<Vec<PlanResponse>, Box<dyn Error>>
 where
-    T: serde::de::DeserializeOwned + serde::Serialize,
     P: AsRef<OsStr>,
 {
-    let output = cmd_output(path, plan)?;
-    let mut items: Vec<T> = Vec::new();
+    parse_output(cmd_output(path, plan)?)
+}
 
+/// Runs a `Plan` with at most a single step against the simulator and returns the result.
+fn run_step<P>(path: P, plan: &Plan) -> Result<PlanResponse, Box<dyn Error>>
+where
+    P: AsRef<OsStr>,
+{
+    if plan.steps.len() != 1 {
+        return Err("expected plan with single step".into());
+    }
+    let mut resps = parse_output(cmd_output(path, plan)?)?;
+    match resps.len() {
+        1 => Ok(resps.pop().expect("step response")),
+        _ => Err("expected single step response".into()),
+    }
+}
+
+fn parse_output(output: Output) -> Result<Vec<PlanResponse>, Box<dyn Error>> {
     if !output.status.success() {
         return Err(String::from_utf8(output.stdout)?.into());
     }
 
+    let mut resps = Vec::new();
     for line in String::from_utf8(output.stdout)?
         .lines()
         .filter(|line| !line.trim().is_empty())
     {
-        let item = serde_json::from_str(line)
-            .map_err(|e| format!("failed to parse output to json: {e}"))?;
-        items.push(item);
+        match serde_json::from_str(line) {
+            Ok(resp) => {
+                resps.push(resp);
+                continue;
+            }
+            Err(_) => {
+                // we assume this is a debug statement from the program
+                println!("debug log: {line}");
+            }
+        }
     }
 
-    Ok(items)
+    Ok(resps)
 }
 
-fn run_step<P, T>(path: P, plan: &Plan) -> Result<T, Box<dyn Error>>
-where
-    T: serde::de::DeserializeOwned + serde::Serialize,
-    P: AsRef<OsStr>,
-{
-    let output = cmd_output(path, plan)?;
+/// Builds the simulator binary at the given output path from source.
+pub fn build_simulator(source: &str, output_path: &str) -> Result<(), Box<dyn Error>> {
+    let output = Command::new("go")
+        .arg("build")
+        .arg("-o")
+        .arg(output_path)
+        .arg(source)
+        .output()?;
 
     if !output.status.success() {
-        return Err(String::from_utf8(output.stdout)?.into());
+        return Err(format!("failed to compile simulator: {:?}", output.stderr).into());
     }
 
-    let resp: T = serde_json::from_str(String::from_utf8(output.stdout)?.as_ref())
-        .map_err(|e| format!("failed to parse output to json: {e}"))?;
-
-    Ok(resp)
+    Ok(())
 }
