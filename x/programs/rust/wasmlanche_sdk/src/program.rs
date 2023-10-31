@@ -1,4 +1,4 @@
-use crate::{host::call_program, state::State, types::Argument};
+use crate::{host::call_program, state::State, types::Arg};
 use serde::{Deserialize, Serialize};
 
 /// Represents the current Program in the context of the caller. Or an external
@@ -31,7 +31,7 @@ impl Program {
         target: &Program,
         max_units: i64,
         function_name: &str,
-        args: &[Box<dyn Argument>],
+        args: &[Box<dyn Arg>],
     ) -> i64 {
         call_program(
             self,
@@ -56,7 +56,7 @@ impl From<i64> for Program {
 }
 
 /// Marshals arguments into byte slice which can be unpacked by the host.
-fn marshal_args(args: &[Box<dyn Argument>]) -> Vec<u8> {
+fn marshal_args(args: &[Box<dyn Arg>]) -> Vec<u8> {
     use std::mem::size_of;
     // Size of meta data for each argument
     const META_SIZE: usize = size_of::<i64>() + 1;

@@ -183,7 +183,7 @@ fn generate_from_state_key(
         })
         .collect();
 
-        // easier to manage the conversions
+    // easier to manage the conversions
     quote! {
         impl From<#name> for Key {
             fn from(item: #name) -> Self {

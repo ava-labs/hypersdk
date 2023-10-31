@@ -1,23 +1,22 @@
 //! The `state` module provides functions for interacting with persistent
 //! storage exposed by the host.
-use crate::program::Program;
+use crate::{
+    errors::StateError,
+    memory::Pointer,
+    program::Program,
+    state::{Key, Storable},
+};
 
 #[link(wasm_import_module = "state")]
 extern "C" {
     #[link_name = "put"]
-    fn _put(
-        caller_id: i64,
-        key_ptr: *const u8,
-        key_len: usize,
-        value_ptr: *const u8,
-        value_len: usize,
-    ) -> i32;
+    fn _put(caller_id: i64, storable_key: i64, storable_value: i64) -> i32;
 
     #[link_name = "get"]
-    fn _get(caller_id: i64, key_ptr: *const u8, key_len: usize, val_len: i32) -> i32;
+    fn _get(caller_id: i64, storable_key: i64, val_len: i32) -> i32;
 
     #[link_name = "len"]
-    fn _len(caller_id: i64, key_ptr: *const u8, key_len: usize) -> i32;
+    fn _len(caller_id: i64, storable_key: i64) -> i32;
 }
 
 /// Persists the bytes at `value_ptr` to the bytes at key ptr on the host storage.
@@ -26,11 +25,11 @@ extern "C" {
 /// The caller must ensure that `key_ptr` + `key_len` and
 /// `value_ptr` + `value_len` point to valid memory locations.
 #[must_use]
-pub(crate) unsafe fn put_bytes(
+pub(crate) unsafe fn put_bytes<const M: usize, const N: usize>(
     caller: &Program,
-    store: &Storable,
+    storable: &Storable<M, N>,
 ) -> i32 {
-    unsafe { _put(caller.id(), key_ptr, key_len, value_ptr, value_len) }
+    unsafe { _put(caller.id(), storable.key(), storable.value()) }
 }
 
 /// Returns the length of the bytes associated with the key from the host storage.
@@ -38,8 +37,15 @@ pub(crate) unsafe fn put_bytes(
 /// # Safety
 /// The caller must ensure that `key_ptr` + `key_len` points to valid memory locations.
 #[must_use]
-pub(crate) unsafe fn len_bytes(caller: &Program, key_ptr: *const u8, key_len: usize) -> i32 {
-    unsafe { _len(caller.id(), key_ptr, key_len) }
+pub(crate) unsafe fn len_bytes<const M: usize>(
+    caller: &Program,
+    storable_key: &Key<M>,
+) -> Result<i32, StateError> {
+    let resp = unsafe { _len(caller.id(), storable_key) };
+    if resp.is_negative() {
+        return Err(StateError::Read);
+    }
+    Ok(resp)
 }
 
 /// Gets the bytes associated with the key from the host.
@@ -47,11 +53,14 @@ pub(crate) unsafe fn len_bytes(caller: &Program, key_ptr: *const u8, key_len: us
 /// # Safety
 /// The caller must ensure that `key_ptr` + `key_len` points to valid memory locations.
 #[must_use]
-pub(crate) unsafe fn get_bytes(
+pub(crate) unsafe fn get_bytes<const M: usize>(
     caller: &Program,
-    key_ptr: *const u8,
-    key_len: usize,
+    storable_key: &Key<M>,
     val_len: i32,
-) -> i32 {
-    unsafe { _get(caller.id(), key_ptr, key_len, val_len) }
+) -> Result<Pointer, StateError> {
+    let resp = unsafe { _get(caller.id(), storable_key, val_len) };
+    if resp.is_negative() {
+        return Err(StateError::Read);
+    }
+    Ok(resp.into())
 }

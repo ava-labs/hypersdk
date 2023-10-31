@@ -81,11 +81,13 @@ impl From<i64> for Bytes32 {
     }
 }
 
-pub trait Argument {
+pub struct Bytes<const M: usize>([u8; M]);
+
+pub trait Arg {
     fn as_bytes(&self) -> Cow<'_, [u8]>;
-    fn is_primitive(&self) -> bool {
-        false
-    }
+    /// Returns the prefix byte for the argument.
+    fn prefix(&self) -> u8;
+    /// Returns the length of the argument in bytes.
     fn len(&self) -> usize {
         self.as_bytes().len()
     }
@@ -94,32 +96,56 @@ pub trait Argument {
     }
 }
 
-impl Argument for Bytes32 {
+#[repr(u8)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
+enum ArgTypes {
+    I64 = 0x0,
+    I32,
+    Bytes32,
+    Bytes,
+}
+
+impl Arg for Bytes32 {
     fn as_bytes(&self) -> Cow<'_, [u8]> {
         Cow::Borrowed(&self.0)
     }
+    fn prefix(&self) -> u8 {
+        ArgTypes::Bytes32 as u8
+    }
 }
 
-impl Argument for Address {
+impl<const N: usize> Arg for Bytes<N> {
+    fn as_bytes(&self) -> [u8; N] {
+        self.0
+    }
+    fn prefix(&self) -> u8 {
+        ArgTypes::Bytes as u8
+    }
+}
+
+impl Arg for Address {
     fn as_bytes(&self) -> Cow<'_, [u8]> {
         Cow::Borrowed(self.0.as_bytes())
     }
+    fn prefix(&self) -> u8 {
+        ArgTypes::Bytes32 as u8
+    }
 }
 
-impl Argument for i64 {
+impl Arg for i64 {
     fn as_bytes(&self) -> Cow<'_, [u8]> {
         Cow::Owned(self.to_be_bytes().to_vec())
     }
-    fn is_primitive(&self) -> bool {
-        true
+    fn prefix(&self) -> u8 {
+        ArgTypes::I64 as u8
     }
 }
 
-impl Argument for Program {
+impl Arg for Program {
     fn as_bytes(&self) -> Cow<'_, [u8]> {
         Cow::Owned(self.id().to_be_bytes().to_vec())
     }
-    fn is_primitive(&self) -> bool {
-        true
+    fn prefix(&self) -> u8 {
+        ArgTypes::I64 as u8
     }
 }

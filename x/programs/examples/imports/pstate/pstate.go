@@ -100,7 +100,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLe
 	return 0
 }
 
-func (i *Import) getLenFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLength int32) int32 {
+func (i *Import) getFn(caller *wasmtime.Caller, idPtr, storableKey int64, valLength int32) int32 {
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
 	if err != nil {
@@ -110,33 +110,9 @@ func (i *Import) getLenFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, ke
 		return -1
 	}
 
-	keyBytes, err := memory.Range(uint64(keyPtr), uint64(keyLength))
+	key, err := FromMemory(memory, storableKey)
 	if err != nil {
-		i.log.Error("failed to read key from memory",
-			zap.Error(err),
-		)
-		return -1
-	}
-
-	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
-	val, err := i.mu.GetValue(context.Background(), k)
-	if err != nil {
-		if !errors.Is(err, database.ErrNotFound) {
-			i.log.Error("failed to get value from storage",
-				zap.Error(err),
-			)
-		}
-		return -1
-	}
-
-	return int32(len(val))
-}
-
-func (i *Import) getFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLength int32, valLength int32) int32 {
-	memory := runtime.NewMemory(runtime.NewExportClient(caller))
-	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
-	if err != nil {
-		i.log.Error("failed to read program id from memory",
+		i.log.Error("failed to parse storable key",
 			zap.Error(err),
 		)
 		return -1
