@@ -5,6 +5,7 @@ package pstate
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 
@@ -55,9 +56,6 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Supp
 	if err := link.FuncWrap(Name, "get", i.getFn); err != nil {
 		return err
 	}
-	if err := link.FuncWrap(Name, "len", i.getLenFn); err != nil {
-		return err
-	}
 
 	return nil
 }
@@ -100,7 +98,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLe
 	return 0
 }
 
-func (i *Import) getFn(caller *wasmtime.Caller, idPtr, storableKey int64, valLength int32) int32 {
+func (i *Import) getFn(caller *wasmtime.Caller, idPtr, key Storable, valLength int32) int64 {
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
 	if err != nil {
@@ -110,17 +108,9 @@ func (i *Import) getFn(caller *wasmtime.Caller, idPtr, storableKey int64, valLen
 		return -1
 	}
 
-	key, err := FromMemory(memory, storableKey)
+	keyBytes, err := bytesFromStorable(memory, key)
 	if err != nil {
 		i.log.Error("failed to parse storable key",
-			zap.Error(err),
-		)
-		return -1
-	}
-
-	keyBytes, err := memory.Range(uint64(keyPtr), uint64(keyLength))
-	if err != nil {
-		i.log.Error("failed to read key from memory",
 			zap.Error(err),
 		)
 		return -1
@@ -156,3 +146,19 @@ func (i *Import) getFn(caller *wasmtime.Caller, idPtr, storableKey int64, valLen
 
 	return int32(ptr)
 }
+
+
+func bytesFromStorable(m runtime. Memory, storable Storable) ([]byte, error) {
+	if storable < 0 {
+		return nil, fmt.Errorf("failed to read from memory: %w", runtime.ErrUnderflow)
+	}
+	
+	var bytes [8]byte
+	binary.BigEndian.PutUint64(bytes[:], uint64(storable))
+	length := binary.BigEndian.Uint32(bytes[4:])
+	offset := binary.BigEndian.Uint32(bytes[:4])
+
+	return m.Range(uint64(offset), uint64(length))
+}
+
+type Storable(int64)

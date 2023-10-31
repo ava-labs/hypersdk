@@ -124,16 +124,6 @@ func WriteBytes(m Memory, buf []byte) (uint64, error) {
 	return offset, nil
 }
 
-func ReadFromMemory(m Memory, storable int64) ([]byte, error) {
-	if storable < 0 {
-		return nil, fmt.Errorf("failed to read from memory: %w", ErrNegativeValue)
-	}
-
-	var combined [8]byte
-
-	return m.Range(offset, length)
-}
-
 // CallParam defines a value to be passed to a guest function.
 type CallParam struct {
 	Value interface{} `json,yaml:"value"`
@@ -153,7 +143,7 @@ func WriteParams(m Memory, p []CallParam) ([]uint64, error) {
 			params = append(params, ptr)
 		case int:
 			if v < 0 {
-				return nil, fmt.Errorf("failed to write param: %w", ErrNegativeValue)
+				return nil, fmt.Errorf("failed to write param: %w", ErrUnderflow)
 			}
 			params = append(params, uint64(v))
 		case uint64:
