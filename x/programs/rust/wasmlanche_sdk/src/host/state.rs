@@ -28,10 +28,7 @@ extern "C" {
 #[must_use]
 pub(crate) unsafe fn put_bytes(
     caller: &Program,
-    key_ptr: *const u8,
-    key_len: usize,
-    value_ptr: *const u8,
-    value_len: usize,
+    store: &Storable,
 ) -> i32 {
     unsafe { _put(caller.id(), key_ptr, key_len, value_ptr, value_len) }
 }

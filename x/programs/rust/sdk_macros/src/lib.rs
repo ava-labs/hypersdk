@@ -97,9 +97,10 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     let name = &item_enum.ident;
-    let variants = &item_enum.variants;
+    let vec_variants = &item_enum.variants;
+    let to_vec_tokens = generate_to_vec(vec_variants);
+    let from_state_key_tokens = generate_from_state_key(name, vec_variants);
 
-    let to_vec_tokens = generate_to_vec(variants);
     let gen = quote! {
         // generate the original enum definition with attributes
         #item_enum
@@ -112,6 +113,9 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             }
         }
+
+        // impl From<StateKey> for Key
+        #from_state_key_tokens
     };
 
     TokenStream::from(gen)
@@ -142,6 +146,53 @@ fn generate_to_vec(
             }
         })
         .collect()
+}
+
+fn generate_from_state_key(
+    name: &syn::Ident,
+    variants: &syn::punctuated::Punctuated<syn::Variant, syn::Token![,]>,
+) -> proc_macro2::TokenStream {
+    let conversions: Vec<_> = variants
+        .iter()
+        .enumerate()
+        .map(|(idx, variant)| {
+            let variant_ident = &variant.ident;
+            let index = idx as u8;
+            match &variant.fields {
+                // ex: Point(f64, f64)
+                Fields::Unnamed(fields) => {
+                    let len = fields.unnamed.len();
+                    let tuple_pattern: Vec<_> = (0..len).map(|n| syn::Index::from(n)).collect();
+                    quote! {
+                        #name::#variant_ident(#(#tuple_pattern),*) => {
+                            let mut data = vec![#index];
+                            data.extend_from_slice(&[/* your byte conversions for each tuple item */]);
+                            Key::from_bytes(data)
+                        }
+                    }
+                },
+                // For unit-like variants
+                Fields::Unit => {
+                    quote! {
+                        #name::#variant_ident => Key::new(#index)
+                    }
+                },
+                // Named fields can be treated similarly to Unnamed with some changes
+                Fields::Named(_) => unimplemented!(),
+            }
+        })
+        .collect();
+
+        // easier to manage the conversions
+    quote! {
+        impl From<#name> for Key {
+            fn from(item: #name) -> Self {
+                match item {
+                    #(#conversions)*
+                }
+            }
+        }
+    }
 }
 
 /// Returns whether the type_path represents a supported primitive type.
