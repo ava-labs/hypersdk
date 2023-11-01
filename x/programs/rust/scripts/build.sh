@@ -10,7 +10,6 @@ target="wasm32-unknown-unknown"
 if [ -n "${DEBUG:-}" ]; then
   target="wasm32-wasi"
 fi
-
 # Set a default value for the cargo target dir if it's not provided as the first
 # argument.
 target_dir="${1:-build}"
