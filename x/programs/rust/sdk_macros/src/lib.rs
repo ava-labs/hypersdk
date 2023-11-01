@@ -160,23 +160,56 @@ fn generate_from_state_key(
             let index = idx as u8;
             match &variant.fields {
                 // ex: Point(f64, f64)
+                // Fields::Unnamed(fields) => {
+                //     let len = fields.unnamed.len();
+                //     let tuple_pattern: Vec<_> = (0..len).map(|n| syn::Index::from(n)).collect();
+                //     quote! {
+                //         #name::#variant_ident(#(#tuple_pattern),*) => {
+                //             let mut bytes = [0u8; N];
+                //              bytes.copy_from_slice(&[/* your byte conversions for each tuple item */]);
+                //             // let mut data = vec![#index];
+                //             // first 4 bytes are pointer
+                //             // second 4 bytes are length
+                //             // data.extend_from_slice(&[/* your byte conversions for each tuple item */]);
+                //             Key::from_bytes(bytes)
+                //         }
+                //     }
+                // },
                 Fields::Unnamed(fields) => {
-                    let len = fields.unnamed.len();
-                    let tuple_pattern: Vec<_> = (0..len).map(|n| syn::Index::from(n)).collect();
-                    quote! {
-                        #name::#variant_ident(#(#tuple_pattern),*) => {
-                            let mut data = vec![#index];
-                            data.extend_from_slice(&[/* your byte conversions for each tuple item */]);
-                            Key::from_bytes(data)
+                    if fields.unnamed.len() == 1 {
+                        quote! {
+                            #name::#variant_ident(a) => {
+                                let mut bytes = [0u8; N];
+                                bytes[0] = #index;
+                                bytes[1..].copy_from_slice(&a.as_bytes());
+                                Key::new(bytes)
+                            }
+                        }
+                    } else {
+                        let tuple_pattern: Vec<_> = (0..fields.unnamed.len())
+                            .map(|n| syn::Index::from(n))
+                            .collect();
+                        quote! {
+                            #name::#variant_ident(#(#tuple_pattern),*) => {
+                                let mut data = vec![#index];
+                                // Here, add code to serialize each tuple field to the data vector
+                                // ...
+                                data
+                            }
                         }
                     }
-                },
+                }
+
                 // For unit-like variants
                 Fields::Unit => {
                     quote! {
-                        #name::#variant_ident => Key::new(#index)
-                    }
-                },
+                                #name::#variant_ident => {
+                                     let mut bytes = [0u8; N];  // Initialize with zeros
+                    bytes[0] = #index;
+                    Key::new(bytes)
+                                }
+                            }
+                }
                 // Named fields can be treated similarly to Unnamed with some changes
                 Fields::Named(_) => unimplemented!(),
             }
@@ -185,10 +218,10 @@ fn generate_from_state_key(
 
     // easier to manage the conversions
     quote! {
-        impl From<#name> for Key {
+        impl <const N: usize> From<#name> for Key<N> {
             fn from(item: #name) -> Self {
                 match item {
-                    #(#conversions)*
+                    #(#conversions,)*
                 }
             }
         }

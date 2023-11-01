@@ -1,3 +1,4 @@
+use wasmlanche_sdk::state::Key;
 use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
 
 /// The program state keys.
@@ -19,19 +20,19 @@ pub fn init(program: Program) -> bool {
     // set total supply
     program
         .state()
-        .store(StateKey::TotalSupply.to_vec(), &123456789_i64)
+        .store(StateKey::TotalSupply, &123456789_i64)
         .expect("failed to store total supply");
 
     // set token name
     program
         .state()
-        .store(StateKey::Name.to_vec(), b"WasmCoin")
+        .store(StateKey::Name, b"WasmCoin")
         .expect("failed to store coin name");
 
     // set token symbol
     program
         .state()
-        .store(StateKey::Symbol.to_vec(), b"WACK")
+        .store(StateKey::Symbol, b"WACK")
         .expect("failed to store symbol");
 
     true
@@ -42,8 +43,9 @@ pub fn init(program: Program) -> bool {
 pub fn get_total_supply(program: Program) -> i64 {
     program
         .state()
-        .get(StateKey::TotalSupply.to_vec())
+        .get(StateKey::TotalSupply)
         .expect("failed to get total supply")
+        .into()
 }
 
 /// Transfers balance from the token owner to the recipient.

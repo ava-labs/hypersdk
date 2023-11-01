@@ -56,6 +56,9 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Supp
 	if err := link.FuncWrap(Name, "get", i.getFn); err != nil {
 		return err
 	}
+	if err := link.FuncWrap(Name, "delete", i.deleteFn); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -98,7 +101,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLe
 	return 0
 }
 
-func (i *Import) getFn(caller *wasmtime.Caller, idPtr, key Storable, valLength int32) int64 {
+func (i *Import) getFn(caller *wasmtime.Caller, idPtr, key Storable) int64 {
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
 	if err != nil {
@@ -144,8 +147,39 @@ func (i *Import) getFn(caller *wasmtime.Caller, idPtr, key Storable, valLength i
 		return -1
 	}
 
-	return int32(ptr)
+	return int64(ptr)
 }
+
+func (i *Import) deleteFn(caller *wasmtime.Caller, idPtr, key Storable) int64 {
+	memory := runtime.NewMemory(runtime.NewExportClient(caller))
+	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
+	if err != nil {
+		i.log.Error("failed to read program id from memory",
+			zap.Error(err),
+		)
+		return -1
+	}
+
+	keyBytes, err := bytesFromStorable(memory, key)
+	if err != nil {
+		i.log.Error("failed to parse storable key",
+			zap.Error(err),
+		)
+		return -1
+	}
+
+	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
+	err = i.mu.Remove(context.Background(), k)
+	if err != nil {
+		i.log.Error("failed to remove value from storage",
+			zap.Error(err),
+		)
+		return -1
+	}
+
+	return 0
+}
+
 
 
 func bytesFromStorable(m runtime. Memory, storable Storable) ([]byte, error) {

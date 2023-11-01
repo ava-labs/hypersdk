@@ -9,11 +9,7 @@ enum StateKeys {
 /// Initializes the program address a count of 0.
 #[public]
 fn initialize_address(program: Program, address: Address) -> bool {
-    if program
-        .state()
-        .get::<i64, _>(StateKeys::Counter(address).to_vec())
-        .is_ok()
-    {
+    if program.state().get(StateKeys::Counter(address)).is_ok() {
         panic!("counter already initialized for address")
     }
 

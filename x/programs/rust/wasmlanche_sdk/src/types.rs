@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    fmt::{Display, Formatter},
+};
 
 use crate::program::Program;
 
@@ -53,8 +56,8 @@ impl Bytes32 {
 
 /// Implement the Display trait for Bytes32 so that we can print it.
 /// Enables `to_string()` on Bytes32.
-impl std::fmt::Display for Bytes32 {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for Bytes32 {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         // Find the first null byte and only print up to that point.
         let null_pos = self.0.iter().position(|&b| b == b'\0').unwrap_or(Self::LEN);
         String::from_utf8_lossy(&self.0[..null_pos]).fmt(f)
@@ -81,71 +84,157 @@ impl From<i64> for Bytes32 {
     }
 }
 
-pub struct Bytes<const M: usize>([u8; M]);
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Bytes<const N: usize>([u8; N]);
 
-pub trait Arg {
-    fn as_bytes(&self) -> Cow<'_, [u8]>;
-    /// Returns the prefix byte for the argument.
-    fn prefix(&self) -> u8;
-    /// Returns the length of the argument in bytes.
-    fn len(&self) -> usize {
-        self.as_bytes().len()
+impl<const N: usize> Bytes<N> {
+    pub fn new(bytes: [u8; N]) -> Self {
+        Self(bytes)
     }
-    fn is_empty(&self) -> bool {
-        self.len() == 0
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
     }
 }
 
+impl<const N: usize> From<String> for Bytes<N> {
+    fn from(value: String) -> Self {
+        let mut bytes: [u8; N] = [0; N];
+        bytes[..value.len()].copy_from_slice(value.as_bytes());
+        Self(bytes)
+    }
+}
+
+impl<const N: usize> Display for Bytes<N> {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        // Find the first null byte and only print up to that point.
+        let null_pos = self.0.iter().position(|&b| b == b'\0').unwrap_or(N);
+        String::from_utf8_lossy(&self.0[..null_pos]).fmt(f)
+    }
+}
+
+// pub trait Arg<const N: usize> {
+//     fn as_bytes(&self) -> [u8; N];
+//     /// Returns the prefix byte for the argument.
+//     fn prefix(&self) -> u8;
+//     /// Returns the length of the argument in bytes.
+//     fn len(&self) -> usize {
+//         self.as_bytes().len()
+//     }
+//     fn is_empty(&self) -> bool {
+//         self.len() == 0
+//     }
+// }
+
 #[repr(u8)]
 #[derive(Clone, Copy, Serialize, Deserialize)]
-enum ArgTypes {
+pub enum ArgTypes {
     I64 = 0x0,
     I32,
     Bytes32,
     Bytes,
 }
 
-impl Arg for Bytes32 {
-    fn as_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Borrowed(&self.0)
+pub enum Arg {
+    I64(i64),
+    Bytes32(Bytes32),
+    Address(Address),
+    Bytes(Vec<u8>),
+}
+
+impl Arg {
+    pub fn prefix(&self) -> u8 {
+        match self {
+            Arg::I64(_) => ArgTypes::I64 as u8,
+            Arg::Bytes32(_) => ArgTypes::Bytes32 as u8,
+            Arg::Address(_) => ArgTypes::Bytes32 as u8,
+            Arg::Bytes(_) => ArgTypes::Bytes as u8,
+        }
     }
-    fn prefix(&self) -> u8 {
-        ArgTypes::Bytes32 as u8
+    pub fn as_bytes(&self) -> Vec<u8> {
+        match self {
+            Arg::I64(i) => i.to_be_bytes().to_vec(),
+            Arg::Bytes32(b) => b.as_bytes().to_vec(),
+            Arg::Address(a) => a.as_bytes().to_vec(),
+            Arg::Bytes(b) => b.as_slice().to_vec(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.as_bytes().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
-impl<const N: usize> Arg for Bytes<N> {
-    fn as_bytes(&self) -> [u8; N] {
-        self.0
-    }
-    fn prefix(&self) -> u8 {
-        ArgTypes::Bytes as u8
-    }
-}
+// impl Arg<32> for Bytes32 {
+//     fn as_bytes(&self) -> [u8; 32] {
+//         self.0
+//     }
+//     fn prefix(&self) -> u8 {
+//         ArgTypes::Bytes32 as u8
+//     }
+// }
 
-impl Arg for Address {
-    fn as_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Borrowed(self.0.as_bytes())
-    }
-    fn prefix(&self) -> u8 {
-        ArgTypes::Bytes32 as u8
-    }
-}
+// impl <const N: usize>Arg<N> for Bytes<N> {
+//     fn as_bytes(&self) -> [u8; N] {
+//         self.0
+//     }
+//     fn prefix(&self) -> u8 {
+//         ArgTypes::Bytes as u8
+//     }
+// }
 
-impl Arg for i64 {
-    fn as_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(self.to_be_bytes().to_vec())
-    }
-    fn prefix(&self) -> u8 {
-        ArgTypes::I64 as u8
-    }
-}
+// impl Arg<32> for Address {
+//     fn as_bytes(&self) ->  [u8; 32] {
+//         self.0.as_bytes()
+//     }
+//     fn prefix(&self) -> u8 {
+//         ArgTypes::Bytes32 as u8
+//     }
+// }
 
-impl Arg for Program {
-    fn as_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(self.id().to_be_bytes().to_vec())
-    }
-    fn prefix(&self) -> u8 {
-        ArgTypes::I64 as u8
-    }
-}
+// impl Arg<8> for i64 {
+//     fn as_bytes(&self) -> [u8; 8] {
+//         self.to_be_bytes()
+//     }
+//     fn prefix(&self) -> u8 {
+//         ArgTypes::I64 as u8
+//     }
+// }
+
+// impl Arg<32> for Program {
+//     fn as_bytes(&self) -> [u8; 32] {
+//         self.id().to_be_bytes()
+//     }
+//     fn prefix(&self) -> u8 {
+//         ArgTypes::I64 as u8
+//     }
+// }
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+
+//     #[test]
+//     fn test_bytes32_from_string() {
+//         let s = "hello world".to_string();
+//         let b = Bytes32::from(s);
+//         assert_eq!(b.to_string(), "hello world");
+//     }
+
+//     #[test]
+//     fn test_bytes32_from_i64() {
+//         let i = 123456789;
+//         let b = Bytes32::from(i);
+//         assert_eq!(b.to_string(), "123456789");
+//     }
+
+//     #[test]
+//     fn test_bytes_from_address() {
+//         let s = "hello world".to_string();
+//         let b = Bytes::from(s);
+//         assert_eq!(b.to_string(), "hello world");
+//     }
+// }
