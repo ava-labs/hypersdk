@@ -316,7 +316,7 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				cp = append(cp, runtime.CallParam{Value: uint64(v)})
 			case int:
 				if v < 0 {
-					return nil, fmt.Errorf("%w: %s", runtime.ErrNegativeValue, param.Type)
+					return nil, fmt.Errorf("%w: %s", runtime.ErrUnderflow, param.Type)
 				}
 				cp = append(cp, runtime.CallParam{Value: uint64(v)})
 			case string:

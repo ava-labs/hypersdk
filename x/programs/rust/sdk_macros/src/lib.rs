@@ -101,6 +101,30 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let to_vec_tokens = generate_to_vec(vec_variants);
     let from_state_key_tokens = generate_from_state_key(name, vec_variants);
 
+    let size_constants: Vec<_> = item_enum
+        .variants
+        .iter()
+        .enumerate()
+        .map(|(idx, variant)| {
+            let variant_ident = &variant.ident;
+            let size_ident = syn::Ident::new(
+                &format!("{}_SIZE", variant_ident.to_string().to_uppercase()),
+                variant_ident.span(),
+            );
+            let size_value = calculate_size_for_variant(variant); // This is a function you would define to calculate size
+            quote! {
+                pub const #size_ident: usize = #size_value;
+            }
+        })
+        .collect();
+
+    let max_size_tokens = quote! {
+        pub const fn max_size() -> usize {
+            // Use the max of all size constants here
+            *[#(#size_constants),*].iter().max().unwrap()
+        }
+    };
+
     let gen = quote! {
         // generate the original enum definition with attributes
         #item_enum
@@ -113,6 +137,9 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             }
         }
+
+        #(#size_constants)*
+        // #max_size_tokens
 
         // impl From<StateKey> for Key
         #from_state_key_tokens
@@ -179,10 +206,7 @@ fn generate_from_state_key(
                     if fields.unnamed.len() == 1 {
                         quote! {
                             #name::#variant_ident(a) => {
-                                let mut bytes = [0u8; N];
-                                bytes[0] = #index;
-                                bytes[1..].copy_from_slice(&a.as_bytes());
-                                Key::new(bytes)
+                                Key::new(std::iter::once(#index).chain(a.into_iter()).collect())
                             }
                         }
                     } else {
@@ -203,12 +227,12 @@ fn generate_from_state_key(
                 // For unit-like variants
                 Fields::Unit => {
                     quote! {
-                                #name::#variant_ident => {
-                                     let mut bytes = [0u8; N];  // Initialize with zeros
-                    bytes[0] = #index;
-                    Key::new(bytes)
-                                }
-                            }
+                        #name::#variant_ident => {
+                            let mut bytes = [0u8; 1];  // Initialize with zeros
+                            bytes[0] = #index;
+                            Key::new(bytes.to_vec())
+                        }
+                    }
                 }
                 // Named fields can be treated similarly to Unnamed with some changes
                 Fields::Named(_) => unimplemented!(),
@@ -218,13 +242,23 @@ fn generate_from_state_key(
 
     // easier to manage the conversions
     quote! {
-        impl <const N: usize> From<#name> for Key<N> {
+        use wasmlanche_sdk::state::Key;
+
+        impl From<#name> for Key {
             fn from(item: #name) -> Self {
                 match item {
                     #(#conversions,)*
                 }
             }
         }
+    }
+}
+
+fn calculate_size_for_variant(variant: &syn::Variant) -> usize {
+    match &variant.fields {
+        syn::Fields::Unnamed(fields) => fields.unnamed.len(),
+        syn::Fields::Unit => 1,
+        syn::Fields::Named(_) => todo!(), // Implement logic for named fields if needed
     }
 }
 

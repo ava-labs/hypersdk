@@ -20,11 +20,8 @@ extern "C" {
 
 /// Persists `Storable` object to host storage.
 #[must_use]
-pub(crate) fn put_bytes<const M: usize, const N: usize>(
-    caller: &Program,
-    storable: Storable<M, N>,
-) -> Result<(), StateError> {
-    let resp = unsafe { _put(caller.id(), storable.key().into(), storable.value().into()) };
+pub(crate) fn put_bytes(caller: &Program, key: Key, value: Value) -> Result<(), StateError> {
+    let resp = unsafe { _put(caller.id(), key.into(), value.into()) };
     if resp.is_negative() {
         return Err(StateError::Write);
     }
@@ -34,11 +31,8 @@ pub(crate) fn put_bytes<const M: usize, const N: usize>(
 
 /// Returns a `Value` associated with the `Key` from the host.
 #[must_use]
-pub(crate) fn get_bytes<const M: usize, const N: usize>(
-    caller: &Program,
-    storable_key: Key<M>,
-) -> Result<Value<N>, StateError> {
-    let resp = unsafe { _get(caller.id(), storable_key.into()) };
+pub(crate) fn get_bytes(caller: &Program, key: Key) -> Result<Value, StateError> {
+    let resp = unsafe { _get(caller.id(), key.into()) };
     if resp.is_negative() {
         return Err(StateError::Read);
     }
@@ -48,10 +42,7 @@ pub(crate) fn get_bytes<const M: usize, const N: usize>(
 
 /// Deletes the bytes associated with the `Key` from the host.
 #[must_use]
-pub(crate) fn delete_bytes<const M: usize>(
-    caller: &Program,
-    storable_key: Key<M>,
-) -> Result<(), StateError> {
+pub(crate) fn delete_bytes(caller: &Program, storable_key: Key) -> Result<(), StateError> {
     let resp = unsafe { _delete(caller.id(), storable_key.into()) };
     if resp.is_negative() {
         return Err(StateError::Delete);

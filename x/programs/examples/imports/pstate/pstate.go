@@ -63,7 +63,7 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Supp
 	return nil
 }
 
-func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLength int32, valuePtr int32, valueLength int32) int32 {
+func (i *Import) putFn(caller *wasmtime.Caller, idPtr, key, value int64) int64 {
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
 	if err != nil {
@@ -73,17 +73,17 @@ func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLe
 		return -1
 	}
 
-	keyBytes, err := memory.Range(uint64(keyPtr), uint64(keyLength))
+	keyBytes, err := bytesFromStorable(memory, key)
 	if err != nil {
-		i.log.Error("failed to read key from memory",
+		i.log.Error("failed to parse storable key",
 			zap.Error(err),
 		)
 		return -1
 	}
 
-	valueBytes, err := memory.Range(uint64(valuePtr), uint64(valueLength))
+	valueBytes, err := bytesFromStorable(memory, value)
 	if err != nil {
-		i.log.Error("failed to read value from memory",
+		i.log.Error("failed to parse storable value",
 			zap.Error(err),
 		)
 		return -1
@@ -101,7 +101,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLe
 	return 0
 }
 
-func (i *Import) getFn(caller *wasmtime.Caller, idPtr, key Storable) int64 {
+func (i *Import) getFn(caller *wasmtime.Caller, idPtr, key int64) int64 {
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
 	if err != nil {
@@ -150,7 +150,7 @@ func (i *Import) getFn(caller *wasmtime.Caller, idPtr, key Storable) int64 {
 	return int64(ptr)
 }
 
-func (i *Import) deleteFn(caller *wasmtime.Caller, idPtr, key Storable) int64 {
+func (i *Import) deleteFn(caller *wasmtime.Caller, idPtr, key int64) int64 {
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
 	if err != nil {
@@ -182,7 +182,7 @@ func (i *Import) deleteFn(caller *wasmtime.Caller, idPtr, key Storable) int64 {
 
 
 
-func bytesFromStorable(m runtime. Memory, storable Storable) ([]byte, error) {
+func bytesFromStorable(m runtime. Memory, storable int64) ([]byte, error) {
 	if storable < 0 {
 		return nil, fmt.Errorf("failed to read from memory: %w", runtime.ErrUnderflow)
 	}

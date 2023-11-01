@@ -1,4 +1,3 @@
-use wasmlanche_sdk::state::Key;
 use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
 
 /// The program state keys.
@@ -20,19 +19,19 @@ pub fn init(program: Program) -> bool {
     // set total supply
     program
         .state()
-        .store(StateKey::TotalSupply, &123456789_i64)
+        .store(StateKey::TotalSupply, 123456789_i64)
         .expect("failed to store total supply");
 
     // set token name
     program
         .state()
-        .store(StateKey::Name, b"WasmCoin")
+        .store(StateKey::Name, "WasmCoins")
         .expect("failed to store coin name");
 
     // set token symbol
     program
         .state()
-        .store(StateKey::Symbol, b"WACK")
+        .store(StateKey::Symbol, "WACK")
         .expect("failed to store symbol");
 
     true
@@ -51,14 +50,15 @@ pub fn get_total_supply(program: Program) -> i64 {
 /// Transfers balance from the token owner to the recipient.
 #[public]
 pub fn mint_to(program: Program, recipient: Address, amount: i64) -> bool {
-    let balance = program
+    let balance: i64 = program
         .state()
-        .get::<i64, _>(StateKey::Balance(recipient).to_vec())
-        .unwrap_or_default();
+        .get(StateKey::Balance(recipient))
+        .unwrap_or_default()
+        .into();
 
     program
         .state()
-        .store(StateKey::Balance(recipient).to_vec(), &(balance + amount))
+        .store(StateKey::Balance(recipient), balance + amount)
         .expect("failed to store balance");
 
     true
@@ -70,33 +70,29 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
     assert_ne!(sender, recipient, "sender and recipient must be different");
 
     // ensure the sender has adequate balance
-    let sender_balance = program
+    let sender_balance: i64 = program
         .state()
-        .get::<i64, _>(StateKey::Balance(sender).to_vec())
-        .expect("failed to update balance");
+        .get(StateKey::Balance(sender))
+        .expect("failed to update balance")
+        .into();
 
     assert!(amount >= 0 && sender_balance >= amount, "invalid input");
 
-    let recipient_balance = program
+    let recipient_balance: i64 = program
         .state()
-        .get::<i64, _>(StateKey::Balance(recipient).to_vec())
-        .unwrap_or_default();
+        .get(StateKey::Balance(recipient))
+        .unwrap_or_default()
+        .into();
 
     // update balances
     program
         .state()
-        .store(
-            StateKey::Balance(sender).to_vec(),
-            &(sender_balance - amount),
-        )
+        .store(StateKey::Balance(sender), sender_balance - amount)
         .expect("failed to store balance");
 
     program
         .state()
-        .store(
-            StateKey::Balance(recipient).to_vec(),
-            &(recipient_balance + amount),
-        )
+        .store(StateKey::Balance(recipient), recipient_balance + amount)
         .expect("failed to store balance");
 
     true
@@ -107,8 +103,9 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
 pub fn get_balance(program: Program, recipient: Address) -> i64 {
     program
         .state()
-        .get(StateKey::Balance(recipient).to_vec())
+        .get(StateKey::Balance(recipient))
         .unwrap_or_default()
+        .into()
 }
 
 #[cfg(test)]

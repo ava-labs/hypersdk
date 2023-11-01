@@ -6,51 +6,117 @@ use crate::{
     host::{delete_bytes, get_bytes, put_bytes},
     memory::Memory,
     program::Program,
+    types::Bytes32,
 };
 
-#[derive(Debug, Copy, Clone)]
-pub struct Key<const N: usize>([u8; N]);
+#[derive(Debug, Default, Clone)]
+pub struct Key(Vec<u8>);
 
-impl<const N: usize> From<Key<N>> for i64
-where
-    [(); 8]: Sized,
-{
-    fn from(key: Key<N>) -> Self {
+impl Key {
+    #[must_use]
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl From<&str> for Key {
+    fn from(s: &str) -> Self {
+        // Convert the string slice into a byte slice
+        let bytes = s.as_bytes();
+
+        Self(bytes.to_vec())
+    }
+}
+
+impl From<Key> for i64 {
+    fn from(key: Key) -> Self {
+        let bytes = key.0;
         let mut arr = [0u8; 8];
-        arr[..N].copy_from_slice(&key.0[..N]);
+        arr.copy_from_slice(&bytes[0..8]);
         i64::from_be_bytes(arr)
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct Value<const M: usize>([u8; M]);
-
-impl<const M: usize> Default for Value<M> {
-    fn default() -> Self {
-        Self([0u8; M])
+impl From<i64> for Key {
+    fn from(item: i64) -> Self {
+        let bytes = item.to_be_bytes();
+        Self(bytes.to_vec())
     }
 }
 
-impl<const M: usize> From<Value<M>> for i64
-where
-    [(); 8]: Sized,
-{
-    fn from(key: Value<M>) -> Self {
+#[derive(Debug, Default, Clone)]
+pub struct Value{
+    bytes: [u8; 8],
+}
+
+impl Value {
+    #[must_use]
+    pub fn new(bytes:[u8; 8]) -> Self {
+        Self{bytes}
+    }
+
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.bytes.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+struct StoredValue<const N: usize> {
+    type_prefix: u8,
+    // key: Key // <- state macro would have to implement an infallible conversion from user-defined StateKey to Key
+    value: [u8; N],
+}
+
+impl From<&str> for Value {
+    fn from(s: &str) -> Self {
+        // Convert the string slice into a byte slice
+        let bytes = s.as_bytes();
+
+        Value(bytes.to_vec())
+    }
+}
+
+impl From<Value> for i64 {
+    fn from(value: Value) -> Self {
+        println!("from value");
+        let bytes = value.as_bytes();
         let mut arr = [0u8; 8];
-        arr[..M].copy_from_slice(&key.0[..M]);
+        arr.copy_from_slice(&bytes[0..8]);
         i64::from_be_bytes(arr)
     }
 }
 
-impl<const M: usize> From<i64> for Value<M>
-where
-    [(); 8]: Sized,
-{
-    fn from(val: i64) -> Self {
-        let bytes = val.to_be_bytes();
-        let mut arr = [0u8; M];
-        arr[..8].copy_from_slice(&bytes);
-        Value(arr)
+impl From<i64> for Value {
+    fn from(item: i64) -> Self {
+        let bytes = item.to_be_bytes();
+
+        println!("from i64");
+        Value(bytes.to_vec())
     }
 }
 
@@ -69,21 +135,12 @@ impl State {
     /// # Errors
     /// Returns an `StateError` if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store<K, V, const M: usize, const N: usize>(
-        &self,
-        key: K,
-        value: V,
-    ) -> Result<(), StateError>
+    pub fn store<K, V>(&self, key: K, value: V) -> Result<(), StateError>
     where
-        K: Into<Key<M>>,
-        V: Into<Value<N>>,
+        K: Into<Key>,
+        V: Into<Value>,
     {
-        let storable = Storable {
-            key: key.into(),
-            value: value.into(),
-        };
-
-        put_bytes(&self.program, storable)
+        put_bytes(&self.program, key.into(), value.into())
     }
 
     /// Get a value from the host's storage.
@@ -94,9 +151,9 @@ impl State {
     /// # Errors
     /// Returns an `StateError` if the key cannot be serialized or if
     /// the host fails to read the key and value.
-    pub fn get<K, const M: usize, const N: usize>(&self, key: K) -> Result<Value<N>, StateError>
+    pub fn get<K>(&self, key: K) -> Result<Value, StateError>
     where
-        K: Into<Key<M>>,
+        K: Into<Key>,
     {
         get_bytes(&self.program, key.into())
     }
@@ -124,38 +181,38 @@ impl State {
 //     })
 // }
 
-pub struct Storable<const M: usize, const N: usize> {
-    key: Key<M>,
-    value: Value<N>,
+pub struct Storable {
+    key: Key,
+    value: Value,
 }
 
-impl<const M: usize, const N: usize> Storable<M, N> {
-    pub fn new(key: Key<M>, value: Value<N>) -> Self {
-        Self { key, value }
-    }
+// impl Storable {
+//     pub fn new(key: Key, value: Value) -> Self {
+//         Self { key, value }
+//     }
 
-    // bucket 0 -> singleton
-    // bucket 1 -> map
-    // bucket 2 -> vector
-    // bucket 3 -> arra
-    // [bucket,prefix, key]
-    pub fn key(&self) -> Key<M> {
-        self.key
-    }
+//     // bucket 0 -> singleton
+//     // bucket 1 -> map
+//     // bucket 2 -> vector
+//     // bucket 3 -> arra
+//     // [bucket,prefix, key]
+//     pub fn key(&self) -> Key {
+//         self.key
+//     }
 
-    pub fn value(&self) -> Value<N> {
-        self.value
-    }
-}
+//     pub fn value(&self) -> Value {
+//         self.value
+//     }
+// }
 
-impl<const M: usize> Key<M> {
-    pub fn new(bytes: [u8; M]) -> Self {
-        Self(bytes)
-    }
-    pub fn from_bytes(bytes: [u8; M]) -> Self {
-        Key(bytes)
-    }
-}
+// impl Key {
+//     pub fn new(bytes: [u8; M]) -> Self {
+//         Self(bytes)
+//     }
+//     pub fn from_bytes(bytes: [u8; M]) -> Self {
+//         Key(bytes)
+//     }
+// }
 
 // impl<const M: usize, const N: usize> From<Key<M>> for Value<N> {
 //     fn from(key: Key<M>) -> Self {
@@ -173,8 +230,8 @@ impl<const M: usize> Key<M> {
 //     }
 // }
 
-impl<const N: usize> Value<N> {
-    fn from_bytes(bytes: [u8; N]) -> Self {
-        Value(bytes)
-    }
-}
+// impl<const N: usize> Value<N> {
+//     fn from_bytes(bytes: [u8; N]) -> Self {
+//         Value(bytes)
+//     }
+// }

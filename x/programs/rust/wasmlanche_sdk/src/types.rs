@@ -168,6 +168,24 @@ impl Arg {
     }
 }
 
+impl From<i64> for Arg {
+    fn from(value: i64) -> Self {
+        Self::I64(value)
+    }
+}
+
+impl From<Bytes32> for Arg {
+    fn from(value: Bytes32) -> Self {
+        Self::Bytes32(value)
+    }
+}
+
+impl From<Address> for Arg {
+    fn from(value: Address) -> Self {
+        Self::Address(value)
+    }
+}
+
 // impl Arg<32> for Bytes32 {
 //     fn as_bytes(&self) -> [u8; 32] {
 //         self.0
