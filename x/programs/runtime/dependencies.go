@@ -30,7 +30,7 @@ type Runtime interface {
 	// module with the given imports.  Initialize should only be called once.
 	Initialize(context.Context, []byte, uint64) error
 	// Call invokes the an exported guest function with the given parameters.
-	Call(context.Context, string, ...uint64) ([]uint64, error)
+	Call(context.Context, string, ...int64) ([]int64, error)
 	// Memory returns the runtime memory.
 	Memory() Memory
 	// Meter returns the runtime meter.

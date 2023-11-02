@@ -133,7 +133,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	log.Debug("count program 1",
-		zap.Uint64("alice", result[0]),
+		zap.Int64("alice", result[0]),
 	)
 
 	// write program id 2 to stack of program 1
@@ -142,7 +142,7 @@ func TestCounterProgram(t *testing.T) {
 
 	caller := programIDPtr
 	target := programID2Ptr
-	maxUnitsProgramToProgram := uint64(10000)
+	maxUnitsProgramToProgram := int64(10000)
 
 	// increment alice's counter on program 2
 	result, err = rt.Call(ctx, "inc_external", caller, target, maxUnitsProgramToProgram, alicePtr, 5)

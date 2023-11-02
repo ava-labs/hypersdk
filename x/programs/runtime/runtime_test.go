@@ -70,11 +70,11 @@ func TestCallParams(t *testing.T) {
 	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 
-	resp, err := runtime.Call(ctx, "add", uint64(10), uint64(10))
+	resp, err := runtime.Call(ctx, "add", 10, 10)
 	require.NoError(err)
-	require.Equal(uint64(20), resp[0])
+	require.Equal(int64(20), resp[0])
 
 	// pass 3 params when 2 are expected.
-	_, err = runtime.Call(ctx, "add", uint64(10), uint64(10), uint64(10))
+	_, err = runtime.Call(ctx, "add", 10, 10, 10)
 	require.ErrorIs(err, ErrInvalidParamCount)
 }

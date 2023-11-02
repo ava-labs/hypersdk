@@ -13,7 +13,10 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-func newKeyPtr(ctx context.Context, key ed25519.PublicKey, runtime runtime.Runtime) (uint64, error) {
+const MaxInt64 = runtime.MaxInt64
+var ErrIntegerConversionOverflow = runtime.ErrIntegerConversionOverflow	
+
+func newKeyPtr(ctx context.Context, key ed25519.PublicKey, runtime runtime.Runtime) (int64, error) {
 	ptr, err := runtime.Memory().Alloc(ed25519.PublicKeyLen)
 	if err != nil {
 		return 0, err
@@ -25,7 +28,10 @@ func newKeyPtr(ctx context.Context, key ed25519.PublicKey, runtime runtime.Runti
 		return 0, err
 	}
 
-	return ptr, err
+	if ptr > MaxInt64 {
+		return 0, ErrIntegerConversionOverflow
+	}
+	return int64(ptr), err
 }
 
 func newKey() (ed25519.PrivateKey, ed25519.PublicKey, error) {

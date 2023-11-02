@@ -3,7 +3,11 @@
 
 package runtime
 
-import "github.com/ava-labs/avalanchego/utils/units"
+import (
+	"math"
+
+	"github.com/ava-labs/avalanchego/utils/units"
+)
 
 const (
 	AllocFnName         = "alloc"
@@ -12,4 +16,5 @@ const (
 	guestSuffix         = "_guest"
 	wasiPreview1ModName = "wasi_snapshot_preview1"
 	MemoryPageSize      = 64 * units.KiB
+	MaxInt64			= math.MaxInt64
 )

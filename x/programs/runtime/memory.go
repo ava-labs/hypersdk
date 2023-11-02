@@ -111,7 +111,7 @@ func (m *memory) Len() (uint64, error) {
 
 // WriteBytes is a helper function that allocates memory and writes the given
 // bytes to the memory returning the offset.
-func WriteBytes(m Memory, buf []byte) (uint64, error) {
+func WriteBytes(m Memory, buf []byte) (int64, error) {
 	offset, err := m.Alloc(uint64(len(buf)))
 	if err != nil {
 		return 0, err
@@ -121,7 +121,11 @@ func WriteBytes(m Memory, buf []byte) (uint64, error) {
 		return 0, err
 	}
 
-	return offset, nil
+	if offset > MaxInt64 {
+		return 0, fmt.Errorf("write bytes failed: %w", ErrInvalidMemoryAddress)
+	}
+
+	return int64(offset), nil
 }
 
 // CallParam defines a value to be passed to a guest function.
@@ -131,8 +135,8 @@ type CallParam struct {
 
 // WriteParams is a helper function that writes the given params to memory if non integer.
 // Supported types include int, uint64 and string.
-func WriteParams(m Memory, p []CallParam) ([]uint64, error) {
-	params := []uint64{}
+func WriteParams(m Memory, p []CallParam) ([]int64, error) {
+	params := []int64{}
 	for _, param := range p {
 		switch v := param.Value.(type) {
 		case string:
@@ -145,9 +149,12 @@ func WriteParams(m Memory, p []CallParam) ([]uint64, error) {
 			if v < 0 {
 				return nil, fmt.Errorf("failed to write param: %w", ErrNegativeValue)
 			}
-			params = append(params, uint64(v))
+			params = append(params, int64(v))
 		case uint64:
-			params = append(params, v)
+			if v > MaxInt64 {
+				return nil, fmt.Errorf("failed to write param: %w", ErrIntegerConversionOverflow)
+			}
+			params = append(params, int64(v))
 		default:
 			return nil, fmt.Errorf("%w: support types int, uint64 and string", ErrInvalidParamType)
 		}

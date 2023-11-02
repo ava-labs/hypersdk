@@ -152,7 +152,7 @@ func getRegisteredImportModules(importTypes []*wasmtime.ImportType) []string {
 	return imports
 }
 
-func (r *WasmRuntime) Call(_ context.Context, name string, params ...uint64) ([]uint64, error) {
+func (r *WasmRuntime) Call(_ context.Context, name string, params ...int64) ([]int64, error) {
 	var fnName string
 	switch name {
 	case AllocFnName, DeallocFnName, MemoryFnName:
@@ -184,13 +184,14 @@ func (r *WasmRuntime) Call(_ context.Context, name string, params ...uint64) ([]
 
 	switch v := result.(type) {
 	case int32:
-		value := uint64(result.(int32))
-		return []uint64{value}, nil
+		value := int64(result.(int32))
+		return []int64{value}, nil
 	case int64:
-		value := uint64(result.(int64))
-		return []uint64{value}, nil
+		value := result.(int64)
+		return []int64{value}, nil
 	case nil:
-		return []uint64{}, nil
+		// the function had no return values
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("invalid result type: %v", v)
 	}
@@ -241,14 +242,14 @@ func PreCompileWasmBytes(programBytes []byte, cfg *Config) ([]byte, error) {
 }
 
 // mapFunctionParams maps call input to the expected wasm function params.
-func mapFunctionParams(input []uint64, values []*wasmtime.ValType) ([]interface{}, error) {
+func mapFunctionParams(input []int64, values []*wasmtime.ValType) ([]interface{}, error) {
 	params := make([]interface{}, len(values))
 	for i, v := range values {
 		switch v.Kind() {
 		case wasmtime.KindI32:
 			params[i] = int32(input[i])
 		case wasmtime.KindI64:
-			params[i] = int64(input[i])
+			params[i] = input[i]
 		default:
 			return nil, fmt.Errorf("%w: %v", ErrInvalidParamType, v.Kind())
 		}
