@@ -196,7 +196,7 @@ func (r *WasmRuntime) Call(_ context.Context, name string, params ...uint64) ([]
 		value := uint64(result.(int64))
 		return []uint64{value}, nil
 	case nil:
-		return nil, nil
+		return []uint64{}, nil
 	default:
 		return nil, fmt.Errorf("invalid result type: %v", v)
 	}

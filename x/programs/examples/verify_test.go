@@ -6,7 +6,6 @@ package examples
 import (
 	"context"
 	_ "embed"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,14 +23,27 @@ var verifyProgramBytes []byte
 // go test -v -timeout 30s -run ^TestVerifyProgram$ github.com/ava-labs/hypersdk/x/programs/examples
 func TestVerifyProgram(t *testing.T) {
 	require := require.New(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	rt, programIDPtr := SetupRuntime(require, ctx)
+
+	// call vertify
+	_, err := rt.Call(ctx, "verify_ed_in_wasm", programIDPtr)
+	require.NoError(err)
+
+	rt.Stop()
+
+}
+
+func SetupRuntime(require *require.Assertions, ctx context.Context) (runtime.Runtime, uint64) {
 	db := newTestDB()
 	maxUnits := uint64(40000)
 	// need with bulk memory to run this test(for io ops)
 	cfg, err := runtime.NewConfigBuilder().WithDebugMode(true).Build()
 	require.NoError(err)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	
 
 	// define supported imports
 	supported := runtime.NewSupportedImports()
@@ -41,9 +53,6 @@ func TestVerifyProgram(t *testing.T) {
 	supported.Register("program", func() runtime.Import {
 		return program.New(log, db, cfg)
 	})
-	supported.Register("wasiPreview1ModName", nil)
-
-
 
 	rt := runtime.New(log, cfg, supported.Imports())
 	err = rt.Initialize(ctx, verifyProgramBytes, maxUnits)
@@ -59,12 +68,5 @@ func TestVerifyProgram(t *testing.T) {
 	programIDPtr, err := runtime.WriteBytes(rt.Memory(), programID[:])
 	require.NoError(err)
 
-
-	// call vertify
-	_, err = rt.Call(ctx, "verify_ed_in_wasm", programIDPtr)
-	fmt.Println(err)
-	require.NoError(err)
-
-	rt.Stop()
-
+	return rt, programIDPtr
 }
