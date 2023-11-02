@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 wasmlanche_sdk = { version = "0.1.0", path = "../../wasmlanche_sdk" }
-ed25519-dalek = { version = "2.0.0", features = ["rand_core"]} # for the generate SigningKey function
+# ed25519-dalek = { version = "2.0.0", features = ["rand_core"]} # for the generate SigningKey function
 
 [lib]
 crate-type = ["cdylib"] # set the crate(needed for cargo build to work properly)
