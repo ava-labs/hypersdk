@@ -1,0 +1,20 @@
+[package]
+name = "nft"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+wasmlanche_sdk = { version = "0.1.0", path = "../../wasmlanche_sdk", features = ["simulator"]}
+serde = "1.0.188"
+
+[dev-dependencies]
+serde_json = "1.0.68"
+
+[lib]
+crate-type = ["cdylib"] # set the crate(needed for cargo build to work properly)
+
+[[integration]]
+name = "nft"
+path = "tests/nft.rs"
