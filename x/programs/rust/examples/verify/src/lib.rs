@@ -1,35 +1,29 @@
-extern crate ed25519_dalek;
+use ed25519_dalek::{Signature, SigningKey, Signer};
 
-use ed25519_dalek::Verifier;
-use ed25519_dalek::Signature;
-use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
-
-/// Initializes the program
-#[public]
-pub fn init(program: Program) -> bool {
-    true
-}
+ 
+use wasmlanche_sdk::{program::Program, public};
 
 /// Verifies the ed25519 signature in wasm. 
 #[public]
-pub fn verify_ed_in_wasm(program: Program) {
-    let public_key_bytes = [0u8; 32]; // Replace with your public key bytes
-    let signature_bytes = [0u8; 64]; // Replace with your signature bytes
+pub fn verify_ed_in_wasm(_: Program) {
 
-    // Parse the public key and signature
-    let public_key = ed25519_dalek::PublicKey::from_bytes(&public_key_bytes).unwrap();
-    let signature = ed25519_dalek::Signature::from_bytes(&signature_bytes).unwrap();
+    // let mut csprng = OsRng;
+    // let signing_key: SigningKey = SigningKey::generate(&mut csprng);
+    
+    // // Parse the public key and signature
+    // let message: &[u8] = b"This is a test of the tsunami alert system.";
+    // let signature: Signature = signing_key.sign(message);
 
-    // Replace this with your actual message
-    let message = "Hello, world!";
 
-    let verifier = public_key.into();
-
-    if verifier.verify(message.as_bytes(), &signature).is_ok() {
-        println!("Signature is valid");
-    } else {
-        println!("Signature is invalid");
-    }
+    // match signing_key.verify(message, &signature) {
+    //     Ok(_) => println!("Signature verified"),
+    //     Err(_) => println!("Signature not verified"),
+    // }
+    println!("Hello world");
+    // // Anyone else, given the public half of the signing_key can also easily verify this signature:
+   
+    // let verifying_key: VerifyingKey = signing_key.verifying_key();
+    // assert!(verifying_key.verify(message, &signature).is_ok());
 }
 
 // #[public]
