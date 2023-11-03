@@ -14,7 +14,8 @@ import (
 )
 
 const MaxInt64 = runtime.MaxInt64
-var ErrIntegerConversionOverflow = runtime.ErrIntegerConversionOverflow	
+
+var ErrIntegerConversionOverflow = runtime.ErrIntegerConversionOverflow
 
 func newKeyPtr(ctx context.Context, key ed25519.PublicKey, runtime runtime.Runtime) (int64, error) {
 	ptr, err := runtime.Memory().Alloc(ed25519.PublicKeyLen)
