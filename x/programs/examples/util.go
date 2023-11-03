@@ -13,24 +13,20 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-const MaxInt64 = runtime.MaxInt64
-
-var ErrIntegerConversionOverflow = runtime.ErrIntegerConversionOverflow
-
-func newKeyPtr(ctx context.Context, key ed25519.PublicKey, runtime runtime.Runtime) (int64, error) {
-	ptr, err := runtime.Memory().Alloc(ed25519.PublicKeyLen)
+func newKeyPtr(ctx context.Context, key ed25519.PublicKey, rt runtime.Runtime) (int64, error) {
+	ptr, err := rt.Memory().Alloc(ed25519.PublicKeyLen)
 	if err != nil {
 		return 0, err
 	}
 
 	// write programID to memory which we will later pass to the program
-	err = runtime.Memory().Write(ptr, key[:])
+	err = rt.Memory().Write(ptr, key[:])
 	if err != nil {
 		return 0, err
 	}
 
-	if ptr > MaxInt64 {
-		return 0, ErrIntegerConversionOverflow
+	if ptr > runtime.MaxInt64 {
+		return 0, runtime.ErrIntegerConversionOverflow
 	}
 	return int64(ptr), err
 }

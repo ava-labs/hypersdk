@@ -29,7 +29,9 @@ type Runtime interface {
 	// units. The engine will handle the compile strategy and instantiate the
 	// module with the given imports.  Initialize should only be called once.
 	Initialize(context.Context, []byte, uint64) error
-	// Call invokes the an exported guest function with the given parameters.
+	// Call invokes an exported guest function with the given parameters.
+	// Returns the results of the call or an error if the call failed.
+	// If there are 0 results this value is set to nil.
 	Call(context.Context, string, ...int64) ([]int64, error)
 	// Memory returns the runtime memory.
 	Memory() Memory
