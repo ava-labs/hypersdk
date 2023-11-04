@@ -196,8 +196,8 @@ func (c *ConfigBuilder) WithDefaultCache(enabled bool) *ConfigBuilder {
 }
 
 // WithDebugMode enables debug mode which provides access to
-// useful debugging information. We also EnableBulkMemory to support
-// useful IO operations during debugging.
+// useful debugging information. If [enabled] is true we set
+// EnableBulkMemory to support useful IO operations during debugging.
 //
 // This should not be set for a live system as it has
 // both performance and security considerations.
