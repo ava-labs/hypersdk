@@ -7,12 +7,16 @@ import (
 )
 
 const (
+	AddressLen = 33
+
 	fromBits      = 8
 	toBits        = 5
 	separatorLen  = 1
 	checksumlen   = 6
 	maxBech32Size = 90
 )
+
+type AddressBytes [AddressLen]byte
 
 // Address returns a Bech32 address from hrp and p.
 // This function uses avalanchego's FormatBech32 function.
