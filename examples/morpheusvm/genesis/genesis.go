@@ -13,8 +13,9 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	hconsts "github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/address"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
@@ -124,7 +125,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 
 	supply := uint64(0)
 	for _, alloc := range g.CustomAllocation {
-		pk, err := address.ParseBech32(alloc.Address)
+		addr, err := codec.ParseAddress(consts.HRP, alloc.Address)
 		if err != nil {
 			return fmt.Errorf("%w: %s", err, alloc.Address)
 		}
@@ -132,7 +133,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 		if err != nil {
 			return err
 		}
-		if err := storage.SetBalance(ctx, mu, pk, alloc.Balance); err != nil {
+		if err := storage.SetBalance(ctx, mu, addr, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}
