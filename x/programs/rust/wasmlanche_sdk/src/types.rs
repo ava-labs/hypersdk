@@ -126,8 +126,8 @@ impl<const N: usize> Display for Bytes<N> {
 // }
 
 #[repr(u8)]
-#[derive(Clone, Copy, Serialize, Deserialize)]
-pub enum ArgTypes {
+#[derive(Clone, Debug, Copy, Serialize, Deserialize)]
+pub enum TypePrefix {
     I64 = 0x0,
     I32,
     Bytes32,
@@ -144,10 +144,10 @@ pub enum Arg {
 impl Arg {
     pub fn prefix(&self) -> u8 {
         match self {
-            Arg::I64(_) => ArgTypes::I64 as u8,
-            Arg::Bytes32(_) => ArgTypes::Bytes32 as u8,
-            Arg::Address(_) => ArgTypes::Bytes32 as u8,
-            Arg::Bytes(_) => ArgTypes::Bytes as u8,
+            Arg::I64(_) => TypePrefix::I64 as u8,
+            Arg::Bytes32(_) => TypePrefix::Bytes32 as u8,
+            Arg::Address(_) => TypePrefix::Bytes32 as u8,
+            Arg::Bytes(_) => TypePrefix::Bytes as u8,
         }
     }
     pub fn as_bytes(&self) -> Vec<u8> {

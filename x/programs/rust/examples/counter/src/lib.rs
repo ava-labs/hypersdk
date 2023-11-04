@@ -52,7 +52,8 @@ fn get_value(program: Program, of: Address) -> i64 {
     program
         .state()
         .get(StateKeys::Counter(of))
-        .expect("failed to get counter").into()
+        .expect("failed to get counter")
+        .into()
 }
 
 /// Gets the count at the address for an external program.

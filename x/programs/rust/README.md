@@ -148,6 +148,32 @@ pub fn vote(program: Program, proposal: i64, weight: i64) -> i64 {
 
 ```
 
+### Advanced State Management
+
+```rust 
+
+type BucketKey = [u8; 32]
+
+enum StateRoot {
+  Singleton
+  Bucket(BucketKey)
+}
+
+#[state_keys]
+enum StateKeys {
+    MappedSomething(Bucket, SerializableObj) // 0x0 + [u8; 8]
+}
+
+#[public]
+pub fn complex_host_state_transition(program: Program, map_obj: SharedBuffer ) -> Result(SharedBuffer, ProgramError) {
+  let votes = program
+        .state()
+        .get(StateKey::Proposal(proposal.to_be_bytes()).to_vec())
+        .expect("failed to get proposal")
+
+} 
+```
+
 ### Rust Program SDK
 
 These modules provides the necessary tools to build WASM programs using rust.

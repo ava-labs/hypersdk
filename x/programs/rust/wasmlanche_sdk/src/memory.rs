@@ -4,47 +4,54 @@
 //! the program. These methods are unsafe as should be used
 //! with caution.
 
+use crate::errors::StateError;
+
 /// Represents a pointer to a block of memory allocated by the global allocator.
 #[derive(Clone, Copy)]
-pub struct Pointer(*mut u8);
+pub struct Pointer(*const u8);
 
-impl From<i64> for Pointer {
-    fn from(v: i64) -> Self {
-        let ptr: *mut u8 = v as *mut u8;
-        Pointer(ptr)
+impl Pointer {
+    #[must_use]
+    pub fn new(ptr: u32) -> Self {
+        Self(ptr as *const u8)
+    }
+
+    pub fn is_null(&self) -> bool {
+        self.0.is_null()
     }
 }
 
 impl From<Pointer> for *const u8 {
     fn from(pointer: Pointer) -> Self {
-        pointer.0.cast_const()
+        pointer.0
     }
 }
 
 impl From<Pointer> for *mut u8 {
     fn from(pointer: Pointer) -> Self {
-        pointer.0
+        pointer.0.cast_mut()
     }
 }
 
 /// Represents a block of memory allocated by the global allocator.
 pub struct Memory {
     ptr: Pointer,
+    length: usize,
 }
 
 impl Memory {
     #[must_use]
-    pub fn new(ptr: Pointer) -> Self {
-        Self { ptr }
+    pub fn new(ptr: Pointer, length: usize) -> Self {
+        Self { ptr, length }
     }
 
-    /// Attempts return a opy of the bytes from a pointer created by the global allocator.
+    /// Attempts return a copy of the bytes from a pointer created by the global allocator.
     /// # Safety
     /// `ptr` must be a pointer to a block of memory created using alloc.
     /// `length` must be the length of the block of memory.
     #[must_use]
-    pub unsafe fn range(&self, length: usize) -> Vec<u8> {
-        unsafe { std::slice::from_raw_parts(self.ptr.into(), length).to_vec() }
+    pub unsafe fn to_vec(&self) -> Vec<u8> {
+        unsafe { std::slice::from_raw_parts(self.ptr.into(), self.length).to_vec() }
     }
 
     /// Returns ownership of the bytes and frees the memory block created by the
@@ -53,19 +60,55 @@ impl Memory {
     /// `ptr` must be a pointer to a block of memory created using alloc.
     /// `length` must be the length of the block of memory.
     #[must_use]
-    pub unsafe fn range_mut(&self, length: usize) -> Vec<u8> {
-        unsafe { Vec::from_raw_parts(self.ptr.into(), length, length) }
+    pub unsafe fn into_vec(&self) -> Vec<u8> {
+        unsafe { Vec::from_raw_parts(self.ptr.into(), self.length, self.length) }
+    }
+}
+
+/// converts an i64 from the host to the value
+impl TryFrom<i64> for Memory {
+    type Error = StateError;
+
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        if value.is_negative() {
+            return Err(StateError::Underflow);
+        }
+        let value_bytes = value.to_be_bytes();
+        let (ptr, len) = try_parse_raw_parts(value)?;
+        Ok(Self::new(ptr, len))
+    }
+}
+
+impl From<Memory> for Vec<u8> {
+    fn from(memory: Memory) -> Self {
+        unsafe { memory.to_vec() }
+    }
+}
+
+/// converts the value to BigEndian bytes and then extracting the first 4 bytes as length and the later as a pointer.
+pub fn try_parse_raw_parts(value: i64) -> Result<(Pointer, usize), StateError> {
+    let data = value.to_be_bytes();
+    // extract lower 4 bytes as length
+    let len = usize::try_from(u32::from_be_bytes(
+        value.to_be_bytes()[0..4]
+            .try_into()
+            .map_err(|e| StateError::TryFromSlice(e))?,
+    ))
+    .map_err(|e| StateError::TryFromInt(e))?;
+
+    // extract upper 4 bytes as pointer
+    let ptr_u32 = u32::from_be_bytes(
+        data[4..8]
+            .try_into()
+            .map_err(|e| StateError::TryFromSlice(e))?,
+    );
+
+    let ptr = Pointer::new(ptr_u32);
+    if ptr.is_null() {
+        return Err(StateError::NullPointer);
     }
 
-    /// Attempts to write the bytes to the programs shared memory.
-    /// # Safety
-    /// `ptr` must be a pointer to a block of memory created using alloc.
-    /// `bytes` must be a slice of bytes with length <= `capacity`.
-    pub unsafe fn write<T: AsRef<[u8]>>(&self, bytes: T) {
-        self.ptr
-            .0
-            .copy_from(bytes.as_ref().as_ptr(), bytes.as_ref().len());
-    }
+    Ok((ptr, len))
 }
 
 /// Attempts to allocate a block of memory of size `len` and returns a pointer

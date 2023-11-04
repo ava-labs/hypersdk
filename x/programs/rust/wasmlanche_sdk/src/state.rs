@@ -1,3 +1,4 @@
+use byteorder::{BigEndian, ByteOrder};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_bare::to_vec;
 
@@ -6,7 +7,7 @@ use crate::{
     host::{delete_bytes, get_bytes, put_bytes},
     memory::Memory,
     program::Program,
-    types::Bytes32,
+    types::{Bytes32, TypePrefix},
 };
 
 #[derive(Debug, Default, Clone)]
@@ -59,24 +60,33 @@ impl From<i64> for Key {
     }
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct Value{
-    bytes: [u8; 8],
+/// Represents an i64 passed from the host to the program. The first 4 bytes represents the length and the last 4 bytes represent the pointer to the value.
+pub struct HostValue {
+    bytes: Vec<u8>,
 }
 
+#[derive(Debug, Clone)]
+pub struct Value {
+    type_prefix: TypePrefix,
+    bytes: Vec<u8>,
+}
+//    1    4
+// [type][len][bytes]
 impl Value {
     #[must_use]
-    pub fn new(bytes:[u8; 8]) -> Self {
-        Self{bytes}
+    pub fn new(type_prefix: TypePrefix, bytes: Vec<u8>) -> Self {
+        Self { type_prefix, bytes }
     }
 
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
+        // fix me
         &self.bytes
     }
 
     #[must_use]
     pub fn len(&self) -> usize {
+        // fix me the total len would include the type prefix etc
         self.bytes.len()
     }
 
@@ -97,10 +107,13 @@ impl From<&str> for Value {
         // Convert the string slice into a byte slice
         let bytes = s.as_bytes();
 
-        Value(bytes.to_vec())
+        // TODO: method that returns the type from s
+
+        Value{ type_prefix:TypePrefix::Bytes , bytes: bytes.to_vec() }
     }
 }
 
+//
 impl From<Value> for i64 {
     fn from(value: Value) -> Self {
         println!("from value");
@@ -111,12 +124,24 @@ impl From<Value> for i64 {
     }
 }
 
+/// converts an i64 from the host to the value
 impl From<i64> for Value {
-    fn from(item: i64) -> Self {
-        let bytes = item.to_be_bytes();
+    fn from(value: i64) -> Self {
+        let value_bytes = value.to_be_bytes();
 
-        println!("from i64");
-        Value(bytes.to_vec())
+        // extract lower 4 bytes as length
+        let len = usize::try_from(BigEndian::read_u32(&value_bytes[0..4]))
+            .expect("failed to convert size to usize");
+        // extract upper 4 bytes as pointer
+        let ptr = BigEndian::read_u32(&value_bytes[4..8]);
+
+        let bytes = unsafe {
+            std::slice::from_raw_parts(ptr as *const u8, len)
+                .try_into()
+                .expect("failed create byte slice from ptr")
+        };
+
+        Value::new(bytes)
     }
 }
 
@@ -151,35 +176,13 @@ impl State {
     /// # Errors
     /// Returns an `StateError` if the key cannot be serialized or if
     /// the host fails to read the key and value.
-    pub fn get<K>(&self, key: K) -> Result<Value, StateError>
+    pub fn get<K>(&self, key: K) -> Result<Vec<u8>, StateError>
     where
         K: Into<Key>,
     {
         get_bytes(&self.program, key.into())
     }
 }
-
-// fn from_slice<K, const M: usize, const N: usize>(slice: &[u8]) -> Result<Storable<M,N>, StateError> {
-//     // We need at least 1 byte for the type_prefix, plus the size of the key, plus N bytes for the value.
-//     if slice.len() < 1 + std::mem::size_of::<Key<N>>() + N {
-//         return Err(StateError::InvalidBytes);
-//     }
-
-//     let value_type_prefix = slice[0];
-
-//     // For simplicity, let's assume Key is of fixed size, say 8 bytes.
-//     let key_bytes = &slice[1..1 + std::mem::size_of::<Key<N>>()];
-//     let key = Key::from_bytes(key_bytes.try_into().expect("Incorrect key size"));
-
-//     let value_bytes = &slice[1 + std::mem::size_of::<Key<N>>()..];
-//     let mut value = [0u8; N];
-//     value.copy_from_slice(value_bytes);
-
-//     Ok(Storable {
-//         key,
-//         value,
-//     })
-// }
 
 pub struct Storable {
     key: Key,
@@ -235,3 +238,28 @@ pub struct Storable {
 //         Value(bytes)
 //     }
 // }
+
+
+/// On disk state is linear. State root is segmented into two options: a singleton key and a key bucket. In complex data structures such as for example a map you can use a bucket and struct to describe this data. The bucket is a 64 byte array which is used to store the key-value pairs. The first 4 bytes of the bucket is used to store the number of key-value pairs in the bucket. The remaining 60 bytes are used to store the key-value pairs. The key-value pairs are stored sequentially in the bucket. The
+/// 
+/// On disk we would perform a range
+/// hashed_name, [metadata], "name"
+/// [bucket_key, prefix_type, key]
+/// [bucket_key, prefix_type, key]
+
+type Bucket = [u8; 64];
+
+struct Metadata {
+    /// The number of key-value pairs in the bucket.
+    count: u32,
+    /// The number of bytes used to store the key-value pairs.
+    used_bytes: u32,
+}
+
+
+
+enum StateKeyRoot {
+    /// Represents a single key which would be used for a key-value pair.
+    SingletonKey, // 0x0
+    BucketetKey(Bucket, Metadata), // 0x1
+}

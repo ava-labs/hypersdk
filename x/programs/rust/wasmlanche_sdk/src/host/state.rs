@@ -3,7 +3,7 @@
 use crate::{
     errors::StateError,
     program::Program,
-    state::{Key, Storable, Value},
+    state::{Key, Value}, memory::Memory,
 };
 
 #[link(wasm_import_module = "state")]
@@ -29,15 +29,16 @@ pub(crate) fn put_bytes(caller: &Program, key: Key, value: Value) -> Result<(), 
     Ok(())
 }
 
-/// Returns a `Value` associated with the `Key` from the host.
+/// Returns a vec of bytes associated with the `Key` from the host.
 #[must_use]
-pub(crate) fn get_bytes(caller: &Program, key: Key) -> Result<Value, StateError> {
+pub(crate) fn get_bytes(caller: &Program, key: Key) -> Result<Vec<u8>, StateError> {
     let resp = unsafe { _get(caller.id(), key.into()) };
     if resp.is_negative() {
         return Err(StateError::Read);
     }
+    let memory: Memory = resp.try_into()?;
 
-    Ok(resp.into())
+    Ok(memory.into())
 }
 
 /// Deletes the bytes associated with the `Key` from the host.
