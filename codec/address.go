@@ -9,6 +9,7 @@ import (
 const (
 	AddressLen = 33
 
+	// These consts are pulled from BIP-173: https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki
 	fromBits      = 8
 	toBits        = 5
 	separatorLen  = 1
