@@ -31,7 +31,7 @@ func CreateAddressBytes(typeID uint8, id ids.ID) AddressBytes {
 	return AddressBytes(a)
 }
 
-// Address returns a Bech32 address from hrp and p.
+// Address returns a Bech32 address from [hrp] and [p].
 // This function uses avalanchego's FormatBech32 function.
 func Address(hrp string, p AddressBytes) (string, error) {
 	expanedNum := AddressLen * fromBits
@@ -44,6 +44,15 @@ func Address(hrp string, p AddressBytes) (string, error) {
 		return "", fmt.Errorf("%w: max=%d, requested=%d", ErrInvalidSize, maxBech32Size, addrLen)
 	}
 	return address.FormatBech32(hrp, p[:])
+}
+
+// MustAddress returns a Bech32 address from [hrp] and [p] or panics.
+func MustAddress(hrp string, p AddressBytes) string {
+	addr, err := Address(hrp, p)
+	if err != nil {
+		panic(err)
+	}
+	return addr
 }
 
 // ParseAddress parses a Bech32 encoded address string and extracts

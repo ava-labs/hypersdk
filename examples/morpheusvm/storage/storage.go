@@ -17,7 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/address"
+	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
 type ReadState func(context.Context, [][]byte) ([][]byte, []error)
@@ -117,12 +117,11 @@ func GetTransaction(
 }
 
 // [balancePrefix] + [address]
-func BalanceKey(addr codec.ShortBytes) (k []byte) {
-	l := addr.Len()
-	k = make([]byte, 1+l+consts.Uint16Len)
+func BalanceKey(addr codec.AddressBytes) (k []byte) {
+	k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
 	k[0] = balancePrefix
 	copy(k[1:], addr[:])
-	binary.BigEndian.PutUint16(k[1+l:], BalanceChunks)
+	binary.BigEndian.PutUint16(k[1+codec.AddressLen:], BalanceChunks)
 	return
 }
 
@@ -130,7 +129,7 @@ func BalanceKey(addr codec.ShortBytes) (k []byte) {
 func GetBalance(
 	ctx context.Context,
 	im state.Immutable,
-	addr codec.ShortBytes,
+	addr codec.AddressBytes,
 ) (uint64, error) {
 	_, bal, _, err := getBalance(ctx, im, addr)
 	return bal, err
@@ -139,7 +138,7 @@ func GetBalance(
 func getBalance(
 	ctx context.Context,
 	im state.Immutable,
-	addr codec.ShortBytes,
+	addr codec.AddressBytes,
 ) ([]byte, uint64, bool, error) {
 	k := BalanceKey(addr)
 	bal, exists, err := innerGetBalance(im.GetValue(ctx, k))
@@ -150,7 +149,7 @@ func getBalance(
 func GetBalanceFromState(
 	ctx context.Context,
 	f ReadState,
-	addr codec.ShortBytes,
+	addr codec.AddressBytes,
 ) (uint64, error) {
 	k := BalanceKey(addr)
 	values, errs := f(ctx, [][]byte{k})
@@ -174,7 +173,7 @@ func innerGetBalance(
 func SetBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	addr codec.ShortBytes,
+	addr codec.AddressBytes,
 	balance uint64,
 ) error {
 	k := BalanceKey(addr)
@@ -193,7 +192,7 @@ func setBalance(
 func AddBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	addr codec.ShortBytes,
+	addr codec.AddressBytes,
 	amount uint64,
 	create bool,
 ) error {
@@ -212,7 +211,7 @@ func AddBalance(
 			"%w: could not add balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
-			address.MustBech32(addr),
+			codec.MustAddress(mconsts.HRP, addr),
 			amount,
 		)
 	}
@@ -222,7 +221,7 @@ func AddBalance(
 func SubBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	addr codec.ShortBytes,
+	addr codec.AddressBytes,
 	amount uint64,
 ) error {
 	key, bal, _, err := getBalance(ctx, mu, addr)
@@ -235,7 +234,7 @@ func SubBalance(
 			"%w: could not subtract balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
-			address.MustBech32(addr),
+			codec.MustAddress(mconsts.HRP, addr),
 			amount,
 		)
 	}

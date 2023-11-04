@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/address"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
@@ -29,8 +28,6 @@ type CustomAllocation struct {
 }
 
 type Genesis struct {
-	HRP string `json:"hrp"`
-
 	// State Parameters
 	StateBranchFactor merkledb.BranchFactor `json:"stateBranchFactor"`
 
@@ -69,8 +66,6 @@ type Genesis struct {
 
 func Default() *Genesis {
 	return &Genesis{
-		HRP: consts.HRP,
-
 		// State Parameters
 		StateBranchFactor: merkledb.BranchFactor16,
 
@@ -123,9 +118,6 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 	ctx, span := tracer.Start(ctx, "Genesis.Load")
 	defer span.End()
 
-	if consts.HRP != g.HRP {
-		return ErrInvalidHRP
-	}
 	if err := g.StateBranchFactor.Valid(); err != nil {
 		return err
 	}
