@@ -10,7 +10,6 @@ var (
 	ErrDuplicateItem      = errors.New("duplicate item")
 	ErrFieldNotPopulated  = errors.New("field is not populated")
 	ErrInvalidBitset      = errors.New("invalid bitset")
-	ErrInvalidShortBytes  = errors.New("invalid short bytes")
 	ErrIncorrectHRP       = errors.New("incorrect hrp")
 	ErrInsufficientLength = errors.New("insufficient length")
 	ErrInvalidSize        = errors.New("invalid size")

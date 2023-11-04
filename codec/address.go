@@ -18,13 +18,12 @@ const (
 
 type AddressBytes [AddressLen]byte
 
+var EmptyAddressBytes = [AddressLen]byte{}
+
 // Address returns a Bech32 address from hrp and p.
 // This function uses avalanchego's FormatBech32 function.
-func Address(hrp string, p ShortBytes) (string, error) {
-	if !p.Valid() {
-		return "", ErrInvalidShortBytes
-	}
-	expanedNum := p.Len() * fromBits
+func Address(hrp string, p AddressBytes) (string, error) {
+	expanedNum := AddressLen * fromBits
 	expandedLen := expanedNum / toBits
 	if expanedNum%toBits != 0 {
 		expandedLen++
@@ -37,50 +36,22 @@ func Address(hrp string, p ShortBytes) (string, error) {
 }
 
 // ParseAddress parses a Bech32 encoded address string and extracts
-// its bytes (ensuring they are of size [length]). If there is an error
-// reading the address or the hrp value is not valid, ParseAddress returns an error.
-func ParseAddress(hrp, saddr string, length int) (ShortBytes, error) {
-	if length > ShortBytesMaxSize {
-		return nil, ErrInvalidShortBytes
-	}
+// its [AddressBytes]. If there is an error reading the address or
+// the hrp value is not valid, ParseAddress returns an error.
+func ParseAddress(hrp, saddr string) (AddressBytes, error) {
 	phrp, p, err := address.ParseBech32(saddr)
 	if err != nil {
-		return nil, err
+		return EmptyAddressBytes, err
 	}
 	if phrp != hrp {
-		return nil, ErrIncorrectHRP
+		return EmptyAddressBytes, ErrIncorrectHRP
 	}
 	// The parsed value may be greater than [minLength] because the
 	// underlying Bech32 implementation requires bytes to each encode 5 bits
 	// instead of 8 (and we must pad the input to ensure we fill all bytes):
 	// https://github.com/btcsuite/btcd/blob/902f797b0c4b3af3f7196d2f5d2343931d1b2bdf/btcutil/bech32/bech32.go#L325-L331
-	if len(p) < length {
-		return nil, ErrInsufficientLength
+	if len(p) < AddressLen {
+		return EmptyAddressBytes, ErrInsufficientLength
 	}
-	return p[:length], nil
-}
-
-// ParseAnyAddress parses a Bech32 encoded address string and extracts
-// its bytes. If there is an error reading the address or the hrp value
-// is not valid, ParseAnyAddress returns an error.
-//
-// The ShortBytes returned may contain extra padding. If the parsed
-// length is greater than [ShortBytesMaxSize], it is truncated (should
-// not be possible because max string length is 90).
-func ParseAnyAddress(hrp, saddr string) (ShortBytes, error) {
-	phrp, p, err := address.ParseBech32(saddr)
-	if err != nil {
-		return nil, err
-	}
-	if phrp != hrp {
-		return nil, ErrIncorrectHRP
-	}
-	// The parsed value may be greater than [ShortBytesMaxSize] because the
-	// underlying Bech32 implementation requires bytes to each encode 5 bits
-	// instead of 8 (and we must pad the input to ensure we fill all bytes):
-	// https://github.com/btcsuite/btcd/blob/902f797b0c4b3af3f7196d2f5d2343931d1b2bdf/btcutil/bech32/bech32.go#L325-L331
-	if len(p) > ShortBytesMaxSize {
-		p = p[:ShortBytesMaxSize]
-	}
-	return p, nil
+	return AddressBytes(p[:AddressLen]), nil
 }
