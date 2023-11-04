@@ -70,14 +70,15 @@ func (p *Packer) PackFixedBytes(b []byte) {
 	p.p.PackFixedBytes(b)
 }
 
-func (p *Packer) PackShortBytes(b ShortBytes) {
-	l := b.Len()
-	if !b.Valid() {
-		p.addErr(fmt.Errorf("%w: found=%d", ErrInvalidShortBytes, len(b)))
-		return
+func (p *Packer) PackAddressBytes(a AddressBytes) {
+	p.p.PackFixedBytes(a[:])
+}
+
+func (p *Packer) UnpackAddressBytes(dest *AddressBytes) {
+	copy((*dest)[:], p.p.UnpackFixedBytes(AddressLen))
+	if *dest == EmptyAddressBytes {
+		p.addErr(fmt.Errorf("%w: AddressBytes field is not populated", ErrFieldNotPopulated))
 	}
-	p.PackByte(uint8(l))
-	p.PackFixedBytes(b)
 }
 
 func (p *Packer) PackBytes(b []byte) {
@@ -86,11 +87,6 @@ func (p *Packer) PackBytes(b []byte) {
 
 func (p *Packer) UnpackFixedBytes(size int, dest *[]byte) {
 	copy((*dest), p.p.UnpackFixedBytes(size))
-}
-
-func (p *Packer) UnpackShortBytes(dest *ShortBytes) {
-	l := int(p.p.UnpackByte())
-	*dest = p.p.UnpackFixedBytes(l)
 }
 
 // UnpackBytes unpacks [limit] bytes into [dest]. Otherwise

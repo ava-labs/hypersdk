@@ -4,7 +4,6 @@
 package codec
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -90,31 +89,27 @@ func TestPackerWindow(t *testing.T) {
 	})
 }
 
-func TestPackerShortBytes(t *testing.T) {
+func TestPackerAddressBytes(t *testing.T) {
 	require := require.New(t)
-	t.Run("Pack Too Large", func(t *testing.T) {
-		wp := NewWriter(1024, 1024)
-		wp.PackShortBytes(make([]byte, 1024))
-		require.ErrorIs(wp.Err(), ErrInvalidShortBytes)
-	})
-	wp := NewWriter(ids.IDLen+1, ids.IDLen+1)
+	wp := NewWriter(AddressLen, AddressLen)
 	id := ids.GenerateTestID()
+	addr := CreateAddressBytes(1, id)
 	t.Run("Pack", func(t *testing.T) {
 		// Pack
-		wp.PackShortBytes(id[:])
+		wp.PackAddressBytes(addr)
 		b := wp.Bytes()
 		require.NoError(wp.Err())
-		require.Len(b, ids.IDLen+1)
-		require.Equal(uint8(ids.IDLen), b[0])
-		require.True(bytes.Equal(id[:], b[1:]))
+		require.Len(b, AddressLen)
+		require.Equal(uint8(1), b[0])
+		require.Equal(id[:], b[1:])
 	})
 	t.Run("Unpack", func(t *testing.T) {
 		// Unpack
-		rp := NewReader(wp.Bytes(), ids.IDLen+1)
+		rp := NewReader(wp.Bytes(), AddressLen)
 		require.Equal(wp.Bytes(), rp.Bytes())
-		var unpackedID ShortBytes
-		rp.UnpackShortBytes(&unpackedID)
-		require.True(bytes.Equal(id[:], unpackedID[:]))
+		var unpackedAddr AddressBytes
+		rp.UnpackAddressBytes(&unpackedAddr)
+		require.Equal(addr[:], unpackedAddr[:])
 		require.NoError(rp.Err())
 	})
 }

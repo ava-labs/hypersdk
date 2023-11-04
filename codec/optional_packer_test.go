@@ -4,6 +4,7 @@
 package codec
 
 import (
+	"bytes"
 	"encoding/binary"
 	"testing"
 
@@ -74,6 +75,33 @@ func TestOptionalPackerUint64(t *testing.T) {
 		// Unpack
 		require.Equal(uint64(0), opr.UnpackUint64(), "Uint64 unpacked correctly")
 		require.Equal(val, opr.UnpackUint64(), "Uint64 unpacked correctly")
+		opr.Done()
+		require.NoError(opr.Err())
+	})
+}
+
+func TestOptionalPackerAddressBytes(t *testing.T) {
+	require := require.New(t)
+	opw := NewOptionalWriter(10_000)
+	id := ids.GenerateTestID()
+	addr := CreateAddressBytes(1, id)
+	t.Run("Pack", func(t *testing.T) {
+		// Pack empty
+		opw.PackAddressBytes(EmptyAddressBytes)
+		require.Empty(opw.ip.Bytes(), "PackAddressBytes packed an empty Address.")
+		// Pack address
+		opw.PackAddressBytes(addr)
+		require.True(bytes.Equal(addr[:], opw.ip.Bytes()[:]), "PackPublickey did not set bytes correctly.")
+	})
+	t.Run("Unpack", func(t *testing.T) {
+		// Setup optional reader
+		opr := opw.toReader()
+		var unpackedAddr AddressBytes
+		// Unpack
+		opr.UnpackAddressBytes(&unpackedAddr)
+		require.True(bytes.Equal(EmptyAddressBytes[:], unpackedAddr[:]), "AddressBytes unpacked correctly")
+		opr.UnpackAddressBytes(&unpackedAddr)
+		require.Equal(addr, unpackedAddr, "PublicKey unpacked correctly")
 		opr.Done()
 		require.NoError(opr.Err())
 	})
