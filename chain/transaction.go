@@ -570,8 +570,8 @@ func (t *Transaction) Execute(
 }
 
 // Used by mempool
-func (t *Transaction) Payer() string {
-	return string(t.Auth.Payer())
+func (t *Transaction) Payer() codec.AddressBytes {
+	return t.Auth.Payer()
 }
 
 func (t *Transaction) Marshal(p *codec.Packer) error {
@@ -691,6 +691,12 @@ func UnmarshalTx(
 	auth, err := unmarshalAuth(p, warpMessage)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal auth", err)
+	}
+	if payerType := auth.Payer()[0]; payerType != authType {
+		return nil, fmt.Errorf("%w: payerType (%d) did not match authType (%d)", ErrInvalidPayer, payerType, authType)
+	}
+	if actorType := auth.Actor()[0]; actorType != authType {
+		return nil, fmt.Errorf("%w: actorType (%d) did not match authType (%d)", ErrInvalidActor, actorType, authType)
 	}
 	warpExpected := actionWarp || authWarp
 	if !warpExpected && warpMessage != nil {
