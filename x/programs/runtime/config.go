@@ -207,7 +207,10 @@ func (c *ConfigBuilder) WithDefaultCache(enabled bool) *ConfigBuilder {
 // Default is false.
 func (c *ConfigBuilder) WithDebugMode(enabled bool) *ConfigBuilder {
 	c.EnableDebugMode = enabled
-	c.EnableBulkMemory = enabled
+	if enabled {
+		c.EnableBulkMemory = true
+	}
+
 	return c
 }
 
