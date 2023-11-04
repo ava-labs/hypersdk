@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/address"
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
@@ -22,7 +21,7 @@ var _ chain.Action = (*Transfer)(nil)
 
 type Transfer struct {
 	// To is the recipient of the [Value].
-	To codec.ShortBytes `json:"to"`
+	To codec.AddressBytes `json:"to"`
 
 	// Amount are transferred to [To].
 	Value uint64 `json:"value"`
@@ -32,11 +31,9 @@ func (*Transfer) GetTypeID() uint8 {
 	return mconsts.TransferID
 }
 
-func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) []string {
+func (t *Transfer) StateKeys(auth chain.Auth, _ ids.ID) []string {
 	return []string{
-		// In the morepheusvm, the [rauth] is the source of transfer funds and
-		// the fee payer. The fee payer does not need to be the "actor".
-		string(storage.BalanceKey(rauth.Payer())),
+		string(storage.BalanceKey(auth.Payer())),
 		string(storage.BalanceKey(t.To)),
 	}
 }
@@ -54,14 +51,14 @@ func (t *Transfer) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	rauth chain.Auth,
+	auth chain.Auth,
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	if t.Value == 0 {
 		return false, 1, OutputValueZero, nil, nil
 	}
-	if err := storage.SubBalance(ctx, mu, rauth.Payer(), t.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, auth.Payer(), t.Value); err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
@@ -75,26 +72,20 @@ func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (t *Transfer) Size() int {
-	return codec.ShortBytesLen(t.To) + consts.Uint64Len
+	return codec.AddressLen + consts.Uint64Len
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {
-	p.PackShortBytes(t.To)
+	p.PackAddressBytes(t.To)
 	p.PackUint64(t.Value)
 }
 
 func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
-	// Unpack bytes
 	var transfer Transfer
-	p.UnpackShortBytes(&transfer.To)
+	p.UnpackAddressBytes(&transfer.To) // we do not verify the typeID is valid
 	transfer.Value = p.UnpackUint64(true)
 	if err := p.Err(); err != nil {
 		return nil, err
-	}
-
-	// Ensure address is well-formatted
-	if !address.VerifyFormat(transfer.To) {
-		return nil, address.ErrMalformed
 	}
 	return &transfer, nil
 }
