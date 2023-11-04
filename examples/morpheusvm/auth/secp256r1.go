@@ -8,10 +8,10 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/address"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Auth = (*SECP256R1)(nil)
@@ -25,12 +25,12 @@ type SECP256R1 struct {
 	Signer    secp256r1.PublicKey `json:"signer"`
 	Signature secp256r1.Signature `json:"signature"`
 
-	addr codec.ShortBytes
+	addr codec.AddressBytes
 }
 
-func (d *SECP256R1) address() codec.ShortBytes {
+func (d *SECP256R1) address() codec.AddressBytes {
 	if len(d.addr) == 0 {
-		d.addr = codec.PrefixShortBytes(d.GetTypeID(), d.Signer[:])
+		d.addr = NewSECP256R1Address(d.Signer)
 	}
 	return d.addr
 }
@@ -71,7 +71,11 @@ func (d *SECP256R1) Verify(
 	return d.MaxComputeUnits(r), nil
 }
 
-func (d *SECP256R1) Payer() codec.ShortBytes {
+func (d *SECP256R1) Payer() codec.AddressBytes {
+	return d.address()
+}
+
+func (d *SECP256R1) Actor() codec.AddressBytes {
 	return d.address()
 }
 
@@ -147,11 +151,6 @@ func (*SECP256R1Factory) MaxUnits() (uint64, uint64, []uint16) {
 	return SECP256R1Size, SECP256R1ComputeUnits, []uint16{storage.BalanceChunks}
 }
 
-func NewSECP256R1Address(pk secp256r1.PublicKey) codec.ShortBytes {
-	return codec.PrefixShortBytes(consts.SECP256R1ID, pk[:])
-}
-
-func NewSECP256R1AddressBech32(pk secp256r1.PublicKey) string {
-	str, _ := address.Bech32(NewSECP256R1Address(pk))
-	return str
+func NewSECP256R1Address(pk secp256r1.PublicKey) codec.AddressBytes {
+	return codec.CreateAddressBytes(consts.SECP256R1ID, utils.ToID(pk[:]))
 }

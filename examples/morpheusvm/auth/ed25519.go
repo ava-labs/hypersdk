@@ -12,10 +12,10 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/address"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Auth = (*ED25519)(nil)
@@ -29,12 +29,12 @@ type ED25519 struct {
 	Signer    ed25519.PublicKey `json:"signer"`
 	Signature ed25519.Signature `json:"signature"`
 
-	addr codec.ShortBytes
+	addr codec.AddressBytes
 }
 
-func (d *ED25519) address() codec.ShortBytes {
+func (d *ED25519) address() codec.AddressBytes {
 	if len(d.addr) == 0 {
-		d.addr = codec.PrefixShortBytes(d.GetTypeID(), d.Signer[:])
+		d.addr = NewED25519Address(d.Signer)
 	}
 	return d.addr
 }
@@ -75,7 +75,11 @@ func (d *ED25519) Verify(
 	return d.MaxComputeUnits(r), nil
 }
 
-func (d *ED25519) Payer() codec.ShortBytes {
+func (d *ED25519) Payer() codec.AddressBytes {
+	return d.address()
+}
+
+func (d *ED25519) Actor() codec.AddressBytes {
 	return d.address()
 }
 
@@ -159,10 +163,11 @@ func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatch
 }
 
 func (*ED25519AuthEngine) Cache(auth chain.Auth) {
-	addr := auth.Payer()
-	pk, ok := codec.TrimShortBytesPrefix(consts.ED25519ID, addr)
+	// This should never not happen but we perform this check
+	// to avoid a panic.
+	pauth, ok := auth.(*ED25519)
 	if ok {
-		ed25519.CachePublicKey(ed25519.PublicKey(pk))
+		ed25519.CachePublicKey(pauth.Signer)
 	}
 }
 
@@ -202,23 +207,6 @@ func (b *ED25519Batch) Done() []func() error {
 	return []func() error{b.batch.VerifyAsync()}
 }
 
-func NewED25519Address(pk ed25519.PublicKey) codec.ShortBytes {
-	return codec.PrefixShortBytes(consts.ED25519ID, pk[:])
-}
-
-func NewED25519AddressBech32(pk ed25519.PublicKey) string {
-	str, _ := address.Bech32(NewED25519Address(pk))
-	return str
-}
-
-func ParseED25519AddressBech32(bech32 string) (ed25519.PublicKey, error) {
-	addr, err := address.ParseBech32(bech32)
-	if err != nil {
-		return ed25519.EmptyPublicKey, err
-	}
-	pk, ok := codec.TrimShortBytesPrefix(consts.ED25519ID, addr)
-	if !ok {
-		return ed25519.EmptyPublicKey, address.ErrMalformed
-	}
-	return ed25519.PublicKey(pk), nil
+func NewED25519Address(pk ed25519.PublicKey) codec.AddressBytes {
+	return codec.CreateAddressBytes(consts.ED25519ID, utils.ToID(pk[:]))
 }
