@@ -22,9 +22,9 @@ type AddressBytes [AddressLen]byte
 
 var EmptyAddressBytes = [AddressLen]byte{}
 
-// PrefixID returns [AddressBytes] made from concatenating
+// CreateAddressBytes returns [AddressBytes] made from concatenating
 // [typeID] with [id].
-func PrefixID(typeID uint8, id ids.ID) AddressBytes {
+func CreateAddressBytes(typeID uint8, id ids.ID) AddressBytes {
 	a := make([]byte, AddressLen)
 	a[0] = typeID
 	copy(a[1:], id[:])
