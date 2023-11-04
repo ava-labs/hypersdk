@@ -3,6 +3,7 @@ package codec
 import (
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 )
 
@@ -20,6 +21,15 @@ const (
 type AddressBytes [AddressLen]byte
 
 var EmptyAddressBytes = [AddressLen]byte{}
+
+// PrefixID returns [AddressBytes] made from concatenating
+// [typeID] with [id].
+func PrefixID(typeID byte, id ids.ID) AddressBytes {
+	a := make([]byte, AddressLen)
+	a[0] = typeID
+	copy(a[1:], id[:])
+	return AddressBytes(a)
+}
 
 // Address returns a Bech32 address from hrp and p.
 // This function uses avalanchego's FormatBech32 function.
