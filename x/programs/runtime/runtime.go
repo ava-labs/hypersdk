@@ -53,12 +53,6 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 		return err
 	}
 
-	// enable bulk memory support only in testing/debug mode
-	// this is because some io operations from WASM require bulk memory support
-	if r.cfg.debugMode {
-		engineConfig.SetWasmBulkMemory(true)
-	}
-
 	r.store = wasmtime.NewStore(wasmtime.NewEngineWithConfig(engineConfig))
 	r.store.Limiter(
 		r.cfg.limitMaxMemory,
