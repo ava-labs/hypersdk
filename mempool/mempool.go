@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/list"
 	"go.opentelemetry.io/otel/attribute"
@@ -22,7 +23,7 @@ const maxPrealloc = 4_096
 type Item interface {
 	eheap.Item
 
-	Payer() string
+	Payer() codec.AddressBytes
 	Size() int
 }
 
@@ -41,7 +42,7 @@ type Mempool[T Item] struct {
 
 	// owned tracks the number of items in the mempool owned by a single
 	// [Payer]
-	owned map[string]int
+	owned map[codec.AddressBytes]int
 
 	// streamedItems have been removed from the mempool during streaming
 	// and should not be re-added by calls to [Add].
@@ -51,7 +52,7 @@ type Mempool[T Item] struct {
 	nextStreamFetched bool
 
 	// payers that are exempt from [maxPayerSize]
-	exemptPayers set.Set[string]
+	exemptPayers set.Set[codec.AddressBytes]
 }
 
 // New creates a new [Mempool]. [maxSize] must be > 0 or else the
@@ -60,7 +61,7 @@ func New[T Item](
 	tracer trace.Tracer,
 	maxSize int, // items
 	maxPayerSize int,
-	exemptPayers [][]byte,
+	exemptPayers []codec.AddressBytes,
 ) *Mempool[T] {
 	m := &Mempool[T]{
 		tracer: tracer,
@@ -71,11 +72,11 @@ func New[T Item](
 		queue: &list.List[T]{},
 		eh:    eheap.New[*list.Element[T]](math.Min(maxSize, maxPrealloc)),
 
-		owned:        map[string]int{},
-		exemptPayers: set.Set[string]{},
+		owned:        map[codec.AddressBytes]int{},
+		exemptPayers: set.Set[codec.AddressBytes]{},
 	}
 	for _, payer := range exemptPayers {
-		m.exemptPayers.Add(string(payer))
+		m.exemptPayers.Add(payer)
 	}
 	return m
 }

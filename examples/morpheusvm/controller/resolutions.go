@@ -36,7 +36,7 @@ func (c *Controller) GetTransaction(
 
 func (c *Controller) GetBalanceFromState(
 	ctx context.Context,
-	acct codec.ShortBytes,
+	acct codec.AddressBytes,
 ) (uint64, error) {
 	return storage.GetBalanceFromState(ctx, c.inner.ReadState, acct)
 }

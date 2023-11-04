@@ -17,6 +17,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/state"
 	trace "github.com/ava-labs/hypersdk/trace"
@@ -31,7 +32,7 @@ type Config interface {
 	GetRootGenerationCores() int
 	GetTransactionExecutionCores() int
 	GetMempoolPayerSize() int
-	GetMempoolExemptPayers() [][]byte
+	GetMempoolExemptPayers() []codec.AddressBytes
 	GetVerifySignatures() bool
 	GetStreamingBacklogSize() int
 	GetStateHistoryLength() int        // how many roots back of data to keep to serve state queries

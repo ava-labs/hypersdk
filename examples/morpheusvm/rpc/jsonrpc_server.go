@@ -9,7 +9,8 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/address"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 )
 
@@ -71,7 +72,7 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
 
-	addr, err := address.ParseBech32(args.Address)
+	addr, err := codec.ParseAddress(consts.HRP, args.Address)
 	if err != nil {
 		return err
 	}

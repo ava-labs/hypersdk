@@ -12,11 +12,11 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/config"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
 
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/address"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
 )
@@ -63,7 +63,7 @@ type Config struct {
 
 	loaded             bool
 	nodeID             ids.NodeID
-	parsedExemptPayers [][]byte
+	parsedExemptPayers []codec.AddressBytes
 }
 
 func New(nodeID ids.NodeID, b []byte) (*Config, error) {
@@ -78,13 +78,13 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 
 	// Parse any exempt payers (usually used when a single account is
 	// broadcasting many txs at once)
-	c.parsedExemptPayers = make([][]byte, len(c.MempoolExemptPayers))
+	c.parsedExemptPayers = make([]codec.AddressBytes, len(c.MempoolExemptPayers))
 	for i, payer := range c.MempoolExemptPayers {
-		p, err := address.ParseBech32(payer)
+		p, err := codec.ParseAddress(consts.HRP, payer)
 		if err != nil {
 			return nil, err
 		}
-		c.parsedExemptPayers[i] = p[:]
+		c.parsedExemptPayers[i] = p
 	}
 	return c, nil
 }
@@ -102,14 +102,14 @@ func (c *Config) setDefault() {
 	c.StoreTransactions = defaultStoreTransactions
 }
 
-func (c *Config) GetLogLevel() logging.Level         { return c.LogLevel }
-func (c *Config) GetTestMode() bool                  { return c.TestMode }
-func (c *Config) GetSignatureVerificationCores() int { return c.SignatureVerificationCores }
-func (c *Config) GetRootGenerationCores() int        { return c.RootGenerationCores }
-func (c *Config) GetTransactionExecutionCores() int  { return c.TransactionExecutionCores }
-func (c *Config) GetMempoolSize() int                { return c.MempoolSize }
-func (c *Config) GetMempoolPayerSize() int           { return c.MempoolPayerSize }
-func (c *Config) GetMempoolExemptPayers() [][]byte   { return c.parsedExemptPayers }
+func (c *Config) GetLogLevel() logging.Level                   { return c.LogLevel }
+func (c *Config) GetTestMode() bool                            { return c.TestMode }
+func (c *Config) GetSignatureVerificationCores() int           { return c.SignatureVerificationCores }
+func (c *Config) GetRootGenerationCores() int                  { return c.RootGenerationCores }
+func (c *Config) GetTransactionExecutionCores() int            { return c.TransactionExecutionCores }
+func (c *Config) GetMempoolSize() int                          { return c.MempoolSize }
+func (c *Config) GetMempoolPayerSize() int                     { return c.MempoolPayerSize }
+func (c *Config) GetMempoolExemptPayers() []codec.AddressBytes { return c.parsedExemptPayers }
 func (c *Config) GetTraceConfig() *trace.Config {
 	return &trace.Config{
 		Enabled:         c.TraceEnabled,
