@@ -18,22 +18,22 @@ const (
 	maxBech32Size = 90
 )
 
-type AddressBytes [AddressLen]byte
+type Address [AddressLen]byte
 
-var EmptyAddressBytes = [AddressLen]byte{}
+var EmptyAddress = [AddressLen]byte{}
 
-// CreateAddressBytes returns [AddressBytes] made from concatenating
+// CreateAddress returns [Address] made from concatenating
 // [typeID] with [id].
-func CreateAddressBytes(typeID uint8, id ids.ID) AddressBytes {
+func CreateAddress(typeID uint8, id ids.ID) Address {
 	a := make([]byte, AddressLen)
 	a[0] = typeID
 	copy(a[1:], id[:])
-	return AddressBytes(a)
+	return Address(a)
 }
 
-// Address returns a Bech32 address from [hrp] and [p].
+// AddressBech32 returns a Bech32 address from [hrp] and [p].
 // This function uses avalanchego's FormatBech32 function.
-func Address(hrp string, p AddressBytes) (string, error) {
+func AddressBech32(hrp string, p Address) (string, error) {
 	expanedNum := AddressLen * fromBits
 	expandedLen := expanedNum / toBits
 	if expanedNum%toBits != 0 {
@@ -46,32 +46,32 @@ func Address(hrp string, p AddressBytes) (string, error) {
 	return address.FormatBech32(hrp, p[:])
 }
 
-// MustAddress returns a Bech32 address from [hrp] and [p] or panics.
-func MustAddress(hrp string, p AddressBytes) string {
-	addr, err := Address(hrp, p)
+// MustAddressBech32 returns a Bech32 address from [hrp] and [p] or panics.
+func MustAddressBech32(hrp string, p Address) string {
+	addr, err := AddressBech32(hrp, p)
 	if err != nil {
 		panic(err)
 	}
 	return addr
 }
 
-// ParseAddress parses a Bech32 encoded address string and extracts
+// ParseAddressBech32 parses a Bech32 encoded address string and extracts
 // its [AddressBytes]. If there is an error reading the address or
 // the hrp value is not valid, ParseAddress returns an error.
-func ParseAddress(hrp, saddr string) (AddressBytes, error) {
+func ParseAddressBech32(hrp, saddr string) (Address, error) {
 	phrp, p, err := address.ParseBech32(saddr)
 	if err != nil {
-		return EmptyAddressBytes, err
+		return EmptyAddress, err
 	}
 	if phrp != hrp {
-		return EmptyAddressBytes, ErrIncorrectHRP
+		return EmptyAddress, ErrIncorrectHRP
 	}
 	// The parsed value may be greater than [minLength] because the
 	// underlying Bech32 implementation requires bytes to each encode 5 bits
 	// instead of 8 (and we must pad the input to ensure we fill all bytes):
 	// https://github.com/btcsuite/btcd/blob/902f797b0c4b3af3f7196d2f5d2343931d1b2bdf/btcutil/bech32/bech32.go#L325-L331
 	if len(p) < AddressLen {
-		return EmptyAddressBytes, ErrInsufficientLength
+		return EmptyAddress, ErrInsufficientLength
 	}
-	return AddressBytes(p[:AddressLen]), nil
+	return Address(p[:AddressLen]), nil
 }
