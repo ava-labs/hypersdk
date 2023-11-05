@@ -48,7 +48,7 @@ var (
 func (h *Handler) Spam(
 	maxTxBacklog int, maxFee *uint64, randomRecipient bool,
 	createClient func(string, uint32, ids.ID), // must save on caller side
-	getFactory func(*PrivateKey) chain.AuthFactory,
+	getFactory func(*PrivateKey) (chain.AuthFactory, error),
 	createAccount func() (*PrivateKey, error),
 	lookupBalance func(int, string) (uint64, error),
 	getParser func(context.Context, ids.ID) (chain.Parser, error),

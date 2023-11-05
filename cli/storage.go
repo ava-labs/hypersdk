@@ -67,10 +67,10 @@ func (h *Handler) GetDefaultChain(log bool) (ids.ID, []string, error) {
 	return chainID, uris, nil
 }
 
-func (h *Handler) StoreKey(addr codec.AddressBytes, priv []byte) error {
+func (h *Handler) StoreKey(priv *PrivateKey) error {
 	k := make([]byte, 1+codec.AddressLen)
 	k[0] = keyPrefix
-	copy(k[1:], addr[:])
+	copy(k[1:], priv.Address[:])
 	has, err := h.db.Has(k)
 	if err != nil {
 		return err
@@ -78,7 +78,7 @@ func (h *Handler) StoreKey(addr codec.AddressBytes, priv []byte) error {
 	if has {
 		return ErrDuplicate
 	}
-	return h.db.Put(k, priv[:])
+	return h.db.Put(k, priv.Bytes[:])
 }
 
 func (h *Handler) GetKey(addr codec.AddressBytes) ([]byte, error) {

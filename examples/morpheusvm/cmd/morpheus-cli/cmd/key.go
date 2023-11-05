@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
@@ -23,6 +24,65 @@ const (
 	secp256r1Key = "secp256r1"
 )
 
+func checkKeyType(k string) error {
+	if k != ed25519Key && k != secp256r1Key {
+		return fmt.Errorf("%w: %s", ErrInvalidKeyType, k)
+	}
+	return nil
+}
+
+func generatePrivateKey(k string) (*cli.PrivateKey, error) {
+	switch k {
+	case ed25519Key:
+		p, err := ed25519.GeneratePrivateKey()
+		if err != nil {
+			return nil, err
+		}
+		return &cli.PrivateKey{
+			Address: auth.NewED25519Address(p.PublicKey()),
+			Bytes:   p[:],
+		}, nil
+	case secp256r1Key:
+		p, err := secp256r1.GeneratePrivateKey()
+		if err != nil {
+			return nil, err
+		}
+		return &cli.PrivateKey{
+			Address: auth.NewSECP256R1Address(p.PublicKey()),
+			Bytes:   p[:],
+		}, nil
+	default:
+		return nil, ErrInvalidKeyType
+	}
+}
+
+func loadPrivateKey(k string, path string) (*cli.PrivateKey, error) {
+	switch k {
+	case ed25519Key:
+		p, err := utils.LoadBytes(path, ed25519.PrivateKeyLen)
+		if err != nil {
+			return nil, err
+		}
+		pk := ed25519.PrivateKey(p)
+		return &cli.PrivateKey{
+			Address: auth.NewED25519Address(pk.PublicKey()),
+			Bytes:   p[:],
+		}, nil
+	case secp256r1Key:
+		p, err := utils.LoadBytes(path, secp256r1.PrivateKeyLen)
+		if err != nil {
+			return nil, err
+		}
+		pk := secp256r1.PrivateKey(p)
+		return &cli.PrivateKey{
+			Address: auth.NewSECP256R1Address(pk.PublicKey()),
+			Bytes:   p[:],
+		}, nil
+	default:
+		return nil, ErrInvalidKeyType
+	}
+}
+
 var keyCmd = &cobra.Command{
 	Use: "key",
 	RunE: func(*cobra.Command, []string) error {
@@ -36,41 +96,22 @@ var genKeyCmd = &cobra.Command{
 		if len(args) != 1 {
 			return ErrInvalidArgs
 		}
-		if args[0] != ed25519Key && args[0] != secp256r1Key {
-			return fmt.Errorf("%w: %s", ErrInvalidKeyType, args[0])
-		}
-		return nil
+		return checkKeyType(args[0])
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		var (
-			addr codec.AddressBytes
-			priv []byte
-		)
-		switch args[0] {
-		case ed25519Key:
-			p, err := ed25519.GeneratePrivateKey()
-			if err != nil {
-				return err
-			}
-			priv = p[:]
-			addr = auth.NewED25519Address(p.PublicKey())
-		case secp256r1Key:
-			p, err := secp256r1.GeneratePrivateKey()
-			if err != nil {
-				return err
-			}
-			priv = p[:]
-			addr = auth.NewSECP256R1Address(p.PublicKey())
-		}
-		if err := handler.h.StoreKey(addr, priv); err != nil {
+		priv, err := generatePrivateKey(args[0])
+		if err != nil {
 			return err
 		}
-		if err := handler.h.StoreDefaultKey(addr); err != nil {
+		if err := handler.h.StoreKey(priv); err != nil {
+			return err
+		}
+		if err := handler.h.StoreDefaultKey(priv.Address); err != nil {
 			return err
 		}
 		utils.Outf(
 			"{{green}}created address:{{/}} %s",
-			codec.MustAddress(consts.HRP, addr),
+			codec.MustAddress(consts.HRP, priv.Address),
 		)
 		return nil
 	},
@@ -82,43 +123,22 @@ var importKeyCmd = &cobra.Command{
 		if len(args) != 2 {
 			return ErrInvalidArgs
 		}
-		if args[0] != ed25519Key && args[0] != secp256r1Key {
-			return fmt.Errorf("%w: %s", ErrInvalidKeyType, args[0])
-		}
-		return nil
+		return checkKeyType(args[0])
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		var (
-			addr codec.AddressBytes
-			priv []byte
-		)
-		switch args[0] {
-		case ed25519Key:
-			p, err := utils.LoadBytes(args[1], ed25519.PrivateKeyLen)
-			if err != nil {
-				return err
-			}
-			pk := ed25519.PrivateKey(p)
-			priv = p[:]
-			addr = auth.NewED25519Address(pk.PublicKey())
-		case secp256r1Key:
-			p, err := utils.LoadBytes(args[1], secp256r1.PrivateKeyLen)
-			if err != nil {
-				return err
-			}
-			pk := secp256r1.PrivateKey(p)
-			priv = p[:]
-			addr = auth.NewSECP256R1Address(pk.PublicKey())
-		}
-		if err := handler.h.StoreKey(addr, priv); err != nil {
+		priv, err := loadPrivateKey(args[0], args[1])
+		if err != nil {
 			return err
 		}
-		if err := handler.h.StoreDefaultKey(addr); err != nil {
+		if err := handler.h.StoreKey(priv); err != nil {
+			return err
+		}
+		if err := handler.h.StoreDefaultKey(priv.Address); err != nil {
 			return err
 		}
 		utils.Outf(
 			"{{green}}imported address:{{/}} %s",
-			codec.MustAddress(consts.HRP, addr),
+			codec.MustAddress(consts.HRP, priv.Address),
 		)
 		return nil
 	},
