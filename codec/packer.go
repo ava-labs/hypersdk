@@ -70,14 +70,14 @@ func (p *Packer) PackFixedBytes(b []byte) {
 	p.p.PackFixedBytes(b)
 }
 
-func (p *Packer) PackAddressBytes(a AddressBytes) {
+func (p *Packer) PackAddress(a Address) {
 	p.p.PackFixedBytes(a[:])
 }
 
-func (p *Packer) UnpackAddressBytes(dest *AddressBytes) {
+func (p *Packer) UnpackAddress(dest *Address) {
 	copy((*dest)[:], p.p.UnpackFixedBytes(AddressLen))
-	if *dest == EmptyAddressBytes {
-		p.addErr(fmt.Errorf("%w: AddressBytes field is not populated", ErrFieldNotPopulated))
+	if *dest == EmptyAddress {
+		p.addErr(fmt.Errorf("%w: Address field is not populated", ErrFieldNotPopulated))
 	}
 }
 

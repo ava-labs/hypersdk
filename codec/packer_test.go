@@ -89,14 +89,14 @@ func TestPackerWindow(t *testing.T) {
 	})
 }
 
-func TestPackerAddressBytes(t *testing.T) {
+func TestPackerAddress(t *testing.T) {
 	require := require.New(t)
 	wp := NewWriter(AddressLen, AddressLen)
 	id := ids.GenerateTestID()
-	addr := CreateAddressBytes(1, id)
+	addr := CreateAddress(1, id)
 	t.Run("Pack", func(t *testing.T) {
 		// Pack
-		wp.PackAddressBytes(addr)
+		wp.PackAddress(addr)
 		b := wp.Bytes()
 		require.NoError(wp.Err())
 		require.Len(b, AddressLen)
@@ -107,8 +107,8 @@ func TestPackerAddressBytes(t *testing.T) {
 		// Unpack
 		rp := NewReader(wp.Bytes(), AddressLen)
 		require.Equal(wp.Bytes(), rp.Bytes())
-		var unpackedAddr AddressBytes
-		rp.UnpackAddressBytes(&unpackedAddr)
+		var unpackedAddr Address
+		rp.UnpackAddress(&unpackedAddr)
 		require.Equal(addr[:], unpackedAddr[:])
 		require.NoError(rp.Err())
 	})

@@ -76,7 +76,7 @@ func (*Handler) GetBalance(
 	cli *brpc.JSONRPCClient,
 	addr codec.Address,
 ) (uint64, error) {
-	saddr, err := codec.Address(consts.HRP, addr)
+	saddr, err := codec.AddressBech32(consts.HRP, addr)
 	if err != nil {
 		return 0, err
 	}

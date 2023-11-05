@@ -55,7 +55,7 @@ func (w *WarpTransfer) size() int {
 
 func (w *WarpTransfer) Marshal() ([]byte, error) {
 	p := codec.NewWriter(w.size(), w.size())
-	p.PackAddressBytes(w.To)
+	p.PackAddress(w.To)
 	p.PackBytes(w.Symbol)
 	p.PackByte(w.Decimals)
 	p.PackID(w.Asset)
@@ -93,7 +93,7 @@ func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
 
 	var transfer WarpTransfer
 	p := codec.NewReader(b, maxWarpTransferSize)
-	p.UnpackAddressBytes(&transfer.To)
+	p.UnpackAddress(&transfer.To)
 	p.UnpackBytes(MaxSymbolSize, true, &transfer.Symbol)
 	transfer.Decimals = p.UnpackByte()
 	p.UnpackID(false, &transfer.Asset)

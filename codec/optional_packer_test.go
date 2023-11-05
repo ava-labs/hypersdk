@@ -80,27 +80,27 @@ func TestOptionalPackerUint64(t *testing.T) {
 	})
 }
 
-func TestOptionalPackerAddressBytes(t *testing.T) {
+func TestOptionalPackerAddress(t *testing.T) {
 	require := require.New(t)
 	opw := NewOptionalWriter(10_000)
 	id := ids.GenerateTestID()
-	addr := CreateAddressBytes(1, id)
+	addr := CreateAddress(1, id)
 	t.Run("Pack", func(t *testing.T) {
 		// Pack empty
-		opw.PackAddressBytes(EmptyAddressBytes)
-		require.Empty(opw.ip.Bytes(), "PackAddressBytes packed an empty Address.")
+		opw.PackAddress(EmptyAddress)
+		require.Empty(opw.ip.Bytes(), "PackAddress packed an empty Address.")
 		// Pack address
-		opw.PackAddressBytes(addr)
+		opw.PackAddress(addr)
 		require.True(bytes.Equal(addr[:], opw.ip.Bytes()), "PackPublickey did not set bytes correctly.")
 	})
 	t.Run("Unpack", func(t *testing.T) {
 		// Setup optional reader
 		opr := opw.toReader()
-		var unpackedAddr AddressBytes
+		var unpackedAddr Address
 		// Unpack
-		opr.UnpackAddressBytes(&unpackedAddr)
-		require.True(bytes.Equal(EmptyAddressBytes[:], unpackedAddr[:]), "AddressBytes unpacked correctly")
-		opr.UnpackAddressBytes(&unpackedAddr)
+		opr.UnpackAddress(&unpackedAddr)
+		require.True(bytes.Equal(EmptyAddress[:], unpackedAddr[:]), "AddressBytes unpacked correctly")
+		opr.UnpackAddress(&unpackedAddr)
 		require.Equal(addr, unpackedAddr, "PublicKey unpacked correctly")
 		opr.Done()
 		require.NoError(opr.Err())

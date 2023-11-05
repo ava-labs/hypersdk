@@ -133,24 +133,24 @@ func (o *OptionalPacker) UnpackInt64() int64 {
 	return 0
 }
 
-// PackAddressBytes packs [addr] into OptionalPacker if [addr] is not empty.
+// PackAddress packs [addr] into OptionalPacker if [addr] is not empty.
 // Updates the bitset and offset accordingly.
-func (o *OptionalPacker) PackAddressBytes(addr AddressBytes) {
-	if addr == EmptyAddressBytes {
+func (o *OptionalPacker) PackAddress(addr Address) {
+	if addr == EmptyAddress {
 		o.skipBit()
 		return
 	}
-	o.ip.PackAddressBytes(addr)
+	o.ip.PackAddress(addr)
 	o.setBit()
 }
 
-// UnpackAddressBytes unpacks AddressBytes into [dest] if the bitset is set at
+// UnpackAddress unpacks Address into [dest] if the bitset is set at
 // the current offset. Increments offset regardless.
-func (o *OptionalPacker) UnpackAddressBytes(dest *AddressBytes) {
+func (o *OptionalPacker) UnpackAddress(dest *Address) {
 	if o.checkBit() {
-		o.ip.UnpackAddressBytes(dest)
+		o.ip.UnpackAddress(dest)
 	} else {
-		*dest = EmptyAddressBytes
+		*dest = EmptyAddress
 	}
 }
 

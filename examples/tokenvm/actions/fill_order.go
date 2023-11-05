@@ -165,7 +165,7 @@ func (*FillOrder) Size() int {
 
 func (f *FillOrder) Marshal(p *codec.Packer) {
 	p.PackID(f.Order)
-	p.PackAddressBytes(f.Owner)
+	p.PackAddress(f.Owner)
 	p.PackID(f.In)
 	p.PackID(f.Out)
 	p.PackUint64(f.Value)
@@ -174,7 +174,7 @@ func (f *FillOrder) Marshal(p *codec.Packer) {
 func UnmarshalFillOrder(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var fill FillOrder
 	p.UnpackID(true, &fill.Order)
-	p.UnpackAddressBytes(&fill.Owner)
+	p.UnpackAddress(&fill.Owner)
 	p.UnpackID(false, &fill.In)  // empty ID is the native asset
 	p.UnpackID(false, &fill.Out) // empty ID is the native asset
 	fill.Value = p.UnpackUint64(true)

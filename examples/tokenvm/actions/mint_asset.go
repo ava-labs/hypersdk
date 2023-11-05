@@ -100,14 +100,14 @@ func (*MintAsset) Size() int {
 }
 
 func (m *MintAsset) Marshal(p *codec.Packer) {
-	p.PackAddressBytes(m.To)
+	p.PackAddress(m.To)
 	p.PackID(m.Asset)
 	p.PackUint64(m.Value)
 }
 
 func UnmarshalMintAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var mint MintAsset
-	p.UnpackAddressBytes(&mint.To)
+	p.UnpackAddress(&mint.To)
 	p.UnpackID(true, &mint.Asset) // empty ID is the native asset
 	mint.Value = p.UnpackUint64(true)
 	return &mint, p.Err()

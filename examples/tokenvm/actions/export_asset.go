@@ -234,7 +234,7 @@ func (*ExportAsset) Size() int {
 }
 
 func (e *ExportAsset) Marshal(p *codec.Packer) {
-	p.PackAddressBytes(e.To)
+	p.PackAddress(e.To)
 	p.PackID(e.Asset)
 	p.PackUint64(e.Value)
 	p.PackBool(e.Return)
@@ -250,7 +250,7 @@ func (e *ExportAsset) Marshal(p *codec.Packer) {
 
 func UnmarshalExportAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var export ExportAsset
-	p.UnpackAddressBytes(&export.To)
+	p.UnpackAddress(&export.To)
 	p.UnpackID(false, &export.Asset) // may export native
 	export.Value = p.UnpackUint64(true)
 	export.Return = p.UnpackBool()
