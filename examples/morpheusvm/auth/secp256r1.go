@@ -29,7 +29,7 @@ type SECP256R1 struct {
 }
 
 func (d *SECP256R1) address() codec.AddressBytes {
-	if len(d.addr) == 0 {
+	if d.addr == codec.EmptyAddressBytes {
 		d.addr = NewSECP256R1Address(d.Signer)
 	}
 	return d.addr
