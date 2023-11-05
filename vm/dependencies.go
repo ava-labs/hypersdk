@@ -32,7 +32,7 @@ type Config interface {
 	GetRootGenerationCores() int
 	GetTransactionExecutionCores() int
 	GetMempoolSponsorSize() int
-	GetMempoolExemptSponsors() []codec.AddressBytes
+	GetMempoolExemptSponsors() []codec.Address
 	GetVerifySignatures() bool
 	GetStreamingBacklogSize() int
 	GetStateHistoryLength() int        // how many roots back of data to keep to serve state queries

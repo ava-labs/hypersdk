@@ -50,7 +50,7 @@ func (h *Handler) SetKey(lookupBalance func(int, string, string, uint32, ids.ID)
 	return h.StoreDefaultKey(key.Address)
 }
 
-func (h *Handler) Balance(checkAllChains bool, promptAsset bool, printBalance func(codec.AddressBytes, string, uint32, ids.ID, ids.ID) error) error {
+func (h *Handler) Balance(checkAllChains bool, promptAsset bool, printBalance func(codec.Address, string, uint32, ids.ID, ids.ID) error) error {
 	addr, _, err := h.GetDefaultKey(true)
 	if err != nil {
 		return err

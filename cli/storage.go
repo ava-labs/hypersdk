@@ -81,7 +81,7 @@ func (h *Handler) StoreKey(priv *PrivateKey) error {
 	return h.db.Put(k, priv.Bytes)
 }
 
-func (h *Handler) GetKey(addr codec.AddressBytes) ([]byte, error) {
+func (h *Handler) GetKey(addr codec.Address) ([]byte, error) {
 	k := make([]byte, 1+codec.AddressLen)
 	k[0] = keyPrefix
 	copy(k[1:], addr[:])
@@ -97,7 +97,7 @@ func (h *Handler) GetKey(addr codec.AddressBytes) ([]byte, error) {
 }
 
 type PrivateKey struct {
-	Address codec.AddressBytes
+	Address codec.Address
 	Bytes   []byte
 }
 
@@ -110,18 +110,18 @@ func (h *Handler) GetKeys() ([]*PrivateKey, error) {
 		// It is safe to use these bytes directly because the database copies the
 		// iterator value for us.
 		privateKeys = append(privateKeys, &PrivateKey{
-			Address: codec.AddressBytes(iter.Key()[1:]),
+			Address: codec.Address(iter.Key()[1:]),
 			Bytes:   iter.Value(),
 		})
 	}
 	return privateKeys, iter.Error()
 }
 
-func (h *Handler) StoreDefaultKey(addr codec.AddressBytes) error {
+func (h *Handler) StoreDefaultKey(addr codec.Address) error {
 	return h.StoreDefault(defaultKeyKey, addr[:])
 }
 
-func (h *Handler) GetDefaultKey(log bool) (codec.AddressBytes, []byte, error) {
+func (h *Handler) GetDefaultKey(log bool) (codec.Address, []byte, error) {
 	raddr, err := h.GetDefault(defaultKeyKey)
 	if err != nil {
 		return codec.EmptyAddressBytes, nil, err
@@ -129,7 +129,7 @@ func (h *Handler) GetDefaultKey(log bool) (codec.AddressBytes, []byte, error) {
 	if len(raddr) == 0 {
 		return codec.EmptyAddressBytes, nil, ErrNoKeys
 	}
-	addr := codec.AddressBytes(raddr)
+	addr := codec.Address(raddr)
 	priv, err := h.GetKey(addr)
 	if err != nil {
 		return codec.EmptyAddressBytes, nil, err

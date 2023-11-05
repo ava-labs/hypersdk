@@ -38,13 +38,13 @@ func (c *Controller) GetTransaction(
 func (c *Controller) GetAssetFromState(
 	ctx context.Context,
 	asset ids.ID,
-) (bool, []byte, uint8, []byte, uint64, codec.AddressBytes, bool, error) {
+) (bool, []byte, uint8, []byte, uint64, codec.Address, bool, error) {
 	return storage.GetAssetFromState(ctx, c.inner.ReadState, asset)
 }
 
 func (c *Controller) GetBalanceFromState(
 	ctx context.Context,
-	addr codec.AddressBytes,
+	addr codec.Address,
 	asset ids.ID,
 ) (uint64, error) {
 	return storage.GetBalanceFromState(ctx, c.inner.ReadState, addr, asset)
@@ -64,7 +64,7 @@ func (c *Controller) GetOrderFromState(
 	ids.ID, // out
 	uint64, // outTick
 	uint64, // remaining
-	codec.AddressBytes, // owner
+	codec.Address, // owner
 	error,
 ) {
 	return storage.GetOrderFromState(ctx, c.inner.ReadState, orderID)

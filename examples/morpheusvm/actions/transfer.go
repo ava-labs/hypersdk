@@ -21,7 +21,7 @@ var _ chain.Action = (*Transfer)(nil)
 
 type Transfer struct {
 	// To is the recipient of the [Value].
-	To codec.AddressBytes `json:"to"`
+	To codec.Address `json:"to"`
 
 	// Amount are transferred to [To].
 	Value uint64 `json:"value"`

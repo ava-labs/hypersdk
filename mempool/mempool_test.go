@@ -18,7 +18,7 @@ var testSponsor = codec.CreateAddressBytes(1, ids.GenerateTestID())
 
 type TestItem struct {
 	id        ids.ID
-	sponsor   codec.AddressBytes
+	sponsor   codec.Address
 	timestamp int64
 }
 
@@ -26,7 +26,7 @@ func (mti *TestItem) ID() ids.ID {
 	return mti.id
 }
 
-func (mti *TestItem) Sponsor() codec.AddressBytes {
+func (mti *TestItem) Sponsor() codec.Address {
 	return mti.sponsor
 }
 
@@ -38,7 +38,7 @@ func (*TestItem) Size() int {
 	return 2 // distinguish from len
 }
 
-func GenerateTestItem(sponsor codec.AddressBytes, t int64) *TestItem {
+func GenerateTestItem(sponsor codec.Address, t int64) *TestItem {
 	id := ids.GenerateTestID()
 	return &TestItem{
 		id:        id,
@@ -99,7 +99,7 @@ func TestMempoolAddExceedMaxSponsorSize(t *testing.T) {
 	exemptSponsor := codec.CreateAddressBytes(99, ids.GenerateTestID())
 	sponsor := codec.CreateAddressBytes(4, ids.GenerateTestID())
 	// Non exempt sponsors max of 4
-	txm := New[*TestItem](tracer, 20, 4, []codec.AddressBytes{exemptSponsor})
+	txm := New[*TestItem](tracer, 20, 4, []codec.Address{exemptSponsor})
 	// Add 6 transactions for each sponsor
 	for i := int64(0); i <= 5; i++ {
 		itemSponsor := GenerateTestItem(sponsor, i)

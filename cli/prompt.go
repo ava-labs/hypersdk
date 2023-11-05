@@ -16,7 +16,7 @@ import (
 	"github.com/manifoldco/promptui"
 )
 
-func (h *Handler) PromptAddress(label string) (codec.AddressBytes, error) {
+func (h *Handler) PromptAddress(label string) (codec.Address, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {

@@ -52,7 +52,7 @@ func (h *Handler) Spam(
 	createAccount func() (*PrivateKey, error),
 	lookupBalance func(int, string) (uint64, error),
 	getParser func(context.Context, ids.ID) (chain.Parser, error),
-	getTransfer func(codec.AddressBytes, uint64) chain.Action,
+	getTransfer func(codec.Address, uint64) chain.Action,
 	submitDummy func(*rpc.JSONRPCClient, *PrivateKey) func(context.Context, uint64) error,
 ) error {
 	ctx := context.Background()
@@ -154,7 +154,7 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	funds := map[codec.AddressBytes]uint64{}
+	funds := map[codec.Address]uint64{}
 	var fundsL sync.Mutex
 	for i := 0; i < numAccounts; i++ {
 		// Create account
@@ -296,7 +296,7 @@ func (h *Handler) Spam(
 
 					// Send transaction
 					start := time.Now()
-					selected := map[codec.AddressBytes]int{}
+					selected := map[codec.Address]int{}
 					for k := 0; k < numTxsPerAccount; k++ {
 						recipient, err := getNextRecipient(i, recipientFunc, accounts)
 						if err != nil {
@@ -526,7 +526,7 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 	}()
 }
 
-func getNextRecipient(self int, createAccount func() (*PrivateKey, error), keys []*PrivateKey) (codec.AddressBytes, error) {
+func getNextRecipient(self int, createAccount func() (*PrivateKey, error), keys []*PrivateKey) (codec.Address, error) {
 	// Send to a random, new account
 	if createAccount != nil {
 		priv, err := createAccount()

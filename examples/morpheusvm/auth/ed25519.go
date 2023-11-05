@@ -29,10 +29,10 @@ type ED25519 struct {
 	Signer    ed25519.PublicKey `json:"signer"`
 	Signature ed25519.Signature `json:"signature"`
 
-	addr codec.AddressBytes
+	addr codec.Address
 }
 
-func (d *ED25519) address() codec.AddressBytes {
+func (d *ED25519) address() codec.Address {
 	if d.addr == codec.EmptyAddressBytes {
 		d.addr = NewED25519Address(d.Signer)
 	}
@@ -75,11 +75,11 @@ func (d *ED25519) Verify(
 	return d.MaxComputeUnits(r), nil
 }
 
-func (d *ED25519) Actor() codec.AddressBytes {
+func (d *ED25519) Actor() codec.Address {
 	return d.address()
 }
 
-func (d *ED25519) Sponsor() codec.AddressBytes {
+func (d *ED25519) Sponsor() codec.Address {
 	return d.address()
 }
 
@@ -207,6 +207,6 @@ func (b *ED25519Batch) Done() []func() error {
 	return []func() error{b.batch.VerifyAsync()}
 }
 
-func NewED25519Address(pk ed25519.PublicKey) codec.AddressBytes {
+func NewED25519Address(pk ed25519.PublicKey) codec.Address {
 	return codec.CreateAddressBytes(consts.ED25519ID, utils.ToID(pk[:]))
 }

@@ -79,7 +79,7 @@ var runSpamCmd = &cobra.Command{
 			func(ctx context.Context, chainID ids.ID) (chain.Parser, error) { // getParser
 				return bclient.Parser(ctx)
 			},
-			func(addr codec.AddressBytes, amount uint64) chain.Action { // getTransfer
+			func(addr codec.Address, amount uint64) chain.Action { // getTransfer
 				return &actions.Transfer{
 					To:    addr,
 					Value: amount,

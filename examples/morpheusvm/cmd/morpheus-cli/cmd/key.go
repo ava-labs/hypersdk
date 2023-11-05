@@ -168,7 +168,7 @@ var setKeyCmd = &cobra.Command{
 	},
 }
 
-func lookupKeyBalance(addr codec.AddressBytes, uri string, networkID uint32, chainID ids.ID, _ ids.ID) error {
+func lookupKeyBalance(addr codec.Address, uri string, networkID uint32, chainID ids.ID, _ ids.ID) error {
 	_, err := handler.GetBalance(context.TODO(), brpc.NewJSONRPCClient(uri, networkID, chainID), addr)
 	return err
 }

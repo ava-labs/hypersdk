@@ -95,19 +95,19 @@ var (
 	priv    ed25519.PrivateKey
 	pk      ed25519.PublicKey
 	factory *auth.ED25519Factory
-	addr    codec.AddressBytes
+	addr    codec.Address
 	addrStr string
 
 	priv2    ed25519.PrivateKey
 	pk2      ed25519.PublicKey
 	factory2 *auth.ED25519Factory
-	addr2    codec.AddressBytes
+	addr2    codec.Address
 	addrStr2 string
 
 	priv3    ed25519.PrivateKey
 	pk3      ed25519.PublicKey
 	factory3 *auth.ED25519Factory
-	addr3    codec.AddressBytes
+	addr3    codec.Address
 	addrStr3 string
 
 	// when used with embedded VMs

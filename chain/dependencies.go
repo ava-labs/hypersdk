@@ -290,13 +290,13 @@ type Auth interface {
 	//
 	// To avoid collisions with other [Auth] modules, this must be prefixed
 	// by the [TypeID].
-	Actor() codec.AddressBytes
+	Actor() codec.Address
 
 	// Sponsor is the fee payer of [Auth].
 	//
 	// To avoid collisions with other [Auth] modules, this must be prefixed
 	// by the [TypeID].
-	Sponsor() codec.AddressBytes
+	Sponsor() codec.Address
 
 	// CanDeduct returns an error if [amount] cannot be paid by [Auth].
 	CanDeduct(ctx context.Context, im state.Immutable, amount uint64) error

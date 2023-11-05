@@ -11,6 +11,6 @@ type Controller interface {
 	DatabasePath() string
 	Symbol() string
 	Decimals() uint8
-	Address(codec.AddressBytes) string
-	ParseAddress(string) (codec.AddressBytes, error)
+	Address(codec.Address) string
+	ParseAddress(string) (codec.Address, error)
 }

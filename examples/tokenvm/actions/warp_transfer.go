@@ -12,7 +12,7 @@ import (
 )
 
 type WarpTransfer struct {
-	To       codec.AddressBytes `json:"to"`
+	To       codec.Address `json:"to"`
 	Symbol   []byte             `json:"symbol"`
 	Decimals uint8              `json:"decimals"`
 	Asset    ids.ID             `json:"asset"`

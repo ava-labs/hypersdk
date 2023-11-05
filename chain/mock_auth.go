@@ -40,10 +40,10 @@ func (m *MockAuth) EXPECT() *MockAuthMockRecorder {
 }
 
 // Actor mocks base method.
-func (m *MockAuth) Actor() codec.AddressBytes {
+func (m *MockAuth) Actor() codec.Address {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Actor")
-	ret0, _ := ret[0].(codec.AddressBytes)
+	ret0, _ := ret[0].(codec.Address)
 	return ret0
 }
 
@@ -164,10 +164,10 @@ func (mr *MockAuthMockRecorder) Size() *gomock.Call {
 }
 
 // Sponsor mocks base method.
-func (m *MockAuth) Sponsor() codec.AddressBytes {
+func (m *MockAuth) Sponsor() codec.Address {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Sponsor")
-	ret0, _ := ret[0].(codec.AddressBytes)
+	ret0, _ := ret[0].(codec.Address)
 	return ret0
 }
 

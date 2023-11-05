@@ -20,7 +20,7 @@ var _ chain.Action = (*Transfer)(nil)
 
 type Transfer struct {
 	// To is the recipient of the [Value].
-	To codec.AddressBytes `json:"to"`
+	To codec.Address `json:"to"`
 
 	// Asset to transfer to [To].
 	Asset ids.ID `json:"asset"`

@@ -117,7 +117,7 @@ func GetTransaction(
 }
 
 // [balancePrefix] + [address]
-func BalanceKey(addr codec.AddressBytes) (k []byte) {
+func BalanceKey(addr codec.Address) (k []byte) {
 	k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
 	k[0] = balancePrefix
 	copy(k[1:], addr[:])
@@ -129,7 +129,7 @@ func BalanceKey(addr codec.AddressBytes) (k []byte) {
 func GetBalance(
 	ctx context.Context,
 	im state.Immutable,
-	addr codec.AddressBytes,
+	addr codec.Address,
 ) (uint64, error) {
 	_, bal, _, err := getBalance(ctx, im, addr)
 	return bal, err
@@ -138,7 +138,7 @@ func GetBalance(
 func getBalance(
 	ctx context.Context,
 	im state.Immutable,
-	addr codec.AddressBytes,
+	addr codec.Address,
 ) ([]byte, uint64, bool, error) {
 	k := BalanceKey(addr)
 	bal, exists, err := innerGetBalance(im.GetValue(ctx, k))
@@ -149,7 +149,7 @@ func getBalance(
 func GetBalanceFromState(
 	ctx context.Context,
 	f ReadState,
-	addr codec.AddressBytes,
+	addr codec.Address,
 ) (uint64, error) {
 	k := BalanceKey(addr)
 	values, errs := f(ctx, [][]byte{k})
@@ -173,7 +173,7 @@ func innerGetBalance(
 func SetBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	addr codec.AddressBytes,
+	addr codec.Address,
 	balance uint64,
 ) error {
 	k := BalanceKey(addr)
@@ -192,7 +192,7 @@ func setBalance(
 func AddBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	addr codec.AddressBytes,
+	addr codec.Address,
 	amount uint64,
 	create bool,
 ) error {
@@ -221,7 +221,7 @@ func AddBalance(
 func SubBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	addr codec.AddressBytes,
+	addr codec.Address,
 	amount uint64,
 ) error {
 	key, bal, _, err := getBalance(ctx, mu, addr)

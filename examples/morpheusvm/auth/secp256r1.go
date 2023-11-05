@@ -25,10 +25,10 @@ type SECP256R1 struct {
 	Signer    secp256r1.PublicKey `json:"signer"`
 	Signature secp256r1.Signature `json:"signature"`
 
-	addr codec.AddressBytes
+	addr codec.Address
 }
 
-func (d *SECP256R1) address() codec.AddressBytes {
+func (d *SECP256R1) address() codec.Address {
 	if d.addr == codec.EmptyAddressBytes {
 		d.addr = NewSECP256R1Address(d.Signer)
 	}
@@ -71,11 +71,11 @@ func (d *SECP256R1) Verify(
 	return d.MaxComputeUnits(r), nil
 }
 
-func (d *SECP256R1) Actor() codec.AddressBytes {
+func (d *SECP256R1) Actor() codec.Address {
 	return d.address()
 }
 
-func (d *SECP256R1) Sponsor() codec.AddressBytes {
+func (d *SECP256R1) Sponsor() codec.Address {
 	return d.address()
 }
 
@@ -151,6 +151,6 @@ func (*SECP256R1Factory) MaxUnits() (uint64, uint64, []uint16) {
 	return SECP256R1Size, SECP256R1ComputeUnits, []uint16{storage.BalanceChunks}
 }
 
-func NewSECP256R1Address(pk secp256r1.PublicKey) codec.AddressBytes {
+func NewSECP256R1Address(pk secp256r1.PublicKey) codec.Address {
 	return codec.CreateAddressBytes(consts.SECP256R1ID, utils.ToID(pk[:]))
 }

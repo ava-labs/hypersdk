@@ -569,7 +569,7 @@ func (t *Transaction) Execute(
 	}, nil
 }
 
-func (t *Transaction) Sponsor() codec.AddressBytes {
+func (t *Transaction) Sponsor() codec.Address {
 	return t.Auth.Sponsor()
 }
 

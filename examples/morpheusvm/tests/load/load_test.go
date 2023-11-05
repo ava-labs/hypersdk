@@ -89,7 +89,7 @@ type instance struct {
 type account struct {
 	priv    ed25519.PrivateKey
 	factory *auth.ED25519Factory
-	rsender codec.AddressBytes
+	rsender codec.Address
 	sender  string
 }
 
@@ -538,7 +538,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 
 func issueSimpleTx(
 	i *instance,
-	to codec.AddressBytes,
+	to codec.Address,
 	amount uint64,
 	factory chain.AuthFactory,
 ) (ids.ID, error) {

@@ -346,7 +346,7 @@ var _ = ginkgo.BeforeSuite(func() {
 var (
 	priv    ed25519.PrivateKey
 	factory *auth.ED25519Factory
-	rsender codec.AddressBytes
+	rsender codec.Address
 	sender  string
 
 	instances []instance

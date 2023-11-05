@@ -102,7 +102,7 @@ func (*ImportAsset) OutputsWarpMessage() bool {
 func (i *ImportAsset) executeMint(
 	ctx context.Context,
 	mu state.Mutable,
-	actor codec.AddressBytes,
+	actor codec.Address,
 ) []byte {
 	asset := ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
 	exists, symbol, decimals, metadata, supply, _, warp, err := storage.GetAsset(ctx, mu, asset)
@@ -143,7 +143,7 @@ func (i *ImportAsset) executeMint(
 func (i *ImportAsset) executeReturn(
 	ctx context.Context,
 	mu state.Mutable,
-	actor codec.AddressBytes,
+	actor codec.Address,
 ) []byte {
 	exists, symbol, decimals, _, _, _, warp, err := storage.GetAsset(ctx, mu, i.warpTransfer.Asset)
 	if err != nil {

@@ -25,7 +25,7 @@ type Order struct {
 	OutTick   uint64 `json:"outTick"`
 	Remaining uint64 `json:"remaining"`
 
-	owner codec.AddressBytes
+	owner codec.Address
 }
 
 type OrderBook struct {
@@ -65,7 +65,7 @@ func New(c Controller, trackedPairs []string, maxOrdersPerPair int) *OrderBook {
 	}
 }
 
-func (o *OrderBook) Add(txID ids.ID, actor codec.AddressBytes, action *actions.CreateOrder) {
+func (o *OrderBook) Add(txID ids.ID, actor codec.Address, action *actions.CreateOrder) {
 	pair := actions.PairID(action.In, action.Out)
 	order := &Order{
 		txID,

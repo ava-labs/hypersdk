@@ -21,7 +21,7 @@ import (
 var _ chain.Action = (*ExportAsset)(nil)
 
 type ExportAsset struct {
-	To          codec.AddressBytes `json:"to"`
+	To          codec.Address `json:"to"`
 	Asset       ids.ID             `json:"asset"`
 	Value       uint64             `json:"value"`
 	Return      bool               `json:"return"`
@@ -65,7 +65,7 @@ func (*ExportAsset) OutputsWarpMessage() bool {
 func (e *ExportAsset) executeReturn(
 	ctx context.Context,
 	mu state.Mutable,
-	actor codec.AddressBytes,
+	actor codec.Address,
 	txID ids.ID,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	exists, symbol, decimals, metadata, supply, _, isWarp, err := storage.GetAsset(ctx, mu, e.Asset)
@@ -143,7 +143,7 @@ func (e *ExportAsset) executeReturn(
 func (e *ExportAsset) executeLoan(
 	ctx context.Context,
 	mu state.Mutable,
-	actor codec.AddressBytes,
+	actor codec.Address,
 	txID ids.ID,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	exists, symbol, decimals, _, _, _, isWarp, err := storage.GetAsset(ctx, mu, e.Asset)

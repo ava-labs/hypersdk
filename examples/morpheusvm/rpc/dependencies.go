@@ -17,5 +17,5 @@ type Controller interface {
 	Genesis() *genesis.Genesis
 	Tracer() trace.Tracer
 	GetTransaction(context.Context, ids.ID) (bool, int64, bool, chain.Dimensions, uint64, error)
-	GetBalanceFromState(context.Context, codec.AddressBytes) (uint64, error)
+	GetBalanceFromState(context.Context, codec.Address) (uint64, error)
 }

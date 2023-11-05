@@ -63,7 +63,7 @@ type Config struct {
 
 	loaded               bool
 	nodeID               ids.NodeID
-	parsedExemptSponsors []codec.AddressBytes
+	parsedExemptSponsors []codec.Address
 }
 
 func New(nodeID ids.NodeID, b []byte) (*Config, error) {
@@ -78,7 +78,7 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 
 	// Parse any exempt sponsors (usually used when a single account is
 	// broadcasting many txs at once)
-	c.parsedExemptSponsors = make([]codec.AddressBytes, len(c.MempoolExemptSponsors))
+	c.parsedExemptSponsors = make([]codec.Address, len(c.MempoolExemptSponsors))
 	for i, sponsor := range c.MempoolExemptSponsors {
 		p, err := codec.ParseAddress(consts.HRP, sponsor)
 		if err != nil {
@@ -109,7 +109,7 @@ func (c *Config) GetRootGenerationCores() int                    { return c.Root
 func (c *Config) GetTransactionExecutionCores() int              { return c.TransactionExecutionCores }
 func (c *Config) GetMempoolSize() int                            { return c.MempoolSize }
 func (c *Config) GetMempoolSponsorSize() int                     { return c.MempoolSponsorSize }
-func (c *Config) GetMempoolExemptSponsors() []codec.AddressBytes { return c.parsedExemptSponsors }
+func (c *Config) GetMempoolExemptSponsors() []codec.Address { return c.parsedExemptSponsors }
 func (c *Config) GetTraceConfig() *trace.Config {
 	return &trace.Config{
 		Enabled:         c.TraceEnabled,

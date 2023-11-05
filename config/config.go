@@ -22,7 +22,7 @@ func (c *Config) GetRootGenerationCores() int                    { return 1 }
 func (c *Config) GetTransactionExecutionCores() int              { return 1 }
 func (c *Config) GetMempoolSize() int                            { return 2_048 }
 func (c *Config) GetMempoolSponsorSize() int                     { return 32 }
-func (c *Config) GetMempoolExemptSponsors() []codec.AddressBytes { return nil }
+func (c *Config) GetMempoolExemptSponsors() []codec.Address { return nil }
 func (c *Config) GetStreamingBacklogSize() int                   { return 1024 }
 func (c *Config) GetStateEvictionBatchSize() int                 { return 4 * units.MiB }
 func (c *Config) GetIntermediateNodeCacheSize() int              { return 4 * units.GiB }

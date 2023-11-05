@@ -26,7 +26,7 @@ type FillOrder struct {
 
 	// [Owner] is the owner of the order and the recipient of the trade
 	// proceeds.
-	Owner codec.AddressBytes `json:"owner"`
+	Owner codec.Address `json:"owner"`
 
 	// [In] is the asset that will be sent to the owner from the fill. We need to provide this to
 	// populate [StateKeys].

@@ -74,7 +74,7 @@ func (h *Handler) DefaultActor() (
 func (*Handler) GetBalance(
 	ctx context.Context,
 	cli *brpc.JSONRPCClient,
-	addr codec.AddressBytes,
+	addr codec.Address,
 ) (uint64, error) {
 	saddr, err := codec.Address(consts.HRP, addr)
 	if err != nil {
@@ -118,10 +118,10 @@ func (*Controller) Decimals() uint8 {
 	return consts.Decimals
 }
 
-func (*Controller) Address(addr codec.AddressBytes) string {
+func (*Controller) Address(addr codec.Address) string {
 	return codec.MustAddress(consts.HRP, addr)
 }
 
-func (*Controller) ParseAddress(addr string) (codec.AddressBytes, error) {
+func (*Controller) ParseAddress(addr string) (codec.Address, error) {
 	return codec.ParseAddress(consts.HRP, addr)
 }

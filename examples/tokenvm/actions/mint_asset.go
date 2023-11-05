@@ -22,7 +22,7 @@ var _ chain.Action = (*MintAsset)(nil)
 
 type MintAsset struct {
 	// To is the recipient of the [Value].
-	To codec.AddressBytes `json:"to"`
+	To codec.Address `json:"to"`
 
 	// Asset is the [TxID] that created the asset.
 	Asset ids.ID `json:"asset"`
