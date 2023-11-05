@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/spf13/cobra"
 )
@@ -29,7 +28,7 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Get balance info
-		balance, err := handler.GetBalance(ctx, bcli, priv.PublicKey())
+		balance, err := handler.GetBalance(ctx, bcli, priv.Address)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -54,7 +53,7 @@ var transferCmd = &cobra.Command{
 
 		// Generate transaction
 		_, _, err = sendAndWait(ctx, nil, &actions.Transfer{
-			To:    auth.NewED25519Address(recipient),
+			To:    recipient,
 			Value: amount,
 		}, cli, bcli, factory, true)
 		return err

@@ -10,6 +10,8 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
@@ -32,26 +34,36 @@ func (h *Handler) Root() *cli.Handler {
 }
 
 func (h *Handler) DefaultActor() (
-	ids.ID, []byte, chain.AuthFactory,
+	ids.ID, *cli.PrivateKey, chain.AuthFactory,
 	*rpc.JSONRPCClient, *brpc.JSONRPCClient, error,
 ) {
-	priv, err := h.h.GetDefaultKey(true)
+	addr, priv, err := h.h.GetDefaultKey(true)
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, err
+	}
+	var factory chain.AuthFactory
+	switch addr[0] {
+	case consts.ED25519ID:
+		factory = auth.NewED25519Factory(ed25519.PrivateKey(priv))
+	case consts.SECP256R1ID:
+		factory = auth.NewSECP256R1Factory(secp256r1.PrivateKey(priv))
+	default:
+		return ids.Empty, nil, nil, nil, nil, ErrInvalidAddress
 	}
 	chainID, uris, err := h.h.GetDefaultChain(true)
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, err
 	}
-	cli := rpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := cli.Network(context.TODO())
+	jcli := rpc.NewJSONRPCClient(uris[0])
+	networkID, _, _, err := jcli.Network(context.TODO())
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, err
 	}
 	// For [defaultActor], we always send requests to the first returned URI.
-	return chainID, priv, auth.NewED25519Factory(
-			priv,
-		), cli,
+	return chainID, &cli.PrivateKey{
+			Address: addr,
+			Bytes:   priv,
+		}, factory, jcli,
 		brpc.NewJSONRPCClient(
 			uris[0],
 			networkID,
