@@ -29,7 +29,7 @@ type SECP256R1 struct {
 }
 
 func (d *SECP256R1) address() codec.Address {
-	if d.addr == codec.EmptyAddressBytes {
+	if d.addr == codec.EmptyAddress {
 		d.addr = NewSECP256R1Address(d.Signer)
 	}
 	return d.addr
@@ -152,5 +152,5 @@ func (*SECP256R1Factory) MaxUnits() (uint64, uint64, []uint16) {
 }
 
 func NewSECP256R1Address(pk secp256r1.PublicKey) codec.Address {
-	return codec.CreateAddressBytes(consts.SECP256R1ID, utils.ToID(pk[:]))
+	return codec.CreateAddress(consts.SECP256R1ID, utils.ToID(pk[:]))
 }

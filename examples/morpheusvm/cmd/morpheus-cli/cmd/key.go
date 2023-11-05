@@ -111,7 +111,7 @@ var genKeyCmd = &cobra.Command{
 		}
 		utils.Outf(
 			"{{green}}created address:{{/}} %s",
-			codec.MustAddress(consts.HRP, priv.Address),
+			codec.MustAddressBech32(consts.HRP, priv.Address),
 		)
 		return nil
 	},
@@ -138,7 +138,7 @@ var importKeyCmd = &cobra.Command{
 		}
 		utils.Outf(
 			"{{green}}imported address:{{/}} %s",
-			codec.MustAddress(consts.HRP, priv.Address),
+			codec.MustAddressBech32(consts.HRP, priv.Address),
 		)
 		return nil
 	},

@@ -126,7 +126,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 
 	supply := uint64(0)
 	for _, alloc := range g.CustomAllocation {
-		pk, err := codec.ParseAddress(consts.HRP, alloc.Address)
+		pk, err := codec.ParseAddressBech32(consts.HRP, alloc.Address)
 		if err != nil {
 			return err
 		}
@@ -146,7 +146,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 		consts.Decimals,
 		[]byte(consts.Name),
 		supply,
-		codec.EmptyAddressBytes,
+		codec.EmptyAddress,
 		false,
 	)
 }

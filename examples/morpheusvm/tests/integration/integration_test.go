@@ -141,7 +141,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	pk = priv.PublicKey()
 	factory = auth.NewED25519Factory(priv)
 	addr = auth.NewED25519Address(pk)
-	addrStr = codec.MustAddress(lconsts.HRP, addr)
+	addrStr = codec.MustAddressBech32(lconsts.HRP, addr)
 	log.Debug(
 		"generated key",
 		zap.String("addr", addrStr),
@@ -153,7 +153,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	pk2 = priv2.PublicKey()
 	factory2 = auth.NewED25519Factory(priv2)
 	addr2 = auth.NewED25519Address(pk2)
-	addrStr2 = codec.MustAddress(lconsts.HRP, addr2)
+	addrStr2 = codec.MustAddressBech32(lconsts.HRP, addr2)
 	log.Debug(
 		"generated key",
 		zap.String("addr", addrStr2),
@@ -165,7 +165,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	pk3 = priv3.PublicKey()
 	factory3 = auth.NewED25519Factory(priv3)
 	addr3 = auth.NewED25519Address(pk3)
-	addrStr3 = codec.MustAddress(lconsts.HRP, addr3)
+	addrStr3 = codec.MustAddressBech32(lconsts.HRP, addr3)
 	log.Debug(
 		"generated key",
 		zap.String("addr", addrStr3),
@@ -882,7 +882,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-			balance, err := instances[0].lcli.Balance(context.TODO(), codec.MustAddress(lconsts.HRP, r1addr))
+			balance, err := instances[0].lcli.Balance(context.TODO(), codec.MustAddressBech32(lconsts.HRP, r1addr))
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(balance).Should(gomega.Equal(uint64(2000)))
 		})

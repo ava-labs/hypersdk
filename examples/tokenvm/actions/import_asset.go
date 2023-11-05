@@ -126,7 +126,7 @@ func (i *ImportAsset) executeMint(
 	if err != nil {
 		return utils.ErrBytes(err)
 	}
-	if err := storage.SetAsset(ctx, mu, asset, symbol, decimals, metadata, newSupply, codec.EmptyAddressBytes, true); err != nil {
+	if err := storage.SetAsset(ctx, mu, asset, symbol, decimals, metadata, newSupply, codec.EmptyAddress, true); err != nil {
 		return utils.ErrBytes(err)
 	}
 	if err := storage.AddBalance(ctx, mu, i.warpTransfer.To, asset, i.warpTransfer.Value, true); err != nil {

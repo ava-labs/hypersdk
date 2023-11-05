@@ -33,7 +33,7 @@ type ED25519 struct {
 }
 
 func (d *ED25519) address() codec.Address {
-	if d.addr == codec.EmptyAddressBytes {
+	if d.addr == codec.EmptyAddress {
 		d.addr = NewED25519Address(d.Signer)
 	}
 	return d.addr
@@ -208,5 +208,5 @@ func (b *ED25519Batch) Done() []func() error {
 }
 
 func NewED25519Address(pk ed25519.PublicKey) codec.Address {
-	return codec.CreateAddressBytes(consts.ED25519ID, utils.ToID(pk[:]))
+	return codec.CreateAddress(consts.ED25519ID, utils.ToID(pk[:]))
 }

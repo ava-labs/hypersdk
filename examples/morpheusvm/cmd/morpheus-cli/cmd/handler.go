@@ -119,9 +119,9 @@ func (*Controller) Decimals() uint8 {
 }
 
 func (*Controller) Address(addr codec.Address) string {
-	return codec.MustAddress(consts.HRP, addr)
+	return codec.MustAddressBech32(consts.HRP, addr)
 }
 
 func (*Controller) ParseAddress(addr string) (codec.Address, error) {
-	return codec.ParseAddress(consts.HRP, addr)
+	return codec.ParseAddressBech32(consts.HRP, addr)
 }

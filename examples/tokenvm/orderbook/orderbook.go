@@ -69,7 +69,7 @@ func (o *OrderBook) Add(txID ids.ID, actor codec.Address, action *actions.Create
 	pair := actions.PairID(action.In, action.Out)
 	order := &Order{
 		txID,
-		codec.MustAddress(consts.HRP, actor),
+		codec.MustAddressBech32(consts.HRP, actor),
 		action.In,
 		action.InTick,
 		action.Out,

@@ -89,7 +89,7 @@ func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetRe
 	reply.Decimals = decimals
 	reply.Metadata = metadata
 	reply.Supply = supply
-	reply.Owner = codec.MustAddress(consts.HRP, owner)
+	reply.Owner = codec.MustAddressBech32(consts.HRP, owner)
 	reply.Warp = warp
 	return err
 }
@@ -107,7 +107,7 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
 
-	addr, err := codec.ParseAddress(consts.HRP, args.Address)
+	addr, err := codec.ParseAddressBech32(consts.HRP, args.Address)
 	if err != nil {
 		return err
 	}
@@ -156,7 +156,7 @@ func (j *JSONRPCServer) GetOrder(req *http.Request, args *GetOrderArgs, reply *G
 	}
 	reply.Order = &orderbook.Order{
 		ID:        args.OrderID,
-		Owner:     codec.MustAddress(consts.HRP, owner),
+		Owner:     codec.MustAddressBech32(consts.HRP, owner),
 		InAsset:   in,
 		InTick:    inTick,
 		OutAsset:  out,

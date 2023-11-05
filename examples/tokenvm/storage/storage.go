@@ -247,7 +247,7 @@ func AddBalance(
 			ErrInvalidBalance,
 			asset,
 			bal,
-			codec.MustAddress(tconsts.HRP, addr),
+			codec.MustAddressBech32(tconsts.HRP, addr),
 			amount,
 		)
 	}
@@ -272,7 +272,7 @@ func SubBalance(
 			ErrInvalidBalance,
 			asset,
 			bal,
-			codec.MustAddress(tconsts.HRP, addr),
+			codec.MustAddressBech32(tconsts.HRP, addr),
 			amount,
 		)
 	}
@@ -317,10 +317,10 @@ func innerGetAsset(
 	err error,
 ) (bool, []byte, uint8, []byte, uint64, codec.Address, bool, error) {
 	if errors.Is(err, database.ErrNotFound) {
-		return false, nil, 0, nil, 0, codec.EmptyAddressBytes, false, nil
+		return false, nil, 0, nil, 0, codec.EmptyAddress, false, nil
 	}
 	if err != nil {
-		return false, nil, 0, nil, 0, codec.EmptyAddressBytes, false, err
+		return false, nil, 0, nil, 0, codec.EmptyAddress, false, err
 	}
 	symbolLen := binary.BigEndian.Uint16(v)
 	symbol := v[consts.Uint16Len : consts.Uint16Len+symbolLen]
@@ -449,10 +449,10 @@ func innerGetOrder(v []byte, err error) (
 	error,
 ) {
 	if errors.Is(err, database.ErrNotFound) {
-		return false, ids.Empty, 0, ids.Empty, 0, 0, codec.EmptyAddressBytes, nil
+		return false, ids.Empty, 0, ids.Empty, 0, 0, codec.EmptyAddress, nil
 	}
 	if err != nil {
-		return false, ids.Empty, 0, ids.Empty, 0, 0, codec.EmptyAddressBytes, err
+		return false, ids.Empty, 0, ids.Empty, 0, 0, codec.EmptyAddress, err
 	}
 	var in ids.ID
 	copy(in[:], v[:consts.IDLen])

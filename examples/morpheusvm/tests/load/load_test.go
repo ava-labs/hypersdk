@@ -186,7 +186,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	priv, err := ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
 	rsender := auth.NewED25519Address(priv.PublicKey())
-	sender := codec.MustAddress(consts.HRP, rsender)
+	sender := codec.MustAddressBech32(consts.HRP, rsender)
 	root = &account{priv, auth.NewED25519Factory(priv), rsender, sender}
 	log.Debug(
 		"generated root key",
@@ -389,7 +389,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				tpriv, err := ed25519.GeneratePrivateKey()
 				gomega.Ω(err).Should(gomega.BeNil())
 				trsender := auth.NewED25519Address(tpriv.PublicKey())
-				tsender := codec.MustAddress(consts.HRP, trsender)
+				tsender := codec.MustAddressBech32(consts.HRP, trsender)
 				senders[i] = &account{tpriv, auth.NewED25519Factory(tpriv), trsender, tsender}
 			}
 		})

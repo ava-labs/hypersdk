@@ -200,7 +200,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	priv = ed25519.PrivateKey(privBytes)
 	factory = auth.NewED25519Factory(priv)
 	rsender = auth.NewED25519Address(priv.PublicKey())
-	sender = codec.MustAddress(consts.HRP, rsender)
+	sender = codec.MustAddressBech32(consts.HRP, rsender)
 	utils.Outf("\n{{yellow}}$ loaded address:{{/}} %s\n\n", sender)
 
 	utils.Outf(
@@ -416,7 +416,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		aother := auth.NewED25519Address(other.PublicKey())
-		aotherStr := codec.MustAddress(consts.HRP, aother)
+		aotherStr := codec.MustAddressBech32(consts.HRP, aother)
 
 		ginkgo.By("issue Transfer to the first node", func() {
 			// Generate transaction

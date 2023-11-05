@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testSponsor = codec.CreateAddressBytes(1, ids.GenerateTestID())
+var testSponsor = codec.CreateAddress(1, ids.GenerateTestID())
 
 type TestItem struct {
 	id        ids.ID
@@ -96,8 +96,8 @@ func TestMempoolAddExceedMaxSponsorSize(t *testing.T) {
 	defer ctrl.Finish()
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
-	exemptSponsor := codec.CreateAddressBytes(99, ids.GenerateTestID())
-	sponsor := codec.CreateAddressBytes(4, ids.GenerateTestID())
+	exemptSponsor := codec.CreateAddress(99, ids.GenerateTestID())
+	sponsor := codec.CreateAddress(4, ids.GenerateTestID())
 	// Non exempt sponsors max of 4
 	txm := New[*TestItem](tracer, 20, 4, []codec.Address{exemptSponsor})
 	// Add 6 transactions for each sponsor

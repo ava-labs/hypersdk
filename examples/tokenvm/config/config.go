@@ -95,7 +95,7 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 	// broadcasting many txs at once)
 	c.parsedExemptSponsors = make([]codec.Address, len(c.MempoolExemptSponsors))
 	for i, sponsor := range c.MempoolExemptSponsors {
-		p, err := codec.ParseAddress(consts.HRP, sponsor)
+		p, err := codec.ParseAddressBech32(consts.HRP, sponsor)
 		if err != nil {
 			return nil, err
 		}

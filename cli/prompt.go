@@ -29,7 +29,7 @@ func (h *Handler) PromptAddress(label string) (codec.Address, error) {
 	}
 	recipient, err := promptText.Run()
 	if err != nil {
-		return codec.EmptyAddressBytes, err
+		return codec.EmptyAddress, err
 	}
 	recipient = strings.TrimSpace(recipient)
 	return h.c.ParseAddress(recipient)

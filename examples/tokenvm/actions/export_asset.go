@@ -94,7 +94,7 @@ func (e *ExportAsset) executeReturn(
 		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if newSupply > 0 {
-		if err := storage.SetAsset(ctx, mu, e.Asset, symbol, decimals, metadata, newSupply, codec.EmptyAddressBytes, true); err != nil {
+		if err := storage.SetAsset(ctx, mu, e.Asset, symbol, decimals, metadata, newSupply, codec.EmptyAddress, true); err != nil {
 			return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 	} else {

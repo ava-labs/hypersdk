@@ -72,7 +72,7 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
 
-	addr, err := codec.ParseAddress(consts.HRP, args.Address)
+	addr, err := codec.ParseAddressBech32(consts.HRP, args.Address)
 	if err != nil {
 		return err
 	}

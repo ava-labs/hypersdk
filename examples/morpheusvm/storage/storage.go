@@ -211,7 +211,7 @@ func AddBalance(
 			"%w: could not add balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
-			codec.MustAddress(mconsts.HRP, addr),
+			codec.MustAddressBech32(mconsts.HRP, addr),
 			amount,
 		)
 	}
@@ -234,7 +234,7 @@ func SubBalance(
 			"%w: could not subtract balance (bal=%d, addr=%v, amount=%d)",
 			ErrInvalidBalance,
 			bal,
-			codec.MustAddress(mconsts.HRP, addr),
+			codec.MustAddressBech32(mconsts.HRP, addr),
 			amount,
 		)
 	}
