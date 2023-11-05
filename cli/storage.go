@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -68,11 +67,10 @@ func (h *Handler) GetDefaultChain(log bool) (ids.ID, []string, error) {
 	return chainID, uris, nil
 }
 
-func (h *Handler) StoreKey(privateKey ed25519.PrivateKey) error {
-	publicKey := privateKey.PublicKey()
-	k := make([]byte, 1+ed25519.PublicKeyLen)
+func (h *Handler) StoreKey(addr codec.AddressBytes, priv []byte) error {
+	k := make([]byte, 1+codec.AddressLen)
 	k[0] = keyPrefix
-	copy(k[1:], publicKey[:])
+	copy(k[1:], addr[:])
 	has, err := h.db.Has(k)
 	if err != nil {
 		return err
@@ -80,7 +78,7 @@ func (h *Handler) StoreKey(privateKey ed25519.PrivateKey) error {
 	if has {
 		return ErrDuplicate
 	}
-	return h.db.Put(k, privateKey[:])
+	return h.db.Put(k, priv[:])
 }
 
 func (h *Handler) GetKey(addr codec.AddressBytes) ([]byte, error) {
@@ -98,15 +96,23 @@ func (h *Handler) GetKey(addr codec.AddressBytes) ([]byte, error) {
 	return v, nil
 }
 
-func (h *Handler) GetKeys() ([]ed25519.PrivateKey, error) {
+type PrivateKey struct {
+	Address codec.AddressBytes
+	Bytes   []byte
+}
+
+func (h *Handler) GetKeys() ([]*PrivateKey, error) {
 	iter := h.db.NewIteratorWithPrefix([]byte{keyPrefix})
 	defer iter.Release()
 
-	privateKeys := []ed25519.PrivateKey{}
+	privateKeys := []*PrivateKey{}
 	for iter.Next() {
 		// It is safe to use these bytes directly because the database copies the
 		// iterator value for us.
-		privateKeys = append(privateKeys, ed25519.PrivateKey(iter.Value()))
+		privateKeys = append(privateKeys, &PrivateKey{
+			Address: codec.AddressBytes(iter.Key()[1:]),
+			Bytes:   iter.Value(),
+		})
 	}
 	return privateKeys, iter.Error()
 }
