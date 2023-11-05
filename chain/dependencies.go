@@ -286,14 +286,17 @@ type Auth interface {
 		action Action,
 	) (computeUnits uint64, err error)
 
-	// Payer is the owner of [Auth]. It is used by the mempool to ensure that there aren't too many transactions
-	// from a single Payer. To avoid collisions with other [Auth] modules, this must be prefixed
-	// by the [TypeID].
-	Payer() codec.AddressBytes
-
-	// Actor is the subject of [Action]. To avoid collisions with other [Auth] modules, this must be prefixed
+	// Actor is the subject of [Action].
+	//
+	// To avoid collisions with other [Auth] modules, this must be prefixed
 	// by the [TypeID].
 	Actor() codec.AddressBytes
+
+	// Sponsor is the fee payer of [Auth].
+	//
+	// To avoid collisions with other [Auth] modules, this must be prefixed
+	// by the [TypeID].
+	Sponsor() codec.AddressBytes
 
 	// CanDeduct returns an error if [amount] cannot be paid by [Auth].
 	CanDeduct(ctx context.Context, im state.Immutable, amount uint64) error

@@ -78,7 +78,7 @@ func (h *Handler) StoreKey(priv *PrivateKey) error {
 	if has {
 		return ErrDuplicate
 	}
-	return h.db.Put(k, priv.Bytes[:])
+	return h.db.Put(k, priv.Bytes)
 }
 
 func (h *Handler) GetKey(addr codec.AddressBytes) ([]byte, error) {

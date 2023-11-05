@@ -71,11 +71,11 @@ func (d *SECP256R1) Verify(
 	return d.MaxComputeUnits(r), nil
 }
 
-func (d *SECP256R1) Payer() codec.AddressBytes {
+func (d *SECP256R1) Actor() codec.AddressBytes {
 	return d.address()
 }
 
-func (d *SECP256R1) Actor() codec.AddressBytes {
+func (d *SECP256R1) Sponsor() codec.AddressBytes {
 	return d.address()
 }
 

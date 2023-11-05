@@ -75,11 +75,11 @@ func (d *ED25519) Verify(
 	return d.MaxComputeUnits(r), nil
 }
 
-func (d *ED25519) Payer() codec.AddressBytes {
+func (d *ED25519) Actor() codec.AddressBytes {
 	return d.address()
 }
 
-func (d *ED25519) Actor() codec.AddressBytes {
+func (d *ED25519) Sponsor() codec.AddressBytes {
 	return d.address()
 }
 

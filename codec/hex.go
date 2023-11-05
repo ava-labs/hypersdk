@@ -4,7 +4,7 @@ import "encoding/hex"
 
 // ToHex converts a PrivateKey to a hex string.
 func ToHex(b []byte) string {
-	return hex.EncodeToString(b[:])
+	return hex.EncodeToString(b)
 }
 
 // LoadHex Converts hex encoded string into bytes. Returns

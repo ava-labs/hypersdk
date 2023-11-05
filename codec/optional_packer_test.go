@@ -91,7 +91,7 @@ func TestOptionalPackerAddressBytes(t *testing.T) {
 		require.Empty(opw.ip.Bytes(), "PackAddressBytes packed an empty Address.")
 		// Pack address
 		opw.PackAddressBytes(addr)
-		require.True(bytes.Equal(addr[:], opw.ip.Bytes()[:]), "PackPublickey did not set bytes correctly.")
+		require.True(bytes.Equal(addr[:], opw.ip.Bytes()), "PackPublickey did not set bytes correctly.")
 	})
 	t.Run("Unpack", func(t *testing.T) {
 		// Setup optional reader

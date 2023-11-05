@@ -33,7 +33,7 @@ func (*Transfer) GetTypeID() uint8 {
 
 func (t *Transfer) StateKeys(auth chain.Auth, _ ids.ID) []string {
 	return []string{
-		string(storage.BalanceKey(auth.Payer())),
+		string(storage.BalanceKey(auth.Actor())),
 		string(storage.BalanceKey(t.To)),
 	}
 }
@@ -58,7 +58,7 @@ func (t *Transfer) Execute(
 	if t.Value == 0 {
 		return false, 1, OutputValueZero, nil, nil
 	}
-	if err := storage.SubBalance(ctx, mu, auth.Payer(), t.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, auth.Actor(), t.Value); err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {

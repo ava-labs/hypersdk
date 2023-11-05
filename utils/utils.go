@@ -102,7 +102,7 @@ func UnixRMilli(now, add int64) int64 {
 // SaveBytes writes [b] to a file [filename]. If filename does
 // not exist, it creates a new file with read/write permissions (0o600).
 func SaveBytes(filename string, b []byte) error {
-	return os.WriteFile(filename, b[:], 0o600)
+	return os.WriteFile(filename, b, 0o600)
 }
 
 // LoadBytes returns bytes stored at a file [filename].

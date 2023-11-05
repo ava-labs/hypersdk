@@ -23,7 +23,7 @@ const maxPrealloc = 4_096
 type Item interface {
 	eheap.Item
 
-	Payer() codec.AddressBytes
+	Sponsor() codec.AddressBytes
 	Size() int
 }
 
@@ -34,14 +34,14 @@ type Mempool[T Item] struct {
 
 	pendingSize int // bytes
 
-	maxSize      int
-	maxPayerSize int // Maximum items allowed by a single payer
+	maxSize        int
+	maxSponsorSize int // Maximum items allowed by a single payer
 
 	queue *list.List[T]
 	eh    *eheap.ExpiryHeap[*list.Element[T]]
 
 	// owned tracks the number of items in the mempool owned by a single
-	// [Payer]
+	// [Sponsor]
 	owned map[codec.AddressBytes]int
 
 	// streamedItems have been removed from the mempool during streaming
@@ -51,8 +51,8 @@ type Mempool[T Item] struct {
 	nextStream        []T
 	nextStreamFetched bool
 
-	// payers that are exempt from [maxPayerSize]
-	exemptPayers set.Set[codec.AddressBytes]
+	// payers that are exempt from [maxSponsorSize]
+	exemptSponsors set.Set[codec.AddressBytes]
 }
 
 // New creates a new [Mempool]. [maxSize] must be > 0 or else the
@@ -60,29 +60,29 @@ type Mempool[T Item] struct {
 func New[T Item](
 	tracer trace.Tracer,
 	maxSize int, // items
-	maxPayerSize int,
-	exemptPayers []codec.AddressBytes,
+	maxSponsorSize int,
+	exemptSponsors []codec.AddressBytes,
 ) *Mempool[T] {
 	m := &Mempool[T]{
 		tracer: tracer,
 
-		maxSize:      maxSize,
-		maxPayerSize: maxPayerSize,
+		maxSize:        maxSize,
+		maxSponsorSize: maxSponsorSize,
 
 		queue: &list.List[T]{},
 		eh:    eheap.New[*list.Element[T]](math.Min(maxSize, maxPrealloc)),
 
-		owned:        map[codec.AddressBytes]int{},
-		exemptPayers: set.Set[codec.AddressBytes]{},
+		owned:          map[codec.AddressBytes]int{},
+		exemptSponsors: set.Set[codec.AddressBytes]{},
 	}
-	for _, payer := range exemptPayers {
-		m.exemptPayers.Add(payer)
+	for _, payer := range exemptSponsors {
+		m.exemptSponsors.Add(payer)
 	}
 	return m
 }
 
 func (m *Mempool[T]) removeFromOwned(item T) {
-	sender := item.Payer()
+	sender := item.Sponsor()
 	items, ok := m.owned[sender]
 	if !ok {
 		// May no longer be populated
@@ -107,7 +107,7 @@ func (m *Mempool[T]) Has(ctx context.Context, itemID ids.ID) bool {
 }
 
 // Add pushes all new items from [items] to m. Does not add a item if
-// the item payer is not exempt and their items in the mempool exceed m.maxPayerSize.
+// the item payer is not exempt and their items in the mempool exceed m.maxSponsorSize.
 // If the size of m exceeds m.maxSize, Add pops the lowest value item
 // from m.eh.
 func (m *Mempool[T]) Add(ctx context.Context, items []T) {
@@ -122,7 +122,7 @@ func (m *Mempool[T]) Add(ctx context.Context, items []T) {
 
 func (m *Mempool[T]) add(items []T, front bool) {
 	for _, item := range items {
-		sender := item.Payer()
+		sender := item.Sponsor()
 
 		// Ensure no duplicate
 		itemID := item.ID()
@@ -136,7 +136,7 @@ func (m *Mempool[T]) add(items []T, front bool) {
 
 		// Ensure sender isn't abusing mempool
 		senderItems := m.owned[sender]
-		if !m.exemptPayers.Contains(sender) && senderItems == m.maxPayerSize {
+		if !m.exemptSponsors.Contains(sender) && senderItems == m.maxSponsorSize {
 			continue // do nothing, wait for items to expire
 		}
 
