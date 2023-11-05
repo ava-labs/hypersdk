@@ -191,8 +191,7 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 				c.metrics.transfer.Inc()
 			case *actions.CreateOrder:
 				c.metrics.createOrder.Inc()
-				actor := auth.GetActor(tx.Auth)
-				c.orderBook.Add(tx.ID(), actor, action)
+				c.orderBook.Add(tx.ID(), tx.Auth.Actor(), action)
 			case *actions.FillOrder:
 				c.metrics.fillOrder.Inc()
 				orderResult, err := actions.UnmarshalOrderResult(result.Output)
