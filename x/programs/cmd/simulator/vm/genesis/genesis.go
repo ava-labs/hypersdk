@@ -62,8 +62,8 @@ type Genesis struct {
 	WarmStorageValueModificationUnits uint64 `json:"warmStorageValueModificationUnits"` // per chunk
 
 	// program Runtime Parameters
-	EnableDebugMode 	bool `json:"enableDebugMode"`
-	EnableBulkMemory      bool `json:"enableBulkMemory"`
+	EnableDebugMode  bool `json:"enableDebugMode"`
+	EnableBulkMemory bool `json:"enableBulkMemory"`
 
 	// Allocations
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`

@@ -124,13 +124,13 @@ func (c *Config) setDefault() {
 	c.MaxOrdersPerPair = defaultMaxOrdersPerPair
 }
 
-func (c *Config) GetLogLevel() logging.Level                     { return c.LogLevel }
-func (c *Config) GetTestMode() bool                              { return c.TestMode }
-func (c *Config) GetSignatureVerificationCores() int             { return c.SignatureVerificationCores }
-func (c *Config) GetRootGenerationCores() int                    { return c.RootGenerationCores }
-func (c *Config) GetTransactionExecutionCores() int              { return c.TransactionExecutionCores }
-func (c *Config) GetMempoolSize() int                            { return c.MempoolSize }
-func (c *Config) GetMempoolSponsorSize() int                     { return c.MempoolSponsorSize }
+func (c *Config) GetLogLevel() logging.Level                { return c.LogLevel }
+func (c *Config) GetTestMode() bool                         { return c.TestMode }
+func (c *Config) GetSignatureVerificationCores() int        { return c.SignatureVerificationCores }
+func (c *Config) GetRootGenerationCores() int               { return c.RootGenerationCores }
+func (c *Config) GetTransactionExecutionCores() int         { return c.TransactionExecutionCores }
+func (c *Config) GetMempoolSize() int                       { return c.MempoolSize }
+func (c *Config) GetMempoolSponsorSize() int                { return c.MempoolSponsorSize }
 func (c *Config) GetMempoolExemptSponsors() []codec.Address { return c.parsedExemptSponsors }
 func (c *Config) GetTraceConfig() *trace.Config {
 	return &trace.Config{

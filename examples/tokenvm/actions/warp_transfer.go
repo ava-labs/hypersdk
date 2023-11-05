@@ -13,10 +13,10 @@ import (
 
 type WarpTransfer struct {
 	To       codec.Address `json:"to"`
-	Symbol   []byte             `json:"symbol"`
-	Decimals uint8              `json:"decimals"`
-	Asset    ids.ID             `json:"asset"`
-	Value    uint64             `json:"value"`
+	Symbol   []byte        `json:"symbol"`
+	Decimals uint8         `json:"decimals"`
+	Asset    ids.ID        `json:"asset"`
+	Value    uint64        `json:"value"`
 
 	// Return is set to true when a warp message is sending funds back to the
 	// chain where they were created.
