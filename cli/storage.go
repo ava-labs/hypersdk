@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/utils"
@@ -82,18 +83,19 @@ func (h *Handler) StoreKey(privateKey ed25519.PrivateKey) error {
 	return h.db.Put(k, privateKey[:])
 }
 
-func (h *Handler) GetKey(publicKey ed25519.PublicKey) (ed25519.PrivateKey, error) {
-	k := make([]byte, 1+ed25519.PublicKeyLen)
+func (h *Handler) GetKey(addr codec.AddressBytes) ([]byte, error) {
+	k := make([]byte, 1+codec.AddressLen)
 	k[0] = keyPrefix
-	copy(k[1:], publicKey[:])
+	copy(k[1:], addr[:])
 	v, err := h.db.Get(k)
+	// TODO: return error if not found?
 	if errors.Is(err, database.ErrNotFound) {
-		return ed25519.EmptyPrivateKey, nil
+		return nil, nil
 	}
 	if err != nil {
-		return ed25519.EmptyPrivateKey, err
+		return nil, err
 	}
-	return ed25519.PrivateKey(v), nil
+	return v, nil
 }
 
 func (h *Handler) GetKeys() ([]ed25519.PrivateKey, error) {
@@ -109,27 +111,27 @@ func (h *Handler) GetKeys() ([]ed25519.PrivateKey, error) {
 	return privateKeys, iter.Error()
 }
 
-func (h *Handler) StoreDefaultKey(pk ed25519.PublicKey) error {
-	return h.StoreDefault(defaultKeyKey, pk[:])
+func (h *Handler) StoreDefaultKey(addr codec.AddressBytes) error {
+	return h.StoreDefault(defaultKeyKey, addr[:])
 }
 
-func (h *Handler) GetDefaultKey(log bool) (ed25519.PrivateKey, error) {
-	v, err := h.GetDefault(defaultKeyKey)
+func (h *Handler) GetDefaultKey(log bool) (codec.AddressBytes, []byte, error) {
+	raddr, err := h.GetDefault(defaultKeyKey)
 	if err != nil {
-		return ed25519.EmptyPrivateKey, err
+		return codec.EmptyAddressBytes, nil, err
 	}
-	if len(v) == 0 {
-		return ed25519.EmptyPrivateKey, ErrNoKeys
+	if len(raddr) == 0 {
+		return codec.EmptyAddressBytes, nil, ErrNoKeys
 	}
-	publicKey := ed25519.PublicKey(v)
-	priv, err := h.GetKey(publicKey)
+	addr := codec.AddressBytes(raddr)
+	priv, err := h.GetKey(addr)
 	if err != nil {
-		return ed25519.EmptyPrivateKey, err
+		return codec.EmptyAddressBytes, nil, err
 	}
 	if log {
-		utils.Outf("{{yellow}}address:{{/}} %s\n", h.c.Address(publicKey))
+		utils.Outf("{{yellow}}address:{{/}} %s\n", h.c.Address(addr))
 	}
-	return priv, nil
+	return addr, priv, nil
 }
 
 func (h *Handler) StoreChain(chainID ids.ID, rpc string) error {

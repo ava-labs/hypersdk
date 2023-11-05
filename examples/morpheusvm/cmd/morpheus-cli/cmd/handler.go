@@ -7,8 +7,9 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
@@ -31,21 +32,21 @@ func (h *Handler) Root() *cli.Handler {
 }
 
 func (h *Handler) DefaultActor() (
-	ids.ID, ed25519.PrivateKey, *auth.ED25519Factory,
+	ids.ID, []byte, chain.AuthFactory,
 	*rpc.JSONRPCClient, *brpc.JSONRPCClient, error,
 ) {
 	priv, err := h.h.GetDefaultKey(true)
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
+		return ids.Empty, nil, nil, nil, nil, err
 	}
 	chainID, uris, err := h.h.GetDefaultChain(true)
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
+		return ids.Empty, nil, nil, nil, nil, err
 	}
 	cli := rpc.NewJSONRPCClient(uris[0])
 	networkID, _, _, err := cli.Network(context.TODO())
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
+		return ids.Empty, nil, nil, nil, nil, err
 	}
 	// For [defaultActor], we always send requests to the first returned URI.
 	return chainID, priv, auth.NewED25519Factory(
@@ -61,16 +62,19 @@ func (h *Handler) DefaultActor() (
 func (*Handler) GetBalance(
 	ctx context.Context,
 	cli *brpc.JSONRPCClient,
-	publicKey ed25519.PublicKey,
+	addr codec.AddressBytes,
 ) (uint64, error) {
-	addr := auth.NewED25519AddressBech32(publicKey)
-	balance, err := cli.Balance(ctx, addr)
+	saddr, err := codec.Address(consts.HRP, addr)
+	if err != nil {
+		return 0, err
+	}
+	balance, err := cli.Balance(ctx, saddr)
 	if err != nil {
 		return 0, err
 	}
 	if balance == 0 {
 		utils.Outf("{{red}}balance:{{/}} 0 %s\n", consts.Symbol)
-		utils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
+		utils.Outf("{{red}}please send funds to %s{{/}}\n", saddr)
 		utils.Outf("{{red}}exiting...{{/}}\n")
 		return 0, nil
 	}
@@ -102,10 +106,10 @@ func (*Controller) Decimals() uint8 {
 	return consts.Decimals
 }
 
-func (*Controller) Address(pk ed25519.PublicKey) string {
-	return auth.NewED25519AddressBech32(pk)
+func (*Controller) Address(addr codec.AddressBytes) string {
+	return codec.MustAddress(consts.HRP, addr)
 }
 
-func (*Controller) ParseAddress(address string) (ed25519.PublicKey, error) {
-	return auth.ParseED25519AddressBech32(address)
+func (*Controller) ParseAddress(addr string) (codec.AddressBytes, error) {
+	return codec.ParseAddress(consts.HRP, addr)
 }

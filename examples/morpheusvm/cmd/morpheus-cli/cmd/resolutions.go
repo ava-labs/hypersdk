@@ -12,8 +12,8 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/address"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/rpc"
@@ -48,20 +48,20 @@ func sendAndWait(
 
 func handleTx(tx *chain.Transaction, result *chain.Result) {
 	summaryStr := string(result.Output)
-	actor := tx.Auth.Payer()
+	actor := tx.Auth.Actor()
 	status := "⚠️"
 	if result.Success {
 		status = "✅"
 		switch action := tx.Action.(type) { //nolint:gocritic
 		case *actions.Transfer:
-			summaryStr = fmt.Sprintf("%s %s -> %s", utils.FormatBalance(action.Value, consts.Decimals), consts.Symbol, address.MustBech32(action.To))
+			summaryStr = fmt.Sprintf("%s %s -> %s", utils.FormatBalance(action.Value, consts.Decimals), consts.Symbol, codec.MustAddress(consts.HRP, action.To))
 		}
 	}
 	utils.Outf(
 		"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary (%s):{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
 		status,
 		tx.ID(),
-		address.MustBech32(actor),
+		codec.MustAddress(consts.HRP, actor),
 		reflect.TypeOf(tx.Action),
 		summaryStr,
 		float64(result.Fee)/float64(tx.Base.MaxFee)*100,
