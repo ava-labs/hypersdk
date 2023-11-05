@@ -13,11 +13,12 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
+	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -54,7 +55,7 @@ var fundFaucetCmd = &cobra.Command{
 		}
 
 		// Get balance
-		_, decimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), ids.Empty, true)
+		_, decimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.Address, ids.Empty, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -72,12 +73,12 @@ var fundFaucetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		pk, err := utils.ParseAddress(faucetAddress)
+		addr, err := codec.ParseAddressBech32(tconsts.HRP, faucetAddress)
 		if err != nil {
 			return err
 		}
 		if _, _, err = sendAndWait(ctx, nil, &actions.Transfer{
-			To:    pk,
+			To:    addr,
 			Asset: ids.Empty,
 			Value: amount,
 		}, cli, scli, tcli, factory, true); err != nil {
@@ -102,7 +103,7 @@ var transferCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		_, decimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), assetID, true)
+		_, decimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.Address, assetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -206,7 +207,7 @@ var mintAssetCmd = &cobra.Command{
 			hutils.Outf("{{red}}exiting...{{/}}\n")
 			return nil
 		}
-		if owner != utils.Address(priv.PublicKey()) {
+		if owner != codec.MustAddressBech32(tconsts.HRP, priv.Address) {
 			hutils.Outf("{{red}}%s is the owner of %s, you are not{{/}}\n", owner, assetID)
 			hutils.Outf("{{red}}exiting...{{/}}\n")
 			return nil
@@ -328,7 +329,7 @@ var createOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		_, decimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), outAssetID, true)
+		_, decimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.Address, outAssetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -387,7 +388,7 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		inSymbol, inDecimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), inAssetID, true)
+		inSymbol, inDecimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.Address, inAssetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -397,7 +398,7 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		outSymbol, outDecimals, _, _, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), outAssetID, false)
+		outSymbol, outDecimals, _, _, err := handler.GetAssetInfo(ctx, tcli, priv.Address, outAssetID, false)
 		if err != nil {
 			return err
 		}
@@ -475,7 +476,7 @@ var fillOrderCmd = &cobra.Command{
 			return err
 		}
 
-		owner, err := utils.ParseAddress(order.Owner)
+		owner, err := codec.ParseAddressBech32(tconsts.HRP, order.Owner)
 		if err != nil {
 			return err
 		}
@@ -552,7 +553,7 @@ func performImport(
 		hutils.ToID(
 			msg.UnsignedMessage.Payload,
 		),
-		utils.Address(wt.To),
+		codec.MustAddressBech32(tconsts.HRP, wt.To),
 		wt.Asset,
 		wt.Symbol,
 		outputAssetID,
@@ -635,7 +636,7 @@ var exportAssetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		_, decimals, balance, sourceChainID, err := handler.GetAssetInfo(ctx, tcli, priv.PublicKey(), assetID, true)
+		_, decimals, balance, sourceChainID, err := handler.GetAssetInfo(ctx, tcli, priv.Address, assetID, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -702,7 +703,7 @@ var exportAssetCmd = &cobra.Command{
 				return err
 			}
 			dcli := trpc.NewJSONRPCClient(uris[0], networkID, destination)
-			_, decimals, _, _, err := handler.GetAssetInfo(ctx, dcli, priv.PublicKey(), assetOut, false)
+			_, decimals, _, _, err := handler.GetAssetInfo(ctx, dcli, priv.Address, assetOut, false)
 			if err != nil {
 				return err
 			}

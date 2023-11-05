@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -99,22 +98,22 @@ func (*Handler) GetAssetInfo(
 }
 
 func (h *Handler) DefaultActor() (
-	ids.ID, ed25519.PrivateKey, chain.AuthFactory,
+	ids.ID, *cli.PrivateKey, chain.AuthFactory,
 	*rpc.JSONRPCClient, *rpc.WebSocketClient, *trpc.JSONRPCClient, error,
 ) {
 	addr, priv, err := h.h.GetDefaultKey(true)
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, nil, err
+		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
 	chainID, uris, err := h.h.GetDefaultChain(true)
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, nil, err
+		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
 	// For [defaultActor], we always send requests to the first returned URI.
-	cli := rpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := cli.Network(context.TODO())
+	jcli := rpc.NewJSONRPCClient(uris[0])
+	networkID, _, _, err := jcli.Network(context.TODO())
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, nil, err
+		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
 	scli, err := rpc.NewWebSocketClient(
 		uris[0],
@@ -123,9 +122,9 @@ func (h *Handler) DefaultActor() (
 		pubsub.MaxReadMessageSize,
 	)
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, nil, err
+		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
-	return chainID, priv, auth.NewED25519Factory(priv), cli, scli,
+	return chainID, &cli.PrivateKey{addr, priv}, auth.NewED25519Factory(ed25519.PrivateKey(priv)), jcli, scli,
 		trpc.NewJSONRPCClient(
 			uris[0],
 			networkID,
@@ -153,10 +152,10 @@ func (*Controller) Decimals() uint8 {
 	return consts.Decimals
 }
 
-func (*Controller) Address(pk ed25519.PublicKey) string {
-	return utils.Address(pk)
+func (*Controller) Address(addr codec.Address) string {
+	return codec.MustAddressBech32(consts.HRP, addr)
 }
 
-func (*Controller) ParseAddress(address string) (ed25519.PublicKey, error) {
-	return utils.ParseAddress(address)
+func (*Controller) ParseAddress(address string) (codec.Address, error) {
+	return codec.ParseAddressBech32(consts.HRP, address)
 }
