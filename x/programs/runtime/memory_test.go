@@ -6,13 +6,12 @@ package runtime
 import (
 	"context"
 	_ "embed"
-	"errors"
 	"os"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/bytecodealliance/wasmtime-go/v13"
+	"github.com/bytecodealliance/wasmtime-go/v14"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,13 +37,13 @@ func TestLimitMaxMemory(t *testing.T) {
 	require.NoError(err)
 
 	// wasm defines 2 pages of memory but runtime set max 1 page
-	maxFee := uint64(1)
-	cfg, err := NewConfigBuilder(maxFee).
+	maxUnits := uint64(1)
+	cfg, err := NewConfigBuilder().
 		WithLimitMaxMemory(1 * MemoryPageSize). // 1 page
 		Build()
 	require.NoError(err)
 	runtime := New(log, cfg, nil)
-	err = runtime.Initialize(context.Background(), wasm)
+	err = runtime.Initialize(context.Background(), wasm, maxUnits)
 	require.ErrorContains(err, "memory minimum size of 2 pages exceeds memory limits")
 }
 
@@ -60,13 +59,13 @@ func TestLimitMaxMemoryGrow(t *testing.T) {
 	`)
 	require.NoError(err)
 
-	maxFee := uint64(1)
-	cfg, err := NewConfigBuilder(maxFee).
+	maxUnits := uint64(1)
+	cfg, err := NewConfigBuilder().
 		WithLimitMaxMemory(1 * MemoryPageSize). // 1 page
 		Build()
 	require.NoError(err)
 	runtime := New(logging.NoLog{}, cfg, nil)
-	err = runtime.Initialize(context.Background(), wasm)
+	err = runtime.Initialize(context.Background(), wasm, maxUnits)
 	require.NoError(err)
 
 	length, err := runtime.Memory().Len()
@@ -90,13 +89,13 @@ func TestWriteExceedsLimitMaxMemory(t *testing.T) {
 	`)
 	require.NoError(err)
 
-	maxFee := uint64(1)
-	cfg, err := NewConfigBuilder(maxFee).
-		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
+	maxUnits := uint64(1)
+	cfg, err := NewConfigBuilder().
+		WithLimitMaxMemory(1 * MemoryPageSize). // 1 page
 		Build()
 	require.NoError(err)
 	runtime := New(logging.NoLog{}, cfg, nil)
-	err = runtime.Initialize(context.Background(), wasm)
+	err = runtime.Initialize(context.Background(), wasm, maxUnits)
 	require.NoError(err)
 	maxMemory, err := runtime.Memory().Len()
 	require.NoError(err)
@@ -120,29 +119,26 @@ func TestWithMaxWasmStack(t *testing.T) {
 	`)
 	require.NoError(err)
 
-	maxFee := uint64(4)
-	cfg, err := NewConfigBuilder(maxFee).
-		WithMaxWasmStack(660).
+	maxUnits := uint64(4)
+	cfg, err := NewConfigBuilder().
+		WithMaxWasmStack(720).
 		Build()
 	require.NoError(err)
 	runtime := New(logging.NoLog{}, cfg, nil)
-	err = runtime.Initialize(context.Background(), wasm)
+	err = runtime.Initialize(context.Background(), wasm, maxUnits)
 	require.NoError(err)
 	_, err = runtime.Call(context.Background(), "get")
 	require.NoError(err)
 
 	// stack is ok for 1 call.
-	cfg, err = NewConfigBuilder(maxFee).
+	cfg, err = NewConfigBuilder().
 		WithMaxWasmStack(500).
 		Build()
 	require.NoError(err)
 	runtime = New(logging.NoLog{}, cfg, nil)
-	err = runtime.Initialize(context.Background(), wasm)
+	err = runtime.Initialize(context.Background(), wasm, maxUnits)
 	require.NoError(err)
 	// exceed the stack limit
 	_, err = runtime.Call(context.Background(), "get")
-	err = errors.Unwrap(err)
-	trap := err.(*wasmtime.Trap)
-	code := trap.Code()
-	require.Equal(*code, wasmtime.StackOverflow)
+	require.ErrorIs(err, ErrTrapStackOverflow)
 }

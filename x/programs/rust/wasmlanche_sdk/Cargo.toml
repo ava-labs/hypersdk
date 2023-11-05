@@ -12,11 +12,10 @@ serde_bare = "0.5.0"
 sdk_macros = { version = "0.1.0", path = "../sdk_macros" }
 
 # simulator
-serde_yaml = {version = "0.9.25", optional = true}
 serde_json = { version = "1.0.107", optional = true }
 
 [features]
 default = []
-simulator = ["serde_yaml", "serde_json"]
+simulator = ["serde_json"]
 
 [lib]

@@ -80,7 +80,7 @@ func (m *memory) Alloc(length uint64) (uint64, error) {
 	}
 	result, err := fn.Call(m.client.Store(), int32(length))
 	if err != nil {
-		return 0, err
+		return 0, handleTrapError(err)
 	}
 
 	addr := result.(int32)
@@ -122,4 +122,36 @@ func WriteBytes(m Memory, buf []byte) (uint64, error) {
 	}
 
 	return offset, nil
+}
+
+// CallParam defines a value to be passed to a guest function.
+type CallParam struct {
+	Value interface{} `json,yaml:"value"`
+}
+
+// WriteParams is a helper function that writes the given params to memory if non integer.
+// Supported types include int, uint64 and string.
+func WriteParams(m Memory, p []CallParam) ([]uint64, error) {
+	params := []uint64{}
+	for _, param := range p {
+		switch v := param.Value.(type) {
+		case string:
+			ptr, err := WriteBytes(m, []byte(v))
+			if err != nil {
+				return nil, err
+			}
+			params = append(params, ptr)
+		case int:
+			if v < 0 {
+				return nil, fmt.Errorf("failed to write param: %w", ErrNegativeValue)
+			}
+			params = append(params, uint64(v))
+		case uint64:
+			params = append(params, v)
+		default:
+			return nil, fmt.Errorf("%w: support types int, uint64 and string", ErrInvalidParamType)
+		}
+	}
+
+	return params, nil
 }

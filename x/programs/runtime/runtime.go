@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/bytecodealliance/wasmtime-go/v13"
+	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
@@ -40,7 +40,7 @@ type WasmRuntime struct {
 	log logging.Logger
 }
 
-func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte) (err error) {
+func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUnits uint64) (err error) {
 	ctx, r.cancelFn = context.WithCancel(ctx)
 	go func(ctx context.Context) {
 		<-ctx.Done()
@@ -48,7 +48,12 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte) (err 
 		r.Stop()
 	}(ctx)
 
-	r.store = wasmtime.NewStore(wasmtime.NewEngineWithConfig(r.cfg.engine))
+	engineConfig, err := r.cfg.Engine()
+	if err != nil {
+		return err
+	}
+
+	r.store = wasmtime.NewStore(wasmtime.NewEngineWithConfig(engineConfig))
 	r.store.Limiter(
 		r.cfg.limitMaxMemory,
 		r.cfg.limitMaxTableElements,
@@ -82,9 +87,22 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte) (err 
 	}
 
 	link := Link{wasmtime.NewLinker(r.store.Engine)}
+
+	// enable wasi logging support only in testing/debug mode
+	if r.cfg.debugMode {
+		wasiConfig := wasmtime.NewWasiConfig()
+		wasiConfig.InheritStderr()
+		wasiConfig.InheritStdout()
+		r.store.SetWasi(wasiConfig)
+		err = link.DefineWasi()
+		if err != nil {
+			return err
+		}
+	}
+
 	// setup metering
 	r.meter = NewMeter(r.store)
-	_, err = r.meter.AddUnits(r.cfg.meterMaxUnits)
+	_, err = r.meter.AddUnits(maxUnits)
 	if err != nil {
 		return err
 	}
@@ -161,7 +179,7 @@ func (r *WasmRuntime) Call(_ context.Context, name string, params ...uint64) ([]
 
 	result, err := fn.Call(r.store, callParams...)
 	if err != nil {
-		return nil, fmt.Errorf("export function call failed %s: %w", name, err)
+		return nil, fmt.Errorf("export function call failed %s: %w", name, handleTrapError(err))
 	}
 
 	switch v := result.(type) {
@@ -198,7 +216,12 @@ func (r *WasmRuntime) Stop() {
 // Note: these bytes can be deserialized by an `Engine` that has the same version.
 // For that reason precompiled wasm modules should not be stored on chain.
 func PreCompileWasmBytes(programBytes []byte, cfg *Config) ([]byte, error) {
-	store := wasmtime.NewStore(wasmtime.NewEngineWithConfig(cfg.engine))
+	engineConfig, err := cfg.Engine()
+	if err != nil {
+		return nil, err
+	}
+
+	store := wasmtime.NewStore(wasmtime.NewEngineWithConfig(engineConfig))
 	store.Limiter(
 		cfg.limitMaxMemory,
 		cfg.limitMaxTableElements,

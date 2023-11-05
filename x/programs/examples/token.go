@@ -17,13 +17,14 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports runtime.SupportedImports) *Token {
+func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports runtime.SupportedImports, maxUnits uint64) *Token {
 	return &Token{
 		log:          log,
 		programBytes: programBytes,
 		cfg:          cfg,
 		imports:      imports,
 		db:           db,
+		maxUnits:     maxUnits,
 	}
 }
 
@@ -33,11 +34,12 @@ type Token struct {
 	cfg          *runtime.Config
 	imports      runtime.SupportedImports
 	db           state.Mutable
+	maxUnits     uint64
 }
 
 func (t *Token) Run(ctx context.Context) error {
 	rt := runtime.New(t.log, t.cfg, t.imports)
-	err := rt.Initialize(ctx, t.programBytes)
+	err := rt.Initialize(ctx, t.programBytes, t.maxUnits)
 	if err != nil {
 		return err
 	}
@@ -187,7 +189,7 @@ func (t *Token) Run(ctx context.Context) error {
 // RunShort performs the steps of initialization only, used for benchmarking.
 func (t *Token) RunShort(ctx context.Context) error {
 	rt := runtime.New(t.log, t.cfg, t.imports)
-	err := rt.Initialize(ctx, t.programBytes)
+	err := rt.Initialize(ctx, t.programBytes, t.maxUnits)
 	if err != nil {
 		return err
 	}

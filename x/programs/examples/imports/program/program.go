@@ -11,7 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/bytecodealliance/wasmtime-go/v13"
+	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
@@ -22,6 +22,7 @@ import (
 const Name = "program"
 
 type Import struct {
+	cfg        *runtime.Config
 	db         state.Mutable
 	log        logging.Logger
 	imports    runtime.SupportedImports
@@ -30,8 +31,9 @@ type Import struct {
 }
 
 // New returns a new program invoke host module which can perform program to program calls.
-func New(log logging.Logger, db state.Mutable) *Import {
+func New(log logging.Logger, db state.Mutable, cfg *runtime.Config) *Import {
 	return &Import{
+		cfg: cfg,
 		db:  db,
 		log: log,
 	}
@@ -96,20 +98,9 @@ func (i *Import) callProgramFn(
 		return -1
 	}
 
-	// initialize a new runtime config with zero balance
-	cfg, err := runtime.NewConfigBuilder(runtime.NoUnits).
-		WithLimitMaxMemory(18 * runtime.MemoryPageSize). // 18 pages
-		Build()
-	if err != nil {
-		i.log.Error("failed to create runtime config",
-			zap.Error(err),
-		)
-		return -1
-	}
-
-	// create a new runtime for the program to be invoked
-	rt := runtime.New(i.log, cfg, i.imports)
-	err = rt.Initialize(context.Background(), programWasmBytes)
+	// create a new runtime for the program to be invoked with a zero balance.
+	rt := runtime.New(i.log, i.cfg, i.imports)
+	err = rt.Initialize(context.Background(), programWasmBytes, runtime.NoUnits)
 	if err != nil {
 		i.log.Error("failed to initialize runtime",
 			zap.Error(err),
@@ -118,7 +109,7 @@ func (i *Import) callProgramFn(
 	}
 
 	// transfer the units from the caller to the new runtime before any calls are made.
-	_, err = i.meter.TransferUnits(rt.Meter(), uint64(maxUnits))
+	_, err = i.meter.TransferUnitsTo(rt.Meter(), uint64(maxUnits))
 	if err != nil {
 		i.log.Error("failed to transfer units",
 			zap.Uint64("balance", i.meter.GetBalance()),
@@ -127,6 +118,19 @@ func (i *Import) callProgramFn(
 		)
 		return -1
 	}
+
+	// transfer remaining balance back to parent runtime
+	defer func() {
+		// stop the runtime to prevent further execution
+		rt.Stop()
+
+		_, err = rt.Meter().TransferUnitsTo(i.meter, rt.Meter().GetBalance())
+		if err != nil {
+			i.log.Error("failed to transfer remaining balance to caller",
+				zap.Error(err),
+			)
+		}
+	}()
 
 	// write the program id to the new runtime memory
 	ptr, err := runtime.WriteBytes(rt.Memory(), programIDBytes)
@@ -146,7 +150,7 @@ func (i *Import) callProgramFn(
 	}
 
 	// sync args to new runtime and return arguments to the invoke call
-	params, err := getCallArgs(ctx, rt, argsBytes, ptr)
+	params, err := getCallArgs(ctx, rt.Memory(), argsBytes, ptr)
 	if err != nil {
 		i.log.Error("failed to unmarshal call arguments",
 			zap.Error(err),
@@ -163,22 +167,10 @@ func (i *Import) callProgramFn(
 		return -1
 	}
 
-	// stop the runtime to prevent further execution
-	rt.Stop()
-
-	// transfer remaining balance back to parent runtime
-	_, err = rt.Meter().TransferUnits(i.meter, rt.Meter().GetBalance())
-	if err != nil {
-		i.log.Error("failed to transfer remaining balance to caller",
-			zap.Error(err),
-		)
-		return -1
-	}
-
 	return int64(res[0])
 }
 
-func getCallArgs(ctx context.Context, rt runtime.Runtime, buffer []byte, invokeProgramID uint64) ([]uint64, error) {
+func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, invokeProgramID uint64) ([]uint64, error) {
 	// first arg contains id of program to call
 	args := []uint64{invokeProgramID}
 	p := codec.NewReader(buffer, len(buffer))
@@ -192,7 +184,7 @@ func getCallArgs(ctx context.Context, rt runtime.Runtime, buffer []byte, invokeP
 		} else {
 			valueBytes := make([]byte, size)
 			p.UnpackFixedBytes(int(size), &valueBytes)
-			ptr, err := runtime.WriteBytes(rt.Memory(), valueBytes)
+			ptr, err := runtime.WriteBytes(memory, valueBytes)
 			if err != nil {
 				return nil, err
 			}
