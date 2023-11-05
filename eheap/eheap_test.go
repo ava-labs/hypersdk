@@ -11,11 +11,11 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
-const testPayer = "testPayer"
+const testSponsor = "testSponsor"
 
 type TestItem struct {
 	id        ids.ID
-	payer     string
+	sponsor   string
 	timestamp int64
 }
 
@@ -23,19 +23,19 @@ func (mti *TestItem) ID() ids.ID {
 	return mti.id
 }
 
-func (mti *TestItem) Payer() string {
-	return mti.payer
+func (mti *TestItem) Sponsor() string {
+	return mti.sponsor
 }
 
 func (mti *TestItem) Expiry() int64 {
 	return mti.timestamp
 }
 
-func GenerateTestItem(payer string, t int64) *TestItem {
+func GenerateTestItem(sponsor string, t int64) *TestItem {
 	id := ids.GenerateTestID()
 	return &TestItem{
 		id:        id,
-		payer:     payer,
+		sponsor:   sponsor,
 		timestamp: t,
 	}
 }
@@ -51,7 +51,7 @@ func TestExpiryHeapAdd(t *testing.T) {
 	// Adds to the mempool.
 	require := require.New(t)
 	eheap := New[*TestItem](0)
-	item := GenerateTestItem("payer", 1)
+	item := GenerateTestItem("sponsor", 1)
 	eheap.Add(item)
 	require.Equal(eheap.minHeap.Len(), 1, "MinHeap not pushed correctly")
 	require.True(eheap.minHeap.Has(item.ID()), "MinHeap does not have ID")
@@ -61,7 +61,7 @@ func TestExpiryHeapRemove(t *testing.T) {
 	// Removes from the mempool.
 	require := require.New(t)
 	eheap := New[*TestItem](0)
-	item := GenerateTestItem("payer", 1)
+	item := GenerateTestItem("sponsor", 1)
 	// Add first
 	eheap.Add(item)
 	require.Equal(eheap.minHeap.Len(), 1, "MinHeap not pushed correctly")
@@ -77,7 +77,7 @@ func TestExpiryHeapRemoveEmpty(t *testing.T) {
 	// Removes from the mempool.
 	require := require.New(t)
 	eheap := New[*TestItem](0)
-	item := GenerateTestItem("payer", 1)
+	item := GenerateTestItem("sponsor", 1)
 	// Require this returns
 	eheap.Remove(item.ID())
 	require.True(true, "not true")
@@ -85,10 +85,10 @@ func TestExpiryHeapRemoveEmpty(t *testing.T) {
 
 func TestSetMin(t *testing.T) {
 	require := require.New(t)
-	payer := "payer"
+	sponsor := "sponsor"
 	eheap := New[*TestItem](0)
 	for i := int64(0); i <= 9; i++ {
-		item := GenerateTestItem(payer, i)
+		item := GenerateTestItem(sponsor, i)
 		eheap.Add(item)
 		require.True(eheap.Has(item.ID()), "TX not included")
 	}
@@ -109,11 +109,11 @@ func TestSetMin(t *testing.T) {
 
 func TestSetMinRemovesAll(t *testing.T) {
 	require := require.New(t)
-	payer := "payer"
+	sponsor := "sponsor"
 	eheap := New[*TestItem](0)
 	var items []*TestItem
 	for i := int64(0); i <= 4; i++ {
-		item := GenerateTestItem(payer, i)
+		item := GenerateTestItem(sponsor, i)
 		items = append(items, item)
 		eheap.Add(item)
 		require.True(eheap.Has(item.ID()), "TX not included")
@@ -129,9 +129,9 @@ func TestPeekMin(t *testing.T) {
 	require := require.New(t)
 	eheap := New[*TestItem](0)
 
-	itemMin := GenerateTestItem(testPayer, 1)
-	itemMed := GenerateTestItem(testPayer, 2)
-	itemMax := GenerateTestItem(testPayer, 3)
+	itemMin := GenerateTestItem(testSponsor, 1)
+	itemMed := GenerateTestItem(testSponsor, 2)
+	itemMax := GenerateTestItem(testSponsor, 3)
 	min, ok := eheap.PeekMin()
 	require.False(ok)
 	require.Nil(min, "Peek UnitPrice is incorrect")
@@ -160,9 +160,9 @@ func TestPopMin(t *testing.T) {
 
 	eheap := New[*TestItem](0)
 
-	itemMin := GenerateTestItem(testPayer, 1)
-	itemMed := GenerateTestItem(testPayer, 2)
-	itemMax := GenerateTestItem(testPayer, 3)
+	itemMin := GenerateTestItem(testSponsor, 1)
+	itemMed := GenerateTestItem(testSponsor, 2)
+	itemMax := GenerateTestItem(testSponsor, 3)
 	min, ok := eheap.PopMin()
 	require.False(ok)
 	require.Nil(min, "Pop value is incorrect")
@@ -185,7 +185,7 @@ func TestHas(t *testing.T) {
 	require := require.New(t)
 
 	eheap := New[*TestItem](0)
-	item := GenerateTestItem(testPayer, 1)
+	item := GenerateTestItem(testSponsor, 1)
 	require.False(eheap.Has(item.ID()), "Found an item that was not added.")
 	eheap.Add(item)
 	require.True(eheap.Has(item.ID()), "Did not find item.")
@@ -196,7 +196,7 @@ func TestLen(t *testing.T) {
 
 	eheap := New[*TestItem](0)
 	for i := int64(0); i <= 4; i++ {
-		item := GenerateTestItem(testPayer, i)
+		item := GenerateTestItem(testSponsor, i)
 		eheap.Add(item)
 		require.True(eheap.Has(item.ID()), "TX not included")
 	}
