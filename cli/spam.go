@@ -93,7 +93,10 @@ func (h *Handler) Spam(
 	}
 	key := keys[keyIndex]
 	balance := balances[keyIndex]
-	factory := getFactory(key)
+	factory, err := getFactory(key)
+	if err != nil {
+		return err
+	}
 
 	// No longer using db, so we close
 	if err := h.CloseDatabase(); err != nil {
@@ -258,7 +261,10 @@ func (h *Handler) Spam(
 			defer t.Stop()
 
 			issuerIndex, issuer := getRandomIssuer(clients)
-			factory := getFactory(accounts[i])
+			factory, err := getFactory(accounts[i])
+			if err != nil {
+				return err
+			}
 			fundsL.Lock()
 			balance := funds[accounts[i].Address]
 			fundsL.Unlock()
@@ -412,7 +418,11 @@ func (h *Handler) Spam(
 		returnsSent++
 		// Send funds
 		returnAmt := balance - feePerTx
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(key.Address, returnAmt), getFactory(accounts[i]), feePerTx)
+		f, err := getFactory(accounts[i])
+		if err != nil {
+			return err
+		}
+		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(key.Address, returnAmt), f, feePerTx)
 		if err != nil {
 			return err
 		}
