@@ -14,11 +14,10 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	hconsts "github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
 )
@@ -127,7 +126,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 
 	supply := uint64(0)
 	for _, alloc := range g.CustomAllocation {
-		pk, err := utils.ParseAddress(alloc.Address)
+		pk, err := codec.ParseAddress(consts.HRP, alloc.Address)
 		if err != nil {
 			return err
 		}
@@ -147,7 +146,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 		consts.Decimals,
 		[]byte(consts.Name),
 		supply,
-		ed25519.EmptyPublicKey,
+		codec.EmptyAddressBytes,
 		false,
 	)
 }
