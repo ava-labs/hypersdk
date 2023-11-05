@@ -58,9 +58,7 @@ var runSpamCmd = &cobra.Command{
 			func(uri string, networkID uint32, chainID ids.ID) { // createClient
 				bclient = brpc.NewJSONRPCClient(uri, networkID, chainID)
 			},
-			func(priv *cli.PrivateKey) (chain.AuthFactory, error) { // getFactory
-				return getFactory(priv)
-			},
+			getFactory,
 			func() (*cli.PrivateKey, error) { // createAccount
 				return generatePrivateKey(args[0])
 			},

@@ -66,7 +66,7 @@ func loadPrivateKey(k string, path string) (*cli.PrivateKey, error) {
 		pk := ed25519.PrivateKey(p)
 		return &cli.PrivateKey{
 			Address: auth.NewED25519Address(pk.PublicKey()),
-			Bytes:   p[:],
+			Bytes:   p,
 		}, nil
 	case secp256r1Key:
 		p, err := utils.LoadBytes(path, secp256r1.PrivateKeyLen)
@@ -76,7 +76,7 @@ func loadPrivateKey(k string, path string) (*cli.PrivateKey, error) {
 		pk := secp256r1.PrivateKey(p)
 		return &cli.PrivateKey{
 			Address: auth.NewSECP256R1Address(pk.PublicKey()),
-			Bytes:   p[:],
+			Bytes:   p,
 		}, nil
 	default:
 		return nil, ErrInvalidKeyType
