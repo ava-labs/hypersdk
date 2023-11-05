@@ -7,7 +7,9 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
+	"github.com/ava-labs/hypersdk/codec"
 	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
@@ -36,7 +38,7 @@ func (h *Handler) Root() *cli.Handler {
 func (*Handler) GetAssetInfo(
 	ctx context.Context,
 	cli *trpc.JSONRPCClient,
-	publicKey ed25519.PublicKey,
+	addr codec.Address,
 	assetID ids.ID,
 	checkBalance bool,
 ) ([]byte, uint8, uint64, ids.ID, error) {
@@ -74,14 +76,17 @@ func (*Handler) GetAssetInfo(
 	if !checkBalance {
 		return symbol, decimals, 0, sourceChainID, nil
 	}
-	addr := utils.Address(publicKey)
-	balance, err := cli.Balance(ctx, addr, assetID)
+	saddr, err := codec.AddressBech32(consts.HRP, addr)
+	if err != nil {
+		return nil, 0, 0, ids.Empty, err
+	}
+	balance, err := cli.Balance(ctx, saddr, assetID)
 	if err != nil {
 		return nil, 0, 0, ids.Empty, err
 	}
 	if balance == 0 {
 		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", assetID)
-		hutils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
+		hutils.Outf("{{red}}please send funds to %s{{/}}\n", saddr)
 		hutils.Outf("{{red}}exiting...{{/}}\n")
 	} else {
 		hutils.Outf(
@@ -94,10 +99,10 @@ func (*Handler) GetAssetInfo(
 }
 
 func (h *Handler) DefaultActor() (
-	ids.ID, ed25519.PrivateKey, *auth.ED25519Factory,
+	ids.ID, ed25519.PrivateKey, chain.AuthFactory,
 	*rpc.JSONRPCClient, *rpc.WebSocketClient, *trpc.JSONRPCClient, error,
 ) {
-	priv, err := h.h.GetDefaultKey(true)
+	addr, priv, err := h.h.GetDefaultKey(true)
 	if err != nil {
 		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, nil, err
 	}

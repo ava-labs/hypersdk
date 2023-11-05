@@ -265,7 +265,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			nil,
 			[]byte(
 				fmt.Sprintf(
-					`{%s"signatureVerificationCores":%d, "rootGenerationCores":%d, "transactionExecutionCores":%d, "mempoolSize":%d, "mempoolPayerSize":%d, "testMode":true}`,
+					`{%s"signatureVerificationCores":%d, "rootGenerationCores":%d, "transactionExecutionCores":%d, "mempoolSize":%d, "mempoolSponsorSize":%d, "testMode":true}`,
 					tracePrefix,
 					numWorkers/3,
 					numWorkers/3,

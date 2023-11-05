@@ -8,7 +8,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 )
 
 type JSONRPCServer struct {
@@ -28,7 +29,7 @@ func (j *JSONRPCServer) FaucetAddress(req *http.Request, _ *struct{}, reply *Fau
 	if err != nil {
 		return err
 	}
-	reply.Address = utils.Address(addr)
+	reply.Address = codec.MustAddressBech32(consts.HRP, addr)
 	return nil
 }
 
@@ -59,7 +60,7 @@ type SolveChallengeReply struct {
 }
 
 func (j *JSONRPCServer) SolveChallenge(req *http.Request, args *SolveChallengeArgs, reply *SolveChallengeReply) error {
-	addr, err := utils.ParseAddress(args.Address)
+	addr, err := codec.ParseAddressBech32(consts.HRP, args.Address)
 	if err != nil {
 		return err
 	}
