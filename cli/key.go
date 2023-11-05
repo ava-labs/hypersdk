@@ -7,50 +7,10 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 )
-
-func (h *Handler) GenerateKey() error {
-	// TODO: encrypt key
-	priv, err := ed25519.GeneratePrivateKey()
-	if err != nil {
-		return err
-	}
-	if err := h.StoreKey(priv); err != nil {
-		return err
-	}
-	publicKey := priv.PublicKey()
-	if err := h.StoreDefaultKey(publicKey); err != nil {
-		return err
-	}
-	utils.Outf(
-		"{{green}}created address:{{/}} %s",
-		h.c.Address(publicKey),
-	)
-	return nil
-}
-
-func (h *Handler) ImportKey(keyPath string) error {
-	kb, err := utils.LoadBytes(keyPath, ed25519.PrivateKeyLen)
-	if err != nil {
-		return err
-	}
-	priv := ed25519.PrivateKey(kb)
-	if err := h.StoreKey(priv); err != nil {
-		return err
-	}
-	publicKey := priv.PublicKey()
-	if err := h.StoreDefaultKey(publicKey); err != nil {
-		return err
-	}
-	utils.Outf(
-		"{{green}}imported address:{{/}} %s",
-		h.c.Address(publicKey),
-	)
-	return nil
-}
 
 func (h *Handler) SetKey(lookupBalance func(int, string, string, uint32, ids.ID) error) error {
 	keys, err := h.GetKeys()
@@ -76,7 +36,7 @@ func (h *Handler) SetKey(lookupBalance func(int, string, string, uint32, ids.ID)
 	}
 	utils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
 	for i := 0; i < len(keys); i++ {
-		if err := lookupBalance(i, h.c.Address(keys[i].PublicKey()), uris[0], networkID, chainID); err != nil {
+		if err := lookupBalance(i, h.c.Address(keys[i].Address), uris[0], networkID, chainID); err != nil {
 			return err
 		}
 	}
@@ -87,11 +47,11 @@ func (h *Handler) SetKey(lookupBalance func(int, string, string, uint32, ids.ID)
 		return err
 	}
 	key := keys[keyIndex]
-	return h.StoreDefaultKey(key.PublicKey())
+	return h.StoreDefaultKey(key.Address)
 }
 
-func (h *Handler) Balance(checkAllChains bool, promptAsset bool, printBalance func(ed25519.PublicKey, string, uint32, ids.ID, ids.ID) error) error {
-	priv, err := h.GetDefaultKey(true)
+func (h *Handler) Balance(checkAllChains bool, promptAsset bool, printBalance func(codec.AddressBytes, string, uint32, ids.ID, ids.ID) error) error {
+	addr, _, err := h.GetDefaultKey(true)
 	if err != nil {
 		return err
 	}
@@ -118,7 +78,7 @@ func (h *Handler) Balance(checkAllChains bool, promptAsset bool, printBalance fu
 		if err != nil {
 			return err
 		}
-		if err := printBalance(priv.PublicKey(), uri, networkID, chainID, assetID); err != nil {
+		if err := printBalance(addr, uri, networkID, chainID, assetID); err != nil {
 			return err
 		}
 	}
