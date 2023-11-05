@@ -35,7 +35,7 @@ type Mempool[T Item] struct {
 	pendingSize int // bytes
 
 	maxSize        int
-	maxSponsorSize int // Maximum items allowed by a single payer
+	maxSponsorSize int // Maximum items allowed by a single sponsor
 
 	queue *list.List[T]
 	eh    *eheap.ExpiryHeap[*list.Element[T]]
@@ -51,7 +51,7 @@ type Mempool[T Item] struct {
 	nextStream        []T
 	nextStreamFetched bool
 
-	// payers that are exempt from [maxSponsorSize]
+	// sponsors that are exempt from [maxSponsorSize]
 	exemptSponsors set.Set[codec.AddressBytes]
 }
 
@@ -75,8 +75,8 @@ func New[T Item](
 		owned:          map[codec.AddressBytes]int{},
 		exemptSponsors: set.Set[codec.AddressBytes]{},
 	}
-	for _, payer := range exemptSponsors {
-		m.exemptSponsors.Add(payer)
+	for _, sponsor := range exemptSponsors {
+		m.exemptSponsors.Add(sponsor)
 	}
 	return m
 }
@@ -107,7 +107,7 @@ func (m *Mempool[T]) Has(ctx context.Context, itemID ids.ID) bool {
 }
 
 // Add pushes all new items from [items] to m. Does not add a item if
-// the item payer is not exempt and their items in the mempool exceed m.maxSponsorSize.
+// the item sponsor is not exempt and their items in the mempool exceed m.maxSponsorSize.
 // If the size of m exceeds m.maxSize, Add pops the lowest value item
 // from m.eh.
 func (m *Mempool[T]) Add(ctx context.Context, items []T) {

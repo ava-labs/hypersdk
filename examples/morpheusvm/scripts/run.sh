@@ -149,8 +149,8 @@ rm -rf ${TMPDIR}/morpheusvm-e2e-profiles
 cat <<EOF > ${TMPDIR}/morpheusvm.config
 {
   "mempoolSize": 10000000,
-  "mempoolPayerSize": 10000000,
-  "mempoolExemptPayers":["${ADDRESS}"],
+  "mempoolSponsorSize": 10000000,
+  "mempoolExemptSponsors":["${ADDRESS}"],
   "signatureVerificationCores": 2,
   "rootGenerationCores": 2,
   "transactionExecutionCores": 2,

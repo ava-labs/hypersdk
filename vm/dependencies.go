@@ -31,8 +31,8 @@ type Config interface {
 	GetSignatureVerificationCores() int
 	GetRootGenerationCores() int
 	GetTransactionExecutionCores() int
-	GetMempoolPayerSize() int
-	GetMempoolExemptPayers() []codec.AddressBytes
+	GetMempoolSponsorSize() int
+	GetMempoolExemptSponsors() []codec.AddressBytes
 	GetVerifySignatures() bool
 	GetStreamingBacklogSize() int
 	GetStateHistoryLength() int        // how many roots back of data to keep to serve state queries

@@ -247,8 +247,8 @@ func (vm *VM) Initialize(
 	vm.mempool = mempool.New[*chain.Transaction](
 		vm.tracer,
 		vm.config.GetMempoolSize(),
-		vm.config.GetMempoolPayerSize(),
-		vm.config.GetMempoolExemptPayers(),
+		vm.config.GetMempoolSponsorSize(),
+		vm.config.GetMempoolExemptSponsors(),
 	)
 
 	// Try to load last accepted
