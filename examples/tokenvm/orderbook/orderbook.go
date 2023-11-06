@@ -7,9 +7,9 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/heap"
 	"go.uber.org/zap"
 )
@@ -25,7 +25,7 @@ type Order struct {
 	OutTick   uint64 `json:"outTick"`
 	Remaining uint64 `json:"remaining"`
 
-	owner ed25519.PublicKey
+	owner codec.Address
 }
 
 type OrderBook struct {
@@ -65,11 +65,11 @@ func New(c Controller, trackedPairs []string, maxOrdersPerPair int) *OrderBook {
 	}
 }
 
-func (o *OrderBook) Add(txID ids.ID, actor ed25519.PublicKey, action *actions.CreateOrder) {
+func (o *OrderBook) Add(txID ids.ID, actor codec.Address, action *actions.CreateOrder) {
 	pair := actions.PairID(action.In, action.Out)
 	order := &Order{
 		txID,
-		utils.Address(actor),
+		codec.MustAddressBech32(consts.HRP, actor),
 		action.In,
 		action.InTick,
 		action.Out,

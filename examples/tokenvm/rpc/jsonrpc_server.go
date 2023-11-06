@@ -9,9 +9,10 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
 type JSONRPCServer struct {
@@ -88,7 +89,7 @@ func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetRe
 	reply.Decimals = decimals
 	reply.Metadata = metadata
 	reply.Supply = supply
-	reply.Owner = utils.Address(owner)
+	reply.Owner = codec.MustAddressBech32(consts.HRP, owner)
 	reply.Warp = warp
 	return err
 }
@@ -106,7 +107,7 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
 
-	addr, err := utils.ParseAddress(args.Address)
+	addr, err := codec.ParseAddressBech32(consts.HRP, args.Address)
 	if err != nil {
 		return err
 	}
@@ -155,7 +156,7 @@ func (j *JSONRPCServer) GetOrder(req *http.Request, args *GetOrderArgs, reply *G
 	}
 	reply.Order = &orderbook.Order{
 		ID:        args.OrderID,
-		Owner:     utils.Address(owner),
+		Owner:     codec.MustAddressBech32(consts.HRP, owner),
 		InAsset:   in,
 		InTick:    inTick,
 		OutAsset:  out,

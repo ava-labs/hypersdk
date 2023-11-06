@@ -3,7 +3,12 @@
 
 package config
 
-import "github.com/ava-labs/hypersdk/crypto/ed25519"
+import (
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
+)
 
 type Config struct {
 	HTTPHost string `json:"host"`
@@ -20,4 +25,12 @@ type Config struct {
 
 func (c *Config) PrivateKey() ed25519.PrivateKey {
 	return ed25519.PrivateKey(c.PrivateKeyBytes)
+}
+
+func (c *Config) Address() codec.Address {
+	return auth.NewED25519Address(c.PrivateKey().PublicKey())
+}
+
+func (c *Config) AddressBech32() string {
+	return codec.MustAddressBech32(consts.HRP, c.Address())
 }

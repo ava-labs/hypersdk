@@ -135,7 +135,7 @@ func (*ProgramExecute) Size() int {
 }
 
 func (t *ProgramExecute) Marshal(p *codec.Packer) {
-	//TODO
+	// TODO
 }
 
 func (t *ProgramExecute) GetBalance() uint64 {
@@ -143,7 +143,7 @@ func (t *ProgramExecute) GetBalance() uint64 {
 }
 
 func UnmarshalProgramExecute(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
-	//TODO
+	// TODO
 	return nil, nil
 }
 

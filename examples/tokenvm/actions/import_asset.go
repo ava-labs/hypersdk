@@ -14,8 +14,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
@@ -40,11 +38,10 @@ func (*ImportAsset) GetTypeID() uint8 {
 	return importAssetID
 }
 
-func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) []string {
+func (i *ImportAsset) StateKeys(auth chain.Auth, _ ids.ID) []string {
 	var (
 		keys    []string
 		assetID ids.ID
-		actor   = auth.GetActor(rauth)
 	)
 	if i.warpTransfer.Return {
 		assetID = i.warpTransfer.Asset
@@ -64,14 +61,14 @@ func (i *ImportAsset) StateKeys(rauth chain.Auth, _ ids.ID) []string {
 	// If the [warpTransfer] specified a reward, we add the state key to make
 	// sure it is paid.
 	if i.warpTransfer.Reward > 0 {
-		keys = append(keys, string(storage.BalanceKey(actor, assetID)))
+		keys = append(keys, string(storage.BalanceKey(auth.Actor(), assetID)))
 	}
 
 	// If the [warpTransfer] requests a swap, we add the state keys to transfer
 	// the required balances.
 	if i.Fill && i.warpTransfer.SwapIn > 0 {
-		keys = append(keys, string(storage.BalanceKey(actor, i.warpTransfer.AssetOut)))
-		keys = append(keys, string(storage.BalanceKey(actor, assetID)))
+		keys = append(keys, string(storage.BalanceKey(auth.Actor(), i.warpTransfer.AssetOut)))
+		keys = append(keys, string(storage.BalanceKey(auth.Actor(), assetID)))
 		keys = append(keys, string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.AssetOut)))
 	}
 	return keys
@@ -105,7 +102,7 @@ func (*ImportAsset) OutputsWarpMessage() bool {
 func (i *ImportAsset) executeMint(
 	ctx context.Context,
 	mu state.Mutable,
-	actor ed25519.PublicKey,
+	actor codec.Address,
 ) []byte {
 	asset := ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
 	exists, symbol, decimals, metadata, supply, _, warp, err := storage.GetAsset(ctx, mu, asset)
@@ -129,7 +126,7 @@ func (i *ImportAsset) executeMint(
 	if err != nil {
 		return utils.ErrBytes(err)
 	}
-	if err := storage.SetAsset(ctx, mu, asset, symbol, decimals, metadata, newSupply, ed25519.EmptyPublicKey, true); err != nil {
+	if err := storage.SetAsset(ctx, mu, asset, symbol, decimals, metadata, newSupply, codec.EmptyAddress, true); err != nil {
 		return utils.ErrBytes(err)
 	}
 	if err := storage.AddBalance(ctx, mu, i.warpTransfer.To, asset, i.warpTransfer.Value, true); err != nil {
@@ -146,7 +143,7 @@ func (i *ImportAsset) executeMint(
 func (i *ImportAsset) executeReturn(
 	ctx context.Context,
 	mu state.Mutable,
-	actor ed25519.PublicKey,
+	actor codec.Address,
 ) []byte {
 	exists, symbol, decimals, _, _, _, warp, err := storage.GetAsset(ctx, mu, i.warpTransfer.Asset)
 	if err != nil {
@@ -200,11 +197,10 @@ func (i *ImportAsset) Execute(
 	r chain.Rules,
 	mu state.Mutable,
 	t int64,
-	rauth chain.Auth,
+	auth chain.Auth,
 	_ ids.ID,
 	warpVerified bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	actor := auth.GetActor(rauth)
 	if !warpVerified {
 		return false, ImportAssetComputeUnits, OutputWarpVerificationFailed, nil, nil
 	}
@@ -216,9 +212,9 @@ func (i *ImportAsset) Execute(
 	}
 	var output []byte
 	if i.warpTransfer.Return {
-		output = i.executeReturn(ctx, mu, actor)
+		output = i.executeReturn(ctx, mu, auth.Actor())
 	} else {
-		output = i.executeMint(ctx, mu, actor)
+		output = i.executeMint(ctx, mu, auth.Actor())
 	}
 	if len(output) > 0 {
 		return false, ImportAssetComputeUnits, output, nil, nil
@@ -243,10 +239,10 @@ func (i *ImportAsset) Execute(
 	if err := storage.SubBalance(ctx, mu, i.warpTransfer.To, assetIn, i.warpTransfer.SwapIn); err != nil {
 		return false, ImportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, mu, actor, assetIn, i.warpTransfer.SwapIn, true); err != nil {
+	if err := storage.AddBalance(ctx, mu, auth.Actor(), assetIn, i.warpTransfer.SwapIn, true); err != nil {
 		return false, ImportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.SubBalance(ctx, mu, actor, i.warpTransfer.AssetOut, i.warpTransfer.SwapOut); err != nil {
+	if err := storage.SubBalance(ctx, mu, auth.Actor(), i.warpTransfer.AssetOut, i.warpTransfer.SwapOut); err != nil {
 		return false, ImportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, mu, i.warpTransfer.To, i.warpTransfer.AssetOut, i.warpTransfer.SwapOut, true); err != nil {

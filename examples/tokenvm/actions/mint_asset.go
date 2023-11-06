@@ -13,8 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
@@ -24,7 +22,7 @@ var _ chain.Action = (*MintAsset)(nil)
 
 type MintAsset struct {
 	// To is the recipient of the [Value].
-	To ed25519.PublicKey `json:"to"`
+	To codec.Address `json:"to"`
 
 	// Asset is the [TxID] that created the asset.
 	Asset ids.ID `json:"asset"`
@@ -57,11 +55,10 @@ func (m *MintAsset) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	rauth chain.Auth,
+	auth chain.Auth,
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	actor := auth.GetActor(rauth)
 	if m.Asset == ids.Empty {
 		return false, MintAssetComputeUnits, OutputAssetIsNative, nil, nil
 	}
@@ -78,14 +75,14 @@ func (m *MintAsset) Execute(
 	if isWarp {
 		return false, MintAssetComputeUnits, OutputWarpAsset, nil, nil
 	}
-	if owner != actor {
+	if owner != auth.Actor() {
 		return false, MintAssetComputeUnits, OutputWrongOwner, nil, nil
 	}
 	newSupply, err := smath.Add64(supply, m.Value)
 	if err != nil {
 		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.SetAsset(ctx, mu, m.Asset, symbol, decimals, metadata, newSupply, actor, isWarp); err != nil {
+	if err := storage.SetAsset(ctx, mu, m.Asset, symbol, decimals, metadata, newSupply, auth.Actor(), isWarp); err != nil {
 		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, mu, m.To, m.Asset, m.Value, true); err != nil {
@@ -99,19 +96,19 @@ func (*MintAsset) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*MintAsset) Size() int {
-	return ed25519.PublicKeyLen + consts.IDLen + consts.Uint64Len
+	return codec.AddressLen + consts.IDLen + consts.Uint64Len
 }
 
 func (m *MintAsset) Marshal(p *codec.Packer) {
-	p.PackPublicKey(m.To)
+	p.PackAddress(m.To)
 	p.PackID(m.Asset)
 	p.PackUint64(m.Value)
 }
 
 func UnmarshalMintAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var mint MintAsset
-	p.UnpackPublicKey(true, &mint.To) // cannot mint to blackhole
-	p.UnpackID(true, &mint.Asset)     // empty ID is the native asset
+	p.UnpackAddress(&mint.To)
+	p.UnpackID(true, &mint.Asset) // empty ID is the native asset
 	mint.Value = p.UnpackUint64(true)
 	return &mint, p.Err()
 }

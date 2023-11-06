@@ -8,27 +8,13 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/window"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	TestPublicKey = []byte{
-		115, 50, 124, 153, 59, 53, 196, 150, 168, 143, 151, 235,
-		222, 128, 136, 161, 9, 40, 139, 85, 182, 153, 68, 135,
-		62, 166, 45, 235, 251, 246, 69, 7,
-	}
-	TestString    = "TestString"
-	TestBool      = true
-	TestSignature = []byte{
-		2, 8, 143, 126, 80, 159, 186, 93, 157,
-		97, 183, 80, 183, 86, 3, 128, 223, 79, 164, 21, 51, 88,
-		224, 186, 134, 18, 209, 100, 166, 37, 132, 237, 48, 49,
-		102, 144, 53, 111, 245, 209, 141, 252, 154, 0, 111, 229,
-		175, 23, 122, 55, 166, 97, 166, 228, 68, 247, 23, 113,
-		32, 247, 254, 190, 203, 8,
-	}
+	TestString = "TestString"
+	TestBool   = true
 	TestWindow = []byte{1, 2, 3, 4, 5}
 )
 
@@ -44,57 +30,6 @@ func TestNewWriter(t *testing.T) {
 	wr.PackFixedBytes(bytes)
 	require.Equal(2, len(wr.Bytes()), "Bytes overpacked.")
 	require.Error(wr.Err(), "Error not set.")
-}
-
-func TestPackerPublicKey(t *testing.T) {
-	require := require.New(t)
-	wp := NewWriter(ed25519.PublicKeyLen, ed25519.PublicKeyLen)
-	var pubKey ed25519.PublicKey
-	copy(pubKey[:], TestPublicKey)
-	t.Run("Pack", func(t *testing.T) {
-		// Pack
-		require.Len(pubKey, ed25519.PublicKeyLen)
-		wp.PackPublicKey(pubKey)
-		require.Equal(TestPublicKey, wp.Bytes(), "PublicKey not packed correctly.")
-		require.NoError(wp.Err(), "Error packing PublicKey.")
-	})
-	t.Run("Unpack", func(t *testing.T) {
-		// Unpack
-		rp := NewReader(wp.Bytes(), ed25519.PublicKeyLen)
-		require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
-		var unpackedPubKey ed25519.PublicKey
-		rp.UnpackPublicKey(true, &unpackedPubKey)
-		require.Equal(pubKey, unpackedPubKey, "UnpackPublicKey unpacked incorrectly.")
-		require.NoError(rp.Err(), "UnpackPublicKey set an error.")
-		// Unpack again
-		rp.UnpackPublicKey(true, &unpackedPubKey)
-		require.Error(rp.Err(), "UnpackPublicKey did not set error.")
-	})
-}
-
-func TestPackerSignature(t *testing.T) {
-	require := require.New(t)
-	wp := NewWriter(ed25519.SignatureLen, ed25519.SignatureLen)
-	var sig ed25519.Signature
-	copy(sig[:], TestSignature)
-	t.Run("Pack", func(t *testing.T) {
-		// Pack
-		wp.PackSignature(sig)
-		require.Equal(TestSignature, wp.Bytes())
-		require.NoError(wp.Err(), "Error packing Signature.")
-	})
-	t.Run("Unpack", func(t *testing.T) {
-		// Unpack
-		rp := NewReader(wp.Bytes(), ed25519.SignatureLen)
-		require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
-		var unpackedSig ed25519.Signature
-		rp.UnpackSignature(&unpackedSig)
-		require.Equal(sig, unpackedSig, "UnpackSignature unpacked incorrectly.")
-		require.NoError(rp.Err(), "UnpackSignature set an error.")
-		// Unpack again
-		rp.UnpackSignature(&unpackedSig)
-		require.Error(rp.Err(), "UnpackPublicKey did not set error.")
-	})
 }
 
 func TestPackerID(t *testing.T) {
@@ -154,33 +89,28 @@ func TestPackerWindow(t *testing.T) {
 	})
 }
 
-func TestPackerShortBytes(t *testing.T) {
+func TestPackerAddress(t *testing.T) {
 	require := require.New(t)
-	t.Run("Pack Too Large", func(t *testing.T) {
-		wp := NewWriter(1024, 1024)
-		wp.PackShortBytes(make([]byte, 1024))
-		require.ErrorIs(wp.Err(), ErrTooLarge)
-	})
-	wp := NewWriter(ed25519.PublicKeyLen+1, ed25519.PublicKeyLen+1)
-	pubKey := make(ShortBytes, ed25519.PublicKeyLen)
-	copy(pubKey[:], TestPublicKey)
+	wp := NewWriter(AddressLen, AddressLen)
+	id := ids.GenerateTestID()
+	addr := CreateAddress(1, id)
 	t.Run("Pack", func(t *testing.T) {
 		// Pack
-		wp.PackShortBytes(pubKey)
+		wp.PackAddress(addr)
 		b := wp.Bytes()
-		require.NoError(wp.Err(), "Error packing PublicKey.")
-		require.Len(b, ed25519.PublicKeyLen+1)
-		require.Equal(uint8(ed25519.PublicKeyLen), b[0], "PublicKeyLen not packed correctly.")
-		require.Equal(TestPublicKey, b[1:], "PublicKey not packed correctly.")
+		require.NoError(wp.Err())
+		require.Len(b, AddressLen)
+		require.Equal(uint8(1), b[0])
+		require.Equal(id[:], b[1:])
 	})
 	t.Run("Unpack", func(t *testing.T) {
 		// Unpack
-		rp := NewReader(wp.Bytes(), ed25519.PublicKeyLen+1)
-		require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
-		var unpackedPubKey ShortBytes
-		rp.UnpackShortBytes(&unpackedPubKey)
-		require.Equal(pubKey, unpackedPubKey, "UnpackPublicKey unpacked incorrectly.")
-		require.NoError(rp.Err(), "UnpackPublicKey set an error.")
+		rp := NewReader(wp.Bytes(), AddressLen)
+		require.Equal(wp.Bytes(), rp.Bytes())
+		var unpackedAddr Address
+		rp.UnpackAddress(&unpackedAddr)
+		require.Equal(addr[:], unpackedAddr[:])
+		require.NoError(rp.Err())
 	})
 }
 

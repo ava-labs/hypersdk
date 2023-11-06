@@ -11,8 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
@@ -22,7 +20,7 @@ var _ chain.Action = (*Transfer)(nil)
 
 type Transfer struct {
 	// To is the recipient of the [Value].
-	To ed25519.PublicKey `json:"to"`
+	To codec.Address `json:"to"`
 
 	// Asset to transfer to [To].
 	Asset ids.ID `json:"asset"`
@@ -38,9 +36,9 @@ func (*Transfer) GetTypeID() uint8 {
 	return transferID
 }
 
-func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) []string {
+func (t *Transfer) StateKeys(auth chain.Auth, _ ids.ID) []string {
 	return []string{
-		string(storage.BalanceKey(auth.GetActor(rauth), t.Asset)),
+		string(storage.BalanceKey(auth.Actor(), t.Asset)),
 		string(storage.BalanceKey(t.To, t.Asset)),
 	}
 }
@@ -58,18 +56,17 @@ func (t *Transfer) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	rauth chain.Auth,
+	auth chain.Auth,
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	actor := auth.GetActor(rauth)
 	if t.Value == 0 {
 		return false, TransferComputeUnits, OutputValueZero, nil, nil
 	}
 	if len(t.Memo) > MaxMemoSize {
 		return false, CreateAssetComputeUnits, OutputMemoTooLarge, nil, nil
 	}
-	if err := storage.SubBalance(ctx, mu, actor, t.Asset, t.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, auth.Actor(), t.Asset, t.Value); err != nil {
 		return false, TransferComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	// TODO: allow sender to configure whether they will pay to create
@@ -84,11 +81,11 @@ func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (t *Transfer) Size() int {
-	return ed25519.PublicKeyLen + consts.IDLen + consts.Uint64Len + codec.BytesLen(t.Memo)
+	return codec.AddressLen + consts.IDLen + consts.Uint64Len + codec.BytesLen(t.Memo)
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {
-	p.PackPublicKey(t.To)
+	p.PackAddress(t.To)
 	p.PackID(t.Asset)
 	p.PackUint64(t.Value)
 	p.PackBytes(t.Memo)
@@ -96,8 +93,8 @@ func (t *Transfer) Marshal(p *codec.Packer) {
 
 func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var transfer Transfer
-	p.UnpackPublicKey(false, &transfer.To) // can transfer to blackhole
-	p.UnpackID(false, &transfer.Asset)     // empty ID is the native asset
+	p.UnpackAddress(&transfer.To)
+	p.UnpackID(false, &transfer.Asset) // empty ID is the native asset
 	transfer.Value = p.UnpackUint64(true)
 	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
 	return &transfer, p.Err()

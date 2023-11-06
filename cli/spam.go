@@ -21,8 +21,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
@@ -47,12 +47,13 @@ var (
 
 func (h *Handler) Spam(
 	maxTxBacklog int, maxFee *uint64, randomRecipient bool,
-	createClient func(string, uint32, ids.ID), // must save on caller side
-	getFactory func(ed25519.PrivateKey) chain.AuthFactory,
+	createClient func(string, uint32, ids.ID) error, // must save on caller side
+	getFactory func(*PrivateKey) (chain.AuthFactory, error),
+	createAccount func() (*PrivateKey, error),
 	lookupBalance func(int, string) (uint64, error),
 	getParser func(context.Context, ids.ID) (chain.Parser, error),
-	getTransfer func(ed25519.PublicKey, uint64) chain.Action,
-	submitDummy func(*rpc.JSONRPCClient, ed25519.PrivateKey) func(context.Context, uint64) error,
+	getTransfer func(codec.Address, uint64) chain.Action,
+	submitDummy func(*rpc.JSONRPCClient, *PrivateKey) func(context.Context, uint64) error,
 ) error {
 	ctx := context.Background()
 
@@ -77,9 +78,11 @@ func (h *Handler) Spam(
 		return err
 	}
 	balances := make([]uint64, len(keys))
-	createClient(uris[0], networkID, chainID)
+	if err := createClient(uris[0], networkID, chainID); err != nil {
+		return err
+	}
 	for i := 0; i < len(keys); i++ {
-		address := h.c.Address(keys[i].PublicKey())
+		address := h.c.Address(keys[i].Address)
 		balance, err := lookupBalance(i, address)
 		if err != nil {
 			return err
@@ -92,7 +95,10 @@ func (h *Handler) Spam(
 	}
 	key := keys[keyIndex]
 	balance := balances[keyIndex]
-	factory := getFactory(key)
+	factory, err := getFactory(key)
+	if err != nil {
+		return err
+	}
 
 	// No longer using db, so we close
 	if err := h.CloseDatabase(); err != nil {
@@ -104,7 +110,7 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	action := getTransfer(keys[0].PublicKey(), 0)
+	action := getTransfer(keys[0].Address, 0)
 	maxUnits, err := chain.EstimateMaxUnits(parser.Rules(time.Now().UnixMilli()), action, factory, nil)
 	if err != nil {
 		return err
@@ -145,30 +151,30 @@ func (h *Handler) Spam(
 		utils.FormatBalance(distAmount, h.c.Decimals()),
 		h.c.Symbol(),
 	)
-	accounts := make([]ed25519.PrivateKey, numAccounts)
+	accounts := make([]*PrivateKey, numAccounts)
 	dcli, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err
 	}
-	funds := map[ed25519.PublicKey]uint64{}
+	funds := map[codec.Address]uint64{}
 	var fundsL sync.Mutex
 	for i := 0; i < numAccounts; i++ {
 		// Create account
-		pk, err := ed25519.GeneratePrivateKey()
+		pk, err := createAccount()
 		if err != nil {
 			return err
 		}
 		accounts[i] = pk
 
 		// Send funds
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(pk.PublicKey(), distAmount), factory, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(pk.Address, distAmount), factory, feePerTx)
 		if err != nil {
 			return err
 		}
 		if err := dcli.RegisterTx(tx); err != nil {
 			return fmt.Errorf("%w: failed to register tx", err)
 		}
-		funds[pk.PublicKey()] = distAmount
+		funds[pk.Address] = distAmount
 	}
 	for i := 0; i < numAccounts; i++ {
 		_, dErr, result, err := dcli.ListenTx(ctx)
@@ -182,6 +188,10 @@ func (h *Handler) Spam(
 			// Should never happen
 			return fmt.Errorf("%w: %s", ErrTxFailed, result.Output)
 		}
+	}
+	var recipientFunc func() (*PrivateKey, error)
+	if randomRecipient {
+		recipientFunc = createAccount
 	}
 	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", numAccounts)
 
@@ -253,13 +263,16 @@ func (h *Handler) Spam(
 			defer t.Stop()
 
 			issuerIndex, issuer := getRandomIssuer(clients)
-			factory := getFactory(accounts[i])
+			factory, err := getFactory(accounts[i])
+			if err != nil {
+				return err
+			}
 			fundsL.Lock()
-			balance := funds[accounts[i].PublicKey()]
+			balance := funds[accounts[i].Address]
 			fundsL.Unlock()
 			defer func() {
 				fundsL.Lock()
-				funds[accounts[i].PublicKey()] = balance
+				funds[accounts[i].Address] = balance
 				fundsL.Unlock()
 			}()
 			ut := time.Now().Unix()
@@ -285,9 +298,9 @@ func (h *Handler) Spam(
 
 					// Send transaction
 					start := time.Now()
-					selected := map[ed25519.PublicKey]int{}
+					selected := map[codec.Address]int{}
 					for k := 0; k < numTxsPerAccount; k++ {
-						recipient, err := getNextRecipient(randomRecipient, i, accounts)
+						recipient, err := getNextRecipient(i, recipientFunc, accounts)
 						if err != nil {
 							utils.Outf("{{orange}}failed to get next recipient:{{/}} %v\n", err)
 							return err
@@ -394,20 +407,24 @@ func (h *Handler) Spam(
 	if maxFee != nil {
 		feePerTx = *maxFee
 	}
-	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.PublicKey()))
+	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.Address))
 	var (
 		returnedBalance uint64
 		returnsSent     int
 	)
 	for i := 0; i < numAccounts; i++ {
-		balance := funds[accounts[i].PublicKey()]
+		balance := funds[accounts[i].Address]
 		if feePerTx > balance {
 			continue
 		}
 		returnsSent++
 		// Send funds
 		returnAmt := balance - feePerTx
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(key.PublicKey(), returnAmt), getFactory(accounts[i]), feePerTx)
+		f, err := getFactory(accounts[i])
+		if err != nil {
+			return err
+		}
+		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(key.Address, returnAmt), f, feePerTx)
 		if err != nil {
 			return err
 		}
@@ -511,13 +528,14 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 	}()
 }
 
-func getNextRecipient(randomRecipient bool, self int, keys []ed25519.PrivateKey) (ed25519.PublicKey, error) {
-	if randomRecipient {
-		priv, err := ed25519.GeneratePrivateKey()
+func getNextRecipient(self int, createAccount func() (*PrivateKey, error), keys []*PrivateKey) (codec.Address, error) {
+	// Send to a random, new account
+	if createAccount != nil {
+		priv, err := createAccount()
 		if err != nil {
-			return ed25519.EmptyPublicKey, err
+			return codec.EmptyAddress, err
 		}
-		return priv.PublicKey(), nil
+		return priv.Address, nil
 	}
 
 	// Select item from array
@@ -528,7 +546,7 @@ func getNextRecipient(randomRecipient bool, self int, keys []ed25519.PrivateKey)
 			index = 0
 		}
 	}
-	return keys[index].PublicKey(), nil
+	return keys[index].Address, nil
 }
 
 func getRandomIssuer(issuers []*txIssuer) (int, *txIssuer) {

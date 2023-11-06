@@ -3,15 +3,14 @@
 
 package auth
 
-import "github.com/ava-labs/hypersdk/vm"
-
-// Note: Registry will error during initialization if a duplicate ID is assigned. We explicitly assign IDs to avoid accidental remapping.
-const (
-	ed25519ID uint8 = 0
+import (
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/vm"
 )
 
 func Engines() map[uint8]vm.AuthEngine {
 	return map[uint8]vm.AuthEngine{
-		ed25519ID: &ED25519AuthEngine{},
+		// Only ed25519 batch verification is supported
+		consts.ED25519ID: &ED25519AuthEngine{},
 	}
 }
