@@ -8,11 +8,11 @@ import (
 	"testing"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/stretchr/testify/require"
-	"github.com/syndtr/goleveldb/leveldb/memdb"
 	"go.uber.org/mock/gomock"
 
 	hcache "github.com/ava-labs/hypersdk/cache"
