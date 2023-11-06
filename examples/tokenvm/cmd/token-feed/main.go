@@ -10,11 +10,9 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/config"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/manager"
@@ -100,10 +98,7 @@ func main() {
 	if err != nil {
 		fatal(log, "cannot create handler", zap.Error(err))
 	}
-	if err := srv.AddRoute(&common.HTTPHandler{
-		LockOptions: common.NoLock,
-		Handler:     handler,
-	}, &sync.RWMutex{}, "feed", ""); err != nil {
+	if err := srv.AddRoute(handler, "feed", ""); err != nil {
 		fatal(log, "cannot add facuet route", zap.Error(err))
 	}
 

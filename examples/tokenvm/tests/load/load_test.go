@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -272,11 +273,11 @@ var _ = ginkgo.BeforeSuite(func() {
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 
-		var hd map[string]*common.HTTPHandler
+		var hd map[string]http.Handler
 		hd, err = c.CreateHandlers(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
-		jsonRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint].Handler)
-		tjsonRPCServer := httptest.NewServer(hd[trpc.JSONRPCEndpoint].Handler)
+		jsonRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint])
+		tjsonRPCServer := httptest.NewServer(hd[trpc.JSONRPCEndpoint])
 		instances[i] = &instance{
 			chainID:            snowCtx.ChainID,
 			nodeID:             snowCtx.NodeID,
