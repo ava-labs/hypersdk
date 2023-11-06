@@ -12,13 +12,11 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/timer"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/config"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
@@ -107,7 +105,7 @@ func (m *Manager) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	recipientPubKey, err := m.config.RecipientPublicKey()
+	recipientAddr, err := m.config.RecipientAddress()
 	if err != nil {
 		return err
 	}
@@ -137,38 +135,38 @@ func (m *Manager) Run(ctx context.Context) error {
 				if !ok {
 					continue
 				}
-				if action.To != recipientPubKey {
+				if action.To != recipientAddr {
 					continue
 				}
 				if len(action.Memo) == 0 {
 					continue
 				}
 				result := results[i]
-				from := auth.GetActor(tx.Auth)
+				from := tx.Auth.Actor()
+				fromStr := codec.MustAddressBech32(consts.HRP, from)
 				if !result.Success {
-					m.log.Info("incoming message failed on-chain", zap.String("from", tutils.Address(from)), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("required", m.feeAmount))
+					m.log.Info("incoming message failed on-chain", zap.String("from", fromStr), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("required", m.feeAmount))
 					continue
 				}
 				if action.Value < m.feeAmount {
-					m.log.Info("incoming message did not pay enough", zap.String("from", tutils.Address(from)), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("required", m.feeAmount))
+					m.log.Info("incoming message did not pay enough", zap.String("from", fromStr), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("required", m.feeAmount))
 					continue
 				}
 
 				var c FeedContent
 				if err := json.Unmarshal(action.Memo, &c); err != nil {
-					m.log.Info("incoming message could not be parsed", zap.String("from", tutils.Address(from)), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Error(err))
+					m.log.Info("incoming message could not be parsed", zap.String("from", fromStr), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Error(err))
 					continue
 				}
 				if len(c.Message) == 0 {
-					m.log.Info("incoming message was empty", zap.String("from", tutils.Address(from)), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value))
+					m.log.Info("incoming message was empty", zap.String("from", fromStr), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value))
 					continue
 				}
 				// TODO: pre-verify URLs
-				addr := tutils.Address(from)
 				m.l.Lock()
 				m.f.Lock()
 				m.feed = append([]*FeedObject{{
-					Address:   addr,
+					Address:   fromStr,
 					TxID:      tx.ID(),
 					Timestamp: blk.Tmstmp,
 					Fee:       action.Value,
@@ -188,7 +186,7 @@ func (m *Manager) Run(ctx context.Context) error {
 					m.t.Cancel()
 					m.t.SetTimeoutIn(time.Duration(m.config.TargetDurationPerEpoch) * time.Second)
 				}
-				m.log.Info("received incoming message", zap.String("from", tutils.Address(from)), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("new required", m.feeAmount))
+				m.log.Info("received incoming message", zap.String("from", fromStr), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("new required", m.feeAmount))
 				m.f.Unlock()
 				m.l.Unlock()
 			}
@@ -203,12 +201,12 @@ func (m *Manager) Run(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (m *Manager) GetFeedInfo(_ context.Context) (ed25519.PublicKey, uint64, error) {
+func (m *Manager) GetFeedInfo(_ context.Context) (codec.Address, uint64, error) {
 	m.l.RLock()
 	defer m.l.RUnlock()
 
-	pk, err := m.config.RecipientPublicKey()
-	return pk, m.feeAmount, err
+	addr, err := m.config.RecipientAddress()
+	return addr, m.feeAmount, err
 }
 
 // TODO: allow for multiple feeds
