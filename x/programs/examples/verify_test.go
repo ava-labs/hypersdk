@@ -6,6 +6,7 @@ package examples
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,19 +28,45 @@ func TestVerifyProgram(t *testing.T) {
 	defer cancel()
 
 	rt, programIDPtr := SetupRuntime(require, ctx)
+	meter := rt.Meter().GetBalance()
+	
+	secretKeyBytes := []byte{
+        157, 97, 177, 157, 239, 253, 90, 96,
+        186, 132, 074, 244, 146, 236, 044, 196,
+        68, 073, 197, 105, 123, 050, 105, 025,
+        112, 59, 172, 003, 28, 174, 127, 96,
+    }
 
-	// call vertify
-	_, err := rt.Call(ctx, "verify_ed_in_wasm", programIDPtr)
+	messageBytes := []byte{
+		84, 104, 105, 115, 32, 105, 115, 32, 
+		97, 32, 116, 101, 115, 116, 32, 111,
+		102, 32, 116, 104, 101, 32, 116, 115,
+		117, 110, 97, 109, 105, 32, 97, 108,
+	}
+	// write bytes to memory
+	secretKeyPtr, err := runtime.WriteBytes(rt.Memory(), secretKeyBytes)
 	require.NoError(err)
+	messageBytesPtr, err := runtime.WriteBytes(rt.Memory(), messageBytes)
+	require.NoError(err)
+	// call vertify
+	_, err = rt.Call(ctx, "verify_ed_in_wasm", programIDPtr, secretKeyPtr, messageBytesPtr)
+	require.NoError(err)
+	
+	// check meter
+	meter = meter - rt.Meter().GetBalance()
+	fmt.Println("meter used: ", meter)
+	
 
+
+	
 	rt.Stop()
 }
 
 func SetupRuntime(require *require.Assertions, ctx context.Context) (runtime.Runtime, uint64) {
 	db := newTestDB()
-	maxUnits := uint64(4000000)
+	maxUnits := uint64(10000000)
 	// need with bulk memory to run this test(for io ops)
-	cfg, err := runtime.NewConfigBuilder().WithDebugMode(true).WithBulkMemory(true).WithLimitMaxMemory(100 * runtime.MemoryPageSize).Build()
+	cfg, err := runtime.NewConfigBuilder().WithDebugMode(true).WithBulkMemory(true).Build()
 
 	require.NoError(err)
 
