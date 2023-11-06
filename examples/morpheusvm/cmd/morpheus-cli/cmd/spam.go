@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
@@ -49,14 +50,21 @@ var runSpamCmd = &cobra.Command{
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
 		var bclient *brpc.JSONRPCClient
+		var wclient *rpc.WebSocketClient
 		var maxFeeParsed *uint64
 		if maxFee >= 0 {
 			v := uint64(maxFee)
 			maxFeeParsed = &v
 		}
 		return handler.Root().Spam(maxTxBacklog, maxFeeParsed, randomRecipient,
-			func(uri string, networkID uint32, chainID ids.ID) { // createClient
+			func(uri string, networkID uint32, chainID ids.ID) error { // createClient
 				bclient = brpc.NewJSONRPCClient(uri, networkID, chainID)
+				ws, err := rpc.NewWebSocketClient(uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+				if err != nil {
+					return err
+				}
+				wclient = ws
+				return nil
 			},
 			getFactory,
 			func() (*cli.PrivateKey, error) { // createAccount
@@ -94,7 +102,7 @@ var runSpamCmd = &cobra.Command{
 					_, _, err = sendAndWait(ictx, nil, &actions.Transfer{
 						To:    priv.Address,
 						Value: count, // prevent duplicate txs
-					}, cli, bclient, factory, false)
+					}, cli, bclient, wclient, factory, false)
 					return err
 				}
 			},

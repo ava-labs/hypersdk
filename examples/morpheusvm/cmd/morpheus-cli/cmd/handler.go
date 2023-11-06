@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -35,11 +36,11 @@ func (h *Handler) Root() *cli.Handler {
 
 func (h *Handler) DefaultActor() (
 	ids.ID, *cli.PrivateKey, chain.AuthFactory,
-	*rpc.JSONRPCClient, *brpc.JSONRPCClient, error,
+	*rpc.JSONRPCClient, *brpc.JSONRPCClient, *rpc.WebSocketClient, error,
 ) {
 	addr, priv, err := h.h.GetDefaultKey(true)
 	if err != nil {
-		return ids.Empty, nil, nil, nil, nil, err
+		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
 	var factory chain.AuthFactory
 	switch addr[0] {
@@ -48,16 +49,20 @@ func (h *Handler) DefaultActor() (
 	case consts.SECP256R1ID:
 		factory = auth.NewSECP256R1Factory(secp256r1.PrivateKey(priv))
 	default:
-		return ids.Empty, nil, nil, nil, nil, ErrInvalidAddress
+		return ids.Empty, nil, nil, nil, nil, nil, ErrInvalidAddress
 	}
 	chainID, uris, err := h.h.GetDefaultChain(true)
 	if err != nil {
-		return ids.Empty, nil, nil, nil, nil, err
+		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
 	jcli := rpc.NewJSONRPCClient(uris[0])
 	networkID, _, _, err := jcli.Network(context.TODO())
 	if err != nil {
-		return ids.Empty, nil, nil, nil, nil, err
+		return ids.Empty, nil, nil, nil, nil, nil, err
+	}
+	ws, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+	if err != nil {
+		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
 	// For [defaultActor], we always send requests to the first returned URI.
 	return chainID, &cli.PrivateKey{
@@ -68,7 +73,7 @@ func (h *Handler) DefaultActor() (
 			uris[0],
 			networkID,
 			chainID,
-		), nil
+		), ws, nil
 }
 
 func (*Handler) GetBalance(

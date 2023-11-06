@@ -743,7 +743,9 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (sn
 	}
 	blk, err := chain.BuildBlock(ctx, vm, preferredBlk, blockContext)
 	if err != nil {
-		vm.snowCtx.Log.Warn("BuildBlock failed", zap.Error(err))
+		// This is a DEBUG log because BuildBlock may fail before
+		// the min build gap (especially when there are no transactions).
+		vm.snowCtx.Log.Debug("BuildBlock failed", zap.Error(err))
 		return nil, err
 	}
 	vm.parsedBlocks.Put(blk.ID(), blk)
