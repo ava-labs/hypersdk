@@ -113,6 +113,9 @@ func (t *Transaction) Sign(
 
 func (t *Transaction) AuthAsyncVerify() func() error {
 	return func() error {
+		// It is up to [t.Auth] to limit the computational
+		// complexity of [t.Auth.AsyncVerify] and [t.Auth.Verify] to prevent
+		// a DoS (invalid Auth will not charge [t.Auth.Sponsor()].
 		return t.Auth.AsyncVerify(t.digest)
 	}
 }
@@ -313,6 +316,9 @@ func (t *Transaction) PreExecute(
 	if end >= 0 && timestamp > end {
 		return 0, ErrAuthNotActivated
 	}
+	// It is up to [t.Auth] to limit the computational
+	// complexity of [t.Auth.AsyncVerify] and [t.Auth.Verify] to prevent
+	// a DoS (invalid Auth will not charge [t.Auth.Sponsor()].
 	authCUs, err := t.Auth.Verify(ctx, r, im, t.Action)
 	if err != nil {
 		return 0, fmt.Errorf("%w: %v", ErrAuthFailed, err) //nolint:errorlint
