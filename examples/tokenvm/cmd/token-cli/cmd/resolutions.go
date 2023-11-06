@@ -46,10 +46,11 @@ func sendAndWait(
 		if err != nil {
 			return false, ids.Empty, err
 		}
-		if txID != tx.ID() {
-			continue
+		if txID == tx.ID() {
+			res = result
+			break
 		}
-		res = result
+		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.ID())
 		break
 	}
 	if printStatus {

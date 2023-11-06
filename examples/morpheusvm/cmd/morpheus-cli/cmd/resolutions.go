@@ -20,6 +20,7 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
+// sendAndWait may not be used concurrently
 func sendAndWait(
 	ctx context.Context, warpMsg *warp.Message, action chain.Action, cli *rpc.JSONRPCClient,
 	bcli *brpc.JSONRPCClient, ws *rpc.WebSocketClient, factory chain.AuthFactory, printStatus bool,
