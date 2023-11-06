@@ -124,7 +124,7 @@ func (h *Handler) DefaultActor() (
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
-	return chainID, &cli.PrivateKey{addr, priv}, auth.NewED25519Factory(ed25519.PrivateKey(priv)), jcli, scli,
+	return chainID, &cli.PrivateKey{Address: addr, Bytes: priv}, auth.NewED25519Factory(ed25519.PrivateKey(priv)), jcli, scli,
 		trpc.NewJSONRPCClient(
 			uris[0],
 			networkID,
