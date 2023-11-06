@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/database/manager"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
@@ -29,7 +28,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/units"
-	avago_version "github.com/ava-labs/avalanchego/version"
 	"github.com/fatih/color"
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -236,14 +234,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 		dname, err = os.MkdirTemp("", fmt.Sprintf("%s-root", nodeID.String()))
 		gomega.Ω(err).Should(gomega.BeNil())
-		pdb, _, err := pebble.New(dname, pebble.NewDefaultConfig())
-		gomega.Ω(err).Should(gomega.BeNil())
-		db, err := manager.NewManagerFromDBs([]*manager.VersionedDatabase{
-			{
-				Database: pdb,
-				Version:  avago_version.CurrentDatabase,
-			},
-		})
+		db, _, err := pebble.New(dname, pebble.NewDefaultConfig())
 		gomega.Ω(err).Should(gomega.BeNil())
 		numWorkers = runtime.NumCPU() // only run one at a time
 

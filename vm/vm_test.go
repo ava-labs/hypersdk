@@ -8,12 +8,11 @@ import (
 	"testing"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/database/manager"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/version"
 	"github.com/stretchr/testify/require"
+	"github.com/syndtr/goleveldb/leveldb/memdb"
 	"go.uber.org/mock/gomock"
 
 	hcache "github.com/ava-labs/hypersdk/cache"
@@ -46,7 +45,7 @@ func TestBlockCache(t *testing.T) {
 		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: ametrics.NewOptionalGatherer()},
 		config:  &config.Config{},
 
-		vmDB: manager.NewMemDB(version.Semantic1_0_0).Current().Database,
+		vmDB: memdb.New(),
 
 		tracer:                 tracer,
 		acceptedBlocksByID:     bByID,

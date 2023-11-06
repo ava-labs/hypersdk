@@ -14,7 +14,6 @@ import (
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/database/manager"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
@@ -54,7 +53,7 @@ type VM struct {
 	snowCtx         *snow.Context
 	pkBytes         []byte
 	proposerMonitor *ProposerMonitor
-	manager         manager.Manager
+	baseDB          database.Database
 
 	config         Config
 	genesis        Genesis
@@ -134,7 +133,7 @@ func New(c Controller, v *version.Semantic) *VM {
 func (vm *VM) Initialize(
 	ctx context.Context,
 	snowCtx *snow.Context,
-	manager manager.Manager,
+	baseDB database.Database,
 	genesisBytes []byte,
 	upgradeBytes []byte,
 	configBytes []byte,
@@ -171,7 +170,7 @@ func (vm *VM) Initialize(
 	vm.warpManager = NewWarpManager(vm)
 	vm.networkManager.SetHandler(warpHandler, NewWarpHandler(vm))
 	go vm.warpManager.Run(warpSender)
-	vm.manager = manager
+	vm.baseDB = baseDB
 
 	// Always initialize implementation first
 	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.vmDB,
@@ -456,8 +455,9 @@ func (vm *VM) isReady() bool {
 	}
 }
 
-func (vm *VM) Manager() manager.Manager {
-	return vm.manager
+// TODO: remove?
+func (vm *VM) BaseDB() database.Database {
+	return vm.baseDB
 }
 
 func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {

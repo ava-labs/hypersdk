@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/database/manager"
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
@@ -26,7 +26,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	avago_version "github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/fatih/color"
 	ginkgo "github.com/onsi/ginkgo/v2"
@@ -214,7 +213,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		}
 
 		toEngine := make(chan common.Message, 1)
-		db := manager.NewMemDB(avago_version.CurrentDatabase)
+		db := memdb.New()
 
 		v := controller.New()
 		err = v.Initialize(
