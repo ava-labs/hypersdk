@@ -59,13 +59,12 @@ func New(logger logging.Logger, config *config.Config) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	addr := codec.MustAddressBech32(consts.HRP, auth.NewED25519Address(m.config.PrivateKey().PublicKey()))
-	bal, err := tcli.Balance(ctx, addr, ids.Empty)
+	bal, err := tcli.Balance(ctx, m.config.AddressBech32(), ids.Empty)
 	if err != nil {
 		return nil, err
 	}
 	m.log.Info("faucet initialized",
-		zap.String("address", addr),
+		zap.String("address", m.config.AddressBech32()),
 		zap.Uint16("difficulty", m.difficulty),
 		zap.String("balance", utils.FormatBalance(bal, consts.Decimals)),
 	)
@@ -108,7 +107,7 @@ func (m *Manager) updateDifficulty() {
 }
 
 func (m *Manager) GetFaucetAddress(_ context.Context) (codec.Address, error) {
-	return auth.NewED25519Address(m.config.PrivateKey().PublicKey()), nil
+	return m.config.Address(), nil
 }
 
 func (m *Manager) GetChallenge(_ context.Context) ([]byte, uint16, error) {
@@ -135,8 +134,7 @@ func (m *Manager) sendFunds(ctx context.Context, destination codec.Address, amou
 		m.log.Warn("abandoning airdrop because network fee is greater than amount", zap.String("maxFee", utils.FormatBalance(maxFee, consts.Decimals)))
 		return ids.Empty, 0, errors.New("network fee too high")
 	}
-	addr := codec.MustAddressBech32(consts.HRP, auth.NewED25519Address(m.config.PrivateKey().PublicKey()))
-	bal, err := m.tcli.Balance(ctx, addr, ids.Empty)
+	bal, err := m.tcli.Balance(ctx, m.config.AddressBech32(), ids.Empty)
 	if err != nil {
 		return ids.Empty, 0, err
 	}
