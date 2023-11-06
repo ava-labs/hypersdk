@@ -118,37 +118,25 @@ Because the `hypersdk` can execute arbitrary WASM, any language (Rust, C, C++, Z
 be compiled to WASM can be used to write `programs`. You can view a collection of
 Rust-based `programs` [here](https://github.com/ava-labs/hypersdk/tree/main/x/programs/rust/examples).
 
-### [WIP] Account Abstraction
-The `hypersdk` provides a flexible mechanism for transactions out-of-the-box.
+### Account Abstraction
+The `hypersdk` provides out-of-the-box support for arbitrary transaction authorization logic.
+Each `hypersdk` transaction includes an `Auth` object that implements an
+`Actor` function (identity that participates in an `Action`) and a `Sponsor` function (identity
+that pays fees). These two identities could be the same (if using a simple signature
+verification `Auth` module) but may be different (if using a "gas relayer" `Auth` module).
 
-`Actions` in the `hypersdk` (the primitive for interactions with any `hyperchain`)
-
-Each `hypersdk` transaction includes an `Auth` object that specifies
-who the `Actor` (subject of the transaction) and `Sponsor` (fee payer) are (could
-be the same).
-
-The `hypersdk` makes no assumptions about `Actors` for `Actions` (the primitive for
-interactions with any `hyperchain`, as explained below) are authorized or how they pay fees
-
-
-are verified. Rather,
-`hypervms` provide the `hypersdk` with a registry of supported `Auth` modules
-that can be used to specify an `Actor` for each transaction. These `Auth` modules
-can perform simple things like signature verification or complex tasks like
-executing a WASM blob.
-
-Each `Auth` module must specify both an `Actor` (subject of transaction) and
-a `Sponsor` (fee payer). For a `program`-backed wallet, the `Actor` would be
-the `program` address and the `Sponsor` could be either the `program` or
-the person submitting the transaction.
-
-To ensure `Auth` modules can't interfere with each other...
-
-`[typeID][ids.ID]`
-
-This deisgn approach means that arbitrary cryptography and programs can be used here.
-So far, there are implementations for [ed25519](https://github.com/ava-labs/hypersdk/tree/main/crypto/ed25519)
-and [secp256r1](https://github.com/ava-labs/hypersdk/tree/main/crypto/secp256r1).
+`Auth` modules may be hardcoded, like in
+[`morpheusvm`](https://github.com/ava-labs/hypersdk/tree/main/examples/morpheusvm/auth) and
+[`tokenvm`](https://github.com/ava-labs/hypersdk/tree/main/examples/tokenvm/auth), or execute
+a `program` (i.e. a custom deployed multi-sig). To allow for easy interaction between different
+`Auth` modules (and to ensure `Auth` modules can't interfere with each other), the
+`hypersdk` employs a standard, 33-byte addressing scheme: `<typeID><ids.ID>`. Transaction
+verification ensures that any `Actor` and `Sponsor` returned by an `Auth` module
+must have the same `<typeID>` as the module generating an address. The 32-byte hash (`<ids.ID>`)
+is used to uniquely identify accounts within an `Auth` scheme. For `programs`, this
+will likely be the `txID` when the `program` was deployed and will be the hash
+of the public key for pure cryptographic primitives (the indirect benefit of this
+is that account public keys are obfuscated until used).
 
 _Because transaction IDs are used to prevent replay, it is critical that any signatures used
 in `Auth` are [not malleable](https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki).
@@ -158,7 +146,6 @@ specified by the sender)._
 
 _It is up to each `Auth` module to limit the computational complexity of `Auth.AsyncVerify()`
 and `Auth.Verify()` to prevent a DoS (invalid `Auth` will not charge `Auth.Sponsor()`)._
-
 
 ### Optimized Block Execution Out-of-the-Box
 The `hypersdk` is primarily about an obsession with hyper-speed and
