@@ -371,13 +371,22 @@ is executed which modifies the same value, the net cost for modifying the key
 to the `hypervm` (and to the entire network) is much cheaper than modifying a
 new key.
 
-### Account Abstraction
+### [WIP] Account Abstraction
 The `hypersdk` makes no assumptions about how `Actions` (the primitive for
 interactions with any `hyperchain`, as explained below) are verified. Rather,
 `hypervms` provide the `hypersdk` with a registry of supported `Auth` modules
-that can be used to validate each type of transaction. These `Auth` modules can
-perform simple things like signature verification or complex tasks like
+that can be used to specify an `Actor` for each transaction. These `Auth` modules
+can perform simple things like signature verification or complex tasks like
 executing a WASM blob.
+
+Each `Auth` module must specify both an `Actor` (subject of transaction) and
+a `Sponsor` (fee payer). For a `program`-backed wallet, the `Actor` would be
+the `program` address and the `Sponsor` could be either the `program` or
+the person submitting the transaction.
+
+To ensure `Auth` modules can't interfere with each other...
+
+`[typeID][ids.ID]`
 
 ### Nonce-less and Expiring Transactions
 `hypersdk` transactions don't use [nonces](https://help.myetherwallet.com/en/articles/5461509-what-is-a-nonce)

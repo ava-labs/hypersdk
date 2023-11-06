@@ -193,7 +193,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	gen.MinUnitPrice = chain.Dimensions{1, 1, 1, 1, 1}
 	// target must be set less than max, otherwise we will iterate through all txs in mempool
 	gen.WindowTargetUnits = chain.Dimensions{hconsts.NetworkSizeLimit - 10*units.KiB, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64} // disable unit price increase
-	gen.MaxBlockUnits = chain.Dimensions{hconsts.NetworkSizeLimit, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64}
+	// leave room for block header
+	gen.MaxBlockUnits = chain.Dimensions{hconsts.NetworkSizeLimit - units.KiB, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64}
 	gen.MinBlockGap = 0                                        // don't require time between blocks
 	gen.ValidityWindow = 1_000 * hconsts.MillisecondsPerSecond // txs shouldn't expire
 	gen.CustomAllocation = []*genesis.CustomAllocation{
