@@ -26,6 +26,7 @@ STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
 STORE_TXS=${STORE_TXS:-false}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
+ADDRESS=${ADDRESS:-token1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdj73w34s}
 if [[ ${MODE} != "run" && ${MODE} != "run-single" ]]; then
   LOGLEVEL=debug
   STATESYNC_DELAY=100000000 # 100ms
@@ -52,6 +53,7 @@ echo MIN_BLOCK_GAP \(ms\): ${MIN_BLOCK_GAP}
 echo STORE_TXS: ${STORE_TXS}
 echo WINDOW_TARGET_UNITS: ${WINDOW_TARGET_UNITS}
 echo MAX_BLOCK_UNITS: ${MAX_BLOCK_UNITS}
+echo ADDRESS: ${ADDRESS}
 
 ############################
 # build avalanchego
@@ -120,7 +122,7 @@ find ${TMPDIR}/avalanchego-${VERSION}
 # funds using the included demo.pk)
 echo "creating allocations file"
 cat <<EOF > ${TMPDIR}/allocations.json
-[{"address":"token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp", "balance":10000000000000000000}]
+[{"address":"${ADDRESS}", "balance":10000000000000000000}]
 EOF
 
 GENESIS_PATH=$2
@@ -151,8 +153,8 @@ rm -rf ${TMPDIR}/tokenvm-e2e-profiles
 cat <<EOF > ${TMPDIR}/tokenvm.config
 {
   "mempoolSize": 10000000,
-  "mempoolPayerSize": 10000000,
-  "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
+  "mempoolSponsorSize": 10000000,
+  "mempoolExemptSponsors":["${ADDRESS}"],
   "signatureVerificationCores": 2,
   "rootGenerationCores": 2,
   "transactionExecutionCores": 2,
