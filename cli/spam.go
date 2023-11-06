@@ -78,7 +78,9 @@ func (h *Handler) Spam(
 		return err
 	}
 	balances := make([]uint64, len(keys))
-	createClient(uris[0], networkID, chainID)
+	if err := createClient(uris[0], networkID, chainID); err != nil {
+		return err
+	}
 	for i := 0; i < len(keys); i++ {
 		address := h.c.Address(keys[i].Address)
 		balance, err := lookupBalance(i, address)

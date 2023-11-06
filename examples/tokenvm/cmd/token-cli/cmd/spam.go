@@ -39,13 +39,14 @@ var runSpamCmd = &cobra.Command{
 			maxFeeParsed = &v
 		}
 		return handler.Root().Spam(maxTxBacklog, maxFeeParsed, randomRecipient,
-			func(uri string, networkID uint32, chainID ids.ID) { // createClient
+			func(uri string, networkID uint32, chainID ids.ID) error { // createClient
 				tclient = trpc.NewJSONRPCClient(uri, networkID, chainID)
 				sc, err := rpc.NewWebSocketClient(uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 				if err != nil {
-					panic(err)
+					return err
 				}
 				sclient = sc
+				return nil
 			},
 			func(priv *cli.PrivateKey) (chain.AuthFactory, error) { // getFactory
 				return auth.NewED25519Factory(ed25519.PrivateKey(priv.Bytes)), nil
