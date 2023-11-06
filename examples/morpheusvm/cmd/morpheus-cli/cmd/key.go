@@ -31,6 +31,17 @@ func checkKeyType(k string) error {
 	return nil
 }
 
+func getKeyType(addr codec.Address) (string, error) {
+	switch addr[0] {
+	case consts.ED25519ID:
+		return ed25519Key, nil
+	case consts.SECP256R1ID:
+		return secp256r1Key, nil
+	default:
+		return "", ErrInvalidKeyType
+	}
+}
+
 func generatePrivateKey(k string) (*cli.PrivateKey, error) {
 	switch k {
 	case ed25519Key:
@@ -151,9 +162,18 @@ func lookupSetKeyBalance(choice int, address string, uri string, networkID uint3
 	if err != nil {
 		return err
 	}
+	addr, err := codec.ParseAddressBech32(consts.HRP, address)
+	if err != nil {
+		return err
+	}
+	keyType, err := getKeyType(addr)
+	if err != nil {
+		return err
+	}
 	utils.Outf(
-		"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
+		"%d) {{cyan}}address (%s):{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
 		choice,
+		keyType,
 		address,
 		utils.FormatBalance(balance, consts.Decimals),
 		consts.Symbol,

@@ -372,8 +372,11 @@ to the `hypervm` (and to the entire network) is much cheaper than modifying a
 new key.
 
 ### [WIP] Account Abstraction
-The `hypersdk` makes no assumptions about how `Actions` (the primitive for
-interactions with any `hyperchain`, as explained below) are verified. Rather,
+The `hypersdk` makes no assumptions about `Actors` for `Actions` (the primitive for
+interactions with any `hyperchain`, as explained below) are authorized or how they pay fees
+
+
+are verified. Rather,
 `hypervms` provide the `hypersdk` with a registry of supported `Auth` modules
 that can be used to specify an `Actor` for each transaction. These `Auth` modules
 can perform simple things like signature verification or complex tasks like
