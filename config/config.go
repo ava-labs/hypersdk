@@ -10,25 +10,26 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/units"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/trace"
 )
 
 type Config struct{}
 
-func (c *Config) GetLogLevel() logging.Level             { return logging.Info }
-func (c *Config) GetSignatureVerificationCores() int     { return 1 }
-func (c *Config) GetRootGenerationCores() int            { return 1 }
-func (c *Config) GetTransactionExecutionCores() int      { return 1 }
-func (c *Config) GetMempoolSize() int                    { return 2_048 }
-func (c *Config) GetMempoolPayerSize() int               { return 32 }
-func (c *Config) GetMempoolExemptPayers() [][]byte       { return nil }
-func (c *Config) GetStreamingBacklogSize() int           { return 1024 }
-func (c *Config) GetStateEvictionBatchSize() int         { return 4 * units.MiB }
-func (c *Config) GetIntermediateNodeCacheSize() int      { return 4 * units.GiB }
-func (c *Config) GetValueNodeCacheSize() int             { return 2 * units.GiB }
-func (c *Config) GetTraceConfig() *trace.Config          { return &trace.Config{Enabled: false} }
-func (c *Config) GetStateSyncParallelism() int           { return 4 }
-func (c *Config) GetStateSyncServerDelay() time.Duration { return 0 } // used for testing
+func (c *Config) GetLogLevel() logging.Level                { return logging.Info }
+func (c *Config) GetSignatureVerificationCores() int        { return 1 }
+func (c *Config) GetRootGenerationCores() int               { return 1 }
+func (c *Config) GetTransactionExecutionCores() int         { return 1 }
+func (c *Config) GetMempoolSize() int                       { return 2_048 }
+func (c *Config) GetMempoolSponsorSize() int                { return 32 }
+func (c *Config) GetMempoolExemptSponsors() []codec.Address { return nil }
+func (c *Config) GetStreamingBacklogSize() int              { return 1024 }
+func (c *Config) GetStateEvictionBatchSize() int            { return 4 * units.MiB }
+func (c *Config) GetIntermediateNodeCacheSize() int         { return 4 * units.GiB }
+func (c *Config) GetValueNodeCacheSize() int                { return 2 * units.GiB }
+func (c *Config) GetTraceConfig() *trace.Config             { return &trace.Config{Enabled: false} }
+func (c *Config) GetStateSyncParallelism() int              { return 4 }
+func (c *Config) GetStateSyncServerDelay() time.Duration    { return 0 } // used for testing
 
 func (c *Config) GetParsedBlockCacheSize() int     { return 128 }
 func (c *Config) GetStateHistoryLength() int       { return 256 }

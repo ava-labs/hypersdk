@@ -12,12 +12,12 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/config"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
 )
 
@@ -48,9 +48,9 @@ type Config struct {
 	StreamingBacklogSize int `json:"streamingBacklogSize"`
 
 	// Mempool
-	MempoolSize         int      `json:"mempoolSize"`
-	MempoolPayerSize    int      `json:"mempoolPayerSize"`
-	MempoolExemptPayers []string `json:"mempoolExemptPayers"`
+	MempoolSize           int      `json:"mempoolSize"`
+	MempoolSponsorSize    int      `json:"mempoolSponsorSize"`
+	MempoolExemptSponsors []string `json:"mempoolExemptSponsors"`
 
 	// Misc
 	VerifySignatures  bool          `json:"verifySignatures"`
@@ -61,9 +61,9 @@ type Config struct {
 	// State Sync
 	StateSyncServerDelay time.Duration `json:"stateSyncServerDelay"` // for testing
 
-	loaded             bool
-	nodeID             ids.NodeID
-	parsedExemptPayers [][]byte
+	loaded               bool
+	nodeID               ids.NodeID
+	parsedExemptSponsors []codec.Address
 }
 
 func New(nodeID ids.NodeID, b []byte) (*Config, error) {
@@ -76,15 +76,15 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 		c.loaded = true
 	}
 
-	// Parse any exempt payers (usually used when a single account is
+	// Parse any exempt sponsors (usually used when a single account is
 	// broadcasting many txs at once)
-	c.parsedExemptPayers = make([][]byte, len(c.MempoolExemptPayers))
-	for i, payer := range c.MempoolExemptPayers {
-		p, err := utils.ParseAddress(payer)
+	c.parsedExemptSponsors = make([]codec.Address, len(c.MempoolExemptSponsors))
+	for i, sponsor := range c.MempoolExemptSponsors {
+		p, err := codec.ParseAddressBech32(consts.HRP, sponsor)
 		if err != nil {
 			return nil, err
 		}
-		c.parsedExemptPayers[i] = p[:]
+		c.parsedExemptSponsors[i] = p
 	}
 	return c, nil
 }
@@ -95,21 +95,21 @@ func (c *Config) setDefault() {
 	c.RootGenerationCores = c.Config.GetRootGenerationCores()
 	c.TransactionExecutionCores = c.Config.GetTransactionExecutionCores()
 	c.MempoolSize = c.Config.GetMempoolSize()
-	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()
+	c.MempoolSponsorSize = c.Config.GetMempoolSponsorSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 	c.VerifySignatures = c.Config.GetVerifySignatures()
 	c.StoreTransactions = defaultStoreTransactions
 }
 
-func (c *Config) GetLogLevel() logging.Level         { return c.LogLevel }
-func (c *Config) GetTestMode() bool                  { return c.TestMode }
-func (c *Config) GetSignatureVerificationCores() int { return c.SignatureVerificationCores }
-func (c *Config) GetRootGenerationCores() int        { return c.RootGenerationCores }
-func (c *Config) GetTransactionExecutionCores() int  { return c.TransactionExecutionCores }
-func (c *Config) GetMempoolSize() int                { return c.MempoolSize }
-func (c *Config) GetMempoolPayerSize() int           { return c.MempoolPayerSize }
-func (c *Config) GetMempoolExemptPayers() [][]byte   { return c.parsedExemptPayers }
+func (c *Config) GetLogLevel() logging.Level                { return c.LogLevel }
+func (c *Config) GetTestMode() bool                         { return c.TestMode }
+func (c *Config) GetSignatureVerificationCores() int        { return c.SignatureVerificationCores }
+func (c *Config) GetRootGenerationCores() int               { return c.RootGenerationCores }
+func (c *Config) GetTransactionExecutionCores() int         { return c.TransactionExecutionCores }
+func (c *Config) GetMempoolSize() int                       { return c.MempoolSize }
+func (c *Config) GetMempoolSponsorSize() int                { return c.MempoolSponsorSize }
+func (c *Config) GetMempoolExemptSponsors() []codec.Address { return c.parsedExemptSponsors }
 func (c *Config) GetTraceConfig() *trace.Config {
 	return &trace.Config{
 		Enabled:         c.TraceEnabled,

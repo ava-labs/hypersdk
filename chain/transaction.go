@@ -113,6 +113,9 @@ func (t *Transaction) Sign(
 
 func (t *Transaction) AuthAsyncVerify() func() error {
 	return func() error {
+		// It is up to [t.Auth] to limit the computational
+		// complexity of [t.Auth.AsyncVerify] and [t.Auth.Verify] to prevent
+		// a DoS (invalid Auth will not charge [t.Auth.Sponsor()].
 		return t.Auth.AsyncVerify(t.digest)
 	}
 }
@@ -313,6 +316,9 @@ func (t *Transaction) PreExecute(
 	if end >= 0 && timestamp > end {
 		return 0, ErrAuthNotActivated
 	}
+	// It is up to [t.Auth] to limit the computational
+	// complexity of [t.Auth.AsyncVerify] and [t.Auth.Verify] to prevent
+	// a DoS (invalid Auth will not charge [t.Auth.Sponsor()].
 	authCUs, err := t.Auth.Verify(ctx, r, im, t.Action)
 	if err != nil {
 		return 0, fmt.Errorf("%w: %v", ErrAuthFailed, err) //nolint:errorlint
@@ -569,9 +575,8 @@ func (t *Transaction) Execute(
 	}, nil
 }
 
-// Used by mempool
-func (t *Transaction) Payer() string {
-	return string(t.Auth.Payer())
+func (t *Transaction) Sponsor() codec.Address {
+	return t.Auth.Sponsor()
 }
 
 func (t *Transaction) Marshal(p *codec.Packer) error {
@@ -691,6 +696,12 @@ func UnmarshalTx(
 	auth, err := unmarshalAuth(p, warpMessage)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal auth", err)
+	}
+	if actorType := auth.Actor()[0]; actorType != authType {
+		return nil, fmt.Errorf("%w: actorType (%d) did not match authType (%d)", ErrInvalidActor, actorType, authType)
+	}
+	if sponsorType := auth.Sponsor()[0]; sponsorType != authType {
+		return nil, fmt.Errorf("%w: sponsorType (%d) did not match authType (%d)", ErrInvalidSponsor, sponsorType, authType)
 	}
 	warpExpected := actionWarp || authWarp
 	if !warpExpected && warpMessage != nil {

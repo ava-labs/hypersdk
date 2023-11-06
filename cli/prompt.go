@@ -11,12 +11,12 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/manifoldco/promptui"
 )
 
-func (h *Handler) PromptAddress(label string) (ed25519.PublicKey, error) {
+func (h *Handler) PromptAddress(label string) (codec.Address, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
@@ -29,7 +29,7 @@ func (h *Handler) PromptAddress(label string) (ed25519.PublicKey, error) {
 	}
 	recipient, err := promptText.Run()
 	if err != nil {
-		return ed25519.EmptyPublicKey, err
+		return codec.EmptyAddress, err
 	}
 	recipient = strings.TrimSpace(recipient)
 	return h.c.ParseAddress(recipient)

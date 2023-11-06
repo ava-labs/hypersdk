@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
@@ -52,10 +51,9 @@ func (*CreateOrder) GetTypeID() uint8 {
 	return createOrderID
 }
 
-func (c *CreateOrder) StateKeys(rauth chain.Auth, txID ids.ID) []string {
-	actor := auth.GetActor(rauth)
+func (c *CreateOrder) StateKeys(auth chain.Auth, txID ids.ID) []string {
 	return []string{
-		string(storage.BalanceKey(actor, c.Out)),
+		string(storage.BalanceKey(auth.Actor(), c.Out)),
 		string(storage.OrderKey(txID)),
 	}
 }
@@ -73,11 +71,10 @@ func (c *CreateOrder) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	rauth chain.Auth,
+	auth chain.Auth,
 	txID ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	actor := auth.GetActor(rauth)
 	if c.In == c.Out {
 		return false, CreateOrderComputeUnits, OutputSameInOut, nil, nil
 	}
@@ -93,10 +90,10 @@ func (c *CreateOrder) Execute(
 	if c.Supply%c.OutTick != 0 {
 		return false, CreateOrderComputeUnits, OutputSupplyMisaligned, nil, nil
 	}
-	if err := storage.SubBalance(ctx, mu, actor, c.Out, c.Supply); err != nil {
+	if err := storage.SubBalance(ctx, mu, auth.Actor(), c.Out, c.Supply); err != nil {
 		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.SetOrder(ctx, mu, txID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
+	if err := storage.SetOrder(ctx, mu, txID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, auth.Actor()); err != nil {
 		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, CreateOrderComputeUnits, nil, nil, nil

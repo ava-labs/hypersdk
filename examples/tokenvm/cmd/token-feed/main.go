@@ -67,7 +67,7 @@ func main() {
 	}
 
 	// Load recipient
-	if _, err := c.RecipientPublicKey(); err != nil {
+	if _, err := c.RecipientAddress(); err != nil {
 		fatal(log, "cannot parse recipient address", zap.Error(err))
 	}
 	log.Info("loaded feed recipient", zap.String("address", c.Recipient))

@@ -8,15 +8,30 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/cli"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 )
+
+func getFactory(priv *cli.PrivateKey) (chain.AuthFactory, error) {
+	switch priv.Address[0] {
+	case consts.ED25519ID:
+		return auth.NewED25519Factory(ed25519.PrivateKey(priv.Bytes)), nil
+	case consts.SECP256R1ID:
+		return auth.NewSECP256R1Factory(secp256r1.PrivateKey(priv.Bytes)), nil
+	default:
+		return nil, ErrInvalidKeyType
+	}
+}
 
 var spamCmd = &cobra.Command{
 	Use: "spam",
@@ -26,22 +41,36 @@ var spamCmd = &cobra.Command{
 }
 
 var runSpamCmd = &cobra.Command{
-	Use: "run",
-	RunE: func(*cobra.Command, []string) error {
+	Use: "run [ed25519/secp256r1]",
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) != 1 {
+			return ErrInvalidArgs
+		}
+		return checkKeyType(args[0])
+	},
+	RunE: func(_ *cobra.Command, args []string) error {
 		var bclient *brpc.JSONRPCClient
+		var wclient *rpc.WebSocketClient
 		var maxFeeParsed *uint64
 		if maxFee >= 0 {
 			v := uint64(maxFee)
 			maxFeeParsed = &v
 		}
 		return handler.Root().Spam(maxTxBacklog, maxFeeParsed, randomRecipient,
-			func(uri string, networkID uint32, chainID ids.ID) {
+			func(uri string, networkID uint32, chainID ids.ID) error { // createClient
 				bclient = brpc.NewJSONRPCClient(uri, networkID, chainID)
+				ws, err := rpc.NewWebSocketClient(uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+				if err != nil {
+					return err
+				}
+				wclient = ws
+				return nil
 			},
-			func(pk ed25519.PrivateKey) chain.AuthFactory {
-				return auth.NewED25519Factory(pk)
+			getFactory,
+			func() (*cli.PrivateKey, error) { // createAccount
+				return generatePrivateKey(args[0])
 			},
-			func(choice int, address string) (uint64, error) {
+			func(choice int, address string) (uint64, error) { // lookupBalance
 				balance, err := bclient.Balance(context.TODO(), address)
 				if err != nil {
 					return 0, err
@@ -55,21 +84,25 @@ var runSpamCmd = &cobra.Command{
 				)
 				return balance, err
 			},
-			func(ctx context.Context, chainID ids.ID) (chain.Parser, error) {
+			func(ctx context.Context, chainID ids.ID) (chain.Parser, error) { // getParser
 				return bclient.Parser(ctx)
 			},
-			func(pk ed25519.PublicKey, amount uint64) chain.Action {
+			func(addr codec.Address, amount uint64) chain.Action { // getTransfer
 				return &actions.Transfer{
-					To:    pk,
+					To:    addr,
 					Value: amount,
 				}
 			},
-			func(cli *rpc.JSONRPCClient, pk ed25519.PrivateKey) func(context.Context, uint64) error {
+			func(cli *rpc.JSONRPCClient, priv *cli.PrivateKey) func(context.Context, uint64) error { // submitDummy
 				return func(ictx context.Context, count uint64) error {
-					_, _, err := sendAndWait(ictx, nil, &actions.Transfer{
-						To:    pk.PublicKey(),
+					factory, err := getFactory(priv)
+					if err != nil {
+						return err
+					}
+					_, _, err = sendAndWait(ictx, nil, &actions.Transfer{
+						To:    priv.Address,
 						Value: count, // prevent duplicate txs
-					}, cli, bclient, auth.NewED25519Factory(pk), false)
+					}, cli, bclient, wclient, factory, false)
 					return err
 				}
 			},

@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
@@ -32,11 +31,10 @@ func (*CloseOrder) GetTypeID() uint8 {
 	return closeOrderID
 }
 
-func (c *CloseOrder) StateKeys(rauth chain.Auth, _ ids.ID) []string {
-	actor := auth.GetActor(rauth)
+func (c *CloseOrder) StateKeys(auth chain.Auth, _ ids.ID) []string {
 	return []string{
 		string(storage.OrderKey(c.Order)),
-		string(storage.BalanceKey(actor, c.Out)),
+		string(storage.BalanceKey(auth.Actor(), c.Out)),
 	}
 }
 
@@ -53,11 +51,10 @@ func (c *CloseOrder) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	rauth chain.Auth,
+	auth chain.Auth,
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	actor := auth.GetActor(rauth)
 	exists, _, _, out, _, remaining, owner, err := storage.GetOrder(ctx, mu, c.Order)
 	if err != nil {
 		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
@@ -65,7 +62,7 @@ func (c *CloseOrder) Execute(
 	if !exists {
 		return false, CloseOrderComputeUnits, OutputOrderMissing, nil, nil
 	}
-	if owner != actor {
+	if owner != auth.Actor() {
 		return false, CloseOrderComputeUnits, OutputUnauthorized, nil, nil
 	}
 	if out != c.Out {
@@ -74,7 +71,7 @@ func (c *CloseOrder) Execute(
 	if err := storage.DeleteOrder(ctx, mu, c.Order); err != nil {
 		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, mu, actor, c.Out, remaining, true); err != nil {
+	if err := storage.AddBalance(ctx, mu, auth.Actor(), c.Out, remaining, true); err != nil {
 		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, CloseOrderComputeUnits, nil, nil, nil

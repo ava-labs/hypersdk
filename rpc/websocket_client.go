@@ -161,6 +161,10 @@ func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
 }
 
 // ListenForTx listens for responses from the streamingServer.
+//
+// TODO: add the option to subscribe to a single TxID to avoid
+// trampling other listeners (could have an intermediate tracking
+// layer in the client so no changes required in the server).
 func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.Result, error) {
 	select {
 	case msg := <-c.pendingTxs:

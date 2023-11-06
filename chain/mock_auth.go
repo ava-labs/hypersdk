@@ -39,6 +39,20 @@ func (m *MockAuth) EXPECT() *MockAuthMockRecorder {
 	return m.recorder
 }
 
+// Actor mocks base method.
+func (m *MockAuth) Actor() codec.Address {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Actor")
+	ret0, _ := ret[0].(codec.Address)
+	return ret0
+}
+
+// Actor indicates an expected call of Actor.
+func (mr *MockAuthMockRecorder) Actor() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Actor", reflect.TypeOf((*MockAuth)(nil).Actor))
+}
+
 // AsyncVerify mocks base method.
 func (m *MockAuth) AsyncVerify(arg0 []byte) error {
 	m.ctrl.T.Helper()
@@ -121,20 +135,6 @@ func (mr *MockAuthMockRecorder) MaxComputeUnits(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxComputeUnits", reflect.TypeOf((*MockAuth)(nil).MaxComputeUnits), arg0)
 }
 
-// Payer mocks base method.
-func (m *MockAuth) Payer() []byte {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Payer")
-	ret0, _ := ret[0].([]byte)
-	return ret0
-}
-
-// Payer indicates an expected call of Payer.
-func (mr *MockAuthMockRecorder) Payer() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Payer", reflect.TypeOf((*MockAuth)(nil).Payer))
-}
-
 // Refund mocks base method.
 func (m *MockAuth) Refund(arg0 context.Context, arg1 state.Mutable, arg2 uint64) error {
 	m.ctrl.T.Helper()
@@ -161,6 +161,20 @@ func (m *MockAuth) Size() int {
 func (mr *MockAuthMockRecorder) Size() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockAuth)(nil).Size))
+}
+
+// Sponsor mocks base method.
+func (m *MockAuth) Sponsor() codec.Address {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Sponsor")
+	ret0, _ := ret[0].(codec.Address)
+	return ret0
+}
+
+// Sponsor indicates an expected call of Sponsor.
+func (mr *MockAuthMockRecorder) Sponsor() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sponsor", reflect.TypeOf((*MockAuth)(nil).Sponsor))
 }
 
 // StateKeys mocks base method.

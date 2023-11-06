@@ -12,11 +12,10 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -47,11 +46,11 @@ func sendAndWait(
 		if err != nil {
 			return false, ids.Empty, err
 		}
-		if txID != tx.ID() {
-			continue
+		if txID == tx.ID() {
+			res = result
+			break
 		}
-		res = result
-		break
+		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.ID())
 	}
 	if printStatus {
 		handler.Root().PrintStatus(tx.ID(), res.Success)
@@ -61,7 +60,7 @@ func sendAndWait(
 
 func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result) {
 	summaryStr := string(result.Output)
-	actor := auth.GetActor(tx.Auth)
+	actor := tx.Auth.Actor()
 	status := "⚠️"
 	if result.Success {
 		status = "✅"
@@ -75,7 +74,7 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 				return
 			}
 			amountStr := utils.FormatBalance(action.Value, decimals)
-			summaryStr = fmt.Sprintf("%s %s -> %s", amountStr, symbol, tutils.Address(action.To))
+			summaryStr = fmt.Sprintf("%s %s -> %s", amountStr, symbol, codec.MustAddressBech32(tconsts.HRP, action.To))
 		case *actions.BurnAsset:
 			summaryStr = fmt.Sprintf("%d %s -> 🔥", action.Value, action.Asset)
 
@@ -86,7 +85,7 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 				return
 			}
 			amountStr := utils.FormatBalance(action.Value, decimals)
-			summaryStr = fmt.Sprintf("%s %s -> %s", amountStr, symbol, tutils.Address(action.To))
+			summaryStr = fmt.Sprintf("%s %s -> %s", amountStr, symbol, codec.MustAddressBech32(tconsts.HRP, action.To))
 			if len(action.Memo) > 0 {
 				summaryStr += fmt.Sprintf(" (memo: %s)", action.Memo)
 			}
@@ -134,9 +133,9 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 			wt, _ := actions.UnmarshalWarpTransfer(wm.Payload)
 			summaryStr = fmt.Sprintf("source: %s signers: %d | ", wm.SourceChainID, signers)
 			if wt.Return {
-				summaryStr += fmt.Sprintf("%s %s -> %s (return: %t)", utils.FormatBalance(wt.Value, wt.Decimals), wt.Symbol, tutils.Address(wt.To), wt.Return)
+				summaryStr += fmt.Sprintf("%s %s -> %s (return: %t)", utils.FormatBalance(wt.Value, wt.Decimals), wt.Symbol, codec.MustAddressBech32(tconsts.HRP, wt.To), wt.Return)
 			} else {
-				summaryStr += fmt.Sprintf("%s %s (new: %s, original: %s) -> %s (return: %t)", utils.FormatBalance(wt.Value, wt.Decimals), wt.Symbol, actions.ImportedAssetID(wt.Asset, wm.SourceChainID), wt.Asset, tutils.Address(wt.To), wt.Return)
+				summaryStr += fmt.Sprintf("%s %s (new: %s, original: %s) -> %s (return: %t)", utils.FormatBalance(wt.Value, wt.Decimals), wt.Symbol, actions.ImportedAssetID(wt.Asset, wm.SourceChainID), wt.Asset, codec.MustAddressBech32(tconsts.HRP, wt.To), wt.Return)
 			}
 			if wt.Reward > 0 {
 				summaryStr += fmt.Sprintf(" | reward: %s", utils.FormatBalance(wt.Reward, wt.Decimals))
@@ -155,10 +154,10 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 			var outputAssetID ids.ID
 			if !action.Return {
 				outputAssetID = actions.ImportedAssetID(action.Asset, result.WarpMessage.SourceChainID)
-				summaryStr += fmt.Sprintf("%s %s (%s) -> %s (return: %t)", utils.FormatBalance(action.Value, wt.Decimals), wt.Symbol, action.Asset, tutils.Address(action.To), action.Return)
+				summaryStr += fmt.Sprintf("%s %s (%s) -> %s (return: %t)", utils.FormatBalance(action.Value, wt.Decimals), wt.Symbol, action.Asset, codec.MustAddressBech32(tconsts.HRP, action.To), action.Return)
 			} else {
 				outputAssetID = wt.Asset
-				summaryStr += fmt.Sprintf("%s %s (current: %s, original: %s) -> %s (return: %t)", utils.FormatBalance(action.Value, wt.Decimals), wt.Symbol, action.Asset, wt.Asset, tutils.Address(action.To), action.Return)
+				summaryStr += fmt.Sprintf("%s %s (current: %s, original: %s) -> %s (return: %t)", utils.FormatBalance(action.Value, wt.Decimals), wt.Symbol, action.Asset, wt.Asset, codec.MustAddressBech32(tconsts.HRP, action.To), action.Return)
 			}
 			if wt.Reward > 0 {
 				summaryStr += fmt.Sprintf(" | reward: %s", utils.FormatBalance(wt.Reward, wt.Decimals))
@@ -177,7 +176,7 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 		"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary (%s):{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
 		status,
 		tx.ID(),
-		tutils.Address(actor),
+		codec.MustAddressBech32(tconsts.HRP, actor),
 		reflect.TypeOf(tx.Action),
 		summaryStr,
 		float64(result.Fee)/float64(tx.Base.MaxFee)*100,

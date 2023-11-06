@@ -22,13 +22,13 @@ var transferCmd = &cobra.Command{
 	Use: "transfer",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
-		_, priv, factory, cli, bcli, err := handler.DefaultActor()
+		_, priv, factory, cli, bcli, ws, err := handler.DefaultActor()
 		if err != nil {
 			return err
 		}
 
 		// Get balance info
-		balance, err := handler.GetBalance(ctx, bcli, priv.PublicKey())
+		balance, err := handler.GetBalance(ctx, bcli, priv.Address)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -55,7 +55,7 @@ var transferCmd = &cobra.Command{
 		_, _, err = sendAndWait(ctx, nil, &actions.Transfer{
 			To:    recipient,
 			Value: amount,
-		}, cli, bcli, factory, true)
+		}, cli, bcli, ws, factory, true)
 		return err
 	},
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
@@ -38,16 +38,16 @@ func (c *Controller) GetTransaction(
 func (c *Controller) GetAssetFromState(
 	ctx context.Context,
 	asset ids.ID,
-) (bool, []byte, uint8, []byte, uint64, ed25519.PublicKey, bool, error) {
+) (bool, []byte, uint8, []byte, uint64, codec.Address, bool, error) {
 	return storage.GetAssetFromState(ctx, c.inner.ReadState, asset)
 }
 
 func (c *Controller) GetBalanceFromState(
 	ctx context.Context,
-	pk ed25519.PublicKey,
+	addr codec.Address,
 	asset ids.ID,
 ) (uint64, error) {
-	return storage.GetBalanceFromState(ctx, c.inner.ReadState, pk, asset)
+	return storage.GetBalanceFromState(ctx, c.inner.ReadState, addr, asset)
 }
 
 func (c *Controller) Orders(pair string, limit int) []*orderbook.Order {
@@ -64,7 +64,7 @@ func (c *Controller) GetOrderFromState(
 	ids.ID, // out
 	uint64, // outTick
 	uint64, // remaining
-	ed25519.PublicKey, // owner
+	codec.Address, // owner
 	error,
 ) {
 	return storage.GetOrderFromState(ctx, c.inner.ReadState, orderID)
