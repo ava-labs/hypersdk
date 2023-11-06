@@ -36,6 +36,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/pebble"
@@ -49,7 +50,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/controller"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/rpc"
 )
 
@@ -89,7 +89,7 @@ type instance struct {
 type account struct {
 	priv    ed25519.PrivateKey
 	factory *auth.ED25519Factory
-	rsender ed25519.PublicKey
+	rsender codec.Address
 	sender  string
 }
 
@@ -178,8 +178,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	var err error
 	priv, err := ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
-	rsender := priv.PublicKey()
-	sender := utils.Address(rsender)
+	rsender := auth.NewED25519Address(priv.PublicKey())
+	sender := codec.MustAddressBech32(consts.HRP, rsender)
 	root = &account{priv, auth.NewED25519Factory(priv), rsender, sender}
 	log.Debug(
 		"generated root key",
@@ -380,8 +380,8 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			for i := 0; i < accts; i++ {
 				tpriv, err := ed25519.GeneratePrivateKey()
 				gomega.Ω(err).Should(gomega.BeNil())
-				trsender := tpriv.PublicKey()
-				tsender := utils.Address(trsender)
+				trsender := auth.NewED25519Address(tpriv.PublicKey())
+				tsender := codec.MustAddressBech32(consts.HRP, trsender)
 				senders[i] = &account{tpriv, auth.NewED25519Factory(tpriv), trsender, tsender}
 			}
 		})
@@ -529,7 +529,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 
 func issueSimpleTx(
 	i *instance,
-	to ed25519.PublicKey,
+	to codec.Address,
 	amount uint64,
 	factory chain.AuthFactory,
 ) (ids.ID, error) {
