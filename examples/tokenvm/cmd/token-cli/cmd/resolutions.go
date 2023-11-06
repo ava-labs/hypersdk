@@ -51,7 +51,6 @@ func sendAndWait(
 			break
 		}
 		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.ID())
-		break
 	}
 	if printStatus {
 		handler.Root().PrintStatus(tx.ID(), res.Success)
