@@ -86,8 +86,6 @@ func (t *ProgramExecute) Execute(
 	// TODO: get cfg from genesis
 	cfg, err := runtime.NewConfigBuilder().
 		WithDebugMode(true).
-		WithBulkMemory(true).
-		// only required for Wasi support exposed by testing only.
 		Build()
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
