@@ -12,57 +12,67 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
-	tutils "github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-// TODO: use websockets
+// sendAndWait may not be used concurrently
 func sendAndWait(
 	ctx context.Context, warpMsg *warp.Message, action chain.Action, cli *rpc.JSONRPCClient,
-	bcli *brpc.JSONRPCClient, factory chain.AuthFactory, printStatus bool,
+	bcli *brpc.JSONRPCClient, ws *rpc.WebSocketClient, factory chain.AuthFactory, printStatus bool,
 ) (bool, ids.ID, error) { //nolint:unparam
 	parser, err := bcli.Parser(ctx)
 	if err != nil {
 		return false, ids.Empty, err
 	}
-	submit, tx, _, err := cli.GenerateTransaction(ctx, parser, warpMsg, action, factory)
+	_, tx, _, err := cli.GenerateTransaction(ctx, parser, warpMsg, action, factory)
 	if err != nil {
 		return false, ids.Empty, err
 	}
-	if err := submit(ctx); err != nil {
+	if err := ws.RegisterTx(tx); err != nil {
 		return false, ids.Empty, err
 	}
-	success, _, err := bcli.WaitForTransaction(ctx, tx.ID())
-	if err != nil {
-		return false, ids.Empty, err
+	var result *chain.Result
+	for {
+		txID, txErr, txResult, err := ws.ListenTx(ctx)
+		if err != nil {
+			return false, ids.Empty, err
+		}
+		if txErr != nil {
+			return false, ids.Empty, txErr
+		}
+		if txID == tx.ID() {
+			result = txResult
+			break
+		}
+		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.ID())
 	}
 	if printStatus {
-		handler.Root().PrintStatus(tx.ID(), success)
+		handler.Root().PrintStatus(tx.ID(), result.Success)
 	}
-	return success, tx.ID(), nil
+	return result.Success, tx.ID(), nil
 }
 
 func handleTx(tx *chain.Transaction, result *chain.Result) {
 	summaryStr := string(result.Output)
-	actor := auth.GetActor(tx.Auth)
+	actor := tx.Auth.Actor()
 	status := "⚠️"
 	if result.Success {
 		status = "✅"
 		switch action := tx.Action.(type) { //nolint:gocritic
 		case *actions.Transfer:
-			summaryStr = fmt.Sprintf("%s %s -> %s", utils.FormatBalance(action.Value, consts.Decimals), consts.Symbol, tutils.Address(action.To))
+			summaryStr = fmt.Sprintf("%s %s -> %s", utils.FormatBalance(action.Value, consts.Decimals), consts.Symbol, codec.MustAddressBech32(consts.HRP, action.To))
 		}
 	}
 	utils.Outf(
 		"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary (%s):{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
 		status,
 		tx.ID(),
-		tutils.Address(actor),
+		codec.MustAddressBech32(consts.HRP, actor),
 		reflect.TypeOf(tx.Action),
 		summaryStr,
 		float64(result.Fee)/float64(tx.Base.MaxFee)*100,

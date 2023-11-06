@@ -8,16 +8,17 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
-const testPayer = "testPayer"
+var testSponsor = codec.CreateAddress(1, ids.GenerateTestID())
 
 type TestItem struct {
 	id        ids.ID
-	payer     string
+	sponsor   codec.Address
 	timestamp int64
 }
 
@@ -25,8 +26,8 @@ func (mti *TestItem) ID() ids.ID {
 	return mti.id
 }
 
-func (mti *TestItem) Payer() string {
-	return mti.payer
+func (mti *TestItem) Sponsor() codec.Address {
+	return mti.sponsor
 }
 
 func (mti *TestItem) Expiry() int64 {
@@ -37,11 +38,11 @@ func (*TestItem) Size() int {
 	return 2 // distinguish from len
 }
 
-func GenerateTestItem(payer string, t int64) *TestItem {
+func GenerateTestItem(sponsor codec.Address, t int64) *TestItem {
 	id := ids.GenerateTestID()
 	return &TestItem{
 		id:        id,
-		payer:     payer,
+		sponsor:   sponsor,
 		timestamp: t,
 	}
 }
@@ -56,7 +57,7 @@ func TestMempool(t *testing.T) {
 	txm := New[*TestItem](tracer, 3, 16, nil)
 
 	for _, i := range []int64{100, 200, 300, 400} {
-		item := GenerateTestItem(testPayer, i)
+		item := GenerateTestItem(testSponsor, i)
 		items := []*TestItem{item}
 		txm.Add(ctx, items)
 	}
@@ -75,7 +76,7 @@ func TestMempoolAddDuplicates(t *testing.T) {
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	txm := New[*TestItem](tracer, 3, 16, nil)
 	// Generate item
-	item := GenerateTestItem(testPayer, 300)
+	item := GenerateTestItem(testSponsor, 300)
 	items := []*TestItem{item}
 	txm.Add(ctx, items)
 	require.Equal(1, txm.Len(ctx), "Item not added.")
@@ -87,29 +88,28 @@ func TestMempoolAddDuplicates(t *testing.T) {
 	require.Equal(1, txm.Len(ctx), "Item not added.")
 }
 
-func TestMempoolAddExceedMaxPayerSize(t *testing.T) {
-	// Payer1 has reached his max
-	// Payer2 is exempt from max size
+func TestMempoolAddExceedMaxSponsorSize(t *testing.T) {
+	// Sponsor1 has reached his max
+	// Sponsor2 is exempt from max size
 	require := require.New(t)
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
-	exemptPayer := "IAMEXEMPT"
-	payer := "notexempt"
-	exemptPayers := []byte(exemptPayer)
-	// Non exempt payers max of 4
-	txm := New[*TestItem](tracer, 20, 4, [][]byte{exemptPayers})
-	// Add 6 transactions for each payer
+	exemptSponsor := codec.CreateAddress(99, ids.GenerateTestID())
+	sponsor := codec.CreateAddress(4, ids.GenerateTestID())
+	// Non exempt sponsors max of 4
+	txm := New[*TestItem](tracer, 20, 4, []codec.Address{exemptSponsor})
+	// Add 6 transactions for each sponsor
 	for i := int64(0); i <= 5; i++ {
-		itemPayer := GenerateTestItem(payer, i)
-		itemExempt := GenerateTestItem(exemptPayer, i)
-		items := []*TestItem{itemPayer, itemExempt}
+		itemSponsor := GenerateTestItem(sponsor, i)
+		itemExempt := GenerateTestItem(exemptSponsor, i)
+		items := []*TestItem{itemSponsor, itemExempt}
 		txm.Add(ctx, items)
 	}
 	require.Equal(10, txm.Len(ctx), "Mempool has incorrect txs.")
-	require.Equal(4, txm.owned[payer], "Payer has incorrect txs.")
-	require.Equal(6, txm.owned[exemptPayer], "Payer has incorrect txs.")
+	require.Equal(4, txm.owned[sponsor], "Sponsor has incorrect txs.")
+	require.Equal(6, txm.owned[exemptSponsor], "Sponsor has incorrect txs.")
 }
 
 func TestMempoolAddExceedMaxSize(t *testing.T) {
@@ -122,7 +122,7 @@ func TestMempoolAddExceedMaxSize(t *testing.T) {
 	txm := New[*TestItem](tracer, 3, 20, nil)
 	// Add more tx's than txm.maxSize
 	for i := int64(0); i < 10; i++ {
-		item := GenerateTestItem(testPayer, i)
+		item := GenerateTestItem(testSponsor, i)
 		items := []*TestItem{item}
 		txm.Add(ctx, items)
 		if i < 3 {
@@ -137,8 +137,8 @@ func TestMempoolAddExceedMaxSize(t *testing.T) {
 		require.True(ok)
 		require.Equal(i, popped.Expiry(), "Mempool did not pop correct tx.")
 	}
-	_, ok := txm.owned[testPayer]
-	require.False(ok, "Payer not removed from owned.")
+	_, ok := txm.owned[testSponsor]
+	require.False(ok, "Sponsor not removed from owned.")
 	require.Equal(0, txm.Len(ctx), "Mempool has incorrect number of txs.")
 }
 
@@ -151,12 +151,12 @@ func TestMempoolRemoveTxs(t *testing.T) {
 
 	txm := New[*TestItem](tracer, 3, 20, nil)
 	// Add
-	item := GenerateTestItem(testPayer, 10)
+	item := GenerateTestItem(testSponsor, 10)
 	items := []*TestItem{item}
 	txm.Add(ctx, items)
 	require.True(txm.Has(ctx, item.ID()), "TX not included")
 	// Remove
-	itemNotIn := GenerateTestItem(testPayer, 10)
+	itemNotIn := GenerateTestItem(testSponsor, 10)
 	items = []*TestItem{item, itemNotIn}
 	txm.Remove(ctx, items)
 	require.Equal(0, txm.Len(ctx), "Mempool has incorrect number of txs.")
@@ -172,7 +172,7 @@ func TestMempoolSetMinTimestamp(t *testing.T) {
 	txm := New[*TestItem](tracer, 20, 20, nil)
 	// Add more tx's than txm.maxSize
 	for i := int64(0); i < 10; i++ {
-		item := GenerateTestItem(testPayer, i)
+		item := GenerateTestItem(testSponsor, i)
 		items := []*TestItem{item}
 		txm.Add(ctx, items)
 		require.True(txm.Has(ctx, item.ID()), "TX not included")

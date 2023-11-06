@@ -98,3 +98,21 @@ func UnixRMilli(now, add int64) int64 {
 	t := now + add
 	return t - t%consts.MillisecondsPerSecond
 }
+
+// SaveBytes writes [b] to a file [filename]. If filename does
+// not exist, it creates a new file with read/write permissions (0o600).
+func SaveBytes(filename string, b []byte) error {
+	return os.WriteFile(filename, b, 0o600)
+}
+
+// LoadBytes returns bytes stored at a file [filename].
+func LoadBytes(filename string, expectedSize int) ([]byte, error) {
+	bytes, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	if expectedSize != -1 && len(bytes) != expectedSize {
+		return nil, ErrInvalidSize
+	}
+	return bytes, nil
+}

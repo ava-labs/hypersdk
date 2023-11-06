@@ -10,13 +10,11 @@ import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/window"
 )
 
 // Packer is a wrapper struct for the Packer struct
-// from avalanchego/utils/wrappers/packing.go. It adds methods to
-// pack/unpack ids, PublicKeys and Signatures. A bool [required] parameter is
+// from avalanchego/utils/wrappers/packing.go. A bool [required] parameter is
 // added to many unpacking methods, which signals the packer to add an error
 // if the expected method does not unpack properly.
 type Packer struct {
@@ -72,14 +70,15 @@ func (p *Packer) PackFixedBytes(b []byte) {
 	p.p.PackFixedBytes(b)
 }
 
-func (p *Packer) PackShortBytes(b ShortBytes) {
-	l := len(b)
-	if l > ShortBytesMaxSize {
-		p.addErr(fmt.Errorf("%w: ShortBytes is too large (found=%d)", ErrTooLarge, len(b)))
-		return
+func (p *Packer) PackAddress(a Address) {
+	p.p.PackFixedBytes(a[:])
+}
+
+func (p *Packer) UnpackAddress(dest *Address) {
+	copy((*dest)[:], p.p.UnpackFixedBytes(AddressLen))
+	if *dest == EmptyAddress {
+		p.addErr(fmt.Errorf("%w: Address field is not populated", ErrFieldNotPopulated))
 	}
-	p.PackByte(uint8(l))
-	p.PackFixedBytes(b)
 }
 
 func (p *Packer) PackBytes(b []byte) {
@@ -88,11 +87,6 @@ func (p *Packer) PackBytes(b []byte) {
 
 func (p *Packer) UnpackFixedBytes(size int, dest *[]byte) {
 	copy((*dest), p.p.UnpackFixedBytes(size))
-}
-
-func (p *Packer) UnpackShortBytes(dest *ShortBytes) {
-	l := int(p.p.UnpackByte())
-	*dest = p.p.UnpackFixedBytes(l)
 }
 
 // UnpackBytes unpacks [limit] bytes into [dest]. Otherwise
@@ -132,31 +126,6 @@ func (p *Packer) UnpackInt64(required bool) int64 {
 		p.addErr(fmt.Errorf("%w: Int64 field is not populated", ErrFieldNotPopulated))
 	}
 	return int64(v)
-}
-
-func (p *Packer) PackPublicKey(src ed25519.PublicKey) {
-	p.p.PackFixedBytes(src[:])
-}
-
-// UnpackPublicKey ed25519.PublicKey into [dest].
-func (p *Packer) UnpackPublicKey(required bool, dest *ed25519.PublicKey) {
-	copy((*dest)[:], p.p.UnpackFixedBytes(ed25519.PublicKeyLen))
-	if required && *dest == ed25519.EmptyPublicKey {
-		p.addErr(fmt.Errorf("%w: PublicKey field is not populated", ErrFieldNotPopulated))
-	}
-}
-
-func (p *Packer) PackSignature(src ed25519.Signature) {
-	p.p.PackFixedBytes(src[:])
-}
-
-// UnpackPublicKey ed25519.Signature into [dest].
-// TODO: should add required param?
-func (p *Packer) UnpackSignature(dest *ed25519.Signature) {
-	copy((*dest)[:], p.p.UnpackFixedBytes(ed25519.SignatureLen))
-	if *dest == ed25519.EmptySignature {
-		p.addErr(fmt.Errorf("%w: Signature field is not populated", ErrFieldNotPopulated))
-	}
 }
 
 func (p *Packer) PackInt(v int) {

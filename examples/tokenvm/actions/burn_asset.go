@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
@@ -33,11 +32,10 @@ func (*BurnAsset) GetTypeID() uint8 {
 	return burnAssetID
 }
 
-func (b *BurnAsset) StateKeys(rauth chain.Auth, _ ids.ID) []string {
-	actor := auth.GetActor(rauth)
+func (b *BurnAsset) StateKeys(auth chain.Auth, _ ids.ID) []string {
 	return []string{
 		string(storage.AssetKey(b.Asset)),
-		string(storage.BalanceKey(actor, b.Asset)),
+		string(storage.BalanceKey(auth.Actor(), b.Asset)),
 	}
 }
 
@@ -54,15 +52,14 @@ func (b *BurnAsset) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	rauth chain.Auth,
+	auth chain.Auth,
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	actor := auth.GetActor(rauth)
 	if b.Value == 0 {
 		return false, BurnComputeUnits, OutputValueZero, nil, nil
 	}
-	if err := storage.SubBalance(ctx, mu, actor, b.Asset, b.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, auth.Actor(), b.Asset, b.Value); err != nil {
 		return false, BurnComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	exists, symbol, decimals, metadata, supply, owner, warp, err := storage.GetAsset(ctx, mu, b.Asset)

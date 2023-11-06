@@ -13,8 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
@@ -28,7 +26,7 @@ type FillOrder struct {
 
 	// [Owner] is the owner of the order and the recipient of the trade
 	// proceeds.
-	Owner ed25519.PublicKey `json:"owner"`
+	Owner codec.Address `json:"owner"`
 
 	// [In] is the asset that will be sent to the owner from the fill. We need to provide this to
 	// populate [StateKeys].
@@ -46,13 +44,12 @@ func (*FillOrder) GetTypeID() uint8 {
 	return fillOrderID
 }
 
-func (f *FillOrder) StateKeys(rauth chain.Auth, _ ids.ID) []string {
-	actor := auth.GetActor(rauth)
+func (f *FillOrder) StateKeys(auth chain.Auth, _ ids.ID) []string {
 	return []string{
 		string(storage.OrderKey(f.Order)),
 		string(storage.BalanceKey(f.Owner, f.In)),
-		string(storage.BalanceKey(actor, f.In)),
-		string(storage.BalanceKey(actor, f.Out)),
+		string(storage.BalanceKey(auth.Actor(), f.In)),
+		string(storage.BalanceKey(auth.Actor(), f.Out)),
 	}
 }
 
@@ -69,11 +66,10 @@ func (f *FillOrder) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	rauth chain.Auth,
+	auth chain.Auth,
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	actor := auth.GetActor(rauth)
 	exists, in, inTick, out, outTick, remaining, owner, err := storage.GetOrder(ctx, mu, f.Order)
 	if err != nil {
 		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
@@ -133,13 +129,13 @@ func (f *FillOrder) Execute(
 		// Don't allow free trades (can happen due to refund rounding)
 		return false, NoFillOrderComputeUnits, OutputInsufficientInput, nil, nil
 	}
-	if err := storage.SubBalance(ctx, mu, actor, f.In, inputAmount); err != nil {
+	if err := storage.SubBalance(ctx, mu, auth.Actor(), f.In, inputAmount); err != nil {
 		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, mu, f.Owner, f.In, inputAmount, true); err != nil {
 		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, mu, actor, f.Out, outputAmount, true); err != nil {
+	if err := storage.AddBalance(ctx, mu, auth.Actor(), f.Out, outputAmount, true); err != nil {
 		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if shouldDelete {
@@ -164,12 +160,12 @@ func (*FillOrder) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*FillOrder) Size() int {
-	return consts.IDLen*3 + ed25519.PublicKeyLen + consts.Uint64Len
+	return consts.IDLen*3 + codec.AddressLen + consts.Uint64Len
 }
 
 func (f *FillOrder) Marshal(p *codec.Packer) {
 	p.PackID(f.Order)
-	p.PackPublicKey(f.Owner)
+	p.PackAddress(f.Owner)
 	p.PackID(f.In)
 	p.PackID(f.Out)
 	p.PackUint64(f.Value)
@@ -178,7 +174,7 @@ func (f *FillOrder) Marshal(p *codec.Packer) {
 func UnmarshalFillOrder(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var fill FillOrder
 	p.UnpackID(true, &fill.Order)
-	p.UnpackPublicKey(true, &fill.Owner)
+	p.UnpackAddress(&fill.Owner)
 	p.UnpackID(false, &fill.In)  // empty ID is the native asset
 	p.UnpackID(false, &fill.Out) // empty ID is the native asset
 	fill.Value = p.UnpackUint64(true)

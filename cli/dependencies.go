@@ -4,13 +4,13 @@
 package cli
 
 import (
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 type Controller interface {
 	DatabasePath() string
 	Symbol() string
 	Decimals() uint8
-	Address(ed25519.PublicKey) string
-	ParseAddress(string) (ed25519.PublicKey, error)
+	Address(codec.Address) string
+	ParseAddress(string) (codec.Address, error)
 }

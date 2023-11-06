@@ -26,6 +26,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/chain"
 	hcli "github.com/ava-labs/hypersdk/cli"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
@@ -36,7 +37,6 @@ import (
 	ferpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/rpc"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -57,8 +57,8 @@ type Backend struct {
 
 	priv    ed25519.PrivateKey
 	factory *auth.ED25519Factory
-	pk      ed25519.PublicKey
-	addr    string
+	addr    codec.Address
+	addrStr string
 
 	cli     *rpc.JSONRPCClient
 	chainID ids.ID
@@ -131,9 +131,9 @@ func (b *Backend) Start(ctx context.Context) error {
 	}
 	b.priv = key
 	b.factory = auth.NewED25519Factory(b.priv)
-	b.pk = b.priv.PublicKey()
-	b.addr = utils.Address(b.pk)
-	if err := b.AddAddressBook("Me", b.addr); err != nil {
+	b.addr = auth.NewED25519Address(b.priv.PublicKey())
+	b.addrStr = codec.MustAddressBech32(tconsts.HRP, b.addr)
+	if err := b.AddAddressBook("Me", b.addrStr); err != nil {
 		return err
 	}
 	if err := b.s.StoreAsset(ids.Empty, false); err != nil {
@@ -214,7 +214,7 @@ func (b *Backend) collectBlocks() {
 			consumed = nconsumed
 
 			tx := blk.Txs[i]
-			actor := auth.GetActor(tx.Auth)
+			actor := tx.Auth.Actor()
 			if !result.Success {
 				failTxs++
 			}
@@ -222,7 +222,7 @@ func (b *Backend) collectBlocks() {
 			// We should exit action parsing as soon as possible
 			switch action := tx.Action.(type) {
 			case *actions.Transfer:
-				if actor != b.pk && action.To != b.pk {
+				if actor != b.addr && action.To != b.addr {
 					continue
 				}
 
@@ -236,21 +236,21 @@ func (b *Backend) collectBlocks() {
 					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
 					Success:   result.Success,
 					Timestamp: blk.Tmstmp,
-					Actor:     utils.Address(actor),
+					Actor:     codec.MustAddressBech32(tconsts.HRP, actor),
 					Type:      "Transfer",
 					Units:     hcli.ParseDimensions(result.Consumed),
 					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
 				}
 				if result.Success {
-					txInfo.Summary = fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To))
+					txInfo.Summary = fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, codec.MustAddressBech32(tconsts.HRP, action.To))
 					if len(action.Memo) > 0 {
 						txInfo.Summary += fmt.Sprintf(" (memo: %s)", action.Memo)
 					}
 				} else {
 					txInfo.Summary = string(result.Output)
 				}
-				if action.To == b.pk {
-					if actor != b.pk && result.Success {
+				if action.To == b.addr {
+					if actor != b.addr && result.Success {
 						b.txAlertLock.Lock()
 						b.transactionAlerts = append(b.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from Transfer", hutils.FormatBalance(action.Value, decimals), symbol)})
 						b.txAlertLock.Unlock()
@@ -261,7 +261,7 @@ func (b *Backend) collectBlocks() {
 						return
 					}
 					if !hasAsset {
-						if err := b.s.StoreAsset(action.Asset, b.addr == owner); err != nil {
+						if err := b.s.StoreAsset(action.Asset, b.addrStr == owner); err != nil {
 							b.fatal(err)
 							return
 						}
@@ -270,14 +270,14 @@ func (b *Backend) collectBlocks() {
 						b.fatal(err)
 						return
 					}
-				} else if actor == b.pk {
+				} else if actor == b.addr {
 					if err := b.s.StoreTransaction(txInfo); err != nil {
 						b.fatal(err)
 						return
 					}
 				}
 			case *actions.CreateAsset:
-				if actor != b.pk {
+				if actor != b.addr {
 					continue
 				}
 
@@ -290,7 +290,7 @@ func (b *Backend) collectBlocks() {
 					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
 					Success:   result.Success,
 					Timestamp: blk.Tmstmp,
-					Actor:     utils.Address(actor),
+					Actor:     codec.MustAddressBech32(tconsts.HRP, actor),
 					Type:      "CreateAsset",
 					Units:     hcli.ParseDimensions(result.Consumed),
 					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
@@ -305,7 +305,7 @@ func (b *Backend) collectBlocks() {
 					return
 				}
 			case *actions.MintAsset:
-				if actor != b.pk && action.To != b.pk {
+				if actor != b.addr && action.To != b.addr {
 					continue
 				}
 
@@ -319,18 +319,18 @@ func (b *Backend) collectBlocks() {
 					Timestamp: blk.Tmstmp,
 					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
 					Success:   result.Success,
-					Actor:     utils.Address(actor),
+					Actor:     codec.MustAddressBech32(tconsts.HRP, actor),
 					Type:      "Mint",
 					Units:     hcli.ParseDimensions(result.Consumed),
 					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
 				}
 				if result.Success {
-					txInfo.Summary = fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, utils.Address(action.To))
+					txInfo.Summary = fmt.Sprintf("%s %s -> %s", hutils.FormatBalance(action.Value, decimals), symbol, codec.MustAddressBech32(tconsts.HRP, action.To))
 				} else {
 					txInfo.Summary = string(result.Output)
 				}
-				if action.To == b.pk {
-					if actor != b.pk && result.Success {
+				if action.To == b.addr {
+					if actor != b.addr && result.Success {
 						b.txAlertLock.Lock()
 						b.transactionAlerts = append(b.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from Mint", hutils.FormatBalance(action.Value, decimals), symbol)})
 						b.txAlertLock.Unlock()
@@ -341,7 +341,7 @@ func (b *Backend) collectBlocks() {
 						return
 					}
 					if !hasAsset {
-						if err := b.s.StoreAsset(action.Asset, b.addr == owner); err != nil {
+						if err := b.s.StoreAsset(action.Asset, b.addrStr == owner); err != nil {
 							b.fatal(err)
 							return
 						}
@@ -350,14 +350,14 @@ func (b *Backend) collectBlocks() {
 						b.fatal(err)
 						return
 					}
-				} else if actor == b.pk {
+				} else if actor == b.addr {
 					if err := b.s.StoreTransaction(txInfo); err != nil {
 						b.fatal(err)
 						return
 					}
 				}
 			case *actions.CreateOrder:
-				if actor != b.pk {
+				if actor != b.addr {
 					continue
 				}
 
@@ -376,7 +376,7 @@ func (b *Backend) collectBlocks() {
 					Timestamp: blk.Tmstmp,
 					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
 					Success:   result.Success,
-					Actor:     utils.Address(actor),
+					Actor:     codec.MustAddressBech32(tconsts.HRP, actor),
 					Type:      "CreateOrder",
 					Units:     hcli.ParseDimensions(result.Consumed),
 					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
@@ -398,7 +398,7 @@ func (b *Backend) collectBlocks() {
 					return
 				}
 			case *actions.FillOrder:
-				if actor != b.pk && action.Owner != b.pk {
+				if actor != b.addr && action.Owner != b.addr {
 					continue
 				}
 
@@ -417,7 +417,7 @@ func (b *Backend) collectBlocks() {
 					Timestamp: blk.Tmstmp,
 					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
 					Success:   result.Success,
-					Actor:     utils.Address(actor),
+					Actor:     codec.MustAddressBech32(tconsts.HRP, actor),
 					Type:      "FillOrder",
 					Units:     hcli.ParseDimensions(result.Consumed),
 					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
@@ -433,7 +433,7 @@ func (b *Backend) collectBlocks() {
 						outSymbol,
 					)
 
-					if action.Owner == b.pk && actor != b.pk {
+					if action.Owner == b.addr && actor != b.addr {
 						b.txAlertLock.Lock()
 						b.transactionAlerts = append(b.transactionAlerts, &Alert{"info", fmt.Sprintf("Received %s %s from FillOrder", hutils.FormatBalance(or.In, inDecimals), inSymbol)})
 						b.txAlertLock.Unlock()
@@ -441,14 +441,14 @@ func (b *Backend) collectBlocks() {
 				} else {
 					txInfo.Summary = string(result.Output)
 				}
-				if actor == b.pk {
+				if actor == b.addr {
 					if err := b.s.StoreTransaction(txInfo); err != nil {
 						b.fatal(err)
 						return
 					}
 				}
 			case *actions.CloseOrder:
-				if actor != b.pk {
+				if actor != b.addr {
 					continue
 				}
 
@@ -457,7 +457,7 @@ func (b *Backend) collectBlocks() {
 					Timestamp: blk.Tmstmp,
 					Size:      fmt.Sprintf("%.2fKB", float64(tx.Size())/units.KiB),
 					Success:   result.Success,
-					Actor:     utils.Address(actor),
+					Actor:     codec.MustAddressBech32(tconsts.HRP, actor),
 					Type:      "CloseOrder",
 					Units:     hcli.ParseDimensions(result.Consumed),
 					Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
@@ -526,7 +526,7 @@ func (b *Backend) collectBlocks() {
 		}
 		b.currentStat.Transactions += bi.Txs
 		for _, tx := range blk.Txs {
-			b.currentStat.Accounts.Add(string(tx.Auth.Payer()))
+			b.currentStat.Accounts.Add(codec.MustAddressBech32(tconsts.HRP, tx.Auth.Sponsor()))
 		}
 		b.currentStat.Prices = prices
 		snow := time.Now().Unix()
@@ -629,7 +629,7 @@ func (b *Backend) GetMyAssets() []*AssetInfo {
 
 func (b *Backend) CreateAsset(symbol string, decimals string, metadata string) error {
 	// Ensure have sufficient balance
-	bal, err := b.tcli.Balance(b.ctx, b.addr, ids.Empty)
+	bal, err := b.tcli.Balance(b.ctx, b.addrStr, ids.Empty)
 	if err != nil {
 		return err
 	}
@@ -682,13 +682,13 @@ func (b *Backend) MintAsset(asset string, address string, amount string) error {
 	if err != nil {
 		return err
 	}
-	to, err := utils.ParseAddress(address)
+	to, err := codec.ParseAddressBech32(tconsts.HRP, address)
 	if err != nil {
 		return err
 	}
 
 	// Ensure have sufficient balance
-	bal, err := b.tcli.Balance(b.ctx, b.addr, ids.Empty)
+	bal, err := b.tcli.Balance(b.ctx, b.addrStr, ids.Empty)
 	if err != nil {
 		return err
 	}
@@ -737,13 +737,13 @@ func (b *Backend) Transfer(asset string, address string, amount string, memo str
 	if err != nil {
 		return err
 	}
-	to, err := utils.ParseAddress(address)
+	to, err := codec.ParseAddressBech32(tconsts.HRP, address)
 	if err != nil {
 		return err
 	}
 
 	// Ensure have sufficient balance for transfer
-	sendBal, err := b.tcli.Balance(b.ctx, b.addr, assetID)
+	sendBal, err := b.tcli.Balance(b.ctx, b.addrStr, assetID)
 	if err != nil {
 		return err
 	}
@@ -752,7 +752,7 @@ func (b *Backend) Transfer(asset string, address string, amount string, memo str
 	}
 
 	// Ensure have sufficient balance for fees
-	bal, err := b.tcli.Balance(b.ctx, b.addr, ids.Empty)
+	bal, err := b.tcli.Balance(b.ctx, b.addrStr, ids.Empty)
 	if err != nil {
 		return err
 	}
@@ -795,7 +795,7 @@ func (b *Backend) Transfer(asset string, address string, amount string, memo str
 }
 
 func (b *Backend) GetAddress() string {
-	return b.addr
+	return b.addrStr
 }
 
 func (b *Backend) GetBalance() ([]*BalanceInfo, error) {
@@ -809,7 +809,7 @@ func (b *Backend) GetBalance() ([]*BalanceInfo, error) {
 		if err != nil {
 			return nil, err
 		}
-		bal, err := b.tcli.Balance(b.ctx, b.addr, asset)
+		bal, err := b.tcli.Balance(b.ctx, b.addrStr, asset)
 		if err != nil {
 			return nil, err
 		}
@@ -871,7 +871,7 @@ func (b *Backend) StartFaucetSearch() (*FaucetSearchInfo, error) {
 	go func() {
 		start := time.Now()
 		solution, attempts := challenge.Search(salt, difficulty, b.c.SearchCores)
-		txID, amount, err := b.fcli.SolveChallenge(b.ctx, b.addr, salt, solution)
+		txID, amount, err := b.fcli.SolveChallenge(b.ctx, b.addrStr, salt, solution)
 		b.searchLock.Lock()
 		b.search.Solution = hex.EncodeToString(solution)
 		b.search.Attempts = attempts
@@ -975,7 +975,7 @@ func (b *Backend) AddAsset(asset string) error {
 	if !exists {
 		return ErrAssetMissing
 	}
-	return b.s.StoreAsset(assetID, owner == b.addr)
+	return b.s.StoreAsset(assetID, owner == b.addrStr)
 }
 
 func (b *Backend) GetMyOrders() ([]*Order, error) {
@@ -1090,11 +1090,11 @@ func (b *Backend) CreateOrder(assetIn string, inTick string, assetOut string, ou
 	}
 
 	// Ensure have sufficient balance
-	bal, err := b.tcli.Balance(b.ctx, b.addr, ids.Empty)
+	bal, err := b.tcli.Balance(b.ctx, b.addrStr, ids.Empty)
 	if err != nil {
 		return err
 	}
-	outBal, err := b.tcli.Balance(b.ctx, b.addr, outID)
+	outBal, err := b.tcli.Balance(b.ctx, b.addrStr, outID)
 	if err != nil {
 		return err
 	}
@@ -1159,7 +1159,7 @@ func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, i
 	if err != nil {
 		return err
 	}
-	owner, err := utils.ParseAddress(orderOwner)
+	owner, err := codec.ParseAddressBech32(tconsts.HRP, orderOwner)
 	if err != nil {
 		return err
 	}
@@ -1177,11 +1177,11 @@ func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, i
 	}
 
 	// Ensure have sufficient balance
-	bal, err := b.tcli.Balance(b.ctx, b.addr, ids.Empty)
+	bal, err := b.tcli.Balance(b.ctx, b.addrStr, ids.Empty)
 	if err != nil {
 		return err
 	}
-	inBal, err := b.tcli.Balance(b.ctx, b.addr, inID)
+	inBal, err := b.tcli.Balance(b.ctx, b.addrStr, inID)
 	if err != nil {
 		return err
 	}
@@ -1249,7 +1249,7 @@ func (b *Backend) CloseOrder(orderID string, assetOut string) error {
 	}
 
 	// Ensure have sufficient balance
-	bal, err := b.tcli.Balance(b.ctx, b.addr, ids.Empty)
+	bal, err := b.tcli.Balance(b.ctx, b.addrStr, ids.Empty)
 	if err != nil {
 		return err
 	}
@@ -1373,7 +1373,7 @@ func (b *Backend) Message(message string, url string) error {
 	if err != nil {
 		return err
 	}
-	recipientAddr, err := utils.ParseAddress(recipient)
+	recipientAddr, err := codec.ParseAddressBech32(tconsts.HRP, recipient)
 	if err != nil {
 		return err
 	}
@@ -1389,7 +1389,7 @@ func (b *Backend) Message(message string, url string) error {
 	}
 
 	// Ensure have sufficient balance
-	bal, err := b.tcli.Balance(b.ctx, b.addr, ids.Empty)
+	bal, err := b.tcli.Balance(b.ctx, b.addrStr, ids.Empty)
 	if err != nil {
 		return err
 	}

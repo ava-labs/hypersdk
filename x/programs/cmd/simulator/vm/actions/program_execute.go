@@ -86,8 +86,6 @@ func (t *ProgramExecute) Execute(
 	// TODO: get cfg from genesis
 	cfg, err := runtime.NewConfigBuilder().
 		WithDebugMode(true).
-		WithBulkMemory(true).
-		// only required for Wasi support exposed by testing only.
 		Build()
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
@@ -137,7 +135,7 @@ func (*ProgramExecute) Size() int {
 }
 
 func (t *ProgramExecute) Marshal(p *codec.Packer) {
-	//TODO
+	// TODO
 }
 
 func (t *ProgramExecute) GetBalance() uint64 {
@@ -145,7 +143,7 @@ func (t *ProgramExecute) GetBalance() uint64 {
 }
 
 func UnmarshalProgramExecute(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
-	//TODO
+	// TODO
 	return nil, nil
 }
 

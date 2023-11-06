@@ -13,10 +13,10 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
 )
@@ -29,8 +29,6 @@ type CustomAllocation struct {
 }
 
 type Genesis struct {
-	HRP string `json:"hrp"`
-
 	// State Parameters
 	StateBranchFactor merkledb.BranchFactor `json:"stateBranchFactor"`
 
@@ -69,8 +67,6 @@ type Genesis struct {
 
 func Default() *Genesis {
 	return &Genesis{
-		HRP: consts.HRP,
-
 		// State Parameters
 		StateBranchFactor: merkledb.BranchFactor16,
 
@@ -123,24 +119,21 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 	ctx, span := tracer.Start(ctx, "Genesis.Load")
 	defer span.End()
 
-	if consts.HRP != g.HRP {
-		return ErrInvalidHRP
-	}
 	if err := g.StateBranchFactor.Valid(); err != nil {
 		return err
 	}
 
 	supply := uint64(0)
 	for _, alloc := range g.CustomAllocation {
-		pk, err := utils.ParseAddress(alloc.Address)
+		addr, err := codec.ParseAddressBech32(consts.HRP, alloc.Address)
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: %s", err, alloc.Address)
 		}
 		supply, err = smath.Add64(supply, alloc.Balance)
 		if err != nil {
 			return err
 		}
-		if err := storage.SetBalance(ctx, mu, pk, alloc.Balance); err != nil {
+		if err := storage.SetBalance(ctx, mu, addr, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}

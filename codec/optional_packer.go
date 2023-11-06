@@ -7,7 +7,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 )
 
 // OptionalPacker defines a struct that includes a Packer [ip], a bitset
@@ -94,27 +93,6 @@ func (o *OptionalPacker) UnpackID(dest *ids.ID) {
 	}
 }
 
-// PackPublicKey packs [pk] into OptionalPacker if [pk] is not an empty PublicKey.
-// Updates the bitset and offset accordingly.
-func (o *OptionalPacker) PackPublicKey(pk ed25519.PublicKey) {
-	if pk == ed25519.EmptyPublicKey {
-		o.skipBit()
-		return
-	}
-	o.ip.PackPublicKey(pk)
-	o.setBit()
-}
-
-// UnpackPublicKey unpacks a PublicKey into [dest] if the bitset is set at
-// the current offset. Increments offset regardless.
-func (o *OptionalPacker) UnpackPublicKey(dest *ed25519.PublicKey) {
-	if o.checkBit() {
-		o.ip.UnpackPublicKey(true, dest)
-	} else {
-		*dest = ed25519.EmptyPublicKey
-	}
-}
-
 // PackUint64 packs [l] into OptionalPacker if [l] is not an 0.
 // Updates the bitset and offset accordingly.
 func (o *OptionalPacker) PackUint64(l uint64) {
@@ -153,6 +131,27 @@ func (o *OptionalPacker) UnpackInt64() int64 {
 		return o.ip.UnpackInt64(true)
 	}
 	return 0
+}
+
+// PackAddress packs [addr] into OptionalPacker if [addr] is not empty.
+// Updates the bitset and offset accordingly.
+func (o *OptionalPacker) PackAddress(addr Address) {
+	if addr == EmptyAddress {
+		o.skipBit()
+		return
+	}
+	o.ip.PackAddress(addr)
+	o.setBit()
+}
+
+// UnpackAddress unpacks Address into [dest] if the bitset is set at
+// the current offset. Increments offset regardless.
+func (o *OptionalPacker) UnpackAddress(dest *Address) {
+	if o.checkBit() {
+		o.ip.UnpackAddress(dest)
+	} else {
+		*dest = EmptyAddress
+	}
 }
 
 // PackOptional packs an OptionalPacker in a Packer. First packs the bitset [o.b]

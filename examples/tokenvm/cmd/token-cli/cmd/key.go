@@ -8,16 +8,18 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/cli"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 
+	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
 	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	tutils "github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
 var keyCmd = &cobra.Command{
@@ -30,7 +32,25 @@ var keyCmd = &cobra.Command{
 var genKeyCmd = &cobra.Command{
 	Use: "generate",
 	RunE: func(*cobra.Command, []string) error {
-		return handler.Root().GenerateKey()
+		p, err := ed25519.GeneratePrivateKey()
+		if err != nil {
+			return err
+		}
+		priv := &cli.PrivateKey{
+			Address: auth.NewED25519Address(p.PublicKey()),
+			Bytes:   p[:],
+		}
+		if err := handler.h.StoreKey(priv); err != nil {
+			return err
+		}
+		if err := handler.h.StoreDefaultKey(priv.Address); err != nil {
+			return err
+		}
+		utils.Outf(
+			"{{green}}created address:{{/}} %s",
+			codec.MustAddressBech32(tconsts.HRP, priv.Address),
+		)
+		return nil
 	},
 }
 
@@ -43,7 +63,26 @@ var importKeyCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		return handler.Root().ImportKey(args[0])
+		p, err := utils.LoadBytes(args[0], ed25519.PrivateKeyLen)
+		if err != nil {
+			return err
+		}
+		pk := ed25519.PrivateKey(p)
+		priv := &cli.PrivateKey{
+			Address: auth.NewED25519Address(pk.PublicKey()),
+			Bytes:   p,
+		}
+		if err := handler.h.StoreKey(priv); err != nil {
+			return err
+		}
+		if err := handler.h.StoreDefaultKey(priv.Address); err != nil {
+			return err
+		}
+		utils.Outf(
+			"{{green}}imported address:{{/}} %s",
+			codec.MustAddressBech32(tconsts.HRP, priv.Address),
+		)
+		return nil
 	},
 }
 
@@ -71,10 +110,10 @@ var setKeyCmd = &cobra.Command{
 	},
 }
 
-func lookupKeyBalance(pk ed25519.PublicKey, uri string, networkID uint32, chainID ids.ID, assetID ids.ID) error {
+func lookupKeyBalance(addr codec.Address, uri string, networkID uint32, chainID ids.ID, assetID ids.ID) error {
 	_, _, _, _, err := handler.GetAssetInfo(
 		context.TODO(), trpc.NewJSONRPCClient(uri, networkID, chainID),
-		pk, assetID, true)
+		addr, assetID, true)
 	return err
 }
 
@@ -116,7 +155,7 @@ var faucetKeyCmd = &cobra.Command{
 		start := time.Now()
 		solution, attempts := challenge.Search(salt, difficulty, numCores)
 		utils.Outf("{{cyan}}found solution (attempts=%d, t=%s):{{/}} %x\n", attempts, time.Since(start), solution)
-		txID, amount, err := fcli.SolveChallenge(ctx, tutils.Address(priv.PublicKey()), salt, solution)
+		txID, amount, err := fcli.SolveChallenge(ctx, codec.MustAddressBech32(tconsts.HRP, priv.Address), salt, solution)
 		if err != nil {
 			return err
 		}
