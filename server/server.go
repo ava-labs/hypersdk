@@ -5,11 +5,9 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/NYTimes/gziphandler"
@@ -18,19 +16,14 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
-var (
-	errUnknownLockOption = errors.New("invalid lock options")
-
-	_ Server = (*server)(nil)
-)
+var _ Server = (*server)(nil)
 
 type PathAdder interface {
 	// AddRoute registers a route to a handler.
-	AddRoute(handler *common.HTTPHandler, lock *sync.RWMutex, base, endpoint string) error
+	AddRoute(handler http.Handler, base, endpoint string) error
 }
 
 // Server maintains the HTTP router
@@ -118,59 +111,13 @@ func (s *server) Dispatch() error {
 	return s.srv.Serve(s.listener)
 }
 
-func (s *server) AddRoute(handler *common.HTTPHandler, lock *sync.RWMutex, base, endpoint string) error {
-	return s.addRoute(handler, lock, base, endpoint)
-}
-
-func (s *server) AddRouteWithReadLock(handler *common.HTTPHandler, lock *sync.RWMutex, base, endpoint string) error {
-	s.router.lock.RUnlock()
-	defer s.router.lock.RLock()
-	return s.addRoute(handler, lock, base, endpoint)
-}
-
-func (s *server) addRoute(handler *common.HTTPHandler, lock *sync.RWMutex, base, endpoint string) error {
+func (s *server) AddRoute(handler http.Handler, base, endpoint string) error {
 	url := fmt.Sprintf("%s/%s", s.baseURL, base)
 	s.log.Info("adding route",
 		zap.String("url", url),
 		zap.String("endpoint", endpoint),
 	)
-
-	// Apply middleware to grab/release chain's lock before/after calling API method
-	h, err := lockMiddleware(
-		handler.Handler,
-		handler.LockOptions,
-		lock,
-	)
-	if err != nil {
-		return err
-	}
-	return s.router.AddRouter(url, endpoint, h)
-}
-
-// Wraps a handler by grabbing and releasing a lock before calling the handler.
-func lockMiddleware(
-	handler http.Handler,
-	lockOption common.LockOption,
-	lock *sync.RWMutex,
-) (http.Handler, error) {
-	switch lockOption {
-	case common.WriteLock:
-		return middlewareHandler{
-			before:  lock.Lock,
-			after:   lock.Unlock,
-			handler: handler,
-		}, nil
-	case common.ReadLock:
-		return middlewareHandler{
-			before:  lock.RLock,
-			after:   lock.RUnlock,
-			handler: handler,
-		}, nil
-	case common.NoLock:
-		return handler, nil
-	default:
-		return nil, errUnknownLockOption
-	}
+	return s.router.AddRouter(url, endpoint, handler)
 }
 
 func (s *server) Shutdown() error {

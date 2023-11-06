@@ -6,7 +6,6 @@ package rpc
 import (
 	"net/http"
 
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/gorilla/rpc/v2"
 )
@@ -14,17 +13,9 @@ import (
 func NewJSONRPCHandler(
 	name string,
 	service interface{},
-	lockOption common.LockOption,
-) (*common.HTTPHandler, error) {
+) (http.Handler, error) {
 	server := rpc.NewServer()
 	server.RegisterCodec(json.NewCodec(), "application/json")
 	server.RegisterCodec(json.NewCodec(), "application/json;charset=UTF-8")
-	if err := server.RegisterService(service, name); err != nil {
-		return nil, err
-	}
-	return &common.HTTPHandler{LockOptions: lockOption, Handler: server}, nil
-}
-
-func NewWebSocketHandler(server http.Handler) *common.HTTPHandler {
-	return &common.HTTPHandler{LockOptions: common.NoLock, Handler: server}
+	return server, server.RegisterService(service, name)
 }

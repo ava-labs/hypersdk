@@ -6,11 +6,11 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/gossiper"
@@ -107,11 +107,10 @@ func (c *Controller) Initialize(
 	//
 	// hypersdk handler are initiatlized automatically, you just need to
 	// initialize custom handlers here.
-	apis := map[string]*common.HTTPHandler{}
+	apis := map[string]http.Handler{}
 	jsonRPCHandler, err := hrpc.NewJSONRPCHandler(
 		consts.Name,
 		rpc.NewJSONRPCServer(c),
-		common.NoLock,
 	)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err

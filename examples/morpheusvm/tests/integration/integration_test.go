@@ -9,13 +9,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/database/manager"
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
@@ -25,7 +26,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	avago_version "github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/fatih/color"
 	ginkgo "github.com/onsi/ginkgo/v2"
@@ -214,7 +214,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		}
 
 		toEngine := make(chan common.Message, 1)
-		db := manager.NewMemDB(avago_version.CurrentDatabase)
+		db := memdb.New()
 
 		v := controller.New()
 		err = v.Initialize(
@@ -232,13 +232,13 @@ var _ = ginkgo.BeforeSuite(func() {
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 
-		var hd map[string]*common.HTTPHandler
+		var hd map[string]http.Handler
 		hd, err = v.CreateHandlers(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
 
-		jsonRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint].Handler)
-		ljsonRPCServer := httptest.NewServer(hd[lrpc.JSONRPCEndpoint].Handler)
-		webSocketServer := httptest.NewServer(hd[rpc.WebSocketEndpoint].Handler)
+		jsonRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint])
+		ljsonRPCServer := httptest.NewServer(hd[lrpc.JSONRPCEndpoint])
+		webSocketServer := httptest.NewServer(hd[rpc.WebSocketEndpoint])
 		instances[i] = instance{
 			chainID:           snowCtx.ChainID,
 			nodeID:            snowCtx.NodeID,
