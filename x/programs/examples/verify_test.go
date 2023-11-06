@@ -33,14 +33,14 @@ func TestVerifyProgram(t *testing.T) {
 	require.NoError(err)
 
 	rt.Stop()
-
 }
 
 func SetupRuntime(require *require.Assertions, ctx context.Context) (runtime.Runtime, uint64) {
 	db := newTestDB()
-	maxUnits := uint64(40000)
+	maxUnits := uint64(4000000)
 	// need with bulk memory to run this test(for io ops)
-	cfg, err := runtime.NewConfigBuilder().WithDebugMode(true).Build()
+	cfg, err := runtime.NewConfigBuilder().WithDebugMode(true).WithBulkMemory(true).WithLimitMaxMemory(100 * runtime.MemoryPageSize).Build()
+
 	require.NoError(err)
 
 	

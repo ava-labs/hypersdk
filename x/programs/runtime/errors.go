@@ -72,6 +72,10 @@ func handleTrapError(err error) error {
 		trapErr = ErrTrapUnreachableCodeReached
 	case 11:
 		trapErr = ErrTrapInterrupt
+		fmt.Printf("code: %v\n", code)
+		fmt.Printf(trap.Error())
+		fmt.Printf(trap.Message())
+
 	case 12:
 		trapErr = ErrTrapOutOfFuel
 	default:
