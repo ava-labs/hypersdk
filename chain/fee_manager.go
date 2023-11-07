@@ -15,11 +15,11 @@ import (
 )
 
 const (
-	Bandwidth           Dimension = 0
-	Compute             Dimension = 1
-	StorageRead         Dimension = 2
-	StorageCreate       Dimension = 3
-	StorageModification Dimension = 4
+	Bandwidth       Dimension = 0
+	Compute         Dimension = 1
+	StorageRead     Dimension = 2
+	StorageAllocate Dimension = 3
+	StorageWrite    Dimension = 4 // includes delete
 
 	FeeDimensions = 5
 

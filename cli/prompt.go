@@ -332,8 +332,8 @@ func PrintUnitPrices(d chain.Dimensions) {
 		d[chain.Bandwidth],
 		d[chain.Compute],
 		d[chain.StorageRead],
-		d[chain.StorageCreate],
-		d[chain.StorageModification],
+		d[chain.StorageAllocate],
+		d[chain.StorageWrite],
 	)
 }
 
@@ -343,7 +343,7 @@ func ParseDimensions(d chain.Dimensions) string {
 		d[chain.Bandwidth],
 		d[chain.Compute],
 		d[chain.StorageRead],
-		d[chain.StorageCreate],
-		d[chain.StorageModification],
+		d[chain.StorageAllocate],
+		d[chain.StorageWrite],
 	)
 }
