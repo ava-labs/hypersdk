@@ -67,6 +67,8 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 		} else {
 			ts.pendingChangedKeys[op.k] = maybe.Some(op.pastV)
 		}
+
+		// TODO: do we need to handle key rollbacks for creations, coldModifications, warmModifications?
 	}
 	ts.ops = ts.ops[:restorePoint]
 }
@@ -183,6 +185,13 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 			err = ErrCreationDisabled
 		} else {
 			err = updateChunks(ts.creations, k, value)
+			if err == nil {
+				// We mark a created key as a cold modification to ensure
+				// that the fee of setting a new key in state is always more than
+				// the cost to just modify the same key. This inversion could happen
+				// if the price of key creation is less than the cost of modification.
+				err = updateChunks(ts.coldModifications, k, value)
+			}
 		}
 	}
 	if err != nil {
