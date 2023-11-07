@@ -188,7 +188,7 @@ func TestRestoreInsert(t *testing.T) {
 	// Update same value
 	require.NoError(tsv.Insert(ctx, keys[0], vals[0]))
 
-	// No change to modifications
+	// No change to modifications after keys[0] (already in cold)
 	creations, coldModifications, warmModifications = tsv.KeyOperations()
 	require.EqualValues(creations, modMap)
 	require.EqualValues(coldModifications, modMap)
@@ -284,6 +284,21 @@ func TestCreateView(t *testing.T) {
 		require.Equal(vals[i], val, "value not set correctly")
 	}
 	tsv.Commit()
+
+	// Check modifications
+	modMap := map[string]uint16{"key1": 1, "key2": 1, "key3": 1}
+	creations, coldModifications, warmModifications := tsv.KeyOperations()
+	require.EqualValues(creations, modMap)
+	require.EqualValues(coldModifications, modMap)
+	require.Empty(warmModifications)
+
+	// Test warm modification
+	tsvM := ts.NewView(keySet, map[string][]byte{})
+	require.NoError(tsvM.Insert(ctx, keys[0], vals[2]))
+	creations, coldModifications, warmModifications = tsvM.KeyOperations()
+	require.Empty(creations)
+	require.Empty(coldModifications)
+	require.EqualValues(warmModifications, map[string]uint16{"key1": 1})
 
 	// Create merkle view
 	view, err := ts.ExportMerkleDBView(ctx, tracer, db)
