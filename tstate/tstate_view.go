@@ -188,9 +188,11 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 			err = updateChunks(ts.creations, k, value)
 			if err == nil {
 				// We mark a created key as a cold modification to ensure
-				// that the fee of setting a new key in state is always more than
-				// the cost to just modify the same key. This inversion could happen
+				// that cost of inserting a new key in state is always more than
+				// the cost to just modify a key. This inversion could happen
 				// if the price of key creation is less than the cost of modification.
+				//
+				// TODO: is there a more elegant way to do this?
 				err = updateChunks(ts.coldModifications, k, value)
 			}
 		}
