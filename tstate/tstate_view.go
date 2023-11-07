@@ -64,6 +64,7 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 		// remove: Removed key that was previously modified in run
 		if !op.pastExists {
 			ts.pendingChangedKeys[op.k] = maybe.Nothing[[]byte]()
+			// TODO: should this also be a delete?
 		} else {
 			ts.pendingChangedKeys[op.k] = maybe.Some(op.pastV)
 		}
