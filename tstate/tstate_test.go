@@ -180,19 +180,17 @@ func TestRestoreInsert(t *testing.T) {
 
 	// Modifications reflect operations
 	modMap := map[string]uint16{"key1": 1, "key2": 1, "key3": 1}
-	creations, coldModifications, warmModifications := tsv.KeyOperations()
-	require.EqualValues(creations, modMap)
-	require.EqualValues(coldModifications, modMap)
-	require.Empty(warmModifications)
+	allocations, writes := tsv.KeyOperations()
+	require.EqualValues(allocations, modMap)
+	require.EqualValues(writes, modMap)
 
 	// Update same value
 	require.NoError(tsv.Insert(ctx, keys[0], vals[0]))
 
 	// No change to modifications after keys[0] (already in cold)
-	creations, coldModifications, warmModifications = tsv.KeyOperations()
-	require.EqualValues(creations, modMap)
-	require.EqualValues(coldModifications, modMap)
-	require.Empty(warmModifications)
+	allocations, writes = tsv.KeyOperations()
+	require.EqualValues(allocations, modMap)
+	require.EqualValues(writes, modMap)
 
 	// Rollback inserting updatedVal and key[2]
 	tsv.Rollback(ctx, 2)
@@ -208,10 +206,9 @@ func TestRestoreInsert(t *testing.T) {
 	require.Equal(vals[0], val, "value not rolled back properly")
 
 	// Modifications rolled back
-	creations, coldModifications, warmModifications = tsv.KeyOperations()
-	require.Empty(creations)
-	require.Empty(coldModifications)
-	require.Empty(warmModifications)
+	allocations, writes = tsv.KeyOperations()
+	require.Empty(allocations)
+	require.Empty(writes)
 }
 
 func TestRestoreDelete(t *testing.T) {
@@ -287,18 +284,16 @@ func TestCreateView(t *testing.T) {
 
 	// Check modifications
 	modMap := map[string]uint16{"key1": 1, "key2": 1, "key3": 1}
-	creations, coldModifications, warmModifications := tsv.KeyOperations()
-	require.EqualValues(creations, modMap)
-	require.EqualValues(coldModifications, modMap)
-	require.Empty(warmModifications)
+	allocations, writes := tsv.KeyOperations()
+	require.EqualValues(allocations, modMap)
+	require.EqualValues(writes, modMap)
 
 	// Test warm modification
 	tsvM := ts.NewView(keySet, map[string][]byte{})
 	require.NoError(tsvM.Insert(ctx, keys[0], vals[2]))
-	creations, coldModifications, warmModifications = tsvM.KeyOperations()
-	require.Empty(creations)
-	require.Empty(coldModifications)
-	require.EqualValues(warmModifications, map[string]uint16{"key1": 1})
+	allocations, writes = tsvM.KeyOperations()
+	require.Empty(allocations)
+	require.EqualValues(writes, map[string]uint16{"key1": 1})
 
 	// Create merkle view
 	view, err := ts.ExportMerkleDBView(ctx, tracer, db)

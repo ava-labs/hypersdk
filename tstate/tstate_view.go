@@ -28,10 +28,9 @@ type TStateView struct {
 
 	// Store which keys are modified and how large their values were. Reset
 	// whenever setting scope.
-	canCreate         bool
-	creations         map[string]uint16
-	coldModifications map[string]uint16
-	warmModifications map[string]uint16
+	canAllocate bool
+	allocations map[string]uint16
+	writes      map[string]uint16
 }
 
 func (ts *TState) NewView(scope set.Set[string], storage map[string][]byte) *TStateView {
@@ -41,10 +40,9 @@ func (ts *TState) NewView(scope set.Set[string], storage map[string][]byte) *TSt
 		ops:                make([]*op, 0, defaultOps),
 		scope:              scope,
 		scopeStorage:       storage,
-		canCreate:          true, // default to allowing creation
-		creations:          make(map[string]uint16, len(scope)),
-		coldModifications:  make(map[string]uint16, len(scope)),
-		warmModifications:  make(map[string]uint16, len(scope)),
+		canAllocate:        true, // default to allowing allocation
+		allocations:        make(map[string]uint16, len(scope)),
+		writes:             make(map[string]uint16, len(scope)),
 	}
 }
 
@@ -79,22 +77,22 @@ func (ts *TStateView) OpIndex() int {
 	return len(ts.ops)
 }
 
-// DisableCreation causes [Insert] to return an error if
+// DisableAllocation causes [Insert] to return an error if
 // it would create a new key. This can be useful for constraining
 // what a transaction can do during block execution (to allow for
 // cheaper fees).
 //
 // Note, creation defaults to true.
-func (ts *TStateView) DisableCreation() {
-	ts.canCreate = false
+func (ts *TStateView) DisableAllocation() {
+	ts.canAllocate = false
 }
 
-// EnableCreation removes the forcer error case in [Insert]
+// EnableAllocation removes the forcer error case in [Insert]
 // if a new key is created.
 //
 // Note, creation defaults to true.
-func (ts *TStateView) EnableCreation() {
-	ts.canCreate = true
+func (ts *TStateView) EnableAllocation() {
+	ts.canAllocate = true
 }
 
 // KeyOperations returns the number of operations performed since the scope
@@ -103,8 +101,8 @@ func (ts *TStateView) EnableCreation() {
 // If an operation is performed more than once during this time, the largest
 // operation will be returned here (if 1 chunk then 2 chunks are written to a key,
 // this function will return 2 chunks).
-func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16, map[string]uint16) {
-	return ts.creations, ts.coldModifications, ts.warmModifications
+func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
+	return ts.allocations, ts.writes
 }
 
 // checkScope returns whether [k] is in ts.readScope.
@@ -166,39 +164,21 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 	}
 	k := string(key)
 	past, changed, exists := ts.getValue(ctx, k)
-	var err error
 	if exists {
-		// If a key is already in [coldModifications], we should still
-		// consider it a [coldModification] even if it is [changed].
-		// This occurs when we modify a key for the second time in
-		// a single transaction.
-		//
-		// If a key is not in [coldModifications] and it is [changed],
-		// it was either created/modified in a different transaction
-		// in the block or created in this transaction.
-		if _, ok := ts.coldModifications[k]; ok || !changed {
-			err = updateChunks(ts.coldModifications, k, value)
-		} else {
-			err = updateChunks(ts.warmModifications, k, value)
+		if err := updateChunks(ts.writes, k, value); err != nil {
+			return err
 		}
 	} else {
-		if !ts.canCreate {
-			err = ErrCreationDisabled
+		if !ts.canAllocate {
+			return ErrAllocationDisabled
 		} else {
-			err = updateChunks(ts.creations, k, value)
-			if err == nil {
-				// We mark a created key as a cold modification to ensure
-				// that cost of inserting a new key in state is always more than
-				// the cost to just modify a key. This inversion could happen
-				// if the price of key creation is less than the cost of modification.
-				//
-				// TODO: is there a more elegant way to do this?
-				err = updateChunks(ts.coldModifications, k, value)
+			if err := updateChunks(ts.allocations, k, value); err != nil {
+				return err
+			}
+			if err := updateChunks(ts.writes, k, value); err != nil {
+				return err
 			}
 		}
-	}
-	if err != nil {
-		return err
 	}
 	ts.ops = append(ts.ops, &op{
 		k:           k,
@@ -218,24 +198,10 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 	k := string(key)
 	past, changed, exists := ts.getValue(ctx, k)
 	if !exists {
-		// We do not update modificaations if the key does not exist.
+		// We do not update writes if the key does not exist.
 		return nil
 	}
-	// If a key is already in [coldModifications], we should still
-	// consider it a [coldModification] even if it is [changed].
-	// This occurs when we modify a key for the second time in
-	// a single transaction.
-	//
-	// If a key is not in [coldModifications] and it is [changed],
-	// it was either created/modified in a different transaction
-	// in the block or created in this transaction.
-	var err error
-	if _, ok := ts.coldModifications[k]; ok || !changed {
-		err = updateChunks(ts.coldModifications, k, nil)
-	} else {
-		err = updateChunks(ts.warmModifications, k, nil)
-	}
-	if err != nil {
+	if err := updateChunks(ts.writes, k, nil); err != nil {
 		return err
 	}
 	ts.ops = append(ts.ops, &op{
