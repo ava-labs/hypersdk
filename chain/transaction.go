@@ -467,6 +467,8 @@ func (t *Transaction) Execute(
 	// Because the key database is abstracted from [Auth]/[Actions], we can compute
 	// all storage use in the background. KeyOperations is reset whenever
 	// we set scope on [ts].
+	//
+	// TODO: update comment to say that each view has its own set of operations
 	creations, coldModifications, warmModifications := ts.KeyOperations()
 
 	// Because we compute the fee before [Auth.Refund] is called, we need

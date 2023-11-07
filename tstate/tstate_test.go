@@ -178,6 +178,22 @@ func TestRestoreInsert(t *testing.T) {
 	require.NoError(err, "error getting value")
 	require.Equal(updatedVal, val, "value not updated correctly")
 
+	// Modifications reflect operations
+	modMap := map[string]uint16{"key1": 1, "key2": 1, "key3": 1}
+	creations, coldModifications, warmModifications := tsv.KeyOperations()
+	require.EqualValues(creations, modMap)
+	require.EqualValues(coldModifications, modMap)
+	require.Empty(warmModifications)
+
+	// Update same value
+	require.NoError(tsv.Insert(ctx, keys[0], vals[0]))
+
+	// No change to modifications
+	creations, coldModifications, warmModifications = tsv.KeyOperations()
+	require.EqualValues(creations, modMap)
+	require.EqualValues(coldModifications, modMap)
+	require.Empty(warmModifications)
+
 	// Rollback inserting updatedVal and key[2]
 	tsv.Rollback(ctx, 2)
 	require.Equal(2, tsv.OpIndex(), "operations not rolled back properly")
@@ -190,6 +206,12 @@ func TestRestoreInsert(t *testing.T) {
 	val, err = tsv.GetValue(ctx, keys[0])
 	require.NoError(err, "error getting value")
 	require.Equal(vals[0], val, "value not rolled back properly")
+
+	// Modifications rolled back
+	creations, coldModifications, warmModifications = tsv.KeyOperations()
+	require.Empty(creations)
+	require.Empty(coldModifications)
+	require.Empty(warmModifications)
 }
 
 func TestRestoreDelete(t *testing.T) {
