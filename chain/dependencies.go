@@ -142,6 +142,7 @@ type Rules interface {
 	//   read will be a warm read of 0 chunks (reads are based on disk contents before exec)
 	// * If a key is removed and then re-created during a transaction, it counts
 	//   as a modification and a creation instead of just a modification
+	GetMaxStateKeys() int
 	GetColdStorageKeyReadUnits() uint64
 	GetColdStorageValueReadUnits() uint64 // per chunk
 	GetWarmStorageKeyReadUnits() uint64
