@@ -4,7 +4,11 @@
 package runtime
 
 import (
+	"reflect"
+
 	"github.com/ava-labs/avalanchego/utils/logging"
+
+	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
 // SupportedImports is a map of supported import modules. The runtime will enable these imports
@@ -56,4 +60,55 @@ func (f *Factory) Register(name string) *Factory {
 // Imports returns the registered imports.
 func (f *Factory) Imports() Imports {
 	return f.registeredImports
+}
+
+type importFnCallback struct {
+	// beforeRequest is called before the import function request is made.
+	beforeRequest func(module, name string)
+	// afterResponse is called after the import function response is received.
+	afterResponse func(module, name string)
+}
+
+// NewLink returns a new host module link.
+func NewLink(engine *wasmtime.Engine) *Link {
+	return &Link{
+		inner: wasmtime.NewLinker(engine),
+	}
+}
+
+type Link struct {
+	inner *wasmtime.Linker
+	cb    *importFnCallback
+}
+
+// Instantiate instantiates a module with all imports defined in this linker.
+func (l *Link) Instantiate(store wasmtime.Storelike, module *wasmtime.Module) (*wasmtime.Instance, error) {
+	return l.inner.Instantiate(store, module)
+}
+
+// RegisterFn registers a host function exposed to the guest (import).
+func (l *Link) RegisterFn(module, name string, f interface{}) error {
+	val := reflect.ValueOf(f)
+	wrapper := func(args []reflect.Value) []reflect.Value {
+		if l.cb.beforeRequest != nil {
+			l.cb.beforeRequest(module, name)
+		}
+		if l.cb.afterResponse != nil {
+			defer l.cb.afterResponse(module, name)
+		}
+
+		result := val.Call(args)
+		return result
+	}
+	wrappedFn := reflect.MakeFunc(val.Type(), wrapper)
+
+	return l.inner.FuncWrap(module, name, wrappedFn.Interface())
+}
+
+func (l *Link) registerCallback(cb *importFnCallback) {
+	l.cb = cb
+}
+
+func (l *Link) wasi() error {
+	return l.inner.DefineWasi()
 }

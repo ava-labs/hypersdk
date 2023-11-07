@@ -43,14 +43,14 @@ func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtime.SupportedImports) error {
+func (i *Import) Register(link *runtime.Link, meter runtime.Meter, imports runtime.SupportedImports) error {
 	if i.registered {
 		return fmt.Errorf("import module already registered: %q", Name)
 	}
 	i.imports = imports
 	i.meter = meter
 
-	if err := link.FuncWrap(Name, "call_program", i.callProgramFn); err != nil {
+	if err := link.RegisterFn(Name, "call_program", i.callProgramFn); err != nil {
 		return err
 	}
 

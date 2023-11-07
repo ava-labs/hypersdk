@@ -31,6 +31,7 @@ const (
 	defaultEnableCraneliftDebugVerifier = false
 	defaultEnableDebugInfo              = false
 	defaultCompileStrategy              = CompileWasm
+	defaultContextSwitchUnits           = 1000
 
 	defaultLimitMaxTableElements = 4096
 	defaultLimitMaxTables        = 1
@@ -52,6 +53,7 @@ func NewConfigBuilder() *ConfigBuilder {
 		CompileStrategy:          defaultCompileStrategy,
 		EnableDefaultCache:       false,
 		EnableDebugMode:          false,
+		ContextSwitchUnits:       defaultContextSwitchUnits,
 	}
 }
 
@@ -105,6 +107,8 @@ type ConfigBuilder struct {
 	ProfilingStrategy wasmtime.ProfilingStrategy
 	// CompileStrategy helps the engine to understand if the files has been precompiled.
 	CompileStrategy EngineCompileStrategy
+	// ContextSwitchUnits defines the number of units to charge for context switching.
+	ContextSwitchUnits uint64
 
 	err wrappers.Errs
 }
@@ -187,6 +191,12 @@ func (c *ConfigBuilder) WithLimitMaxMemory(max uint64) *ConfigBuilder {
 	return c
 }
 
+// WithContextSwitchUnits defines the number of units to charge for context switching.
+func (c *ConfigBuilder) WithContextSwitchUnits(units uint64) *ConfigBuilder {
+	c.ContextSwitchUnits = units
+	return c
+}
+
 // WithDefaultCache enables the default caching strategy.
 //
 // Default is false.
@@ -239,8 +249,9 @@ func (c *ConfigBuilder) Build() (*Config, error) {
 		limitMaxMemories:      defaultLimitMaxMemories,
 
 		// runtime config
-		compileStrategy: c.CompileStrategy,
-		debugMode:       c.EnableDebugMode,
+		compileStrategy:    c.CompileStrategy,
+		debugMode:          c.EnableDebugMode,
+		contextSwitchUnits: c.ContextSwitchUnits,
 	}, nil
 }
 
@@ -283,7 +294,8 @@ type Config struct {
 
 	debugMode bool
 
-	compileStrategy EngineCompileStrategy
+	compileStrategy    EngineCompileStrategy
+	contextSwitchUnits uint64
 }
 
 func defaultWasmtimeConfig() *wasmtime.Config {
