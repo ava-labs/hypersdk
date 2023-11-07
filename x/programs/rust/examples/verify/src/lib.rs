@@ -15,21 +15,57 @@ impl From<i64> for EDSigningKey {
     }
 }
 
+
+pub struct BatchSigningKeys(Vec<EDSigningKey>);
+
+impl BatchSigningKeys {
+    pub fn push(&mut self, signing_key: EDSigningKey) {
+        self.0.push(signing_key);
+    }
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl From<i64> for BatchSigningKeys {
+    fn from(value: i64) -> Self {
+        let mut signing_keys : BatchSigningKeys = BatchSigningKeys(Vec::new());
+
+        for i in 0..5 {
+            let ptr : i64 = value + i * 32;
+            signing_keys.push(EDSigningKey::from(ptr));
+        }
+
+        if signing_keys.len() != 5 {
+            panic!("Expected 5 initialized values");
+        }
+
+        signing_keys
+    }
+}
+
 impl EDSigningKey {
     pub fn as_key(&self) -> &ed25519_dalek::SigningKey {
         &self.0
     }
 }
 
-
 /// Verifies the ed25519 signature in wasm. 
 #[public]
-pub fn verify_ed_in_wasm(_: Program, signing_key: EDSigningKey, message: Bytes32) {
+pub fn verify_ed_in_wasm(_: Program, signing_keys: BatchSigningKeys, message: Bytes32) {
+    // first signing key
+    let signing_key = signing_keys.0.get(0).unwrap();
     let signature: Signature = signing_key.as_key().sign(message.as_bytes());
+    // get the bytes of the signature
+    let signature_bytes = signature.to_bytes();
 
-    match signing_key.as_key().verify(message.as_bytes(), &signature) {
-        Ok(_) => println!("Signature verified!"),
-        Err(_) => println!("Signature not verified!"),
+    // iterate through batch signing keys
+    for signing_key in signing_keys.0.iter() {
+        // println!("Signature bytes: {:?}", signature_bytes);
+        match signing_key.as_key().verify(message.as_bytes(), &signature) {
+            Ok(_) => println!("Signature verified!"),
+            Err(_) => println!("Signature not verified!"),
+        }
     }
 }
 
