@@ -316,6 +316,15 @@ func (t *Transaction) PreExecute(
 	if end >= 0 && timestamp > end {
 		return 0, ErrAuthNotActivated
 	}
+	stateKeys, err := t.StateKeys(s)
+	if err != nil {
+		return 0, err
+	}
+	// Limiting the max number of state keys a transaction can reference prevents a single transaction
+	// from ...
+	if len(stateKeys) > r.GetMaxStateKeys() {
+		return 0, fmt.Errorf("%w: max=%d specified=%d", ErrTooManyStateKeys, r.GetMaxStateKeys(), len(stateKeys))
+	}
 	// It is up to [t.Auth] to limit the computational
 	// complexity of [t.Auth.AsyncVerify] and [t.Auth.Verify] to prevent
 	// a DoS (invalid Auth will not charge [t.Auth.Sponsor()].
