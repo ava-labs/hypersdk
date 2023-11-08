@@ -193,6 +193,8 @@ func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, bool) {
 	return nil, false
 }
 
+// isUnchanged determines if a [key] is unchanged from the parent view (or
+// scope if the parent is unchanged).
 func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, nexists bool) bool {
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
 		return !exists && !nexists || exists && nexists && bytes.Equal(v, nval)
@@ -203,10 +205,8 @@ func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, 
 	return !nexists
 }
 
-// Insert sets or updates ts.storage[key] to equal {value, false}.
-//
-// Any bytes passed into [Insert] will be consumed by [TState] and should
-// not be modified/referenced after this call.
+// Insert allocates and writes (or just writes) a new key to [tstate]. If this
+// action returns the value of [key] to the parent view, it reverts any pending changes.
 func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
@@ -224,6 +224,10 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 		pastWrites:      chunks(ts.writes, k),
 	}
 	if exists {
+		if bytes.Equal(past, value) {
+			// No change, so this isn't an op.
+			return nil
+		}
 		op.t = insertOp
 		ts.writes[k] = valueChunks // set to latest value
 	} else {
@@ -235,8 +239,8 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 		ts.allocations[k] = keyChunks
 		ts.writes[k] = valueChunks
 	}
-	ts.pendingChangedKeys[k] = maybe.Some(value)
 	ts.ops = append(ts.ops, op)
+	ts.pendingChangedKeys[k] = maybe.Some(value)
 	if ts.isUnchanged(ctx, k, value, true) {
 		delete(ts.allocations, k)
 		delete(ts.writes, k)
@@ -245,7 +249,8 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 	return nil
 }
 
-// Remove deletes a key-value pair from ts.storage.
+// Remove deletes a key from [tstate]. If this action returns the
+// value of [key] to the parent view, it reverts any pending changes.
 func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
@@ -283,10 +288,12 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 	return nil
 }
 
+// PendingChanges returns the number of changed keys (not ops).
 func (ts *TStateView) PendingChanges() int {
 	return len(ts.pendingChangedKeys)
 }
 
+// Commit adds all pending changes to the parent view.
 func (ts *TStateView) Commit() {
 	ts.ts.l.Lock()
 	defer ts.ts.l.Unlock()
