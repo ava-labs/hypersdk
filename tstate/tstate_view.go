@@ -184,10 +184,7 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 		err                                    error
 	)
 	if exists {
-		apc, ok := ts.allocations[k]
-		if ok {
-			allocationsPastChunks = &apc
-		}
+		allocationsPastChunks = chunks(ts.allocations, k)
 		writePastChunks, err = updateChunks(ts.writes, k, value)
 	} else {
 		if !ts.canAllocate {
@@ -227,11 +224,6 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 		// We do not update writes if the key does not exist.
 		return nil
 	}
-	var allocationsPastChunks *uint16
-	apc, ok := ts.allocations[k]
-	if ok {
-		allocationsPastChunks = &apc
-	}
 	writePastChunks, err := updateChunks(ts.writes, k, nil)
 	if err != nil {
 		return err
@@ -243,8 +235,7 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 		pastV:       past,
 		pastChanged: changed,
 
-		// TODO: handle this in rollback instead of fetching here
-		allocationsPastChunks: allocationsPastChunks,
+		allocationsPastChunks: chunks(ts.allocations, k),
 		writePastChunks:       writePastChunks,
 	})
 	ts.pendingChangedKeys[k] = maybe.Nothing[[]byte]()
@@ -273,12 +264,22 @@ func updateChunks(m map[string]uint16, key string, value []byte) (*uint16, error
 		return nil, ErrInvalidKeyValue
 	}
 	previousChunks, ok := m[key]
-	if ok {
-		if chunks > previousChunks {
-			m[key] = chunks
-		}
-		return &previousChunks, nil
+	if !ok {
+		m[key] = chunks
+		return nil, nil
 	}
-	m[key] = chunks
-	return nil, nil
+	if chunks > previousChunks {
+		m[key] = chunks
+	}
+	return &previousChunks, nil
+}
+
+// chunks gets the number of chunks for a key in [m]
+// or returns nil.
+func chunks(m map[string]uint16, key string) *uint16 {
+	chunks, ok := m[key]
+	if !ok {
+		return nil
+	}
+	return &chunks
 }
