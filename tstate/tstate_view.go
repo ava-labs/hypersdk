@@ -4,6 +4,7 @@
 package tstate
 
 import (
+	"bytes"
 	"context"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -192,6 +193,16 @@ func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, bool) {
 	return nil, false
 }
 
+func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, nexists bool) bool {
+	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
+		return !exists && !nexists || exists && nexists && bytes.Equal(v, nval)
+	}
+	if v, ok := ts.scopeStorage[key]; ok {
+		return nexists && bytes.Equal(v, nval)
+	}
+	return !nexists
+}
+
 // Insert sets or updates ts.storage[key] to equal {value, false}.
 //
 // Any bytes passed into [Insert] will be consumed by [TState] and should
@@ -224,8 +235,13 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 		ts.allocations[k] = keyChunks
 		ts.writes[k] = valueChunks
 	}
-	ts.ops = append(ts.ops, op)
 	ts.pendingChangedKeys[k] = maybe.Some(value)
+	ts.ops = append(ts.ops, op)
+	if ts.isUnchanged(ctx, k, value, true) {
+		delete(ts.allocations, k)
+		delete(ts.writes, k)
+		delete(ts.pendingChangedKeys, k)
+	}
 	return nil
 }
 
@@ -258,6 +274,11 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 		// explicit delete.
 		ts.writes[k] = 0
 		ts.pendingChangedKeys[k] = maybe.Nothing[[]byte]()
+	}
+	if ts.isUnchanged(ctx, k, nil, false) {
+		delete(ts.allocations, k)
+		delete(ts.writes, k)
+		delete(ts.pendingChangedKeys, k)
 	}
 	return nil
 }
