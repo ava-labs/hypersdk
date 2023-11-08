@@ -247,6 +247,10 @@ func mapFunctionParams(input []int64, values []*wasmtime.ValType) ([]interface{}
 	for i, v := range values {
 		switch v.Kind() {
 		case wasmtime.KindI32:
+			// ensure this value is within the range of an int32
+			if input[i] > int64(MaxInt64) || input[i] < int64(MinInt64) {
+				return nil, fmt.Errorf("%w: %d", ErrIntegerConversionOverflow, input[i])
+			}
 			params[i] = int32(input[i])
 		case wasmtime.KindI64:
 			params[i] = input[i]
