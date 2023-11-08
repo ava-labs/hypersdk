@@ -167,10 +167,20 @@ func TestRestoreInsert(t *testing.T) {
 	keys := [][]byte{[]byte("key1"), []byte("key2"), []byte("key3")}
 	keySet := set.Of("key1", "key2", "key3")
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
+
+	// Store keys
 	tsv := ts.NewView(keySet, map[string][]byte{})
 	for i, key := range keys {
 		require.NoError(tsv.Insert(ctx, key, vals[i]))
 	}
+
+	// Ensure KeyOperations reflect operations
+	modMap := map[string]uint16{"key1": 1, "key2": 1, "key3": 1}
+	allocations, writes := tsv.KeyOperations()
+	require.EqualValues(modMap, allocations)
+	require.EqualValues(modMap, writes)
+
+	// Update keys[0]
 	updatedVal := []byte("newVal")
 	require.NoError(tsv.Insert(ctx, keys[0], updatedVal))
 	require.Equal(len(keys)+1, tsv.OpIndex(), "operations not added properly")
@@ -178,19 +188,10 @@ func TestRestoreInsert(t *testing.T) {
 	require.NoError(err, "error getting value")
 	require.Equal(updatedVal, val, "value not updated correctly")
 
-	// Modifications reflect operations
-	modMap := map[string]uint16{"key1": 1, "key2": 1, "key3": 1}
-	allocations, writes := tsv.KeyOperations()
-	require.EqualValues(allocations, modMap)
-	require.EqualValues(writes, modMap)
-
-	// Update same value
-	require.NoError(tsv.Insert(ctx, keys[0], vals[0]))
-
-	// No change to modifications after keys[0] (already in cold)
+	// No change to KeyOperations
 	allocations, writes = tsv.KeyOperations()
-	require.EqualValues(allocations, modMap)
-	require.EqualValues(writes, modMap)
+	require.EqualValues(modMap, allocations)
+	require.EqualValues(modMap, writes)
 
 	// Rollback inserting updatedVal and key[2]
 	tsv.Rollback(ctx, 2)
@@ -206,9 +207,10 @@ func TestRestoreInsert(t *testing.T) {
 	require.Equal(vals[0], val, "value not rolled back properly")
 
 	// Modifications rolled back
+	restoreMap := map[string]uint16{"key1": 1, "key2": 1}
 	allocations, writes = tsv.KeyOperations()
-	require.Empty(allocations)
-	require.Empty(writes)
+	require.EqualValues(restoreMap, allocations)
+	require.EqualValues(restoreMap, writes)
 }
 
 func TestRestoreDelete(t *testing.T) {
@@ -285,15 +287,15 @@ func TestCreateView(t *testing.T) {
 	// Check modifications
 	modMap := map[string]uint16{"key1": 1, "key2": 1, "key3": 1}
 	allocations, writes := tsv.KeyOperations()
-	require.EqualValues(allocations, modMap)
-	require.EqualValues(writes, modMap)
+	require.EqualValues(modMap, allocations)
+	require.EqualValues(modMap, writes)
 
 	// Test warm modification
 	tsvM := ts.NewView(keySet, map[string][]byte{})
 	require.NoError(tsvM.Insert(ctx, keys[0], vals[2]))
 	allocations, writes = tsvM.KeyOperations()
 	require.Empty(allocations)
-	require.EqualValues(writes, map[string]uint16{"key1": 1})
+	require.EqualValues(map[string]uint16{"key1": 1}, writes)
 
 	// Create merkle view
 	view, err := ts.ExportMerkleDBView(ctx, tracer, db)

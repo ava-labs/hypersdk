@@ -21,6 +21,9 @@ type op struct {
 	pastExists  bool
 	pastV       []byte
 	pastChanged bool
+
+	allocationsPastChunks *uint16
+	writePastChunks       *uint16
 }
 
 // TState defines a struct for storing temporary state.

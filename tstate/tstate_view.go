@@ -46,10 +46,23 @@ func (ts *TState) NewView(scope set.Set[string], storage map[string][]byte) *TSt
 	}
 }
 
-// Rollback restores the TState to before the ts.op[restorePoint] operation.
+// Rollback restores the TState to the ts.op[restorePoint] operation.
 func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 	for i := len(ts.ops) - 1; i >= restorePoint; i-- {
 		op := ts.ops[i]
+
+		// Handle rollbacks for allocations/writes
+		if op.allocationsPastChunks != nil {
+			ts.allocations[op.k] = *op.allocationsPastChunks
+		} else {
+			delete(ts.allocations, op.k)
+		}
+		if op.writePastChunks != nil {
+			ts.writes[op.k] = *op.writePastChunks
+		} else {
+			delete(ts.writes, op.k)
+		}
+
 		// insert: Modified key for the first time
 		//
 		// remove: Removed key that was modified for first time in run
@@ -57,17 +70,15 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 			delete(ts.pendingChangedKeys, op.k)
 			continue
 		}
+
 		// insert: Modified key for the nth time
 		//
 		// remove: Removed key that was previously modified in run
 		if !op.pastExists {
 			ts.pendingChangedKeys[op.k] = maybe.Nothing[[]byte]()
-			// TODO: should this also be a delete?
 		} else {
 			ts.pendingChangedKeys[op.k] = maybe.Some(op.pastV)
 		}
-
-		// TODO: do we need to handle key rollbacks for creations, coldModifications, warmModifications?
 	}
 	ts.ops = ts.ops[:restorePoint]
 }
@@ -164,27 +175,38 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 	}
 	k := string(key)
 	past, changed, exists := ts.getValue(ctx, k)
+	var (
+		allocationsPastChunks, writePastChunks *uint16
+		err                                    error
+	)
 	if exists {
-		if err := updateChunks(ts.writes, k, value); err != nil {
-			return err
+		apc, ok := ts.allocations[k]
+		if ok {
+			allocationsPastChunks = &apc
 		}
+		writePastChunks, err = updateChunks(ts.writes, k, value)
 	} else {
 		if !ts.canAllocate {
-			return ErrAllocationDisabled
+			err = ErrAllocationDisabled
 		} else {
-			if err := updateChunks(ts.allocations, k, value); err != nil {
-				return err
-			}
-			if err := updateChunks(ts.writes, k, value); err != nil {
-				return err
+			allocationsPastChunks, err = updateChunks(ts.allocations, k, value)
+			if err == nil {
+				writePastChunks, err = updateChunks(ts.writes, k, value)
 			}
 		}
 	}
+	if err != nil {
+		return err
+	}
 	ts.ops = append(ts.ops, &op{
-		k:           k,
+		k: k,
+
 		pastExists:  exists,
 		pastV:       past,
 		pastChanged: changed,
+
+		allocationsPastChunks: allocationsPastChunks,
+		writePastChunks:       writePastChunks,
 	})
 	ts.pendingChangedKeys[k] = maybe.Some(value)
 	return nil
@@ -201,14 +223,25 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 		// We do not update writes if the key does not exist.
 		return nil
 	}
-	if err := updateChunks(ts.writes, k, nil); err != nil {
+	var allocationsPastChunks *uint16
+	apc, ok := ts.allocations[k]
+	if ok {
+		allocationsPastChunks = &apc
+	}
+	writePastChunks, err := updateChunks(ts.writes, k, nil)
+	if err != nil {
 		return err
 	}
 	ts.ops = append(ts.ops, &op{
-		k:           k,
+		k: k,
+
 		pastExists:  true,
 		pastV:       past,
 		pastChanged: changed,
+
+		// TODO: handle this in rollback instead of fetching here
+		allocationsPastChunks: allocationsPastChunks,
+		writePastChunks:       writePastChunks,
 	})
 	ts.pendingChangedKeys[k] = maybe.Nothing[[]byte]()
 	return nil
@@ -230,14 +263,18 @@ func (ts *TStateView) Commit() {
 
 // updateChunks sets the number of chunks associated with a key that will
 // be returned in [KeyOperations].
-func updateChunks(m map[string]uint16, key string, value []byte) error {
+func updateChunks(m map[string]uint16, key string, value []byte) (*uint16, error) {
 	chunks, ok := keys.NumChunks(value)
 	if !ok {
-		return ErrInvalidKeyValue
+		return nil, ErrInvalidKeyValue
 	}
 	previousChunks, ok := m[key]
-	if !ok || chunks > previousChunks {
-		m[key] = chunks
+	if ok {
+		if chunks > previousChunks {
+			m[key] = chunks
+		}
+		return &previousChunks, nil
 	}
-	return nil
+	m[key] = chunks
+	return nil, nil
 }
