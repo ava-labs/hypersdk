@@ -53,36 +53,40 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 	for i := len(ts.ops) - 1; i >= restorePoint; i-- {
 		op := ts.ops[i]
 
-		// Handle rollbacks for allocations/writes
-		if op.allocationsPastChunks != nil {
-			ts.allocations[op.k] = *op.allocationsPastChunks
-		} else {
-			delete(ts.allocations, op.k)
-		}
-		if op.writePastChunks != nil {
-			ts.writes[op.k] = *op.writePastChunks
-		} else {
-			delete(ts.writes, op.k)
-		}
-
-		// insert: Modified key for the first time
+		// allocate+write/write -> base state
 		//
-		// remove: Removed key that was modified for first time in run
+		// Remove all key changes from the view if the key was not previously
+		// modified.
 		if !op.pastChanged {
-			// TODO: how does this work when create, delete, create?
+			delete(ts.allocations, op.k)
+			delete(ts.writes, op.k)
 			delete(ts.pendingChangedKeys, op.k)
 			continue
 		}
 
-		// insert: Modified key for the nth time
+		// allocate+write -> nothing (previously deleted -> during block?)
 		//
-		// remove: Removed key that was previously modified in run
+		// If a key did not previously exist, we remove any allocations
+		// and ensure [ts.writes] is set to 0.
 		if !op.pastExists {
-			// TODO: handle this more clearly
+			delete(ts.allocations, op.k)
+			ts.writes[op.k] = 0
 			ts.pendingChangedKeys[op.k] = maybe.Nothing[[]byte]()
-		} else {
-			ts.pendingChangedKeys[op.k] = maybe.Some(op.pastV)
+			continue
 		}
+
+		// write -> last value
+		//
+		// If a key did previously exist, we set [ts.writes] to the
+		// num chunks of [op.pastV].
+		//
+		// MaxChunks/NumChunks should never error because we previously
+		// parsed [op.k] and [op.pastV]
+		keyChunks, _ := keys.MaxChunks([]byte(op.k))
+		valueChunks, _ := keys.NumChunks(op.pastV)
+		ts.allocations[op.k] = keyChunks
+		ts.writes[op.k] = valueChunks
+		ts.pendingChangedKeys[op.k] = maybe.Some(op.pastV)
 	}
 	ts.ops = ts.ops[:restorePoint]
 }
@@ -177,39 +181,35 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 	if !keys.VerifyValue(key, value) {
 		return ErrInvalidKeyValue
 	}
+	valueChunks, ok := keys.NumChunks(value)
+	if !ok {
+		return ErrInvalidKeyValue
+	}
 	k := string(key)
 	past, changed, exists := ts.getValue(ctx, k)
-	var (
-		allocationsPastChunks, writePastChunks *uint16
-		err                                    error
-	)
 	if exists {
-		allocationsPastChunks = chunks(ts.allocations, k)
-		writePastChunks, err = updateChunks(ts.writes, k, value)
+		ts.writes[k] = valueChunks
 	} else {
 		if !ts.canAllocate {
-			err = ErrAllocationDisabled
+			return ErrAllocationDisabled
 		} else {
-			allocationsPastChunks, err = updateChunks(ts.allocations, k, value)
-			if err == nil {
-				writePastChunks, err = updateChunks(ts.writes, k, value)
+			keyChunks, ok := keys.MaxChunks(key)
+			if !ok {
+				// Should never happen because we check [MaxChunks] in [VerifyValue]
+				return ErrInvalidKeyValue
 			}
+			ts.allocations[k] = keyChunks
+			ts.writes[k] = valueChunks
 		}
 	}
-	if err != nil {
-		return err
-	}
+	ts.pendingChangedKeys[k] = maybe.Some(value)
 	ts.ops = append(ts.ops, &op{
 		k: k,
 
 		pastExists:  exists,
 		pastV:       past,
 		pastChanged: changed,
-
-		allocationsPastChunks: allocationsPastChunks,
-		writePastChunks:       writePastChunks,
 	})
-	ts.pendingChangedKeys[k] = maybe.Some(value)
 	return nil
 }
 
@@ -224,21 +224,16 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 		// We do not update writes if the key does not exist.
 		return nil
 	}
-	writePastChunks, err := updateChunks(ts.writes, k, nil)
-	if err != nil {
-		return err
-	}
+	delete(ts.allocations, k)
+	ts.writes[k] = 0
+	ts.pendingChangedKeys[k] = maybe.Nothing[[]byte]()
 	ts.ops = append(ts.ops, &op{
 		k: k,
 
 		pastExists:  true,
 		pastV:       past,
 		pastChanged: changed,
-
-		allocationsPastChunks: chunks(ts.allocations, k),
-		writePastChunks:       writePastChunks,
 	})
-	ts.pendingChangedKeys[k] = maybe.Nothing[[]byte]()
 	return nil
 }
 
@@ -257,7 +252,8 @@ func (ts *TStateView) Commit() {
 }
 
 // updateChunks sets the number of chunks associated with a key that will
-// be returned in [KeyOperations].
+// be returned in [KeyOperations]. We store the largest chunks used (within
+// the limit specified by the key).
 func updateChunks(m map[string]uint16, key string, value []byte) (*uint16, error) {
 	chunks, ok := keys.NumChunks(value)
 	if !ok {
