@@ -26,8 +26,7 @@ type TStateView struct {
 	scope        set.Set[string] // stores a list of managed keys in the TState struct
 	scopeStorage map[string][]byte
 
-	// Store which keys are modified and how large their values were. Reset
-	// whenever setting scope.
+	// Store which keys are modified and how large their values were.
 	canAllocate bool
 	allocations map[string]uint16
 	writes      map[string]uint16
@@ -37,12 +36,15 @@ func (ts *TState) NewView(scope set.Set[string], storage map[string][]byte) *TSt
 	return &TStateView{
 		ts:                 ts,
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
-		ops:                make([]*op, 0, defaultOps),
-		scope:              scope,
-		scopeStorage:       storage,
-		canAllocate:        true, // default to allowing allocation
-		allocations:        make(map[string]uint16, len(scope)),
-		writes:             make(map[string]uint16, len(scope)),
+
+		ops: make([]*op, 0, defaultOps),
+
+		scope:        scope,
+		scopeStorage: storage,
+
+		canAllocate: true, // default to allowing allocation
+		allocations: make(map[string]uint16, len(scope)),
+		writes:      make(map[string]uint16, len(scope)),
 	}
 }
 
@@ -67,6 +69,7 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 		//
 		// remove: Removed key that was modified for first time in run
 		if !op.pastChanged {
+			// TODO: how does this work when create, delete, create?
 			delete(ts.pendingChangedKeys, op.k)
 			continue
 		}
@@ -75,6 +78,7 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 		//
 		// remove: Removed key that was previously modified in run
 		if !op.pastExists {
+			// TODO: handle this more clearly
 			ts.pendingChangedKeys[op.k] = maybe.Nothing[[]byte]()
 		} else {
 			ts.pendingChangedKeys[op.k] = maybe.Some(op.pastV)

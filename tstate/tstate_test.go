@@ -5,6 +5,7 @@ package tstate
 
 import (
 	"context"
+	"encoding/binary"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -91,6 +92,23 @@ func TestInsertNew(t *testing.T) {
 	// Check commit
 	tsv.Commit()
 	require.Equal(1, ts.OpIndex(), "insert was not added as an operation")
+}
+
+func TestInsertInvalid(t *testing.T) {
+	require := require.New(t)
+	ctx := context.TODO()
+	ts := New(10)
+
+	// SetScope
+	key := binary.BigEndian.AppendUint16([]byte("hello"), 0)
+	tsv := ts.NewView(set.Of(string(key)), map[string][]byte{})
+
+	// Insert key
+	require.ErrorIs(tsv.Insert(ctx, key, []byte("cool")), ErrInvalidKeyValue)
+
+	// Get key value
+	_, err := tsv.GetValue(ctx, key)
+	require.ErrorIs(err, database.ErrNotFound)
 }
 
 func TestInsertUpdate(t *testing.T) {
