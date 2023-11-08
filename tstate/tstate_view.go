@@ -113,6 +113,8 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 			} else {
 				// If we removed a key that already existed before the view,
 				// we should remove it from tracking.
+				//
+				// This should never happen if [op.pastAllocations] != nil.
 				delete(ts.writes, op.k)
 				delete(ts.pendingChangedKeys, op.k)
 			}
@@ -271,25 +273,6 @@ func (ts *TStateView) Commit() {
 		ts.ts.changedKeys[k] = v
 	}
 	ts.ts.ops += len(ts.ops)
-}
-
-// updateChunks sets the number of chunks associated with a key that will
-// be returned in [KeyOperations]. We store the largest chunks used (within
-// the limit specified by the key).
-func updateChunks(m map[string]uint16, key string, value []byte) (*uint16, error) {
-	chunks, ok := keys.NumChunks(value)
-	if !ok {
-		return nil, ErrInvalidKeyValue
-	}
-	previousChunks, ok := m[key]
-	if !ok {
-		m[key] = chunks
-		return nil, nil
-	}
-	if chunks > previousChunks {
-		m[key] = chunks
-	}
-	return &previousChunks, nil
 }
 
 // chunks gets the number of chunks for a key in [m]
