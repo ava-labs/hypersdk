@@ -14,6 +14,22 @@ import (
 
 const defaultOps = 4
 
+type opType uint8
+
+const (
+	createOp opType = 0
+	insertOp opType = 1
+	removeOp opType = 2
+)
+
+type op struct {
+	t               opType
+	k               string
+	pastV           []byte
+	pastAllocations *uint16
+	pastWrites      *uint16
+}
+
 type TStateView struct {
 	ts                 *TState
 	pendingChangedKeys map[string]maybe.Maybe[[]byte]
@@ -53,40 +69,54 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 	for i := len(ts.ops) - 1; i >= restorePoint; i-- {
 		op := ts.ops[i]
 
-		// allocate+write/write -> base state
-		//
-		// Remove all key changes from the view if the key was not previously
-		// modified.
-		if !op.pastChanged {
+		switch op.t {
+		case createOp:
 			delete(ts.allocations, op.k)
-			delete(ts.writes, op.k)
-			delete(ts.pendingChangedKeys, op.k)
-			continue
+			if op.pastWrites != nil {
+				// If previously deleted value, we need to restore
+				// that modification.
+				ts.writes[op.k] = *op.pastWrites
+				ts.pendingChangedKeys[op.k] = maybe.Nothing[[]byte]()
+			} else {
+				// If this was the first time we were writing to the key,
+				// we can remove the record of that write.
+				delete(ts.writes, op.k)
+				delete(ts.pendingChangedKeys, op.k)
+			}
+		case insertOp:
+			if op.pastWrites != nil {
+				// If we previously wrote to the key in this view,
+				// we should restore that.
+				ts.writes[op.k] = *op.pastWrites
+				ts.pendingChangedKeys[op.k] = maybe.Some(op.pastV)
+			} else {
+				// If this was our first time writing to the key,
+				// we should remove record of that write.
+				delete(ts.writes, op.k)
+				delete(ts.pendingChangedKeys, op.k)
+			}
+		case removeOp:
+			if op.pastAllocations != nil {
+				// If we removed a newly created key, we need to restore it
+				// to [allocations].
+				//
+				// The key should have already been removed from allocations,
+				// so we don't need to explicitly delete it if [op.pastAllocations]
+				// is nil.
+				ts.allocations[op.k] = *op.pastAllocations
+			}
+			if op.pastWrites != nil {
+				// If we removed a newly written key, we should revert
+				// it back to its previous value.
+				ts.writes[op.k] = *op.pastWrites
+				ts.pendingChangedKeys[op.k] = maybe.Some(op.pastV)
+			} else {
+				// If we removed a key that already existed before the view,
+				// we should remove it from tracking.
+				delete(ts.writes, op.k)
+				delete(ts.pendingChangedKeys, op.k)
+			}
 		}
-
-		// allocate+write -> nothing (previously deleted -> during block?)
-		//
-		// If a key did not previously exist, we remove any allocations
-		// and ensure [ts.writes] is set to 0.
-		if !op.pastExists {
-			delete(ts.allocations, op.k)
-			ts.writes[op.k] = 0
-			ts.pendingChangedKeys[op.k] = maybe.Nothing[[]byte]()
-			continue
-		}
-
-		// write -> last value
-		//
-		// If a key did previously exist, we set [ts.writes] to the
-		// num chunks of [op.pastV].
-		//
-		// MaxChunks/NumChunks should never error because we previously
-		// parsed [op.k] and [op.pastV]
-		keyChunks, _ := keys.MaxChunks([]byte(op.k))
-		valueChunks, _ := keys.NumChunks(op.pastV)
-		ts.allocations[op.k] = keyChunks
-		ts.writes[op.k] = valueChunks
-		ts.pendingChangedKeys[op.k] = maybe.Some(op.pastV)
 	}
 	ts.ops = ts.ops[:restorePoint]
 }
@@ -137,37 +167,27 @@ func (ts *TStateView) GetValue(ctx context.Context, key []byte) ([]byte, error) 
 		return nil, ErrKeyNotSpecified
 	}
 	k := string(key)
-	v, _, exists := ts.getValue(ctx, k)
+	v, exists := ts.getValue(ctx, k)
 	if !exists {
 		return nil, database.ErrNotFound
 	}
 	return v, nil
 }
 
-// Exists returns whether or not the associated [key] is present.
-func (ts *TStateView) Exists(ctx context.Context, key []byte) (bool, bool, error) {
-	if !ts.checkScope(ctx, key) {
-		return false, false, ErrKeyNotSpecified
-	}
-	k := string(key)
-	_, changed, exists := ts.getValue(ctx, k)
-	return changed, exists, nil
-}
-
-func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, bool, bool) {
+func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, bool) {
 	if v, ok := ts.pendingChangedKeys[key]; ok {
 		if v.IsNothing() {
-			return nil, true, false
+			return nil, false
 		}
-		return v.Value(), true, true
+		return v.Value(), true
 	}
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
-		return v, true, exists
+		return v, exists
 	}
 	if v, ok := ts.scopeStorage[key]; ok {
-		return v, false, true
+		return v, true
 	}
-	return nil, false, false
+	return nil, false
 }
 
 // Insert sets or updates ts.storage[key] to equal {value, false}.
@@ -181,35 +201,29 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 	if !keys.VerifyValue(key, value) {
 		return ErrInvalidKeyValue
 	}
-	valueChunks, ok := keys.NumChunks(value)
-	if !ok {
-		return ErrInvalidKeyValue
-	}
+	valueChunks, _ := keys.NumChunks(value) // not possible to fail
 	k := string(key)
-	past, changed, exists := ts.getValue(ctx, k)
+	past, exists := ts.getValue(ctx, k)
+	op := &op{
+		k:               k,
+		pastV:           past,
+		pastAllocations: chunks(ts.allocations, k),
+		pastWrites:      chunks(ts.writes, k),
+	}
 	if exists {
-		ts.writes[k] = valueChunks
+		op.t = insertOp
+		ts.writes[k] = valueChunks // set to latest value
 	} else {
 		if !ts.canAllocate {
 			return ErrAllocationDisabled
-		} else {
-			keyChunks, ok := keys.MaxChunks(key)
-			if !ok {
-				// Should never happen because we check [MaxChunks] in [VerifyValue]
-				return ErrInvalidKeyValue
-			}
-			ts.allocations[k] = keyChunks
-			ts.writes[k] = valueChunks
 		}
+		op.t = createOp
+		keyChunks, _ := keys.MaxChunks(key) // not possible to fail
+		ts.allocations[k] = keyChunks
+		ts.writes[k] = valueChunks
 	}
+	ts.ops = append(ts.ops, op)
 	ts.pendingChangedKeys[k] = maybe.Some(value)
-	ts.ops = append(ts.ops, &op{
-		k: k,
-
-		pastExists:  exists,
-		pastV:       past,
-		pastChanged: changed,
-	})
 	return nil
 }
 
@@ -219,21 +233,29 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 		return ErrKeyNotSpecified
 	}
 	k := string(key)
-	past, changed, exists := ts.getValue(ctx, k)
+	past, exists := ts.getValue(ctx, k)
 	if !exists {
 		// We do not update writes if the key does not exist.
 		return nil
 	}
-	delete(ts.allocations, k)
-	ts.writes[k] = 0
-	ts.pendingChangedKeys[k] = maybe.Nothing[[]byte]()
 	ts.ops = append(ts.ops, &op{
-		k: k,
-
-		pastExists:  true,
-		pastV:       past,
-		pastChanged: changed,
+		t:               removeOp,
+		k:               k,
+		pastV:           past,
+		pastAllocations: chunks(ts.allocations, k),
+		pastWrites:      chunks(ts.writes, k),
 	})
+	if _, ok := ts.allocations[k]; ok {
+		// If delete after allocating in the same view, it is
+		// as if nothing happened.
+		delete(ts.allocations, k)
+		delete(ts.writes, k)
+	} else {
+		// If this is not a new allocation, we mark as an
+		// explicit delete.
+		ts.writes[k] = 0
+	}
+	ts.pendingChangedKeys[k] = maybe.Nothing[[]byte]()
 	return nil
 }
 

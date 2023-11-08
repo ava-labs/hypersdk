@@ -127,9 +127,9 @@ func TestInsertUpdate(t *testing.T) {
 	require.NoError(err)
 	require.Equal(1, tsv.OpIndex(), "insert operation was not added")
 	require.Equal(newVal, val, "value was not set correctly")
-	require.Equal(TestVal, tsv.ops[0].pastV, "PastVal was not set correctly")
-	require.False(tsv.ops[0].pastChanged, "PastVal was not set correctly")
-	require.True(tsv.ops[0].pastExists, "PastVal was not set correctly")
+	require.Equal(TestVal, tsv.ops[0].pastV)
+	require.Nil(tsv.ops[0].pastAllocations)
+	require.Nil(tsv.ops[0].pastWrites)
 
 	// Check value after commit
 	tsv.Commit()

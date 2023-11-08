@@ -15,17 +15,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
-type op struct {
-	k string
-
-	pastExists  bool
-	pastV       []byte
-	pastChanged bool
-
-	allocationsPastChunks *uint16
-	writePastChunks       *uint16
-}
-
 // TState defines a struct for storing temporary state.
 type TState struct {
 	l           sync.RWMutex
