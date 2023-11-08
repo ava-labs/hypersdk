@@ -194,36 +194,36 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 		return Dimensions{}, err
 	}
 	readsOp := math.NewUint64Operator(0)
-	creationsOp := math.NewUint64Operator(0)
-	modificationsOp := math.NewUint64Operator(0)
+	allocationsOp := math.NewUint64Operator(0)
+	writesOp := math.NewUint64Operator(0)
 	for k := range stateKeys {
 		// Compute key costs
-		readsOp.Add(r.GetColdStorageKeyReadUnits())
-		creationsOp.Add(r.GetStorageKeyCreateUnits())
-		modificationsOp.Add(r.GetColdStorageKeyModificationUnits())
+		readsOp.Add(r.GetStorageKeyReadUnits())
+		allocationsOp.Add(r.GetStorageKeyAllocateUnits())
+		writesOp.Add(r.GetStorageKeyWriteUnits())
 
 		// Compute value costs
 		maxChunks, ok := keys.MaxChunks([]byte(k))
 		if !ok {
 			return Dimensions{}, ErrInvalidKeyValue
 		}
-		readsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueReadUnits())
-		creationsOp.MulAdd(uint64(maxChunks), r.GetStorageValueCreateUnits())
-		modificationsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueModificationUnits())
+		readsOp.MulAdd(uint64(maxChunks), r.GetStorageValueReadUnits())
+		allocationsOp.MulAdd(uint64(maxChunks), r.GetStorageValueAllocateUnits())
+		writesOp.MulAdd(uint64(maxChunks), r.GetStorageValueWriteUnits())
 	}
 	reads, err := readsOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	creations, err := creationsOp.Value()
+	allocations, err := allocationsOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	modifications, err := modificationsOp.Value()
+	writes, err := writesOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	return Dimensions{uint64(t.Size()), maxComputeUnits, reads, creations, modifications}, nil
+	return Dimensions{uint64(t.Size()), maxComputeUnits, reads, allocations, writes}, nil
 }
 
 // EstimateMaxUnits provides a pessimistic estimate of the cost to execute a transaction. This is
@@ -263,32 +263,32 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 	//
 	// TODO: unify this with [MaxUnits] handling
 	readsOp := math.NewUint64Operator(0)
-	creationsOp := math.NewUint64Operator(0)
-	modificationsOp := math.NewUint64Operator(0)
+	allocationsOp := math.NewUint64Operator(0)
+	writesOp := math.NewUint64Operator(0)
 	for maxChunks := range stateKeysMaxChunks {
 		// Compute key costs
-		readsOp.Add(r.GetColdStorageKeyReadUnits())
-		creationsOp.Add(r.GetStorageKeyCreateUnits())
-		modificationsOp.Add(r.GetColdStorageKeyModificationUnits())
+		readsOp.Add(r.GetStorageKeyReadUnits())
+		allocationsOp.Add(r.GetStorageKeyAllocateUnits())
+		writesOp.Add(r.GetStorageKeyWriteUnits())
 
 		// Compute value costs
-		readsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueReadUnits())
-		creationsOp.MulAdd(uint64(maxChunks), r.GetStorageValueCreateUnits())
-		modificationsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueModificationUnits())
+		readsOp.MulAdd(uint64(maxChunks), r.GetStorageValueReadUnits())
+		allocationsOp.MulAdd(uint64(maxChunks), r.GetStorageValueAllocateUnits())
+		writesOp.MulAdd(uint64(maxChunks), r.GetStorageValueWriteUnits())
 	}
 	reads, err := readsOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	creations, err := creationsOp.Value()
+	allocations, err := allocationsOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	modifications, err := modificationsOp.Value()
+	writes, err := writesOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	return Dimensions{bandwidth, computeUnits, reads, creations, modifications}, nil
+	return Dimensions{bandwidth, computeUnits, reads, allocations, writes}, nil
 }
 
 func (t *Transaction) PreExecute(
