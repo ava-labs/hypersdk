@@ -75,7 +75,7 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 			if op.pastWrites != nil {
 				// If previously deleted value, we need to restore
 				// that modification.
-				ts.writes[op.k] = *op.pastWrites
+				ts.writes[op.k] = *op.pastWrites // must be 0 (delete)
 				ts.pendingChangedKeys[op.k] = maybe.Nothing[[]byte]()
 			} else {
 				// If this was the first time we were writing to the key,
