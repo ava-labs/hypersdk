@@ -252,12 +252,13 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 		// as if nothing happened.
 		delete(ts.allocations, k)
 		delete(ts.writes, k)
+		delete(ts.pendingChangedKeys, k)
 	} else {
 		// If this is not a new allocation, we mark as an
 		// explicit delete.
 		ts.writes[k] = 0
+		ts.pendingChangedKeys[k] = maybe.Nothing[[]byte]()
 	}
-	ts.pendingChangedKeys[k] = maybe.Nothing[[]byte]()
 	return nil
 }
 

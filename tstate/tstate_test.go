@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
@@ -146,6 +147,76 @@ func TestInsertUpdate(t *testing.T) {
 	require.NoError(err)
 	require.Equal(newVal, val, "value was not committed correctly")
 }
+
+func TestInsertRemoveInsert(t *testing.T) {
+	require := require.New(t)
+	ctx := context.TODO()
+	ts := New(10)
+
+	// SetScope and add
+	tsv := ts.NewView(set.Of(key2str), map[string][]byte{})
+	require.Equal(0, ts.OpIndex())
+
+	// Insert key for first time
+	require.NoError(tsv.Insert(ctx, key2, testVal))
+	allocations, writes := tsv.KeyOperations()
+	require.EqualValues(map[string]uint16{key2str: 2}, allocations)
+	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal))
+
+	// Remove key
+	require.NoError(tsv.Remove(ctx, key2))
+	allocations, writes = tsv.KeyOperations()
+	require.EqualValues(map[string]uint16{}, allocations)
+	require.EqualValues(map[string]uint16{}, writes)
+	require.NotContains(tsv.pendingChangedKeys, key2str)
+
+	// Insert key again
+	require.NoError(tsv.Insert(ctx, key2, testVal))
+	allocations, writes = tsv.KeyOperations()
+	require.EqualValues(map[string]uint16{key2str: 2}, allocations)
+	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal))
+
+	// Modify key
+	testVal2 := []byte("blah")
+	require.NoError(tsv.Insert(ctx, key2, testVal2))
+	allocations, writes = tsv.KeyOperations()
+	require.EqualValues(map[string]uint16{key2str: 2}, allocations)
+	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal2))
+
+	// Rollback modify
+	tsv.Rollback(context.TODO(), tsv.OpIndex()-1)
+	allocations, writes = tsv.KeyOperations()
+	require.EqualValues(map[string]uint16{key2str: 2}, allocations)
+	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal))
+
+	// Rollback second insert
+	tsv.Rollback(context.TODO(), tsv.OpIndex()-1)
+	allocations, writes = tsv.KeyOperations()
+	require.EqualValues(map[string]uint16{}, allocations)
+	require.EqualValues(map[string]uint16{}, writes)
+	require.NotContains(tsv.pendingChangedKeys, key2str)
+
+	// Rollback remove
+	tsv.Rollback(context.TODO(), tsv.OpIndex()-1)
+	allocations, writes = tsv.KeyOperations()
+	require.EqualValues(map[string]uint16{key2str: 2}, allocations)
+	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal))
+
+	// Rollback insert
+	tsv.Rollback(context.TODO(), tsv.OpIndex()-1)
+	allocations, writes = tsv.KeyOperations()
+	require.EqualValues(map[string]uint16{}, allocations)
+	require.EqualValues(map[string]uint16{}, writes)
+	require.NotContains(tsv.pendingChangedKeys, key2str)
+	require.Equal(0, tsv.OpIndex())
+}
+
+// func TestModifyRemoveInsert() {}
 
 func TestRemoveInsertRollback(t *testing.T) {
 	require := require.New(t)
