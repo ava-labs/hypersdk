@@ -348,8 +348,7 @@ func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *FeeManager,
 	authCUs uint64,
-	coldStorageReads map[string]uint16,
-	warmStorageReads map[string]uint16,
+	reads map[string]uint16,
 	s StateManager,
 	r Rules,
 	ts *tstate.TStateView,
@@ -465,82 +464,51 @@ func (t *Transaction) Execute(
 	}
 
 	// Because the key database is abstracted from [Auth]/[Actions], we can compute
-	// all storage use in the background. KeyOperations is reset whenever
-	// we set scope on [ts].
-	//
-	// TODO: update comment to say that each view has its own set of operations
-	creations, coldModifications, warmModifications := ts.KeyOperations()
+	// all storage use in the background. KeyOperations is unique to a view.
+	allocations, writes := ts.KeyOperations()
 
 	// Because we compute the fee before [Auth.Refund] is called, we need
 	// to pessimistically precompute the storage it will change.
 	for _, key := range t.Auth.StateKeys() {
-		bk := []byte(key)
-		changed, _, err := ts.Exists(ctx, bk)
-		if err != nil {
-			return handleRevert(err)
-		}
 		// maxChunks will be greater than the chunks read in any of these keys,
 		// so we don't need to check for pre-existing values.
-		maxChunks, ok := keys.MaxChunks(bk)
+		maxChunks, ok := keys.MaxChunks([]byte(key))
 		if !ok {
 			return handleRevert(ErrInvalidKeyValue)
 		}
-		// We require that any refunds must not create keys, otherwise, we'd have
-		// to pessimistically charge all transactions for creation.
-		//
-		// If a key is already in [coldModifications], we should still
-		// consider it a [coldModification] even if it is [changed].
-		// This occurs when we modify a key for the second time in
-		// a single transaction.
-		//
-		// If a key is not in [coldModifications] and it is [changed],
-		// it was either created/modified in a different transaction
-		// in the block or created in this transaction.
-		if _, ok := coldModifications[key]; ok || !changed {
-			coldModifications[key] = maxChunks
-			continue
-		}
-		warmModifications[key] = maxChunks
+		writes[key] = maxChunks
 	}
 
 	// We only charge for the chunks read from disk instead of charging for the max chunks
 	// specified by the key.
 	readsOp := math.NewUint64Operator(0)
-	for _, chunksRead := range coldStorageReads {
-		readsOp.Add(r.GetColdStorageKeyReadUnits())
-		readsOp.MulAdd(uint64(chunksRead), r.GetColdStorageValueReadUnits())
+	for _, chunksRead := range reads {
+		readsOp.Add(r.GetStorageKeyReadUnits())
+		readsOp.MulAdd(uint64(chunksRead), r.GetStorageValueReadUnits())
 	}
-	for _, chunksRead := range warmStorageReads {
-		readsOp.Add(r.GetWarmStorageKeyReadUnits())
-		readsOp.MulAdd(uint64(chunksRead), r.GetWarmStorageValueReadUnits())
-	}
-	reads, err := readsOp.Value()
+	readUnits, err := readsOp.Value()
 	if err != nil {
 		return handleRevert(err)
 	}
-	creationsOp := math.NewUint64Operator(0)
-	for _, chunksStored := range creations {
-		creationsOp.Add(r.GetStorageKeyCreateUnits())
-		creationsOp.MulAdd(uint64(chunksStored), r.GetStorageValueCreateUnits())
+	allocationsOp := math.NewUint64Operator(0)
+	for _, chunksStored := range allocations {
+		allocationsOp.Add(r.GetStorageKeyAllocateUnits())
+		allocationsOp.MulAdd(uint64(chunksStored), r.GetStorageValueAllocateUnits())
 	}
-	creationUnits, err := creationsOp.Value()
+	allocateUnits, err := allocationsOp.Value()
 	if err != nil {
 		return handleRevert(err)
 	}
-	modificationsOp := math.NewUint64Operator(0)
-	for _, chunksModified := range coldModifications {
-		modificationsOp.Add(r.GetColdStorageKeyModificationUnits())
-		modificationsOp.MulAdd(uint64(chunksModified), r.GetColdStorageValueModificationUnits())
+	writesOp := math.NewUint64Operator(0)
+	for _, chunksModified := range writes {
+		writesOp.Add(r.GetStorageKeyWriteUnits())
+		writesOp.MulAdd(uint64(chunksModified), r.GetStorageValueWriteUnits())
 	}
-	for _, chunksModified := range warmModifications {
-		modificationsOp.Add(r.GetWarmStorageKeyModificationUnits())
-		modificationsOp.MulAdd(uint64(chunksModified), r.GetWarmStorageValueModificationUnits())
-	}
-	modifications, err := modificationsOp.Value()
+	writeUnits, err := writesOp.Value()
 	if err != nil {
 		return handleRevert(err)
 	}
-	used := Dimensions{uint64(t.Size()), computeUnits, reads, creationUnits, modifications}
+	used := Dimensions{uint64(t.Size()), computeUnits, readUnits, allocateUnits, writeUnits}
 
 	// Check to see if the units consumed are greater than the max units
 	//
@@ -559,12 +527,11 @@ func (t *Transaction) Execute(
 	}
 	refund := maxFee - feeRequired
 	if refund > 0 {
-		ts.DisableCreation()
+		ts.DisableAllocation()
+		defer ts.EnableAllocation()
 		if err := t.Auth.Refund(ctx, ts, refund); err != nil {
-			ts.EnableCreation()
 			return handleRevert(err)
 		}
-		ts.EnableCreation()
 	}
 	return &Result{
 		Success: success,
