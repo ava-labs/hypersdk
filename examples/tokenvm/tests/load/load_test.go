@@ -294,7 +294,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		c.ForceReady()
 	}
 
-	// Verify genesis allocations loaded correctly (do here otherwise test may
+	// Verify genesis allocates loaded correctly (do here otherwise test may
 	// check during and it will be inaccurate)
 	for _, inst := range instances {
 		cli := inst.tcli

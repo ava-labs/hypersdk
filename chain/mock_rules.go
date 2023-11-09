@@ -94,62 +94,6 @@ func (mr *MockRulesMockRecorder) GetBaseWarpComputeUnits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBaseWarpComputeUnits", reflect.TypeOf((*MockRules)(nil).GetBaseWarpComputeUnits))
 }
 
-// GetColdStorageKeyModificationUnits mocks base method.
-func (m *MockRules) GetColdStorageKeyModificationUnits() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetColdStorageKeyModificationUnits")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// GetColdStorageKeyModificationUnits indicates an expected call of GetColdStorageKeyModificationUnits.
-func (mr *MockRulesMockRecorder) GetColdStorageKeyModificationUnits() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetColdStorageKeyModificationUnits", reflect.TypeOf((*MockRules)(nil).GetColdStorageKeyModificationUnits))
-}
-
-// GetColdStorageKeyReadUnits mocks base method.
-func (m *MockRules) GetColdStorageKeyReadUnits() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetColdStorageKeyReadUnits")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// GetColdStorageKeyReadUnits indicates an expected call of GetColdStorageKeyReadUnits.
-func (mr *MockRulesMockRecorder) GetColdStorageKeyReadUnits() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetColdStorageKeyReadUnits", reflect.TypeOf((*MockRules)(nil).GetColdStorageKeyReadUnits))
-}
-
-// GetColdStorageValueModificationUnits mocks base method.
-func (m *MockRules) GetColdStorageValueModificationUnits() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetColdStorageValueModificationUnits")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// GetColdStorageValueModificationUnits indicates an expected call of GetColdStorageValueModificationUnits.
-func (mr *MockRulesMockRecorder) GetColdStorageValueModificationUnits() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetColdStorageValueModificationUnits", reflect.TypeOf((*MockRules)(nil).GetColdStorageValueModificationUnits))
-}
-
-// GetColdStorageValueReadUnits mocks base method.
-func (m *MockRules) GetColdStorageValueReadUnits() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetColdStorageValueReadUnits")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// GetColdStorageValueReadUnits indicates an expected call of GetColdStorageValueReadUnits.
-func (mr *MockRulesMockRecorder) GetColdStorageValueReadUnits() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetColdStorageValueReadUnits", reflect.TypeOf((*MockRules)(nil).GetColdStorageValueReadUnits))
-}
-
 // GetMaxBlockUnits mocks base method.
 func (m *MockRules) GetMaxBlockUnits() Dimensions {
 	m.ctrl.T.Helper()
@@ -220,32 +164,88 @@ func (mr *MockRulesMockRecorder) GetOutgoingWarpComputeUnits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOutgoingWarpComputeUnits", reflect.TypeOf((*MockRules)(nil).GetOutgoingWarpComputeUnits))
 }
 
-// GetStorageKeyCreateUnits mocks base method.
-func (m *MockRules) GetStorageKeyCreateUnits() uint64 {
+// GetStorageKeyAllocateUnits mocks base method.
+func (m *MockRules) GetStorageKeyAllocateUnits() uint64 {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetStorageKeyCreateUnits")
+	ret := m.ctrl.Call(m, "GetStorageKeyAllocateUnits")
 	ret0, _ := ret[0].(uint64)
 	return ret0
 }
 
-// GetStorageKeyCreateUnits indicates an expected call of GetStorageKeyCreateUnits.
-func (mr *MockRulesMockRecorder) GetStorageKeyCreateUnits() *gomock.Call {
+// GetStorageKeyAllocateUnits indicates an expected call of GetStorageKeyAllocateUnits.
+func (mr *MockRulesMockRecorder) GetStorageKeyAllocateUnits() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageKeyCreateUnits", reflect.TypeOf((*MockRules)(nil).GetStorageKeyCreateUnits))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageKeyAllocateUnits", reflect.TypeOf((*MockRules)(nil).GetStorageKeyAllocateUnits))
 }
 
-// GetStorageValueCreateUnits mocks base method.
-func (m *MockRules) GetStorageValueCreateUnits() uint64 {
+// GetStorageKeyReadUnits mocks base method.
+func (m *MockRules) GetStorageKeyReadUnits() uint64 {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetStorageValueCreateUnits")
+	ret := m.ctrl.Call(m, "GetStorageKeyReadUnits")
 	ret0, _ := ret[0].(uint64)
 	return ret0
 }
 
-// GetStorageValueCreateUnits indicates an expected call of GetStorageValueCreateUnits.
-func (mr *MockRulesMockRecorder) GetStorageValueCreateUnits() *gomock.Call {
+// GetStorageKeyReadUnits indicates an expected call of GetStorageKeyReadUnits.
+func (mr *MockRulesMockRecorder) GetStorageKeyReadUnits() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageValueCreateUnits", reflect.TypeOf((*MockRules)(nil).GetStorageValueCreateUnits))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageKeyReadUnits", reflect.TypeOf((*MockRules)(nil).GetStorageKeyReadUnits))
+}
+
+// GetStorageKeyWriteUnits mocks base method.
+func (m *MockRules) GetStorageKeyWriteUnits() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStorageKeyWriteUnits")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetStorageKeyWriteUnits indicates an expected call of GetStorageKeyWriteUnits.
+func (mr *MockRulesMockRecorder) GetStorageKeyWriteUnits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageKeyWriteUnits", reflect.TypeOf((*MockRules)(nil).GetStorageKeyWriteUnits))
+}
+
+// GetStorageValueAllocateUnits mocks base method.
+func (m *MockRules) GetStorageValueAllocateUnits() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStorageValueAllocateUnits")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetStorageValueAllocateUnits indicates an expected call of GetStorageValueAllocateUnits.
+func (mr *MockRulesMockRecorder) GetStorageValueAllocateUnits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageValueAllocateUnits", reflect.TypeOf((*MockRules)(nil).GetStorageValueAllocateUnits))
+}
+
+// GetStorageValueReadUnits mocks base method.
+func (m *MockRules) GetStorageValueReadUnits() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStorageValueReadUnits")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetStorageValueReadUnits indicates an expected call of GetStorageValueReadUnits.
+func (mr *MockRulesMockRecorder) GetStorageValueReadUnits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageValueReadUnits", reflect.TypeOf((*MockRules)(nil).GetStorageValueReadUnits))
+}
+
+// GetStorageValueWriteUnits mocks base method.
+func (m *MockRules) GetStorageValueWriteUnits() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStorageValueWriteUnits")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetStorageValueWriteUnits indicates an expected call of GetStorageValueWriteUnits.
+func (mr *MockRulesMockRecorder) GetStorageValueWriteUnits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageValueWriteUnits", reflect.TypeOf((*MockRules)(nil).GetStorageValueWriteUnits))
 }
 
 // GetUnitPriceChangeDenominator mocks base method.
@@ -274,62 +274,6 @@ func (m *MockRules) GetValidityWindow() int64 {
 func (mr *MockRulesMockRecorder) GetValidityWindow() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetValidityWindow", reflect.TypeOf((*MockRules)(nil).GetValidityWindow))
-}
-
-// GetWarmStorageKeyModificationUnits mocks base method.
-func (m *MockRules) GetWarmStorageKeyModificationUnits() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWarmStorageKeyModificationUnits")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// GetWarmStorageKeyModificationUnits indicates an expected call of GetWarmStorageKeyModificationUnits.
-func (mr *MockRulesMockRecorder) GetWarmStorageKeyModificationUnits() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWarmStorageKeyModificationUnits", reflect.TypeOf((*MockRules)(nil).GetWarmStorageKeyModificationUnits))
-}
-
-// GetWarmStorageKeyReadUnits mocks base method.
-func (m *MockRules) GetWarmStorageKeyReadUnits() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWarmStorageKeyReadUnits")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// GetWarmStorageKeyReadUnits indicates an expected call of GetWarmStorageKeyReadUnits.
-func (mr *MockRulesMockRecorder) GetWarmStorageKeyReadUnits() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWarmStorageKeyReadUnits", reflect.TypeOf((*MockRules)(nil).GetWarmStorageKeyReadUnits))
-}
-
-// GetWarmStorageValueModificationUnits mocks base method.
-func (m *MockRules) GetWarmStorageValueModificationUnits() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWarmStorageValueModificationUnits")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// GetWarmStorageValueModificationUnits indicates an expected call of GetWarmStorageValueModificationUnits.
-func (mr *MockRulesMockRecorder) GetWarmStorageValueModificationUnits() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWarmStorageValueModificationUnits", reflect.TypeOf((*MockRules)(nil).GetWarmStorageValueModificationUnits))
-}
-
-// GetWarmStorageValueReadUnits mocks base method.
-func (m *MockRules) GetWarmStorageValueReadUnits() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWarmStorageValueReadUnits")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// GetWarmStorageValueReadUnits indicates an expected call of GetWarmStorageValueReadUnits.
-func (mr *MockRulesMockRecorder) GetWarmStorageValueReadUnits() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWarmStorageValueReadUnits", reflect.TypeOf((*MockRules)(nil).GetWarmStorageValueReadUnits))
 }
 
 // GetWarpComputeUnitsPerSigner mocks base method.

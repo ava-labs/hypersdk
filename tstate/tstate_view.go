@@ -4,6 +4,7 @@
 package tstate
 
 import (
+	"bytes"
 	"context"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -13,6 +14,22 @@ import (
 )
 
 const defaultOps = 4
+
+type opType uint8
+
+const (
+	createOp opType = 0
+	insertOp opType = 1
+	removeOp opType = 2
+)
+
+type op struct {
+	t             opType
+	k             string
+	pastV         []byte
+	pastAllocates *uint16
+	pastWrites    *uint16
+}
 
 type TStateView struct {
 	ts                 *TState
@@ -26,46 +43,82 @@ type TStateView struct {
 	scope        set.Set[string] // stores a list of managed keys in the TState struct
 	scopeStorage map[string][]byte
 
-	// Store which keys are modified and how large their values were. Reset
-	// whenever setting scope.
-	canCreate         bool
-	creations         map[string]uint16
-	coldModifications map[string]uint16
-	warmModifications map[string]uint16
+	// Store which keys are modified and how large their values were.
+	canAllocate bool
+	allocates   map[string]uint16
+	writes      map[string]uint16
 }
 
 func (ts *TState) NewView(scope set.Set[string], storage map[string][]byte) *TStateView {
 	return &TStateView{
 		ts:                 ts,
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
-		ops:                make([]*op, 0, defaultOps),
-		scope:              scope,
-		scopeStorage:       storage,
-		canCreate:          true, // default to allowing creation
-		creations:          make(map[string]uint16, len(scope)),
-		coldModifications:  make(map[string]uint16, len(scope)),
-		warmModifications:  make(map[string]uint16, len(scope)),
+
+		ops: make([]*op, 0, defaultOps),
+
+		scope:        scope,
+		scopeStorage: storage,
+
+		canAllocate: true, // default to allowing allocation
+		allocates:   make(map[string]uint16, len(scope)),
+		writes:      make(map[string]uint16, len(scope)),
 	}
 }
 
-// Rollback restores the TState to before the ts.op[restorePoint] operation.
+// Rollback restores the TState to the ts.op[restorePoint] operation.
 func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 	for i := len(ts.ops) - 1; i >= restorePoint; i-- {
 		op := ts.ops[i]
-		// insert: Modified key for the first time
-		//
-		// remove: Removed key that was modified for first time in run
-		if !op.pastChanged {
-			delete(ts.pendingChangedKeys, op.k)
-			continue
-		}
-		// insert: Modified key for the nth time
-		//
-		// remove: Removed key that was previously modified in run
-		if !op.pastExists {
-			ts.pendingChangedKeys[op.k] = maybe.Nothing[[]byte]()
-		} else {
-			ts.pendingChangedKeys[op.k] = maybe.Some(op.pastV)
+
+		switch op.t {
+		case createOp:
+			delete(ts.allocates, op.k)
+			if op.pastWrites != nil {
+				// If previously deleted value, we need to restore
+				// that modification.
+				ts.writes[op.k] = *op.pastWrites // must be 0 (delete)
+				ts.pendingChangedKeys[op.k] = maybe.Nothing[[]byte]()
+			} else {
+				// If this was the first time we were writing to the key,
+				// we can remove the record of that write.
+				delete(ts.writes, op.k)
+				delete(ts.pendingChangedKeys, op.k)
+			}
+		case insertOp:
+			if op.pastWrites != nil {
+				// If we previously wrote to the key in this view,
+				// we should restore that.
+				ts.writes[op.k] = *op.pastWrites
+				ts.pendingChangedKeys[op.k] = maybe.Some(op.pastV)
+			} else {
+				// If this was our first time writing to the key,
+				// we should remove record of that write.
+				delete(ts.writes, op.k)
+				delete(ts.pendingChangedKeys, op.k)
+			}
+		case removeOp:
+			if op.pastAllocates != nil {
+				// If we removed a newly created key, we need to restore it
+				// to [allocates].
+				//
+				// The key should have already been removed from allocates,
+				// so we don't need to explicitly delete it if [op.pastAllocates]
+				// is nil.
+				ts.allocates[op.k] = *op.pastAllocates
+			}
+			if op.pastWrites != nil {
+				// If we removed a newly written key, we should revert
+				// it back to its previous value.
+				ts.writes[op.k] = *op.pastWrites
+				ts.pendingChangedKeys[op.k] = maybe.Some(op.pastV)
+			} else {
+				// If we removed a key that already existed before the view,
+				// we should remove it from tracking.
+				//
+				// This should never happen if [op.pastAllocates] != nil.
+				delete(ts.writes, op.k)
+				delete(ts.pendingChangedKeys, op.k)
+			}
 		}
 	}
 	ts.ops = ts.ops[:restorePoint]
@@ -76,22 +129,22 @@ func (ts *TStateView) OpIndex() int {
 	return len(ts.ops)
 }
 
-// DisableCreation causes [Insert] to return an error if
+// DisableAllocation causes [Insert] to return an error if
 // it would create a new key. This can be useful for constraining
 // what a transaction can do during block execution (to allow for
 // cheaper fees).
 //
 // Note, creation defaults to true.
-func (ts *TStateView) DisableCreation() {
-	ts.canCreate = false
+func (ts *TStateView) DisableAllocation() {
+	ts.canAllocate = false
 }
 
-// EnableCreation removes the forcer error case in [Insert]
+// EnableAllocation removes the forcer error case in [Insert]
 // if a new key is created.
 //
 // Note, creation defaults to true.
-func (ts *TStateView) EnableCreation() {
-	ts.canCreate = true
+func (ts *TStateView) EnableAllocation() {
+	ts.canAllocate = true
 }
 
 // KeyOperations returns the number of operations performed since the scope
@@ -100,8 +153,8 @@ func (ts *TStateView) EnableCreation() {
 // If an operation is performed more than once during this time, the largest
 // operation will be returned here (if 1 chunk then 2 chunks are written to a key,
 // this function will return 2 chunks).
-func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16, map[string]uint16) {
-	return ts.creations, ts.coldModifications, ts.warmModifications
+func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
+	return ts.allocates, ts.writes
 }
 
 // checkScope returns whether [k] is in ts.readScope.
@@ -117,43 +170,43 @@ func (ts *TStateView) GetValue(ctx context.Context, key []byte) ([]byte, error) 
 		return nil, ErrKeyNotSpecified
 	}
 	k := string(key)
-	v, _, exists := ts.getValue(ctx, k)
+	v, exists := ts.getValue(ctx, k)
 	if !exists {
 		return nil, database.ErrNotFound
 	}
 	return v, nil
 }
 
-// Exists returns whether or not the associated [key] is present.
-func (ts *TStateView) Exists(ctx context.Context, key []byte) (bool, bool, error) {
-	if !ts.checkScope(ctx, key) {
-		return false, false, ErrKeyNotSpecified
-	}
-	k := string(key)
-	_, changed, exists := ts.getValue(ctx, k)
-	return changed, exists, nil
-}
-
-func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, bool, bool) {
+func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, bool) {
 	if v, ok := ts.pendingChangedKeys[key]; ok {
 		if v.IsNothing() {
-			return nil, true, false
+			return nil, false
 		}
-		return v.Value(), true, true
+		return v.Value(), true
 	}
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
-		return v, true, exists
+		return v, exists
 	}
 	if v, ok := ts.scopeStorage[key]; ok {
-		return v, false, true
+		return v, true
 	}
-	return nil, false, false
+	return nil, false
 }
 
-// Insert sets or updates ts.storage[key] to equal {value, false}.
-//
-// Any bytes passed into [Insert] will be consumed by [TState] and should
-// not be modified/referenced after this call.
+// isUnchanged determines if a [key] is unchanged from the parent view (or
+// scope if the parent is unchanged).
+func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, nexists bool) bool {
+	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
+		return !exists && !nexists || exists && nexists && bytes.Equal(v, nval)
+	}
+	if v, ok := ts.scopeStorage[key]; ok {
+		return nexists && bytes.Equal(v, nval)
+	}
+	return !nexists
+}
+
+// Insert allocates and writes (or just writes) a new key to [tstate]. If this
+// action returns the value of [key] to the parent view, it reverts any pending changes.
 func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
@@ -161,85 +214,86 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 	if !keys.VerifyValue(key, value) {
 		return ErrInvalidKeyValue
 	}
+	valueChunks, _ := keys.NumChunks(value) // not possible to fail
 	k := string(key)
-	past, changed, exists := ts.getValue(ctx, k)
-	var err error
+	past, exists := ts.getValue(ctx, k)
+	op := &op{
+		k:             k,
+		pastV:         past,
+		pastAllocates: chunks(ts.allocates, k),
+		pastWrites:    chunks(ts.writes, k),
+	}
 	if exists {
-		// If a key is already in [coldModifications], we should still
-		// consider it a [coldModification] even if it is [changed].
-		// This occurs when we modify a key for the second time in
-		// a single transaction.
-		//
-		// If a key is not in [coldModifications] and it is [changed],
-		// it was either created/modified in a different transaction
-		// in the block or created in this transaction.
-		if _, ok := ts.coldModifications[k]; ok || !changed {
-			err = updateChunks(ts.coldModifications, k, value)
-		} else {
-			err = updateChunks(ts.warmModifications, k, value)
+		if bytes.Equal(past, value) {
+			// No change, so this isn't an op.
+			return nil
 		}
+		op.t = insertOp
+		ts.writes[k] = valueChunks // set to latest value
 	} else {
-		if !ts.canCreate {
-			err = ErrCreationDisabled
-		} else {
-			err = updateChunks(ts.creations, k, value)
+		if !ts.canAllocate {
+			return ErrAllocationDisabled
 		}
+		op.t = createOp
+		keyChunks, _ := keys.MaxChunks(key) // not possible to fail
+		ts.allocates[k] = keyChunks
+		ts.writes[k] = valueChunks
 	}
-	if err != nil {
-		return err
-	}
-	ts.ops = append(ts.ops, &op{
-		k:           k,
-		pastExists:  exists,
-		pastV:       past,
-		pastChanged: changed,
-	})
+	ts.ops = append(ts.ops, op)
 	ts.pendingChangedKeys[k] = maybe.Some(value)
+	if ts.isUnchanged(ctx, k, value, true) {
+		delete(ts.allocates, k)
+		delete(ts.writes, k)
+		delete(ts.pendingChangedKeys, k)
+	}
 	return nil
 }
 
-// Remove deletes a key-value pair from ts.storage.
+// Remove deletes a key from [tstate]. If this action returns the
+// value of [key] to the parent view, it reverts any pending changes.
 func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 	if !ts.checkScope(ctx, key) {
 		return ErrKeyNotSpecified
 	}
 	k := string(key)
-	past, changed, exists := ts.getValue(ctx, k)
+	past, exists := ts.getValue(ctx, k)
 	if !exists {
-		// We do not update modificaations if the key does not exist.
+		// We do not update writes if the key does not exist.
 		return nil
 	}
-	// If a key is already in [coldModifications], we should still
-	// consider it a [coldModification] even if it is [changed].
-	// This occurs when we modify a key for the second time in
-	// a single transaction.
-	//
-	// If a key is not in [coldModifications] and it is [changed],
-	// it was either created/modified in a different transaction
-	// in the block or created in this transaction.
-	var err error
-	if _, ok := ts.coldModifications[k]; ok || !changed {
-		err = updateChunks(ts.coldModifications, k, nil)
-	} else {
-		err = updateChunks(ts.warmModifications, k, nil)
-	}
-	if err != nil {
-		return err
-	}
 	ts.ops = append(ts.ops, &op{
-		k:           k,
-		pastExists:  true,
-		pastV:       past,
-		pastChanged: changed,
+		t:             removeOp,
+		k:             k,
+		pastV:         past,
+		pastAllocates: chunks(ts.allocates, k),
+		pastWrites:    chunks(ts.writes, k),
 	})
-	ts.pendingChangedKeys[k] = maybe.Nothing[[]byte]()
+	if _, ok := ts.allocates[k]; ok {
+		// If delete after allocating in the same view, it is
+		// as if nothing happened.
+		delete(ts.allocates, k)
+		delete(ts.writes, k)
+		delete(ts.pendingChangedKeys, k)
+	} else {
+		// If this is not a new allocation, we mark as an
+		// explicit delete.
+		ts.writes[k] = 0
+		ts.pendingChangedKeys[k] = maybe.Nothing[[]byte]()
+	}
+	if ts.isUnchanged(ctx, k, nil, false) {
+		delete(ts.allocates, k)
+		delete(ts.writes, k)
+		delete(ts.pendingChangedKeys, k)
+	}
 	return nil
 }
 
+// PendingChanges returns the number of changed keys (not ops).
 func (ts *TStateView) PendingChanges() int {
 	return len(ts.pendingChangedKeys)
 }
 
+// Commit adds all pending changes to the parent view.
 func (ts *TStateView) Commit() {
 	ts.ts.l.Lock()
 	defer ts.ts.l.Unlock()
@@ -250,16 +304,12 @@ func (ts *TStateView) Commit() {
 	ts.ts.ops += len(ts.ops)
 }
 
-// updateChunks sets the number of chunks associated with a key that will
-// be returned in [KeyOperations].
-func updateChunks(m map[string]uint16, key string, value []byte) error {
-	chunks, ok := keys.NumChunks(value)
+// chunks gets the number of chunks for a key in [m]
+// or returns nil.
+func chunks(m map[string]uint16, key string) *uint16 {
+	chunks, ok := m[key]
 	if !ok {
-		return ErrInvalidKeyValue
+		return nil
 	}
-	previousChunks, ok := m[key]
-	if !ok || chunks > previousChunks {
-		m[key] = chunks
-	}
-	return nil
+	return &chunks
 }

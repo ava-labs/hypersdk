@@ -255,7 +255,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		v.ForceReady()
 	}
 
-	// Verify genesis allocations loaded correctly (do here otherwise test may
+	// Verify genesis allocates loaded correctly (do here otherwise test may
 	// check during and it will be inaccurate)
 	for _, inst := range instances {
 		cli := inst.lcli
@@ -432,21 +432,21 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// bandwidth: tx size
 			// compute: 5 for signature, 1 for base, 1 for transfer
 			// read: 2 keys reads, 1 had 0 chunks
-			// create: 1 key created
-			// modify: 1 cold key modified
-			transferTxConsumed := chain.Dimensions{191, 7, 12, 25, 13}
+			// allocate: 1 key created with 1 chunk
+			// write: 2 keys modified (new + old)
+			transferTxConsumed := chain.Dimensions{191, 7, 12, 25, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(248)))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(261)))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].lcli.Balance(context.Background(), addrStr)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899752)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899739)))
 			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
@@ -479,8 +479,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// bandwidth: tx size
 			// compute: 5 for signature, 1 for base, 1 for transfer
 			// read: 2 keys reads, 1 chunk each
-			// create: 0 key created
-			// modify: 2 cold key modified
+			// allocate: 0 key created
+			// write: 2 key modified
 			transferTxConsumed := chain.Dimensions{191, 7, 14, 0, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
@@ -562,9 +562,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			//
 			// bandwidth: tx size
 			// compute: 5 for signature, 1 for base, 1 for transfer
-			// read: 2 cold keys reads, 1 chunk each
-			// create: 0 key created
-			// modify: 2 cold key modified
+			// read: 2 keys reads, 1 chunk each
+			// allocate: 0 key created
+			// write: 2 key modified
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 			transferTxConsumed := chain.Dimensions{191, 7, 14, 0, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
@@ -577,46 +577,46 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			//
 			// bandwidth: tx size
 			// compute: 5 for signature, 1 for base, 1 for transfer
-			// read: 2 warm keys reads, 1 chunk each
-			// create: 0 key created
-			// modify: 2 warm keys modified
+			// read: 2 keys reads (previously read), 1 chunk each
+			// allocate: 0 key created
+			// write: 2 keys modified
 			gomega.Ω(results[1].Success).Should(gomega.BeTrue())
-			transferTxConsumed = chain.Dimensions{191, 7, 4, 0, 16}
+			transferTxConsumed = chain.Dimensions{191, 7, 14, 0, 26}
 			gomega.Ω(results[1].Consumed).Should(gomega.Equal(transferTxConsumed))
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[1].Fee).Should(gomega.Equal(uint64(218)))
+			gomega.Ω(results[1].Fee).Should(gomega.Equal(uint64(238)))
 
 			// Unit explanation
 			//
 			// bandwidth: tx size
 			// compute: 5 for signature, 1 for base, 1 for transfer
-			// read: 1 cold keys read (0 chunk), 1 warm key read (1 chunk)
-			// create: 1 key created (1 chunk)
-			// modify: 1 warm key modified (1 chunk)
+			// read: 1 keys read (0 chunk), 1 key read (1 chunk)
+			// allocate: 1 key created (1 chunk)
+			// write: 2 key modified (1 chunk), both previously modified
 			gomega.Ω(results[2].Success).Should(gomega.BeTrue())
-			transferTxConsumed = chain.Dimensions{191, 7, 7, 25, 8}
+			transferTxConsumed = chain.Dimensions{191, 7, 12, 25, 26}
 			gomega.Ω(results[2].Consumed).Should(gomega.Equal(transferTxConsumed))
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[2].Fee).Should(gomega.Equal(uint64(238)))
+			gomega.Ω(results[2].Fee).Should(gomega.Equal(uint64(261)))
 
 			// Unit explanation
 			//
 			// bandwidth: tx size
 			// compute: 5 for signature, 1 for base, 1 for transfer
-			// read: 2 warm keys reads (1 chunk, 0 chunk) -> note, this is based on disk BEFORE block
-			// create: 0 key created
-			// modify: 2 warm keys modified (1 chunk)
+			// read: 2 keys reads (1 chunk, 0 chunk) -> note, this is based on disk BEFORE block
+			// allocate: 0 key created
+			// write: 2 keys modified (1 chunk)
 			gomega.Ω(results[3].Success).Should(gomega.BeTrue())
-			transferTxConsumed = chain.Dimensions{191, 7, 3, 0, 16}
+			transferTxConsumed = chain.Dimensions{191, 7, 12, 0, 26}
 			gomega.Ω(results[3].Consumed).Should(gomega.Equal(transferTxConsumed))
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[3].Fee).Should(gomega.Equal(uint64(217)))
+			gomega.Ω(results[3].Fee).Should(gomega.Equal(uint64(236)))
 
 			// Check end balance
 			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)

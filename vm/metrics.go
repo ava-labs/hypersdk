@@ -46,8 +46,8 @@ type Metrics struct {
 	bandwidthPrice           prometheus.Gauge
 	computePrice             prometheus.Gauge
 	storageReadPrice         prometheus.Gauge
-	storageCreatePrice       prometheus.Gauge
-	storageModifyPrice       prometheus.Gauge
+	storageAllocatePrice     prometheus.Gauge
+	storageWritePrice        prometheus.Gauge
 	rootCalculated           metric.Averager
 	waitRoot                 metric.Averager
 	waitSignatures           metric.Averager
@@ -248,12 +248,12 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "storage_read_price",
 			Help:      "unit price of storage reads",
 		}),
-		storageCreatePrice: prometheus.NewGauge(prometheus.GaugeOpts{
+		storageAllocatePrice: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "storage_create_price",
 			Help:      "unit price of storage creates",
 		}),
-		storageModifyPrice: prometheus.NewGauge(prometheus.GaugeOpts{
+		storageWritePrice: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "storage_modify_price",
 			Help:      "unit price of storage modifications",
@@ -294,8 +294,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.bandwidthPrice),
 		r.Register(m.computePrice),
 		r.Register(m.storageReadPrice),
-		r.Register(m.storageCreatePrice),
-		r.Register(m.storageModifyPrice),
+		r.Register(m.storageAllocatePrice),
+		r.Register(m.storageWritePrice),
 	)
 	return r, m, errs.Err
 }

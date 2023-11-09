@@ -47,22 +47,18 @@ type Genesis struct {
 	ValidityWindow int64 `json:"validityWindow"` // ms
 
 	// Tx Fee Parameters
-	BaseComputeUnits                  uint64 `json:"baseUnits"`
-	BaseWarpComputeUnits              uint64 `json:"baseWarpUnits"`
-	WarpComputeUnitsPerSigner         uint64 `json:"warpUnitsPerSigner"`
-	OutgoingWarpComputeUnits          uint64 `json:"outgoingWarpComputeUnits"`
-	ColdStorageKeyReadUnits           uint64 `json:"coldStorageKeyReadUnits"`
-	ColdStorageValueReadUnits         uint64 `json:"coldStorageValueReadUnits"` // per chunk
-	WarmStorageKeyReadUnits           uint64 `json:"warmStorageKeyReadUnits"`
-	WarmStorageValueReadUnits         uint64 `json:"warmStorageValueReadUnits"` // per chunk
-	StorageKeyCreateUnits             uint64 `json:"storageKeyCreateUnits"`
-	StorageValueCreateUnits           uint64 `json:"storageKeyValueUnits"` // per chunk
-	ColdStorageKeyModificationUnits   uint64 `json:"coldStorageKeyModificationUnits"`
-	ColdStorageValueModificationUnits uint64 `json:"coldStorageValueModificationUnits"` // per chunk
-	WarmStorageKeyModificationUnits   uint64 `json:"warmStorageKeyModificationUnits"`
-	WarmStorageValueModificationUnits uint64 `json:"warmStorageValueModificationUnits"` // per chunk
+	BaseComputeUnits          uint64 `json:"baseUnits"`
+	BaseWarpComputeUnits      uint64 `json:"baseWarpUnits"`
+	WarpComputeUnitsPerSigner uint64 `json:"warpUnitsPerSigner"`
+	OutgoingWarpComputeUnits  uint64 `json:"outgoingWarpComputeUnits"`
+	StorageKeyReadUnits       uint64 `json:"storageKeyReadUnits"`
+	StorageValueReadUnits     uint64 `json:"storageValueReadUnits"` // per chunk
+	StorageKeyAllocateUnits   uint64 `json:"storageKeyAllocateUnits"`
+	StorageValueAllocateUnits uint64 `json:"storageValueAllocateUnits"` // per chunk
+	StorageKeyWriteUnits      uint64 `json:"storageKeyWriteUnits"`
+	StorageValueWriteUnits    uint64 `json:"storageValueWriteUnits"` // per chunk
 
-	// Allocations
+	// Allocates
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
 }
 
@@ -93,16 +89,12 @@ func Default() *Genesis {
 		// Tx Fee Storage Parameters
 		//
 		// TODO: tune this
-		ColdStorageKeyReadUnits:           5,
-		ColdStorageValueReadUnits:         2,
-		WarmStorageKeyReadUnits:           1,
-		WarmStorageValueReadUnits:         1,
-		StorageKeyCreateUnits:             20,
-		StorageValueCreateUnits:           5,
-		ColdStorageKeyModificationUnits:   10,
-		ColdStorageValueModificationUnits: 3,
-		WarmStorageKeyModificationUnits:   5,
-		WarmStorageValueModificationUnits: 3,
+		StorageKeyReadUnits:       5,
+		StorageValueReadUnits:     2,
+		StorageKeyAllocateUnits:   20,
+		StorageValueAllocateUnits: 5,
+		StorageKeyWriteUnits:      10,
+		StorageValueWriteUnits:    3,
 	}
 }
 
