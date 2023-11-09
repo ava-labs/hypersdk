@@ -27,7 +27,7 @@ type op struct {
 	t               opType
 	k               string
 	pastV           []byte
-	pastAllocations *uint16
+	pastAllocates *uint16
 	pastWrites      *uint16
 }
 
@@ -45,7 +45,7 @@ type TStateView struct {
 
 	// Store which keys are modified and how large their values were.
 	canAllocate bool
-	allocations map[string]uint16
+	allocates map[string]uint16
 	writes      map[string]uint16
 }
 
@@ -60,7 +60,7 @@ func (ts *TState) NewView(scope set.Set[string], storage map[string][]byte) *TSt
 		scopeStorage: storage,
 
 		canAllocate: true, // default to allowing allocation
-		allocations: make(map[string]uint16, len(scope)),
+		allocates: make(map[string]uint16, len(scope)),
 		writes:      make(map[string]uint16, len(scope)),
 	}
 }
@@ -72,7 +72,7 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 
 		switch op.t {
 		case createOp:
-			delete(ts.allocations, op.k)
+			delete(ts.allocates, op.k)
 			if op.pastWrites != nil {
 				// If previously deleted value, we need to restore
 				// that modification.
@@ -97,14 +97,14 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 				delete(ts.pendingChangedKeys, op.k)
 			}
 		case removeOp:
-			if op.pastAllocations != nil {
+			if op.pastAllocates != nil {
 				// If we removed a newly created key, we need to restore it
-				// to [allocations].
+				// to [allocates].
 				//
-				// The key should have already been removed from allocations,
-				// so we don't need to explicitly delete it if [op.pastAllocations]
+				// The key should have already been removed from allocates,
+				// so we don't need to explicitly delete it if [op.pastAllocates]
 				// is nil.
-				ts.allocations[op.k] = *op.pastAllocations
+				ts.allocates[op.k] = *op.pastAllocates
 			}
 			if op.pastWrites != nil {
 				// If we removed a newly written key, we should revert
@@ -115,7 +115,7 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 				// If we removed a key that already existed before the view,
 				// we should remove it from tracking.
 				//
-				// This should never happen if [op.pastAllocations] != nil.
+				// This should never happen if [op.pastAllocates] != nil.
 				delete(ts.writes, op.k)
 				delete(ts.pendingChangedKeys, op.k)
 			}
@@ -154,7 +154,7 @@ func (ts *TStateView) EnableAllocation() {
 // operation will be returned here (if 1 chunk then 2 chunks are written to a key,
 // this function will return 2 chunks).
 func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
-	return ts.allocations, ts.writes
+	return ts.allocates, ts.writes
 }
 
 // checkScope returns whether [k] is in ts.readScope.
@@ -220,7 +220,7 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 	op := &op{
 		k:               k,
 		pastV:           past,
-		pastAllocations: chunks(ts.allocations, k),
+		pastAllocates: chunks(ts.allocates, k),
 		pastWrites:      chunks(ts.writes, k),
 	}
 	if exists {
@@ -236,13 +236,13 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 		}
 		op.t = createOp
 		keyChunks, _ := keys.MaxChunks(key) // not possible to fail
-		ts.allocations[k] = keyChunks
+		ts.allocates[k] = keyChunks
 		ts.writes[k] = valueChunks
 	}
 	ts.ops = append(ts.ops, op)
 	ts.pendingChangedKeys[k] = maybe.Some(value)
 	if ts.isUnchanged(ctx, k, value, true) {
-		delete(ts.allocations, k)
+		delete(ts.allocates, k)
 		delete(ts.writes, k)
 		delete(ts.pendingChangedKeys, k)
 	}
@@ -265,13 +265,13 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 		t:               removeOp,
 		k:               k,
 		pastV:           past,
-		pastAllocations: chunks(ts.allocations, k),
+		pastAllocates: chunks(ts.allocates, k),
 		pastWrites:      chunks(ts.writes, k),
 	})
-	if _, ok := ts.allocations[k]; ok {
+	if _, ok := ts.allocates[k]; ok {
 		// If delete after allocating in the same view, it is
 		// as if nothing happened.
-		delete(ts.allocations, k)
+		delete(ts.allocates, k)
 		delete(ts.writes, k)
 		delete(ts.pendingChangedKeys, k)
 	} else {
@@ -281,7 +281,7 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 		ts.pendingChangedKeys[k] = maybe.Nothing[[]byte]()
 	}
 	if ts.isUnchanged(ctx, k, nil, false) {
-		delete(ts.allocations, k)
+		delete(ts.allocates, k)
 		delete(ts.writes, k)
 		delete(ts.pendingChangedKeys, k)
 	}

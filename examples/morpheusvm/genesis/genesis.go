@@ -57,7 +57,7 @@ type Genesis struct {
 	StorageKeyWriteUnits      uint64 `json:"storageKeyWriteUnits"`
 	StorageValueWriteUnits    uint64 `json:"storageValueWriteUnits"` // per chunk
 
-	// Allocations
+	// Allocates
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
 }
 

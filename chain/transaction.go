@@ -194,12 +194,12 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 		return Dimensions{}, err
 	}
 	readsOp := math.NewUint64Operator(0)
-	allocationsOp := math.NewUint64Operator(0)
+	allocatesOp := math.NewUint64Operator(0)
 	writesOp := math.NewUint64Operator(0)
 	for k := range stateKeys {
 		// Compute key costs
 		readsOp.Add(r.GetStorageKeyReadUnits())
-		allocationsOp.Add(r.GetStorageKeyAllocateUnits())
+		allocatesOp.Add(r.GetStorageKeyAllocateUnits())
 		writesOp.Add(r.GetStorageKeyWriteUnits())
 
 		// Compute value costs
@@ -208,14 +208,14 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 			return Dimensions{}, ErrInvalidKeyValue
 		}
 		readsOp.MulAdd(uint64(maxChunks), r.GetStorageValueReadUnits())
-		allocationsOp.MulAdd(uint64(maxChunks), r.GetStorageValueAllocateUnits())
+		allocatesOp.MulAdd(uint64(maxChunks), r.GetStorageValueAllocateUnits())
 		writesOp.MulAdd(uint64(maxChunks), r.GetStorageValueWriteUnits())
 	}
 	reads, err := readsOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	allocations, err := allocationsOp.Value()
+	allocates, err := allocatesOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
@@ -223,7 +223,7 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	if err != nil {
 		return Dimensions{}, err
 	}
-	return Dimensions{uint64(t.Size()), maxComputeUnits, reads, allocations, writes}, nil
+	return Dimensions{uint64(t.Size()), maxComputeUnits, reads, allocates, writes}, nil
 }
 
 // EstimateMaxUnits provides a pessimistic estimate of the cost to execute a transaction. This is
@@ -263,24 +263,24 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 	//
 	// TODO: unify this with [MaxUnits] handling
 	readsOp := math.NewUint64Operator(0)
-	allocationsOp := math.NewUint64Operator(0)
+	allocatesOp := math.NewUint64Operator(0)
 	writesOp := math.NewUint64Operator(0)
 	for maxChunks := range stateKeysMaxChunks {
 		// Compute key costs
 		readsOp.Add(r.GetStorageKeyReadUnits())
-		allocationsOp.Add(r.GetStorageKeyAllocateUnits())
+		allocatesOp.Add(r.GetStorageKeyAllocateUnits())
 		writesOp.Add(r.GetStorageKeyWriteUnits())
 
 		// Compute value costs
 		readsOp.MulAdd(uint64(maxChunks), r.GetStorageValueReadUnits())
-		allocationsOp.MulAdd(uint64(maxChunks), r.GetStorageValueAllocateUnits())
+		allocatesOp.MulAdd(uint64(maxChunks), r.GetStorageValueAllocateUnits())
 		writesOp.MulAdd(uint64(maxChunks), r.GetStorageValueWriteUnits())
 	}
 	reads, err := readsOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	allocations, err := allocationsOp.Value()
+	allocates, err := allocatesOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
@@ -288,7 +288,7 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 	if err != nil {
 		return Dimensions{}, err
 	}
-	return Dimensions{bandwidth, computeUnits, reads, allocations, writes}, nil
+	return Dimensions{bandwidth, computeUnits, reads, allocates, writes}, nil
 }
 
 func (t *Transaction) PreExecute(
@@ -465,7 +465,7 @@ func (t *Transaction) Execute(
 
 	// Because the key database is abstracted from [Auth]/[Actions], we can compute
 	// all storage use in the background. KeyOperations is unique to a view.
-	allocations, writes := ts.KeyOperations()
+	allocates, writes := ts.KeyOperations()
 
 	// Because we compute the fee before [Auth.Refund] is called, we need
 	// to pessimistically precompute the storage it will change.
@@ -490,12 +490,12 @@ func (t *Transaction) Execute(
 	if err != nil {
 		return handleRevert(err)
 	}
-	allocationsOp := math.NewUint64Operator(0)
-	for _, chunksStored := range allocations {
-		allocationsOp.Add(r.GetStorageKeyAllocateUnits())
-		allocationsOp.MulAdd(uint64(chunksStored), r.GetStorageValueAllocateUnits())
+	allocatesOp := math.NewUint64Operator(0)
+	for _, chunksStored := range allocates {
+		allocatesOp.Add(r.GetStorageKeyAllocateUnits())
+		allocatesOp.MulAdd(uint64(chunksStored), r.GetStorageValueAllocateUnits())
 	}
-	allocateUnits, err := allocationsOp.Value()
+	allocateUnits, err := allocatesOp.Value()
 	if err != nil {
 		return handleRevert(err)
 	}
