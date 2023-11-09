@@ -139,8 +139,8 @@ type Rules interface {
 	// Interesting Scenarios:
 	// * If a key is created and then modified during a transaction, the second
 	//   read will be a read of 0 chunks (reads are based on disk contents before exec)
-	// * If a key is removed and then re-created during a transaction, it counts
-	//   as a write + allocate + write instead of just a write
+	// * If a key is removed and then re-created with the same value during a transaction,
+	//   it doesn't count as a modification (returning to the current value on-disk is a no-op)
 	GetStorageKeyReadUnits() uint64
 	GetStorageValueReadUnits() uint64 // per chunk
 	GetStorageKeyAllocateUnits() uint64
