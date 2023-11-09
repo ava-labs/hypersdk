@@ -254,7 +254,6 @@ func TestInsertRemoveInsert(t *testing.T) {
 	// Remove empty should do nothing
 	require.NoError(tsv.Remove(ctx, key2))
 	require.Equal(0, tsv.OpIndex())
-
 }
 
 func TestModifyRemoveInsert(t *testing.T) {
