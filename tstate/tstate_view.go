@@ -24,11 +24,11 @@ const (
 )
 
 type op struct {
-	t               opType
-	k               string
-	pastV           []byte
+	t             opType
+	k             string
+	pastV         []byte
 	pastAllocates *uint16
-	pastWrites      *uint16
+	pastWrites    *uint16
 }
 
 type TStateView struct {
@@ -45,7 +45,7 @@ type TStateView struct {
 
 	// Store which keys are modified and how large their values were.
 	canAllocate bool
-	allocates map[string]uint16
+	allocates   map[string]uint16
 	writes      map[string]uint16
 }
 
@@ -60,7 +60,7 @@ func (ts *TState) NewView(scope set.Set[string], storage map[string][]byte) *TSt
 		scopeStorage: storage,
 
 		canAllocate: true, // default to allowing allocation
-		allocates: make(map[string]uint16, len(scope)),
+		allocates:   make(map[string]uint16, len(scope)),
 		writes:      make(map[string]uint16, len(scope)),
 	}
 }
@@ -218,10 +218,10 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 	k := string(key)
 	past, exists := ts.getValue(ctx, k)
 	op := &op{
-		k:               k,
-		pastV:           past,
+		k:             k,
+		pastV:         past,
 		pastAllocates: chunks(ts.allocates, k),
-		pastWrites:      chunks(ts.writes, k),
+		pastWrites:    chunks(ts.writes, k),
 	}
 	if exists {
 		if bytes.Equal(past, value) {
@@ -262,11 +262,11 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 		return nil
 	}
 	ts.ops = append(ts.ops, &op{
-		t:               removeOp,
-		k:               k,
-		pastV:           past,
+		t:             removeOp,
+		k:             k,
+		pastV:         past,
 		pastAllocates: chunks(ts.allocates, k),
-		pastWrites:      chunks(ts.writes, k),
+		pastWrites:    chunks(ts.writes, k),
 	})
 	if _, ok := ts.allocates[k]; ok {
 		// If delete after allocating in the same view, it is

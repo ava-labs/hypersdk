@@ -236,7 +236,7 @@ verify a batch.
 ### Multidimensional Fee Pricing
 Instead of mapping transaction resource usage to a one-dimensional unit (i.e. "gas"
 or "fuel"), the `hypersdk` utilizes five independently parameterized unit dimensions
-(bandwidth, compute, storage[read], storage[create], storage[modify]) to meter
+(bandwidth, compute, storage[read], storage[allocate], storage[write]) to meter
 activity on each `hypervm`. Each unit dimension has a unique metering schedule
 (i.e. how many units each resource interaction costs), target, and max utilization
 per rolling 10 second window.
@@ -280,16 +280,12 @@ GetBaseWarpComputeUnits() uint64
 GetWarpComputeUnitsPerSigner() uint64
 GetOutgoingWarpComputeUnits() uint64
 
-GetColdStorageKeyReadUnits() uint64
-GetColdStorageValueReadUnits() uint64 // per chunk
-GetWarmStorageKeyReadUnits() uint64
-GetWarmStorageValueReadUnits() uint64 // per chunk
-GetStorageKeyCreateUnits() uint64
-GetStorageValueCreateUnits() uint64 // per chunk
-GetColdStorageKeyModificationUnits() uint64
-GetColdStorageValueModificationUnits() uint64 // per chunk
-GetWarmStorageKeyModificationUnits() uint64
-GetWarmStorageValueModificationUnits() uint64 // per chunk
+GetStorageKeyReadUnits() uint64
+GetStorageValueReadUnits() uint64 // per chunk
+GetStorageKeyAllocateUnits() uint64
+GetStorageValueAllocateUnits() uint64 // per chunk
+GetStorageKeyWriteUnits() uint64
+GetStorageValueWriteUnits() uint64 // per chunk
 ```
 
 An example configuration may look something like:
@@ -304,16 +300,12 @@ BaseWarpComputeUnits:      1_024,
 WarpComputeUnitsPerSigner: 128,
 OutgoingWarpComputeUnits:  1_024,
 
-ColdStorageKeyReadUnits:           5,
-ColdStorageValueReadUnits:         2,
-WarmStorageKeyReadUnits:           1,
-WarmStorageValueReadUnits:         1,
-StorageKeyCreateUnits:             20,
-StorageValueCreateUnits:           5,
-ColdStorageKeyModificationUnits:   10,
-ColdStorageValueModificationUnits: 3,
-WarmStorageKeyModificationUnits:   5,
-WarmStorageValueModificationUnits: 3,
+StorageKeyReadUnits:       5,
+StorageValueReadUnits:     2,
+StorageKeyAllocateUnits:   20,
+StorageValueAllocateUnits: 5,
+StorageKeyWriteUnits:      10,
+StorageValueWriteUnits:    3,
 ```
 
 #### Avoiding Complex Construction
@@ -355,12 +347,12 @@ price-sorted mempools are not particularly useful in high-throughput
 blockchains where the expected mempool size is ~0 or there is a bounded transaction
 lifetime (60 seconds by default on the `hypersdk`).
 
-#### Separate Metering for Storage Reads, Creations, Modifications
+#### Separate Metering for Storage Reads, Allocates, Writes
 To make the multidimensional fee implementation for the `hypersdk` simpler,
-it would have been possible to unify all storage operations (read, create,
-modify) into a single unit dimension. We opted not to go this route, however,
+it would have been possible to unify all storage operations (read, allocate,
+write) into a single unit dimension. We opted not to go this route, however,
 because `hypervm` designers often wish to regulate state growth much differently
-than state reads or state modification.
+than state reads or state writes.
 
 Fundamentally, it makes sense to combine resource usage into a single unit dimension
 if different operations are scaled substitutes of each other (an executor could translate
@@ -387,18 +379,6 @@ This constraint is equivalent to deciding whether to use a `uint8`, `uint16`, `u
 `hypervm` developer bounds the max chunks to the chunks they will store, the cheaper
 the estimate will be for a user to interact with state. Users are only charged, however,
 based on the amount of chunks actually read/written from/to state.
-
-#### Block-Based Storage Access Discounts
-If a state key has already been accessed in a given block, future access
-by the same transaction/future transactions will be more efficient for the
-`hypersdk` to handle because the corresponding state is already sitting in memory.
-The `hypersdk` automatically tracks which state has already been loaded from disk (whether
-read or modified) over an entire block and charges different fees accordingly.
-
-For example, if a transaction modifies a key and then another transaction
-is executed which modifies the same value, the net cost for modifying the key
-to the `hypervm` (and to the entire network) is much cheaper than modifying a
-new key.
 
 ### Nonce-less and Expiring Transactions
 `hypersdk` transactions don't use [nonces](https://help.myetherwallet.com/en/articles/5461509-what-is-a-nonce)

@@ -46,8 +46,8 @@ type Metrics struct {
 	bandwidthPrice           prometheus.Gauge
 	computePrice             prometheus.Gauge
 	storageReadPrice         prometheus.Gauge
-	storageAllocatePrice       prometheus.Gauge
-	storageWritePrice       prometheus.Gauge
+	storageAllocatePrice     prometheus.Gauge
+	storageWritePrice        prometheus.Gauge
 	rootCalculated           metric.Averager
 	waitRoot                 metric.Averager
 	waitSignatures           metric.Averager
