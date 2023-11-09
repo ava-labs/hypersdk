@@ -60,16 +60,47 @@ func (db *TestDB) Remove(_ context.Context, key []byte) error {
 	return nil
 }
 
+func TestScope(t *testing.T) {
+	require := require.New(t)
+	ctx := context.TODO()
+	ts := New(10)
+
+	// No Scope
+	tsv := ts.NewView(set.Set[string]{}, map[string][]byte{})
+	val, err := tsv.GetValue(ctx, testKey)
+	require.ErrorIs(ErrKeyNotSpecified, err)
+	require.Nil(val)
+	require.ErrorIs(ErrKeyNotSpecified, tsv.Insert(ctx, testKey, testVal))
+	require.ErrorIs(ErrKeyNotSpecified, tsv.Remove(ctx, testKey))
+}
+
 func TestGetValue(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
 
-	// SetScope
+	// Set Scope
 	tsv := ts.NewView(set.Of(string(testKey)), map[string][]byte{string(testKey): testVal})
 	val, err := tsv.GetValue(ctx, testKey)
 	require.NoError(err, "unable to get value")
 	require.Equal(testVal, val, "value was not saved correctly")
+}
+
+func TestDeleteCommitGet(t *testing.T) {
+	require := require.New(t)
+	ctx := context.TODO()
+	ts := New(10)
+
+	// Delete value
+	tsv := ts.NewView(set.Of(string(testKey)), map[string][]byte{string(testKey): testVal})
+	require.NoError(tsv.Remove(ctx, testKey))
+	tsv.Commit()
+
+	// Check deleted
+	tsv = ts.NewView(set.Of(string(testKey)), map[string][]byte{string(testKey): testVal})
+	val, err := tsv.GetValue(ctx, testKey)
+	require.ErrorIs(err, database.ErrNotFound)
+	require.Nil(val)
 }
 
 func TestGetValueNoStorage(t *testing.T) {
@@ -90,6 +121,11 @@ func TestInsertNew(t *testing.T) {
 
 	// SetScope
 	tsv := ts.NewView(set.Of(string(testKey)), map[string][]byte{})
+
+	// Test Disable Allocate
+	tsv.DisableAllocation()
+	require.ErrorIs(tsv.Insert(ctx, testKey, testVal), ErrAllocationDisabled)
+	tsv.EnableAllocation()
 
 	// Insert key
 	require.NoError(tsv.Insert(ctx, testKey, testVal))
@@ -214,6 +250,11 @@ func TestInsertRemoveInsert(t *testing.T) {
 	require.EqualValues(map[string]uint16{}, writes)
 	require.NotContains(tsv.pendingChangedKeys, key2str)
 	require.Equal(0, tsv.OpIndex())
+
+	// Remove empty should do nothing
+	require.NoError(tsv.Remove(ctx, key2))
+	require.Equal(0, tsv.OpIndex())
+
 }
 
 func TestModifyRemoveInsert(t *testing.T) {
