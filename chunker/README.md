@@ -1,3 +1,6 @@
+Gossip Chunks to other validators. Desire to see transactions included
+in a block is based on validator's ability to distribute. Don't include
+transactions we have already seen in other chunks.
 ```
 type Chunk struct {
     Height: uint64,
@@ -8,6 +11,17 @@ type Chunk struct {
 }
 ```
 
+If we are missing a chunk from someone, we can request it (if height, it
+is from a particular builder):
+```
+type ChunkRequest struct {
+    Height: uint64,
+    Chunk: ids.ID,
+}
+```
+
+Only reply if all transactions are well-formatted, have valid async signatures. If not,
+penalize sender.
 ```
 type ChunkResponse struct {
     Chunk: ids.ID,
@@ -38,8 +52,14 @@ type Block struct {
 }
 ```
 
-Filter chunks we agreed on data availability of because they will undoubtedly contain unexecutable transactions (fee exceeds max, user
-runs out of funds).
+Each validator can store Y processing chunks on the network for potential inclusion. If a chunk contains no valid transacitons,
+it can be included in a block as a "delete" so that the validator doesn't need to wait the entire timeout for inclusion (and doesn't need
+to waste the work of iterating over it during building).
 
-To minimize duplicate txs that can be issued by a single address, we require that addresses be sent over P2P to a specific issuer
-at a specific time.
+Insight: Filter chunks we agreed on data availability of because they will undoubtedly contain unexecutable transactions (fee exceeds max, user
+runs out of funds). Store OriginalChunkIDs until chain time surpasses latest tx or X blocks after it was accepted. Then we only store FilteredChunkID.
+New nodes syncing only need to fetch FilteredChunkID.
+
+## Open Questions
+* To minimize duplicate txs that can be issued by a single address, we require that addresses be sent (from non-validators) over P2P
+to a specific issuer for a specific expiry time.
