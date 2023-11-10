@@ -4,8 +4,6 @@
 package runtime
 
 import (
-	"math"
-
 	"github.com/ava-labs/avalanchego/utils/units"
 )
 
@@ -16,6 +14,4 @@ const (
 	guestSuffix         = "_guest"
 	wasiPreview1ModName = "wasi_snapshot_preview1"
 	MemoryPageSize      = 64 * units.KiB
-	MaxInt64            = math.MaxInt64
-	MinInt64            = math.MinInt64
 )

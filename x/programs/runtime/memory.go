@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"fmt"
+	"math"
 	"runtime"
 )
 
@@ -121,10 +122,6 @@ func WriteBytes(m Memory, buf []byte) (int64, error) {
 		return 0, err
 	}
 
-	if offset > MaxInt64 {
-		return 0, fmt.Errorf("write bytes failed: %w", ErrInvalidMemoryAddress)
-	}
-
 	return int64(offset), nil
 }
 
@@ -151,7 +148,7 @@ func WriteParams(m Memory, p []CallParam) ([]int64, error) {
 			}
 			params = append(params, int64(v))
 		case uint64:
-			if v > MaxInt64 {
+			if v > math.MaxInt64 {
 				return nil, fmt.Errorf("failed to write param: %w", ErrIntegerConversionOverflow)
 			}
 			params = append(params, int64(v))

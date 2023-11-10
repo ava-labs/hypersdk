@@ -25,9 +25,6 @@ func newKeyPtr(ctx context.Context, key ed25519.PublicKey, rt runtime.Runtime) (
 		return 0, err
 	}
 
-	if ptr > runtime.MaxInt64 {
-		return 0, runtime.ErrIntegerConversionOverflow
-	}
 	return int64(ptr), err
 }
 
