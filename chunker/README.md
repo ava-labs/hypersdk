@@ -39,6 +39,8 @@ type Signature struct {
 }
 ```
 
+By filtering pre-consensus data, we get the best of both worlds. We can take advantage
+of pre-consensus data distribution but not be beholden to the inefficiencies of it.
 ```
 type Block struct {
     Timestamp: uint64,
