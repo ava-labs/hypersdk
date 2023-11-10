@@ -80,4 +80,4 @@ Block Size (20% executable/full) = 418B * 300 = 125KiB
 
 ## Open Questions
 * To minimize duplicate txs that can be issued by a single address, we require that addresses be sent (from non-validators) over P2P
-to a specific issuer for a specific expiry time.
+to a specific issuer for a specific expiry time. May want to remove non-validator -> validator P2P gossip entirely?
