@@ -60,6 +60,19 @@ Insight: Filter chunks we agreed on data availability of because they will undou
 runs out of funds). Store OriginalChunkIDs until chain time surpasses latest tx or X blocks after it was accepted. Then we only store FilteredChunkID.
 New nodes syncing only need to fetch FilteredChunkID.
 
+## Max Throughput Estimates
+### Parameters
+Validators = 2000
+Average Tx Size = 400B
+Max Chunk Size = 2MB
+Max Warp Messages Per Chunk = 64
+
+### Calculations
+Max Size Per Block Chunk = <32, 2000/8, 96, 2MB/400B/8, 32, 64/8> = 1043B
+Max Chunks Per Block = 2MB/1043B = 1917 Chunks
+Max Txs Per Block = 1917 * 2MB/400B = 9.5M
+Max Data Bandwidth Per Block = 1917 * 2MB = 3.83GB
+
 ## Open Questions
 * To minimize duplicate txs that can be issued by a single address, we require that addresses be sent (from non-validators) over P2P
 to a specific issuer for a specific expiry time.
