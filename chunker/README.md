@@ -76,7 +76,7 @@ Max Data Bandwidth Finalized Per Block = 4785 * 2MB = 9.57GB (76.56 Gb)
 ### 300k Tx/Block Calculations
 Data Bandwidth Required = 120MB (0.96 Gb)
 Block Size (tightly packed chunks) = 418B * 60 = 25KiB
-Block Size (20% executable/full) = 418B * 300 = 125KiB
+Block Size (20% executable/full) = 418B * 300 = 125KiB (80% savings on long-term block data storage)
 
 ## Open Questions
 * To minimize duplicate txs that can be issued by a single address, we require that addresses be sent (from non-validators) over P2P
