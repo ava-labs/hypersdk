@@ -46,7 +46,7 @@ type Block struct {
     ParentRoot: ids.ID,
     Height: uint64,
     Chunks: [
-        <OriginalChunkID, SignatureBitSet, Signature, TxBitSet, FilteredChunkID, WarpBitSet>,
+        <OriginalChunkID, SignatureBitSet, Signature, FilteredChunkID, WarpBitSet>,
         ...,
     ],
 }
@@ -68,10 +68,10 @@ Max Chunk Size = 2MB
 Max Warp Messages Per Chunk = 64
 
 ### Calculations
-Max Size Per Block Chunk = <32, 2000/8, 96, 2MB/400B/8, 32, 64/8> = 1043B
-Max Chunks Per Block = 2MB/1043B = 1917 Chunks
-Max Txs Per Block = 1917 * 2MB/400B = 9.5M
-Max Data Bandwidth Per Block = 1917 * 2MB = 3.83GB (30.64 Gb)
+Max Size Per Block Chunk = <32, 2000/8, 96, 32, 64/8> = 418B
+Max Chunks Per Block = 2MB/418B = 4785 Chunks
+Max Txs Per Block = 4785 * 2MB/400B = 23.9M
+Max Data Bandwidth Finalized Per Block = 4785 * 2MB = 9.57GB (76.56 Gb)
 
 ## Open Questions
 * To minimize duplicate txs that can be issued by a single address, we require that addresses be sent (from non-validators) over P2P
