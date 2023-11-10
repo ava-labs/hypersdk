@@ -67,11 +67,16 @@ Average Tx Size = 400B
 Max Chunk Size = 2MB
 Max Warp Messages Per Chunk = 64
 
-### Calculations
+### Max Calculations
 Max Size Per Block Chunk = <32, 2000/8, 96, 32, 64/8> = 418B
 Max Chunks Per Block = 2MB/418B = 4785 Chunks
 Max Txs Per Block = 4785 * 2MB/400B = 23.9M
 Max Data Bandwidth Finalized Per Block = 4785 * 2MB = 9.57GB (76.56 Gb)
+
+### 300k Tx/Block Calculations
+Data Bandwidth Required = 120MB (0.96 Gb)
+Block Size (tightly packed chunks) = 418B * 60 = 25KiB
+Block Size (20% executable/full) = 418B * 300 = 125KiB
 
 ## Open Questions
 * To minimize duplicate txs that can be issued by a single address, we require that addresses be sent (from non-validators) over P2P
