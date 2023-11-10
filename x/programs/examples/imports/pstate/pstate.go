@@ -42,20 +42,20 @@ func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.SupportedImports) error {
+func (i *Import) Register(link *runtime.Link, meter runtime.Meter, _ runtime.SupportedImports) error {
 	if i.registered {
 		return fmt.Errorf("import module already registered: %q", Name)
 	}
 	i.meter = meter
 	i.registered = true
 
-	if err := link.FuncWrap(Name, "put", i.putFn); err != nil {
+	if err := link.RegisterFn(Name, "put", i.putFn); err != nil {
 		return err
 	}
-	if err := link.FuncWrap(Name, "get", i.getFn); err != nil {
+	if err := link.RegisterFn(Name, "get", i.getFn); err != nil {
 		return err
 	}
-	if err := link.FuncWrap(Name, "len", i.getLenFn); err != nil {
+	if err := link.RegisterFn(Name, "len", i.getLenFn); err != nil {
 		return err
 	}
 

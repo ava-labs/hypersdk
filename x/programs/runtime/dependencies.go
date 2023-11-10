@@ -20,10 +20,6 @@ const (
 
 var NoSupportedImports = make(SupportedImports)
 
-type Link struct {
-	*wasmtime.Linker
-}
-
 type Runtime interface {
 	// Initialize initializes the runtime with the given program bytes and max
 	// units. The engine will handle the compile strategy and instantiate the
@@ -57,7 +53,7 @@ type Import interface {
 	// Name returns the name of this import module.
 	Name() string
 	// Instantiate instantiates an all of the functions exposed by this import module.
-	Register(Link, Meter, SupportedImports) error
+	Register(*Link, Meter, SupportedImports) error
 }
 
 // Memory defines the interface for interacting with memory.

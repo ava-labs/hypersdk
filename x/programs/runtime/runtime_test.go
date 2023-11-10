@@ -78,3 +78,5 @@ func TestCallParams(t *testing.T) {
 	_, err = runtime.Call(ctx, "add", uint64(10), uint64(10), uint64(10))
 	require.ErrorIs(err, ErrInvalidParamCount)
 }
+
+// Add test for callbacks

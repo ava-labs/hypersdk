@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
@@ -37,7 +38,8 @@ type WasmRuntime struct {
 
 	imports SupportedImports
 
-	log logging.Logger
+	log    logging.Logger
+	closed bool
 }
 
 func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUnits uint64) (err error) {
@@ -86,7 +88,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 		return fmt.Errorf("unsupported compile strategy: %v", r.cfg.compileStrategy)
 	}
 
-	link := Link{wasmtime.NewLinker(r.store.Engine)}
+	link := NewLink(r.store.Engine)
 
 	// enable wasi logging support only in testing/debug mode
 	if r.cfg.debugMode {
@@ -94,7 +96,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 		wasiConfig.InheritStderr()
 		wasiConfig.InheritStdout()
 		r.store.SetWasi(wasiConfig)
-		err = link.DefineWasi()
+		err = link.wasi()
 		if err != nil {
 			return err
 		}
@@ -106,6 +108,23 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	if err != nil {
 		return err
 	}
+
+	// register global callback to charge units for each host function call
+	beforeRequestCB := func(module, name string) error {
+		// TODO: add import fn metrics
+		_, err := r.meter.Spend(r.cfg.contextSwitchUnits)
+		if err != nil {
+			r.log.Error("failed to spend units during context switch",
+				zap.Error(err),
+			)
+			
+			return err
+		}
+
+		return nil
+	}
+
+	link.registerCallback(&importFnCallback{beforeRequest: beforeRequestCB})
 
 	// setup client capable of calling exported functions
 	r.exp = newExportClient(r.inst, r.store)
@@ -152,7 +171,11 @@ func getRegisteredImportModules(importTypes []*wasmtime.ImportType) []string {
 	return imports
 }
 
-func (r *WasmRuntime) Call(_ context.Context, name string, params ...uint64) ([]uint64, error) {
+func (r *WasmRuntime) Call(ctx context.Context, name string, params ...uint64) ([]uint64, error) {
+	if r.closed {
+		return nil, fmt.Errorf("failed to call %q: %w", name, ErrRuntimeClosed)
+	}
+
 	var fnName string
 	switch name {
 	case AllocFnName, DeallocFnName, MemoryFnName:
@@ -204,6 +227,7 @@ func (r *WasmRuntime) Meter() Meter {
 
 func (r *WasmRuntime) Stop() {
 	r.once.Do(func() {
+		r.closed = true
 		r.log.Debug("shutting down runtime engine...")
 		// send immediate interrupt to engine
 		r.store.Engine.IncrementEpoch()

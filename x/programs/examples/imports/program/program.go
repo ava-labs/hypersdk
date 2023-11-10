@@ -43,14 +43,14 @@ func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtime.SupportedImports) error {
+func (i *Import) Register(link *runtime.Link, meter runtime.Meter, imports runtime.SupportedImports) error {
 	if i.registered {
 		return fmt.Errorf("import module already registered: %q", Name)
 	}
 	i.imports = imports
 	i.meter = meter
 
-	if err := link.FuncWrap(Name, "call_program", i.callProgramFn); err != nil {
+	if err := link.RegisterFn(Name, "call_program", i.callProgramFn); err != nil {
 		return err
 	}
 
@@ -67,7 +67,7 @@ func (i *Import) callProgramFn(
 	functionLen,
 	argsPtr,
 	argsLen int32,
-) int64 {
+) (int64, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
@@ -78,7 +78,7 @@ func (i *Import) callProgramFn(
 		i.log.Error("failed to read function name from memory",
 			zap.Error(err),
 		)
-		return -1
+		return 0, err
 	}
 
 	programIDBytes, err := memory.Range(uint64(programIDPtr), uint64(ids.IDLen))
