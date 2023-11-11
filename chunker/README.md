@@ -109,3 +109,4 @@ to a specific issuer for a specific expiry time. May want to remove non-validato
 -> Validators that don't want to distribute any of their own transactions end up having a very low outbound traffic requirement.
 * If a validator sends different sets of chunks to different people, it seems like we may be forced to fetch more chunks
 for a validator than we'd like (if in the minority sent things not included in a block).
+-> May be able to synchronize with some sort of slot number, but then we have chunk ordering dependencies to handle.
