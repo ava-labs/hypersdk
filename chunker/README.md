@@ -63,7 +63,8 @@ By filtering pre-consensus data, we get the best of both worlds. We can take adv
 of pre-consensus data distribution but not be beholden to the inefficiencies of it.
 
 We include the chunk metadata here so that nodes hearing about the block for the first
-time can post a slashable offense if they received a conflicting chunk at that time.
+time can post a slashable offense if they received a conflicting chunk at that time (without
+having to fetch the OriginalChunkID -> signature must be over chunkID for this to work).
 ```
 type Block struct {
     Timestamp: uint64,
