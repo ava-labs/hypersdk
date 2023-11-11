@@ -87,9 +87,8 @@ type FilteredChunkRequest struct {
 -> Chunk
 ```
 
-Each validator can store Y processing chunks on the network for potential inclusion. If a chunk contains no valid transacitons,
-it can be included in a block as a "delete" so that the validator doesn't need to wait the entire timeout for inclusion (and doesn't need
-to waste the work of iterating over it during building).
+Each validator can create a new chunk every X milliseconds. Chunks are marked as unable to be included as soon as there are
+no executable transactions.
 
 Insight: Filter chunks we agreed on data availability of because they will undoubtedly contain unexecutable transactions (fee exceeds max, user
 runs out of funds). Store OriginalChunkIDs until chain time surpasses latest tx or X blocks after it was accepted. Then we only store FilteredChunkID.
