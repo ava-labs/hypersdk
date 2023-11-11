@@ -1,14 +1,9 @@
 Gossip Chunks to other validators. Desire to see a Chunk included
 is based on validator's ability to distribute (no regossip by other
 validators). Include transactions from our mempool even if we have already seen in other
-chunks (peer may only send block to some people). We include a signature so that we can
-penalize producers that send multiple chunks at the same height.
+chunks (peer may only send block to some people).
 ```
 type Chunk struct {
-    Signer: BLSPublicKey,
-    Signature: BLSSignature,
-
-    Height: uint64,
     Transactions: [
         <Transaction>,
         ...,
@@ -38,14 +33,6 @@ type Signature struct {
 }
 ```
 
-If we are missing a chunk from builder stream, we can request it from them:
-```
-type StreamRequest struct {
-    Height: uint64 (Single Producers Stream),
-}
--> ChunkResponse
-```
-
 If we are missing a chunk (must be a validator), we can request it:
 ```
 type ChunkRequest struct {
@@ -64,6 +51,7 @@ type ChunkResponse struct {
 }
 ```
 
+A validator should only include a chunk in a block once it has Z% of stake signing it.
 By filtering pre-consensus data, we get the best of both worlds. We can take advantage
 of pre-consensus data distribution but not be beholden to the inefficiencies of it.
 ```
@@ -79,7 +67,7 @@ type Block struct {
 }
 ```
 
-If we are want a filtered chunk (validator or non-validator), we can request it:
+If we are want a filtered chunk (syncing validator or any non-validator), we can request it:
 ```
 type FilteredChunkRequest struct {
     Chunk: ids.ID,
@@ -119,3 +107,5 @@ Block Size (20% executable/full) = 418B * 300 = 125KiB (80% savings on long-term
 * To minimize duplicate txs that can be issued by a single address, we require that addresses be sent (from non-validators) over P2P
 to a specific issuer for a specific expiry time. May want to remove non-validator -> validator P2P gossip entirely?
 -> Validators that don't want to distribute any of their own transactions end up having a very low outbound traffic requirement.
+* If a validator sends different sets of chunks to different people, it seems like we may be forced to fetch more chunks
+for a validator than we'd like (if in the minority sent things not included in a block).
