@@ -46,15 +46,15 @@ type StreamRequest struct {
 -> ChunkResponse
 ```
 
-If we are missing a chunk (or are a non-validator), we can request it:
+If we are missing a chunk (must be a validator), we can request it:
 ```
 type ChunkRequest struct {
-    Chunk: ids.ID (Original or Filtered),
+    Chunk: ids.ID,
 }
 -> ChunkResponse
 ```
 
-Respond with BLS multi-signature we've collected + Chunk:
+Respond with BLS multi-signature we've collected so far + Chunk:
 ```
 type ChunkResponse struct {
     Signers: BitSet,
@@ -77,6 +77,14 @@ type Block struct {
         ...,
     ],
 }
+```
+
+If we are want a filtered chunk (validator or non-validator), we can request it:
+```
+type FilteredChunkRequest struct {
+    Chunk: ids.ID,
+}
+-> Chunk
 ```
 
 Each validator can store Y processing chunks on the network for potential inclusion. If a chunk contains no valid transacitons,
