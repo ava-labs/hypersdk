@@ -4,7 +4,8 @@ validators). Include transactions from our mempool even if we have already seen 
 chunks (peer may only send block to some people).
 
 Chunks can be sent in any order by the signer but they cannot send
-2 chunks with the same timestamp (malicious offense).
+2 chunks with the same timestamp (malicious offense). We use a timestamp
+here so we don't need to synchronize a counter when joining the network.
 ```
 type Chunk struct {
     Signer: BLSPublicKey,
