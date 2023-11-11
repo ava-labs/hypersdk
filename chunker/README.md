@@ -1,8 +1,13 @@
-Gossip Chunks to other validators. Desire to see transactions included
-in a block is based on validator's ability to distribute. Don't include
-transactions we have already seen in other chunks.
+Gossip Chunks to other validators. Desire to see a Chunk included
+is based on validator's ability to distribute (no regossip by other
+validators). Don't include transactions we have already seen in other
+chunks in a node's produced chunks. We include a signature so that we can
+penalize producers that send multiple chunks at the same height.
 ```
 type Chunk struct {
+    Signer: BLSPublicKey,
+    Signature: BLSSignature,
+
     Height: uint64,
     Transactions: [
         <Transaction>,
@@ -24,18 +29,20 @@ Only reply if all transactions are well-formatted, have valid async signatures. 
 penalize sender.
 ```
 type ChunkResponse struct {
-    Chunk: ids.ID,
-    PublicKey: BLSPublicKey,
+    Signer: BLSPublicKey,
     Signature: BLSSignature,
+
+    Chunk: ids.ID,
 }
 ```
 
 Pushing signatures allows anyone to include a `Chunk` in their `Block`.
 ```
 type Signature struct {
-    Chunk: ids.ID,
     Signers: BitSet,
     Signature: BLSSignature,
+
+    Chunk: ids.ID,
 }
 ```
 
@@ -60,7 +67,9 @@ to waste the work of iterating over it during building).
 
 Insight: Filter chunks we agreed on data availability of because they will undoubtedly contain unexecutable transactions (fee exceeds max, user
 runs out of funds). Store OriginalChunkIDs until chain time surpasses latest tx or X blocks after it was accepted. Then we only store FilteredChunkID.
-New nodes syncing only need to fetch FilteredChunkID.
+New nodes syncing only need to fetch FilteredChunkID. This differs slightly from Narwhal/Tusk/Bullshark, which try to use the chunks directly in consensus.
+
+Other Benefit: at scale, chunk broadcaster and chunk receiver can be decoupled from the node (similar to Narwhal/Tusk).
 
 ## Max Throughput Estimates
 ### Parameters
@@ -83,3 +92,4 @@ Block Size (20% executable/full) = 418B * 300 = 125KiB (80% savings on long-term
 ## Open Questions
 * To minimize duplicate txs that can be issued by a single address, we require that addresses be sent (from non-validators) over P2P
 to a specific issuer for a specific expiry time. May want to remove non-validator -> validator P2P gossip entirely?
+-> Validators that don't want to distribute any of their own transactions end up having a very low outbound traffic requirement.
