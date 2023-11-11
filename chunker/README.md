@@ -1,7 +1,7 @@
 Gossip Chunks to other validators. Desire to see a Chunk included
 is based on validator's ability to distribute (no regossip by other
-validators). Don't include transactions we have already seen in other
-chunks in a node's produced chunks. We include a signature so that we can
+validators). Include transactions from our mempool even if we have already seen in other
+chunks (peer may only send block to some people). We include a signature so that we can
 penalize producers that send multiple chunks at the same height.
 ```
 type Chunk struct {
@@ -14,21 +14,13 @@ type Chunk struct {
         ...,
     ],
 }
-```
-
-If we are missing a chunk from someone, we can request it (if height, it
-is from a particular builder):
-```
-type ChunkRequest struct {
-    Height: uint64,
-    Chunk: ids.ID,
-}
+-> EndorseChunk
 ```
 
 Only reply if all transactions are well-formatted, have valid async signatures. If not,
-penalize sender.
+penalize sender (response to `Chunk`).
 ```
-type ChunkResponse struct {
+type EndorseChunk struct {
     Signer: BLSPublicKey,
     Signature: BLSSignature,
 
@@ -43,6 +35,32 @@ type Signature struct {
     Signature: BLSSignature,
 
     Chunk: ids.ID,
+}
+```
+
+If we are missing a chunk from builder stream, we can request it from them:
+```
+type StreamRequest struct {
+    Height: uint64 (Single Producers Stream),
+}
+-> ChunkResponse
+```
+
+If we are missing a chunk (or are a non-validator), we can request it:
+```
+type ChunkRequest struct {
+    Chunk: ids.ID (Original or Filtered),
+}
+-> ChunkResponse
+```
+
+Respond with BLS multi-signature we've collected + Chunk:
+```
+type ChunkResponse struct {
+    Signers: BitSet,
+    Signature: BLSSignature,
+
+    Chunk: Chunk,
 }
 ```
 
