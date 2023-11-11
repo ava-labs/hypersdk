@@ -112,3 +112,4 @@ for a validator than we'd like (if in the minority sent things not included in a
 -> May be able to synchronize with some sort of slot number, but then we have chunk ordering dependencies to handle.
 -> This could also be used to slow down block production? The only way to counteract this is to increase the required
 % of stake signed but this makes it much easier to halt the network.
+-> This just seems like a need for byzantine atomic broadcast?
