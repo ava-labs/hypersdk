@@ -2,8 +2,15 @@ Gossip Chunks to other validators. Desire to see a Chunk included
 is based on validator's ability to distribute (no regossip by other
 validators). Include transactions from our mempool even if we have already seen in other
 chunks (peer may only send block to some people).
+
+Chunks can be sent in any order by the signer but they cannot send
+2 chunks with the same timestamp (malicious offense).
 ```
 type Chunk struct {
+    Signer: BLSPublicKey,
+    Signature: BLSSignature,
+
+    Timestamp: uint64, (modulo interval time of t milliseconds)
     Transactions: [
         <Transaction>,
         ...,
@@ -54,6 +61,9 @@ type ChunkResponse struct {
 A validator should only include a chunk in a block once it has Z% of stake signing it.
 By filtering pre-consensus data, we get the best of both worlds. We can take advantage
 of pre-consensus data distribution but not be beholden to the inefficiencies of it.
+
+We include the chunk metadata here so that nodes hearing about the block for the first
+time can post a slashable offense if they received a conflicting chunk at that time.
 ```
 type Block struct {
     Timestamp: uint64,
@@ -61,7 +71,7 @@ type Block struct {
     ParentRoot: ids.ID,
     Height: uint64,
     Chunks: [
-        <OriginalChunkID, SignatureBitSet, Signature, FilteredChunkID, WarpBitSet>,
+        <OriginalChunkID, ChunkSigner, ChunkSignature, ChunkTimestamp, SubnetSignatureBitSet, SubnetSignature, FilteredChunkID, WarpBitSet>,
         ...,
     ],
 }
@@ -93,23 +103,17 @@ Max Chunk Size = 2MB
 Max Warp Messages Per Chunk = 64
 
 ### Max Calculations
-Max Size Per Block Chunk = <32, 2000/8, 96, 32, 64/8> = 418B
-Max Chunks Per Block = 2MB/418B = 4785 Chunks
-Max Txs Per Block = 4785 * 2MB/400B = 23.9M
-Max Data Bandwidth Finalized Per Block = 4785 * 2MB = 9.57GB (76.56 Gb)
+Max Size Per Block Chunk = <32, 48, 96, 8, 2000/8, 96, 32, 64/8> = 570B
+Max Chunks Per Block = 2MB/570B = 3508 Chunks
+Max Txs Per Block = 3508 * 2MB/400B = 17.5M
+Max Data Bandwidth Finalized Per Block = 4785 * 2MB = 7GB (56 Gb)
 
 ### 300k Tx/Block Calculations
 Data Bandwidth Required = 120MB (0.96 Gb)
-Block Size (tightly packed chunks) = 418B * 60 = 25KiB
-Block Size (20% executable/full) = 418B * 300 = 125KiB (80% savings on long-term block data storage)
+Block Size (tightly packed chunks) = 570B * 60 = 34KiB
+Block Size (20% executable/full) = 570B * 300 = 171KiB (80% savings on long-term block data storage)
 
 ## Open Questions
 * To minimize duplicate txs that can be issued by a single address, we require that addresses be sent (from non-validators) over P2P
 to a specific issuer for a specific expiry time. May want to remove non-validator -> validator P2P gossip entirely?
 -> Validators that don't want to distribute any of their own transactions end up having a very low outbound traffic requirement.
-* If a validator sends different sets of chunks to different people, it seems like we may be forced to fetch more chunks
-for a validator than we'd like (if in the minority sent things not included in a block).
--> May be able to synchronize with some sort of slot number, but then we have chunk ordering dependencies to handle.
--> This could also be used to slow down block production? The only way to counteract this is to increase the required
-% of stake signed but this makes it much easier to halt the network.
--> This just seems like a need for byzantine atomic broadcast?
