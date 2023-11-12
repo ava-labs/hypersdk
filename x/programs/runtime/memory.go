@@ -79,6 +79,11 @@ func (m *memory) Alloc(length uint64) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	if length > math.MaxInt32 {
+		return 0, fmt.Errorf("failed to allocate memory: %w", ErrIntegerConversionOverflow)
+	}
+
 	result, err := fn.Call(m.client.Store(), int32(length))
 	if err != nil {
 		return 0, handleTrapError(err)

@@ -94,6 +94,10 @@ pub extern "C" fn alloc(len: usize) -> *mut u8 {
     let mut buf = Vec::with_capacity(len);
     // take a mutable pointer to the buffer
     let ptr = buf.as_mut_ptr();
+    // ensure memory pointer is fits in an i64
+    // to avoid potential issues 
+    // when passing across wasm boundary
+    assert!(ptr as u64 <= i64::MAX as u64);
     // take ownership of the memory block and
     // ensure that its destructor is not
     // called when the object goes out of scope
