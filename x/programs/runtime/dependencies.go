@@ -31,7 +31,7 @@ type Runtime interface {
 	Initialize(context.Context, []byte, uint64) error
 	// Call invokes an exported guest function with the given parameters.
 	// Returns the results of the call or an error if the call failed.
-	// If there are 0 results this value is set to nil.
+	// If the function called does not return a result this value is set to nil.
 	Call(context.Context, string, ...int64) ([]int64, error)
 	// Memory returns the runtime memory.
 	Memory() Memory
