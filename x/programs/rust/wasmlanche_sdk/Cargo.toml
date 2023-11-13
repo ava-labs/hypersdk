@@ -10,6 +10,10 @@ thiserror = "1.0.46"
 serde = { version = "1.0.185", features = ["derive"] }
 serde_bare = "0.5.0"
 sdk_macros = { version = "0.1.0", path = "../sdk_macros" }
+# TODO: feels wrong to import this for just specific host functions
+# maybe make a separate crate for host functions?
+ed25519-dalek = { version = "2.0.0", features = ["rand_core"]} # for the generate SigningKey function
+
 
 # simulator
 serde_json = { version = "1.0.107", optional = true }

@@ -23,33 +23,19 @@ import (
 var verifyProgramBytes []byte
 
 var (
-	secretKeyBytes = []byte{
-		157, 97, 177, 157, 239, 253, 90, 96,
-		186, 132, 074, 244, 146, 236, 044, 196,
-		68, 073, 197, 105, 123, 050, 105, 025,
-		112, 59, 172, 003, 28, 174, 127, 96,
-	}
+	signatureBytes = []byte{138, 15, 65, 223, 37, 172, 140, 229, 29, 74, 112, 236, 253, 138, 180,
+		244, 138, 132, 46, 10, 192, 213, 105, 102, 113, 101, 108, 225, 190, 53,
+		186, 161, 105, 38, 179, 24, 6, 168, 146, 40, 42, 20, 242, 137, 52,
+		74, 60, 50, 167, 2, 92, 98, 176, 17, 132, 30, 89, 110, 119, 239, 124, 40, 232, 14}
 
-	wrongSecretKeyBytes = []byte{
-		10, 97, 78, 157, 239, 253, 90, 96,
-		186, 132, 074, 244, 146, 236, 044, 196,
-		68, 073, 2, 105, 123, 050, 105, 025,
-		112, 59, 172, 2, 28, 43, 127, 96,
-	}
+	messageBytes = []byte{109, 115, 103, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0}
 
-	correctSignatureBytes = []byte{
-		245, 197, 92, 221, 250, 248, 148, 187, 127, 243, 78, 118,
-		47, 71, 85, 94, 14, 64, 255, 104, 57, 37, 214, 74, 219, 194,
-		105, 9, 75, 0, 117, 5, 196, 120, 60, 128, 148, 64, 7, 78,
-		163, 8, 209, 238, 251, 136, 63, 14, 76, 157, 132, 6, 218,
-		190, 85, 36, 91, 40, 99, 45, 185, 28, 167, 12,
-	}
-
-	messageBytes = []byte{
-		84, 104, 105, 115, 32, 105, 115, 32,
-		97, 32, 116, 101, 115, 116, 32, 111,
-		102, 32, 116, 104, 101, 32, 116, 115,
-		117, 110, 97, 109, 105, 32, 97, 108,
+	publicKey = []byte{
+		115, 50, 124, 153, 59, 53, 196, 150, 168, 143, 151, 235,
+		222, 128, 136, 161, 9, 40, 139, 85, 182, 153, 68, 135,
+		62, 166, 45, 235, 251, 246, 69, 7,
 	}
 )
 
@@ -63,37 +49,32 @@ func TestVerifyProgram(t *testing.T) {
 	require.NoError(err)
 	meter := rt.Meter().GetBalance()
 
-	signingBytes := grabSecretKeyBytes(5)
-	incorrectSigningBytes := grabIncorrectSecretKeyBytes(5)
+	pubKeysBytes := grabPubKeyBytes(5)
+	incorrectPubKeysBytes := grabIncorrectPubKeyBytes(5)
 	// write bytes to memory
-	secretKeyPtr, err := runtime.WriteBytes(rt.Memory(), signingBytes)
+	pubKeysPtr, err := runtime.WriteBytes(rt.Memory(), pubKeysBytes)
 	require.NoError(err)
 	messageBytesPtr, err := runtime.WriteBytes(rt.Memory(), messageBytes)
 	require.NoError(err)
-	signingBytesPtr, err := runtime.WriteBytes(rt.Memory(), correctSignatureBytes)
+	signingBytesPtr, err := runtime.WriteBytes(rt.Memory(), signatureBytes)
 	require.NoError(err)
-	incorrectSigningBytesPtr, err := runtime.WriteBytes(rt.Memory(), incorrectSigningBytes)
+	incorrectSigningBytesPtr, err := runtime.WriteBytes(rt.Memory(), incorrectPubKeysBytes)
 	require.NoError(err)
 	// call vertify
-	result, err := rt.Call(ctx, "verify_ed_in_wasm", programIDPtr, secretKeyPtr, signingBytesPtr, messageBytesPtr)
+	result, err := rt.Call(ctx, "verify_ed_in_wasm", programIDPtr, pubKeysPtr, signingBytesPtr, messageBytesPtr)
 	require.NoError(err)
 	// ensure result is true
-	require.EqualValues(1, result[0])
-	fmt.Println("All good signing bytes result: ", result)
-	result, err = rt.Call(ctx, "verify_ed_in_wasm", programIDPtr, secretKeyPtr, incorrectSigningBytesPtr, messageBytesPtr)
+	require.Equal(uint64(1), result[0], "result should be true")
+	result, err = rt.Call(ctx, "verify_ed_in_wasm", programIDPtr, pubKeysPtr, incorrectSigningBytesPtr, messageBytesPtr)
 	require.NoError(err)
 	// ensure result is false
-	require.EqualValues(0, result[0])
-	fmt.Println("Bad signing bytes result: ", result)
-
+	require.EqualValues(uint64(0), result[0])
 	// check meter
 	meter = meter - rt.Meter().GetBalance()
 	fmt.Println("meter used: ", meter)
 
 	rt.Stop()
 }
-
-
 
 // go test -v -timeout 30s -run ^TestVerifyHostFunctionProgram$ github.com/ava-labs/hypersdk/x/programs/examples
 func TestVerifyHostFunctionProgram(t *testing.T) {
@@ -105,11 +86,25 @@ func TestVerifyHostFunctionProgram(t *testing.T) {
 	require.NoError(err)
 	meter := rt.Meter().GetBalance()
 
-	
-	result, err := rt.Call(ctx, "verify_ed_multiple_host_func", programIDPtr)
+	pubKeysBytes := grabPubKeyBytes(5)
+	// write bytes to memory
+	pubKeysPtr, err := runtime.WriteBytes(rt.Memory(), pubKeysBytes)
 	require.NoError(err)
-	fmt.Println("All good signing bytes result: ", result)
+	messageBytesPtr, err := runtime.WriteBytes(rt.Memory(), messageBytes)
+	require.NoError(err)
+	signingBytesPtr, err := runtime.WriteBytes(rt.Memory(), signatureBytes)
+	require.NoError(err)
+	invalidSigningBytesPtr, err := runtime.WriteBytes(rt.Memory(), []byte{0})
+	require.NoError(err)
 
+	result, err := rt.Call(ctx, "verify_ed_multiple_host_func", programIDPtr, pubKeysPtr, signingBytesPtr, messageBytesPtr)
+	require.NoError(err)
+	// ensure result is true
+	require.Equal(uint64(1), result[0], "result should be true")
+	result, err = rt.Call(ctx, "verify_ed_multiple_host_func", programIDPtr, pubKeysPtr, invalidSigningBytesPtr, messageBytesPtr)
+	require.NoError(err)
+	// ensure result is false
+	require.Equal(uint64(0), result[0], "result should be false")
 	// check meter
 	meter = meter - rt.Meter().GetBalance()
 	fmt.Println("meter used: ", meter)
@@ -117,21 +112,18 @@ func TestVerifyHostFunctionProgram(t *testing.T) {
 	rt.Stop()
 }
 
-func grabSecretKeyBytes(numCorrectKeys int) []byte {
-	signingBytes := []byte{}
+func grabPubKeyBytes(numCorrectKeys int) []byte {
+	pubKeys := []byte{}
 	for i := 0; i < numCorrectKeys; i++ {
-		signingBytes = append(signingBytes, secretKeyBytes...)
+		pubKeys = append(pubKeys, publicKey...)
 	}
-	return signingBytes
+	return pubKeys
 }
 
-func grabIncorrectSecretKeyBytes(numTotalKeys int) []byte {
-	if numTotalKeys < 1 {
-		return []byte{}
-	}
-
-	signingBytes := grabSecretKeyBytes(numTotalKeys - 1)
-	signingBytes = append(signingBytes, wrongSecretKeyBytes...)
+func grabIncorrectPubKeyBytes(numTotalKeys int) []byte {
+	signingBytes := grabPubKeyBytes(numTotalKeys)
+	// change one byte in the last key
+	signingBytes[len(signingBytes)-1] = 0
 	return signingBytes
 }
 
@@ -141,7 +133,7 @@ func BenchmarkVerifyProgram(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	signingBytes := grabSecretKeyBytes(4)
+	publicKeysBytes := grabPubKeyBytes(4)
 
 	b.Run("benchmark_verify_inside_guest", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
@@ -149,7 +141,7 @@ func BenchmarkVerifyProgram(b *testing.B) {
 			rt, programIDPtr, err := SetupRuntime(ctx)
 			require.NoError(err)
 			// write bytes to memory(each time) wasm consumes memory
-			secretKeyPtr, err := runtime.WriteBytes(rt.Memory(), signingBytes)
+			secretKeyPtr, err := runtime.WriteBytes(rt.Memory(), publicKeysBytes)
 			require.NoError(err)
 			messageBytesPtr, err := runtime.WriteBytes(rt.Memory(), messageBytes)
 			require.NoError(err)

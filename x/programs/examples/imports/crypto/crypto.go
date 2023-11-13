@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
+	"go.uber.org/zap"
 
 	crypto "github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
@@ -35,6 +36,7 @@ func New(log logging.Logger, db state.Mutable) *Import {
 }
 
 func (i *Import) Name() string {
+	
 	return Name
 }
 
@@ -65,13 +67,42 @@ var (
 	)
 )
 
+
+
 // verifyEDSignature verifies the signature of the message using the provided public key.
 // idPtr is the pointer to the program id.
-func (i *Import) verifyEDSignature(caller *wasmtime.Caller, idPtr int64) int32 {
+func (i *Import) verifyEDSignature(caller *wasmtime.Caller, idPtr int64, msgPtr int64, msgLength int64, signaturePtr int64, pubKeyPtr int64) int32 {
+	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	// use crypto/ed25519.Verify from hypersdk
-	msg := []byte("msg")
-	sig := crypto.Sign(msg, TestPrivateKey)
-	result := crypto.Verify(msg, TestPrivateKey.PublicKey(), sig)
-	fmt.Println("Verification result: ", result)
-	return 10
+	messageBytes, err := memory.Range(uint64(msgPtr), uint64(msgLength))
+	if err != nil {
+		i.log.Error("failed to read key from memory",
+			zap.Error(err),
+		)
+		return -1
+	}
+
+	signatureBytes, err := memory.Range(uint64(signaturePtr), crypto.SignatureLen)
+	if err != nil {
+		i.log.Error("failed to read key from memory",
+			zap.Error(err),	
+		)
+		return -1
+	}
+	sig := crypto.Signature(signatureBytes)
+
+	pubKeyBytes, err := memory.Range(uint64(pubKeyPtr), crypto.PublicKeyLen)
+	if err != nil {
+		i.log.Error("failed to read key from memory",
+			zap.Error(err),
+		)
+		return -1
+	}
+	pubKey := crypto.PublicKey(pubKeyBytes)
+
+	result := crypto.Verify(messageBytes, pubKey, sig)
+	if result {
+		return 1
+	}
+	return 0
 }

@@ -1,51 +1,53 @@
-use ed25519_dalek::{Signature, SigningKey, Signer};
+use ed25519_dalek::{Signature, SigningKey, Signer, VerifyingKey};
 use wasmlanche_sdk::{program::Program, public, types::Bytes32};
 
 // Custom Args
-pub struct EDSigningKey(ed25519_dalek::SigningKey);
+// verifying key = ed25519 pub key
+pub struct EDVerifyingKey(ed25519_dalek::VerifyingKey);
 pub struct EDSignatureBytes([u8; 64]);
-pub struct BatchSigningKeys(pub Vec<EDSigningKey>);
+pub struct BatchPubKeys(pub Vec<EDVerifyingKey>);
 
-impl From<i64> for EDSigningKey {
+impl From<i64> for EDVerifyingKey {
     fn from(value: i64) -> Self {
         let bytes = Bytes32::from(value);
-        let mut signing_key_bytes: [u8; 32] = [0; 32];
-        signing_key_bytes.copy_from_slice(bytes.as_bytes());
-        Self(SigningKey::from_bytes(&signing_key_bytes))
+        let mut verifying_key_bytes: [u8; 32] = [0; 32];
+        verifying_key_bytes.copy_from_slice(bytes.as_bytes());
+        // TODO: is unwrap ok here
+        Self(VerifyingKey::from_bytes(&verifying_key_bytes).unwrap())
     }
 }
 
-impl BatchSigningKeys {
+impl BatchPubKeys {
     const TEMP_LEN: usize = 5;
-    pub fn push(&mut self, signing_key: EDSigningKey) {
-        self.0.push(signing_key);
+    pub fn push(&mut self, pub_key: EDVerifyingKey) {
+        self.0.push(pub_key);
     }
     pub fn len(&self) -> usize {
         self.0.len()
     }
 }
 
-impl From<i64> for BatchSigningKeys {
+impl From<i64> for BatchPubKeys {
     fn from(value: i64) -> Self {
-        let mut signing_keys : BatchSigningKeys = BatchSigningKeys(Vec::new());
+        let mut pub_keys : BatchPubKeys = BatchPubKeys(Vec::new());
         // in the meantime we need to hardcode this
         // once we have dynamic args we can marshal the length in go
         // and unmarshal in the macro
-        for i in 0..BatchSigningKeys::TEMP_LEN {
+        for i in 0..BatchPubKeys::TEMP_LEN {
             let ptr : i64 = value + (i as i64) * 32;
-            signing_keys.push(EDSigningKey::from(ptr));
+            pub_keys.push(EDVerifyingKey::from(ptr));
         }
 
-        if signing_keys.len() != 5 {
+        if pub_keys.len() != 5 {
             panic!("Expected 5 initialized values");
         }
 
-        signing_keys
+        pub_keys
     }
 }
 
-impl EDSigningKey {
-    pub fn as_key(&self) -> &ed25519_dalek::SigningKey {
+impl EDVerifyingKey {
+    pub fn as_key(&self) -> &ed25519_dalek::VerifyingKey {
         &self.0
     }
 }
