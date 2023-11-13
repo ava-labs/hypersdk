@@ -27,7 +27,7 @@ type Import struct {
 	registered bool
 }
 
-// New returns a new program invoke host module which can perform program to program calls.
+// New returns a new crypto host module which can perform cryptographic operations.
 func New(log logging.Logger, db state.Mutable) *Import {
 	return &Import{
 		db:  db,
@@ -36,7 +36,6 @@ func New(log logging.Logger, db state.Mutable) *Import {
 }
 
 func (i *Import) Name() string {
-	
 	return Name
 }
 
@@ -54,23 +53,8 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtim
 	return nil
 }
 
-var (
-	TestPrivateKey = crypto.PrivateKey(
-		[crypto.PrivateKeyLen]byte{
-			32, 241, 118, 222, 210, 13, 164, 128, 3, 18,
-			109, 215, 176, 215, 168, 171, 194, 181, 4, 11,
-			253, 199, 173, 240, 107, 148, 127, 190, 48, 164,
-			12, 48, 115, 50, 124, 153, 59, 53, 196, 150, 168,
-			143, 151, 235, 222, 128, 136, 161, 9, 40, 139, 85,
-			182, 153, 68, 135, 62, 166, 45, 235, 251, 246, 69, 7,
-		},
-	)
-)
-
-
-
 // verifyEDSignature verifies the signature of the message using the provided public key.
-// idPtr is the pointer to the program id.
+// Returns 1 if the signature is valid, 0 otherwise.
 func (i *Import) verifyEDSignature(caller *wasmtime.Caller, idPtr int64, msgPtr int64, msgLength int64, signaturePtr int64, pubKeyPtr int64) int32 {
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	// use crypto/ed25519.Verify from hypersdk

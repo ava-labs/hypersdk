@@ -6,47 +6,47 @@ mod types;
 use types::{BatchPubKeys, EDSignatureBytes};
 
 /// Runs multiple ED25519 signature verifications in Wasm.
-/// Returns true if every public key in [pub_keys] verifies [signature_bytes] against [message].
-/// Returns false if otherwise.
+/// Returns the number of successfull verifications of [signature_bytes] 
+/// against [message] using the public keys in [pub_keys].
 #[public]
 pub fn verify_ed_in_wasm(
     _: Program,
     pub_keys: BatchPubKeys,
     signature_bytes: EDSignatureBytes,
     message: Bytes32,
-) -> bool {
-    let mut result = true;
+) -> i32 {
+    let mut success_count = 0;
     let signature: Signature = Signature::from_bytes(signature_bytes.as_bytes());
     // iterate through batch pub keys
     for pub_key in pub_keys.0.iter() {
         match pub_key.as_key().verify(message.as_bytes(), &signature) {
-            Ok(_) => {}
-            Err(_) => result = false,
+            Ok(_) => {success_count += 1;}
+            Err(_) => {}
         }
     }
-    result
+    success_count
 }
 
 /// Runs multiple ED25519 signature verifications in the host.
-/// Returns true if every public key in [pub_keys] verifies [signature_bytes] against [message].
-/// Returns false if otherwise.
+/// Returns the number of successfull verifications of [signature_bytes] 
+/// against [message] using the public keys in [pub_keys].
 #[public]
 pub fn verify_ed_multiple_host_func(
     program: Program,
     pub_keys: BatchPubKeys,
     signature_bytes: EDSignatureBytes,
     message: Bytes32,
-) -> bool {
-    let mut result = true;
+) -> i32 {
+    let mut success_count = 0;
     let signature: Signature = Signature::from_bytes(signature_bytes.as_bytes());
     // iterate through batch pub keys
     for pub_key in pub_keys.0.iter() {
         match verify_ed25519(&program, message, &signature, pub_key.as_key()) {
-            1 => {}
-            _ => result = false,
+            1 => {success_count += 1;}
+            _ => {},
         }
     }
-    result
+    success_count
 }
 
 // #[public]
