@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/x/programs/examples/imports/crypto"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
@@ -92,6 +93,30 @@ func TestVerifyProgram(t *testing.T) {
 	rt.Stop()
 }
 
+
+
+// go test -v -timeout 30s -run ^TestVerifyHostFunctionProgram$ github.com/ava-labs/hypersdk/x/programs/examples
+func TestVerifyHostFunctionProgram(t *testing.T) {
+	require := require.New(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	rt, programIDPtr, err := SetupRuntime(ctx)
+	require.NoError(err)
+	meter := rt.Meter().GetBalance()
+
+	
+	result, err := rt.Call(ctx, "verify_ed_multiple_host_func", programIDPtr)
+	require.NoError(err)
+	fmt.Println("All good signing bytes result: ", result)
+
+	// check meter
+	meter = meter - rt.Meter().GetBalance()
+	fmt.Println("meter used: ", meter)
+
+	rt.Stop()
+}
+
 func grabSecretKeyBytes(numCorrectKeys int) []byte {
 	signingBytes := []byte{}
 	for i := 0; i < numCorrectKeys; i++ {
@@ -152,6 +177,9 @@ func SetupRuntime(ctx context.Context) (runtime.Runtime, uint64, error) {
 	})
 	supported.Register("program", func() runtime.Import {
 		return program.New(log, db, cfg)
+	})
+	supported.Register("crypto", func() runtime.Import {
+		return crypto.New(log, db)
 	})
 
 	rt := runtime.New(log, cfg, supported.Imports())
