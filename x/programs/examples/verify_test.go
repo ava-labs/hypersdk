@@ -54,27 +54,28 @@ func TestVerifyProgram(t *testing.T) {
 
 	pubKeysBytes := grabPubKeyBytes(numPubKeys)
 	invalidPubKeysBytes := grabInvalidPubKeyBytes(numPubKeys, numInvalidKeys)
+
 	// write bytes to memory
 	pubKeysPtr, err := runtime.WriteBytes(rt.Memory(), pubKeysBytes)
 	require.NoError(err)
-
 	messageBytesPtr, err := runtime.WriteBytes(rt.Memory(), messageBytes)
 	require.NoError(err)
 	signingBytesPtr, err := runtime.WriteBytes(rt.Memory(), signatureBytes)
 	require.NoError(err)
 	invalidSigningBytesPtr, err := runtime.WriteBytes(rt.Memory(), invalidPubKeysBytes)
 	require.NoError(err)
+
 	// call vertify with correct signatures
 	result, err := rt.Call(ctx, "verify_ed_in_wasm", programIDPtr, pubKeysPtr, signingBytesPtr, messageBytesPtr)
 	require.NoError(err)
-	// ensure result is true
 	require.Equal(uint64(numPubKeys), result[0], "Verified an invalid # of signatures")
+
+	// call vertify with some invalid signatures
 	result, err = rt.Call(ctx, "verify_ed_in_wasm", programIDPtr, invalidSigningBytesPtr, signingBytesPtr, messageBytesPtr)
 	require.NoError(err)
-	fmt.Println("result: ", result)
-	// ensure result is false
 	require.Equal(uint64(numPubKeys-numInvalidKeys), result[0], "Verified an invalid # of signatures")
-	// check meter
+
+	// print meter for reference
 	meter = meter - rt.Meter().GetBalance()
 	fmt.Println("meter used: ", meter)
 
@@ -93,6 +94,7 @@ func TestVerifyHostFunctionProgram(t *testing.T) {
 
 	pubKeysBytes := grabPubKeyBytes(numPubKeys)
 	invalidPubKeysBytes := grabInvalidPubKeyBytes(numPubKeys, numInvalidKeys)
+	
 	// write bytes to memory
 	pubKeysPtr, err := runtime.WriteBytes(rt.Memory(), pubKeysBytes)
 	require.NoError(err)
@@ -105,18 +107,22 @@ func TestVerifyHostFunctionProgram(t *testing.T) {
 	invalidSigningBytesPtr, err := runtime.WriteBytes(rt.Memory(), []byte{0})
 	require.NoError(err)
 
+	// call vertify with correct signatures
 	result, err := rt.Call(ctx, "verify_ed_multiple_host_func", programIDPtr, pubKeysPtr, signingBytesPtr, messageBytesPtr)
 	require.NoError(err)
-	// ensure result is true
 	require.Equal(uint64(numPubKeys), result[0], "Verified an invalid # of signatures")
+
+	// call vertify with all invalid signatures
 	result, err = rt.Call(ctx, "verify_ed_multiple_host_func", programIDPtr, pubKeysPtr, invalidSigningBytesPtr, messageBytesPtr)
 	require.NoError(err)
-	// ensure result is false
 	require.Equal(uint64(0), result[0], "Verified an invalid # of signatures")
+
+	// call vertify with some invalid signatures
 	result, err = rt.Call(ctx, "verify_ed_multiple_host_func", programIDPtr, invalidPubKeysPtr, signingBytesPtr, messageBytesPtr)
 	require.NoError(err)
 	require.Equal(uint64(numPubKeys-numInvalidKeys), result[0], "Verified an invalid # of signatures")
-	// check meter
+
+	// print meter for reference
 	meter = meter - rt.Meter().GetBalance()
 	fmt.Println("meter used: ", meter)
 
