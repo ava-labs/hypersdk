@@ -210,13 +210,13 @@ func (vm *VM) Initialize(
 		BranchFactor: vm.genesis.GetStateBranchFactor(),
 		// RootGenConcurrency limits the number of goroutines
 		// that will be used across all concurrent root generations.
-		RootGenConcurrency:        uint(rootGenParallelism),
-		EvictionBatchSize:         uint(vm.config.GetStateEvictionBatchSize()),
-		HistoryLength:             uint(vm.config.GetStateHistoryLength()),
-		IntermediateNodeCacheSize: uint(vm.config.GetIntermediateNodeCacheSize()),
-		ValueNodeCacheSize:        uint(vm.config.GetValueNodeCacheSize()),
-		Reg:                       merkleRegistry,
-		Tracer:                    vm.tracer,
+		RootGenConcurrency: uint(rootGenParallelism),
+		EvictionBatchSize:  uint(vm.config.GetStateEvictionBatchSize()),
+		HistoryLength:      uint(vm.config.GetStateHistoryLength()),
+		NodeCacheSize:      uint(vm.config.GetIntermediateNodeCacheSize()),
+		ValueCacheSize:     uint(vm.config.GetValueNodeCacheSize()),
+		Reg:                merkleRegistry,
+		Tracer:             vm.tracer,
 	})
 	if err != nil {
 		return err
