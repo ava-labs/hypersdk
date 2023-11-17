@@ -60,15 +60,14 @@ func (b *StatelessBlock) Execute(
 		e.Run(stateKeys, func() error {
 			// Fetch keys from cache
 			var (
-				coldReads = make(map[string]uint16, len(stateKeys))
-				warmReads = make(map[string]uint16, len(stateKeys))
-				storage   = make(map[string][]byte, len(stateKeys))
-				toLookup  = make([]string, 0, len(stateKeys))
+				reads    = make(map[string]uint16, len(stateKeys))
+				storage  = make(map[string][]byte, len(stateKeys))
+				toLookup = make([]string, 0, len(stateKeys))
 			)
 			cacheLock.RLock()
 			for k := range stateKeys {
 				if v, ok := cache[k]; ok {
-					warmReads[k] = v.chunks
+					reads[k] = v.chunks
 					if v.exists {
 						storage[k] = v.v
 					}
@@ -85,7 +84,7 @@ func (b *StatelessBlock) Execute(
 				for _, k := range toLookup {
 					v, err := im.GetValue(ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
-						coldReads[k] = 0
+						reads[k] = 0
 						toCache[k] = &fetchData{nil, false, 0}
 						continue
 					} else if err != nil {
@@ -97,7 +96,7 @@ func (b *StatelessBlock) Execute(
 					if !ok {
 						return ErrInvalidKeyValue
 					}
-					coldReads[k] = numChunks
+					reads[k] = numChunks
 					toCache[k] = &fetchData{v, true, numChunks}
 					storage[k] = v
 				}
@@ -125,7 +124,7 @@ func (b *StatelessBlock) Execute(
 					return ctx.Err()
 				}
 			}
-			result, err := tx.Execute(ctx, feeManager, authCUs, coldReads, warmReads, sm, r, tsv, t, ok && warpVerified)
+			result, err := tx.Execute(ctx, feeManager, authCUs, reads, sm, r, tsv, t, ok && warpVerified)
 			if err != nil {
 				return err
 			}

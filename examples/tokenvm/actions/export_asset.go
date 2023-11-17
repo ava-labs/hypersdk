@@ -13,8 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
@@ -23,34 +21,33 @@ import (
 var _ chain.Action = (*ExportAsset)(nil)
 
 type ExportAsset struct {
-	To          ed25519.PublicKey `json:"to"`
-	Asset       ids.ID            `json:"asset"`
-	Value       uint64            `json:"value"`
-	Return      bool              `json:"return"`
-	Reward      uint64            `json:"reward"`
-	SwapIn      uint64            `json:"swapIn"`
-	AssetOut    ids.ID            `json:"assetOut"`
-	SwapOut     uint64            `json:"swapOut"`
-	SwapExpiry  int64             `json:"swapExpiry"`
-	Destination ids.ID            `json:"destination"`
+	To          codec.Address `json:"to"`
+	Asset       ids.ID        `json:"asset"`
+	Value       uint64        `json:"value"`
+	Return      bool          `json:"return"`
+	Reward      uint64        `json:"reward"`
+	SwapIn      uint64        `json:"swapIn"`
+	AssetOut    ids.ID        `json:"assetOut"`
+	SwapOut     uint64        `json:"swapOut"`
+	SwapExpiry  int64         `json:"swapExpiry"`
+	Destination ids.ID        `json:"destination"`
 }
 
 func (*ExportAsset) GetTypeID() uint8 {
 	return exportAssetID
 }
 
-func (e *ExportAsset) StateKeys(rauth chain.Auth, _ ids.ID) []string {
-	actor := auth.GetActor(rauth)
+func (e *ExportAsset) StateKeys(auth chain.Auth, _ ids.ID) []string {
 	if e.Return {
 		return []string{
 			string(storage.AssetKey(e.Asset)),
-			string(storage.BalanceKey(actor, e.Asset)),
+			string(storage.BalanceKey(auth.Actor(), e.Asset)),
 		}
 	}
 	return []string{
 		string(storage.AssetKey(e.Asset)),
 		string(storage.LoanKey(e.Asset, e.Destination)),
-		string(storage.BalanceKey(actor, e.Asset)),
+		string(storage.BalanceKey(auth.Actor(), e.Asset)),
 	}
 }
 
@@ -68,7 +65,7 @@ func (*ExportAsset) OutputsWarpMessage() bool {
 func (e *ExportAsset) executeReturn(
 	ctx context.Context,
 	mu state.Mutable,
-	actor ed25519.PublicKey,
+	actor codec.Address,
 	txID ids.ID,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	exists, symbol, decimals, metadata, supply, _, isWarp, err := storage.GetAsset(ctx, mu, e.Asset)
@@ -97,7 +94,7 @@ func (e *ExportAsset) executeReturn(
 		return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if newSupply > 0 {
-		if err := storage.SetAsset(ctx, mu, e.Asset, symbol, decimals, metadata, newSupply, ed25519.EmptyPublicKey, true); err != nil {
+		if err := storage.SetAsset(ctx, mu, e.Asset, symbol, decimals, metadata, newSupply, codec.EmptyAddress, true); err != nil {
 			return false, ExportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 		}
 	} else {
@@ -146,7 +143,7 @@ func (e *ExportAsset) executeReturn(
 func (e *ExportAsset) executeLoan(
 	ctx context.Context,
 	mu state.Mutable,
-	actor ed25519.PublicKey,
+	actor codec.Address,
 	txID ids.ID,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	exists, symbol, decimals, _, _, _, isWarp, err := storage.GetAsset(ctx, mu, e.Asset)
@@ -205,11 +202,10 @@ func (e *ExportAsset) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	rauth chain.Auth,
+	auth chain.Auth,
 	txID ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	actor := auth.GetActor(rauth)
 	if e.Value == 0 {
 		return false, ExportAssetComputeUnits, OutputValueZero, nil, nil
 	}
@@ -220,9 +216,9 @@ func (e *ExportAsset) Execute(
 	}
 	// TODO: check if destination is ourselves
 	if e.Return {
-		return e.executeReturn(ctx, mu, actor, txID)
+		return e.executeReturn(ctx, mu, auth.Actor(), txID)
 	}
-	return e.executeLoan(ctx, mu, actor, txID)
+	return e.executeLoan(ctx, mu, auth.Actor(), txID)
 }
 
 func (*ExportAsset) MaxComputeUnits(chain.Rules) uint64 {
@@ -230,7 +226,7 @@ func (*ExportAsset) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*ExportAsset) Size() int {
-	return ed25519.PublicKeyLen + consts.IDLen +
+	return codec.AddressLen + consts.IDLen +
 		consts.Uint64Len + consts.BoolLen +
 		consts.Uint64Len + /* op bits */
 		consts.Uint64Len + consts.Uint64Len + consts.IDLen + consts.Uint64Len +
@@ -238,7 +234,7 @@ func (*ExportAsset) Size() int {
 }
 
 func (e *ExportAsset) Marshal(p *codec.Packer) {
-	p.PackPublicKey(e.To)
+	p.PackAddress(e.To)
 	p.PackID(e.Asset)
 	p.PackUint64(e.Value)
 	p.PackBool(e.Return)
@@ -254,8 +250,8 @@ func (e *ExportAsset) Marshal(p *codec.Packer) {
 
 func UnmarshalExportAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var export ExportAsset
-	p.UnpackPublicKey(false, &export.To) // can transfer to blackhole
-	p.UnpackID(false, &export.Asset)     // may export native
+	p.UnpackAddress(&export.To)
+	p.UnpackID(false, &export.Asset) // may export native
 	export.Value = p.UnpackUint64(true)
 	export.Return = p.UnpackBool()
 	op := p.NewOptionalReader()

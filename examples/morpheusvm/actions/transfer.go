@@ -11,8 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
+	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
@@ -22,19 +21,19 @@ var _ chain.Action = (*Transfer)(nil)
 
 type Transfer struct {
 	// To is the recipient of the [Value].
-	To ed25519.PublicKey `json:"to"`
+	To codec.Address `json:"to"`
 
 	// Amount are transferred to [To].
 	Value uint64 `json:"value"`
 }
 
 func (*Transfer) GetTypeID() uint8 {
-	return transferID
+	return mconsts.TransferID
 }
 
-func (t *Transfer) StateKeys(rauth chain.Auth, _ ids.ID) []string {
+func (t *Transfer) StateKeys(auth chain.Auth, _ ids.ID) []string {
 	return []string{
-		string(storage.BalanceKey(auth.GetActor(rauth))),
+		string(storage.BalanceKey(auth.Actor())),
 		string(storage.BalanceKey(t.To)),
 	}
 }
@@ -52,15 +51,14 @@ func (t *Transfer) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	rauth chain.Auth,
+	auth chain.Auth,
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	actor := auth.GetActor(rauth)
 	if t.Value == 0 {
 		return false, 1, OutputValueZero, nil, nil
 	}
-	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, auth.Actor(), t.Value); err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
@@ -74,19 +72,22 @@ func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*Transfer) Size() int {
-	return ed25519.PublicKeyLen + consts.Uint64Len
+	return codec.AddressLen + consts.Uint64Len
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {
-	p.PackPublicKey(t.To)
+	p.PackAddress(t.To)
 	p.PackUint64(t.Value)
 }
 
 func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var transfer Transfer
-	p.UnpackPublicKey(false, &transfer.To) // can transfer to blackhole
+	p.UnpackAddress(&transfer.To) // we do not verify the typeID is valid
 	transfer.Value = p.UnpackUint64(true)
-	return &transfer, p.Err()
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
+	return &transfer, nil
 }
 
 func (*Transfer) ValidRange(chain.Rules) (int64, int64) {

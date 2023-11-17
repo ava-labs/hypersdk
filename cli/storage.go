@@ -9,8 +9,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -67,11 +67,10 @@ func (h *Handler) GetDefaultChain(log bool) (ids.ID, []string, error) {
 	return chainID, uris, nil
 }
 
-func (h *Handler) StoreKey(privateKey ed25519.PrivateKey) error {
-	publicKey := privateKey.PublicKey()
-	k := make([]byte, 1+ed25519.PublicKeyLen)
+func (h *Handler) StoreKey(priv *PrivateKey) error {
+	k := make([]byte, 1+codec.AddressLen)
 	k[0] = keyPrefix
-	copy(k[1:], publicKey[:])
+	copy(k[1:], priv.Address[:])
 	has, err := h.db.Has(k)
 	if err != nil {
 		return err
@@ -79,57 +78,66 @@ func (h *Handler) StoreKey(privateKey ed25519.PrivateKey) error {
 	if has {
 		return ErrDuplicate
 	}
-	return h.db.Put(k, privateKey[:])
+	return h.db.Put(k, priv.Bytes)
 }
 
-func (h *Handler) GetKey(publicKey ed25519.PublicKey) (ed25519.PrivateKey, error) {
-	k := make([]byte, 1+ed25519.PublicKeyLen)
+func (h *Handler) GetKey(addr codec.Address) ([]byte, error) {
+	k := make([]byte, 1+codec.AddressLen)
 	k[0] = keyPrefix
-	copy(k[1:], publicKey[:])
+	copy(k[1:], addr[:])
 	v, err := h.db.Get(k)
+	// TODO: return error if not found?
 	if errors.Is(err, database.ErrNotFound) {
-		return ed25519.EmptyPrivateKey, nil
+		return nil, nil
 	}
 	if err != nil {
-		return ed25519.EmptyPrivateKey, err
+		return nil, err
 	}
-	return ed25519.PrivateKey(v), nil
+	return v, nil
 }
 
-func (h *Handler) GetKeys() ([]ed25519.PrivateKey, error) {
+type PrivateKey struct {
+	Address codec.Address
+	Bytes   []byte
+}
+
+func (h *Handler) GetKeys() ([]*PrivateKey, error) {
 	iter := h.db.NewIteratorWithPrefix([]byte{keyPrefix})
 	defer iter.Release()
 
-	privateKeys := []ed25519.PrivateKey{}
+	privateKeys := []*PrivateKey{}
 	for iter.Next() {
 		// It is safe to use these bytes directly because the database copies the
 		// iterator value for us.
-		privateKeys = append(privateKeys, ed25519.PrivateKey(iter.Value()))
+		privateKeys = append(privateKeys, &PrivateKey{
+			Address: codec.Address(iter.Key()[1:]),
+			Bytes:   iter.Value(),
+		})
 	}
 	return privateKeys, iter.Error()
 }
 
-func (h *Handler) StoreDefaultKey(pk ed25519.PublicKey) error {
-	return h.StoreDefault(defaultKeyKey, pk[:])
+func (h *Handler) StoreDefaultKey(addr codec.Address) error {
+	return h.StoreDefault(defaultKeyKey, addr[:])
 }
 
-func (h *Handler) GetDefaultKey(log bool) (ed25519.PrivateKey, error) {
-	v, err := h.GetDefault(defaultKeyKey)
+func (h *Handler) GetDefaultKey(log bool) (codec.Address, []byte, error) {
+	raddr, err := h.GetDefault(defaultKeyKey)
 	if err != nil {
-		return ed25519.EmptyPrivateKey, err
+		return codec.EmptyAddress, nil, err
 	}
-	if len(v) == 0 {
-		return ed25519.EmptyPrivateKey, ErrNoKeys
+	if len(raddr) == 0 {
+		return codec.EmptyAddress, nil, ErrNoKeys
 	}
-	publicKey := ed25519.PublicKey(v)
-	priv, err := h.GetKey(publicKey)
+	addr := codec.Address(raddr)
+	priv, err := h.GetKey(addr)
 	if err != nil {
-		return ed25519.EmptyPrivateKey, err
+		return codec.EmptyAddress, nil, err
 	}
 	if log {
-		utils.Outf("{{yellow}}address:{{/}} %s\n", h.c.Address(publicKey))
+		utils.Outf("{{yellow}}address:{{/}} %s\n", h.c.Address(addr))
 	}
-	return priv, nil
+	return addr, priv, nil
 }
 
 func (h *Handler) StoreChain(chainID ids.ID, rpc string) error {

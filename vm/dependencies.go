@@ -5,24 +5,25 @@ package vm
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	atrace "github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/state"
 	trace "github.com/ava-labs/hypersdk/trace"
 )
 
-type Handlers map[string]*common.HTTPHandler
+type Handlers map[string]http.Handler
 
 type Config interface {
 	GetTraceConfig() *trace.Config
@@ -30,8 +31,8 @@ type Config interface {
 	GetSignatureVerificationCores() int
 	GetRootGenerationCores() int
 	GetTransactionExecutionCores() int
-	GetMempoolPayerSize() int
-	GetMempoolExemptPayers() [][]byte
+	GetMempoolSponsorSize() int
+	GetMempoolExemptSponsors() []codec.Address
 	GetVerifySignatures() bool
 	GetStreamingBacklogSize() int
 	GetStateHistoryLength() int        // how many roots back of data to keep to serve state queries

@@ -6,12 +6,9 @@ package ed25519
 import (
 	"crypto/ed25519"
 	"crypto/rand"
-	"os"
-	"path/filepath"
 	"strconv"
 	"testing"
 
-	"github.com/ava-labs/hypersdk/crypto"
 	oed25519 "github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
 	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519/extra/cache"
 
@@ -34,12 +31,6 @@ var (
 		222, 128, 136, 161, 9, 40, 139, 85, 182, 153, 68, 135,
 		62, 166, 45, 235, 251, 246, 69, 7,
 	}
-	TestHRP           = "test"
-	TestAddressString = "test1wve8exfmxhzfd2y0jl4aaqyg5yyj3z6" +
-		"4k6v5fpe75ck7h7lkg5rsf7cgc6" // this is the address associated with TestPublicKey and TestHRP
-	TestPrivateKeyHex = "20f176ded20da48003126dd7b0d7a8abc" +
-		"2b5040bfdc7adf06b947fbe30a40c3073327c993b35c496a88f97eb" +
-		"de8088a109288b55b69944873ea62debfbf64507"
 )
 
 func TestGeneratePrivateKeyFormat(t *testing.T) {
@@ -88,123 +79,6 @@ func TestPublicKeyFormat(t *testing.T) {
 	require.Len(pubKey, PublicKeyLen, "PublicKey has incorrect length")
 }
 
-func TestAddress(t *testing.T) {
-	require := require.New(t)
-	var pubKey PublicKey
-	copy(pubKey[:], TestPublicKey)
-	addr := Address(TestHRP, pubKey)
-	require.Equal(addr, TestAddressString, "Unexpected Address")
-}
-
-func TestParseAddressIncorrectHrt(t *testing.T) {
-	require := require.New(t)
-	pubkey, err := ParseAddress("wronghrt", TestAddressString)
-	require.ErrorIs(err, crypto.ErrIncorrectHrp, "ErrIncorrectHrp not returned")
-	require.Equal(
-		pubkey,
-		PublicKey(EmptyPublicKey),
-		"Unexpected PublicKey from ParseAddress",
-	)
-}
-
-func TestParseAddressIncorrectSaddr(t *testing.T) {
-	require := require.New(t)
-
-	pubkey, err := ParseAddress(TestHRP, "incorrecttestaddressstring")
-	require.Error(err, "Error was not thrown after call with incorrect parameters")
-	require.Equal(
-		pubkey,
-		PublicKey(EmptyPublicKey),
-		"Unexpected PublicKey from ParseAddress",
-	)
-}
-
-func TestParseAddress(t *testing.T) {
-	require := require.New(t)
-
-	var expectedPubkey PublicKey
-	copy(expectedPubkey[:], TestPublicKey)
-	pubkey, err := ParseAddress(TestHRP, TestAddressString)
-	require.NoError(err, "Error returned by ParseAddress")
-	require.Equal(pubkey, expectedPubkey, "Unexpected PublicKey from ParseAddress")
-}
-
-func TestSaveKey(t *testing.T) {
-	require := require.New(t)
-
-	tempDir := os.TempDir()
-	filename := filepath.Join(tempDir, "SaveKey")
-
-	err := TestPrivateKey.Save(filename)
-	require.NoError(err, "Error during call to SaveKey")
-	require.FileExists(filename, "SaveKey did not create file")
-	// Check correct key was saved in file
-	bytes, err := os.ReadFile(filename)
-	var privKey PrivateKey
-	copy(privKey[:], bytes)
-	require.NoError(err, "Reading saved file threw an error")
-	require.Equal(TestPrivateKey, privKey, "Key is different than saved key")
-	// Remove File
-	_ = os.Remove(filename)
-}
-
-func TestLoadKeyIncorrectKey(t *testing.T) {
-	// Creates dummy file with invalid key size
-	// Checks that LoadKey returns emptyprivatekey and err
-	require := require.New(t)
-	invalidPrivKey := []byte{1, 2, 3, 4, 5}
-
-	// Writes
-	f, err := os.CreateTemp("", "TestLoadKey*")
-	require.NoError(err)
-	fileName := f.Name()
-
-	err = os.WriteFile(fileName, invalidPrivKey, 0o600)
-	require.NoError(err, "Error writing using OS during tests")
-	err = f.Close()
-	require.NoError(err, "Error closing file during tests")
-
-	privKey, err := LoadKey(fileName)
-
-	// Validate
-	require.ErrorIs(err, crypto.ErrInvalidPrivateKey,
-		"ErrInvalidPrivateKey was not returned")
-	require.Equal(privKey, PrivateKey(EmptyPrivateKey))
-
-	// Remove file
-	_ = os.Remove(fileName)
-}
-
-func TestLoadKeyInvalidFile(t *testing.T) {
-	require := require.New(t)
-
-	filename := "FileNameDoesntExist"
-	privKey, err := LoadKey(filename)
-	require.Error(err, "Error was not returned")
-	require.Equal(privKey, PrivateKey(EmptyPrivateKey),
-		"EmptyPrivateKey was not returned")
-}
-
-func TestLoadKey(t *testing.T) {
-	require := require.New(t)
-	// Creates dummy file with valid key size
-	// Checks the returned value was the key in the file
-	f, err := os.CreateTemp("", "TestLoadKey*")
-	require.NoError(err)
-	fileName := f.Name()
-
-	_, err = f.Write(TestPrivateKey[:])
-	require.NoError(err)
-	err = f.Close()
-	require.NoError(err)
-
-	privKey, err := LoadKey(fileName)
-	// Validate
-	require.NoError(err, "Error was incorrectly returned during LoadKey")
-	require.Equal(privKey, TestPrivateKey, "PrivateKey was different than expected")
-	_ = os.Remove(fileName)
-}
-
 func TestSignSignatureValid(t *testing.T) {
 	require := require.New(t)
 
@@ -236,26 +110,6 @@ func TestVerifyInvalidParams(t *testing.T) {
 
 	require.False(Verify(difMsg, TestPrivateKey.PublicKey(), sig),
 		"Verify incorrectly verified a message")
-}
-
-func TestHexToKeyInvalidKey(t *testing.T) {
-	require := require.New(t)
-	invalidHex := "1234"
-	hex, err := HexToKey(invalidHex)
-	require.ErrorIs(err, crypto.ErrInvalidPrivateKey, "Incorrect error returned")
-	require.Equal(PrivateKey(EmptyPrivateKey), hex)
-}
-
-func TestHexToKey(t *testing.T) {
-	require := require.New(t)
-	hex, err := HexToKey(TestPrivateKeyHex)
-	require.NoError(err, "Incorrect error returned")
-	require.Equal(TestPrivateKey, hex)
-}
-
-func TestKeyToHex(t *testing.T) {
-	require := require.New(t)
-	require.Equal(TestPrivateKeyHex, TestPrivateKey.ToHex())
 }
 
 func BenchmarkStdLibVerifySingle(b *testing.B) {

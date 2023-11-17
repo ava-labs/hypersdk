@@ -17,12 +17,12 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/fatih/color"
@@ -405,20 +405,22 @@ var _ = ginkgo.BeforeSuite(func() {
 	}
 
 	// Load default pk
-	priv, err = ed25519.HexToKey(
+	privBytes, err := codec.LoadHex(
 		"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
+		ed25519.PrivateKeyLen,
 	)
 	gomega.Ω(err).Should(gomega.BeNil())
+	priv = ed25519.PrivateKey(privBytes)
 	factory = auth.NewED25519Factory(priv)
-	rsender = priv.PublicKey()
-	sender = utils.Address(rsender)
+	rsender = auth.NewED25519Address(priv.PublicKey())
+	sender = codec.MustAddressBech32(consts.HRP, rsender)
 	hutils.Outf("\n{{yellow}}$ loaded address:{{/}} %s\n\n", sender)
 })
 
 var (
 	priv    ed25519.PrivateKey
 	factory *auth.ED25519Factory
-	rsender ed25519.PublicKey
+	rsender codec.Address
 	sender  string
 
 	instancesA []instance
@@ -518,7 +520,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		aother := utils.Address(other.PublicKey())
+		aother := auth.NewED25519Address(other.PublicKey())
 
 		ginkgo.By("issue Transfer to the first node", func() {
 			// Generate transaction
@@ -529,7 +531,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    other.PublicKey(),
+					To:    aother,
 					Value: sendAmount,
 				},
 				factory,
@@ -576,7 +578,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 				}
 
 				// Check balance of recipient
-				balance, err := inst.tcli.Balance(context.Background(), aother, ids.Empty)
+				balance, err := inst.tcli.Balance(context.Background(), codec.MustAddressBech32(consts.HRP, aother), ids.Empty)
 				gomega.Ω(err).Should(gomega.BeNil())
 				gomega.Ω(balance).Should(gomega.Equal(sendAmount))
 			}
@@ -586,7 +588,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	ginkgo.It("performs a warp transfer of the native asset", func() {
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		aother := utils.Address(other.PublicKey())
+		aother := codec.MustAddressBech32(consts.HRP, auth.NewED25519Address(other.PublicKey()))
 		source, err := ids.FromString(blockchainIDA)
 		gomega.Ω(err).Should(gomega.BeNil())
 		destination, err := ids.FromString(blockchainIDB)
@@ -607,7 +609,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 				parser,
 				nil,
 				&actions.ExportAsset{
-					To:          other.PublicKey(),
+					To:          auth.NewED25519Address(other.PublicKey()),
 					Asset:       ids.Empty,
 					Value:       sendAmount,
 					Return:      false,
@@ -653,7 +655,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 				parser,
 				nil,
 				&actions.Transfer{
-					To:    other.PublicKey(),
+					To:    auth.NewED25519Address(other.PublicKey()),
 					Asset: ids.Empty,
 					Value: 500_000_000,
 				},
@@ -794,7 +796,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(decimals).Should(gomega.Equal(uint8(consts.Decimals)))
 			gomega.Ω(metadata).Should(gomega.Equal(actions.ImportedAssetMetadata(ids.Empty, bIDA)))
 			gomega.Ω(supply).Should(gomega.Equal(sendAmount))
-			gomega.Ω(owner).Should(gomega.Equal(utils.Address(ed25519.EmptyPublicKey)))
+			gomega.Ω(owner).Should(gomega.Equal(codec.MustAddressBech32(consts.HRP, codec.EmptyAddress)))
 			gomega.Ω(warp).Should(gomega.BeTrue())
 		})
 
@@ -887,7 +889,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(decimals).Should(gomega.Equal(uint8(consts.Decimals)))
 			gomega.Ω(metadata).Should(gomega.Equal(actions.ImportedAssetMetadata(ids.Empty, bIDA)))
 			gomega.Ω(supply).Should(gomega.Equal(uint64(2900)))
-			gomega.Ω(owner).Should(gomega.Equal(utils.Address(ed25519.EmptyPublicKey)))
+			gomega.Ω(owner).Should(gomega.Equal(codec.MustAddressBech32(consts.HRP, codec.EmptyAddress)))
 			gomega.Ω(warp).Should(gomega.BeTrue())
 		})
 
@@ -1019,7 +1021,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 				parser,
 				nil,
 				&actions.ExportAsset{
-					To:          other.PublicKey(),
+					To:          auth.NewED25519Address(other.PublicKey()),
 					Asset:       newAsset,
 					Value:       2900,
 					Return:      true,
@@ -1180,7 +1182,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 				parser,
 				nil,
 				&actions.ExportAsset{
-					To:          other.PublicKey(),
+					To:          auth.NewED25519Address(other.PublicKey()),
 					Asset:       ids.Empty, // becomes newAsset
 					Value:       2000,
 					Return:      false,
@@ -1532,7 +1534,7 @@ func generateBlocks(
 			parser,
 			nil,
 			&actions.Transfer{
-				To:    other.PublicKey(),
+				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: 1,
 			},
 			factory,
@@ -1600,7 +1602,7 @@ func acceptTransaction(cli *rpc.JSONRPCClient, tcli *trpc.JSONRPCClient) {
 			parser,
 			nil,
 			&actions.Transfer{
-				To:    other.PublicKey(),
+				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: sendAmount,
 			},
 			factory,

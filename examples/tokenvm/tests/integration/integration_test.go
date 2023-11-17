@@ -9,13 +9,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/database/manager"
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
@@ -26,7 +27,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	avago_version "github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/fatih/color"
 	ginkgo "github.com/onsi/ginkgo/v2"
@@ -48,7 +48,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/controller"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 )
 
 var (
@@ -95,12 +94,12 @@ func init() {
 var (
 	priv    ed25519.PrivateKey
 	factory *auth.ED25519Factory
-	rsender ed25519.PublicKey
+	rsender codec.Address
 	sender  string
 
 	priv2    ed25519.PrivateKey
 	factory2 *auth.ED25519Factory
-	rsender2 ed25519.PublicKey
+	rsender2 codec.Address
 	sender2  string
 
 	asset1         []byte
@@ -144,8 +143,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	priv, err = ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
 	factory = auth.NewED25519Factory(priv)
-	rsender = priv.PublicKey()
-	sender = utils.Address(rsender)
+	rsender = auth.NewED25519Address(priv.PublicKey())
+	sender = codec.MustAddressBech32(tconsts.HRP, rsender)
 	log.Debug(
 		"generated key",
 		zap.String("addr", sender),
@@ -155,8 +154,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	priv2, err = ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
 	factory2 = auth.NewED25519Factory(priv2)
-	rsender2 = priv2.PublicKey()
-	sender2 = utils.Address(rsender2)
+	rsender2 = auth.NewED25519Address(priv2.PublicKey())
+	sender2 = codec.MustAddressBech32(tconsts.HRP, rsender2)
 	log.Debug(
 		"generated key",
 		zap.String("addr", sender2),
@@ -215,7 +214,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		}
 
 		toEngine := make(chan common.Message, 1)
-		db := manager.NewMemDB(avago_version.CurrentDatabase)
+		db := memdb.New()
 
 		v := controller.New()
 		err = v.Initialize(
@@ -233,13 +232,13 @@ var _ = ginkgo.BeforeSuite(func() {
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 
-		var hd map[string]*common.HTTPHandler
+		var hd map[string]http.Handler
 		hd, err = v.CreateHandlers(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
 
-		jsonRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint].Handler)
-		tjsonRPCServer := httptest.NewServer(hd[trpc.JSONRPCEndpoint].Handler)
-		webSocketServer := httptest.NewServer(hd[rpc.WebSocketEndpoint].Handler)
+		jsonRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint])
+		tjsonRPCServer := httptest.NewServer(hd[trpc.JSONRPCEndpoint])
+		webSocketServer := httptest.NewServer(hd[rpc.WebSocketEndpoint])
 		instances[i] = instance{
 			chainID:            snowCtx.ChainID,
 			nodeID:             snowCtx.NodeID,
@@ -256,7 +255,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		v.ForceReady()
 	}
 
-	// Verify genesis allocations loaded correctly (do here otherwise test may
+	// Verify genesis allocates loaded correctly (do here otherwise test may
 	// check during and it will be inaccurate)
 	for _, inst := range instances {
 		cli := inst.tcli
@@ -277,7 +276,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		gomega.Ω(decimals).Should(gomega.Equal(uint8(tconsts.Decimals)))
 		gomega.Ω(string(metadata)).Should(gomega.Equal(tconsts.Name))
 		gomega.Ω(supply).Should(gomega.Equal(csupply))
-		gomega.Ω(owner).Should(gomega.Equal(utils.Address(ed25519.EmptyPublicKey)))
+		gomega.Ω(owner).Should(gomega.Equal(codec.MustAddressBech32(tconsts.HRP, codec.EmptyAddress)))
 		gomega.Ω(warp).Should(gomega.BeFalse())
 	}
 	blocks = []snowman.Block{}
@@ -435,21 +434,21 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// bandwidth: tx size
 			// compute: 5 for signature, 1 for base, 1 for transfer
 			// read: 2 keys reads, 1 had 0 chunks
-			// create: 1 key created
-			// modify: 1 cold key modified
-			transferTxConsumed := chain.Dimensions{226, 7, 12, 25, 13}
+			// allocate: 1 key created
+			// write: 1 key modified, 1 key new
+			transferTxConsumed := chain.Dimensions{227, 7, 12, 25, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(283)))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(297)))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].tcli.Balance(context.Background(), sender, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899717)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899703)))
 			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
@@ -631,7 +630,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		transfer := &actions.Transfer{
-			To:    other.PublicKey(),
+			To:    auth.NewED25519Address(other.PublicKey()),
 			Value: 1,
 		}
 
@@ -681,7 +680,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		transfer := &actions.Transfer{
-			To:    other.PublicKey(),
+			To:    auth.NewED25519Address(other.PublicKey()),
 			Value: 1,
 		}
 		parser, err := instances[0].tcli.Parser(context.Background())
@@ -735,7 +734,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			parser,
 			nil,
 			&actions.Transfer{
-				To:    other.PublicKey(),
+				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: 10,
 				Memo:  []byte("hello"),
 			},
@@ -761,7 +760,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			},
 			nil,
 			&actions.Transfer{
-				To:    other.PublicKey(),
+				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: 10,
 				Memo:  make([]byte, 1000),
 			},
@@ -794,7 +793,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			parser,
 			nil,
 			&actions.MintAsset{
-				To:    other.PublicKey(),
+				To:    auth.NewED25519Address(other.PublicKey()),
 				Asset: assetID,
 				Value: 10,
 			},
@@ -994,7 +993,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			parser,
 			nil,
 			&actions.MintAsset{
-				To:    other.PublicKey(),
+				To:    auth.NewED25519Address(other.PublicKey()),
 				Asset: asset1ID,
 				Value: 10,
 			},
@@ -1104,7 +1103,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			},
 			nil,
 			&actions.MintAsset{
-				To:    other.PublicKey(),
+				To:    auth.NewED25519Address(other.PublicKey()),
 				Asset: asset1ID,
 			},
 		)
@@ -1178,7 +1177,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			},
 			nil,
 			&actions.MintAsset{
-				To:    other.PublicKey(),
+				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: 10,
 			},
 		)
@@ -1424,7 +1423,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(1))
 		order := orders[0]
-		owner, err := utils.ParseAddress(order.Owner)
+		owner, err := codec.ParseAddressBech32(tconsts.HRP, order.Owner)
 		gomega.Ω(err).Should(gomega.BeNil())
 		parser, err := instances[0].tcli.Parser(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -1457,7 +1456,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(1))
 		order := orders[0]
-		owner, err := utils.ParseAddress(order.Owner)
+		owner, err := codec.ParseAddressBech32(tconsts.HRP, order.Owner)
 		gomega.Ω(err).Should(gomega.BeNil())
 		parser, err := instances[0].tcli.Parser(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -1490,7 +1489,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(1))
 		order := orders[0]
-		owner, err := utils.ParseAddress(order.Owner)
+		owner, err := codec.ParseAddressBech32(tconsts.HRP, order.Owner)
 		gomega.Ω(err).Should(gomega.BeNil())
 		parser, err := instances[0].tcli.Parser(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -1648,7 +1647,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(1))
 		order := orders[0]
-		owner, err := utils.ParseAddress(order.Owner)
+		owner, err := codec.ParseAddressBech32(tconsts.HRP, order.Owner)
 		gomega.Ω(err).Should(gomega.BeNil())
 		parser, err := instances[0].tcli.Parser(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())

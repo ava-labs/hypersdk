@@ -17,14 +17,6 @@ func CummSize[T SizeType](arr []T) int {
 	return size
 }
 
-func ShortBytesLen(msg []byte) int {
-	return consts.ByteLen + len(msg)
-}
-
-func ShortBytesLenSize(msgSize int) int {
-	return consts.ByteLen + msgSize
-}
-
 func BytesLen(msg []byte) int {
 	return consts.IntLen + len(msg)
 }

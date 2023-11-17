@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -20,7 +21,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/database/manager"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
@@ -29,13 +29,13 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/units"
-	avago_version "github.com/ava-labs/avalanchego/version"
 	"github.com/fatih/color"
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/pebble"
@@ -49,7 +49,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	trpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
 	"github.com/ava-labs/hypersdk/rpc"
 )
 
@@ -89,7 +88,7 @@ type instance struct {
 type account struct {
 	priv    ed25519.PrivateKey
 	factory *auth.ED25519Factory
-	rsender ed25519.PublicKey
+	rsender codec.Address
 	sender  string
 }
 
@@ -185,8 +184,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	var err error
 	priv, err := ed25519.GeneratePrivateKey()
 	gomega.Ω(err).Should(gomega.BeNil())
-	rsender := priv.PublicKey()
-	sender := utils.Address(rsender)
+	rsender := auth.NewED25519Address(priv.PublicKey())
+	sender := codec.MustAddressBech32(consts.HRP, rsender)
 	root = &account{priv, auth.NewED25519Factory(priv), rsender, sender}
 	log.Debug(
 		"generated root key",
@@ -200,7 +199,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	gen.MinUnitPrice = chain.Dimensions{1, 1, 1, 1, 1}
 	// target must be set less than max, otherwise we will iterate through all txs in mempool
 	gen.WindowTargetUnits = chain.Dimensions{hconsts.NetworkSizeLimit - 10*units.KiB, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64} // disable unit price increase
-	gen.MaxBlockUnits = chain.Dimensions{hconsts.NetworkSizeLimit, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64}
+	// leave room for block header
+	gen.MaxBlockUnits = chain.Dimensions{hconsts.NetworkSizeLimit - units.KiB, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64, hconsts.MaxUint64}
 	gen.MinBlockGap = 0                                        // don't require time between blocks
 	gen.ValidityWindow = 1_000 * hconsts.MillisecondsPerSecond // txs shouldn't expire
 	gen.CustomAllocation = []*genesis.CustomAllocation{
@@ -242,14 +242,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 		dname, err = os.MkdirTemp("", fmt.Sprintf("%s-root", nodeID.String()))
 		gomega.Ω(err).Should(gomega.BeNil())
-		pdb, _, err := pebble.New(dname, pebble.NewDefaultConfig())
-		gomega.Ω(err).Should(gomega.BeNil())
-		db, err := manager.NewManagerFromDBs([]*manager.VersionedDatabase{
-			{
-				Database: pdb,
-				Version:  avago_version.CurrentDatabase,
-			},
-		})
+		db, _, err := pebble.New(dname, pebble.NewDefaultConfig())
 		gomega.Ω(err).Should(gomega.BeNil())
 		numWorkers = runtime.NumCPU() // only run one at a time
 
@@ -272,7 +265,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			nil,
 			[]byte(
 				fmt.Sprintf(
-					`{%s"signatureVerificationCores":%d, "rootGenerationCores":%d, "transactionExecutionCores":%d, "mempoolSize":%d, "mempoolPayerSize":%d, "verifySignatures":%t, "testMode":true}`,
+					`{%s"signatureVerificationCores":%d, "rootGenerationCores":%d, "transactionExecutionCores":%d, "mempoolSize":%d, "mempoolSponsorSize":%d, "verifySignatures":%t, "testMode":true}`,
 					tracePrefix,
 					numWorkers/3,
 					numWorkers/3,
@@ -288,11 +281,11 @@ var _ = ginkgo.BeforeSuite(func() {
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 
-		var hd map[string]*common.HTTPHandler
+		var hd map[string]http.Handler
 		hd, err = c.CreateHandlers(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
-		jsonRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint].Handler)
-		tjsonRPCServer := httptest.NewServer(hd[trpc.JSONRPCEndpoint].Handler)
+		jsonRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint])
+		tjsonRPCServer := httptest.NewServer(hd[trpc.JSONRPCEndpoint])
 		instances[i] = &instance{
 			chainID:            snowCtx.ChainID,
 			nodeID:             snowCtx.NodeID,
@@ -309,7 +302,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		c.ForceReady()
 	}
 
-	// Verify genesis allocations loaded correctly (do here otherwise test may
+	// Verify genesis allocates loaded correctly (do here otherwise test may
 	// check during and it will be inaccurate)
 	for _, inst := range instances {
 		cli := inst.tcli
@@ -388,8 +381,8 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			for i := 0; i < accts; i++ {
 				tpriv, err := ed25519.GeneratePrivateKey()
 				gomega.Ω(err).Should(gomega.BeNil())
-				trsender := tpriv.PublicKey()
-				tsender := utils.Address(trsender)
+				trsender := auth.NewED25519Address(tpriv.PublicKey())
+				tsender := codec.MustAddressBech32(consts.HRP, trsender)
 				senders[i] = &account{tpriv, auth.NewED25519Factory(tpriv), trsender, tsender}
 			}
 		})
@@ -538,7 +531,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 
 func issueSimpleTx(
 	i *instance,
-	to ed25519.PublicKey,
+	to codec.Address,
 	amount uint64,
 	factory chain.AuthFactory,
 ) (ids.ID, error) {

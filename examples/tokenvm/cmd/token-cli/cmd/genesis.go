@@ -22,7 +22,7 @@ var genesisCmd = &cobra.Command{
 }
 
 var genGenesisCmd = &cobra.Command{
-	Use:   "generate [custom allocations file] [options]",
+	Use:   "generate [custom allocates file] [options]",
 	Short: "Creates a new genesis in the default location",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 {

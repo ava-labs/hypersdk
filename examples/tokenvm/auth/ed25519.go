@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Auth = (*ED25519)(nil)
@@ -27,6 +28,15 @@ const (
 type ED25519 struct {
 	Signer    ed25519.PublicKey `json:"signer"`
 	Signature ed25519.Signature `json:"signature"`
+
+	addr codec.Address
+}
+
+func (d *ED25519) address() codec.Address {
+	if d.addr == codec.EmptyAddress {
+		d.addr = NewED25519Address(d.Signer)
+	}
+	return d.addr
 }
 
 func (*ED25519) GetTypeID() uint8 {
@@ -44,7 +54,7 @@ func (*ED25519) ValidRange(chain.Rules) (int64, int64) {
 func (d *ED25519) StateKeys() []string {
 	return []string{
 		// We always pay fees with the native asset (which is [ids.Empty])
-		string(storage.BalanceKey(d.Signer, ids.Empty)),
+		string(storage.BalanceKey(d.address(), ids.Empty)),
 	}
 }
 
@@ -66,8 +76,12 @@ func (d *ED25519) Verify(
 	return d.MaxComputeUnits(r), nil
 }
 
-func (d *ED25519) Payer() []byte {
-	return d.Signer[:]
+func (d *ED25519) Actor() codec.Address {
+	return d.address()
+}
+
+func (d *ED25519) Sponsor() codec.Address {
+	return d.address()
 }
 
 func (*ED25519) Size() int {
@@ -75,14 +89,16 @@ func (*ED25519) Size() int {
 }
 
 func (d *ED25519) Marshal(p *codec.Packer) {
-	p.PackPublicKey(d.Signer)
-	p.PackSignature(d.Signature)
+	p.PackFixedBytes(d.Signer[:])
+	p.PackFixedBytes(d.Signature[:])
 }
 
 func UnmarshalED25519(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 	var d ED25519
-	p.UnpackPublicKey(true, &d.Signer)
-	p.UnpackSignature(&d.Signature)
+	signer := d.Signer[:] // avoid allocating additional memory
+	p.UnpackFixedBytes(ed25519.PublicKeyLen, &signer)
+	signature := d.Signature[:] // avoid allocating additional memory
+	p.UnpackFixedBytes(ed25519.SignatureLen, &signature)
 	return &d, p.Err()
 }
 
@@ -91,7 +107,7 @@ func (d *ED25519) CanDeduct(
 	im state.Immutable,
 	amount uint64,
 ) error {
-	bal, err := storage.GetBalance(ctx, im, d.Signer, ids.Empty)
+	bal, err := storage.GetBalance(ctx, im, d.address(), ids.Empty)
 	if err != nil {
 		return err
 	}
@@ -106,7 +122,7 @@ func (d *ED25519) Deduct(
 	mu state.Mutable,
 	amount uint64,
 ) error {
-	return storage.SubBalance(ctx, mu, d.Signer, ids.Empty, amount)
+	return storage.SubBalance(ctx, mu, d.address(), ids.Empty, amount)
 }
 
 func (d *ED25519) Refund(
@@ -115,7 +131,7 @@ func (d *ED25519) Refund(
 	amount uint64,
 ) error {
 	// Don't create account if it doesn't exist (may have sent all funds).
-	return storage.AddBalance(ctx, mu, d.Signer, ids.Empty, amount, false)
+	return storage.AddBalance(ctx, mu, d.address(), ids.Empty, amount, false)
 }
 
 var _ chain.AuthFactory = (*ED25519Factory)(nil)
@@ -130,7 +146,7 @@ type ED25519Factory struct {
 
 func (d *ED25519Factory) Sign(msg []byte, _ chain.Action) (chain.Auth, error) {
 	sig := ed25519.Sign(msg, d.priv)
-	return &ED25519{d.priv.PublicKey(), sig}, nil
+	return &ED25519{Signer: d.priv.PublicKey(), Signature: sig}, nil
 }
 
 func (*ED25519Factory) MaxUnits() (uint64, uint64, []uint16) {
@@ -148,8 +164,12 @@ func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatch
 }
 
 func (*ED25519AuthEngine) Cache(auth chain.Auth) {
-	pk := GetSigner(auth)
-	ed25519.CachePublicKey(pk)
+	// This should never not happen but we perform this check
+	// to avoid a panic.
+	pauth, ok := auth.(*ED25519)
+	if ok {
+		ed25519.CachePublicKey(pauth.Signer)
+	}
 }
 
 type ED25519Batch struct {
@@ -186,4 +206,8 @@ func (b *ED25519Batch) Done() []func() error {
 		return nil
 	}
 	return []func() error{b.batch.VerifyAsync()}
+}
+
+func NewED25519Address(pk ed25519.PublicKey) codec.Address {
+	return codec.CreateAddress(ed25519ID, utils.ToID(pk[:]))
 }

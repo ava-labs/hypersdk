@@ -106,6 +106,47 @@ _The number of blocks that the `hypersdk` stores on-disk, the `AcceptedBlockWind
 to an arbitrary depth (or set to `MaxInt` to keep all blocks). To limit disk IO used to serve blocks over
 the P2P network, `hypervms` can configure `AcceptedBlockWindowCache` to store recent blocks in memory._
 
+### WASM-Based Programs
+In the `hypersdk`, [smart contracts](https://ethereum.org/en/developers/docs/smart-contracts/)
+(e.g. programs that run on blockchains) are referred to simply as `programs`. `Programs`
+are [WASM-based](https://webassembly.org/) binaries that can be invoked during block
+execution to perform arbitrary state transitions. This is a more flexible, yet less performant,
+alternative to defining all `Auth` and/or `Actions` that can be invoked in the `hypervm` in the
+`hypervm's` code (like the `tokenvm`).
+
+Because the `hypersdk` can execute arbitrary WASM, any language (Rust, C, C++, Zig, etc.) that can
+be compiled to WASM can be used to write `programs`. You can view a collection of
+Rust-based `programs` [here](https://github.com/ava-labs/hypersdk/tree/main/x/programs/rust/examples).
+
+### Account Abstraction
+The `hypersdk` provides out-of-the-box support for arbitrary transaction authorization logic.
+Each `hypersdk` transaction includes an `Auth` object that implements an
+`Actor` function (identity that participates in an `Action`) and a `Sponsor` function (identity
+that pays fees). These two identities could be the same (if using a simple signature
+verification `Auth` module) but may be different (if using a "gas relayer" `Auth` module).
+
+`Auth` modules may be hardcoded, like in
+[`morpheusvm`](https://github.com/ava-labs/hypersdk/tree/main/examples/morpheusvm/auth) and
+[`tokenvm`](https://github.com/ava-labs/hypersdk/tree/main/examples/tokenvm/auth), or execute
+a `program` (i.e. a custom deployed multi-sig). To allow for easy interaction between different
+`Auth` modules (and to ensure `Auth` modules can't interfere with each other), the
+`hypersdk` employs a standard, 33-byte addressing scheme: `<typeID><ids.ID>`. Transaction
+verification ensures that any `Actor` and `Sponsor` returned by an `Auth` module
+must have the same `<typeID>` as the module generating an address. The 32-byte hash (`<ids.ID>`)
+is used to uniquely identify accounts within an `Auth` scheme. For `programs`, this
+will likely be the `txID` when the `program` was deployed and will be the hash
+of the public key for pure cryptographic primitives (the indirect benefit of this
+is that account public keys are obfuscated until used).
+
+_Because transaction IDs are used to prevent replay, it is critical that any signatures used
+in `Auth` are [not malleable](https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki).
+If malleable signatures are used, it would be trivial for an attacker to generate additional, valid
+transactions from an existing transaction and submit it to the network (duplicating whatever `Action` was
+specified by the sender)._
+
+_It is up to each `Auth` module to limit the computational complexity of `Auth.AsyncVerify()`
+and `Auth.Verify()` to prevent a DoS (invalid `Auth` will not charge `Auth.Sponsor()`)._
+
 ### Optimized Block Execution Out-of-the-Box
 The `hypersdk` is primarily about an obsession with hyper-speed and
 hyper-scalability (and making it easy for developers to achieve both by
@@ -192,22 +233,10 @@ capability for any `Auth` module that implements the `AuthBatchVerifier` interfa
 even parallelizing batch computation for systems that only use a single-thread to
 verify a batch.
 
-### WASM-Based Programs
-In the `hypersdk`, [smart contracts](https://ethereum.org/en/developers/docs/smart-contracts/)
-(e.g. programs that run on blockchains) are referred to simply as `programs`. `Programs`
-are [WASM-based](https://webassembly.org/) binaries that can be invoked during block
-execution to perform arbitrary state transitions. This is a more flexible, yet less performant,
-alternative to defining all `Auth` and/or `Actions` that can be invoked in the `hypervm` in the
-`hypervm's` code (like the `tokenvm`).
-
-Because the `hypersdk` can execute arbitrary WASM, any language (Rust, C, C++, Zig, etc.) that can
-be compiled to WASM can be used to write `programs`. You can view a collection of
-Rust-based `programs` [here](https://github.com/ava-labs/hypersdk/tree/main/x/programs/rust/examples).
-
 ### Multidimensional Fee Pricing
 Instead of mapping transaction resource usage to a one-dimensional unit (i.e. "gas"
 or "fuel"), the `hypersdk` utilizes five independently parameterized unit dimensions
-(bandwidth, compute, storage[read], storage[create], storage[modify]) to meter
+(bandwidth, compute, storage[read], storage[allocate], storage[write]) to meter
 activity on each `hypervm`. Each unit dimension has a unique metering schedule
 (i.e. how many units each resource interaction costs), target, and max utilization
 per rolling 10 second window.
@@ -251,16 +280,12 @@ GetBaseWarpComputeUnits() uint64
 GetWarpComputeUnitsPerSigner() uint64
 GetOutgoingWarpComputeUnits() uint64
 
-GetColdStorageKeyReadUnits() uint64
-GetColdStorageValueReadUnits() uint64 // per chunk
-GetWarmStorageKeyReadUnits() uint64
-GetWarmStorageValueReadUnits() uint64 // per chunk
-GetStorageKeyCreateUnits() uint64
-GetStorageValueCreateUnits() uint64 // per chunk
-GetColdStorageKeyModificationUnits() uint64
-GetColdStorageValueModificationUnits() uint64 // per chunk
-GetWarmStorageKeyModificationUnits() uint64
-GetWarmStorageValueModificationUnits() uint64 // per chunk
+GetStorageKeyReadUnits() uint64
+GetStorageValueReadUnits() uint64 // per chunk
+GetStorageKeyAllocateUnits() uint64
+GetStorageValueAllocateUnits() uint64 // per chunk
+GetStorageKeyWriteUnits() uint64
+GetStorageValueWriteUnits() uint64 // per chunk
 ```
 
 An example configuration may look something like:
@@ -275,16 +300,12 @@ BaseWarpComputeUnits:      1_024,
 WarpComputeUnitsPerSigner: 128,
 OutgoingWarpComputeUnits:  1_024,
 
-ColdStorageKeyReadUnits:           5,
-ColdStorageValueReadUnits:         2,
-WarmStorageKeyReadUnits:           1,
-WarmStorageValueReadUnits:         1,
-StorageKeyCreateUnits:             20,
-StorageValueCreateUnits:           5,
-ColdStorageKeyModificationUnits:   10,
-ColdStorageValueModificationUnits: 3,
-WarmStorageKeyModificationUnits:   5,
-WarmStorageValueModificationUnits: 3,
+StorageKeyReadUnits:       5,
+StorageValueReadUnits:     2,
+StorageKeyAllocateUnits:   20,
+StorageValueAllocateUnits: 5,
+StorageKeyWriteUnits:      10,
+StorageValueWriteUnits:    3,
 ```
 
 #### Avoiding Complex Construction
@@ -326,12 +347,12 @@ price-sorted mempools are not particularly useful in high-throughput
 blockchains where the expected mempool size is ~0 or there is a bounded transaction
 lifetime (60 seconds by default on the `hypersdk`).
 
-#### Separate Metering for Storage Reads, Creations, Modifications
+#### Separate Metering for Storage Reads, Allocates, Writes
 To make the multidimensional fee implementation for the `hypersdk` simpler,
-it would have been possible to unify all storage operations (read, create,
-modify) into a single unit dimension. We opted not to go this route, however,
+it would have been possible to unify all storage operations (read, allocate,
+write) into a single unit dimension. We opted not to go this route, however,
 because `hypervm` designers often wish to regulate state growth much differently
-than state reads or state modification.
+than state reads or state writes.
 
 Fundamentally, it makes sense to combine resource usage into a single unit dimension
 if different operations are scaled substitutes of each other (an executor could translate
@@ -359,26 +380,6 @@ This constraint is equivalent to deciding whether to use a `uint8`, `uint16`, `u
 the estimate will be for a user to interact with state. Users are only charged, however,
 based on the amount of chunks actually read/written from/to state.
 
-#### Block-Based Storage Access Discounts
-If a state key has already been accessed in a given block, future access
-by the same transaction/future transactions will be more efficient for the
-`hypersdk` to handle because the corresponding state is already sitting in memory.
-The `hypersdk` automatically tracks which state has already been loaded from disk (whether
-read or modified) over an entire block and charges different fees accordingly.
-
-For example, if a transaction modifies a key and then another transaction
-is executed which modifies the same value, the net cost for modifying the key
-to the `hypervm` (and to the entire network) is much cheaper than modifying a
-new key.
-
-### Account Abstraction
-The `hypersdk` makes no assumptions about how `Actions` (the primitive for
-interactions with any `hyperchain`, as explained below) are verified. Rather,
-`hypervms` provide the `hypersdk` with a registry of supported `Auth` modules
-that can be used to validate each type of transaction. These `Auth` modules can
-perform simple things like signature verification or complex tasks like
-executing a WASM blob.
-
 ### Nonce-less and Expiring Transactions
 `hypersdk` transactions don't use [nonces](https://help.myetherwallet.com/en/articles/5461509-what-is-a-nonce)
 to protect against replay attack like many other account-based blockchains. This means users
@@ -396,12 +397,6 @@ mempool more performant (as we no longer need to maintain multiple transactions
 for a single account and ensure they are ordered) and makes the network layer
 more efficient (we can gossip any valid transaction to any node instead of just
 the transactions for each account that can be executed at the moment).
-
-_Because transaction IDs are used to prevent replay, it is critical that any signatures used
-in `Auth` are [not malleable](https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki).
-If malleable signatures are used, it would be trivial for an attacker to generate additional, valid
-transactions from an existing transaction and submit it to the network (duplicating whatever `Action` was
-specified by the sender)._
 
 ### Avalanche Warp Messaging Support
 `hypersdk` provides support for Avalanche Warp Messaging (AWM) out-of-the-box. AWM enables any
@@ -803,9 +798,17 @@ type Auth interface {
 		action Action,
 	) (computeUnits uint64, err error)
 
-	// Payer is the owner of [Auth]. It is used by the mempool to ensure that there aren't too many transactions
-	// from a single Payer.
-	Payer() []byte
+	// Actor is the subject of [Action].
+	//
+	// To avoid collisions with other [Auth] modules, this must be prefixed
+	// by the [TypeID].
+	Actor() codec.Address
+
+	// Sponsor is the fee payer of [Auth].
+	//
+	// To avoid collisions with other [Auth] modules, this must be prefixed
+	// by the [TypeID].
+	Sponsor() codec.Address
 
 	// CanDeduct returns an error if [amount] cannot be paid by [Auth].
 	CanDeduct(ctx context.Context, im state.Immutable, amount uint64) error

@@ -139,7 +139,6 @@ func BuildBlock(
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
 	mempool.StartStreaming(ctx)
 	b.Txs = []*Transaction{}
-	usedKeys := set.NewSet[string](0) // prefetch map for transactions in block
 	for time.Since(start) < vm.GetTargetBuildDuration() {
 		prepareStreamLock.Lock()
 		txs := mempool.Stream(ctx, streamBatch)
@@ -318,8 +317,7 @@ func BuildBlock(
 				// Note, these calculations must match block verification exactly
 				// otherwise they will produce a different state root.
 				blockLock.RLock()
-				coldReads := make(map[string]uint16, len(stateKeys))
-				warmReads := make(map[string]uint16, len(stateKeys))
+				reads := make(map[string]uint16, len(stateKeys))
 				var invalidStateKeys bool
 				for k := range stateKeys {
 					v := storage[k]
@@ -328,11 +326,7 @@ func BuildBlock(
 						invalidStateKeys = true
 						break
 					}
-					if usedKeys.Contains(k) {
-						warmReads[k] = numChunks
-						continue
-					}
-					coldReads[k] = numChunks
+					reads[k] = numChunks
 				}
 				blockLock.RUnlock()
 				if invalidStateKeys {
@@ -345,8 +339,7 @@ func BuildBlock(
 					ctx,
 					feeManager,
 					authCUs,
-					coldReads,
-					warmReads,
+					reads,
 					sm,
 					r,
 					tsv,
@@ -388,7 +381,6 @@ func BuildBlock(
 				tsv.Commit()
 				b.Txs = append(b.Txs, tx)
 				results = append(results, result)
-				usedKeys.Add(stateKeys.List()...)
 				if tx.WarpMessage != nil {
 					if warpErr == nil {
 						// Add a bit if the warp message was verified

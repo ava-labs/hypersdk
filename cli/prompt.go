@@ -11,12 +11,12 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/manifoldco/promptui"
 )
 
-func (h *Handler) PromptAddress(label string) (ed25519.PublicKey, error) {
+func (h *Handler) PromptAddress(label string) (codec.Address, error) {
 	promptText := promptui.Prompt{
 		Label: label,
 		Validate: func(input string) error {
@@ -29,7 +29,7 @@ func (h *Handler) PromptAddress(label string) (ed25519.PublicKey, error) {
 	}
 	recipient, err := promptText.Run()
 	if err != nil {
-		return ed25519.EmptyPublicKey, err
+		return codec.EmptyAddress, err
 	}
 	recipient = strings.TrimSpace(recipient)
 	return h.c.ParseAddress(recipient)
@@ -328,22 +328,22 @@ func (*Handler) PrintStatus(txID ids.ID, success bool) {
 
 func PrintUnitPrices(d chain.Dimensions) {
 	utils.Outf(
-		"{{cyan}}unit prices{{/}} {{yellow}}bandwidth:{{/}} %d {{yellow}}compute:{{/}} %d {{yellow}}storage(read):{{/}} %d {{yellow}}storage(create):{{/}} %d {{yellow}}storage(modify):{{/}} %d\n",
+		"{{cyan}}unit prices{{/}} {{yellow}}bandwidth:{{/}} %d {{yellow}}compute:{{/}} %d {{yellow}}storage(read):{{/}} %d {{yellow}}storage(allocate):{{/}} %d {{yellow}}storage(write):{{/}} %d\n",
 		d[chain.Bandwidth],
 		d[chain.Compute],
 		d[chain.StorageRead],
-		d[chain.StorageCreate],
-		d[chain.StorageModification],
+		d[chain.StorageAllocate],
+		d[chain.StorageWrite],
 	)
 }
 
 func ParseDimensions(d chain.Dimensions) string {
 	return fmt.Sprintf(
-		"bandwidth=%d compute=%d storage(read)=%d storage(create)=%d storage(modify)=%d",
+		"bandwidth=%d compute=%d storage(read)=%d storage(allocate)=%d storage(write)=%d",
 		d[chain.Bandwidth],
 		d[chain.Compute],
 		d[chain.StorageRead],
-		d[chain.StorageCreate],
-		d[chain.StorageModification],
+		d[chain.StorageAllocate],
+		d[chain.StorageWrite],
 	)
 }

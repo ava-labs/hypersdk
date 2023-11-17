@@ -113,6 +113,9 @@ func (t *Transaction) Sign(
 
 func (t *Transaction) AuthAsyncVerify() func() error {
 	return func() error {
+		// It is up to [t.Auth] to limit the computational
+		// complexity of [t.Auth.AsyncVerify] and [t.Auth.Verify] to prevent
+		// a DoS (invalid Auth will not charge [t.Auth.Sponsor()].
 		return t.Auth.AsyncVerify(t.digest)
 	}
 }
@@ -191,36 +194,36 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 		return Dimensions{}, err
 	}
 	readsOp := math.NewUint64Operator(0)
-	creationsOp := math.NewUint64Operator(0)
-	modificationsOp := math.NewUint64Operator(0)
+	allocatesOp := math.NewUint64Operator(0)
+	writesOp := math.NewUint64Operator(0)
 	for k := range stateKeys {
 		// Compute key costs
-		readsOp.Add(r.GetColdStorageKeyReadUnits())
-		creationsOp.Add(r.GetStorageKeyCreateUnits())
-		modificationsOp.Add(r.GetColdStorageKeyModificationUnits())
+		readsOp.Add(r.GetStorageKeyReadUnits())
+		allocatesOp.Add(r.GetStorageKeyAllocateUnits())
+		writesOp.Add(r.GetStorageKeyWriteUnits())
 
 		// Compute value costs
 		maxChunks, ok := keys.MaxChunks([]byte(k))
 		if !ok {
 			return Dimensions{}, ErrInvalidKeyValue
 		}
-		readsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueReadUnits())
-		creationsOp.MulAdd(uint64(maxChunks), r.GetStorageValueCreateUnits())
-		modificationsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueModificationUnits())
+		readsOp.MulAdd(uint64(maxChunks), r.GetStorageValueReadUnits())
+		allocatesOp.MulAdd(uint64(maxChunks), r.GetStorageValueAllocateUnits())
+		writesOp.MulAdd(uint64(maxChunks), r.GetStorageValueWriteUnits())
 	}
 	reads, err := readsOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	creations, err := creationsOp.Value()
+	allocates, err := allocatesOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	modifications, err := modificationsOp.Value()
+	writes, err := writesOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	return Dimensions{uint64(t.Size()), maxComputeUnits, reads, creations, modifications}, nil
+	return Dimensions{uint64(t.Size()), maxComputeUnits, reads, allocates, writes}, nil
 }
 
 // EstimateMaxUnits provides a pessimistic estimate of the cost to execute a transaction. This is
@@ -260,32 +263,32 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 	//
 	// TODO: unify this with [MaxUnits] handling
 	readsOp := math.NewUint64Operator(0)
-	creationsOp := math.NewUint64Operator(0)
-	modificationsOp := math.NewUint64Operator(0)
+	allocatesOp := math.NewUint64Operator(0)
+	writesOp := math.NewUint64Operator(0)
 	for maxChunks := range stateKeysMaxChunks {
 		// Compute key costs
-		readsOp.Add(r.GetColdStorageKeyReadUnits())
-		creationsOp.Add(r.GetStorageKeyCreateUnits())
-		modificationsOp.Add(r.GetColdStorageKeyModificationUnits())
+		readsOp.Add(r.GetStorageKeyReadUnits())
+		allocatesOp.Add(r.GetStorageKeyAllocateUnits())
+		writesOp.Add(r.GetStorageKeyWriteUnits())
 
 		// Compute value costs
-		readsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueReadUnits())
-		creationsOp.MulAdd(uint64(maxChunks), r.GetStorageValueCreateUnits())
-		modificationsOp.MulAdd(uint64(maxChunks), r.GetColdStorageValueModificationUnits())
+		readsOp.MulAdd(uint64(maxChunks), r.GetStorageValueReadUnits())
+		allocatesOp.MulAdd(uint64(maxChunks), r.GetStorageValueAllocateUnits())
+		writesOp.MulAdd(uint64(maxChunks), r.GetStorageValueWriteUnits())
 	}
 	reads, err := readsOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	creations, err := creationsOp.Value()
+	allocates, err := allocatesOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	modifications, err := modificationsOp.Value()
+	writes, err := writesOp.Value()
 	if err != nil {
 		return Dimensions{}, err
 	}
-	return Dimensions{bandwidth, computeUnits, reads, creations, modifications}, nil
+	return Dimensions{bandwidth, computeUnits, reads, allocates, writes}, nil
 }
 
 func (t *Transaction) PreExecute(
@@ -313,6 +316,9 @@ func (t *Transaction) PreExecute(
 	if end >= 0 && timestamp > end {
 		return 0, ErrAuthNotActivated
 	}
+	// It is up to [t.Auth] to limit the computational
+	// complexity of [t.Auth.AsyncVerify] and [t.Auth.Verify] to prevent
+	// a DoS (invalid Auth will not charge [t.Auth.Sponsor()].
 	authCUs, err := t.Auth.Verify(ctx, r, im, t.Action)
 	if err != nil {
 		return 0, fmt.Errorf("%w: %v", ErrAuthFailed, err) //nolint:errorlint
@@ -342,8 +348,7 @@ func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *FeeManager,
 	authCUs uint64,
-	coldStorageReads map[string]uint16,
-	warmStorageReads map[string]uint16,
+	reads map[string]uint16,
 	s StateManager,
 	r Rules,
 	ts *tstate.TStateView,
@@ -459,80 +464,51 @@ func (t *Transaction) Execute(
 	}
 
 	// Because the key database is abstracted from [Auth]/[Actions], we can compute
-	// all storage use in the background. KeyOperations is reset whenever
-	// we set scope on [ts].
-	creations, coldModifications, warmModifications := ts.KeyOperations()
+	// all storage use in the background. KeyOperations is unique to a view.
+	allocates, writes := ts.KeyOperations()
 
 	// Because we compute the fee before [Auth.Refund] is called, we need
 	// to pessimistically precompute the storage it will change.
 	for _, key := range t.Auth.StateKeys() {
-		bk := []byte(key)
-		changed, _, err := ts.Exists(ctx, bk)
-		if err != nil {
-			return handleRevert(err)
-		}
 		// maxChunks will be greater than the chunks read in any of these keys,
 		// so we don't need to check for pre-existing values.
-		maxChunks, ok := keys.MaxChunks(bk)
+		maxChunks, ok := keys.MaxChunks([]byte(key))
 		if !ok {
 			return handleRevert(ErrInvalidKeyValue)
 		}
-		// We require that any refunds must not create keys, otherwise, we'd have
-		// to pessimistically charge all transactions for creation.
-		//
-		// If a key is already in [coldModifications], we should still
-		// consider it a [coldModification] even if it is [changed].
-		// This occurs when we modify a key for the second time in
-		// a single transaction.
-		//
-		// If a key is not in [coldModifications] and it is [changed],
-		// it was either created/modified in a different transaction
-		// in the block or created in this transaction.
-		if _, ok := coldModifications[key]; ok || !changed {
-			coldModifications[key] = maxChunks
-			continue
-		}
-		warmModifications[key] = maxChunks
+		writes[key] = maxChunks
 	}
 
 	// We only charge for the chunks read from disk instead of charging for the max chunks
 	// specified by the key.
 	readsOp := math.NewUint64Operator(0)
-	for _, chunksRead := range coldStorageReads {
-		readsOp.Add(r.GetColdStorageKeyReadUnits())
-		readsOp.MulAdd(uint64(chunksRead), r.GetColdStorageValueReadUnits())
+	for _, chunksRead := range reads {
+		readsOp.Add(r.GetStorageKeyReadUnits())
+		readsOp.MulAdd(uint64(chunksRead), r.GetStorageValueReadUnits())
 	}
-	for _, chunksRead := range warmStorageReads {
-		readsOp.Add(r.GetWarmStorageKeyReadUnits())
-		readsOp.MulAdd(uint64(chunksRead), r.GetWarmStorageValueReadUnits())
-	}
-	reads, err := readsOp.Value()
+	readUnits, err := readsOp.Value()
 	if err != nil {
 		return handleRevert(err)
 	}
-	creationsOp := math.NewUint64Operator(0)
-	for _, chunksStored := range creations {
-		creationsOp.Add(r.GetStorageKeyCreateUnits())
-		creationsOp.MulAdd(uint64(chunksStored), r.GetStorageValueCreateUnits())
+	allocatesOp := math.NewUint64Operator(0)
+	for _, chunksStored := range allocates {
+		allocatesOp.Add(r.GetStorageKeyAllocateUnits())
+		allocatesOp.MulAdd(uint64(chunksStored), r.GetStorageValueAllocateUnits())
 	}
-	creationUnits, err := creationsOp.Value()
+	allocateUnits, err := allocatesOp.Value()
 	if err != nil {
 		return handleRevert(err)
 	}
-	modificationsOp := math.NewUint64Operator(0)
-	for _, chunksModified := range coldModifications {
-		modificationsOp.Add(r.GetColdStorageKeyModificationUnits())
-		modificationsOp.MulAdd(uint64(chunksModified), r.GetColdStorageValueModificationUnits())
+	writesOp := math.NewUint64Operator(0)
+	for _, chunksModified := range writes {
+		writesOp.Add(r.GetStorageKeyWriteUnits())
+		writesOp.MulAdd(uint64(chunksModified), r.GetStorageValueWriteUnits())
 	}
-	for _, chunksModified := range warmModifications {
-		modificationsOp.Add(r.GetWarmStorageKeyModificationUnits())
-		modificationsOp.MulAdd(uint64(chunksModified), r.GetWarmStorageValueModificationUnits())
-	}
-	modifications, err := modificationsOp.Value()
+	writeUnits, err := writesOp.Value()
 	if err != nil {
 		return handleRevert(err)
 	}
-	used := Dimensions{uint64(t.Size()), computeUnits, reads, creationUnits, modifications}
+	used := Dimensions{uint64(t.Size()), computeUnits, readUnits, allocateUnits, writeUnits}
 
 	// Check to see if the units consumed are greater than the max units
 	//
@@ -551,12 +527,11 @@ func (t *Transaction) Execute(
 	}
 	refund := maxFee - feeRequired
 	if refund > 0 {
-		ts.DisableCreation()
+		ts.DisableAllocation()
+		defer ts.EnableAllocation()
 		if err := t.Auth.Refund(ctx, ts, refund); err != nil {
-			ts.EnableCreation()
 			return handleRevert(err)
 		}
-		ts.EnableCreation()
 	}
 	return &Result{
 		Success: success,
@@ -569,9 +544,8 @@ func (t *Transaction) Execute(
 	}, nil
 }
 
-// Used by mempool
-func (t *Transaction) Payer() string {
-	return string(t.Auth.Payer())
+func (t *Transaction) Sponsor() codec.Address {
+	return t.Auth.Sponsor()
 }
 
 func (t *Transaction) Marshal(p *codec.Packer) error {
@@ -691,6 +665,12 @@ func UnmarshalTx(
 	auth, err := unmarshalAuth(p, warpMessage)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal auth", err)
+	}
+	if actorType := auth.Actor()[0]; actorType != authType {
+		return nil, fmt.Errorf("%w: actorType (%d) did not match authType (%d)", ErrInvalidActor, actorType, authType)
+	}
+	if sponsorType := auth.Sponsor()[0]; sponsorType != authType {
+		return nil, fmt.Errorf("%w: sponsorType (%d) did not match authType (%d)", ErrInvalidSponsor, sponsorType, authType)
 	}
 	warpExpected := actionWarp || authWarp
 	if !warpExpected && warpMessage != nil {

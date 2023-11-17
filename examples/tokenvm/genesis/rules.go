@@ -70,44 +70,28 @@ func (r *Rules) GetOutgoingWarpComputeUnits() uint64 {
 	return r.g.OutgoingWarpComputeUnits
 }
 
-func (r *Rules) GetColdStorageKeyReadUnits() uint64 {
-	return r.g.ColdStorageKeyReadUnits
+func (r *Rules) GetStorageKeyReadUnits() uint64 {
+	return r.g.StorageKeyReadUnits
 }
 
-func (r *Rules) GetColdStorageValueReadUnits() uint64 {
-	return r.g.ColdStorageValueReadUnits
+func (r *Rules) GetStorageValueReadUnits() uint64 {
+	return r.g.StorageValueReadUnits
 }
 
-func (r *Rules) GetWarmStorageKeyReadUnits() uint64 {
-	return r.g.WarmStorageKeyReadUnits
+func (r *Rules) GetStorageKeyAllocateUnits() uint64 {
+	return r.g.StorageKeyAllocateUnits
 }
 
-func (r *Rules) GetWarmStorageValueReadUnits() uint64 {
-	return r.g.WarmStorageValueReadUnits
+func (r *Rules) GetStorageValueAllocateUnits() uint64 {
+	return r.g.StorageValueAllocateUnits
 }
 
-func (r *Rules) GetStorageKeyCreateUnits() uint64 {
-	return r.g.StorageKeyCreateUnits
+func (r *Rules) GetStorageKeyWriteUnits() uint64 {
+	return r.g.StorageKeyWriteUnits
 }
 
-func (r *Rules) GetStorageValueCreateUnits() uint64 {
-	return r.g.StorageValueCreateUnits
-}
-
-func (r *Rules) GetColdStorageKeyModificationUnits() uint64 {
-	return r.g.ColdStorageKeyModificationUnits
-}
-
-func (r *Rules) GetColdStorageValueModificationUnits() uint64 {
-	return r.g.ColdStorageValueModificationUnits
-}
-
-func (r *Rules) GetWarmStorageKeyModificationUnits() uint64 {
-	return r.g.WarmStorageKeyModificationUnits
-}
-
-func (r *Rules) GetWarmStorageValueModificationUnits() uint64 {
-	return r.g.WarmStorageValueModificationUnits
+func (r *Rules) GetStorageValueWriteUnits() uint64 {
+	return r.g.StorageValueWriteUnits
 }
 
 func (r *Rules) GetMinUnitPrice() chain.Dimensions {

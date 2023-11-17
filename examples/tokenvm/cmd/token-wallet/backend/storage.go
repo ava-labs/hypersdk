@@ -12,10 +12,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
 	"github.com/ava-labs/hypersdk/pebble"
 	hutils "github.com/ava-labs/hypersdk/utils"
 )
@@ -127,13 +127,13 @@ func (s *Storage) GetTransactions() ([]*TransactionInfo, error) {
 }
 
 func (s *Storage) StoreAddress(address string, nickname string) error {
-	pk, err := utils.ParseAddress(address)
+	addr, err := codec.ParseAddressBech32(tconsts.HRP, address)
 	if err != nil {
 		return err
 	}
-	k := make([]byte, 1+ed25519.PublicKeyLen)
+	k := make([]byte, 1+codec.AddressLen)
 	k[0] = addressPrefix
-	copy(k[1:], pk[:])
+	copy(k[1:], addr[:])
 	return s.db.Put(k, []byte(nickname))
 }
 
@@ -143,10 +143,9 @@ func (s *Storage) GetAddresses() ([]*AddressInfo, error) {
 
 	addresses := []*AddressInfo{}
 	for iter.Next() {
-		pk := ed25519.PublicKey(iter.Key()[1:])
-		address := utils.Address(pk)
+		address := codec.Address(iter.Key()[1:])
 		nickname := string(iter.Value())
-		addresses = append(addresses, &AddressInfo{nickname, address, fmt.Sprintf("%s [%s..%s]", nickname, address[:len(tconsts.HRP)+3], address[len(address)-3:])})
+		addresses = append(addresses, &AddressInfo{nickname, codec.MustAddressBech32(tconsts.HRP, address), fmt.Sprintf("%s [%s..%s]", nickname, address[:len(tconsts.HRP)+3], address[len(address)-3:])})
 	}
 	return addresses, iter.Error()
 }

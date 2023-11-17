@@ -4,8 +4,8 @@
 package config
 
 import (
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/utils"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 )
 
 type Config struct {
@@ -14,8 +14,8 @@ type Config struct {
 
 	TokenRPC string `json:"tokenRPC"`
 
-	Recipient          string `json:"recipient"`
-	recipientPublicKey ed25519.PublicKey
+	Recipient     string `json:"recipient"`
+	recipientAddr codec.Address
 
 	FeedSize               int    `json:"feedSize"`
 	MinFee                 uint64 `json:"minFee"`
@@ -24,13 +24,13 @@ type Config struct {
 	TargetDurationPerEpoch int64  `json:"targetDurationPerEpoch"` // seconds
 }
 
-func (c *Config) RecipientPublicKey() (ed25519.PublicKey, error) {
-	if c.recipientPublicKey != ed25519.EmptyPublicKey {
-		return c.recipientPublicKey, nil
+func (c *Config) RecipientAddress() (codec.Address, error) {
+	if c.recipientAddr != codec.EmptyAddress {
+		return c.recipientAddr, nil
 	}
-	pk, err := utils.ParseAddress(c.Recipient)
+	addr, err := codec.ParseAddressBech32(consts.HRP, c.Recipient)
 	if err == nil {
-		c.recipientPublicKey = pk
+		c.recipientAddr = addr
 	}
-	return pk, err
+	return addr, err
 }

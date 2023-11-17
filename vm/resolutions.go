@@ -222,8 +222,8 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	vm.metrics.bandwidthPrice.Set(float64(feeManager.UnitPrice(chain.Bandwidth)))
 	vm.metrics.computePrice.Set(float64(feeManager.UnitPrice(chain.Compute)))
 	vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(chain.StorageRead)))
-	vm.metrics.storageCreatePrice.Set(float64(feeManager.UnitPrice(chain.StorageCreate)))
-	vm.metrics.storageModifyPrice.Set(float64(feeManager.UnitPrice(chain.StorageModification)))
+	vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(chain.StorageAllocate)))
+	vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(chain.StorageWrite)))
 }
 
 func (vm *VM) processAcceptedBlocks() {

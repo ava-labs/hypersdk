@@ -7,14 +7,17 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/utils"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
-	hutils "github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ cli.Controller = (*Controller)(nil)
@@ -32,52 +35,69 @@ func (h *Handler) Root() *cli.Handler {
 }
 
 func (h *Handler) DefaultActor() (
-	ids.ID, ed25519.PrivateKey, *auth.ED25519Factory,
-	*rpc.JSONRPCClient, *brpc.JSONRPCClient, error,
+	ids.ID, *cli.PrivateKey, chain.AuthFactory,
+	*rpc.JSONRPCClient, *brpc.JSONRPCClient, *rpc.WebSocketClient, error,
 ) {
-	priv, err := h.h.GetDefaultKey(true)
+	addr, priv, err := h.h.GetDefaultKey(true)
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
+		return ids.Empty, nil, nil, nil, nil, nil, err
+	}
+	var factory chain.AuthFactory
+	switch addr[0] {
+	case consts.ED25519ID:
+		factory = auth.NewED25519Factory(ed25519.PrivateKey(priv))
+	case consts.SECP256R1ID:
+		factory = auth.NewSECP256R1Factory(secp256r1.PrivateKey(priv))
+	default:
+		return ids.Empty, nil, nil, nil, nil, nil, ErrInvalidAddress
 	}
 	chainID, uris, err := h.h.GetDefaultChain(true)
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
+		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
-	cli := rpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := cli.Network(context.TODO())
+	jcli := rpc.NewJSONRPCClient(uris[0])
+	networkID, _, _, err := jcli.Network(context.TODO())
 	if err != nil {
-		return ids.Empty, ed25519.EmptyPrivateKey, nil, nil, nil, err
+		return ids.Empty, nil, nil, nil, nil, nil, err
+	}
+	ws, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+	if err != nil {
+		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
 	// For [defaultActor], we always send requests to the first returned URI.
-	return chainID, priv, auth.NewED25519Factory(
-			priv,
-		), cli,
+	return chainID, &cli.PrivateKey{
+			Address: addr,
+			Bytes:   priv,
+		}, factory, jcli,
 		brpc.NewJSONRPCClient(
 			uris[0],
 			networkID,
 			chainID,
-		), nil
+		), ws, nil
 }
 
 func (*Handler) GetBalance(
 	ctx context.Context,
 	cli *brpc.JSONRPCClient,
-	publicKey ed25519.PublicKey,
+	addr codec.Address,
 ) (uint64, error) {
-	addr := utils.Address(publicKey)
-	balance, err := cli.Balance(ctx, addr)
+	saddr, err := codec.AddressBech32(consts.HRP, addr)
+	if err != nil {
+		return 0, err
+	}
+	balance, err := cli.Balance(ctx, saddr)
 	if err != nil {
 		return 0, err
 	}
 	if balance == 0 {
-		hutils.Outf("{{red}}balance:{{/}} 0 %s\n", consts.Symbol)
-		hutils.Outf("{{red}}please send funds to %s{{/}}\n", addr)
-		hutils.Outf("{{red}}exiting...{{/}}\n")
+		utils.Outf("{{red}}balance:{{/}} 0 %s\n", consts.Symbol)
+		utils.Outf("{{red}}please send funds to %s{{/}}\n", saddr)
+		utils.Outf("{{red}}exiting...{{/}}\n")
 		return 0, nil
 	}
-	hutils.Outf(
+	utils.Outf(
 		"{{yellow}}balance:{{/}} %s %s\n",
-		hutils.FormatBalance(balance, consts.Decimals),
+		utils.FormatBalance(balance, consts.Decimals),
 		consts.Symbol,
 	)
 	return balance, nil
@@ -103,10 +123,10 @@ func (*Controller) Decimals() uint8 {
 	return consts.Decimals
 }
 
-func (*Controller) Address(pk ed25519.PublicKey) string {
-	return utils.Address(pk)
+func (*Controller) Address(addr codec.Address) string {
+	return codec.MustAddressBech32(consts.HRP, addr)
 }
 
-func (*Controller) ParseAddress(address string) (ed25519.PublicKey, error) {
-	return utils.ParseAddress(address)
+func (*Controller) ParseAddress(addr string) (codec.Address, error) {
+	return codec.ParseAddressBech32(consts.HRP, addr)
 }

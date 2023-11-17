@@ -7,11 +7,11 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 type Manager interface {
-	GetFaucetAddress(context.Context) (ed25519.PublicKey, error)
+	GetFaucetAddress(context.Context) (codec.Address, error)
 	GetChallenge(context.Context) ([]byte, uint16, error)
-	SolveChallenge(context.Context, ed25519.PublicKey, []byte, []byte) (ids.ID, uint64, error)
+	SolveChallenge(context.Context, codec.Address, []byte, []byte) (ids.ID, uint64, error)
 }
