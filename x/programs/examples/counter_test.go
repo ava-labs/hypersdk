@@ -66,12 +66,12 @@ func TestCounterProgram(t *testing.T) {
 	// create counter for alice on program 1
 	result, err := rt.Call(ctx, "initialize_address", programIDPtr, alicePtr)
 	require.NoError(err)
-	require.Equal(uint64(1), result[0])
+	require.Equal(int64(1), result[0])
 
 	// validate counter at 0
 	result, err = rt.Call(ctx, "get_value", programIDPtr, alicePtr)
 	require.NoError(err)
-	require.Equal(uint64(0), result[0])
+	require.Equal(int64(0), result[0])
 
 	// initialize second runtime to create second counter program with an empty
 	// meter.
@@ -102,16 +102,16 @@ func TestCounterProgram(t *testing.T) {
 	// initialize counter for alice on runtime 2
 	result, err = rt2.Call(ctx, "initialize_address", programID2Ptr, alicePtr2)
 	require.NoError(err)
-	require.Equal(uint64(1), result[0])
+	require.Equal(int64(1), result[0])
 
 	// increment alice's counter on program 2 by 10
 	result, err = rt2.Call(ctx, "inc", programID2Ptr, alicePtr2, 10)
 	require.NoError(err)
-	require.Equal(uint64(1), result[0])
+	require.Equal(int64(1), result[0])
 
 	result, err = rt2.Call(ctx, "get_value", programID2Ptr, alicePtr2)
 	require.NoError(err)
-	require.Equal(uint64(10), result[0])
+	require.Equal(int64(10), result[0])
 
 	// stop the runtime to prevent further execution
 	rt2.Stop()
@@ -127,13 +127,13 @@ func TestCounterProgram(t *testing.T) {
 	// increment alice's counter on program 1
 	result, err = rt.Call(ctx, "inc", programIDPtr, alicePtr, 1)
 	require.NoError(err)
-	require.Equal(uint64(1), result[0])
+	require.Equal(int64(1), result[0])
 
 	result, err = rt.Call(ctx, "get_value", programIDPtr, alicePtr)
 	require.NoError(err)
 
 	log.Debug("count program 1",
-		zap.Uint64("alice", result[0]),
+		zap.Int64("alice", result[0]),
 	)
 
 	// write program id 2 to stack of program 1
@@ -142,17 +142,17 @@ func TestCounterProgram(t *testing.T) {
 
 	caller := programIDPtr
 	target := programID2Ptr
-	maxUnitsProgramToProgram := uint64(10000)
+	maxUnitsProgramToProgram := int64(10000)
 
 	// increment alice's counter on program 2
 	result, err = rt.Call(ctx, "inc_external", caller, target, maxUnitsProgramToProgram, alicePtr, 5)
 	require.NoError(err)
-	require.Equal(uint64(1), result[0])
+	require.Equal(int64(1), result[0])
 
 	// expect alice's counter on program 2 to be 15
 	result, err = rt.Call(ctx, "get_value_external", caller, target, maxUnitsProgramToProgram, alicePtr)
 	require.NoError(err)
-	require.Equal(uint64(15), result[0])
+	require.Equal(int64(15), result[0])
 
 	require.Greater(rt.Meter().GetBalance(), uint64(0))
 }

@@ -13,19 +13,19 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-func newKeyPtr(ctx context.Context, key ed25519.PublicKey, runtime runtime.Runtime) (uint64, error) {
-	ptr, err := runtime.Memory().Alloc(ed25519.PublicKeyLen)
+func newKeyPtr(ctx context.Context, key ed25519.PublicKey, rt runtime.Runtime) (int64, error) {
+	ptr, err := rt.Memory().Alloc(ed25519.PublicKeyLen)
 	if err != nil {
 		return 0, err
 	}
 
 	// write programID to memory which we will later pass to the program
-	err = runtime.Memory().Write(ptr, key[:])
+	err = rt.Memory().Write(ptr, key[:])
 	if err != nil {
 		return 0, err
 	}
 
-	return ptr, err
+	return int64(ptr), err
 }
 
 func newKey() (ed25519.PrivateKey, ed25519.PublicKey, error) {
