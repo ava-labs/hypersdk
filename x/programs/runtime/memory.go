@@ -136,7 +136,7 @@ type CallParam struct {
 }
 
 // WriteParams is a helper function that writes the given params to memory if non integer.
-// Supported types include int, uint64 and string.
+// Supported types include int, int64 and string.
 func WriteParams(m Memory, p []CallParam) ([]int64, error) {
 	params := []int64{}
 	for _, param := range p {
@@ -152,13 +152,10 @@ func WriteParams(m Memory, p []CallParam) ([]int64, error) {
 				return nil, fmt.Errorf("failed to write param: %w", ErrNegativeValue)
 			}
 			params = append(params, int64(v))
-		case uint64:
-			if v > math.MaxInt64 {
-				return nil, fmt.Errorf("failed to write param: %w", ErrIntegerConversionOverflow)
-			}
-			params = append(params, int64(v))
+		case int64:
+			params = append(params, v)
 		default:
-			return nil, fmt.Errorf("%w: support types int, uint64 and string", ErrInvalidParamType)
+			return nil, fmt.Errorf("%w: support types int, int64 and string", ErrInvalidParamType)
 		}
 	}
 

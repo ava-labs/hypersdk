@@ -68,3 +68,7 @@ osxcross/
 target/
 Cargo.lock
 **/*.rs.bk
+
+go.work
+go.work.sum
+
