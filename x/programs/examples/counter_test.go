@@ -55,12 +55,12 @@ func TestCounterProgram(t *testing.T) {
 	programIDPtr, err := runtime.WriteBytes(rt.Memory(), programID[:])
 	require.NoError(err)
 
-	// generate alice keys
-	_, aliceKey, err := newKey()
+	// generate alice auth
+	_, aliceAddress, err := newAuth()
 	require.NoError(err)
 
-	// write alice's key to stack and get pointer
-	alicePtr, err := newKeyPtr(ctx, aliceKey, rt)
+	// write alice's address to stack and get pointer
+	alicePtr, err := newAddressPtr(ctx, aliceAddress, rt)
 	require.NoError(err)
 
 	// create counter for alice on program 1
@@ -95,8 +95,8 @@ func TestCounterProgram(t *testing.T) {
 	programID2Ptr, err := runtime.WriteBytes(rt2.Memory(), program2ID[:])
 	require.NoError(err)
 
-	// write alice's key to stack and get pointer
-	alicePtr2, err := newKeyPtr(ctx, aliceKey, rt2)
+	// write alice's address to stack and get pointer
+	alicePtr2, err := newAddressPtr(ctx, aliceAddress, rt2)
 	require.NoError(err)
 
 	// initialize counter for alice on runtime 2

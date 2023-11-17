@@ -82,26 +82,26 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("minted", result[0]),
 	)
 
-	// generate alice keys
-	_, aliceKey, err := newKey()
+	// generate alice auth
+	_, aliceAddress, err := newAuth()
 	if err != nil {
 		return err
 	}
 
-	// write alice's key to stack and get pointer
-	alicePtr, err := newKeyPtr(ctx, aliceKey, rt)
+	// write alice's address to stack and get pointer
+	alicePtr, err := newAddressPtr(ctx, aliceAddress, rt)
 	if err != nil {
 		return err
 	}
 
-	// generate bob keys
-	_, bobKey, err := newKey()
+	// generate bob auth
+	_, bobAddress, err := newAuth()
 	if err != nil {
 		return err
 	}
 
-	// write bob's key to stack and get pointer
-	bobPtr, err := newKeyPtr(ctx, bobKey, rt)
+	// write bob's address to stack and get pointer
+	bobPtr, err := newAddressPtr(ctx, bobAddress, rt)
 	if err != nil {
 		return err
 	}

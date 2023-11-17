@@ -8,19 +8,21 @@ import (
 	"os"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/examples/auth"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-func newKeyPtr(ctx context.Context, key ed25519.PublicKey, rt runtime.Runtime) (int64, error) {
-	ptr, err := rt.Memory().Alloc(ed25519.PublicKeyLen)
+func newAddressPtr(ctx context.Context, addr codec.Address, rt runtime.Runtime) (int64, error) {
+	ptr, err := rt.Memory().Alloc(codec.AddressLen)
 	if err != nil {
 		return 0, err
 	}
 
 	// write programID to memory which we will later pass to the program
-	err = rt.Memory().Write(ptr, key[:])
+	err = rt.Memory().Write(ptr, addr[:])
 	if err != nil {
 		return 0, err
 	}
@@ -28,13 +30,13 @@ func newKeyPtr(ctx context.Context, key ed25519.PublicKey, rt runtime.Runtime) (
 	return int64(ptr), err
 }
 
-func newKey() (ed25519.PrivateKey, ed25519.PublicKey, error) {
+func newAuth() (ed25519.PrivateKey, codec.Address, error) {
 	priv, err := ed25519.GeneratePrivateKey()
 	if err != nil {
-		return ed25519.EmptyPrivateKey, ed25519.EmptyPublicKey, err
+		return ed25519.EmptyPrivateKey, codec.EmptyAddress, err
 	}
 
-	return priv, priv.PublicKey(), nil
+	return priv, auth.NewED25519Address(priv.PublicKey()), nil
 }
 
 var (

@@ -5,16 +5,23 @@ package storage
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 )
 
+var ErrInvalidBalance = errors.New("invalid balance")
+
 const (
-	programPrefix = 0x0
+	balancePrefix = 0x0
+	programPrefix = 0x1
+
+	BalanceChunks uint16 = 1
 )
 
 func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
@@ -65,4 +72,17 @@ func SetProgram(
 ) error {
 	k := ProgramKey(programID)
 	return mu.Insert(ctx, k, program)
+}
+
+//
+// Balance
+//
+
+// [balancePrefix] + [address]
+func BalanceKey(addr codec.Address) (k []byte) {
+	k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
+	k[0] = balancePrefix
+	copy(k[1:], addr[:])
+	binary.BigEndian.PutUint16(k[1+codec.AddressLen:], BalanceChunks)
+	return
 }
