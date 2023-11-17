@@ -10,9 +10,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/auth"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 )
 
@@ -67,39 +69,39 @@ func (c *keyCreateCmd) Verify() error {
 }
 
 func (c *keyCreateCmd) Run(ctx context.Context) error {
-	_, err := keyCreateFunc(ctx, c.db, c.name)
+	_, err := authCreateFunc(ctx, c.db, c.name)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func keyCreateFunc(ctx context.Context, db *state.SimpleMutable, name string) (ed25519.PublicKey, error) {
+func authCreateFunc(ctx context.Context, db *state.SimpleMutable, name string) (codec.Address, error) {
 	priv, err := ed25519.GeneratePrivateKey()
 	if err != nil {
-		return ed25519.EmptyPublicKey, err
+		return codec.EmptyAddress, err
 	}
-	ok, err := hasKey(ctx, db, name)
+	ok, err := hasAddress(ctx, db, name)
 	if ok {
-		return ed25519.EmptyPublicKey, fmt.Errorf("%w: %s", ErrDuplicateKeyName, name)
+		return codec.EmptyAddress, fmt.Errorf("%w: %s", ErrDuplicateKeyName, name)
 	}
 	if err != nil {
-		return ed25519.EmptyPublicKey, err
+		return codec.EmptyAddress, err
 	}
 	err = storage.SetKey(ctx, db, priv, name)
 	if err != nil {
-		return ed25519.EmptyPublicKey, err
+		return codec.EmptyAddress, err
 	}
 
 	err = db.Commit(ctx)
 	if err != nil {
-		return ed25519.EmptyPublicKey, err
+		return codec.EmptyAddress, err
 	}
 
-	return priv.PublicKey(), nil
+	return auth.NewED25519Address(priv.PublicKey()), nil
 }
 
-func hasKey(ctx context.Context, db state.Immutable, name string) (bool, error) {
-	_, ok, err := storage.GetPublicKey(ctx, db, name)
+func hasAddress(ctx context.Context, db state.Immutable, name string) (bool, error) {
+	_, ok, err := storage.GetAddress(ctx, db, name)
 	return ok, err
 }

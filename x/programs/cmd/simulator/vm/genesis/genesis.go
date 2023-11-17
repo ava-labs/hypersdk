@@ -15,8 +15,6 @@ import (
 	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
-
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
 )
 
 var _ vm.Genesis = (*Genesis)(nil)
@@ -27,8 +25,6 @@ type CustomAllocation struct {
 }
 
 type Genesis struct {
-	HRP string `json:"hrp"`
-
 	// State Parameters
 	StateBranchFactor merkledb.BranchFactor `json:"stateBranchFactor"`
 
@@ -46,33 +42,26 @@ type Genesis struct {
 	ValidityWindow int64 `json:"validityWindow"` // ms
 
 	// Tx Fee Parameters
-	BaseComputeUnits                  uint64 `json:"baseUnits"`
-	BaseWarpComputeUnits              uint64 `json:"baseWarpUnits"`
-	WarpComputeUnitsPerSigner         uint64 `json:"warpUnitsPerSigner"`
-	OutgoingWarpComputeUnits          uint64 `json:"outgoingWarpComputeUnits"`
-	ColdStorageKeyReadUnits           uint64 `json:"coldStorageKeyReadUnits"`
-	ColdStorageValueReadUnits         uint64 `json:"coldStorageValueReadUnits"` // per chunk
-	WarmStorageKeyReadUnits           uint64 `json:"warmStorageKeyReadUnits"`
-	WarmStorageValueReadUnits         uint64 `json:"warmStorageValueReadUnits"` // per chunk
-	StorageKeyCreateUnits             uint64 `json:"storageKeyCreateUnits"`
-	StorageValueCreateUnits           uint64 `json:"storageKeyValueUnits"` // per chunk
-	ColdStorageKeyModificationUnits   uint64 `json:"coldStorageKeyModificationUnits"`
-	ColdStorageValueModificationUnits uint64 `json:"coldStorageValueModificationUnits"` // per chunk
-	WarmStorageKeyModificationUnits   uint64 `json:"warmStorageKeyModificationUnits"`
-	WarmStorageValueModificationUnits uint64 `json:"warmStorageValueModificationUnits"` // per chunk
-
-	// program Runtime Parameters
-	EnableDebugMode  bool `json:"enableDebugMode"`
-	EnableBulkMemory bool `json:"enableBulkMemory"`
+	BaseComputeUnits          uint64 `json:"baseUnits"`
+	BaseWarpComputeUnits      uint64 `json:"baseWarpUnits"`
+	WarpComputeUnitsPerSigner uint64 `json:"warpUnitsPerSigner"`
+	OutgoingWarpComputeUnits  uint64 `json:"outgoingWarpComputeUnits"`
+	StorageKeyReadUnits       uint64 `json:"storageKeyReadUnits"`
+	StorageValueReadUnits     uint64 `json:"storageValueReadUnits"` // per chunk
+	StorageKeyAllocateUnits   uint64 `json:"storageKeyAllocateUnits"`
+	StorageValueAllocateUnits uint64 `json:"storageValueAllocateUnits"` // per chunk
+	StorageKeyWriteUnits      uint64 `json:"storageKeyWriteUnits"`
+	StorageValueWriteUnits    uint64 `json:"storageValueWriteUnits"` // per chunk
 
 	// Allocates
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
+
+	// Program Runtime Parameters
+	EnableWasmDebugMode  bool `json:"enableWasmDebugMode"`
 }
 
 func Default() *Genesis {
 	return &Genesis{
-		HRP: consts.HRP,
-
 		// State Parameters
 		StateBranchFactor: merkledb.BranchFactor16,
 
@@ -98,21 +87,15 @@ func Default() *Genesis {
 		// Tx Fee Storage Parameters
 		//
 		// TODO: tune this
-		ColdStorageKeyReadUnits:           5,
-		ColdStorageValueReadUnits:         2,
-		WarmStorageKeyReadUnits:           1,
-		WarmStorageValueReadUnits:         1,
-		StorageKeyCreateUnits:             20,
-		StorageValueCreateUnits:           5,
-		ColdStorageKeyModificationUnits:   10,
-		ColdStorageValueModificationUnits: 3,
-		WarmStorageKeyModificationUnits:   5,
-		WarmStorageValueModificationUnits: 3,
+		StorageKeyReadUnits:       5,
+		StorageValueReadUnits:     2,
+		StorageKeyAllocateUnits:   20,
+		StorageValueAllocateUnits: 5,
+		StorageKeyWriteUnits:      10,
+		StorageValueWriteUnits:    3,
 
 		// program Runtime Parameters
-		EnableDebugMode: true,
-		// Enabled to only enable Wasi for testing mode
-		EnableBulkMemory: true,
+		EnableWasmDebugMode: true,	
 	}
 }
 
@@ -127,9 +110,6 @@ func New(b []byte, _ []byte /* upgradeBytes */) (*Genesis, error) {
 }
 
 func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutable) error {
-	if consts.HRP != g.HRP {
-		return ErrInvalidHRP
-	}
 	if err := g.StateBranchFactor.Valid(); err != nil {
 		return err
 	}
@@ -138,17 +118,18 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 	//
 	// supply := uint64(0)
 	// for _, alloc := range g.CustomAllocation {
-	// 	pk, err := utils.ParseAddress(alloc.Address)
+	// 	addr, err := codec.ParseAddressBech32(consts.HRP, alloc.Address)
 	// 	if err != nil {
-	// 		return err
+	// 		return fmt.Errorf("%w: %s", err, alloc.Address)
 	// 	}
 	// 	supply, err = smath.Add64(supply, alloc.Balance)
 	// 	if err != nil {
 	// 		return err
 	// 	}
-	// 	if err := storage.SetBalance(ctx, mu, pk, alloc.Balance); err != nil {
+	// 	if err := storage.SetBalance(ctx, mu, addr, alloc.Balance); err != nil {
 	// 		return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 	// 	}
+	// }
 	// }
 	return nil
 }

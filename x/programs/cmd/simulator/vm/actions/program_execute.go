@@ -120,7 +120,7 @@ func (t *ProgramExecute) Execute(
 	// TODO: remove this is to support readonly response for now.
 	p := codec.NewWriter(len(resp), consts.MaxInt)
 	for _, r := range resp {
-		p.PackUint64(r)
+		p.PackInt64(r)
 	}
 
 	return true, 1, p.Bytes(), nil, nil

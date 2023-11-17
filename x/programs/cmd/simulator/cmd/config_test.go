@@ -12,7 +12,7 @@ import (
 func TestValidateAssertion(t *testing.T) {
 	require := require.New(t)
 	tests := []struct {
-		actual    uint64
+		actual    int64
 		assertion Require
 		expected  bool
 		wantErr   bool
@@ -21,10 +21,14 @@ func TestValidateAssertion(t *testing.T) {
 		{5, Require{ResultAssertion{Operator: string(NumericLt), Value: "10"}}, true, false},
 		{5, Require{ResultAssertion{Operator: string(NumericEq), Value: "5"}}, true, false},
 		{5, Require{ResultAssertion{Operator: string(NumericNe), Value: "3"}}, true, false},
-		{5, Require{ResultAssertion{Operator: string(NumericGt), Value: "10"}}, false, false},
+		{5, Require{ResultAssertion{Operator: string(NumericGt), Value: "10"}}, false, false}, 
+		{5, Require{ResultAssertion{Operator: string(NumericGt), Value: "-10"}}, true, false},
 		{5, Require{ResultAssertion{Operator: string(NumericLt), Value: "2"}}, false, false},
+		{5, Require{ResultAssertion{Operator: string(NumericLt), Value: "-1"}}, false, false},
+		{5, Require{ResultAssertion{Operator: string(NumericLt), Value: "0"}}, false, false},
 		{5, Require{ResultAssertion{Operator: string(NumericGe), Value: "5"}}, true, false},
 		{5, Require{ResultAssertion{Operator: string(NumericGe), Value: "1"}}, true, false},
+		{5, Require{ResultAssertion{Operator: string(NumericGe), Value: "a"}}, false, true},
 		{5, Require{}, false, true},
 	}
 

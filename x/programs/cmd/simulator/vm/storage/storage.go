@@ -12,9 +12,11 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/auth"
 )
 
 const (
@@ -81,23 +83,23 @@ func SetProgram(
 // Keys
 //
 
-// gets the public key mapped to the given name.
-func GetPublicKey(ctx context.Context, db state.Immutable, name string) (ed25519.PublicKey, bool, error) {
-	k := make([]byte, 1+ed25519.PublicKeyLen)
+// gets the address mapped to the given name.
+func GetAddress(ctx context.Context, db state.Immutable, name string) (codec.Address, bool, error) {
+	k := make([]byte, 1+ed25519.PrivateKeyLen)
 	k[0] = keyPrefix
 	copy(k[1:], []byte(name))
 	v, err := db.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
-		return ed25519.EmptyPublicKey, false, nil
+		return codec.EmptyAddress, false, nil
 	}
 	if err != nil {
-		return ed25519.EmptyPublicKey, false, err
+		return codec.EmptyAddress, false, err
 	}
-	return ed25519.PublicKey(v), true, nil
+	return auth.NewED25519Address(ed25519.PublicKey(v)), true, nil
 }
 
 func SetKey(ctx context.Context, db state.Mutable, privateKey ed25519.PrivateKey, name string) error {
-	k := make([]byte, 1+ed25519.PublicKeyLen)
+	k := make([]byte, 1+ed25519.PrivateKeyLen)
 	k[0] = keyPrefix
 	copy(k[1:], []byte(name))
 	return db.Insert(ctx, k, privateKey[:])

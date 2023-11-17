@@ -217,13 +217,13 @@ func runStepFunc(
 	switch endpoint {
 	case EndpointKey:
 		keyName := params[0].Value.(string)
-		key, err := keyCreateFunc(ctx, db, keyName)
+		address, err := authCreateFunc(ctx, db, keyName)
 		if errors.Is(err, ErrDuplicateKeyName) {
 			log.Debug("key already exists")
 		} else if err != nil {
 			return err
 		}
-		resp.setMsg(fmt.Sprintf("created named key with address %s", utils.Address(key)))
+		resp.setMsg(fmt.Sprintf("created named key with address %s", utils.Address(address)))
 
 		return nil
 	case EndpointExecute: // for now the logic is the same for both TODO: breakout readonly
@@ -295,20 +295,20 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
 			}
 
-			var key string
+			var address string
 			// get named public key from db
-			pk, ok, err := storage.GetPublicKey(ctx, db, val)
+			addr, ok, err := storage.GetAddress(ctx, db, val)
 			if !ok {
 				// if not found assume its being created
-				key = val
+			address = val
 			} else {
 				// otherwise use the public key address
-				key = utils.Address(pk)
+				address = utils.Address(addr)
 			}
 			if err != nil {
 				return nil, err
 			}
-			cp = append(cp, runtime.CallParam{Value: key})
+			cp = append(cp, runtime.CallParam{Value: address})
 		case Uint64:
 			switch v := param.Value.(type) {
 			case float64:

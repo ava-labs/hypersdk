@@ -4,15 +4,15 @@
 package utils
 
 import (
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/codec"
 
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
 )
 
-func Address(pk ed25519.PublicKey) string {
-	return ed25519.Address(consts.HRP, pk)
+func Address(addr codec.Address) string {
+	return codec.MustAddressBech32(consts.HRP, addr)
 }
 
-func ParseAddress(s string) (ed25519.PublicKey, error) {
-	return ed25519.ParseAddress(consts.HRP, s)
+func ParseAddress(address string) (codec.Address, error) {
+	return codec.ParseAddressBech32(consts.HRP, address) 
 }

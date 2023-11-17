@@ -14,13 +14,11 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/database/manager"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	avago_version "github.com/ava-labs/avalanchego/version"
 
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/state"
@@ -125,17 +123,8 @@ func (s *simulator) Init() error {
 		return nil
 	}
 
-	// setup pebble and db manager
-	pdb, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
-	if err != nil {
-		return nil
-	}
-	db, err := manager.NewManagerFromDBs([]*manager.VersionedDatabase{
-		{
-			Database: pdb,
-			Version:  avago_version.CurrentDatabase,
-		},
-	})
+	// setup pebble
+	db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
 	if err != nil {
 		return nil
 	}

@@ -80,7 +80,7 @@ func (p *programCreate) Init(args []string) error {
 }
 
 func (p *programCreate) Verify(ctx context.Context) error {
-	exists, err := hasKey(ctx, p.db, p.keyName)
+	exists, err := hasAddress(ctx, p.db, p.keyName)
 	if !exists {
 		return fmt.Errorf("%w: %s", ErrNamedKeyNotFound, p.keyName)
 	}
@@ -142,7 +142,7 @@ func programExecuteFunc(
 	callParams []runtime.CallParam,
 	function string,
 	maxUnits uint64,
-) (ids.ID, []uint64, uint64, error) {
+) (ids.ID, []int64, uint64, error) {
 	// simulate create program transaction
 	programTxID, err := generateRandomID()
 	if err != nil {
@@ -166,9 +166,9 @@ func programExecuteFunc(
 	}
 
 	p := codec.NewReader(resp, len(resp))
-	var result []uint64
+	var result []int64
 	for !p.Empty() {
-		v := p.UnpackUint64(true)
+		v := p.UnpackInt64(true)
 		result = append(result, v)
 	}
 
