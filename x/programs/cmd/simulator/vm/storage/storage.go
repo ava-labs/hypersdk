@@ -42,7 +42,7 @@ var (
 	feeKey       = []byte{feePrefix}
 )
 
-const ProgramChunks uint16 = 1
+const ProgramChunks uint16 = 512 // 32KiB/64B 
 
 //
 // Program
@@ -52,6 +52,7 @@ func ProgramKey(id ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen)
 	k[0] = programPrefix
 	copy(k[1:], id[:])
+	binary.BigEndian.PutUint16(k[1+consts.IDLen:], ProgramChunks)
 	return
 }
 

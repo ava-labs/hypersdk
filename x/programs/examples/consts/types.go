@@ -5,5 +5,5 @@ package consts
 
 const (
 	// Auth TypeIDs
-	ED25519ID   uint8 = 0
+	ED25519ID uint8 = 0
 )

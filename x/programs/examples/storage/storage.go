@@ -20,8 +20,11 @@ var ErrInvalidBalance = errors.New("invalid balance")
 const (
 	balancePrefix = 0x0
 	programPrefix = 0x1
+)
 
+const (
 	BalanceChunks uint16 = 1
+	ProgramChunks uint16 = 512 // 32KiB/64B
 )
 
 func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
@@ -39,6 +42,7 @@ func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
 func ProgramKey(id ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen)
 	copy(k[1:], id[:])
+	binary.BigEndian.PutUint16(k[1+consts.IDLen:], ProgramChunks)
 	return
 }
 
