@@ -74,11 +74,10 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
     // Converts the parameters that are pointers to their original type. 
     let converted_params = full_params.clone().map(|param| {
-        // grab param name and type from param
         let (param_name, param_type) = param;
         let (_, param_descriptor) = param_type;
-        // return the original parameter if it is a supported primitive type
         match param_descriptor {
+            // return the original parameter if it is a supported primitive type
             ParamKind::SupportedPrimitive => {
                 return quote! {
                     #param_name
