@@ -24,9 +24,9 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let full_params = input_args.iter().enumerate().map(|(index, fn_arg)| {
         // A typed argument is a parameter. An untyped (receiver) argument is a `self` parameter.
         if let FnArg::Typed(PatType { pat, ty, .. }) = fn_arg {
-            // ensure first parameter is Context
-            if index == 0 && !is_context(ty) {
-                panic!("First parameter must be Context.");
+            // ensure first parameter type is Program
+            if index == 0 && !is_program(ty) {
+                panic!("First parameter must be Program.");
             }
 
             if let Pat::Ident(ref pat_ident) = **pat {
@@ -161,8 +161,8 @@ fn is_supported_primitive(type_path: &std::boxed::Box<Type>) -> bool {
     }
 }
 
-/// Returns whether the type_path represents a Context type.
-fn is_context(type_path: &std::boxed::Box<Type>) -> bool {
+/// Returns whether the type_path represents a Program type.
+fn is_program(type_path: &std::boxed::Box<Type>) -> bool {
     if let Type::Path(ref type_path) = **type_path {
         let ident = &type_path.path.segments[0].ident;
         let ident_str = ident.to_string();
