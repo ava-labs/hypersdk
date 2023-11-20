@@ -77,3 +77,15 @@ impl State {
         from_slice(&val).map_err(|_| StateError::InvalidBytes)
     }
 }
+
+pub fn from_raw_ptr<V>(ptr: i64) -> V
+where
+    V: serde::de::DeserializeOwned,
+{
+    // grab the first 4 bytes of ptr as the length
+    let len = unsafe { std::slice::from_raw_parts(ptr as *const u8, 4) };
+    let len = u32::from_be_bytes(len.try_into().unwrap()) as usize;
+    // grab the next len bytes as the value
+    let value = unsafe { std::slice::from_raw_parts((ptr + 4) as *const u8, len) };
+    from_slice(value).unwrap()
+}

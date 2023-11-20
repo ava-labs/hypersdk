@@ -61,15 +61,24 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     // Collect all parameter names and types into separate vectors.
     let (param_names, param_types): (Vec<_>, Vec<_>) = full_params.unzip();
 
+    let converted_params = param_names.iter().map(|param_name| {
+        quote! {
+            // TODO: only convert from_raw_ptr if not a supported primitive type
+            from_raw_ptr(#param_name)
+        }
+    });
+
     // Extract the original function's return type. This must be a WASM supported type.
     let return_type = &input.sig.output;
     let output = quote! {
+        // include conversion function
+        // #conversion_function
         // Need to include the original function in the output, so contract can call itself
         #input
         #[no_mangle]
         pub extern "C" fn #new_name(#(#param_names: #param_types), *) #return_type {
             // .into() uses the From() on each argument in the iterator to convert it to the type we want. 70% sure about this statement.
-            #name(#(#param_names.into()),*) // This means that every parameter type must implement From<i64>(except for the supported primitive types).
+            #name(#(#converted_params),*) // This means that every parameter type must implement From<i64>(except for the supported primitive types).
         }
     };
 
