@@ -43,7 +43,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             }
             // add unused variable
             if let Pat::Wild(_) = **pat {
-                if is_context(ty) {
+                if is_program(ty) {
                     return (
                         &empty_param,
                         parse_str::<Type>("i64")
