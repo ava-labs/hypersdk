@@ -28,7 +28,7 @@ extern "C" {
 #[must_use]
 pub(crate) unsafe fn put_bytes(
     caller: &Program,
-    key: Key,
+    key: &Key,
     value_ptr: *const u8,
     value_len: usize,
 ) -> i32 {
@@ -57,6 +57,6 @@ pub(crate) unsafe fn len_bytes(caller: &Program, key: &Key) -> i32 {
 /// # Safety
 /// The caller must ensure that `key_ptr` + `key_len` points to valid memory locations.
 #[must_use]
-pub(crate) unsafe fn get_bytes(caller: &Program, key: Key, val_len: i32) -> i32 {
+pub(crate) unsafe fn get_bytes(caller: &Program, key: &Key, val_len: i32) -> i32 {
     unsafe { _get(caller.id(), key.as_bytes().as_ptr(), key.len(), val_len) }
 }

@@ -110,9 +110,9 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             }
         }
-        // Generate the Into<key> implementation
-        // This is needed to convert the enum to a Key type.
-        // Key types are used to pass StateKeys to the host.
+
+        // Generate the Into<key> implementation needed to
+        // convert the enum to a Key type.
         impl Into<Key> for #name {
             fn into(self) -> Key {
                 Key::new(self.to_vec())

@@ -31,7 +31,7 @@ impl State {
         match unsafe {
             put_bytes(
                 &self.program,
-                key.into(),
+                &key.into(),
                 value_bytes.as_ptr(),
                 value_bytes.len(),
             )
@@ -58,7 +58,7 @@ impl State {
     {
         let key: Key = key.into();
         let val_len = unsafe { len_bytes(&self.program, &key) };
-        let val_ptr = unsafe { get_bytes(&self.program, key, val_len) };
+        let val_ptr = unsafe { get_bytes(&self.program, &key, val_len) };
         if val_ptr < 0 {
             return Err(StateError::Read);
         }
