@@ -53,14 +53,12 @@ impl State {
     /// Panics if the value cannot be converted from i32 to usize.
     pub fn get<T, K>(&self, key: K) -> Result<T, StateError>
     where
-        K: AsRef<[u8]>,
+        K: Into<Key>,
         T: DeserializeOwned,
     {
-        let key_ptr = key.as_ref().as_ptr();
-        let key_len = key.as_ref().len();
-
-        let val_len = unsafe { len_bytes(&self.program, key_ptr, key_len) };
-        let val_ptr = unsafe { get_bytes(&self.program, key_ptr, key_len, val_len) };
+        let key : Key = key.into();
+        let val_len = unsafe { len_bytes(&self.program, &key) };
+        let val_ptr = unsafe { get_bytes(&self.program, key, val_len) };
         if val_ptr < 0 {
             return Err(StateError::Read);
         }
