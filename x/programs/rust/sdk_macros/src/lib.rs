@@ -9,6 +9,13 @@ use syn::{
     parse_macro_input, parse_str, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Type,
 };
 
+enum ParamKind {
+    SupportedPrimitive,
+    Program,
+    Pointer,
+}
+
+
 /// An attribute procedural macro that makes a function visible to the VM host.
 /// It does so by wrapping the `item` tokenstream in a new function that can be called by the host.
 /// The wrapper function will have the same name as the original function, but with "_guest" appended to it.
@@ -31,7 +38,13 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
             if let Pat::Ident(ref pat_ident) = **pat {
                 let param_name = &pat_ident.ident;
-                // We only set the type to i64 if it is not a supported WASM primitive.
+                let param_descriptor = if is_supported_primitive(ty) {
+                    ParamKind::SupportedPrimitive
+                } else if is_context(ty) {
+                    ParamKind::Program
+                } else {
+                    ParamKind::Pointer
+                };
                 let param_type = if is_supported_primitive(ty) {
                     ty.to_token_stream()
                 } else {
@@ -39,16 +52,17 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                         .expect("valid i64 type")
                         .to_token_stream()
                 };
-                return (param_name, param_type);
+                return (param_name, (param_type, param_descriptor));
             }
             // add unused variable
             if let Pat::Wild(_) = **pat {
                 if is_context(ty) {
                     return (
                         &empty_param,
-                        parse_str::<Type>("i64")
+                        (parse_str::<Type>("i64")
                             .expect("valid i64 type")
                             .to_token_stream(),
+                            ParamKind::Program),
                     );
                 } else {
                     panic!("Unused variables only supported for Program.")
@@ -58,15 +72,37 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         panic!("Unsupported function parameter format.");
     });
 
-    // Collect all parameter names and types into separate vectors.
-    let (param_names, param_types): (Vec<_>, Vec<_>) = full_params.unzip();
-
-    let converted_params = param_names.iter().map(|param_name| {
-        quote! {
-            // TODO: only convert from_raw_ptr if not a supported primitive type
-            from_raw_ptr(#param_name)
+    // Converts the parameters that are pointers to their original type. 
+    let converted_params = full_params.clone().map(|param| {
+        // grab param name and type from param
+        let (param_name, param_type) = param;
+        let (_, param_descriptor) = param_type;
+        // return the original parameter if it is a supported primitive type
+        match param_descriptor {
+            ParamKind::SupportedPrimitive => {
+                return quote! {
+                    #param_name
+                };
+            }
+            // use the From<i64> trait to convert from i64 to a Program struct
+            ParamKind::Program => {
+                return quote! {
+                    #param_name.into()
+                };
+            }
+             // only convert from_raw_ptr if not a supported primitive type or Program
+             ParamKind::Pointer => {
+                return quote! {
+                    from_raw_ptr(#param_name)
+                };
+            }
         }
     });
+    
+    // Collect all parameter names and types into separate vectors.
+    let (param_names, param_types): (Vec<_>, Vec<_>) = full_params.unzip();
+    let param_types = param_types.iter().map(|(param_type, _)| param_type);
+  
 
     // Extract the original function's return type. This must be a WASM supported type.
     let return_type = &input.sig.output;
@@ -77,8 +113,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         #input
         #[no_mangle]
         pub extern "C" fn #new_name(#(#param_names: #param_types), *) #return_type {
-            // .into() uses the From() on each argument in the iterator to convert it to the type we want. 70% sure about this statement.
-            #name(#(#converted_params),*) // This means that every parameter type must implement From<i64>(except for the supported primitive types).
+            #name(#(#converted_params),*) // pass in the converted parameters
         }
     };
 

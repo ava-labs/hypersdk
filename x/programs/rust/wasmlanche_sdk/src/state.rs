@@ -78,6 +78,10 @@ impl State {
     }
 }
 
+
+/// Converts a raw pointer to a deserialized value.
+/// Expects the first 4 bytes of the pointer to represent the [length] of the serialized value,
+/// with the subsequent [length] bytes comprising the serialized data.
 pub fn from_raw_ptr<V>(ptr: i64) -> V
 where
     V: serde::de::DeserializeOwned,
