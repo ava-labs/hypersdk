@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{program::Program, public, state_keys, types::Address, state::Key};
+use wasmlanche_sdk::{program::Program, public, state::Key, state_keys, types::Address};
 
 /// The program state keys.
 #[state_keys]
@@ -83,18 +83,12 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
     // update balances
     program
         .state()
-        .store(
-            StateKey::Balance(sender),
-            &(sender_balance - amount),
-        )
+        .store(StateKey::Balance(sender), &(sender_balance - amount))
         .expect("failed to store balance");
 
     program
         .state()
-        .store(
-            StateKey::Balance(recipient),
-            &(recipient_balance + amount),
-        )
+        .store(StateKey::Balance(recipient), &(recipient_balance + amount))
         .expect("failed to store balance");
 
     true

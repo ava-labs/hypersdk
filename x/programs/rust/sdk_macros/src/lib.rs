@@ -115,7 +115,7 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
         // Key types are used to pass StateKeys to the host.
         impl Into<Key> for #name {
             fn into(self) -> Key {
-                Key(self.to_vec())
+                Key::new(self.to_vec())
             }
         }
     };

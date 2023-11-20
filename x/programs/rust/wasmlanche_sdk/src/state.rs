@@ -25,7 +25,7 @@ impl State {
     pub fn store<K, V>(&self, key: K, value: &V) -> Result<(), StateError>
     where
         V: Serialize,
-        K: Into<Key>, 
+        K: Into<Key>,
     {
         let value_bytes = to_vec(value).map_err(|_| StateError::Serialization)?;
         match unsafe {
@@ -56,7 +56,7 @@ impl State {
         K: Into<Key>,
         T: DeserializeOwned,
     {
-        let key : Key = key.into();
+        let key: Key = key.into();
         let val_len = unsafe { len_bytes(&self.program, &key) };
         let val_ptr = unsafe { get_bytes(&self.program, key, val_len) };
         if val_ptr < 0 {
@@ -75,11 +75,9 @@ impl State {
     }
 }
 
-
-
-
+/// Key is a wrapper around a Vec<u8> that represents a key in the host storage.
 #[derive(Debug, Default, Clone)]
-pub struct Key(pub Vec<u8>);
+pub struct Key(Vec<u8>);
 
 impl Key {
     #[must_use]
@@ -100,12 +98,5 @@ impl Key {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
-    }
-}
-
-// implement from Vec<u8> for Key
-impl From<Vec<u8>> for Key {
-    fn from(value: Vec<u8>) -> Self {
-        Self(value)
     }
 }
