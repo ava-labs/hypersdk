@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
+use wasmlanche_sdk::{program::Program, public, state_keys, types::Address, state::Key};
 
 #[state_keys]
 enum StateKeys {
@@ -19,7 +19,7 @@ fn initialize_address(program: Program, address: Address) -> bool {
 
     program
         .state()
-        .store(StateKeys::Counter(address).to_vec(), &0_i64)
+        .store(StateKeys::Counter(address), &0_i64)
         .expect("failed to store counter");
 
     true
@@ -32,7 +32,7 @@ fn inc(program: Program, to: Address, amount: i64) -> bool {
 
     program
         .state()
-        .store(StateKeys::Counter(to).to_vec(), &counter)
+        .store(StateKeys::Counter(to), &counter)
         .expect("failed to store counter");
 
     true

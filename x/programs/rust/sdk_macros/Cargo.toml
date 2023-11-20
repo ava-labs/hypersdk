@@ -6,6 +6,9 @@ edition = "2021"
 [lib]
 proc-macro = true
 
+[dev-dependencies]
+wasmlanche_sdk = { version = "0.1.0", path = "../wasmlanche_sdk" }
+
 [dependencies]
 proc-macro2 = "1.0.67"
 quote = "1.0.33"

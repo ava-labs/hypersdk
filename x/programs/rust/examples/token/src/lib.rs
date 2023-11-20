@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
+use wasmlanche_sdk::{program::Program, public, state_keys, types::Address, state::Key};
 
 /// The program state keys.
 #[state_keys]
@@ -19,19 +19,19 @@ pub fn init(program: Program) -> bool {
     // set total supply
     program
         .state()
-        .store(StateKey::TotalSupply.to_vec(), &123456789_i64)
+        .store(StateKey::TotalSupply, &123456789_i64)
         .expect("failed to store total supply");
 
     // set token name
     program
         .state()
-        .store(StateKey::Name.to_vec(), b"WasmCoin")
+        .store(StateKey::Name, b"WasmCoin")
         .expect("failed to store coin name");
 
     // set token symbol
     program
         .state()
-        .store(StateKey::Symbol.to_vec(), b"WACK")
+        .store(StateKey::Symbol, b"WACK")
         .expect("failed to store symbol");
 
     true
@@ -56,7 +56,7 @@ pub fn mint_to(program: Program, recipient: Address, amount: i64) -> bool {
 
     program
         .state()
-        .store(StateKey::Balance(recipient).to_vec(), &(balance + amount))
+        .store(StateKey::Balance(recipient), &(balance + amount))
         .expect("failed to store balance");
 
     true
@@ -84,7 +84,7 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
     program
         .state()
         .store(
-            StateKey::Balance(sender).to_vec(),
+            StateKey::Balance(sender),
             &(sender_balance - amount),
         )
         .expect("failed to store balance");
@@ -92,7 +92,7 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
     program
         .state()
         .store(
-            StateKey::Balance(recipient).to_vec(),
+            StateKey::Balance(recipient),
             &(recipient_balance + amount),
         )
         .expect("failed to store balance");

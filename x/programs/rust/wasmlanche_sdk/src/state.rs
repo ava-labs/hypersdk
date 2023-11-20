@@ -25,14 +25,13 @@ impl State {
     pub fn store<K, V>(&self, key: K, value: &V) -> Result<(), StateError>
     where
         V: Serialize,
-        K: AsRef<[u8]>,
+        K: Into<Key>, 
     {
         let value_bytes = to_vec(value).map_err(|_| StateError::Serialization)?;
         match unsafe {
             put_bytes(
                 &self.program,
-                key.as_ref().as_ptr(),
-                key.as_ref().len(),
+                key.into(),
                 value_bytes.as_ptr(),
                 value_bytes.len(),
             )
@@ -75,5 +74,40 @@ impl State {
             )
         };
         from_slice(&val).map_err(|_| StateError::InvalidBytes)
+    }
+}
+
+
+
+
+#[derive(Debug, Default, Clone)]
+pub struct Key(pub Vec<u8>);
+
+impl Key {
+    #[must_use]
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+// implement from Vec<u8> for Key
+impl From<Vec<u8>> for Key {
+    fn from(value: Vec<u8>) -> Self {
+        Self(value)
     }
 }

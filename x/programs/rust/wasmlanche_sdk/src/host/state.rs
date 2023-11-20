@@ -1,6 +1,6 @@
 //! The `state` module provides functions for interacting with persistent
 //! storage exposed by the host.
-use crate::program::Program;
+use crate::{program::Program, state::Key};
 
 #[link(wasm_import_module = "state")]
 extern "C" {
@@ -28,12 +28,11 @@ extern "C" {
 #[must_use]
 pub(crate) unsafe fn put_bytes(
     caller: &Program,
-    key_ptr: *const u8,
-    key_len: usize,
+    key: Key,
     value_ptr: *const u8,
     value_len: usize,
 ) -> i32 {
-    unsafe { _put(caller.id(), key_ptr, key_len, value_ptr, value_len) }
+    unsafe { _put(caller.id(), key.as_bytes().as_ptr(), key.len(), value_ptr, value_len) }
 }
 
 /// Returns the length of the bytes associated with the key from the host storage.
