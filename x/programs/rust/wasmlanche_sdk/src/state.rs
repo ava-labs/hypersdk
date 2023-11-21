@@ -94,7 +94,7 @@ where
     V: Argument,
 {    
     let (bytes, _) = bytes_and_length(ptr);
-    V::from_bytes(bytes)
+    V::from_bytes(&bytes)
 }
 
 #[no_mangle]
