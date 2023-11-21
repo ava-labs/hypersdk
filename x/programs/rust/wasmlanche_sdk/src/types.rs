@@ -99,6 +99,7 @@ impl From<i64> for Bytes32 {
     }
 }
 
+/// A trait that represents an argument that can be passed to & from the host.
 pub trait Argument {
     fn as_bytes(&self) -> Cow<'_, [u8]>;
     fn from_bytes(bytes: &[u8]) -> Self
@@ -178,10 +179,10 @@ impl Argument for Program {
     }
 }
 
+// Represents a vector with types that implement the Argument trait.
 pub struct VecArg<T>(Vec<T>);
 
 impl<T> VecArg<T> {
-    #[must_use]
     pub fn new(vec: Vec<T>) -> Self {
         Self(vec)
     }
@@ -197,24 +198,33 @@ impl<T> Argument for VecArg<T>
 where
     T: Argument,
 {
-    // we don't know how large each element T is, but we know that each element has a from_bytes method
+    // Construct a VecArg from bytes
     fn from_bytes(bytes: &[u8]) -> Self {
-        // Vec to be returned
-        let mut vec = Vec::new();
+        let mut result_vec = Vec::new();
+
+        // Current byte we are reading from
         let mut current_byte = 0;
         let num_bytes = bytes.len();
+
         // TODO: check logic on empty vec
         while current_byte < num_bytes {
-            // copy the bytes into a new vec
+            // Convert the bytes to the type T
             let elem : T = T::from_bytes(&bytes[current_byte..]);
             current_byte += elem.len();
-            vec.push(elem);
+            // Add the element to the result vec
+            result_vec.push(elem);
         }
 
-        Self(vec)
+        Self(result_vec)
     }
+
     fn as_bytes(&self) -> Cow<'_, [u8]> {
-        let mut bytes = Vec::new();
+        if self.len() == 0 {
+            return Cow::Owned(Vec::new());
+        }
+
+        // avoid reallocation
+        let mut bytes = Vec::with_capacity(self.len() * self.0[0].len());
         for elem in &self.0 {
             bytes.extend_from_slice(&elem.as_bytes());
         }
