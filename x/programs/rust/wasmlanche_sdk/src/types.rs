@@ -101,6 +101,9 @@ impl From<i64> for Bytes32 {
 
 pub trait Argument {
     fn as_bytes(&self) -> Cow<'_, [u8]>;
+    fn from_bytes(bytes: Vec<u8>) -> Self
+    where
+        Self: Sized;
     fn is_primitive(&self) -> bool {
         false
     }
@@ -116,11 +119,22 @@ impl Argument for Bytes32 {
     fn as_bytes(&self) -> Cow<'_, [u8]> {
         Cow::Borrowed(&self.0)
     }
+    fn from_bytes(bytes: Vec<u8>) -> Self
+        where
+            Self: Sized {
+        let bytes = bytes[..ADDRESS_LEN].try_into().unwrap();
+        Self::new(bytes)
+    }
 }
 
 impl Argument for Address {
     fn as_bytes(&self) -> Cow<'_, [u8]> {
         Cow::Borrowed(self.0.as_bytes())
+    }
+    fn from_bytes(bytes: Vec<u8>) -> Self {
+        // get first ADDRESS_LEN bytes from bytes
+        let bytes = bytes[..ADDRESS_LEN].try_into().unwrap();
+        Self::new(bytes)
     }
 }
 
@@ -130,6 +144,10 @@ impl Argument for i64 {
     }
     fn is_primitive(&self) -> bool {
         true
+    }
+    fn from_bytes(bytes: Vec<u8>) -> Self {
+        let bytes = bytes[..8].try_into().unwrap();
+        Self::from_be_bytes(bytes)
     }
 }
 
@@ -141,6 +159,10 @@ impl Argument for i32 {
     fn is_primitive(&self) -> bool {
         true
     }
+    fn from_bytes(bytes: Vec<u8>) -> Self {
+        let bytes = bytes[..4].try_into().unwrap();
+        Self::from_be_bytes(bytes)
+    }
 }
 
 impl Argument for Program {
@@ -150,25 +172,9 @@ impl Argument for Program {
     fn is_primitive(&self) -> bool {
         true
     }
-}
-
-pub trait HostArgument {
-    fn from_bytes(bytes: Vec<u8>) -> Self;
-}
-
-impl HostArgument for Address {
     fn from_bytes(bytes: Vec<u8>) -> Self {
-        // get first ADDRESS_LEN bytes from bytes
-        let bytes = bytes[..ADDRESS_LEN].try_into().unwrap();
-        Self::new(bytes)
-    }
-}
-
-impl HostArgument for i32 {
-    fn from_bytes(bytes: Vec<u8>) -> Self {
-
-        let bytes = bytes[..4].try_into().unwrap();
-        Self::from_be_bytes(bytes)
+        let id : i64 = i64::from_bytes(bytes);
+        Self::from(id)
     }
 }
 
@@ -187,9 +193,9 @@ impl<T> VecArg<T> {
     }
 }
 
-impl<T> HostArgument for VecArg<T>
+impl<T> Argument for VecArg<T>
 where
-    T: HostArgument + Argument,
+    T: Argument,
 {
     // we don't know how large each element T is, but we know that each element has a from_bytes method
     fn from_bytes(bytes: Vec<u8>) -> Self {
@@ -200,12 +206,18 @@ where
         // TODO: check logic on empty vec
         while current_byte < num_bytes {
             // copy the bytes into a new vec
-            let temp_vec = bytes[current_byte..].to_vec();
-            let elem : T = T::from_bytes(temp_vec);
+            let elem : T = T::from_bytes(bytes[current_byte..].to_vec());
             current_byte += elem.len();
             vec.push(elem);
         }
 
         Self(vec)
+    }
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        let mut bytes = Vec::new();
+        for elem in &self.0 {
+            bytes.extend_from_slice(&elem.as_bytes());
+        }
+        Cow::Owned(bytes)
     }
 }

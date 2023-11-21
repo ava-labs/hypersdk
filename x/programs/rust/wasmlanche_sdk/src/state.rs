@@ -4,7 +4,7 @@ use serde_bare::{from_slice, to_vec};
 use crate::{
     errors::StateError,
     host::{get_bytes, len_bytes, put_bytes},
-    program::Program, types::HostArgument,
+    program::Program, types::Argument,
 };
 
 pub struct State {
@@ -91,7 +91,7 @@ impl State {
 
 pub fn from_raw_ptr<V>(ptr: i64) -> V
 where
-    V: HostArgument,
+    V: Argument,
 {    
     let (bytes, _) = bytes_and_length(ptr);
     V::from_bytes(bytes)
