@@ -93,6 +93,7 @@ impl State {
 // Converts a raw pointer to a type that implements the Argument trait.
 // Expects the first 4 bytes of the pointer to represent the [length] of the serialized value,
 // with the subsequent [length] bytes comprising the serialized data.
+#[must_use]
 pub fn from_raw_ptr<V>(ptr: i64) -> V
 where
     V: Argument,
@@ -101,9 +102,13 @@ where
     V::from_bytes(&bytes)
 }
 
-#[no_mangle]
 // TODO: move this logic to return a Memory struct that conatins ptr + length
 /// Returns a tuple of the bytes and length of the argument.
+/// # Panics
+/// Panics if the value cannot be converted from i32 to usize.
+/// # Safety
+/// This function is unsafe because it dereferences raw pointers.
+#[must_use]
 pub fn bytes_and_length(ptr: i64) -> (Vec<u8>, i32) {
     let len = unsafe { std::slice::from_raw_parts(ptr as *const u8, 4) };
     let len = u32::from_be_bytes(len.try_into().unwrap()) as usize;

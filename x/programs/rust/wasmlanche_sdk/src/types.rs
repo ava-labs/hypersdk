@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
-use crate::{program::Program, state::bytes_and_length};
+use crate::program::Program;
 
 pub const ADDRESS_LEN: usize = 32;
 /// A struct that enforces a fixed length of 32 bytes which represents an address.
@@ -50,23 +50,6 @@ impl Bytes32 {
         &self.0
     }
 }
-
-// pub struct VecArg<T>(Vec<T>);
-// // TODO: this should be size & not length
-// pub trait HasLen {
-//     fn len(&self) -> usize;
-// }
-// impl<T> From<i64> for VecArg<T>
-// where T: From<i64> {
-//     fn from(value: i64) -> Self {
-//         let (bytes, len) = bytes_and_length(value);
-//         let len = len as usize;
-//         let mut vec = Vec::new();
-
-//         vec.push(value.into());
-//         Self(Bytes32::from(value))
-//     }
-// }
 
 /// Implement the Display trait for Bytes32 so that we can print it.
 /// Enables `to_string()` on Bytes32.
@@ -213,7 +196,7 @@ where
     }
 
     fn as_bytes(&self) -> Cow<'_, [u8]> {
-        if self.len() == 0 {
+        if self.is_empty() {
             return Cow::Owned(Vec::new());
         }
 

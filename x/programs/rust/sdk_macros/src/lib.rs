@@ -80,21 +80,21 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         match param_descriptor {
             // return the original parameter if it is a supported primitive type
             ParamKind::SupportedPrimitive => {
-                return quote! {
+                quote! {
                     #param_name
-                };
+                }
             }
             // use the From<i64> trait to convert from i64 to a Program struct
             ParamKind::Program => {
-                return quote! {
+                quote! {
                     #param_name.into()
-                };
+                }
             }
             // only convert from_raw_ptr if not a supported primitive type or Program
             ParamKind::Pointer => {
-                return quote! {
+                quote! {
                     from_raw_ptr(#param_name)
-                };
+                }
             }
         }
     });
@@ -106,8 +106,6 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     // Extract the original function's return type. This must be a WASM supported type.
     let return_type = &input.sig.output;
     let output = quote! {
-        // include conversion function
-        // #conversion_function
         // Need to include the original function in the output, so contract can call itself
         #input
         #[no_mangle]
