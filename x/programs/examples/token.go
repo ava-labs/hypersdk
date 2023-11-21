@@ -89,7 +89,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := newKeyPtr(ctx, aliceKey, rt)
+	alicePtr, err := newPtr(ctx, aliceKey[:], rt)
 	if err != nil {
 		return err
 	}
@@ -101,7 +101,20 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write bob's key to stack and get pointer
-	bobPtr, err := newKeyPtr(ctx, bobKey, rt)
+	bobPtr, err := newPtr(ctx, bobKey[:], rt)
+	if err != nil {
+		return err
+	}
+
+	// combine alice and bobs addresses
+	addresses := append(aliceKey[:], bobKey[:]...)
+	addressesPtr, err := newPtr(ctx, addresses, rt)
+	if err != nil {
+		return err
+	}
+
+	mintValues := marshalInts(4, 12)
+	mintValuesPtr, err := newPtr(ctx, mintValues, rt)
 	if err != nil {
 		return err
 	}
@@ -159,8 +172,8 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 	t.log.Debug("transferred",
-		zap.Int64("alice", transferToBob),
-		zap.Int64("to bob", transferToBob),
+		zap.Int64("alice", 1),
+		zap.Int64("to bob", 1),
 	)
 
 	// get balance alice
@@ -182,6 +195,40 @@ func (t *Token) Run(ctx context.Context) error {
 	t.log.Debug("remaining balance",
 		zap.Uint64("unit", rt.Meter().GetBalance()),
 	)
+
+	// perform bulk ming
+	_, err = rt.Call(ctx, "mint_to_many", programIDPtr, addressesPtr, mintValuesPtr)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("minted many",
+		zap.Int64("alice", 4),
+		zap.Int64("to bob", 12),
+	)
+	
+
+	// get balance alice
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("balance",
+		zap.Int64("alice", result[0]),
+	)
+
+	// get balance bob
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("balance", zap.Int64("bob", result[0]))
+
+
+	fmt.Println("addresses: ", addresses)
+	t.log.Debug("remaining balance",
+		zap.Uint64("unit", rt.Meter().GetBalance()),
+	)
+
 
 	return nil
 }

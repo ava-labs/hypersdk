@@ -133,6 +133,16 @@ impl Argument for i64 {
     }
 }
 
+
+impl Argument for i32 {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Owned(self.to_be_bytes().to_vec())
+    }
+    fn is_primitive(&self) -> bool {
+        true
+    }
+}
+
 impl Argument for Program {
     fn as_bytes(&self) -> Cow<'_, [u8]> {
         Cow::Owned(self.id().to_be_bytes().to_vec())
@@ -148,13 +158,16 @@ pub trait HostArgument {
 
 impl HostArgument for Address {
     fn from_bytes(bytes: Vec<u8>) -> Self {
-        Self::new(bytes.try_into().unwrap())
+        // get first ADDRESS_LEN bytes from bytes
+        let bytes = bytes[..ADDRESS_LEN].try_into().unwrap();
+        Self::new(bytes)
     }
 }
 
-impl HostArgument for i64 {
+impl HostArgument for i32 {
     fn from_bytes(bytes: Vec<u8>) -> Self {
-        let bytes = bytes.try_into().unwrap();
+
+        let bytes = bytes[..4].try_into().unwrap();
         Self::from_be_bytes(bytes)
     }
 }
@@ -180,13 +193,17 @@ where
 {
     // we don't know how large each element T is, but we know that each element has a from_bytes method
     fn from_bytes(bytes: Vec<u8>) -> Self {
+        println!("bytes collected: {:?}", bytes);
         // Vec to be returned
         let mut vec = Vec::new();
         let mut current_byte = 0;
         let num_bytes = bytes.len();
-
+        // TODO: check logic on empty vec
         while current_byte < num_bytes {
-            let elem : T = T::from_bytes(bytes[current_byte..].to_vec());
+            // copy the bytes into a new vec
+            println!("current_byte: {}", current_byte);
+            let temp_vec = bytes[current_byte..].to_vec();
+            let elem : T = T::from_bytes(temp_vec);
             current_byte += elem.len();
             vec.push(elem);
         }

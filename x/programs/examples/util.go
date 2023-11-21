@@ -6,6 +6,7 @@ package examples
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"os"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
@@ -14,14 +15,16 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-func newKeyPtr(ctx context.Context, key ed25519.PublicKey, rt runtime.Runtime) (int64, error) {
-	ptr, err := rt.Memory().Alloc(ed25519.PublicKeyLen)
+func newPtr(ctx context.Context, bytes []byte, rt runtime.Runtime) (int64, error) {
+	amountToAllocate := uint64(len(bytes)) + 4
+	ptr, err := rt.Memory().Alloc(amountToAllocate)
 	if err != nil {
 		return 0, err
 	}
 
 	// write programID to memory which we will later pass to the program
-	err = rt.Memory().Write(ptr, marshalArg(key[:]))
+	fmt.Println("bytes in go", marshalArg(bytes[:]))
+	err = rt.Memory().Write(ptr, marshalArg(bytes[:]))
 	if err != nil {
 		return 0, err
 	}
@@ -35,6 +38,22 @@ func marshalArg(arg []byte) []byte {
 	bytes := make([]byte, 4 + argLen)
 	binary.BigEndian.PutUint32(bytes, uint32(argLen))
 	copy(bytes[4:], arg)
+	return bytes
+}
+
+// func marshalArgs(args ...[]byte) []byte {
+// 	var bytes []byte
+// 	for _, arg := range args {
+// 		bytes = append(bytes, arg...)
+// 	}
+// 	return marshalArg(bytes)
+// }
+
+func marshalInts(ints ...int64) []byte {
+	bytes := make([]byte, 4 * len(ints))
+	for i, val := range ints {
+		binary.BigEndian.PutUint32(bytes[i * 4:], uint32(val))
+	}
 	return bytes
 }
 
