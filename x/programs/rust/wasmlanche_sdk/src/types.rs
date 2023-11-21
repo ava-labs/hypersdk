@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
-use crate::program::Program;
+use crate::{program::Program, state::bytes_and_length};
 
 pub const ADDRESS_LEN: usize = 32;
 /// A struct that enforces a fixed length of 32 bytes which represents an address.
@@ -50,6 +50,24 @@ impl Bytes32 {
         &self.0
     }
 }
+
+// pub struct VecArg<T>(Vec<T>);
+// // TODO: this should be size & not length
+// pub trait HasLen {
+//     fn len(&self) -> usize;
+// }
+// impl<T> From<i64> for VecArg<T> 
+// where T: From<i64> {
+//     fn from(value: i64) -> Self {
+//         let (bytes, len) = bytes_and_length(value);
+//         let len = len as usize;
+//         let mut vec = Vec::new();
+
+//         vec.push(value.into());
+//         Self(Bytes32::from(value))
+//     }
+// }
+
 
 /// Implement the Display trait for Bytes32 so that we can print it.
 /// Enables `to_string()` on Bytes32.
@@ -121,5 +139,58 @@ impl Argument for Program {
     }
     fn is_primitive(&self) -> bool {
         true
+    }
+}
+
+pub trait HostArgument {
+    fn from_bytes(bytes: Vec<u8>) -> Self;
+}
+
+impl HostArgument for Address {
+    fn from_bytes(bytes: Vec<u8>) -> Self {
+        Self::new(bytes.try_into().unwrap())
+    }
+}
+
+impl HostArgument for i64 {
+    fn from_bytes(bytes: Vec<u8>) -> Self {
+        let bytes = bytes.try_into().unwrap();
+        Self::from_be_bytes(bytes)
+    }
+}
+
+pub struct VecArg<T>(Vec<T>);
+
+impl<T> VecArg<T> {
+    #[must_use]
+    pub fn new(vec: Vec<T>) -> Self {
+        Self(vec)
+    }
+    pub fn as_vec(&self) -> &Vec<T> {
+        &self.0
+    }
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl<T> HostArgument for VecArg<T>
+where
+    T: HostArgument + Argument,
+{
+    // we don't know how large each element T is, but we know that each element has a from_bytes method
+    fn from_bytes(bytes: Vec<u8>) -> Self {
+        // Vec to be returned
+        let mut vec = Vec::new();
+        let mut current_byte = 0;
+        let num_bytes = bytes.len();
+
+        while current_byte < num_bytes {
+            let elem : T = T::from_bytes(bytes[current_byte..].to_vec());
+            current_byte += elem.len();
+            vec.push(elem);
+        }
+
+        Self(vec)
     }
 }

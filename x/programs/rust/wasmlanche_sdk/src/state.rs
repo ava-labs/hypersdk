@@ -4,7 +4,7 @@ use serde_bare::{from_slice, to_vec};
 use crate::{
     errors::StateError,
     host::{get_bytes, len_bytes, put_bytes},
-    program::Program,
+    program::Program, types::HostArgument,
 };
 
 pub struct State {
@@ -78,18 +78,29 @@ impl State {
     }
 }
 
-
 /// Converts a raw pointer to a deserialized value.
 /// Expects the first 4 bytes of the pointer to represent the [length] of the serialized value,
 /// with the subsequent [length] bytes comprising the serialized data.
+// pub fn from_raw_ptr<V>(ptr: i64) -> V
+// where
+//     V: serde::de::DeserializeOwned,
+// {    
+//     let (bytes, _) = bytes_and_length(ptr);
+//     from_slice(&bytes).expect("failed to deserialize")
+// }
+
 pub fn from_raw_ptr<V>(ptr: i64) -> V
 where
-    V: serde::de::DeserializeOwned,
-{
-    // grab the first 4 bytes of ptr as the length
+    V: HostArgument,
+{    
+    let (bytes, _) = bytes_and_length(ptr);
+    V::from_bytes(bytes)
+}
+
+// TODO: move this logic to return a Memory struct that conatins ptr + length
+pub fn bytes_and_length(ptr: i64) -> (Vec<u8>, i32) {
     let len = unsafe { std::slice::from_raw_parts(ptr as *const u8, 4) };
     let len = u32::from_be_bytes(len.try_into().unwrap()) as usize;
-    // grab the next len bytes as the value
     let value = unsafe { std::slice::from_raw_parts((ptr + 4) as *const u8, len) };
-    from_slice(value).unwrap()
-}
+    (value.to_vec(), len.try_into().unwrap())
+} 

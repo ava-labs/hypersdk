@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{program::Program, public, state::from_raw_ptr, state_keys, types::Address};
+use wasmlanche_sdk::{program::Program, public, state::from_raw_ptr, state_keys, types::{Address, VecArg}};
 
 /// The program state keys.
 #[state_keys]
@@ -96,6 +96,17 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
             &(recipient_balance + amount),
         )
         .expect("failed to store balance");
+
+    true
+}
+
+#[public]
+pub fn mint_to_many(program: Program, recipients: VecArg<Address>, amounts: VecArg<i64>) -> bool {
+    assert_eq!(recipients.len(), amounts.len(), "invalid input");
+
+    for (recipient, amount) in recipients.as_vec().iter().zip(amounts.as_vec().iter()) {
+        mint_to(program, *recipient, *amount);
+    }
 
     true
 }
