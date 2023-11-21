@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{program::Program, public, state_keys, types::Address, state::from_raw_ptr};
+use wasmlanche_sdk::{program::Program, public, state::from_raw_ptr, state_keys, types::Address};
 
 #[state_keys]
 enum StateKeys {

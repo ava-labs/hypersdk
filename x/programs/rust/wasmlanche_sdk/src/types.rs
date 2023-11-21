@@ -56,7 +56,7 @@ impl Bytes32 {
 // pub trait HasLen {
 //     fn len(&self) -> usize;
 // }
-// impl<T> From<i64> for VecArg<T> 
+// impl<T> From<i64> for VecArg<T>
 // where T: From<i64> {
 //     fn from(value: i64) -> Self {
 //         let (bytes, len) = bytes_and_length(value);
@@ -67,7 +67,6 @@ impl Bytes32 {
 //         Self(Bytes32::from(value))
 //     }
 // }
-
 
 /// Implement the Display trait for Bytes32 so that we can print it.
 /// Enables `to_string()` on Bytes32.
@@ -121,8 +120,9 @@ impl Argument for Bytes32 {
         Cow::Borrowed(&self.0)
     }
     fn from_bytes(bytes: &[u8]) -> Self
-        where
-            Self: Sized {
+    where
+        Self: Sized,
+    {
         let bytes = bytes[..ADDRESS_LEN].try_into().unwrap();
         Self::new(bytes)
     }
@@ -152,7 +152,6 @@ impl Argument for i64 {
     }
 }
 
-
 impl Argument for i32 {
     fn as_bytes(&self) -> Cow<'_, [u8]> {
         Cow::Owned(self.to_be_bytes().to_vec())
@@ -174,7 +173,7 @@ impl Argument for Program {
         true
     }
     fn from_bytes(bytes: &[u8]) -> Self {
-        let id : i64 = i64::from_bytes(bytes);
+        let id: i64 = i64::from_bytes(bytes);
         Self::from(id)
     }
 }
@@ -204,7 +203,7 @@ where
         // TODO: check logic on empty vec
         while current_byte < num_bytes {
             // Convert the bytes to the type T
-            let elem : T = T::from_bytes(&bytes[current_byte..]);
+            let elem: T = T::from_bytes(&bytes[current_byte..]);
             current_byte += elem.len();
             // Add the element to the result vec
             result_vec.push(elem);

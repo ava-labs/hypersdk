@@ -15,7 +15,6 @@ enum ParamKind {
     Pointer,
 }
 
-
 /// An attribute procedural macro that makes a function visible to the VM host.
 /// It does so by wrapping the `item` tokenstream in a new function that can be called by the host.
 /// The wrapper function will have the same name as the original function, but with "_guest" appended to it.
@@ -59,10 +58,12 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                 if is_context(ty) {
                     return (
                         &empty_param,
-                        (parse_str::<Type>("i64")
-                            .expect("valid i64 type")
-                            .to_token_stream(),
-                            ParamKind::Program),
+                        (
+                            parse_str::<Type>("i64")
+                                .expect("valid i64 type")
+                                .to_token_stream(),
+                            ParamKind::Program,
+                        ),
                     );
                 } else {
                     panic!("Unused variables only supported for Program.")
@@ -72,7 +73,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         panic!("Unsupported function parameter format.");
     });
 
-    // Converts the parameters that are pointers to their original type. 
+    // Converts the parameters that are pointers to their original type.
     let converted_params = full_params.clone().map(|param| {
         let (param_name, param_type) = param;
         let (_, param_descriptor) = param_type;
@@ -89,19 +90,18 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                     #param_name.into()
                 };
             }
-             // only convert from_raw_ptr if not a supported primitive type or Program
-             ParamKind::Pointer => {
+            // only convert from_raw_ptr if not a supported primitive type or Program
+            ParamKind::Pointer => {
                 return quote! {
                     from_raw_ptr(#param_name)
                 };
             }
         }
     });
-    
+
     // Collect all parameter names and types into separate vectors.
     let (param_names, param_types): (Vec<_>, Vec<_>) = full_params.unzip();
     let param_types = param_types.iter().map(|(param_type, _)| param_type);
-  
 
     // Extract the original function's return type. This must be a WASM supported type.
     let return_type = &input.sig.output;
