@@ -47,20 +47,6 @@ func (s *Builder) Build() Supported {
 
 // move to exports
 
-// NewCaller creates a new Caller which can be used to interact with a program.
-func NewCaller(caller *wasmtime.Caller) *Caller {
-	return &Caller{
-		client: exports.NewClient(caller),
-	}
-}
-
-type Caller struct {
-	client exports.Client
-}
-
-func (c *Caller) Memory() memory.Memory {
-	return memory.NewMemory(c.client)
-}
 
 // Factory is a factory for creating imports.
 type Factory struct {
