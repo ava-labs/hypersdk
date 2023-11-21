@@ -33,7 +33,7 @@ var (
 // go test -v -timeout 30s -run ^TestTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func TestTokenProgram(t *testing.T) {
 	require := require.New(t)
-	maxUnits := uint64(400000000)
+	maxUnits := uint64(4000000)
 	cfg, err := runtime.NewConfigBuilder().WithDebugMode(true).Build()
 	require.NoError(err)
 	program, err := newTokenProgram(maxUnits, cfg, tokenProgramBytes)

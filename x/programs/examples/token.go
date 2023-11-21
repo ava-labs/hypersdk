@@ -89,7 +89,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := newPtr(ctx, aliceKey[:], rt)
+	alicePtr, err := newPtr(ctx, aliceKey[:], rt, true)
 	if err != nil {
 		return err
 	}
@@ -101,20 +101,20 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write bob's key to stack and get pointer
-	bobPtr, err := newPtr(ctx, bobKey[:], rt)
+	bobPtr, err := newPtr(ctx, bobKey[:], rt, true)
 	if err != nil {
 		return err
 	}
 
 	// combine alice and bobs addresses
 	addresses := append(aliceKey[:], bobKey[:]...)
-	addressesPtr, err := newPtr(ctx, addresses, rt)
+	addressesPtr, err := newPtr(ctx, addresses, rt, true)
 	if err != nil {
 		return err
 	}
 
-	mintValues := marshalInts(4, 12)
-	mintValuesPtr, err := newPtr(ctx, mintValues, rt)
+	mintValues := intsToBytes(4, 12)
+	mintValuesPtr, err := newPtr(ctx, mintValues, rt, true)
 	if err != nil {
 		return err
 	}
@@ -224,7 +224,6 @@ func (t *Token) Run(ctx context.Context) error {
 	t.log.Debug("balance", zap.Int64("bob", result[0]))
 
 
-	fmt.Println("addresses: ", addresses)
 	t.log.Debug("remaining balance",
 		zap.Uint64("unit", rt.Meter().GetBalance()),
 	)

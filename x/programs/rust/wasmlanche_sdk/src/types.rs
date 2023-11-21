@@ -193,7 +193,6 @@ where
 {
     // we don't know how large each element T is, but we know that each element has a from_bytes method
     fn from_bytes(bytes: Vec<u8>) -> Self {
-        println!("bytes collected: {:?}", bytes);
         // Vec to be returned
         let mut vec = Vec::new();
         let mut current_byte = 0;
@@ -201,7 +200,6 @@ where
         // TODO: check logic on empty vec
         while current_byte < num_bytes {
             // copy the bytes into a new vec
-            println!("current_byte: {}", current_byte);
             let temp_vec = bytes[current_byte..].to_vec();
             let elem : T = T::from_bytes(temp_vec);
             current_byte += elem.len();

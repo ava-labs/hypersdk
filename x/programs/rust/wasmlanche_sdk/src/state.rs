@@ -94,7 +94,6 @@ where
     V: HostArgument,
 {    
     let (bytes, _) = bytes_and_length(ptr);
-    println!("bytes returned: {:?}", bytes);
     V::from_bytes(bytes)
 }
 
@@ -103,8 +102,6 @@ where
 pub fn bytes_and_length(ptr: i64) -> (Vec<u8>, i32) {
     let len = unsafe { std::slice::from_raw_parts(ptr as *const u8, 4) };
     let len = u32::from_be_bytes(len.try_into().unwrap()) as usize;
-    println!("len: {}", len);
     let value = unsafe { std::slice::from_raw_parts(ptr as *const u8, len + 4) };
-    println!("value: {:?}", value);
     (value[4..].to_vec(), len.try_into().unwrap())
 } 

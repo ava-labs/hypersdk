@@ -100,12 +100,12 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
     true
 }
 
+/// Mints tokens to multiple recipients.
 #[public]
 pub fn mint_to_many(program: Program, recipients: VecArg<Address>, amounts: VecArg<i32>) -> bool {
     assert_eq!(recipients.len(), amounts.len(), "invalid input");
 
     for (recipient, amount) in recipients.as_vec().iter().zip(amounts.as_vec().iter()) {
-        println!("miniting to {:?} amount {:?}", recipient, amount);
         mint_to(program, *recipient, *amount as i64);
     }
 
@@ -115,7 +115,6 @@ pub fn mint_to_many(program: Program, recipients: VecArg<Address>, amounts: VecA
 /// Gets the balance of the recipient.
 #[public]
 pub fn get_balance(program: Program, recipient: Address) -> i64 {
-    println!("getting balance for {:?}", recipient);
     program
         .state()
         .get(StateKey::Balance(recipient).to_vec())

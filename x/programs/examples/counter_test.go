@@ -60,7 +60,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := newPtr(ctx, aliceKey[:], rt)
+	alicePtr, err := newPtr(ctx, aliceKey[:], rt, true)
 	require.NoError(err)
 
 	// create counter for alice on program 1
@@ -96,7 +96,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// write alice's key to stack and get pointer
-	alicePtr2, err := newPtr(ctx, aliceKey[:], rt2)
+	alicePtr2, err := newPtr(ctx, aliceKey[:], rt2, true)
 	require.NoError(err)
 
 	// initialize counter for alice on runtime 2

@@ -6,25 +6,34 @@ package examples
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"os"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-func newPtr(ctx context.Context, bytes []byte, rt runtime.Runtime) (int64, error) {
-	amountToAllocate := uint64(len(bytes)) + 4
+// newPtr allocates memory and writes [bytes] to it.
+// If [prependLength] is true, it prepends the length of [bytes] as a uint32 to [bytes].
+// It returns the pointer to the allocated memory.
+func newPtr(ctx context.Context, bytes []byte, rt runtime.Runtime, prependLength bool) (int64, error) {
+	amountToAllocate := uint64(len(bytes));
+	writeBytes := bytes
+
+	if prependLength {
+		amountToAllocate += consts.Uint32Len
+		writeBytes = marshalArg(bytes)
+	}
+	
 	ptr, err := rt.Memory().Alloc(amountToAllocate)
 	if err != nil {
 		return 0, err
 	}
 
 	// write programID to memory which we will later pass to the program
-	fmt.Println("bytes in go", marshalArg(bytes[:]))
-	err = rt.Memory().Write(ptr, marshalArg(bytes[:]))
+	err = rt.Memory().Write(ptr, writeBytes)
 	if err != nil {
 		return 0, err
 	}
@@ -32,27 +41,21 @@ func newPtr(ctx context.Context, bytes []byte, rt runtime.Runtime) (int64, error
 	return int64(ptr), err
 }
 
+// marshalArg prepends the length of [arg] as a uint32 to [arg].
 func marshalArg(arg []byte) []byte {
 	// add length prefix to arg as big endian uint32
 	argLen := len(arg)
-	bytes := make([]byte, 4 + argLen)
+	bytes := make([]byte, consts.Uint32Len + argLen)
 	binary.BigEndian.PutUint32(bytes, uint32(argLen))
-	copy(bytes[4:], arg)
+	copy(bytes[consts.Uint32Len:], arg)
 	return bytes
 }
 
-// func marshalArgs(args ...[]byte) []byte {
-// 	var bytes []byte
-// 	for _, arg := range args {
-// 		bytes = append(bytes, arg...)
-// 	}
-// 	return marshalArg(bytes)
-// }
-
-func marshalInts(ints ...int64) []byte {
-	bytes := make([]byte, 4 * len(ints))
+// intsToBytes converts a slice of ints to a slice of bytes.
+func intsToBytes(ints ...int64) []byte {
+	bytes := make([]byte, consts.Uint32Len * len(ints))
 	for i, val := range ints {
-		binary.BigEndian.PutUint32(bytes[i * 4:], uint32(val))
+		binary.BigEndian.PutUint32(bytes[i * consts.Uint32Len:], uint32(val))
 	}
 	return bytes
 }
