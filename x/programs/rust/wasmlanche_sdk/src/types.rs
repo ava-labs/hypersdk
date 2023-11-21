@@ -189,21 +189,7 @@ impl Argument for String {
 }
 
 // Represents a vector with types that implement the Argument trait.
-pub struct VecArg<T>(Vec<T>);
-
-impl<T> VecArg<T> {
-    pub fn new(vec: Vec<T>) -> Self {
-        Self(vec)
-    }
-    pub fn as_vec(&self) -> &Vec<T> {
-        &self.0
-    }
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-}
-
-impl<T> Argument for VecArg<T>
+impl<T> Argument for Vec<T>
 where
     T: Argument,
 {
@@ -224,7 +210,7 @@ where
             result_vec.push(elem);
         }
 
-        Self(result_vec)
+        result_vec
     }
 
     fn as_bytes(&self) -> Cow<'_, [u8]> {
@@ -233,8 +219,8 @@ where
         }
 
         // avoid reallocation
-        let mut bytes = Vec::with_capacity(self.len() * self.0[0].len());
-        for elem in &self.0 {
+        let mut bytes = Vec::with_capacity(self.len() * self[0].len());
+        for elem in self {
             bytes.extend_from_slice(&elem.as_bytes());
         }
         Cow::Owned(bytes)

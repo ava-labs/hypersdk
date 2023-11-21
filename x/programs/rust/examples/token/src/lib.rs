@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{program::Program, public, state::from_raw_ptr, state_keys, types::{Address, VecArg}};
+use wasmlanche_sdk::{program::Program, public, state::from_raw_ptr, state_keys, types::Address};
 
 /// The program state keys.
 #[state_keys]
@@ -102,10 +102,10 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
 
 /// Mints tokens to multiple recipients.
 #[public]
-pub fn mint_to_many(program: Program, recipients: VecArg<Address>, amounts: VecArg<i32>) -> bool {
+pub fn mint_to_many(program: Program, recipients: Vec<Address>, amounts: Vec<i32>) -> bool {
     assert_eq!(recipients.len(), amounts.len(), "invalid input");
 
-    for (recipient, amount) in recipients.as_vec().iter().zip(amounts.as_vec().iter()) {
+    for (recipient, amount) in recipients.iter().zip(amounts.iter()) {
         mint_to(program, *recipient, *amount as i64);
     }
 
