@@ -5,6 +5,7 @@ package examples
 
 import (
 	"context"
+	"encoding/binary"
 	"os"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
@@ -20,12 +21,21 @@ func newKeyPtr(ctx context.Context, key ed25519.PublicKey, rt runtime.Runtime) (
 	}
 
 	// write programID to memory which we will later pass to the program
-	err = rt.Memory().Write(ptr, key[:])
+	err = rt.Memory().Write(ptr, marshalArg(key[:]))
 	if err != nil {
 		return 0, err
 	}
 
 	return int64(ptr), err
+}
+
+func marshalArg(arg []byte) []byte {
+	// add length prefix to arg as big endian uint32
+	argLen := len(arg)
+	bytes := make([]byte, 4 + argLen)
+	binary.BigEndian.PutUint32(bytes, uint32(argLen))
+	copy(bytes[4:], arg)
+	return bytes
 }
 
 func newKey() (ed25519.PrivateKey, ed25519.PublicKey, error) {
