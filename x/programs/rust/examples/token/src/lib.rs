@@ -112,6 +112,11 @@ pub fn mint_to_many(program: Program, recipients: VecArg<Address>, amounts: VecA
     true
 }
 
+#[public]
+pub fn print_name(_: Program, name: String) {
+    println!("name: {}", name);
+}
+
 /// Gets the balance of the recipient.
 #[public]
 pub fn get_balance(program: Program, recipient: Address) -> i64 {

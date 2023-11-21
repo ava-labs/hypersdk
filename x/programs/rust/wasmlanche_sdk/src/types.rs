@@ -179,6 +179,15 @@ impl Argument for Program {
     }
 }
 
+impl Argument for String {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Owned(self.as_bytes().to_vec())
+    }
+    fn from_bytes(bytes: &[u8]) -> Self {
+        String::from_utf8_lossy(bytes).to_string()
+    }
+}
+
 // Represents a vector with types that implement the Argument trait.
 pub struct VecArg<T>(Vec<T>);
 
