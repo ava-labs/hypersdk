@@ -26,14 +26,14 @@ func newPtr(ctx context.Context, item interface{}, rt runtime.Runtime, prependLe
 		return 0, err
 	}
 
-	amountToAllocate := uint64(len(bytes));
+	amountToAllocate := uint64(len(bytes))
 	writeBytes := bytes
 
 	if prependLength {
 		amountToAllocate += consts.Uint32Len
 		writeBytes = marshalArg(bytes)
 	}
-	
+
 	ptr, err := rt.Memory().Alloc(amountToAllocate)
 	if err != nil {
 		return 0, err
@@ -56,7 +56,7 @@ func serializeToBytes(obj interface{}) ([]byte, error) {
 func marshalArg(arg []byte) []byte {
 	// add length prefix to arg as big endian uint32
 	argLen := len(arg)
-	bytes := make([]byte, consts.Uint32Len + argLen)
+	bytes := make([]byte, consts.Uint32Len+argLen)
 	binary.BigEndian.PutUint32(bytes, uint32(argLen))
 	copy(bytes[consts.Uint32Len:], arg)
 	return bytes

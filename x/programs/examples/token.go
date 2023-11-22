@@ -194,13 +194,13 @@ func (t *Token) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	
+
 	mintValues := []int32{4, 12}
 	mintValuesPtr, err := newPtr(ctx, mintValues, rt, true)
 	if err != nil {
 		return err
 	}
-	
+
 	// perform bulk mint
 	_, err = rt.Call(ctx, "mint_to_many", programIDPtr, addressesPtr, mintValuesPtr)
 	if err != nil {
@@ -210,7 +210,6 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("alice", 4),
 		zap.Int64("to bob", 12),
 	)
-	
 
 	// get balance alice
 	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
@@ -231,7 +230,6 @@ func (t *Token) Run(ctx context.Context) error {
 	// t.log.Debug("remaining balance",
 	// 	zap.Uint64("unit", rt.Meter().GetBalance()),
 	// )
-
 
 	return nil
 }
