@@ -79,11 +79,13 @@ impl State {
 /// Converts a raw pointer to a deserialized value.
 /// Expects the first 4 bytes of the pointer to represent the [length] of the serialized value,
 /// with the subsequent [length] bytes comprising the serialized data.
+/// Safety
+/// This function is unsafe because it dereferences raw pointers.
 pub fn from_raw_ptr<V>(ptr: i64) -> V
 where
     V: BorshDeserialize,
 {
-    let (bytes, _) = bytes_and_length(ptr);
+    let (bytes, _) = unsafe { bytes_and_length(ptr) };
     from_slice::<V>(&bytes).expect("failed to deserialize")
 }
 
@@ -95,9 +97,14 @@ where
 /// # Safety
 /// This function is unsafe because it dereferences raw pointers.
 #[must_use]
-pub fn bytes_and_length(ptr: i64) -> (Vec<u8>, i32) {
+pub unsafe fn bytes_and_length(ptr: i64) -> (Vec<u8>, usize) {
+    type LenType = u32;
+
     let len = unsafe { std::slice::from_raw_parts(ptr as *const u8, 4) };
-    let len = u32::from_be_bytes(len.try_into().unwrap()) as usize;
+
+    assert_eq!(len.len(), std::mem::size_of::<LenType>());    
+    let len = LenType::from_be_bytes(len.try_into().unwrap()) as usize;
+
     let value = unsafe { std::slice::from_raw_parts(ptr as *const u8, len + 4) };
-    (value[4..].to_vec(), len.try_into().unwrap())
+    (value[4..].to_vec(), len)
 }

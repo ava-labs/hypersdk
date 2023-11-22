@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{program::Program, public, state::from_raw_ptr, state_keys, types::Address};
+use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
 
 /// The program state keys.
 #[state_keys]
@@ -110,11 +110,6 @@ pub fn mint_to_many(program: Program, recipients: Vec<Address>, amounts: Vec<i32
     }
 
     true
-}
-
-#[public]
-pub fn print_name(_: Program, name: String) {
-    println!("name: {}", name);
 }
 
 /// Gets the balance of the recipient.

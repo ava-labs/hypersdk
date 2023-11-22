@@ -228,18 +228,6 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 	t.log.Debug("balance", zap.Int64("bob", result[0]))
 
-
-	// call example string function
-	name := "hello world"
-	namePtr, err := newPtr(ctx, name, rt, true)
-	if err != nil {
-		return err
-	}
-	_, err = rt.Call(ctx, "print_name", programIDPtr, namePtr)
-	if err != nil {
-		return err
-	}
-
 	// t.log.Debug("remaining balance",
 	// 	zap.Uint64("unit", rt.Meter().GetBalance()),
 	// )

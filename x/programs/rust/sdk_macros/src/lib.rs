@@ -48,7 +48,7 @@ impl ParamKind {
             // only convert from_raw_ptr if not a supported primitive type or Program
             ParamKind::Pointer => {
                 quote! {
-                    wasmlanche_sdk::state::from_raw_ptr(#param_name)
+                     wasmlanche_sdk::state::from_raw_ptr(#param_name)
                 }
             }
         }
