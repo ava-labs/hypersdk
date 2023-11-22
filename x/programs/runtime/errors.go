@@ -39,8 +39,8 @@ var (
 	ErrTrapOutOfFuel              = errors.New("the program ran out of units")
 )
 
-// handleTrapError returns the error message from a wasmtime Trap
-func handleTrapError(err error) error {
+// HandleTrapError returns the error message from a wasmtime Trap
+func HandleTrapError(err error) error {
 	trap, ok := err.(*wasmtime.Trap)
 	if !ok {
 		return err

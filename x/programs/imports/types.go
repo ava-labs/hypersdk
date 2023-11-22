@@ -52,62 +52,62 @@ func ValI64(val int64) Val {
 // Breaking this out into a separate interfaces allows us to avoid reflection and
 // use concrete types.
 
-type OneParam interface {
-	Call(p *Caller, arg1 int64) (Val, error)
+type OneParam[T any] interface {
+	Call(*T, int64) (Val, error)
 }
 
-type OneParamFn func(p *Caller, arg1 int64) (Val, error)
+type OneParamFn[T any] func(*T, int64) (Val, error)
 
-func (fn OneParamFn) Call(p *Caller, arg1 int64) (Val, error) {
-	return fn(p, arg1)
+func (fn OneParamFn[T]) Call(t *T, arg1 int64) (Val, error) {
+	return fn(t, arg1)
 }
 
-type TwoParam interface {
-	Call(p *Caller, arg1, arg2 int64) (Val, error)
+type TwoParam[T any] interface {
+	Call(*T, int64, int64) (Val, error)
 }
 
-type TwoParamFn func(p *Caller, arg1, arg2 int64) (Val, error)
+type TwoParamFn[T any] func(*T, int64, int64) (Val, error)
 
-func (fn TwoParamFn) Call(p *Caller, arg1, arg2 int64) (Val, error) {
-	return fn(p, arg1, arg2)
+func (fn TwoParamFn[T]) Call(t *T, arg1, arg2 int64) (Val, error) {
+	return fn(t, arg1, arg2)
 }
 
-type ThreeParam interface {
-	Call(p *Caller, arg1, arg2, arg3 int64) (Val, error)
+type ThreeParam[T any] interface {
+	Call(*T, int64, int64, int64) (Val, error)
 }
 
-type ThreeParamFn func(p *Caller, arg1, arg2, arg3 int64) (Val, error)
+type ThreeParamFn[T any] func(*T, int64, int64, int64) (Val, error)
 
-func (fn ThreeParamFn) Call(p *Caller, arg1, arg2, arg3 int64) (Val, error) {
-	return fn(p, arg1, arg2, arg3)
+func (fn ThreeParamFn[T]) Call(t *T, arg1, arg2, arg3 int64) (Val, error) {
+	return fn(t, arg1, arg2, arg3)
 }
 
-type FourParam interface {
-	Call(p *Caller, arg1, arg2, arg3, arg4 int64) (Val, error)
+type FourParam[T any] interface {
+	Call(*T, int64, int64, int64, int64) (Val, error)
 }
 
-type FourParamFn func(p *Caller, arg1, arg2, arg3, arg4 int64) (Val, error)
+type FourParamFn[T any] func(*T, int64, int64, int64, int64) (Val, error)
 
-func (fn FourParamFn) Call(p *Caller, arg1, arg2, arg3, arg4 int64) (Val, error) {
-	return fn(p, arg1, arg2, arg3, arg4)
+func (fn FourParamFn[T]) Call(t *T, arg1, arg2, arg3, arg4 int64) (Val, error) {
+	return fn(t, arg1, arg2, arg3, arg4)
 }
 
-type FiveParam interface {
-	Call(p *Caller, arg1, arg2, arg3, arg4, arg5 int64) (Val, error)
+type FiveParam[T any] interface {
+	Call(*T, int64, int64, int64, int64, int64) (Val, error)
 }
 
-type FiveParamFn func(p *Caller, arg1, arg2, arg3, arg4, arg5 int64) (Val, error)
+type FiveParamFn[T any] func(*T, int64, int64, int64, int64, int64) (Val, error)
 
-func (fn FiveParamFn) Call(p *Caller, arg1, arg2, arg3, arg4, arg5 int64) (Val, error) {
-	return fn(p, arg1, arg2, arg3, arg4, arg5)
+func (fn FiveParamFn[T]) Call(t *T, arg1, arg2, arg3, arg4, arg5 int64) (Val, error) {
+	return fn(t, arg1, arg2, arg3, arg4, arg5)
 }
 
-type SixParam interface {
-	Call(p *Caller, arg1, arg2, arg3, arg4, arg5, arg6 int64) (Val, error)
+type SixParam[T any] interface {
+	Call(*T, int64, int64, int64, int64, int64, int64) (Val, error)
 }
 
-type SixParamFn func(p *Caller, arg1, arg2, arg3, arg4, arg5, arg6 int64) (Val, error)
+type SixParamFn[T any] func(t *T, arg1, arg2, arg3, arg4, arg5, arg6 int64) (Val, error)
 
-func (fn SixParamFn) Call(p *Caller, arg1, arg2, arg3, arg4, arg5, arg6 int64) (Val, error) {
-	return fn(p, arg1, arg2, arg3, arg4, arg5, arg6)
+func (fn SixParamFn[T]) Call(t *T, arg1, arg2, arg3, arg4, arg5, arg6 int64) (Val, error) {
+	return fn(t, arg1, arg2, arg3, arg4, arg5, arg6)
 }

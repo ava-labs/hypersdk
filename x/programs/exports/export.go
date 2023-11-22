@@ -10,17 +10,11 @@ import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
-const (
-	AllocFnName   = "alloc"
-	DeallocFnName = "dealloc"
-	MemoryFnName  = "memory"
-)
-
 var (
 	ErrInvalidType          = errors.New("invalid type")
 )
 
-func NewExports(export *wasmtime.Extern) *Export {
+func New(export *wasmtime.Extern) *Export {
 	return &Export{
 		inner: export,
 	}
@@ -73,37 +67,12 @@ func NewCaller(caller *wasmtime.Caller) *Caller {
 
 type Caller struct {
 	inner *wasmtime.Caller
-	export *Export
 }
 
-func (c *Caller) getExport(name string) (*Export, error) {
+func (c *Caller) GetExport(name string) (*Export, error) {
 	ext := c.inner.GetExport(name)
 	if ext == nil {
 		return nil, fmt.Errorf("%w: export not found: %s", ErrInvalidType, name)
 	}
-	return NewExports(ext), nil	
-}
-
-func (c *Caller) Function(name string) (*wasmtime.Func, error) {
-	exp, err := c.getExport(name)
-	if err != nil {
-		return nil, err
-	}
-	return exp.Function()
-}
-
-func (c *Caller) Global(name string) (*wasmtime.Global, error) {
-	exp, err := c.getExport(name)
-	if err != nil {
-		return nil, err
-	}
-	return exp.Global()
-}
-
-func (c *Caller) Memory(name string) (*Memory, error) {
-	exp, err := c.getExport(name)
-	if err != nil {
-		return nil, err
-	}
-	return exp.Memory()
+	return New(ext), nil	
 }
