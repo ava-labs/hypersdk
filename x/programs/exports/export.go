@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	ErrInvalidType          = errors.New("invalid type")
+	ErrInvalidType = errors.New("invalid type")
 )
 
 func New(export *wasmtime.Extern) *Export {
@@ -56,7 +56,7 @@ func (e *Export) Table() (*wasmtime.Table, error) {
 	return t, nil
 }
 
-// TODO: add Type() method 
+// TODO: add Type() method
 
 // NewCaller creates a new Caller which can interact with a Wasm program.
 func NewCaller(caller *wasmtime.Caller) *Caller {
@@ -74,5 +74,5 @@ func (c *Caller) GetExport(name string) (*Export, error) {
 	if ext == nil {
 		return nil, fmt.Errorf("%w: export not found: %s", ErrInvalidType, name)
 	}
-	return New(ext), nil	
+	return New(ext), nil
 }

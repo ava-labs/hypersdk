@@ -11,6 +11,7 @@ import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/x/programs/link"
 )
 
 var _ Runtime = &WasmRuntime{}
@@ -86,7 +87,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 		return fmt.Errorf("unsupported compile strategy: %v", r.cfg.compileStrategy)
 	}
 
-	link := Link{wasmtime.NewLinker(r.store.Engine)}
+	link := link.New(r.store.Engine)
 
 	// enable wasi logging support only in testing/debug mode
 	if r.cfg.debugMode {

@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
+	"github.com/ava-labs/hypersdk/x/programs/link"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -43,12 +44,14 @@ func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtime.SupportedImports) error {
+func (i *Import) Register(link link.Link, meter runtime.Meter, imports runtime.SupportedImports) error {
 	if i.registered {
 		return fmt.Errorf("import module already registered: %q", Name)
 	}
 	i.imports = imports
 	i.meter = meter
+
+	link.RegisterFn(Name, "call_program", i.callProgramFn, 8)
 
 	if err := link.FuncWrap(Name, "call_program", i.callProgramFn); err != nil {
 		return err

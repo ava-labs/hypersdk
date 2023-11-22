@@ -20,9 +20,9 @@ const (
 
 var NoSupportedImports = make(SupportedImports)
 
-type Link struct {
-	*wasmtime.Linker
-}
+// type Link struct {
+// 	*wasmtime.Linker
+// }
 
 type Runtime interface {
 	// Initialize initializes the runtime with the given program bytes and max

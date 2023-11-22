@@ -13,9 +13,9 @@ import (
 )
 
 var (
-	ErrOverflow = fmt.Errorf("memory pointer overflow")
-	ErrUnderflow = fmt.Errorf("memory pointer underflow")
-	ErrInvalidType	= fmt.Errorf("invalid type")
+	ErrOverflow    = fmt.Errorf("memory pointer overflow")
+	ErrUnderflow   = fmt.Errorf("memory pointer underflow")
+	ErrInvalidType = fmt.Errorf("invalid type")
 )
 
 const (
@@ -25,13 +25,13 @@ const (
 )
 
 type Memory struct {
-	inner *wasmtime.Memory
+	inner  *wasmtime.Memory
 	caller *wasmtime.Caller
 }
 
 func New(inner *wasmtime.Memory, caller *wasmtime.Caller) *Memory {
 	return &Memory{
-		inner: inner,
+		inner:  inner,
 		caller: caller,
 	}
 }
@@ -77,7 +77,7 @@ func (m *Memory) ensureValidOffset(offset uint64, length uint64) error {
 	if offset+length > memLen {
 		return ErrOverflow
 	}
-	
+
 	return nil
 }
 
