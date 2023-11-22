@@ -1,6 +1,4 @@
-use serde::{de::DeserializeOwned, Serialize};
-use serde_bare::{from_slice, to_vec};
-use borsh::{BorshDeserialize, from_slice as borsh_from_slice};
+use borsh::{BorshSerialize, BorshDeserialize, to_vec, from_slice};
 use crate::{
     errors::StateError,
     host::{get_bytes, len_bytes, put_bytes},
@@ -24,7 +22,7 @@ impl State {
     /// serialized or if the host fails to handle the operation.
     pub fn store<K, V>(&self, key: K, value: &V) -> Result<(), StateError>
     where
-        V: Serialize,
+        V: BorshSerialize,
         K: AsRef<[u8]>,
     {
         let value_bytes = to_vec(value).map_err(|_| StateError::Serialization)?;
@@ -55,7 +53,7 @@ impl State {
     pub fn get<T, K>(&self, key: K) -> Result<T, StateError>
     where
         K: AsRef<[u8]>,
-        T: DeserializeOwned,
+        T: BorshDeserialize,
     {
         let key_ptr = key.as_ref().as_ptr();
         let key_len = key.as_ref().len();
@@ -86,7 +84,7 @@ where
     V: BorshDeserialize,
 {
     let (bytes, _) = bytes_and_length(ptr);
-    borsh_from_slice::<V>(&bytes).expect("failed to deserialize")
+    from_slice::<V>(&bytes).expect("failed to deserialize")
 }
 
 
