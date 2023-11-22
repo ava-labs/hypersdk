@@ -29,7 +29,6 @@ impl From<&Box<Type>> for ParamKind {
     }
 }
 
-
 impl ParamKind {
     fn converted_param_tokenstream(&self, param_name: &Ident) -> proc_macro2::TokenStream {
         match self {
@@ -92,11 +91,10 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                 if is_context(ty) {
                     return (
                         &empty_param,
-                            parse_str::<Type>("i64")
-                                .expect("valid i64 type")
-                                .to_token_stream(),
-                            ParamKind::Program,
-                        
+                        parse_str::<Type>("i64")
+                            .expect("valid i64 type")
+                            .to_token_stream(),
+                        ParamKind::Program,
                     );
                 } else {
                     panic!("Unused variables only supported for Program.")
@@ -106,9 +104,15 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         panic!("Unsupported function parameter format.");
     });
 
-    let (param_names, param_types, converted_params) = full_params.map(|(param_name, param_type, param_kind)| {
-        (param_name, param_type, param_kind.converted_param_tokenstream(param_name))
-    }).unzip_n_vec();
+    let (param_names, param_types, converted_params) = full_params
+        .map(|(param_name, param_type, param_kind)| {
+            (
+                param_name,
+                param_type,
+                param_kind.converted_param_tokenstream(param_name),
+            )
+        })
+        .unzip_n_vec();
 
     // Extract the original function's return type. This must be a WASM supported type.
     let return_type = &input.sig.output;

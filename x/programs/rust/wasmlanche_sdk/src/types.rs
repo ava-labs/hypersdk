@@ -1,13 +1,12 @@
-use std::borrow::Cow;
-use borsh::{BorshDeserialize, BorshSerialize};
 use crate::program::Program;
+use borsh::{BorshDeserialize, BorshSerialize};
+use std::borrow::Cow;
 
 pub const ADDRESS_LEN: usize = 32;
 /// A struct that enforces a fixed length of 32 bytes which represents an address.
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, BorshSerialize, BorshDeserialize)]
 pub struct Address([u8; Self::LEN]);
-
 
 impl Address {
     pub const LEN: usize = 32;

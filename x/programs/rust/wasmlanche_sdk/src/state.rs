@@ -1,9 +1,9 @@
-use borsh::{BorshSerialize, BorshDeserialize, to_vec, from_slice};
 use crate::{
     errors::StateError,
     host::{get_bytes, len_bytes, put_bytes},
     program::Program,
 };
+use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
 
 pub struct State {
     program: Program,
@@ -79,8 +79,9 @@ impl State {
 /// Converts a raw pointer to a deserialized value.
 /// Expects the first 4 bytes of the pointer to represent the [length] of the serialized value,
 /// with the subsequent [length] bytes comprising the serialized data.
-/// Safety
-/// This function is unsafe because it dereferences raw pointers.
+/// # Panics
+/// Panics if the bytes cannot be deserialized.
+#[must_use]
 pub fn from_raw_ptr<V>(ptr: i64) -> V
 where
     V: BorshDeserialize,
@@ -88,7 +89,6 @@ where
     let (bytes, _) = unsafe { bytes_and_length(ptr) };
     from_slice::<V>(&bytes).expect("failed to deserialize")
 }
-
 
 // TODO: move this logic to return a Memory struct that conatins ptr + length
 /// Returns a tuple of the bytes and length of the argument.
@@ -102,7 +102,7 @@ pub unsafe fn bytes_and_length(ptr: i64) -> (Vec<u8>, usize) {
 
     let len = unsafe { std::slice::from_raw_parts(ptr as *const u8, 4) };
 
-    assert_eq!(len.len(), std::mem::size_of::<LenType>());    
+    assert_eq!(len.len(), std::mem::size_of::<LenType>());
     let len = LenType::from_be_bytes(len.try_into().unwrap()) as usize;
 
     let value = unsafe { std::slice::from_raw_parts(ptr as *const u8, len + 4) };
