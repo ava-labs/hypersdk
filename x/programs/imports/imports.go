@@ -13,7 +13,7 @@ import (
 
 type Imports map[string]Import
 
-type CB struct {
+type CallBack struct {
 	// beforeRequest is called before the import function request is made.
 	beforeRequest func(module, name string) error
 	// afterResponse is called after the import function response is received.
