@@ -8,6 +8,8 @@ use quote::{quote, ToTokens};
 use syn::{
     parse_macro_input, parse_str, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Type,
 };
+use unzip_n::unzip_n;
+unzip_n!(3);
 
 enum ParamKind {
     SupportedPrimitive,
@@ -51,19 +53,18 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                         .expect("valid i64 type")
                         .to_token_stream()
                 };
-                return (param_name, (param_type, param_descriptor));
+                return (param_name, param_type, param_descriptor);
             }
             // add unused variable
             if let Pat::Wild(_) = **pat {
                 if is_context(ty) {
                     return (
                         &empty_param,
-                        (
                             parse_str::<Type>("i64")
                                 .expect("valid i64 type")
                                 .to_token_stream(),
                             ParamKind::Program,
-                        ),
+                        
                     );
                 } else {
                     panic!("Unused variables only supported for Program.")
@@ -75,8 +76,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
     // Converts the parameters that are pointers to their original type.
     let converted_params = full_params.clone().map(|param| {
-        let (param_name, param_type) = param;
-        let (_, param_descriptor) = param_type;
+        let (param_name, _, param_descriptor) = param;
         match param_descriptor {
             // return the original parameter if it is a supported primitive type
             ParamKind::SupportedPrimitive => {
@@ -100,8 +100,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     // Collect all parameter names and types into separate vectors.
-    let (param_names, param_types): (Vec<_>, Vec<_>) = full_params.unzip();
-    let param_types = param_types.iter().map(|(param_type, _)| param_type);
+    let (param_names, param_types, _) = full_params.unzip_n_vec();
 
     // Extract the original function's return type. This must be a WASM supported type.
     let return_type = &input.sig.output;
