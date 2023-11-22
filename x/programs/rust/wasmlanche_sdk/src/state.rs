@@ -1,11 +1,10 @@
 use serde::{de::DeserializeOwned, Serialize};
 use serde_bare::{from_slice, to_vec};
-
+use borsh::{BorshDeserialize, from_slice as borsh_from_slice};
 use crate::{
     errors::StateError,
     host::{get_bytes, len_bytes, put_bytes},
     program::Program,
-    types::Argument,
 };
 
 pub struct State {
@@ -82,25 +81,14 @@ impl State {
 /// Converts a raw pointer to a deserialized value.
 /// Expects the first 4 bytes of the pointer to represent the [length] of the serialized value,
 /// with the subsequent [length] bytes comprising the serialized data.
-// pub fn from_raw_ptr<V>(ptr: i64) -> V
-// where
-//     V: serde::de::DeserializeOwned,
-// {
-//     let (bytes, _) = bytes_and_length(ptr);
-//     from_slice(&bytes).expect("failed to deserialize")
-// }
-
-// Converts a raw pointer to a type that implements the Argument trait.
-// Expects the first 4 bytes of the pointer to represent the [length] of the serialized value,
-// with the subsequent [length] bytes comprising the serialized data.
-#[must_use]
 pub fn from_raw_ptr<V>(ptr: i64) -> V
 where
-    V: Argument,
+    V: BorshDeserialize,
 {
     let (bytes, _) = bytes_and_length(ptr);
-    V::from_bytes(&bytes)
+    borsh_from_slice::<V>(&bytes).expect("failed to deserialize")
 }
+
 
 // TODO: move this logic to return a Memory struct that conatins ptr + length
 /// Returns a tuple of the bytes and length of the argument.

@@ -13,12 +13,19 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	"github.com/near/borsh-go"
 )
 
 // newPtr allocates memory and writes [bytes] to it.
 // If [prependLength] is true, it prepends the length of [bytes] as a uint32 to [bytes].
 // It returns the pointer to the allocated memory.
-func newPtr(ctx context.Context, bytes []byte, rt runtime.Runtime, prependLength bool) (int64, error) {
+func newPtr(ctx context.Context, item interface{}, rt runtime.Runtime, prependLength bool) (int64, error) {
+	bytes, err := serializeToBytes(item)
+
+	if err != nil {
+		return 0, err
+	}
+
 	amountToAllocate := uint64(len(bytes));
 	writeBytes := bytes
 
@@ -41,6 +48,10 @@ func newPtr(ctx context.Context, bytes []byte, rt runtime.Runtime, prependLength
 	return int64(ptr), err
 }
 
+func serializeToBytes(obj interface{}) ([]byte, error) {
+	return borsh.Serialize(obj)
+}
+
 // marshalArg prepends the length of [arg] as a uint32 to [arg].
 func marshalArg(arg []byte) []byte {
 	// add length prefix to arg as big endian uint32
@@ -48,15 +59,6 @@ func marshalArg(arg []byte) []byte {
 	bytes := make([]byte, consts.Uint32Len + argLen)
 	binary.BigEndian.PutUint32(bytes, uint32(argLen))
 	copy(bytes[consts.Uint32Len:], arg)
-	return bytes
-}
-
-// intsToBytes converts a slice of ints to a slice of bytes.
-func intsToBytes(ints ...int64) []byte {
-	bytes := make([]byte, consts.Uint32Len * len(ints))
-	for i, val := range ints {
-		binary.BigEndian.PutUint32(bytes[i * consts.Uint32Len:], uint32(val))
-	}
 	return bytes
 }
 

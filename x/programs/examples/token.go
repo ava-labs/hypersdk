@@ -87,34 +87,26 @@ func (t *Token) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	var aliceKeyBytes [32]byte
+	copy(aliceKeyBytes[:], aliceKey[:])
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := newPtr(ctx, aliceKey[:], rt, true)
+	alicePtr, err := newPtr(ctx, aliceKeyBytes, rt, true)
 	if err != nil {
 		return err
 	}
 
 	// generate bob keys
 	_, bobKey, err := newKey()
+	var bobKeyBytes [32]byte
+	copy(bobKeyBytes[:], bobKey[:])
+
 	if err != nil {
 		return err
 	}
 
 	// write bob's key to stack and get pointer
-	bobPtr, err := newPtr(ctx, bobKey[:], rt, true)
-	if err != nil {
-		return err
-	}
-
-	// combine alice and bobs addresses
-	addresses := append(aliceKey[:], bobKey[:]...)
-	addressesPtr, err := newPtr(ctx, addresses, rt, true)
-	if err != nil {
-		return err
-	}
-
-	mintValues := intsToBytes(4, 12)
-	mintValuesPtr, err := newPtr(ctx, mintValues, rt, true)
+	bobPtr, err := newPtr(ctx, bobKey, rt, true)
 	if err != nil {
 		return err
 	}
@@ -196,6 +188,19 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Uint64("unit", rt.Meter().GetBalance()),
 	)
 
+	// combine alice and bobs addresses
+	addresses := [][32]byte{aliceKeyBytes, bobKeyBytes}
+	addressesPtr, err := newPtr(ctx, addresses, rt, true)
+	if err != nil {
+		return err
+	}
+	
+	mintValues := []int32{4, 12}
+	mintValuesPtr, err := newPtr(ctx, mintValues, rt, true)
+	if err != nil {
+		return err
+	}
+	
 	// perform bulk mint
 	_, err = rt.Call(ctx, "mint_to_many", programIDPtr, addressesPtr, mintValuesPtr)
 	if err != nil {
@@ -225,7 +230,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 
 	// call example string function
-	name := []byte("Alice")
+	name := "hello world"
 	namePtr, err := newPtr(ctx, name, rt, true)
 	if err != nil {
 		return err
@@ -235,9 +240,9 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	t.log.Debug("remaining balance",
-		zap.Uint64("unit", rt.Meter().GetBalance()),
-	)
+	// t.log.Debug("remaining balance",
+	// 	zap.Uint64("unit", rt.Meter().GetBalance()),
+	// )
 
 
 	return nil
