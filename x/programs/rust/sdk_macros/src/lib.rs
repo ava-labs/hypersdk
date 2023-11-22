@@ -17,6 +17,44 @@ enum ParamKind {
     Pointer,
 }
 
+impl From<&Box<Type>> for ParamKind {
+    fn from(ty: &Box<Type>) -> Self {
+        if is_supported_primitive(ty) {
+            ParamKind::SupportedPrimitive
+        } else if is_context(ty) {
+            ParamKind::Program
+        } else {
+            ParamKind::Pointer
+        }
+    }
+}
+
+
+impl ParamKind {
+    fn converted_param_tokenstream(&self, param_name: &Ident) -> proc_macro2::TokenStream {
+        match self {
+            // return the original parameter if it is a supported primitive type
+            ParamKind::SupportedPrimitive => {
+                quote! {
+                    #param_name
+                }
+            }
+            // use the From<i64> trait to convert from i64 to a Program struct
+            ParamKind::Program => {
+                quote! {
+                    #param_name.into()
+                }
+            }
+            // only convert from_raw_ptr if not a supported primitive type or Program
+            ParamKind::Pointer => {
+                quote! {
+                    from_raw_ptr(#param_name)
+                }
+            }
+        }
+    }
+}
+
 /// An attribute procedural macro that makes a function visible to the VM host.
 /// It does so by wrapping the `item` tokenstream in a new function that can be called by the host.
 /// The wrapper function will have the same name as the original function, but with "_guest" appended to it.
@@ -39,13 +77,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
             if let Pat::Ident(ref pat_ident) = **pat {
                 let param_name = &pat_ident.ident;
-                let param_descriptor = if is_supported_primitive(ty) {
-                    ParamKind::SupportedPrimitive
-                } else if is_context(ty) {
-                    ParamKind::Program
-                } else {
-                    ParamKind::Pointer
-                };
+                let param_descriptor = ty.into();
                 let param_type = if is_supported_primitive(ty) {
                     ty.to_token_stream()
                 } else {
@@ -74,33 +106,9 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         panic!("Unsupported function parameter format.");
     });
 
-    // Converts the parameters that are pointers to their original type.
-    let converted_params = full_params.clone().map(|param| {
-        let (param_name, _, param_descriptor) = param;
-        match param_descriptor {
-            // return the original parameter if it is a supported primitive type
-            ParamKind::SupportedPrimitive => {
-                quote! {
-                    #param_name
-                }
-            }
-            // use the From<i64> trait to convert from i64 to a Program struct
-            ParamKind::Program => {
-                quote! {
-                    #param_name.into()
-                }
-            }
-            // only convert from_raw_ptr if not a supported primitive type or Program
-            ParamKind::Pointer => {
-                quote! {
-                    from_raw_ptr(#param_name)
-                }
-            }
-        }
-    });
-
-    // Collect all parameter names and types into separate vectors.
-    let (param_names, param_types, _) = full_params.unzip_n_vec();
+    let (param_names, param_types, converted_params) = full_params.map(|(param_name, param_type, param_kind)| {
+        (param_name, param_type, param_kind.converted_param_tokenstream(param_name))
+    }).unzip_n_vec();
 
     // Extract the original function's return type. This must be a WASM supported type.
     let return_type = &input.sig.output;
