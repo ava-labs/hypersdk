@@ -31,7 +31,55 @@ impl IntoIterator for Address {
     }
 }
 
-pub fn is_primitive<T>() -> bool {
-    // Check if the type is a supported primitive (i64 or i32 or bool)
-    std::mem::size_of::<T>() == std::mem::size_of::<i64>() || std::mem::size_of::<T>() == std::mem::size_of::<i32>() || std::mem::size_of::<T>() == std::mem::size_of::<bool>()
+/// A trait that represents an argument that can be passed to & from the host.
+pub trait Argument {
+    fn as_bytes(&self) -> Cow<'_, [u8]>;
+    fn is_primitive(&self) -> bool {
+        false
+    }
+    fn len(&self) -> usize {
+        self.as_bytes().len()
+    }
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl Argument for Address {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Borrowed(self.as_bytes())
+    }
+}
+
+impl Argument for i64 {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Owned(self.to_be_bytes().to_vec())
+    }
+    fn is_primitive(&self) -> bool {
+        true
+    }
+}
+
+impl Argument for i32 {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Owned(self.to_be_bytes().to_vec())
+    }
+    fn is_primitive(&self) -> bool {
+        true
+    }
+}
+
+impl Argument for Program {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Owned(self.id().to_be_bytes().to_vec())
+    }
+    fn is_primitive(&self) -> bool {
+        true
+    }
+}
+
+impl Argument for String {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Owned(self.as_bytes().to_vec())
+    }
 }
