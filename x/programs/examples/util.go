@@ -21,7 +21,6 @@ import (
 // It returns the pointer to the allocated memory.
 func newPtr(ctx context.Context, item interface{}, rt runtime.Runtime, prependLength bool) (int64, error) {
 	bytes, err := serializeToBytes(item)
-
 	if err != nil {
 		return 0, err
 	}

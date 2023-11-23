@@ -81,12 +81,14 @@ impl State {
 /// with the subsequent [length] bytes comprising the serialized data.
 /// # Panics
 /// Panics if the bytes cannot be deserialized.
+/// # Safety
+/// This function is unsafe because it dereferences raw pointers.
 #[must_use]
-pub fn from_raw_ptr<V>(ptr: i64) -> V
+pub unsafe fn from_raw_ptr<V>(ptr: i64) -> V
 where
     V: BorshDeserialize,
 {
-    let (bytes, _) = unsafe { bytes_and_length(ptr) };
+    let (bytes, _) = bytes_and_length(ptr);
     from_slice::<V>(&bytes).expect("failed to deserialize")
 }
 
