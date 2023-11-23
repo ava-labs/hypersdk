@@ -1,3 +1,4 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
 
 /// The program state keys.
@@ -100,13 +101,17 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
     true
 }
 
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct MintingRecipient {
+    recipient: Address,
+    amount: i32,
+}
+
 /// Mints tokens to multiple recipients.
 #[public]
-pub fn mint_to_many(program: Program, recipients: Vec<Address>, amounts: Vec<i32>) -> bool {
-    assert_eq!(recipients.len(), amounts.len(), "invalid input");
-
-    for (recipient, amount) in recipients.iter().zip(amounts.iter()) {
-        mint_to(program, *recipient, *amount as i64);
+pub fn mint_to_many(program: Program, minting_recipients: Vec<MintingRecipient>) -> bool {
+    for info in minting_recipients.iter() {
+        mint_to(program, info.recipient, info.amount as i64);
     }
 
     true
