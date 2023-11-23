@@ -28,6 +28,11 @@ func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *ru
 	}
 }
 
+type mintingRecipient struct {
+	To     [32]byte
+	Amount int32
+}
+
 type Token struct {
 	log          logging.Logger
 	programBytes []byte
@@ -189,26 +194,30 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// combine alice and bobs addresses
-	addresses := [][32]byte{aliceKeyBytes, bobKeyBytes}
-	addressesPtr, err := newPtr(ctx, addresses, rt, true)
-	if err != nil {
-		return err
+	payments := []mintingRecipient{
+		{
+			To:     aliceKeyBytes,
+			Amount: 10,
+		},
+		{
+			To:     bobKeyBytes,
+			Amount: 12,
+		},
 	}
 
-	mintValues := []int32{4, 12}
-	mintValuesPtr, err := newPtr(ctx, mintValues, rt, true)
+	addressesPtr, err := newPtr(ctx, payments, rt, true)
 	if err != nil {
 		return err
 	}
 
 	// perform bulk mint
-	_, err = rt.Call(ctx, "mint_to_many", programIDPtr, addressesPtr, mintValuesPtr)
+	_, err = rt.Call(ctx, "mint_to_many", programIDPtr, addressesPtr)
 	if err != nil {
 		return err
 	}
 	t.log.Debug("minted many",
-		zap.Int64("alice", 4),
-		zap.Int64("to bob", 12),
+		zap.Int32("alice", payments[0].Amount),
+		zap.Int32("to bob", payments[1].Amount),
 	)
 
 	// get balance alice
