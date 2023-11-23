@@ -79,6 +79,6 @@ impl Argument for Program {
 
 impl Argument for String {
     fn as_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(self.as_bytes().to_vec())
+        Cow::Borrowed(self.as_bytes())
     }
 }
