@@ -92,8 +92,7 @@ func (t *Token) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	var aliceKeyBytes [32]byte
-	copy(aliceKeyBytes[:], aliceKey[:])
+	aliceKeyBytes := fixedByteKey(aliceKey)
 
 	// write alice's key to stack and get pointer
 	alicePtr, err := newPtr(ctx, aliceKeyBytes, rt, true)
@@ -103,8 +102,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// generate bob keys
 	_, bobKey, err := newKey()
-	var bobKeyBytes [32]byte
-	copy(bobKeyBytes[:], bobKey[:])
+	bobKeyBytes := fixedByteKey(bobKey)
 
 	if err != nil {
 		return err

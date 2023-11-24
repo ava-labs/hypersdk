@@ -70,6 +70,12 @@ func newKey() (ed25519.PrivateKey, ed25519.PublicKey, error) {
 	return priv, priv.PublicKey(), nil
 }
 
+func fixedByteKey(key ed25519.PublicKey) [32]byte {
+	var fixedKey [32]byte
+	copy(fixedKey[:], key[:])
+	return fixedKey
+}
+
 var (
 	_ state.Mutable   = &testDB{}
 	_ state.Immutable = &testDB{}
