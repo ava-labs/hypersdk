@@ -18,6 +18,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -42,7 +43,7 @@ func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.SupportedImports) error {
+func (i *Import) Register(link program.Link, meter runtime.Meter, _ runtime.SupportedImports) error {
 	if i.registered {
 		return fmt.Errorf("import module already registered: %q", Name)
 	}
@@ -55,128 +56,76 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Supp
 	if err := link.FuncWrap(Name, "get", i.getFn); err != nil {
 		return err
 	}
-	if err := link.FuncWrap(Name, "len", i.getLenFn); err != nil {
-		return err
-	}
 
 	return nil
 }
 
-func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLength int32, valuePtr int32, valueLength int32) int32 {
-	memory := runtime.NewMemory(runtime.NewExportClient(caller))
-	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
+func (i *Import) putFn(
+	caller program.Caller,
+	id,
+	key,
+	value int64,
+) (*program.Val, error) {
+	memory, err := caller.Memory()
 	if err != nil {
-		i.log.Error("failed to read program id from memory",
-			zap.Error(err),
-		)
-		return -1
+		return nil, fmt.Errorf("failed to get memory: %w", err)
 	}
 
-	keyBytes, err := memory.Range(uint64(keyPtr), uint64(keyLength))
+	programIDBytes, err :=  program.Int64ToBytes(memory, id)
 	if err != nil {
-		i.log.Error("failed to read key from memory",
-			zap.Error(err),
-		)
-		return -1
+		return nil, err
 	}
 
-	valueBytes, err := memory.Range(uint64(valuePtr), uint64(valueLength))
+	keyBytes, err :=  program.Int64ToBytes(memory, key)
 	if err != nil {
-		i.log.Error("failed to read value from memory",
-			zap.Error(err),
-		)
-		return -1
+		return nil, fmt.Errorf("failed to read key from memory: %w", err)
+	}
+
+	valueBytes, err :=  program.Int64ToBytes(memory, value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read value from memory: %w", err)
 	}
 
 	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
 	err = i.mu.Insert(context.Background(), k, valueBytes)
 	if err != nil {
-		i.log.Error("failed to insert into storage",
-			zap.Error(err),
-		)
-		return -1
+		return nil, fmt.Errorf("failed to insert into storage: %w", err)
 	}
 
-	return 0
+	return nil, nil
 }
 
-func (i *Import) getLenFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLength int32) int32 {
-	memory := runtime.NewMemory(runtime.NewExportClient(caller))
-	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
+func (i *Import) getFn(
+	caller program.Caller,
+	id,
+	key,
+	value int64,
+	)(*program.Val, error) {
+	memory, err := caller.Memory()
 	if err != nil {
-		i.log.Error("failed to read program id from memory",
-			zap.Error(err),
-		)
-		return -1
+		return nil, fmt.Errorf("failed to get memory: %w", err)
 	}
 
-	keyBytes, err := memory.Range(uint64(keyPtr), uint64(keyLength))
+	programIDBytes, err :=  program.Int64ToBytes(memory, id)
 	if err != nil {
-		i.log.Error("failed to read key from memory",
-			zap.Error(err),
-		)
-		return -1
+		return nil, fmt.Errorf("failed to read program id from memory: %w", err)
+	}
+
+	keyBytes, err :=  program.Int64ToBytes(memory, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read key from memory: %w", err)
 	}
 
 	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
 	val, err := i.mu.GetValue(context.Background(), k)
 	if err != nil {
-		if !errors.Is(err, database.ErrNotFound) {
-			i.log.Error("failed to get value from storage",
-				zap.Error(err),
-			)
-		}
-		return -1
+		return nil, fmt.Errorf("failed to get value from storage: %w", err)
 	}
 
-	return int32(len(val))
-}
-
-func (i *Import) getFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLength int32, valLength int32) int32 {
-	memory := runtime.NewMemory(runtime.NewExportClient(caller))
-	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
+	resp, err := program.BytesToInt64(memory, val)
 	if err != nil {
-		i.log.Error("failed to read program id from memory",
-			zap.Error(err),
-		)
-		return -1
+		return nil, fmt.Errorf("failed to write value to memory: %w", err)
 	}
 
-	keyBytes, err := memory.Range(uint64(keyPtr), uint64(keyLength))
-	if err != nil {
-		i.log.Error("failed to read key from memory",
-			zap.Error(err),
-		)
-		return -1
-	}
-
-	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
-	val, err := i.mu.GetValue(context.Background(), k)
-	if err != nil {
-		if !errors.Is(err, database.ErrNotFound) {
-			i.log.Error("failed to get value from storage",
-				zap.Error(err),
-			)
-		}
-		return -1
-	}
-
-	if err != nil {
-		i.log.Error("failed to convert program id to id",
-			zap.Error(err),
-		)
-		return -1
-	}
-
-	ptr, err := runtime.WriteBytes(memory, val)
-	if err != nil {
-		{
-			i.log.Error("failed to write to memory",
-				zap.Error(err),
-			)
-		}
-		return -1
-	}
-
-	return int32(ptr)
+	return program.ValI64(resp), nil 
 }

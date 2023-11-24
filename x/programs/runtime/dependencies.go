@@ -20,10 +20,6 @@ const (
 
 var NoSupportedImports = make(SupportedImports)
 
-// type Link struct {
-// 	*wasmtime.Linker
-// }
-
 type Runtime interface {
 	// Initialize initializes the runtime with the given program bytes and max
 	// units. The engine will handle the compile strategy and instantiate the
@@ -34,7 +30,7 @@ type Runtime interface {
 	// If the function called does not return a result this value is set to nil.
 	Call(context.Context, string, ...int64) ([]int64, error)
 	// Memory returns the runtime memory.
-	Memory() Memory
+	// Memory() Memory
 	// Meter returns the runtime meter.
 	Meter() Meter
 	// Stop stops the runtime.

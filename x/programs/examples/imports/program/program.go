@@ -11,12 +11,11 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
-	"github.com/ava-labs/hypersdk/x/programs/link"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -44,71 +43,55 @@ func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link link.Link, meter runtime.Meter, imports runtime.SupportedImports) error {
+func (i *Import) Register(link program.Link, meter runtime.Meter, imports runtime.SupportedImports) error {
 	if i.registered {
 		return fmt.Errorf("import module already registered: %q", Name)
 	}
+	
+	i.registered = true
 	i.imports = imports
 	i.meter = meter
 
-	link.RegisterFn(Name, "call_program", i.callProgramFn, 8)
-
-	if err := link.FuncWrap(Name, "call_program", i.callProgramFn); err != nil {
-		return err
-	}
-
-	return nil
+	return link.RegisterFn(program.NewFiveParamImport(Name, "call_program", i.callProgramFn))
 }
 
-// callProgramFn makes a call to an entry function of a program in the context of another program's ID.
 func (i *Import) callProgramFn(
-	caller *wasmtime.Caller,
-	callerIDPtr int64,
-	programIDPtr int64,
-	maxUnits int64,
-	functionPtr,
-	functionLen,
-	argsPtr,
-	argsLen int32,
-) int64 {
+	caller program.Caller,
+	callerID,
+	programID,
+	maxUnits,
+	function,
+	args int64,
+) (*program.Val, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 
-	// get the entry function for invoke to call.
-	functionBytes, err := memory.Range(uint64(functionPtr), uint64(functionLen))
+	memory, err := caller.Memory()
 	if err != nil {
-		i.log.Error("failed to read function name from memory",
-			zap.Error(err),
-		)
-		return -1
+		return nil, fmt.Errorf("failed to get memory: %w", err)
 	}
 
-	programIDBytes, err := memory.Range(uint64(programIDPtr), uint64(ids.IDLen))
+	functionBytes, err := program.Int64ToBytes(memory,function)
 	if err != nil {
-		i.log.Error("failed to read id from memory",
-			zap.Error(err),
-		)
-		return -1
+		return nil, fmt.Errorf("failed to read function name from memory: %w", err)
+	}
+
+	programIDBytes, err := program.Int64ToBytes(memory,programID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read id from memory: %w", err)
 	}
 
 	// get the program bytes from storage
 	programWasmBytes, err := getProgramWasmBytes(i.log, i.db, programIDBytes)
 	if err != nil {
-		i.log.Error("failed to get program bytes from storage",
-			zap.Error(err),
-		)
-		return -1
+		return nil, fmt.Errorf("failed to get program bytes from storage: %w", err)
 	}
 
 	// create a new runtime for the program to be invoked with a zero balance.
 	rt := runtime.New(i.log, i.cfg, i.imports)
-	err = rt.Initialize(context.Background(), programWasmBytes, runtime.NoUnits)
+	err = rt.Initialize(ctx, programWasmBytes, runtime.NoUnits)
 	if err != nil {
-		i.log.Error("failed to initialize runtime",
-			zap.Error(err),
-		)
-		return -1
+		return nil, fmt.Errorf("failed to initialize child runtime: %w", err)
 	}
 
 	// transfer the units from the caller to the new runtime before any calls are made.
@@ -119,7 +102,7 @@ func (i *Import) callProgramFn(
 			zap.Int64("required", maxUnits),
 			zap.Error(err),
 		)
-		return -1
+		return nil, err
 	}
 
 	// transfer remaining balance back to parent runtime
@@ -136,44 +119,31 @@ func (i *Import) callProgramFn(
 	}()
 
 	// write the program id to the new runtime memory
-	ptr, err := runtime.WriteBytes(rt.Memory(), programIDBytes)
+	ptr, err := program.WriteBytes(rt.Memory(), programIDBytes)
 	if err != nil {
-		i.log.Error("failed to write program id to memory",
-			zap.Error(err),
-		)
-		return -1
+		return nil, fmt.Errorf("failed to write program id to memory: %w", err)
 	}
 
-	argsBytes, err := memory.Range(uint64(argsPtr), uint64(argsLen))
+	argsBytes, err := program.Int64ToBytes(memory,args)
 	if err != nil {
-		i.log.Error("failed to read program args name from memory",
-			zap.Error(err),
-		)
-		return -1
+		return nil, fmt.Errorf("failed to read program args name from memory: %w", err)
 	}
 
 	// sync args to new runtime and return arguments to the invoke call
 	params, err := getCallArgs(ctx, rt.Memory(), argsBytes, ptr)
 	if err != nil {
-		i.log.Error("failed to unmarshal call arguments",
-			zap.Error(err),
-		)
-		return -1
+		return nil, fmt.Errorf("failed to unmarshal call arguments: %w", err)
 	}
 
-	function := string(functionBytes)
-	res, err := rt.Call(ctx, function, params...)
+	resp, err := rt.Call(ctx, string(functionBytes), params...)
 	if err != nil {
-		i.log.Error("failed to call entry function",
-			zap.Error(err),
-		)
-		return -1
+		return nil, fmt.Errorf("failed to call entry function: %w", err)
 	}
 
-	return int64(res[0])
+	return program.ValI64(resp[0]), nil
 }
 
-func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, invokeProgramID int64) ([]int64, error) {
+func getCallArgs(ctx context.Context, memory *program.Memory, buffer []byte, invokeProgramID int64) ([]int64, error) {
 	// first arg contains id of program to call
 	args := []int64{invokeProgramID}
 	p := codec.NewReader(buffer, len(buffer))
@@ -187,7 +157,7 @@ func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, invo
 		} else {
 			valueBytes := make([]byte, size)
 			p.UnpackFixedBytes(int(size), &valueBytes)
-			ptr, err := runtime.WriteBytes(memory, valueBytes)
+			ptr, err := program.WriteBytes(memory, valueBytes)
 			if err != nil {
 				return nil, err
 			}
