@@ -13,6 +13,7 @@ require (
 	github.com/gorilla/rpc v1.2.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/manifoldco/promptui v0.9.0
+	github.com/near/borsh-go v0.3.1
 	github.com/neilotoole/errgroup v0.1.6
 	github.com/oasisprotocol/curve25519-voi v0.0.0-20230110094441-db37f07504ce
 	github.com/onsi/ginkgo/v2 v2.8.1
@@ -93,7 +94,6 @@ require (
 	github.com/mitchellh/pointerstructure v1.2.0 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/nbutton23/zxcvbn-go v0.0.0-20180912185939-ae427f1e4c1d // indirect
-	github.com/near/borsh-go v0.3.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/openzipkin/zipkin-go v0.4.1 // indirect
 	github.com/otiai10/copy v1.11.0 // indirect
