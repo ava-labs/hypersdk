@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
@@ -41,7 +42,7 @@ func TestStop(t *testing.T) {
 	runtime.Stop()
 
 	_, err = runtime.Call(ctx, "run")
-	require.ErrorIs(err, ErrTrapUnreachableCodeReached)
+	require.ErrorIs(err, program.ErrTrapUnreachableCodeReached)
 	// ensure no fees were consumed
 	require.Equal(runtime.Meter().GetBalance(), maxUnits)
 }
@@ -76,5 +77,5 @@ func TestCallParams(t *testing.T) {
 
 	// pass 3 params when 2 are expected.
 	_, err = runtime.Call(ctx, "add", 10, 10, 10)
-	require.ErrorIs(err, ErrInvalidParamCount)
+	require.ErrorIs(err, program.ErrInvalidParamCount)
 }

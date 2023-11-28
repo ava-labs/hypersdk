@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"github.com/stretchr/testify/require"
 )
@@ -91,7 +92,7 @@ func TestWriteExceedsLimitMaxMemory(t *testing.T) {
 
 	maxUnits := uint64(1)
 	cfg, err := NewConfigBuilder().
-		WithLimitMaxMemory(1 * MemoryPageSize). // 1 page
+		WithLimitMaxMemory(1 * program.MemoryPageSize). // 1 page
 		Build()
 	require.NoError(err)
 	runtime := New(logging.NoLog{}, cfg, nil)
@@ -140,5 +141,5 @@ func TestWithMaxWasmStack(t *testing.T) {
 	require.NoError(err)
 	// exceed the stack limit
 	_, err = runtime.Call(context.Background(), "get")
-	require.ErrorIs(err, ErrTrapStackOverflow)
+	require.ErrorIs(err, program.ErrTrapStackOverflow)
 }

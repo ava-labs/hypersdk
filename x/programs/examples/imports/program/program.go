@@ -14,8 +14,9 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
+	"github.com/ava-labs/hypersdk/x/programs/host"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -25,8 +26,7 @@ type Import struct {
 	cfg        *runtime.Config
 	db         state.Mutable
 	log        logging.Logger
-	imports    runtime.SupportedImports
-	meter      runtime.Meter
+	link       *host.Link
 	registered bool
 }
 
@@ -43,20 +43,12 @@ func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link program.Link, meter runtime.Meter, imports runtime.SupportedImports) error {
-	if i.registered {
-		return fmt.Errorf("import module already registered: %q", Name)
-	}
-	
-	i.registered = true
-	i.imports = imports
-	i.meter = meter
-
-	return link.RegisterFn(program.NewFiveParamImport(Name, "call_program", i.callProgramFn))
+func (i *Import) Register(link host.Link) error {
+	return link.RegisterFn(host.NewFiveParamImport(Name, "call_program", i.callProgramFn))
 }
 
 func (i *Import) callProgramFn(
-	caller program.Caller,
+	caller *program.Caller,
 	callerID,
 	programID,
 	maxUnits,
@@ -71,12 +63,12 @@ func (i *Import) callProgramFn(
 		return nil, fmt.Errorf("failed to get memory: %w", err)
 	}
 
-	functionBytes, err := program.Int64ToBytes(memory,function)
+	functionBytes, err := program.Int64ToBytes(memory, function)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read function name from memory: %w", err)
 	}
 
-	programIDBytes, err := program.Int64ToBytes(memory,programID)
+	programIDBytes, err := program.Int64ToBytes(memory, programID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read id from memory: %w", err)
 	}
@@ -88,7 +80,7 @@ func (i *Import) callProgramFn(
 	}
 
 	// create a new runtime for the program to be invoked with a zero balance.
-	rt := runtime.New(i.log, i.cfg, i.imports)
+	rt := runtime.New(i.link.Log(), i.cfg, i.link.Imports())
 	err = rt.Initialize(ctx, programWasmBytes, runtime.NoUnits)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize child runtime: %w", err)
@@ -124,7 +116,7 @@ func (i *Import) callProgramFn(
 		return nil, fmt.Errorf("failed to write program id to memory: %w", err)
 	}
 
-	argsBytes, err := program.Int64ToBytes(memory,args)
+	argsBytes, err := program.Int64ToBytes(memory, args)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read program args name from memory: %w", err)
 	}
@@ -157,11 +149,11 @@ func getCallArgs(ctx context.Context, memory *program.Memory, buffer []byte, inv
 		} else {
 			valueBytes := make([]byte, size)
 			p.UnpackFixedBytes(int(size), &valueBytes)
-			ptr, err := program.WriteBytes(memory, valueBytes)
+			resp, err := program.BytesToInt64(memory, valueBytes)
 			if err != nil {
 				return nil, err
 			}
-			args = append(args, ptr)
+			args = append(args, resp)
 		}
 		i++
 	}

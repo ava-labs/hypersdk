@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package runtime
+package engine
 
 import (
 	"fmt"
@@ -10,6 +10,15 @@ import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
+)
+
+type CompileStrategy uint8
+
+const (
+	// CompileWasm will compile the wasm module before instantiating it.
+	CompileWasm CompileStrategy = iota
+	// PrecompiledWasm accepts a precompiled wasm module serialized by an Engine.
+	PrecompiledWasm
 )
 
 const (
@@ -104,7 +113,7 @@ type ConfigBuilder struct {
 	// Default is `wasmtime.ProfilingStrategyNone`.
 	ProfilingStrategy wasmtime.ProfilingStrategy
 	// CompileStrategy helps the engine to understand if the files has been precompiled.
-	CompileStrategy EngineCompileStrategy
+	CompileStrategy CompileStrategy
 
 	err wrappers.Errs
 }
@@ -112,7 +121,7 @@ type ConfigBuilder struct {
 // WithCompileStrategy defines the EngineCompileStrategy.
 //
 // Default is CompileWasm.
-func (c *ConfigBuilder) WithCompileStrategy(strategy EngineCompileStrategy) *ConfigBuilder {
+func (c *ConfigBuilder) WithCompileStrategy(strategy CompileStrategy) *ConfigBuilder {
 	c.CompileStrategy = strategy
 	return c
 }
@@ -239,8 +248,8 @@ func (c *ConfigBuilder) Build() (*Config, error) {
 		limitMaxMemories:      defaultLimitMaxMemories,
 
 		// runtime config
-		compileStrategy: c.CompileStrategy,
-		debugMode:       c.EnableDebugMode,
+		CompileStrategy: c.CompileStrategy,
+		DebugMode:       c.EnableDebugMode,
 	}, nil
 }
 
@@ -281,9 +290,9 @@ type Config struct {
 	limitMaxInstances int64
 	limitMaxMemories  int64
 
-	debugMode bool
+	DebugMode bool
 
-	compileStrategy EngineCompileStrategy
+	CompileStrategy CompileStrategy
 }
 
 func defaultWasmtimeConfig() *wasmtime.Config {

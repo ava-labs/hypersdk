@@ -1,26 +1,35 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package runtime
+package engine
 
 import (
-	"github.com/bytecodealliance/wasmtime-go/v14"
+	"errors"
 )
 
 const NoUnits = 0
 
+var(
+	ErrInsufficientUnits = errors.New("insufficient units")
+)
+
 var _ Meter = (*meter)(nil)
 
-// NewMeter returns a new meter.
-func NewMeter(store *wasmtime.Store) Meter {
-	return &meter{
+// NewMeter returns a new meter initialized with max units.
+func NewMeter(store *Store, maxUnits uint64) (Meter, error) {
+	m := &meter{
 		store: store,
 	}
+	_, err := m.AddUnits(maxUnits)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 type meter struct {
 	maxUnits uint64
-	store    *wasmtime.Store
+	store    *Store
 }
 
 func (m *meter) GetBalance() uint64 {

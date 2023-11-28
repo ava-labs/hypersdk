@@ -5,37 +5,29 @@ package pstate
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
-	"github.com/bytecodealliance/wasmtime-go/v14"
-
-	"go.uber.org/zap"
-
-	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
+	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/program"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 const Name = "state"
 
-var _ runtime.Import = &Import{}
+var _ host.Import = &Import{}
 
 // New returns a program storage module capable of storing arbitrary bytes
 // in the program's namespace.
-func New(log logging.Logger, mu state.Mutable) runtime.Import {
+func New(log logging.Logger, mu state.Mutable) host.Import {
 	return &Import{mu: mu, log: log}
 }
 
 type Import struct {
 	mu         state.Mutable
 	log        logging.Logger
-	meter      runtime.Meter
 	registered bool
 }
 
@@ -43,17 +35,16 @@ func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link program.Link, meter runtime.Meter, _ runtime.SupportedImports) error {
+func (i *Import) Register(link *host.Link) error {
 	if i.registered {
 		return fmt.Errorf("import module already registered: %q", Name)
 	}
-	i.meter = meter
 	i.registered = true
 
-	if err := link.FuncWrap(Name, "put", i.putFn); err != nil {
+	if err := link.RegisterFn(host.NewThreeParamImport(Name, "put", i.putFn)); err != nil {
 		return err
 	}
-	if err := link.FuncWrap(Name, "get", i.getFn); err != nil {
+	if err := link.RegisterFn(host.NewThreeParamImport(Name, "get", i.getFn)); err != nil {
 		return err
 	}
 
@@ -61,7 +52,7 @@ func (i *Import) Register(link program.Link, meter runtime.Meter, _ runtime.Supp
 }
 
 func (i *Import) putFn(
-	caller program.Caller,
+	caller *program.Caller,
 	id,
 	key,
 	value int64,
@@ -71,17 +62,17 @@ func (i *Import) putFn(
 		return nil, fmt.Errorf("failed to get memory: %w", err)
 	}
 
-	programIDBytes, err :=  program.Int64ToBytes(memory, id)
+	programIDBytes, err := program.Int64ToBytes(memory, id)
 	if err != nil {
 		return nil, err
 	}
 
-	keyBytes, err :=  program.Int64ToBytes(memory, key)
+	keyBytes, err := program.Int64ToBytes(memory, key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key from memory: %w", err)
 	}
 
-	valueBytes, err :=  program.Int64ToBytes(memory, value)
+	valueBytes, err := program.Int64ToBytes(memory, value)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read value from memory: %w", err)
 	}
@@ -96,22 +87,22 @@ func (i *Import) putFn(
 }
 
 func (i *Import) getFn(
-	caller program.Caller,
+	caller *program.Caller,
 	id,
 	key,
 	value int64,
-	)(*program.Val, error) {
+) (*program.Val, error) {
 	memory, err := caller.Memory()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get memory: %w", err)
 	}
 
-	programIDBytes, err :=  program.Int64ToBytes(memory, id)
+	programIDBytes, err := program.Int64ToBytes(memory, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read program id from memory: %w", err)
 	}
 
-	keyBytes, err :=  program.Int64ToBytes(memory, key)
+	keyBytes, err := program.Int64ToBytes(memory, key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key from memory: %w", err)
 	}
@@ -127,5 +118,5 @@ func (i *Import) getFn(
 		return nil, fmt.Errorf("failed to write value to memory: %w", err)
 	}
 
-	return program.ValI64(resp), nil 
+	return program.ValI64(resp), nil
 }
