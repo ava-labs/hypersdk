@@ -234,10 +234,6 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 	t.log.Debug("balance", zap.Int64("bob", result[0]))
 
-	// t.log.Debug("remaining balance",
-	// 	zap.Uint64("unit", rt.Meter().GetBalance()),
-	// )
-
 	return nil
 }
 
