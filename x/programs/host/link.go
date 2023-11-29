@@ -14,31 +14,32 @@ import (
 // NewLink returns a new host module program link.
 func NewLink(log logging.Logger, engine *wasmtime.Engine, imports SupportedImports, meter engine.Meter, cfg *engine.Config) *Link {
 	return &Link{
-		log:   log,
-		inner: wasmtime.NewLinker(engine),
+		log:     log,
+		inner:   wasmtime.NewLinker(engine),
 		imports: imports,
-		meter: meter,
-		cfg: cfg,
+		meter:   meter,
+		cfg:     cfg,
 	}
 }
 
 type Link struct {
-	inner *wasmtime.Linker
+	inner   *wasmtime.Linker
 	imports SupportedImports
-	log   logging.Logger
-	meter engine.Meter
-	cfg   *engine.Config
-	cb    *Callback
+	log     logging.Logger
+	meter   engine.Meter
+	cfg     *engine.Config
+	cb      ImportFnCallback
 }
 
-// Instantiate instantiates a module with all imports defined in this linker.
-func (l *Link) Instantiate(store wasmtime.Storelike, mod *wasmtime.Module) (*wasmtime.Instance, error) { 
+// Instantiate registers a module with all imports defined in this linker.
+// This can only be called once after all imports have been registered.
+func (l *Link) Instantiate(store wasmtime.Storelike, mod *wasmtime.Module) (*wasmtime.Instance, error) {
 	imports := getRegisteredImports(mod.Imports())
 	// register host functions exposed to the guest (imports)
 	for _, imp := range imports {
 		importFn, ok := l.imports[imp]
 		if !ok {
-			return nil, fmt.Errorf("%w: %s", program.ErrMissingImportModule, imp)
+			return nil, fmt.Errorf("%w: %s", ErrMissingImportModule, imp)
 		}
 		err := importFn().Register(l)
 		if err != nil {
@@ -105,10 +106,17 @@ func (l *Link) RegisterFuncWrap(module, name string, f interface{}) error {
 	return l.inner.FuncWrap(module, name, wrapper())
 }
 
-func (l *Link) RegisterCallback(cb *Callback) {
+// RegisterCallback registers a callback for import function requests and responses.
+func (l *Link) RegisterCallback(cb ImportFnCallback) {
 	l.cb = cb
 }
 
+// Wasi enables wasi support for the link.
 func (l *Link) Wasi() error {
 	return l.inner.DefineWasi()
+}
+
+// Log returns a logger exposed by the link.
+func (l *Link) Log() logging.Logger {
+	return l.log
 }

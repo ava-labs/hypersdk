@@ -20,10 +20,9 @@ type Runtime interface {
 	// If the function called does not return a result this value is set to nil.
 	Call(context.Context, string, ...int64) ([]int64, error)
 	// Memory returns the runtime memory.
-	Memory() (*program.Memory, error)	
+	Memory() (*program.Memory, error)
 	// Meter returns the runtime meter.
 	Meter() engine.Meter
 	// Stop stops the runtime.
 	Stop()
 }
-

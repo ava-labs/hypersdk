@@ -28,9 +28,9 @@ func New(log logging.Logger, cfg *engine.Config, imports host.SupportedImports) 
 }
 
 type WasmRuntime struct {
-	cfg   *engine.Config
-	inst  program.Instance
-	meter engine.Meter
+	cfg    *engine.Config
+	inst   program.Instance
+	meter  engine.Meter
 	engine *wasmtime.Engine
 
 	once     sync.Once
@@ -100,7 +100,7 @@ func (r *WasmRuntime) Call(_ context.Context, name string, args ...int64) ([]int
 		return nil, err
 	}
 
-	return fn.Call(args...)	
+	return fn.Call(args...)
 }
 
 func (r *WasmRuntime) Memory() (*program.Memory, error) {

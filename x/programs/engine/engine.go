@@ -24,11 +24,11 @@ func NewStore(cfg *Config) (*Store, error) {
 		cfg.limitMaxMemories,
 	)
 
-	return &Store{inner : inner}, nil
+	return &Store{inner: inner}, nil
 }
 
 type Store struct {
-	inner *wasmtime.Store
+	inner           *wasmtime.Store
 	compileStrategy CompileStrategy
 }
 
@@ -36,7 +36,7 @@ func (s *Store) SetEpochDeadline(epochDeadline uint64) {
 	s.inner.SetEpochDeadline(epochDeadline)
 }
 
-func (s *Store) Engine() *wasmtime.Engine{
+func (s *Store) Engine() *wasmtime.Engine {
 	return s.inner.Engine
 }
 
@@ -70,14 +70,13 @@ func (s *Store) CompileModule(bytes []byte) (*wasmtime.Module, error) {
 		// A precompile is not something we would store on chain.
 		// Instead we would prefetch programs and precompile them.
 		return wasmtime.NewModuleDeserialize(s.Engine(), bytes)
-		
+
 	case CompileWasm:
 		return wasmtime.NewModule(s.Engine(), bytes)
 	default:
 		return nil, fmt.Errorf("unsupported compile strategy: %v", s.compileStrategy)
 	}
 }
-
 
 // PreCompileWasm returns a precompiled wasm module.
 //
@@ -105,4 +104,3 @@ func PreCompileWasmBytes(programBytes []byte, cfg *Config) ([]byte, error) {
 
 	return module.Serialize()
 }
-

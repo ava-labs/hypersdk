@@ -9,7 +9,7 @@ import (
 
 const NoUnits = 0
 
-var(
+var (
 	ErrInsufficientUnits = errors.New("insufficient units")
 )
 

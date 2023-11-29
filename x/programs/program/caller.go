@@ -13,7 +13,7 @@ var _ Instance = (*Caller)(nil)
 
 // Caller is a wrapper around a wasmtime.Caller
 type Caller struct {
-	caller  *wasmtime.Caller
+	caller *wasmtime.Caller
 }
 
 // NewCaller creates a new program instance.
@@ -38,7 +38,7 @@ func (c *Caller) GetFunc(name string) (*Func, error) {
 }
 
 func (c *Caller) GetExport(name string) (*Export, error) {
-	exp :=	c.caller.GetExport(FuncName(name))
+	exp := c.caller.GetExport(FuncName(name))
 	if exp == nil {
 		return nil, fmt.Errorf("failed to create export %w: %s", ErrInvalidType, name)
 	}

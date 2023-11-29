@@ -14,16 +14,16 @@ import (
 
 // Memory is a wrapper around a wasmtime.Memory
 type Memory struct {
-	store  wasmtime.Storelike
+	store   wasmtime.Storelike
 	inner   *wasmtime.Memory
-	allocFn  *wasmtime.Func
+	allocFn *wasmtime.Func
 }
 
 // NewMemory creates a new memory wrapper.
 func NewMemory(inner *wasmtime.Memory, allocFn *wasmtime.Func, store wasmtime.Storelike) *Memory {
 	return &Memory{
-		inner: inner,
-		store: store,
+		inner:   inner,
+		store:   store,
 		allocFn: allocFn,
 	}
 }

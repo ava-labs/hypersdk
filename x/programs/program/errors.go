@@ -12,7 +12,6 @@ import (
 
 var (
 	ErrMissingExportedFunction      = errors.New("failed to find exported function")
-	ErrMissingImportModule          = errors.New("failed to find import module")
 	ErrMissingInvalidMemoryFunction = errors.New("memory function is invalid")
 	ErrRuntimeStoreSet              = errors.New("runtime store has already been set")
 	ErrOverflow                     = fmt.Errorf("overflow")
@@ -20,12 +19,12 @@ var (
 	ErrInvalidType                  = fmt.Errorf("invalid type")
 
 	// Memory
-	ErrInvalidMemorySize            = errors.New("invalid memory size")
-	ErrInvalidMemoryAddress         = errors.New("invalid memory address: must be positive")
+	ErrInvalidMemorySize    = errors.New("invalid memory size")
+	ErrInvalidMemoryAddress = errors.New("invalid memory address: must be positive")
 
 	// Func
-	ErrInvalidArgCount              = errors.New("invalid arg count")
-	ErrInvalidArgType               = errors.New("invalid arg type")
+	ErrInvalidArgCount = errors.New("invalid arg count")
+	ErrInvalidArgType  = errors.New("invalid arg type")
 
 	// Trap errors
 	ErrTrapStackOverflow          = errors.New("the current stack space was exhausted")

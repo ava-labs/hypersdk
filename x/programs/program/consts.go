@@ -4,8 +4,8 @@
 package program
 
 const (
-	AllocFnName         = "alloc"
-	DeallocFnName       = "dealloc"
-	MemoryFnName        = "memory"
-	GuestSuffix         = "_guest"
+	AllocFnName   = "alloc"
+	DeallocFnName = "dealloc"
+	MemoryFnName  = "memory"
+	GuestSuffix   = "_guest"
 )
