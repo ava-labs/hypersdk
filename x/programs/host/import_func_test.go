@@ -4,32 +4,29 @@
 package host
 
 import (
-	"testing"
-
-	"github.com/bytecodealliance/wasmtime-go/v14"
-	"github.com/stretchr/testify/require"
-
 	"github.com/ava-labs/hypersdk/x/programs/program"
 )
 
-func TestXxx(t *testing.T) {
-	require.New(t)
-	OneParamFn := func(
-	*program.Caller,
-	int64) (*program.Val, error) {
-		return nil, nil
-	}
-	module, fnName, paramCount, importFn := NewOneParamImport("env", "test", OneParamFn)
-	require.Equal(t, "env", module)
-	require.Equal(t, "test", fnName)
-	require.Equal(t, 1, paramCount)
-	fn := func(caller *wasmtime.Caller, args []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
-		val, err := importFn(program.NewCaller(caller), args...)
-		if err != nil {
-			return nil, wasmtime.NewTrap(err.Error())
-		}
-		return []wasmtime.Val{val.Wasmtime()}, nil
-	}
-	fn()Ptr
-	
+func testOneParamFn(caller *program.Caller, p1 int64) (*program.Val, error) {
+	return nil, nil
+}
+
+func testTwoParamFn(caller *program.Caller, p1, p2 int64) (*program.Val, error) {
+	return nil, nil
+}
+
+func testThreeParamFn(caller *program.Caller, p1, p2, p3 int64) (*program.Val, error) {
+	return nil, nil
+}
+
+func testFourParamFn(caller *program.Caller, p1, p2, p3, p4 int64) (*program.Val, error) {
+	return nil, nil
+}
+
+func testFiveParamFn(caller *program.Caller, p1, p2, p3, p4, p5 int64) (*program.Val, error) {
+	return nil, nil
+}
+
+func testSixParamFn(caller *program.Caller, p1, p2, p3, p4, p5, p6 int64) (*program.Val, error) {
+	return nil, nil
 }

@@ -4,6 +4,7 @@
 package host
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -12,29 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLinkInstantiated(t *testing.T) {
-	require := require.New(t)
-
-	// no imports
-	wasm, err := wasmtime.Wat2Wasm(`
-	(module
-	  (memory 1) ;; 1 pages
-	  (export "memory" (memory 0))
-	)
-	`)
-	require.NoError(err)
-	link, store := newTestLink(t, NoSupportedImports)
-	require.NotNil(link)
-	mod, err := store.CompileModule(wasm)
-	require.NoError(err)
-	_, err = link.Instantiate(store.Inner(), mod)
-	require.NoError(err)
-	err = link.RegisterFuncWrap("foo", "bar", func() {})
-	require.ErrorIs(err, ErrInstantiated)
-
-}
-
-func TestLinkInstasntiated(t *testing.T) {
+func TestLinkMissingImport(t *testing.T) {
 	require := require.New(t)
 
 	wasm, err := wasmtime.Wat2Wasm(`
@@ -43,16 +22,18 @@ func TestLinkInstasntiated(t *testing.T) {
     )	
 	`)
 	require.NoError(err)
-	link, store := newTestLink(t, NoSupportedImports)
-	require.NotNil(link)
-	mod, err := store.CompileModule(wasm)
+	cfg, err := engine.NewConfigBuilder().Build()
 	require.NoError(err)
-	require.Equal(len(mod.Imports()), 1)
-	err = link.RegisterFuncWrap("env", "alert", func() {})
+	eng, err := engine.New(cfg)
 	require.NoError(err)
-	_, err = link.Instantiate(store.Inner(), mod)
+	mod, err := eng.CompileModule(wasm)
 	require.NoError(err)
-
+	store, err := engine.NewStore(eng)
+	require.NoError(err)
+	link, err := newTestLink(cfg, store, NoSupportedImports)
+	require.NoError(err)
+	_, err = link.Instantiate(store, mod)
+	require.ErrorIs(err, ErrMissingImportModule)
 }
 
 func TestLinkImport(t *testing.T) {
@@ -70,33 +51,33 @@ func TestLinkImport(t *testing.T) {
 		module,
 		fnName string
 		errMsg string
-		fn interface{}
+		fn     interface{}
 	}{
 		{
-			name: "happy path",
+			name:   "happy path",
 			module: "env",
 			fnName: "alert",
-			fn: func(int32) {},
+			fn:     func(int32) {},
 		},
 		{
-			name: "missing module",
+			name:   "missing module",
 			module: "oops",
 			fnName: "alert",
-			fn: func(int32) {},
+			fn:     func(int32) {},
 			errMsg: "failed to find import module: env",
 		},
 		{
-			name: "missing module function",
+			name:   "missing module function",
 			module: "env",
 			fnName: "oops",
-			fn: func(int32) {},
+			fn:     func(int32) {},
 			errMsg: "`env::alert` has not been defined",
 		},
 		{
-			name: "invalid module function signature",
+			name:   "invalid module function signature",
 			module: "env",
 			fnName: "alert",
-			fn: func() {},
+			fn:     func() {},
 			errMsg: "function types incompatible",
 		},
 	}
@@ -104,15 +85,21 @@ func TestLinkImport(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			imports := NewImportsBuilder()
 			imports.Register(tt.module, func() Import {
-				return newTestImport(tt.module, tt.fnName, tt.fn)
+				return newTestImport(tt.module, tt.fnName, []testFn{{fn: tt.fn, fnType: FnTypeCustom}})
 			})
-			supported := imports.Build()
-			link, store := newTestLink(t, supported)
-			mod, err := store.CompileModule(wasm)
+			cfg, err := engine.NewConfigBuilder().Build()
 			require.NoError(err)
-			_, err = link.Instantiate(store.Inner(), mod)
+			eng, err := engine.New(cfg)
+			require.NoError(err)
+			mod, err := eng.CompileModule(wasm)
+			require.NoError(err)
+			store, err := engine.NewStore(eng)
+			require.NoError(err)
+			link, err := newTestLink(cfg, store, imports.Build())
+			require.NoError(err)
+			_, err = link.Instantiate(store, mod)
 			if tt.errMsg != "" {
-				require.ErrorContains(err, tt.errMsg)
+				require.ErrorContains(err, tt.errMsg) // can't use ErrorIs because the error message is not owned by us.
 				return
 			}
 			require.NoError(err)
@@ -121,29 +108,37 @@ func TestLinkImport(t *testing.T) {
 
 }
 
-func newTestLink(t *testing.T, supported SupportedImports) (*Link, engine.Store) {
-	require := require.New(t)
-	cfg, err := engine.NewConfigBuilder().Build()
-	require.NoError(err)
-	store, err := engine.NewStore(cfg)
-	require.NoError(err)
+func newTestLink(cfg *engine.Config, store *engine.Store, supported SupportedImports) (*Link, error) {
 	meter, err := engine.NewMeter(store, engine.NoUnits)
-	require.NoError(err)
-		
-	return NewLink(logging.NoLog{}, store.Engine(), supported, meter, cfg), *store
+	if err != nil {
+		return nil, err
+	}
+	return NewLink(logging.NoLog{}, store.Engine(), supported, meter, cfg), nil
+}
+
+type testFnType int
+
+const (
+	FnTypeInt64 testFnType = iota
+	FnTypeCustom
+)
+
+type testFn struct {
+	fn     interface{}
+	fnType testFnType
 }
 
 type testImport struct {
 	module string
 	fnName string
-	fn interface{}
+	fns    []testFn
 }
 
-func newTestImport(module,fnName string, fn interface{}) *testImport {
+func newTestImport(module, fnName string, fns []testFn) *testImport {
 	return &testImport{
 		module: module,
 		fnName: fnName,
-		fn: fn,
+		fns:    fns,
 	}
 }
 
@@ -152,5 +147,48 @@ func (i *testImport) Name() string {
 }
 
 func (i *testImport) Register(link *Link) error {
-	return link.RegisterFuncWrap(i.Name(), i.fnName, i.fn)
+	for _, f := range i.fns {
+		switch f.fnType {
+		case FnTypeInt64:
+			if err := link.RegisterInt64Fn(i.module, i.fnName, f); err != nil {
+				return err
+			}
+		case FnTypeCustom:
+			if err := link.RegisterFuncWrap(i.module, i.fnName, f.fn); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unknown fn type: %d", f.fnType)
+		}
+	}
+	return nil
+}
+
+func BenchmarkInstantiate(b *testing.B) {
+	require := require.New(b)
+	imports := NewImportsBuilder()
+	imports.Register("env", func() Import {
+		return newTestImport("env", "alert", []testFn{{fn: func(int32) {}, fnType: FnTypeCustom}})
+	})
+	wasm, err := wasmtime.Wat2Wasm(`
+	(module
+	  (import "env" "alert" (func $alert (param i32)))
+	)	
+	`)
+	require.NoError(err)
+	cfg, err := engine.NewConfigBuilder().Build()
+	require.NoError(err)
+	eng, err := engine.New(cfg)
+	require.NoError(err)
+	mod, err := eng.CompileModule(wasm)
+	require.NoError(err)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		store, err := engine.NewStore(eng)
+		require.NoError(err)
+		link, err := newTestLink(cfg, store, imports.Build())
+		require.NoError(err)
+		_, err = link.Instantiate(store, mod)
+		require.NoError(err)
+	}
 }

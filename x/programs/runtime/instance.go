@@ -6,6 +6,7 @@ package runtime
 import (
 	"fmt"
 
+	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
@@ -13,10 +14,10 @@ import (
 var _ program.Instance = (*Instance)(nil)
 
 // NewInstance creates a new instance wrapper.
-func NewInstance(store wasmtime.Storelike, inner *wasmtime.Instance) *Instance {
+func NewInstance(store *engine.Store, inner *wasmtime.Instance) *Instance {
 	return &Instance{
 		inner: inner,
-		store: store,
+		store: store.Inner(),
 	}
 }
 

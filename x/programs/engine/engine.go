@@ -9,59 +9,25 @@ import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
-func NewStore(cfg *Config) (*Store, error) {
-	engineConfig, err := cfg.Engine()
+type Engine struct {
+	inner *wasmtime.Engine
+	cfg   *Config
+}
+
+// New creates a new Wasm engine
+func New(cfg *Config) (*Engine, error) {
+	wcfg, err := cfg.Engine()
 	if err != nil {
 		return nil, err
 	}
-
-	inner := wasmtime.NewStore(wasmtime.NewEngineWithConfig(engineConfig))
-	inner.Limiter(
-		cfg.limitMaxMemory,
-		cfg.limitMaxTableElements,
-		cfg.limitMaxInstances,
-		cfg.limitMaxTables,
-		cfg.limitMaxMemories,
-	)
-
-	return &Store{inner: inner}, nil
+	return &Engine{
+		cfg:   cfg,
+		inner: wasmtime.NewEngineWithConfig(wcfg),
+	}, nil
 }
 
-type Store struct {
-	inner           *wasmtime.Store
-	compileStrategy CompileStrategy
-}
-
-func (s *Store) SetEpochDeadline(epochDeadline uint64) {
-	s.inner.SetEpochDeadline(epochDeadline)
-}
-
-func (s *Store) Engine() *wasmtime.Engine {
-	return s.inner.Engine
-}
-
-func (s *Store) FuelConsumed() (uint64, bool) {
-	return s.inner.FuelConsumed()
-}
-
-func (s *Store) ConsumeFuel(units uint64) (uint64, error) {
-	return s.inner.ConsumeFuel(units)
-}
-
-func (s *Store) AddFuel(units uint64) error {
-	return s.inner.AddFuel(units)
-}
-
-func (s *Store) SetWasi(cfg *wasmtime.WasiConfig) {
-	s.inner.SetWasi(cfg)
-}
-
-func (s *Store) Inner() wasmtime.Storelike {
-	return s.inner
-}
-
-func (s *Store) CompileModule(bytes []byte) (*wasmtime.Module, error) {
-	switch s.compileStrategy {
+func (e *Engine) CompileModule(bytes []byte) (*wasmtime.Module, error) {
+	switch e.cfg.CompileStrategy {
 	case PrecompiledWasm:
 		// Note: that to deserialize successfully the bytes provided must have been
 		// produced with an `Engine` that has the same compilation options as the
@@ -69,12 +35,12 @@ func (s *Store) CompileModule(bytes []byte) (*wasmtime.Module, error) {
 		//
 		// A precompile is not something we would store on chain.
 		// Instead we would prefetch programs and precompile them.
-		return wasmtime.NewModuleDeserialize(s.Engine(), bytes)
+		return wasmtime.NewModuleDeserialize(e.inner, bytes)
 
 	case CompileWasm:
-		return wasmtime.NewModule(s.Engine(), bytes)
+		return wasmtime.NewModule(e.inner, bytes)
 	default:
-		return nil, fmt.Errorf("unsupported compile strategy: %v", s.compileStrategy)
+		return nil, fmt.Errorf("unsupported compile strategy: %v", e.cfg.CompileStrategy)
 	}
 }
 
@@ -83,21 +49,15 @@ func (s *Store) CompileModule(bytes []byte) (*wasmtime.Module, error) {
 // Note: these bytes can be deserialized by an `Engine` that has the same version.
 // For that reason precompiled wasm modules should not be stored on chain.
 func PreCompileWasmBytes(programBytes []byte, cfg *Config) ([]byte, error) {
-	engineConfig, err := cfg.Engine()
+	engine, err := New(cfg)
 	if err != nil {
 		return nil, err
 	}
-
-	store := wasmtime.NewStore(wasmtime.NewEngineWithConfig(engineConfig))
-	store.Limiter(
-		cfg.limitMaxMemory,
-		cfg.limitMaxTableElements,
-		cfg.limitMaxInstances,
-		cfg.limitMaxTables,
-		cfg.limitMaxMemories,
-	)
-
-	module, err := wasmtime.NewModule(store.Engine, programBytes)
+	store, err := NewStore(engine)
+	if err != nil {
+		return nil, err
+	}
+	module, err := wasmtime.NewModule(store.Engine(), programBytes)
 	if err != nil {
 		return nil, err
 	}

@@ -33,7 +33,7 @@ type Link struct {
 
 // Instantiate registers a module with all imports defined in this linker.
 // This can only be called once after all imports have been registered.
-func (l *Link) Instantiate(store wasmtime.Storelike, mod *wasmtime.Module) (*wasmtime.Instance, error) {
+func (l *Link) Instantiate(store *engine.Store, mod *wasmtime.Module) (*wasmtime.Instance, error) {
 	imports := getRegisteredImports(mod.Imports())
 	// register host functions exposed to the guest (imports)
 	for _, imp := range imports {
@@ -46,7 +46,7 @@ func (l *Link) Instantiate(store wasmtime.Storelike, mod *wasmtime.Module) (*was
 			return nil, err
 		}
 	}
-	return l.inner.Instantiate(store, mod)
+	return l.inner.Instantiate(store.Inner(), mod)
 }
 
 // Meter returns the meter for the module the link is linking to.
@@ -55,7 +55,11 @@ func (l *Link) Meter() engine.Meter {
 }
 
 // RegisterFn registers a host function exposed to the guest (import).
-func (l *Link) RegisterFn(module, name string, paramCount int, f func(c *program.Caller, args ...wasmtime.Val) (*program.Val, error)) error {
+func (l *Link) RegisterInt64Fn(module, name string, f interface{}) error {
+	importFn, paramCount, err := createImportFn(f)
+	if err != nil {
+		return err
+	}
 	fn := func(caller *wasmtime.Caller, args []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 		if l.cb.BeforeRequest != nil {
 			err := l.cb.BeforeRequest(module, name, l.meter)
@@ -68,7 +72,7 @@ func (l *Link) RegisterFn(module, name string, paramCount int, f func(c *program
 			defer l.cb.AfterResponse(module, name, l.meter)
 		}
 
-		val, err := f(program.NewCaller(caller), args...)
+		val, err := importFn(program.NewCaller(caller), args...)
 		if err != nil {
 			return nil, wasmtime.NewTrap(err.Error())
 		}
@@ -88,6 +92,31 @@ func (l *Link) RegisterFn(module, name string, paramCount int, f func(c *program
 	)
 
 	return l.inner.FuncNew(module, name, funcType, fn)
+}
+
+func createImportFn(fn interface{}) (func(caller *program.Caller, args ...wasmtime.Val) (*program.Val, error), int, error) {
+	switch fnType := fn.(type) {
+	case OneParamFn:
+		paramCount := 1
+		return newImportFnBuilder(fnType).Build(), paramCount, nil
+	case TwoParamFn:
+		paramCount := 2
+		return newImportFnBuilder(fnType).Build(), paramCount, nil
+	case ThreeParamFn:
+		paramCount := 3
+		return newImportFnBuilder(fnType).Build(), paramCount, nil
+	case FourParamFn:
+		paramCount := 4
+		return newImportFnBuilder(fnType).Build(), paramCount, nil
+	case FiveParamFn:
+		paramCount := 5
+		return newImportFnBuilder(fnType).Build(), paramCount, nil
+	case SixParamFn:
+		paramCount := 6
+		return newImportFnBuilder(fnType).Build(), paramCount, nil
+	default:
+		return nil, 0, fmt.Errorf("unsupported function type")
+	}
 }
 
 func (l *Link) RegisterFuncWrap(module, name string, f interface{}) error {

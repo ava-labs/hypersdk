@@ -49,7 +49,12 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 		r.Stop()
 	}(ctx)
 
-	store, err := engine.NewStore(r.cfg)
+	eng, err := engine.New(r.cfg)
+	if err != nil {
+		return err
+	}
+
+	store, err := engine.NewStore(eng)
 	if err != nil {
 		return err
 	}
@@ -57,7 +62,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	// set initial epoch deadline
 	store.SetEpochDeadline(1)
 
-	mod, err := store.CompileModule(programBytes)
+	mod, err := eng.CompileModule(programBytes)
 	if err != nil {
 		return err
 	}
@@ -83,12 +88,12 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	}
 
 	// instantiate the module with all of the imports defined by the linker
-	inst, err := link.Instantiate(store.Inner(), mod)
+	inst, err := link.Instantiate(store, mod)
 	if err != nil {
 		return err
 	}
 
-	r.inst = NewInstance(store.Inner(), inst)
+	r.inst = NewInstance(store, inst)
 	r.engine = store.Engine()
 
 	return nil
