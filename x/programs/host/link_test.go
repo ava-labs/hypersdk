@@ -150,7 +150,7 @@ func (i *testImport) Register(link *Link) error {
 	for _, f := range i.fns {
 		switch f.fnType {
 		case FnTypeInt64:
-			if err := link.RegisterInt64Fn(i.module, i.fnName, f); err != nil {
+			if err := link.RegisterOneParamInt64Fn(i.module, i.fnName, testOneParamFn); err != nil {
 				return err
 			}
 		case FnTypeCustom:
@@ -164,15 +164,16 @@ func (i *testImport) Register(link *Link) error {
 	return nil
 }
 
+// go test -v -benchmem -run=^$ -bench ^BenchmarkInstantiate$ github.com/ava-labs/hypersdk/x/programs/host -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func BenchmarkInstantiate(b *testing.B) {
 	require := require.New(b)
 	imports := NewImportsBuilder()
 	imports.Register("env", func() Import {
-		return newTestImport("env", "alert", []testFn{{fn: func(int32) {}, fnType: FnTypeCustom}})
+		return newTestImport("env", "alert", []testFn{{fn: func(int64) int64 { return 0 }, fnType: FnTypeCustom}})
 	})
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
-	  (import "env" "alert" (func $alert (param i32)))
+	  (import "env" "alert" (func $alert (param i64) (result i64)))
 	)	
 	`)
 	require.NoError(err)
@@ -182,13 +183,30 @@ func BenchmarkInstantiate(b *testing.B) {
 	require.NoError(err)
 	mod, err := eng.CompileModule(wasm)
 	require.NoError(err)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		store, err := engine.NewStore(eng)
-		require.NoError(err)
-		link, err := newTestLink(cfg, store, imports.Build())
-		require.NoError(err)
-		_, err = link.Instantiate(store, mod)
-		require.NoError(err)
-	}
+	b.Run("benchmark_funcWrap", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			store, err := engine.NewStore(eng)
+			require.NoError(err)
+			link, err := newTestLink(cfg, store, imports.Build())
+			require.NoError(err)
+			_, err = link.Instantiate(store, mod)
+			require.NoError(err)
+		}
+	})
+	imports = NewImportsBuilder()
+	imports.Register("env", func() Import {
+		return newTestImport("env", "alert", []testFn{{fn: testOneParamFn, fnType: FnTypeInt64}})
+	})
+	b.Run("benchmark_funcInt64", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			store, err := engine.NewStore(eng)
+			require.NoError(err)
+			link, err := newTestLink(cfg, store, imports.Build())
+			require.NoError(err)
+			_, err = link.Instantiate(store, mod)
+			require.NoError(err)
+		}
+	})
 }

@@ -28,15 +28,14 @@ func New(log logging.Logger, cfg *engine.Config, imports host.SupportedImports) 
 }
 
 type WasmRuntime struct {
-	cfg    *engine.Config
-	inst   program.Instance
-	meter  engine.Meter
-	engine *engine.Engine
+	cfg     *engine.Config
+	engine  *engine.Engine
+	inst    program.Instance
+	meter   engine.Meter
+	imports host.SupportedImports
 
 	once     sync.Once
 	cancelFn context.CancelFunc
-
-	imports host.SupportedImports
 
 	log logging.Logger
 }
