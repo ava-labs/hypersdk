@@ -26,6 +26,10 @@ func New(cfg *Config) (*Engine, error) {
 	}, nil
 }
 
+func (e *Engine) IncrementEpoch() {
+	e.inner.IncrementEpoch()
+}
+
 func (e *Engine) CompileModule(bytes []byte) (*wasmtime.Module, error) {
 	switch e.cfg.CompileStrategy {
 	case PrecompiledWasm:

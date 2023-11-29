@@ -31,7 +31,7 @@ type WasmRuntime struct {
 	cfg    *engine.Config
 	inst   program.Instance
 	meter  engine.Meter
-	engine *wasmtime.Engine
+	engine *engine.Engine
 
 	once     sync.Once
 	cancelFn context.CancelFunc
@@ -49,12 +49,12 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 		r.Stop()
 	}(ctx)
 
-	eng, err := engine.New(r.cfg)
+	r.engine, err = engine.New(r.cfg)
 	if err != nil {
 		return err
 	}
 
-	store, err := engine.NewStore(eng)
+	store, err := engine.NewStore(r.engine)
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	// set initial epoch deadline
 	store.SetEpochDeadline(1)
 
-	mod, err := eng.CompileModule(programBytes)
+	mod, err := r.engine.CompileModule(programBytes)
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,6 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	}
 
 	r.inst = NewInstance(store, inst)
-	r.engine = store.Engine()
 
 	return nil
 }
