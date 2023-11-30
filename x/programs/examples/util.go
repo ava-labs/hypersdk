@@ -44,8 +44,8 @@ func serializeParameter(obj interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	marshalArg(bytes)
-	return bytes, nil
+
+	return marshalArg(bytes), nil
 }
 
 // newParameterPtr serializes [obj] and allocates memory for it.
@@ -76,15 +76,6 @@ func newKey() (ed25519.PrivateKey, ed25519.PublicKey, error) {
 	}
 
 	return priv, priv.PublicKey(), nil
-}
-
-// fixedByteKey converts [key] into a [32]byte representation.
-// Due to Borsh's distinct serialization of fixed/dynamic arrays,
-// our program expects a fixed-sized array for deserialization.
-func fixedByteKey(key ed25519.PublicKey) [32]byte {
-	var fixedKey [32]byte
-	copy(fixedKey[:], key[:])
-	return fixedKey
 }
 
 var (

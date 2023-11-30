@@ -92,18 +92,15 @@ func (t *Token) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	aliceKeyBytes := fixedByteKey(aliceKey)
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := newParameterPtr(ctx, aliceKeyBytes, rt)
+	alicePtr, err := newParameterPtr(ctx, aliceKey, rt)
 	if err != nil {
 		return err
 	}
 
 	// generate bob keys
 	_, bobKey, err := newKey()
-	bobKeyBytes := fixedByteKey(bobKey)
-
 	if err != nil {
 		return err
 	}
@@ -194,11 +191,11 @@ func (t *Token) Run(ctx context.Context) error {
 	// combine alice and bobs addresses
 	minters := []minter{
 		{
-			To:     aliceKeyBytes,
+			To:     aliceKey,
 			Amount: 10,
 		},
 		{
-			To:     bobKeyBytes,
+			To:     bobKey,
 			Amount: 12,
 		},
 	}
