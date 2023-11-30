@@ -28,7 +28,7 @@ func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *ru
 	}
 }
 
-type mintingRecipient struct {
+type minter struct {
 	To     [32]byte
 	Amount int32
 }
@@ -95,7 +95,7 @@ func (t *Token) Run(ctx context.Context) error {
 	aliceKeyBytes := fixedByteKey(aliceKey)
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := newPtr(ctx, aliceKeyBytes, rt, true)
+	alicePtr, err := newParameterPtr(ctx, aliceKeyBytes, rt)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write bob's key to stack and get pointer
-	bobPtr, err := newPtr(ctx, bobKey, rt, true)
+	bobPtr, err := newParameterPtr(ctx, bobKey, rt)
 	if err != nil {
 		return err
 	}
@@ -192,7 +192,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// combine alice and bobs addresses
-	payments := []mintingRecipient{
+	minters := []minter{
 		{
 			To:     aliceKeyBytes,
 			Amount: 10,
@@ -203,19 +203,19 @@ func (t *Token) Run(ctx context.Context) error {
 		},
 	}
 
-	addressesPtr, err := newPtr(ctx, payments, rt, true)
+	mintersPtr, err := newParameterPtr(ctx, minters, rt)
 	if err != nil {
 		return err
 	}
 
 	// perform bulk mint
-	_, err = rt.Call(ctx, "mint_to_many", programIDPtr, addressesPtr)
+	_, err = rt.Call(ctx, "mint_to_many", programIDPtr, mintersPtr)
 	if err != nil {
 		return err
 	}
 	t.log.Debug("minted many",
-		zap.Int32("alice", payments[0].Amount),
-		zap.Int32("to bob", payments[1].Amount),
+		zap.Int32("alice", minters[0].Amount),
+		zap.Int32("to bob", minters[1].Amount),
 	)
 
 	// get balance alice

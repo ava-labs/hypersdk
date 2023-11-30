@@ -19,19 +19,8 @@ import (
 // newPtr allocates memory and writes [bytes] to it.
 // If [prependLength] is true, it prepends the length of [bytes] as a uint32 to [bytes].
 // It returns the pointer to the allocated memory.
-func newPtr(ctx context.Context, item interface{}, rt runtime.Runtime, prependLength bool) (int64, error) {
-	bytes, err := serializeToBytes(item)
-	if err != nil {
-		return 0, err
-	}
-
+func newPtr(ctx context.Context, bytes []byte, rt runtime.Runtime) (int64, error) {
 	amountToAllocate := uint64(len(bytes))
-	writeBytes := bytes
-
-	if prependLength {
-		amountToAllocate += consts.Uint32Len
-		writeBytes = marshalArg(bytes)
-	}
 
 	ptr, err := rt.Memory().Alloc(amountToAllocate)
 	if err != nil {
@@ -39,7 +28,7 @@ func newPtr(ctx context.Context, item interface{}, rt runtime.Runtime, prependLe
 	}
 
 	// write programID to memory which we will later pass to the program
-	err = rt.Memory().Write(ptr, writeBytes)
+	err = rt.Memory().Write(ptr, bytes)
 	if err != nil {
 		return 0, err
 	}
@@ -47,11 +36,30 @@ func newPtr(ctx context.Context, item interface{}, rt runtime.Runtime, prependLe
 	return int64(ptr), err
 }
 
-func serializeToBytes(obj interface{}) ([]byte, error) {
-	return borsh.Serialize(obj)
+// serializeParameter serializes [obj]
+// using Borsh and prepends its length as a uint32.
+// Designed for serializing parameters passed to a WASM program.
+func serializeParameter(obj interface{}) ([]byte, error) {
+	bytes, err := borsh.Serialize(obj)
+	if err != nil {
+		return nil, err
+	}
+	marshalArg(bytes)
+	return bytes, nil
+}
+
+// newParameterPtr serializes [obj] and allocates memory for it.
+func newParameterPtr(ctx context.Context, obj interface{}, rt runtime.Runtime) (int64, error) {
+	bytes, err := serializeParameter(obj)
+	if err != nil {
+		return 0, err
+	}
+	return newPtr(ctx, bytes, rt)
 }
 
 // marshalArg prepends the length of [arg] as a uint32 to [arg].
+// This is required by the program inorder to grab the correct number
+// of bytes from memory.
 func marshalArg(arg []byte) []byte {
 	// add length prefix to arg as big endian uint32
 	argLen := len(arg)
@@ -70,6 +78,9 @@ func newKey() (ed25519.PrivateKey, ed25519.PublicKey, error) {
 	return priv, priv.PublicKey(), nil
 }
 
+// fixedByteKey converts [key] into a [32]byte representation.
+// Due to Borsh's distinct serialization of fixed/dynamic arrays,
+// our program expects a fixed-sized array for deserialization.
 func fixedByteKey(key ed25519.PublicKey) [32]byte {
 	var fixedKey [32]byte
 	copy(fixedKey[:], key[:])

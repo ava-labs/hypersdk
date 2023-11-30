@@ -61,7 +61,7 @@ func TestCounterProgram(t *testing.T) {
 	aliceKeyBytes := fixedByteKey(aliceKey)
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := newPtr(ctx, aliceKeyBytes, rt, true)
+	alicePtr, err := newParameterPtr(ctx, aliceKeyBytes, rt)
 	require.NoError(err)
 
 	// create counter for alice on program 1
@@ -97,7 +97,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// write alice's key to stack and get pointer
-	alicePtr2, err := newPtr(ctx, aliceKeyBytes, rt2, true)
+	alicePtr2, err := newParameterPtr(ctx, aliceKeyBytes, rt2)
 	require.NoError(err)
 
 	// initialize counter for alice on runtime 2

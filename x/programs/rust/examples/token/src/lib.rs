@@ -102,16 +102,16 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]
-pub struct MintingRecipient {
-    recipient: Address,
+pub struct Minter {
+    to: Address,
     amount: i32,
 }
 
 /// Mints tokens to multiple recipients.
 #[public]
-pub fn mint_to_many(program: Program, minting_recipients: Vec<MintingRecipient>) -> bool {
-    for info in minting_recipients.iter() {
-        mint_to(program, info.recipient, info.amount as i64);
+pub fn mint_to_many(program: Program, minters: Vec<Minter>) -> bool {
+    for minter in minters.iter() {
+        mint_to(program, minter.to, minter.amount as i64);
     }
 
     true
