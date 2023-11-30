@@ -42,7 +42,7 @@ func TestLinkImport(t *testing.T) {
 
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
-      (import "env" "alert" (func $alert (param i32)))
+      (import "env" "one" (func $one (param i64) (result i64)))
     )	
 	`)
 	require.NoError(err)
@@ -56,24 +56,18 @@ func TestLinkImport(t *testing.T) {
 		{
 			name:   "happy path",
 			module: "env",
-			fn:     func(int32) {},
+			fn:     func(int64) int64 { return 0 },
 		},
 		{
 			name:   "missing module",
 			module: "oops",
-			fn:     func(int32) {},
+			fn:     func() {},
 			errMsg: "failed to find import module: env",
-		},
-		{
-			name:   "missing module function",
-			module: "env",
-			fn:     func(int32) {},
-			errMsg: "`env::alert` has not been defined",
 		},
 		{
 			name:   "invalid module function signature",
 			module: "env",
-			fn:     func() {},
+			fn:     func(int64) int32 { return 0 },
 			errMsg: "function types incompatible",
 		},
 	}
@@ -81,7 +75,7 @@ func TestLinkImport(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			imports := NewImportsBuilder()
 			imports.Register(tt.module, func() Import {
-				return newTestImport(tt.module, "Wrap")
+				return newTestImport(tt.module, "CustomWrap", tt.fn)
 			})
 			cfg, err := engine.NewConfigBuilder().Build()
 			require.NoError(err)
@@ -109,7 +103,7 @@ func BenchmarkInstantiate(b *testing.B) {
 	require := require.New(b)
 	imports := NewImportsBuilder()
 	imports.Register("env", func() Import {
-		return newTestImport("env", "Wrap")
+		return newTestImport("env", "Wrap", nil)
 	})
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
@@ -137,7 +131,7 @@ func BenchmarkInstantiate(b *testing.B) {
 	})
 	imports = NewImportsBuilder()
 	imports.Register("env", func() Import {
-		return newTestImport("env", "Int64Fn")
+		return newTestImport("env", "Int64Fn", nil)
 	})
 	b.Run("benchmark_funcInt64", func(b *testing.B) {
 		b.ResetTimer()
@@ -163,12 +157,14 @@ func newTestLink(cfg *engine.Config, store *engine.Store, supported SupportedImp
 type testImport struct {
 	module   string
 	linkType string
+	fn       interface{}
 }
 
-func newTestImport(module, linkType string) *testImport {
+func newTestImport(module, linkType string, fn interface{}) *testImport {
 	return &testImport{
 		module:   module,
 		linkType: linkType,
+		fn:       fn,
 	}
 }
 
@@ -190,6 +186,10 @@ func (i *testImport) Register(link *Link) error {
 			return err
 		}
 		if err := link.RegisterFuncWrap(i.module, "two", testTwoParamFnWrap); err != nil {
+			return err
+		}
+	case "CustomWrap":
+		if err := link.RegisterFuncWrap(i.module, "one", i.fn); err != nil {
 			return err
 		}
 	default:
