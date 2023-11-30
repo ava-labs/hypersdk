@@ -21,6 +21,7 @@ var (
 	ErrInsufficientUnits            = errors.New("insufficient units")
 	ErrRuntimeStoreSet              = errors.New("runtime store has already been set")
 	ErrNegativeValue                = errors.New("negative value")
+	ErrIntegerConversionOverflow    = errors.New("integer overflow during conversion")
 
 	// Trap errors
 	ErrTrapStackOverflow          = errors.New("the current stack space was exhausted")

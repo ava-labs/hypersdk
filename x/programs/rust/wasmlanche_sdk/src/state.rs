@@ -1,11 +1,9 @@
-use serde::{de::DeserializeOwned, Serialize};
-use serde_bare::{from_slice, to_vec};
-
 use crate::{
     errors::StateError,
     host::{get_bytes, len_bytes, put_bytes},
     program::Program,
 };
+use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
 
 pub struct State {
     program: Program,
@@ -24,7 +22,7 @@ impl State {
     /// serialized or if the host fails to handle the operation.
     pub fn store<K, V>(&self, key: K, value: &V) -> Result<(), StateError>
     where
-        V: Serialize,
+        V: BorshSerialize,
         K: AsRef<[u8]>,
     {
         let value_bytes = to_vec(value).map_err(|_| StateError::Serialization)?;
@@ -55,7 +53,7 @@ impl State {
     pub fn get<T, K>(&self, key: K) -> Result<T, StateError>
     where
         K: AsRef<[u8]>,
-        T: DeserializeOwned,
+        T: BorshDeserialize,
     {
         let key_ptr = key.as_ref().as_ptr();
         let key_len = key.as_ref().len();
@@ -76,4 +74,39 @@ impl State {
         };
         from_slice(&val).map_err(|_| StateError::InvalidBytes)
     }
+}
+
+/// Converts a raw pointer to a deserialized value.
+/// Expects the first 4 bytes of the pointer to represent the [length] of the serialized value,
+/// with the subsequent [length] bytes comprising the serialized data.
+/// # Panics
+/// Panics if the bytes cannot be deserialized.
+/// # Safety
+/// This function is unsafe because it dereferences raw pointers.
+#[must_use]
+pub unsafe fn from_raw_ptr<V>(ptr: i64) -> V
+where
+    V: BorshDeserialize,
+{
+    let (bytes, _) = bytes_and_length(ptr);
+    from_slice::<V>(&bytes).expect("failed to deserialize")
+}
+
+// TODO: move this logic to return a Memory struct that conatins ptr + length
+/// Returns a tuple of the bytes and length of the argument.
+/// # Panics
+/// Panics if the value cannot be converted from i32 to usize.
+/// # Safety
+/// This function is unsafe because it dereferences raw pointers.
+#[must_use]
+pub unsafe fn bytes_and_length(ptr: i64) -> (Vec<u8>, usize) {
+    type LenType = u32;
+
+    let len = unsafe { std::slice::from_raw_parts(ptr as *const u8, 4) };
+
+    assert_eq!(len.len(), std::mem::size_of::<LenType>());
+    let len = LenType::from_be_bytes(len.try_into().unwrap()) as usize;
+
+    let value = unsafe { std::slice::from_raw_parts(ptr as *const u8, len + 4) };
+    (value[4..].to_vec(), len)
 }

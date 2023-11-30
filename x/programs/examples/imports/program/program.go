@@ -170,16 +170,16 @@ func (i *Import) callProgramFn(
 	return int64(res[0])
 }
 
-func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, invokeProgramID uint64) ([]uint64, error) {
+func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, invokeProgramID int64) ([]int64, error) {
 	// first arg contains id of program to call
-	args := []uint64{invokeProgramID}
+	args := []int64{invokeProgramID}
 	p := codec.NewReader(buffer, len(buffer))
 	i := 0
 	for !p.Empty() {
 		size := p.UnpackInt64(true)
 		isInt := p.UnpackBool()
 		if isInt {
-			valueInt := p.UnpackUint64(true)
+			valueInt := p.UnpackInt64(true)
 			args = append(args, valueInt)
 		} else {
 			valueBytes := make([]byte, size)

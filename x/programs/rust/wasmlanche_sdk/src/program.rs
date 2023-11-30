@@ -1,9 +1,10 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
 use crate::{host::call_program, state::State, types::Argument};
-use serde::{Deserialize, Serialize};
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Copy, BorshDeserialize, BorshSerialize)]
 pub struct Program {
     id: i64,
 }

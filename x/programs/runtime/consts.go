@@ -3,7 +3,9 @@
 
 package runtime
 
-import "github.com/ava-labs/avalanchego/utils/units"
+import (
+	"github.com/ava-labs/avalanchego/utils/units"
+)
 
 const (
 	AllocFnName         = "alloc"
