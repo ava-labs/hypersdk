@@ -26,9 +26,8 @@ func New(log logging.Logger, mu state.Mutable) host.Import {
 }
 
 type Import struct {
-	mu         state.Mutable
-	log        logging.Logger
-	registered bool
+	mu  state.Mutable
+	log logging.Logger
 }
 
 func (i *Import) Name() string {
@@ -36,15 +35,10 @@ func (i *Import) Name() string {
 }
 
 func (i *Import) Register(link *host.Link) error {
-	if i.registered {
-		return fmt.Errorf("import module already registered: %q", Name)
-	}
-	i.registered = true
-
-	if err := link.RegisterFn(host.NewThreeParamImport(Name, "put", i.putFn)); err != nil {
+	if err := link.RegisterThreeParamInt64Fn(Name, "put", i.putFn); err != nil {
 		return err
 	}
-	if err := link.RegisterFn(host.NewThreeParamImport(Name, "get", i.getFn)); err != nil {
+	if err := link.RegisterThreeParamInt64Fn(Name, "get", i.getFn); err != nil {
 		return err
 	}
 

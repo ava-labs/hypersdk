@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 
@@ -28,12 +29,18 @@ type Link struct {
 	log     logging.Logger
 	meter   engine.Meter
 	cfg     *engine.Config
-	cb      ImportFnCallback
+
+	// cb is a global callback for import function requests and responses.
+	cb *ImportFnCallback
 }
 
 // Instantiate registers a module with all imports defined in this linker.
 // This can only be called once after all imports have been registered.
-func (l *Link) Instantiate(store *engine.Store, mod *wasmtime.Module) (*wasmtime.Instance, error) {
+func (l *Link) Instantiate(store *engine.Store, mod *wasmtime.Module, cb *ImportFnCallback) (*wasmtime.Instance, error) {
+	if cb == nil {
+		cb = &ImportFnCallback{}
+	}
+	l.cb = cb
 	imports := getRegisteredImports(mod.Imports())
 	// register host functions exposed to the guest (imports)
 	for _, imp := range imports {
@@ -54,6 +61,10 @@ func (l *Link) Meter() engine.Meter {
 	return l.meter
 }
 
+func (l *Link) Imports() SupportedImports {
+	return l.imports
+}
+
 // RegisterFn registers a host function exposed to the guest (import).
 func (l *Link) RegisterFn(module, name string, paramCount int, f func(caller *program.Caller, args ...wasmtime.Val) (*program.Val, error)) error {
 	fn := func(caller *wasmtime.Caller, args []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
@@ -65,7 +76,15 @@ func (l *Link) RegisterFn(module, name string, paramCount int, f func(caller *pr
 			}
 		}
 		if l.cb.AfterResponse != nil {
-			defer l.cb.AfterResponse(module, name, l.meter)
+			defer func() {
+				err := l.cb.AfterResponse(module, name, l.meter)
+				if err != nil {
+					l.log.Error("after response callback failed",
+						zap.Error(err),
+					)
+					l.inner.Engine.IncrementEpoch()
+				}
+			}()
 		}
 
 		val, err := f(program.NewCaller(caller), args...)
@@ -90,16 +109,45 @@ func (l *Link) RegisterFn(module, name string, paramCount int, f func(caller *pr
 	return l.inner.FuncNew(module, name, funcType, fn)
 }
 
+// RegisterOneParamInt64Fn is a helper method for registering a function with one int64 parameter.
 func (l *Link) RegisterOneParamInt64Fn(name, module string, fn OneParamFn) error {
-	f := &importFnBuilder[OneParam]{fn: fn}
-	return l.RegisterFn(name, module, 1, f.Build())
+	return l.RegisterFn(name, module, 1, NewImportFn[OneParamFn](fn))
 }
 
+// RegisterOneParamInt64Fn is a helper method for registering a function with two int64 parameters.
+func (l *Link) RegisterTwoParamInt64Fn(name, module string, fn TwoParamFn) error {
+	return l.RegisterFn(name, module, 2, NewImportFn[TwoParamFn](fn))
+}
+
+// RegisterThreeParamInt64Fn is a helper method for registering a function with three int64 parameters.
+func (l *Link) RegisterThreeParamInt64Fn(name, module string, fn ThreeParamFn) error {
+	return l.RegisterFn(name, module, 3, NewImportFn[ThreeParamFn](fn))
+}
+
+// RegisterFourParamInt64Fn is a helper method for registering a function with four int64 parameters.
+func (l *Link) RegisterFourParamInt64Fn(name, module string, fn FourParamFn) error {
+	return l.RegisterFn(name, module, 4, NewImportFn[FourParamFn](fn))
+}
+
+// RegisterFiveParamInt64Fn is a helper method for registering a function with five int64 parameters.
+func (l *Link) RegisterFiveParamInt64Fn(name, module string, fn FiveParamFn) error {
+	return l.RegisterFn(name, module, 5, NewImportFn[FiveParamFn](fn))
+}
+
+// RegisterSixParamInt64Fn is a helper method for registering a function with six int64 parameters.
+func (l *Link) RegisterSixParamInt64Fn(name, module string, fn SixParamFn) error {
+	return l.RegisterFn(name, module, 6, NewImportFn[SixParamFn](fn))
+}
+
+// RegisterFuncWrap registers a host function exposed to the guest (import).
 func (l *Link) RegisterFuncWrap(module, name string, f interface{}) error {
 	wrapper := func() interface{} {
 		if l.cb.BeforeRequest != nil {
 			err := l.cb.BeforeRequest(module, name, l.meter)
 			if err != nil {
+				l.log.Error("before request callback failed",
+					zap.Error(err),
+				)
 				l.inner.Engine.IncrementEpoch()
 			}
 		}
@@ -109,11 +157,6 @@ func (l *Link) RegisterFuncWrap(module, name string, f interface{}) error {
 		return f
 	}
 	return l.inner.FuncWrap(module, name, wrapper())
-}
-
-// RegisterCallback registers a callback for import function requests and responses.
-func (l *Link) RegisterCallback(cb ImportFnCallback) {
-	l.cb = cb
 }
 
 // Wasi enables wasi support for the link.

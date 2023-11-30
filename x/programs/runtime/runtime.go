@@ -87,7 +87,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	}
 
 	// instantiate the module with all of the imports defined by the linker
-	inst, err := link.Instantiate(store, mod)
+	inst, err := link.Instantiate(store, mod, nil)
 	if err != nil {
 		return err
 	}

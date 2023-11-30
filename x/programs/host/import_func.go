@@ -70,18 +70,21 @@ func (fn SixParamFn) Call(c *program.Caller, arg1, arg2, arg3, arg4, arg5, arg6 
 	return fn(c, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
-// Generic Builder for ImportFn[T]
-type importFnBuilder[F any] struct {
-	fn F
-}
+// TODO: doc example of custom import function
+// type CustomFn func(*program.Caller, int32, int64) (*program.Val, error)
 
-func (b *importFnBuilder[F]) Build() func(caller *program.Caller, wargs ...wasmtime.Val) (*program.Val, error) {
+// func (fn CustomFn) Call(c *program.Caller, arg1 int32, arg2 int64) (*program.Val, error) {
+// 	return fn(c, arg1, arg2)
+// }
+
+func NewImportFn[F any](src F) func(caller *program.Caller, wargs ...wasmtime.Val) (*program.Val, error) {
+	importFn := ImportFn[F]{fn: src}
 	fn := func(c *program.Caller, wargs ...wasmtime.Val) (*program.Val, error) {
 		args := make([]int64, 0, len(wargs))
 		for _, arg := range wargs {
 			args = append(args, int64(arg.I64()))
 		}
-		return ImportFn[F]{fn: b.fn}.Invoke(c, args...)
+		return importFn.Invoke(c, args...)
 	}
 	return fn
 }
