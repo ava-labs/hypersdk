@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/ava-labs/avalanche-network-runner v1.7.2-0.20230825184751-fbe081616f02
-	github.com/ava-labs/avalanchego v1.10.15-0.20231115181141-75b480ff60ec
+	github.com/ava-labs/avalanchego v1.10.15-0.20231116143316-2be805c4a2d4
 	github.com/bytecodealliance/wasmtime-go/v13 v13.0.0
 	github.com/cockroachdb/pebble v0.0.0-20230224221607-fccb83b60d5c
 	github.com/golang/mock v1.6.0

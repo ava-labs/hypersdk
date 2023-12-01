@@ -411,7 +411,7 @@ func BuildBlock(
 
 			// Prefetch path of modified keys
 			if modifiedKeys := ts.FlushModifiedKeys(false); len(modifiedKeys) > 0 {
-				_, prefetchPathsSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.PrefetchPaths")
+				pctx, prefetchPathsSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.PrefetchPaths")
 				prefetchPathsSpan.SetAttributes(
 					attribute.Int("keys", len(modifiedKeys)),
 					attribute.Bool("force", false),
@@ -422,7 +422,7 @@ func BuildBlock(
 					// It is ok if these do not finish by the time root generation begins...
 					//
 					// If the paths of all keys are already in memory, this is a no-op.
-					if err := state.PrefetchPaths(modifiedKeys); err != nil {
+					if err := state.PrefetchPaths(pctx, modifiedKeys); err != nil {
 						vm.Logger().Warn("unable to prefetch paths", zap.Error(err))
 					}
 				}()
@@ -450,7 +450,7 @@ func BuildBlock(
 
 			// Prefetch path of modified keys
 			if modifiedKeys := ts.FlushModifiedKeys(true); len(modifiedKeys) > 0 {
-				_, prefetchPathsSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.PrefetchPaths")
+				pctx, prefetchPathsSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.PrefetchPaths")
 				prefetchPathsSpan.SetAttributes(
 					attribute.Int("keys", len(modifiedKeys)),
 					attribute.Bool("force", true),
@@ -461,7 +461,7 @@ func BuildBlock(
 					// It is ok if these do not finish by the time root generation begins...
 					//
 					// If the paths of all keys are already in memory, this is a no-op.
-					if err := state.PrefetchPaths(modifiedKeys); err != nil {
+					if err := state.PrefetchPaths(pctx, modifiedKeys); err != nil {
 						vm.Logger().Warn("unable to prefetch paths", zap.Error(err))
 					}
 				}()

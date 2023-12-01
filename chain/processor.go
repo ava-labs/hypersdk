@@ -183,7 +183,7 @@ func (p *Processor) Execute(
 		// Prefetch path of modified keys
 		forceFlush := len(results) == len(p.blk.Txs)
 		if modifiedKeys := ts.FlushModifiedKeys(forceFlush); len(modifiedKeys) > 0 {
-			_, prefetchPathsSpan := p.cfg.Tracer.Start(ctx, "Processor.PrefetchPaths")
+			pctx, prefetchPathsSpan := p.cfg.Tracer.Start(ctx, "Processor.PrefetchPaths")
 			prefetchPathsSpan.SetAttributes(
 				attribute.Int("keys", len(modifiedKeys)),
 				attribute.Bool("force", forceFlush),
@@ -194,7 +194,7 @@ func (p *Processor) Execute(
 				// It is ok if these do not finish by the time root generation begins...
 				//
 				// If the paths of all keys are already in memory, this is a no-op.
-				if err := base.PrefetchPaths(modifiedKeys); err != nil {
+				if err := base.PrefetchPaths(pctx, modifiedKeys); err != nil {
 					p.blk.vm.Logger().Warn("unable to prefetch paths", zap.Error(err))
 				}
 			}()

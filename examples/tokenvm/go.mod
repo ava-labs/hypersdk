@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/ava-labs/avalanche-network-runner v1.7.2
-	github.com/ava-labs/avalanchego v1.10.15-0.20231115181141-75b480ff60ec
+	github.com/ava-labs/avalanchego v1.10.15-0.20231116143316-2be805c4a2d4
 	github.com/ava-labs/hypersdk v0.0.1
 	github.com/fatih/color v1.13.0
 	github.com/onsi/ginkgo/v2 v2.8.1

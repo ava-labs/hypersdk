@@ -11,7 +11,7 @@ import (
 )
 
 type Base interface {
-	PrefetchPaths(keys [][]byte) error
+	PrefetchPaths(ctx context.Context, keys [][]byte) error
 }
 
 type Immutable interface {
