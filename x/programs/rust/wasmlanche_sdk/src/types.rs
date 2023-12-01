@@ -23,7 +23,7 @@ impl Address {
 
 impl IntoIterator for Address {
     type Item = u8;
-    type IntoIter = std::array::IntoIter<Self::Item, {Address::LEN}>;
+    type IntoIter = std::array::IntoIter<Self::Item, { Address::LEN }>;
 
     fn into_iter(self) -> Self::IntoIter {
         IntoIterator::into_iter(self.0)
