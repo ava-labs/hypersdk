@@ -5,6 +5,7 @@ package examples
 
 import (
 	"context"
+	"crypto/ed25519"
 	"fmt"
 
 	"go.uber.org/zap"
@@ -30,7 +31,7 @@ func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *ru
 
 type minter struct {
 	// TODO: use a HyperSDK.Address instead
-	To     [32]byte
+	To     ed25519.PublicKey
 	// note: a production program would use a uint64 for amount
 	Amount int32
 }
