@@ -119,7 +119,7 @@ func (p *ProposerMonitor) Proposers(
 		if v, ok := p.proposerCache.Get(key); ok {
 			proposers = v
 		} else {
-			proposers, err = p.proposer.Proposers(ctx, height, p.currentPHeight)
+			proposers, err = p.proposer.Proposers(ctx, height, p.currentPHeight, depth)
 			if err != nil {
 				return nil, err
 			}

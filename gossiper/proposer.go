@@ -62,7 +62,7 @@ func DefaultProposerConfig() *ProposerConfig {
 		GossipMaxSize:       consts.NetworkSizeLimit,
 		GossipMinDelay:      50,
 		NoGossipBuilderDiff: 4,
-		VerifyTimeout:       proposer.MaxDelay.Milliseconds(),
+		VerifyTimeout:       proposer.MaxBuildDelay.Milliseconds(),
 		SeenCacheSize:       2_500_000,
 	}
 }
