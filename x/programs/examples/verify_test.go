@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"testing"
 
-	hypersdk_crypto "github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -24,23 +23,36 @@ import (
 var verifyProgramBytes []byte
 
 var (
-	numPubKeys       = 5
-	numInvalidKeys = 1
-	signatureBytes   = []byte{138, 15, 65, 223, 37, 172, 140, 229, 29, 74, 112, 236, 253, 138, 180,
+	signatureBytes   = [64]byte{138, 15, 65, 223, 37, 172, 140, 229, 29, 74, 112, 236, 253, 138, 180,
 		244, 138, 132, 46, 10, 192, 213, 105, 102, 113, 101, 108, 225, 190, 53,
 		186, 161, 105, 38, 179, 24, 6, 168, 146, 40, 42, 20, 242, 137, 52,
 		74, 60, 50, 167, 2, 92, 98, 176, 17, 132, 30, 89, 110, 119, 239, 124, 40, 232, 14}
 
-	messageBytes = []byte{109, 115, 103, 0, 0, 0, 0, 0, 0, 0, 0,
+	messageBytes = [32]byte{109, 115, 103, 0, 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 0, 0}
 
-	publicKey = []byte{
+	publicKey = [32]byte{
 		115, 50, 124, 153, 59, 53, 196, 150, 168, 143, 151, 235,
 		222, 128, 136, 161, 9, 40, 139, 85, 182, 153, 68, 135,
 		62, 166, 45, 235, 251, 246, 69, 7,
 	}
+
+	invalidSignatureBytes = [64]byte{137, 15, 65, 223, 37, 172, 140, 229, 29, 74, 112, 236, 253, 138, 180,
+		244, 138, 132, 46, 10, 192, 213, 105, 102, 113, 101, 108, 225, 190, 53,
+		186, 161, 105, 38, 179, 24, 6, 168, 146, 40, 42, 20, 242, 137, 52,
+		74, 60, 50, 167, 2, 92, 98, 176, 17, 132, 30, 89, 110, 119, 239, 124, 40, 232, 14}
+
 )
+
+type signedMessage struct {
+	// capped at 32 for now
+	message [32]byte
+	// signature
+	signature [64]byte
+	// public key
+	publicKey [32]byte
+}
 
 // go test -v -timeout 30s -run ^TestVerifyProgram$ github.com/ava-labs/hypersdk/x/programs/examples
 func TestVerifyProgram(t *testing.T) {
@@ -52,28 +64,18 @@ func TestVerifyProgram(t *testing.T) {
 	require.NoError(err)
 	meter := rt.Meter().GetBalance()
 
-	pubKeysBytes := grabPubKeyBytes(numPubKeys)
-	invalidPubKeysBytes := grabInvalidPubKeyBytes(numPubKeys, numInvalidKeys)
 
-	// write bytes to memory
-	pubKeysPtr, err := runtime.WriteBytes(rt.Memory(), pubKeysBytes)
-	require.NoError(err)
-	messageBytesPtr, err := runtime.WriteBytes(rt.Memory(), messageBytes)
-	require.NoError(err)
-	signingBytesPtr, err := runtime.WriteBytes(rt.Memory(), signatureBytes)
-	require.NoError(err)
-	invalidSigningBytesPtr, err := runtime.WriteBytes(rt.Memory(), invalidPubKeysBytes)
-	require.NoError(err)
+	numValidMessages := 4
+	numInvalidMessages := 1
 
-	// call vertify with correct signatures
-	result, err := rt.Call(ctx, "verify_ed_in_wasm", programIDPtr, pubKeysPtr, signingBytesPtr, messageBytesPtr)
+	signedMessages := createSignedMessages(numValidMessages, numInvalidMessages)
+	signedMessagesPtr, err := newParameterPtr(ctx, signedMessages, rt)
 	require.NoError(err)
-	require.Equal(uint64(numPubKeys), result[0], "Verified an invalid # of signatures")
 
 	// call vertify with some invalid signatures
-	result, err = rt.Call(ctx, "verify_ed_in_wasm", programIDPtr, invalidSigningBytesPtr, signingBytesPtr, messageBytesPtr)
+	result, err := rt.Call(ctx, "verify_ed_in_wasm", programIDPtr, signedMessagesPtr)
 	require.NoError(err)
-	require.Equal(uint64(numPubKeys-numInvalidKeys), result[0], "Verified an invalid # of signatures")
+	require.Equal(int64(numValidMessages), result[0], "Verified an invalid # of signatures")
 
 	// print meter for reference
 	meter = meter - rt.Meter().GetBalance()
@@ -92,35 +94,27 @@ func TestVerifyHostFunctionProgram(t *testing.T) {
 	require.NoError(err)
 	meter := rt.Meter().GetBalance()
 
-	pubKeysBytes := grabPubKeyBytes(numPubKeys)
-	invalidPubKeysBytes := grabInvalidPubKeyBytes(numPubKeys, numInvalidKeys)
-	
-	// write bytes to memory
-	pubKeysPtr, err := runtime.WriteBytes(rt.Memory(), pubKeysBytes)
-	require.NoError(err)
-	invalidPubKeysPtr, err := runtime.WriteBytes(rt.Memory(), invalidPubKeysBytes)
-	require.NoError(err)
-	messageBytesPtr, err := runtime.WriteBytes(rt.Memory(), messageBytes)
-	require.NoError(err)
-	signingBytesPtr, err := runtime.WriteBytes(rt.Memory(), signatureBytes)
-	require.NoError(err)
-	invalidSigningBytesPtr, err := runtime.WriteBytes(rt.Memory(), []byte{0})
+	numValidMessages := 4
+	numInvalidMessages := 1
+
+	signedMessages := createSignedMessages(numValidMessages, numInvalidMessages)
+	signedMessagesPtr, err := newParameterPtr(ctx, signedMessages, rt)
 	require.NoError(err)
 
-	// call vertify with correct signatures
-	result, err := rt.Call(ctx, "verify_ed_multiple_host_func", programIDPtr, pubKeysPtr, signingBytesPtr, messageBytesPtr)
+	invalidSignedMessages := createSignedMessages(0, numInvalidMessages)
+	invalidMessagesPtr, err := newParameterPtr(ctx, invalidSignedMessages, rt)
 	require.NoError(err)
-	require.Equal(uint64(numPubKeys), result[0], "Verified an invalid # of signatures")
-
-	// call vertify with all invalid signatures
-	result, err = rt.Call(ctx, "verify_ed_multiple_host_func", programIDPtr, pubKeysPtr, invalidSigningBytesPtr, messageBytesPtr)
-	require.NoError(err)
-	require.Equal(uint64(0), result[0], "Verified an invalid # of signatures")
 
 	// call vertify with some invalid signatures
-	result, err = rt.Call(ctx, "verify_ed_multiple_host_func", programIDPtr, invalidPubKeysPtr, signingBytesPtr, messageBytesPtr)
+	result, err := rt.Call(ctx, "verify_ed_multiple_host_func", programIDPtr, signedMessagesPtr)
 	require.NoError(err)
-	require.Equal(uint64(numPubKeys-numInvalidKeys), result[0], "Verified an invalid # of signatures")
+	require.Equal(int64(numValidMessages), result[0], "Verified an invalid # of signatures")
+
+	// call vertify with all invalid signatures
+	result, err = rt.Call(ctx, "verify_ed_multiple_host_func", programIDPtr, invalidMessagesPtr)
+	require.NoError(err)
+	require.Equal(int64(0), result[0], "Verified an invalid # of signatures")
+
 
 	// print meter for reference
 	meter = meter - rt.Meter().GetBalance()
@@ -129,32 +123,52 @@ func TestVerifyHostFunctionProgram(t *testing.T) {
 	rt.Stop()
 }
 
-// go test -v -benchmem -run=^$ -bench ^BenchmarkVerifyProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
-func BenchmarkVerifyProgram(b *testing.B) {
-	require := require.New(b)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	publicKeysBytes := grabPubKeyBytes(4)
-
-	b.Run("benchmark_verify_inside_guest", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			b.StopTimer()
-			rt, programIDPtr, err := SetupRuntime(ctx)
-			require.NoError(err)
-			// write bytes to memory(each time) wasm consumes memory
-			secretKeyPtr, err := runtime.WriteBytes(rt.Memory(), publicKeysBytes)
-			require.NoError(err)
-			messageBytesPtr, err := runtime.WriteBytes(rt.Memory(), messageBytes)
-			require.NoError(err)
-			b.StartTimer()
-			_, err = rt.Call(ctx, "verify_ed_in_wasm", programIDPtr, secretKeyPtr, messageBytesPtr)
-			require.NoError(err)
-		}
-	})
+// Helper function to create signed messages
+func createSignedMessages(numValidMessages int, numInvalidMessages int) []signedMessage {
+	signedMessages := []signedMessage{}
+	for i := 0; i < numValidMessages; i++ {
+		signedMessages = append(signedMessages, signedMessage{
+			message:   messageBytes,
+			signature: signatureBytes,
+			publicKey: publicKey,
+		})
+	}
+	for i := 0; i < numInvalidMessages; i++ {
+		signedMessages = append(signedMessages, signedMessage{
+			message:   messageBytes,
+			signature: invalidSignatureBytes,
+			publicKey: publicKey,
+		})
+	}
+	return signedMessages
 }
 
-func SetupRuntime(ctx context.Context) (runtime.Runtime, uint64, error) {
+// go test -v -benchmem -run=^$ -bench ^BenchmarkVerifyProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
+func BenchmarkVerifyProgram(b *testing.B) {
+	// require := require.New(b)
+	// ctx, cancel := context.WithCancel(context.Background())
+	// defer cancel()
+
+	// publicKeysBytes := grabPubKeyBytes(4)
+
+	// b.Run("benchmark_verify_inside_guest", func(b *testing.B) {
+	// 	for i := 0; i < b.N; i++ {
+	// 		b.StopTimer()
+	// 		rt, programIDPtr, err := SetupRuntime(ctx)
+	// 		require.NoError(err)
+	// 		// write bytes to memory(each time) wasm consumes memory
+	// 		secretKeyPtr, err := runtime.WriteBytes(rt.Memory(), publicKeysBytes)
+	// 		require.NoError(err)
+	// 		messageBytesPtr, err := runtime.WriteBytes(rt.Memory(), messageBytes)
+	// 		require.NoError(err)
+	// 		b.StartTimer()
+	// 		_, err = rt.Call(ctx, "verify_ed_in_wasm", programIDPtr, secretKeyPtr, messageBytesPtr)
+	// 		require.NoError(err)
+	// 	}
+	// })
+}
+
+func SetupRuntime(ctx context.Context) (runtime.Runtime, int64, error) {
 	db := newTestDB()
 	maxUnits := uint64(100000000)
 	// need with bulk memory to run this test(for io ops)
@@ -196,26 +210,4 @@ func SetupRuntime(ctx context.Context) (runtime.Runtime, uint64, error) {
 	}
 
 	return rt, programIDPtr, nil
-}
-
-func grabPubKeyBytes(numCorrectKeys int) []byte {
-	pubKeys := []byte{}
-	for i := 0; i < numCorrectKeys; i++ {
-		pubKeys = append(pubKeys, publicKey...)
-	}
-	return pubKeys
-}
-
-func grabInvalidPubKeyBytes(numTotalKeys int, numInvalidKeys int) []byte {
-	signingBytes := grabPubKeyBytes(numTotalKeys)
-	// change last byte of each key to be invalid
-	for i := 1; i <= numInvalidKeys; i++ {
-		// change pub key so that signature no longer verifies
-		if signingBytes[hypersdk_crypto.PublicKeyLen*i-1] == 1 {
-			signingBytes[hypersdk_crypto.PublicKeyLen*i-1] = 2
-		} else {
-			signingBytes[hypersdk_crypto.PublicKeyLen*i-1] = 1
-		}
-	}
-	return signingBytes
 }

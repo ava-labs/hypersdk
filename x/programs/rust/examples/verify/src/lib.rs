@@ -46,3 +46,11 @@ pub fn verify_ed_multiple_host_func(
     }
     success_count
 }
+
+/// Runs multiple ED25519 signature verifications in the host with just one call.
+pub fn verify_ed_batch(
+    program: Program,
+    signed_messages: Vec<SignedMessage>,
+) {
+    return batch_verify_ed25519(&program, &signed_messages);
+}
