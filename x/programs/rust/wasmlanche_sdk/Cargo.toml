@@ -9,6 +9,7 @@ edition = "2021"
 thiserror = "1.0.46"
 sdk_macros = { version = "0.1.0", path = "../sdk_macros" }
 borsh = { version = "1.2.0", features = ["derive"] }
+ed25519-dalek = { version = "2.0.0", features = ["rand_core"]} # for the generate SigningKey function
 
 # TODO: delete serde dependencies(simulator needs update) 
 serde = { version = "1.0.185", features = ["derive"] }

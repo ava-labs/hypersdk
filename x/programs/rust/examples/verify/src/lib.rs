@@ -1,9 +1,11 @@
-use ed25519_dalek::{Signature, Verifier};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use wasmlanche_sdk::host::verify_ed25519;
-use wasmlanche_sdk::{program::Program, public, types::Bytes32};
+use wasmlanche_sdk::{program::Program, public};
+
 // import custom types from types.rs
 mod types;
-use types::{BatchPubKeys, EDSignatureBytes};
+use types::SignedMessage;
+
 
 /// Runs multiple ED25519 signature verifications in Wasm.
 /// Returns the number of successfull verifications of [signature_bytes] 
@@ -11,17 +13,15 @@ use types::{BatchPubKeys, EDSignatureBytes};
 #[public]
 pub fn verify_ed_in_wasm(
     _: Program,
-    pub_keys: BatchPubKeys,
-    signature_bytes: EDSignatureBytes,
-    message: Bytes32,
+    signed_messages: Vec<SignedMessage>,
 ) -> i32 {
     let mut success_count = 0;
-    let signature: Signature = Signature::from_bytes(signature_bytes.as_bytes());
-    // iterate through batch pub keys
-    for pub_key in pub_keys.0.iter() {
-        match pub_key.as_key().verify(message.as_bytes(), &signature) {
+    for signed_message in signed_messages.iter() {
+        let signature: Signature = Signature::from_bytes(&signed_message.signature);
+        let pub_key = VerifyingKey::from_bytes(&signed_message.public_key).expect("invalid bytes");
+        match pub_key.verify(&signed_message.message, &signature) {
             Ok(_) => {success_count += 1;}
-            Err(_) => {}
+            Err(_) => {},
         }
     }
     success_count
@@ -33,23 +33,16 @@ pub fn verify_ed_in_wasm(
 #[public]
 pub fn verify_ed_multiple_host_func(
     program: Program,
-    pub_keys: BatchPubKeys,
-    signature_bytes: EDSignatureBytes,
-    message: Bytes32,
+    signed_messages: Vec<SignedMessage>,
 ) -> i32 {
     let mut success_count = 0;
-    let signature: Signature = Signature::from_bytes(signature_bytes.as_bytes());
-    // iterate through batch pub keys
-    for pub_key in pub_keys.0.iter() {
-        match verify_ed25519(&program, message, &signature, pub_key.as_key()) {
+    for signed_message in signed_messages.iter() {
+        let signature: Signature = Signature::from_bytes(&signed_message.signature);
+        let pub_key = VerifyingKey::from_bytes(&signed_message.public_key).expect("invalid bytes");
+        match verify_ed25519(&program, &signed_message.message, &signature, &pub_key) {
             1 => {success_count += 1;}
             _ => {},
         }
     }
     success_count
 }
-
-// #[public]
-// pub fn verify_ed_batch_in_host(program: Program) {
-
-// }

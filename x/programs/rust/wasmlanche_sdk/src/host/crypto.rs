@@ -1,6 +1,6 @@
 
 
-use crate::{program::Program, types::Bytes32};
+use crate::{program::Program};
 use ed25519_dalek::{Signature, VerifyingKey};
 
 
@@ -20,13 +20,13 @@ extern "C" {
 #[must_use]
 pub fn verify_ed25519(
     caller: &Program,
-    msg: Bytes32,
+    msg: &[u8; 32],
     sig: &Signature,
     pub_key: &VerifyingKey,
 )  -> i32 {
     unsafe { _verify_ed25519(caller.id(),
-                            msg.as_bytes().as_ptr() as i64,
-                            Bytes32::LEN as i64,
+                            msg.as_ptr() as i64,
+                            32,
                             sig.to_bytes().as_ptr() as i64,
                             pub_key.as_bytes().as_ptr() as i64
     ) }
