@@ -9,13 +9,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/database/manager"
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
@@ -26,7 +27,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	avago_version "github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/fatih/color"
 	ginkgo "github.com/onsi/ginkgo/v2"
@@ -214,7 +214,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		}
 
 		toEngine := make(chan common.Message, 1)
-		db := manager.NewMemDB(avago_version.CurrentDatabase)
+		db := memdb.New()
 
 		v := controller.New()
 		err = v.Initialize(
@@ -232,13 +232,13 @@ var _ = ginkgo.BeforeSuite(func() {
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 
-		var hd map[string]*common.HTTPHandler
+		var hd map[string]http.Handler
 		hd, err = v.CreateHandlers(context.TODO())
 		gomega.Ω(err).Should(gomega.BeNil())
 
-		jsonRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint].Handler)
-		tjsonRPCServer := httptest.NewServer(hd[trpc.JSONRPCEndpoint].Handler)
-		webSocketServer := httptest.NewServer(hd[rpc.WebSocketEndpoint].Handler)
+		jsonRPCServer := httptest.NewServer(hd[rpc.JSONRPCEndpoint])
+		tjsonRPCServer := httptest.NewServer(hd[trpc.JSONRPCEndpoint])
+		webSocketServer := httptest.NewServer(hd[rpc.WebSocketEndpoint])
 		instances[i] = instance{
 			chainID:            snowCtx.ChainID,
 			nodeID:             snowCtx.NodeID,
@@ -255,7 +255,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		v.ForceReady()
 	}
 
-	// Verify genesis allocations loaded correctly (do here otherwise test may
+	// Verify genesis allocates loaded correctly (do here otherwise test may
 	// check during and it will be inaccurate)
 	for _, inst := range instances {
 		cli := inst.tcli
@@ -434,21 +434,21 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// bandwidth: tx size
 			// compute: 5 for signature, 1 for base, 1 for transfer
 			// read: 2 keys reads, 1 had 0 chunks
-			// create: 1 key created
-			// modify: 1 cold key modified
-			transferTxConsumed := chain.Dimensions{227, 7, 12, 25, 13}
+			// allocate: 1 key created
+			// write: 1 key modified, 1 key new
+			transferTxConsumed := chain.Dimensions{227, 7, 12, 25, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(284)))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(297)))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].tcli.Balance(context.Background(), sender, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899716)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899703)))
 			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))

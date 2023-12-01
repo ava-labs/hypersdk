@@ -84,16 +84,20 @@ pub unsafe fn deallocate(ptr: *mut u8, capacity: usize) {
 }
 
 /* memory functions ------------------------------------------- */
-// https://radu-matei.com/blog/practical-guide-to-wasm-memory/
-
 /// Allocate memory into the instance of Program and return the offset to the
 /// start of the block.
+/// # Panics
+/// Panics if the pointer exceeds the maximum size of an i64.
 #[no_mangle]
 pub extern "C" fn alloc(len: usize) -> *mut u8 {
     // create a new mutable buffer with capacity `len`
     let mut buf = Vec::with_capacity(len);
     // take a mutable pointer to the buffer
     let ptr = buf.as_mut_ptr();
+    // ensure memory pointer is fits in an i64
+    // to avoid potential issues when passing
+    // across wasm boundary
+    assert!(i64::try_from(ptr as u64).is_ok());
     // take ownership of the memory block and
     // ensure that its destructor is not
     // called when the object goes out of scope

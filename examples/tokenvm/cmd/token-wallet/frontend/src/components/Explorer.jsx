@@ -118,8 +118,8 @@ const Explorer = () => {
               transactions
               <br />
               <Text strong>Unit Prices:</Text> Price of each HyperSDK fee
-              dimension (Bandwidth, Compute, Storage[Read], Storage[Create],
-              Storage[Modify])
+              dimension (Bandwidth, Compute, Storage[Read], Storage[Allocate],
+              Storage[Write])
             </div>
           }>
           Metrics <InfoCircleOutlined />

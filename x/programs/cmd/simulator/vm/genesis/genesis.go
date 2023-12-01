@@ -65,7 +65,7 @@ type Genesis struct {
 	EnableDebugMode  bool `json:"enableDebugMode"`
 	EnableBulkMemory bool `json:"enableBulkMemory"`
 
-	// Allocations
+	// Allocates
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
 }
 
@@ -134,7 +134,7 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 		return err
 	}
 
-	// TODO: custom allocations for more realistic fee simulation
+	// TODO: custom allocates for more realistic fee simulation
 	//
 	// supply := uint64(0)
 	// for _, alloc := range g.CustomAllocation {

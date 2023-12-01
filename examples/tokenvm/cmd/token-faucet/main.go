@@ -10,11 +10,9 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/config"
@@ -118,10 +116,7 @@ func main() {
 	if err != nil {
 		fatal(log, "cannot create handler", zap.Error(err))
 	}
-	if err := srv.AddRoute(&common.HTTPHandler{
-		LockOptions: common.NoLock,
-		Handler:     handler,
-	}, &sync.RWMutex{}, "faucet", ""); err != nil {
+	if err := srv.AddRoute(handler, "faucet", ""); err != nil {
 		fatal(log, "cannot add facuet route", zap.Error(err))
 	}
 

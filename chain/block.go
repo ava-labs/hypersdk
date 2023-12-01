@@ -94,7 +94,7 @@ func NewGenesisBlock(root ids.ID) *StatefulBlock {
 		// .../vms/proposervm/pre_fork_block.go#L201
 		Tmstmp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
 
-		// StateRoot should include all allocations made when loading the genesis file
+		// StateRoot should include all allocates made when loading the genesis file
 		StateRoot: root,
 	}
 }

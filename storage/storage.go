@@ -6,12 +6,12 @@ package storage
 import (
 	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/database/corruptabledb"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
 // TODO: add option to use a single DB with prefixes to allow for atomic writes
-// TODO: add metrics to pebble
 func New(chainDataDir string, gatherer metrics.MultiGatherer) (database.Database, database.Database, database.Database, error) {
 	// TODO: tune Pebble config based on each sub-db focus
 	cfg := pebble.NewDefaultConfig()
@@ -54,5 +54,5 @@ func New(chainDataDir string, gatherer metrics.MultiGatherer) (database.Database
 			return nil, nil, nil, err
 		}
 	}
-	return blockDB, stateDB, metaDB, nil
+	return corruptabledb.New(blockDB), corruptabledb.New(stateDB), corruptabledb.New(metaDB), nil
 }

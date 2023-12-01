@@ -13,3 +13,4 @@ wasmlanche_sdk = { version = "0.1.0", path = "../wasmlanche_sdk" }
 proc-macro2 = "1.0.67"
 quote = "1.0.33"
 syn = { version = "2.0.37", features = ["full"] }
+unzip-n = "0.1.2"

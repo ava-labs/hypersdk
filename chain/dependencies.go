@@ -132,26 +132,21 @@ type Rules interface {
 	// Invariants:
 	// * Controllers must manage the max key length and max value length (max network
 	//   limit is ~2MB)
-	// * Cold key reads/modifications are assumed to be more expensive than warm
-	//   when estimating the max fee
+	// * Creating a new key involves first allocating and then writing
 	// * Keys are only charged once per transaction (even if used multiple times), it is
 	//   up to the controller to ensure multiple usage has some compute cost
 	//
 	// Interesting Scenarios:
 	// * If a key is created and then modified during a transaction, the second
-	//   read will be a warm read of 0 chunks (reads are based on disk contents before exec)
-	// * If a key is removed and then re-created during a transaction, it counts
-	//   as a modification and a creation instead of just a modification
-	GetColdStorageKeyReadUnits() uint64
-	GetColdStorageValueReadUnits() uint64 // per chunk
-	GetWarmStorageKeyReadUnits() uint64
-	GetWarmStorageValueReadUnits() uint64 // per chunk
-	GetStorageKeyCreateUnits() uint64
-	GetStorageValueCreateUnits() uint64 // per chunk
-	GetColdStorageKeyModificationUnits() uint64
-	GetColdStorageValueModificationUnits() uint64 // per chunk
-	GetWarmStorageKeyModificationUnits() uint64
-	GetWarmStorageValueModificationUnits() uint64 // per chunk
+	//   read will be a read of 0 chunks (reads are based on disk contents before exec)
+	// * If a key is removed and then re-created with the same value during a transaction,
+	//   it doesn't count as a modification (returning to the current value on-disk is a no-op)
+	GetStorageKeyReadUnits() uint64
+	GetStorageValueReadUnits() uint64 // per chunk
+	GetStorageKeyAllocateUnits() uint64
+	GetStorageValueAllocateUnits() uint64 // per chunk
+	GetStorageKeyWriteUnits() uint64
+	GetStorageValueWriteUnits() uint64 // per chunk
 
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
 

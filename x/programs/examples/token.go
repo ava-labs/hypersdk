@@ -28,6 +28,11 @@ func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *ru
 	}
 }
 
+type minter struct {
+	To     [32]byte
+	Amount int32
+}
+
 type Token struct {
 	log          logging.Logger
 	programBytes []byte
@@ -71,7 +76,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	t.log.Debug("init response",
-		zap.Uint64("init", resp[0]),
+		zap.Int64("init", resp[0]),
 	)
 
 	result, err := rt.Call(ctx, "get_total_supply", programIDPtr)
@@ -79,7 +84,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 	t.log.Debug("total supply",
-		zap.Uint64("minted", result[0]),
+		zap.Int64("minted", result[0]),
 	)
 
 	// generate alice keys
@@ -89,7 +94,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := newKeyPtr(ctx, aliceKey, rt)
+	alicePtr, err := newParameterPtr(ctx, aliceKey, rt)
 	if err != nil {
 		return err
 	}
@@ -101,7 +106,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write bob's key to stack and get pointer
-	bobPtr, err := newKeyPtr(ctx, bobKey, rt)
+	bobPtr, err := newParameterPtr(ctx, bobKey, rt)
 	if err != nil {
 		return err
 	}
@@ -116,13 +121,13 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// mint 100 tokens to alice
-	mintAlice := uint64(1000)
+	mintAlice := int64(1000)
 	_, err = rt.Call(ctx, "mint_to", programIDPtr, alicePtr, mintAlice)
 	if err != nil {
 		return err
 	}
 	t.log.Debug("minted",
-		zap.Uint64("alice", mintAlice),
+		zap.Int64("alice", mintAlice),
 	)
 
 	// check balance of alice
@@ -131,7 +136,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 	t.log.Debug("balance",
-		zap.Uint64("alice", result[0]),
+		zap.Int64("alice", result[0]),
 	)
 
 	// check balance of bob
@@ -140,18 +145,18 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 	t.log.Debug("balance",
-		zap.Uint64("bob", result[0]),
+		zap.Int64("bob", result[0]),
 	)
 
 	// transfer 50 from alice to bob
-	transferToBob := uint64(50)
+	transferToBob := int64(50)
 	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, transferToBob)
 	if err != nil {
 		return err
 	}
 	t.log.Debug("transferred",
-		zap.Uint64("alice", transferToBob),
-		zap.Uint64("to bob", transferToBob),
+		zap.Int64("alice", transferToBob),
+		zap.Int64("to bob", transferToBob),
 	)
 
 	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, 1)
@@ -159,8 +164,8 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 	t.log.Debug("transferred",
-		zap.Uint64("alice", transferToBob),
-		zap.Uint64("to bob", transferToBob),
+		zap.Int64("alice", 1),
+		zap.Int64("to bob", 1),
 	)
 
 	// get balance alice
@@ -169,7 +174,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 	t.log.Debug("balance",
-		zap.Uint64("alice", result[0]),
+		zap.Int64("alice", result[0]),
 	)
 
 	// get balance bob
@@ -177,11 +182,54 @@ func (t *Token) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance", zap.Uint64("bob", result[0]))
+	t.log.Debug("balance", zap.Int64("bob", result[0]))
 
 	t.log.Debug("remaining balance",
 		zap.Uint64("unit", rt.Meter().GetBalance()),
 	)
+
+	// combine alice and bobs addresses
+	minters := []minter{
+		{
+			To:     aliceKey,
+			Amount: 10,
+		},
+		{
+			To:     bobKey,
+			Amount: 12,
+		},
+	}
+
+	mintersPtr, err := newParameterPtr(ctx, minters, rt)
+	if err != nil {
+		return err
+	}
+
+	// perform bulk mint
+	_, err = rt.Call(ctx, "mint_to_many", programIDPtr, mintersPtr)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("minted many",
+		zap.Int32("alice", minters[0].Amount),
+		zap.Int32("to bob", minters[1].Amount),
+	)
+
+	// get balance alice
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("balance",
+		zap.Int64("alice", result[0]),
+	)
+
+	// get balance bob
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("balance", zap.Int64("bob", result[0]))
 
 	return nil
 }
@@ -221,7 +269,7 @@ func (t *Token) RunShort(ctx context.Context) error {
 	}
 
 	t.log.Debug("init response",
-		zap.Uint64("init", resp[0]),
+		zap.Int64("init", resp[0]),
 	)
 	return nil
 }
