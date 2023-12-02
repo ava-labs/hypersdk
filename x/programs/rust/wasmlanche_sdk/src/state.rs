@@ -3,7 +3,7 @@ use crate::{
     host::{get_bytes, put_bytes},
     program::Program,
 };
-use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
+use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 
 pub struct State {
     program: Program,
@@ -46,8 +46,8 @@ impl State {
     /// Panics if the value cannot be converted from i32 to usize.
     pub fn get<T, K>(&self, key: K) -> Result<T, StateError>
     where
-        K: AsRef<[u8]>,
-        T: DeserializeOwned,
+        K: Into<Key>,
+        T: BorshDeserialize,
     {
         let val_ptr = unsafe { get_bytes(&self.program, &key.into()) };
         if val_ptr < 0 {

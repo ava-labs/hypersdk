@@ -7,9 +7,6 @@ use std::borrow::Cow;
 #[derive(Clone, Copy, PartialEq, Eq, Debug, BorshSerialize, BorshDeserialize)]
 pub struct Address([u8; Self::LEN]);
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, BorshSerialize, BorshDeserialize)]
-pub struct Address([u8; Self::LEN]);
-
 impl Address {
     // TODO: move to HyperSDK.Address which will be 33 bytes
     pub const LEN: usize = 32;
@@ -50,20 +47,10 @@ pub trait Argument {
 impl Argument for Address {
     fn as_bytes(&self) -> Cow<'_, [u8]> {
         Cow::Borrowed(self.as_bytes())
-        Cow::Borrowed(self.as_bytes())
     }
 }
 
 impl Argument for i64 {
-    fn as_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(self.to_be_bytes().to_vec())
-    }
-    fn is_primitive(&self) -> bool {
-        true
-    }
-}
-
-impl Argument for i32 {
     fn as_bytes(&self) -> Cow<'_, [u8]> {
         Cow::Owned(self.to_be_bytes().to_vec())
     }
@@ -87,12 +74,6 @@ impl Argument for Program {
     }
     fn is_primitive(&self) -> bool {
         true
-    }
-}
-
-impl Argument for String {
-    fn as_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Borrowed(self.as_bytes())
     }
 }
 
