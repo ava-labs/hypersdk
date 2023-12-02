@@ -19,8 +19,7 @@ extern "C" {
 /// Persists the bytes at `value_ptr` to the bytes at key ptr on the host storage.
 ///
 /// # Safety
-/// The caller must ensure that `key_ptr` + `key_len` and
-/// `value_ptr` + `value_len` point to valid memory locations.
+/// TODO:
 #[must_use]
 pub(crate) unsafe fn put_bytes<V>(caller: &Program, key: &Key, value: &V) -> Result<(), StateError>
 where
@@ -38,19 +37,10 @@ where
     }
 }
 
-/// Returns the length of the bytes associated with the key from the host storage.
-///
-/// # Safety
-/// The caller must ensure that `key_ptr` + `key_len` points to valid memory locations.
-// #[must_use]
-// pub(crate) unsafe fn len_bytes(caller: &Program, key: &Key) -> i32 {
-//     unsafe { _len(caller.id(), key.as_bytes().as_ptr(), key.len()) }
-// }
-
 /// Gets the bytes associated with the key from the host.
 ///
 /// # Safety
-/// The caller must ensure that `key_ptr` + `key_len` points to valid memory locations.
+/// TODO:
 #[must_use]
 pub(crate) unsafe fn get_bytes(caller: &Program, key: &Key) -> i64 {
     // prepend length to key

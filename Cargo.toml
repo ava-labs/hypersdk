@@ -5,7 +5,6 @@ members = [
     "x/programs/rust/wasmlanche_sdk",
     "x/programs/rust/examples/token",
     "x/programs/rust/examples/counter",
-    "x/programs/rust/examples/verify",
 ]
 resolver = "2"
 
