@@ -25,13 +25,7 @@ impl State {
         V: BorshSerialize,
         K: Into<Key>,
     {
-        unsafe {
-            put_bytes(
-                &self.program,
-                &key.into(),
-                value,
-            )
-        }
+        unsafe { put_bytes(&self.program, &key.into(), value) }
     }
 
     /// Get a value from the host's storage.
@@ -55,7 +49,7 @@ impl State {
         }
 
         // Wrap in OK for now, change from_raw_ptr to return Result
-       unsafe { from_raw_ptr(val_ptr) }
+        unsafe { from_raw_ptr(val_ptr) }
     }
 }
 
@@ -66,7 +60,8 @@ impl State {
 /// Panics if the bytes cannot be deserialized.
 /// # Safety
 /// This function is unsafe because it dereferences raw pointers.
-#[must_use]
+/// # Errors
+/// Returns an `StateError` if the bytes cannot be deserialized.
 pub unsafe fn from_raw_ptr<V>(ptr: i64) -> Result<V, StateError>
 where
     V: BorshDeserialize,
@@ -95,6 +90,7 @@ pub unsafe fn bytes_and_length(ptr: i64) -> (Vec<u8>, usize) {
 }
 
 /// Returns a vector of bytes with the length of the argument prepended.
+#[must_use]
 pub fn prepend_length(bytes: &[u8]) -> Vec<u8> {
     let mut len_bytes = bytes.len().to_be_bytes().to_vec();
     len_bytes.extend(bytes);

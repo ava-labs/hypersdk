@@ -20,7 +20,6 @@ extern "C" {
 ///
 /// # Safety
 /// TODO:
-#[must_use]
 pub(crate) unsafe fn put_bytes<V>(caller: &Program, key: &Key, value: &V) -> Result<(), StateError>
 where
     V: BorshSerialize,
@@ -41,7 +40,6 @@ where
 ///
 /// # Safety
 /// TODO:
-#[must_use]
 pub(crate) unsafe fn get_bytes(caller: &Program, key: &Key) -> i64 {
     // prepend length to key
     let key = prepend_length(key.as_bytes());
