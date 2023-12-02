@@ -5,6 +5,7 @@ package examples
 
 import (
 	"context"
+
 	"fmt"
 
 	"go.uber.org/zap"
@@ -12,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
@@ -29,7 +31,9 @@ func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *ru
 }
 
 type minter struct {
-	To     [32]byte
+	// TODO: use a HyperSDK.Address instead
+	To ed25519.PublicKey
+	// note: a production program would use a uint64 for amount
 	Amount int32
 }
 

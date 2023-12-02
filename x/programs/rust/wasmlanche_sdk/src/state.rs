@@ -46,8 +46,8 @@ impl State {
     /// Panics if the value cannot be converted from i32 to usize.
     pub fn get<T, K>(&self, key: K) -> Result<T, StateError>
     where
-        K: Into<Key>,
-        T: BorshDeserialize,
+        K: AsRef<[u8]>,
+        T: DeserializeOwned,
     {
         let val_ptr = unsafe { get_bytes(&self.program, &key.into()) };
         if val_ptr < 0 {
