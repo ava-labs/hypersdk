@@ -71,7 +71,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int64, value
 		return -1
 	}
 
-	keyBytes, err := imports.GrabBytesFromPtr(client, keyPtr)
+	keyBytes, err := imports.GetBytesFromPtr(client, keyPtr)
 	if err != nil {
 		i.log.Error("failed to read key from memory",
 			zap.Error(err),
@@ -79,7 +79,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int64, value
 		return -1
 	}
 
-	valueBytes, err := imports.GrabBytesFromPtr(client, valuePtr)
+	valueBytes, err := imports.GetBytesFromPtr(client, valuePtr)
 	if err != nil {
 		i.log.Error("failed to read value from memory",
 			zap.Error(err),
@@ -110,7 +110,7 @@ func (i *Import) getFn(caller *wasmtime.Caller, idPtr int64, keyPtr int64) int64
 		return -1
 	}
 
-	keyBytes, err := imports.GrabBytesFromPtr(client, keyPtr)
+	keyBytes, err := imports.GetBytesFromPtr(client, keyPtr)
 	if err != nil {
 		i.log.Error("failed to read key from memory",
 			zap.Error(err),

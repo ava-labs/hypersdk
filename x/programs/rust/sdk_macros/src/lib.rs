@@ -165,9 +165,9 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
         // Generate the Into<key> implementation needed to
         // convert the enum to a Key type.
-        impl Into<Key> for #name {
-            fn into(self) -> Key {
-                Key::new(self.to_vec())
+        impl Into<wasmlanche_sdk::state::Key> for #name {
+            fn into(self) -> wasmlanche_sdk::state::Key {
+                wasmlanche_sdk::state::Key::new(self.to_vec())
             }
         }
     };
