@@ -7,20 +7,18 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-// grabBytesFromPtr returns bytes from memory at [ptr].
-func GrabBytesFromPtr(client runtime.WasmtimeExportClient, ptr int64) ([]byte, error) {
+// GetBytesFromPtr returns the bytes at [ptr] in [client] memory.
+func GetBytesFromPtr(client runtime.WasmtimeExportClient, ptr int64) ([]byte, error) {
 	memory := runtime.NewMemory(client)
 
-	// grab the first 4 bytes from ptr which is the length of bytes
+	// first 4 bytes represent the length
 	lenBytes, err := memory.Range(uint64(ptr), consts.Uint32Len)
 	if err != nil {
 		return nil, err
 	}
-
-	// convert to uint32
 	length := binary.BigEndian.Uint32(lenBytes)
 
-	// grab the remaining bytes from ptr which is the actual bytes
+	// The following [length] bytes represent the bytes to return
 	bytes, err := memory.Range(uint64(ptr + consts.Uint32Len), uint64(length))
 	if err != nil {
 		return nil, err
@@ -29,6 +27,7 @@ func GrabBytesFromPtr(client runtime.WasmtimeExportClient, ptr int64) ([]byte, e
 	return bytes, nil
 }
 
+// PrependLength returns the length of [bytes] prepended to [bytes].
 func PrependLength(bytes []byte) []byte {
 	length := uint32(len(bytes))
 	lenBytes := make([]byte, consts.Uint32Len)
