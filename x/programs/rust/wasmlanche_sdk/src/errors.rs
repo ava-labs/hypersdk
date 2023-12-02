@@ -22,4 +22,7 @@ pub enum StateError {
 
     #[error("failed to serialize bytes")]
     Serialization,
+
+    #[error("failed to deserialize bytes")]
+    Deserialization,
 }

@@ -55,7 +55,7 @@ impl State {
         }
 
         // Wrap in OK for now, change from_raw_ptr to return Result
-        Ok(unsafe { from_raw_ptr(val_ptr) })
+       unsafe { from_raw_ptr(val_ptr) }
     }
 }
 
@@ -67,12 +67,12 @@ impl State {
 /// # Safety
 /// This function is unsafe because it dereferences raw pointers.
 #[must_use]
-pub unsafe fn from_raw_ptr<V>(ptr: i64) -> V
+pub unsafe fn from_raw_ptr<V>(ptr: i64) -> Result<V, StateError>
 where
     V: BorshDeserialize,
 {
     let (bytes, _) = bytes_and_length(ptr);
-    from_slice::<V>(&bytes).expect("failed to deserialize")
+    from_slice::<V>(&bytes).map_err(|_| StateError::Deserialization)
 }
 
 // TODO: move this logic to return a Memory struct that conatins ptr + length
@@ -94,6 +94,7 @@ pub unsafe fn bytes_and_length(ptr: i64) -> (Vec<u8>, usize) {
     (value[4..].to_vec(), len)
 }
 
+/// Returns a vector of bytes with the length of the argument prepended.
 pub fn prepend_length(bytes: &[u8]) -> Vec<u8> {
     let mut len_bytes = bytes.len().to_be_bytes().to_vec();
     len_bytes.extend(bytes);
