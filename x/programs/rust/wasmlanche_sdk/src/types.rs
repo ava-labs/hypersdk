@@ -1,6 +1,4 @@
-use crate::program::Program;
 use borsh::{BorshDeserialize, BorshSerialize};
-use std::borrow::Cow;
 
 /// A struct that enforces a fixed length of 32 bytes which represents an address.
 

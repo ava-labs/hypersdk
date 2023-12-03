@@ -1,7 +1,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use borsh::{to_vec};
 
-use crate::{host::call_program, state::{State, prepend_length}};
+use crate::{
+    host::call_program,
+    state::{prepend_length, State},
+};
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
@@ -37,13 +39,7 @@ impl Program {
     ) -> i64 {
         // flatten the args into a single byte vector
         let args = args.into_iter().flatten().collect::<Vec<u8>>();
-        call_program(
-            self,
-            target,
-            max_units,
-            function_name,
-            &args
-        )
+        call_program(self, target, max_units, function_name, &args)
     }
 }
 
@@ -75,7 +71,10 @@ macro_rules! serialize_params {
     };
 }
 
-pub fn serialize_params<T>(param: &T) -> Result<Vec<u8>, std::io::Error> where T: BorshSerialize {
+pub fn serialize_params<T>(param: &T) -> Result<Vec<u8>, std::io::Error>
+where
+    T: BorshSerialize,
+{
     let bytes = prepend_length(&borsh::to_vec(param)?);
     Ok(bytes)
 }
