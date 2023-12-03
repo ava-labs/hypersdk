@@ -92,7 +92,7 @@ pub unsafe fn bytes_and_length(ptr: i64) -> (Vec<u8>, usize) {
 /// Returns a vector of bytes with the length of the argument prepended.
 #[must_use]
 pub fn prepend_length(bytes: &[u8]) -> Vec<u8> {
-    let mut len_bytes = bytes.len().to_be_bytes().to_vec();
+    let mut len_bytes = (bytes.len() as u32).to_be_bytes().to_vec();
     len_bytes.extend(bytes);
     len_bytes
 }

@@ -5,6 +5,7 @@ package program
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 
 	"go.uber.org/zap"
@@ -13,7 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
-	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
@@ -71,7 +72,6 @@ func (i *Import) callProgramFn(
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
-
 	// get the entry function for invoke to call.
 	functionBytes, err := memory.Range(uint64(functionPtr), uint64(functionLen))
 	if err != nil {
@@ -96,7 +96,7 @@ func (i *Import) callProgramFn(
 			zap.Error(err),
 		)
 		return -1
-	}
+	}	
 
 	// create a new runtime for the program to be invoked with a zero balance.
 	rt := runtime.New(i.log, i.cfg, i.imports)
@@ -173,28 +173,44 @@ func (i *Import) callProgramFn(
 func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, invokeProgramID int64) ([]int64, error) {
 	// first arg contains id of program to call
 	args := []int64{invokeProgramID}
-	p := codec.NewReader(buffer, len(buffer))
+	// p := codec.NewReader(buffer, len(buffer))
+	// i := 0
+	// for !p.Empty() {
+	// 	// unpacks uint32
+	// 	size := p.UnpackInt(true)
+		
+	// 	valueBytes := make([]byte, size)
+	// 	p.UnpackFixedBytes(int(size), &valueBytes)
+	// 	ptr, err := runtime.WriteBytes(memory, valueBytes)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	args = append(args, ptr)
+	// 	i++
+	// }
+	// if p.Err() != nil {
+	// 	return nil, fmt.Errorf("failed to unpack arguments: %w", p.Err())
+	// }
 	i := 0
-	for !p.Empty() {
-		size := p.UnpackInt64(true)
-		isInt := p.UnpackBool()
-		if isInt {
-			valueInt := p.UnpackInt64(true)
-			args = append(args, valueInt)
-		} else {
-			valueBytes := make([]byte, size)
-			p.UnpackFixedBytes(int(size), &valueBytes)
-			ptr, err := runtime.WriteBytes(memory, valueBytes)
-			if err != nil {
-				return nil, err
-			}
-			args = append(args, ptr)
+	for i < len(buffer) {
+		fmt.Println("i", i)
+		// unpacks uint32
+		lenBytes := buffer[i:i+consts.Uint32Len]
+		length := binary.BigEndian.Uint32(lenBytes)
+		totalLength := int(consts.Uint32Len + length)
+
+
+		valueBytes := buffer[i:i + totalLength]
+		i += consts.Uint32Len + int(length)
+	
+		ptr, err := runtime.WriteBytes(memory, valueBytes)
+		if err != nil {
+			return nil, err
 		}
-		i++
+		args = append(args, ptr)
 	}
-	if p.Err() != nil {
-		return nil, fmt.Errorf("failed to unpack arguments: %w", p.Err())
-	}
+
+
 	return args, nil
 }
 

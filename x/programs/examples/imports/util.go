@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package imports
 
 import (
@@ -19,7 +22,7 @@ func GetBytesFromPtr(client runtime.WasmtimeExportClient, ptr int64) ([]byte, er
 	length := binary.BigEndian.Uint32(lenBytes)
 
 	// The following [length] bytes represent the bytes to return
-	bytes, err := memory.Range(uint64(ptr + consts.Uint32Len), uint64(length))
+	bytes, err := memory.Range(uint64(ptr+consts.Uint32Len), uint64(length))
 	if err != nil {
 		return nil, err
 	}

@@ -5,7 +5,6 @@ package examples
 
 import (
 	"context"
-
 	"fmt"
 
 	"go.uber.org/zap"
