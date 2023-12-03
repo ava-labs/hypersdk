@@ -100,10 +100,8 @@ func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, value
 }
 
 func (i *Import) getFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32) int64 {
-	fmt.Println("getFnPrior")
 	client := runtime.NewExportClient(caller)
 	memory := runtime.NewMemory(client)
-	fmt.Println("getFn")
 	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
 	if err != nil {
 		i.log.Error("failed to read program id from memory",
@@ -130,7 +128,6 @@ func (i *Import) getFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32) int64
 		}
 		return -1
 	}
-	fmt.Println("getFn1")
 
 	if err != nil {
 		i.log.Error("failed to convert program id to id",
@@ -150,7 +147,6 @@ func (i *Import) getFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32) int64
 		}
 		return -1
 	}
-	fmt.Println("getFn2")
 
 	return ptr
 }

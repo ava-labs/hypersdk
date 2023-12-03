@@ -111,9 +111,7 @@ func TestCounterProgram(t *testing.T) {
 	result, err = rt2.Call(ctx, "inc", programID2Ptr, alicePtr2, 10)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
-	fmt.Println("trying to get value next")
 	result, err = rt2.Call(ctx, "get_value", programID2Ptr, alicePtr2)
-	fmt.Println("meter", rt2.Meter().GetBalance())
 	require.NoError(err)
 	require.Equal(int64(10), result[0])
 
@@ -150,6 +148,8 @@ func TestCounterProgram(t *testing.T) {
 	target := programID2Ptr
 	maxUnitsProgramToProgram := int64(10000)
 
+	// TODO: this is commented out because call_program does not support passing raw primitives as parameters.
+	// to be done soon.
 	// increment alice's counter on program 2
 	// result, err = rt.Call(ctx, "inc_external", caller, target, maxUnitsProgramToProgram, alicePtr, 5)
 	// require.NoError(err)
