@@ -173,43 +173,23 @@ func (i *Import) callProgramFn(
 func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, invokeProgramID int64) ([]int64, error) {
 	// first arg contains id of program to call
 	args := []int64{invokeProgramID}
-	// p := codec.NewReader(buffer, len(buffer))
-	// i := 0
-	// for !p.Empty() {
-	// 	// unpacks uint32
-	// 	size := p.UnpackInt(true)
-		
-	// 	valueBytes := make([]byte, size)
-	// 	p.UnpackFixedBytes(int(size), &valueBytes)
-	// 	ptr, err := runtime.WriteBytes(memory, valueBytes)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	args = append(args, ptr)
-	// 	i++
-	// }
-	// if p.Err() != nil {
-	// 	return nil, fmt.Errorf("failed to unpack arguments: %w", p.Err())
-	// }
+
 	i := 0
 	for i < len(buffer) {
-		fmt.Println("i", i)
 		// unpacks uint32
 		lenBytes := buffer[i:i+consts.Uint32Len]
-		length := binary.BigEndian.Uint32(lenBytes)
-		totalLength := int(consts.Uint32Len + length)
-
-
-		valueBytes := buffer[i:i + totalLength]
-		i += consts.Uint32Len + int(length)
-	
+		length := binary.BigEndian.Uint32(lenBytes) + consts.Uint32Len
+		// we include the length in the value bytes because the program 
+		// will need to know how many bytes to read
+		valueBytes := buffer[i:i + int(length)]
+		i += int(length)
+		
 		ptr, err := runtime.WriteBytes(memory, valueBytes)
 		if err != nil {
 			return nil, err
 		}
 		args = append(args, ptr)
 	}
-
 
 	return args, nil
 }
