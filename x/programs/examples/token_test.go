@@ -34,7 +34,7 @@ var (
 func TestTokenProgram(t *testing.T) {
 	require := require.New(t)
 	maxUnits := uint64(1000000)
-	cfg, err := runtime.NewConfigBuilder().Build()
+	cfg, err := runtime.NewConfigBuilder().WithDebugMode(true).Build()
 	require.NoError(err)
 	program, err := newTokenProgram(maxUnits, cfg, tokenProgramBytes)
 	require.NoError(err)

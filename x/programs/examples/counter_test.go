@@ -6,7 +6,6 @@ package examples
 import (
 	"context"
 	_ "embed"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -72,7 +71,6 @@ func TestCounterProgram(t *testing.T) {
 	// validate counter at 0
 	result, err = rt.Call(ctx, "get_value", programIDPtr, alicePtr)
 	// print meter
-	fmt.Println(rt.Meter().GetBalance())
 	require.NoError(err)
 	require.Equal(int64(0), result[0])
 
@@ -111,6 +109,7 @@ func TestCounterProgram(t *testing.T) {
 	result, err = rt2.Call(ctx, "inc", programID2Ptr, alicePtr2, 10)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
+
 	result, err = rt2.Call(ctx, "get_value", programID2Ptr, alicePtr2)
 	require.NoError(err)
 	require.Equal(int64(10), result[0])
@@ -139,26 +138,22 @@ func TestCounterProgram(t *testing.T) {
 	)
 
 	// write program id 2 to stack of program 1
-	fmt.Println("allocation program id 2")
 	programID2Ptr, err = runtime.WriteBytes(rt.Memory(), program2ID[:])
 	require.NoError(err)
-	fmt.Println("finsihed allocation program id 2")
 
 	caller := programIDPtr
 	target := programID2Ptr
 	maxUnitsProgramToProgram := int64(10000)
 
-	// TODO: this is commented out because call_program does not support passing raw primitives as parameters.
-	// to be done soon.
 	// increment alice's counter on program 2
-	// result, err = rt.Call(ctx, "inc_external", caller, target, maxUnitsProgramToProgram, alicePtr, 5)
-	// require.NoError(err)
-	// require.Equal(int64(1), result[0])
+	result, err = rt.Call(ctx, "inc_external", caller, target, maxUnitsProgramToProgram, alicePtr, 5)
+	require.NoError(err)
+	require.Equal(int64(1), result[0])
 
 	// expect alice's counter on program 2 to be 15
 	result, err = rt.Call(ctx, "get_value_external", caller, target, maxUnitsProgramToProgram, alicePtr)
 	require.NoError(err)
-	require.Equal(int64(10), result[0])
+	require.Equal(int64(15), result[0])
 
 	require.Greater(rt.Meter().GetBalance(), uint64(0))
 }
