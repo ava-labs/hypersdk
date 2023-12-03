@@ -26,7 +26,7 @@ var counterProgramBytes []byte
 func TestCounterProgram(t *testing.T) {
 	require := require.New(t)
 	db := newTestDB()
-	maxUnits := uint64(4000000)
+	maxUnits := uint64(400000000)
 	cfg, err := runtime.NewConfigBuilder().WithDebugMode(true).Build()
 	require.NoError(err)
 
@@ -71,13 +71,15 @@ func TestCounterProgram(t *testing.T) {
 
 	// validate counter at 0
 	result, err = rt.Call(ctx, "get_value", programIDPtr, alicePtr)
+	// print meter
+	fmt.Println(rt.Meter().GetBalance())
 	require.NoError(err)
 	require.Equal(int64(0), result[0])
 
 	// initialize second runtime to create second counter program with an empty
 	// meter.
 	rt2 := runtime.New(log, cfg, supported.Imports())
-	err = rt2.Initialize(ctx, counterProgramBytes, runtime.NoUnits)
+	err = rt2.Initialize(ctx, counterProgramBytes, maxUnits)
 	require.NoError(err)
 
 	// define max units to transfer to second runtime
@@ -109,10 +111,11 @@ func TestCounterProgram(t *testing.T) {
 	result, err = rt2.Call(ctx, "inc", programID2Ptr, alicePtr2, 10)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
-
-	// result, err = rt2.Call(ctx, "get_value", programID2Ptr, alicePtr2)
-	// require.NoError(err)
-	// require.Equal(int64(10), result[0])
+	fmt.Println("trying to get value next")
+	result, err = rt2.Call(ctx, "get_value", programID2Ptr, alicePtr2)
+	fmt.Println("meter", rt2.Meter().GetBalance())
+	require.NoError(err)
+	require.Equal(int64(10), result[0])
 
 	// stop the runtime to prevent further execution
 	rt2.Stop()
