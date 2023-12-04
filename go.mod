@@ -13,6 +13,7 @@ require (
 	github.com/gorilla/rpc v1.2.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/manifoldco/promptui v0.9.0
+	github.com/near/borsh-go v0.3.1
 	github.com/neilotoole/errgroup v0.1.6
 	github.com/oasisprotocol/curve25519-voi v0.0.0-20230110094441-db37f07504ce
 	github.com/onsi/ginkgo/v2 v2.8.1

@@ -5,6 +5,7 @@ package examples
 
 import (
 	"context"
+
 	"fmt"
 
 	"go.uber.org/zap"
@@ -12,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
@@ -26,6 +28,13 @@ func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *ru
 		db:           db,
 		maxUnits:     maxUnits,
 	}
+}
+
+type minter struct {
+	// TODO: use a HyperSDK.Address instead
+	To ed25519.PublicKey
+	// note: a production program would use a uint64 for amount
+	Amount int32
 }
 
 type Token struct {
@@ -89,7 +98,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := newKeyPtr(ctx, aliceKey, rt)
+	alicePtr, err := newParameterPtr(ctx, aliceKey, rt)
 	if err != nil {
 		return err
 	}
@@ -101,7 +110,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write bob's key to stack and get pointer
-	bobPtr, err := newKeyPtr(ctx, bobKey, rt)
+	bobPtr, err := newParameterPtr(ctx, bobKey, rt)
 	if err != nil {
 		return err
 	}
@@ -159,8 +168,8 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 	t.log.Debug("transferred",
-		zap.Int64("alice", transferToBob),
-		zap.Int64("to bob", transferToBob),
+		zap.Int64("alice", 1),
+		zap.Int64("to bob", 1),
 	)
 
 	// get balance alice
@@ -182,6 +191,49 @@ func (t *Token) Run(ctx context.Context) error {
 	t.log.Debug("remaining balance",
 		zap.Uint64("unit", rt.Meter().GetBalance()),
 	)
+
+	// combine alice and bobs addresses
+	minters := []minter{
+		{
+			To:     aliceKey,
+			Amount: 10,
+		},
+		{
+			To:     bobKey,
+			Amount: 12,
+		},
+	}
+
+	mintersPtr, err := newParameterPtr(ctx, minters, rt)
+	if err != nil {
+		return err
+	}
+
+	// perform bulk mint
+	_, err = rt.Call(ctx, "mint_to_many", programIDPtr, mintersPtr)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("minted many",
+		zap.Int32("alice", minters[0].Amount),
+		zap.Int32("to bob", minters[1].Amount),
+	)
+
+	// get balance alice
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("balance",
+		zap.Int64("alice", result[0]),
+	)
+
+	// get balance bob
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
+	if err != nil {
+		return err
+	}
+	t.log.Debug("balance", zap.Int64("bob", result[0]))
 
 	return nil
 }

@@ -8,6 +8,51 @@ use quote::{quote, ToTokens};
 use syn::{
     parse_macro_input, parse_str, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Type,
 };
+use unzip_n::unzip_n;
+unzip_n!(3);
+
+enum ParamKind {
+    SupportedPrimitive,
+    Program,
+    Pointer,
+}
+
+impl From<&Box<Type>> for ParamKind {
+    fn from(ty: &Box<Type>) -> Self {
+        if is_supported_primitive(ty) {
+            ParamKind::SupportedPrimitive
+        } else if is_context(ty) {
+            ParamKind::Program
+        } else {
+            ParamKind::Pointer
+        }
+    }
+}
+
+impl ParamKind {
+    fn converted_param_tokenstream(&self, param_name: &Ident) -> proc_macro2::TokenStream {
+        match self {
+            // return the original parameter if it is a supported primitive type
+            ParamKind::SupportedPrimitive => {
+                quote! {
+                    #param_name
+                }
+            }
+            // use the From<i64> trait to convert from i64 to a Program struct
+            ParamKind::Program => {
+                quote! {
+                    #param_name.into()
+                }
+            }
+            // only convert from_raw_ptr if not a supported primitive type or Program
+            ParamKind::Pointer => {
+                quote! {
+                    unsafe { wasmlanche_sdk::state::from_raw_ptr(#param_name) }
+                }
+            }
+        }
+    }
+}
 
 /// An attribute procedural macro that makes a function visible to the VM host.
 /// It does so by wrapping the `item` tokenstream in a new function that can be called by the host.
@@ -31,7 +76,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
             if let Pat::Ident(ref pat_ident) = **pat {
                 let param_name = &pat_ident.ident;
-                // We only set the type to i64 if it is not a supported WASM primitive.
+                let param_descriptor = ty.into();
                 let param_type = if is_supported_primitive(ty) {
                     ty.to_token_stream()
                 } else {
@@ -39,7 +84,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                         .expect("valid i64 type")
                         .to_token_stream()
                 };
-                return (param_name, param_type);
+                return (param_name, param_type, param_descriptor);
             }
             // add unused variable
             if let Pat::Wild(_) = **pat {
@@ -49,6 +94,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                         parse_str::<Type>("i64")
                             .expect("valid i64 type")
                             .to_token_stream(),
+                        ParamKind::Program,
                     );
                 } else {
                     panic!("Unused variables only supported for Program.")
@@ -58,8 +104,15 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         panic!("Unsupported function parameter format.");
     });
 
-    // Collect all parameter names and types into separate vectors.
-    let (param_names, param_types): (Vec<_>, Vec<_>) = full_params.unzip();
+    let (param_names, param_types, converted_params) = full_params
+        .map(|(param_name, param_type, param_kind)| {
+            (
+                param_name,
+                param_type,
+                param_kind.converted_param_tokenstream(param_name),
+            )
+        })
+        .unzip_n_vec();
 
     // Extract the original function's return type. This must be a WASM supported type.
     let return_type = &input.sig.output;
@@ -68,8 +121,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         #input
         #[no_mangle]
         pub extern "C" fn #new_name(#(#param_names: #param_types), *) #return_type {
-            // .into() uses the From() on each argument in the iterator to convert it to the type we want. 70% sure about this statement.
-            #name(#(#param_names.into()),*) // This means that every parameter type must implement From<i64>(except for the supported primitive types).
+            #name(#(#converted_params),*) // pass in the converted parameters
         }
     };
 
