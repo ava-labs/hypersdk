@@ -1,10 +1,12 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package engine
+package program
 
 import (
 	"errors"
+
+	"github.com/ava-labs/hypersdk/x/programs/engine"
 )
 
 const NoUnits = 0
@@ -16,7 +18,7 @@ var (
 var _ Meter = (*meter)(nil)
 
 // NewMeter returns a new meter initialized with max units.
-func NewMeter(store *Store, maxUnits uint64) (Meter, error) {
+func NewMeter(store *engine.Store, maxUnits uint64) (Meter, error) {
 	m := &meter{
 		store: store,
 	}
@@ -29,7 +31,7 @@ func NewMeter(store *Store, maxUnits uint64) (Meter, error) {
 
 type meter struct {
 	maxUnits uint64
-	store    *Store
+	store    *engine.Store
 }
 
 func (m *meter) GetBalance() uint64 {
@@ -46,6 +48,8 @@ func (m *meter) GetBalance() uint64 {
 
 func (m *meter) Spend(units uint64) (uint64, error) {
 	if m.GetBalance() < units {
+		// spend all remaining units
+		m.Spend(m.GetBalance())
 		return 0, ErrInsufficientUnits
 	}
 	return m.store.ConsumeFuel(units)
@@ -63,13 +67,15 @@ func (m *meter) AddUnits(units uint64) (uint64, error) {
 
 // TransferUnitsTo moves units from this meter to another meter.
 func (m *meter) TransferUnitsTo(to Meter, units uint64) (uint64, error) {
-	// TODO: add rollback support?
-
 	// spend units from this meter
 	_, err := m.Spend(units)
 	if err != nil {
 		return 0, err
 	}
 	// add units to the other meter
-	return to.AddUnits(units)
+	_, err = to.AddUnits(units)
+	if err != nil {
+		return 0, err
+	}
+	return m.GetBalance(), nil
 }
