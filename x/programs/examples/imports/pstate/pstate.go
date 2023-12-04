@@ -60,7 +60,7 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Supp
 	return nil
 }
 
-func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, valuePtr int32) int32 {
+func (i *Import) putFn(caller *wasmtime.Caller, idPtr int32, keyPtr int32, valuePtr int32) int32 {
 	client := runtime.NewExportClient(caller)
 	memory := runtime.NewMemory(client)
 	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
@@ -99,7 +99,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, value
 	return 0
 }
 
-func (i *Import) getFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32) int64 {
+func (i *Import) getFn(caller *wasmtime.Caller, idPtr int32, keyPtr int32) int64 {
 	client := runtime.NewExportClient(caller)
 	memory := runtime.NewMemory(client)
 	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))

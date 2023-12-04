@@ -5,8 +5,8 @@ use crate::program::Program;
 extern "C" {
     #[link_name = "call_program"]
     fn _call_program(
-        caller_id: i64,
-        target_id: i64,
+        caller_id: *const u8,
+        target_id: *const u8,
         max_units: i64,
         function_ptr: *const u8,
         function_len: usize,
@@ -27,8 +27,8 @@ pub(crate) fn call(
     let function_bytes = function_name.as_bytes();
     unsafe {
         _call_program(
-            caller.id(),
-            target.id(),
+            caller.id().as_ptr(),
+            target.id().as_ptr(),
             max_units,
             function_bytes.as_ptr(),
             function_bytes.len(),

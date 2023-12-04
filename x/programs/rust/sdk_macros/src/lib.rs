@@ -11,46 +11,10 @@ use syn::{
 use unzip_n::unzip_n;
 unzip_n!(3);
 
-enum ParamKind {
-    SupportedPrimitive,
-    Program,
-    Pointer,
-}
 
-impl From<&Box<Type>> for ParamKind {
-    fn from(ty: &Box<Type>) -> Self {
-        if is_supported_primitive(ty) {
-            ParamKind::SupportedPrimitive
-        } else if is_program(ty) {
-            ParamKind::Program
-        } else {
-            ParamKind::Pointer
-        }
-    }
-}
-
-impl ParamKind {
-    fn converted_param_tokenstream(&self, param_name: &Ident) -> proc_macro2::TokenStream {
-        match self {
-            // return the original parameter if it is a supported primitive type
-            ParamKind::SupportedPrimitive => {
-                quote! {
-                    #param_name
-                }
-            }
-            // use the From<i64> trait to convert from i64 to a Program struct
-            ParamKind::Program => {
-                quote! {
-                    #param_name.into()
-                }
-            }
-            // only convert from_raw_ptr if not a supported primitive type or Program
-            ParamKind::Pointer => {
-                quote! {
-                    unsafe { wasmlanche_sdk::state::from_raw_ptr(#param_name).expect("error serializing ptr") }
-                }
-            }
-        }
+fn convert_param(param_name: &Ident) -> proc_macro2::TokenStream {
+    quote! {
+        unsafe { wasmlanche_sdk::state::from_raw_ptr(#param_name).expect("error serializing ptr") }
     }
 }
 
@@ -76,15 +40,12 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
             if let Pat::Ident(ref pat_ident) = **pat {
                 let param_name = &pat_ident.ident;
-                let param_descriptor = ty.into();
-                let param_type = if is_supported_primitive(ty) {
-                    ty.to_token_stream()
-                } else {
+                // let param_descriptor = ty.into();
+                let param_type = 
                     parse_str::<Type>("i64")
                         .expect("valid i64 type")
-                        .to_token_stream()
-                };
-                return (param_name, param_type, param_descriptor);
+                        .to_token_stream();
+                return (param_name, param_type, convert_param(param_name));
             }
             // add unused variable
             if let Pat::Wild(_) = **pat {
@@ -94,7 +55,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                         parse_str::<Type>("i64")
                             .expect("valid i64 type")
                             .to_token_stream(),
-                        ParamKind::Program,
+                            convert_param(&empty_param),
                     );
                 } else {
                     panic!("Unused variables only supported for Program.")
@@ -105,13 +66,6 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     let (param_names, param_types, converted_params) = full_params
-        .map(|(param_name, param_type, param_kind)| {
-            (
-                param_name,
-                param_type,
-                param_kind.converted_param_tokenstream(param_name),
-            )
-        })
         .unzip_n_vec();
 
     // Extract the original function's return type. This must be a WASM supported type.
@@ -200,17 +154,6 @@ fn generate_to_vec(
             }
         })
         .collect()
-}
-
-/// Returns whether the type_path represents a supported primitive type.
-fn is_supported_primitive(type_path: &std::boxed::Box<Type>) -> bool {
-    if let Type::Path(ref type_path) = **type_path {
-        let ident = &type_path.path.segments[0].ident;
-        let ident_str = ident.to_string();
-        matches!(ident_str.as_str(), "i32" | "i64" | "bool")
-    } else {
-        false
-    }
 }
 
 /// Returns whether the type_path represents a Program type.
