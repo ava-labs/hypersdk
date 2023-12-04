@@ -61,8 +61,8 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtim
 // callProgramFn makes a call to an entry function of a program in the context of another program's ID.
 func (i *Import) callProgramFn(
 	caller *wasmtime.Caller,
-	callerIDPtr int64,
-	programIDPtr int64,
+	callerIDPtr int32,
+	programIDPtr int32,
 	maxUnits int64,
 	functionPtr,
 	functionLen,
@@ -132,14 +132,14 @@ func (i *Import) callProgramFn(
 		}
 	}()
 
-	// write the program id to the new runtime memory
-	ptr, err := runtime.WriteBytes(rt.Memory(), programIDBytes)
-	if err != nil {
-		i.log.Error("failed to write program id to memory",
-			zap.Error(err),
-		)
-		return -1
-	}
+	// // write the program id to the new runtime memory
+	// ptr, err := runtime.WriteBytes(rt.Memory(), programIDBytes)
+	// if err != nil {
+	// 	i.log.Error("failed to write program id to memory",
+	// 		zap.Error(err),
+	// 	)
+	// 	return -1
+	// }
 
 	argsBytes, err := memory.Range(uint64(argsPtr), uint64(argsLen))
 	if err != nil {
@@ -150,7 +150,7 @@ func (i *Import) callProgramFn(
 	}
 
 	// sync args to new runtime and return arguments to the invoke call
-	params, err := getCallArgs(ctx, rt.Memory(), argsBytes, ptr)
+	params, err := getCallArgs(ctx, rt.Memory(), argsBytes, programIDBytes)
 	if err != nil {
 		i.log.Error("failed to unmarshal call arguments",
 			zap.Error(err),
@@ -170,9 +170,18 @@ func (i *Import) callProgramFn(
 	return int64(res[0])
 }
 
-func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, invokeProgramID int64) ([]int64, error) {
+func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, programIDBytes []byte) ([]int64, error) {
 	// first arg contains id of program to call
-	args := []int64{invokeProgramID}
+	bytes := make([]byte, consts.Uint32Len+len(programIDBytes))
+	binary.BigEndian.PutUint32(bytes, uint32(len(programIDBytes)))
+	copy(bytes[consts.Uint32Len:], programIDBytes)
+
+	invokeProgramIDPtr, err := runtime.WriteBytes(memory, bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	args := []int64{invokeProgramIDPtr}
 
 	i := 0
 	for i < len(buffer) {
