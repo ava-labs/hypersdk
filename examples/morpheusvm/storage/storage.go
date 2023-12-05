@@ -48,9 +48,11 @@ const (
 	feePrefix          = 0x3
 	incomingWarpPrefix = 0x4
 	outgoingWarpPrefix = 0x5
+	aliasPrefix        = 0x6
 )
 
 const BalanceChunks uint16 = 1
+const AliasChunks uint16 = 1
 
 var (
 	failureByte  = byte(0x0)
@@ -244,6 +246,69 @@ func SubBalance(
 		return mu.Remove(ctx, key)
 	}
 	return setBalance(ctx, mu, key, nbal)
+}
+
+func AliasKey(alias string) (k []byte) {
+	k = make([]byte, 1+len(alias)+consts.Uint16Len)
+	k[0] = aliasPrefix
+	copy(k[1:], []byte(alias))
+	binary.BigEndian.PutUint16(k[1+len(alias):], AliasChunks)
+	return k
+}
+
+func SetAlias(
+	ctx context.Context,
+	mu state.Mutable,
+	alias string,
+	addr codec.Address,
+) error {
+	k := AliasKey(alias)
+	return mu.Insert(ctx, k, addr[:])
+}
+
+func GetAlias(
+	ctx context.Context,
+	im state.Immutable,
+	alias string,
+) (bool, codec.Address, error) {
+	_, addr, exists, err := getAlias(ctx, im, alias)
+	return exists, addr, err
+}
+
+func getAlias(
+	ctx context.Context,
+	im state.Immutable,
+	alias string,
+) ([]byte, codec.Address, bool, error) {
+	k := AliasKey(alias)
+	addr, exists, err := innerGetAlias(im.GetValue(ctx, k))
+	return k, addr, exists, err
+}
+
+func GetAliasFromState(
+	ctx context.Context,
+	f ReadState,
+	alias string,
+) (codec.Address, error) {
+	k := AliasKey(alias)
+	values, errs := f(ctx, [][]byte{k})
+	addr, _, err := innerGetAlias(values[0], errs[0])
+	return addr, err
+}
+
+func innerGetAlias(
+	v []byte,
+	err error,
+) (codec.Address, bool, error) {
+	if errors.Is(err, database.ErrNotFound) {
+		return codec.Address{}, false, nil
+	}
+	if err != nil {
+		return codec.Address{}, false, err
+	}
+	var addr codec.Address
+	copy(addr[:], v)
+	return addr, true, nil
 }
 
 func HeightKey() (k []byte) {

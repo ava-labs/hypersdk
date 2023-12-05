@@ -12,6 +12,7 @@ import (
 
 type metrics struct {
 	transfer prometheus.Counter
+	setAlias prometheus.Counter
 }
 
 func newMetrics(gatherer ametrics.MultiGatherer) (*metrics, error) {
@@ -20,6 +21,11 @@ func newMetrics(gatherer ametrics.MultiGatherer) (*metrics, error) {
 			Namespace: "actions",
 			Name:      "transfer",
 			Help:      "number of transfer actions",
+		}),
+		setAlias: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "actions",
+			Name:      "setAlias",
+			Help:      "number of set alias actions",
 		}),
 	}
 	r := prometheus.NewRegistry()

@@ -59,3 +59,39 @@ var transferCmd = &cobra.Command{
 		return err
 	},
 }
+
+var setAliasCmd = &cobra.Command{
+	Use: "setAlias",
+	RunE: func(*cobra.Command, []string) error {
+		ctx := context.Background()
+		_, _, factory, cli, bcli, ws, err := handler.DefaultActor()
+		if err != nil {
+			return err
+		}
+
+		// Select recipient
+		alias, err := handler.Root().PromptString("alias", 4, 4)
+		if err != nil {
+			return err
+		}
+
+		// Select recipient
+		address, err := handler.Root().PromptAddress("address")
+		if err != nil {
+			return err
+		}
+
+		// Confirm action
+		cont, err := handler.Root().PromptContinue()
+		if !cont || err != nil {
+			return err
+		}
+
+		// Generate transaction
+		_, _, err = sendAndWait(ctx, nil, &actions.SetAlias{
+			Alias:   alias,
+			Address: address,
+		}, cli, bcli, ws, factory, true)
+		return err
+	},
+}

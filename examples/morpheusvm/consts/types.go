@@ -6,6 +6,7 @@ package consts
 const (
 	// Action TypeIDs
 	TransferID uint8 = 0
+	SetAliasID uint8 = 1
 
 	// Auth TypeIDs
 	ED25519ID   uint8 = 0

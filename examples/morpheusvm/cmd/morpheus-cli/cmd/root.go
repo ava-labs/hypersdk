@@ -144,6 +144,7 @@ func init() {
 	// actions
 	actionCmd.AddCommand(
 		transferCmd,
+		setAliasCmd,
 	)
 
 	// spam

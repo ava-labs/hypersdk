@@ -4,3 +4,6 @@
 package actions
 
 var OutputValueZero = []byte("value is zero")
+var AddressEmpty = []byte("address is empty")
+var AliasEmpty = []byte("alias is empty")
+var AliasLengthInvalid = []byte("alias length is invalid")
