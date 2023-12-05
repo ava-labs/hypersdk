@@ -8,9 +8,6 @@ use quote::{quote, ToTokens};
 use syn::{
     parse_macro_input, parse_str, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Type,
 };
-use unzip_n::unzip_n;
-unzip_n!(3);
-
 
 fn convert_param(param_name: &Ident) -> proc_macro2::TokenStream {
     quote! {
@@ -41,11 +38,10 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             if let Pat::Ident(ref pat_ident) = **pat {
                 let param_name = &pat_ident.ident;
                 // let param_descriptor = ty.into();
-                let param_type = 
-                    parse_str::<Type>("i64")
-                        .expect("valid i64 type")
-                        .to_token_stream();
-                return (param_name, param_type, convert_param(param_name));
+                let param_type = parse_str::<Type>("i64")
+                    .expect("valid i64 type")
+                    .to_token_stream();
+                return (param_name, param_type);
             }
             // add unused variable
             if let Pat::Wild(_) = **pat {
@@ -55,7 +51,6 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                         parse_str::<Type>("i64")
                             .expect("valid i64 type")
                             .to_token_stream(),
-                            convert_param(&empty_param),
                     );
                 } else {
                     panic!("Unused variables only supported for Program.")
@@ -65,8 +60,10 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         panic!("Unsupported function parameter format.");
     });
 
-    let (param_names, param_types, converted_params) = full_params
-        .unzip_n_vec();
+    let (param_names, param_types): (Vec<_>, Vec<_>) = full_params.unzip();
+    let converted_params = param_names
+        .iter()
+        .map(|param_name| convert_param(param_name));
 
     // Extract the original function's return type. This must be a WASM supported type.
     let return_type = &input.sig.output;

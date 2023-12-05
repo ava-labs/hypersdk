@@ -10,7 +10,6 @@ use crate::{
 #[derive(Clone, Copy, BorshDeserialize, BorshSerialize)]
 pub struct Program([u8; Self::LEN]);
 
-
 impl Program {
     /// The length of ids.ID
     pub const LEN: usize = 32;
@@ -21,12 +20,16 @@ impl Program {
         self.0
     }
 
+    #[must_use]
+    pub(crate) fn new(id: [u8; Self::LEN]) -> Self {
+        Self(id)
+    }
 
     /// Returns a State object that can be used to interact with persistent
     /// storage exposed by the host.
     #[must_use]
-    pub fn state(self) -> State {
-        State::new(self)
+    pub fn state(&self) -> State {
+        State::new(Program::new(self.id()))
     }
 
     /// Attempts to call another program `target` from this program `caller`.
@@ -47,7 +50,7 @@ impl Program {
 }
 
 #[macro_export]
-macro_rules! serialize_params {
+macro_rules! params {
     ($($param:expr),*) => {
         {
             // the macro expands into this block. This will serialize every parameter

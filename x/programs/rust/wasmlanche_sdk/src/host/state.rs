@@ -18,8 +18,6 @@ extern "C" {
 
 /// Persists the bytes at `value_ptr` to the bytes at key ptr on the host storage.
 ///
-/// # Safety
-/// TODO:
 pub(crate) unsafe fn put_bytes<V>(caller: &Program, key: &Key, value: &V) -> Result<(), StateError>
 where
     V: BorshSerialize,
@@ -30,7 +28,13 @@ where
     let value_bytes = prepend_length(&value_bytes);
     let key_bytes = prepend_length(key.as_bytes());
 
-    match unsafe { _put(caller.id().as_ptr(), key_bytes.as_ptr(), value_bytes.as_ptr()) } {
+    match unsafe {
+        _put(
+            caller.id().as_ptr(),
+            key_bytes.as_ptr(),
+            value_bytes.as_ptr(),
+        )
+    } {
         0 => Ok(()),
         _ => Err(StateError::Write),
     }
