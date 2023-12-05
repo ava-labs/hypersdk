@@ -65,6 +65,9 @@ macro_rules! params {
     };
 }
 
+/// Serializes the parameter into a byte vector.
+/// # Errors
+/// Will return an error if the parameter cannot be serialized.
 pub fn serialize_params<T>(param: &T) -> Result<Vec<u8>, std::io::Error>
 where
     T: BorshSerialize,

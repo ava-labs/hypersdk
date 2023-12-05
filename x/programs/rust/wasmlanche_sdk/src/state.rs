@@ -90,6 +90,8 @@ pub unsafe fn bytes_and_length(ptr: i64) -> (Vec<u8>, usize) {
 }
 
 /// Returns a vector of bytes with the length of the argument prepended.
+/// # Panics
+/// Panics if the length of the argument cannot be converted to u32.
 #[must_use]
 pub fn prepend_length(bytes: &[u8]) -> Vec<u8> {
     let mut len_bytes = u32::try_from(bytes.len())

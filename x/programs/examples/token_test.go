@@ -24,7 +24,7 @@ var (
 	log = logging.NewLogger(
 		"",
 		logging.NewWrappedCore(
-			logging.Debug,
+			logging.Info,
 			os.Stderr,
 			logging.Plain.ConsoleEncoder(),
 		))
@@ -33,8 +33,8 @@ var (
 // go test -v -timeout 30s -run ^TestTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func TestTokenProgram(t *testing.T) {
 	require := require.New(t)
-	maxUnits := uint64(1000000)
-	cfg, err := runtime.NewConfigBuilder().WithDebugMode(true).Build()
+	maxUnits := uint64(80000)
+	cfg, err := runtime.NewConfigBuilder().Build()
 	require.NoError(err)
 	program, err := newTokenProgram(maxUnits, cfg, tokenProgramBytes)
 	require.NoError(err)

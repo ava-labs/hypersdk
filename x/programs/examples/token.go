@@ -124,7 +124,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// mint 100 tokens to alice
-	mintAlice := int64(100)
+	mintAlice := int64(1000)
 	mintAlicePtr, err := newParameterPtr(ctx, mintAlice, rt)
 	if err != nil {
 		return err

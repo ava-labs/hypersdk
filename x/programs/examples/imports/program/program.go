@@ -16,6 +16,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/examples/imports"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
@@ -96,7 +97,7 @@ func (i *Import) callProgramFn(
 			zap.Error(err),
 		)
 		return -1
-	}	
+	}
 
 	// create a new runtime for the program to be invoked with a zero balance.
 	rt := runtime.New(i.log, i.cfg, i.imports)
@@ -132,15 +133,6 @@ func (i *Import) callProgramFn(
 		}
 	}()
 
-	// // write the program id to the new runtime memory
-	// ptr, err := runtime.WriteBytes(rt.Memory(), programIDBytes)
-	// if err != nil {
-	// 	i.log.Error("failed to write program id to memory",
-	// 		zap.Error(err),
-	// 	)
-	// 	return -1
-	// }
-
 	argsBytes, err := memory.Range(uint64(argsPtr), uint64(argsLen))
 	if err != nil {
 		i.log.Error("failed to read program args name from memory",
@@ -172,10 +164,7 @@ func (i *Import) callProgramFn(
 
 func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, programIDBytes []byte) ([]int64, error) {
 	// first arg contains id of program to call
-	bytes := make([]byte, consts.Uint32Len+len(programIDBytes))
-	binary.BigEndian.PutUint32(bytes, uint32(len(programIDBytes)))
-	copy(bytes[consts.Uint32Len:], programIDBytes)
-
+	bytes := imports.PrependLength(programIDBytes)
 	invokeProgramIDPtr, err := runtime.WriteBytes(memory, bytes)
 	if err != nil {
 		return nil, err
@@ -183,16 +172,17 @@ func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, prog
 
 	args := []int64{invokeProgramIDPtr}
 
-	i := 0
-	for i < len(buffer) {
+	for i := 0; i < len(buffer); {
 		// unpacks uint32
-		lenBytes := buffer[i:i+consts.Uint32Len]
+		lenBytes := buffer[i : i+consts.Uint32Len]
 		length := binary.BigEndian.Uint32(lenBytes) + consts.Uint32Len
-		// we include the length in the value bytes because the program 
-		// will need to know how many bytes to read
-		valueBytes := buffer[i:i + int(length)]
+
+		// we include the length in the value bytes because the program
+		// still needs to know how many bytes to read
+		valueBytes := buffer[i : i+int(length)]
 		i += int(length)
-		
+
+		// every argument is a pointer
 		ptr, err := runtime.WriteBytes(memory, valueBytes)
 		if err != nil {
 			return nil, err

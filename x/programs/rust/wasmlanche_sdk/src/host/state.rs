@@ -17,7 +17,6 @@ extern "C" {
 }
 
 /// Persists the bytes at `value_ptr` to the bytes at key ptr on the host storage.
-///
 pub(crate) unsafe fn put_bytes<V>(caller: &Program, key: &Key, value: &V) -> Result<(), StateError>
 where
     V: BorshSerialize,
@@ -41,9 +40,6 @@ where
 }
 
 /// Gets the bytes associated with the key from the host.
-///
-/// # Safety
-/// TODO:
 pub(crate) unsafe fn get_bytes(caller: &Program, key: &Key) -> i64 {
     // prepend length to key
     let key = prepend_length(key.as_bytes());
