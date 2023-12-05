@@ -13,13 +13,14 @@ import (
 )
 
 // NewLink returns a new host module program link.
-func NewLink(log logging.Logger, engine *wasmtime.Engine, imports SupportedImports, meter engine.Meter, cfg *engine.Config) *Link {
+func NewLink(log logging.Logger, engine *wasmtime.Engine, imports SupportedImports, meter program.Meter, debugMode bool) *Link {
 	return &Link{
 		log:     log,
 		inner:   wasmtime.NewLinker(engine),
 		imports: imports,
 		meter:   meter,
-		cfg:     cfg,
+		engine: engine,
+		debugMode: debugMode,
 	}
 }
 
@@ -27,8 +28,9 @@ type Link struct {
 	inner   *wasmtime.Linker
 	imports SupportedImports
 	log     logging.Logger
-	meter   engine.Meter
-	cfg     *engine.Config
+	meter   program.Meter
+	engine  *wasmtime.Engine
+	debugMode bool
 
 	// cb is a global callback for import function requests and responses.
 	cb *ImportFnCallback
@@ -41,6 +43,17 @@ func (l *Link) Instantiate(store *engine.Store, mod *wasmtime.Module, cb *Import
 		cb = &ImportFnCallback{}
 	}
 	l.cb = cb
+	if l.debugMode {
+		wasiConfig := wasmtime.NewWasiConfig()
+		wasiConfig.InheritStderr()
+		wasiConfig.InheritStdout()
+		store.SetWasi(wasiConfig)
+		err := l.Wasi()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	imports := getRegisteredImports(mod.Imports())
 	// register host functions exposed to the guest (imports)
 	for _, imp := range imports {
@@ -57,12 +70,16 @@ func (l *Link) Instantiate(store *engine.Store, mod *wasmtime.Module, cb *Import
 }
 
 // Meter returns the meter for the module the link is linking to.
-func (l *Link) Meter() engine.Meter {
+func (l *Link) Meter() program.Meter {
 	return l.meter
 }
 
 func (l *Link) Imports() SupportedImports {
 	return l.imports
+}
+
+func (l *Link) NewStore() *wasmtime.Engine {
+	return l.engine
 }
 
 // RegisterFn registers a host function exposed to the guest (import).

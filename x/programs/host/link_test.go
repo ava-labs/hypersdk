@@ -23,15 +23,11 @@ func TestLinkMissingImport(t *testing.T) {
     )	
 	`)
 	require.NoError(err)
-	cfg, err := engine.NewConfigBuilder().Build()
-	require.NoError(err)
-	eng, err := engine.New(cfg)
-	require.NoError(err)
+	eng := engine.New(engine.NewConfig())
 	mod, err := eng.CompileModule(wasm)
 	require.NoError(err)
-	store, err := engine.NewStore(eng)
-	require.NoError(err)
-	link, err := newTestLink(cfg, store, NoSupportedImports)
+	store := engine.NewStore(eng, engine.NewStoreConfig(10))
+	link, err := newTestLink(store, NoSupportedImports)
 	require.NoError(err)
 	_, err = link.Instantiate(store, mod, nil)
 	require.ErrorIs(err, ErrMissingImportModule)
@@ -77,15 +73,12 @@ func TestLinkImport(t *testing.T) {
 			imports.Register(tt.module, func() Import {
 				return newTestImport(tt.module, "CustomWrap", tt.fn)
 			})
-			cfg, err := engine.NewConfigBuilder().Build()
-			require.NoError(err)
-			eng, err := engine.New(cfg)
-			require.NoError(err)
+			eng := engine.New(engine.NewConfig())
 			mod, err := eng.CompileModule(wasm)
 			require.NoError(err)
-			store, err := engine.NewStore(eng)
+			store := engine.NewStore(eng, engine.NewStoreConfig(10))
 			require.NoError(err)
-			link, err := newTestLink(cfg, store, imports.Build())
+			link, err := newTestLink(store, imports.Build())
 			require.NoError(err)
 			_, err = link.Instantiate(store, mod, nil)
 			if tt.errMsg != "" {
@@ -112,18 +105,15 @@ func BenchmarkInstantiate(b *testing.B) {
 	)	
 	`)
 	require.NoError(err)
-	cfg, err := engine.NewConfigBuilder().Build()
-	require.NoError(err)
-	eng, err := engine.New(cfg)
+	eng := engine.New(engine.NewConfig())
 	require.NoError(err)
 	mod, err := eng.CompileModule(wasm)
 	require.NoError(err)
 	b.Run("benchmark_funcWrap", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			store, err := engine.NewStore(eng)
-			require.NoError(err)
-			link, err := newTestLink(cfg, store, imports.Build())
+			store := engine.NewStore(eng, engine.NewStoreConfig(10))
+			link, err := newTestLink(store, imports.Build())
 			require.NoError(err)
 			_, err = link.Instantiate(store, mod, nil)
 			require.NoError(err)
@@ -136,9 +126,8 @@ func BenchmarkInstantiate(b *testing.B) {
 	b.Run("benchmark_funcInt64", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			store, err := engine.NewStore(eng)
-			require.NoError(err)
-			link, err := newTestLink(cfg, store, imports.Build())
+			store := engine.NewStore(eng, engine.NewStoreConfig(10))
+			link, err := newTestLink(store, imports.Build())
 			require.NoError(err)
 			_, err = link.Instantiate(store, mod, nil)
 			require.NoError(err)
@@ -146,12 +135,12 @@ func BenchmarkInstantiate(b *testing.B) {
 	})
 }
 
-func newTestLink(cfg *engine.Config, store *engine.Store, supported SupportedImports) (*Link, error) {
-	meter, err := engine.NewMeter(store, engine.NoUnits)
+func newTestLink(store *engine.Store, supported SupportedImports) (*Link, error) {
+	meter, err := program.NewMeter(store, program.NoUnits)
 	if err != nil {
 		return nil, err
 	}
-	return NewLink(logging.NoLog{}, store.Engine(), supported, meter, cfg), nil
+	return NewLink(logging.NoLog{}, store.Engine(), supported, meter, false), nil
 }
 
 type testImport struct {

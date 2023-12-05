@@ -24,16 +24,14 @@ import (
 const Name = "program"
 
 type Import struct {
-	cfg  *engine.Config
 	db   state.Mutable
 	log  logging.Logger
 	link *host.Link
 }
 
 // New returns a new program invoke host module which can perform program to program calls.
-func New(log logging.Logger, db state.Mutable, cfg *engine.Config) *Import {
+func New(log logging.Logger, db state.Mutable) *Import {
 	return &Import{
-		cfg: cfg,
 		db:  db,
 		log: log,
 	}

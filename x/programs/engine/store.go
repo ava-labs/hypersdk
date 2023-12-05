@@ -7,17 +7,41 @@ import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
-func NewStore(e *Engine) (*Store, error) {
+const (
+	defaultLimitMaxTableElements = 4096
+	defaultLimitMaxTables        = 1
+	defaultLimitMaxInstances     = 32
+	defaultLimitMaxMemories      = 1
+)
+
+func NewStoreConfig(maxMemoryPages int64) *StoreConfig {
+	return &StoreConfig{
+		limitMaxMemory:        maxMemoryPages,
+		limitMaxTableElements: defaultLimitMaxTableElements,
+		limitMaxTables:        defaultLimitMaxTables,
+		limitMaxInstances:     defaultLimitMaxInstances,
+		limitMaxMemories:      defaultLimitMaxMemories,
+	}
+}
+
+type StoreConfig struct {
+	limitMaxMemory        int64
+	limitMaxTableElements int64
+	limitMaxTables        int64
+	limitMaxInstances     int64
+	limitMaxMemories      int64
+}
+
+func NewStore(e *Engine, cfg *StoreConfig) *Store {
 	inner := wasmtime.NewStore(e.inner)
 	inner.Limiter(
-		e.cfg.limitMaxMemory,
-		e.cfg.limitMaxTableElements,
-		e.cfg.limitMaxInstances,
-		e.cfg.limitMaxTables,
-		e.cfg.limitMaxMemories,
+		cfg.limitMaxMemory,
+		cfg.limitMaxTableElements,
+		cfg.limitMaxInstances,
+		cfg.limitMaxTables,
+		cfg.limitMaxMemories,
 	)
-
-	return &Store{inner: inner}, nil
+	return &Store{inner: inner}
 }
 
 type Store struct {

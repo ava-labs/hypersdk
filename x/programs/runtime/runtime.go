@@ -7,8 +7,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/bytecodealliance/wasmtime-go/v14"
-
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
@@ -19,7 +17,7 @@ import (
 var _ Runtime = &WasmRuntime{}
 
 // New returns a new wasm runtime.
-func New(log logging.Logger, cfg *engine.Config, imports host.SupportedImports) Runtime {
+func New(log logging.Logger, cfg *Config, imports host.SupportedImports) Runtime {
 	return &WasmRuntime{
 		imports: imports,
 		log:     log,
@@ -28,10 +26,10 @@ func New(log logging.Logger, cfg *engine.Config, imports host.SupportedImports) 
 }
 
 type WasmRuntime struct {
-	cfg     *engine.Config
+	cfg     *Config
 	engine  *engine.Engine
 	inst    program.Instance
-	meter   engine.Meter
+	meter   program.Meter
 	imports host.SupportedImports
 
 	once     sync.Once
@@ -48,12 +46,13 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 		r.Stop()
 	}(ctx)
 
-	r.engine, err = engine.New(r.cfg)
+	ecfg, err := r.cfg.EngineCfg()
 	if err != nil {
 		return err
 	}
 
-	store, err := engine.NewStore(r.engine)
+	r.engine = engine.New(ecfg)
+	store := engine.NewStore(r.engine, r.cfg.StoreCfg())
 	if err != nil {
 		return err
 	}
@@ -61,30 +60,20 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	// set initial epoch deadline
 	store.SetEpochDeadline(1)
 
+	// compile the module
 	mod, err := r.engine.CompileModule(programBytes)
 	if err != nil {
 		return err
 	}
 
 	// setup metering
-	r.meter, err = engine.NewMeter(store, maxUnits)
+	r.meter, err = program.NewMeter(store, maxUnits)
 	if err != nil {
 		return err
 	}
 
-	link := host.NewLink(r.log, store.Engine(), r.imports, r.meter, r.cfg)
-
-	// enable wasi logging support only in testing/debug mode
-	if r.cfg.DebugMode {
-		wasiConfig := wasmtime.NewWasiConfig()
-		wasiConfig.InheritStderr()
-		wasiConfig.InheritStdout()
-		store.SetWasi(wasiConfig)
-		err = link.Wasi()
-		if err != nil {
-			return err
-		}
-	}
+	// create linker
+	link := host.NewLink(r.log, store.Engine(), r.imports, r.meter, r.cfg.DebugMode)
 
 	// instantiate the module with all of the imports defined by the linker
 	inst, err := link.Instantiate(store, mod, nil)
@@ -92,6 +81,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 		return err
 	}
 
+	// set the instance
 	r.inst = NewInstance(store, inst)
 
 	return nil
@@ -110,7 +100,7 @@ func (r *WasmRuntime) Memory() (*program.Memory, error) {
 	return r.inst.Memory()
 }
 
-func (r *WasmRuntime) Meter() engine.Meter {
+func (r *WasmRuntime) Meter() program.Meter {
 	return r.meter
 }
 

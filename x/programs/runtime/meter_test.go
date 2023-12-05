@@ -12,13 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
+
+	"github.com/ava-labs/hypersdk/x/programs/engine"
+	"github.com/ava-labs/hypersdk/x/programs/host"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 )
 
 func TestInfiniteLoop(t *testing.T) {
 	require := require.New(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	// infinite loop
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
@@ -31,15 +32,17 @@ func TestInfiniteLoop(t *testing.T) {
 	require.NoError(err)
 	maxUnits := uint64(10000)
 	cfg, err := NewConfigBuilder().
-		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
+		WithLimitMaxMemory(1 * program.MemoryPageSize). // 1 pages
 		Build()
 	require.NoError(err)
-	runtime := New(logging.NoLog{}, cfg, NoSupportedImports)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	runtime := New(logging.NoLog{}, cfg, host.NoSupportedImports)
 	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 
 	_, err = runtime.Call(ctx, "get")
-	require.ErrorIs(err, ErrTrapInterrupt)
+	require.ErrorIs(err, program.ErrTrapInterrupt)
 }
 
 func TestMetering(t *testing.T) {

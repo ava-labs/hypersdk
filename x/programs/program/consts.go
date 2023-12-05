@@ -3,9 +3,14 @@
 
 package program
 
+import (
+	"github.com/ava-labs/avalanchego/utils/units"
+)
+
 const (
-	AllocFnName   = "alloc"
-	DeallocFnName = "dealloc"
-	MemoryFnName  = "memory"
-	GuestSuffix   = "_guest"
+	AllocFnName    = "alloc"
+	DeallocFnName  = "dealloc"
+	MemoryFnName   = "memory"
+	GuestSuffix    = "_guest"
+	MemoryPageSize = 64 * units.KiB
 )

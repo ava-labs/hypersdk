@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/program"
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
@@ -32,10 +33,10 @@ func TestStop(t *testing.T) {
 	require.NoError(err)
 	maxUnits := uint64(10000)
 	cfg, err := NewConfigBuilder().
-		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
+		WithLimitMaxMemory(1 * program.MemoryPageSize). // 1 pages
 		Build()
 	require.NoError(err)
-	runtime := New(logging.NoLog{}, cfg, NoSupportedImports)
+	runtime := New(logging.NoLog{}, cfg, host.NoSupportedImports)
 	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 	// stop the runtime
@@ -64,10 +65,10 @@ func TestCallParams(t *testing.T) {
 	require.NoError(err)
 	maxUnits := uint64(10000)
 	cfg, err := NewConfigBuilder().
-		WithLimitMaxMemory(1 * MemoryPageSize). // 1 pages
+		WithLimitMaxMemory(1 * program.MemoryPageSize). // 1 pages
 		Build()
 	require.NoError(err)
-	runtime := New(logging.NoLog{}, cfg, NoSupportedImports)
+	runtime := New(logging.NoLog{}, cfg, host.NoSupportedImports)
 	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 
@@ -77,5 +78,5 @@ func TestCallParams(t *testing.T) {
 
 	// pass 3 params when 2 are expected.
 	_, err = runtime.Call(ctx, "add", 10, 10, 10)
-	require.ErrorIs(err, program.ErrInvalidParamCount)
+	require.ErrorIs(err, program.ErrInvalidArgCount)
 }

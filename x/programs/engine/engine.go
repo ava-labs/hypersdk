@@ -4,63 +4,44 @@
 package engine
 
 import (
-	"fmt"
-
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
 type Engine struct {
 	inner *wasmtime.Engine
-	cfg   *Config
 }
 
 // New creates a new Wasm engine
-func New(cfg *Config) (*Engine, error) {
-	wcfg, err := cfg.Engine()
-	if err != nil {
-		return nil, err
-	}
+func New(cfg *Config) *Engine {
 	return &Engine{
-		cfg:   cfg,
-		inner: wasmtime.NewEngineWithConfig(wcfg),
-	}, nil
+		inner: wasmtime.NewEngineWithConfig(cfg.inner),
+	}
 }
 
 func (e *Engine) IncrementEpoch() {
 	e.inner.IncrementEpoch()
 }
 
-func (e *Engine) CompileModule(bytes []byte) (*wasmtime.Module, error) {
-	switch e.cfg.CompileStrategy {
-	case PrecompiledWasm:
-		// Note: that to deserialize successfully the bytes provided must have been
-		// produced with an `Engine` that has the same compilation options as the
-		// provided engine, and from the same version of this library.
-		//
-		// A precompile is not something we would store on chain.
-		// Instead we would prefetch programs and precompile them.
-		return wasmtime.NewModuleDeserialize(e.inner, bytes)
+func (e *Engine) PreCompileModule(bytes []byte) (*wasmtime.Module, error) {
+	// Note: that to deserialize successfully the bytes provided must have been
+	// produced with an `Engine` that has the same compilation options as the
+	// provided engine, and from the same version of this library.
+	//
+	// A precompile is not something we would store on chain.
+	// Instead we would prefetch programs and precompile them.
+	return wasmtime.NewModuleDeserialize(e.inner, bytes)
+}
 
-	case CompileWasm:
-		return wasmtime.NewModule(e.inner, bytes)
-	default:
-		return nil, fmt.Errorf("unsupported compile strategy: %v", e.cfg.CompileStrategy)
-	}
+func (e *Engine) CompileModule(bytes []byte) (*wasmtime.Module, error) {
+	return wasmtime.NewModule(e.inner, bytes)
 }
 
 // PreCompileWasm returns a precompiled wasm module.
 //
 // Note: these bytes can be deserialized by an `Engine` that has the same version.
 // For that reason precompiled wasm modules should not be stored on chain.
-func PreCompileWasmBytes(programBytes []byte, cfg *Config) ([]byte, error) {
-	engine, err := New(cfg)
-	if err != nil {
-		return nil, err
-	}
-	store, err := NewStore(engine)
-	if err != nil {
-		return nil, err
-	}
+func PreCompileWasmBytes(programBytes []byte, engineCfg *Config, storeCfg *StoreConfig) ([]byte, error) {
+	store := NewStore(New(engineCfg), storeCfg)
 	module, err := wasmtime.NewModule(store.Engine(), programBytes)
 	if err != nil {
 		return nil, err

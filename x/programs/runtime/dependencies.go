@@ -6,7 +6,6 @@ package runtime
 import (
 	"context"
 
-	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/program"
 )
 
@@ -22,7 +21,7 @@ type Runtime interface {
 	// Memory returns the runtime memory.
 	Memory() (*program.Memory, error)
 	// Meter returns the runtime meter.
-	Meter() engine.Meter
+	Meter() program.Meter
 	// Stop stops the runtime.
 	Stop()
 }

@@ -6,7 +6,7 @@ package host
 import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
-	"github.com/ava-labs/hypersdk/x/programs/engine"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 )
 
 const (
@@ -19,9 +19,9 @@ type Imports map[string]Import
 
 type ImportFnCallback struct {
 	// beforeRequest is called before the import function request is made.
-	BeforeRequest func(module, name string, meter engine.Meter) error
+	BeforeRequest func(module, name string, meter program.Meter) error
 	// afterResponse is called after the import function response is received.
-	AfterResponse func(module, name string, meter engine.Meter) error
+	AfterResponse func(module, name string, meter program.Meter) error
 }
 
 // Supported is a map of supported import modules. The runtime will enable these imports
