@@ -12,6 +12,6 @@ func BenchmarkNewStore(b *testing.B) {
 	eng := New(NewConfig())
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = NewStore(eng, NewStoreConfig(10))
+		_ = NewStore(eng, NewStoreConfig())
 	}
 }

@@ -56,6 +56,7 @@ func TestLimitMaxMemoryGrow(t *testing.T) {
 	
 	  (memory 1) ;; 1 pages
 	  (export "memory" (memory 0))
+	
 	)
 	`)
 	require.NoError(err)

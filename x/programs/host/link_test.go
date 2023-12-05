@@ -26,7 +26,7 @@ func TestLinkMissingImport(t *testing.T) {
 	eng := engine.New(engine.NewConfig())
 	mod, err := eng.CompileModule(wasm)
 	require.NoError(err)
-	store := engine.NewStore(eng, engine.NewStoreConfig(10))
+	store := engine.NewStore(eng, engine.NewStoreConfig())
 	link, err := newTestLink(store, NoSupportedImports)
 	require.NoError(err)
 	_, err = link.Instantiate(store, mod, nil)
@@ -76,7 +76,7 @@ func TestLinkImport(t *testing.T) {
 			eng := engine.New(engine.NewConfig())
 			mod, err := eng.CompileModule(wasm)
 			require.NoError(err)
-			store := engine.NewStore(eng, engine.NewStoreConfig(10))
+			store := engine.NewStore(eng, engine.NewStoreConfig())
 			require.NoError(err)
 			link, err := newTestLink(store, imports.Build())
 			require.NoError(err)
@@ -112,7 +112,7 @@ func BenchmarkInstantiate(b *testing.B) {
 	b.Run("benchmark_funcWrap", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			store := engine.NewStore(eng, engine.NewStoreConfig(10))
+			store := engine.NewStore(eng, engine.NewStoreConfig())
 			link, err := newTestLink(store, imports.Build())
 			require.NoError(err)
 			_, err = link.Instantiate(store, mod, nil)
@@ -126,7 +126,7 @@ func BenchmarkInstantiate(b *testing.B) {
 	b.Run("benchmark_funcInt64", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			store := engine.NewStore(eng, engine.NewStoreConfig(10))
+			store := engine.NewStore(eng, engine.NewStoreConfig())
 			link, err := newTestLink(store, imports.Build())
 			require.NoError(err)
 			_, err = link.Instantiate(store, mod, nil)

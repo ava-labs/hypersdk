@@ -14,14 +14,18 @@ const (
 	defaultLimitMaxMemories      = 1
 )
 
-func NewStoreConfig(maxMemoryPages int64) *StoreConfig {
+func NewStoreConfig() *StoreConfig {
 	return &StoreConfig{
-		limitMaxMemory:        maxMemoryPages,
+		limitMaxMemory:        DefaultLimitMaxMemory,
 		limitMaxTableElements: defaultLimitMaxTableElements,
 		limitMaxTables:        defaultLimitMaxTables,
 		limitMaxInstances:     defaultLimitMaxInstances,
 		limitMaxMemories:      defaultLimitMaxMemories,
 	}
+}
+
+func (c *StoreConfig) SetLimitMaxMemory(limitMaxMemory int64) {
+	c.limitMaxMemory = limitMaxMemory
 }
 
 type StoreConfig struct {

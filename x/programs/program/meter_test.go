@@ -15,8 +15,7 @@ import (
 func TestMeter(t *testing.T) {
 	require := require.New(t)
 	eng := engine.New(engine.NewConfig())
-	store := engine.NewStore(eng, engine.NewStoreConfig(1))
-
+	store := engine.NewStore(eng, engine.NewStoreConfig())
 	// new meter balance is 0
 	meter, err := NewMeter(store, 0)
 	require.NoError(err)
@@ -37,9 +36,8 @@ func TestMeter(t *testing.T) {
 func TestMeterMultipleStores(t *testing.T) {
 	require := require.New(t)
 	eng := engine.New(engine.NewConfig())
-	store1 := engine.NewStore(eng, engine.NewStoreConfig(1))
-	store2 := engine.NewStore(eng, engine.NewStoreConfig(1))
-
+	store1 := engine.NewStore(eng, engine.NewStoreConfig())
+	store2 := engine.NewStore(eng, engine.NewStoreConfig())
 	// ensure isolation between stores in same engine.
 	units := uint64(100)
 	meter1, err := NewMeter(store1, units)
