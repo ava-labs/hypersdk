@@ -25,7 +25,7 @@ where
 
     // prepend length to both key & value
     let value_bytes = prepend_length(&value_bytes);
-    let key_bytes = prepend_length(key.as_bytes());
+    let key_bytes = prepend_length(key);
 
     match unsafe {
         _put(
@@ -42,6 +42,6 @@ where
 /// Gets the bytes associated with the key from the host.
 pub(crate) unsafe fn get_bytes(caller: &Program, key: &Key) -> i64 {
     // prepend length to key
-    let key = prepend_length(key.as_bytes());
+    let key = prepend_length(key);
     unsafe { _get(caller.id().as_ptr(), key.as_ptr()) }
 }

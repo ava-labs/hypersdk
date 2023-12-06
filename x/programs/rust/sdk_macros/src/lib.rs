@@ -4,10 +4,8 @@ use core::panic;
 
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use quote::{quote, ToTokens};
-use syn::{
-    parse_macro_input, parse_str, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Type,
-};
+use quote::quote;
+use syn::{parse_macro_input, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Type};
 
 fn convert_param(param_name: &Ident) -> proc_macro2::TokenStream {
     quote! {
@@ -34,24 +32,13 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             if index == 0 && !is_program(ty) {
                 panic!("First parameter must be Program.");
             }
-
             if let Pat::Ident(ref pat_ident) = **pat {
-                let param_name = &pat_ident.ident;
-                // let param_descriptor = ty.into();
-                let param_type = parse_str::<Type>("i64")
-                    .expect("valid i64 type")
-                    .to_token_stream();
-                return (param_name, param_type);
+                return (&pat_ident.ident, quote! { i64 });
             }
             // add unused variable
             if let Pat::Wild(_) = **pat {
                 if is_program(ty) {
-                    return (
-                        &empty_param,
-                        parse_str::<Type>("i64")
-                            .expect("valid i64 type")
-                            .to_token_stream(),
-                    );
+                    return (&empty_param, quote! { i64 });
                 } else {
                     panic!("Unused variables only supported for Program.")
                 }

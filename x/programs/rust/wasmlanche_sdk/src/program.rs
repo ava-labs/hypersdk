@@ -49,19 +49,11 @@ impl Program {
     }
 }
 
+/// Serialize every parameter into a byte vector and return a vector of byte vectors
 #[macro_export]
 macro_rules! params {
     ($($param:expr),*) => {
-        {
-            // the macro expands into this block. This will serialize every parameter
-            // into a byte vector and return a vector of byte vectors.
-            let mut params = Vec::new();
-            $(
-                params.push(wasmlanche_sdk::program::serialize_params(&$param).unwrap());
-            )*
-
-            params
-        }
+        vec![$(wasmlanche_sdk::program::serialize_params($param).unwrap(),)*]
     };
 }
 

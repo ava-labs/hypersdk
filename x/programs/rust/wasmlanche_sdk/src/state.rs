@@ -4,6 +4,7 @@ use crate::{
     program::Program,
 };
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
+use std::ops::Deref;
 
 pub struct State {
     program: Program,
@@ -106,24 +107,18 @@ pub fn prepend_length(bytes: &[u8]) -> Vec<u8> {
 #[derive(Debug, Default, Clone)]
 pub struct Key(Vec<u8>);
 
+impl Deref for Key {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl Key {
+    /// Returns a new Key from the bytes.
     #[must_use]
     pub fn new(bytes: Vec<u8>) -> Self {
         Self(bytes)
-    }
-
-    #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.0
-    }
-
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
     }
 }

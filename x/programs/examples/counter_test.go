@@ -70,7 +70,6 @@ func TestCounterProgram(t *testing.T) {
 
 	// validate counter at 0
 	result, err = rt.Call(ctx, "get_value", programIDPtr, alicePtr)
-	// print meter
 	require.NoError(err)
 	require.Equal(int64(0), result[0])
 
@@ -117,7 +116,6 @@ func TestCounterProgram(t *testing.T) {
 	result, err = rt2.Call(ctx, "get_value", programID2Ptr, alicePtr2)
 	require.NoError(err)
 	require.Equal(incAmount, result[0])
-	// print rt2 meter
 	// stop the runtime to prevent further execution
 	rt2.Stop()
 

@@ -22,7 +22,7 @@ cargo clean
 cargo build \
   --target "${target}" \
   --target-dir "${target_dir}" \
-  --release > build.txt
+  --release
 
 # Copy the compiled program into the build directory
 cp ./"${target_dir}"/"${target}"/release/*.wasm "./${target_dir}/"
