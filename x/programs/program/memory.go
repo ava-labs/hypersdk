@@ -112,11 +112,17 @@ func (m *Memory) Alloc(length uint32) (uint32, error) {
 	return uint32(addr), nil
 }
 
-func (m *Memory) Grow(delta uint64) (uint64, error) {
+func (m *Memory) Grow(delta uint64) (uint32, error) {
 	mem := m.inner
 	runtime.KeepAlive(mem)
-
-	return mem.Grow(m.store, delta)
+	length, err := mem.Grow(m.store, delta)
+	if err != nil {
+		return 0, err
+	}
+	if uint64(length) > math.MaxUint32 {
+		return 0, ErrOverflow
+	}
+	return uint32(length), nil
 }
 
 func (m *Memory) Len() (uint32, error) {

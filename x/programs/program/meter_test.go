@@ -6,7 +6,6 @@ package program
 import (
 	"testing"
 
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
@@ -26,7 +25,7 @@ func TestMeter(t *testing.T) {
 	require.Equal(units, balance)
 	require.Equal(units, meter.GetBalance())
 	// verify over spend fails
-	_, err = meter.Spend(units +1)
+	_, err = meter.Spend(units + 1)
 	require.ErrorIs(err, ErrInsufficientUnits)
 	// overspend should consume all units
 	balance = meter.GetBalance()
@@ -51,7 +50,7 @@ func TestMeterMultipleStores(t *testing.T) {
 	require.NoError(err)
 	require.Equal(uint64(0), balance)
 	// transfer too many units from meter2 to meter1
-	balance, err = meter2.TransferUnitsTo(meter1, units + 1)
+	balance, err = meter2.TransferUnitsTo(meter1, units+1)
 	require.ErrorIs(err, ErrInsufficientUnits)
 	require.Equal(uint64(0), balance)
 	require.Equal(uint64(0), meter2.GetBalance())
