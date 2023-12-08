@@ -264,6 +264,42 @@ func BenchmarkOasisVerifyCache(b *testing.B) {
 	}
 }
 
+func BenchmarkConsensusBatchVerify(b *testing.B) {
+	for _, numItems := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
+		b.Run(strconv.Itoa(numItems), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				pubs := make([][]byte, numItems)
+				msgs := make([][]byte, numItems)
+				sigs := make([][]byte, numItems)
+				for j := 0; j < numItems; j++ {
+					pub, priv, err := ed25519.GenerateKey(nil)
+					if err != nil {
+						panic(err)
+					}
+					pubs[j] = pub[:]
+					msg := make([]byte, 128)
+					_, err = rand.Read(msg)
+					if err != nil {
+						panic(err)
+					}
+					msgs[j] = msg
+					sig := ed25519.Sign(priv, msg)
+					sigs[j] = sig
+				}
+				b.StartTimer()
+				bv := ed25519consensus.NewBatchVerifier()
+				for j := 0; j < numItems; j++ {
+					bv.Add(pubs[j], msgs[j], sigs[j])
+				}
+				if !bv.Verify() {
+					panic("invalid signature")
+				}
+			}
+		})
+	}
+}
+
 func BenchmarkOasisBatchVerify(b *testing.B) {
 	for _, numItems := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
 		b.Run(strconv.Itoa(numItems), func(b *testing.B) {
