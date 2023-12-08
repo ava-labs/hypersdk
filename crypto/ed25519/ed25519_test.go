@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/hdevalence/ed25519consensus"
 	oed25519 "github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
 	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519/extra/cache"
 
@@ -30,6 +31,10 @@ var (
 		115, 50, 124, 153, 59, 53, 196, 150, 168, 143, 151, 235,
 		222, 128, 136, 161, 9, 40, 139, 85, 182, 153, 68, 135,
 		62, 166, 45, 235, 251, 246, 69, 7,
+	}
+
+	oed25519options = &oed25519.Options{
+		Verify: oed25519.VerifyOptionsZIP_215,
 	}
 )
 
@@ -132,6 +137,26 @@ func BenchmarkStdLibVerifySingle(b *testing.B) {
 	}
 }
 
+func BenchmarConsensusVerifySingle(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		msg := make([]byte, 128)
+		_, err := rand.Read(msg)
+		if err != nil {
+			panic(err)
+		}
+		pub, priv, err := ed25519.GenerateKey(nil)
+		if err != nil {
+			panic(err)
+		}
+		sig := ed25519.Sign(priv, msg)
+		b.StartTimer()
+		if !ed25519consensus.Verify(pub, msg, sig) {
+			panic("invalid signature")
+		}
+	}
+}
+
 func BenchmarkOasisVerifySingle(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
@@ -146,7 +171,7 @@ func BenchmarkOasisVerifySingle(b *testing.B) {
 		}
 		sig := oed25519.Sign(priv, msg)
 		b.StartTimer()
-		if !oed25519.VerifyWithOptions(pub, msg, sig, &verifyOptions) {
+		if !oed25519.VerifyWithOptions(pub, msg, sig, oed25519options) {
 			panic("invalid signature")
 		}
 	}
@@ -168,7 +193,7 @@ func BenchmarkOasisVerifyCache(b *testing.B) {
 		sig := oed25519.Sign(priv, msg)
 		cacheVerifier.AddPublicKey(pub)
 		b.StartTimer()
-		if !cacheVerifier.VerifyWithOptions(pub, msg, sig, &verifyOptions) {
+		if !cacheVerifier.VerifyWithOptions(pub, msg, sig, oed25519options) {
 			panic("invalid signature")
 		}
 	}
@@ -200,7 +225,7 @@ func BenchmarkOasisBatchVerify(b *testing.B) {
 				b.StartTimer()
 				bv := oed25519.NewBatchVerifierWithCapacity(numItems)
 				for j := 0; j < numItems; j++ {
-					bv.AddWithOptions(pubs[j], msgs[j], sigs[j], &verifyOptions)
+					bv.AddWithOptions(pubs[j], msgs[j], sigs[j], oed25519options)
 				}
 				if !bv.VerifyBatchOnly(nil) {
 					panic("invalid signature")
@@ -238,7 +263,7 @@ func BenchmarkOasisBatchVerifyCache(b *testing.B) {
 				b.StartTimer()
 				bv := oed25519.NewBatchVerifierWithCapacity(numItems)
 				for j := 0; j < numItems; j++ {
-					cacheVerifier.AddWithOptions(bv, pubs[j], msgs[j], sigs[j], &verifyOptions)
+					cacheVerifier.AddWithOptions(bv, pubs[j], msgs[j], sigs[j], oed25519options)
 				}
 				if !bv.VerifyBatchOnly(nil) {
 					panic("invalid signature")
