@@ -25,4 +25,7 @@ pub enum StateError {
 
     #[error("failed to deserialize bytes")]
     Deserialization,
+
+    #[error("failed to convert integer")]
+    IntegerConversion
 }

@@ -11,18 +11,19 @@ import (
 )
 
 // GetBytesFromPtr returns the bytes at [ptr] in [client] memory.
-func GetBytesFromPtr(client runtime.WasmtimeExportClient, ptr int64) ([]byte, error) {
+func GetBytesFromPtr(client runtime.WasmtimeExportClient, ptrArg int64) ([]byte, error) {
 	memory := runtime.NewMemory(client)
 
-	// first 4 bytes represent the length
-	lenBytes, err := memory.Range(uint64(ptr), consts.Uint32Len)
-	if err != nil {
-		return nil, err
-	}
-	length := binary.BigEndian.Uint32(lenBytes)
+	// first 4 bytes represent the length of the bytes to return
+	length := ptrArg >> 32
+
+	// grab the ptr which is the right most 4 bytes
+	mask := ^uint32(0)
+	ptr := ptrArg & int64(mask)
+
 
 	// The following [length] bytes represent the bytes to return
-	bytes, err := memory.Range(uint64(ptr+consts.Uint32Len), uint64(length))
+	bytes, err := memory.Range(uint64(ptr), uint64(length))
 	if err != nil {
 		return nil, err
 	}

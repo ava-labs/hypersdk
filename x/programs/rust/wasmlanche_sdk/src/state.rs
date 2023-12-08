@@ -90,19 +90,6 @@ pub unsafe fn bytes_and_length(ptr: i64) -> (Vec<u8>, usize) {
     (value[4..].to_vec(), len)
 }
 
-/// Returns a vector of bytes with the length of the argument prepended.
-/// # Panics
-/// Panics if the length of the argument cannot be converted to u32.
-#[must_use]
-pub fn prepend_length(bytes: &[u8]) -> Vec<u8> {
-    let mut len_bytes = u32::try_from(bytes.len())
-        .expect("pointer out range")
-        .to_be_bytes()
-        .to_vec();
-    len_bytes.extend(bytes);
-    len_bytes
-}
-
 /// Key is a wrapper around a Vec<u8> that represents a key in the host storage.
 #[derive(Debug, Default, Clone)]
 pub struct Key(Vec<u8>);

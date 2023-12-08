@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::{
     host::call_program,
-    state::{prepend_length, State},
+    state::State,
 };
 
 /// Represents the current Program in the context of the caller. Or an external
@@ -16,7 +16,7 @@ impl Program {
 
     /// Returns the id of the program.
     #[must_use]
-    pub fn id(self) -> [u8; Self::LEN] {
+    pub fn id(&self) -> [u8; Self::LEN] {
         self.0
     }
 
@@ -66,4 +66,16 @@ where
 {
     let bytes = prepend_length(&borsh::to_vec(param)?);
     Ok(bytes)
+}
+
+/// Returns a vector of bytes with the length of the argument prepended.
+/// # Panics
+/// Panics if the length of the argument cannot be converted to u32.
+fn prepend_length(bytes: &[u8]) -> Vec<u8> {
+    let mut len_bytes = u32::try_from(bytes.len())
+        .expect("pointer out range")
+        .to_be_bytes()
+        .to_vec();
+        len_bytes.extend(bytes);
+        len_bytes
 }

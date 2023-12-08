@@ -4,6 +4,8 @@
 //! the program. These methods are unsafe as should be used
 //! with caution.
 
+use crate::errors::StateError;
+
 /// Represents a pointer to a block of memory allocated by the global allocator.
 #[derive(Clone, Copy)]
 pub struct Pointer(*mut u8);
@@ -67,6 +69,24 @@ impl Memory {
             .copy_from(bytes.as_ref().as_ptr(), bytes.as_ref().len());
     }
 }
+
+// Converts a pointer to a i64 with the first 4 bytes of the pointer
+// representing the length of the memory block.
+pub fn to_ptr_arg(arg: &[u8]) -> Result<i64, StateError> {
+    let mut ptr = u32::try_from(arg.as_ptr() as i64).map_err(|_| StateError::IntegerConversion)? as i64;
+    let len = u32::try_from(arg.len()).map_err(|_| StateError::IntegerConversion)? as i64;
+    ptr |= len << 32;
+    Ok(ptr)
+}
+
+// Converts a i64 to a pointer with the first 4 bytes of the pointer
+// representing the length of the memory block.
+pub fn from_ptr_arg(arg: i64) -> (i64, usize) {
+    let len = (arg >> 32) as usize;
+    let ptr = arg & 0x00000000ffffffff;
+    (ptr, len)
+}
+
 
 /// Attempts to allocate a block of memory of size `len` and returns a pointer
 /// to the start of the block.
