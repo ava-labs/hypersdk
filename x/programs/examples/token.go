@@ -270,7 +270,7 @@ func (t *Token) RunShort(ctx context.Context) error {
 		return err
 	}
 
-	programIDPtr, err := runtime.WriteBytes(rt.Memory(), programID[:])
+	programIDPtr, err := newParameterPtr(ctx, programID, rt)
 	if err != nil {
 		return err
 	}
