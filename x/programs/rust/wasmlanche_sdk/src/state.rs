@@ -1,8 +1,8 @@
 use crate::{
     errors::StateError,
     host::{get_bytes, put_bytes},
-    program::Program,
     memory::from_raw_ptr,
+    program::Program,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 use std::ops::Deref;
@@ -54,7 +54,6 @@ impl State {
         unsafe { from_raw_ptr(val_ptr) }
     }
 }
-
 
 /// Key is a wrapper around a Vec<u8> that represents a key in the host storage.
 #[derive(Debug, Default, Clone)]

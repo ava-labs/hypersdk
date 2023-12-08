@@ -74,7 +74,8 @@ impl Memory {
 // Converts a pointer to a i64 with the first 4 bytes of the pointer
 // representing the length of the memory block.
 pub fn to_ptr_arg(arg: &[u8]) -> Result<i64, StateError> {
-    let mut ptr = u32::try_from(arg.as_ptr() as i64).map_err(|_| StateError::IntegerConversion)? as i64;
+    let mut ptr =
+        u32::try_from(arg.as_ptr() as i64).map_err(|_| StateError::IntegerConversion)? as i64;
     let len = u32::try_from(arg.len()).map_err(|_| StateError::IntegerConversion)? as i64;
     ptr |= len << 32;
     Ok(ptr)
@@ -84,12 +85,10 @@ pub fn to_ptr_arg(arg: &[u8]) -> Result<i64, StateError> {
 // representing the length of the memory block.
 pub fn from_ptr_arg(arg: i64) -> (i64, usize) {
     let len = (arg >> 32) as usize;
-    let mask : u32 = !0;
+    let mask: u32 = !0;
     let ptr = arg & (mask as i64);
     (ptr, len)
 }
-
-
 
 /// Converts a raw pointer to a deserialized value.
 /// Expects the first 4 bytes of the pointer to represent the [length] of the serialized value,
@@ -110,7 +109,7 @@ where
 
 /// Returns a tuple of the bytes and length of the argument.
 /// PtrArg is encoded using Big Endian as an i64.
-/// The first 32 bits representing the length of the bytes and 
+/// The first 32 bits representing the length of the bytes and
 /// the last 32 representing the ptr.
 /// # Panics
 /// Panics if the value cannot be converted from i32 to usize.
@@ -123,7 +122,6 @@ pub unsafe fn bytes_and_length(ptr_arg: i64) -> (Vec<u8>, usize) {
     let value = unsafe { std::slice::from_raw_parts(ptr as *const u8, len) };
     (value.to_vec(), len)
 }
-
 
 /// Attempts to allocate a block of memory of size `len` and returns a pointer
 /// to the start of the block.

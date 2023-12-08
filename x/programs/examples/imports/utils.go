@@ -9,7 +9,9 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-// GetBytesFromPtr returns the bytes at [ptr] in [client] memory.
+// GetBytesFromArgPtr returns the bytes at [ptr] in [client] memory.
+// The first 4 bytes of [ptr] must represent the length and the
+// following 4 bytes represent the pointer to the bytes.
 func GetBytesFromArgPtr(client runtime.WasmtimeExportClient, ptrArg int64) ([]byte, error) {
 	memory := runtime.NewMemory(client)
 

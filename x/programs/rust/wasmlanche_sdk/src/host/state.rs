@@ -2,10 +2,7 @@
 //! storage exposed by the host.
 use crate::errors::StateError;
 use crate::memory::to_ptr_arg;
-use crate::{
-    program::Program,
-    state::Key,
-};
+use crate::{program::Program, state::Key};
 use borsh::{to_vec, BorshSerialize};
 
 #[link(wasm_import_module = "state")]
@@ -29,13 +26,7 @@ where
     let value = to_ptr_arg(&value_bytes)?;
     let key = to_ptr_arg(key)?;
 
-    match unsafe {
-        _put(
-            caller,
-            key,
-            value,
-        )
-    } {
+    match unsafe { _put(caller, key, value) } {
         0 => Ok(()),
         _ => Err(StateError::Write),
     }

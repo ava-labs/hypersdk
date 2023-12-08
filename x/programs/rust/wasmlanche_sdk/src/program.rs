@@ -1,9 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use crate::{
-    host::call_program,
-    state::State,
-};
+use crate::{host::call_program, state::State};
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
@@ -76,6 +73,6 @@ fn prepend_length(bytes: &[u8]) -> Vec<u8> {
         .expect("pointer out range")
         .to_be_bytes()
         .to_vec();
-        len_bytes.extend(bytes);
-        len_bytes
+    len_bytes.extend(bytes);
+    len_bytes
 }
