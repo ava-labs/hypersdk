@@ -15,21 +15,19 @@ import (
 // NewLink returns a new host module program link.
 func NewLink(log logging.Logger, engine *wasmtime.Engine, imports SupportedImports, meter program.Meter, debugMode bool) *Link {
 	return &Link{
-		log:     log,
-		inner:   wasmtime.NewLinker(engine),
-		imports: imports,
-		meter:   meter,
-		engine: engine,
+		log:       log,
+		inner:     wasmtime.NewLinker(engine),
+		imports:   imports,
+		meter:     meter,
 		debugMode: debugMode,
 	}
 }
 
 type Link struct {
-	inner   *wasmtime.Linker
-	imports SupportedImports
-	log     logging.Logger
-	meter   program.Meter
-	engine  *wasmtime.Engine
+	inner     *wasmtime.Linker
+	imports   SupportedImports
+	log       logging.Logger
+	meter     program.Meter
 	debugMode bool
 
 	// cb is a global callback for import function requests and responses.
@@ -74,12 +72,9 @@ func (l *Link) Meter() program.Meter {
 	return l.meter
 }
 
+// Imports returns the supported imports for the link instance.
 func (l *Link) Imports() SupportedImports {
 	return l.imports
-}
-
-func (l *Link) NewStore() *wasmtime.Engine {
-	return l.engine
 }
 
 // RegisterFn registers a host function exposed to the guest (import).
