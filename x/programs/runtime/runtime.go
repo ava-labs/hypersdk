@@ -17,20 +17,26 @@ import (
 var _ Runtime = &WasmRuntime{}
 
 // New returns a new wasm runtime.
-func New(log logging.Logger, cfg *Config, imports host.SupportedImports) Runtime {
+func New(
+	log logging.Logger,
+	engine *engine.Engine,
+	imports host.SupportedImports,
+	cfg *Config,
+) Runtime {
 	return &WasmRuntime{
-		imports: imports,
 		log:     log,
+		engine:  engine,
+		imports: imports,
 		cfg:     cfg,
 	}
 }
 
 type WasmRuntime struct {
-	cfg     *Config
 	engine  *engine.Engine
 	inst    program.Instance
 	meter   program.Meter
 	imports host.SupportedImports
+	cfg     *Config
 
 	once     sync.Once
 	cancelFn context.CancelFunc
@@ -38,7 +44,11 @@ type WasmRuntime struct {
 	log logging.Logger
 }
 
-func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUnits uint64) (err error) {
+func (r *WasmRuntime) Initialize(
+	ctx context.Context,
+	programBytes []byte,
+	maxUnits uint64,
+) (err error) {
 	ctx, r.cancelFn = context.WithCancel(ctx)
 	go func(ctx context.Context) {
 		<-ctx.Done()
@@ -46,16 +56,10 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 		r.Stop()
 	}(ctx)
 
-	ecfg, err := r.cfg.EngineCfg()
-	if err != nil {
-		return err
-	}
-
-	r.engine = engine.New(ecfg)
-	store := engine.NewStore(r.engine, r.cfg.StoreCfg())
-	if err != nil {
-		return err
-	}
+	// create store
+	cfg := engine.NewStoreConfig()
+	cfg.SetLimitMaxMemory(r.cfg.LimitMaxMemory)
+	store := engine.NewStore(r.engine, cfg)
 
 	// set initial epoch deadline
 	store.SetEpochDeadline(1)
@@ -73,7 +77,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	}
 
 	// create linker
-	link := host.NewLink(r.log, store.Engine(), r.imports, r.meter, r.cfg.DebugMode)
+	link := host.NewLink(r.log, store.Engine(), r.imports, r.meter, r.cfg.EnableDebugMode)
 
 	// instantiate the module with all of the imports defined by the linker
 	inst, err := link.Instantiate(store, mod, nil)

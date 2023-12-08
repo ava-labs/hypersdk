@@ -13,12 +13,12 @@ import (
 func TestDefaultSerialization(t *testing.T) {
 	require := require.New(t)
 	// marshal default builder
-	builderDefault := NewConfigBuilder()
-	defaultBytes, err := json.Marshal(builderDefault)
+	cfg := NewConfig()
+	defaultBytes, err := json.Marshal(cfg)
 	require.NoError(err)
 	// unmarshal and ensure defaults
-	builder := &ConfigBuilder{}
+	builder := &Config{}
 	err = json.Unmarshal(defaultBytes, builder)
 	require.NoError(err)
-	require.Equal(builderDefault, builder)
+	require.Equal(cfg, builder)
 }
