@@ -140,7 +140,7 @@ func (i *Import) callProgramFn(
 		)
 		return -1
 	}
-
+	fmt.Println("function name ", string(functionBytes))
 	// sync args to new runtime and return arguments to the invoke call
 	params, err := getCallArgs(ctx, rt.Memory(), argsBytes, programIDBytes)
 	if err != nil {
@@ -163,31 +163,31 @@ func (i *Import) callProgramFn(
 }
 
 func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, programIDBytes []byte) ([]int64, error) {
+	fmt.Println("in getCallArgs")
 	// first arg contains id of program to call
-	bytes := imports.PrependLength(programIDBytes)
-	invokeProgramIDPtr, err := runtime.WriteBytes(memory, bytes)
+	invokeProgramIDPtr, err := runtime.WriteBytes(memory, programIDBytes)
 	if err != nil {
 		return nil, err
 	}
-
-	args := []int64{invokeProgramIDPtr}
+	argPtr := imports.ToPtrArgument(invokeProgramIDPtr, uint32(len(programIDBytes)))
+	
+	args := []int64{argPtr}
 
 	for i := 0; i < len(buffer); {
 		// unpacks uint32
 		lenBytes := buffer[i : i+consts.Uint32Len]
-		length := binary.BigEndian.Uint32(lenBytes) + consts.Uint32Len
+		length := binary.BigEndian.Uint32(lenBytes)
 
-		// we include the length in the value bytes because the program
-		// still needs to know how many bytes to read
-		valueBytes := buffer[i : i+int(length)]
-		i += int(length)
+		valueBytes := buffer[i + consts.Uint32Len : i+ consts.Uint32Len + int(length)]
+		i += int(length) + consts.Uint32Len
 
 		// every argument is a pointer
 		ptr, err := runtime.WriteBytes(memory, valueBytes)
 		if err != nil {
 			return nil, err
 		}
-		args = append(args, ptr)
+		argPtr := imports.ToPtrArgument(ptr, length)
+		args = append(args, argPtr)
 	}
 
 	return args, nil

@@ -135,8 +135,8 @@ func (i *Import) getFn(caller *wasmtime.Caller, id int64, key int64) int64 {
 	}
 
 	// prepend the length so that the program can grab the correct number of bytes
-	val = imports.PrependLength(val)
 	ptr, err := runtime.WriteBytes(memory, val)
+	argPtr := imports.ToPtrArgument(ptr, uint32(len(val)))
 	if err != nil {
 		{
 			i.log.Error("failed to write to memory",
@@ -146,5 +146,5 @@ func (i *Import) getFn(caller *wasmtime.Caller, id int64, key int64) int64 {
 		return -1
 	}
 
-	return ptr
+	return argPtr
 }

@@ -25,8 +25,8 @@ var counterProgramBytes []byte
 func TestCounterProgram(t *testing.T) {
 	require := require.New(t)
 	db := newTestDB()
-	maxUnits := uint64(80000)
-	cfg, err := runtime.NewConfigBuilder().Build()
+	maxUnits := uint64(80000000)
+	cfg, err := runtime.NewConfigBuilder().WithDebugMode(true).Build()
 	require.NoError(err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -81,7 +81,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// define max units to transfer to second runtime
-	unitsTransfer := uint64(15000)
+	unitsTransfer := uint64(150000)
 
 	// transfer the units from the original runtime to the new runtime before
 	// any calls are made.
@@ -147,7 +147,7 @@ func TestCounterProgram(t *testing.T) {
 
 	caller := programIDPtr
 	target := programID2Ptr
-	maxUnitsProgramToProgram := int64(10000)
+	maxUnitsProgramToProgram := int64(100000)
 	maxUnitsProgramToProgramPtr, err := newParameterPtr(ctx, maxUnitsProgramToProgram, rt)
 	require.NoError(err)
 
