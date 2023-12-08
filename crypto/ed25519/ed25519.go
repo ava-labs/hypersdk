@@ -78,7 +78,7 @@ type Batch struct {
 	bv ed25519consensus.BatchVerifier
 }
 
-func NewBatch(_ int) *Batch {
+func NewBatch() *Batch {
 	// TODO: add support for pre-allocating batch
 	return &Batch{bv: ed25519consensus.NewBatchVerifier()}
 }

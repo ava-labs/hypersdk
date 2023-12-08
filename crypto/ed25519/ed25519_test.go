@@ -117,6 +117,33 @@ func TestVerifyInvalidParams(t *testing.T) {
 		"Verify incorrectly verified a message")
 }
 
+func TestBatchVerifyValid(t *testing.T) {
+	b := NewBatch(1024)
+	for j := 0; j < 1024; j++ {
+		pub, priv, err := oed25519.GenerateKey(nil)
+		if err != nil {
+			panic(err)
+		}
+		pubs[j] = pub
+		msg := make([]byte, 128)
+		_, err = rand.Read(msg)
+		if err != nil {
+			panic(err)
+		}
+		msgs[j] = msg
+		sig := oed25519.Sign(priv, msg)
+		sigs[j] = sig
+	}
+	b.StartTimer()
+	bv := oed25519.NewBatchVerifierWithCapacity(numItems)
+	for j := 0; j < numItems; j++ {
+		bv.AddWithOptions(pubs[j], msgs[j], sigs[j], oed25519options)
+	}
+	if !bv.VerifyBatchOnly(nil) {
+		panic("invalid signature")
+	}
+}
+
 func BenchmarkStdLibVerifySingle(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
