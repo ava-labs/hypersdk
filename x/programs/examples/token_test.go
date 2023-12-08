@@ -13,7 +13,9 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 
+	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
+	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -48,10 +50,13 @@ func BenchmarkTokenProgram(b *testing.B) {
 	maxUnits := uint64(40000)
 
 	cfg, err := runtime.NewConfigBuilder().
-		WithCompileStrategy(runtime.CompileWasm).
+		WithCompileStrategy(engine.CompileWasm).
 		WithDefaultCache(true).
 		Build()
 	require.NoError(err)
+	ecfg, err := cfg.Engine()
+	require.NoError(err)
+	eng := engine.New(ecfg)
 
 	b.Run("benchmark_token_program_compile_and_cache", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
@@ -75,12 +80,14 @@ func BenchmarkTokenProgram(b *testing.B) {
 		}
 	})
 
-	cfg, err = runtime.NewConfigBuilder().
-		WithCompileStrategy(runtime.PrecompiledWasm).
+	rcfg = runtime.NewConfig().
+		WithCompileStrategy(engine.PrecompiledWasm)
+	ecfg, err = engine.NewConfigBuilder().
 		WithDefaultCache(false).
 		Build()
 	require.NoError(err)
-	preCompiledTokenProgramBytes, err := runtime.PreCompileWasmBytes(tokenProgramBytes, cfg)
+	require.NoError(err)
+	preCompiledTokenProgramBytes, err := engine.PreCompileWasmBytes(tokenProgramBytes, ecfg, cfg.StoreCfg())
 	require.NoError(err)
 
 	b.ResetTimer()
@@ -111,9 +118,9 @@ func newTokenProgram(maxUnits uint64, cfg *runtime.Config, programBytes []byte) 
 	db := newTestDB()
 
 	// define imports
-	supported := runtime.NewSupportedImports()
-	supported.Register("state", func() runtime.Import {
+	imports := host.NewImportsBuilder()
+	imports.Register("state", func() host.Import {
 		return pstate.New(log, db)
 	})
-	return NewToken(log, programBytes, db, cfg, supported.Imports(), maxUnits), nil
+	return NewToken(log, programBytes, db, cfg, imports.Build(), maxUnits), nil
 }

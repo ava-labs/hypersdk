@@ -24,14 +24,19 @@ import (
 const Name = "program"
 
 type Import struct {
-	db   state.Mutable
-	log  logging.Logger
-	link *host.Link
+	db  state.Mutable
+	log logging.Logger
+	cfg *runtime.Config
+
+	engine  *engine.Engine
+	imports host.SupportedImports
+	meter   program.Meter
 }
 
 // New returns a new program invoke host module which can perform program to program calls.
-func New(log logging.Logger, db state.Mutable) *Import {
+func New(log logging.Logger, db state.Mutable, cfg *runtime.Config) *Import {
 	return &Import{
+		cfg: cfg,
 		db:  db,
 		log: log,
 	}
@@ -41,7 +46,8 @@ func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link host.Link) error {
+func (i *Import) Register(link *host.Link) error {
+	i.meter = link.Meter()
 	return link.RegisterFiveParamInt64Fn(Name, "call_program", i.callProgramFn)
 }
 
@@ -78,17 +84,17 @@ func (i *Import) callProgramFn(
 	}
 
 	// create a new runtime for the program to be invoked with a zero balance.
-	rt := runtime.New(i.link.Log(), i.cfg, i.link.Imports())
-	err = rt.Initialize(ctx, programWasmBytes, 0)
+	rt := runtime.New(i.log, i.engine, i.imports, i.cfg)
+	err = rt.Initialize(ctx, programWasmBytes, program.NoUnits)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize child runtime: %w", err)
 	}
 
 	// transfer the units from the caller to the new runtime before any calls are made.
-	_, err = i.link.Meter().TransferUnitsTo(rt.Meter(), uint64(maxUnits))
+	_, err = i.meter.TransferUnitsTo(rt.Meter(), uint64(maxUnits))
 	if err != nil {
 		i.log.Error("failed to transfer units",
-			zap.Uint64("balance", i.link.Meter().GetBalance()),
+			zap.Uint64("balance", i.meter.GetBalance()),
 			zap.Int64("required", maxUnits),
 			zap.Error(err),
 		)
@@ -100,7 +106,7 @@ func (i *Import) callProgramFn(
 		// stop the runtime to prevent further execution
 		rt.Stop()
 
-		_, err = rt.Meter().TransferUnitsTo(i.link.Meter(), rt.Meter().GetBalance())
+		_, err = rt.Meter().TransferUnitsTo(i.meter, rt.Meter().GetBalance())
 		if err != nil {
 			i.log.Error("failed to transfer remaining balance to caller",
 				zap.Error(err),

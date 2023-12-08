@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
+	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -26,18 +27,16 @@ func TestCounterProgram(t *testing.T) {
 	require := require.New(t)
 	db := newTestDB()
 	maxUnits := uint64(40000)
-	cfg, err := runtime.NewConfigBuilder().Build()
-	require.NoError(err)
-
+	cfg := runtime.NewConfig()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// define supported imports
-	supported := runtime.NewSupportedImports()
-	supported.Register("state", func() runtime.Import {
+	imports := host.NewImportsBuilder()
+	imports.Register("state", func() host.Import {
 		return pstate.New(log, db)
 	})
-	supported.Register("program", func() runtime.Import {
+	imports.Register("program", func() host.Import {
 		return program.New(log, db, cfg)
 	})
 
