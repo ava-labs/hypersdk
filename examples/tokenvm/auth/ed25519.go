@@ -163,13 +163,8 @@ func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatch
 	}
 }
 
-func (*ED25519AuthEngine) Cache(auth chain.Auth) {
-	// This should never not happen but we perform this check
-	// to avoid a panic.
-	pauth, ok := auth.(*ED25519)
-	if ok {
-		ed25519.CachePublicKey(pauth.Signer)
-	}
+func (*ED25519AuthEngine) Cache(chain.Auth) {
+	// TODO: add support for caching expanded public key to make batch verification faster
 }
 
 type ED25519Batch struct {
