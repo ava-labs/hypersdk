@@ -372,7 +372,8 @@ To compute the maximum amount of storage units that a transaction could use,
 it must be possible to determine how much data a particular key can read/write
 from/to state. The `hypersdk` requires that all state keys are suffixed with
 a big-endian encoded `uint16` of the number of "chunks" (each chunk is 64 bytes)
-that can be read/stored to satisfy this requirement.
+that can be read/stored to satisfy this requirement.  This appended size suffix is part of the key,
+so the same key with different size suffixes would be considered distinct keys.
 
 This constraint is equivalent to deciding whether to use a `uint8`, `uint16`, `uint32`,
 `uint64`, etc. when storing an unsigned integer value in memory. The tighter a
