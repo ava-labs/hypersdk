@@ -202,7 +202,7 @@ func BenchmarkStdLibVerifySingle(b *testing.B) {
 	}
 }
 
-func BenchmarConsensusVerifySingle(b *testing.B) {
+func BenchmarkConsensusVerifySingle(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
 		msg := make([]byte, 128)

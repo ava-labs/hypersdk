@@ -39,7 +39,7 @@ const (
 	SignatureLen      = ed25519.SignatureSize
 
 	// TODO: make this tunable
-	MinBatchSize = 16
+	MinBatchSize = 4
 )
 
 var (
