@@ -5,6 +5,7 @@
 //! with caution.
 
 use crate::errors::StateError;
+use borsh::{from_slice, BorshDeserialize};
 
 /// Represents a pointer to a block of memory allocated by the global allocator.
 #[derive(Clone, Copy)]
@@ -83,8 +84,45 @@ pub fn to_ptr_arg(arg: &[u8]) -> Result<i64, StateError> {
 // representing the length of the memory block.
 pub fn from_ptr_arg(arg: i64) -> (i64, usize) {
     let len = (arg >> 32) as usize;
-    let ptr = arg & 0x00000000ffffffff;
+    let mask : u32 = !0;
+    let ptr = arg & (mask as i64);
     (ptr, len)
+}
+
+
+
+/// Converts a raw pointer to a deserialized value.
+/// Expects the first 4 bytes of the pointer to represent the [length] of the serialized value,
+/// with the subsequent [length] bytes comprising the serialized data.
+/// # Panics
+/// Panics if the bytes cannot be deserialized.
+/// # Safety
+/// This function is unsafe because it dereferences raw pointers.
+/// # Errors
+/// Returns an `StateError` if the bytes cannot be deserialized.
+pub unsafe fn from_raw_ptr<V>(ptr: i64) -> Result<V, StateError>
+where
+    V: BorshDeserialize,
+{
+    let (bytes, _) = bytes_and_length(ptr);
+    from_slice::<V>(&bytes).map_err(|_| StateError::Deserialization)
+}
+
+/// Returns a tuple of the bytes and length of the argument.
+/// PtrArg is encoded using Big Endian as an i64.
+/// The first 32 bits representing the length of the bytes and 
+/// the last 32 representing the ptr.
+/// # Panics
+/// Panics if the value cannot be converted from i32 to usize.
+/// # Safety
+/// This function is unsafe because it dereferences raw pointers.
+#[must_use]
+pub unsafe fn bytes_and_length(ptr_arg: i64) -> (Vec<u8>, usize) {
+    // grab length from ptrArg
+    let (ptr, len) = from_ptr_arg(ptr_arg);
+    println!("ptr: {}, len: {}", ptr, len);
+    let value = unsafe { std::slice::from_raw_parts(ptr as *const u8, len) };
+    (value.to_vec(), len)
 }
 
 
