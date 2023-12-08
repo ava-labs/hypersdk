@@ -120,7 +120,6 @@ where
 pub unsafe fn bytes_and_length(ptr_arg: i64) -> (Vec<u8>, usize) {
     // grab length from ptrArg
     let (ptr, len) = from_ptr_arg(ptr_arg);
-    println!("ptr: {}, len: {}", ptr, len);
     let value = unsafe { std::slice::from_raw_parts(ptr as *const u8, len) };
     (value.to_vec(), len)
 }

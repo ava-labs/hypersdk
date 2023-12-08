@@ -140,7 +140,6 @@ func (i *Import) callProgramFn(
 		)
 		return -1
 	}
-	fmt.Println("function name ", string(functionBytes))
 	// sync args to new runtime and return arguments to the invoke call
 	params, err := getCallArgs(ctx, rt.Memory(), argsBytes, programIDBytes)
 	if err != nil {
@@ -163,13 +162,15 @@ func (i *Import) callProgramFn(
 }
 
 func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, programIDBytes []byte) ([]int64, error) {
-	fmt.Println("in getCallArgs")
 	// first arg contains id of program to call
 	invokeProgramIDPtr, err := runtime.WriteBytes(memory, programIDBytes)
 	if err != nil {
 		return nil, err
 	}
-	argPtr := imports.ToPtrArgument(invokeProgramIDPtr, uint32(len(programIDBytes)))
+	argPtr, err := imports.ToPtrArgument(invokeProgramIDPtr, uint32(len(programIDBytes)))
+	if err != nil {
+		return nil, err
+	}
 	
 	args := []int64{argPtr}
 
@@ -186,7 +187,10 @@ func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, prog
 		if err != nil {
 			return nil, err
 		}
-		argPtr := imports.ToPtrArgument(ptr, length)
+		argPtr, err := imports.ToPtrArgument(ptr, length)
+		if err != nil {
+			return nil, err
+		}
 		args = append(args, argPtr)
 	}
 

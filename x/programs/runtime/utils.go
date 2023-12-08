@@ -8,3 +8,7 @@ import "math"
 func EnsureInt64ToInt32(v int64) bool {
 	return v >= math.MinInt32 && v <= math.MaxInt32
 }
+
+func EnsureUint32ToInt32(v uint32) bool {
+	return v <= math.MaxInt32
+}

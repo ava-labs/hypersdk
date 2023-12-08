@@ -10,7 +10,7 @@ import (
 )
 
 // GetBytesFromPtr returns the bytes at [ptr] in [client] memory.
-func GetBytesFromPtr(client runtime.WasmtimeExportClient, ptrArg int64) ([]byte, error) {
+func GetBytesFromArgPtr(client runtime.WasmtimeExportClient, ptrArg int64) ([]byte, error) {
 	memory := runtime.NewMemory(client)
 
 	// first 4 bytes represent the length of the bytes to return
@@ -30,26 +30,16 @@ func GetBytesFromPtr(client runtime.WasmtimeExportClient, ptrArg int64) ([]byte,
 	return bytes, nil
 }
 
-// // PrependLength returns the length of [bytes] prepended to [bytes].
-// func PrependLength(bytes []byte) []byte {
-// 	length := uint32(len(bytes))
-// 	lenBytes := make([]byte, consts.Uint32Len)
-// 	binary.BigEndian.PutUint32(lenBytes, length)
-// 	return append(lenBytes, bytes...)
-// }
-
-
-// toPtrArgument converts [ptr] to an int64 with the length of [bytes] in the upper 32 bits
+// ToPtrArgument converts [ptr] to an int64 with the length of [bytes] in the upper 32 bits
 // and [ptr] in the lower 32 bits.
-func ToPtrArgument(ptr int64, len uint32) int64 {
+func ToPtrArgument(ptr int64, len uint32) (int64, error) {
+	// ensure length of bytes is not greater than int32 to prevent overflow
+	if !runtime.EnsureUint32ToInt32(len) {
+		return 0, fmt.Errorf("length of bytes is greater than int32")
+	}
 
-	// // ensure length of bytes is not greater than int32
-	// if !runtime.EnsureInt64ToInt32(int64(len(bytes))) {
-	// 	return 0, fmt.Errorf("length of bytes is greater than int32")
-	// }
 	// convert to int64 with length of bytes in the upper 32 bits and ptr in the lower 32 bits
 	argPtr := int64(len) << 32
 	argPtr |= int64((uint32(ptr)))
-	fmt.Println("ptr and len", ptr, len)
-	return argPtr
+	return argPtr, nil
 }
