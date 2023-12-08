@@ -4,6 +4,8 @@
 package engine
 
 import (
+	"github.com/ava-labs/avalanchego/utils/units"
+
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
@@ -17,14 +19,14 @@ const (
 )
 
 var (
-	DefaultMaxWasmStack         = 256 * 1024 * 1024     // 256 MiB
-	DefaultLimitMaxMemory       = int64(18 * 64 * 1024) // 18 pages
+	DefaultMaxWasmStack         = 256 * units.MiB            // 256 MiB
+	DefaultLimitMaxMemory       = int64(18 * 64 * units.KiB) // 18 pages
 	DefaultSIMD                 = false
 	DefaultEnableReferenceTypes = false
 	DefaultEnableBulkMemory     = false
 	DefaultProfilingStrategy    = wasmtime.ProfilingStrategyNone
 	DefaultMultiValue           = false
-	DefaultCompileStrategy	  = CompileWasm
+	DefaultCompileStrategy      = CompileWasm
 
 	defaultWasmThreads                  = false
 	defaultFuelMetering                 = true
@@ -172,4 +174,142 @@ func DefaultWasmtimeConfig() *wasmtime.Config {
 	cfg.SetCraneliftDebugVerifier(defaultEnableCraneliftDebugVerifier)
 	cfg.SetDebugInfo(defaultEnableDebugInfo)
 	return cfg
+}
+
+// NewConfigBuilder returns a new engine configuration builder with default settings.
+// All instances of ConfigBuilder should be created with this constructor.
+func NewConfigBuilder() *ConfigBuilder {
+	return &ConfigBuilder{
+		EnableBulkMemory:         DefaultEnableBulkMemory,
+		EnableWasmMultiValue:     DefaultMultiValue,
+		EnableWasmReferenceTypes: DefaultEnableReferenceTypes,
+		EnableWasmSIMD:           DefaultSIMD,
+		MaxWasmStack:             DefaultMaxWasmStack,
+		ProfilingStrategy:        DefaultProfilingStrategy,
+		EnableDefaultCache:       false,
+	}
+}
+
+type ConfigBuilder struct {
+	// Configures whether the WebAssembly bulk memory operations proposal will
+	// be enabled for compilation.  This feature gates items such as the
+	// memory.copy instruction, passive data/table segments, etc, being in a
+	// module.
+	// This is false by default.
+	EnableBulkMemory bool `yaml:"enable_bulk_memory,omitempty" json:"enableBulkMemory,omitempty"`
+	// Configures whether the WebAssembly multi-value proposal will be enabled for compilation.
+	// This feature gates functions and blocks returning multiple values in a module, for example.
+	// This is false by default.
+	EnableWasmMultiValue bool `yaml:"enable_wasm_multi_value,omitempty" json:"enableWasmMultiValue,omitempty"`
+	// Configures whether the WebAssembly reference types proposal will be
+	// enabled for compilation.  This feature gates items such as the externref
+	// and funcref types as well as allowing a module to define multiple tables.
+	// Note that the reference types proposal depends on the bulk memory
+	// proposal.
+	// This is false by default.
+	EnableWasmReferenceTypes bool `yaml:"enable_wasm_reference_types,omitempty" json:"enableWasmReferenceTypes,omitempty"`
+	// Configures whether the WebAssembly SIMD proposal will be enabled for
+	// compilation.  The WebAssembly SIMD proposal. This feature gates items
+	// such as the v128 type and all of its operators being in a module. Note
+	// that this does not enable the relaxed simd proposal.
+	// This is false by default.
+	EnableWasmSIMD bool `yaml:"enable_wasm_simd,omitempty" json:"enableWasmSIMD,omitempty"`
+	// EnableDefaultCache enables compiled code caching for this `Config` using the default settings
+	// configuration can be found.
+	//
+	// For more information about caching see
+	// https://bytecodealliance.github.io/wasmtime/cli-cache.html
+	// This is false by default.
+	EnableDefaultCache bool `yaml:"enable_default_cache,omitempty" json:"enableDefaultCache,omitempty"`
+	// SetMaxWasmStack configures the maximum stack size, in bytes, that JIT code can use.
+	// The amount of stack space that wasm takes is always relative to the first invocation of wasm on the stack.
+	// Recursive calls with host frames in the middle will all need to fit within this setting.
+	// Note that this setting is not interpreted with 100% precision.
+	// This is 256 MiB by default.
+	MaxWasmStack int `yaml:"max_wasm_stack,omitempty" json:"maxWasmStack,omitempty"`
+	// ProfilingStrategy decides what sort of profiling to enable, if any.
+	// Default is `wasmtime.ProfilingStrategyNone`.
+	ProfilingStrategy wasmtime.ProfilingStrategy
+}
+
+// WithMaxWasmStack defines the maximum amount of stack space available for
+// executing WebAssembly code.
+//
+// Default is 256 MiB.
+func (c *ConfigBuilder) WithMaxWasmStack(max int) *ConfigBuilder {
+	c.MaxWasmStack = max
+	return c
+}
+
+// WithMultiValue enables modules that can return multiple values.
+// ref. https://github.com/webassembly/multi-value
+//
+// Default is false.
+func (c *ConfigBuilder) WithMultiValue(enable bool) *ConfigBuilder {
+	c.EnableWasmMultiValue = enable
+	return c
+}
+
+// WithBulkMemory enables`memory.copy` instruction, tables and passive data.
+// ref. https://github.com/WebAssembly/bulk-memory-operations
+//
+// Default is false.
+func (c *ConfigBuilder) WithBulkMemory(enable bool) *ConfigBuilder {
+	c.EnableBulkMemory = enable
+	return c
+}
+
+// WithReferenceTypes Enables the `externref` and `funcref` types as well as
+// allowing a module to define multiple tables.
+// ref. https://github.com/webassembly/reference-types
+//
+// Note: depends on bulk memory being enabled.
+//
+// Default is false.
+func (c *ConfigBuilder) WithReferenceTypes(enable bool) *ConfigBuilder {
+	c.EnableWasmReferenceTypes = enable
+	return c
+}
+
+// WithSIMD enables SIMD instructions including v128.
+// ref. https://github.com/webassembly/simd
+//
+// Default is false.
+func (c *ConfigBuilder) WithSIMD(enable bool) *ConfigBuilder {
+	c.EnableWasmSIMD = enable
+	return c
+}
+
+// WithProfilingStrategy defines the profiling strategy used for defining the
+// default profiler.
+//
+// Default is `wasmtime.ProfilingStrategyNone`.
+func (c *ConfigBuilder) WithProfilingStrategy(strategy wasmtime.ProfilingStrategy) *ConfigBuilder {
+	c.ProfilingStrategy = strategy
+	return c
+}
+
+// WithDefaultCache enables the default caching strategy.
+//
+// Default is false.
+func (c *ConfigBuilder) WithDefaultCache(enabled bool) *ConfigBuilder {
+	c.EnableDefaultCache = enabled
+	return c
+}
+
+func (c *ConfigBuilder) Build() (*Config, error) {
+	cfg := NewConfig()
+	cfg.SetWasmBulkMemory(c.EnableBulkMemory)
+	cfg.SetWasmMultiValue(c.EnableWasmMultiValue)
+	cfg.SetWasmReferenceTypes(c.EnableWasmReferenceTypes)
+	cfg.SetWasmSIMD(c.EnableWasmSIMD)
+	cfg.SetMaxWasmStack(c.MaxWasmStack)
+	cfg.SetProfiler(c.ProfilingStrategy)
+	if c.EnableDefaultCache {
+		if err := cfg.CacheConfigLoadDefault(); err != nil {
+			return nil, err
+		}
+	}
+
+	return cfg, nil
 }

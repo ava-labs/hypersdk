@@ -18,6 +18,12 @@ func New(cfg *Config) *Engine {
 	}
 }
 
+func NewWrap(inner *wasmtime.Engine) *Engine {
+	return &Engine{
+		inner: inner,
+	}
+}
+
 func (e *Engine) IncrementEpoch() {
 	e.inner.IncrementEpoch()
 }
