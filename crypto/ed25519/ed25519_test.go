@@ -118,29 +118,67 @@ func TestVerifyInvalidParams(t *testing.T) {
 }
 
 func TestBatchVerifyValid(t *testing.T) {
-	b := NewBatch(1024)
-	for j := 0; j < 1024; j++ {
-		pub, priv, err := oed25519.GenerateKey(nil)
+	var (
+		numItems = 1024
+		pubs     = make([]PublicKey, numItems)
+		msgs     = make([][]byte, numItems)
+		sigs     = make([]Signature, numItems)
+	)
+	for j := 0; j < numItems; j++ {
+		priv, err := GeneratePrivateKey()
 		if err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
-		pubs[j] = pub
+		pubs[j] = priv.PublicKey()
 		msg := make([]byte, 128)
 		_, err = rand.Read(msg)
 		if err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
 		msgs[j] = msg
-		sig := oed25519.Sign(priv, msg)
+		sig := Sign(msg, priv)
 		sigs[j] = sig
 	}
-	b.StartTimer()
-	bv := oed25519.NewBatchVerifierWithCapacity(numItems)
+	bv := NewBatch()
 	for j := 0; j < numItems; j++ {
-		bv.AddWithOptions(pubs[j], msgs[j], sigs[j], oed25519options)
+		bv.Add(msgs[j], pubs[j], sigs[j])
 	}
-	if !bv.VerifyBatchOnly(nil) {
-		panic("invalid signature")
+	if !bv.Verify() {
+		t.Fatal("invalid signature")
+	}
+}
+
+func TestBatchVerifyInvalid(t *testing.T) {
+	var (
+		numItems = 1024
+		pubs     = make([]PublicKey, numItems)
+		msgs     = make([][]byte, numItems)
+		sigs     = make([]Signature, numItems)
+	)
+	for j := 0; j < numItems; j++ {
+		priv, err := GeneratePrivateKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+		pubs[j] = priv.PublicKey()
+		msg := make([]byte, 128)
+		_, err = rand.Read(msg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		msgs[j] = msg
+		sig := Sign(msg, priv)
+		if j == 10 {
+			sig[0]++
+		}
+		sigs[j] = sig
+	}
+	bv := NewBatch()
+	for j := 0; j < numItems; j++ {
+		bv.Add(msgs[j], pubs[j], sigs[j])
+	}
+	if bv.Verify() {
+		t.Fatal("valid signature")
 	}
 }
 
