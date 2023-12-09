@@ -1,17 +1,16 @@
 //! The `program` module provides functions for calling other programs.
 use crate::program::Program;
+use crate::memory::to_ptr_arg;
 
 #[link(wasm_import_module = "program")]
 extern "C" {
     #[link_name = "call_program"]
     fn _call_program(
-        caller_id: *const u8,
-        target_id: *const u8,
+        caller_id: i64,
+        target_id: i64,
         max_units: i64,
-        function_ptr: *const u8,
-        function_len: usize,
-        args_ptr: *const u8,
-        args_len: usize,
+        function: i64,
+        args_ptr: i64,
     ) -> i64;
 }
 
@@ -24,16 +23,21 @@ pub(crate) fn call(
     function_name: &str,
     args: &[u8],
 ) -> i64 {
-    let function_bytes = function_name.as_bytes();
+    
+    let caller_id = caller.id();
+    let caller = to_ptr_arg(&caller_id).unwrap();
+    let target_id = target.id();
+    let target = to_ptr_arg(&target_id).unwrap();
+    let function = to_ptr_arg(function_name.as_bytes()).unwrap();
+    let args = to_ptr_arg(args).unwrap();
+
     unsafe {
         _call_program(
-            caller.id().as_ptr(),
-            target.id().as_ptr(),
+            caller,
+            target,
             max_units,
-            function_bytes.as_ptr(),
-            function_bytes.len(),
-            args.as_ptr(),
-            args.len(),
+            function,
+            args,
         )
     }
 }

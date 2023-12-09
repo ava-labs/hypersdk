@@ -62,19 +62,17 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtim
 // callProgramFn makes a call to an entry function of a program in the context of another program's ID.
 func (i *Import) callProgramFn(
 	caller *wasmtime.Caller,
-	callerIDPtr int32,
-	programIDPtr int32,
+	callerID int64,
+	programID int64,
 	maxUnits int64,
-	functionPtr,
-	functionLen,
-	argsPtr,
-	argsLen int32,
+	function int64,
+	args int64,
 ) int64 {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	memory := runtime.NewMemory(runtime.NewExportClient(caller))
+	client := runtime.NewExportClient(caller)
 	// get the entry function for invoke to call.
-	functionBytes, err := memory.Range(uint64(functionPtr), uint64(functionLen))
+	functionBytes, err := imports.GetBytesFromArgPtr(client, function)
 	if err != nil {
 		i.log.Error("failed to read function name from memory",
 			zap.Error(err),
@@ -82,7 +80,7 @@ func (i *Import) callProgramFn(
 		return -1
 	}
 
-	programIDBytes, err := memory.Range(uint64(programIDPtr), uint64(ids.IDLen))
+	programIDBytes, err := imports.GetBytesFromArgPtr(client, programID)
 	if err != nil {
 		i.log.Error("failed to read id from memory",
 			zap.Error(err),
@@ -133,7 +131,7 @@ func (i *Import) callProgramFn(
 		}
 	}()
 
-	argsBytes, err := memory.Range(uint64(argsPtr), uint64(argsLen))
+	argsBytes, err := imports.GetBytesFromArgPtr(client, args)
 	if err != nil {
 		i.log.Error("failed to read program args name from memory",
 			zap.Error(err),
@@ -149,8 +147,8 @@ func (i *Import) callProgramFn(
 		return -1
 	}
 
-	function := string(functionBytes)
-	res, err := rt.Call(ctx, function, params...)
+	function_name := string(functionBytes)
+	res, err := rt.Call(ctx, function_name, params...)
 	if err != nil {
 		i.log.Error("failed to call entry function",
 			zap.Error(err),
