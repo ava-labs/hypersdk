@@ -13,8 +13,8 @@ impl Program {
 
     /// Returns the id of the program.
     #[must_use]
-    pub fn id(&self) -> [u8; Self::LEN] {
-        self.0
+    pub fn id(&self) -> &[u8; Self::LEN] {
+        &self.0
     }
 
     #[must_use]
@@ -26,7 +26,7 @@ impl Program {
     /// storage exposed by the host.
     #[must_use]
     pub fn state(&self) -> State {
-        State::new(Program::new(self.id()))
+        State::new(Program::new(*self.id()))
     }
 
     /// Attempts to call another program `target` from this program `caller`.

@@ -23,10 +23,8 @@ pub(crate) fn call(
     function_name: &str,
     args: &[u8],
 ) -> i64 {
-    let caller_id = caller.id();
-    let caller = to_smart_ptr(&caller_id).unwrap();
-    let target_id = target.id();
-    let target = to_smart_ptr(&target_id).unwrap();
+    let caller = to_smart_ptr(caller.id()).unwrap();
+    let target = to_smart_ptr(target.id()).unwrap();
     let function = to_smart_ptr(function_name.as_bytes()).unwrap();
     let args = to_smart_ptr(args).unwrap();
 

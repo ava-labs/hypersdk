@@ -21,8 +21,7 @@ where
 {
     let value_bytes = to_vec(value).map_err(|_| StateError::Serialization)?;
     // prepend length to both key & value
-    let caller_id = caller.id();
-    let caller = to_smart_ptr(&caller_id)?;
+    let caller = to_smart_ptr(caller.id())?;
     let value = to_smart_ptr(&value_bytes)?;
     let key = to_smart_ptr(key)?;
 
@@ -35,8 +34,7 @@ where
 /// Gets the bytes associated with the key from the host.
 pub(crate) unsafe fn get_bytes(caller: &Program, key: &Key) -> i64 {
     // prepend length to key
-    let caller_id = caller.id();
-    let caller = to_smart_ptr(&caller_id).unwrap();
+    let caller = to_smart_ptr(caller.id()).unwrap();
     let key = to_smart_ptr(key).unwrap();
     unsafe { _get(caller, key) }
 }
