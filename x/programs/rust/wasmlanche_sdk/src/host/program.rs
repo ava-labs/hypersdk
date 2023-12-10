@@ -16,7 +16,6 @@ extern "C" {
 }
 
 /// Calls another program `target` and returns the result.
-#[must_use]
 pub(crate) fn call(
     caller: &Program,
     target: &Program,

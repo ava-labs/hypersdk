@@ -45,7 +45,7 @@ func TestTokenProgram(t *testing.T) {
 // go test -v -benchmem -run=^$ -bench ^BenchmarkTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func BenchmarkTokenProgram(b *testing.B) {
 	require := require.New(b)
-	maxUnits := uint64(40000)
+	maxUnits := uint64(80000)
 
 	cfg, err := runtime.NewConfigBuilder().
 		WithCompileStrategy(runtime.CompileWasm).

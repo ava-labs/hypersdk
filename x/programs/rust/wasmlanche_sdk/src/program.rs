@@ -30,9 +30,10 @@ impl Program {
     }
 
     /// Attempts to call another program `target` from this program `caller`.
+    /// # Errors
+    /// Returns a `StateError` if the call fails.
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
-    #[must_use]
     pub fn call_program(
         &self,
         target: &Program,
