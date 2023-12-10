@@ -1,7 +1,7 @@
 //! The `state` module provides functions for interacting with persistent
 //! storage exposed by the host.
 use crate::errors::StateError;
-use crate::memory::to_ptr_arg;
+use crate::memory::to_smart_ptr;
 use crate::{program::Program, state::Key};
 use borsh::{to_vec, BorshSerialize};
 
@@ -22,9 +22,9 @@ where
     let value_bytes = to_vec(value).map_err(|_| StateError::Serialization)?;
     // prepend length to both key & value
     let caller_id = caller.id();
-    let caller = to_ptr_arg(&caller_id)?;
-    let value = to_ptr_arg(&value_bytes)?;
-    let key = to_ptr_arg(key)?;
+    let caller = to_smart_ptr(&caller_id)?;
+    let value = to_smart_ptr(&value_bytes)?;
+    let key = to_smart_ptr(key)?;
 
     match unsafe { _put(caller, key, value) } {
         0 => Ok(()),
@@ -36,7 +36,7 @@ where
 pub(crate) unsafe fn get_bytes(caller: &Program, key: &Key) -> i64 {
     // prepend length to key
     let caller_id = caller.id();
-    let caller = to_ptr_arg(&caller_id).unwrap();
-    let key = to_ptr_arg(key).unwrap();
+    let caller = to_smart_ptr(&caller_id).unwrap();
+    let key = to_smart_ptr(key).unwrap();
     unsafe { _get(caller, key) }
 }

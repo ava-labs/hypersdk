@@ -71,23 +71,42 @@ impl Memory {
     }
 }
 
-// Converts a pointer to a i64 with the first 4 bytes of the pointer
-// representing the length of the memory block.
-pub fn to_ptr_arg(arg: &[u8]) -> Result<i64, StateError> {
-    let mut ptr =
-        u32::try_from(arg.as_ptr() as i64).map_err(|_| StateError::IntegerConversion)? as i64;
-    let len = u32::try_from(arg.len()).map_err(|_| StateError::IntegerConversion)? as i64;
-    ptr |= len << 32;
-    Ok(ptr)
+/// `SmartPtr` is an i64 where the first 4 bytes represent the length of the bytes
+/// and the following 4 bytes represent a pointer to WASM memeory where the bytes are stored.
+pub type SmartPtr = i64;
+
+/// Converts a pointer to a i64 with the first 4 bytes of the pointer
+/// representing the length of the memory block.
+/// # Errors
+/// Returns an `StateError` if the pointer or length of [args] exceeds
+/// the maximum size of a u32.
+#[allow(clippy::cast_possible_truncation)]
+pub fn to_smart_ptr(arg: &[u8]) -> Result<SmartPtr, StateError> {
+    let ptr = arg.as_ptr() as usize;
+    let len = arg.len();
+
+    // Make sure the pointer and length fit into u32
+    if ptr > u32::MAX as usize || len > u32::MAX as usize {
+        return Err(StateError::IntegerConversion);
+    }
+
+    let smart_ptr = i64::from(ptr as u32) | (i64::from(len as u32) << 32);
+    Ok(smart_ptr)
 }
 
-// Converts a i64 to a pointer with the first 4 bytes of the pointer
-// representing the length of the memory block.
-pub fn from_ptr_arg(arg: i64) -> (i64, usize) {
-    let len = (arg >> 32) as usize;
+/// Converts a i64 to a pointer with the first 4 bytes of the pointer
+/// representing the length of the memory block.
+/// # Panics
+/// Panics if arg is negative.
+#[must_use]
+#[allow(clippy::cast_sign_loss)]
+pub fn from_smart_ptr(arg: SmartPtr) -> (i64, usize) {
+    assert!(arg >= 0);
+
+    let len = arg >> 32;
     let mask: u32 = !0;
-    let ptr = arg & (mask as i64);
-    (ptr, len)
+    let ptr = arg & i64::from(mask);
+    (ptr, len as usize)
 }
 
 /// Converts a raw pointer to a deserialized value.
@@ -108,17 +127,13 @@ where
 }
 
 /// Returns a tuple of the bytes and length of the argument.
-/// PtrArg is encoded using Big Endian as an i64.
-/// The first 32 bits representing the length of the bytes and
-/// the last 32 representing the ptr.
-/// # Panics
-/// Panics if the value cannot be converted from i32 to usize.
+/// `smart_ptr` is encoded using Big Endian as an i64.
 /// # Safety
 /// This function is unsafe because it dereferences raw pointers.
 #[must_use]
-pub unsafe fn bytes_and_length(ptr_arg: i64) -> (Vec<u8>, usize) {
+pub unsafe fn bytes_and_length(smart_ptr: i64) -> (Vec<u8>, usize) {
     // grab length from ptrArg
-    let (ptr, len) = from_ptr_arg(ptr_arg);
+    let (ptr, len) = from_smart_ptr(smart_ptr);
     let value = unsafe { std::slice::from_raw_parts(ptr as *const u8, len) };
     (value.to_vec(), len)
 }
