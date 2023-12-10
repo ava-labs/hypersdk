@@ -16,7 +16,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/examples/imports"
+
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
@@ -72,7 +72,7 @@ func (i *Import) callProgramFn(
 	defer cancel()
 	client := runtime.NewExportClient(caller)
 	// get the entry function for invoke to call.
-	functionBytes, err := imports.GetBytesFromArgPtr(client, function)
+	functionBytes, err := runtime.FromSmartPtr(client, runtime.SmartPtr(function))
 	if err != nil {
 		i.log.Error("failed to read function name from memory",
 			zap.Error(err),
@@ -80,7 +80,7 @@ func (i *Import) callProgramFn(
 		return -1
 	}
 
-	programIDBytes, err := imports.GetBytesFromArgPtr(client, programID)
+	programIDBytes, err := runtime.FromSmartPtr(client, runtime.SmartPtr(programID))
 	if err != nil {
 		i.log.Error("failed to read id from memory",
 			zap.Error(err),
@@ -131,7 +131,7 @@ func (i *Import) callProgramFn(
 		}
 	}()
 
-	argsBytes, err := imports.GetBytesFromArgPtr(client, args)
+	argsBytes, err := runtime.FromSmartPtr(client, runtime.SmartPtr(args))
 	if err != nil {
 		i.log.Error("failed to read program args name from memory",
 			zap.Error(err),
@@ -159,18 +159,18 @@ func (i *Import) callProgramFn(
 	return int64(res[0])
 }
 
-func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, programIDBytes []byte) ([]int64, error) {
+func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, programIDBytes []byte) ([]runtime.SmartPtr, error) {
 	// first arg contains id of program to call
 	invokeProgramIDPtr, err := runtime.WriteBytes(memory, programIDBytes)
 	if err != nil {
 		return nil, err
 	}
-	argPtr, err := imports.ToPtrArgument(invokeProgramIDPtr, uint32(len(programIDBytes)))
+	argPtr, err := runtime.ToSmartPtr(uint32(invokeProgramIDPtr), uint32(len(programIDBytes)))
 	if err != nil {
 		return nil, err
 	}
 	
-	args := []int64{argPtr}
+	args := []runtime.SmartPtr{argPtr}
 
 	for i := 0; i < len(buffer); {
 		// unpacks uint32
@@ -185,7 +185,7 @@ func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, prog
 		if err != nil {
 			return nil, err
 		}
-		argPtr, err := imports.ToPtrArgument(ptr, length)
+		argPtr, err := runtime.ToSmartPtr(uint32(ptr), length)
 		if err != nil {
 			return nil, err
 		}

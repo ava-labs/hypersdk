@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/examples/imports"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
@@ -62,7 +61,7 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Supp
 func (i *Import) putFn(caller *wasmtime.Caller, id int64, key int64, value int64) int32 {
 	client := runtime.NewExportClient(caller)
 	// memory := runtime.NewMemory(client)
-	programIDBytes, err := imports.GetBytesFromArgPtr(client, id)
+	programIDBytes, err := runtime.FromSmartPtr(client, runtime.SmartPtr(id))
 	if err != nil {
 		i.log.Error("failed to read program id from memory",
 			zap.Error(err),
@@ -70,7 +69,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, id int64, key int64, value int64
 		return -1
 	}
 
-	keyBytes, err := imports.GetBytesFromArgPtr(client, key)
+	keyBytes, err := runtime.FromSmartPtr(client, runtime.SmartPtr(key))
 	if err != nil {
 		i.log.Error("failed to read key from memory",
 		zap.Error(err),
@@ -78,7 +77,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, id int64, key int64, value int64
 	return -1
 }
 
-valueBytes, err := imports.GetBytesFromArgPtr(client, value)
+valueBytes, err := runtime.FromSmartPtr(client, runtime.SmartPtr(value))
 
 	if err != nil {
 		i.log.Error("failed to read value from memory",
@@ -102,7 +101,7 @@ valueBytes, err := imports.GetBytesFromArgPtr(client, value)
 func (i *Import) getFn(caller *wasmtime.Caller, id int64, key int64) int64 {
 	client := runtime.NewExportClient(caller)
 	memory := runtime.NewMemory(client)
-	programIDBytes, err := imports.GetBytesFromArgPtr(client, id)
+	programIDBytes, err := runtime.FromSmartPtr(client, runtime.SmartPtr(id))
 	if err != nil {
 		i.log.Error("failed to read program id from memory",
 			zap.Error(err),
@@ -110,7 +109,7 @@ func (i *Import) getFn(caller *wasmtime.Caller, id int64, key int64) int64 {
 		return -1
 	}
 
-	keyBytes, err := imports.GetBytesFromArgPtr(client, key)
+	keyBytes, err := runtime.FromSmartPtr(client, runtime.SmartPtr(key))
 	if err != nil {
 		i.log.Error("failed to read key from memory",
 			zap.Error(err),
@@ -143,7 +142,7 @@ func (i *Import) getFn(caller *wasmtime.Caller, id int64, key int64) int64 {
 		}
 		return -1
 	}
-	argPtr, err := imports.ToPtrArgument(ptr, uint32(len(val)))
+	argPtr, err := runtime.ToSmartPtr(uint32(ptr), uint32(len(val)))
 	if err != nil {
 		i.log.Error("failed to convert ptr to argument",
 			zap.Error(err),
@@ -151,5 +150,5 @@ func (i *Import) getFn(caller *wasmtime.Caller, id int64, key int64) int64 {
 		return -1
 	}
 
-	return argPtr
+	return int64(argPtr)
 }

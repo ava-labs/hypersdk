@@ -63,7 +63,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	programIDPtr, err := newParameterPtr(ctx, programID, rt)
+	programIDPtr, err := runtime.NewSmartPtr(ctx, programID, rt)
 	if err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := newParameterPtr(ctx, aliceKey, rt)
+	alicePtr, err := runtime.NewSmartPtr(ctx, aliceKey, rt)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write bob's key to stack and get pointer
-	bobPtr, err := newParameterPtr(ctx, bobKey, rt)
+	bobPtr, err := runtime.NewSmartPtr(ctx, bobKey, rt)
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// mint 100 tokens to alice
 	mintAlice := int64(1000)
-	mintAlicePtr, err := newParameterPtr(ctx, mintAlice, rt)
+	mintAlicePtr, err := runtime.NewSmartPtr(ctx, mintAlice, rt)
 	if err != nil {
 		return err
 	}
@@ -158,7 +158,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// transfer 50 from alice to bob
 	transferToBob := int64(50)
-	transferToBobPtr, err := newParameterPtr(ctx, transferToBob, rt)
+	transferToBobPtr, err := runtime.NewSmartPtr(ctx, transferToBob, rt)
 	if err != nil {
 		return err
 	}
@@ -171,7 +171,7 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("to bob", transferToBob),
 	)
 
-	onePtr, err := newParameterPtr(ctx, int64(1), rt)
+	onePtr, err := runtime.NewSmartPtr(ctx, int64(1), rt)
 	if err != nil {
 		return err
 	}
@@ -217,7 +217,7 @@ func (t *Token) Run(ctx context.Context) error {
 		},
 	}
 
-	mintersPtr, err := newParameterPtr(ctx, minters, rt)
+	mintersPtr, err := runtime.NewSmartPtr(ctx, minters, rt)
 	if err != nil {
 		return err
 	}
@@ -270,7 +270,7 @@ func (t *Token) RunShort(ctx context.Context) error {
 		return err
 	}
 
-	programIDPtr, err := newParameterPtr(ctx, programID, rt)
+	programIDPtr, err := runtime.NewSmartPtr(ctx, programID, rt)
 	if err != nil {
 		return err
 	}
