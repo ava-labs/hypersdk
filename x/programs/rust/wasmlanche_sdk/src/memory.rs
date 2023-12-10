@@ -100,7 +100,7 @@ pub fn to_smart_ptr(arg: &[u8]) -> Result<SmartPtr, StateError> {
 /// Panics if arg is negative.
 #[must_use]
 #[allow(clippy::cast_sign_loss)]
-pub fn from_smart_ptr(arg: SmartPtr) -> (i64, usize) {
+pub fn split_smart_ptr(arg: SmartPtr) -> (i64, usize) {
     assert!(arg >= 0);
 
     let len = arg >> 32;
@@ -118,7 +118,7 @@ pub fn from_smart_ptr(arg: SmartPtr) -> (i64, usize) {
 /// This function is unsafe because it dereferences raw pointers.
 /// # Errors
 /// Returns an `StateError` if the bytes cannot be deserialized.
-pub unsafe fn from_raw_ptr<V>(ptr: i64) -> Result<V, StateError>
+pub unsafe fn from_smart_ptr<V>(ptr: SmartPtr) -> Result<V, StateError>
 where
     V: BorshDeserialize,
 {
@@ -133,7 +133,7 @@ where
 #[must_use]
 pub unsafe fn bytes_and_length(smart_ptr: i64) -> (Vec<u8>, usize) {
     // grab length from ptrArg
-    let (ptr, len) = from_smart_ptr(smart_ptr);
+    let (ptr, len) = split_smart_ptr(smart_ptr);
     let value = unsafe { std::slice::from_raw_parts(ptr as *const u8, len) };
     (value.to_vec(), len)
 }
