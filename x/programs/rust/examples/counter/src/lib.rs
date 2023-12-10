@@ -47,7 +47,9 @@ fn inc_external(
     of: Address,
     amount: i64,
 ) -> i64 {
-    program.call_program(&target, max_units, "inc", params!(&of, &amount))
+    program
+        .call_program(&target, max_units, "inc", params!(&of, &amount))
+        .unwrap()
 }
 
 /// Gets the count at the address.
@@ -62,5 +64,7 @@ fn get_value(program: Program, of: Address) -> i64 {
 /// Gets the count at the address for an external program.
 #[public]
 fn get_value_external(program: Program, target: Program, max_units: i64, of: Address) -> i64 {
-    program.call_program(&target, max_units, "get_value", params!(&of))
+    program
+        .call_program(&target, max_units, "get_value", params!(&of))
+        .unwrap()
 }

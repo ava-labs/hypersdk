@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use crate::{host::call_program, state::State};
+use crate::{errors::StateError, host::call_program, state::State};
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
@@ -39,7 +39,7 @@ impl Program {
         max_units: i64,
         function_name: &str,
         args: Vec<Vec<u8>>,
-    ) -> i64 {
+    ) -> Result<i64, StateError> {
         // flatten the args into a single byte vector
         let args = args.into_iter().flatten().collect::<Vec<u8>>();
         call_program(self, target, max_units, function_name, &args)

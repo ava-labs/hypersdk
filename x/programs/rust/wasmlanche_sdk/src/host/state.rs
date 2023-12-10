@@ -32,9 +32,9 @@ where
 }
 
 /// Gets the bytes associated with the key from the host.
-pub(crate) unsafe fn get_bytes(caller: &Program, key: &Key) -> i64 {
+pub(crate) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<i64, StateError> {
     // prepend length to key
-    let caller = to_smart_ptr(caller.id()).unwrap();
-    let key = to_smart_ptr(key).unwrap();
-    unsafe { _get(caller, key) }
+    let caller = to_smart_ptr(caller.id())?;
+    let key = to_smart_ptr(key)?;
+    Ok(unsafe { _get(caller, key) })
 }

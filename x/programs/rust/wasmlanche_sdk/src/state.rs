@@ -45,7 +45,7 @@ impl State {
         K: Into<Key>,
         T: BorshDeserialize,
     {
-        let val_ptr = unsafe { get_bytes(&self.program, &key.into()) };
+        let val_ptr = unsafe { get_bytes(&self.program, &key.into())? };
         if val_ptr < 0 {
             return Err(StateError::Read);
         }
