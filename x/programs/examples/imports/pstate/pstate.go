@@ -72,12 +72,12 @@ func (i *Import) putFn(caller *wasmtime.Caller, id int64, key int64, value int64
 	keyBytes, err := runtime.FromSmartPtr(client, runtime.SmartPtr(key))
 	if err != nil {
 		i.log.Error("failed to read key from memory",
-		zap.Error(err),
-	)
-	return -1
-}
+			zap.Error(err),
+		)
+		return -1
+	}
 
-valueBytes, err := runtime.FromSmartPtr(client, runtime.SmartPtr(value))
+	valueBytes, err := runtime.FromSmartPtr(client, runtime.SmartPtr(value))
 
 	if err != nil {
 		i.log.Error("failed to read value from memory",

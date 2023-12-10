@@ -159,6 +159,8 @@ func (i *Import) callProgramFn(
 	return int64(res[0])
 }
 
+
+// getCallArgs returns the arguments to be passed to the program being invoked from [buffer].
 func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, programIDBytes []byte) ([]runtime.SmartPtr, error) {
 	// first arg contains id of program to call
 	invokeProgramIDPtr, err := runtime.WriteBytes(memory, programIDBytes)
@@ -169,7 +171,7 @@ func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, prog
 	if err != nil {
 		return nil, err
 	}
-	
+
 	args := []runtime.SmartPtr{argPtr}
 
 	for i := 0; i < len(buffer); {
@@ -177,7 +179,7 @@ func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, prog
 		lenBytes := buffer[i : i+consts.Uint32Len]
 		length := binary.BigEndian.Uint32(lenBytes)
 
-		valueBytes := buffer[i + consts.Uint32Len : i+ consts.Uint32Len + int(length)]
+		valueBytes := buffer[i+consts.Uint32Len : i+consts.Uint32Len+int(length)]
 		i += int(length) + consts.Uint32Len
 
 		// every argument is a pointer

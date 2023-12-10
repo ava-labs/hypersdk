@@ -4,7 +4,6 @@
 package runtime
 
 import (
-	"context"
 	"fmt"
 	"math"
 
@@ -21,12 +20,12 @@ func EnsureUint32ToInt32(v uint32) bool {
 
 // SmartPtr is an int64 where the first 4 bytes represent the length of the bytes
 // and the following 4 bytes represent a pointer to WASM memeory where the bytes are stored.
-type SmartPtr int64;
+type SmartPtr int64
 
 // ptrMask is used to get the lower 32 bits of a SmartPtr
 var ptrMask = ^uint32(0)
 
-// GetBytesFromArgPtr returns the bytes at [ptr] in [client] memory.
+// FromSmartPtr returns the bytes at [ptr] in [client] memory.
 func FromSmartPtr(client WasmtimeExportClient, smartPtr SmartPtr) ([]byte, error) {
 	memory := NewMemory(client)
 
@@ -54,18 +53,18 @@ func ToSmartPtr(ptr uint32, len uint32) (SmartPtr, error) {
 	return SmartPtr(smartPtr), nil
 }
 
-// splitSmartPtr splits the upper 32 and lower 32 bits of [smartPtr] 
+// splitSmartPtr splits the upper 32 and lower 32 bits of [smartPtr]
 // into a length and ptr respectively.
-func splitSmartPtr(smartPtr SmartPtr) (uint32, uint32) {	
+func splitSmartPtr(smartPtr SmartPtr) (uint32, uint32) {
 	length := smartPtr >> 32
 	ptr := int64(smartPtr) & int64(ptrMask)
 
 	return uint32(ptr), uint32(length)
-}	
+}
 
 // NewRuntimePtr allocates memory in the runtime and writes [bytes] to it.
 // It returns the pointer of the allocated memory.
-func NewRuntimePtr(ctx context.Context, bytes []byte, rt Runtime) (int64, error) {
+func NewRuntimePtr(bytes []byte, rt Runtime) (int64, error) {
 	amountToAllocate := len(bytes)
 
 	ptr, err := rt.Memory().Alloc(uint64(amountToAllocate))
@@ -82,7 +81,7 @@ func NewRuntimePtr(ctx context.Context, bytes []byte, rt Runtime) (int64, error)
 	return int64(ptr), err
 }
 
-// SerializeParameter serializes [obj] using Borsh 
+// SerializeParameter serializes [obj] using Borsh
 func SerializeParameter(obj interface{}) ([]byte, error) {
 	bytes, err := borsh.Serialize(obj)
 	return bytes, err
@@ -90,13 +89,13 @@ func SerializeParameter(obj interface{}) ([]byte, error) {
 
 // NewSmartPtr creates a SmartPtr by serializing the provided object using Borsh,
 // allocating memory for it in [rt], and constructing a SmartPtr
-// from the resulting pointer and length of the serialized bytes. 
-func NewSmartPtr(ctx context.Context, obj interface{}, rt Runtime) (SmartPtr, error) {
+// from the resulting pointer and length of the serialized bytes.
+func NewSmartPtr(obj interface{}, rt Runtime) (SmartPtr, error) {
 	bytes, err := SerializeParameter(obj)
 	if err != nil {
 		return 0, err
 	}
-	ptr, err := NewRuntimePtr(ctx, bytes, rt)
+	ptr, err := NewRuntimePtr(bytes, rt)
 	if err != nil {
 		return 0, err
 	}
