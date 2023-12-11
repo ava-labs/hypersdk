@@ -319,7 +319,7 @@ func (h *Handler) PromptChain(label string, excluded set.Set[ids.ID]) (ids.ID, [
 }
 
 func (*Handler) PrintStatus(txID ids.ID, success bool) {
-	status := "⚠️"
+	status := "❌"
 	if success {
 		status = "✅"
 	}

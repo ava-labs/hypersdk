@@ -61,7 +61,7 @@ func sendAndWait(
 func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result) {
 	summaryStr := string(result.Output)
 	actor := tx.Auth.Actor()
-	status := "⚠️"
+	status := "❌"
 	if result.Success {
 		status = "✅"
 		switch action := tx.Action.(type) {
