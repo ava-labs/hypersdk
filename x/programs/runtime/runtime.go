@@ -253,7 +253,7 @@ func mapFunctionParams(input []SmartPtr, values []*wasmtime.ValType) ([]interfac
 			}
 			params[i] = int32(input[i])
 		case wasmtime.KindI64:
-			params[i] = input[i]
+			params[i] = int64(input[i])
 		default:
 			return nil, fmt.Errorf("%w: %v", ErrInvalidParamType, v.Kind())
 		}
