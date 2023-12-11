@@ -70,9 +70,9 @@ func (i *Import) callProgramFn(
 ) int64 {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	client := runtime.NewExportClient(caller)
+	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	// get the entry function for invoke to call.
-	functionBytes, err := runtime.FromSmartPtr(client, runtime.SmartPtr(function))
+	functionBytes, err := runtime.SmartPtr(function).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read function name from memory",
 			zap.Error(err),
@@ -80,7 +80,7 @@ func (i *Import) callProgramFn(
 		return -1
 	}
 
-	programIDBytes, err := runtime.FromSmartPtr(client, runtime.SmartPtr(programID))
+	programIDBytes, err := runtime.SmartPtr(programID).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read id from memory",
 			zap.Error(err),
@@ -131,7 +131,7 @@ func (i *Import) callProgramFn(
 		}
 	}()
 
-	argsBytes, err := runtime.FromSmartPtr(client, runtime.SmartPtr(args))
+	argsBytes, err := runtime.SmartPtr(args).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read program args name from memory",
 			zap.Error(err),
@@ -167,7 +167,7 @@ func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, prog
 	if err != nil {
 		return nil, err
 	}
-	argPtr, err := runtime.ToSmartPtr(uint32(invokeProgramIDPtr), uint32(len(programIDBytes)))
+	argPtr, err := runtime.NewSmartPtr(uint32(invokeProgramIDPtr), len(programIDBytes))
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +187,7 @@ func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, prog
 		if err != nil {
 			return nil, err
 		}
-		argPtr, err := runtime.ToSmartPtr(uint32(ptr), length)
+		argPtr, err := runtime.NewSmartPtr(uint32(ptr), int(length))
 		if err != nil {
 			return nil, err
 		}

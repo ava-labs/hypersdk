@@ -15,6 +15,10 @@ type memory struct {
 	client WasmtimeExportClient
 }
 
+// SmartPtr is an int64 where the first 4 bytes represent the length of the bytes
+// and the following 4 bytes represent a pointer to WASM memeory where the bytes are stored.
+type SmartPtr int64
+
 func NewMemory(client WasmtimeExportClient) *memory {
 	return &memory{
 		client: client,
@@ -163,4 +167,47 @@ func WriteParams(m Memory, p []CallParam) ([]int64, error) {
 	}
 
 	return params, nil
+}
+
+func (s SmartPtr) Get() int64 {
+	return int64(s)
+}
+
+func (s SmartPtr) Len() uint32 {
+	return uint32(s >> 32)
+}
+
+func (s SmartPtr) PtrOffset() uint32 {
+	return uint32(s)
+}
+
+func (s SmartPtr) Bytes(memory Memory) ([]byte, error) {
+	// read the range of PtrOffset + length from memory
+	bytes, err := memory.Range(uint64(s.PtrOffset()), uint64(s.Len()))
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes, nil
+}
+
+func BytesToSmartPtr(bytes []byte, memory Memory) (SmartPtr, error) {
+	ptr, err := WriteBytes(memory, bytes)
+	if err != nil {
+		return 0, err
+	}
+
+	return NewSmartPtr(uint32(ptr), len(bytes))
+}
+
+func NewSmartPtr(ptr uint32, len int) (SmartPtr, error) {
+	// ensure length of bytes is not greater than int32 to prevent overflow
+	if !EnsureIntToInt32(len) {
+		return 0, fmt.Errorf("length of bytes is greater than int32")
+	}
+
+	lenUpperBits := int64(len) << 32
+	ptrLowerBits := int64(ptr)
+
+	return SmartPtr(lenUpperBits | ptrLowerBits), nil
 }

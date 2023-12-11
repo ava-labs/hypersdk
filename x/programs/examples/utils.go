@@ -10,6 +10,8 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	"github.com/near/borsh-go"
 )
 
 func newKey() (ed25519.PrivateKey, ed25519.PublicKey, error) {
@@ -19,6 +21,22 @@ func newKey() (ed25519.PrivateKey, ed25519.PublicKey, error) {
 	}
 
 	return priv, priv.PublicKey(), nil
+}
+
+// SerializeParameter serializes [obj] using Borsh
+func serializeParameter(obj interface{}) ([]byte, error) {
+	bytes, err := borsh.Serialize(obj)
+	return bytes, err
+}
+
+// Serialize the parameter and create a smart ptr
+func argumentToSmartPtr(obj interface{}, memory runtime.Memory) (runtime.SmartPtr, error) {
+	bytes, err := serializeParameter(obj)
+	if err != nil {
+		return 0, err
+	}
+
+	return runtime.BytesToSmartPtr(bytes, memory)
 }
 
 var (
