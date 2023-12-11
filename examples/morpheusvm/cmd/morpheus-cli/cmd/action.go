@@ -70,7 +70,7 @@ var setAliasCmd = &cobra.Command{
 		}
 
 		// Select recipient
-		alias, err := handler.Root().PromptString("alias", 4, 4)
+		alias, err := handler.Root().PromptString("alias", 1, 10)
 		if err != nil {
 			return err
 		}

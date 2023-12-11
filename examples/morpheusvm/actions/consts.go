@@ -6,4 +6,4 @@ package actions
 const TransferComputeUnits = 1
 const SetAliasComputeUnits = 1
 
-const AliasLength = 4
+const AliasMaxLength = 10

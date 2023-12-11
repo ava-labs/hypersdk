@@ -53,7 +53,7 @@ func (s *SetAlias) Execute(
 		return false, SetAliasComputeUnits, AliasEmpty, nil, nil
 	}
 
-	if len(s.Alias) != AliasLength {
+	if len(s.Alias) != AliasMaxLength {
 		return false, SetAliasComputeUnits, AliasLengthInvalid, nil, nil
 	}
 

@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 
+	"crypto/sha256"
+
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
@@ -249,10 +251,11 @@ func SubBalance(
 }
 
 func AliasKey(alias string) (k []byte) {
-	k = make([]byte, 1+len(alias)+consts.Uint16Len)
+	k = make([]byte, 1+sha256.Size+consts.Uint16Len)
 	k[0] = aliasPrefix
-	copy(k[1:], []byte(alias))
-	binary.BigEndian.PutUint16(k[1+len(alias):], AliasChunks)
+	aliasHash := sha256.Sum256([]byte(alias))
+	copy(k[1:], aliasHash[:])
+	binary.BigEndian.PutUint16(k[1+sha256.Size:], AliasChunks)
 	return k
 }
 
