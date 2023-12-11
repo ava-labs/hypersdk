@@ -113,8 +113,8 @@ func (c *Config) SetProfiler(profiler wasmtime.ProfilingStrategy) {
 }
 
 // SetStrategy configures what compilation strategy is used to compile wasm code.
-func (c *Config) SetStrategy(strat wasmtime.Strategy) {
-	c.inner.SetStrategy(strat)
+func (c *Config) SetStrategy(strategy wasmtime.Strategy) {
+	c.inner.SetStrategy(strategy)
 }
 
 // SetTarget configures the target triple that this configuration will produce machine code for.

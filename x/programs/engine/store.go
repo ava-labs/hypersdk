@@ -45,6 +45,7 @@ func NewStore(e *Engine, cfg *StoreConfig) *Store {
 		cfg.limitMaxTables,
 		cfg.limitMaxMemories,
 	)
+
 	return &Store{inner: inner}
 }
 

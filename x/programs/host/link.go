@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package host
 
 import (
@@ -164,7 +167,15 @@ func (l *Link) RegisterFuncWrap(module, name string, f interface{}) error {
 			}
 		}
 		if l.cb.AfterResponse != nil {
-			defer l.cb.AfterResponse(module, name, l.meter)
+			defer func() {
+				err := l.cb.AfterResponse(module, name, l.meter)
+				if err != nil {
+					l.log.Error("after response callback failed",
+						zap.Error(err),
+					)
+					l.inner.Engine.IncrementEpoch()
+				}
+			}()
 		}
 		return f
 	}

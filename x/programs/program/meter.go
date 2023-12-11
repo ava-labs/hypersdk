@@ -5,15 +5,14 @@ package program
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 )
 
 const NoUnits = 0
 
-var (
-	ErrInsufficientUnits = errors.New("insufficient units")
-)
+var ErrInsufficientUnits = errors.New("insufficient units")
 
 var _ Meter = (*meter)(nil)
 
@@ -49,7 +48,10 @@ func (m *meter) GetBalance() uint64 {
 func (m *meter) Spend(units uint64) (uint64, error) {
 	if m.GetBalance() < units {
 		// spend all remaining units
-		m.Spend(m.GetBalance())
+		_, err := m.Spend(m.GetBalance())
+		if err != nil {
+			return 0, fmt.Errorf("%w: %w", ErrInsufficientUnits, err)
+		}
 		return 0, ErrInsufficientUnits
 	}
 	return m.store.ConsumeFuel(units)

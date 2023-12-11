@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package host
 
 import (
@@ -82,7 +85,7 @@ func NewImportFn[F any](src F) func(caller *program.Caller, wargs ...wasmtime.Va
 	fn := func(c *program.Caller, wargs ...wasmtime.Val) (*program.Val, error) {
 		args := make([]int64, 0, len(wargs))
 		for _, arg := range wargs {
-			args = append(args, int64(arg.I64()))
+			args = append(args, arg.I64())
 		}
 		return importFn.Invoke(c, args...)
 	}

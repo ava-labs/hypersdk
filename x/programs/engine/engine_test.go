@@ -10,10 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	//go:embed testdata/token.wasm
-	tokenProgramBytes []byte
-)
+//go:embed testdata/token.wasm
+var tokenProgramBytes []byte
 
 // go test -v -benchmem -run=^$ -bench ^BenchmarkCompileModule$ github.com/ava-labs/hypersdk/x/programs/engine -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func BenchmarkCompileModule(b *testing.B) {

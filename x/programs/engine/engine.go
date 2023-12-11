@@ -9,20 +9,17 @@ import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
+// Engine is a wrapper around a wasmtime.Engine and manages the lifecycle of a
+// programs execution. It is expected that a single engine can have multiple
+// stores. For example in the case of program to program calls.
 type Engine struct {
 	inner *wasmtime.Engine
 }
 
-// New creates a new Wasm engine
+// New creates a new Wasm engine.
 func New(cfg *Config) *Engine {
 	return &Engine{
 		inner: wasmtime.NewEngineWithConfig(cfg.inner),
-	}
-}
-
-func NewWrap(inner *wasmtime.Engine) *Engine {
-	return &Engine{
-		inner: inner,
 	}
 }
 
@@ -60,6 +57,7 @@ func PreCompileWasmBytes(programBytes []byte, engineCfg *Config, limitMaxMemory 
 	return module.Serialize()
 }
 
+// NewModule creates a new wasmtime module and handles the Wasm bytes based on compile strategy.
 func NewModule(engine *Engine, bytes []byte, strategy CompileStrategy) (*wasmtime.Module, error) {
 	switch strategy {
 	case CompileWasm:

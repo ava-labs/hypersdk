@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package program
 
 import (
@@ -6,8 +9,10 @@ import (
 
 type ValKind = wasmtime.ValKind
 
-const TypeI64 ValKind = wasmtime.KindI64
-const TypeI32 ValKind = wasmtime.KindI32
+const (
+	TypeI64 ValKind = wasmtime.KindI64
+	TypeI32 ValKind = wasmtime.KindI32
+)
 
 type Val struct {
 	inner wasmtime.Val

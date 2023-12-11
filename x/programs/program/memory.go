@@ -119,7 +119,7 @@ func (m *Memory) Grow(delta uint64) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	if uint64(length) > math.MaxUint32 {
+	if length > math.MaxUint32 {
 		return 0, ErrOverflow
 	}
 	return uint32(length), nil

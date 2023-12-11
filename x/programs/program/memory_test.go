@@ -12,10 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	//go:embed testdata/base.wasm
-	wasmBytes []byte
-)
+//go:embed testdata/base.wasm
+var wasmBytes []byte
 
 func TestMemory(t *testing.T) {
 	require := require.New(t)
@@ -41,7 +39,6 @@ func TestMemory(t *testing.T) {
 	bytes := make([]byte, 2)
 	err = mem.Write(ptr, bytes)
 	require.NoError(err)
-
 }
 
 func newTestMemory(t *testing.T) *Memory {
@@ -50,7 +47,8 @@ func newTestMemory(t *testing.T) *Memory {
 	// create new instance
 	eng := engine.New(engine.NewConfig())
 	store := engine.NewStore(eng, engine.NewStoreConfig())
-	store.AddFuel(3000000)
+	err := store.AddFuel(3000000)
+	require.NoError(err)
 	mod, err := wasmtime.NewModule(store.Engine(), wasmBytes)
 	require.NoError(err)
 	inst, err := wasmtime.NewInstance(store.Inner(), mod, nil)

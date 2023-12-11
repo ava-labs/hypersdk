@@ -88,7 +88,6 @@ func TestLinkImport(t *testing.T) {
 			require.NoError(err)
 		})
 	}
-
 }
 
 // go test -v -benchmem -run=^$ -bench ^BenchmarkInstantiate$ github.com/ava-labs/hypersdk/x/programs/host -memprofile benchvset.mem -cpuprofile benchvset.cpu
@@ -188,18 +187,18 @@ func (i *testImport) Register(link *Link) error {
 	return nil
 }
 
-func testOneParamFn(caller *program.Caller, p1 int64) (*program.Val, error) {
+func testOneParamFn(*program.Caller, int64) (*program.Val, error) {
 	return nil, nil
 }
 
-func testTwoParamFn(caller *program.Caller, p1, p2 int64) (*program.Val, error) {
+func testTwoParamFn(*program.Caller, int64, int64) (*program.Val, error) {
 	return nil, nil
 }
 
-func testOneParamFnWrap(caller *wasmtime.Caller, p1 int64) int64 {
+func testOneParamFnWrap(*wasmtime.Caller, int64) int64 {
 	return 0
 }
 
-func testTwoParamFnWrap(caller *wasmtime.Caller, p1, p2 int64) int64 {
+func testTwoParamFnWrap(*wasmtime.Caller, int64, int64) int64 {
 	return 0
 }
