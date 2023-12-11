@@ -122,20 +122,18 @@ pub unsafe fn from_smart_ptr<V>(ptr: SmartPtr) -> Result<V, StateError>
 where
     V: BorshDeserialize,
 {
-    let (bytes, _) = bytes_and_length(ptr);
+    let bytes = into_bytes(ptr);
     from_slice::<V>(&bytes).map_err(|_| StateError::Deserialization)
 }
 
 /// Returns a tuple of the bytes and length of the argument.
 /// `smart_ptr` is encoded using Big Endian as an i64.
-/// # Safety
-/// This function is unsafe because it dereferences raw pointers.
 #[must_use]
-pub unsafe fn bytes_and_length(smart_ptr: i64) -> (Vec<u8>, usize) {
+pub fn into_bytes(smart_ptr: SmartPtr) -> Vec<u8> {
     // grab length from ptrArg
     let (ptr, len) = split_smart_ptr(smart_ptr);
     let value = unsafe { std::slice::from_raw_parts(ptr as *const u8, len) };
-    (value.to_vec(), len)
+    value.to_vec()
 }
 
 /// Attempts to allocate a block of memory of size `len` and returns a pointer
