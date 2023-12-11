@@ -36,9 +36,9 @@ var (
 func TestTokenProgram(t *testing.T) {
 	require := require.New(t)
 	maxUnits := uint64(40000)
-	cfg, err := runtime.NewConfigBuilder().Build()
-	require.NoError(err)
-	program, err := newTokenProgram(maxUnits, cfg, tokenProgramBytes)
+	cfg := runtime.NewConfig()
+	eng := engine.New(engine.NewConfig())
+	program, err := newTokenProgram(eng, maxUnits, cfg, tokenProgramBytes)
 	require.NoError(err)
 	err = program.Run(context.Background())
 	require.NoError(err)
@@ -48,20 +48,17 @@ func TestTokenProgram(t *testing.T) {
 func BenchmarkTokenProgram(b *testing.B) {
 	require := require.New(b)
 	maxUnits := uint64(40000)
-
-	cfg, err := runtime.NewConfigBuilder().
-		WithCompileStrategy(engine.CompileWasm).
+	cfg := runtime.NewConfig().
+		WithCompileStrategy(engine.CompileWasm)
+	ecfg, err := engine.NewConfigBuilder().
 		WithDefaultCache(true).
 		Build()
 	require.NoError(err)
-	ecfg, err := cfg.Engine()
-	require.NoError(err)
 	eng := engine.New(ecfg)
-
 	b.Run("benchmark_token_program_compile_and_cache", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
-			program, err := newTokenProgram(maxUnits, cfg, tokenProgramBytes)
+			program, err := newTokenProgram(eng, maxUnits, cfg, tokenProgramBytes)
 			require.NoError(err)
 			b.StartTimer()
 			err = program.Run(context.Background())
@@ -72,7 +69,7 @@ func BenchmarkTokenProgram(b *testing.B) {
 	b.Run("benchmark_token_program_compile_and_cache_short", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
-			program, err := newTokenProgram(maxUnits, cfg, tokenProgramBytes)
+			program, err := newTokenProgram(eng, maxUnits, cfg, tokenProgramBytes)
 			require.NoError(err)
 			b.StartTimer()
 			err = program.RunShort(context.Background())
@@ -80,21 +77,20 @@ func BenchmarkTokenProgram(b *testing.B) {
 		}
 	})
 
-	rcfg = runtime.NewConfig().
+	rcfg := runtime.NewConfig().
 		WithCompileStrategy(engine.PrecompiledWasm)
 	ecfg, err = engine.NewConfigBuilder().
 		WithDefaultCache(false).
 		Build()
 	require.NoError(err)
-	require.NoError(err)
-	preCompiledTokenProgramBytes, err := engine.PreCompileWasmBytes(tokenProgramBytes, ecfg, cfg.StoreCfg())
+	preCompiledTokenProgramBytes, err := engine.PreCompileWasmBytes(tokenProgramBytes, ecfg, rcfg.LimitMaxMemory)
 	require.NoError(err)
 
 	b.ResetTimer()
 	b.Run("benchmark_token_program_precompile", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
-			program, err := newTokenProgram(maxUnits, cfg, preCompiledTokenProgramBytes)
+			program, err := newTokenProgram(eng, maxUnits, rcfg, preCompiledTokenProgramBytes)
 			require.NoError(err)
 			b.StartTimer()
 			err = program.Run(context.Background())
@@ -105,7 +101,7 @@ func BenchmarkTokenProgram(b *testing.B) {
 	b.Run("benchmark_token_program_precompile_short", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
-			program, err := newTokenProgram(maxUnits, cfg, preCompiledTokenProgramBytes)
+			program, err := newTokenProgram(eng, maxUnits, cfg, preCompiledTokenProgramBytes)
 			require.NoError(err)
 			b.StartTimer()
 			err = program.RunShort(context.Background())
@@ -114,7 +110,7 @@ func BenchmarkTokenProgram(b *testing.B) {
 	})
 }
 
-func newTokenProgram(maxUnits uint64, cfg *runtime.Config, programBytes []byte) (*Token, error) {
+func newTokenProgram(engine *engine.Engine, maxUnits uint64, cfg *runtime.Config, programBytes []byte) (*Token, error) {
 	db := newTestDB()
 
 	// define imports
@@ -122,5 +118,5 @@ func newTokenProgram(maxUnits uint64, cfg *runtime.Config, programBytes []byte) 
 	imports.Register("state", func() host.Import {
 		return pstate.New(log, db)
 	})
-	return NewToken(log, programBytes, db, cfg, imports.Build(), maxUnits), nil
+	return NewToken(log, engine, programBytes, db, cfg, imports.Build(), maxUnits), nil
 }

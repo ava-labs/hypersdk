@@ -48,7 +48,7 @@ func (r *WasmRuntime) Initialize(
 	ctx context.Context,
 	programBytes []byte,
 	maxUnits uint64,
-) (err error) {
+) error {
 	ctx, r.cancelFn = context.WithCancel(ctx)
 	go func(ctx context.Context) {
 		<-ctx.Done()
@@ -65,7 +65,7 @@ func (r *WasmRuntime) Initialize(
 	store.SetEpochDeadline(1)
 
 	// compile the module
-	mod, err := r.engine.CompileModule(programBytes)
+	mod, err := engine.NewModule(r.engine, programBytes, r.cfg.CompileStrategy)
 	if err != nil {
 		return err
 	}

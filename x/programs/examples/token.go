@@ -17,12 +17,23 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
+	"github.com/ava-labs/hypersdk/x/programs/host"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports runtime.SupportedImports, maxUnits uint64) *Token {
+func NewToken(
+	log logging.Logger,
+	engine *engine.Engine,
+	programBytes []byte,
+	db state.Mutable,
+	cfg *runtime.Config,
+	imports host.SupportedImports,
+	maxUnits uint64,
+) *Token {
 	return &Token{
-		log:          log,
+		log: log,
+
 		programBytes: programBytes,
 		cfg:          cfg,
 		imports:      imports,
@@ -42,13 +53,14 @@ type Token struct {
 	log          logging.Logger
 	programBytes []byte
 	cfg          *runtime.Config
-	imports      runtime.SupportedImports
+	imports      host.SupportedImports
 	db           state.Mutable
 	maxUnits     uint64
+	engine       *engine.Engine
 }
 
 func (t *Token) Run(ctx context.Context) error {
-	rt := runtime.New(t.log, t.cfg, t.imports)
+	rt := runtime.New(t.log, t.engine, t.imports, t.cfg)
 	err := rt.Initialize(ctx, t.programBytes, t.maxUnits)
 	if err != nil {
 		return err
@@ -65,7 +77,12 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	programIDPtr, err := runtime.WriteBytes(rt.Memory(), programID[:])
+	mem, err := rt.Memory()
+	if err != nil {
+		return err
+	}
+
+	programIDPtr, err := program.WriteBytes(mem, programID[:])
 	if err != nil {
 		return err
 	}
@@ -75,7 +92,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// initialize program
-	resp, err := rt.Call(ctx, "init", programIDPtr)
+	resp, err := rt.Call(ctx, "init", int64(programIDPtr))
 	if err != nil {
 		return fmt.Errorf("failed to initialize program: %w", err)
 	}
@@ -84,7 +101,7 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("init", resp[0]),
 	)
 
-	result, err := rt.Call(ctx, "get_total_supply", programIDPtr)
+	result, err := rt.Call(ctx, "get_total_supply", int64(programIDPtr))
 	if err != nil {
 		return err
 	}
@@ -117,7 +134,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// check balance of bob
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", int64(programIDPtr), bobPtr)
 	if err != nil {
 		return err
 	}
@@ -127,7 +144,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// mint 100 tokens to alice
 	mintAlice := int64(1000)
-	_, err = rt.Call(ctx, "mint_to", programIDPtr, alicePtr, mintAlice)
+	_, err = rt.Call(ctx, "mint_to", int64(programIDPtr), alicePtr, mintAlice)
 	if err != nil {
 		return err
 	}
@@ -136,7 +153,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// check balance of alice
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", int64(programIDPtr), alicePtr)
 	if err != nil {
 		return err
 	}
@@ -145,7 +162,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// check balance of bob
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", int64(programIDPtr), bobPtr)
 	if err != nil {
 		return err
 	}
@@ -155,7 +172,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// transfer 50 from alice to bob
 	transferToBob := int64(50)
-	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, transferToBob)
+	_, err = rt.Call(ctx, "transfer", int64(programIDPtr), alicePtr, bobPtr, transferToBob)
 	if err != nil {
 		return err
 	}
@@ -164,7 +181,7 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("to bob", transferToBob),
 	)
 
-	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, 1)
+	_, err = rt.Call(ctx, "transfer", int64(programIDPtr), alicePtr, bobPtr, 1)
 	if err != nil {
 		return err
 	}
@@ -174,7 +191,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance alice
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", int64(programIDPtr), alicePtr)
 	if err != nil {
 		return err
 	}
@@ -183,7 +200,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance bob
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", int64(programIDPtr), bobPtr)
 	if err != nil {
 		return err
 	}
@@ -211,7 +228,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// perform bulk mint
-	_, err = rt.Call(ctx, "mint_to_many", programIDPtr, mintersPtr)
+	_, err = rt.Call(ctx, "mint_to_many", int64(programIDPtr), mintersPtr)
 	if err != nil {
 		return err
 	}
@@ -221,7 +238,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance alice
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", int64(programIDPtr), alicePtr)
 	if err != nil {
 		return err
 	}
@@ -230,7 +247,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance bob
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", int64(programIDPtr), bobPtr)
 	if err != nil {
 		return err
 	}
@@ -241,7 +258,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 // RunShort performs the steps of initialization only, used for benchmarking.
 func (t *Token) RunShort(ctx context.Context) error {
-	rt := runtime.New(t.log, t.cfg, t.imports)
+	rt := runtime.New(t.log, t.engine, t.imports, t.cfg)
 	err := rt.Initialize(ctx, t.programBytes, t.maxUnits)
 	if err != nil {
 		return err
@@ -258,7 +275,12 @@ func (t *Token) RunShort(ctx context.Context) error {
 		return err
 	}
 
-	programIDPtr, err := runtime.WriteBytes(rt.Memory(), programID[:])
+	mem, err := rt.Memory()
+	if err != nil {
+		return err
+	}
+
+	programIDPtr, err := program.WriteBytes(mem, programID[:])
 	if err != nil {
 		return err
 	}
@@ -268,7 +290,7 @@ func (t *Token) RunShort(ctx context.Context) error {
 	)
 
 	// initialize program
-	resp, err := rt.Call(ctx, "init", programIDPtr)
+	resp, err := rt.Call(ctx, "init", int64(programIDPtr))
 	if err != nil {
 		return fmt.Errorf("failed to initialize program: %w", err)
 	}

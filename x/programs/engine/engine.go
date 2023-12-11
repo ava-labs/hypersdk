@@ -4,6 +4,8 @@
 package engine
 
 import (
+	"fmt"
+
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
@@ -46,7 +48,9 @@ func (e *Engine) CompileModule(bytes []byte) (*wasmtime.Module, error) {
 //
 // Note: these bytes can be deserialized by an `Engine` that has the same version.
 // For that reason precompiled wasm modules should not be stored on chain.
-func PreCompileWasmBytes(programBytes []byte, engineCfg *Config, storeCfg *StoreConfig) ([]byte, error) {
+func PreCompileWasmBytes(programBytes []byte, engineCfg *Config, limitMaxMemory int64) ([]byte, error) {
+	storeCfg := NewStoreConfig()
+	storeCfg.SetLimitMaxMemory(limitMaxMemory)
 	store := NewStore(New(engineCfg), storeCfg)
 	module, err := wasmtime.NewModule(store.Engine(), programBytes)
 	if err != nil {
@@ -54,4 +58,15 @@ func PreCompileWasmBytes(programBytes []byte, engineCfg *Config, storeCfg *Store
 	}
 
 	return module.Serialize()
+}
+
+func NewModule(engine *Engine, bytes []byte, strategy CompileStrategy) (*wasmtime.Module, error) {
+	switch strategy {
+	case CompileWasm:
+		return engine.CompileModule(bytes)
+	case PrecompiledWasm:
+		return engine.PreCompileModule(bytes)
+	default:
+		return nil, fmt.Errorf("unknown compile strategy")
+	}
 }

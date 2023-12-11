@@ -12,10 +12,12 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/host"
+	rprogram "github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -39,9 +41,9 @@ func TestCounterProgram(t *testing.T) {
 	imports.Register("program", func() host.Import {
 		return program.New(log, db, cfg)
 	})
-
-	rt := runtime.New(log, cfg, supported.Imports())
-	err = rt.Initialize(ctx, counterProgramBytes, maxUnits)
+	eng := engine.New(engine.NewConfig())
+	rt := runtime.New(log, eng, imports.Build(), cfg)
+	err := rt.Initialize(ctx, counterProgramBytes, maxUnits)
 	require.NoError(err)
 
 	require.Equal(maxUnits, rt.Meter().GetBalance())
@@ -51,7 +53,10 @@ func TestCounterProgram(t *testing.T) {
 	err = storage.SetProgram(ctx, db, programID, counterProgramBytes)
 	require.NoError(err)
 
-	programIDPtr, err := runtime.WriteBytes(rt.Memory(), programID[:])
+	mem, err := rt.Memory()
+	require.NoError(err)
+
+	programIDPtr, err := rprogram.WriteBytes(mem, programID[:])
 	require.NoError(err)
 
 	// generate alice keys
@@ -63,19 +68,19 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// create counter for alice on program 1
-	result, err := rt.Call(ctx, "initialize_address", programIDPtr, alicePtr)
+	result, err := rt.Call(ctx, "initialize_address", int64(programIDPtr), alicePtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
 	// validate counter at 0
-	result, err = rt.Call(ctx, "get_value", programIDPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_value", int64(programIDPtr), alicePtr)
 	require.NoError(err)
 	require.Equal(int64(0), result[0])
 
 	// initialize second runtime to create second counter program with an empty
 	// meter.
-	rt2 := runtime.New(log, cfg, supported.Imports())
-	err = rt2.Initialize(ctx, counterProgramBytes, runtime.NoUnits)
+	rt2 := runtime.New(log, eng, imports.Build(), cfg)
+	err = rt2.Initialize(ctx, counterProgramBytes, rprogram.NoUnits)
 	require.NoError(err)
 
 	// define max units to transfer to second runtime
@@ -91,7 +96,10 @@ func TestCounterProgram(t *testing.T) {
 	err = storage.SetProgram(ctx, db, program2ID, counterProgramBytes)
 	require.NoError(err)
 
-	programID2Ptr, err := runtime.WriteBytes(rt2.Memory(), program2ID[:])
+	mem2, err := rt2.Memory()
+	require.NoError(err)
+
+	programID2Ptr, err := rprogram.WriteBytes(mem2, program2ID[:])
 	require.NoError(err)
 
 	// write alice's key to stack and get pointer
@@ -99,16 +107,16 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// initialize counter for alice on runtime 2
-	result, err = rt2.Call(ctx, "initialize_address", programID2Ptr, alicePtr2)
+	result, err = rt2.Call(ctx, "initialize_address", int64(programID2Ptr), alicePtr2)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
 	// increment alice's counter on program 2 by 10
-	result, err = rt2.Call(ctx, "inc", programID2Ptr, alicePtr2, 10)
+	result, err = rt2.Call(ctx, "inc", int64(programID2Ptr), alicePtr2, 10)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
-	result, err = rt2.Call(ctx, "get_value", programID2Ptr, alicePtr2)
+	result, err = rt2.Call(ctx, "get_value", int64(programID2Ptr), alicePtr2)
 	require.NoError(err)
 	require.Equal(int64(10), result[0])
 
@@ -124,11 +132,11 @@ func TestCounterProgram(t *testing.T) {
 	}
 
 	// increment alice's counter on program 1
-	result, err = rt.Call(ctx, "inc", programIDPtr, alicePtr, 1)
+	result, err = rt.Call(ctx, "inc", int64(programIDPtr), alicePtr, 1)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
-	result, err = rt.Call(ctx, "get_value", programIDPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_value", int64(programIDPtr), alicePtr)
 	require.NoError(err)
 
 	log.Debug("count program 1",
@@ -136,11 +144,11 @@ func TestCounterProgram(t *testing.T) {
 	)
 
 	// write program id 2 to stack of program 1
-	programID2Ptr, err = runtime.WriteBytes(rt.Memory(), program2ID[:])
+	programID2Ptr, err = rprogram.WriteBytes(mem, program2ID[:])
 	require.NoError(err)
 
-	caller := programIDPtr
-	target := programID2Ptr
+	caller := int64(programIDPtr)
+	target := int64(programID2Ptr)
 	maxUnitsProgramToProgram := int64(10000)
 
 	// increment alice's counter on program 2

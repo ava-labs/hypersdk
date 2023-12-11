@@ -20,15 +20,20 @@ import (
 // If [prependLength] is true, it prepends the length of [bytes] as a uint32 to [bytes].
 // It returns the pointer to the allocated memory.
 func newPtr(ctx context.Context, bytes []byte, rt runtime.Runtime) (int64, error) {
-	amountToAllocate := uint64(len(bytes))
+	amountToAllocate := uint32(len(bytes))
 
-	ptr, err := rt.Memory().Alloc(amountToAllocate)
+	memory, err := rt.Memory()
+	if err != nil {
+		return 0, err
+	}
+
+	ptr, err := memory.Alloc(amountToAllocate)
 	if err != nil {
 		return 0, err
 	}
 
 	// write programID to memory which we will later pass to the program
-	err = rt.Memory().Write(ptr, bytes)
+	err = memory.Write(ptr, bytes)
 	if err != nil {
 		return 0, err
 	}
