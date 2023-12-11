@@ -12,7 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
@@ -31,7 +31,7 @@ func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *ru
 
 type minter struct {
 	// TODO: use a HyperSDK.Address instead
-	To ed25519.PublicKey
+	To codec.Address
 	// note: a production program would use a uint64 for amount
 	Amount int32
 }
@@ -57,23 +57,23 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// simulate create program transaction
-	programID := ids.GenerateTestID()
-	err = storage.SetProgram(ctx, t.db, programID, t.programBytes)
+	programAddress := codec.CreateAddress(runtime.ED25519ID, ids.GenerateTestID())
+	err = storage.SetProgram(ctx, t.db, programAddress, t.programBytes)
 	if err != nil {
 		return err
 	}
 
-	programIDPtr, err := argumentToSmartPtr(programID, rt.Memory())
+	programAddressPtr, err := argumentToSmartPtr(programAddress, rt.Memory())
 	if err != nil {
 		return err
 	}
 
 	t.log.Debug("new token program created",
-		zap.String("id", programID.String()),
+		zap.String("id", codec.MustAddressBech32("token_", programAddress)),
 	)
 
 	// initialize program
-	resp, err := rt.Call(ctx, "init", programIDPtr)
+	resp, err := rt.Call(ctx, "init", programAddressPtr)
 	if err != nil {
 		return fmt.Errorf("failed to initialize program: %w", err)
 	}
@@ -82,7 +82,7 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("init", resp[0]),
 	)
 
-	result, err := rt.Call(ctx, "get_total_supply", programIDPtr)
+	result, err := rt.Call(ctx, "get_total_supply", programAddressPtr)
 	if err != nil {
 		return err
 	}
@@ -90,32 +90,32 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("minted", result[0]),
 	)
 
-	// generate alice keys
-	_, aliceKey, err := newKey()
+	// generate alice's address
+	_, aliceAddress, err := newAddress()
 	if err != nil {
 		return err
 	}
 
-	// write alice's key to stack and get pointer
-	alicePtr, err := argumentToSmartPtr(aliceKey, rt.Memory())
+	// write alice's address to stack and get pointer
+	alicePtr, err := argumentToSmartPtr(aliceAddress, rt.Memory())
 	if err != nil {
 		return err
 	}
 
-	// generate bob keys
-	_, bobKey, err := newKey()
+	// generate bob address
+	_, bobAddress, err := newAddress()
 	if err != nil {
 		return err
 	}
 
-	// write bob's key to stack and get pointer
-	bobPtr, err := argumentToSmartPtr(bobKey, rt.Memory())
+	// write bob's address to stack and get pointer
+	bobPtr, err := argumentToSmartPtr(bobAddress, rt.Memory())
 	if err != nil {
 		return err
 	}
 
 	// check balance of bob
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programAddressPtr, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	_, err = rt.Call(ctx, "mint_to", programIDPtr, alicePtr, mintAlicePtr)
+	_, err = rt.Call(ctx, "mint_to", programAddressPtr, alicePtr, mintAlicePtr)
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// check balance of alice
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", programAddressPtr, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// check balance of bob
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programAddressPtr, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func (t *Token) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, transferToBobPtr)
+	_, err = rt.Call(ctx, "transfer", programAddressPtr, alicePtr, bobPtr, transferToBobPtr)
 	if err != nil {
 		return err
 	}
@@ -176,7 +176,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, onePtr)
+	_, err = rt.Call(ctx, "transfer", programAddressPtr, alicePtr, bobPtr, onePtr)
 	if err != nil {
 		return err
 	}
@@ -186,7 +186,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance alice
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", programAddressPtr, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -195,7 +195,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance bob
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programAddressPtr, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -208,11 +208,11 @@ func (t *Token) Run(ctx context.Context) error {
 	// combine alice and bobs addresses
 	minters := []minter{
 		{
-			To:     aliceKey,
+			To:     aliceAddress,
 			Amount: 10,
 		},
 		{
-			To:     bobKey,
+			To:     bobAddress,
 			Amount: 12,
 		},
 	}
@@ -223,7 +223,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// perform bulk mint
-	_, err = rt.Call(ctx, "mint_to_many", programIDPtr, mintersPtr)
+	_, err = rt.Call(ctx, "mint_to_many", programAddressPtr, mintersPtr)
 	if err != nil {
 		return err
 	}
@@ -233,7 +233,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance alice
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", programAddressPtr, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -242,7 +242,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance bob
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programAddressPtr, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -264,23 +264,23 @@ func (t *Token) RunShort(ctx context.Context) error {
 	)
 
 	// simulate create program transaction
-	programID := ids.GenerateTestID()
-	err = storage.SetProgram(ctx, t.db, programID, t.programBytes)
+	programAddress := codec.CreateAddress(0, ids.GenerateTestID())
+	err = storage.SetProgram(ctx, t.db, programAddress, t.programBytes)
 	if err != nil {
 		return err
 	}
 
-	programIDPtr, err := argumentToSmartPtr(programID, rt.Memory())
+	programAddressPtr, err := argumentToSmartPtr(programAddress, rt.Memory())
 	if err != nil {
 		return err
 	}
 
 	t.log.Debug("new token program created",
-		zap.String("id", programID.String()),
+		zap.String("id", codec.MustAddressBech32("token_", programAddress)),
 	)
 
 	// initialize program
-	resp, err := rt.Call(ctx, "init", programIDPtr)
+	resp, err := rt.Call(ctx, "init", programAddressPtr)
 	if err != nil {
 		return fmt.Errorf("failed to initialize program: %w", err)
 	}
