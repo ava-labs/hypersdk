@@ -32,7 +32,7 @@ type Config struct {
 	// This is 18 pages by default.
 	LimitMaxMemory int64 `yaml:"limit_max_memory,omitempty" json:"limitMaxMemory,omitempty"`
 	// CompileStrategy helps the engine to understand if the files has been precompiled.
-	CompileStrategy engine.CompileStrategy
+	CompileStrategy engine.CompileStrategy `yaml:"compile_strategy,omitempty" json:"compileStrategy,omitempty"`
 
 	err wrappers.Errs
 }
@@ -71,4 +71,8 @@ func (c *Config) WithLimitMaxMemory(max uint64) *Config {
 func (c *Config) WithDebugMode(enabled bool) *Config {
 	c.EnableDebugMode = enabled
 	return c
+}
+
+func (c *Config) Build() (*Config, error) {
+	return c, c.err.Err
 }

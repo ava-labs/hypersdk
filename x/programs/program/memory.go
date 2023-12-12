@@ -91,14 +91,20 @@ func (m *Memory) Alloc(length uint32) (uint32, error) {
 		return 0, err
 	}
 
+	runtime.KeepAlive(m.inner)
+
 	allocFn := m.allocFn
 	if allocFn == nil {
 		return 0, fmt.Errorf("%w: function not found: %s", ErrInvalidType, AllocFnName)
 	}
 
+	if !EnsureUint32ToInt32(length) {
+		return 0, fmt.Errorf("%w: %d", ErrOverflow, length)
+	}
+
 	result, err := allocFn.Call(m.store, int32(length))
 	if err != nil {
-		return 0, HandleTrapError(err)
+		return 0, err
 	}
 
 	addr, ok := result.(int32)
