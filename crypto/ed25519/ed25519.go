@@ -4,10 +4,9 @@
 package ed25519
 
 import (
-	"crypto/rand"
+	"crypto/ed25519"
 
-	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
-	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519/extra/cache"
+	"github.com/hdevalence/ed25519consensus"
 
 	"github.com/ava-labs/hypersdk/crypto"
 )
@@ -18,6 +17,18 @@ type (
 	Signature  [ed25519.SignatureSize]byte
 )
 
+// We use the ZIP-215 specification for ed25519 signature
+// verification (https://zips.z.cash/zip-0215) because it provides
+// an explicit validity criteria for signatures, supports batch
+// verification, and is broadly compatible with signatures produced
+// by almost all ed25519 implementations (which don't require
+// canonically-encoded points).
+//
+// You can read more about the rationale for ZIP-215 here:
+// https://hdevalence.ca/blog/2020-10-04-its-25519am
+//
+// You can read more about the challenge of ed25519 verification here:
+// https://eprint.iacr.org/2020/1244.pdf
 const (
 	PublicKeyLen  = ed25519.PublicKeySize
 	PrivateKeyLen = ed25519.PrivateKeySize
@@ -28,40 +39,14 @@ const (
 	SignatureLen      = ed25519.SignatureSize
 
 	// TODO: make this tunable
-	MinBatchSize = 16
-
-	// TODO: make this tunable
-	cacheSize = 128_000 // ~179MB (keys are ~1.4KB each)
+	MinBatchSize = 4
 )
 
 var (
 	EmptyPublicKey  = [ed25519.PublicKeySize]byte{}
 	EmptyPrivateKey = [ed25519.PrivateKeySize]byte{}
 	EmptySignature  = [ed25519.SignatureSize]byte{}
-
-	verifyOptions ed25519.Options
-	cacheVerifier *Verifier
 )
-
-func init() {
-	// We use the ZIP-215 specification for ed25519 signature
-	// verification (https://zips.z.cash/zip-0215) because it provides
-	// an explicit validity criteria for signatures, supports batch
-	// verification, and is broadly compatible with signatures produced
-	// by almost all ed25519 implementations (which don't require
-	// canonically-encoded points).
-	//
-	// You can read more about the rationale for ZIP-215 here:
-	// https://hdevalence.ca/blog/2020-10-04-its-25519am
-	//
-	// You can read more about the challenge of ed25519 verification here:
-	// https://eprint.iacr.org/2020/1244.pdf
-	verifyOptions.Verify = ed25519.VerifyOptionsZIP_215
-
-	// cacheVerifier stores expanded ed25519 Public Keys (each is ~1.4KB). Using
-	// a cached expanded key reduces verification latency by ~25%.
-	cacheVerifier = NewVerifier(cache.NewLRUCache(cacheSize))
-}
 
 // GeneratePrivateKey returns a Ed25519 PrivateKey.
 func GeneratePrivateKey() (PrivateKey, error) {
@@ -86,30 +71,24 @@ func Sign(msg []byte, pk PrivateKey) Signature {
 
 // Verify returns whether s is a valid signature of msg by p.
 func Verify(msg []byte, p PublicKey, s Signature) bool {
-	return cacheVerifier.VerifyWithOptions(p[:], msg, s[:], &verifyOptions)
-}
-
-func CachePublicKey(p PublicKey) {
-	cacheVerifier.AddPublicKey(p[:])
+	return ed25519consensus.Verify(p[:], msg, s[:])
 }
 
 type Batch struct {
-	bv *ed25519.BatchVerifier
+	bv ed25519consensus.BatchVerifier
 }
 
-func NewBatch(numItems int) *Batch {
-	if numItems <= 0 {
-		return &Batch{ed25519.NewBatchVerifier()}
-	}
-	return &Batch{ed25519.NewBatchVerifierWithCapacity(numItems)}
+func NewBatch() *Batch {
+	// TODO: add support for pre-allocating batch (#652)
+	return &Batch{bv: ed25519consensus.NewBatchVerifier()}
 }
 
 func (b *Batch) Add(msg []byte, p PublicKey, s Signature) {
-	cacheVerifier.AddWithOptions(b.bv, p[:], msg, s[:], &verifyOptions)
+	b.bv.Add(p[:], msg, s[:])
 }
 
 func (b *Batch) Verify() bool {
-	return b.bv.VerifyBatchOnly(rand.Reader)
+	return b.bv.Verify()
 }
 
 func (b *Batch) VerifyAsync() func() error {

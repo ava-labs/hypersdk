@@ -60,7 +60,7 @@ func sendAndWait(
 func handleTx(tx *chain.Transaction, result *chain.Result) {
 	summaryStr := string(result.Output)
 	actor := tx.Auth.Actor()
-	status := "⚠️"
+	status := "❌"
 	if result.Success {
 		status = "✅"
 		switch action := tx.Action.(type) { //nolint:gocritic
