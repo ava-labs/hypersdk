@@ -27,7 +27,6 @@ func TestCounterProgram(t *testing.T) {
 	require := require.New(t)
 	db := newTestDB()
 	maxUnits := uint64(80000)
-	maxUnits := uint64(80000)
 	cfg, err := runtime.NewConfigBuilder().Build()
 	require.NoError(err)
 
@@ -154,13 +153,8 @@ func TestCounterProgram(t *testing.T) {
 	maxUnitsProgramToProgram := int64(10000)
 	maxUnitsProgramToProgramPtr, err := argumentToSmartPtr(maxUnitsProgramToProgram, rt.Memory())
 	require.NoError(err)
-	maxUnitsProgramToProgramPtr, err := argumentToSmartPtr(maxUnitsProgramToProgram, rt.Memory())
-	require.NoError(err)
 
 	// increment alice's counter on program 2
-	fivePtr, err := argumentToSmartPtr(int64(5), rt.Memory())
-	require.NoError(err)
-	result, err = rt.Call(ctx, "inc_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr, fivePtr)
 	fivePtr, err := argumentToSmartPtr(int64(5), rt.Memory())
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr, fivePtr)
@@ -168,7 +162,6 @@ func TestCounterProgram(t *testing.T) {
 	require.Equal(int64(1), result[0])
 
 	// expect alice's counter on program 2 to be 15
-	result, err = rt.Call(ctx, "get_value_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr)
 	result, err = rt.Call(ctx, "get_value_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr)
 	require.NoError(err)
 	require.Equal(int64(15), result[0])

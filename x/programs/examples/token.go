@@ -218,7 +218,6 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	mintersPtr, err := argumentToSmartPtr(minters, rt.Memory())
-	mintersPtr, err := argumentToSmartPtr(minters, rt.Memory())
 	if err != nil {
 		return err
 	}
