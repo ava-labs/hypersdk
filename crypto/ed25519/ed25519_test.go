@@ -123,24 +123,24 @@ func TestBatchAddVerifyValid(t *testing.T) {
 		msgs     = make([][]byte, numItems)
 		sigs     = make([]Signature, numItems)
 	)
-	for j := 0; j < numItems; j++ {
+	for i := 0; i < numItems; i++ {
 		priv, err := GeneratePrivateKey()
 		if err != nil {
 			t.Fatal(err)
 		}
-		pubs[j] = priv.PublicKey()
+		pubs[i] = priv.PublicKey()
 		msg := make([]byte, 128)
 		_, err = rand.Read(msg)
 		if err != nil {
 			t.Fatal(err)
 		}
-		msgs[j] = msg
+		msgs[i] = msg
 		sig := Sign(msg, priv)
-		sigs[j] = sig
+		sigs[i] = sig
 	}
 	bv := NewBatch()
-	for j := 0; j < numItems; j++ {
-		bv.Add(msgs[j], pubs[j], sigs[j])
+	for i := 0; i < numItems; i++ {
+		bv.Add(msgs[i], pubs[i], sigs[i])
 	}
 	if !bv.Verify() {
 		t.Fatal("invalid signature")
@@ -154,27 +154,27 @@ func TestBatchAddVerifyInvalid(t *testing.T) {
 		msgs     = make([][]byte, numItems)
 		sigs     = make([]Signature, numItems)
 	)
-	for j := 0; j < numItems; j++ {
+	for i := 0; i < numItems; i++ {
 		priv, err := GeneratePrivateKey()
 		if err != nil {
 			t.Fatal(err)
 		}
-		pubs[j] = priv.PublicKey()
+		pubs[i] = priv.PublicKey()
 		msg := make([]byte, 128)
 		_, err = rand.Read(msg)
 		if err != nil {
 			t.Fatal(err)
 		}
-		msgs[j] = msg
+		msgs[i] = msg
 		sig := Sign(msg, priv)
-		if j == 10 {
+		if i == 10 {
 			sig[0]++
 		}
-		sigs[j] = sig
+		sigs[i] = sig
 	}
 	bv := NewBatch()
-	for j := 0; j < numItems; j++ {
-		bv.Add(msgs[j], pubs[j], sigs[j])
+	for i := 0; i < numItems; i++ {
+		bv.Add(msgs[i], pubs[i], sigs[i])
 	}
 	if bv.Verify() {
 		t.Fatal("valid signature")
@@ -274,20 +274,20 @@ func BenchmarkConsensusBatchAddVerify(b *testing.B) {
 			pubs := make([][]byte, numItems)
 			msgs := make([][]byte, numItems)
 			sigs := make([][]byte, numItems)
-			for j := 0; j < numItems; j++ {
+			for i := 0; i < numItems; i++ {
 				pub, priv, err := ed25519.GenerateKey(nil)
 				if err != nil {
 					b.Fatal(err)
 				}
-				pubs[j] = pub[:]
+				pubs[i] = pub[:]
 				msg := make([]byte, 128)
 				_, err = rand.Read(msg)
 				if err != nil {
 					b.Fatal(err)
 				}
-				msgs[j] = msg
+				msgs[i] = msg
 				sig := ed25519.Sign(priv, msg)
-				sigs[j] = sig
+				sigs[i] = sig
 			}
 			b.StartTimer()
 			b.ReportAllocs()
@@ -311,24 +311,24 @@ func BenchmarkConsensusBatchVerify(b *testing.B) {
 			pubs := make([][]byte, numItems)
 			msgs := make([][]byte, numItems)
 			sigs := make([][]byte, numItems)
-			for j := 0; j < numItems; j++ {
+			for i := 0; i < numItems; i++ {
 				pub, priv, err := ed25519.GenerateKey(nil)
 				if err != nil {
 					b.Fatal(err)
 				}
-				pubs[j] = pub[:]
+				pubs[i] = pub[:]
 				msg := make([]byte, 128)
 				_, err = rand.Read(msg)
 				if err != nil {
 					b.Fatal(err)
 				}
-				msgs[j] = msg
+				msgs[i] = msg
 				sig := ed25519.Sign(priv, msg)
-				sigs[j] = sig
+				sigs[i] = sig
 			}
 			bv := ed25519consensus.NewBatchVerifier()
-			for j := 0; j < numItems; j++ {
-				bv.Add(pubs[j], msgs[j], sigs[j])
+			for i := 0; i < numItems; i++ {
+				bv.Add(pubs[i], msgs[i], sigs[i])
 			}
 			b.StartTimer()
 			b.ReportAllocs()
@@ -348,20 +348,20 @@ func BenchmarkOasisBatchAddVerify(b *testing.B) {
 			pubs := make([][]byte, numItems)
 			msgs := make([][]byte, numItems)
 			sigs := make([][]byte, numItems)
-			for j := 0; j < numItems; j++ {
+			for i := 0; i < numItems; i++ {
 				pub, priv, err := oed25519.GenerateKey(nil)
 				if err != nil {
 					b.Fatal(err)
 				}
-				pubs[j] = pub
+				pubs[i] = pub
 				msg := make([]byte, 128)
 				_, err = rand.Read(msg)
 				if err != nil {
 					b.Fatal(err)
 				}
-				msgs[j] = msg
+				msgs[i] = msg
 				sig := oed25519.Sign(priv, msg)
-				sigs[j] = sig
+				sigs[i] = sig
 			}
 			b.StartTimer()
 			b.ReportAllocs()
@@ -385,24 +385,24 @@ func BenchmarkOasisBatchVerify(b *testing.B) {
 			pubs := make([][]byte, numItems)
 			msgs := make([][]byte, numItems)
 			sigs := make([][]byte, numItems)
-			for j := 0; j < numItems; j++ {
+			for i := 0; i < numItems; i++ {
 				pub, priv, err := oed25519.GenerateKey(nil)
 				if err != nil {
 					b.Fatal(err)
 				}
-				pubs[j] = pub
+				pubs[i] = pub
 				msg := make([]byte, 128)
 				_, err = rand.Read(msg)
 				if err != nil {
 					b.Fatal(err)
 				}
-				msgs[j] = msg
+				msgs[i] = msg
 				sig := oed25519.Sign(priv, msg)
-				sigs[j] = sig
+				sigs[i] = sig
 			}
 			bv := oed25519.NewBatchVerifierWithCapacity(numItems)
-			for j := 0; j < numItems; j++ {
-				bv.AddWithOptions(pubs[j], msgs[j], sigs[j], oed25519options)
+			for i := 0; i < numItems; i++ {
+				bv.AddWithOptions(pubs[i], msgs[i], sigs[i], oed25519options)
 			}
 			b.StartTimer()
 			b.ReportAllocs()
@@ -423,21 +423,21 @@ func BenchmarkOasisBatchAddVerifyCache(b *testing.B) {
 			pubs := make([][]byte, numItems)
 			msgs := make([][]byte, numItems)
 			sigs := make([][]byte, numItems)
-			for j := 0; j < numItems; j++ {
+			for i := 0; i < numItems; i++ {
 				pub, priv, err := oed25519.GenerateKey(nil)
 				if err != nil {
 					b.Fatal(err)
 				}
 				cacheVerifier.AddPublicKey(pub)
-				pubs[j] = pub
+				pubs[i] = pub
 				msg := make([]byte, 128)
 				_, err = rand.Read(msg)
 				if err != nil {
 					b.Fatal(err)
 				}
-				msgs[j] = msg
+				msgs[i] = msg
 				sig := oed25519.Sign(priv, msg)
-				sigs[j] = sig
+				sigs[i] = sig
 			}
 			b.StartTimer()
 			b.ReportAllocs()
@@ -462,25 +462,25 @@ func BenchmarkOasisBatchVerifyCache(b *testing.B) {
 			pubs := make([][]byte, numItems)
 			msgs := make([][]byte, numItems)
 			sigs := make([][]byte, numItems)
-			for j := 0; j < numItems; j++ {
+			for i := 0; i < numItems; i++ {
 				pub, priv, err := oed25519.GenerateKey(nil)
 				if err != nil {
 					b.Fatal(err)
 				}
 				cacheVerifier.AddPublicKey(pub)
-				pubs[j] = pub
+				pubs[i] = pub
 				msg := make([]byte, 128)
 				_, err = rand.Read(msg)
 				if err != nil {
 					b.Fatal(err)
 				}
-				msgs[j] = msg
+				msgs[i] = msg
 				sig := oed25519.Sign(priv, msg)
-				sigs[j] = sig
+				sigs[i] = sig
 			}
 			bv := oed25519.NewBatchVerifierWithCapacity(numItems)
-			for j := 0; j < numItems; j++ {
-				cacheVerifier.AddWithOptions(bv, pubs[j], msgs[j], sigs[j], oed25519options)
+			for i := 0; i < numItems; i++ {
+				cacheVerifier.AddWithOptions(bv, pubs[i], msgs[i], sigs[i], oed25519options)
 			}
 			b.StartTimer()
 			b.ReportAllocs()
