@@ -57,7 +57,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// simulate create program transaction
-	programAddress := codec.CreateAddress(ED25519ID, ids.GenerateTestID())
+	programAddress := codec.CreateAddress(programTypeID, ids.GenerateTestID())
 	err = storage.SetProgram(ctx, t.db, programAddress, t.programBytes)
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// generate alice's address
-	_, aliceAddress, err := newAddress()
+	_, aliceAddress, err := newTestAddress()
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// generate bob address
-	_, bobAddress, err := newAddress()
+	_, bobAddress, err := newTestAddress()
 	if err != nil {
 		return err
 	}
@@ -276,7 +276,7 @@ func (t *Token) RunShort(ctx context.Context) error {
 	}
 
 	t.log.Debug("new token program created",
-		zap.String("id", codec.MustAddressBech32("token_", programAddress)),
+		zap.String("id", codec.MustAddressBech32("token", programAddress)),
 	)
 
 	// initialize program

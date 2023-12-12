@@ -16,16 +16,21 @@ import (
 	"github.com/near/borsh-go"
 )
 
-var ED25519ID uint8 = 0
+var (
+	ed25519ID uint8 = 0
+	programTypeID uint8 = 1
+)
 
 
-func newAddress() (ed25519.PrivateKey, codec.Address, error) {
+// newTestAddress generates a address used for the example tests using
+// an ed25519 private key.
+func newTestAddress() (ed25519.PrivateKey, codec.Address, error) {
 	priv, err := ed25519.GeneratePrivateKey()
 	if err != nil {
 		return ed25519.EmptyPrivateKey, codec.EmptyAddress, err
 	}
 	pk := priv.PublicKey()
-	return priv, codec.CreateAddress(ED25519ID, utils.ToID(pk[:])), nil
+	return priv, codec.CreateAddress(ed25519ID, utils.ToID(pk[:])), nil
 }
 
 // SerializeParameter serializes [obj] using Borsh

@@ -200,13 +200,14 @@ func getProgramWasmBytes(log logging.Logger, db state.Immutable, addressBytes []
 	if len(addressBytes) != codec.AddressLen {
 		return nil, fmt.Errorf("invalid address length: %d", len(addressBytes))
 	}
-
+	
+	// the correct TypeID should be ensured by the wrapping VM
 	address := codec.Address(addressBytes)
 
 	// get the program bytes from storage
 	bytes, exists, err := storage.GetProgram(context.Background(), db, address)
 	if !exists {
-		log.Debug("key does not exist", zap.String("address", codec.MustAddressBech32("addr", address)))
+		log.Debug("key does not exist", zap.String("address", codec.MustAddressBech32("prog", address)))
 	}
 	if err != nil {
 		return nil, err

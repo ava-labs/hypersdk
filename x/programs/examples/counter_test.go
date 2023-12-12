@@ -49,7 +49,7 @@ func TestCounterProgram(t *testing.T) {
 	require.Equal(maxUnits, rt.Meter().GetBalance())
 
 	// simulate create program transaction
-	programAddress := codec.CreateAddress(ED25519ID, ids.GenerateTestID())
+	programAddress := codec.CreateAddress(programTypeID, ids.GenerateTestID())
 	err = storage.SetProgram(ctx, db, programAddress, counterProgramBytes)
 	require.NoError(err)
 
@@ -57,7 +57,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// generate alice address
-	_, aliceAddress, err := newAddress()
+	_, aliceAddress, err := newTestAddress()
 	require.NoError(err)
 
 	// write alice's address to stack and get pointer
@@ -90,7 +90,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// simulate creating second program transaction
-	program2Address := codec.CreateAddress(ED25519ID, ids.GenerateTestID())
+	program2Address := codec.CreateAddress(programTypeID, ids.GenerateTestID())
 	err = storage.SetProgram(ctx, db, program2Address, counterProgramBytes)
 	require.NoError(err)
 
