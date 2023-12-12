@@ -67,11 +67,14 @@ func (i *Import) callProgramFn(
 	maxUnits int64,
 	function int64,
 	args int64,
+	function int64,
+	args int64,
 ) int64 {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	// get the entry function for invoke to call.
+	functionBytes, err := runtime.SmartPtr(function).Bytes(memory)
 	functionBytes, err := runtime.SmartPtr(function).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read function name from memory",
@@ -132,6 +135,7 @@ func (i *Import) callProgramFn(
 	}()
 
 	argsBytes, err := runtime.SmartPtr(args).Bytes(memory)
+	argsBytes, err := runtime.SmartPtr(args).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read program args name from memory",
 			zap.Error(err),
@@ -147,6 +151,8 @@ func (i *Import) callProgramFn(
 		return -1
 	}
 
+	function_name := string(functionBytes)
+	res, err := rt.Call(ctx, function_name, params...)
 	function_name := string(functionBytes)
 	res, err := rt.Call(ctx, function_name, params...)
 	if err != nil {
@@ -191,7 +197,9 @@ func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, prog
 			return nil, err
 		}
 		args = append(args, argPtr)
+		args = append(args, argPtr)
 	}
+
 
 	return args, nil
 }

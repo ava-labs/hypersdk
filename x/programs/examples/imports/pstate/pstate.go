@@ -70,12 +70,15 @@ func (i *Import) putFn(caller *wasmtime.Caller, address int64, key int64, value 
 	}
 
 	keyBytes, err := runtime.SmartPtr(key).Bytes(memory)
+	keyBytes, err := runtime.SmartPtr(key).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read key from memory",
 			zap.Error(err),
 		)
 		return -1
 	}
+
+	valueBytes, err := runtime.SmartPtr(value).Bytes(memory)
 
 	valueBytes, err := runtime.SmartPtr(value).Bytes(memory)
 
@@ -149,6 +152,14 @@ func (i *Import) getFn(caller *wasmtime.Caller, address int64, key int64) int64 
 		)
 		return -1
 	}
+	argPtr, err := runtime.NewSmartPtr(uint32(ptr), len(val))
+	if err != nil {
+		i.log.Error("failed to convert ptr to argument",
+			zap.Error(err),
+		)
+		return -1
+	}
 
+	return int64(argPtr)
 	return int64(argPtr)
 }
