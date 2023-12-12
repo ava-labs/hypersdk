@@ -1,6 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
-
 /// A struct that enforces a fixed length of 33 bytes which represents a hypersdk address.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, BorshSerialize, BorshDeserialize)]
 pub struct Address([u8; Self::LEN]);
