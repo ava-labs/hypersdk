@@ -32,7 +32,6 @@ var (
 		222, 128, 136, 161, 9, 40, 139, 85, 182, 153, 68, 135,
 		62, 166, 45, 235, 251, 246, 69, 7,
 	}
-
 	oed25519options = &oed25519.Options{
 		Verify: oed25519.VerifyOptionsZIP_215,
 	}
@@ -117,7 +116,7 @@ func TestVerifyInvalidParams(t *testing.T) {
 		"Verify incorrectly verified a message")
 }
 
-func TestBatchVerifyValid(t *testing.T) {
+func TestBatchAddVerifyValid(t *testing.T) {
 	var (
 		numItems = 1024
 		pubs     = make([]PublicKey, numItems)
@@ -148,7 +147,7 @@ func TestBatchVerifyValid(t *testing.T) {
 	}
 }
 
-func TestBatchVerifyInvalid(t *testing.T) {
+func TestBatchAddVerifyInvalid(t *testing.T) {
 	var (
 		numItems = 1024
 		pubs     = make([]PublicKey, numItems)
@@ -268,7 +267,7 @@ func BenchmarkOasisVerifyCache(b *testing.B) {
 	}
 }
 
-func BenchmarkConsensusBatchVerify(b *testing.B) {
+func BenchmarkConsensusBatchAddVerify(b *testing.B) {
 	for _, numItems := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
 		b.Run(strconv.Itoa(numItems), func(b *testing.B) {
 			b.StopTimer()
@@ -305,7 +304,7 @@ func BenchmarkConsensusBatchVerify(b *testing.B) {
 	}
 }
 
-func BenchmarkOasisBatchVerify(b *testing.B) {
+func BenchmarkOasisBatchAddVerify(b *testing.B) {
 	for _, numItems := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
 		b.Run(strconv.Itoa(numItems), func(b *testing.B) {
 			b.StopTimer()
@@ -342,7 +341,7 @@ func BenchmarkOasisBatchVerify(b *testing.B) {
 	}
 }
 
-func BenchmarkOasisBatchVerifyCache(b *testing.B) {
+func BenchmarkOasisBatchAddVerifyCache(b *testing.B) {
 	for _, numItems := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
 		b.Run(strconv.Itoa(numItems), func(b *testing.B) {
 			b.StopTimer()
