@@ -187,18 +187,18 @@ func BenchmarkStdLibVerifySingle(b *testing.B) {
 	msg := make([]byte, 128)
 	_, err := rand.Read(msg)
 	if err != nil {
-		panic(err)
+		b.Fatal(err)
 	}
 	pub, priv, err := ed25519.GenerateKey(nil)
 	if err != nil {
-		panic(err)
+		b.Fatal(err)
 	}
 	sig := ed25519.Sign(priv, msg)
 	b.StartTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		if !ed25519.Verify(pub, msg, sig) {
-			panic("invalid signature")
+			b.Fatal("invalid signature")
 		}
 	}
 }
@@ -208,18 +208,18 @@ func BenchmarkConsensusVerifySingle(b *testing.B) {
 	msg := make([]byte, 128)
 	_, err := rand.Read(msg)
 	if err != nil {
-		panic(err)
+		b.Fatal(err)
 	}
 	pub, priv, err := ed25519.GenerateKey(nil)
 	if err != nil {
-		panic(err)
+		b.Fatal(err)
 	}
 	sig := ed25519.Sign(priv, msg)
 	b.StartTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		if !ed25519consensus.Verify(pub, msg, sig) {
-			panic("invalid signature")
+			b.Fatal("invalid signature")
 		}
 	}
 }
@@ -229,18 +229,18 @@ func BenchmarkOasisVerifySingle(b *testing.B) {
 	msg := make([]byte, 128)
 	_, err := rand.Read(msg)
 	if err != nil {
-		panic(err)
+		b.Fatal(err)
 	}
 	pub, priv, err := oed25519.GenerateKey(nil)
 	if err != nil {
-		panic(err)
+		b.Fatal(err)
 	}
 	sig := oed25519.Sign(priv, msg)
 	b.StartTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		if !oed25519.VerifyWithOptions(pub, msg, sig, oed25519options) {
-			panic("invalid signature")
+			b.Fatal("invalid signature")
 		}
 	}
 }
@@ -251,11 +251,11 @@ func BenchmarkOasisVerifyCache(b *testing.B) {
 	msg := make([]byte, 128)
 	_, err := rand.Read(msg)
 	if err != nil {
-		panic(err)
+		b.Fatal(err)
 	}
 	pub, priv, err := oed25519.GenerateKey(nil)
 	if err != nil {
-		panic(err)
+		b.Fatal(err)
 	}
 	sig := oed25519.Sign(priv, msg)
 	cacheVerifier.AddPublicKey(pub)
@@ -263,7 +263,7 @@ func BenchmarkOasisVerifyCache(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		if !cacheVerifier.VerifyWithOptions(pub, msg, sig, oed25519options) {
-			panic("invalid signature")
+			b.Fatal("invalid signature")
 		}
 	}
 }
@@ -278,13 +278,13 @@ func BenchmarkConsensusBatchVerify(b *testing.B) {
 			for j := 0; j < numItems; j++ {
 				pub, priv, err := ed25519.GenerateKey(nil)
 				if err != nil {
-					panic(err)
+					b.Fatal(err)
 				}
 				pubs[j] = pub[:]
 				msg := make([]byte, 128)
 				_, err = rand.Read(msg)
 				if err != nil {
-					panic(err)
+					b.Fatal(err)
 				}
 				msgs[j] = msg
 				sig := ed25519.Sign(priv, msg)
@@ -298,7 +298,7 @@ func BenchmarkConsensusBatchVerify(b *testing.B) {
 					bv.Add(pubs[j], msgs[j], sigs[j])
 				}
 				if !bv.Verify() {
-					panic("invalid signature")
+					b.Fatal("invalid signature")
 				}
 			}
 		})
@@ -315,13 +315,13 @@ func BenchmarkOasisBatchVerify(b *testing.B) {
 			for j := 0; j < numItems; j++ {
 				pub, priv, err := oed25519.GenerateKey(nil)
 				if err != nil {
-					panic(err)
+					b.Fatal(err)
 				}
 				pubs[j] = pub
 				msg := make([]byte, 128)
 				_, err = rand.Read(msg)
 				if err != nil {
-					panic(err)
+					b.Fatal(err)
 				}
 				msgs[j] = msg
 				sig := oed25519.Sign(priv, msg)
@@ -335,7 +335,7 @@ func BenchmarkOasisBatchVerify(b *testing.B) {
 					bv.AddWithOptions(pubs[j], msgs[j], sigs[j], oed25519options)
 				}
 				if !bv.VerifyBatchOnly(nil) {
-					panic("invalid signature")
+					b.Fatal("invalid signature")
 				}
 			}
 		})
@@ -353,14 +353,14 @@ func BenchmarkOasisBatchVerifyCache(b *testing.B) {
 			for j := 0; j < numItems; j++ {
 				pub, priv, err := oed25519.GenerateKey(nil)
 				if err != nil {
-					panic(err)
+					b.Fatal(err)
 				}
 				cacheVerifier.AddPublicKey(pub)
 				pubs[j] = pub
 				msg := make([]byte, 128)
 				_, err = rand.Read(msg)
 				if err != nil {
-					panic(err)
+					b.Fatal(err)
 				}
 				msgs[j] = msg
 				sig := oed25519.Sign(priv, msg)
@@ -374,7 +374,7 @@ func BenchmarkOasisBatchVerifyCache(b *testing.B) {
 					cacheVerifier.AddWithOptions(bv, pubs[j], msgs[j], sigs[j], oed25519options)
 				}
 				if !bv.VerifyBatchOnly(nil) {
-					panic("invalid signature")
+					b.Fatal("invalid signature")
 				}
 			}
 		})
