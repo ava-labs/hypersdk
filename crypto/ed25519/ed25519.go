@@ -79,7 +79,7 @@ type Batch struct {
 }
 
 func NewBatch() *Batch {
-	// TODO: add support for pre-allocating batch
+	// TODO: add support for pre-allocating batch (#652)
 	return &Batch{bv: ed25519consensus.NewBatchVerifier()}
 }
 
