@@ -163,13 +163,8 @@ func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatch
 	}
 }
 
-func (*ED25519AuthEngine) Cache(auth chain.Auth) {
-	// This should never not happen but we perform this check
-	// to avoid a panic.
-	pauth, ok := auth.(*ED25519)
-	if ok {
-		ed25519.CachePublicKey(pauth.Signer)
-	}
+func (*ED25519AuthEngine) Cache(chain.Auth) {
+	// TODO: add support for caching expanded public key to make batch verification faster
 }
 
 type ED25519Batch struct {
@@ -184,7 +179,7 @@ type ED25519Batch struct {
 func (b *ED25519Batch) Add(msg []byte, rauth chain.Auth) func() error {
 	auth := rauth.(*ED25519)
 	if b.batch == nil {
-		b.batch = ed25519.NewBatch(b.batchSize)
+		b.batch = ed25519.NewBatch()
 	}
 	b.batch.Add(msg, auth.Signer, auth.Signature)
 	b.counter++
@@ -194,7 +189,7 @@ func (b *ED25519Batch) Add(msg []byte, rauth chain.Auth) func() error {
 		b.counter = 0
 		if b.totalCounter < b.total {
 			// don't create a new batch if we are done
-			b.batch = ed25519.NewBatch(b.batchSize)
+			b.batch = ed25519.NewBatch()
 		}
 		return last.VerifyAsync()
 	}
