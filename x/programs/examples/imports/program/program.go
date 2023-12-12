@@ -59,10 +59,10 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtim
 	return nil
 }
 
-// callProgramFn makes a call to an entry function of a program in the context of another program's ID.
+// callProgramFn makes a call to an entry function of a program in the context of another program's address.
 func (i *Import) callProgramFn(
 	caller *wasmtime.Caller,
-	callerID int64,
+	_callerAddress int64,
 	programAddress int64,
 	maxUnits int64,
 	function int64,
@@ -82,7 +82,7 @@ func (i *Import) callProgramFn(
 
 	programAddressBytes, err := runtime.SmartPtr(programAddress).Bytes(memory)
 	if err != nil {
-		i.log.Error("failed to read id from memory",
+		i.log.Error("failed to read address from memory",
 			zap.Error(err),
 		)
 		return -1
@@ -161,7 +161,7 @@ func (i *Import) callProgramFn(
 
 // getCallArgs returns the arguments to be passed to the program being invoked from [buffer].
 func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, programAddressBytes []byte) ([]runtime.SmartPtr, error) {
-	// first arg contains id of program to call
+	// first arg contains address of program to call
 	invokeProgramAddressPtr, err := runtime.WriteBytes(memory, programAddressBytes)
 	if err != nil {
 		return nil, err
@@ -206,7 +206,7 @@ func getProgramWasmBytes(log logging.Logger, db state.Immutable, addressBytes []
 	// get the program bytes from storage
 	bytes, exists, err := storage.GetProgram(context.Background(), db, address)
 	if !exists {
-		log.Debug("key does not exist", zap.String("address", codec.MustAddressBech32("addr_", address)))
+		log.Debug("key does not exist", zap.String("address", codec.MustAddressBech32("addr", address)))
 	}
 	if err != nil {
 		return nil, err

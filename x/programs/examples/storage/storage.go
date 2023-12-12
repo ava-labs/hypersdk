@@ -9,7 +9,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -17,11 +16,13 @@ const (
 	programPrefix = 0x0
 )
 
-func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
-	k = make([]byte, consts.IDLen+1+len(key))
+// ProgramPrefixKey returns a properly formatted key
+// for storing a value at [address][key].
+func ProgramPrefixKey(address []byte, key []byte) (k []byte) {
+	k = make([]byte, codec.AddressLen+1+len(key))
 	k[0] = programPrefix
-	copy(k, id[:])
-	copy(k[consts.IDLen:], (key[:]))
+	copy(k, address[:])
+	copy(k[codec.AddressLen:], (key[:]))
 	return
 }
 
@@ -29,13 +30,15 @@ func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
 // Program
 //
 
+// ProgramKey returns the key used to store the program bytes at [address].
 func ProgramKey(address codec.Address) (k []byte) {
 	k = make([]byte, 1+codec.AddressLen)
 	copy(k[1:], address[:])
+	k[0] = programPrefix
 	return
 }
 
-// [programID] -> [programBytes]
+// GetProgram returns the programBytes stored at [programAddress].
 func GetProgram(
 	ctx context.Context,
 	db state.Immutable,
@@ -56,7 +59,7 @@ func GetProgram(
 	return v, true, nil
 }
 
-// SetProgram stores [program] at [programID]
+// SetProgram stores [program] at [programAddress]
 func SetProgram(
 	ctx context.Context,
 	mu state.Mutable,

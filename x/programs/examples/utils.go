@@ -11,16 +11,21 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/near/borsh-go"
 )
+
+var ED25519ID uint8 = 0
+
 
 func newAddress() (ed25519.PrivateKey, codec.Address, error) {
 	priv, err := ed25519.GeneratePrivateKey()
 	if err != nil {
 		return ed25519.EmptyPrivateKey, codec.EmptyAddress, err
 	}
-	return priv, runtime.NewED25519Address(priv.PublicKey()), nil
+	pk := priv.PublicKey()
+	return priv, codec.CreateAddress(ED25519ID, utils.ToID(pk[:])), nil
 }
 
 // SerializeParameter serializes [obj] using Borsh
@@ -77,3 +82,4 @@ func GetProgramBytes(filePath string) ([]byte, error) {
 func GetGuestFnName(name string) string {
 	return name + "_guest"
 }
+

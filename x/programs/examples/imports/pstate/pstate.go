@@ -63,7 +63,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, address int64, key int64, value 
 	// memory := runtime.NewMemory(client)
 	programAddressBytes, err := runtime.SmartPtr(address).Bytes(memory)
 	if err != nil {
-		i.log.Error("failed to read program id from memory",
+		i.log.Error("failed to read program Address from memory",
 			zap.Error(err),
 		)
 		return -1
@@ -103,7 +103,7 @@ func (i *Import) getFn(caller *wasmtime.Caller, address int64, key int64) int64 
 	memory := runtime.NewMemory(client)
 	programAddressBytes, err := runtime.SmartPtr(address).Bytes(memory)
 	if err != nil {
-		i.log.Error("failed to read program id from memory",
+		i.log.Error("failed to read program Address from memory",
 			zap.Error(err),
 		)
 		return -1
@@ -127,7 +127,7 @@ func (i *Import) getFn(caller *wasmtime.Caller, address int64, key int64) int64 
 		return -1
 	}
 	if err != nil {
-		i.log.Error("failed to convert program id to id",
+		i.log.Error("failed to convert program address to codec.Address",
 			zap.Error(err),
 		)
 		return -1

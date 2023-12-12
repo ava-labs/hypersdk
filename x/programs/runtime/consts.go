@@ -12,5 +12,4 @@ const (
 	guestSuffix         = "_guest"
 	wasiPreview1ModName = "wasi_snapshot_preview1"
 	MemoryPageSize      = 64 * units.KiB
-	ED25519ID uint8 = 0
 )
