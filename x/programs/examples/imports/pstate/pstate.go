@@ -149,6 +149,6 @@ func (i *Import) getFn(caller *wasmtime.Caller, address int64, key int64) int64 
 		)
 		return -1
 	}
-	
+
 	return int64(argPtr)
 }

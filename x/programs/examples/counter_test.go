@@ -78,8 +78,6 @@ func TestCounterProgram(t *testing.T) {
 	// meter.
 	rt2 := runtime.New(log, cfg, supported.Imports())
 	err = rt2.Initialize(ctx, counterProgramBytes, runtime.NoUnits)
-
-
 	require.NoError(err)
 
 	// define max units to transfer to second runtime
@@ -118,7 +116,6 @@ func TestCounterProgram(t *testing.T) {
 	result, err = rt2.Call(ctx, "get_value", programAddress2Ptr, alicePtr2)
 	require.NoError(err)
 	require.Equal(incAmount, result[0])
-
 	// stop the runtime to prevent further execution
 	rt2.Stop()
 

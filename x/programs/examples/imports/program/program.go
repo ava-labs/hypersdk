@@ -194,7 +194,6 @@ func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, prog
 		args = append(args, argPtr)
 	}
 
-
 	return args, nil
 }
 
@@ -202,7 +201,7 @@ func getProgramWasmBytes(log logging.Logger, db state.Immutable, addressBytes []
 	if len(addressBytes) != codec.AddressLen {
 		return nil, fmt.Errorf("invalid address length: %d", len(addressBytes))
 	}
-	
+
 	// the correct TypeID should be ensured by the wrapping VM
 	address := codec.Address(addressBytes)
 

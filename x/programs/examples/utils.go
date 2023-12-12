@@ -17,10 +17,9 @@ import (
 )
 
 var (
-	ed25519ID uint8 = 0
+	ed25519ID     uint8 = 0
 	programTypeID uint8 = 1
 )
-
 
 // newTestAddress generates a address used for the example tests using
 // an ed25519 private key.
@@ -87,4 +86,3 @@ func GetProgramBytes(filePath string) ([]byte, error) {
 func GetGuestFnName(name string) string {
 	return name + "_guest"
 }
-
