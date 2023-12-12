@@ -152,7 +152,7 @@ func getRegisteredImportModules(importTypes []*wasmtime.ImportType) []string {
 	return imports
 }
 
-func (r *WasmRuntime) Call(_ context.Context, name string, params ...int64) ([]int64, error) {
+func (r *WasmRuntime) Call(_ context.Context, name string, params ...SmartPtr) ([]int64, error) {
 	var fnName string
 	switch name {
 	case AllocFnName, DeallocFnName, MemoryFnName:
@@ -242,18 +242,18 @@ func PreCompileWasmBytes(programBytes []byte, cfg *Config) ([]byte, error) {
 }
 
 // mapFunctionParams maps call input to the expected wasm function params.
-func mapFunctionParams(input []int64, values []*wasmtime.ValType) ([]interface{}, error) {
+func mapFunctionParams(input []SmartPtr, values []*wasmtime.ValType) ([]interface{}, error) {
 	params := make([]interface{}, len(values))
 	for i, v := range values {
 		switch v.Kind() {
 		case wasmtime.KindI32:
 			// ensure this value is within the range of an int32
-			if !EnsureInt64ToInt32(input[i]) {
+			if !EnsureIntToInt32(int(input[i])) {
 				return nil, fmt.Errorf("%w: %d", ErrIntegerConversionOverflow, input[i])
 			}
 			params[i] = int32(input[i])
 		case wasmtime.KindI64:
-			params[i] = input[i]
+			params[i] = int64(input[i])
 		default:
 			return nil, fmt.Errorf("%w: %v", ErrInvalidParamType, v.Kind())
 		}

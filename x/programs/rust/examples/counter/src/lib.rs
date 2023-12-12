@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
+use wasmlanche_sdk::{params, program::Program, public, state_keys, types::Address};
 
 #[state_keys]
 enum StateKeys {
@@ -11,7 +11,7 @@ enum StateKeys {
 fn initialize_address(program: Program, address: Address) -> bool {
     if program
         .state()
-        .get::<i64, _>(StateKeys::Counter(address).to_vec())
+        .get::<i64, _>(StateKeys::Counter(address))
         .is_ok()
     {
         panic!("counter already initialized for address")
@@ -19,7 +19,7 @@ fn initialize_address(program: Program, address: Address) -> bool {
 
     program
         .state()
-        .store(StateKeys::Counter(address).to_vec(), &0_i64)
+        .store(StateKeys::Counter(address), &0_i64)
         .expect("failed to store counter");
 
     true
@@ -32,7 +32,7 @@ fn inc(program: Program, to: Address, amount: i64) -> bool {
 
     program
         .state()
-        .store(StateKeys::Counter(to).to_vec(), &counter)
+        .store(StateKeys::Counter(to), &counter)
         .expect("failed to store counter");
 
     true
@@ -47,7 +47,9 @@ fn inc_external(
     of: Address,
     amount: i64,
 ) -> i64 {
-    program.call_program(&target, max_units, "inc", &[Box::new(of), Box::new(amount)])
+    program
+        .call_program(&target, max_units, "inc", params!(&of, &amount))
+        .unwrap()
 }
 
 /// Gets the count at the address.
@@ -55,12 +57,14 @@ fn inc_external(
 fn get_value(program: Program, of: Address) -> i64 {
     program
         .state()
-        .get(StateKeys::Counter(of).to_vec())
+        .get(StateKeys::Counter(of))
         .expect("failed to get counter")
 }
 
 /// Gets the count at the address for an external program.
 #[public]
 fn get_value_external(program: Program, target: Program, max_units: i64, of: Address) -> i64 {
-    program.call_program(&target, max_units, "get_value", &[Box::new(of)])
+    program
+        .call_program(&target, max_units, "get_value", params!(&of))
+        .unwrap()
 }

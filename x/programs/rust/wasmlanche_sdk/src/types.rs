@@ -1,6 +1,4 @@
-use crate::program::Program;
 use borsh::{BorshDeserialize, BorshSerialize};
-use std::borrow::Cow;
 
 /// A struct that enforces a fixed length of 32 bytes which represents an address.
 
@@ -27,58 +25,5 @@ impl IntoIterator for Address {
 
     fn into_iter(self) -> Self::IntoIter {
         IntoIterator::into_iter(self.0)
-    }
-}
-
-/// A trait that represents an argument that can be passed to & from the host.
-pub trait Argument {
-    fn as_bytes(&self) -> Cow<'_, [u8]>;
-    fn is_primitive(&self) -> bool {
-        false
-    }
-    fn len(&self) -> usize {
-        self.as_bytes().len()
-    }
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
-
-impl Argument for Address {
-    fn as_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Borrowed(self.as_bytes())
-    }
-}
-
-impl Argument for i64 {
-    fn as_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(self.to_be_bytes().to_vec())
-    }
-    fn is_primitive(&self) -> bool {
-        true
-    }
-}
-
-impl Argument for i32 {
-    fn as_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(self.to_be_bytes().to_vec())
-    }
-    fn is_primitive(&self) -> bool {
-        true
-    }
-}
-
-impl Argument for Program {
-    fn as_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(self.id().to_be_bytes().to_vec())
-    }
-    fn is_primitive(&self) -> bool {
-        true
-    }
-}
-
-impl Argument for String {
-    fn as_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Borrowed(self.as_bytes())
     }
 }

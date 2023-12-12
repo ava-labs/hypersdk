@@ -13,7 +13,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/state"
@@ -55,16 +54,14 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Supp
 	if err := link.FuncWrap(Name, "get", i.getFn); err != nil {
 		return err
 	}
-	if err := link.FuncWrap(Name, "len", i.getLenFn); err != nil {
-		return err
-	}
 
 	return nil
 }
 
-func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLength int32, valuePtr int32, valueLength int32) int32 {
+func (i *Import) putFn(caller *wasmtime.Caller, id int64, key int64, value int64) int32 {
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
-	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
+	// memory := runtime.NewMemory(client)
+	programIDBytes, err := runtime.SmartPtr(id).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read program id from memory",
 			zap.Error(err),
@@ -72,7 +69,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLe
 		return -1
 	}
 
-	keyBytes, err := memory.Range(uint64(keyPtr), uint64(keyLength))
+	keyBytes, err := runtime.SmartPtr(key).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read key from memory",
 			zap.Error(err),
@@ -80,7 +77,8 @@ func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLe
 		return -1
 	}
 
-	valueBytes, err := memory.Range(uint64(valuePtr), uint64(valueLength))
+	valueBytes, err := runtime.SmartPtr(value).Bytes(memory)
+
 	if err != nil {
 		i.log.Error("failed to read value from memory",
 			zap.Error(err),
@@ -100,9 +98,10 @@ func (i *Import) putFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLe
 	return 0
 }
 
-func (i *Import) getLenFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLength int32) int32 {
-	memory := runtime.NewMemory(runtime.NewExportClient(caller))
-	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
+func (i *Import) getFn(caller *wasmtime.Caller, id int64, key int64) int64 {
+	client := runtime.NewExportClient(caller)
+	memory := runtime.NewMemory(client)
+	programIDBytes, err := runtime.SmartPtr(id).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read program id from memory",
 			zap.Error(err),
@@ -110,14 +109,13 @@ func (i *Import) getLenFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, ke
 		return -1
 	}
 
-	keyBytes, err := memory.Range(uint64(keyPtr), uint64(keyLength))
+	keyBytes, err := runtime.SmartPtr(key).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read key from memory",
 			zap.Error(err),
 		)
 		return -1
 	}
-
 	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
 	val, err := i.mu.GetValue(context.Background(), k)
 	if err != nil {
@@ -128,39 +126,6 @@ func (i *Import) getLenFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, ke
 		}
 		return -1
 	}
-
-	return int32(len(val))
-}
-
-func (i *Import) getFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLength int32, valLength int32) int32 {
-	memory := runtime.NewMemory(runtime.NewExportClient(caller))
-	programIDBytes, err := memory.Range(uint64(idPtr), uint64(ids.IDLen))
-	if err != nil {
-		i.log.Error("failed to read program id from memory",
-			zap.Error(err),
-		)
-		return -1
-	}
-
-	keyBytes, err := memory.Range(uint64(keyPtr), uint64(keyLength))
-	if err != nil {
-		i.log.Error("failed to read key from memory",
-			zap.Error(err),
-		)
-		return -1
-	}
-
-	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
-	val, err := i.mu.GetValue(context.Background(), k)
-	if err != nil {
-		if !errors.Is(err, database.ErrNotFound) {
-			i.log.Error("failed to get value from storage",
-				zap.Error(err),
-			)
-		}
-		return -1
-	}
-
 	if err != nil {
 		i.log.Error("failed to convert program id to id",
 			zap.Error(err),
@@ -177,6 +142,13 @@ func (i *Import) getFn(caller *wasmtime.Caller, idPtr int64, keyPtr int32, keyLe
 		}
 		return -1
 	}
+	argPtr, err := runtime.NewSmartPtr(uint32(ptr), len(val))
+	if err != nil {
+		i.log.Error("failed to convert ptr to argument",
+			zap.Error(err),
+		)
+		return -1
+	}
 
-	return int32(ptr)
+	return int64(argPtr)
 }

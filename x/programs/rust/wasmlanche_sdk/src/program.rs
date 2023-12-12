@@ -1,79 +1,79 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use crate::{host::call_program, state::State, types::Argument};
+use crate::{errors::StateError, host::call_program, state::State};
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
 #[derive(Clone, Copy, BorshDeserialize, BorshSerialize)]
-pub struct Program {
-    id: i64,
-}
+pub struct Program([u8; Self::LEN]);
 
 impl Program {
+    /// The length of ids.ID
+    pub const LEN: usize = 32;
+
     /// Returns the id of the program.
     #[must_use]
-    pub fn id(self) -> i64 {
-        self.id
+    pub fn id(&self) -> &[u8; Self::LEN] {
+        &self.0
+    }
+
+    #[must_use]
+    pub(crate) fn new(id: [u8; Self::LEN]) -> Self {
+        Self(id)
     }
 
     /// Returns a State object that can be used to interact with persistent
     /// storage exposed by the host.
     #[must_use]
     pub fn state(&self) -> State {
-        State::new(self.id.into())
+        State::new(Program::new(*self.id()))
     }
 
     /// Attempts to call another program `target` from this program `caller`.
+    /// # Errors
+    /// Returns a `StateError` if the call fails.
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
-    #[must_use]
     pub fn call_program(
         &self,
         target: &Program,
         max_units: i64,
         function_name: &str,
-        args: &[Box<dyn Argument>],
-    ) -> i64 {
-        call_program(
-            self,
-            target,
-            max_units,
-            function_name,
-            marshal_args(args).as_ref(),
-        )
+        args: Vec<Vec<u8>>,
+    ) -> Result<i64, StateError> {
+        // flatten the args into a single byte vector
+        let args = args.into_iter().flatten().collect::<Vec<u8>>();
+        call_program(self, target, max_units, function_name, &args)
     }
 }
 
-impl From<Program> for i64 {
-    fn from(program: Program) -> Self {
-        program.id()
-    }
+/// Serialize every parameter into a byte vector and return a vector of byte vectors
+#[macro_export]
+macro_rules! params {
+    ($($param:expr),*) => {
+        vec![$(wasmlanche_sdk::program::serialize_params($param).unwrap(),)*]
+    };
 }
 
-impl From<i64> for Program {
-    fn from(value: i64) -> Self {
-        Self { id: value }
-    }
+/// Serializes the parameter into a byte vector.
+/// # Errors
+/// Will return an error if the parameter cannot be serialized.
+pub fn serialize_params<T>(param: &T) -> Result<Vec<u8>, std::io::Error>
+where
+    T: BorshSerialize,
+{
+    let bytes = prepend_length(&borsh::to_vec(param)?);
+    Ok(bytes)
 }
 
-/// Marshals arguments into byte slice which can be unpacked by the host.
-fn marshal_args(args: &[Box<dyn Argument>]) -> Vec<u8> {
-    use std::mem::size_of;
-    // Size of meta data for each argument
-    const META_SIZE: usize = size_of::<i64>() + 1;
-
-    // Calculate the total size of the combined byte slices
-    let total_size = args.iter().map(|cow| cow.len() + META_SIZE).sum();
-
-    // Create a mutable Vec<u8> to hold the combined bytes
-    let mut bytes = Vec::with_capacity(total_size);
-
-    for arg in args {
-        // if we want to be efficient we dont need to add length of bytes if its an int
-        let len = i64::try_from(arg.len()).expect("Error converting to i64");
-        bytes.extend_from_slice(&len.as_bytes());
-        bytes.extend_from_slice(&[u8::from(arg.is_primitive())]);
-        bytes.extend_from_slice(&arg.as_bytes());
-    }
-    bytes
+/// Returns a vector of bytes with the length of the argument prepended.
+/// # Panics
+/// Panics if the length of the argument cannot be converted to u32.
+fn prepend_length(bytes: &[u8]) -> Vec<u8> {
+    let mut len_bytes = u32::try_from(bytes.len())
+        .expect("pointer out range")
+        .to_be_bytes()
+        .to_vec();
+    len_bytes.extend(bytes);
+    len_bytes
 }

@@ -4,6 +4,9 @@
 //! the program. These methods are unsafe as should be used
 //! with caution.
 
+use crate::errors::StateError;
+use borsh::{from_slice, BorshDeserialize};
+
 /// Represents a pointer to a block of memory allocated by the global allocator.
 #[derive(Clone, Copy)]
 pub struct Pointer(*mut u8);
@@ -66,6 +69,71 @@ impl Memory {
             .0
             .copy_from(bytes.as_ref().as_ptr(), bytes.as_ref().len());
     }
+}
+
+/// `SmartPtr` is an i64 where the first 4 bytes represent the length of the bytes
+/// and the following 4 bytes represent a pointer to WASM memeory where the bytes are stored.
+pub type SmartPtr = i64;
+
+/// Converts a pointer to a i64 with the first 4 bytes of the pointer
+/// representing the length of the memory block.
+/// # Errors
+/// Returns an `StateError` if the pointer or length of [args] exceeds
+/// the maximum size of a u32.
+#[allow(clippy::cast_possible_truncation)]
+pub fn to_smart_ptr(arg: &[u8]) -> Result<SmartPtr, StateError> {
+    let ptr = arg.as_ptr() as usize;
+    let len = arg.len();
+
+    // Make sure the pointer and length fit into u32
+    if ptr > u32::MAX as usize || len > u32::MAX as usize {
+        return Err(StateError::IntegerConversion);
+    }
+
+    let smart_ptr = i64::from(ptr as u32) | (i64::from(len as u32) << 32);
+    Ok(smart_ptr)
+}
+
+/// Converts a i64 to a pointer with the first 4 bytes of the pointer
+/// representing the length of the memory block.
+/// # Panics
+/// Panics if arg is negative.
+#[must_use]
+#[allow(clippy::cast_sign_loss)]
+pub fn split_smart_ptr(arg: SmartPtr) -> (i64, usize) {
+    assert!(arg >= 0);
+
+    let len = arg >> 32;
+    let mask: u32 = !0;
+    let ptr = arg & i64::from(mask);
+    (ptr, len as usize)
+}
+
+/// Converts a raw pointer to a deserialized value.
+/// Expects the first 4 bytes of the pointer to represent the [length] of the serialized value,
+/// with the subsequent [length] bytes comprising the serialized data.
+/// # Panics
+/// Panics if the bytes cannot be deserialized.
+/// # Safety
+/// This function is unsafe because it dereferences raw pointers.
+/// # Errors
+/// Returns an `StateError` if the bytes cannot be deserialized.
+pub unsafe fn from_smart_ptr<V>(ptr: SmartPtr) -> Result<V, StateError>
+where
+    V: BorshDeserialize,
+{
+    let bytes = into_bytes(ptr);
+    from_slice::<V>(&bytes).map_err(|_| StateError::Deserialization)
+}
+
+/// Returns a tuple of the bytes and length of the argument.
+/// `smart_ptr` is encoded using Big Endian as an i64.
+#[must_use]
+pub fn into_bytes(smart_ptr: SmartPtr) -> Vec<u8> {
+    // grab length from ptrArg
+    let (ptr, len) = split_smart_ptr(smart_ptr);
+    let value = unsafe { std::slice::from_raw_parts(ptr as *const u8, len) };
+    value.to_vec()
 }
 
 /// Attempts to allocate a block of memory of size `len` and returns a pointer
