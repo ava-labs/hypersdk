@@ -346,21 +346,22 @@ func SetAsset(
 	warp bool,
 ) error {
 	k := AssetKey(asset)
-	symbolLen := len(symbol)
-	metadataLen := len(metadata)
-	v := make([]byte, consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len+codec.AddressLen+1)
-	binary.BigEndian.PutUint16(v, uint16(symbolLen))
-	copy(v[consts.Uint16Len:], symbol)
-	v[consts.Uint16Len+symbolLen] = decimals
-	binary.BigEndian.PutUint16(v[consts.Uint16Len+symbolLen+consts.Uint8Len:], uint16(metadataLen))
-	copy(v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len:], metadata)
-	binary.BigEndian.PutUint64(v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen:], supply)
-	copy(v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len:], owner[:])
-	b := byte(0x0)
+	totalLen := consts.Uint16Len + len(symbol) + consts.Uint8Len + consts.Uint16Len + len(metadata) + consts.Uint64Len + codec.AddressLen + 1
+	v := make([]byte, totalLen)
+
+	// Calculate warp flag
+	var warpFlag byte
 	if warp {
-		b = 0x1
+		warpFlag = 0x1
+	} else {
+		warpFlag = 0x0
 	}
-	v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len+codec.AddressLen] = b
+
+	_, err := serializeData(v, uint16(len(symbol)), symbol, decimals, uint16(len(metadata)), metadata, supply, owner[:], warpFlag)
+	if err != nil {
+		return err
+	}
+
 	return mu.Insert(ctx, k, v)
 }
 
@@ -391,12 +392,12 @@ func SetOrder(
 ) error {
 	k := OrderKey(txID)
 	v := make([]byte, consts.IDLen*2+consts.Uint64Len*3+codec.AddressLen)
-	copy(v, in[:])
-	binary.BigEndian.PutUint64(v[consts.IDLen:], inTick)
-	copy(v[consts.IDLen+consts.Uint64Len:], out[:])
-	binary.BigEndian.PutUint64(v[consts.IDLen*2+consts.Uint64Len:], outTick)
-	binary.BigEndian.PutUint64(v[consts.IDLen*2+consts.Uint64Len*2:], supply)
-	copy(v[consts.IDLen*2+consts.Uint64Len*3:], owner[:])
+
+	_, err := serializeData(v, in[:], inTick, out[:], outTick, supply, owner[:])
+	if err != nil {
+		return err
+	}
+
 	return mu.Insert(ctx, k, v)
 }
 
@@ -602,4 +603,27 @@ func OutgoingWarpKeyPrefix(txID ids.ID) (k []byte) {
 	k[0] = outgoingWarpPrefix
 	copy(k[1:], txID[:])
 	return k
+}
+
+func serializeData(v []byte, data ...interface{}) (int, error) {
+	offset := 0
+	for _, d := range data {
+		switch value := d.(type) {
+		case byte: // includes uint8
+			v[offset] = value
+			offset += consts.ByteLen
+		case uint16:
+			binary.BigEndian.PutUint16(v[offset:], value)
+			offset += consts.Uint16Len
+		case uint64:
+			binary.BigEndian.PutUint64(v[offset:], value)
+			offset += consts.Uint64Len
+		case []byte:
+			copy(v[offset:], value)
+			offset += len(value)
+		default:
+			return 0, fmt.Errorf("unsupported type: %T", value)
+		}
+	}
+	return offset, nil
 }
