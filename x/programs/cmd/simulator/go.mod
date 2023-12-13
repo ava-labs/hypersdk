@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk/x/programs/cmd/simulator
 go 1.20
 
 require (
-	github.com/ava-labs/avalanchego v1.10.12
+	github.com/ava-labs/avalanchego v1.10.17
 	github.com/ava-labs/hypersdk v0.0.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/spf13/cobra v1.7.0
