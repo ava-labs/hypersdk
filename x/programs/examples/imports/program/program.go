@@ -191,7 +191,6 @@ func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, prog
 			return nil, err
 		}
 		args = append(args, argPtr)
-		args = append(args, argPtr)
 	}
 
 	return args, nil
