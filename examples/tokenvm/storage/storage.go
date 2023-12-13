@@ -346,8 +346,6 @@ func SetAsset(
 	warp bool,
 ) error {
 	k := AssetKey(asset)
-	totalLen := consts.Uint16Len + len(symbol) + consts.Uint8Len + consts.Uint16Len + len(metadata) + consts.Uint64Len + codec.AddressLen + 1
-	v := make([]byte, totalLen)
 
 	// Calculate warp flag
 	var warpFlag byte
@@ -357,7 +355,7 @@ func SetAsset(
 		warpFlag = 0x0
 	}
 
-	_, err := serializeData(v, uint16(len(symbol)), symbol, decimals, uint16(len(metadata)), metadata, supply, owner[:], warpFlag)
+	v, err := serializeData(uint16(len(symbol)), symbol, decimals, uint16(len(metadata)), metadata, supply, owner[:], warpFlag)
 	if err != nil {
 		return err
 	}
@@ -391,9 +389,8 @@ func SetOrder(
 	owner codec.Address,
 ) error {
 	k := OrderKey(txID)
-	v := make([]byte, consts.IDLen*2+consts.Uint64Len*3+codec.AddressLen)
 
-	_, err := serializeData(v, in[:], inTick, out[:], outTick, supply, owner[:])
+	v, err := serializeData(in[:], inTick, out[:], outTick, supply, owner[:])
 	if err != nil {
 		return err
 	}
@@ -605,7 +602,24 @@ func OutgoingWarpKeyPrefix(txID ids.ID) (k []byte) {
 	return k
 }
 
-func serializeData(v []byte, data ...interface{}) (int, error) {
+func serializeData(data ...interface{}) ([]byte, error) {
+	totalLen := 0
+	for _, d := range data {
+		switch value := d.(type) {
+		case byte: // includes uint8
+			totalLen += consts.ByteLen
+		case uint16:
+			totalLen += consts.Uint16Len
+		case uint64:
+			totalLen += consts.Uint64Len
+		case []byte:
+			totalLen += len(value)
+		default:
+			return nil, fmt.Errorf("unsupported type: %T", value)
+		}
+	}
+
+	v := make([]byte, totalLen)
 	offset := 0
 	for _, d := range data {
 		switch value := d.(type) {
@@ -622,8 +636,9 @@ func serializeData(v []byte, data ...interface{}) (int, error) {
 			copy(v[offset:], value)
 			offset += len(value)
 		default:
-			return 0, fmt.Errorf("unsupported type: %T", value)
+			return nil, fmt.Errorf("unsupported type: %T", value)
 		}
 	}
-	return offset, nil
+
+	return v, nil
 }
