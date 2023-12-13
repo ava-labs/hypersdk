@@ -19,23 +19,4 @@ functionality of a HyperSDK VM without the need to change its code.
 
 - Execution - See the test examples defined in the `examples/` directory.
 
-- Building - Checkout the `rust/` directory examples of programs written in Rust. 
-
-## Design choices
-
-### wazero WASM runtime engine
-
-wazero is a WebAssembly runtime written in Go which has zero dependencies which
-does not rely on CGO.
-
-### Metering
-
-Program metering support currently utilizes the `Interpreter` based
-implementation of the WASM virtual machine. By using the interpreter the meter
-can perform cost lookups of WebAssembly opcodes in realtime and in the future
-AOT.
-
-### Rust Program SDK
-
-Although many languages provide WebAssembly support, Rust was chosen because of
-its strong native WASM support and fantastic community.
+- Building - Checkout the `rust/` directory examples of programs written in Rust.

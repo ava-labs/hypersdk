@@ -1,4 +1,6 @@
 //! The `program` module provides functions for calling other programs.
+use crate::errors::StateError;
+use crate::memory::to_smart_ptr;
 use crate::program::Program;
 
 #[link(wasm_import_module = "program")]
@@ -8,32 +10,23 @@ extern "C" {
         caller_id: i64,
         target_id: i64,
         max_units: i64,
-        function_ptr: *const u8,
-        function_len: usize,
-        args_ptr: *const u8,
-        args_len: usize,
+        function: i64,
+        args_ptr: i64,
     ) -> i64;
 }
 
 /// Calls another program `target` and returns the result.
-#[must_use]
 pub(crate) fn call(
     caller: &Program,
     target: &Program,
     max_units: i64,
     function_name: &str,
     args: &[u8],
-) -> i64 {
-    let function_bytes = function_name.as_bytes();
-    unsafe {
-        _call_program(
-            caller.id(),
-            target.id(),
-            max_units,
-            function_bytes.as_ptr(),
-            function_bytes.len(),
-            args.as_ptr(),
-            args.len(),
-        )
-    }
+) -> Result<i64, StateError> {
+    let caller = to_smart_ptr(caller.id())?;
+    let target = to_smart_ptr(target.id())?;
+    let function = to_smart_ptr(function_name.as_bytes())?;
+    let args = to_smart_ptr(args)?;
+
+    Ok(unsafe { _call_program(caller, target, max_units, function, args) })
 }

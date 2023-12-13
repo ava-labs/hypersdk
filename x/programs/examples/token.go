@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
@@ -29,7 +30,9 @@ func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *ru
 }
 
 type minter struct {
-	To     [32]byte
+	// TODO: use a HyperSDK.Address instead
+	To ed25519.PublicKey
+	// note: a production program would use a uint64 for amount
 	Amount int32
 }
 
@@ -60,7 +63,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	programIDPtr, err := runtime.WriteBytes(rt.Memory(), programID[:])
+	programIDPtr, err := argumentToSmartPtr(programID, rt.Memory())
 	if err != nil {
 		return err
 	}
@@ -94,7 +97,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := newParameterPtr(ctx, aliceKey, rt)
+	alicePtr, err := argumentToSmartPtr(aliceKey, rt.Memory())
 	if err != nil {
 		return err
 	}
@@ -106,7 +109,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write bob's key to stack and get pointer
-	bobPtr, err := newParameterPtr(ctx, bobKey, rt)
+	bobPtr, err := argumentToSmartPtr(bobKey, rt.Memory())
 	if err != nil {
 		return err
 	}
@@ -122,7 +125,12 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// mint 100 tokens to alice
 	mintAlice := int64(1000)
-	_, err = rt.Call(ctx, "mint_to", programIDPtr, alicePtr, mintAlice)
+	mintAlicePtr, err := argumentToSmartPtr(mintAlice, rt.Memory())
+	if err != nil {
+		return err
+	}
+
+	_, err = rt.Call(ctx, "mint_to", programIDPtr, alicePtr, mintAlicePtr)
 	if err != nil {
 		return err
 	}
@@ -150,7 +158,11 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// transfer 50 from alice to bob
 	transferToBob := int64(50)
-	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, transferToBob)
+	transferToBobPtr, err := argumentToSmartPtr(transferToBob, rt.Memory())
+	if err != nil {
+		return err
+	}
+	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, transferToBobPtr)
 	if err != nil {
 		return err
 	}
@@ -159,7 +171,12 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("to bob", transferToBob),
 	)
 
-	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, 1)
+	onePtr, err := argumentToSmartPtr(int64(1), rt.Memory())
+	if err != nil {
+		return err
+	}
+
+	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, onePtr)
 	if err != nil {
 		return err
 	}
@@ -200,7 +217,7 @@ func (t *Token) Run(ctx context.Context) error {
 		},
 	}
 
-	mintersPtr, err := newParameterPtr(ctx, minters, rt)
+	mintersPtr, err := argumentToSmartPtr(minters, rt.Memory())
 	if err != nil {
 		return err
 	}
@@ -253,7 +270,7 @@ func (t *Token) RunShort(ctx context.Context) error {
 		return err
 	}
 
-	programIDPtr, err := runtime.WriteBytes(rt.Memory(), programID[:])
+	programIDPtr, err := argumentToSmartPtr(programID, rt.Memory())
 	if err != nil {
 		return err
 	}

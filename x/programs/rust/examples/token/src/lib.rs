@@ -20,19 +20,19 @@ pub fn init(program: Program) -> bool {
     // set total supply
     program
         .state()
-        .store(StateKey::TotalSupply.to_vec(), &123456789_i64)
+        .store(StateKey::TotalSupply, &123456789_i64)
         .expect("failed to store total supply");
 
     // set token name
     program
         .state()
-        .store(StateKey::Name.to_vec(), b"WasmCoin")
+        .store(StateKey::Name, b"WasmCoin")
         .expect("failed to store coin name");
 
     // set token symbol
     program
         .state()
-        .store(StateKey::Symbol.to_vec(), b"WACK")
+        .store(StateKey::Symbol, b"WACK")
         .expect("failed to store symbol");
 
     true
@@ -43,7 +43,7 @@ pub fn init(program: Program) -> bool {
 pub fn get_total_supply(program: Program) -> i64 {
     program
         .state()
-        .get(StateKey::TotalSupply.to_vec())
+        .get(StateKey::TotalSupply)
         .expect("failed to get total supply")
 }
 
@@ -52,12 +52,12 @@ pub fn get_total_supply(program: Program) -> i64 {
 pub fn mint_to(program: Program, recipient: Address, amount: i64) -> bool {
     let balance = program
         .state()
-        .get::<i64, _>(StateKey::Balance(recipient).to_vec())
+        .get::<i64, _>(StateKey::Balance(recipient))
         .unwrap_or_default();
 
     program
         .state()
-        .store(StateKey::Balance(recipient).to_vec(), &(balance + amount))
+        .store(StateKey::Balance(recipient), &(balance + amount))
         .expect("failed to store balance");
 
     true
@@ -71,31 +71,25 @@ pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i
     // ensure the sender has adequate balance
     let sender_balance = program
         .state()
-        .get::<i64, _>(StateKey::Balance(sender).to_vec())
+        .get::<i64, _>(StateKey::Balance(sender))
         .expect("failed to update balance");
 
     assert!(amount >= 0 && sender_balance >= amount, "invalid input");
 
     let recipient_balance = program
         .state()
-        .get::<i64, _>(StateKey::Balance(recipient).to_vec())
+        .get::<i64, _>(StateKey::Balance(recipient))
         .unwrap_or_default();
 
     // update balances
     program
         .state()
-        .store(
-            StateKey::Balance(sender).to_vec(),
-            &(sender_balance - amount),
-        )
+        .store(StateKey::Balance(sender), &(sender_balance - amount))
         .expect("failed to store balance");
 
     program
         .state()
-        .store(
-            StateKey::Balance(recipient).to_vec(),
-            &(recipient_balance + amount),
-        )
+        .store(StateKey::Balance(recipient), &(recipient_balance + amount))
         .expect("failed to store balance");
 
     true
@@ -122,7 +116,7 @@ pub fn mint_to_many(program: Program, minters: Vec<Minter>) -> bool {
 pub fn get_balance(program: Program, recipient: Address) -> i64 {
     program
         .state()
-        .get(StateKey::Balance(recipient).to_vec())
+        .get(StateKey::Balance(recipient))
         .unwrap_or_default()
 }
 

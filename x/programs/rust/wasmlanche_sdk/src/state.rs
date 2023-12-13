@@ -1,9 +1,11 @@
 use crate::{
     errors::StateError,
-    host::{get_bytes, len_bytes, put_bytes},
+    host::{get_bytes, put_bytes},
+    memory::from_smart_ptr,
     program::Program,
 };
-use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
+use borsh::{BorshDeserialize, BorshSerialize};
+use std::ops::Deref;
 
 pub struct State {
     program: Program,
@@ -23,21 +25,9 @@ impl State {
     pub fn store<K, V>(&self, key: K, value: &V) -> Result<(), StateError>
     where
         V: BorshSerialize,
-        K: AsRef<[u8]>,
+        K: Into<Key>,
     {
-        let value_bytes = to_vec(value).map_err(|_| StateError::Serialization)?;
-        match unsafe {
-            put_bytes(
-                &self.program,
-                key.as_ref().as_ptr(),
-                key.as_ref().len(),
-                value_bytes.as_ptr(),
-                value_bytes.len(),
-            )
-        } {
-            0 => Ok(()),
-            _ => Err(StateError::Write),
-        }
+        unsafe { put_bytes(&self.program, &key.into(), value) }
     }
 
     /// Get a value from the host's storage.
@@ -52,27 +42,36 @@ impl State {
     /// Panics if the value cannot be converted from i32 to usize.
     pub fn get<T, K>(&self, key: K) -> Result<T, StateError>
     where
-        K: AsRef<[u8]>,
+        K: Into<Key>,
         T: BorshDeserialize,
     {
-        let key_ptr = key.as_ref().as_ptr();
-        let key_len = key.as_ref().len();
-
-        let val_len = unsafe { len_bytes(&self.program, key_ptr, key_len) };
-        let val_ptr = unsafe { get_bytes(&self.program, key_ptr, key_len, val_len) };
+        let val_ptr = unsafe { get_bytes(&self.program, &key.into())? };
         if val_ptr < 0 {
             return Err(StateError::Read);
         }
 
-        // Rust takes ownership here so all of the above pointers will be freed on return (drop).
-        let val = unsafe {
-            Vec::from_raw_parts(
-                val_ptr as *mut u8,
-                val_len.try_into().expect("conversion from i32"),
-                val_len.try_into().expect("conversion from i32"),
-            )
-        };
-        from_slice(&val).map_err(|_| StateError::InvalidBytes)
+        // Wrap in OK for now, change from_raw_ptr to return Result
+        unsafe { from_smart_ptr(val_ptr) }
+    }
+}
+
+/// Key is a wrapper around a Vec<u8> that represents a key in the host storage.
+#[derive(Debug, Default, Clone)]
+pub struct Key(Vec<u8>);
+
+impl Deref for Key {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Key {
+    /// Returns a new Key from the bytes.
+    #[must_use]
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self(bytes)
     }
 }
 
