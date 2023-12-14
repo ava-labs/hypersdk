@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 
+	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
@@ -28,16 +29,18 @@ type Import struct {
 	db         state.Mutable
 	log        logging.Logger
 	imports    runtime.SupportedImports
-	meter      runtime.Meter
+	meter      *engine.Meter
+	engine     *engine.Engine
 	registered bool
 }
 
 // New returns a new program invoke host module which can perform program to program calls.
-func New(log logging.Logger, db state.Mutable, cfg *runtime.Config) *Import {
+func New(log logging.Logger, engine *engine.Engine, db state.Mutable, cfg *runtime.Config) *Import {
 	return &Import{
-		cfg: cfg,
-		db:  db,
-		log: log,
+		cfg:    cfg,
+		db:     db,
+		log:    log,
+		engine: engine,
 	}
 }
 
@@ -45,7 +48,7 @@ func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtime.SupportedImports) error {
+func (i *Import) Register(link runtime.Link, meter *engine.Meter, imports runtime.SupportedImports) error {
 	if i.registered {
 		return fmt.Errorf("import module already registered: %q", Name)
 	}
@@ -98,8 +101,8 @@ func (i *Import) callProgramFn(
 	}
 
 	// create a new runtime for the program to be invoked with a zero balance.
-	rt := runtime.New(i.log, i.cfg, i.imports)
-	err = rt.Initialize(context.Background(), programWasmBytes, runtime.NoUnits)
+	rt := runtime.New(i.log, i.engine, i.imports, i.cfg)
+	err = rt.Initialize(context.Background(), programWasmBytes, engine.NoUnits)
 	if err != nil {
 		i.log.Error("failed to initialize runtime",
 			zap.Error(err),
@@ -108,10 +111,10 @@ func (i *Import) callProgramFn(
 	}
 
 	// transfer the units from the caller to the new runtime before any calls are made.
-	_, err = i.meter.TransferUnitsTo(rt.Meter(), uint64(maxUnits))
+	balance, err := i.meter.TransferUnitsTo(rt.Meter(), uint64(maxUnits))
 	if err != nil {
 		i.log.Error("failed to transfer units",
-			zap.Uint64("balance", i.meter.GetBalance()),
+			zap.Uint64("balance", balance),
 			zap.Int64("required", maxUnits),
 			zap.Error(err),
 		)
@@ -120,10 +123,14 @@ func (i *Import) callProgramFn(
 
 	// transfer remaining balance back to parent runtime
 	defer func() {
-		// stop the runtime to prevent further execution
-		rt.Stop()
-
-		_, err = rt.Meter().TransferUnitsTo(i.meter, rt.Meter().GetBalance())
+		balance, err := rt.Meter().GetBalance()
+		if err != nil {
+			i.log.Error("failed to get balance from runtime",
+				zap.Error(err),
+			)
+			return
+		}
+		_, err = rt.Meter().TransferUnitsTo(i.meter, balance)
 		if err != nil {
 			i.log.Error("failed to transfer remaining balance to caller",
 				zap.Error(err),
