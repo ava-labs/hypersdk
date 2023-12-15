@@ -24,32 +24,6 @@ var (
 	ErrMeteredStore      = errors.New("store is already metered")
 )
 
-// NewStoreConfig returns a new store config.
-func NewStoreConfig() *StoreConfig {
-	return &StoreConfig{
-		limitMaxMemory:        DefaultLimitMaxMemory,
-		limitMaxTableElements: defaultLimitMaxTableElements,
-		limitMaxTables:        defaultLimitMaxTables,
-		limitMaxInstances:     defaultLimitMaxInstances,
-		limitMaxMemories:      defaultLimitMaxMemories,
-	}
-}
-
-// StoreConfig is the configuration for an engine store.
-type StoreConfig struct {
-	limitMaxMemory        uint32
-	limitMaxTableElements int64
-	limitMaxTables        int64
-	limitMaxInstances     int64
-	limitMaxMemories      int64
-}
-
-// SetLimitMaxMemory sets the limit max memory.
-func (c *StoreConfig) SetLimitMaxMemory(limitMaxMemory uint32) *StoreConfig {
-	c.limitMaxMemory = limitMaxMemory
-	return c
-}
-
 // NewStore creates a new engine store.
 func NewStore(e *Engine, cfg *StoreConfig) *Store {
 	inner := wasmtime.NewStore(e.inner)
@@ -128,6 +102,32 @@ func (s *Store) Inner() *wasmtime.Store {
 	return s.inner
 }
 
+// NewStoreConfig returns a new store config.
+func NewStoreConfig() *StoreConfig {
+	return &StoreConfig{
+		limitMaxMemory:        DefaultLimitMaxMemory,
+		limitMaxTableElements: defaultLimitMaxTableElements,
+		limitMaxTables:        defaultLimitMaxTables,
+		limitMaxInstances:     defaultLimitMaxInstances,
+		limitMaxMemories:      defaultLimitMaxMemories,
+	}
+}
+
+// StoreConfig is the configuration for an engine store.
+type StoreConfig struct {
+	limitMaxMemory        uint32
+	limitMaxTableElements int64
+	limitMaxTables        int64
+	limitMaxInstances     int64
+	limitMaxMemories      int64
+}
+
+// SetLimitMaxMemory sets the limit max memory.
+func (c *StoreConfig) SetLimitMaxMemory(limitMaxMemory uint32) *StoreConfig {
+	c.limitMaxMemory = limitMaxMemory
+	return c
+}
+
 // NewMeter returns a new meter. A store can only be registered to a single
 // meter.
 func NewMeter(store *Store) (*Meter, error) {
@@ -140,10 +140,12 @@ func NewMeter(store *Store) (*Meter, error) {
 	}, nil
 }
 
+// Meter is an abstraction of a store.
 type Meter struct {
 	store *Store
 }
 
+// GetBalance returns the balance in units of the meter.
 func (m *Meter) GetBalance() (uint64, error) {
 	return m.store.GetBalanceUnits()
 }
@@ -181,6 +183,5 @@ func (m *Meter) TransferUnitsTo(to *Meter, units uint64) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	// return the new balance of this meter
 	return m.GetBalance()
 }

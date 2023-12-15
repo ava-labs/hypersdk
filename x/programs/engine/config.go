@@ -157,6 +157,7 @@ func (c *Config) SetWasmThreads(enabled bool) {
 	c.inner.SetWasmThreads(enabled)
 }
 
+// DefaultWasmtimeConfig returns a new wasmtime config with default settings.
 func DefaultWasmtimeConfig() *wasmtime.Config {
 	cfg := wasmtime.NewConfig()
 

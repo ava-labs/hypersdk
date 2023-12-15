@@ -5,7 +5,6 @@ package examples
 
 import (
 	"context"
-	_ "embed"
 	"os"
 	"testing"
 

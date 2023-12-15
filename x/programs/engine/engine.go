@@ -14,7 +14,6 @@ import (
 // stores. For example in the case of program to program calls.
 type Engine struct {
 	inner *wasmtime.Engine
-	storeCount int
 }
 
 // New creates a new Wasm engine.
