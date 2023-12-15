@@ -13,9 +13,7 @@ const (
 	wasiPreview1ModName = "wasi_snapshot_preview1"
 )
 
-var (
-	NoSupportedImports = make(SupportedImports)
-)
+var NoSupportedImports = make(SupportedImports)
 
 type Imports map[string]Import
 

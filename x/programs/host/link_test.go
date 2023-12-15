@@ -146,16 +146,9 @@ func (i *testImport) Name() string {
 
 func (i *testImport) Register(link *Link) error {
 	if i.fn != nil {
-		if err := link.RegisterImportFn(i.module, "one", i.fn); err != nil {
-			return err
-		}
-
-	} else {
-		if err := link.RegisterImportFn(i.module, "one", testOneParamFnWrap); err != nil {
-			return err
-		}
+		return link.RegisterImportFn(i.module, "one", i.fn)
 	}
-	return nil
+	return link.RegisterImportFn(i.module, "one", testOneParamFnWrap)
 }
 
 func testOneParamFnWrap(*wasmtime.Caller, int64) int64 {
