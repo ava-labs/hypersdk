@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
+	"github.com/near/borsh-go"
 	"go.uber.org/zap"
 
 	crypto "github.com/ava-labs/hypersdk/crypto/ed25519"
@@ -16,6 +17,15 @@ import (
 )
 
 const Name = "crypto"
+
+type SignedMessage struct {
+	// capped at 32 for now
+	Message [32]byte
+	// signature
+	Signature [64]byte
+	// public key
+	PublicKey [32]byte
+}
 
 var _ runtime.Import = &Import{}
 
@@ -55,38 +65,38 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtim
 
 // verifyEDSignature verifies the signature of the message using the provided public key.
 // Returns 1 if the signature is valid, 0 otherwise.
-func (i *Import) verifyEDSignature(caller *wasmtime.Caller, idPtr int64, msgPtr int64, msgLength int64, signaturePtr int64, pubKeyPtr int64) int32 {
-	memory := runtime.NewMemory(runtime.NewExportClient(caller))
+func (i *Import) verifyEDSignature(caller *wasmtime.Caller, id int64, msg int64) int32 {
+	client := runtime.NewExportClient(caller)
+	memory := runtime.NewMemory(client)
 	// use crypto/ed25519.Verify from hypersdk
-	messageBytes, err := memory.Range(uint64(msgPtr), uint64(msgLength))
+	signedMessageBytes, err := runtime.SmartPtr(msg).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read key from memory",
 			zap.Error(err),
 		)
 		return -1
 	}
-
-	signatureBytes, err := memory.Range(uint64(signaturePtr), crypto.SignatureLen)
+	var signedMsg SignedMessage;
+	err = deserializeParameter(&signedMsg, signedMessageBytes[:])
+	
 	if err != nil {
-		i.log.Error("failed to read key from memory",
-			zap.Error(err),	
-		)
-		return -1
-	}
-	sig := crypto.Signature(signatureBytes)
-
-	pubKeyBytes, err := memory.Range(uint64(pubKeyPtr), crypto.PublicKeyLen)
-	if err != nil {
-		i.log.Error("failed to read key from memory",
+		i.log.Error("failed to deserialize signed message",
 			zap.Error(err),
 		)
 		return -1
 	}
-	pubKey := crypto.PublicKey(pubKeyBytes)
 
-	result := crypto.Verify(messageBytes, pubKey, sig)
+	pubKey := crypto.PublicKey(signedMsg.PublicKey)
+	signature := crypto.Signature(signedMsg.Signature)
+
+	result := crypto.Verify(signedMsg.Message[:], pubKey, signature)
 	if result {
 		return 1
 	}
 	return 0
+}
+
+// DeserializeParameter deserializes [bytes] using Borsh
+func deserializeParameter(obj interface{}, bytes []byte) error {
+	return borsh.Deserialize(obj, bytes)
 }

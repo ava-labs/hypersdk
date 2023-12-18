@@ -4,7 +4,7 @@ use crate::{
     memory::from_smart_ptr,
     program::Program,
 };
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use std::ops::Deref;
 
 pub struct State {

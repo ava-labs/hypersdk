@@ -45,15 +45,6 @@ var (
 
 )
 
-type signedMessage struct {
-	// capped at 32 for now
-	message [32]byte
-	// signature
-	signature [64]byte
-	// public key
-	publicKey [32]byte
-}
-
 // go test -v -timeout 30s -run ^TestVerifyProgram$ github.com/ava-labs/hypersdk/x/programs/examples
 func TestVerifyProgram(t *testing.T) {
 	require := require.New(t)
@@ -69,7 +60,7 @@ func TestVerifyProgram(t *testing.T) {
 	numInvalidMessages := 1
 
 	signedMessages := createSignedMessages(numValidMessages, numInvalidMessages)
-	signedMessagesPtr, err := newParameterPtr(ctx, signedMessages, rt)
+	signedMessagesPtr, err := argumentToSmartPtr(signedMessages, rt.Memory())
 	require.NoError(err)
 
 	// call vertify with some invalid signatures
@@ -98,11 +89,11 @@ func TestVerifyHostFunctionProgram(t *testing.T) {
 	numInvalidMessages := 1
 
 	signedMessages := createSignedMessages(numValidMessages, numInvalidMessages)
-	signedMessagesPtr, err := newParameterPtr(ctx, signedMessages, rt)
+	signedMessagesPtr, err := argumentToSmartPtr(signedMessages, rt.Memory())
 	require.NoError(err)
 
 	invalidSignedMessages := createSignedMessages(0, numInvalidMessages)
-	invalidMessagesPtr, err := newParameterPtr(ctx, invalidSignedMessages, rt)
+	invalidMessagesPtr, err := argumentToSmartPtr(invalidSignedMessages, rt.Memory())
 	require.NoError(err)
 
 	// call vertify with some invalid signatures
@@ -124,20 +115,20 @@ func TestVerifyHostFunctionProgram(t *testing.T) {
 }
 
 // Helper function to create signed messages
-func createSignedMessages(numValidMessages int, numInvalidMessages int) []signedMessage {
-	signedMessages := []signedMessage{}
+func createSignedMessages(numValidMessages int, numInvalidMessages int) []crypto.SignedMessage {
+	signedMessages := []crypto.SignedMessage{}
 	for i := 0; i < numValidMessages; i++ {
-		signedMessages = append(signedMessages, signedMessage{
-			message:   messageBytes,
-			signature: signatureBytes,
-			publicKey: publicKey,
+		signedMessages = append(signedMessages, crypto.SignedMessage{
+			Message:   messageBytes,
+			Signature: signatureBytes,
+			PublicKey: publicKey,
 		})
 	}
 	for i := 0; i < numInvalidMessages; i++ {
-		signedMessages = append(signedMessages, signedMessage{
-			message:   messageBytes,
-			signature: invalidSignatureBytes,
-			publicKey: publicKey,
+		signedMessages = append(signedMessages, crypto.SignedMessage{
+			Message:   messageBytes,
+			Signature: invalidSignatureBytes,
+			PublicKey: publicKey,
 		})
 	}
 	return signedMessages
@@ -168,7 +159,7 @@ func BenchmarkVerifyProgram(b *testing.B) {
 	// })
 }
 
-func SetupRuntime(ctx context.Context) (runtime.Runtime, int64, error) {
+func SetupRuntime(ctx context.Context) (runtime.Runtime, runtime.SmartPtr, error) {
 	db := newTestDB()
 	maxUnits := uint64(100000000)
 	// need with bulk memory to run this test(for io ops)
@@ -204,7 +195,7 @@ func SetupRuntime(ctx context.Context) (runtime.Runtime, int64, error) {
 		return nil, 0, err
 	}
 
-	programIDPtr, err := runtime.WriteBytes(rt.Memory(), programID[:])
+	programIDPtr, err := argumentToSmartPtr(programID, rt.Memory())
 	if err != nil {
 		return nil, 0, err
 	}

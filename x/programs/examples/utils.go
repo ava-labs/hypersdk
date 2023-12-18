@@ -5,11 +5,9 @@ package examples
 
 import (
 	"context"
-	"encoding/binary"
 	"os"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"

@@ -27,9 +27,3 @@ impl IntoIterator for Address {
         IntoIterator::into_iter(self.0)
     }
 }
-
-impl Argument for String {
-    fn as_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Borrowed(self.as_bytes())
-    }
-}

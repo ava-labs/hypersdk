@@ -1,11 +1,6 @@
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
-use wasmlanche_sdk::host::verify_ed25519;
+use wasmlanche_sdk::host::{verify_ed25519, SignedMessage};
 use wasmlanche_sdk::{program::Program, public};
-
-// import custom types from types.rs
-mod types;
-use types::SignedMessage;
-
 
 /// Runs multiple ED25519 signature verifications in Wasm.
 /// Returns the number of successfull verifications of [signature_bytes] 
@@ -37,9 +32,7 @@ pub fn verify_ed_multiple_host_func(
 ) -> i32 {
     let mut success_count = 0;
     for signed_message in signed_messages.iter() {
-        let signature: Signature = Signature::from_bytes(&signed_message.signature);
-        let pub_key = VerifyingKey::from_bytes(&signed_message.public_key).expect("invalid bytes");
-        match verify_ed25519(&program, &signed_message.message, &signature, &pub_key) {
+        match verify_ed25519(&program, signed_message) {
             1 => {success_count += 1;}
             _ => {},
         }
@@ -47,10 +40,10 @@ pub fn verify_ed_multiple_host_func(
     success_count
 }
 
-/// Runs multiple ED25519 signature verifications in the host with just one call.
-pub fn verify_ed_batch(
-    program: Program,
-    signed_messages: Vec<SignedMessage>,
-) {
-    return batch_verify_ed25519(&program, &signed_messages);
-}
+// /// Runs multiple ED25519 signature verifications in the host with just one call.
+// pub fn verify_ed_batch(
+//     program: Program,
+//     signed_messages: Vec<SignedMessage>,
+// ) {
+//     return batch_verify_ed25519(&program, &signed_messages);
+// }

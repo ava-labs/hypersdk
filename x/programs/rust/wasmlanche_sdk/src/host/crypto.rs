@@ -1,7 +1,15 @@
 
 
-use crate::{program::Program};
-use ed25519_dalek::{Signature, VerifyingKey};
+use crate::{program::Program, memory::to_smart_ptr};
+use ed25519_dalek::{PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH};
+use borsh::{to_vec, BorshDeserialize, BorshSerialize};
+
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct SignedMessage {
+    pub message: [u8; 32],
+    pub signature: [u8; SIGNATURE_LENGTH],
+    pub public_key: [u8; PUBLIC_KEY_LENGTH],
+}
 
 
 #[link(wasm_import_module = "crypto")]
@@ -9,10 +17,7 @@ extern "C" {
     #[link_name = "verify_ed25519"]
     fn _verify_ed25519(
         caller_id: i64,
-        msgPtr: i64,
-        msgLen: i64,
-        sigPtr: i64,
-        pubKeyPtr: i64,
+        signedMsg: i64,
     ) -> i32;
 }
 
@@ -20,15 +25,13 @@ extern "C" {
 #[must_use]
 pub fn verify_ed25519(
     caller: &Program,
-    msg: &[u8; 32],
-    sig: &Signature,
-    pub_key: &VerifyingKey,
+    signed_message: &SignedMessage,
 )  -> i32 {
-    unsafe { _verify_ed25519(caller.id(),
-                            msg.as_ptr() as i64,
-                            32,
-                            sig.to_bytes().as_ptr() as i64,
-                            pub_key.as_bytes().as_ptr() as i64
+    let caller = to_smart_ptr(caller.id()).unwrap();
+    let signed_msg_bytes = to_vec(signed_message).unwrap();
+    let signed_message = to_smart_ptr(&signed_msg_bytes).unwrap();  
+    unsafe { _verify_ed25519(caller,
+                                signed_message,
     ) }
 }
-
+ 

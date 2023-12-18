@@ -24,7 +24,7 @@ var (
 	log = logging.NewLogger(
 		"",
 		logging.NewWrappedCore(
-			logging.Info,
+			logging.Debug,
 			os.Stderr,
 			logging.Plain.ConsoleEncoder(),
 		))
