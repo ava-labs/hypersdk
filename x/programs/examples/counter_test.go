@@ -12,7 +12,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
@@ -49,7 +48,7 @@ func TestCounterProgram(t *testing.T) {
 	require.Equal(maxUnits, rt.Meter().GetBalance())
 
 	// simulate create program transaction
-	programID := codec.CreateAddress(programTypeID, ids.GenerateTestID())
+	programID := ids.GenerateTestID()
 	err = storage.SetProgram(ctx, db, programID, counterProgramBytes)
 	require.NoError(err)
 
@@ -89,7 +88,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// simulate creating second program transaction
-	program2ID := codec.CreateAddress(programTypeID, ids.GenerateTestID())
+	program2ID := ids.GenerateTestID()
 	err = storage.SetProgram(ctx, db, program2ID, counterProgramBytes)
 	require.NoError(err)
 

@@ -10,10 +10,10 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 
@@ -80,7 +80,7 @@ func (i *Import) callProgramFn(
 		return -1
 	}
 
-	programAddressBytes, err := runtime.SmartPtr(programAddress).Bytes(memory)
+	programIDBytes, err := runtime.SmartPtr(programAddress).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read address from memory",
 			zap.Error(err),
@@ -89,7 +89,7 @@ func (i *Import) callProgramFn(
 	}
 
 	// get the program bytes from storage
-	programWasmBytes, err := getProgramWasmBytes(i.log, i.db, programAddressBytes)
+	programWasmBytes, err := getProgramWasmBytes(i.log, i.db, programIDBytes)
 	if err != nil {
 		i.log.Error("failed to get program bytes from storage",
 			zap.Error(err),
@@ -139,7 +139,7 @@ func (i *Import) callProgramFn(
 		return -1
 	}
 	// sync args to new runtime and return arguments to the invoke call
-	params, err := getCallArgs(ctx, rt.Memory(), argsBytes, programAddressBytes)
+	params, err := getCallArgs(ctx, rt.Memory(), argsBytes, programIDBytes)
 	if err != nil {
 		i.log.Error("failed to unmarshal call arguments",
 			zap.Error(err),
@@ -160,13 +160,13 @@ func (i *Import) callProgramFn(
 }
 
 // getCallArgs returns the arguments to be passed to the program being invoked from [buffer].
-func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, programAddressBytes []byte) ([]runtime.SmartPtr, error) {
+func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, programIDBytes []byte) ([]runtime.SmartPtr, error) {
 	// first arg contains address of program to call
-	invokeProgramAddressPtr, err := runtime.WriteBytes(memory, programAddressBytes)
+	invokeProgramAddressPtr, err := runtime.WriteBytes(memory, programIDBytes)
 	if err != nil {
 		return nil, err
 	}
-	argPtr, err := runtime.NewSmartPtr(uint32(invokeProgramAddressPtr), len(programAddressBytes))
+	argPtr, err := runtime.NewSmartPtr(uint32(invokeProgramAddressPtr), len(programIDBytes))
 	if err != nil {
 		return nil, err
 	}
@@ -196,18 +196,16 @@ func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, prog
 	return args, nil
 }
 
-func getProgramWasmBytes(log logging.Logger, db state.Immutable, addressBytes []byte) ([]byte, error) {
-	if len(addressBytes) != codec.AddressLen {
-		return nil, fmt.Errorf("invalid address length: %d", len(addressBytes))
+func getProgramWasmBytes(log logging.Logger, db state.Immutable, idBytes []byte) ([]byte, error) {
+	id, err := ids.ToID(idBytes)
+	if err != nil {
+		return nil, err
 	}
 
-	// the correct TypeID should be ensured by the wrapping VM
-	address := codec.Address(addressBytes)
-
 	// get the program bytes from storage
-	bytes, exists, err := storage.GetProgram(context.Background(), db, address)
+	bytes, exists, err := storage.GetProgram(context.Background(), db, id)
 	if !exists {
-		log.Debug("key does not exist", zap.String("address", codec.MustAddressBech32("prog", address)))
+		log.Debug("key does not exist", zap.String("id", id.String()))
 	}
 	if err != nil {
 		return nil, err
