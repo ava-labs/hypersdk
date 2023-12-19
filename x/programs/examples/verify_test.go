@@ -114,6 +114,46 @@ func TestVerifyHostFunctionProgram(t *testing.T) {
 	rt.Stop()
 }
 
+
+// go test -v -timeout 30s -run ^TestBatchVerifyHostFunctionProgram$ github.com/ava-labs/hypersdk/x/programs/examples
+func TestBatchVerifyHostFunctionProgram(t *testing.T) {
+	require := require.New(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	rt, programIDPtr, err := SetupRuntime(ctx)
+	require.NoError(err)
+	meter := rt.Meter().GetBalance()
+
+	numValidMessages := 4
+	numInvalidMessages := 1
+
+	signedMessages := createSignedMessages(numValidMessages, numInvalidMessages)
+	signedMessagesPtr, err := argumentToSmartPtr(signedMessages, rt.Memory())
+	require.NoError(err)
+
+	invalidSignedMessages := createSignedMessages(0, numInvalidMessages)
+	invalidMessagesPtr, err := argumentToSmartPtr(invalidSignedMessages, rt.Memory())
+	require.NoError(err)
+
+	// call vertify with some invalid signatures
+	result, err := rt.Call(ctx, "verify_ed_batch_host_func", programIDPtr, signedMessagesPtr)
+	require.NoError(err)
+	require.Equal(int64(numValidMessages), result[0], "Verified an invalid # of signatures")
+
+	// call vertify with all invalid signatures
+	result, err = rt.Call(ctx, "verify_ed_batch_host_func", programIDPtr, invalidMessagesPtr)
+	require.NoError(err)
+	require.Equal(int64(0), result[0], "Verified an invalid # of signatures")
+
+
+	// print meter for reference
+	meter = meter - rt.Meter().GetBalance()
+	fmt.Println("meter used: ", meter)
+
+	rt.Stop()
+}
+
 // Helper function to create signed messages
 func createSignedMessages(numValidMessages int, numInvalidMessages int) []crypto.SignedMessage {
 	signedMessages := []crypto.SignedMessage{}

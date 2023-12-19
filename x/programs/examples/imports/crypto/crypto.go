@@ -59,6 +59,9 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtim
 	if err := link.FuncWrap(Name, "verify_ed25519", i.verifyEDSignature); err != nil {
 		return err
 	}
+	if err := link.FuncWrap(Name, "batch_verify_ed25519", i.batchVerifyEdSignature); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -94,6 +97,42 @@ func (i *Import) verifyEDSignature(caller *wasmtime.Caller, id int64, msg int64)
 		return 1
 	}
 	return 0
+}
+
+func (i *Import) batchVerifyEdSignature(caller *wasmtime.Caller, id int64, messages int64) int32 {
+	client := runtime.NewExportClient(caller)
+	memory := runtime.NewMemory(client)
+
+	signedMessagesBytes, err := runtime.SmartPtr(messages).Bytes(memory)
+	if err != nil {
+		i.log.Error("failed to read key from memory",
+			zap.Error(err),
+		)
+		return -1
+	}
+
+	var signedMessages []SignedMessage;
+	err = deserializeParameter(&signedMessages, signedMessagesBytes[:])
+
+	if err != nil {
+		i.log.Error("failed to deserialize signed message",
+			zap.Error(err),
+		)
+		return -1
+	}
+
+	numVerified := 0
+	for _, signedMsg := range signedMessages {
+		pubKey := crypto.PublicKey(signedMsg.PublicKey)
+		signature := crypto.Signature(signedMsg.Signature)
+
+		result := crypto.Verify(signedMsg.Message[:], pubKey, signature)
+		if result {
+			numVerified++
+		}
+	}
+
+	return int32(numVerified)
 }
 
 // DeserializeParameter deserializes [bytes] using Borsh

@@ -19,6 +19,12 @@ extern "C" {
         caller_id: i64,
         signedMsg: i64,
     ) -> i32;
+
+    #[link_name = "batch_verify_ed25519"]
+    fn _batch_verify_ed25519(
+        caller_id: i64,
+        signedMsgs: i64,
+    ) -> i32;
 }
 
 
@@ -35,3 +41,15 @@ pub fn verify_ed25519(
     ) }
 }
  
+#[must_use]
+pub fn batch_verify_ed25519(
+    caller: &Program,
+    signed_messages: &[SignedMessage],
+) -> i32 {
+    let caller = to_smart_ptr(caller.id()).unwrap();
+    let signed_msg_bytes = to_vec(signed_messages).unwrap();
+    let signed_messages = to_smart_ptr(&signed_msg_bytes).unwrap();  
+    unsafe { _batch_verify_ed25519(caller,
+                                signed_messages,
+    ) }
+}

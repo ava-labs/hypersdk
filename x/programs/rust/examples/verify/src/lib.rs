@@ -1,5 +1,5 @@
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
-use wasmlanche_sdk::host::{verify_ed25519, SignedMessage};
+use wasmlanche_sdk::host::{verify_ed25519, batch_verify_ed25519, SignedMessage};
 use wasmlanche_sdk::{program::Program, public};
 
 /// Runs multiple ED25519 signature verifications in Wasm.
@@ -40,10 +40,11 @@ pub fn verify_ed_multiple_host_func(
     success_count
 }
 
-// /// Runs multiple ED25519 signature verifications in the host with just one call.
-// pub fn verify_ed_batch(
-//     program: Program,
-//     signed_messages: Vec<SignedMessage>,
-// ) {
-//     return batch_verify_ed25519(&program, &signed_messages);
-// }
+/// Runs multiple ED25519 signature verifications in the host with just one call.
+#[public]
+pub fn verify_ed_batch_host_func(
+    program: Program,
+    signed_messages: Vec<SignedMessage>,
+) -> i32 {
+    batch_verify_ed25519(&program, &signed_messages)
+}
