@@ -27,10 +27,6 @@ func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
 	return
 }
 
-//
-// Program
-//
-
 // ProgramKey returns the key used to store the program bytes at [id].
 func ProgramKey(id ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen)

@@ -127,7 +127,7 @@ func (i *Import) getFn(caller *wasmtime.Caller, id int64, key int64) int64 {
 		return -1
 	}
 	if err != nil {
-		i.log.Error("failed to convert program id to codec.id",
+		i.log.Error("failed to convert program id to id",
 			zap.Error(err),
 		)
 		return -1

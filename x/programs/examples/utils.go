@@ -18,7 +18,6 @@ import (
 
 var (
 	ed25519ID     uint8 = 0
-	programTypeID uint8 = 1
 )
 
 // newTestAddress generates a address used for the example tests using
