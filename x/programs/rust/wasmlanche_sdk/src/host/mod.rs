@@ -4,8 +4,7 @@
 mod crypto;
 mod program;
 mod state;
-pub use crypto::SignedMessage;
-pub use crypto::{batch_verify_ed25519, verify_ed25519};
+pub use crypto::{batch_verify_ed25519, verify_ed25519, SignedMessage};
 pub(crate) use program::call as call_program;
 #[allow(unused_imports)]
 pub use state::*;

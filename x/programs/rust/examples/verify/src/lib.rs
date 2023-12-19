@@ -11,11 +11,8 @@ pub fn verify_ed_in_wasm(_: Program, signed_messages: Vec<SignedMessage>) -> i32
     for signed_message in signed_messages.iter() {
         let signature: Signature = Signature::from_bytes(&signed_message.signature);
         let pub_key = VerifyingKey::from_bytes(&signed_message.public_key).expect("invalid bytes");
-        match pub_key.verify(&signed_message.message, &signature) {
-            Ok(_) => {
-                success_count += 1;
-            }
-            Err(_) => {}
+        if pub_key.verify(&signed_message.message, &signature).is_ok() {
+            success_count += 1;
         }
     }
     success_count
@@ -28,11 +25,8 @@ pub fn verify_ed_in_wasm(_: Program, signed_messages: Vec<SignedMessage>) -> i32
 pub fn verify_ed_multiple_host_func(program: Program, signed_messages: Vec<SignedMessage>) -> i32 {
     let mut success_count = 0;
     for signed_message in signed_messages.iter() {
-        match verify_ed25519(&program, signed_message) {
-            1 => {
-                success_count += 1;
-            }
-            _ => {}
+        if verify_ed25519(&program, signed_message).unwrap() == 1 {
+            success_count += 1;
         }
     }
     success_count
@@ -41,5 +35,5 @@ pub fn verify_ed_multiple_host_func(program: Program, signed_messages: Vec<Signe
 /// Runs multiple ED25519 signature verifications in the host with just one call.
 #[public]
 pub fn verify_ed_batch_host_func(program: Program, signed_messages: Vec<SignedMessage>) -> i32 {
-    batch_verify_ed25519(&program, &signed_messages)
+    batch_verify_ed25519(&program, &signed_messages).unwrap()
 }

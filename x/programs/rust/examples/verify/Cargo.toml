@@ -8,8 +8,6 @@ edition = "2021"
 [dependencies]
 wasmlanche_sdk = { version = "0.1.0", path = "../../wasmlanche_sdk" }
 ed25519-dalek = { version = "2.0.0" } # for the generate SigningKey function
-rand = "0.8.5"
-rand_chacha = "0.3.1"
 borsh = { version = "1.2.0", features = ["derive"] }
 
 [lib]
