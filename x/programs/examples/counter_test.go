@@ -49,11 +49,11 @@ func TestCounterProgram(t *testing.T) {
 	require.Equal(maxUnits, rt.Meter().GetBalance())
 
 	// simulate create program transaction
-	programAddress := codec.CreateAddress(programTypeID, ids.GenerateTestID())
-	err = storage.SetProgram(ctx, db, programAddress, counterProgramBytes)
+	programID := codec.CreateAddress(programTypeID, ids.GenerateTestID())
+	err = storage.SetProgram(ctx, db, programID, counterProgramBytes)
 	require.NoError(err)
 
-	programAddressPtr, err := argumentToSmartPtr(programAddress, rt.Memory())
+	programIDPtr, err := argumentToSmartPtr(programID, rt.Memory())
 	require.NoError(err)
 
 	// generate alice address
@@ -65,12 +65,12 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// create counter for alice on program 1
-	result, err := rt.Call(ctx, "initialize_address", programAddressPtr, alicePtr)
+	result, err := rt.Call(ctx, "initialize_address", programIDPtr, alicePtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
 	// validate counter at 0
-	result, err = rt.Call(ctx, "get_value", programAddressPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_value", programIDPtr, alicePtr)
 	require.NoError(err)
 	require.Equal(int64(0), result[0])
 
@@ -89,11 +89,11 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// simulate creating second program transaction
-	program2Address := codec.CreateAddress(programTypeID, ids.GenerateTestID())
-	err = storage.SetProgram(ctx, db, program2Address, counterProgramBytes)
+	program2ID := codec.CreateAddress(programTypeID, ids.GenerateTestID())
+	err = storage.SetProgram(ctx, db, program2ID, counterProgramBytes)
 	require.NoError(err)
 
-	programAddress2Ptr, err := argumentToSmartPtr(program2Address, rt2.Memory())
+	programID2Ptr, err := argumentToSmartPtr(program2ID, rt2.Memory())
 	require.NoError(err)
 
 	// write alice's address to stack and get pointer
@@ -101,7 +101,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// initialize counter for alice on runtime 2
-	result, err = rt2.Call(ctx, "initialize_address", programAddress2Ptr, alicePtr2)
+	result, err = rt2.Call(ctx, "initialize_address", programID2Ptr, alicePtr2)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
@@ -109,11 +109,11 @@ func TestCounterProgram(t *testing.T) {
 	incAmount := int64(10)
 	incAmountPtr, err := argumentToSmartPtr(incAmount, rt2.Memory())
 	require.NoError(err)
-	result, err = rt2.Call(ctx, "inc", programAddress2Ptr, alicePtr2, incAmountPtr)
+	result, err = rt2.Call(ctx, "inc", programID2Ptr, alicePtr2, incAmountPtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
-	result, err = rt2.Call(ctx, "get_value", programAddress2Ptr, alicePtr2)
+	result, err = rt2.Call(ctx, "get_value", programID2Ptr, alicePtr2)
 	require.NoError(err)
 	require.Equal(incAmount, result[0])
 	// stop the runtime to prevent further execution
@@ -130,11 +130,11 @@ func TestCounterProgram(t *testing.T) {
 	// increment alice's counter on program 1
 	onePtr, err := argumentToSmartPtr(int64(1), rt.Memory())
 	require.NoError(err)
-	result, err = rt.Call(ctx, "inc", programAddressPtr, alicePtr, onePtr)
+	result, err = rt.Call(ctx, "inc", programIDPtr, alicePtr, onePtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
-	result, err = rt.Call(ctx, "get_value", programAddressPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_value", programIDPtr, alicePtr)
 	require.NoError(err)
 
 	log.Debug("count program 1",
@@ -142,11 +142,11 @@ func TestCounterProgram(t *testing.T) {
 	)
 
 	// write program address 2 to stack of program 1
-	programAddress2Ptr, err = argumentToSmartPtr(program2Address, rt.Memory())
+	programID2Ptr, err = argumentToSmartPtr(program2ID, rt.Memory())
 	require.NoError(err)
 
-	caller := programAddressPtr
-	target := programAddress2Ptr
+	caller := programIDPtr
+	target := programID2Ptr
 	maxUnitsProgramToProgram := int64(10000)
 	maxUnitsProgramToProgramPtr, err := argumentToSmartPtr(maxUnitsProgramToProgram, rt.Memory())
 	require.NoError(err)

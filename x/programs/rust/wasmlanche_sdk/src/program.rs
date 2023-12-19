@@ -8,8 +8,7 @@ use crate::{errors::StateError, host::call_program, state::State};
 pub struct Program([u8; Self::LEN]);
 
 impl Program {
-    /// The length of codec.Address
-    pub const LEN: usize = 33;
+    pub const LEN: usize = 32;
 
     /// Returns the id of the program.
     #[must_use]

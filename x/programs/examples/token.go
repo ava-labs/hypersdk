@@ -57,23 +57,23 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// simulate create program transaction
-	programAddress := codec.CreateAddress(programTypeID, ids.GenerateTestID())
-	err = storage.SetProgram(ctx, t.db, programAddress, t.programBytes)
+	programID := codec.CreateAddress(programTypeID, ids.GenerateTestID())
+	err = storage.SetProgram(ctx, t.db, programID, t.programBytes)
 	if err != nil {
 		return err
 	}
 
-	programAddressPtr, err := argumentToSmartPtr(programAddress, rt.Memory())
+	programIDPtr, err := argumentToSmartPtr(programID, rt.Memory())
 	if err != nil {
 		return err
 	}
 
 	t.log.Debug("new token program created",
-		zap.String("address", codec.MustAddressBech32("token", programAddress)),
+		zap.String("address", codec.MustAddressBech32("token", programID)),
 	)
 
 	// initialize program
-	resp, err := rt.Call(ctx, "init", programAddressPtr)
+	resp, err := rt.Call(ctx, "init", programIDPtr)
 	if err != nil {
 		return fmt.Errorf("failed to initialize program: %w", err)
 	}
@@ -82,7 +82,7 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("init", resp[0]),
 	)
 
-	result, err := rt.Call(ctx, "get_total_supply", programAddressPtr)
+	result, err := rt.Call(ctx, "get_total_supply", programIDPtr)
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// check balance of bob
-	result, err = rt.Call(ctx, "get_balance", programAddressPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	_, err = rt.Call(ctx, "mint_to", programAddressPtr, alicePtr, mintAlicePtr)
+	_, err = rt.Call(ctx, "mint_to", programIDPtr, alicePtr, mintAlicePtr)
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// check balance of alice
-	result, err = rt.Call(ctx, "get_balance", programAddressPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// check balance of bob
-	result, err = rt.Call(ctx, "get_balance", programAddressPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func (t *Token) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = rt.Call(ctx, "transfer", programAddressPtr, alicePtr, bobPtr, transferToBobPtr)
+	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, transferToBobPtr)
 	if err != nil {
 		return err
 	}
@@ -176,7 +176,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	_, err = rt.Call(ctx, "transfer", programAddressPtr, alicePtr, bobPtr, onePtr)
+	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, onePtr)
 	if err != nil {
 		return err
 	}
@@ -186,7 +186,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance alice
-	result, err = rt.Call(ctx, "get_balance", programAddressPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -195,7 +195,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance bob
-	result, err = rt.Call(ctx, "get_balance", programAddressPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -223,7 +223,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// perform bulk mint
-	_, err = rt.Call(ctx, "mint_to_many", programAddressPtr, mintersPtr)
+	_, err = rt.Call(ctx, "mint_to_many", programIDPtr, mintersPtr)
 	if err != nil {
 		return err
 	}
@@ -233,7 +233,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance alice
-	result, err = rt.Call(ctx, "get_balance", programAddressPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -242,7 +242,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance bob
-	result, err = rt.Call(ctx, "get_balance", programAddressPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -264,23 +264,23 @@ func (t *Token) RunShort(ctx context.Context) error {
 	)
 
 	// simulate create program transaction
-	programAddress := codec.CreateAddress(0, ids.GenerateTestID())
-	err = storage.SetProgram(ctx, t.db, programAddress, t.programBytes)
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+	err = storage.SetProgram(ctx, t.db, programID, t.programBytes)
 	if err != nil {
 		return err
 	}
 
-	programAddressPtr, err := argumentToSmartPtr(programAddress, rt.Memory())
+	programIDPtr, err := argumentToSmartPtr(programID, rt.Memory())
 	if err != nil {
 		return err
 	}
 
 	t.log.Debug("new token program created",
-		zap.String("id", codec.MustAddressBech32("token", programAddress)),
+		zap.String("id", codec.MustAddressBech32("token", programID)),
 	)
 
 	// initialize program
-	resp, err := rt.Call(ctx, "init", programAddressPtr)
+	resp, err := rt.Call(ctx, "init", programIDPtr)
 	if err != nil {
 		return fmt.Errorf("failed to initialize program: %w", err)
 	}
