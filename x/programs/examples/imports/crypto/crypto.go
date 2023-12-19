@@ -19,8 +19,7 @@ import (
 const Name = "crypto"
 
 type SignedMessage struct {
-	// capped at 32 for now
-	Message [32]byte
+	Message []byte
 	// signature
 	Signature [64]byte
 	// public key
@@ -69,9 +68,8 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, imports runtim
 // verifyEDSignature verifies the signature of the message using the provided public key.
 // Returns 1 if the signature is valid, 0 otherwise.
 func (i *Import) verifyEDSignature(caller *wasmtime.Caller, id int64, msg int64) int32 {
-	client := runtime.NewExportClient(caller)
-	memory := runtime.NewMemory(client)
-	// use crypto/ed25519.Verify from hypersdk
+	memory := runtime.NewMemory(runtime.NewExportClient(caller))
+
 	signedMessageBytes, err := runtime.SmartPtr(msg).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read key from memory",
@@ -79,9 +77,9 @@ func (i *Import) verifyEDSignature(caller *wasmtime.Caller, id int64, msg int64)
 		)
 		return -1
 	}
-	var signedMsg SignedMessage;
+
+	var signedMsg SignedMessage
 	err = deserializeParameter(&signedMsg, signedMessageBytes[:])
-	
 	if err != nil {
 		i.log.Error("failed to deserialize signed message",
 			zap.Error(err),
@@ -89,19 +87,20 @@ func (i *Import) verifyEDSignature(caller *wasmtime.Caller, id int64, msg int64)
 		return -1
 	}
 
+	// use crypto/ed25519.Verify from hypersdk
 	pubKey := crypto.PublicKey(signedMsg.PublicKey)
 	signature := crypto.Signature(signedMsg.Signature)
-
 	result := crypto.Verify(signedMsg.Message[:], pubKey, signature)
+
 	if result {
 		return 1
 	}
 	return 0
 }
 
+// batchVerifyEdSignature returns the number of valid signatures in the batch [messages].
 func (i *Import) batchVerifyEdSignature(caller *wasmtime.Caller, id int64, messages int64) int32 {
-	client := runtime.NewExportClient(caller)
-	memory := runtime.NewMemory(client)
+	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 
 	signedMessagesBytes, err := runtime.SmartPtr(messages).Bytes(memory)
 	if err != nil {
@@ -111,9 +110,8 @@ func (i *Import) batchVerifyEdSignature(caller *wasmtime.Caller, id int64, messa
 		return -1
 	}
 
-	var signedMessages []SignedMessage;
+	var signedMessages []SignedMessage
 	err = deserializeParameter(&signedMessages, signedMessagesBytes[:])
-
 	if err != nil {
 		i.log.Error("failed to deserialize signed message",
 			zap.Error(err),
@@ -135,7 +133,7 @@ func (i *Import) batchVerifyEdSignature(caller *wasmtime.Caller, id int64, messa
 	return int32(numVerified)
 }
 
-// DeserializeParameter deserializes [bytes] using Borsh
+// deserializeParameter deserializes [bytes] using Borsh
 func deserializeParameter(obj interface{}, bytes []byte) error {
 	return borsh.Deserialize(obj, bytes)
 }

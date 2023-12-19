@@ -13,8 +13,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/crypto"
-	"github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
-	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
@@ -23,12 +21,12 @@ import (
 var verifyProgramBytes []byte
 
 var (
-	signatureBytes   = [64]byte{138, 15, 65, 223, 37, 172, 140, 229, 29, 74, 112, 236, 253, 138, 180,
+	signatureBytes = [64]byte{138, 15, 65, 223, 37, 172, 140, 229, 29, 74, 112, 236, 253, 138, 180,
 		244, 138, 132, 46, 10, 192, 213, 105, 102, 113, 101, 108, 225, 190, 53,
 		186, 161, 105, 38, 179, 24, 6, 168, 146, 40, 42, 20, 242, 137, 52,
 		74, 60, 50, 167, 2, 92, 98, 176, 17, 132, 30, 89, 110, 119, 239, 124, 40, 232, 14}
 
-	messageBytes = [32]byte{109, 115, 103, 0, 0, 0, 0, 0, 0, 0, 0,
+	messageBytes = []byte{109, 115, 103, 0, 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 0, 0}
 
@@ -42,7 +40,6 @@ var (
 		244, 138, 132, 46, 10, 192, 213, 105, 102, 113, 101, 108, 225, 190, 53,
 		186, 161, 105, 38, 179, 24, 6, 168, 146, 40, 42, 20, 242, 137, 52,
 		74, 60, 50, 167, 2, 92, 98, 176, 17, 132, 30, 89, 110, 119, 239, 124, 40, 232, 14}
-
 )
 
 // go test -v -timeout 30s -run ^TestVerifyProgram$ github.com/ava-labs/hypersdk/x/programs/examples
@@ -51,10 +48,9 @@ func TestVerifyProgram(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	rt, programIDPtr, err := SetupRuntime(ctx)
+	rt, programIDPtr, err := setupRuntime(ctx, verifyProgramBytes)
 	require.NoError(err)
 	meter := rt.Meter().GetBalance()
-
 
 	numValidMessages := 4
 	numInvalidMessages := 1
@@ -81,7 +77,7 @@ func TestVerifyHostFunctionProgram(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	rt, programIDPtr, err := SetupRuntime(ctx)
+	rt, programIDPtr, err := setupRuntime(ctx, verifyProgramBytes)
 	require.NoError(err)
 	meter := rt.Meter().GetBalance()
 
@@ -106,7 +102,6 @@ func TestVerifyHostFunctionProgram(t *testing.T) {
 	require.NoError(err)
 	require.Equal(int64(0), result[0], "Verified an invalid # of signatures")
 
-
 	// print meter for reference
 	meter = meter - rt.Meter().GetBalance()
 	fmt.Println("meter used: ", meter)
@@ -114,14 +109,13 @@ func TestVerifyHostFunctionProgram(t *testing.T) {
 	rt.Stop()
 }
 
-
 // go test -v -timeout 30s -run ^TestBatchVerifyHostFunctionProgram$ github.com/ava-labs/hypersdk/x/programs/examples
 func TestBatchVerifyHostFunctionProgram(t *testing.T) {
 	require := require.New(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	rt, programIDPtr, err := SetupRuntime(ctx)
+	rt, programIDPtr, err := setupRuntime(ctx, verifyProgramBytes)
 	require.NoError(err)
 	meter := rt.Meter().GetBalance()
 
@@ -145,7 +139,6 @@ func TestBatchVerifyHostFunctionProgram(t *testing.T) {
 	result, err = rt.Call(ctx, "verify_ed_batch_host_func", programIDPtr, invalidMessagesPtr)
 	require.NoError(err)
 	require.Equal(int64(0), result[0], "Verified an invalid # of signatures")
-
 
 	// print meter for reference
 	meter = meter - rt.Meter().GetBalance()
@@ -185,7 +178,7 @@ func BenchmarkVerifyProgram(b *testing.B) {
 	// b.Run("benchmark_verify_inside_guest", func(b *testing.B) {
 	// 	for i := 0; i < b.N; i++ {
 	// 		b.StopTimer()
-	// 		rt, programIDPtr, err := SetupRuntime(ctx)
+	// 		rt, programIDPtr, err := setupRuntime(ctx)
 	// 		require.NoError(err)
 	// 		// write bytes to memory(each time) wasm consumes memory
 	// 		secretKeyPtr, err := runtime.WriteBytes(rt.Memory(), publicKeysBytes)
@@ -199,9 +192,11 @@ func BenchmarkVerifyProgram(b *testing.B) {
 	// })
 }
 
-func SetupRuntime(ctx context.Context) (runtime.Runtime, runtime.SmartPtr, error) {
+// setupRuntime returns a runtime with [programBytes] loaded in. It also returns a pointer to the programID
+// or an error if one occurred.
+func setupRuntime(ctx context.Context, programBytes []byte) (runtime.Runtime, runtime.SmartPtr, error) {
 	db := newTestDB()
-	maxUnits := uint64(100000000)
+	maxUnits := uint64(10000000)
 	// need with bulk memory to run this test(for io ops)
 	cfg, err := runtime.NewConfigBuilder().WithDebugMode(true).WithBulkMemory(true).Build()
 
@@ -209,28 +204,21 @@ func SetupRuntime(ctx context.Context) (runtime.Runtime, runtime.SmartPtr, error
 		return nil, 0, err
 	}
 
-	// define supported imports
+	// define supported imports(only crypto for now, can potentially add wanted imports as a param later)
 	supported := runtime.NewSupportedImports()
-	supported.Register("state", func() runtime.Import {
-		return pstate.New(log, db)
-	})
-	supported.Register("program", func() runtime.Import {
-		return program.New(log, db, cfg)
-	})
 	supported.Register("crypto", func() runtime.Import {
 		return crypto.New(log, db)
 	})
 
 	rt := runtime.New(log, cfg, supported.Imports())
 	err = rt.Initialize(ctx, verifyProgramBytes, maxUnits)
-
 	if err != nil {
 		return nil, 0, err
 	}
 
 	// simulate create program transaction
 	programID := ids.GenerateTestID()
-	err = storage.SetProgram(ctx, db, programID, verifyProgramBytes)
+	err = storage.SetProgram(ctx, db, programID, programBytes)
 	if err != nil {
 		return nil, 0, err
 	}
