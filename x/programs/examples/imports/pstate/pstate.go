@@ -61,7 +61,7 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Supp
 func (i *Import) putFn(caller *wasmtime.Caller, id int64, key int64, value int64) int32 {
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	// memory := runtime.NewMemory(client)
-	programidBytes, err := runtime.SmartPtr(id).Bytes(memory)
+	programIDBytes, err := runtime.SmartPtr(id).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read program id from memory",
 			zap.Error(err),
@@ -86,7 +86,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, id int64, key int64, value int64
 		return -1
 	}
 
-	k := storage.ProgramPrefixKey(programidBytes, keyBytes)
+	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
 	err = i.mu.Insert(context.Background(), k, valueBytes)
 	if err != nil {
 		i.log.Error("failed to insert into storage",
@@ -101,7 +101,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, id int64, key int64, value int64
 func (i *Import) getFn(caller *wasmtime.Caller, id int64, key int64) int64 {
 	client := runtime.NewExportClient(caller)
 	memory := runtime.NewMemory(client)
-	programidBytes, err := runtime.SmartPtr(id).Bytes(memory)
+	programIDBytes, err := runtime.SmartPtr(id).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read program id from memory",
 			zap.Error(err),
@@ -116,7 +116,7 @@ func (i *Import) getFn(caller *wasmtime.Caller, id int64, key int64) int64 {
 		)
 		return -1
 	}
-	k := storage.ProgramPrefixKey(programidBytes, keyBytes)
+	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
 	val, err := i.mu.GetValue(context.Background(), k)
 	if err != nil {
 		if !errors.Is(err, database.ErrNotFound) {
