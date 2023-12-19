@@ -140,7 +140,7 @@ func TestCounterProgram(t *testing.T) {
 		zap.Int64("alice", result[0]),
 	)
 
-	// write program address 2 to stack of program 1
+	// write program id 2 to stack of program 1
 	programID2Ptr, err = argumentToSmartPtr(program2ID, rt.Memory())
 	require.NoError(err)
 

@@ -58,12 +58,12 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Supp
 	return nil
 }
 
-func (i *Import) putFn(caller *wasmtime.Caller, address int64, key int64, value int64) int32 {
+func (i *Import) putFn(caller *wasmtime.Caller, id int64, key int64, value int64) int32 {
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	// memory := runtime.NewMemory(client)
-	programAddressBytes, err := runtime.SmartPtr(address).Bytes(memory)
+	programidBytes, err := runtime.SmartPtr(id).Bytes(memory)
 	if err != nil {
-		i.log.Error("failed to read program Address from memory",
+		i.log.Error("failed to read program id from memory",
 			zap.Error(err),
 		)
 		return -1
@@ -86,7 +86,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, address int64, key int64, value 
 		return -1
 	}
 
-	k := storage.ProgramPrefixKey(programAddressBytes, keyBytes)
+	k := storage.ProgramPrefixKey(programidBytes, keyBytes)
 	err = i.mu.Insert(context.Background(), k, valueBytes)
 	if err != nil {
 		i.log.Error("failed to insert into storage",
@@ -98,12 +98,12 @@ func (i *Import) putFn(caller *wasmtime.Caller, address int64, key int64, value 
 	return 0
 }
 
-func (i *Import) getFn(caller *wasmtime.Caller, address int64, key int64) int64 {
+func (i *Import) getFn(caller *wasmtime.Caller, id int64, key int64) int64 {
 	client := runtime.NewExportClient(caller)
 	memory := runtime.NewMemory(client)
-	programAddressBytes, err := runtime.SmartPtr(address).Bytes(memory)
+	programidBytes, err := runtime.SmartPtr(id).Bytes(memory)
 	if err != nil {
-		i.log.Error("failed to read program Address from memory",
+		i.log.Error("failed to read program id from memory",
 			zap.Error(err),
 		)
 		return -1
@@ -116,7 +116,7 @@ func (i *Import) getFn(caller *wasmtime.Caller, address int64, key int64) int64 
 		)
 		return -1
 	}
-	k := storage.ProgramPrefixKey(programAddressBytes, keyBytes)
+	k := storage.ProgramPrefixKey(programidBytes, keyBytes)
 	val, err := i.mu.GetValue(context.Background(), k)
 	if err != nil {
 		if !errors.Is(err, database.ErrNotFound) {
@@ -127,7 +127,7 @@ func (i *Import) getFn(caller *wasmtime.Caller, address int64, key int64) int64 
 		return -1
 	}
 	if err != nil {
-		i.log.Error("failed to convert program address to codec.Address",
+		i.log.Error("failed to convert program id to codec.id",
 			zap.Error(err),
 		)
 		return -1
