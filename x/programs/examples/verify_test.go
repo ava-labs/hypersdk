@@ -169,36 +169,90 @@ func createSignedMessages(numValidMessages int, numInvalidMessages int) []crypto
 
 // go test -v -benchmem -run=^$ -bench ^BenchmarkVerifyProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func BenchmarkVerifyProgram(b *testing.B) {
-	// require := require.New(b)
-	// ctx, cancel := context.WithCancel(context.Background())
-	// defer cancel()
+	require := require.New(b)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	num_iterations := 25
+	num_times := 0
+	num_verifications := 95
 
-	// publicKeysBytes := grabPubKeyBytes(4)
+	b.Run("benchmark_verify_inside_guest", func(b *testing.B) {
+		for i := 0; i < num_iterations; i++ {
+			num_times++
+			rt, programIDPtr, err := setupRuntime(ctx, verifyProgramBytes)
+			require.NoError(err)
+			
+			signedMessages := createSignedMessages(num_verifications, 5)
+			signedMessagesPtr, err := argumentToSmartPtr(signedMessages, rt.Memory())
+			require.NoError(err)		
 
-	// b.Run("benchmark_verify_inside_guest", func(b *testing.B) {
-	// 	for i := 0; i < b.N; i++ {
-	// 		b.StopTimer()
-	// 		rt, programIDPtr, err := setupRuntime(ctx)
-	// 		require.NoError(err)
-	// 		// write bytes to memory(each time) wasm consumes memory
-	// 		secretKeyPtr, err := runtime.WriteBytes(rt.Memory(), publicKeysBytes)
-	// 		require.NoError(err)
-	// 		messageBytesPtr, err := runtime.WriteBytes(rt.Memory(), messageBytes)
-	// 		require.NoError(err)
-	// 		b.StartTimer()
-	// 		_, err = rt.Call(ctx, "verify_ed_in_wasm", programIDPtr, secretKeyPtr, messageBytesPtr)
-	// 		require.NoError(err)
-	// 	}
-	// })
+			b.StartTimer()
+			_, err = rt.Call(ctx, "verify_ed_in_wasm", programIDPtr, signedMessagesPtr)
+			b.StopTimer()
+			require.NoError(err)
+			rt.Stop()
+
+		}
+	})
+
+	num_times = 0
+	b.ResetTimer()
+	fmt.Println("Number of calls(verification in rust):", num_times)
+	fmt.Println("Time elapsed for calls", b.Elapsed())
+
+	b.Run("benchmark_verify_inside_host", func(b *testing.B) {
+		for i := 0; i < num_iterations; i++ {
+			num_times++
+			rt, programIDPtr, err := setupRuntime(ctx, verifyProgramBytes)
+			require.NoError(err)
+			signedMessages := createSignedMessages(num_verifications, 5)
+			signedMessagesPtr, err := argumentToSmartPtr(signedMessages, rt.Memory())
+			require.NoError(err)		
+
+			b.StartTimer()
+			_, err = rt.Call(ctx, "verify_ed_multiple_host_func", programIDPtr, signedMessagesPtr)
+			b.StopTimer()
+			require.NoError(err)
+			rt.Stop()
+
+		}
+	})
+
+	num_times = 0
+	fmt.Println("Number of calls(individual host calls): ", num_times)
+	fmt.Println("Time elapsed for all calls: ", b.Elapsed())
+	b.ResetTimer()
+	b.Run("benchmark_verify_batch", func(b *testing.B) {
+		for i := 0; i < num_iterations; i++ {
+			num_times++
+			rt, programIDPtr, err := setupRuntime(ctx, verifyProgramBytes)
+			require.NoError(err)
+			
+			signedMessages := createSignedMessages(num_verifications, 5)
+			signedMessagesPtr, err := argumentToSmartPtr(signedMessages, rt.Memory())
+			require.NoError(err)		
+
+			b.StartTimer()
+			_, err = rt.Call(ctx, "verify_ed_batch_host_func", programIDPtr, signedMessagesPtr)
+			b.StopTimer()
+			require.NoError(err)
+			rt.Stop()
+
+		}
+	})
+	
+	fmt.Println("Number of calls(batch host function): ", num_times)
+	fmt.Println("Time elapsed for all calls: ", b.Elapsed())
 }
 
 // setupRuntime returns a runtime with [programBytes] loaded in. It also returns a pointer to the programID
 // or an error if one occurred.
 func setupRuntime(ctx context.Context, programBytes []byte) (runtime.Runtime, runtime.SmartPtr, error) {
 	db := newTestDB()
-	maxUnits := uint64(10000000)
+	maxUnits := uint64(1000000000)
 	// need with bulk memory to run this test(for io ops)
-	cfg, err := runtime.NewConfigBuilder().WithDebugMode(true).WithBulkMemory(true).Build()
+	// cfg, err := runtime.NewConfigBuilder().WithDebugMode(true).WithBulkMemory(true).Build()
+	cfg, err := runtime.NewConfigBuilder().Build()
 
 	if err != nil {
 		return nil, 0, err
