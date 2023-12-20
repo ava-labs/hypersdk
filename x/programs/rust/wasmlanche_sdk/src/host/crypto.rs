@@ -22,7 +22,10 @@ extern "C" {
 /// # Errors
 /// Returns a `StateError` if the signed message cannot be serialized or if the argument cannot
 /// be converted to a smart pointer.
-pub fn verify_ed25519(caller: &Program, signed_message: &SignedMessage) -> Result<i32, StateError> {
+pub unsafe fn verify_ed25519(
+    caller: &Program,
+    signed_message: &SignedMessage,
+) -> Result<i32, StateError> {
     let caller = to_smart_ptr(caller.id())?;
     let signed_msg_bytes = to_vec(signed_message).map_err(|_| StateError::Serialization)?;
     let signed_message = to_smart_ptr(&signed_msg_bytes)?;
@@ -33,7 +36,7 @@ pub fn verify_ed25519(caller: &Program, signed_message: &SignedMessage) -> Resul
 /// # Errors
 /// Returns a `StateError` if the signed messages cannot be serialized or if the argument cannot
 /// be converted to a smart pointer.
-pub fn batch_verify_ed25519(
+pub unsafe fn batch_verify_ed25519(
     caller: &Program,
     signed_messages: &[SignedMessage],
 ) -> Result<i32, StateError> {

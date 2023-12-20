@@ -25,7 +25,7 @@ pub fn verify_ed_in_wasm(_: Program, signed_messages: Vec<SignedMessage>) -> i32
 pub fn verify_ed_multiple_host_func(program: Program, signed_messages: Vec<SignedMessage>) -> i32 {
     let mut success_count = 0;
     for signed_message in signed_messages.iter() {
-        if verify_ed25519(&program, signed_message).unwrap() == 1 {
+        if unsafe { verify_ed25519(&program, signed_message).unwrap() } == 1 {
             success_count += 1;
         }
     }
@@ -35,5 +35,5 @@ pub fn verify_ed_multiple_host_func(program: Program, signed_messages: Vec<Signe
 /// Runs multiple ED25519 signature verifications in the host with just one call.
 #[public]
 pub fn verify_ed_batch_host_func(program: Program, signed_messages: Vec<SignedMessage>) -> i32 {
-    batch_verify_ed25519(&program, &signed_messages).unwrap()
+    unsafe { batch_verify_ed25519(&program, &signed_messages).unwrap() }
 }
