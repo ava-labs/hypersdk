@@ -43,118 +43,123 @@ var (
 // NewConfig creates a new engine config with default settings
 func NewConfig() *Config {
 	return &Config{
-		inner: DefaultWasmtimeConfig(),
+		wasmConfig: DefaultWasmtimeConfig(),
 	}
 }
 
 // Config is wrapper for wasmtime.Config
 type Config struct {
-	inner *wasmtime.Config
+	wasmConfig *wasmtime.Config
+}
+
+// Get returns the underlying wasmtime config.
+func (c *Config) Get() *wasmtime.Config {
+	return c.wasmConfig
 }
 
 // CacheConfigLoad enables compiled code caching for this `Config` using the
 // settings specified in the configuration file `path`.
 func (c *Config) CacheConfigLoad(path string) error {
-	return c.inner.CacheConfigLoad(path)
+	return c.wasmConfig.CacheConfigLoad(path)
 }
 
 // CacheConfigLoadDefault enables compiled code caching for this `Config` using
 // the default settings configuration can be found.
 func (c *Config) CacheConfigLoadDefault() error {
-	return c.inner.CacheConfigLoadDefault()
+	return c.wasmConfig.CacheConfigLoadDefault()
 }
 
 // EnableCraneliftFlag enables a target-specific flag in Cranelift.
 func (c *Config) EnableCraneliftFlag(flag string) {
-	c.inner.EnableCraneliftFlag(flag)
+	c.wasmConfig.EnableCraneliftFlag(flag)
 }
 
 // SetConsumFuel configures whether fuel is enabled.
 func (c *Config) SetConsumeFuel(enabled bool) {
-	c.inner.SetConsumeFuel(enabled)
+	c.wasmConfig.SetConsumeFuel(enabled)
 }
 
 // SetCraneliftDebugVerifier configures whether the cranelift debug verifier
 // will be active when cranelift is used to compile wasm code.
 func (c *Config) SetCraneliftDebugVerifier(enabled bool) {
-	c.inner.SetCraneliftDebugVerifier(enabled)
+	c.wasmConfig.SetCraneliftDebugVerifier(enabled)
 }
 
 // SetCraneliftFlag sets a target-specific flag in Cranelift to the specified value.
 func (c *Config) SetCraneliftFlag(name string, value string) {
-	c.inner.SetCraneliftFlag(name, value)
+	c.wasmConfig.SetCraneliftFlag(name, value)
 }
 
 // SetCraneliftOptLevel configures the cranelift optimization level for generated code.
 func (c *Config) SetCraneliftOptLevel(level wasmtime.OptLevel) {
-	c.inner.SetCraneliftOptLevel(level)
+	c.wasmConfig.SetCraneliftOptLevel(level)
 }
 
 // SetDebugInfo configures whether dwarf debug information for JIT code is enabled
 func (c *Config) SetDebugInfo(enabled bool) {
-	c.inner.SetDebugInfo(enabled)
+	c.wasmConfig.SetDebugInfo(enabled)
 }
 
 // SetEpochInterruption enables epoch-based instrumentation of generated code to
 // interrupt WebAssembly execution when the current engine epoch exceeds a
 // defined threshold.
 func (c *Config) SetEpochInterruption(enable bool) {
-	c.inner.SetEpochInterruption(enable)
+	c.wasmConfig.SetEpochInterruption(enable)
 }
 
 // SetMaxWasmStack configures the maximum stack size, in bytes, that JIT code can use.
 func (c *Config) SetMaxWasmStack(size int) {
-	c.inner.SetMaxWasmStack(size)
+	c.wasmConfig.SetMaxWasmStack(size)
 }
 
 // SetProfiler configures what profiler strategy to use for generated code.
 func (c *Config) SetProfiler(profiler wasmtime.ProfilingStrategy) {
-	c.inner.SetProfiler(profiler)
+	c.wasmConfig.SetProfiler(profiler)
 }
 
 // SetStrategy configures what compilation strategy is used to compile wasm code.
 func (c *Config) SetStrategy(strategy wasmtime.Strategy) {
-	c.inner.SetStrategy(strategy)
+	c.wasmConfig.SetStrategy(strategy)
 }
 
 // SetTarget configures the target triple that this configuration will produce machine code for.
 func (c *Config) SetTarget(target string) error {
-	return c.inner.SetTarget(target)
+	return c.wasmConfig.SetTarget(target)
 }
 
 // SetWasmBulkMemory configures whether the wasm bulk memory proposal is enabled.
 func (c *Config) SetWasmBulkMemory(enabled bool) {
-	c.inner.SetWasmBulkMemory(enabled)
+	c.wasmConfig.SetWasmBulkMemory(enabled)
 }
 
 // SetWasmMemory64 configures whether the wasm memory64 proposal is enabled.
 func (c *Config) SetWasmMemory64(enabled bool) {
-	c.inner.SetWasmMemory64(enabled)
+	c.wasmConfig.SetWasmMemory64(enabled)
 }
 
 // SetWasmMultiMemory configures whether the wasm multi memory proposal is enabled.
 func (c *Config) SetWasmMultiMemory(enabled bool) {
-	c.inner.SetWasmMultiMemory(enabled)
+	c.wasmConfig.SetWasmMultiMemory(enabled)
 }
 
 // SetWasmMultiValue configures whether the wasm multi value proposal is enabled.
 func (c *Config) SetWasmMultiValue(enabled bool) {
-	c.inner.SetWasmMultiValue(enabled)
+	c.wasmConfig.SetWasmMultiValue(enabled)
 }
 
 // SetWasmReferenceTypes configures whether the wasm reference types proposal is enabled.
 func (c *Config) SetWasmReferenceTypes(enabled bool) {
-	c.inner.SetWasmReferenceTypes(enabled)
+	c.wasmConfig.SetWasmReferenceTypes(enabled)
 }
 
 // SetWasmSIMD configures whether the wasm SIMD proposal is enabled.
 func (c *Config) SetWasmSIMD(enabled bool) {
-	c.inner.SetWasmSIMD(enabled)
+	c.wasmConfig.SetWasmSIMD(enabled)
 }
 
 // SetWasmThreads configures whether the wasm threads proposal is enabled.
 func (c *Config) SetWasmThreads(enabled bool) {
-	c.inner.SetWasmThreads(enabled)
+	c.wasmConfig.SetWasmThreads(enabled)
 }
 
 // DefaultWasmtimeConfig returns a new wasmtime config with default settings.

@@ -26,7 +26,7 @@ var (
 
 // NewStore creates a new engine store.
 func NewStore(e *Engine, cfg *StoreConfig) *Store {
-	inner := wasmtime.NewStore(e.inner)
+	inner := wasmtime.NewStore(e.wasmEngine)
 	inner.Limiter(
 		int64(cfg.limitMaxMemory),
 		cfg.limitMaxTableElements,

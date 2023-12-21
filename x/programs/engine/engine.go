@@ -13,20 +13,20 @@ import (
 // programs execution. It is expected that a single engine can have multiple
 // stores. For example in the case of program to program calls.
 type Engine struct {
-	inner *wasmtime.Engine
+	wasmEngine *wasmtime.Engine
 }
 
 // New creates a new Wasm engine.
 func New(cfg *Config) *Engine {
 	return &Engine{
-		inner: wasmtime.NewEngineWithConfig(cfg.inner),
+		wasmEngine: wasmtime.NewEngineWithConfig(cfg.Get()),
 	}
 }
 
 // Stop will increase the current epoch number by 1 within the current
 // engine which will cause any connected stores to be interrupted.
 func (e *Engine) Stop() {
-	e.inner.IncrementEpoch()
+	e.wasmEngine.IncrementEpoch()
 }
 
 // PreCompileModule will deserialize a precompiled module.
@@ -37,12 +37,12 @@ func (e *Engine) PreCompileModule(bytes []byte) (*wasmtime.Module, error) {
 	//
 	// A precompile is not something we would store on chain.
 	// Instead we would prefetch programs and precompile them.
-	return wasmtime.NewModuleDeserialize(e.inner, bytes)
+	return wasmtime.NewModuleDeserialize(e.wasmEngine, bytes)
 }
 
 // CompileModule will compile a module.
 func (e *Engine) CompileModule(bytes []byte) (*wasmtime.Module, error) {
-	return wasmtime.NewModule(e.inner, bytes)
+	return wasmtime.NewModule(e.wasmEngine, bytes)
 }
 
 // PreCompileWasm returns a precompiled wasm module.
