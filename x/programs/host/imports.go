@@ -15,8 +15,6 @@ const (
 
 var NoSupportedImports = make(SupportedImports)
 
-type Imports map[string]Import
-
 type ImportFnCallback struct {
 	// beforeRequest is called before the import function request is made.
 	BeforeRequest func(module, name string, meter *engine.Meter) error

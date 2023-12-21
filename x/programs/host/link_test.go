@@ -125,7 +125,7 @@ func newTestLink(store *engine.Store, supported SupportedImports) (*Link, error)
 	if err != nil {
 		return nil, err
 	}
-	return NewLink(logging.NoLog{}, store.Engine(), supported, meter, false), nil
+	return NewLink(logging.NoLog{}, store.GetEngine(), supported, meter, false), nil
 }
 
 type testImport struct {

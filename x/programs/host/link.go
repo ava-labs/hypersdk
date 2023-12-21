@@ -4,9 +4,11 @@
 package host
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
+
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -14,11 +16,13 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 )
 
+var ErrMissingImportModule = errors.New("failed to find import module")
+
 // NewLink returns a new host module program link.
 func NewLink(log logging.Logger, engine *wasmtime.Engine, imports SupportedImports, meter *engine.Meter, debugMode bool) *Link {
 	return &Link{
 		log:       log,
-		inner:     wasmtime.NewLinker(engine),
+		wasmLink:  wasmtime.NewLinker(engine),
 		imports:   imports,
 		meter:     meter,
 		debugMode: debugMode,
@@ -26,7 +30,7 @@ func NewLink(log logging.Logger, engine *wasmtime.Engine, imports SupportedImpor
 }
 
 type Link struct {
-	inner     *wasmtime.Linker
+	wasmLink  *wasmtime.Linker
 	meter     *engine.Meter
 	imports   SupportedImports
 	log       logging.Logger
@@ -41,11 +45,7 @@ type Link struct {
 func (l *Link) Instantiate(store *engine.Store, mod *wasmtime.Module, cb ImportFnCallback) (*wasmtime.Instance, error) {
 	l.cb = cb
 	if l.debugMode {
-		wasiConfig := wasmtime.NewWasiConfig()
-		wasiConfig.InheritStderr()
-		wasiConfig.InheritStdout()
-		store.SetWasi(wasiConfig)
-		err := l.Wasi()
+		err := l.EnableWasi()
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +63,7 @@ func (l *Link) Instantiate(store *engine.Store, mod *wasmtime.Module, cb ImportF
 			return nil, err
 		}
 	}
-	return l.inner.Instantiate(store.Inner(), mod)
+	return l.wasmLink.Instantiate(store.Get(), mod)
 }
 
 // Meter returns the meter for the module the link is linking to.
@@ -99,15 +99,10 @@ func (l *Link) RegisterImportFn(module, name string, f interface{}) error {
 		}
 		return f
 	}
-	return l.inner.FuncWrap(module, name, wrapper())
+	return l.wasmLink.FuncWrap(module, name, wrapper())
 }
 
-// Wasi enables wasi support for the link.
-func (l *Link) Wasi() error {
-	return l.inner.DefineWasi()
-}
-
-// Log returns a logger exposed by the link.
-func (l *Link) Log() logging.Logger {
-	return l.log
+// EnableWasi enables wasi support for the link.
+func (l *Link) EnableWasi() error {
+	return l.wasmLink.DefineWasi()
 }

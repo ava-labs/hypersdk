@@ -92,7 +92,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	link := host.NewLink(r.log, r.store.GetEngine(), r.imports, r.meter, r.cfg.EnableDebugMode)
 
 	// instantiate the module with all of the imports defined by the linker
-	r.inst, err = link.Instantiate(r.store, r.mod, host.ImportFnCallback{})
+	r.inst, err = link.Instantiate(r.store, r.mod, r.cfg.ImportFnCallback)
 	if err != nil {
 		return err
 	}

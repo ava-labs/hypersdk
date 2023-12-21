@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"github.com/ava-labs/hypersdk/x/programs/engine"
+	"github.com/ava-labs/hypersdk/x/programs/host"
 )
 
 type Config struct {
@@ -19,14 +20,17 @@ type Config struct {
 	LimitMaxMemory uint32 `yaml:"limit_max_memory,omitempty" json:"limitMaxMemory,omitempty"`
 	// CompileStrategy helps the engine to understand if the files has been precompiled.
 	CompileStrategy engine.CompileStrategy `yaml:"compile_strategy,omitempty" json:"compileStrategy,omitempty"`
+	// ImportFnCallback is a global callback for all import function requests and responses.
+	ImportFnCallback host.ImportFnCallback `yaml:"-" json:"-"`
 }
 
 // NewConfig returns a new runtime configuration with default settings.
 func NewConfig() *Config {
 	return &Config{
-		LimitMaxMemory:  engine.DefaultLimitMaxMemory,
-		CompileStrategy: engine.DefaultCompileStrategy,
-		EnableDebugMode: false,
+		LimitMaxMemory:   engine.DefaultLimitMaxMemory,
+		CompileStrategy:  engine.DefaultCompileStrategy,
+		EnableDebugMode:  false,
+		ImportFnCallback: host.ImportFnCallback{},
 	}
 }
 
@@ -59,5 +63,11 @@ func (c *Config) SetLimitMaxMemory(max uint32) *Config {
 // Default is false.
 func (c *Config) SetDebugMode(enabled bool) *Config {
 	c.EnableDebugMode = enabled
+	return c
+}
+
+// SetImportFnCallback sets the global import function callback.
+func (c *Config) SetImportFnCallback(callback host.ImportFnCallback) *Config {
+	c.ImportFnCallback = callback
 	return c
 }
