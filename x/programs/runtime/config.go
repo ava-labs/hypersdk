@@ -46,9 +46,9 @@ func (c *Config) SetLimitMaxMemory(max uint32) *Config {
 	return c
 }
 
-// SetDebugMode enables debug mode which provides access to
-// useful debugging information. If [enabled] is true we also enable BulkMemory
-// to support useful IO operations during debugging.
+// SetDebugMode enables debug mode which provides access to useful debugging
+// information. If [enabled] is true the associated `Engine` must enable
+// BulkMemory to support useful IO operations during debugging.
 //
 // This should not be set for a live system as it has
 // both performance and security considerations.

@@ -26,8 +26,8 @@ var (
 
 // NewStore creates a new engine store.
 func NewStore(e *Engine, cfg *StoreConfig) *Store {
-	inner := wasmtime.NewStore(e.wasmEngine)
-	inner.Limiter(
+	wasmStore := wasmtime.NewStore(e.wasmEngine)
+	wasmStore.Limiter(
 		int64(cfg.limitMaxMemory),
 		cfg.limitMaxTableElements,
 		cfg.limitMaxInstances,
@@ -36,14 +36,14 @@ func NewStore(e *Engine, cfg *StoreConfig) *Store {
 	)
 	// set initial epoch deadline to 1. This ensures that any stop calls to the
 	// engine will affect this store.
-	inner.SetEpochDeadline(1)
+	wasmStore.SetEpochDeadline(1)
 
-	return &Store{inner: inner}
+	return &Store{wasmStore: wasmStore}
 }
 
 // Store is a wrapper around a wasmtime.Store.
 type Store struct {
-	inner *wasmtime.Store
+	wasmStore *wasmtime.Store
 	// metered indicates whether this store is metered or not.
 	metered bool
 	// maxUnits is the maximum number of units that can be consumed by this store.
@@ -53,22 +53,22 @@ type Store struct {
 // SetEpochDeadline will configure the relative deadline, from the current
 // engine's epoch number, after which wasm code will be interrupted.
 func (s *Store) SetEpochDeadline(epochDeadline uint64) {
-	s.inner.SetEpochDeadline(epochDeadline)
+	s.wasmStore.SetEpochDeadline(epochDeadline)
 }
 
-// Engine returns the engine associated with this store.
-func (s *Store) Engine() *wasmtime.Engine {
-	return s.inner.Engine
+// GetEngine returns the underlying wasmtime engine associated with this store.
+func (s *Store) GetEngine() *wasmtime.Engine {
+	return s.wasmStore.Engine
 }
 
 // UnitsConsumed returns the amount of fuel consumed by this store.
 func (s *Store) UnitsConsumed() (uint64, bool) {
-	return s.inner.FuelConsumed()
+	return s.wasmStore.FuelConsumed()
 }
 
 // ConsumeUnits will consume the provided units.
 func (s *Store) ConsumeUnits(units uint64) (uint64, error) {
-	return s.inner.ConsumeFuel(units)
+	return s.wasmStore.ConsumeFuel(units)
 }
 
 // GetMaxUnits returns the maximum number of units that can be consumed by this store.
@@ -89,17 +89,17 @@ func (s *Store) GetBalanceUnits() (uint64, error) {
 // AddUnits will add the provided units to the meter.
 func (s *Store) AddUnits(units uint64) error {
 	s.maxUnits += units
-	return s.inner.AddFuel(units)
+	return s.wasmStore.AddFuel(units)
 }
 
 // SetWasi will configure the Wasi configuration for this store.
 func (s *Store) SetWasi(cfg *wasmtime.WasiConfig) {
-	s.inner.SetWasi(cfg)
+	s.wasmStore.SetWasi(cfg)
 }
 
-// Inner returns the inner store.
-func (s *Store) Inner() *wasmtime.Store {
-	return s.inner
+// Get returns the underlying wasmtime store.
+func (s *Store) Get() *wasmtime.Store {
+	return s.wasmStore
 }
 
 // NewStoreConfig returns a new store config.

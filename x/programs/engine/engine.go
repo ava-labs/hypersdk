@@ -51,7 +51,7 @@ func (e *Engine) CompileModule(bytes []byte) (*wasmtime.Module, error) {
 // For that reason precompiled wasm modules should not be stored on chain.
 func PreCompileWasmBytes(engine *Engine, programBytes []byte, limitMaxMemory uint32) ([]byte, error) {
 	store := NewStore(engine, NewStoreConfig().SetLimitMaxMemory(limitMaxMemory))
-	module, err := wasmtime.NewModule(store.Engine(), programBytes)
+	module, err := wasmtime.NewModule(store.GetEngine(), programBytes)
 	if err != nil {
 		return nil, err
 	}

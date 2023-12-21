@@ -256,7 +256,7 @@ func (c *ConfigBuilder) WithMultiValue(enable bool) *ConfigBuilder {
 	return c
 }
 
-// WithBulkMemory enables`memory.copy` instruction, tables and passive data.
+// WithBulkMemory enables `memory.copy` instruction, tables and passive data.
 // ref. https://github.com/WebAssembly/bulk-memory-operations
 //
 // Default is false.

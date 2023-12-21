@@ -61,6 +61,14 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	cfg.SetLimitMaxMemory(r.cfg.LimitMaxMemory)
 	r.store = engine.NewStore(r.engine, cfg)
 
+	// enable wasi logging support only in debug mode
+	if r.cfg.EnableDebugMode {
+		wasiConfig := wasmtime.NewWasiConfig()
+		wasiConfig.InheritStderr()
+		wasiConfig.InheritStdout()
+		r.store.SetWasi(wasiConfig)
+	}
+
 	// add metered units to the store
 	err = r.store.AddUnits(maxUnits)
 	if err != nil {
@@ -74,7 +82,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	}
 
 	// create linker
-	link := Link{wasmtime.NewLinker(r.store.Engine())}
+	link := Link{wasmtime.NewLinker(r.store.GetEngine())}
 
 	// enable wasi logging support only in testing/debug mode
 	if r.cfg.EnableDebugMode {
@@ -95,7 +103,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	}
 
 	// setup client capable of calling exported functions
-	r.exp = newExportClient(r.inst, r.store.Inner())
+	r.exp = newExportClient(r.inst, r.store.Get())
 
 	imports := getRegisteredImportModules(r.mod.Imports())
 	// register host functions exposed to the guest (imports)
@@ -112,7 +120,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	}
 
 	// instantiate the module with all of the imports defined by the linker
-	r.inst, err = link.Instantiate(r.store.Inner(), r.mod)
+	r.inst, err = link.Instantiate(r.store.Get(), r.mod)
 	if err != nil {
 		return err
 	}
@@ -149,12 +157,12 @@ func (r *WasmRuntime) Call(_ context.Context, name string, params ...SmartPtr) (
 		fnName = name + guestSuffix
 	}
 
-	fn := r.inst.GetFunc(r.store.Inner(), fnName)
+	fn := r.inst.GetFunc(r.store.Get(), fnName)
 	if fn == nil {
 		return nil, fmt.Errorf("%w: %s", ErrMissingExportedFunction, name)
 	}
 
-	fnParams := fn.Type(r.store.Inner()).Params()
+	fnParams := fn.Type(r.store.Get()).Params()
 	if len(params) != len(fnParams) {
 		return nil, fmt.Errorf("%w for function %s: %d expected: %d", ErrInvalidParamCount, name, len(params), len(fnParams))
 	}
@@ -164,7 +172,7 @@ func (r *WasmRuntime) Call(_ context.Context, name string, params ...SmartPtr) (
 		return nil, err
 	}
 
-	result, err := fn.Call(r.store.Inner(), callParams...)
+	result, err := fn.Call(r.store.Get(), callParams...)
 	if err != nil {
 		return nil, fmt.Errorf("export function call failed %s: %w", name, handleTrapError(err))
 	}
@@ -185,7 +193,7 @@ func (r *WasmRuntime) Call(_ context.Context, name string, params ...SmartPtr) (
 }
 
 func (r *WasmRuntime) Memory() Memory {
-	return NewMemory(newExportClient(r.inst, r.store.Inner()))
+	return NewMemory(newExportClient(r.inst, r.store.Get()))
 }
 
 func (r *WasmRuntime) Meter() *engine.Meter {
