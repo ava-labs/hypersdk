@@ -20,9 +20,9 @@ const (
 // ProgramPrefixKey returns a properly formatted key
 // for storing a value at [id][key].
 func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
-	k = make([]byte, consts.IDLen+1+len(key))
+	k = make([]byte, 1+consts.IDLen+len(key))
 	k[0] = programPrefix
-	copy(k, id[:])
+	copy(k[1:consts.IDLen], id[:])
 	copy(k[consts.IDLen:], (key[:]))
 	return
 }
@@ -30,8 +30,8 @@ func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
 // ProgramKey returns the key used to store the program bytes at [id].
 func ProgramKey(id ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen)
-	copy(k[1:], id[:])
 	k[0] = programPrefix
+	copy(k[1:], id[:])
 	return
 }
 

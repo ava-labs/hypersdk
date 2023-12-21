@@ -17,7 +17,8 @@ import (
 )
 
 var (
-	ed25519ID     uint8 = 0
+	// defines a typeID needed for codec.Address
+	ed25519ID uint8 = 0
 )
 
 // newTestAddress generates a address used for the example tests using

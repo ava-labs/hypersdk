@@ -30,7 +30,6 @@ func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *ru
 }
 
 type minter struct {
-	// TODO: use a HyperSDK.Address instead
 	To codec.Address
 	// note: a production program would use a uint64 for amount
 	Amount int32
