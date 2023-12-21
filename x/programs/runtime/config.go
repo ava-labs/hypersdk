@@ -10,6 +10,7 @@ import (
 type Config struct {
 	// EnableDebugMode is a test mode which provides access to non production debugging features.
 	// This should not be set for a live system as it has both performance and security considerations.
+	// Note: This requires associated Engine to enable support for BulkMemory.
 	// This is false by default.
 	EnableDebugMode bool `yaml:"enable_testing_only_mode,omitempty" json:"enableTestingOnlyMode,omitempty"`
 	// LimitMaxMemory defines the maximum number of pages of memory that can be used.
