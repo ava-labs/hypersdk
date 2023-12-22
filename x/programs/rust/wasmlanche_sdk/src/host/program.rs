@@ -6,12 +6,7 @@ use crate::program::Program;
 #[link(wasm_import_module = "program")]
 extern "C" {
     #[link_name = "call_program"]
-    fn _call_program(
-        target_id: i64,
-        function: i64,
-        args_ptr: i64,
-        max_units: i64,
-    ) -> i64;
+    fn _call_program(target_id: i64, function: i64, args_ptr: i64, max_units: i64) -> i64;
 }
 
 /// Calls a program `target` and returns the result.
