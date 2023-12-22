@@ -22,8 +22,8 @@ const (
 func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
 	k = make([]byte, 1+consts.IDLen+len(key))
 	k[0] = programPrefix
-	copy(k[1:consts.IDLen], id[:])
-	copy(k[consts.IDLen:], (key[:]))
+	copy(k[1:1+consts.IDLen], id[:])
+	copy(k[1+consts.IDLen+1:], key[:])
 	return
 }
 
