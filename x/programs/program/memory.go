@@ -226,7 +226,7 @@ func BytesToSmartPtr(bytes []byte, memory *Memory) (SmartPtr, error) {
 		return 0, err
 	}
 
-	return NewSmartPtr(uint32(ptr), len(bytes))
+	return NewSmartPtr(ptr, len(bytes))
 }
 
 // NewSmartPtr returns a SmartPtr from [ptr] and [len].
