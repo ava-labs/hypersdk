@@ -1,0 +1,41 @@
+name: Shell Checker
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: ShellCheck scripts
+      uses: ludeeus/action-shellcheck@master
+      with:
+        scandir: './scripts'
+      env:
+        SHELLCHECK_OPTS: -x
+    - name: ShellCheck tokenvm scripts
+      uses: ludeeus/action-shellcheck@master
+      with:
+        scandir: './examples/tokenvm/scripts'
+      env:
+        SHELLCHECK_OPTS: -x
+    - name: ShellCheck morpheusvm scripts
+      uses: ludeeus/action-shellcheck@master
+      with:
+        scandir: './examples/morpheusvm/scripts'
+      env:
+        SHELLCHECK_OPTS: -x
+    - name: ShellCheck x programs scripts
+      uses: ludeeus/action-shellcheck@master
+      with:
+        scandir: './x/programs/rust/scripts'
+      env:
+        SHELLCHECK_OPTS: -x
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+

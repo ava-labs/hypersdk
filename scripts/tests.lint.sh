@@ -52,7 +52,7 @@ function test_license_header {
   # ignore 3rd party code
   go-license \
   --config ./license.yml \
-  ${_addlicense_flags} \
+  "${_addlicense_flags}" \
   "${files[@]}"
 }
 
