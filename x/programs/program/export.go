@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package runtime
+package program
 
 import (
 	"fmt"
@@ -9,74 +9,46 @@ import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
-var _ WasmtimeExportClient = (*callerClient)(nil)
-
-type callerClient struct {
-	mod *wasmtime.Caller
+// NewExport creates a new export wrapper.
+func NewExport(inner *wasmtime.Extern) *Export {
+	return &Export{
+		inner: inner,
+	}
 }
 
-// newExportClient returns a new export client for local use.
-func newExportClient(inst *wasmtime.Instance, store *wasmtime.Store) WasmtimeExportClient {
-	return &exportClient{inst: inst, store: store}
+// Export is a wrapper around a wasmtime.Extern
+type Export struct {
+	inner *wasmtime.Extern
 }
 
-// NewExportClientFromCaller returns a new export client given a wasmtime caller module.
-// This is useful for creating export modules.
-func NewExportClient(mod *wasmtime.Caller) WasmtimeExportClient {
-	return &callerClient{mod: mod}
-}
-
-func (c *callerClient) ExportedFunction(name string) (*wasmtime.Func, error) {
-	ext := c.mod.GetExport(name)
-	fn := ext.Func()
-	if ext == nil || fn == nil {
-		return nil, fmt.Errorf("%w: %s", ErrMissingExportedFunction, name)
+func (e *Export) Func() (*wasmtime.Func, error) {
+	fn := e.inner.Func()
+	if fn == nil {
+		return nil, fmt.Errorf("export is not a function: %w", ErrInvalidType)
 	}
 	return fn, nil
 }
 
-func (c *callerClient) GetMemory() (*wasmtime.Memory, error) {
-	ext := c.mod.GetExport(MemoryFnName)
-	if ext == nil {
-		return nil, fmt.Errorf("%w: %s", ErrMissingExportedFunction, MemoryFnName)
+func (e *Export) Global() (*wasmtime.Global, error) {
+	gbl := e.inner.Global()
+	if gbl == nil {
+		return nil, fmt.Errorf("export is not a global: %w", ErrInvalidType)
 	}
-	memory := ext.Memory()
-	if memory == nil {
-		return nil, ErrMissingInvalidMemoryFunction
-	}
-	return memory, nil
+	return gbl, nil
 }
 
-func (c *callerClient) Store() wasmtime.Storelike {
-	return c.mod
-}
-
-type exportClient struct {
-	inst  *wasmtime.Instance
-	store *wasmtime.Store
-}
-
-func (c *exportClient) ExportedFunction(name string) (*wasmtime.Func, error) {
-	ext := c.inst.GetExport(c.store, name)
-	fn := ext.Func()
-	if ext == nil || fn == nil {
-		return nil, fmt.Errorf("%w: %s", ErrMissingExportedFunction, name)
+func (e *Export) Memory() (*wasmtime.Memory, error) {
+	mem := e.inner.Memory()
+	if mem == nil {
+		return nil, fmt.Errorf("export is not a memory: %w", ErrInvalidType)
 	}
-	return fn, nil
+	return mem, nil
 }
 
-func (c *exportClient) GetMemory() (*wasmtime.Memory, error) {
-	ext := c.inst.GetExport(c.store, MemoryFnName)
-	if ext == nil {
-		return nil, fmt.Errorf("%w: %s", ErrMissingExportedFunction, MemoryFnName)
+func (e *Export) Table() (*wasmtime.Table, error) {
+	tbl := e.inner.Table()
+	if tbl == nil {
+		return nil, fmt.Errorf("export is not a table: %w", ErrInvalidType)
 	}
-	memory := ext.Memory()
-	if memory == nil {
-		return nil, ErrMissingInvalidMemoryFunction
-	}
-	return memory, nil
-}
-
-func (c *exportClient) Store() wasmtime.Storelike {
-	return c.store
+	return tbl, nil
 }

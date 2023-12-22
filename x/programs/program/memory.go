@@ -1,52 +1,41 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package runtime
+package program
 
 import (
 	"fmt"
 	"math"
 	"runtime"
+
+	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
-var _ Memory = (*memory)(nil)
-
-type memory struct {
-	client WasmtimeExportClient
+// Memory is a wrapper around a wasmtime.Memory
+type Memory struct {
+	store   wasmtime.Storelike
+	inner   *wasmtime.Memory
+	allocFn *wasmtime.Func
 }
 
-// SmartPtr is an int64 where the first 4 bytes represent the length of the bytes
-// and the following 4 bytes represent a pointer to WASM memeory where the bytes are stored.
-type SmartPtr int64
-
-func NewMemory(client WasmtimeExportClient) *memory {
-	return &memory{
-		client: client,
+// NewMemory creates a new memory wrapper.
+func NewMemory(inner *wasmtime.Memory, allocFn *wasmtime.Func, store wasmtime.Storelike) *Memory {
+	return &Memory{
+		inner:   inner,
+		store:   store,
+		allocFn: allocFn,
 	}
 }
 
-func (m *memory) Range(offset uint64, length uint64) ([]byte, error) {
-	// memory is in local scope so we do not make assumptions on the
-	// lifetime of *wasmtime.Memory. The garbage collector may collect
-	// the memory if it is not referenced which could result in bugs.
-	mem, err := m.client.GetMemory()
+func (m *Memory) Range(offset uint32, length uint32) ([]byte, error) {
+	err := m.ensureValidOffset(offset, length)
 	if err != nil {
 		return nil, err
 	}
-	size, err := m.Len()
-	if err != nil {
-		return nil, err
-	}
-
-	// verify available memory is large enough
-	if offset+length > size {
-		return nil, fmt.Errorf("read memory failed: %w", ErrInvalidMemorySize)
-	}
-
-	// ensure memory is not GCed during the life of this method
+	mem := m.inner
 	runtime.KeepAlive(mem)
 
-	data := mem.UnsafeData(m.client.Store())
+	data := mem.UnsafeData(m.store)
 	buf := make([]byte, length)
 
 	// copy data from memory to buf to ensure it is not GCed.
@@ -55,74 +44,108 @@ func (m *memory) Range(offset uint64, length uint64) ([]byte, error) {
 	return buf, nil
 }
 
-func (m *memory) Write(offset uint64, buf []byte) error {
-	mem, err := m.client.GetMemory()
+func (m *Memory) Write(offset uint32, buf []byte) error {
+	if len(buf) > math.MaxUint32 {
+		return ErrOverflow
+	}
+
+	err := m.ensureValidOffset(offset, uint32(len(buf)))
 	if err != nil {
 		return err
 	}
 
-	max, err := m.Len()
-	if err != nil {
-		return err
-	}
+	mem := m.inner
+	runtime.KeepAlive(mem)
 
-	lenBuf := len(buf)
-
-	if max < offset+uint64(lenBuf) {
-		return fmt.Errorf("write memory failed: %w: max: %d", ErrInvalidMemorySize, max)
-	}
-
-	data := mem.UnsafeData(m.client.Store())
+	data := mem.UnsafeData(m.store)
 	copy(data[offset:], buf)
 
 	return nil
 }
 
-func (m *memory) Alloc(length uint64) (uint64, error) {
-	fn, err := m.client.ExportedFunction(AllocFnName)
+func (m *Memory) ensureValidOffset(offset uint32, length uint32) error {
+	if offset == 0 && length == 0 {
+		return nil
+	}
+	memLen, err := m.Len()
+	if err != nil {
+		return err
+	}
+
+	// verify available memory is large enough
+	if offset+length > memLen {
+		return ErrOverflow
+	}
+
+	return nil
+}
+
+func (m *Memory) Alloc(length uint32) (uint32, error) {
+	err := m.ensureValidOffset(0, length)
 	if err != nil {
 		return 0, err
 	}
 
-	if length > math.MaxInt32 {
-		return 0, fmt.Errorf("failed to allocate memory: %w", ErrIntegerConversionOverflow)
+	runtime.KeepAlive(m.inner)
+
+	allocFn := m.allocFn
+	if allocFn == nil {
+		return 0, fmt.Errorf("%w: function not found: %s", ErrInvalidType, AllocFnName)
 	}
 
-	result, err := fn.Call(m.client.Store(), int32(length))
+	if !EnsureUint32ToInt32(length) {
+		return 0, fmt.Errorf("%w: %d", ErrOverflow, length)
+	}
+
+	result, err := allocFn.Call(m.store, int32(length))
 	if err != nil {
-		return 0, handleTrapError(err)
+		return 0, err
 	}
 
-	addr := result.(int32)
+	addr, ok := result.(int32)
+	if !ok {
+		return 0, fmt.Errorf("%w: invalid result type: %T", ErrInvalidType, result)
+	}
 	if addr < 0 {
-		return 0, ErrInvalidMemoryAddress
+		return 0, ErrUnderflow
 	}
 
-	return uint64(addr), nil
+	return uint32(addr), nil
 }
 
-func (m *memory) Grow(delta uint64) (uint64, error) {
-	mem, err := m.client.GetMemory()
+func (m *Memory) Grow(delta uint64) (uint32, error) {
+	mem := m.inner
+	runtime.KeepAlive(mem)
+	length, err := mem.Grow(m.store, delta)
 	if err != nil {
 		return 0, err
 	}
-
-	return mem.Grow(m.client.Store(), delta)
+	if length > math.MaxUint32 {
+		return 0, ErrOverflow
+	}
+	return uint32(length), nil
 }
 
-func (m *memory) Len() (uint64, error) {
-	mem, err := m.client.GetMemory()
-	if err != nil {
-		return 0, err
+func (m *Memory) Len() (uint32, error) {
+	mem := m.inner
+	runtime.KeepAlive(mem)
+
+	size := mem.DataSize(m.store)
+
+	if uint64(size) > math.MaxUint32 {
+		return 0, ErrOverflow
 	}
 
-	return uint64(mem.DataSize(m.client.Store())), nil
+	return uint32(size), nil
 }
 
 // WriteBytes is a helper function that allocates memory and writes the given
 // bytes to the memory returning the offset.
-func WriteBytes(m Memory, buf []byte) (int64, error) {
-	offset, err := m.Alloc(uint64(len(buf)))
+func WriteBytes(m *Memory, buf []byte) (uint32, error) {
+	if len(buf) > math.MaxUint32 {
+		return 0, ErrOverflow
+	}
+	offset, err := m.Alloc(uint32(len(buf)))
 	if err != nil {
 		return 0, err
 	}
@@ -131,7 +154,7 @@ func WriteBytes(m Memory, buf []byte) (int64, error) {
 		return 0, err
 	}
 
-	return int64(offset), nil
+	return offset, nil
 }
 
 // CallParam defines a value to be passed to a guest function.
@@ -141,8 +164,8 @@ type CallParam struct {
 
 // WriteParams is a helper function that writes the given params to memory if non integer.
 // Supported types include int, uint64 and string.
-func WriteParams(m Memory, p []CallParam) ([]int64, error) {
-	params := []int64{}
+func WriteParams(m *Memory, p []CallParam) ([]uint64, error) {
+	params := []uint64{}
 	for _, param := range p {
 		switch v := param.Value.(type) {
 		case string:
@@ -150,24 +173,25 @@ func WriteParams(m Memory, p []CallParam) ([]int64, error) {
 			if err != nil {
 				return nil, err
 			}
-			params = append(params, ptr)
+			params = append(params, uint64(ptr))
 		case int:
 			if v < 0 {
-				return nil, fmt.Errorf("failed to write param: %w", ErrNegativeValue)
+				return nil, fmt.Errorf("failed to write param: %w", ErrUnderflow)
 			}
-			params = append(params, int64(v))
+			params = append(params, uint64(v))
 		case uint64:
-			if v > math.MaxInt64 {
-				return nil, fmt.Errorf("failed to write param: %w", ErrIntegerConversionOverflow)
-			}
-			params = append(params, int64(v))
+			params = append(params, v)
 		default:
-			return nil, fmt.Errorf("%w: support types int, uint64 and string", ErrInvalidParamType)
+			return nil, fmt.Errorf("invalid param: supported types int, uint64 and string")
 		}
 	}
 
 	return params, nil
 }
+
+// SmartPtr is an int64 where the first 4 bytes represent the length of the bytes
+// and the following 4 bytes represent a pointer to WASM memory where the bytes are stored.
+type SmartPtr int64
 
 // Get returns the int64 value of [s].
 func (s SmartPtr) Get() int64 {
@@ -185,9 +209,9 @@ func (s SmartPtr) PtrOffset() uint32 {
 }
 
 // Bytes returns the bytes stored in memory by [s].
-func (s SmartPtr) Bytes(memory Memory) ([]byte, error) {
+func (s SmartPtr) Bytes(memory *Memory) ([]byte, error) {
 	// read the range of PtrOffset + length from memory
-	bytes, err := memory.Range(uint64(s.PtrOffset()), uint64(s.Len()))
+	bytes, err := memory.Range(s.PtrOffset(), s.Len())
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +220,7 @@ func (s SmartPtr) Bytes(memory Memory) ([]byte, error) {
 }
 
 // BytesToSmartPtr writes [bytes] to memory and returns the resulting SmartPtr.
-func BytesToSmartPtr(bytes []byte, memory Memory) (SmartPtr, error) {
+func BytesToSmartPtr(bytes []byte, memory *Memory) (SmartPtr, error) {
 	ptr, err := WriteBytes(memory, bytes)
 	if err != nil {
 		return 0, err
