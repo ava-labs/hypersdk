@@ -19,6 +19,7 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/host"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -58,7 +59,7 @@ func (i *Import) Register(link *host.Link) error {
 
 // callProgramFn makes a call to an entry function of a program in the context of another program's ID.
 func (i *Import) callProgramFn(
-	caller *wasmtime.Caller,
+	wasmCaller *wasmtime.Caller,
 	callerID int64,
 	programID int64,
 	maxUnits int64,
@@ -68,9 +69,17 @@ func (i *Import) callProgramFn(
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	memory := runtime.NewMemory(runtime.NewExportClient(caller))
+	caller := program.NewCaller(wasmCaller)
+	memory, err := caller.Memory()
+	if err != nil {
+		i.log.Error("failed to get memory from caller",
+			zap.Error(err),
+		)
+		return -1
+	}
+
 	// get the entry function for invoke to call.
-	functionBytes, err := runtime.SmartPtr(function).Bytes(memory)
+	functionBytes, err := program.SmartPtr(function).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read function name from memory",
 			zap.Error(err),
@@ -78,7 +87,7 @@ func (i *Import) callProgramFn(
 		return -1
 	}
 
-	programIDBytes, err := runtime.SmartPtr(programID).Bytes(memory)
+	programIDBytes, err := program.SmartPtr(programID).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read id from memory",
 			zap.Error(err),
@@ -133,15 +142,24 @@ func (i *Import) callProgramFn(
 		}
 	}()
 
-	argsBytes, err := runtime.SmartPtr(args).Bytes(memory)
+	argsBytes, err := program.SmartPtr(args).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read program args name from memory",
 			zap.Error(err),
 		)
 		return -1
 	}
+
+	rtMemory, err := rt.Memory()
+	if err != nil {
+		i.log.Error("failed to get memory from runtime",
+			zap.Error(err),
+		)
+		return -1
+	}
+
 	// sync args to new runtime and return arguments to the invoke call
-	params, err := getCallArgs(ctx, rt.Memory(), argsBytes, programIDBytes)
+	params, err := getCallArgs(ctx, rtMemory, argsBytes, programIDBytes)
 	if err != nil {
 		i.log.Error("failed to unmarshal call arguments",
 			zap.Error(err),
@@ -162,18 +180,18 @@ func (i *Import) callProgramFn(
 }
 
 // getCallArgs returns the arguments to be passed to the program being invoked from [buffer].
-func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, programIDBytes []byte) ([]runtime.SmartPtr, error) {
+func getCallArgs(ctx context.Context, memory *program.Memory, buffer []byte, programIDBytes []byte) ([]program.SmartPtr, error) {
 	// first arg contains id of program to call
-	invokeProgramIDPtr, err := runtime.WriteBytes(memory, programIDBytes)
+	invokeProgramIDPtr, err := program.WriteBytes(memory, programIDBytes)
 	if err != nil {
 		return nil, err
 	}
-	argPtr, err := runtime.NewSmartPtr(uint32(invokeProgramIDPtr), len(programIDBytes))
+	argPtr, err := program.NewSmartPtr(uint32(invokeProgramIDPtr), len(programIDBytes))
 	if err != nil {
 		return nil, err
 	}
 
-	args := []runtime.SmartPtr{argPtr}
+	args := []program.SmartPtr{argPtr}
 
 	for i := 0; i < len(buffer); {
 		// unpacks uint32
@@ -184,11 +202,11 @@ func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, prog
 		i += int(length) + consts.Uint32Len
 
 		// every argument is a pointer
-		ptr, err := runtime.WriteBytes(memory, valueBytes)
+		ptr, err := program.WriteBytes(memory, valueBytes)
 		if err != nil {
 			return nil, err
 		}
-		argPtr, err := runtime.NewSmartPtr(uint32(ptr), int(length))
+		argPtr, err := program.NewSmartPtr(uint32(ptr), int(length))
 		if err != nil {
 			return nil, err
 		}
