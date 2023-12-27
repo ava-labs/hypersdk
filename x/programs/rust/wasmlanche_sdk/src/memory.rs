@@ -91,7 +91,7 @@ pub fn to_host_ptr(arg: &[u8]) -> Result<HostPtr, StateError> {
     }
 
     let host_ptr = i64::from(ptr as u32) | (i64::from(len as u32) << 32);
-    Ok(hot_ptr)
+    Ok(host_ptr)
 }
 
 /// Converts a i64 to a pointer with the first 4 bytes of the pointer
