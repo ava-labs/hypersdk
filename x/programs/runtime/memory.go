@@ -15,9 +15,9 @@ type memory struct {
 	client WasmtimeExportClient
 }
 
-// SmartPtr is an int64 where the first 4 bytes represent the length of the bytes
+// HostPtr is an int64 where the first 4 bytes represent the length of the bytes
 // and the following 4 bytes represent a pointer to WASM memeory where the bytes are stored.
-type SmartPtr int64
+type HostPtr int64
 
 func NewMemory(client WasmtimeExportClient) *memory {
 	return &memory{
@@ -170,22 +170,22 @@ func WriteParams(m Memory, p []CallParam) ([]int64, error) {
 }
 
 // Get returns the int64 value of [s].
-func (s SmartPtr) Get() int64 {
+func (s HostPtr) Get() int64 {
 	return int64(s)
 }
 
 // Len returns the length of the bytes stored in memory by [s].
-func (s SmartPtr) Len() uint32 {
+func (s HostPtr) Len() uint32 {
 	return uint32(s >> 32)
 }
 
 // PtrOffset returns the offset of the bytes stored in memory by [s].
-func (s SmartPtr) PtrOffset() uint32 {
+func (s HostPtr) PtrOffset() uint32 {
 	return uint32(s)
 }
 
 // Bytes returns the bytes stored in memory by [s].
-func (s SmartPtr) Bytes(memory Memory) ([]byte, error) {
+func (s HostPtr) Bytes(memory Memory) ([]byte, error) {
 	// read the range of PtrOffset + length from memory
 	bytes, err := memory.Range(uint64(s.PtrOffset()), uint64(s.Len()))
 	if err != nil {
@@ -195,18 +195,18 @@ func (s SmartPtr) Bytes(memory Memory) ([]byte, error) {
 	return bytes, nil
 }
 
-// BytesToSmartPtr writes [bytes] to memory and returns the resulting SmartPtr.
-func BytesToSmartPtr(bytes []byte, memory Memory) (SmartPtr, error) {
+// BytesToHostPtr writes [bytes] to memory and returns the resulting HostPtr.
+func BytesToHostPtr(bytes []byte, memory Memory) (HostPtr, error) {
 	ptr, err := WriteBytes(memory, bytes)
 	if err != nil {
 		return 0, err
 	}
 
-	return NewSmartPtr(uint32(ptr), len(bytes))
+	return NewHostPtr(uint32(ptr), len(bytes))
 }
 
-// NewSmartPtr returns a SmartPtr from [ptr] and [len].
-func NewSmartPtr(ptr uint32, len int) (SmartPtr, error) {
+// NewHostPtr returns a HostPtr from [ptr] and [len].
+func NewHostPtr(ptr uint32, len int) (HostPtr, error) {
 	// ensure length of bytes is not greater than int32 to prevent overflow
 	if !EnsureIntToInt32(len) {
 		return 0, fmt.Errorf("length of bytes is greater than int32")
@@ -215,5 +215,5 @@ func NewSmartPtr(ptr uint32, len int) (SmartPtr, error) {
 	lenUpperBits := int64(len) << 32
 	ptrLowerBits := int64(ptr)
 
-	return SmartPtr(lenUpperBits | ptrLowerBits), nil
+	return HostPtr(lenUpperBits | ptrLowerBits), nil
 }

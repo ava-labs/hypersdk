@@ -30,13 +30,13 @@ func serializeParameter(obj interface{}) ([]byte, error) {
 }
 
 // Serialize the parameter and create a smart ptr
-func argumentToSmartPtr(obj interface{}, memory runtime.Memory) (runtime.SmartPtr, error) {
+func argumentToHostPtr(obj interface{}, memory runtime.Memory) (runtime.HostPtr, error) {
 	bytes, err := serializeParameter(obj)
 	if err != nil {
 		return 0, err
 	}
 
-	return runtime.BytesToSmartPtr(bytes, memory)
+	return runtime.BytesToHostPtr(bytes, memory)
 }
 
 var (
