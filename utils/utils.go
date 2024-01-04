@@ -4,6 +4,7 @@
 package utils
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"math"
 	"net"
@@ -22,6 +23,16 @@ import (
 
 func ToID(bytes []byte) ids.ID {
 	return ids.ID(hashing.ComputeHash256Array(bytes))
+}
+
+func ToIDFast(bytes []byte) ids.ID {
+	hash := sha256.New()
+	// sha256.Write never returns errors
+	_, _ = hash.Write(bytes)
+
+	var output ids.ID
+	hash.Sum(output[:0])
+	return output
 }
 
 func InitSubDirectory(rootPath string, name string) (string, error) {

@@ -5,8 +5,10 @@ package utils
 
 import (
 	"bytes"
+	"crypto/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -84,4 +86,40 @@ func TestLoadBytes(t *testing.T) {
 
 	// Remove
 	_ = os.Remove(fileName)
+}
+
+func BenchmarkHashingPkg(b *testing.B) {
+	for _, msgLen := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
+		b.Run(strconv.Itoa(msgLen), func(b *testing.B) {
+			b.StopTimer()
+			msg := make([]byte, msgLen)
+			_, err := rand.Read(msg)
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.StartTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				ToID(msg)
+			}
+		})
+	}
+}
+
+func BenchmarkSha(b *testing.B) {
+	for _, msgLen := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
+		b.Run(strconv.Itoa(msgLen), func(b *testing.B) {
+			b.StopTimer()
+			msg := make([]byte, msgLen)
+			_, err := rand.Read(msg)
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.StartTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				ToIDFast(msg)
+			}
+		})
+	}
 }
