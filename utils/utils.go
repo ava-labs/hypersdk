@@ -19,6 +19,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/perms"
 	"github.com/ava-labs/hypersdk/consts"
 	formatter "github.com/onsi/ginkgo/v2/formatter"
+
+	simd "github.com/minio/sha256-simd"
 )
 
 func ToID(bytes []byte) ids.ID {
@@ -27,6 +29,10 @@ func ToID(bytes []byte) ids.ID {
 
 func ToIDFast(bytes []byte) ids.ID {
 	return ids.ID(sha256.Sum256(bytes))
+}
+
+func ToIDSIMD(bytes []byte) ids.ID {
+	return ids.ID(simd.Sum256(bytes))
 }
 
 func InitSubDirectory(rootPath string, name string) (string, error) {

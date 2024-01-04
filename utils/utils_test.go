@@ -123,3 +123,21 @@ func BenchmarkSha(b *testing.B) {
 		})
 	}
 }
+
+func BenchmarkShaSIMD(b *testing.B) {
+	for _, msgLen := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
+		b.Run(strconv.Itoa(msgLen), func(b *testing.B) {
+			b.StopTimer()
+			msg := make([]byte, msgLen)
+			_, err := rand.Read(msg)
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.StartTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				ToIDSIMD(msg)
+			}
+		})
+	}
+}
