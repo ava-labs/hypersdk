@@ -26,13 +26,7 @@ func ToID(bytes []byte) ids.ID {
 }
 
 func ToIDFast(bytes []byte) ids.ID {
-	hash := sha256.New()
-	// sha256.Write never returns errors
-	_, _ = hash.Write(bytes)
-
-	var output ids.ID
-	hash.Sum(output[:0])
-	return output
+	return ids.ID(sha256.Sum256(bytes))
 }
 
 func InitSubDirectory(rootPath string, name string) (string, error) {
