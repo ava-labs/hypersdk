@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
@@ -33,7 +34,7 @@ func New(log logging.Logger, mu state.Mutable) runtime.Import {
 type Import struct {
 	mu         state.Mutable
 	log        logging.Logger
-	meter      runtime.Meter
+	meter      *engine.Meter
 	registered bool
 }
 
@@ -41,7 +42,7 @@ func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.SupportedImports) error {
+func (i *Import) Register(link runtime.Link, meter *engine.Meter, _ runtime.SupportedImports) error {
 	if i.registered {
 		return fmt.Errorf("import module already registered: %q", Name)
 	}

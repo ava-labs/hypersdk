@@ -5,51 +5,61 @@ package examples
 
 import (
 	"context"
-	_ "embed"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	"github.com/ava-labs/hypersdk/x/programs/tests"
 )
-
-//go:embed testdata/counter.wasm
-var counterProgramBytes []byte
 
 // go test -v -timeout 30s -run ^TestCounterProgram$ github.com/ava-labs/hypersdk/x/programs/examples
 func TestCounterProgram(t *testing.T) {
 	require := require.New(t)
 	db := newTestDB()
 	maxUnits := uint64(80000)
-	cfg, err := runtime.NewConfigBuilder().Build()
-	require.NoError(err)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	cfg := runtime.NewConfig()
+	log := logging.NewLogger(
+		"",
+		logging.NewWrappedCore(
+			logging.Info,
+			os.Stderr,
+			logging.Plain.ConsoleEncoder(),
+		))
+
+	eng := engine.New(engine.NewConfig())
 	// define supported imports
 	supported := runtime.NewSupportedImports()
 	supported.Register("state", func() runtime.Import {
 		return pstate.New(log, db)
 	})
 	supported.Register("program", func() runtime.Import {
-		return program.New(log, db, cfg)
+		return program.New(log, eng, db, cfg)
 	})
 
-	rt := runtime.New(log, cfg, supported.Imports())
-	err = rt.Initialize(ctx, counterProgramBytes, maxUnits)
+	wasmBytes := tests.ReadFixture(t, "../tests/fixture/counter.wasm")
+	rt := runtime.New(log, eng, supported.Imports(), cfg)
+	err := rt.Initialize(ctx, wasmBytes, maxUnits)
 	require.NoError(err)
 
-	require.Equal(maxUnits, rt.Meter().GetBalance())
+	balance, err := rt.Meter().GetBalance()
+	require.NoError(err)
+	require.Equal(maxUnits, balance)
 
 	// simulate create program transaction
 	programID := ids.GenerateTestID()
-	err = storage.SetProgram(ctx, db, programID, counterProgramBytes)
+	err = storage.SetProgram(ctx, db, programID, wasmBytes)
 	require.NoError(err)
 
 	programIDPtr, err := argumentToSmartPtr(programID, rt.Memory())
@@ -75,8 +85,8 @@ func TestCounterProgram(t *testing.T) {
 
 	// initialize second runtime to create second counter program with an empty
 	// meter.
-	rt2 := runtime.New(log, cfg, supported.Imports())
-	err = rt2.Initialize(ctx, counterProgramBytes, runtime.NoUnits)
+	rt2 := runtime.New(log, eng, supported.Imports(), cfg)
+	err = rt2.Initialize(ctx, wasmBytes, engine.NoUnits)
 
 	require.NoError(err)
 
@@ -90,7 +100,7 @@ func TestCounterProgram(t *testing.T) {
 
 	// simulate creating second program transaction
 	program2ID := ids.GenerateTestID()
-	err = storage.SetProgram(ctx, db, program2ID, counterProgramBytes)
+	err = storage.SetProgram(ctx, db, program2ID, wasmBytes)
 	require.NoError(err)
 
 	programID2Ptr, err := argumentToSmartPtr(program2ID, rt2.Memory())
@@ -116,16 +126,13 @@ func TestCounterProgram(t *testing.T) {
 	result, err = rt2.Call(ctx, "get_value", programID2Ptr, alicePtr2)
 	require.NoError(err)
 	require.Equal(incAmount, result[0])
-	// stop the runtime to prevent further execution
-	rt2.Stop()
+
+	balance, err = rt2.Meter().GetBalance()
+	require.NoError(err)
 
 	// transfer balance back to original runtime
-	_, err = rt2.Meter().TransferUnitsTo(rt.Meter(), rt2.Meter().GetBalance())
-	if err != nil {
-		log.Error("failed to transfer remaining balance to caller",
-			zap.Error(err),
-		)
-	}
+	_, err = rt2.Meter().TransferUnitsTo(rt.Meter(), balance)
+	require.NoError(err)
 
 	// increment alice's counter on program 1
 	onePtr, err := argumentToSmartPtr(int64(1), rt.Memory())
@@ -162,5 +169,7 @@ func TestCounterProgram(t *testing.T) {
 	result, err = rt.Call(ctx, "get_value_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr)
 	require.NoError(err)
 	require.Equal(int64(15), result[0])
-	require.Greater(rt.Meter().GetBalance(), uint64(0))
+	balance, err = rt.Meter().GetBalance()
+	require.NoError(err)
+	require.Greater(balance, uint64(0))
 }

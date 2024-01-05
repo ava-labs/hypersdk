@@ -14,11 +14,12 @@ import (
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports runtime.SupportedImports, maxUnits uint64) *Token {
+func NewToken(log logging.Logger, engine *engine.Engine, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports runtime.SupportedImports, maxUnits uint64) *Token {
 	return &Token{
 		log:          log,
 		programBytes: programBytes,
@@ -26,6 +27,7 @@ func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *ru
 		imports:      imports,
 		db:           db,
 		maxUnits:     maxUnits,
+		engine:       engine,
 	}
 }
 
@@ -43,17 +45,23 @@ type Token struct {
 	imports      runtime.SupportedImports
 	db           state.Mutable
 	maxUnits     uint64
+	engine       *engine.Engine
 }
 
 func (t *Token) Run(ctx context.Context) error {
-	rt := runtime.New(t.log, t.cfg, t.imports)
+	rt := runtime.New(t.log, t.engine, t.imports, t.cfg)
 	err := rt.Initialize(ctx, t.programBytes, t.maxUnits)
 	if err != nil {
 		return err
 	}
 
+	balance, err := rt.Meter().GetBalance()
+	if err != nil {
+		return err
+	}
+
 	t.log.Debug("initial meter",
-		zap.Uint64("balance", rt.Meter().GetBalance()),
+		zap.Uint64("balance", balance),
 	)
 
 	// simulate create program transaction
@@ -201,8 +209,13 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 	t.log.Debug("balance", zap.Int64("bob", result[0]))
 
+	balance, err = rt.Meter().GetBalance()
+	if err != nil {
+		return err
+	}
+
 	t.log.Debug("remaining balance",
-		zap.Uint64("unit", rt.Meter().GetBalance()),
+		zap.Uint64("unit", balance),
 	)
 
 	// combine alice and bobs addresses
@@ -253,14 +266,19 @@ func (t *Token) Run(ctx context.Context) error {
 
 // RunShort performs the steps of initialization only, used for benchmarking.
 func (t *Token) RunShort(ctx context.Context) error {
-	rt := runtime.New(t.log, t.cfg, t.imports)
+	rt := runtime.New(t.log, t.engine, t.imports, t.cfg)
 	err := rt.Initialize(ctx, t.programBytes, t.maxUnits)
 	if err != nil {
 		return err
 	}
 
+	balance, err := rt.Meter().GetBalance()
+	if err != nil {
+		return err
+	}
+
 	t.log.Debug("initial meter",
-		zap.Uint64("balance", rt.Meter().GetBalance()),
+		zap.Uint64("balance", balance),
 	)
 
 	// simulate create program transaction

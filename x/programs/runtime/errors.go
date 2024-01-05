@@ -18,10 +18,11 @@ var (
 	ErrInvalidMemoryAddress         = errors.New("invalid memory address: must be positive")
 	ErrInvalidParamCount            = errors.New("invalid parameter count")
 	ErrInvalidParamType             = errors.New("invalid parameter type")
-	ErrInsufficientUnits            = errors.New("insufficient units")
 	ErrRuntimeStoreSet              = errors.New("runtime store has already been set")
 	ErrNegativeValue                = errors.New("negative value")
 	ErrIntegerConversionOverflow    = errors.New("integer overflow during conversion")
+	ErrOverflow                     = errors.New("overflow")
+	ErrUnderflow                    = errors.New("underflow")
 
 	// Trap errors
 	ErrTrapStackOverflow          = errors.New("the current stack space was exhausted")

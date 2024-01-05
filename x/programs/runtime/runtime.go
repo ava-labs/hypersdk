@@ -11,26 +11,34 @@ import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/x/programs/engine"
 )
 
 var _ Runtime = &WasmRuntime{}
 
 // New returns a new wasm runtime.
-func New(log logging.Logger, cfg *Config, imports SupportedImports) Runtime {
+func New(
+	log logging.Logger,
+	engine *engine.Engine,
+	imports SupportedImports,
+	cfg *Config,
+) Runtime {
 	return &WasmRuntime{
-		imports: imports,
 		log:     log,
+		engine:  engine,
+		imports: imports,
 		cfg:     cfg,
 	}
 }
 
 type WasmRuntime struct {
-	cfg   *Config
-	inst  *wasmtime.Instance
-	store *wasmtime.Store
-	mod   *wasmtime.Module
-	exp   WasmtimeExportClient
-	meter Meter
+	engine *engine.Engine
+	store  *engine.Store
+	inst   *wasmtime.Instance
+	mod    *wasmtime.Module
+	exp    WasmtimeExportClient
+	meter  *engine.Meter
+	cfg    *Config
 
 	once     sync.Once
 	cancelFn context.CancelFunc
@@ -48,48 +56,36 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 		r.Stop()
 	}(ctx)
 
-	engineConfig, err := r.cfg.Engine()
+	// create store
+	cfg := engine.NewStoreConfig()
+	cfg.SetLimitMaxMemory(r.cfg.LimitMaxMemory)
+	r.store = engine.NewStore(r.engine, cfg)
+
+	// enable wasi logging support only in debug mode
+	if r.cfg.EnableDebugMode {
+		wasiConfig := wasmtime.NewWasiConfig()
+		wasiConfig.InheritStderr()
+		wasiConfig.InheritStdout()
+		r.store.SetWasi(wasiConfig)
+	}
+
+	// add metered units to the store
+	err = r.store.AddUnits(maxUnits)
 	if err != nil {
 		return err
 	}
 
-	r.store = wasmtime.NewStore(wasmtime.NewEngineWithConfig(engineConfig))
-	r.store.Limiter(
-		r.cfg.limitMaxMemory,
-		r.cfg.limitMaxTableElements,
-		r.cfg.limitMaxInstances,
-		r.cfg.limitMaxTables,
-		r.cfg.limitMaxMemories,
-	)
-
-	// set initial epoch deadline
-	r.store.SetEpochDeadline(1)
-
-	switch r.cfg.compileStrategy {
-	case PrecompiledWasm:
-		// Note: that to deserialize successfully the bytes provided must have been
-		// produced with an `Engine` that has the same compilation options as the
-		// provided engine, and from the same version of this library.
-		//
-		// A precompile is not something we would store on chain.
-		// Instead we would prefetch programs and precompile them.
-		r.mod, err = wasmtime.NewModuleDeserialize(r.store.Engine, programBytes)
-		if err != nil {
-			return err
-		}
-	case CompileWasm:
-		r.mod, err = wasmtime.NewModule(r.store.Engine, programBytes)
-		if err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("unsupported compile strategy: %v", r.cfg.compileStrategy)
+	// create module
+	r.mod, err = engine.NewModule(r.engine, programBytes, r.cfg.CompileStrategy)
+	if err != nil {
+		return err
 	}
 
-	link := Link{wasmtime.NewLinker(r.store.Engine)}
+	// create linker
+	link := Link{wasmtime.NewLinker(r.store.GetEngine())}
 
 	// enable wasi logging support only in testing/debug mode
-	if r.cfg.debugMode {
+	if r.cfg.EnableDebugMode {
 		wasiConfig := wasmtime.NewWasiConfig()
 		wasiConfig.InheritStderr()
 		wasiConfig.InheritStdout()
@@ -101,14 +97,13 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	}
 
 	// setup metering
-	r.meter = NewMeter(r.store)
-	_, err = r.meter.AddUnits(maxUnits)
+	r.meter, err = engine.NewMeter(r.store)
 	if err != nil {
 		return err
 	}
 
 	// setup client capable of calling exported functions
-	r.exp = newExportClient(r.inst, r.store)
+	r.exp = newExportClient(r.inst, r.store.Get())
 
 	imports := getRegisteredImportModules(r.mod.Imports())
 	// register host functions exposed to the guest (imports)
@@ -125,7 +120,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	}
 
 	// instantiate the module with all of the imports defined by the linker
-	r.inst, err = link.Instantiate(r.store, r.mod)
+	r.inst, err = link.Instantiate(r.store.Get(), r.mod)
 	if err != nil {
 		return err
 	}
@@ -162,12 +157,12 @@ func (r *WasmRuntime) Call(_ context.Context, name string, params ...SmartPtr) (
 		fnName = name + guestSuffix
 	}
 
-	fn := r.inst.GetFunc(r.store, fnName)
+	fn := r.inst.GetFunc(r.store.Get(), fnName)
 	if fn == nil {
 		return nil, fmt.Errorf("%w: %s", ErrMissingExportedFunction, name)
 	}
 
-	fnParams := fn.Type(r.store).Params()
+	fnParams := fn.Type(r.store.Get()).Params()
 	if len(params) != len(fnParams) {
 		return nil, fmt.Errorf("%w for function %s: %d expected: %d", ErrInvalidParamCount, name, len(params), len(fnParams))
 	}
@@ -177,7 +172,7 @@ func (r *WasmRuntime) Call(_ context.Context, name string, params ...SmartPtr) (
 		return nil, err
 	}
 
-	result, err := fn.Call(r.store, callParams...)
+	result, err := fn.Call(r.store.Get(), callParams...)
 	if err != nil {
 		return nil, fmt.Errorf("export function call failed %s: %w", name, handleTrapError(err))
 	}
@@ -198,47 +193,20 @@ func (r *WasmRuntime) Call(_ context.Context, name string, params ...SmartPtr) (
 }
 
 func (r *WasmRuntime) Memory() Memory {
-	return NewMemory(newExportClient(r.inst, r.store))
+	return NewMemory(newExportClient(r.inst, r.store.Get()))
 }
 
-func (r *WasmRuntime) Meter() Meter {
+func (r *WasmRuntime) Meter() *engine.Meter {
 	return r.meter
 }
 
 func (r *WasmRuntime) Stop() {
 	r.once.Do(func() {
 		r.log.Debug("shutting down runtime engine...")
-		// send immediate interrupt to engine
-		r.store.Engine.IncrementEpoch()
+		// send immediate interrupt to engine and all children stores.
+		r.engine.Stop()
 		r.cancelFn()
 	})
-}
-
-// PreCompileWasm returns a precompiled wasm module.
-//
-// Note: these bytes can be deserialized by an `Engine` that has the same version.
-// For that reason precompiled wasm modules should not be stored on chain.
-func PreCompileWasmBytes(programBytes []byte, cfg *Config) ([]byte, error) {
-	engineConfig, err := cfg.Engine()
-	if err != nil {
-		return nil, err
-	}
-
-	store := wasmtime.NewStore(wasmtime.NewEngineWithConfig(engineConfig))
-	store.Limiter(
-		cfg.limitMaxMemory,
-		cfg.limitMaxTableElements,
-		cfg.limitMaxInstances,
-		cfg.limitMaxTables,
-		cfg.limitMaxMemories,
-	)
-
-	module, err := wasmtime.NewModule(store.Engine, programBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return module.Serialize()
 }
 
 // mapFunctionParams maps call input to the expected wasm function params.

@@ -6,6 +6,7 @@ package runtime
 import (
 	"context"
 
+	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
@@ -36,7 +37,7 @@ type Runtime interface {
 	// Memory returns the runtime memory.
 	Memory() Memory
 	// Meter returns the runtime meter.
-	Meter() Meter
+	Meter() *engine.Meter
 	// Stop stops the runtime.
 	Stop()
 }
@@ -59,7 +60,7 @@ type Import interface {
 	// Name returns the name of this import module.
 	Name() string
 	// Instantiate instantiates an all of the functions exposed by this import module.
-	Register(Link, Meter, SupportedImports) error
+	Register(Link, *engine.Meter, SupportedImports) error
 }
 
 // Memory defines the interface for interacting with memory.
@@ -75,16 +76,4 @@ type Memory interface {
 	Len() (uint64, error)
 	// Grow increases the size of the memory pages by delta.
 	Grow(uint64) (uint64, error)
-}
-
-type Meter interface {
-	// GetBalance returns the balance of the meter's units remaining.
-	GetBalance() uint64
-	// Spend attempts to spend the given amount of units. If the meter has
-	Spend(uint64) (uint64, error)
-	// AddUnits add units back to the meters and returns the new balance.
-	AddUnits(uint64) (uint64, error)
-	// TransferUnitsTo transfers units from this meter to the given meter, returns
-	// the new balance of this meter.
-	TransferUnitsTo(to Meter, units uint64) (uint64, error)
 }
