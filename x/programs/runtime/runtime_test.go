@@ -307,3 +307,105 @@ func TestWithMaxWasmStack(t *testing.T) {
 	_, err = runtime.Call(context.Background(), "get")
 	require.ErrorIs(err, program.ErrTrapStackOverflow)
 }
+
+func TestInfiniteLoop(t *testing.T) {
+	require := require.New(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// infinite loop
+	wasm, err := wasmtime.Wat2Wasm(`
+	(module
+	  (func (export "get_guest")
+	    (loop
+	      br 0)
+	  )
+	)
+	`)
+	require.NoError(err)
+	maxUnits := uint64(10000)
+	cfg := NewConfig().SetLimitMaxMemory(1 * MemoryPageSize)
+	require.NoError(err)
+	eng := engine.New(engine.NewConfig())
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
+	err = runtime.Initialize(ctx, wasm, maxUnits)
+	require.NoError(err)
+
+	_, err = runtime.Call(ctx, "get")
+	require.ErrorIs(err, ErrTrapInterrupt)
+}
+
+func TestMetering(t *testing.T) {
+	require := require.New(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// example has 2 ops codes and should cost 2 units
+	wasm, err := wasmtime.Wat2Wasm(`
+	(module $test
+	(type (;0;) (func (result i32)))
+	(export "get_guest" (func 0))
+	(func (;0;) (type 0) (result i32)
+		(local i32)
+		i32.const 1
+	  )
+	)
+	`)
+	require.NoError(err)
+	maxUnits := uint64(20)
+	cfg := NewConfig().SetLimitMaxMemory(1 * MemoryPageSize)
+	require.NoError(err)
+	eng := engine.New(engine.NewConfig())
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
+	err = runtime.Initialize(ctx, wasm, maxUnits)
+	require.NoError(err)
+	balance, err := runtime.Meter().GetBalance()
+	require.NoError(err)
+
+	require.Equal(balance, maxUnits)
+	for i := 0; i < 10; i++ {
+		_, err = runtime.Call(ctx, "get")
+		require.NoError(err)
+	}
+	balance, err = runtime.Meter().GetBalance()
+	require.NoError(err)
+	require.Equal(balance, uint64(0))
+}
+
+func TestMeterAfterStop(t *testing.T) {
+	require := require.New(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// example has 2 ops codes and should cost 2 units
+	wasm, err := wasmtime.Wat2Wasm(`
+	(module $test
+	(type (;0;) (func (result i32)))
+	(export "get_guest" (func 0))
+	(func (;0;) (type 0) (result i32)
+		(local i32)
+		i32.const 1
+	  )
+	) 
+	`)
+	require.NoError(err)
+	maxUnits := uint64(20)
+	cfg := NewConfig().SetLimitMaxMemory(1 * MemoryPageSize)
+	require.NoError(err)
+	eng := engine.New(engine.NewConfig())
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
+	err = runtime.Initialize(ctx, wasm, maxUnits)
+	require.NoError(err)
+
+	// spend 2 units
+	_, err = runtime.Call(ctx, "get")
+	require.NoError(err)
+	// stop engine
+	runtime.Stop()
+	_, err = runtime.Call(ctx, "get")
+	require.ErrorIs(err, ErrTrapUnreachableCodeReached)
+	// ensure meter is still operational
+	balance, err := runtime.Meter().GetBalance()
+	require.NoError(err)
+	require.Equal(balance, maxUnits-2)
+}
