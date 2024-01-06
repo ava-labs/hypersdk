@@ -6,6 +6,7 @@ package runtime
 import (
 	"context"
 
+	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
