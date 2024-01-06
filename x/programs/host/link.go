@@ -104,7 +104,8 @@ func (l *Link) RegisterImportFn(module, name string, f interface{}) error {
 	return l.wasmLink.FuncWrap(module, name, wrapper())
 }
 
-// RegisterImportWrapFn registers a wrapped host function exposed to the guest (import).
+// RegisterImportWrapFn registers a wrapped host function exposed to the guest (import). RegisterImportWrapFn allows for
+// more control over the function wrapper than RegisterImportFn.
 func (l *Link) RegisterImportWrapFn(module, name string, paramCount int, f func(caller *program.Caller, args ...wasmtime.Val) (*types.Val, error)) error {
 	fn := func(caller *wasmtime.Caller, args []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 		if l.cb.BeforeRequest != nil {

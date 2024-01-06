@@ -46,7 +46,7 @@ var (
 func HandleTrapError(err error) error {
 	trap, ok := err.(*wasmtime.Trap)
 	if !ok {
-		return err
+		return fmt.Errorf("error is not a wasmtime.Trap error: %w", err)
 	}
 
 	var trapErr error

@@ -28,7 +28,6 @@ func (f *Func) Call(params ...SmartPtr) ([]int64, error) {
 	if len(params) != len(fnParams) {
 		return nil, fmt.Errorf("%w for function: %d expected: %d", ErrInvalidParamCount, len(params), len(fnParams))
 	}
-
 	// convert the args to the expected wasm types
 	callParams, err := mapFunctionParams(params, fnParams)
 	if err != nil {
@@ -75,7 +74,6 @@ func mapFunctionParams(input []SmartPtr, values []*wasmtime.ValType) ([]interfac
 			return nil, fmt.Errorf("%w: %v", ErrInvalidParamType, v.Kind())
 		}
 	}
-
 	return params, nil
 }
 

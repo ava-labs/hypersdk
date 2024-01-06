@@ -44,11 +44,33 @@ func (i *Import) Name() string {
 func (i *Import) Register(link *host.Link) error {
 	i.meter = link.Meter()
 	wrap := wrap.New(link)
-	if err := wrap.RegisterThreeParamInt64Fn(Name, "put", i.putFn); err != nil {
+	if err := wrap.RegisterAnyParamFn(Name, "put", 3, i.putFnVariadic); err != nil {
 		return err
 	}
-	return wrap.RegisterTwoParamInt64Fn(Name, "get", i.getFn)
+	return wrap.RegisterAnyParamFn(Name, "get", 2, i.getFnVariadic)
 }
+
+func (i *Import) putFnVariadic(caller *program.Caller, args ...int64) (*types.Val, error) {
+	if len(args) != 3 {
+		return nil, errors.New("expected 3 arguments")
+	}
+	return i.putFn(caller, args[0], args[1], args[2])
+}
+
+func (i *Import) getFnVariadic(caller *program.Caller, args ...int64) (*types.Val, error) {
+	if len(args) != 2 {
+		return nil, errors.New("expected 2 arguments")
+	}
+	return i.getFn(caller, args[0], args[1])
+}
+
+type MsgLevel int
+const (
+	None MsgLevel = iota
+	Info
+	Error
+	Panic
+)
 
 func (i *Import) putFn(caller *program.Caller, id int64, key int64, value int64) (*types.Val, error) {
 	memory, err := caller.Memory()
@@ -123,13 +145,16 @@ func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val,
 	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
 	val, err := i.mu.GetValue(context.Background(), k)
 	if err != nil {
-		if !errors.Is(err, database.ErrNotFound) {
-			i.log.Error("failed to get value from storage",
-				zap.Error(err),
-			)
+		if errors.Is(err, database.ErrNotFound) {
+			// TODO: return a more descriptive error
+			return types.ValI64(-1), nil
 		}
+		i.log.Error("failed to get value from storage",
+			zap.Error(err),
+		)
 		return nil, err
 	}
+
 	if err != nil {
 		i.log.Error("failed to convert program id to id",
 			zap.Error(err),
