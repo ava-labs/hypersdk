@@ -75,7 +75,7 @@ func mapFunctionParams(input []SmartPtr, values []*wasmtime.ValType) ([]interfac
 			return nil, fmt.Errorf("%w: %v", ErrInvalidParamType, v.Kind())
 		}
 	}
-	
+
 	return params, nil
 }
 
