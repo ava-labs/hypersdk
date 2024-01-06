@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
+	"github.com/ava-labs/hypersdk/x/programs/host"
 )
 
 func TestStop(t *testing.T) {
@@ -34,7 +35,7 @@ func TestStop(t *testing.T) {
 	maxUnits := uint64(10000)
 	cfg := NewConfig().SetLimitMaxMemory(1 * MemoryPageSize)
 	eng := engine.New(engine.NewConfig())
-	runtime := New(logging.NoLog{}, eng, NoSupportedImports, cfg)
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 	// stop the runtime
@@ -67,7 +68,7 @@ func TestCallParams(t *testing.T) {
 	cfg := NewConfig().SetLimitMaxMemory(1 * MemoryPageSize)
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
-	runtime := New(logging.NoLog{}, eng, NoSupportedImports, cfg)
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 
@@ -99,7 +100,7 @@ func TestInfiniteLoop(t *testing.T) {
 	cfg := NewConfig().SetLimitMaxMemory(1 * MemoryPageSize)
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
-	runtime := New(logging.NoLog{}, eng, NoSupportedImports, cfg)
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 
@@ -128,7 +129,7 @@ func TestMetering(t *testing.T) {
 	cfg := NewConfig().SetLimitMaxMemory(1 * MemoryPageSize)
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
-	runtime := New(logging.NoLog{}, eng, NoSupportedImports, cfg)
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 	balance, err := runtime.Meter().GetBalance()
@@ -165,7 +166,7 @@ func TestMeterAfterStop(t *testing.T) {
 	cfg := NewConfig().SetLimitMaxMemory(1 * MemoryPageSize)
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
-	runtime := New(logging.NoLog{}, eng, NoSupportedImports, cfg)
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 

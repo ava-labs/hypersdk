@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
+	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/ava-labs/hypersdk/x/programs/tests"
 )
@@ -40,16 +41,17 @@ func TestCounterProgram(t *testing.T) {
 
 	eng := engine.New(engine.NewConfig())
 	// define supported imports
-	supported := runtime.NewSupportedImports()
-	supported.Register("state", func() runtime.Import {
+	importsBuilder := host.NewImportsBuilder()
+	importsBuilder.Register("state", func() host.Import {
 		return pstate.New(log, db)
 	})
-	supported.Register("program", func() runtime.Import {
+	importsBuilder.Register("program", func() host.Import {
 		return program.New(log, eng, db, cfg)
 	})
+	imports := importsBuilder.Build()
 
 	wasmBytes := tests.ReadFixture(t, "../tests/fixture/counter.wasm")
-	rt := runtime.New(log, eng, supported.Imports(), cfg)
+	rt := runtime.New(log, eng, imports, cfg)
 	err := rt.Initialize(ctx, wasmBytes, maxUnits)
 	require.NoError(err)
 
@@ -85,7 +87,7 @@ func TestCounterProgram(t *testing.T) {
 
 	// initialize second runtime to create second counter program with an empty
 	// meter.
-	rt2 := runtime.New(log, eng, supported.Imports(), cfg)
+	rt2 := runtime.New(log, eng, imports, cfg)
 	err = rt2.Initialize(ctx, wasmBytes, engine.NoUnits)
 
 	require.NoError(err)

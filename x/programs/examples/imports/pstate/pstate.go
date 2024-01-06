@@ -6,7 +6,6 @@ package pstate
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
@@ -18,45 +17,36 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
+	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-const Name = "state"
+var _ host.Import = (*Import)(nil)
 
-var _ runtime.Import = &Import{}
+const Name = "state"
 
 // New returns a program storage module capable of storing arbitrary bytes
 // in the program's namespace.
-func New(log logging.Logger, mu state.Mutable) runtime.Import {
+func New(log logging.Logger, mu state.Mutable) host.Import {
 	return &Import{mu: mu, log: log}
 }
 
 type Import struct {
-	mu         state.Mutable
-	log        logging.Logger
-	meter      *engine.Meter
-	registered bool
+	mu    state.Mutable
+	log   logging.Logger
+	meter *engine.Meter
 }
 
 func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link runtime.Link, meter *engine.Meter, _ runtime.SupportedImports) error {
-	if i.registered {
-		return fmt.Errorf("import module already registered: %q", Name)
-	}
-	i.meter = meter
-	i.registered = true
-
-	if err := link.FuncWrap(Name, "put", i.putFn); err != nil {
+func (i *Import) Register(link *host.Link) error {
+	i.meter = link.Meter()
+	if err := link.RegisterImportFn(Name, "put", i.putFn); err != nil {
 		return err
 	}
-	if err := link.FuncWrap(Name, "get", i.getFn); err != nil {
-		return err
-	}
-
-	return nil
+	return link.RegisterImportFn(Name, "get", i.getFn)
 }
 
 func (i *Import) putFn(caller *wasmtime.Caller, id int64, key int64, value int64) int32 {

@@ -10,21 +10,6 @@ import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
-type EngineCompileStrategy uint8
-
-const (
-	// CompileWasm will compile the wasm module before instantiating it.
-	CompileWasm EngineCompileStrategy = iota
-	// PrecompiledWasm accepts a precompiled wasm module serialized by an Engine.
-	PrecompiledWasm
-)
-
-var NoSupportedImports = make(SupportedImports)
-
-type Link struct {
-	*wasmtime.Linker
-}
-
 type Runtime interface {
 	// Initialize initializes the runtime with the given program bytes and max
 	// units. The engine will handle the compile strategy and instantiate the
@@ -50,17 +35,6 @@ type WasmtimeExportClient interface {
 	GetMemory() (*wasmtime.Memory, error)
 	// GetExportedTable returns the store exported by the guest module.
 	Store() wasmtime.Storelike
-}
-
-type Imports map[string]Import
-
-// Import defines host functions exposed by this runtime that can be imported by
-// a guest module.
-type Import interface {
-	// Name returns the name of this import module.
-	Name() string
-	// Instantiate instantiates an all of the functions exposed by this import module.
-	Register(Link, *engine.Meter, SupportedImports) error
 }
 
 // Memory defines the interface for interacting with memory.

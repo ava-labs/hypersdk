@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
+	"github.com/ava-labs/hypersdk/x/programs/host"
 )
 
 var _ Runtime = &WasmRuntime{}
@@ -20,7 +21,7 @@ var _ Runtime = &WasmRuntime{}
 func New(
 	log logging.Logger,
 	engine *engine.Engine,
-	imports SupportedImports,
+	imports host.SupportedImports,
 	cfg *Config,
 ) Runtime {
 	return &WasmRuntime{
@@ -43,7 +44,7 @@ type WasmRuntime struct {
 	once     sync.Once
 	cancelFn context.CancelFunc
 
-	imports SupportedImports
+	imports host.SupportedImports
 
 	log logging.Logger
 }
@@ -75,6 +76,12 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 		return err
 	}
 
+	// setup metering
+	r.meter, err = engine.NewMeter(r.store)
+	if err != nil {
+		return err
+	}
+
 	// create module
 	r.mod, err = engine.NewModule(r.engine, programBytes, r.cfg.CompileStrategy)
 	if err != nil {
@@ -82,22 +89,10 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	}
 
 	// create linker
-	link := Link{wasmtime.NewLinker(r.store.GetEngine())}
+	link := host.NewLink(r.log, r.store.GetEngine(), r.imports, r.meter, r.cfg.EnableDebugMode)
 
-	// enable wasi logging support only in testing/debug mode
-	if r.cfg.EnableDebugMode {
-		wasiConfig := wasmtime.NewWasiConfig()
-		wasiConfig.InheritStderr()
-		wasiConfig.InheritStdout()
-		r.store.SetWasi(wasiConfig)
-		err = link.DefineWasi()
-		if err != nil {
-			return err
-		}
-	}
-
-	// setup metering
-	r.meter, err = engine.NewMeter(r.store)
+	// instantiate the module with all of the imports defined by the linker
+	r.inst, err = link.Instantiate(r.store, r.mod, r.cfg.ImportFnCallback)
 	if err != nil {
 		return err
 	}
@@ -105,46 +100,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	// setup client capable of calling exported functions
 	r.exp = newExportClient(r.inst, r.store.Get())
 
-	imports := getRegisteredImportModules(r.mod.Imports())
-	// register host functions exposed to the guest (imports)
-	for _, imp := range imports {
-		// registered separately by linker
-		mod, ok := r.imports[imp]
-		if !ok {
-			return fmt.Errorf("%w: %s", ErrMissingImportModule, imp)
-		}
-		err = mod().Register(link, r.meter, r.imports)
-		if err != nil {
-			return err
-		}
-	}
-
-	// instantiate the module with all of the imports defined by the linker
-	r.inst, err = link.Instantiate(r.store.Get(), r.mod)
-	if err != nil {
-		return err
-	}
-
 	return nil
-}
-
-// getRegisteredImportModules returns the unique names of all import modules registered
-// by the wasm module.
-func getRegisteredImportModules(importTypes []*wasmtime.ImportType) []string {
-	u := make(map[string]struct{}, len(importTypes))
-	imports := []string{}
-	for _, t := range importTypes {
-		mod := t.Module()
-		if mod == wasiPreview1ModName {
-			continue
-		}
-		if _, ok := u[mod]; ok {
-			continue
-		}
-		u[mod] = struct{}{}
-		imports = append(imports, mod)
-	}
-	return imports
 }
 
 func (r *WasmRuntime) Call(_ context.Context, name string, params ...SmartPtr) ([]int64, error) {

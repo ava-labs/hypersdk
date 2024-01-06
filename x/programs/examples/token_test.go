@@ -14,6 +14,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
+	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/ava-labs/hypersdk/x/programs/tests"
 )
@@ -113,10 +114,10 @@ func newTokenProgram(maxUnits uint64, engine *engine.Engine, cfg *runtime.Config
 		))
 
 	// define imports
-	supported := runtime.NewSupportedImports()
-	supported.Register("state", func() runtime.Import {
+	importsBuilder := host.NewImportsBuilder()
+	importsBuilder.Register("state", func() host.Import {
 		return pstate.New(log, db)
 	})
 
-	return NewToken(log, engine, programBytes, db, cfg, supported.Imports(), maxUnits), nil
+	return NewToken(log, engine, programBytes, db, cfg, importsBuilder.Build(), maxUnits), nil
 }

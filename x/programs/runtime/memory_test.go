@@ -8,11 +8,15 @@ import (
 	_ "embed"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/bytecodealliance/wasmtime-go/v14"
+
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/logging"
+
 	"github.com/ava-labs/hypersdk/x/programs/engine"
-	"github.com/bytecodealliance/wasmtime-go/v14"
-	"github.com/stretchr/testify/require"
+	"github.com/ava-labs/hypersdk/x/programs/host"
 )
 
 func TestLimitMaxMemory(t *testing.T) {
@@ -33,7 +37,7 @@ func TestLimitMaxMemory(t *testing.T) {
 	cfg := NewConfig().SetLimitMaxMemory(1 * MemoryPageSize)
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
-	runtime := New(logging.NoLog{}, eng, NoSupportedImports, cfg)
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 	err = runtime.Initialize(context.Background(), wasm, maxUnits)
 	require.ErrorContains(err, "memory minimum size of 2 pages exceeds memory limits")
 }
@@ -54,7 +58,7 @@ func TestLimitMaxMemoryGrow(t *testing.T) {
 	cfg := NewConfig().SetLimitMaxMemory(1 * MemoryPageSize)
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
-	runtime := New(logging.NoLog{}, eng, NoSupportedImports, cfg)
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 	err = runtime.Initialize(context.Background(), wasm, maxUnits)
 	require.NoError(err)
 
@@ -82,7 +86,7 @@ func TestWriteExceedsLimitMaxMemory(t *testing.T) {
 	maxUnits := uint64(1)
 	cfg := NewConfig().SetLimitMaxMemory(1 * MemoryPageSize)
 	eng := engine.New(engine.NewConfig())
-	runtime := New(logging.NoLog{}, eng, NoSupportedImports, cfg)
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 	err = runtime.Initialize(context.Background(), wasm, maxUnits)
 	require.NoError(err)
 	maxMemory, err := runtime.Memory().Len()
@@ -114,7 +118,7 @@ func TestWithMaxWasmStack(t *testing.T) {
 	require.NoError(err)
 	eng := engine.New(ecfg)
 	cfg := NewConfig()
-	runtime := New(logging.NoLog{}, eng, NoSupportedImports, cfg)
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 	err = runtime.Initialize(context.Background(), wasm, maxUnits)
 	require.NoError(err)
 	_, err = runtime.Call(context.Background(), "get")
@@ -126,7 +130,7 @@ func TestWithMaxWasmStack(t *testing.T) {
 		Build()
 	require.NoError(err)
 	eng = engine.New(ecfg)
-	runtime = New(logging.NoLog{}, eng, NoSupportedImports, cfg)
+	runtime = New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 	err = runtime.Initialize(context.Background(), wasm, maxUnits)
 	require.NoError(err)
 	// exceed the stack limit

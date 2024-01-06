@@ -6,7 +6,6 @@ package program
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 
 	"go.uber.org/zap"
 
@@ -19,26 +18,29 @@ import (
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
+	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
+
+var _ host.Import = (*Import)(nil)
 
 const Name = "program"
 
 type Import struct {
-	cfg        *runtime.Config
-	db         state.Mutable
-	log        logging.Logger
-	imports    runtime.SupportedImports
-	meter      *engine.Meter
-	engine     *engine.Engine
-	registered bool
+	mu  state.Mutable
+	log logging.Logger
+	cfg *runtime.Config
+
+	engine  *engine.Engine
+	meter   *engine.Meter
+	imports host.SupportedImports
 }
 
 // New returns a new program invoke host module which can perform program to program calls.
-func New(log logging.Logger, engine *engine.Engine, db state.Mutable, cfg *runtime.Config) *Import {
+func New(log logging.Logger, engine *engine.Engine, mu state.Mutable, cfg *runtime.Config) *Import {
 	return &Import{
 		cfg:    cfg,
-		db:     db,
+		mu:     mu,
 		log:    log,
 		engine: engine,
 	}
@@ -48,18 +50,10 @@ func (i *Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link runtime.Link, meter *engine.Meter, imports runtime.SupportedImports) error {
-	if i.registered {
-		return fmt.Errorf("import module already registered: %q", Name)
-	}
-	i.imports = imports
-	i.meter = meter
-
-	if err := link.FuncWrap(Name, "call_program", i.callProgramFn); err != nil {
-		return err
-	}
-
-	return nil
+func (i *Import) Register(link *host.Link) error {
+	i.meter = link.Meter()
+	i.imports = link.Imports()
+	return link.RegisterImportFn(Name, "call_program", i.callProgramFn)
 }
 
 // callProgramFn makes a call to an entry function of a program in the context of another program's ID.
@@ -73,6 +67,7 @@ func (i *Import) callProgramFn(
 ) int64 {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	// get the entry function for invoke to call.
 	functionBytes, err := runtime.SmartPtr(function).Bytes(memory)
@@ -92,7 +87,7 @@ func (i *Import) callProgramFn(
 	}
 
 	// get the program bytes from storage
-	programWasmBytes, err := getProgramWasmBytes(i.log, i.db, programIDBytes)
+	programWasmBytes, err := getProgramWasmBytes(i.log, i.mu, programIDBytes)
 	if err != nil {
 		i.log.Error("failed to get program bytes from storage",
 			zap.Error(err),
