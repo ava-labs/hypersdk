@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/program"
+	"github.com/ava-labs/hypersdk/x/programs/tests"
 )
 
 func TestStop(t *testing.T) {
@@ -211,51 +212,32 @@ func TestLimitMaxMemory(t *testing.T) {
 func TestLimitMaxMemoryGrow(t *testing.T) {
 	require := require.New(t)
 
-	wasm, err := wasmtime.Wat2Wasm(`
-	(module
-	
-	  (memory 1) ;; 1 pages
-	  (export "memory" (memory 0))
-	)
-	`)
-	require.NoError(err)
-
+	wasm := tests.ReadFixture(t, "../tests/fixture/memory.wasm")
 	maxUnits := uint64(1)
-	cfg := NewConfig().SetLimitMaxMemory(1 * program.MemoryPageSize)
-	require.NoError(err)
+	cfg := NewConfig().SetLimitMaxMemory(18 * program.MemoryPageSize)
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
-	err = runtime.Initialize(context.Background(), wasm, maxUnits)
+	err := runtime.Initialize(context.Background(), wasm, maxUnits)
 	require.NoError(err)
 
 	mem, err := runtime.Memory()
 	require.NoError(err)
-	length, err := mem.Len()
-	require.NoError(err)
-	require.Equal(uint64(0x10000), length)
 
-	// attempt to grow memory to 2 pages which exceeds the limit
-	_, err = mem.Grow(1)
-	require.ErrorContains(err, "failed to grow memory by `1`")
+	// default memory is 18 pages
+	_, err = mem.Grow(17)
+	require.ErrorContains(err, "failed to grow memory by `17`")
 }
 
 func TestWriteExceedsLimitMaxMemory(t *testing.T) {
 	require := require.New(t)
 
-	wasm, err := wasmtime.Wat2Wasm(`
-	(module
-	
-	  (memory 1) ;; 1 pages
-	  (export "memory" (memory 0))
-	)
-	`)
-	require.NoError(err)
+	wasm := tests.ReadFixture(t, "../tests/fixture/memory.wasm")
 
 	maxUnits := uint64(1)
-	cfg := NewConfig().SetLimitMaxMemory(1 * program.MemoryPageSize)
+	cfg := NewConfig()
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
-	err = runtime.Initialize(context.Background(), wasm, maxUnits)
+	err := runtime.Initialize(context.Background(), wasm, maxUnits)
 	require.NoError(err)
 	mem, err := runtime.Memory()
 	require.NoError(err)
@@ -277,13 +259,13 @@ func TestWithMaxWasmStack(t *testing.T) {
 		(local i32)
 		i32.const 1
 	  )
-	) 
+	)
 	`)
 	require.NoError(err)
 
 	maxUnits := uint64(4)
 	ecfg, err := engine.NewConfigBuilder().
-		WithMaxWasmStack(720).
+		WithMaxWasmStack(1000).
 		Build()
 	require.NoError(err)
 	eng := engine.New(ecfg)

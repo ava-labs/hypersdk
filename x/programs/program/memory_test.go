@@ -42,7 +42,7 @@ func TestMemory(t *testing.T) {
 
 func newTestMemory(t *testing.T) *Memory {
 	require := require.New(t)
-	wasmBytes := tests.ReadFixture(t, "../tests/fixture/token.wasm")
+	wasmBytes := tests.ReadFixture(t, "../tests/fixture/memory.wasm")
 
 	// create new instance
 	eng := engine.New(engine.NewConfig())
@@ -53,7 +53,6 @@ func newTestMemory(t *testing.T) *Memory {
 	require.NoError(err)
 	inst, err := wasmtime.NewInstance(store.Get(), mod, nil)
 	require.NoError(err)
-
 	// get alloc export func
 	alloc := inst.GetExport(store.Get(), AllocFnName)
 	require.NotNil(alloc)
