@@ -64,14 +64,6 @@ func (i *Import) getFnVariadic(caller *program.Caller, args ...int64) (*types.Va
 	return i.getFn(caller, args[0], args[1])
 }
 
-type MsgLevel int
-const (
-	None MsgLevel = iota
-	Info
-	Error
-	Panic
-)
-
 func (i *Import) putFn(caller *program.Caller, id int64, key int64, value int64) (*types.Val, error) {
 	memory, err := caller.Memory()
 	if err != nil {
