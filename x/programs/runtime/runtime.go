@@ -5,7 +5,6 @@ package runtime
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
@@ -13,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/host"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 )
 
 var _ Runtime = &WasmRuntime{}
@@ -33,18 +33,14 @@ func New(
 }
 
 type WasmRuntime struct {
-	engine *engine.Engine
-	store  *engine.Store
-	inst   *wasmtime.Instance
-	mod    *wasmtime.Module
-	exp    WasmtimeExportClient
-	meter  *engine.Meter
-	cfg    *Config
+	engine  *engine.Engine
+	meter   *engine.Meter
+	inst    program.Instance
+	imports host.SupportedImports
+	cfg     *Config
 
 	once     sync.Once
 	cancelFn context.CancelFunc
-
-	imports host.SupportedImports
 
 	log logging.Logger
 }
@@ -60,96 +56,60 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	// create store
 	cfg := engine.NewStoreConfig()
 	cfg.SetLimitMaxMemory(r.cfg.LimitMaxMemory)
-	r.store = engine.NewStore(r.engine, cfg)
+	store := engine.NewStore(r.engine, cfg)
 
 	// enable wasi logging support only in debug mode
 	if r.cfg.EnableDebugMode {
 		wasiConfig := wasmtime.NewWasiConfig()
 		wasiConfig.InheritStderr()
 		wasiConfig.InheritStdout()
-		r.store.SetWasi(wasiConfig)
+		store.SetWasi(wasiConfig)
 	}
 
 	// add metered units to the store
-	err = r.store.AddUnits(maxUnits)
+	err = store.AddUnits(maxUnits)
 	if err != nil {
 		return err
 	}
 
 	// setup metering
-	r.meter, err = engine.NewMeter(r.store)
+	r.meter, err = engine.NewMeter(store)
 	if err != nil {
 		return err
 	}
 
 	// create module
-	r.mod, err = engine.NewModule(r.engine, programBytes, r.cfg.CompileStrategy)
+	mod, err := engine.NewModule(r.engine, programBytes, r.cfg.CompileStrategy)
 	if err != nil {
 		return err
 	}
 
 	// create linker
-	link := host.NewLink(r.log, r.store.GetEngine(), r.imports, r.meter, r.cfg.EnableDebugMode)
+	link := host.NewLink(r.log, store.GetEngine(), r.imports, r.meter, r.cfg.EnableDebugMode)
 
 	// instantiate the module with all of the imports defined by the linker
-	r.inst, err = link.Instantiate(r.store, r.mod, r.cfg.ImportFnCallback)
+	inst, err := link.Instantiate(store, mod, r.cfg.ImportFnCallback)
 	if err != nil {
 		return err
 	}
 
-	// setup client capable of calling exported functions
-	r.exp = newExportClient(r.inst, r.store.Get())
+	// set the instance
+	r.inst = NewInstance(store, inst)
 
 	return nil
 }
 
-func (r *WasmRuntime) Call(_ context.Context, name string, params ...SmartPtr) ([]int64, error) {
-	var fnName string
-	switch name {
-	case AllocFnName, DeallocFnName, MemoryFnName:
-		fnName = name
-	default:
-		// the SDK will append the guest suffix to the function name
-		fnName = name + guestSuffix
-	}
-
-	fn := r.inst.GetFunc(r.store.Get(), fnName)
-	if fn == nil {
-		return nil, fmt.Errorf("%w: %s", ErrMissingExportedFunction, name)
-	}
-
-	fnParams := fn.Type(r.store.Get()).Params()
-	if len(params) != len(fnParams) {
-		return nil, fmt.Errorf("%w for function %s: %d expected: %d", ErrInvalidParamCount, name, len(params), len(fnParams))
-	}
-
-	callParams, err := mapFunctionParams(params, fnParams)
+func (r *WasmRuntime) Call(_ context.Context, name string, params ...program.SmartPtr) ([]int64, error) {
+	fn, err := r.inst.GetFunc(name)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := fn.Call(r.store.Get(), callParams...)
-	if err != nil {
-		return nil, fmt.Errorf("export function call failed %s: %w", name, handleTrapError(err))
-	}
-
-	switch v := result.(type) {
-	case int32:
-		value := int64(result.(int32))
-		return []int64{value}, nil
-	case int64:
-		value := result.(int64)
-		return []int64{value}, nil
-	case nil:
-		// the function had no return values
-		return nil, nil
-	default:
-		return nil, fmt.Errorf("invalid result type: %v", v)
-	}
+	return fn.Call(params...)
 }
 
-func (r *WasmRuntime) Memory() Memory {
-	return NewMemory(newExportClient(r.inst, r.store.Get()))
+func (r *WasmRuntime) Memory() (*program.Memory, error) {
+	return r.inst.Memory()
 }
 
 func (r *WasmRuntime) Meter() *engine.Meter {
@@ -163,25 +123,4 @@ func (r *WasmRuntime) Stop() {
 		r.engine.Stop()
 		r.cancelFn()
 	})
-}
-
-// mapFunctionParams maps call input to the expected wasm function params.
-func mapFunctionParams(input []SmartPtr, values []*wasmtime.ValType) ([]interface{}, error) {
-	params := make([]interface{}, len(values))
-	for i, v := range values {
-		switch v.Kind() {
-		case wasmtime.KindI32:
-			// ensure this value is within the range of an int32
-			if !EnsureIntToInt32(int(input[i])) {
-				return nil, fmt.Errorf("%w: %d", ErrIntegerConversionOverflow, input[i])
-			}
-			params[i] = int32(input[i])
-		case wasmtime.KindI64:
-			params[i] = int64(input[i])
-		default:
-			return nil, fmt.Errorf("%w: %v", ErrInvalidParamType, v.Kind())
-		}
-	}
-
-	return params, nil
 }

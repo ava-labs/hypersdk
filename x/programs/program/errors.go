@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package runtime
+package program
 
 import (
 	"errors"
@@ -12,17 +12,19 @@ import (
 
 var (
 	ErrMissingExportedFunction      = errors.New("failed to find exported function")
-	ErrMissingImportModule          = errors.New("failed to find import module")
 	ErrMissingInvalidMemoryFunction = errors.New("memory function is invalid")
-	ErrInvalidMemorySize            = errors.New("invalid memory size")
-	ErrInvalidMemoryAddress         = errors.New("invalid memory address: must be positive")
-	ErrInvalidParamCount            = errors.New("invalid parameter count")
-	ErrInvalidParamType             = errors.New("invalid parameter type")
 	ErrRuntimeStoreSet              = errors.New("runtime store has already been set")
-	ErrNegativeValue                = errors.New("negative value")
-	ErrIntegerConversionOverflow    = errors.New("integer overflow during conversion")
-	ErrOverflow                     = errors.New("overflow")
-	ErrUnderflow                    = errors.New("underflow")
+	ErrOverflow                     = fmt.Errorf("overflow")
+	ErrUnderflow                    = fmt.Errorf("underflow")
+	ErrInvalidType                  = fmt.Errorf("invalid type")
+
+	// Memory
+	ErrInvalidMemorySize    = errors.New("invalid memory size")
+	ErrInvalidMemoryAddress = errors.New("invalid memory address: must be positive")
+
+	// Func
+	ErrInvalidParamCount = errors.New("invalid param count")
+	ErrInvalidParamType  = errors.New("invalid param type")
 
 	// Trap errors
 	ErrTrapStackOverflow          = errors.New("the current stack space was exhausted")
@@ -40,11 +42,11 @@ var (
 	ErrTrapOutOfFuel              = errors.New("the program ran out of units")
 )
 
-// handleTrapError returns the error message from a wasmtime Trap
-func handleTrapError(err error) error {
+// HandleTrapError returns the error message from a wasmtime Trap
+func HandleTrapError(err error) error {
 	trap, ok := err.(*wasmtime.Trap)
 	if !ok {
-		return err
+		return fmt.Errorf("error is not a wasmtime.Trap error: %w", err)
 	}
 
 	var trapErr error

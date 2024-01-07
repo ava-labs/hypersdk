@@ -14,6 +14,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
+	"github.com/ava-labs/hypersdk/x/programs/program"
+	"github.com/ava-labs/hypersdk/x/programs/program/types"
 )
 
 var ErrMissingImportModule = errors.New("failed to find import module")
@@ -100,6 +102,51 @@ func (l *Link) RegisterImportFn(module, name string, f interface{}) error {
 		return f
 	}
 	return l.wasmLink.FuncWrap(module, name, wrapper())
+}
+
+// RegisterImportWrapFn registers a wrapped host function exposed to the guest (import). RegisterImportWrapFn allows for
+// more control over the function wrapper than RegisterImportFn.
+func (l *Link) RegisterImportWrapFn(module, name string, paramCount int, f func(caller *program.Caller, args ...wasmtime.Val) (*types.Val, error)) error {
+	fn := func(caller *wasmtime.Caller, args []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
+		if l.cb.BeforeRequest != nil {
+			err := l.cb.BeforeRequest(module, name, l.meter)
+			if err != nil {
+				// fail fast
+				return nil, wasmtime.NewTrap(err.Error())
+			}
+		}
+		if l.cb.AfterResponse != nil {
+			defer func() {
+				err := l.cb.AfterResponse(module, name, l.meter)
+				if err != nil {
+					l.log.Error("after response callback failed",
+						zap.Error(err),
+					)
+					l.wasmLink.Engine.IncrementEpoch()
+				}
+			}()
+		}
+
+		val, err := f(program.NewCaller(caller), args...)
+		if err != nil {
+			return nil, wasmtime.NewTrap(err.Error())
+		}
+
+		return []wasmtime.Val{val.Wasmtime()}, nil
+	}
+
+	// TODO: support other types?
+	valType := make([]*wasmtime.ValType, paramCount)
+	for i := 0; i < paramCount; i++ {
+		valType[i] = wasmtime.NewValType(wasmtime.KindI64)
+	}
+
+	funcType := wasmtime.NewFuncType(
+		valType,
+		[]*wasmtime.ValType{wasmtime.NewValType(wasmtime.KindI64)},
+	)
+
+	return l.wasmLink.FuncNew(module, name, funcType, fn)
 }
 
 // EnableWasi enables wasi support for the link.

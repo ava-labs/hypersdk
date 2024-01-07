@@ -8,7 +8,7 @@ use borsh::{to_vec, BorshSerialize};
 #[link(wasm_import_module = "state")]
 extern "C" {
     #[link_name = "put"]
-    fn _put(caller: i64, key: i64, value: i64) -> i32;
+    fn _put(caller: i64, key: i64, value: i64) -> i64;
 
     #[link_name = "get"]
     fn _get(caller: i64, key: i64) -> i64;
