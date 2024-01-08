@@ -63,7 +63,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	programIDPtr, err := argumentToHostPtr(programID, rt.Memory())
+	programIDPtr, err := argumentToRuntimePtr(programID, rt.Memory())
 	if err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := argumentToHostPtr(aliceKey, rt.Memory())
+	alicePtr, err := argumentToRuntimePtr(aliceKey, rt.Memory())
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write bob's key to stack and get pointer
-	bobPtr, err := argumentToHostPtr(bobKey, rt.Memory())
+	bobPtr, err := argumentToRuntimePtr(bobKey, rt.Memory())
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// mint 100 tokens to alice
 	mintAlice := int64(1000)
-	mintAlicePtr, err := argumentToHostPtr(mintAlice, rt.Memory())
+	mintAlicePtr, err := argumentToRuntimePtr(mintAlice, rt.Memory())
 	if err != nil {
 		return err
 	}
@@ -158,7 +158,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// transfer 50 from alice to bob
 	transferToBob := int64(50)
-	transferToBobPtr, err := argumentToHostPtr(transferToBob, rt.Memory())
+	transferToBobPtr, err := argumentToRuntimePtr(transferToBob, rt.Memory())
 	if err != nil {
 		return err
 	}
@@ -171,7 +171,7 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("to bob", transferToBob),
 	)
 
-	onePtr, err := argumentToHostPtr(int64(1), rt.Memory())
+	onePtr, err := argumentToRuntimePtr(int64(1), rt.Memory())
 	if err != nil {
 		return err
 	}
@@ -217,7 +217,7 @@ func (t *Token) Run(ctx context.Context) error {
 		},
 	}
 
-	mintersPtr, err := argumentToHostPtr(minters, rt.Memory())
+	mintersPtr, err := argumentToRuntimePtr(minters, rt.Memory())
 	if err != nil {
 		return err
 	}
@@ -270,7 +270,7 @@ func (t *Token) RunShort(ctx context.Context) error {
 		return err
 	}
 
-	programIDPtr, err := argumentToHostPtr(programID, rt.Memory())
+	programIDPtr, err := argumentToRuntimePtr(programID, rt.Memory())
 	if err != nil {
 		return err
 	}

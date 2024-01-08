@@ -61,7 +61,7 @@ func (i *Import) Register(link runtime.Link, meter runtime.Meter, _ runtime.Supp
 func (i *Import) putFn(caller *wasmtime.Caller, id int64, key int64, value int64) int32 {
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	// memory := runtime.NewMemory(client)
-	programIDBytes, err := runtime.HostPtr(id).Bytes(memory)
+	programIDBytes, err := runtime.RuntimePtr(id).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read program id from memory",
 			zap.Error(err),
@@ -69,7 +69,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, id int64, key int64, value int64
 		return -1
 	}
 
-	keyBytes, err := runtime.HostPtr(key).Bytes(memory)
+	keyBytes, err := runtime.RuntimePtr(key).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read key from memory",
 			zap.Error(err),
@@ -77,7 +77,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, id int64, key int64, value int64
 		return -1
 	}
 
-	valueBytes, err := runtime.HostPtr(value).Bytes(memory)
+	valueBytes, err := runtime.RuntimePtr(value).Bytes(memory)
 
 	if err != nil {
 		i.log.Error("failed to read value from memory",
@@ -101,7 +101,7 @@ func (i *Import) putFn(caller *wasmtime.Caller, id int64, key int64, value int64
 func (i *Import) getFn(caller *wasmtime.Caller, id int64, key int64) int64 {
 	client := runtime.NewExportClient(caller)
 	memory := runtime.NewMemory(client)
-	programIDBytes, err := runtime.HostPtr(id).Bytes(memory)
+	programIDBytes, err := runtime.RuntimePtr(id).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read program id from memory",
 			zap.Error(err),
@@ -109,7 +109,7 @@ func (i *Import) getFn(caller *wasmtime.Caller, id int64, key int64) int64 {
 		return -1
 	}
 
-	keyBytes, err := runtime.HostPtr(key).Bytes(memory)
+	keyBytes, err := runtime.RuntimePtr(key).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read key from memory",
 			zap.Error(err),
@@ -142,7 +142,7 @@ func (i *Import) getFn(caller *wasmtime.Caller, id int64, key int64) int64 {
 		}
 		return -1
 	}
-	argPtr, err := runtime.NewHostPtr(uint32(ptr), len(val))
+	argPtr, err := runtime.NewRuntimePtr(uint32(ptr), len(val))
 	if err != nil {
 		i.log.Error("failed to convert ptr to argument",
 			zap.Error(err),

@@ -72,7 +72,7 @@ func (i *Import) callProgramFn(
 	defer cancel()
 	memory := runtime.NewMemory(runtime.NewExportClient(caller))
 	// get the entry function for invoke to call.
-	functionBytes, err := runtime.HostPtr(function).Bytes(memory)
+	functionBytes, err := runtime.RuntimePtr(function).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read function name from memory",
 			zap.Error(err),
@@ -80,7 +80,7 @@ func (i *Import) callProgramFn(
 		return -1
 	}
 
-	programIDBytes, err := runtime.HostPtr(programID).Bytes(memory)
+	programIDBytes, err := runtime.RuntimePtr(programID).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read id from memory",
 			zap.Error(err),
@@ -131,7 +131,7 @@ func (i *Import) callProgramFn(
 		}
 	}()
 
-	argsBytes, err := runtime.HostPtr(args).Bytes(memory)
+	argsBytes, err := runtime.RuntimePtr(args).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read program args name from memory",
 			zap.Error(err),
@@ -160,18 +160,18 @@ func (i *Import) callProgramFn(
 }
 
 // getCallArgs returns the arguments to be passed to the program being invoked from [buffer].
-func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, programIDBytes []byte) ([]runtime.HostPtr, error) {
+func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, programIDBytes []byte) ([]runtime.RuntimePtr, error) {
 	// first arg contains id of program to call
 	invokeProgramIDPtr, err := runtime.WriteBytes(memory, programIDBytes)
 	if err != nil {
 		return nil, err
 	}
-	argPtr, err := runtime.NewHostPtr(uint32(invokeProgramIDPtr), len(programIDBytes))
+	argPtr, err := runtime.NewRuntimePtr(uint32(invokeProgramIDPtr), len(programIDBytes))
 	if err != nil {
 		return nil, err
 	}
 
-	args := []runtime.HostPtr{argPtr}
+	args := []runtime.RuntimePtr{argPtr}
 
 	for i := 0; i < len(buffer); {
 		// unpacks uint32
@@ -186,7 +186,7 @@ func getCallArgs(ctx context.Context, memory runtime.Memory, buffer []byte, prog
 		if err != nil {
 			return nil, err
 		}
-		argPtr, err := runtime.NewHostPtr(uint32(ptr), int(length))
+		argPtr, err := runtime.NewRuntimePtr(uint32(ptr), int(length))
 		if err != nil {
 			return nil, err
 		}

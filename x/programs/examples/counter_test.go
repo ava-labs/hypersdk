@@ -52,7 +52,7 @@ func TestCounterProgram(t *testing.T) {
 	err = storage.SetProgram(ctx, db, programID, counterProgramBytes)
 	require.NoError(err)
 
-	programIDPtr, err := argumentToHostPtr(programID, rt.Memory())
+	programIDPtr, err := argumentToRuntimePtr(programID, rt.Memory())
 	require.NoError(err)
 
 	// generate alice keys
@@ -60,7 +60,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := argumentToHostPtr(aliceKey, rt.Memory())
+	alicePtr, err := argumentToRuntimePtr(aliceKey, rt.Memory())
 	require.NoError(err)
 
 	// create counter for alice on program 1
@@ -93,11 +93,11 @@ func TestCounterProgram(t *testing.T) {
 	err = storage.SetProgram(ctx, db, program2ID, counterProgramBytes)
 	require.NoError(err)
 
-	programID2Ptr, err := argumentToHostPtr(program2ID, rt2.Memory())
+	programID2Ptr, err := argumentToRuntimePtr(program2ID, rt2.Memory())
 	require.NoError(err)
 
 	// write alice's key to stack and get pointer
-	alicePtr2, err := argumentToHostPtr(aliceKey, rt2.Memory())
+	alicePtr2, err := argumentToRuntimePtr(aliceKey, rt2.Memory())
 	require.NoError(err)
 
 	// initialize counter for alice on runtime 2
@@ -107,7 +107,7 @@ func TestCounterProgram(t *testing.T) {
 
 	// increment alice's counter on program 2 by 10
 	incAmount := int64(10)
-	incAmountPtr, err := argumentToHostPtr(incAmount, rt2.Memory())
+	incAmountPtr, err := argumentToRuntimePtr(incAmount, rt2.Memory())
 	require.NoError(err)
 	result, err = rt2.Call(ctx, "inc", programID2Ptr, alicePtr2, incAmountPtr)
 	require.NoError(err)
@@ -128,7 +128,7 @@ func TestCounterProgram(t *testing.T) {
 	}
 
 	// increment alice's counter on program 1
-	onePtr, err := argumentToHostPtr(int64(1), rt.Memory())
+	onePtr, err := argumentToRuntimePtr(int64(1), rt.Memory())
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc", programIDPtr, alicePtr, onePtr)
 	require.NoError(err)
@@ -142,17 +142,17 @@ func TestCounterProgram(t *testing.T) {
 	)
 
 	// write program id 2 to stack of program 1
-	programID2Ptr, err = argumentToHostPtr(program2ID, rt.Memory())
+	programID2Ptr, err = argumentToRuntimePtr(program2ID, rt.Memory())
 	require.NoError(err)
 
 	caller := programIDPtr
 	target := programID2Ptr
 	maxUnitsProgramToProgram := int64(10000)
-	maxUnitsProgramToProgramPtr, err := argumentToHostPtr(maxUnitsProgramToProgram, rt.Memory())
+	maxUnitsProgramToProgramPtr, err := argumentToRuntimePtr(maxUnitsProgramToProgram, rt.Memory())
 	require.NoError(err)
 
 	// increment alice's counter on program 2
-	fivePtr, err := argumentToHostPtr(int64(5), rt.Memory())
+	fivePtr, err := argumentToRuntimePtr(int64(5), rt.Memory())
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr, fivePtr)
 	require.NoError(err)

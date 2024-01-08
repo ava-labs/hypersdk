@@ -30,13 +30,13 @@ func serializeParameter(obj interface{}) ([]byte, error) {
 }
 
 // Serialize the parameter and create a host ptr
-func argumentToHostPtr(obj interface{}, memory runtime.Memory) (runtime.HostPtr, error) {
+func argumentToRuntimePtr(obj interface{}, memory runtime.Memory) (runtime.RuntimePtr, error) {
 	bytes, err := serializeParameter(obj)
 	if err != nil {
 		return 0, err
 	}
 
-	return runtime.BytesToHostPtr(bytes, memory)
+	return runtime.BytesToRuntimePtr(bytes, memory)
 }
 
 var (

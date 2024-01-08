@@ -152,7 +152,7 @@ func getRegisteredImportModules(importTypes []*wasmtime.ImportType) []string {
 	return imports
 }
 
-func (r *WasmRuntime) Call(_ context.Context, name string, params ...HostPtr) ([]int64, error) {
+func (r *WasmRuntime) Call(_ context.Context, name string, params ...RuntimePtr) ([]int64, error) {
 	var fnName string
 	switch name {
 	case AllocFnName, DeallocFnName, MemoryFnName:
@@ -242,7 +242,7 @@ func PreCompileWasmBytes(programBytes []byte, cfg *Config) ([]byte, error) {
 }
 
 // mapFunctionParams maps call input to the expected wasm function params.
-func mapFunctionParams(input []HostPtr, values []*wasmtime.ValType) ([]interface{}, error) {
+func mapFunctionParams(input []RuntimePtr, values []*wasmtime.ValType) ([]interface{}, error) {
 	params := make([]interface{}, len(values))
 	for i, v := range values {
 		switch v.Kind() {

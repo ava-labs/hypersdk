@@ -15,9 +15,9 @@ type memory struct {
 	client WasmtimeExportClient
 }
 
-// HostPtr is an int64 where the first 4 bytes represent the length of the bytes
+// RuntimePtr is an int64 where the first 4 bytes represent the length of the bytes
 // and the following 4 bytes represent a pointer to WASM memeory where the bytes are stored.
-type HostPtr int64
+type RuntimePtr int64
 
 func NewMemory(client WasmtimeExportClient) *memory {
 	return &memory{
@@ -170,22 +170,22 @@ func WriteParams(m Memory, p []CallParam) ([]int64, error) {
 }
 
 // Get returns the int64 value of [s].
-func (s HostPtr) Get() int64 {
+func (s RuntimePtr) Get() int64 {
 	return int64(s)
 }
 
 // Len returns the length of the bytes stored in memory by [s].
-func (s HostPtr) Len() uint32 {
+func (s RuntimePtr) Len() uint32 {
 	return uint32(s >> 32)
 }
 
 // PtrOffset returns the offset of the bytes stored in memory by [s].
-func (s HostPtr) PtrOffset() uint32 {
+func (s RuntimePtr) PtrOffset() uint32 {
 	return uint32(s)
 }
 
 // Bytes returns the bytes stored in memory by [s].
-func (s HostPtr) Bytes(memory Memory) ([]byte, error) {
+func (s RuntimePtr) Bytes(memory Memory) ([]byte, error) {
 	// read the range of PtrOffset + length from memory
 	bytes, err := memory.Range(uint64(s.PtrOffset()), uint64(s.Len()))
 	if err != nil {
@@ -195,18 +195,18 @@ func (s HostPtr) Bytes(memory Memory) ([]byte, error) {
 	return bytes, nil
 }
 
-// BytesToHostPtr writes [bytes] to memory and returns the resulting HostPtr.
-func BytesToHostPtr(bytes []byte, memory Memory) (HostPtr, error) {
+// BytesToRuntimePtr writes [bytes] to memory and returns the resulting RuntimePtr.
+func BytesToRuntimePtr(bytes []byte, memory Memory) (RuntimePtr, error) {
 	ptr, err := WriteBytes(memory, bytes)
 	if err != nil {
 		return 0, err
 	}
 
-	return NewHostPtr(uint32(ptr), len(bytes))
+	return NewRuntimePtr(uint32(ptr), len(bytes))
 }
 
-// NewHostPtr returns a HostPtr from [ptr] and [len].
-func NewHostPtr(ptr uint32, len int) (HostPtr, error) {
+// NewRuntimePtr returns a RuntimePtr from [ptr] and [len].
+func NewRuntimePtr(ptr uint32, len int) (RuntimePtr, error) {
 	// ensure length of bytes is not greater than int32 to prevent overflow
 	if !EnsureIntToInt32(len) {
 		return 0, fmt.Errorf("length of bytes is greater than int32")
@@ -215,5 +215,5 @@ func NewHostPtr(ptr uint32, len int) (HostPtr, error) {
 	lenUpperBits := int64(len) << 32
 	ptrLowerBits := int64(ptr)
 
-	return HostPtr(lenUpperBits | ptrLowerBits), nil
+	return RuntimePtr(lenUpperBits | ptrLowerBits), nil
 }
