@@ -29,21 +29,21 @@ impl Program {
         State::new(Program::new(*self.id()))
     }
 
-    /// Attempts to call another program `target` from this program `caller`.
+    /// Attempts to call a function `name` with `args` on the given program. This method
+    /// is used to call functions on external programs.
     /// # Errors
     /// Returns a `StateError` if the call fails.
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
-    pub fn call_program(
+    pub fn call_function(
         &self,
-        target: &Program,
-        max_units: i64,
         function_name: &str,
         args: Vec<Vec<u8>>,
+        max_units: i64,
     ) -> Result<i64, StateError> {
         // flatten the args into a single byte vector
         let args = args.into_iter().flatten().collect::<Vec<u8>>();
-        call_program(self, target, max_units, function_name, &args)
+        call_program(self, function_name, &args, max_units)
     }
 }
 
