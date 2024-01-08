@@ -9,7 +9,7 @@ use syn::{parse_macro_input, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatTyp
 
 fn convert_param(param_name: &Ident) -> proc_macro2::TokenStream {
     quote! {
-        unsafe { wasmlanche_sdk::memory::from_smart_ptr(#param_name).expect("error serializing ptr") }
+        unsafe { wasmlanche_sdk::memory::from_runtime_ptr(#param_name).expect("error serializing ptr") }
     }
 }
 

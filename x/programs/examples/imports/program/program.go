@@ -79,7 +79,7 @@ func (i *Import) callProgramFn(
 	}
 
 	// get the entry function for invoke to call.
-	functionBytes, err := program.SmartPtr(function).Bytes(memory)
+	functionBytes, err := program.RuntimePtr(function).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read function name from memory",
 			zap.Error(err),
@@ -87,7 +87,7 @@ func (i *Import) callProgramFn(
 		return -1
 	}
 
-	programIDBytes, err := program.SmartPtr(programID).Bytes(memory)
+	programIDBytes, err := program.RuntimePtr(programID).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read id from memory",
 			zap.Error(err),
@@ -142,7 +142,7 @@ func (i *Import) callProgramFn(
 		}
 	}()
 
-	argsBytes, err := program.SmartPtr(args).Bytes(memory)
+	argsBytes, err := program.RuntimePtr(args).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read program args name from memory",
 			zap.Error(err),
@@ -180,18 +180,18 @@ func (i *Import) callProgramFn(
 }
 
 // getCallArgs returns the arguments to be passed to the program being invoked from [buffer].
-func getCallArgs(ctx context.Context, memory *program.Memory, buffer []byte, programIDBytes []byte) ([]program.SmartPtr, error) {
+func getCallArgs(ctx context.Context, memory *program.Memory, buffer []byte, programIDBytes []byte) ([]program.RuntimePtr, error) {
 	// first arg contains id of program to call
 	invokeProgramIDPtr, err := program.WriteBytes(memory, programIDBytes)
 	if err != nil {
 		return nil, err
 	}
-	argPtr, err := program.NewSmartPtr(uint32(invokeProgramIDPtr), len(programIDBytes))
+	argPtr, err := program.NewRuntimePtr(uint32(invokeProgramIDPtr), len(programIDBytes))
 	if err != nil {
 		return nil, err
 	}
 
-	args := []program.SmartPtr{argPtr}
+	args := []program.RuntimePtr{argPtr}
 
 	for i := 0; i < len(buffer); {
 		// unpacks uint32
@@ -206,7 +206,7 @@ func getCallArgs(ctx context.Context, memory *program.Memory, buffer []byte, pro
 		if err != nil {
 			return nil, err
 		}
-		argPtr, err := program.NewSmartPtr(uint32(ptr), int(length))
+		argPtr, err := program.NewRuntimePtr(uint32(ptr), int(length))
 		if err != nil {
 			return nil, err
 		}
