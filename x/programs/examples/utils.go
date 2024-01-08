@@ -29,7 +29,7 @@ func serializeParameter(obj interface{}) ([]byte, error) {
 	return bytes, err
 }
 
-// Serialize the parameter and create a host ptr
+// Serialize the parameter and create a RuntimePtr
 func argumentToRuntimePtr(obj interface{}, memory runtime.Memory) (runtime.RuntimePtr, error) {
 	bytes, err := serializeParameter(obj)
 	if err != nil {
