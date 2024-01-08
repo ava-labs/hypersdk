@@ -14,11 +14,13 @@ import (
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
+	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports runtime.SupportedImports, maxUnits uint64) *Token {
+func NewToken(log logging.Logger, engine *engine.Engine, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports host.SupportedImports, maxUnits uint64) *Token {
 	return &Token{
 		log:          log,
 		programBytes: programBytes,
@@ -26,6 +28,7 @@ func NewToken(log logging.Logger, programBytes []byte, db state.Mutable, cfg *ru
 		imports:      imports,
 		db:           db,
 		maxUnits:     maxUnits,
+		engine:       engine,
 	}
 }
 
@@ -40,20 +43,26 @@ type Token struct {
 	log          logging.Logger
 	programBytes []byte
 	cfg          *runtime.Config
-	imports      runtime.SupportedImports
+	imports      host.SupportedImports
 	db           state.Mutable
 	maxUnits     uint64
+	engine       *engine.Engine
 }
 
 func (t *Token) Run(ctx context.Context) error {
-	rt := runtime.New(t.log, t.cfg, t.imports)
+	rt := runtime.New(t.log, t.engine, t.imports, t.cfg)
 	err := rt.Initialize(ctx, t.programBytes, t.maxUnits)
 	if err != nil {
 		return err
 	}
 
+	balance, err := rt.Meter().GetBalance()
+	if err != nil {
+		return err
+	}
+
 	t.log.Debug("initial meter",
-		zap.Uint64("balance", rt.Meter().GetBalance()),
+		zap.Uint64("balance", balance),
 	)
 
 	// simulate create program transaction
@@ -63,7 +72,12 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	programIDPtr, err := argumentToSmartPtr(programID, rt.Memory())
+	mem, err := rt.Memory()
+	if err != nil {
+		return err
+	}
+
+	programIDPtr, err := argumentToSmartPtr(programID, mem)
 	if err != nil {
 		return err
 	}
@@ -97,7 +111,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := argumentToSmartPtr(aliceKey, rt.Memory())
+	alicePtr, err := argumentToSmartPtr(aliceKey, mem)
 	if err != nil {
 		return err
 	}
@@ -109,7 +123,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write bob's key to stack and get pointer
-	bobPtr, err := argumentToSmartPtr(bobKey, rt.Memory())
+	bobPtr, err := argumentToSmartPtr(bobKey, mem)
 	if err != nil {
 		return err
 	}
@@ -125,7 +139,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// mint 100 tokens to alice
 	mintAlice := int64(1000)
-	mintAlicePtr, err := argumentToSmartPtr(mintAlice, rt.Memory())
+	mintAlicePtr, err := argumentToSmartPtr(mintAlice, mem)
 	if err != nil {
 		return err
 	}
@@ -158,7 +172,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// transfer 50 from alice to bob
 	transferToBob := int64(50)
-	transferToBobPtr, err := argumentToSmartPtr(transferToBob, rt.Memory())
+	transferToBobPtr, err := argumentToSmartPtr(transferToBob, mem)
 	if err != nil {
 		return err
 	}
@@ -171,7 +185,7 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("to bob", transferToBob),
 	)
 
-	onePtr, err := argumentToSmartPtr(int64(1), rt.Memory())
+	onePtr, err := argumentToSmartPtr(int64(1), mem)
 	if err != nil {
 		return err
 	}
@@ -201,8 +215,13 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 	t.log.Debug("balance", zap.Int64("bob", result[0]))
 
+	balance, err = rt.Meter().GetBalance()
+	if err != nil {
+		return err
+	}
+
 	t.log.Debug("remaining balance",
-		zap.Uint64("unit", rt.Meter().GetBalance()),
+		zap.Uint64("unit", balance),
 	)
 
 	// combine alice and bobs addresses
@@ -217,7 +236,7 @@ func (t *Token) Run(ctx context.Context) error {
 		},
 	}
 
-	mintersPtr, err := argumentToSmartPtr(minters, rt.Memory())
+	mintersPtr, err := argumentToSmartPtr(minters, mem)
 	if err != nil {
 		return err
 	}
@@ -253,14 +272,19 @@ func (t *Token) Run(ctx context.Context) error {
 
 // RunShort performs the steps of initialization only, used for benchmarking.
 func (t *Token) RunShort(ctx context.Context) error {
-	rt := runtime.New(t.log, t.cfg, t.imports)
+	rt := runtime.New(t.log, t.engine, t.imports, t.cfg)
 	err := rt.Initialize(ctx, t.programBytes, t.maxUnits)
 	if err != nil {
 		return err
 	}
 
+	balance, err := rt.Meter().GetBalance()
+	if err != nil {
+		return err
+	}
+
 	t.log.Debug("initial meter",
-		zap.Uint64("balance", rt.Meter().GetBalance()),
+		zap.Uint64("balance", balance),
 	)
 
 	// simulate create program transaction
@@ -270,7 +294,12 @@ func (t *Token) RunShort(ctx context.Context) error {
 		return err
 	}
 
-	programIDPtr, err := argumentToSmartPtr(programID, rt.Memory())
+	mem, err := rt.Memory()
+	if err != nil {
+		return err
+	}
+
+	programIDPtr, err := argumentToSmartPtr(programID, mem)
 	if err != nil {
 		return err
 	}

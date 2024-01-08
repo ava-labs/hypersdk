@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/near/borsh-go"
 )
 
@@ -30,13 +30,13 @@ func serializeParameter(obj interface{}) ([]byte, error) {
 }
 
 // Serialize the parameter and create a smart ptr
-func argumentToSmartPtr(obj interface{}, memory runtime.Memory) (runtime.SmartPtr, error) {
+func argumentToSmartPtr(obj interface{}, memory *program.Memory) (program.SmartPtr, error) {
 	bytes, err := serializeParameter(obj)
 	if err != nil {
 		return 0, err
 	}
 
-	return runtime.BytesToSmartPtr(bytes, memory)
+	return program.BytesToSmartPtr(bytes, memory)
 }
 
 var (
