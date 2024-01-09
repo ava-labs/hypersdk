@@ -60,11 +60,10 @@ func (i *Import) Register(link *host.Link) error {
 // callProgramFn makes a call to an entry function of a program in the context of another program's ID.
 func (i *Import) callProgramFn(
 	wasmCaller *wasmtime.Caller,
-	callerID int64,
 	programID int64,
-	maxUnits int64,
 	function int64,
 	args int64,
+	maxUnits int64,
 ) int64 {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
