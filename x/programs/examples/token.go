@@ -12,7 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
@@ -33,8 +33,7 @@ func NewToken(log logging.Logger, engine *engine.Engine, programBytes []byte, db
 }
 
 type minter struct {
-	// TODO: use a HyperSDK.Address instead
-	To ed25519.PublicKey
+	To codec.Address
 	// note: a production program would use a uint64 for amount
 	Amount int32
 }
@@ -104,26 +103,26 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("minted", result[0]),
 	)
 
-	// generate alice keys
-	_, aliceKey, err := newKey()
+	// generate alice address
+	_, aliceAddress, err := newTestAddress()
 	if err != nil {
 		return err
 	}
 
-	// write alice's key to stack and get pointer
-	alicePtr, err := argumentToSmartPtr(aliceKey, mem)
+	// write alice's address to stack and get pointer
+	alicePtr, err := argumentToSmartPtr(aliceAddress, mem)
 	if err != nil {
 		return err
 	}
 
-	// generate bob keys
-	_, bobKey, err := newKey()
+	// generate bob address
+	_, bobAddress, err := newTestAddress()
 	if err != nil {
 		return err
 	}
 
-	// write bob's key to stack and get pointer
-	bobPtr, err := argumentToSmartPtr(bobKey, mem)
+	// write bob's address to stack and get pointer
+	bobPtr, err := argumentToSmartPtr(bobAddress, mem)
 	if err != nil {
 		return err
 	}
@@ -227,11 +226,11 @@ func (t *Token) Run(ctx context.Context) error {
 	// combine alice and bobs addresses
 	minters := []minter{
 		{
-			To:     aliceKey,
+			To:     aliceAddress,
 			Amount: 10,
 		},
 		{
-			To:     bobKey,
+			To:     bobAddress,
 			Amount: 12,
 		},
 	}

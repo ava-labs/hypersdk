@@ -69,12 +69,12 @@ func TestCounterProgram(t *testing.T) {
 	programIDPtr, err := argumentToSmartPtr(programID, mem)
 	require.NoError(err)
 
-	// generate alice keys
-	_, aliceKey, err := newKey()
+	// generate alice address
+	_, aliceAddress, err := newTestAddress()
 	require.NoError(err)
 
-	// write alice's key to stack and get pointer
-	alicePtr, err := argumentToSmartPtr(aliceKey, mem)
+	// write alice's address to stack and get pointer
+	alicePtr, err := argumentToSmartPtr(aliceAddress, mem)
 	require.NoError(err)
 
 	// create counter for alice on program 1
@@ -95,7 +95,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// define max units to transfer to second runtime
-	unitsTransfer := uint64(10000)
+	unitsTransfer := uint64(20000)
 
 	// transfer the units from the original runtime to the new runtime before
 	// any calls are made.
@@ -112,8 +112,8 @@ func TestCounterProgram(t *testing.T) {
 	programID2Ptr, err := argumentToSmartPtr(program2ID, mem2)
 	require.NoError(err)
 
-	// write alice's key to stack and get pointer
-	alicePtr2, err := argumentToSmartPtr(aliceKey, mem2)
+	// write alice's address to stack and get pointer
+	alicePtr2, err := argumentToSmartPtr(aliceAddress, mem2)
 	require.NoError(err)
 
 	// initialize counter for alice on runtime 2

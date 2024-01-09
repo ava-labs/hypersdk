@@ -8,19 +8,29 @@ import (
 	"os"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/near/borsh-go"
 )
 
-func newKey() (ed25519.PrivateKey, ed25519.PublicKey, error) {
+var (
+	// defines a typeID needed for codec.Address
+	ed25519ID uint8 = 0
+)
+
+// newTestAddress generates a address used for the example tests using
+// an ed25519 private key.
+func newTestAddress() (ed25519.PrivateKey, codec.Address, error) {
 	priv, err := ed25519.GeneratePrivateKey()
 	if err != nil {
-		return ed25519.EmptyPrivateKey, ed25519.EmptyPublicKey, err
+		return ed25519.EmptyPrivateKey, codec.EmptyAddress, err
 	}
 
-	return priv, priv.PublicKey(), nil
+	pk := priv.PublicKey()
+	return priv, codec.CreateAddress(ed25519ID, utils.ToID(pk[:])), nil
 }
 
 // SerializeParameter serializes [obj] using Borsh

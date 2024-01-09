@@ -17,25 +17,25 @@ const (
 	programPrefix = 0x0
 )
 
+// ProgramPrefixKey returns a properly formatted key
+// for storing a value at [id][key].
 func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
-	k = make([]byte, consts.IDLen+1+len(key))
+	k = make([]byte, 1+consts.IDLen+len(key))
 	k[0] = programPrefix
-	copy(k, id[:])
-	copy(k[consts.IDLen:], (key[:]))
+	copy(k[1:1+consts.IDLen], id[:])
+	copy(k[1+consts.IDLen:], key[:])
 	return
 }
 
-//
-// Program
-//
-
+// ProgramKey returns the key used to store the program bytes at [id].
 func ProgramKey(id ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen)
+	k[0] = programPrefix
 	copy(k[1:], id[:])
 	return
 }
 
-// [programID] -> [programBytes]
+// GetProgram returns the programBytes stored at [programID].
 func GetProgram(
 	ctx context.Context,
 	db state.Immutable,
