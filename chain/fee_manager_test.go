@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"go.uber.org/mock/gomock"
 
 	"github.com/stretchr/testify/require"
 )
@@ -60,7 +61,15 @@ func TestConsume(t *testing.T) {
 }
 
 func TestComputeNext(t *testing.T) {
-	/*require := require.New(t)
+	require := require.New(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	controller := NewMockController(ctrl)
+	rules := NewMockRules(ctrl)
+	
+
+	/*
 	//var vm VM
 	var r Rules
 	parent := &StatelessBlock{
@@ -81,5 +90,5 @@ func TestComputeNext(t *testing.T) {
 	require.NoError(err)*/
 
 	parent := NewGenesisBlock(ids.GenerateTestID())
-	
+
 }
