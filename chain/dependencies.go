@@ -236,7 +236,54 @@ type AuthBatchVerifier interface {
 	Done() []func() error
 }
 
-type Auth interface {
+type Object interface {
+	// GetTypeID uniquely identifies each supported [Auth]. We use IDs to avoid
+	// reflection.
+	GetTypeID() uint8
+
+	// ValidRange is the timestamp range (in ms) that this [Auth] is considered valid.
+	//
+	// -1 means no start/end
+	ValidRange(Rules) (start int64, end int64)
+
+	// MaxComputeUnits is the maximum amount of compute a given [Auth] could use. This is
+	// used to determine whether the [Auth] can be included in a given block and to compute
+	// the required fee to execute.
+	//
+	// Developers should make every effort to bound this as tightly to the actual max so that
+	// users don't need to have a large balance to call an [Auth] (must prepay fee before execution).
+	//
+	// MaxComputeUnits should take into account [AsyncVerify], [CanDeduct], [Deduct], and [Refund]
+	MaxComputeUnits(Rules) uint64
+
+	// Size is the number of bytes it takes to represent this [Auth]. This is used to preallocate
+	// memory during encoding and to charge bandwidth fees.
+	Size() int
+
+	// Marshal encodes an [Auth] as bytes.
+	Marshal(p *codec.Packer)
+}
+
+type Signer interface {
+	// AsyncVerify should perform any verification that can be run concurrently. It may not be run by the time
+	// [Verify] is invoked but will be checked before a [Transaction] is considered successful.
+	//
+	// AsyncVerify is typically used to perform cryptographic operations.
+	AsyncVerify(msg []byte) error
+
+	// Verify performs any checks against state required to determine if [Auth] is valid.
+	//
+	// This could be used, for example, to determine that the public key used to sign a transaction
+	// is registered as the signer for an account. This could also be used to pull a [Program] from disk.
+	Verify(
+		ctx context.Context,
+		r Rules,
+		im state.Immutable,
+		action Action,
+	) (computeUnits uint64, err error)
+}
+
+type Actor interface {
 	// GetTypeID uniquely identifies each supported [Auth]. We use IDs to avoid
 	// reflection.
 	GetTypeID() uint8
@@ -281,17 +328,70 @@ type Auth interface {
 		action Action,
 	) (computeUnits uint64, err error)
 
-	// Actor is the subject of [Action].
+	// TODO
 	//
 	// To avoid collisions with other [Auth] modules, this must be prefixed
 	// by the [TypeID].
-	Actor() codec.Address
+	Subject() codec.Address
 
-	// Sponsor is the fee payer of [Auth].
+	// Marshal encodes an [Auth] as bytes.
+	Marshal(p *codec.Packer)
+
+	// Size is the number of bytes it takes to represent this [Auth]. This is used to preallocate
+	// memory during encoding and to charge bandwidth fees.
+	Size() int
+}
+
+type Sponsor interface {
+	// GetTypeID uniquely identifies each supported [Auth]. We use IDs to avoid
+	// reflection.
+	GetTypeID() uint8
+
+	// ValidRange is the timestamp range (in ms) that this [Auth] is considered valid.
+	//
+	// -1 means no start/end
+	ValidRange(Rules) (start int64, end int64)
+
+	// MaxComputeUnits is the maximum amount of compute a given [Auth] could use. This is
+	// used to determine whether the [Auth] can be included in a given block and to compute
+	// the required fee to execute.
+	//
+	// Developers should make every effort to bound this as tightly to the actual max so that
+	// users don't need to have a large balance to call an [Auth] (must prepay fee before execution).
+	//
+	// MaxComputeUnits should take into account [AsyncVerify], [CanDeduct], [Deduct], and [Refund]
+	MaxComputeUnits(Rules) uint64
+
+	// StateKeys is a full enumeration of all database keys that could be touched during execution
+	// of an [Auth]. This is used to prefetch state and will be used to parallelize execution (making
+	// an execution tree is trivial).
+	//
+	// All keys specified must be suffixed with the number of chunks that could ever be read from that
+	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
+	StateKeys() []string
+
+	// AsyncVerify should perform any verification that can be run concurrently. It may not be run by the time
+	// [Verify] is invoked but will be checked before a [Transaction] is considered successful.
+	//
+	// AsyncVerify is typically used to perform cryptographic operations.
+	AsyncVerify(msg []byte) error
+
+	// Verify performs any checks against state required to determine if [Auth] is valid.
+	//
+	// This could be used, for example, to determine that the public key used to sign a transaction
+	// is registered as the signer for an account. This could also be used to pull a [Program] from disk.
+	Verify(
+		ctx context.Context,
+		r Rules,
+		im state.Immutable,
+		action Action,
+	) (computeUnits uint64, err error)
+
+	// Subject is the fee payer of [Auth].
 	//
 	// To avoid collisions with other [Auth] modules, this must be prefixed
 	// by the [TypeID].
-	Sponsor() codec.Address
+	Subject() codec.Address
 
 	// CanDeduct returns an error if [amount] cannot be paid by [Auth].
 	CanDeduct(ctx context.Context, im state.Immutable, amount uint64) error
