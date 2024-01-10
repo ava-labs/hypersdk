@@ -2,8 +2,8 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-source ../../scripts/tests.integration.sh   
-source ../..//scripts/constants.sh
+source ../../scripts/common/tests.integration.sh   
+source ../../scripts/constants.sh
 
 set_cgo_flags
 rm_previous_cov_reports
