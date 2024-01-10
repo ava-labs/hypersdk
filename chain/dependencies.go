@@ -218,7 +218,7 @@ type Action interface {
 		r Rules,
 		mu state.Mutable,
 		timestamp int64,
-		auth Auth,
+		actor codec.Address,
 		txID ids.ID,
 		warpVerified bool,
 	) (success bool, computeUnits uint64, output []byte, warpMessage *warp.UnsignedMessage, err error)
