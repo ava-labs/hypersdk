@@ -22,7 +22,7 @@ type ImportFnCallback struct {
 	AfterResponse func(module, name string, meter *engine.Meter) error
 }
 
-// Supported is a map of supported import modules. The runtime will enable these imports
+// SupportedImports is a map of supported import modules. The runtime will enable these imports
 // during initialization only if implemented by the `program`.
 type SupportedImports map[string]func() Import
 
