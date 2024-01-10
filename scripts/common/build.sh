@@ -5,7 +5,11 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-source ./constants.sh
+HYPERSDK_PATH=$(
+    cd "$(dirname "${BASH_SOURCE[0]}")"
+    cd .. && pwd
+)
+source $HYPERSDK_PATH/constants.sh
 
 set_cgo_flags
 

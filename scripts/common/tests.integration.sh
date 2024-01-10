@@ -2,7 +2,11 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-source ./utils.sh
+HYPERSDK_PATH=$(
+    cd "$(dirname "${BASH_SOURCE[0]}")"
+    cd .. && pwd
+)
+source $HYPERSDK_PATH/common/utils.sh
 
 function rm_previous_cov_reports() {
     rm -f integration.coverage.out

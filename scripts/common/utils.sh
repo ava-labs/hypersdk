@@ -12,7 +12,7 @@ function check_command() {
 }
 
 # Function to check if the script is run from the repository root
-check_repository_root() {
+function check_repository_root() {
   if ! [[ "$0" =~ "$1" ]]; then
     echo "must be run from repository root"
     exit 255
