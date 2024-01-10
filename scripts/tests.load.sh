@@ -9,20 +9,12 @@ HYPERSDK_PATH=$(
 
 source $HYPERSDK_PATH/scripts/common/utils.sh
 
-set -o errexit
-set -o pipefail
 set -e
 
-check_repository_root scripts/fix.lint.sh
+check_repository_root scripts/tests.load.sh
 
-echo "adding license header"
-go install -v github.com/palantir/go-license@latest
+# to install the ginkgo binary (required for test build and run)
+go install -v github.com/onsi/ginkgo/v2/ginkgo@v2.0.0-rc2 || true
 
 # alert the user if they do not have $GOPATH properly configured
-check_command go-license
-
-go-license --config=./license.yml **/*.go
-
-echo "gofumpt files"
-go install mvdan.cc/gofumpt@latest
-gofumpt -l -w .
+check_command ginkgo

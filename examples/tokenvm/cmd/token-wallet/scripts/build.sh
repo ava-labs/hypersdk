@@ -2,6 +2,8 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
+source ../../scripts/common/utils.sh
+
 set -o errexit
 set -o nounset
 set -o pipefail
@@ -16,6 +18,9 @@ PUBLISH=${PUBLISH:-true}
 
 # Install wails
 go install -v github.com/wailsapp/wails/v2/cmd/wails@v2.5.1
+
+# alert the user if they do not have $GOPATH properly configured
+check_command wails
 
 # Build file for local arch
 #

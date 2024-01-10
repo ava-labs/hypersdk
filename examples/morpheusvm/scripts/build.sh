@@ -2,44 +2,15 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-set -o errexit
-set -o nounset
-set -o pipefail
+source ../../scripts/common/build.sh
+source ../../scripts/constants.sh
 
-# Set the CGO flags to use the portable version of BLST
-#
-# We use "export" here instead of just setting a bash variable because we need
-# to pass this flag to all child processes spawned by the shell.
-export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
+set_cgo_flags
 
-# Root directory
+# Construct the correct path to morpheusvm directory
 MORPHEUSVM_PATH=$(
     cd "$(dirname "${BASH_SOURCE[0]}")"
     cd .. && pwd
 )
 
-realpath() {
-    [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
-}
-
-if [[ $# -eq 1 ]]; then
-    BINARY_PATH=$(realpath $1)
-elif [[ $# -eq 0 ]]; then
-    # Set default binary directory location
-    name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
-    BINARY_PATH=$MORPHEUSVM_PATH/build/$name
-else
-    echo "Invalid arguments to build morpheusvm. Requires zero (default location) or one argument to specify binary location."
-    exit 1
-fi
-
-cd $MORPHEUSVM_PATH
-
-echo "Building morpheusvm in $BINARY_PATH"
-mkdir -p $(dirname $BINARY_PATH)
-go build -o $BINARY_PATH ./cmd/morpheusvm
-
-CLI_PATH=$MORPHEUSVM_PATH/build/morpheus-cli
-echo "Building morpheus-cli in $CLI_PATH"
-mkdir -p $(dirname $CLI_PATH)
-go build -o $CLI_PATH ./cmd/morpheus-cli
+build_project "$MORPHEUSVM_PATH" "morpheusvm" "pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7" 

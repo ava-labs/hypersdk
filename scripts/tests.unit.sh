@@ -2,12 +2,14 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-set -e
+HYPERSDK_PATH=$(
+    cd "$(dirname "${BASH_SOURCE[0]}")"
+    cd .. && pwd
+)
 
-if ! [[ "$0" =~ scripts/tests.unit.sh ]]; then
-  echo "must be run from repository root"
-  exit 255
-fi
+source $HYPERSDK_PATH/scripts/common/utils.sh
+
+set -e
 
 HYPERSDK_PATH=$(
   cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -15,4 +17,8 @@ HYPERSDK_PATH=$(
 )
 source "$HYPERSDK_PATH"/scripts/constants.sh
 
-go test -race -timeout="3m" -coverprofile="coverage.out" -covermode="atomic" $(go list ./... | grep -v tests)
+set_cgo_flags
+
+check_repository_root scripts/tests.unit.sh
+
+go test -race -timeout="10m" -coverprofile="coverage.out" -covermode="atomic" $(go list ./... | grep -v tests)

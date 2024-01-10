@@ -2,20 +2,16 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
+source ../../scripts/constants.sh
+source ../../scripts/common/utils.sh
+
 set -e
 
-# Set the CGO flags to use the portable version of BLST
-#
-# We use "export" here instead of just setting a bash variable because we need
-# to pass this flag to all child processes spawned by the shell.
-export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
+set_cgo_flags
 
 # to run E2E tests (terminates cluster afterwards)
 # MODE=test ./scripts/run.sh
-if ! [[ "$0" =~ scripts/run.sh ]]; then
-  echo "must be run from repository root"
-  exit 255
-fi
+check_repository_root scripts/run.sh
 
 VERSION=v1.10.15
 MAX_UINT64=18446744073709551615
@@ -190,12 +186,7 @@ echo "building e2e.test"
 go install -v github.com/onsi/ginkgo/v2/ginkgo@v2.1.4
 
 # alert the user if they do not have $GOPATH properly configured
-if ! command -v ginkgo &> /dev/null
-then
-    echo -e "\033[0;31myour golang environment is misconfigued...please ensure the golang bin folder is in your PATH\033[0m"
-    echo -e "\033[0;31myou can set this for the current terminal session by running \"export PATH=\$PATH:\$(go env GOPATH)/bin\"\033[0m"
-    exit
-fi
+check_command ginkgo
 
 ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 ./tests/e2e/e2e.test --help

@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
+# Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+# See the file LICENSE for licensing terms.
 
 set -euo pipefail
 
-if ! [[ "$0" =~ scripts/tests.simulator.sh ]]; then
-  echo "must be run from token crate root"
-  exit 255
-fi
+check_repository_root scripts/tests.simulator.sh
 
 simulator_path="${PWD}"/../../../cmd/simulator
 simulator_bin="${simulator_path}"/bin/simulator

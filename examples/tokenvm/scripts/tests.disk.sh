@@ -2,14 +2,13 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
+source ../../scripts/common/utils.sh
+
 set -o errexit
 set -o pipefail
 set -e
 
-if ! [[ "$0" =~ scripts/tests.disk.sh ]]; then
-  echo "must be run from repository root"
-  exit 255
-fi
+check_repository_root scripts/tests.disk.sh
 
 # You need to install `fio` to run this job
 

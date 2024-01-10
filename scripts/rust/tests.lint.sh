@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
+# Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+# See the file LICENSE for licensing terms.
+
+HYPERSDK_PATH=$(
+    cd "$(dirname "${BASH_SOURCE[0]}")"
+    cd .. && pwd
+)
+
+source $HYPERSDK_PATH/scripts/common/utils.sh
+
 set -xue
 
-if ! [[ "$0" =~ scripts/rust/tests.lint.sh ]]; then
-  echo "must be run from repository root"
-  exit 255
-fi
+check_repository_root scripts/tests.lint.sh
 
 # https://rust-lang.github.io/rustup/installation/index.html
 # rustup toolchain install nightly --allow-downgrade --profile minimal --component clippy

@@ -2,13 +2,16 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
+HYPERSDK_PATH=$(
+    cd "$(dirname "${BASH_SOURCE[0]}")"
+    cd .. && pwd
+)
+
+source $HYPERSDK_PATH/scripts/common/utils.sh
+
 set -e
 
-
-if ! [[ "$0" =~ scripts/mock.gen.sh ]]; then
-  echo "must be run from repository root"
-  exit 255
-fi
+check_repository_root scripts/mock.gen.sh
 
 HYPERSDK_PATH=$(
   cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -16,12 +19,17 @@ HYPERSDK_PATH=$(
 )
 source "$HYPERSDK_PATH"/scripts/constants.sh
 
+set_cgo_flags
+
 if ! command -v mockgen &> /dev/null
 then
   echo "mockgen not found, installing..."
   # https://github.com/uber-go/mock
   go install -v go.uber.org/mock/mockgen@v0.2.0
 fi
+
+# alert the user if they do not have $GOPATH properly configured
+check_command mockgen
 
 if ! command -v go-license &> /dev/null
 then
