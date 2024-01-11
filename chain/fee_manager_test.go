@@ -4,16 +4,13 @@
 package chain
 
 import (
-	//"context"
 	//"fmt"
 	"time"
 	"testing"
 
-	//"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/math"
 
 	"go.uber.org/mock/gomock"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,6 +22,7 @@ func TestUnitPrice(t *testing.T) {
 	// Mock VM
 	rules := NewMockRules(ctrl)
 	rules.EXPECT().GetMinUnitPrice().Return(Dimensions{100, 100, 100, 100, 100})
+	rules.EXPECT().GetMaxBlockUnits().Return(Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000})
 
 	// Similar to vm.go L326
 	minUnitPrice := rules.GetMinUnitPrice()
@@ -42,6 +40,11 @@ func TestUnitPrice(t *testing.T) {
 	for i := Dimension(0); i < FeeDimensions; i++ {
 		require.Equal(unitPrices[i], feeManager.UnitPrice(i))
 	}
+
+	// Similar to spam.go
+	maxUnits := rules.GetMaxBlockUnits()
+	_, err := MulSum(unitPrices, maxUnits)
+	require.NoError(err)
 }
 
 func TestConsume(t *testing.T) {
@@ -50,9 +53,11 @@ func TestConsume(t *testing.T) {
 	defer ctrl.Finish()
 
 	feeManager := NewFeeManager(nil)
+	chunks := 100
 
 	// Mock VM
 	rules := NewMockRules(ctrl)
+
 	// Similar to genesis
 	rules.EXPECT().GetMaxBlockUnits().Return(Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000})
 	rules.EXPECT().GetBaseComputeUnits().Return(uint64(1))
@@ -63,8 +68,7 @@ func TestConsume(t *testing.T) {
 	rules.EXPECT().GetStorageKeyWriteUnits().Return(uint64(10))
 	rules.EXPECT().GetStorageValueWriteUnits().Return(uint64(3))
 
-	chunks := 100
-
+	// Get usage for bandwith, compute, read, allocate, writes
 	bandwidthOp := math.NewUint64Operator(200)
 	bandwidthUnits, err := bandwidthOp.Value()
 	require.NoError(err)
@@ -100,7 +104,7 @@ func TestConsume(t *testing.T) {
 	require.True(ok)
 	require.Equal(dimension, Dimension(0))
 
-	// Fee required 
+	// The fee required 
 	_, err = feeManager.MaxFee(consumed)
 	require.NoError(err)
 
@@ -112,7 +116,7 @@ func TestConsume(t *testing.T) {
 	unitsConsumed := feeManager.UnitsConsumed()
 	for i := Dimension(0); i < FeeDimensions; i++ {
 		require.Equal(unitsConsumed[i], feeManager.LastConsumed(i))
-	}	
+	}
 }
 
 func TestComputeNext(t *testing.T) {
@@ -133,4 +137,58 @@ func TestComputeNext(t *testing.T) {
 	parentFeeManager := NewFeeManager(nil)
 	_, err := parentFeeManager.ComputeNext(parentTime, nextTime, rules)
 	require.NoError(err)
+}
+
+func TestAdd(t *testing.T) {
+	require := require.New(t)
+	// Similar to tokenvm/cmd/token-wallet/backend/backend.go
+	consumed := Dimensions{1,2,3,4,5}
+	nconsumed := Dimensions{}
+	tmpConsumed, err := Add(nconsumed, consumed)
+	require.NoError(err)
+	nconsumed = tmpConsumed
+	for i := 0; i < FeeDimensions; i++ {
+		require.Equal(nconsumed[i], consumed[i])
+	}
+}
+
+func TestDimensionGreater(t *testing.T) {
+	require := require.New(t)
+	d := Dimensions{2,3,4,5,6}
+	o := Dimensions{1,2,3,4,5}
+	result := d.Greater(o)
+	require.True(result)
+}
+
+func TestInvalidDimensionGreater(t *testing.T) {
+	require := require.New(t)
+	d := Dimensions{1,2,3,4,5}
+	o := Dimensions{2,3,4,5,6}
+	result := d.Greater(o)
+	require.False(result)	
+}
+
+func TestParseDimensions(t *testing.T) {
+	require := require.New(t)
+	input := []string{"0", "1", "2", "3", "4"}
+	output, err := ParseDimensions(input)
+	require.NoError(err)
+	expected := Dimensions{0,1,2,3,4}
+	for i := 0; i < FeeDimensions; i++ {
+		require.Equal(expected[i], output[i])
+	}
+}
+
+func TestInvalidParseDimensions(t *testing.T) {
+	require := require.New(t)
+	input := []string{"0", "1", "2", "3", "4", "5"}
+	_, err := ParseDimensions(input)
+	require.EqualError(err, "wrong dimensions size")
+}
+
+func TestInvalidInputParseDimension(t *testing.T) {
+	require := require.New(t)
+	input := []string{"O", "1", "2", "3", "4"}
+	_, err := ParseDimensions(input)
+	require.Error(err)	
 }
