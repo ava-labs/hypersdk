@@ -4,7 +4,6 @@
 package memory
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
@@ -47,30 +46,15 @@ func newTestMemory(t *testing.T) Memory {
 	inst, err := wasmtime.NewInstance(store.Get(), mod, nil)
 	require.NoError(err)
 	// get alloc export func
-	alloc := inst.GetExport(store.Get(), AllocFnName)
+	alloc := inst.GetExport(store.Get(), "alloc")
 	require.NotNil(alloc)
 	allocFunc := alloc.Func()
 	require.NotNil(allocFunc)
 
 	// get memory export func
-	wmem := inst.GetExport(store.Get(), MemoryFnName).Memory()
+	wmem := inst.GetExport(store.Get(), "memory").Memory()
 	require.NotNil(wmem)
-	mem := NewWasmTimeMemory(wmem, func(i int32) (uint32, error) {
-		result, err := allocFunc.Call(store.Get(), i)
-		if err != nil {
-			return 0, err
-		}
-
-		addr, ok := result.(int32)
-		if !ok {
-			return 0, fmt.Errorf("%w: invalid result type: %T", ErrInvalidType, result)
-		}
-		if addr < 0 {
-			return 0, ErrUnderflow
-		}
-
-		return uint32(addr), nil
-	}, store.Get())
+	mem := NewWasmTimeMemory(wmem, allocFunc, store.Get())
 	require.NotNil(mem)
 	return mem
 }

@@ -22,7 +22,7 @@ type WasmTimeMemory struct {
 }
 
 // NewWasmTimeMemory creates a new memory wrapper.
-func NewWasmTimeMemory(inner *wasmtime.Memory, allocFn func(int32) int32, store wasmtime.Storelike) Memory {
+func NewWasmTimeMemory(inner *wasmtime.Memory, allocFn *wasmtime.Func, store wasmtime.Storelike) Memory {
 	return &WasmTimeMemory{
 		inner:   inner,
 		store:   store,
