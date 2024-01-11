@@ -231,6 +231,7 @@ func computeNextPriceWindow(
 		window.Update(&newRollupWindow, start, previousConsumed)
 	}
 	total := window.Sum(newRollupWindow)
+	
 	nextPrice := previousPrice
 	if total > target {
 		// If the parent block used more units than its target, the baseFee should increase.
