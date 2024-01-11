@@ -92,7 +92,7 @@ func TestConsume(t *testing.T) {
 			rules.EXPECT().GetStorageKeyWriteUnits().Return(uint64(10))
 			rules.EXPECT().GetStorageValueWriteUnits().Return(uint64(3))
 
-			// Get usage for bandwith, compute, read, allocate, writes
+			// Get usage for bandwidth, compute, read, allocate, writes
 			bandwidthOp := math.NewUint64Operator(200)
 			bandwidthUnits, err := bandwidthOp.Value()
 			require.NoError(err)
@@ -104,19 +104,19 @@ func TestConsume(t *testing.T) {
 
 			readsOp := math.NewUint64Operator(0)
 			readsOp.Add(rules.GetStorageKeyReadUnits())
-			readsOp.MulAdd(uint64(tt.chunks), rules.GetStorageValueReadUnits())
+			readsOp.MulAdd(tt.chunks, rules.GetStorageValueReadUnits())
 			readUnits, err := readsOp.Value()
 			require.NoError(err)
 
 			allocatesOp := math.NewUint64Operator(0)
 			allocatesOp.Add(rules.GetStorageKeyAllocateUnits())
-			allocatesOp.MulAdd(uint64(tt.chunks), rules.GetStorageValueAllocateUnits())
+			allocatesOp.MulAdd(tt.chunks, rules.GetStorageValueAllocateUnits())
 			allocateUnits, err := allocatesOp.Value()
 			require.NoError(err)
 
 			writesOp := math.NewUint64Operator(0)
 			writesOp.Add(rules.GetStorageKeyWriteUnits())
-			writesOp.MulAdd(uint64(tt.chunks), rules.GetStorageValueWriteUnits())
+			writesOp.MulAdd(tt.chunks, rules.GetStorageValueWriteUnits())
 			writeUnits, err := writesOp.Value()
 			require.NoError(err)
 
@@ -193,7 +193,6 @@ func TestComputeNext(t *testing.T) {
 
 func TestAdd(t *testing.T) {
 	require := require.New(t)
-	// Similar to tokenvm/cmd/token-wallet/backend/backend.go
 	consumed := Dimensions{1,2,3,4,5}
 	nconsumed := Dimensions{}
 	tmpConsumed, err := Add(nconsumed, consumed)
