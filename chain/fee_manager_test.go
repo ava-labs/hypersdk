@@ -20,12 +20,13 @@ func TestUnitPrice(t *testing.T) {
 
 	// Mock VM
 	rules := NewMockRules(ctrl)
-	rules.EXPECT().GetMinUnitPrice().Return(Dimensions{100, 100, 100, 100, 100})
+	rules.EXPECT().GetMinUnitPrice().Return(Dimensions{100, 20, 70, 80, 200})
 
 	// We set unit prices by the min unit price assigned at Genesis
 	// This is similar to a usage described in:
 	// https://github.com/ava-labs/hypersdk/blob/main/vm/vm.go#L326 
 	minUnitPrice := rules.GetMinUnitPrice()
+	lastConsumed := Dimensions{150, 30, 75, 90, 210}
 
 	var d Dimensions
 	feeManager := NewFeeManager(nil)
@@ -33,7 +34,7 @@ func TestUnitPrice(t *testing.T) {
 		// Set unit prices for different dimensions 
 		feeManager.SetUnitPrice(i, minUnitPrice[i])
 		// Set last consumed
-		feeManager.SetLastConsumed(i, minUnitPrice[i])
+		feeManager.SetLastConsumed(i, lastConsumed[i])
 		d[i] = uint64(i)
 	}
 
@@ -42,7 +43,7 @@ func TestUnitPrice(t *testing.T) {
 	unitsConsumed := feeManager.UnitsConsumed()
 	for i := Dimension(0); i < FeeDimensions; i++ {
 		require.Equal(unitPrices[i], feeManager.UnitPrice(i))
-		require.Equal(unitsConsumed[i], minUnitPrice[i])
+		require.Equal(lastConsumed[i], unitsConsumed[i])
 	}
 }
 
