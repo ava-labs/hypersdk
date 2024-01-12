@@ -23,7 +23,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/validators"
-	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -35,6 +34,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/pubsub"
@@ -907,7 +907,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 		})
-	})
+	})	
 })
 
 func expectBlk(i instance) func(bool) []*chain.Result {

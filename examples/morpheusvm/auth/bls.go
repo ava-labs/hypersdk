@@ -1,0 +1,156 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package auth
+
+import (
+	"context"
+
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto"
+	"github.com/ava-labs/hypersdk/crypto/bls"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/utils"
+)
+
+var _ chain.Auth = (*BLS)(nil)
+
+const (
+	BLSComputeUnits = 10 // can't be batched like ed25519
+	BLSSize         = bls.PublicKeyLen + bls.SignatureLen
+)
+
+type BLS struct {
+	Signer    bls.PublicKey `json:"signer"`
+	Signature bls.Signature `json:"signature"`
+
+	addr codec.Address
+}
+
+func (d *BLS) address() codec.Address {
+	if d.addr == codec.EmptyAddress {
+		d.addr = NewBLSAddress(d.Signer)
+	}
+	return d.addr
+}
+
+func (*BLS) GetTypeID() uint8 {
+	return consts.BLSID
+}
+
+func (*BLS) MaxComputeUnits(chain.Rules) uint64 {
+	return BLSComputeUnits
+}
+
+func (*BLS) ValidRange(chain.Rules) (int64, int64) {
+	return -1, -1
+}
+
+func (d *BLS) StateKeys() []string {
+	return []string{
+		string(storage.BalanceKey(d.address())),
+	}
+}
+
+func (d *BLS) AsyncVerify(msg []byte) error {
+	if !bls.Verify(&d.Signer, &d.Signature, msg) {
+		return crypto.ErrInvalidSignature
+	}
+	return nil
+}
+
+func (d *BLS) Verify(
+	_ context.Context,
+	r chain.Rules,
+	_ state.Immutable,
+	_ chain.Action,
+) (uint64, error) {
+	// We don't do anything during verify (there is no additional state to check
+	// to authorize the signer other than verifying the signature)
+	return d.MaxComputeUnits(r), nil
+}
+
+func (d *BLS) Actor() codec.Address {
+	return d.address()
+}
+
+func (d *BLS) Sponsor() codec.Address {
+	return d.address()
+}
+
+func (*BLS) Size() int {
+	return BLSSize
+}
+
+func (d *BLS) Marshal(p *codec.Packer) {
+	p.PackFixedBytes(bls.PublicKeyToBytes(&d.Signer))
+	p.PackFixedBytes(bls.SignatureToBytes(&d.Signature))
+}
+
+func UnmarshalBLS(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
+	var d BLS
+	signer := bls.PublicKeyToBytes(&d.Signer) // avoid allocating additional memory
+	p.UnpackFixedBytes(bls.PublicKeyLen, &signer)
+	signature := bls.SignatureToBytes(&d.Signature) // avoid allocating additional memory
+	p.UnpackFixedBytes(bls.SignatureLen, &signature)
+	return &d, p.Err()
+}
+
+func (d *BLS) CanDeduct(
+	ctx context.Context,
+	im state.Immutable,
+	amount uint64,
+) error {
+	bal, err := storage.GetBalance(ctx, im, d.address())
+	if err != nil {
+		return err
+	}
+	if bal < amount {
+		return storage.ErrInvalidBalance
+	}
+	return nil
+}
+
+func (d *BLS) Deduct(
+	ctx context.Context,
+	mu state.Mutable,
+	amount uint64,
+) error {
+	return storage.SubBalance(ctx, mu, d.address(), amount)
+}
+
+func (d *BLS) Refund(
+	ctx context.Context,
+	mu state.Mutable,
+	amount uint64,
+) error {
+	// Don't create account if it doesn't exist (may have sent all funds).
+	return storage.AddBalance(ctx, mu, d.address(), amount, false)
+}
+
+var _ chain.AuthFactory = (*BLSFactory)(nil)
+
+type BLSFactory struct {
+	priv bls.SecretKey
+}
+
+func NewBLSFactory(priv bls.SecretKey) *BLSFactory {
+	return &BLSFactory{priv}
+}
+
+func (d *BLSFactory) Sign(msg []byte, _ chain.Action) (chain.Auth, error) {
+	sig := bls.Sign(&d.priv, msg)
+	return &BLS{Signer: *bls.PublicFromSecretKey(&d.priv), Signature: *sig}, nil
+}
+
+func (*BLSFactory) MaxUnits() (uint64, uint64, []uint16) {
+	return BLSSize, BLSComputeUnits, []uint16{storage.BalanceChunks}
+}
+
+func NewBLSAddress(pk bls.PublicKey) codec.Address {
+	return codec.CreateAddress(consts.BLSID, utils.ToID(bls.PublicKeyToBytes(&pk)))
+}
