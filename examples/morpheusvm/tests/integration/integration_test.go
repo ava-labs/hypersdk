@@ -907,6 +907,60 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 		})
+	})
+
+	ginkgo.It("sends tokens between ed25519 and bls addresses", func() {
+		r1priv, err := bls.NewSecretKey()
+		gomega.Ω(err).Should(gomega.BeNil())
+		r1pk := bls.PublicFromSecretKey(r1priv)
+		r1factory := auth.NewBLSFactory(*r1priv)
+		r1addr := auth.NewBLSAddress(*r1pk)
+
+		ginkgo.By("send to bls", func() {
+			parser, err := instances[0].lcli.Parser(context.Background())
+			gomega.Ω(err).Should(gomega.BeNil())
+			submit, _, _, err := instances[0].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				nil,
+				&actions.Transfer{
+					To:    r1addr,
+					Value: 2000,
+				},
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			accept := expectBlk(instances[0])
+			results := accept(false)
+			gomega.Ω(results).Should(gomega.HaveLen(1))
+			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+
+			balance, err := instances[0].lcli.Balance(context.TODO(), codec.MustAddressBech32(lconsts.HRP, r1addr))
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(balance).Should(gomega.Equal(uint64(2000)))
+		})
+
+		ginkgo.By("send back to ed25519", func() {
+			parser, err := instances[0].lcli.Parser(context.Background())
+			gomega.Ω(err).Should(gomega.BeNil())
+			submit, _, _, err := instances[0].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				nil,
+				&actions.Transfer{
+					To:    addr,
+					Value: 100,
+				},
+				r1factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			accept := expectBlk(instances[0])
+			results := accept(false)
+			gomega.Ω(results).Should(gomega.HaveLen(1))
+			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+		})
 	})	
 })
 
