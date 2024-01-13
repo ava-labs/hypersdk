@@ -50,11 +50,7 @@ func (h *Handler) DefaultActor() (
 	case consts.SECP256R1ID:
 		factory = auth.NewSECP256R1Factory(secp256r1.PrivateKey(priv))
 	case consts.BLSID:
-		pk, err := bls.SecretKeyFromBytes(priv)
-		if err != nil {
-			return ids.Empty, nil, nil, nil, nil, nil, err
-		}
-		factory = auth.NewBLSFactory(*pk)
+		factory = auth.NewBLSFactory(*bls.DeserializeSecretKey(priv))
 	default:
 		return ids.Empty, nil, nil, nil, nil, nil, ErrInvalidAddress
 	}

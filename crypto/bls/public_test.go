@@ -25,7 +25,7 @@ func TestPublicKeyBytes(t *testing.T) {
 	sk, err := NewSecretKey()
 	require.NoError(err)
 
-	pk := PublicFromSecretKey(sk)
+	pk := PublicFromSecretKey(sk)	
 	pkBytes := PublicKeyToBytes(pk)
 
 	pk2, err := PublicKeyFromBytes(pkBytes)

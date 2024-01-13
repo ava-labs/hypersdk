@@ -57,7 +57,7 @@ func (d *BLS) StateKeys() []string {
 }
 
 func (d *BLS) AsyncVerify(msg []byte) error {
-	if !bls.Verify(&d.Signer, &d.Signature, msg) {
+	if !bls.Verify(&d.Signer, &d.Signature, msg) {		
 		return crypto.ErrInvalidSignature
 	}
 	return nil
@@ -87,16 +87,25 @@ func (*BLS) Size() int {
 }
 
 func (d *BLS) Marshal(p *codec.Packer) {
-	p.PackFixedBytes(bls.PublicKeyToBytes(&d.Signer))
+	p.PackFixedBytes(bls.SerializePublicKey(&d.Signer))
 	p.PackFixedBytes(bls.SignatureToBytes(&d.Signature))
 }
 
 func UnmarshalBLS(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 	var d BLS
-	signer := bls.PublicKeyToBytes(&d.Signer) // avoid allocating additional memory
-	p.UnpackFixedBytes(bls.PublicKeyLen, &signer)
-	signature := bls.SignatureToBytes(&d.Signature) // avoid allocating additional memory
+
+	signer := bls.SerializePublicKey(&d.Signer)
+	p.UnpackFixedBytes(bls.PublicKeyLen*2, &signer)
+	signature := bls.SignatureToBytes(&d.Signature)
 	p.UnpackFixedBytes(bls.SignatureLen, &signature)
+	
+	d.Signer = *bls.DeserializePublicKey(signer)
+	sig, err := bls.SignatureFromBytes(signature)
+	if err != nil {
+		return &BLS{}, nil
+	}
+	
+	d.Signature = *sig
 	return &d, p.Err()
 }
 
@@ -152,5 +161,5 @@ func (*BLSFactory) MaxUnits() (uint64, uint64, []uint16) {
 }
 
 func NewBLSAddress(pk bls.PublicKey) codec.Address {
-	return codec.CreateAddress(consts.BLSID, utils.ToID(bls.PublicKeyToBytes(&pk)))
+	return codec.CreateAddress(consts.BLSID, utils.ToID(bls.SerializePublicKey(&pk)))
 }

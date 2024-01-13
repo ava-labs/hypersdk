@@ -30,11 +30,7 @@ func getFactory(priv *cli.PrivateKey) (chain.AuthFactory, error) {
 	case consts.SECP256R1ID:
 		return auth.NewSECP256R1Factory(secp256r1.PrivateKey(priv.Bytes)), nil
 	case consts.BLSID:
-		pk, err := bls.SecretKeyFromBytes(priv.Bytes)
-		if err != nil {
-			return nil, err
-		}
-		return auth.NewBLSFactory(*pk), nil
+		return auth.NewBLSFactory(*bls.DeserializeSecretKey(priv.Bytes)), nil
 	default:
 		return nil, ErrInvalidKeyType
 	}
