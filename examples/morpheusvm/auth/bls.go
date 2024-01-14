@@ -57,7 +57,7 @@ func (d *BLS) StateKeys() []string {
 }
 
 func (d *BLS) AsyncVerify(msg []byte) error {
-	if !bls.Verify(&d.Signer, &d.Signature, msg) {		
+	if !bls.Verify(msg, &d.Signer, &d.Signature) {		
 		return crypto.ErrInvalidSignature
 	}
 	return nil
@@ -144,16 +144,16 @@ func (d *BLS) Refund(
 var _ chain.AuthFactory = (*BLSFactory)(nil)
 
 type BLSFactory struct {
-	priv bls.SecretKey
+	priv bls.PrivateKey
 }
 
-func NewBLSFactory(priv bls.SecretKey) *BLSFactory {
+func NewBLSFactory(priv bls.PrivateKey) *BLSFactory {
 	return &BLSFactory{priv}
 }
 
 func (d *BLSFactory) Sign(msg []byte, _ chain.Action) (chain.Auth, error) {
-	sig := bls.Sign(&d.priv, msg)
-	return &BLS{Signer: *bls.PublicFromSecretKey(&d.priv), Signature: *sig}, nil
+	sig := bls.Sign(msg, &d.priv)
+	return &BLS{Signer: *bls.PublicFromPrivateKey(&d.priv), Signature: *sig}, nil
 }
 
 func (*BLSFactory) MaxUnits() (uint64, uint64, []uint16) {

@@ -67,13 +67,13 @@ func generatePrivateKey(k string) (*cli.PrivateKey, error) {
 			Bytes:   p[:],
 		}, nil
 	case blsKey:
-		p, err := bls.NewSecretKey()
+		p, err := bls.GeneratePrivateKey()
 		if err != nil {
 			return nil, err
 		}
 		return &cli.PrivateKey{
-			Address: auth.NewBLSAddress(*bls.PublicFromSecretKey(p)),
-			Bytes:   bls.SerializeSecretKey(p),
+			Address: auth.NewBLSAddress(*bls.PublicFromPrivateKey(p)),
+			Bytes:   bls.SerializePrivateKey(p),
 		}, nil		
 	default:
 		return nil, ErrInvalidKeyType
@@ -103,13 +103,13 @@ func loadPrivateKey(k string, path string) (*cli.PrivateKey, error) {
 			Bytes:   p,
 		}, nil
 	case blsKey:
-		p, err := utils.LoadBytes(path, bls.SecretKeyLen)
+		p, err := utils.LoadBytes(path, bls.PrivateKeyLen)
 		if err != nil {
 			return nil, err
 		}
 		return &cli.PrivateKey{
-			Address: auth.NewBLSAddress(*bls.PublicFromSecretKey(bls.DeserializeSecretKey(p))),
-			Bytes:   bls.SerializeSecretKey(bls.DeserializeSecretKey(p)),
+			Address: auth.NewBLSAddress(*bls.PublicFromPrivateKey(bls.DeserializePrivateKey(p))),
+			Bytes:   p, // bls.SerializePrivateKey(bls.DeserializePrivateKey(p)),
 		}, nil		
 	default:
 		return nil, ErrInvalidKeyType

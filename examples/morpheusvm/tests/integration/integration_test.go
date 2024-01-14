@@ -194,7 +194,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	app := &appSender{}
 	for i := range instances {
 		nodeID := ids.GenerateTestNodeID()
-		sk, err := bls.NewSecretKey()
+		sk, err := bls.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		l, err := logFactory.Make(nodeID.String())
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -208,7 +208,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			Log:            l,
 			ChainDataDir:   dname,
 			Metrics:        metrics.NewOptionalGatherer(),
-			PublicKey:      bls.PublicFromSecretKey(sk),
+			PublicKey:      bls.PublicFromPrivateKey(sk),
 			WarpSigner:     warp.NewSigner(sk, networkID, chainID),
 			ValidatorState: &validators.TestState{},
 		}
@@ -910,9 +910,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("sends tokens between ed25519 and bls addresses", func() {
-		r1priv, err := bls.NewSecretKey()
+		r1priv, err := bls.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		r1pk := bls.PublicFromSecretKey(r1priv)
+		r1pk := bls.PublicFromPrivateKey(r1priv)
 		r1factory := auth.NewBLSFactory(*r1priv)
 		r1addr := auth.NewBLSAddress(*r1pk)
 
