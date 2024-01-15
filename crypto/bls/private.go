@@ -11,9 +11,7 @@ import (
 
 const PrivateKeyLen = bls.SecretKeyLen
 
-var (
-	errFailedPrivateKeyDeserialize = errors.New("couldn't deserialize secret key")
-)
+var errFailedPrivateKeyDeserialize = errors.New("couldn't deserialize secret key")
 
 type PrivateKey = bls.SecretKey
 
