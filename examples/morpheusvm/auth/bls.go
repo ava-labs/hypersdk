@@ -57,7 +57,7 @@ func (d *BLS) StateKeys() []string {
 }
 
 func (d *BLS) AsyncVerify(msg []byte) error {
-	if !bls.Verify(msg, &d.Signer, &d.Signature) {		
+	if !bls.Verify(msg, &d.Signer, &d.Signature) {
 		return crypto.ErrInvalidSignature
 	}
 	return nil
@@ -98,13 +98,13 @@ func UnmarshalBLS(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 	p.UnpackFixedBytes(bls.PublicKeyLen*2, &signer)
 	signature := bls.SignatureToBytes(&d.Signature)
 	p.UnpackFixedBytes(bls.SignatureLen, &signature)
-	
+
 	d.Signer = *bls.DeserializePublicKey(signer)
 	sig, err := bls.SignatureFromBytes(signature)
 	if err != nil {
 		return &BLS{}, nil
 	}
-	
+
 	d.Signature = *sig
 	return &d, p.Err()
 }

@@ -961,7 +961,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 		})
-	})	
+	})
 })
 
 func expectBlk(i instance) func(bool) []*chain.Result {

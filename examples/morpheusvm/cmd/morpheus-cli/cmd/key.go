@@ -23,7 +23,7 @@ import (
 const (
 	ed25519Key   = "ed25519"
 	secp256r1Key = "secp256r1"
-	blsKey 		 = "bls"
+	blsKey       = "bls"
 )
 
 func checkKeyType(k string) error {
@@ -74,7 +74,7 @@ func generatePrivateKey(k string) (*cli.PrivateKey, error) {
 		return &cli.PrivateKey{
 			Address: auth.NewBLSAddress(*bls.PublicFromPrivateKey(p)),
 			Bytes:   bls.SerializePrivateKey(p),
-		}, nil		
+		}, nil
 	default:
 		return nil, ErrInvalidKeyType
 	}
@@ -110,7 +110,7 @@ func loadPrivateKey(k string, path string) (*cli.PrivateKey, error) {
 		return &cli.PrivateKey{
 			Address: auth.NewBLSAddress(*bls.PublicFromPrivateKey(bls.DeserializePrivateKey(p))),
 			Bytes:   p,
-		}, nil		
+		}, nil
 	default:
 		return nil, ErrInvalidKeyType
 	}
