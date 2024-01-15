@@ -4,16 +4,14 @@
 package bls
 
 import (
-	blst "github.com/supranational/blst/bindings/go"
-
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 )
 
-const SignatureLen = blst.BLST_P2_COMPRESS_BYTES
+const SignatureLen = bls.SignatureLen
 
 type (
-	Signature          = blst.P2Affine
-	AggregateSignature = blst.P2Aggregate
+	Signature          = bls.Signature
+	AggregateSignature = bls.AggregateSignature
 )
 
 func SignatureToBytes(sig *Signature) []byte {

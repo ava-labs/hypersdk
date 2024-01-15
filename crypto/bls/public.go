@@ -6,12 +6,10 @@ package bls
 import (
 	"errors"
 
-	blst "github.com/supranational/blst/bindings/go"
-
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 )
 
-const PublicKeyLen = blst.BLST_P1_COMPRESS_BYTES
+const PublicKeyLen = bls.PublicKeyLen
 
 var (
 	ErrNoPublicKeys              = errors.New("no public keys")
@@ -19,8 +17,8 @@ var (
 )
 
 type (
-	PublicKey          = blst.P1Affine
-	AggregatePublicKey = blst.P1Aggregate
+	PublicKey          = bls.PublicKey
+	AggregatePublicKey = bls.AggregatePublicKey
 )
 
 func PublicKeyToBytes(pk *PublicKey) []byte {

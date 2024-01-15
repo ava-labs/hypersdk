@@ -6,18 +6,16 @@ package bls
 import (
 	"errors"
 
-	blst "github.com/supranational/blst/bindings/go"
-
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 )
 
-const PrivateKeyLen = blst.BLST_SCALAR_BYTES
+const PrivateKeyLen = bls.SecretKeyLen
 
 var (
 	errFailedPrivateKeyDeserialize = errors.New("couldn't deserialize secret key")
 )
 
-type PrivateKey = blst.SecretKey
+type PrivateKey = bls.SecretKey
 
 func GeneratePrivateKey() (*PrivateKey, error) {
 	return bls.NewSecretKey()
