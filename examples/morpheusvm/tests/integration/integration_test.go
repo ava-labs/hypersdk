@@ -914,8 +914,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		r1priv, err := hbls.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		r1pk := hbls.PublicFromPrivateKey(r1priv)
-		r1factory := auth.NewBLSFactory(*r1priv)
-		r1addr := auth.NewBLSAddress(*r1pk)
+		r1factory := auth.NewBLSFactory(r1priv)
+		r1addr := auth.NewBLSAddress(r1pk)
 
 		ginkgo.By("send to bls", func() {
 			parser, err := instances[0].lcli.Parser(context.Background())

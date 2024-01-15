@@ -26,8 +26,8 @@ const (
 )
 
 type BLS struct {
-	Signer    bls.PublicKey `json:"signer"`
-	Signature bls.Signature `json:"signature"`
+	Signer    *bls.PublicKey `json:"signer,omitempty"`
+	Signature *bls.Signature `json:"signature,omitempty"`
 
 	addr codec.Address
 }
@@ -58,7 +58,7 @@ func (d *BLS) StateKeys() []string {
 }
 
 func (d *BLS) AsyncVerify(msg []byte) error {
-	if !bls.Verify(msg, &d.Signer, &d.Signature) {
+	if !bls.Verify(msg, d.Signer, d.Signature) {
 		return crypto.ErrInvalidSignature
 	}
 	return nil
@@ -88,8 +88,8 @@ func (*BLS) Size() int {
 }
 
 func (d *BLS) Marshal(p *codec.Packer) {
-	p.PackFixedBytes(bls.SerializePublicKey(&d.Signer))
-	p.PackFixedBytes(bls.SignatureToBytes(&d.Signature))
+	p.PackFixedBytes(bls.SerializePublicKey(d.Signer))
+	p.PackFixedBytes(bls.SignatureToBytes(d.Signature))
 }
 
 func UnmarshalBLS(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
@@ -103,13 +103,13 @@ func UnmarshalBLS(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 	signature := make([]byte, bls.SignatureLen)
 	p.UnpackFixedBytes(bls.SignatureLen, &signature)
 
-	d.Signer = *bls.DeserializePublicKey(signer)
+	d.Signer = bls.DeserializePublicKey(signer)
 	sig, err := bls.SignatureFromBytes(signature)
 	if err != nil {
 		return &BLS{}, nil
 	}
 
-	d.Signature = *sig
+	d.Signature = sig
 	return &d, p.Err()
 }
 
@@ -148,22 +148,22 @@ func (d *BLS) Refund(
 var _ chain.AuthFactory = (*BLSFactory)(nil)
 
 type BLSFactory struct {
-	priv bls.PrivateKey
+	priv *bls.PrivateKey `json:"priv,omitempty"`
 }
 
-func NewBLSFactory(priv bls.PrivateKey) *BLSFactory {
+func NewBLSFactory(priv *bls.PrivateKey) *BLSFactory {
 	return &BLSFactory{priv}
 }
 
 func (d *BLSFactory) Sign(msg []byte, _ chain.Action) (chain.Auth, error) {
-	sig := bls.Sign(msg, &d.priv)
-	return &BLS{Signer: *bls.PublicFromPrivateKey(&d.priv), Signature: *sig}, nil
+	sig := bls.Sign(msg, d.priv)
+	return &BLS{Signer: bls.PublicFromPrivateKey(d.priv), Signature: sig}, nil
 }
 
 func (*BLSFactory) MaxUnits() (uint64, uint64, []uint16) {
 	return BLSSize, BLSComputeUnits, []uint16{storage.BalanceChunks}
 }
 
-func NewBLSAddress(pk bls.PublicKey) codec.Address {
-	return codec.CreateAddress(consts.BLSID, utils.ToID(bls.SerializePublicKey(&pk)))
+func NewBLSAddress(pk *bls.PublicKey) codec.Address {
+	return codec.CreateAddress(consts.BLSID, utils.ToID(bls.SerializePublicKey(pk)))
 }
