@@ -27,10 +27,12 @@ const (
 )
 
 func checkKeyType(k string) error {
-	if k != ed25519Key && k != secp256r1Key && k != blsKey {
+	switch k {
+	case ed25519Key, secp256r1Key, blsKey:
+		return nil
+	default:
 		return fmt.Errorf("%w: %s", ErrInvalidKeyType, k)
 	}
-	return nil
 }
 
 func getKeyType(addr codec.Address) (string, error) {
