@@ -16,8 +16,6 @@ const PublicKeyLen = blst.BLST_P1_COMPRESS_BYTES
 var (
 	ErrNoPublicKeys               = errors.New("no public keys")
 	ErrFailedPublicKeyDecompress  = errors.New("couldn't decompress public key")
-	errInvalidPublicKey           = errors.New("invalid public key")
-	errFailedPublicKeyAggregation = errors.New("couldn't aggregate public keys")
 )
 
 type (
