@@ -19,6 +19,8 @@ type Runtime interface {
 	// Returns the results of the call or an error if the call failed.
 	// If the function called does not return a result this value is set to nil.
 	Call(context.Context, string, ...program.SmartPtr) ([]int64, error)
+	// RuntimeCall represents the runtime performing a call to another program.
+	RuntimeCall(context.Context, string, ...program.SmartPtr) ([]int64, error)
 	// Memory returns the program memory.
 	Memory() (*program.Memory, error)
 	// Meter returns the engine meter.

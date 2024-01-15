@@ -40,18 +40,19 @@ func TestCounterProgram(t *testing.T) {
 		))
 
 	eng := engine.New(engine.NewConfig())
+	reentrancyGaurd := engine.NewReentrancyGaurd()
 	// define supported imports
 	importsBuilder := host.NewImportsBuilder()
 	importsBuilder.Register("state", func() host.Import {
 		return pstate.New(log, db)
 	})
 	importsBuilder.Register("program", func() host.Import {
-		return program.New(log, eng, db, cfg)
+		return program.New(log, eng, db, cfg, reentrancyGaurd)
 	})
 	imports := importsBuilder.Build()
 
 	wasmBytes := tests.ReadFixture(t, "../tests/fixture/counter.wasm")
-	rt := runtime.New(log, eng, imports, cfg)
+	rt := runtime.New(log, eng, imports, cfg, reentrancyGaurd)
 	err := rt.Initialize(ctx, wasmBytes, maxUnits)
 	require.NoError(err)
 
@@ -89,7 +90,7 @@ func TestCounterProgram(t *testing.T) {
 
 	// initialize second runtime to create second counter program with an empty
 	// meter.
-	rt2 := runtime.New(log, eng, imports, cfg)
+	rt2 := runtime.New(log, eng, imports, cfg, reentrancyGaurd)
 	err = rt2.Initialize(ctx, wasmBytes, engine.NoUnits)
 
 	require.NoError(err)
@@ -163,14 +164,12 @@ func TestCounterProgram(t *testing.T) {
 	maxUnitsProgramToProgram := int64(10000)
 	maxUnitsProgramToProgramPtr, err := argumentToSmartPtr(maxUnitsProgramToProgram, mem)
 	require.NoError(err)
-
 	// increment alice's counter on program 2
 	fivePtr, err := argumentToSmartPtr(int64(5), mem)
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr, fivePtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
-
 	// expect alice's counter on program 2 to be 15
 	result, err = rt.Call(ctx, "get_value_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr)
 	require.NoError(err)

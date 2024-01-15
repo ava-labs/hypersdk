@@ -6,20 +6,22 @@ package program
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
+	"github.com/ava-labs/hypersdk/x/programs/examples/imports/wrap"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/program"
+	"github.com/ava-labs/hypersdk/x/programs/program/types"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -36,16 +38,17 @@ type Import struct {
 	meter   *engine.Meter
 	imports host.SupportedImports
 
-	reentrancyGaurd *engine.ReentrancyGaurd
+	rg *engine.ReentrancyGaurd
 }
 
 // New returns a new program invoke host module which can perform program to program calls.
-func New(log logging.Logger, engine *engine.Engine, mu state.Mutable, cfg *runtime.Config) *Import {
+func New(log logging.Logger, engine *engine.Engine, mu state.Mutable, cfg *runtime.Config, rg *engine.ReentrancyGaurd) *Import {
 	return &Import{
 		cfg:    cfg,
 		mu:     mu,
 		log:    log,
 		engine: engine,
+		rg : rg,
 	}
 }
 
@@ -56,29 +59,37 @@ func (i *Import) Name() string {
 func (i *Import) Register(link *host.Link) error {
 	i.meter = link.Meter()
 	i.imports = link.Imports()
-	// todo: register reentrancy
-	i.reentrancyGaurd = link.ReentrancyGaurd()
-	return link.RegisterImportFn(Name, "call_program", i.callProgramFn)
+	// TODO: register reentrancy
+	// i.reentrancyGaurd = link.ReentrancyGaurd()
+	wrap := wrap.New(link)
+	return wrap.RegisterAnyParamFn(Name, "call_program", 4, i.callProgramFnVariadic)
+}
+
+
+func (i *Import) callProgramFnVariadic(caller *program.Caller, args ...int64) (*types.Val, error) {
+	if len(args) != 4 {
+		return nil, errors.New("expected 2 arguments")
+	}
+	return i.callProgramFn(caller, args[0], args[1], args[2], args[3])
 }
 
 // callProgramFn makes a call to an entry function of a program in the context of another program's ID.
 func (i *Import) callProgramFn(
-	wasmCaller *wasmtime.Caller,
+	caller *program.Caller,
 	programID int64,
 	function int64,
 	args int64,
 	maxUnits int64,
-) int64 {
+) (*types.Val, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	caller := program.NewCaller(wasmCaller)
 	memory, err := caller.Memory()
 	if err != nil {
 		i.log.Error("failed to get memory from caller",
 			zap.Error(err),
 		)
-		return -1
+		return nil, err
 	}
 
 	// get the entry function for invoke to call.
@@ -87,7 +98,7 @@ func (i *Import) callProgramFn(
 		i.log.Error("failed to read function name from memory",
 			zap.Error(err),
 		)
-		return -1
+		return nil, err
 	}
 
 	programIDBytes, err := program.SmartPtr(programID).Bytes(memory)
@@ -95,7 +106,7 @@ func (i *Import) callProgramFn(
 		i.log.Error("failed to read id from memory",
 			zap.Error(err),
 		)
-		return -1
+		return nil, err
 	}
 
 	// get the program bytes from storage
@@ -104,17 +115,17 @@ func (i *Import) callProgramFn(
 		i.log.Error("failed to get program bytes from storage",
 			zap.Error(err),
 		)
-		return -1
+		return nil, err
 	}
 
 	// create a new runtime for the program to be invoked with a zero balance.
-	rt := runtime.New(i.log, i.engine, i.imports, i.cfg)
+	rt := runtime.New(i.log, i.engine, i.imports, i.cfg, i.rg)
 	err = rt.Initialize(context.Background(), programWasmBytes, engine.NoUnits)
 	if err != nil {
 		i.log.Error("failed to initialize runtime",
 			zap.Error(err),
 		)
-		return -1
+		return nil, err
 	}
 
 	// transfer the units from the caller to the new runtime before any calls are made.
@@ -125,7 +136,7 @@ func (i *Import) callProgramFn(
 			zap.Int64("required", maxUnits),
 			zap.Error(err),
 		)
-		return -1
+		return nil, err
 	}
 
 	// transfer remaining balance back to parent runtime
@@ -144,13 +155,13 @@ func (i *Import) callProgramFn(
 			)
 		}
 	}()
-
+	
 	argsBytes, err := program.SmartPtr(args).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read program args name from memory",
 			zap.Error(err),
 		)
-		return -1
+		return nil, err
 	}
 
 	rtMemory, err := rt.Memory()
@@ -158,7 +169,7 @@ func (i *Import) callProgramFn(
 		i.log.Error("failed to get memory from runtime",
 			zap.Error(err),
 		)
-		return -1
+		return nil, err
 	}
 
 	// sync args to new runtime and return arguments to the invoke call
@@ -167,23 +178,24 @@ func (i *Import) callProgramFn(
 		i.log.Error("failed to unmarshal call arguments",
 			zap.Error(err),
 		)
-		return -1
+		return nil, err
 	}
 
 	function_name := string(functionBytes)
 
 	// TODO: check that we are allowed to enter the program via reentrancy gaurd here.
 	// decrement the reentrancy gaurd when we exit the program.
-	res, err := rt.Call(ctx, function_name, params...)
+	i.rg.Allow(function_name)
+	res, err := rt.RuntimeCall(ctx, function_name, params...)
 	
 	if err != nil {
 		i.log.Error("failed to call entry function",
 			zap.Error(err),
 		)
-		return -1
+		return nil, err
 	}
 
-	return int64(res[0])
+	return types.ValI64(res[0]), nil
 }
 
 // getCallArgs returns the arguments to be passed to the program being invoked from [buffer].
