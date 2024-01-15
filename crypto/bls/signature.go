@@ -21,4 +21,3 @@ func SignatureToBytes(sig *Signature) []byte {
 func SignatureFromBytes(sigBytes []byte) (*Signature, error) {
 	return bls.SignatureFromBytes(sigBytes)
 }
-
