@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
@@ -22,13 +23,16 @@ import (
 const (
 	ed25519Key   = "ed25519"
 	secp256r1Key = "secp256r1"
+	blsKey       = "bls"
 )
 
 func checkKeyType(k string) error {
-	if k != ed25519Key && k != secp256r1Key {
+	switch k {
+	case ed25519Key, secp256r1Key, blsKey:
+		return nil
+	default:
 		return fmt.Errorf("%w: %s", ErrInvalidKeyType, k)
 	}
-	return nil
 }
 
 func getKeyType(addr codec.Address) (string, error) {
@@ -37,6 +41,8 @@ func getKeyType(addr codec.Address) (string, error) {
 		return ed25519Key, nil
 	case consts.SECP256R1ID:
 		return secp256r1Key, nil
+	case consts.BLSID:
+		return blsKey, nil
 	default:
 		return "", ErrInvalidKeyType
 	}
@@ -61,6 +67,15 @@ func generatePrivateKey(k string) (*cli.PrivateKey, error) {
 		return &cli.PrivateKey{
 			Address: auth.NewSECP256R1Address(p.PublicKey()),
 			Bytes:   p[:],
+		}, nil
+	case blsKey:
+		p, err := bls.GeneratePrivateKey()
+		if err != nil {
+			return nil, err
+		}
+		return &cli.PrivateKey{
+			Address: auth.NewBLSAddress(bls.PublicFromPrivateKey(p)),
+			Bytes:   bls.PrivateKeyToBytes(p),
 		}, nil
 	default:
 		return nil, ErrInvalidKeyType
@@ -89,6 +104,20 @@ func loadPrivateKey(k string, path string) (*cli.PrivateKey, error) {
 			Address: auth.NewSECP256R1Address(pk.PublicKey()),
 			Bytes:   p,
 		}, nil
+	case blsKey:
+		p, err := utils.LoadBytes(path, bls.PrivateKeyLen)
+		if err != nil {
+			return nil, err
+		}
+
+		privKey, err := bls.PrivateKeyFromBytes(p)
+		if err != nil {
+			return nil, err
+		}
+		return &cli.PrivateKey{
+			Address: auth.NewBLSAddress(bls.PublicFromPrivateKey(privKey)),
+			Bytes:   p,
+		}, nil
 	default:
 		return nil, ErrInvalidKeyType
 	}
@@ -102,7 +131,7 @@ var keyCmd = &cobra.Command{
 }
 
 var genKeyCmd = &cobra.Command{
-	Use: "generate [ed25519/secp256r1]",
+	Use: "generate [ed25519/secp256r1/bls]",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 {
 			return ErrInvalidArgs
