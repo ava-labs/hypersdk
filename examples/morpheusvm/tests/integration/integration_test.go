@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -34,7 +35,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/bls"
+	hbls "github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/pubsub"
@@ -194,7 +195,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	app := &appSender{}
 	for i := range instances {
 		nodeID := ids.GenerateTestNodeID()
-		sk, err := bls.GeneratePrivateKey()
+		sk, err := bls.NewSecretKey()
 		gomega.Ω(err).Should(gomega.BeNil())
 		l, err := logFactory.Make(nodeID.String())
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -208,7 +209,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			Log:            l,
 			ChainDataDir:   dname,
 			Metrics:        metrics.NewOptionalGatherer(),
-			PublicKey:      bls.PublicFromPrivateKey(sk),
+			PublicKey:      bls.PublicFromSecretKey(sk),
 			WarpSigner:     warp.NewSigner(sk, networkID, chainID),
 			ValidatorState: &validators.TestState{},
 		}
@@ -910,9 +911,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	})
 
 	ginkgo.It("sends tokens between ed25519 and bls addresses", func() {
-		r1priv, err := bls.GeneratePrivateKey()
+		r1priv, err := hbls.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		r1pk := bls.PublicFromPrivateKey(r1priv)
+		r1pk := hbls.PublicFromPrivateKey(r1priv)
 		r1factory := auth.NewBLSFactory(*r1priv)
 		r1addr := auth.NewBLSAddress(*r1pk)
 
