@@ -95,6 +95,9 @@ func UnmarshalBLS(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 	var d BLS
 
 	signer := bls.SerializePublicKey(&d.Signer)
+	// Public key length is defined to be 48 bytes.
+	// When we serialize, this results in a length twice of that
+	// https://github.com/supranational/blst/blob/master/bindings/go/blst.go#L165C41-L165C41
 	p.UnpackFixedBytes(bls.PublicKeyLen*2, &signer)
 	signature := bls.SignatureToBytes(&d.Signature)
 	p.UnpackFixedBytes(bls.SignatureLen, &signature)
