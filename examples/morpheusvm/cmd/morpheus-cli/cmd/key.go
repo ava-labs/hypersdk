@@ -75,7 +75,7 @@ func generatePrivateKey(k string) (*cli.PrivateKey, error) {
 		}
 		return &cli.PrivateKey{
 			Address: auth.NewBLSAddress(bls.PublicFromPrivateKey(p)),
-			Bytes:   bls.SerializePrivateKey(p),
+			Bytes:   bls.PrivateKeyToBytes(p),
 		}, nil
 	default:
 		return nil, ErrInvalidKeyType
@@ -109,8 +109,13 @@ func loadPrivateKey(k string, path string) (*cli.PrivateKey, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		privKey, err := bls.PrivateKeyFromBytes(p)
+		if err != nil {
+			return nil, err
+		}
 		return &cli.PrivateKey{
-			Address: auth.NewBLSAddress(bls.PublicFromPrivateKey(bls.DeserializePrivateKey(p))),
+			Address: auth.NewBLSAddress(bls.PublicFromPrivateKey(privKey)),
 			Bytes:   p,
 		}, nil
 	default:

@@ -40,11 +40,3 @@ func PublicFromPrivateKey(pk *PrivateKey) *PublicKey {
 func Sign(msg []byte, pk *PrivateKey) *Signature {
 	return bls.Sign(pk, msg)
 }
-
-func DeserializePrivateKey(pkBytes []byte) *PrivateKey {
-	return bls.DeserializeSecretKey(pkBytes)
-}
-
-func SerializePrivateKey(key *PrivateKey) []byte {
-	return bls.SerializeSecretKey(key)
-}

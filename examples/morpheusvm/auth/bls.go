@@ -21,8 +21,7 @@ var _ chain.Auth = (*BLS)(nil)
 
 const (
 	BLSComputeUnits = 10
-	BLSCompressSize	= bls.PublicKeyLen * 2	
-	BLSSize         = BLSCompressSize + bls.SignatureLen
+	BLSSize         = bls.PublicKeyLen + bls.SignatureLen
 )
 
 type BLS struct {
@@ -88,22 +87,27 @@ func (*BLS) Size() int {
 }
 
 func (d *BLS) Marshal(p *codec.Packer) {
-	p.PackFixedBytes(bls.SerializePublicKey(d.Signer))
+	p.PackFixedBytes(bls.PublicKeyToBytes(d.Signer))
 	p.PackFixedBytes(bls.SignatureToBytes(d.Signature))
 }
 
 func UnmarshalBLS(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 	var d BLS
 
-	signer := make([]byte, BLSCompressSize)
+	signer := make([]byte, bls.PublicKeyLen)
 	// Public key length is defined to be 48 bytes.
 	// When we serialize, this results in a length twice of that
 	// https://github.com/supranational/blst/blob/master/bindings/go/blst.go#L165C41-L165C41
-	p.UnpackFixedBytes(BLSCompressSize, &signer)
+	p.UnpackFixedBytes(bls.PublicKeyLen, &signer)
 	signature := make([]byte, bls.SignatureLen)
 	p.UnpackFixedBytes(bls.SignatureLen, &signature)
 
-	d.Signer = bls.DeserializePublicKey(signer)
+	pk, err := bls.PublicKeyFromBytes(signer)
+	if err != nil {
+		return &BLS{}, nil
+	}
+	d.Signer = pk
+	
 	sig, err := bls.SignatureFromBytes(signature)
 	if err != nil {
 		return &BLS{}, nil
@@ -148,7 +152,7 @@ func (d *BLS) Refund(
 var _ chain.AuthFactory = (*BLSFactory)(nil)
 
 type BLSFactory struct {
-	priv *bls.PrivateKey `json:"priv,omitempty"`
+	priv *bls.PrivateKey
 }
 
 func NewBLSFactory(priv *bls.PrivateKey) *BLSFactory {
@@ -165,5 +169,5 @@ func (*BLSFactory) MaxUnits() (uint64, uint64, []uint16) {
 }
 
 func NewBLSAddress(pk *bls.PublicKey) codec.Address {
-	return codec.CreateAddress(consts.BLSID, utils.ToID(bls.SerializePublicKey(pk)))
+	return codec.CreateAddress(consts.BLSID, utils.ToID(bls.PublicKeyToBytes(pk)))
 }

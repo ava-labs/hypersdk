@@ -32,11 +32,3 @@ func PublicKeyFromBytes(pkBytes []byte) (*PublicKey, error) {
 func Verify(msg []byte, pk *PublicKey, sig *Signature) bool {
 	return bls.Verify(pk, sig, msg)
 }
-
-func DeserializePublicKey(pkBytes []byte) *PublicKey {
-	return bls.DeserializePublicKey(pkBytes)
-}
-
-func SerializePublicKey(key *PublicKey) []byte {
-	return bls.SerializePublicKey(key)
-}
