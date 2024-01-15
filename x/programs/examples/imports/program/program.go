@@ -35,6 +35,8 @@ type Import struct {
 	engine  *engine.Engine
 	meter   *engine.Meter
 	imports host.SupportedImports
+
+	reentrancyGaurd *engine.ReentrancyGaurd
 }
 
 // New returns a new program invoke host module which can perform program to program calls.
@@ -54,6 +56,8 @@ func (i *Import) Name() string {
 func (i *Import) Register(link *host.Link) error {
 	i.meter = link.Meter()
 	i.imports = link.Imports()
+	// todo: register reentrancy
+	i.reentrancyGaurd = link.ReentrancyGaurd()
 	return link.RegisterImportFn(Name, "call_program", i.callProgramFn)
 }
 
@@ -167,7 +171,11 @@ func (i *Import) callProgramFn(
 	}
 
 	function_name := string(functionBytes)
+
+	// TODO: check that we are allowed to enter the program via reentrancy gaurd here.
+	// decrement the reentrancy gaurd when we exit the program.
 	res, err := rt.Call(ctx, function_name, params...)
+	
 	if err != nil {
 		i.log.Error("failed to call entry function",
 			zap.Error(err),
