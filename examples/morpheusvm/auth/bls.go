@@ -104,13 +104,13 @@ func UnmarshalBLS(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 
 	pk, err := bls.PublicKeyFromBytes(signer)
 	if err != nil {
-		return &BLS{}, nil
+		return nil, err
 	}
 	d.Signer = pk
 	
 	sig, err := bls.SignatureFromBytes(signature)
 	if err != nil {
-		return &BLS{}, nil
+		return nil, err
 	}
 
 	d.Signature = sig
