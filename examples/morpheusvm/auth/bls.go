@@ -20,7 +20,7 @@ import (
 var _ chain.Auth = (*BLS)(nil)
 
 const (
-	BLSComputeUnits = 10 // can't be batched like ed25519
+	BLSComputeUnits = 10
 	BLSSize         = bls.PublicKeyLen + bls.SignatureLen
 )
 
