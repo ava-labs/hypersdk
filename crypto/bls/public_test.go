@@ -36,3 +36,22 @@ func TestPublicKeyBytes(t *testing.T) {
 	require.Equal(pk, pk2)
 	require.Equal(pkBytes, pk2Bytes)
 }
+
+func TestAggregatePublicKeysNoop(t *testing.T) {
+	require := require.New(t)
+
+	sk, err := GeneratePrivateKey()
+	require.NoError(err)
+
+	pk := PublicFromPrivateKey(sk)
+	pkBytes := PublicKeyToBytes(pk)
+
+	aggPK, err := AggregatePublicKeys([]*PublicKey{pk})
+	require.NoError(err)
+
+	aggPKBytes := PublicKeyToBytes(aggPK)
+	require.NoError(err)
+
+	require.Equal(pk, aggPK)
+	require.Equal(pkBytes, aggPKBytes)
+}
