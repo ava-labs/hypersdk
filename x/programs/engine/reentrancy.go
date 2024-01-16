@@ -3,14 +3,18 @@
 
 package engine
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/ava-labs/avalanchego/ids"
+)
 
 // TODO: change to this map
-// type reentrancyMap map[ids.ID]map[string]uint32
+type reentrancyMap map[ids.ID]map[string]uint8
 
 // assuming this is only used on one program
 // limit reentrancy to 255 times
-type reentrancyMap map[string]uint8
+// type reentrancyMap map[string]uint8
 
 type ReentrancyGaurd struct {
 	// potentially needs to have one for every call context 
@@ -31,37 +35,43 @@ func (r *ReentrancyGaurd) Reset() {
 }
 
 // Allow allows a function to be reentered once, or if reentrancy is set don't update the map
-func (r *ReentrancyGaurd) Allow(fn string) {
-	// if already set throw an error
-	if _, ok := r.m[fn]; ok {
-		fmt.Println("reentrancy already set for function, ", r.m[fn])
-		return
-	}
-	r.m[fn] = 1
+func (r *ReentrancyGaurd) Allow(id ids.ID, fn string) {
+	r.Set(id, fn, 1)
 }
 
 // Set sets the amount of times a function can be reentered
-func (r *ReentrancyGaurd) Set(fn string, val uint8) {
-	// if already set throw an error
-	if _, ok := r.m[fn]; ok {
-		fmt.Println("trying to set reentrancy for a function that already has reentrancy set. value is ", r.m[fn])
+func (r *ReentrancyGaurd) Set(id ids.ID, fn string, val uint8) {
+	if _, ok := r.m[id]; !ok {
+		r.m[id] = make(map[string]uint8)
+		r.m[id][fn] = val
+		return
+	}
+
+	// if already set return, and log as warning. 
+	if _, ok := r.m[id][fn]; ok {
+		fmt.Println("trying to set reentrancy for a function that already has reentrancy set. value is ", r.m[id][fn])
 		// should log a warning here tho... 
 		// or potentially set the value if it's less than the current value
 		return
 	}
-	r.m[fn] = val
+
+	r.m[id][fn] = val
 }
 
-func (r *ReentrancyGaurd) Enter(fn string) error {
-	if _, ok := r.m[fn]; !ok {
+func (r *ReentrancyGaurd) Enter(id ids.ID, fn string) error {
+	if _, ok := r.m[id]; !ok {
 		return fmt.Errorf("cannot enter %s, not set for reentrancy", fn)
 	}
 
-	if r.m[fn] == 0 {
+	if _, ok := r.m[id][fn]; !ok {
+		return fmt.Errorf("cannot enter %s, not set for reentrancy", fn)
+	}
+
+	if r.m[id][fn] == 0 {
 		return fmt.Errorf("cannot enter %s, reentrancy limit reached", fn)
 	}
 
-	r.m[fn]--
-	fmt.Println("decreased to ", r.m[fn])
+	r.m[id][fn]--
+	fmt.Println("decreased to ", r.m[id][fn])
 	return nil
 }

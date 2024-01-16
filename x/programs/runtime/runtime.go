@@ -9,6 +9,7 @@ import (
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/host"
@@ -113,8 +114,8 @@ func (r *WasmRuntime) Call(_ context.Context, name string, params ...program.Sma
 	return fn.Call(params...)
 }
 
-func (r *WasmRuntime) RuntimeCall(_ context.Context, name string, params ...program.SmartPtr) ([]int64, error) {
-	err := r.rg.Enter(name)
+func (r *WasmRuntime) RuntimeCall(_ context.Context, programID ids.ID, name string, params ...program.SmartPtr) ([]int64, error) {
+	err := r.rg.Enter(programID, name)
 	if err != nil {
 		return nil, err
 	}

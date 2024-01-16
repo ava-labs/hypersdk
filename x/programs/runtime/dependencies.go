@@ -6,6 +6,7 @@ package runtime
 import (
 	"context"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/program"
 )
@@ -20,7 +21,7 @@ type Runtime interface {
 	// If the function called does not return a result this value is set to nil.
 	Call(context.Context, string, ...program.SmartPtr) ([]int64, error)
 	// RuntimeCall represents the runtime performing a call to another program.
-	RuntimeCall(context.Context, string, ...program.SmartPtr) ([]int64, error)
+	RuntimeCall(context.Context, ids.ID, string, ...program.SmartPtr) ([]int64, error)
 	// Memory returns the program memory.
 	Memory() (*program.Memory, error)
 	// Meter returns the engine meter.

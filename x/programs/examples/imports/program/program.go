@@ -138,9 +138,6 @@ func (i *Import) callProgramFn(
 		)
 		return nil, err
 	}
-	bal, err := i.meter.GetBalance()
-	fmt.Printf("meter balance %d and err %s", bal, err)
-	fmt.Println("max units", maxUnits)
 	// transfer the units from the caller to the new runtime before any calls are made.
 	balance, err := i.meter.TransferUnitsTo(rt.Meter(), uint64(maxUnits))
 	if err != nil {
@@ -195,8 +192,8 @@ func (i *Import) callProgramFn(
 	}
 
 	functionName := string(functionBytes)
-	i.rg.Allow(functionName)
-	res, err := rt.RuntimeCall(ctx, functionName, params...)
+	i.rg.Allow(ids.ID(programIDBytes), functionName)
+	res, err := rt.RuntimeCall(ctx, ids.ID(programIDBytes), functionName, params...)
 
 	if err != nil {
 		fmt.Println("error calling function", functionName)
@@ -266,6 +263,15 @@ func (i *Import) setReentrancy(
 		return nil, errors.New("maxEnters must be between 0 and 255")
 	}
 
+
+	programIDBytes, err := program.SmartPtr(programID).Bytes(memory)
+	if err != nil {
+		i.log.Error("failed to read id from memory",
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
 	// get the entry function for invoke to call.
 	functionBytes, err := program.SmartPtr(function).Bytes(memory)
 	if err != nil {
@@ -279,7 +285,7 @@ func (i *Import) setReentrancy(
 	functionName := string(functionBytes)
 
 	// TODO: not setting reentrency on program ID yet
-	i.rg.Set(functionName, uint8(maxEnters))
+	i.rg.Set(ids.ID(programIDBytes), functionName, uint8(maxEnters))
 
 	// returning 0 for now. 
 	return types.ValI64(0), nil
