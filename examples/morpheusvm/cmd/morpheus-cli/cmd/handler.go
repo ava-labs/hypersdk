@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
@@ -48,6 +49,12 @@ func (h *Handler) DefaultActor() (
 		factory = auth.NewED25519Factory(ed25519.PrivateKey(priv))
 	case consts.SECP256R1ID:
 		factory = auth.NewSECP256R1Factory(secp256r1.PrivateKey(priv))
+	case consts.BLSID:
+		p, err := bls.PrivateKeyFromBytes(priv)
+		if err != nil {
+			return ids.Empty, nil, nil, nil, nil, nil, err
+		}
+		factory = auth.NewBLSFactory(p)
 	default:
 		return ids.Empty, nil, nil, nil, nil, nil, ErrInvalidAddress
 	}
