@@ -46,6 +46,15 @@ fn inc_external(_: Program, target: Program, max_units: i64, of: Address, amount
         .unwrap()
 }
 
+#[public]
+fn reentrance_example(_: Program, target_a: Program, target_b: Program, max_units: i64) -> i64 {
+    target_a
+        .with_reentrancy("reentrance_example", 3)
+        .unwrap()
+        .call_function("reentrance_example", params!(&target_b, &target_a, &(max_units / 10)), max_units)
+        .unwrap()
+}
+
 /// Gets the count at the address.
 #[public]
 fn get_value(program: Program, of: Address) -> i64 {

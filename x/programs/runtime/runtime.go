@@ -105,7 +105,6 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 
 func (r *WasmRuntime) Call(_ context.Context, name string, params ...program.SmartPtr) ([]int64, error) {
 	r.rg.Reset()
-	r.rg.Set(name, 0)
 	fn, err := r.inst.GetFunc(name)
 	if err != nil {
 		return nil, err

@@ -9,6 +9,13 @@ extern "C" {
     fn _call_program(target_id: i64, function: i64, args_ptr: i64, max_units: i64) -> i64;
 }
 
+#[link(wasm_import_module = "program")]
+extern "C" {
+    #[link_name = "set_reentrancy"]
+    fn _set_reentrancy(target_id: i64, function: i64, max_reenters: i64) -> i64;
+}
+
+
 /// Calls a program `target` and returns the result.
 pub(crate) fn call(
     target: &Program,
@@ -21,4 +28,14 @@ pub(crate) fn call(
     let args = to_smart_ptr(args)?;
 
     Ok(unsafe { _call_program(target, function, args, max_units) })
+}
+
+pub fn set_reentrancy(
+    target: &Program,
+    function_name: &str,
+    max_reenters: u8,
+) -> Result<i64, StateError> {
+    let target = to_smart_ptr(target.id())?;
+    let function = to_smart_ptr(function_name.as_bytes())?;
+    Ok(unsafe { _set_reentrancy(target, function, max_reenters as i64) })
 }

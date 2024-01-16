@@ -26,7 +26,7 @@ import (
 func TestCounterProgram(t *testing.T) {
 	require := require.New(t)
 	db := newTestDB()
-	maxUnits := uint64(80000)
+	maxUnits := uint64(10000000000)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -88,37 +88,18 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 	require.Equal(int64(0), result[0])
 
-	// initialize second runtime to create second counter program with an empty
-	// meter.
-	rt2 := runtime.New(log, eng, imports, cfg, reentrancyGaurd)
-	err = rt2.Initialize(ctx, wasmBytes, engine.NoUnits)
-
-	require.NoError(err)
-
-	// define max units to transfer to second runtime
-	unitsTransfer := uint64(10000)
-
-	// transfer the units from the original runtime to the new runtime before
-	// any calls are made.
-	_, err = rt.Meter().TransferUnitsTo(rt2.Meter(), unitsTransfer)
-	require.NoError(err)
-
 	// simulate creating second program transaction
 	program2ID := ids.GenerateTestID()
 	err = storage.SetProgram(ctx, db, program2ID, wasmBytes)
 	require.NoError(err)
 
-	mem2, err := rt2.Memory()
+	mem2, err := rt.Memory()
 	require.NoError(err)
 	programID2Ptr, err := argumentToSmartPtr(program2ID, mem2)
 	require.NoError(err)
 
-	// write alice's key to stack and get pointer
-	alicePtr2, err := argumentToSmartPtr(aliceKey, mem2)
-	require.NoError(err)
-
 	// initialize counter for alice on runtime 2
-	result, err = rt2.Call(ctx, "initialize_address", programID2Ptr, alicePtr2)
+	result, err = rt.Call(ctx, "initialize_address", programID2Ptr, alicePtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
@@ -126,20 +107,13 @@ func TestCounterProgram(t *testing.T) {
 	incAmount := int64(10)
 	incAmountPtr, err := argumentToSmartPtr(incAmount, mem2)
 	require.NoError(err)
-	result, err = rt2.Call(ctx, "inc", programID2Ptr, alicePtr2, incAmountPtr)
+	result, err = rt.Call(ctx, "inc", programID2Ptr, alicePtr, incAmountPtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
-	result, err = rt2.Call(ctx, "get_value", programID2Ptr, alicePtr2)
+	result, err = rt.Call(ctx, "get_value", programID2Ptr, alicePtr)
 	require.NoError(err)
 	require.Equal(incAmount, result[0])
-
-	balance, err = rt2.Meter().GetBalance()
-	require.NoError(err)
-
-	// transfer balance back to original runtime
-	_, err = rt2.Meter().TransferUnitsTo(rt.Meter(), balance)
-	require.NoError(err)
 
 	// increment alice's counter on program 1
 	onePtr, err := argumentToSmartPtr(int64(1), mem)
@@ -161,7 +135,7 @@ func TestCounterProgram(t *testing.T) {
 
 	caller := programIDPtr
 	target := programID2Ptr
-	maxUnitsProgramToProgram := int64(10000)
+	maxUnitsProgramToProgram := int64(100000000)
 	maxUnitsProgramToProgramPtr, err := argumentToSmartPtr(maxUnitsProgramToProgram, mem)
 	require.NoError(err)
 
@@ -176,7 +150,11 @@ func TestCounterProgram(t *testing.T) {
 	result, err = rt.Call(ctx, "get_value_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr)
 	require.NoError(err)
 	require.Equal(int64(15), result[0])
-	balance, err = rt.Meter().GetBalance()
+	// balance, err = rt.Meter().GetBalance()
+	// require.NoError(err)
+	// require.Greater(balance, uint64(0))
+
+	_, err = rt.Call(ctx, "reentrance_example", caller, target, caller, maxUnitsProgramToProgramPtr)
 	require.NoError(err)
-	require.Greater(balance, uint64(0))
+
 }

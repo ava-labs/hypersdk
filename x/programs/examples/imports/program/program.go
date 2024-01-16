@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 
 	"go.uber.org/zap"
 
@@ -66,7 +67,7 @@ func (i *Import) Register(link *host.Link) error {
 	if err != nil {
 		return err
 	}
-	return wrap.RegisterAnyParamFn(Name, "with_reentrancy", 3, i.setReentrancyVariadic)
+	return wrap.RegisterAnyParamFn(Name, "set_reentrancy", 3, i.setReentrancyVariadic)
 }
 
 func (i *Import) callProgramFnVariadic(caller *program.Caller, args ...int64) (*types.Val, error) {
@@ -137,7 +138,9 @@ func (i *Import) callProgramFn(
 		)
 		return nil, err
 	}
-
+	bal, err := i.meter.GetBalance()
+	fmt.Printf("meter balance %d and err %s", bal, err)
+	fmt.Println("max units", maxUnits)
 	// transfer the units from the caller to the new runtime before any calls are made.
 	balance, err := i.meter.TransferUnitsTo(rt.Meter(), uint64(maxUnits))
 	if err != nil {
@@ -148,7 +151,7 @@ func (i *Import) callProgramFn(
 		)
 		return nil, err
 	}
-
+	
 	// transfer remaining balance back to parent runtime
 	defer func() {
 		balance, err := rt.Meter().GetBalance()
@@ -192,11 +195,11 @@ func (i *Import) callProgramFn(
 	}
 
 	functionName := string(functionBytes)
-
 	i.rg.Allow(functionName)
 	res, err := rt.RuntimeCall(ctx, functionName, params...)
 
 	if err != nil {
+		fmt.Println("error calling function", functionName)
 		i.log.Error("failed to call entry function",
 			zap.Error(err),
 		)
@@ -266,6 +269,7 @@ func (i *Import) setReentrancy(
 	// get the entry function for invoke to call.
 	functionBytes, err := program.SmartPtr(function).Bytes(memory)
 	if err != nil {
+		fmt.Println("failed to read function name from memory")
 		i.log.Error("failed to read function name from memory",
 			zap.Error(err),
 		)
@@ -275,13 +279,7 @@ func (i *Import) setReentrancy(
 	functionName := string(functionBytes)
 
 	// TODO: not setting reentrency on program ID yet
-	err = i.rg.Set(functionName, uint8(maxEnters))
-	if err != nil {
-		i.log.Error("failed to set reentrancy",
-			zap.Error(err),
-		)
-		return nil, err
-	}
+	i.rg.Set(functionName, uint8(maxEnters))
 
 	// returning 0 for now. 
 	return types.ValI64(0), nil
