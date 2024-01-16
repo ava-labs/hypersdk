@@ -12,7 +12,7 @@ on:
 
 jobs:
   hypersdk-unit-tests:
-    if: ${{ github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'run unit') }}
+    if: ${{ github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'run all ci') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
