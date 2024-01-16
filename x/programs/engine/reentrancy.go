@@ -8,7 +8,8 @@ import "fmt"
 // type reentrancyMap map[ids.ID]map[string]uint32
 
 // assuming this is only used on one program
-type reentrancyMap map[string]uint32
+// limit reentrancy to 255 times
+type reentrancyMap map[string]uint8
 
 type ReentrancyGaurd struct {
 	m reentrancyMap
@@ -43,7 +44,7 @@ func (r *ReentrancyGaurd) Allow(fn string) {
 }
 
 // Set sets the amount of times a function can be reentered
-func (r *ReentrancyGaurd) Set(fn string, val uint32) error {
+func (r *ReentrancyGaurd) Set(fn string, val uint8) error {
 	// if already set throw an error
 	if _, ok := r.m[fn]; ok {
 		return fmt.Errorf("cannot reset reentrancy for %s", fn)

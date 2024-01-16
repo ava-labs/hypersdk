@@ -164,12 +164,14 @@ func TestCounterProgram(t *testing.T) {
 	maxUnitsProgramToProgram := int64(10000)
 	maxUnitsProgramToProgramPtr, err := argumentToSmartPtr(maxUnitsProgramToProgram, mem)
 	require.NoError(err)
+
 	// increment alice's counter on program 2
 	fivePtr, err := argumentToSmartPtr(int64(5), mem)
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr, fivePtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
+	
 	// expect alice's counter on program 2 to be 15
 	result, err = rt.Call(ctx, "get_value_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr)
 	require.NoError(err)

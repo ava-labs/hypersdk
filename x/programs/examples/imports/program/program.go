@@ -48,7 +48,7 @@ func New(log logging.Logger, engine *engine.Engine, mu state.Mutable, cfg *runti
 		mu:     mu,
 		log:    log,
 		engine: engine,
-		rg : rg,
+		rg:     rg,
 	}
 }
 
@@ -62,15 +62,25 @@ func (i *Import) Register(link *host.Link) error {
 	// TODO: register reentrancy
 	// i.reentrancyGaurd = link.ReentrancyGaurd()
 	wrap := wrap.New(link)
-	return wrap.RegisterAnyParamFn(Name, "call_program", 4, i.callProgramFnVariadic)
+	err := wrap.RegisterAnyParamFn(Name, "call_program", 4, i.callProgramFnVariadic)
+	if err != nil {
+		return err
+	}
+	return wrap.RegisterAnyParamFn(Name, "with_reentrancy", 3, i.setReentrancyVariadic)
 }
-
 
 func (i *Import) callProgramFnVariadic(caller *program.Caller, args ...int64) (*types.Val, error) {
 	if len(args) != 4 {
 		return nil, errors.New("expected 2 arguments")
 	}
 	return i.callProgramFn(caller, args[0], args[1], args[2], args[3])
+}
+
+func (i *Import) setReentrancyVariadic(caller *program.Caller, args ...int64) (*types.Val, error) {
+	if len(args) != 3 {
+		return nil, errors.New("expected 3 arguments")
+	}
+	return i.setReentrancy(caller, args[0], args[1], args[2])
 }
 
 // callProgramFn makes a call to an entry function of a program in the context of another program's ID.
@@ -155,7 +165,7 @@ func (i *Import) callProgramFn(
 			)
 		}
 	}()
-	
+
 	argsBytes, err := program.SmartPtr(args).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read program args name from memory",
@@ -181,13 +191,11 @@ func (i *Import) callProgramFn(
 		return nil, err
 	}
 
-	function_name := string(functionBytes)
+	functionName := string(functionBytes)
 
-	// TODO: check that we are allowed to enter the program via reentrancy gaurd here.
-	// decrement the reentrancy gaurd when we exit the program.
-	i.rg.Allow(function_name)
-	res, err := rt.RuntimeCall(ctx, function_name, params...)
-	
+	i.rg.Allow(functionName)
+	res, err := rt.RuntimeCall(ctx, functionName, params...)
+
 	if err != nil {
 		i.log.Error("failed to call entry function",
 			zap.Error(err),
@@ -233,6 +241,50 @@ func getCallArgs(ctx context.Context, memory *program.Memory, buffer []byte, pro
 	}
 
 	return args, nil
+}
+
+// setReentrancy sets the re-entrancy gaurd for a program
+func (i *Import) setReentrancy(
+	caller *program.Caller,
+	programID int64,
+	function int64,
+	maxEnters int64,
+) (*types.Val, error) {
+	memory, err := caller.Memory()
+	if err != nil {
+		i.log.Error("failed to get memory from caller",
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
+	// ensure maxEnters is within a uint8
+	if  maxEnters < 0 || maxEnters > 255 {
+		return nil, errors.New("maxEnters must be between 0 and 255")
+	}
+
+	// get the entry function for invoke to call.
+	functionBytes, err := program.SmartPtr(function).Bytes(memory)
+	if err != nil {
+		i.log.Error("failed to read function name from memory",
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
+	functionName := string(functionBytes)
+
+	// TODO: not setting reentrency on program ID yet
+	err = i.rg.Set(functionName, uint8(maxEnters))
+	if err != nil {
+		i.log.Error("failed to set reentrancy",
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
+	// returning 0 for now. 
+	return types.ValI64(0), nil
 }
 
 func getProgramWasmBytes(log logging.Logger, db state.Immutable, idBytes []byte) ([]byte, error) {
