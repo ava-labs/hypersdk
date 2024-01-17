@@ -16,7 +16,7 @@ const BaseSize = consts.Uint64Len*2 + consts.IDLen
 type Base struct {
 	// Timestamp is the expiry of the transaction (inclusive). Once this time passes and the
 	// transaction is not included in a block, it is safe to regenerate it.
-	Timestamp int64 `json:"nonce"`
+	Timestamp int64 `json:"timestamp"`
 
 	// ChainID protects against replay attacks on different VM instances.
 	ChainID ids.ID `json:"chainId"`
