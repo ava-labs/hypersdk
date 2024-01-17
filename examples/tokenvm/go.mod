@@ -3,9 +3,10 @@ module github.com/ava-labs/hypersdk/examples/tokenvm
 go 1.20
 
 require (
-	github.com/ava-labs/avalanche-network-runner v1.7.3-0.20231026155506-24d0d6a39855
+	github.com/ava-labs/avalanche-network-runner v1.7.3
 	github.com/ava-labs/avalanchego v1.10.15
-	github.com/ava-labs/hypersdk v0.0.1
+	github.com/ava-labs/hypersdk v0.0.15
+	github.com/ava-labs/hypersdk/common v0.0.0-00010101000000-000000000000
 	github.com/fatih/color v1.13.0
 	github.com/onsi/ginkgo/v2 v2.8.1
 	github.com/onsi/gomega v1.26.0
@@ -166,3 +167,4 @@ require (
 )
 
 replace github.com/ava-labs/hypersdk => ../../
+replace github.com/ava-labs/hypersdk/common => ./../../common
