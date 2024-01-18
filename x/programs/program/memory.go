@@ -182,28 +182,14 @@ func WriteParams(m *Memory, p []CallParam) ([]SmartPtr, error) {
 				return nil, err
 			}
 			params = append(params, smartPtr)
-		case int:
-			ptr, err := argumentToSmartPtr(v, m)
-			if err != nil {
-				return nil, err
-			}
-			params = append(params, ptr)
-		case uint64:
-			ptr, err := argumentToSmartPtr(v, m)
-			if err != nil {
-				return nil, err
-			}
-			params = append(params, ptr)
-		case int64:
-			ptr, err := argumentToSmartPtr(v, m)
-			if err != nil {
-				return nil, err
-			}
-			params = append(params, ptr)
 		case SmartPtr:
 			params = append(params, v)
 		default:
-			return nil, fmt.Errorf("invalid param: supported types int, uint64 and string")
+			ptr, err := argumentToSmartPtr(v, m)
+			if err != nil {
+				return nil, err
+			}
+			params = append(params, ptr)
 		}
 	}
 
