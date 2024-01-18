@@ -5,6 +5,8 @@ package program
 
 import (
 	"fmt"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/near/borsh-go"
 	"math"
 	"runtime"
 
@@ -164,22 +166,41 @@ type CallParam struct {
 
 // WriteParams is a helper function that writes the given params to memory if non integer.
 // Supported types include int, uint64 and string.
-func WriteParams(m *Memory, p []CallParam) ([]uint64, error) {
-	params := []uint64{}
+func WriteParams(m *Memory, p []CallParam) ([]SmartPtr, error) {
+	var params []SmartPtr
 	for _, param := range p {
 		switch v := param.Value.(type) {
-		case string:
-			ptr, err := WriteBytes(m, []byte(v))
+		case ids.ID:
+			smartPtr, err := BytesToSmartPtr(v[:], m)
 			if err != nil {
 				return nil, err
 			}
-			params = append(params, uint64(ptr))
-		case int:
-			if v < 0 {
-				return nil, fmt.Errorf("failed to write param: %w", ErrUnderflow)
+			params = append(params, smartPtr)
+		case string:
+			smartPtr, err := BytesToSmartPtr([]byte(v), m)
+			if err != nil {
+				return nil, err
 			}
-			params = append(params, uint64(v))
+			params = append(params, smartPtr)
+		case int:
+			ptr, err := argumentToSmartPtr(v, m)
+			if err != nil {
+				return nil, err
+			}
+			params = append(params, ptr)
 		case uint64:
+			ptr, err := argumentToSmartPtr(v, m)
+			if err != nil {
+				return nil, err
+			}
+			params = append(params, ptr)
+		case int64:
+			ptr, err := argumentToSmartPtr(v, m)
+			if err != nil {
+				return nil, err
+			}
+			params = append(params, ptr)
+		case SmartPtr:
 			params = append(params, v)
 		default:
 			return nil, fmt.Errorf("invalid param: supported types int, uint64 and string")
@@ -187,6 +208,22 @@ func WriteParams(m *Memory, p []CallParam) ([]uint64, error) {
 	}
 
 	return params, nil
+}
+
+// SerializeParameter serializes [obj] using Borsh
+func serializeParameter(obj interface{}) ([]byte, error) {
+	bytes, err := borsh.Serialize(obj)
+	return bytes, err
+}
+
+// Serialize the parameter and create a smart ptr
+func argumentToSmartPtr(obj interface{}, memory *Memory) (SmartPtr, error) {
+	bytes, err := serializeParameter(obj)
+	if err != nil {
+		return 0, err
+	}
+
+	return BytesToSmartPtr(bytes, memory)
 }
 
 // SmartPtr is an int64 where the first 4 bytes represent the length of the bytes

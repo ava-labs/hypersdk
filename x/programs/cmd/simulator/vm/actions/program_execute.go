@@ -6,6 +6,10 @@ package actions
 import (
 	"context"
 	"fmt"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/x/programs/engine"
+	"github.com/ava-labs/hypersdk/x/programs/host"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -13,12 +17,11 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
-	"github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
+	importProgram "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
@@ -28,7 +31,7 @@ var _ chain.Action = (*ProgramExecute)(nil)
 type ProgramExecute struct {
 	Function string              `json:"programFunction"`
 	MaxUnits uint64              `json:"maxUnits"`
-	Params   []runtime.CallParam `json:"params"`
+	Params   []program.CallParam `json:"params"`
 
 	Log logging.Logger
 
@@ -77,37 +80,48 @@ func (t *ProgramExecute) Execute(
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
-
+	t.Params[0].Value = programID
 	programBytes, err := storage.GetProgram(ctx, mu, programID)
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 
 	// TODO: get cfg from genesis
-	cfg, err := runtime.NewConfigBuilder().
-		WithDebugMode(true).
-		Build()
+	cfg := runtime.NewConfig()
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 
+	ecfg, err := engine.NewConfigBuilder().
+		WithDefaultCache(true).
+		Build()
+	if err != nil {
+		return false, 1, utils.ErrBytes(err), nil, nil
+	}
+	eng := engine.New(ecfg)
+
 	// TODO: allow configurable imports?
-	supported := runtime.NewSupportedImports()
-	supported.Register("state", func() runtime.Import {
+	importsBuilder := host.NewImportsBuilder()
+	importsBuilder.Register("state", func() host.Import {
 		return pstate.New(logging.NoLog{}, mu)
 	})
-	supported.Register("program", func() runtime.Import {
-		return program.New(logging.NoLog{}, mu, cfg)
+	importsBuilder.Register("program", func() host.Import {
+		return importProgram.New(logging.NoLog{}, eng, mu, cfg)
 	})
+	imports := importsBuilder.Build()
 
-	t.rt = runtime.New(logging.NoLog{}, cfg, supported.Imports())
+	t.rt = runtime.New(logging.NoLog{}, eng, imports, cfg)
 	err = t.rt.Initialize(ctx, programBytes, t.MaxUnits)
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 	defer t.rt.Stop()
 
-	params, err := runtime.WriteParams(t.rt.Memory(), t.Params)
+	mem, err := t.rt.Memory()
+	if err != nil {
+		return false, 1, utils.ErrBytes(err), nil, nil
+	}
+	params, err := program.WriteParams(mem, t.Params)
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
@@ -120,7 +134,7 @@ func (t *ProgramExecute) Execute(
 	// TODO: remove this is to support readonly response for now.
 	p := codec.NewWriter(len(resp), consts.MaxInt)
 	for _, r := range resp {
-		p.PackUint64(r)
+		p.PackInt64(r)
 	}
 
 	return true, 1, p.Bytes(), nil, nil
@@ -138,7 +152,7 @@ func (t *ProgramExecute) Marshal(p *codec.Packer) {
 	// TODO
 }
 
-func (t *ProgramExecute) GetBalance() uint64 {
+func (t *ProgramExecute) GetBalance() (uint64, error) {
 	return t.rt.Meter().GetBalance()
 }
 

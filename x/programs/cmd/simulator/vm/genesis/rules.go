@@ -17,6 +17,36 @@ type Rules struct {
 	chainID   ids.ID
 }
 
+func (r *Rules) GetStorageKeyReadUnits() uint64 {
+	//TODO implement me
+	return 0
+}
+
+func (r *Rules) GetStorageValueReadUnits() uint64 {
+	//TODO implement me
+	return 0
+}
+
+func (r *Rules) GetStorageKeyAllocateUnits() uint64 {
+	//TODO implement me
+	return 0
+}
+
+func (r *Rules) GetStorageValueAllocateUnits() uint64 {
+	//TODO implement me
+	return 0
+}
+
+func (r *Rules) GetStorageKeyWriteUnits() uint64 {
+	//TODO implement me
+	return 0
+}
+
+func (r *Rules) GetStorageValueWriteUnits() uint64 {
+	//TODO implement me
+	return 0
+}
+
 // TODO: use upgradeBytes
 func (g *Genesis) Rules(_ int64, networkID uint32, chainID ids.ID) *Rules {
 	return &Rules{g, networkID, chainID}

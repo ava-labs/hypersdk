@@ -44,7 +44,6 @@ type Config struct {
 
 	// Mempool
 	MempoolSize         int      `json:"mempoolSize"`
-	MempoolPayerSize    int      `json:"mempoolPayerSize"`
 	MempoolExemptPayers []string `json:"mempoolExemptPayers"`
 
 	// Misc
@@ -87,7 +86,6 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
 	c.MempoolSize = c.Config.GetMempoolSize()
-	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 	c.VerifySignatures = c.Config.GetVerifySignatures()
@@ -97,7 +95,6 @@ func (c *Config) setDefault() {
 func (c *Config) GetLogLevel() logging.Level       { return c.LogLevel }
 func (c *Config) GetTestMode() bool                { return c.TestMode }
 func (c *Config) GetMempoolSize() int              { return c.MempoolSize }
-func (c *Config) GetMempoolPayerSize() int         { return c.MempoolPayerSize }
 func (c *Config) GetMempoolExemptPayers() [][]byte { return c.parsedExemptPayers }
 func (c *Config) GetTraceConfig() *trace.Config {
 	return &trace.Config{
