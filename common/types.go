@@ -7,8 +7,8 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 )
 
-// RpcClient is an interface of common rpc client functions
-type RpcClient interface {
+// RPCClient is an interface of common rpc client functions
+type RPCClient interface {
 	Parser(ctx context.Context) (chain.Parser, error)
 	WaitForTransaction(ctx context.Context, txID ids.ID) (bool, uint64, error)
 }
@@ -18,5 +18,5 @@ type NodeInstance struct {
 	NodeID ids.NodeID
 	Uri    string
 	Cli    *rpc.JSONRPCClient
-	VmCli  interface{}
+	VMCli  interface{}
 }

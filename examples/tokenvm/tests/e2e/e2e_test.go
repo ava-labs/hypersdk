@@ -372,7 +372,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			NodeID: nodeID,
 			Uri:    u,
 			Cli:    cli,
-			VmCli:  trpc.NewJSONRPCClient(u, networkID, bid),
+			VMCli:  trpc.NewJSONRPCClient(u, networkID, bid),
 		})
 	}
 
@@ -404,7 +404,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				NodeID: nodeID,
 				Uri:    u,
 				Cli:    cli,
-				VmCli:  trpc.NewJSONRPCClient(u, networkID, bid),
+				VMCli:  trpc.NewJSONRPCClient(u, networkID, bid),
 			})
 		}
 	}
@@ -523,7 +523,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	}
 
 	ginkgo.It("transfer in a single node (raw)", func() {
-		client := instancesA[0].VmCli.(*trpc.JSONRPCClient)
+		client := instancesA[0].VMCli.(*trpc.JSONRPCClient)
 		nativeBalance, err := client.Balance(context.TODO(), sender, ids.Empty)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(nativeBalance).Should(gomega.Equal(startAmount))
@@ -588,7 +588,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 				}
 
 				// Check balance of recipient
-				jsonrpcClient := inst.VmCli.(*trpc.JSONRPCClient)
+				jsonrpcClient := inst.VMCli.(*trpc.JSONRPCClient)
 				balance, err := jsonrpcClient.Balance(context.Background(), codec.MustAddressBech32(consts.HRP, aother), ids.Empty)
 				gomega.Ω(err).Should(gomega.BeNil())
 				gomega.Ω(balance).Should(gomega.Equal(sendAmount))
@@ -608,7 +608,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 
 		var txID ids.ID
 		ginkgo.By("submitting an export action on source", func() {
-			jsonrpcClient := instancesA[0].VmCli.(*trpc.JSONRPCClient)
+			jsonrpcClient := instancesA[0].VMCli.(*trpc.JSONRPCClient)
 			otherBalance, err := jsonrpcClient.Balance(context.Background(), aother, ids.Empty)
 			gomega.Ω(err).Should(gomega.BeNil())
 			senderBalance, err := jsonrpcClient.Balance(context.Background(), sender, ids.Empty)
@@ -637,7 +637,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			client := instancesA[0].VmCli.(*trpc.JSONRPCClient)
+			client := instancesA[0].VMCli.(*trpc.JSONRPCClient)
 			success, fee, err := client.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -661,7 +661,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		})
 
 		ginkgo.By("fund other account with native", func() {
-			client := instancesB[0].VmCli.(*trpc.JSONRPCClient)
+			client := instancesB[0].VMCli.(*trpc.JSONRPCClient)
 			parser, err := client.Parser(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, tx, _, err := instancesB[0].Cli.GenerateTransaction(
@@ -696,7 +696,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			bIDA, err := ids.FromString(blockchainIDA)
 			gomega.Ω(err).Should(gomega.BeNil())
 			newAsset := actions.ImportedAssetID(ids.Empty, bIDA)
-			jsonrpcClient := instancesB[0].VmCli.(*trpc.JSONRPCClient)
+			jsonrpcClient := instancesB[0].VMCli.(*trpc.JSONRPCClient)
 			nativeOtherBalance, err := jsonrpcClient.Balance(
 				context.Background(),
 				aother,
@@ -754,7 +754,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			)
 			gomega.Ω(subnetWeight).Should(gomega.Equal(sigWeight))
 
-			t := instancesB[0].VmCli.(*trpc.JSONRPCClient)
+			t := instancesB[0].VMCli.(*trpc.JSONRPCClient)
 			parser, err := t.Parser(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, tx, _, err := instancesB[0].Cli.GenerateTransaction(
@@ -820,7 +820,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			bIDA, err := ids.FromString(blockchainIDA)
 			gomega.Ω(err).Should(gomega.BeNil())
 			newAsset := actions.ImportedAssetID(ids.Empty, bIDA)
-			client := instancesB[0].VmCli.(*trpc.JSONRPCClient)
+			client := instancesB[0].VMCli.(*trpc.JSONRPCClient)
 			parser, err := client.Parser(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, tx, _, err := instancesB[0].Cli.GenerateTransaction(
@@ -862,7 +862,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			bIDA, err := ids.FromString(blockchainIDA)
 			gomega.Ω(err).Should(gomega.BeNil())
 			newAsset := actions.ImportedAssetID(ids.Empty, bIDA)
-			client := instancesB[0].VmCli.(*trpc.JSONRPCClient)
+			client := instancesB[0].VMCli.(*trpc.JSONRPCClient)
 			parser, err := client.Parser(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, tx, _, err := instancesB[0].Cli.GenerateTransaction(
@@ -915,7 +915,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			bIDA, err := ids.FromString(blockchainIDA)
 			gomega.Ω(err).Should(gomega.BeNil())
 			newAsset := actions.ImportedAssetID(ids.Empty, bIDA)
-			client := instancesA[0].VmCli.(*trpc.JSONRPCClient)
+			client := instancesA[0].VMCli.(*trpc.JSONRPCClient)
 			nativeOtherBalance, err := client.Balance(
 				context.Background(),
 				aother,
@@ -1033,7 +1033,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			bIDA, err := ids.FromString(blockchainIDA)
 			gomega.Ω(err).Should(gomega.BeNil())
 			newAsset := actions.ImportedAssetID(ids.Empty, bIDA)
-			client := instancesB[0].VmCli.(*trpc.JSONRPCClient)
+			client := instancesB[0].VMCli.(*trpc.JSONRPCClient)
 			parser, err := client.Parser(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, tx, _, err := instancesB[0].Cli.GenerateTransaction(
@@ -1079,7 +1079,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			bIDA, err := ids.FromString(blockchainIDA)
 			gomega.Ω(err).Should(gomega.BeNil())
 			newAsset := actions.ImportedAssetID(ids.Empty, bIDA)
-			client := instancesA[0].VmCli.(*trpc.JSONRPCClient)
+			client := instancesA[0].VMCli.(*trpc.JSONRPCClient)
 			nativeOtherBalance, err := client.Balance(
 				context.Background(),
 				aother,
@@ -1196,7 +1196,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			bIDA, err := ids.FromString(blockchainIDA)
 			gomega.Ω(err).Should(gomega.BeNil())
 			newAsset := actions.ImportedAssetID(ids.Empty, bIDA)
-			clientA := instancesA[0].VmCli.(*trpc.JSONRPCClient)
+			clientA := instancesA[0].VMCli.(*trpc.JSONRPCClient)
 			parser, err := clientA.Parser(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, tx, _, err := instancesA[0].Cli.GenerateTransaction(
@@ -1231,7 +1231,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			hutils.Outf("{{yellow}}found warp export transaction{{/}}\n")
 
 			// Record balances on destination
-			clientB := instancesB[0].VmCli.(*trpc.JSONRPCClient)
+			clientB := instancesB[0].VMCli.(*trpc.JSONRPCClient)
 			nativeOtherBalance, err := clientB.Balance(
 				context.Background(),
 				aother,
@@ -1391,7 +1391,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		instancesA = append(instancesA, common.NodeInstance{
 			Uri:   uri,
 			Cli:   c,
-			VmCli: tc,
+			VMCli: tc,
 		})
 	})
 

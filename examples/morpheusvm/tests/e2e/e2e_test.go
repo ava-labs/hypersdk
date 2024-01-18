@@ -343,7 +343,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			NodeID: nodeID,
 			Uri:    u,
 			Cli:    cli,
-			VmCli:  lrpc.NewJSONRPCClient(u, networkID, bid),
+			VMCli:  lrpc.NewJSONRPCClient(u, networkID, bid),
 		})
 	}
 })
@@ -417,7 +417,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	}
 
 	ginkgo.It("transfer in a single node (raw)", func() {
-		lrpcClient := instances[0].VmCli.(*lrpc.JSONRPCClient)
+		lrpcClient := instances[0].VMCli.(*lrpc.JSONRPCClient)
 		nativeBalance, err := lrpcClient.Balance(context.TODO(), sender)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(nativeBalance).Should(gomega.Equal(startAmount))
@@ -479,7 +479,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 
 				// Check balance of recipient
 				publicKeyStr := codec.MustAddressBech32(consts.HRP, publicKeyAddress)
-				lrpcClient := inst.VmCli.(*lrpc.JSONRPCClient)
+				lrpcClient := inst.VMCli.(*lrpc.JSONRPCClient)
 				balance, err := lrpcClient.Balance(context.Background(), publicKeyStr)
 				gomega.Ω(err).Should(gomega.BeNil())
 				gomega.Ω(balance).Should(gomega.Equal(sendAmount))
@@ -529,7 +529,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		instances = append(instances, common.NodeInstance{
 			Uri:   uri,
 			Cli:   c,
-			VmCli: tc,
+			VMCli: tc,
 		})
 	})
 
@@ -563,7 +563,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		instances[len(instances)-1] = common.NodeInstance{
 			Uri:   uri,
 			Cli:   c,
-			VmCli: tc,
+			VMCli: tc,
 		}
 	})
 

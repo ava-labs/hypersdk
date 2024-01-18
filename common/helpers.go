@@ -40,7 +40,7 @@ func GenerateBlocks(
 ) int {
 	_, lastHeight, _, err := instances[0].Cli.Accepted(context.Background())
 	gomega.Ω(err).Should(gomega.BeNil())
-	parser, err := instances[0].VmCli.(RpcClient).Parser(context.Background())
+	parser, err := instances[0].VMCli.(RPCClient).Parser(context.Background())
 	gomega.Ω(err).Should(gomega.BeNil())
 	var targetHeight uint64
 	if blocksToGenerate != 0 {
@@ -107,7 +107,7 @@ func GenerateBlocks(
 // AcceptTransaction generates a transaction and waits for it to be accepted by the network
 func AcceptTransaction(
 	cli *rpc.JSONRPCClient,
-	vmCli RpcClient,
+	vmCli RPCClient,
 	action chain.Action,
 	factory chain.AuthFactory,
 	requestTimeout time.Duration,
