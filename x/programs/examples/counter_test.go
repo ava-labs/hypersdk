@@ -30,11 +30,12 @@ func TestCounterProgram(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cfg := runtime.NewConfig()
+	// enable debug mode 
+	cfg := runtime.NewConfig().SetDebugMode(true)
 	log := logging.NewLogger(
 		"",
 		logging.NewWrappedCore(
-			logging.Info,
+			logging.Debug,
 			os.Stderr,
 			logging.Plain.ConsoleEncoder(),
 		))
@@ -80,11 +81,13 @@ func TestCounterProgram(t *testing.T) {
 
 	// create counter for alice on program 1
 	result, err := rt.Call(ctx, "initialize_address", programIDPtr, alicePtr)
+	reentrancyGaurd.Reset()
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
 	// validate counter at 0
 	result, err = rt.Call(ctx, "get_value", programIDPtr, alicePtr)
+	reentrancyGaurd.Reset()
 	require.NoError(err)
 	require.Equal(int64(0), result[0])
 
@@ -100,6 +103,7 @@ func TestCounterProgram(t *testing.T) {
 
 	// initialize counter for alice on runtime 2
 	result, err = rt.Call(ctx, "initialize_address", programID2Ptr, alicePtr)
+	reentrancyGaurd.Reset()
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
@@ -108,10 +112,14 @@ func TestCounterProgram(t *testing.T) {
 	incAmountPtr, err := argumentToSmartPtr(incAmount, mem2)
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc", programID2Ptr, alicePtr, incAmountPtr)
+	reentrancyGaurd.Reset()
+
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
 	result, err = rt.Call(ctx, "get_value", programID2Ptr, alicePtr)
+	reentrancyGaurd.Reset()
+
 	require.NoError(err)
 	require.Equal(incAmount, result[0])
 
@@ -119,6 +127,7 @@ func TestCounterProgram(t *testing.T) {
 	onePtr, err := argumentToSmartPtr(int64(1), mem)
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc", programIDPtr, alicePtr, onePtr)
+	reentrancyGaurd.Reset()
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
@@ -143,6 +152,7 @@ func TestCounterProgram(t *testing.T) {
 	fivePtr, err := argumentToSmartPtr(int64(5), mem)
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr, fivePtr)
+	reentrancyGaurd.Reset()
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 	
@@ -155,6 +165,8 @@ func TestCounterProgram(t *testing.T) {
 	// require.Greater(balance, uint64(0))
 
 	_, err = rt.Call(ctx, "reentrance_example", caller, target, caller, maxUnitsProgramToProgramPtr)
+	reentrancyGaurd.Reset()
+
 	require.NoError(err)
 
 }

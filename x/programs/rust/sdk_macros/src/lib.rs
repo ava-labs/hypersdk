@@ -19,12 +19,14 @@ fn convert_param(param_name: &Ident) -> proc_macro2::TokenStream {
 /// The wrapper functions parameters will be converted to WASM supported types. When called, the wrapper function
 /// calls the original function by converting the parameters back to their intended types using .into().
 #[proc_macro_attribute]
-pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
+pub fn public(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
     let name = &input.sig.ident;
+    let is_reentrant = attr.to_string().contains("reenter");
     let input_args = &input.sig.inputs;
     let new_name = Ident::new(&format!("{}_guest", name), name.span()); // Create a new name for the generated function(name that will be called by the host)
     let empty_param = Ident::new("ctx", Span::call_site()); // Create an empty parameter for the generated function
+    // whether or not the function is being called from a reentrant call
     let full_params = input_args.iter().enumerate().map(|(index, fn_arg)| {
         // A typed argument is a parameter. An untyped (receiver) argument is a `self` parameter.
         if let FnArg::Typed(PatType { pat, ty, .. }) = fn_arg {
@@ -32,6 +34,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             if index == 0 && !is_program(ty) {
                 panic!("First parameter must be Program.");
             }
+            // ensure the last parameter is a boolean
             if let Pat::Ident(ref pat_ident) = **pat {
                 return (&pat_ident.ident, quote! { i64 });
             }
@@ -48,7 +51,12 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     let (param_names, param_types): (Vec<_>, Vec<_>) = full_params.unzip();
-    let converted_params = param_names
+    
+    let program_param = &param_names[0];
+    // convert to a string
+    let program_name = name.to_string(); 
+    let params_clones = param_names.clone();
+    let converted_params = params_clones
         .iter()
         .map(|param_name| convert_param(param_name));
 
@@ -59,6 +67,11 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         #input
         #[no_mangle]
         pub extern "C" fn #new_name(#(#param_names: #param_types), *) #return_type {
+            // pass reentrant parameter into host function checking if allowed. Throw error if not
+            // if !#is_reentrant && wasmlanche_sdk::host::enter_program(#program_param, #program_name).expect("error calling enter_program host function") {
+            if !#is_reentrant && !wasmlanche_sdk::host::enter_program(#program_param, #program_name).expect("error calling enter_program host function") {
+                panic!("Reentrancy not allowed for this function");
+            }
             #name(#(#converted_params),*) // pass in the converted parameters
         }
     };

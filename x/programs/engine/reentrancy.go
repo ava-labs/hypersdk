@@ -9,12 +9,8 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
-// TODO: change to this map
-type reentrancyMap map[ids.ID]map[string]uint8
 
-// assuming this is only used on one program
-// limit reentrancy to 255 times
-// type reentrancyMap map[string]uint8
+type reentrancyMap map[ids.ID]map[string]bool
 
 type ReentrancyGaurd struct {
 	// potentially needs to have one for every call context 
@@ -34,16 +30,11 @@ func (r *ReentrancyGaurd) Reset() {
 	r.m = make(reentrancyMap)
 }
 
-// Allow allows a function to be reentered once, or if reentrancy is set don't update the map
-func (r *ReentrancyGaurd) Allow(id ids.ID, fn string) {
-	r.Set(id, fn, 1)
-}
-
 // Set sets the amount of times a function can be reentered
-func (r *ReentrancyGaurd) Set(id ids.ID, fn string, val uint8) {
+func (r *ReentrancyGaurd) Set(id ids.ID, fn string, is_reentrant bool) {
 	if _, ok := r.m[id]; !ok {
-		r.m[id] = make(map[string]uint8)
-		r.m[id][fn] = val
+		r.m[id] = make(map[string]bool)
+		r.m[id][fn] = is_reentrant
 		return
 	}
 
@@ -55,23 +46,26 @@ func (r *ReentrancyGaurd) Set(id ids.ID, fn string, val uint8) {
 		return
 	}
 
-	r.m[id][fn] = val
+	r.m[id][fn] = is_reentrant
 }
 
-func (r *ReentrancyGaurd) Enter(id ids.ID, fn string) error {
+
+// only issue is if they enter another method that is reentrant, then they can enter this method again from within the other method.
+// The second call wont be an external program call, but it will be a reentrant call and is not handled.
+
+// Enter program should only return 1 if we have never entered this function before.
+func (r *ReentrancyGaurd) Enter(id ids.ID, fn string) int64 {
+	fmt.Println("entering reentrancy gaurd for ",  fn)
+	// reentering since we already visited
+	if r.m[id] != nil && r.m[id][fn] {
+		return 0
+	}
+
+	// set visited
 	if _, ok := r.m[id]; !ok {
-		return fmt.Errorf("cannot enter %s, not set for reentrancy", fn)
+		r.m[id] = make(map[string]bool)
 	}
+	r.m[id][fn] = true
 
-	if _, ok := r.m[id][fn]; !ok {
-		return fmt.Errorf("cannot enter %s, not set for reentrancy", fn)
-	}
-
-	if r.m[id][fn] == 0 {
-		return fmt.Errorf("cannot enter %s, reentrancy limit reached", fn)
-	}
-
-	r.m[id][fn]--
-	fmt.Println("decreased to ", r.m[id][fn])
-	return nil
+	return 1
 }

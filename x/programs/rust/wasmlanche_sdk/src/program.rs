@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use crate::{errors::StateError, host::call_program, host::set_reentrancy, state::State};
+use crate::{errors::StateError, host::call_program, state::State};
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
@@ -44,15 +44,6 @@ impl Program {
         // flatten the args into a single byte vector
         let args = args.into_iter().flatten().collect::<Vec<u8>>();
         call_program(self, function_name, &args, max_units)
-    }
-
-    pub fn with_reentrancy(
-        &self,
-        function_name: &str,
-        max_reenters: u8,
-    ) -> Result<&Program, StateError> {
-        set_reentrancy(self, function_name, max_reenters)?;
-        Ok(self)
     }
 }
 

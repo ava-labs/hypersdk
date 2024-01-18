@@ -8,5 +8,5 @@ pub(crate) use program::call as call_program;
 #[allow(unused_imports)]
 pub use state::*;
 
-pub use program::set_reentrancy;
+pub use program::enter_program;
 

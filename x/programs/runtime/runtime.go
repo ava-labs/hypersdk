@@ -9,7 +9,6 @@ import (
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/host"
@@ -105,20 +104,6 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 }
 
 func (r *WasmRuntime) Call(_ context.Context, name string, params ...program.SmartPtr) ([]int64, error) {
-	r.rg.Reset()
-	fn, err := r.inst.GetFunc(name)
-	if err != nil {
-		return nil, err
-	}
-
-	return fn.Call(params...)
-}
-
-func (r *WasmRuntime) RuntimeCall(_ context.Context, programID ids.ID, name string, params ...program.SmartPtr) ([]int64, error) {
-	err := r.rg.Enter(programID, name)
-	if err != nil {
-		return nil, err
-	}
 	fn, err := r.inst.GetFunc(name)
 	if err != nil {
 		return nil, err

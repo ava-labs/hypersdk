@@ -1,6 +1,6 @@
 //! The `program` module provides functions for calling other programs.
 use crate::errors::StateError;
-use crate::memory::to_smart_ptr;
+use crate::memory::{to_smart_ptr, SmartPtr};
 use crate::program::Program;
 
 #[link(wasm_import_module = "program")]
@@ -11,8 +11,8 @@ extern "C" {
 
 #[link(wasm_import_module = "program")]
 extern "C" {
-    #[link_name = "set_reentrancy"]
-    fn _set_reentrancy(target_id: i64, function: i64, max_reenters: i64) -> i64;
+    #[link_name = "enter_program"]
+    fn _enter_program(target_id: i64, function: i64) -> i64;
 }
 
 
@@ -30,12 +30,10 @@ pub(crate) fn call(
     Ok(unsafe { _call_program(target, function, args, max_units) })
 }
 
-pub fn set_reentrancy(
-    target: &Program,
-    function_name: &str,
-    max_reenters: u8,
-) -> Result<i64, StateError> {
-    let target = to_smart_ptr(target.id())?;
+pub fn enter_program(
+    target: SmartPtr,
+    function_name: &str
+) -> Result<bool, StateError> {
     let function = to_smart_ptr(function_name.as_bytes())?;
-    Ok(unsafe { _set_reentrancy(target, function, max_reenters as i64) })
+    Ok(unsafe { _enter_program(target, function) == 1 })
 }
