@@ -11,12 +11,12 @@ simulator_path="${PWD}"/../../../cmd/simulator
 simulator_bin="${simulator_path}"/bin/simulator
 
 # Set environment variables for the test
-export RUST_BACKTRACE=full
+
 # The path to the simulator binary
 export SIMULATOR_PATH="${simulator_bin}"
 
 # The path to the compiled Wasm program to be tested
-export PROGRAM_PATH="${PWD}"/../../build/token.wasm
+export PROGRAM_PATH="${PWD}"/../../../examples/testdata/token.wasm
 
 echo "Downloading dependencies..."
 cd "${simulator_path}"
@@ -27,4 +27,4 @@ go build -o "${simulator_bin}" "${simulator_path}"/simulator.go
 
 echo "Running Simulator Tests..."
 
-cargo test --package token --lib -- --include-ignored --nocapture
+cargo test --lib -- --include-ignored
