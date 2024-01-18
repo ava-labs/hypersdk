@@ -14,7 +14,6 @@ var _ Instance = (*Caller)(nil)
 // Caller is a wrapper around a wasmtime.Caller
 type Caller struct {
 	caller *wasmtime.Caller
-	Num int
 }
 
 // NewCaller creates a new program instance.

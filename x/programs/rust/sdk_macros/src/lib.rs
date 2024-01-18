@@ -26,7 +26,7 @@ pub fn public(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input_args = &input.sig.inputs;
     let new_name = Ident::new(&format!("{}_guest", name), name.span()); // Create a new name for the generated function(name that will be called by the host)
     let empty_param = Ident::new("ctx", Span::call_site()); // Create an empty parameter for the generated function
-    // whether or not the function is being called from a reentrant call
+                                                            // whether or not the function is being called from a reentrant call
     let full_params = input_args.iter().enumerate().map(|(index, fn_arg)| {
         // A typed argument is a parameter. An untyped (receiver) argument is a `self` parameter.
         if let FnArg::Typed(PatType { pat, ty, .. }) = fn_arg {
@@ -34,7 +34,6 @@ pub fn public(attr: TokenStream, item: TokenStream) -> TokenStream {
             if index == 0 && !is_program(ty) {
                 panic!("First parameter must be Program.");
             }
-            // ensure the last parameter is a boolean
             if let Pat::Ident(ref pat_ident) = **pat {
                 return (&pat_ident.ident, quote! { i64 });
             }
@@ -51,12 +50,11 @@ pub fn public(attr: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     let (param_names, param_types): (Vec<_>, Vec<_>) = full_params.unzip();
-    
+
     let program_param = &param_names[0];
     // convert to a string
-    let program_name = name.to_string(); 
-    let params_clones = param_names.clone();
-    let converted_params = params_clones
+    let program_name = name.to_string();
+    let converted_params = param_names
         .iter()
         .map(|param_name| convert_param(param_name));
 
@@ -67,8 +65,6 @@ pub fn public(attr: TokenStream, item: TokenStream) -> TokenStream {
         #input
         #[no_mangle]
         pub extern "C" fn #new_name(#(#param_names: #param_types), *) #return_type {
-            // pass reentrant parameter into host function checking if allowed. Throw error if not
-            // if !#is_reentrant && wasmlanche_sdk::host::enter_program(#program_param, #program_name).expect("error calling enter_program host function") {
             if !#is_reentrant && !wasmlanche_sdk::host::enter_program(#program_param, #program_name).expect("error calling enter_program host function") {
                 panic!("Reentrancy not allowed for this function");
             }

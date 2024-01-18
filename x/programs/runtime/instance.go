@@ -37,7 +37,7 @@ func (i *Instance) GetFunc(name string) (*program.Func, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return program.NewFunc(fn, i.store), nil
 }
 

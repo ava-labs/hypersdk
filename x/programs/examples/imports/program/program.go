@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 
 	"go.uber.org/zap"
 
@@ -38,8 +37,7 @@ type Import struct {
 	engine  *engine.Engine
 	meter   *engine.Meter
 	imports host.SupportedImports
-
-	rg *engine.ReentrancyGaurd
+	rg      *engine.ReentrancyGaurd
 }
 
 // New returns a new program invoke host module which can perform program to program calls.
@@ -60,8 +58,6 @@ func (i *Import) Name() string {
 func (i *Import) Register(link *host.Link) error {
 	i.meter = link.Meter()
 	i.imports = link.Imports()
-	// TODO: register reentrancy
-	// i.reentrancyGaurd = link.ReentrancyGaurd()
 	wrap := wrap.New(link)
 	err := wrap.RegisterAnyParamFn(Name, "call_program", 4, i.callProgramFnVariadic)
 	if err != nil {
@@ -138,6 +134,7 @@ func (i *Import) callProgramFn(
 		)
 		return nil, err
 	}
+
 	// transfer the units from the caller to the new runtime before any calls are made.
 	balance, err := i.meter.TransferUnitsTo(rt.Meter(), uint64(maxUnits))
 	if err != nil {
@@ -148,7 +145,7 @@ func (i *Import) callProgramFn(
 		)
 		return nil, err
 	}
-	
+
 	// transfer remaining balance back to parent runtime
 	defer func() {
 		balance, err := rt.Meter().GetBalance()
@@ -192,11 +189,9 @@ func (i *Import) callProgramFn(
 	}
 
 	functionName := string(functionBytes)
-	fmt.Println("calling function from external function ", functionName)
 	res, err := rt.Call(ctx, functionName, params...)
 
 	if err != nil {
-		fmt.Println("error calling function", functionName)
 		i.log.Error("failed to call entry function",
 			zap.Error(err),
 		)
@@ -243,7 +238,8 @@ func getCallArgs(ctx context.Context, memory *program.Memory, buffer []byte, pro
 	return args, nil
 }
 
-// setReentrancy sets the re-entrancy gaurd for a program
+// enterProgram tries to enter [function] of [programID].
+// Returns 0 if [function] has already been entered, 1 otherwise.
 func (i *Import) enterProgram(
 	caller *program.Caller,
 	programID int64,
@@ -269,7 +265,6 @@ func (i *Import) enterProgram(
 	// get the entry function for invoke to call.
 	functionBytes, err := program.SmartPtr(function).Bytes(memory)
 	if err != nil {
-		fmt.Println("failed to read function name from memory")
 		i.log.Error("failed to read function name from memory",
 			zap.Error(err),
 		)
@@ -278,9 +273,7 @@ func (i *Import) enterProgram(
 
 	functionName := string(functionBytes)
 
-	// TODO: not setting reentrency on program ID yet
 	can_enter := i.rg.Enter(ids.ID(programIDBytes), functionName)
-	fmt.Println("can enter ", can_enter)
 	return types.ValI64(can_enter), nil
 }
 

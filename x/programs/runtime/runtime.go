@@ -30,7 +30,7 @@ func New(
 		engine:  engine,
 		imports: imports,
 		cfg:     cfg,
-		rg: 	rg,
+		rg:      rg,
 	}
 }
 

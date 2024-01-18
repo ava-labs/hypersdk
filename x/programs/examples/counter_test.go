@@ -30,7 +30,7 @@ func TestCounterProgram(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// enable debug mode 
+	// enable debug mode
 	cfg := runtime.NewConfig().SetDebugMode(true)
 	log := logging.NewLogger(
 		"",
@@ -155,7 +155,7 @@ func TestCounterProgram(t *testing.T) {
 	reentrancyGaurd.Reset()
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
-	
+
 	// expect alice's counter on program 2 to be 15
 	result, err = rt.Call(ctx, "get_value_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr)
 	require.NoError(err)

@@ -46,13 +46,14 @@ fn inc_external(_: Program, target: Program, max_units: i64, of: Address, amount
         .unwrap()
 }
 
-// the macro would input a boolean into the function and some logic, checking if reentrancy is allowed. 
-// A default value would be false, but if the runtime provides true it must check the the with_reentrancy flag
-
 #[public]
 fn reentrance_example(_: Program, target_a: Program, target_b: Program, max_units: i64) -> i64 {
     target_a
-        .call_function("reentrance_example", params!(&target_b, &target_a, &(max_units / 10)), max_units)
+        .call_function(
+            "reentrance_example",
+            params!(&target_b, &target_a, &(max_units / 10)),
+            max_units,
+        )
         .unwrap()
 }
 
