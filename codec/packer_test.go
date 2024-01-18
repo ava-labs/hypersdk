@@ -108,7 +108,7 @@ func TestPackerAddress(t *testing.T) {
 		rp := NewReader(wp.Bytes(), AddressLen)
 		require.Equal(wp.Bytes(), rp.Bytes())
 		var unpackedAddr Address
-		rp.UnpackAddress(&unpackedAddr)
+		rp.UnpackAddress(false, &unpackedAddr)
 		require.Equal(addr[:], unpackedAddr[:])
 		require.NoError(rp.Err())
 	})

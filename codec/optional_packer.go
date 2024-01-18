@@ -148,7 +148,7 @@ func (o *OptionalPacker) PackAddress(addr Address) {
 // the current offset. Increments offset regardless.
 func (o *OptionalPacker) UnpackAddress(dest *Address) {
 	if o.checkBit() {
-		o.ip.UnpackAddress(dest)
+		o.ip.UnpackAddress(false, dest)
 	} else {
 		*dest = EmptyAddress
 	}
