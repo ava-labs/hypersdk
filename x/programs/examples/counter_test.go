@@ -41,19 +41,19 @@ func TestCounterProgram(t *testing.T) {
 		))
 
 	eng := engine.New(engine.NewConfig())
-	reentrancyGaurd := engine.NewReentrancyGaurd()
+	reentrancyGuard := engine.NewReentrancyGuard()
 	// define supported imports
 	importsBuilder := host.NewImportsBuilder()
 	importsBuilder.Register("state", func() host.Import {
 		return pstate.New(log, db)
 	})
 	importsBuilder.Register("program", func() host.Import {
-		return program.New(log, eng, db, cfg, reentrancyGaurd)
+		return program.New(log, eng, db, cfg, reentrancyGuard)
 	})
 	imports := importsBuilder.Build()
 
 	wasmBytes := tests.ReadFixture(t, "../tests/fixture/counter.wasm")
-	rt := runtime.New(log, eng, imports, cfg, reentrancyGaurd)
+	rt := runtime.New(log, eng, imports, cfg, reentrancyGuard)
 	err := rt.Initialize(ctx, wasmBytes, maxUnits)
 	require.NoError(err)
 
@@ -81,13 +81,13 @@ func TestCounterProgram(t *testing.T) {
 
 	// create counter for alice on program 1
 	result, err := rt.Call(ctx, "initialize_address", programIDPtr, alicePtr)
-	reentrancyGaurd.Reset()
+	reentrancyGuard.Reset()
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
 	// validate counter at 0
 	result, err = rt.Call(ctx, "get_value", programIDPtr, alicePtr)
-	reentrancyGaurd.Reset()
+	reentrancyGuard.Reset()
 	require.NoError(err)
 	require.Equal(int64(0), result[0])
 
@@ -103,7 +103,7 @@ func TestCounterProgram(t *testing.T) {
 
 	// initialize counter for alice on runtime 2
 	result, err = rt.Call(ctx, "initialize_address", programID2Ptr, alicePtr)
-	reentrancyGaurd.Reset()
+	reentrancyGuard.Reset()
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
@@ -112,13 +112,13 @@ func TestCounterProgram(t *testing.T) {
 	incAmountPtr, err := argumentToSmartPtr(incAmount, mem2)
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc", programID2Ptr, alicePtr, incAmountPtr)
-	reentrancyGaurd.Reset()
+	reentrancyGuard.Reset()
 
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
 	result, err = rt.Call(ctx, "get_value", programID2Ptr, alicePtr)
-	reentrancyGaurd.Reset()
+	reentrancyGuard.Reset()
 
 	require.NoError(err)
 	require.Equal(incAmount, result[0])
@@ -127,7 +127,7 @@ func TestCounterProgram(t *testing.T) {
 	onePtr, err := argumentToSmartPtr(int64(1), mem)
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc", programIDPtr, alicePtr, onePtr)
-	reentrancyGaurd.Reset()
+	reentrancyGuard.Reset()
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
@@ -152,7 +152,7 @@ func TestCounterProgram(t *testing.T) {
 	fivePtr, err := argumentToSmartPtr(int64(5), mem)
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr, fivePtr)
-	reentrancyGaurd.Reset()
+	reentrancyGuard.Reset()
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
@@ -165,7 +165,7 @@ func TestCounterProgram(t *testing.T) {
 	// require.Greater(balance, uint64(0))
 
 	_, err = rt.Call(ctx, "reentrance_example", caller, target, caller, maxUnitsProgramToProgramPtr)
-	reentrancyGaurd.Reset()
+	reentrancyGuard.Reset()
 
 	require.NoError(err)
 

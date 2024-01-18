@@ -23,7 +23,7 @@ func New(
 	engine *engine.Engine,
 	imports host.SupportedImports,
 	cfg *Config,
-	rg *engine.ReentrancyGaurd,
+	rg *engine.ReentrancyGuard,
 ) Runtime {
 	return &WasmRuntime{
 		log:     log,
@@ -46,7 +46,7 @@ type WasmRuntime struct {
 
 	log logging.Logger
 
-	rg *engine.ReentrancyGaurd
+	rg *engine.ReentrancyGuard
 }
 
 func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUnits uint64) (err error) {

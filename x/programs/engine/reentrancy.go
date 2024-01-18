@@ -9,21 +9,21 @@ import (
 
 type reentrancyMap map[ids.ID]map[string]bool
 
-// ReentrancyGaurd keeps track of which methods have been during execution by the runtime.
-type ReentrancyGaurd struct {
+// ReentrancyGuard keeps track of which methods have been during execution by the runtime.
+type ReentrancyGuard struct {
 	// In the future, every call context might need its own reentrancyMap
 	// with fine grain locking across call contexts if we want to parellellize program calls.
 	m reentrancyMap
 }
 
-func NewReentrancyGaurd() *ReentrancyGaurd {
-	return &ReentrancyGaurd{
+func NewReentrancyGuard() *ReentrancyGuard {
+	return &ReentrancyGuard{
 		m: make(reentrancyMap),
 	}
 }
 
 // Reset resets the reentrancy map.
-func (r *ReentrancyGaurd) Reset() {
+func (r *ReentrancyGuard) Reset() {
 	r.m = make(reentrancyMap)
 }
 
@@ -34,7 +34,7 @@ func (r *ReentrancyGaurd) Reset() {
 
 // Enter returns 1 if we have never entered this function before, 0 otherwise.
 // If the function has not been entered before, we set the visited flag.
-func (r *ReentrancyGaurd) Enter(id ids.ID, fn string) int64 {
+func (r *ReentrancyGuard) Enter(id ids.ID, fn string) int64 {
 	// reentering since we already visited
 	if r.m[id] != nil && r.m[id][fn] {
 		return 0

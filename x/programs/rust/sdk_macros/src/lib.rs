@@ -22,11 +22,10 @@ fn convert_param(param_name: &Ident) -> proc_macro2::TokenStream {
 pub fn public(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
     let name = &input.sig.ident;
-    let is_reentrant = attr.to_string().contains("reenter");
+    let is_reentrant = attr.to_string().contains("reentrant");
     let input_args = &input.sig.inputs;
     let new_name = Ident::new(&format!("{}_guest", name), name.span()); // Create a new name for the generated function(name that will be called by the host)
     let empty_param = Ident::new("ctx", Span::call_site()); // Create an empty parameter for the generated function
-                                                            // whether or not the function is being called from a reentrant call
     let full_params = input_args.iter().enumerate().map(|(index, fn_arg)| {
         // A typed argument is a parameter. An untyped (receiver) argument is a `self` parameter.
         if let FnArg::Typed(PatType { pat, ty, .. }) = fn_arg {
