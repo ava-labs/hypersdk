@@ -187,7 +187,6 @@ func (i *Import) callProgramFn(
 		)
 		return nil, err
 	}
-
 	functionName := string(functionBytes)
 	res, err := rt.Call(ctx, functionName, params...)
 
@@ -198,6 +197,9 @@ func (i *Import) callProgramFn(
 		return nil, err
 	}
 
+	if len(res) == 0 {
+		return types.ValI64(0), nil
+	}
 	return types.ValI64(res[0]), nil
 }
 

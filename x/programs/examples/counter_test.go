@@ -26,16 +26,15 @@ import (
 func TestCounterProgram(t *testing.T) {
 	require := require.New(t)
 	db := newTestDB()
-	maxUnits := uint64(10000000000)
+	maxUnits := uint64(10000000)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// enable debug mode
-	cfg := runtime.NewConfig().SetDebugMode(true)
+	cfg := runtime.NewConfig()
 	log := logging.NewLogger(
 		"",
 		logging.NewWrappedCore(
-			logging.Debug,
+			logging.Info,
 			os.Stderr,
 			logging.Plain.ConsoleEncoder(),
 		))
@@ -144,7 +143,7 @@ func TestCounterProgram(t *testing.T) {
 
 	caller := programIDPtr
 	target := programID2Ptr
-	maxUnitsProgramToProgram := int64(100000000)
+	maxUnitsProgramToProgram := int64(1000000)
 	maxUnitsProgramToProgramPtr, err := argumentToSmartPtr(maxUnitsProgramToProgram, mem)
 	require.NoError(err)
 
@@ -155,18 +154,26 @@ func TestCounterProgram(t *testing.T) {
 	reentrancyGuard.Reset()
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
-
+	
 	// expect alice's counter on program 2 to be 15
 	result, err = rt.Call(ctx, "get_value_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr)
+	reentrancyGuard.Reset()
 	require.NoError(err)
 	require.Equal(int64(15), result[0])
-	// balance, err = rt.Meter().GetBalance()
-	// require.NoError(err)
-	// require.Greater(balance, uint64(0))
 
-	_, err = rt.Call(ctx, "reentrance_example", caller, target, caller, maxUnitsProgramToProgramPtr)
-	reentrancyGuard.Reset()
-
+	threePtr, err := argumentToSmartPtr(int64(3), mem)
 	require.NoError(err)
+	// increment by 3 using a reentrant function
+	_, err = rt.Call(ctx, "multiply", target, alicePtr, onePtr, threePtr, maxUnitsProgramToProgramPtr)
+	reentrancyGuard.Reset()
+	require.NoError(err)
+	
+	result, err = rt.Call(ctx, "get_value", target, alicePtr)
+	require.NoError(err)
+	require.Equal(int64(18), result[0])
+
+	balance, err = rt.Meter().GetBalance()
+	require.NoError(err)
+	require.Greater(balance, uint64(0))
 
 }
