@@ -125,8 +125,8 @@ func LoadBytes(filename string, expectedSize int) ([]byte, error) {
 
 // Generate merkle root for a set of items
 // this function does not take ownership of given bytes array
-func GenerateMerkleRoot(ctx context.Context, tracer trace.Tracer, merkleItems [][]byte) ([]byte, merkledb.MerkleDB, error) {
-	var batchOps []database.BatchOp
+func GenerateMerkleRoot(ctx context.Context, tracer trace.Tracer, merkleItems [][]byte, consumeBytes bool) ([]byte, merkledb.MerkleDB, error) {
+	batchOps := make([]database.BatchOp, 0, len(merkleItems))
 
 	for _, item := range merkleItems {
 		key := ToID(item)
@@ -148,7 +148,7 @@ func GenerateMerkleRoot(ctx context.Context, tracer trace.Tracer, merkleItems []
 		return nil, nil, err
 	}
 
-	view, err := db.NewView(ctx, merkledb.ViewChanges{BatchOps: batchOps})
+	view, err := db.NewView(ctx, merkledb.ViewChanges{BatchOps: batchOps, ConsumeBytes: consumeBytes})
 	if err != nil {
 		return nil, nil, err
 	}
