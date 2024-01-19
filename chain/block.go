@@ -294,7 +294,7 @@ func (b *StatelessBlock) initializeBuilt(
 	}
 
 	// transaction hash generation
-	var merkleItems [][]byte
+	merkleItems := make([][]byte, 0, len(b.Txs)+len(b.results))
 	for _, tx := range b.Txs {
 		merkleItems = append(merkleItems, tx.Bytes())
 	}
@@ -302,7 +302,8 @@ func (b *StatelessBlock) initializeBuilt(
 		merkleItems = append(merkleItems, result.Output)
 	}
 
-	root, _, err := utils.GenerateMerkleRoot(ctx, b.vm.Tracer(), merkleItems)
+	// consume bytes to avoid extra copying
+	root, _, err := utils.GenerateMerkleRoot(ctx, b.vm.Tracer(), merkleItems, true)
 	if err != nil {
 		return err
 	}
