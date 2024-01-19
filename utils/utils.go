@@ -121,7 +121,6 @@ func LoadBytes(filename string, expectedSize int) ([]byte, error) {
 =======
 
 // Generate merkle root for a set of items
-// this function does not take ownership of given bytes array
 func GenerateMerkleRoot(ctx context.Context, tracer trace.Tracer, merkleItems [][]byte, consumeBytes bool) ([]byte, merkledb.MerkleDB, error) {
 	batchOps := make([]database.BatchOp, 0, len(merkleItems))
 
