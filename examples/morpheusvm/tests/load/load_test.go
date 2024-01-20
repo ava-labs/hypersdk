@@ -272,7 +272,7 @@ var _ = ginkgo.BeforeSuite(func() {
 					numWorkers/3,
 					txs,
 					txs,
-					verifySignatures,
+					verifyAuth,
 				),
 			),
 			toEngine,
