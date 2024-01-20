@@ -35,7 +35,7 @@ type Transaction struct {
 
 	// TODO: turn [Action] into an array (#335)
 	Action Action `json:"action"`
-	Auth   Auth   `json:"signer"`
+	Auth   Auth   `json:"auth"`
 
 	digest         []byte
 	bytes          []byte
@@ -86,17 +86,17 @@ func (t *Transaction) Digest() ([]byte, error) {
 func (t *Transaction) Sign(
 	factory AuthFactory,
 	actionRegistry ActionRegistry,
-	signerRegistry AuthRegistry,
+	authRegistry AuthRegistry,
 ) (*Transaction, error) {
 	msg, err := t.Digest()
 	if err != nil {
 		return nil, err
 	}
-	signer, err := factory.Sign(msg)
+	auth, err := factory.Sign(msg)
 	if err != nil {
 		return nil, err
 	}
-	t.Auth = signer
+	t.Auth = auth
 
 	// Ensure transaction is fully initialized and correct by reloading it from
 	// bytes
@@ -109,7 +109,7 @@ func (t *Transaction) Sign(
 		return nil, err
 	}
 	p = codec.NewReader(p.Bytes(), consts.MaxInt)
-	return UnmarshalTx(p, actionRegistry, signerRegistry)
+	return UnmarshalTx(p, actionRegistry, authRegistry)
 }
 
 func (t *Transaction) Bytes() []byte { return t.bytes }
@@ -223,9 +223,9 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 
 // EstimateMaxUnits provides a pessimistic estimate of the cost to execute a transaction. This is
 // typically used during transaction construction.
-func EstimateMaxUnits(r Rules, action Action, signerFactory AuthFactory, warpMessage *warp.Message) (Dimensions, error) {
-	signerBandwidth, signerCompute := signerFactory.MaxUnits()
-	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + signerBandwidth
+func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessage *warp.Message) (Dimensions, error) {
+	authBandwidth, authCompute := authFactory.MaxUnits()
+	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + authBandwidth
 	actionStateKeysMaxChunks := action.StateKeysMaxChunks()
 	sponsorStateKeyMaxChunks := r.GetSponsorStateKeysMaxChunks()
 	stateKeysMaxChunks := make([]uint16, 0, len(sponsorStateKeyMaxChunks)+len(actionStateKeysMaxChunks))
@@ -234,8 +234,8 @@ func EstimateMaxUnits(r Rules, action Action, signerFactory AuthFactory, warpMes
 
 	// Estimate compute costs
 	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
+	computeUnitsOp.Add(authCompute)
 	computeUnitsOp.Add(action.MaxComputeUnits(r))
-	computeUnitsOp.Add(signerCompute)
 	if warpMessage != nil {
 		bandwidth += uint64(codec.BytesLen(warpMessage.Bytes()))
 		stateKeysMaxChunks = append(stateKeysMaxChunks, MaxIncomingWarpChunks)
@@ -536,7 +536,7 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 	}
 
 	actionID := t.Action.GetTypeID()
-	signerID := t.Auth.GetTypeID()
+	authID := t.Auth.GetTypeID()
 	t.Base.Marshal(p)
 	var warpBytes []byte
 	if t.WarpMessage != nil {
@@ -548,7 +548,7 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 	p.PackBytes(warpBytes)
 	p.PackByte(actionID)
 	t.Action.Marshal(p)
-	p.PackByte(signerID)
+	p.PackByte(authID)
 	t.Auth.Marshal(p)
 	return p.Err()
 }
