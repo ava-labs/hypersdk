@@ -31,9 +31,9 @@ func (*Transfer) GetTypeID() uint8 {
 	return mconsts.TransferID
 }
 
-func (t *Transfer) StateKeys(auth chain.Auth, _ ids.ID) []string {
+func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) []string {
 	return []string{
-		string(storage.BalanceKey(auth.Actor())),
+		string(storage.BalanceKey(actor)),
 		string(storage.BalanceKey(t.To)),
 	}
 }
@@ -51,14 +51,14 @@ func (t *Transfer) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	auth chain.Auth,
+	actor codec.Address,
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	if t.Value == 0 {
 		return false, 1, OutputValueZero, nil, nil
 	}
-	if err := storage.SubBalance(ctx, mu, auth.Actor(), t.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {

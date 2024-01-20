@@ -13,8 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -43,7 +41,7 @@ func (*ED25519) GetTypeID() uint8 {
 	return consts.ED25519ID
 }
 
-func (*ED25519) MaxComputeUnits(chain.Rules) uint64 {
+func (*ED25519) ComputeUnits(chain.Rules) uint64 {
 	return ED25519ComputeUnits
 }
 
@@ -51,28 +49,11 @@ func (*ED25519) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-func (d *ED25519) StateKeys() []string {
-	return []string{
-		string(storage.BalanceKey(d.address())),
-	}
-}
-
-func (d *ED25519) AsyncVerify(msg []byte) error {
+func (d *ED25519) Verify(_ context.Context, msg []byte) error {
 	if !ed25519.Verify(msg, d.Signer, d.Signature) {
 		return crypto.ErrInvalidSignature
 	}
 	return nil
-}
-
-func (d *ED25519) Verify(
-	_ context.Context,
-	r chain.Rules,
-	_ state.Immutable,
-	_ chain.Action,
-) (uint64, error) {
-	// We don't do anything during verify (there is no additional state to check
-	// to authorize the signer other than verifying the signature)
-	return d.MaxComputeUnits(r), nil
 }
 
 func (d *ED25519) Actor() codec.Address {
@@ -101,38 +82,6 @@ func UnmarshalED25519(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 	return &d, p.Err()
 }
 
-func (d *ED25519) CanDeduct(
-	ctx context.Context,
-	im state.Immutable,
-	amount uint64,
-) error {
-	bal, err := storage.GetBalance(ctx, im, d.address())
-	if err != nil {
-		return err
-	}
-	if bal < amount {
-		return storage.ErrInvalidBalance
-	}
-	return nil
-}
-
-func (d *ED25519) Deduct(
-	ctx context.Context,
-	mu state.Mutable,
-	amount uint64,
-) error {
-	return storage.SubBalance(ctx, mu, d.address(), amount)
-}
-
-func (d *ED25519) Refund(
-	ctx context.Context,
-	mu state.Mutable,
-	amount uint64,
-) error {
-	// Don't create account if it doesn't exist (may have sent all funds).
-	return storage.AddBalance(ctx, mu, d.address(), amount, false)
-}
-
 var _ chain.AuthFactory = (*ED25519Factory)(nil)
 
 func NewED25519Factory(priv ed25519.PrivateKey) *ED25519Factory {
@@ -143,13 +92,13 @@ type ED25519Factory struct {
 	priv ed25519.PrivateKey
 }
 
-func (d *ED25519Factory) Sign(msg []byte, _ chain.Action) (chain.Auth, error) {
+func (d *ED25519Factory) Sign(msg []byte) (chain.Auth, error) {
 	sig := ed25519.Sign(msg, d.priv)
 	return &ED25519{Signer: d.priv.PublicKey(), Signature: sig}, nil
 }
 
-func (*ED25519Factory) MaxUnits() (uint64, uint64, []uint16) {
-	return ED25519Size, ED25519ComputeUnits, []uint16{storage.BalanceChunks}
+func (*ED25519Factory) MaxUnits() (uint64, uint64) {
+	return ED25519Size, ED25519ComputeUnits
 }
 
 type ED25519AuthEngine struct{}
