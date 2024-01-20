@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/archiver"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/config"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
@@ -43,6 +44,8 @@ type Controller struct {
 	metrics *metrics
 
 	metaDB database.Database
+
+	archiver archiver.Archiver
 
 	orderBook *orderbook.OrderBook
 }
@@ -106,6 +109,14 @@ func (c *Controller) Initialize(
 	}
 	c.metaDB = metaDB
 
+	// Create archiver
+	ar, err := archiver.CreateArchiverByConfig(c.config.ArchiverConfig)
+	if err != nil {
+		c.inner.Logger().Warn("unable to create archiver, using noop archiver", zap.Error(err))
+		ar = &archiver.NoOpArchiver{}
+	}
+	c.archiver = ar
+
 	// Create handlers
 	//
 	// hypersdk handler are initiatlized automatically, you just need to
@@ -160,6 +171,12 @@ func (c *Controller) StateManager() chain.StateManager {
 func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
 	batch := c.metaDB.NewBatch()
 	defer batch.Reset()
+
+	// archive block to storage e.g. aws s3
+	err := c.archiver.Put(vm.PrefixBlockKey(blk.Hght), blk.Bytes())
+	if err != nil {
+		c.Logger().Warn("unable to archive", zap.Error(err))
+	}
 
 	results := blk.Results()
 	for i, tx := range blk.Txs {

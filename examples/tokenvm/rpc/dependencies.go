@@ -32,4 +32,5 @@ type Controller interface {
 		error,
 	)
 	GetLoanFromState(context.Context, ids.ID, ids.ID) (uint64, error)
+	GetBlkFromArchiver(ctx context.Context, height uint64) (*chain.StatelessBlock, error)
 }

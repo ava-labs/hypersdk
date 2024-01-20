@@ -5,6 +5,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
@@ -14,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
+	"github.com/ava-labs/hypersdk/vm"
 )
 
 func (c *Controller) Genesis() *genesis.Genesis {
@@ -76,4 +78,22 @@ func (c *Controller) GetLoanFromState(
 	destination ids.ID,
 ) (uint64, error) {
 	return storage.GetLoanFromState(ctx, c.inner.ReadState, asset, destination)
+}
+
+func (c *Controller) GetBlkFromArchiver(
+	ctx context.Context,
+	height uint64,
+) (*chain.StatelessBlock, error) {
+	blockBytes, err := c.archiver.Get(vm.PrefixBlockKey(height))
+	if err != nil {
+		return nil, err
+	}
+
+	var blk chain.StatelessBlock
+	err = json.Unmarshal(blockBytes, &blk)
+	if err != nil {
+		return nil, err
+	}
+
+	return &blk, nil
 }
