@@ -137,11 +137,11 @@ cat <<EOF > ${DEPLOY_ARTIFACT_PREFIX}/tokenvm-chain-config.json
   "mempoolPayerSize": 10000000,
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "streamingBacklogSize": 10000000,
-  "signatureVerificationCores": 4,
+  "authVerificationCores": 4,
   "rootGenerationCores": 4,
   "transactionExecutionCores": 4,
   "storeTransactions": false,
-  "verifySignatures": true,
+  "verifyAuth": true,
   "trackedPairs":["*"],
   "continuousProfilerDir":"/data/tokenvm-profiles"
 }
