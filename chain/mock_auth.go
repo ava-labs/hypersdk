@@ -12,7 +12,6 @@ import (
 	reflect "reflect"
 
 	codec "github.com/ava-labs/hypersdk/codec"
-	state "github.com/ava-labs/hypersdk/state"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -53,46 +52,18 @@ func (mr *MockAuthMockRecorder) Actor() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Actor", reflect.TypeOf((*MockAuth)(nil).Actor))
 }
 
-// AsyncVerify mocks base method.
-func (m *MockAuth) AsyncVerify(arg0 []byte) error {
+// ComputeUnits mocks base method.
+func (m *MockAuth) ComputeUnits(arg0 Rules) uint64 {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AsyncVerify", arg0)
-	ret0, _ := ret[0].(error)
+	ret := m.ctrl.Call(m, "ComputeUnits", arg0)
+	ret0, _ := ret[0].(uint64)
 	return ret0
 }
 
-// AsyncVerify indicates an expected call of AsyncVerify.
-func (mr *MockAuthMockRecorder) AsyncVerify(arg0 interface{}) *gomock.Call {
+// ComputeUnits indicates an expected call of ComputeUnits.
+func (mr *MockAuthMockRecorder) ComputeUnits(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncVerify", reflect.TypeOf((*MockAuth)(nil).AsyncVerify), arg0)
-}
-
-// CanDeduct mocks base method.
-func (m *MockAuth) CanDeduct(arg0 context.Context, arg1 state.Immutable, arg2 uint64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CanDeduct", arg0, arg1, arg2)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CanDeduct indicates an expected call of CanDeduct.
-func (mr *MockAuthMockRecorder) CanDeduct(arg0, arg1, arg2 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanDeduct", reflect.TypeOf((*MockAuth)(nil).CanDeduct), arg0, arg1, arg2)
-}
-
-// Deduct mocks base method.
-func (m *MockAuth) Deduct(arg0 context.Context, arg1 state.Mutable, arg2 uint64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Deduct", arg0, arg1, arg2)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Deduct indicates an expected call of Deduct.
-func (mr *MockAuthMockRecorder) Deduct(arg0, arg1, arg2 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Deduct", reflect.TypeOf((*MockAuth)(nil).Deduct), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ComputeUnits", reflect.TypeOf((*MockAuth)(nil).ComputeUnits), arg0)
 }
 
 // GetTypeID mocks base method.
@@ -119,34 +90,6 @@ func (m *MockAuth) Marshal(arg0 *codec.Packer) {
 func (mr *MockAuthMockRecorder) Marshal(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Marshal", reflect.TypeOf((*MockAuth)(nil).Marshal), arg0)
-}
-
-// MaxComputeUnits mocks base method.
-func (m *MockAuth) MaxComputeUnits(arg0 Rules) uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MaxComputeUnits", arg0)
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// MaxComputeUnits indicates an expected call of MaxComputeUnits.
-func (mr *MockAuthMockRecorder) MaxComputeUnits(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxComputeUnits", reflect.TypeOf((*MockAuth)(nil).MaxComputeUnits), arg0)
-}
-
-// Refund mocks base method.
-func (m *MockAuth) Refund(arg0 context.Context, arg1 state.Mutable, arg2 uint64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Refund", arg0, arg1, arg2)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Refund indicates an expected call of Refund.
-func (mr *MockAuthMockRecorder) Refund(arg0, arg1, arg2 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Refund", reflect.TypeOf((*MockAuth)(nil).Refund), arg0, arg1, arg2)
 }
 
 // Size mocks base method.
@@ -177,20 +120,6 @@ func (mr *MockAuthMockRecorder) Sponsor() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sponsor", reflect.TypeOf((*MockAuth)(nil).Sponsor))
 }
 
-// StateKeys mocks base method.
-func (m *MockAuth) StateKeys() []string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StateKeys")
-	ret0, _ := ret[0].([]string)
-	return ret0
-}
-
-// StateKeys indicates an expected call of StateKeys.
-func (mr *MockAuthMockRecorder) StateKeys() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StateKeys", reflect.TypeOf((*MockAuth)(nil).StateKeys))
-}
-
 // ValidRange mocks base method.
 func (m *MockAuth) ValidRange(arg0 Rules) (int64, int64) {
 	m.ctrl.T.Helper()
@@ -207,16 +136,15 @@ func (mr *MockAuthMockRecorder) ValidRange(arg0 interface{}) *gomock.Call {
 }
 
 // Verify mocks base method.
-func (m *MockAuth) Verify(arg0 context.Context, arg1 Rules, arg2 state.Immutable, arg3 Action) (uint64, error) {
+func (m *MockAuth) Verify(arg0 context.Context, arg1 []byte) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Verify", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].(uint64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "Verify", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Verify indicates an expected call of Verify.
-func (mr *MockAuthMockRecorder) Verify(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockAuthMockRecorder) Verify(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Verify", reflect.TypeOf((*MockAuth)(nil).Verify), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Verify", reflect.TypeOf((*MockAuth)(nil).Verify), arg0, arg1)
 }

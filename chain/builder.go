@@ -273,8 +273,7 @@ func BuildBlock(
 
 				// Execute block
 				tsv := ts.NewView(stateKeys, storage)
-				authCUs, err := tx.PreExecute(ctx, feeManager, sm, r, tsv, nextTime)
-				if err != nil {
+				if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, nextTime); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
 					if HandlePreExecute(log, err) {
@@ -338,7 +337,6 @@ func BuildBlock(
 				result, err := tx.Execute(
 					ctx,
 					feeManager,
-					authCUs,
 					reads,
 					sm,
 					r,

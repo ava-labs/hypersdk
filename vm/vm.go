@@ -96,9 +96,9 @@ type VM struct {
 	// Transactions that streaming users are currently subscribed to
 	webSocketServer *rpc.WebSocketServer
 
-	// sigWorkers are used to verify signatures in parallel
+	// authVerifiers are used to verify signatures in parallel
 	// with limited parallelism
-	sigWorkers workers.Workers
+	authVerifiers workers.Workers
 
 	bootstrapped utils.Atomic[bool]
 	genesisBlk   *chain.StatelessBlock
@@ -225,7 +225,7 @@ func (vm *VM) Initialize(
 	//
 	// If [parallelism] is odd, we assign the extra
 	// core to signature verification.
-	vm.sigWorkers = workers.NewParallel(vm.config.GetSignatureVerificationCores(), 100) // TODO: make job backlog a const
+	vm.authVerifiers = workers.NewParallel(vm.config.GetAuthVerificationCores(), 100) // TODO: make job backlog a const
 
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
@@ -561,7 +561,7 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	vm.warpManager.Done()
 	vm.builder.Done()
 	vm.gossiper.Done()
-	vm.sigWorkers.Stop()
+	vm.authVerifiers.Stop()
 	if vm.profiler != nil {
 		vm.profiler.Shutdown()
 	}
@@ -780,7 +780,7 @@ func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *smblock.C
 
 func (vm *VM) Submit(
 	ctx context.Context,
-	verifySig bool,
+	verifyAuth bool,
 	txs []*chain.Transaction,
 ) (errs []error) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Submit")
@@ -847,10 +847,15 @@ func (vm *VM) Submit(
 			continue
 		}
 
-		// Verify signature if not already verified by caller
-		if verifySig && vm.config.GetVerifySignatures() {
-			sigVerify := tx.AuthAsyncVerify()
-			if err := sigVerify(); err != nil {
+		// Verify auth if not already verified by caller
+		if verifyAuth && vm.config.GetVerifyAuth() {
+			msg, err := tx.Digest()
+			if err != nil {
+				// Should never fail
+				errs = append(errs, err)
+				continue
+			}
+			if err := tx.Auth.Verify(ctx, msg); err != nil {
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
@@ -871,7 +876,7 @@ func (vm *VM) Submit(
 		// Note, [PreExecute] ensures that the pending transaction does not have
 		// an expiry time further ahead than [ValidityWindow]. This ensures anything
 		// added to the [Mempool] is immediately executable.
-		if _, err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, view, now); err != nil {
+		if err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, view, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}

@@ -74,7 +74,12 @@ func (j *JSONRPCServer) SubmitTx(
 	if !rtx.Empty() {
 		return errors.New("tx has extra bytes")
 	}
-	if err := tx.AuthAsyncVerify()(); err != nil {
+	msg, err := tx.Digest()
+	if err != nil {
+		// Should never occur because populated during unmarshal
+		return err
+	}
+	if err := tx.Auth.Verify(ctx, msg); err != nil {
 		return err
 	}
 	txID := tx.ID()

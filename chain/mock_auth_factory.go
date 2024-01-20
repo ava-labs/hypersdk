@@ -37,13 +37,12 @@ func (m *MockAuthFactory) EXPECT() *MockAuthFactoryMockRecorder {
 }
 
 // MaxUnits mocks base method.
-func (m *MockAuthFactory) MaxUnits() (uint64, uint64, []uint16) {
+func (m *MockAuthFactory) MaxUnits() (uint64, uint64) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MaxUnits")
 	ret0, _ := ret[0].(uint64)
 	ret1, _ := ret[1].(uint64)
-	ret2, _ := ret[2].([]uint16)
-	return ret0, ret1, ret2
+	return ret0, ret1
 }
 
 // MaxUnits indicates an expected call of MaxUnits.
@@ -53,16 +52,16 @@ func (mr *MockAuthFactoryMockRecorder) MaxUnits() *gomock.Call {
 }
 
 // Sign mocks base method.
-func (m *MockAuthFactory) Sign(arg0 []byte, arg1 Action) (Auth, error) {
+func (m *MockAuthFactory) Sign(arg0 []byte) (Auth, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Sign", arg0, arg1)
+	ret := m.ctrl.Call(m, "Sign", arg0)
 	ret0, _ := ret[0].(Auth)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Sign indicates an expected call of Sign.
-func (mr *MockAuthFactoryMockRecorder) Sign(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockAuthFactoryMockRecorder) Sign(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sign", reflect.TypeOf((*MockAuthFactory)(nil).Sign), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sign", reflect.TypeOf((*MockAuthFactory)(nil).Sign), arg0)
 }

@@ -31,10 +31,10 @@ func (*CloseOrder) GetTypeID() uint8 {
 	return closeOrderID
 }
 
-func (c *CloseOrder) StateKeys(auth chain.Auth, _ ids.ID) []string {
+func (c *CloseOrder) StateKeys(actor codec.Address, _ ids.ID) []string {
 	return []string{
 		string(storage.OrderKey(c.Order)),
-		string(storage.BalanceKey(auth.Actor(), c.Out)),
+		string(storage.BalanceKey(actor, c.Out)),
 	}
 }
 
@@ -51,7 +51,7 @@ func (c *CloseOrder) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	auth chain.Auth,
+	actor codec.Address,
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
@@ -62,7 +62,7 @@ func (c *CloseOrder) Execute(
 	if !exists {
 		return false, CloseOrderComputeUnits, OutputOrderMissing, nil, nil
 	}
-	if owner != auth.Actor() {
+	if owner != actor {
 		return false, CloseOrderComputeUnits, OutputUnauthorized, nil, nil
 	}
 	if out != c.Out {
@@ -71,7 +71,7 @@ func (c *CloseOrder) Execute(
 	if err := storage.DeleteOrder(ctx, mu, c.Order); err != nil {
 		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, mu, auth.Actor(), c.Out, remaining, true); err != nil {
+	if err := storage.AddBalance(ctx, mu, actor, c.Out, remaining, true); err != nil {
 		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, CloseOrderComputeUnits, nil, nil, nil

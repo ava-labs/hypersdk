@@ -4,6 +4,8 @@
 package chain
 
 import (
+	"context"
+
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/workers"
 )
@@ -50,7 +52,7 @@ func (a *AuthBatch) Add(digest []byte, auth Auth) {
 	// processing.
 	bv, ok := a.bvs[auth.GetTypeID()]
 	if !ok {
-		a.job.Go(func() error { return auth.AsyncVerify(digest) })
+		a.job.Go(func() error { return auth.Verify(context.TODO(), digest) })
 		return
 	}
 	bv.items <- &authBatchObject{digest, auth}

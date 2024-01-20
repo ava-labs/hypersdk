@@ -37,17 +37,17 @@ func (*ExportAsset) GetTypeID() uint8 {
 	return exportAssetID
 }
 
-func (e *ExportAsset) StateKeys(auth chain.Auth, _ ids.ID) []string {
+func (e *ExportAsset) StateKeys(actor codec.Address, _ ids.ID) []string {
 	if e.Return {
 		return []string{
 			string(storage.AssetKey(e.Asset)),
-			string(storage.BalanceKey(auth.Actor(), e.Asset)),
+			string(storage.BalanceKey(actor, e.Asset)),
 		}
 	}
 	return []string{
 		string(storage.AssetKey(e.Asset)),
 		string(storage.LoanKey(e.Asset, e.Destination)),
-		string(storage.BalanceKey(auth.Actor(), e.Asset)),
+		string(storage.BalanceKey(actor, e.Asset)),
 	}
 }
 
@@ -202,7 +202,7 @@ func (e *ExportAsset) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	auth chain.Auth,
+	actor codec.Address,
 	txID ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
@@ -216,9 +216,9 @@ func (e *ExportAsset) Execute(
 	}
 	// TODO: check if destination is ourselves
 	if e.Return {
-		return e.executeReturn(ctx, mu, auth.Actor(), txID)
+		return e.executeReturn(ctx, mu, actor, txID)
 	}
-	return e.executeLoan(ctx, mu, auth.Actor(), txID)
+	return e.executeLoan(ctx, mu, actor, txID)
 }
 
 func (*ExportAsset) MaxComputeUnits(chain.Rules) uint64 {

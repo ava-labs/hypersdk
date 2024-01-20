@@ -161,7 +161,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 
 	// Setup signature verification job
 	_, sigVerifySpan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
-	job, err := b.vm.SignatureWorkers().NewJob(len(b.Txs))
+	job, err := b.vm.AuthVerifiers().NewJob(len(b.Txs))
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 		b.txsSet.Add(tx.ID())
 
 		// Verify signature async
-		if b.vm.GetVerifySignatures() {
+		if b.vm.GetVerifyAuth() {
 			txDigest, err := tx.Digest()
 			if err != nil {
 				return err

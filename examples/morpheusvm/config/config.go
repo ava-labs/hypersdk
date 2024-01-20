@@ -33,9 +33,9 @@ type Config struct {
 	*config.Config
 
 	// Concurrency
-	SignatureVerificationCores int `json:"signatureVerificationCores"`
-	RootGenerationCores        int `json:"rootGenerationCores"`
-	TransactionExecutionCores  int `json:"transactionExecutionCores"`
+	AuthVerificationCores     int `json:"authVerificationCores"`
+	RootGenerationCores       int `json:"rootGenerationCores"`
+	TransactionExecutionCores int `json:"transactionExecutionCores"`
 
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
@@ -53,7 +53,7 @@ type Config struct {
 	MempoolExemptSponsors []string `json:"mempoolExemptSponsors"`
 
 	// Misc
-	VerifySignatures  bool          `json:"verifySignatures"`
+	VerifyAuth        bool          `json:"verifyAuth"`
 	StoreTransactions bool          `json:"storeTransactions"`
 	TestMode          bool          `json:"testMode"` // makes gossip/building manual
 	LogLevel          logging.Level `json:"logLevel"`
@@ -91,20 +91,20 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
-	c.SignatureVerificationCores = c.Config.GetSignatureVerificationCores()
+	c.AuthVerificationCores = c.Config.GetAuthVerificationCores()
 	c.RootGenerationCores = c.Config.GetRootGenerationCores()
 	c.TransactionExecutionCores = c.Config.GetTransactionExecutionCores()
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.MempoolSponsorSize = c.Config.GetMempoolSponsorSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
-	c.VerifySignatures = c.Config.GetVerifySignatures()
+	c.VerifyAuth = c.Config.GetVerifyAuth()
 	c.StoreTransactions = defaultStoreTransactions
 }
 
 func (c *Config) GetLogLevel() logging.Level                { return c.LogLevel }
 func (c *Config) GetTestMode() bool                         { return c.TestMode }
-func (c *Config) GetSignatureVerificationCores() int        { return c.SignatureVerificationCores }
+func (c *Config) GetAuthVerificationCores() int             { return c.AuthVerificationCores }
 func (c *Config) GetRootGenerationCores() int               { return c.RootGenerationCores }
 func (c *Config) GetTransactionExecutionCores() int         { return c.TransactionExecutionCores }
 func (c *Config) GetMempoolSize() int                       { return c.MempoolSize }
@@ -135,6 +135,6 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 		MaxNumFiles: defaultContinuousProfilerMaxFiles,
 	}
 }
-func (c *Config) GetVerifySignatures() bool  { return c.VerifySignatures }
+func (c *Config) GetVerifyAuth() bool        { return c.VerifyAuth }
 func (c *Config) GetStoreTransactions() bool { return c.StoreTransactions }
 func (c *Config) Loaded() bool               { return c.loaded }
