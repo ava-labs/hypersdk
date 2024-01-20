@@ -12,8 +12,6 @@ import (
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -42,7 +40,7 @@ func (*BLS) GetTypeID() uint8 {
 	return consts.BLSID
 }
 
-func (*BLS) MaxComputeUnits(chain.Rules) uint64 {
+func (*BLS) ComputeUnits(chain.Rules) uint64 {
 	return BLSComputeUnits
 }
 
@@ -50,28 +48,11 @@ func (*BLS) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-func (b *BLS) StateKeys() []string {
-	return []string{
-		string(storage.BalanceKey(b.address())),
-	}
-}
-
-func (b *BLS) AsyncVerify(msg []byte) error {
+func (b *BLS) Verify(_ context.Context, msg []byte) error {
 	if !bls.Verify(msg, b.Signer, b.Signature) {
 		return crypto.ErrInvalidSignature
 	}
 	return nil
-}
-
-func (b *BLS) Verify(
-	_ context.Context,
-	r chain.Rules,
-	_ state.Immutable,
-	_ chain.Action,
-) (uint64, error) {
-	// We don't do anything during verify (there is no additional state to check
-	// to authorize the signer other than verifying the signature)
-	return b.MaxComputeUnits(r), nil
 }
 
 func (b *BLS) Actor() codec.Address {
@@ -114,38 +95,6 @@ func UnmarshalBLS(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
 	return &b, p.Err()
 }
 
-func (b *BLS) CanDeduct(
-	ctx context.Context,
-	im state.Immutable,
-	amount uint64,
-) error {
-	bal, err := storage.GetBalance(ctx, im, b.address())
-	if err != nil {
-		return err
-	}
-	if bal < amount {
-		return storage.ErrInvalidBalance
-	}
-	return nil
-}
-
-func (b *BLS) Deduct(
-	ctx context.Context,
-	mu state.Mutable,
-	amount uint64,
-) error {
-	return storage.SubBalance(ctx, mu, b.address(), amount)
-}
-
-func (b *BLS) Refund(
-	ctx context.Context,
-	mu state.Mutable,
-	amount uint64,
-) error {
-	// Don't create account if it doesn't exist (may have sent all funds).
-	return storage.AddBalance(ctx, mu, b.address(), amount, false)
-}
-
 var _ chain.AuthFactory = (*BLSFactory)(nil)
 
 type BLSFactory struct {
@@ -156,12 +105,12 @@ func NewBLSFactory(priv *bls.PrivateKey) *BLSFactory {
 	return &BLSFactory{priv}
 }
 
-func (b *BLSFactory) Sign(msg []byte, _ chain.Action) (chain.Auth, error) {
+func (b *BLSFactory) Sign(msg []byte) (chain.Auth, error) {
 	return &BLS{Signer: bls.PublicFromPrivateKey(b.priv), Signature: bls.Sign(msg, b.priv)}, nil
 }
 
-func (*BLSFactory) MaxUnits() (uint64, uint64, []uint16) {
-	return BLSSize, BLSComputeUnits, []uint16{storage.BalanceChunks}
+func (*BLSFactory) MaxUnits() (uint64, uint64) {
+	return BLSSize, BLSComputeUnits
 }
 
 func NewBLSAddress(pk *bls.PublicKey) codec.Address {
