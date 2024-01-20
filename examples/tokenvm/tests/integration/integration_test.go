@@ -379,7 +379,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// 0 timestamp)
 			msg, err := tx.Digest()
 			gomega.Ω(err).To(gomega.BeNil())
-			auth, err := factory.Sign(msg, tx.Action)
+			auth, err := factory.Sign(msg)
 			gomega.Ω(err).To(gomega.BeNil())
 			tx.Auth = auth
 			p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -769,7 +769,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// too large)
 		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
-		auth, err := factory.Sign(msg, tx.Action)
+		auth, err := factory.Sign(msg)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -832,7 +832,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// too large)
 		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
-		auth, err := factory.Sign(msg, tx.Action)
+		auth, err := factory.Sign(msg)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -863,7 +863,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// too large)
 		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
-		auth, err := factory.Sign(msg, tx.Action)
+		auth, err := factory.Sign(msg)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -894,7 +894,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// too large)
 		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
-		auth, err := factory.Sign(msg, tx.Action)
+		auth, err := factory.Sign(msg)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -1111,7 +1111,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// bad codec)
 		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
-		auth, err := factory.Sign(msg, tx.Action)
+		auth, err := factory.Sign(msg)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -1185,7 +1185,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// bad codec)
 		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
-		auth, err := factory.Sign(msg, tx.Action)
+		auth, err := factory.Sign(msg)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -1709,7 +1709,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// empty warp)
 		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
-		auth, err := factory.Sign(msg, tx.Action)
+		auth, err := factory.Sign(msg)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -1738,7 +1738,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// empty warp)
 		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
-		auth, err := factory.Sign(msg, tx.Action)
+		auth, err := factory.Sign(msg)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -1769,7 +1769,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// invalid object)
 		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
-		auth, err := factory.Sign(msg, tx.Action)
+		auth, err := factory.Sign(msg)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -1803,7 +1803,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// invalid object)
 		msg, err := tx.Digest()
 		gomega.Ω(err).To(gomega.BeNil())
-		auth, err := factory.Sign(msg, tx.Action)
+		auth, err := factory.Sign(msg)
 		gomega.Ω(err).To(gomega.BeNil())
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth

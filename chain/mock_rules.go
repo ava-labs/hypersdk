@@ -164,6 +164,20 @@ func (mr *MockRulesMockRecorder) GetOutgoingWarpComputeUnits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOutgoingWarpComputeUnits", reflect.TypeOf((*MockRules)(nil).GetOutgoingWarpComputeUnits))
 }
 
+// GetSponsorStateKeysMaxChunks mocks base method.
+func (m *MockRules) GetSponsorStateKeysMaxChunks() []uint16 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSponsorStateKeysMaxChunks")
+	ret0, _ := ret[0].([]uint16)
+	return ret0
+}
+
+// GetSponsorStateKeysMaxChunks indicates an expected call of GetSponsorStateKeysMaxChunks.
+func (mr *MockRulesMockRecorder) GetSponsorStateKeysMaxChunks() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSponsorStateKeysMaxChunks", reflect.TypeOf((*MockRules)(nil).GetSponsorStateKeysMaxChunks))
+}
+
 // GetStorageKeyAllocateUnits mocks base method.
 func (m *MockRules) GetStorageKeyAllocateUnits() uint64 {
 	m.ctrl.T.Helper()
