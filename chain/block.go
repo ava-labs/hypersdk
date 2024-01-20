@@ -730,6 +730,13 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		}
 	}
 
+	// optionally store [block.Results] to disk
+	if b.vm.GetStoreBlockResultsOnDisk() {
+		if err := b.vm.StoreBlockResultsOnDisk(b); err != nil {
+			return fmt.Errorf("%w: unable to store block results on disk", err)
+		}
+	}
+
 	// Commit view if we don't return before here (would happen if we are still
 	// syncing)
 	if err := b.view.CommitToDB(ctx); err != nil {

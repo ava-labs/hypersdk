@@ -26,6 +26,7 @@ STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
 STORE_TXS=${STORE_TXS:-false}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
+STORE_BLOCK_RESULTS_ON_DISK=${STORE_BLOCK_RESULTS_ON_DISK:-true}
 ADDRESS=${ADDRESS:-token1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdj73w34s}
 if [[ ${MODE} != "run" && ${MODE} != "run-single" ]]; then
   LOGLEVEL=debug
@@ -53,6 +54,7 @@ echo MIN_BLOCK_GAP \(ms\): ${MIN_BLOCK_GAP}
 echo STORE_TXS: ${STORE_TXS}
 echo WINDOW_TARGET_UNITS: ${WINDOW_TARGET_UNITS}
 echo MAX_BLOCK_UNITS: ${MAX_BLOCK_UNITS}
+echo STORE_BLOCK_RESULTS_ON_DISK: ${STORE_BLOCK_RESULTS_ON_DISK}
 echo ADDRESS: ${ADDRESS}
 
 ############################
@@ -164,7 +166,8 @@ cat <<EOF > ${TMPDIR}/tokenvm.config
   "trackedPairs":["*"],
   "logLevel": "${LOGLEVEL}",
   "continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*",
-  "stateSyncServerDelay": ${STATESYNC_DELAY}
+  "stateSyncServerDelay": ${STATESYNC_DELAY},
+  "storeBlockResultsOnDisk": ${STORE_BLOCK_RESULTS_ON_DISK}
 }
 EOF
 mkdir -p ${TMPDIR}/tokenvm-e2e-profiles
