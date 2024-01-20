@@ -145,6 +145,7 @@ type Rules interface {
 	//   read will be a read of 0 chunks (reads are based on disk contents before exec)
 	// * If a key is removed and then re-created with the same value during a transaction,
 	//   it doesn't count as a modification (returning to the current value on-disk is a no-op)
+	GetFeeStateKeysMaxChunks() []uint16
 	GetStorageKeyReadUnits() uint64
 	GetStorageValueReadUnits() uint64 // per chunk
 	GetStorageKeyAllocateUnits() uint64
@@ -157,6 +158,45 @@ type Rules interface {
 	FetchCustom(string) (any, bool)
 }
 
+type MetadataManager interface {
+	HeightKey() []byte
+	TimestampKey() []byte
+	FeeKey() []byte
+}
+
+type WarpManager interface {
+	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte
+	OutgoingWarpKeyPrefix(txID ids.ID) []byte
+}
+
+type FeeHandler interface {
+	// ComputeUnits is the amount of compute required to process fees.
+	FeeComputeUnits(addr codec.Address, rules Rules) uint64
+
+	// StateKeys is a full enumeration of all database keys that could be touched during fee payment
+	// by [addr]. This is used to prefetch state and will be used to parallelize execution (making
+	// an execution tree is trivial).
+	//
+	// All keys specified must be suffixed with the number of chunks that could ever be read from that
+	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
+	FeeStateKeys(addr codec.Address) []string
+
+	// CanDeduct returns an error if [amount] cannot be paid by [addr].
+	CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error
+
+	// Deduct removes [amount] from [addr] during transaction execution to pay fees.
+	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
+
+	// Refund returns [amount] to [addr] after transaction execution if any fees were
+	// not used.
+	//
+	// Refund will return an error if it attempts to create any new keys. It can only
+	// modify or remove existing keys.
+	//
+	// Refund is only invoked if [amount] > 0.
+	Refund(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
+}
+
 // StateManager allows [Chain] to safely store certain types of items in state
 // in a structured manner. If we did not use [StateManager], we may overwrite
 // state written by actions or auth.
@@ -164,12 +204,9 @@ type Rules interface {
 // None of these keys should be suffixed with the max amount of chunks they will
 // use. This will be handled by the hypersdk.
 type StateManager interface {
-	HeightKey() []byte
-	TimestampKey() []byte
-	FeeKey() []byte
-
-	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte
-	OutgoingWarpKeyPrefix(txID ids.ID) []byte
+	FeeHandler
+	MetadataManager
+	WarpManager
 }
 
 type Object interface {
@@ -240,6 +277,8 @@ type Action interface {
 }
 
 type Signer interface {
+	Object
+
 	// ComputeUnits is the amount of compute required to call [Verify]. This is
 	// used to determine whether the [signer] can be included in a given block and to compute
 	// the required fee to execute.
@@ -248,41 +287,25 @@ type Signer interface {
 	// Verify is run concurrently during transaction verification. It may not be run by the time
 	// a transaction is executed but will be checked before a [Transaction] is considered successful.
 	// Verify is typically used to perform cryptographic operations.
-	Verify(msg []byte) error
+	Verify(ctx context.Context, msg []byte) error
 
-	// Address is the unique identifier of the [Signer].
+	// Actor is the subject of the [Action] signed.
 	//
 	// To avoid collisions with other [Signer] modules, this must be prefixed
 	// by the [TypeID].
-	Address() codec.Address
-}
+	Actor() codec.Address
 
-type FeeHandler interface {
-	// ComputeUnits is the amount of compute required to process fees.
-	ComputeUnits(addr codec.Address, rules Rules) uint64
-
-	// StateKeys is a full enumeration of all database keys that could be touched during fee payment
-	// by [addr]. This is used to prefetch state and will be used to parallelize execution (making
-	// an execution tree is trivial).
+	// Sponsor is the fee payer of the [Action] signed.
 	//
-	// All keys specified must be suffixed with the number of chunks that could ever be read from that
-	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
-	StateKeys(addr codec.Address) []string
-
-	// CanDeduct returns an error if [amount] cannot be paid by [addr].
-	CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error
-
-	// Deduct removes [amount] from [addr] during transaction execution to pay fees.
-	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
-
-	// Refund returns [amount] to [addr] after transaction execution if any fees were
-	// not used.
+	// If the [Actor] is not the same as [Sponsor], it is likely that the [Actor] signature
+	// is wrapped by the [Sponsor] signature. It is important that the [Actor], in this case,
+	// signs the [Sponsor] address or else their transaction could be replayed.
 	//
-	// Refund will return an error if it attempts to create any new keys. It can only
-	// modify or remove existing keys.
+	// TODO: add a standard sponsor wrapper auth
 	//
-	// Refund is only invoked if [amount] > 0.
-	Refund(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
+	// To avoid collisions with other [Signer] modules, this must be prefixed
+	// by the [TypeID].
+	Sponsor() codec.Address
 }
 
 type SignerBatchVerifier interface {
@@ -292,7 +315,6 @@ type SignerBatchVerifier interface {
 
 type SignerFactory interface {
 	// Sign is used by helpers, auth object should store internally to be ready for marshaling
-	Sign(msg []byte, action Action) (Signer, error)
-
-	MaxUnits() (bandwidth uint64, compute uint64, stateKeysCount []uint16)
+	Sign(msg []byte) (Signer, error)
+	MaxUnits() (bandwidth uint64, compute uint64)
 }

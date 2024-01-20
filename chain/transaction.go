@@ -34,9 +34,8 @@ type Transaction struct {
 	WarpMessage *warp.Message `json:"warpMessage"`
 
 	// TODO: turn [Action] into an array (#335)
-	Action  Action `json:"action"`
-	Actor   Signer `json:"actor"`
-	Sponsor Signer `json:"sponsor"`
+	Action Action `json:"action"`
+	Signer Signer `json:"signer"`
 
 	digest         []byte
 	bytes          []byte
@@ -85,24 +84,23 @@ func (t *Transaction) Digest() ([]byte, error) {
 }
 
 func (t *Transaction) Sign(
-	factory AuthFactory,
+	factory SignerFactory,
 	actionRegistry ActionRegistry,
-	authRegistry AuthRegistry,
+	signerRegistry SignerRegistry,
 ) (*Transaction, error) {
-	// Generate auth
 	msg, err := t.Digest()
 	if err != nil {
 		return nil, err
 	}
-	auth, err := factory.Sign(msg, t.Action)
+	signer, err := factory.Sign(msg)
 	if err != nil {
 		return nil, err
 	}
-	t.Auth = auth
+	t.Signer = signer
 
 	// Ensure transaction is fully initialized and correct by reloading it from
 	// bytes
-	size := len(msg) + consts.ByteLen + t.Auth.Size()
+	size := len(msg) + consts.ByteLen + t.Signer.Size()
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	if err := t.Marshal(p); err != nil {
 		return nil, err
@@ -111,16 +109,7 @@ func (t *Transaction) Sign(
 		return nil, err
 	}
 	p = codec.NewReader(p.Bytes(), consts.MaxInt)
-	return UnmarshalTx(p, actionRegistry, authRegistry)
-}
-
-func (t *Transaction) AuthAsyncVerify() func() error {
-	return func() error {
-		// It is up to [t.Auth] to limit the computational
-		// complexity of [t.Auth.AsyncVerify] and [t.Auth.Verify] to prevent
-		// a DoS (invalid Auth will not charge [t.Auth.Sponsor()].
-		return t.Auth.AsyncVerify(t.digest)
-	}
+	return UnmarshalTx(p, actionRegistry, signerRegistry)
 }
 
 func (t *Transaction) Bytes() []byte { return t.bytes }
@@ -133,16 +122,16 @@ func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 
 func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
 
-func (t *Transaction) StateKeys(stateMapping StateManager) (set.Set[string], error) {
+func (t *Transaction) StateKeys(sm StateManager) (set.Set[string], error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
 
 	// Verify the formatting of state keys passed by the controller
-	actionKeys := t.Action.StateKeys(t.Auth, t.ID())
-	authKeys := t.Auth.StateKeys()
-	stateKeys := set.NewSet[string](len(actionKeys) + len(authKeys))
-	for _, arr := range [][]string{actionKeys, authKeys} {
+	actionKeys := t.Action.StateKeys(t.Signer.Actor(), t.ID())
+	sponsorKeys := sm.FeeStateKeys(t.Signer.Sponsor())
+	stateKeys := set.NewSet[string](len(actionKeys) + len(sponsorKeys))
+	for _, arr := range [][]string{actionKeys, sponsorKeys} {
 		for _, k := range arr {
 			if !keys.Valid(k) {
 				return nil, ErrInvalidKeyValue
@@ -153,12 +142,12 @@ func (t *Transaction) StateKeys(stateMapping StateManager) (set.Set[string], err
 
 	// Add keys used to manage warp operations
 	if t.WarpMessage != nil {
-		p := stateMapping.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
+		p := sm.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
 		k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
 		stateKeys.Add(string(k))
 	}
 	if t.Action.OutputsWarpMessage() {
-		p := stateMapping.OutgoingWarpKeyPrefix(t.id)
+		p := sm.OutgoingWarpKeyPrefix(t.id)
 		k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
 		stateKeys.Add(string(k))
 	}
@@ -174,7 +163,8 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	// Cacluate max compute costs
 	maxComputeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	maxComputeUnitsOp.Add(t.Action.MaxComputeUnits(r))
-	maxComputeUnitsOp.Add(t.Auth.MaxComputeUnits(r))
+	maxComputeUnitsOp.Add(t.Signer.ComputeUnits(r))
+	maxComputeUnitsOp.Add(sm.FeeComputeUnits(t.Signer.Sponsor(), r))
 	if t.WarpMessage != nil {
 		maxComputeUnitsOp.Add(r.GetBaseWarpComputeUnits())
 		maxComputeUnitsOp.MulAdd(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
@@ -231,18 +221,19 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 
 // EstimateMaxUnits provides a pessimistic estimate of the cost to execute a transaction. This is
 // typically used during transaction construction.
-func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessage *warp.Message) (Dimensions, error) {
-	authBandwidth, authCompute, authStateKeysMaxChunks := authFactory.MaxUnits()
-	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + authBandwidth
+func EstimateMaxUnits(r Rules, action Action, signerFactory SignerFactory, warpMessage *warp.Message) (Dimensions, error) {
+	signerBandwidth, signerCompute := signerFactory.MaxUnits()
+	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + signerBandwidth
 	actionStateKeysMaxChunks := action.StateKeysMaxChunks()
-	stateKeysMaxChunks := make([]uint16, 0, len(authStateKeysMaxChunks)+len(actionStateKeysMaxChunks))
-	stateKeysMaxChunks = append(stateKeysMaxChunks, authStateKeysMaxChunks...)
+	sponsorStateKeyMaxChunks := r.GetFeeStateKeysMaxChunks()
+	stateKeysMaxChunks := make([]uint16, 0, len(sponsorStateKeyMaxChunks)+len(actionStateKeysMaxChunks))
+	stateKeysMaxChunks = append(stateKeysMaxChunks, sponsorStateKeyMaxChunks...)
 	stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
 
 	// Estimate compute costs
 	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
-	computeUnitsOp.Add(authCompute)
 	computeUnitsOp.Add(action.MaxComputeUnits(r))
+	computeUnitsOp.Add(signerCompute)
 	if warpMessage != nil {
 		bandwidth += uint64(codec.BytesLen(warpMessage.Bytes()))
 		stateKeysMaxChunks = append(stateKeysMaxChunks, MaxIncomingWarpChunks)
@@ -301,43 +292,33 @@ func (t *Transaction) PreExecute(
 	r Rules,
 	im state.Immutable,
 	timestamp int64,
-) (uint64, error) {
+) error {
 	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
-		return 0, err
+		return err
 	}
 	start, end := t.Action.ValidRange(r)
 	if start >= 0 && timestamp < start {
-		return 0, ErrActionNotActivated
+		return ErrActionNotActivated
 	}
 	if end >= 0 && timestamp > end {
-		return 0, ErrActionNotActivated
+		return ErrActionNotActivated
 	}
-	start, end = t.Auth.ValidRange(r)
+	start, end = t.Signer.ValidRange(r)
 	if start >= 0 && timestamp < start {
-		return 0, ErrAuthNotActivated
+		return ErrSignerNotActivated
 	}
 	if end >= 0 && timestamp > end {
-		return 0, ErrAuthNotActivated
-	}
-	// It is up to [t.Auth] to limit the computational
-	// complexity of [t.Auth.AsyncVerify] and [t.Auth.Verify] to prevent
-	// a DoS (invalid Auth will not charge [t.Auth.Sponsor()].
-	authCUs, err := t.Auth.Verify(ctx, r, im, t.Action)
-	if err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrAuthFailed, err) //nolint:errorlint
+		return ErrSignerNotActivated
 	}
 	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	maxFee, err := feeManager.MaxFee(maxUnits)
 	if err != nil {
-		return 0, err
+		return err
 	}
-	if err := t.Auth.CanDeduct(ctx, im, maxFee); err != nil {
-		return 0, err
-	}
-	return authCUs, nil
+	return s.CanDeduct(ctx, t.Signer.Sponsor(), im, maxFee)
 }
 
 // Execute after knowing a transaction can pay a fee. Attempt
@@ -369,7 +350,7 @@ func (t *Transaction) Execute(
 		// Should never happen
 		return nil, err
 	}
-	if err := t.Auth.Deduct(ctx, ts, maxFee); err != nil {
+	if err := s.Deduct(ctx, t.Signer.Sponsor(), ts, maxFee); err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
 		// immediately before).
 		return nil, err
@@ -402,7 +383,7 @@ func (t *Transaction) Execute(
 		ts.Rollback(ctx, actionStart)
 		return &Result{false, utils.ErrBytes(rerr), maxUnits, maxFee, nil}, nil
 	}
-	success, actionCUs, output, warpMessage, err := t.Action.Execute(ctx, r, ts, timestamp, t.Auth, t.id, warpVerified)
+	success, actionCUs, output, warpMessage, err := t.Action.Execute(ctx, r, ts, timestamp, t.Signer.Actor(), t.id, warpVerified)
 	if err != nil {
 		return handleRevert(err)
 	}
@@ -472,7 +453,7 @@ func (t *Transaction) Execute(
 
 	// Because we compute the fee before [Auth.Refund] is called, we need
 	// to pessimistically precompute the storage it will change.
-	for _, key := range t.Auth.StateKeys() {
+	for _, key := range s.FeeStateKeys(t.Signer.Sponsor()) {
 		// maxChunks will be greater than the chunks read in any of these keys,
 		// so we don't need to check for pre-existing values.
 		maxChunks, ok := keys.MaxChunks([]byte(key))
@@ -532,7 +513,7 @@ func (t *Transaction) Execute(
 	if refund > 0 {
 		ts.DisableAllocation()
 		defer ts.EnableAllocation()
-		if err := t.Auth.Refund(ctx, ts, refund); err != nil {
+		if err := s.Refund(ctx, t.Signer.Sponsor(), ts, refund); err != nil {
 			return handleRevert(err)
 		}
 	}
@@ -547,10 +528,6 @@ func (t *Transaction) Execute(
 	}, nil
 }
 
-func (t *Transaction) Sponsor() codec.Address {
-	return t.Auth.Sponsor()
-}
-
 func (t *Transaction) Marshal(p *codec.Packer) error {
 	if len(t.bytes) > 0 {
 		p.PackFixedBytes(t.bytes)
@@ -558,7 +535,7 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 	}
 
 	actionID := t.Action.GetTypeID()
-	authID := t.Auth.GetTypeID()
+	signerID := t.Signer.GetTypeID()
 	t.Base.Marshal(p)
 	var warpBytes []byte
 	if t.WarpMessage != nil {
@@ -570,8 +547,8 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 	p.PackBytes(warpBytes)
 	p.PackByte(actionID)
 	t.Action.Marshal(p)
-	p.PackByte(authID)
-	t.Auth.Marshal(p)
+	p.PackByte(signerID)
+	t.Signer.Marshal(p)
 	return p.Err()
 }
 
