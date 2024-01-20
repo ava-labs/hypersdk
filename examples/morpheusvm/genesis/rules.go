@@ -67,7 +67,7 @@ func (r *Rules) GetOutgoingWarpComputeUnits() uint64 {
 	return r.g.OutgoingWarpComputeUnits
 }
 
-func (r *Rules) GetSponsorStateKeysMaxChunks() []uint16 {
+func (*Rules) GetSponsorStateKeysMaxChunks() []uint16 {
 	return []uint16{storage.BalanceChunks}
 }
 

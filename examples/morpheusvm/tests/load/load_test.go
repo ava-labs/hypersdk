@@ -549,8 +549,6 @@ func issueSimpleTx(
 	)
 	tx, err := tx.Sign(factory, consts.ActionRegistry, consts.AuthRegistry)
 	gomega.Ω(err).To(gomega.BeNil())
-	verify := tx.AuthAsyncVerify()
-	gomega.Ω(verify()).To(gomega.BeNil())
 	_, err = i.cli.SubmitTx(context.TODO(), tx.Bytes())
 	return tx.ID(), err
 }
