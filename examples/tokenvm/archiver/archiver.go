@@ -1,6 +1,7 @@
 package archiver
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 )
@@ -16,7 +17,7 @@ type ArchiverConfig struct {
 	Enabled      bool   `json:"enabled"`
 }
 
-func CreateArchiverByConfig(b []byte) (Archiver, error) {
+func CreateArchiverByConfig(ctx context.Context, b []byte) (Archiver, error) {
 	var config ArchiverConfig
 	err := json.Unmarshal(b, &config)
 	if err != nil {
@@ -29,7 +30,7 @@ func CreateArchiverByConfig(b []byte) (Archiver, error) {
 
 	switch strings.ToLower(config.ArchiverType) {
 	case "aws":
-		return CreateS3Archiver(b)
+		return CreateS3Archiver(ctx, b)
 	default:
 		return &NoOpArchiver{}, nil
 	}

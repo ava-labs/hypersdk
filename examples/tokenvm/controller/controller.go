@@ -110,7 +110,7 @@ func (c *Controller) Initialize(
 	c.metaDB = metaDB
 
 	// Create archiver
-	ar, err := archiver.CreateArchiverByConfig([]byte(c.config.ArchiverConfig))
+	ar, err := archiver.CreateArchiverByConfig(context.TODO(), []byte(c.config.ArchiverConfig))
 	if err != nil {
 		c.inner.Logger().Warn("unable to create archiver, using noop archiver", zap.Error(err))
 		ar = &archiver.NoOpArchiver{}
@@ -173,9 +173,13 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 	defer batch.Reset()
 
 	// archive block to storage e.g. aws s3
-	err := c.archiver.Put(vm.PrefixBlockKey(blk.Hght), blk.Bytes())
-	if err != nil {
-		c.Logger().Warn("unable to archive", zap.Error(err))
+	// TODO: only proposer will be allowed to upload or depending on lock mechanism of given archiver e.g. s3 lock
+	// naive check, if not exists we upload
+	if exists, err := c.archiver.Exists(vm.PrefixBlockKey(blk.Hght)); err == nil && !exists {
+		err := c.archiver.Put(vm.PrefixBlockKey(blk.Hght), blk.Bytes())
+		if err != nil {
+			c.Logger().Warn("unable to archive", zap.Error(err))
+		}
 	}
 
 	results := blk.Results()
