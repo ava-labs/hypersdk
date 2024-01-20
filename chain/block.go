@@ -300,6 +300,9 @@ func (b *StatelessBlock) initializeBuilt(
 		txID := b.Txs[i].ID()
 		resultOutput := b.results[i].Output
 		// [txID + resultOutput]
+		// txID is a fixed length array, hence [append] will always allocate new memory and copy
+		// so slice with new address will be returned and no reflect on txID, then later
+		// we consume those bytes
 		merkleItems = append(merkleItems, append(txID[:], resultOutput...))
 	}
 
