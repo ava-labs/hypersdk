@@ -23,6 +23,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/merkle"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
@@ -293,16 +294,17 @@ func (b *StatelessBlock) initializeBuilt(
 	}
 
 	// transaction hash generation
-	merkleItems := make([][]byte, 0, len(b.Txs)+len(b.results))
-	for _, tx := range b.Txs {
-		merkleItems = append(merkleItems, tx.Bytes())
-	}
-	for _, result := range b.results {
-		merkleItems = append(merkleItems, result.Output)
+	// [len(b.Txs)] should be equal to [b.results]
+	merkleItems := make([][]byte, 0, len(b.Txs))
+	for i := 0; i < len(b.Txs); i++ {
+		txID := b.Txs[i].ID()
+		resultOutput := b.results[i].Output
+		// [txID + resultOutput]
+		merkleItems = append(merkleItems, append(txID[:], resultOutput...))
 	}
 
 	// consume bytes to avoid extra copying
-	root, _, err := utils.GenerateMerkleRoot(ctx, b.vm.Tracer(), merkleItems, true)
+	root, _, err := merkle.GenerateMerkleRoot(ctx, b.vm.Tracer(), merkleItems, true)
 	if err != nil {
 		return err
 	}
