@@ -4,9 +4,16 @@
 package controller
 
 import (
+	"context"
+
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
+	"github.com/ava-labs/hypersdk/state"
 )
+
+var _ (chain.StateManager) = (*StateManager)(nil)
 
 type StateManager struct{}
 
@@ -28,4 +35,45 @@ func (*StateManager) IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) [
 
 func (*StateManager) OutgoingWarpKeyPrefix(txID ids.ID) []byte {
 	return storage.OutgoingWarpKeyPrefix(txID)
+}
+
+func (*StateManager) SponsorStateKeys(addr codec.Address) []string {
+	return []string{
+		string(storage.BalanceKey(addr, ids.Empty)),
+	}
+}
+
+func (*StateManager) CanDeduct(
+	ctx context.Context,
+	addr codec.Address,
+	im state.Immutable,
+	amount uint64,
+) error {
+	bal, err := storage.GetBalance(ctx, im, addr, ids.Empty)
+	if err != nil {
+		return err
+	}
+	if bal < amount {
+		return storage.ErrInvalidBalance
+	}
+	return nil
+}
+
+func (*StateManager) Deduct(
+	ctx context.Context,
+	addr codec.Address,
+	mu state.Mutable,
+	amount uint64,
+) error {
+	return storage.SubBalance(ctx, mu, addr, ids.Empty, amount)
+}
+
+func (*StateManager) Refund(
+	ctx context.Context,
+	addr codec.Address,
+	mu state.Mutable,
+	amount uint64,
+) error {
+	// Don't create account if it doesn't exist (may have sent all funds).
+	return storage.AddBalance(ctx, mu, addr, ids.Empty, amount, false)
 }
