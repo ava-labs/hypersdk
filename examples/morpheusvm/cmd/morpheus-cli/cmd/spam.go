@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
@@ -28,6 +29,12 @@ func getFactory(priv *cli.PrivateKey) (chain.AuthFactory, error) {
 		return auth.NewED25519Factory(ed25519.PrivateKey(priv.Bytes)), nil
 	case consts.SECP256R1ID:
 		return auth.NewSECP256R1Factory(secp256r1.PrivateKey(priv.Bytes)), nil
+	case consts.BLSID:
+		p, err := bls.PrivateKeyFromBytes(priv.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		return auth.NewBLSFactory(p), nil
 	default:
 		return nil, ErrInvalidKeyType
 	}
@@ -41,7 +48,7 @@ var spamCmd = &cobra.Command{
 }
 
 var runSpamCmd = &cobra.Command{
-	Use: "run [ed25519/secp256r1]",
+	Use: "run [ed25519/secp256r1/bls]",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 {
 			return ErrInvalidArgs
