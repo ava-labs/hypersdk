@@ -24,12 +24,12 @@ import (
 
 type (
 	ActionRegistry *codec.TypeParser[Action, *warp.Message, bool]
-	SignerRegistry *codec.TypeParser[Signer, *warp.Message, bool]
+	AuthRegistry   *codec.TypeParser[Auth, *warp.Message, bool]
 )
 
 type Parser interface {
 	Rules(int64) Rules
-	Registry() (ActionRegistry, SignerRegistry)
+	Registry() (ActionRegistry, AuthRegistry)
 }
 
 type Metrics interface {
@@ -60,9 +60,9 @@ type VM interface {
 
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.
-	SignerVerifiers() workers.Workers
-	GetSignerBatchVerifier(signerTypeID uint8, cores int, count int) (SignerBatchVerifier, bool)
-	GetVerifySigners() bool
+	AuthVerifiers() workers.Workers
+	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
+	GetVerifyAuths() bool
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
@@ -145,7 +145,7 @@ type Rules interface {
 	//   read will be a read of 0 chunks (reads are based on disk contents before exec)
 	// * If a key is removed and then re-created with the same value during a transaction,
 	//   it doesn't count as a modification (returning to the current value on-disk is a no-op)
-	GetFeeStateKeysMaxChunks() []uint16
+	GetSponsorStateKeysMaxChunks() []uint16
 	GetStorageKeyReadUnits() uint64
 	GetStorageValueReadUnits() uint64 // per chunk
 	GetStorageKeyAllocateUnits() uint64
@@ -170,8 +170,8 @@ type WarpManager interface {
 }
 
 type FeeHandler interface {
-	// ComputeUnits is the amount of compute required to process fees.
-	FeeComputeUnits(addr codec.Address, rules Rules) uint64
+	// SponsorComputeUnits is the amount of compute required to process fees.
+	SponsorComputeUnits(addr codec.Address, rules Rules) uint64
 
 	// StateKeys is a full enumeration of all database keys that could be touched during fee payment
 	// by [addr]. This is used to prefetch state and will be used to parallelize execution (making
@@ -179,7 +179,7 @@ type FeeHandler interface {
 	//
 	// All keys specified must be suffixed with the number of chunks that could ever be read from that
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
-	FeeStateKeys(addr codec.Address) []string
+	SponsorStateKeys(addr codec.Address) []string
 
 	// CanDeduct returns an error if [amount] cannot be paid by [addr].
 	CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error
@@ -276,11 +276,11 @@ type Action interface {
 	OutputsWarpMessage() bool
 }
 
-type Signer interface {
+type Auth interface {
 	Object
 
 	// ComputeUnits is the amount of compute required to call [Verify]. This is
-	// used to determine whether the [signer] can be included in a given block and to compute
+	// used to determine whether [Auth] can be included in a given block and to compute
 	// the required fee to execute.
 	ComputeUnits(Rules) uint64
 
@@ -291,7 +291,7 @@ type Signer interface {
 
 	// Actor is the subject of the [Action] signed.
 	//
-	// To avoid collisions with other [Signer] modules, this must be prefixed
+	// To avoid collisions with other [Auth] modules, this must be prefixed
 	// by the [TypeID].
 	Actor() codec.Address
 
@@ -303,18 +303,18 @@ type Signer interface {
 	//
 	// TODO: add a standard sponsor wrapper auth
 	//
-	// To avoid collisions with other [Signer] modules, this must be prefixed
+	// To avoid collisions with other [Auth] modules, this must be prefixed
 	// by the [TypeID].
 	Sponsor() codec.Address
 }
 
-type SignerBatchVerifier interface {
-	Add([]byte, Signer) func() error
+type AuthBatchVerifier interface {
+	Add([]byte, Auth) func() error
 	Done() []func() error
 }
 
-type SignerFactory interface {
+type AuthFactory interface {
 	// Sign is used by helpers, auth object should store internally to be ready for marshaling
-	Sign(msg []byte) (Signer, error)
+	Sign(msg []byte) (Auth, error)
 	MaxUnits() (bandwidth uint64, compute uint64)
 }

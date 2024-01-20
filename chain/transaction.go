@@ -35,7 +35,7 @@ type Transaction struct {
 
 	// TODO: turn [Action] into an array (#335)
 	Action Action `json:"action"`
-	Signer Signer `json:"signer"`
+	Auth   Auth   `json:"signer"`
 
 	digest         []byte
 	bytes          []byte
@@ -84,9 +84,9 @@ func (t *Transaction) Digest() ([]byte, error) {
 }
 
 func (t *Transaction) Sign(
-	factory SignerFactory,
+	factory AuthFactory,
 	actionRegistry ActionRegistry,
-	signerRegistry SignerRegistry,
+	signerRegistry AuthRegistry,
 ) (*Transaction, error) {
 	msg, err := t.Digest()
 	if err != nil {
@@ -96,11 +96,11 @@ func (t *Transaction) Sign(
 	if err != nil {
 		return nil, err
 	}
-	t.Signer = signer
+	t.Auth = signer
 
 	// Ensure transaction is fully initialized and correct by reloading it from
 	// bytes
-	size := len(msg) + consts.ByteLen + t.Signer.Size()
+	size := len(msg) + consts.ByteLen + t.Auth.Size()
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	if err := t.Marshal(p); err != nil {
 		return nil, err
@@ -128,8 +128,8 @@ func (t *Transaction) StateKeys(sm StateManager) (set.Set[string], error) {
 	}
 
 	// Verify the formatting of state keys passed by the controller
-	actionKeys := t.Action.StateKeys(t.Signer.Actor(), t.ID())
-	sponsorKeys := sm.FeeStateKeys(t.Signer.Sponsor())
+	actionKeys := t.Action.StateKeys(t.Auth.Actor(), t.ID())
+	sponsorKeys := sm.SponsorStateKeys(t.Auth.Sponsor())
 	stateKeys := set.NewSet[string](len(actionKeys) + len(sponsorKeys))
 	for _, arr := range [][]string{actionKeys, sponsorKeys} {
 		for _, k := range arr {
@@ -157,14 +157,17 @@ func (t *Transaction) StateKeys(sm StateManager) (set.Set[string], error) {
 	return stateKeys, nil
 }
 
+// Sponsor is the [codec.Address] that pays fees for this transaction.
+func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
+
 // Units is charged whether or not a transaction is successful because state
 // lookup is not free.
 func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	// Cacluate max compute costs
 	maxComputeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	maxComputeUnitsOp.Add(t.Action.MaxComputeUnits(r))
-	maxComputeUnitsOp.Add(t.Signer.ComputeUnits(r))
-	maxComputeUnitsOp.Add(sm.FeeComputeUnits(t.Signer.Sponsor(), r))
+	maxComputeUnitsOp.Add(t.Auth.ComputeUnits(r))
+	maxComputeUnitsOp.Add(sm.SponsorComputeUnits(t.Auth.Sponsor(), r))
 	if t.WarpMessage != nil {
 		maxComputeUnitsOp.Add(r.GetBaseWarpComputeUnits())
 		maxComputeUnitsOp.MulAdd(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
@@ -221,11 +224,11 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 
 // EstimateMaxUnits provides a pessimistic estimate of the cost to execute a transaction. This is
 // typically used during transaction construction.
-func EstimateMaxUnits(r Rules, action Action, signerFactory SignerFactory, warpMessage *warp.Message) (Dimensions, error) {
+func EstimateMaxUnits(r Rules, action Action, signerFactory AuthFactory, warpMessage *warp.Message) (Dimensions, error) {
 	signerBandwidth, signerCompute := signerFactory.MaxUnits()
 	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + signerBandwidth
 	actionStateKeysMaxChunks := action.StateKeysMaxChunks()
-	sponsorStateKeyMaxChunks := r.GetFeeStateKeysMaxChunks()
+	sponsorStateKeyMaxChunks := r.GetSponsorStateKeysMaxChunks()
 	stateKeysMaxChunks := make([]uint16, 0, len(sponsorStateKeyMaxChunks)+len(actionStateKeysMaxChunks))
 	stateKeysMaxChunks = append(stateKeysMaxChunks, sponsorStateKeyMaxChunks...)
 	stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
@@ -303,12 +306,12 @@ func (t *Transaction) PreExecute(
 	if end >= 0 && timestamp > end {
 		return ErrActionNotActivated
 	}
-	start, end = t.Signer.ValidRange(r)
+	start, end = t.Auth.ValidRange(r)
 	if start >= 0 && timestamp < start {
-		return ErrSignerNotActivated
+		return ErrAuthNotActivated
 	}
 	if end >= 0 && timestamp > end {
-		return ErrSignerNotActivated
+		return ErrAuthNotActivated
 	}
 	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
@@ -318,7 +321,7 @@ func (t *Transaction) PreExecute(
 	if err != nil {
 		return err
 	}
-	return s.CanDeduct(ctx, t.Signer.Sponsor(), im, maxFee)
+	return s.CanDeduct(ctx, t.Auth.Sponsor(), im, maxFee)
 }
 
 // Execute after knowing a transaction can pay a fee. Attempt
@@ -350,7 +353,7 @@ func (t *Transaction) Execute(
 		// Should never happen
 		return nil, err
 	}
-	if err := s.Deduct(ctx, t.Signer.Sponsor(), ts, maxFee); err != nil {
+	if err := s.Deduct(ctx, t.Auth.Sponsor(), ts, maxFee); err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
 		// immediately before).
 		return nil, err
@@ -383,7 +386,7 @@ func (t *Transaction) Execute(
 		ts.Rollback(ctx, actionStart)
 		return &Result{false, utils.ErrBytes(rerr), maxUnits, maxFee, nil}, nil
 	}
-	success, actionCUs, output, warpMessage, err := t.Action.Execute(ctx, r, ts, timestamp, t.Signer.Actor(), t.id, warpVerified)
+	success, actionCUs, output, warpMessage, err := t.Action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), t.id, warpVerified)
 	if err != nil {
 		return handleRevert(err)
 	}
@@ -453,7 +456,7 @@ func (t *Transaction) Execute(
 
 	// Because we compute the fee before [Auth.Refund] is called, we need
 	// to pessimistically precompute the storage it will change.
-	for _, key := range s.FeeStateKeys(t.Signer.Sponsor()) {
+	for _, key := range s.SponsorStateKeys(t.Auth.Sponsor()) {
 		// maxChunks will be greater than the chunks read in any of these keys,
 		// so we don't need to check for pre-existing values.
 		maxChunks, ok := keys.MaxChunks([]byte(key))
@@ -513,7 +516,7 @@ func (t *Transaction) Execute(
 	if refund > 0 {
 		ts.DisableAllocation()
 		defer ts.EnableAllocation()
-		if err := s.Refund(ctx, t.Signer.Sponsor(), ts, refund); err != nil {
+		if err := s.Refund(ctx, t.Auth.Sponsor(), ts, refund); err != nil {
 			return handleRevert(err)
 		}
 	}
@@ -535,7 +538,7 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 	}
 
 	actionID := t.Action.GetTypeID()
-	signerID := t.Signer.GetTypeID()
+	signerID := t.Auth.GetTypeID()
 	t.Base.Marshal(p)
 	var warpBytes []byte
 	if t.WarpMessage != nil {
@@ -548,7 +551,7 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 	p.PackByte(actionID)
 	t.Action.Marshal(p)
 	p.PackByte(signerID)
-	t.Signer.Marshal(p)
+	t.Auth.Marshal(p)
 	return p.Err()
 }
 
