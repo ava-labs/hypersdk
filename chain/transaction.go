@@ -32,8 +32,11 @@ var (
 type Transaction struct {
 	Base        *Base         `json:"base"`
 	WarpMessage *warp.Message `json:"warpMessage"`
-	Action      Action        `json:"action"`
-	Auth        Auth          `json:"auth"`
+
+	// TODO: turn [Action] into an array (#335)
+	Action  Action `json:"action"`
+	Actor   Signer `json:"actor"`
+	Sponsor Signer `json:"sponsor"`
 
 	digest         []byte
 	bytes          []byte
