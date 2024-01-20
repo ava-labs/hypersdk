@@ -164,7 +164,8 @@ cat <<EOF > ${TMPDIR}/tokenvm.config
   "trackedPairs":["*"],
   "logLevel": "${LOGLEVEL}",
   "continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*",
-  "stateSyncServerDelay": ${STATESYNC_DELAY}
+  "stateSyncServerDelay": ${STATESYNC_DELAY},
+  "archiverConfig": "{\"archiverType\":\"\", \"enabled\":false}"
 }
 EOF
 mkdir -p ${TMPDIR}/tokenvm-e2e-profiles

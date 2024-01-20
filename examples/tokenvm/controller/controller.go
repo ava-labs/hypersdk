@@ -110,7 +110,7 @@ func (c *Controller) Initialize(
 	c.metaDB = metaDB
 
 	// Create archiver
-	ar, err := archiver.CreateArchiverByConfig(c.config.ArchiverConfig)
+	ar, err := archiver.CreateArchiverByConfig([]byte(c.config.ArchiverConfig))
 	if err != nil {
 		c.inner.Logger().Warn("unable to create archiver, using noop archiver", zap.Error(err))
 		ar = &archiver.NoOpArchiver{}

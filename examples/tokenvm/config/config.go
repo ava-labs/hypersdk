@@ -35,7 +35,7 @@ type Config struct {
 	*config.Config
 
 	// Archiver
-	ArchiverConfig []byte `json:"archiverConfig"`
+	ArchiverConfig string `json:"archiverConfig"`
 
 	// Concurrency
 	AuthVerificationCores     int `json:"authVerificationCores"`
