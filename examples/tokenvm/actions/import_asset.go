@@ -38,7 +38,7 @@ func (*ImportAsset) GetTypeID() uint8 {
 	return importAssetID
 }
 
-func (i *ImportAsset) StateKeys(auth chain.Auth, _ ids.ID) []string {
+func (i *ImportAsset) StateKeys(actor codec.Address, _ ids.ID) []string {
 	var (
 		keys    []string
 		assetID ids.ID
@@ -61,14 +61,14 @@ func (i *ImportAsset) StateKeys(auth chain.Auth, _ ids.ID) []string {
 	// If the [warpTransfer] specified a reward, we add the state key to make
 	// sure it is paid.
 	if i.warpTransfer.Reward > 0 {
-		keys = append(keys, string(storage.BalanceKey(auth.Actor(), assetID)))
+		keys = append(keys, string(storage.BalanceKey(actor, assetID)))
 	}
 
 	// If the [warpTransfer] requests a swap, we add the state keys to transfer
 	// the required balances.
 	if i.Fill && i.warpTransfer.SwapIn > 0 {
-		keys = append(keys, string(storage.BalanceKey(auth.Actor(), i.warpTransfer.AssetOut)))
-		keys = append(keys, string(storage.BalanceKey(auth.Actor(), assetID)))
+		keys = append(keys, string(storage.BalanceKey(actor, i.warpTransfer.AssetOut)))
+		keys = append(keys, string(storage.BalanceKey(actor, assetID)))
 		keys = append(keys, string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.AssetOut)))
 	}
 	return keys
@@ -197,7 +197,7 @@ func (i *ImportAsset) Execute(
 	r chain.Rules,
 	mu state.Mutable,
 	t int64,
-	auth chain.Auth,
+	actor codec.Address,
 	_ ids.ID,
 	warpVerified bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
@@ -212,9 +212,9 @@ func (i *ImportAsset) Execute(
 	}
 	var output []byte
 	if i.warpTransfer.Return {
-		output = i.executeReturn(ctx, mu, auth.Actor())
+		output = i.executeReturn(ctx, mu, actor)
 	} else {
-		output = i.executeMint(ctx, mu, auth.Actor())
+		output = i.executeMint(ctx, mu, actor)
 	}
 	if len(output) > 0 {
 		return false, ImportAssetComputeUnits, output, nil, nil
@@ -239,10 +239,10 @@ func (i *ImportAsset) Execute(
 	if err := storage.SubBalance(ctx, mu, i.warpTransfer.To, assetIn, i.warpTransfer.SwapIn); err != nil {
 		return false, ImportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, mu, auth.Actor(), assetIn, i.warpTransfer.SwapIn, true); err != nil {
+	if err := storage.AddBalance(ctx, mu, actor, assetIn, i.warpTransfer.SwapIn, true); err != nil {
 		return false, ImportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.SubBalance(ctx, mu, auth.Actor(), i.warpTransfer.AssetOut, i.warpTransfer.SwapOut); err != nil {
+	if err := storage.SubBalance(ctx, mu, actor, i.warpTransfer.AssetOut, i.warpTransfer.SwapOut); err != nil {
 		return false, ImportAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, mu, i.warpTransfer.To, i.warpTransfer.AssetOut, i.warpTransfer.SwapOut, true); err != nil {

@@ -36,9 +36,9 @@ func (*Transfer) GetTypeID() uint8 {
 	return transferID
 }
 
-func (t *Transfer) StateKeys(auth chain.Auth, _ ids.ID) []string {
+func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) []string {
 	return []string{
-		string(storage.BalanceKey(auth.Actor(), t.Asset)),
+		string(storage.BalanceKey(actor, t.Asset)),
 		string(storage.BalanceKey(t.To, t.Asset)),
 	}
 }
@@ -56,7 +56,7 @@ func (t *Transfer) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	auth chain.Auth,
+	actor codec.Address,
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
@@ -66,7 +66,7 @@ func (t *Transfer) Execute(
 	if len(t.Memo) > MaxMemoSize {
 		return false, CreateAssetComputeUnits, OutputMemoTooLarge, nil, nil
 	}
-	if err := storage.SubBalance(ctx, mu, auth.Actor(), t.Asset, t.Value); err != nil {
+	if err := storage.SubBalance(ctx, mu, actor, t.Asset, t.Value); err != nil {
 		return false, TransferComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	// TODO: allow sender to configure whether they will pay to create
