@@ -298,7 +298,7 @@ type Auth interface {
 	// is wrapped by the [Sponsor] signature. It is important that the [Actor], in this case,
 	// signs the [Sponsor] address or else their transaction could be replayed.
 	//
-	// TODO: add a standard sponsor wrapper auth
+	// TODO: add a standard sponsor wrapper auth (but this does not need to be handled natively)
 	//
 	// To avoid collisions with other [Auth] modules, this must be prefixed
 	// by the [TypeID].

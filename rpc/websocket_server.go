@@ -169,7 +169,7 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 			}
 
 			// Verify tx
-			if vm.GetVerifySignatures() {
+			if vm.GetVerifyAuth() {
 				msg, err := tx.Digest()
 				if err != nil {
 					// Should never occur because populated during unmarshal
