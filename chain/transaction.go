@@ -167,7 +167,6 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	maxComputeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	maxComputeUnitsOp.Add(t.Action.MaxComputeUnits(r))
 	maxComputeUnitsOp.Add(t.Auth.ComputeUnits(r))
-	maxComputeUnitsOp.Add(sm.SponsorComputeUnits(t.Auth.Sponsor(), r))
 	if t.WarpMessage != nil {
 		maxComputeUnitsOp.Add(r.GetBaseWarpComputeUnits())
 		maxComputeUnitsOp.MulAdd(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
@@ -334,7 +333,6 @@ func (t *Transaction) PreExecute(
 func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *FeeManager,
-	authCUs uint64,
 	reads map[string]uint16,
 	s StateManager,
 	r Rules,
@@ -436,7 +434,7 @@ func (t *Transaction) Execute(
 
 	// Calculate units used
 	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
-	computeUnitsOp.Add(authCUs)
+	computeUnitsOp.Add(t.Auth.ComputeUnits(r))
 	computeUnitsOp.Add(actionCUs)
 	if t.WarpMessage != nil {
 		computeUnitsOp.Add(r.GetBaseWarpComputeUnits())

@@ -62,7 +62,7 @@ type VM interface {
 	// by any client of the hypersdk.
 	AuthVerifiers() workers.Workers
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
-	GetVerifyAuths() bool
+	GetVerifyAuth() bool
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
@@ -170,9 +170,6 @@ type WarpManager interface {
 }
 
 type FeeHandler interface {
-	// SponsorComputeUnits is the amount of compute required to process fees.
-	SponsorComputeUnits(addr codec.Address, rules Rules) uint64
-
 	// StateKeys is a full enumeration of all database keys that could be touched during fee payment
 	// by [addr]. This is used to prefetch state and will be used to parallelize execution (making
 	// an execution tree is trivial).
