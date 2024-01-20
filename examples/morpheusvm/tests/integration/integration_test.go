@@ -378,7 +378,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// 0 timestamp)
 			msg, err := tx.Digest()
 			gomega.Ω(err).To(gomega.BeNil())
-			auth, err := factory.Sign(msg, tx.Action)
+			auth, err := factory.Sign(msg)
 			gomega.Ω(err).To(gomega.BeNil())
 			tx.Auth = auth
 			p := codec.NewWriter(0, consts.MaxInt) // test codec growth
