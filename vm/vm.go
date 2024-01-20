@@ -206,13 +206,15 @@ func (vm *VM) Initialize(
 		BranchFactor: vm.genesis.GetStateBranchFactor(),
 		// RootGenConcurrency limits the number of goroutines
 		// that will be used across all concurrent root generations.
-		RootGenConcurrency:        uint(vm.config.GetRootGenerationCores()),
-		EvictionBatchSize:         uint(vm.config.GetStateEvictionBatchSize()),
-		HistoryLength:             uint(vm.config.GetStateHistoryLength()),
-		IntermediateNodeCacheSize: uint(vm.config.GetIntermediateNodeCacheSize()),
-		ValueNodeCacheSize:        uint(vm.config.GetValueNodeCacheSize()),
-		Reg:                       merkleRegistry,
-		Tracer:                    vm.tracer,
+		RootGenConcurrency:          uint(vm.config.GetRootGenerationCores()),
+		HistoryLength:               uint(vm.config.GetStateHistoryLength()),
+		ValueNodeCacheSize:          uint(vm.config.GetValueNodeCacheSize()),
+		IntermediateNodeCacheSize:   uint(vm.config.GetIntermediateNodeCacheSize()),
+		IntermediateWriteBufferSize: uint(vm.config.GetStateIntermediateWriteBufferSize()),
+		IntermediateWriteBatchSize:  uint(vm.config.GetStateIntermediateWriteBatchSize()),
+		Reg:                         merkleRegistry,
+		TraceLevel:                  merkledb.InfoTrace,
+		Tracer:                      vm.tracer,
 	})
 	if err != nil {
 		return err
@@ -933,10 +935,11 @@ func (vm *VM) AppRequest(
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
-func (vm *VM) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32) error {
+func (vm *VM) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32, _ *common.AppError) error {
 	ctx, span := vm.tracer.Start(ctx, "VM.AppRequestFailed")
 	defer span.End()
 
+	// TODO: add support for handling common.AppError
 	return vm.networkManager.AppRequestFailed(ctx, nodeID, requestID)
 }
 
@@ -970,10 +973,12 @@ func (vm *VM) CrossChainAppRequestFailed(
 	ctx context.Context,
 	nodeID ids.ID,
 	requestID uint32,
+	_ *common.AppError,
 ) error {
 	ctx, span := vm.tracer.Start(ctx, "VM.CrossChainAppRequestFailed")
 	defer span.End()
 
+	// TODO: add support for handling common.AppError
 	return vm.networkManager.CrossChainAppRequestFailed(ctx, nodeID, requestID)
 }
 

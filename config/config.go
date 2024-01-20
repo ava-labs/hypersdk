@@ -24,8 +24,9 @@ func (c *Config) GetMempoolSize() int                       { return 2_048 }
 func (c *Config) GetMempoolSponsorSize() int                { return 32 }
 func (c *Config) GetMempoolExemptSponsors() []codec.Address { return nil }
 func (c *Config) GetStreamingBacklogSize() int              { return 1024 }
-func (c *Config) GetStateEvictionBatchSize() int            { return 4 * units.MiB }
 func (c *Config) GetIntermediateNodeCacheSize() int         { return 4 * units.GiB }
+func (c *Config) GetStateIntermediateWriteBufferSize() int  { return 32 * units.MiB }
+func (c *Config) GetStateIntermediateWriteBatchSize() int   { return 4 * units.MiB }
 func (c *Config) GetValueNodeCacheSize() int                { return 2 * units.GiB }
 func (c *Config) GetTraceConfig() *trace.Config             { return &trace.Config{Enabled: false} }
 func (c *Config) GetStateSyncParallelism() int              { return 4 }
