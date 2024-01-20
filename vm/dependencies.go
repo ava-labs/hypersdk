@@ -28,12 +28,12 @@ type Handlers map[string]http.Handler
 type Config interface {
 	GetTraceConfig() *trace.Config
 	GetMempoolSize() int
-	GetSignatureVerificationCores() int
+	GetAuthVerificationCores() int
+	GetVerifyAuth() bool
 	GetRootGenerationCores() int
 	GetTransactionExecutionCores() int
 	GetMempoolSponsorSize() int
 	GetMempoolExemptSponsors() []codec.Address
-	GetVerifySignatures() bool
 	GetStreamingBacklogSize() int
 	GetStateHistoryLength() int        // how many roots back of data to keep to serve state queries
 	GetStateEvictionBatchSize() int    // how many bytes to evict at once

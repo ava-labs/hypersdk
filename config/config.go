@@ -17,7 +17,7 @@ import (
 type Config struct{}
 
 func (c *Config) GetLogLevel() logging.Level                { return logging.Info }
-func (c *Config) GetSignatureVerificationCores() int        { return 1 }
+func (c *Config) GetAuthVerificationCores() int             { return 1 }
 func (c *Config) GetRootGenerationCores() int               { return 1 }
 func (c *Config) GetTransactionExecutionCores() int         { return 1 }
 func (c *Config) GetMempoolSize() int                       { return 2_048 }
@@ -41,7 +41,7 @@ func (c *Config) GetAcceptorSize() int             { return 64 }
 func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	return &profiler.Config{Enabled: false}
 }
-func (c *Config) GetVerifySignatures() bool              { return true }
+func (c *Config) GetVerifyAuth() bool                    { return true }
 func (c *Config) GetTargetBuildDuration() time.Duration  { return 100 * time.Millisecond }
 func (c *Config) GetProcessingBuildSkip() int            { return 16 }
 func (c *Config) GetTargetGossipDuration() time.Duration { return 20 * time.Millisecond }

@@ -414,7 +414,7 @@ func (vm *VM) RecordStateOperations(c int) {
 }
 
 func (vm *VM) GetVerifyAuth() bool {
-	return vm.config.GetVerifySignatures()
+	return vm.config.GetVerifyAuth()
 }
 
 func (vm *VM) RecordTxsGossiped(c int) {
