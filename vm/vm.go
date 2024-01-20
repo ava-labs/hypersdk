@@ -597,12 +597,6 @@ func (vm *VM) CreateHandlers(_ context.Context) (map[string]http.Handler, error)
 	return vm.handlers, nil
 }
 
-// implements "block.ChainVM.common.VM"
-// for "ext/vm/[vmID]"
-func (*VM) CreateStaticHandlers(_ context.Context) (map[string]http.Handler, error) {
-	return nil, nil
-}
-
 // implements "block.ChainVM.commom.VM.health.Checkable"
 func (vm *VM) HealthCheck(context.Context) (interface{}, error) {
 	// TODO: engine will mark VM as ready when we return
