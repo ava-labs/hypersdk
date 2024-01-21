@@ -12,7 +12,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/rpc v1.2.0
 	github.com/gorilla/websocket v1.5.0
-	github.com/hdevalence/ed25519consensus v0.1.0
+	github.com/hdevalence/ed25519consensus v0.2.0
 	github.com/manifoldco/promptui v0.9.0
 	github.com/near/borsh-go v0.3.1
 	github.com/neilotoole/errgroup v0.1.6

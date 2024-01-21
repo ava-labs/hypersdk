@@ -127,7 +127,7 @@ type ED25519Batch struct {
 func (b *ED25519Batch) Add(msg []byte, rauth chain.Auth) func() error {
 	auth := rauth.(*ED25519)
 	if b.batch == nil {
-		b.batch = ed25519.NewBatch()
+		b.batch = ed25519.NewBatch(b.batchSize)
 	}
 	b.batch.Add(msg, auth.Signer, auth.Signature)
 	b.counter++
@@ -137,7 +137,7 @@ func (b *ED25519Batch) Add(msg []byte, rauth chain.Auth) func() error {
 		b.counter = 0
 		if b.totalCounter < b.total {
 			// don't create a new batch if we are done
-			b.batch = ed25519.NewBatch()
+			b.batch = ed25519.NewBatch(b.batchSize)
 		}
 		return last.VerifyAsync()
 	}
