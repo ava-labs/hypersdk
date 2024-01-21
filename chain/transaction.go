@@ -24,6 +24,8 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
+const defaultStateKeySize = 4
+
 var (
 	_ emap.Item    = (*Transaction)(nil)
 	_ mempool.Item = (*Transaction)(nil)
@@ -131,6 +133,7 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
+	stateKeys := set.NewSet[string](defaultStateKeySize)
 
 	// Verify the formatting of state keys passed by the controller
 	actionKeys := t.Action.StateKeys(t.Auth.Actor(), t.ID())
@@ -138,6 +141,28 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	stateKeys := make(state.Keys)
 	for _, m := range []state.Keys{actionKeys, sponsorKeys} {
 		for k, v := range m {
+	// Handle incoming warp message keys
+	if t.WarpMessage != nil {
+		p := sm.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
+		k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
+		stateKeys.Add(string(k))
+	}
+
+	// Handle action/auth keys
+	var outputsWarp bool
+	for _, action := range t.Actions {
+		if action.OutputsWarpMessage() {
+			if outputsWarp {
+				// TODO: handle multiple outgoing warp messages (use actionID instead of txID)
+				return nil, errors.New("can't ouput multiple messaages")
+			}
+			p := sm.OutgoingWarpKeyPrefix(t.id)
+			k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
+			stateKeys.Add(string(k))
+			outputsWarp = true
+		}
+		// TODO: may need to use an ActionID instead of a TxID (if creating 2 assets in same tx, could lead to conflicts)
+		for _, k := range action.StateKeys(t.Auth.Actor(), t.ID()) {
 			if !keys.Valid(k) {
 				return nil, ErrInvalidKeyValue
 			}
@@ -156,6 +181,11 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 		p := sm.OutgoingWarpKeyPrefix(t.id)
 		k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
 		stateKeys.Add(string(k), state.Allocate|state.Write)
+	for _, k := range sm.SponsorStateKeys(t.Auth.Sponsor()) {
+		if !keys.Valid(k) {
+			return nil, ErrInvalidKeyValue
+		}
+		stateKeys.Add(k)
 	}
 
 	// Cache keys if called again
@@ -171,16 +201,18 @@ func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
 func (t *Transaction) MaxUnits(sm StateManager, r Rules) (fees.Dimensions, error) {
 	// Cacluate max compute costs
 	maxComputeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
-	maxComputeUnitsOp.Add(t.Action.MaxComputeUnits(r))
-	maxComputeUnitsOp.Add(t.Auth.ComputeUnits(r))
 	if t.WarpMessage != nil {
 		maxComputeUnitsOp.Add(r.GetBaseWarpComputeUnits())
 		maxComputeUnitsOp.MulAdd(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
 	}
-	if t.Action.OutputsWarpMessage() {
-		// Chunks later accounted for by call to [StateKeys]
-		maxComputeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
+	for _, action := range t.Actions {
+		maxComputeUnitsOp.Add(action.MaxComputeUnits(r))
+		if action.OutputsWarpMessage() {
+			// Chunks later accounted for by call to [StateKeys]
+			maxComputeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
+		}
 	}
+	maxComputeUnitsOp.Add(t.Auth.ComputeUnits(r))
 	maxComputeUnits, err := maxComputeUnitsOp.Value()
 	if err != nil {
 		return fees.Dimensions{}, err
@@ -304,14 +336,16 @@ func (t *Transaction) PreExecute(
 	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
 		return err
 	}
-	start, end := t.Action.ValidRange(r)
-	if start >= 0 && timestamp < start {
-		return ErrActionNotActivated
+	for _, action := range t.Actions {
+		start, end := action.ValidRange(r)
+		if start >= 0 && timestamp < start {
+			return ErrActionNotActivated
+		}
+		if end >= 0 && timestamp > end {
+			return ErrActionNotActivated
+		}
 	}
-	if end >= 0 && timestamp > end {
-		return ErrActionNotActivated
-	}
-	start, end = t.Auth.ValidRange(r)
+	start, end := t.Auth.ValidRange(r)
 	if start >= 0 && timestamp < start {
 		return ErrAuthNotActivated
 	}
@@ -345,7 +379,7 @@ func (t *Transaction) Execute(
 	ts *tstate.TStateView,
 	timestamp int64,
 	warpVerified bool,
-) (*Result, error) {
+) ([]*Result, error) {
 	// Always charge fee first (in case [Action] moves funds)
 	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
@@ -377,63 +411,65 @@ func (t *Transaction) Execute(
 		case err != nil:
 			// An error here can indicate there is an issue with the database or that
 			// the key was not properly specified.
-			return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
+			return []*Result{{false, utils.ErrBytes(err), maxUnits, maxFee, nil}}, nil
 		}
 	}
 
 	// We create a temp state checkpoint to ensure we don't commit failed actions to state.
 	actionStart := ts.OpIndex()
-	handleRevert := func(rerr error) (*Result, error) {
+	handleRevert := func(rerr error) ([]*Result, error) {
 		// Be warned that the variables captured in this function
 		// are set when this function is defined. If any of them are
 		// modified later, they will not be used here.
 		ts.Rollback(ctx, actionStart)
 		return &Result{false, utils.ErrBytes(rerr), maxUnits, maxFee, nil}, nil
 	}
-	success, actionCUs, output, warpMessage, err := t.Action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), t.id, warpVerified)
-	if err != nil {
-		return handleRevert(err)
-	}
-	if len(output) == 0 && output != nil {
-		// Enforce object standardization (this is a VM bug and we should fail
-		// fast)
-		return handleRevert(ErrInvalidObject)
-	}
-	outputsWarp := t.Action.OutputsWarpMessage()
-	if !success {
-		ts.Rollback(ctx, actionStart)
-		warpMessage = nil // warp messages can only be emitted on success
-	} else {
-		// Ensure constraints hold if successful
-		if (warpMessage == nil && outputsWarp) || (warpMessage != nil && !outputsWarp) {
+	for _, action := range t.Actions {
+		success, actionCUs, output, warpMessage, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), t.id, warpVerified)
+		if err != nil {
+			return handleRevert(err)
+		}
+		if len(output) == 0 && output != nil {
+			// Enforce object standardization (this is a VM bug and we should fail
+			// fast)
 			return handleRevert(ErrInvalidObject)
 		}
-
-		// Store incoming warp messages in state by their ID to prevent replays
-		if t.WarpMessage != nil {
-			p := s.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
-			k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
-			if err := ts.Insert(ctx, k, nil); err != nil {
-				return handleRevert(err)
+		outputsWarp := action.OutputsWarpMessage()
+		if !success {
+			ts.Rollback(ctx, actionStart)
+			warpMessage = nil // warp messages can only be emitted on success
+		} else {
+			// Ensure constraints hold if successful
+			if (warpMessage == nil && outputsWarp) || (warpMessage != nil && !outputsWarp) {
+				return handleRevert(ErrInvalidObject)
 			}
-		}
 
-		// Store newly created warp messages in state by their txID to ensure we can
-		// always sign for a message
-		if warpMessage != nil {
-			// Enforce we are the source of our own messages
-			warpMessage.NetworkID = r.NetworkID()
-			warpMessage.SourceChainID = r.ChainID()
-			// Initialize message (compute bytes) now that everything is populated
-			if err := warpMessage.Initialize(); err != nil {
-				return handleRevert(err)
+			// Store incoming warp messages in state by their ID to prevent replays
+			if t.WarpMessage != nil {
+				p := s.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
+				k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
+				if err := ts.Insert(ctx, k, nil); err != nil {
+					return handleRevert(err)
+				}
 			}
-			// We use txID here because did not know the warpID before execution (and
-			// we pre-reserve this key for the processor).
-			p := s.OutgoingWarpKeyPrefix(t.id)
-			k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
-			if err := ts.Insert(ctx, k, warpMessage.Bytes()); err != nil {
-				return handleRevert(err)
+
+			// Store newly created warp messages in state by their txID to ensure we can
+			// always sign for a message
+			if warpMessage != nil {
+				// Enforce we are the source of our own messages
+				warpMessage.NetworkID = r.NetworkID()
+				warpMessage.SourceChainID = r.ChainID()
+				// Initialize message (compute bytes) now that everything is populated
+				if err := warpMessage.Initialize(); err != nil {
+					return handleRevert(err)
+				}
+				// We use txID here because did not know the warpID before execution (and
+				// we pre-reserve this key for the processor).
+				p := s.OutgoingWarpKeyPrefix(t.id)
+				k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
+				if err := ts.Insert(ctx, k, warpMessage.Bytes()); err != nil {
+					return handleRevert(err)
+				}
 			}
 		}
 	}
