@@ -1,13 +1,12 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
-/// A struct that enforces a fixed length of 32 bytes which represents an address.
+/// A struct that enforces a fixed length of 33 bytes which represents a hypersdk address.
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, BorshSerialize, BorshDeserialize)]
 pub struct Address([u8; Self::LEN]);
 
 impl Address {
-    // TODO: move to HyperSDK.Address which will be 33 bytes
-    pub const LEN: usize = 32;
+    pub const LEN: usize = 33;
     // Constructor function for Address
     #[must_use]
     pub fn new(bytes: [u8; Self::LEN]) -> Self {
