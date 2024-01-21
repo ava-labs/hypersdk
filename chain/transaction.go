@@ -33,9 +33,8 @@ type Transaction struct {
 	Base        *Base         `json:"base"`
 	WarpMessage *warp.Message `json:"warpMessage"`
 
-	// TODO: turn [Action] into an array (#335)
-	Action Action `json:"action"`
-	Auth   Auth   `json:"auth"`
+	Actions []Action `json:"actions"`
+	Auth    Auth     `json:"auth"`
 
 	digest         []byte
 	bytes          []byte
@@ -55,11 +54,11 @@ type WarpResult struct {
 	VerifyErr error
 }
 
-func NewTx(base *Base, wm *warp.Message, act Action) *Transaction {
+func NewTx(base *Base, wm *warp.Message, actions []Action) *Transaction {
 	return &Transaction{
 		Base:        base,
 		WarpMessage: wm,
-		Action:      act,
+		Actions:     actions,
 	}
 }
 
@@ -67,19 +66,25 @@ func (t *Transaction) Digest() ([]byte, error) {
 	if len(t.digest) > 0 {
 		return t.digest, nil
 	}
-	actionID := t.Action.GetTypeID()
 	var warpBytes []byte
 	if t.WarpMessage != nil {
 		warpBytes = t.WarpMessage.Bytes()
 	}
 	size := t.Base.Size() +
 		codec.BytesLen(warpBytes) +
-		consts.ByteLen + t.Action.Size()
+		consts.IntLen
+	for _, action := range t.Actions {
+		size += consts.ByteLen + action.Size()
+	}
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
 	p.PackBytes(warpBytes)
-	p.PackByte(actionID)
-	t.Action.Marshal(p)
+	p.PackInt(len(t.Actions))
+	for _, action := range t.Actions {
+		actionID := action.GetTypeID()
+		p.PackByte(actionID)
+		action.Marshal(p)
+	}
 	return p.Bytes(), p.Err()
 }
 
@@ -147,6 +152,7 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 		stateKeys.Add(string(k), state.All)
 	}
 	if t.Action.OutputsWarpMessage() {
+		// TODO: handle multiple outgoing warp messages
 		p := sm.OutgoingWarpKeyPrefix(t.id)
 		k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
 		stateKeys.Add(string(k), state.Allocate|state.Write)
