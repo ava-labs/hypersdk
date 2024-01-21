@@ -120,7 +120,7 @@ type StatelessBlock struct {
 	feeManager *FeeManager
 
 	vm   VM
-	view merkledb.TrieView
+	view merkledb.View
 
 	sigJob workers.Job
 }
@@ -266,7 +266,7 @@ func ParseStatefulBlock(
 // [initializeBuilt] is invoked after a block is built
 func (b *StatelessBlock) initializeBuilt(
 	ctx context.Context,
-	view merkledb.TrieView,
+	view merkledb.View,
 	results []*Result,
 	feeManager *FeeManager,
 ) error {

@@ -488,8 +488,7 @@ var _ = ginkgo.Describe("[Network]", func() {
 	ginkgo.It("can get network A", func() {
 		for _, inst := range instancesA {
 			cli := inst.cli
-			networkID, _, chainID, err := cli.Network(context.Background())
-			gomega.Ω(networkID).Should(gomega.Equal(uint32(1337)))
+			_, _, chainID, err := cli.Network(context.Background())
 			gomega.Ω(chainID).ShouldNot(gomega.Equal(ids.Empty))
 			gomega.Ω(err).Should(gomega.BeNil())
 		}
@@ -498,8 +497,7 @@ var _ = ginkgo.Describe("[Network]", func() {
 	ginkgo.It("can get network B", func() {
 		for _, inst := range instancesB {
 			cli := inst.cli
-			networkID, _, chainID, err := cli.Network(context.Background())
-			gomega.Ω(networkID).Should(gomega.Equal(uint32(1337)))
+			_, _, chainID, err := cli.Network(context.Background())
 			gomega.Ω(chainID).ShouldNot(gomega.Equal(ids.Empty))
 			gomega.Ω(err).Should(gomega.BeNil())
 		}

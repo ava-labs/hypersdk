@@ -35,11 +35,12 @@ type Config interface {
 	GetMempoolSponsorSize() int
 	GetMempoolExemptSponsors() []codec.Address
 	GetStreamingBacklogSize() int
-	GetStateHistoryLength() int        // how many roots back of data to keep to serve state queries
-	GetStateEvictionBatchSize() int    // how many bytes to evict at once
-	GetIntermediateNodeCacheSize() int // how many bytes to keep in intermediate cache
-	GetValueNodeCacheSize() int        // how many bytes to keep in value cache
-	GetAcceptorSize() int              // how far back we can fall in processing accepted blocks
+	GetStateHistoryLength() int               // how many roots back of data to keep to serve state queries
+	GetIntermediateNodeCacheSize() int        // how many bytes to keep in intermediate cache
+	GetStateIntermediateWriteBufferSize() int // how many bytes to keep unwritten in intermediate cache
+	GetStateIntermediateWriteBatchSize() int  // how many bytes to to write from intermediate cache at once
+	GetValueNodeCacheSize() int               // how many bytes to keep in value cache
+	GetAcceptorSize() int                     // how far back we can fall in processing accepted blocks
 	GetStateSyncParallelism() int
 	GetStateSyncMinBlocks() uint64
 	GetStateSyncServerDelay() time.Duration

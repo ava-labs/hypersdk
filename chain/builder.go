@@ -76,7 +76,7 @@ func BuildBlock(
 	nextTime := time.Now().UnixMilli()
 	r := vm.Rules(nextTime)
 	if nextTime < parent.Tmstmp+r.GetMinBlockGap() {
-		log.Warn("block building failed", zap.Error(ErrTimestampTooEarly))
+		log.Debug("block building failed", zap.Error(ErrTimestampTooEarly))
 		return nil, ErrTimestampTooEarly
 	}
 	b := NewBlock(vm, parent, nextTime)
@@ -171,7 +171,7 @@ func BuildBlock(
 
 			// Ensure we can process if transaction includes a warp message
 			if tx.WarpMessage != nil && blockContext == nil {
-				log.Info(
+				log.Debug(
 					"dropping pending warp message because no context provided",
 					zap.Stringer("txID", tx.ID()),
 				)
