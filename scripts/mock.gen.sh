@@ -16,19 +16,11 @@ HYPERSDK_PATH=$(
 )
 source "$HYPERSDK_PATH"/scripts/constants.sh
 
-if ! command -v mockgen &> /dev/null
-then
-  echo "mockgen not found, installing..."
-  # https://github.com/uber-go/mock
-  go install -v go.uber.org/mock/mockgen@v0.2.0
-fi
+# https://github.com/uber-go/mock
+go install -v go.uber.org/mock/mockgen@v0.4.0
 
-if ! command -v go-license &> /dev/null
-then
-  echo "go-license not found, installing..."
-  # https://github.com/palantir/go-license
-  go install -v github.com/palantir/go-license@latest
-fi
+# https://github.com/palantir/go-license
+go install -v github.com/palantir/go-license@latest
 
 # tuples of (source interface import path, comma-separated interface names, output file path)
 input="scripts/mocks.mockgen.txt"
