@@ -3,8 +3,10 @@ package archiver
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -35,7 +37,9 @@ func CreateS3Archiver(ctx context.Context, configBytes []byte) (*S3Archiver, err
 		return nil, err
 	}
 
-	sdkConfig, err := s3config.LoadDefaultConfig(ctx,
+	fmt.Println("initialized with conf: ", conf)
+
+	sdkConfig, err := s3config.LoadDefaultConfig(context.TODO(),
 		s3config.WithCredentialsProvider(
 			credentials.NewStaticCredentialsProvider(conf.TokenID, conf.SecretKey, "")),
 		s3config.WithRegion(conf.Region))
@@ -50,9 +54,10 @@ func CreateS3Archiver(ctx context.Context, configBytes []byte) (*S3Archiver, err
 }
 
 func (s3a *S3Archiver) Put(k []byte, v []byte) error {
-	objectKey := string(k)
+	objectKey := base64.StdEncoding.EncodeToString(k)
 	objectReader := bytes.NewReader(v)
 
+	fmt.Printf("put to bucket: %s, k=%s: v=%s with size %d \n", s3a.bucketName, objectKey, string(v), len(v))
 	_, err := s3a.client.PutObject(context.TODO(), &s3.PutObjectInput{Bucket: &s3a.bucketName, Key: &objectKey, Body: objectReader})
 	if err != nil {
 		return err

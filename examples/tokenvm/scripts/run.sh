@@ -154,14 +154,15 @@ rm -rf ${TMPDIR}/tokenvm-e2e-profiles
 # get config of archiver
 if [[ -z $ARCHIVER_CONFIG_PATH ]]; then
 	echo "No archiver config is provided"
-	ARCHIVER_CONFIG="{\"archiverType\":\"\", \"enabled\":false}"
+	ARCHIVER_CONFIG=$(echo "{\"archiverType\":\"\", \"enabled\":false}" | jq -R -s)
 else 
 	if [[ -f $ARCHIVER_CONFIG_PATH ]]; then 
   # convert json to escaped string
-		ARCHIVER_CONFIG=$(jq -R -s '.' < $ARCHIVER_CONFIG_PATH)
+		ARCHIVER_CONFIG="$(jq -R -s '.' < $ARCHIVER_CONFIG_PATH)"
 	else 
+    echo $ARCHIVER_CONFIG_PATH
 		echo "No such archiver file"
-		ARCHIVER_CONFIG="{\"archiverType\":\"\", \"enabled\":false}"
+    ARCHIVER_CONFIG=$(echo "{\"archiverType\":\"\", \"enabled\":false}" | jq -R -s)
 	fi
 fi
 

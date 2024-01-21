@@ -175,12 +175,16 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 	// archive block to storage e.g. aws s3
 	// TODO: only proposer will be allowed to upload or depending on lock mechanism of given archiver e.g. s3 lock
 	// naive check, if not exists we upload
-	if exists, err := c.archiver.Exists(vm.PrefixBlockKey(blk.Hght)); err == nil && !exists {
-		err := c.archiver.Put(vm.PrefixBlockKey(blk.Hght), blk.Bytes())
-		if err != nil {
-			c.Logger().Warn("unable to archive", zap.Error(err))
+	go func() {
+		if exists, err := c.archiver.Exists(vm.PrefixBlockKey(blk.Hght)); err != nil && !exists {
+			err := c.archiver.Put(vm.PrefixBlockKey(blk.Hght), blk.Bytes())
+			if err != nil {
+				c.Logger().Warn("unable to archive", zap.Error(err))
+			}
+		} else {
+			c.Logger().Warn("block exists or error checking existance", zap.Error(err))
 		}
-	}
+	}()
 
 	results := blk.Results()
 	for i, tx := range blk.Txs {
