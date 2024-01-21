@@ -6,10 +6,12 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
@@ -221,6 +223,22 @@ func (cli *JSONRPCClient) WaitForTransaction(ctx context.Context, txID ids.ID) (
 		return false, 0, err
 	}
 	return success, fee, nil
+}
+
+func (cli *JSONRPCClient) Block(ctx context.Context, bID ids.ID) (*chain.StatefulBlock, error) {
+	resp := new(BlockReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"block",
+		&BlockArgs{ID: bID},
+		resp,
+	)
+	if err != nil {
+		log.Fatal("error frmo client requesting", zap.Error(err))
+		return nil, err
+	}
+
+	return resp.Block, nil
 }
 
 var _ chain.Parser = (*Parser)(nil)

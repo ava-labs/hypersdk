@@ -188,7 +188,7 @@ func (j *JSONRPCServer) Loan(req *http.Request, args *LoanArgs, reply *LoanReply
 }
 
 type BlockArgs struct {
-	Hght uint64 `json:"height"`
+	ID ids.ID `json:"id"`
 }
 
 type BlockReply struct {
@@ -199,12 +199,12 @@ func (j *JSONRPCServer) Block(req *http.Request, args *BlockArgs, reply *BlockRe
 	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Block")
 	defer span.End()
 
-	blk, err := j.c.GetBlkFromArchiver(ctx, args.Hght)
+	blk, err := j.c.GetBlkFromArchiver(ctx, args.ID)
 	if err != nil {
 		return err
 	}
 
-	reply.Block = blk.StatefulBlock
+	reply.Block = blk
 
 	return nil
 }

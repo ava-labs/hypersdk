@@ -6,13 +6,13 @@ type NoOpArchiver struct {
 }
 
 func (*NoOpArchiver) Get(k []byte) ([]byte, error) {
-	return nil, nil
+	return nil, ErrNoopArchiver
 }
 
 func (*NoOpArchiver) Put(k []byte, v []byte) error {
-	return nil
+	return ErrNoopArchiver
 }
 
 func (*NoOpArchiver) Exists(k []byte) (bool, error) {
-	return false, nil
+	return false, ErrNoopArchiver
 }

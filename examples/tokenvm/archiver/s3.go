@@ -3,10 +3,9 @@ package archiver
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
+	"encoding/base32"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 
@@ -37,8 +36,6 @@ func CreateS3Archiver(ctx context.Context, configBytes []byte) (*S3Archiver, err
 		return nil, err
 	}
 
-	fmt.Println("initialized with conf: ", conf)
-
 	sdkConfig, err := s3config.LoadDefaultConfig(context.TODO(),
 		s3config.WithCredentialsProvider(
 			credentials.NewStaticCredentialsProvider(conf.TokenID, conf.SecretKey, "")),
@@ -54,10 +51,9 @@ func CreateS3Archiver(ctx context.Context, configBytes []byte) (*S3Archiver, err
 }
 
 func (s3a *S3Archiver) Put(k []byte, v []byte) error {
-	objectKey := base64.StdEncoding.EncodeToString(k)
+	objectKey := encodeToAcceptableKey(k)
 	objectReader := bytes.NewReader(v)
 
-	fmt.Printf("put to bucket: %s, k=%s: v=%s with size %d \n", s3a.bucketName, objectKey, string(v), len(v))
 	_, err := s3a.client.PutObject(context.TODO(), &s3.PutObjectInput{Bucket: &s3a.bucketName, Key: &objectKey, Body: objectReader})
 	if err != nil {
 		return err
@@ -67,7 +63,7 @@ func (s3a *S3Archiver) Put(k []byte, v []byte) error {
 }
 
 func (s3a *S3Archiver) Exists(k []byte) (bool, error) {
-	objectKey := string(k)
+	objectKey := encodeToAcceptableKey(k)
 
 	_, err := s3a.client.HeadObject(context.TODO(), &s3.HeadObjectInput{Bucket: &s3a.bucketName, Key: &objectKey})
 	if err != nil {
@@ -82,7 +78,7 @@ func (s3a *S3Archiver) Exists(k []byte) (bool, error) {
 }
 
 func (s3a *S3Archiver) Get(k []byte) ([]byte, error) {
-	objectKey := string(k)
+	objectKey := encodeToAcceptableKey(k)
 
 	output, err := s3a.client.GetObject(context.TODO(), &s3.GetObjectInput{Bucket: &s3a.bucketName, Key: &objectKey})
 	if err != nil {
@@ -96,4 +92,8 @@ func (s3a *S3Archiver) Get(k []byte) ([]byte, error) {
 	}
 
 	return content, nil
+}
+
+func encodeToAcceptableKey(k []byte) string {
+	return base32.StdEncoding.EncodeToString(k)
 }

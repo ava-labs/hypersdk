@@ -21,7 +21,7 @@ func CreateArchiverByConfig(ctx context.Context, b []byte) (Archiver, error) {
 	var config ArchiverConfig
 	err := json.Unmarshal(b, &config)
 	if err != nil {
-		return nil, errParsingArchiverConfig
+		return nil, ErrParsingArchiverConfig
 	}
 
 	if !config.Enabled {
