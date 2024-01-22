@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/keys"
@@ -52,11 +53,16 @@ func (b *StatelessBlock) Execute(
 		i := li
 		tx := ltx
 
-		stateKeys, err := tx.StateKeys(sm)
+		stateKeysWithMode, err := tx.StateKeys(sm)
 		if err != nil {
 			e.Stop()
 			return nil, nil, err
 		}
+		stateKeys := set.NewSet[string](len(stateKeysWithMode))
+		for k, _ := range stateKeysWithMode {
+			stateKeys.Add(k)
+		}
+
 		e.Run(stateKeys, func() error {
 			// Fetch keys from cache
 			var (

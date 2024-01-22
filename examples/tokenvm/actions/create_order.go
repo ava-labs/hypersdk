@@ -51,10 +51,10 @@ func (*CreateOrder) GetTypeID() uint8 {
 	return createOrderID
 }
 
-func (c *CreateOrder) StateKeys(actor codec.Address, txID ids.ID) []string {
-	return []string{
-		string(storage.BalanceKey(actor, c.Out)),
-		string(storage.OrderKey(txID)),
+func (c *CreateOrder) StateKeys(actor codec.Address, txID ids.ID) map[string]chain.Mode {
+	return map[string]chain.Mode{
+		string(storage.BalanceKey(actor, c.Out)): chain.RWrite,
+		string(storage.OrderKey(txID)):           chain.Write,
 	}
 }
 

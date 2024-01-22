@@ -25,6 +25,7 @@ import (
 type (
 	ActionRegistry *codec.TypeParser[Action, *warp.Message, bool]
 	AuthRegistry   *codec.TypeParser[Auth, *warp.Message, bool]
+	Mode           int
 )
 
 type Parser interface {
@@ -176,7 +177,7 @@ type FeeHandler interface {
 	//
 	// All keys specified must be suffixed with the number of chunks that could ever be read from that
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
-	SponsorStateKeys(addr codec.Address) []string
+	SponsorStateKeys(addr codec.Address) map[string]Mode
 
 	// CanDeduct returns an error if [amount] cannot be paid by [addr].
 	CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error
@@ -248,7 +249,7 @@ type Action interface {
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
 	//
 	// If any key is removed and then re-created, this will count as a creation instead of a modification.
-	StateKeys(actor codec.Address, txID ids.ID) []string
+	StateKeys(actor codec.Address, txID ids.ID) map[string]Mode
 
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.

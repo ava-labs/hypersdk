@@ -38,38 +38,38 @@ func (*ImportAsset) GetTypeID() uint8 {
 	return importAssetID
 }
 
-func (i *ImportAsset) StateKeys(actor codec.Address, _ ids.ID) []string {
+func (i *ImportAsset) StateKeys(actor codec.Address, _ ids.ID) map[string]chain.Mode {
 	var (
-		keys    []string
+		keys    map[string]chain.Mode
 		assetID ids.ID
 	)
 	if i.warpTransfer.Return {
 		assetID = i.warpTransfer.Asset
-		keys = []string{
-			string(storage.AssetKey(i.warpTransfer.Asset)),
-			string(storage.LoanKey(i.warpTransfer.Asset, i.warpMessage.SourceChainID)),
-			string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.Asset)),
+		keys = map[string]chain.Mode{
+			string(storage.AssetKey(i.warpTransfer.Asset)):                             chain.RWrite,
+			string(storage.LoanKey(i.warpTransfer.Asset, i.warpMessage.SourceChainID)): chain.RWrite,
+			string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.Asset)):        chain.RWrite,
 		}
 	} else {
 		assetID = ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
-		keys = []string{
-			string(storage.AssetKey(assetID)),
-			string(storage.BalanceKey(i.warpTransfer.To, assetID)),
+		keys = map[string]chain.Mode{
+			string(storage.AssetKey(assetID)):                      chain.RWrite,
+			string(storage.BalanceKey(i.warpTransfer.To, assetID)): chain.RWrite,
 		}
 	}
 
 	// If the [warpTransfer] specified a reward, we add the state key to make
 	// sure it is paid.
 	if i.warpTransfer.Reward > 0 {
-		keys = append(keys, string(storage.BalanceKey(actor, assetID)))
+		keys[string(storage.BalanceKey(actor, assetID))] = chain.RWrite
 	}
 
 	// If the [warpTransfer] requests a swap, we add the state keys to transfer
 	// the required balances.
 	if i.Fill && i.warpTransfer.SwapIn > 0 {
-		keys = append(keys, string(storage.BalanceKey(actor, i.warpTransfer.AssetOut)))
-		keys = append(keys, string(storage.BalanceKey(actor, assetID)))
-		keys = append(keys, string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.AssetOut)))
+		keys[string(storage.BalanceKey(actor, i.warpTransfer.AssetOut))] = chain.RWrite
+		keys[string(storage.BalanceKey(actor, assetID))] = chain.RWrite
+		keys[string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.AssetOut))] = chain.RWrite
 	}
 	return keys
 }

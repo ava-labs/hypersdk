@@ -37,9 +37,9 @@ func (*StateManager) OutgoingWarpKeyPrefix(txID ids.ID) []byte {
 	return storage.OutgoingWarpKeyPrefix(txID)
 }
 
-func (*StateManager) SponsorStateKeys(addr codec.Address) []string {
-	return []string{
-		string(storage.BalanceKey(addr, ids.Empty)),
+func (*StateManager) SponsorStateKeys(addr codec.Address) map[string]chain.Mode {
+	return map[string]chain.Mode{
+		string(storage.BalanceKey(addr, ids.Empty)): chain.RWrite,
 	}
 }
 

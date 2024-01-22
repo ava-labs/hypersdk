@@ -31,10 +31,10 @@ func (*CloseOrder) GetTypeID() uint8 {
 	return closeOrderID
 }
 
-func (c *CloseOrder) StateKeys(actor codec.Address, _ ids.ID) []string {
-	return []string{
-		string(storage.OrderKey(c.Order)),
-		string(storage.BalanceKey(actor, c.Out)),
+func (c *CloseOrder) StateKeys(actor codec.Address, _ ids.ID) map[string]chain.Mode {
+	return map[string]chain.Mode{
+		string(storage.OrderKey(c.Order)):        chain.RWrite,
+		string(storage.BalanceKey(actor, c.Out)): chain.RWrite,
 	}
 }
 

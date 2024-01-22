@@ -34,6 +34,10 @@ const (
 	HeightKeyChunks       = 1
 	TimestampKeyChunks    = 1
 	FeeKeyChunks          = 8 // 96 (per dimension) * 5 (num dimensions)
+
+	Read   Mode = 0
+	Write  Mode = 1
+	RWrite Mode = 2
 )
 
 func HeightKey(prefix []byte) []byte {

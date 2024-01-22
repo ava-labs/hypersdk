@@ -181,13 +181,17 @@ func BuildBlock(
 				continue
 			}
 
-			stateKeys, err := tx.StateKeys(sm)
+			stateKeysWithMode, err := tx.StateKeys(sm)
 			if err != nil {
 				// Drop bad transaction and continue
 				//
 				// This should not happen because we check this before
 				// adding a transaction to the mempool.
 				continue
+			}
+			stateKeys := set.NewSet[string](len(stateKeysWithMode))
+			for k, _ := range stateKeysWithMode {
+				stateKeys.Add(k)
 			}
 
 			// Once we get part way through a prefetching job, we start

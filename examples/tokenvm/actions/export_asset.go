@@ -37,18 +37,18 @@ func (*ExportAsset) GetTypeID() uint8 {
 	return exportAssetID
 }
 
-func (e *ExportAsset) StateKeys(actor codec.Address, _ ids.ID) []string {
+func (e *ExportAsset) StateKeys(actor codec.Address, _ ids.ID) map[string]chain.Mode {
+	result := map[string]chain.Mode{
+		string(storage.AssetKey(e.Asset)):          chain.RWrite,
+		string(storage.BalanceKey(actor, e.Asset)): chain.RWrite,
+	}
+
 	if e.Return {
-		return []string{
-			string(storage.AssetKey(e.Asset)),
-			string(storage.BalanceKey(actor, e.Asset)),
-		}
+		return result
 	}
-	return []string{
-		string(storage.AssetKey(e.Asset)),
-		string(storage.LoanKey(e.Asset, e.Destination)),
-		string(storage.BalanceKey(actor, e.Asset)),
-	}
+
+	result[string(storage.LoanKey(e.Asset, e.Destination))] = chain.RWrite
+	return result
 }
 
 func (e *ExportAsset) StateKeysMaxChunks() []uint16 {
