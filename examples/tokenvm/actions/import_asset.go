@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/types"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -38,38 +39,38 @@ func (*ImportAsset) GetTypeID() uint8 {
 	return importAssetID
 }
 
-func (i *ImportAsset) StateKeys(actor codec.Address, _ ids.ID) map[string]chain.Mode {
+func (i *ImportAsset) StateKeys(actor codec.Address, _ ids.ID) []types.Key {
 	var (
-		keys    map[string]chain.Mode
+		keys    []types.Key
 		assetID ids.ID
 	)
 	if i.warpTransfer.Return {
 		assetID = i.warpTransfer.Asset
-		keys = map[string]chain.Mode{
-			string(storage.AssetKey(i.warpTransfer.Asset)):                             chain.RWrite,
-			string(storage.LoanKey(i.warpTransfer.Asset, i.warpMessage.SourceChainID)): chain.RWrite,
-			string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.Asset)):        chain.RWrite,
+		keys = []types.Key{
+			{string(storage.AssetKey(i.warpTransfer.Asset)), types.RWrite},
+			{string(storage.LoanKey(i.warpTransfer.Asset, i.warpMessage.SourceChainID)), types.RWrite},
+			{string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.Asset)), types.RWrite},
 		}
 	} else {
 		assetID = ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
-		keys = map[string]chain.Mode{
-			string(storage.AssetKey(assetID)):                      chain.RWrite,
-			string(storage.BalanceKey(i.warpTransfer.To, assetID)): chain.RWrite,
+		keys = []types.Key{
+			{string(storage.AssetKey(assetID)), types.RWrite},
+			{string(storage.BalanceKey(i.warpTransfer.To, assetID)), types.RWrite},
 		}
 	}
 
 	// If the [warpTransfer] specified a reward, we add the state key to make
 	// sure it is paid.
 	if i.warpTransfer.Reward > 0 {
-		keys[string(storage.BalanceKey(actor, assetID))] = chain.RWrite
+		keys = append(keys, types.Key{string(storage.BalanceKey(actor, assetID)), types.RWrite})
 	}
 
 	// If the [warpTransfer] requests a swap, we add the state keys to transfer
 	// the required balances.
 	if i.Fill && i.warpTransfer.SwapIn > 0 {
-		keys[string(storage.BalanceKey(actor, i.warpTransfer.AssetOut))] = chain.RWrite
-		keys[string(storage.BalanceKey(actor, assetID))] = chain.RWrite
-		keys[string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.AssetOut))] = chain.RWrite
+		keys = append(keys, types.Key{string(storage.BalanceKey(actor, i.warpTransfer.AssetOut)), types.RWrite})
+		keys = append(keys, types.Key{string(storage.BalanceKey(actor, assetID)), types.RWrite})
+		keys = append(keys, types.Key{string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.AssetOut)), types.RWrite})
 	}
 	return keys
 }

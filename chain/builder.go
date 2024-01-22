@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/tstate"
+	"github.com/ava-labs/hypersdk/types"
 )
 
 const (
@@ -181,17 +182,13 @@ func BuildBlock(
 				continue
 			}
 
-			stateKeysWithMode, err := tx.StateKeys(sm)
+			stateKeys, err := tx.StateKeys(sm)
 			if err != nil {
 				// Drop bad transaction and continue
 				//
 				// This should not happen because we check this before
 				// adding a transaction to the mempool.
 				continue
-			}
-			stateKeys := set.NewSet[string](len(stateKeysWithMode))
-			for k := range stateKeysWithMode {
-				stateKeys.Add(k)
 			}
 
 			// Once we get part way through a prefetching job, we start
@@ -232,7 +229,8 @@ func BuildBlock(
 					toLookup = make([]string, 0, len(stateKeys))
 				)
 				cacheLock.RLock()
-				for k := range stateKeys {
+				for sk := range stateKeys {
+					k := sk.Name
 					if v, ok := cache[k]; ok {
 						if v.exists {
 							storage[k] = v.v
@@ -322,7 +320,8 @@ func BuildBlock(
 				blockLock.RLock()
 				reads := make(map[string]uint16, len(stateKeys))
 				var invalidStateKeys bool
-				for k := range stateKeys {
+				for sk := range stateKeys {
+					k := sk.Name
 					v := storage[k]
 					numChunks, ok := keys.NumChunks(v)
 					if !ok {
@@ -448,7 +447,12 @@ func BuildBlock(
 	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
-	tsv := ts.NewView(set.Of(heightKeyStr, timestampKeyStr, feeKeyStr), map[string][]byte{
+
+	heightKeyKey := types.Key{heightKeyStr, types.RWrite}
+	timestampKeyKey := types.Key{timestampKeyStr, types.RWrite}
+	feeKeyKey := types.Key{feeKeyStr, types.RWrite}
+
+	tsv := ts.NewView(set.Of(heightKeyKey, timestampKeyKey, feeKeyKey), map[string][]byte{
 		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 		feeKeyStr:       parentFeeManager.Bytes(),

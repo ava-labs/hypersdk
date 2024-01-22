@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/keys"
@@ -53,14 +52,10 @@ func (b *StatelessBlock) Execute(
 		i := li
 		tx := ltx
 
-		stateKeysWithMode, err := tx.StateKeys(sm)
+		stateKeys, err := tx.StateKeys(sm)
 		if err != nil {
 			e.Stop()
 			return nil, nil, err
-		}
-		stateKeys := set.NewSet[string](len(stateKeysWithMode))
-		for k := range stateKeysWithMode {
-			stateKeys.Add(k)
 		}
 
 		e.Run(stateKeys, func() error {
@@ -71,7 +66,8 @@ func (b *StatelessBlock) Execute(
 				toLookup = make([]string, 0, len(stateKeys))
 			)
 			cacheLock.RLock()
-			for k := range stateKeys {
+			for sk := range stateKeys {
+				k := sk.Name
 				if v, ok := cache[k]; ok {
 					reads[k] = v.chunks
 					if v.exists {

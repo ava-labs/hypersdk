@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/utils/set"
+
+	"github.com/ava-labs/hypersdk/types"
 )
 
 const defaultSetSize = 8
@@ -105,7 +107,7 @@ func (e *Executor) createWorker() {
 
 // Run executes [f] after all previously enqueued [f] with
 // overlapping [conflicts] are executed.
-func (e *Executor) Run(conflicts set.Set[string], f func() error) {
+func (e *Executor) Run(conflicts set.Set[types.Key], f func() error) {
 	e.l.Lock()
 	defer e.l.Unlock()
 
@@ -119,7 +121,8 @@ func (e *Executor) Run(conflicts set.Set[string], f func() error) {
 
 	// Record dependencies
 	for k := range conflicts {
-		latest, ok := e.edges[k]
+		key := k.Name
+		latest, ok := e.edges[key]
 		if ok {
 			lt := e.tasks[latest]
 			if !lt.executed {
@@ -133,7 +136,7 @@ func (e *Executor) Run(conflicts set.Set[string], f func() error) {
 				lt.blocking.Add(id)
 			}
 		}
-		e.edges[k] = id
+		e.edges[key] = id
 	}
 
 	// Start execution if there are no blocking dependencies

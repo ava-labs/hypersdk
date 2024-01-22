@@ -14,6 +14,7 @@ import (
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/types"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -31,10 +32,10 @@ func (*Transfer) GetTypeID() uint8 {
 	return mconsts.TransferID
 }
 
-func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) map[string]chain.Mode {
-	return map[string]chain.Mode{
-		string(storage.BalanceKey(actor)): chain.RWrite,
-		string(storage.BalanceKey(t.To)):  chain.RWrite,
+func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) []types.Key {
+	return []types.Key{
+		{string(storage.BalanceKey(actor)), types.RWrite},
+		{string(storage.BalanceKey(t.To)), types.RWrite},
 	}
 }
 

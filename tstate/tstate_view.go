@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/keys"
+	"github.com/ava-labs/hypersdk/types"
 )
 
 const defaultOps = 4
@@ -39,8 +40,10 @@ type TStateView struct {
 	// operations allows for reverting state to a certain point-in-time.
 	ops []*op
 
-	// We don't differentiate between read and write scope.
-	scope        set.Set[string] // stores a list of managed keys in the TState struct
+	// stores a list of managed keys in the TState struct
+	readScope    set.Set[string]
+	writeScope   set.Set[string]
+	rwScope      set.Set[string]
 	scopeStorage map[string][]byte
 
 	// Store which keys are modified and how large their values were.
@@ -49,14 +52,30 @@ type TStateView struct {
 	writes      map[string]uint16
 }
 
-func (ts *TState) NewView(scope set.Set[string], storage map[string][]byte) *TStateView {
+func (ts *TState) NewView(scope set.Set[types.Key], storage map[string][]byte) *TStateView {
+	// TODO: set length to be the number of keys for each type
+	readScope := set.NewSet[string](len(scope))
+	writeScope := set.NewSet[string](len(scope))
+	rwScope := set.NewSet[string](len(scope))
+	for k := range scope {
+		if k.Mode == types.Read {
+			readScope.Add(k.Name)
+		} else if k.Mode == types.Write {
+			writeScope.Add(k.Name)
+		} else if k.Mode == types.RWrite {
+			rwScope.Add(k.Name)
+		}
+	}
+
 	return &TStateView{
 		ts:                 ts,
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
 
 		ops: make([]*op, 0, defaultOps),
 
-		scope:        scope,
+		readScope:    readScope,
+		writeScope:   writeScope,
+		rwScope:      rwScope,
 		scopeStorage: storage,
 
 		canAllocate: true, // default to allowing allocation
@@ -157,13 +176,13 @@ func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
 	return ts.allocates, ts.writes
 }
 
-// checkScope returns whether [k] is in ts.readScope.
+// checkScope returns whether [k] is in ts.readScope or ts.rwScope.
 func (ts *TStateView) checkScope(_ context.Context, k []byte) bool {
-	return ts.scope.Contains(string(k))
+	return ts.readScope.Contains(string(k)) || ts.rwScope.Contains(string(k))
 }
 
 // GetValue returns the value associated from tempStorage with the
-// associated [key]. If [key] does not exist in readScope or if it is not found
+// associated [key]. If [key] does not exist in readScope/rwScope or if it is not found
 // in storage an error is returned.
 func (ts *TStateView) GetValue(ctx context.Context, key []byte) ([]byte, error) {
 	if !ts.checkScope(ctx, key) {

@@ -19,13 +19,13 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/types"
 	"github.com/ava-labs/hypersdk/workers"
 )
 
 type (
 	ActionRegistry *codec.TypeParser[Action, *warp.Message, bool]
 	AuthRegistry   *codec.TypeParser[Auth, *warp.Message, bool]
-	Mode           int
 )
 
 type Parser interface {
@@ -177,9 +177,7 @@ type FeeHandler interface {
 	//
 	// All keys specified must be suffixed with the number of chunks that could ever be read from that
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
-	//
-	// All keys must be specified with a Mode (i.e., Read, Write, RWrite).
-	SponsorStateKeys(addr codec.Address) map[string]Mode
+	SponsorStateKeys(addr codec.Address) []types.Key
 
 	// CanDeduct returns an error if [amount] cannot be paid by [addr].
 	CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error
@@ -251,9 +249,7 @@ type Action interface {
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
 	//
 	// If any key is removed and then re-created, this will count as a creation instead of a modification.
-	//
-	// All keys must be specified with a Mode (i.e., Read, Write, RWrite).
-	StateKeys(actor codec.Address, txID ids.ID) map[string]Mode
+	StateKeys(actor codec.Address, txID ids.ID) []types.Key
 
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.

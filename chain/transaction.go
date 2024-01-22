@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -20,6 +21,7 @@ import (
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
+	"github.com/ava-labs/hypersdk/types"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -46,7 +48,7 @@ type Transaction struct {
 	// prevents duplicates (like txID). We will not allow 2 instances of the same
 	// warpID from the same sourceChainID to be accepted.
 	warpID    ids.ID
-	stateKeys map[string]Mode
+	stateKeys set.Set[types.Key]
 }
 
 type WarpResult struct {
@@ -121,21 +123,21 @@ func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 
 func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
 
-func (t *Transaction) StateKeys(sm StateManager) (map[string]Mode, error) {
+func (t *Transaction) StateKeys(sm StateManager) (set.Set[types.Key], error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
 
 	// Verify the formatting of state keys passed by the controller
-	actionKeysMap := t.Action.StateKeys(t.Auth.Actor(), t.ID())
-	sponsorKeysMap := sm.SponsorStateKeys(t.Auth.Sponsor())
-	stateKeys := make(map[string]Mode)
-	for _, m := range []map[string]Mode{actionKeysMap, sponsorKeysMap} {
-		for key, value := range m {
-			if !keys.Valid(key) {
+	actionKeys := t.Action.StateKeys(t.Auth.Actor(), t.ID())
+	sponsorKeys := sm.SponsorStateKeys(t.Auth.Sponsor())
+	stateKeys := set.NewSet[types.Key](len(actionKeys) + len(sponsorKeys))
+	for _, arr := range [][]types.Key{actionKeys, sponsorKeys} {
+		for _, key := range arr {
+			if !keys.Valid(key.Name) {
 				return nil, ErrInvalidKeyValue
 			}
-			stateKeys[key] = value
+			stateKeys.Add(key)
 		}
 	}
 
@@ -143,12 +145,12 @@ func (t *Transaction) StateKeys(sm StateManager) (map[string]Mode, error) {
 	if t.WarpMessage != nil {
 		p := sm.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
 		k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
-		stateKeys[string(k)] = RWrite
+		stateKeys.Add(types.Key{string(k), types.RWrite})
 	}
 	if t.Action.OutputsWarpMessage() {
 		p := sm.OutgoingWarpKeyPrefix(t.id)
 		k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
-		stateKeys[string(k)] = RWrite
+		stateKeys.Add(types.Key{string(k), types.RWrite})
 	}
 
 	// Cache keys if called again
@@ -190,7 +192,8 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	readsOp := math.NewUint64Operator(0)
 	allocatesOp := math.NewUint64Operator(0)
 	writesOp := math.NewUint64Operator(0)
-	for k := range stateKeys {
+	for sk := range stateKeys {
+		k := sk.Name
 		// Compute key costs
 		readsOp.Add(r.GetStorageKeyReadUnits())
 		allocatesOp.Add(r.GetStorageKeyAllocateUnits())
@@ -453,9 +456,10 @@ func (t *Transaction) Execute(
 
 	// Because we compute the fee before [Auth.Refund] is called, we need
 	// to pessimistically precompute the storage it will change.
-	for key := range s.SponsorStateKeys(t.Auth.Sponsor()) {
+	for _, k := range s.SponsorStateKeys(t.Auth.Sponsor()) {
 		// maxChunks will be greater than the chunks read in any of these keys,
 		// so we don't need to check for pre-existing values.
+		key := k.Name
 		maxChunks, ok := keys.MaxChunks([]byte(key))
 		if !ok {
 			return handleRevert(ErrInvalidKeyValue)
