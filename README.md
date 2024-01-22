@@ -685,7 +685,9 @@ type Action interface {
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
 	//
 	// If any key is removed and then re-created, this will count as a creation instead of a modification.
-	StateKeys(actor codec.Address, txID ids.ID) []string
+	// 
+	// All keys must be specified with a Mode (i.e., Read, Write, RWrite).
+	StateKeys(actor codec.Address, txID ids.ID) map[string]Mode
 
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.

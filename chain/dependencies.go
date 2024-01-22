@@ -177,6 +177,8 @@ type FeeHandler interface {
 	//
 	// All keys specified must be suffixed with the number of chunks that could ever be read from that
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
+	//
+	// All keys must be specified with a Mode (i.e., Read, Write, RWrite).
 	SponsorStateKeys(addr codec.Address) map[string]Mode
 
 	// CanDeduct returns an error if [amount] cannot be paid by [addr].
@@ -249,6 +251,8 @@ type Action interface {
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
 	//
 	// If any key is removed and then re-created, this will count as a creation instead of a modification.
+	//
+	// All keys must be specified with a Mode (i.e., Read, Write, RWrite).
 	StateKeys(actor codec.Address, txID ids.ID) map[string]Mode
 
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
