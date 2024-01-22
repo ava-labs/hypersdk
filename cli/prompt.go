@@ -156,6 +156,30 @@ func (*Handler) PromptInt(
 	return strconv.Atoi(rawAmount)
 }
 
+func (*Handler) PromptUint64(
+	label string,
+) (uint64, error) {
+	promptText := promptui.Prompt{
+		Label: label,
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return ErrInputEmpty
+			}
+			_, err := strconv.ParseUint(input, 10, 64)
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+	rawAmount, err := promptText.Run()
+	if err != nil {
+		return 0, err
+	}
+	rawAmount = strings.TrimSpace(rawAmount)
+	return strconv.ParseUint(rawAmount, 10, 64)
+
+}
 func (*Handler) PromptChoice(label string, max int) (int, error) {
 	if max == 1 {
 		utils.Outf("{{yellow}}%s:{{/}} 0 [auto-selected]\n", label)

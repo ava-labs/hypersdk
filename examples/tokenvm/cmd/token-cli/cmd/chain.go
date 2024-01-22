@@ -66,7 +66,18 @@ var watchChainCmd = &cobra.Command{
 	Use: "watch",
 	RunE: func(_ *cobra.Command, args []string) error {
 		var cli *trpc.JSONRPCClient
-		return handler.Root().WatchChain(hideTxs, func(uri string, networkID uint32, chainID ids.ID) (chain.Parser, error) {
+		pastBlocks, err := handler.Root().PromptBool("stream from a past block")
+		if err != nil {
+			return err
+		}
+		var startBlock uint64
+		if pastBlocks {
+			startBlock, err = handler.Root().PromptUint64("start block number")
+			if err != nil {
+				return err
+			}
+		}
+		return handler.Root().WatchChain(hideTxs, pastBlocks, startBlock, func(uri string, networkID uint32, chainID ids.ID) (chain.Parser, error) {
 			cli = trpc.NewJSONRPCClient(uri, networkID, chainID)
 			return cli.Parser(context.TODO())
 		}, func(tx *chain.Transaction, result *chain.Result) {

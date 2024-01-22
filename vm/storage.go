@@ -41,6 +41,7 @@ const (
 	warpSignaturePrefix = 0x3
 	warpFetchPrefix     = 0x4
 	blockResultsPrefix  = 0x5
+	feeManagerPrefix    = 0x6
 )
 
 var (
@@ -74,6 +75,13 @@ func PrefixBlockHeightIDKey(height uint64) []byte {
 func PrefixBlockResultsKey(height uint64) []byte {
 	k := make([]byte, 1+consts.Uint64Len)
 	k[0] = blockResultsPrefix
+	binary.BigEndian.PutUint64(k[1:], height)
+	return k
+}
+
+func PrefixFeeManagerKey(height uint64) []byte {
+	k := make([]byte, 1+consts.Uint64Len)
+	k[0] = feeManagerPrefix
 	binary.BigEndian.PutUint64(k[1:], height)
 	return k
 }
@@ -177,6 +185,7 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 
 func (vm *VM) StoreBlockResultsOnDisk(blk *chain.StatelessBlock) error {
 	blockResultBytes, err := chain.MarshalResults(blk.Results())
+	feeManagerBytes := blk.FeeManager().UnitPrices().Bytes()
 	if err != nil {
 		return err
 	}
@@ -184,9 +193,15 @@ func (vm *VM) StoreBlockResultsOnDisk(blk *chain.StatelessBlock) error {
 	if err := batch.Put(PrefixBlockResultsKey(blk.Height()), blockResultBytes); err != nil {
 		return err
 	}
+	if err := batch.Put(PrefixFeeManagerKey(blk.Height()), feeManagerBytes); err != nil {
+		return err
+	}
 	expiryHeight := blk.Height() - uint64(vm.config.GetAcceptedBlockWindow())
 	if expiryHeight > 0 && expiryHeight < blk.Height() {
 		if err := batch.Delete(PrefixBlockResultsKey(blk.Height())); err != nil {
+			return err
+		}
+		if err := batch.Delete(PrefixFeeManagerKey(blk.Height())); err != nil {
 			return err
 		}
 	}
@@ -215,6 +230,14 @@ func (vm *VM) GetDiskBlockResults(ctx context.Context, height uint64) ([]*chain.
 		return nil, err
 	}
 	return chain.UnmarshalResults(r)
+}
+
+func (vm *VM) GetDiskFeeManager(ctx context.Context, height uint64) ([]byte, error) {
+	f, err := vm.vmDB.Get(PrefixFeeManagerKey(height))
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
 }
 
 func (vm *VM) GetBlockHeightID(height uint64) (ids.ID, error) {

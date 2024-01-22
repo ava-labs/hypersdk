@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"encoding/binary"
 	"net/http"
 	"strings"
 	"sync"
@@ -135,6 +136,13 @@ func (c *WebSocketClient) RegisterBlocks() error {
 		return ErrClosed
 	}
 	return c.mb.Send([]byte{BlockMode})
+}
+
+func (c *WebSocketClient) RegisterBlocksFrom(blockNumber uint64) error {
+	if c.closed {
+		return ErrClosed
+	}
+	return c.mb.Send(binary.BigEndian.AppendUint64([]byte{BlockMode}, blockNumber))
 }
 
 // Listen listens for block messages from the streaming server.
