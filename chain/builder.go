@@ -190,7 +190,7 @@ func BuildBlock(
 				continue
 			}
 			stateKeys := set.NewSet[string](len(stateKeysWithMode))
-			for k, _ := range stateKeysWithMode {
+			for k := range stateKeysWithMode {
 				stateKeys.Add(k)
 			}
 

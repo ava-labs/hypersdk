@@ -59,7 +59,7 @@ func (b *StatelessBlock) Execute(
 			return nil, nil, err
 		}
 		stateKeys := set.NewSet[string](len(stateKeysWithMode))
-		for k, _ := range stateKeysWithMode {
+		for k := range stateKeysWithMode {
 			stateKeys.Add(k)
 		}
 

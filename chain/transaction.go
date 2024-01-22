@@ -190,7 +190,7 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	readsOp := math.NewUint64Operator(0)
 	allocatesOp := math.NewUint64Operator(0)
 	writesOp := math.NewUint64Operator(0)
-	for k, _ := range stateKeys {
+	for k := range stateKeys {
 		// Compute key costs
 		readsOp.Add(r.GetStorageKeyReadUnits())
 		allocatesOp.Add(r.GetStorageKeyAllocateUnits())
@@ -453,7 +453,7 @@ func (t *Transaction) Execute(
 
 	// Because we compute the fee before [Auth.Refund] is called, we need
 	// to pessimistically precompute the storage it will change.
-	for key, _ := range s.SponsorStateKeys(t.Auth.Sponsor()) {
+	for key := range s.SponsorStateKeys(t.Auth.Sponsor()) {
 		// maxChunks will be greater than the chunks read in any of these keys,
 		// so we don't need to check for pre-existing values.
 		maxChunks, ok := keys.MaxChunks([]byte(key))
