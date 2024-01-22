@@ -23,7 +23,7 @@ func NewFunc(inner *wasmtime.Func, store wasmtime.Storelike) *Func {
 	}
 }
 
-func (f *Func) Call(params ...SmartPtr) ([]int64, error) {
+func (f *Func) Call(params ...RuntimePtr) ([]int64, error) {
 	fnParams := f.Type().Params()
 	if len(params) != len(fnParams) {
 		return nil, fmt.Errorf("%w for function: %d expected: %d", ErrInvalidParamCount, len(params), len(fnParams))
@@ -59,7 +59,7 @@ func (f *Func) Type() *wasmtime.FuncType {
 }
 
 // mapFunctionParams maps call input to the expected wasm function params.
-func mapFunctionParams(input []SmartPtr, values []*wasmtime.ValType) ([]interface{}, error) {
+func mapFunctionParams(input []RuntimePtr, values []*wasmtime.ValType) ([]interface{}, error) {
 	params := make([]interface{}, len(values))
 	for i, v := range values {
 		switch v.Kind() {

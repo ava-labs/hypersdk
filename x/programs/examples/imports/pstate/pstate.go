@@ -73,7 +73,7 @@ func (i *Import) putFn(caller *program.Caller, id int64, key int64, value int64)
 		return nil, err
 	}
 
-	programIDBytes, err := program.SmartPtr(id).Bytes(memory)
+	programIDBytes, err := program.RuntimePtr(id).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read program id from memory",
 			zap.Error(err),
@@ -81,7 +81,7 @@ func (i *Import) putFn(caller *program.Caller, id int64, key int64, value int64)
 		return nil, err
 	}
 
-	keyBytes, err := program.SmartPtr(key).Bytes(memory)
+	keyBytes, err := program.RuntimePtr(key).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read key from memory",
 			zap.Error(err),
@@ -89,7 +89,7 @@ func (i *Import) putFn(caller *program.Caller, id int64, key int64, value int64)
 		return nil, err
 	}
 
-	valueBytes, err := program.SmartPtr(value).Bytes(memory)
+	valueBytes, err := program.RuntimePtr(value).Bytes(memory)
 
 	if err != nil {
 		i.log.Error("failed to read value from memory",
@@ -119,7 +119,7 @@ func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val,
 		return nil, err
 	}
 
-	programIDBytes, err := program.SmartPtr(id).Bytes(memory)
+	programIDBytes, err := program.RuntimePtr(id).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read program id from memory",
 			zap.Error(err),
@@ -127,7 +127,7 @@ func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val,
 		return nil, err
 	}
 
-	keyBytes, err := program.SmartPtr(key).Bytes(memory)
+	keyBytes, err := program.RuntimePtr(key).Bytes(memory)
 	if err != nil {
 		i.log.Error("failed to read key from memory",
 			zap.Error(err),
@@ -163,7 +163,7 @@ func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val,
 		}
 		return nil, err
 	}
-	argPtr, err := program.NewSmartPtr(uint32(ptr), len(val))
+	argPtr, err := program.NewRuntimePtr(uint32(ptr), len(val))
 	if err != nil {
 		i.log.Error("failed to convert ptr to argument",
 			zap.Error(err),

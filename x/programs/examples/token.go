@@ -77,7 +77,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	programIDPtr, err := argumentToSmartPtr(programID, mem)
+	programIDPtr, err := argumentToRuntimePtr(programID, mem)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := argumentToSmartPtr(aliceKey, mem)
+	alicePtr, err := argumentToRuntimePtr(aliceKey, mem)
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write bob's key to stack and get pointer
-	bobPtr, err := argumentToSmartPtr(bobKey, mem)
+	bobPtr, err := argumentToRuntimePtr(bobKey, mem)
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// mint 100 tokens to alice
 	mintAlice := int64(1000)
-	mintAlicePtr, err := argumentToSmartPtr(mintAlice, mem)
+	mintAlicePtr, err := argumentToRuntimePtr(mintAlice, mem)
 	if err != nil {
 		return err
 	}
@@ -172,7 +172,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// transfer 50 from alice to bob
 	transferToBob := int64(50)
-	transferToBobPtr, err := argumentToSmartPtr(transferToBob, mem)
+	transferToBobPtr, err := argumentToRuntimePtr(transferToBob, mem)
 	if err != nil {
 		return err
 	}
@@ -185,7 +185,7 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("to bob", transferToBob),
 	)
 
-	onePtr, err := argumentToSmartPtr(int64(1), mem)
+	onePtr, err := argumentToRuntimePtr(int64(1), mem)
 	if err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func (t *Token) Run(ctx context.Context) error {
 		},
 	}
 
-	mintersPtr, err := argumentToSmartPtr(minters, mem)
+	mintersPtr, err := argumentToRuntimePtr(minters, mem)
 	if err != nil {
 		return err
 	}
@@ -299,7 +299,7 @@ func (t *Token) RunShort(ctx context.Context) error {
 		return err
 	}
 
-	programIDPtr, err := argumentToSmartPtr(programID, mem)
+	programIDPtr, err := argumentToRuntimePtr(programID, mem)
 	if err != nil {
 		return err
 	}

@@ -189,27 +189,27 @@ func WriteParams(m *Memory, p []CallParam) ([]uint64, error) {
 	return params, nil
 }
 
-// SmartPtr is an int64 where the first 4 bytes represent the length of the bytes
+// RuntimePtr is an int64 where the first 4 bytes represent the length of the bytes
 // and the following 4 bytes represent a pointer to WASM memory where the bytes are stored.
-type SmartPtr int64
+type RuntimePtr int64
 
 // Get returns the int64 value of [s].
-func (s SmartPtr) Get() int64 {
+func (s RuntimePtr) Get() int64 {
 	return int64(s)
 }
 
 // Len returns the length of the bytes stored in memory by [s].
-func (s SmartPtr) Len() uint32 {
+func (s RuntimePtr) Len() uint32 {
 	return uint32(s >> 32)
 }
 
 // PtrOffset returns the offset of the bytes stored in memory by [s].
-func (s SmartPtr) PtrOffset() uint32 {
+func (s RuntimePtr) PtrOffset() uint32 {
 	return uint32(s)
 }
 
 // Bytes returns the bytes stored in memory by [s].
-func (s SmartPtr) Bytes(memory *Memory) ([]byte, error) {
+func (s RuntimePtr) Bytes(memory *Memory) ([]byte, error) {
 	// read the range of PtrOffset + length from memory
 	bytes, err := memory.Range(s.PtrOffset(), s.Len())
 	if err != nil {
@@ -219,18 +219,18 @@ func (s SmartPtr) Bytes(memory *Memory) ([]byte, error) {
 	return bytes, nil
 }
 
-// BytesToSmartPtr writes [bytes] to memory and returns the resulting SmartPtr.
-func BytesToSmartPtr(bytes []byte, memory *Memory) (SmartPtr, error) {
+// BytesToRuntimePtr writes [bytes] to memory and returns the resulting RuntimePtr.
+func BytesToRuntimePtr(bytes []byte, memory *Memory) (RuntimePtr, error) {
 	ptr, err := WriteBytes(memory, bytes)
 	if err != nil {
 		return 0, err
 	}
 
-	return NewSmartPtr(ptr, len(bytes))
+	return NewRuntimePtr(ptr, len(bytes))
 }
 
-// NewSmartPtr returns a SmartPtr from [ptr] and [len].
-func NewSmartPtr(ptr uint32, len int) (SmartPtr, error) {
+// NewRuntimePtr returns a RuntimePtr from [ptr] and [len].
+func NewRuntimePtr(ptr uint32, len int) (RuntimePtr, error) {
 	// ensure length of bytes is not greater than int32 to prevent overflow
 	if !EnsureIntToInt32(len) {
 		return 0, fmt.Errorf("length of bytes is greater than int32")
@@ -239,5 +239,5 @@ func NewSmartPtr(ptr uint32, len int) (SmartPtr, error) {
 	lenUpperBits := int64(len) << 32
 	ptrLowerBits := int64(ptr)
 
-	return SmartPtr(lenUpperBits | ptrLowerBits), nil
+	return RuntimePtr(lenUpperBits | ptrLowerBits), nil
 }
