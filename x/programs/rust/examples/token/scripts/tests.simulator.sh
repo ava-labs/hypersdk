@@ -16,7 +16,7 @@ simulator_bin="${simulator_path}"/bin/simulator
 export SIMULATOR_PATH="${simulator_bin}"
 
 # The path to the compiled Wasm program to be tested
-export PROGRAM_PATH="${PWD}"/../../build/token.wasm
+export PROGRAM_PATH="${PWD}"/build/token.wasm
 
 echo "Building Token example..."
 ./../../scripts/build.sh
