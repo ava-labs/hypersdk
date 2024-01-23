@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
@@ -39,7 +39,7 @@ type TxArgs struct {
 type TxReply struct {
 	Timestamp int64            `json:"timestamp"`
 	Success   bool             `json:"success"`
-	Units     chain.Dimensions `json:"units"`
+	Units     fees.Dimensions `json:"units"`
 	Fee       uint64           `json:"fee"`
 }
 

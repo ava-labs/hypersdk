@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
@@ -63,7 +64,7 @@ func (*FillOrder) OutputsWarpMessage() bool {
 
 func (f *FillOrder) Execute(
 	ctx context.Context,
-	_ chain.Rules,
+	_ fees.Rules,
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
@@ -155,7 +156,7 @@ func (f *FillOrder) Execute(
 	return true, FillOrderComputeUnits, output, nil, nil
 }
 
-func (*FillOrder) MaxComputeUnits(chain.Rules) uint64 {
+func (*FillOrder) MaxComputeUnits(fees.Rules) uint64 {
 	return FillOrderComputeUnits
 }
 
@@ -181,7 +182,7 @@ func UnmarshalFillOrder(p *codec.Packer, _ *warp.Message) (chain.Action, error) 
 	return &fill, p.Err()
 }
 
-func (*FillOrder) ValidRange(chain.Rules) (int64, int64) {
+func (*FillOrder) ValidRange(fees.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }

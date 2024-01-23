@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/gossiper"
 	hrpc "github.com/ava-labs/hypersdk/rpc"
 	hstorage "github.com/ava-labs/hypersdk/storage"
@@ -148,7 +149,7 @@ func (c *Controller) Initialize(
 	return c.config, c.genesis, build, gossip, blockDB, stateDB, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
 }
 
-func (c *Controller) Rules(t int64) chain.Rules {
+func (c *Controller) Rules(t int64) fees.Rules {
 	// TODO: extend with [UpgradeBytes]
 	return c.genesis.Rules(t, c.snowCtx.NetworkID, c.snowCtx.ChainID)
 }

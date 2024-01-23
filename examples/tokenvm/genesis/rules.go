@@ -5,11 +5,11 @@ package genesis
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 )
 
-var _ chain.Rules = (*Rules)(nil)
+var _ fees.Rules = (*Rules)(nil)
 
 type Rules struct {
 	g *Genesis
@@ -51,7 +51,7 @@ func (r *Rules) GetValidityWindow() int64 {
 	return r.g.ValidityWindow
 }
 
-func (r *Rules) GetMaxBlockUnits() chain.Dimensions {
+func (r *Rules) GetMaxBlockUnits() fees.Dimensions {
 	return r.g.MaxBlockUnits
 }
 
@@ -99,15 +99,15 @@ func (r *Rules) GetStorageValueWriteUnits() uint64 {
 	return r.g.StorageValueWriteUnits
 }
 
-func (r *Rules) GetMinUnitPrice() chain.Dimensions {
+func (r *Rules) GetMinUnitPrice() fees.Dimensions {
 	return r.g.MinUnitPrice
 }
 
-func (r *Rules) GetUnitPriceChangeDenominator() chain.Dimensions {
+func (r *Rules) GetUnitPriceChangeDenominator() fees.Dimensions {
 	return r.g.UnitPriceChangeDenominator
 }
 
-func (r *Rules) GetWindowTargetUnits() chain.Dimensions {
+func (r *Rules) GetWindowTargetUnits() fees.Dimensions {
 	return r.g.WindowTargetUnits
 }
 
