@@ -90,6 +90,7 @@ func (i *Import) putFn(caller *program.Caller, id int64, key int64, value int64)
 	}
 
 	valueBytes, err := program.SmartPtr(value).Bytes(memory)
+	
 	if err != nil {
 		i.log.Error("failed to read value from memory",
 			zap.Error(err),
