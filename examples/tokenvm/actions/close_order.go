@@ -34,8 +34,8 @@ func (*CloseOrder) GetTypeID() uint8 {
 
 func (c *CloseOrder) StateKeys(actor codec.Address, _ ids.ID) []types.Key {
 	return []types.Key{
-		{string(storage.OrderKey(c.Order)), types.RWrite},
-		{string(storage.BalanceKey(actor, c.Out)), types.RWrite},
+		{Name: string(storage.OrderKey(c.Order)), Mode: types.RWrite},
+		{Name: string(storage.BalanceKey(actor, c.Out)), Mode: types.RWrite},
 	}
 }
 

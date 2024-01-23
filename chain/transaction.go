@@ -145,12 +145,12 @@ func (t *Transaction) StateKeys(sm StateManager) (set.Set[types.Key], error) {
 	if t.WarpMessage != nil {
 		p := sm.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
 		k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
-		stateKeys.Add(types.Key{string(k), types.RWrite})
+		stateKeys.Add(types.Key{Name: string(k), Mode: types.RWrite})
 	}
 	if t.Action.OutputsWarpMessage() {
 		p := sm.OutgoingWarpKeyPrefix(t.id)
 		k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
-		stateKeys.Add(types.Key{string(k), types.RWrite})
+		stateKeys.Add(types.Key{Name: string(k), Mode: types.RWrite})
 	}
 
 	// Cache keys if called again

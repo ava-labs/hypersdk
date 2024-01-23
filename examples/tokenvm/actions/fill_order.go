@@ -47,10 +47,10 @@ func (*FillOrder) GetTypeID() uint8 {
 
 func (f *FillOrder) StateKeys(actor codec.Address, _ ids.ID) []types.Key {
 	return []types.Key{
-		{string(storage.OrderKey(f.Order)), types.RWrite},
-		{string(storage.BalanceKey(f.Owner, f.In)), types.RWrite},
-		{string(storage.BalanceKey(actor, f.In)), types.RWrite},
-		{string(storage.BalanceKey(actor, f.Out)), types.RWrite},
+		{Name: string(storage.OrderKey(f.Order)), Mode: types.RWrite},
+		{Name: string(storage.BalanceKey(f.Owner, f.In)), Mode: types.RWrite},
+		{Name: string(storage.BalanceKey(actor, f.In)), Mode: types.RWrite},
+		{Name: string(storage.BalanceKey(actor, f.Out)), Mode: types.RWrite},
 	}
 }
 

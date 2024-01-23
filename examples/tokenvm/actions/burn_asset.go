@@ -35,8 +35,8 @@ func (*BurnAsset) GetTypeID() uint8 {
 
 func (b *BurnAsset) StateKeys(actor codec.Address, _ ids.ID) []types.Key {
 	return []types.Key{
-		{string(storage.AssetKey(b.Asset)), types.RWrite},
-		{string(storage.BalanceKey(actor, b.Asset)), types.RWrite},
+		{Name: string(storage.AssetKey(b.Asset)), Mode: types.RWrite},
+		{Name: string(storage.BalanceKey(actor, b.Asset)), Mode: types.RWrite},
 	}
 }
 

@@ -31,7 +31,7 @@ func (*CreateAsset) GetTypeID() uint8 {
 
 func (*CreateAsset) StateKeys(_ codec.Address, txID ids.ID) []types.Key {
 	return []types.Key{
-		{string(storage.AssetKey(txID)), types.RWrite},
+		{Name: string(storage.AssetKey(txID)), Mode: types.RWrite},
 	}
 }
 

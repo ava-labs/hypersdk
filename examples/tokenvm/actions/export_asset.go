@@ -41,14 +41,14 @@ func (*ExportAsset) GetTypeID() uint8 {
 func (e *ExportAsset) StateKeys(actor codec.Address, _ ids.ID) []types.Key {
 	if e.Return {
 		return []types.Key{
-			{string(storage.AssetKey(e.Asset)), types.RWrite},
-			{string(storage.BalanceKey(actor, e.Asset)), types.RWrite},
+			{Name: string(storage.AssetKey(e.Asset)), Mode: types.RWrite},
+			{Name: string(storage.BalanceKey(actor, e.Asset)), Mode: types.RWrite},
 		}
 	}
 	return []types.Key{
-		{string(storage.AssetKey(e.Asset)), types.RWrite},
-		{string(storage.LoanKey(e.Asset, e.Destination)), types.RWrite},
-		{string(storage.BalanceKey(actor, e.Asset)), types.RWrite},
+		{Name: string(storage.AssetKey(e.Asset)), Mode: types.RWrite},
+		{Name: string(storage.LoanKey(e.Asset, e.Destination)), Mode: types.RWrite},
+		{Name: string(storage.BalanceKey(actor, e.Asset)), Mode: types.RWrite},
 	}
 }
 

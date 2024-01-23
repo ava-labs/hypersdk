@@ -47,30 +47,30 @@ func (i *ImportAsset) StateKeys(actor codec.Address, _ ids.ID) []types.Key {
 	if i.warpTransfer.Return {
 		assetID = i.warpTransfer.Asset
 		keys = []types.Key{
-			{string(storage.AssetKey(i.warpTransfer.Asset)), types.RWrite},
-			{string(storage.LoanKey(i.warpTransfer.Asset, i.warpMessage.SourceChainID)), types.RWrite},
-			{string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.Asset)), types.RWrite},
+			{Name: string(storage.AssetKey(i.warpTransfer.Asset)), Mode: types.RWrite},
+			{Name: string(storage.LoanKey(i.warpTransfer.Asset, i.warpMessage.SourceChainID)), Mode: types.RWrite},
+			{Name: string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.Asset)), Mode: types.RWrite},
 		}
 	} else {
 		assetID = ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
 		keys = []types.Key{
-			{string(storage.AssetKey(assetID)), types.RWrite},
-			{string(storage.BalanceKey(i.warpTransfer.To, assetID)), types.RWrite},
+			{Name: string(storage.AssetKey(assetID)), Mode: types.RWrite},
+			{Name: string(storage.BalanceKey(i.warpTransfer.To, assetID)), Mode: types.RWrite},
 		}
 	}
 
 	// If the [warpTransfer] specified a reward, we add the state key to make
 	// sure it is paid.
 	if i.warpTransfer.Reward > 0 {
-		keys = append(keys, types.Key{string(storage.BalanceKey(actor, assetID)), types.RWrite})
+		keys = append(keys, types.Key{Name: string(storage.BalanceKey(actor, assetID)), Mode: types.RWrite})
 	}
 
 	// If the [warpTransfer] requests a swap, we add the state keys to transfer
 	// the required balances.
 	if i.Fill && i.warpTransfer.SwapIn > 0 {
-		keys = append(keys, types.Key{string(storage.BalanceKey(actor, i.warpTransfer.AssetOut)), types.RWrite})
-		keys = append(keys, types.Key{string(storage.BalanceKey(actor, assetID)), types.RWrite})
-		keys = append(keys, types.Key{string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.AssetOut)), types.RWrite})
+		keys = append(keys, types.Key{Name: string(storage.BalanceKey(actor, i.warpTransfer.AssetOut)), Mode: types.RWrite})
+		keys = append(keys, types.Key{Name: string(storage.BalanceKey(actor, assetID)), Mode: types.RWrite})
+		keys = append(keys, types.Key{Name: string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.AssetOut)), Mode: types.RWrite})
 	}
 	return keys
 }

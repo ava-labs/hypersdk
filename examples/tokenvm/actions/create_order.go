@@ -54,8 +54,8 @@ func (*CreateOrder) GetTypeID() uint8 {
 
 func (c *CreateOrder) StateKeys(actor codec.Address, txID ids.ID) []types.Key {
 	return []types.Key{
-		{string(storage.BalanceKey(actor, c.Out)), types.RWrite},
-		{string(storage.OrderKey(txID)), types.RWrite},
+		{Name: string(storage.BalanceKey(actor, c.Out)), Mode: types.RWrite},
+		{Name: string(storage.OrderKey(txID)), Mode: types.RWrite},
 	}
 }
 
