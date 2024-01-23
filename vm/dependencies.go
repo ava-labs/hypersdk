@@ -17,6 +17,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/state"
@@ -89,7 +90,7 @@ type Controller interface {
 		err error,
 	)
 
-	Rules(t int64) chain.Rules // ms
+	Rules(t int64) fees.Rules // ms
 
 	// StateManager is used by the VM to request keys to store required
 	// information in state (without clobbering things the Controller is

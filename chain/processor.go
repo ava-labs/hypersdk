@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
@@ -29,8 +30,8 @@ func (b *StatelessBlock) Execute(
 	ctx context.Context,
 	tracer trace.Tracer, //nolint:interfacer
 	im state.Immutable,
-	feeManager *FeeManager,
-	r Rules,
+	feeManager *fees.FeeManager,
+	r fees.Rules,
 ) ([]*Result, *tstate.TState, error) {
 	ctx, span := tracer.Start(ctx, "Processor.Execute")
 	defer span.End()

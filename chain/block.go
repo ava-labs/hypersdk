@@ -23,6 +23,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
@@ -117,7 +118,7 @@ type StatelessBlock struct {
 	vdrState     validators.State
 
 	results    []*Result
-	feeManager *FeeManager
+	feeManager *fees.FeeManager
 
 	vm   VM
 	view merkledb.View
@@ -268,7 +269,7 @@ func (b *StatelessBlock) initializeBuilt(
 	ctx context.Context,
 	view merkledb.View,
 	results []*Result,
-	feeManager *FeeManager,
+	feeManager *fees.FeeManager,
 ) error {
 	_, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
 	defer span.End()
@@ -408,7 +409,7 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 
 // verifyWarpMessage will attempt to verify a given warp message provided by an
 // Action.
-func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *warp.Message) bool {
+func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r fees.Rules, msg *warp.Message) bool {
 	// We do not check the validity of [SourceChainID] because a VM could send
 	// itself a message to trigger a chain upgrade.
 	allowed, num, denom := r.GetWarpConfig(msg.SourceChainID)
@@ -573,7 +574,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	if err != nil {
 		return err
 	}
-	parentFeeManager := NewFeeManager(feeRaw)
+	parentFeeManager := fees.NewFeeManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(parentTimestamp, b.Tmstmp, r)
 	if err != nil {
 		return err
@@ -972,7 +973,7 @@ func (b *StatelessBlock) Results() []*Result {
 	return b.results
 }
 
-func (b *StatelessBlock) FeeManager() *FeeManager {
+func (b *StatelessBlock) FeeManager() *fees.FeeManager {
 	return b.feeManager
 }
 

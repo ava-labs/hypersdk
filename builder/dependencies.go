@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/fees"
 )
 
 type VM interface {
@@ -17,5 +18,5 @@ type VM interface {
 	PreferredBlock(context.Context) (*chain.StatelessBlock, error)
 	Logger() logging.Logger
 	Mempool() chain.Mempool
-	Rules(int64) chain.Rules
+	Rules(int64) fees.Rules
 }

@@ -20,6 +20,7 @@ import (
 	warp "github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	codec "github.com/ava-labs/hypersdk/codec"
 	state "github.com/ava-labs/hypersdk/state"
+	fees "github.com/ava-labs/hypersdk/fees"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -47,7 +48,7 @@ func (m *MockAction) EXPECT() *MockActionMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 state.Mutable, arg3 int64, arg4 codec.Address, arg5 ids.ID, arg6 bool) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
+func (m *MockAction) Execute(arg0 context.Context, arg1 fees.Rules, arg2 state.Mutable, arg3 int64, arg4 codec.Address, arg5 ids.ID, arg6 bool) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 	ret0, _ := ret[0].(bool)
@@ -91,7 +92,7 @@ func (mr *MockActionMockRecorder) Marshal(arg0 any) *gomock.Call {
 }
 
 // MaxComputeUnits mocks base method.
-func (m *MockAction) MaxComputeUnits(arg0 Rules) uint64 {
+func (m *MockAction) MaxComputeUnits(arg0 fees.Rules) uint64 {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MaxComputeUnits", arg0)
 	ret0, _ := ret[0].(uint64)
@@ -161,7 +162,7 @@ func (mr *MockActionMockRecorder) StateKeysMaxChunks() *gomock.Call {
 }
 
 // ValidRange mocks base method.
-func (m *MockAction) ValidRange(arg0 Rules) (int64, int64) {
+func (m *MockAction) ValidRange(arg0 fees.Rules) (int64, int64) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidRange", arg0)
 	ret0, _ := ret[0].(int64)

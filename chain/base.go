@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/fees"
 )
 
 const BaseSize = consts.Uint64Len*2 + consts.IDLen
@@ -28,7 +29,7 @@ type Base struct {
 	MaxFee uint64 `json:"maxFee"`
 }
 
-func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
+func (b *Base) Execute(chainID ids.ID, r fees.Rules, timestamp int64) error {
 	switch {
 	case b.Timestamp%consts.MillisecondsPerSecond != 0:
 		// TODO: make this modulus configurable

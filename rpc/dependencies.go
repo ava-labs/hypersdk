@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/fees"
 )
 
 type VM interface {
@@ -27,7 +28,7 @@ type VM interface {
 		txs []*chain.Transaction,
 	) (errs []error)
 	LastAcceptedBlock() *chain.StatelessBlock
-	UnitPrices(context.Context) (chain.Dimensions, error)
+	UnitPrices(context.Context) (fees.Dimensions, error)
 	GetOutgoingWarpMessage(ids.ID) (*warp.UnsignedMessage, error)
 	GetWarpSignatures(ids.ID) ([]*chain.WarpSignature, error)
 	CurrentValidators(
