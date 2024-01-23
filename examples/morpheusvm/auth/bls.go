@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/bls"
@@ -40,11 +41,11 @@ func (*BLS) GetTypeID() uint8 {
 	return consts.BLSID
 }
 
-func (*BLS) ComputeUnits(chain.Rules) uint64 {
+func (*BLS) ComputeUnits(fees.Rules) uint64 {
 	return BLSComputeUnits
 }
 
-func (*BLS) ValidRange(chain.Rules) (int64, int64) {
+func (*BLS) ValidRange(fees.Rules) (int64, int64) {
 	return -1, -1
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -48,7 +49,7 @@ func (*Transfer) OutputsWarpMessage() bool {
 
 func (t *Transfer) Execute(
 	ctx context.Context,
-	_ chain.Rules,
+	_ fees.Rules,
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
@@ -67,7 +68,7 @@ func (t *Transfer) Execute(
 	return true, 1, nil, nil, nil
 }
 
-func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
+func (*Transfer) MaxComputeUnits(fees.Rules) uint64 {
 	return TransferComputeUnits
 }
 
@@ -90,7 +91,7 @@ func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	return &transfer, nil
 }
 
-func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
+func (*Transfer) ValidRange(fees.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }
