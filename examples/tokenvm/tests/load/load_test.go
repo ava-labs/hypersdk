@@ -258,7 +258,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			nil,
 			[]byte(
 				fmt.Sprintf(
-					`{%s"signatureVerificationCores":%d, "rootGenerationCores":%d, "transactionExecutionCores":%d, "mempoolSize":%d, "mempoolSponsorSize":%d, "testMode":true}`,
+					`{%s"authVerificationCores":%d, "rootGenerationCores":%d, "transactionExecutionCores":%d, "mempoolSize":%d, "mempoolSponsorSize":%d, "testMode":true}`,
 					tracePrefix,
 					numWorkers/3,
 					numWorkers/3,
@@ -540,8 +540,6 @@ func issueSimpleTx(
 	)
 	tx, err := tx.Sign(factory, consts.ActionRegistry, consts.AuthRegistry)
 	gomega.Ω(err).To(gomega.BeNil())
-	verify := tx.AuthAsyncVerify()
-	gomega.Ω(verify()).To(gomega.BeNil())
 	_, err = i.cli.SubmitTx(context.TODO(), tx.Bytes())
 	return tx.ID(), err
 }

@@ -76,7 +76,7 @@ func BuildBlock(
 	nextTime := time.Now().UnixMilli()
 	r := vm.Rules(nextTime)
 	if nextTime < parent.Tmstmp+r.GetMinBlockGap() {
-		log.Warn("block building failed", zap.Error(ErrTimestampTooEarly))
+		log.Debug("block building failed", zap.Error(ErrTimestampTooEarly))
 		return nil, ErrTimestampTooEarly
 	}
 	b := NewBlock(vm, parent, nextTime)
@@ -171,7 +171,7 @@ func BuildBlock(
 
 			// Ensure we can process if transaction includes a warp message
 			if tx.WarpMessage != nil && blockContext == nil {
-				log.Info(
+				log.Debug(
 					"dropping pending warp message because no context provided",
 					zap.Stringer("txID", tx.ID()),
 				)
@@ -273,8 +273,7 @@ func BuildBlock(
 
 				// Execute block
 				tsv := ts.NewView(stateKeys, storage)
-				authCUs, err := tx.PreExecute(ctx, feeManager, sm, r, tsv, nextTime)
-				if err != nil {
+				if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, nextTime); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
 					if HandlePreExecute(log, err) {
@@ -338,7 +337,6 @@ func BuildBlock(
 				result, err := tx.Execute(
 					ctx,
 					feeManager,
-					authCUs,
 					reads,
 					sm,
 					r,

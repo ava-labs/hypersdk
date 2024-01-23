@@ -138,7 +138,7 @@ func TestBatchAddVerifyValid(t *testing.T) {
 		sig := Sign(msg, priv)
 		sigs[i] = sig
 	}
-	bv := NewBatch()
+	bv := NewBatch(numItems)
 	for i := 0; i < numItems; i++ {
 		bv.Add(msgs[i], pubs[i], sigs[i])
 	}
@@ -172,7 +172,7 @@ func TestBatchAddVerifyInvalid(t *testing.T) {
 		}
 		sigs[i] = sig
 	}
-	bv := NewBatch()
+	bv := NewBatch(numItems)
 	for i := 0; i < numItems; i++ {
 		bv.Add(msgs[i], pubs[i], sigs[i])
 	}
@@ -292,7 +292,7 @@ func BenchmarkConsensusBatchAddVerify(b *testing.B) {
 			b.StartTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				bv := ed25519consensus.NewBatchVerifier()
+				bv := ed25519consensus.NewPreallocatedBatchVerifier(numItems)
 				for j := 0; j < numItems; j++ {
 					bv.Add(pubs[j], msgs[j], sigs[j])
 				}
@@ -326,7 +326,7 @@ func BenchmarkConsensusBatchVerify(b *testing.B) {
 				sig := ed25519.Sign(priv, msg)
 				sigs[i] = sig
 			}
-			bv := ed25519consensus.NewBatchVerifier()
+			bv := ed25519consensus.NewPreallocatedBatchVerifier(numItems)
 			for i := 0; i < numItems; i++ {
 				bv.Add(pubs[i], msgs[i], sigs[i])
 			}

@@ -536,12 +536,14 @@ func TestCreateView(t *testing.T) {
 	ts := New(10)
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	db, err := merkledb.New(ctx, memdb.New(), merkledb.Config{
-		BranchFactor:              merkledb.BranchFactor16,
-		HistoryLength:             100,
-		EvictionBatchSize:         units.MiB,
-		IntermediateNodeCacheSize: units.MiB,
-		ValueNodeCacheSize:        units.MiB,
-		Tracer:                    tracer,
+		BranchFactor:                merkledb.BranchFactor16,
+		RootGenConcurrency:          1,
+		HistoryLength:               100,
+		ValueNodeCacheSize:          units.MiB,
+		IntermediateNodeCacheSize:   units.MiB,
+		IntermediateWriteBufferSize: units.KiB,
+		IntermediateWriteBatchSize:  units.KiB,
+		Tracer:                      tracer,
 	})
 	if err != nil {
 		t.Fatal(err)

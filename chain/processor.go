@@ -109,8 +109,7 @@ func (b *StatelessBlock) Execute(
 			tsv := ts.NewView(stateKeys, storage)
 
 			// Ensure we have enough funds to pay fees
-			authCUs, err := tx.PreExecute(ctx, feeManager, sm, r, tsv, t)
-			if err != nil {
+			if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, t); err != nil {
 				return err
 			}
 
@@ -124,7 +123,7 @@ func (b *StatelessBlock) Execute(
 					return ctx.Err()
 				}
 			}
-			result, err := tx.Execute(ctx, feeManager, authCUs, reads, sm, r, tsv, t, ok && warpVerified)
+			result, err := tx.Execute(ctx, feeManager, reads, sm, r, tsv, t, ok && warpVerified)
 			if err != nil {
 				return err
 			}

@@ -51,9 +51,9 @@ func (*CreateOrder) GetTypeID() uint8 {
 	return createOrderID
 }
 
-func (c *CreateOrder) StateKeys(auth chain.Auth, txID ids.ID) []string {
+func (c *CreateOrder) StateKeys(actor codec.Address, txID ids.ID) []string {
 	return []string{
-		string(storage.BalanceKey(auth.Actor(), c.Out)),
+		string(storage.BalanceKey(actor, c.Out)),
 		string(storage.OrderKey(txID)),
 	}
 }
@@ -71,7 +71,7 @@ func (c *CreateOrder) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	auth chain.Auth,
+	actor codec.Address,
 	txID ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
@@ -90,10 +90,10 @@ func (c *CreateOrder) Execute(
 	if c.Supply%c.OutTick != 0 {
 		return false, CreateOrderComputeUnits, OutputSupplyMisaligned, nil, nil
 	}
-	if err := storage.SubBalance(ctx, mu, auth.Actor(), c.Out, c.Supply); err != nil {
+	if err := storage.SubBalance(ctx, mu, actor, c.Out, c.Supply); err != nil {
 		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.SetOrder(ctx, mu, txID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, auth.Actor()); err != nil {
+	if err := storage.SetOrder(ctx, mu, txID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
 		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, CreateOrderComputeUnits, nil, nil, nil

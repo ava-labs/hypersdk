@@ -6,6 +6,7 @@ package genesis
 import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 )
 
 var _ chain.Rules = (*Rules)(nil)
@@ -68,6 +69,10 @@ func (r *Rules) GetWarpComputeUnitsPerSigner() uint64 {
 
 func (r *Rules) GetOutgoingWarpComputeUnits() uint64 {
 	return r.g.OutgoingWarpComputeUnits
+}
+
+func (*Rules) GetSponsorStateKeysMaxChunks() []uint16 {
+	return []uint16{storage.BalanceChunks}
 }
 
 func (r *Rules) GetStorageKeyReadUnits() uint64 {

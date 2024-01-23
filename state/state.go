@@ -24,6 +24,6 @@ type Mutable interface {
 type View interface {
 	Immutable
 
-	NewView(ctx context.Context, changes merkledb.ViewChanges) (merkledb.TrieView, error)
+	NewView(ctx context.Context, changes merkledb.ViewChanges) (merkledb.View, error)
 	GetMerkleRoot(ctx context.Context) (ids.ID, error)
 }

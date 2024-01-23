@@ -17,7 +17,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=v1.10.15
+VERSION=v1.10.18
 MAX_UINT64=18446744073709551615
 MODE=${MODE:-run}
 AGO_LOGLEVEL=${AGO_LOGLEVEL:-info}
@@ -151,10 +151,10 @@ cat <<EOF > ${TMPDIR}/morpheusvm.config
   "mempoolSize": 10000000,
   "mempoolSponsorSize": 10000000,
   "mempoolExemptSponsors":["${ADDRESS}"],
-  "signatureVerificationCores": 2,
+  "authVerificationCores": 2,
   "rootGenerationCores": 2,
   "transactionExecutionCores": 2,
-  "verifySignatures":true,
+  "verifyAuth":true,
   "storeTransactions": ${STORE_TXS},
   "streamingBacklogSize": 10000000,
   "logLevel": "${LOGLEVEL}",
@@ -199,7 +199,7 @@ ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 # download avalanche-network-runner
 # https://github.com/ava-labs/avalanche-network-runner
 ANR_REPO_PATH=github.com/ava-labs/avalanche-network-runner
-ANR_VERSION=24d0d6a398558c9d2572cd1bc6bed40226681558
+ANR_VERSION=90aa9ae77845665b7638404a2a5e6a4dcce6d489
 # version set
 go install -v ${ANR_REPO_PATH}@${ANR_VERSION}
 

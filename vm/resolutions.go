@@ -54,8 +54,8 @@ func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return vm.actionRegistry, vm.authRegistry
 }
 
-func (vm *VM) SignatureWorkers() workers.Workers {
-	return vm.sigWorkers
+func (vm *VM) AuthVerifiers() workers.Workers {
+	return vm.authVerifiers
 }
 
 func (vm *VM) Tracer() trace.Tracer {
@@ -413,8 +413,8 @@ func (vm *VM) RecordStateOperations(c int) {
 	vm.metrics.stateOperations.Add(float64(c))
 }
 
-func (vm *VM) GetVerifySignatures() bool {
-	return vm.config.GetVerifySignatures()
+func (vm *VM) GetVerifyAuth() bool {
+	return vm.config.GetVerifyAuth()
 }
 
 func (vm *VM) RecordTxsGossiped(c int) {
