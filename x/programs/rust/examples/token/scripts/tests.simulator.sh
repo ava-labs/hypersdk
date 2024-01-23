@@ -19,6 +19,7 @@ export SIMULATOR_PATH="${simulator_bin}"
 export PROGRAM_PATH="${PWD}"/../../../tests/fixture/token.wasm
 
 echo "Downloading dependencies..."
+echo "${simulator_path}"
 cd "${simulator_path}"
 go mod download
 
