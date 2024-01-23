@@ -30,7 +30,8 @@ type Genesis struct {
 	HRP string `json:"hrp"`
 
 	// State Parameters
-	StateBranchFactor merkledb.BranchFactor `json:"stateBranchFactor"`
+	StateBranchFactor         merkledb.BranchFactor `json:"stateBranchFactor"`
+	SponsorStateKeysMaxChunks []uint16
 
 	// Chain Parameters
 	MinBlockGap      int64 `json:"minBlockGap"`      // ms

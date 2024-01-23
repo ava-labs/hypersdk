@@ -5,10 +5,11 @@ package program
 
 import (
 	"fmt"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/near/borsh-go"
 	"math"
 	"runtime"
+
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/near/borsh-go"
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )

@@ -6,6 +6,7 @@ package actions
 import (
 	"context"
 	"fmt"
+
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/host"
@@ -42,8 +43,8 @@ func (*ProgramExecute) GetTypeID() uint8 {
 	return programExecuteID
 }
 
-func (t *ProgramExecute) StateKeys(rauth chain.Auth, id ids.ID) []string {
-	return []string{string(storage.ProgramKey(id))}
+func (t *ProgramExecute) StateKeys(actor codec.Address, txID ids.ID) []string {
+	return []string{}
 }
 
 func (*ProgramExecute) StateKeysMaxChunks() []uint16 {
@@ -59,10 +60,10 @@ func (t *ProgramExecute) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	_ chain.Auth,
-	id ids.ID,
+	_ codec.Address,
+	_ ids.ID,
 	_ bool,
-) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
+) (success bool, computeUnits uint64, output []byte, warpMessage *warp.UnsignedMessage, err error) {
 	if len(t.Function) == 0 {
 		return false, 1, OutputValueZero, nil, nil
 	}

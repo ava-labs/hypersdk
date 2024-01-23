@@ -88,7 +88,6 @@ func (c *Config) setDefault() {
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
-	c.VerifySignatures = c.Config.GetVerifySignatures()
 	c.StoreTransactions = defaultStoreTransactions
 }
 

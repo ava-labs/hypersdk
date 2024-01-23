@@ -22,6 +22,10 @@ func (g *Genesis) Rules(_ int64, networkID uint32, chainID ids.ID) *Rules {
 	return &Rules{g, networkID, chainID}
 }
 
+func (r *Rules) GetSponsorStateKeysMaxChunks() []uint16 {
+	return r.g.SponsorStateKeysMaxChunks
+}
+
 func (r *Rules) GetMinBlockGap() int64 {
 	return r.g.MinBlockGap
 }

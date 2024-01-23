@@ -6,8 +6,9 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"github.com/ava-labs/hypersdk/x/programs/program"
 	"os"
+
+	"github.com/ava-labs/hypersdk/x/programs/program"
 
 	"github.com/spf13/cobra"
 
@@ -115,7 +116,7 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 	}
 
 	// execute the action
-	success, _, output, _, err := programCreateAction.Execute(ctx, nil, db, 0, nil, programID, false)
+	success, _, output, _, err := programCreateAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programID, false)
 	if output != nil {
 		fmt.Println(string(output))
 	}
@@ -157,7 +158,7 @@ func programExecuteFunc(
 	}
 
 	// execute the action
-	success, _, resp, _, err := programExecuteAction.Execute(ctx, nil, db, 0, nil, programTxID, false)
+	success, _, resp, _, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID, false)
 	if !success {
 		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s", string(resp))
 	}
