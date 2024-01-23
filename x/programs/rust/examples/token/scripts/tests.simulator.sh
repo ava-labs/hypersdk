@@ -22,7 +22,6 @@ echo "Building Token example..."
 ./../../scripts/build.sh
 
 echo "Downloading dependencies..."
-echo "${simulator_path}"
 cd "${simulator_path}"
 go mod download
 
