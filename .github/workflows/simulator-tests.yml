@@ -11,7 +11,6 @@ on:
 
 jobs:
   simulator-tests:
-    if: ${{ github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'run all ci') }}
     runs-on:
       labels: ubuntu-20.04-32
     timeout-minutes: 25
