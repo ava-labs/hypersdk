@@ -38,7 +38,7 @@ func (*StateManager) OutgoingWarpKeyPrefix(txID ids.ID) []byte {
 
 func (*StateManager) SponsorStateKeys(addr codec.Address) []state.Key {
 	return []state.Key{
-		{Name: string(BalanceKey(addr)), Mode: state.RWrite},
+		state.NewKey(string(BalanceKey(addr)), state.Read, state.Write),
 	}
 }
 

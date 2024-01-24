@@ -38,8 +38,8 @@ func (*Transfer) GetTypeID() uint8 {
 
 func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) []state.Key {
 	return []state.Key{
-		{Name: string(storage.BalanceKey(actor, t.Asset)), Mode: state.RWrite},
-		{Name: string(storage.BalanceKey(t.To, t.Asset)), Mode: state.RWrite},
+		state.NewKey(string(storage.BalanceKey(actor, t.Asset)), state.Read, state.Write),
+		state.NewKey(string(storage.BalanceKey(t.To, t.Asset)), state.Read, state.Write),
 	}
 }
 

@@ -30,14 +30,38 @@ type View interface {
 
 type Key struct {
 	Name string
-	Mode KeyMode
+	Mode [ModeLen]byte
 }
 
-type KeyMode uint8
-
 const (
-	// These `chain` consts are defined here to avoid circular dependency
-	Read   KeyMode = 0
-	Write  KeyMode = 1
-	RWrite KeyMode = 2
+	ModeLen = 8
+	Read    = 0
+	Write   = 1
 )
+
+func NewKey(name string, bits ...int) Key {
+	var key Key
+	key.Name = name
+
+	for _, bit := range bits {
+		byteIdx := bit / 8
+		bitIdx := uint(bit % 8)
+
+		if byteIdx < ModeLen {
+			key.Mode[byteIdx] |= (1 << bitIdx)
+		}
+	}
+
+	return key
+}
+
+func (k *Key) HasMode(mode int) bool {
+	byteIdx := mode / 8
+	bitIdx := uint(mode % 8)
+
+	if byteIdx >= ModeLen {
+		return false
+	}
+
+	return (k.Mode[byteIdx] & (1 << bitIdx)) != 0
+}
