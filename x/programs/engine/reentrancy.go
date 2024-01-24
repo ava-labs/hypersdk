@@ -38,6 +38,7 @@ func (r *ReentrancyGuard) Reset() {
 
 // Enter returns if we have never entered this function before, errors otherwise.
 // If the function has not been entered before, we set the visited flag.
+// We can return an error because only non-reentrant functions will call this method.
 func (r *ReentrancyGuard) Enter(id ids.ID, fn string) error {
 	// reentering since we already visited
 	if r.m[id] != nil && r.m[id][fn] {
