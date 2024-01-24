@@ -17,9 +17,9 @@ type ArchiverConfig struct {
 	Enabled      bool   `json:"enabled"`
 }
 
-func CreateArchiverByConfig(ctx context.Context, b []byte) (Archiver, error) {
+func CreateArchiverByConfig(ctx context.Context, configBytes []byte) (Archiver, error) {
 	var config ArchiverConfig
-	err := json.Unmarshal(b, &config)
+	err := json.Unmarshal(configBytes, &config)
 	if err != nil {
 		return nil, ErrParsingArchiverConfig
 	}
@@ -30,7 +30,9 @@ func CreateArchiverByConfig(ctx context.Context, b []byte) (Archiver, error) {
 
 	switch strings.ToLower(config.ArchiverType) {
 	case "aws":
-		return CreateS3Archiver(ctx, b)
+		return CreateS3Archiver(ctx, configBytes)
+	case "disk":
+		return CreateDiskArchiver(ctx, configBytes)
 	default:
 		return &NoOpArchiver{}, nil
 	}
