@@ -24,7 +24,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/types"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
 	"github.com/ava-labs/hypersdk/workers"
@@ -611,9 +610,9 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
 
-	heightKeyKey := types.Key{Name: heightKeyStr, Mode: types.RWrite}
-	timestampKeyKey := types.Key{Name: timestampKeyStr, Mode: types.RWrite}
-	feeKeyKey := types.Key{Name: feeKeyStr, Mode: types.RWrite}
+	heightKeyKey := state.Key{Name: heightKeyStr, Mode: state.RWrite}
+	timestampKeyKey := state.Key{Name: timestampKeyStr, Mode: state.RWrite}
+	feeKeyKey := state.Key{Name: feeKeyStr, Mode: state.RWrite}
 
 	tsv := ts.NewView(set.Of(heightKeyKey, timestampKeyKey, feeKeyKey), map[string][]byte{
 		heightKeyStr:    parentHeightRaw,

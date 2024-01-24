@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/types"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -38,17 +37,17 @@ func (*ExportAsset) GetTypeID() uint8 {
 	return exportAssetID
 }
 
-func (e *ExportAsset) StateKeys(actor codec.Address, _ ids.ID) []types.Key {
+func (e *ExportAsset) StateKeys(actor codec.Address, _ ids.ID) []state.Key {
 	if e.Return {
-		return []types.Key{
-			{Name: string(storage.AssetKey(e.Asset)), Mode: types.RWrite},
-			{Name: string(storage.BalanceKey(actor, e.Asset)), Mode: types.RWrite},
+		return []state.Key{
+			{Name: string(storage.AssetKey(e.Asset)), Mode: state.RWrite},
+			{Name: string(storage.BalanceKey(actor, e.Asset)), Mode: state.RWrite},
 		}
 	}
-	return []types.Key{
-		{Name: string(storage.AssetKey(e.Asset)), Mode: types.RWrite},
-		{Name: string(storage.LoanKey(e.Asset, e.Destination)), Mode: types.RWrite},
-		{Name: string(storage.BalanceKey(actor, e.Asset)), Mode: types.RWrite},
+	return []state.Key{
+		{Name: string(storage.AssetKey(e.Asset)), Mode: state.RWrite},
+		{Name: string(storage.LoanKey(e.Asset, e.Destination)), Mode: state.RWrite},
+		{Name: string(storage.BalanceKey(actor, e.Asset)), Mode: state.RWrite},
 	}
 }
 

@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/types"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -36,10 +35,10 @@ func (*MintAsset) GetTypeID() uint8 {
 	return mintAssetID
 }
 
-func (m *MintAsset) StateKeys(codec.Address, ids.ID) []types.Key {
-	return []types.Key{
-		{Name: string(storage.AssetKey(m.Asset)), Mode: types.RWrite},
-		{Name: string(storage.BalanceKey(m.To, m.Asset)), Mode: types.RWrite},
+func (m *MintAsset) StateKeys(codec.Address, ids.ID) []state.Key {
+	return []state.Key{
+		{Name: string(storage.AssetKey(m.Asset)), Mode: state.RWrite},
+		{Name: string(storage.BalanceKey(m.To, m.Asset)), Mode: state.RWrite},
 	}
 }
 

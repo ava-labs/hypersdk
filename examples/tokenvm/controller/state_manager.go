@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/types"
 )
 
 var _ (chain.StateManager) = (*StateManager)(nil)
@@ -38,9 +37,9 @@ func (*StateManager) OutgoingWarpKeyPrefix(txID ids.ID) []byte {
 	return storage.OutgoingWarpKeyPrefix(txID)
 }
 
-func (*StateManager) SponsorStateKeys(addr codec.Address) []types.Key {
-	return []types.Key{
-		{Name: string(storage.BalanceKey(addr, ids.Empty)), Mode: types.RWrite},
+func (*StateManager) SponsorStateKeys(addr codec.Address) []state.Key {
+	return []state.Key{
+		{Name: string(storage.BalanceKey(addr, ids.Empty)), Mode: state.RWrite},
 	}
 }
 

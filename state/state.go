@@ -27,3 +27,17 @@ type View interface {
 	NewView(ctx context.Context, changes merkledb.ViewChanges) (merkledb.View, error)
 	GetMerkleRoot(ctx context.Context) (ids.ID, error)
 }
+
+type Key struct {
+	Name string
+	Mode KeyMode
+}
+
+type KeyMode uint8
+
+const (
+	// These `chain` consts are defined here to avoid circular dependency
+	Read   KeyMode = 0
+	Write  KeyMode = 1
+	RWrite KeyMode = 2
+)

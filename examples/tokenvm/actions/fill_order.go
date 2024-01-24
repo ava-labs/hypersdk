@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/types"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -45,12 +44,12 @@ func (*FillOrder) GetTypeID() uint8 {
 	return fillOrderID
 }
 
-func (f *FillOrder) StateKeys(actor codec.Address, _ ids.ID) []types.Key {
-	return []types.Key{
-		{Name: string(storage.OrderKey(f.Order)), Mode: types.RWrite},
-		{Name: string(storage.BalanceKey(f.Owner, f.In)), Mode: types.RWrite},
-		{Name: string(storage.BalanceKey(actor, f.In)), Mode: types.RWrite},
-		{Name: string(storage.BalanceKey(actor, f.Out)), Mode: types.RWrite},
+func (f *FillOrder) StateKeys(actor codec.Address, _ ids.ID) []state.Key {
+	return []state.Key{
+		{Name: string(storage.OrderKey(f.Order)), Mode: state.RWrite},
+		{Name: string(storage.BalanceKey(f.Owner, f.In)), Mode: state.RWrite},
+		{Name: string(storage.BalanceKey(actor, f.In)), Mode: state.RWrite},
+		{Name: string(storage.BalanceKey(actor, f.Out)), Mode: state.RWrite},
 	}
 }
 

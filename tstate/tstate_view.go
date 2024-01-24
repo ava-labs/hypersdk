@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/keys"
-	"github.com/ava-labs/hypersdk/types"
+	"github.com/ava-labs/hypersdk/state"
 )
 
 const defaultOps = 4
@@ -52,18 +52,18 @@ type TStateView struct {
 	writes      map[string]uint16
 }
 
-func (ts *TState) NewView(scope set.Set[types.Key], storage map[string][]byte) *TStateView {
+func (ts *TState) NewView(scope set.Set[state.Key], storage map[string][]byte) *TStateView {
 	// TODO: set length to be the number of keys for each type
 	readScope := set.NewSet[string](len(scope))
 	writeScope := set.NewSet[string](len(scope))
 	rwScope := set.NewSet[string](len(scope))
 	for k := range scope {
 		switch k.Mode {
-		case types.Read:
+		case state.Read:
 			readScope.Add(k.Name)
-		case types.Write:
+		case state.Write:
 			writeScope.Add(k.Name)
-		case types.RWrite:
+		case state.RWrite:
 			rwScope.Add(k.Name)
 		}
 	}

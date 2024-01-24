@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/types"
 )
 
 var _ (chain.StateManager) = (*StateManager)(nil)
@@ -37,9 +36,9 @@ func (*StateManager) OutgoingWarpKeyPrefix(txID ids.ID) []byte {
 	return OutgoingWarpKeyPrefix(txID)
 }
 
-func (*StateManager) SponsorStateKeys(addr codec.Address) []types.Key {
-	return []types.Key{
-		{Name: string(BalanceKey(addr)), Mode: types.RWrite},
+func (*StateManager) SponsorStateKeys(addr codec.Address) []state.Key {
+	return []state.Key{
+		{Name: string(BalanceKey(addr)), Mode: state.RWrite},
 	}
 }
 

@@ -21,7 +21,6 @@ import (
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
-	"github.com/ava-labs/hypersdk/types"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -48,7 +47,7 @@ type Transaction struct {
 	// prevents duplicates (like txID). We will not allow 2 instances of the same
 	// warpID from the same sourceChainID to be accepted.
 	warpID    ids.ID
-	stateKeys set.Set[types.Key]
+	stateKeys set.Set[state.Key]
 }
 
 type WarpResult struct {
@@ -123,7 +122,7 @@ func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 
 func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
 
-func (t *Transaction) StateKeys(sm StateManager) (set.Set[types.Key], error) {
+func (t *Transaction) StateKeys(sm StateManager) (set.Set[state.Key], error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
@@ -131,8 +130,8 @@ func (t *Transaction) StateKeys(sm StateManager) (set.Set[types.Key], error) {
 	// Verify the formatting of state keys passed by the controller
 	actionKeys := t.Action.StateKeys(t.Auth.Actor(), t.ID())
 	sponsorKeys := sm.SponsorStateKeys(t.Auth.Sponsor())
-	stateKeys := set.NewSet[types.Key](len(actionKeys) + len(sponsorKeys))
-	for _, arr := range [][]types.Key{actionKeys, sponsorKeys} {
+	stateKeys := set.NewSet[state.Key](len(actionKeys) + len(sponsorKeys))
+	for _, arr := range [][]state.Key{actionKeys, sponsorKeys} {
 		for _, key := range arr {
 			if !keys.Valid(key.Name) {
 				return nil, ErrInvalidKeyValue
@@ -145,12 +144,12 @@ func (t *Transaction) StateKeys(sm StateManager) (set.Set[types.Key], error) {
 	if t.WarpMessage != nil {
 		p := sm.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
 		k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
-		stateKeys.Add(types.Key{Name: string(k), Mode: types.RWrite})
+		stateKeys.Add(state.Key{Name: string(k), Mode: state.RWrite})
 	}
 	if t.Action.OutputsWarpMessage() {
 		p := sm.OutgoingWarpKeyPrefix(t.id)
 		k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
-		stateKeys.Add(types.Key{Name: string(k), Mode: types.RWrite})
+		stateKeys.Add(state.Key{Name: string(k), Mode: state.RWrite})
 	}
 
 	// Cache keys if called again

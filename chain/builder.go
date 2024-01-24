@@ -22,8 +22,8 @@ import (
 
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/keys"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
-	"github.com/ava-labs/hypersdk/types"
 )
 
 const (
@@ -448,9 +448,9 @@ func BuildBlock(
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
 
-	heightKeyKey := types.Key{Name: heightKeyStr, Mode: types.RWrite}
-	timestampKeyKey := types.Key{Name: timestampKeyStr, Mode: types.RWrite}
-	feeKeyKey := types.Key{Name: feeKeyStr, Mode: types.RWrite}
+	heightKeyKey := state.Key{Name: heightKeyStr, Mode: state.RWrite}
+	timestampKeyKey := state.Key{Name: timestampKeyStr, Mode: state.RWrite}
+	feeKeyKey := state.Key{Name: feeKeyStr, Mode: state.RWrite}
 
 	tsv := ts.NewView(set.Of(heightKeyKey, timestampKeyKey, feeKeyKey), map[string][]byte{
 		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),

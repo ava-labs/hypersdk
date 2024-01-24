@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/types"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -29,9 +28,9 @@ func (*CreateAsset) GetTypeID() uint8 {
 	return createAssetID
 }
 
-func (*CreateAsset) StateKeys(_ codec.Address, txID ids.ID) []types.Key {
-	return []types.Key{
-		{Name: string(storage.AssetKey(txID)), Mode: types.RWrite},
+func (*CreateAsset) StateKeys(_ codec.Address, txID ids.ID) []state.Key {
+	return []state.Key{
+		{Name: string(storage.AssetKey(txID)), Mode: state.RWrite},
 	}
 }
 

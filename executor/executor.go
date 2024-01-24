@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/set"
 
-	"github.com/ava-labs/hypersdk/types"
+	"github.com/ava-labs/hypersdk/state"
 )
 
 const defaultSetSize = 8
@@ -107,7 +107,7 @@ func (e *Executor) createWorker() {
 
 // Run executes [f] after all previously enqueued [f] with
 // overlapping [conflicts] are executed.
-func (e *Executor) Run(conflicts set.Set[types.Key], f func() error) {
+func (e *Executor) Run(conflicts set.Set[state.Key], f func() error) {
 	e.l.Lock()
 	defer e.l.Unlock()
 

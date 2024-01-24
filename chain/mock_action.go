@@ -20,7 +20,6 @@ import (
 	warp "github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	codec "github.com/ava-labs/hypersdk/codec"
 	state "github.com/ava-labs/hypersdk/state"
-	types "github.com/ava-labs/hypersdk/types"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -134,10 +133,10 @@ func (mr *MockActionMockRecorder) Size() *gomock.Call {
 }
 
 // StateKeys mocks base method.
-func (m *MockAction) StateKeys(arg0 codec.Address, arg1 ids.ID) []types.Key {
+func (m *MockAction) StateKeys(arg0 codec.Address, arg1 ids.ID) []state.Key {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StateKeys", arg0, arg1)
-	ret0, _ := ret[0].([]types.Key)
+	ret0, _ := ret[0].([]state.Key)
 	return ret0
 }
 

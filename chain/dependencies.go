@@ -19,7 +19,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/types"
 	"github.com/ava-labs/hypersdk/workers"
 )
 
@@ -177,7 +176,7 @@ type FeeHandler interface {
 	//
 	// All keys specified must be suffixed with the number of chunks that could ever be read from that
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
-	SponsorStateKeys(addr codec.Address) []types.Key
+	SponsorStateKeys(addr codec.Address) []state.Key
 
 	// CanDeduct returns an error if [amount] cannot be paid by [addr].
 	CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error
@@ -249,7 +248,7 @@ type Action interface {
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
 	//
 	// If any key is removed and then re-created, this will count as a creation instead of a modification.
-	StateKeys(actor codec.Address, txID ids.ID) []types.Key
+	StateKeys(actor codec.Address, txID ids.ID) []state.Key
 
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.

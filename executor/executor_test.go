@@ -13,7 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/types"
+	"github.com/ava-labs/hypersdk/state"
 )
 
 func TestExecutorNoConflicts(t *testing.T) {
@@ -25,9 +25,9 @@ func TestExecutorNoConflicts(t *testing.T) {
 		canWait   = make(chan struct{})
 	)
 	for i := 0; i < 100; i++ {
-		s := set.NewSet[types.Key](i + 1)
+		s := set.NewSet[state.Key](i + 1)
 		for k := 0; k < i+1; k++ {
-			s.Add(types.Key{Name: ids.GenerateTestID().String(), Mode: types.RWrite})
+			s.Add(state.Key{Name: ids.GenerateTestID().String(), Mode: state.RWrite})
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -53,9 +53,9 @@ func TestExecutorNoConflictsSlow(t *testing.T) {
 		e         = New(100, 4, nil)
 	)
 	for i := 0; i < 100; i++ {
-		s := set.NewSet[types.Key](i + 1)
+		s := set.NewSet[state.Key](i + 1)
 		for k := 0; k < i+1; k++ {
-			s.Add(types.Key{Name: ids.GenerateTestID().String(), Mode: types.RWrite})
+			s.Add(state.Key{Name: ids.GenerateTestID().String(), Mode: state.RWrite})
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -82,12 +82,12 @@ func TestExecutorSimpleConflict(t *testing.T) {
 		e           = New(100, 4, nil)
 	)
 	for i := 0; i < 100; i++ {
-		s := set.NewSet[types.Key](i + 1)
+		s := set.NewSet[state.Key](i + 1)
 		for k := 0; k < i+1; k++ {
-			s.Add(types.Key{Name: ids.GenerateTestID().String(), Mode: types.RWrite})
+			s.Add(state.Key{Name: ids.GenerateTestID().String(), Mode: state.RWrite})
 		}
 		if i%10 == 0 {
-			s.Add(types.Key{Name: conflictKey, Mode: types.RWrite})
+			s.Add(state.Key{Name: conflictKey, Mode: state.RWrite})
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -115,15 +115,15 @@ func TestExecutorMultiConflict(t *testing.T) {
 		e            = New(100, 4, nil)
 	)
 	for i := 0; i < 100; i++ {
-		s := set.NewSet[types.Key](i + 1)
+		s := set.NewSet[state.Key](i + 1)
 		for k := 0; k < i+1; k++ {
-			s.Add(types.Key{Name: ids.GenerateTestID().String(), Mode: types.RWrite})
+			s.Add(state.Key{Name: ids.GenerateTestID().String(), Mode: state.RWrite})
 		}
 		if i%10 == 0 {
-			s.Add(types.Key{Name: conflictKey, Mode: types.RWrite})
+			s.Add(state.Key{Name: conflictKey, Mode: state.RWrite})
 		}
 		if i == 15 || i == 20 {
-			s.Add(types.Key{Name: conflictKey2, Mode: types.RWrite})
+			s.Add(state.Key{Name: conflictKey2, Mode: state.RWrite})
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -153,9 +153,9 @@ func TestEarlyExit(t *testing.T) {
 		terr      = errors.New("uh oh")
 	)
 	for i := 0; i < 500; i++ {
-		s := set.NewSet[types.Key](i + 1)
+		s := set.NewSet[state.Key](i + 1)
 		for k := 0; k < i+1; k++ {
-			s.Add(types.Key{Name: ids.GenerateTestID().String(), Mode: types.RWrite})
+			s.Add(state.Key{Name: ids.GenerateTestID().String(), Mode: state.RWrite})
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -180,9 +180,9 @@ func TestStop(t *testing.T) {
 		e         = New(500, 4, nil)
 	)
 	for i := 0; i < 500; i++ {
-		s := set.NewSet[types.Key](i + 1)
+		s := set.NewSet[state.Key](i + 1)
 		for k := 0; k < i+1; k++ {
-			s.Add(types.Key{Name: ids.GenerateTestID().String(), Mode: types.RWrite})
+			s.Add(state.Key{Name: ids.GenerateTestID().String(), Mode: state.RWrite})
 		}
 		ti := i
 		e.Run(s, func() error {
