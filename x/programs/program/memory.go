@@ -8,9 +8,6 @@ import (
 	"math"
 	"runtime"
 
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/near/borsh-go"
-
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
@@ -158,59 +155,6 @@ func WriteBytes(m *Memory, buf []byte) (uint32, error) {
 	}
 
 	return offset, nil
-}
-
-// CallParam defines a value to be passed to a guest function.
-type CallParam struct {
-	Value interface{} `json,yaml:"value"`
-}
-
-// WriteParams is a helper function that writes the given params to memory if non integer.
-// Supported types include int, uint64 and string.
-func WriteParams(m *Memory, p []CallParam) ([]SmartPtr, error) {
-	var params []SmartPtr
-	for _, param := range p {
-		switch v := param.Value.(type) {
-		case ids.ID:
-			smartPtr, err := BytesToSmartPtr(v[:], m)
-			if err != nil {
-				return nil, err
-			}
-			params = append(params, smartPtr)
-		case string:
-			smartPtr, err := BytesToSmartPtr([]byte(v), m)
-			if err != nil {
-				return nil, err
-			}
-			params = append(params, smartPtr)
-		case SmartPtr:
-			params = append(params, v)
-		default:
-			ptr, err := argumentToSmartPtr(v, m)
-			if err != nil {
-				return nil, err
-			}
-			params = append(params, ptr)
-		}
-	}
-
-	return params, nil
-}
-
-// SerializeParameter serializes [obj] using Borsh
-func serializeParameter(obj interface{}) ([]byte, error) {
-	bytes, err := borsh.Serialize(obj)
-	return bytes, err
-}
-
-// Serialize the parameter and create a smart ptr
-func argumentToSmartPtr(obj interface{}, memory *Memory) (SmartPtr, error) {
-	bytes, err := serializeParameter(obj)
-	if err != nil {
-		return 0, err
-	}
-
-	return BytesToSmartPtr(bytes, memory)
 }
 
 // SmartPtr is an int64 where the first 4 bytes represent the length of the bytes

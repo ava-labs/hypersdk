@@ -6,6 +6,7 @@ package actions
 import (
 	"context"
 	"fmt"
+	"github.com/near/borsh-go"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
@@ -30,9 +31,9 @@ import (
 var _ chain.Action = (*ProgramExecute)(nil)
 
 type ProgramExecute struct {
-	Function string              `json:"programFunction"`
-	MaxUnits uint64              `json:"maxUnits"`
-	Params   []program.CallParam `json:"params"`
+	Function string      `json:"programFunction"`
+	MaxUnits uint64      `json:"maxUnits"`
+	Params   []CallParam `json:"params"`
 
 	Log logging.Logger
 
@@ -122,7 +123,7 @@ func (t *ProgramExecute) Execute(
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
-	params, err := program.WriteParams(mem, t.Params)
+	params, err := WriteParams(mem, t.Params)
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
@@ -165,4 +166,63 @@ func UnmarshalProgramExecute(p *codec.Packer, _ *warp.Message) (chain.Action, er
 func (*ProgramExecute) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
+}
+
+// CallParam defines a value to be passed to a guest function.
+type CallParam struct {
+	Value interface{} `json,yaml:"value"`
+}
+
+// WriteParams is a helper function that writes the given params to memory if non integer.
+// Supported types include int, uint64 and string.
+func WriteParams(m *program.Memory, p []CallParam) ([]program.SmartPtr, error) {
+	var params []program.SmartPtr
+	for _, param := range p {
+		switch v := param.Value.(type) {
+		case []byte:
+			smartPtr, err := program.BytesToSmartPtr(v, m)
+			if err != nil {
+				return nil, err
+			}
+			params = append(params, smartPtr)
+		case ids.ID:
+			smartPtr, err := program.BytesToSmartPtr(v[:], m)
+			if err != nil {
+				return nil, err
+			}
+			params = append(params, smartPtr)
+		case string:
+			smartPtr, err := program.BytesToSmartPtr([]byte(v), m)
+			if err != nil {
+				return nil, err
+			}
+			params = append(params, smartPtr)
+		case program.SmartPtr:
+			params = append(params, v)
+		default:
+			ptr, err := argumentToSmartPtr(v, m)
+			if err != nil {
+				return nil, err
+			}
+			params = append(params, ptr)
+		}
+	}
+
+	return params, nil
+}
+
+// SerializeParameter serializes [obj] using Borsh
+func serializeParameter(obj interface{}) ([]byte, error) {
+	bytes, err := borsh.Serialize(obj)
+	return bytes, err
+}
+
+// Serialize the parameter and create a smart ptr
+func argumentToSmartPtr(obj interface{}, memory *program.Memory) (program.SmartPtr, error) {
+	bytes, err := serializeParameter(obj)
+	if err != nil {
+		return 0, err
+	}
+
+	return program.BytesToSmartPtr(bytes, memory)
 }
