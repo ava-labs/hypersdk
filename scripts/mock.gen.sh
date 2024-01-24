@@ -26,10 +26,10 @@ go install -v github.com/palantir/go-license@latest
 input="scripts/mocks.mockgen.txt"
 while IFS= read -r line
 do
-  IFS='=' read src_import_path interface_name output_path <<< "${line}"
-  package_name=$(basename $(dirname $output_path))
+  IFS='=' read -r src_import_path interface_name output_path <<< "${line}"
+  package_name=$(basename "$(dirname "$output_path")")
   echo "Generating ${output_path}..."
-  mockgen -package=${package_name} -destination=${output_path} ${src_import_path} ${interface_name}
+  mockgen -package="${package_name}" -destination="${output_path}" "${src_import_path}" "${interface_name}"
 
   go-license \
   --config=./license.yml \

@@ -44,22 +44,20 @@ if ${UNLIMITED_USAGE}; then
 fi
 
 echo "Running with:"
-echo AGO_LOGLEVEL: ${AGO_LOGLEVEL}
-echo LOGLEVEL: ${LOGLEVEL}
+echo AGO_LOGLEVEL: "${AGO_LOGLEVEL}"
+echo LOGLEVEL: "${LOGLEVEL}"
 echo VERSION: ${VERSION}
-echo MODE: ${MODE}
-echo STATESYNC_DELAY \(ns\): ${STATESYNC_DELAY}
-echo MIN_BLOCK_GAP \(ms\): ${MIN_BLOCK_GAP}
-echo STORE_TXS: ${STORE_TXS}
+echo MODE: "${MODE}"
+echo STATESYNC_DELAY \(ns\): "${STATESYNC_DELAY}"
+echo MIN_BLOCK_GAP \(ms\): "${MIN_BLOCK_GAP}"
+echo STORE_TXS: "${STORE_TXS}"
 echo WINDOW_TARGET_UNITS: ${WINDOW_TARGET_UNITS}
 echo MAX_BLOCK_UNITS: ${MAX_BLOCK_UNITS}
-echo ADDRESS: ${ADDRESS}
+echo ADDRESS: "${ADDRESS}"
 
 ############################
 # build avalanchego
 # https://github.com/ava-labs/avalanchego/releases
-GOARCH=$(go env GOARCH)
-GOOS=$(go env GOOS)
 TMPDIR=/tmp/hypersdk
 
 echo "working directory: $TMPDIR"
@@ -87,7 +85,7 @@ if [ ! -f "$AVALANCHEGO_PATH" ]; then
   ./scripts/build.sh
   mv build/avalanchego ${TMPDIR}/avalanchego-${VERSION}
 
-  cd ${CWD}
+  cd "${CWD}"
 else
   echo "using previously built avalanchego"
 fi
@@ -132,12 +130,12 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   ${TMPDIR}/token-cli genesis generate ${TMPDIR}/allocations.json \
   --window-target-units ${WINDOW_TARGET_UNITS} \
   --max-block-units ${MAX_BLOCK_UNITS} \
-  --min-block-gap ${MIN_BLOCK_GAP} \
+  --min-block-gap "${MIN_BLOCK_GAP}" \
   --genesis-file ${TMPDIR}/tokenvm.genesis
 else
   echo "copying custom genesis file"
   rm -f ${TMPDIR}/tokenvm.genesis
-  cp ${GENESIS_PATH} ${TMPDIR}/tokenvm.genesis
+  cp "${GENESIS_PATH}" ${TMPDIR}/tokenvm.genesis
 fi
 
 ############################
@@ -226,7 +224,6 @@ $BIN server \
 --log-level verbo \
 --port=":12352" \
 --grpc-gateway-port=":12353" &
-PID=${!}
 
 ############################
 # By default, it runs all e2e test cases!
@@ -254,7 +251,7 @@ echo "running e2e tests"
 ./tests/e2e/e2e.test \
 --ginkgo.v \
 --network-runner-log-level verbo \
---avalanchego-log-level ${AGO_LOGLEVEL} \
+--avalanchego-log-level "${AGO_LOGLEVEL}" \
 --network-runner-grpc-endpoint="0.0.0.0:12352" \
 --network-runner-grpc-gateway-endpoint="0.0.0.0:12353" \
 --avalanchego-path=${AVALANCHEGO_PATH} \
@@ -263,7 +260,7 @@ echo "running e2e tests"
 --vm-config-path=${TMPDIR}/tokenvm.config \
 --subnet-config-path=${TMPDIR}/tokenvm.subnet \
 --output-path=${TMPDIR}/avalanchego-${VERSION}/output.yaml \
---mode=${MODE}
+--mode="${MODE}"
 
 ############################
 if [[ ${MODE} == "run" || ${MODE} == "run-single" ]]; then
