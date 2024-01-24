@@ -297,10 +297,7 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 			key := val
 			// get named public key from db
 			pk, ok, err := storage.GetPublicKey(ctx, db, val)
-			if !ok {
-				// if not found assume its being created
-				key = val
-			} else {
+			if ok {
 				// otherwise use the public key address
 				key = string(pk[:])
 			}
