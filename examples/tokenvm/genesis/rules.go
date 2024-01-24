@@ -114,3 +114,11 @@ func (r *Rules) GetWindowTargetUnits() chain.Dimensions {
 func (*Rules) FetchCustom(string) (any, bool) {
 	return nil, false
 }
+
+func (r *Rules) GetMinGapValidatorTransactions() int64 {
+	return r.g.MinGapValidatorTxs
+}
+
+func (r *Rules) GetAllValidatorDrivenActions() []uint8 {
+	return r.g.AllowedValidatorDrivenActions
+}

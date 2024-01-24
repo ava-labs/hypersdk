@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -41,6 +42,8 @@ func (b *StatelessBlock) Execute(
 		t         = b.GetTimestamp()
 		cacheLock sync.RWMutex
 		cache     = make(map[string]*fetchData, numTxs)
+
+		allowedValidatorDrivenActions = r.GetAllValidatorDrivenActions()
 
 		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), b.vm.GetExecutorVerifyRecorder())
 		ts      = tstate.New(numTxs * 2) // TODO: tune this heuristic
@@ -107,10 +110,16 @@ func (b *StatelessBlock) Execute(
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
 			tsv := ts.NewView(stateKeys, storage)
-
+			isValidatorDrivenTx := false
 			// Ensure we have enough funds to pay fees
 			if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, t); err != nil {
-				return err
+				// unauthenticated validator transactions will go here
+				if slices.Contains(allowedValidatorDrivenActions, tx.Action.GetTypeID()) &&
+					errors.Is(err, ErrInvalidBalance) {
+					isValidatorDrivenTx = true
+				} else {
+					return err
+				}
 			}
 
 			// Wait to execute transaction until we have the warp result processed.
@@ -123,7 +132,7 @@ func (b *StatelessBlock) Execute(
 					return ctx.Err()
 				}
 			}
-			result, err := tx.Execute(ctx, feeManager, reads, sm, r, tsv, t, ok && warpVerified)
+			result, err := tx.Execute(ctx, feeManager, reads, sm, r, tsv, t, ok && warpVerified, isValidatorDrivenTx)
 			if err != nil {
 				return err
 			}

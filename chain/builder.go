@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -116,6 +117,8 @@ func BuildBlock(
 		// restorable txs after block attempt finishes
 		restorableLock sync.Mutex
 		restorable     = []*Transaction{}
+
+		allowedValidatorDrivenActions = r.GetAllValidatorDrivenActions()
 
 		// cache contains keys already fetched from state that can be
 		// used during prefetching.
@@ -273,13 +276,21 @@ func BuildBlock(
 
 				// Execute block
 				tsv := ts.NewView(stateKeys, storage)
+				isValidatorDrivenTx := false
 				if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, nextTime); err != nil {
-					// We don't need to rollback [tsv] here because it will never
+					// * We don't need to rollback [tsv] here because it will never
 					// be committed.
-					if HandlePreExecute(log, err) {
+					// * Unauthenticated validator driven actions will fail since it cannot be
+					// deduct
+					// * [PreExecute] uses an immutable [TStateView], won't make any change to [TState],
+					// Hence, we don't rollback
+					if slices.Contains(allowedValidatorDrivenActions, tx.Action.GetTypeID()) &&
+						errors.Is(err, ErrInvalidBalance) {
+						isValidatorDrivenTx = true
+					} else if HandlePreExecute(log, err) {
 						restore = true
+						return nil
 					}
-					return nil
 				}
 
 				// Verify warp message, if it exists
@@ -343,6 +354,7 @@ func BuildBlock(
 					tsv,
 					nextTime,
 					tx.WarpMessage != nil && warpErr == nil,
+					isValidatorDrivenTx,
 				)
 				if err != nil {
 					// Returning an error here should be avoided at all costs (can be a DoS). Rather,
@@ -356,6 +368,7 @@ func BuildBlock(
 				blockLock.Lock()
 				defer blockLock.Unlock()
 
+				// TODO: should we let validator driven action bypass this?
 				// Ensure block isn't too big
 				if ok, dimension := feeManager.Consume(result.Consumed, maxUnits); !ok {
 					log.Debug(

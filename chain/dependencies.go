@@ -155,6 +155,9 @@ type Rules interface {
 
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
 
+	GetMinGapValidatorTransactions() int64 // timestamp
+	GetAllValidatorDrivenActions() []uint8 // action ids
+
 	FetchCustom(string) (any, bool)
 }
 
