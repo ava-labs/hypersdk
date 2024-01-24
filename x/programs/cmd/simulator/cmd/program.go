@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ava-labs/hypersdk/x/programs/program"
-
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -140,7 +138,7 @@ func programExecuteFunc(
 	ctx context.Context,
 	log logging.Logger,
 	db *state.SimpleMutable,
-	callParams []program.CallParam,
+	callParams []actions.CallParam,
 	function string,
 	maxUnits uint64,
 ) (ids.ID, []int64, uint64, error) {

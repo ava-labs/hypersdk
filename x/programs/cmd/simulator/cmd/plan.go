@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
 	"io"
 	"math"
 	"os"
@@ -208,7 +209,7 @@ func runStepFunc(
 	endpoint Endpoint,
 	maxUnits uint64,
 	method string,
-	params []program.CallParam,
+	params []actions.CallParam,
 	require *Require,
 	resp *Response,
 ) error {
@@ -268,8 +269,8 @@ func runStepFunc(
 }
 
 // createCallParams converts a slice of Parameters to a slice of runtime.CallParams.
-func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, params []Parameter) ([]program.CallParam, error) {
-	cp := make([]program.CallParam, 0, len(params))
+func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, params []Parameter) ([]actions.CallParam, error) {
+	cp := make([]actions.CallParam, 0, len(params))
 	for _, param := range params {
 		switch param.Type {
 		case String, ID:
@@ -281,13 +282,13 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 			if err != nil {
 				return nil, err
 			}
-			cp = append(cp, program.CallParam{Value: val})
+			cp = append(cp, actions.CallParam{Value: val})
 		case Bool:
 			val, ok := param.Value.(bool)
 			if !ok {
 				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
 			}
-			cp = append(cp, program.CallParam{Value: boolToUint64(val)})
+			cp = append(cp, actions.CallParam{Value: boolToUint64(val)})
 		case KeyEd25519: // TODO: support secp256k1
 			val, ok := param.Value.(string)
 			if !ok {
@@ -304,23 +305,23 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 			if err != nil {
 				return nil, err
 			}
-			cp = append(cp, program.CallParam{Value: key})
+			cp = append(cp, actions.CallParam{Value: key})
 		case Uint64:
 			switch v := param.Value.(type) {
 			case float64:
 				// json unmarshal converts to float64
-				cp = append(cp, program.CallParam{Value: uint64(v)})
+				cp = append(cp, actions.CallParam{Value: uint64(v)})
 			case int:
 				if v < 0 {
 					return nil, fmt.Errorf("%w: %s", program.ErrNegativeValue, param.Type)
 				}
-				cp = append(cp, program.CallParam{Value: uint64(v)})
+				cp = append(cp, actions.CallParam{Value: uint64(v)})
 			case string:
 				number, err := strconv.ParseUint(v, 10, 64)
 				if err != nil {
 					return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
 				}
-				cp = append(cp, program.CallParam{Value: number})
+				cp = append(cp, actions.CallParam{Value: number})
 			default:
 				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
 			}
@@ -335,7 +336,7 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 // verifyProgramIDStr verifies a string is a valid ID and checks the programIDStrMap for
 // the synthetic identifier `step_N` where N is the step the id was created from
 // execution.
-func (r *runCmd) verifyProgramIDStr(idStr string) (string, error) {
+func (c *runCmd) verifyProgramIDStr(idStr string) (string, error) {
 	// if the id is valid
 	_, err := ids.FromString(idStr)
 	if err == nil {
@@ -344,7 +345,7 @@ func (r *runCmd) verifyProgramIDStr(idStr string) (string, error) {
 
 	// check if the id is a synthetic identifier
 	if strings.HasPrefix(idStr, "step_") {
-		stepID, ok := r.programIDStrMap[idStr]
+		stepID, ok := c.programIDStrMap[idStr]
 		if !ok {
 			return "", fmt.Errorf("failed to map to id: %s", idStr)
 		}
