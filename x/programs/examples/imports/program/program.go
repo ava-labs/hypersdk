@@ -68,7 +68,7 @@ func (i *Import) Register(link *host.Link) error {
 
 func (i *Import) callProgramFnVariadic(caller *program.Caller, args ...int64) (*types.Val, error) {
 	if len(args) != 4 {
-		return nil, errors.New("expected 2 arguments")
+		return nil, errors.New("expected 4 arguments")
 	}
 	return i.callProgramFn(caller, args[0], args[1], args[2], args[3])
 }
@@ -275,8 +275,12 @@ func (i *Import) enterProgram(
 
 	functionName := string(functionBytes)
 
-	can_enter := i.rg.Enter(ids.ID(programIDBytes), functionName)
-	return types.ValI64(can_enter), nil
+	err = i.rg.Enter(ids.ID(programIDBytes), functionName)
+	if err != nil {
+		return nil, err
+	}
+
+	return types.ValI64(0), nil
 }
 
 func getProgramWasmBytes(log logging.Logger, db state.Immutable, idBytes []byte) ([]byte, error) {

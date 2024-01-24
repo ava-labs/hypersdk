@@ -4,12 +4,16 @@
 package engine
 
 import (
+	"errors"
+
 	"github.com/ava-labs/avalanchego/ids"
 )
 
+var ErrReentrancy = errors.New("reentrant call not allowed")
+
 type reentrancyMap map[ids.ID]map[string]bool
 
-// ReentrancyGuard keeps track of which methods have been during execution by the runtime.
+// ReentrancyGuard keeps track of called methods during execution.
 type ReentrancyGuard struct {
 	// In the future, every call context might need its own reentrancyMap
 	// with fine grain locking across call contexts if we want to parellellize program calls.
@@ -32,12 +36,12 @@ func (r *ReentrancyGuard) Reset() {
 // If an external call wants to call no_reenter, it can call reenter instead and will bypass the reentrancy check.
 // The second call wont be an external program call, but it will be a reentrant call and is not handled.
 
-// Enter returns 1 if we have never entered this function before, 0 otherwise.
+// Enter returns if we have never entered this function before, errors otherwise.
 // If the function has not been entered before, we set the visited flag.
-func (r *ReentrancyGuard) Enter(id ids.ID, fn string) int64 {
+func (r *ReentrancyGuard) Enter(id ids.ID, fn string) error {
 	// reentering since we already visited
 	if r.m[id] != nil && r.m[id][fn] {
-		return 0
+		return ErrReentrancy
 	}
 
 	// set visited
@@ -46,5 +50,5 @@ func (r *ReentrancyGuard) Enter(id ids.ID, fn string) int64 {
 	}
 	r.m[id][fn] = true
 
-	return 1
+	return nil
 }

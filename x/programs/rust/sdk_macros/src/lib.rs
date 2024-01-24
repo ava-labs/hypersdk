@@ -22,7 +22,6 @@ fn convert_param(param_name: &Ident) -> proc_macro2::TokenStream {
 pub fn public(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
     let name = &input.sig.ident;
-    let is_reentrant = attr.to_string().contains("reentrant");
     let input_args = &input.sig.inputs;
     let new_name = Ident::new(&format!("{}_guest", name), name.span()); // Create a new name for the generated function(name that will be called by the host)
     let empty_param = Ident::new("ctx", Span::call_site()); // Create an empty parameter for the generated function
@@ -47,7 +46,6 @@ pub fn public(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
         panic!("Unsupported function parameter format.");
     });
-
     let (param_names, param_types): (Vec<_>, Vec<_>) = full_params.unzip();
 
     let program_param = &param_names[0];
@@ -59,14 +57,30 @@ pub fn public(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     // Extract the original function's return type. This must be a WASM supported type.
     let return_type = &input.sig.output;
+
+    let is_reentrant = match attr.to_string().as_str() {
+        "reentrant" => true,
+        "" => false,
+        _ => panic!(
+            "Invalid attribut `{other}` for `public` macro",
+            other = attr
+        ),
+    };
+    let rentrancy_check = if !is_reentrant {
+        quote! {
+            // enter_program will error in the host if the program is already entered
+            wasmlanche_sdk::host::enter_program(#program_param, #program_name).expect("error calling enter_program host function");
+        }
+    } else {
+        quote! {}
+    };
+
     let output = quote! {
         // Need to include the original function in the output, so contract can call itself
         #input
         #[no_mangle]
         pub extern "C" fn #new_name(#(#param_names: #param_types), *) #return_type {
-            if !#is_reentrant && !wasmlanche_sdk::host::enter_program(#program_param, #program_name).expect("error calling enter_program host function") {
-                panic!("Reentrancy not allowed for this function");
-            }
+            #rentrancy_check
             #name(#(#converted_params),*) // pass in the converted parameters
         }
     };

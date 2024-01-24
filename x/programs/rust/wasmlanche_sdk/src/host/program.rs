@@ -31,8 +31,11 @@ pub(crate) fn call(
 
 /// Tries to enter a program `target` and returns whether or not it was successful.
 /// # Errors
-/// Errors if `function_name` cannot be converted to a `smart_ptr`.
-pub fn enter(target: SmartPtr, function_name: &str) -> Result<bool, StateError> {
+/// Errors if `function_name` cannot be converted to a [`smart_ptr`].
+pub fn enter(target: SmartPtr, function_name: &str) -> Result<(), StateError> {
     let function = to_smart_ptr(function_name.as_bytes())?;
-    Ok(unsafe { _enter_program(target, function) == 1 })
+    unsafe {
+        _enter_program(target, function);
+    };
+    Ok(())
 }
