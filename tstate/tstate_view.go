@@ -58,11 +58,12 @@ func (ts *TState) NewView(scope set.Set[state.Key], storage map[string][]byte) *
 	writeScope := set.NewSet[string](len(scope))
 	rwScope := set.NewSet[string](len(scope))
 	for k := range scope {
-		if k.HasMode(state.Read) {
+		switch {
+		case k.HasMode(state.Read):
 			readScope.Add(k.Name)
-		} else if k.HasMode(state.Write) {
+		case k.HasMode(state.Write):
 			writeScope.Add(k.Name)
-		} else if k.HasMode(state.Read) && k.HasMode(state.Write) {
+		case k.HasMode(state.Read) && k.HasMode(state.Write):
 			rwScope.Add(k.Name)
 		}
 	}

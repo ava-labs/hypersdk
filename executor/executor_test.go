@@ -27,7 +27,7 @@ func TestExecutorNoConflicts(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		s := set.NewSet[state.Key](i + 1)
 		for k := 0; k < i+1; k++ {
-			s.Add(state.Key{Name: ids.GenerateTestID().String(), Mode: state.RWrite})
+			s.Add(state.NewKey(ids.GenerateTestID().String(), state.Read, state.Write))
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -55,7 +55,7 @@ func TestExecutorNoConflictsSlow(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		s := set.NewSet[state.Key](i + 1)
 		for k := 0; k < i+1; k++ {
-			s.Add(state.Key{Name: ids.GenerateTestID().String(), Mode: state.RWrite})
+			s.Add(state.NewKey(ids.GenerateTestID().String(), state.Read, state.Write))
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -84,10 +84,10 @@ func TestExecutorSimpleConflict(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		s := set.NewSet[state.Key](i + 1)
 		for k := 0; k < i+1; k++ {
-			s.Add(state.Key{Name: ids.GenerateTestID().String(), Mode: state.RWrite})
+			s.Add(state.NewKey(ids.GenerateTestID().String(), state.Read, state.Write))
 		}
 		if i%10 == 0 {
-			s.Add(state.Key{Name: conflictKey, Mode: state.RWrite})
+			s.Add(state.NewKey(conflictKey, state.Read, state.Write))
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -117,13 +117,13 @@ func TestExecutorMultiConflict(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		s := set.NewSet[state.Key](i + 1)
 		for k := 0; k < i+1; k++ {
-			s.Add(state.Key{Name: ids.GenerateTestID().String(), Mode: state.RWrite})
+			s.Add(state.NewKey(ids.GenerateTestID().String(), state.Read, state.Write))
 		}
 		if i%10 == 0 {
-			s.Add(state.Key{Name: conflictKey, Mode: state.RWrite})
+			s.Add(state.NewKey(conflictKey, state.Read, state.Write))
 		}
 		if i == 15 || i == 20 {
-			s.Add(state.Key{Name: conflictKey2, Mode: state.RWrite})
+			s.Add(state.NewKey(conflictKey2, state.Read, state.Write))
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -155,7 +155,7 @@ func TestEarlyExit(t *testing.T) {
 	for i := 0; i < 500; i++ {
 		s := set.NewSet[state.Key](i + 1)
 		for k := 0; k < i+1; k++ {
-			s.Add(state.Key{Name: ids.GenerateTestID().String(), Mode: state.RWrite})
+			s.Add(state.NewKey(ids.GenerateTestID().String(), state.Read, state.Write))
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -182,7 +182,7 @@ func TestStop(t *testing.T) {
 	for i := 0; i < 500; i++ {
 		s := set.NewSet[state.Key](i + 1)
 		for k := 0; k < i+1; k++ {
-			s.Add(state.Key{Name: ids.GenerateTestID().String(), Mode: state.RWrite})
+			s.Add(state.NewKey(ids.GenerateTestID().String(), state.Read, state.Write))
 		}
 		ti := i
 		e.Run(s, func() error {

@@ -81,7 +81,7 @@ func TestGetValue(t *testing.T) {
 	ts := New(10)
 
 	// Set Scope
-	tsv := ts.NewView(set.Of(state.Key{Name: string(testKey), Mode: state.RWrite}), map[string][]byte{string(testKey): testVal})
+	tsv := ts.NewView(set.Of(state.NewKey(string(testKey), state.Read, state.Write)), map[string][]byte{string(testKey): testVal})
 	val, err := tsv.GetValue(ctx, testKey)
 	require.NoError(err, "unable to get value")
 	require.Equal(testVal, val, "value was not saved correctly")
@@ -93,12 +93,12 @@ func TestDeleteCommitGet(t *testing.T) {
 	ts := New(10)
 
 	// Delete value
-	tsv := ts.NewView(set.Of(state.Key{Name: string(testKey), Mode: state.RWrite}), map[string][]byte{string(testKey): testVal})
+	tsv := ts.NewView(set.Of(state.NewKey(string(testKey), state.Read, state.Write)), map[string][]byte{string(testKey): testVal})
 	require.NoError(tsv.Remove(ctx, testKey))
 	tsv.Commit()
 
 	// Check deleted
-	tsv = ts.NewView(set.Of(state.Key{Name: string(testKey), Mode: state.RWrite}), map[string][]byte{string(testKey): testVal})
+	tsv = ts.NewView(set.Of(state.NewKey(string(testKey), state.Read, state.Write)), map[string][]byte{string(testKey): testVal})
 	val, err := tsv.GetValue(ctx, testKey)
 	require.ErrorIs(err, database.ErrNotFound)
 	require.Nil(val)
@@ -110,7 +110,7 @@ func TestGetValueNoStorage(t *testing.T) {
 	ts := New(10)
 
 	// SetScope but dont add to storage
-	tsv := ts.NewView(set.Of(state.Key{Name: string(testKey), Mode: state.RWrite}), map[string][]byte{})
+	tsv := ts.NewView(set.Of(state.NewKey(string(testKey), state.Read, state.Write)), map[string][]byte{})
 	_, err := tsv.GetValue(ctx, testKey)
 	require.ErrorIs(database.ErrNotFound, err, "data should not exist")
 }
@@ -121,7 +121,7 @@ func TestInsertNew(t *testing.T) {
 	ts := New(10)
 
 	// SetScope
-	tsv := ts.NewView(set.Of(state.Key{Name: string(testKey), Mode: state.RWrite}), map[string][]byte{})
+	tsv := ts.NewView(set.Of(state.NewKey(string(testKey), state.Read, state.Write)), map[string][]byte{})
 
 	// Test Disable Allocate
 	tsv.DisableAllocation()
@@ -147,7 +147,7 @@ func TestInsertInvalid(t *testing.T) {
 
 	// SetScope
 	key := binary.BigEndian.AppendUint16([]byte("hello"), 0)
-	tsv := ts.NewView(set.Of(state.Key{Name: string(key), Mode: state.RWrite}), map[string][]byte{})
+	tsv := ts.NewView(set.Of(state.NewKey(string(key), state.Read, state.Write)), map[string][]byte{})
 
 	// Insert key
 	require.ErrorIs(tsv.Insert(ctx, key, []byte("cool")), ErrInvalidKeyValue)
@@ -163,7 +163,7 @@ func TestInsertUpdate(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(set.Of(state.Key{Name: string(testKey), Mode: state.RWrite}), map[string][]byte{string(testKey): testVal})
+	tsv := ts.NewView(set.Of(state.NewKey(string(testKey), state.Read, state.Write)), map[string][]byte{string(testKey): testVal})
 	require.Equal(0, ts.OpIndex())
 
 	// Insert key
@@ -179,7 +179,7 @@ func TestInsertUpdate(t *testing.T) {
 
 	// Check value after commit
 	tsv.Commit()
-	tsv = ts.NewView(set.Of(state.Key{Name: string(testKey), Mode: state.RWrite}), map[string][]byte{string(testKey): testVal})
+	tsv = ts.NewView(set.Of(state.NewKey(string(testKey), state.Read, state.Write)), map[string][]byte{string(testKey): testVal})
 	val, err = tsv.GetValue(ctx, testKey)
 	require.NoError(err)
 	require.Equal(newVal, val, "value was not committed correctly")
@@ -191,7 +191,7 @@ func TestInsertRemoveInsert(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(set.Of(state.Key{Name: key2str, Mode: state.RWrite}), map[string][]byte{})
+	tsv := ts.NewView(set.Of(state.NewKey(key2str, state.Read, state.Write)), map[string][]byte{})
 	require.Equal(0, ts.OpIndex())
 
 	// Insert key for first time
@@ -263,7 +263,7 @@ func TestModifyRemoveInsert(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(set.Of(state.Key{Name: key2str, Mode: state.RWrite}), map[string][]byte{key2str: testVal})
+	tsv := ts.NewView(set.Of(state.NewKey(key2str, state.Read, state.Write)), map[string][]byte{key2str: testVal})
 	require.Equal(0, ts.OpIndex())
 
 	// Modify existing key
@@ -317,7 +317,7 @@ func TestModifyRevert(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(set.Of(state.Key{Name: key2str, Mode: state.RWrite}), map[string][]byte{key2str: testVal})
+	tsv := ts.NewView(set.Of(state.NewKey(key2str, state.Read, state.Write)), map[string][]byte{key2str: testVal})
 	require.Equal(0, ts.OpIndex())
 
 	// Modify existing key
@@ -357,7 +357,7 @@ func TestModifyModify(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(set.Of(state.Key{Name: key2str, Mode: state.RWrite}), map[string][]byte{key2str: testVal})
+	tsv := ts.NewView(set.Of(state.NewKey(key2str, state.Read, state.Write)), map[string][]byte{key2str: testVal})
 	require.Equal(0, ts.OpIndex())
 
 	// Modify existing key
@@ -404,7 +404,7 @@ func TestRemoveInsertRollback(t *testing.T) {
 	ctx := context.TODO()
 
 	// Insert
-	tsv := ts.NewView(set.Of(state.Key{Name: string(testKey), Mode: state.RWrite}), map[string][]byte{})
+	tsv := ts.NewView(set.Of(state.NewKey(string(testKey), state.Read, state.Write)), map[string][]byte{})
 	require.NoError(tsv.Insert(ctx, testKey, testVal))
 	v, err := tsv.GetValue(ctx, testKey)
 	require.NoError(err)
@@ -442,7 +442,7 @@ func TestRestoreInsert(t *testing.T) {
 	ts := New(10)
 	ctx := context.TODO()
 	keys := [][]byte{key1, key2, key3}
-	keySet := set.Of(state.Key{Name: key1str, Mode: state.RWrite}, state.Key{Name: key2str, Mode: state.RWrite}, state.Key{Name: key3str, Mode: state.RWrite})
+	keySet := set.Of(state.NewKey(key1str, state.Read, state.Write), state.NewKey(key2str, state.Read, state.Write), state.NewKey(key3str, state.Read, state.Write))
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 
 	// Store keys
@@ -495,7 +495,7 @@ func TestRestoreDelete(t *testing.T) {
 	ts := New(10)
 	ctx := context.TODO()
 	keys := [][]byte{key1, key2, key3}
-	keySet := set.Of(state.Key{Name: key1str, Mode: state.RWrite}, state.Key{Name: key2str, Mode: state.RWrite}, state.Key{Name: key3str, Mode: state.RWrite})
+	keySet := set.Of(state.NewKey(key1str, state.Read, state.Write), state.NewKey(key2str, state.Read, state.Write), state.NewKey(key3str, state.Read, state.Write))
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 	tsv := ts.NewView(keySet, map[string][]byte{
 		string(keys[0]): vals[0],
@@ -550,7 +550,7 @@ func TestCreateView(t *testing.T) {
 		t.Fatal(err)
 	}
 	keys := [][]byte{key1, key2, key3}
-	keySet := set.Of(state.Key{Name: key1str, Mode: state.RWrite}, state.Key{Name: key2str, Mode: state.RWrite}, state.Key{Name: key3str, Mode: state.RWrite})
+	keySet := set.Of(state.NewKey(key1str, state.Read, state.Write), state.NewKey(key2str, state.Read, state.Write), state.NewKey(key3str, state.Read, state.Write))
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 
 	// Add
