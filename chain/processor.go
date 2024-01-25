@@ -57,7 +57,6 @@ func (b *StatelessBlock) Execute(
 			e.Stop()
 			return nil, nil, err
 		}
-
 		e.Run(stateKeys, func() error {
 			// Fetch keys from cache
 			var (
