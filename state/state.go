@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	ModeLen = 8
-	Read    = 0
-	Write   = 1
+	PermissionLen = 8
+	Read          = 0
+	Write         = 1
 )
 
 type Immutable interface {
@@ -37,7 +37,7 @@ type View interface {
 type Key struct {
 	Name string
 	// TODO: consider a dynamically sized []byte
-	Mode [ModeLen]byte
+	Permission [PermissionLen]byte
 }
 
 func NewKey(name string, bits ...int) Key {
@@ -48,21 +48,21 @@ func NewKey(name string, bits ...int) Key {
 		byteIdx := bit / 8
 		bitIdx := uint(bit % 8)
 
-		if byteIdx < ModeLen {
-			key.Mode[byteIdx] |= (1 << bitIdx)
+		if byteIdx < PermissionLen {
+			key.Permission[byteIdx] |= (1 << bitIdx)
 		}
 	}
 
 	return key
 }
 
-func (k *Key) HasMode(mode int) bool {
-	byteIdx := mode / 8
-	bitIdx := uint(mode % 8)
+func (k *Key) HasPermission(permission int) bool {
+	byteIdx := permission / 8
+	bitIdx := uint(permission % 8)
 
-	if byteIdx >= ModeLen {
+	if byteIdx >= PermissionLen {
 		return false
 	}
 
-	return (k.Mode[byteIdx] & (1 << bitIdx)) != 0
+	return (k.Permission[byteIdx] & (1 << bitIdx)) != 0
 }
