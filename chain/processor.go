@@ -66,16 +66,15 @@ func (b *StatelessBlock) Execute(
 				toLookup = make([]string, 0, len(stateKeys))
 			)
 			cacheLock.RLock()
-			for sk := range stateKeys {
-				k := sk.Name
-				if v, ok := cache[k]; ok {
-					reads[k] = v.chunks
+			for k := range stateKeys {
+				if v, ok := cache[k.Name]; ok {
+					reads[k.Name] = v.chunks
 					if v.exists {
-						storage[k] = v.v
+						storage[k.Name] = v.v
 					}
 					continue
 				}
-				toLookup = append(toLookup, k)
+				toLookup = append(toLookup, k.Name)
 			}
 			cacheLock.RUnlock()
 

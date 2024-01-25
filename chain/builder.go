@@ -229,15 +229,14 @@ func BuildBlock(
 					toLookup = make([]string, 0, len(stateKeys))
 				)
 				cacheLock.RLock()
-				for sk := range stateKeys {
-					k := sk.Name
-					if v, ok := cache[k]; ok {
+				for k := range stateKeys {
+					if v, ok := cache[k.Name]; ok {
 						if v.exists {
-							storage[k] = v.v
+							storage[k.Name] = v.v
 						}
 						continue
 					}
-					toLookup = append(toLookup, k)
+					toLookup = append(toLookup, k.Name)
 				}
 				cacheLock.RUnlock()
 
@@ -448,11 +447,7 @@ func BuildBlock(
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
 
-	heightKeyKey := state.NewKey(heightKeyStr, state.Read, state.Write)
-	timestampKeyKey := state.NewKey(timestampKeyStr, state.Read, state.Write)
-	feeKeyKey := state.NewKey(feeKeyStr, state.Read, state.Write)
-
-	tsv := ts.NewView(set.Of(heightKeyKey, timestampKeyKey, feeKeyKey), map[string][]byte{
+	tsv := ts.NewView(set.Of(state.NewKey(heightKeyStr, state.Read, state.Write), state.NewKey(timestampKeyStr, state.Read, state.Write), state.NewKey(feeKeyStr, state.Read, state.Write)), map[string][]byte{
 		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 		feeKeyStr:       parentFeeManager.Bytes(),

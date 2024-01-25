@@ -191,15 +191,14 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	readsOp := math.NewUint64Operator(0)
 	allocatesOp := math.NewUint64Operator(0)
 	writesOp := math.NewUint64Operator(0)
-	for sk := range stateKeys {
-		k := sk.Name
+	for k := range stateKeys {
 		// Compute key costs
 		readsOp.Add(r.GetStorageKeyReadUnits())
 		allocatesOp.Add(r.GetStorageKeyAllocateUnits())
 		writesOp.Add(r.GetStorageKeyWriteUnits())
 
 		// Compute value costs
-		maxChunks, ok := keys.MaxChunks([]byte(k))
+		maxChunks, ok := keys.MaxChunks([]byte(k.Name))
 		if !ok {
 			return Dimensions{}, ErrInvalidKeyValue
 		}

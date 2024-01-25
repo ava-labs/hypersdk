@@ -121,8 +121,7 @@ func (e *Executor) Run(conflicts set.Set[state.Key], f func() error) {
 
 	// Record dependencies
 	for k := range conflicts {
-		key := k.Name
-		latest, ok := e.edges[key]
+		latest, ok := e.edges[k.Name]
 		if ok {
 			lt := e.tasks[latest]
 			if !lt.executed {
@@ -136,7 +135,7 @@ func (e *Executor) Run(conflicts set.Set[state.Key], f func() error) {
 				lt.blocking.Add(id)
 			}
 		}
-		e.edges[key] = id
+		e.edges[k.Name] = id
 	}
 
 	// Start execution if there are no blocking dependencies
