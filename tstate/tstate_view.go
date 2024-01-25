@@ -41,9 +41,7 @@ type TStateView struct {
 	ops []*op
 
 	// stores a list of managed keys in the TState struct
-	readScope    set.Set[string]
-	writeScope   set.Set[string]
-	rwScope      set.Set[string]
+	scope        map[string]state.Permission
 	scopeStorage map[string][]byte
 
 	// Store which keys are modified and how large their values were.
@@ -52,20 +50,10 @@ type TStateView struct {
 	writes      map[string]uint16
 }
 
-func (ts *TState) NewView(scope set.Set[state.Key], storage map[string][]byte) *TStateView {
-	// TODO: set length to be the number of keys for each type
-	readScope := set.NewSet[string](len(scope))
-	writeScope := set.NewSet[string](len(scope))
-	rwScope := set.NewSet[string](len(scope))
-	for k := range scope {
-		switch {
-		case k.HasPermission(state.Read):
-			readScope.Add(k.Name)
-		case k.HasPermission(state.Write):
-			writeScope.Add(k.Name)
-		case k.HasPermission(state.Read) && k.HasPermission(state.Write):
-			rwScope.Add(k.Name)
-		}
+func (ts *TState) NewView(scopeKeys set.Set[state.Key], storage map[string][]byte) *TStateView {
+	scope := make(map[string]state.Permission)
+	for k := range scopeKeys {
+		scope[k.Name] = k.Permission
 	}
 
 	return &TStateView{
@@ -74,9 +62,7 @@ func (ts *TState) NewView(scope set.Set[state.Key], storage map[string][]byte) *
 
 		ops: make([]*op, 0, defaultOps),
 
-		readScope:    readScope,
-		writeScope:   writeScope,
-		rwScope:      rwScope,
+		scope:        scope,
 		scopeStorage: storage,
 
 		canAllocate: true, // default to allowing allocation
@@ -177,17 +163,22 @@ func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
 	return ts.allocates, ts.writes
 }
 
-// checkScope returns whether [k] is in ts.readScope or ts.rwScope.
-func (ts *TStateView) checkScope(_ context.Context, k []byte) bool {
-	return ts.readScope.Contains(string(k)) || ts.rwScope.Contains(string(k))
+// checkScope returns whether [k] is in scope and has appropriate permissions.
+func (ts *TStateView) checkScope(_ context.Context, k []byte, perm int) bool {
+	permission, exists := ts.scope[string(k)]
+	if !exists || !permission.HasPermission(perm) {
+		return false
+	}
+	return true
 }
 
 // GetValue returns the value associated from tempStorage with the
 // associated [key]. If [key] does not exist in readScope/rwScope or if it is not found
 // in storage an error is returned.
 func (ts *TStateView) GetValue(ctx context.Context, key []byte) ([]byte, error) {
-	if !ts.checkScope(ctx, key) {
-		return nil, ErrKeyNotSpecified
+	// Getting a value requires a Read permission, so we pass state.Read
+	if !ts.checkScope(ctx, key, state.Read) {
+		return nil, ErrInvalidKeyOrPermission
 	}
 	k := string(key)
 	v, exists := ts.getValue(ctx, k)
@@ -228,8 +219,9 @@ func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, 
 // Insert allocates and writes (or just writes) a new key to [tstate]. If this
 // action returns the value of [key] to the parent view, it reverts any pending changes.
 func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) error {
-	if !ts.checkScope(ctx, key) {
-		return ErrKeyNotSpecified
+	// Inserting requires a Write Permission, so we pass state.Write
+	if !ts.checkScope(ctx, key, state.Write) {
+		return ErrInvalidKeyOrPermission
 	}
 	if !keys.VerifyValue(key, value) {
 		return ErrInvalidKeyValue
@@ -272,8 +264,9 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 // Remove deletes a key from [tstate]. If this action returns the
 // value of [key] to the parent view, it reverts any pending changes.
 func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
-	if !ts.checkScope(ctx, key) {
-		return ErrKeyNotSpecified
+	// Removing requires writing & deleting that key, so we pass state.Write
+	if !ts.checkScope(ctx, key, state.Write) {
+		return ErrInvalidKeyOrPermission
 	}
 	k := string(key)
 	past, exists := ts.getValue(ctx, k)
