@@ -34,35 +34,37 @@ type View interface {
 	GetMerkleRoot(ctx context.Context) (ids.ID, error)
 }
 
+// StateKey holds the name of the key and its permission (Read/Write)
+// Specifying RWrite is setting both the Read and Write bit
 type Key struct {
 	Name string
 	// TODO: consider a dynamically sized []byte
 	Permission Permission
 }
 
+// TODO: Support Alloc bit
 type Permission [PermissionLen]byte
 
+// Returns a StateKey with the appropriate permission bits set
+// By default, no permission bits are set
 func NewKey(name string, permissions ...int) Key {
 	var key Key
 	key.Name = name
-
 	for _, perm := range permissions {
-		byteIdx := perm/8 + perm%8
-
-		if byteIdx < PermissionLen {
-			key.Permission[byteIdx] |= 1
+		// Only set bit if it's within the byte slice
+		if perm < PermissionLen {
+			key.Permission[perm] |= 1
 		}
 	}
-
 	return key
 }
 
+// Checks whether a StateKey has the appropriate permission
+// to perform a certain access (Read/Write).
 func (p *Permission) HasPermission(permission int) bool {
-	byteIdx := permission/8 + permission%8
-
-	if byteIdx >= PermissionLen {
+	// Trying to access a bit out of bounds
+	if permission >= PermissionLen {
 		return false
 	}
-
-	return p[byteIdx] == 1
+	return p[permission] == 1
 }

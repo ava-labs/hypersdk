@@ -319,15 +319,14 @@ func BuildBlock(
 				blockLock.RLock()
 				reads := make(map[string]uint16, len(stateKeys))
 				var invalidStateKeys bool
-				for sk := range stateKeys {
-					k := sk.Name
-					v := storage[k]
+				for k := range stateKeys {
+					v := storage[k.Name]
 					numChunks, ok := keys.NumChunks(v)
 					if !ok {
 						invalidStateKeys = true
 						break
 					}
-					reads[k] = numChunks
+					reads[k.Name] = numChunks
 				}
 				blockLock.RUnlock()
 				if invalidStateKeys {
@@ -446,7 +445,6 @@ func BuildBlock(
 	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
-
 	tsv := ts.NewView(set.Of(state.NewKey(heightKeyStr, state.Read, state.Write), state.NewKey(timestampKeyStr, state.Read, state.Write), state.NewKey(feeKeyStr, state.Read, state.Write)), map[string][]byte{
 		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),

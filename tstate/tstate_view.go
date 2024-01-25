@@ -40,7 +40,7 @@ type TStateView struct {
 	// operations allows for reverting state to a certain point-in-time.
 	ops []*op
 
-	// stores a list of managed keys in the TState struct
+	// stores a map of managed keys and its permissions in the TState struct
 	scope        map[string]state.Permission
 	scopeStorage map[string][]byte
 
@@ -173,7 +173,7 @@ func (ts *TStateView) checkScope(_ context.Context, k []byte, perm int) bool {
 }
 
 // GetValue returns the value associated from tempStorage with the
-// associated [key]. If [key] does not exist in readScope/rwScope or if it is not found
+// associated [key]. If [key] does not exist in scope, or is not read/rw, or if it is not found
 // in storage an error is returned.
 func (ts *TStateView) GetValue(ctx context.Context, key []byte) ([]byte, error) {
 	// Getting a value requires a Read permission, so we pass state.Read

@@ -738,3 +738,27 @@ func TestRemoveWithValidPermission(t *testing.T) {
 	require.True(key1.Permission.HasPermission(state.Read))
 	require.True(key1.Permission.HasPermission(state.Write))
 }
+
+func TestWithOutOfBoundPermission(t *testing.T) {
+	require := require.New(t)
+	ctx := context.TODO()
+	ts := New(10)
+
+	// Key specifies a permission bit that is out of bounds
+	outOfBoundsPerm := 100
+	key := state.NewKey("test", outOfBoundsPerm)
+	tsv := ts.NewView(set.Of(key), map[string][]byte{key.Name: testVal})
+
+	// Can't GetValue/Insert/Remove then
+	_, err := tsv.GetValue(ctx, []byte(key.Name))
+	require.ErrorIs(ErrInvalidKeyOrPermission, err)
+	require.ErrorIs(tsv.Insert(ctx, []byte(key.Name), []byte("val")), ErrInvalidKeyOrPermission)
+	require.ErrorIs(tsv.Remove(ctx, []byte(key.Name)), ErrInvalidKeyOrPermission)
+
+	// We also won't have any Read/Write permissions
+	require.False(key.Permission.HasPermission(state.Read))
+	require.False(key.Permission.HasPermission(state.Write))
+
+	// This permission that we set and now want to access will be false
+	require.False(key.Permission.HasPermission(outOfBoundsPerm))
+}

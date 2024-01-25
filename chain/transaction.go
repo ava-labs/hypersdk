@@ -132,11 +132,11 @@ func (t *Transaction) StateKeys(sm StateManager) (set.Set[state.Key], error) {
 	sponsorKeys := sm.SponsorStateKeys(t.Auth.Sponsor())
 	stateKeys := set.NewSet[state.Key](len(actionKeys) + len(sponsorKeys))
 	for _, arr := range [][]state.Key{actionKeys, sponsorKeys} {
-		for _, key := range arr {
-			if !keys.Valid(key.Name) {
+		for _, k := range arr {
+			if !keys.Valid(k.Name) {
 				return nil, ErrInvalidKeyValue
 			}
-			stateKeys.Add(key)
+			stateKeys.Add(k)
 		}
 	}
 
@@ -454,15 +454,14 @@ func (t *Transaction) Execute(
 
 	// Because we compute the fee before [Auth.Refund] is called, we need
 	// to pessimistically precompute the storage it will change.
-	for _, k := range s.SponsorStateKeys(t.Auth.Sponsor()) {
+	for _, key := range s.SponsorStateKeys(t.Auth.Sponsor()) {
 		// maxChunks will be greater than the chunks read in any of these keys,
 		// so we don't need to check for pre-existing values.
-		key := k.Name
-		maxChunks, ok := keys.MaxChunks([]byte(key))
+		maxChunks, ok := keys.MaxChunks([]byte(key.Name))
 		if !ok {
 			return handleRevert(ErrInvalidKeyValue)
 		}
-		writes[key] = maxChunks
+		writes[key.Name] = maxChunks
 	}
 
 	// We only charge for the chunks read from disk instead of charging for the max chunks
