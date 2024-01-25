@@ -10,6 +10,12 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 )
 
+const (
+	ModeLen = 8
+	Read    = 0
+	Write   = 1
+)
+
 type Immutable interface {
 	GetValue(ctx context.Context, key []byte) (value []byte, err error)
 }
@@ -30,14 +36,9 @@ type View interface {
 
 type Key struct {
 	Name string
+	// TODO: consider a dynamically sized []byte
 	Mode [ModeLen]byte
 }
-
-const (
-	ModeLen = 8
-	Read    = 0
-	Write   = 1
-)
 
 func NewKey(name string, bits ...int) Key {
 	var key Key
