@@ -40,13 +40,13 @@ type Key struct {
 	Permission [PermissionLen]byte
 }
 
-func NewKey(name string, bits ...int) Key {
+func NewKey(name string, permissions ...int) Key {
 	var key Key
 	key.Name = name
 
-	for _, bit := range bits {
-		byteIdx := bit / 8
-		bitIdx := uint(bit % 8)
+	for _, perm := range permissions {
+		byteIdx := perm / 8
+		bitIdx := uint(perm % 8)
 
 		if byteIdx < PermissionLen {
 			key.Permission[byteIdx] |= (1 << bitIdx)
@@ -64,5 +64,5 @@ func (k *Key) HasPermission(permission int) bool {
 		return false
 	}
 
-	return (k.Permission[byteIdx] & (1 << bitIdx)) != 0
+	return (k.Permission[byteIdx] & (1 << bitIdx)) == 1
 }
