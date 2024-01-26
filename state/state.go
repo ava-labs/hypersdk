@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	PermissionLen = 8
 	Read          = 0
 	Write         = 1
+	PermissionLen = 8
 )
 
 type Immutable interface {

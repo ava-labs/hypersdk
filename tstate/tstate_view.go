@@ -55,7 +55,6 @@ func (ts *TState) NewView(scopeKeys set.Set[state.Key], storage map[string][]byt
 	for k := range scopeKeys {
 		scope[k.Name] = k.Permission
 	}
-
 	return &TStateView{
 		ts:                 ts,
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),

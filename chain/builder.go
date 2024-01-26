@@ -445,7 +445,7 @@ func BuildBlock(
 	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
-	tsv := ts.NewView(set.Of(state.NewKey(heightKeyStr, state.Read, state.Write), state.NewKey(timestampKeyStr, state.Read, state.Write), state.NewKey(feeKeyStr, state.Read, state.Write)), map[string][]byte{
+	tsv := ts.NewView(set.Of(state.NewKey(heightKeyStr, state.Write), state.NewKey(timestampKeyStr, state.Write), state.NewKey(feeKeyStr, state.Write)), map[string][]byte{
 		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 		feeKeyStr:       parentFeeManager.Bytes(),
