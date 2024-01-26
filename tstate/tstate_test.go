@@ -615,128 +615,174 @@ func TestCreateView(t *testing.T) {
 	}
 }
 
-func TestGetValueWithInvalidPermissions(t *testing.T) {
-	require := require.New(t)
-	ctx := context.TODO()
-	ts := New(10)
+func TestGetValuePermissions(t *testing.T) {
+	tests := []struct {
+		name      string
+		key       state.Key
+		canRead   bool
+		canWrite  bool
+		shouldErr bool
+	}{
+		{
+			name:      "key has read permissions",
+			key:       state.NewKey("test", state.Read),
+			canRead:   true,
+			canWrite:  false,
+			shouldErr: false,
+		},
+		{
+			name:      "key has read write permissions",
+			key:       state.NewKey("test1", state.Read, state.Write),
+			canRead:   true,
+			canWrite:  true,
+			shouldErr: false,
+		},
+		{
+			name:      "key has no permissions",
+			key:       state.NewKey("test2"),
+			canRead:   false,
+			canWrite:  false,
+			shouldErr: true,
+		},
+		{
+			name:      "key has write permissions",
+			key:       state.NewKey("test3", state.Write),
+			canRead:   false,
+			canWrite:  true,
+			shouldErr: true,
+		},
+	}
 
-	// Key has no permissions
-	key := state.NewKey("test")
-	tsv := ts.NewView(set.Of(key), map[string][]byte{key.Name: testVal})
-	_, err := tsv.GetValue(ctx, []byte(key.Name))
-	require.ErrorIs(ErrInvalidKeyOrPermission, err)
-	require.False(key.Permission.HasPermission(state.Read))
-	require.False(key.Permission.HasPermission(state.Write))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			ctx := context.TODO()
+			ts := New(10)
+			tsv := ts.NewView(set.Of(tt.key), map[string][]byte{tt.key.Name: testVal})
+			if !tt.shouldErr {
+				_, err := tsv.GetValue(ctx, []byte(tt.key.Name))
+				require.NoError(err)
+			} else {
+				_, err := tsv.GetValue(ctx, []byte(tt.key.Name))
+				require.ErrorIs(ErrInvalidKeyOrPermission, err)
+			}
 
-	// Key has Write permissions
-	key1 := state.NewKey("test1", state.Write)
-	tsv1 := ts.NewView(set.Of(key1), map[string][]byte{key1.Name: testVal})
-	_, err = tsv1.GetValue(ctx, []byte(key1.Name))
-	require.ErrorIs(ErrInvalidKeyOrPermission, err)
-	require.False(key1.Permission.HasPermission(state.Read))
-	require.True(key1.Permission.HasPermission(state.Write))
+			require.Equal(tt.canRead, tt.key.Permission.HasPermission(state.Read))
+			require.Equal(tt.canWrite, tt.key.Permission.HasPermission(state.Write))
+		})
+	}
 }
 
-func TestGetValueWithValidPermission(t *testing.T) {
-	require := require.New(t)
-	ctx := context.TODO()
-	ts := New(10)
+func TestInsertPermissions(t *testing.T) {
+	tests := []struct {
+		name      string
+		key       state.Key
+		canRead   bool
+		canWrite  bool
+		shouldErr bool
+	}{
+		{
+			name:      "key has read permissions",
+			key:       state.NewKey("test", state.Read),
+			canRead:   true,
+			canWrite:  false,
+			shouldErr: true,
+		},
+		{
+			name:      "key has read write permissions",
+			key:       state.NewKey("test1", state.Read, state.Write),
+			canRead:   true,
+			canWrite:  true,
+			shouldErr: false,
+		},
+		{
+			name:      "key has no permissions",
+			key:       state.NewKey("test2"),
+			canRead:   false,
+			canWrite:  false,
+			shouldErr: true,
+		},
+		{
+			name:      "key has write permissions",
+			key:       state.NewKey("test3", state.Write),
+			canRead:   false,
+			canWrite:  true,
+			shouldErr: false,
+		},
+	}
 
-	// Key has Read permissions
-	key := state.NewKey("test", state.Read)
-	tsv := ts.NewView(set.Of(key), map[string][]byte{key.Name: testVal})
-	_, err := tsv.GetValue(ctx, []byte(key.Name))
-	require.NoError(err)
-	require.True(key.Permission.HasPermission(state.Read))
-	require.False(key.Permission.HasPermission(state.Write))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			ctx := context.TODO()
+			ts := New(10)
+			tsv := ts.NewView(set.Of(tt.key), map[string][]byte{tt.key.Name: testVal})
+			if !tt.shouldErr {
+				require.NoError(tsv.Insert(ctx, []byte(tt.key.Name), []byte("val")))
+			} else {
+				require.ErrorIs(tsv.Insert(ctx, []byte(tt.key.Name), []byte("val")), ErrInvalidKeyOrPermission)
+			}
 
-	// key has Read Write permissions
-	key1 := state.NewKey("test1", state.Read, state.Write)
-	tsv1 := ts.NewView(set.Of(key1), map[string][]byte{key1.Name: testVal})
-	_, err = tsv1.GetValue(ctx, []byte(key1.Name))
-	require.NoError(err)
-	require.True(key1.Permission.HasPermission(state.Read))
-	require.True(key1.Permission.HasPermission(state.Write))
+			require.Equal(tt.canRead, tt.key.Permission.HasPermission(state.Read))
+			require.Equal(tt.canWrite, tt.key.Permission.HasPermission(state.Write))
+		})
+	}
 }
 
-func TestInsertWithInvalidPermission(t *testing.T) {
-	require := require.New(t)
-	ctx := context.TODO()
-	ts := New(10)
+func TestDeletePermissions(t *testing.T) {
+	tests := []struct {
+		name      string
+		key       state.Key
+		canRead   bool
+		canWrite  bool
+		shouldErr bool
+	}{
+		{
+			name:      "key has read permissions",
+			key:       state.NewKey("test", state.Read),
+			canRead:   true,
+			canWrite:  false,
+			shouldErr: true,
+		},
+		{
+			name:      "key has read write permissions",
+			key:       state.NewKey("test1", state.Read, state.Write),
+			canRead:   true,
+			canWrite:  true,
+			shouldErr: false,
+		},
+		{
+			name:      "key has no permissions",
+			key:       state.NewKey("test2"),
+			canRead:   false,
+			canWrite:  false,
+			shouldErr: true,
+		},
+		{
+			name:      "key has write permissions",
+			key:       state.NewKey("test3", state.Write),
+			canRead:   false,
+			canWrite:  true,
+			shouldErr: false,
+		},
+	}
 
-	// Insert key that has no permissions
-	key := state.NewKey("name")
-	tsv := ts.NewView(set.Of(key), map[string][]byte{})
-	require.ErrorIs(tsv.Insert(ctx, []byte(key.Name), []byte("val")), ErrInvalidKeyOrPermission)
-	require.False(key.Permission.HasPermission(state.Read))
-	require.False(key.Permission.HasPermission(state.Write))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			ctx := context.TODO()
+			ts := New(10)
+			tsv := ts.NewView(set.Of(tt.key), map[string][]byte{tt.key.Name: testVal})
+			if !tt.shouldErr {
+				require.NoError(tsv.Remove(ctx, []byte(tt.key.Name)))
+			} else {
+				require.ErrorIs(tsv.Remove(ctx, []byte(tt.key.Name)), ErrInvalidKeyOrPermission)
+			}
 
-	// Insert key that has read permission
-	key1 := state.NewKey("name1", state.Read)
-	tsv1 := ts.NewView(set.Of(key1), map[string][]byte{})
-	require.ErrorIs(tsv1.Insert(ctx, []byte(key1.Name), []byte("val1")), ErrInvalidKeyOrPermission)
-	require.True(key1.Permission.HasPermission(state.Read))
-	require.False(key1.Permission.HasPermission(state.Write))
-}
-
-func TestInsertWithValidPermission(t *testing.T) {
-	require := require.New(t)
-	ctx := context.TODO()
-	ts := New(10)
-
-	// Insert key that has write permissions
-	key := state.NewKey("name", state.Write)
-	tsv := ts.NewView(set.Of(key), map[string][]byte{})
-	require.NoError(tsv.Insert(ctx, []byte(key.Name), []byte("val")))
-	require.False(key.Permission.HasPermission(state.Read))
-	require.True(key.Permission.HasPermission(state.Write))
-
-	// Insert key that has read write permission
-	key1 := state.NewKey("name1", state.Read, state.Write)
-	tsv1 := ts.NewView(set.Of(key1), map[string][]byte{})
-	require.NoError(tsv1.Insert(ctx, []byte(key1.Name), []byte("val1")))
-	require.True(key1.Permission.HasPermission(state.Read))
-	require.True(key1.Permission.HasPermission(state.Write))
-}
-
-func TestRemoveWithInvalidPermission(t *testing.T) {
-	require := require.New(t)
-	ctx := context.TODO()
-	ts := New(10)
-
-	// Key has no permissions
-	key := state.NewKey("test")
-	tsv := ts.NewView(set.Of(key), map[string][]byte{key.Name: testVal})
-	require.ErrorIs(tsv.Remove(ctx, []byte(key.Name)), ErrInvalidKeyOrPermission)
-	require.False(key.Permission.HasPermission(state.Read))
-	require.False(key.Permission.HasPermission(state.Write))
-
-	// key has Read permissions
-	key1 := state.NewKey("test1", state.Read)
-	tsv1 := ts.NewView(set.Of(key1), map[string][]byte{key1.Name: testVal})
-	require.ErrorIs(tsv1.Remove(ctx, []byte(key1.Name)), ErrInvalidKeyOrPermission)
-	require.True(key1.Permission.HasPermission(state.Read))
-	require.False(key1.Permission.HasPermission(state.Write))
-}
-
-func TestRemoveWithValidPermission(t *testing.T) {
-	require := require.New(t)
-	ctx := context.TODO()
-	ts := New(10)
-
-	// Key has write permissions
-	key := state.NewKey("test", state.Write)
-	tsv := ts.NewView(set.Of(key), map[string][]byte{key.Name: testVal})
-	require.NoError(tsv.Remove(ctx, []byte(key.Name)))
-	require.False(key.Permission.HasPermission(state.Read))
-	require.True(key.Permission.HasPermission(state.Write))
-
-	// key has read write permissions
-	key1 := state.NewKey("test1", state.Read, state.Write)
-	tsv1 := ts.NewView(set.Of(key1), map[string][]byte{key1.Name: testVal})
-	require.NoError(tsv1.Remove(ctx, []byte(key1.Name)))
-	require.True(key1.Permission.HasPermission(state.Read))
-	require.True(key1.Permission.HasPermission(state.Write))
+			require.Equal(tt.canRead, tt.key.Permission.HasPermission(state.Read))
+			require.Equal(tt.canWrite, tt.key.Permission.HasPermission(state.Write))
+		})
+	}
 }
 
 func TestWithOutOfBoundPermission(t *testing.T) {
