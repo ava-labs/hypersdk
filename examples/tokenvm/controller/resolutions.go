@@ -5,6 +5,7 @@ package controller
 
 import (
 	"context"
+	"log"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
@@ -14,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
+	"go.uber.org/zap"
 )
 
 func (c *Controller) Genesis() *genesis.Genesis {
@@ -76,4 +78,24 @@ func (c *Controller) GetLoanFromState(
 	destination ids.ID,
 ) (uint64, error) {
 	return storage.GetLoanFromState(ctx, c.inner.ReadState, asset, destination)
+}
+
+func (c *Controller) GetBlkFromArchiver(
+	ctx context.Context,
+	bID ids.ID,
+) (*chain.StatefulBlock, error) {
+	blkArchivingKey := append([]byte("blk-"), bID[:]...)
+	blockBytes, err := c.archiver.Get(blkArchivingKey)
+	if err != nil {
+		log.Fatal("cannot get from archiver", zap.Error(err))
+		return nil, err
+	}
+
+	blk, err := chain.UnmarshalBlock(blockBytes, c.inner)
+	if err != nil {
+		log.Fatal("cannot parse block from response of archiver", zap.Error(err), zap.String("block bytes", string(blockBytes)))
+		return nil, err
+	}
+
+	return blk, nil
 }

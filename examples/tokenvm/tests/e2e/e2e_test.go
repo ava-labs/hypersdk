@@ -20,6 +20,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/archiver"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
@@ -580,6 +581,70 @@ var _ = ginkgo.Describe("[Test]", func() {
 				gomega.Ω(err).Should(gomega.BeNil())
 				gomega.Ω(balance).Should(gomega.Equal(sendAmount))
 			}
+		})
+	})
+
+	ginkgo.It("check if archiver archives or noop archiver is provided", func() {
+		_, err := instancesA[0].tcli.Balance(context.TODO(), sender, ids.Empty)
+		gomega.Ω(err).Should(gomega.BeNil())
+
+		other, err := ed25519.GeneratePrivateKey()
+		gomega.Ω(err).Should(gomega.BeNil())
+		aother := auth.NewED25519Address(other.PublicKey())
+
+		ginkgo.By("issue Transfer to the first node", func() {
+			// Generate transaction
+			parser, err := instancesA[0].tcli.Parser(context.TODO())
+			gomega.Ω(err).Should(gomega.BeNil())
+			submit, tx, maxFee, err := instancesA[0].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				nil,
+				&actions.Transfer{
+					To:    aother,
+					Value: sendAmount,
+				},
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			hutils.Outf("{{yellow}}generated transaction{{/}}\n")
+
+			// Broadcast and wait for transaction
+			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
+			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+			success, _, err := instancesA[0].tcli.WaitForTransaction(ctx, tx.ID())
+			cancel()
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(success).Should(gomega.BeTrue())
+			hutils.Outf("{{yellow}}found transaction{{/}}\n")
+
+			// Check sender balance
+			balance, err := instancesA[0].tcli.Balance(context.Background(), sender, ids.Empty)
+			gomega.Ω(err).Should(gomega.BeNil())
+			hutils.Outf(
+				"{{yellow}}start=%d fee=%d send=%d balance=%d{{/}}\n",
+				startAmount,
+				maxFee,
+				sendAmount,
+				balance,
+			)
+			hutils.Outf("{{yellow}}fetched balance{{/}}\n")
+		})
+
+		ginkgo.By("let a node accept block then check if block get archived", func() {
+			bID, _, _, err := instancesA[0].cli.Accepted(context.Background())
+			gomega.Ω(err).Should(gomega.BeNil())
+
+			// wait for archiving to complete
+			time.Sleep(10 * time.Second)
+
+			blk, err := instancesA[0].tcli.Block(context.Background(), bID)
+			if err == archiver.ErrNoopArchiver {
+				return
+			}
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(blk.ID()).Should(gomega.Equal(bID))
 		})
 	})
 

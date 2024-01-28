@@ -186,3 +186,28 @@ func (j *JSONRPCServer) Loan(req *http.Request, args *LoanArgs, reply *LoanReply
 	reply.Amount = amount
 	return nil
 }
+
+type BlockArgs struct {
+	ID ids.ID `json:"id"`
+}
+
+type BlockReply struct {
+	Block []byte `json:"block"`
+}
+
+func (j *JSONRPCServer) Block(req *http.Request, args *BlockArgs, reply *BlockReply) error {
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Block")
+	defer span.End()
+
+	blk, err := j.c.GetBlkFromArchiver(ctx, args.ID)
+	if err != nil {
+		return err
+	}
+
+	reply.Block, err = blk.Marshal()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

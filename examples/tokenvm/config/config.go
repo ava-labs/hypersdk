@@ -34,6 +34,9 @@ const (
 type Config struct {
 	*config.Config
 
+	// Archiver
+	ArchiverConfig string `json:"archiverConfig"`
+
 	// Concurrency
 	AuthVerificationCores     int `json:"authVerificationCores"`
 	RootGenerationCores       int `json:"rootGenerationCores"`

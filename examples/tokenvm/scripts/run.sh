@@ -150,6 +150,23 @@ fi
 echo "creating vm config"
 rm -f ${TMPDIR}/tokenvm.config
 rm -rf ${TMPDIR}/tokenvm-e2e-profiles
+
+# get config of archiver
+if [[ -z $ARCHIVER_CONFIG_PATH ]]; then
+	echo "No archiver config is provided"
+	ARCHIVER_CONFIG=$(echo "{\"archiverType\":\"\", \"enabled\":false}" | jq -R -s)
+else 
+	if [[ -f $ARCHIVER_CONFIG_PATH ]]; then 
+  # convert json to escaped string
+		ARCHIVER_CONFIG="$(jq -R -s '.' < $ARCHIVER_CONFIG_PATH)"
+	else 
+    echo $ARCHIVER_CONFIG_PATH
+		echo "No such archiver file"
+    ARCHIVER_CONFIG=$(echo "{\"archiverType\":\"\", \"enabled\":false}" | jq -R -s)
+	fi
+fi
+
+
 cat <<EOF > ${TMPDIR}/tokenvm.config
 {
   "mempoolSize": 10000000,
@@ -164,7 +181,8 @@ cat <<EOF > ${TMPDIR}/tokenvm.config
   "trackedPairs":["*"],
   "logLevel": "${LOGLEVEL}",
   "continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*",
-  "stateSyncServerDelay": ${STATESYNC_DELAY}
+  "stateSyncServerDelay": ${STATESYNC_DELAY},
+  "archiverConfig": $ARCHIVER_CONFIG
 }
 EOF
 mkdir -p ${TMPDIR}/tokenvm-e2e-profiles
