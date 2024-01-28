@@ -42,7 +42,7 @@ type StatefulBlock struct {
 	Hght   uint64 `json:"height"`
 
 	Txs     []*Transaction `json:"txs"`
-	TxsRoot []byte         `json:"txsRoot"`
+	TxsRoot ids.ID         `json:"txsRoot"`
 
 	// StateRoot is the root of the post-execution state
 	// of [Prnt].
@@ -1017,6 +1017,8 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 
 	p.PackID(b.StateRoot)
 	p.PackUint64(uint64(b.WarpResults))
+	p.PackID(b.TxsRoot)
+
 	bytes := p.Bytes()
 	if err := p.Err(); err != nil {
 		return nil, err
@@ -1052,6 +1054,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 
 	p.UnpackID(false, &b.StateRoot)
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
+	p.UnpackID(false, &b.TxsRoot)
 
 	// Ensure no leftover bytes
 	if !p.Empty() {
