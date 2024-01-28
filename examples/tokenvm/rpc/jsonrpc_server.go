@@ -192,7 +192,7 @@ type BlockArgs struct {
 }
 
 type BlockReply struct {
-	Block *chain.StatefulBlock `json:"block"`
+	Block []byte `json:"block"`
 }
 
 func (j *JSONRPCServer) Block(req *http.Request, args *BlockArgs, reply *BlockReply) error {
@@ -204,7 +204,10 @@ func (j *JSONRPCServer) Block(req *http.Request, args *BlockArgs, reply *BlockRe
 		return err
 	}
 
-	reply.Block = blk
+	reply.Block, err = blk.Marshal()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

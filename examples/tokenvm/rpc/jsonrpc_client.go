@@ -238,7 +238,17 @@ func (cli *JSONRPCClient) Block(ctx context.Context, bID ids.ID) (*chain.Statefu
 		return nil, err
 	}
 
-	return resp.Block, nil
+	parser, err := cli.Parser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	blk, err := chain.UnmarshalBlock(resp.Block, parser)
+	if err != nil {
+		return nil, err
+	}
+
+	return blk, nil
 }
 
 var _ chain.Parser = (*Parser)(nil)
