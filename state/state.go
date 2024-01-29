@@ -46,7 +46,7 @@ type Keys map[string]Permission
 type Permission set.Bits
 
 // By default, no permission bits are set
-func NewKey(permissions ...uint8) Permission {
+func NewPermission(permissions ...uint8) Permission {
 	withinBoundsPermission := []int{} // NewBits requires int type
 	for _, v := range permissions {
 		// Only set bit to 1 if we're within 8 bits
@@ -63,11 +63,15 @@ func (p Permission) HasPermission(permission uint8) bool {
 	return set.Bits(p).Contains(int(permission))
 }
 
-// Behaves like set.Add, where if the StateKey name is already
-// in the set, nothing happens. Transactions are expected to
-// use Add to prevent updating of key permissions
-func (k Keys) Add(name string, permission Permission) {
-	if _, exists := k[name]; !exists {
+// Transactions are expected to use this to prevent
+// overriding of key permissions
+func (k Keys) AddKeyAndPermission(name string, permission Permission) {
+	_, exists := k[name]
+	if !exists {
 		k[name] = permission
+	} else {
+		// Transaction's permissions are the union of all
+		// Actions and Auths it contains
+		set.Bits(k[name]).Union(set.Bits(permission))
 	}
 }

@@ -447,9 +447,9 @@ func BuildBlock(
 	feeKeyStr := string(feeKey)
 
 	keys := make(state.Keys)
-	keys.Add(heightKeyStr, state.NewKey(state.Write))
-	keys.Add(timestampKeyStr, state.NewKey(state.Write))
-	keys.Add(feeKeyStr, state.NewKey(state.Write))
+	keys.AddKeyAndPermission(heightKeyStr, state.NewPermission(state.Write))
+	keys.AddKeyAndPermission(timestampKeyStr, state.NewPermission(state.Write))
+	keys.AddKeyAndPermission(feeKeyStr, state.NewPermission(state.Write))
 	tsv := ts.NewView(keys, map[string][]byte{
 		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),

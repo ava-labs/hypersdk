@@ -33,8 +33,8 @@ func (*CloseOrder) GetTypeID() uint8 {
 
 func (c *CloseOrder) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
-		string(storage.OrderKey(c.Order)):        state.NewKey(state.Read, state.Write),
-		string(storage.BalanceKey(actor, c.Out)): state.NewKey(state.Read, state.Write),
+		string(storage.OrderKey(c.Order)):        state.NewPermission(state.Read, state.Write),
+		string(storage.BalanceKey(actor, c.Out)): state.NewPermission(state.Read, state.Write),
 	}
 }
 

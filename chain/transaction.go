@@ -135,7 +135,7 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 			if !keys.Valid(k) {
 				return nil, ErrInvalidKeyValue
 			}
-			stateKeys.Add(k, v) // prevents updating a key that already exists
+			stateKeys.AddKeyAndPermission(k, v)
 		}
 	}
 
@@ -143,12 +143,12 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	if t.WarpMessage != nil {
 		p := sm.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
 		k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
-		stateKeys.Add(string(k), state.NewKey(state.Read, state.Write))
+		stateKeys.AddKeyAndPermission(string(k), state.NewPermission(state.Read, state.Write))
 	}
 	if t.Action.OutputsWarpMessage() {
 		p := sm.OutgoingWarpKeyPrefix(t.id)
 		k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
-		stateKeys.Add(string(k), state.NewKey(state.Read, state.Write))
+		stateKeys.AddKeyAndPermission(string(k), state.NewPermission(state.Read, state.Write))
 	}
 
 	// Cache keys if called again
