@@ -241,7 +241,7 @@ func getCallArgs(ctx context.Context, memory *program.Memory, buffer []byte, pro
 }
 
 // enterProgram tries to enter [function] of [programID].
-// Returns 0 if [function] has already been entered, 1 otherwise.
+// Returns 0 if [function] has already been entered, errors otherwise.
 func (i *Import) enterProgram(
 	caller *program.Caller,
 	programID int64,

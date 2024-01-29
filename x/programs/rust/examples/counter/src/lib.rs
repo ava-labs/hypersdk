@@ -61,7 +61,7 @@ fn multiply(program: Program, address: Address, x: i64, y: i64, max_units: i64) 
     }
 }
 
-/// multiply is an example of a reentrant function. It will call inc with value `x`, `y` times.
+/// multiply_reentrant is an example of a reentrant function. It will call inc with value `x`, `y` times.
 /// This function will succeed because it is marked as reentrant.
 #[public(reentrant)]
 fn multiply_reentrant(program: Program, address: Address, x: i64, y: i64, max_units: i64) {
