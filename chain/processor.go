@@ -13,9 +13,9 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 
 	"github.com/ava-labs/hypersdk/executor"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
@@ -30,8 +30,8 @@ func (b *StatelessBlock) Execute(
 	ctx context.Context,
 	tracer trace.Tracer, //nolint:interfacer
 	im state.Immutable,
-	feeManager *fees.FeeManager,
-	r fees.Rules,
+	feeManager *fees.Manager,
+	r Rules,
 ) ([]*Result, *tstate.TState, error) {
 	ctx, span := tracer.Start(ctx, "Processor.Execute")
 	defer span.End()
@@ -132,7 +132,7 @@ func (b *StatelessBlock) Execute(
 
 			// Update block metadata with units actually consumed (if more is consumed than block allows, we will non-deterministically
 			// exit with an error based on which tx over the limit is processed first)
-			if ok, d := feeManager.Consume(result.Consumed, r.GetMaxBlockUnits()); !ok {
+			if ok, d := feeManager.Consume(result.Consumed, r.Fees().GetMaxBlockUnits()); !ok {
 				return fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
 			}
 

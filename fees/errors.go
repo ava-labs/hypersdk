@@ -5,4 +5,4 @@ package fees
 
 import "errors"
 
-var ErrWrongDimensionSize     = errors.New("wrong dimensions size")
+var ErrWrongDimensionSize = errors.New("wrong dimensions size")

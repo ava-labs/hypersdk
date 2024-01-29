@@ -15,12 +15,12 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/math"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -162,7 +162,7 @@ func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
 
 // Units is charged whether or not a transaction is successful because state
 // lookup is not free.
-func (t *Transaction) MaxUnits(sm StateManager, r fees.Rules) (fees.Dimensions, error) {
+func (t *Transaction) MaxUnits(sm StateManager, r Rules) (fees.Dimensions, error) {
 	// Cacluate max compute costs
 	maxComputeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	maxComputeUnitsOp.Add(t.Action.MaxComputeUnits(r))
@@ -223,7 +223,7 @@ func (t *Transaction) MaxUnits(sm StateManager, r fees.Rules) (fees.Dimensions, 
 
 // EstimateMaxUnits provides a pessimistic estimate of the cost to execute a transaction. This is
 // typically used during transaction construction.
-func EstimateMaxUnits(r fees.Rules, action Action, authFactory AuthFactory, warpMessage *warp.Message) (fees.Dimensions, error) {
+func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessage *warp.Message) (fees.Dimensions, error) {
 	authBandwidth, authCompute := authFactory.MaxUnits()
 	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + authBandwidth
 	actionStateKeysMaxChunks := action.StateKeysMaxChunks()
@@ -289,9 +289,9 @@ func EstimateMaxUnits(r fees.Rules, action Action, authFactory AuthFactory, warp
 
 func (t *Transaction) PreExecute(
 	ctx context.Context,
-	feeManager *fees.FeeManager,
+	feeManager *fees.Manager,
 	s StateManager,
-	r fees.Rules,
+	r Rules,
 	im state.Immutable,
 	timestamp int64,
 ) error {
@@ -332,10 +332,10 @@ func (t *Transaction) PreExecute(
 // Invariant: [PreExecute] is called just before [Execute]
 func (t *Transaction) Execute(
 	ctx context.Context,
-	feeManager *fees.FeeManager,
+	feeManager *fees.Manager,
 	reads map[string]uint16,
 	s StateManager,
-	r fees.Rules,
+	r Rules,
 	ts *tstate.TStateView,
 	timestamp int64,
 	warpVerified bool,

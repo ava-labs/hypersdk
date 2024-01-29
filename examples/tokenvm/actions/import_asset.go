@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
@@ -195,7 +194,7 @@ func (i *ImportAsset) executeReturn(
 
 func (i *ImportAsset) Execute(
 	ctx context.Context,
-	r fees.Rules,
+	r chain.Rules,
 	mu state.Mutable,
 	t int64,
 	actor codec.Address,
@@ -252,7 +251,7 @@ func (i *ImportAsset) Execute(
 	return true, ImportAssetComputeUnits, nil, nil, nil
 }
 
-func (*ImportAsset) MaxComputeUnits(fees.Rules) uint64 {
+func (*ImportAsset) MaxComputeUnits(chain.Rules) uint64 {
 	return ImportAssetComputeUnits
 }
 
@@ -287,7 +286,7 @@ func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, erro
 	return &imp, nil
 }
 
-func (*ImportAsset) ValidRange(fees.Rules) (int64, int64) {
+func (*ImportAsset) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }

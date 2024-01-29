@@ -20,8 +20,8 @@ import (
 
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/executor"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/workers"
 )
@@ -67,7 +67,7 @@ func (vm *VM) Logger() logging.Logger {
 	return vm.snowCtx.Log
 }
 
-func (vm *VM) Rules(t int64) fees.Rules {
+func (vm *VM) Rules(t int64) chain.Rules {
 	return vm.c.Rules(t)
 }
 
@@ -479,7 +479,7 @@ func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
-	return fees.NewFeeManager(v).UnitPrices(), nil
+	return fees.NewManager(v).UnitPrices(), nil
 }
 
 func (vm *VM) GetTransactionExecutionCores() int {

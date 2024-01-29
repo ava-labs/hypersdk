@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
@@ -232,7 +231,7 @@ type Parser struct {
 	genesis   *genesis.Genesis
 }
 
-func (p *Parser) Rules(t int64) fees.Rules {
+func (p *Parser) Rules(t int64) chain.Rules {
 	return p.genesis.Rules(t, p.networkID, p.chainID)
 }
 

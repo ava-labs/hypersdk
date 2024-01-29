@@ -8,7 +8,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
@@ -41,11 +40,11 @@ func (*SECP256R1) GetTypeID() uint8 {
 	return consts.SECP256R1ID
 }
 
-func (*SECP256R1) ComputeUnits(fees.Rules) uint64 {
+func (*SECP256R1) ComputeUnits(chain.Rules) uint64 {
 	return SECP256R1ComputeUnits
 }
 
-func (*SECP256R1) ValidRange(fees.Rules) (int64, int64) {
+func (*SECP256R1) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 

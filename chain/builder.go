@@ -24,6 +24,7 @@ import (
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
@@ -101,13 +102,13 @@ func BuildBlock(
 	if err != nil {
 		return nil, err
 	}
-	parentFeeManager := fees.NewFeeManager(feeRaw)
-	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, nextTime, r)
+	parentFeeManager := fees.NewManager(feeRaw)
+	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, nextTime, r.Fees())
 	if err != nil {
 		return nil, err
 	}
-	maxUnits := r.GetMaxBlockUnits()
-	targetUnits := r.GetWindowTargetUnits()
+	maxUnits := r.Fees().GetMaxBlockUnits()
+	targetUnits := r.Fees().GetWindowTargetUnits()
 
 	var (
 		ts            = tstate.New(changesEstimate)

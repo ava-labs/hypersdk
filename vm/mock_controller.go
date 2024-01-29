@@ -21,7 +21,6 @@ import (
 	snow "github.com/ava-labs/avalanchego/snow"
 	builder "github.com/ava-labs/hypersdk/builder"
 	chain "github.com/ava-labs/hypersdk/chain"
-	fees "github.com/ava-labs/hypersdk/fees"
 	gossiper "github.com/ava-labs/hypersdk/gossiper"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -102,10 +101,10 @@ func (mr *MockControllerMockRecorder) Rejected(arg0, arg1 any) *gomock.Call {
 }
 
 // Rules mocks base method.
-func (m *MockController) Rules(arg0 int64) fees.Rules {
+func (m *MockController) Rules(arg0 int64) chain.Rules {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Rules", arg0)
-	ret0, _ := ret[0].(fees.Rules)
+	ret0, _ := ret[0].(chain.Rules)
 	return ret0
 }
 

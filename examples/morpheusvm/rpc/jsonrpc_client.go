@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/registry" // ensure registry populated
@@ -138,7 +137,7 @@ func (p *Parser) ChainID() ids.ID {
 	return p.chainID
 }
 
-func (p *Parser) Rules(t int64) fees.Rules {
+func (p *Parser) Rules(t int64) chain.Rules {
 	return p.genesis.Rules(t, p.networkID, p.chainID)
 }
 

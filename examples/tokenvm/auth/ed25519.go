@@ -9,7 +9,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
@@ -41,11 +40,11 @@ func (*ED25519) GetTypeID() uint8 {
 	return ed25519ID
 }
 
-func (*ED25519) ComputeUnits(fees.Rules) uint64 {
+func (*ED25519) ComputeUnits(chain.Rules) uint64 {
 	return ED25519ComputeUnits
 }
 
-func (*ED25519) ValidRange(fees.Rules) (int64, int64) {
+func (*ED25519) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 

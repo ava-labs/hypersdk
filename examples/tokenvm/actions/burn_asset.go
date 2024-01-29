@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
@@ -50,7 +49,7 @@ func (*BurnAsset) OutputsWarpMessage() bool {
 
 func (b *BurnAsset) Execute(
 	ctx context.Context,
-	_ fees.Rules,
+	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
@@ -80,7 +79,7 @@ func (b *BurnAsset) Execute(
 	return true, BurnComputeUnits, nil, nil, nil
 }
 
-func (*BurnAsset) MaxComputeUnits(fees.Rules) uint64 {
+func (*BurnAsset) MaxComputeUnits(chain.Rules) uint64 {
 	return BurnComputeUnits
 }
 
@@ -100,7 +99,7 @@ func UnmarshalBurnAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) 
 	return &burn, p.Err()
 }
 
-func (*BurnAsset) ValidRange(fees.Rules) (int64, int64) {
+func (*BurnAsset) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }

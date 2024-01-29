@@ -16,8 +16,8 @@ import (
 	reflect "reflect"
 
 	ids "github.com/ava-labs/avalanchego/ids"
-	gomock "go.uber.org/mock/gomock"
 	fees "github.com/ava-labs/hypersdk/fees"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockRules is a mock of Rules interface.
