@@ -133,10 +133,10 @@ func (mr *MockActionMockRecorder) Size() *gomock.Call {
 }
 
 // StateKeys mocks base method.
-func (m *MockAction) StateKeys(arg0 codec.Address, arg1 ids.ID) []state.Key {
+func (m *MockAction) StateKeys(arg0 codec.Address, arg1 ids.ID) state.Keys {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StateKeys", arg0, arg1)
-	ret0, _ := ret[0].([]state.Key)
+	ret0, _ := ret[0].(state.Keys)
 	return ret0
 }
 

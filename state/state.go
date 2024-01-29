@@ -7,13 +7,14 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 )
 
 const (
-	Read          = 0
-	Write         = 1
-	PermissionLen = 8
+	Read          uint8 = 0
+	Write         uint8 = 1
+	PermissionLen uint8 = 8 // Sufficient to use a single byte
 )
 
 type Immutable interface {
@@ -34,37 +35,39 @@ type View interface {
 	GetMerkleRoot(ctx context.Context) (ids.ID, error)
 }
 
-// StateKey holds the name of the key and its permission (Read/Write)
+// StateKey holds the name of the key and its permission (Read/Write). By default,
+// initialization of Keys with duplicate key will not work. And to prevent duplicate
+// insertions from overriding the original permissions, use the Add function below.
+// Permission uses bits since transactions are expected to include this encoding
+type Keys map[string]Permission
+
+// The access permission (Read/Write) for each StateKey
 // Specifying RWrite is setting both the Read and Write bit
-type Key struct {
-	Name string
-	// TODO: consider a dynamically sized []byte
-	Permission Permission
-}
+type Permission set.Bits
 
-// TODO: Support Alloc bit
-type Permission [PermissionLen]byte
-
-// Returns a StateKey with the appropriate permission bits set
 // By default, no permission bits are set
-func NewKey(name string, permissions ...int) Key {
-	var key Key
-	key.Name = name
-	for _, perm := range permissions {
-		// Only set bit if it's within the byte slice
-		if perm < PermissionLen {
-			key.Permission[perm] |= 1
+func NewKey(permissions ...uint8) Permission {
+	withinBoundsPermission := []int{} // NewBits requires int type
+	for _, v := range permissions {
+		// Only set bit to 1 if we're within 8 bits
+		if v < PermissionLen {
+			withinBoundsPermission = append(withinBoundsPermission, int(v))
 		}
 	}
-	return key
+	return Permission(set.NewBits(withinBoundsPermission...))
 }
 
 // Checks whether a StateKey has the appropriate permission
 // to perform a certain access (Read/Write).
-func (p *Permission) HasPermission(permission int) bool {
-	// Trying to access a bit out of bounds
-	if permission >= PermissionLen {
-		return false
+func (p Permission) HasPermission(permission uint8) bool {
+	return set.Bits(p).Contains(int(permission))
+}
+
+// Behaves like set.Add, where if the StateKey name is already
+// in the set, nothing happens. Transactions are expected to
+// use Add to prevent updating of key permissions
+func (k Keys) Add(name string, permission Permission) {
+	if _, exists := k[name]; !exists {
+		k[name] = permission
 	}
-	return p[permission] == 1
 }

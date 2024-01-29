@@ -106,7 +106,7 @@ func (e *Executor) createWorker() {
 
 // Run executes [f] after all previously enqueued [f] with
 // overlapping [conflicts] are executed.
-func (e *Executor) Run(conflicts set.Set[state.Key], f func() error) {
+func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	e.l.Lock()
 	defer e.l.Unlock()
 
@@ -120,7 +120,7 @@ func (e *Executor) Run(conflicts set.Set[state.Key], f func() error) {
 
 	// Record dependencies
 	for k := range conflicts {
-		latest, ok := e.edges[k.Name]
+		latest, ok := e.edges[k]
 		if ok {
 			lt := e.tasks[latest]
 			if !lt.executed {
@@ -134,7 +134,7 @@ func (e *Executor) Run(conflicts set.Set[state.Key], f func() error) {
 				lt.blocking.Add(id)
 			}
 		}
-		e.edges[k.Name] = id
+		e.edges[k] = id
 	}
 
 	// Start execution if there are no blocking dependencies

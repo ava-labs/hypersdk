@@ -609,7 +609,12 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	heightKeyStr := string(heightKey)
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
-	tsv := ts.NewView(set.Of(state.NewKey(heightKeyStr, state.Write), state.NewKey(timestampKeyStr, state.Write), state.NewKey(feeKeyStr, state.Write)), map[string][]byte{
+
+	keys := make(state.Keys)
+	keys.Add(heightKeyStr, state.NewKey(state.Write))
+	keys.Add(timestampKeyStr, state.NewKey(state.Write))
+	keys.Add(feeKeyStr, state.NewKey(state.Write))
+	tsv := ts.NewView(keys, map[string][]byte{
 		heightKeyStr:    parentHeightRaw,
 		timestampKeyStr: parentTimestampRaw,
 		feeKeyStr:       parentFeeManager.Bytes(),

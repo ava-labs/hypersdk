@@ -9,7 +9,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/maybe"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -40,8 +39,7 @@ type TStateView struct {
 	// operations allows for reverting state to a certain point-in-time.
 	ops []*op
 
-	// stores a map of managed keys and its permissions in the TState struct
-	scope        map[string]state.Permission
+	scope        state.Keys // stores a map of managed keys and its permissions in the TState struct
 	scopeStorage map[string][]byte
 
 	// Store which keys are modified and how large their values were.
@@ -50,11 +48,7 @@ type TStateView struct {
 	writes      map[string]uint16
 }
 
-func (ts *TState) NewView(scopeKeys set.Set[state.Key], storage map[string][]byte) *TStateView {
-	scope := make(map[string]state.Permission)
-	for k := range scopeKeys {
-		scope[k.Name] = k.Permission
-	}
+func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateView {
 	return &TStateView{
 		ts:                 ts,
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
@@ -163,7 +157,7 @@ func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
 }
 
 // checkScope returns whether [k] is in scope and has appropriate permissions.
-func (ts *TStateView) checkScope(_ context.Context, k []byte, perm int) bool {
+func (ts *TStateView) checkScope(_ context.Context, k []byte, perm uint8) bool {
 	permission, exists := ts.scope[string(k)]
 	if !exists || !permission.HasPermission(perm) {
 		return false
