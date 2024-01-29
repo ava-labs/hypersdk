@@ -14,10 +14,11 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
-	"github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
+	programImport "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/host"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/ava-labs/hypersdk/x/programs/tests"
 )
@@ -40,14 +41,14 @@ func TestCounterProgram(t *testing.T) {
 		))
 
 	eng := engine.New(engine.NewConfig())
-	reentrancyGuard := engine.NewReentrancyGuard()
+	reentrancyGuard := program.NewReentrancyGuard()
 	// define supported imports
 	importsBuilder := host.NewImportsBuilder()
 	importsBuilder.Register("state", func() host.Import {
 		return pstate.New(log, db)
 	})
 	importsBuilder.Register("program", func() host.Import {
-		return program.New(log, eng, db, cfg, reentrancyGuard)
+		return programImport.New(log, eng, db, cfg, reentrancyGuard)
 	})
 	imports := importsBuilder.Build()
 
@@ -80,13 +81,11 @@ func TestCounterProgram(t *testing.T) {
 
 	// create counter for alice on program 1
 	result, err := rt.Call(ctx, "initialize_address", programIDPtr, alicePtr)
-	reentrancyGuard.Reset()
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
 	// validate counter at 0
 	result, err = rt.Call(ctx, "get_value", programIDPtr, alicePtr)
-	reentrancyGuard.Reset()
 	require.NoError(err)
 	require.Equal(int64(0), result[0])
 
@@ -102,7 +101,6 @@ func TestCounterProgram(t *testing.T) {
 
 	// initialize counter for alice on runtime 2
 	result, err = rt.Call(ctx, "initialize_address", programID2Ptr, alicePtr)
-	reentrancyGuard.Reset()
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
@@ -111,14 +109,11 @@ func TestCounterProgram(t *testing.T) {
 	incAmountPtr, err := argumentToSmartPtr(incAmount, mem2)
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc", programID2Ptr, alicePtr, incAmountPtr)
-	reentrancyGuard.Reset()
 
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
 	result, err = rt.Call(ctx, "get_value", programID2Ptr, alicePtr)
-	reentrancyGuard.Reset()
-
 	require.NoError(err)
 	require.Equal(incAmount, result[0])
 
@@ -126,7 +121,7 @@ func TestCounterProgram(t *testing.T) {
 	onePtr, err := argumentToSmartPtr(int64(1), mem)
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc", programIDPtr, alicePtr, onePtr)
-	reentrancyGuard.Reset()
+	
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
@@ -151,26 +146,27 @@ func TestCounterProgram(t *testing.T) {
 	fivePtr, err := argumentToSmartPtr(int64(5), mem)
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr, fivePtr)
-	reentrancyGuard.Reset()
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 	
 	// expect alice's counter on program 2 to be 15
 	result, err = rt.Call(ctx, "get_value_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr)
-	reentrancyGuard.Reset()
 	require.NoError(err)
 	require.Equal(int64(15), result[0])
 
 	threePtr, err := argumentToSmartPtr(int64(3), mem)
 	require.NoError(err)
 	// increment by 3 using a reentrant function
-	_, err = rt.Call(ctx, "multiply", target, alicePtr, onePtr, threePtr, maxUnitsProgramToProgramPtr)
-	reentrancyGuard.Reset()
+	_, err = rt.Call(ctx, "multiply_reentrant", target, alicePtr, onePtr, threePtr, maxUnitsProgramToProgramPtr)
 	require.NoError(err)
 	
 	result, err = rt.Call(ctx, "get_value", target, alicePtr)
 	require.NoError(err)
 	require.Equal(int64(18), result[0])
+
+	// This should fail because it is a reentrant call that is not allowed
+	_, err = rt.Call(ctx, "multiply", target, alicePtr, onePtr, threePtr, maxUnitsProgramToProgramPtr)
+	require.Error(err)
 
 	balance, err = rt.Meter().GetBalance()
 	require.NoError(err)

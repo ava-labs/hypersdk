@@ -23,7 +23,7 @@ func New(
 	engine *engine.Engine,
 	imports host.SupportedImports,
 	cfg *Config,
-	rg *engine.ReentrancyGuard,
+	rg *program.ReentrancyGuard,
 ) Runtime {
 	return &WasmRuntime{
 		log:     log,
@@ -46,7 +46,7 @@ type WasmRuntime struct {
 
 	log logging.Logger
 
-	rg *engine.ReentrancyGuard
+	rg *program.ReentrancyGuard
 }
 
 func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUnits uint64) (err error) {
@@ -109,7 +109,13 @@ func (r *WasmRuntime) Call(_ context.Context, name string, params ...program.Sma
 		return nil, err
 	}
 
-	return fn.Call(params...)
+	rVals, err := fn.Call(params...)
+	if err != nil {
+		return nil, err
+	}
+
+	r.rg.Reset()
+	return rVals, nil
 }
 
 func (r *WasmRuntime) Memory() (*program.Memory, error) {
