@@ -57,6 +57,20 @@ func (mr *MockRulesMockRecorder) ChainID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChainID", reflect.TypeOf((*MockRules)(nil).ChainID))
 }
 
+// Fees mocks base method.
+func (m *MockRules) Fees() fees.Metadata {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Fees")
+	ret0, _ := ret[0].(fees.Metadata)
+	return ret0
+}
+
+// Fees indicates an expected call of Fees.
+func (mr *MockRulesMockRecorder) Fees() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fees", reflect.TypeOf((*MockRules)(nil).Fees))
+}
+
 // FetchCustom mocks base method.
 func (m *MockRules) FetchCustom(arg0 string) (any, bool) {
 	m.ctrl.T.Helper()
@@ -100,20 +114,6 @@ func (mr *MockRulesMockRecorder) GetBaseWarpComputeUnits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBaseWarpComputeUnits", reflect.TypeOf((*MockRules)(nil).GetBaseWarpComputeUnits))
 }
 
-// GetMaxBlockUnits mocks base method.
-func (m *MockRules) GetMaxBlockUnits() fees.Dimensions {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMaxBlockUnits")
-	ret0, _ := ret[0].(fees.Dimensions)
-	return ret0
-}
-
-// GetMaxBlockUnits indicates an expected call of GetMaxBlockUnits.
-func (mr *MockRulesMockRecorder) GetMaxBlockUnits() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaxBlockUnits", reflect.TypeOf((*MockRules)(nil).GetMaxBlockUnits))
-}
-
 // GetMinBlockGap mocks base method.
 func (m *MockRules) GetMinBlockGap() int64 {
 	m.ctrl.T.Helper()
@@ -140,20 +140,6 @@ func (m *MockRules) GetMinEmptyBlockGap() int64 {
 func (mr *MockRulesMockRecorder) GetMinEmptyBlockGap() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMinEmptyBlockGap", reflect.TypeOf((*MockRules)(nil).GetMinEmptyBlockGap))
-}
-
-// GetMinUnitPrice mocks base method.
-func (m *MockRules) GetMinUnitPrice() fees.Dimensions {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMinUnitPrice")
-	ret0, _ := ret[0].(fees.Dimensions)
-	return ret0
-}
-
-// GetMinUnitPrice indicates an expected call of GetMinUnitPrice.
-func (mr *MockRulesMockRecorder) GetMinUnitPrice() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMinUnitPrice", reflect.TypeOf((*MockRules)(nil).GetMinUnitPrice))
 }
 
 // GetOutgoingWarpComputeUnits mocks base method.
@@ -268,20 +254,6 @@ func (mr *MockRulesMockRecorder) GetStorageValueWriteUnits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageValueWriteUnits", reflect.TypeOf((*MockRules)(nil).GetStorageValueWriteUnits))
 }
 
-// GetUnitPriceChangeDenominator mocks base method.
-func (m *MockRules) GetUnitPriceChangeDenominator() fees.Dimensions {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUnitPriceChangeDenominator")
-	ret0, _ := ret[0].(fees.Dimensions)
-	return ret0
-}
-
-// GetUnitPriceChangeDenominator indicates an expected call of GetUnitPriceChangeDenominator.
-func (mr *MockRulesMockRecorder) GetUnitPriceChangeDenominator() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnitPriceChangeDenominator", reflect.TypeOf((*MockRules)(nil).GetUnitPriceChangeDenominator))
-}
-
 // GetValidityWindow mocks base method.
 func (m *MockRules) GetValidityWindow() int64 {
 	m.ctrl.T.Helper()
@@ -324,20 +296,6 @@ func (m *MockRules) GetWarpConfig(arg0 ids.ID) (bool, uint64, uint64) {
 func (mr *MockRulesMockRecorder) GetWarpConfig(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWarpConfig", reflect.TypeOf((*MockRules)(nil).GetWarpConfig), arg0)
-}
-
-// GetWindowTargetUnits mocks base method.
-func (m *MockRules) GetWindowTargetUnits() fees.Dimensions {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWindowTargetUnits")
-	ret0, _ := ret[0].(fees.Dimensions)
-	return ret0
-}
-
-// GetWindowTargetUnits indicates an expected call of GetWindowTargetUnits.
-func (mr *MockRulesMockRecorder) GetWindowTargetUnits() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWindowTargetUnits", reflect.TypeOf((*MockRules)(nil).GetWindowTargetUnits))
 }
 
 // NetworkID mocks base method.
