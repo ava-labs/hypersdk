@@ -13,8 +13,10 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
+	programImport "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/host"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/ava-labs/hypersdk/x/programs/tests"
 )
@@ -115,9 +117,13 @@ func newTokenProgram(maxUnits uint64, engine *engine.Engine, cfg *runtime.Config
 
 	// define imports
 	importsBuilder := host.NewImportsBuilder()
+	reentrancyGuard := program.NewReentrancyGuard()
 	importsBuilder.Register("state", func() host.Import {
 		return pstate.New(log, db)
 	})
+	importsBuilder.Register("program", func() host.Import {
+		return programImport.New(log, engine, db, cfg, reentrancyGuard)
+	})
 
-	return NewToken(log, engine, programBytes, db, cfg, importsBuilder.Build(), maxUnits), nil
+	return NewToken(log, engine, programBytes, db, cfg, importsBuilder.Build(), reentrancyGuard, maxUnits), nil
 }

@@ -121,7 +121,7 @@ func TestCounterProgram(t *testing.T) {
 	onePtr, err := argumentToSmartPtr(int64(1), mem)
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc", programIDPtr, alicePtr, onePtr)
-	
+
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
@@ -148,7 +148,7 @@ func TestCounterProgram(t *testing.T) {
 	result, err = rt.Call(ctx, "inc_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr, fivePtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
-	
+
 	// expect alice's counter on program 2 to be 15
 	result, err = rt.Call(ctx, "get_value_external", caller, target, maxUnitsProgramToProgramPtr, alicePtr)
 	require.NoError(err)
@@ -159,7 +159,7 @@ func TestCounterProgram(t *testing.T) {
 	// increment by 3 using a reentrant function
 	_, err = rt.Call(ctx, "multiply_reentrant", target, alicePtr, onePtr, threePtr, maxUnitsProgramToProgramPtr)
 	require.NoError(err)
-	
+
 	result, err = rt.Call(ctx, "get_value", target, alicePtr)
 	require.NoError(err)
 	require.Equal(int64(18), result[0])

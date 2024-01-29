@@ -5,6 +5,7 @@ package program
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 )
@@ -42,6 +43,7 @@ func (r *ReentrancyGuard) Reset() {
 func (r *ReentrancyGuard) Enter(id ids.ID, fn string) error {
 	// reentering since we already visited
 	if r.m[id] != nil && r.m[id][fn] {
+		fmt.Println("reentering fn:", fn)
 		return ErrReentrancy
 	}
 

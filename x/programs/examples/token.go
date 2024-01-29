@@ -17,10 +17,11 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/host"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-func NewToken(log logging.Logger, engine *engine.Engine, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports host.SupportedImports, maxUnits uint64) *Token {
+func NewToken(log logging.Logger, engine *engine.Engine, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports host.SupportedImports, rg *program.ReentrancyGuard, maxUnits uint64) *Token {
 	return &Token{
 		log:          log,
 		programBytes: programBytes,
@@ -29,6 +30,7 @@ func NewToken(log logging.Logger, engine *engine.Engine, programBytes []byte, db
 		db:           db,
 		maxUnits:     maxUnits,
 		engine:       engine,
+		rg:           rg,
 	}
 }
 
@@ -47,10 +49,11 @@ type Token struct {
 	db           state.Mutable
 	maxUnits     uint64
 	engine       *engine.Engine
+	rg           *program.ReentrancyGuard
 }
 
 func (t *Token) Run(ctx context.Context) error {
-	rt := runtime.New(t.log, t.engine, t.imports, t.cfg, nil)
+	rt := runtime.New(t.log, t.engine, t.imports, t.cfg, t.rg)
 	err := rt.Initialize(ctx, t.programBytes, t.maxUnits)
 	if err != nil {
 		return err

@@ -113,7 +113,6 @@ func (r *WasmRuntime) Call(_ context.Context, name string, params ...program.Sma
 	if err != nil {
 		return nil, err
 	}
-
 	r.rg.Reset()
 	return rVals, nil
 }
