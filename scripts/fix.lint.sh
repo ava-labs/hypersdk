@@ -14,7 +14,7 @@ fi
 
 echo "adding license header"
 go install -v github.com/palantir/go-license@latest
-go-license --config=./license.yml **/*.go
+go-license --config=./license.yml -- **/*.go
 
 echo "gofumpt files"
 go install mvdan.cc/gofumpt@latest

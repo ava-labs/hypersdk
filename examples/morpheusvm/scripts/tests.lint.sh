@@ -54,7 +54,8 @@ function test_license_header {
   local files=()
   while IFS= read -r line; do files+=("$line"); done < <(find . -type f -name '*.go' ! -name '*.pb.go' ! -name 'mock_*.go')
 
-  # ignore 3rd party code
+  # Provision of the list of flags requires word splitting, so disable the shellcheck
+  # shellcheck disable=SC2086
   go-license \
   --config ./license.yml \
   ${_addlicense_flags} \

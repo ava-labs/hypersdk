@@ -31,7 +31,7 @@ fi
 rm -rf token-wallet.zip
 
 # Exit early if not publishing
-if [ ${PUBLISH} == false ]; then
+if [ "${PUBLISH}" == false ]; then
   echo "not publishing app"
   ditto -c -k --keepParent build/bin/Token\ Wallet.app token-wallet.zip
   exit 0
@@ -39,16 +39,16 @@ fi
 echo "publishing app"
 
 # Sign code
-codesign -s ${APP_SIGNING_KEY_ID} --deep  --timestamp -o runtime -v build/bin/Token\ Wallet.app
+codesign -s "${APP_SIGNING_KEY_ID}" --deep  --timestamp -o runtime -v build/bin/Token\ Wallet.app
 ditto -c -k --keepParent build/bin/Token\ Wallet.app token-wallet.zip
 
 # Need to sign to allow for app to be opened on other computers
-xcrun altool --notarize-app --primary-bundle-id com.ava-labs.token-wallet --username ${APPLE_NOTARIZATION_USERNAME} --password "@keychain:altool" --file token-wallet.zip
+xcrun altool --notarize-app --primary-bundle-id com.ava-labs.token-wallet --username "${APPLE_NOTARIZATION_USERNAME}" --password "@keychain:altool" --file token-wallet.zip
 
 # Log until exit
-read -p "Input APPLE_NOTARIZATION_REQUEST_ID: " APPLE_NOTARIZATION_REQUEST_ID
+read -r -p "Input APPLE_NOTARIZATION_REQUEST_ID: " APPLE_NOTARIZATION_REQUEST_ID
 while true
 do
-  xcrun altool --notarization-info ${APPLE_NOTARIZATION_REQUEST_ID} -u ${APPLE_NOTARIZATION_USERNAME} -p "@keychain:altool"
+  xcrun altool --notarization-info "${APPLE_NOTARIZATION_REQUEST_ID}" -u "${APPLE_NOTARIZATION_USERNAME}" -p "@keychain:altool"
   sleep 15
 done

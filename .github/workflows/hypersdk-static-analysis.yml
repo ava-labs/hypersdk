@@ -25,6 +25,9 @@ jobs:
       - name: Run static analysis tests
         shell: bash
         run: scripts/tests.lint.sh
+      - name: Run shellcheck
+        shell: bash
+        run: scripts/tests.shellcheck.sh
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
