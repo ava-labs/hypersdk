@@ -36,9 +36,9 @@ DEPLOYER_OS_TYPE=$(uname | tr '[:upper:]' '[:lower:]')
 export DEPLOYER_OS_TYPE
 echo DEPLOYER_OS_TYPE: "${DEPLOYER_OS_TYPE}"
 export AVALANCHEGO_VERSION="1.10.12"
-echo AVALANCHEGO_VERSION: ${AVALANCHEGO_VERSION}
+echo AVALANCHEGO_VERSION: "${AVALANCHEGO_VERSION}"
 export HYPERSDK_VERSION="0.0.15-rc.1"
-echo HYPERSDK_VERSION: ${HYPERSDK_VERSION}
+echo HYPERSDK_VERSION: "${HYPERSDK_VERSION}"
 # TODO: set deploy os/arch
 
 # Check valid setup
@@ -96,8 +96,8 @@ if [ -f /tmp/avalanche-ops-cache/tokenvm ]; then
 else
   wget "https://github.com/ava-labs/hypersdk/releases/download/v${HYPERSDK_VERSION}/tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz"
   mkdir -p /tmp/token-installs
-  tar -xvf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz -C /tmp/token-installs
-  rm -rf tokenvm_${HYPERSDK_VERSION}_linux_amd64.tar.gz
+  tar -xvf tokenvm_"${HYPERSDK_VERSION}"_linux_amd64.tar.gz -C /tmp/token-installs
+  rm -rf tokenvm_"${HYPERSDK_VERSION}"_linux_amd64.tar.gz
   mv /tmp/token-installs/tokenvm "${DEPLOY_ARTIFACT_PREFIX}/tokenvm"
   mv /tmp/token-installs/token-cli "${DEPLOY_ARTIFACT_PREFIX}/token-cli-dev"
   rm -rf /tmp/token-installs
@@ -127,8 +127,8 @@ EOF
 MAX_UINT64=18446744073709551615
 "${DEPLOY_ARTIFACT_PREFIX}/token-cli" genesis generate "${DEPLOY_ARTIFACT_PREFIX}/allocations.json" \
 --genesis-file "${DEPLOY_ARTIFACT_PREFIX}/tokenvm-genesis.json" \
---max-block-units 1800000,${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64} \
---window-target-units ${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64} \
+--max-block-units 1800000,"${MAX_UINT64}","${MAX_UINT64}","${MAX_UINT64}","${MAX_UINT64}" \
+--window-target-units "${MAX_UINT64}","${MAX_UINT64}","${MAX_UINT64}","${MAX_UINT64}","${MAX_UINT64}" \
 --min-block-gap 250
 cat "${DEPLOY_ARTIFACT_PREFIX}/tokenvm-genesis.json"
 
@@ -164,7 +164,7 @@ echo created avalanche-ops spec file: "${SPEC_FILE}"
 
 # Create key file dir
 KEY_FILES_DIR=keys
-mkdir -p ${KEY_FILES_DIR}
+mkdir -p "${KEY_FILES_DIR}"
 
 # Create dummy metrics file (can't not upload)
 # TODO: fix this
@@ -189,7 +189,7 @@ echo 'planning DEVNET deploy...'
 --upload-artifacts-prometheus-metrics-rules-file-path "${DEPLOY_ARTIFACT_PREFIX}/metrics.yml" \
 --network-name custom \
 --staking-amount-in-avax 2000 \
---avalanchego-release-tag v${AVALANCHEGO_VERSION} \
+--avalanchego-release-tag v"${AVALANCHEGO_VERSION}" \
 --create-dev-machine \
 --keys-to-generate 5 \
 --subnet-config-file "${DEPLOY_ARTIFACT_PREFIX}/tokenvm-subnet-config.json" \
@@ -199,7 +199,7 @@ echo 'planning DEVNET deploy...'
 --chain-config-file "${DEPLOY_ARTIFACT_PREFIX}/tokenvm-chain-config.json" \
 --enable-ssh \
 --spec-file-path "${SPEC_FILE}" \
---key-files-dir ${KEY_FILES_DIR} \
+--key-files-dir "${KEY_FILES_DIR}" \
 --profile-name "${AWS_PROFILE_NAME}"
 
 # Disable rate limits in config
