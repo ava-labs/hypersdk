@@ -23,6 +23,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/merkle"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
@@ -40,7 +41,8 @@ type StatefulBlock struct {
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	Txs []*Transaction `json:"txs"`
+	Txs     []*Transaction `json:"txs"`
+	TxsRoot ids.ID         `json:"txsRoot"`
 
 	// StateRoot is the root of the post-execution state
 	// of [Prnt].
@@ -290,6 +292,27 @@ func (b *StatelessBlock) initializeBuilt(
 			b.containsWarp = true
 		}
 	}
+
+	// transaction hash generation
+	// [len(b.Txs)] should be equal to [b.results]
+	merkleItems := make([][]byte, 0, len(b.Txs))
+	for i := 0; i < len(b.Txs); i++ {
+		txID := b.Txs[i].ID()
+		resultOutput := b.results[i].Output
+		// [txID + resultOutput]
+		// txID is a fixed length array, hence [append] will always allocate new memory and copy
+		// so slice with new address will be returned and no reflect on txID, then later
+		// we consume those bytes
+		merkleItems = append(merkleItems, append(txID[:], resultOutput...))
+	}
+
+	// consume bytes to avoid extra copying
+	root, _, err := merkle.GenerateMerkleRoot(ctx, b.vm.Tracer(), merkleItems, true)
+	if err != nil {
+		return err
+	}
+	b.TxsRoot = root
+
 	return nil
 }
 
@@ -994,6 +1017,8 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 
 	p.PackID(b.StateRoot)
 	p.PackUint64(uint64(b.WarpResults))
+	p.PackID(b.TxsRoot)
+
 	bytes := p.Bytes()
 	if err := p.Err(); err != nil {
 		return nil, err
@@ -1029,6 +1054,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 
 	p.UnpackID(false, &b.StateRoot)
 	b.WarpResults = set.Bits64(p.UnpackUint64(false))
+	p.UnpackID(false, &b.TxsRoot)
 
 	// Ensure no leftover bytes
 	if !p.Empty() {
