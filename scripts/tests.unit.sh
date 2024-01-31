@@ -15,4 +15,6 @@ HYPERSDK_PATH=$(
 )
 source "$HYPERSDK_PATH"/scripts/constants.sh
 
+# Provision of the list of tests requires word splitting, so disable the shellcheck
+# shellcheck disable=SC2046
 go test -race -timeout="3m" -coverprofile="coverage.out" -covermode="atomic" $(go list ./... | grep -v tests)

@@ -44,7 +44,7 @@ func TestStop(t *testing.T) {
 	runtime.Stop()
 
 	_, err = runtime.Call(ctx, "run")
-	require.ErrorIs(err, program.ErrTrapUnreachableCodeReached)
+	require.ErrorIs(err, program.ErrTrapInterrupt)
 	// ensure no fees were consumed
 	balance, err := runtime.Meter().GetBalance()
 	require.NoError(err)
@@ -107,7 +107,7 @@ func TestInfiniteLoop(t *testing.T) {
 	require.NoError(err)
 
 	_, err = runtime.Call(ctx, "get")
-	require.ErrorIs(err, program.ErrTrapInterrupt)
+	require.ErrorIs(err, program.ErrTrapOutOfFuel)
 }
 
 func TestMetering(t *testing.T) {
@@ -178,7 +178,7 @@ func TestMeterAfterStop(t *testing.T) {
 	// stop engine
 	runtime.Stop()
 	_, err = runtime.Call(ctx, "get")
-	require.ErrorIs(err, program.ErrTrapUnreachableCodeReached)
+	require.ErrorIs(err, program.ErrTrapInterrupt)
 	// ensure meter is still operational
 	balance, err := runtime.Meter().GetBalance()
 	require.NoError(err)

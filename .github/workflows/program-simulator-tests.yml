@@ -1,7 +1,7 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-name: HyperSDK Static Analysis
+name: Program Simulator Tests
 
 on:
   push:
@@ -10,9 +10,8 @@ on:
   pull_request:
 
 jobs:
-  hypersdk-lint:
+  simulator-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,12 +21,19 @@ jobs:
           go-version: "1.20"
           check-latest: true
           cache: true
-      - name: Run static analysis tests
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          components: rustfmt, clippy
+          override: true
+      - name: Run token simulator test
+        working-directory: ./x/programs/rust/examples/token
         shell: bash
-        run: scripts/tests.lint.sh
-      - name: Run shellcheck
-        shell: bash
-        run: scripts/tests.shellcheck.sh
+        run: scripts/tests.simulator.sh
+        env:
+          MODE: "full-test"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
