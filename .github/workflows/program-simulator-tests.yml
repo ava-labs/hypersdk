@@ -1,7 +1,7 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-name: Simulator Tests
+name: Program Simulator Tests
 
 on:
   push:
@@ -11,15 +11,12 @@ on:
 
 jobs:
   simulator-tests:
-    if: ${{ github.ref == 'refs/heads/main' || startsWith(github.event.ref, 'refs/tags/v') || contains(github.event.pull_request.labels.*.name, 'run all ci') }}
-    runs-on:
-      labels: ubuntu-latest
-    timeout-minutes: 25
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: "1.20"
           check-latest: true
@@ -37,6 +34,7 @@ jobs:
         run: scripts/tests.simulator.sh
         env:
           MODE: "full-test"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
