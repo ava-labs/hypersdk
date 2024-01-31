@@ -71,7 +71,7 @@ func (k Keys) Add(name string, permission Permission) {
 		k[name] = permission
 	} else {
 		// Transaction's permissions are the union of all
-		// Actions and Auths it contains
+		// state keys from both Actions and Auth
 		set.Bits(k[name]).Union(set.Bits(permission))
 	}
 }

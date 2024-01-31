@@ -106,6 +106,9 @@ func (e *Executor) createWorker() {
 
 // Run executes [f] after all previously enqueued [f] with
 // overlapping [conflicts] are executed.
+// TODO: Handle read-only/write-only keys (currently the executor
+// treats everything still as ReadWrite, see issue below)
+// https://github.com/ava-labs/hypersdk/issues/709 
 func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	e.l.Lock()
 	defer e.l.Unlock()

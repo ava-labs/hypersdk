@@ -39,7 +39,11 @@ type TStateView struct {
 	// operations allows for reverting state to a certain point-in-time.
 	ops []*op
 
-	scope        state.Keys // stores a map of managed keys and its permissions in the TState struct
+	// stores a map of managed keys and its permissions in the TState struct
+	// TODO: Need to handle read-only/write-only keys differently (won't prefetch a write
+	// key, see issue below)
+	// https://github.com/ava-labs/hypersdk/issues/709 
+	scope        state.Keys
 	scopeStorage map[string][]byte
 
 	// Store which keys are modified and how large their values were.
