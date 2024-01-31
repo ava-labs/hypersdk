@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	Read          uint8 = 0
-	Write         uint8 = 1
-	PermissionLen uint8 = 8 // Sufficient to use a single byte
+	Read          PermissionBit = 0
+	Write         PermissionBit = 1
+	PermissionLen PermissionBit = 8 // Sufficient to use a single byte
 )
 
 type Immutable interface {
@@ -45,8 +45,10 @@ type Keys map[string]Permission
 // Specifying RWrite is setting both the Read and Write bit
 type Permission set.Bits
 
+type PermissionBit uint8
+
 // By default, no permission bits are set
-func NewPermission(permissions ...uint8) Permission {
+func NewPermission(permissions ...PermissionBit) Permission {
 	withinBoundsPermission := []int{} // NewBits requires int type
 	for _, v := range permissions {
 		// Only set bit to 1 if we're within 8 bits
@@ -59,7 +61,7 @@ func NewPermission(permissions ...uint8) Permission {
 
 // Checks whether a StateKey has the appropriate permission
 // to perform a certain access (Read/Write).
-func (p Permission) HasPermission(permission uint8) bool {
+func (p Permission) HasPermission(permission PermissionBit) bool {
 	return set.Bits(p).Contains(int(permission))
 }
 

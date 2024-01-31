@@ -161,7 +161,7 @@ func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
 }
 
 // checkScope returns whether [k] is in scope and has appropriate permissions.
-func (ts *TStateView) checkScope(_ context.Context, k []byte, perm uint8) bool {
+func (ts *TStateView) checkScope(_ context.Context, k []byte, perm state.PermissionBit) bool {
 	permission, exists := ts.scope[string(k)]
 	if !exists || !permission.HasPermission(perm) {
 		return false
