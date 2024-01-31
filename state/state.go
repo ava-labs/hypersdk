@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	Read          PermissionBit = 0
-	Write         PermissionBit = 1
+	Read  PermissionBit = 0
+	Write PermissionBit = 1
+	// TODO: Handle Allocate permission
+	Allocate      PermissionBit = 2
 	PermissionLen PermissionBit = 8 // Sufficient to use a single byte
 )
 
