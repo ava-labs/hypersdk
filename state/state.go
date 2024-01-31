@@ -45,18 +45,21 @@ type Keys map[string]Permissions
 // Specifying RWrite is setting both the Read and Write bit
 type Permissions set.Bits
 
-type PermissionBit uint8
+type PermissionBit int
 
 // By default, no permission bits are set
 func Permission(permissions ...PermissionBit) Permissions {
-	withinBoundsPermission := []int{} // NewBits requires int type
+	perms := set.NewBits()
 	for _, v := range permissions {
-		// Only set bit to 1 if we're within 8 bits
-		if v < PermissionLen {
-			withinBoundsPermission = append(withinBoundsPermission, int(v))
+		switch {
+		case v < PermissionLen:
+			// Only set bit to 1 if we're within 8 bits
+			perms.Add(int(v))
+		default:
+			continue
 		}
 	}
-	return Permissions(set.NewBits(withinBoundsPermission...))
+	return Permissions(perms)
 }
 
 // Checks whether a StateKey has the appropriate permission
