@@ -12,7 +12,7 @@ import (
 
 type StateManager struct{}
 
-func (m *StateManager) SponsorStateKeys(_ codec.Address) []string {
+func (m *StateManager) SponsorStateKeys(_ codec.Address) state.Keys {
 	//TODO implement me
 	panic("implement me")
 }

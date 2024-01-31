@@ -24,8 +24,8 @@ type ProgramCreate struct {
 	Program []byte `json:"program"`
 }
 
-func (t *ProgramCreate) StateKeys(_ codec.Address, _ ids.ID) []string {
-	return []string{}
+func (t *ProgramCreate) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
+	return state.Keys{}
 }
 
 func (*ProgramCreate) GetTypeID() uint8 {
