@@ -30,4 +30,5 @@ go build -o "${simulator_bin}" "${simulator_path}"/simulator.go
 
 echo "Running Simulator Tests..."
 
+cd -
 cargo test --lib -- --include-ignored

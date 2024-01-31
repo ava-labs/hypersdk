@@ -16,7 +16,11 @@ simulator_bin="${simulator_path}"/bin/simulator
 export SIMULATOR_PATH="${simulator_bin}"
 
 # The path to the compiled Wasm program to be tested
-export PROGRAM_PATH="${PWD}"/../../../examples/testdata/csamm.wasm
+export TOKEN_PROGRAM_PATH="${PWD}"/../../build/token.wasm
+export AMM_PROGRAM_PATH="${PWD}"/build/csamm.wasm
+
+echo "Building CSAMM example..."
+./../../scripts/build.sh
 
 echo "Downloading dependencies..."
 cd "${simulator_path}"
