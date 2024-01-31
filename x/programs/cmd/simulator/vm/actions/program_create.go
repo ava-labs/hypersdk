@@ -24,12 +24,12 @@ type ProgramCreate struct {
 	Program []byte `json:"program"`
 }
 
-func (*ProgramCreate) GetTypeID() uint8 {
-	return programCreateID
+func (t *ProgramCreate) StateKeys(_ codec.Address, _ ids.ID) []string {
+	return []string{}
 }
 
-func (t *ProgramCreate) StateKeys(rauth chain.Auth, _ ids.ID) []string {
-	return []string{}
+func (*ProgramCreate) GetTypeID() uint8 {
+	return programCreateID
 }
 
 func (*ProgramCreate) StateKeysMaxChunks() []uint16 {
@@ -45,7 +45,7 @@ func (t *ProgramCreate) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	_ chain.Auth,
+	_ codec.Address,
 	id ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {

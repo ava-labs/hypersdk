@@ -30,7 +30,8 @@ type Genesis struct {
 	HRP string `json:"hrp"`
 
 	// State Parameters
-	StateBranchFactor merkledb.BranchFactor `json:"stateBranchFactor"`
+	StateBranchFactor         merkledb.BranchFactor `json:"stateBranchFactor"`
+	SponsorStateKeysMaxChunks []uint16
 
 	// Chain Parameters
 	MinBlockGap      int64 `json:"minBlockGap"`      // ms
@@ -46,20 +47,16 @@ type Genesis struct {
 	ValidityWindow int64 `json:"validityWindow"` // ms
 
 	// Tx Fee Parameters
-	BaseComputeUnits                  uint64 `json:"baseUnits"`
-	BaseWarpComputeUnits              uint64 `json:"baseWarpUnits"`
-	WarpComputeUnitsPerSigner         uint64 `json:"warpUnitsPerSigner"`
-	OutgoingWarpComputeUnits          uint64 `json:"outgoingWarpComputeUnits"`
-	ColdStorageKeyReadUnits           uint64 `json:"coldStorageKeyReadUnits"`
-	ColdStorageValueReadUnits         uint64 `json:"coldStorageValueReadUnits"` // per chunk
-	WarmStorageKeyReadUnits           uint64 `json:"warmStorageKeyReadUnits"`
-	WarmStorageValueReadUnits         uint64 `json:"warmStorageValueReadUnits"` // per chunk
-	StorageKeyCreateUnits             uint64 `json:"storageKeyCreateUnits"`
-	StorageValueCreateUnits           uint64 `json:"storageKeyValueUnits"` // per chunk
-	ColdStorageKeyModificationUnits   uint64 `json:"coldStorageKeyModificationUnits"`
-	ColdStorageValueModificationUnits uint64 `json:"coldStorageValueModificationUnits"` // per chunk
-	WarmStorageKeyModificationUnits   uint64 `json:"warmStorageKeyModificationUnits"`
-	WarmStorageValueModificationUnits uint64 `json:"warmStorageValueModificationUnits"` // per chunk
+	BaseComputeUnits          uint64 `json:"baseUnits"`
+	BaseWarpComputeUnits      uint64 `json:"baseWarpUnits"`
+	WarpComputeUnitsPerSigner uint64 `json:"warpUnitsPerSigner"`
+	OutgoingWarpComputeUnits  uint64 `json:"outgoingWarpComputeUnits"`
+	StorageKeyReadUnits       uint64 `json:"storageKeyReadUnits"`
+	StorageValueReadUnits     uint64 `json:"storageValueReadUnits"`
+	StorageKeyAllocateUnits   uint64 `json:"storageKeyAllocateUnits"`
+	StorageValueAllocateUnits uint64 `json:"storageValueAllocateUnits"`
+	StorageKeyWriteUnits      uint64 `json:"storageKeyWriteUnits"`
+	StorageValueWriteUnits    uint64 `json:"storageValueWriteUnits"`
 
 	// program Runtime Parameters
 	EnableDebugMode  bool `json:"enableDebugMode"`
@@ -86,9 +83,6 @@ func Default() *Genesis {
 		WindowTargetUnits:          chain.Dimensions{20_000_000, 1_000, 1_000, 1_000, 1_000},
 		MaxBlockUnits:              chain.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
 
-		// Tx Parameters
-		ValidityWindow: 60 * hconsts.MillisecondsPerSecond, // ms
-
 		// Tx Fee Compute Parameters
 		BaseComputeUnits:          1,
 		BaseWarpComputeUnits:      1_024,
@@ -98,16 +92,15 @@ func Default() *Genesis {
 		// Tx Fee Storage Parameters
 		//
 		// TODO: tune this
-		ColdStorageKeyReadUnits:           5,
-		ColdStorageValueReadUnits:         2,
-		WarmStorageKeyReadUnits:           1,
-		WarmStorageValueReadUnits:         1,
-		StorageKeyCreateUnits:             20,
-		StorageValueCreateUnits:           5,
-		ColdStorageKeyModificationUnits:   10,
-		ColdStorageValueModificationUnits: 3,
-		WarmStorageKeyModificationUnits:   5,
-		WarmStorageValueModificationUnits: 3,
+		StorageKeyReadUnits:       5,
+		StorageValueReadUnits:     2,
+		StorageKeyAllocateUnits:   20,
+		StorageValueAllocateUnits: 5,
+		StorageKeyWriteUnits:      10,
+		StorageValueWriteUnits:    3,
+
+		// Tx Parameters
+		ValidityWindow: 60 * hconsts.MillisecondsPerSecond, // ms
 
 		// program Runtime Parameters
 		EnableDebugMode: true,

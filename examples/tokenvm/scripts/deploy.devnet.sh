@@ -136,7 +136,6 @@ cat <<EOF > "${DEPLOY_ARTIFACT_PREFIX}/tokenvm-chain-config.json"
 {
   "logLevel": "info",
   "mempoolSize": 10000000,
-  "mempoolPayerSize": 10000000,
   "mempoolExemptPayers":["token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp"],
   "streamingBacklogSize": 10000000,
   "authVerificationCores": 4,
