@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/window"
 )
@@ -81,13 +82,13 @@ func (f *Manager) lastConsumed(d Dimension) uint64 {
 	return binary.BigEndian.Uint64(f.raw[start : start+consts.Uint64Len])
 }
 
-func (f *Manager) ComputeNext(lastTime int64, currTime int64, m Metadata) (*Manager, error) {
+func (f *Manager) ComputeNext(lastTime int64, currTime int64, r chain.Fees) (*Manager, error) {
 	f.l.RLock()
 	defer f.l.RUnlock()
 
-	targetUnits := m.GetWindowTargetUnits()
-	unitPriceChangeDenom := m.GetUnitPriceChangeDenominator()
-	minUnitPrice := m.GetMinUnitPrice()
+	targetUnits := r.GetWindowTargetUnits()
+	unitPriceChangeDenom := r.GetUnitPriceChangeDenominator()
+	minUnitPrice := r.GetMinUnitPrice()
 	since := int((currTime - lastTime) / consts.MillisecondsPerSecond)
 	bytes := make([]byte, dimensionStateLen*FeeDimensions)
 	for i := Dimension(0); i < FeeDimensions; i++ {

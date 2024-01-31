@@ -21,10 +21,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/executor"
-	"github.com/ava-labs/hypersdk/keys"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/keys"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
