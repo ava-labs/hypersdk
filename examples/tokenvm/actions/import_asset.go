@@ -61,15 +61,15 @@ func (i *ImportAsset) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	// If the [warpTransfer] specified a reward, we add the state key to make
 	// sure it is paid.
 	if i.warpTransfer.Reward > 0 {
-		keys.AddKeyAndPermission(string(storage.BalanceKey(actor, assetID)), state.NewPermission(state.Read, state.Write))
+		keys.Add(string(storage.BalanceKey(actor, assetID)), state.NewPermission(state.Read, state.Write))
 	}
 
 	// If the [warpTransfer] requests a swap, we add the state keys to transfer
 	// the required balances.
 	if i.Fill && i.warpTransfer.SwapIn > 0 {
-		keys.AddKeyAndPermission(string(storage.BalanceKey(actor, i.warpTransfer.AssetOut)), state.NewPermission(state.Read, state.Write))
-		keys.AddKeyAndPermission(string(storage.BalanceKey(actor, assetID)), state.NewPermission(state.Read, state.Write))
-		keys.AddKeyAndPermission(string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.AssetOut)), state.NewPermission(state.Read, state.Write))
+		keys.Add(string(storage.BalanceKey(actor, i.warpTransfer.AssetOut)), state.NewPermission(state.Read, state.Write))
+		keys.Add(string(storage.BalanceKey(actor, assetID)), state.NewPermission(state.Read, state.Write))
+		keys.Add(string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.AssetOut)), state.NewPermission(state.Read, state.Write))
 	}
 	return keys
 }

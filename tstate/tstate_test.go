@@ -923,7 +923,7 @@ func TestUpdatingKeyPermission(t *testing.T) {
 			require.Equal(tt.beforeWrite, perm.HasPermission(state.Write))
 
 			// Update the permission
-			keys.AddKeyAndPermission(tt.key, tt.permission2)
+			keys.Add(tt.key, tt.permission2)
 
 			// Check updated positions
 			perm = keys[tt.key]

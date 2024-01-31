@@ -65,7 +65,7 @@ func (p Permission) HasPermission(permission uint8) bool {
 
 // Transactions are expected to use this to prevent
 // overriding of key permissions
-func (k Keys) AddKeyAndPermission(name string, permission Permission) {
+func (k Keys) Add(name string, permission Permission) {
 	_, exists := k[name]
 	if !exists {
 		k[name] = permission
