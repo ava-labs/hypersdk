@@ -80,7 +80,7 @@ func TestGetValue(t *testing.T) {
 	ts := New(10)
 
 	// Set Scope
-	tsv := ts.NewView(state.Keys{string(testKey): state.NewPermission(state.Read, state.Write)}, map[string][]byte{string(testKey): testVal})
+	tsv := ts.NewView(state.Keys{string(testKey): state.Permission(state.Read, state.Write)}, map[string][]byte{string(testKey): testVal})
 	val, err := tsv.GetValue(ctx, testKey)
 	require.NoError(err, "unable to get value")
 	require.Equal(testVal, val, "value was not saved correctly")
@@ -92,12 +92,12 @@ func TestDeleteCommitGet(t *testing.T) {
 	ts := New(10)
 
 	// Delete value
-	tsv := ts.NewView(state.Keys{string(testKey): state.NewPermission(state.Read, state.Write)}, map[string][]byte{string(testKey): testVal})
+	tsv := ts.NewView(state.Keys{string(testKey): state.Permission(state.Read, state.Write)}, map[string][]byte{string(testKey): testVal})
 	require.NoError(tsv.Remove(ctx, testKey))
 	tsv.Commit()
 
 	// Check deleted
-	tsv = ts.NewView(state.Keys{string(testKey): state.NewPermission(state.Read, state.Write)}, map[string][]byte{string(testKey): testVal})
+	tsv = ts.NewView(state.Keys{string(testKey): state.Permission(state.Read, state.Write)}, map[string][]byte{string(testKey): testVal})
 	val, err := tsv.GetValue(ctx, testKey)
 	require.ErrorIs(err, database.ErrNotFound)
 	require.Nil(val)
@@ -109,7 +109,7 @@ func TestGetValueNoStorage(t *testing.T) {
 	ts := New(10)
 
 	// SetScope but dont add to storage
-	tsv := ts.NewView(state.Keys{string(testKey): state.NewPermission(state.Read, state.Write)}, map[string][]byte{})
+	tsv := ts.NewView(state.Keys{string(testKey): state.Permission(state.Read, state.Write)}, map[string][]byte{})
 	_, err := tsv.GetValue(ctx, testKey)
 	require.ErrorIs(database.ErrNotFound, err, "data should not exist")
 }
@@ -120,7 +120,7 @@ func TestInsertNew(t *testing.T) {
 	ts := New(10)
 
 	// SetScope
-	tsv := ts.NewView(state.Keys{string(testKey): state.NewPermission(state.Read, state.Write)}, map[string][]byte{})
+	tsv := ts.NewView(state.Keys{string(testKey): state.Permission(state.Read, state.Write)}, map[string][]byte{})
 
 	// Test Disable Allocate
 	tsv.DisableAllocation()
@@ -146,7 +146,7 @@ func TestInsertInvalid(t *testing.T) {
 
 	// SetScope
 	key := binary.BigEndian.AppendUint16([]byte("hello"), 0)
-	tsv := ts.NewView(state.Keys{string(key): state.NewPermission(state.Read, state.Write)}, map[string][]byte{})
+	tsv := ts.NewView(state.Keys{string(key): state.Permission(state.Read, state.Write)}, map[string][]byte{})
 
 	// Insert key
 	require.ErrorIs(tsv.Insert(ctx, key, []byte("cool")), ErrInvalidKeyValue)
@@ -162,7 +162,7 @@ func TestInsertUpdate(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{string(testKey): state.NewPermission(state.Read, state.Write)}, map[string][]byte{string(testKey): testVal})
+	tsv := ts.NewView(state.Keys{string(testKey): state.Permission(state.Read, state.Write)}, map[string][]byte{string(testKey): testVal})
 	require.Equal(0, ts.OpIndex())
 
 	// Insert key
@@ -178,7 +178,7 @@ func TestInsertUpdate(t *testing.T) {
 
 	// Check value after commit
 	tsv.Commit()
-	tsv = ts.NewView(state.Keys{string(testKey): state.NewPermission(state.Read, state.Write)}, map[string][]byte{string(testKey): testVal})
+	tsv = ts.NewView(state.Keys{string(testKey): state.Permission(state.Read, state.Write)}, map[string][]byte{string(testKey): testVal})
 	val, err = tsv.GetValue(ctx, testKey)
 	require.NoError(err)
 	require.Equal(newVal, val, "value was not committed correctly")
@@ -190,7 +190,7 @@ func TestInsertRemoveInsert(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{key2str: state.NewPermission(state.Read, state.Write)}, map[string][]byte{})
+	tsv := ts.NewView(state.Keys{key2str: state.Permission(state.Read, state.Write)}, map[string][]byte{})
 	require.Equal(0, ts.OpIndex())
 
 	// Insert key for first time
@@ -262,7 +262,7 @@ func TestModifyRemoveInsert(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{key2str: state.NewPermission(state.Read, state.Write)}, map[string][]byte{key2str: testVal})
+	tsv := ts.NewView(state.Keys{key2str: state.Permission(state.Read, state.Write)}, map[string][]byte{key2str: testVal})
 	require.Equal(0, ts.OpIndex())
 
 	// Modify existing key
@@ -316,7 +316,7 @@ func TestModifyRevert(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{key2str: state.NewPermission(state.Read, state.Write)}, map[string][]byte{key2str: testVal})
+	tsv := ts.NewView(state.Keys{key2str: state.Permission(state.Read, state.Write)}, map[string][]byte{key2str: testVal})
 	require.Equal(0, ts.OpIndex())
 
 	// Modify existing key
@@ -356,7 +356,7 @@ func TestModifyModify(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{key2str: state.NewPermission(state.Read, state.Write)}, map[string][]byte{key2str: testVal})
+	tsv := ts.NewView(state.Keys{key2str: state.Permission(state.Read, state.Write)}, map[string][]byte{key2str: testVal})
 	require.Equal(0, ts.OpIndex())
 
 	// Modify existing key
@@ -403,7 +403,7 @@ func TestRemoveInsertRollback(t *testing.T) {
 	ctx := context.TODO()
 
 	// Insert
-	tsv := ts.NewView(state.Keys{string(testKey): state.NewPermission(state.Read, state.Write)}, map[string][]byte{})
+	tsv := ts.NewView(state.Keys{string(testKey): state.Permission(state.Read, state.Write)}, map[string][]byte{})
 	require.NoError(tsv.Insert(ctx, testKey, testVal))
 	v, err := tsv.GetValue(ctx, testKey)
 	require.NoError(err)
@@ -441,7 +441,7 @@ func TestRestoreInsert(t *testing.T) {
 	ts := New(10)
 	ctx := context.TODO()
 	keys := [][]byte{key1, key2, key3}
-	keySet := state.Keys{key1str: state.NewPermission(state.Read, state.Write), key2str: state.NewPermission(state.Read, state.Write), key3str: state.NewPermission(state.Read, state.Write)}
+	keySet := state.Keys{key1str: state.Permission(state.Read, state.Write), key2str: state.Permission(state.Read, state.Write), key3str: state.Permission(state.Read, state.Write)}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 
 	// Store keys
@@ -494,7 +494,7 @@ func TestRestoreDelete(t *testing.T) {
 	ts := New(10)
 	ctx := context.TODO()
 	keys := [][]byte{key1, key2, key3}
-	keySet := state.Keys{key1str: state.NewPermission(state.Read, state.Write), key2str: state.NewPermission(state.Read, state.Write), key3str: state.NewPermission(state.Read, state.Write)}
+	keySet := state.Keys{key1str: state.Permission(state.Read, state.Write), key2str: state.Permission(state.Read, state.Write), key3str: state.Permission(state.Read, state.Write)}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 	tsv := ts.NewView(keySet, map[string][]byte{
 		string(keys[0]): vals[0],
@@ -549,7 +549,7 @@ func TestCreateView(t *testing.T) {
 		t.Fatal(err)
 	}
 	keys := [][]byte{key1, key2, key3}
-	keySet := state.Keys{key1str: state.NewPermission(state.Read, state.Write), key2str: state.NewPermission(state.Read, state.Write), key3str: state.NewPermission(state.Read, state.Write)}
+	keySet := state.Keys{key1str: state.Permission(state.Read, state.Write), key2str: state.Permission(state.Read, state.Write), key3str: state.Permission(state.Read, state.Write)}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 
 	// Add
@@ -618,7 +618,7 @@ func TestGetValuePermissions(t *testing.T) {
 	tests := []struct {
 		name       string
 		key        string
-		permission state.Permission
+		permission state.Permissions
 		canRead    bool
 		canWrite   bool
 		shouldErr  bool
@@ -626,7 +626,7 @@ func TestGetValuePermissions(t *testing.T) {
 		{
 			name:       "key has read permissions",
 			key:        "test",
-			permission: state.NewPermission(state.Read),
+			permission: state.Permission(state.Read),
 			canRead:    true,
 			canWrite:   false,
 			shouldErr:  false,
@@ -634,7 +634,7 @@ func TestGetValuePermissions(t *testing.T) {
 		{
 			name:       "key has read write permissions",
 			key:        "test1",
-			permission: state.NewPermission(state.Read, state.Write),
+			permission: state.Permission(state.Read, state.Write),
 			canRead:    true,
 			canWrite:   true,
 			shouldErr:  false,
@@ -642,7 +642,7 @@ func TestGetValuePermissions(t *testing.T) {
 		{
 			name:       "key has no permissions",
 			key:        "test2",
-			permission: state.NewPermission(),
+			permission: state.Permission(),
 			canRead:    false,
 			canWrite:   false,
 			shouldErr:  true,
@@ -650,7 +650,7 @@ func TestGetValuePermissions(t *testing.T) {
 		{
 			name:       "key has write permissions",
 			key:        "test3",
-			permission: state.NewPermission(state.Write),
+			permission: state.Permission(state.Write),
 			canRead:    false,
 			canWrite:   true,
 			shouldErr:  true,
@@ -681,7 +681,7 @@ func TestInsertPermissions(t *testing.T) {
 	tests := []struct {
 		name       string
 		key        string
-		permission state.Permission
+		permission state.Permissions
 		canRead    bool
 		canWrite   bool
 		shouldErr  bool
@@ -689,7 +689,7 @@ func TestInsertPermissions(t *testing.T) {
 		{
 			name:       "key has read permissions",
 			key:        "test",
-			permission: state.NewPermission(state.Read),
+			permission: state.Permission(state.Read),
 			canRead:    true,
 			canWrite:   false,
 			shouldErr:  true,
@@ -697,7 +697,7 @@ func TestInsertPermissions(t *testing.T) {
 		{
 			name:       "key has read write permissions",
 			key:        "test1",
-			permission: state.NewPermission(state.Read, state.Write),
+			permission: state.Permission(state.Read, state.Write),
 			canRead:    true,
 			canWrite:   true,
 			shouldErr:  false,
@@ -705,7 +705,7 @@ func TestInsertPermissions(t *testing.T) {
 		{
 			name:       "key has no permissions",
 			key:        "test2",
-			permission: state.NewPermission(),
+			permission: state.Permission(),
 			canRead:    false,
 			canWrite:   false,
 			shouldErr:  true,
@@ -713,7 +713,7 @@ func TestInsertPermissions(t *testing.T) {
 		{
 			name:       "key has write permissions",
 			key:        "test3",
-			permission: state.NewPermission(state.Write),
+			permission: state.Permission(state.Write),
 			canRead:    false,
 			canWrite:   true,
 			shouldErr:  false,
@@ -742,7 +742,7 @@ func TestDeletePermissions(t *testing.T) {
 	tests := []struct {
 		name       string
 		key        string
-		permission state.Permission
+		permission state.Permissions
 		canRead    bool
 		canWrite   bool
 		shouldErr  bool
@@ -750,7 +750,7 @@ func TestDeletePermissions(t *testing.T) {
 		{
 			name:       "key has read permissions",
 			key:        "test",
-			permission: state.NewPermission(state.Read),
+			permission: state.Permission(state.Read),
 			canRead:    true,
 			canWrite:   false,
 			shouldErr:  true,
@@ -758,7 +758,7 @@ func TestDeletePermissions(t *testing.T) {
 		{
 			name:       "key has read write permissions",
 			key:        "test1",
-			permission: state.NewPermission(state.Read, state.Write),
+			permission: state.Permission(state.Read, state.Write),
 			canRead:    true,
 			canWrite:   true,
 			shouldErr:  false,
@@ -766,7 +766,7 @@ func TestDeletePermissions(t *testing.T) {
 		{
 			name:       "key has no permissions",
 			key:        "test2",
-			permission: state.NewPermission(),
+			permission: state.Permission(),
 			canRead:    false,
 			canWrite:   false,
 			shouldErr:  true,
@@ -774,7 +774,7 @@ func TestDeletePermissions(t *testing.T) {
 		{
 			name:       "key has write permissions",
 			key:        "test3",
-			permission: state.NewPermission(state.Write),
+			permission: state.Permission(state.Write),
 			canRead:    false,
 			canWrite:   true,
 			shouldErr:  false,
@@ -804,7 +804,7 @@ func TestWithOutOfBoundPermission(t *testing.T) {
 	tests := []struct {
 		name       string
 		key        string
-		permission state.Permission
+		permission state.Permissions
 		canRead    bool
 		canWrite   bool
 		shouldErr  bool
@@ -812,7 +812,7 @@ func TestWithOutOfBoundPermission(t *testing.T) {
 		{
 			name:       "key is out of bounds",
 			key:        "test",
-			permission: state.NewPermission(outOfBoundsPerm),
+			permission: state.Permission(outOfBoundsPerm),
 			canRead:    false,
 			canWrite:   false,
 			shouldErr:  true,
@@ -820,7 +820,7 @@ func TestWithOutOfBoundPermission(t *testing.T) {
 		{
 			name:       "key that's valid and invalid",
 			key:        "test1",
-			permission: state.NewPermission(state.Read, state.Write, outOfBoundsPerm),
+			permission: state.Permission(state.Read, state.Write, outOfBoundsPerm),
 			canRead:    true,
 			canWrite:   true,
 			shouldErr:  false,
@@ -859,8 +859,8 @@ func TestUpdatingKeyPermission(t *testing.T) {
 	tests := []struct {
 		name        string
 		key         string
-		permission1 state.Permission
-		permission2 state.Permission
+		permission1 state.Permissions
+		permission2 state.Permissions
 		beforeRead  bool
 		beforeWrite bool
 		afterRead   bool
@@ -869,8 +869,8 @@ func TestUpdatingKeyPermission(t *testing.T) {
 		{
 			name:        "key has RW then R",
 			key:         "test",
-			permission1: state.NewPermission(state.Read, state.Write),
-			permission2: state.NewPermission(state.Read),
+			permission1: state.Permission(state.Read, state.Write),
+			permission2: state.Permission(state.Read),
 			beforeRead:  true,
 			beforeWrite: true,
 			afterRead:   true,
@@ -879,8 +879,8 @@ func TestUpdatingKeyPermission(t *testing.T) {
 		{
 			name:        "key has R then W",
 			key:         "test",
-			permission1: state.NewPermission(state.Read),
-			permission2: state.NewPermission(state.Write),
+			permission1: state.Permission(state.Read),
+			permission2: state.Permission(state.Write),
 			beforeRead:  true,
 			beforeWrite: false,
 			afterRead:   true,
@@ -889,8 +889,8 @@ func TestUpdatingKeyPermission(t *testing.T) {
 		{
 			name:        "key has W then R",
 			key:         "test",
-			permission1: state.NewPermission(state.Write),
-			permission2: state.NewPermission(state.Read),
+			permission1: state.Permission(state.Write),
+			permission2: state.Permission(state.Read),
 			beforeRead:  false,
 			beforeWrite: true,
 			afterRead:   true,
@@ -899,8 +899,8 @@ func TestUpdatingKeyPermission(t *testing.T) {
 		{
 			name:        "key has no perms then Write and Read",
 			key:         "test",
-			permission1: state.NewPermission(),
-			permission2: state.NewPermission(state.Write, state.Read),
+			permission1: state.Permission(),
+			permission2: state.Permission(state.Write, state.Read),
 			beforeRead:  false,
 			beforeWrite: false,
 			afterRead:   true,

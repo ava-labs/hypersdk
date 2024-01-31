@@ -42,7 +42,7 @@ type TStateView struct {
 	// stores a map of managed keys and its permissions in the TState struct
 	// TODO: Need to handle read-only/write-only keys differently (won't prefetch a write
 	// key, see issue below)
-	// https://github.com/ava-labs/hypersdk/issues/709 
+	// https://github.com/ava-labs/hypersdk/issues/709
 	scope        state.Keys
 	scopeStorage map[string][]byte
 
@@ -216,7 +216,7 @@ func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, 
 // Insert allocates and writes (or just writes) a new key to [tstate]. If this
 // action returns the value of [key] to the parent view, it reverts any pending changes.
 func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) error {
-	// Inserting requires a Write Permission, so we pass state.Write
+	// Inserting requires a Write Permissions, so we pass state.Write
 	if !ts.checkScope(ctx, key, state.Write) {
 		return ErrInvalidKeyOrPermission
 	}

@@ -38,7 +38,7 @@ func (*StateManager) OutgoingWarpKeyPrefix(txID ids.ID) []byte {
 
 func (*StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
 	return state.Keys{
-		string(BalanceKey(addr)): state.NewPermission(state.Read, state.Write),
+		string(BalanceKey(addr)): state.Permission(state.Read, state.Write),
 	}
 }
 
