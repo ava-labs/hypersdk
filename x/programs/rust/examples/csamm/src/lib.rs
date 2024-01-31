@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use wasmlanche_sdk::{params, program::Program, public, state_keys, types::Address};
 
 // Implementation of a CSAMM. This assumes a 1:1 peg between the two assets or one of them is going to be missing from the pool.
@@ -9,9 +8,7 @@ enum StateKeys {
     // TODO this is also an LP token, could we reuse parts of the "token" program ?
     // TotalSupply,
     // Balance(Address),
-    /// The vec of coins. Key prefix 0x0 + addresses
-    // TODO Vec doesn't implement Copy, so can we not define dynamic array in the program storage ?
-    // Coins([Address; 2]),
+    // Coins(Program),
     CoinX,
     CoinY,
 }
@@ -19,12 +16,6 @@ enum StateKeys {
 /// Initializes the program address a count of 0.
 #[public]
 fn constructor(program: Program, coin_x: Program, coin_y: Program) -> bool {
-    if program.state().get::<Program, _>(StateKeys::CoinX).is_ok()
-        || program.state().get::<Program, _>(StateKeys::CoinY).is_ok()
-    {
-        panic!("program already initialized")
-    }
-
     program
         .state()
         .store(StateKeys::CoinX, &coin_x)
@@ -33,7 +24,7 @@ fn constructor(program: Program, coin_x: Program, coin_y: Program) -> bool {
     program
         .state()
         .store(StateKeys::CoinY, &coin_y)
-        .expect("failed to store coin_y");
+        .expect("failed to store coin_x");
 
     true
 }
@@ -88,15 +79,15 @@ fn exchange(program: Program, amount: i64) {
     let sender = Address::new([0; 32]); // TODO how to get the program caller ?
     let this = Address::new(*program.id());
 
+    if amount == 0 {
+        panic!("amount == 0");
+    }
+
     // x + y = k
     // x + dx + y - dy = k
     // dy = x + dx + y - k
     // dy = x + dx + y - (x + y)
     // dy = dx
-
-    // NOTE the extra granularity is good but can we avoid having to put a fixed max_units everytime ?
-    // NOTE how to get a balance that is more than 32 bits over 0 ? For USD variants with 6 decimals, it's alright.
-    // NOTE can we really have negative balances ?
     let (x, y) = balances(program);
 
     let dx = amount;
@@ -109,26 +100,32 @@ fn exchange(program: Program, amount: i64) {
         panic!("not enough y tokens in the pool!");
     }
 
+    // NOTE the extra granularity is good but can we avoid having to put a fixed max_units everytime ?
+    // NOTE how to get a balance that is more than 32 bits over 0 ? For USD variants with 6 decimals, it's alright.
+    // NOTE can we really have negative balances ?
     // NOTE rust makes it quite annoying to write constants for non-primitive types. It's not looking good for using pow operations
-    match amount.cmp(&0) {
-        Ordering::Greater => {
-            token_x(program)
-                .call_function("transfer", params!(&sender, &this, &dx), 10000)
-                .unwrap();
-            token_y(program)
-                .call_function("transfer", params!(&this, &sender, &dy), 10000)
-                .unwrap();
-        }
-        Ordering::Less => {
-            token_y(program)
-                .call_function("transfer", params!(&sender, &this, &dx), 10000)
-                .unwrap();
-            token_x(program)
-                .call_function("transfer", params!(&this, &sender, &dy), 10000)
-                .unwrap();
-        }
-        _ => panic!("amount == 0"),
-    }
+
+    let (token_x_recipient, token_y_recipient) = if amount > 0 {
+        (this, sender)
+    } else {
+        (sender, this)
+    };
+
+    token_x(program)
+        .call_function(
+            "transfer",
+            params!(&token_y_recipient, &token_x_recipient, &dx),
+            10000,
+        )
+        .unwrap();
+
+    token_y(program)
+        .call_function(
+            "transfer",
+            params!(&token_x_recipient, &token_y_recipient, &dy),
+            10000,
+        )
+        .unwrap();
 }
 
 /// Add or remove liquidity. Both asset amounts should conform with the CSAMM properties.
@@ -137,33 +134,71 @@ fn manage_liquidity(program: Program, dx: i64, dy: i64) {
     let sender = Address::new([0; 32]);
     let this = Address::new(*program.id());
 
-    let (x, y) = balances(program);
-    let k = x + y;
+    assert_eq!(dx, dy, "inconsistent liquidity token amounts");
+    assert_ne!(dx, 0, "cannot add 0 liquidity");
 
-    assert_eq!(dx.signum(), dy.signum(), "either add or remove liquidity");
-    match dx.cmp(&0) {
-        Ordering::Greater => {
-            token_x(program)
-                .call_function("transfer", params!(&sender, &this, &dx), 10000)
-                .unwrap();
-            token_y(program)
-                .call_function("transfer", params!(&sender, &this, &dy), 10000)
-                .unwrap();
-        }
-        Ordering::Less => {
-            token_x(program)
-                .call_function("transfer", params!(&this, &sender, &-dx), 10000)
-                .unwrap();
-            token_y(program)
-                .call_function("transfer", params!(&this, &sender, &-dy), 10000)
-                .unwrap();
-        }
-        Ordering::Equal => panic!("amounts are negative"),
+    let (token_sender, token_recipient) = if dx > 0 {
+        (sender, this)
+    } else {
+        (this, sender)
     };
+
+    token_x(program)
+        .call_function(
+            "transfer",
+            params!(&token_sender, &token_recipient, &dx),
+            10000,
+        )
+        .unwrap();
+
+    token_y(program)
+        .call_function(
+            "transfer",
+            params!(&token_sender, &token_recipient, &dy),
+            10000,
+        )
+        .unwrap();
 
     // post: is the equation still standing ?
     let (x, y) = balances(program);
-    if x + y != k {
-        panic!("CSAMM x + y = k property violated");
+    assert_eq!(x, y, "CSAMM x + y = k property violated");
+}
+
+#[cfg(test)]
+mod tests {
+    use serial_test::serial;
+    use std::env;
+    use wasmlanche_sdk::simulator::{
+        self, id_from_step, Key, Operator, PlanResponse, Require, ResultAssertion,
+    };
+
+    #[test]
+    #[serial]
+    #[ignore = "requires SIMULATOR_PATH and PROGRAM_PATH to be set"]
+    fn test_swap() {
+        use wasmlanche_sdk::simulator::{self, Endpoint, Key, Param, ParamType, Plan, Step};
+
+        let s_path = env::var(simulator::PATH_KEY).expect("SIMULATOR_PATH not set");
+        let simulator = simulator::Client::new(s_path);
+
+        let owner_key = "owner";
+        // create owner key in single step
+        let resp = simulator
+            .key_create::<PlanResponse>(owner_key, Key::Ed25519)
+            .unwrap();
+        assert_eq!(resp.error, None);
+
+        // create multiple step test plan
+        let mut plan = Plan::new(owner_key);
+
+        // step 0: create program
+        let p_path = env::var("PROGRAM_PATH").expect("PROGRAM_PATH not set");
+        plan.add_step(Step {
+            endpoint: Endpoint::Execute,
+            method: "program_create".into(),
+            max_units: 0,
+            params: vec![Param::new(ParamType::String, p_path.as_ref())],
+            require: None,
+        });
     }
 }

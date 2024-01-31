@@ -27,4 +27,5 @@ go build -o "${simulator_bin}" "${simulator_path}"/simulator.go
 
 echo "Running Simulator Tests..."
 
-cargo test --lib -- --include-ignored --test csamm
+cd -
+cargo test --lib -- --include-ignored
