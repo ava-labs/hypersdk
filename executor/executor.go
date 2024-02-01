@@ -5,6 +5,7 @@ package executor
 
 import (
 	"sync"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/utils/set"
 
@@ -44,6 +45,7 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 		edges:      make(map[string]int, items*2), // TODO: tune this
 		executable: make(chan *task, items),       // ensure we don't block while holding lock
 	}
+	fmt.Printf("BBBBB items %v\n", items)
 	for i := 0; i < concurrency; i++ {
 		e.createWorker()
 	}
@@ -79,7 +81,7 @@ func (e *Executor) createWorker() {
 					})
 					return
 				}
-
+				fmt.Printf("its running ID %v\n", t.id)
 				e.l.Lock()
 				for b := range t.blocking { // works fine on non-initialized map
 					bt := e.tasks[b]
@@ -105,6 +107,21 @@ func (e *Executor) createWorker() {
 	}()
 }
 
+/*
+t.id = 1 | e.edges: {a: 1} | t.dep: () | t.block: (2)
+	bt = Task2
+		Task2 dep, remove that Task2 is dep on Task1
+		If no more dep then I can execute Task2 and it gets put in the e.executable chan queue
+
+t.id = 2 | e.edges: {a: 1} | t.dep: (1) | t.block: ()
+	bt = Task1
+
+	...After getting its dep removed
+		t.dep is empty
+	...After waiting in the e.executable chan queue
+	This task doesn't block anything so it just executes
+*/
+
 // Run executes [f] after all previously enqueued [f] with
 // overlapping [conflicts] are executed.
 // TODO: Handle read-only/write-only keys (currently the executor
@@ -125,8 +142,10 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	// Record dependencies
 	for k := range conflicts {
 		latest, ok := e.edges[k]
+		fmt.Printf("AAAAA in edge set %v\n", len(e.edges))
 		if ok {
 			lt := e.tasks[latest]
+			fmt.Printf("record dep ID %v\n", lt.id)
 			if !lt.executed {
 				if t.dependencies == nil {
 					t.dependencies = set.NewSet[int](defaultSetSize)
