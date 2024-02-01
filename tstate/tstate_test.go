@@ -800,7 +800,7 @@ func TestDeletePermissions(t *testing.T) {
 }
 
 func TestWithOutOfBoundPermission(t *testing.T) {
-	outOfBoundsPerm := state.PermissionBit(9) // Trying to set the 9th bit
+	outOfBoundsPerm := state.PermissionBit(10) // Trying to set the 10th bit
 	tests := []struct {
 		name       string
 		key        string
