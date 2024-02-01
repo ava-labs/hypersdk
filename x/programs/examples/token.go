@@ -21,7 +21,7 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-func NewToken(log logging.Logger, engine *engine.Engine, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports host.SupportedImports, rg *program.ReentrancyGuard, maxUnits uint64) *Token {
+func NewToken(log logging.Logger, engine *engine.Engine, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports host.SupportedImports, rg program.ReentrancyGuard, maxUnits uint64) *Token {
 	return &Token{
 		log:          log,
 		programBytes: programBytes,
@@ -49,7 +49,7 @@ type Token struct {
 	db           state.Mutable
 	maxUnits     uint64
 	engine       *engine.Engine
-	rg           *program.ReentrancyGuard
+	rg           program.ReentrancyGuard
 }
 
 func (t *Token) Run(ctx context.Context) error {

@@ -50,7 +50,7 @@ pub fn public(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let program_param = &param_names[0];
     // convert to a string
-    let program_name = name.to_string();
+    let function_name = name.to_string();
     let converted_params = param_names
         .iter()
         .map(|param_name| convert_param(param_name));
@@ -69,7 +69,7 @@ pub fn public(attr: TokenStream, item: TokenStream) -> TokenStream {
     let rentrancy_check = if !is_reentrant {
         quote! {
             // enter_program will error in the host if the program is already entered
-            wasmlanche_sdk::host::enter_program(#program_param, #program_name).expect("error calling enter_program host function");
+            wasmlanche_sdk::host::enter_program(#program_param, #function_name).expect("error calling enter_program host function");
         }
     } else {
         quote! {}

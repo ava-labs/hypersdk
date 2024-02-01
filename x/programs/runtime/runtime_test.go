@@ -70,7 +70,7 @@ func TestCallParams(t *testing.T) {
 	cfg := NewConfig().SetLimitMaxMemory(1 * program.MemoryPageSize)
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
-	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg, program.NewReentrancyGuard())
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg, program.NewRuntimeReentrancyGuard())
 	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 
@@ -102,7 +102,7 @@ func TestInfiniteLoop(t *testing.T) {
 	cfg := NewConfig().SetLimitMaxMemory(1 * program.MemoryPageSize)
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
-	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg, program.NewReentrancyGuard())
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg, program.NewRuntimeReentrancyGuard())
 	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 
@@ -131,7 +131,7 @@ func TestMetering(t *testing.T) {
 	cfg := NewConfig().SetLimitMaxMemory(1 * program.MemoryPageSize)
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
-	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg, program.NewReentrancyGuard())
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg, program.NewRuntimeReentrancyGuard())
 	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 	balance, err := runtime.Meter().GetBalance()
@@ -168,7 +168,7 @@ func TestMeterAfterStop(t *testing.T) {
 	cfg := NewConfig().SetLimitMaxMemory(1 * program.MemoryPageSize)
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
-	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg, program.NewReentrancyGuard())
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg, program.NewRuntimeReentrancyGuard())
 	err = runtime.Initialize(ctx, wasm, maxUnits)
 	require.NoError(err)
 
@@ -296,7 +296,7 @@ func TestWithMaxWasmStack(t *testing.T) {
 	require.NoError(err)
 	eng := engine.New(ecfg)
 	cfg := NewConfig()
-	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg, program.NewReentrancyGuard())
+	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg, program.NewRuntimeReentrancyGuard())
 	err = runtime.Initialize(context.Background(), wasm, maxUnits)
 	require.NoError(err)
 	_, err = runtime.Call(context.Background(), "get")
@@ -308,7 +308,7 @@ func TestWithMaxWasmStack(t *testing.T) {
 		Build()
 	require.NoError(err)
 	eng = engine.New(ecfg)
-	runtime = New(logging.NoLog{}, eng, host.NoSupportedImports, cfg, program.NewReentrancyGuard())
+	runtime = New(logging.NoLog{}, eng, host.NoSupportedImports, cfg, program.NewRuntimeReentrancyGuard())
 	err = runtime.Initialize(context.Background(), wasm, maxUnits)
 	require.NoError(err)
 	// exceed the stack limit

@@ -117,7 +117,7 @@ func newTokenProgram(maxUnits uint64, engine *engine.Engine, cfg *runtime.Config
 
 	// define imports
 	importsBuilder := host.NewImportsBuilder()
-	reentrancyGuard := program.NewReentrancyGuard()
+	reentrancyGuard := program.NewRuntimeReentrancyGuard()
 	importsBuilder.Register("state", func() host.Import {
 		return pstate.New(log, db)
 	})

@@ -37,11 +37,11 @@ type Import struct {
 	engine  *engine.Engine
 	meter   *engine.Meter
 	imports host.SupportedImports
-	rg      *program.ReentrancyGuard
+	rg      program.ReentrancyGuard
 }
 
 // New returns a new program invoke host module which can perform program to program calls.
-func New(log logging.Logger, engine *engine.Engine, mu state.Mutable, cfg *runtime.Config, rg *program.ReentrancyGuard) *Import {
+func New(log logging.Logger, engine *engine.Engine, mu state.Mutable, cfg *runtime.Config, rg program.ReentrancyGuard) *Import {
 	return &Import{
 		cfg:    cfg,
 		mu:     mu,

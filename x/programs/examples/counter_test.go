@@ -41,7 +41,7 @@ func TestCounterProgram(t *testing.T) {
 		))
 
 	eng := engine.New(engine.NewConfig())
-	reentrancyGuard := program.NewReentrancyGuard()
+	reentrancyGuard := program.NewRuntimeReentrancyGuard()
 	// define supported imports
 	importsBuilder := host.NewImportsBuilder()
 	importsBuilder.Register("state", func() host.Import {
@@ -94,9 +94,9 @@ func TestCounterProgram(t *testing.T) {
 	err = storage.SetProgram(ctx, db, program2ID, wasmBytes)
 	require.NoError(err)
 
-	mem2, err := rt.Memory()
+	mem, err = rt.Memory()
 	require.NoError(err)
-	programID2Ptr, err := argumentToSmartPtr(program2ID, mem2)
+	programID2Ptr, err := argumentToSmartPtr(program2ID, mem)
 	require.NoError(err)
 
 	// initialize counter for alice on runtime 2
@@ -106,7 +106,7 @@ func TestCounterProgram(t *testing.T) {
 
 	// increment alice's counter on program 2 by 10
 	incAmount := int64(10)
-	incAmountPtr, err := argumentToSmartPtr(incAmount, mem2)
+	incAmountPtr, err := argumentToSmartPtr(incAmount, mem)
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc", programID2Ptr, alicePtr, incAmountPtr)
 
