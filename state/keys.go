@@ -47,11 +47,9 @@ func (p Permissions) ToBytes() []byte {
 
 // Populates Permissions struct with the permissions bytes
 // Any permission bits that were not defined will be dropped
-func FromBytes(permissionBytes []byte) (*Permissions, error) {
+func FromBytes(permissionBytes []byte) (Permissions, error) {
 	if len(permissionBytes) != 1 {
-		return nil, errUnexpectedLength
+		return None, errUnexpectedLength
 	}
-
-	permissionBits := Permissions(permissionBytes[0]) & All
-	return &permissionBits, nil
+	return Permissions(permissionBytes[0]) & All, nil
 }
