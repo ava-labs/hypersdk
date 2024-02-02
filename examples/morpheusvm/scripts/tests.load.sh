@@ -31,4 +31,4 @@ run \
 --vms 5 \
 --accts 10000 \
 --txs 500000 \
---trace=${TRACE}
+--trace="${TRACE}"

@@ -18,6 +18,8 @@ target_dir="${1:-build}"
 # Clean the cargo project
 cargo clean
 
+rustup target add wasm32-unknown-unknown
+
 # Compile the Program into the target directory 
 cargo build \
   --target "${target}" \

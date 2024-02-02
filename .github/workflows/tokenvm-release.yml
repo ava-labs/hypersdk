@@ -18,9 +18,9 @@ jobs:
     if: ${{ github.ref == 'refs/heads/main' || startsWith(github.event.ref, 'refs/tags/v') || contains(github.event.pull_request.labels.*.name, 'run all ci') }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: "1.20"
           check-latest: true
@@ -35,7 +35,7 @@ jobs:
         env:
           PUBLISH: false
       - name: Archive Builds
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: token-wallet
           path: ./examples/tokenvm/cmd/token-wallet/token-wallet.zip
@@ -46,9 +46,9 @@ jobs:
     if: ${{ github.ref == 'refs/heads/main' || startsWith(github.event.ref, 'refs/tags/v') || contains(github.event.pull_request.labels.*.name, 'run all ci') }}
     steps:
       - name: Git checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: "1.20"
           check-latest: true

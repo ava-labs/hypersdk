@@ -156,7 +156,7 @@ pub struct PlanResult {
     /// The timestamp of the function call response.
     pub timestamp: u64,
     /// The result of the function call.
-    pub response: Option<Vec<u64>>,
+    pub response: Option<Vec<i64>>,
 }
 
 pub struct Client<P> {

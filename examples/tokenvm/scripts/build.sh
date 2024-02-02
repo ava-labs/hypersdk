@@ -18,12 +18,8 @@ TOKENVM_PATH=$(
     cd .. && pwd
 )
 
-realpath() {
-    [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
-}
-
 if [[ $# -eq 1 ]]; then
-    BINARY_PATH=$(realpath $1)
+    BINARY_PATH=$(realpath "$1")
 elif [[ $# -eq 0 ]]; then
     # Set default binary directory location
     name="tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8"
@@ -33,23 +29,23 @@ else
     exit 1
 fi
 
-cd $TOKENVM_PATH
+cd "$TOKENVM_PATH"
 
 echo "Building tokenvm in $BINARY_PATH"
-mkdir -p $(dirname $BINARY_PATH)
-go build -o $BINARY_PATH ./cmd/tokenvm
+mkdir -p "$(dirname "$BINARY_PATH")"
+go build -o "$BINARY_PATH" ./cmd/tokenvm
 
 CLI_PATH=$TOKENVM_PATH/build/token-cli
 echo "Building token-cli in $CLI_PATH"
-mkdir -p $(dirname $CLI_PATH)
-go build -o $CLI_PATH ./cmd/token-cli
+mkdir -p "$(dirname "$CLI_PATH")"
+go build -o "$CLI_PATH" ./cmd/token-cli
 
 FAUCET_PATH=$TOKENVM_PATH/build/token-faucet
 echo "Building token-faucet in $FAUCET_PATH"
-mkdir -p $(dirname $FAUCET_PATH)
-go build -o $FAUCET_PATH ./cmd/token-faucet
+mkdir -p "$(dirname "$FAUCET_PATH")"
+go build -o "$FAUCET_PATH" ./cmd/token-faucet
 
 FEED_PATH=$TOKENVM_PATH/build/token-feed
 echo "Building token-feed in $FEED_PATH"
-mkdir -p $(dirname $FEED_PATH)
-go build -o $FEED_PATH ./cmd/token-feed
+mkdir -p "$(dirname "$FEED_PATH")"
+go build -o "$FEED_PATH" ./cmd/token-feed

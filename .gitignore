@@ -68,3 +68,5 @@ osxcross/
 target/
 Cargo.lock
 **/*.rs.bk
+
+x/programs/cmd/simulator/simulator

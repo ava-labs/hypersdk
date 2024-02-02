@@ -17,7 +17,7 @@ steps:
     params:
       - name: program_path
         type: string
-        value: ../../examples/testdata/token.wasm
+        value: ../../tests/fixture/token.wasm
   - endpoint: execute # initialize token program
     method: init
     max_units: 10000

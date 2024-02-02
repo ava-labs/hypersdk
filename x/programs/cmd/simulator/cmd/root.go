@@ -14,14 +14,11 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/database/manager"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	avago_version "github.com/ava-labs/avalanchego/version"
-
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
@@ -130,15 +127,6 @@ func (s *simulator) Init() error {
 	if err != nil {
 		return nil
 	}
-	db, err := manager.NewManagerFromDBs([]*manager.VersionedDatabase{
-		{
-			Database: pdb,
-			Version:  avago_version.CurrentDatabase,
-		},
-	})
-	if err != nil {
-		return nil
-	}
 
 	genesisBytes, err := json.Marshal(genesis.Default())
 	if err != nil {
@@ -163,7 +151,7 @@ func (s *simulator) Init() error {
 	err = vm.Initialize(
 		context.TODO(),
 		snowCtx,
-		db,
+		pdb,
 		genesisBytes,
 		nil,
 		nil,

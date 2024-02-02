@@ -17,6 +17,7 @@ var (
 	ErrOverflow                     = fmt.Errorf("overflow")
 	ErrUnderflow                    = fmt.Errorf("underflow")
 	ErrInvalidType                  = fmt.Errorf("invalid type")
+	ErrNegativeValue                = fmt.Errorf("negative value")
 
 	// Memory
 	ErrInvalidMemorySize    = errors.New("invalid memory size")
@@ -63,20 +64,18 @@ func HandleTrapError(err error) error {
 	case 4:
 		trapErr = ErrTrapIndirectCallToNull
 	case 5:
-		trapErr = ErrTrapIndirectCallBadSig
-	case 6:
 		trapErr = ErrTrapBadSignature
-	case 7:
+	case 6:
 		trapErr = ErrTrapIntegerOverflow
-	case 8:
+	case 7:
 		trapErr = ErrTrapIntegerDivisionByZero
-	case 9:
+	case 8:
 		trapErr = ErrTrapBadConversionToInteger
-	case 10:
+	case 9:
 		trapErr = ErrTrapUnreachableCodeReached
-	case 11:
+	case 10:
 		trapErr = ErrTrapInterrupt
-	case 12:
+	case 11:
 		trapErr = ErrTrapOutOfFuel
 	default:
 		return fmt.Errorf("unknown runtime engine trap: %v", *code)

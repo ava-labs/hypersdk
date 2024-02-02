@@ -94,7 +94,7 @@ func (r *Response) setBalance(balance uint64) {
 	r.Result.Balance = balance
 }
 
-func (r *Response) setResponse(response []uint64) {
+func (r *Response) setResponse(response []int64) {
 	r.Result.Response = response
 }
 
@@ -112,7 +112,7 @@ type Result struct {
 	// The balance after the step has completed.
 	Balance uint64 `json:"balance,omitempty" yaml:"balance,omitempty"`
 	// The response from the call.
-	Response []uint64 `json:"response,omitempty" yaml:"response,omitempty"`
+	Response []int64 `json:"response,omitempty" yaml:"response,omitempty"`
 	// An optional message.
 	Msg string `json:"msg,omitempty" yaml:"msg,omitempty"`
 	// Timestamp of the response.
@@ -162,14 +162,14 @@ const (
 )
 
 // validateAssertion validates the assertion against the actual value.
-func validateAssertion(actual uint64, require *Require) (bool, error) {
+func validateAssertion(actual int64, require *Require) (bool, error) {
 	if require == nil {
 		return true, nil
 	}
 
 	assertion := require.Result
 	// convert the assertion value(string) to uint64
-	value, err := strconv.ParseUint(assertion.Value, 10, 64)
+	value, err := strconv.ParseInt(assertion.Value, 10, 64)
 	if err != nil {
 		return false, err
 	}

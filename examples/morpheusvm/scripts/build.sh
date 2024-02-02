@@ -18,12 +18,8 @@ MORPHEUSVM_PATH=$(
     cd .. && pwd
 )
 
-realpath() {
-    [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
-}
-
 if [[ $# -eq 1 ]]; then
-    BINARY_PATH=$(realpath $1)
+    BINARY_PATH="$(realpath "$1")"
 elif [[ $# -eq 0 ]]; then
     # Set default binary directory location
     name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
@@ -33,13 +29,13 @@ else
     exit 1
 fi
 
-cd $MORPHEUSVM_PATH
+cd "$MORPHEUSVM_PATH"
 
 echo "Building morpheusvm in $BINARY_PATH"
-mkdir -p $(dirname $BINARY_PATH)
-go build -o $BINARY_PATH ./cmd/morpheusvm
+mkdir -p "$(dirname "$BINARY_PATH")"
+go build -o "$BINARY_PATH" ./cmd/morpheusvm
 
 CLI_PATH=$MORPHEUSVM_PATH/build/morpheus-cli
 echo "Building morpheus-cli in $CLI_PATH"
-mkdir -p $(dirname $CLI_PATH)
-go build -o $CLI_PATH ./cmd/morpheus-cli
+mkdir -p "$(dirname "$CLI_PATH")"
+go build -o "$CLI_PATH" ./cmd/morpheus-cli

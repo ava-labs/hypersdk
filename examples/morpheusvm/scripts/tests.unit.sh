@@ -15,4 +15,6 @@ if ! [[ "$0" =~ scripts/tests.unit.sh ]]; then
   exit 255
 fi
 
+# Provision of the list of tests requires word splitting, so disable the shellcheck
+# shellcheck disable=SC2046
 go test -race -timeout="10m" -coverprofile="coverage.out" -covermode="atomic" $(go list ./... | grep -v tests)
