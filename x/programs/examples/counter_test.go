@@ -94,7 +94,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// define max units to transfer to second runtime
-	unitsTransfer := uint64(10000)
+	unitsTransfer := uint64(20000)
 
 	// transfer the units from the original runtime to the new runtime before
 	// any calls are made.
