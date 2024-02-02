@@ -1,5 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
+use wasmlanche_sdk::{context::Context, public, state_keys, types::Address};
 
 /// The program state keys.
 #[state_keys]
@@ -16,21 +16,21 @@ enum StateKey {
 
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
-pub fn init(program: Program) -> bool {
+pub fn init(ctx: Context) -> bool {
     // set total supply
-    program
+    ctx.program
         .state()
         .store(StateKey::TotalSupply, &123456789_i64)
         .expect("failed to store total supply");
 
     // set token name
-    program
+     ctx.program
         .state()
         .store(StateKey::Name, b"WasmCoin")
         .expect("failed to store coin name");
 
     // set token symbol
-    program
+     ctx.program
         .state()
         .store(StateKey::Symbol, b"WACK")
         .expect("failed to store symbol");
@@ -40,8 +40,8 @@ pub fn init(program: Program) -> bool {
 
 /// Returns the total supply of the token.
 #[public]
-pub fn get_total_supply(program: Program) -> i64 {
-    program
+pub fn get_total_supply(ctx: Context) -> i64 {
+     ctx.program
         .state()
         .get(StateKey::TotalSupply)
         .expect("failed to get total supply")
@@ -49,13 +49,13 @@ pub fn get_total_supply(program: Program) -> i64 {
 
 /// Transfers balance from the token owner to the recipient.
 #[public]
-pub fn mint_to(program: Program, recipient: Address, amount: i64) -> bool {
-    let balance = program
+pub fn mint_to(ctx: Context, recipient: Address, amount: i64) -> bool {
+    let balance =  ctx.program
         .state()
         .get::<i64, _>(StateKey::Balance(recipient))
         .unwrap_or_default();
 
-    program
+     ctx.program
         .state()
         .store(StateKey::Balance(recipient), &(balance + amount))
         .expect("failed to store balance");
@@ -65,29 +65,29 @@ pub fn mint_to(program: Program, recipient: Address, amount: i64) -> bool {
 
 /// Transfers balance from the sender to the the recipient.
 #[public]
-pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i64) -> bool {
+pub fn transfer(ctx: Context, sender: Address, recipient: Address, amount: i64) -> bool {
     assert_ne!(sender, recipient, "sender and recipient must be different");
 
     // ensure the sender has adequate balance
-    let sender_balance = program
+    let sender_balance =  ctx.program
         .state()
         .get::<i64, _>(StateKey::Balance(sender))
         .expect("failed to update balance");
 
     assert!(amount >= 0 && sender_balance >= amount, "invalid input");
 
-    let recipient_balance = program
+    let recipient_balance =  ctx.program
         .state()
         .get::<i64, _>(StateKey::Balance(recipient))
         .unwrap_or_default();
 
     // update balances
-    program
+     ctx.program
         .state()
         .store(StateKey::Balance(sender), &(sender_balance - amount))
         .expect("failed to store balance");
 
-    program
+     ctx.program
         .state()
         .store(StateKey::Balance(recipient), &(recipient_balance + amount))
         .expect("failed to store balance");
@@ -103,9 +103,9 @@ pub struct Minter {
 
 /// Mints tokens to multiple recipients.
 #[public]
-pub fn mint_to_many(program: Program, minters: Vec<Minter>) -> bool {
+pub fn mint_to_many(ctx: Context, minters: Vec<Minter>) -> bool {
     for minter in minters.iter() {
-        mint_to(program, minter.to, minter.amount as i64);
+        mint_to(ctx, minter.to, minter.amount as i64);
     }
 
     true
@@ -113,8 +113,8 @@ pub fn mint_to_many(program: Program, minters: Vec<Minter>) -> bool {
 
 /// Gets the balance of the recipient.
 #[public]
-pub fn get_balance(program: Program, recipient: Address) -> i64 {
-    program
+pub fn get_balance(ctx: Context, recipient: Address) -> i64 {
+    ctx.program
         .state()
         .get(StateKey::Balance(recipient))
         .unwrap_or_default()

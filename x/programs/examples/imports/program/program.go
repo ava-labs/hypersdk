@@ -167,7 +167,7 @@ func (i *Import) callProgramFn(
 	}
 
 	function_name := string(functionBytes)
-	res, err := rt.Call(ctx, function_name, params...)
+	res, err := rt.Call(ctx, function_name, program.Context{ProgramID: ids.ID(programIDBytes)}, params[1:]...)
 	if err != nil {
 		i.log.Error("failed to call entry function",
 			zap.Error(err),

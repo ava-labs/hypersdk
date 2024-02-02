@@ -31,7 +31,7 @@ func serializeParameter(obj interface{}) ([]byte, error) {
 
 // Serialize the parameter and create a smart ptr
 func argumentToSmartPtr(obj interface{}, memory *program.Memory) (program.SmartPtr, error) {
-	bytes, err := serializeParameter(obj)
+	bytes, err := borsh.Serialize(obj)
 	if err != nil {
 		return 0, err
 	}
