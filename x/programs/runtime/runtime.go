@@ -100,6 +100,11 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 }
 
 func (r *WasmRuntime) Call(_ context.Context, name string, context program.Context, params ...program.SmartPtr) ([]int64, error) {
+	var err error
+	context.Gas, err = r.Meter().GetBalance()
+	if err != nil {
+		return nil, err
+	}
 	fn, err := r.inst.GetFunc(name)
 	if err != nil {
 		return nil, err
