@@ -35,10 +35,10 @@ func (*MintAsset) GetTypeID() uint8 {
 	return mintAssetID
 }
 
-func (m *MintAsset) StateKeys(codec.Address, ids.ID) []string {
-	return []string{
-		string(storage.AssetKey(m.Asset)),
-		string(storage.BalanceKey(m.To, m.Asset)),
+func (m *MintAsset) StateKeys(codec.Address, ids.ID) state.Keys {
+	return state.Keys{
+		string(storage.AssetKey(m.Asset)):         state.Read | state.Write,
+		string(storage.BalanceKey(m.To, m.Asset)): state.Read | state.Write,
 	}
 }
 

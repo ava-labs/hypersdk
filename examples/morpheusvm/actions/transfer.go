@@ -31,10 +31,10 @@ func (*Transfer) GetTypeID() uint8 {
 	return mconsts.TransferID
 }
 
-func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) []string {
-	return []string{
-		string(storage.BalanceKey(actor)),
-		string(storage.BalanceKey(t.To)),
+func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+	return state.Keys{
+		string(storage.BalanceKey(actor)): state.Read | state.Write,
+		string(storage.BalanceKey(t.To)):  state.Read | state.Write,
 	}
 }
 

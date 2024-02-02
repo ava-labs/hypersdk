@@ -44,8 +44,8 @@ func (*ProgramExecute) GetTypeID() uint8 {
 	return programExecuteID
 }
 
-func (t *ProgramExecute) StateKeys(actor codec.Address, txID ids.ID) []string {
-	return []string{}
+func (t *ProgramExecute) StateKeys(actor codec.Address, txID ids.ID) state.Keys {
+	return state.Keys{}
 }
 
 func (*ProgramExecute) StateKeysMaxChunks() []uint16 {

@@ -10,8 +10,9 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/state"
 )
 
 func TestExecutorNoConflicts(t *testing.T) {
@@ -23,9 +24,9 @@ func TestExecutorNoConflicts(t *testing.T) {
 		canWait   = make(chan struct{})
 	)
 	for i := 0; i < 100; i++ {
-		s := set.NewSet[string](i + 1)
+		s := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
-			s.Add(ids.GenerateTestID().String())
+			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -51,9 +52,9 @@ func TestExecutorNoConflictsSlow(t *testing.T) {
 		e         = New(100, 4, nil)
 	)
 	for i := 0; i < 100; i++ {
-		s := set.NewSet[string](i + 1)
+		s := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
-			s.Add(ids.GenerateTestID().String())
+			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -80,12 +81,12 @@ func TestExecutorSimpleConflict(t *testing.T) {
 		e           = New(100, 4, nil)
 	)
 	for i := 0; i < 100; i++ {
-		s := set.NewSet[string](i + 1)
+		s := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
-			s.Add(ids.GenerateTestID().String())
+			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
 		}
 		if i%10 == 0 {
-			s.Add(conflictKey)
+			s.Add(conflictKey, state.Read|state.Write)
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -113,15 +114,15 @@ func TestExecutorMultiConflict(t *testing.T) {
 		e            = New(100, 4, nil)
 	)
 	for i := 0; i < 100; i++ {
-		s := set.NewSet[string](i + 1)
+		s := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
-			s.Add(ids.GenerateTestID().String())
+			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
 		}
 		if i%10 == 0 {
-			s.Add(conflictKey)
+			s.Add(conflictKey, state.Read|state.Write)
 		}
 		if i == 15 || i == 20 {
-			s.Add(conflictKey2)
+			s.Add(conflictKey2, state.Read|state.Write)
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -151,9 +152,9 @@ func TestEarlyExit(t *testing.T) {
 		terr      = errors.New("uh oh")
 	)
 	for i := 0; i < 500; i++ {
-		s := set.NewSet[string](i + 1)
+		s := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
-			s.Add(ids.GenerateTestID().String())
+			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
 		}
 		ti := i
 		e.Run(s, func() error {
@@ -178,9 +179,9 @@ func TestStop(t *testing.T) {
 		e         = New(500, 4, nil)
 	)
 	for i := 0; i < 500; i++ {
-		s := set.NewSet[string](i + 1)
+		s := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
-			s.Add(ids.GenerateTestID().String())
+			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
 		}
 		ti := i
 		e.Run(s, func() error {
