@@ -6,6 +6,7 @@ package actions
 import (
 	"context"
 	"fmt"
+
 	"github.com/near/borsh-go"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
@@ -101,18 +102,19 @@ func (t *ProgramExecute) Execute(
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 	eng := engine.New(ecfg)
-
+	rg := program.NewRuntimeReentrancyGuard()
+	
 	// TODO: allow configurable imports?
 	importsBuilder := host.NewImportsBuilder()
 	importsBuilder.Register("state", func() host.Import {
 		return pstate.New(logging.NoLog{}, mu)
 	})
 	importsBuilder.Register("program", func() host.Import {
-		return importProgram.New(logging.NoLog{}, eng, mu, cfg)
+		return importProgram.New(logging.NoLog{}, eng, mu, cfg, rg)
 	})
 	imports := importsBuilder.Build()
 
-	t.rt = runtime.New(logging.NoLog{}, eng, imports, cfg)
+	t.rt = runtime.New(logging.NoLog{}, eng, imports, cfg, rg)
 	err = t.rt.Initialize(ctx, programBytes, t.MaxUnits)
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
