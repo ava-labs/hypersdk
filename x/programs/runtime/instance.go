@@ -5,7 +5,6 @@ package runtime
 
 import (
 	"fmt"
-
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/bytecodealliance/wasmtime-go/v14"
