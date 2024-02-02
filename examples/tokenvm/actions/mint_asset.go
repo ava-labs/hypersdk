@@ -37,8 +37,8 @@ func (*MintAsset) GetTypeID() uint8 {
 
 func (m *MintAsset) StateKeys(codec.Address, ids.ID) state.Keys {
 	return state.Keys{
-		string(storage.AssetKey(m.Asset)):         &state.Permissions{Read: true, Write: true},
-		string(storage.BalanceKey(m.To, m.Asset)): &state.Permissions{Read: true, Write: true},
+		string(storage.AssetKey(m.Asset)):         state.Read | state.Write,
+		string(storage.BalanceKey(m.To, m.Asset)): state.Read | state.Write,
 	}
 }
 

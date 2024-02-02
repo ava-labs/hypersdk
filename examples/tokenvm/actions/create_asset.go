@@ -30,7 +30,7 @@ func (*CreateAsset) GetTypeID() uint8 {
 
 func (*CreateAsset) StateKeys(_ codec.Address, txID ids.ID) state.Keys {
 	return state.Keys{
-		string(storage.AssetKey(txID)): &state.Permissions{Write: true},
+		string(storage.AssetKey(txID)): state.Write,
 	}
 }
 
