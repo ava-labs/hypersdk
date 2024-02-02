@@ -31,6 +31,8 @@ func TestCounterProgram(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	programID := ids.GenerateTestID()
+	callContext := program.Context{ProgramID: programID}
 	cfg := runtime.NewConfig()
 	log := logging.NewLogger(
 		"",
@@ -61,7 +63,7 @@ func TestCounterProgram(t *testing.T) {
 	require.Equal(maxUnits, balance)
 
 	// simulate create program transaction
-	programID := ids.GenerateTestID()
+
 	err = storage.SetProgram(ctx, db, programID, wasmBytes)
 	require.NoError(err)
 
@@ -77,12 +79,12 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// create counter for alice on program 1
-	result, err := rt.Call(ctx, "initialize_address", program.Context{ProgramID: programID}, alicePtr)
+	result, err := rt.Call(ctx, "initialize_address", callContext, alicePtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
 	// validate counter at 0
-	result, err = rt.Call(ctx, "get_value", program.Context{ProgramID: programID}, alicePtr)
+	result, err = rt.Call(ctx, "get_value", callContext, alicePtr)
 	require.NoError(err)
 	require.Equal(int64(0), result[0])
 

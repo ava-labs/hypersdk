@@ -65,7 +65,7 @@ type Token struct {
 
 func (t *Token) Run(ctx context.Context) error {
 	rt := runtime.New(t.log, t.engine, t.imports, t.cfg)
-	err := rt.Initialize(ctx, t.programBytes, t.maxUnits)
+	err := rt.Initialize(ctx, program.Context{}, t.programBytes, t.maxUnits)
 	if err != nil {
 		return err
 	}
@@ -282,7 +282,7 @@ func (t *Token) Run(ctx context.Context) error {
 // RunShort performs the steps of initialization only, used for benchmarking.
 func (t *Token) RunShort(ctx context.Context) error {
 	rt := runtime.New(t.log, t.engine, t.imports, t.cfg)
-	err := rt.Initialize(ctx, t.programBytes, t.maxUnits)
+	err := rt.Initialize(ctx, program.Context{}, t.programBytes, t.maxUnits)
 	if err != nil {
 		return err
 	}

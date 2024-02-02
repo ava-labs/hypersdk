@@ -6,6 +6,7 @@ package actions
 import (
 	"context"
 	"fmt"
+
 	"github.com/near/borsh-go"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
@@ -61,7 +62,7 @@ func (t *ProgramExecute) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	_ codec.Address,
+	actor codec.Address,
 	_ ids.ID,
 	_ bool,
 ) (success bool, computeUnits uint64, output []byte, warpMessage *warp.UnsignedMessage, err error) {
@@ -106,13 +107,17 @@ func (t *ProgramExecute) Execute(
 	importsBuilder.Register("state", func() host.Import {
 		return pstate.New(logging.NoLog{}, mu)
 	})
+	callContext := program.Context{
+		ProgramID:        programID,
+		Actor:            [32]byte(actor[1:]),
+		OriginatingActor: [32]byte(actor[1:])}
 	importsBuilder.Register("program", func() host.Import {
 		return importProgram.New(logging.NoLog{}, eng, mu, cfg)
 	})
 	imports := importsBuilder.Build()
 
 	t.rt = runtime.New(logging.NoLog{}, eng, imports, cfg)
-	err = t.rt.Initialize(ctx, programBytes, t.MaxUnits)
+	err = t.rt.Initialize(ctx, callContext, programBytes, t.MaxUnits)
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
@@ -127,7 +132,7 @@ func (t *ProgramExecute) Execute(
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 
-	resp, err := t.rt.Call(ctx, t.Function, program.Context{ProgramID: programID}, params[1:]...)
+	resp, err := t.rt.Call(ctx, t.Function, callContext, params[1:]...)
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}

@@ -45,7 +45,7 @@ type WasmRuntime struct {
 	log logging.Logger
 }
 
-func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUnits uint64) (err error) {
+func (r *WasmRuntime) Initialize(ctx context.Context, callContext program.Context, programBytes []byte, maxUnits uint64) (err error) {
 	ctx, r.cancelFn = context.WithCancel(ctx)
 	go func(ctx context.Context) {
 		<-ctx.Done()
@@ -88,7 +88,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 	link := host.NewLink(r.log, store.GetEngine(), r.imports, r.meter, r.cfg.EnableDebugMode)
 
 	// instantiate the module with all of the imports defined by the linker
-	inst, err := link.Instantiate(store, mod, r.cfg.ImportFnCallback)
+	inst, err := link.Instantiate(store, mod, r.cfg.ImportFnCallback, callContext)
 	if err != nil {
 		return err
 	}
@@ -100,11 +100,6 @@ func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUn
 }
 
 func (r *WasmRuntime) Call(_ context.Context, name string, context program.Context, params ...program.SmartPtr) ([]int64, error) {
-	var err error
-	context.Gas, err = r.Meter().GetBalance()
-	if err != nil {
-		return nil, err
-	}
 	fn, err := r.inst.GetFunc(name)
 	if err != nil {
 		return nil, err
