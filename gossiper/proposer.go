@@ -62,7 +62,7 @@ func DefaultProposerConfig() *ProposerConfig {
 		GossipMaxSize:       consts.NetworkSizeLimit,
 		GossipMinDelay:      50,
 		NoGossipBuilderDiff: 4,
-		VerifyTimeout:       proposer.MaxDelay.Milliseconds(),
+		VerifyTimeout:       proposer.MaxVerifyDelay.Milliseconds(),
 		SeenCacheSize:       2_500_000,
 	}
 }
@@ -151,10 +151,10 @@ func (g *Proposer) Force(ctx context.Context) error {
 		return mempoolErr
 	}
 	if len(txs) == 0 {
-		g.vm.Logger().Warn("no transactions to gossip")
+		g.vm.Logger().Debug("no transactions to gossip")
 		return nil
 	}
-	g.vm.Logger().Info("gossiping transactions", zap.Int("txs", len(txs)), zap.Duration("t", time.Since(start)))
+	g.vm.Logger().Debug("gossiping transactions", zap.Int("txs", len(txs)), zap.Duration("t", time.Since(start)))
 	g.vm.RecordTxsGossiped(len(txs))
 	return g.sendTxs(ctx, txs)
 }
@@ -245,7 +245,7 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 			zap.Error(err),
 		)
 	}
-	g.vm.Logger().Info(
+	g.vm.Logger().Debug(
 		"tx gossip received",
 		zap.Int("txs", len(txs)),
 		zap.Int("previously seen", seen),

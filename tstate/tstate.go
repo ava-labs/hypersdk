@@ -64,7 +64,7 @@ func (ts *TState) ExportMerkleDBView(
 	ctx context.Context,
 	t trace.Tracer, //nolint:interfacer
 	view state.View,
-) (merkledb.TrieView, error) {
+) (merkledb.View, error) {
 	ts.l.RLock()
 	defer ts.l.RUnlock()
 

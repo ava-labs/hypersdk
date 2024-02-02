@@ -44,12 +44,12 @@ func (*FillOrder) GetTypeID() uint8 {
 	return fillOrderID
 }
 
-func (f *FillOrder) StateKeys(auth chain.Auth, _ ids.ID) []string {
+func (f *FillOrder) StateKeys(actor codec.Address, _ ids.ID) []string {
 	return []string{
 		string(storage.OrderKey(f.Order)),
 		string(storage.BalanceKey(f.Owner, f.In)),
-		string(storage.BalanceKey(auth.Actor(), f.In)),
-		string(storage.BalanceKey(auth.Actor(), f.Out)),
+		string(storage.BalanceKey(actor, f.In)),
+		string(storage.BalanceKey(actor, f.Out)),
 	}
 }
 
@@ -66,7 +66,7 @@ func (f *FillOrder) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	auth chain.Auth,
+	actor codec.Address,
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
@@ -129,13 +129,13 @@ func (f *FillOrder) Execute(
 		// Don't allow free trades (can happen due to refund rounding)
 		return false, NoFillOrderComputeUnits, OutputInsufficientInput, nil, nil
 	}
-	if err := storage.SubBalance(ctx, mu, auth.Actor(), f.In, inputAmount); err != nil {
+	if err := storage.SubBalance(ctx, mu, actor, f.In, inputAmount); err != nil {
 		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, mu, f.Owner, f.In, inputAmount, true); err != nil {
 		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, mu, auth.Actor(), f.Out, outputAmount, true); err != nil {
+	if err := storage.AddBalance(ctx, mu, actor, f.Out, outputAmount, true); err != nil {
 		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if shouldDelete {

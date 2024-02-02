@@ -11,6 +11,6 @@ import (
 )
 
 type Database interface {
-	NewViewFromMap(ctx context.Context, changes map[string]maybe.Maybe[[]byte], copyBytes bool) (merkledb.TrieView, error)
+	NewViewFromMap(ctx context.Context, changes map[string]maybe.Maybe[[]byte], copyBytes bool) (merkledb.View, error)
 	GetValue(ctx context.Context, key []byte) (value []byte, err error)
 }

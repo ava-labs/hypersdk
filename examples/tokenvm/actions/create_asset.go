@@ -28,7 +28,7 @@ func (*CreateAsset) GetTypeID() uint8 {
 	return createAssetID
 }
 
-func (*CreateAsset) StateKeys(_ chain.Auth, txID ids.ID) []string {
+func (*CreateAsset) StateKeys(_ codec.Address, txID ids.ID) []string {
 	return []string{
 		string(storage.AssetKey(txID)),
 	}
@@ -47,7 +47,7 @@ func (c *CreateAsset) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	auth chain.Auth,
+	actor codec.Address,
 	txID ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
@@ -68,7 +68,7 @@ func (c *CreateAsset) Execute(
 	}
 	// It should only be possible to overwrite an existing asset if there is
 	// a hash collision.
-	if err := storage.SetAsset(ctx, mu, txID, c.Symbol, c.Decimals, c.Metadata, 0, auth.Actor(), false); err != nil {
+	if err := storage.SetAsset(ctx, mu, txID, c.Symbol, c.Decimals, c.Metadata, 0, actor, false); err != nil {
 		return false, CreateAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	return true, CreateAssetComputeUnits, nil, nil, nil

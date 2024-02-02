@@ -78,9 +78,8 @@ type Batch struct {
 	bv ed25519consensus.BatchVerifier
 }
 
-func NewBatch() *Batch {
-	// TODO: add support for pre-allocating batch (#652)
-	return &Batch{bv: ed25519consensus.NewBatchVerifier()}
+func NewBatch(size int) *Batch {
+	return &Batch{bv: ed25519consensus.NewPreallocatedBatchVerifier(size)}
 }
 
 func (b *Batch) Add(msg []byte, p PublicKey, s Signature) {

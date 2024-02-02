@@ -35,7 +35,7 @@ func (*MintAsset) GetTypeID() uint8 {
 	return mintAssetID
 }
 
-func (m *MintAsset) StateKeys(chain.Auth, ids.ID) []string {
+func (m *MintAsset) StateKeys(codec.Address, ids.ID) []string {
 	return []string{
 		string(storage.AssetKey(m.Asset)),
 		string(storage.BalanceKey(m.To, m.Asset)),
@@ -55,7 +55,7 @@ func (m *MintAsset) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	auth chain.Auth,
+	actor codec.Address,
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
@@ -75,14 +75,14 @@ func (m *MintAsset) Execute(
 	if isWarp {
 		return false, MintAssetComputeUnits, OutputWarpAsset, nil, nil
 	}
-	if owner != auth.Actor() {
+	if owner != actor {
 		return false, MintAssetComputeUnits, OutputWrongOwner, nil, nil
 	}
 	newSupply, err := smath.Add64(supply, m.Value)
 	if err != nil {
 		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.SetAsset(ctx, mu, m.Asset, symbol, decimals, metadata, newSupply, auth.Actor(), isWarp); err != nil {
+	if err := storage.SetAsset(ctx, mu, m.Asset, symbol, decimals, metadata, newSupply, actor, isWarp); err != nil {
 		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, mu, m.To, m.Asset, m.Value, true); err != nil {
