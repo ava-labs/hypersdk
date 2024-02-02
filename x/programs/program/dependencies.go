@@ -3,6 +3,8 @@
 
 package program
 
+import "github.com/bytecodealliance/wasmtime-go/v14"
+
 type Instance interface {
 	// GetFunc returns a function exported by the program.
 	GetFunc(name string) (*Func, error)
@@ -10,4 +12,5 @@ type Instance interface {
 	GetExport(name string) (*Export, error)
 	// Memory returns the memory exported by the program.
 	Memory() (*Memory, error)
+	GetStore() wasmtime.Storelike
 }

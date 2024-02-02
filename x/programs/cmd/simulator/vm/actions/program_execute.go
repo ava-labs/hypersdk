@@ -82,7 +82,6 @@ func (t *ProgramExecute) Execute(
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
-	t.Params[0].Value = programID
 	programBytes, err := storage.GetProgram(ctx, mu, programID)
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
@@ -128,7 +127,7 @@ func (t *ProgramExecute) Execute(
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 
-	resp, err := t.rt.Call(ctx, t.Function, params...)
+	resp, err := t.rt.Call(ctx, t.Function, program.Context{ProgramID: programID}, params[1:]...)
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
