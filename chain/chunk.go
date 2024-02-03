@@ -10,7 +10,8 @@ import (
 )
 
 type Chunk struct {
-	Expiry int64 `json:"expiry"`
+	Producer ids.ShortID `json:"producer"`
+	Expiry   int64       `json:"expiry"`
 
 	Txs []*Transaction `json:"txs"`
 
@@ -36,9 +37,10 @@ func (c *Chunk) Size() int {
 }
 
 func (c *Chunk) Marshal() ([]byte, error) {
-	size := consts.Uint64Len + consts.IntLen + codec.CummSize(c.Txs)
+	size := consts.ShortIDLen + consts.Uint64Len + consts.IntLen + codec.CummSize(c.Txs)
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
+	p.PackShortID(c.Producer)
 	p.PackInt64(c.Expiry)
 	p.PackInt(len(c.Txs))
 	for _, tx := range c.Txs {
@@ -62,11 +64,12 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 	)
 	c.id = utils.ToID(raw)
 	c.size = len(raw)
+	p.UnpackShortID(true, &c.Producer)
 	c.Expiry = p.UnpackInt64(false)
 
 	// Parse transactions
-	txCount := p.UnpackInt(false) // can produce empty blocks
-	c.Txs = []*Transaction{}      // don't preallocate all to avoid DoS
+	txCount := p.UnpackInt(true) // can't produce empty blocks
+	c.Txs = []*Transaction{}     // don't preallocate all to avoid DoS
 	for i := 0; i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {

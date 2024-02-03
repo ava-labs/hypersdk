@@ -5,16 +5,16 @@ package consts
 
 const (
 	// These `codec` consts are defined here to avoid a circular dependency
-	BoolLen   = 1
-	ByteLen   = 1
-	IDLen     = 32
-	NodeIDLen = 20
-	IntLen    = 4
-	Uint8Len  = 1
-	Uint16Len = 2
-	Uint32Len = 4
-	Uint64Len = 8
-	Int64Len  = 8
+	BoolLen    = 1
+	ByteLen    = 1
+	IDLen      = 32
+	ShortIDLen = 20
+	IntLen     = 4
+	Uint8Len   = 1
+	Uint16Len  = 2
+	Uint32Len  = 4
+	Uint64Len  = 8
+	Int64Len   = 8
 
 	// AvalancheGo imposes a limit of 2 MiB on the network, so we limit at
 	// 2 MiB - ProposerVM header - Protobuf encoding overhead (we assume this is
