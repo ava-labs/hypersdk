@@ -184,6 +184,8 @@ func UnmarshalChunkSignature(raw []byte) (*ChunkSignature, error) {
 	return &c, p.Err()
 }
 
+// TODO: which height to use to verify this signature?
+// If we use the block context, validator set might change a bit too frequently?
 type ChunkCertificate struct {
 	Chunk  ids.ID `json:"chunk"`
 	Expiry int64  `json:"expiry"`

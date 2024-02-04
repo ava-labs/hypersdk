@@ -6,6 +6,7 @@ package chain
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,11 +15,16 @@ import (
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
+	autils "github.com/ava-labs/avalanchego/utils"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"golang.org/x/exp/maps"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -181,7 +187,7 @@ func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) 
 	// TODO: how to compute this when just passing certificates?
 	// TODO: not always possible to verify with context?
 	// TODO: could use height for partition
-	return false, nil
+	return len(b.AvailableChunks) > 0 /* need to verify certs */, nil
 }
 
 // implements "block.WithVerifyContext"
@@ -301,6 +307,85 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	if b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli() {
 		return ErrTimestampTooLate
 	}
+
+	if b.bctx != nil {
+		// Get validator set at current height
+		//
+		// TODO: need to handle case where state sync on P-Chain and don't have historical validator set
+		vdrSet, err := b.vm.ValidatorState().GetValidatorSet(ctx, b.bctx.PChainHeight, r.ChainID())
+		if err != nil {
+			return err
+		}
+
+		// TODO: ensure NodeID matches BLS Key on chunks
+
+		// Compute canonical validator set (already have set, so don't call again)
+		// Source: https://github.com/ava-labs/avalanchego/blob/813bd481c764970b5c47c3ae9c0a40f2c28da8e4/vms/platformvm/warp/validator.go#L61-L92
+		var (
+			vdrs        = make(map[string]*warp.Validator, len(vdrSet))
+			totalWeight uint64
+		)
+		for _, vdr := range vdrSet {
+			totalWeight, err = math.Add64(totalWeight, vdr.Weight)
+			if err != nil {
+				return err
+			}
+
+			if vdr.PublicKey == nil {
+				continue
+			}
+
+			pkBytes := bls.SerializePublicKey(vdr.PublicKey)
+			uniqueVdr, ok := vdrs[string(pkBytes)]
+			if !ok {
+				uniqueVdr = &warp.Validator{
+					PublicKey:      vdr.PublicKey,
+					PublicKeyBytes: pkBytes,
+				}
+				vdrs[string(pkBytes)] = uniqueVdr
+			}
+
+			uniqueVdr.Weight += vdr.Weight // Impossible to overflow here
+			uniqueVdr.NodeIDs = append(uniqueVdr.NodeIDs, vdr.NodeID)
+		}
+		vdrList := maps.Values(vdrs)
+		autils.Sort(vdrList)
+
+		// Verify certificates
+		//
+		// TODO: make parallel
+		// TODO: cache verifications
+		for _, cert := range b.AvailableChunks {
+			filteredVdrs, err := warp.FilterValidators(cert.Signers, vdrList)
+			if err != nil {
+				return err
+			}
+			filteredWeight, err := warp.SumWeight(filteredVdrs)
+			if err != nil {
+				return err
+			}
+			if err := warp.VerifyWeight(filteredWeight, totalWeight, 67, 100); err != nil {
+				return err
+			}
+			aggrPubKey, err := warp.AggregatePublicKeys(filteredVdrs)
+			if err != nil {
+				return err
+			}
+			msg, err := cert.Digest()
+			if err != nil {
+				return err
+			}
+			if !bls.Verify(aggrPubKey, cert.Signature, msg) {
+				return errors.New("certificate invalid")
+			}
+		}
+	} else {
+		if len(b.AvailableChunks) > 0 {
+			return errors.New("block context not provided but have available chunks")
+		}
+	}
+
+	// TODO: Verify parent root and execution results
 
 	// Fetch view where we will apply block state transitions
 	//

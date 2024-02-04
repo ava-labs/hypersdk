@@ -119,6 +119,8 @@ type Rules interface {
 	NetworkID() uint32
 	ChainID() ids.ID
 
+	GetBlockExecutionDepth() int
+
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
 	GetValidityWindow() int64   // in milliseconds
