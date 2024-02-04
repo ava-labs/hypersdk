@@ -240,6 +240,7 @@ func (b *StatelessBlock) ID() ids.ID { return b.id }
 // implements "block.WithVerifyContext"
 func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
 	// TODO: may want to use a different p-chain height to verify things?
+	// TODO: how to reflect warp verification needs here?
 	return len(b.AvailableChunks) > 0 /* need to verify certs */, nil
 }
 
