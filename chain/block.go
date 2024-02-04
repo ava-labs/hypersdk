@@ -351,10 +351,13 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		//
 		// TODO: make parallel
 		// TODO: cache verifications
+		// TODO: skip available chunks that we have already verified
 		for _, cert := range b.AvailableChunks {
 			// Ensure cert is from a validator
 			//
 			// Signers verify that validator signed chunk with right key when signing chunk
+			//
+			// TODO: consider not verifying this in case validator set changes?
 			_, ok := vdrSet[cert.Producer]
 			if !ok {
 				return errors.New("not a validator")
@@ -407,6 +410,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	defer span.End()
 
 	b.st = choices.Accepted
+	// TODO: start fetching (if don't have) and execution of available chunks
 	b.vm.Accepted(ctx, b)
 	return nil
 }
