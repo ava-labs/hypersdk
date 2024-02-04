@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -174,43 +173,15 @@ func ParseStatefulBlock(
 	return b, nil
 }
 
-// [initializeBuilt] is invoked after a block is built
-func (b *StatelessBlock) initializeBuilt(
-	ctx context.Context,
-	view merkledb.View,
-	results []*Result,
-	feeManager *FeeManager,
-) error {
-	_, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
-	defer span.End()
-
-	blk, err := b.StatefulBlock.Marshal()
-	if err != nil {
-		return err
-	}
-	b.bytes = blk
-	b.id = utils.ToID(b.bytes)
-	b.view = view
-	b.t = time.UnixMilli(b.StatefulBlock.Tmstmp)
-	b.results = results
-	b.feeManager = feeManager
-	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
-	for _, tx := range b.Txs {
-		b.txsSet.Add(tx.ID())
-		if tx.WarpMessage != nil {
-			b.containsWarp = true
-		}
-	}
-	return nil
-}
-
 // implements "snowman.Block.choices.Decidable"
 func (b *StatelessBlock) ID() ids.ID { return b.id }
 
 // implements "block.WithVerifyContext"
 func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
 	// TODO: how to compute this when just passing certificates?
-	return b.containsWarp, nil
+	// TODO: not always possible to verify with context?
+	// TODO: could use height for partition
+	return false, nil
 }
 
 // implements "block.WithVerifyContext"
@@ -224,7 +195,6 @@ func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Cont
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.VerifyWithContext",
 		oteltrace.WithAttributes(
-			attribute.Int("txs", len(b.Txs)),
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
 			attribute.Int64("pchainHeight", int64(bctx.PChainHeight)),
@@ -251,7 +221,6 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.Verify",
 		oteltrace.WithAttributes(
-			attribute.Int("txs", len(b.Txs)),
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
 			attribute.Bool("built", b.Processed()),
@@ -318,45 +287,10 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 	return nil
 }
 
-// verifyWarpMessage will attempt to verify a given warp message provided by an
-// Action.
-func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *warp.Message) bool {
-	// We do not check the validity of [SourceChainID] because a VM could send
-	// itself a message to trigger a chain upgrade.
-	allowed, num, denom := r.GetWarpConfig(msg.SourceChainID)
-	if !allowed {
-		b.vm.Logger().
-			Warn("unable to verify warp message", zap.Stringer("warpID", msg.ID()), zap.Error(ErrDisabledChainID))
-		return false
-	}
-	if err := msg.Signature.Verify(
-		ctx,
-		&msg.UnsignedMessage,
-		r.NetworkID(),
-		b.vdrState,
-		b.bctx.PChainHeight,
-		num,
-		denom,
-	); err != nil {
-		b.vm.Logger().
-			Warn("unable to verify warp message", zap.Stringer("warpID", msg.ID()), zap.Error(err))
-		return false
-	}
-	return true
-}
-
-// innerVerify executes the block on top of the provided [VerifyContext].
-//
-// Invariants:
-// Accepted / Rejected blocks should never have Verify called on them.
-// Blocks that were verified (and returned nil) with Verify will not have verify called again.
-// Blocks that were verified with VerifyWithContext may have verify called multiple times.
-//
-// When this may be called:
-//  1. [Verify|VerifyWithContext]
-//  2. If the parent view is missing when verifying (dynamic state sync)
-//  3. If the view of a block we are accepting is missing (finishing dynamic
-//     state sync)
+// Tasks
+// 1) verify certificates (correct signatures, correct weight, not duplicates)
+// 2) verify parent state root is correct
+// 3) verify executed certificates (correct IDs)
 func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) error {
 	var (
 		log = b.vm.Logger()
@@ -371,6 +305,8 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	// Fetch view where we will apply block state transitions
 	//
 	// This call may result in our ancestry being verified.
+	//
+	// TODO: need parent state to verify the block, but that is no longer around
 	parentView, err := vctx.View(ctx, true)
 	if err != nil {
 		return fmt.Errorf("%w: unable to load parent view", err)
