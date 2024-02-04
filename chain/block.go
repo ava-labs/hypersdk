@@ -19,6 +19,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -298,8 +299,8 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	// TODO: skip verification if state does not exist yet
 
 	var (
-		// log = b.vm.Logger()
-		r = b.vm.Rules(b.StatefulBlock.Timestamp)
+		log = b.vm.Logger()
+		r   = b.vm.Rules(b.StatefulBlock.Timestamp)
 	)
 
 	// Perform basic correctness checks before doing any expensive work
@@ -352,7 +353,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		//
 		// TODO: make parallel
 		// TODO: cache verifications
-		// TODO: skip available chunks that we have already verified
+		// TODO: skip available chunks that we have already verified (block may fail while waiting)
 		for _, cert := range b.AvailableChunks {
 			// Ensure cert is from a validator
 			//
@@ -394,7 +395,31 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		}
 	}
 
-	// TODO: Verify start root and execution results
+	// Verify start root and execution results
+	depth := r.GetBlockExecutionDepth()
+	if b.StatefulBlock.Height < depth {
+		if b.StartRoot != ids.Empty || len(b.ExecutedChunks) > 0 {
+			return errors.New("no execution result should exist")
+		}
+	} else {
+		execHeight := b.StatefulBlock.Height - depth
+		root, executed, err := b.vm.Engine().Results(execHeight)
+		if err != nil {
+			log.Warn("could not get results for block", zap.Uint64("height", execHeight))
+			return err
+		}
+		if b.StartRoot != root {
+			return errors.New("start root mismatch")
+		}
+		if len(b.ExecutedChunks) != len(executed) {
+			return errors.New("executed chunks count mismatch")
+		}
+		for i, id := range b.ExecutedChunks {
+			if id != executed[i] {
+				return errors.New("executed chunks mismatch")
+			}
+		}
+	}
 
 	b.vm.Verified(ctx, b)
 	return nil

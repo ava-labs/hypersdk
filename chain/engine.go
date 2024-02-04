@@ -2,6 +2,7 @@ package chain
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
 )
@@ -52,9 +53,9 @@ func (e *Engine) Execute(blk *StatelessBlock) {
 	}
 }
 
-func (e *Engine) Results(height uint64) (ids.ID /* StartRoot */, []ids.ID /* Executed Chunks */) {
+func (e *Engine) Results(height uint64) (ids.ID /* StartRoot */, []ids.ID /* Executed Chunks */, error) {
 	// TODO: handle case where never started execution (state sync)
-	return ids.ID{}, []ids.ID{}
+	return ids.ID{}, nil, errors.New("implement me")
 }
 
 func (e *Engine) Clear(height uint64) {

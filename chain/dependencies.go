@@ -58,6 +58,8 @@ type VM interface {
 	Monitoring
 	Parser
 
+	Engine() *Engine
+
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.
 	AuthVerifiers() workers.Workers
@@ -119,7 +121,7 @@ type Rules interface {
 	NetworkID() uint32
 	ChainID() ids.ID
 
-	GetBlockExecutionDepth() int
+	GetBlockExecutionDepth() uint64
 
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
