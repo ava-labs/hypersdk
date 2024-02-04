@@ -132,6 +132,7 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, tx
 
 		// Ensure we have enough funds to pay fees
 		if err := tx.PreExecute(ctx, p.feeManager, p.sm, p.r, tsv, p.timestamp); err != nil {
+			// TODO: freeze account and pay bond
 			p.vm.Logger().Warn("pre-execution failure", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			return nil
@@ -161,6 +162,8 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, tx
 
 		// Commit results to parent [TState]
 		tsv.Commit()
+
+		// TODO: pay portion of fees to validator that included
 
 		// Update key cache
 		if len(toCache) > 0 {
@@ -223,6 +226,12 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	for ri, rtx := range chunk.Txs {
 		txIndex := ri
 		tx := rtx
+
+		// TODO: Check that transaction isn't too old
+
+		// TODO: Check that transaction is not a repeat
+
+		// TODO: Check that transaction included in right chunk
 
 		// Enqueue transaction for execution
 		p.authStream.Go(func() stream.Callback {
