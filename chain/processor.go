@@ -7,7 +7,9 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
@@ -19,11 +21,12 @@ import (
 const numTxs = 50000 // TODO: somehow estimate this (needed to ensure no backlog)
 
 type Processor struct {
+	vm VM
+
 	authStream *stream.Stream
 
-	blkCtx *smblock.Context
-	vm     VM
-
+	blkCtx     *smblock.Context
+	vctx       VerifyContext
 	timestamp  int64
 	im         state.Immutable
 	feeManager *FeeManager
@@ -34,6 +37,7 @@ type Processor struct {
 	exectutor  *executor.Executor
 	ts         *tstate.TState
 
+	txs     set.Set[ids.ID]
 	results [][]*Result
 }
 
@@ -47,7 +51,7 @@ type fetchData struct {
 // Only run one processor at once
 func NewProcessor(
 	vm VM,
-	blkCtx *smblock.Context, chunks int, timestamp int64, im state.Immutable, feeManager *FeeManager, r Rules,
+	blkCtx *smblock.Context, vctx VerifyContext, chunks int, timestamp int64, im state.Immutable, feeManager *FeeManager, r Rules,
 ) *Processor {
 	stream := stream.New()
 	stream.WithMaxGoroutines(10) // TODO: use config
@@ -57,6 +61,7 @@ func NewProcessor(
 		authStream: stream,
 
 		blkCtx:     blkCtx,
+		vctx:       vctx,
 		timestamp:  timestamp,
 		im:         im,
 		feeManager: feeManager,
@@ -68,6 +73,7 @@ func NewProcessor(
 		exectutor: executor.New(numTxs, vm.GetTransactionExecutionCores(), vm.GetExecutorVerifyRecorder()),
 		ts:        tstate.New(numTxs * 2),
 
+		txs:     set.NewSet[ids.ID](numTxs),
 		results: make([][]*Result, chunks),
 	}
 }
@@ -209,7 +215,7 @@ func (p *Processor) verifyWarpMessage(ctx context.Context, tx *Transaction) bool
 // Chunks MUST be added in order.
 //
 // Add must not be called concurrently
-func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
+func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error {
 	ctx, span := p.vm.Tracer().Start(ctx, "Processor.Add")
 	defer span.End()
 
@@ -223,15 +229,29 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	// Don't wait for all transactions to finish verification to kickoff execution (should
 	// be interleaved).
 	p.results[chunkIndex] = make([]*Result, len(chunk.Txs))
+	oldestAllowed := p.timestamp - p.r.GetValidityWindow()
+	if oldestAllowed < 0 {
+		oldestAllowed = 0
+	}
+	repeats, err := p.vctx.IsRepeat(ctx, oldestAllowed, chunk.Txs, set.NewBits(), true)
+	if err != nil {
+		return err
+	}
 	for ri, rtx := range chunk.Txs {
 		txIndex := ri
 		tx := rtx
 
 		// TODO: Check that transaction isn't too old
 
-		// TODO: Check that transaction is not a repeat (in history, in previous chunks, in this chunk)
+		// Check that transaction isn't a duplicate
+		if repeats.Contains(txIndex) || p.txs.Contains(tx.ID()) {
+			p.vm.Logger().Warn("transaction is a duplicate", zap.Stringer("txID", tx.ID()))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
+		p.txs.Add(tx.ID())
 
-		// TODO: Check that transaction included in right chunk
+		// TODO: Check that transaction included in right partition
 
 		// Enqueue transaction for execution
 		p.authStream.Go(func() stream.Callback {
