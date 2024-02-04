@@ -5,6 +5,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
@@ -151,6 +152,63 @@ func UnmarshalChunkSignature(raw []byte) (*ChunkSignature, error) {
 		return nil, err
 	}
 	c.Signer = signer
+	sig := make([]byte, bls.SignatureLen)
+	p.UnpackFixedBytes(bls.SignatureLen, &sig)
+	signature, err := bls.SignatureFromBytes(sig)
+	if err != nil {
+		return nil, err
+	}
+	c.Signature = signature
+
+	// Ensure no leftover bytes
+	if !p.Empty() {
+		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
+	}
+	return &c, p.Err()
+}
+
+type ChunkCertificate struct {
+	Chunk    ids.ID      `json:"chunk"`
+	Producer ids.ShortID `json:"producer"`
+	Expiry   int64       `json:"expiry"`
+
+	Signers   set.Bits       `json:"signers"`
+	Signature *bls.Signature `json:"signature"`
+}
+
+func (c *ChunkCertificate) Marshal() ([]byte, error) {
+	signers := c.Signers.Bytes()
+	size := consts.IDLen + consts.ShortIDLen + consts.Uint64Len + codec.BytesLen(signers) + bls.SignatureLen
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
+
+	p.PackID(c.Chunk)
+	p.PackShortID(c.Producer)
+	p.PackInt64(c.Expiry)
+	p.PackBytes(signers)
+	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
+
+	bytes := p.Bytes()
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
+	return bytes, nil
+}
+
+func UnmarshalChunkCertificate(raw []byte) (*ChunkCertificate, error) {
+	var (
+		p = codec.NewReader(raw, consts.NetworkSizeLimit)
+		c ChunkCertificate
+	)
+
+	p.UnpackID(true, &c.Chunk)
+	p.UnpackShortID(true, &c.Producer)
+	c.Expiry = p.UnpackInt64(false)
+	var signerBytes []byte
+	p.UnpackBytes(32 /* make const */, true, &signerBytes)
+	c.Signers = set.BitsFromBytes(signerBytes)
+	if len(signerBytes) != len(c.Signers.Bytes()) {
+		return nil, fmt.Errorf("%w: signers not minimal", ErrInvalidObject)
+	}
 	sig := make([]byte, bls.SignatureLen)
 	p.UnpackFixedBytes(bls.SignatureLen, &sig)
 	signature, err := bls.SignatureFromBytes(sig)
