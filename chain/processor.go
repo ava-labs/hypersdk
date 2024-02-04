@@ -253,7 +253,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	}
 }
 
-func (p *Processor) Wait() ([][]*Result, error) {
+func (p *Processor) Wait() (*tstate.TState, [][]*Result, error) {
 	p.authStream.Wait()
-	return p.results, p.exectutor.Wait()
+	return p.ts, p.results, p.exectutor.Wait()
 }
