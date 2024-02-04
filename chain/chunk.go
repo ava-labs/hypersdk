@@ -33,6 +33,7 @@ type Chunk struct {
 func (c *Chunk) SyntacticVerify(ctx context.Context) error {
 	// TODO: verify signatures + duplicate + timestamp
 	// TODO: just verify chunk signature (for posting fraud proof)?
+	// TODO: don't verify signature until we know a chunk will be executed, otherwise it is a DoS
 	return errors.New("not implemented")
 }
 
