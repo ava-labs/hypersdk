@@ -1,7 +1,6 @@
 package chain
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -10,27 +9,38 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
-	"golang.org/x/net/context"
 )
 
 type Chunk struct {
-	// TODO: move to end
+	Expiry int64          `json:"expiry"`
+	Txs    []*Transaction `json:"txs"`
+
 	Producer  ids.ShortID    `json:"producer"`
 	Signer    *bls.PublicKey `json:"signer"`
 	Signature *bls.Signature `json:"signature"`
-
-	Expiry int64          `json:"expiry"`
-	Txs    []*Transaction `json:"txs"`
 
 	size int
 	id   ids.ID
 }
 
-func (c *Chunk) SyntacticVerify(ctx context.Context) error {
-	// TODO: verify signatures + duplicate + timestamp
-	// TODO: just verify chunk signature (for posting fraud proof)?
-	// TODO: don't verify signature until we know a chunk will be executed, otherwise it is a DoS
-	return errors.New("not implemented")
+func (c *Chunk) Digest() ([]byte, error) {
+	size := consts.Uint64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.ShortIDLen + bls.PublicKeyLen
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
+
+	// Marshal transactions
+	p.PackInt64(c.Expiry)
+	p.PackInt(len(c.Txs))
+	for _, tx := range c.Txs {
+		if err := tx.Marshal(p); err != nil {
+			return nil, err
+		}
+	}
+
+	// Marshal signer
+	p.PackShortID(c.Producer)
+	p.PackFixedBytes(bls.PublicKeyToBytes(c.Signer))
+
+	return p.Bytes(), p.Err()
 }
 
 func (c *Chunk) ID() (ids.ID, error) {
@@ -51,15 +61,10 @@ func (c *Chunk) Size() int {
 }
 
 func (c *Chunk) Marshal() ([]byte, error) {
-	size := consts.ShortIDLen + consts.Uint64Len + consts.IntLen + codec.CummSize(c.Txs) + bls.PublicKeyLen + bls.SignatureLen
+	size := consts.Uint64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.ShortIDLen + bls.PublicKeyLen + bls.SignatureLen
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
-	// Marshal header
-	p.PackShortID(c.Producer)
-	p.PackFixedBytes(bls.PublicKeyToBytes(c.Signer))
-	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
-
-	// Marsha transactions
+	// Marshal transactions
 	p.PackInt64(c.Expiry)
 	p.PackInt(len(c.Txs))
 	for _, tx := range c.Txs {
@@ -67,6 +72,12 @@ func (c *Chunk) Marshal() ([]byte, error) {
 			return nil, err
 		}
 	}
+
+	// Marshal signer
+	p.PackShortID(c.Producer)
+	p.PackFixedBytes(bls.PublicKeyToBytes(c.Signer))
+	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
+
 	bytes := p.Bytes()
 	if err := p.Err(); err != nil {
 		return nil, err
@@ -84,7 +95,19 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 	c.id = utils.ToID(raw)
 	c.size = len(raw)
 
-	// Parse header
+	// Parse transactions
+	c.Expiry = p.UnpackInt64(false)
+	txCount := p.UnpackInt(true) // can't produce empty blocks
+	c.Txs = []*Transaction{}     // don't preallocate all to avoid DoS
+	for i := 0; i < txCount; i++ {
+		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
+		if err != nil {
+			return nil, err
+		}
+		c.Txs = append(c.Txs, tx)
+	}
+
+	// Parse signer
 	p.UnpackShortID(true, &c.Producer)
 	pk := make([]byte, bls.PublicKeyLen)
 	p.UnpackFixedBytes(bls.PublicKeyLen, &pk)
@@ -101,18 +124,6 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 	}
 	c.Signature = signature
 
-	// Parse transactions
-	c.Expiry = p.UnpackInt64(false)
-	txCount := p.UnpackInt(true) // can't produce empty blocks
-	c.Txs = []*Transaction{}     // don't preallocate all to avoid DoS
-	for i := 0; i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
-		if err != nil {
-			return nil, err
-		}
-		c.Txs = append(c.Txs, tx)
-	}
-
 	// Ensure no leftover bytes
 	if !p.Empty() {
 		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
@@ -121,29 +132,25 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 }
 
 type ChunkSignature struct {
-	Chunk    ids.ID      `json:"chunk"`
-	Producer ids.ShortID `json:"producer"`
-	Expiry   int64       `json:"expiry"`
+	Chunk  ids.ID `json:"chunk"`
+	Expiry int64  `json:"expiry"`
 
+	Producer  ids.ShortID    `json:"producer"`
 	Signer    *bls.PublicKey `json:"signer"`
 	Signature *bls.Signature `json:"signature"`
 }
 
 func (c *ChunkSignature) Marshal() ([]byte, error) {
-	size := consts.IDLen + consts.ShortIDLen + consts.Uint64Len + bls.PublicKeyLen + bls.SignatureLen
+	size := consts.IDLen + consts.Uint64Len + consts.ShortIDLen + bls.PublicKeyLen + bls.SignatureLen
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	p.PackID(c.Chunk)
-	p.PackShortID(c.Producer)
 	p.PackInt64(c.Expiry)
+	p.PackShortID(c.Producer)
 	p.PackFixedBytes(bls.PublicKeyToBytes(c.Signer))
 	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
 
-	bytes := p.Bytes()
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	return bytes, nil
+	return p.Bytes(), p.Err()
 }
 
 func UnmarshalChunkSignature(raw []byte) (*ChunkSignature, error) {
@@ -153,8 +160,8 @@ func UnmarshalChunkSignature(raw []byte) (*ChunkSignature, error) {
 	)
 
 	p.UnpackID(true, &c.Chunk)
-	p.UnpackShortID(true, &c.Producer)
 	c.Expiry = p.UnpackInt64(false)
+	p.UnpackShortID(true, &c.Producer)
 	pk := make([]byte, bls.PublicKeyLen)
 	p.UnpackFixedBytes(bls.PublicKeyLen, &pk)
 	signer, err := bls.PublicKeyFromBytes(pk)
@@ -178,30 +185,39 @@ func UnmarshalChunkSignature(raw []byte) (*ChunkSignature, error) {
 }
 
 type ChunkCertificate struct {
-	Chunk    ids.ID      `json:"chunk"`
-	Producer ids.ShortID `json:"producer"`
-	Expiry   int64       `json:"expiry"`
+	Chunk  ids.ID `json:"chunk"`
+	Expiry int64  `json:"expiry"`
 
+	Producer  ids.ShortID    `json:"producer"`
 	Signers   set.Bits       `json:"signers"`
 	Signature *bls.Signature `json:"signature"`
 }
 
 func (c *ChunkCertificate) Marshal() ([]byte, error) {
 	signers := c.Signers.Bytes()
-	size := consts.IDLen + consts.ShortIDLen + consts.Uint64Len + codec.BytesLen(signers) + bls.SignatureLen
+	size := consts.IDLen + consts.Uint64Len + consts.ShortIDLen + codec.BytesLen(signers) + bls.SignatureLen
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	p.PackID(c.Chunk)
-	p.PackShortID(c.Producer)
 	p.PackInt64(c.Expiry)
+	p.PackShortID(c.Producer)
 	p.PackBytes(signers)
 	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
 
-	bytes := p.Bytes()
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	return bytes, nil
+	return p.Bytes(), p.Err()
+}
+
+func (c *ChunkCertificate) Digest() ([]byte, error) {
+	signers := c.Signers.Bytes()
+	size := consts.IDLen + consts.Uint64Len + consts.ShortIDLen + codec.BytesLen(signers)
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
+
+	p.PackID(c.Chunk)
+	p.PackInt64(c.Expiry)
+	p.PackShortID(c.Producer)
+	p.PackBytes(signers)
+
+	return p.Bytes(), p.Err()
 }
 
 func UnmarshalChunkCertificate(raw []byte) (*ChunkCertificate, error) {
@@ -211,8 +227,8 @@ func UnmarshalChunkCertificate(raw []byte) (*ChunkCertificate, error) {
 	)
 
 	p.UnpackID(true, &c.Chunk)
-	p.UnpackShortID(true, &c.Producer)
 	c.Expiry = p.UnpackInt64(false)
+	p.UnpackShortID(true, &c.Producer)
 	var signerBytes []byte
 	p.UnpackBytes(32 /* TODO: make const */, true, &signerBytes)
 	c.Signers = set.BitsFromBytes(signerBytes)
