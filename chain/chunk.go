@@ -204,7 +204,7 @@ func UnmarshalChunkCertificate(raw []byte) (*ChunkCertificate, error) {
 	p.UnpackShortID(true, &c.Producer)
 	c.Expiry = p.UnpackInt64(false)
 	var signerBytes []byte
-	p.UnpackBytes(32 /* make const */, true, &signerBytes)
+	p.UnpackBytes(32 /* TODO: make const */, true, &signerBytes)
 	c.Signers = set.BitsFromBytes(signerBytes)
 	if len(signerBytes) != len(c.Signers.Bytes()) {
 		return nil, fmt.Errorf("%w: signers not minimal", ErrInvalidObject)

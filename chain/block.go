@@ -36,12 +36,7 @@ var (
 )
 
 type StatefulBlock struct {
-	Prnt   ids.ID `json:"parent"`
-	Tmstmp int64  `json:"timestamp"`
-	Hght   uint64 `json:"height"`
-
-	Txs []*Transaction `json:"txs"`
-
+	Prnt ids.ID `json:"parent"`
 	// StateRoot is the root of the post-execution state
 	// of [Prnt].
 	//
@@ -50,14 +45,15 @@ type StatefulBlock struct {
 	// or [Verify], which reduces the amount of time we are
 	// blocking the consensus engine from voting on the block,
 	// starting the verification of another block, etc.
-	StateRoot   ids.ID     `json:"stateRoot"`
-	WarpResults set.Bits64 `json:"warpResults"`
+	StateRoot ids.ID `json:"stateRoot"`
+
+	Hght   uint64 `json:"height"`
+	Tmstmp int64  `json:"timestamp"`
+
+	ExecutedChunks  []ids.ID            `json:"executedChunks"`
+	AvailableChunks []*ChunkCertificate `json:"availableChunks"`
 
 	size int
-
-	// authCounts can be used by batch signature verification
-	// to preallocate memory
-	authCounts map[uint8]int
 }
 
 func (b *StatefulBlock) Size() int {
@@ -70,16 +66,6 @@ func (b *StatefulBlock) ID() (ids.ID, error) {
 		return ids.ID{}, err
 	}
 	return utils.ToID(blk), nil
-}
-
-// warpJob is used to signal to a listner that a *warp.Message has been
-// verified.
-type warpJob struct {
-	msg          *warp.Message
-	signers      int
-	verifiedChan chan bool
-	verified     bool
-	warpNum      int
 }
 
 func NewGenesisBlock(root ids.ID) *StatefulBlock {
@@ -111,10 +97,8 @@ type StatelessBlock struct {
 	bytes  []byte
 	txsSet set.Set[ids.ID]
 
-	warpMessages map[ids.ID]*warpJob
-	containsWarp bool // this allows us to avoid allocating a map when we build
-	bctx         *block.Context
-	vdrState     validators.State
+	bctx     *block.Context
+	vdrState validators.State
 
 	results    []*Result
 	feeManager *FeeManager
