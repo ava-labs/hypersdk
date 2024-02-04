@@ -229,7 +229,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 
 		// TODO: Check that transaction isn't too old
 
-		// TODO: Check that transaction is not a repeat
+		// TODO: Check that transaction is not a repeat (in history, in previous chunks, in this chunk)
 
 		// TODO: Check that transaction included in right chunk
 
