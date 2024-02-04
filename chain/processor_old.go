@@ -18,13 +18,6 @@ import (
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
-type fetchData struct {
-	v      []byte
-	exists bool
-
-	chunks uint16
-}
-
 func (b *StatelessBlock) Execute(
 	ctx context.Context,
 	tracer trace.Tracer, //nolint:interfacer

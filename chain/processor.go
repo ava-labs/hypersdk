@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
@@ -24,13 +26,17 @@ type Processor struct {
 	complete bool
 	err      error
 
-	im        state.Immutable
-	sm        StateManager
-	cacheLock sync.RWMutex
-	cache     map[string]*fetchData
-	exectutor *executor.Executor
-	ts        *tstate.TState
-	results   []*Result
+	timestamp    int64
+	im           state.Immutable
+	feeManager   *FeeManager
+	r            Rules
+	sm           StateManager
+	cacheLock    sync.RWMutex
+	cache        map[string]*fetchData
+	exectutor    *executor.Executor
+	ts           *tstate.TState
+	warpMessages map[ids.ID]*warpJob
+	results      []*Result
 
 	input  chan *Chunk
 	output []*Chunk
@@ -48,6 +54,23 @@ func NewProcessor(
 	}
 }
 
+// warpJob is used to signal to a listner that a *warp.Message has been
+// verified.
+type warpJob struct {
+	msg          *warp.Message
+	signers      int
+	verifiedChan chan bool
+	verified     bool
+	warpNum      int
+}
+
+type fetchData struct {
+	v      []byte
+	exists bool
+
+	chunks uint16
+}
+
 // TODO: handle mapping chunk to new chunk
 // TODO: new chunk could have warp results + results?
 // TODO: kickoff signature verification before begin execution
@@ -59,16 +82,16 @@ func (p *Processor) process(ctx context.Context, c *Chunk) (*Chunk, error) {
 			e.Stop()
 			return nil, nil, err
 		}
-		e.Run(stateKeys, func() error {
+		p.exectutor.Run(stateKeys, func() error {
 			// Fetch keys from cache
 			var (
 				reads    = make(map[string]uint16, len(stateKeys))
 				storage  = make(map[string][]byte, len(stateKeys))
 				toLookup = make([]string, 0, len(stateKeys))
 			)
-			cacheLock.RLock()
+			p.cacheLock.RLock()
 			for k := range stateKeys {
-				if v, ok := cache[k]; ok {
+				if v, ok := p.cache[k]; ok {
 					reads[k] = v.chunks
 					if v.exists {
 						storage[k] = v.v
@@ -77,14 +100,14 @@ func (p *Processor) process(ctx context.Context, c *Chunk) (*Chunk, error) {
 				}
 				toLookup = append(toLookup, k)
 			}
-			cacheLock.RUnlock()
+			p.cacheLock.RUnlock()
 
 			// Fetch keys from disk
 			var toCache map[string]*fetchData
 			if len(toLookup) > 0 {
 				toCache = make(map[string]*fetchData, len(toLookup))
 				for _, k := range toLookup {
-					v, err := im.GetValue(ctx, []byte(k))
+					v, err := p.im.GetValue(ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
 						reads[k] = 0
 						toCache[k] = &fetchData{nil, false, 0}
@@ -108,16 +131,16 @@ func (p *Processor) process(ctx context.Context, c *Chunk) (*Chunk, error) {
 			//
 			// It is critical we explicitly set the scope before each transaction is
 			// processed
-			tsv := ts.NewView(stateKeys, storage)
+			tsv := p.ts.NewView(stateKeys, storage)
 
 			// Ensure we have enough funds to pay fees
-			if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, t); err != nil {
+			if err := tx.PreExecute(ctx, p.feeManager, p.sm, p.r, tsv, p.timestamp); err != nil {
 				return err
 			}
 
 			// Wait to execute transaction until we have the warp result processed.
 			var warpVerified bool
-			warpMsg, ok := b.warpMessages[tx.ID()]
+			warpMsg, ok := p.warpMessages[tx.ID()]
 			if ok {
 				select {
 				case warpVerified = <-warpMsg.verifiedChan:
@@ -125,7 +148,7 @@ func (p *Processor) process(ctx context.Context, c *Chunk) (*Chunk, error) {
 					return ctx.Err()
 				}
 			}
-			result, err := tx.Execute(ctx, feeManager, reads, sm, r, tsv, t, ok && warpVerified)
+			result, err := tx.Execute(ctx, p.feeManager, reads, p.sm, p.r, tsv, p.timestamp, ok && warpVerified)
 			if err != nil {
 				return err
 			}
@@ -133,7 +156,7 @@ func (p *Processor) process(ctx context.Context, c *Chunk) (*Chunk, error) {
 
 			// Update block metadata with units actually consumed (if more is consumed than block allows, we will non-deterministically
 			// exit with an error based on which tx over the limit is processed first)
-			if ok, d := feeManager.Consume(result.Consumed, r.GetMaxBlockUnits()); !ok {
+			if ok, d := p.feeManager.Consume(result.Consumed, p.r.GetMaxBlockUnits()); !ok {
 				return fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
 			}
 
@@ -142,34 +165,40 @@ func (p *Processor) process(ctx context.Context, c *Chunk) (*Chunk, error) {
 
 			// Update key cache
 			if len(toCache) > 0 {
-				cacheLock.Lock()
+				p.cacheLock.Lock()
 				for k := range toCache {
-					cache[k] = toCache[k]
+					p.cache[k] = toCache[k]
 				}
-				cacheLock.Unlock()
+				p.cacheLock.Unlock()
 			}
 			return nil
 		})
-	}
-	if err := e.Wait(); err != nil {
-		return nil, nil, err
 	}
 
 	// Return tstate that can be used to add block-level keys to state
 	return results, ts, nil
 }
 
-func (p *Processor) Run(ctx context.Context, im state.Immutable) {
+func (p *Processor) Run(ctx context.Context, timestamp int64, im state.Immutable, feeManager *FeeManager, r Rules) {
 	ctx, span := p.vm.Tracer().Start(ctx, "Processor.Run")
 	defer span.End()
 
 	// Setup the processor
+	p.timestamp = timestamp
 	p.im = im
+	p.feeManager = feeManager
+	p.r = r
 	p.sm = p.vm.StateManager()
 	p.cache = make(map[string]*fetchData, numTxs)
 	p.exectutor = executor.New(numTxs, p.vm.GetTransactionExecutionCores(), p.vm.GetExecutorVerifyRecorder())
 	p.ts = tstate.New(numTxs * 2)
+	p.warpMessages = map[ids.ID]*warpJob{}
 	p.results = make([]*Result, numTxs)
+
+	// TODO: put this in the right spot:
+	if err := p.exectutor.Wait(); err != nil {
+		return nil, nil, err
+	}
 
 	// Handle chunks
 	for {
