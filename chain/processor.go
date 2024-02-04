@@ -13,13 +13,21 @@ import (
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
+	"go.uber.org/zap"
 )
 
 const numTxs = 50000 // TODO: somehow estimate this (needed to ensure no backlog)
 
 var ErrNotReady = errors.New("not ready")
 
+type ChunkResult struct {
+	// Warp      set.Bits
+	Execution []*Result
+}
+
 type Processor struct {
+	chunks chan *Chunk
+
 	vm VM
 
 	l        sync.Mutex
@@ -36,10 +44,8 @@ type Processor struct {
 	exectutor    *executor.Executor
 	ts           *tstate.TState
 	warpMessages map[ids.ID]*warpJob
-	results      []*Result
 
-	input  chan *Chunk
-	output []*Chunk
+	results []*ChunkResult
 }
 
 func NewProcessor(
@@ -49,8 +55,8 @@ func NewProcessor(
 	return &Processor{
 		vm: vm,
 
-		input:  make(chan *Chunk, chunks),
-		output: make([]*Chunk, 0, chunks),
+		chunks:  make(chan *Chunk, chunks),
+		results: make([]*ChunkResult, chunks),
 	}
 }
 
@@ -74,13 +80,17 @@ type fetchData struct {
 // TODO: handle mapping chunk to new chunk
 // TODO: new chunk could have warp results + results?
 // TODO: kickoff signature verification before begin execution
-func (p *Processor) process(ctx context.Context, c *Chunk) (*Chunk, error) {
-	for _, tx := range c.Txs {
+func (p *Processor) process(ctx context.Context, chunkOrder int, c *Chunk) {
+	p.results[chunkOrder] = &ChunkResult{Execution: make([]*Result, len(c.Txs))}
+	for ri, rtx := range c.Txs {
+		i := ri
+		tx := rtx
+
 		stateKeys, err := tx.StateKeys(p.sm)
 		if err != nil {
-			// TODO: don't stop, just skip
-			e.Stop()
-			return nil, nil, err
+			p.vm.Logger().Warn("could not compute state keys", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.results[chunkOrder].Execution[i] = &Result{Valid: false}
+			continue
 		}
 		p.exectutor.Run(stateKeys, func() error {
 			// Fetch keys from cache
@@ -135,7 +145,9 @@ func (p *Processor) process(ctx context.Context, c *Chunk) (*Chunk, error) {
 
 			// Ensure we have enough funds to pay fees
 			if err := tx.PreExecute(ctx, p.feeManager, p.sm, p.r, tsv, p.timestamp); err != nil {
-				return err
+				p.vm.Logger().Warn("pre-execution failure", zap.Stringer("txID", tx.ID()), zap.Error(err))
+				p.results[chunkOrder].Execution[i] = &Result{Valid: false}
+				return nil
 			}
 
 			// Wait to execute transaction until we have the warp result processed.
@@ -150,12 +162,16 @@ func (p *Processor) process(ctx context.Context, c *Chunk) (*Chunk, error) {
 			}
 			result, err := tx.Execute(ctx, p.feeManager, reads, p.sm, p.r, tsv, p.timestamp, ok && warpVerified)
 			if err != nil {
-				return err
+				p.vm.Logger().Warn("execution failure", zap.Stringer("txID", tx.ID()), zap.Error(err))
+				p.results[chunkOrder].Execution[i] = &Result{Valid: false}
+				return nil
 			}
-			results[i] = result
+			p.results[chunkOrder].Execution[i] = result
 
 			// Update block metadata with units actually consumed (if more is consumed than block allows, we will non-deterministically
 			// exit with an error based on which tx over the limit is processed first)
+			//
+			// TODO: we won't know this when just including certs?
 			if ok, d := p.feeManager.Consume(result.Consumed, p.r.GetMaxBlockUnits()); !ok {
 				return fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
 			}
@@ -174,9 +190,6 @@ func (p *Processor) process(ctx context.Context, c *Chunk) (*Chunk, error) {
 			return nil
 		})
 	}
-
-	// Return tstate that can be used to add block-level keys to state
-	return results, ts, nil
 }
 
 func (p *Processor) Run(ctx context.Context, timestamp int64, im state.Immutable, feeManager *FeeManager, r Rules) {
@@ -190,42 +203,39 @@ func (p *Processor) Run(ctx context.Context, timestamp int64, im state.Immutable
 	p.r = r
 	p.sm = p.vm.StateManager()
 	p.cache = make(map[string]*fetchData, numTxs)
+	// Executor is shared across all chunks, this means we don't need to "wait" at the end of each chunk to continue
+	// processing transactions.
 	p.exectutor = executor.New(numTxs, p.vm.GetTransactionExecutionCores(), p.vm.GetExecutorVerifyRecorder())
 	p.ts = tstate.New(numTxs * 2)
 	p.warpMessages = map[ids.ID]*warpJob{}
-	p.results = make([]*Result, numTxs)
-
-	// TODO: put this in the right spot:
-	if err := p.exectutor.Wait(); err != nil {
-		return nil, nil, err
-	}
 
 	// Handle chunks
+	var chunkOrder int
 	for {
 		select {
-		case c, ok := <-p.input:
+		case c, ok := <-p.chunks:
+			// Handle graceful exit
 			if !ok {
+				err := p.exectutor.Wait()
 				p.l.Lock()
-				p.complete = true
+				p.complete = true // only mark complete once chunks have been dequeued
+				if p.err == nil {
+					p.err = err
+				}
 				p.l.Unlock()
 				return
 			}
 
+			// Attempt to exit early
 			p.l.Lock()
 			if p.err != nil {
 				p.l.Unlock()
 				continue
 			}
 
-			filtered, err := p.process(ctx, c)
-			p.l.Lock()
-			if err != nil && p.err == nil {
-				p.err = ctx.Err()
-				p.l.Unlock()
-				continue
-			}
-			p.output = append(p.output, filtered)
-			p.l.Unlock()
+			// Process chunk
+			p.process(ctx, chunkOrder, c)
+			chunkOrder++
 
 		case <-ctx.Done():
 			p.l.Lock()
@@ -240,15 +250,14 @@ func (p *Processor) Run(ctx context.Context, timestamp int64, im state.Immutable
 
 // Allows processing to start before all chunks are acquired.
 func (p *Processor) Add(chunk *Chunk) {
-	p.input <- chunk
+	p.chunks <- chunk
 }
 
 func (p *Processor) Done() {
-	close(p.input)
+	close(p.chunks)
 }
 
-// TODO: figure out how to return warp?
-func (p *Processor) Results() ([]*Chunk, error) {
+func (p *Processor) Results() ([]*ChunkResult, error) {
 	p.l.Lock()
 	defer p.l.Unlock()
 
@@ -258,5 +267,5 @@ func (p *Processor) Results() ([]*Chunk, error) {
 	if p.err != nil {
 		return nil, p.err
 	}
-	return p.output, p.err
+	return p.results, p.err
 }
