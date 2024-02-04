@@ -30,16 +30,7 @@ func (e *Executor) process(ctx context.Context, view state.View, chunk *Chunk) (
 	return nil, errors.New("implement me")
 }
 
-func (e *Executor) Run(ctx context.Context, vctx VerifyContext) {
-	view, err := vctx.View(ctx, true)
-	if err != nil {
-		e.l.Lock()
-		e.complete = true
-		e.err = ctx.Err()
-		e.l.Unlock()
-		return
-	}
-
+func (e *Executor) Run(ctx context.Context, view state.View) {
 	for {
 		select {
 		case c, ok := <-e.input:
@@ -85,15 +76,15 @@ func (e *Executor) Done() {
 	close(e.input)
 }
 
-func (e *Executor) Results() ([]*Chunk, state.View, error) {
+func (e *Executor) Results() ([]*Chunk, error) {
 	e.l.Lock()
 	defer e.l.Unlock()
 
 	if !e.complete {
-		return nil, nil, ErrNotReady
+		return nil, ErrNotReady
 	}
 	if e.err != nil {
-		return nil, nil, e.err
+		return nil, e.err
 	}
-	return e.output, nil, e.err
+	return e.output, e.err
 }
