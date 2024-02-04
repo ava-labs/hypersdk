@@ -26,7 +26,6 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
-	"github.com/ava-labs/hypersdk/workers"
 )
 
 var (
@@ -91,11 +90,10 @@ func NewGenesisBlock(root ids.ID) *StatefulBlock {
 type StatelessBlock struct {
 	*StatefulBlock `json:"block"`
 
-	id     ids.ID
-	st     choices.Status
-	t      time.Time
-	bytes  []byte
-	txsSet set.Set[ids.ID]
+	id    ids.ID
+	st    choices.Status
+	t     time.Time
+	bytes []byte
 
 	bctx     *block.Context
 	vdrState validators.State
@@ -105,8 +103,6 @@ type StatelessBlock struct {
 
 	vm   VM
 	view merkledb.View
-
-	sigJob workers.Job
 }
 
 func NewBlock(vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
@@ -136,73 +132,6 @@ func ParseBlock(
 	}
 	// Not guaranteed that a parsed block is verified
 	return ParseStatefulBlock(ctx, blk, source, status, vm)
-}
-
-// populateTxs is only called on blocks we did not build
-func (b *StatelessBlock) populateTxs(ctx context.Context) error {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.populateTxs")
-	defer span.End()
-
-	// Setup signature verification job
-	_, sigVerifySpan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
-	job, err := b.vm.AuthVerifiers().NewJob(len(b.Txs))
-	if err != nil {
-		return err
-	}
-	b.sigJob = job
-	batchVerifier := NewAuthBatch(b.vm, b.sigJob, b.authCounts)
-
-	// Make sure to always call [Done], otherwise we will block all future [Workers]
-	defer func() {
-		// BatchVerifier is given the responsibility to call [b.sigJob.Done()] because it may add things
-		// to the work queue async and that may not have completed by this point.
-		go batchVerifier.Done(func() { sigVerifySpan.End() })
-	}()
-
-	// Confirm no transaction duplicates and setup
-	// AWM processing
-	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
-	b.warpMessages = map[ids.ID]*warpJob{}
-	for _, tx := range b.Txs {
-		// Ensure there are no duplicate transactions
-		if b.txsSet.Contains(tx.ID()) {
-			return ErrDuplicateTx
-		}
-		b.txsSet.Add(tx.ID())
-
-		// Verify signature async
-		if b.vm.GetVerifyAuth() {
-			txDigest, err := tx.Digest()
-			if err != nil {
-				return err
-			}
-			batchVerifier.Add(txDigest, tx.Auth)
-		}
-
-		// Check if we need the block context to verify the block (which contains
-		// an Avalanche Warp Message)
-		//
-		// Instead of erroring out if a warp message is invalid, we mark the
-		// verification as skipped and include it in the verification result so
-		// that a fee can still be deducted.
-		if tx.WarpMessage != nil {
-			if len(b.warpMessages) == MaxWarpMessages {
-				return ErrTooManyWarpMessages
-			}
-			signers, err := tx.WarpMessage.Signature.NumSigners()
-			if err != nil {
-				return err
-			}
-			b.warpMessages[tx.ID()] = &warpJob{
-				msg:          tx.WarpMessage,
-				signers:      signers,
-				verifiedChan: make(chan bool, 1),
-				warpNum:      len(b.warpMessages),
-			}
-			b.containsWarp = true
-		}
-	}
-	return nil
 }
 
 func ParseStatefulBlock(
@@ -242,9 +171,7 @@ func ParseStatefulBlock(
 	if lastAccepted == nil || b.Hght <= lastAccepted.Hght { // nil when parsing genesis
 		return b, nil
 	}
-
-	// Populate hashes and tx set
-	return b, b.populateTxs(ctx)
+	return b, nil
 }
 
 // [initializeBuilt] is invoked after a block is built
@@ -282,6 +209,7 @@ func (b *StatelessBlock) ID() ids.ID { return b.id }
 
 // implements "block.WithVerifyContext"
 func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
+	// TODO: how to compute this when just passing certificates?
 	return b.containsWarp, nil
 }
 

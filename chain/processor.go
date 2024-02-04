@@ -241,7 +241,12 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		txIndex := ri
 		tx := rtx
 
-		// TODO: Check that transaction isn't too old
+		// Perform basic verification (also performed inside of PreExecute)
+		if err := tx.Base.Execute(p.r.ChainID(), p.r, p.timestamp); err != nil {
+			p.vm.Logger().Warn("base transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
 
 		// Check that transaction isn't a duplicate
 		if repeats.Contains(txIndex) || p.txs.Contains(tx.ID()) {
@@ -271,6 +276,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 			return func() { p.process(ctx, chunkIndex, txIndex, tx) }
 		})
 	}
+	return nil
 }
 
 func (p *Processor) Wait() (*tstate.TState, [][]*Result, error) {
