@@ -436,8 +436,9 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	defer span.End()
 
 	b.st = choices.Accepted
-	// TODO: start fetching (if don't have) and execution of available chunks
 	b.vm.Accepted(ctx, b)
+	b.vm.Engine().Execute(b)
+	// TODO: clear old tracking
 	return nil
 }
 
