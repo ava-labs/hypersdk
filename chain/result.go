@@ -10,7 +10,9 @@ import (
 )
 
 type Result struct {
-	Valid   bool
+	Valid        bool
+	WarpVerified bool // incoming warp message (false if none)
+
 	Success bool
 	Output  []byte
 
@@ -21,7 +23,7 @@ type Result struct {
 }
 
 func (r *Result) Size() int {
-	size := consts.BoolLen + consts.BoolLen + codec.BytesLen(r.Output) + DimensionsLen + consts.Uint64Len
+	size := consts.BoolLen + consts.BoolLen + consts.BoolLen + codec.BytesLen(r.Output) + DimensionsLen + consts.Uint64Len
 	if r.WarpMessage != nil {
 		size += codec.BytesLen(r.WarpMessage.Bytes())
 	} else {
@@ -32,6 +34,7 @@ func (r *Result) Size() int {
 
 func (r *Result) Marshal(p *codec.Packer) error {
 	p.PackBool(r.Valid)
+	p.PackBool(r.WarpVerified)
 	p.PackBool(r.Success)
 	p.PackBytes(r.Output)
 	p.PackFixedBytes(r.Consumed.Bytes())
@@ -58,8 +61,9 @@ func MarshalResults(src []*Result) ([]byte, error) {
 
 func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	result := &Result{
-		Valid:   p.UnpackBool(),
-		Success: p.UnpackBool(),
+		Valid:        p.UnpackBool(),
+		WarpVerified: p.UnpackBool(),
+		Success:      p.UnpackBool(),
 	}
 	p.UnpackBytes(consts.MaxInt, false, &result.Output)
 	if len(result.Output) == 0 {
