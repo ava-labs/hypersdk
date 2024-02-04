@@ -1,6 +1,7 @@
 package chain
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -9,9 +10,11 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
+	"golang.org/x/net/context"
 )
 
 type Chunk struct {
+	// TODO: move to end
 	Producer  ids.ShortID    `json:"producer"`
 	Signer    *bls.PublicKey `json:"signer"`
 	Signature *bls.Signature `json:"signature"`
@@ -19,8 +22,17 @@ type Chunk struct {
 	Expiry int64          `json:"expiry"`
 	Txs    []*Transaction `json:"txs"`
 
+	// authCounts can be used by batch signature verification
+	// to preallocate memory
+	authCounts map[uint8]int
+
 	size int
 	id   ids.ID
+}
+
+func (c *Chunk) SyntacticVerify(ctx context.Context) error {
+	// TODO: verify signatures + duplicate + timestamp
+	return errors.New("not implemented")
 }
 
 func (c *Chunk) ID() (ids.ID, error) {
@@ -52,10 +64,12 @@ func (c *Chunk) Marshal() ([]byte, error) {
 	// Marsha transactions
 	p.PackInt64(c.Expiry)
 	p.PackInt(len(c.Txs))
+	c.authCounts = map[uint8]int{}
 	for _, tx := range c.Txs {
 		if err := tx.Marshal(p); err != nil {
 			return nil, err
 		}
+		c.authCounts[tx.Auth.GetTypeID()]++
 	}
 	bytes := p.Bytes()
 	if err := p.Err(); err != nil {
@@ -95,12 +109,14 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 	c.Expiry = p.UnpackInt64(false)
 	txCount := p.UnpackInt(true) // can't produce empty blocks
 	c.Txs = []*Transaction{}     // don't preallocate all to avoid DoS
+	c.authCounts = map[uint8]int{}
 	for i := 0; i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, err
 		}
 		c.Txs = append(c.Txs, tx)
+		c.authCounts[tx.Auth.GetTypeID()]++
 	}
 
 	// Ensure no leftover bytes

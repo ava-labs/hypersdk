@@ -68,6 +68,7 @@ func (e *Executor) Run(ctx context.Context, view state.View) {
 	}
 }
 
+// Allows processing to start before all chunks are acquired.
 func (e *Executor) Add(chunk *Chunk) {
 	e.input <- chunk
 }
