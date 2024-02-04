@@ -24,7 +24,7 @@ type Chunk struct {
 }
 
 func (c *Chunk) Digest() ([]byte, error) {
-	size := consts.Uint64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.ShortIDLen + bls.PublicKeyLen
+	size := consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.ShortIDLen + bls.PublicKeyLen
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	// Marshal transactions
@@ -61,7 +61,7 @@ func (c *Chunk) Size() int {
 }
 
 func (c *Chunk) Marshal() ([]byte, error) {
-	size := consts.Uint64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.ShortIDLen + bls.PublicKeyLen + bls.SignatureLen
+	size := consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.ShortIDLen + bls.PublicKeyLen + bls.SignatureLen
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	// Marshal transactions
@@ -141,7 +141,7 @@ type ChunkSignature struct {
 }
 
 func (c *ChunkSignature) Marshal() ([]byte, error) {
-	size := consts.IDLen + consts.Uint64Len + consts.ShortIDLen + bls.PublicKeyLen + bls.SignatureLen
+	size := consts.IDLen + consts.Int64Len + consts.ShortIDLen + bls.PublicKeyLen + bls.SignatureLen
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	p.PackID(c.Chunk)
@@ -195,23 +195,35 @@ type ChunkCertificate struct {
 	Signature *bls.Signature `json:"signature"`
 }
 
-func (c *ChunkCertificate) Marshal() ([]byte, error) {
+func (c *ChunkCertificate) Size() int {
 	signers := c.Signers.Bytes()
-	size := consts.IDLen + consts.Uint64Len + consts.ShortIDLen + codec.BytesLen(signers) + bls.SignatureLen
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
+	return consts.IDLen + consts.Int64Len + consts.ShortIDLen + codec.BytesLen(signers) + bls.SignatureLen
+}
+
+func (c *ChunkCertificate) Marshal() ([]byte, error) {
+	p := codec.NewWriter(c.Size(), consts.NetworkSizeLimit)
 
 	p.PackID(c.Chunk)
 	p.PackInt64(c.Expiry)
 	p.PackShortID(c.Producer)
-	p.PackBytes(signers)
+	p.PackBytes(c.Signers.Bytes())
 	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
 
 	return p.Bytes(), p.Err()
 }
 
+func (c *ChunkCertificate) MarshalPacker(p *codec.Packer) error {
+	p.PackID(c.Chunk)
+	p.PackInt64(c.Expiry)
+	p.PackShortID(c.Producer)
+	p.PackBytes(c.Signers.Bytes())
+	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
+	return p.Err()
+}
+
 func (c *ChunkCertificate) Digest() ([]byte, error) {
 	signers := c.Signers.Bytes()
-	size := consts.IDLen + consts.Uint64Len + consts.ShortIDLen + codec.BytesLen(signers)
+	size := consts.IDLen + consts.Int64Len + consts.ShortIDLen + codec.BytesLen(signers)
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	p.PackID(c.Chunk)
@@ -250,4 +262,27 @@ func UnmarshalChunkCertificate(raw []byte) (*ChunkCertificate, error) {
 		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
 	}
 	return &c, p.Err()
+}
+
+func UnmarshalChunkCertificatePacker(p *codec.Packer) (*ChunkCertificate, error) {
+	var c ChunkCertificate
+
+	p.UnpackID(true, &c.Chunk)
+	c.Expiry = p.UnpackInt64(false)
+	p.UnpackShortID(true, &c.Producer)
+	var signerBytes []byte
+	p.UnpackBytes(32 /* TODO: make const */, true, &signerBytes)
+	c.Signers = set.BitsFromBytes(signerBytes)
+	if len(signerBytes) != len(c.Signers.Bytes()) {
+		return nil, fmt.Errorf("%w: signers not minimal", ErrInvalidObject)
+	}
+	sig := make([]byte, bls.SignatureLen)
+	p.UnpackFixedBytes(bls.SignatureLen, &sig)
+	signature, err := bls.SignatureFromBytes(sig)
+	if err != nil {
+		return nil, err
+	}
+	c.Signature = signature
+
+	return &c, nil
 }
