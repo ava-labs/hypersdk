@@ -5,7 +5,6 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -17,18 +16,18 @@ type Executor struct {
 	err      error
 
 	input  chan *Chunk
-	output []ids.ID
+	output []*Chunk
 }
 
 func NewExecutor(chunks int) *Executor {
 	return &Executor{
 		input:  make(chan *Chunk, chunks),
-		output: make([]ids.ID, 0, chunks),
+		output: make([]*Chunk, 0, chunks),
 	}
 }
 
-func (e *Executor) process(ctx context.Context, view state.View, chunk *Chunk) (ids.ID, error) {
-	return ids.ID{}, errors.New("implement me")
+func (e *Executor) process(ctx context.Context, view state.View, chunk *Chunk) (*Chunk, error) {
+	return nil, errors.New("implement me")
 }
 
 func (e *Executor) Run(ctx context.Context, vctx VerifyContext) {
@@ -86,15 +85,15 @@ func (e *Executor) Done() {
 	close(e.input)
 }
 
-func (e *Executor) Results() ([]ids.ID, error) {
+func (e *Executor) Results() ([]*Chunk, state.View, error) {
 	e.l.Lock()
 	defer e.l.Unlock()
 
 	if !e.complete {
-		return nil, ErrNotReady
+		return nil, nil, ErrNotReady
 	}
 	if e.err != nil {
-		return nil, e.err
+		return nil, nil, e.err
 	}
-	return e.output, e.err
+	return e.output, nil, e.err
 }
