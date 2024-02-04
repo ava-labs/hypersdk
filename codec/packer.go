@@ -58,16 +58,16 @@ func (p *Packer) UnpackID(required bool, dest *ids.ID) {
 	}
 }
 
-func (p *Packer) PackShortID(src ids.ShortID) {
+func (p *Packer) PackNodeID(src ids.NodeID) {
 	p.p.PackFixedBytes(src[:])
 }
 
-// UnpackShortID unpacks an avalanchego ShortID into [dest]. If [required] is true,
+// UnpackNodeID unpacks an avalanchego NodeID into [dest]. If [required] is true,
 // and the unpacked bytes are empty, Packer will add an ErrFieldNotPopulated error.
-func (p *Packer) UnpackShortID(required bool, dest *ids.ShortID) {
-	copy((*dest)[:], p.p.UnpackFixedBytes(consts.ShortIDLen))
-	if required && *dest == ids.ShortEmpty {
-		p.addErr(fmt.Errorf("%w: ShortID field is not populated", ErrFieldNotPopulated))
+func (p *Packer) UnpackNodeID(required bool, dest *ids.NodeID) {
+	copy((*dest)[:], p.p.UnpackFixedBytes(consts.NodeIDLen))
+	if required && *dest == ids.EmptyNodeID {
+		p.addErr(fmt.Errorf("%w: NodeID field is not populated", ErrFieldNotPopulated))
 	}
 }
 

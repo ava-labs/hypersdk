@@ -52,7 +52,8 @@ type StatefulBlock struct {
 	StartRoot      ids.ID   `json:"startRoot"`
 	ExecutedChunks []ids.ID `json:"executedChunks"`
 
-	size int
+	size  int
+	built bool
 }
 
 func (b *StatefulBlock) Size() int {
@@ -230,13 +231,6 @@ func ParseStatefulBlock(
 		vm:            vm,
 		id:            utils.ToID(source),
 	}
-
-	// If we are parsing an older block, it will not be re-executed and should
-	// not be tracked as a parsed block
-	lastAccepted := b.vm.LastAcceptedBlock()
-	if lastAccepted == nil || b.StatefulBlock.Height <= lastAccepted.StatefulBlock.Height { // nil when parsing genesis
-		return b, nil
-	}
 	return b, nil
 }
 
@@ -295,6 +289,11 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 // 2) verify parent state root is correct
 // 3) verify executed certificates (correct IDs)
 func (b *StatelessBlock) verify(ctx context.Context) error {
+	// Skip verification if we built this block
+	if b.built {
+		return nil
+	}
+
 	// TODO: skip verification if state does not exist yet
 
 	var (
@@ -315,8 +314,6 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-
-		// TODO: ensure NodeID matches BLS Key on chunks
 
 		// Compute canonical validator set (already have set, so don't call again)
 		// Source: https://github.com/ava-labs/avalanchego/blob/813bd481c764970b5c47c3ae9c0a40f2c28da8e4/vms/platformvm/warp/validator.go#L61-L92
@@ -355,6 +352,15 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		// TODO: make parallel
 		// TODO: cache verifications
 		for _, cert := range b.AvailableChunks {
+			// Ensure cert is from a validator
+			//
+			// Signers verify that validator signed chunk with right key when signing chunk
+			_, ok := vdrSet[cert.Producer]
+			if !ok {
+				return errors.New("not a validator")
+			}
+
+			// Verify multi-signature
 			filteredVdrs, err := warp.FilterValidators(cert.Signers, vdrList)
 			if err != nil {
 				return err
@@ -384,7 +390,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		}
 	}
 
-	// TODO: Verify parent root and execution results
+	// TODO: Verify start root and execution results
 
 	b.vm.Verified(ctx, b)
 	return nil
