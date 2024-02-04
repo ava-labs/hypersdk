@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package chain
 
 import (
@@ -7,55 +10,50 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/trace"
+
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
-const numTxs = 50000 // TODO: somehow estimate this (needed to ensure no backlog)
+type fetchData struct {
+	v      []byte
+	exists bool
 
-var ErrNotReady = errors.New("not ready")
-
-type Processor struct {
-	vm VM
-
-	l        sync.Mutex
-	complete bool
-	err      error
-
-	im        state.Immutable
-	sm        StateManager
-	cacheLock sync.RWMutex
-	cache     map[string]*fetchData
-	exectutor *executor.Executor
-	ts        *tstate.TState
-	results   []*Result
-
-	input  chan *Chunk
-	output []*Chunk
+	chunks uint16
 }
 
-func NewProcessor(
-	vm VM,
-	chunks int,
-) *Processor {
-	return &Processor{
-		vm: vm,
+func (b *StatelessBlock) Execute(
+	ctx context.Context,
+	tracer trace.Tracer, //nolint:interfacer
+	im state.Immutable,
+	feeManager *FeeManager,
+	r Rules,
+) ([]*Result, *tstate.TState, error) {
+	ctx, span := tracer.Start(ctx, "Processor.Execute")
+	defer span.End()
 
-		input:  make(chan *Chunk, chunks),
-		output: make([]*Chunk, 0, chunks),
-	}
-}
+	var (
+		sm        = b.vm.StateManager()
+		numTxs    = len(b.Txs)
+		t         = b.GetTimestamp()
+		cacheLock sync.RWMutex
+		cache     = make(map[string]*fetchData, numTxs)
 
-// TODO: handle mapping chunk to new chunk
-// TODO: new chunk could have warp results + results?
-// TODO: kickoff signature verification before begin execution
-func (p *Processor) process(ctx context.Context, c *Chunk) (*Chunk, error) {
-	for _, tx := range c.Txs {
-		stateKeys, err := tx.StateKeys(p.sm)
+		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), b.vm.GetExecutorVerifyRecorder())
+		ts      = tstate.New(numTxs * 2) // TODO: tune this heuristic
+		results = make([]*Result, numTxs)
+	)
+
+	// Fetch required keys and execute transactions
+	for li, ltx := range b.Txs {
+		i := li
+		tx := ltx
+
+		stateKeys, err := tx.StateKeys(sm)
 		if err != nil {
-			// TODO: don't stop, just skip
 			e.Stop()
 			return nil, nil, err
 		}
@@ -157,77 +155,4 @@ func (p *Processor) process(ctx context.Context, c *Chunk) (*Chunk, error) {
 
 	// Return tstate that can be used to add block-level keys to state
 	return results, ts, nil
-}
-
-func (p *Processor) Run(ctx context.Context, im state.Immutable) {
-	ctx, span := p.vm.Tracer().Start(ctx, "Processor.Run")
-	defer span.End()
-
-	// Setup the processor
-	p.im = im
-	p.sm = p.vm.StateManager()
-	p.cache = make(map[string]*fetchData, numTxs)
-	p.exectutor = executor.New(numTxs, p.vm.GetTransactionExecutionCores(), p.vm.GetExecutorVerifyRecorder())
-	p.ts = tstate.New(numTxs * 2)
-	p.results = make([]*Result, numTxs)
-
-	// Handle chunks
-	for {
-		select {
-		case c, ok := <-p.input:
-			if !ok {
-				p.l.Lock()
-				p.complete = true
-				p.l.Unlock()
-				return
-			}
-
-			p.l.Lock()
-			if p.err != nil {
-				p.l.Unlock()
-				continue
-			}
-
-			filtered, err := p.process(ctx, c)
-			p.l.Lock()
-			if err != nil && p.err == nil {
-				p.err = ctx.Err()
-				p.l.Unlock()
-				continue
-			}
-			p.output = append(p.output, filtered)
-			p.l.Unlock()
-
-		case <-ctx.Done():
-			p.l.Lock()
-			if p.err != nil {
-				p.err = ctx.Err()
-			}
-			p.l.Unlock()
-			return
-		}
-	}
-}
-
-// Allows processing to start before all chunks are acquired.
-func (p *Processor) Add(chunk *Chunk) {
-	p.input <- chunk
-}
-
-func (p *Processor) Done() {
-	close(p.input)
-}
-
-// TODO: figure out how to return warp?
-func (p *Processor) Results() ([]*Chunk, error) {
-	p.l.Lock()
-	defer p.l.Unlock()
-
-	if !p.complete {
-		return nil, ErrNotReady
-	}
-	if p.err != nil {
-		return nil, p.err
-	}
-	return p.output, p.err
 }
