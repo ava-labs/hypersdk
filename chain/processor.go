@@ -155,6 +155,7 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, tx
 			return nil
 		}
 		result.Valid = true
+		p.txs.Add(tx.ID()) // only track duplicates on valid txs
 		result.WarpVerified = warpVerified
 		p.results[chunkIndex][txIndex] = result
 
@@ -255,7 +256,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}
-		p.txs.Add(tx.ID())
 
 		// TODO: Check that transaction included in right partition
 

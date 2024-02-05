@@ -284,6 +284,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	// transform [blkTime] when calling [SetMin] here.
 	evictedTxs := vm.seenTxs.SetMin(blkTime)
 	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evictedTxs)))
+	vm.seenTxs.Add(b.Txs) // TODO: set to valid txs
 	evictedChunks := vm.seenChunks.SetMin(blkTime)
 	vm.Logger().Debug("chunks evicted from seen", zap.Int("len", len(evictedChunks)))
 	vm.seenChunks.Add(b.AvailableChunks)
