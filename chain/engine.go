@@ -96,6 +96,8 @@ func (e *Engine) Run(ctx context.Context) {
 			}
 
 			// Process chunks
+			//
+			// We know that if any new available chunks are added that block context must be non-nil (so warp messages will be processed).
 			p := NewProcessor(e.vm, e, job.blk.bctx, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
 			chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 			for chunk := range job.chunks {

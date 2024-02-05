@@ -259,9 +259,11 @@ func ParseStatefulBlock(
 func (b *StatelessBlock) ID() ids.ID { return b.id }
 
 // implements "block.WithVerifyContext"
+//
+// TODO: may want to use a different p-chain height to verify things?
 func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
-	// TODO: may want to use a different p-chain height to verify things?
-	// TODO: how to reflect warp verification needs here?
+	// Because we require context to add any new chunks (which contain all txs), we know
+	// that any warp messages that are included in these chunks can be verified.
 	return len(b.AvailableChunks) > 0 /* need to verify certs */, nil
 }
 
