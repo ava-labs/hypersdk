@@ -36,6 +36,17 @@ func (e *Engine) Run(ctx context.Context) {
 		case job := <-e.backlog:
 			// if state is not height - 1, error
 			p := NewProcessor(e.vm)
+			var chunkIndex int
+			for chunk := range job.chunks {
+				if err := p.Add(ctx, chunkIndex, chunk); err != nil {
+					panic(err)
+				}
+				chunkIndex++
+			}
+			ts, results, err := p.Wait()
+			if err != nil {
+				panic(err)
+			}
 		case <-ctx.Done():
 			return
 		}
