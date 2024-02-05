@@ -79,6 +79,7 @@ func (e *Engine) Run(ctx context.Context) {
 			}
 			parentHeight := binary.BigEndian.Uint64(parentHeightRaw)
 			if job.blk.Height() != parentHeight+1 {
+				// TODO: re-execute previous blocks to get to required state
 				panic(ErrInvalidBlockHeight)
 			}
 
@@ -200,6 +201,7 @@ func (e *Engine) Run(ctx context.Context) {
 
 			// TODO: send notification to vm to send txs to websockets (eventually will be confirmed
 			// no matter what block gets accepted in the future)
+			// TODO: handle restart case where block may be sent twice?
 
 		case <-ctx.Done():
 			return

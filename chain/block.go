@@ -335,6 +335,9 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if b.StatefulBlock.Height != parent.StatefulBlock.Height+1 {
+		return ErrInvalidBlockHeight
+	}
 	b.parent = parent
 	parentTimestamp := parent.StatefulBlock.Timestamp
 	if b.StatefulBlock.Timestamp < parentTimestamp+r.GetMinBlockGap() {
