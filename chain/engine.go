@@ -201,9 +201,14 @@ func (e *Engine) Run(ctx context.Context) {
 			e.outputsLock.Unlock()
 			parentView = view
 
-			// TODO: send notification to vm to send txs to websockets (eventually will be confirmed
-			// no matter what block gets accepted in the future)
+			// As soon as execution of transactions is finished, let the VM know so that it
+			// can notify subscribers.
+			//
+			// TODO: allow for querying agains the executed tip of state rather than the accepted one (which
+			// will be artificially delayed to give time to fetch missing chunks)
+			//
 			// TODO: handle restart case where block may be sent twice?
+			e.vm.Executed(ctx, chunks, chunkResults, filteredChunks)
 
 		case <-ctx.Done():
 			return
