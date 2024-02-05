@@ -416,6 +416,22 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 				return errors.New("not a validator")
 			}
 
+			// TODO: consider moving to chunk verify
+			// Ensure chunk is not too early
+			if cert.Expiry > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
+				return ErrTimestampTooEarly
+			}
+
+			// Ensure chunk is not expired
+			if cert.Expiry < b.StatefulBlock.Timestamp {
+				return ErrTimestampTooLate
+			}
+
+			// Ensure chunk expiry is aligned to a tenth of a second
+			if cert.Expiry%consts.MillisecondsPerDecisecond != 0 {
+				return ErrMisalignedTime
+			}
+
 			// Verify multi-signature
 			filteredVdrs, err := warp.FilterValidators(cert.Signers, vdrList)
 			if err != nil {
