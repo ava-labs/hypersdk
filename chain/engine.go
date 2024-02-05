@@ -198,6 +198,9 @@ func (e *Engine) Run(ctx context.Context) {
 			e.outputsLock.Unlock()
 			parentView = view
 
+			// TODO: send notification to vm to send txs to websockets (eventually will be confirmed
+			// no matter what block gets accepted in the future)
+
 		case <-ctx.Done():
 			return
 		}
