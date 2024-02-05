@@ -47,6 +47,8 @@ func (e *Engine) Run(ctx context.Context) {
 			if err != nil {
 				panic(err)
 			}
+
+			// TODO: persist filtered chunks we finish processing/clear old raw chunks
 		case <-ctx.Done():
 			return
 		}
