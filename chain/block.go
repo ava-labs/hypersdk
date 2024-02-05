@@ -308,6 +308,8 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		return ErrTimestampTooLate
 	}
 
+	// TODO: check that gap between parent is at least minimum
+
 	// TODO: check if min block gap to have no available certs?
 
 	if b.bctx != nil {
