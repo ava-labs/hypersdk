@@ -171,6 +171,9 @@ type StatelessBlock struct {
 	t     time.Time
 	bytes []byte
 
+	parent     *StatelessBlock
+	execHeight *uint64
+
 	chunks set.Set[ids.ID]
 
 	bctx *block.Context
@@ -332,6 +335,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	b.parent = parent
 	parentTimestamp := parent.StatefulBlock.Timestamp
 	if b.StatefulBlock.Timestamp < parentTimestamp+r.GetMinBlockGap() {
 		return ErrTimestampTooEarly
@@ -461,6 +465,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 				return errors.New("executed chunks mismatch")
 			}
 		}
+		b.execHeight = &execHeight
 	}
 
 	b.vm.Verified(ctx, b)
@@ -478,9 +483,12 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	defer span.End()
 
 	b.st = choices.Accepted
+	b.vm.Engine().Execute(b, b.parent.StatefulBlock.Timestamp)
+	if b.execHeight != nil {
+		// TODO: collect results to forward
+		b.vm.Engine().Commit(ctx, *b.execHeight)
+	}
 	b.vm.Accepted(ctx, b)
-	b.vm.Engine().Execute(b)
-	// TODO: clear old tracking
 	return nil
 }
 
