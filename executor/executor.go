@@ -138,13 +138,31 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 				if t.dependencies == nil {
 					t.dependencies = set.NewSet[int](defaultSetSize)
 				}
-				t.dependencies.Add(lt.id)
 				if lt.blocking == nil {
 					lt.blocking = set.NewSet[int](defaultSetSize)
 				}
-				lt.blocking.Add(id)
+				// key has ONLY a [Read] permission
+				// TODO: clean this up
+				if v.Has(state.Read) && !v.Has(state.Write) && !v.Has(state.Allocate) {
+					// lt contains a [Write] permission. If lt had only a [Read]
+					// permission, no dependency or blocking would be added
+					if latest.Permissions.Has(state.Write) {
+						t.dependencies.Add(lt.id) // t depends on lt to execute
+						lt.blocking.Add(id)       // lt is blocking this current task
+					}
+				}
+
+				// key contains a [Write] permission
+				if v.Has(state.Write) {
+					// lt contains a [Read] or [Write] permission
+					if latest.Permissions.Has(state.Read | state.Write) {
+						t.dependencies.Add(lt.id)
+						lt.blocking.Add(id)
+					}
+				}
 			}
 		}
+		// key doesn't exist in our edges map, so we add it
 		e.edges[k] = &KeyData{TaskID: id, Permissions: v}
 	}
 
