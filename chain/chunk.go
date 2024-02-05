@@ -286,3 +286,47 @@ func UnmarshalChunkCertificatePacker(p *codec.Packer) (*ChunkCertificate, error)
 
 	return &c, nil
 }
+
+// TODO: consider evaluating what other fields should be here (tx results bit array? so no need to sync for simple transfers)
+type FilteredChunk struct {
+	Chunk    ids.ID     `json:"chunk"`
+	Producer ids.NodeID `json:"producer"`
+
+	Txs         []*Transaction `json:"txs"`
+	WarpResults set.Bits64     `json:"warpResults"`
+
+	id ids.ID
+}
+
+func (c *FilteredChunk) ID() (ids.ID, error) {
+	if c.id != ids.Empty {
+		return c.id, nil
+	}
+
+	bytes, err := c.Marshal()
+	if err != nil {
+		return ids.ID{}, err
+	}
+	c.id = utils.ToID(bytes)
+	return c.id, nil
+}
+
+func (c *FilteredChunk) Marshal() ([]byte, error) {
+	size := consts.IDLen + consts.NodeIDLen + consts.IntLen + codec.CummSize(c.Txs) + consts.Uint64Len
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
+
+	// Marshal header
+	p.PackID(c.Chunk)
+	p.PackNodeID(c.Producer)
+
+	// Marshal transactions
+	p.PackInt(len(c.Txs))
+	for _, tx := range c.Txs {
+		if err := tx.Marshal(p); err != nil {
+			return nil, err
+		}
+	}
+	p.PackUint64(uint64(c.WarpResults))
+
+	return p.Bytes(), p.Err()
+}
