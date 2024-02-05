@@ -10,7 +10,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -47,7 +46,7 @@ type Transaction struct {
 	// prevents duplicates (like txID). We will not allow 2 instances of the same
 	// warpID from the same sourceChainID to be accepted.
 	warpID    ids.ID
-	stateKeys set.Set[string]
+	stateKeys state.Keys
 }
 
 type WarpResult struct {
@@ -122,7 +121,7 @@ func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 
 func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
 
-func (t *Transaction) StateKeys(sm StateManager) (set.Set[string], error) {
+func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
@@ -130,13 +129,13 @@ func (t *Transaction) StateKeys(sm StateManager) (set.Set[string], error) {
 	// Verify the formatting of state keys passed by the controller
 	actionKeys := t.Action.StateKeys(t.Auth.Actor(), t.ID())
 	sponsorKeys := sm.SponsorStateKeys(t.Auth.Sponsor())
-	stateKeys := set.NewSet[string](len(actionKeys) + len(sponsorKeys))
-	for _, arr := range [][]string{actionKeys, sponsorKeys} {
-		for _, k := range arr {
+	stateKeys := make(state.Keys)
+	for _, m := range []state.Keys{actionKeys, sponsorKeys} {
+		for k, v := range m {
 			if !keys.Valid(k) {
 				return nil, ErrInvalidKeyValue
 			}
-			stateKeys.Add(k)
+			stateKeys.Add(k, v)
 		}
 	}
 
@@ -144,12 +143,12 @@ func (t *Transaction) StateKeys(sm StateManager) (set.Set[string], error) {
 	if t.WarpMessage != nil {
 		p := sm.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
 		k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
-		stateKeys.Add(string(k))
+		stateKeys.Add(string(k), state.Read|state.Write)
 	}
 	if t.Action.OutputsWarpMessage() {
 		p := sm.OutgoingWarpKeyPrefix(t.id)
 		k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
-		stateKeys.Add(string(k))
+		stateKeys.Add(string(k), state.Write)
 	}
 
 	// Cache keys if called again
@@ -454,7 +453,7 @@ func (t *Transaction) Execute(
 
 	// Because we compute the fee before [Auth.Refund] is called, we need
 	// to pessimistically precompute the storage it will change.
-	for _, key := range s.SponsorStateKeys(t.Auth.Sponsor()) {
+	for key := range s.SponsorStateKeys(t.Auth.Sponsor()) {
 		// maxChunks will be greater than the chunks read in any of these keys,
 		// so we don't need to check for pre-existing values.
 		maxChunks, ok := keys.MaxChunks([]byte(key))

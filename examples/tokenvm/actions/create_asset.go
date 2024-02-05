@@ -28,9 +28,9 @@ func (*CreateAsset) GetTypeID() uint8 {
 	return createAssetID
 }
 
-func (*CreateAsset) StateKeys(_ codec.Address, txID ids.ID) []string {
-	return []string{
-		string(storage.AssetKey(txID)),
+func (*CreateAsset) StateKeys(_ codec.Address, txID ids.ID) state.Keys {
+	return state.Keys{
+		string(storage.AssetKey(txID)): state.Write,
 	}
 }
 

@@ -32,10 +32,10 @@ func (*BurnAsset) GetTypeID() uint8 {
 	return burnAssetID
 }
 
-func (b *BurnAsset) StateKeys(actor codec.Address, _ ids.ID) []string {
-	return []string{
-		string(storage.AssetKey(b.Asset)),
-		string(storage.BalanceKey(actor, b.Asset)),
+func (b *BurnAsset) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+	return state.Keys{
+		string(storage.AssetKey(b.Asset)):          state.Read | state.Write,
+		string(storage.BalanceKey(actor, b.Asset)): state.Read | state.Write,
 	}
 }
 
