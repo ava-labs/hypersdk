@@ -428,6 +428,9 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 			}
 
 			// Ensure chunk expiry is aligned to a tenth of a second
+			//
+			// Signatures will only be given for a configurable number of chunks per
+			// second.
 			if cert.Expiry%consts.MillisecondsPerDecisecond != 0 {
 				return ErrMisalignedTime
 			}
