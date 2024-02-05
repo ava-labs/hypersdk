@@ -281,7 +281,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	evictedTxs := vm.seenTxs.SetMin(blkTime)
 	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evictedTxs)))
 	evictedChunks := vm.seenChunks.SetMin(blkTime)
-	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evictedChunks)))
+	vm.Logger().Debug("chunks evicted from seen", zap.Int("len", len(evictedChunks)))
 	vm.seenChunks.Add(b.AvailableChunks)
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
