@@ -90,11 +90,18 @@ func (vm *VM) Mempool() chain.Mempool {
 	return vm.mempool
 }
 
-func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction, marker set.Bits, stop bool) set.Bits {
-	_, span := vm.tracer.Start(ctx, "VM.IsRepeat")
+func (vm *VM) IsRepeatTx(ctx context.Context, txs []*chain.Transaction, marker set.Bits) set.Bits {
+	_, span := vm.tracer.Start(ctx, "VM.IsRepeatTx")
 	defer span.End()
 
-	return vm.seen.Contains(txs, marker, stop)
+	return vm.seenTxs.Contains(txs, marker, false)
+}
+
+func (vm *VM) IsRepeatChunk(ctx context.Context, certs []*chain.ChunkCertificate, marker set.Bits) set.Bits {
+	_, span := vm.tracer.Start(ctx, "VM.IsRepeatChunk")
+	defer span.End()
+
+	return vm.seenChunks.Contains(certs, marker, false)
 }
 
 func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {

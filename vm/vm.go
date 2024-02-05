@@ -71,7 +71,8 @@ type VM struct {
 	mempool *mempool.Mempool[*chain.Transaction]
 
 	// track all accepted but still valid txs (replay protection)
-	seen                   *emap.EMap[*chain.Transaction]
+	seenTxs                *emap.EMap[*chain.Transaction]
+	seenChunks             *emap.EMap[*chain.ChunkCertificate]
 	startSeenTime          int64
 	seenValidityWindowOnce sync.Once
 	seenValidityWindow     chan struct{}
@@ -147,7 +148,8 @@ func (vm *VM) Initialize(
 	// backfill existing blocks (during normal bootstrapping).
 	vm.startSeenTime = -1
 	// Init seen for tracking transactions that have been accepted on-chain
-	vm.seen = emap.NewEMap[*chain.Transaction]()
+	vm.seenTxs = emap.NewEMap[*chain.Transaction]()
+	vm.seenChunks = emap.NewEMap[*chain.ChunkCertificate]()
 	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
