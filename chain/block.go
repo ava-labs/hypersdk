@@ -403,8 +403,8 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		// Verify certificates
 		//
 		// TODO: make parallel
-		// TODO: cache verifications
-		// TODO: skip available chunks that we have already verified (block may fail while waiting)
+		// TODO: cache verifications (may be verified multiple times at the same p-chain height while
+		// waiting for execution to complete).
 		for _, cert := range b.AvailableChunks {
 			// Ensure cert is from a validator
 			//
@@ -456,6 +456,8 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		execHeight := b.StatefulBlock.Height - depth
 		root, executed, err := b.vm.Engine().Results(execHeight)
 		if err != nil {
+			// TODO: add stat for tracking how often this happens
+			// TODOL handle case where we state synced and don't have results
 			log.Warn("could not get results for block", zap.Uint64("height", execHeight))
 			return err
 		}
