@@ -5,7 +5,7 @@ package executor
 
 import (
 	"sync"
-	"fmt"
+	//"fmt"
 
 	"github.com/ava-labs/avalanchego/utils/set"
 
@@ -33,7 +33,14 @@ type Executor struct {
 	done      bool
 	completed int
 	tasks     map[int]*task
-	edges     map[string]int
+	edges     map[string]*KeyData
+}
+
+// KeyData keeps track of the key permission and the
+// TaskID using the state key name.
+type KeyData struct {
+	TaskID      int
+	Permissions state.Permissions
 }
 
 // New creates a new [Executor].
@@ -42,10 +49,9 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 		metrics:    metrics,
 		stop:       make(chan struct{}),
 		tasks:      make(map[int]*task, items),
-		edges:      make(map[string]int, items*2), // TODO: tune this
-		executable: make(chan *task, items),       // ensure we don't block while holding lock
+		edges:      make(map[string]*KeyData, items*2), // TODO: tune this
+		executable: make(chan *task, items),            // ensure we don't block while holding lock
 	}
-	fmt.Printf("BBBBB items %v\n", items)
 	for i := 0; i < concurrency; i++ {
 		e.createWorker()
 	}
@@ -81,7 +87,6 @@ func (e *Executor) createWorker() {
 					})
 					return
 				}
-				fmt.Printf("its running ID %v\n", t.id)
 				e.l.Lock()
 				for b := range t.blocking { // works fine on non-initialized map
 					bt := e.tasks[b]
@@ -107,21 +112,6 @@ func (e *Executor) createWorker() {
 	}()
 }
 
-/*
-t.id = 1 | e.edges: {a: 1} | t.dep: () | t.block: (2)
-	bt = Task2
-		Task2 dep, remove that Task2 is dep on Task1
-		If no more dep then I can execute Task2 and it gets put in the e.executable chan queue
-
-t.id = 2 | e.edges: {a: 1} | t.dep: (1) | t.block: ()
-	bt = Task1
-
-	...After getting its dep removed
-		t.dep is empty
-	...After waiting in the e.executable chan queue
-	This task doesn't block anything so it just executes
-*/
-
 // Run executes [f] after all previously enqueued [f] with
 // overlapping [conflicts] are executed.
 // TODO: Handle read-only/write-only keys (currently the executor
@@ -140,12 +130,10 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	e.tasks[id] = t
 
 	// Record dependencies
-	for k := range conflicts {
+	for k, v := range conflicts {
 		latest, ok := e.edges[k]
-		fmt.Printf("AAAAA in edge set %v\n", len(e.edges))
 		if ok {
-			lt := e.tasks[latest]
-			fmt.Printf("record dep ID %v\n", lt.id)
+			lt := e.tasks[latest.TaskID]
 			if !lt.executed {
 				if t.dependencies == nil {
 					t.dependencies = set.NewSet[int](defaultSetSize)
@@ -157,7 +145,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 				lt.blocking.Add(id)
 			}
 		}
-		e.edges[k] = id
+		e.edges[k] = &KeyData{TaskID: id, Permissions: v}
 	}
 
 	// Start execution if there are no blocking dependencies
