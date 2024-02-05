@@ -21,6 +21,7 @@ type engineJob struct {
 }
 
 type output struct {
+	txs          set.Set[ids.ID]
 	view         merkledb.View
 	chunkResults [][]*Result
 
@@ -37,8 +38,9 @@ type Engine struct {
 
 	backlog chan *engineJob
 
-	outputsLock sync.RWMutex
-	outputs     map[uint64]*output
+	outputsLock   sync.RWMutex
+	outputs       map[uint64]*output
+	largestOutput *uint64
 }
 
 func NewEngine(vm VM, maxBacklog int) *Engine {
@@ -91,7 +93,7 @@ func (e *Engine) Run(ctx context.Context) {
 			}
 
 			// Process chunks
-			p := NewProcessor(e.vm, job.blk.bctx, nil, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
+			p := NewProcessor(e.vm, e, job.blk.bctx, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
 			chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 			for chunk := range job.chunks {
 				if err := p.Add(ctx, len(chunks), chunk); err != nil {
@@ -99,7 +101,7 @@ func (e *Engine) Run(ctx context.Context) {
 				}
 				chunks[len(chunks)] = chunk
 			}
-			ts, chunkResults, err := p.Wait()
+			txSet, ts, chunkResults, err := p.Wait()
 			if err != nil {
 				panic(err)
 			}
@@ -184,11 +186,13 @@ func (e *Engine) Run(ctx context.Context) {
 			// Store and update parent view
 			e.outputsLock.Lock()
 			e.outputs[job.blk.StatefulBlock.Height] = &output{
+				txs:          txSet,
 				view:         view,
 				chunkResults: chunkResults,
 				startRoot:    startRoot,
 				chunks:       filteredChunks,
 			}
+			e.largestOutput = &job.blk.StatefulBlock.Height
 			e.outputsLock.Unlock()
 			parentView = view
 
@@ -237,6 +241,35 @@ func (e *Engine) Commit(ctx context.Context, height uint64) ([][]*Result, []*Fil
 		return nil, nil, errors.New("not found")
 	}
 	delete(e.outputs, height)
+	if e.largestOutput != nil && *e.largestOutput == height {
+		e.largestOutput = nil
+	}
 	e.outputsLock.Unlock()
 	return output.chunkResults, output.chunks, output.view.CommitToDB(ctx)
+}
+
+func (e *Engine) IsRepeatTx(
+	ctx context.Context,
+	txs []*Transaction,
+	marker set.Bits,
+) (set.Bits, error) {
+	e.outputsLock.RLock()
+	if e.largestOutput != nil {
+		for start := *e.largestOutput; start > 0; start-- {
+			output, ok := e.outputs[start]
+			if !ok {
+				break
+			}
+			for i, tx := range txs {
+				if marker.Contains(i) {
+					continue
+				}
+				if output.txs.Contains(tx.ID()) {
+					marker.Add(i)
+				}
+			}
+		}
+	}
+	e.outputsLock.RUnlock()
+	return e.vm.IsRepeat(ctx, txs, marker), nil
 }

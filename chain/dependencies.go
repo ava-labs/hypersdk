@@ -79,7 +79,7 @@ type VM interface {
 	ValidatorState() validators.State
 
 	Mempool() Mempool
-	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
+	IsRepeat(context.Context, []*Transaction, set.Bits) set.Bits
 	GetTargetBuildDuration() time.Duration
 	GetTransactionExecutionCores() int
 

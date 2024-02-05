@@ -21,12 +21,12 @@ import (
 const numTxs = 50000 // TODO: somehow estimate this (needed to ensure no backlog)
 
 type Processor struct {
-	vm VM
+	vm  VM
+	eng *Engine
 
 	authStream *stream.Stream
 
 	blkCtx     *smblock.Context
-	vctx       VerifyContext
 	timestamp  int64
 	im         state.Immutable
 	feeManager *FeeManager
@@ -50,18 +50,18 @@ type fetchData struct {
 
 // Only run one processor at once
 func NewProcessor(
-	vm VM,
-	blkCtx *smblock.Context, vctx VerifyContext, chunks int, timestamp int64, im state.Immutable, feeManager *FeeManager, r Rules,
+	vm VM, eng *Engine,
+	blkCtx *smblock.Context, chunks int, timestamp int64, im state.Immutable, feeManager *FeeManager, r Rules,
 ) *Processor {
 	stream := stream.New()
 	stream.WithMaxGoroutines(10) // TODO: use config
 	return &Processor{
-		vm: vm,
+		vm:  vm,
+		eng: eng,
 
 		authStream: stream,
 
 		blkCtx:     blkCtx,
-		vctx:       vctx,
 		timestamp:  timestamp,
 		im:         im,
 		feeManager: feeManager,
@@ -229,11 +229,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 	// Don't wait for all transactions to finish verification to kickoff execution (should
 	// be interleaved).
 	p.results[chunkIndex] = make([]*Result, len(chunk.Txs))
-	oldestAllowed := p.timestamp - p.r.GetValidityWindow()
-	if oldestAllowed < 0 {
-		oldestAllowed = 0
-	}
-	repeats, err := p.vctx.IsRepeat(ctx, oldestAllowed, chunk.Txs, set.NewBits(), true)
+	repeats, err := p.eng.IsRepeatTx(ctx, chunk.Txs, set.NewBits())
 	if err != nil {
 		return err
 	}
@@ -279,7 +275,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 	return nil
 }
 
-func (p *Processor) Wait() (*tstate.TState, [][]*Result, error) {
+func (p *Processor) Wait() (set.Set[ids.ID], *tstate.TState, [][]*Result, error) {
 	p.authStream.Wait()
-	return p.ts, p.results, p.exectutor.Wait()
+	return p.txs, p.ts, p.results, p.exectutor.Wait()
 }
