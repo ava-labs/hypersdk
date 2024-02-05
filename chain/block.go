@@ -308,6 +308,8 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		return ErrTimestampTooLate
 	}
 
+	// TODO: check if min block gap to have no available certs?
+
 	if b.bctx != nil {
 		// Get validator set at current height
 		//
@@ -354,6 +356,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		// TODO: make parallel
 		// TODO: cache verifications
 		// TODO: skip available chunks that we have already verified (block may fail while waiting)
+		// TODO: ensure no duplicates
 		for _, cert := range b.AvailableChunks {
 			// Ensure cert is from a validator
 			//
