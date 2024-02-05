@@ -16,6 +16,7 @@ import (
 	autils "github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -170,6 +171,8 @@ type StatelessBlock struct {
 	t     time.Time
 	bytes []byte
 
+	chunks set.Set[ids.ID]
+
 	bctx *block.Context
 }
 
@@ -232,6 +235,20 @@ func ParseStatefulBlock(
 		vm:            vm,
 		id:            utils.ToID(source),
 	}
+
+	// If we are parsing an older block, it will not be re-executed and should
+	// not be tracked as a parsed block
+	lastAccepted := b.vm.LastAcceptedBlock()
+	if lastAccepted == nil || blk.Height <= lastAccepted.StatefulBlock.Height { // nil when parsing genesis
+		return b, nil
+	}
+
+	// Update set (handle this on built)
+	b.chunks = set.NewSet[ids.ID](len(blk.AvailableChunks))
+	for _, cert := range blk.AvailableChunks {
+		b.chunks.Add(cert.Chunk)
+	}
+
 	return b, nil
 }
 
@@ -311,10 +328,11 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	// Check that gap between parent is at least minimum
 	//
 	// We do not have access to state here, so we must use the parent block.
-	parentTimestamp, ok := b.vm.Timestamp(b.StatefulBlock.Parent)
-	if !ok {
-		return errors.New("cannot get parent block")
+	parent, err := b.vm.GetStatelessBlock(ctx, b.StatefulBlock.Parent)
+	if err != nil {
+		return err
 	}
+	parentTimestamp := parent.StatefulBlock.Timestamp
 	if b.StatefulBlock.Timestamp < parentTimestamp+r.GetMinBlockGap() {
 		return ErrTimestampTooEarly
 	}
@@ -322,6 +340,16 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		return ErrTimestampTooEarly
 	}
 
+	// Check duplicate certificates
+	repeats, err := parent.IsRepeatChunk(ctx, b.AvailableChunks, set.NewBits())
+	if err != nil {
+		return err
+	}
+	if repeats.Len() > 0 {
+		return errors.New("duplicate chunk issuance")
+	}
+
+	// Verify certificates
 	if b.bctx != nil {
 		// Get validator set at current height
 		//
@@ -368,7 +396,6 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		// TODO: make parallel
 		// TODO: cache verifications
 		// TODO: skip available chunks that we have already verified (block may fail while waiting)
-		// TODO: ensure no duplicates
 		for _, cert := range b.AvailableChunks {
 			// Ensure cert is from a validator
 			//
@@ -481,6 +508,25 @@ func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Height }
 
 // implements "snowman.Block"
 func (b *StatelessBlock) Timestamp() time.Time { return b.t }
+
+func (b *StatelessBlock) IsRepeatChunk(ctx context.Context, certs []*ChunkCertificate, marker set.Bits) (set.Bits, error) {
+	if b.st == choices.Accepted || b.StatefulBlock.Height == 0 /* genesis */ {
+		return b.vm.IsRepeatChunk(ctx, certs, marker), nil
+	}
+	for i, cert := range certs {
+		if marker.Contains(i) {
+			continue
+		}
+		if b.chunks.Contains(cert.Chunk) {
+			marker.Add(i)
+		}
+	}
+	parent, err := b.vm.GetStatelessBlock(ctx, b.StatefulBlock.Parent)
+	if err != nil {
+		return marker, err
+	}
+	return parent.IsRepeatChunk(ctx, certs, marker)
+}
 
 type SyncableBlock struct {
 	*StatelessBlock

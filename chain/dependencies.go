@@ -60,7 +60,6 @@ type VM interface {
 
 	// TODO: cleanup
 	Engine() *Engine
-	Timestamp(blkID ids.ID) (int64, bool)
 
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.
@@ -78,8 +77,10 @@ type VM interface {
 	StateManager() StateManager
 	ValidatorState() validators.State
 
+	IsRepeatTx(context.Context, []*Transaction, set.Bits) set.Bits
+	IsRepeatChunk(context.Context, []*ChunkCertificate, set.Bits) set.Bits
+
 	Mempool() Mempool
-	IsRepeat(context.Context, []*Transaction, set.Bits) set.Bits
 	GetTargetBuildDuration() time.Duration
 	GetTransactionExecutionCores() int
 

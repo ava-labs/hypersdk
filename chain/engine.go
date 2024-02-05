@@ -271,5 +271,5 @@ func (e *Engine) IsRepeatTx(
 		}
 	}
 	e.outputsLock.RUnlock()
-	return e.vm.IsRepeat(ctx, txs, marker), nil
+	return e.vm.IsRepeatTx(ctx, txs, marker), nil
 }
