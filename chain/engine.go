@@ -44,6 +44,8 @@ type Engine struct {
 }
 
 func NewEngine(vm VM, maxBacklog int) *Engine {
+	// TODO: strategically use old timestamps on blocks when catching up after processing
+	// surge to maximize chunk inclusion
 	return &Engine{
 		vm: vm,
 
