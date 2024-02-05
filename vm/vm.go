@@ -70,6 +70,12 @@ type VM struct {
 	tracer  trace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
 
+	// track all issuedTxs (to prevent wasting bandwidth)
+	//
+	// we use an emap here to avoid recursing through all previously
+	// issued chunks when packing a new chunk.
+	issuedTxs *emap.EMap[*chain.Transaction]
+
 	// track all accepted but still valid txs (replay protection)
 	seenTxs                *emap.EMap[*chain.Transaction]
 	seenChunks             *emap.EMap[*chain.ChunkCertificate]
@@ -144,6 +150,7 @@ func (vm *VM) Initialize(
 ) error {
 	vm.snowCtx = snowCtx
 	vm.pkBytes = bls.PublicKeyToBytes(vm.snowCtx.PublicKey)
+	vm.issuedTxs = emap.NewEMap[*chain.Transaction]()
 	// This will be overwritten when we accept the first block (in state sync) or
 	// backfill existing blocks (during normal bootstrapping).
 	vm.startSeenTime = -1

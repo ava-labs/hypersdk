@@ -243,6 +243,11 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}
+		if tx.Base.Timestamp > chunk.Slot {
+			p.vm.Logger().Warn("base transaction has timestamp after slot", zap.Stringer("txID", tx.ID()))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
 
 		// Check that transaction isn't a duplicate
 		if repeats.Contains(txIndex) || p.txs.Contains(tx.ID()) {

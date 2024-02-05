@@ -273,11 +273,15 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	delete(vm.verifiedBlocks, b.ID())
 	vm.verifiedL.Unlock()
 
+	// Update issued transaction tracker once we know we can't resubmit the same transaction
+	blkTime := b.StatefulBlock.Timestamp
+	evictedIssued := vm.issuedTxs.SetMin(blkTime)
+	vm.Logger().Debug("txs evicted from issued", zap.Int("len", len(evictedIssued)))
+
 	// Update replay protection heap
 	//
 	// Transactions are added to [seen] with their [expiry], so we don't need to
 	// transform [blkTime] when calling [SetMin] here.
-	blkTime := b.StatefulBlock.Timestamp
 	evictedTxs := vm.seenTxs.SetMin(blkTime)
 	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evictedTxs)))
 	evictedChunks := vm.seenChunks.SetMin(blkTime)
