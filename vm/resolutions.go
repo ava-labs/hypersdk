@@ -215,6 +215,8 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	}
 
 	// Update server
+	//
+	// TODO: change to BlockExecuted
 	if err := vm.webSocketServer.AcceptBlock(b); err != nil {
 		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
 	}
