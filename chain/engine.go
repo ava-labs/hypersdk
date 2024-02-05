@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/state"
 	"go.uber.org/zap"
 )
@@ -20,7 +21,8 @@ type engineJob struct {
 }
 
 type output struct {
-	view state.View
+	view         merkledb.View
+	chunkResults [][]*Result
 
 	startRoot ids.ID
 	chunks    []*FilteredChunk
@@ -182,36 +184,59 @@ func (e *Engine) Run(ctx context.Context) {
 			// Store and update parent view
 			e.outputsLock.Lock()
 			e.outputs[job.blk.StatefulBlock.Height] = &output{
-				view:      view,
-				startRoot: startRoot,
-				chunks:    filteredChunks,
+				view:         view,
+				chunkResults: chunkResults,
+				startRoot:    startRoot,
+				chunks:       filteredChunks,
 			}
 			e.outputsLock.Unlock()
 			parentView = view
 
-			// TODO: persist filtered chunks we finish processing/clear old raw chunks
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func (e *Engine) Execute(blk *StatelessBlock) {
+func (e *Engine) Execute(blk *StatelessBlock, parentTimestamp int64) {
 	// TODO: fetch chunks that don't exist (before start run) -> use a channel for the chunks so can start execution
 	chunks := make(chan *Chunk, len(blk.AvailableChunks))
 
 	// Enqueue job
 	e.backlog <- &engineJob{
-		blk:    blk,
-		chunks: chunks,
+		parentTimestamp: parentTimestamp,
+		blk:             blk,
+		chunks:          chunks,
 	}
 }
 
 func (e *Engine) Results(height uint64) (ids.ID /* StartRoot */, []ids.ID /* Executed Chunks */, error) {
 	// TODO: handle case where never started execution (state sync)
-	return ids.ID{}, nil, errors.New("implement me")
+	e.outputsLock.RLock()
+	defer e.outputsLock.RUnlock()
+
+	if output, ok := e.outputs[height]; ok {
+		filteredIDs := make([]ids.ID, len(output.chunks))
+		for i, chunk := range output.chunks {
+			id, err := chunk.ID()
+			if err != nil {
+				return ids.Empty, nil, err
+			}
+			filteredIDs[i] = id
+		}
+		return output.startRoot, filteredIDs, nil
+	}
+	return ids.Empty, nil, errors.New("not found")
 }
 
-func (e *Engine) Clear(height uint64) {
-	// TODO: clear old tracking as soon as done
+func (e *Engine) Commit(ctx context.Context, height uint64) ([][]*Result, []*FilteredChunk, error) {
+	e.outputsLock.Lock()
+	output, ok := e.outputs[height]
+	if !ok {
+		e.outputsLock.Unlock()
+		return nil, nil, errors.New("not found")
+	}
+	delete(e.outputs, height)
+	e.outputsLock.Unlock()
+	return output.chunkResults, output.chunks, output.view.CommitToDB(ctx)
 }
