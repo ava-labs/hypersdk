@@ -308,9 +308,19 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		return ErrTimestampTooLate
 	}
 
-	// TODO: check that gap between parent is at least minimum
-
-	// TODO: check if min block gap to have no available certs?
+	// Check that gap between parent is at least minimum
+	//
+	// We do not have access to state here, so we must use the parent block.
+	parentTimestamp, ok := b.vm.Timestamp(b.StatefulBlock.Parent)
+	if !ok {
+		return errors.New("cannot get parent block")
+	}
+	if b.StatefulBlock.Timestamp < parentTimestamp+r.GetMinBlockGap() {
+		return ErrTimestampTooEarly
+	}
+	if len(b.AvailableChunks) == 0 && b.StatefulBlock.Timestamp < parentTimestamp+r.GetMinEmptyBlockGap() {
+		return ErrTimestampTooEarly
+	}
 
 	if b.bctx != nil {
 		// Get validator set at current height

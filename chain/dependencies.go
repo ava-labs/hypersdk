@@ -58,7 +58,9 @@ type VM interface {
 	Monitoring
 	Parser
 
+	// TODO: cleanup
 	Engine() *Engine
+	Timestamp(blkID ids.ID) (int64, bool)
 
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.
