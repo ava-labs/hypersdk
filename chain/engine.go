@@ -234,6 +234,7 @@ func (e *Engine) Results(height uint64) (ids.ID /* StartRoot */, []ids.ID /* Exe
 }
 
 func (e *Engine) Commit(ctx context.Context, height uint64) ([][]*Result, []*FilteredChunk, error) {
+	// TODO: fetch results prior to commit to reduce observed finality (state won't be queryable yet but can send block/results)
 	e.outputsLock.Lock()
 	output, ok := e.outputs[height]
 	if !ok {
