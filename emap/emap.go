@@ -141,3 +141,10 @@ func (e *EMap[T]) Contains(items []T, marker set.Bits, stop bool) set.Bits {
 	}
 	return marker
 }
+
+func (e *EMap[T]) Has(item T) bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	return e.seen.Contains(item.ID())
+}

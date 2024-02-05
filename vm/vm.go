@@ -67,8 +67,9 @@ type VM struct {
 	authRegistry   chain.AuthRegistry
 	authEngine     map[uint8]AuthEngine
 
-	tracer  trace.Tracer
-	mempool *mempool.Mempool[*chain.Transaction]
+	tracer trace.Tracer
+
+	engine *chain.Engine
 
 	// track all issuedTxs (to prevent wasting bandwidth)
 	//
@@ -799,36 +800,16 @@ func (vm *VM) Submit(
 		return []error{ErrNotReady}
 	}
 
-	// Create temporary execution context
-	blk, err := vm.GetStatelessBlock(ctx, vm.preferred)
-	if err != nil {
-		return []error{err}
-	}
-	view, err := blk.View(ctx, false)
-	if err != nil {
-		// This will error if a block does not yet have processed state.
-		return []error{err}
-	}
-	feeRaw, err := view.GetValue(ctx, chain.FeeKey(vm.StateManager().FeeKey()))
-	if err != nil {
-		return []error{err}
-	}
-	feeManager := chain.NewFeeManager(feeRaw)
-	now := time.Now().UnixMilli()
-	r := vm.c.Rules(now)
-	nextFeeManager, err := feeManager.ComputeNext(blk.Tmstmp, now, r)
-	if err != nil {
-		return []error{err}
-	}
+	// TODO: check that tx is in our partition
 
-	// Find repeats
-	oldestAllowed := now - r.GetValidityWindow()
-	repeats, err := blk.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), true)
-	if err != nil {
-		return []error{err}
-	}
+	// Check for duplicates
+	//
+	// We don't need to check all seen because we are the exclusive issuer of txs
+	// for our partition.
+	repeats := vm.issuedTxs.Contains(txs, set.NewBits(), false)
 
-	validTxs := []*chain.Transaction{}
+	// Perform basic validity checks and add to chunks
+	issuedTxs := make([]*chain.Transaction, 0, len(txs))
 	for i, tx := range txs {
 		// Check if transaction is a repeat before doing any extra work
 		if repeats.Contains(i) {
@@ -844,6 +825,8 @@ func (vm *VM) Submit(
 			errs = append(errs, ErrNotAdded)
 			continue
 		}
+
+		// TODO: ensure not expired and not too far in the future
 
 		// Ensure state keys are valid
 		_, err := tx.StateKeys(vm.c.StateManager())
@@ -871,26 +854,13 @@ func (vm *VM) Submit(
 				continue
 			}
 		}
-
-		// PreExecute does not make any changes to state
-		//
-		// This may fail if the state we are utilizing is invalidated (if a trie
-		// view from a different branch is committed underneath it). We prefer this
-		// instead of putting a lock around all commits.
-		//
-		// Note, [PreExecute] ensures that the pending transaction does not have
-		// an expiry time further ahead than [ValidityWindow]. This ensures anything
-		// added to the [Mempool] is immediately executable.
-		if err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, view, now); err != nil {
-			errs = append(errs, err)
-			continue
-		}
 		errs = append(errs, nil)
-		validTxs = append(validTxs, tx)
+
+		// Add to chunk queue
+		if vm.engine.Queue(tx) {
+			// TODO: how to prevent duplicates from submit called concurrently?
+		}
 	}
-	vm.mempool.Add(ctx, validTxs)
-	vm.checkActivity(ctx)
-	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	return errs
 }
 
