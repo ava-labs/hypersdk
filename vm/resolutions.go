@@ -277,10 +277,12 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	//
 	// Transactions are added to [seen] with their [expiry], so we don't need to
 	// transform [blkTime] when calling [SetMin] here.
-	blkTime := b.Tmstmp
-	evicted := vm.seen.SetMin(blkTime)
-	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evicted)))
-	vm.seen.Add(b.Txs)
+	blkTime := b.StatefulBlock.Timestamp
+	evictedTxs := vm.seenTxs.SetMin(blkTime)
+	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evictedTxs)))
+	evictedChunks := vm.seenChunks.SetMin(blkTime)
+	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evictedChunks)))
+	vm.seenChunks.Add(b.AvailableChunks)
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
 	// timestamps of at least [ValidityWindow] for this to occur).
