@@ -132,8 +132,23 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 		c.PushSignature(ctx, nodeID, chunkSignature)
 	case chunkSignatureMsg:
+		// Verify signature
+		chunkSignature, err := chain.UnmarshalChunkSignature(msg[1:])
+		if err != nil {
+			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			return nil
+		}
+		if !chunkSignature.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID) {
+			c.vm.Logger().Warn("dropping chunk signature with invalid signature", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
+
 		// TODO: if chunk creator, collect signatures
 	case chunkCertificateMsg:
+		// Verify certificate using the current validator set
+		//
+		// TODO: consider re-verifying on some cadence prior to expiry?
+
 		// TODO: add to engine for block inclusion
 
 		// TODO: don't include in block if we don't have chunk
