@@ -190,8 +190,12 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 		cw.signatures[nodeID] = chunkSignature
+
+		// TODO: Count pending weight
+
+		// TODO: if weight is sufficient, send to next X validators (or all)
 	case chunkCertificateMsg:
-		// Verify certificate using the current validator set
+		// TODO: Verify certificate using the current validator set
 		//
 		// TODO: consider re-verifying on some cadence prior to expiry?
 
