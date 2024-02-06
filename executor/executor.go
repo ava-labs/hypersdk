@@ -148,6 +148,10 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 					if latest.Permissions.Has(state.Allocate) || latest.Permissions.Has(state.Write) {
 						t.dependencies.Add(lt.id) // t depends on lt to execute
 						lt.blocking.Add(id)       // lt is blocking this current task
+						// If lt is blocking any other txn, we need to record this
+						// to prevent subsequent txns that depend on lt from executing
+						// at the same time
+						e.blocking.Add(lt.id)
 					}
 				}
 
@@ -157,6 +161,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 					if latest.Permissions.Has(state.Read) || latest.Permissions.Has(state.Allocate) || latest.Permissions.Has(state.Write) {
 						t.dependencies.Add(lt.id)
 						lt.blocking.Add(id)
+						e.blocking.Add(lt.id)
 					}
 				}
 			}
@@ -183,12 +188,6 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	e.executable <- t
 	if e.metrics != nil {
 		e.metrics.RecordExecutable()
-	}
-	// If t is blocking any other txn, we need to record this
-	// to prevent subsequent txns that depend on t from executing
-	// at the same time
-	if t.blocking != nil && t.blocking.Len() != 0 {
-		e.blocking.Add(id)
 	}
 }
 
