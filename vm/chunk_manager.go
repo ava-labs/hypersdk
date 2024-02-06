@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
-	"golang.org/x/exp/maps"
 )
 
 const (
@@ -362,17 +361,48 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 		return
 	}
 	copy(msg[1:], chunkBytes)
-	validators, _ := c.vm.proposerMonitor.Validators(ctx)
+	validators := c.vm.proposerMonitor.GetValidatorSet(ctx, false)
 	cw := &chunkWrapper{
 		chunk:      chunk,
-		signatures: make(map[ids.ID]*chain.ChunkSignature, len(validators)),
+		signatures: make(map[ids.ID]*chain.ChunkSignature, len(validators)+1),
 	}
+
+	// Sign our own chunk
+	cid, _ := chunk.ID()
+	chunkSignature := &chain.ChunkSignature{
+		Chunk: cid,
+		Slot:  chunk.Slot,
+	}
+	digest, err := chunkSignature.Digest()
+	if err != nil {
+		panic(err)
+	}
+	warpMessage := &warp.UnsignedMessage{
+		NetworkID:     c.vm.snowCtx.NetworkID,
+		SourceChainID: c.vm.snowCtx.ChainID,
+		Payload:       digest,
+	}
+	sig, err := c.vm.snowCtx.WarpSigner.Sign(warpMessage)
+	if err != nil {
+		panic(err)
+	}
+	// We don't include the signer in the digest because we can't verify
+	// the aggregate signature over the chunk if we do.
+	chunkSignature.Signer = c.vm.snowCtx.PublicKey
+	chunkSignature.Signature, err = bls.SignatureFromBytes(sig)
+	if err != nil {
+		panic(err)
+	}
+	cw.signatures[utils.ToID(bls.PublicKeyToBytes(chunkSignature.Signer))] = chunkSignature
 	c.built.Add([]*chunkWrapper{cw})
+
+	// Send chunk to all validators
+	//
 	// TODO: consider changing to request (for signature)? -> would allow for a job poller style where we could keep sending?
 	//
 	// This would put some sort of latency requirement for other nodes to persist/sign the chunk (we should probably just let it flow
 	// more loosely.
-	c.appSender.SendAppGossipSpecific(ctx, set.Of(maps.Keys(validators)...), msg) // skips validators we aren't connected to
+	c.appSender.SendAppGossipSpecific(ctx, validators, msg) // skips validators we aren't connected to
 }
 
 func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.ChunkCertificate) {
@@ -384,6 +414,5 @@ func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.Chu
 		return
 	}
 	copy(msg[1:], certBytes)
-	validators, _ := c.vm.proposerMonitor.Validators(ctx)
-	c.appSender.SendAppGossipSpecific(ctx, set.Of(maps.Keys(validators)...), msg) // skips validators we aren't connected to
+	c.appSender.SendAppGossipSpecific(ctx, c.vm.proposerMonitor.GetValidatorSet(ctx, false), msg) // skips validators we aren't connected to
 }

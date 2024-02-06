@@ -189,3 +189,18 @@ func (p *ProposerMonitor) GetCanonicalValidatorSet(
 	utils.Sort(vdrList)
 	return vdrList, totalWeight, nil
 }
+
+func (p *ProposerMonitor) GetValidatorSet(
+	ctx context.Context,
+	includeMe bool,
+) set.Set[ids.NodeID] {
+	vdrs, _ := p.Validators(ctx)
+	vdrSet := set.NewSet[ids.NodeID](len(vdrs))
+	for v := range vdrs {
+		if v == p.vm.snowCtx.NodeID && !includeMe {
+			continue
+		}
+		vdrSet.Add(v)
+	}
+	return vdrSet
+}
