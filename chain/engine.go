@@ -36,8 +36,6 @@ type output struct {
 type Engine struct {
 	vm VM
 
-	incoming chan *Transaction
-
 	backlog chan *engineJob
 
 	outputsLock   sync.RWMutex
@@ -50,8 +48,6 @@ func NewEngine(vm VM, maxBacklog int) *Engine {
 	// surge to maximize chunk inclusion
 	return &Engine{
 		vm: vm,
-
-		incoming: make(chan *Transaction, 16384), // TODO: make configurable
 
 		backlog: make(chan *engineJob, maxBacklog),
 
@@ -291,14 +287,4 @@ func (e *Engine) IsRepeatTx(
 	}
 	e.outputsLock.RUnlock()
 	return e.vm.IsRepeatTx(ctx, txs, marker), nil
-}
-
-func (e *Engine) Queue(tx *Transaction) bool {
-	select {
-	case e.incoming <- tx:
-		return true
-	default:
-		e.vm.Logger().Warn("dropping transaction because incoming full", zap.Stringer("txID", tx.ID()))
-		return false
-	}
 }

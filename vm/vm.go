@@ -76,6 +76,7 @@ type VM struct {
 	// we use an emap here to avoid recursing through all previously
 	// issued chunks when packing a new chunk.
 	issuedTxs *emap.EMap[*chain.Transaction]
+	mempool   *mempool.Mempool[*chain.Transaction]
 
 	// track all accepted but still valid txs (replay protection)
 	seenTxs                *emap.EMap[*chain.Transaction]
@@ -808,8 +809,10 @@ func (vm *VM) Submit(
 	// for our partition.
 	repeats := vm.issuedTxs.Contains(txs, set.NewBits(), false)
 
-	// Perform basic validity checks and add to chunks
-	issuedTxs := make([]*chain.Transaction, 0, len(txs))
+	// Perform basic validity checks before storing in mempool
+	now := time.Now().UnixMilli()
+	r := vm.Rules(now)
+	validTxs := make([]*chain.Transaction, 0, len(txs))
 	for i, tx := range txs {
 		// Check if transaction is a repeat before doing any extra work
 		if repeats.Contains(i) {
@@ -826,7 +829,11 @@ func (vm *VM) Submit(
 			continue
 		}
 
-		// TODO: ensure not expired and not too far in the future
+		// Ensure not expired and not too far in the future
+		if err := tx.Base.Execute(vm.snowCtx.ChainID, r, now); err != nil {
+			errs = append(errs, err)
+			continue
+		}
 
 		// Ensure state keys are valid
 		_, err := tx.StateKeys(vm.c.StateManager())
@@ -855,12 +862,10 @@ func (vm *VM) Submit(
 			}
 		}
 		errs = append(errs, nil)
-
-		// Add to chunk queue
-		if vm.engine.Queue(tx) {
-			// TODO: how to prevent duplicates from submit called concurrently?
-		}
+		validTxs = append(validTxs, tx)
 	}
+	vm.mempool.Add(ctx, validTxs)
+	vm.checkActivity(ctx)
 	return errs
 }
 
