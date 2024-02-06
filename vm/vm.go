@@ -1017,7 +1017,7 @@ func (vm *VM) backfillSeenTransactions() {
 	// Exit early if we don't have any blocks other than genesis (which
 	// contains no transactions)
 	blk := vm.lastAccepted
-	if blk.Hght == 0 {
+	if blk.Height() == 0 {
 		vm.snowCtx.Log.Info("no seen transactions to backfill")
 		vm.startSeenTime = 0
 		vm.seenValidityWindowOnce.Do(func() {
@@ -1027,10 +1027,11 @@ func (vm *VM) backfillSeenTransactions() {
 	}
 
 	// Backfill [vm.seen] with lifeline worth of transactions
-	r := vm.Rules(vm.lastAccepted.Tmstmp)
+	t := vm.lastAccepted.StatefulBlock.Timestamp
+	r := vm.Rules(t)
 	oldest := uint64(0)
 	for {
-		if vm.lastAccepted.Tmstmp-blk.Tmstmp > r.GetValidityWindow() {
+		if t-blk.StatefulBlock.Timestamp > r.GetValidityWindow() {
 			// We are assured this function won't be running while we accept
 			// a block, so we don't need to protect against closing this channel
 			// twice.
@@ -1041,9 +1042,10 @@ func (vm *VM) backfillSeenTransactions() {
 		}
 
 		// It is ok to add transactions from newest to oldest
-		vm.seen.Add(blk.Txs)
+		// TODO: iterate through all filtered chunks in accepted blocks
+		vm.seenTxs.Add(blk.Txs)
 		vm.startSeenTime = blk.Tmstmp
-		oldest = blk.Hght
+		oldest = blk.Height()
 
 		// Exit early if next block to fetch is genesis (which contains no
 		// txs)
