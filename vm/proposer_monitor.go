@@ -90,12 +90,12 @@ func (p *ProposerMonitor) refresh(ctx context.Context) error {
 	return nil
 }
 
-func (p *ProposerMonitor) IsValidator(ctx context.Context, nodeID ids.NodeID) (bool, error) {
+func (p *ProposerMonitor) IsValidator(ctx context.Context, nodeID ids.NodeID) (bool, *bls.PublicKey, uint64, error) {
 	if err := p.refresh(ctx); err != nil {
-		return false, err
+		return false, nil, 0, err
 	}
-	_, ok := p.validators[nodeID]
-	return ok, nil
+	output, ok := p.validators[nodeID]
+	return ok, output.PublicKey, output.Weight, nil
 }
 
 func (p *ProposerMonitor) Proposers(

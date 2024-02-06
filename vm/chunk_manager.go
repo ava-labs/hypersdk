@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"bytes"
 	"context"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto/bls"
+	"github.com/ava-labs/hypersdk/emap"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
 )
@@ -21,11 +23,30 @@ const (
 	chunkCertificateMsg uint8 = 0x2
 )
 
+type chunkWrapper struct {
+	chunk      *chain.Chunk
+	signatures map[ids.NodeID]*chain.ChunkSignature
+}
+
+func (cw *chunkWrapper) ID() ids.ID {
+	id, err := cw.chunk.ID()
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
+func (cw *chunkWrapper) Expiry() int64 {
+	return cw.chunk.Slot
+}
+
 // TODO: move to standalone package
 type ChunkManager struct {
 	vm *VM
 
 	appSender common.AppSender
+
+	chunks *emap.EMap[*chunkWrapper]
 
 	// connected includes all connected nodes, not just those that are validators
 	connected set.Set[ids.NodeID]
@@ -34,6 +55,8 @@ type ChunkManager struct {
 func NewChunkManager(vm *VM) *ChunkManager {
 	return &ChunkManager{
 		vm: vm,
+
+		chunks: emap.NewEMap[*chunkWrapper](),
 
 		connected: set.NewSet[ids.NodeID](64), // TODO: make a const
 	}
@@ -62,7 +85,8 @@ func (c *ChunkManager) PushSignature(ctx context.Context, nodeID ids.NodeID, sig
 }
 
 func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
-	ok, err := c.vm.proposerMonitor.IsValidator(ctx, nodeID)
+	// Check that sender is a validator
+	ok, pk, _, err := c.vm.proposerMonitor.IsValidator(ctx, nodeID)
 	if err != nil {
 		c.vm.Logger().Warn("unable to determine if node is a validator", zap.Error(err))
 		return nil
@@ -138,7 +162,17 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
-		// TODO: Check if we broadcast this chunk (if not, drop signature)
+		// Check if we broadcast this chunk
+		if !c.chunks.HasID(chunkSignature.Chunk) {
+			c.vm.Logger().Warn("dropping useless chunk signature", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			return nil
+		}
+
+		// Check that signer is associated with NodeID
+		if !bytes.Equal(bls.PublicKeyToBytes(pk), bls.PublicKeyToBytes(chunkSignature.Signer)) {
+			c.vm.Logger().Warn("unexpected signer", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
 
 		// Verify signature
 		if !chunkSignature.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID) {
@@ -146,7 +180,16 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
-		// TODO: if chunk creator, collect signatures
+		// Collect signature
+		//
+		// TODO: add locking
+		cw, ok := c.chunks.Get(chunkSignature.Chunk)
+		if !ok {
+			// This shouldn't happen because we checked earlier but could
+			c.vm.Logger().Warn("dropping untracked chunk", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
+		cw.signatures[nodeID] = chunkSignature
 	case chunkCertificateMsg:
 		// Verify certificate using the current validator set
 		//
@@ -202,6 +245,11 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	c.appSender = appSender
 }
 
+// Drop all chunks that can no longer be included anymore (may have already been included).
+func (c *ChunkManager) SetMin(ctx context.Context, t int64) []ids.ID {
+	return c.chunks.SetMin(t)
+}
+
 // TODO: sign own chunks and add to cert
 func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 	// TODO: record chunks we sent out to collect signatures
@@ -214,6 +262,11 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 	}
 	copy(msg[1:], chunkBytes)
 	validators, _ := c.vm.proposerMonitor.Validators(ctx)
+	cw := &chunkWrapper{
+		chunk:      chunk,
+		signatures: make(map[ids.NodeID]*chain.ChunkSignature, len(validators)),
+	}
+	c.chunks.Add([]*chunkWrapper{cw})
 	// TODO: consider changing to request (for signature)? -> would allow for a job poller style where we could keep sending?
 	c.appSender.SendAppGossipSpecific(ctx, set.Of(maps.Keys(validators)...), msg) // skips validators we aren't connected to
 }

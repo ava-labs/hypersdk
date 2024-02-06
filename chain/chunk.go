@@ -150,6 +150,7 @@ type ChunkSignature struct {
 	Chunk ids.ID `json:"chunk"`
 	Slot  int64  `json:"slot"` // used for builders that don't yet have the chunk being sequenced to verify not included before expiry
 
+	// TODO: may need NodeID to track weight? -> can get from the NodeID response
 	Signer    *bls.PublicKey `json:"signer"`
 	Signature *bls.Signature `json:"signature"`
 }

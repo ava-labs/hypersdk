@@ -29,14 +29,14 @@ type EMap[T Item] struct {
 	mu sync.RWMutex
 
 	bh    *heap.Heap[*bucket, int64]
-	seen  set.Set[ids.ID]   // Stores a set of unique tx ids
+	seen  map[ids.ID]T      // Stores a set of unique tx ids
 	times map[int64]*bucket // Uses timestamp as keys to map to buckets of ids.
 }
 
 // NewEMap returns a pointer to a instance of an empty EMap struct.
 func NewEMap[T Item]() *EMap[T] {
 	return &EMap[T]{
-		seen:  set.Set[ids.ID]{},
+		seen:  map[ids.ID]T{},
 		times: make(map[int64]*bucket),
 		bh:    heap.New[*bucket, int64](120, true),
 	}
@@ -48,7 +48,7 @@ func (e *EMap[T]) Add(items []T) {
 	defer e.mu.Unlock()
 
 	for _, item := range items {
-		e.add(item.ID(), item.Expiry())
+		e.add(item)
 	}
 }
 
@@ -56,17 +56,21 @@ func (e *EMap[T]) Add(items []T) {
 // is genesis(0) or the id has been seen already, add returns. The id is
 // added to a bucket with timestamp [t]. If no bucket exists, add creates a
 // new bucket and pushes it to the binaryHeap.
-func (e *EMap[T]) add(id ids.ID, t int64) {
+func (e *EMap[T]) add(item T) {
+	id := item.ID()
+	t := item.Expiry()
+
 	// Assume genesis txs can't be placed in seen tracker
 	if t == 0 {
 		return
 	}
 
 	// Check if already exists
-	if e.seen.Contains(id) {
+	_, ok := e.seen[id]
+	if ok {
 		return
 	}
-	e.seen.Add(id)
+	e.seen[id] = item
 
 	// Check if bucket with time already exists
 	if b, ok := e.times[t]; ok {
@@ -102,7 +106,7 @@ func (e *EMap[T]) SetMin(t int64) []ids.ID {
 		}
 		e.bh.Pop()
 		for _, id := range b.Item.items {
-			e.seen.Remove(id)
+			delete(e.seen, id)
 			evicted = append(evicted, id)
 		}
 		// Delete from times map
@@ -117,7 +121,8 @@ func (e *EMap[T]) Any(items []T) bool {
 	defer e.mu.RUnlock()
 
 	for _, item := range items {
-		if e.seen.Contains(item.ID()) {
+		_, ok := e.seen[item.ID()]
+		if ok {
 			return true
 		}
 	}
@@ -132,7 +137,8 @@ func (e *EMap[T]) Contains(items []T, marker set.Bits, stop bool) set.Bits {
 		if marker.Contains(i) {
 			continue
 		}
-		if e.seen.Contains(item.ID()) {
+		_, ok := e.seen[item.ID()]
+		if ok {
 			marker.Add(i)
 			if stop {
 				return marker
@@ -143,8 +149,21 @@ func (e *EMap[T]) Contains(items []T, marker set.Bits, stop bool) set.Bits {
 }
 
 func (e *EMap[T]) Has(item T) bool {
+	return e.HasID(item.ID())
+}
+
+func (e *EMap[T]) HasID(id ids.ID) bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	return e.seen.Contains(item.ID())
+	_, ok := e.seen[id]
+	return ok
+}
+
+func (e *EMap[T]) Get(id ids.ID) (T, bool) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	item, ok := e.seen[id]
+	return item, ok
 }
