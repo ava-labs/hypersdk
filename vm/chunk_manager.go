@@ -8,7 +8,9 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/crypto/bls"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
 )
@@ -87,41 +89,54 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			c.vm.Logger().Warn("dropping chunk gossip that isn't from producer", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
+		// TODO: ensure signer of chunk is associated with NodeID
+		if !chunk.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID) {
+			c.vm.Logger().Warn("dropping chunk with invalid signature", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
 
 		// Sign chunk
 		// TODO: allow for signing different types of messages
-		// TODO: save for chunks we make
-		// digest, err := chunk.Digest()
-		// if err != nil {
-		// 	c.vm.Logger().Warn("unable to produce chunk digest", zap.Stringer("nodeID", nodeID), zap.Error(err))
-		// 	return nil
-		// }
-		// msg := &warp.UnsignedMessage{
-		// 	NetworkID:     c.vm.snowCtx.NetworkID,
-		// 	SourceChainID: c.vm.snowCtx.ChainID,
-		// 	Payload:       digest,
-		// }
 		// TODO: create signer for chunkID
-		sig, err := c.vm.snowCtx.WarpSigner.Sign(msg)
-		if err != nil {
-			c.vm.Logger().Warn("unable to sign chunk digest", zap.Stringer("nodeID", nodeID), zap.Error(err))
-			return nil
-		}
-
-		// Send back signature if valid
 		cid, err := chunk.ID()
 		if err != nil {
-			c.vm.Logger().Warn("unable to get chunkID", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			c.vm.Logger().Warn("cannot generate id", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
-		sigMsg := &chain.ChunkSignature{
+		chunkSignature := &chain.ChunkSignature{
 			Chunk: cid,
+			Slot:  chunk.Slot,
 		}
-		c.PushSignature(ctx, nodeID, sigMsg)
+		digest, err := chunkSignature.Digest()
+		if err != nil {
+			c.vm.Logger().Warn("cannot generate cert digest", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			return nil
+		}
+		warpMessage := &warp.UnsignedMessage{
+			NetworkID:     c.vm.snowCtx.NetworkID,
+			SourceChainID: c.vm.snowCtx.ChainID,
+			Payload:       digest,
+		}
+		sig, err := c.vm.snowCtx.WarpSigner.Sign(warpMessage)
+		if err != nil {
+			c.vm.Logger().Warn("unable to sign chunk digest", zap.Error(err))
+			return nil
+		}
+		// We don't include the signer in the digest because we can't verify
+		// the aggregate signature over the chunk if we do.
+		chunkSignature.Signer = c.vm.snowCtx.PublicKey
+		chunkSignature.Signature, err = bls.SignatureFromBytes(sig)
+		if err != nil {
+			c.vm.Logger().Warn("unable to parse signature", zap.Error(err))
+			return nil
+		}
+		c.PushSignature(ctx, nodeID, chunkSignature)
 	case chunkSignatureMsg:
 		// TODO: if chunk creator, collect signatures
 	case chunkCertificateMsg:
 		// TODO: add to engine for block inclusion
+
+		// TODO: don't include in block if we don't have chunk
 	}
 	return nil
 }
