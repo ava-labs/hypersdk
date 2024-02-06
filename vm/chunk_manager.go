@@ -48,9 +48,10 @@ type ChunkManager struct {
 
 	appSender common.AppSender
 
-	chunks *emap.EMap[*chunkWrapper]
+	built *emap.EMap[*chunkWrapper]
 
-	// connected includes all connected nodes, not just those that are validators
+	// connected includes all connected nodes, not just those that are validators (we use
+	// this for requesting chunks from only connected nodes)
 	connected set.Set[ids.NodeID]
 }
 
@@ -58,7 +59,7 @@ func NewChunkManager(vm *VM) *ChunkManager {
 	return &ChunkManager{
 		vm: vm,
 
-		chunks: emap.NewEMap[*chunkWrapper](),
+		built: emap.NewEMap[*chunkWrapper](),
 
 		connected: set.NewSet[ids.NodeID](64), // TODO: make a const
 	}
@@ -167,7 +168,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 
 		// Check if we broadcast this chunk
-		if !c.chunks.HasID(chunkSignature.Chunk) {
+		if !c.built.HasID(chunkSignature.Chunk) {
 			c.vm.Logger().Warn("dropping useless chunk signature", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
@@ -187,7 +188,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Collect signature
 		//
 		// TODO: add locking
-		cw, ok := c.chunks.Get(chunkSignature.Chunk)
+		cw, ok := c.built.Get(chunkSignature.Chunk)
 		if !ok {
 			// This shouldn't happen because we checked earlier but could
 			c.vm.Logger().Warn("dropping untracked chunk", zap.Stringer("nodeID", nodeID))
@@ -347,7 +348,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 
 // Drop all chunks that can no longer be included anymore (may have already been included).
 func (c *ChunkManager) SetMin(ctx context.Context, t int64) []ids.ID {
-	return c.chunks.SetMin(t)
+	return c.built.SetMin(t)
 }
 
 // TODO: sign own chunks and add to cert
@@ -364,10 +365,13 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 	validators, _ := c.vm.proposerMonitor.Validators(ctx)
 	cw := &chunkWrapper{
 		chunk:      chunk,
-		signatures: make(map[ids.NodeID]*chain.ChunkSignature, len(validators)),
+		signatures: make(map[ids.ID]*chain.ChunkSignature, len(validators)),
 	}
-	c.chunks.Add([]*chunkWrapper{cw})
+	c.built.Add([]*chunkWrapper{cw})
 	// TODO: consider changing to request (for signature)? -> would allow for a job poller style where we could keep sending?
+	//
+	// This would put some sort of latency requirement for other nodes to persist/sign the chunk (we should probably just let it flow
+	// more loosely.
 	c.appSender.SendAppGossipSpecific(ctx, set.Of(maps.Keys(validators)...), msg) // skips validators we aren't connected to
 }
 

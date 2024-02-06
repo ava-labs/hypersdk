@@ -155,8 +155,12 @@ type ChunkSignature struct {
 	Signature *bls.Signature `json:"signature"`
 }
 
+func (c *ChunkSignature) Size() int {
+	return consts.IDLen + consts.Int64Len + bls.PublicKeyLen + bls.SignatureLen
+}
+
 func (c *ChunkSignature) Marshal() ([]byte, error) {
-	size := consts.IDLen + consts.Int64Len + bls.PublicKeyLen + bls.SignatureLen
+	size := c.Size()
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	p.PackID(c.Chunk)
