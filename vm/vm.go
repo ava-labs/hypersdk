@@ -477,6 +477,9 @@ func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) 
 	if !vm.isReady() {
 		return hutils.Repeat[[]byte](nil, len(keys)), hutils.Repeat(ErrNotReady, len(keys))
 	}
+
+	// TODO: read last executed state rather than accepted state
+
 	// Atomic read to ensure consistency
 	return vm.stateDB.GetValues(ctx, keys)
 }
@@ -828,6 +831,8 @@ func (vm *VM) Submit(
 			errs = append(errs, ErrNotAdded)
 			continue
 		}
+
+		// TODO: check that bond is valid
 
 		// Ensure not expired and not too far in the future
 		if err := tx.Base.Execute(vm.snowCtx.ChainID, r, now); err != nil {
