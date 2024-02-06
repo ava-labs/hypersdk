@@ -168,7 +168,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	if t.dependencies != nil && t.dependencies.Len() > 0 {
 		// Ensure that we don't schedule a transaction that is
 		// blocked by another transaction currently running
-		for _, bID := range t.dependencies {
+		for bID := range t.dependencies {
 			// don't execute if any dependency task is in blocking
 			if e.blocking.Contains(bID) {
 				if e.metrics != nil {
