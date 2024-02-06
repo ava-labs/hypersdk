@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
 )
@@ -25,7 +26,7 @@ const (
 
 type chunkWrapper struct {
 	chunk      *chain.Chunk
-	signatures map[ids.NodeID]*chain.ChunkSignature
+	signatures map[ids.ID]*chain.ChunkSignature
 }
 
 func (cw *chunkWrapper) ID() ids.ID {
@@ -189,11 +190,70 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			c.vm.Logger().Warn("dropping untracked chunk", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
-		cw.signatures[nodeID] = chunkSignature
+		cw.signatures[utils.ToID(bls.PublicKeyToBytes(chunkSignature.Signer))] = chunkSignature // canonical validator set requires fetching signature by bls public key
 
-		// TODO: Count pending weight
+		// Count pending weight
+		//
+		// TODO: add safe math
+		// TODO: handle changing validator sets
+		validators, _ := c.vm.proposerMonitor.Validators(ctx)
+		var (
+			weight      uint64 = 0
+			totalWeight uint64 = 0
+		)
+		for _, out := range validators {
+			totalWeight += out.Weight
+			if out.PublicKey == nil {
+				continue
+			}
+			k := utils.ToID(bls.PublicKeyToBytes(out.PublicKey))
+			if _, ok := cw.signatures[k]; ok {
+				weight += out.Weight
+			}
+		}
 
-		// TODO: if weight is sufficient, send to next X validators (or all)
+		// Check if weight is sufficient
+		//
+		// TODO: only send to next x builders
+		// TODO: only send once have a certain weight above 67% or X time until expiry (maximize fee)
+		if err := warp.VerifyWeight(weight, totalWeight, 67, 100); err != nil {
+			c.vm.Logger().Warn("dropping chunk with insufficient weight", zap.Stringer("chunkID", chunkSignature.Chunk))
+			return nil
+		}
+
+		// Construct certificate
+		canonicalValidators, _, err := c.vm.proposerMonitor.GetCanonicalValidatorSet(ctx)
+		if err != nil {
+			c.vm.Logger().Warn("cannot get canonical validator set", zap.Error(err))
+			return nil
+		}
+		signers := set.NewBits()
+		orderedSignatures := []*bls.Signature{}
+		for i, vdr := range canonicalValidators {
+			sig, ok := cw.signatures[utils.ToID(bls.PublicKeyToBytes(vdr.PublicKey))]
+			if !ok {
+				continue
+			}
+			signers.Add(i)
+			orderedSignatures = append(orderedSignatures, sig.Signature)
+		}
+		aggSignature, err := bls.AggregateSignatures(orderedSignatures)
+		if err != nil {
+			c.vm.Logger().Warn("cannot generate aggregate signature", zap.Error(err))
+			return nil
+		}
+
+		// Send certificate to all validators
+		//
+		// TODO: only send to next x builders
+		cert := &chain.ChunkCertificate{
+			Chunk: chunkSignature.Chunk,
+			Slot:  chunkSignature.Slot,
+
+			Signers:   signers,
+			Signature: aggSignature,
+		}
+		c.PushChunkCertificate(ctx, cert)
 	case chunkCertificateMsg:
 		// TODO: Verify certificate using the current validator set
 		//

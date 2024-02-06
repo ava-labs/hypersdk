@@ -12,11 +12,14 @@ import (
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"go.uber.org/zap"
+	"golang.org/x/exp/maps"
 )
 
 const (
@@ -113,7 +116,7 @@ func (p *ProposerMonitor) Proposers(
 	proposersToGossip := set.NewSet[ids.NodeID](diff * depth)
 	udepth := uint64(depth)
 	for i := uint64(1); i <= uint64(diff); i++ {
-		height := preferredBlk.Hght + i
+		height := preferredBlk.Height() + i
 		key := fmt.Sprintf("%d-%d", height, p.currentPHeight)
 		var proposers []ids.NodeID
 		if v, ok := p.proposerCache.Get(key); ok {
@@ -131,11 +134,58 @@ func (p *ProposerMonitor) Proposers(
 	return proposersToGossip, nil
 }
 
+// TODO: remove this function, isn't safe?
 func (p *ProposerMonitor) Validators(
 	ctx context.Context,
 ) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{}) {
 	if err := p.refresh(ctx); err != nil {
+		// TODO: return error
 		return nil, nil
 	}
 	return p.validators, p.validatorPublicKeys
+}
+
+// getCanonicalValidatorSet returns the validator set of [subnetID] in a canonical ordering.
+// Also returns the total weight on [subnetID].
+func (p *ProposerMonitor) GetCanonicalValidatorSet(
+	ctx context.Context,
+) ([]*warp.Validator, uint64, error) {
+	if err := p.refresh(ctx); err != nil {
+		return nil, 0, err
+	}
+
+	var (
+		vdrs        = make(map[string]*warp.Validator, len(p.validators))
+		totalWeight uint64
+		err         error
+	)
+	for _, vdr := range p.validators {
+		totalWeight, err = math.Add64(totalWeight, vdr.Weight)
+		if err != nil {
+			return nil, 0, fmt.Errorf("%w: %v", warp.ErrWeightOverflow, err) //nolint:errorlint
+		}
+
+		if vdr.PublicKey == nil {
+			fmt.Println("skipping validator because of empty public key", vdr.NodeID)
+			continue
+		}
+
+		pkBytes := bls.PublicKeyToBytes(vdr.PublicKey)
+		uniqueVdr, ok := vdrs[string(pkBytes)]
+		if !ok {
+			uniqueVdr = &warp.Validator{
+				PublicKey:      vdr.PublicKey,
+				PublicKeyBytes: pkBytes,
+			}
+			vdrs[string(pkBytes)] = uniqueVdr
+		}
+
+		uniqueVdr.Weight += vdr.Weight // Impossible to overflow here
+		uniqueVdr.NodeIDs = append(uniqueVdr.NodeIDs, vdr.NodeID)
+	}
+
+	// Sort validators by public key
+	vdrList := maps.Values(vdrs)
+	utils.Sort(vdrList)
+	return vdrList, totalWeight, nil
 }
