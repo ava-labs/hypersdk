@@ -3,15 +3,16 @@ package vm
 import (
 	"bytes"
 	"context"
+	"errors"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
@@ -119,6 +120,8 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			c.vm.Logger().Warn("dropping chunk with invalid signature", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
+
+		// TODO: persist chunk to disk (delete if not used in time)
 
 		// Sign chunk
 		// TODO: allow for signing different types of messages
@@ -255,13 +258,46 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 		c.PushChunkCertificate(ctx, cert)
 	case chunkCertificateMsg:
-		// TODO: Verify certificate using the current validator set
+		cert, err := chain.UnmarshalChunkCertificate(msg[1:])
+		if err != nil {
+			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			return nil
+		}
+
+		// Verify certificate using the current validator set
 		//
 		// TODO: consider re-verifying on some cadence prior to expiry?
+		validators, weight, err := c.vm.proposerMonitor.GetCanonicalValidatorSet(ctx)
+		if err != nil {
+			c.vm.Logger().Warn("cannot get canonical validator set", zap.Error(err))
+			return nil
+		}
+		filteredVdrs, err := warp.FilterValidators(cert.Signers, validators)
+		if err != nil {
+			return err
+		}
+		filteredWeight, err := warp.SumWeight(filteredVdrs)
+		if err != nil {
+			return err
+		}
+		if err := warp.VerifyWeight(filteredWeight, weight, 67, 100); err != nil {
+			return err
+		}
+		aggrPubKey, err := warp.AggregatePublicKeys(filteredVdrs)
+		if err != nil {
+			return err
+		}
+		msg, err := cert.Digest()
+		if err != nil {
+			return err
+		}
+		if !bls.Verify(aggrPubKey, cert.Signature, msg) {
+			return errors.New("certificate invalid")
+		}
 
-		// TODO: add to engine for block inclusion
+		// TODO: fetch chunk if we don't have it from a signer (run down list and sample)
 
-		// TODO: don't include in block if we don't have chunk
+		// TODO: Store chunk certificate for building
 	}
 	return nil
 }

@@ -368,6 +368,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 			return err
 		}
 
+		// TODO: replace with canonical function used in proposer monito
 		// Compute canonical validator set (already have set, so don't call again)
 		// Source: https://github.com/ava-labs/avalanchego/blob/813bd481c764970b5c47c3ae9c0a40f2c28da8e4/vms/platformvm/warp/validator.go#L61-L92
 		var (
@@ -431,6 +432,8 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 			//
 			// Signatures will only be given for a configurable number of chunks per
 			// second.
+			//
+			// TODO: consider moving to unmarshal
 			if cert.Expiry%consts.MillisecondsPerDecisecond != 0 {
 				return ErrMisalignedTime
 			}
