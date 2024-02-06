@@ -13,6 +13,12 @@ import (
 	"golang.org/x/exp/maps"
 )
 
+const (
+	chunkMsg          uint8 = 0x0
+	chunkSignatureMsg uint8 = 0x1
+	certMsg           uint8 = 0x1
+)
+
 type ChunkManager struct {
 	vm *VM
 
@@ -88,14 +94,28 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 }
 
 func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
-	chunkMsg := make([]byte, chunk.Size()+1)
-	chunkMsg[0] = 0
+	// TODO: record chunks we sent out to collect signatures
+	msg := make([]byte, 1+chunk.Size())
+	msg[0] = chunkMsg
 	chunkBytes, err := chunk.Marshal()
 	if err != nil {
 		c.vm.Logger().Warn("failed to marshal chunk", zap.Error(err))
 		return
 	}
-	copy(chunkMsg[1:], chunkBytes)
+	copy(msg[1:], chunkBytes)
 	validators, _ := c.vm.proposerMonitor.Validators(ctx)
-	c.appSender.SendAppGossipSpecific(ctx, set.Of(maps.Keys(validators)...), chunkMsg) // skips validators we aren't connected to
+	c.appSender.SendAppGossipSpecific(ctx, set.Of(maps.Keys(validators)...), msg) // skips validators we aren't connected to
+}
+
+func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.ChunkCertificate) {
+	msg := make([]byte, 1+cert.Size())
+	msg[0] = certMsg
+	certBytes, err := cert.Marshal()
+	if err != nil {
+		c.vm.Logger().Warn("failed to marshal chunk", zap.Error(err))
+		return
+	}
+	copy(msg[1:], certBytes)
+	validators, _ := c.vm.proposerMonitor.Validators(ctx)
+	c.appSender.SendAppGossipSpecific(ctx, set.Of(maps.Keys(validators)...), msg) // skips validators we aren't connected to
 }
