@@ -132,12 +132,15 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 		c.PushSignature(ctx, nodeID, chunkSignature)
 	case chunkSignatureMsg:
-		// Verify signature
 		chunkSignature, err := chain.UnmarshalChunkSignature(msg[1:])
 		if err != nil {
 			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
+
+		// TODO: Check if we broadcast this chunk (if not, drop signature)
+
+		// Verify signature
 		if !chunkSignature.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID) {
 			c.vm.Logger().Warn("dropping chunk signature with invalid signature", zap.Stringer("nodeID", nodeID))
 			return nil
