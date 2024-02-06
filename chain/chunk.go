@@ -231,6 +231,7 @@ func (c *ChunkCertificate) MarshalPacker(p *codec.Packer) error {
 	return p.Err()
 }
 
+// TODO: move this to be over chunk (with no signers)
 func (c *ChunkCertificate) Digest() ([]byte, error) {
 	signers := c.Signers.Bytes()
 	size := consts.IDLen + consts.Int64Len + consts.NodeIDLen + codec.BytesLen(signers)
