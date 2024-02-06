@@ -5,7 +5,6 @@ package executor
 
 import (
 	"sync"
-	//"fmt"
 
 	"github.com/ava-labs/avalanchego/utils/set"
 
@@ -118,9 +117,6 @@ func (e *Executor) createWorker() {
 
 // Run executes [f] after all previously enqueued [f] with
 // overlapping [conflicts] are executed.
-// TODO: Handle read-only/write-only keys (currently the executor
-// treats everything still as ReadWrite, see issue below)
-// https://github.com/ava-labs/hypersdk/issues/709
 func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	e.l.Lock()
 	defer e.l.Unlock()
@@ -146,11 +142,10 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 					lt.blocking = set.NewSet[int](defaultSetSize)
 				}
 				// key has ONLY a Read permission
-				// TODO: clean this up
-				if v.Has(state.Read) && !v.Has(state.Write) && !v.Has(state.Allocate) {
-					// lt contains a Write permission. If lt had only a Read
+				if v == state.Read {
+					// lt contains either Allocate or Write permission. If lt had only a Read
 					// permission, no dependency or blocking would be added
-					if latest.Permissions.Has(state.Write) {
+					if latest.Permissions.Has(state.Allocate) || latest.Permissions.Has(state.Write) {
 						t.dependencies.Add(lt.id) // t depends on lt to execute
 						lt.blocking.Add(id)       // lt is blocking this current task
 					}
@@ -158,8 +153,8 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 
 				// key contains a Write permission
 				if v.Has(state.Write) {
-					// lt contains a Read or Write permission
-					if latest.Permissions.Has(state.Read | state.Write) {
+					// lt contains either Read, Allocate, or Write
+					if latest.Permissions.Has(state.Read) || latest.Permissions.Has(state.Allocate) || latest.Permissions.Has(state.Write) {
 						t.dependencies.Add(lt.id)
 						lt.blocking.Add(id)
 					}
