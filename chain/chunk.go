@@ -6,6 +6,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
@@ -86,6 +87,20 @@ func (c *Chunk) Marshal() ([]byte, error) {
 	return bytes, nil
 }
 
+func (c *Chunk) VerifySignature(networkID uint32, chainID ids.ID) bool {
+	digest, err := c.Digest()
+	if err != nil {
+		return false
+	}
+	// TODO: don't use warp message for this (nice to have chainID protection)?
+	msg := &warp.UnsignedMessage{
+		NetworkID:     networkID,
+		SourceChainID: chainID,
+		Payload:       digest,
+	}
+	return bls.Verify(c.Signer, c.Signature, msg.Bytes())
+}
+
 func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 	var (
 		actionRegistry, authRegistry = parser.Registry()
@@ -132,10 +147,10 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 }
 
 type ChunkSignature struct {
-	Chunk ids.ID `json:"chunk"`
-	Slot  int64  `json:"slot"`
+	Chunk    ids.ID     `json:"chunk"`
+	Slot     int64      `json:"slot"`
+	Producer ids.NodeID `json:"producer"`
 
-	Producer  ids.NodeID     `json:"producer"`
 	Signer    *bls.PublicKey `json:"signer"`
 	Signature *bls.Signature `json:"signature"`
 }
@@ -147,10 +162,36 @@ func (c *ChunkSignature) Marshal() ([]byte, error) {
 	p.PackID(c.Chunk)
 	p.PackInt64(c.Slot)
 	p.PackNodeID(c.Producer)
+
 	p.PackFixedBytes(bls.PublicKeyToBytes(c.Signer))
 	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
 
 	return p.Bytes(), p.Err()
+}
+
+func (c *ChunkSignature) Digest() ([]byte, error) {
+	size := consts.IDLen + consts.Int64Len + consts.NodeIDLen
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
+
+	p.PackID(c.Chunk)
+	p.PackInt64(c.Slot)
+	p.PackNodeID(c.Producer)
+
+	return p.Bytes(), p.Err()
+}
+
+func (c *ChunkSignature) VerifySignature(networkID uint32, chainID ids.ID) bool {
+	digest, err := c.Digest()
+	if err != nil {
+		return false
+	}
+	// TODO: don't use warp message for this (nice to have chainID protection)?
+	msg := &warp.UnsignedMessage{
+		NetworkID:     networkID,
+		SourceChainID: chainID,
+		Payload:       digest,
+	}
+	return bls.Verify(c.Signer, c.Signature, msg.Bytes())
 }
 
 func UnmarshalChunkSignature(raw []byte) (*ChunkSignature, error) {
@@ -233,16 +274,6 @@ func (c *ChunkCertificate) MarshalPacker(p *codec.Packer) error {
 
 // TODO: move this to be over chunk (with no signers)
 func (c *ChunkCertificate) Digest() ([]byte, error) {
-	signers := c.Signers.Bytes()
-	size := consts.IDLen + consts.Int64Len + consts.NodeIDLen + codec.BytesLen(signers)
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-
-	p.PackID(c.Chunk)
-	p.PackInt64(c.Slot)
-	p.PackNodeID(c.Producer)
-	p.PackBytes(signers)
-
-	return p.Bytes(), p.Err()
 }
 
 func UnmarshalChunkCertificate(raw []byte) (*ChunkCertificate, error) {
