@@ -44,11 +44,7 @@ func (cw *chunkWrapper) Expiry() int64 {
 	return cw.chunk.Slot
 }
 
-// TODO: emap of chunks (delete IDs from disk that aren't included on-chain), don't remove when block accepted at timestamp (rather do later after execution final)
-type ChunkStore struct {
-}
-
-// TODO: store FIFO chunk certs
+// Store fifo chunks for building
 type CertStore struct {
 	l *sync.Mutex
 
@@ -106,9 +102,8 @@ type ChunkManager struct {
 
 	appSender common.AppSender
 
-	built  *emap.EMap[*chunkWrapper]
-	chunks *ChunkStore
-	certs  *CertStore
+	built *emap.EMap[*chunkWrapper]
+	certs *CertStore
 
 	// connected includes all connected nodes, not just those that are validators (we use
 	// this for requesting chunks from only connected nodes)
@@ -420,9 +415,10 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	c.appSender = appSender
 }
 
-// Drop all chunks that can no longer be included anymore (may have already been included).
-func (c *ChunkManager) SetMin(ctx context.Context, t int64) []ids.ID {
-	return c.built.SetMin(t)
+// Drop all chunks material that can no longer be included anymore (may have already been included).
+func (c *ChunkManager) SetMin(ctx context.Context, t int64) {
+	c.built.SetMin(t) // discarded chunks will be cleaned up async
+	c.certs.SetMin(ctx, t)
 }
 
 // TODO: sign own chunks and add to cert
@@ -440,6 +436,11 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 	cw := &chunkWrapper{
 		chunk:      chunk,
 		signatures: make(map[ids.ID]*chain.ChunkSignature, len(validators)+1),
+	}
+
+	// Persist our own chunk
+	if err := c.vm.StoreChunk(chunk); err != nil {
+		panic(err)
 	}
 
 	// Sign our own chunk
