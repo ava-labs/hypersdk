@@ -407,24 +407,21 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		// TODO: cache verifications (may be verified multiple times at the same p-chain height while
 		// waiting for execution to complete).
 		for _, cert := range b.AvailableChunks {
-			// Ensure cert is from a validator
+			// TODO: Ensure cert is from a validator
 			//
-			// Signers verify that validator signed chunk with right key when signing chunk
+			// Signers verify that validator signed chunk with right key when signing chunk, so may
+			// not be necessary?
 			//
 			// TODO: consider not verifying this in case validator set changes?
-			_, ok := vdrSet[cert.Producer]
-			if !ok {
-				return errors.New("not a validator")
-			}
 
 			// TODO: consider moving to chunk verify
 			// Ensure chunk is not too early
-			if cert.Expiry > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
+			if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
 				return ErrTimestampTooEarly
 			}
 
 			// Ensure chunk is not expired
-			if cert.Expiry < b.StatefulBlock.Timestamp {
+			if cert.Slot < b.StatefulBlock.Timestamp {
 				return ErrTimestampTooLate
 			}
 
@@ -434,7 +431,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 			// second.
 			//
 			// TODO: consider moving to unmarshal
-			if cert.Expiry%consts.MillisecondsPerDecisecond != 0 {
+			if cert.Slot%consts.MillisecondsPerDecisecond != 0 {
 				return ErrMisalignedTime
 			}
 
