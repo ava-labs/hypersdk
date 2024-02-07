@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -13,7 +14,9 @@ import (
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/list"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 )
@@ -41,16 +44,71 @@ func (cw *chunkWrapper) Expiry() int64 {
 	return cw.chunk.Slot
 }
 
+// TODO: emap of chunks (delete IDs from disk that aren't included on-chain), don't remove when block accepted at timestamp (rather do later after execution final)
+type ChunkStore struct {
+}
+
+// TODO: store FIFO chunk certs
+type CertStore struct {
+	l *sync.Mutex
+
+	queue *list.List[*chain.ChunkCertificate]
+	eh    *eheap.ExpiryHeap[*list.Element[*chain.ChunkCertificate]]
+}
+
+func NewCertStore() *CertStore {
+	return &CertStore{
+		queue: &list.List[*chain.ChunkCertificate]{},
+		eh:    eheap.New[*list.Element[*chain.ChunkCertificate]](64), // TODO: add a config
+	}
+}
+
+// Called when we get a valid cert or if a block is rejected with valid certs.
+func (c *CertStore) Add(cert *chain.ChunkCertificate) {
+	c.l.Lock()
+	defer c.l.Unlock()
+
+	if c.eh.Has(cert.ID()) {
+		return
+	}
+	elem := c.queue.PushBack(cert)
+	c.eh.Add(elem)
+}
+
+// Called when a block is accepted with valid certs.
+func (c *CertStore) SetMin(ctx context.Context, t int64) {
+	c.l.Lock()
+	defer c.l.Unlock()
+
+	removedElems := c.eh.SetMin(t)
+	for _, remove := range removedElems {
+		c.queue.Remove(remove)
+	}
+}
+
+// Pop removes and returns the highest valued item in m.eh.
+func (c *CertStore) Pop(ctx context.Context) (*chain.ChunkCertificate, bool) { // O(log N)
+	c.l.Lock()
+	defer c.l.Unlock()
+
+	first := c.queue.First()
+	if first == nil {
+		return nil, false
+	}
+	v := c.queue.Remove(first)
+	c.eh.Remove(v.ID())
+	return v, true
+}
+
 // TODO: move to standalone package
 type ChunkManager struct {
 	vm *VM
 
 	appSender common.AppSender
 
-	built *emap.EMap[*chunkWrapper]
-
-	// TODO: store FIFO chunk certs
-	// TODO: emap of chunks (delete IDs from disk that aren't included on-chain), don't remove when block accepted at timestamp (rather do later after execution final)
+	built  *emap.EMap[*chunkWrapper]
+	chunks *ChunkStore
+	certs  *CertStore
 
 	// connected includes all connected nodes, not just those that are validators (we use
 	// this for requesting chunks from only connected nodes)
@@ -62,6 +120,7 @@ func NewChunkManager(vm *VM) *ChunkManager {
 		vm: vm,
 
 		built: emap.NewEMap[*chunkWrapper](),
+		certs: NewCertStore(),
 
 		connected: set.NewSet[ids.NodeID](64), // TODO: make a const
 	}
@@ -273,6 +332,12 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
+		// Ensure certificate isn't too old
+		if cert.Slot < c.vm.lastAccepted.StatefulBlock.Timestamp {
+			c.vm.Logger().Warn("dropping expired cert", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
+
 		// Verify certificate using the current validator set
 		//
 		// TODO: consider re-verifying on some cadence prior to expiry?
@@ -306,7 +371,8 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 
 		// TODO: fetch chunk if we don't have it from a signer (run down list and sample)
 
-		// TODO: Store chunk certificate for building
+		// Store chunk certificate for building
+		c.certs.Add(cert)
 	}
 	return nil
 }
