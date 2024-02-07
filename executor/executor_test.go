@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	//"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
@@ -196,4 +197,72 @@ func TestStop(t *testing.T) {
 	}
 	require.Less(len(completed), 500)
 	require.ErrorIs(e.Wait(), ErrStopped) // no task running
+}
+
+func TestWriteAllocKeyThenAddRead(t *testing.T) {
+	var (
+		require     = require.New(t)
+		conflictKey = ids.GenerateTestID().String()
+		l           sync.Mutex
+		completed   = make([]int, 0, 100)
+		e           = New(100, 4, nil)
+	)
+	for i := 0; i < 100; i++ {
+		s := make(state.Keys, (i + 1))
+		for k := 0; k < i+1; k++ {
+			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
+		}
+		if i < 10 && i%2 == 0 {
+			s.Add(conflictKey, state.Allocate|state.Write)
+		} else if i < 10 && i%2 != 0 {
+			s.Add(conflictKey, state.Read)
+		}
+		ti := i
+		e.Run(s, func() error {
+			if ti == 0 {
+				time.Sleep(3 * time.Second)
+			}
+
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			return nil
+		})
+	}
+	require.NoError(e.Wait())
+	require.Equal([]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, completed[90:])
+}
+
+func TestAllKeyThenAddWrite(t *testing.T) {
+	var (
+		require     = require.New(t)
+		conflictKey = ids.GenerateTestID().String()
+		l           sync.Mutex
+		completed   = make([]int, 0, 100)
+		e           = New(100, 4, nil)
+	)
+	for i := 0; i < 100; i++ {
+		s := make(state.Keys, (i + 1))
+		for k := 0; k < i+1; k++ {
+			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
+		}
+		if i < 10 && i%2 == 0 {
+			s.Add(conflictKey, state.All)
+		} else if i < 10 && i%2 != 0 {
+			s.Add(conflictKey, state.Write)
+		}
+		ti := i
+		e.Run(s, func() error {
+			if ti == 0 {
+				time.Sleep(3 * time.Second)
+			}
+
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			return nil
+		})
+	}
+	require.NoError(e.Wait())
+	require.Equal([]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, completed[90:])
 }
