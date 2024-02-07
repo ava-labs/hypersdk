@@ -49,6 +49,9 @@ type ChunkManager struct {
 
 	built *emap.EMap[*chunkWrapper]
 
+	// TODO: store FIFO chunk certs
+	// TODO: emap of chunks (delete IDs from disk that aren't included on-chain), don't remove when block accepted at timestamp (rather do later after execution final)
+
 	// connected includes all connected nodes, not just those that are validators (we use
 	// this for requesting chunks from only connected nodes)
 	connected set.Set[ids.NodeID]
