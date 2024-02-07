@@ -370,7 +370,17 @@ func (t *Transaction) Execute(
 		case err != nil:
 			// An error here can indicate there is an issue with the database or that
 			// the key was not properly specified.
-			return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
+			return &Result{
+				Valid:        true,
+				WarpVerified: warpVerified,
+
+				Success: false,
+				Output:  utils.ErrBytes(err),
+
+				Consumed:    maxUnits,
+				Fee:         maxFee,
+				WarpMessage: nil,
+			}, nil
 		}
 	}
 
@@ -381,7 +391,17 @@ func (t *Transaction) Execute(
 		// are set when this function is defined. If any of them are
 		// modified later, they will not be used here.
 		ts.Rollback(ctx, actionStart)
-		return &Result{false, utils.ErrBytes(rerr), maxUnits, maxFee, nil}, nil
+		return &Result{
+			Valid:        true,
+			WarpVerified: warpVerified,
+
+			Success: false,
+			Output:  utils.ErrBytes(err),
+
+			Consumed:    maxUnits,
+			Fee:         maxFee,
+			WarpMessage: nil,
+		}, nil
 	}
 	success, actionCUs, output, warpMessage, err := t.Action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), t.id, warpVerified)
 	if err != nil {
