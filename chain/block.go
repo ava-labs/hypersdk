@@ -54,12 +54,13 @@ type StatefulBlock struct {
 	StartRoot      ids.ID   `json:"startRoot"`
 	ExecutedChunks []ids.ID `json:"executedChunks"`
 
-	size  int
 	built bool
 }
 
 func (b *StatefulBlock) Size() int {
-	return b.size
+	return consts.IDLen + consts.Uint64Len + consts.Int64Len +
+		consts.IntLen + codec.CummSize(b.AvailableChunks) +
+		consts.IDLen + consts.IntLen + len(b.ExecutedChunks)*consts.IDLen
 }
 
 func (b *StatefulBlock) ID() (ids.ID, error) {
@@ -71,11 +72,7 @@ func (b *StatefulBlock) ID() (ids.ID, error) {
 }
 
 func (b *StatefulBlock) Marshal() ([]byte, error) {
-	size := consts.IDLen + consts.Uint64Len + consts.Int64Len +
-		consts.IntLen + codec.CummSize(b.AvailableChunks) +
-		consts.IDLen + consts.IntLen + len(b.ExecutedChunks)*consts.IDLen
-
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
+	p := codec.NewWriter(b.Size(), consts.NetworkSizeLimit)
 
 	p.PackID(b.Parent)
 	p.PackUint64(b.Height)
@@ -98,7 +95,6 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	if err := p.Err(); err != nil {
 		return nil, err
 	}
-	b.size = len(bytes)
 	return bytes, nil
 }
 
@@ -107,7 +103,6 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 		p = codec.NewReader(raw, consts.NetworkSizeLimit)
 		b StatefulBlock
 	)
-	b.size = len(raw)
 
 	p.UnpackID(false, &b.Parent)
 	b.Height = p.UnpackUint64(false)
@@ -251,6 +246,8 @@ func ParseStatefulBlock(
 	for _, cert := range blk.AvailableChunks {
 		b.chunks.Add(cert.Chunk)
 	}
+
+	// TODO: add parent, execHeight, and bctx to the block?
 
 	return b, nil
 }
