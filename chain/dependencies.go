@@ -95,6 +95,9 @@ type VM interface {
 	// and false if the sync completed with the previous root.
 	UpdateSyncTarget(*StatelessBlock) (bool, error)
 	StateReady() bool
+
+	// TODO: cleanup
+	NextChunkCertificate(ctx context.Context) (*ChunkCertificate, bool)
 }
 
 type VerifyContext interface {

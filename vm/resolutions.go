@@ -508,3 +508,7 @@ func (vm *VM) GetExecutorBuildRecorder() executor.Metrics {
 func (vm *VM) GetExecutorVerifyRecorder() executor.Metrics {
 	return vm.metrics.executorVerifyRecorder
 }
+
+func (vm *VM) NextChunkCertificate(ctx context.Context) (*chain.ChunkCertificate, bool) {
+	return vm.cm.NextChunkCertificate(ctx)
+}

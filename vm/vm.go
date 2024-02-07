@@ -69,6 +69,7 @@ type VM struct {
 
 	tracer trace.Tracer
 
+	cm     *ChunkManager
 	engine *chain.Engine
 
 	// track all issuedTxs (to prevent wasting bandwidth)

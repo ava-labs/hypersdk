@@ -492,3 +492,7 @@ func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.Chu
 	copy(msg[1:], certBytes)
 	c.appSender.SendAppGossipSpecific(ctx, c.vm.proposerMonitor.GetValidatorSet(ctx, false), msg) // skips validators we aren't connected to
 }
+
+func (c *ChunkManager) NextChunkCertificate(ctx context.Context) (*chain.ChunkCertificate, bool) {
+	return c.certs.Pop(ctx)
+}
