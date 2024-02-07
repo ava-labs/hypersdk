@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/emap"
@@ -104,6 +105,8 @@ type ChunkManager struct {
 
 	appSender common.AppSender
 
+	txs *cache.FIFO[ids.ID, any]
+
 	built *emap.EMap[*chunkWrapper]
 	certs *CertStore
 
@@ -113,9 +116,15 @@ type ChunkManager struct {
 }
 
 func NewChunkManager(vm *VM) *ChunkManager {
+	cache, err := cache.NewFIFO[ids.ID, any](16384)
+	if err != nil {
+		panic(err)
+	}
 	return &ChunkManager{
 		vm:   vm,
 		done: make(chan struct{}),
+
+		txs: cache,
 
 		built: emap.NewEMap[*chunkWrapper](),
 		certs: NewCertStore(),
@@ -337,6 +346,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			Signature: aggSignature,
 		}
 		c.PushChunkCertificate(ctx, cert)
+		c.vm.builder.Queue(ctx)
 	case chunkCertificateMsg:
 		cert, err := chain.UnmarshalChunkCertificate(msg[1:])
 		if err != nil {
@@ -385,7 +395,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 
 		// Store chunk certificate for building
 		c.certs.Add(cert)
-
+		c.vm.builder.Queue(ctx)
 	default:
 		c.vm.Logger().Warn("dropping message from non-validator", zap.Stringer("nodeID", nodeID))
 	}
@@ -443,6 +453,8 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	for {
 		select {
 		case <-t.C:
+			c.vm.builder.Queue(context.TODO()) // ensure we try to build at least every 500ms (may be empty)
+
 			chunk, err := chain.BuildChunk(context.TODO(), c.vm)
 			if err != nil {
 				c.vm.Logger().Warn("unable to build chunk", zap.Error(err))
@@ -551,7 +563,20 @@ func (c *ChunkManager) HandleTxs(ctx context.Context, txs []*chain.Transaction) 
 		return
 	}
 
-	// TODO: check cache to see if issued recently (not an issue with partitions)
+	// Check cache to see if issued recently
+	//
+	// TODO: can probably remove when partitions are added but needed know to
+	// prevent distribution of duplicate txs
+	selected := make([]*chain.Transaction, 0, len(txs))
+	for _, tx := range txs {
+		if _, ok := c.txs.Get(tx.ID()); !ok {
+			selected = append(selected, tx)
+			c.txs.Put(tx.ID(), nil)
+		}
+	}
+	if len(selected) == 0 {
+		return
+	}
 
 	// Select random validator recipient and send
 	//
