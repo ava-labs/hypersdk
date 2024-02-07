@@ -1,7 +1,9 @@
 package chain
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
@@ -20,8 +22,58 @@ type Chunk struct {
 	Signer    *bls.PublicKey `json:"signer"`
 	Signature *bls.Signature `json:"signature"`
 
-	size int
-	id   ids.ID
+	id ids.ID
+}
+
+func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
+	c := &Chunk{
+		Txs: make([]*Transaction, 100),
+	}
+
+	// Pack chunk for build duration
+	start := time.Now()
+	mempool := vm.Mempool()
+	mempool.StartStreaming(ctx)
+	for time.Since(start) < vm.GetTargetBuildDuration() && len(c.Txs) < 100 {
+		txs := mempool.Stream(ctx, 16)
+		for i, tx := range txs {
+			// TODO: verify transactions
+
+			c.Txs = append(c.Txs, tx)
+			if len(c.Txs) == 100 {
+				if i+1 < len(txs) {
+					// Restore remaining txs
+					mempool.FinishStreaming(ctx, txs[i+1:])
+				}
+				break
+			}
+		}
+	}
+	if len(c.Txs) < 100 {
+		mempool.FinishStreaming(ctx, nil)
+	}
+
+	// Setup chunk
+	slot := time.Now().UnixMilli()
+	c.Slot = slot - slot%consts.MillisecondsPerDecisecond
+	c.Producer = vm.NodeID()
+	c.Signer = vm.Signer()
+	digest, err := c.Digest()
+	if err != nil {
+		return nil, err
+	}
+	r := vm.Rules(slot) // TODO: replace with actual values?
+	wm := &warp.UnsignedMessage{
+		NetworkID:     r.NetworkID(),
+		SourceChainID: r.ChainID(),
+		Payload:       digest,
+	}
+	sig, err := vm.Sign(wm)
+	if err != nil {
+		return nil, err
+	}
+	c.Signature, err = bls.SignatureFromBytes(sig)
+	return c, err
 }
 
 func (c *Chunk) Digest() ([]byte, error) {
@@ -58,12 +110,11 @@ func (c *Chunk) ID() (ids.ID, error) {
 }
 
 func (c *Chunk) Size() int {
-	return c.size
+	return consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + bls.PublicKeyLen + bls.SignatureLen
 }
 
 func (c *Chunk) Marshal() ([]byte, error) {
-	size := consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + bls.PublicKeyLen + bls.SignatureLen
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
+	p := codec.NewWriter(c.Size(), consts.NetworkSizeLimit)
 
 	// Marshal transactions
 	p.PackInt64(c.Slot)

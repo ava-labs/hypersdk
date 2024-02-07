@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -98,6 +99,9 @@ type VM interface {
 
 	// TODO: cleanup
 	NextChunkCertificate(ctx context.Context) (*ChunkCertificate, bool)
+	NodeID() ids.NodeID
+	Signer() *bls.PublicKey
+	Sign(*warp.UnsignedMessage) ([]byte, error)
 }
 
 type VerifyContext interface {
