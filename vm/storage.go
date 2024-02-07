@@ -40,6 +40,8 @@ const (
 	blockHeightIDPrefix = 0x2 // Height -> ID (don't always need full block from disk)
 	warpSignaturePrefix = 0x3
 	warpFetchPrefix     = 0x4
+	chunkPrefix         = 0x5 // pruneable chunks (sort by slot)
+	filteredChunkPrefix = 0x6 // long-term persistence chunks (TODO: move to flat files or external storage)
 )
 
 var (
@@ -312,4 +314,71 @@ func (vm *VM) GetWarpFetch(txID ids.ID) (int64, error) {
 		return -1, err
 	}
 	return int64(binary.BigEndian.Uint64(v)), nil
+}
+
+func PrefixChunkKey(slot int64, chunk ids.ID) []byte {
+	k := make([]byte, 1+consts.Int64Len+consts.IDLen)
+	k[0] = chunkPrefix
+	binary.BigEndian.PutUint64(k[1:], uint64(slot))
+	copy(k[1+consts.Int64Len:], chunk[:])
+	return k
+}
+
+func (vm *VM) StoreChunk(chunk *chain.Chunk) error {
+	cid, err := chunk.ID()
+	if err != nil {
+		return err
+	}
+	k := PrefixChunkKey(chunk.Slot, cid)
+	b, err := chunk.Marshal()
+	if err != nil {
+		return err
+	}
+	return vm.vmDB.Put(k, b)
+}
+
+func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {
+	k := PrefixChunkKey(slot, chunk)
+	b, err := vm.vmDB.Get(k)
+	if errors.Is(err, database.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return chain.UnmarshalChunk(b, vm)
+}
+
+// TODO: add function to clear chunks
+
+func PrefixFilteredChunkKey(chunk ids.ID) []byte {
+	k := make([]byte, 1+consts.IDLen)
+	k[0] = filteredChunkPrefix
+	copy(k[1:], chunk[:])
+	return k
+}
+
+func (vm *VM) StoreFilteredChunk(chunk *chain.FilteredChunk) error {
+	cid, err := chunk.ID()
+	if err != nil {
+		return err
+	}
+	k := PrefixFilteredChunkKey(cid)
+	b, err := chunk.Marshal()
+	if err != nil {
+		return err
+	}
+	return vm.vmDB.Put(k, b)
+}
+
+func (vm *VM) GetFilteredChunk(chunk ids.ID) (*chain.FilteredChunk, error) {
+	k := PrefixFilteredChunkKey(chunk)
+	b, err := vm.vmDB.Get(k)
+	if errors.Is(err, database.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return chain.UnmarshalFilteredChunk(b, vm)
 }

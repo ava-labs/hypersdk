@@ -375,3 +375,32 @@ func (c *FilteredChunk) Marshal() ([]byte, error) {
 
 	return p.Bytes(), p.Err()
 }
+
+func UnmarshalFilteredChunk(raw []byte, parser Parser) (*FilteredChunk, error) {
+	var (
+		actionRegistry, authRegistry = parser.Registry()
+		p                            = codec.NewReader(raw, consts.NetworkSizeLimit)
+		c                            FilteredChunk
+	)
+	c.id = utils.ToID(raw)
+
+	// Parse transactions
+	p.UnpackID(true, &c.Chunk)
+	p.UnpackNodeID(true, &c.Producer)
+	txCount := p.UnpackInt(true) // can't produce empty blocks
+	c.Txs = []*Transaction{}     // don't preallocate all to avoid DoS
+	for i := 0; i < txCount; i++ {
+		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
+		if err != nil {
+			return nil, err
+		}
+		c.Txs = append(c.Txs, tx)
+	}
+	c.WarpResults = set.Bits64(p.UnpackUint64(false))
+
+	// Ensure no leftover bytes
+	if !p.Empty() {
+		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
+	}
+	return &c, p.Err()
+}

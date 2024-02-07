@@ -121,7 +121,13 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
-		// TODO: persist chunk to disk (delete if not used in time)
+		// Persist chunk to disk (delete if not used in time but need to store to protect
+		// against shutdown risk across network -> chunk may no longer be accessible after included
+		// in referenced certificate)
+		if err := c.vm.StoreChunk(chunk); err != nil {
+			c.vm.Logger().Warn("unable to persist chunk to disk", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			return nil
+		}
 
 		// Sign chunk
 		// TODO: allow for signing different types of messages
