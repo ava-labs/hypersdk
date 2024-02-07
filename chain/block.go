@@ -506,12 +506,20 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	defer span.End()
 
 	b.st = choices.Accepted
-	b.vm.Engine().Execute(b, b.parent.StatefulBlock.Timestamp)
+
+	// Start async execution
+	b.vm.Engine().Execute(b, b.StatefulBlock.Timestamp)
+
+	// Collect async results (if any)
+	var filteredChunks []*FilteredChunk
 	if b.execHeight != nil {
-		// TODO: collect results to forward
-		b.vm.Engine().Commit(ctx, *b.execHeight)
+		_, fc, err := b.vm.Engine().Commit(ctx, *b.execHeight)
+		if err != nil {
+			return err
+		}
+		filteredChunks = fc
 	}
-	b.vm.Accepted(ctx, b)
+	b.vm.Accepted(ctx, b, filteredChunks)
 	return nil
 }
 

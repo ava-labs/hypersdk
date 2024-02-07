@@ -208,7 +208,7 @@ func (e *Engine) Run(ctx context.Context) {
 			// will be artificially delayed to give time to fetch missing chunks)
 			//
 			// TODO: handle restart case where block may be sent twice?
-			e.vm.Executed(ctx, chunks, chunkResults, filteredChunks)
+			e.vm.Executed(ctx, job.blk, chunks, chunkResults, filteredChunks)
 
 		case <-ctx.Done():
 			return

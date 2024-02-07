@@ -243,6 +243,11 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 	defer span.End()
 
 	// Update accepted blocks on-disk and caches
+	for _, fc := range chunks {
+		if err := vm.StoreFilteredChunk(fc); err != nil {
+			vm.Fatal("unable to store filtered chunk", zap.Error(err))
+		}
+	}
 	if err := vm.UpdateLastAccepted(b); err != nil {
 		vm.Fatal("unable to update last accepted", zap.Error(err))
 	}
