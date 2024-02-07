@@ -547,6 +547,12 @@ func (c *ChunkManager) NextChunkCertificate(ctx context.Context) (*chain.ChunkCe
 	return c.certs.Pop(ctx)
 }
 
+func (c *ChunkManager) RestoreChunkCertificates(ctx context.Context, certs []*chain.ChunkCertificate) {
+	for _, cert := range certs {
+		c.certs.Add(cert)
+	}
+}
+
 func (c *ChunkManager) HandleTxs(ctx context.Context, txs []*chain.Transaction) {
 	ok, _, _, err := c.vm.proposerMonitor.IsValidator(ctx, c.vm.snowCtx.NodeID)
 	if err != nil {

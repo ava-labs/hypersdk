@@ -96,7 +96,7 @@ func (w *WebSocketServer) SetMinTx(t int64) error {
 	return nil
 }
 
-func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) error {
+func (w *WebSocketServer) ExecuteBlock(b *chain.StatelessBlock, chunks []*chain.Chunk, chunkResults [][]*chain.Result) error {
 	if w.blockListeners.Len() > 0 {
 		bytes, err := PackBlockMessage(b)
 		if err != nil {
@@ -110,21 +110,26 @@ func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) error {
 
 	w.txL.Lock()
 	defer w.txL.Unlock()
-	results := b.Results()
-	for i, tx := range b.Txs {
-		txID := tx.ID()
-		listeners, ok := w.txListeners[txID]
-		if !ok {
-			continue
+	for ci, chunk := range chunks {
+		results := chunkResults[ci]
+		for i, tx := range chunk.Txs {
+			if !results[i].Valid {
+				continue
+			}
+			txID := tx.ID()
+			listeners, ok := w.txListeners[txID]
+			if !ok {
+				continue
+			}
+			// Publish to tx listener
+			bytes, err := PackAcceptedTxMessage(txID, results[i])
+			if err != nil {
+				return err
+			}
+			w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
+			delete(w.txListeners, txID)
+			// [expiringTxs] will be cleared eventually (does not support removal)
 		}
-		// Publish to tx listener
-		bytes, err := PackAcceptedTxMessage(txID, results[i])
-		if err != nil {
-			return err
-		}
-		w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
-		delete(w.txListeners, txID)
-		// [expiringTxs] will be cleared eventually (does not support removal)
 	}
 	return nil
 }

@@ -137,7 +137,7 @@ func (e *Engine) Run(ctx context.Context) {
 				}
 				filteredChunks[i] = &FilteredChunk{
 					Chunk:    cert.Chunk,
-					Producer: cert.Producer,
+					Producer: chunk.Producer,
 
 					Txs:         txs,
 					WarpResults: warpResults,

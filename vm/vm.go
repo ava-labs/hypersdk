@@ -36,7 +36,6 @@ import (
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
-	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/network"
 	"github.com/ava-labs/hypersdk/rpc"
@@ -58,7 +57,6 @@ type VM struct {
 	config         Config
 	genesis        Genesis
 	builder        builder.Builder
-	gossiper       gossiper.Gossiper
 	rawStateDB     database.Database
 	stateDB        merkledb.MerkleDB
 	vmDB           database.Database
@@ -69,6 +67,7 @@ type VM struct {
 
 	tracer trace.Tracer
 
+	// Handle chunks
 	cm     *ChunkManager
 	engine *chain.Engine
 
@@ -178,14 +177,21 @@ func (vm *VM) Initialize(
 	vm.proposerMonitor = NewProposerMonitor(vm)
 	vm.networkManager = network.NewManager(vm.snowCtx.Log, vm.snowCtx.NodeID, appSender)
 
+	// Initialize warp handler
 	warpHandler, warpSender := vm.networkManager.Register()
 	vm.warpManager = NewWarpManager(vm)
 	vm.networkManager.SetHandler(warpHandler, NewWarpHandler(vm))
 	go vm.warpManager.Run(warpSender)
-	vm.baseDB = baseDB
+
+	// Initialize chunk manager
+	chunkHandler, chunkSender := vm.networkManager.Register()
+	vm.cm = NewChunkManager(vm)
+	vm.networkManager.SetHandler(chunkHandler, vm.cm)
+	go vm.cm.Run(chunkSender)
 
 	// Always initialize implementation first
-	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.vmDB,
+	vm.baseDB = baseDB
+	vm.config, vm.genesis, vm.builder, _, vm.vmDB,
 		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
 		vm,
 		snowCtx,
@@ -364,11 +370,14 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
 		snowCtx.Log.Info("initialized vm from genesis",
 			zap.Stringer("block", gBlkID),
-			zap.Stringer("pre-execution root", genesisBlk.StateRoot),
+			zap.Stringer("pre-execution root", genesisBlk.StartRoot),
 			zap.Stringer("post-execution root", genesisRoot),
 		)
 	}
 	go vm.processAcceptedBlocks()
+
+	// Setup chain engine
+	vm.engine = chain.NewEngine(vm, 128)
 
 	// Setup state syncing
 	stateSyncHandler, stateSyncSender := vm.networkManager.Register()
@@ -391,13 +400,8 @@ func (vm *VM) Initialize(
 	vm.stateSyncNetworkServer = syncEng.NewNetworkServer(stateSyncSender, vm.stateDB, vm.Logger())
 	vm.networkManager.SetHandler(stateSyncHandler, NewStateSyncHandler(vm))
 
-	// Setup gossip networking
-	gossipHandler, gossipSender := vm.networkManager.Register()
-	vm.networkManager.SetHandler(gossipHandler, NewTxGossipHandler(vm))
-
-	// Startup block builder and gossiper
+	// Startup block builder
 	go vm.builder.Run()
-	go vm.gossiper.Run(gossipSender)
 
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
@@ -421,7 +425,6 @@ func (vm *VM) Initialize(
 }
 
 func (vm *VM) checkActivity(ctx context.Context) {
-	vm.gossiper.Queue(ctx)
 	vm.builder.Queue(ctx)
 }
 
@@ -576,8 +579,8 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 
 	// Shutdown other async VM mechanisms
 	vm.warpManager.Done()
+	vm.cm.Done()
 	vm.builder.Done()
-	vm.gossiper.Done()
 	vm.authVerifiers.Stop()
 	if vm.profiler != nil {
 		vm.profiler.Shutdown()
@@ -717,7 +720,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	vm.snowCtx.Log.Info(
 		"parsed block",
 		zap.Stringer("id", newBlk.ID()),
-		zap.Uint64("height", newBlk.Hght),
+		zap.Uint64("height", newBlk.Height()),
 	)
 	return newBlk, nil
 }
@@ -1047,15 +1050,22 @@ func (vm *VM) backfillSeenTransactions() {
 			break
 		}
 
+		// Iterate through all filtered chunks in accepted blocks
+		//
 		// It is ok to add transactions from newest to oldest
-		// TODO: iterate through all filtered chunks in accepted blocks
-		vm.seenTxs.Add(blk.Txs)
-		vm.startSeenTime = blk.Tmstmp
+		for _, filteredChunk := range blk.ExecutedChunks {
+			chunk, err := vm.GetFilteredChunk(filteredChunk)
+			if err != nil {
+				panic(err)
+			}
+			vm.seenTxs.Add(chunk.Txs)
+		}
+		vm.startSeenTime = blk.StatefulBlock.Timestamp
 		oldest = blk.Height()
 
 		// Exit early if next block to fetch is genesis (which contains no
 		// txs)
-		if blk.Hght <= 1 {
+		if blk.Height() <= 1 {
 			// If we have walked back from the last accepted block to genesis, then
 			// we can be sure we have all required transactions to start validation.
 			vm.startSeenTime = 0
@@ -1066,11 +1076,11 @@ func (vm *VM) backfillSeenTransactions() {
 		}
 
 		// Set next blk in lookback
-		tblk, err := vm.GetStatelessBlock(context.Background(), blk.Prnt)
+		tblk, err := vm.GetStatelessBlock(context.Background(), blk.Parent())
 		if err != nil {
 			vm.snowCtx.Log.Info("could not load block, exiting backfill",
 				zap.Uint64("height", blk.Height()-1),
-				zap.Stringer("blockID", blk.Prnt),
+				zap.Stringer("blockID", blk.Parent()),
 				zap.Error(err),
 			)
 			return
@@ -1080,17 +1090,17 @@ func (vm *VM) backfillSeenTransactions() {
 	vm.snowCtx.Log.Info(
 		"backfilled seen txs",
 		zap.Uint64("start", oldest),
-		zap.Uint64("finish", vm.lastAccepted.Hght),
+		zap.Uint64("finish", vm.lastAccepted.Height()),
 	)
 }
 
 func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 	start := uint64(0)
 	lookback := uint64(vm.config.GetAcceptedBlockWindowCache()) - 1 // include latest
-	if vm.lastAccepted.Hght > lookback {
-		start = vm.lastAccepted.Hght - lookback
+	if vm.lastAccepted.Height() > lookback {
+		start = vm.lastAccepted.Height() - lookback
 	}
-	for i := start; i <= vm.lastAccepted.Hght; i++ {
+	for i := start; i <= vm.lastAccepted.Height(); i++ {
 		blk, err := vm.GetDiskBlock(ctx, i)
 		if err != nil {
 			vm.snowCtx.Log.Info("could not find block on-disk", zap.Uint64("height", i))
@@ -1101,7 +1111,7 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 	}
 	vm.snowCtx.Log.Info("loaded blocks from disk",
 		zap.Uint64("start", start),
-		zap.Uint64("finish", vm.lastAccepted.Hght),
+		zap.Uint64("finish", vm.lastAccepted.Height()),
 	)
 	return nil
 }

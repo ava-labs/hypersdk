@@ -38,6 +38,9 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		txs := mempool.Stream(ctx, 16)
 		for i, tx := range txs {
 			// Ensure we haven't included this transaction in a chunk yet
+			//
+			// Should protect us from issuing repeat txs (if others get duplicates,
+			// there will be duplicate inclusion but this is fixed with partitions)
 			if vm.IsIssuedTx(ctx, tx) {
 				continue
 			}
