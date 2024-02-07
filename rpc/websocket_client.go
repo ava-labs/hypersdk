@@ -27,6 +27,7 @@ type WebSocketClient struct {
 	readStopped  chan struct{}
 
 	pendingBlocks chan []byte
+	pendingChunks chan []byte
 	pendingTxs    chan []byte
 
 	startedClose bool
@@ -61,6 +62,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 		readStopped:   make(chan struct{}),
 		writeStopped:  make(chan struct{}),
 		pendingBlocks: make(chan []byte, pending),
+		pendingChunks: make(chan []byte, pending),
 		pendingTxs:    make(chan []byte, pending),
 	}
 	go func() {
@@ -86,6 +88,8 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 				tmsg := msg[1:]
 				switch msg[0] {
 				case BlockMode:
+					wc.pendingBlocks <- tmsg
+				case ChunkMode:
 					wc.pendingBlocks <- tmsg
 				case TxMode:
 					wc.pendingTxs <- tmsg
@@ -140,15 +144,36 @@ func (c *WebSocketClient) RegisterBlocks() error {
 // Listen listens for block messages from the streaming server.
 func (c *WebSocketClient) ListenBlock(
 	ctx context.Context,
-	parser chain.Parser,
 ) (*chain.StatefulBlock, chain.Dimensions, error) {
 	select {
 	case msg := <-c.pendingBlocks:
-		return UnpackBlockMessage(msg, parser)
+		return UnpackBlockMessage(msg)
 	case <-c.readStopped:
 		return nil, chain.Dimensions{}, c.err
 	case <-ctx.Done():
 		return nil, chain.Dimensions{}, ctx.Err()
+	}
+}
+
+func (c *WebSocketClient) RegisterChunks() error {
+	if c.closed {
+		return ErrClosed
+	}
+	return c.mb.Send([]byte{ChunkMode})
+}
+
+// Listen listens for block messages from the streaming server.
+func (c *WebSocketClient) ListenChunk(
+	ctx context.Context,
+	parser chain.Parser,
+) (uint64, *chain.FilteredChunk, []*chain.Result, error) {
+	select {
+	case msg := <-c.pendingChunks:
+		return UnpackChunkMessage(msg, parser)
+	case <-c.readStopped:
+		return 0, nil, nil, c.err
+	case <-ctx.Done():
+		return 0, nil, nil, ctx.Err()
 	}
 }
 

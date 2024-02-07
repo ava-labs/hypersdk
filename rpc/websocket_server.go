@@ -23,6 +23,7 @@ type WebSocketServer struct {
 	s      *pubsub.Server
 
 	blockListeners *pubsub.Connections
+	chunkListeners *pubsub.Connections
 
 	txL         sync.Mutex
 	txListeners map[ids.ID]*pubsub.Connections
@@ -33,6 +34,7 @@ func NewWebSocketServer(vm VM, maxPendingMessages int) (*WebSocketServer, *pubsu
 	w := &WebSocketServer{
 		logger:         vm.Logger(),
 		blockListeners: pubsub.NewConnections(),
+		chunkListeners: pubsub.NewConnections(),
 		txListeners:    map[ids.ID]*pubsub.Connections{},
 		expiringTxs:    emap.NewEMap[*chain.Transaction](),
 	}
@@ -96,7 +98,7 @@ func (w *WebSocketServer) SetMinTx(t int64) error {
 	return nil
 }
 
-func (w *WebSocketServer) ExecuteBlock(b *chain.StatelessBlock, feeManager *chain.FeeManager, chunks []*chain.Chunk, chunkResults [][]*chain.Result) error {
+func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock, feeManager *chain.FeeManager) error {
 	if w.blockListeners.Len() > 0 {
 		bytes, err := PackBlockMessage(b, feeManager)
 		if err != nil {
@@ -107,29 +109,37 @@ func (w *WebSocketServer) ExecuteBlock(b *chain.StatelessBlock, feeManager *chai
 			w.blockListeners.Remove(conn)
 		}
 	}
+	return nil
+}
+
+func (w *WebSocketServer) ExecuteChunk(blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) error {
+	if w.chunkListeners.Len() > 0 {
+		bytes, err := PackChunkMessage(blk, chunk, results)
+		if err != nil {
+			return err
+		}
+		inactiveConnection := w.s.Publish(append([]byte{ChunkMode}, bytes...), w.chunkListeners)
+		for _, conn := range inactiveConnection {
+			w.chunkListeners.Remove(conn)
+		}
+	}
 
 	w.txL.Lock()
 	defer w.txL.Unlock()
-	for ci, chunk := range chunks {
-		results := chunkResults[ci]
-		for i, tx := range chunk.Txs {
-			if !results[i].Valid {
-				continue
-			}
-			txID := tx.ID()
-			listeners, ok := w.txListeners[txID]
-			if !ok {
-				continue
-			}
-			// Publish to tx listener
-			bytes, err := PackAcceptedTxMessage(txID, results[i])
-			if err != nil {
-				return err
-			}
-			w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
-			delete(w.txListeners, txID)
-			// [expiringTxs] will be cleared eventually (does not support removal)
+	for i, tx := range chunk.Txs {
+		txID := tx.ID()
+		listeners, ok := w.txListeners[txID]
+		if !ok {
+			continue
 		}
+		// Publish to tx listener
+		bytes, err := PackAcceptedTxMessage(txID, results[i])
+		if err != nil {
+			return err
+		}
+		w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
+		delete(w.txListeners, txID)
+		// [expiringTxs] will be cleared eventually (does not support removal)
 	}
 	return nil
 }
@@ -160,6 +170,9 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 		case BlockMode:
 			w.blockListeners.Add(c)
 			log.Debug("added block listener")
+		case ChunkMode:
+			w.chunkListeners.Add(c)
+			log.Debug("added chunk listener")
 		case TxMode:
 			msgBytes = msgBytes[1:]
 			// Unmarshal TX

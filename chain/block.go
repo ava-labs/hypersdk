@@ -98,7 +98,7 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	return bytes, nil
 }
 
-func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
+func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 	var (
 		p = codec.NewReader(raw, consts.NetworkSizeLimit)
 		b StatefulBlock
@@ -195,7 +195,7 @@ func ParseBlock(
 	ctx, span := vm.Tracer().Start(ctx, "chain.ParseBlock")
 	defer span.End()
 
-	blk, err := UnmarshalBlock(source, vm)
+	blk, err := UnmarshalBlock(source)
 	if err != nil {
 		return nil, err
 	}

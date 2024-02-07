@@ -14,7 +14,8 @@ import (
 
 const (
 	BlockMode byte = 0
-	TxMode    byte = 1
+	ChunkMode byte = 1
+	TxMode    byte = 2
 )
 
 func PackBlockMessage(b *chain.StatelessBlock, feeManager *chain.FeeManager) ([]byte, error) {
@@ -27,12 +28,11 @@ func PackBlockMessage(b *chain.StatelessBlock, feeManager *chain.FeeManager) ([]
 
 func UnpackBlockMessage(
 	msg []byte,
-	parser chain.Parser,
 ) (*chain.StatefulBlock, chain.Dimensions, error) {
 	p := codec.NewReader(msg, consts.MaxInt)
 	var blkMsg []byte
 	p.UnpackBytes(-1, true, &blkMsg)
-	blk, err := chain.UnmarshalBlock(blkMsg, parser)
+	blk, err := chain.UnmarshalBlock(blkMsg)
 	if err != nil {
 		return nil, chain.Dimensions{}, err
 	}
@@ -46,6 +46,47 @@ func UnpackBlockMessage(
 		return nil, chain.Dimensions{}, chain.ErrInvalidObject
 	}
 	return blk, prices, p.Err()
+}
+
+func PackChunkMessage(block uint64, c *chain.FilteredChunk, results []*chain.Result) ([]byte, error) {
+	chunkBytes, err := c.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	size := consts.Uint64Len + codec.BytesLen(chunkBytes) + consts.IntLen + codec.CummSize(results)
+	p := codec.NewWriter(size, consts.MaxInt)
+	p.PackUint64(block)
+	p.PackBytes(chunkBytes)
+	resultsBytes, err := chain.MarshalResults(results)
+	if err != nil {
+		return nil, err
+	}
+	p.PackBytes(resultsBytes)
+	return p.Bytes(), p.Err()
+}
+
+func UnpackChunkMessage(
+	msg []byte,
+	parser chain.Parser,
+) (uint64, *chain.FilteredChunk, []*chain.Result, error) {
+	p := codec.NewReader(msg, consts.MaxInt)
+	height := p.UnpackUint64(false)
+	var chunkBytes []byte
+	p.UnpackBytes(-1, true, &chunkBytes)
+	chunk, err := chain.UnmarshalFilteredChunk(chunkBytes, parser)
+	if err != nil {
+		return 0, nil, nil, err
+	}
+	var resultsBytes []byte
+	p.UnpackBytes(-1, true, &resultsBytes)
+	results, err := chain.UnmarshalResults(resultsBytes)
+	if err != nil {
+		return 0, nil, nil, err
+	}
+	if !p.Empty() {
+		return 0, nil, nil, chain.ErrInvalidObject
+	}
+	return height, chunk, results, p.Err()
 }
 
 // Could be a better place for these methods

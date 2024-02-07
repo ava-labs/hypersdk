@@ -214,18 +214,21 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 		return err
 	}
 	defer scli.Close()
-	if err := scli.RegisterBlocks(); err != nil {
+	if err := scli.RegisterChunks(); err != nil {
 		return err
 	}
 	utils.Outf("{{green}}watching for new blocks on %s 👀{{/}}\n", chainID)
 	var (
-		start             time.Time
-		lastBlock         int64
-		lastBlockDetailed time.Time
-		tpsWindow         = window.Window{}
+		start     time.Time
+		lastBlock int64
+		tpsWindow = window.Window{}
 	)
 	for ctx.Err() == nil {
-		blk, prices, err := scli.ListenBlock(ctx, parser)
+		blk, chunk, results, err := scli.ListenChunk(ctx, parser)
+		if err != nil {
+			return err
+		}
+		chunkID, err := chunk.ID()
 		if err != nil {
 			return err
 		}
@@ -248,39 +251,34 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 				return err
 			}
 			tpsWindow = newWindow
-			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))
+			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(chunk.Txs)))
 			runningDuration := time.Since(start)
 			tpsDivisor := math.Min(window.WindowSize, runningDuration.Seconds())
 			utils.Outf(
-				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s] [{{green}}TPS:{{/}}%.2f {{green}}latency:{{/}}%dms {{green}}gap:{{/}}%dms]\n",
-				blk.Hght,
-				len(blk.Txs),
-				blk.StateRoot,
-				float64(blk.Size())/units.KiB,
+				"{{green}}block height:{{/}}%d {{green}}chunk:{{/}}%d {{green}}txs:{{/}}%d {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}TPS:{{/}}%.2f\n",
+				blk,
+				chunkID,
+				len(chunk.Txs),
+				float64(chunk.Size())/units.KiB,
 				ParseDimensions(consumed),
-				ParseDimensions(prices),
 				float64(window.Sum(tpsWindow))/tpsDivisor,
-				time.Now().UnixMilli()-blk.Tmstmp,
-				time.Since(lastBlockDetailed).Milliseconds(),
 			)
 		} else {
 			utils.Outf(
-				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s]\n",
-				blk.Hght,
-				len(blk.Txs),
-				blk.StateRoot,
-				float64(blk.Size())/units.KiB,
+				"{{green}}block height:{{/}}%d {{green}}chunk:{{/}}%d {{green}}txs:{{/}}%d {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s]\n",
+				blk,
+				chunkID,
+				len(chunk.Txs),
+				float64(chunk.Size())/units.KiB,
 				ParseDimensions(consumed),
-				ParseDimensions(prices),
 			)
-			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))
+			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(chunk.Txs)))
 		}
 		lastBlock = now.Unix()
-		lastBlockDetailed = now
 		if hideTxs {
 			continue
 		}
-		for i, tx := range blk.Txs {
+		for i, tx := range chunk.Txs {
 			handleTx(tx, results[i])
 		}
 	}

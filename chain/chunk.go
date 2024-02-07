@@ -411,9 +411,12 @@ func (c *FilteredChunk) ID() (ids.ID, error) {
 	return c.id, nil
 }
 
+func (c *FilteredChunk) Size() int {
+	return consts.IDLen + consts.NodeIDLen + consts.IntLen + codec.CummSize(c.Txs) + consts.Uint64Len
+}
+
 func (c *FilteredChunk) Marshal() ([]byte, error) {
-	size := consts.IDLen + consts.NodeIDLen + consts.IntLen + codec.CummSize(c.Txs) + consts.Uint64Len
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
+	p := codec.NewWriter(c.Size(), consts.NetworkSizeLimit)
 
 	// Marshal header
 	p.PackID(c.Chunk)
