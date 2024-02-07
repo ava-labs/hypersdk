@@ -25,6 +25,7 @@ const (
 	chunkMsg            uint8 = 0x0
 	chunkSignatureMsg   uint8 = 0x1
 	chunkCertificateMsg uint8 = 0x2
+	txMsg               uint8 = 0x3
 )
 
 type chunkWrapper struct {
@@ -98,7 +99,8 @@ func (c *CertStore) Pop(ctx context.Context) (*chain.ChunkCertificate, bool) { /
 
 // TODO: move to standalone package
 type ChunkManager struct {
-	vm *VM
+	vm   *VM
+	done chan struct{}
 
 	appSender common.AppSender
 
@@ -106,13 +108,14 @@ type ChunkManager struct {
 	certs *CertStore
 
 	// connected includes all connected nodes, not just those that are validators (we use
-	// this for requesting chunks from only connected nodes)
+	// this for sending txs/requesting chunks from only connected nodes)
 	connected set.Set[ids.NodeID]
 }
 
 func NewChunkManager(vm *VM) *ChunkManager {
 	return &ChunkManager{
-		vm: vm,
+		vm:   vm,
+		done: make(chan struct{}),
 
 		built: emap.NewEMap[*chunkWrapper](),
 		certs: NewCertStore(),
@@ -144,6 +147,10 @@ func (c *ChunkManager) PushSignature(ctx context.Context, nodeID ids.NodeID, sig
 }
 
 func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+	if len(msg) == 0 {
+		c.vm.Logger().Warn("dropping empty message", zap.Stringer("nodeID", nodeID))
+		return nil
+	}
 	// Check that sender is a validator
 	ok, pk, _, err := c.vm.proposerMonitor.IsValidator(ctx, nodeID)
 	if err != nil {
@@ -151,12 +158,22 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		return nil
 	}
 	if !ok {
-		c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID))
-		return nil
-	}
-	if len(msg) == 0 {
-		c.vm.Logger().Warn("dropping empty message", zap.Stringer("nodeID", nodeID))
-		return nil
+		// Only allow tx messages from non-validators
+		if msg[0] == txMsg {
+			_, txs, err := chain.UnmarshalTxs(msg[1:], 100, c.vm.actionRegistry, c.vm.authRegistry)
+			if err != nil {
+				c.vm.Logger().Warn("dropping invalid tx gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
+				return nil
+			}
+
+			// TODO: verify txs
+
+			// Add txs to mempool
+			c.vm.mempool.Add(ctx, txs)
+		} else {
+			c.vm.Logger().Warn("dropping message from non-validator", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
 	}
 	switch msg[0] {
 	case chunkMsg:
@@ -368,6 +385,9 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 
 		// Store chunk certificate for building
 		c.certs.Add(cert)
+
+	default:
+		c.vm.Logger().Warn("dropping message from non-validator", zap.Stringer("nodeID", nodeID))
 	}
 	return nil
 }
@@ -413,6 +433,27 @@ func (*ChunkManager) CrossChainAppResponse(context.Context, ids.ID, uint32, []by
 
 func (c *ChunkManager) Run(appSender common.AppSender) {
 	c.appSender = appSender
+
+	c.vm.Logger().Info("starting chunk manager")
+	defer close(c.done)
+
+	// TODO: loop on chunk build
+	t := time.NewTicker(500 * time.Millisecond)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+			chunk, err := chain.BuildChunk(context.TODO(), c.vm)
+			if err != nil {
+				c.vm.Logger().Warn("unable to build chunk", zap.Error(err))
+				continue
+			}
+			c.PushChunk(context.TODO(), chunk)
+		case <-c.vm.stop:
+			c.vm.Logger().Info("stopping chunk manager")
+			return
+		}
+	}
 }
 
 // Drop all chunks material that can no longer be included anymore (may have already been included).
@@ -495,4 +536,46 @@ func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.Chu
 
 func (c *ChunkManager) NextChunkCertificate(ctx context.Context) (*chain.ChunkCertificate, bool) {
 	return c.certs.Pop(ctx)
+}
+
+func (c *ChunkManager) HandleTxs(ctx context.Context, txs []*chain.Transaction) {
+	ok, _, _, err := c.vm.proposerMonitor.IsValidator(ctx, c.vm.snowCtx.NodeID)
+	if err != nil {
+		c.vm.Logger().Warn("failed to check if validator", zap.Error(err))
+		return
+	}
+
+	// Add to mempool
+	if ok {
+		c.vm.mempool.Add(ctx, txs)
+		return
+	}
+
+	// TODO: check cache to see if issued recently (not an issue with partitions)
+
+	// Select random validator recipient and send
+	//
+	// TODO: send to partition allocated validator
+	vdrSet := c.vm.proposerMonitor.GetValidatorSet(ctx, false)
+	for vdr := range vdrSet { // golang iterates over map in random order
+		if vdr == c.vm.snowCtx.NodeID {
+			continue
+		}
+		if !c.connected.Contains(vdr) {
+			continue
+		}
+		txBytes, err := chain.MarshalTxs(txs)
+		if err != nil {
+			c.vm.Logger().Warn("failed to marshal txs", zap.Error(err))
+			return
+		}
+		msg := make([]byte, 1+len(txBytes))
+		msg[0] = txMsg
+		copy(msg[1:], txBytes)
+		c.appSender.SendAppGossipSpecific(ctx, set.Of(vdr), msg)
+	}
+}
+
+func (c *ChunkManager) Done() {
+	<-c.done
 }

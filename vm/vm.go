@@ -870,7 +870,7 @@ func (vm *VM) Submit(
 		errs = append(errs, nil)
 		validTxs = append(validTxs, tx)
 	}
-	vm.mempool.Add(ctx, validTxs)
+	vm.cm.HandleTxs(ctx, validTxs)
 	vm.checkActivity(ctx)
 	return errs
 }
