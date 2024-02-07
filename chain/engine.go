@@ -25,8 +25,9 @@ type output struct {
 	view         merkledb.View
 	chunkResults [][]*Result
 
-	startRoot ids.ID
-	chunks    []*FilteredChunk
+	startRoot  ids.ID
+	chunks     []*FilteredChunk
+	feeManager *FeeManager
 }
 
 // Engine is in charge of orchestrating the execution of
@@ -115,9 +116,11 @@ func (e *Engine) Run(ctx context.Context) {
 			filteredChunks := make([]*FilteredChunk, len(chunkResults))
 			for i, chunkResult := range chunkResults {
 				var (
-					chunk = chunks[i]
-					cert  = job.blk.AvailableChunks[i]
-					txs   = make([]*Transaction, 0, len(chunkResult))
+					// TODO: only keep valid results?
+					validResults = make([]*Result, 0, len(chunkResult))
+					chunk        = chunks[i]
+					cert         = job.blk.AvailableChunks[i]
+					txs          = make([]*Transaction, 0, len(chunkResult))
 
 					warpResults set.Bits64
 					warpCount   uint
@@ -126,6 +129,7 @@ func (e *Engine) Run(ctx context.Context) {
 					if !txResult.Valid {
 						continue
 					}
+					validResults = append(validResults, txResult)
 					tx := chunk.Txs[j]
 					txs = append(txs, tx)
 					if tx.WarpMessage != nil {
@@ -142,6 +146,15 @@ func (e *Engine) Run(ctx context.Context) {
 					Txs:         txs,
 					WarpResults: warpResults,
 				}
+
+				// As soon as execution of transactions is finished, let the VM know so that it
+				// can notify subscribers.
+				//
+				// TODO: allow for querying agains the executed tip of state rather than the accepted one (which
+				// will be artificially delayed to give time to fetch missing chunks)
+				//
+				// TODO: handle restart case where block may be sent twice?
+				e.vm.Executed(ctx, job.blk.Height(), filteredChunks[i], validResults)
 			}
 
 			// Update chain metadata
@@ -196,19 +209,11 @@ func (e *Engine) Run(ctx context.Context) {
 				chunkResults: chunkResults,
 				startRoot:    startRoot,
 				chunks:       filteredChunks,
+				feeManager:   feeManager,
 			}
 			e.largestOutput = &job.blk.StatefulBlock.Height
 			e.outputsLock.Unlock()
 			parentView = view
-
-			// As soon as execution of transactions is finished, let the VM know so that it
-			// can notify subscribers.
-			//
-			// TODO: allow for querying agains the executed tip of state rather than the accepted one (which
-			// will be artificially delayed to give time to fetch missing chunks)
-			//
-			// TODO: handle restart case where block may be sent twice?
-			e.vm.Executed(ctx, job.blk, feeManager, chunks, chunkResults, filteredChunks)
 
 		case <-ctx.Done():
 			return
@@ -247,20 +252,21 @@ func (e *Engine) Results(height uint64) (ids.ID /* StartRoot */, []ids.ID /* Exe
 	return ids.Empty, nil, errors.New("not found")
 }
 
-func (e *Engine) Commit(ctx context.Context, height uint64) ([][]*Result, []*FilteredChunk, error) {
+// TODO: cleanup this function signautre
+func (e *Engine) Commit(ctx context.Context, height uint64) (*FeeManager, [][]*Result, []*FilteredChunk, error) {
 	// TODO: fetch results prior to commit to reduce observed finality (state won't be queryable yet but can send block/results)
 	e.outputsLock.Lock()
 	output, ok := e.outputs[height]
 	if !ok {
 		e.outputsLock.Unlock()
-		return nil, nil, errors.New("not found")
+		return nil, nil, nil, errors.New("not found")
 	}
 	delete(e.outputs, height)
 	if e.largestOutput != nil && *e.largestOutput == height {
 		e.largestOutput = nil
 	}
 	e.outputsLock.Unlock()
-	return output.chunkResults, output.chunks, output.view.CommitToDB(ctx)
+	return output.feeManager, output.chunkResults, output.chunks, output.view.CommitToDB(ctx)
 }
 
 func (e *Engine) IsRepeatTx(

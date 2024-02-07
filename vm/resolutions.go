@@ -117,56 +117,47 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	vm.checkActivity(ctx)
 }
 
-func (vm *VM) Executed(ctx context.Context, b *chain.StatelessBlock, feeManager *chain.FeeManager, chunks []*chain.Chunk, chunkResults [][]*chain.Result, filteredChunks []*chain.FilteredChunk) {
+func (vm *VM) Executed(ctx context.Context, blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Executed")
 	defer span.End()
 
-	for _, fc := range filteredChunks {
-		vm.mempool.Remove(ctx, fc.Txs)
-	}
+	// Remove any executed transactions
+	vm.mempool.Remove(ctx, chunk.Txs)
 
 	// Sign and store any warp messages (regardless if validator now, may become one)
-	for ci, chunk := range chunks {
-		results := chunkResults[ci]
-		for i, tx := range chunk.Txs {
-			// TODO: produce just a valid results stream to avoid iterating through all txs
-			if !results[i].Valid {
-				continue
-			}
+	for i, tx := range chunk.Txs { // filtered chunks only have valid txs
+		// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
+		vm.cacheAuth(tx.Auth)
 
-			// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
-			vm.cacheAuth(tx.Auth)
-
-			result := results[i]
-			if result.WarpMessage == nil {
-				continue
-			}
-			start := time.Now()
-			signature, err := vm.snowCtx.WarpSigner.Sign(result.WarpMessage)
-			if err != nil {
-				vm.Fatal("unable to sign warp message", zap.Error(err))
-			}
-			if err := vm.StoreWarpSignature(tx.ID(), vm.snowCtx.PublicKey, signature); err != nil {
-				vm.Fatal("unable to store warp signature", zap.Error(err))
-			}
-			vm.snowCtx.Log.Info(
-				"signed and stored warp message signature",
-				zap.Stringer("txID", tx.ID()),
-				zap.Duration("t", time.Since(start)),
-			)
-
-			// Kickoff job to fetch signatures from other validators in the
-			// background
-			//
-			// We pass bytes here so that signatures returned from validators can be
-			// verified before they are persisted.
-			vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
+		result := results[i]
+		if result.WarpMessage == nil {
+			continue
 		}
+		start := time.Now()
+		signature, err := vm.snowCtx.WarpSigner.Sign(result.WarpMessage)
+		if err != nil {
+			vm.Fatal("unable to sign warp message", zap.Error(err))
+		}
+		if err := vm.StoreWarpSignature(tx.ID(), vm.snowCtx.PublicKey, signature); err != nil {
+			vm.Fatal("unable to store warp signature", zap.Error(err))
+		}
+		vm.snowCtx.Log.Info(
+			"signed and stored warp message signature",
+			zap.Stringer("txID", tx.ID()),
+			zap.Duration("t", time.Since(start)),
+		)
+
+		// Kickoff job to fetch signatures from other validators in the
+		// background
+		//
+		// We pass bytes here so that signatures returned from validators can be
+		// verified before they are persisted.
+		vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
 	}
 
 	// Send notifications as soon as transactions are executed
-	if err := vm.webSocketServer.ExecuteBlock(b, feeManager, chunks, chunkResults); err != nil {
-		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
+	if err := vm.webSocketServer.ExecuteChunk(blk, chunk, results); err != nil {
+		vm.Fatal("unable to execute chunk in websocket server", zap.Error(err))
 	}
 }
 
@@ -189,7 +180,7 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
 }
 
-func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
+func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock, feeManager *chain.FeeManager) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockProcess.Observe(float64(time.Since(start)))
@@ -212,6 +203,11 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 		vm.Fatal("accepted processing failed", zap.Error(err))
 	}
 
+	// Send notifications as soon as transactions are executed
+	if err := vm.webSocketServer.AcceptBlock(b, feeManager); err != nil {
+		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
+	}
+
 	// Must clear accepted txs before [SetMinTx] or else we will errnoueously
 	// send [ErrExpired] messages.
 	if err := vm.webSocketServer.SetMinTx(b.StatefulBlock.Timestamp); err != nil {
@@ -230,17 +226,17 @@ func (vm *VM) processAcceptedBlocks() {
 	// to be processed before returning as a guarantee to listeners (which may
 	// persist indexed state) instead of just exiting as soon as `vm.stop` is
 	// closed.
-	for b := range vm.acceptedQueue {
-		vm.processAcceptedBlock(b)
+	for bw := range vm.acceptedQueue {
+		vm.processAcceptedBlock(bw.Block, bw.FeeManager)
 		vm.snowCtx.Log.Info(
 			"block processed",
-			zap.Stringer("blkID", b.ID()),
-			zap.Uint64("height", b.Height()),
+			zap.Stringer("blkID", bw.Block.ID()),
+			zap.Uint64("height", bw.Block.Height()),
 		)
 	}
 }
 
-func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*chain.FilteredChunk) {
+func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, feeManager *chain.FeeManager, chunks []*chain.FilteredChunk) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
@@ -311,7 +307,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 	vm.mempool.SetMinTimestamp(ctx, blkTime)
 
 	// Enqueue block for processing
-	vm.acceptedQueue <- b
+	vm.acceptedQueue <- &blockWrapper{b, feeManager}
 
 	vm.snowCtx.Log.Info(
 		"accepted block",

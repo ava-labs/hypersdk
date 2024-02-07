@@ -45,6 +45,12 @@ import (
 	"github.com/ava-labs/hypersdk/workers"
 )
 
+// TODO: clean this up
+type blockWrapper struct {
+	Block      *chain.StatelessBlock
+	FeeManager *chain.FeeManager
+}
+
 type VM struct {
 	c Controller
 	v *version.Semantic
@@ -99,7 +105,7 @@ type VM struct {
 	acceptedBlocksByHeight *hcache.FIFO[uint64, ids.ID]
 
 	// Accepted block queue
-	acceptedQueue chan *chain.StatelessBlock
+	acceptedQueue chan *blockWrapper
 	acceptorDone  chan struct{}
 
 	// Transactions that streaming users are currently subscribed to
@@ -260,7 +266,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.GetAcceptorSize())
+	vm.acceptedQueue = make(chan *blockWrapper, vm.config.GetAcceptorSize())
 	vm.acceptorDone = make(chan struct{})
 
 	vm.mempool = mempool.New[*chain.Transaction](
