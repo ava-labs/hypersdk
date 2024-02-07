@@ -82,10 +82,10 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 		s.vm.snowCtx.Log.Warn("could not determine if syncing", zap.Error(err))
 		return block.StateSyncSkipped, err
 	}
-	if !syncing && (s.vm.lastAccepted.Hght+s.vm.config.GetStateSyncMinBlocks() > sb.Height()) {
+	if !syncing && (s.vm.lastAccepted.Height()+s.vm.config.GetStateSyncMinBlocks() > sb.Height()) {
 		s.vm.snowCtx.Log.Info(
 			"bypassing state sync",
-			zap.Uint64("lastAccepted", s.vm.lastAccepted.Hght),
+			zap.Uint64("lastAccepted", s.vm.lastAccepted.Height()),
 			zap.Uint64("syncableHeight", sb.Height()),
 		)
 		s.startedSync = true
@@ -112,7 +112,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 	s.target = sb.StatelessBlock
 	s.vm.snowCtx.Log.Info(
 		"starting state sync",
-		zap.Uint64("height", s.target.Hght),
+		zap.Uint64("height", s.target.Height()),
 		zap.Stringer("summary", sb),
 		zap.Bool("already syncing", syncing),
 	)
@@ -143,7 +143,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 		Client:                syncClient,
 		SimultaneousWorkLimit: s.vm.config.GetStateSyncParallelism(),
 		Log:                   s.vm.snowCtx.Log,
-		TargetRoot:            sb.StateRoot,
+		TargetRoot:            sb.StartRoot,
 	})
 	if err != nil {
 		return block.StateSyncSkipped, err
@@ -257,7 +257,7 @@ func (s *stateSyncerClient) StateReady() bool {
 // UpdateSyncTarget returns a boolean indicating if the root was
 // updated and an error if one occurred while updating the root.
 func (s *stateSyncerClient) UpdateSyncTarget(b *chain.StatelessBlock) (bool, error) {
-	err := s.syncManager.UpdateSyncTarget(b.StateRoot)
+	err := s.syncManager.UpdateSyncTarget(b.StartRoot)
 	if errors.Is(err, syncEng.ErrAlreadyClosed) {
 		<-s.done          // Wait for goroutine to exit for consistent return values with IsSyncing
 		return false, nil // Sync finished before update

@@ -523,6 +523,19 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	return nil
 }
 
+// used for accepting syncable blocks
+func (b *StatelessBlock) MarkAccepted(ctx context.Context) {
+	// Accept block and free unnecessary memory
+	b.st = choices.Accepted
+
+	// [Accepted] will persist the block to disk and set in-memory variables
+	// needed to ensure we don't resync all blocks when state sync finishes.
+	//
+	// Note: We will not call [b.vm.Verified] before accepting during state sync
+	// TODO: this is definitely wrong, we should fix it
+	b.vm.Accepted(ctx, b, nil)
+}
+
 // implements "snowman.Block.choices.Decidable"
 func (b *StatelessBlock) Reject(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.Reject")
