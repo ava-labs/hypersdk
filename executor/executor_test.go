@@ -8,7 +8,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-	//"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
