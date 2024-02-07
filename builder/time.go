@@ -77,7 +77,7 @@ func (b *Time) Queue(ctx context.Context) {
 		return
 	}
 	now := time.Now().UnixMilli()
-	next := b.nextTime(now, preferredBlk.Tmstmp)
+	next := b.nextTime(now, preferredBlk.StatefulBlock.Timestamp)
 	if next < 0 {
 		if err := b.Force(ctx); err != nil {
 			b.vm.Logger().Warn("unable to build", zap.Error(err))

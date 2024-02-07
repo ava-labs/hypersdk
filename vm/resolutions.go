@@ -117,7 +117,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	vm.checkActivity(ctx)
 }
 
-func (vm *VM) Executed(ctx context.Context, b *chain.StatelessBlock, chunks []*chain.Chunk, chunkResults [][]*chain.Result, filteredChunks []*chain.FilteredChunk) {
+func (vm *VM) Executed(ctx context.Context, b *chain.StatelessBlock, feeManager *chain.FeeManager, chunks []*chain.Chunk, chunkResults [][]*chain.Result, filteredChunks []*chain.FilteredChunk) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Executed")
 	defer span.End()
 
@@ -165,7 +165,7 @@ func (vm *VM) Executed(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 	}
 
 	// Send notifications as soon as transactions are executed
-	if err := vm.webSocketServer.ExecuteBlock(b, chunks, chunkResults); err != nil {
+	if err := vm.webSocketServer.ExecuteBlock(b, feeManager, chunks, chunkResults); err != nil {
 		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
 	}
 }

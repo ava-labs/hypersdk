@@ -96,9 +96,9 @@ func (w *WebSocketServer) SetMinTx(t int64) error {
 	return nil
 }
 
-func (w *WebSocketServer) ExecuteBlock(b *chain.StatelessBlock, chunks []*chain.Chunk, chunkResults [][]*chain.Result) error {
+func (w *WebSocketServer) ExecuteBlock(b *chain.StatelessBlock, feeManager *chain.FeeManager, chunks []*chain.Chunk, chunkResults [][]*chain.Result) error {
 	if w.blockListeners.Len() > 0 {
-		bytes, err := PackBlockMessage(b)
+		bytes, err := PackBlockMessage(b, feeManager)
 		if err != nil {
 			return err
 		}

@@ -72,8 +72,6 @@ type VM interface {
 	LastAcceptedBlock() *StatelessBlock
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
-	GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error)
-
 	State() (merkledb.MerkleDB, error)
 	StateManager() StateManager
 	ValidatorState() validators.State
@@ -91,7 +89,7 @@ type VM interface {
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
 	Accepted(context.Context, *StatelessBlock, []*FilteredChunk)
-	Executed(context.Context, *StatelessBlock, []*Chunk, [][]*Result, []*FilteredChunk)
+	Executed(context.Context, *StatelessBlock, *FeeManager, []*Chunk, [][]*Result, []*FilteredChunk)
 	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
 
 	// UpdateSyncTarget returns a bool that is true if the root
