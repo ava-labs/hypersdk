@@ -130,12 +130,7 @@ func (c *Chunk) Marshal() ([]byte, error) {
 	p.PackFixedBytes(bls.PublicKeyToBytes(c.Signer))
 	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
 
-	bytes := p.Bytes()
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	c.size = len(bytes)
-	return bytes, nil
+	return p.Bytes(), p.Err()
 }
 
 func (c *Chunk) VerifySignature(networkID uint32, chainID ids.ID) bool {
@@ -159,7 +154,6 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 		c                            Chunk
 	)
 	c.id = utils.ToID(raw)
-	c.size = len(raw)
 
 	// Parse transactions
 	c.Slot = p.UnpackInt64(false)
