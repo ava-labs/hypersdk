@@ -206,6 +206,8 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	// }
 
 	// Update controller
+	//
+	// TODO: pass all chunk info here
 	if err := vm.c.Accepted(context.TODO(), b); err != nil {
 		vm.Fatal("accepted processing failed", zap.Error(err))
 	}

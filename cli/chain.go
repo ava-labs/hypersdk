@@ -225,7 +225,7 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 		tpsWindow         = window.Window{}
 	)
 	for ctx.Err() == nil {
-		blk, results, prices, err := scli.ListenBlock(ctx, parser)
+		blk, prices, err := scli.ListenBlock(ctx, parser)
 		if err != nil {
 			return err
 		}
