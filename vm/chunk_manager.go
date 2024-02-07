@@ -175,10 +175,8 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 				return nil
 			}
 
-			// TODO: verify txs
-
-			// Add txs to mempool
-			c.vm.mempool.Add(ctx, txs)
+			// Submit txs
+			c.vm.Submit(ctx, true, txs)
 		} else {
 			c.vm.Logger().Warn("dropping message from non-validator", zap.Stringer("nodeID", nodeID))
 			return nil
@@ -447,7 +445,6 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	c.vm.Logger().Info("starting chunk manager")
 	defer close(c.done)
 
-	// TODO: loop on chunk build
 	t := time.NewTicker(500 * time.Millisecond)
 	defer t.Stop()
 	for {

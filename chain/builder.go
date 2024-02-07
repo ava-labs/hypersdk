@@ -48,6 +48,16 @@ func BuildBlock(
 				break
 			}
 
+			// Check if the chunk is a repeat
+			repeats, err := parent.IsRepeatChunk(ctx, []*ChunkCertificate{cert}, set.NewBits())
+			if err != nil {
+				return nil, err
+			}
+			if repeats.Len() > 0 {
+				log.Warn("skipping duplicate chunk", zap.Stringer("chunkID", cert.Chunk))
+				continue
+			}
+
 			// TODO: verify certificate signature is valid
 			// TODO: verify certificate is not expired
 			// TODO: verify certificate is not a repeat

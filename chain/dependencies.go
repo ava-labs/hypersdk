@@ -78,6 +78,9 @@ type VM interface {
 	StateManager() StateManager
 	ValidatorState() validators.State
 
+	IsIssuedTx(context.Context, *Transaction) bool
+	IssueTx(context.Context, *Transaction)
+
 	IsRepeatTx(context.Context, []*Transaction, set.Bits) set.Bits
 	IsRepeatChunk(context.Context, []*ChunkCertificate, set.Bits) set.Bits
 

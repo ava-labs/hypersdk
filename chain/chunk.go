@@ -37,8 +37,15 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	for time.Since(start) < vm.GetTargetBuildDuration() && len(c.Txs) < 100 {
 		txs := mempool.Stream(ctx, 16)
 		for i, tx := range txs {
+			// Ensure we haven't included this transaction in a chunk yet
+			if vm.IsIssuedTx(ctx, tx) {
+				continue
+			}
+
 			// TODO: verify transactions
 
+			// Add transaction to chunk
+			vm.IssueTx(ctx, tx)
 			c.Txs = append(c.Txs, tx)
 			if len(c.Txs) == 100 {
 				if i+1 < len(txs) {
