@@ -255,9 +255,10 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 			runningDuration := time.Since(start)
 			tpsDivisor := math.Min(window.WindowSize, runningDuration.Seconds())
 			utils.Outf(
-				"{{green}}block height:{{/}}%d {{green}}chunk:{{/}}%d {{green}}txs:{{/}}%d {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}TPS:{{/}}%.2f\n",
+				"{{green}}block height:{{/}}%d {{green}}chunk:{{/}}%s {{green}}producer:{{/}}%s {{green}}txs:{{/}}%d {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}TPS:{{/}}%.2f\n",
 				blk,
 				chunkID,
+				chunk.Producer,
 				len(chunk.Txs),
 				float64(chunk.Size())/units.KiB,
 				ParseDimensions(consumed),
@@ -265,9 +266,10 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 			)
 		} else {
 			utils.Outf(
-				"{{green}}block height:{{/}}%d {{green}}chunk:{{/}}%d {{green}}txs:{{/}}%d {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s]\n",
+				"{{green}}block height:{{/}}%d {{green}}chunk:{{/}}%s {{green}}producer:{{/}}%s {{green}}txs:{{/}}%d {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s]\n",
 				blk,
 				chunkID,
+				chunk.Producer,
 				len(chunk.Txs),
 				float64(chunk.Size())/units.KiB,
 				ParseDimensions(consumed),

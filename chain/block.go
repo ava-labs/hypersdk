@@ -482,7 +482,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 
 	// Verify start root and execution results
 	depth := r.GetBlockExecutionDepth()
-	if b.StatefulBlock.Height < depth {
+	if b.StatefulBlock.Height <= depth {
 		if b.StartRoot != ids.Empty || len(b.ExecutedChunks) > 0 {
 			return errors.New("no execution result should exist")
 		}
@@ -526,7 +526,9 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	b.st = choices.Accepted
 
 	// Start async execution
-	b.vm.Engine().Execute(b, b.StatefulBlock.Timestamp)
+	if b.StatefulBlock.Height > 0 { // nothing to execute in genesis
+		b.vm.Engine().Execute(b, b.StatefulBlock.Timestamp)
+	}
 
 	// Collect async results (if any)
 	var (

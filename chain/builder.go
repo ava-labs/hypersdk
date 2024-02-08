@@ -65,7 +65,7 @@ func BuildBlock(
 
 	// Fetch executed blocks
 	depth := r.GetBlockExecutionDepth()
-	if b.StatefulBlock.Height >= depth {
+	if b.StatefulBlock.Height > depth {
 		execHeight := b.StatefulBlock.Height - depth
 		root, executed, err := vm.Engine().Results(execHeight)
 		if err != nil {
