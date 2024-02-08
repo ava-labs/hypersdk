@@ -18,7 +18,7 @@ import (
 // if we build empty blocks too soon)
 //
 // TODO: consider replacing this with AvalancheGo block build metering
-const minBuildGap int64 = 25 // ms
+const minBuildGap int64 = 500 // ms
 
 var _ Builder = (*Time)(nil)
 

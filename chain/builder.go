@@ -85,7 +85,7 @@ func BuildBlock(
 	if err != nil {
 		return nil, err
 	}
-	b.id = utils.ToID(b.bytes)
+	b.id = utils.ToID(bytes)
 	b.t = time.UnixMilli(b.StatefulBlock.Timestamp)
 	b.bytes = bytes
 	b.parent = parent
