@@ -2,6 +2,7 @@ package chain
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
+	"go.uber.org/zap"
 )
 
 type Chunk struct {
@@ -74,21 +76,32 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	c.Slot = slot - slot%consts.MillisecondsPerDecisecond
 	c.Producer = vm.NodeID()
 	c.Signer = vm.Signer()
+
+	// Sign chunk
 	digest, err := c.Digest()
 	if err != nil {
 		return nil, err
 	}
-	r := vm.Rules(slot) // TODO: replace with actual values?
-	wm := &warp.UnsignedMessage{
-		NetworkID:     r.NetworkID(),
-		SourceChainID: r.ChainID(),
-		Payload:       digest,
+	r := vm.Rules(c.Slot) // TODO: replace with actual values?
+	wm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), digest)
+	if err != nil {
+		return nil, err
 	}
 	sig, err := vm.Sign(wm)
 	if err != nil {
 		return nil, err
 	}
 	c.Signature, err = bls.SignatureFromBytes(sig)
+
+	vm.Logger().Info(
+		"built chunk with signature",
+		zap.Stringer("nodeID", vm.NodeID()),
+		zap.Uint32("networkID", r.NetworkID()),
+		zap.Stringer("chainID", r.ChainID()),
+		zap.String("digest", hex.EncodeToString(digest)),
+		zap.String("signer", hex.EncodeToString(bls.PublicKeyToBytes(c.Signer))),
+		zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(c.Signature))),
+	)
 	return c, err
 }
 
@@ -155,10 +168,9 @@ func (c *Chunk) VerifySignature(networkID uint32, chainID ids.ID) bool {
 		return false
 	}
 	// TODO: don't use warp message for this (nice to have chainID protection)?
-	msg := &warp.UnsignedMessage{
-		NetworkID:     networkID,
-		SourceChainID: chainID,
-		Payload:       digest,
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, digest)
+	if err != nil {
+		return false
 	}
 	return bls.Verify(c.Signer, c.Signature, msg.Bytes())
 }
@@ -249,10 +261,9 @@ func (c *ChunkSignature) VerifySignature(networkID uint32, chainID ids.ID) bool 
 		return false
 	}
 	// TODO: don't use warp message for this (nice to have chainID protection)?
-	msg := &warp.UnsignedMessage{
-		NetworkID:     networkID,
-		SourceChainID: chainID,
-		Payload:       digest,
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, digest)
+	if err != nil {
+		return false
 	}
 	return bls.Verify(c.Signer, c.Signature, msg.Bytes())
 }

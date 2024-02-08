@@ -29,7 +29,6 @@ func BuildBlock(
 	nextTime := time.Now().UnixMilli()
 	r := vm.Rules(nextTime)
 	if nextTime < parent.StatefulBlock.Timestamp+r.GetMinBlockGap() {
-		log.Warn("block building failed", zap.Error(ErrTimestampTooEarly))
 		return nil, ErrTimestampTooEarly
 	}
 	b := NewBlock(vm, parent, nextTime)

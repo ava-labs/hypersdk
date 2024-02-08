@@ -3,6 +3,7 @@ package vm
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync"
@@ -199,7 +200,19 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 		// TODO: ensure signer of chunk is associated with NodeID
 		if !chunk.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID) {
-			c.vm.Logger().Warn("dropping chunk with invalid signature", zap.Stringer("nodeID", nodeID))
+			dig, err := chunk.Digest()
+			if err != nil {
+				panic(err)
+			}
+			c.vm.Logger().Warn(
+				"dropping chunk with invalid signature",
+				zap.Stringer("nodeID", nodeID),
+				zap.Uint32("networkID", c.vm.snowCtx.NetworkID),
+				zap.Stringer("chainID", c.vm.snowCtx.ChainID),
+				zap.String("digest", hex.EncodeToString(dig)),
+				zap.String("signer", hex.EncodeToString(bls.PublicKeyToBytes(chunk.Signer))),
+				zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(chunk.Signature))),
+			)
 			return nil
 		}
 
@@ -228,10 +241,10 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			c.vm.Logger().Warn("cannot generate cert digest", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
-		warpMessage := &warp.UnsignedMessage{
-			NetworkID:     c.vm.snowCtx.NetworkID,
-			SourceChainID: c.vm.snowCtx.ChainID,
-			Payload:       digest,
+		warpMessage, err := warp.NewUnsignedMessage(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID, digest)
+		if err != nil {
+			c.vm.Logger().Warn("unable to build warp message", zap.Error(err))
+			return nil
 		}
 		sig, err := c.vm.snowCtx.WarpSigner.Sign(warpMessage)
 		if err != nil {
@@ -468,6 +481,16 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				continue
 			}
 			c.PushChunk(context.TODO(), chunk)
+			cid, err := chunk.ID()
+			if err != nil {
+				// TODO: pre-calc ID
+				panic(err)
+			}
+			c.vm.Logger().Info(
+				"built chunk",
+				zap.Stringer("id", cid),
+				zap.Int("txs", len(chunk.Txs)),
+			)
 		case <-c.vm.stop:
 			c.vm.Logger().Info("stopping chunk manager")
 			return
@@ -513,10 +536,9 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 	if err != nil {
 		panic(err)
 	}
-	warpMessage := &warp.UnsignedMessage{
-		NetworkID:     c.vm.snowCtx.NetworkID,
-		SourceChainID: c.vm.snowCtx.ChainID,
-		Payload:       digest,
+	warpMessage, err := warp.NewUnsignedMessage(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID, digest)
+	if err != nil {
+		panic(err)
 	}
 	sig, err := c.vm.snowCtx.WarpSigner.Sign(warpMessage)
 	if err != nil {
@@ -573,6 +595,7 @@ func (c *ChunkManager) HandleTxs(ctx context.Context, txs []*chain.Transaction) 
 	// Add to mempool
 	if ok {
 		c.vm.mempool.Add(ctx, txs)
+		c.vm.Logger().Info("added txs to mempool", zap.Int("n", len(txs)))
 		return
 	}
 
