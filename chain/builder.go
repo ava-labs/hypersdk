@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// TODO: move to block file?
 func BuildBlock(
 	ctx context.Context,
 	vm VM,
@@ -88,14 +89,27 @@ func BuildBlock(
 	b.parent = parent
 	b.bctx = blockContext
 
-	log.Info(
-		"built block",
-		zap.Stringer("blockID", b.ID()),
-		zap.Uint64("height", b.StatefulBlock.Height),
-		zap.Stringer("parentID", b.Parent()),
-		zap.Int("available chunks", len(b.AvailableChunks)),
-		zap.Stringer("start root", b.StartRoot),
-		zap.Int("executed chunks", len(b.ExecutedChunks)),
-	)
+	if b.execHeight == nil {
+		log.Info(
+			"built block",
+			zap.Stringer("blockID", b.ID()),
+			zap.Uint64("height", b.StatefulBlock.Height),
+			zap.Stringer("parentID", b.Parent()),
+			zap.Int("available chunks", len(b.AvailableChunks)),
+			zap.Stringer("start root", b.StartRoot),
+			zap.Int("executed chunks", len(b.ExecutedChunks)),
+		)
+	} else {
+		log.Info(
+			"built block",
+			zap.Stringer("blockID", b.ID()),
+			zap.Uint64("height", b.StatefulBlock.Height),
+			zap.Uint64("execHeight", *b.execHeight),
+			zap.Stringer("parentID", b.Parent()),
+			zap.Int("available chunks", len(b.AvailableChunks)),
+			zap.Stringer("start root", b.StartRoot),
+			zap.Int("executed chunks", len(b.ExecutedChunks)),
+		)
+	}
 	return b, nil
 }
