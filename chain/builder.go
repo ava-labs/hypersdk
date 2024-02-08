@@ -102,12 +102,12 @@ func BuildBlock(
 		return nil, err
 	}
 	parentFeeManager := fees.NewManager(feeRaw)
-	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, nextTime, r.Fees())
+	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, nextTime, r)
 	if err != nil {
 		return nil, err
 	}
-	maxUnits := r.Fees().GetMaxBlockUnits()
-	targetUnits := r.Fees().GetWindowTargetUnits()
+	maxUnits := r.GetMaxBlockUnits()
+	targetUnits := r.GetWindowTargetUnits()
 
 	var (
 		ts            = tstate.New(changesEstimate)

@@ -16,7 +16,6 @@ import (
 	reflect "reflect"
 
 	ids "github.com/ava-labs/avalanchego/ids"
-	fees "github.com/ava-labs/hypersdk/fees"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -55,20 +54,6 @@ func (m *MockRules) ChainID() ids.ID {
 func (mr *MockRulesMockRecorder) ChainID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChainID", reflect.TypeOf((*MockRules)(nil).ChainID))
-}
-
-// Fees mocks base method.
-func (m *MockRules) Fees() fees.Metadata {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Fees")
-	ret0, _ := ret[0].(fees.Metadata)
-	return ret0
-}
-
-// Fees indicates an expected call of Fees.
-func (mr *MockRulesMockRecorder) Fees() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fees", reflect.TypeOf((*MockRules)(nil).Fees))
 }
 
 // FetchCustom mocks base method.

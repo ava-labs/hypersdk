@@ -124,7 +124,10 @@ type Rules interface {
 	GetMinEmptyBlockGap() int64 // in milliseconds
 	GetValidityWindow() int64   // in milliseconds
 
-	Fees() Fees
+	GetMinUnitPrice() fees.Dimensions
+	GetUnitPriceChangeDenominator() fees.Dimensions
+	GetWindowTargetUnits() fees.Dimensions
+	GetMaxBlockUnits() fees.Dimensions
 
 	GetBaseComputeUnits() uint64
 	GetBaseWarpComputeUnits() uint64
@@ -154,13 +157,6 @@ type Rules interface {
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
 
 	FetchCustom(string) (any, bool)
-}
-
-type Fees interface {
-	GetMinUnitPrice() fees.Dimensions
-	GetUnitPriceChangeDenominator() fees.Dimensions
-	GetWindowTargetUnits() fees.Dimensions
-	GetMaxBlockUnits() fees.Dimensions
 }
 
 type MetadataManager interface {

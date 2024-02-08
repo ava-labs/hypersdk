@@ -10,20 +10,13 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 )
 
-var (
-	_ chain.Rules   = (*Rules)(nil)
-	_ fees.Metadata = (*FeeMetadata)(nil)
-)
+var _ chain.Rules = (*Rules)(nil)
 
 type Rules struct {
 	g *Genesis
 
 	networkID uint32
 	chainID   ids.ID
-}
-
-type FeeMetadata struct {
-	*Rules
 }
 
 // TODO: use upgradeBytes
@@ -57,6 +50,10 @@ func (r *Rules) GetMinEmptyBlockGap() int64 {
 
 func (r *Rules) GetValidityWindow() int64 {
 	return r.g.ValidityWindow
+}
+
+func (r *Rules) GetMaxBlockUnits() fees.Dimensions {
+	return r.g.MaxBlockUnits
 }
 
 func (r *Rules) GetBaseComputeUnits() uint64 {
@@ -103,24 +100,16 @@ func (r *Rules) GetStorageValueWriteUnits() uint64 {
 	return r.g.StorageValueWriteUnits
 }
 
-func (r *Rules) Fees() fees.Metadata {
-	return &FeeMetadata{r}
+func (r *Rules) GetMinUnitPrice() fees.Dimensions {
+	return r.g.MinUnitPrice
 }
 
-func (f *FeeMetadata) GetMinUnitPrice() fees.Dimensions {
-	return f.Rules.g.MinUnitPrice
+func (r *Rules) GetUnitPriceChangeDenominator() fees.Dimensions {
+	return r.g.UnitPriceChangeDenominator
 }
 
-func (f *FeeMetadata) GetUnitPriceChangeDenominator() fees.Dimensions {
-	return f.Rules.g.UnitPriceChangeDenominator
-}
-
-func (f *FeeMetadata) GetWindowTargetUnits() fees.Dimensions {
-	return f.Rules.g.WindowTargetUnits
-}
-
-func (f *FeeMetadata) GetMaxBlockUnits() fees.Dimensions {
-	return f.Rules.g.MaxBlockUnits
+func (r *Rules) GetWindowTargetUnits() fees.Dimensions {
+	return r.g.WindowTargetUnits
 }
 
 func (*Rules) FetchCustom(string) (any, bool) {

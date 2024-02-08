@@ -324,7 +324,7 @@ func (vm *VM) Initialize(
 		}
 		genesisRules := vm.c.Rules(0)
 		feeManager := fees.NewManager(nil)
-		minUnitPrice := genesisRules.Fees().GetMinUnitPrice()
+		minUnitPrice := genesisRules.GetMinUnitPrice()
 		for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
@@ -808,7 +808,7 @@ func (vm *VM) Submit(
 	feeManager := fees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()
 	r := vm.c.Rules(now)
-	nextFeeManager, err := feeManager.ComputeNext(blk.Tmstmp, now, r.Fees())
+	nextFeeManager, err := feeManager.ComputeNext(blk.Tmstmp, now, r)
 	if err != nil {
 		return []error{err}
 	}
