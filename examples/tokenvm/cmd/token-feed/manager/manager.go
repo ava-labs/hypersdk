@@ -6,10 +6,9 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"sync"
 	"time"
-
-	"slices"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"

@@ -8,9 +8,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
 	"slices"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils"
