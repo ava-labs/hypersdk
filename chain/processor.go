@@ -259,6 +259,10 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 			continue
 		}
 
+		// TODO: only run first txID referenced per chunk
+		//
+		// TODO: Remove txIDs that are invalid after all execution is done.
+
 		// TODO: Check that transaction included in right partition
 
 		// Enqueue transaction for execution
