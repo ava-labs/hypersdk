@@ -318,6 +318,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 			zap.Uint64("height", b.StatefulBlock.Height),
 			zap.Stringer("parentID", b.Parent()),
 		)
+		b.vm.Verified(ctx, b)
 		return nil
 	}
 

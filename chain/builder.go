@@ -24,9 +24,6 @@ func BuildBlock(
 	defer span.End()
 	log := vm.Logger()
 
-	// We don't need to fetch the [VerifyContext] because
-	// we will always have a block to build on.
-
 	// Select next timestamp
 	nextTime := time.Now().UnixMilli()
 	r := vm.Rules(nextTime)
