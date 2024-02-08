@@ -32,7 +32,7 @@ func BuildBlock(
 	nextTime := time.Now().UnixMilli()
 	r := vm.Rules(nextTime)
 	if nextTime < parent.StatefulBlock.Timestamp+r.GetMinBlockGap() {
-		log.Debug("block building failed", zap.Error(ErrTimestampTooEarly))
+		log.Warn("block building failed", zap.Error(ErrTimestampTooEarly))
 		return nil, ErrTimestampTooEarly
 	}
 	b := NewBlock(vm, parent, nextTime)
@@ -92,5 +92,15 @@ func BuildBlock(
 	b.bytes = bytes
 	b.parent = parent
 	b.bctx = blockContext
+
+	log.Info(
+		"built block",
+		zap.Stringer("blockID", b.ID()),
+		zap.Uint64("height", b.StatefulBlock.Height),
+		zap.Stringer("parentID", b.Parent()),
+		zap.Int("available chunks", len(b.AvailableChunks)),
+		zap.Stringer("start root", b.StartRoot),
+		zap.Int("executed chunks", len(b.ExecutedChunks)),
+	)
 	return b, nil
 }

@@ -48,7 +48,7 @@ func (cw *chunkWrapper) Expiry() int64 {
 
 // Store fifo chunks for building
 type CertStore struct {
-	l *sync.Mutex
+	l sync.Mutex
 
 	queue *list.List[*chain.ChunkCertificate]
 	eh    *eheap.ExpiryHeap[*list.Element[*chain.ChunkCertificate]]

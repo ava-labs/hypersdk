@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -259,7 +260,7 @@ func (e *Engine) Commit(ctx context.Context, height uint64) (*FeeManager, [][]*R
 	output, ok := e.outputs[height]
 	if !ok {
 		e.outputsLock.Unlock()
-		return nil, nil, nil, errors.New("not found")
+		return nil, nil, nil, fmt.Errorf("%w: %d", errors.New("not outputs found at height"), height)
 	}
 	delete(e.outputs, height)
 	if e.largestOutput != nil && *e.largestOutput == height {

@@ -312,6 +312,12 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 func (b *StatelessBlock) verify(ctx context.Context) error {
 	// Skip verification if we built this block
 	if b.built {
+		b.vm.Logger().Info(
+			"skipping verify because built block",
+			zap.Stringer("blockID", b.ID()),
+			zap.Uint64("height", b.StatefulBlock.Height),
+			zap.Stringer("parentID", b.Parent()),
+		)
 		return nil
 	}
 
@@ -320,6 +326,16 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	var (
 		log = b.vm.Logger()
 		r   = b.vm.Rules(b.StatefulBlock.Timestamp)
+	)
+
+	log.Info(
+		"verifying block",
+		zap.Stringer("blockID", b.ID()),
+		zap.Uint64("height", b.StatefulBlock.Height),
+		zap.Stringer("parentID", b.Parent()),
+		zap.Int("available chunks", len(b.AvailableChunks)),
+		zap.Stringer("start root", b.StartRoot),
+		zap.Int("executed chunks", len(b.ExecutedChunks)),
 	)
 
 	// Perform basic correctness checks before doing any expensive work
@@ -332,7 +348,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	// We do not have access to state here, so we must use the parent block.
 	parent, err := b.vm.GetStatelessBlock(ctx, b.StatefulBlock.Parent)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: can't get parent block %s", err, b.StatefulBlock.Parent)
 	}
 	if b.StatefulBlock.Height != parent.StatefulBlock.Height+1 {
 		return ErrInvalidBlockHeight
@@ -349,7 +365,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	// Check duplicate certificates
 	repeats, err := parent.IsRepeatChunk(ctx, b.AvailableChunks, set.NewBits())
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: can't check if chunk is repeat", err)
 	}
 	if repeats.Len() > 0 {
 		return errors.New("duplicate chunk issuance")
@@ -518,12 +534,17 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	if b.execHeight != nil {
 		fm, _, fc, err := b.vm.Engine().Commit(ctx, *b.execHeight)
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: cannot commit", err)
 		}
 		filteredChunks = fc
 		feeManager = fm
 	}
 	b.vm.Accepted(ctx, b, feeManager, filteredChunks)
+	b.vm.Logger().Info(
+		"accept returned",
+		zap.Uint64("height", b.StatefulBlock.Height),
+		zap.Stringer("blockID", b.ID()),
+	)
 	return nil
 }
 

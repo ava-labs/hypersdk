@@ -703,7 +703,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	// If we have seen this block before, return it with the most
 	// up-to-date info
 	if oldBlk, err := vm.GetStatelessBlock(ctx, id); err == nil {
-		vm.snowCtx.Log.Debug("returning previously parsed block", zap.Stringer("id", oldBlk.ID()))
+		vm.snowCtx.Log.Info("returning previously parsed block", zap.Stringer("id", oldBlk.ID()))
 		return oldBlk, nil
 	}
 

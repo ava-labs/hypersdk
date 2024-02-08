@@ -177,7 +177,7 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 
 	// Ensure children of block are cleared, they may never be
 	// verified
-	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
+	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()), zap.Uint64("height", b.Height()))
 }
 
 func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock, feeManager *chain.FeeManager) {
